@@ -1,0 +1,298 @@
+/* styles/desktop-app.css */
+
+/* Global reset untuk tampilan lebih compact */
+* {
+  box-sizing: border-box;
+}
+
+/* Container utama dengan style desktop app */
+.desktop-app-container {
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  font-size: 11px;
+  background-color: #f0f0f0;
+  min-height: 100vh;
+  padding: 4px;
+}
+
+/* Form container dengan border style classic */
+.desktop-form {
+  background: white;
+  border: 2px solid #8096ad;
+  border-top-color: #b8cce6;
+  border-left-color: #b8cce6;
+  box-shadow: inset -1px -1px 0 #6b7785, inset 1px 1px 0 #ffffff;
+  margin: 0;
+  padding: 8px;
+}
+
+/* Input fields dengan style classic */
+.desktop-input {
+  border: 1px solid #7f9db9;
+  border-top-color: #5d7e9b;
+  border-left-color: #5d7e9b;
+  box-shadow: inset 1px 1px 1px rgba(0,0,0,0.1);
+  padding: 2px 4px;
+  font-size: 11px;
+  line-height: 1.2;
+  background: white;
+  height: 20px;
+}
+
+.desktop-input:focus {
+  outline: none;
+  border-color: #316ac5;
+  box-shadow: inset 1px 1px 2px rgba(49, 106, 197, 0.3);
+}
+
+/* Labels dengan style desktop */
+.desktop-label {
+  font-size: 11px;
+  color: #333;
+  font-weight: normal;
+  padding-right: 6px;
+  text-align: right;
+  white-space: nowrap;
+}
+
+/* Table dengan style classic */
+.desktop-table {
+  border: 1px solid #8096ad;
+  border-collapse: collapse;
+  font-size: 10px;
+  width: 100%;
+}
+
+.desktop-table th {
+  background: linear-gradient(to bottom, #e8eef7 0%, #d0dae8 100%);
+  border: 1px solid #8096ad;
+  padding: 2px 4px;
+  font-weight: normal;
+  font-size: 10px;
+  text-align: left;
+  height: 18px;
+}
+
+.desktop-table td {
+  border: 1px solid #8096ad;
+  padding: 1px 2px;
+  height: 18px;
+  vertical-align: middle;
+}
+
+.desktop-table input {
+  border: none;
+  background: transparent;
+  width: 100%;
+  height: 16px;
+  font-size: 10px;
+  padding: 0 2px;
+}
+
+.desktop-table input:focus {
+  background: #e6f3ff;
+  outline: 1px solid #316ac5;
+}
+
+/* Button dengan style classic */
+.desktop-button {
+  background: linear-gradient(to bottom, #f8f9fa 0%, #e9ecef 100%);
+  border: 1px solid #8096ad;
+  border-top-color: #b8cce6;
+  border-left-color: #b8cce6;
+  padding: 3px 12px;
+  font-size: 11px;
+  cursor: pointer;
+  height: 23px;
+  min-width: 60px;
+  margin-right: 4px;
+}
+
+.desktop-button:hover {
+  background: linear-gradient(to bottom, #ffffff 0%, #f0f2f5 100%);
+}
+
+.desktop-button:active {
+  background: linear-gradient(to bottom, #e9ecef 0%, #f8f9fa 100%);
+  border-top-color: #5d7e9b;
+  border-left-color: #5d7e9b;
+  box-shadow: inset 1px 1px 2px rgba(0,0,0,0.1);
+}
+
+.desktop-button.primary {
+  background: linear-gradient(to bottom, #4a90e2 0%, #357abd 100%);
+  color: white;
+  border-color: #357abd;
+}
+
+.desktop-button.primary:hover {
+  background: linear-gradient(to bottom, #5ba0f2 0%, #4a90e2 100%);
+}
+
+/* Tabs dengan style desktop */
+.desktop-tabs {
+  border-bottom: 1px solid #8096ad;
+  background: #f0f0f0;
+  padding: 0;
+  margin: 0;
+}
+
+.desktop-tab {
+  display: inline-block;
+  padding: 4px 12px;
+  border: 1px solid #8096ad;
+  border-bottom: none;
+  background: linear-gradient(to bottom, #f8f9fa 0%, #e9ecef 100%);
+  font-size: 11px;
+  cursor: pointer;
+  margin-right: 2px;
+  position: relative;
+  top: 1px;
+}
+
+.desktop-tab.active {
+  background: white;
+  border-bottom: 1px solid white;
+  z-index: 1;
+}
+
+.desktop-tab:hover:not(.active) {
+  background: linear-gradient(to bottom, #ffffff 0%, #f0f2f5 100%);
+}
+
+/* Radio buttons dan checkboxes */
+.desktop-radio,
+.desktop-checkbox {
+  margin-right: 4px;
+  transform: scale(0.8);
+}
+
+/* Group box style */
+.desktop-groupbox {
+  border: 1px solid #8096ad;
+  background: #f8f9fa;
+  padding: 8px;
+  margin: 4px 0;
+  position: relative;
+}
+
+.desktop-groupbox-title {
+  position: absolute;
+  top: -6px;
+  left: 8px;
+  background: white;
+  padding: 0 4px;
+  font-size: 10px;
+  color: #333;
+}
+
+/* Textarea dengan style desktop */
+.desktop-textarea {
+  border: 1px solid #7f9db9;
+  border-top-color: #5d7e9b;
+  border-left-color: #5d7e9b;
+  box-shadow: inset 1px 1px 1px rgba(0,0,0,0.1);
+  padding: 2px 4px;
+  font-size: 11px;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  background: white;
+  resize: none;
+}
+
+.desktop-textarea:focus {
+  outline: none;
+  border-color: #316ac5;
+  box-shadow: inset 1px 1px 2px rgba(49, 106, 197, 0.3);
+}
+
+/* Select dropdown dengan style desktop */
+.desktop-select {
+  border: 1px solid #7f9db9;
+  border-top-color: #5d7e9b;
+  border-left-color: #5d7e9b;
+  box-shadow: inset 1px 1px 1px rgba(0,0,0,0.1);
+  padding: 1px 4px;
+  font-size: 11px;
+  background: white;
+  height: 20px;
+}
+
+.desktop-select:focus {
+  outline: none;
+  border-color: #316ac5;
+}
+
+/* Status bar style */
+.desktop-statusbar {
+  background: linear-gradient(to bottom, #f8f9fa 0%, #e9ecef 100%);
+  border-top: 1px solid #8096ad;
+  padding: 2px 8px;
+  font-size: 10px;
+  color: #666;
+  height: 20px;
+  display: flex;
+  align-items: center;
+}
+
+/* Compact spacing */
+.desktop-row {
+  margin-bottom: 3px;
+  display: flex;
+  align-items: center;
+}
+
+.desktop-row .desktop-label {
+  width: 100px;
+  flex-shrink: 0;
+}
+
+.desktop-row .desktop-input,
+.desktop-row .desktop-select {
+  flex: 1;
+  margin-left: 4px;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .desktop-form {
+    margin: 4px;
+    padding: 4px;
+  }
+  
+  .desktop-table {
+    font-size: 9px;
+  }
+  
+  .desktop-input,
+  .desktop-select {
+    font-size: 10px;
+  }
+}
+
+/* Hover effects untuk interactivity */
+.desktop-table tr:hover {
+  background-color: #f5f8ff;
+}
+
+/* Scrollbar styling untuk tampilan yang lebih desktop-like */
+::-webkit-scrollbar {
+  width: 16px;
+  height: 16px;
+}
+
+::-webkit-scrollbar-track {
+  background: #f0f0f0;
+  border: 1px solid #ccc;
+}
+
+::-webkit-scrollbar-thumb {
+  background: linear-gradient(to bottom, #e8eef7 0%, #d0dae8 100%);
+  border: 1px solid #8096ad;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(to bottom, #d0dae8 0%, #b8cce6 100%);
+}
+
+::-webkit-scrollbar-corner {
+  background: #f0f0f0;
+}

@@ -1,0 +1,394 @@
+/* src/styles/global.css */
+
+/* Import Google Fonts */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Poppins:wght@300;400;500;600;700;800&display=swap');
+
+/* CSS Variables for Typography */
+:root {
+  --font-family-primary: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --font-family-heading: 'Poppins', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-family-mono: 'JetBrains Mono', 'Fira Code', Consolas, 'Courier New', monospace;
+  
+  /* Font Weights */
+  --font-weight-light: 300;
+  --font-weight-normal: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+  --font-weight-extrabold: 800;
+  
+  /* Line Heights */
+  --line-height-tight: 1.2;
+  --line-height-snug: 1.35;
+  --line-height-normal: 1.5;
+  --line-height-relaxed: 1.6;
+  --line-height-loose: 1.75;
+  
+  /* Letter Spacing */
+  --letter-spacing-tight: -0.025em;
+  --letter-spacing-normal: 0em;
+  --letter-spacing-wide: 0.025em;
+  --letter-spacing-wider: 0.05em;
+  
+  /* Border Radius */
+  --border-radius-sm: 8px;
+  --border-radius-md: 12px;
+  --border-radius-lg: 16px;
+  --border-radius-xl: 20px;
+  
+  /* Shadows */
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.1);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.1);
+  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.12);
+  --shadow-xl: 0 16px 48px rgba(0, 0, 0, 0.15);
+  
+  /* Transitions */
+  --transition-fast: 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-normal: 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-slow: 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Global Typography Classes */
+.text-display-1 {
+  font-family: var(--font-family-heading);
+  font-size: 3.5rem;
+  font-weight: var(--font-weight-bold);
+  line-height: var(--line-height-tight);
+  letter-spacing: var(--letter-spacing-tight);
+}
+
+.text-display-2 {
+  font-family: var(--font-family-heading);
+  font-size: 3rem;
+  font-weight: var(--font-weight-bold);
+  line-height: var(--line-height-tight);
+  letter-spacing: var(--letter-spacing-tight);
+}
+
+.text-display-3 {
+  font-family: var(--font-family-heading);
+  font-size: 2.5rem;
+  font-weight: var(--font-weight-semibold);
+  line-height: var(--line-height-snug);
+  letter-spacing: var(--letter-spacing-tight);
+}
+
+/* Custom Typography Utilities */
+.font-heading {
+  font-family: var(--font-family-heading);
+}
+
+.font-body {
+  font-family: var(--font-family-primary);
+}
+
+.font-mono {
+  font-family: var(--font-family-mono);
+}
+
+/* Enhanced Base Styles */
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+  font-size: 16px;
+}
+
+body {
+  font-family: var(--font-family-primary);
+  font-weight: var(--font-weight-normal);
+  line-height: var(--line-height-normal);
+  color: rgb(var(--v-theme-on-background));
+  background-color: rgb(var(--v-theme-background));
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+/* Enhanced Vuetify Typography Overrides */
+.v-application {
+  font-family: var(--font-family-primary) !important;
+}
+
+/* Headings */
+.text-h1, .v-card-title.text-h1 {
+  font-family: var(--font-family-heading) !important;
+  font-weight: var(--font-weight-bold) !important;
+  line-height: var(--line-height-tight) !important;
+  letter-spacing: var(--letter-spacing-tight) !important;
+}
+
+.text-h2, .v-card-title.text-h2 {
+  font-family: var(--font-family-heading) !important;
+  font-weight: var(--font-weight-semibold) !important;
+  line-height: var(--line-height-snug) !important;
+  letter-spacing: var(--letter-spacing-tight) !important;
+}
+
+.text-h3, .v-card-title.text-h3 {
+  font-family: var(--font-family-heading) !important;
+  font-weight: var(--font-weight-semibold) !important;
+  line-height: var(--line-height-snug) !important;
+}
+
+.text-h4, .text-h5, .text-h6 {
+  font-family: var(--font-family-heading) !important;
+  font-weight: var(--font-weight-semibold) !important;
+}
+
+/* Subtitles */
+.text-subtitle-1, .text-subtitle-2 {
+  font-family: var(--font-family-primary) !important;
+  font-weight: var(--font-weight-semibold) !important;
+  letter-spacing: var(--letter-spacing-normal) !important;
+}
+
+/* Body Text */
+.text-body-1, .text-body-2 {
+  font-family: var(--font-family-primary) !important;
+  font-weight: var(--font-weight-normal) !important;
+  line-height: var(--line-height-relaxed) !important;
+}
+
+/* Buttons */
+.v-btn {
+  font-family: var(--font-family-primary) !important;
+  font-weight: var(--font-weight-semibold) !important;
+  text-transform: none !important;
+  letter-spacing: var(--letter-spacing-normal) !important;
+  border-radius: var(--border-radius-md) !important;
+  transition: all var(--transition-normal) !important;
+  box-shadow: var(--shadow-sm) !important;
+}
+
+.v-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-md) !important;
+}
+
+.v-btn--variant-elevated {
+  box-shadow: var(--shadow-md) !important;
+}
+
+.v-btn--variant-elevated:hover {
+  box-shadow: var(--shadow-lg) !important;
+}
+
+/* Form Elements */
+.v-field {
+  border-radius: var(--border-radius-md) !important;
+  font-family: var(--font-family-primary) !important;
+}
+
+.v-field__input {
+  font-family: var(--font-family-primary) !important;
+  font-weight: var(--font-weight-normal) !important;
+  line-height: var(--line-height-normal) !important;
+}
+
+.v-label {
+  font-family: var(--font-family-primary) !important;
+  font-weight: var(--font-weight-medium) !important;
+  letter-spacing: var(--letter-spacing-normal) !important;
+}
+
+/* Cards */
+.v-card {
+  border-radius: var(--border-radius-lg) !important;
+  box-shadow: var(--shadow-sm) !important;
+  transition: all var(--transition-normal) !important;
+}
+
+.v-card:hover {
+  box-shadow: var(--shadow-md) !important;
+}
+
+.v-card-title {
+  font-family: var(--font-family-heading) !important;
+  font-weight: var(--font-weight-semibold) !important;
+  letter-spacing: var(--letter-spacing-normal) !important;
+  padding: 20px 24px 8px !important;
+}
+
+.v-card-subtitle {
+  font-family: var(--font-family-primary) !important;
+  font-weight: var(--font-weight-medium) !important;
+  color: rgb(var(--v-theme-on-surface-variant)) !important;
+  padding: 0 24px 8px !important;
+}
+
+.v-card-text {
+  font-family: var(--font-family-primary) !important;
+  font-weight: var(--font-weight-normal) !important;
+  line-height: var(--line-height-relaxed) !important;
+  padding: 16px 24px !important;
+}
+
+/* Navigation & Menus */
+.v-list-item-title {
+  font-family: var(--font-family-primary) !important;
+  font-weight: var(--font-weight-medium) !important;
+  letter-spacing: var(--letter-spacing-normal) !important;
+  font-size: 0.95rem;
+  white-space: normal !important;
+}
+
+.v-list-item-subtitle {
+  font-family: var(--font-family-primary) !important;
+  font-weight: var(--font-weight-normal) !important;
+}
+
+.v-navigation-drawer .v-list-item {
+  border-radius: var(--border-radius-sm) !important;
+  margin: 2px 8px !important;
+}
+
+/* Tables */
+.v-data-table {
+  border-radius: var(--border-radius-lg) !important;
+  box-shadow: var(--shadow-sm) !important;
+}
+
+.v-data-table-header__content {
+  font-family: var(--font-family-primary) !important;
+  font-weight: var(--font-weight-semibold) !important;
+  letter-spacing: var(--letter-spacing-normal) !important;
+}
+
+.v-data-table__td {
+  font-family: var(--font-family-primary) !important;
+  font-weight: var(--font-weight-normal) !important;
+}
+
+/* Chips */
+.v-chip {
+  font-family: var(--font-family-primary) !important;
+  font-weight: var(--font-weight-medium) !important;
+  font-size: 0.8125rem !important;
+  border-radius: var(--border-radius-md) !important;
+}
+
+/* Alerts */
+.v-alert {
+  border-radius: var(--border-radius-lg) !important;
+  font-family: var(--font-family-primary) !important;
+}
+
+.v-alert__content {
+  font-weight: var(--font-weight-normal) !important;
+  line-height: var(--line-height-relaxed) !important;
+}
+
+/* Tabs */
+.v-tab {
+  font-family: var(--font-family-primary) !important;
+  font-weight: var(--font-weight-semibold) !important;
+  text-transform: none !important;
+  letter-spacing: var(--letter-spacing-normal) !important;
+}
+
+/* Dialogs */
+.v-dialog > .v-overlay__content > .v-card {
+  border-radius: var(--border-radius-xl) !important;
+  box-shadow: var(--shadow-xl) !important;
+}
+
+/* Tooltips */
+.v-tooltip > .v-overlay__content {
+  font-family: var(--font-family-primary) !important;
+  font-weight: var(--font-weight-medium) !important;
+  font-size: 0.8125rem !important;
+  border-radius: var(--border-radius-sm) !important;
+}
+
+/* Snackbars */
+.v-snackbar {
+  font-family: var(--font-family-primary) !important;
+  font-weight: var(--font-weight-medium) !important;
+  border-radius: var(--border-radius-lg) !important;
+}
+
+/* Progress Components */
+.v-progress-circular, .v-progress-linear {
+  border-radius: var(--border-radius-sm) !important;
+}
+
+/* Custom Utility Classes */
+.glass-morphism {
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.shadow-soft {
+  box-shadow: 0 2px 16px rgba(0, 0, 0, 0.08) !important;
+}
+
+.shadow-strong {
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12) !important;
+}
+
+.rounded-soft {
+  border-radius: var(--border-radius-md) !important;
+}
+
+.rounded-strong {
+  border-radius: var(--border-radius-lg) !important;
+}
+
+.transition-smooth {
+  transition: all var(--transition-normal) !important;
+}
+
+.hover-lift:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-lg) !important;
+}
+
+/* Responsive Typography */
+@media (max-width: 600px) {
+  .text-display-1 {
+    font-size: 2.5rem;
+  }
+  
+  .text-display-2 {
+    font-size: 2rem;
+  }
+  
+  .text-display-3 {
+    font-size: 1.75rem;
+  }
+  
+  .text-h1 {
+    font-size: 2rem !important;
+  }
+  
+  .text-h2 {
+    font-size: 1.75rem !important;
+  }
+  
+  .text-h3 {
+    font-size: 1.5rem !important;
+  }
+}
+
+@media (max-width: 960px) {
+  html {
+    font-size: 14px;
+  }
+}
+
+/* Print Styles */
+@media print {
+  * {
+    color: #000 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+  }
+  
+  .v-btn, .v-navigation-drawer, .v-app-bar {
+    display: none !important;
+  }
+}

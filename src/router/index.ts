@@ -3,7 +3,9 @@ import { useAuthStore } from '@/stores/authStore';
 
 // Impor semua komponen View/halaman Anda
 import LoginView from '../views/LoginView.vue';
-import HomeView from '../views/HomeView.vue'; // <-- Impor HomeView
+import HomeView from '../views/HomeView.vue'; 
+import NotFoundView from '@/views/NotFoundView.vue';
+import UnauthorizedView from '@/views/UnauthorizedView.vue';
 import ManualProgramView from '../views/ManualProgramView.vue';
 import HistoryUpdateView from '../views/HistoryUpdateView.vue';
 import VersionCheckView from '../views/VersionCheckView.vue';
@@ -40,6 +42,18 @@ const routes = [
       requiresAuth: true,
       public: true 
     }
+  },
+  {
+    path: '/unauthorized',
+    name: 'Unauthorized',
+    component: UnauthorizedView,
+    meta: { requiresAuth: true } 
+  },
+
+  { 
+    path: '/:pathMatch(.*)*', 
+    name: 'NotFound',
+    component: NotFoundView
   },
   {
     path: '/manual',
@@ -272,7 +286,7 @@ router.beforeEach((to, from, next) => {
     const hasPermission = allowedMenus.includes(to.meta.menuId);
     if (!hasPermission) {
       // console.log("[ROUTER] No permission for menuId:", to.meta.menuId);
-      return next('/'); // redirect ke home, bukan unauthorized
+      return next({ name: 'Unauthorized' }); // redirect ke home, bukan unauthorized
     }
   }
 

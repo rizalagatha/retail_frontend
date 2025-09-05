@@ -29,4 +29,23 @@ api.interceptors.request.use(
   }
 );
 
+api.interceptors.response.use(
+  (response) => {
+    // Jika response sukses, langsung kembalikan
+    return response;
+  },
+  (error) => {
+    const authStore = useAuthStore();
+    
+    // Cek jika error adalah 401 (Unauthorized)
+    if (error.response && error.response.status === 401) {
+      // Panggil fungsi untuk menampilkan dialog sesi habis
+      authStore.handleSessionExpired();
+    }
+
+    // Kembalikan error agar bisa ditangani lebih lanjut jika perlu
+    return Promise.reject(error);
+  }
+);
+
 export default api;

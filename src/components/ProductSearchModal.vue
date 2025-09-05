@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue';
 import api from '@/services/api';
-import { useAuthStore } from '@/stores/authStore';
 
 // --- Tipe Data Diperbarui ---
 interface ProductVariant {
@@ -67,7 +66,6 @@ const loadItems = async ({ page, itemsPerPage }: { page: number, itemsPerPage: n
 };
 
 const selectVariant = (item: ProductVariant) => {
-    console.log('Produk dipilih:', item); // Debug log
     if (item && item.kode) {
         // Kirim hanya kode seperti yang diharapkan parent
         emit('product-selected', { kode: item.kode });
@@ -87,22 +85,23 @@ watch(search, () => {
 </script>
 
 <template>
-  <v-dialog :model-value="true" @update:modelValue="emit('close')" max-width="1200px" persistent>
-    <v-card>
-      <v-toolbar color="primary" dark>
-        <v-toolbar-title>Bantuan - Pilih Varian Produk</v-toolbar-title>
+  <v-dialog :model-value="true" @update:modelValue="$emit('close')" max-width="1200px" persistent>
+    <v-card class="dialog-card d-flex flex-column" style="height: 80vh;">
+      <v-toolbar color="primary" density="compact">
+        <v-toolbar-title class="text-subtitle-1">Bantuan - Pilih Varian Produk</v-toolbar-title>
         <v-spacer></v-spacer>
-        <v-btn icon="mdi-close" @click="emit('close')" variant="text"></v-btn>
+        <v-btn icon="mdi-close" @click="$emit('close')" variant="text" size="small"></v-btn>
       </v-toolbar>
 
-      <v-card-text class="pa-4">
+      <v-card-text class="pa-4 d-flex flex-column flex-grow-1">
         <v-text-field
           v-model="search"
           label="Cari berdasarkan kode, nama, atau barcode..."
           prepend-inner-icon="mdi-magnify"
           variant="outlined"
+          density="compact"
           clearable
-          class="mb-4"
+          class="mb-4 flex-shrink-0"
           hide-details
         ></v-text-field>
 
@@ -115,34 +114,35 @@ watch(search, () => {
           :loading="loading"
           @update:options="loadItems"
           hover
-          class="elevation-1"
+          class="desktop-table flex-grow-1"
           density="compact"
+          fixed-header
         >
-          <!-- Gunakan slot item yang lebih sederhana -->
-          <template #item.kode="{ item }">
-            <td @click="selectVariant(item)" style="cursor: pointer;">{{ item.kode }}</td>
-          </template>
-          <template #item.barcode="{ item }">
-            <td @click="selectVariant(item)" style="cursor: pointer;">{{ item.barcode }}</td>
-          </template>
-          <template #item.nama="{ item }">
-            <td @click="selectVariant(item)" style="cursor: pointer;">{{ item.nama }}</td>
-          </template>
-          <template #item.ukuran="{ item }">
-            <td @click="selectVariant(item)" style="cursor: pointer;">{{ item.ukuran }}</td>
-          </template>
-          <template #item.harga="{ item }">
-            <td @click="selectVariant(item)" style="cursor: pointer;" class="text-end">
-              {{ new Intl.NumberFormat('id-ID').format(item.harga) }}
-            </td>
-          </template>
-          <template #item.stok="{ item }">
-            <td @click="selectVariant(item)" style="cursor: pointer;" class="text-end font-weight-bold">
-              {{ item.stok }}
-            </td>
+          <template #item="{ item }">
+            <tr @click="selectVariant(item)" style="cursor: pointer;">
+              <td>{{ item.kode }}</td>
+              <td>{{ item.barcode }}</td>
+              <td>{{ item.nama }}</td>
+              <td>{{ item.ukuran }}</td>
+              <td class="text-end">{{ new Intl.NumberFormat('id-ID').format(item.harga) }}</td>
+              <td class="text-end font-weight-bold">{{ item.stok }}</td>
+            </tr>
           </template>
         </v-data-table-server>
       </v-card-text>
     </v-card>
   </v-dialog>
 </template>
+
+<style scoped>
+.dialog-card {
+    font-size: 12px;
+}
+.desktop-table {
+    font-size: 11px;
+}
+.desktop-table :deep(td), .desktop-table :deep(th) {
+    padding: 0 8px !important;
+    height: 28px !important;
+}
+</style>

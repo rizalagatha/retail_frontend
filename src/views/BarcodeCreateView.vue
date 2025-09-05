@@ -42,7 +42,7 @@ const tableHeaders = [
     { title: 'Harga', key: 'harga', sortable: false, align: 'end' },
     { title: 'Jumlah', key: 'jumlah', sortable: false, width: '150px' },
     { title: 'Actions', key: 'actions', sortable: false, width: '80px' },
-];
+] as const;
 
 const barcodeSheets = computed(() => {
     const expandedItems = items.value
@@ -123,7 +123,7 @@ const printStyles = `
 `;
 
 
-const getNextNumber = async () => { /* ... (Tidak ada perubahan) ... */
+const getNextNumber = async () => {
     try {
         const cabang = authStore.user?.cabang || '';
         const response = await api.get('/barcode-form/next-number', {
@@ -135,12 +135,12 @@ const getNextNumber = async () => { /* ... (Tidak ada perubahan) ... */
     }
 };
 
-const openProductSearchModal = (index: number) => { /* ... (Tidak ada perubahan) ... */
+const openProductSearchModal = (index: number) => {
     activeRowIndex.value = index;
     isProductSearchModalVisible.value = true;
 };
 
-const handleProductSelected = async (product: { kode: string }) => { /* ... (Tidak ada perubahan) ... */
+const handleProductSelected = async (product: { kode: string }) => {
     isProductSearchModalVisible.value = false;
     if (!product || !product.kode) return;
     try {
@@ -167,7 +167,7 @@ const handleProductSelected = async (product: { kode: string }) => { /* ... (Tid
     }
 };
 
-const handleBarcodeScan = async () => { /* ... (Tidak ada perubahan) ... */
+const handleBarcodeScan = async () => {
     if (!barcodeScanTerm.value) return;
     try {
         const response = await api.get('/barcode-form/find-by-barcode', {
@@ -194,21 +194,21 @@ const handleBarcodeScan = async () => { /* ... (Tidak ada perubahan) ... */
     }
 };
 
-const addNewRow = () => { /* ... (Tidak ada perubahan) ... */
+const addNewRow = () => {
     const lastItem = items.value[items.value.length - 1];
     if (!lastItem || lastItem.kode) {
         items.value.push({ id: Date.now(), kode: '', barcode: '', nama: '', ukuran: '', harga: 0, jumlah: 0 });
     }
 };
 
-const removeRow = (id: number) => { /* ... (Tidak ada perubahan) ... */
+const removeRow = (id: number) => {
     items.value = items.value.filter(item => item.id !== id);
     if (items.value.length === 0) {
         addNewRow();
     }
 };
 
-const save = async () => { /* ... (Tidak ada perubahan) ... */
+const save = async () => {
     isSaving.value = true;
     const validItems = items.value.filter(item => item.kode && item.jumlah > 0);
     if (validItems.length === 0) {
@@ -236,7 +236,7 @@ const save = async () => { /* ... (Tidak ada perubahan) ... */
     }
 };
 
-const resetForm = () => { /* ... (Tidak ada perubahan) ... */
+const resetForm = () => {
     getNextNumber();
     tanggal.value = format(new Date(), 'yyyy-MM-dd');
     items.value = [{ id: Date.now(), kode: '', barcode: '', nama: '', ukuran: '', harga: 0, jumlah: 0 }];
@@ -244,7 +244,7 @@ const resetForm = () => { /* ... (Tidak ada perubahan) ... */
     selectedPrinter.value = 'Xprinter XP-360B';
 };
 
-const openPrintPreview = () => { /* ... (Tidak ada perubahan) ... */
+const openPrintPreview = () => {
     const validItems = items.value.filter(item => item.kode && item.jumlah > 0);
     if (validItems.length === 0) {
         toast.warning('Tidak ada item dengan jumlah lebih dari 0 untuk dicetak.');
@@ -349,67 +349,73 @@ onMounted(() => {
 </script>
 
 <template>
-    <PageLayout title="Buat Cetak Barcode Baru">
+    <PageLayout title="Buat Cetak Barcode Baru" desktop-mode icon="mdi-barcode-plus">
         <template #header-actions>
-            <v-btn @click="save" :loading="isSaving" color="primary" prepend-icon="mdi-content-save">Simpan & Buka
-                Pratinjau</v-btn>
-            <v-btn @click="resetForm" prepend-icon="mdi-cancel">Batal</v-btn>
-            <v-btn @click="router.push('/cetak-barcode')" prepend-icon="mdi-close">Tutup</v-btn>
+            <v-btn size="small" @click="save" :loading="isSaving" color="primary" prepend-icon="mdi-content-save">Simpan
+                & Cetak</v-btn>
+            <v-btn size="small" @click="resetForm" prepend-icon="mdi-refresh">Baru</v-btn>
+            <v-btn size="small" @click="router.push('/cetak-barcode')" prepend-icon="mdi-close">Tutup</v-btn>
         </template>
 
-        <v-card>
-            <v-card-text>
-                <v-row align="center">
-                    <v-col cols="12" md="2">
-                        <v-text-field v-model="nomor" label="Nomor" variant="outlined" readonly
-                            hint="Nomor Otomatis"></v-text-field>
-                    </v-col>
-                    <v-col cols="12" md="2">
-                        <v-text-field v-model="tanggal" type="date" label="Tanggal" variant="outlined"></v-text-field>
-                    </v-col>
-                    <v-col cols="12" md="3">
-                        <v-text-field v-model="barcodeScanTerm" label="Scan Barcode (Cari Produk)" variant="outlined"
-                            prepend-inner-icon="mdi-barcode-scan" @keyup.enter="handleBarcodeScan" clearable
-                            hint="Scan barcode lalu tekan Enter"></v-text-field>
-                    </v-col>
-                    <v-col cols="12" md="5">
-                        <v-card variant="tonal">
-                            <v-card-text class="d-flex align-center ga-4">
-                                <v-radio-group v-model="productCategory" inline hide-details class="mt-n4">
-                                    <v-radio label="Kaosan" value="Kaosan"></v-radio>
-                                    <v-radio label="Reszo" value="Reszo"></v-radio>
-                                </v-radio-group>
-                                <v-select v-model="selectedPrinter"
-                                    :items="['Postek C168/200s', 'Xprinter XP-360B', 'Xprinter 360B']"
-                                    label="Pilih Printer" dense hide-details variant="outlined"></v-select>
-                                <v-btn @click="openPrintPreview" variant="outlined">Cetak / Preview</v-btn>
-                            </v-card-text>
-                        </v-card>
+        <div class="form-container">
+            <!-- Header Section -->
+            <div class="desktop-form-section">
+                <v-row dense align="center">
+                    <v-col cols="2"><v-text-field v-model="nomor" label="Nomor" variant="filled" readonly
+                            density="compact" hide-details></v-text-field></v-col>
+                    <v-col cols="2"><v-text-field v-model="tanggal" type="date" label="Tanggal" variant="outlined"
+                            density="compact" hide-details></v-text-field></v-col>
+                    <v-col cols="3"><v-text-field v-model="barcodeScanTerm" label="Scan Barcode (Cari Produk)"
+                            variant="outlined" density="compact" prepend-inner-icon="mdi-barcode-scan"
+                            @keyup.enter="handleBarcodeScan" clearable hide-details></v-text-field></v-col>
+                    <v-col cols="5">
+                        <div class="d-flex align-center ga-2 pa-2 border rounded">
+                            <v-radio-group v-model="productCategory" inline hide-details density="compact"
+                                class="ma-0 pa-0">
+                                <v-radio label="Kaosan" value="Kaosan"></v-radio>
+                                <v-radio label="Reszo" value="Reszo"></v-radio>
+                            </v-radio-group>
+                            <v-select v-model="selectedPrinter"
+                                :items="['Postek C168/200s', 'Xprinter XP-360B', 'Xprinter 360B']" label="Printer" dense
+                                hide-details variant="outlined" density="compact"></v-select>
+                            <v-btn size="small" @click="openPrintPreview" variant="outlined"
+                                prepend-icon="mdi-printer-eye">Preview</v-btn>
+                        </div>
                     </v-col>
                 </v-row>
-            </v-card-text>
-            <v-divider></v-divider>
-            <v-data-table :headers="tableHeaders" :items="items" hide-default-footer :items-per-page="-1"
-                class="editable-table">
-                <template #item.kode="{ index }">
-                    <v-text-field v-model="items[index].kode" variant="underlined" dense hide-details
-                        placeholder="Ketik kode atau F1..." @keydown.f1.prevent="openProductSearchModal(index)">
-                        <template #append-inner>
-                            <v-icon @click="openProductSearchModal(index)" size="small">mdi-magnify</v-icon>
-                        </template>
-                    </v-text-field>
-                </template>
-                <template #item.jumlah="{ index }">
-                    <v-text-field v-model.number="items[index].jumlah" type="number" variant="underlined" dense
-                        hide-details min="0" @focus="$event.target.select()"
-                        @keydown.enter.prevent="addNewRow"></v-text-field>
-                </template>
-                <template #item.actions="{ item }">
-                    <v-btn icon="mdi-delete" variant="text" color="red" size="small"
-                        @click="removeRow(item.id)"></v-btn>
-                </template>
-            </v-data-table>
-        </v-card>
+            </div>
+
+            <!-- Table Section -->
+            <div class="desktop-form-section flex-grow-1 d-flex flex-column">
+                <v-data-table :headers="tableHeaders" :items="items" density="compact" class="desktop-table flex-grow-1"
+                    fixed-header height="100%" :items-per-page="-1">
+                    <template #item.kode="{ item }">
+                        <v-text-field v-model="item.kode" variant="underlined" dense hide-details single-line
+                            placeholder="Ketik atau F1..."
+                            @keydown.f1.prevent="openProductSearchModal(items.indexOf(item))">
+                            <template #append-inner><v-icon @click="openProductSearchModal(items.indexOf(item))"
+                                    size="small">mdi-magnify</v-icon></template>
+                        </v-text-field>
+                    </template>
+                    <template #item.harga="{ item }">{{ new Intl.NumberFormat('id-ID').format(item.harga) }}</template>
+                    <template #item.jumlah="{ item }">
+                        <v-text-field v-model.number="item.jumlah" type="number" variant="underlined" dense hide-details
+                            single-line min="0" @focus="$event.target.select()"
+                            @keydown.enter.prevent="addNewRow"></v-text-field>
+                    </template>
+                    <template #item.actions="{ item }">
+                        <v-btn icon="mdi-delete" variant="text" color="error" size="x-small"
+                            @click="removeRow(item.id)"></v-btn>
+                    </template>
+                    <template #bottom>
+                        <div class="pa-1 text-right border-t">
+                            <v-btn size="small" @click="addNewRow" prepend-icon="mdi-plus" variant="text"
+                                color="primary">Tambah Baris</v-btn>
+                        </div>
+                    </template>
+                </v-data-table>
+            </div>
+        </div>
 
         <ProductSearchModal v-if="isProductSearchModalVisible" :category="productCategory"
             :gudang="authStore.user?.cabang || ''" @close="isProductSearchModalVisible = false"
@@ -439,7 +445,7 @@ onMounted(() => {
                     <v-spacer></v-spacer>
                     <v-btn color="primary" @click="executePrint" prepend-icon="mdi-printer">Cetak Semua ({{
                         barcodeSheets.length
-                        }} Halaman)</v-btn>
+                    }} Halaman)</v-btn>
                 </v-card-actions>
             </v-card>
         </v-dialog>
@@ -447,10 +453,26 @@ onMounted(() => {
 </template>
 
 <style scoped>
-/* Style ini hanya untuk komponen di layar, tidak ikut dicetak */
-.editable-table :deep(td) {
-    padding-top: 8px !important;
-    padding-bottom: 0 !important;
+.form-container {
+    padding: 12px;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.desktop-table {
+    font-size: 11px;
+}
+
+.desktop-table :deep(input) {
+    font-size: 11px !important;
+}
+
+.desktop-table :deep(td),
+.desktop-table :deep(th) {
+    padding: 0 8px !important;
+    height: 32px !important;
 }
 
 /* Style untuk pratinjau di layar agar mirip hasil cetak */
@@ -463,10 +485,12 @@ onMounted(() => {
 }
 
 .label-sheet-preview {
-    width: 136mm; /* 2x dari 68mm */
-    height: 30mm; /* 2x dari 15mm */
+    width: 136mm;
+    /* 2x dari 68mm */
+    height: 30mm;
+    /* 2x dari 15mm */
     background-color: white;
-    box-shadow: 0 2px 5px rgba(0,0,0,0.15);
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.15);
     border-radius: 2px;
     padding: 0;
     display: flex;
@@ -474,7 +498,8 @@ onMounted(() => {
 }
 
 .barcode-container-preview {
-    width: 66mm; /* 2x dari 33mm */
+    width: 66mm;
+    /* 2x dari 33mm */
     height: 30mm;
     display: flex;
     flex-direction: column;

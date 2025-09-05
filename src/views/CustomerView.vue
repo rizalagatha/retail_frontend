@@ -4,6 +4,7 @@ import api from '@/services/api';
 import PageLayout from '@/components/PageLayout.vue';
 import { useToast } from 'vue-toastification';
 import { useAuthStore } from '@/stores/authStore'; // (1) Impor authStore
+import { format } from 'date-fns';
 
 // Impor library untuk PDF dan Excel
 import jsPDF from 'jspdf';
@@ -53,13 +54,19 @@ const availableLevels = ref([]);
 const dialogDelete = ref(false); // <-- TAMBAHKAN INI
 const itemToDelete = ref<Customer | null>(null); // <-- TAMBAHKAN INI
 
+const hasViewPermission = computed(() => authStore.can(MENU_ID, 'view'));
+
 const headers = [
-  { title: 'Kode', key: 'kode', width: '150px' },
-  { title: 'Nama', key: 'nama' },
+  { title: 'Kode', key: 'kode', width: '120px' },
+  { title: 'Nama', key: 'nama', width: '250px' },
   { title: 'Alamat', key: 'alamat' },
-  { title: 'Kota', key: 'kota' },
-  { title: 'Status', key: 'status', align: 'center' },
-  { title: 'Actions', key: 'actions', sortable: false, align: 'center' },
+  { title: 'Kota', key: 'kota', width: '150px' },
+  { title: 'No. Telpon', key: 'telp', width: '120px' },
+  { title: 'Tgl Lahir', key: 'tglLahir', width: '100px' },
+  { title: 'TOP', key: 'top', align: 'center', width: '60px' },
+  { title: 'Level', key: 'level', width: '120px' },
+  { title: 'Status', key: 'status', align: 'center', width: '100px' },
+  { title: 'Actions', key: 'actions', sortable: false, align: 'center', width: '80px' },
 ];
 
 const levelHistoryHeaders = [
@@ -156,9 +163,10 @@ const deleteCustomer = async (item: Customer) => {
 };
 
 const handleDeleteFromHeader = () => {
-  if (canDelete.value) {
-    deleteCustomer(selected.value[0]);
-  }
+    if (canDelete.value) {
+        // Panggil confirmDelete agar pengecekan statusnya terpusat
+        confirmDelete(selected.value[0]);
+    }
 };
 
 const printData = () => {
@@ -199,7 +207,14 @@ const exportData = () => {
   XLSX.writeFile(workbook, "DaftarCustomer.xlsx");
 };
 
-const confirmDelete = (item: Customer) => { // <-- TAMBAHKAN FUNGSI INI
+const confirmDelete = (item: Customer) => {
+  // Cek status customer sebelum membuka dialog konfirmasi
+  if (item.status === 'AKTIF') {
+    toast.warning('Customer yang berstatus AKTIF tidak dapat dihapus.');
+    return; // Hentikan proses jika statusnya AKTIF
+  }
+
+  // Jika status PASIF, lanjutkan seperti biasa
   itemToDelete.value = item;
   dialogDelete.value = true;
 };
@@ -213,125 +228,200 @@ const deleteConfirmed = () => { // <-- TAMBAHKAN FUNGSI INI
   itemToDelete.value = null;
 };
 
-onMounted(fetchCustomers);
+onMounted(() => {
+  if (hasViewPermission.value) {
+    fetchCustomers();
+  } else {
+    isLoading.value = false;
+    toast.error("Anda tidak memiliki izin untuk melihat halaman ini.");
+  }
+});
 </script>
 
 <template>
-  <PageLayout title="Master Customer">
+  <PageLayout title="Master Customer" desktop-mode icon="mdi-account-multiple">
     <template #header-actions>
-      <v-btn v-if="authStore.can(MENU_ID, 'insert')" color="primary" @click="openNewDialog"
+      <v-btn v-if="authStore.can(MENU_ID, 'insert')" size="small" color="primary" @click="openNewDialog"
         prepend-icon="mdi-plus">Baru</v-btn>
-      <v-btn v-if="authStore.can(MENU_ID, 'edit')" :disabled="!canEdit" @click="handleEditFromHeader"
+      <v-btn v-if="authStore.can(MENU_ID, 'edit')" size="small" :disabled="!canEdit" @click="handleEditFromHeader"
         prepend-icon="mdi-pencil">Ubah</v-btn>
-      <v-btn v-if="authStore.can(MENU_ID, 'delete')" :disabled="!canDelete" @click="handleDeleteFromHeader"
+      <v-btn v-if="authStore.can(MENU_ID, 'delete')" size="small" :disabled="!canDelete" @click="handleDeleteFromHeader"
         prepend-icon="mdi-delete">Hapus</v-btn>
-      <v-btn v-if="authStore.can(MENU_ID, 'view')" @click="printData" prepend-icon="mdi-printer"
-        variant="outlined">Cetak</v-btn>
-      <v-btn v-if="authStore.can(MENU_ID, 'view')" @click="exportData" prepend-icon="mdi-file-excel"
-        variant="outlined">Export</v-btn>
-      <v-btn @click="fetchCustomers" icon="mdi-refresh" variant="text"></v-btn>
+      <v-btn v-if="authStore.can(MENU_ID, 'view')" size="small" @click="printData"
+        prepend-icon="mdi-printer">Cetak</v-btn>
+      <v-btn v-if="authStore.can(MENU_ID, 'view')" size="small" @click="exportData"
+        prepend-icon="mdi-file-excel">Export</v-btn>
     </template>
-    <v-card>
-      <v-card-title class="d-flex align-center pe-2">
-        <v-icon icon="mdi-account-multiple"></v-icon> &nbsp; Daftar Customer
+
+    <div v-if="!hasViewPermission" class="state-container">
+      <v-icon size="64" class="mb-4">mdi-lock-outline</v-icon>
+      <h3 class="text-h6">Akses Ditolak</h3>
+    </div>
+
+    <div v-else class="browse-content">
+      <!-- Filter Section -->
+      <div class="filter-section">
+        <v-text-field v-model="search" density="compact" label="Cari Customer..." prepend-inner-icon="mdi-magnify"
+          variant="outlined" hide-details single-line></v-text-field>
         <v-spacer></v-spacer>
-        <v-text-field v-model="search" density="compact" label="Cari Customer" prepend-inner-icon="mdi-magnify"
-          variant="solo-filled" flat hide-details single-line></v-text-field>
-      </v-card-title>
-      <v-divider></v-divider>
+        <v-btn @click="fetchCustomers" icon="mdi-refresh" variant="text" size="small"></v-btn>
+      </div>
+
+      <!-- Table Section -->
       <v-data-table v-model="selected" :headers="headers" :items="customers" :search="search" :loading="isLoading"
-        item-value="kode" show-select return-object hover>
+        item-value="kode" density="compact" class="desktop-table" fixed-header show-select return-object>
         <template #item.status="{ item }">
-          <v-chip :color="item.status === 'AKTIF' ? 'green' : 'red'" variant="elevated">{{ item.status }}</v-chip>
+          <v-chip :color="item.status === 'AKTIF' ? 'success' : 'error'" variant="tonal" size="x-small">{{ item.status
+            }}</v-chip>
+        </template>
+        <template #item.tglLahir="{ item }">
+          {{ item.tglLahir ? format(new Date(item.tglLahir), 'dd/MM/yyyy') : '-' }}
+        </template>
+        <template #item.top="{ item }">
+          {{ item.top }} hari
+        </template>
+        <template #item.level="{ item }">
+          <span class="text-caption">{{ item.level }}</span>
         </template>
         <template #item.actions="{ item }">
-          <v-icon v-if="authStore.can(MENU_ID, 'edit')" class="me-2" size="small"
+          <v-icon v-if="authStore.can(MENU_ID, 'edit')" size="small" class="me-2"
             @click="openEditDialog(item)">mdi-pencil</v-icon>
           <v-icon v-if="authStore.can(MENU_ID, 'delete')" size="small" @click="confirmDelete(item)">mdi-delete</v-icon>
         </template>
-        <template #no-data>
-          <div class="text-center pa-4">
-            <v-icon class="mb-2" color="grey" size="32">mdi-database-off-outline</v-icon>
-            <p class="text-grey">Tidak ada data customer untuk ditampilkan.</p>
-          </div>
-        </template>
       </v-data-table>
-    </v-card>
+    </div>
 
+    <!-- Dialogs -->
     <v-dialog v-model="dialog" max-width="900px" persistent>
-      <v-card>
-        <v-card-title class="pa-4">
-          <span class="text-h5">{{ dialogTitle }}</span>
+      <v-card class="dialog-card">
+        <v-card-title class="dialog-header">
+          <span class="text-subtitle-1 font-weight-medium">{{ dialogTitle }}</span>
         </v-card-title>
-        <v-card-text class="py-4">
+        <v-card-text class="pa-4">
           <v-container>
             <v-row>
-              <!-- Kolom Kiri -->
               <v-col cols="12" md="6">
                 <v-text-field v-model="editedItem.kode" label="Kode" readonly variant="outlined" density="compact"
-                  placeholder="(Akan dibuat otomatis)"></v-text-field>
-                <v-text-field v-model="editedItem.nama" label="Nama" variant="outlined"
-                  density="compact"></v-text-field>
-                <v-textarea v-model="editedItem.alamat" label="Alamat" variant="outlined" density="compact"
-                  rows="2"></v-textarea>
-                <v-text-field v-model="editedItem.kota" label="Kota" variant="outlined"
-                  density="compact"></v-text-field>
-                <v-text-field v-model="editedItem.telp" label="No Telp/Hp" variant="outlined"
-                  density="compact"></v-text-field>
-                <v-text-field v-model="editedItem.namaKontak" label="Nama Kontak Person" variant="outlined"
-                  density="compact"></v-text-field>
+                  placeholder="(Otomatis)" hide-details></v-text-field>
+                <v-text-field v-model="editedItem.nama" label="Nama" variant="outlined" density="compact"
+                  hide-details></v-text-field>
+                <v-textarea v-model="editedItem.alamat" label="Alamat" variant="outlined" density="compact" rows="2"
+                  hide-details></v-textarea>
+                <v-text-field v-model="editedItem.kota" label="Kota" variant="outlined" density="compact"
+                  hide-details></v-text-field>
+                <v-text-field v-model="editedItem.telp" label="No Telp/Hp" variant="outlined" density="compact"
+                  hide-details></v-text-field>
+                <v-text-field v-model="editedItem.namaKontak" label="Kontak Person" variant="outlined" density="compact"
+                  hide-details></v-text-field>
                 <v-text-field v-model="editedItem.tglLahir" label="Tanggal Lahir" type="date" variant="outlined"
-                  density="compact"></v-text-field>
-                <v-text-field v-model="editedItem.top" label="TOP (Tempo)" type="number" suffix="hari"
-                  variant="outlined" density="compact"></v-text-field>
-                <v-radio-group v-model="editedItem.status" inline label="Status">
-                  <v-radio label="Aktif" value="AKTIF"></v-radio>
-                  <v-radio label="Pasif" value="PASIF"></v-radio>
-                </v-radio-group>
+                  density="compact" hide-details></v-text-field>
+                <v-text-field v-model="editedItem.top" label="TOP" type="number" suffix="hari" variant="outlined"
+                  density="compact" hide-details></v-text-field>
                 <v-select v-model="editedItem.level" :items="availableLevels" item-title="nama" item-value="kode"
-                  label="Level" variant="outlined" density="compact"></v-select>
+                  label="Level" variant="outlined" density="compact" hide-details></v-select>
+                <v-radio-group v-model="editedItem.status" inline label="Status" density="compact" hide-details>
+                  <v-radio label="Aktif" value="AKTIF" color="success"></v-radio>
+                  <v-radio label="Pasif" value="PASIF" color="error"></v-radio>
+                </v-radio-group>
               </v-col>
-              <!-- Kolom Kanan -->
               <v-col cols="12" md="6">
-                <v-text-field v-model="editedItem.npwp" label="NPWP" variant="outlined"
-                  density="compact"></v-text-field>
-                <v-text-field v-model="editedItem.namaNpwp" label="Nama NPWP" variant="outlined"
-                  density="compact"></v-text-field>
+                <v-text-field v-model="editedItem.npwp" label="NPWP" variant="outlined" density="compact"
+                  hide-details></v-text-field>
+                <v-text-field v-model="editedItem.namaNpwp" label="Nama NPWP" variant="outlined" density="compact"
+                  hide-details></v-text-field>
                 <v-textarea v-model="editedItem.alamatNpwp" label="Alamat NPWP" variant="outlined" density="compact"
-                  rows="2"></v-textarea>
-                <v-text-field v-model="editedItem.kotaNpwp" label="Kota NPWP" variant="outlined"
-                  density="compact"></v-text-field>
-                <h3 class="text-subtitle-1 mt-4 mb-2">History Level</h3>
+                  rows="2" hide-details></v-textarea>
+                <v-text-field v-model="editedItem.kotaNpwp" label="Kota NPWP" variant="outlined" density="compact"
+                  hide-details></v-text-field>
+                <h3 class="text-subtitle-2 mt-4 mb-2">History Level</h3>
                 <v-data-table :headers="levelHistoryHeaders" :items="levelHistory" density="compact"
-                  class="border rounded-lg">
-                  <template #item.no="{ index }">
-                    {{ index + 1 }}
+                  class="border rounded-sm">
+                  <template #item.no="{ index }">{{ index + 1 }}</template>
+                  <template #item.tanggal="{ item }">
+                    {{ item.tanggal ? format(new Date(item.tanggal), 'dd/MM/yyyy') : '-' }}
                   </template>
                 </v-data-table>
               </v-col>
             </v-row>
           </v-container>
         </v-card-text>
-        <v-card-actions class="pa-4">
+        <v-card-actions class="dialog-footer">
           <v-spacer></v-spacer>
-          <v-btn variant="text" @click="dialog = false">Tutup</v-btn>
-          <v-btn color="primary" variant="elevated" @click="saveCustomer">Simpan</v-btn>
+          <v-btn size="small" @click="dialog = false">Tutup</v-btn>
+          <v-btn size="small" color="primary" @click="saveCustomer" variant="elevated">Simpan</v-btn>
         </v-card-actions>
       </v-card>
     </v-dialog>
+
     <v-dialog v-model="dialogDelete" max-width="500px">
       <v-card>
         <v-card-title class="text-h5">Konfirmasi Hapus</v-card-title>
-        <v-card-text>
-          Apakah Anda yakin ingin menghapus customer <strong>{{ itemToDelete?.nama }}</strong>?
-        </v-card-text>
-        <v-card-actions>
-          <v-spacer></v-spacer>
-          <v-btn variant="text" @click="dialogDelete = false">Batal</v-btn>
-          <v-btn color="red-darken-1" variant="elevated" @click="deleteConfirmed">Hapus</v-btn>
-          <v-spacer></v-spacer>
-        </v-card-actions>
+        <v-card-text>Apakah Anda yakin ingin menghapus customer <strong>{{ itemToDelete?.nama }}</strong>?</v-card-text>
+        <v-card-actions><v-spacer></v-spacer><v-btn @click="dialogDelete = false">Batal</v-btn><v-btn
+            color="red-darken-1" variant="elevated"
+            @click="deleteConfirmed">Hapus</v-btn><v-spacer></v-spacer></v-card-actions>
       </v-card>
     </v-dialog>
   </PageLayout>
 </template>
+
+<style scoped>
+.browse-content {
+  border: 1px solid #e0e0e0;
+  background-color: #ffffff;
+  display: flex;
+  flex-direction: column;
+}
+
+.filter-section {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 6px 10px;
+  border-bottom: 1px solid #e0e0e0;
+  flex-shrink: 0;
+}
+
+.desktop-table {
+  font-size: 11px;
+}
+
+.desktop-table :deep(td),
+.desktop-table :deep(th) {
+  padding: 0 8px !important;
+  height: 28px !important;
+}
+
+.state-container {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  height: 100%;
+  color: #757575;
+}
+
+/* Dialog Styles */
+.dialog-card {
+  font-size: 12px;
+}
+
+.dialog-header {
+  border-bottom: 1px solid #e0e0e0;
+  padding: 8px 16px;
+  background-color: #f5f5f5;
+}
+
+.dialog-footer {
+  border-top: 1px solid #e0e0e0;
+  padding: 8px 16px;
+  background-color: #f5f5f5;
+}
+
+/* Memberikan sedikit ruang antar field */
+.dialog-card :deep(.v-text-field),
+.dialog-card :deep(.v-select),
+.dialog-card :deep(.v-textarea) {
+  margin-bottom: 8px;
+}
+</style>

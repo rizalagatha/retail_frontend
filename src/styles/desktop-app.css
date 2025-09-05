@@ -1,298 +1,92 @@
-/* styles/desktop-app.css */
+/* src/styles/desktop-app.css */
 
-/* Global reset untuk tampilan lebih compact */
-* {
-  box-sizing: border-box;
-}
+/*
+ * GAYA "DESKTOP MODERN"
+ * Menggabungkan layout compact dengan estetika web modern.
+*/
 
-/* Container utama dengan style desktop app */
+/* Container utama untuk halaman bergaya desktop */
 .desktop-app-container {
-  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-  font-size: 11px;
-  background-color: #f0f0f0;
-  min-height: 100vh;
-  padding: 4px;
+    font-family: 'Inter', 'Segoe UI', sans-serif; /* Font modern dan bersih */
+    font-size: 12px; /* Sedikit lebih besar dari classic untuk keterbacaan */
+    background-color: #f4f5f7; /* Abu-abu muda yang netral */
+    color: #333;
 }
 
-/* Form container dengan border style classic */
-.desktop-form {
-  background: white;
-  border: 2px solid #8096ad;
-  border-top-color: #b8cce6;
-  border-left-color: #b8cce6;
-  box-shadow: inset -1px -1px 0 #6b7785, inset 1px 1px 0 #ffffff;
-  margin: 0;
-  padding: 8px;
+/* Base styling untuk form section */
+.desktop-form-section {
+    background: #ffffff;
+    border: 1px solid #e0e0e0;
+    border-radius: 6px; /* Sudut sedikit membulat */
+    padding: 12px;
+    margin-bottom: 8px;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.05); /* Bayangan halus */
 }
 
-/* Input fields dengan style classic */
-.desktop-input {
-  border: 1px solid #7f9db9;
-  border-top-color: #5d7e9b;
-  border-left-color: #5d7e9b;
-  box-shadow: inset 1px 1px 1px rgba(0,0,0,0.1);
-  padding: 2px 4px;
-  font-size: 11px;
-  line-height: 1.2;
-  background: white;
-  height: 20px;
+/* Kustomisasi global untuk komponen Vuetify agar lebih compact */
+
+/* Input Fields (Text, Select, Autocomplete) */
+.desktop-app-container :deep(.v-field) {
+    font-size: 12px !important;
 }
 
-.desktop-input:focus {
-  outline: none;
-  border-color: #316ac5;
-  box-shadow: inset 1px 1px 2px rgba(49, 106, 197, 0.3);
+.desktop-app-container :deep(.v-field--density-compact) {
+    --v-field-padding-top: 6px;
+    --v-field-padding-bottom: 2px;
 }
 
-/* Labels dengan style desktop */
-.desktop-label {
-  font-size: 11px;
-  color: #333;
-  font-weight: normal;
-  padding-right: 6px;
-  text-align: right;
-  white-space: nowrap;
+/* Tombol */
+.desktop-app-container :deep(.v-btn--size-small) {
+    font-size: 11px !important;
+    text-transform: none; /* Tombol tidak uppercase */
+    letter-spacing: normal;
 }
 
-/* Table dengan style classic */
-.desktop-table {
-  border: 1px solid #8096ad;
-  border-collapse: collapse;
-  font-size: 10px;
-  width: 100%;
+/* Tabel Data */
+.desktop-data-table {
+    font-size: 11px;
+}
+.desktop-data-table :deep(th) {
+    background-color: #f8f9fa;
+    font-weight: 600 !important;
+    font-size: 10px !important;
+    color: #555;
+    text-transform: uppercase;
+}
+.desktop-data-table :deep(td), 
+.desktop-data-table :deep(th) {
+    padding: 0 10px !important;
+    height: 30px !important; /* Tinggi baris yang ringkas */
+}
+.desktop-data-table :deep(tr:hover > td) {
+    background: #f5f8ff !important;
 }
 
-.desktop-table th {
-  background: linear-gradient(to bottom, #e8eef7 0%, #d0dae8 100%);
-  border: 1px solid #8096ad;
-  padding: 2px 4px;
-  font-weight: normal;
-  font-size: 10px;
-  text-align: left;
-  height: 18px;
-}
-
-.desktop-table td {
-  border: 1px solid #8096ad;
-  padding: 1px 2px;
-  height: 18px;
-  vertical-align: middle;
-}
-
-.desktop-table input {
-  border: none;
-  background: transparent;
-  width: 100%;
-  height: 16px;
-  font-size: 10px;
-  padding: 0 2px;
-}
-
-.desktop-table input:focus {
-  background: #e6f3ff;
-  outline: 1px solid #316ac5;
-}
-
-/* Button dengan style classic */
-.desktop-button {
-  background: linear-gradient(to bottom, #f8f9fa 0%, #e9ecef 100%);
-  border: 1px solid #8096ad;
-  border-top-color: #b8cce6;
-  border-left-color: #b8cce6;
-  padding: 3px 12px;
-  font-size: 11px;
-  cursor: pointer;
-  height: 23px;
-  min-width: 60px;
-  margin-right: 4px;
-}
-
-.desktop-button:hover {
-  background: linear-gradient(to bottom, #ffffff 0%, #f0f2f5 100%);
-}
-
-.desktop-button:active {
-  background: linear-gradient(to bottom, #e9ecef 0%, #f8f9fa 100%);
-  border-top-color: #5d7e9b;
-  border-left-color: #5d7e9b;
-  box-shadow: inset 1px 1px 2px rgba(0,0,0,0.1);
-}
-
-.desktop-button.primary {
-  background: linear-gradient(to bottom, #4a90e2 0%, #357abd 100%);
-  color: white;
-  border-color: #357abd;
-}
-
-.desktop-button.primary:hover {
-  background: linear-gradient(to bottom, #5ba0f2 0%, #4a90e2 100%);
-}
-
-/* Tabs dengan style desktop */
-.desktop-tabs {
-  border-bottom: 1px solid #8096ad;
-  background: #f0f0f0;
-  padding: 0;
-  margin: 0;
-}
-
-.desktop-tab {
-  display: inline-block;
-  padding: 4px 12px;
-  border: 1px solid #8096ad;
-  border-bottom: none;
-  background: linear-gradient(to bottom, #f8f9fa 0%, #e9ecef 100%);
-  font-size: 11px;
-  cursor: pointer;
-  margin-right: 2px;
-  position: relative;
-  top: 1px;
-}
-
-.desktop-tab.active {
-  background: white;
-  border-bottom: 1px solid white;
-  z-index: 1;
-}
-
-.desktop-tab:hover:not(.active) {
-  background: linear-gradient(to bottom, #ffffff 0%, #f0f2f5 100%);
-}
-
-/* Radio buttons dan checkboxes */
-.desktop-radio,
-.desktop-checkbox {
-  margin-right: 4px;
-  transform: scale(0.8);
-}
-
-/* Group box style */
-.desktop-groupbox {
-  border: 1px solid #8096ad;
-  background: #f8f9fa;
-  padding: 8px;
-  margin: 4px 0;
-  position: relative;
-}
-
-.desktop-groupbox-title {
-  position: absolute;
-  top: -6px;
-  left: 8px;
-  background: white;
-  padding: 0 4px;
-  font-size: 10px;
-  color: #333;
-}
-
-/* Textarea dengan style desktop */
-.desktop-textarea {
-  border: 1px solid #7f9db9;
-  border-top-color: #5d7e9b;
-  border-left-color: #5d7e9b;
-  box-shadow: inset 1px 1px 1px rgba(0,0,0,0.1);
-  padding: 2px 4px;
-  font-size: 11px;
-  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-  background: white;
-  resize: none;
-}
-
-.desktop-textarea:focus {
-  outline: none;
-  border-color: #316ac5;
-  box-shadow: inset 1px 1px 2px rgba(49, 106, 197, 0.3);
-}
-
-/* Select dropdown dengan style desktop */
-.desktop-select {
-  border: 1px solid #7f9db9;
-  border-top-color: #5d7e9b;
-  border-left-color: #5d7e9b;
-  box-shadow: inset 1px 1px 1px rgba(0,0,0,0.1);
-  padding: 1px 4px;
-  font-size: 11px;
-  background: white;
-  height: 20px;
-}
-
-.desktop-select:focus {
-  outline: none;
-  border-color: #316ac5;
-}
-
-/* Status bar style */
+/* Status Bar di Footer */
 .desktop-statusbar {
-  background: linear-gradient(to bottom, #f8f9fa 0%, #e9ecef 100%);
-  border-top: 1px solid #8096ad;
-  padding: 2px 8px;
-  font-size: 10px;
-  color: #666;
-  height: 20px;
-  display: flex;
-  align-items: center;
+    background-color: #f8f9fa;
+    border-top: 1px solid #e0e0e0;
+    padding: 4px 12px;
+    font-size: 11px;
+    color: #555;
+    min-height: 24px;
+    display: flex;
+    align-items: center;
 }
 
-/* Compact spacing */
-.desktop-row {
-  margin-bottom: 3px;
-  display: flex;
-  align-items: center;
-}
-
-.desktop-row .desktop-label {
-  width: 100px;
-  flex-shrink: 0;
-}
-
-.desktop-row .desktop-input,
-.desktop-row .desktop-select {
-  flex: 1;
-  margin-left: 4px;
-}
-
-/* Responsive adjustments */
-@media (max-width: 768px) {
-  .desktop-form {
-    margin: 4px;
-    padding: 4px;
-  }
-  
-  .desktop-table {
-    font-size: 9px;
-  }
-  
-  .desktop-input,
-  .desktop-select {
-    font-size: 10px;
-  }
-}
-
-/* Hover effects untuk interactivity */
-.desktop-table tr:hover {
-  background-color: #f5f8ff;
-}
-
-/* Scrollbar styling untuk tampilan yang lebih desktop-like */
+/* Scrollbar Styling */
 ::-webkit-scrollbar {
-  width: 16px;
-  height: 16px;
+  width: 12px;
+  height: 12px;
 }
-
 ::-webkit-scrollbar-track {
-  background: #f0f0f0;
-  border: 1px solid #ccc;
+  background: #f1f1f1;
 }
-
 ::-webkit-scrollbar-thumb {
-  background: linear-gradient(to bottom, #e8eef7 0%, #d0dae8 100%);
-  border: 1px solid #8096ad;
+  background: #d1d1d1;
+  border-radius: 6px;
+  border: 3px solid #f1f1f1;
 }
-
 ::-webkit-scrollbar-thumb:hover {
-  background: linear-gradient(to bottom, #d0dae8 0%, #b8cce6 100%);
-}
-
-::-webkit-scrollbar-corner {
-  background: #f0f0f0;
+  background: #b1b1b1;
 }

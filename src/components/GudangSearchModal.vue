@@ -88,24 +88,25 @@ watch(search, () => {
   <v-dialog
     :model-value="true"
     @update:model-value="emit('close')"
-    max-width="600px"
+    max-width="900px"
     persistent
   >
-    <v-card>
-      <v-toolbar color="primary" dark>
-        <v-toolbar-title>Bantuan - Pilih Gudang</v-toolbar-title>
+    <v-card class="dialog-card d-flex flex-column" style="height: 80vh;">
+      <v-toolbar color="primary" density="compact">
+        <v-toolbar-title class="text-subtitle-1">Bantuan - Pilih Gudang</v-toolbar-title>
         <v-spacer></v-spacer>
-        <v-btn icon="mdi-close" @click="emit('close')" variant="text"></v-btn>
+        <v-btn icon="mdi-close" @click="emit('close')" variant="text" size="small"></v-btn>
       </v-toolbar>
 
-      <v-card-text class="pa-4">
+      <v-card-text class="pa-4 d-flex flex-column flex-grow-1">
         <v-text-field
           v-model="search"
           label="Cari berdasarkan kode atau nama gudang..."
           prepend-inner-icon="mdi-magnify"
           variant="outlined"
+          density="compact"
           clearable
-          class="mb-4"
+          class="mb-4 flex-shrink-0"
           hide-details
         ></v-text-field>
 
@@ -118,17 +119,35 @@ watch(search, () => {
           :loading="loading"
           @update:options="loadItems"
           hover
-          class="elevation-1"
+          class="desktop-table flex-grow-1"
+          density="compact"
+          fixed-header
         >
           <!-- Gunakan template slot untuk menampilkan data dan handle click -->
           <template #item="{ item }">
-            <tr @click="selectGudang(item)" style="cursor: pointer;" class="hover:bg-gray-50">
+            <tr @click="selectGudang(item)" style="cursor: pointer;">
               <td>{{ item.kode }}</td>
               <td>{{ item.nama }}</td>
             </tr>
+          </template>
+          <template #no-data>
+            <div class="text-center pa-4">Tidak ada data gudang.</div>
           </template>
         </v-data-table-server>
       </v-card-text>
     </v-card>
   </v-dialog>
 </template>
+
+<style scoped>
+.dialog-card {
+    font-size: 12px;
+}
+.desktop-table {
+    font-size: 11px;
+}
+.desktop-table :deep(td), .desktop-table :deep(th) {
+    padding: 0 8px !important;
+    height: 28px !important;
+}
+</style>

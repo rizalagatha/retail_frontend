@@ -2,80 +2,123 @@
 import { ref, onMounted, computed } from 'vue';
 import api from '@/services/api';
 
+// --- Tipe Data ---
 interface User {
   kode: string;
   nama: string;
 }
 
-// (1) Tambahkan 'fetchUrl' sebagai properti yang wajib diisi
+// --- Props & Emits ---
 const props = defineProps<{
   fetchUrl: string;
 }>();
-
 const emit = defineEmits(['close', 'user-selected']);
 
-const users = ref<User[]>([]);
-const searchTerm = ref('');
-const isLoading = ref(false);
+// --- State ---
+const items = ref<User[]>([]);
+const loading = ref(true);
+const search = ref('');
 
-const fetchUsers = async () => {
-  isLoading.value = true;
+const headers = [
+  { title: 'Kode', key: 'kode', sortable: false },
+  { title: 'Nama User', key: 'nama', sortable: false },
+];
+
+// --- Methods ---
+const loadItems = async () => {
+  loading.value = true;
   try {
-    const response = await api.get('/users/');
-    users.value = response.data;
+    // Menggunakan fetchUrl dari props untuk mengambil semua data
+    const response = await api.get('/users');
+    items.value = response.data;
   } catch (error) {
-    console.error("Gagal mengambil daftar user:", error);
+    console.error("Gagal memuat data user:", error);
+    items.value = [];
   } finally {
-    isLoading.value = false;
+    loading.value = false;
   }
 };
 
-const filteredUsers = computed(() => {
-  if (!searchTerm.value) {
-    return users.value;
-  }
-  const lowerCaseSearch = searchTerm.value.toLowerCase();
-  return users.value.filter(user => 
-    user.kode.toLowerCase().includes(lowerCaseSearch) ||
-    user.nama.toLowerCase().includes(lowerCaseSearch)
-  );
+const selectUser = (item: User) => {
+    if (item && item.kode) {
+        emit('user-selected', item);
+        emit('close');
+    }
+};
+
+// Computed property untuk filtering di sisi klien
+const filteredItems = computed(() => {
+    if (!search.value) {
+        return items.value;
+    }
+    const lowerCaseSearch = search.value.toLowerCase();
+    return items.value.filter(user =>
+        user.kode.toLowerCase().includes(lowerCaseSearch) ||
+        user.nama.toLowerCase().includes(lowerCaseSearch)
+    );
 });
 
-const selectUser = (user: User) => {
-  emit('user-selected', user);
-};
-
-onMounted(fetchUsers);
+onMounted(loadItems);
 </script>
 
 <template>
-  <v-dialog :model-value="true" @update:modelValue="emit('close')" max-width="700px">
-    <v-card>
-      <v-card-title class="d-flex align-center">
-        <span>Bantuan - Pilih User</span>
+  <v-dialog
+    :model-value="true"
+    @update:modelValue="$emit('close')"
+    max-width="900px"
+    persistent
+  >
+    <v-card class="dialog-card d-flex flex-column" style="height: 80vh;">
+      <v-toolbar color="primary" density="compact">
+        <v-toolbar-title class="text-subtitle-1">Bantuan - Pilih User</v-toolbar-title>
         <v-spacer></v-spacer>
-        <v-btn icon="mdi-close" variant="text" @click="emit('close')"></v-btn>
-      </v-card-title>
-      <v-card-text>
+        <v-btn icon="mdi-close" @click="$emit('close')" variant="text" size="small"></v-btn>
+      </v-toolbar>
+
+      <v-card-text class="pa-4 d-flex flex-column flex-grow-1">
         <v-text-field
-          v-model="searchTerm"
-          label="Cari berdasarkan Kode atau Nama User..."
+          v-model="search"
+          label="Cari berdasarkan kode atau nama user..."
           prepend-inner-icon="mdi-magnify"
           variant="outlined"
           density="compact"
+          clearable
+          class="mb-4 flex-shrink-0"
           hide-details
-          class="mb-4"
         ></v-text-field>
+
         <v-data-table
-          :headers="[{ title: 'Kode', key: 'kode' }, { title: 'Nama', key: 'nama' }]"
-          :items="filteredUsers"
-          :loading="isLoading"
-          density="compact"
+          :headers="headers"
+          :items="filteredItems"
+          :search="search"
+          :loading="loading"
           hover
-          @click:row="(_, { item }) => selectUser(item)"
+          class="desktop-table flex-grow-1"
+          density="compact"
+          fixed-header
         >
+          <template #item="{ item }">
+            <tr @click="selectUser(item)" style="cursor: pointer;">
+              <td>{{ item.kode }}</td>
+              <td>{{ item.nama }}</td>
+            </tr>
+          </template>
         </v-data-table>
       </v-card-text>
     </v-card>
   </v-dialog>
 </template>
+
+<style scoped>
+.dialog-card {
+    font-size: 12px;
+}
+.desktop-table {
+    font-size: 11px;
+}
+.desktop-table :deep(td), .desktop-table :deep(th) {
+    padding: 0 8px !important;
+    height: 28px !important;
+}
+</style>
+

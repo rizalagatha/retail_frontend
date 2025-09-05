@@ -10,6 +10,7 @@ const toast = useToast();
 const authStore = useAuthStore();
 const MENU_ID = '1';
 
+// --- Interfaces ---
 interface Permission {
     id: string;
     nama: string;
@@ -23,7 +24,7 @@ interface Branch {
     gdg_kode: string;
 }
 
-// --- State Utama Form ---
+// --- State ---
 const isNewUser = ref(true);
 const kode = ref('');
 const nama = ref('');
@@ -32,11 +33,11 @@ const cabang = ref('');
 const permissions = ref<Permission[]>([]);
 const branches = ref<Branch[]>([]);
 const checkAll = ref(false);
-
-// --- State UI & Notifikasi ---
 const isLoading = ref(false);
 const isHelpModalVisible = ref(false);
+const hasViewPermission = computed(() => authStore.can(MENU_ID, 'view'));
 
+// --- Methods ---
 const fetchInitialMenus = async () => {
     try {
         const response = await api.get(`/users/menus`);
@@ -44,17 +45,12 @@ const fetchInitialMenus = async () => {
             id: menu.men_id,
             nama: menu.men_nama,
             keterangan: menu.men_keterangan,
-            view: false,
-            insert: false,
-            edit: false,
-            delete: false,
+            view: false, insert: false, edit: false, delete: false,
         }));
     } catch (error) {
-        console.error("Gagal mengambil daftar menu:", error);
         toast.error("Gagal memuat daftar menu.");
     }
 };
-
 const fetchBranches = async () => {
     try {
         const response = await api.get(`/users/branches`);
@@ -66,10 +62,8 @@ const fetchBranches = async () => {
         console.error("Gagal mengambil data cabang:", error);
     }
 };
-
 const handleKodeSearch = async () => {
     if (!kode.value || !cabang.value) return;
-
     isLoading.value = true;
     try {
         const response = await api.get(`/users/${kode.value}/${cabang.value}`);
@@ -86,14 +80,12 @@ const handleKodeSearch = async () => {
             await fetchInitialMenus();
             toast.info(`Kode user ${kode.value} tidak ditemukan. Silakan isi data baru.`);
         } else {
-            console.error("Error saat mencari user:", error);
             toast.error("Terjadi kesalahan saat mencari data user.");
         }
     } finally {
         isLoading.value = false;
     }
 };
-
 const saveUser = async () => {
     if (!kode.value || !nama.value || !cabang.value) {
         toast.error('Kode, Nama, dan Cabang tidak boleh kosong.');
@@ -101,6 +93,12 @@ const saveUser = async () => {
     }
     if (isNewUser.value && !password.value) {
         toast.error('Password wajib diisi untuk user baru.');
+        return;
+    }
+
+    const requiredPermission = isNewUser.value ? 'insert' : 'edit';
+    if (!authStore.can(MENU_ID, requiredPermission)) {
+        toast.error(`Anda tidak memiliki izin untuk ${requiredPermission} data user.`);
         return;
     }
 
@@ -123,7 +121,6 @@ const saveUser = async () => {
         isLoading.value = false;
     }
 };
-
 const resetForm = () => {
     isNewUser.value = true;
     kode.value = '';
@@ -132,7 +129,6 @@ const resetForm = () => {
     checkAll.value = false;
     fetchInitialMenus();
 };
-
 const toggleCheckAll = () => {
     permissions.value.forEach(p => {
         p.view = checkAll.value;
@@ -141,25 +137,20 @@ const toggleCheckAll = () => {
         p.delete = checkAll.value;
     });
 };
-
 const handleUserSelected = (user: { kode: string, cabang: string }) => {
     kode.value = user.kode;
     cabang.value = user.cabang;
     isHelpModalVisible.value = false;
     handleKodeSearch();
 };
-
-const openHelpModal = () => {
-    isHelpModalVisible.value = true;
-};
+const openHelpModal = () => { isHelpModalVisible.value = true; };
 
 onMounted(() => {
-    if (!authStore.can(MENU_ID, 'view')) {
-      toast.error("Anda tidak memiliki izin untuk melihat halaman ini.");
-      // Redirect atau tampilkan pesan error
-    } else {
+    if (hasViewPermission.value) {
       fetchBranches();
       fetchInitialMenus();
+    } else {
+      toast.error("Anda tidak memiliki izin untuk melihat halaman ini.");
     }
 });
 </script>
@@ -168,269 +159,117 @@ onMounted(() => {
     <PageLayout 
         title="Master User" 
         icon="mdi-account-group"
-        :desktop-mode="true"
+        desktop-mode
         :loading="isLoading"
     >
         <template #header-actions>
-            <v-btn v-if="authStore.can(MENU_ID, 'insert')" @click="resetForm" color="grey-darken-1" variant="outlined" size="small">
-                <v-icon start>mdi-plus</v-icon>
-                Baru
-            </v-btn>
-            <v-btn v-if="authStore.can(MENU_ID, 'insert') || authStore.can(MENU_ID, 'edit')" @click="saveUser" :loading="isLoading" color="primary" variant="elevated" size="small">
-                <v-icon start>mdi-content-save</v-icon>
-                Simpan
-            </v-btn>
+            <v-btn v-if="authStore.can(MENU_ID, 'insert')" size="small" @click="resetForm">Baru</v-btn>
+            <v-btn v-if="authStore.can(MENU_ID, 'insert') || authStore.can(MENU_ID, 'edit')" size="small" color="primary" @click="saveUser" :loading="isLoading">Simpan</v-btn>
         </template>
 
-        <!-- Form Section -->
-        <v-card variant="outlined" class="mb-3" elevation="0">
-            <v-card-title class="text-subtitle-1 py-2 bg-grey-lighten-4">
-                <v-icon start size="small">mdi-account-edit</v-icon>
-                Data User
-            </v-card-title>
-            <v-card-text class="pa-4">
+        <div v-if="!hasViewPermission" class="state-container">
+            <v-icon size="64" class="mb-4">mdi-lock-outline</v-icon>
+            <h3 class="text-h6">Akses Ditolak</h3>
+        </div>
+
+        <div v-else class="user-form-container">
+            <!-- Form Section -->
+            <div class="desktop-form-section">
                 <v-row dense>
-                    <!-- Kode Field -->
                     <v-col cols="12" sm="6" md="3">
-                        <v-text-field
-                            v-model="kode"
-                            label="Kode"
-                            :disabled="!isNewUser"
-                            placeholder="Ketik kode atau tekan F1..."
-                            variant="outlined"
-                            density="compact"
-                            hide-details
-                            @keydown.enter.prevent="handleKodeSearch"
-                            @blur="handleKodeSearch"
-                            @keydown.f1.prevent="openHelpModal"
-                        >
-                            <template #append-inner>
-                                <v-btn 
-                                    icon="mdi-help-circle" 
-                                    size="x-small" 
-                                    variant="text"
-                                    @click="openHelpModal"
-                                    title="Cari User (F1)"
-                                ></v-btn>
-                            </template>
+                        <v-text-field v-model="kode" label="Kode" placeholder="Ketik atau F1..." variant="outlined" density="compact" hide-details @keydown.enter.prevent="handleKodeSearch" @blur="handleKodeSearch" @keydown.f1.prevent="openHelpModal">
+                            <template #append-inner><v-icon size="small" @click="openHelpModal" icon="mdi-magnify"></v-icon></template>
                         </v-text-field>
                     </v-col>
-
-                    <!-- Nama Field -->
                     <v-col cols="12" sm="6" md="3">
-                        <v-text-field
-                            v-model="nama"
-                            label="Nama"
-                            variant="outlined"
-                            density="compact"
-                            hide-details
-                        ></v-text-field>
+                        <v-text-field v-model="nama" label="Nama" variant="outlined" density="compact" hide-details></v-text-field>
                     </v-col>
-
-                    <!-- Password Field -->
                     <v-col cols="12" sm="6" md="3">
-                        <v-text-field
-                            v-model="password"
-                            label="Password"
-                            type="password"
-                            :placeholder="isNewUser ? 'Wajib diisi' : 'Isi untuk ganti password'"
-                            variant="outlined"
-                            density="compact"
-                            hide-details
-                        ></v-text-field>
+                        <v-text-field v-model="password" label="Password" type="password" :placeholder="isNewUser ? 'Wajib diisi' : 'Isi untuk ganti'" variant="outlined" density="compact" hide-details></v-text-field>
                     </v-col>
-
-                    <!-- Cabang Field -->
                     <v-col cols="12" sm="6" md="3">
-                        <v-select
-                            v-model="cabang"
-                            :items="branches"
-                            item-title="gdg_kode"
-                            item-value="gdg_kode"
-                            label="Cabang"
-                            variant="outlined"
-                            density="compact"
-                            hide-details
-                            :disabled="!isNewUser"
-                        ></v-select>
+                        <v-select v-model="cabang" :items="branches" item-title="gdg_kode" item-value="gdg_kode" label="Cabang" variant="outlined" density="compact" hide-details></v-select>
                     </v-col>
                 </v-row>
-            </v-card-text>
-        </v-card>
+            </div>
 
-        <!-- Permissions Section -->
-        <v-card variant="outlined" elevation="0" class="flex-grow-1 d-flex flex-column">
-            <v-card-title class="text-subtitle-1 py-2 bg-grey-lighten-4 d-flex justify-space-between align-center">
-                <div>
-                    <v-icon start size="small">mdi-shield-account</v-icon>
-                    Hak Akses Menu
+            <!-- Permissions Section -->
+            <div class="desktop-form-section flex-grow-1 d-flex flex-column">
+                 <div class="d-flex justify-space-between align-center mb-2">
+                    <h3 class="section-title">Hak Akses Menu</h3>
+                    <v-checkbox v-model="checkAll" label="Cek Semua" @update:model-value="toggleCheckAll" hide-details density="compact" color="primary"></v-checkbox>
                 </div>
-                <v-checkbox
-                    v-model="checkAll"
-                    label="Cek Semua"
-                    @update:model-value="toggleCheckAll"
-                    hide-details
-                    density="compact"
-                    color="primary"
-                ></v-checkbox>
-            </v-card-title>
-
-            <v-card-text class="pa-0 flex-grow-1 d-flex flex-column">
                 <v-data-table
                     :items="permissions"
                     :headers="[
                         { title: 'Id', key: 'id', sortable: false, width: '60px' },
                         { title: 'Nama Menu', key: 'nama', sortable: false },
-                        { title: 'Keterangan', key: 'keterangan', sortable: false },
                         { title: 'View', key: 'view', sortable: false, align: 'center', width: '70px' },
                         { title: 'Insert', key: 'insert', sortable: false, align: 'center', width: '70px' },
                         { title: 'Update', key: 'edit', sortable: false, align: 'center', width: '70px' },
                         { title: 'Delete', key: 'delete', sortable: false, align: 'center', width: '70px' }
                     ]"
                     :loading="isLoading && permissions.length === 0"
-                    loading-text="Memuat data..."
-                    :items-per-page="-1"
-                    hide-default-footer
                     density="compact"
-                    height="400"
+                    class="desktop-table flex-grow-1"
                     fixed-header
-                    class="permissions-table"
+                    height="100%"
+                    :items-per-page="-1"
                 >
-                    <!-- Custom cells for checkboxes -->
-                    <template #item.view="{ item }">
-                        <div class="d-flex justify-center">
-                            <v-checkbox-btn 
-                                v-model="item.view" 
-                                hide-details 
-                                density="compact"
-                                color="primary"
-                            ></v-checkbox-btn>
-                        </div>
-                    </template>
-                    <template #item.insert="{ item }">
-                        <div class="d-flex justify-center">
-                            <v-checkbox-btn 
-                                v-model="item.insert" 
-                                hide-details 
-                                density="compact"
-                                color="success"
-                            ></v-checkbox-btn>
-                        </div>
-                    </template>
-                    <template #item.edit="{ item }">
-                        <div class="d-flex justify-center">
-                            <v-checkbox-btn 
-                                v-model="item.edit" 
-                                hide-details 
-                                density="compact"
-                                color="warning"
-                            ></v-checkbox-btn>
-                        </div>
-                    </template>
-                    <template #item.delete="{ item }">
-                        <div class="d-flex justify-center">
-                            <v-checkbox-btn 
-                                v-model="item.delete" 
-                                hide-details 
-                                density="compact"
-                                color="error"
-                            ></v-checkbox-btn>
-                        </div>
-                    </template>
+                    <template #item.view="{ item }"><div class="d-flex justify-center"><v-checkbox-btn v-model="item.view" hide-details density="compact" color="primary"></v-checkbox-btn></div></template>
+                    <template #item.insert="{ item }"><div class="d-flex justify-center"><v-checkbox-btn v-model="item.insert" hide-details density="compact" color="success"></v-checkbox-btn></div></template>
+                    <template #item.edit="{ item }"><div class="d-flex justify-center"><v-checkbox-btn v-model="item.edit" hide-details density="compact" color="warning"></v-checkbox-btn></div></template>
+                    <template #item.delete="{ item }"><div class="d-flex justify-center"><v-checkbox-btn v-model="item.delete" hide-details density="compact" color="error"></v-checkbox-btn></div></template>
                 </v-data-table>
-            </v-card-text>
-        </v-card>
+            </div>
+        </div>
 
-        <!-- Status Bar -->
         <template #footer>
-            <div class="d-flex justify-space-between align-center">
-                <div class="d-flex ga-4">
-                    <v-chip size="small" :color="isNewUser ? 'success' : 'primary'" variant="flat">
-                        <v-icon start size="x-small">{{ isNewUser ? 'mdi-plus' : 'mdi-pencil' }}</v-icon>
-                        {{ isNewUser ? 'Tambah Baru' : 'Edit Mode' }}
-                    </v-chip>
-                    <span class="text-caption">Total Menu: {{ permissions.length }}</span>
-                </div>
-                <span class="text-caption" v-if="!isNewUser">Current User: {{ kode }}</span>
+            <div class="d-flex justify-space-between align-center w-100">
+                <v-chip size="small" :color="isNewUser ? 'success' : 'primary'" variant="flat">
+                    <v-icon start size="x-small">{{ isNewUser ? 'mdi-plus' : 'mdi-pencil' }}</v-icon>
+                    {{ isNewUser ? 'Mode Tambah Baru' : 'Mode Edit' }}
+                </v-chip>
+                <span v-if="!isNewUser" class="text-caption">Current User: {{ kode }}</span>
             </div>
         </template>
+        
+        <UserSearchModal 
+            v-if="isHelpModalVisible"
+            fetch-url="/users"
+            @close="isHelpModalVisible = false"
+            @user-selected="handleUserSelected"
+        />
     </PageLayout>
-
-    <!-- Search Modal tetap menggunakan Vuetify -->
-    <UserSearchModal 
-        v-if="isHelpModalVisible"
-        fetch-url="http://192.168.1.73:8000/api/users"
-        @close="isHelpModalVisible = false"
-        @user-selected="handleUserSelected"
-    />
 </template>
 
 <style scoped>
-/* Modern Desktop Styling - balanced between classic and contemporary */
-.permissions-table {
+.user-form-container {
+    padding: 12px;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+.section-title {
   font-size: 0.875rem;
-}
-
-.permissions-table :deep(.v-data-table__wrapper) {
-  border-radius: 4px;
-  border: 1px solid rgba(var(--v-theme-on-surface), 0.12);
-}
-
-.permissions-table :deep(.v-data-table-header) {
-  background: rgba(var(--v-theme-surface-variant), 0.4);
-}
-
-.permissions-table :deep(.v-data-table-header th) {
   font-weight: 600;
-  font-size: 0.75rem;
-  border-bottom: 2px solid rgba(var(--v-theme-on-surface), 0.12);
+  color: #333;
 }
-
-.permissions-table :deep(.v-data-table__tbody tr:nth-child(odd)) {
-  background: rgba(var(--v-theme-surface-variant), 0.02);
+.desktop-table {
+    font-size: 11px;
 }
-
-.permissions-table :deep(.v-data-table__tbody tr:hover) {
-  background: rgba(var(--v-theme-primary), 0.04);
+.desktop-table :deep(td), .desktop-table :deep(th) {
+    padding: 0 8px !important;
+    height: 28px !important;
 }
-
-.permissions-table :deep(.v-data-table__tbody td) {
-  border-bottom: 1px solid rgba(var(--v-theme-on-surface), 0.05);
-  font-size: 0.8125rem;
-  padding: 4px 8px;
-}
-
-/* Compact form styling */
-:deep(.v-field--variant-outlined .v-field__outline) {
-  --v-field-border-opacity: 0.25;
-}
-
-:deep(.v-field--focused .v-field__outline) {
-  --v-field-border-opacity: 1;
-}
-
-/* Card titles styling */
-:deep(.v-card-title) {
-  font-size: 0.9375rem !important;
-  font-weight: 600;
-  letter-spacing: 0.025em;
-}
-
-/* Status chips */
-:deep(.v-chip) {
-  font-size: 0.75rem;
-}
-
-/* Responsive improvements */
-@media (max-width: 768px) {
-  .permissions-table :deep(.v-data-table__tbody td) {
-    padding: 2px 4px;
-    font-size: 0.75rem;
-  }
-  
-  .permissions-table :deep(.v-data-table-header th) {
-    padding: 4px 6px;
-    font-size: 0.6875rem;
-  }
+.state-container {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    height: 100%;
+    color: #757575;
 }
 </style>
+

@@ -2,7 +2,6 @@
 import { ref, onMounted } from 'vue';
 import api from '@/services/api';
 import PageLayout from '@/components/PageLayout.vue';
-import BaseButton from '@/components/BaseButton.vue'; // (1) Impor BaseButton
 
 // Tipe data untuk struktur history yang dikelompokkan
 interface ReleaseHistory {
@@ -37,10 +36,10 @@ onMounted(fetchHistory);
 </script>
 
 <template>
-  <PageLayout title="History Update Program">
+  <PageLayout title="History Update Program" desktop-mode icon="mdi-history">
     <template #header-actions>
-      <div class="d-flex align-center ga-3">
-        <span class="text-medium-emphasis font-weight-medium">Tampilkan:</span>
+      <div class="d-flex align-center ga-2">
+        <span class="filter-label">Tampilkan:</span>
         <v-text-field
           v-model.number="limit"
           type="number"
@@ -51,91 +50,100 @@ onMounted(fetchHistory);
           hide-details
           @keydown.enter="fetchHistory"
         ></v-text-field>
-        <!-- (2) Ganti <button> dengan <BaseButton> -->
-        <BaseButton @click="fetchHistory" variant="secondary">Refresh</BaseButton>
+        <v-btn size="small" @click="fetchHistory" prepend-icon="mdi-refresh">Refresh</v-btn>
       </div>
     </template>
 
-    <!-- Loading State -->
-    <div v-if="isLoading" class="d-flex justify-center align-center" style="min-height: 400px;">
-      <div class="text-center">
-        <v-progress-circular
-          indeterminate
-          color="primary"
-          size="48"
-        ></v-progress-circular>
-        <div class="mt-4 text-medium-emphasis">Memuat data...</div>
-      </div>
-    </div>
-
     <!-- Error State -->
     <v-alert
-      v-else-if="error"
+      v-if="error"
       type="error"
       variant="tonal"
       class="ma-4"
       :text="error"
     ></v-alert>
 
-    <!-- No Data State -->
-    <div v-else-if="Object.keys(history).length === 0" class="d-flex justify-center align-center" style="min-height: 400px;">
-      <div class="text-center">
-        <v-icon size="64" color="grey-lighten-1">mdi-history</v-icon>
-        <div class="mt-4 text-medium-emphasis">Tidak ada data history yang ditemukan.</div>
-      </div>
+    <!-- No Data State (setelah loading selesai dan tidak error) -->
+    <div v-else-if="!isLoading && Object.keys(history).length === 0" class="state-container">
+      <v-icon size="64" color="grey-lighten-1">mdi-database-off-outline</v-icon>
+      <div class="mt-4 text-medium-emphasis">Tidak ada data history yang ditemukan.</div>
     </div>
-
+    
     <!-- History Content -->
-    <div v-else class="pa-2">
-      <v-card
-        v-for="(details, version) in history"
-        :key="version"
-        class="mb-4"
-        elevation="2"
-      >
-        <!-- Release Header -->
-        <v-card-title class="d-flex justify-space-between align-center bg-surface-variant">
-          <h2 class="text-h6 font-weight-bold">Versi {{ version }}</h2>
-          <v-chip
-            color="grey"
-            size="small"
-            variant="tonal"
-          >
-            <v-icon start>mdi-calendar</v-icon>
-            Release date: {{ details.releaseDate }}
-          </v-chip>
-        </v-card-title>
-
-        <!-- Release Notes -->
-        <v-card-text>
-          <v-list density="compact">
-            <v-list-item
-              v-for="(note, index) in details.notes"
-              :key="index"
-            >
-              <template v-slot:prepend>
-                <v-icon size="small" color="grey-darken-1">mdi-circle-small</v-icon>
-              </template>
-              <v-list-item-title class="text-wrap">{{ note }}</v-list-item-title>
-            </v-list-item>
-          </v-list>
-        </v-card-text>
-      </v-card>
+    <div v-else class="history-timeline-container">
+      <v-timeline density="compact" align="start" side="end">
+        <v-timeline-item
+          v-for="(details, version) in history"
+          :key="version"
+          dot-color="primary"
+          size="small"
+        >
+          <template #opposite>
+            <div class="version-header">
+              <span class="font-weight-bold">Versi {{ version }}</span>
+              <span class="text-caption text-medium-emphasis">{{ details.releaseDate }}</span>
+            </div>
+          </template>
+          
+          <div class="release-notes">
+            <v-list density="compact" class="py-0">
+              <v-list-item
+                v-for="(note, index) in details.notes"
+                :key="index"
+                class="px-0"
+                min-height="24px"
+              >
+                <template #prepend>
+                  <v-icon size="12" color="grey" class="me-2">mdi-circle-small</v-icon>
+                </template>
+                <v-list-item-title class="note-text">{{ note }}</v-list-item-title>
+              </v-list-item>
+            </v-list>
+          </div>
+        </v-timeline-item>
+      </v-timeline>
     </div>
+
   </PageLayout>
 </template>
 
 <style scoped>
-/* Minimal custom styles - most styling handled by Vuetify */
-
-/* Ensure proper text wrapping for long notes */
-.v-list-item-title {
-  white-space: normal !important;
-  line-height: 1.5;
+.filter-label {
+    font-size: 12px;
+    font-weight: 500;
+    color: #424242;
 }
 
-/* Custom gap for toolbar items */
-.ga-3 {
-  gap: 0.75rem;
+.state-container {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    height: 100%;
+}
+
+.history-timeline-container {
+  padding: 16px 24px;
+}
+
+.version-header {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  padding-top: 4px; /* Align with timeline dot */
+}
+
+.release-notes {
+  border: 1px solid #e0e0e0;
+  border-radius: 4px;
+  padding: 8px 12px;
+  background-color: #f9f9f9;
+}
+
+.note-text {
+  font-size: 12px;
+  line-height: 1.5;
+  white-space: normal;
+  color: #333;
 }
 </style>

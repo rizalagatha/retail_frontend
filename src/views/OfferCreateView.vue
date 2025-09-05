@@ -15,6 +15,7 @@ const toast = useToast();
 const authStore = useAuthStore();
 const router = useRouter();
 const route = useRoute();
+const MENU_ID = '42';
 
 // --- Interfaces ---
 interface OfferItem {
@@ -33,6 +34,7 @@ interface OfferItem {
     noPengajuanHarga: string;
     pin: string;
 }
+
 interface Customer {
     kode: string;
     nama: string;
@@ -97,6 +99,7 @@ const previousItemDiscount = ref({ persen: 0, rp: 0 });
 
 const isEditMode = computed(() => !!route.params.nomor);
 const pageTitle = computed(() => isEditMode.value ? `Ubah Penawaran: ${header.value.nomor}` : 'Buat Penawaran Baru');
+const requiredPermission = computed(() => isEditMode.value ? 'edit' : 'insert');
 
 const tableHeaders = [
     { title: 'Kode', key: 'kode', width: '200px' },
@@ -111,7 +114,7 @@ const tableHeaders = [
     { title: 'No. SO DTF', key: 'noSoDtf', width: '150px' },
     { title: 'No. Pengajuan', key: 'noPengajuanHarga', width: '150px' },
     { title: 'Actions', key: 'actions', sortable: false, width: '80px' },
-];
+] as const;
 
 // --- Methods ---
 const getNextNumber = async () => {
@@ -145,7 +148,7 @@ const loadCustomerDetails = async () => {
             kota: response.data.cus_kota || '',
             telp: response.data.cus_telp || '',
             top: response.data.cus_top || 0,
-            level: response.data.xlevel 
+            level: response.data.xlevel
         };
 
         header.value.top = response.data.cus_top || 0;
@@ -164,12 +167,12 @@ const loadOfferData = async (nomor: string) => {
     try {
         const response = await api.get(`/offer-form/edit-details/${nomor}`);
         const { headerData, itemsData, footerData } = response.data;
-        
+
         // Isi semua state dengan data yang diterima dari server
         header.value = headerData;
         items.value = itemsData;
         footer.value = footerData;
-        
+
         toast.success(`Data untuk penawaran ${nomor} berhasil dimuat.`);
     } catch (error) {
         toast.error('Gagal memuat data penawaran.');
@@ -316,6 +319,11 @@ const removeRow = (index: number) => {
 };
 
 const save = async () => {
+    if (!authStore.can(MENU_ID, requiredPermission.value)) {
+        toast.error('Anda tidak memiliki izin untuk menyimpan data ini.');
+        return;
+    }
+
     if (!header.value.customer) {
         toast.error('Customer harus dipilih terlebih dahulu.');
         return;
@@ -482,11 +490,16 @@ watch(() => header.value.tanggal, (newDate) => {
 });
 
 onMounted(() => {
+    // Pengecekan otorisasi sebelum memuat apa pun
+    if (!authStore.can(MENU_ID, requiredPermission.value)) {
+        toast.error(`Anda tidak memiliki izin untuk ${requiredPermission.value === 'insert' ? 'membuat' : 'mengubah'} data penawaran.`);
+        router.push('/penawaran');
+        return;
+    }
+
     if (isEditMode.value) {
-        // Jika ada parameter 'nomor' di URL, masuk ke mode ubah
         loadOfferData(route.params.nomor as string);
     } else {
-        // Jika tidak, masuk ke mode baru seperti sebelumnya
         getNextNumber();
         addNewRow();
     }
@@ -495,168 +508,118 @@ onMounted(() => {
 </script>
 
 <template>
-    <PageLayout :title="pageTitle">
+    <PageLayout :title="pageTitle" desktop-mode icon="mdi-file-document-edit-outline">
         <template #header-actions>
-            <v-btn color="primary" prepend-icon="mdi-content-save" @click="save" :loading="isSaving">Simpan</v-btn>
-            <v-btn prepend-icon="mdi-cancel" @click="resetForm">Batal</v-btn>
-            <v-btn @click="router.push('/penawaran')" prepend-icon="mdi-close">Tutup</v-btn>
+            <v-btn size="small" color="primary" prepend-icon="mdi-content-save" @click="save"
+                :loading="isSaving">Simpan</v-btn>
+            <v-btn v-if="!isEditMode" size="small" prepend-icon="mdi-refresh" @click="resetForm">Baru</v-btn>
+            <v-btn size="small" @click="router.push('/penawaran')" prepend-icon="mdi-close">Tutup</v-btn>
         </template>
 
-        <!-- Header Section -->
-        <v-card class="mb-4">
-            <v-card-text>
+        <div class="form-container">
+            <!-- Header, Detail, dan Footer sekarang berada di dalam satu panel -->
+            <div class="desktop-form-section header-section">
                 <v-row dense>
-                    <v-col md="2">
-                        <v-text-field label="Nomor" v-model="header.nomor" readonly variant="filled" density="compact"
-                            bg-color="grey-lighten-4"></v-text-field>
-                    </v-col>
-                    <v-col md="2">
-                        <v-text-field label="Tanggal" v-model="header.tanggal" type="date" variant="outlined"
-                            density="compact"></v-text-field>
-                    </v-col>
-                    <v-col md="2">
-                        <v-text-field label="Gudang" :model-value="`${header.gudang.kode} - ${header.gudang.nama}`"
-                            readonly @click="openGudangSearch" @keydown.f1.prevent="openGudangSearch" variant="outlined"
-                            density="compact" append-inner-icon="mdi-magnify" style="cursor: pointer;"></v-text-field>
-                    </v-col>
-                    <v-col md="6">
-                        <v-text-field label="Customer"
-                            :model-value="header.customer ? `${header.customer.kode} - ${header.customer.nama}` : header.customerKode ? `${header.customerKode} - [Pilih Gudang untuk Detail]` : ''"
-                            readonly @click="openCustomerSearch" @keydown.f1.prevent="openCustomerSearch"
-                            variant="outlined" density="compact" append-inner-icon="mdi-magnify"
-                            style="cursor: pointer;"></v-text-field>
-                    </v-col>
-
-                    <!-- Field display-only - bukan input -->
-                    <v-col md="3">
-                        <div class="text-caption text-grey-darken-1 mb-1">Alamat</div>
-                        <div class="text-body-2 pa-2 bg-grey-lighten-5 rounded" style="min-height: 32px;">
-                            {{ header.customer?.alamat || '-' }}
-                        </div>
-                    </v-col>
-                    <v-col md="2">
-                        <div class="text-caption text-grey-darken-1 mb-1">Kota / Telp</div>
-                        <div class="text-body-2 pa-2 bg-grey-lighten-5 rounded" style="min-height: 32px;">
-                            {{ header.customer ? `${header.customer.kota} / ${header.customer.telp}` : '-' }}
-                        </div>
-                    </v-col>
-                    <v-col md="2">
-                        <div class="text-caption text-grey-darken-1 mb-1">Level</div>
-                        <div class="text-body-2 pa-2 bg-grey-lighten-5 rounded" style="min-height: 32px;">
-                            {{ header.customer?.level || '-' }}
-                        </div>
-                    </v-col>
-
-                    <v-col md="1">
-                        <v-text-field label="TOP" v-model.number="header.top" type="number" variant="outlined"
-                            density="compact"></v-text-field>
-                    </v-col>
-                    <v-col md="2">
-                        <v-text-field label="Tgl Tempo" v-model="header.tempo" type="date" variant="filled"
-                            density="compact" readonly bg-color="grey-lighten-4"></v-text-field>
-                    </v-col>
-                    <v-col md="2">
-                        <v-text-field label="PPN %" v-model.number="header.ppnPersen" type="number" variant="outlined"
-                            density="compact"></v-text-field>
-                    </v-col>
+                    <v-col md="2"><v-text-field label="Nomor" v-model="header.nomor" readonly variant="filled"
+                            density="compact" hide-details></v-text-field></v-col>
+                    <v-col md="2"><v-text-field label="Tanggal" v-model="header.tanggal" type="date" variant="outlined"
+                            density="compact" hide-details></v-text-field></v-col>
+                    <v-col md="2"><v-text-field label="Gudang" :model-value="header.gudang.kode" readonly
+                            @click="openGudangSearch" variant="outlined" density="compact" hide-details
+                            append-inner-icon="mdi-magnify"></v-text-field></v-col>
+                    <v-col md="6"><v-text-field label="Customer"
+                            :model-value="header.customer ? `${header.customer.kode} - ${header.customer.nama}` : ''"
+                            readonly @click="openCustomerSearch" variant="outlined" density="compact" hide-details
+                            append-inner-icon="mdi-magnify"></v-text-field></v-col>
                 </v-row>
-            </v-card-text>
-        </v-card>
+                <v-row dense>
+                    <v-col md="3"><v-text-field label="Alamat" :model-value="header.customer?.alamat" readonly
+                            variant="filled" density="compact" hide-details></v-text-field></v-col>
+                    <v-col md="2"><v-text-field label="Kota / Telp"
+                            :model-value="header.customer ? `${header.customer.kota} / ${header.customer.telp}` : ''"
+                            readonly variant="filled" density="compact" hide-details></v-text-field></v-col>
+                    <v-col md="2"><v-text-field label="Level" :model-value="header.customer?.level" readonly
+                            variant="filled" density="compact" hide-details></v-text-field></v-col>
+                    <v-col md="1"><v-text-field label="TOP" v-model.number="header.top" type="number" variant="outlined"
+                            density="compact" hide-details></v-text-field></v-col>
+                    <v-col md="2"><v-text-field label="Tgl Tempo" v-model="header.tempo" type="date" variant="filled"
+                            readonly density="compact" hide-details></v-text-field></v-col>
+                    <v-col md="2"><v-text-field label="PPN %" v-model.number="header.ppnPersen" type="number"
+                            variant="outlined" density="compact" hide-details></v-text-field></v-col>
+                </v-row>
+            </div>
 
-        <!-- Detail/Items Section -->
-        <v-card class="mb-4">
-            <v-data-table :headers="tableHeaders" :items="items" hide-default-footer :items-per-page="-1">
-                <template #item.kode="{ index }">
-                    <v-text-field @keydown.f1.prevent="openProductSearch(index)" placeholder="F1..."
-                        variant="underlined" dense hide-details></v-text-field>
-                </template>
-                <template #item.jumlah="{ item }"><v-text-field v-model.number="item.jumlah" type="number"
-                        variant="underlined" dense hide-details :disabled="!item.kode"></v-text-field></template>
-                <template #item.harga="{ item }"><v-text-field v-model.number="item.harga" type="number"
-                        variant="underlined" dense hide-details :disabled="!item.kode"></v-text-field></template>
-                <template #item.diskonPersen="{ item, index }">
-                    <v-text-field v-model.number="item.diskonPersen" type="number" variant="underlined" dense
-                        hide-details @blur="handleItemDiscountChange(index)" :disabled="!item.kode"></v-text-field>
-                </template>
-                <template #item.diskonRp="{ item, index }">
-                    <v-text-field v-model.number="item.diskonRp" type="number" variant="underlined" dense hide-details
-                        @blur="handleItemDiscountChange(index)" :disabled="!item.kode"></v-text-field>
-                </template>
-                <template #item.noSoDtf="{ index }"><v-text-field placeholder="F1..." variant="underlined" dense
-                        hide-details></v-text-field></template>
-                <template #item.noPengajuanHarga="{ index }"><v-text-field placeholder="F1..." variant="underlined"
-                        dense hide-details></v-text-field></template>
-                <template #item.total="{ item }"><span class="font-weight-bold">{{ new
-                    Intl.NumberFormat('id-ID').format(item.total) }}</span></template>
-                <template #item.actions="{ index }"><v-btn icon="mdi-delete" size="small" variant="text" color="error"
-                        @click="removeRow(index)"></v-btn></template>
-                <template #bottom>
-                    <div class="pa-2 text-right">
-                        <v-btn @click="addNewRow" prepend-icon="mdi-plus" variant="text" color="primary">Tambah
-                            Baris</v-btn>
-                    </div>
-                </template>
-            </v-data-table>
-        </v-card>
+            <div class="desktop-form-section detail-section">
+                <v-data-table :headers="tableHeaders" :items="items" density="compact" class="desktop-table"
+                    fixed-header :items-per-page="-1">
+                    <template #item.kode="{ item }"><v-text-field
+                            @keydown.f1.prevent="openProductSearch(items.indexOf(item))" placeholder="F1..."
+                            variant="underlined" dense hide-details single-line><template #append-inner><v-icon
+                                    @click="openProductSearch(items.indexOf(item))"
+                                    size="small">mdi-magnify</v-icon></template></v-text-field></template>
+                    <template #item.jumlah="{ item }"><v-text-field v-model.number="item.jumlah" type="number"
+                            variant="underlined" dense hide-details single-line
+                            :disabled="!item.kode"></v-text-field></template>
+                    <template #item.harga="{ item }"><v-text-field v-model.number="item.harga" type="number"
+                            variant="underlined" dense hide-details single-line
+                            :disabled="!item.kode"></v-text-field></template>
+                    <template #item.diskonPersen="{ item }"><v-text-field v-model.number="item.diskonPersen"
+                            type="number" variant="underlined" dense hide-details single-line
+                            @blur="handleItemDiscountChange(items.indexOf(item))"
+                            :disabled="!item.kode"></v-text-field></template>
+                    <template #item.diskonRp="{ item }"><v-text-field v-model.number="item.diskonRp" type="number"
+                            variant="underlined" dense hide-details single-line
+                            @blur="handleItemDiscountChange(items.indexOf(item))"
+                            :disabled="!item.kode"></v-text-field></template>
+                    <template #item.total="{ item }"><span class="text-caption font-weight-bold">{{ new
+                        Intl.NumberFormat('id-ID').format(item.total) }}</span></template>
+                    <template #item.actions="{ item }"><v-btn icon="mdi-delete" size="x-small" variant="text"
+                            color="error" @click="removeRow(items.indexOf(item))"></v-btn></template>
+                    <template #bottom>
+                        <div class="pa-1 text-right border-t"><v-btn size="small" @click="addNewRow"
+                                prepend-icon="mdi-plus" variant="text" color="primary">Tambah Baris</v-btn></div>
+                    </template>
+                </v-data-table>
+            </div>
 
-        <!-- Footer Section -->
-        <v-card>
-            <v-card-text>
-                <v-row>
-                    <v-col md="8">
-                        <v-textarea label="Keterangan" v-model="header.keterangan" rows="4"
-                            variant="outlined"></v-textarea>
-                    </v-col>
-                    <v-col md="4">
-                        <!-- Display field untuk Total -->
-                        <div class="mb-3">
-                            <div class="text-caption text-grey-darken-1 mb-1">Total</div>
-                            <div class="text-h6 pa-2 bg-grey-lighten-5 rounded text-right font-weight-bold">
-                                {{ new Intl.NumberFormat('id-ID').format(footer.total) }}
+            <div class="desktop-form-section footer-section">
+                <v-row dense>
+                    <v-col md="8"><v-textarea label="Keterangan" v-model="header.keterangan" rows="3" variant="outlined"
+                            density="compact" hide-details></v-textarea></v-col>
+                    <v-col md="4" class="summary-section">
+                        <div class="summary-item"><span class="summary-label">Total</span><span class="summary-value">{{
+                            new
+                                Intl.NumberFormat('id-ID').format(footer.total) }}</span></div>
+                        <div class="summary-item-input">
+                            <span class="summary-label">Diskon %</span>
+                            <div class="d-flex ga-2" style="width: 180px;">
+                                <v-text-field v-model.number="footer.diskonPersen1" type="number" variant="outlined"
+                                    density="compact" hide-details :disabled="!canEditFooter"
+                                    @blur="handleDiscountChange"></v-text-field>
+                                <v-text-field v-model.number="footer.diskonPersen2" type="number" variant="outlined"
+                                    density="compact" hide-details :disabled="!canEditFooter"
+                                    @blur="handleDiscount2Change"></v-text-field>
                             </div>
                         </div>
-
-                        <div class="d-flex ga-2 mb-3">
-                            <v-text-field label="Diskon % (1)" v-model.number="footer.diskonPersen1" type="number"
-                                variant="outlined" density="compact" :disabled="!canEditFooter"
-                                @blur="handleDiscountChange"></v-text-field>
-                            <v-text-field label="Diskon % (2)" v-model.number="footer.diskonPersen2" type="number"
-                                variant="outlined" density="compact" :disabled="!canEditFooter"
-                                @blur="handleDiscount2Change"></v-text-field>
-                        </div>
-
-                        <!-- Display field untuk Diskon Rp -->
-                        <div class="mb-3">
-                            <div class="text-caption text-grey-darken-1 mb-1">Diskon Rp</div>
-                            <div class="text-body-2 pa-2 bg-grey-lighten-5 rounded text-right">
-                                {{ new Intl.NumberFormat('id-ID').format(footer.diskonRp) }}
-                            </div>
-                        </div>
-
-                        <v-text-field label="Biaya Kirim" v-model.number="footer.biayaKirim" type="number"
-                            variant="outlined" density="compact" :disabled="!header.customer"
-                            class="mb-3"></v-text-field>
-
-                        <!-- Display field untuk PPN Rp -->
-                        <div class="mb-3">
-                            <div class="text-caption text-grey-darken-1 mb-1">PPN Rp</div>
-                            <div class="text-body-2 pa-2 bg-grey-lighten-5 rounded text-right">
-                                {{ new Intl.NumberFormat('id-ID').format(footer.ppnRp) }}
-                            </div>
-                        </div>
-
-                        <!-- Display field untuk Grand Total -->
-                        <div class="mb-3">
-                            <div class="text-caption text-grey-darken-1 mb-1">Grand Total</div>
-                            <div
-                                class="text-h5 pa-3 bg-primary-lighten-5 rounded text-right font-weight-bold text-primary">
-                                {{ new Intl.NumberFormat('id-ID').format(footer.grandTotal) }}
-                            </div>
+                        <div class="summary-item"><span class="summary-label">Diskon Rp</span><span
+                                class="summary-value">{{ new
+                                    Intl.NumberFormat('id-ID').format(footer.diskonRp) }}</span></div>
+                        <div class="summary-item-input"><span class="summary-label">Biaya Kirim</span><v-text-field
+                                v-model.number="footer.biayaKirim" type="number" variant="outlined" density="compact"
+                                hide-details :disabled="!header.customer" class="text-right"
+                                style="width: 180px;"></v-text-field></div>
+                        <div class="summary-item"><span class="summary-label">PPN Rp</span><span
+                                class="summary-value">{{ new
+                                    Intl.NumberFormat('id-ID').format(footer.ppnRp) }}</span></div>
+                        <v-divider class="my-1"></v-divider>
+                        <div class="summary-item grand-total"><span class="summary-label">Grand Total</span><span
+                                class="summary-value">{{ new Intl.NumberFormat('id-ID').format(footer.grandTotal)
+                                }}</span>
                         </div>
                     </v-col>
                 </v-row>
-            </v-card-text>
-        </v-card>
+            </div>
+        </div>
 
         <!-- Modals -->
         <CustomerSearchModal v-if="isCustomerSearchVisible" :gudang="header.gudang.kode"
@@ -673,3 +636,67 @@ onMounted(() => {
             @success="onAuth2Success" />
     </PageLayout>
 </template>
+
+<style scoped>
+.form-container {
+    padding: 12px;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+.header-section {
+    flex-shrink: 0;
+}
+.detail-section {
+    flex-grow: 1; /* Ini akan membuat tabel mengisi sisa ruang */
+    min-height: 0; /* Penting untuk flexbox */
+    display: flex;
+}
+.footer-section {
+    flex-shrink: 0;
+}
+.desktop-table {
+    font-size: 11px;
+    height: 100%; /* Membuat tabel mengisi kontainer detail-section */
+}
+.desktop-table :deep(td), .desktop-table :deep(th) {
+    padding: 0 8px !important;
+    height: 28px !important;
+}
+.text-right :deep(input) {
+    text-align: right;
+}
+
+/* Footer Summary Styles */
+.summary-section {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+.summary-item, .summary-item-input {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 11px;
+    min-height: 28px;
+}
+.summary-label {
+    font-weight: 500;
+    color: #424242;
+    flex-shrink: 0;
+    margin-right: 8px;
+}
+.summary-value {
+    font-weight: bold;
+    font-family: monospace;
+    font-size: 12px;
+}
+.grand-total .summary-label {
+    font-size: 13px;
+}
+.grand-total .summary-value {
+    font-size: 15px;
+    color: #1A237E;
+}
+</style>

@@ -6,116 +6,114 @@ const manualPdfPath = '/manual-program.pdf';
 </script>
 
 <template>
-  <PageLayout title="Manual Program">
-    <v-container class="py-8">
-      <v-row justify="center">
-        <v-col cols="12" md="10" lg="8">
-          <v-card elevation="4" class="mx-auto">
-            <!-- Header -->
-            <v-card-title class="text-h5 text-center bg-surface-variant pa-6">
-              <v-icon left class="me-2" color="primary">mdi-book-open-page-variant</v-icon>
-              Manual Penggunaan Program
-            </v-card-title>
+  <PageLayout title="Manual Program" desktop-mode icon="mdi-book-open-page-variant">
+    <div class="manual-container">
+      <div class="desktop-form-section content-card">
+        <!-- Bagian Header -->
+        <div class="text-center mb-6">
+          <v-icon size="60" color="primary" class="mb-3">mdi-file-pdf-box-outline</v-icon>
+          <h2 class="text-h6 font-weight-medium">Dokumentasi Aplikasi</h2>
+          <p class="text-body-2 text-medium-emphasis mt-2 mx-auto" style="max-width: 600px;">
+            Panduan lengkap mengenai cara penggunaan, fitur, dan tips untuk memaksimalkan penggunaan aplikasi Retail Kaosan.
+          </p>
+        </div>
 
-            <v-card-text class="pa-8 text-center">
-              <!-- Main Description -->
-              <div class="mb-6">
-                <v-icon size="64" color="primary" class="mb-4">mdi-file-pdf-box</v-icon>
-                <div class="text-h6 mb-3 font-weight-medium">Dokumentasi Lengkap Aplikasi Retail</div>
-                <div class="text-body-1 text-medium-emphasis mb-4" style="line-height: 1.6;">
-                  Dokumentasi lengkap mengenai cara penggunaan aplikasi Retail dapat diakses melalui 
-                  manual PDF. Panduan ini mencakup semua fitur dan langkah-langkah penggunaan aplikasi.
+        <v-divider class="my-4"></v-divider>
+
+        <!-- Bagian Isi Panduan -->
+        <div class="mb-6">
+          <h3 class="text-subtitle-1 font-weight-medium text-center mb-4">Isi Panduan Meliputi:</h3>
+          <v-row dense justify="center">
+            <v-col cols="12" md="4">
+              <div class="feature-item">
+                <v-icon color="success" class="me-3">mdi-check-circle-outline</v-icon>
+                <div>
+                  <div class="font-weight-medium">Panduan Lengkap</div>
+                  <div class="text-caption text-medium-emphasis">Penjelasan langkah demi langkah</div>
                 </div>
               </div>
-
-              <!-- Features Info -->
-              <v-row class="mb-6">
-                <v-col cols="12" sm="4">
-                  <v-card variant="outlined" class="pa-4 h-100">
-                    <v-icon color="success" class="mb-2">mdi-check-circle</v-icon>
-                    <div class="text-body-2 font-weight-medium mb-1">Panduan Lengkap</div>
-                    <div class="text-caption text-medium-emphasis">Step-by-step untuk semua fitur</div>
-                  </v-card>
-                </v-col>
-                <v-col cols="12" sm="4">
-                  <v-card variant="outlined" class="pa-4 h-100">
-                    <v-icon color="info" class="mb-2">mdi-image-multiple</v-icon>
-                    <div class="text-body-2 font-weight-medium mb-1">Dengan Screenshot</div>
-                    <div class="text-caption text-medium-emphasis">Visual guide dengan gambar</div>
-                  </v-card>
-                </v-col>
-                <v-col cols="12" sm="4">
-                  <v-card variant="outlined" class="pa-4 h-100">
-                    <v-icon color="warning" class="mb-2">mdi-lightbulb</v-icon>
-                    <div class="text-body-2 font-weight-medium mb-1">Tips & Tricks</div>
-                    <div class="text-caption text-medium-emphasis">Shortcut dan best practices</div>
-                  </v-card>
-                </v-col>
-              </v-row>
-
-              <!-- Action Button -->
-              <v-btn
-                :href="manualPdfPath"
-                target="_blank"
-                rel="noopener noreferrer"
-                color="primary"
-                size="x-large"
-                prepend-icon="mdi-download"
-                variant="elevated"
-                class="mb-6"
-                min-width="250"
-              >
-                Buka Manual Program (PDF)
-              </v-btn>
-
-              <!-- Additional Info -->
-              <v-alert
-                type="info"
-                variant="tonal"
-                icon="mdi-information"
-              >
-                <div class="text-body-2">
-                  <div class="mb-2">
-                    <strong>Informasi:</strong> Manual akan terbuka di tab browser baru dalam format PDF.
-                  </div>
-                  <div>
-                    Pastikan Anda memiliki aplikasi pembaca PDF di browser atau komputer Anda. 
-                    Jika mengalami masalah, coba gunakan browser yang berbeda atau update browser Anda.
-                  </div>
+            </v-col>
+            <v-col cols="12" md="4">
+              <div class="feature-item">
+                <v-icon color="info" class="me-3">mdi-image-multiple-outline</v-icon>
+                <div>
+                  <div class="font-weight-medium">Dilengkapi Screenshot</div>
+                  <div class="text-caption text-medium-emphasis">Panduan visual dengan gambar</div>
                 </div>
-              </v-alert>
-
-              <!-- Help Section -->
-              <v-divider class="my-6"></v-divider>
-              
-              <div class="text-body-2 text-medium-emphasis">
-                <v-icon class="me-1" size="small">mdi-help-circle</v-icon>
-                Butuh bantuan lebih lanjut? Hubungi tim support untuk assistance.
               </div>
-            </v-card-text>
-          </v-card>
-        </v-col>
-      </v-row>
-    </v-container>
+            </v-col>
+            <v-col cols="12" md="4">
+              <div class="feature-item">
+                <v-icon color="warning" class="me-3">mdi-lightbulb-on-outline</v-icon>
+                <div>
+                  <div class="font-weight-medium">Tips & Trik</div>
+                  <div class="text-caption text-medium-emphasis">Shortcut dan praktik terbaik</div>
+                </div>
+              </div>
+            </v-col>
+          </v-row>
+        </div>
+        
+        <v-spacer></v-spacer> <!-- Mendorong tombol ke bawah -->
+
+        <!-- Bagian Tombol Aksi -->
+        <div class="text-center mt-4">
+           <v-alert
+              type="info"
+              variant="tonal"
+              density="compact"
+              class="mb-4 text-left text-caption"
+            >
+              Manual akan terbuka di tab browser baru. Pastikan Anda memiliki aplikasi pembaca PDF terinstal.
+            </v-alert>
+          <v-btn
+            :href="manualPdfPath"
+            target="_blank"
+            rel="noopener noreferrer"
+            color="primary"
+            size="large"
+            prepend-icon="mdi-download-outline"
+            variant="elevated"
+            min-width="300"
+          >
+            Buka Manual (PDF)
+          </v-btn>
+        </div>
+      </div>
+    </div>
+
+    <!-- Informasi Tambahan di Footer -->
+    <template #footer>
+      <div class="d-flex align-center justify-end w-100">
+        <span>Butuh bantuan lebih lanjut? Hubungi tim support.</span>
+      </div>
+    </template>
   </PageLayout>
 </template>
 
 <style scoped>
-/* Minimal custom styles - most styling handled by Vuetify */
+.manual-container {
+  padding: 12px;
+  height: 100%;
+  display: flex;
+}
 
-/* Ensure equal height for feature cards */
-.h-100 {
+.content-card {
+  width: 100%;
+  max-width: 950px; /* Batasi lebar agar mudah dibaca */
+  margin: 0 auto; /* Pusatkan kartu */
+  display: flex;
+  flex-direction: column;
+}
+
+.feature-item {
+  display: flex;
+  align-items: center;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  padding: 12px;
+  background-color: #f9f9f9;
   height: 100%;
 }
-
-/* Custom card styling */
-.v-card {
-  border-radius: 12px !important;
-}
-
-/* Hover effect for feature cards */
-.v-card.v-card--variant-outlined:hover {
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-  transition: box-shadow 0.2s ease-in-out;
-}
 </style>
+

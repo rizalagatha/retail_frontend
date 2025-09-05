@@ -27,6 +27,7 @@ export const useAuthStore = defineStore('auth', () => {
   const token = ref<string | null>(localStorage.getItem('authToken'));
   const user = ref<User | null>(JSON.parse(localStorage.getItem('userData') || 'null'));
   const permissions = ref<Permission[]>(JSON.parse(localStorage.getItem('userPermissions') || '[]'));
+  const isSessionExpired = ref(false);
 
   // --- GETTERS ---
   // Cara mudah untuk mendapatkan data turunan dari state
@@ -57,6 +58,7 @@ export const useAuthStore = defineStore('auth', () => {
 
   // Aksi untuk logout
   function logout() {
+    isSessionExpired.value = false;
     token.value = null;
     user.value = null;
     permissions.value = [];
@@ -83,14 +85,30 @@ export const useAuthStore = defineStore('auth', () => {
   function can(menuId: string, action: 'view' | 'insert' | 'edit' | 'delete'): boolean {
     // Konversi menuId (string) ke number sebelum membandingkan
     const idAsNumber = parseInt(menuId, 10);
-    
+
     // Cari permission berdasarkan id (number)
     const permission = permissions.value.find(p => p.id === idAsNumber);
 
     // Jika permission ditemukan, kembalikan nilai boolean dari action yang diminta
     // Jika tidak, kembalikan false
     return permission ? permission[action] : false;
-}
+  }
+
+  function handleSessionExpired() {
+    // Hanya tampilkan dialog jika belum tampil
+    if (isSessionExpired.value) return;
+
+    // Bersihkan data lama karena token sudah tidak valid
+    token.value = null;
+    user.value = null;
+    permissions.value = [];
+    localStorage.removeItem('authToken');
+    localStorage.removeItem('userData');
+    localStorage.removeItem('userPermissions');
+
+    // Tampilkan dialog
+    isSessionExpired.value = true;
+  }
 
   return {
     token,
@@ -104,5 +122,7 @@ export const useAuthStore = defineStore('auth', () => {
     checkAuthStatus,
     can,
     allowedMenus,
+    isSessionExpired,
+    handleSessionExpired,
   };
 });

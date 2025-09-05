@@ -35,6 +35,28 @@ watch(
       <router-view />
     </v-main>
   </v-app>
+  <v-app class="desktop-app-container">
+    <router-view />
+
+    <v-dialog v-model="authStore.isSessionExpired" persistent max-width="450px">
+      <v-card>
+        <v-card-title class="d-flex align-center">
+          <v-icon color="warning" class="me-2">mdi-clock-alert-outline</v-icon>
+          <span class="text-h6">Sesi Telah Habis</span>
+        </v-card-title>
+        <v-card-text>
+          Sesi login Anda telah berakhir karena tidak ada aktivitas. Silakan login kembali untuk melanjutkan.
+        </v-card-text>
+        <v-card-actions>
+          <v-spacer></v-spacer>
+          <v-btn color="primary" variant="elevated" @click="authStore.logout" block>
+            Login Kembali
+          </v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+
+  </v-app>
 </template>
 
 <style scoped>

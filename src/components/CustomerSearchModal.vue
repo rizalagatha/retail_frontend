@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue';
-import axios from 'axios';
+import api from '@/services/api';
 
 interface Customer {
   kode: string;
@@ -24,10 +24,11 @@ const items = ref<Customer[]>([]);
 const totalItems = ref(0);
 const loading = ref(true);
 const search = ref('');
+const options = ref({ page: 1, itemsPerPage: 10 });
 
 const headers = [
   { title: 'Kode', key: 'kode', sortable: false },
-  { title: 'Nama Customer', key: 'nama', sortable: false },
+  { title: 'Nama Customer', key: 'nama', sortable: false, width: '30%' },
   { title: 'Level', key: 'level', sortable: false },
   { title: 'Alamat', key: 'alamat', sortable: false },
   { title: 'Kota', key: 'kota', sortable: false },
@@ -37,7 +38,7 @@ const headers = [
 const loadItems = async ({ page, itemsPerPage }: { page: number, itemsPerPage: number }) => {
   loading.value = true;
   try {
-    const response = await axios.get('http://:8000/api/offer-form/search-customers', {
+    const response = await api.get('/offer-form/search-customers', {
       params: {
         term: search.value,
         gudang: props.gudang,
@@ -62,11 +63,10 @@ const loadItems = async ({ page, itemsPerPage }: { page: number, itemsPerPage: n
   }
 };
 
-const selectCustomer = (item: any) => {
-    // Perbaikan Definitif: Selalu gunakan item.raw saat berinteraksi dengan event dari tabel
-    const customerData = item ? item : item;
-    if (customerData) {
-        emit('customer-selected', customerData);
+const selectCustomer = (item: Customer) => {
+    if (item && item.kode) {
+        emit('customer-selected', item);
+        emit('close');
     }
 };
 
@@ -75,7 +75,8 @@ let searchTimeout: number;
 watch(search, () => {
     clearTimeout(searchTimeout);
     searchTimeout = setTimeout(() => {
-        loadItems({ page: 1, itemsPerPage: 10 });
+        options.value.page = 1; // Reset ke halaman pertama saat mencari
+        loadItems(options.value);
     }, 500);
 });
 </script>
@@ -83,39 +84,42 @@ watch(search, () => {
 <template>
   <v-dialog
     :model-value="true"
-    @update:model-value="emit('close')"
-    max-width="900px"
+    @update:model-value="$emit('close')"
+    max-width="1200px"
     persistent
   >
-    <v-card>
-      <v-toolbar color="primary" dark>
-        <v-toolbar-title>Bantuan - Pilih Customer</v-toolbar-title>
+    <v-card class="dialog-card d-flex flex-column" style="height: 80vh;">
+      <v-toolbar color="primary" density="compact">
+        <v-toolbar-title class="text-subtitle-1">Bantuan - Pilih Customer</v-toolbar-title>
         <v-spacer></v-spacer>
-        <v-btn icon="mdi-close" @click="emit('close')" variant="text"></v-btn>
+        <v-btn icon="mdi-close" @click="$emit('close')" variant="text" size="small"></v-btn>
       </v-toolbar>
 
-      <v-card-text class="pa-4">
+      <v-card-text class="pa-4 d-flex flex-column flex-grow-1">
         <v-text-field
           v-model="search"
           label="Cari berdasarkan kode atau nama customer..."
           prepend-inner-icon="mdi-magnify"
           variant="outlined"
+          density="compact"
           clearable
-          class="mb-4"
+          class="mb-4 flex-shrink-0"
           hide-details
         ></v-text-field>
 
         <v-data-table-server
+          v-model:page="options.page"
+          v-model:items-per-page="options.itemsPerPage"
           :headers="headers"
           :items="items"
           :items-length="totalItems"
           :loading="loading"
           @update:options="loadItems"
-          @click:row="(_, { item }) => selectCustomer(item)"
           hover
-          class="elevation-1"
+          class="desktop-table flex-grow-1"
+          density="compact"
+          fixed-header
         >
-          <!-- Perbaikan: Gunakan 'item.raw' untuk mengakses data asli di dalam template -->
           <template #item="{ item }">
             <tr @click="selectCustomer(item)" style="cursor: pointer;">
               <td>{{ item.kode }}</td>
@@ -131,3 +135,15 @@ watch(search, () => {
   </v-dialog>
 </template>
 
+<style scoped>
+.dialog-card {
+    font-size: 12px;
+}
+.desktop-table {
+    font-size: 11px;
+}
+.desktop-table :deep(td), .desktop-table :deep(th) {
+    padding: 0 8px !important;
+    height: 28px !important;
+}
+</style>

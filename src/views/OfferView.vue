@@ -70,16 +70,15 @@ const dialogDelete = ref(false);
 const itemToDelete = ref<OfferHeader | null>(null);
 
 const tableHeaders = [
-    { title: 'Nomor', key: 'nomor' },
-    { title: 'Tanggal', key: 'tanggal' },
-    { title: 'Kode Customer', key: 'kdcus' },
-    { title: 'Nama Customer', key: 'nama' },
-    { title: 'Nominal', key: 'nominal', align: 'end' },
-    { title: 'No. SO', key: 'noSO' },
-    { title: 'User', key: 'created' },
-    { title: 'Status', key: 'status' },
-    { title: '', key: 'data-table-expand', align: 'center' },
-];
+    { title: 'Nomor', key: 'nomor', width: '150px' },
+    { title: 'Tanggal', key: 'tanggal', width: '100px' },
+    { title: 'Customer', key: 'nama' },
+    { title: 'Nominal', key: 'nominal', align: 'end', width: '120px' },
+    { title: 'No. SO', key: 'noSO', width: '150px' },
+    { title: 'User', key: 'created', width: '100px' },
+    { title: 'Status', key: 'status', width: '120px' },
+    { title: '', key: 'data-table-expand', align: 'center', width: '50px' },
+] as const;
 
 const detailHeaders = [
     { title: 'Kode', key: 'kode' },
@@ -90,7 +89,7 @@ const detailHeaders = [
     { title: 'Harga', key: 'harga', align: 'end' },
     { title: 'Diskon', key: 'diskon', align: 'end' },
     { title: 'Total', key: 'total', align: 'end' },
-];
+] as const;
 
 const isSingleSelected = computed(() => selected.value.length === 1);
 const canBeClosed = computed(() => {
@@ -325,18 +324,18 @@ const generatePdf = (autoPrint = false) => {
     // posisi X supaya rata kanan
     const x = pageWidth - imgWidth - marginRight;
     doc.addImage(img, 'PNG', x, 10, imgWidth, imgHeight);
-    doc.setFontSize(14).setFont(undefined, 'bold');
+    doc.setFontSize(14).setFont('helvetica', 'bold');
     doc.text(data.gudang.gdg_inv_nama, 14, 15);
-    doc.setFontSize(10).setFont(undefined, 'normal');
+    doc.setFontSize(10).setFont('helvetica', 'normal');
     doc.text(data.gudang.gdg_inv_alamat, 14, 20);
     doc.text(data.gudang.gdg_inv_kota, 14, 25);
     doc.text(data.gudang.gdg_inv_telp, 14, 30);
 
-    doc.setFontSize(18).setFont(undefined, 'bold');
+    doc.setFontSize(18).setFont('helvetica', 'bold');
     doc.text('PENAWARAN', 105, 40, { align: 'center' });
 
     // Info Transaksi
-    doc.setFontSize(10).setFont(undefined, 'normal');
+    doc.setFontSize(10).setFont('helvetica', 'normal');
     doc.text(`Nomor: ${data.header.pen_nomor}`, 14, 50);
     doc.text(`Tanggal: ${format(new Date(data.header.pen_tanggal), 'dd-MM-yyyy')}`, 14, 55);
 
@@ -381,11 +380,11 @@ const generatePdf = (autoPrint = false) => {
     doc.text(`${new Intl.NumberFormat('id-ID').format(data.footer.bkrm)}`, 205, finalY + 15, { align: 'right' });
     doc.setLineWidth(0.5);
     doc.line(startXTotals, finalY + 17, 205, finalY + 17);
-    doc.setFont(undefined, 'bold');
+    doc.setFont('helvetica', 'bold');
     doc.text('Grand Total', startXTotals, finalY + 22);
     doc.text(`${new Intl.NumberFormat('id-ID').format(grandTotal)}`, 205, finalY + 22, { align: 'right' });
 
-    doc.setFont(undefined, 'normal');
+    doc.setFont('helvetica', 'normal');
     doc.text('Dibuat Oleh,', 14, finalY + 25);
     doc.text('Mengetahui,', 60, finalY + 25);
     doc.text(`( ${data.header.user_create} )`, 14, finalY + 45);
@@ -513,50 +512,40 @@ watch(selectedBranch, () => {
             <v-btn v-if="authStore.can(MENU_ID, 'edit')" :disabled="!canBeClosed" color="blue"
                 prepend-icon="mdi-lock-outline" @click="openCloseDialog">Close Penawaran</v-btn>
         </template>
-        
+
         <div v-if="!hasViewPermission" class="text-center pa-8 text-grey">
             <v-icon size="64" class="mb-4">mdi-lock-outline</v-icon>
             <h3 class="text-h6">Akses Ditolak</h3>
             <p class="body-1 mt-2">Anda tidak memiliki izin untuk melihat data ini.</p>
         </div>
 
-        <v-card>
-            <v-card-title class="d-flex align-center pe-2 ga-2 flex-wrap">
+        <div v-else class="browse-content">
+            <!-- Filter Section -->
+            <div class="filter-section">
                 <div class="d-flex align-center ga-2">
-                    <span>Filter Periode:</span>
-                    <v-text-field v-model="startDate" type="date" density="compact" hide-details
+                    <span class="filter-label">Periode:</span>
+                    <v-text-field v-model="startDate" type="date" density="compact" hide-details variant="outlined"
                         style="min-width: 140px;"></v-text-field>
                     <span>s/d</span>
-                    <v-text-field v-model="endDate" type="date" density="compact" hide-details
+                    <v-text-field v-model="endDate" type="date" density="compact" hide-details variant="outlined"
                         style="min-width: 140px;"></v-text-field>
                 </div>
-
-                <div class="d-flex align-center ga-2" style="min-width: 200px;">
-                    <span>Cabang:</span>
+                <div class="d-flex align-center ga-2" style="min-width: 220px;">
+                    <span class="filter-label">Cabang:</span>
                     <v-select v-model="selectedBranch" :items="branchList" item-title="nama" item-value="kode"
                         density="compact" hide-details variant="outlined"></v-select>
                 </div>
-
-                <div class="d-flex align-center ga-2 text-caption">
-                    <div class="d-flex align-center"><v-sheet color="red" height="12" width="12" class="me-1"></v-sheet>
-                        Belum
-                        Jadi SO</div>
-                    <div class="d-flex align-center ml-2"><v-sheet color="blue" height="12" width="12"
-                            class="me-1"></v-sheet>
-                        Tidak Jadi SO</div>
-                </div>
-
                 <v-spacer></v-spacer>
-                <v-btn @click="fetchData" icon="mdi-refresh" variant="text"></v-btn>
-            </v-card-title>
-            <v-divider></v-divider>
+                <v-btn @click="fetchData" icon="mdi-refresh" variant="text" size="small"></v-btn>
+            </div>
 
+            <!-- Table Section -->
             <v-data-table v-model="selected" v-model:expanded="expanded" :headers="tableHeaders" :items="headers"
-                :loading="isLoading" item-value="nomor" show-select return-object show-expand
-                @update:expanded="(newExpanded) => { console.log('Expanded changed to:', newExpanded); loadDetails(newExpanded); }">
+                :loading="isLoading" item-value="nomor" density="compact" class="desktop-table" fixed-header show-select
+                return-object show-expand @update:expanded="loadDetails">
                 <template #item.status="{ item }">
-                    <v-chip :color="getStatus(item).color" variant="tonal" size="small">{{ getStatus(item).text
-                    }}</v-chip>
+                    <v-chip :color="getStatus(item).color" variant="tonal" size="x-small">{{ getStatus(item).text
+                        }}</v-chip>
                 </template>
                 <template #item.nominal="{ item }">
                     {{ new Intl.NumberFormat('id-ID').format(item.nominal) }}
@@ -566,17 +555,14 @@ watch(selectedBranch, () => {
                 </template>
                 <template #expanded-row="{ columns, item }">
                     <tr>
-                        <td :colspan="columns.length" class="pa-4 bg-grey-lighten-5">
-                            <div v-if="loadingDetails.has(item.nomor)" class="text-center py-4">
-                                <v-progress-circular indeterminate size="24" class="mr-2"></v-progress-circular>
-                                Memuat detail...
-                            </div>
-                            <div v-else-if="!details[item.nomor]" class="text-center py-4 text-grey">
-                                Detail belum dimuat
+                        <td :colspan="columns.length" class="pa-2 bg-grey-lighten-5">
+                            <div v-if="loadingDetails.has(item.nomor)" class="text-center py-2">
+                                <v-progress-circular indeterminate size="20" class="mr-2"></v-progress-circular>
+                                <span class="text-caption">Memuat detail...</span>
                             </div>
                             <v-data-table v-else-if="details[item.nomor] && details[item.nomor].length > 0"
                                 :headers="detailHeaders" :items="details[item.nomor]" density="compact"
-                                hide-default-footer class="elevation-0">
+                                hide-default-footer :items-per-page="-1" class="elevation-0 detail-table">
                                 <template #item.harga="{ item: detailItem }">{{ new
                                     Intl.NumberFormat('id-ID').format(detailItem.harga) }}</template>
                                 <template #item.diskon="{ item: detailItem }">{{ new
@@ -584,15 +570,11 @@ watch(selectedBranch, () => {
                                 <template #item.total="{ item: detailItem }">{{ new
                                     Intl.NumberFormat('id-ID').format(detailItem.total) }}</template>
                             </v-data-table>
-                            <div v-else-if="details[item.nomor] && details[item.nomor].length === 0"
-                                class="text-center py-4 text-grey">
-                                Tidak ada detail untuk penawaran ini
-                            </div>
                         </td>
                     </tr>
                 </template>
             </v-data-table>
-        </v-card>
+        </div>
 
         <!-- Dialog untuk Close Penawaran -->
         <v-dialog v-model="isCloseDialogVisible" max-width="500px" persistent>
@@ -630,18 +612,14 @@ watch(selectedBranch, () => {
 
         <!-- (8) Tambahkan Dialog Konfirmasi Hapus -->
         <v-dialog v-model="dialogDelete" max-width="500px">
-          <v-card>
-            <v-card-title class="text-h5">Konfirmasi Hapus</v-card-title>
-            <v-card-text>
-              Apakah Anda yakin ingin menghapus penawaran nomor <strong>{{ itemToDelete?.nomor }}</strong>?
-            </v-card-text>
-            <v-card-actions>
-              <v-spacer></v-spacer>
-              <v-btn variant="text" @click="dialogDelete = false">Batal</v-btn>
-              <v-btn color="red-darken-1" variant="elevated" @click="deleteConfirmed">Hapus</v-btn>
-              <v-spacer></v-spacer>
-            </v-card-actions>
-          </v-card>
+            <v-card>
+                <v-card-title class="text-h5">Konfirmasi Hapus</v-card-title>
+                <v-card-text>Apakah Anda yakin ingin menghapus penawaran nomor <strong>{{ itemToDelete?.nomor
+                        }}</strong>?</v-card-text>
+                <v-card-actions><v-spacer></v-spacer><v-btn @click="dialogDelete = false">Batal</v-btn><v-btn
+                        color="red-darken-1" variant="elevated"
+                        @click="deleteConfirmed">Hapus</v-btn><v-spacer></v-spacer></v-card-actions>
+            </v-card>
         </v-dialog>
 
         <!-- Dialog Pratinjau -->
@@ -651,10 +629,42 @@ watch(selectedBranch, () => {
 </template>
 
 <style scoped>
-/* Tambahkan style ini untuk warna teks baris */
-.v-data-table :deep(tr.text-red td) {
-    color: #F44336 !important;
+.browse-content {
+    border: 1px solid #e0e0e0;
+    background-color: #ffffff;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
 }
-
-.v-data-table :deep(tr.text-blue td) {}
+.filter-section {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 6px 10px;
+    border-bottom: 1px solid #e0e0e0;
+    flex-shrink: 0;
+}
+.filter-label {
+    font-size: 11px;
+    font-weight: 500;
+    color: #424242;
+}
+.desktop-table {
+    font-size: 11px;
+}
+.desktop-table :deep(td), .desktop-table :deep(th) {
+    padding: 0 8px !important;
+    height: 28px !important;
+}
+.detail-table {
+    font-size: 10px;
+}
+.state-container {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    height: 100%;
+    color: #757575;
+}
 </style>

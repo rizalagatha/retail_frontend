@@ -23,6 +23,9 @@ import OfferView from '@/views/OfferView.vue';
 import OfferCreateView from '@/views/OfferCreateView.vue';
 import PriceProposalView from '@/views/PriceProposalView.vue';
 import PriceProposalCreateView from '@/views/PriceProposalCreateView.vue';
+import SettingHargaView from '@/views/SettingHargaView.vue';
+import SoDtfView from '@/views/SoDtfView.vue';
+import LaporanStokView from '@/views/LaporanStokView.vue';
 
 const routes = [
   {
@@ -238,6 +241,36 @@ const routes = [
     meta: { 
       title: 'Ubah Pengajuan Harga',
       requiresAuth: true 
+    }
+  },
+  {
+    path: '/setting-harga',
+    name: 'frmBrowSettingHarga',
+    component: SettingHargaView,
+    meta: { 
+      title: 'Setting Harga',
+      requiresAuth: true,
+      menuId: '39' 
+    }
+  },
+  {
+    path: '/dtf/so-dtf',
+    name: 'frmBrowSODTF',
+    component: SoDtfView,
+    meta: { 
+      title: 'SO DTF Pesanan',
+      requiresAuth: true,
+      menuId: '35' 
+    }
+  },
+  {
+    path: '/laporan/stok',
+    name: 'frmRptStok',
+    component: LaporanStokView,
+    meta: { 
+      title: 'Laporan Stok Real Time',
+      requiresAuth: true,
+      menuId: '501' 
     }
   },
 ];

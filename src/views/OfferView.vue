@@ -20,12 +20,23 @@ const MENU_ID = '42';
 interface OfferHeader {
     nomor: string;
     tanggal: string;
+    noSO: string;
+    top: number;
+    tempo: string;
+    ppn: number;
+    'disc%': number;
+    diskon: number;
     kdcus: string;
     nama: string;
-    nominal: number;
-    noSO: string;
+    kota: string;
+    telp: string;
+    level: string;
+    keterangan: string;
     alasan: string;
     created: string;
+    nominal: number;
+    alasanClose: string;
+    noINV: string;
 }
 
 interface OfferDetail {
@@ -70,14 +81,24 @@ const dialogDelete = ref(false);
 const itemToDelete = ref<OfferHeader | null>(null);
 
 const tableHeaders = [
-    { title: 'Nomor', key: 'nomor', width: '150px' },
+    { title: 'Nomor', key: 'nomor', width: '150px', fixed: true },
     { title: 'Tanggal', key: 'tanggal', width: '100px' },
-    { title: 'Customer', key: 'nama' },
-    { title: 'Nominal', key: 'nominal', align: 'end', width: '120px' },
     { title: 'No. SO', key: 'noSO', width: '150px' },
-    { title: 'User', key: 'created', width: '100px' },
+    { title: 'TOP', key: 'top', align: 'center', width: '70px' },
+    { title: 'Tgl Tempo', key: 'tempo', width: '100px' },
+    { title: 'PPN', key: 'ppn', align: 'end', width: '100px' },
+    { title: 'Disc %', key: 'disc%', align: 'end', width: '80px' },
+    { title: 'Diskon', key: 'diskon', align: 'end', width: '100px' },
+    { title: 'Kode Customer', key: 'kdcus', width: '120px' },
+    { title: 'Nama Customer', key: 'nama', width: '250px' },
+    { title: 'Kota', key: 'kota', width: '150px' },
+    { title: 'Telepon', key: 'telp', width: '120px' },
+    { title: 'Level', key: 'level', width: '120px' },
+    { title: 'Keterangan', key: 'keterangan', width: '250px' },
+    { title: 'Alasan Close', key: 'alasan', width: '250px' },
+    { title: 'User', key: 'created', width: '120px' },
+    { title: 'Nominal', key: 'nominal', align: 'end', width: '120px' },
     { title: 'Status', key: 'status', width: '120px' },
-    { title: '', key: 'data-table-expand', align: 'center', width: '50px' },
 ] as const;
 
 const detailHeaders = [
@@ -497,19 +518,19 @@ watch(selectedBranch, () => {
 <template>
     <PageLayout title="Penawaran">
         <template #header-actions>
-            <v-btn v-if="authStore.can(MENU_ID, 'insert')" color="primary" prepend-icon="mdi-plus"
+            <v-btn v-if="authStore.can(MENU_ID, 'insert')" size="small" color="primary" prepend-icon="mdi-plus"
                 @click="router.push('/penawaran/new')">Baru</v-btn>
-            <v-btn v-if="authStore.can(MENU_ID, 'edit')" :disabled="!isSingleSelected" prepend-icon="mdi-pencil"
-                @click="editOffer">Ubah</v-btn>
-            <v-btn v-if="authStore.can(MENU_ID, 'delete')" :disabled="!isSingleSelected" prepend-icon="mdi-delete"
-                @click="confirmDelete">Hapus</v-btn>
-            <v-btn v-if="authStore.can(MENU_ID, 'view')" :disabled="!isSingleSelected" prepend-icon="mdi-printer"
-                @click="openPrintConfirm">Cetak</v-btn>
-            <v-btn v-if="authStore.can(MENU_ID, 'view')" prepend-icon="mdi-file-excel" @click="exportHeaderData">Export
-                Header</v-btn>
-            <v-btn v-if="authStore.can(MENU_ID, 'view')" prepend-icon="mdi-file-download-outline"
+            <v-btn v-if="authStore.can(MENU_ID, 'edit')" size="small" :disabled="!isSingleSelected"
+                prepend-icon="mdi-pencil" @click="editOffer">Ubah</v-btn>
+            <v-btn v-if="authStore.can(MENU_ID, 'delete')" size="small" :disabled="!isSingleSelected"
+                prepend-icon="mdi-delete" @click="confirmDelete">Hapus</v-btn>
+            <v-btn v-if="authStore.can(MENU_ID, 'view')" size="small" :disabled="!isSingleSelected"
+                prepend-icon="mdi-printer" @click="openPrintConfirm">Cetak</v-btn>
+            <v-btn v-if="authStore.can(MENU_ID, 'view')" size="small" prepend-icon="mdi-file-excel"
+                @click="exportHeaderData">Export Header</v-btn>
+            <v-btn v-if="authStore.can(MENU_ID, 'view')" size="small" prepend-icon="mdi-file-download-outline"
                 @click="exportDetailData">Export Detail</v-btn>
-            <v-btn v-if="authStore.can(MENU_ID, 'edit')" :disabled="!canBeClosed" color="blue"
+            <v-btn v-if="authStore.can(MENU_ID, 'edit')" size="small" :disabled="!canBeClosed" color="blue"
                 prepend-icon="mdi-lock-outline" @click="openCloseDialog">Close Penawaran</v-btn>
         </template>
 
@@ -525,27 +546,28 @@ watch(selectedBranch, () => {
                 <div class="d-flex align-center ga-2">
                     <span class="filter-label">Periode:</span>
                     <v-text-field v-model="startDate" type="date" density="compact" hide-details variant="outlined"
-                        style="min-width: 140px;"></v-text-field>
+                        style="min-width: 130px;"></v-text-field>
                     <span>s/d</span>
                     <v-text-field v-model="endDate" type="date" density="compact" hide-details variant="outlined"
-                        style="min-width: 140px;"></v-text-field>
+                        style="min-width: 130px;"></v-text-field>
                 </div>
                 <div class="d-flex align-center ga-2" style="min-width: 220px;">
                     <span class="filter-label">Cabang:</span>
                     <v-select v-model="selectedBranch" :items="branchList" item-title="nama" item-value="kode"
-                        density="compact" hide-details variant="outlined"></v-select>
+                        density="compact" hide-details variant="outlined" style="max-width: 180px;"
+                        :menu-props="{ class: 'compact-select-list' }"></v-select>
                 </div>
                 <v-spacer></v-spacer>
                 <v-btn @click="fetchData" icon="mdi-refresh" variant="text" size="small"></v-btn>
             </div>
 
             <!-- Table Section -->
-            <v-data-table v-model="selected" v-model:expanded="expanded" :headers="tableHeaders" :items="headers"
-                :loading="isLoading" item-value="nomor" density="compact" class="desktop-table" fixed-header show-select
-                return-object show-expand @update:expanded="loadDetails">
+            <v-data-table v-model="selected" :headers="tableHeaders" :items="headers" :loading="isLoading"
+                item-value="nomor" density="compact" class="desktop-table" fixed-header show-select return-object
+                show-expand @update:expanded="loadDetails">
                 <template #item.status="{ item }">
                     <v-chip :color="getStatus(item).color" variant="tonal" size="x-small">{{ getStatus(item).text
-                        }}</v-chip>
+                    }}</v-chip>
                 </template>
                 <template #item.nominal="{ item }">
                     {{ new Intl.NumberFormat('id-ID').format(item.nominal) }}
@@ -615,7 +637,7 @@ watch(selectedBranch, () => {
             <v-card>
                 <v-card-title class="text-h5">Konfirmasi Hapus</v-card-title>
                 <v-card-text>Apakah Anda yakin ingin menghapus penawaran nomor <strong>{{ itemToDelete?.nomor
-                        }}</strong>?</v-card-text>
+                }}</strong>?</v-card-text>
                 <v-card-actions><v-spacer></v-spacer><v-btn @click="dialogDelete = false">Batal</v-btn><v-btn
                         color="red-darken-1" variant="elevated"
                         @click="deleteConfirmed">Hapus</v-btn><v-spacer></v-spacer></v-card-actions>
@@ -636,7 +658,9 @@ watch(selectedBranch, () => {
     display: flex;
     flex-direction: column;
 }
+
 .filter-section {
+    font-size: 12px;
     display: flex;
     align-items: center;
     gap: 16px;
@@ -644,21 +668,27 @@ watch(selectedBranch, () => {
     border-bottom: 1px solid #e0e0e0;
     flex-shrink: 0;
 }
+
 .filter-label {
-    font-size: 11px;
+    font-size: 12px;
     font-weight: 500;
     color: #424242;
 }
+
 .desktop-table {
     font-size: 11px;
 }
-.desktop-table :deep(td), .desktop-table :deep(th) {
+
+.desktop-table :deep(td),
+.desktop-table :deep(th) {
     padding: 0 8px !important;
     height: 28px !important;
 }
+
 .detail-table {
     font-size: 10px;
 }
+
 .state-container {
     display: flex;
     flex-direction: column;
@@ -666,5 +696,26 @@ watch(selectedBranch, () => {
     align-items: center;
     height: 100%;
     color: #757575;
+}
+
+.filter-section :deep(input),
+.filter-section :deep(.v-label),
+.filter-section :deep(.v-select__selection-text) {
+    font-size: 11px !important;
+}
+
+/* Mengatur tinggi dari field agar lebih ringkas */
+.filter-section :deep(.v-field) {
+    height: 36px;
+}
+
+.filter-section :deep(.v-field__input) {
+    min-height: 36px;
+    padding-top: 0;
+    padding-bottom: 0;
+}
+
+:deep(.compact-select-list .v-list-item-title) {
+    font-size: 11px !important;
 }
 </style>

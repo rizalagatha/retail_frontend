@@ -510,46 +510,67 @@ onMounted(() => {
 <template>
     <PageLayout :title="pageTitle" desktop-mode icon="mdi-file-document-edit-outline">
         <template #header-actions>
-            <v-btn size="small" color="primary" prepend-icon="mdi-content-save" @click="save"
-                :loading="isSaving">Simpan</v-btn>
-            <v-btn v-if="!isEditMode" size="small" prepend-icon="mdi-refresh" @click="resetForm">Baru</v-btn>
-            <v-btn size="small" @click="router.push('/penawaran')" prepend-icon="mdi-close">Tutup</v-btn>
+            <v-btn size="small" color="primary" @click="save" :loading="isSaving">Simpan</v-btn>
+            <v-btn v-if="!isEditMode" size="small" @click="resetForm">Baru</v-btn>
+            <v-btn size="small" @click="router.push('/penawaran')">Tutup</v-btn>
         </template>
 
-        <div class="form-container">
-            <!-- Header, Detail, dan Footer sekarang berada di dalam satu panel -->
-            <div class="desktop-form-section header-section">
-                <v-row dense>
-                    <v-col md="2"><v-text-field label="Nomor" v-model="header.nomor" readonly variant="filled"
-                            density="compact" hide-details></v-text-field></v-col>
-                    <v-col md="2"><v-text-field label="Tanggal" v-model="header.tanggal" type="date" variant="outlined"
-                            density="compact" hide-details></v-text-field></v-col>
-                    <v-col md="2"><v-text-field label="Gudang" :model-value="header.gudang.kode" readonly
-                            @click="openGudangSearch" variant="outlined" density="compact" hide-details
-                            append-inner-icon="mdi-magnify"></v-text-field></v-col>
-                    <v-col md="6"><v-text-field label="Customer"
-                            :model-value="header.customer ? `${header.customer.kode} - ${header.customer.nama}` : ''"
-                            readonly @click="openCustomerSearch" variant="outlined" density="compact" hide-details
-                            append-inner-icon="mdi-magnify"></v-text-field></v-col>
-                </v-row>
-                <v-row dense>
-                    <v-col md="3"><v-text-field label="Alamat" :model-value="header.customer?.alamat" readonly
-                            variant="filled" density="compact" hide-details></v-text-field></v-col>
-                    <v-col md="2"><v-text-field label="Kota / Telp"
-                            :model-value="header.customer ? `${header.customer.kota} / ${header.customer.telp}` : ''"
-                            readonly variant="filled" density="compact" hide-details></v-text-field></v-col>
-                    <v-col md="2"><v-text-field label="Level" :model-value="header.customer?.level" readonly
-                            variant="filled" density="compact" hide-details></v-text-field></v-col>
-                    <v-col md="1"><v-text-field label="TOP" v-model.number="header.top" type="number" variant="outlined"
-                            density="compact" hide-details></v-text-field></v-col>
-                    <v-col md="2"><v-text-field label="Tgl Tempo" v-model="header.tempo" type="date" variant="filled"
-                            readonly density="compact" hide-details></v-text-field></v-col>
-                    <v-col md="2"><v-text-field label="PPN %" v-model.number="header.ppnPersen" type="number"
-                            variant="outlined" density="compact" hide-details></v-text-field></v-col>
-                </v-row>
+        <div class="form-grid-container">
+            <div class="left-column">
+                <div class="desktop-form-section header-section">
+                    <v-row dense>
+                        <v-col cols="6"><v-text-field label="Nomor" v-model="header.nomor" readonly variant="filled"
+                                density="compact" hide-details></v-text-field></v-col>
+                        <v-col cols="6"><v-text-field label="Tanggal" v-model="header.tanggal" type="date"
+                                variant="outlined" density="compact" hide-details></v-text-field></v-col>
+                        <v-col cols="12"><v-text-field label="Gudang" :model-value="header.gudang.kode" readonly
+                                @click="openGudangSearch" variant="outlined" density="compact" hide-details
+                                append-inner-icon="mdi-magnify"></v-text-field></v-col>
+                        <v-col cols="12"><v-text-field label="Customer"
+                                :model-value="header.customer ? `${header.customer.kode} - ${header.customer.nama}` : ''"
+                                readonly @click="openCustomerSearch" variant="outlined" density="compact" hide-details
+                                append-inner-icon="mdi-magnify"></v-text-field></v-col>
+                        <v-col cols="12"><v-text-field label="Alamat" :model-value="header.customer?.alamat" readonly
+                                variant="filled" density="compact" hide-details></v-text-field></v-col>
+                        <v-col cols="6"><v-text-field label="Kota / Telp"
+                                :model-value="header.customer ? `${header.customer.kota} / ${header.customer.telp}` : ''"
+                                readonly variant="filled" density="compact" hide-details></v-text-field></v-col>
+                        <v-col cols="6"><v-text-field label="Level" :model-value="header.customer?.level" readonly
+                                variant="filled" density="compact" hide-details></v-text-field></v-col>
+                        <v-col cols="4"><v-text-field label="TOP" v-model.number="header.top" type="number"
+                                variant="outlined" density="compact" hide-details></v-text-field></v-col>
+                        <v-col cols="8"><v-text-field label="Tgl Tempo" v-model="header.tempo" type="date"
+                                variant="filled" readonly density="compact" hide-details></v-text-field></v-col>
+                        <v-col cols="12"><v-textarea label="Keterangan" v-model="header.keterangan" rows="2"
+                                variant="outlined" density="compact" hide-details></v-textarea></v-col>
+                    </v-row>
+                </div>
+                <div class="desktop-form-section footer-section">
+                    <v-text-field label="PPN %" v-model.number="header.ppnPersen" type="number" variant="outlined"
+                        density="compact" hide-details class="summary-field"></v-text-field>
+                    <v-text-field label="Biaya Kirim" v-model.number="footer.biayaKirim" type="number"
+                        variant="outlined" density="compact" hide-details
+                        class="summary-field text-right"></v-text-field>
+                    <div class="d-flex ga-2">
+                        <v-text-field label="Diskon % 1" v-model.number="footer.diskonPersen1" type="number"
+                            variant="outlined" density="compact" hide-details :disabled="!canEditFooter"
+                            @blur="handleDiscountChange"></v-text-field>
+                        <v-text-field label="Diskon % 2" v-model.number="footer.diskonPersen2" type="number"
+                            variant="outlined" density="compact" hide-details :disabled="!canEditFooter"
+                            @blur="handleDiscount2Change"></v-text-field>
+                    </div>
+                    <v-divider class="my-2"></v-divider>
+                    <v-text-field label="Total" :model-value="new Intl.NumberFormat('id-ID').format(footer.total)"
+                        readonly variant="filled" density="compact" hide-details
+                        class="summary-field text-right"></v-text-field>
+                    <v-text-field label="Grand Total"
+                        :model-value="new Intl.NumberFormat('id-ID').format(footer.grandTotal)" readonly
+                        variant="filled" density="compact" hide-details
+                        class="summary-field text-right font-weight-bold"></v-text-field>
+                </div>
             </div>
 
-            <div class="desktop-form-section detail-section">
+            <div class="desktop-form-section right-column">
                 <v-data-table :headers="tableHeaders" :items="items" density="compact" class="desktop-table"
                     fixed-header :items-per-page="-1">
                     <template #item.kode="{ item }"><v-text-field
@@ -581,44 +602,6 @@ onMounted(() => {
                     </template>
                 </v-data-table>
             </div>
-
-            <div class="desktop-form-section footer-section">
-                <v-row dense>
-                    <v-col md="8"><v-textarea label="Keterangan" v-model="header.keterangan" rows="3" variant="outlined"
-                            density="compact" hide-details></v-textarea></v-col>
-                    <v-col md="4" class="summary-section">
-                        <div class="summary-item"><span class="summary-label">Total</span><span class="summary-value">{{
-                            new
-                                Intl.NumberFormat('id-ID').format(footer.total) }}</span></div>
-                        <div class="summary-item-input">
-                            <span class="summary-label">Diskon %</span>
-                            <div class="d-flex ga-2" style="width: 180px;">
-                                <v-text-field v-model.number="footer.diskonPersen1" type="number" variant="outlined"
-                                    density="compact" hide-details :disabled="!canEditFooter"
-                                    @blur="handleDiscountChange"></v-text-field>
-                                <v-text-field v-model.number="footer.diskonPersen2" type="number" variant="outlined"
-                                    density="compact" hide-details :disabled="!canEditFooter"
-                                    @blur="handleDiscount2Change"></v-text-field>
-                            </div>
-                        </div>
-                        <div class="summary-item"><span class="summary-label">Diskon Rp</span><span
-                                class="summary-value">{{ new
-                                    Intl.NumberFormat('id-ID').format(footer.diskonRp) }}</span></div>
-                        <div class="summary-item-input"><span class="summary-label">Biaya Kirim</span><v-text-field
-                                v-model.number="footer.biayaKirim" type="number" variant="outlined" density="compact"
-                                hide-details :disabled="!header.customer" class="text-right"
-                                style="width: 180px;"></v-text-field></div>
-                        <div class="summary-item"><span class="summary-label">PPN Rp</span><span
-                                class="summary-value">{{ new
-                                    Intl.NumberFormat('id-ID').format(footer.ppnRp) }}</span></div>
-                        <v-divider class="my-1"></v-divider>
-                        <div class="summary-item grand-total"><span class="summary-label">Grand Total</span><span
-                                class="summary-value">{{ new Intl.NumberFormat('id-ID').format(footer.grandTotal)
-                                }}</span>
-                        </div>
-                    </v-col>
-                </v-row>
-            </div>
         </div>
 
         <!-- Modals -->
@@ -638,65 +621,96 @@ onMounted(() => {
 </template>
 
 <style scoped>
-.form-container {
+.form-grid-container {
     padding: 12px;
     height: 100%;
+    display: grid;
+    grid-template-columns: 450px 1fr;
+    gap: 12px;
+}
+
+.left-column,
+.right-column {
     display: flex;
     flex-direction: column;
     gap: 8px;
+    min-height: 0;
 }
-.header-section {
-    flex-shrink: 0;
-}
-.detail-section {
-    flex-grow: 1; /* Ini akan membuat tabel mengisi sisa ruang */
-    min-height: 0; /* Penting untuk flexbox */
-    display: flex;
-}
+
+.header-section,
 .footer-section {
     flex-shrink: 0;
 }
+
+.right-column {
+    flex-grow: 1;
+}
+
+.footer-section :deep(.summary-label) {
+    font-size: 11px !important;
+}
+
+/* Mengatur font untuk nilai angka */
+.footer-section :deep(.summary-value) {
+    font-size: 11px !important;
+}
+
+/* Khusus untuk Grand Total agar sedikit lebih besar dan tebal */
+.footer-section :deep(.grand-total .summary-label) {
+    font-size: 12px !important;
+    font-weight: 600;
+}
+
+.footer-section :deep(.grand-total .summary-value) {
+    font-size: 13px !important;
+    font-weight: 700;
+}
+
+/* Mengatur font untuk field input di footer */
+.footer-section :deep(input) {
+    font-size: 12px !important;
+}
+
 .desktop-table {
     font-size: 11px;
-    height: 100%; /* Membuat tabel mengisi kontainer detail-section */
+    height: 100%;
 }
-.desktop-table :deep(td), .desktop-table :deep(th) {
+
+.desktop-table :deep(td),
+.desktop-table :deep(th) {
     padding: 0 8px !important;
     height: 28px !important;
 }
-.text-right :deep(input) {
-    text-align: right;
+
+.desktop-table :deep(input) {
+    font-size: 11px !important;
 }
 
-/* Footer Summary Styles */
-.summary-section {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
+.header-section :deep(.v-col) {
+    padding-top: 4px;
+    padding-bottom: 4px;
 }
-.summary-item, .summary-item-input {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    font-size: 11px;
-    min-height: 28px;
+
+.summary-field {
+    margin-bottom: 4px;
 }
-.summary-label {
-    font-weight: 500;
-    color: #424242;
-    flex-shrink: 0;
-    margin-right: 8px;
+
+/* Mengatur font untuk label (Nomor, Tanggal, Customer, dll.) */
+.header-section :deep(.v-label) {
+    font-size: 11px !important;
 }
-.summary-value {
-    font-weight: bold;
-    font-family: monospace;
-    font-size: 12px;
+
+/* Mengatur font untuk teks yang diketik di dalam field */
+.header-section :deep(input) {
+    font-size: 12px !important;
 }
-.grand-total .summary-label {
-    font-size: 13px;
+
+/* Mengatur font untuk label pada radio button */
+.header-section :deep(.v-radio-group .v-label) {
+    font-size: 12px !important;
 }
-.grand-total .summary-value {
-    font-size: 15px;
-    color: #1A237E;
+
+.text-right :deep(input) {
+    text-align: right;
 }
 </style>

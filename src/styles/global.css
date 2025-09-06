@@ -262,6 +262,26 @@ body {
   font-weight: var(--font-weight-normal) !important;
 }
 
+.v-data-table-footer {
+  font-size: 11px !important;
+}
+.v-data-table-footer .v-btn {
+  font-size: 11px !important;
+  height: 24px !important;
+  min-width: 24px !important;
+  padding: 0 6px !important;
+}
+
+:deep(.v-data-table-footer .v-select) {
+  font-size: 10px !important;
+  height: 24px !important;
+  min-width: 60px !important;
+}
+:deep(.v-data-table-footer .v-select .v-field__input) {
+  padding: 0 4px !important;
+  min-height: 20px !important;
+}
+
 /* Chips */
 .v-chip {
   font-family: var(--font-family-primary) !important;

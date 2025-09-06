@@ -170,7 +170,8 @@ watch([selectedCabang, belumApproval, startDate, endDate], () => {
         <div class="d-flex align-center ga-2" style="min-width: 220px;">
           <span class="filter-label">Cabang:</span>
           <v-select v-model="selectedCabang" :items="cabangList" item-title="nama" item-value="kode" density="compact"
-            hide-details variant="outlined"></v-select>
+            hide-details variant="outlined" style="max-width: 180px;"
+            :menu-props="{ class: 'compact-select-list' }"></v-select>
         </div>
         <v-checkbox v-model="belumApproval" label="Belum Approve" hide-details density="compact"></v-checkbox>
         <v-spacer></v-spacer>
@@ -195,7 +196,7 @@ watch([selectedCabang, belumApproval, startDate, endDate], () => {
       <v-card>
         <v-card-title class="text-h5">Konfirmasi Hapus</v-card-title>
         <v-card-text>Apakah Anda yakin ingin menghapus pengajuan harga nomor <strong>{{ itemToDelete?.nomor
-            }}</strong>?</v-card-text>
+        }}</strong>?</v-card-text>
         <v-card-actions>
           <v-spacer></v-spacer>
           <v-btn variant="text" @click="dialogDelete = false">Batal</v-btn>
@@ -248,5 +249,26 @@ watch([selectedCabang, belumApproval, startDate, endDate], () => {
   align-items: center;
   height: 100%;
   color: #757575;
+}
+
+.filter-section :deep(input),
+.filter-section :deep(.v-label),
+.filter-section :deep(.v-select__selection-text) {
+  font-size: 11px !important;
+}
+
+/* Mengatur tinggi dari field agar lebih ringkas */
+.filter-section :deep(.v-field) {
+  height: 36px;
+}
+
+.filter-section :deep(.v-field__input) {
+  min-height: 36px;
+  padding-top: 0;
+  padding-bottom: 0;
+}
+
+:deep(.compact-select-list .v-list-item-title) {
+    font-size: 11px !important;
 }
 </style>

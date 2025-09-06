@@ -15,6 +15,7 @@ const toast = useToast();
 const authStore = useAuthStore();
 const router = useRouter();
 const route = useRoute();
+const MENU_ID = '38';
 
 // --- Interfaces ---
 interface SizeItem {
@@ -78,6 +79,7 @@ const isSaving = ref(false);
 
 const isEditMode = computed(() => !!route.params.nomor);
 const pageTitle = computed(() => isEditMode.value ? `Ubah Pengajuan Harga: ${header.value.nomor}` : 'Buat Pengajuan Harga');
+const requiredPermission = computed(() => isEditMode.value ? 'edit' : 'insert');
 
 const isProductVariantSearchVisible = ref(false);
 const activeItemIndexForProductSearch = ref(0);
@@ -221,6 +223,12 @@ const save = () => {
 };
 
 const executeSave = async () => {
+    if (!authStore.can(MENU_ID, requiredPermission.value)) {
+        toast.error(`Anda tidak memiliki izin untuk menyimpan data ini.`);
+        isSaving.value = false;
+        return;
+    }
+
     isSaveConfirmVisible.value = false;
     isSaving.value = true;
 
@@ -510,10 +518,18 @@ watch(
 );
 
 onMounted(() => {
+    // Cek otorisasi terlebih dahulu
+    if (!authStore.can(MENU_ID, requiredPermission.value)) {
+        toast.error(`Anda tidak memiliki izin untuk ${requiredPermission.value === 'insert' ? 'membuat' : 'mengubah'} data.`);
+        router.push('/pengajuan-harga'); // "Tendang" kembali ke halaman daftar
+        return; // Hentikan eksekusi lebih lanjut
+    }
+
+    // Jika diizinkan, lanjutkan logika yang sudah ada
     if (isEditMode.value) {
         loadOfferData(route.params.nomor as string);
     } else {
-        // Logika untuk form baru
+        // Logika untuk form baru (misalnya getNextNumber)
     }
 });
 </script>
@@ -905,6 +921,20 @@ onMounted(() => {
     grid-column: span 2;
 }
 
+/* Mengatur font untuk label (Nomor, Tanggal, Customer, dll.) */
+.desktop-form-section :deep(.v-label) {
+    font-size: 11px !important;
+}
+
+/* Mengatur font untuk teks yang diketik di dalam field */
+.desktop-form-section :deep(input) {
+    font-size: 12px !important;
+}
+
+/* Mengatur font untuk label pada radio button */
+.desktop-form-section :deep(.v-radio-group .v-label) {
+    font-size: 12px !important;
+}
 
 .main-table-container {
     width: 75%;

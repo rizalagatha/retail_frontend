@@ -27,16 +27,13 @@ watch(
 </script>
 
 <template>
-  <v-app>
-    <!-- Navbar hanya tampil kalau sudah login -->
+  <v-app class="desktop-app-container">
+
     <Navbar v-if="authStore.isAuthenticated" />
 
-    <v-main class="bg-grey-lighten-4">
+    <v-main>
       <router-view />
     </v-main>
-  </v-app>
-  <v-app class="desktop-app-container">
-    <router-view />
 
     <v-dialog v-model="authStore.isSessionExpired" persistent max-width="450px">
       <v-card>

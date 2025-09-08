@@ -154,7 +154,7 @@ const openTshirtTypeSearch = () => { isTshirtTypeSearchVisible.value = true; };
 const onTshirtTypeSelected = async (type: { jenisKaos: string }) => {
     header.value.jenisKaos = type.jenisKaos;
     isTshirtTypeSearchVisible.value = false;
-    
+
     try {
         const response = await api.get('/price-proposal-form/tshirt-type-details', {
             params: {
@@ -171,19 +171,19 @@ const onTshirtTypeSelected = async (type: { jenisKaos: string }) => {
         if (response.data && Array.isArray(response.data.sizes)) {
             sizeItems.value = response.data.sizes.map((item: any) => ({
                 id: Date.now() + Math.random(),
-                size: item.ukuran, 
-                qty: null, 
-                hargaPcs: item.hargaPcs, 
+                size: item.ukuran,
+                qty: null,
+                hargaPcs: item.hargaPcs,
                 totalHarga: 0,
                 hargaKaos: 0,
                 kodeBarang: '',
                 namaBarang: ''
             }));
         }
-        
+
         // Ambil data biaya dari respons
         const costs = response.data.costs;
-        
+
         // Pastikan objek costs ada sebelum diakses
         if (costs) {
             if (costs.bordir) {
@@ -259,7 +259,7 @@ const executeSave = async () => {
         };
         const response = await api.post('/price-proposal-form/save', payload);
         toast.success(response.data.message);
-        router.push('/pengajuan-harga');
+        router.push('/transaksi/pengajuan/pengajuan-harga');
     } catch (error: any) {
         toast.error(error.response?.data?.message || 'Gagal menyimpan data pengajuan.');
     } finally {
@@ -469,7 +469,16 @@ const loadOfferData = async (nomor: string) => {
                 }
             });
 
-            const allSizeItems = templateSizesResponse.data.map((item: any) => ({
+            // 1. Ambil data dan berikan nilai default array kosong jika null/undefined
+            let templateSizes = templateSizesResponse.data || [];
+
+            // 2. Jika API ternyata mengembalikan satu objek, bungkus menjadi array
+            if (templateSizes && !Array.isArray(templateSizes)) {
+                templateSizes = [templateSizes];
+            }
+
+            // 3. Sekarang aman untuk memanggil .map()
+            const allSizeItems = templateSizes.map((item: any) => ({
                 id: Date.now() + Math.random(), size: item.ukuran, qty: null, hargaPcs: item.hargaPcs,
                 hargaKaos: 0, totalHarga: 0, kodeBarang: '', namaBarang: ''
             }));
@@ -499,7 +508,7 @@ const loadOfferData = async (nomor: string) => {
     } catch (error) {
         toast.error('Gagal memuat data pengajuan untuk diedit.');
         console.error("Load Offer Error:", error);
-        router.push('/pengajuan-harga');
+        router.push('/transaksi/pengajuan/pengajuan-harga');
     }
 };
 
@@ -521,7 +530,7 @@ onMounted(() => {
     // Cek otorisasi terlebih dahulu
     if (!authStore.can(MENU_ID, requiredPermission.value)) {
         toast.error(`Anda tidak memiliki izin untuk ${requiredPermission.value === 'insert' ? 'membuat' : 'mengubah'} data.`);
-        router.push('/pengajuan-harga'); // "Tendang" kembali ke halaman daftar
+        router.push('/transaksi/pengajuan/pengajuan-harga'); // "Tendang" kembali ke halaman daftar
         return; // Hentikan eksekusi lebih lanjut
     }
 
@@ -540,7 +549,8 @@ onMounted(() => {
             <v-btn size="small" color="primary" prepend-icon="mdi-content-save" @click="save"
                 :loading="isSaving">Simpan</v-btn>
             <v-btn size="small" prepend-icon="mdi-cancel" @click="confirmCancel">Batal</v-btn>
-            <v-btn size="small" @click="router.push('/pengajuan-harga')" prepend-icon="mdi-close">Tutup</v-btn>
+            <v-btn size="small" @click="router.push('/transaksi/pengajuan/pengajuan-harga')"
+                prepend-icon="mdi-close">Tutup</v-btn>
         </template>
 
         <div class="form-grid-container">

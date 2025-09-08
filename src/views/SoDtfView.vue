@@ -5,9 +5,12 @@ import PageLayout from '@/components/PageLayout.vue';
 import { useToast } from 'vue-toastification';
 import { useAuthStore } from '@/stores/authStore';
 import { format } from 'date-fns';
+import { useRouter } from 'vue-router';
+import * as XLSX from 'xlsx';
 
 const toast = useToast();
 const authStore = useAuthStore();
+const router = useRouter();
 const MENU_ID = '35';
 
 // --- Interfaces ---
@@ -44,10 +47,18 @@ const isCloseDialogVisible = ref(false);
 const itemToClose = ref<SoDtfHeader | null>(null);
 const closeReason = ref('');
 
+const isConfirmDialogVisible = ref(false);
+const confirmDialogText = ref('');
+const itemToDelete = ref<SoDtfHeader | null>(null);
+
+// --- Computed ---
 const hasViewPermission = computed(() => authStore.can(MENU_ID, 'view'));
+const isSingleSelected = computed(() => selected.value.length === 1);
 
 const headers = [
     { title: 'Nomor', key: 'Nomor', width: '150px', fixed: true },
+    // 1. Tambahan Kolom Status
+    { title: 'Status', key: 'status', width: '150px', sortable: false },
     { title: 'Tanggal', key: 'Tanggal', width: '100px' },
     { title: 'Tgl Pengerjaan', key: 'TglPengerjaan', width: '120px' },
     { title: 'Dateline Cust', key: 'DatelineCus', width: '120px' },
@@ -74,7 +85,6 @@ const headers = [
 // --- Methods ---
 const fetchCabangList = async () => {
     try {
-        // Panggil endpoint baru yang khusus untuk SO DTF
         const response = await api.get('/warehouses/so-dtf-branches', {
             params: { userCabang: authStore.user?.cabang }
         });
@@ -107,26 +117,19 @@ const fetchData = async () => {
 };
 
 const loadDetails = async (newlyExpandedItems: SoDtfHeader[]) => {
-    // Fungsi ini dipanggil oleh event @update:expanded
-    // newlyExpandedItems adalah array berisi semua baris yang sedang terbuka
-
-    // Cari baris yang baru saja dibuka dan belum memiliki data detail
     const itemToLoad = newlyExpandedItems.find(
         (item) => !details.value[item.Nomor] && !loadingDetails.value.has(item.Nomor)
     );
 
-    // Jika tidak ada item baru untuk dimuat, hentikan fungsi
     if (!itemToLoad) return;
 
     const nomor = itemToLoad.Nomor;
     loadingDetails.value.add(nomor);
     try {
         const response = await api.get(`/so-dtf/${nomor}`);
-        // Simpan data detail yang berhasil diambil
         details.value[nomor] = response.data;
     } catch (error) {
         toast.error(`Gagal memuat detail untuk ${nomor}`);
-        // Jika gagal, tutup kembali baris yang diekspansi
         expanded.value = expanded.value.filter(item => item.Nomor !== nomor);
     } finally {
         loadingDetails.value.delete(nomor);
@@ -140,6 +143,14 @@ const getRowClass = (item: SoDtfHeader) => {
     return 'row-no-so';
 };
 
+// Fungsi untuk mendapatkan teks status berdasarkan data item
+const getStatusText = (item: SoDtfHeader) => {
+    if (item.AlasanClose) return 'Closed';
+    if (item.NoINV) return 'Sudah Invoice';
+    if (item.NoSO) return 'Belum Invoice';
+    return 'Belum SO & Invoice';
+};
+
 const getLhkClass = (item: SoDtfHeader) => {
     if (item.LHK === 0) return 'lhk-zero';
     if (item.LHK > 0 && item.LHK < item.TotalTitik) return 'lhk-progress';
@@ -147,7 +158,7 @@ const getLhkClass = (item: SoDtfHeader) => {
 };
 
 const openCloseDialog = () => {
-    if (selected.value.length !== 1) return;
+    if (!isSingleSelected.value) return;
     const item = selected.value[0];
     if (item.NoINV) {
         toast.warning('Sudah dibuat Invoice, tidak bisa di-close.');
@@ -169,9 +180,108 @@ const submitCloseSo = async () => {
         toast.success('SO DTF berhasil ditutup.');
         isCloseDialogVisible.value = false;
         fetchData();
+        selected.value = [];
     } catch (error) {
         toast.error('Gagal menutup SO DTF.');
     }
+};
+
+const showDeleteConfirmation = () => {
+    if (!isSingleSelected.value) return;
+
+    const item = selected.value[0];
+
+    // Validasi awal di frontend untuk feedback cepat
+    if (item.NoSO) {
+        toast.warning('Sudah dibuat SO, tidak bisa dihapus.');
+        return;
+    }
+    if (item.NoINV) {
+        toast.warning('Sudah dibuat Invoice, tidak bisa dihapus.');
+        return;
+    }
+    if (item.Close === 'Y') {
+        toast.warning('Transaksi sudah ditutup, tidak bisa dihapus.');
+        return;
+    }
+
+    itemToDelete.value = item;
+    confirmDialogText.value = `Anda yakin ingin menghapus SO DTF Nomor: ${item.Nomor}?`;
+    isConfirmDialogVisible.value = true;
+};
+
+const executeDelete = async () => {
+    if (!itemToDelete.value) return;
+
+    try {
+        await api.delete(`/so-dtf/${itemToDelete.value.Nomor}`);
+        toast.success(`SO DTF ${itemToDelete.value.Nomor} berhasil dihapus.`);
+        fetchData(); // Muat ulang data tabel
+        selected.value = []; // Kosongkan pilihan
+    } catch (error: any) {
+        // Menampilkan pesan error dari backend
+        toast.error(error.response?.data?.message || 'Gagal menghapus data.');
+    } finally {
+        isConfirmDialogVisible.value = false;
+        itemToDelete.value = null;
+    }
+};
+
+const exportData = async (type: 'header' | 'detail') => {
+    try {
+        if (type === 'header') {
+            // Untuk Export Header, kita TETAP gunakan data yang dicentang karena ini sangat berguna
+            if (selected.value.length === 0) {
+                toast.warning('Silakan centang data header yang ingin diekspor.');
+                return;
+            }
+            toast.info('Membuat file Excel Header dari data terpilih...');
+            const worksheet = XLSX.utils.json_to_sheet(selected.value);
+            const workbook = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(workbook, worksheet, "SO DTF Header");
+            XLSX.writeFile(workbook, "Export_SO_DTF_Header_Terpilih.xlsx");
+            toast.success('File Header berhasil dibuat.');
+
+        } else { // type === 'detail'
+            // Untuk Export Detail, kita gunakan filter tanggal dan cabang yang aktif
+            toast.info('Mengambil semua data detail dari server sesuai filter...');
+            
+            const response = await api.get('/so-dtf/export-detail', {
+                params: {
+                    // Kirim filter yang aktif, BUKAN data yang dicentang
+                    startDate: startDate.value,
+                    endDate: endDate.value,
+                    cabang: selectedCabang.value,
+                    filterDateType: filterDateType.value,
+                }
+            });
+
+            if (!response.data || response.data.length === 0) {
+                toast.warning('Tidak ada data detail ditemukan untuk filter yang dipilih.');
+                return;
+            }
+            
+            toast.info('Membuat file Excel Detail...');
+            const worksheet = XLSX.utils.json_to_sheet(response.data);
+            const workbook = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(workbook, worksheet, "SO DTF Detail");
+            XLSX.writeFile(workbook, "Export_SO_DTF_Detail_Filter.xlsx");
+            toast.success('File Detail berhasil dibuat.');
+        }
+    } catch (error) {
+        toast.error('Gagal mengekspor data.');
+        console.error("Export error:", error);
+    }
+};
+
+const printData = () => {
+    if (!isSingleSelected.value) return;
+    const item = selected.value[0];
+    const url = router.resolve({
+        name: 'Cetak SO DTF',
+        params: { nomor: item.Nomor }
+    }).href;
+    window.open(url, '_blank');
 };
 
 onMounted(() => {
@@ -187,14 +297,36 @@ watch([filterDateType, startDate, endDate, selectedCabang], fetchData);
 <template>
     <PageLayout title="SO DTF Pesanan" desktop-mode icon="mdi-printer-3d">
         <template #header-actions>
-            <v-btn v-if="authStore.can(MENU_ID, 'insert')" size="small" color="primary"
-                prepend-icon="mdi-plus">Baru</v-btn>
+            <v-btn v-if="authStore.can(MENU_ID, 'insert')" size="small" color="primary" prepend-icon="mdi-plus"
+                @click="$router.push('/transaksi/dtf/so-dtf/new')">Baru</v-btn>
             <v-btn v-if="authStore.can(MENU_ID, 'edit')" size="small" :disabled="!isSingleSelected"
-                prepend-icon="mdi-pencil">Ubah</v-btn>
+                prepend-icon="mdi-pencil"
+                @click="$router.push(`/transaksi/dtf/so-dtf/ubah/${selected[0].Nomor}`)">Ubah</v-btn>
             <v-btn v-if="authStore.can(MENU_ID, 'delete')" size="small" :disabled="!isSingleSelected"
-                prepend-icon="mdi-delete">Hapus</v-btn>
+                prepend-icon="mdi-delete" @click="showDeleteConfirmation"> Hapus
+            </v-btn>
+            <v-btn v-if="authStore.can(MENU_ID, 'view')" size="small" :disabled="!isSingleSelected" @click="printData"
+                color="green" prepend-icon="mdi-printer">
+                Cetak
+            </v-btn>
+            <v-menu offset-y>
+                <template v-slot:activator="{ props }">
+                    <v-btn size="small" color="teal" prepend-icon="mdi-file-excel" v-bind="props">
+                        Export
+                    </v-btn>
+                </template>
+                <v-list density="compact">
+                    <v-list-item @click="exportData('header')">
+                        <v-list-item-title>Export Header</v-list-item-title>
+                    </v-list-item>
+                    <v-list-item @click="exportData('detail')">
+                        <v-list-item-title>Export Detail</v-list-item-title>
+                    </v-list-item>
+                </v-list>
+            </v-menu>
+            <v-divider vertical class="mx-2"></v-divider>
             <v-btn v-if="authStore.can(MENU_ID, 'edit')" size="small" :disabled="!isSingleSelected"
-                @click="openCloseDialog" color="blue">Close SO DTF</v-btn>
+                @click="openCloseDialog" color="orange-darken-2">Close SO</v-btn>
         </template>
 
         <div v-if="!hasViewPermission" class="state-container">
@@ -221,11 +353,35 @@ watch([filterDateType, startDate, endDate, selectedCabang], fetchData);
                 <v-btn @click="fetchData" icon="mdi-refresh" variant="text" size="small"></v-btn>
             </div>
 
+            <div class="legend-section">
+                <div class="legend-group">
+                    <strong class="legend-title">Status SO:</strong>
+                    <div class="legend-item"><span class="row-color-sample-closed"></span> Di-Close</div>
+                    <div class="legend-item"><span class="text-red font-weight-medium">Teks Merah</span>: Belum SO &
+                        Invoice
+                    </div>
+                    <div class="legend-item"><span class="text-blue font-weight-medium">Teks Biru</span>: Belum Invoice
+                    </div>
+                </div>
+                <v-divider vertical></v-divider>
+                <div class="legend-group">
+                    <strong class="legend-title">Status LHK:</strong>
+                    <div class="legend-item"><v-chip size="x-small" class="lhk-zero" label>0</v-chip> Belum Input</div>
+                    <div class="legend-item"><v-chip size="x-small" class="lhk-progress" label>1</v-chip> Progress</div>
+                </div>
+            </div>
+
             <v-data-table v-model="selected" :headers="headers" :items="soDtfList" :loading="isLoading"
-                :item-class="getRowClass" item-value="Nomor" density="compact" class="desktop-table" fixed-header
-                show-select return-object show-expand @update:expanded="loadDetails">
+                :item-class="getRowClass" item-value="Nomor" density="compact" class="desktop-table fill-height-table"
+                fixed-header show-select return-object show-expand @update:expanded="loadDetails">
+
+                <template #item.status="{ item }">
+                    <span :class="getRowClass(item)">{{ getStatusText(item) }}</span>
+                </template>
+
                 <template #item.Tanggal="{ item }">{{ format(new Date(item.Tanggal), 'dd/MM/yyyy') }}</template>
-                <template #item.TglPengerjaan="{ item }">{{ item.TglPengerjaan ? format(new Date(item.TglPengerjaan),
+                <template #item.TglPengerjaan="{ item }">{{ item.TglPengerjaan ? format(new
+                    Date(item.TglPengerjaan),
                     'dd/MM/yyyy') : '-' }}</template>
                 <template #item.DatelineCus="{ item }">{{ item.DatelineCus ? format(new Date(item.DatelineCus),
                     'dd/MM/yyyy') : '-' }}</template>
@@ -236,24 +392,34 @@ watch([filterDateType, startDate, endDate, selectedCabang], fetchData);
                     <v-chip :color="item.Close === 'Y' ? 'success' : 'grey'" size="x-small">{{ item.Close === 'Y' ?
                         'Closed' : 'Open' }}</v-chip>
                 </template>
+
                 <template #expanded-row="{ columns, item }">
                     <tr>
-                        <td :colspan="columns.length" class="pa-2 bg-grey-lighten-5">
-                            <div v-if="loadingDetails.has(item.Nomor)" class="text-center py-2">...</div>
-                            <v-table v-else-if="details[item.Nomor]" density="compact" class="detail-table">
-                                <thead>
-                                    <tr>
-                                        <th>Ukuran</th>
-                                        <th class="text-end">Jumlah</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    <tr v-for="d in details[item.Nomor]" :key="d.Ukuran">
-                                        <td>{{ d.Ukuran }}</td>
-                                        <td class="text-end">{{ d.Jumlah }}</td>
-                                    </tr>
-                                </tbody>
-                            </v-table>
+                        <td :colspan="columns.length" class="pa-0 bg-grey-lighten-5">
+                            <div class="detail-container">
+                                <div v-if="loadingDetails.has(item.Nomor)"
+                                    class="detail-content-wrapper text-center py-2">
+                                    Memuat detail...
+                                </div>
+                                <v-table v-else-if="details[item.Nomor] && details[item.Nomor].length" density="compact"
+                                    class="detail-table detail-content-wrapper">
+                                    <thead>
+                                        <tr>
+                                            <th>Ukuran</th>
+                                            <th class="text-end">Jumlah</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr v-for="d in details[item.Nomor]" :key="d.Ukuran">
+                                            <td>{{ d.Ukuran }}</td>
+                                            <td class="text-end">{{ d.Jumlah }}</td>
+                                        </tr>
+                                    </tbody>
+                                </v-table>
+                                <div v-else class="detail-content-wrapper text-center py-2">
+                                    Tidak ada data detail.
+                                </div>
+                            </div>
                         </td>
                     </tr>
                 </template>
@@ -276,6 +442,18 @@ watch([filterDateType, startDate, endDate, selectedCabang], fetchData);
                 </v-card-actions>
             </v-card>
         </v-dialog>
+
+        <v-dialog v-model="isConfirmDialogVisible" max-width="400px" persistent>
+            <v-card>
+                <v-card-title class="text-h6 font-weight-bold">Konfirmasi Hapus</v-card-title>
+                <v-card-text>{{ confirmDialogText }}</v-card-text>
+                <v-card-actions>
+                    <v-spacer></v-spacer>
+                    <v-btn color="grey-darken-1" variant="text" @click="isConfirmDialogVisible = false">Batal</v-btn>
+                    <v-btn color="error" variant="tonal" @click="executeDelete">Ya, Hapus</v-btn>
+                </v-card-actions>
+            </v-card>
+        </v-dialog>
     </PageLayout>
 </template>
 
@@ -295,6 +473,48 @@ watch([filterDateType, startDate, endDate, selectedCabang], fetchData);
     flex-shrink: 0;
 }
 
+.legend-section {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 16px;
+    padding: 8px 12px;
+    font-size: 11px;
+    background-color: #f7f7f7;
+    border-bottom: 1px solid #e0e0e0;
+    flex-shrink: 0;
+}
+
+.legend-group {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.legend-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.legend-title {
+    font-weight: bold;
+    color: #333;
+}
+
+.row-color-sample-closed {
+    background-color: #FFFF99;
+    width: 14px;
+    height: 14px;
+    border: 1px solid #e0e0e0;
+    display: inline-block;
+}
+
+.fill-height-table {
+    flex: 1 1 auto;
+    min-height: 0;
+}
+
 .filter-label {
     font-size: 11px;
     font-weight: 500;
@@ -310,12 +530,19 @@ watch([filterDateType, startDate, endDate, selectedCabang], fetchData);
     height: 28px !important;
 }
 
+.row-no-so,
 .row-no-so :deep(td) {
     color: red !important;
 }
 
+.row-no-invoice,
 .row-no-invoice :deep(td) {
     color: blue !important;
+}
+
+.row-closed,
+.row-closed :deep(td) {
+    /* Color handled by first child only */
 }
 
 .row-closed :deep(td:first-child) {
@@ -337,9 +564,27 @@ watch([filterDateType, startDate, endDate, selectedCabang], fetchData);
     background-color: #E0E0E0 !important;
 }
 
+.detail-container {
+    display: flex;
+    justify-content: flex-end;
+    padding: 8px;
+}
+
+.detail-content-wrapper {
+    width: 350px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    overflow: hidden;
+}
+
 .detail-table {
     font-size: 10px;
 }
+
+.detail-table th {
+    background-color: #f5f5f5;
+}
+
 
 .filter-section :deep(input),
 .filter-section :deep(.v-label),
@@ -347,7 +592,6 @@ watch([filterDateType, startDate, endDate, selectedCabang], fetchData);
     font-size: 11px !important;
 }
 
-/* Mengatur tinggi dari field agar lebih ringkas */
 .filter-section :deep(.v-field) {
     height: 36px;
 }

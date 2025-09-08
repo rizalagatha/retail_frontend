@@ -26,15 +26,16 @@ interface OfferHeader {
     ppn: number;
     'disc%': number;
     diskon: number;
+    nominal: number;
     kdcus: string;
     nama: string;
+    alamat: string;
     kota: string;
     telp: string;
     level: string;
     keterangan: string;
     alasan: string;
     created: string;
-    nominal: number;
     alasanClose: string;
     noINV: string;
 }
@@ -89,17 +90,18 @@ const tableHeaders = [
     { title: 'PPN', key: 'ppn', align: 'end', width: '100px' },
     { title: 'Disc %', key: 'disc%', align: 'end', width: '80px' },
     { title: 'Diskon', key: 'diskon', align: 'end', width: '100px' },
+    { title: 'Nominal', key: 'nominal', align: 'end', width: '120px' },
     { title: 'Kode Customer', key: 'kdcus', width: '120px' },
     { title: 'Nama Customer', key: 'nama', width: '250px' },
+    { title: 'Alamat', key: 'alamat', width: '300px' },
     { title: 'Kota', key: 'kota', width: '150px' },
     { title: 'Telepon', key: 'telp', width: '120px' },
-    { title: 'Level', key: 'level', width: '120px' },
+    { title: 'Level', key: 'level', width: '150px' },
     { title: 'Keterangan', key: 'keterangan', width: '250px' },
     { title: 'Alasan Close', key: 'alasan', width: '250px' },
     { title: 'User', key: 'created', width: '120px' },
-    { title: 'Nominal', key: 'nominal', align: 'end', width: '120px' },
-    { title: 'Status', key: 'status', width: '120px' },
-] as const;
+    { title: 'Status', key: 'status', align: 'center', width: '120px' },
+];
 
 const detailHeaders = [
     { title: 'Kode', key: 'kode' },
@@ -201,7 +203,7 @@ const getStatus = (item: OfferHeader) => {
 const editOffer = () => {
     if (!isSingleSelected.value) return;
     const nomor = selected.value[0].nomor;
-    router.push(`/penawaran/ubah/${nomor}`);
+    router.push(`/transaksi/penawaran/ubah/${nomor}`);
 };
 
 const deleteOffer = async (item: OfferHeader) => {
@@ -519,7 +521,7 @@ watch(selectedBranch, () => {
     <PageLayout title="Penawaran">
         <template #header-actions>
             <v-btn v-if="authStore.can(MENU_ID, 'insert')" size="small" color="primary" prepend-icon="mdi-plus"
-                @click="router.push('/penawaran/new')">Baru</v-btn>
+                @click="router.push('/transaksi/penawaran/new')">Baru</v-btn>
             <v-btn v-if="authStore.can(MENU_ID, 'edit')" size="small" :disabled="!isSingleSelected"
                 prepend-icon="mdi-pencil" @click="editOffer">Ubah</v-btn>
             <v-btn v-if="authStore.can(MENU_ID, 'delete')" size="small" :disabled="!isSingleSelected"
@@ -567,13 +569,16 @@ watch(selectedBranch, () => {
                 show-expand @update:expanded="loadDetails">
                 <template #item.status="{ item }">
                     <v-chip :color="getStatus(item).color" variant="tonal" size="x-small">{{ getStatus(item).text
-                    }}</v-chip>
+                        }}</v-chip>
                 </template>
                 <template #item.nominal="{ item }">
                     {{ new Intl.NumberFormat('id-ID').format(item.nominal) }}
                 </template>
                 <template #item.tanggal="{ item }">
                     {{ format(new Date(item.tanggal), 'dd/MM/yyyy') }}
+                </template>
+                <template #item.tempo="{ item }">
+                    {{ item.tempo ? format(new Date(item.tempo), 'dd/MM/yyyy') : '-' }}
                 </template>
                 <template #expanded-row="{ columns, item }">
                     <tr>
@@ -637,7 +642,7 @@ watch(selectedBranch, () => {
             <v-card>
                 <v-card-title class="text-h5">Konfirmasi Hapus</v-card-title>
                 <v-card-text>Apakah Anda yakin ingin menghapus penawaran nomor <strong>{{ itemToDelete?.nomor
-                }}</strong>?</v-card-text>
+                        }}</strong>?</v-card-text>
                 <v-card-actions><v-spacer></v-spacer><v-btn @click="dialogDelete = false">Batal</v-btn><v-btn
                         color="red-darken-1" variant="elevated"
                         @click="deleteConfirmed">Hapus</v-btn><v-spacer></v-spacer></v-card-actions>

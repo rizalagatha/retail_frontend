@@ -176,7 +176,7 @@ const loadOfferData = async (nomor: string) => {
         toast.success(`Data untuk penawaran ${nomor} berhasil dimuat.`);
     } catch (error) {
         toast.error('Gagal memuat data penawaran.');
-        router.push('/penawaran'); // Kembali ke daftar jika gagal
+        router.push('/transaksi/penawaran'); // Kembali ke daftar jika gagal
     }
 };
 
@@ -347,7 +347,7 @@ const save = async () => {
 
         const response = await api.post('/offer-form/save', payload);
         toast.success(response.data.message);
-        router.push('/penawaran');
+        router.push('/transaksi/penawaran');
 
     } catch (error: any) {
         toast.error(error.response?.data?.message || 'Gagal menyimpan data penawaran.');
@@ -493,7 +493,7 @@ onMounted(() => {
     // Pengecekan otorisasi sebelum memuat apa pun
     if (!authStore.can(MENU_ID, requiredPermission.value)) {
         toast.error(`Anda tidak memiliki izin untuk ${requiredPermission.value === 'insert' ? 'membuat' : 'mengubah'} data penawaran.`);
-        router.push('/penawaran');
+        router.push('/transaksi/penawaran');
         return;
     }
 
@@ -512,7 +512,7 @@ onMounted(() => {
         <template #header-actions>
             <v-btn size="small" color="primary" @click="save" :loading="isSaving">Simpan</v-btn>
             <v-btn v-if="!isEditMode" size="small" @click="resetForm">Baru</v-btn>
-            <v-btn size="small" @click="router.push('/penawaran')">Tutup</v-btn>
+            <v-btn size="small" @click="router.push('/transaksi/penawaran')">Tutup</v-btn>
         </template>
 
         <div class="form-grid-container">

@@ -28,8 +28,7 @@ watch(
 
 <template>
   <v-app class="desktop-app-container">
-
-    <Navbar v-if="authStore.isAuthenticated" />
+    <Navbar v-if="authStore.isAuthenticated && !route.meta.printLayout" />
 
     <v-main>
       <router-view />

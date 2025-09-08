@@ -94,7 +94,7 @@ const fetchData = async () => {
 const editProposal = () => {
   if (!isSingleSelected.value) return;
   const nomor = selected.value[0].nomor;
-  router.push(`/pengajuan-harga/ubah/${nomor}`);
+  router.push(`/transaksi/pengajuan/pengajuan-harga/ubah/${nomor}`);
 };
 
 const deleteProposal = async (item: PriceProposal) => {
@@ -144,7 +144,7 @@ watch([selectedCabang, belumApproval, startDate, endDate], () => {
   <PageLayout title="Pengajuan Harga" desktop-mode icon="mdi-cash-plus">
     <template #header-actions>
       <v-btn v-if="authStore.can(MENU_ID, 'insert')" size="small" color="primary" prepend-icon="mdi-plus"
-        @click="router.push('/pengajuan-harga/new')">Baru</v-btn>
+        @click="router.push('/transaksi/pengajuan/pengajuan-harga/new')">Baru</v-btn>
       <v-btn v-if="authStore.can(MENU_ID, 'edit')" size="small" :disabled="!isSingleSelected" prepend-icon="mdi-pencil"
         @click="editProposal">Ubah</v-btn>
       <v-btn v-if="authStore.can(MENU_ID, 'delete')" size="small" :disabled="!isSingleSelected"

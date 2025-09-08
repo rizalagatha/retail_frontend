@@ -54,12 +54,12 @@ const menuItems = [
     icon: 'mdi-file-outline',
     model: fileMenu,
     items: [
-      { title: 'Manual Program', to: '/manual', icon: 'mdi-book-open-outline' },
-      { title: 'History Update Program', to: '/history-updates', icon: 'mdi-history' },
-      { title: 'Update Buffer Stok', to: '/update-buffer-stock', icon: 'mdi-database-sync' },
-      { title: 'Setting', to: '/settings', icon: 'mdi-cog-outline' },
+      { title: 'Manual Program', to: '/file/manual', icon: 'mdi-book-open-outline' },
+      { title: 'History Update Program', to: '/file/history-updates', icon: 'mdi-history' },
+      { title: 'Update Buffer Stok', to: '/file/update-buffer-stock', icon: 'mdi-database-sync' },
+      { title: 'Setting', to: '/file/settings', icon: 'mdi-cog-outline' },
       { divider: true },
-      { title: 'User', to: '/users', icon: 'mdi-account-group-outline' }
+      { title: 'User', to: '/file/users', icon: 'mdi-account-group-outline' }
     ]
   },
   {
@@ -67,11 +67,11 @@ const menuItems = [
     icon: 'mdi-clipboard-list-outline',
     model: daftarMenu,
     items: [
-      { title: 'Customer', to: '/customers', icon: 'mdi-account-outline' },
-      { title: 'Member', to: '/members', icon: 'mdi-card-account-details-star-outline' },
-      { title: 'Supplier', to: '/suppliers', icon: 'mdi-truck-outline' },
-      { title: 'Sales Counter', to: '/sales-counters', icon: 'mdi-counter' },
-      { title: 'Cetak Barcode', to: '/cetak-barcode', icon: 'mdi-barcode' }
+      { title: 'Customer', to: '/daftar/customers', icon: 'mdi-account-outline' },
+      { title: 'Member', to: '/daftar/members', icon: 'mdi-card-account-details-star-outline' },
+      { title: 'Supplier', to: '/daftar/suppliers', icon: 'mdi-truck-outline' },
+      { title: 'Sales Counter', to: '/daftar/sales-counters', icon: 'mdi-counter' },
+      { title: 'Cetak Barcode', to: '/daftar/cetak-barcode', icon: 'mdi-barcode' }
     ]
   },
   {
@@ -84,51 +84,57 @@ const menuItems = [
         title: 'Penjualan',
         icon: 'mdi-cart-outline',
         items: [
-          { title: 'Penawaran', to: '/penawaran', icon: 'mdi-handshake-outline' },
+          { title: 'Penawaran', to: '/transaksi/penawaran', icon: 'mdi-handshake-outline' },
           {
             title: 'Pengajuan Harga',
             icon: 'mdi-currency-usd',
             subItems: [
               {
                 title: 'Pengajuan',
-                to: '/pengajuan-harga',
+                to: '/transaksi/pengajuan/pengajuan-harga',
                 icon: 'mdi-file-document-plus-outline'
               },
               {
                 title: 'Setting Harga',
-                to: '/setting-harga',
+                to: '/transaksi/pengajuan/setting-harga',
                 icon: 'mdi-tune-variant'
               }
             ]
           },
           {
-            title: 'DTF',
+            title: 'DTF Pesanan',
             icon: 'mdi-printer',
             subItems: [
               {
                 title: 'SO DTF Pesanan',
-                to: '/dtf/so-dtf',
-                icon: 'mdi-clipboard-list-outline' // Sales Order lebih tepat dengan clipboard
+                to: '/transaksi/dtf/so-dtf',
+                icon: 'mdi-clipboard-list-outline'
               },
               {
                 title: 'LHK SO DTF',
-                to: '/lhk-so-dtf',
-                icon: 'mdi-file-chart-outline' // Sudah tepat untuk laporan
+                to: '/transaksi/dtf/lhk-so-dtf',
+                icon: 'mdi-file-chart-outline'
               },
               {
                 title: 'Dasbor DTF',
-                to: '/dasbor-dtf',
-                icon: 'mdi-view-dashboard-outline' // Sudah tepat
-              },
+                to: '/transaksi/dtf/dasbor-dtf',
+                icon: 'mdi-view-dashboard-outline'
+              }
+            ]
+          },
+          {
+            title: 'DTF Stok',
+            icon: 'mdi-package-variant',
+            subItems: [
               {
                 title: 'SO DTF Stok',
-                to: '/so-dtf-stok',
-                icon: 'mdi-package-variant' // Lebih tepat untuk stok/inventory
+                to: '/transaksi/dtf/so-dtf-stok',
+                icon: 'mdi-package-variant'
               },
               {
                 title: 'LHK SO DTF Stok',
                 to: '/lhk-so-dtf-stok',
-                icon: 'mdi-chart-box-outline' // Bedakan dengan laporan pesanan
+                icon: 'mdi-chart-box-outline'
               }
             ]
           },
@@ -482,11 +488,11 @@ onUnmounted(() => {
 
           <v-divider class="user-divider" />
 
-          <v-list-item to="/ganti-password" prepend-icon="mdi-lock-outline" class="user-menu-item">
+          <v-list-item to="/user/ganti-password" prepend-icon="mdi-lock-outline" class="user-menu-item">
             <v-list-item-title>Ganti Password</v-list-item-title>
           </v-list-item>
 
-          <v-list-item to="/update-program" prepend-icon="mdi-update" class="user-menu-item">
+          <v-list-item to="/user/update-program" prepend-icon="mdi-update" class="user-menu-item">
             <v-list-item-title>Cek Versi</v-list-item-title>
           </v-list-item>
 
@@ -866,7 +872,7 @@ onUnmounted(() => {
   .large-nav-dropdown {
     max-width: none;
   }
-  
+
   .section-col {
     min-width: 250px;
   }

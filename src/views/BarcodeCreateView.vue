@@ -357,9 +357,9 @@ onMounted(() => {
             <v-btn size="small" @click="router.push('/cetak-barcode')" prepend-icon="mdi-close">Tutup</v-btn>
         </template>
 
-        <div class="form-container">
+        <div class="form-content">
             <!-- Header Section -->
-            <div class="desktop-form-section">
+            <div class="header-filters">
                 <v-row dense align="center">
                     <v-col cols="2"><v-text-field v-model="nomor" label="Nomor" variant="filled" readonly
                             density="compact" hide-details></v-text-field></v-col>
@@ -387,7 +387,7 @@ onMounted(() => {
 
             <!-- Table Section -->
             <div class="desktop-form-section flex-grow-1 d-flex flex-column">
-                <v-data-table :headers="tableHeaders" :items="items" density="compact" class="desktop-table flex-grow-1"
+                <v-data-table :headers="tableHeaders" :items="items" density="compact" class="desktop-table"
                     fixed-header height="100%" :items-per-page="-1">
                     <template #item.kode="{ item }">
                         <v-text-field v-model="item.kode" variant="underlined" dense hide-details single-line
@@ -445,7 +445,7 @@ onMounted(() => {
                     <v-spacer></v-spacer>
                     <v-btn color="primary" @click="executePrint" prepend-icon="mdi-printer">Cetak Semua ({{
                         barcodeSheets.length
-                    }} Halaman)</v-btn>
+                        }} Halaman)</v-btn>
                 </v-card-actions>
             </v-card>
         </v-dialog>

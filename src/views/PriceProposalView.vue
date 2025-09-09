@@ -33,6 +33,17 @@ const selectedCabang = ref(authStore.user?.cabang === 'KDC' ? 'ALL' : authStore.
 const belumApproval = ref(true);
 const cabangList = ref([]);
 const selected = ref<PriceProposal[]>([]);
+const filterOptions = ref([
+  { title: 'Nomor', value: 'nomor' },
+  { title: 'Customer', value: 'customer' },
+  { title: 'Jenis Kaos', value: 'jenisKaos' },
+  { title: 'Keterangan', value: 'keterangan' },
+  { title: 'Approval', value: 'approval' },
+  { title: 'Cabang', value: 'cabang' },
+  { title: 'User', value: 'created' },
+]);
+const selectedFilterField = ref('nomor'); // Filter default
+const filterSearchValue = ref('');
 
 const hasViewPermission = computed(() => authStore.can(MENU_ID, 'view'));
 const dialogDelete = ref(false);
@@ -50,6 +61,18 @@ const tableHeaders = [
 ];
 
 const isSingleSelected = computed(() => selected.value.length === 1);
+const filteredProposals = computed(() => {
+  if (!filterSearchValue.value) {
+    return proposals.value;
+  }
+  return proposals.value.filter(item => {
+    const itemValue = item[selectedFilterField.value];
+    if (itemValue) {
+      return itemValue.toString().toLowerCase().includes(filterSearchValue.value.toLowerCase());
+    }
+    return false;
+  });
+});
 
 // --- Methods ---
 const fetchCabangList = async () => {
@@ -175,11 +198,19 @@ watch([selectedCabang, belumApproval, startDate, endDate], () => {
         </div>
         <v-checkbox v-model="belumApproval" label="Belum Approve" hide-details density="compact"></v-checkbox>
         <v-spacer></v-spacer>
+        <v-divider vertical class="mx-2"></v-divider>
+        <div class="d-flex align-center ga-2">
+          <v-select v-model="selectedFilterField" :items="filterOptions" label="Filter Berdasarkan" density="compact"
+            hide-details variant="outlined" style="max-width: 180px;"></v-select>
+          <v-text-field v-model="filterSearchValue" label="Cari..." density="compact" hide-details variant="outlined"
+            style="min-width: 250px;" clearable prepend-inner-icon="mdi-magnify"></v-text-field>
+        </div>
+        <v-spacer></v-spacer>
         <v-btn @click="fetchData" icon="mdi-refresh" variant="text" size="small"></v-btn>
       </div>
 
       <!-- Table Section -->
-      <v-data-table v-model="selected" :headers="tableHeaders" :items="proposals" :loading="isLoading"
+      <v-data-table v-model="selected" :headers="tableHeaders" :items="filteredProposals" :loading="isLoading"
         item-value="nomor" density="compact" class="desktop-table" fixed-header show-select return-object>
         <template #item.tanggal="{ item }">
           {{ format(new Date(item.tanggal), 'dd/MM/yyyy') }}
@@ -196,7 +227,7 @@ watch([selectedCabang, belumApproval, startDate, endDate], () => {
       <v-card>
         <v-card-title class="text-h5">Konfirmasi Hapus</v-card-title>
         <v-card-text>Apakah Anda yakin ingin menghapus pengajuan harga nomor <strong>{{ itemToDelete?.nomor
-        }}</strong>?</v-card-text>
+            }}</strong>?</v-card-text>
         <v-card-actions>
           <v-spacer></v-spacer>
           <v-btn variant="text" @click="dialogDelete = false">Batal</v-btn>
@@ -209,66 +240,7 @@ watch([selectedCabang, belumApproval, startDate, endDate], () => {
 </template>
 
 <style scoped>
-.browse-content {
-  border: 1px solid #e0e0e0;
-  background-color: #ffffff;
-  height: 100%;
-  display: flex;
-  flex-direction: column;
-}
-
-.filter-section {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  padding: 6px 10px;
-  border-bottom: 1px solid #e0e0e0;
-  flex-shrink: 0;
-}
-
-.filter-label {
-  font-size: 11px;
-  font-weight: 500;
-  color: #424242;
-}
-
-.desktop-table {
-  font-size: 11px;
-}
-
-.desktop-table :deep(td),
-.desktop-table :deep(th) {
-  padding: 0 8px !important;
-  height: 28px !important;
-}
-
-.state-container {
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  align-items: center;
-  height: 100%;
-  color: #757575;
-}
-
-.filter-section :deep(input),
-.filter-section :deep(.v-label),
-.filter-section :deep(.v-select__selection-text) {
-  font-size: 11px !important;
-}
-
-/* Mengatur tinggi dari field agar lebih ringkas */
-.filter-section :deep(.v-field) {
-  height: 36px;
-}
-
-.filter-section :deep(.v-field__input) {
-  min-height: 36px;
-  padding-top: 0;
-  padding-bottom: 0;
-}
-
 :deep(.compact-select-list .v-list-item-title) {
-    font-size: 11px !important;
+  font-size: 11px !important;
 }
 </style>

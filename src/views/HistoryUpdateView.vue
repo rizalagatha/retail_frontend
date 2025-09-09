@@ -108,20 +108,6 @@ onMounted(fetchHistory);
 </template>
 
 <style scoped>
-.filter-label {
-    font-size: 12px;
-    font-weight: 500;
-    color: #424242;
-}
-
-.state-container {
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    align-items: center;
-    height: 100%;
-}
-
 .history-timeline-container {
   padding: 16px 24px;
 }

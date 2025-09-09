@@ -42,6 +42,7 @@ interface LevelHistory {
 const customers = ref<Customer[]>([]);
 const search = ref('');
 const isLoading = ref(true);
+const isSaving = ref(false);
 const selected = ref<Customer[]>([]);
 
 const dialog = ref(false);
@@ -130,23 +131,29 @@ const handleEditFromHeader = () => {
 };
 
 const saveCustomer = async () => {
+  // ... (validasi Anda tetap di sini) ...
+
+  isSaving.value = true;
   try {
-    // (3) Sertakan informasi user dari store saat menyimpan
-    const payload = {
-      ...editedItem.value,
-      isNew: isNew.value,
-      user: authStore.user // Mengirim data user (kode, cabang, dll)
-    };
     if (isNew.value) {
-      delete payload.kode;
+      // Panggil endpoint POST untuk membuat data baru
+      const response = await api.post('/customers', editedItem.value);
+      toast.success(response.data.message);
+    } else {
+      // Panggil endpoint PUT untuk mengubah data, sertakan kode di URL
+      const response = await api.put(`/customers/${editedItem.value.kode}`, editedItem.value);
+      toast.success(response.data.message);
     }
-    const response = await api.post('/customers/save', payload);
-    toast.success(response.data.message);
-    fetchCustomers();
-  } catch (error) {
-    toast.error('Gagal menyimpan data customer.');
+
+    fetchCustomers(); // Muat ulang data di tabel
+    dialog.value = false; // <-- DIALOG DITUTUP HANYA JIKA BERHASIL
+
+  } catch (error: any) {
+    // Jika terjadi error, toast akan muncul, TAPI DIALOG TETAP TERBUKA
+    toast.error(error.response?.data?.message || 'Gagal menyimpan data customer.');
   } finally {
-    dialog.value = false;
+    // Hentikan loading spinner, baik berhasil maupun gagal
+    isSaving.value = false;
   }
 };
 
@@ -163,10 +170,10 @@ const deleteCustomer = async (item: Customer) => {
 };
 
 const handleDeleteFromHeader = () => {
-    if (canDelete.value) {
-        // Panggil confirmDelete agar pengecekan statusnya terpusat
-        confirmDelete(selected.value[0]);
-    }
+  if (canDelete.value) {
+    // Panggil confirmDelete agar pengecekan statusnya terpusat
+    confirmDelete(selected.value[0]);
+  }
 };
 
 const printData = () => {
@@ -228,6 +235,8 @@ const deleteConfirmed = () => { // <-- TAMBAHKAN FUNGSI INI
   itemToDelete.value = null;
 };
 
+const getItemKey = (item: Customer) => `${item.kode}-${item.level}`;
+
 onMounted(() => {
   if (hasViewPermission.value) {
     fetchCustomers();
@@ -269,10 +278,10 @@ onMounted(() => {
 
       <!-- Table Section -->
       <v-data-table v-model="selected" :headers="headers" :items="customers" :search="search" :loading="isLoading"
-        item-value="kode" density="compact" class="desktop-table" fixed-header show-select return-object>
+        :item-value="getItemKey" density="compact" class="desktop-table" fixed-header show-select return-object>
         <template #item.status="{ item }">
           <v-chip :color="item.status === 'AKTIF' ? 'success' : 'error'" variant="tonal" size="x-small">{{ item.status
-            }}</v-chip>
+          }}</v-chip>
         </template>
         <template #item.tglLahir="{ item }">
           {{ item.tglLahir ? format(new Date(item.tglLahir), 'dd/MM/yyyy') : '-' }}
@@ -345,10 +354,12 @@ onMounted(() => {
             </v-row>
           </v-container>
         </v-card-text>
-        <v-card-actions class="dialog-footer">
+        <v-card-actions>
           <v-spacer></v-spacer>
-          <v-btn size="small" @click="dialog = false">Tutup</v-btn>
-          <v-btn size="small" color="primary" @click="saveCustomer" variant="elevated">Simpan</v-btn>
+          <v-btn text @click="dialog = false">Batal</v-btn>
+          <v-btn color="primary" @click="saveCustomer" :loading="isSaving" :disabled="isSaving">
+            Simpan
+          </v-btn>
         </v-card-actions>
       </v-card>
     </v-dialog>
@@ -366,41 +377,6 @@ onMounted(() => {
 </template>
 
 <style scoped>
-.browse-content {
-  border: 1px solid #e0e0e0;
-  background-color: #ffffff;
-  display: flex;
-  flex-direction: column;
-}
-
-.filter-section {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  padding: 6px 10px;
-  border-bottom: 1px solid #e0e0e0;
-  flex-shrink: 0;
-}
-
-.desktop-table {
-  font-size: 11px;
-}
-
-.desktop-table :deep(td),
-.desktop-table :deep(th) {
-  padding: 0 8px !important;
-  height: 28px !important;
-}
-
-.state-container {
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  align-items: center;
-  height: 100%;
-  color: #757575;
-}
-
 /* Dialog Styles */
 .dialog-card {
   font-size: 12px;

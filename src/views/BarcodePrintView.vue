@@ -179,54 +179,13 @@ onMounted(() => {
 </template>
 
 <style scoped>
-.browse-content {
-    border: 1px solid #e0e0e0;
-    background-color: #ffffff;
-    height: 100%;
-    display: flex;
-    flex-direction: column;
-}
-.filter-section {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 6px 10px;
-    border-bottom: 1px solid #e0e0e0;
-    flex-shrink: 0;
-}
-.filter-label {
-    font-size: 11px;
-    font-weight: 500;
-    color: #424242;
-}
 .table-wrapper {
     flex-grow: 1;
     overflow-y: auto;
 }
-.desktop-table {
-    font-size: 11px;
-}
-.desktop-table :deep(td), .desktop-table :deep(th) {
-    padding: 4px 8px !important;
-    height: 28px !important;
-}
-.desktop-table :deep(thead) {
-    background-color: #f5f5f5;
-}
 .expanded-row td {
     padding: 8px 16px !important;
     background-color: #fafafa;
-}
-.state-container {
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    align-items: center;
-    height: 100%;
-    color: #757575;
-}
-.detail-table {
-    font-size: 10px;
 }
 </style>
 

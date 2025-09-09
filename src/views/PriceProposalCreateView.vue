@@ -203,63 +203,51 @@ const onTshirtTypeSelected = async (type: { jenisKaos: string }) => {
 };
 
 const save = () => {
-    // Validasi dasar dari Delphi
-    if (!header.value.customerKode) {
-        toast.error('Customer harus diisi.');
-        return;
-    }
-    if (!header.value.jenisKaos) {
-        toast.error('Jenis Kaos harus diisi.');
-        return;
-    }
+    // Validasi dasar
+    if (!header.value.customerKode) return toast.error('Customer harus diisi.');
+    if (!header.value.jenisKaos) return toast.error('Jenis Kaos harus diisi.');
     const totalQty = sizeItems.value.reduce((sum, item) => sum + (item.qty || 0), 0);
-    if (totalQty === 0) {
-        toast.error('Jumlah order belum diisi.');
-        return;
-    }
-
-    // Jika validasi lolos, tampilkan dialog konfirmasi
+    if (totalQty === 0) return toast.error('Jumlah order belum diisi.');
+    
     isSaveConfirmVisible.value = true;
 };
 
 const executeSave = async () => {
-    if (!authStore.can(MENU_ID, requiredPermission.value)) {
-        toast.error(`Anda tidak memiliki izin untuk menyimpan data ini.`);
-        isSaving.value = false;
-        return;
-    }
-
     isSaveConfirmVisible.value = false;
     isSaving.value = true;
-
-    if (selectedFile.value) {
-        const formData = new FormData();
-        formData.append('proposalImage', selectedFile.value);
-        formData.append('nomor', header.value.nomor);
-        try {
-            await api.post('/price-proposal-form/upload-image', formData, {
-                headers: { 'Content-Type': 'multipart/form-data' }
-            });
-            toast.info('Gambar berhasil diunggah.');
-        } catch (error) {
-            toast.error('Gagal mengunggah gambar.');
-            isSaving.value = false;
-            return;
-        }
-    }
 
     try {
         const payload = {
             header: header.value,
             details: sizeItems.value.filter(item => (item.qty || 0) > 0),
-            additionalCosts: additionalCostItems.value,
+            bordirItems: bordirItems.value,
+            dtfItems: dtfItems.value,
+            additionalCostItems: additionalCostItems.value,
             footer: footer.value,
             user: authStore.user,
             isNew: !isEditMode.value,
         };
+
+        // 1. Simpan data utama
         const response = await api.post('/price-proposal-form/save', payload);
+        const savedNomor = isEditMode.value ? header.value.nomor : response.data.nomor;
+
+        // 2. Jika ada file, unggah sekarang menggunakan nomor yang sudah pasti ada
+        if (selectedFile.value && savedNomor) {
+            const formData = new FormData();
+            formData.append('proposalImage', selectedFile.value);
+            try {
+                // Upload ke endpoint yang menyertakan nomor di URL
+                await api.post(`/price-proposal-form/upload-image/${savedNomor}`, formData);
+                toast.info('Gambar berhasil diunggah.');
+            } catch (uploadError) {
+                toast.warning('Data berhasil disimpan, tapi gambar gagal diunggah.');
+            }
+        }
+        
         toast.success(response.data.message);
         router.push('/transaksi/pengajuan/pengajuan-harga');
+
     } catch (error: any) {
         toast.error(error.response?.data?.message || 'Gagal menyimpan data pengajuan.');
     } finally {
@@ -422,20 +410,19 @@ const applyDtfCost = () => {
 
 const loadOfferData = async (nomor: string) => {
     try {
-        const response = await api.get(`/price-proposal-form/edit-details/${nomor}`);
+        const response = await api.get(`/price-proposal-form/${nomor}`);
         const data = response.data;
 
         // --- Isi state Header ---
-        header.value.nomor = data.header.ph_nomor;
-        header.value.tanggal = format(new Date(data.header.ph_tanggal), 'yyyy-MM-dd');
-        header.value.customerKode = data.header.ph_kd_cus;
-        header.value.customerNama = data.header.cus_nama;
-        header.value.keterangan = data.header.ph_ket;
-        header.value.jenisKaos = data.header.ph_jenis;
-        // 👇 PERBAIKAN DI SINI (dari data.aheader menjadi data.header) 👇
-        header.value.ketersediaan = data.header.ph_custom === 'Y' ? 'Custom' : 'Stok';
-        header.value.approval = data.header.ph_apv;
-        header.value.isApproved = !!data.header.ph_apv;
+        header.value.nomor = data.headerData.ph_nomor;
+        header.value.tanggal = format(new Date(data.headerData.ph_tanggal), 'yyyy-MM-dd');
+        header.value.customerKode = data.headerData.ph_kd_cus;
+        header.value.customerNama = data.headerData.cus_nama;
+        header.value.keterangan = data.headerData.ph_ket;
+        header.value.jenisKaos = data.headerData.ph_jenis;
+        header.value.ketersediaan = data.headerData.ph_custom === 'Y' ? 'Custom' : 'Stok';
+        header.value.approval = data.headerData.ph_apv;
+        header.value.isApproved = !!data.headerData.ph_apv;
 
         // --- Isi state Bordir, DTF, dan Biaya Tambahan ---
         if (data.bordir) {
@@ -493,12 +480,18 @@ const loadOfferData = async (nomor: string) => {
             });
             sizeItems.value = allSizeItems;
         } else {
-            sizeItems.value = data.sizes.map((s: any) => ({
-                id: Date.now() + Math.random(), size: s.phs_size, qty: s.phs_jumlah, hargaPcs: s.phs_harga,
-                kodeBarang: s.phs_kode, namaBarang: '', hargaKaos: 0, totalHarga: 0
+            sizeItems.value = data.itemsData.map((s: any) => ({
+                id: Date.now() + Math.random(),
+                size: s.ukuran,
+                qty: s.jumlah,
+                hargaPcs: s.harga,
+                kodeBarang: s.kode,
+                namaBarang: s.nama,
+                hargaKaos: 0,
+                totalHarga: 0
             }));
         }
-        imagePreview.value = data.imageUrl;
+        imagePreview.value = data.headerData.imageUrl;
 
         await nextTick();
         calculateTotals();
@@ -860,27 +853,6 @@ onMounted(() => {
 </template>
 
 <style scoped>
-.form-grid-container {
-    padding: 12px;
-    height: 100%;
-    display: grid;
-    grid-template-columns: 450px 1fr;
-    /* Kolom kiri lebar tetap, kolom kanan fleksibel */
-    gap: 12px;
-}
-
-.left-column {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-}
-
-.right-column {
-    display: flex;
-    flex-direction: column;
-    min-height: 0;
-}
-
 .footer-section {
     margin-top: auto;
     /* Mendorong footer ke bawah kolom kiri */

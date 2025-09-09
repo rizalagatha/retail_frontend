@@ -748,73 +748,8 @@ onMounted(() => {
 </template>
 
 <style scoped>
-.form-grid-container {
-    padding: 12px;
-    height: 100%;
-    display: grid;
-    /* Lebar kolom kiri diperkecil */
-    grid-template-columns: 400px 1fr;
-    gap: 12px;
-}
-
-.left-column,
-.right-column {
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-    min-height: 0;
-}
-
-.desktop-form-section {
-    padding: 12px;
-    border: 1px solid #e0e0e0;
-    border-radius: 4px;
-    background-color: white;
-}
-
-.header-section {
-    flex-shrink: 0;
-    flex-grow: 1;
-    /* Biarkan kolom kiri mengisi tinggi */
-}
-
-.right-column {
-    flex-grow: 1;
-}
-
 .image-notes-section {
     flex-shrink: 0;
-}
-
-.desktop-table {
-    font-size: 11px;
-    flex-grow: 1;
-    overflow-y: auto;
-}
-
-.desktop-table :deep(td),
-.desktop-table :deep(th) {
-    padding: 0 8px !important;
-    height: 32px !important;
-}
-
-.desktop-table :deep(td .v-field__input) {
-    /* Target ini berlaku untuk input DAN teks yang sudah dipilih */
-    font-size: 11px !important;
-}
-
-.header-section :deep(.v-col) {
-    padding-top: 4px;
-    padding-bottom: 4px;
-}
-
-.header-section :deep(.v-label) {
-    font-size: 11px !important;
-}
-
-.header-section :deep(input),
-.header-section :deep(.v-select__selection-text) {
-    font-size: 12px !important;
 }
 
 .text-end :deep(input) {

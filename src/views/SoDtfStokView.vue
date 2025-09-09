@@ -50,10 +50,33 @@ const itemToClose = ref<HeaderItem | null>(null);
 const closeReason = ref('');
 const isConfirmDeleteVisible = ref(false);
 const itemToDelete = ref<HeaderItem | null>(null);
+const filterOptions = ref([
+    { title: 'Nomor', value: 'Nomor' },
+    { title: 'Nama DTF', value: 'NamaDTF' },
+    { title: 'Sales', value: 'Sales' },
+    { title: 'Bag. Desain', value: 'BagDesain' },
+    { title: 'Workshop', value: 'Workshop' },
+    { title: 'Keterangan', value: 'Keterangan' },
+    { title: 'Alasan Close', value: 'AlasanClose' },
+]);
+const selectedFilterField = ref('Nomor'); // Filter default
+const filterSearchValue = ref('');
 
 // --- Computed ---
 const hasViewPermission = computed(() => authStore.can(MENU_ID, 'view'));
 const isSingleSelected = computed(() => selected.value.length === 1);
+const filteredList = computed(() => {
+    if (!filterSearchValue.value) {
+        return list.value;
+    }
+    return list.value.filter(item => {
+        const itemValue = item[selectedFilterField.value];
+        if (itemValue !== null && itemValue !== undefined) {
+            return itemValue.toString().toLowerCase().includes(filterSearchValue.value.toLowerCase());
+        }
+        return false;
+    });
+});
 
 const headers = [
     { title: 'Nomor', key: 'Nomor', width: '180px', fixed: true },
@@ -324,6 +347,14 @@ watch([startDate, endDate, selectedCabang, filterDateType], fetchData);
                     style="min-width: 140px;" />
                 <v-select v-model="selectedCabang" :items="cabangList" item-title="nama" item-value="kode"
                     density="compact" hide-details variant="outlined" style="max-width: 180px;" />
+                <v-divider vertical class="mx-2"></v-divider>
+                <div class="d-flex align-center ga-2">
+                    <v-select v-model="selectedFilterField" :items="filterOptions" label="Filter Berdasarkan"
+                        density="compact" hide-details variant="outlined" style="max-width: 180px;"></v-select>
+                    <v-text-field v-model="filterSearchValue" label="Cari..." density="compact" hide-details
+                        variant="outlined" style="min-width: 250px;" clearable
+                        prepend-inner-icon="mdi-magnify"></v-text-field>
+                </div>
                 <v-spacer />
                 <v-btn @click="fetchData" icon="mdi-refresh" variant="text" size="small" />
             </div>
@@ -343,13 +374,13 @@ watch([startDate, endDate, selectedCabang, filterDateType], fetchData);
                 </div>
             </div>
 
-            <v-data-table v-model="selected" :headers="headers" :items="list" :loading="isLoading"
+            <v-data-table v-model="selected" :headers="headers" :items="filteredList" :loading="isLoading"
                 v-model:expanded="expanded" @update:expanded="loadDetails" :item-class="getRowClass" item-value="Nomor"
                 density="compact" class="desktop-table fill-height-table" fixed-header show-select return-object
                 show-expand>
                 <template #item.Tanggal="{ item }">{{ format(parseISO(item.Tanggal), 'dd/MM/yyyy') }}</template>
                 <template #item.TglPengerjaan="{ item }">{{ format(parseISO(item.TglPengerjaan), 'dd/MM/yyyy')
-                }}</template>
+                    }}</template>
                 <template #item.LHK="{ item }">
                     <v-chip :class="getLhkClass(item)" size="x-small" label>{{ item.LHK }}</v-chip>
                 </template>
@@ -390,7 +421,7 @@ watch([startDate, endDate, selectedCabang, filterDateType], fetchData);
             <v-card>
                 <v-card-title class="text-h6 font-weight-bold">Konfirmasi Hapus</v-card-title>
                 <v-card-text>Anda yakin ingin menghapus SO DTF Stok Nomor: <strong>{{ itemToDelete?.Nomor
-                        }}</strong>?</v-card-text>
+                }}</strong>?</v-card-text>
                 <v-card-actions>
                     <v-spacer></v-spacer>
                     <v-btn @click="isConfirmDeleteVisible = false">Batal</v-btn>
@@ -405,7 +436,7 @@ watch([startDate, endDate, selectedCabang, filterDateType], fetchData);
                 <v-card-title class="text-subtitle-1">Isi Alasan Close SO</v-card-title>
                 <v-card-text class="pa-4">
                     <p class="text-caption mb-2">Anda akan menutup SO Nomor: <strong>{{ itemToClose?.Nomor
-                            }}</strong>
+                    }}</strong>
                     </p>
                     <v-textarea v-model="closeReason" label="Alasan" rows="3" variant="outlined" autofocus></v-textarea>
                 </v-card-text>
@@ -420,57 +451,6 @@ watch([startDate, endDate, selectedCabang, filterDateType], fetchData);
 </template>
 
 <style scoped>
-.browse-content {
-    height: 100%;
-    display: flex;
-    flex-direction: column;
-}
-
-.filter-section {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 6px 10px;
-    border-bottom: 1px solid #e0e0e0;
-    flex-shrink: 0;
-}
-
-.filter-label {
-    font-size: 11px;
-    font-weight: 500;
-}
-
-.fill-height-table {
-    flex: 1 1 auto;
-    min-height: 0;
-}
-
-.desktop-table {
-    font-size: 11px;
-}
-
-.desktop-table :deep(td),
-.desktop-table :deep(th) {
-    padding: 0 8px !important;
-    height: 28px !important;
-}
-
-.filter-section :deep(input),
-.filter-section :deep(.v-label),
-.filter-section :deep(.v-select__selection-text) {
-    font-size: 11px !important;
-}
-
-.filter-section :deep(.v-field) {
-    height: 36px;
-}
-
-.filter-section :deep(.v-field__input) {
-    min-height: 36px;
-    padding-top: 0;
-    padding-bottom: 0;
-}
-
 .row-closed :deep(td:first-child) {
     background-color: #FFFF99;
     font-weight: bold;

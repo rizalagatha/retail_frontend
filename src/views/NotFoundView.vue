@@ -26,15 +26,3 @@ const router = useRouter();
   </PageLayout>
 </template>
 
-<style scoped>
-.state-container {
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    align-items: center;
-    height: 100%;
-    text-align: center;
-    padding: 16px;
-    color: #424242;
-}
-</style>

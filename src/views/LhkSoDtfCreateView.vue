@@ -249,45 +249,6 @@ watch([selectedTanggal, selectedCabang], loadLhkData);
 </template>
 
 <style scoped>
-.form-content {
-    height: 100%;
-    display: flex;
-    flex-direction: column;
-    padding: 12px;
-    gap: 12px;
-}
-
-.header-filters {
-    display: flex;
-    align-items: center;
-    gap: 16px;
-    flex-shrink: 0;
-}
-
-/* Mengatur font di header filter agar konsisten */
-.header-filters :deep(.v-field__input),
-.header-filters :deep(.v-label) {
-    font-size: 12px;
-}
-
-.desktop-table {
-    font-size: 11px;
-    flex-grow: 1;
-    border: 1px solid #e0e0e0;
-}
-
-/* Mengatur tinggi baris dan padding sel */
-.desktop-table :deep(td),
-.desktop-table :deep(th) {
-    padding: 0 8px !important;
-    height: 32px !important;
-}
-
-/* Mengatur font input di dalam tabel */
-.desktop-table :deep(input) {
-    font-size: 11px !important;
-}
-
 /* Mengatur text biasa di dalam sel (untuk kolom No.) */
 .cell-text {
     padding: 0 8px;

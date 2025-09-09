@@ -51,13 +51,52 @@ const isConfirmDialogVisible = ref(false);
 const confirmDialogText = ref('');
 const itemToDelete = ref<SoDtfHeader | null>(null);
 
+const filterOptions = ref([
+    { title: 'Nomor', value: 'Nomor' },
+    { title: 'Status', value: 'status' },
+    { title: 'Tanggal', value: 'Tanggal' },
+    { title: 'Tgl Pengerjaan', value: 'TglPengerjaan' },
+    { title: 'Dateline Cust', value: 'DatelineCus' },
+    { title: 'Nama DTF', value: 'NamaDTF' },
+    { title: 'Kd. Customer', value: 'KdCus' },
+    { title: 'Nama Customer', value: 'Customer' },
+    { title: 'Jml', value: 'Jumlah'},
+    { title: 'Titik', value: 'Titik' },
+    { title: 'Total Titik', value: 'TotalTitik' },
+    { title: 'LHK', value: 'LHK' },
+    { title: 'No. SO', value: 'NoSO' },
+    { title: 'No. Invoice', value: 'NoINV' },
+    { title: 'Sales', value: 'Sales' },
+    { title: 'Bag. Desain', value: 'BagDesain' },
+    { title: 'Kain', value: 'Kain' },
+    { title: 'Finishing', value: 'Finishing' },
+    { title: 'Workshop', value: 'Workshop' },
+    { title: 'Keterangan', value: 'Keterangan' },
+    { title: 'Alasan Close', value: 'AlasanClose' },
+    { title: 'User', value: 'Created' },
+    { title: 'Status Close', value: 'Close' },
+]);
+const selectedFilterField = ref('Nomor'); // Filter default
+const filterSearchValue = ref('');
+
 // --- Computed ---
 const hasViewPermission = computed(() => authStore.can(MENU_ID, 'view'));
 const isSingleSelected = computed(() => selected.value.length === 1);
+const filteredSoDtfList = computed(() => {
+    if (!filterSearchValue.value) {
+        return soDtfList.value;
+    }
+    return soDtfList.value.filter(item => {
+        const itemValue = item[selectedFilterField.value];
+        if (itemValue !== null && itemValue !== undefined) {
+            return itemValue.toString().toLowerCase().includes(filterSearchValue.value.toLowerCase());
+        }
+        return false;
+    });
+});
 
 const headers = [
     { title: 'Nomor', key: 'Nomor', width: '150px', fixed: true },
-    // 1. Tambahan Kolom Status
     { title: 'Status', key: 'status', width: '150px', sortable: false },
     { title: 'Tanggal', key: 'Tanggal', width: '100px' },
     { title: 'Tgl Pengerjaan', key: 'TglPengerjaan', width: '120px' },
@@ -245,7 +284,7 @@ const exportData = async (type: 'header' | 'detail') => {
         } else { // type === 'detail'
             // Untuk Export Detail, kita gunakan filter tanggal dan cabang yang aktif
             toast.info('Mengambil semua data detail dari server sesuai filter...');
-            
+
             const response = await api.get('/so-dtf/export-detail', {
                 params: {
                     // Kirim filter yang aktif, BUKAN data yang dicentang
@@ -260,7 +299,7 @@ const exportData = async (type: 'header' | 'detail') => {
                 toast.warning('Tidak ada data detail ditemukan untuk filter yang dipilih.');
                 return;
             }
-            
+
             toast.info('Membuat file Excel Detail...');
             const worksheet = XLSX.utils.json_to_sheet(response.data);
             const workbook = XLSX.utils.book_new();
@@ -349,6 +388,14 @@ watch([filterDateType, startDate, endDate, selectedCabang], fetchData);
                 <v-select v-model="selectedCabang" :items="cabangList" item-title="nama" item-value="kode"
                     density="compact" hide-details variant="outlined" style="max-width: 180px;"
                     :menu-props="{ class: 'compact-select-list' }"></v-select>
+                <v-divider vertical class="mx-2"></v-divider>
+                <div class="d-flex align-center ga-2">
+                    <v-select v-model="selectedFilterField" :items="filterOptions" label="Filter Berdasarkan"
+                        density="compact" hide-details variant="outlined" style="max-width: 180px;"></v-select>
+                    <v-text-field v-model="filterSearchValue" label="Cari..." density="compact" hide-details
+                        variant="outlined" style="min-width: 250px;" clearable
+                        prepend-inner-icon="mdi-magnify"></v-text-field>
+                </div>
                 <v-spacer></v-spacer>
                 <v-btn @click="fetchData" icon="mdi-refresh" variant="text" size="small"></v-btn>
             </div>
@@ -371,7 +418,7 @@ watch([filterDateType, startDate, endDate, selectedCabang], fetchData);
                 </div>
             </div>
 
-            <v-data-table v-model="selected" :headers="headers" :items="soDtfList" :loading="isLoading"
+            <v-data-table v-model="selected" :headers="headers" :items="filteredSoDtfList" :loading="isLoading"
                 :item-class="getRowClass" item-value="Nomor" density="compact" class="desktop-table fill-height-table"
                 fixed-header show-select return-object show-expand @update:expanded="loadDetails">
 
@@ -458,21 +505,6 @@ watch([filterDateType, startDate, endDate, selectedCabang], fetchData);
 </template>
 
 <style scoped>
-.browse-content {
-    height: 100%;
-    display: flex;
-    flex-direction: column;
-}
-
-.filter-section {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 6px 10px;
-    border-bottom: 1px solid #e0e0e0;
-    flex-shrink: 0;
-}
-
 .legend-section {
     display: flex;
     flex-wrap: wrap;
@@ -510,26 +542,6 @@ watch([filterDateType, startDate, endDate, selectedCabang], fetchData);
     display: inline-block;
 }
 
-.fill-height-table {
-    flex: 1 1 auto;
-    min-height: 0;
-}
-
-.filter-label {
-    font-size: 11px;
-    font-weight: 500;
-}
-
-.desktop-table {
-    font-size: 11px;
-}
-
-.desktop-table :deep(td),
-.desktop-table :deep(th) {
-    padding: 0 8px !important;
-    height: 28px !important;
-}
-
 .row-no-so,
 .row-no-so :deep(td) {
     color: red !important;
@@ -562,44 +574,6 @@ watch([filterDateType, startDate, endDate, selectedCabang], fetchData);
 
 .lhk-normal {
     background-color: #E0E0E0 !important;
-}
-
-.detail-container {
-    display: flex;
-    justify-content: flex-end;
-    padding: 8px;
-}
-
-.detail-content-wrapper {
-    width: 350px;
-    border: 1px solid #ddd;
-    border-radius: 4px;
-    overflow: hidden;
-}
-
-.detail-table {
-    font-size: 10px;
-}
-
-.detail-table th {
-    background-color: #f5f5f5;
-}
-
-
-.filter-section :deep(input),
-.filter-section :deep(.v-label),
-.filter-section :deep(.v-select__selection-text) {
-    font-size: 11px !important;
-}
-
-.filter-section :deep(.v-field) {
-    height: 36px;
-}
-
-.filter-section :deep(.v-field__input) {
-    min-height: 36px;
-    padding-top: 0;
-    padding-bottom: 0;
 }
 
 :deep(.compact-select-list .v-list-item-title) {

@@ -269,36 +269,6 @@ onMounted(() => {
 </template>
 
 <style scoped>
-.browse-content {
-    border: 1px solid #e0e0e0;
-    background-color: #ffffff;
-    display: flex;
-    flex-direction: column;
-}
-.filter-section {
-    display: flex;
-    align-items: center;
-    gap: 16px;
-    padding: 6px 10px;
-    border-bottom: 1px solid #e0e0e0;
-    flex-shrink: 0;
-}
-.desktop-table {
-    font-size: 11px;
-}
-.desktop-table :deep(td), .desktop-table :deep(th) {
-    padding: 0 8px !important;
-    height: 28px !important;
-}
-.state-container {
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    align-items: center;
-    height: 100%;
-    color: #757575;
-}
-
 /* Dialog Styles */
 .dialog-card {
   font-size: 12px;

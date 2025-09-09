@@ -142,6 +142,38 @@
     overflow-y: auto;
 }
 
+/* ==========================================================================
+   👇 TAMBAHKAN BLOK BARU DI SINI 👇
+   ========================================================================== */
+
+/* Styling Detail Table (Expanded Row)
+   ========================================================================== */
+.detail-container {
+    display: flex;
+    justify-content: flex-end; /* Mendorong tabel detail ke kanan */
+    padding: 8px;
+    background-color: #f7f7f7;
+}
+
+.detail-table-wrapper {
+    width: 75%; /* Lebar tabel detail, bisa disesuaikan */
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    overflow: hidden;
+    background-color: white;
+}
+
+.detail-table {
+    font-size: 10px !important; /* Font lebih kecil untuk detail */
+}
+
+.detail-table td,
+.detail-table th {
+    padding: 0 8px !important;
+    height: 26px !important; /* Baris sedikit lebih pendek */
+}
+
+
 /* Utility Classes
    ========================================================================== */
 .text-right input {

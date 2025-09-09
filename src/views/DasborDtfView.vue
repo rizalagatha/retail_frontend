@@ -206,57 +206,6 @@ watch([startDate, endDate, selectedCabang], fetchData);
 </template>
 
 <style scoped>
-.browse-content {
-    height: 100%;
-    display: flex;
-    flex-direction: column;
-}
-
-.filter-section {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 6px 10px;
-    border-bottom: 1px solid #e0e0e0;
-    flex-shrink: 0;
-}
-
-.filter-label {
-    font-size: 11px;
-    font-weight: 500;
-}
-
-.fill-height-table {
-    flex: 1 1 auto;
-    min-height: 0;
-}
-
-.desktop-table {
-    font-size: 11px;
-}
-
-.desktop-table :deep(td),
-.desktop-table :deep(th) {
-    padding: 0 8px !important;
-    height: 28px !important;
-}
-
-.filter-section :deep(input),
-.filter-section :deep(.v-label),
-.filter-section :deep(.v-select__selection-text) {
-    font-size: 11px !important;
-}
-
-.filter-section :deep(.v-field) {
-    height: 36px;
-}
-
-.filter-section :deep(.v-field__input) {
-    min-height: 36px;
-    padding-top: 0;
-    padding-bottom: 0;
-}
-
 .row-sisa-minus :deep(td) {
     color: red !important;
     font-weight: bold;

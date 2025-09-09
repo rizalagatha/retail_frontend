@@ -120,68 +120,6 @@ onMounted(() => {
 </template>
 
 <style scoped>
-.browse-content {
-    height: 100%;
-    display: flex;
-    flex-direction: column;
-}
-.filter-section {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    padding: 6px 10px;
-    border-bottom: 1px solid #e0e0e0;
-    flex-shrink: 0;
-}
-.table-container {
-    flex-grow: 1;
-    display: flex;
-    min-height: 0;
-}
-.fill-height-table {
-    display: flex;
-    flex-direction: column;
-    flex: 1 1 auto;
-    min-height: 0;
-}
-
-.fill-height-table :deep(.v-table__wrapper) {
-    flex-grow: 1;
-    overflow-y: auto;
-}
-.desktop-table {
-    font-size: 11px;
-}
-.desktop-table :deep(td),
-.desktop-table :deep(th) {
-    padding: 0 8px !important;
-    height: 28px !important;
-}
-/* Style untuk filter agar konsisten */
-.filter-label {
-    font-size: 11px;
-    font-weight: 500;
-}
-.filter-section :deep(input),
-.filter-section :deep(.v-label),
-.filter-section :deep(.v-select__selection-text) {
-    font-size: 11px !important;
-}
-.filter-section :deep(.v-field) {
-    height: 36px;
-}
-.filter-section :deep(.v-field__input) {
-    min-height: 36px;
-    padding-top: 0;
-    padding-bottom: 0;
-}
-.state-container {
-    height: 100%;
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    align-items: center;
-}
 .text-red {
     color: red !important;
 }

@@ -243,33 +243,3 @@ onMounted(() => {
     </PageLayout>
 </template>
 
-<style scoped>
-.user-form-container {
-    padding: 12px;
-    height: 100%;
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-}
-.section-title {
-  font-size: 0.875rem;
-  font-weight: 600;
-  color: #333;
-}
-.desktop-table {
-    font-size: 11px;
-}
-.desktop-table :deep(td), .desktop-table :deep(th) {
-    padding: 0 8px !important;
-    height: 28px !important;
-}
-.state-container {
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    align-items: center;
-    height: 100%;
-    color: #757575;
-}
-</style>
-

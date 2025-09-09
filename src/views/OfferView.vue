@@ -53,7 +53,30 @@ interface Branch {
 }
 
 // --- State ---
-const headers = ref<OfferHeader[]>([]);
+const offerList = ref<OfferHeader[]>([]);
+const filterOptions = ref([
+    { title: 'Nomor', value: 'nomor' },
+    { title: 'Tanggal', value: 'tanggal' },
+    { title: 'No. SO', value: 'noSO' },
+    { title: 'TOP', value: 'top' },
+    { title: 'Tgl Tempo', value: 'tempo' },
+    { title: 'PPN', value: 'ppn' },
+    { title: 'Disc %', value: 'disc%'},
+    { title: 'Diskon', value: 'diskon' },
+    { title: 'Nominal', value: 'nominal' },
+    { title: 'Kode Customer', value: 'kdcus' },
+    { title: 'Nama Customer', value: 'nama' },
+    { title: 'Alamat', value: 'alamat' },
+    { title: 'Kota', value: 'kota' },
+    { title: 'Telepon', value: 'telp' },
+    { title: 'Level', value: 'level' },
+    { title: 'Keterangan', value: 'keterangan' },
+    { title: 'Alasan Close', value: 'alasan' },
+    { title: 'User', value: 'created' },
+    { title: 'Status', value: 'status' },
+]);
+const selectedFilterField = ref('nomor'); // Filter default
+const filterSearchValue = ref('');
 const details = ref<{ [key: string]: OfferDetail[] }>({});
 const isLoading = ref(true);
 const startDate = ref(format(new Date(), 'yyyy-MM-dd'));
@@ -114,6 +137,22 @@ const canBeClosed = computed(() => {
     return !selectedOffer.noSO && !selectedOffer.alasan;
 });
 
+const filteredOffers = computed(() => {
+    // Jika tidak ada data asli atau tidak ada kata kunci, tampilkan semua
+    if (!offerList.value || !filterSearchValue.value) {
+        return offerList.value;
+    }
+
+    // Lakukan filter berdasarkan field yang dipilih dan kata kunci
+    return offerList.value.filter(item => {
+        const itemValue = item[selectedFilterField.value];
+        if (itemValue) {
+            return itemValue.toString().toLowerCase().includes(filterSearchValue.value.toLowerCase());
+        }
+        return false;
+    });
+});
+
 // --- Methods ---
 const fetchBranches = async () => {
     try {
@@ -137,7 +176,7 @@ const fetchData = async () => {
                 cabang: selectedBranch.value // Gunakan cabang yang dipilih
             }
         });
-        headers.value = response.data;
+        offerList.value = response.data;
     } catch (error) {
         toast.error('Gagal memuat data penawaran.');
     } finally {
@@ -228,7 +267,7 @@ const deleteConfirmed = () => {
 };
 
 const exportData = () => {
-    const worksheet = XLSX.utils.json_to_sheet(headers.value);
+    const worksheet = XLSX.utils.json_to_sheet(offerList.value);
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, "Penawaran");
     XLSX.writeFile(workbook, "DaftarPenawaran.xlsx");
@@ -265,11 +304,11 @@ const submitCloseOffer = async () => {
 };
 
 const exportHeaderData = () => {
-    if (headers.value.length === 0) {
+    if (offerList.value.length === 0) {
         toast.warning('Tidak ada data header untuk diekspor.');
         return;
     }
-    const worksheet = XLSX.utils.json_to_sheet(headers.value);
+    const worksheet = XLSX.utils.json_to_sheet(offerList.value);
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, "Penawaran Header");
     XLSX.writeFile(workbook, "DaftarPenawaran_Header.xlsx");
@@ -422,12 +461,20 @@ watch(selectedBranch, () => {
                         density="compact" hide-details variant="outlined" style="max-width: 180px;"
                         :menu-props="{ class: 'compact-select-list' }"></v-select>
                 </div>
+                <v-divider vertical class="mx-2"></v-divider>
+                <div class="d-flex align-center ga-2">
+                    <v-select v-model="selectedFilterField" :items="filterOptions" label="Filter Berdasarkan"
+                        density="compact" hide-details variant="outlined" style="max-width: 180px;"></v-select>
+                    <v-text-field v-model="filterSearchValue" label="Cari..." density="compact" hide-details
+                        variant="outlined" style="min-width: 250px;" clearable
+                        prepend-inner-icon="mdi-magnify"></v-text-field>
+                </div>
                 <v-spacer></v-spacer>
                 <v-btn @click="fetchData" icon="mdi-refresh" variant="text" size="small"></v-btn>
             </div>
 
             <!-- Table Section -->
-            <v-data-table v-model="selected" :headers="tableHeaders" :items="headers" :loading="isLoading"
+            <v-data-table v-model="selected" :headers="tableHeaders" :items="filteredOffers" :loading="isLoading"
                 item-value="nomor" density="compact" class="desktop-table" fixed-header show-select return-object
                 show-expand @update:expanded="loadDetails">
                 <template #item.status="{ item }">
@@ -499,70 +546,6 @@ watch(selectedBranch, () => {
 </template>
 
 <style scoped>
-.browse-content {
-    border: 1px solid #e0e0e0;
-    background-color: #ffffff;
-    height: 100%;
-    display: flex;
-    flex-direction: column;
-}
-
-.filter-section {
-    font-size: 12px;
-    display: flex;
-    align-items: center;
-    gap: 16px;
-    padding: 6px 10px;
-    border-bottom: 1px solid #e0e0e0;
-    flex-shrink: 0;
-}
-
-.filter-label {
-    font-size: 12px;
-    font-weight: 500;
-    color: #424242;
-}
-
-.desktop-table {
-    font-size: 11px;
-}
-
-.desktop-table :deep(td),
-.desktop-table :deep(th) {
-    padding: 0 8px !important;
-    height: 28px !important;
-}
-
-.detail-table {
-    font-size: 10px;
-}
-
-.state-container {
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    align-items: center;
-    height: 100%;
-    color: #757575;
-}
-
-.filter-section :deep(input),
-.filter-section :deep(.v-label),
-.filter-section :deep(.v-select__selection-text) {
-    font-size: 11px !important;
-}
-
-/* Mengatur tinggi dari field agar lebih ringkas */
-.filter-section :deep(.v-field) {
-    height: 36px;
-}
-
-.filter-section :deep(.v-field__input) {
-    min-height: 36px;
-    padding-top: 0;
-    padding-bottom: 0;
-}
-
 :deep(.compact-select-list .v-list-item-title) {
     font-size: 11px !important;
 }

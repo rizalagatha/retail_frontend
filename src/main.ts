@@ -12,6 +12,7 @@ import * as components from 'vuetify/components'
 import * as directives from 'vuetify/directives'
 import './styles/global.css'
 import './styles/desktop-app.css'
+import './styles/desktop-theme.css'
 
 // (2) Impor Ikon Material Design (opsional tapi direkomendasikan)
 import '@mdi/font/css/materialdesignicons.css' 

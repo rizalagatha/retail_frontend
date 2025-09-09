@@ -21,6 +21,7 @@ import BarcodePrintView from '@/views/BarcodePrintView.vue';
 import BarcodeCreateView from '../views/BarcodeCreateView.vue';
 import OfferView from '@/views/OfferView.vue';
 import OfferCreateView from '@/views/OfferCreateView.vue';
+import OfferPrintView from '@/views/OfferPrintView.vue';
 import PriceProposalView from '@/views/PriceProposalView.vue';
 import PriceProposalCreateView from '@/views/PriceProposalCreateView.vue';
 import SettingHargaView from '@/views/SettingHargaView.vue';
@@ -32,6 +33,7 @@ import LhkSoDtfCreateView from '@/views/LhkSoDtfCreateView.vue';
 import DasborDtfView from '@/views/DasborDtfView.vue';
 import SoDtfStokView from '@/views/SoDtfStokView.vue';
 import SoDtfStokCreateView from '@/views/SoDtfStokCreateView.vue';
+import SoDtfStokPrintView from '@/views/SoDtfStokPrintView.vue';
 import LaporanStokView from '@/views/LaporanStokView.vue';
 
 const routes = [
@@ -223,6 +225,15 @@ const routes = [
     }
   },
   {
+    path: '/transaksi/penawaran/print/:nomor',
+    name: 'Cetak Penawaran',
+    component: OfferPrintView,
+    meta: {
+      requiresAuth: true,
+      printLayout: true
+    }
+  },
+  {
     path: '/transaksi/pengajuan/pengajuan-harga',
     name: 'frmBrowPengajuanHarga',
     component: PriceProposalView,
@@ -341,20 +352,29 @@ const routes = [
     path: '/transaksi/dtf/so-dtf-stok/new',
     name: 'SoDtfStokCreate',
     component: SoDtfStokCreateView,
-    meta: { 
-      title: 'Buat SO DTF Stok', 
-      requiresAuth: true, 
-      menuId: '36' 
+    meta: {
+      title: 'Buat SO DTF Stok',
+      requiresAuth: true,
+      menuId: '36'
     }
   },
   {
     path: '/transaksi/dtf/so-dtf-stok/ubah/:nomor',
     name: 'SoDtfStokEdit',
     component: SoDtfStokCreateView,
-    meta: { 
-      title: 'Ubah SO DTF Stok', 
-      requiresAuth: true, 
-      menuId: '36' 
+    meta: {
+      title: 'Ubah SO DTF Stok',
+      requiresAuth: true,
+      menuId: '36'
+    }
+  },
+  {
+    path: '/transaksi/dtf/so-dtf-stok/print/:nomor',
+    name: 'Cetak SO DTF Stok',
+    component: SoDtfStokPrintView,
+    meta: {
+      requiresAuth: true,
+      printLayout: true
     }
   },
   {

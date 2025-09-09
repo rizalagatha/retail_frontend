@@ -53,7 +53,17 @@ const fetchData = async () => {
     }
 };
 
-const exportToExcel = () => { /* ... Logika export ... */ };
+const exportToExcel = () => {
+    if (stokList.value.length === 0) {
+        toast.warning('Tidak ada data untuk diekspor.');
+        return;
+    }
+    const worksheet = XLSX.utils.json_to_sheet(stokList.value);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Laporan Stok");
+    XLSX.writeFile(workbook, "Laporan_Stok_Real_Time.xlsx");
+    toast.success('Data berhasil diekspor.');
+};
 
 onMounted(() => {
     if (hasViewPermission.value) {
@@ -82,25 +92,29 @@ onMounted(() => {
                     variant="outlined" style="max-width: 180px;"></v-text-field>
                 <v-text-field v-model="filters.kodeBarang" label="Kode Barang (F1)" density="compact" hide-details
                     variant="outlined" style="max-width: 180px;"></v-text-field>
-                <v-radio-group v-model="filters.jenisStok" inline hide-details density="compact">
+                <v-radio-group v-model="filters.jenisStok" inline hide-details density="compact" class="ms-4">
+                    <template #label><span class="filter-label">Jenis Stok:</span></template>
                     <v-radio label="Semua" value="semua"></v-radio>
                     <v-radio label="Showroom" value="showroom"></v-radio>
                     <v-radio label="Pesanan" value="pesanan"></v-radio>
                 </v-radio-group>
                 <v-checkbox v-model="filters.tampilkanKosong" label="Tampilkan Stok Kosong" hide-details
-                    density="compact"></v-checkbox>
+                    density="compact" class="ms-2"></v-checkbox>
                 <v-spacer></v-spacer>
                 <v-btn @click="fetchData" icon="mdi-refresh" variant="text" size="small"></v-btn>
             </div>
 
-            <v-data-table :headers="headers" :items="stokList" :loading="isLoading" density="compact"
-                class="desktop-table" fixed-header>
-                <template v-for="col in headers.slice(2)" #[`item.${col.key}`]="{ item }">
-                    <td :class="{ 'text-red': item.TOTAL < item.Buffer && item.Buffer > 0 }" class="text-end">
-                        {{ item[col.key] }}
-                    </td>
-                </template>
-            </v-data-table>
+            <div class="table-container">
+                <v-data-table :headers="headers" :items="stokList" :loading="isLoading" density="compact"
+                    class="desktop-table fill-height-table" fixed-header>
+                    <template v-for="col in headers.slice(2)" #[`item.${col.key}`]="{ item }">
+                        <td :class="{ 'text-red font-weight-bold': item.TOTAL < item.Buffer && item.Buffer > 0 }"
+                            class="text-end">
+                            {{ item[col.key] }}
+                        </td>
+                    </template>
+                </v-data-table>
+            </div>
         </div>
     </PageLayout>
 </template>
@@ -111,7 +125,6 @@ onMounted(() => {
     display: flex;
     flex-direction: column;
 }
-
 .filter-section {
     display: flex;
     align-items: center;
@@ -120,24 +133,55 @@ onMounted(() => {
     border-bottom: 1px solid #e0e0e0;
     flex-shrink: 0;
 }
+.table-container {
+    flex-grow: 1;
+    display: flex;
+    min-height: 0;
+}
+.fill-height-table {
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 auto;
+    min-height: 0;
+}
 
+.fill-height-table :deep(.v-table__wrapper) {
+    flex-grow: 1;
+    overflow-y: auto;
+}
 .desktop-table {
     font-size: 11px;
 }
-
 .desktop-table :deep(td),
 .desktop-table :deep(th) {
     padding: 0 8px !important;
     height: 28px !important;
 }
-
+/* Style untuk filter agar konsisten */
+.filter-label {
+    font-size: 11px;
+    font-weight: 500;
+}
+.filter-section :deep(input),
+.filter-section :deep(.v-label),
+.filter-section :deep(.v-select__selection-text) {
+    font-size: 11px !important;
+}
+.filter-section :deep(.v-field) {
+    height: 36px;
+}
+.filter-section :deep(.v-field__input) {
+    min-height: 36px;
+    padding-top: 0;
+    padding-bottom: 0;
+}
 .state-container {
     height: 100%;
     display: flex;
+    flex-direction: column;
     justify-content: center;
     align-items: center;
 }
-
 .text-red {
     color: red !important;
 }

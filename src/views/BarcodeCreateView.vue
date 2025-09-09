@@ -453,28 +453,6 @@ onMounted(() => {
 </template>
 
 <style scoped>
-.form-container {
-    padding: 12px;
-    height: 100%;
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-}
-
-.desktop-table {
-    font-size: 11px;
-}
-
-.desktop-table :deep(input) {
-    font-size: 11px !important;
-}
-
-.desktop-table :deep(td),
-.desktop-table :deep(th) {
-    padding: 0 8px !important;
-    height: 32px !important;
-}
-
 /* Style untuk pratinjau di layar agar mirip hasil cetak */
 #barcode-preview-area {
     width: 100%;

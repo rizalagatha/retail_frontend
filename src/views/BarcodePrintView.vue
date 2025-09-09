@@ -83,7 +83,7 @@ const toggleExpand = async (nomor: string) => {
 };
 
 const goToCreatePage = () => {
-    router.push('/cetak-barcode/new');
+    router.push('/daftar/cetak-barcode/new');
 };
 
 onMounted(() => {

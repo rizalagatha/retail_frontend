@@ -4,7 +4,7 @@ import { useRoute, useRouter } from 'vue-router';
 import api from '@/services/api';
 import PageLayout from '@/components/PageLayout.vue';
 import SalesSearchModal from '@/components/SalesSearchModal.vue';
-import JenisOrderSearchModal from '@/components/JenisOrderSearchModal.vue';
+import JenisOrderStokSearchModal from '@/components/JenisOrderStokSearchModal.vue';
 import WorkshopSearchModal from '@/components/WorkshopSearchModal.vue';
 import { useToast } from 'vue-toastification';
 import { useAuthStore } from '@/stores/authStore';
@@ -129,7 +129,7 @@ const loadDataForEdit = async (nomor: string) => {
 };
 
 const save = async () => {
-    // --- Validasi dari Delphi (btnSimpanClick) ---
+    // --- Validasi Data Sebelum Simpan ---
     if (!form.value.salesKode) {
         toast.error("Sales harus diisi.");
         return;
@@ -145,52 +145,58 @@ const save = async () => {
         return;
     }
 
-    // --- Konfirmasi Simpan ---
-    showConfirmation(async () => {
-        isSaving.value = true;
+    // --- Proses Penyimpanan ---
+    isSaving.value = true;
+    const payload = {
+        header: form.value,
+        details: validItems,
+    };
 
-        const payload = {
-            header: form.value,
-            details: validItems,
-        };
+    let nomorSoDtf = form.value.nomor;
 
-        let nomorSoDtf = form.value.nomor;
-
-        try {
-            let response;
-            if (isEditMode.value && nomorSoDtf) {
-                response = await api.put(`/so-dtf-stok-form/${nomorSoDtf}`, payload);
-                toast.success('Data berhasil diperbarui.');
-            } else {
-                response = await api.post('/so-dtf-stok-form', payload);
-                nomorSoDtf = response.data.nomor;
-                toast.success(`Data berhasil disimpan dengan nomor: ${nomorSoDtf}`);
-            }
-
-            // Logika upload gambar (jika ada)
-            if (imageFile.value.length > 0 && nomorSoDtf) {
-                // ... (implementasi upload gambar seperti di SO DTF Pesanan) ...
-            }
-
-            router.push('/transaksi/dtf/so-dtf-stok');
-
-        } catch (error: any) {
-            toast.error(error.response?.data?.message || 'Gagal menyimpan data.');
-        } finally {
-            isSaving.value = false;
+    try {
+        let response;
+        if (isEditMode.value && nomorSoDtf) {
+            response = await api.put(`/so-dtf-stok-form/${nomorSoDtf}`, payload);
+            toast.success('Data berhasil diperbarui.');
+        } else {
+            response = await api.post('/so-dtf-stok-form', payload);
+            nomorSoDtf = response.data.nomor;
+            toast.success(`Data berhasil disimpan dengan nomor: ${nomorSoDtf}`);
         }
-    }, "Anda yakin ingin menyimpan data ini?");
+
+        // Logika upload gambar
+        if (imageFile.value.length > 0 && nomorSoDtf) {
+            const formData = new FormData();
+            formData.append('image', imageFile.value[0]);
+            try {
+                await api.post(`/so-dtf-stok-form/upload-image/${nomorSoDtf}`, formData);
+                toast.success('Gambar berhasil diunggah.');
+            } catch (uploadError) {
+                toast.warning('Data utama berhasil disimpan, tetapi gambar gagal diunggah.');
+            }
+        }
+
+        router.push('/transaksi/dtf/so-dtf-stok');
+
+    } catch (error: any) {
+        toast.error(error.response?.data?.message || 'Gagal menyimpan data.');
+    } finally {
+        isSaving.value = false;
+    }
 };
 
+
 const resetForm = () => {
-    // Cara yang benar untuk mereset: kembalikan .value ke state awal
     form.value = { ...initialFormState };
-    
-    // Sisa logikanya sudah benar
     items.value = [];
     imagePreview.value = null;
     imageFile.value = [];
     toast.info("Form telah dikosongkan.");
+};
+
+const closeForm = () => {
+    router.push('/transaksi/dtf/so-dtf-stok');
 };
 
 const handleImageUpload = (files: File[]) => {
@@ -218,10 +224,14 @@ const showConfirmation = (action: () => void, text: string) => {
     confirmText.value = text;
     isConfirmDialogVisible.value = true;
 };
+
 const executePendingAction = () => {
-    if (pendingAction.value) pendingAction.value();
+    if (pendingAction.value) {
+        pendingAction.value();
+    }
     isConfirmDialogVisible.value = false;
 };
+
 const closeConfirmDialog = () => {
     isConfirmDialogVisible.value = false;
     pendingAction.value = null;
@@ -265,12 +275,20 @@ onMounted(() => {
 <template>
     <PageLayout :title="pageTitle" desktop-mode icon="mdi-package-variant-closed-plus">
         <template #header-actions>
-            <v-btn size="small" color="primary" @click="save" :loading="isSaving"
-                prepend-icon="mdi-content-save">Simpan</v-btn>
-            <v-btn size="small" @click="showConfirmation(resetForm, 'Batal dan kosongkan form?')"
-                prepend-icon="mdi-refresh">Batal</v-btn>
-            <v-btn size="small" @click="showConfirmation(closeForm, 'Tutup form?')"
-                prepend-icon="mdi-close">Tutup</v-btn>
+            <v-btn size="small" color="primary" @click="showConfirmation(save, 'Anda yakin ingin menyimpan data ini?')"
+                :loading="isSaving" prepend-icon="mdi-content-save">
+                Simpan
+                </v-btn>
+                <v-btn v-if="!isEditMode" size="small"
+                    @click="showConfirmation(resetForm, 'Batalkan dan kosongkan semua isian?')"
+                    prepend-icon="mdi-refresh">
+                    Batal
+                </v-btn>
+                <v-btn size="small"
+                    @click="showConfirmation(closeForm, 'Tutup form? Perubahan yang belum disimpan akan hilang.')"
+                    prepend-icon="mdi-close">
+                    Tutup
+                </v-btn>
         </template>
 
         <div class="form-grid-container" v-if="!isLoading">
@@ -308,11 +326,18 @@ onMounted(() => {
             <div class="right-column">
                 <div class="desktop-form-section image-section">
                     <div class="d-flex align-center ga-2">
-                        <v-file-input label="Upload Gambar (Max 1Mb)" variant="outlined" density="compact"
+                        <v-file-input v-model="imageFile" @update:model-value="handleImageUpload"
+                            label="Upload Gambar (Max 1Mb)" variant="outlined" density="compact"
                             prepend-icon="mdi-camera" hide-details clearable />
-                        <v-btn icon="mdi-fullscreen" size="small" variant="tonal" title="Lihat Ukuran Penuh"></v-btn>
+                        <v-btn @click="isImageFullscreenVisible = true" :disabled="!imagePreview" icon="mdi-fullscreen"
+                            size="small" variant="tonal" title="Lihat Ukuran Penuh">
+                        </v-btn>
                     </div>
-                    <div class="mt-2 border rounded d-flex align-center justify-center bg-grey-lighten-4 image-preview">
+                    <v-img v-if="imagePreview" class="mt-2 border rounded" height="120" aspect-ratio="16/9" cover
+                        :src="imagePreview">
+                    </v-img>
+                    <div v-else
+                        class="mt-2 border rounded d-flex align-center justify-center bg-grey-lighten-4 image-preview">
                         <span class="text-caption text-grey">Preview Gambar</span>
                     </div>
                 </div>
@@ -358,7 +383,7 @@ onMounted(() => {
         <!-- Modals -->
         <SalesSearchModal v-if="isSalesSearchVisible" @close="isSalesSearchVisible = false"
             @sales-selected="onSalesSelected" />
-        <JenisOrderSearchModal v-if="isJenisOrderSearchVisible" @close="isJenisOrderSearchVisible = false"
+        <JenisOrderStokSearchModal v-if="isJenisOrderSearchVisible" @close="isJenisOrderSearchVisible = false"
             @jenis-order-selected="onJenisOrderSelected" />
         <WorkshopSearchModal v-if="isWorkshopSearchVisible" @close="isWorkshopSearchVisible = false"
             @workshop-selected="onWorkshopSelected" />

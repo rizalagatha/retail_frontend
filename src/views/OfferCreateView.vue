@@ -6,6 +6,8 @@ import CustomerSearchModal from '@/components/CustomerSearchModal.vue';
 import GudangSearchModal from '@/components/GudangSearchModal.vue';
 import ProductSearchModal from '@/components/ProductSearchModal.vue';
 import AuthorizationModal from '@/components/AuthorizationModal.vue';
+import SoDtfSearchModal from '@/components/SoDtfSearchModal.vue';
+import PriceProposalSearchModal from '@/components/PriceProposalSearchModal.vue';
 import { useToast } from 'vue-toastification';
 import { useAuthStore } from '@/stores/authStore';
 import { useRouter, useRoute } from 'vue-router';
@@ -80,14 +82,21 @@ const footer = ref({
     ppnRp: 0,
     netto: 0,
     grandTotal: 0,
+    pinDiskon1: '',
+    pinDiskon2: '',
 });
 
 const productCategory = ref('Kaosan');
 const isCustomerSearchVisible = ref(false);
 const isGudangSearchVisible = ref(false);
 const isProductSearchVisible = ref(false);
+const isSoDtfSearchVisible = ref(false);
+const isPriceProposalSearchVisible = ref(false);
 const activeRowIndex = ref(0);
 const isSaving = ref(false);
+const isConfirmDialogVisible = ref(false);
+const confirmText = ref('');
+const pendingAction = ref<(() => void) | null>(null);
 const isAuthModalVisible = ref(false);
 const defaultDiscount = ref(0);
 const previousDiscount = ref(0);
@@ -96,6 +105,7 @@ const previousDiscount2 = ref(0);
 const isItemAuthModalVisible = ref(false);
 const activeItemIndexForAuth = ref(-1);
 const previousItemDiscount = ref({ persen: 0, rp: 0 });
+const challengeCode = ref('');
 
 const isEditMode = computed(() => !!route.params.nomor);
 const pageTitle = computed(() => isEditMode.value ? `Ubah Penawaran: ${header.value.nomor}` : 'Buat Penawaran Baru');
@@ -117,17 +127,6 @@ const tableHeaders = [
 ] as const;
 
 // --- Methods ---
-const getNextNumber = async () => {
-    try {
-        const response = await api.get(`/offer-form/next-number`, {
-            params: { cabang: header.value.gudang.kode, tanggal: header.value.tanggal }
-        });
-        header.value.nomor = response.data.nextNumber;
-    } catch (error) {
-        toast.error('Gagal mendapatkan nomor baru.');
-    }
-};
-
 const loadCustomerDetails = async () => {
     if (!header.value.customerKode) {
         // console.log('Tidak ada customer kode untuk dimuat');
@@ -184,18 +183,27 @@ const openCustomerSearch = () => { isCustomerSearchVisible.value = true; };
 const openGudangSearch = () => { isGudangSearchVisible.value = true; };
 
 // Perbaikan: Hanya menerima kode customer dari modal
-const onCustomerSelected = async (customer: Customer) => {
+const onCustomerSelected = async (customer: { kode: string }) => {
     isCustomerSearchVisible.value = false;
+    if (!customer || !customer.kode) return;
+
     try {
+        // Panggil API yang sudah kita perbaiki, tambahkan parameter 'gudang'
         const response = await api.get(`/offer-form/customer-details/${customer.kode}`, {
             params: { gudang: header.value.gudang.kode }
         });
-        header.value.customer = response.data; // Simpan data customer lengkap dengan aturan diskonnya
+
+        // Data yang diterima sudah lengkap dan tervalidasi
+        header.value.customer = response.data;
         header.value.top = response.data.top;
+        applyDefaultDiscount();
         calculateTotals(); // Panggil kalkulasi ulang setelah customer dipilih
+        toast.success(`Customer ${response.data.nama} berhasil dipilih.`);
+
     } catch (error: any) {
+        // Menampilkan pesan error validasi dari backend
         toast.error(error.response?.data?.message || 'Gagal memuat detail customer.');
-        header.value.customer = null;
+        header.value.customer = null; // Kosongkan customer jika validasi gagal
     }
 };
 
@@ -212,7 +220,6 @@ const onGudangSelected = async (gudang: Gudang) => {
     isGudangSearchVisible.value = false;
 
     if (!isEditMode.value) {
-        await getNextNumber();
     }
 
     // Debug: Cek apakah ada customerKode
@@ -286,16 +293,16 @@ const calculateTotals = () => {
 
     footer.value.total = subtotal;
 
-    const rule = header.value.customer?.discountRule;
-    if (rule) {
-        if (subtotal >= rule.nominal) {
-            footer.value.diskonPersen1 = rule.diskon1;
-        } else {
-            footer.value.diskonPersen1 = rule.diskon2;
-        }
-    } else {
-        footer.value.diskonPersen1 = 0;
-    }
+    // const rule = header.value.customer?.discountRule;
+    // if (rule) {
+    //     if (subtotal >= rule.nominal) {
+    //         footer.value.diskonPersen1 = rule.diskon1;
+    //     } else {
+    //         footer.value.diskonPersen1 = rule.diskon2;
+    //     }
+    // } else {
+    //     footer.value.diskonPersen1 = 0;
+    // }
 
     let discount1 = (footer.value.diskonPersen1 / 100) * subtotal;
     let afterDiscount1 = subtotal - discount1;
@@ -319,21 +326,35 @@ const removeRow = (index: number) => {
 };
 
 const save = async () => {
+    // --- Validasi dari Delphi (btnSimpanClick) ---
     if (!authStore.can(MENU_ID, requiredPermission.value)) {
         toast.error('Anda tidak memiliki izin untuk menyimpan data ini.');
         return;
     }
-
     if (!header.value.customer) {
         toast.error('Customer harus dipilih terlebih dahulu.');
         return;
     }
-
-    const validItems = items.value.filter(item => item.kode && item.jumlah > 0);
+    const validItems = items.value.filter(item => item.kode);
     if (validItems.length === 0) {
-        toast.error('Tidak ada item yang valid untuk disimpan. Pastikan jumlah lebih dari 0.');
+        toast.error('Detail barang harus diisi minimal 1 baris.');
         return;
     }
+    for (const item of validItems) {
+        if (!item.jumlah || item.jumlah <= 0) {
+            toast.error(`Jumlah untuk barang '${item.nama}' harus diisi dan lebih dari 0.`);
+            return;
+        }
+        if (!item.harga || item.harga < 0) { // Harga boleh 0, tapi tidak boleh null/undefined
+            toast.error(`Harga untuk barang '${item.nama}' harus diisi.`);
+            return;
+        }
+    }
+
+    // --- Konfirmasi Simpan (dari MessageDlg) ---
+    // Di sini kita akan menggunakan dialog konfirmasi yang sudah ada, jika Anda sudah membuatnya.
+    // Jika belum, Anda bisa langsung menjalankan logika simpan.
+    // Asumsi kita langsung simpan setelah validasi.
 
     isSaving.value = true;
     try {
@@ -370,40 +391,60 @@ const resetForm = () => {
     };
     items.value = [];
     addNewRow();
-    getNextNumber();
 };
 
 const handleDiscountChange = async () => {
-    // Fungsi ini akan dipanggil saat input diskon % selesai diisi
-    if (!header.value.customer) return;
+    // Jangan lakukan apa-apa jika customer belum dipilih
+    if (!header.value.customer || !header.value.customer.level) {
+        calculateTotals();
+        return;
+    }
 
     try {
-        // Asumsi API ini ada di backend untuk mendapatkan diskon standar
+        // 1. Panggil API untuk mendapatkan diskon standar
         const response = await api.get('/offer-form/get-default-discount', {
             params: {
-                level: header.value.customer.level.split(' - ')[0],
+                level: header.value.customer.level,
                 total: footer.value.total,
                 gudang: header.value.gudang.kode,
             }
         });
-        defaultDiscount.value = response.data.discount;
+        const defaultDiscountValue = response.data.discount;
 
-        if (footer.value.diskonPersen1 !== defaultDiscount.value && footer.value.diskonPersen1 > 0) {
-            previousDiscount.value = defaultDiscount.value;
+        // 2. Bandingkan diskon yang diinput dengan diskon standar
+        const enteredDiscount = footer.value.diskonPersen1;
+
+        // 3. Jika diskonnya berbeda (lebih besar atau lebih kecil) & bukan 0, minta otorisasi
+        if (enteredDiscount !== defaultDiscountValue && enteredDiscount > 0) {
+            previousDiscount.value = defaultDiscountValue; // Simpan nilai default untuk opsi batal
+            challengeCode.value = Math.floor(1000 + Math.random() * 9000).toString();
             isAuthModalVisible.value = true; // Buka modal otorisasi
         } else {
+            // Jika diskonnya sama dengan standar, atau 0, langsung hitung
             calculateTotals();
         }
     } catch (error) {
-        toast.error('Gagal memvalidasi diskon.');
-        footer.value.diskonPersen1 = previousDiscount.value;
+        toast.error('Gagal memvalidasi diskon standar.');
+        // Kembalikan ke nilai sebelumnya jika API gagal
+        footer.value.diskonPersen1 = previousDiscount.value; 
     }
 };
 
-const onAuthSuccess = (pin: string) => {
-    isAuthModalVisible.value = false;
-    toast.success('Otorisasi diskon berhasil.');
-    calculateTotals();
+const onAuthSuccess = async (pin: string) => {
+    try {
+        // Panggil API validasi PIN yang baru
+        await api.post('/auth-pin/validate', {
+            code: challengeCode.value,
+            pin: pin
+        });
+
+        footer.value.pinDiskon1 = pin; // Simpan PIN yang valid
+        isAuthModalVisible.value = false;
+        toast.success('Otorisasi diskon berhasil.');
+        calculateTotals();
+    } catch (error: any) {
+        toast.error(error.response?.data?.message || 'Otorisasi Gagal.');
+    }
 };
 
 const onAuthCancel = () => {
@@ -419,18 +460,27 @@ const handleItemDiscountChange = (index: number) => {
     if (item.diskonPersen > 0 || item.diskonRp > 0) {
         activeItemIndexForAuth.value = index;
         previousItemDiscount.value = { persen: 0, rp: 0 }; // Asumsi diskon awal 0
+        challengeCode.value = Math.floor(1000 + Math.random() * 9000).toString(); // Buat kode acak
         isItemAuthModalVisible.value = true;
     } else {
         calculateTotals();
     }
 };
 
-const onItemAuthSuccess = (pin: string) => {
-    isItemAuthModalVisible.value = false;
-    const item = items.value[activeItemIndexForAuth.value];
-    item.pin = pin; // Simpan PIN yang valid
-    toast.success('Otorisasi diskon item berhasil.');
-    calculateTotals();
+const onItemAuthSuccess = async (pin: string) => {
+    try {
+        await api.post('/auth-pin/validate', {
+            code: challengeCode.value,
+            pin: pin
+        });
+
+        items.value[activeItemIndexForAuth.value].pin = pin; // Simpan PIN yang valid
+        isItemAuthModalVisible.value = false;
+        toast.success('Otorisasi diskon item berhasil.');
+        calculateTotals();
+    } catch (error: any) {
+        toast.error(error.response?.data?.message || 'Otorisasi Gagal.');
+    }
 };
 
 const onItemAuthCancel = () => {
@@ -447,23 +497,150 @@ const handleDiscount2Change = () => {
     // Otorisasi diperlukan jika Diskon % 1 sudah diisi dan Diskon % 2 diubah menjadi > 0
     if (footer.value.diskonPersen1 > 0 && footer.value.diskonPersen2 > 0) {
         previousDiscount2.value = 0; // Simpan nilai lama (asumsi dari 0)
+        challengeCode.value = Math.floor(1000 + Math.random() * 9000).toString(); // Buat kode acak
         isAuth2ModalVisible.value = true;
     } else {
         calculateTotals();
     }
 };
 
-const onAuth2Success = (pin: string) => {
-    isAuth2ModalVisible.value = false;
-    // Simpan pin jika diperlukan di backend saat menyimpan transaksi
-    toast.success('Otorisasi diskon 2 berhasil.');
-    calculateTotals();
+const onAuth2Success = async (pin: string) => {
+    try {
+        // Panggil API validasi PIN yang baru
+        await api.post('/auth-pin/validate', {
+            code: challengeCode.value,
+            pin: pin
+        });
+
+        footer.value.pinDiskon2 = pin; // Simpan PIN yang valid
+        isAuth2ModalVisible.value = false;
+        toast.success('Otorisasi diskon berhasil.');
+        calculateTotals();
+    } catch (error: any) {
+        toast.error(error.response?.data?.message || 'Otorisasi Gagal.');
+    }
 };
 
 const onAuth2Cancel = () => {
     isAuth2ModalVisible.value = false;
     footer.value.diskonPersen2 = previousDiscount2.value; // Kembalikan ke nilai sebelumnya
     calculateTotals();
+};
+
+const openSoDtfSearch = (index: number) => {
+    if (!header.value.customer) {
+        toast.error('Pilih Customer terlebih dahulu.');
+        return;
+    }
+    activeRowIndex.value = index;
+    isSoDtfSearchVisible.value = true;
+};
+
+const openPriceProposalSearch = (index: number) => {
+    if (!header.value.customer) {
+        toast.error('Pilih Customer terlebih dahulu.');
+        return;
+    }
+    activeRowIndex.value = index;
+    isPriceProposalSearchVisible.value = true;
+};
+
+// Method untuk menangani hasil pilihan dari modal SO DTF
+const onSoDtfSelected = async (so: { nomor: string }) => {
+    isSoDtfSearchVisible.value = false;
+    // Hapus baris kosong tempat F1 ditekan
+    items.value.splice(activeRowIndex.value, 1);
+
+    try {
+        // Panggil API untuk mengambil detail dari SO DTF yang dipilih
+        const response = await api.get(`/so-dtf-form/${so.nomor}`); // Gunakan endpoint yang sudah ada
+        const { header, detailsUkuran } = response.data;
+
+        // Tambahkan setiap item dari detail SO DTF ke grid penawaran
+        detailsUkuran.forEach((detail: any) => {
+            items.value.push({
+                id: Date.now() + Math.random(),
+                kode: header.sd_nomor,
+                nama: header.sd_nama,
+                ukuran: detail.ukuran,
+                jumlah: detail.jumlah,
+                harga: detail.harga,
+                total: detail.jumlah * detail.harga,
+                noSoDtf: header.sd_nomor,
+                // ... isi properti lain dengan default
+                stok: 0, diskonPersen: 0, diskonRp: 0, barcode: '', noPengajuanHarga: '', pin: ''
+            });
+        });
+        addNewRow(); // Tambah baris kosong baru di akhir
+    } catch (error) {
+        toast.error(`Gagal memuat detail SO DTF ${so.nomor}`);
+    }
+};
+
+// Method untuk menangani hasil pilihan dari modal Pengajuan Harga
+const onPriceProposalSelected = async (proposal: { nomor: string }) => {
+    isPriceProposalSearchVisible.value = false;
+    items.value.splice(activeRowIndex.value, 1);
+
+    try {
+        // Panggil API untuk mengambil detail Pengajuan yang dipilih
+        const response = await api.get(`/price-proposal-form/edit-details/${proposal.nomor}`); // Gunakan endpoint yang sudah ada
+        const { headerData, itemsData } = response.data;
+
+        itemsData.forEach((detail: any) => {
+            items.value.push({
+                // ... map data dari itemsData ke item Penawaran ...
+                id: Date.now() + Math.random(),
+                kode: detail.kode,
+                nama: detail.nama,
+                ukuran: detail.ukuran,
+                jumlah: detail.jumlah,
+                harga: detail.harga,
+                total: detail.total,
+                noPengajuanHarga: headerData.nomor,
+                // ...
+            });
+        });
+        addNewRow();
+    } catch (error) {
+        toast.error(`Gagal memuat detail Pengajuan ${proposal.nomor}`);
+    }
+};
+
+const showConfirmation = (action: () => void, text: string) => {
+    pendingAction.value = action;
+    confirmText.value = text;
+    isConfirmDialogVisible.value = true;
+};
+
+const executePendingAction = () => {
+    if (pendingAction.value) {
+        pendingAction.value();
+    }
+    isConfirmDialogVisible.value = false;
+};
+
+const closeConfirmDialog = () => {
+    isConfirmDialogVisible.value = false;
+    pendingAction.value = null;
+};
+
+const closeForm = () => {
+    router.push('/transaksi/penawaran');
+};
+
+const applyDefaultDiscount = () => {
+    const rule = header.value.customer?.discountRule;
+    if (rule) {
+        // Logika ini dipindahkan dari calculateTotals
+        if (footer.value.total >= rule.nominal) {
+            footer.value.diskonPersen1 = rule.diskon1;
+        } else {
+            footer.value.diskonPersen1 = rule.diskon2;
+        }
+    } else {
+        footer.value.diskonPersen1 = 0;
+    }
 };
 
 const canEditFooter = computed(() => {
@@ -500,7 +677,6 @@ onMounted(() => {
     if (isEditMode.value) {
         loadOfferData(route.params.nomor as string);
     } else {
-        getNextNumber();
         addNewRow();
     }
 });
@@ -510,17 +686,29 @@ onMounted(() => {
 <template>
     <PageLayout :title="pageTitle" desktop-mode icon="mdi-file-document-edit-outline">
         <template #header-actions>
-            <v-btn size="small" color="primary" @click="save" :loading="isSaving">Simpan</v-btn>
-            <v-btn v-if="!isEditMode" size="small" @click="resetForm">Baru</v-btn>
-            <v-btn size="small" @click="router.push('/transaksi/penawaran')">Tutup</v-btn>
+            <v-btn size="small" color="primary"
+                @click="showConfirmation(save, 'Anda yakin ingin menyimpan data penawaran ini?')" :loading="isSaving">
+                Simpan
+            </v-btn>
+            <v-btn v-if="!isEditMode" size="small"
+                @click="showConfirmation(resetForm, 'Batalkan dan kosongkan semua isian?')">
+                Batal
+            </v-btn>
+            <v-btn size="small"
+                @click="showConfirmation(closeForm, 'Tutup form? Perubahan yang belum disimpan akan hilang.')">
+                Tutup
+            </v-btn>
         </template>
 
         <div class="form-grid-container">
             <div class="left-column">
                 <div class="desktop-form-section header-section">
                     <v-row dense>
-                        <v-col cols="6"><v-text-field label="Nomor" v-model="header.nomor" readonly variant="filled"
-                                density="compact" hide-details></v-text-field></v-col>
+                        <v-col cols="6">
+                            <v-text-field label="Nomor" :model-value="header.nomor || '<Otomatis>'" readonly
+                                variant="filled" density="compact" hide-details>
+                            </v-text-field>
+                        </v-col>
                         <v-col cols="6"><v-text-field label="Tanggal" v-model="header.tanggal" type="date"
                                 variant="outlined" density="compact" hide-details></v-text-field></v-col>
                         <v-col cols="12"><v-text-field label="Gudang" :model-value="header.gudang.kode" readonly
@@ -573,11 +761,16 @@ onMounted(() => {
             <div class="desktop-form-section right-column">
                 <v-data-table :headers="tableHeaders" :items="items" density="compact" class="desktop-table"
                     fixed-header :items-per-page="-1">
-                    <template #item.kode="{ item }"><v-text-field
+                    <template #item.kode="{ item }">
+                        <v-text-field v-model="item.kode" readonly
                             @keydown.f1.prevent="openProductSearch(items.indexOf(item))" placeholder="F1..."
-                            variant="underlined" dense hide-details single-line><template #append-inner><v-icon
-                                    @click="openProductSearch(items.indexOf(item))"
-                                    size="small">mdi-magnify</v-icon></template></v-text-field></template>
+                            variant="underlined" dense hide-details single-line>
+                            <template #append-inner>
+                                <v-icon @click="openProductSearch(items.indexOf(item))"
+                                    size="small">mdi-magnify</v-icon>
+                            </template>
+                        </v-text-field>
+                    </template>
                     <template #item.jumlah="{ item }"><v-text-field v-model.number="item.jumlah" type="number"
                             variant="underlined" dense hide-details single-line
                             :disabled="!item.kode"></v-text-field></template>
@@ -596,6 +789,19 @@ onMounted(() => {
                         Intl.NumberFormat('id-ID').format(item.total) }}</span></template>
                     <template #item.actions="{ item }"><v-btn icon="mdi-delete" size="x-small" variant="text"
                             color="error" @click="removeRow(items.indexOf(item))"></v-btn></template>
+                    <template #item.noSoDtf="{ item, index }">
+                        <v-text-field v-model="item.noSoDtf" variant="underlined" density="compact" hide-details
+                            placeholder="F1..." @keydown.f1.prevent="openSoDtfSearch(index)"><template
+                                #append-inner><v-icon @click="openSoDtfSearch(items.indexOf(item))"
+                                    size="small">mdi-magnify</v-icon></template></v-text-field>
+                    </template>
+                    <template #item.noPengajuanHarga="{ item, index }">
+                        <v-text-field v-model="item.noPengajuanHarga" variant="underlined" density="compact"
+                            hide-details placeholder="F1..."
+                            @keydown.f1.prevent="openPriceProposalSearch(index)"><template #append-inner><v-icon
+                                    @click="openPriceProposalSearch(items.indexOf(item))"
+                                    size="small">mdi-magnify</v-icon></template></v-text-field>
+                    </template>
                     <template #bottom>
                         <div class="pa-1 text-right border-t"><v-btn size="small" @click="addNewRow"
                                 prepend-icon="mdi-plus" variant="text" color="primary">Tambah Baris</v-btn></div>
@@ -611,12 +817,37 @@ onMounted(() => {
             @close="isGudangSearchVisible = false" @gudang-selected="onGudangSelected" />
         <ProductSearchModal v-if="isProductSearchVisible" :category="productCategory" :gudang="header.gudang.kode"
             @close="isProductSearchVisible = false" @product-selected="onProductSelected" />
-        <AuthorizationModal v-if="isAuthModalVisible" title="Otorisasi Ganti Diskon Faktur" @close="onAuthCancel"
-            @success="onAuthSuccess" />
-        <AuthorizationModal v-if="isItemAuthModalVisible" title="Otorisasi Diskon per Item" @close="onItemAuthCancel"
-            @success="onItemAuthSuccess" />
-        <AuthorizationModal v-if="isAuth2ModalVisible" title="Otorisasi Ganti Diskon 2" @close="onAuth2Cancel"
-            @success="onAuth2Success" />
+        <AuthorizationModal v-if="isAuthModalVisible" title="Otorisasi Ganti Diskon Faktur"
+            :challenge-code="challengeCode" @close="onAuthCancel" @success="onAuthSuccess" />
+        <AuthorizationModal v-if="isItemAuthModalVisible" title="Otorisasi Diskon per Item"
+            :challenge-code="challengeCode" @close="onItemAuthCancel" @success="onItemAuthSuccess" />
+        <AuthorizationModal v-if="isAuth2ModalVisible" title="Otorisasi Ganti Diskon 2" :challenge-code="challengeCode"
+            @close="onAuth2Cancel" @success="onAuth2Success" />
+        <SoDtfSearchModal v-if="isSoDtfSearchVisible" :cabang="header.gudang.kode" :customerKode="header.customer?.kode"
+            @close="isSoDtfSearchVisible = false" @selected="onSoDtfSelected" />
+        <PriceProposalSearchModal v-if="isPriceProposalSearchVisible" :cabang="header.gudang.kode"
+            :customerKode="header.customer?.kode" @close="isPriceProposalSearchVisible = false"
+            @selected="onPriceProposalSelected" />
+
+        <v-dialog v-model="isConfirmDialogVisible" max-width="400px" persistent>
+            <v-card>
+                <v-card-title class="text-h6 font-weight-bold">
+                    Konfirmasi
+                </v-card-title>
+                <v-card-text>
+                    {{ confirmText }}
+                </v-card-text>
+                <v-card-actions>
+                    <v-spacer></v-spacer>
+                    <v-btn color="grey-darken-1" variant="text" @click="closeConfirmDialog">
+                        Tidak
+                    </v-btn>
+                    <v-btn color="primary" variant="tonal" @click="executePendingAction">
+                        Ya, Lanjutkan
+                    </v-btn>
+                </v-card-actions>
+            </v-card>
+        </v-dialog>
     </PageLayout>
 </template>
 

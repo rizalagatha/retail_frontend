@@ -150,8 +150,9 @@ const loadDetails = async (newlyExpandedItems: HeaderItem[]) => { // Menerima ar
 const openCloseDialog = () => {
     if (!isSingleSelected.value) return;
     const item = selected.value[0];
+    // Validasi di frontend untuk feedback cepat, sama seperti di Delphi
     if (item.LHK >= item.Jumlah) {
-        toast.warning('LHK sudah terpenuhi, tidak bisa di-close.');
+        toast.warning('LHK sudah terpenuhi atau lebih, tidak bisa di-close.');
         return;
     }
     itemToClose.value = item;
@@ -174,6 +175,50 @@ const submitClose = async () => {
     } catch (error: any) {
         toast.error(error.response?.data?.message || 'Gagal menutup SO.');
     }
+};
+
+const exportData = async (type: 'header' | 'detail') => {
+    const filters = {
+        startDate: startDate.value,
+        endDate: endDate.value,
+        cabang: selectedCabang.value,
+        filterDateType: filterDateType.value,
+    };
+    try {
+        if (type === 'header') {
+            if (list.value.length === 0) {
+                toast.warning('Tidak ada data untuk diekspor.');
+                return;
+            }
+            toast.info('Membuat file Excel Header...');
+            const worksheet = XLSX.utils.json_to_sheet(list.value);
+            const workbook = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(workbook, worksheet, "SO DTF Stok Header");
+            XLSX.writeFile(workbook, "Export_SO_DTF_Stok_Header.xlsx");
+            toast.success('File Header berhasil dibuat.');
+        } else {
+            toast.info('Mengambil data detail dari server...');
+            // Anda perlu endpoint baru untuk ini, misal '/so-dtf-stok/export-detail'
+            const response = await api.get('/so-dtf-stok/export-detail', { params: filters });
+            if (response.data.length === 0) {
+                toast.warning('Tidak ada data detail untuk diekspor.');
+                return;
+            }
+            toast.info('Membuat file Excel Detail...');
+            const worksheet = XLSX.utils.json_to_sheet(response.data);
+            const workbook = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(workbook, worksheet, "SO DTF Stok Detail");
+            XLSX.writeFile(workbook, "Export_SO_DTF_Stok_Detail.xlsx");
+            toast.success('File Detail berhasil dibuat.');
+        }
+    } catch (error) {
+        toast.error('Gagal mengekspor data.');
+    }
+};
+
+const getRowClass = (item: HeaderItem) => {
+    if (item.AlasanClose) return 'row-closed';
+    return '';
 };
 
 const showDeleteConfirmation = () => {
@@ -202,19 +247,26 @@ const executeDelete = async () => {
     }
 };
 
-const exportData = (type: 'header' | 'detail') => {
-    // Implementasi ekspor frontend-side
-};
-
-const getRowClass = (item: HeaderItem) => {
-    if (item.AlasanClose) return 'row-closed';
-    return '';
-};
-
 const getLhkClass = (item: HeaderItem) => {
     if (item.LHK === 0) return 'lhk-zero';
     if (item.LHK > 0 && item.LHK < item.Jumlah) return 'lhk-progress';
     return 'lhk-normal';
+};
+
+const printData = () => {
+    // Pastikan hanya satu baris yang dipilih
+    if (!isSingleSelected.value) return;
+
+    const item = selected.value[0];
+
+    // Membuat URL untuk halaman cetak sesuai dengan nama rute di router/index.ts
+    const url = router.resolve({
+        name: 'Cetak SO DTF Stok',
+        params: { nomor: item.Nomor }
+    }).href;
+
+    // Membuka halaman cetak di tab baru
+    window.open(url, '_blank');
 };
 
 onMounted(() => {
@@ -239,14 +291,19 @@ watch([startDate, endDate, selectedCabang, filterDateType], fetchData);
                 @click="router.push(`/transaksi/dtf/so-dtf-stok/ubah/${selected[0].Nomor}`)">
                 Ubah
             </v-btn>
-            <v-btn size="small" :disabled="!isSingleSelected" prepend-icon="mdi-delete">Hapus</v-btn>
+            <v-btn v-if="authStore.can(MENU_ID, 'view')" size="small" :disabled="!isSingleSelected" @click="printData"
+                color="green" prepend-icon="mdi-printer">
+                Cetak
+            </v-btn>
             <v-menu offset-y>
                 <template v-slot:activator="{ props }">
                     <v-btn size="small" color="teal" prepend-icon="mdi-file-excel" v-bind="props">Export</v-btn>
                 </template>
                 <v-list density="compact">
-                    <v-list-item><v-list-item-title>Export Header</v-list-item-title></v-list-item>
-                    <v-list-item><v-list-item-title>Export Detail</v-list-item-title></v-list-item>
+                    <v-list-item @click="exportData('header')"><v-list-item-title>Export
+                            Header</v-list-item-title></v-list-item>
+                    <v-list-item @click="exportData('detail')"><v-list-item-title>Export
+                            Detail</v-list-item-title></v-list-item>
                 </v-list>
             </v-menu>
             <v-divider vertical class="mx-2"></v-divider>

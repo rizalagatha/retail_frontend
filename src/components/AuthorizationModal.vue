@@ -1,61 +1,45 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
-import api from '@/services/api';
+import { ref } from 'vue';
 
 const props = defineProps({
   title: { type: String, default: 'Otorisasi' },
+  challengeCode: { type: String, required: true }
 });
 const emit = defineEmits(['close', 'success']);
 
-const code = ref('');
 const pin = ref('');
-const isLoading = ref(false);
-const errorMessage = ref('');
 
-const generateCode = () => {
-    // Meniru logika pembuatan kode dari Delphi
-    code.value = (Math.floor(Math.random() * 900) + 100).toString();
+const submit = () => {
+  // Hanya kirim PIN yang diinput ke parent, jangan panggil API di sini
+  emit('success', pin.value);
 };
-
-const submit = async () => {
-    isLoading.value = true;
-    errorMessage.value = '';
-    try {
-        await api.post('/auth-pin/validate', {
-            code: code.value,
-            pin: pin.value,
-        });
-        emit('success', pin.value); // Kirim PIN yang valid kembali
-    } catch (error) {
-        errorMessage.value = 'Otorisasi salah.';
-    } finally {
-        isLoading.value = false;
-    }
-};
-
-onMounted(generateCode);
 </script>
 
 <template>
-  <v-dialog :model-value="true" persistent max-width="400px">
+  <v-dialog :model-value="true" persistent max-width="350px">
     <v-card>
-      <v-card-title>{{ title }}</v-card-title>
+      <v-card-title class="text-subtitle-1 font-weight-bold">{{ title }}</v-card-title>
       <v-card-text>
-        <v-text-field label="Kode" v-model="code" readonly variant="filled"></v-text-field>
-        <v-text-field 
-            label="Otorisasi" 
-            v-model="pin" 
-            type="password" 
-            @keyup.enter="submit" 
+        <div class="text-center mb-4">
+            <div class="text-caption">Kode</div>
+            <div class="text-h4 font-weight-bold">{{ challengeCode }}</div>
+        </div>
+        <v-otp-input
+            v-model="pin"
+            :length="6"
+            @finish="submit"
             autofocus
-        ></v-text-field>
-        <v-alert v-if="errorMessage" type="error" density="compact">{{ errorMessage }}</v-alert>
+        ></v-otp-input>
       </v-card-text>
       <v-card-actions>
         <v-spacer></v-spacer>
         <v-btn text @click="emit('close')">Batal</v-btn>
-        <v-btn color="primary" @click="submit" :loading="isLoading">OK</v-btn>
+        <v-btn color="primary" @click="submit">OK</v-btn>
       </v-card-actions>
     </v-card>
   </v-dialog>
 </template>
+
+<style scoped>
+/* Optional: styling untuk OTP input */
+</style>

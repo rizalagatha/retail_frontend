@@ -2,15 +2,11 @@
 import { ref, onMounted, computed, watch } from 'vue';
 import api from '@/services/api';
 import PageLayout from '@/components/PageLayout.vue';
-import OfferPrintPreview from '@/components/OfferPrintPreview.vue';
 import { useToast } from 'vue-toastification';
 import { useAuthStore } from '@/stores/authStore';
 import { format } from 'date-fns';
 import { useRouter } from 'vue-router';
-import jsPDF from 'jspdf';
-import autoTable from 'jspdf-autotable';
 import * as XLSX from 'xlsx';
-import logoUrl from '@/assets/logo.png';
 
 const toast = useToast();
 const authStore = useAuthStore();
@@ -72,10 +68,6 @@ const selectedBranch = ref(authStore.user?.cabang || '');
 const isCloseDialogVisible = ref(false);
 const closeReason = ref('');
 const isClosing = ref(false);
-
-const isPrintConfirmVisible = ref(false);
-const isPreviewVisible = ref(false);
-const printData = ref<any>(null);
 
 const hasViewPermission = computed(() => authStore.can(MENU_ID, 'view'));
 const dialogDelete = ref(false);
@@ -272,154 +264,6 @@ const submitCloseOffer = async () => {
     }
 };
 
-const openPrintConfirm = async () => {
-    if (!isSingleSelected.value) {
-        toast.info('Pilih satu penawaran untuk dicetak.');
-        return;
-    }
-
-    try {
-        const nomor = selected.value[0].nomor;
-        // Panggil API baru untuk mengambil semua data cetak
-        const response = await api.get(`/offers/print-data/${nomor}`);
-        printData.value = response.data; // Simpan data cetak yang lengkap
-        isPrintConfirmVisible.value = true;
-    } catch (error) {
-        toast.error('Gagal memuat data untuk dicetak.');
-    }
-};
-
-const showPreview = () => {
-    if (!printData.value) {
-        toast.error('Data cetak tidak tersedia.');
-        return;
-    }
-    isPrintConfirmVisible.value = false;
-    isPreviewVisible.value = true;
-};
-
-const terbilang = (n: number): string => {
-    if (n === null || n === undefined) return "Nol Rupiah";
-    n = Math.floor(n);
-    if (n === 0) return "Nol Rupiah";
-
-    const angka = ["", "Satu", "Dua", "Tiga", "Empat", "Lima", "Enam", "Tujuh", "Delapan", "Sembilan", "Sepuluh", "Sebelas"];
-
-    const terbilangRecursive = (num: number): string => {
-        if (num < 12) return angka[num];
-        if (num < 20) return terbilangRecursive(num - 10) + " Belas";
-        if (num < 100) return angka[Math.floor(num / 10)] + " Puluh " + terbilangRecursive(num % 10);
-        if (num < 200) return "Seratus " + terbilangRecursive(num - 100);
-        if (num < 1000) return terbilangRecursive(Math.floor(num / 100)) + " Ratus " + terbilangRecursive(num % 100);
-        if (num < 2000) return "Seribu " + terbilangRecursive(num - 1000);
-        if (num < 1000000) return terbilangRecursive(Math.floor(num / 1000)) + " Ribu " + terbilangRecursive(num % 1000);
-        if (num < 1000000000) return terbilangRecursive(Math.floor(num / 1000000)) + " Juta " + terbilangRecursive(num % 1000000);
-        if (num < 1000000000000) return terbilangRecursive(Math.floor(num / 1000000000)) + " Miliar " + terbilangRecursive(num % 1000000000);
-        if (num < 1000000000000000) return terbilangRecursive(Math.floor(num / 1000000000000)) + " Triliun " + terbilangRecursive(num % 1000000000000);
-        return "Angka Melebihi Batas";
-    };
-
-    return terbilangRecursive(n).replace(/\s+/g, ' ').trim() + " Rupiah";
-};
-
-const generatePdf = (autoPrint = false) => {
-    isPrintConfirmVisible.value = false;
-    isPreviewVisible.value = false;
-
-    const data = printData.value;
-    if (!data) {
-        toast.error('Data cetak tidak valid.');
-        return;
-    }
-
-    const doc = new jsPDF();
-    const grandTotal = (data.footer.total - data.footer.diskon_faktur) + data.footer.ppn + data.footer.bkrm;
-
-    // Header
-    const img = new Image();
-    img.src = logoUrl;
-    const pageWidth = doc.internal.pageSize.getWidth();
-    const marginRight = 10; // biar ga mentok
-    const imgWidth = 20;
-    const ratio = img.width / img.height;
-    const imgHeight = imgWidth / ratio;
-
-    // posisi X supaya rata kanan
-    const x = pageWidth - imgWidth - marginRight;
-    doc.addImage(img, 'PNG', x, 10, imgWidth, imgHeight);
-    doc.setFontSize(14).setFont('helvetica', 'bold');
-    doc.text(data.gudang.gdg_inv_nama, 14, 15);
-    doc.setFontSize(10).setFont('helvetica', 'normal');
-    doc.text(data.gudang.gdg_inv_alamat, 14, 20);
-    doc.text(data.gudang.gdg_inv_kota, 14, 25);
-    doc.text(data.gudang.gdg_inv_telp, 14, 30);
-
-    doc.setFontSize(18).setFont('helvetica', 'bold');
-    doc.text('PENAWARAN', 105, 40, { align: 'center' });
-
-    // Info Transaksi
-    doc.setFontSize(10).setFont('helvetica', 'normal');
-    doc.text(`Nomor: ${data.header.pen_nomor}`, 14, 50);
-    doc.text(`Tanggal: ${format(new Date(data.header.pen_tanggal), 'dd-MM-yyyy')}`, 14, 55);
-
-    doc.text(`Customer: ${data.customer.cus_nama}`, 120, 50);
-    doc.text(`${data.customer.cus_alamat}, ${data.customer.cus_kota}`, 120, 55);
-    doc.text(`Telp: ${data.customer.cus_telp}`, 120, 60);
-
-    // Tabel Item
-    autoTable(doc, {
-        startY: 70,
-        head: [['No', 'Nama Barang', 'Qty', 'Harga', 'Diskon', 'Total']],
-        body: data.details.map((d: any, i: number) => [
-            i + 1,
-            `${d.nama} (${d.ukuran})`,
-            d.qty,
-            new Intl.NumberFormat('id-ID').format(d.harga),
-            new Intl.NumberFormat('id-ID').format(d.diskon),
-            new Intl.NumberFormat('id-ID').format(d.total),
-        ]),
-        theme: 'grid',
-        headStyles: { fillColor: [240, 240, 240], textColor: 0 },
-        styles: { fontSize: 8 },
-        columnStyles: {
-            2: { halign: 'right' }, 3: { halign: 'right' },
-            4: { halign: 'right' }, 5: { halign: 'right' },
-        }
-    });
-
-    // Footer
-    const finalY = (doc as any).lastAutoTable.finalY + 5;
-    doc.setFontSize(8);
-    doc.text(`Terbilang: ${terbilang(grandTotal)}`, 14, finalY, { maxWidth: 120 });
-
-    const startXTotals = 140;
-    doc.text('Total', startXTotals, finalY);
-    doc.text(`${new Intl.NumberFormat('id-ID').format(data.footer.total)}`, 205, finalY, { align: 'right' });
-    doc.text('Diskon', startXTotals, finalY + 5);
-    doc.text(`${new Intl.NumberFormat('id-ID').format(data.footer.diskon_faktur)}`, 205, finalY + 5, { align: 'right' });
-    doc.text('Ppn', startXTotals, finalY + 10);
-    doc.text(`${new Intl.NumberFormat('id-ID').format(data.footer.ppn)}`, 205, finalY + 10, { align: 'right' });
-    doc.text('Biaya Kirim', startXTotals, finalY + 15);
-    doc.text(`${new Intl.NumberFormat('id-ID').format(data.footer.bkrm)}`, 205, finalY + 15, { align: 'right' });
-    doc.setLineWidth(0.5);
-    doc.line(startXTotals, finalY + 17, 205, finalY + 17);
-    doc.setFont('helvetica', 'bold');
-    doc.text('Grand Total', startXTotals, finalY + 22);
-    doc.text(`${new Intl.NumberFormat('id-ID').format(grandTotal)}`, 205, finalY + 22, { align: 'right' });
-
-    doc.setFont('helvetica', 'normal');
-    doc.text('Dibuat Oleh,', 14, finalY + 25);
-    doc.text('Mengetahui,', 60, finalY + 25);
-    doc.text(`( ${data.header.user_create} )`, 14, finalY + 45);
-    doc.text(`( .......................... )`, 60, finalY + 45);
-    doc.text(`Note: ${data.header.pen_ket}`, 14, doc.internal.pageSize.height - 20, { maxWidth: 180 });
-
-    if (autoPrint) {
-        doc.autoPrint();
-    }
-    doc.output('dataurlnewwindow');
-};
-
 const exportHeaderData = () => {
     if (headers.value.length === 0) {
         toast.warning('Tidak ada data header untuk diekspor.');
@@ -491,6 +335,23 @@ const exportDetailData = async () => {
     }
 };
 
+const printData = (item: any) => {
+    // Cek jika tidak ada item yang dipilih (untuk keamanan)
+    if (!item || !item.nomor) {
+        toast.error('Silakan pilih satu data untuk dicetak.');
+        return;
+    }
+
+    // Membuat URL untuk halaman cetak
+    const url = router.resolve({
+        name: 'Cetak Penawaran',
+        params: { nomor: item.nomor }
+    }).href;
+
+    // Membuka halaman cetak di tab baru
+    window.open(url, '_blank');
+};
+
 onMounted(() => {
     // Sekarang onMounted jadi lebih simpel
     if (hasViewPermission.value) { // Cek nilai computed
@@ -526,8 +387,10 @@ watch(selectedBranch, () => {
                 prepend-icon="mdi-pencil" @click="editOffer">Ubah</v-btn>
             <v-btn v-if="authStore.can(MENU_ID, 'delete')" size="small" :disabled="!isSingleSelected"
                 prepend-icon="mdi-delete" @click="confirmDelete">Hapus</v-btn>
-            <v-btn v-if="authStore.can(MENU_ID, 'view')" size="small" :disabled="!isSingleSelected"
-                prepend-icon="mdi-printer" @click="openPrintConfirm">Cetak</v-btn>
+            <v-btn size="small" color="green" prepend-icon="mdi-printer" @click="printData(selected[0])"
+                :disabled="selected.length !== 1">
+                Cetak
+            </v-btn>
             <v-btn v-if="authStore.can(MENU_ID, 'view')" size="small" prepend-icon="mdi-file-excel"
                 @click="exportHeaderData">Export Header</v-btn>
             <v-btn v-if="authStore.can(MENU_ID, 'view')" size="small" prepend-icon="mdi-file-download-outline"
@@ -621,22 +484,6 @@ watch(selectedBranch, () => {
             </v-card>
         </v-dialog>
 
-        <!-- Dialog Konfirmasi Cetak -->
-        <v-dialog v-model="isPrintConfirmVisible" max-width="400px">
-            <v-card>
-                <v-card-title class="text-h5">Cetak Transaksi?</v-card-title>
-                <v-card-text>Apakah Anda ingin mencetak transaksi ini langsung ke printer atau melihat pratinjau
-                    terlebih
-                    dahulu?</v-card-text>
-                <v-card-actions>
-                    <v-spacer></v-spacer>
-                    <v-btn text @click="isPrintConfirmVisible = false">Batal</v-btn>
-                    <v-btn color="secondary" @click="showPreview">Lihat Preview</v-btn>
-                    <v-btn color="primary" @click="generatePdf(true)">Cetak Langsung</v-btn>
-                </v-card-actions>
-            </v-card>
-        </v-dialog>
-
         <!-- (8) Tambahkan Dialog Konfirmasi Hapus -->
         <v-dialog v-model="dialogDelete" max-width="500px">
             <v-card>
@@ -648,10 +495,6 @@ watch(selectedBranch, () => {
                         @click="deleteConfirmed">Hapus</v-btn><v-spacer></v-spacer></v-card-actions>
             </v-card>
         </v-dialog>
-
-        <!-- Dialog Pratinjau -->
-        <OfferPrintPreview v-if="isPreviewVisible && printData" :print-data="printData"
-            @close="isPreviewVisible = false" @print="generatePdf(true)" />
     </PageLayout>
 </template>
 

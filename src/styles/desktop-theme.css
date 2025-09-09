@@ -1,0 +1,157 @@
+/* ==========================================================================
+   Global Desktop Theme CSS
+   ========================================================================== */
+
+/* Layout Dasar Form & Browse
+   ========================================================================== */
+.browse-content,
+.form-content {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.form-content {
+    padding: 12px;
+}
+
+.form-grid-container {
+    padding: 12px;
+    height: 100%;
+    display: grid;
+    grid-template-columns: 400px 1fr;
+    gap: 12px;
+}
+
+.left-column,
+.right-column {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    min-height: 0;
+}
+
+.right-column {
+    flex-grow: 1;
+}
+
+.desktop-form-section {
+    padding: 12px;
+    border: 1px solid #e0e0e0;
+    border-radius: 4px;
+    background-color: white;
+    flex-shrink: 0;
+}
+
+/* Styling Filter Section (untuk halaman browse)
+   ========================================================================== */
+.filter-section {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 6px 10px;
+    border-bottom: 1px solid #e0e0e0;
+    flex-shrink: 0;
+}
+
+.filter-label {
+    font-size: 11px;
+    font-weight: 500;
+}
+
+.filter-section .v-label,
+.filter-section .v-select__selection-text {
+    font-size: 11px !important;
+}
+
+.filter-section input {
+    font-size: 12px !important;
+}
+
+.filter-section .v-field {
+    height: 36px !important;
+}
+
+.filter-section .v-field__input {
+    min-height: 36px !important;
+    padding-top: 0 !important;
+    padding-bottom: 0 !important;
+}
+
+
+/* Styling Header Section (untuk halaman form)
+   ========================================================================== */
+.header-filters,
+.header-section {
+    flex-shrink: 0;
+}
+
+.header-filters .v-label,
+.header-section .v-label {
+    font-size: 11px !important;
+}
+
+.header-filters input,
+.header-section input,
+.header-section .v-select__selection-text {
+    font-size: 12px !important;
+}
+
+
+/* Styling v-data-table
+   ========================================================================== */
+.table-container {
+    flex-grow: 1;
+    display: flex;
+    min-height: 0;
+}
+
+.desktop-table {
+    font-size: 11px;
+    border: 1px solid #e0e0e0;
+}
+
+.desktop-table td,
+.desktop-table th {
+    padding: 0 8px !important;
+    height: 28px !important;
+}
+
+.desktop-table input {
+    font-size: 11px !important;
+}
+
+.desktop-table .v-select__selection-text {
+    font-size: 11px !important;
+}
+
+.desktop-table .v-field__input {
+    font-size: 11px !important;
+}
+
+.fill-height-table {
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 auto;
+    min-height: 0;
+}
+
+.fill-height-table .v-table__wrapper {
+    flex-grow: 1;
+    overflow-y: auto;
+}
+
+/* Utility Classes
+   ========================================================================== */
+.text-right input {
+    text-align: right;
+}
+
+.state-container {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+}

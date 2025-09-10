@@ -426,7 +426,7 @@ const handleDiscountChange = async () => {
     } catch (error) {
         toast.error('Gagal memvalidasi diskon standar.');
         // Kembalikan ke nilai sebelumnya jika API gagal
-        footer.value.diskonPersen1 = previousDiscount.value; 
+        footer.value.diskonPersen1 = previousDiscount.value;
     }
 };
 
@@ -734,11 +734,18 @@ onMounted(() => {
                     </v-row>
                 </div>
                 <div class="desktop-form-section footer-section">
-                    <v-text-field label="PPN %" v-model.number="header.ppnPersen" type="number" variant="outlined"
-                        density="compact" hide-details class="summary-field"></v-text-field>
-                    <v-text-field label="Biaya Kirim" v-model.number="footer.biayaKirim" type="number"
-                        variant="outlined" density="compact" hide-details
-                        class="summary-field text-right"></v-text-field>
+                    <v-row dense>
+                        <v-col cols="6">
+                            <v-text-field label="PPN %" v-model.number="header.ppnPersen" type="number"
+                                variant="outlined" density="compact" hide-details class="summary-field">
+                            </v-text-field>
+                        </v-col>
+                        <v-col cols="6">
+                            <v-text-field label="Biaya Kirim" v-model.number="footer.biayaKirim" type="number"
+                                variant="outlined" density="compact" hide-details class="summary-field text-right">
+                            </v-text-field>
+                        </v-col>
+                    </v-row>
                     <div class="d-flex ga-2">
                         <v-text-field label="Diskon % 1" v-model.number="footer.diskonPersen1" type="number"
                             variant="outlined" density="compact" hide-details :disabled="!canEditFooter"

@@ -32,8 +32,8 @@ const headers = [
   { title: 'Barcode', key: 'barcode', sortable: false },
   { title: 'Nama Barang', key: 'nama', sortable: false, width: '30%' },
   { title: 'Ukuran', key: 'ukuran', sortable: false },
-  { title: 'Harga', key: 'harga', sortable: false, align: 'end' },
-  { title: 'Stok', key: 'stok', sortable: false, align: 'end' },
+  { title: 'Harga', key: 'harga', sortable: false, align: 'end' as const },
+  { title: 'Stok', key: 'stok', sortable: false, align: 'end' as const },
 ];
 
 // --- Methods ---
@@ -74,7 +74,7 @@ const selectVariant = (item: ProductVariant) => {
 };
 
 // --- Watchers ---
-let searchTimeout: number;
+let searchTimeout: ReturnType<typeof setTimeout>;
 watch(search, () => {
     clearTimeout(searchTimeout);
     searchTimeout = setTimeout(() => {

@@ -37,6 +37,8 @@ interface FormHeader {
     keterangan: string;
     hargaPerCm: number;
     user: string;
+    imageUrl: string | null;
+    [key: string]: any;
 }
 interface DetailUkuran {
     id: number;
@@ -79,10 +81,22 @@ const initialFormState = {
     workshopNama: authStore.user?.cabangNama || '',
     keterangan: '',
     hargaPerCm: 0,
-    user: authStore.user?.kode || ''
+    user: authStore.user?.kode || '',
+    imageUrl: null as string | null
 };
 
-const form = ref<FormHeader>({ ...initialFormState });
+const form = ref<HeaderItem>({
+    nomor: null,
+    tanggal: format(new Date(), 'yyyy-MM-dd'),
+    tglPengerjaan: format(new Date(), 'yyyy-MM-dd'),
+    datelineCustomer: format(new Date(), 'yyyy-MM-dd'),
+    salesKode: '', salesNama: '',
+    customerKode: '', customerNama: '',
+    jenisOrderKode: '', jenisOrderNama: '',
+    namaDtf: '', kain: '', finishing: '', desain: '',
+    workshopKode: authStore.user?.cabang || '', workshopNama: '',
+    keterangan: '', imageUrl: null,
+});
 
 const detailsUkuran = ref<DetailUkuran[]>([]);
 const detailsTitik = ref<DetailTitik[]>([]);
@@ -140,17 +154,33 @@ const fetchDataForEdit = async (nomor: string) => {
     isLoading.value = true;
     try {
         const response = await api.get(`/so-dtf-form/${nomor}`);
-        const data = response.data;
-        form.value = data.header;
-        form.value.tanggal = format(new Date(data.header.tanggal), 'yyyy-MM-dd');
-        form.value.tglPengerjaan = format(new Date(data.header.tglPengerjaan), 'yyyy-MM-dd');
-        form.value.datelineCustomer = format(new Date(data.header.datelineCustomer), 'yyyy-MM-dd');
-        detailsUkuran.value = data.detailsUkuran.map((d: any, i: number) => ({ ...d, id: Date.now() + i }));
-        detailsTitik.value = data.detailsTitik.map((d: any, i: number) => ({ ...d, id: Date.now() + i + 1000 }));
+        form.value = response.data.header;
+        form.value.nomor = response.data.nomor;
+        form.value.tanggal = format(new Date(response.data.tanggal), 'yyyy-MM-dd');
+        form.value.tglPengerjaan = format(new Date(response.data.tglPengerjaan), 'yyyy-MM-dd');
+        form.value.datelineCustomer = format(new Date(response.data.datelineCustomer), 'yyyy-MM-dd');
+        form.value.salesKode = response.data.salesKode;
+        form.value.salesNama = response.data.salesNama;
+        form.value.customerKode = response.data.customerKode;
+        form.value.customerNama = response.data.customerNama;
+        form.value.jenisOrderKode = response.data.jenisOrderKode;
+        form.value.jenisOrderNama = response.data.jenisOrderNama;
+        form.value.namaDtf = response.data.namaDtf;
+        form.value.kain = response.data.kain;
+        form.value.finishing = response.data.finishing;
+        form.value.desain = response.data.desain;
+        form.value.workshopKode = response.data.workshopKode;
+        form.value.workshopNama = response.data.workshopNama;
+        form.value.keterangan = response.data.keterangan;
+        imagePreview.value = response.data.imageUrl;
+        detailsUkuran.value = response.data.detailsUkuran.map((d: any, i: number) => ({ ...d, id: Date.now() + i }));
+        detailsTitik.value = response.data.detailsTitik.map((d: any, i: number) => ({ ...d, id: Date.now() + i + 1000 }));
+
         addDetailUkuran();
         addDetailTitik();
+        toast.success(`Data untuk ${nomor} berhasil dimuat.`);
     } catch (error) {
-        toast.error('Gagal memuat data SO DTF.');
+        toast.error(error.response?.data?.message || 'Gagal memuat data SO DTF');
         router.push('/transaksi/dtf/so-dtf');
     } finally {
         isLoading.value = false;
@@ -160,7 +190,8 @@ const fetchDataForEdit = async (nomor: string) => {
 const handleImageUpload = (files: File[]) => {
     const file = files[0];
     if (!file) {
-        imagePreview.value = null;
+        imagePreview.value = form.value.imageUrl || null;
+        imageFile.value = [];
         return;
     }
     if (file.size > 1024 * 1024) { // 1MB limit, sama seperti Delphi
@@ -174,6 +205,8 @@ const handleImageUpload = (files: File[]) => {
         imagePreview.value = e.target?.result as string;
     };
     reader.readAsDataURL(file);
+
+    imageFile.value = [file];
 };
 
 const resetForm = () => {
@@ -243,37 +276,35 @@ const save = async () => {
         isSaving.value = true;
 
         const payload = {
-            header: form.value,
+            header: {
+                ...form.value,
+                imageUrl: form.value.imageUrl // <-- tambahkan ini
+            },
             detailsUkuran: validDetailsUkuran,
             detailsTitik: validDetailsTitik,
+            user: authStore.user // <-- TAMBAHKAN INFORMASI USER
         };
 
         let nomorSoDtf = form.value.nomor;
 
         try {
-            let response;
-            if (isEditMode.value && nomorSoDtf) {
-                response = await api.put(`/so-dtf-form/${nomorSoDtf}`, payload);
-                toast.success('Data berhasil diperbarui.');
-            } else {
-                response = await api.post('/so-dtf-form', payload);
-                nomorSoDtf = response.data.nomor;
-                toast.success(`Data berhasil disimpan dengan nomor: ${nomorSoDtf}`);
-            }
+            // 1. Simpan data utama
+            const response = isEditMode.value
+                ? await api.put(`/so-dtf-form/${form.value.nomor}`, payload)
+                : await api.post('/so-dtf-form', payload);
 
-            if (imageFile.value.length > 0 && nomorSoDtf) {
+            const savedNomor = isEditMode.value ? form.value.nomor : response.data.header.sd_nomor;
+            toast.success(response.data.message);
+
+            // 2. Jika ada file, unggah sekarang
+            if (imageFile.value.length > 0 && savedNomor) {
                 const formData = new FormData();
                 formData.append('image', imageFile.value[0]);
-
                 try {
-                    await api.post(`/so-dtf-form/upload-image/${nomorSoDtf}`, formData, {
-                        headers: {
-                            'Content-Type': 'multipart/form-data'
-                        }
-                    });
+                    await api.post(`/so-dtf-form/upload-image/${savedNomor}`, formData);
                     toast.success('Gambar berhasil diunggah.');
                 } catch (uploadError) {
-                    toast.warning('Data utama berhasil disimpan, tetapi gambar gagal diunggah.');
+                    toast.warning('Data berhasil disimpan, tapi gambar gagal diunggah.');
                 }
             }
 
@@ -491,14 +522,17 @@ watch(
 
 watch(
     () => form.value.jenisOrderKode,
-    (newJenisOrder) => {
-        // Panggil fetchSizeCetakList saat jenis order berubah
+    (newJenisOrder, oldJenisOrder) => {
+        // Selalu ambil daftar size cetak yang baru
         fetchSizeCetakList(newJenisOrder);
 
-        // Kosongkan pilihan size cetak di semua baris detail
-        detailsTitik.value.forEach(item => {
-            item.sizeCetak = '';
-        });
+        // HANYA kosongkan isian jika user secara manual mengubah jenis order
+        // (yaitu, saat nilai lama tidak kosong dan tidak dalam mode edit)
+        if (oldJenisOrder && !isEditMode.value) {
+            detailsTitik.value.forEach(item => {
+                item.sizeCetak = '';
+            });
+        }
     }
 );
 
@@ -510,6 +544,23 @@ watch(
     },
     { deep: true } // deep: true penting untuk memantau perubahan di dalam array of objects
 );
+
+watch(imageFile, (newFiles) => {
+    const file = newFiles[0];
+    if (file) {
+        // Validasi ukuran
+        if (file.size > 1024 * 1024) { // 1MB
+            toast.error('Ukuran gambar tidak boleh lebih dari 1MB.');
+            imageFile.value = []; // Reset
+            return;
+        }
+        // Buat URL lokal untuk preview
+        imagePreview.value = URL.createObjectURL(file);
+    } else {
+        // Jika file dibatalkan, kembalikan ke gambar dari server (jika ada)
+        imagePreview.value = form.value.imageUrl;
+    }
+});
 
 onMounted(() => {
     if (!authStore.can(MENU_ID, requiredPermission.value)) {
@@ -610,15 +661,15 @@ onMounted(() => {
                         </v-col>
                         <v-col cols="12" md="6">
                             <div class="d-flex align-center ga-2">
-                                <v-file-input v-model="imageFile" @update:model-value="handleImageUpload"
-                                    label="Upload Gambar (Max 1Mb)" variant="outlined" density="compact"
-                                    prepend-icon="mdi-camera" hide-details clearable />
+                                <v-file-input v-model="imageFile" label="Upload Gambar (Max 1Mb)" variant="outlined"
+                                    density="compact" prepend-icon="mdi-camera" hide-details clearable
+                                    accept="image/jpeg, image/png" />
                                 <v-btn @click="isImageFullscreenVisible = true" :disabled="!imagePreview"
                                     icon="mdi-fullscreen" size="small" variant="tonal"
                                     title="Lihat Ukuran Penuh"></v-btn>
                             </div>
-                            <v-img v-if="imagePreview" class="mt-2 border rounded" height="85" aspect-ratio="16/9" cover
-                                :src="imagePreview"></v-img>
+                            <v-img v-if="imagePreview" class="mt-2 border rounded" height="120" aspect-ratio="16/9"
+                                cover :src="imagePreview"></v-img>
                             <div v-else class="mt-2 border rounded d-flex align-center justify-center bg-grey-lighten-4"
                                 style="height: 85px;">
                                 <span class="text-caption text-grey">Tidak ada gambar</span>
@@ -627,78 +678,90 @@ onMounted(() => {
                     </v-row>
                 </div>
 
-                <div class="desktop-form-section">
-                    <div class="d-flex align-center mb-2">
-                        <span class="text-subtitle-2">Ukuran Kaos</span>
-                        <v-spacer />
-                        <v-text-field label="Total Jumlah" :model-value="totalJumlahKaos" readonly filled
-                            density="compact" hide-details style="max-width: 120px;" />
-                    </div>
-                    <v-table density="compact" class="desktop-table">
-                        <thead>
-                            <tr>
-                                <th style="width: 40px;">#</th>
-                                <th>Ukuran</th>
-                                <th class="text-end" style="width: 90px;">Jumlah</th>
-                                <th class="text-end" style="width: 120px;">Harga/Pcs</th>
-                                <th style="width: 40px;"></th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <tr v-for="(item, index) in detailsUkuran" :key="item.id">
-                                <td class="pt-2 text-center">{{ index + 1 }}</td>
-                                <td>
-                                    <v-combobox v-model="item.ukuran" :items="ukuranKaosList"
-                                        @update:model-value="addDetailUkuran" variant="underlined" density="compact"
-                                        hide-details />
-                                </td>
-                                <td><v-text-field v-model.number="item.jumlah" type="number" variant="underlined"
-                                        density="compact" hide-details class="text-end" min="0" /></td>
-                                <td><v-text-field v-model.number="item.harga" type="number" variant="underlined"
-                                        density="compact" hide-details class="text-end" :readonly="isHargaReadonly" />
-                                </td>
-                                <td><v-btn v-if="index < detailsUkuran.length - 1" icon="mdi-delete" size="x-small"
-                                        variant="text" color="error" @click="removeDetailUkuran(item.id)" /></td>
-                            </tr>
-                        </tbody>
-                    </v-table>
-                </div>
-                <div class="desktop-form-section">
-                    <div class="d-flex align-center mb-2">
-                        <span class="text-subtitle-2">Titik Bordir/Cetak</span>
-                        <v-spacer />
-                        <v-text-field label="Total Titik" :model-value="totalTitik" readonly filled density="compact"
-                            hide-details style="max-width: 120px;" />
-                    </div>
-                    <v-table density="compact" class="desktop-table">
-                        <thead>
-                            <tr>
-                                <th style="width: 40px;">#</th>
-                                <th>Keterangan</th>
-                                <th style="width: 100px;">Size Cetak</th>
-                                <th class="text-end" style="width: 70px;">P(cm)</th>
-                                <th class="text-end" style="width: 70px;">L(cm)</th>
-                                <th style="width: 40px;"></th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <tr v-for="(item, index) in detailsTitik" :key="item.id">
-                                <td class="pt-2 text-center">{{ index + 1 }}</td>
-                                <td><v-text-field v-model="item.keterangan" @update:model-value="addDetailTitik"
-                                        variant="underlined" density="compact" hide-details /></td>
-                                <td><v-combobox v-model="item.sizeCetak" :items="sizeCetakList"
-                                        @update:model-value="onSizeCetakChange(item, index)" variant="underlined"
-                                        density="compact" hide-details /></td>
-                                <td><v-text-field v-model.number="item.panjang" type="number" variant="underlined"
-                                        density="compact" hide-details class="text-end" /></td>
-                                <td><v-text-field v-model.number="item.lebar" type="number" variant="underlined"
-                                        density="compact" hide-details class="text-end" /></td>
-                                <td><v-btn v-if="index < detailsTitik.length - 1" icon="mdi-delete" size="x-small"
-                                        variant="text" color="error" @click="removeDetailTitik(item.id)" /></td>
-                            </tr>
-                        </tbody>
-                    </v-table>
-                </div>
+                <v-row dense>
+                    <v-col cols="12" md="6">
+                        <div class="desktop-form-section">
+                            <div class="d-flex align-center mb-2">
+                                <span class="text-subtitle-2">Ukuran Kaos</span>
+                                <v-spacer />
+                                <v-text-field label="Total Jumlah" :model-value="totalJumlahKaos" readonly filled
+                                    density="compact" hide-details style="max-width: 120px;" />
+                            </div>
+                            <v-table density="compact" class="desktop-table">
+                                <thead>
+                                    <tr>
+                                        <th style="width: 40px;">#</th>
+                                        <th>Ukuran</th>
+                                        <th class="text-end" style="width: 90px;">Jumlah</th>
+                                        <th class="text-end" style="width: 120px;">Harga/Pcs</th>
+                                        <th style="width: 40px;"></th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr v-for="(item, index) in detailsUkuran" :key="item.id">
+                                        <td class="pt-2 text-center">{{ index + 1 }}</td>
+                                        <td>
+                                            <v-combobox v-model="item.ukuran" :items="ukuranKaosList"
+                                                @update:model-value="addDetailUkuran" variant="underlined"
+                                                density="compact" hide-details />
+                                        </td>
+                                        <td><v-text-field v-model.number="item.jumlah" type="number"
+                                                variant="underlined" density="compact" hide-details class="text-end"
+                                                min="0" /></td>
+                                        <td><v-text-field v-model.number="item.harga" type="number" variant="underlined"
+                                                density="compact" hide-details class="text-end"
+                                                :readonly="isHargaReadonly" />
+                                        </td>
+                                        <td><v-btn v-if="index < detailsUkuran.length - 1" icon="mdi-delete"
+                                                size="x-small" variant="text" color="error"
+                                                @click="removeDetailUkuran(item.id)" /></td>
+                                    </tr>
+                                </tbody>
+                            </v-table>
+                        </div>
+                    </v-col>
+
+                    <v-col cols="12" md="6">
+                        <div class="desktop-form-section">
+                            <div class="d-flex align-center mb-2">
+                                <span class="text-subtitle-2">Titik Bordir/Cetak</span>
+                                <v-spacer />
+                                <v-text-field label="Total Titik" :model-value="totalTitik" readonly filled
+                                    density="compact" hide-details style="max-width: 120px;" />
+                            </div>
+                            <v-table density="compact" class="desktop-table">
+                                <thead>
+                                    <tr>
+                                        <th style="width: 40px;">#</th>
+                                        <th>Keterangan</th>
+                                        <th style="width: 100px;">Size Cetak</th>
+                                        <th class="text-end" style="width: 70px;">P(cm)</th>
+                                        <th class="text-end" style="width: 70px;">L(cm)</th>
+                                        <th style="width: 40px;"></th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr v-for="(item, index) in detailsTitik" :key="item.id">
+                                        <td class="pt-2 text-center">{{ index + 1 }}</td>
+                                        <td><v-text-field v-model="item.keterangan" @update:model-value="addDetailTitik"
+                                                variant="underlined" density="compact" hide-details /></td>
+                                        <td><v-combobox v-model="item.sizeCetak" :items="sizeCetakList"
+                                                @update:model-value="onSizeCetakChange(item, index)"
+                                                variant="underlined" density="compact" hide-details /></td>
+                                        <td><v-text-field v-model.number="item.panjang" type="number"
+                                                variant="underlined" density="compact" hide-details class="text-end" />
+                                        </td>
+                                        <td><v-text-field v-model.number="item.lebar" type="number" variant="underlined"
+                                                density="compact" hide-details class="text-end" /></td>
+                                        <td><v-btn v-if="index < detailsTitik.length - 1" icon="mdi-delete"
+                                                size="x-small" variant="text" color="error"
+                                                @click="removeDetailTitik(item.id)" /></td>
+                                    </tr>
+                                </tbody>
+                            </v-table>
+                        </div>
+                    </v-col>
+                </v-row>
             </div>
         </div>
         <v-skeleton-loader v-else type="article, actions"></v-skeleton-loader>

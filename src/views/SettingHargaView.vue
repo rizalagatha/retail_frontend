@@ -41,6 +41,7 @@ const hasViewPermission = computed(() => authStore.can(MENU_ID, 'view'));
 const isJenisKaosSearchVisible = ref(false);
 const isKetersediaanConfirmVisible = ref(false);
 const selectedJenisKaos = ref('');
+const itemsPerPage = ref(25);
 
 const headers = [
     { title: 'Jenis Kaos', key: 'JenisKaos' },
@@ -221,8 +222,8 @@ onMounted(() => {
             </div>
 
             <v-data-table v-model="selected" :headers="headers" :items="jenisKaosList" :search="search"
-                :loading="isLoading" item-value="JenisKaos" density="compact" class="desktop-table" fixed-header
-                show-select return-object>
+                :loading="isLoading" item-value="JenisKaos" v-model:items-per-page="itemsPerPage" density="compact" class="desktop-table fill-height-table"
+                fixed-header show-select return-object>
                 <template #item.Custom="{ item }">
                     <v-chip :color="item.Custom === 'Y' ? 'blue' : 'green'" size="x-small">{{ item.Custom === 'Y' ?
                         'Custom' : 'Stok' }}</v-chip>
@@ -288,29 +289,74 @@ onMounted(() => {
 </template>
 
 <style scoped>
+/* >> GANTI KESELURUHAN BLOK STYLE ANDA DENGAN INI << */
+
+.browse-content {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+}
+
+/* --- Styling untuk Filter Section --- */
+.filter-section {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 6px 10px;
+    border-bottom: 1px solid #e0e0e0;
+    flex-shrink: 0;
+}
+
+.filter-section :deep(.v-field__input),
+.filter-section :deep(.v-label) {
+    font-size: 12px !important;
+}
+
+.filter-section :deep(.v-field) {
+    height: 36px;
+}
+
+/* --- Styling untuk Tabel Utama --- */
+.desktop-table {
+    font-size: 11px;
+    flex: 1 1 auto;
+    min-height: 0;
+}
+
+.desktop-table :deep(td),
+.desktop-table :deep(th) {
+    padding: 0 8px !important;
+    height: 28px !important;
+}
+
+/* --- Styling untuk Dialog Ubah/Tambah --- */
 .dialog-card,
 .dialog-footer {
-    font-size: 12px;
+    font-size: 11px;
 }
 
 .dialog-footer {
     background-color: #f5f5f5;
 }
 
-:deep(.v-data-table-footer) {
+.dialog-card :deep(.v-label) {
     font-size: 11px !important;
 }
 
-/* Jika ingin kecil juga tombol navigasinya */
-:deep(.v-data-table-footer .v-btn) {
-    font-size: 11px !important;
-    height: 24px !important;
-    min-width: 24px !important;
-    padding: 0 6px !important;
+.dialog-card :deep(input) {
+    font-size: 12px !important;
 }
 
-:deep(.v-data-table-footer .v-select) {
+.dialog-card .desktop-table :deep(input) {
     font-size: 11px !important;
-    height: 28px !important;
+}
+
+/* --- Utility & State --- */
+.state-container {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
 }
 </style>

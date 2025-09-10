@@ -156,7 +156,8 @@
 }
 
 .detail-table-wrapper {
-    width: 75%; /* Lebar tabel detail, bisa disesuaikan */
+    width: 100%; 
+    max-width: 900px;/* Lebar tabel detail, bisa disesuaikan */
     border: 1px solid #ddd;
     border-radius: 4px;
     overflow: hidden;

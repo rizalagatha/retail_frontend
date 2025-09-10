@@ -1,10 +1,10 @@
 <script setup lang="ts">
 import { ref } from 'vue';
 
-const props = defineProps({
-  title: { type: String, default: 'Otorisasi' },
-  challengeCode: { type: String, required: true }
-});
+const { title, challengeCode } = defineProps<{
+  title?: string
+  challengeCode: string
+}>();
 const emit = defineEmits(['close', 'success']);
 
 const pin = ref('');

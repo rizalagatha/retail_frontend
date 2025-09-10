@@ -57,24 +57,22 @@ const loadItems = async ({ page, itemsPerPage }: { page: number, itemsPerPage: n
   }
 };
 
-// Perbaikan: Fungsi untuk menangani pemilihan gudang
-const selectGudang = (item: any) => {
-    // Ekstrak data asli dari proxy Vue, pastikan mengambil kode dan nama
-    const gudangData = {
-        kode: item.kode,
-        nama: item.nama
-    };
-    
-    if (gudangData.kode) {
-        console.log('Gudang selected:', gudangData); // Debug log
-        emit('gudang-selected', gudangData);
-    } else {
-        console.warn('Data gudang tidak valid:', item);
-    }
+const selectGudang = (item: Gudang) => {
+  const gudangData: Gudang = {
+    kode: item.kode,
+    nama: item.nama,
+  };
+
+  if (gudangData.kode) {
+    console.log('Gudang selected:', gudangData);
+    emit('gudang-selected', gudangData);
+  } else {
+    console.warn('Data gudang tidak valid:', item);
+  }
 };
 
 // --- Watchers ---
-let searchTimeout: number;
+let searchTimeout: ReturnType<typeof setTimeout>;
 watch(search, () => {
     clearTimeout(searchTimeout);
     searchTimeout = setTimeout(() => {

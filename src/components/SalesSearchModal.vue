@@ -50,7 +50,7 @@ const selectSales = (item: Sales) => {
     }
 };
 
-let searchTimeout: number;
+let searchTimeout: ReturnType<typeof setTimeout>;
 watch(search, () => {
     clearTimeout(searchTimeout);
     searchTimeout = setTimeout(() => {

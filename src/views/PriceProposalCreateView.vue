@@ -127,6 +127,9 @@ const totalHargaDtf = computed(() => {
 
 const isSaveConfirmVisible = ref(false);
 const isCancelConfirmVisible = ref(false);
+const isConfirmDialogVisible = ref(false);
+const confirmText = ref('');
+const pendingAction = ref<(() => void) | null>(null);
 
 // --- Methods ---
 const onFileChange = (e: Event) => {
@@ -208,7 +211,7 @@ const save = () => {
     if (!header.value.jenisKaos) return toast.error('Jenis Kaos harus diisi.');
     const totalQty = sizeItems.value.reduce((sum, item) => sum + (item.qty || 0), 0);
     if (totalQty === 0) return toast.error('Jumlah order belum diisi.');
-    
+
     isSaveConfirmVisible.value = true;
 };
 
@@ -217,16 +220,34 @@ const executeSave = async () => {
     isSaving.value = true;
 
     try {
+        // Filter dan persiapkan data dengan benar
+        const filteredDetails = sizeItems.value.filter(item => (item.qty || 0) > 0);
+        const filteredAdditionalCosts = additionalCostItems.value.filter(item => 
+            item.tambahan && item.tambahan.trim() && (item.harga || 0) > 0
+        );
+
         const payload = {
             header: header.value,
-            details: sizeItems.value.filter(item => (item.qty || 0) > 0),
+            details: filteredDetails,
             bordirItems: bordirItems.value,
             dtfItems: dtfItems.value,
-            additionalCostItems: additionalCostItems.value,
+            additionalCostItems: filteredAdditionalCosts,
             footer: footer.value,
             user: authStore.user,
             isNew: !isEditMode.value,
+            // Tambahkan data yang hilang
+            biayaPerCmBordir: biayaPerCmBordir.value,
+            bordirMinCharge: bordirMinCharge.value, 
+            bordirCost: bordirCost.value,
+            biayaPerCmDtf: biayaPerCmDtf.value,
+            dtfMinCharge: dtfMinCharge.value,
+            dtfCost: dtfCost.value
         };
+
+        // Debug log
+        console.log('Payload details:', filteredDetails);
+        console.log('Payload additionalCosts:', filteredAdditionalCosts);
+        console.log('Full payload:', payload);
 
         // 1. Simpan data utama
         const response = await api.post('/price-proposal-form/save', payload);
@@ -235,20 +256,29 @@ const executeSave = async () => {
         // 2. Jika ada file, unggah sekarang menggunakan nomor yang sudah pasti ada
         if (selectedFile.value && savedNomor) {
             const formData = new FormData();
-            formData.append('proposalImage', selectedFile.value);
+            formData.append('image', selectedFile.value);
             try {
                 // Upload ke endpoint yang menyertakan nomor di URL
-                await api.post(`/price-proposal-form/upload-image/${savedNomor}`, formData);
+                const uploadResponse = await api.post(`/price-proposal-form/upload-image/${savedNomor}`, formData, {
+                    headers: {
+                        'Content-Type': 'multipart/form-data'
+                    }
+                });
+                console.log('Upload response:', uploadResponse.data);
                 toast.info('Gambar berhasil diunggah.');
             } catch (uploadError) {
+                console.error('Upload Error:', uploadError);
+                console.error('Upload Error Response:', uploadError.response?.data);
                 toast.warning('Data berhasil disimpan, tapi gambar gagal diunggah.');
             }
         }
-        
+
         toast.success(response.data.message);
         router.push('/transaksi/pengajuan/pengajuan-harga');
 
-    } catch (error: any) {
+    } catch (error) {
+        console.error('Save Error:', error);
+        console.error('Save Error Response:', error.response?.data);
         toast.error(error.response?.data?.message || 'Gagal menyimpan data pengajuan.');
     } finally {
         isSaving.value = false;
@@ -266,8 +296,13 @@ const executeCancel = () => {
 
 const calculateTotals = async () => {
     // 1. Hitung total biaya tambahan (Bordir, DTF, dan dari tabel)
-    const totalAdditionalCostsFromTable = additionalCostItems.value.reduce((sum, item) => sum + (item.harga || 0), 0);
-    const totalAdditionalCost = (bordirCost.value || 0) + (dtfCost.value || 0) + totalAdditionalCostsFromTable;
+    const totalAdditionalCostsFromTable = additionalCostItems.value
+        .reduce((sum, item) => sum + (item.harga || 0), 0);
+
+    // Total tambahan = bordir + dtf + tambahan manual
+    const totalAdditionalCost = (bordirCost.value || 0)
+        + (dtfCost.value || 0)
+        + totalAdditionalCostsFromTable;
 
     // 2. Hitung total harga kaos dan total bruto
     let brutoTotal = 0;
@@ -414,15 +449,15 @@ const loadOfferData = async (nomor: string) => {
         const data = response.data;
 
         // --- Isi state Header ---
-        header.value.nomor = data.headerData.ph_nomor;
-        header.value.tanggal = format(new Date(data.headerData.ph_tanggal), 'yyyy-MM-dd');
-        header.value.customerKode = data.headerData.ph_kd_cus;
-        header.value.customerNama = data.headerData.cus_nama;
-        header.value.keterangan = data.headerData.ph_ket;
-        header.value.jenisKaos = data.headerData.ph_jenis;
-        header.value.ketersediaan = data.headerData.ph_custom === 'Y' ? 'Custom' : 'Stok';
-        header.value.approval = data.headerData.ph_apv;
-        header.value.isApproved = !!data.headerData.ph_apv;
+        header.value.nomor = data.header.ph_nomor;
+        header.value.tanggal = format(new Date(data.header.ph_tanggal), 'yyyy-MM-dd');
+        header.value.customerKode = data.header.ph_kd_cus;
+        header.value.customerNama = data.header.cus_nama; // ← karena cus_nama sudah ada di query join
+        header.value.keterangan = data.header.ph_ket;
+        header.value.jenisKaos = data.header.ph_jenis;
+        header.value.ketersediaan = data.header.ph_custom === 'Y' ? 'Custom' : 'Stok';
+        header.value.approval = data.header.ph_apv;
+        header.value.isApproved = !!data.header.ph_apv;
 
         // --- Isi state Bordir, DTF, dan Biaya Tambahan ---
         if (data.bordir) {
@@ -433,6 +468,7 @@ const loadOfferData = async (nomor: string) => {
                 bordirItems.value[i - 1].l = data.bordir[`phb_bordirl${i}`] || 0;
             }
         }
+
         if (data.dtf) {
             dtfCost.value = data.dtf.phd_rpdtf || 0;
             biayaPerCmDtf.value = data.dtf.phd_cmdtf || 0;
@@ -441,14 +477,16 @@ const loadOfferData = async (nomor: string) => {
                 dtfItems.value[i - 1].l = data.dtf[`phd_dtfl${i}`] || 0;
             }
         }
-        additionalCostItems.value = data.additionalCosts.map((c: any) => ({
+
+        additionalCostItems.value = (data.additionalCosts || []).map((c: any) => ({
             id: Date.now() + Math.random(),
             tambahan: c.pht_jenis,
-            harga: c.pht_harga
+            harga: c.pht_harga,
         }));
 
         // --- Logika Pengisian Tabel Ukuran ---
         if (header.value.jenisKaos) {
+            // Ambil template size dari API sesuai jenis kaos dan custom/stok
             const templateSizesResponse = await api.get('/price-proposal-form/tshirt-type-details', {
                 params: {
                     jenisKaos: header.value.jenisKaos,
@@ -456,42 +494,53 @@ const loadOfferData = async (nomor: string) => {
                 }
             });
 
-            // 1. Ambil data dan berikan nilai default array kosong jika null/undefined
-            let templateSizes = templateSizesResponse.data || [];
+            let templateSizes = templateSizesResponse.data.sizes || [];
 
-            // 2. Jika API ternyata mengembalikan satu objek, bungkus menjadi array
             if (templateSizes && !Array.isArray(templateSizes)) {
                 templateSizes = [templateSizes];
             }
 
-            // 3. Sekarang aman untuk memanggil .map()
-            const allSizeItems = templateSizes.map((item: any) => ({
-                id: Date.now() + Math.random(), size: item.ukuran, qty: null, hargaPcs: item.hargaPcs,
-                hargaKaos: 0, totalHarga: 0, kodeBarang: '', namaBarang: ''
+            // Buat array sizeItems dari template sizes
+            const allSizeItems = templateSizes.map((template) => ({
+                id: Date.now() + Math.random(),
+                size: template.ukuran,
+                qty: 0, // default
+                hargaPcs: template.hargaPcs || 0,
+                hargaKaos: template.hargaPcs || 0,
+                totalHarga: 0,
+                kodeBarang: '',
+                namaBarang: ''
             }));
 
-            data.sizes.forEach((savedItem: any) => {
+            // Update dengan data yang sudah tersimpan dari backend
+            (data.sizes || []).forEach((savedItem) => {
                 const itemToUpdate = allSizeItems.find(i => i.size === savedItem.phs_size);
                 if (itemToUpdate) {
                     itemToUpdate.qty = savedItem.phs_jumlah;
                     itemToUpdate.hargaPcs = savedItem.phs_harga;
                     itemToUpdate.kodeBarang = savedItem.phs_kode;
+                    itemToUpdate.namaBarang = savedItem.nama_barang || '';
+                    itemToUpdate.hargaKaos = savedItem.phs_harga; // harga dasar
+                    itemToUpdate.totalHarga = savedItem.phs_jumlah * savedItem.phs_harga;
                 }
             });
+
             sizeItems.value = allSizeItems;
         } else {
-            sizeItems.value = data.itemsData.map((s: any) => ({
+            // fallback kalau jenisKaos kosong
+            sizeItems.value = (data.sizes || []).map((s) => ({
                 id: Date.now() + Math.random(),
-                size: s.ukuran,
-                qty: s.jumlah,
-                hargaPcs: s.harga,
-                kodeBarang: s.kode,
-                namaBarang: s.nama,
-                hargaKaos: 0,
-                totalHarga: 0
+                size: s.phs_size,
+                qty: s.phs_jumlah,
+                hargaPcs: s.phs_harga,
+                kodeBarang: s.phs_kode,
+                namaBarang: s.nama_barang || '',
+                hargaKaos: s.phs_harga,
+                totalHarga: s.phs_jumlah * s.phs_harga
             }));
         }
-        imagePreview.value = data.headerData.imageUrl;
+
+        imagePreview.value = data.imageUrl;
 
         await nextTick();
         calculateTotals();
@@ -503,6 +552,28 @@ const loadOfferData = async (nomor: string) => {
         console.error("Load Offer Error:", error);
         router.push('/transaksi/pengajuan/pengajuan-harga');
     }
+};
+
+const showConfirmation = (action: () => void, text: string) => {
+    pendingAction.value = action;
+    confirmText.value = text;
+    isConfirmDialogVisible.value = true;
+};
+
+const executePendingAction = () => {
+    if (pendingAction.value) {
+        pendingAction.value();
+    }
+    isConfirmDialogVisible.value = false;
+};
+
+const closeConfirmDialog = () => {
+    isConfirmDialogVisible.value = false;
+    pendingAction.value = null;
+};
+
+const closeForm = () => {
+    router.push('/transaksi/pengajuan/pengajuan-harga');
 };
 
 watch(() => header.value.isApproved, (isNowApproved) => {
@@ -542,8 +613,10 @@ onMounted(() => {
             <v-btn size="small" color="primary" prepend-icon="mdi-content-save" @click="save"
                 :loading="isSaving">Simpan</v-btn>
             <v-btn size="small" prepend-icon="mdi-cancel" @click="confirmCancel">Batal</v-btn>
-            <v-btn size="small" @click="router.push('/transaksi/pengajuan/pengajuan-harga')"
-                prepend-icon="mdi-close">Tutup</v-btn>
+            <v-btn size="small"
+                @click="showConfirmation(closeForm, 'Anda yakin ingin menutup form? Perubahan yang belum disimpan akan hilang.')">
+                Tutup
+            </v-btn>
         </template>
 
         <div class="form-grid-container">
@@ -846,6 +919,26 @@ onMounted(() => {
                     <v-spacer></v-spacer>
                     <v-btn text @click="isCancelConfirmVisible = false">Tidak</v-btn>
                     <v-btn color="primary" variant="elevated" @click="executeCancel">Ya, Batal</v-btn>
+                </v-card-actions>
+            </v-card>
+        </v-dialog>
+
+        <v-dialog v-model="isConfirmDialogVisible" max-width="400px" persistent>
+            <v-card>
+                <v-card-title class="text-h6 font-weight-bold">
+                    Konfirmasi
+                </v-card-title>
+                <v-card-text>
+                    {{ confirmText }}
+                </v-card-text>
+                <v-card-actions>
+                    <v-spacer></v-spacer>
+                    <v-btn color="grey-darken-1" variant="text" @click="closeConfirmDialog">
+                        Tidak
+                    </v-btn>
+                    <v-btn color="primary" variant="tonal" @click="executePendingAction">
+                        Ya, Lanjutkan
+                    </v-btn>
                 </v-card-actions>
             </v-card>
         </v-dialog>

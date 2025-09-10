@@ -50,7 +50,7 @@ const selectItem = (item: SoDtfItem) => {
     emit('close');
 };
 
-let searchTimeout: number;
+let searchTimeout: ReturnType<typeof setTimeout>;
 watch(search, () => {
     clearTimeout(searchTimeout);
     searchTimeout = setTimeout(() => loadItems(), 500);

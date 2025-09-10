@@ -23,7 +23,7 @@ const search = ref('');
 const headers = [
     { title: 'Nomor', key: 'kode', sortable: false, width: '200px' },
     { title: 'Nama', key: 'nama', sortable: false, width: '40%' },
-    { title: 'Jumlah', key: 'jumlah', sortable: false, align: 'end' },
+    { title: 'Jumlah', key: 'jumlah', sortable: false, align: 'end' as const },
     { title: 'Tanggal', key: 'tanggal', sortable: false },
     { title: 'Tipe', key: 'tipe', sortable: false },
 ];

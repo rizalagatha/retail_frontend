@@ -34,6 +34,10 @@ import DasborDtfView from '@/views/DasborDtfView.vue';
 import SoDtfStokView from '@/views/SoDtfStokView.vue';
 import SoDtfStokCreateView from '@/views/SoDtfStokCreateView.vue';
 import SoDtfStokPrintView from '@/views/SoDtfStokPrintView.vue';
+import LhkSoDtfStokView from '@/views/LhkSoDtfStokView.vue';
+import LhkSoDtfStokCreateView from '@/views/LhkSoDtfStokCreateView.vue';
+import SoView from '@/views/SoView.vue';
+import SoPrintView from '@/views/SoPrintView.vue';
 import LaporanStokView from '@/views/LaporanStokView.vue';
 
 const routes = [
@@ -345,7 +349,7 @@ const routes = [
     meta: {
       title: 'SO DTF Stok',
       requiresAuth: true,
-      menuId: '36' // ID Menu untuk SO DTF Stok
+      menuId: '36'
     }
   },
   {
@@ -372,6 +376,55 @@ const routes = [
     path: '/transaksi/dtf/so-dtf-stok/print/:nomor',
     name: 'Cetak SO DTF Stok',
     component: SoDtfStokPrintView,
+    meta: {
+      requiresAuth: true,
+      printLayout: true
+    }
+  },
+  {
+    path: '/transaksi/dtf/lhk-so-dtf-stok',
+    name: 'LhkSoDtfStok',
+    component: LhkSoDtfStokView,
+    meta: {
+      title: 'LHK SO DTF Stok',
+      requiresAuth: true,
+      menuId: '48'
+    }
+  },
+  {
+    path: '/transaksi/dtf/lhk-so-dtf-stok/new',
+    name: 'LhkSoDtfStokCreate',
+    component: LhkSoDtfStokCreateView,
+    meta: {
+      title: 'Buat LHK SO DTF Stok',
+      requiresAuth: true,
+      menuId: '48'
+    }
+  },
+  {
+    path: '/transaksi/dtf/lhk-so-dtf-stok/ubah/:nomor',
+    name: 'LhkSoDtfStokEdit',
+    component: LhkSoDtfStokCreateView,
+    meta: {
+      title: 'Ubah LHK SO DTF Stok',
+      requiresAuth: true,
+      menuId: '48'
+    }
+  },
+  {
+    path: '/transaksi/surat-pesanan',
+    name: 'frmBrowseSo',
+    component: SoView,
+    meta: {
+      title: 'Surat Pesanan',
+      requiresAuth: true,
+      menuId: '26'
+    }
+  },
+  {
+    path: '/transaksi/surat-pesanan/print/:nomor',
+    name: 'Cetak Surat Pesanan',
+    component: SoPrintView,
     meta: {
       requiresAuth: true,
       printLayout: true

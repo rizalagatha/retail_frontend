@@ -1,4 +1,3 @@
-<!-- src/components/Navbar.vue -->
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
@@ -133,12 +132,12 @@ const menuItems = [
               },
               {
                 title: 'LHK SO DTF Stok',
-                to: '/lhk-so-dtf-stok',
+                to: '/transaksi/dtf/lhk-so-dtf-stok',
                 icon: 'mdi-chart-box-outline'
               }
             ]
           },
-          { title: 'Surat Pesanan', to: '/sales-orders', icon: 'mdi-file-document-edit-outline' },
+          { title: 'Surat Pesanan', to: '/transaksi/surat-pesanan', icon: 'mdi-file-document-edit-outline' },
           { title: 'Proforma Invoice', to: '/proforma-invoices', icon: 'mdi-receipt-text-outline' },
           { title: 'Invoice', to: '/invoices', icon: 'mdi-receipt' },
           { title: 'Retur Jual', to: '/returns', icon: 'mdi-keyboard-return' }
@@ -289,16 +288,6 @@ const closeMenus = () => {
   })
 }
 
-const closeAllMenus = () => {
-  fileMenu.value = false
-  daftarMenu.value = false
-  transaksiMenu.value = false
-  piutangMenu.value = false
-  gudangMenu.value = false
-  laporanMenu.value = false
-  userMenu.value = false
-}
-
 // Event handlers
 const handleLogout = () => {
   authStore.logout()
@@ -339,7 +328,7 @@ onUnmounted(() => {
     <nav class="main-navigation">
       <template v-for="menu in menuItems" :key="menu.title">
         <!-- Standard Menu Items -->
-        <v-menu v-if="!menu.isLarge && (!menu.to || hasAccess(menu.to))" v-model="menu.model.value" offset-y
+        <v-menu v-if="!menu.isLarge && (!('to' in menu) || hasAccess(menu.to as string))" v-model="menu.model.value" offset-y
           :close-on-content-click="false"
           :max-width="menu.title === 'Transaksi' ? 1200 : menu.title === 'Gudang DC' ? 1200 : 1000"
           transition="fade-transition" class="nav-menu large" location="bottom center" origin="top center">

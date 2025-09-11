@@ -188,3 +188,23 @@
     justify-content: center;
     align-items: center;
 }
+
+.footer-right .v-field--variant-filled .v-field__input {
+    font-size: 11px !important;
+}
+
+/* Menyesuaikan tinggi agar tetap rapi */
+.footer-right .v-input--density-compact {
+    --v-input-control-height: 28px;
+    --v-input-padding-top: 5px;
+}
+
+.footer-left .v-field--variant-filled .v-field__input {
+    font-size: 11px !important;
+}
+
+/* Menyesuaikan tinggi agar tetap rapi */
+.footer-left .v-input--density-compact {
+    --v-input-control-height: 28px;
+    --v-input-padding-top: 5px;
+}

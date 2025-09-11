@@ -38,6 +38,7 @@ import LhkSoDtfStokView from '@/views/LhkSoDtfStokView.vue';
 import LhkSoDtfStokCreateView from '@/views/LhkSoDtfStokCreateView.vue';
 import SoView from '@/views/SoView.vue';
 import SoPrintView from '@/views/SoPrintView.vue';
+import SoCreateView from '@/views/SoCreateView.vue';
 import LaporanStokView from '@/views/LaporanStokView.vue';
 
 const routes = [
@@ -429,6 +430,18 @@ const routes = [
       requiresAuth: true,
       printLayout: true
     }
+  },
+  {
+    path: '/transaksi/surat-pesanan/new',
+    name: 'SuratPesananCreate',
+    component: SoCreateView,
+    meta: { title: 'Buat Surat Pesanan', requiresAuth: true, menuId: '26' }
+  },
+  {
+    path: '/transaksi/surat-pesanan/ubah/:nomor',
+    name: 'SuratPesananEdit',
+    component: SoCreateView,
+    meta: { title: 'Ubah Surat Pesanan', requiresAuth: true, menuId: '26' }
   },
   {
     path: '/laporan/stok',

@@ -90,6 +90,7 @@ const productCategory = ref('Kaosan');
 const isCustomerSearchVisible = ref(false);
 const isGudangSearchVisible = ref(false);
 const isProductSearchVisible = ref(false);
+const isMultiSelectProduct = ref(false);
 const isSoDtfSearchVisible = ref(false);
 const isPriceProposalSearchVisible = ref(false);
 const activeRowIndex = ref(0);
@@ -106,6 +107,9 @@ const isItemAuthModalVisible = ref(false);
 const activeItemIndexForAuth = ref(-1);
 const previousItemDiscount = ref({ persen: 0, rp: 0 });
 const challengeCode = ref('');
+const authModalRef = ref<any>(null);
+const auth2ModalRef = ref<any>(null);
+const itemAuthModalRef = ref<any>(null);
 
 const isEditMode = computed(() => !!route.params.nomor);
 const pageTitle = computed(() => isEditMode.value ? `Ubah Penawaran: ${header.value.nomor}` : 'Buat Penawaran Baru');
@@ -235,42 +239,46 @@ const onGudangSelected = async (gudang: Gudang) => {
     }
 };
 
-const openProductSearch = (index: number) => {
+const openProductSearch = (index: number, isMulti: boolean) => {
     if (!header.value.customer) {
         toast.error('Pilih Customer terlebih dahulu.');
         return;
     }
     activeRowIndex.value = index;
+    isMultiSelectProduct.value = isMulti;
     isProductSearchVisible.value = true;
 };
 
-const onProductSelected = async (product: { kode: string }) => {
+const onProductsSelected = async (selectedProducts: any[]) => {
     isProductSearchVisible.value = false;
-    if (!product || !product.kode) return;
+    if (!selectedProducts || selectedProducts.length === 0) return;
 
-    try {
-        const response = await api.get(`/barcode-form/product-details/${product.kode}`);
-        const productDetails = response.data;
-        items.value.splice(activeRowIndex.value, 1);
-        if (Array.isArray(productDetails)) {
-            productDetails.forEach((detail: any) => {
-                const isDuplicate = items.value.some(item => item.barcode === detail.barcode);
-                if (!isDuplicate) {
-                    items.value.push({
-                        ...detail,
-                        id: Date.now() + Math.random(),
-                        jumlah: 1,
-                        diskonPersen: 0,
-                        diskonRp: 0,
-                        total: detail.harga
-                    });
-                }
+    items.value.splice(activeRowIndex.value, 1);
+
+    selectedProducts.forEach(product => {
+        const isDuplicate = items.value.some(item => item.barcode === product.barcode);
+        if (!isDuplicate) {
+            items.value.push({
+                id: Date.now() + Math.random(),
+                kode: product.kode,
+                nama: product.nama,
+                ukuran: product.ukuran,
+                stok: product.stok,
+                harga: product.harga,
+                jumlah: 1, // Default jumlah 1
+                diskonPersen: 0,
+                diskonRp: 0,
+                total: product.harga, // Total awal
+                barcode: product.barcode,
+                noSoDtf: '',
+                noPengajuanHarga: '',
+                pin: ''
             });
         }
-        addNewRow();
-    } catch (error) {
-        toast.error(`Gagal memuat detail produk.`);
-    }
+    });
+
+    addNewRow(); // Tambah baris kosong baru di akhir
+    calculateTotals(); // Hitung ulang total
 };
 
 const calculateTotals = () => {
@@ -304,11 +312,11 @@ const calculateTotals = () => {
     //     footer.value.diskonPersen1 = 0;
     // }
 
-    let discount1 = (footer.value.diskonPersen1 / 100) * subtotal;
-    let afterDiscount1 = subtotal - discount1;
-    let discount2 = (footer.value.diskonPersen2 / 100) * afterDiscount1;
+    const discount1 = (footer.value.diskonPersen1 / 100) * subtotal;
+    const afterDiscount1 = subtotal - discount1;
+    const discount2 = (footer.value.diskonPersen2 / 100) * afterDiscount1;
     footer.value.diskonRp = discount1 + discount2;
-    let netto = subtotal - footer.value.diskonRp;
+    const netto = subtotal - footer.value.diskonRp;
     footer.value.netto = netto;
     footer.value.ppnRp = (header.value.ppnPersen / 100) * netto;
     footer.value.grandTotal = netto + footer.value.ppnRp + (Number(footer.value.biayaKirim) || 0);
@@ -432,18 +440,27 @@ const handleDiscountChange = async () => {
 
 const onAuthSuccess = async (pin: string) => {
     try {
-        // Panggil API validasi PIN yang baru
         await api.post('/auth-pin/validate', {
             code: challengeCode.value,
             pin: pin
         });
 
-        footer.value.pinDiskon1 = pin; // Simpan PIN yang valid
+        footer.value.pinDiskon1 = pin;
         isAuthModalVisible.value = false;
         toast.success('Otorisasi diskon berhasil.');
         calculateTotals();
     } catch (error: any) {
-        toast.error(error.response?.data?.message || 'Otorisasi Gagal.');
+        // --- 👇 PENANGANAN ERROR LOKAL 👇 ---
+        // Jika status error adalah 401 (PIN salah), tangani di sini
+        if (error.response && error.response.status === 401) {
+            // Panggil method 'setFailed' di komponen modal untuk menampilkan pesan error
+            if (authModalRef.value) {
+                authModalRef.value.setFailed(error.response.data.message || 'Otorisasi Gagal.');
+            }
+        } else {
+            // Jika error lain, tampilkan toast seperti biasa
+            toast.error(error.response?.data?.message || 'Terjadi kesalahan.');
+        }
     }
 };
 
@@ -479,7 +496,17 @@ const onItemAuthSuccess = async (pin: string) => {
         toast.success('Otorisasi diskon item berhasil.');
         calculateTotals();
     } catch (error: any) {
-        toast.error(error.response?.data?.message || 'Otorisasi Gagal.');
+        // --- 👇 PENANGANAN ERROR LOKAL 👇 ---
+        // Jika status error adalah 401 (PIN salah), tangani di sini
+        if (error.response && error.response.status === 401) {
+            // Panggil method 'setFailed' di komponen modal untuk menampilkan pesan error
+            if (ItemAuthModalRef.value) {
+                ItemAuthModalRef.value.setFailed(error.response.data.message || 'Otorisasi Gagal.');
+            }
+        } else {
+            // Jika error lain, tampilkan toast seperti biasa
+            toast.error(error.response?.data?.message || 'Terjadi kesalahan.');
+        }
     }
 };
 
@@ -517,7 +544,17 @@ const onAuth2Success = async (pin: string) => {
         toast.success('Otorisasi diskon berhasil.');
         calculateTotals();
     } catch (error: any) {
-        toast.error(error.response?.data?.message || 'Otorisasi Gagal.');
+        // --- 👇 PENANGANAN ERROR LOKAL 👇 ---
+        // Jika status error adalah 401 (PIN salah), tangani di sini
+        if (error.response && error.response.status === 401) {
+            // Panggil method 'setFailed' di komponen modal untuk menampilkan pesan error
+            if (auth2ModalRef.value) {
+                auth2ModalRef.value.setFailed(error.response.data.message || 'Otorisasi Gagal.');
+            }
+        } else {
+            // Jika error lain, tampilkan toast seperti biasa
+            toast.error(error.response?.data?.message || 'Terjadi kesalahan.');
+        }
     }
 };
 
@@ -769,13 +806,11 @@ onMounted(() => {
                 <v-data-table :headers="tableHeaders" :items="items" density="compact" class="desktop-table"
                     fixed-header :items-per-page="-1">
                     <template #item.kode="{ item }">
-                        <v-text-field v-model="item.kode" readonly
-                            @keydown.f1.prevent="openProductSearch(items.indexOf(item))" placeholder="F1..."
-                            variant="underlined" dense hide-details single-line>
-                            <template #append-inner>
-                                <v-icon @click="openProductSearch(items.indexOf(item))"
-                                    size="small">mdi-magnify</v-icon>
-                            </template>
+                        <v-text-field v-model="item.kode" variant="underlined" density="compact" hide-details
+                            placeholder="F1/F2..." @keydown.f1.prevent="openProductSearch(index, false)"
+                            @keydown.f2.prevent="openProductSearch(index, true)">
+                            <template #append-inner><v-icon
+                                    @click="openProductSearch(index, false)">mdi-magnify</v-icon></template>
                         </v-text-field>
                     </template>
                     <template #item.jumlah="{ item }"><v-text-field v-model.number="item.jumlah" type="number"
@@ -822,14 +857,15 @@ onMounted(() => {
             @close="isCustomerSearchVisible = false" @customer-selected="onCustomerSelected" />
         <GudangSearchModal v-if="isGudangSearchVisible" :user-cabang="authStore.user?.cabang || ''"
             @close="isGudangSearchVisible = false" @gudang-selected="onGudangSelected" />
-        <ProductSearchModal v-if="isProductSearchVisible" :category="productCategory" :gudang="header.gudang.kode"
-            @close="isProductSearchVisible = false" @product-selected="onProductSelected" />
-        <AuthorizationModal v-if="isAuthModalVisible" title="Otorisasi Ganti Diskon Faktur"
+        <ProductSearchModal v-if="isProductSearchVisible" :category="'Kaosan'" :gudang="header.gudang.kode"
+            :multi="isMultiSelectProduct" @close="isProductSearchVisible = false"
+            @products-selected="onProductsSelected" />
+        <AuthorizationModal ref="authModalRef" v-if="isAuthModalVisible" title="Otorisasi Ganti Diskon Faktur"
             :challenge-code="challengeCode" @close="onAuthCancel" @success="onAuthSuccess" />
-        <AuthorizationModal v-if="isItemAuthModalVisible" title="Otorisasi Diskon per Item"
+        <AuthorizationModal ref="ItemAuthModalRef" v-if="isItemAuthModalVisible" title="Otorisasi Diskon per Item"
             :challenge-code="challengeCode" @close="onItemAuthCancel" @success="onItemAuthSuccess" />
-        <AuthorizationModal v-if="isAuth2ModalVisible" title="Otorisasi Ganti Diskon 2" :challenge-code="challengeCode"
-            @close="onAuth2Cancel" @success="onAuth2Success" />
+        <AuthorizationModal ref="auth2ModalRef" v-if="isAuth2ModalVisible" title="Otorisasi Ganti Diskon 2"
+            :challenge-code="challengeCode" @close="onAuth2Cancel" @success="onAuth2Success" />
         <SoDtfSearchModal v-if="isSoDtfSearchVisible" :cabang="header.gudang.kode" :customerKode="header.customer?.kode"
             @close="isSoDtfSearchVisible = false" @selected="onSoDtfSelected" />
         <PriceProposalSearchModal v-if="isPriceProposalSearchVisible" :cabang="header.gudang.kode"

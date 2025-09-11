@@ -8,28 +8,39 @@ const { title, challengeCode } = defineProps<{
 const emit = defineEmits(['close', 'success']);
 
 const pin = ref('');
+const errorMessage = ref('');
 
 const submit = () => {
   // Hanya kirim PIN yang diinput ke parent, jangan panggil API di sini
   emit('success', pin.value);
 };
+
+const setFailed = (message: string) => {
+  errorMessage.value = message;
+  pin.value = ''; // Kosongkan input
+};
+
+defineExpose({ setFailed });
 </script>
 
 <template>
   <v-dialog :model-value="true" persistent max-width="350px">
     <v-card>
-      <v-card-title class="text-subtitle-1 font-weight-bold">{{ title }}</v-card-title>
+      <v-card-title>{{ title }}</v-card-title>
       <v-card-text>
         <div class="text-center mb-4">
             <div class="text-caption">Kode</div>
             <div class="text-h4 font-weight-bold">{{ challengeCode }}</div>
         </div>
-        <v-otp-input
+        <v-text-field
             v-model="pin"
-            :length="6"
-            @finish="submit"
+            label="Otorisasi"
+            variant="outlined"
+            density="compact"
+            @keyup.enter="submit"
             autofocus
-        ></v-otp-input>
+            :error-messages="errorMessage"
+        ></v-text-field>
       </v-card-text>
       <v-card-actions>
         <v-spacer></v-spacer>
@@ -39,7 +50,3 @@ const submit = () => {
     </v-card>
   </v-dialog>
 </template>
-
-<style scoped>
-/* Optional: styling untuk OTP input */
-</style>

@@ -64,7 +64,6 @@ const selectGudang = (item: Gudang) => {
   };
 
   if (gudangData.kode) {
-    console.log('Gudang selected:', gudangData);
     emit('gudang-selected', gudangData);
   } else {
     console.warn('Data gudang tidak valid:', item);

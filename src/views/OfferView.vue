@@ -108,7 +108,7 @@ const tableHeaders = [
     { title: 'Nominal', key: 'nominal', align: 'end', width: '120px' },
     { title: 'Kode Customer', key: 'kdcus', width: '120px' },
     { title: 'Nama Customer', key: 'nama', width: '250px' },
-    { title: 'Alamat', key: 'alamat', width: '300px' },
+    { title: 'Alamat', key: 'alamat', width: '600px' },
     { title: 'Kota', key: 'kota', width: '150px' },
     { title: 'Telepon', key: 'telp', width: '120px' },
     { title: 'Level', key: 'level', width: '150px' },
@@ -404,7 +404,6 @@ onMounted(() => {
 
 // Watcher untuk expanded items sebagai backup
 watch(expanded, (newExpanded, oldExpanded) => {
-    console.log('Watcher - Expanded changed from', oldExpanded, 'to', newExpanded);
     if (newExpanded.length > 0) {
         loadDetails(newExpanded);
     }

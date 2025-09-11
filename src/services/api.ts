@@ -29,21 +29,22 @@ api.interceptors.request.use(
   }
 );
 
+// Versi baru yang lebih "pintar"
 api.interceptors.response.use(
-  (response) => {
-    // Jika response sukses, langsung kembalikan
-    return response;
-  },
+  (response) => response,
   (error) => {
     const authStore = useAuthStore();
-    
-    // Cek jika error adalah 401 (Unauthorized)
     if (error.response && error.response.status === 401) {
-      // Panggil fungsi untuk menampilkan dialog sesi habis
-      authStore.handleSessionExpired();
+      
+      // --- PERBAIKAN DI SINI ---
+      // Cek apakah URL yang error BUKAN URL validasi PIN
+      if (!error.config.url.includes('/auth-pin/validate')) {
+        // Jika BUKAN dari validasi PIN, baru anggap sesi habis
+        authStore.isSessionExpired = true;
+      }
+      // Jika INI ADALAH URL validasi PIN, kita tidak melakukan apa-apa di sini,
+      // kita biarkan komponen (SoCreateView) yang menanganinya di blok `catch`.
     }
-
-    // Kembalikan error agar bisa ditangani lebih lanjut jika perlu
     return Promise.reject(error);
   }
 );

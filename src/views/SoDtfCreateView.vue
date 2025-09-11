@@ -85,23 +85,12 @@ const initialFormState = {
     imageUrl: null as string | null
 };
 
-const form = ref<HeaderItem>({
-    nomor: null,
-    tanggal: format(new Date(), 'yyyy-MM-dd'),
-    tglPengerjaan: format(new Date(), 'yyyy-MM-dd'),
-    datelineCustomer: format(new Date(), 'yyyy-MM-dd'),
-    salesKode: '', salesNama: '',
-    customerKode: '', customerNama: '',
-    jenisOrderKode: '', jenisOrderNama: '',
-    namaDtf: '', kain: '', finishing: '', desain: '',
-    workshopKode: authStore.user?.cabang || '', workshopNama: '',
-    keterangan: '', imageUrl: null,
-});
-
+const form = ref({ ...initialFormState })
 const detailsUkuran = ref<DetailUkuran[]>([]);
 const detailsTitik = ref<DetailTitik[]>([]);
-const imagePreview = ref<string | null>(null);
-const imageFile = ref<File[]>([]);
+const imagePreview = ref<string | null>(null)
+const imageFile = ref<File[] | null>(null)
+const isImageUploading = ref(false);
 const sisaKuota = ref(0);
 const isImageFullscreenVisible = ref(false); // State untuk modal fullscreen
 const isConfirmDialogVisible = ref(false);
@@ -133,6 +122,14 @@ const isHargaReadonly = computed(() => {
 });
 
 // --- Methods ---
+const getFullImageUrl = (path: string | null) => {
+    if (!path) return null
+    if (path.startsWith("http")) return path
+
+    // path dari backend contoh: /images/KDC/...
+    return `${import.meta.env.VITE_API_BASE_URL}${path}`
+}
+
 const addDetailUkuran = () => {
     if (detailsUkuran.value.length === 0 || detailsUkuran.value[detailsUkuran.value.length - 1].ukuran) {
         detailsUkuran.value.push({ id: Date.now(), ukuran: '', jumlah: null, harga: null });
@@ -153,33 +150,60 @@ const removeDetailTitik = (id: number) => {
 const fetchDataForEdit = async (nomor: string) => {
     isLoading.value = true;
     try {
+
         const response = await api.get(`/so-dtf-form/${nomor}`);
-        form.value = response.data.header;
-        form.value.nomor = response.data.nomor;
-        form.value.tanggal = format(new Date(response.data.tanggal), 'yyyy-MM-dd');
-        form.value.tglPengerjaan = format(new Date(response.data.tglPengerjaan), 'yyyy-MM-dd');
-        form.value.datelineCustomer = format(new Date(response.data.datelineCustomer), 'yyyy-MM-dd');
-        form.value.salesKode = response.data.salesKode;
-        form.value.salesNama = response.data.salesNama;
-        form.value.customerKode = response.data.customerKode;
-        form.value.customerNama = response.data.customerNama;
-        form.value.jenisOrderKode = response.data.jenisOrderKode;
-        form.value.jenisOrderNama = response.data.jenisOrderNama;
-        form.value.namaDtf = response.data.namaDtf;
-        form.value.kain = response.data.kain;
-        form.value.finishing = response.data.finishing;
-        form.value.desain = response.data.desain;
-        form.value.workshopKode = response.data.workshopKode;
-        form.value.workshopNama = response.data.workshopNama;
-        form.value.keterangan = response.data.keterangan;
-        imagePreview.value = response.data.imageUrl;
-        detailsUkuran.value = response.data.detailsUkuran.map((d: any, i: number) => ({ ...d, id: Date.now() + i }));
-        detailsTitik.value = response.data.detailsTitik.map((d: any, i: number) => ({ ...d, id: Date.now() + i + 1000 }));
+        const data = response.data;
+
+        // Set form data
+        form.value = {
+            nomor: data.header.nomor,
+            tanggal: format(new Date(data.header.tanggal), 'yyyy-MM-dd'),
+            tglPengerjaan: format(new Date(data.header.tglPengerjaan), 'yyyy-MM-dd'),
+            datelineCustomer: format(new Date(data.header.datelineCustomer), 'yyyy-MM-dd'),
+            salesKode: data.header.salesKode || '',
+            salesNama: data.header.salesNama || '',
+            customerKode: data.header.customerKode || '',
+            customerNama: data.header.customerNama || '',
+            customerAlamat: data.header.customerAlamat || '',
+            customerLevel: data.header.customerLevel || '',
+            jenisOrderKode: data.header.jenisOrderKode || '',
+            jenisOrderNama: data.header.jenisOrderNama || '',
+            namaDtf: data.header.namaDtf || '',
+            kain: data.header.kain || '',
+            finishing: data.header.finishing || '',
+            desain: data.header.desain || '',
+            workshopKode: data.header.workshopKode || '',
+            workshopNama: data.header.workshopNama || '',
+            keterangan: data.header.keterangan || '',
+            hargaPerCm: data.header.hargaPerCm || 0,
+            user: data.header.user || '',
+            imageUrl: data.header.imageUrl || null
+        };
+
+        // Set preview dari gambar existing (jika ada)
+        imagePreview.value = getFullImageUrl(data.header.imageUrl);
+
+        // Clear file input karena ini data existing
+        imageFile.value = [];
+
+        // Set detail data
+        detailsUkuran.value = data.detailsUkuran.map((d: any, i: number) => ({
+            ...d,
+            id: Date.now() + i
+        }));
+
+        detailsTitik.value = data.detailsTitik.map((d: any, i: number) => ({
+            ...d,
+            id: Date.now() + i + 1000
+        }));
 
         addDetailUkuran();
         addDetailTitik();
+
         toast.success(`Data untuk ${nomor} berhasil dimuat.`);
-    } catch (error) {
+
+    } catch (error: any) {
+        console.error('Error loading data:', error);
         toast.error(error.response?.data?.message || 'Gagal memuat data SO DTF');
         router.push('/transaksi/dtf/so-dtf');
     } finally {
@@ -187,26 +211,36 @@ const fetchDataForEdit = async (nomor: string) => {
     }
 };
 
-const handleImageUpload = (files: File[]) => {
-    const file = files[0];
-    if (!file) {
-        imagePreview.value = form.value.imageUrl || null;
-        imageFile.value = [];
-        return;
-    }
-    if (file.size > 1024 * 1024) { // 1MB limit, sama seperti Delphi
-        toast.error('Ukuran gambar tidak boleh lebih dari 1MB.');
-        imageFile.value = [];
-        imagePreview.value = null;
-        return;
-    }
-    const reader = new FileReader();
-    reader.onload = (e) => {
-        imagePreview.value = e.target?.result as string;
-    };
-    reader.readAsDataURL(file);
+const handleFileSelection = (files: File[] | null) => {
+  if (!files || files.length === 0) {
+    imagePreview.value = form.value.imageUrl ? getFullImageUrl(form.value.imageUrl) : null
+    return
+  }
 
-    imageFile.value = [file];
+  const file = files[0]
+
+  // validasi ukuran & tipe
+  if (file.size > 1024 * 1024 || !["image/jpeg","image/jpg","image/png","image/gif"].includes(file.type)) {
+    toast.error("File tidak valid")
+    return
+  }
+
+  // buat preview
+  imagePreview.value = URL.createObjectURL(file)
+
+  // Jangan set imageFile.value = files, biarkan v-model handle
+}
+
+const clearImage = () => {
+
+    // Cleanup blob URL
+    if (imagePreview.value && imagePreview.value.startsWith('blob:')) {
+        URL.revokeObjectURL(imagePreview.value);
+    }
+
+    imagePreview.value = null;
+    imageFile.value = [];
+    form.value.imageUrl = null;
 };
 
 const resetForm = () => {
@@ -219,8 +253,38 @@ const resetForm = () => {
     addDetailTitik();
 };
 
+const uploadImageToServer = async (nomor: string): Promise<boolean> => {
+    if (!imageFile.value || imageFile.value.length === 0) return true
+
+    isImageUploading.value = true
+    try {
+        const formData = new FormData()
+        formData.append("image", imageFile.value[0])
+
+        const response = await api.post(`/so-dtf-form/upload-image/${nomor}`, formData, {
+            headers: { "Content-Type": "multipart/form-data" }
+        })
+
+        if (response.data.success) {
+            form.value.imageUrl = response.data.imageUrl
+            imagePreview.value = getFullImageUrl(response.data.imageUrl)
+            imageFile.value = null
+            toast.success("Gambar berhasil diunggah")
+            return true
+        } else {
+            throw new Error(response.data.message || "Upload gagal")
+        }
+    } catch (error: any) {
+        toast.error("Upload gagal: " + (error.response?.data?.message || error.message))
+        return false
+    } finally {
+        isImageUploading.value = false
+    }
+}
+
+
 const save = async () => {
-    // --- Validasi Header (dari btnSimpanClick) ---
+    // Validasi existing...
     if (!form.value.salesKode) {
         toast.error("Sales harus diisi.");
         return;
@@ -233,17 +297,20 @@ const save = async () => {
         toast.error("Jenis Order harus diisi.");
         return;
     }
-    // TODO: Tambahkan validasi tanggal jika diperlukan (dttanggal.date < zdtCloseTrs)
 
-    // Filter baris yang benar-benar diisi saja
     const validDetailsUkuran = detailsUkuran.value.filter(d => d.ukuran && d.jumlah);
     const validDetailsTitik = detailsTitik.value.filter(d => d.keterangan);
 
-    // --- Validasi Grid 1 (Ukuran Kaos) ---
     if (validDetailsUkuran.length === 0) {
         toast.error("Detail Ukuran Kaos harus diisi minimal 1 baris.");
         return;
     }
+
+    if (validDetailsTitik.length === 0) {
+        toast.error("Detail Titik Bordir/Cetak harus diisi minimal 1 baris.");
+        return;
+    }
+
     for (const item of validDetailsUkuran) {
         if (!item.jumlah || item.jumlah <= 0) {
             toast.error(`Jumlah untuk ukuran '${item.ukuran}' harus lebih dari 0.`);
@@ -251,11 +318,6 @@ const save = async () => {
         }
     }
 
-    // --- Validasi Grid 2 (Titik Bordir/Cetak) ---
-    if (validDetailsTitik.length === 0) {
-        toast.error("Detail Titik Bordir/Cetak harus diisi minimal 1 baris.");
-        return;
-    }
     for (const item of validDetailsTitik) {
         if (form.value.jenisOrderKode === 'TG' && !item.sizeCetak) {
             toast.error(`Size Cetak untuk '${item.keterangan}' harus dipilih jika Jenis Order adalah DTG.`);
@@ -271,52 +333,51 @@ const save = async () => {
         }
     }
 
-    // --- Konfirmasi Simpan (dari MessageDlg) ---
     showConfirmation(async () => {
         isSaving.value = true;
 
-        const payload = {
-            header: {
-                ...form.value,
-                imageUrl: form.value.imageUrl // <-- tambahkan ini
-            },
-            detailsUkuran: validDetailsUkuran,
-            detailsTitik: validDetailsTitik,
-            user: authStore.user // <-- TAMBAHKAN INFORMASI USER
-        };
-
-        let nomorSoDtf = form.value.nomor;
-
         try {
             // 1. Simpan data utama
-            const response = isEditMode.value
-                ? await api.put(`/so-dtf-form/${form.value.nomor}`, payload)
-                : await api.post('/so-dtf-form', payload);
+            const payload: any = {
+                header: { ...form.value },
+                detailsUkuran: validDetailsUkuran,
+                detailsTitik: validDetailsTitik
+            }
 
-            const savedNomor = isEditMode.value ? form.value.nomor : response.data.header.sd_nomor;
-            toast.success(response.data.message);
+            let savedNomor: string;
 
-            // 2. Jika ada file, unggah sekarang
-            if (imageFile.value.length > 0 && savedNomor) {
-                const formData = new FormData();
-                formData.append('image', imageFile.value[0]);
-                try {
-                    await api.post(`/so-dtf-form/upload-image/${savedNomor}`, formData);
-                    toast.success('Gambar berhasil diunggah.');
-                } catch (uploadError) {
-                    toast.warning('Data berhasil disimpan, tapi gambar gagal diunggah.');
+            if (isEditMode.value) {
+                if (!form.value.nomor) {
+                    toast.error("Nomor tidak ditemukan, tidak bisa update.")
+                    return
+                }
+                await api.put(`/so-dtf-form/${form.value.nomor}`, payload)
+                savedNomor = form.value.nomor
+            } else {
+                delete payload.header.nomor // jangan kirim null
+                const response = await api.post("/so-dtf-form", payload)
+                savedNomor = response.data.header.sd_nomor
+            }
+
+            toast.success("Data berhasil disimpan.")
+
+            // 2. Upload gambar jika ada
+            if (imageFile.value && imageFile.value.length > 0) {
+                const uploadSuccess = await uploadImageToServer(savedNomor)
+                if (!uploadSuccess) {
+                    toast.warning("Data berhasil disimpan, tapi gambar gagal diunggah.")
                 }
             }
 
-            router.push('/transaksi/dtf/so-dtf');
-
+            router.push("/transaksi/dtf/so-dtf")
         } catch (error: any) {
-            toast.error(error.response?.data?.message || 'Gagal menyimpan data.');
+            console.error("Save error:", error)
+            toast.error(error.response?.data?.message || "Gagal menyimpan data.")
         } finally {
-            isSaving.value = false;
+            isSaving.value = false
         }
-    }, "Anda yakin ingin menyimpan data ini?");
-};
+    }, "Anda yakin ingin menyimpan data ini?")
+}
 
 const cancel = () => {
     router.push('/transaksi/dtf/so-dtf');
@@ -514,6 +575,13 @@ const calculatePrices = async () => {
     });
 };
 
+const cleanupPreviewUrl = () => {
+    if (imagePreview.value && imagePreview.value.startsWith('blob:')) {
+        URL.revokeObjectURL(imagePreview.value);
+    }
+};
+
+
 watch(
     () => [form.value.tglPengerjaan, form.value.jenisOrderKode],
     () => { fetchSisaKuota(); },
@@ -545,23 +613,6 @@ watch(
     { deep: true } // deep: true penting untuk memantau perubahan di dalam array of objects
 );
 
-watch(imageFile, (newFiles) => {
-    const file = newFiles[0];
-    if (file) {
-        // Validasi ukuran
-        if (file.size > 1024 * 1024) { // 1MB
-            toast.error('Ukuran gambar tidak boleh lebih dari 1MB.');
-            imageFile.value = []; // Reset
-            return;
-        }
-        // Buat URL lokal untuk preview
-        imagePreview.value = URL.createObjectURL(file);
-    } else {
-        // Jika file dibatalkan, kembalikan ke gambar dari server (jika ada)
-        imagePreview.value = form.value.imageUrl;
-    }
-});
-
 onMounted(() => {
     if (!authStore.can(MENU_ID, requiredPermission.value)) {
         toast.error(`Anda tidak memiliki izin untuk ${requiredPermission.value === 'insert' ? 'membuat' : 'mengubah'} data.`);
@@ -577,6 +628,7 @@ onMounted(() => {
     }
     fetchUkuranKaosList();
 });
+
 </script>
 
 <template>
@@ -660,19 +712,85 @@ onMounted(() => {
                                 density="compact" hide-details />
                         </v-col>
                         <v-col cols="12" md="6">
-                            <div class="d-flex align-center ga-2">
-                                <v-file-input v-model="imageFile" label="Upload Gambar (Max 1Mb)" variant="outlined"
-                                    density="compact" prepend-icon="mdi-camera" hide-details clearable
-                                    accept="image/jpeg, image/png" />
-                                <v-btn @click="isImageFullscreenVisible = true" :disabled="!imagePreview"
-                                    icon="mdi-fullscreen" size="small" variant="tonal"
-                                    title="Lihat Ukuran Penuh"></v-btn>
-                            </div>
-                            <v-img v-if="imagePreview" class="mt-2 border rounded" height="120" aspect-ratio="16/9"
-                                cover :src="imagePreview"></v-img>
-                            <div v-else class="mt-2 border rounded d-flex align-center justify-center bg-grey-lighten-4"
-                                style="height: 85px;">
-                                <span class="text-caption text-grey">Tidak ada gambar</span>
+                            <div class="image-upload-section">
+                                <v-row dense>
+                                    <v-col cols="12" md="6">
+                                        <div class="image-section">
+                                            <!-- File Input -->
+                                            <div class="d-flex align-center ga-2 mb-3">
+                                                <v-file-input v-model="imageFile" label="Upload Gambar (Max 1MB)"
+                                                    variant="outlined" density="compact" prepend-icon="mdi-camera"
+                                                    hide-details clearable
+                                                    accept="image/jpeg,image/png,image/jpg,image/gif"
+                                                    :loading="isImageUploading" :disabled="isImageUploading"
+                                                    @update:model-value="handleFileSelection" />
+                                                <v-btn @click="uploadImageToServer(form.nomor)"
+                                                    :disabled="!(imageFile?.length > 0) || isImageUploading"
+                                                    icon="mdi-upload" size="small" variant="tonal"
+                                                    title="Upload ke Server" />
+                                                <v-btn @click="clearImage" :disabled="!imagePreview || isImageUploading"
+                                                    icon="mdi-delete" size="small" variant="tonal" color="error"
+                                                    title="Hapus Gambar" />
+                                            </div>
+
+                                            <!-- Image Preview -->
+                                            <div class="image-preview-container">
+                                                <div v-if="imagePreview" class="position-relative">
+                                                    <v-img :src="imagePreview" height="200" aspect-ratio="16/9" cover
+                                                        class="border rounded elevation-1">
+                                                        <v-overlay v-if="isImageUploading" contained persistent
+                                                            class="d-flex align-center justify-center">
+                                                            <div class="text-center text-white">
+                                                                <v-progress-circular indeterminate color="primary"
+                                                                    size="40" />
+                                                                <div class="mt-2">Mengunggah...</div>
+                                                            </div>
+                                                        </v-overlay>
+                                                    </v-img>
+
+                                                    <!-- Image Info -->
+                                                    <div class="mt-2">
+                                                        <v-chip v-if="imageFile.length > 0" size="small" color="primary"
+                                                            variant="tonal" class="mr-2">
+                                                            <v-icon start size="small">mdi-file-image</v-icon>
+                                                            {{ imageFile[0].name }}
+                                                        </v-chip>
+                                                        <v-chip v-if="imageFile.length > 0" size="small" color="info"
+                                                            variant="tonal">
+                                                            {{ Math.round(imageFile[0].size / 1024) }} KB
+                                                        </v-chip>
+                                                        <v-chip
+                                                            v-else-if="imagePreview && !imagePreview.startsWith('blob:')"
+                                                            size="small" color="success" variant="tonal">
+                                                            <v-icon start size="small">mdi-check</v-icon>
+                                                            Tersimpan di server
+                                                        </v-chip>
+                                                    </div>
+                                                </div>
+
+                                                <!-- Placeholder saat tidak ada gambar -->
+                                                <div v-else
+                                                    class="border rounded d-flex align-center justify-center bg-grey-lighten-4"
+                                                    style="height: 200px;">
+                                                    <div class="text-center text-grey">
+                                                        <v-icon size="48" class="mb-2">mdi-image-outline</v-icon>
+                                                        <div class="text-caption">Tidak ada gambar</div>
+                                                        <div class="text-caption">Klik "Browse" untuk memilih gambar
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            <!-- Upload Progress -->
+                                            <div v-if="isImageUploading" class="mt-2">
+                                                <v-progress-linear indeterminate color="primary" height="2" />
+                                                <div class="text-caption text-center mt-1">
+                                                    Sedang mengunggah gambar...
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </v-col>
+                                </v-row>
                             </div>
                         </v-col>
                     </v-row>
@@ -779,15 +897,29 @@ onMounted(() => {
             @workshop-selected="onWorkshopSelected" />
 
         <!-- Fullscreen Image Modal -->
-        <v-dialog v-model="isImageFullscreenVisible" max-width="90vw">
+        <v-dialog v-model="isImageFullscreenVisible" max-width="90vw" max-height="90vh">
             <v-card>
-                <v-toolbar density="compact">
+                <v-toolbar density="compact" color="primary">
+                    <v-toolbar-title>
+                        Preview Gambar - {{ form.nomor || 'SO Baru' }}
+                    </v-toolbar-title>
                     <v-spacer />
-                    <v-btn icon="mdi-close" @click="isImageFullscreenVisible = false"></v-btn>
+                    <v-btn icon="mdi-close" @click="isImageFullscreenVisible = false" variant="text" />
                 </v-toolbar>
-                <v-img :src="imagePreview || ''" max-height="90vh" contain></v-img>
+                <v-card-text class="pa-0">
+                    <v-img :src="imagePreview || ''" max-height="80vh" contain class="bg-grey-lighten-4" />
+                </v-card-text>
+                <v-card-actions>
+                    <v-spacer />
+                    <v-btn color="primary" @click="isImageFullscreenVisible = false" prepend-icon="mdi-close"
+                        variant="tonal">
+                        Tutup
+                    </v-btn>
+                </v-card-actions>
             </v-card>
         </v-dialog>
+
+        <!-- Confirmation Dialog -->
         <v-dialog v-model="isConfirmDialogVisible" max-width="400px" persistent>
             <v-card>
                 <v-card-title class="text-h6 font-weight-bold">
@@ -822,5 +954,26 @@ onMounted(() => {
 .field-disabled {
     background-color: #f5f5f5;
     pointer-events: none;
+}
+
+.image-upload-section {
+    background-color: #fafafa;
+    border: 1px solid #e0e0e0;
+    border-radius: 8px;
+    padding: 16px;
+}
+
+.image-preview-container {
+    position: relative;
+    overflow: hidden;
+    transition: all 0.3s ease;
+}
+
+.image-preview-container .v-img {
+    transition: transform 0.2s;
+}
+
+.image-preview-container:hover .v-img {
+    transform: scale(1.01);
 }
 </style>

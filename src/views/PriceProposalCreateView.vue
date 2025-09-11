@@ -166,10 +166,6 @@ const onTshirtTypeSelected = async (type: { jenisKaos: string }) => {
             }
         });
 
-        // --- BLOK DEBUGGING ---
-        console.log("Data diterima dari API:", response.data);
-        // --- AKHIR BLOK DEBUGGING ---
-
         // Map data ukuran seperti biasa
         if (response.data && Array.isArray(response.data.sizes)) {
             sizeItems.value = response.data.sizes.map((item: any) => ({
@@ -244,11 +240,6 @@ const executeSave = async () => {
             dtfCost: dtfCost.value
         };
 
-        // Debug log
-        console.log('Payload details:', filteredDetails);
-        console.log('Payload additionalCosts:', filteredAdditionalCosts);
-        console.log('Full payload:', payload);
-
         // 1. Simpan data utama
         const response = await api.post('/price-proposal-form/save', payload);
         const savedNomor = isEditMode.value ? header.value.nomor : response.data.nomor;
@@ -264,7 +255,6 @@ const executeSave = async () => {
                         'Content-Type': 'multipart/form-data'
                     }
                 });
-                console.log('Upload response:', uploadResponse.data);
                 toast.info('Gambar berhasil diunggah.');
             } catch (uploadError) {
                 console.error('Upload Error:', uploadError);

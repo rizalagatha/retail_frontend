@@ -98,7 +98,7 @@ const headers = [
     { title: 'Status Kirim', key: 'StatusKirim', width: '150px' },
     { title: 'Kd Customer', key: 'kdcus', width: '120px' },
     { title: 'Nama Customer', key: 'Nama', width: '250px' },
-    { title: 'Alamat', key: 'Alamat', width: '300px' },
+    { title: 'Alamat', key: 'Alamat', width: '600px' },
     { title: 'Kota', key: 'Kota', width: '150px' },
     { title: 'Level', key: 'Level', width: '150px' },
     { title: 'Keterangan', key: 'Keterangan', width: '300px' },
@@ -275,10 +275,14 @@ watch([startDate, endDate, selectedCabang], fetchData);
 <template>
     <PageLayout title="Surat Pesanan" desktop-mode icon="mdi-file-document-multiple-outline">
         <template #header-actions>
-            <v-btn v-if="authStore.can(MENU_ID, 'insert')" size="small" color="primary"
-                prepend-icon="mdi-plus">Baru</v-btn>
+            <v-btn v-if="authStore.can(MENU_ID, 'insert')" size="small" color="primary" prepend-icon="mdi-plus"
+                @click="router.push('/transaksi/surat-pesanan/new')">
+                Baru
+            </v-btn>
             <v-btn v-if="authStore.can(MENU_ID, 'edit')" size="small" :disabled="!isSingleSelected"
-                prepend-icon="mdi-pencil">Ubah</v-btn>
+                prepend-icon="mdi-pencil" @click="router.push(`/transaksi/surat-pesanan/ubah/${selected[0].Nomor}`)">
+                Ubah
+            </v-btn>
             <v-btn v-if="authStore.can(MENU_ID, 'delete')" size="small" :disabled="!isSingleSelected"
                 prepend-icon="mdi-delete" @click="showDeleteConfirmation">Hapus</v-btn>
             <v-btn v.if="authStore.can(MENU_ID, 'view')" size="small" color="green" :disabled="!isSingleSelected"
@@ -342,7 +346,7 @@ watch([startDate, endDate, selectedCabang], fetchData);
                     <template #item.Dateline="{ item }">{{ item.Dateline ? format(parseISO(item.Dateline), 'dd/MM/yyyy')
                         : '-' }}</template>
                     <template #item.Nominal="{ item }">{{ new Intl.NumberFormat('id-ID').format(item.Nominal || 0)
-                    }}</template>
+                        }}</template>
                     <template #item.Status="{ item }">
                         <v-chip size="x-small" :color="getStatusChip(item.Status).color"
                             :class="item.Aktif === 'N' ? 'text-grey' : ''" variant="tonal">
@@ -393,7 +397,7 @@ watch([startDate, endDate, selectedCabang], fetchData);
             <v-card>
                 <v-card-title class="text-h6 font-weight-bold">Konfirmasi Hapus</v-card-title>
                 <v-card-text>Anda yakin ingin menghapus Surat Pesanan: <strong>{{ itemToDelete?.Nomor
-                }}</strong>?</v-card-text>
+                        }}</strong>?</v-card-text>
                 <v-card-actions>
                     <v-spacer></v-spacer>
                     <v-btn @click="isConfirmDeleteVisible = false">Batal</v-btn>

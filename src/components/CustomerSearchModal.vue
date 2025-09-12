@@ -7,7 +7,8 @@ interface Customer {
   nama: string;
   alamat: string;
   kota: string;
-  level: string;
+  level_kode: number;
+  level_nama: string;
 }
 
 // --- Props & Emits ---
@@ -29,7 +30,8 @@ const options = ref({ page: 1, itemsPerPage: 10 });
 const headers = [
   { title: 'Kode', key: 'kode', sortable: false },
   { title: 'Nama Customer', key: 'nama', sortable: false, width: '30%' },
-  { title: 'Level', key: 'level', sortable: false },
+  { title: 'Level Kode', key: 'level_kode', sortable: false, width: '100px' },
+  { title: 'Level', key: 'level_nama', sortable: false },
   { title: 'Alamat', key: 'alamat', sortable: false },
   { title: 'Kota', key: 'kota', sortable: false },
 ];
@@ -46,13 +48,13 @@ const loadItems = async ({ page, itemsPerPage }: { page: number, itemsPerPage: n
         itemsPerPage: itemsPerPage,
       },
     });
-    
+
     if (response.data && Array.isArray(response.data.items)) {
-        items.value = response.data.items;
-        totalItems.value = response.data.total;
+      items.value = response.data.items;
+      totalItems.value = response.data.total;
     } else {
-        items.value = [];
-        totalItems.value = 0;
+      items.value = [];
+      totalItems.value = 0;
     }
   } catch (error) {
     console.error("Gagal memuat data customer:", error);
@@ -64,30 +66,25 @@ const loadItems = async ({ page, itemsPerPage }: { page: number, itemsPerPage: n
 };
 
 const selectCustomer = (item: Customer) => {
-    if (item && item.kode) {
-        emit('customer-selected', item);
-        emit('close');
-    }
+  if (item && item.kode) {
+    emit('customer-selected', item);
+    emit('close');
+  }
 };
 
 // --- Watchers ---
 let searchTimeout: ReturnType<typeof setTimeout>;
 watch(search, () => {
-    clearTimeout(searchTimeout);
-    searchTimeout = setTimeout(() => {
-        options.value.page = 1; // Reset ke halaman pertama saat mencari
-        loadItems(options.value);
-    }, 500);
+  clearTimeout(searchTimeout);
+  searchTimeout = setTimeout(() => {
+    options.value.page = 1; // Reset ke halaman pertama saat mencari
+    loadItems(options.value);
+  }, 500);
 });
 </script>
 
 <template>
-  <v-dialog
-    :model-value="true"
-    @update:model-value="$emit('close')"
-    max-width="1200px"
-    persistent
-  >
+  <v-dialog :model-value="true" @update:model-value="$emit('close')" max-width="1200px" persistent>
     <v-card class="dialog-card d-flex flex-column" style="height: 80vh;">
       <v-toolbar color="primary" density="compact">
         <v-toolbar-title class="text-subtitle-1">Bantuan - Pilih Customer</v-toolbar-title>
@@ -96,35 +93,19 @@ watch(search, () => {
       </v-toolbar>
 
       <v-card-text class="pa-4 d-flex flex-column flex-grow-1">
-        <v-text-field
-          v-model="search"
-          label="Cari berdasarkan kode atau nama customer..."
-          prepend-inner-icon="mdi-magnify"
-          variant="outlined"
-          density="compact"
-          clearable
-          class="mb-4 flex-shrink-0"
-          hide-details
-        ></v-text-field>
+        <v-text-field v-model="search" label="Cari berdasarkan kode atau nama customer..."
+          prepend-inner-icon="mdi-magnify" variant="outlined" density="compact" clearable class="mb-4 flex-shrink-0"
+          hide-details></v-text-field>
 
-        <v-data-table-server
-          v-model:page="options.page"
-          v-model:items-per-page="options.itemsPerPage"
-          :headers="headers"
-          :items="items"
-          :items-length="totalItems"
-          :loading="loading"
-          @update:options="loadItems"
-          hover
-          class="desktop-table flex-grow-1"
-          density="compact"
-          fixed-header
-        >
+        <v-data-table-server v-model:page="options.page" v-model:items-per-page="options.itemsPerPage"
+          :headers="headers" :items="items" :items-length="totalItems" :loading="loading" @update:options="loadItems"
+          hover class="desktop-table flex-grow-1" density="compact" fixed-header>
           <template #item="{ item }">
             <tr @click="selectCustomer(item)" style="cursor: pointer;">
               <td>{{ item.kode }}</td>
               <td>{{ item.nama }}</td>
-              <td>{{ item.level }}</td>
+              <td>{{ item.level_kode }}</td>
+              <td>{{ item.level_nama }}</td>
               <td>{{ item.alamat }}</td>
               <td>{{ item.kota }}</td>
             </tr>
@@ -137,13 +118,16 @@ watch(search, () => {
 
 <style scoped>
 .dialog-card {
-    font-size: 12px;
+  font-size: 12px;
 }
+
 .desktop-table {
-    font-size: 11px;
+  font-size: 11px;
 }
-.desktop-table :deep(td), .desktop-table :deep(th) {
-    padding: 0 8px !important;
-    height: 28px !important;
+
+.desktop-table :deep(td),
+.desktop-table :deep(th) {
+  padding: 0 8px !important;
+  height: 28px !important;
 }
 </style>

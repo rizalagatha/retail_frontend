@@ -39,6 +39,7 @@ import LhkSoDtfStokCreateView from '@/views/LhkSoDtfStokCreateView.vue';
 import SoView from '@/views/SoView.vue';
 import SoPrintView from '@/views/SoPrintView.vue';
 import SoCreateView from '@/views/SoCreateView.vue';
+import DpPrintView from '@/views/DpPrintView.vue';
 import LaporanStokView from '@/views/LaporanStokView.vue';
 
 const routes = [
@@ -442,6 +443,12 @@ const routes = [
     name: 'SuratPesananEdit',
     component: SoCreateView,
     meta: { title: 'Ubah Surat Pesanan', requiresAuth: true, menuId: '26' }
+  },
+  {
+    path: '/transaksi/surat-pesanan/print-dp/:nomor',
+    name: 'Cetak DP',
+    component: DpPrintView,
+    meta: { requiresAuth: true, printLayout: true }
   },
   {
     path: '/laporan/stok',

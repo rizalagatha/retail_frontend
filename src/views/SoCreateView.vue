@@ -13,9 +13,10 @@ import GudangSearchModal from '@/components/GudangSearchModal.vue';
 import SalesCounterSearchModal from '@/components/SalesCounterSearchModal.vue';
 import ProductSearchModal from '@/components/ProductSearchModal.vue';
 import PenawaranSearchModal from '@/components/PenawaranSearchModal.vue';
-// import SoDtfSearchModal from '@/components/SoDtfSearchModal.vue';
-// import PriceProposalSearchModal from '@/components/PriceProposalSearchModal.vue';
+import SoDtfSearchModal from '@/components/SoDtfSearchModal.vue';
+import PriceProposalSearchModal from '@/components/PriceProposalSearchModal.vue';
 import AuthorizationModal from '@/components/AuthorizationModal.vue';
+import DpInputModal from '@/components/DpInputModal.vue';
 
 const router = useRouter();
 const route = useRoute();
@@ -55,6 +56,7 @@ const pageTitle = computed(() => isEditMode.value ? 'Ubah Surat Pesanan' : 'Buat
 const requiredPermission = computed(() => isEditMode.value ? 'edit' : 'insert');
 const isLoading = ref(true);
 const isSaving = ref(false);
+const isSavingDisabled = ref(false);
 
 const initialHeaderState = {
     nomor: '',
@@ -64,7 +66,8 @@ const initialHeaderState = {
     customer: null as any,
     penawaran: '',
     salesCounter: authStore.user?.kode || '',
-    level: '',
+    levelKode: '',
+    levelNama: '',
     keterangan: '',
     telp: '',
     top: 0,
@@ -73,6 +76,7 @@ const initialHeaderState = {
     tempo: '',
     ppnPersen: 0,
     statusSo: 'PASIF',
+    accDpPin: '',
 };
 
 const header = ref({ ...initialHeaderState });
@@ -92,6 +96,7 @@ const footer = ref({
     totalDp: 0,
     minimalDp: 0,
     belumDibayar: 0,
+    pinTanpaDp: '',
 });
 
 // State untuk modals & dialogs
@@ -101,8 +106,8 @@ const isSalesCounterSearchVisible = ref(false);
 const isPenawaranSearchVisible = ref(false);
 const isProductSearchVisible = ref(false);
 const isMultiSelectProduct = ref(false);
-// const isSoDtfSearchVisible = ref(false);
-// const isPriceProposalSearchVisible = ref(false);
+const isSoDtfSearchVisible = ref(false);
+const isPriceProposalSearchVisible = ref(false);
 const isConfirmDialogVisible = ref(false);
 const confirmText = ref('');
 const pendingAction = ref<(() => void) | null>(null);
@@ -110,13 +115,15 @@ const activeRowIndex = ref(0);
 const isAuthModalVisible = ref(false);
 const isAuth2ModalVisible = ref(false);
 const isItemAuthModalVisible = ref(false);
+const isDpAuthVisible = ref(false);
 const activeItemIndexForAuth = ref(-1);
 const previousDiscount = ref({ persen1: 0, persen2: 0, item: 0 });
-const previousDiskonRp = ref(0);
 const challengeCode = ref('');
 const authModalRef = ref<any>(null);
 const auth2ModalRef = ref<any>(null);
 const itemAuthModalRef = ref<any>(null);
+const dpAuthModalRef = ref<any>(null);
+const isDpInputVisible = ref(false);
 
 const mainTableHeaders = [
     { title: 'Kode', key: 'kode', width: '180px' },
@@ -136,12 +143,70 @@ const mainTableHeaders = [
 const dpTableHeaders = [
     { title: 'No. Setoran', key: 'nomor' },
     { title: 'Jenis', key: 'jenis' },
-    { title: 'Nominal', key: 'nominal', align: 'end' },
+    { title: 'Nominal', key: 'nominal' },
     { title: 'Posting', key: 'posting' },
+    { title: 'Actions', key: 'actions', sortable: false, width: '50px' },
 ];
 
+// --- Computed Properties ---
+const minimalDpText = computed(() => {
+    const containsDtf = items.value.some(item => item.noSoDtf);
+    const percentage = containsDtf ? 50 : 30;
+    const amount = new Intl.NumberFormat('id-ID').format(footer.value.minimalDp);
+    return `Minimal DP ${percentage}% dari nominal SO : ${amount}`;
+});
+
+// --- Functions ---    
+function toDateInputValue(dateStr: string) {
+    if (!dateStr) return ''
+    return dateStr.split('T')[0] // ambil yyyy-MM-dd saja
+}
+
 // --- Methods ---
-const loadDataForEdit = async (nomor: string) => { /* ... Logika load data ... */ };
+const loadDataForEdit = async (nomor: string) => {
+    isLoading.value = true;
+    try {
+        const response = await api.get(`/so-form/${nomor}`);
+        const { headerData, itemsData, dpItemsData, footerData } = response.data;
+        console.log("headerData dari backend:", headerData);
+        // Mapping khusus untuk header supaya konsisten
+        header.value = {
+            ...header.value,
+            ...headerData,
+            level: headerData.levelKode || '',
+            levelKode: headerData.levelKode || '',
+            levelNama: headerData.levelNama || '',      // jangan pakai xLevel
+            tanggal: toDateInputValue(headerData.tanggal),
+            dateline: toDateInputValue(headerData.dateline),
+        };
+
+        footer.value = { ...footer.value, ...footerData };
+
+        items.value = itemsData.map((item: any) => ({
+            ...item,
+            id: Date.now() + Math.random(),
+        }));
+
+        dpItems.value = dpItemsData;
+
+        if (!headerData.canEdit) {
+            isSavingDisabled.value = true;
+            toast.warning('SO ini sudah menjadi Invoice, data tidak bisa diubah.');
+        }
+
+        addNewRow();
+        await nextTick();
+        calculateTotals();
+
+        toast.success(`Data untuk SO ${nomor} berhasil dimuat.`);
+    } catch (error: any) {
+        toast.error(error.response?.data?.message || 'Gagal memuat data SO.');
+        router.push('/transaksi/surat-pesanan');
+    } finally {
+        isLoading.value = false;
+    }
+};
+
 const calculateTotals = () => {
     // --- Kalkulasi Total per Baris ---
     let totalSo = 0;
@@ -184,9 +249,28 @@ const calculateTotals = () => {
             footer.value.diskonPersen1 = 0;
         }
     }
-    
+
+    // --- Kalkulasi Diskon Faktur ---
+    // Hanya terapkan diskon default jika belum ada otorisasi PIN manual
+    if (!footer.value.pinDiskon1) {
+        const rule = header.value.customer?.discountRule;
+        if (rule) {
+            if (totalSo >= rule.nominal) {
+                footer.value.diskonPersen1 = rule.diskon1;
+            } else {
+                footer.value.diskonPersen1 = rule.diskon2;
+            }
+            // Asumsi diskon 2 tidak diatur secara default dari level
+            // footer.value.diskonPersen2 = rule.diskon2; 
+        } else {
+            footer.value.diskonPersen1 = 0;
+        }
+    }
+
+    // Lanjutkan sisa kalkulasi dengan nilai diskon yang sudah benar
     const diskonPersen1 = footer.value.diskonPersen1 || 0;
     const diskonPersen2 = footer.value.diskonPersen2 || 0;
+
     const diskon1Rp = (diskonPersen1 / 100) * totalSo;
     const afterDiscount1 = totalSo - diskon1Rp;
     const diskon2Rp = (diskonPersen2 / 100) * afterDiscount1;
@@ -204,23 +288,26 @@ const calculateTotals = () => {
 
     // --- Kalkulasi Minimal DP dan Sisa Bayar ---
     if (containsDtf) {
-        // Minimal DP 50% jika ada SO DTF
-        footer.value.minimalDp = 0.5 * netto;
+        footer.value.minimalDp = 0.5 * footer.value.netto; // Minimal DP 50% jika ada SO DTF
     } else {
-        // Minimal DP 30% untuk SO biasa
-        footer.value.minimalDp = 0.3 * netto;
+        footer.value.minimalDp = 0.3 * footer.value.netto; // Minimal DP 30% untuk SO biasa
     }
 
-    footer.value.belumDibayar = grandTotal - totalDp;
+    footer.value.belumDibayar = footer.value.grandTotal - footer.value.totalDp;
 
     // --- Penentuan Status SO (AKTIF/PASIF) ---
     // Level 8 (mungkin user khusus) dan DP yang mencukupi akan membuat status AKTIF
-    const isLevel8 = header.value.level?.startsWith('8');
+    const isLevel8 = header.value.levelKode?.toString().startsWith('8');
     if (isLevel8 || totalDp >= footer.value.minimalDp) {
         header.value.statusSo = 'AKTIF';
     } else {
         header.value.statusSo = 'PASIF';
     }
+};
+
+const openDpAuthorization = () => {
+    challengeCode.value = Math.floor(1000 + Math.random() * 9000).toString();
+    isDpAuthVisible.value = true;
 };
 
 const openGudangSearch = () => {
@@ -260,26 +347,56 @@ const openProductSearch = (index: number, isMulti: boolean) => {
     isProductSearchVisible.value = true;
 };
 
-// const openSoDtfSearch = (index: number) => {
-//     if (!header.value.customer) {
-//         toast.error('Pilih Customer terlebih dahulu.');
-//         return;
-//     }
-//     activeRowIndex.value = index;
-//     isSoDtfSearchVisible.value = true;
-// };
+const openSoDtfSearch = (index: number) => {
+    if (!header.value.customer) {
+        toast.error('Pilih Customer terlebih dahulu.');
+        return;
+    }
+    activeRowIndex.value = index;
+    isSoDtfSearchVisible.value = true;
+};
 
-// const openPriceProposalSearch = (index: number) => {
-//     if (!header.value.customer) {
-//         toast.error('Pilih Customer terlebih dahulu.');
-//         return;
-//     }
-//     activeRowIndex.value = index;
-//     isPriceProposalSearchVisible.value = true;
-// };
+const openPriceProposalSearch = (index: number) => {
+    if (!header.value.customer) {
+        toast.error('Pilih Customer terlebih dahulu.');
+        return;
+    }
+    activeRowIndex.value = index;
+    isPriceProposalSearchVisible.value = true;
+};
 
-const save = async () => {
-    // ... (Validasi lengkap dari btnSimpanClick Delphi)
+const save = () => {
+    // --- Migrasi Validasi dari Delphi (btnSimpanClick) ---
+    if (!authStore.can(MENU_ID, requiredPermission.value)) {
+        toast.error('Anda tidak memiliki izin untuk menyimpan data ini.');
+        return;
+    }
+
+    if (!header.value.customer) {
+        toast.error('Customer harus diisi.');
+        return;
+    }
+    const validItems = items.value.filter(item => item.kode);
+    if (validItems.length === 0) {
+        toast.error('Detail barang harus diisi minimal 1 baris.');
+        return;
+    }
+    for (const item of validItems) {
+        if (!item.jumlah || item.jumlah <= 0) {
+            toast.error(`Jumlah untuk barang '${item.nama}' harus diisi dan lebih dari 0.`);
+            return;
+        }
+        if (item.harga === null || item.harga < 0) {
+            toast.error(`Harga untuk barang '${item.nama}' harus diisi.`);
+            return;
+        }
+    }
+    if (footer.value.totalDp < footer.value.minimalDp && header.value.statusSo === 'PASIF') {
+        toast.warning('DP di bawah Minimal DP. SO ini akan berstatus PASIF. Minta otorisasi atau lunasi DP agar SO menjadi AKTIF.');
+        // Tidak menghentikan proses, hanya memberi peringatan
+    }
+
+    // Jika semua validasi lolos, tampilkan dialog konfirmasi
     showConfirmation(executeSave, "Anda yakin ingin menyimpan Surat Pesanan ini?");
 };
 
@@ -287,11 +404,15 @@ const executeSave = async () => {
     isSaving.value = true;
     try {
         const payload = {
-            header: header.value,
+            header: {
+                ...header.value,
+                level: header.value.levelKode
+            },
             footer: footer.value,
             details: items.value.filter(item => item.kode),
             dps: dpItems.value,
             isNew: !isEditMode.value,
+            user: authStore.user // Pastikan user juga dikirim
         };
         const response = await api.post('/so-form/save', payload);
         toast.success(response.data.message);
@@ -354,7 +475,7 @@ const onCustomerSelected = async (customer: any) => {
     if (!customer || !customer.kode) return;
 
     // 1. Cek Level Customer
-    if (!customer.level) {
+    if (!customer.level_kode) {
         toast.error('Level Customer tersebut belum di-setting.');
         header.value.customer = null; // Kosongkan customer
         return;
@@ -375,7 +496,8 @@ const onCustomerSelected = async (customer: any) => {
 
     // Jika semua validasi lolos, isi data header
     header.value.customer = customer;
-    header.value.level = customer.level;
+    header.value.levelKode = customer.level_kode; // utk backend
+    header.value.levelNama = customer.level_nama; // utk tampilan
     header.value.top = customer.top;
     header.value.alamat = customer.alamat;
     header.value.kota = customer.kota;
@@ -461,27 +583,93 @@ const onProductsSelected = (selectedProducts: any[]) => {
     calculateTotals(); // Hitung ulang semua total
 };
 
-// const onSoDtfSelected = (soDtf: any) => {
-//     // TODO: Implementasi logika untuk menambah item dari SO DTF ke grid
-//     isSoDtfSearchVisible.value = false;
-// };
+const onSoDtfSelected = async (soDtf: { nomor: string }) => {
+    isSoDtfSearchVisible.value = false;
+    // Hapus baris kosong tempat F1 ditekan
+    items.value.splice(activeRowIndex.value, 1);
 
-// const onPriceProposalSelected = (proposal: any) => {
-//     // TODO: Implementasi logika untuk menambah item dari Pengajuan Harga ke grid
-//     isPriceProposalSearchVisible.value = false;
-// };
+    try {
+        // Panggil API untuk mengambil semua detail dari SO DTF yang dipilih
+        const response = await api.get(`/offer-form/search/so-dtf-details/${soDtf.nomor}`);
+        const soDtfDetails = response.data;
 
-const handleDiskonRpChange = () => {
-    // Jika user mengisi diskon > 0, minta otorisasi
-    if ((footer.value.diskonRp || 0) > 0) {
-        // Reset diskon persen seperti di Delphi
-        footer.value.diskonPersen1 = 0;
-        footer.value.diskonPersen2 = 0;
+        // Tambahkan setiap item dari detail SO DTF ke grid Surat Pesanan
+        soDtfDetails.forEach((detail: any) => {
+            const isDuplicate = items.value.some(item =>
+                item.noSoDtf === detail.sd_nomor && item.ukuran === detail.ukuran
+            );
 
-        challengeCode.value = Math.floor(1000 + Math.random() * 9000).toString();
-        isAuthModalVisible.value = true; // Gunakan modal otorisasi yang sama
-    } else {
+            if (!isDuplicate) {
+                items.value.push({
+                    id: Date.now() + Math.random(),
+                    kode: detail.sd_nomor, // Kode barang di SO adalah nomor SO DTF itu sendiri
+                    nama: detail.nama,
+                    ukuran: detail.ukuran,
+                    jumlah: detail.jumlah,
+                    harga: detail.harga,
+                    total: detail.total,
+                    noSoDtf: detail.sd_nomor,
+                    // ... isi properti lain dengan default
+                    stok: 0, diskonPersen: 0, diskonRp: 0, barcode: '', noPengajuanHarga: '', pin: ''
+                });
+            }
+        });
+        addNewRow(); // Tambah baris kosong baru di akhir
         calculateTotals();
+    } catch (error) {
+        toast.error(`Gagal memuat detail SO DTF ${soDtf.nomor}`);
+    }
+};
+
+const onPriceProposalSelected = async (proposal: { nomor: string }) => {
+    isPriceProposalSearchVisible.value = false;
+    if (!proposal || !proposal.nomor) return;
+
+    // --- 👇 VALIDASI DARI DELPHI ADA DI SINI 👇 ---
+    // Cek apakah pengajuan ini sudah ada di baris lain
+    const isDuplicate = items.value.some(item => item.noPengajuanHarga === proposal.nomor);
+    if (isDuplicate) {
+        toast.error(`No. Pengajuan ${proposal.nomor} sudah diinput di baris lain.`);
+        return;
+    }
+    // --- 👆 AKHIR VALIDASI 👆 ---
+
+    toast.info(`Memuat detail dari Pengajuan Harga ${proposal.nomor}...`);
+    try {
+        // Panggil API untuk mengambil semua detail dari Pengajuan yang dipilih
+        const response = await api.get(`/offer-form/search/price-proposal-details/${proposal.nomor}`);
+        const { headerData, itemsData } = response.data;
+
+        // Hapus baris kosong tempat F1 ditekan
+        items.value.splice(activeRowIndex.value, 1);
+
+        // Tambahkan setiap item dari detail Pengajuan ke grid Surat Pesanan
+        itemsData.forEach((detail: any) => {
+            items.value.push({
+                id: Date.now() + Math.random(),
+                kode: detail.kode,
+                nama: detail.nama,
+                ukuran: detail.ukuran,
+                stok: detail.stok,
+                jumlah: detail.jumlah,
+                harga: detail.harga,
+                total: detail.total,
+                diskonPersen: 0, // Diskon item tidak diimpor dari pengajuan
+                diskonRp: 0,
+                barcode: detail.barcode,
+                noPengajuanHarga: headerData.ph_nomor, // Tandai asalnya dari pengajuan ini
+                noSoDtf: '',
+                pin: ''
+            });
+        });
+
+        // Terapkan diskon faktur dari Pengajuan ke footer SO
+        footer.value.diskonRp = headerData.ph_diskon || 0;
+
+        addNewRow(); // Tambah baris kosong baru di akhir
+        calculateTotals();
+    } catch (error) {
+        toast.error(`Gagal memuat detail Pengajuan ${proposal.nomor}`);
     }
 };
 
@@ -495,7 +683,7 @@ const handleDiscount1Change = async () => {
         // 1. Panggil API untuk mendapatkan diskon standar
         const response = await api.get('/so-form/lookup/default-discount', { // Pastikan endpoint-nya benar
             params: {
-                level: header.value.level,
+                level: header.value.level_kode,
                 total: footer.value.totalSo,
                 gudang: header.value.gudang.kode,
             }
@@ -635,14 +823,98 @@ const onItemAuthCancel = () => {
     calculateTotals();
 };
 
-// ... (method lain untuk dialog)
-watch(items, calculateTotals, { deep: true });
+const onDpAuthSuccess = async (pin: string) => {
+    try {
+        await api.post('/auth-pin/validate', { code: challengeCode.value, pin: pin });
+
+        // Simpan pin dan set status menjadi AKTIF
+        footer.value.pinTanpaDp = pin;
+        header.value.statusSo = 'AKTIF';
+
+        isDpAuthVisible.value = false;
+        toast.success('Otorisasi SO tanpa DP berhasil.');
+    } catch (error: any) {
+        // Tampilkan error di dalam modal
+        if (dpAuthModalRef.value) { // Asumsi Anda akan menambahkan ref ke modal
+            dpAuthModalRef.value.setFailed(error.response?.data?.message || 'Otorisasi Gagal.');
+        }
+    }
+};
+
+const onDpAuthCancel = () => {
+    isDpAuthVisible.value = false;
+};
+
+const openDpInput = () => {
+    if (!header.value.customer) {
+        return toast.error('Customer harus diisi terlebih dahulu.');
+    }
+    isDpInputVisible.value = true;
+};
+
+const onDpSaved = (newDp: any) => {
+    dpItems.value.push(newDp);
+    calculateTotals(); // Hitung ulang total setelah DP bertambah
+};
+
+const removeDpRow = (itemToRemove: DpItem) => {
+    dpItems.value = dpItems.value.filter(item => item.nomor !== itemToRemove.nomor);
+    calculateTotals(); // Hitung ulang total setelah menghapus DP
+};
+
+const executePendingAction = () => {
+    if (pendingAction.value) {
+        pendingAction.value();
+    }
+    isConfirmDialogVisible.value = false;
+};
+const closeConfirmDialog = () => {
+    isConfirmDialogVisible.value = false;
+    pendingAction.value = null;
+};
+const closeForm = () => {
+    router.push('/transaksi/surat-pesanan');
+};
+
+watch(
+    // Daftar semua state yang akan memicu kalkulasi ulang
+    [
+        items,
+        () => header.value.ppnPersen,
+        () => footer.value.biayaKirim,
+        () => footer.value.diskonPersen1,
+        () => footer.value.diskonPersen2,
+        () => footer.value.diskonRp,
+    ],
+    () => {
+        calculateTotals();
+    },
+    { deep: true } // 'deep' diperlukan untuk memantau perubahan di dalam 'items'
+);
+
+watch(
+    [() => header.value.tanggal, () => header.value.top],
+    ([newTanggal, newTop]) => {
+        const date = new Date(newTanggal);
+        if (isValid(date)) {
+            header.value.tempo = format(addDays(date, newTop || 0), 'yyyy-MM-dd');
+        }
+    },
+    { immediate: true } // immediate: true agar langsung dihitung saat form dimuat
+);
 
 onMounted(() => {
+    // Cek hak akses 'insert' (untuk baru) atau 'edit' (untuk ubah)
+    if (!authStore.can(MENU_ID, requiredPermission.value)) {
+        toast.error(`Anda tidak memiliki izin untuk ${isEditMode.value ? 'mengubah' : 'membuat'} data ini.`);
+        router.back(); // Lempar user kembali ke halaman sebelumnya
+        return;
+    }
+
     if (isEditMode.value) {
         loadDataForEdit(route.params.nomor as string);
     } else {
-        resetForm(); // Panggil resetForm yang sudah termasuk addNewRow
+        resetForm();
         isLoading.value = false;
     }
 });
@@ -651,9 +923,17 @@ onMounted(() => {
 <template>
     <PageLayout :title="pageTitle" desktop-mode icon="mdi-file-document-edit-outline">
         <template #header-actions>
-            <v-btn size="small" color="primary" @click="save">Simpan</v-btn>
-            <v-btn size="small" @click="resetForm">Batal</v-btn>
-            <v-btn size="small" @click="router.push('/transaksi/surat-pesanan')">Tutup</v-btn>
+            <v-btn size="small" color="primary" @click="save" :loading="isSaving"
+                :disabled="isSaving || isSavingDisabled">
+                Simpan
+            </v-btn>
+            <v-btn size="small" @click="showConfirmation(resetForm, 'Batalkan perubahan dan kosongkan form?')">
+                Batal
+            </v-btn>
+            <v-btn size="small"
+                @click="showConfirmation(closeForm, 'Tutup form? Perubahan yang belum disimpan akan hilang.')">
+                Tutup
+            </v-btn>
         </template>
 
         <div class="form-grid-container">
@@ -692,10 +972,10 @@ onMounted(() => {
                                 readonly filled density="compact" hide-details />
                         </v-col>
                         <v-col cols="6">
-                            <v-text-field label="Level" v-model="header.level" readonly filled density="compact"
+                            <v-text-field label="Level" v-model="header.levelNama" readonly filled density="compact"
                                 hide-details />
                         </v-col>
-                        <v-col cols="12">
+                        <v-col cols="6">
                             <v-text-field label="Penawaran" v-model="header.penawaran" readonly
                                 @click="openPenawaranSearch" variant="outlined" density="compact" hide-details
                                 append-inner-icon="mdi-magnify" />
@@ -705,9 +985,17 @@ onMounted(() => {
                                 @click="openSalesCounterSearch" variant="outlined" density="compact" hide-details
                                 append-inner-icon="mdi-magnify" />
                         </v-col>
-                        <v-col cols="6">
-                            <v-text-field label="Tempo/Tgl" v-model="header.tempo" variant="outlined" density="compact"
-                                hide-details />
+                        <v-col cols="3">
+                            <v-text-field label="TOP" v-model.number="header.top" type="number" variant="outlined"
+                                density="compact" hide-details class="text-end" />
+                        </v-col>
+                        <v-col cols="5">
+                            <v-text-field label="Tempo/Tgl" v-model="header.tempo" type="date" readonly filled
+                                density="compact" hide-details />
+                        </v-col>
+                        <v-col cols="4">
+                            <v-text-field label="PPN %" v-model.number="header.ppnPersen" type="number"
+                                variant="outlined" density="compact" hide-details class="text-end" />
                         </v-col>
                         <v-col cols="12"><v-text-field label="Keterangan" v-model="header.keterangan" variant="outlined"
                                 density="compact" hide-details /></v-col>
@@ -715,13 +1003,26 @@ onMounted(() => {
                 </div>
                 <div class="desktop-form-section status-section">
                     <v-alert density="compact" variant="tonal"
-                        :color="header.statusSo === 'AKTIF' ? 'success' : 'error'" class="mb-2">
+                        :color="header.statusSo === 'AKTIF' ? 'success' : 'error'" class="mb-2 d-flex align-center">
                         Status SO: <strong>{{ header.statusSo }}</strong>
+                        <v-spacer />
+                        <div class="text-caption text-center">{{ minimalDpText }}</div>
+                        <v-tooltip location="bottom">
+                            <template #activator="{ props }">
+                                <v-icon v-bind="props"
+                                    :color="(footer.totalDp >= footer.minimalDp) || footer.pinTanpaDp ? 'success' : 'warning'">
+                                    {{ (footer.totalDp >= footer.minimalDp) || footer.pinTanpaDp ? 'mdi-check-circle' :
+                                        'mdi-alert-circle' }}
+                                </v-icon>
+                            </template>
+                            <span>{{ (footer.totalDp >= footer.minimalDp) || footer.pinTanpaDp ? 'DP Memenuhi Syarat/Ada Otorisasi' : 'DP Belum Cukup' }}</span>
+                        </v-tooltip>
                     </v-alert>
-                    <div class="text-caption text-center">{{ `Minimal DP 30% dari nominal SO : ${new
-                        Intl.NumberFormat('id-ID').format(footer.minimalDp)}` }}</div>
-                    <v-btn block color="teal" class="mt-4">Input DP (Uang Muka)</v-btn>
-                    <v-btn block color="orange" class="mt-2" v-if="header.statusSo === 'PASIF'">Minta Otorisasi</v-btn>
+                    <v-btn block color="teal" class="mt-4" @click="openDpInput">Input DP (Uang Muka)</v-btn>
+                    <v-btn block color="orange" class="mt-2" v-if="header.statusSo === 'PASIF'"
+                        @click="openDpAuthorization">
+                        Minta Otorisasi
+                    </v-btn>
                 </div>
             </div>
 
@@ -749,12 +1050,21 @@ onMounted(() => {
                         </template>
                         <template #item.noSoDtf="{ item, index }">
                             <v-text-field v-model="item.noSoDtf" variant="underlined" density="compact" hide-details
-                                placeholder="F1..." @keydown.f1.prevent="openSoDtfSearch(index)" />
+                                placeholder="F1..." @keydown.f1.prevent="openSoDtfSearch(index)" readonly>
+                                <template #append-inner>
+                                    <v-icon @click="openSoDtfSearch(index)" size="small">mdi-magnify</v-icon>
+                                </template>
+                            </v-text-field>
                         </template>
 
                         <template #item.noPengajuanHarga="{ item, index }">
                             <v-text-field v-model="item.noPengajuanHarga" variant="underlined" density="compact"
-                                hide-details placeholder="F1..." @keydown.f1.prevent="openPriceProposalSearch(index)" />
+                                hide-details placeholder="F1..." @keydown.f1.prevent="openPriceProposalSearch(index)"
+                                readonly>
+                                <template #append-inner>
+                                    <v-icon @click="openPriceProposalSearch(index)" size="small">mdi-magnify</v-icon>
+                                </template>
+                            </v-text-field>
                         </template>
                         <template #item.actions="{ item }">
                             <v-btn v-if="item.kode" icon="mdi-delete" size="x-small" variant="text" color="error"
@@ -771,12 +1081,16 @@ onMounted(() => {
                                     placeholder="F1..."></v-text-field>
                             </template>
                             <template #item.jenis="{ item }">
-                                <v-select v-model="item.jenis" :items="['TUNAI', 'TRANSFER', 'GIro']"
-                                    variant="underlined" density="compact" hide-details></v-select>
+                                <v-text-field v-model="item.jenis" variant="underlined" density="compact" hide-details
+                                    readonly filled></v-text-field>
                             </template>
                             <template #item.nominal="{ item }">
                                 <v-text-field v-model.number="item.nominal" type="number" variant="underlined"
                                     density="compact" hide-details class="text-end"></v-text-field>
+                            </template>
+                            <template #item.actions="{ item }">
+                                <v-btn icon="mdi-delete" size="x-small" variant="text" color="error"
+                                    @click="removeDpRow(item)" title="Hapus DP" />
                             </template>
                             <template #bottom></template>
                         </v-data-table>
@@ -790,9 +1104,9 @@ onMounted(() => {
                                     type="number" variant="outlined" density="compact" hide-details
                                     class="text-end" /></v-col>
                             <v-col cols="6">
-                                <v-text-field label="Diskon Rp" v-model.number="footer.diskonRp" type="number"
-                                    variant="outlined" density="compact" hide-details class="text-end"
-                                    @focus="previousDiskonRp = footer.diskonRp || 0" @blur="handleDiskonRpChange" />
+                                <v-text-field label="Diskon Rp"
+                                    :model-value="new Intl.NumberFormat('id-ID').format(footer.diskonRp)" readonly
+                                    filled density="compact" hide-details class="text-end" />
                             </v-col>
                             <v-col cols="6"><v-text-field label="Grand Total"
                                     :model-value="new Intl.NumberFormat('id-ID').format(footer.grandTotal)" readonly
@@ -813,9 +1127,11 @@ onMounted(() => {
                             <v-col cols="6"><v-text-field label="Belum Dibayar"
                                     :model-value="new Intl.NumberFormat('id-ID').format(footer.belumDibayar)" readonly
                                     filled density="compact" hide-details class="text-end font-weight-bold" /></v-col>
-                            <v-col cols="6"><v-text-field label="PPN"
-                                    :model-value="new Intl.NumberFormat('id-ID').format(footer.ppnRp)"
-                                    variant="outlined" density="compact" hide-details class="text-end" /></v-col>
+                            <v-col cols="6">
+                                <v-text-field label="PPN"
+                                    :model-value="new Intl.NumberFormat('id-ID').format(footer.ppnRp)" readonly filled
+                                    density="compact" hide-details class="text-end" />
+                            </v-col>
                             <v-col cols="6"><v-text-field label="Netto"
                                     :model-value="new Intl.NumberFormat('id-ID').format(footer.netto)" readonly filled
                                     density="compact" hide-details class="text-end" /></v-col>
@@ -843,6 +1159,27 @@ onMounted(() => {
             :challenge-code="challengeCode" @close="onAuth2Cancel" @success="onAuth2Success" />
         <AuthorizationModal ref="ItemAuthModalRef" v-if="isItemAuthModalVisible" title="Otorisasi Diskon per Item"
             :challenge-code="challengeCode" @close="onItemAuthCancel" @success="onItemAuthSuccess" />
+        <AuthorizationModal ref="dpAuthModalRef" v-if="isDpAuthVisible" title="Otorisasi SO Tanpa DP"
+            :challenge-code="challengeCode" @close="onDpAuthCancel" @success="onDpAuthSuccess" />
+        <SoDtfSearchModal v-if="isSoDtfSearchVisible" :cabang="header.gudang.kode" :customerKode="header.customer?.kode"
+            @close="isSoDtfSearchVisible = false" @selected="onSoDtfSelected" />
+        <PriceProposalSearchModal v-if="isPriceProposalSearchVisible" :cabang="header.gudang.kode"
+            :customerKode="header.customer?.kode" @close="isPriceProposalSearchVisible = false"
+            @selected="onPriceProposalSelected" />
+        <DpInputModal v-if="isDpInputVisible" :customerKode="header.customer?.kode" :minimal-dp="footer.minimalDp"
+            @close="isDpInputVisible = false" @dp-saved="onDpSaved" />
+
+        <v-dialog v-model="isConfirmDialogVisible" max-width="400px" persistent>
+            <v-card>
+                <v-card-title class="text-h6 font-weight-bold">Konfirmasi</v-card-title>
+                <v-card-text>{{ confirmText }}</v-card-text>
+                <v-card-actions>
+                    <v-spacer></v-spacer>
+                    <v-btn color="grey-darken-1" variant="text" @click="closeConfirmDialog">Tidak</v-btn>
+                    <v-btn color="primary" variant="tonal" @click="executePendingAction">Ya, Lanjutkan</v-btn>
+                </v-card-actions>
+            </v-card>
+        </v-dialog>
     </PageLayout>
 </template>
 
@@ -870,7 +1207,6 @@ onMounted(() => {
 .main-grid-section {
     flex-grow: 1;
     min-height: 200px;
-    /* Beri tinggi minimal agar tidak gepeng */
     display: flex;
 }
 
@@ -879,20 +1215,27 @@ onMounted(() => {
 }
 
 .footer-grid-section {
-    font-size: 11px;
     flex-shrink: 0;
     display: flex;
     gap: 12px;
 }
 
+.footer-left {
+    width: 70%;
+    /* Beri ruang lebih untuk tabel DP */
+}
+
+.footer-right {
+    width: 30%;
+    /* Kecilkan kolom total */
+}
+
 .dp-table {
     max-height: 150px;
-    /* Batasi tinggi grid DP agar tidak terlalu dominan */
 }
 
 .field-disabled {
     background-color: #f0f0f0;
     pointer-events: none;
-    /* Mencegah klik */
 }
 </style>

@@ -61,7 +61,7 @@ const filterOptions = ref([
     { title: 'TOP', value: 'top' },
     { title: 'Tgl Tempo', value: 'tempo' },
     { title: 'PPN', value: 'ppn' },
-    { title: 'Disc %', value: 'disc%'},
+    { title: 'Disc %', value: 'disc%' },
     { title: 'Diskon', value: 'diskon' },
     { title: 'Nominal', value: 'nominal' },
     { title: 'Kode Customer', value: 'kdcus' },
@@ -108,7 +108,7 @@ const tableHeaders = [
     { title: 'Nominal', key: 'nominal', align: 'end', width: '120px' },
     { title: 'Kode Customer', key: 'kdcus', width: '120px' },
     { title: 'Nama Customer', key: 'nama', width: '250px' },
-    { title: 'Alamat', key: 'alamat', width: '600px' },
+    { title: 'Alamat', key: 'alamat' },
     { title: 'Kota', key: 'kota', width: '150px' },
     { title: 'Telepon', key: 'telp', width: '120px' },
     { title: 'Level', key: 'level', width: '150px' },
@@ -473,43 +473,45 @@ watch(selectedBranch, () => {
             </div>
 
             <!-- Table Section -->
-            <v-data-table v-model="selected" :headers="tableHeaders" :items="filteredOffers" :loading="isLoading"
-                item-value="nomor" density="compact" class="desktop-table" fixed-header show-select return-object
-                show-expand @update:expanded="loadDetails">
-                <template #item.status="{ item }">
-                    <v-chip :color="getStatus(item).color" variant="tonal" size="x-small">{{ getStatus(item).text
-                        }}</v-chip>
-                </template>
-                <template #item.nominal="{ item }">
-                    {{ new Intl.NumberFormat('id-ID').format(item.nominal) }}
-                </template>
-                <template #item.tanggal="{ item }">
-                    {{ format(new Date(item.tanggal), 'dd/MM/yyyy') }}
-                </template>
-                <template #item.tempo="{ item }">
-                    {{ item.tempo ? format(new Date(item.tempo), 'dd/MM/yyyy') : '-' }}
-                </template>
-                <template #expanded-row="{ columns, item }">
-                    <tr>
-                        <td :colspan="columns.length" class="pa-2 bg-grey-lighten-5">
-                            <div v-if="loadingDetails.has(item.nomor)" class="text-center py-2">
-                                <v-progress-circular indeterminate size="20" class="mr-2"></v-progress-circular>
-                                <span class="text-caption">Memuat detail...</span>
-                            </div>
-                            <v-data-table v-else-if="details[item.nomor] && details[item.nomor].length > 0"
-                                :headers="detailHeaders" :items="details[item.nomor]" density="compact"
-                                hide-default-footer :items-per-page="-1" class="elevation-0 detail-table">
-                                <template #item.harga="{ item: detailItem }">{{ new
-                                    Intl.NumberFormat('id-ID').format(detailItem.harga) }}</template>
-                                <template #item.diskon="{ item: detailItem }">{{ new
-                                    Intl.NumberFormat('id-ID').format(detailItem.diskon) }}</template>
-                                <template #item.total="{ item: detailItem }">{{ new
-                                    Intl.NumberFormat('id-ID').format(detailItem.total) }}</template>
-                            </v-data-table>
-                        </td>
-                    </tr>
-                </template>
-            </v-data-table>
+            <div class="table-container">
+                <v-data-table v-model="selected" :headers="tableHeaders" :items="filteredOffers" :loading="isLoading"
+                    item-value="nomor" density="compact" class="desktop-table" fixed-header show-select return-object
+                    show-expand @update:expanded="loadDetails">
+                    <template #item.status="{ item }">
+                        <v-chip :color="getStatus(item).color" variant="tonal" size="x-small">{{ getStatus(item).text
+                            }}</v-chip>
+                    </template>
+                    <template #item.nominal="{ item }">
+                        {{ new Intl.NumberFormat('id-ID').format(item.nominal) }}
+                    </template>
+                    <template #item.tanggal="{ item }">
+                        {{ format(new Date(item.tanggal), 'dd/MM/yyyy') }}
+                    </template>
+                    <template #item.tempo="{ item }">
+                        {{ item.tempo ? format(new Date(item.tempo), 'dd/MM/yyyy') : '-' }}
+                    </template>
+                    <template #expanded-row="{ columns, item }">
+                        <tr>
+                            <td :colspan="columns.length" class="pa-2 bg-grey-lighten-5">
+                                <div v-if="loadingDetails.has(item.nomor)" class="text-center py-2">
+                                    <v-progress-circular indeterminate size="20" class="mr-2"></v-progress-circular>
+                                    <span class="text-caption">Memuat detail...</span>
+                                </div>
+                                <v-data-table v-else-if="details[item.nomor] && details[item.nomor].length > 0"
+                                    :headers="detailHeaders" :items="details[item.nomor]" density="compact"
+                                    hide-default-footer :items-per-page="-1" class="elevation-0 detail-table">
+                                    <template #item.harga="{ item: detailItem }">{{ new
+                                        Intl.NumberFormat('id-ID').format(detailItem.harga) }}</template>
+                                    <template #item.diskon="{ item: detailItem }">{{ new
+                                        Intl.NumberFormat('id-ID').format(detailItem.diskon) }}</template>
+                                    <template #item.total="{ item: detailItem }">{{ new
+                                        Intl.NumberFormat('id-ID').format(detailItem.total) }}</template>
+                                </v-data-table>
+                            </td>
+                        </tr>
+                    </template>
+                </v-data-table>
+            </div>
         </div>
 
         <!-- Dialog untuk Close Penawaran -->
@@ -535,7 +537,7 @@ watch(selectedBranch, () => {
             <v-card>
                 <v-card-title class="text-h5">Konfirmasi Hapus</v-card-title>
                 <v-card-text>Apakah Anda yakin ingin menghapus penawaran nomor <strong>{{ itemToDelete?.nomor
-                        }}</strong>?</v-card-text>
+                }}</strong>?</v-card-text>
                 <v-card-actions><v-spacer></v-spacer><v-btn @click="dialogDelete = false">Batal</v-btn><v-btn
                         color="red-darken-1" variant="elevated"
                         @click="deleteConfirmed">Hapus</v-btn><v-spacer></v-spacer></v-card-actions>

@@ -1,25 +1,38 @@
 <script setup lang="ts">
-import { ref } from 'vue';
+import { ref, computed, watch } from 'vue';
 import api from '@/services/api';
 import { useToast } from 'vue-toastification';
 import RekeningSearchModal from './RekeningSearchModal.vue';
 import { useAuthStore } from '@/stores/authStore';
 import { useRouter } from 'vue-router';
 
-const props = defineProps({
-    customerKode: { type: String, required: true },
-    minimalDp: { type: Number, default: 0 }
-});
-const emit = defineEmits(['close', 'dp-saved']);
-
+// --- Inisialisasi ---
 const toast = useToast();
 const authStore = useAuthStore();
 const router = useRouter();
+
+const formatRupiah = (angka: number) => {
+    return new Intl.NumberFormat('id-ID').format(angka || 0);
+};
+
+// --- Computed ---
+const kekuranganDp = computed(() => {
+    const kurang = props.minimalDp - props.existingDp;
+    return kurang > 0 ? kurang : 0; // Pastikan tidak negatif
+});
+
+const props = defineProps({
+    customerKode: { type: String, required: true },
+    minimalDp: { type: Number, default: 0 },
+    existingDp: { type: Number, default: 0 }
+});
+const emit = defineEmits(['close', 'dp-saved']);
+
 const dpData = ref({
     tanggal: new Date().toISOString().substring(0, 10),
     jenis: 'TUNAI',
-    nominal: 0,
-    keterangan: 'DP',
+    nominal: kekuranganDp.value,
+    keterangan: 'DP Tambahan',
     bankData: {
         akun: '',
         namaBank: '',
@@ -35,16 +48,32 @@ const dpData = ref({
 const isSaving = ref(false);
 const isRekeningSearchVisible = ref(false);
 
+watch(kekuranganDp, (newValue) => {
+    dpData.value.nominal = newValue;
+}, { immediate: true });
+
 const save = async () => {
+    const nominal = dpData.value.nominal || 0;
+    
+    // --- PERBAIKAN: Gunakan validasi yang benar ---
+    // Cek apakah nominal yang diinput setidaknya sebesar kekurangannya.
+    if (nominal < kekuranganDp.value) {
+        return toast.error(`Nominal DP kurang. Minimal tambahan yang harus dibayar adalah: ${formatRupiah(kekuranganDp.value)}`);
+    }
+    // --- AKHIR PERBAIKAN ---
+
     if ((dpData.value.nominal || 0) <= 0) {
         return toast.error('Nominal harus diisi.');
     }
-    if (dpData.value.nominal < props.minimalDp) {
-        return toast.error(`Nominal DP tidak boleh kurang dari minimal: ${new Intl.NumberFormat('id-ID').format(props.minimalDp)}`);
-    }
+    // if (dpData.value.nominal < props.minimalDp) {
+    //     return toast.error(`Nominal DP tidak boleh kurang dari minimal: ${new Intl.NumberFormat('id-ID').format(props.minimalDp)}`);
+    // }
     if (dpData.value.jenis === 'TRANSFER' && !dpData.value.bankData.akun) {
         return toast.error('Akun Bank harus dipilih.');
     }
+    // if (dpData.value.nominal < kekuranganDp.value) {
+    //     return toast.error(`Nominal DP kurang. Minimal tambahan: ${new Intl.NumberFormat('id-ID').format(kekuranganDp.value)}`);
+    // }
     if (dpData.value.jenis === 'GIRO' && !dpData.value.giroData.noGiro) return toast.error('No. Giro harus diisi.');
     isSaving.value = true;
     try {
@@ -115,6 +144,17 @@ const onRekeningSelected = (rekening: any) => {
                         <v-text-field label="Tgl. Jatuh Tempo" v-model="dpData.giroData.tglJatuhTempo" type="date"
                             variant="outlined" density="compact" class="mt-2" />
                     </v-col>
+                    <v-card-text class="pa-4">
+                        <v-alert density="compact" variant="tonal" class="mb-4">
+                            <div class="d-flex justify-space-between"><span>Minimal DP Total:</span> <strong>{{ formatRupiah(minimalDp) }}</strong></div>
+                            <div class="d-flex justify-space-between"><span>Sudah Dibayar:</span> <strong>{{ formatRupiah(existingDp) }}</strong></div>
+                            <v-divider class="my-1" />
+                            <div class="d-flex justify-space-between font-weight-bold"><span>Kekurangan:</span>
+                                <strong>{{ formatRupiah(kekuranganDp) }}</strong></div>
+                        </v-alert>
+                        <v-row dense>
+                        </v-row>
+                    </v-card-text>
                 </v-row>
             </v-card-text>
             <v-card-actions class="dialog-footer">

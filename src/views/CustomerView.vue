@@ -394,10 +394,23 @@ onMounted(() => {
   background-color: #f5f5f5;
 }
 
-/* Memberikan sedikit ruang antar field */
+/* Mengatur font untuk label (Nama, Alamat, dll.) */
+.dialog-card :deep(.v-label) {
+    font-size: 11px !important;
+}
+
+/* Mengatur font untuk teks yang diinput */
+.dialog-card :deep(input),
+.dialog-card :deep(textarea),
+.dialog-card :deep(.v-select__selection-text) {
+    font-size: 12px !important;
+}
+
+/* Mengatur jarak antar field agar lebih rapat */
 .dialog-card :deep(.v-text-field),
+.dialog-card :deep(.v-textarea),
 .dialog-card :deep(.v-select),
-.dialog-card :deep(.v-textarea) {
-  margin-bottom: 8px;
+.dialog-card :deep(.v-radio-group) {
+    margin-bottom: 4px;
 }
 </style>

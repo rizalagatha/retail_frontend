@@ -178,16 +178,26 @@ const openCloseDialog = () => {
     isCloseDialogVisible.value = true;
 };
 
+// Di file: src/views/SoView.vue
+
 const submitClose = async () => {
     if (!itemToClose.value) return;
     try {
         await api.post('/so/close', {
             nomor: itemToClose.value.Nomor,
             alasan: closeReason.value,
+            user: authStore.user.kode, // Kirim data user untuk audit
         });
         toast.success('SO berhasil ditutup.');
         isCloseDialogVisible.value = false;
-        fetchData();
+
+        // Perbarui status item yang dipilih di frontend secara langsung
+        const itemInList = list.value.find(item => item.Nomor === itemToClose.value.Nomor);
+        if (itemInList) {
+            itemInList.Status = 'DICLOSE';
+            itemInList.AlasanClose = closeReason.value;
+        }
+
         selected.value = [];
     } catch (error: any) {
         toast.error(error.response?.data?.message || 'Gagal menutup SO.');
@@ -197,10 +207,13 @@ const submitClose = async () => {
 const showDeleteConfirmation = () => {
     if (!isSingleSelected.value) return;
     const item = selected.value[0];
+
+    // Validasi status di frontend untuk feedback cepat
     if (item.Status !== 'OPEN') {
         toast.warning(`SO dengan status "${item.Status}" tidak bisa dihapus.`);
         return;
     }
+
     itemToDelete.value = item;
     isConfirmDeleteVisible.value = true;
 };
@@ -262,6 +275,42 @@ const printData = () => {
     window.open(url, '_blank');
 };
 
+const exportData = async (type: 'header' | 'detail') => {
+    const filters = {
+        startDate: startDate.value,
+        endDate: endDate.value,
+        cabang: selectedCabang.value,
+    };
+
+    try {
+        if (type === 'header') {
+            if (list.value.length === 0) return toast.warning('Tidak ada data header untuk diekspor.');
+
+            toast.info('Membuat file Excel Header...');
+            const worksheet = XLSX.utils.json_to_sheet(list.value);
+            const workbook = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(workbook, worksheet, "SO Header");
+            XLSX.writeFile(workbook, "Export_SO_Header.xlsx");
+            toast.success('File Header berhasil dibuat.');
+
+        } else if (type === 'detail') {
+            toast.info('Mengambil data detail dari server...');
+            const response = await api.get('/so/export-details', { params: filters });
+
+            if (response.data.length === 0) return toast.warning('Tidak ada data detail untuk diekspor.');
+
+            toast.info('Membuat file Excel Detail...');
+            const worksheet = XLSX.utils.json_to_sheet(response.data);
+            const workbook = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(workbook, worksheet, "SO Detail");
+            XLSX.writeFile(workbook, "Export_SO_Detail.xlsx");
+            toast.success('File Detail berhasil dibuat.');
+        }
+    } catch (error) {
+        toast.error('Gagal mengekspor data.');
+    }
+};
+
 onMounted(() => {
     if (hasViewPermission.value) {
         fetchCabangList();
@@ -288,11 +337,18 @@ watch([startDate, endDate, selectedCabang], fetchData);
             <v-btn v.if="authStore.can(MENU_ID, 'view')" size="small" color="green" :disabled="!isSingleSelected"
                 prepend-icon="mdi-printer" @click="printData">Cetak</v-btn>
             <v-menu offset-y>
-                <template v-slot:activator="{ props }"><v-btn size="small" color="teal" prepend-icon="mdi-file-excel"
-                        v-bind="props">Export</v-btn></template>
+                <template v-slot:activator="{ props }">
+                    <v-btn size="small" color="teal" prepend-icon="mdi-file-excel" v-bind="props">
+                        Export
+                    </v-btn>
+                </template>
                 <v-list density="compact">
-                    <v-list-item><v-list-item-title>Export Header</v-list-item-title></v-list-item>
-                    <v-list-item><v-list-item-title>Export Detail</v-list-item-title></v-list-item>
+                    <v-list-item @click="exportData('header')">
+                        <v-list-item-title>Export Header</v-list-item-title>
+                    </v-list-item>
+                    <v-list-item @click="exportData('detail')">
+                        <v-list-item-title>Export Detail</v-list-item-title>
+                    </v-list-item>
                 </v-list>
             </v-menu>
             <v-divider vertical class="mx-2"></v-divider>
@@ -346,7 +402,7 @@ watch([startDate, endDate, selectedCabang], fetchData);
                     <template #item.Dateline="{ item }">{{ item.Dateline ? format(parseISO(item.Dateline), 'dd/MM/yyyy')
                         : '-' }}</template>
                     <template #item.Nominal="{ item }">{{ new Intl.NumberFormat('id-ID').format(item.Nominal || 0)
-                        }}</template>
+                    }}</template>
                     <template #item.Status="{ item }">
                         <v-chip size="x-small" :color="getStatusChip(item.Status).color"
                             :class="item.Aktif === 'N' ? 'text-grey' : ''" variant="tonal">
@@ -397,7 +453,7 @@ watch([startDate, endDate, selectedCabang], fetchData);
             <v-card>
                 <v-card-title class="text-h6 font-weight-bold">Konfirmasi Hapus</v-card-title>
                 <v-card-text>Anda yakin ingin menghapus Surat Pesanan: <strong>{{ itemToDelete?.Nomor
-                        }}</strong>?</v-card-text>
+                }}</strong>?</v-card-text>
                 <v-card-actions>
                     <v-spacer></v-spacer>
                     <v-btn @click="isConfirmDeleteVisible = false">Batal</v-btn>

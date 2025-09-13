@@ -771,26 +771,28 @@ onMounted(() => {
                     </v-row>
                 </div>
                 <div class="desktop-form-section footer-section">
-                    <v-row dense>
-                        <v-col cols="6">
+                    <v-row dense class="mb-2">
+                        <v-col cols="3">
                             <v-text-field label="PPN %" v-model.number="header.ppnPersen" type="number"
                                 variant="outlined" density="compact" hide-details class="summary-field">
                             </v-text-field>
                         </v-col>
-                        <v-col cols="6">
+                        <v-col cols="3">
                             <v-text-field label="Biaya Kirim" v-model.number="footer.biayaKirim" type="number"
                                 variant="outlined" density="compact" hide-details class="summary-field text-right">
                             </v-text-field>
                         </v-col>
+                        <v-col cols="3">
+                            <v-text-field label="Disc%1" v-model.number="footer.diskonPersen1" type="number"
+                                variant="outlined" density="compact" hide-details @blur="handleDiscountChange">
+                            </v-text-field>
+                        </v-col>
+                        <v-col cols="3">
+                            <v-text-field label="Disc%2" v-model.number="footer.diskonPersen2" type="number"
+                                variant="outlined" density="compact" hide-details @blur="handleDiscount2Change">
+                            </v-text-field>
+                        </v-col>
                     </v-row>
-                    <div class="d-flex ga-2">
-                        <v-text-field label="Diskon % 1" v-model.number="footer.diskonPersen1" type="number"
-                            variant="outlined" density="compact" hide-details :disabled="!canEditFooter"
-                            @blur="handleDiscountChange"></v-text-field>
-                        <v-text-field label="Diskon % 2" v-model.number="footer.diskonPersen2" type="number"
-                            variant="outlined" density="compact" hide-details :disabled="!canEditFooter"
-                            @blur="handleDiscount2Change"></v-text-field>
-                    </div>
                     <v-divider class="my-2"></v-divider>
                     <v-text-field label="Total" :model-value="new Intl.NumberFormat('id-ID').format(footer.total)"
                         readonly variant="filled" density="compact" hide-details

@@ -40,6 +40,8 @@ import SoView from '@/views/SoView.vue';
 import SoPrintView from '@/views/SoPrintView.vue';
 import SoCreateView from '@/views/SoCreateView.vue';
 import DpPrintView from '@/views/DpPrintView.vue';
+import MutasiOutView from '@/views/MutasiOutView.vue';
+import MutasiOutCreateView from '@/views/MutasiOutCreateView.vue';
 import LaporanStokView from '@/views/LaporanStokView.vue';
 
 const routes = [
@@ -436,19 +438,60 @@ const routes = [
     path: '/transaksi/surat-pesanan/new',
     name: 'SuratPesananCreate',
     component: SoCreateView,
-    meta: { title: 'Buat Surat Pesanan', requiresAuth: true, menuId: '26' }
+    meta: { 
+      title: 'Buat Surat Pesanan', 
+      requiresAuth: true, 
+      menuId: '26' 
+    }
   },
   {
     path: '/transaksi/surat-pesanan/ubah/:nomor',
     name: 'SuratPesananEdit',
     component: SoCreateView,
-    meta: { title: 'Ubah Surat Pesanan', requiresAuth: true, menuId: '26' }
+    meta: { 
+      title: 'Ubah Surat Pesanan', 
+      requiresAuth: true, 
+      menuId: '26' 
+    }
   },
   {
     path: '/transaksi/surat-pesanan/print-dp/:nomor',
     name: 'Cetak DP',
     component: DpPrintView,
-    meta: { requiresAuth: true, printLayout: true }
+    meta: { 
+      requiresAuth: true, 
+      printLayout: true 
+    }
+  },
+  {
+    path: '/transaksi/mutasi/out-produksi',
+    name: 'frmBrowMutasiOut',
+    component: MutasiOutView,
+    meta: {
+      title: 'Mutasi Out ke Produksi',
+      requiresAuth: true,
+      menuId: '43'
+    }
+  },
+  {
+    path: '/transaksi/mutasi/out-produksi/new',
+    name: 'MutasiOutProduksiCreate',
+    component: MutasiOutCreateView,
+    meta: {
+      title: 'Buat Mutasi Out',
+      requiresAuth: true,
+      menuId: '43'
+    }
+  },
+  {
+    path: '/transaksi/mutasi/out-produksi/ubah/:nomor',
+    name: 'MutasiOutProduksiEdit',
+    component: MutasiOutCreateView,
+    meta: {
+      title: 'Ubah Mutasi Out',
+      requiresAuth: true,
+      menuId: '43'
+    }
   },
   {
     path: '/laporan/stok',

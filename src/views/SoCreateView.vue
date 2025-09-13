@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, computed, watch } from 'vue';
+import { ref, onMounted, computed, watch, nextTick } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import api from '@/services/api';
 import PageLayout from '@/components/PageLayout.vue';
@@ -17,6 +17,7 @@ import SoDtfSearchModal from '@/components/SoDtfSearchModal.vue';
 import PriceProposalSearchModal from '@/components/PriceProposalSearchModal.vue';
 import AuthorizationModal from '@/components/AuthorizationModal.vue';
 import DpInputModal from '@/components/DpInputModal.vue';
+import CustomerForm from '@/components/CustomerForm.vue';
 
 const router = useRouter();
 const route = useRoute();
@@ -124,6 +125,7 @@ const auth2ModalRef = ref<any>(null);
 const itemAuthModalRef = ref<any>(null);
 const dpAuthModalRef = ref<any>(null);
 const isDpInputVisible = ref(false);
+const isNewCustomerFormVisible = ref(false);
 
 const mainTableHeaders = [
     { title: 'Kode', key: 'kode', width: '180px' },
@@ -166,41 +168,71 @@ function toDateInputValue(dateStr: string) {
 const loadDataForEdit = async (nomor: string) => {
     isLoading.value = true;
     try {
+
         const response = await api.get(`/so-form/${nomor}`);
         const { headerData, itemsData, dpItemsData, footerData } = response.data;
-        console.log("headerData dari backend:", headerData);
-        // Mapping khusus untuk header supaya konsisten
+
+        // ===== MAPPING HEADER =====
         header.value = {
             ...header.value,
             ...headerData,
             level: headerData.levelKode || '',
             levelKode: headerData.levelKode || '',
-            levelNama: headerData.levelNama || '',      // jangan pakai xLevel
+            levelNama: headerData.levelNama || '',
             tanggal: toDateInputValue(headerData.tanggal),
             dateline: toDateInputValue(headerData.dateline),
         };
 
-        footer.value = { ...footer.value, ...footerData };
+        // ===== MAPPING FOOTER =====      
+        footer.value = {
+            ...footer.value,
+            ...footerData
+        };
 
-        items.value = itemsData.map((item: any) => ({
-            ...item,
-            id: Date.now() + Math.random(),
-        }));
+        // ===== MAPPING ITEMS =====
+        items.value = itemsData.map((item: any, index: number) => {
+            const mappedItem = {
+                ...item,
+                id: Date.now() + Math.random() + index,
+            };
+            return mappedItem;
+        });
 
+        // ===== MAPPING DP ITEMS =====
         dpItems.value = dpItemsData;
 
+        // ===== EDIT PERMISSION CHECK =====
         if (!headerData.canEdit) {
             isSavingDisabled.value = true;
             toast.warning('SO ini sudah menjadi Invoice, data tidak bisa diubah.');
         }
 
-        addNewRow();
-        await nextTick();
-        calculateTotals();
+        // ===== CRITICAL SECTION: ADD NEW ROW =====    
+        try {
+            addNewRow();
+        } catch (addRowError) {
+            throw new Error(`addNewRow failed: ${addRowError.message}`);
+        }
+
+        // ===== CRITICAL SECTION: AWAIT NEXTTICK =====
+        try {
+            await nextTick();
+        } catch (nextTickError) {
+            throw new Error(`nextTick failed: ${nextTickError.message}`);
+        }
+
+        // ===== CRITICAL SECTION: CALCULATE TOTALS =====       
+        try {
+            calculateTotals();
+        } catch (calcError) {
+            throw new Error(`calculateTotals failed: ${calcError.message}`);
+        }
 
         toast.success(`Data untuk SO ${nomor} berhasil dimuat.`);
+
     } catch (error: any) {
-        toast.error(error.response?.data?.message || 'Gagal memuat data SO.');
+        // Log current state when error occurs    
+        toast.error(error.response?.data?.message || error.message || 'Gagal memuat data SO.');
         router.push('/transaksi/surat-pesanan');
     } finally {
         isLoading.value = false;
@@ -876,6 +908,11 @@ const closeForm = () => {
     router.push('/transaksi/surat-pesanan');
 };
 
+const onNewCustomerSaved = (newCustomer: any) => {
+    // Panggil onCustomerSelected untuk menjalankan semua validasi & mengisi form
+    onCustomerSelected(newCustomer);
+};
+
 watch(
     // Daftar semua state yang akan memicu kalkulasi ulang
     [
@@ -958,7 +995,13 @@ onMounted(() => {
                             <v-text-field label="Customer"
                                 :model-value="header.customer ? `${header.customer.kode} - ${header.customer.nama}` : ''"
                                 readonly @click="isCustomerSearchVisible = true" variant="outlined" density="compact"
-                                hide-details append-inner-icon="mdi-magnify" />
+                                hide-details append-inner-icon="mdi-magnify">
+                                <template #prepend-inner>
+                                    <v-btn icon="mdi-account-plus" size="x-small" variant="tonal" class="me-2"
+                                        @click.stop="isNewCustomerFormVisible = true"
+                                        title="Buat Customer Baru"></v-btn>
+                                </template>
+                            </v-text-field>
                         </v-col>
                         <v-col cols="6"><v-text-field label="Dateline" v-model="header.dateline" type="date"
                                 variant="outlined" density="compact" hide-details /></v-col>
@@ -1167,7 +1210,9 @@ onMounted(() => {
             :customerKode="header.customer?.kode" @close="isPriceProposalSearchVisible = false"
             @selected="onPriceProposalSelected" />
         <DpInputModal v-if="isDpInputVisible" :customerKode="header.customer?.kode" :minimal-dp="footer.minimalDp"
-            @close="isDpInputVisible = false" @dp-saved="onDpSaved" />
+            :existing-dp="footer.totalDp" @close="isDpInputVisible = false" @dp-saved="onDpSaved" />
+        <CustomerForm v-if="isNewCustomerFormVisible" @close="isNewCustomerFormVisible = false"
+            @customer-saved="onNewCustomerSaved" />
 
         <v-dialog v-model="isConfirmDialogVisible" max-width="400px" persistent>
             <v-card>

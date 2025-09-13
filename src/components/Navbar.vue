@@ -159,7 +159,7 @@ const menuItems = [
         title: 'Mutasi',
         icon: 'mdi-swap-horizontal',
         items: [
-          { title: 'Mutasi Out ke Produksi', to: '/mutation/out-production', icon: 'mdi-export' },
+          { title: 'Mutasi Out ke Produksi', to: '/transaksi/mutasi/out-produksi', icon: 'mdi-export' },
           { title: 'Mutasi In dari Produksi', to: '/mutation/in-production', icon: 'mdi-import' },
           { title: 'Mutasi Stok', to: '/mutation/stock', icon: 'mdi-swap-vertical' },
           { title: 'Mutasi Antar Store (Kirim)', to: '/mutation/store-send', icon: 'mdi-send' },
@@ -473,6 +473,7 @@ onUnmounted(() => {
               </v-avatar>
             </template>
             <v-list-item-title class="user-profile-name">{{ authStore.userName }}</v-list-item-title>
+            <v-list-item-subtitle class="user-profile-branch">{{ authStore.userCabang }}</v-list-item-subtitle>
           </v-list-item>
 
           <v-divider class="user-divider" />

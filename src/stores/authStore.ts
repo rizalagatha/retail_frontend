@@ -34,6 +34,7 @@ export const useAuthStore = defineStore('auth', () => {
   const isAuthenticated = computed(() => !!token.value);
   const userName = computed(() => user.value?.nama || 'User');
   const userInitial = computed(() => userName.value.charAt(0).toUpperCase());
+  const userCabang = computed(() => user.value?.cabang || '-');
   const allowedMenus = computed(() => {
     return permissions.value
       .filter(p => p.view)
@@ -117,6 +118,7 @@ export const useAuthStore = defineStore('auth', () => {
     isAuthenticated,
     userName,
     userInitial,
+    userCabang,
     setLoginData,
     logout,
     checkAuthStatus,

@@ -40,8 +40,13 @@ import SoView from '@/views/SoView.vue';
 import SoPrintView from '@/views/SoPrintView.vue';
 import SoCreateView from '@/views/SoCreateView.vue';
 import DpPrintView from '@/views/DpPrintView.vue';
+import BufferStokView from '@/views/BufferStokView.vue';
 import MutasiOutView from '@/views/MutasiOutView.vue';
 import MutasiOutCreateView from '@/views/MutasiOutCreateView.vue';
+import MintaBarangView from '@/views/MintaBarangView.vue';
+import MintaBarangCreateView from '@/views/MintaBarangCreateView.vue';
+import SuratJalanView from '@/views/SuratJalanView.vue';
+import SuratJalanPrintView from '@/views/SuratJalanPrintView.vue';
 import LaporanStokView from '@/views/LaporanStokView.vue';
 
 const routes = [
@@ -438,29 +443,38 @@ const routes = [
     path: '/transaksi/surat-pesanan/new',
     name: 'SuratPesananCreate',
     component: SoCreateView,
-    meta: { 
-      title: 'Buat Surat Pesanan', 
-      requiresAuth: true, 
-      menuId: '26' 
+    meta: {
+      title: 'Buat Surat Pesanan',
+      requiresAuth: true,
+      menuId: '26'
     }
   },
   {
     path: '/transaksi/surat-pesanan/ubah/:nomor',
     name: 'SuratPesananEdit',
     component: SoCreateView,
-    meta: { 
-      title: 'Ubah Surat Pesanan', 
-      requiresAuth: true, 
-      menuId: '26' 
+    meta: {
+      title: 'Ubah Surat Pesanan',
+      requiresAuth: true,
+      menuId: '26'
     }
   },
   {
     path: '/transaksi/surat-pesanan/print-dp/:nomor',
     name: 'Cetak DP',
     component: DpPrintView,
-    meta: { 
-      requiresAuth: true, 
-      printLayout: true 
+    meta: {
+      requiresAuth: true,
+      printLayout: true
+    }
+  },
+  {
+    path: '/transaksi/internal/buffer-stok',
+    name: 'BufferStok',
+    component: BufferStokView,
+    meta: {
+      title: 'Buffer Stok',
+      requiresAuth: true
     }
   },
   {
@@ -491,6 +505,55 @@ const routes = [
       title: 'Ubah Mutasi Out',
       requiresAuth: true,
       menuId: '43'
+    }
+  },
+  {
+    path: '/transaksi/internal/minta-barang', // Sesuaikan path jika perlu
+    name: 'ufrmBrowMintaBarang',
+    component: MintaBarangView,
+    meta: {
+      title: 'Minta Barang ke DC',
+      requiresAuth: true,
+      menuId: '37'
+    }
+  },
+  {
+    path: '/transaksi/internal/minta-barang/new',
+    name: 'MintaBarangCreate',
+    component: MintaBarangCreateView,
+    meta: {
+      title: 'Buat Minta Barang ke DC',
+      requiresAuth: true,
+      menuId: '37'
+    }
+  },
+  {
+    path: '/transaksi/internal/minta-barang/ubah/:nomor',
+    name: 'MintaBarangEdit',
+    component: MintaBarangCreateView,
+    meta: {
+      title: 'Ubah Minta Barang ke DC',
+      requiresAuth: true,
+      menuId: '37'
+    }
+  },
+  {
+    path: '/gudang-dc/operasional/surat-jalan-store',
+    name: 'SuratJalanStore',
+    component: SuratJalanView,
+    meta: {
+      title: 'Surat Jalan ke Store',
+      requiresAuth: true,
+      menuId: '213'
+    }
+  },
+  {
+    path: '/gudang-dc/operasional/surat-jalan-store/print/:nomor',
+    name: 'Cetak Surat Jalan',
+    component: SuratJalanPrintView,
+    meta: {
+      requiresAuth: true,
+      printLayout: true // Flag untuk layout khusus cetak
     }
   },
   {

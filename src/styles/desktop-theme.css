@@ -6,7 +6,7 @@
    ========================================================================== */
 .browse-content,
 .form-content {
-    height: 100%;
+    height: auto;
     display: flex;
     flex-direction: column;
     gap: 12px;

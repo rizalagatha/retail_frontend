@@ -171,7 +171,19 @@ const closeConfirmDialog = () => {
     pendingAction.value = null;
 };
 const closeForm = () => {
-    router.push('/transaksi/surat-pesanan');
+    router.push('/transaksi/mutasi/out-produksi');
+};
+
+const getQtyOutClass = (item: any) => {
+    const qtyOut = item.jumlah || 0;
+    const stok = item.stok || 0;
+    const belum = item.belum || 0;
+
+    // Beri kelas 'qty-error' jika Qty Out melebihi Stok atau sisa Belum
+    if (qtyOut > stok || qtyOut > belum) {
+        return 'qty-error';
+    }
+    return ''; // Tidak ada kelas khusus jika valid
 };
 
 onMounted(() => {
@@ -217,8 +229,8 @@ onMounted(() => {
                 <v-data-table :headers="tableHeaders" :items="items" :loading="isLoading" density="compact"
                     class="desktop-table fill-height-table" fixed-header :items-per-page="-1">
                     <template #item.jumlah="{ item }">
-                        <v-text-field v-model.number="item.jumlah" type="number" min="0" :max="item.belum"
-                            variant="underlined" density="compact" hide-details class="text-end" />
+                        <v-text-field v-model.number="item.jumlah" type="number" min="0" variant="underlined"
+                            density="compact" hide-details class="text-end" :class="getQtyOutClass(item)" />
                     </template>
                     <template #bottom></template>
                 </v-data-table>
@@ -243,3 +255,12 @@ onMounted(() => {
         </v-dialog>
     </PageLayout>
 </template>
+
+<style scoped>
+/* Tambahkan ini di dalam blok <style> Anda */
+
+:deep(.qty-error input) {
+    color: red !important;
+    font-weight: bold;
+}
+</style>

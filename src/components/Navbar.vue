@@ -26,25 +26,34 @@ const appBarClass = computed(() => ({
 
 // Access control helper
 const hasAccess = (routeNameOrPath?: string) => {
-  if (!routeNameOrPath) return true
+    if (!routeNameOrPath) return true;
 
-  const authStore = useAuthStore()
-  const allowedMenus = authStore.allowedMenus ?? []
+    const authStore = useAuthStore();
+    const route = router.getRoutes().find(
+        r => r.name === routeNameOrPath || r.path === routeNameOrPath
+    );
 
-  const route = router.getRoutes().find(
-    r => r.name === routeNameOrPath || r.path === routeNameOrPath
-  )
+    if (!route) return false;
 
-  if (!route) return false
+    // Jika route tidak memerlukan login sama sekali, selalu tampilkan.
+    if (!route.meta.requiresAuth) {
+        return true;
+    }
 
-  if (route.meta?.public) return true
+    // Jika route butuh login, cek apakah user sudah login.
+    if (!authStore.isAuthenticated) {
+        return false;
+    }
 
-  if (route.meta?.menuId) {
-    return allowedMenus.includes(route.meta.menuId as string)
-  }
-
-  return allowedMenus.includes(route.name as string)
-}
+    // Jika route butuh izin spesifik (punya menuId), cek izinnya.
+    if (route.meta.menuId) {
+        return authStore.allowedMenus.includes(route.meta.menuId as string);
+    }
+    
+    // Jika sampai di sini, artinya route butuh login tapi tidak butuh izin spesifik.
+    // Karena user sudah login, maka tampilkan menunya.
+    return true;
+};
 
 // Menu configuration
 const menuItems = [
@@ -147,8 +156,8 @@ const menuItems = [
         title: 'Internal',
         icon: 'mdi-office-building-outline',
         items: [
-          { title: 'Buffer Stok', to: '/buffer-stock', icon: 'mdi-database-outline' },
-          { title: 'Minta Barang ke DC', to: '/request-to-dc', icon: 'mdi-arrow-up-bold-circle-outline' },
+          { title: 'Buffer Stok', to: '/transaksi/internal/buffer-stok', icon: 'mdi-database-outline' },
+          { title: 'Minta Barang ke DC', to: '/transaksi/internal/minta-barang', icon: 'mdi-arrow-up-bold-circle-outline' },
           { title: 'Terima SJ dari DC', to: '/receive-from-dc', icon: 'mdi-arrow-down-bold-circle-outline' },
           { title: 'Retur Barang ke DC', to: '/return-to-dc', icon: 'mdi-undo-variant' },
           { title: 'Koreksi Stok', to: '/stock-corrections', icon: 'mdi-pencil-outline' },
@@ -205,7 +214,7 @@ const menuItems = [
         items: [
           { title: 'Terima STBJ', to: '/dc/receive-stbj', icon: 'mdi-inbox-arrow-down' },
           { title: 'Terima dari Gudang Repair', to: '/dc/receive-from-repair', icon: 'mdi-tools' },
-          { title: 'Surat Jalan ke Store', to: '/dc/delivery-to-store', icon: 'mdi-truck-delivery-outline' },
+          { title: 'Surat Jalan ke Store', to: '/gudang-dc/operasional/surat-jalan-store', icon: 'mdi-truck-delivery-outline' },
           { title: 'Pengambilan Barang', to: '/dc/goods-pickup', icon: 'mdi-package-up' },
           { title: 'Terima Retur dari Store', to: '/dc/receive-return-from-store', icon: 'mdi-package-down' },
           { title: 'QC ke Garmen', to: '/dc/qc-to-garment', icon: 'mdi-quality-high' },

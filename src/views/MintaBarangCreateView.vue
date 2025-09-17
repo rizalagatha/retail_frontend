@@ -38,20 +38,21 @@ const activeRowIndex = ref(0);
 const isConfirmDialogVisible = ref(false);
 const confirmText = ref('');
 const pendingAction = ref<(() => void) | null>(null);
+const scannedBarcode = ref('');
 
 const tableHeaders = [
-    { title: 'Kode Barang', key: 'kode' },
-    { title: 'Nama Barang', key: 'nama' },
-    { title: 'Ukuran', key: 'ukuran' },
-    { title: 'Stok Min', key: 'stokmin', align: 'end' },
-    { title: 'Stok Max', key: 'stokmax', align: 'end' },
-    { title: 'Sudah Minta', key: 'sudahminta', align: 'end' },
-    { title: 'SJ Blm Diterima', key: 'sj', align: 'end' },
-    { title: 'Stok', key: 'stok', align: 'end' },
-    { title: 'Minta Otomatis', key: 'mino', align: 'end' },
-    { title: 'Jumlah', key: 'jumlah', align: 'end', width: '150px' },
-    { title: 'Barcode', key: 'barcode' },
-    { title: 'Actions', key: 'actions', sortable: false, width: '50px' },
+    { title: 'Kode Barang', key: 'kode', width: '250px' },
+    { title: 'Nama Barang', key: 'nama', width: '900px' },
+    { title: 'Ukuran', key: 'ukuran', width: '30px' },
+    { title: 'Stok Min', key: 'stokmin', align: 'end', width: '30px' },
+    { title: 'Stok Max', key: 'stokmax', align: 'end', width: '30px' },
+    { title: 'Sudah Minta', key: 'sudahminta', align: 'end', width: '30px' },
+    { title: 'SJ Blm Diterima', key: 'sj', align: 'end', width: '30px' },
+    { title: 'Stok', key: 'stok', align: 'end', width: '30px' },
+    { title: 'Minta Otomatis', key: 'mino', align: 'end', width: '30px' },
+    { title: 'Jumlah', key: 'jumlah', align: 'end', width: '40px' },
+    { title: 'Barcode', key: 'barcode', width: '100px' },
+    { title: 'Actions', key: 'actions', sortable: false, width: '40px' },
 ];
 
 const addNewRow = () => {
@@ -72,29 +73,63 @@ const resetForm = () => {
 };
 
 const openProductSearch = (index: number, isMulti: boolean) => {
+    if (!formHeader.value.customer?.kode) { // Ganti 'header.value.customer?.kode' jika perlu
+        toast.error('Pilih customer terlebih dahulu sebelum menambah item!');
+        return; // Hentikan fungsi jika customer belum dipilih
+    }
     activeRowIndex.value = index;
     isMultiSelectProduct.value = isMulti;
     isProductSearchVisible.value = true;
 };
 
-const onProductsSelected = (selectedProducts: any[]) => {
+const onProductsSelected = async (selectedProducts: any[]) => {
     isProductSearchVisible.value = false;
     if (!selectedProducts || selectedProducts.length === 0) return;
-    items.value.splice(activeRowIndex.value, 1);
-    selectedProducts.forEach(async (product) => {
-        const isDuplicate = items.value.some(item => item.kode === product.kode && item.ukuran === product.ukuran);
-        if (!isDuplicate) {
-            try {
-                const response = await api.get('/minta-barang-form/lookup/product-details', {
-                    params: { kode: product.kode, ukuran: product.ukuran }
-                });
-                items.value.push({ ...response.data, id: Date.now() + Math.random() });
-            } catch (error) {
-                toast.error(`Gagal memuat detail untuk ${product.kode}`);
-            }
+
+    // 1. Saring produk yang akan ditambahkan, buang yang sudah ada di tabel
+    const productsToAdd = selectedProducts.filter(p =>
+        !items.value.some(item => item.kode === p.kode && item.ukuran === p.ukuran)
+    );
+
+    if (productsToAdd.length === 0) {
+        toast.info("Semua produk yang dipilih sudah ada di dalam daftar.");
+        // Pastikan baris kosong tetap ada jika tidak ada produk baru yang ditambahkan
+        if (!items.value.some(item => !item.kode)) {
+            addNewRow();
         }
-    });
-    addNewRow();
+        return;
+    }
+
+    // 2. Buat array of promises untuk mengambil detail semua produk baru secara bersamaan
+    try {
+        const detailPromises = productsToAdd.map(product =>
+            api.get('/minta-barang-form/lookup/product-details', {
+                params: { kode: product.kode, ukuran: product.ukuran }
+            })
+        );
+
+        // Tunggu semua API call selesai
+        const responses = await Promise.all(detailPromises);
+
+        // 3. Map hasil response menjadi objek item yang siap dimasukkan ke tabel
+        const newItems = responses.map(response => ({
+            ...response.data,
+            id: Date.now() + Math.random()
+        }));
+
+        // 4. INTI PERBAIKAN: Ganti 1 baris kosong dengan semua item baru
+        items.value.splice(activeRowIndex.value, 1, ...newItems);
+
+        // 5. Tambahkan baris kosong baru di paling akhir
+        addNewRow();
+
+    } catch (error) {
+        toast.error(`Gagal memuat detail produk.`);
+        // Jika terjadi error, pastikan baris kosong tetap ada
+        if (!items.value.some(item => !item.kode)) {
+            addNewRow();
+        }
+    }
 };
 
 const openCustomerSearch = () => {
@@ -221,6 +256,71 @@ const executeSave = async () => {
     }
 };
 
+const handleBarcodeScan = async () => {
+    if (!formHeader.value.customer?.kode) { // Ganti 'header.value.customer?.kode' jika perlu
+        toast.error('Pilih customer terlebih dahulu sebelum scan barcode!');
+        return; // Hentikan fungsi jika customer belum dipilih
+    }
+
+    const barcode = scannedBarcode.value;
+    if (!barcode) return;
+
+    // --- LOGIKA 1: Jika barang sudah ada di grid, tambah jumlahnya ---
+    const existingItem = items.value.find(item => item.barcode === barcode && item.kode);
+    if (existingItem) {
+        existingItem.jumlah += 1;
+        // Panggil fungsi untuk hitung ulang total jika ada
+        // calculateTotals(); 
+        toast.info(`Jumlah untuk ${existingItem.nama} ditambah menjadi ${existingItem.jumlah}`);
+        scannedBarcode.value = ''; // Kosongkan input untuk scan berikutnya
+        return;
+    }
+
+    // --- LOGIKA 2: Jika barang belum ada, cari via API dan tambahkan baris baru ---
+    try {
+        // Panggil API baru yang kita buat
+        const response = await api.get(`/products/by-barcode/${barcode}`, {
+            params: { gudang: header.value.gudang.kode } // Sesuaikan dengan cara Anda menyimpan kode gudang
+        });
+
+        const product = response.data;
+
+        // Cari baris kosong pertama untuk diganti
+        const emptyRowIndex = items.value.findIndex(item => !item.kode);
+
+        if (emptyRowIndex !== -1) {
+            // Ganti baris kosong dengan data produk baru
+            items.value.splice(emptyRowIndex, 1, {
+                id: Date.now(),
+                kode: product.kode,
+                nama: product.nama,
+                ukuran: product.ukuran,
+                stok: product.stok,
+                harga: product.harga,
+                jumlah: 1, // Default jumlah 1
+                diskonPersen: 0,
+                diskonRp: 0,
+                total: product.harga,
+                barcode: product.barcode,
+                // ... properti lain diset default
+            });
+            addNewRow(); // Tambah baris kosong baru di akhir
+        } else {
+            // Jika tidak ada baris kosong (seharusnya tidak terjadi jika addNewRow dipakai)
+            // Anda bisa tambahkan logika push di sini
+            toast.error("Tidak ada baris kosong untuk menambahkan item baru.");
+        }
+
+        // Panggil fungsi untuk hitung ulang total jika ada
+        // calculateTotals();
+
+    } catch (error: any) {
+        toast.error(error.response?.data?.message || `Barcode ${barcode} tidak valid.`);
+    } finally {
+        scannedBarcode.value = ''; // Selalu kosongkan input setelah proses selesai
+    }
+};
+
 onMounted(() => {
     // Cek hak akses 'insert' (untuk baru) atau 'edit' (untuk ubah)
     if (!authStore.can(MENU_ID, isEditMode.value ? 'edit' : 'insert')) {
@@ -268,13 +368,13 @@ onMounted(() => {
                         </v-col>
                         <v-col cols="12">
                             <v-text-field label="No. Pesanan" v-model="formHeader.soNomor" readonly
-                                @click="isSoSearchVisible = true" prepend-inner-icon="mdi-magnify" density="compact"
-                                hide-details :class="{ 'field-disabled': isEditMode }" />
+                                @click="isSoSearchVisible = true" density="compact" hide-details
+                                :class="{ 'field-disabled': isEditMode }" />
                         </v-col>
                         <v-col cols="12">
                             <v-text-field label="Customer" :model-value="formHeader.customer?.kode" readonly
-                                @click="openCustomerSearch" prepend-inner-icon="mdi-magnify" density="compact"
-                                hide-details :class="{ 'field-disabled': !!formHeader.soNomor }" />
+                                @click="openCustomerSearch" density="compact" hide-details
+                                :class="{ 'field-disabled': !!formHeader.soNomor }" />
                         </v-col>
                         <v-col cols="12">
                             <v-text-field label="Nama Customer" :model-value="formHeader.customer?.nama" readonly filled
@@ -293,14 +393,21 @@ onMounted(() => {
             </div>
 
             <div class="right-column">
+                <div class="scanner-wrapper">
+                    <v-text-field v-model="scannedBarcode" label="Scan Barcode di Sini..."
+                        placeholder="Input barcode lalu tekan Enter" variant="outlined" density="compact"
+                        prepend-inner-icon="mdi-barcode-scan" hide-details clearable
+                        @keydown.enter.prevent="handleBarcodeScan">
+                    </v-text-field>
+                </div>
                 <div class="desktop-form-section fill-height">
                     <v-data-table :headers="tableHeaders" :items="items" :loading="isLoading" density="compact"
                         class="desktop-table fill-height-table" fixed-header :items-per-page="-1">
                         <template #item.kode="{ item, index }">
                             <v-text-field v-model="item.kode" variant="underlined" density="compact" hide-details
-                                placeholder="F1/F2..."
-                                @keydown.f1.prevent="isProductSearchVisible = true; activeRowIndex = index; isMultiSelectProduct = false"
-                                @keydown.f2.prevent="isProductSearchVisible = true; activeRowIndex = index; isMultiSelectProduct = true" />
+                                placeholder="F1/F2..." @keydown.f1.prevent="openProductSearch(index, false)"
+                                @keydown.f2.prevent="openProductSearch(index, true)">
+                            </v-text-field>
                         </template>
                         <template #item.jumlah="{ item }">
                             <v-text-field v-model.number="item.jumlah" type="number" min="0" variant="underlined"
@@ -329,7 +436,7 @@ onMounted(() => {
             @close="isSoSearchVisible = false" @selected="onSoSelected" />
         <CustomerSearchModal v-if="isCustomerSearchVisible" :gudang="authStore.user?.cabang || ''"
             @close="isCustomerSearchVisible = false" @customer-selected="onCustomerSelected" />
-        <ProductSearchModal v-if="isProductSearchVisible" :multi="isMultiSelectProduct"
+        <ProductSearchModal v-if="isProductSearchVisible" :source="'minta-barang'" :multi="isMultiSelectProduct"
             :gudang="authStore.user?.cabang || ''" category="REGULER" @close="isProductSearchVisible = false"
             @products-selected="onProductsSelected" />
 
@@ -385,5 +492,13 @@ onMounted(() => {
 .left-column :deep(input),
 .left-column :deep(.v-select__selection-text) {
     font-size: 12px !important;
+}
+
+.scanner-wrapper {
+    max-width: 400px;
+    /* <-- ATUR LEBAR MAKSIMUM DI SINI */
+    flex: none;
+    /* Mencegah flexbox meregangkan wrapper ini */
+    margin-bottom: 16px;
 }
 </style>

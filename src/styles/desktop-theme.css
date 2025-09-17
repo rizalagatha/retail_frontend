@@ -98,6 +98,10 @@
     font-size: 12px !important;
 }
 
+.header-section .v-col {
+  padding-top: 2px !important;
+  padding-bottom: 2px !important;
+}
 
 /* Styling v-data-table
    ========================================================================== */
@@ -208,4 +212,10 @@
 .footer-left .v-input--density-compact {
     --v-input-control-height: 28px;
     --v-input-padding-top: 5px;
+}
+
+.scanner-wrapper {
+  max-width: 400px; /* <-- ATUR LEBAR MAKSIMUM DI SINI */
+  flex: none;       /* Mencegah flexbox meregangkan wrapper ini */
+  margin-bottom: 16px;
 }

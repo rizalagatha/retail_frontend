@@ -58,6 +58,7 @@ const requiredPermission = computed(() => isEditMode.value ? 'edit' : 'insert');
 const isLoading = ref(true);
 const isSaving = ref(false);
 const isSavingDisabled = ref(false);
+const scannedBarcode = ref('');
 
 const initialHeaderState = {
     nomor: '',
@@ -912,6 +913,69 @@ const onNewCustomerSaved = (newCustomer: any) => {
     // Panggil onCustomerSelected untuk menjalankan semua validasi & mengisi form
     onCustomerSelected(newCustomer);
 };
+const handleBarcodeScan = async () => {
+    if (!header.value.customer?.kode) { // Ganti 'header.value.customer?.kode' jika perlu
+        toast.error('Pilih customer terlebih dahulu sebelum scan barcode!');
+        return; // Hentikan fungsi jika customer belum dipilih
+    }
+    const barcode = scannedBarcode.value;
+    if (!barcode) return;
+
+    // --- LOGIKA 1: Jika barang sudah ada di grid, tambah jumlahnya ---
+    const existingItem = items.value.find(item => item.barcode === barcode && item.kode);
+    if (existingItem) {
+        existingItem.jumlah += 1;
+        // Panggil fungsi untuk hitung ulang total jika ada
+        // calculateTotals(); 
+        toast.info(`Jumlah untuk ${existingItem.nama} ditambah menjadi ${existingItem.jumlah}`);
+        scannedBarcode.value = ''; // Kosongkan input untuk scan berikutnya
+        return;
+    }
+
+    // --- LOGIKA 2: Jika barang belum ada, cari via API dan tambahkan baris baru ---
+    try {
+        // Panggil API baru yang kita buat
+        const response = await api.get(`/so-form/by-barcode/${barcode}`, {
+            params: { gudang: header.value.gudang.kode } // Sesuaikan dengan cara Anda menyimpan kode gudang
+        });
+
+        const product = response.data;
+
+        // Cari baris kosong pertama untuk diganti
+        const emptyRowIndex = items.value.findIndex(item => !item.kode);
+
+        if (emptyRowIndex !== -1) {
+            // Ganti baris kosong dengan data produk baru
+            items.value.splice(emptyRowIndex, 1, {
+                id: Date.now(),
+                kode: product.kode,
+                nama: product.nama,
+                ukuran: product.ukuran,
+                stok: product.stok,
+                harga: product.harga,
+                jumlah: 1, // Default jumlah 1
+                diskonPersen: 0,
+                diskonRp: 0,
+                total: product.harga,
+                barcode: product.barcode,
+                // ... properti lain diset default
+            });
+            addNewRow(); // Tambah baris kosong baru di akhir
+        } else {
+            // Jika tidak ada baris kosong (seharusnya tidak terjadi jika addNewRow dipakai)
+            // Anda bisa tambahkan logika push di sini
+            toast.error("Tidak ada baris kosong untuk menambahkan item baru.");
+        }
+
+        // Panggil fungsi untuk hitung ulang total jika ada
+        // calculateTotals();
+
+    } catch (error: any) {
+        toast.error(error.response?.data?.message || `Barcode ${barcode} tidak valid.`);
+    } finally {
+        scannedBarcode.value = ''; // Selalu kosongkan input setelah proses selesai
+    }
+};
 
 watch(
     // Daftar semua state yang akan memicu kalkulasi ulang
@@ -1071,6 +1135,13 @@ onMounted(() => {
 
             <!-- Kolom Kanan -->
             <div class="right-column">
+                <div class="scanner-wrapper">
+                    <v-text-field v-model="scannedBarcode" label="Scan Barcode di Sini..."
+                        placeholder="Input barcode lalu tekan Enter" variant="outlined" density="compact"
+                        prepend-inner-icon="mdi-barcode-scan" hide-details clearable
+                        @keydown.enter.prevent="handleBarcodeScan">
+                    </v-text-field>
+                </div>
                 <div class="desktop-form-section main-grid-section">
                     <v-data-table :headers="mainTableHeaders" :items="items" class="desktop-table">
                         <template #item.kode="{ item, index }">
@@ -1193,7 +1264,7 @@ onMounted(() => {
         <PenawaranSearchModal v-if="isPenawaranSearchVisible" :cabang="header.gudang.kode"
             :customerKode="header.customer?.kode" @close="isPenawaranSearchVisible = false"
             @selected="onPenawaranSelected" />
-        <ProductSearchModal v-if="isProductSearchVisible" :category="'Kaosan'" :gudang="header.gudang.kode"
+        <ProductSearchModal v-if="isProductSearchVisible" :category="'Kaosan'" :source="'surat-pesanan'" :gudang="header.gudang.kode"
             :multi="isMultiSelectProduct" @close="isProductSearchVisible = false"
             @products-selected="onProductsSelected" />
         <AuthorizationModal ref="authModalRef" v-if="isAuthModalVisible" title="Otorisasi Diskon Faktur"
@@ -1282,5 +1353,12 @@ onMounted(() => {
 .field-disabled {
     background-color: #f0f0f0;
     pointer-events: none;
+}
+
+.scanner-wrapper {
+    font-size:11px;
+    max-width: 400px; /* <-- ATUR LEBAR MAKSIMUM DI SINI */
+    flex: none;       /* Mencegah flexbox meregangkan wrapper ini */
+    margin-bottom: 16px;
 }
 </style>

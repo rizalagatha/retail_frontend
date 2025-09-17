@@ -52,8 +52,8 @@ const levelHistory = ref<LevelHistory[]>([]);
 const availableLevels = ref([]);
 
 // --- State untuk konfirmasi hapus ---
-const dialogDelete = ref(false); // <-- TAMBAHKAN INI
-const itemToDelete = ref<Customer | null>(null); // <-- TAMBAHKAN INI
+// const dialogDelete = ref(false); // <-- TAMBAHKAN INI
+// const itemToDelete = ref<Customer | null>(null); // <-- TAMBAHKAN INI
 
 const hasViewPermission = computed(() => authStore.can(MENU_ID, 'view'));
 
@@ -67,7 +67,7 @@ const headers = [
   { title: 'TOP', key: 'top', align: 'center', width: '60px' },
   { title: 'Level', key: 'level', width: '120px' },
   { title: 'Status', key: 'status', align: 'center', width: '100px' },
-  { title: 'Actions', key: 'actions', sortable: false, align: 'center', width: '80px' },
+  // { title: 'Actions', key: 'actions', sortable: false, align: 'center', width: '80px' },
 ];
 
 const levelHistoryHeaders = [
@@ -79,7 +79,7 @@ const levelHistoryHeaders = [
 
 // --- Computed Properties ---
 const canEdit = computed(() => selected.value.length === 1);
-const canDelete = computed(() => selected.value.length === 1);
+// const canDelete = computed(() => selected.value.length === 1);
 const dialogTitle = computed(() => (isNew.value ? 'Customer Baru' : 'Ubah Customer'));
 
 // --- Methods ---
@@ -157,24 +157,24 @@ const saveCustomer = async () => {
   }
 };
 
-const deleteCustomer = async (item: Customer) => {
-  // if (confirm(`Yakin ingin menghapus customer ${item.nama}?`)) { // <-- HAPUS BARIS INI
-  try {
-    const response = await api.delete(`/customers/${item.kode}`);
-    toast.success(response.data.message);
-    fetchCustomers();
-  } catch (error) {
-    toast.error('Gagal menghapus data customer.');
-  }
-  // } // <-- HAPUS BARIS INI
-};
+// const deleteCustomer = async (item: Customer) => {
+//   // if (confirm(`Yakin ingin menghapus customer ${item.nama}?`)) { // <-- HAPUS BARIS INI
+//   try {
+//     const response = await api.delete(`/customers/${item.kode}`);
+//     toast.success(response.data.message);
+//     fetchCustomers();
+//   } catch (error) {
+//     toast.error('Gagal menghapus data customer.');
+//   }
+//   // } // <-- HAPUS BARIS INI
+// };
 
-const handleDeleteFromHeader = () => {
-  if (canDelete.value) {
-    // Panggil confirmDelete agar pengecekan statusnya terpusat
-    confirmDelete(selected.value[0]);
-  }
-};
+// const handleDeleteFromHeader = () => {
+//   if (canDelete.value) {
+//     // Panggil confirmDelete agar pengecekan statusnya terpusat
+//     confirmDelete(selected.value[0]);
+//   }
+// };
 
 const printData = () => {
   if (customers.value.length === 0) {
@@ -214,26 +214,26 @@ const exportData = () => {
   XLSX.writeFile(workbook, "DaftarCustomer.xlsx");
 };
 
-const confirmDelete = (item: Customer) => {
-  // Cek status customer sebelum membuka dialog konfirmasi
-  if (item.status === 'AKTIF') {
-    toast.warning('Customer yang berstatus AKTIF tidak dapat dihapus.');
-    return; // Hentikan proses jika statusnya AKTIF
-  }
+// const confirmDelete = (item: Customer) => {
+//   // Cek status customer sebelum membuka dialog konfirmasi
+//   if (item.status === 'AKTIF') {
+//     toast.warning('Customer yang berstatus AKTIF tidak dapat dihapus.');
+//     return; // Hentikan proses jika statusnya AKTIF
+//   }
 
-  // Jika status PASIF, lanjutkan seperti biasa
-  itemToDelete.value = item;
-  dialogDelete.value = true;
-};
+//   // Jika status PASIF, lanjutkan seperti biasa
+//   itemToDelete.value = item;
+//   dialogDelete.value = true;
+// };
 
 // Menjalankan aksi hapus setelah konfirmasi
-const deleteConfirmed = () => { // <-- TAMBAHKAN FUNGSI INI
-  if (itemToDelete.value) {
-    deleteCustomer(itemToDelete.value);
-  }
-  dialogDelete.value = false;
-  itemToDelete.value = null;
-};
+// const deleteConfirmed = () => { // <-- TAMBAHKAN FUNGSI INI
+//   if (itemToDelete.value) {
+//     deleteCustomer(itemToDelete.value);
+//   }
+//   dialogDelete.value = false;
+//   itemToDelete.value = null;
+// };
 
 const getItemKey = (item: Customer) => `${item.kode}-${item.level}`;
 
@@ -254,8 +254,8 @@ onMounted(() => {
         prepend-icon="mdi-plus">Baru</v-btn>
       <v-btn v-if="authStore.can(MENU_ID, 'edit')" size="small" :disabled="!canEdit" @click="handleEditFromHeader"
         prepend-icon="mdi-pencil">Ubah</v-btn>
-      <v-btn v-if="authStore.can(MENU_ID, 'delete')" size="small" :disabled="!canDelete" @click="handleDeleteFromHeader"
-        prepend-icon="mdi-delete">Hapus</v-btn>
+      <!-- <v-btn v-if="authStore.can(MENU_ID, 'delete')" size="small" :disabled="!canDelete" @click="handleDeleteFromHeader"
+        prepend-icon="mdi-delete">Hapus</v-btn> -->
       <v-btn v-if="authStore.can(MENU_ID, 'view')" size="small" @click="printData"
         prepend-icon="mdi-printer">Cetak</v-btn>
       <v-btn v-if="authStore.can(MENU_ID, 'view')" size="small" @click="exportData"
@@ -295,7 +295,7 @@ onMounted(() => {
         <template #item.actions="{ item }">
           <v-icon v-if="authStore.can(MENU_ID, 'edit')" size="small" class="me-2"
             @click="openEditDialog(item)">mdi-pencil</v-icon>
-          <v-icon v-if="authStore.can(MENU_ID, 'delete')" size="small" @click="confirmDelete(item)">mdi-delete</v-icon>
+          <!-- <v-icon v-if="authStore.can(MENU_ID, 'delete')" size="small" @click="confirmDelete(item)">mdi-delete</v-icon> -->
         </template>
       </v-data-table>
     </div>
@@ -364,7 +364,7 @@ onMounted(() => {
       </v-card>
     </v-dialog>
 
-    <v-dialog v-model="dialogDelete" max-width="500px">
+    <!-- <v-dialog v-model="dialogDelete" max-width="500px">
       <v-card>
         <v-card-title class="text-h5">Konfirmasi Hapus</v-card-title>
         <v-card-text>Apakah Anda yakin ingin menghapus customer <strong>{{ itemToDelete?.nama }}</strong>?</v-card-text>
@@ -372,7 +372,7 @@ onMounted(() => {
             color="red-darken-1" variant="elevated"
             @click="deleteConfirmed">Hapus</v-btn><v-spacer></v-spacer></v-card-actions>
       </v-card>
-    </v-dialog>
+    </v-dialog> -->
   </PageLayout>
 </template>
 

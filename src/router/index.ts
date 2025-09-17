@@ -47,6 +47,7 @@ import MintaBarangView from '@/views/MintaBarangView.vue';
 import MintaBarangCreateView from '@/views/MintaBarangCreateView.vue';
 import SuratJalanView from '@/views/SuratJalanView.vue';
 import SuratJalanPrintView from '@/views/SuratJalanPrintView.vue';
+import SuratJalanCreateView from '@/views/SuratJalanCreateView.vue';
 import LaporanStokView from '@/views/LaporanStokView.vue';
 
 const routes = [
@@ -554,6 +555,26 @@ const routes = [
     meta: {
       requiresAuth: true,
       printLayout: true // Flag untuk layout khusus cetak
+    }
+  },
+  {
+    path: '/gudang-dc/operasional/surat-jalan-store/new',
+    name: 'SuratJalanCreate',
+    component: SuratJalanCreateView,
+    meta: {
+      title: 'Buat Surat Jalan ke Store',
+      requiresAuth: true,
+      menuId: '213'
+    }
+  },
+  {
+    path: '/gudang-dc/operasional/surat-jalan-store/ubah/:nomor',
+    name: 'SuratJalanEdit',
+    component: SuratJalanCreateView,
+    meta: {
+      title: 'Ubah Surat Jalan ke Store',
+      requiresAuth: true,
+      menuId: '213'
     }
   },
   {

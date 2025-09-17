@@ -93,9 +93,8 @@ watch(search, () => {
       </v-toolbar>
 
       <v-card-text class="pa-4 d-flex flex-column flex-grow-1">
-        <v-text-field v-model="search" label="Cari berdasarkan kode atau nama customer..."
-          prepend-inner-icon="mdi-magnify" variant="outlined" density="compact" clearable class="mb-4 flex-shrink-0"
-          hide-details></v-text-field>
+        <v-text-field v-model="search" label="Cari berdasarkan kode atau nama customer..." variant="outlined"
+          density="compact" clearable class="mb-4 flex-shrink-0" hide-details></v-text-field>
 
         <v-data-table-server v-model:page="options.page" v-model:items-per-page="options.itemsPerPage"
           :headers="headers" :items="items" :items-length="totalItems" :loading="loading" @update:options="loadItems"

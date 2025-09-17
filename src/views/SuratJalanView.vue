@@ -314,7 +314,7 @@ watch(() => filters.kodeBarang, (newVal) => {
             </div>
         </div>
 
-        <ProductSearchModal v-if="dialog.searchProduct" category="ALL" :gudang="authStore.user?.cabang || ''"
+        <ProductSearchModal v-if="dialog.searchProduct" category="ALL" :source="'surat-jalan'" :gudang="authStore.user?.cabang || ''"
             @close="dialog.searchProduct = false" @products-selected="onProductSelected" />
 
         <v-dialog v-model="dialog.confirm" max-width="400px" persistent>

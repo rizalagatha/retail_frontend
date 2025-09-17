@@ -19,7 +19,8 @@ interface ProductVariant {
 const props = defineProps({
   category: { type: String, required: true },
   gudang: { type: String, required: true },
-  multi: { type: Boolean, default: false }
+  multi: { type: Boolean, default: false },
+  source: { type: String, default: 'default' }
 });
 // Emit 'products-selected' sekarang selalu mengirim array
 const emit = defineEmits(['close', 'products-selected']);
@@ -52,6 +53,7 @@ const loadItems = async (opts: { page: number, itemsPerPage: number }) => {
         gudang: props.gudang,
         page: opts.page,
         itemsPerPage: opts.itemsPerPage,
+        source: props.source,
       },
     });
     items.value = response.data.items || [];
@@ -87,6 +89,34 @@ const toggleMulti = (item: ProductVariant) => {
   }
 };
 
+const handleEnterKey = async () => {
+  // Abaikan jika multi-select atau input kosong
+  if (props.multi || !search.value.trim()) return;
+
+  console.log(`[DEBUG] Tombol Enter ditekan. Mencari barcode: "${search.value}"`);
+
+  // Hentikan timer pencarian otomatis
+  clearTimeout(searchTimeout);
+
+  // Paksa muat data segera dari API
+  await loadItems(options.value);
+
+  // Setelah API selesai, kita cek hasilnya
+  console.log(`[DEBUG] API selesai. Ditemukan ${totalItems.value} total hasil.`);
+  console.log('[DEBUG] Data mentah dari API:', JSON.parse(JSON.stringify(items.value)));
+
+  // Cari kecocokan barcode yang persis dari hasil yang ada
+  const exactMatch = items.value.find(item => item.barcode === search.value);
+
+  if (exactMatch) {
+    console.log('[DEBUG] KECOCOKAN PERSIS DITEMUKAN:', exactMatch);
+    selectAndClose(exactMatch);
+  } else {
+    console.log('[DEBUG] Tidak ada kecocokan barcode yang persis di dalam hasil.');
+    toast.warning(`Barcode "${search.value}" tidak ditemukan dalam hasil pencarian.`);
+  }
+};
+
 // --- Watchers ---
 let searchTimeout: ReturnType<typeof setTimeout>;
 watch(search, () => {
@@ -108,9 +138,11 @@ watch(search, () => {
       </v-toolbar>
 
       <v-card-text class="pa-4 d-flex flex-column flex-grow-1">
-        <v-text-field v-model="search" label="Cari berdasarkan kode, nama, atau barcode..."
-          prepend-inner-icon="mdi-magnify" variant="outlined" density="compact" clearable class="mb-4 flex-shrink-0"
-          hide-details></v-text-field>
+        <form @submit.prevent="handleEnterKey" class="mb-4 flex-shrink-0">
+          <v-text-field v-model="search" label="Cari berdasarkan kode, nama, atau barcode..."
+            prepend-inner-icon="mdi-magnify" variant="outlined" density="compact" clearable hide-details
+            autofocus></v-text-field>
+        </form>
         <v-data-table-server v-model="selected" :show-select="multi" return-object item-value="barcode"
           v-model:page="options.page" v-model:items-per-page="options.itemsPerPage" :headers="headers" :items="items"
           :items-length="totalItems" :loading="loading" @update:options="loadItems" hover

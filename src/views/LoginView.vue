@@ -1,9 +1,14 @@
 <script setup lang="ts">
-import { ref } from 'vue';
+import { ref, reactive } from 'vue';
 import api from '@/services/api';
 import { useAuthStore } from '@/stores/authStore';
 import { useToast } from 'vue-toastification';
 import { useRouter } from 'vue-router';
+
+interface Branch {
+  kode: string;
+  nama: string;
+}
 
 const toast = useToast();
 const router = useRouter();
@@ -13,6 +18,11 @@ const password = ref('');
 const isLoading = ref(false);
 const showPassword = ref(false);
 
+const isBranchDialogVisible = ref(false);
+const branchList = ref<Branch[]>([]);
+const tempToken = ref('');
+const selectedCabang = ref<string | null>(null);
+
 const authStore = useAuthStore();
 
 const handleLogin = async () => {
@@ -20,19 +30,57 @@ const handleLogin = async () => {
     toast.error('User dan Password harus diisi.');
     return;
   }
-
   isLoading.value = true;
   try {
     const response = await api.post('/auth/login', {
       kodeUser: kodeUser.value,
       password: password.value,
     });
-    authStore.setLoginData(response.data); 
-    toast.success('Login berhasil!');
+
+    if (response.data.requiresBranchSelection) {
+      // Tahap 1: User punya banyak cabang, tampilkan dialog
+      branchList.value = response.data.branches;
+      tempToken.value = response.data.tempToken;
+      isBranchDialogVisible.value = true;
+    } else {
+      // Login langsung berhasil
+      authStore.setLoginData(response.data.data);
+      toast.success('Login berhasil!');
+      router.push('/'); // Arahkan ke halaman utama
+    }
+
   } catch (error: any) {
     toast.error(error.response?.data?.message || 'Terjadi kesalahan saat login.');
   } finally {
     isLoading.value = false;
+  }
+};
+
+const handleBranchSelect = async () => {
+  if (!selectedCabang.value) {
+    toast.warning('Silahkan pilih cabang terlebih dahulu.');
+    return;
+  }
+  isLoading.value = true;
+  isBranchDialogVisible.value = false;
+  try {
+    const response = await api.post('/auth/select-branch', {
+      tempToken: tempToken.value,
+      selectedCabang: selectedCabang.value,
+    });
+
+    // Tahap 2: Login final berhasil
+    authStore.setLoginData(response.data);
+    toast.success(`Login sebagai cabang ${selectedCabang.value} berhasil!`);
+    router.push('/');
+
+  } catch (error: any) {
+    toast.error(error.response?.data?.message || 'Gagal finalisasi login.');
+  } finally {
+    isLoading.value = false;
+    // Reset state
+    selectedCabang.value = null;
+    tempToken.value = '';
   }
 };
 
@@ -50,11 +98,8 @@ const handleCancel = () => {
         <v-card elevation="8" class="mx-auto" style="border-radius: 16px;">
           <!-- Header -->
           <v-card-title class="pa-0">
-            <v-sheet
-              color="primary"
-              class="d-flex align-center justify-space-between pa-6 w-100"
-              style="border-radius: 16px 16px 0 0;"
-            >
+            <v-sheet color="primary" class="d-flex align-center justify-space-between pa-6 w-100"
+              style="border-radius: 16px 16px 0 0;">
               <div>
                 <h2 class="text-white text-h5 mb-1 font-weight-bold">Selamat Datang</h2>
                 <p class="text-white text-body-2 mb-0" style="opacity: 0.9;">
@@ -70,54 +115,26 @@ const handleCancel = () => {
           <v-card-text class="pa-8">
             <v-form @submit.prevent="handleLogin">
               <!-- User Field -->
-              <v-text-field
-                v-model="kodeUser"
-                label="Kode User"
-                placeholder="Masukkan kode user"
-                variant="outlined"
-                prepend-inner-icon="mdi-account"
-                class="mb-4"
-                :rules="[v => !!v || 'Kode user harus diisi']"
-                hide-details="auto"
-                autofocus
-              ></v-text-field>
+              <v-text-field v-model="kodeUser" label="Kode User" placeholder="Masukkan kode user" variant="outlined"
+                prepend-inner-icon="mdi-account" class="mb-4" :rules="[v => !!v || 'Kode user harus diisi']"
+                hide-details="auto" autofocus></v-text-field>
 
               <!-- Password Field -->
-              <v-text-field
-                v-model="password"
-                label="Password"
-                placeholder="Masukkan password"
-                :type="showPassword ? 'text' : 'password'"
-                variant="outlined"
-                prepend-inner-icon="mdi-lock"
+              <v-text-field v-model="password" label="Password" placeholder="Masukkan password"
+                :type="showPassword ? 'text' : 'password'" variant="outlined" prepend-inner-icon="mdi-lock"
                 :append-inner-icon="showPassword ? 'mdi-eye' : 'mdi-eye-off'"
-                @click:append-inner="showPassword = !showPassword"
-                class="mb-6"
-                :rules="[v => !!v || 'Password harus diisi']"
-                hide-details="auto"
-              ></v-text-field>
+                @click:append-inner="showPassword = !showPassword" class="mb-6"
+                :rules="[v => !!v || 'Password harus diisi']" hide-details="auto"></v-text-field>
 
               <!-- Actions -->
               <div class="d-flex justify-space-between align-center">
-                <v-btn
-                  variant="text"
-                  color="grey-darken-1"
-                  @click="handleCancel"
-                  :disabled="isLoading"
-                  prepend-icon="mdi-close"
-                >
+                <v-btn variant="text" color="grey-darken-1" @click="handleCancel" :disabled="isLoading"
+                  prepend-icon="mdi-close">
                   Batal
                 </v-btn>
 
-                <v-btn
-                  type="submit"
-                  color="primary"
-                  size="large"
-                  :loading="isLoading"
-                  variant="elevated"
-                  prepend-icon="mdi-login"
-                  min-width="120"
-                >
+                <v-btn type="submit" color="primary" size="large" :loading="isLoading" variant="elevated"
+                  prepend-icon="mdi-login" min-width="120">
                   {{ isLoading ? 'Masuk...' : 'Masuk' }}
                 </v-btn>
               </div>
@@ -140,23 +157,30 @@ const handleCancel = () => {
         </v-card>
 
         <!-- Loading Overlay -->
-        <v-overlay
-          v-model="isLoading"
-          contained
-          class="d-flex align-center justify-center"
-        >
+        <v-overlay v-model="isLoading" contained class="d-flex align-center justify-center">
           <div class="text-center">
-            <v-progress-circular
-              indeterminate
-              size="48"
-              width="4"
-              color="primary"
-            ></v-progress-circular>
+            <v-progress-circular indeterminate size="48" width="4" color="primary"></v-progress-circular>
             <div class="mt-3 text-white">Memverifikasi...</div>
           </div>
         </v-overlay>
       </v-col>
     </v-row>
+
+    <v-dialog v-model="isBranchDialogVisible" persistent max-width="400px">
+      <v-card>
+        <v-card-title class="text-h6">Pilih Cabang</v-card-title>
+        <v-card-text>
+          <p class="mb-4">User {{ kodeUser }} terdaftar di beberapa cabang. Silahkan pilih cabang untuk melanjutkan.</p>
+          <v-select v-model="selectedCabang" :items="branchList" item-title="nama" item-value="kode"
+            label="Cabang Tersedia" variant="outlined" autofocus></v-select>
+        </v-card-text>
+        <v-card-actions>
+          <v-spacer></v-spacer>
+          <v-btn text @click="isBranchDialogVisible = false; isLoading = false;">Batal</v-btn>
+          <v-btn color="primary" @click="handleBranchSelect" :disabled="!selectedCabang">Lanjutkan</v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
   </v-container>
 </template>
 

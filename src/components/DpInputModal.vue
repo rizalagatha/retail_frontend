@@ -6,6 +6,12 @@ import RekeningSearchModal from './RekeningSearchModal.vue';
 import { useAuthStore } from '@/stores/authStore';
 import { useRouter } from 'vue-router';
 
+interface Rekening {
+  kode: string;
+  nama: string;
+  rekening: string;
+}
+
 // --- Inisialisasi ---
 const toast = useToast();
 const authStore = useAuthStore();
@@ -54,7 +60,7 @@ watch(kekuranganDp, (newValue) => {
 
 const save = async () => {
     const nominal = dpData.value.nominal || 0;
-    
+
     // --- PERBAIKAN: Gunakan validasi yang benar ---
     // Cek apakah nominal yang diinput setidaknya sebesar kekurangannya.
     if (nominal < kekuranganDp.value) {
@@ -90,18 +96,23 @@ const save = async () => {
         }
         emit('dp-saved', response.data.newDp);
         emit('close');
-    } catch (error: any) {
-        toast.error(error.response?.data?.message || 'Gagal menyimpan DP.');
+    } catch (error: unknown) {
+        if (error && typeof error === "object" && "response" in error) {
+            const err = error as { response?: { data?: { message?: string } } };
+            toast.error(err.response?.data?.message || "Gagal menyimpan DP.");
+        } else {
+            toast.error("Gagal menyimpan DP.");
+        }
     } finally {
         isSaving.value = false;
     }
 };
 
-const onRekeningSelected = (rekening: any) => {
-    dpData.value.bankData.akun = rekening.kode;
-    dpData.value.bankData.namaBank = rekening.nama;
-    dpData.value.bankData.norek = rekening.rekening;
-    isRekeningSearchVisible.value = false;
+const onRekeningSelected = (rekening: Rekening) => {
+  dpData.value.bankData.akun = rekening.kode;
+  dpData.value.bankData.namaBank = rekening.nama;
+  dpData.value.bankData.norek = rekening.rekening;
+  isRekeningSearchVisible.value = false;
 };
 </script>
 
@@ -146,11 +157,14 @@ const onRekeningSelected = (rekening: any) => {
                     </v-col>
                     <v-card-text class="pa-4">
                         <v-alert density="compact" variant="tonal" class="mb-4">
-                            <div class="d-flex justify-space-between"><span>Minimal DP Total:</span> <strong>{{ formatRupiah(minimalDp) }}</strong></div>
-                            <div class="d-flex justify-space-between"><span>Sudah Dibayar:</span> <strong>{{ formatRupiah(existingDp) }}</strong></div>
+                            <div class="d-flex justify-space-between"><span>Minimal DP Total:</span> <strong>{{
+                                    formatRupiah(minimalDp) }}</strong></div>
+                            <div class="d-flex justify-space-between"><span>Sudah Dibayar:</span> <strong>{{
+                                    formatRupiah(existingDp) }}</strong></div>
                             <v-divider class="my-1" />
                             <div class="d-flex justify-space-between font-weight-bold"><span>Kekurangan:</span>
-                                <strong>{{ formatRupiah(kekuranganDp) }}</strong></div>
+                                <strong>{{ formatRupiah(kekuranganDp) }}</strong>
+                            </div>
                         </v-alert>
                         <v-row dense>
                         </v-row>

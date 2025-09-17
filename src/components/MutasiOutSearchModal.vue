@@ -1,39 +1,36 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue';
 import api from '@/services/api';
-import { format } from 'date-fns';
 
-interface Permintaan {
-    nomor: string;
-    tanggal: string;
-    otomatis: string;
-    keterangan: string;
+interface MutasiOut {
+    Nomor: string;
+    Tanggal: string;
+    DariCabangNama: string;
+    NoSO: string;
+    Customer: string;
 }
 
-const props = defineProps({
-    storeKode: { type: String, required: true }
-});
-const emit = defineEmits(['close', 'permintaan-selected']);
+const emit = defineEmits(['close', 'mutasi-out-selected']);
 
-const items = ref<Permintaan[]>([]);
+const items = ref<MutasiOut[]>([]);
 const totalItems = ref(0);
 const loading = ref(true);
 const search = ref('');
 const options = ref({ page: 1, itemsPerPage: 10 });
 
 const headers = [
-    { title: 'Nomor', key: 'nomor' },
-    { title: 'Tanggal', key: 'tanggal' },
-    { title: 'Otomatis', key: 'otomatis' },
-    { title: 'Keterangan', key: 'keterangan' },
+    { title: 'Nomor MO', key: 'Nomor' },
+    { title: 'Tanggal', key: 'Tanggal' },
+    { title: 'Dari Cabang', key: 'DariCabangNama' },
+    { title: 'No. SO', key: 'NoSO' },
+    { title: 'Customer', key: 'Customer' },
 ];
 
 const loadItems = async ({ page, itemsPerPage }: { page: number, itemsPerPage: number }) => {
     loading.value = true;
     try {
-        const response = await api.get('/surat-jalan-form/search/permintaan', {
+        const response = await api.get('/mutasi-in-form/search/mutasi-out', {
             params: {
-                storeKode: props.storeKode,
                 term: search.value,
                 page: page,
                 itemsPerPage: itemsPerPage,
@@ -47,7 +44,7 @@ const loadItems = async ({ page, itemsPerPage }: { page: number, itemsPerPage: n
             totalItems.value = 0;
         }
     } catch (error) {
-        console.error("Gagal memuat data permintaan:", error);
+        console.error("Gagal memuat data Mutasi Out:", error);
         items.value = [];
         totalItems.value = 0;
     } finally {
@@ -55,8 +52,8 @@ const loadItems = async ({ page, itemsPerPage }: { page: number, itemsPerPage: n
     }
 };
 
-const selectPermintaan = (item: Permintaan) => {
-    emit('permintaan-selected', item);
+const selectMutasiOut = (item: MutasiOut) => {
+    emit('mutasi-out-selected', item);
     emit('close');
 };
 
@@ -71,10 +68,10 @@ watch(search, () => {
 </script>
 
 <template>
-    <v-dialog :model-value="true" @update:modelValue="$emit('close')" max-width="900px" persistent>
+    <v-dialog :model-value="true" @update:modelValue="$emit('close')" max-width="1000px" persistent>
         <v-card class="d-flex flex-column" style="height: 80vh;">
             <v-toolbar color="primary" density="compact">
-                <v-toolbar-title class="text-subtitle-1">Bantuan - Pilih No. Permintaan</v-toolbar-title>
+                <v-toolbar-title class="text-subtitle-1">Bantuan - Pilih Mutasi Out</v-toolbar-title>
                 <v-spacer></v-spacer>
                 <v-btn icon="mdi-close" @click="$emit('close')" variant="text" size="small"></v-btn>
             </v-toolbar>
@@ -85,11 +82,12 @@ watch(search, () => {
                     :headers="headers" :items="items" :items-length="totalItems" :loading="loading"
                     @update:options="loadItems" hover class="desktop-table flex-grow-1" density="compact" fixed-header>
                     <template #item="{ item }">
-                        <tr @click="selectPermintaan(item)" style="cursor: pointer;">
-                            <td>{{ item.nomor }}</td>
-                            <td>{{ format(new Date(item.tanggal), 'dd/MM/yyyy') }}</td>
-                            <td>{{ item.otomatis }}</td>
-                            <td>{{ item.keterangan }}</td>
+                        <tr @click="selectMutasiOut(item)" style="cursor: pointer;">
+                            <td>{{ item.Nomor }}</td>
+                            <td>{{ item.Tanggal }}</td>
+                            <td>{{ item.DariCabangNama }}</td>
+                            <td>{{ item.NoSO }}</td>
+                            <td>{{ item.Customer }}</td>
                         </tr>
                     </template>
                 </v-data-table-server>

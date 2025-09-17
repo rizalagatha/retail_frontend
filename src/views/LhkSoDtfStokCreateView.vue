@@ -110,7 +110,7 @@ const save = async () => {
                 loadLhkData();
             } else {
                 // Jika mode baru, arahkan ke mode ubah dengan nomor baru
-                router.push(`/transaksi/dtf/lhk-so-dtf-stok/ubah/${response.data.nomor}`);
+                router.push(`/transaksi/penjualan/dtf/lhk-so-dtf-stok/ubah/${response.data.nomor}`);
             }
 
         } catch (error: any) {
@@ -142,7 +142,7 @@ const loadDataForEdit = async (nomor: string) => {
     }
 };
 
-const closeForm = () => router.push('/transaksi/dtf/lhk-so-dtf-stok');
+const closeForm = () => router.push('/transaksi/penjualan/dtf/lhk-so-dtf-stok');
 
 const showConfirmation = (action: () => void, text: string) => {
     pendingAction.value = action;

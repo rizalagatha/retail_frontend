@@ -177,7 +177,7 @@ const save = async () => {
             }
         }
 
-        router.push('/transaksi/dtf/so-dtf-stok');
+        router.push('/transaksi/penjualan/dtf/so-dtf-stok');
 
     } catch (error: any) {
         toast.error(error.response?.data?.message || 'Gagal menyimpan data.');
@@ -196,7 +196,7 @@ const resetForm = () => {
 };
 
 const closeForm = () => {
-    router.push('/transaksi/dtf/so-dtf-stok');
+    router.push('/transaksi/penjualan/dtf/so-dtf-stok');
 };
 
 const handleImageUpload = (files: File[]) => {

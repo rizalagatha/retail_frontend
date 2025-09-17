@@ -9,6 +9,14 @@ import { useRouter } from 'vue-router';
 import { format } from 'date-fns';
 import JsBarcode from 'jsbarcode';
 
+interface ProductDetail {
+    kode: string;
+    nama: string;
+    barcode: string;
+    ukuran: string;
+    harga: number;
+}
+
 const toast = useToast();
 const authStore = useAuthStore();
 const router = useRouter();
@@ -122,7 +130,6 @@ const printStyles = `
     }
 `;
 
-
 const getNextNumber = async () => {
     try {
         const cabang = authStore.user?.cabang || '';
@@ -130,42 +137,47 @@ const getNextNumber = async () => {
             params: { cabang, tanggal: tanggal.value }
         });
         nomor.value = response.data.nextNumber;
-    } catch (error) {
+    } catch {
         toast.error("Gagal mendapatkan nomor baru.");
     }
 };
 
-const openProductSearchModal = (index: number) => {
-    activeRowIndex.value = index;
-    isProductSearchModalVisible.value = true;
-};
+const openProductSearchModal = (rowIndex: number) => {
+    activeRowIndex.value = rowIndex
+    isProductSearchModalVisible.value = true
+}
 
-const handleProductSelected = async (product: { kode: string }) => {
-    isProductSearchModalVisible.value = false;
-    if (!product || !product.kode) return;
-    try {
-        const response = await api.get(`/barcode-form/product-details/${product.kode}`);
-        const productDetails = response.data;
-        items.value.splice(activeRowIndex.value, 1);
-        productDetails.forEach((detail: any) => {
-            const isDuplicate = items.value.some(item => item.barcode === detail.barcode);
-            if (!isDuplicate) {
-                items.value.push({
-                    id: Date.now() + Math.random(),
-                    kode: detail.kode,
-                    nama: detail.nama,
-                    barcode: detail.barcode,
-                    ukuran: detail.ukuran,
-                    harga: detail.harga,
-                    jumlah: 0,
-                });
-            }
-        });
-        addNewRow();
-    } catch (error) {
-        toast.error(`Gagal memuat detail untuk produk ${product.kode}.`);
+const handleProductsSelected = (products: ProductDetail[]) => {
+    if (!products || products.length === 0) return
+
+    // replace row aktif dengan produk pertama
+    const first = products[0]
+    items.value.splice(activeRowIndex.value, 1, {
+        id: Date.now() + Math.random(),
+        kode: first.kode,
+        nama: first.nama,
+        barcode: first.barcode,
+        ukuran: first.ukuran,
+        harga: first.harga,
+        jumlah: 0,
+    })
+
+    // kalau lebih dari 1 → sisipkan sisanya setelah row aktif
+    if (products.length > 1) {
+        const extras = products.slice(1).map(p => ({
+            id: Date.now() + Math.random(),
+            kode: p.kode,
+            nama: p.nama,
+            barcode: p.barcode,
+            ukuran: p.ukuran,
+            harga: p.harga,
+            jumlah: 0,
+        }))
+        items.value.splice(activeRowIndex.value + 1, 0, ...extras)
     }
-};
+
+    addNewRow()
+}
 
 const handleBarcodeScan = async () => {
     if (!barcodeScanTerm.value) return;
@@ -189,7 +201,7 @@ const handleBarcodeScan = async () => {
             toast.warning('Barcode tidak ditemukan.');
         }
         barcodeScanTerm.value = '';
-    } catch (error) {
+    } catch {
         toast.error('Gagal mencari barcode.');
     }
 };
@@ -229,7 +241,7 @@ const save = async () => {
         openPrintPreview();
 
         toast.success(`Data barcode ${nomor.value} berhasil disimpan. Siap untuk dicetak.`);
-    } catch (error) {
+    } catch {
         toast.error('Gagal menyimpan data.');
     } finally {
         isSaving.value = false;
@@ -389,23 +401,28 @@ onMounted(() => {
             <div class="desktop-form-section flex-grow-1 d-flex flex-column">
                 <v-data-table :headers="tableHeaders" :items="items" density="compact" class="desktop-table"
                     fixed-header height="100%" :items-per-page="-1">
-                    <template #item.kode="{ item }">
-                        <v-text-field v-model="item.kode" variant="underlined" dense hide-details single-line
-                            placeholder="Ketik atau F1..."
+                    <template #[`item.kode`]="{ item }">
+                        <v-text-field v-model="item.kode" variant="underlined" density="compact" hide-details
+                            single-line placeholder="Ketik atau F1..."
                             @keydown.f1.prevent="openProductSearchModal(items.indexOf(item))">
-                            <template #append-inner><v-icon @click="openProductSearchModal(items.indexOf(item))"
-                                    size="small">mdi-magnify</v-icon></template>
+                            <template #append-inner>
+                                <v-icon @click="openProductSearchModal(items.indexOf(item))" size="small">
+                                    mdi-magnify
+                                </v-icon>
+                            </template>
                         </v-text-field>
                     </template>
-                    <template #item.harga="{ item }">{{ new Intl.NumberFormat('id-ID').format(item.harga) }}</template>
-                    <template #item.jumlah="{ item }">
-                        <v-text-field v-model.number="item.jumlah" type="number" variant="underlined" dense hide-details
-                            single-line min="0" @focus="$event.target.select()"
-                            @keydown.enter.prevent="addNewRow"></v-text-field>
+                    <template #[`item.harga`]="{ item }">
+                        {{ new Intl.NumberFormat('id-ID').format(item.harga) }}
                     </template>
-                    <template #item.actions="{ item }">
+                    <template #[`item.jumlah`]="{ item }">
+                        <v-text-field v-model.number="item.jumlah" type="number" variant="underlined" density="compact"
+                            hide-details single-line min="0" @focus="$event.target.select()"
+                            @keydown.enter.prevent="addNewRow" />
+                    </template>
+                    <template #[`item.actions`]="{ item }">
                         <v-btn icon="mdi-delete" variant="text" color="error" size="x-small"
-                            @click="removeRow(item.id)"></v-btn>
+                            @click="removeRow(item.id)" />
                     </template>
                     <template #bottom>
                         <div class="pa-1 text-right border-t">
@@ -417,9 +434,9 @@ onMounted(() => {
             </div>
         </div>
 
-        <ProductSearchModal v-if="isProductSearchModalVisible" :category="productCategory"
-            :gudang="authStore.user?.cabang || ''" @close="isProductSearchModalVisible = false"
-            @product-selected="handleProductSelected" />
+        <ProductSearchModal v-if="isProductSearchModalVisible" :category="'Kaosan'"
+            :gudang="authStore.user?.cabang || 'K04'" :source="'minta-barang'"
+            @products-selected="handleProductsSelected" @close="isProductSearchModalVisible = false" />
 
         <v-dialog v-model="isPreviewModalVisible" max-width="500px" scrollable>
             <v-card>
@@ -445,7 +462,7 @@ onMounted(() => {
                     <v-spacer></v-spacer>
                     <v-btn color="primary" @click="executePrint" prepend-icon="mdi-printer">Cetak Semua ({{
                         barcodeSheets.length
-                        }} Halaman)</v-btn>
+                    }} Halaman)</v-btn>
                 </v-card-actions>
             </v-card>
         </v-dialog>

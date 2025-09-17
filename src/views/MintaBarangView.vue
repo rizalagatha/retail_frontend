@@ -105,9 +105,16 @@ const loadDetails = async (newlyExpandedItems: any[]) => {
     }
 };
 
-const getRowClass = (item: any) => {
-    if (!item.NoSJ) return 'status-merah';
-    if (item.NoSJ && !item.TerimaSJ) return 'status-biru';
+const getRowTextColor = (item: any) => {
+    // Merah: Belum ada No. SJ
+    if (!item.NoSJ) {
+        return 'text-red font-weight-bold';
+    }
+    // Biru: Sudah ada No. SJ tapi belum diterima
+    if (item.NoSJ && !item.TerimaSJ) {
+        return 'text-blue font-weight-bold';
+    }
+    // Hitam (default): Sudah ada No. SJ dan sudah diterima
     return '';
 };
 
@@ -222,7 +229,7 @@ watch(
                 @click="router.push('/transaksi/internal/minta-barang/new')">Baru</v-btn>
             <v-btn v-if="canEdit" size="small" :disabled="!isSingleSelected" prepend-icon="mdi-pencil"
                 @click="editItem">Ubah</v-btn>
-            <v-btn v-if="canDelete" size="small" :disabled="!isSingleSelected" prepend-icon="mdi-delete"
+            <v-btn v-if="canDelete" size="small" :disabled="!isSingleSelected" prepend-icon="mdi-delete" color="error"
                 @click="showDeleteConfirmation">Hapus</v-btn>
             <v-menu offset-y>
                 <template v-slot:activator="{ props }">
@@ -274,12 +281,22 @@ watch(
 
             <div class="table-container">
                 <v-data-table v-model="selected" :headers="headers" :items="list" :loading="isLoading"
-                    :item-class="getRowClass" item-value="Nomor" density="compact" class="desktop-table" fixed-header
-                    show-select return-object show-expand @update:expanded="loadDetails">
-                    <template #item.Tanggal="{ item }">{{ format(parseISO(item.Tanggal), 'dd/MM/yyyy') }}</template>
-                    <template #item.Otomatis="{ item }">
-                        <v-chip size="x-small" :color="item.Otomatis === 'Y' ? 'cyan' : 'purple'" label>{{ item.Otomatis
-                            === 'Y' ? 'Otomatis' : 'Manual' }}</v-chip>
+                    item-value="Nomor" density="compact" class="desktop-table" fixed-header show-select return-object
+                    show-expand @update:expanded="loadDetails">
+                    <template v-for="header in headers" #[`item.${header.key}`]="{ item }">
+                        <td :class="getRowTextColor(item)">
+                            <template v-if="header.key === 'Tanggal'">
+                                {{ format(parseISO(item.Tanggal), 'dd/MM/yyyy') }}
+                            </template>
+                            <template v-else-if="header.key === 'Otomatis'">
+                                <v-chip size="x-small" :color="item.Otomatis === 'Y' ? 'cyan' : 'purple'" label>
+                                    {{ item.Otomatis === 'Y' ? 'Otomatis' : 'Manual' }}
+                                </v-chip>
+                            </template>
+                            <template v-else>
+                                {{ item[header.key] }}
+                            </template>
+                        </td>
                     </template>
                     <template #expanded-row="{ columns, item }">
                         <tr>

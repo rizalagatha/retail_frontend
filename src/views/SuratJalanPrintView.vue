@@ -15,6 +15,9 @@ const fetchPrintData = async (nomor: string) => {
     try {
         const response = await api.get(`/surat-jalan/print-data/${nomor}`);
         printData.value = response.data;
+        if (printData.value.header?.sj_nomor) { 
+            document.title = printData.value.header.sj_nomor;
+        }
         await nextTick();
         window.print();
     } catch (error) {

@@ -1,39 +1,37 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue';
 import api from '@/services/api';
-import { format } from 'date-fns';
+import { useToast } from 'vue-toastification';
+import { format, parseISO } from 'date-fns';
 
-interface Permintaan {
-    nomor: string;
-    tanggal: string;
-    otomatis: string;
-    keterangan: string;
+interface So {
+    Nomor: string;
+    Tanggal: string;
+    Customer: string;
+    Kota: string;
 }
 
-const props = defineProps({
-    storeKode: { type: String, required: true }
-});
-const emit = defineEmits(['close', 'permintaan-selected']);
+const emit = defineEmits(['close', 'so-selected']);
+const toast = useToast();
 
-const items = ref<Permintaan[]>([]);
+const items = ref<So[]>([]);
 const totalItems = ref(0);
 const loading = ref(true);
 const search = ref('');
-const options = ref({ page: 1, itemsPerPage: 10 });
+const options = ref({ page: 1, itemsPerPage: 15 });
 
 const headers = [
-    { title: 'Nomor', key: 'nomor' },
-    { title: 'Tanggal', key: 'tanggal' },
-    { title: 'Otomatis', key: 'otomatis' },
-    { title: 'Keterangan', key: 'keterangan' },
+    { title: 'No. Pesanan', key: 'Nomor' },
+    { title: 'Tanggal', key: 'Tanggal' },
+    { title: 'Customer', key: 'Customer' },
+    { title: 'Kota', key: 'Kota' },
 ];
 
 const loadItems = async ({ page, itemsPerPage }: { page: number, itemsPerPage: number }) => {
     loading.value = true;
     try {
-        const response = await api.get('/surat-jalan-form/search/permintaan', {
+        const response = await api.get('/mutasi-stok-form/search/so', {
             params: {
-                storeKode: props.storeKode,
                 term: search.value,
                 page: page,
                 itemsPerPage: itemsPerPage,
@@ -47,7 +45,7 @@ const loadItems = async ({ page, itemsPerPage }: { page: number, itemsPerPage: n
             totalItems.value = 0;
         }
     } catch (error) {
-        console.error("Gagal memuat data permintaan:", error);
+        toast.error("Gagal memuat data SO.");
         items.value = [];
         totalItems.value = 0;
     } finally {
@@ -55,8 +53,8 @@ const loadItems = async ({ page, itemsPerPage }: { page: number, itemsPerPage: n
     }
 };
 
-const selectPermintaan = (item: Permintaan) => {
-    emit('permintaan-selected', item);
+const selectSo = (item: So) => {
+    emit('so-selected', item);
     emit('close');
 };
 
@@ -74,22 +72,23 @@ watch(search, () => {
     <v-dialog :model-value="true" @update:modelValue="$emit('close')" max-width="900px" persistent>
         <v-card class="d-flex flex-column" style="height: 80vh;">
             <v-toolbar color="primary" density="compact">
-                <v-toolbar-title class="text-subtitle-1">Bantuan - Pilih No. Permintaan</v-toolbar-title>
+                <v-toolbar-title class="text-subtitle-1">Bantuan - Pilih No. Pesanan</v-toolbar-title>
                 <v-spacer></v-spacer>
                 <v-btn icon="mdi-close" @click="$emit('close')" variant="text" size="small"></v-btn>
             </v-toolbar>
             <v-card-text class="pa-4 d-flex flex-column flex-grow-1">
-                <v-text-field v-model="search" label="Cari..." prepend-inner-icon="mdi-magnify" variant="outlined"
-                    density="compact" clearable class="mb-4 flex-shrink-0" hide-details autofocus></v-text-field>
+                <v-text-field v-model="search" label="Cari berdasarkan nomor SO atau nama customer..."
+                    prepend-inner-icon="mdi-magnify" variant="outlined" density="compact" clearable
+                    class="mb-4 flex-shrink-0" hide-details autofocus></v-text-field>
                 <v-data-table-server v-model:page="options.page" v-model:items-per-page="options.itemsPerPage"
                     :headers="headers" :items="items" :items-length="totalItems" :loading="loading"
                     @update:options="loadItems" hover class="desktop-table flex-grow-1" density="compact" fixed-header>
                     <template #item="{ item }">
-                        <tr @click="selectPermintaan(item)" style="cursor: pointer;">
-                            <td>{{ item.nomor }}</td>
-                            <td>{{ format(new Date(item.tanggal), 'dd/MM/yyyy') }}</td>
-                            <td>{{ item.otomatis }}</td>
-                            <td>{{ item.keterangan }}</td>
+                        <tr @click="selectSo(item)" style="cursor: pointer;">
+                            <td>{{ item.Nomor }}</td>
+                            <td>{{ item.Tanggal ? format(parseISO(item.Tanggal), 'dd/MM/yyyy') : '' }}</td>
+                            <td>{{ item.Customer }}</td>
+                            <td>{{ item.Kota }}</td>
                         </tr>
                     </template>
                 </v-data-table-server>

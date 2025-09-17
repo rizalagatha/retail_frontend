@@ -201,7 +201,7 @@ onMounted(() => {
                 prepend-icon="mdi-plus">Baru</v-btn>
             <v-btn v-if="authStore.can(MENU_ID, 'edit')" size="small" :disabled="selected.length !== 1"
                 @click="openEditDialog(selected[0])" prepend-icon="mdi-pencil">Ubah</v-btn>
-            <v-btn v-if="authStore.can(MENU_ID, 'delete')" size="small" :disabled="selected.length !== 1"
+            <v-btn v-if="authStore.can(MENU_ID, 'delete')" size="small" color="error" :disabled="selected.length !== 1"
                 @click="remove" prepend-icon="mdi-delete">Hapus</v-btn>
             <v-btn v-if="authStore.can(MENU_ID, 'view')" size="small" @click="exportData" prepend-icon="mdi-file-excel">
                 Export

@@ -4,6 +4,14 @@ import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/authStore'
 import logoSrc from '@/assets/logo.png'
 
+interface NavItem {
+  title: string
+  to?: string
+  icon?: string
+  divider?: boolean
+  subItems?: NavItem[]  // <— penting
+}
+
 // Stores and composables
 const authStore = useAuthStore()
 const router = useRouter()
@@ -26,33 +34,33 @@ const appBarClass = computed(() => ({
 
 // Access control helper
 const hasAccess = (routeNameOrPath?: string) => {
-    if (!routeNameOrPath) return true;
+  if (!routeNameOrPath) return true;
 
-    const authStore = useAuthStore();
-    const route = router.getRoutes().find(
-        r => r.name === routeNameOrPath || r.path === routeNameOrPath
-    );
+  const authStore = useAuthStore();
+  const route = router.getRoutes().find(
+    r => r.name === routeNameOrPath || r.path === routeNameOrPath
+  );
 
-    if (!route) return false;
+  if (!route) return false;
 
-    // Jika route tidak memerlukan login sama sekali, selalu tampilkan.
-    if (!route.meta.requiresAuth) {
-        return true;
-    }
-
-    // Jika route butuh login, cek apakah user sudah login.
-    if (!authStore.isAuthenticated) {
-        return false;
-    }
-
-    // Jika route butuh izin spesifik (punya menuId), cek izinnya.
-    if (route.meta.menuId) {
-        return authStore.allowedMenus.includes(route.meta.menuId as string);
-    }
-    
-    // Jika sampai di sini, artinya route butuh login tapi tidak butuh izin spesifik.
-    // Karena user sudah login, maka tampilkan menunya.
+  // Jika route tidak memerlukan login sama sekali, selalu tampilkan.
+  if (!route.meta.requiresAuth) {
     return true;
+  }
+
+  // Jika route butuh login, cek apakah user sudah login.
+  if (!authStore.isAuthenticated) {
+    return false;
+  }
+
+  // Jika route butuh izin spesifik (punya menuId), cek izinnya.
+  if (route.meta.menuId) {
+    return authStore.allowedMenus.includes(route.meta.menuId as string);
+  }
+
+  // Jika sampai di sini, artinya route butuh login tapi tidak butuh izin spesifik.
+  // Karena user sudah login, maka tampilkan menunya.
+  return true;
 };
 
 // Menu configuration
@@ -92,19 +100,19 @@ const menuItems = [
         title: 'Penjualan',
         icon: 'mdi-cart-outline',
         items: [
-          { title: 'Penawaran', to: '/transaksi/penawaran', icon: 'mdi-handshake-outline' },
+          { title: 'Penawaran', to: '/transaksi/penjualan/penawaran', icon: 'mdi-handshake-outline' },
           {
             title: 'Pengajuan Harga',
             icon: 'mdi-currency-usd',
             subItems: [
               {
                 title: 'Pengajuan',
-                to: '/transaksi/pengajuan/pengajuan-harga',
+                to: '/transaksi/penjualan/pengajuan/pengajuan-harga',
                 icon: 'mdi-file-document-plus-outline'
               },
               {
                 title: 'Setting Harga',
-                to: '/transaksi/pengajuan/setting-harga',
+                to: '/transaksi/penjualan/pengajuan/setting-harga',
                 icon: 'mdi-tune-variant'
               }
             ]
@@ -115,17 +123,17 @@ const menuItems = [
             subItems: [
               {
                 title: 'SO DTF Pesanan',
-                to: '/transaksi/dtf/so-dtf',
+                to: '/transaksi/penjualan/dtf/so-dtf',
                 icon: 'mdi-clipboard-list-outline'
               },
               {
                 title: 'LHK SO DTF',
-                to: '/transaksi/dtf/lhk-so-dtf',
+                to: '/transaksi/penjualan/dtf/lhk-so-dtf',
                 icon: 'mdi-file-chart-outline'
               },
               {
                 title: 'Dasbor DTF',
-                to: '/transaksi/dtf/dasbor-dtf',
+                to: '/transaksi/penjualan/dtf/dasbor-dtf',
                 icon: 'mdi-view-dashboard-outline'
               }
             ]
@@ -136,17 +144,17 @@ const menuItems = [
             subItems: [
               {
                 title: 'SO DTF Stok',
-                to: '/transaksi/dtf/so-dtf-stok',
+                to: '/transaksi/penjualan/dtf/so-dtf-stok',
                 icon: 'mdi-package-variant'
               },
               {
                 title: 'LHK SO DTF Stok',
-                to: '/transaksi/dtf/lhk-so-dtf-stok',
+                to: '/transaksi/penjualan/dtf/lhk-so-dtf-stok',
                 icon: 'mdi-chart-box-outline'
               }
             ]
           },
-          { title: 'Surat Pesanan', to: '/transaksi/surat-pesanan', icon: 'mdi-file-document-edit-outline' },
+          { title: 'Surat Pesanan', to: '/transaksi/penjualan/surat-pesanan', icon: 'mdi-file-document-edit-outline' },
           { title: 'Proforma Invoice', to: '/proforma-invoices', icon: 'mdi-receipt-text-outline' },
           { title: 'Invoice', to: '/invoices', icon: 'mdi-receipt' },
           { title: 'Retur Jual', to: '/returns', icon: 'mdi-keyboard-return' }
@@ -158,7 +166,7 @@ const menuItems = [
         items: [
           { title: 'Buffer Stok', to: '/transaksi/internal/buffer-stok', icon: 'mdi-database-outline' },
           { title: 'Minta Barang ke DC', to: '/transaksi/internal/minta-barang', icon: 'mdi-arrow-up-bold-circle-outline' },
-          { title: 'Terima SJ dari DC', to: '/receive-from-dc', icon: 'mdi-arrow-down-bold-circle-outline' },
+          { title: 'Terima SJ dari DC', to: '/transaksi/internal/terima-sj', icon: 'mdi-arrow-down-bold-circle-outline' },
           { title: 'Retur Barang ke DC', to: '/return-to-dc', icon: 'mdi-undo-variant' },
           { title: 'Koreksi Stok', to: '/stock-corrections', icon: 'mdi-pencil-outline' },
           { title: 'Klerek', to: '/klerek', icon: 'mdi-clipboard-check-outline' }
@@ -169,8 +177,8 @@ const menuItems = [
         icon: 'mdi-swap-horizontal',
         items: [
           { title: 'Mutasi Out ke Produksi', to: '/transaksi/mutasi/out-produksi', icon: 'mdi-export' },
-          { title: 'Mutasi In dari Produksi', to: '/mutation/in-production', icon: 'mdi-import' },
-          { title: 'Mutasi Stok', to: '/mutation/stock', icon: 'mdi-swap-vertical' },
+          { title: 'Mutasi In dari Produksi', to: '/transaksi/mutasi/in-produksi', icon: 'mdi-import' },
+          { title: 'Mutasi Stok', to: '/transaksi/mutasi/stok', icon: 'mdi-swap-vertical' },
           { title: 'Mutasi Antar Store (Kirim)', to: '/mutation/store-send', icon: 'mdi-send' },
           { title: 'Mutasi Antar Store (Terima)', to: '/mutation/store-receive', icon: 'mdi-inbox-arrow-down' }
         ]
@@ -182,7 +190,7 @@ const menuItems = [
     icon: 'mdi-credit-card-outline',
     model: piutangMenu,
     items: [
-      { title: 'Setoran Pembayaran', to: '/receivables/payment-deposits', icon: 'mdi-bank-transfer' },
+      { title: 'Setoran Pembayaran', to: '/piutang/setoran-pembayaran', icon: 'mdi-bank-transfer' },
       { title: 'Form Setoran Kasir', to: '/receivables/cashier-deposits', icon: 'mdi-cash-multiple' },
       { title: 'Kartu Piutang', to: '/receivables/card', icon: 'mdi-credit-card-outline' },
       { divider: true },
@@ -337,8 +345,8 @@ onUnmounted(() => {
     <nav class="main-navigation">
       <template v-for="menu in menuItems" :key="menu.title">
         <!-- Standard Menu Items -->
-        <v-menu v-if="!menu.isLarge && (!('to' in menu) || hasAccess(menu.to as string))" v-model="menu.model.value" offset-y
-          :close-on-content-click="false"
+        <v-menu v-if="!menu.isLarge && (!('to' in menu) || hasAccess(menu.to as string))" v-model="menu.model.value"
+          offset-y :close-on-content-click="false"
           :max-width="menu.title === 'Transaksi' ? 1200 : menu.title === 'Gudang DC' ? 1200 : 1000"
           transition="fade-transition" class="nav-menu large" location="bottom center" origin="top center">
           <template #activator="{ props }">
@@ -353,14 +361,16 @@ onUnmounted(() => {
                 <v-divider v-if="item.divider" class="nav-divider" />
 
                 <!-- Sub Menu Group -->
-                <v-list-group v-else-if="item.subItems" :value="item.title" class="nav-list-group">
+                <v-list-group v-else-if="'subItems' in item" :value="item.title" class="nav-list-group">
                   <template #activator="{ props }">
                     <v-list-item v-bind="props" :prepend-icon="item.icon" class="nav-list-item">
                       <v-list-item-title>{{ item.title }}</v-list-item-title>
                     </v-list-item>
                   </template>
 
-                  <template v-for="subItem in item.subItems.filter(si => hasAccess(si.to))" :key="subItem.title">
+                  <template
+                    v-for="subItem in ((item.subItems as NavItem[] | undefined) ?? []).filter(si => hasAccess(si.to))"
+                    :key="subItem.title">
                     <!-- Nested Sub Menu -->
                     <v-list-group v-if="subItem.subItems" :value="subItem.title" class="nav-list-group nested">
                       <template #activator="{ props }">
@@ -422,14 +432,15 @@ onUnmounted(() => {
                         </template>
                         <template v-for="subItem in item.subItems.filter(si => hasAccess(si.to))" :key="subItem.title">
                           <!-- Nested Section Sub Items -->
-                          <v-list-group v-if="subItem.subItems" :value="subItem.title"
-                            class="section-list-group nested">
+                          <v-list-group v-if="'subItems' in subItem && Array.isArray((subItem as any).subItems)"
+                            :value="subItem.title" class="section-list-group nested">
                             <template #activator="{ props }">
                               <v-list-item v-bind="props" :prepend-icon="subItem.icon" class="section-list-item nested">
                                 <v-list-item-title>{{ subItem.title }}</v-list-item-title>
                               </v-list-item>
                             </template>
-                            <v-list-item v-for="subSubItem in subItem.subItems.filter(ssi => hasAccess(ssi.to))"
+                            <v-list-item
+                              v-for="subSubItem in ((subItem.subItems as NavItem[] | undefined) ?? []).filter(ssi => hasAccess(ssi.to))"
                               :key="subSubItem.title" :to="subSubItem.to" :prepend-icon="subSubItem.icon"
                               class="section-list-item deep-nested" @click="closeMenus">
                               <v-list-item-title>{{ subSubItem.title }}</v-list-item-title>

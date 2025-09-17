@@ -264,7 +264,7 @@ const executeSave = async () => {
         }
 
         toast.success(response.data.message);
-        router.push('/transaksi/pengajuan/pengajuan-harga');
+        router.push('/transaksi/penjualan/pengajuan/pengajuan-harga');
 
     } catch (error) {
         console.error('Save Error:', error);
@@ -540,7 +540,7 @@ const loadOfferData = async (nomor: string) => {
     } catch (error) {
         toast.error('Gagal memuat data pengajuan untuk diedit.');
         console.error("Load Offer Error:", error);
-        router.push('/transaksi/pengajuan/pengajuan-harga');
+        router.push('/transaksi/penjualan/pengajuan/pengajuan-harga');
     }
 };
 
@@ -563,7 +563,7 @@ const closeConfirmDialog = () => {
 };
 
 const closeForm = () => {
-    router.push('/transaksi/pengajuan/pengajuan-harga');
+    router.push('/transaksi/penjualan/pengajuan/pengajuan-harga');
 };
 
 watch(() => header.value.isApproved, (isNowApproved) => {
@@ -584,7 +584,7 @@ onMounted(() => {
     // Cek otorisasi terlebih dahulu
     if (!authStore.can(MENU_ID, requiredPermission.value)) {
         toast.error(`Anda tidak memiliki izin untuk ${requiredPermission.value === 'insert' ? 'membuat' : 'mengubah'} data.`);
-        router.push('/transaksi/pengajuan/pengajuan-harga'); // "Tendang" kembali ke halaman daftar
+        router.push('/transaksi/penjualan/pengajuan/pengajuan-harga'); // "Tendang" kembali ke halaman daftar
         return; // Hentikan eksekusi lebih lanjut
     }
 

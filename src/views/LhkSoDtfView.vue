@@ -141,12 +141,12 @@ watch([startDate, endDate, selectedCabang], fetchData);
     <PageLayout title="LHK SO DTF" desktop-mode icon="mdi-clipboard-text-clock">
         <template #header-actions>
             <v-btn v-if="authStore.can(MENU_ID, 'insert')" size="small" color="primary" prepend-icon="mdi-plus"
-                @click="router.push('/transaksi/dtf/lhk-so-dtf/edit')">Baru</v-btn>
+                @click="router.push('/transaksi/penjualan/dtf/lhk-so-dtf/edit')">Baru</v-btn>
             <v-btn v-if="authStore.can(MENU_ID, 'edit')" size="small" :disabled="!canEditOrDelete"
-                prepend-icon="mdi-pencil" @click="router.push('/transaksi/dtf/lhk-so-dtf/edit')">
+                prepend-icon="mdi-pencil" @click="router.push('/transaksi/penjualan/dtf/lhk-so-dtf/edit')">
                 Ubah
             </v-btn>
-            <v-btn v-if="authStore.can(MENU_ID, 'delete')" size="small" :disabled="!canEditOrDelete"
+            <v-btn v-if="authStore.can(MENU_ID, 'delete')" size="small" color="error" :disabled="!canEditOrDelete"
                 prepend-icon="mdi-delete" @click="showDeleteConfirmation">
                 Hapus
             </v-btn>

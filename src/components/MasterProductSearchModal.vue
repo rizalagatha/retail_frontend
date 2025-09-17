@@ -1,39 +1,30 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue';
 import api from '@/services/api';
-import { format } from 'date-fns';
 
-interface Permintaan {
-    nomor: string;
-    tanggal: string;
-    otomatis: string;
-    keterangan: string;
+interface MasterProduct {
+    kode: string;
+    nama: string;
 }
 
-const props = defineProps({
-    storeKode: { type: String, required: true }
-});
-const emit = defineEmits(['close', 'permintaan-selected']);
+const emit = defineEmits(['close', 'product-selected']);
 
-const items = ref<Permintaan[]>([]);
+const items = ref<MasterProduct[]>([]);
 const totalItems = ref(0);
 const loading = ref(true);
 const search = ref('');
-const options = ref({ page: 1, itemsPerPage: 10 });
+const options = ref({ page: 1, itemsPerPage: 15 });
 
 const headers = [
-    { title: 'Nomor', key: 'nomor' },
-    { title: 'Tanggal', key: 'tanggal' },
-    { title: 'Otomatis', key: 'otomatis' },
-    { title: 'Keterangan', key: 'keterangan' },
+    { title: 'Kode', key: 'kode' },
+    { title: 'Nama Barang', key: 'nama' },
 ];
 
 const loadItems = async ({ page, itemsPerPage }: { page: number, itemsPerPage: number }) => {
     loading.value = true;
     try {
-        const response = await api.get('/surat-jalan-form/search/permintaan', {
+        const response = await api.get('/barcode-form/master-search', {
             params: {
-                storeKode: props.storeKode,
                 term: search.value,
                 page: page,
                 itemsPerPage: itemsPerPage,
@@ -47,16 +38,14 @@ const loadItems = async ({ page, itemsPerPage }: { page: number, itemsPerPage: n
             totalItems.value = 0;
         }
     } catch (error) {
-        console.error("Gagal memuat data permintaan:", error);
-        items.value = [];
-        totalItems.value = 0;
+        console.error("Gagal memuat data master produk:", error);
     } finally {
         loading.value = false;
     }
 };
 
-const selectPermintaan = (item: Permintaan) => {
-    emit('permintaan-selected', item);
+const selectProduct = (item: MasterProduct) => {
+    emit('product-selected', item);
     emit('close');
 };
 
@@ -74,22 +63,21 @@ watch(search, () => {
     <v-dialog :model-value="true" @update:modelValue="$emit('close')" max-width="900px" persistent>
         <v-card class="d-flex flex-column" style="height: 80vh;">
             <v-toolbar color="primary" density="compact">
-                <v-toolbar-title class="text-subtitle-1">Bantuan - Pilih No. Permintaan</v-toolbar-title>
+                <v-toolbar-title class="text-subtitle-1">Bantuan - Pilih Barang</v-toolbar-title>
                 <v-spacer></v-spacer>
                 <v-btn icon="mdi-close" @click="$emit('close')" variant="text" size="small"></v-btn>
             </v-toolbar>
             <v-card-text class="pa-4 d-flex flex-column flex-grow-1">
-                <v-text-field v-model="search" label="Cari..." prepend-inner-icon="mdi-magnify" variant="outlined"
-                    density="compact" clearable class="mb-4 flex-shrink-0" hide-details autofocus></v-text-field>
+                <v-text-field v-model="search" label="Cari berdasarkan kode atau nama barang..."
+                    prepend-inner-icon="mdi-magnify" variant="outlined" density="compact" clearable
+                    class="mb-4 flex-shrink-0" hide-details autofocus></v-text-field>
                 <v-data-table-server v-model:page="options.page" v-model:items-per-page="options.itemsPerPage"
                     :headers="headers" :items="items" :items-length="totalItems" :loading="loading"
                     @update:options="loadItems" hover class="desktop-table flex-grow-1" density="compact" fixed-header>
                     <template #item="{ item }">
-                        <tr @click="selectPermintaan(item)" style="cursor: pointer;">
-                            <td>{{ item.nomor }}</td>
-                            <td>{{ format(new Date(item.tanggal), 'dd/MM/yyyy') }}</td>
-                            <td>{{ item.otomatis }}</td>
-                            <td>{{ item.keterangan }}</td>
+                        <tr @click="selectProduct(item)" style="cursor: pointer;">
+                            <td>{{ item.kode }}</td>
+                            <td>{{ item.nama }}</td>
                         </tr>
                     </template>
                 </v-data-table-server>

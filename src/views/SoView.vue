@@ -233,16 +233,21 @@ const executeDelete = async () => {
     }
 };
 
-const getRowClass = (item: any) => {
-    if (item.Aktif === 'N') return 'text-grey'; // Pasif
-
+const getRowTextColor = (item: SoHeader) => {
+    // Prioritas utama adalah status pasif
+    if (item.Aktif === 'N') {
+        return 'text-grey'; // Abu-abu
+    }
+    // Logika pewarnaan berdasarkan Status dan StatusKirim
     switch (item.Status) {
-        case 'OPEN': return 'status-open'; // <-- INI YANG MEMBUAT WARNA MERAH
+        case 'OPEN':
+            return 'text-red font-weight-bold'; // Merah
         case 'PROSES':
-            if (item.StatusKirim === 'SEBAGIAN') return 'status-proses-sebagian';
-            return 'status-proses';
-        case 'JADI': return 'status-jadi';
-        default: return ''; // <-- Case 'CLOSE' dan 'DICLOSE' akan masuk ke sini (warna default/hitam)
+            return item.StatusKirim === 'SEBAGIAN' ? 'text-purple font-weight-bold' : 'text-blue font-weight-bold'; // Magenta / Biru
+        case 'JADI':
+            return 'text-green-darken-2 font-weight-bold'; // Hijau Tua
+        default:
+            return ''; // Warna default untuk 'CLOSE', 'DICLOSE'
     }
 };
 
@@ -325,14 +330,15 @@ watch([startDate, endDate, selectedCabang], fetchData);
     <PageLayout title="Surat Pesanan" desktop-mode icon="mdi-file-document-multiple-outline">
         <template #header-actions>
             <v-btn v-if="authStore.can(MENU_ID, 'insert')" size="small" color="primary" prepend-icon="mdi-plus"
-                @click="router.push('/transaksi/surat-pesanan/new')">
+                @click="router.push('/transaksi/penjualan/surat-pesanan/new')">
                 Baru
             </v-btn>
             <v-btn v-if="authStore.can(MENU_ID, 'edit')" size="small" :disabled="!isSingleSelected"
-                prepend-icon="mdi-pencil" @click="router.push(`/transaksi/surat-pesanan/ubah/${selected[0].Nomor}`)">
+                prepend-icon="mdi-pencil"
+                @click="router.push(`/transaksi/penjualan/surat-pesanan/ubah/${selected[0].Nomor}`)">
                 Ubah
             </v-btn>
-            <v-btn v-if="authStore.can(MENU_ID, 'delete')" size="small" :disabled="!isSingleSelected"
+            <v-btn v-if="authStore.can(MENU_ID, 'delete')" size="small" color="error" :disabled="!isSingleSelected"
                 prepend-icon="mdi-delete" @click="showDeleteConfirmation">Hapus</v-btn>
             <v-btn v.if="authStore.can(MENU_ID, 'view')" size="small" color="green" :disabled="!isSingleSelected"
                 prepend-icon="mdi-printer" @click="printData">Cetak</v-btn>
@@ -381,15 +387,13 @@ watch([startDate, endDate, selectedCabang], fetchData);
 
                 <v-spacer />
                 <div class="legend-group">
-                    <div class="legend-item"><span class="color-box" style="background-color: red;"></span> Open</div>
-                    <div class="legend-item"><span class="color-box" style="background-color: navy;"></span> Proses
+                    <div class="legend-item"><v-icon color="red" size="small">mdi-circle-medium</v-icon>Open</div>
+                    <div class="legend-item"><v-icon color="blue" size="small">mdi-circle-medium</v-icon>Proses</div>
+                    <div class="legend-item"><v-icon color="purple" size="small">mdi-circle-medium</v-icon>Kirim
+                        Sebagian</div>
+                    <div class="legend-item"><v-icon color="green-darken-2" size="small">mdi-circle-medium</v-icon>Jadi
                     </div>
-                    <div class="legend-item"><span class="color-box" style="background-color: fuchsia;"></span> Kirim
-                        Sebagian
-                    </div>
-                    <div class="legend-item"><span class="color-box" style="background-color: olive;"></span> Jadi</div>
-                    <div class="legend-item"><span class="color-box" style="background-color: silver;"></span> Pasif
-                    </div>
+                    <div class="legend-item"><v-icon color="grey" size="small">mdi-circle-medium</v-icon>Pasif</div>
                 </div>
                 <v-btn @click="fetchData" icon="mdi-refresh" variant="text" size="small" />
             </div>
@@ -398,26 +402,31 @@ watch([startDate, endDate, selectedCabang], fetchData);
                 <v-data-table v-model="selected" :headers="headers" :items="filteredList" :loading="isLoading"
                     :item-class="getRowClass" item-value="Nomor" density="compact" class="desktop-table" fixed-header
                     show-select return-object show-expand @update:expanded="loadDetails">
-                    <template #item.Tanggal="{ item }">{{ format(parseISO(item.Tanggal), 'dd/MM/yyyy') }}</template>
-                    <template #item.Dateline="{ item }">{{ item.Dateline ? format(parseISO(item.Dateline), 'dd/MM/yyyy')
-                        : '-' }}</template>
-                    <template #item.Nominal="{ item }">{{ new Intl.NumberFormat('id-ID').format(item.Nominal || 0)
-                    }}</template>
-                    <template #item.Status="{ item }">
-                        <v-chip size="x-small" :color="getStatusChip(item.Status).color"
-                            :class="item.Aktif === 'N' ? 'text-grey' : ''" variant="tonal">
-                            {{ getStatusChip(item.Status).text }}
-                        </v-chip>
-                    </template>
-                    <template #item.StatusKirim="{ item }">
-                        <v-chip size="x-small" :color="item.StatusKirim === 'BELUM' ? 'orange' : 'indigo'">
-                            {{ item.StatusKirim }}
-                        </v-chip>
-                    </template>
-                    <template #item.Aktif="{ item }">
-                        <v-chip size="x-small" :color="item.Aktif === 'Y' ? 'success' : 'grey'">
-                            {{ item.Aktif === 'Y' ? 'Aktif' : 'Pasif' }}
-                        </v-chip>
+                    <template v-for="header in headers" #[`item.${header.key}`]="{ item }">
+                        <td :class="getRowTextColor(item)">
+                            <template v-if="['Tanggal', 'Dateline'].includes(header.key)">
+                                {{ item[header.key] ? format(parseISO(item[header.key]), 'dd/MM/yyyy') : '-' }}
+                            </template>
+                            <template
+                                v-else-if="['Nominal', 'Diskon', 'Dp', 'QtySO', 'QtyInv', 'Belum'].includes(header.key)">
+                                {{ new Intl.NumberFormat('id-ID').format(item[header.key] || 0) }}
+                            </template>
+                            <template v-else-if="header.key === 'Status'">
+                                <v-chip size="x-small" :color="getStatusChip(item.Status).color" variant="tonal">{{
+                                    getStatusChip(item.Status).text }}</v-chip>
+                            </template>
+                            <template v-else-if="header.key === 'StatusKirim'">
+                                <v-chip size="x-small" :color="item.StatusKirim === 'BELUM' ? 'orange' : 'indigo'">{{
+                                    item.StatusKirim }}</v-chip>
+                            </template>
+                            <template v-else-if="header.key === 'Aktif'">
+                                <v-chip size="x-small" :color="item.Aktif === 'Y' ? 'success' : 'grey'">{{ item.Aktif
+                                    === 'Y' ? 'Aktif' : 'Pasif' }}</v-chip>
+                            </template>
+                            <template v-else>
+                                {{ item[header.key] }}
+                            </template>
+                        </td>
                     </template>
 
                     <template #expanded-row="{ columns, item }">

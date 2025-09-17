@@ -234,7 +234,7 @@ const getStatus = (item: OfferHeader) => {
 const editOffer = () => {
     if (!isSingleSelected.value) return;
     const nomor = selected.value[0].nomor;
-    router.push(`/transaksi/penawaran/ubah/${nomor}`);
+    router.push(`/transaksi/penjualan/penawaran/ubah/${nomor}`);
 };
 
 const deleteOffer = async (item: OfferHeader) => {
@@ -391,6 +391,25 @@ const printData = (item: any) => {
     window.open(url, '_blank');
 };
 
+const getRowTextColor = (item: OfferHeader) => {
+    // Merah jika belum jadi SO dan belum ditutup (status Open)
+    if (!item.noSO && !item.alasan) {
+        return 'text-red font-weight-bold';
+    }
+    // Biru jika tidak jadi SO (ditutup dengan alasan)
+    if (!item.noSO && item.alasan) {
+        return 'text-blue font-weight-bold';
+    }
+    // Warna default untuk yang sudah jadi SO atau status lain
+    return '';
+};
+
+const getStatusChip = (item: OfferHeader) => {
+    if (item.noSO) return { text: 'Sudah Jadi SO', color: 'success' };
+    if (item.alasan) return { text: 'Closed', color: 'blue-grey' };
+    return { text: 'Open', color: 'grey' };
+};
+
 onMounted(() => {
     // Sekarang onMounted jadi lebih simpel
     if (hasViewPermission.value) { // Cek nilai computed
@@ -420,10 +439,10 @@ watch(selectedBranch, () => {
     <PageLayout title="Penawaran">
         <template #header-actions>
             <v-btn v-if="authStore.can(MENU_ID, 'insert')" size="small" color="primary" prepend-icon="mdi-plus"
-                @click="router.push('/transaksi/penawaran/new')">Baru</v-btn>
+                @click="router.push('/transaksi/penjualan/penawaran/new')">Baru</v-btn>
             <v-btn v-if="authStore.can(MENU_ID, 'edit')" size="small" :disabled="!isSingleSelected"
                 prepend-icon="mdi-pencil" @click="editOffer">Ubah</v-btn>
-            <v-btn v-if="authStore.can(MENU_ID, 'delete')" size="small" :disabled="!isSingleSelected"
+            <v-btn v-if="authStore.can(MENU_ID, 'delete')" size="small" color="error" :disabled="!isSingleSelected"
                 prepend-icon="mdi-delete" @click="confirmDelete">Hapus</v-btn>
             <v-btn size="small" color="green" prepend-icon="mdi-printer" @click="printData(selected[0])"
                 :disabled="selected.length !== 1">
@@ -469,26 +488,35 @@ watch(selectedBranch, () => {
                         prepend-inner-icon="mdi-magnify"></v-text-field>
                 </div>
                 <v-spacer></v-spacer>
+                <div class="d-flex align-center ga-2 text-caption">
+                    <v-icon color="red" icon="mdi-square-rounded" size="small"></v-icon> Open
+                    <v-icon color="blue" icon="mdi-square-rounded" size="small"></v-icon> Tidak Jadi SO
+                </div>
                 <v-btn @click="fetchData" icon="mdi-refresh" variant="text" size="small"></v-btn>
             </div>
 
             <!-- Table Section -->
             <div class="table-container">
                 <v-data-table v-model="selected" :headers="tableHeaders" :items="filteredOffers" :loading="isLoading"
-                    item-value="nomor" density="compact" class="desktop-table" fixed-header show-select return-object
-                    show-expand @update:expanded="loadDetails">
-                    <template #item.status="{ item }">
-                        <v-chip :color="getStatus(item).color" variant="tonal" size="x-small">{{ getStatus(item).text
-                            }}</v-chip>
-                    </template>
-                    <template #item.nominal="{ item }">
-                        {{ new Intl.NumberFormat('id-ID').format(item.nominal) }}
-                    </template>
-                    <template #item.tanggal="{ item }">
-                        {{ format(new Date(item.tanggal), 'dd/MM/yyyy') }}
-                    </template>
-                    <template #item.tempo="{ item }">
-                        {{ item.tempo ? format(new Date(item.tempo), 'dd/MM/yyyy') : '-' }}
+                    :item-class="getRowClass" item-value="nomor" density="compact" class="desktop-table" fixed-header
+                    show-select return-object show-expand @update:expanded="loadDetails">
+                    <template v-for="header in tableHeaders" #[`item.${header.key}`]="{ item }">
+                        <td :class="getRowTextColor(item)">
+                            <template v-if="header.key === 'tanggal' || header.key === 'tempo'">
+                                {{ item[header.key] ? format(new Date(item[header.key]), 'dd/MM/yyyy') : '-' }}
+                            </template>
+                            <template v-else-if="header.key === 'nominal'">
+                                {{ new Intl.NumberFormat('id-ID').format(item.nominal) }}
+                            </template>
+                            <template v-else-if="header.key === 'status'">
+                                <v-chip :color="getStatusChip(item).color" variant="tonal" size="x-small">
+                                    {{ getStatusChip(item).text }}
+                                </v-chip>
+                            </template>
+                            <template v-else>
+                                {{ item[header.key] }}
+                            </template>
+                        </td>
                     </template>
                     <template #expanded-row="{ columns, item }">
                         <tr>
@@ -537,7 +565,7 @@ watch(selectedBranch, () => {
             <v-card>
                 <v-card-title class="text-h5">Konfirmasi Hapus</v-card-title>
                 <v-card-text>Apakah Anda yakin ingin menghapus penawaran nomor <strong>{{ itemToDelete?.nomor
-                }}</strong>?</v-card-text>
+                        }}</strong>?</v-card-text>
                 <v-card-actions><v-spacer></v-spacer><v-btn @click="dialogDelete = false">Batal</v-btn><v-btn
                         color="red-darken-1" variant="elevated"
                         @click="deleteConfirmed">Hapus</v-btn><v-spacer></v-spacer></v-card-actions>
@@ -549,5 +577,13 @@ watch(selectedBranch, () => {
 <style scoped>
 :deep(.compact-select-list .v-list-item-title) {
     font-size: 11px !important;
+}
+
+:deep(.row-open td) {
+    color: red !important;
+}
+
+:deep(.row-closed td) {
+    color: blue !important;
 }
 </style>

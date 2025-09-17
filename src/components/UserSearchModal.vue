@@ -9,9 +9,10 @@ interface User {
 }
 
 // --- Props & Emits ---
-const props = defineProps<{
-  fetchUrl: string;
-}>();
+defineProps<{
+  fetchUrl: string
+}>()
+
 const emit = defineEmits(['close', 'user-selected']);
 
 // --- State ---

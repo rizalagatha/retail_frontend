@@ -37,6 +37,8 @@ const MENU_ID = '213';
 // --- State ---
 const isEditMode = computed(() => !!route.params.nomor);
 const pageTitle = computed(() => isEditMode.value ? 'Ubah Surat Jalan ke Store' : 'Buat Surat Jalan ke Store');
+const requiredPermission = computed(() => isEditMode.value ? 'edit' : 'insert');
+
 const isLoading = ref(true);
 const isSaving = ref(false);
 
@@ -294,6 +296,12 @@ const handleClose = () => {
 };
 
 onMounted(async () => {
+    if (!authStore.can(MENU_ID, requiredPermission.value)) {
+        toast.error(`Anda tidak memiliki izin untuk ${isEditMode.value ? 'mengubah' : 'membuat'} data Surat Jalan.`);
+        router.push({ name: 'SuratJalanStore' });
+        return;
+    }
+
     if (isEditMode.value) {
         const nomor = route.params.nomor as string;
         try {
@@ -325,7 +333,8 @@ onMounted(async () => {
 <template>
     <PageLayout :title="pageTitle" icon="mdi-truck-plus-outline">
         <template #header-actions>
-            <v-btn size="small" color="primary" @click="handleSave" :loading="isSaving" prepend-icon="mdi-content-save">
+            <v-btn size="small" color="primary" @click="handleSave" :loading="isSaving" prepend-icon="mdi-content-save"
+                :disabled="!authStore.can(MENU_ID, requiredPermission)">
                 Simpan
             </v-btn>
             <v-btn size="small" @click="handleCancel" prepend-icon="mdi-refresh">
@@ -435,15 +444,15 @@ onMounted(async () => {
         <v-dialog v-model="dialogConfirm.show" max-width="400px" persistent>
             <v-card>
                 <v-card-title class="text-h6 font-weight-bold">{{ dialogConfirm.title }}</v-card-title>
-                    <v-card-text>{{ dialogConfirm.text }}</v-card-text>
-                    <v-card-actions>
-                        <v-spacer></v-spacer>
-                        <v-btn text @click="dialogConfirm.show = false">Tidak</v-btn>
-                        <v-btn color="primary" variant="tonal"
-                            @click="dialogConfirm.onConfirm(); dialogConfirm.show = false">
-                            Ya, Lanjutkan
-                        </v-btn>
-                    </v-card-actions>
+                <v-card-text>{{ dialogConfirm.text }}</v-card-text>
+                <v-card-actions>
+                    <v-spacer></v-spacer>
+                    <v-btn text @click="dialogConfirm.show = false">Tidak</v-btn>
+                    <v-btn color="primary" variant="tonal"
+                        @click="dialogConfirm.onConfirm(); dialogConfirm.show = false">
+                        Ya, Lanjutkan
+                    </v-btn>
+                </v-card-actions>
             </v-card>
         </v-dialog>
     </PageLayout>

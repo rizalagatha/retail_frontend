@@ -35,6 +35,9 @@ const fetchPrintData = async (nomor: string) => {
     try {
         const response = await api.get(`/offer-form/print-data/${nomor}`);
         printData.value = response.data;
+        if (printData.value.header?.pen_nomor) { 
+            document.title = printData.value.header.pen_nomor;
+        }
         await nextTick();
         window.print();
     } catch (error) {

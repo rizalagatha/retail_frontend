@@ -29,13 +29,12 @@ const formHeader = ref({ ...initialHeaderState });
 const items = ref<any[]>([]);
 const isLoading = ref(true);
 const isSaving = ref(false);
-const isSavingDisabled = ref(false); // Untuk menonaktifkan simpan saat mode ubah
+const isSavingDisabled = ref(false);
 const isSoSearchVisible = ref(false);
 const isWorkshopSearchVisible = ref(false);
 const isConfirmDialogVisible = ref(false);
 const confirmText = ref('');
 const pendingAction = ref<(() => void) | null>(null);
-
 
 const tableHeaders = [
     { title: 'Kode Barang', key: 'kode' },
@@ -78,11 +77,9 @@ const loadDataForEdit = async (nomor: string) => {
         formHeader.value.tanggal = format(new Date(header.mo_tanggal), 'yyyy-MM-dd');
         formHeader.value.soNomor = header.mo_so_nomor;
         formHeader.value.keCabang = header.mo_kecab;
-        formHeader.value.keCabangNama = header.pab_nama; // Asumsi pab_nama ada
+        formHeader.value.keCabangNama = header.pab_nama;
         formHeader.value.keterangan = header.mo_ket;
         items.value = loadedItems.map((item: any) => ({ ...item, id: Date.now() + Math.random() }));
-        // Logika Delphi: nonaktifkan tombol simpan jika sudah ada mutasi in
-        // isSavingDisabled.value = response.data.hasMutasiIn; 
     } catch (error: any) {
         toast.error(error.response?.data?.message || 'Gagal memuat data.');
         router.back();
@@ -92,7 +89,6 @@ const loadDataForEdit = async (nomor: string) => {
 };
 
 const save = () => {
-    // Validasi dari Delphi
     if (!formHeader.value.keCabang) return toast.error('Cabang tujuan harus diisi.');
     if (items.value.length === 0 || !items.value.some(i => i.nama)) return toast.error('Detail barang harus diisi.');
     const totalQtyOut = items.value.reduce((sum, item) => sum + (item.jumlah || 0), 0);
@@ -106,7 +102,6 @@ const save = () => {
             return toast.error(`Qty Out untuk ${item.nama} (${item.ukuran}) melebihi sisa SO.`);
         }
     }
-
     showConfirmation(executeSave, "Anda yakin ingin menyimpan data Mutasi Out ini?");
 };
 
@@ -115,12 +110,24 @@ const executeSave = async () => {
     try {
         const payload = {
             header: formHeader.value,
-            items: items.value,
+            items: items.value.filter(item => (item.jumlah || 0) > 0),
             isNew: !isEditMode.value,
         };
         const response = await api.post('/mutasi-out-form/save', payload);
         toast.success(response.data.message);
+
+        // --- PERUBAHAN DI SINI ---
+        const nomorMutasi = response.data.nomor; // Ambil nomor dari response
+        const url = router.resolve({
+            name: 'Cetak Mutasi Out', // Nama route baru
+            params: { nomor: nomorMutasi }
+        }).href;
+        window.open(url, '_blank'); // Buka di tab baru
+        
+        // Tetap kembali ke halaman browse
         router.push('/transaksi/mutasi/out-produksi');
+        // --- AKHIR PERUBAHAN ---
+        
     } catch (error: any) {
         toast.error(error.response?.data?.message || 'Gagal menyimpan data.');
     } finally {
@@ -128,30 +135,9 @@ const executeSave = async () => {
     }
 };
 
-const addNewRow = () => {
-    const lastItem = items.value[items.value.length - 1];
-    if (!lastItem || lastItem.kode) { // Cek jika baris terakhir sudah terisi
-        items.value.push({
-            id: Date.now(),
-            kode: '',
-            nama: '',
-            ukuran: '',
-            stok: 0,
-            qtyso: 0,
-            sudah: 0,
-            belum: 0,
-            jumlah: null,
-            barcode: ''
-        });
-    }
-};
-
-// --- Fungsi Reset Form ---
 const resetForm = () => {
     formHeader.value = { ...initialHeaderState };
     items.value = [];
-    addNewRow(); // Selalu sediakan satu baris kosong
-    // Reset state lain jika ada
 };
 
 const showConfirmation = (action: () => void, text: string) => {
@@ -178,12 +164,10 @@ const getQtyOutClass = (item: any) => {
     const qtyOut = item.jumlah || 0;
     const stok = item.stok || 0;
     const belum = item.belum || 0;
-
-    // Beri kelas 'qty-error' jika Qty Out melebihi Stok atau sisa Belum
     if (qtyOut > stok || qtyOut > belum) {
         return 'qty-error';
     }
-    return ''; // Tidak ada kelas khusus jika valid
+    return '';
 };
 
 onMounted(() => {
@@ -195,8 +179,6 @@ onMounted(() => {
         isLoading.value = false;
     }
 });
-
-// ... (implementasi save, loadForEdit, dll)
 </script>
 
 <template>
@@ -207,41 +189,60 @@ onMounted(() => {
             <v-btn size="small" @click="showConfirmation(resetForm, 'Batalkan dan kosongkan form?')">Batal</v-btn>
             <v-btn size="small" @click="showConfirmation(closeForm, 'Tutup form?')">Tutup</v-btn>
         </template>
-        <div class="form-content">
-            <div class="header-filters">
-                <v-text-field label="Nomor" v-model="formHeader.nomor" readonly filled density="compact" hide-details>
-                    <template #append-inner>
-                        <span v-if="!formHeader.nomor" style="color: #888; font-size: 11px;">&lt;Otomatis&gt;</span>
-                    </template>
-                </v-text-field>
-                <v-text-field label="Tanggal" v-model="formHeader.tanggal" type="date" density="compact" hide-details />
-                <v-text-field label="No. SO" v-model="formHeader.soNomor" readonly @click="isSoSearchVisible = true"
-                    prepend-inner-icon="mdi-magnify" density="compact" hide-details
-                    :class="{ 'field-disabled': isEditMode }" />
-                <v-text-field label="Ke Cabang"
-                    :model-value="formHeader.keCabang ? `${formHeader.keCabang} - ${formHeader.keCabangNama}` : ''"
-                    readonly @click="isWorkshopSearchVisible = true" prepend-inner-icon="mdi-magnify" density="compact"
-                    hide-details />
-                <v-text-field label="Keterangan" v-model="formHeader.keterangan" variant="outlined" density="compact"
-                    hide-details />
+
+        <div class="form-grid-container">
+            <div class="left-column">
+                <div class="desktop-form-section header-section">
+                    <v-row dense>
+                        <v-col cols="12">
+                            <v-text-field label="Nomor" v-model="formHeader.nomor" readonly filled density="compact"
+                                hide-details>
+                                <template #append-inner>
+                                    <span v-if="!formHeader.nomor"
+                                        style="color: #888; font-size: 11px;">&lt;Otomatis&gt;</span>
+                                </template>
+                            </v-text-field>
+                        </v-col>
+                        <v-col cols="12">
+                            <v-text-field label="Tanggal" v-model="formHeader.tanggal" type="date" variant="outlined"
+                                density="compact" hide-details />
+                        </v-col>
+                        <v-col cols="12">
+                            <v-text-field label="No. SO" v-model="formHeader.soNomor" readonly
+                                @click="isSoSearchVisible = true" prepend-inner-icon="mdi-magnify" density="compact"
+                                hide-details :class="{ 'field-disabled': isEditMode }" />
+                        </v-col>
+                        <v-col cols="12">
+                            <v-text-field label="Ke Cabang"
+                                :model-value="formHeader.keCabang ? `${formHeader.keCabang} - ${formHeader.keCabangNama}` : ''"
+                                readonly @click="isWorkshopSearchVisible = true" prepend-inner-icon="mdi-magnify"
+                                density="compact" hide-details />
+                        </v-col>
+                        <v-col cols="12">
+                            <v-textarea label="Keterangan" v-model="formHeader.keterangan" variant="outlined" rows="3"
+                                density="compact" hide-details />
+                        </v-col>
+                    </v-row>
+                </div>
             </div>
-            <div class="table-container">
-                <v-data-table :headers="tableHeaders" :items="items" :loading="isLoading" density="compact"
-                    class="desktop-table fill-height-table" fixed-header :items-per-page="-1">
-                    <template #item.jumlah="{ item }">
-                        <v-text-field v-model.number="item.jumlah" type="number" min="0" variant="underlined"
-                            density="compact" hide-details class="text-end" :class="getQtyOutClass(item)" />
-                    </template>
-                    <template #bottom></template>
-                </v-data-table>
+
+            <div class="right-column">
+                <div class="desktop-form-section d-flex flex-column fill-height">
+                    <v-data-table :headers="tableHeaders" :items="items" :loading="isLoading" density="compact"
+                        class="desktop-table fill-height-table" fixed-header :items-per-page="-1">
+                        <template #item.jumlah="{ item }">
+                            <v-text-field v-model.number="item.jumlah" type="number" min="0" variant="underlined"
+                                density="compact" hide-details class="text-end" :class="getQtyOutClass(item)" />
+                        </template>
+                        <template #bottom></template>
+                    </v-data-table>
+                </div>
             </div>
         </div>
-
         <SoSearchModal v-if="isSoSearchVisible" :cabang="authStore.user?.cabang || ''"
             @close="isSoSearchVisible = false" @selected="onSoSelected" />
         <WorkshopSearchModal v-if="isWorkshopSearchVisible" :user-cabang="authStore.user?.cabang || ''"
             @close="isWorkshopSearchVisible = false" @workshop-selected="onWorkshopSelected" />
-
         <v-dialog v-model="isConfirmDialogVisible" max-width="400px" persistent>
             <v-card>
                 <v-card-title class="text-h6 font-weight-bold">Konfirmasi</v-card-title>
@@ -257,8 +258,6 @@ onMounted(() => {
 </template>
 
 <style scoped>
-/* Tambahkan ini di dalam blok <style> Anda */
-
 :deep(.qty-error input) {
     color: red !important;
     font-weight: bold;

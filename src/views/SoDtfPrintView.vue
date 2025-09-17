@@ -24,6 +24,9 @@ const fetchPrintData = async (nomor: string) => {
     try {
         const response = await api.get(`/so-dtf-form/print-data/${nomor}`);
         printData.value = response.data;
+        if (printData.value.sd_nomor) { 
+            document.title = printData.value.sd_nomor;
+        }
         await nextTick();
         window.print();
     } catch (error) {

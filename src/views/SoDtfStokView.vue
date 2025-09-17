@@ -307,11 +307,11 @@ watch([startDate, endDate, selectedCabang, filterDateType], fetchData);
         <!-- Konten sama seperti SO DTF Pesanan, disesuaikan dengan field & endpoint baru -->
         <template #header-actions>
             <v-btn size="small" color="primary" prepend-icon="mdi-plus"
-                @click="router.push('/transaksi/dtf/so-dtf-stok/new')">
+                @click="router.push('/transaksi/penjualan/dtf/so-dtf-stok/new')">
                 Baru
             </v-btn>
             <v-btn size="small" :disabled="!isSingleSelected" prepend-icon="mdi-pencil"
-                @click="router.push(`/transaksi/dtf/so-dtf-stok/ubah/${selected[0].Nomor}`)">
+                @click="router.push(`/transaksi/penjualan/dtf/so-dtf-stok/ubah/${selected[0].Nomor}`)">
                 Ubah
             </v-btn>
             <v-btn v-if="authStore.can(MENU_ID, 'view')" size="small" :disabled="!isSingleSelected" @click="printData"

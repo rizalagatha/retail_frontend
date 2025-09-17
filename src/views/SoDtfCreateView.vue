@@ -205,7 +205,7 @@ const fetchDataForEdit = async (nomor: string) => {
     } catch (error: any) {
         console.error('Error loading data:', error);
         toast.error(error.response?.data?.message || 'Gagal memuat data SO DTF');
-        router.push('/transaksi/dtf/so-dtf');
+        router.push('/transaksi/penjualan/dtf/so-dtf');
     } finally {
         isLoading.value = false;
     }
@@ -369,7 +369,7 @@ const save = async () => {
                 }
             }
 
-            router.push("/transaksi/dtf/so-dtf")
+            router.push("/transaksi/penjualan/dtf/so-dtf")
         } catch (error: any) {
             console.error("Save error:", error)
             toast.error(error.response?.data?.message || "Gagal menyimpan data.")
@@ -380,7 +380,7 @@ const save = async () => {
 }
 
 const cancel = () => {
-    router.push('/transaksi/dtf/so-dtf');
+    router.push('/transaksi/penjualan/dtf/so-dtf');
 };
 
 const fetchSisaKuota = async () => {

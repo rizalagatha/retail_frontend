@@ -38,9 +38,9 @@ const loadItems = async ({ page, itemsPerPage }: { page: number, itemsPerPage: n
     finally { loading.value = false; }
 };
 
-const selectItem = (item: any) => {
-    emit('selected', item);
-    emit('close');
+const selectItem = <T>(item: T) => {
+  emit('selected', item);
+  emit('close');
 };
 
 watch(search, () => {

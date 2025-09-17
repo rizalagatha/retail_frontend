@@ -2,6 +2,7 @@ import { createRouter, createWebHistory } from 'vue-router';
 import { useAuthStore } from '@/stores/authStore';
 
 // Impor semua komponen View/halaman Anda
+import DaftarIndex from '@/views/DaftarIndex.vue';
 import LoginView from '../views/LoginView.vue';
 import HomeView from '../views/HomeView.vue';
 import NotFoundView from '@/views/NotFoundView.vue';
@@ -42,12 +43,22 @@ import SoCreateView from '@/views/SoCreateView.vue';
 import DpPrintView from '@/views/DpPrintView.vue';
 import BufferStokView from '@/views/BufferStokView.vue';
 import MutasiOutView from '@/views/MutasiOutView.vue';
+import MutasiOutPrintView from '@/views/MutasiOutPrintView.vue';
 import MutasiOutCreateView from '@/views/MutasiOutCreateView.vue';
 import MintaBarangView from '@/views/MintaBarangView.vue';
 import MintaBarangCreateView from '@/views/MintaBarangCreateView.vue';
 import SuratJalanView from '@/views/SuratJalanView.vue';
 import SuratJalanPrintView from '@/views/SuratJalanPrintView.vue';
 import SuratJalanCreateView from '@/views/SuratJalanCreateView.vue';
+import TerimaSjView from '@/views/TerimaSJView.vue';
+import TerimaSjFormView from '@/views/TerimaSJFormView.vue';
+import MutasiInView from '@/views/MutasiInView.vue';
+import MutasiInPrintView from '@/views/MutasiInPrintView.vue';
+import MutasiInCreateView from '@/views/MutasiInCreateView.vue';
+import MutasiStokView from '@/views/MutasiStokView.vue';
+import MutasiStokCreateView from '@/views/MutasiStokCreateView.vue';
+import MutasiStokPrintView from '@/views/MutasiStokPrintView.vue';
+import SetoranBayarView from '@/views/SetoranBayarView.vue';
 import LaporanStokView from '@/views/LaporanStokView.vue';
 
 const routes = [
@@ -73,7 +84,9 @@ const routes = [
     path: '/unauthorized',
     name: 'Unauthorized',
     component: UnauthorizedView,
-    meta: { requiresAuth: true }
+    meta: {
+      requiresAuth: true
+    }
   },
 
   {
@@ -152,6 +165,16 @@ const routes = [
     }
   },
   {
+    path: '/daftar',
+    name: 'DaftarIndex',
+    component: DaftarIndex,
+    meta: {
+      title: 'Menu Master Data',
+      requiresAuth: true
+      // menuId tidak diperlukan di sini karena ini adalah halaman navigasi
+    }
+  },
+  {
     path: '/daftar/customers',
     name: 'frmBrowCus',
     component: CustomerView,
@@ -211,7 +234,7 @@ const routes = [
     }
   },
   {
-    path: '/transaksi/penawaran',
+    path: '/transaksi/penjualan/penawaran',
     name: 'frmBrowPenawaran',
     component: OfferView,
     meta: {
@@ -221,7 +244,7 @@ const routes = [
     },
   },
   {
-    path: '/transaksi/penawaran/new', // Rute untuk form baru
+    path: '/transaksi/penjualan/penawaran/new', // Rute untuk form baru
     name: 'Buat Penawaran',
     component: OfferCreateView,
     meta: {
@@ -230,7 +253,7 @@ const routes = [
     }
   },
   {
-    path: '/transaksi/penawaran/ubah/:nomor', // Halaman ubah
+    path: '/transaksi/penjualan/penawaran/ubah/:nomor', // Halaman ubah
     name: 'Ubah Penawaran',
     component: OfferCreateView,
     meta: {
@@ -239,7 +262,7 @@ const routes = [
     }
   },
   {
-    path: '/transaksi/penawaran/print/:nomor',
+    path: '/transaksi/penjualan/penawaran/print/:nomor',
     name: 'Cetak Penawaran',
     component: OfferPrintView,
     meta: {
@@ -248,7 +271,7 @@ const routes = [
     }
   },
   {
-    path: '/transaksi/pengajuan/pengajuan-harga',
+    path: '/transaksi/penjualan/pengajuan/pengajuan-harga',
     name: 'frmBrowPengajuanHarga',
     component: PriceProposalView,
     meta: {
@@ -258,7 +281,7 @@ const routes = [
     }
   },
   {
-    path: '/transaksi/pengajuan/pengajuan-harga/new',
+    path: '/transaksi/penjualan/pengajuan/pengajuan-harga/new',
     name: 'Buat Pengajuan Harga',
     component: PriceProposalCreateView,
     meta: {
@@ -267,7 +290,7 @@ const routes = [
     }
   },
   {
-    path: '/transaksi/pengajuan/pengajuan-harga/ubah/:nomor',
+    path: '/transaksi/penjualan/pengajuan/pengajuan-harga/ubah/:nomor',
     name: 'Ubah Pengajuan Harga',
     component: PriceProposalCreateView,
     meta: {
@@ -276,7 +299,7 @@ const routes = [
     }
   },
   {
-    path: '/transaksi/pengajuan/setting-harga',
+    path: '/transaksi/penjualan/pengajuan/setting-harga',
     name: 'frmBrowSettingHarga',
     component: SettingHargaView,
     meta: {
@@ -286,7 +309,7 @@ const routes = [
     }
   },
   {
-    path: '/transaksi/dtf/so-dtf',
+    path: '/transaksi/penjualan/dtf/so-dtf',
     name: 'frmBrowSODTF',
     component: SoDtfView,
     meta: {
@@ -296,7 +319,7 @@ const routes = [
     }
   },
   {
-    path: '/transaksi/dtf/so-dtf/new',
+    path: '/transaksi/penjualan/dtf/so-dtf/new',
     name: 'Buat SO DTF Pesanan',
     component: SoDtfCreateView,
     meta: {
@@ -305,7 +328,7 @@ const routes = [
     }
   },
   {
-    path: '/transaksi/dtf/so-dtf/ubah/:nomor',
+    path: '/transaksi/penjualan/dtf/so-dtf/ubah/:nomor',
     name: 'Ubah SO DTF Pesanan',
     component: SoDtfCreateView,
     meta: {
@@ -314,7 +337,7 @@ const routes = [
     }
   },
   {
-    path: '/transaksi/dtf/so-dtf/print/:nomor',
+    path: '/transaksi/penjualan/dtf/so-dtf/print/:nomor',
     name: 'Cetak SO DTF',
     component: SoDtfPrintView,
     meta: {
@@ -323,7 +346,7 @@ const routes = [
     }
   },
   {
-    path: '/transaksi/dtf/lhk-so-dtf',
+    path: '/transaksi/penjualan/dtf/lhk-so-dtf',
     name: 'frmBrowDTF',
     component: LhkSoDtfView,
     meta: {
@@ -333,7 +356,7 @@ const routes = [
     }
   },
   {
-    path: '/transaksi/dtf/lhk-so-dtf/edit',
+    path: '/transaksi/penjualan/dtf/lhk-so-dtf/edit',
     name: 'LhkSoDtfCreate',
     component: LhkSoDtfCreateView,
     meta: {
@@ -343,7 +366,7 @@ const routes = [
     }
   },
   {
-    path: '/transaksi/dtf/dasbor-dtf',
+    path: '/transaksi/penjualan/dtf/dasbor-dtf',
     name: 'frmLapDasborDtf',
     component: DasborDtfView,
     meta: {
@@ -353,7 +376,7 @@ const routes = [
     }
   },
   {
-    path: '/transaksi/dtf/so-dtf-stok',
+    path: '/transaksi/penjualan/dtf/so-dtf-stok',
     name: 'SoDtfStok',
     component: SoDtfStokView,
     meta: {
@@ -363,7 +386,7 @@ const routes = [
     }
   },
   {
-    path: '/transaksi/dtf/so-dtf-stok/new',
+    path: '/transaksi/penjualan/dtf/so-dtf-stok/new',
     name: 'SoDtfStokCreate',
     component: SoDtfStokCreateView,
     meta: {
@@ -373,7 +396,7 @@ const routes = [
     }
   },
   {
-    path: '/transaksi/dtf/so-dtf-stok/ubah/:nomor',
+    path: '/transaksi/penjualan/dtf/so-dtf-stok/ubah/:nomor',
     name: 'SoDtfStokEdit',
     component: SoDtfStokCreateView,
     meta: {
@@ -383,7 +406,7 @@ const routes = [
     }
   },
   {
-    path: '/transaksi/dtf/so-dtf-stok/print/:nomor',
+    path: '/transaksi/penjualan/dtf/so-dtf-stok/print/:nomor',
     name: 'Cetak SO DTF Stok',
     component: SoDtfStokPrintView,
     meta: {
@@ -392,7 +415,7 @@ const routes = [
     }
   },
   {
-    path: '/transaksi/dtf/lhk-so-dtf-stok',
+    path: '/transaksi/penjualan/dtf/lhk-so-dtf-stok',
     name: 'LhkSoDtfStok',
     component: LhkSoDtfStokView,
     meta: {
@@ -402,7 +425,7 @@ const routes = [
     }
   },
   {
-    path: '/transaksi/dtf/lhk-so-dtf-stok/new',
+    path: '/transaksi/penjualan/dtf/lhk-so-dtf-stok/new',
     name: 'LhkSoDtfStokCreate',
     component: LhkSoDtfStokCreateView,
     meta: {
@@ -412,7 +435,7 @@ const routes = [
     }
   },
   {
-    path: '/transaksi/dtf/lhk-so-dtf-stok/ubah/:nomor',
+    path: '/transaksi/penjualan/dtf/lhk-so-dtf-stok/ubah/:nomor',
     name: 'LhkSoDtfStokEdit',
     component: LhkSoDtfStokCreateView,
     meta: {
@@ -422,7 +445,7 @@ const routes = [
     }
   },
   {
-    path: '/transaksi/surat-pesanan',
+    path: '/transaksi/penjualan/surat-pesanan',
     name: 'frmBrowseSo',
     component: SoView,
     meta: {
@@ -432,7 +455,7 @@ const routes = [
     }
   },
   {
-    path: '/transaksi/surat-pesanan/print/:nomor',
+    path: '/transaksi/penjualan/surat-pesanan/print/:nomor',
     name: 'Cetak Surat Pesanan',
     component: SoPrintView,
     meta: {
@@ -441,7 +464,7 @@ const routes = [
     }
   },
   {
-    path: '/transaksi/surat-pesanan/new',
+    path: '/transaksi/penjualan/surat-pesanan/new',
     name: 'SuratPesananCreate',
     component: SoCreateView,
     meta: {
@@ -451,7 +474,7 @@ const routes = [
     }
   },
   {
-    path: '/transaksi/surat-pesanan/ubah/:nomor',
+    path: '/transaksi/penjualan/surat-pesanan/ubah/:nomor',
     name: 'SuratPesananEdit',
     component: SoCreateView,
     meta: {
@@ -461,7 +484,7 @@ const routes = [
     }
   },
   {
-    path: '/transaksi/surat-pesanan/print-dp/:nomor',
+    path: '/transaksi/penjualan/surat-pesanan/print-dp/:nomor',
     name: 'Cetak DP',
     component: DpPrintView,
     meta: {
@@ -506,6 +529,15 @@ const routes = [
       title: 'Ubah Mutasi Out',
       requiresAuth: true,
       menuId: '43'
+    }
+  },
+  {
+    path: '/transaksi/mutasi/out-produksi/print/:nomor',
+    name: 'Cetak Mutasi Out',
+    component: MutasiOutPrintView,
+    meta: {
+      requiresAuth: true,
+      printLayout: true // Flag untuk layout khusus cetak
     }
   },
   {
@@ -575,6 +607,114 @@ const routes = [
       title: 'Ubah Surat Jalan ke Store',
       requiresAuth: true,
       menuId: '213'
+    }
+  },
+  {
+    path: '/transaksi/internal/terima-sj',
+    name: 'TerimaSj',
+    component: TerimaSjView,
+    meta: {
+      title: 'Terima SJ dari DC',
+      requiresAuth: true,
+      menuId: '31'
+    }
+  },
+  {
+    path: '/transaksi/internal/terima-sj/create/:nomor',
+    name: 'TerimaSjCreate',
+    component: TerimaSjFormView,
+    meta: {
+      title: 'Buat Terima SJ',
+      requiresAuth: true,
+      menuId: '31'
+    }
+  },
+  {
+    path: '/transaksi/mutasi/in-produksi',
+    name: 'MutasiIn',
+    component: MutasiInView,
+    meta: {
+      title: 'Mutasi In dari Produksi',
+      requiresAuth: true,
+      menuId: '44'
+    }
+  },
+  {
+    path: '/transaksi/mutasi/in-produksi/new',
+    name: 'MutasiInCreate',
+    component: MutasiInCreateView,
+    meta: {
+      title: 'Buat Mutasi In',
+      requiresAuth: true,
+      menuId: '44'
+    }
+  },
+  {
+    path: '/transaksi/mutasi/in-produksi/edit/:nomor',
+    name: 'MutasiInEdit',
+    component: MutasiInCreateView,
+    meta: {
+      title: 'Ubah Mutasi In',
+      requiresAuth: true,
+      menuId: '44'
+    }
+  },
+  {
+    path: '/transaksi/mutasi/in-produksi/print/:nomor',
+    name: 'Cetak Mutasi In',
+    component: MutasiInPrintView,
+    meta: {
+      requiresAuth: true,
+      printLayout: true
+    }
+  },
+  {
+    path: '/transaksi/mutasi/stok',
+    name: 'MutasiStok',
+    component: MutasiStokView,
+    meta: {
+      title: 'Mutasi Stok',
+      requiresAuth: true,
+      menuId: '45'
+    }
+  },
+  {
+    path: '/transaksi/mutasi/stok/new',
+    name: 'MutasiStokCreate',
+    component: MutasiStokCreateView,
+    meta: {
+      title: 'Buat Mutasi Stok',
+      requiresAuth: true,
+      menuId: '45'
+    }
+  },
+  {
+    path: '/transaksi/mutasi/stok/edit/:nomor',
+    name: 'MutasiStokEdit',
+    component: MutasiStokCreateView,
+    meta: {
+      title: 'Ubah Mutasi Stok',
+      requiresAuth: true,
+      menuId: '45'
+    }
+  },
+  {
+    path: '/transaksi/mutasi/stok/print/:nomor',
+    name: 'Cetak Mutasi Stok',
+    component: MutasiStokPrintView,
+    meta: {
+      requiresAuth: true,
+      printLayout: true
+    }
+  },
+  {
+    path: '/piutang/setoran-pembayaran',
+    name: 'SetoranBayar',
+    component: SetoranBayarView,
+    meta: {
+      title: 'Setoran Pembayaran',
+      requiresAuth: true,
+      menuId: '51'
     }
   },
   {

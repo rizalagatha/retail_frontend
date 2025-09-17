@@ -185,7 +185,7 @@ const loadOfferData = async (nomor: string) => {
         toast.success(`Data untuk penawaran ${nomor} berhasil dimuat.`);
     } catch (error) {
         toast.error('Gagal memuat data penawaran.');
-        router.push('/transaksi/penawaran'); // Kembali ke daftar jika gagal
+        router.push('/transaksi/penjualan/penawaran'); // Kembali ke daftar jika gagal
     }
 };
 
@@ -390,7 +390,7 @@ const save = async () => {
 
         const response = await api.post('/offer-form/save', payload);
         toast.success(response.data.message);
-        router.push('/transaksi/penawaran');
+        router.push('/transaksi/penjualan/penawaran');
 
     } catch (error: any) {
         toast.error(error.response?.data?.message || 'Gagal menyimpan data penawaran.');
@@ -677,7 +677,7 @@ const closeConfirmDialog = () => {
 };
 
 const closeForm = () => {
-    router.push('/transaksi/penawaran');
+    router.push('/transaksi/penjualan/penawaran');
 };
 
 const applyDefaultDiscount = () => {
@@ -779,7 +779,7 @@ onMounted(() => {
     // Pengecekan otorisasi sebelum memuat apa pun
     if (!authStore.can(MENU_ID, requiredPermission.value)) {
         toast.error(`Anda tidak memiliki izin untuk ${requiredPermission.value === 'insert' ? 'membuat' : 'mengubah'} data penawaran.`);
-        router.push('/transaksi/penawaran');
+        router.push('/transaksi/penjualan/penawaran');
         return;
     }
 

@@ -26,16 +26,16 @@ const gudangList = ref([]);
 const headers = ref([
     { title: 'Kode', key: 'KODE', fixed: true, width: '180px' },
     { title: 'Nama Barang', key: 'NAMA', fixed: true, width: '300px' },
-    { title: 'S', key: 'S', align: 'end' },
-    { title: 'M', key: 'M', align: 'end' },
-    { title: 'L', key: 'L', align: 'end' },
-    { title: 'XL', key: 'XL', align: 'end' },
-    { title: '2XL', key: '2XL', align: 'end' },
-    { title: '3XL', key: '3XL', align: 'end' },
-    { title: '4XL', key: '4XL', align: 'end' },
-    { title: '5XL', key: '5XL', align: 'end' },
-    { title: 'Total', key: 'TOTAL', align: 'end', class: 'font-weight-bold' },
-    { title: 'Buffer', key: 'Buffer', align: 'end' },
+    { title: 'S', key: 'S', align: 'start' },
+    { title: 'M', key: 'M', align: 'start' },
+    { title: 'L', key: 'L', align: 'start' },
+    { title: 'XL', key: 'XL', align: 'start' },
+    { title: '2XL', key: '2XL', align: 'start' },
+    { title: '3XL', key: '3XL', align: 'start' },
+    { title: '4XL', key: '4XL', align: 'start' },
+    { title: '5XL', key: '5XL', align: 'start' },
+    { title: 'Total', key: 'TOTAL', align: 'start', class: 'font-weight-bold' },
+    { title: 'Buffer', key: 'Buffer', align: 'start' },
 ]);
 
 const hasViewPermission = computed(() => authStore.can(MENU_ID, 'view'));

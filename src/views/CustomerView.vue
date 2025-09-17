@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted, computed } from 'vue';
+import type { DataTableHeader } from 'vuetify';
 import api from '@/services/api';
 import PageLayout from '@/components/PageLayout.vue';
 import { useToast } from 'vue-toastification';
@@ -57,17 +58,16 @@ const availableLevels = ref([]);
 
 const hasViewPermission = computed(() => authStore.can(MENU_ID, 'view'));
 
-const headers = [
+const headers: DataTableHeader[] = [
   { title: 'Kode', key: 'kode', width: '120px' },
-  { title: 'Nama', key: 'nama', width: '250px' },
-  { title: 'Alamat', key: 'alamat' },
-  { title: 'Kota', key: 'kota', width: '150px' },
-  { title: 'No. Telpon', key: 'telp', width: '120px' },
-  { title: 'Tgl Lahir', key: 'tglLahir', width: '100px' },
-  { title: 'TOP', key: 'top', align: 'center', width: '60px' },
-  { title: 'Level', key: 'level', width: '120px' },
-  { title: 'Status', key: 'status', align: 'center', width: '100px' },
-  // { title: 'Actions', key: 'actions', sortable: false, align: 'center', width: '80px' },
+  { title: 'Nama', key: 'nama', width: '200px' },
+  { title: 'Alamat', key: 'alamat', width: '200px' },
+  { title: 'Kota', key: 'kota', width: '120px' },
+  { title: 'Telp', key: 'telp', width: '120px' },
+  { title: 'Kontak', key: 'namaKontak', width: '150px' },
+  { title: 'TOP', key: 'top', align: 'end', width: '80px' },
+  { title: 'Status', key: 'status', width: '100px' },
+  { title: 'Actions', key: 'actions', sortable: false, width: '100px' }
 ];
 
 const levelHistoryHeaders = [
@@ -106,7 +106,7 @@ const openNewDialog = async () => {
   try {
     const levelsResponse = await api.get('/customers/levels');
     availableLevels.value = levelsResponse.data;
-  } catch (e) {
+  } catch {
     toast.error("Gagal menyiapkan form baru.");
   }
 };
@@ -119,7 +119,7 @@ const openEditDialog = async (item: Customer) => {
     levelHistory.value = response.data.levelHistory;
     availableLevels.value = response.data.levels;
     dialog.value = true;
-  } catch (error) {
+  } catch {
     toast.error('Gagal memuat detail customer.');
   }
 };
@@ -136,29 +136,26 @@ const saveCustomer = async () => {
   isSaving.value = true;
   try {
     if (isNew.value) {
-      // Panggil endpoint POST untuk membuat data baru
       const response = await api.post('/customers', editedItem.value);
       toast.success(response.data.message);
     } else {
-      // Panggil endpoint PUT untuk mengubah data, sertakan kode di URL
       const response = await api.put(`/customers/${editedItem.value.kode}`, editedItem.value);
       toast.success(response.data.message);
     }
 
-    fetchCustomers(); // Muat ulang data di tabel
-    dialog.value = false; // <-- DIALOG DITUTUP HANYA JIKA BERHASIL
+    fetchCustomers();
+    dialog.value = false;
 
-  } catch (error: any) {
-    // Jika terjadi error, toast akan muncul, TAPI DIALOG TETAP TERBUKA
-    toast.error(error.response?.data?.message || 'Gagal menyimpan data customer.');
+  } catch (error: unknown) {
+    const err = error as { response?: { data?: { message?: string } } };
+    toast.error(err.response?.data?.message || 'Gagal menyimpan data customer.');
   } finally {
-    // Hentikan loading spinner, baik berhasil maupun gagal
     isSaving.value = false;
   }
 };
 
 // const deleteCustomer = async (item: Customer) => {
-//   // if (confirm(`Yakin ingin menghapus customer ${item.nama}?`)) { // <-- HAPUS BARIS INI
+//   // if (confirm(`Yakin ingin menghapus customer ${item.nama}?`)) { 
 //   try {
 //     const response = await api.delete(`/customers/${item.kode}`);
 //     toast.success(response.data.message);
@@ -166,7 +163,7 @@ const saveCustomer = async () => {
 //   } catch (error) {
 //     toast.error('Gagal menghapus data customer.');
 //   }
-//   // } // <-- HAPUS BARIS INI
+//   // } 
 // };
 
 // const handleDeleteFromHeader = () => {
@@ -227,7 +224,7 @@ const exportData = () => {
 // };
 
 // Menjalankan aksi hapus setelah konfirmasi
-// const deleteConfirmed = () => { // <-- TAMBAHKAN FUNGSI INI
+// const deleteConfirmed = () => { 
 //   if (itemToDelete.value) {
 //     deleteCustomer(itemToDelete.value);
 //   }
@@ -254,7 +251,7 @@ onMounted(() => {
         prepend-icon="mdi-plus">Baru</v-btn>
       <v-btn v-if="authStore.can(MENU_ID, 'edit')" size="small" :disabled="!canEdit" @click="handleEditFromHeader"
         prepend-icon="mdi-pencil">Ubah</v-btn>
-      <!-- <v-btn v-if="authStore.can(MENU_ID, 'delete')" size="small" :disabled="!canDelete" @click="handleDeleteFromHeader"
+      <!-- <v-btn v-if="authStore.can(MENU_ID, 'delete')" size="small" color="error" :disabled="!canDelete" @click="handleDeleteFromHeader"
         prepend-icon="mdi-delete">Hapus</v-btn> -->
       <v-btn v-if="authStore.can(MENU_ID, 'view')" size="small" @click="printData"
         prepend-icon="mdi-printer">Cetak</v-btn>
@@ -279,23 +276,27 @@ onMounted(() => {
       <!-- Table Section -->
       <v-data-table v-model="selected" :headers="headers" :items="customers" :search="search" :loading="isLoading"
         :item-value="getItemKey" density="compact" class="desktop-table" fixed-header show-select return-object>
-        <template #item.status="{ item }">
-          <v-chip :color="item.status === 'AKTIF' ? 'success' : 'error'" variant="tonal" size="x-small">{{ item.status
-          }}</v-chip>
+        <template #[`item.status`]="{ item }">
+          <v-chip :color="item.status === 'AKTIF' ? 'success' : 'error'" size="x-small" variant="tonal">
+            {{ item.status }}
+          </v-chip>
         </template>
-        <template #item.tglLahir="{ item }">
+        <template #[`item.tglLahir`]="{ item }">
           {{ item.tglLahir ? format(new Date(item.tglLahir), 'dd/MM/yyyy') : '-' }}
         </template>
-        <template #item.top="{ item }">
+        <template #[`item.top`]="{ item }">
           {{ item.top }} hari
         </template>
-        <template #item.level="{ item }">
+        <template #[`item.level`]="{ item }">
           <span class="text-caption">{{ item.level }}</span>
         </template>
-        <template #item.actions="{ item }">
-          <v-icon v-if="authStore.can(MENU_ID, 'edit')" size="small" class="me-2"
-            @click="openEditDialog(item)">mdi-pencil</v-icon>
-          <!-- <v-icon v-if="authStore.can(MENU_ID, 'delete')" size="small" @click="confirmDelete(item)">mdi-delete</v-icon> -->
+        <template #[`item.actions`]="{ item }">
+          <v-icon v-if="authStore.can(MENU_ID, 'edit')" size="small" class="me-2" @click="openEditDialog(item)">
+            mdi-pencil
+          </v-icon>
+          <!-- <v-icon v-if="authStore.can(MENU_ID, 'delete')" size="small" @click="confirmDelete(item)">
+            mdi-delete
+          </v-icon> -->
         </template>
       </v-data-table>
     </div>
@@ -345,8 +346,10 @@ onMounted(() => {
                 <h3 class="text-subtitle-2 mt-4 mb-2">History Level</h3>
                 <v-data-table :headers="levelHistoryHeaders" :items="levelHistory" density="compact"
                   class="border rounded-sm">
-                  <template #item.no="{ index }">{{ index + 1 }}</template>
-                  <template #item.tanggal="{ item }">
+                  <template #[`item.no`]="{ index }">
+                    {{ index + 1 }}
+                  </template>
+                  <template #[`item.tanggal`]="{ item }">
                     {{ item.tanggal ? format(new Date(item.tanggal), 'dd/MM/yyyy') : '-' }}
                   </template>
                 </v-data-table>
@@ -396,14 +399,14 @@ onMounted(() => {
 
 /* Mengatur font untuk label (Nama, Alamat, dll.) */
 .dialog-card :deep(.v-label) {
-    font-size: 11px !important;
+  font-size: 11px !important;
 }
 
 /* Mengatur font untuk teks yang diinput */
 .dialog-card :deep(input),
 .dialog-card :deep(textarea),
 .dialog-card :deep(.v-select__selection-text) {
-    font-size: 12px !important;
+  font-size: 12px !important;
 }
 
 /* Mengatur jarak antar field agar lebih rapat */
@@ -411,6 +414,6 @@ onMounted(() => {
 .dialog-card :deep(.v-textarea),
 .dialog-card :deep(.v-select),
 .dialog-card :deep(.v-radio-group) {
-    margin-bottom: 4px;
+  margin-bottom: 4px;
 }
 </style>

@@ -117,7 +117,7 @@ const fetchData = async () => {
 const editProposal = () => {
   if (!isSingleSelected.value) return;
   const nomor = selected.value[0].nomor;
-  router.push(`/transaksi/pengajuan/pengajuan-harga/ubah/${nomor}`);
+  router.push(`/transaksi/penjualan/pengajuan/pengajuan-harga/ubah/${nomor}`);
 };
 
 const deleteProposal = async (item: PriceProposal) => {
@@ -146,6 +146,14 @@ const deleteConfirmed = () => {
   itemToDelete.value = null;
 };
 
+const getRowTextColor = (item: PriceProposal) => {
+  // Warnai merah jika kolom 'approval' kosong (belum di-approve)
+  if (!item.approval) {
+    return 'text-red font-weight-bold';
+  }
+  return ''; // Warna default
+};
+
 onMounted(() => {
   // (4) Cek hak view sebelum memuat data
   if (authStore.can(MENU_ID, 'view')) {
@@ -167,10 +175,10 @@ watch([selectedCabang, belumApproval, startDate, endDate], () => {
   <PageLayout title="Pengajuan Harga" desktop-mode icon="mdi-cash-plus">
     <template #header-actions>
       <v-btn v-if="authStore.can(MENU_ID, 'insert')" size="small" color="primary" prepend-icon="mdi-plus"
-        @click="router.push('/transaksi/pengajuan/pengajuan-harga/new')">Baru</v-btn>
+        @click="router.push('/transaksi/penjualan/pengajuan/pengajuan-harga/new')">Baru</v-btn>
       <v-btn v-if="authStore.can(MENU_ID, 'edit')" size="small" :disabled="!isSingleSelected" prepend-icon="mdi-pencil"
         @click="editProposal">Ubah</v-btn>
-      <v-btn v-if="authStore.can(MENU_ID, 'delete')" size="small" :disabled="!isSingleSelected"
+      <v-btn v-if="authStore.can(MENU_ID, 'delete')" size="small" color="error" :disabled="!isSingleSelected"
         prepend-icon="mdi-delete" @click="confirmDelete">Hapus</v-btn>
     </template>
 
@@ -206,19 +214,29 @@ watch([selectedCabang, belumApproval, startDate, endDate], () => {
             style="min-width: 250px;" clearable prepend-inner-icon="mdi-magnify"></v-text-field>
         </div>
         <v-spacer></v-spacer>
+        <div class="d-flex align-center ga-2 text-caption">
+          <v-icon color="red" icon="mdi-square-rounded" size="small"></v-icon> Belum Approval
+        </div>
         <v-btn @click="fetchData" icon="mdi-refresh" variant="text" size="small"></v-btn>
       </div>
 
       <!-- Table Section -->
       <v-data-table v-model="selected" :headers="tableHeaders" :items="filteredProposals" :loading="isLoading"
         item-value="nomor" density="compact" class="desktop-table" fixed-header show-select return-object>
-        <template #item.tanggal="{ item }">
-          {{ format(new Date(item.tanggal), 'dd/MM/yyyy') }}
-        </template>
-        <template #item.approval="{ item }">
-          <v-chip :color="item.approval ? 'success' : 'error'" variant="tonal" size="x-small">
-            {{ item.approval || 'Belum' }}
-          </v-chip>
+        <template v-for="header in tableHeaders" #[`item.${header.key}`]="{ item }">
+          <td :class="getRowTextColor(item)">
+            <template v-if="header.key === 'tanggal'">
+              {{ format(new Date(item.tanggal), 'dd/MM/yyyy') }}
+            </template>
+            <template v-else-if="header.key === 'approval'">
+              <v-chip :color="item.approval ? 'success' : 'grey'" variant="tonal" size="x-small">
+                {{ item.approval || 'Belum' }}
+              </v-chip>
+            </template>
+            <template v-else>
+              {{ item[header.key] }}
+            </template>
+          </td>
         </template>
       </v-data-table>
     </div>

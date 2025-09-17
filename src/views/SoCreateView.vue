@@ -234,7 +234,7 @@ const loadDataForEdit = async (nomor: string) => {
     } catch (error: any) {
         // Log current state when error occurs    
         toast.error(error.response?.data?.message || error.message || 'Gagal memuat data SO.');
-        router.push('/transaksi/surat-pesanan');
+        router.push('/transaksi/penjualan/surat-pesanan');
     } finally {
         isLoading.value = false;
     }
@@ -449,7 +449,7 @@ const executeSave = async () => {
         };
         const response = await api.post('/so-form/save', payload);
         toast.success(response.data.message);
-        router.push('/transaksi/surat-pesanan');
+        router.push('/transaksi/penjualan/surat-pesanan');
     } catch (error: any) {
         toast.error(error.response?.data?.message || 'Gagal menyimpan data.');
     } finally {
@@ -906,7 +906,7 @@ const closeConfirmDialog = () => {
     pendingAction.value = null;
 };
 const closeForm = () => {
-    router.push('/transaksi/surat-pesanan');
+    router.push('/transaksi/penjualan/surat-pesanan');
 };
 
 const onNewCustomerSaved = (newCustomer: any) => {

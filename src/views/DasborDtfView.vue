@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted, computed, watch } from 'vue';
+import type { DataTableHeader } from 'vuetify';
 import api from '@/services/api';
 import PageLayout from '@/components/PageLayout.vue';
 import { useToast } from 'vue-toastification';
@@ -14,12 +15,17 @@ const MENU_ID = '40';
 interface DasborItem {
     TglPengerjaan: string;
     Sisa: number;
-    [key: string]: any;
+    [key: string]: unknown;
 }
 
 interface DetailItem {
     SoDTF: string;
-    [key: string]: any;
+    [key: string]: unknown;
+}
+
+interface MyHeader extends DataTableHeader {
+    width?: string;
+    align?: 'start' | 'center' | 'end';
 }
 
 // --- State ---
@@ -30,26 +36,26 @@ const startDate = ref(format(subDays(new Date(), 2), 'yyyy-MM-dd'));
 const endDate = ref(format(addDays(new Date(), 7), 'yyyy-MM-dd'));
 const cabangList = ref<{ kode: string, nama: string }[]>([]);
 const selectedCabang = ref(authStore.user?.cabang || '');
-const expanded = ref<DasborItem[]>([]);
+const expanded = ref<string[]>([]);
 const loadingDetails = ref<Set<string>>(new Set());
 
 // --- Computed ---
 const hasViewPermission = computed(() => authStore.can(MENU_ID, 'view'));
 
-const headers = [
+const headers: MyHeader[] = [
     { title: 'Tgl Pengerjaan', key: 'TglPengerjaan', width: '200px' },
     { title: 'Kuota', key: 'Kuota', align: 'end' },
     { title: 'Total Titik', key: 'TotalTitik', align: 'end' },
     { title: 'Sisa', key: 'Sisa', align: 'end' },
 ];
 
-const detailHeaders = [
-    { title: 'SoDTF', key: 'SoDTF', width: '200px' },
-    { title: 'TglPengerjaan', key: 'TglPengerjaan', width: '120px' },
-    { title: 'Nama', key: 'Nama', width: '300px' },
-    { title: 'Jumlah', key: 'Jumlah', align: 'end' },
-    { title: 'Titik', key: 'Titik', align: 'end' },
-    { title: 'TotalTitik', key: 'TotalTitik', align: 'end' },
+const detailHeaders: MyHeader[] = [
+  { title: 'SoDTF', key: 'SoDTF', width: '200px' },
+  { title: 'TglPengerjaan', key: 'TglPengerjaan', width: '120px' },
+  { title: 'Nama', key: 'Nama', width: '300px' },
+  { title: 'Jumlah', key: 'Jumlah', align: 'end' },
+  { title: 'Titik', key: 'Titik', align: 'end' },
+  { title: 'TotalTitik', key: 'TotalTitik', align: 'end' },
 ];
 
 // --- Methods ---
@@ -62,7 +68,7 @@ const fetchCabangList = async () => {
         if (authStore.user?.cabang === 'KDC' && cabangList.value.length > 0) {
             selectedCabang.value = cabangList.value[0].kode;
         }
-    } catch (error) {
+    } catch {
         toast.error('Gagal memuat daftar cabang.');
     }
 };
@@ -79,30 +85,28 @@ const fetchData = async () => {
             }
         });
         dasborList.value = response.data;
-    } catch (error) {
+    } catch {
         toast.error('Gagal memuat data dasbor.');
     } finally {
         isLoading.value = false;
     }
 };
 
-const loadDetails = async (newlyExpandedItems: string[]) => { // Tipe data diubah menjadi array of string
-    // Cari tanggal (string) yang baru di-expand dan belum ada datanya
-    const tglToLoad = newlyExpandedItems.find(tgl => !details.value[tgl] && !loadingDetails.value.has(tgl));
+const loadDetails = async (newlyExpandedItems: string[]) => {
+    const tglToLoad = newlyExpandedItems.find(
+        tgl => !details.value[tgl] && !loadingDetails.value.has(tgl)
+    );
 
-    // Jika tidak ada item baru untuk dimuat, hentikan fungsi
     if (!tglToLoad) return;
 
     loadingDetails.value.add(tglToLoad);
     try {
         const response = await api.get(`/dasbor-dtf/detail`, {
-            // Gunakan tglToLoad (string) secara langsung sebagai parameter
             params: { tanggal: tglToLoad, cabang: selectedCabang.value }
         });
         details.value[tglToLoad] = response.data;
-    } catch (error) {
+    } catch {
         toast.error(`Gagal memuat detail untuk tanggal ${tglToLoad}`);
-        // Hapus dari daftar expanded jika gagal
         expanded.value = expanded.value.filter(tgl => tgl !== tglToLoad);
     } finally {
         loadingDetails.value.delete(tglToLoad);
@@ -130,7 +134,7 @@ const exportData = async (type: 'header' | 'detail') => {
         XLSX.utils.book_append_sheet(workbook, worksheet, "Data");
         XLSX.writeFile(workbook, fileName);
         toast.success('File berhasil diekspor.');
-    } catch (error) {
+    } catch {
         toast.error('Gagal mengekspor data.');
     }
 };
@@ -181,9 +185,10 @@ watch([startDate, endDate, selectedCabang], fetchData);
             <v-data-table :headers="headers" :items="dasborList" :loading="isLoading" v-model:expanded="expanded"
                 @update:expanded="loadDetails" :item-class="getRowClass" item-value="TglPengerjaan" density="compact"
                 class="desktop-table fill-height-table" fixed-header show-expand>
-                <template #item.TglPengerjaan="{ item }">
+                <template #[`item.TglPengerjaan`]="{ item }">
                     {{ format(parseISO(item.TglPengerjaan), 'dd-MM-yyyy') }}
                 </template>
+
 
                 <template #expanded-row="{ columns, item }">
                     <tr>

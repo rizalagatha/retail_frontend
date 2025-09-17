@@ -170,11 +170,11 @@ watch([startDate, endDate, selectedCabang], fetchData, { immediate: false });
     <PageLayout title="LHK SO DTF Stok" desktop-mode icon="mdi-package-variant-closed-check">
         <template #header-actions>
             <v-btn v-if="authStore.can(MENU_ID, 'insert')" size="small" color="primary" prepend-icon="mdi-plus"
-                @click="router.push('/transaksi/dtf/lhk-so-dtf-stok/new')">Baru</v-btn>
+                @click="router.push('/transaksi/penjualan/dtf/lhk-so-dtf-stok/new')">Baru</v-btn>
             <v-btn v-if="authStore.can(MENU_ID, 'edit')" size="small" :disabled="!isSingleSelected"
                 prepend-icon="mdi-pencil"
-                @click="router.push(`/transaksi/dtf/lhk-so-dtf-stok/ubah/${selected[0].Nomor}`)">Ubah</v-btn>
-            <v-btn v-if="authStore.can(MENU_ID, 'delete')" size="small" :disabled="!isSingleSelected"
+                @click="router.push(`/transaksi/penjualan/dtf/lhk-so-dtf-stok/ubah/${selected[0].Nomor}`)">Ubah</v-btn>
+            <v-btn v-if="authStore.can(MENU_ID, 'delete')" size="small" color="error" :disabled="!isSingleSelected"
                 prepend-icon="mdi-delete" @click="showDeleteConfirmation">Hapus</v-btn>
         </template>
 

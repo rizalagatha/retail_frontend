@@ -19,6 +19,9 @@ const fetchPrintData = async (nomor: string) => {
     try {
         const response = await api.get(`/so/print-data/${nomor}`);
         printData.value = response.data;
+        if (printData.value.header?.so_nomor) { 
+            document.title = printData.value.header.so_nomor;
+        }
         await nextTick();
         window.print();
     } catch (error) {

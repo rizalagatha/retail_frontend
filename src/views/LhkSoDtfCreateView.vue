@@ -146,7 +146,7 @@ const closeConfirmDialog = () => {
 
 // Buat fungsi baru untuk navigasi Tutup agar bisa dipanggil
 const closeForm = () => {
-    router.push('/transaksi/dtf/lhk-so-dtf');
+    router.push('/transaksi/penjualan/dtf/lhk-so-dtf');
 };
 
 onMounted(() => {

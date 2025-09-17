@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref } from 'vue'
 import logoUrl from '@/assets/logo.png'
 
 // Sample data - ganti dengan data dari API
@@ -139,7 +139,7 @@ setInterval(() => {
                   to="/daftar"
                 >
                   <v-icon class="mr-2">mdi-plus-circle</v-icon>
-                  Tambah Produk
+                  Master Data
                 </v-btn>
               </v-col>
               <v-col cols="6" sm="4">

@@ -112,11 +112,64 @@ const loadDetails = async (newlyExpandedItems: MutasiHeader[]) => {
     }
 };
 
-const getRowClass = (item: MutasiHeader) => {
-    // Logika pewarnaan dari cxGrdMasterCustomDrawCell
-    if (item.Status === 'OPEN') return 'status-open';
-    if (item.Status === 'PROSES') return 'status-proses';
+const exportData = async (type: 'header' | 'detail') => {
+    if (type === 'header') {
+        if (masterData.value.length === 0) return toast.warning('Tidak ada data header untuk diekspor.');
+        try {
+            const worksheet = XLSX.utils.json_to_sheet(masterData.value);
+            const workbook = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(workbook, worksheet, "Mutasi Out Header");
+            XLSX.writeFile(workbook, "Export_Mutasi_Out_Header.xlsx");
+        } catch (error) { toast.error('Gagal membuat file Excel.'); }
+    } else if (type === 'detail') {
+        try {
+            toast.info('Mengambil data detail dari server...');
+            const response = await api.get('/mutasi-out/export-details', { params: filters });
+            if (response.data.length === 0) return toast.warning('Tidak ada data detail untuk diekspor.');
+
+            const worksheet = XLSX.utils.json_to_sheet(response.data);
+            const workbook = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(workbook, worksheet, "Mutasi Out Detail");
+            XLSX.writeFile(workbook, "Export_Mutasi_Out_Detail.xlsx");
+        } catch (error) { toast.error('Gagal mengekspor data detail.'); }
+    }
+};
+
+const getRowTextColor = (item: any) => {
+    // Merah untuk open
+    if (item.Status === 'OPEN') {
+        return 'text-red font-weight-bold';
+    }
+    // Biru untuk proses
+    if (item.Status === 'PROSES') {
+        return 'text-blue font-weight-bold';
+    }
+    // Hitam (default) untuk close
     return '';
+};
+
+// Tambahkan juga fungsi untuk chip status
+const getStatusChip = (status: string) => {
+    if (status === 'OPEN') return { color: 'error', text: 'Open' };
+    if (status === 'PROSES') return { color: 'primary', text: 'Proses' };
+    if (status === 'CLOSE') return { color: 'grey', text: 'Close' };
+    return { color: 'grey', text: status };
+};
+
+const printData = () => {
+    // Pastikan hanya satu baris yang dipilih
+    if (!isSingleSelected.value) return;
+
+    // Ambil nomor mutasi dari baris yang dipilih
+    const nomorMutasi = selected.value[0].Nomor;
+
+    // Buka halaman cetak di tab baru
+    const url = router.resolve({
+        name: 'Cetak Mutasi Out',
+        params: { nomor: nomorMutasi }
+    }).href;
+
+    window.open(url, '_blank');
 };
 
 onMounted(() => {
@@ -141,16 +194,21 @@ watch([startDate, endDate, selectedCabang], fetchData);
                 @click="router.push(`/transaksi/mutasi/out-produksi/ubah/${selected[0].Nomor}`)">
                 Ubah
             </v-btn>
-            <v-btn v-if="authStore.can(MENU_ID, 'delete')" size="small" :disabled="!isSingleSelected"
+            <v-btn v-if="authStore.can(MENU_ID, 'delete')" size="small" color="error" :disabled="!isSingleSelected"
                 prepend-icon="mdi-delete">Hapus</v-btn>
             <v-btn v-if="authStore.can(MENU_ID, 'view')" size="small" color="green" :disabled="!isSingleSelected"
-                prepend-icon="mdi-printer">Cetak</v-btn>
+                prepend-icon="mdi-printer" @click="printData">
+                Cetak
+            </v-btn>
             <v-menu offset-y>
-                <template v-slot:activator="{ props }"><v-btn size="small" color="teal" prepend-icon="mdi-file-excel"
-                        v-bind="props">Export</v-btn></template>
+                <template v-slot:activator="{ props }">
+                    <v-btn size="small" color="teal" prepend-icon="mdi-file-excel" v-bind="props">Export</v-btn>
+                </template>
                 <v-list density="compact">
-                    <v-list-item><v-list-item-title>Export Header</v-list-item-title></v-list-item>
-                    <v-list-item><v-list-item-title>Export Detail</v-list-item-title></v-list-item>
+                    <v-list-item @click="exportData('header')"><v-list-item-title>Export
+                            Header</v-list-item-title></v-list-item>
+                    <v-list-item @click="exportData('detail')"><v-list-item-title>Export
+                            Detail</v-list-item-title></v-list-item>
                 </v-list>
             </v-menu>
         </template>
@@ -180,17 +238,22 @@ watch([startDate, endDate, selectedCabang], fetchData);
 
             <div class="table-container">
                 <v-data-table v-model="selected" :headers="headers" :items="list" :loading="isLoading"
-                    :item-class="getRowClass" item-value="Nomor" density="compact"
-                    class="desktop-table fill-height-table" fixed-header show-select return-object show-expand
-                    @update:expanded="loadDetails">
-                    <template #item.Tanggal="{ item }">{{ format(parseISO(item.Tanggal), 'dd/MM/yyyy') }}</template>
-                    <template #item.Status="{ item }">
-                        <v-chip size="x-small"
-                            :color="item.Status === 'OPEN' ? 'error' : (item.Status === 'PROSES' ? 'primary' : 'grey')"
-                            variant="tonal" label>{{ item.Status }}</v-chip>
-                    </template>
-                    <template #item.TerimaSJ="{ item }">
-                        {{ item.TerimaSJ ? format(parseISO(item.TerimaSJ), 'dd/MM/yyyy') : '-' }}
+                    item-value="Nomor" density="compact" class="desktop-table fill-height-table" fixed-header
+                    show-select return-object show-expand @update:expanded="loadDetails">
+                    <template v-for="header in headers" #[`item.${header.key}`]="{ item }">
+                        <td :class="getRowTextColor(item)">
+                            <template v-if="header.key === 'Tanggal'">
+                                {{ format(parseISO(item.Tanggal), 'dd/MM/yyyy') }}
+                            </template>
+                            <template v-else-if="header.key === 'Status'">
+                                <v-chip :color="getStatusChip(item.Status).color" variant="tonal" size="x-small">
+                                    {{ getStatusChip(item.Status).text }}
+                                </v-chip>
+                            </template>
+                            <template v-else>
+                                {{ item[header.key] }}
+                            </template>
+                        </td>
                     </template>
                     <template #expanded-row="{ columns, item }">
                         <tr>

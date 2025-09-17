@@ -34,9 +34,9 @@ const loadItems = async () => {
     finally { loading.value = false; }
 };
 
-const selectItem = (item: any) => {
-    emit('selected', item);
-    emit('close');
+const selectItem = <T>(item: T) => {
+  emit('selected', item);
+  emit('close');
 };
 
 watch(search, () => { setTimeout(loadItems, 500); });

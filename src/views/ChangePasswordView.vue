@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue';
+import type { AxiosError } from 'axios';
 import api from '@/services/api';
 import { useToast } from 'vue-toastification';
 
@@ -26,14 +27,14 @@ const rules = {
 // --- Computed ---
 const isFormValid = computed(() => {
   return passwordLama.value.length > 0 &&
-         passwordBaru.value.length >= 6 &&
-         ulangiPassword.value === passwordBaru.value;
+    passwordBaru.value.length >= 6 &&
+    ulangiPassword.value === passwordBaru.value;
 });
 
 const passwordStrength = computed(() => {
   const password = passwordBaru.value;
   if (!password) return { strength: 0, text: '', color: '' };
-  
+
   let strength = 0;
   const checks = {
     length: password.length >= 8,
@@ -42,9 +43,9 @@ const passwordStrength = computed(() => {
     numbers: /\d/.test(password),
     symbols: /[!@#$%^&*(),.?":{}|<>]/.test(password)
   };
-  
+
   strength = Object.values(checks).filter(Boolean).length;
-  
+
   if (strength <= 2) return { strength: strength * 20, text: 'Lemah', color: 'error' };
   if (strength <= 3) return { strength: strength * 20, text: 'Sedang', color: 'warning' };
   if (strength <= 4) return { strength: strength * 20, text: 'Kuat', color: 'success' };
@@ -81,12 +82,14 @@ const handleChangePassword = async () => {
     const response = await api.post('/users/change-password', payload);
 
     toast.success(response.data.message || 'Password berhasil diubah');
-    
+
     // Reset form
     resetForm();
-    
-  } catch (error: any) {
-    const message = error.response?.data?.message || 'Terjadi kesalahan saat mengubah password';
+
+  } catch (error: unknown) {
+    const axiosError = error as AxiosError<{ message?: string }>;
+    const message =
+      axiosError.response?.data?.message || 'Terjadi kesalahan saat mengubah password';
     toast.error(message);
   } finally {
     isLoading.value = false;
@@ -105,39 +108,25 @@ const resetForm = () => {
   <div class="change-password-container">
     <v-card class="password-card" max-width="600px">
       <v-toolbar color="grey-lighten-4" density="compact">
-          <v-icon class="ms-3">mdi-lock-reset</v-icon>
-          <v-toolbar-title class="text-subtitle-1 font-weight-medium">Ganti Password</v-toolbar-title>
+        <v-icon class="ms-3">mdi-lock-reset</v-icon>
+        <v-toolbar-title class="text-subtitle-1 font-weight-medium">Ganti Password</v-toolbar-title>
       </v-toolbar>
 
       <v-card-text class="pa-6">
         <v-form @submit.prevent="handleChangePassword">
           <div class="mb-4">
             <v-label class="mb-1 text-caption">Password Lama</v-label>
-            <v-text-field
-              v-model="passwordLama"
-              :type="showPasswords.old ? 'text' : 'password'"
-              variant="outlined"
-              density="compact"
-              prepend-inner-icon="mdi-lock-outline"
-              :rules="[rules.required]"
-              hide-details="auto"
+            <v-text-field v-model="passwordLama" :type="showPasswords.old ? 'text' : 'password'" variant="outlined"
+              density="compact" prepend-inner-icon="mdi-lock-outline" :rules="[rules.required]" hide-details="auto"
               :append-inner-icon="showPasswords.old ? 'mdi-eye-off' : 'mdi-eye'"
-              @click:append-inner="togglePasswordVisibility('old')"
-            ></v-text-field>
+              @click:append-inner="togglePasswordVisibility('old')"></v-text-field>
           </div>
           <div class="mb-2">
             <v-label class="mb-1 text-caption">Password Baru</v-label>
-            <v-text-field
-              v-model="passwordBaru"
-              :type="showPasswords.new ? 'text' : 'password'"
-              variant="outlined"
-              density="compact"
-              prepend-inner-icon="mdi-lock-plus-outline"
-              :rules="[rules.required, rules.minLength]"
-              hide-details="auto"
-              :append-inner-icon="showPasswords.new ? 'mdi-eye-off' : 'mdi-eye'"
-              @click:append-inner="togglePasswordVisibility('new')"
-            ></v-text-field>
+            <v-text-field v-model="passwordBaru" :type="showPasswords.new ? 'text' : 'password'" variant="outlined"
+              density="compact" prepend-inner-icon="mdi-lock-plus-outline" :rules="[rules.required, rules.minLength]"
+              hide-details="auto" :append-inner-icon="showPasswords.new ? 'mdi-eye-off' : 'mdi-eye'"
+              @click:append-inner="togglePasswordVisibility('new')"></v-text-field>
           </div>
           <div v-if="passwordBaru" class="mb-4">
             <div class="d-flex justify-space-between align-center mb-1">
@@ -146,26 +135,21 @@ const resetForm = () => {
                 {{ passwordStrength.text }}
               </span>
             </div>
-            <v-progress-linear :model-value="passwordStrength.strength" :color="passwordStrength.color" height="4" rounded />
+            <v-progress-linear :model-value="passwordStrength.strength" :color="passwordStrength.color" height="4"
+              rounded />
           </div>
           <div class="mb-4">
             <v-label class="mb-1 text-caption">Ulangi Password Baru</v-label>
-            <v-text-field
-              v-model="ulangiPassword"
-              :type="showPasswords.confirm ? 'text' : 'password'"
-              variant="outlined"
-              density="compact"
-              prepend-inner-icon="mdi-lock-check-outline"
-              :rules="[rules.required, rules.passwordMatch]"
-              hide-details="auto"
-              @keydown.enter="handleChangePassword"
+            <v-text-field v-model="ulangiPassword" :type="showPasswords.confirm ? 'text' : 'password'"
+              variant="outlined" density="compact" prepend-inner-icon="mdi-lock-check-outline"
+              :rules="[rules.required, rules.passwordMatch]" hide-details="auto" @keydown.enter="handleChangePassword"
               :append-inner-icon="showPasswords.confirm ? 'mdi-eye-off' : 'mdi-eye'"
-              @click:append-inner="togglePasswordVisibility('confirm')"
-            ></v-text-field>
+              @click:append-inner="togglePasswordVisibility('confirm')"></v-text-field>
           </div>
           <v-alert type="info" variant="tonal" density="compact" icon="mdi-information-outline">
             <div class="text-caption">
-              <strong>Tips password yang kuat:</strong> Minimal 8 karakter dengan kombinasi huruf besar, kecil, angka, dan simbol.
+              <strong>Tips password yang kuat:</strong> Minimal 8 karakter dengan kombinasi huruf besar, kecil, angka,
+              dan simbol.
             </div>
           </v-alert>
         </v-form>
@@ -175,14 +159,8 @@ const resetForm = () => {
       <v-card-actions class="pa-3 bg-grey-lighten-4">
         <v-btn size="small" @click="resetForm" :disabled="isLoading">Reset</v-btn>
         <v-spacer />
-        <v-btn
-          size="small"
-          color="primary"
-          variant="elevated"
-          :loading="isLoading"
-          :disabled="!isFormValid || isLoading"
-          @click="handleChangePassword"
-        >
+        <v-btn size="small" color="primary" variant="elevated" :loading="isLoading"
+          :disabled="!isFormValid || isLoading" @click="handleChangePassword">
           Ganti Password
         </v-btn>
       </v-card-actions>
@@ -192,13 +170,15 @@ const resetForm = () => {
 
 <style scoped>
 .change-password-container {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    min-height: calc(100vh - 48px); /* Tinggi viewport dikurangi app bar */
-    background-color: #f4f5f7;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: calc(100vh - 48px);
+  /* Tinggi viewport dikurangi app bar */
+  background-color: #f4f5f7;
 }
+
 .password-card {
-    border: 1px solid #e0e0e0;
+  border: 1px solid #e0e0e0;
 }
 </style>

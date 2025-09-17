@@ -6,7 +6,26 @@ import { format, parseISO } from 'date-fns';
 import Logo from '@/assets/logo.png';
 
 const route = useRoute();
-const printData = ref<any>(null);
+
+interface PrintData {
+  gdg_inv_alamat: string;
+  gdg_inv_telp: string;
+  sh_nomor: string;
+  sh_tanggal: string;
+  cus_nama: string;
+  cus_alamat: string;
+  cus_telp: string;
+  sh_nominal: number;
+  terbilang: string;
+  sh_ket: string;
+  jenis_pembayaran: string;
+  nama_akun?: string;
+  no_rekening?: string;
+  tgl_transfer?: string;
+  sh_so_nomor: string;
+}
+
+const printData = ref<PrintData | null>(null);
 const isLoading = ref(true);
 const appLogo = Logo;
 

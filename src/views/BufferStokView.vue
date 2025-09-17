@@ -1,46 +1,58 @@
 <script setup lang="ts">
 import { ref, onMounted, computed, watch } from 'vue';
-import { useRouter } from 'vue-router';
 import api from '@/services/api';
 import PageLayout from '@/components/PageLayout.vue';
 import { useToast } from 'vue-toastification';
 import { useAuthStore } from '@/stores/authStore';
 import * as XLSX from 'xlsx';
 
+interface BufferStockItem {
+    Status: string
+    KtgProduk: string
+    Kode: string
+    Barcode: string
+    Nama: string
+    Ukuran: string
+    Stok: number
+    MinBuffer: number
+    MaxBuffer: number
+    Harus_Minta: number
+    Sudah_Minta: number
+}
+
 const toast = useToast();
 const authStore = useAuthStore();
-const router = useRouter();
 
 // --- State ---
-const list = ref<any[]>([]);
+const list = ref<BufferStockItem[]>([])
 const isLoading = ref(true);
 const cabangList = ref([]);
 const selectedCabang = ref(authStore.user?.cabang || '');
-const selected = ref([]);
+const selected = ref<BufferStockItem[]>([])
 const tampilkanBufferNol = ref(false);
 const kaosan = ref(true);
 const reszo = ref(false);
 
 const isSettingVisible = ref(false);
 const isSettingSaving = ref(false);
-const itemToSetting = ref<any>(null);
+const itemToSetting = ref<BufferStockItem | null>(null)
 const minBuffer = ref(0);
 const maxBuffer = ref(0);
 
 const hasAccess = computed(() => authStore.isAuthenticated);
 
 const headers = [
-    { title: 'Status', key: 'Status', width: '120px' },
+    { title: 'Status', key: 'status', width: '120px' },
     { title: 'Kategori', key: 'KtgProduk', width: '120px' },
     { title: 'Kode', key: 'Kode', width: '120px' },
     { title: 'Barcode', key: 'Barcode', width: '120px' },
     { title: 'Nama', key: 'Nama', width: '300px' },
     { title: 'Ukuran', key: 'Ukuran' },
-    { title: 'Stok', key: 'Stok', align: 'end' },
-    { title: 'Min Buffer', key: 'MinBuffer', align: 'end' },
-    { title: 'Max Buffer', key: 'MaxBuffer', align: 'end' },
-    { title: 'Harus Minta', key: 'Harus_Minta', align: 'end' },
-    { title: 'Sudah Minta', key: 'Sudah_Minta', align: 'end' },
+    { title: 'Stok', key: 'Stok', align: 'end' as const },
+    { title: 'Min Buffer', key: 'MinBuffer', align: 'end' as const },
+    { title: 'Max Buffer', key: 'MaxBuffer', align: 'end' as const },
+    { title: 'Harus Minta', key: 'Harus_Minta', align: 'end' as const },
+    { title: 'Sudah Minta', key: 'Sudah_Minta', align: 'end' as const },
 ];
 
 // --- Methods ---
@@ -53,7 +65,7 @@ const fetchCabangList = async () => {
         } else if (authStore.user?.cabang === 'KDC' && cabangList.value.length > 0) {
             selectedCabang.value = 'KDC';
         }
-    } catch (error) {
+    } catch {
         toast.error('Gagal memuat daftar cabang.');
     }
 };
@@ -70,19 +82,19 @@ const fetchData = async () => {
             }
         });
         list.value = response.data;
-    } catch (error) {
+    } catch {
         toast.error('Gagal memuat data buffer stok.');
     } finally {
         isLoading.value = false;
     }
 };
 
-const openSetting = (item: any) => {
-    itemToSetting.value = item;
-    minBuffer.value = item.MinBuffer || 0;
-    maxBuffer.value = item.MaxBuffer || 0;
-    isSettingVisible.value = true;
-};
+const openSetting = (item: BufferStockItem) => {
+    itemToSetting.value = item
+    minBuffer.value = item.MinBuffer || 0
+    maxBuffer.value = item.MaxBuffer || 0
+    isSettingVisible.value = true
+}
 
 const saveSetting = async () => {
     if (!itemToSetting.value) return;
@@ -112,25 +124,28 @@ const saveSetting = async () => {
 
         toast.success('Pengaturan buffer berhasil disimpan.');
         isSettingVisible.value = false;
-    } catch (error: any) {
-        toast.error(error.response?.data?.message || 'Gagal menyimpan pengaturan.');
+    } catch (error: unknown) {
+        if (error && typeof error === 'object' && 'response' in error) {
+            const err = error as { response?: { data?: { message?: string } } }
+            toast.error(err.response?.data?.message || 'Gagal menyimpan pengaturan.');
+        } else {
+            toast.error('Gagal menyimpan pengaturan.');
+        }
     } finally {
         isSettingSaving.value = false;
     }
+
 };
 
-const getRowClass = (item: any) => {
-    // 1. Prioritas utama: Stok di bawah minimal (Merah)
+const getRowClass = (item: BufferStockItem) => {
     if ((item.Stok || 0) < (item.MinBuffer || 0) && (item.MinBuffer || 0) > 0) {
-        return 'harus-minta'; 
+        return 'harus-minta'
     }
-    // 2. Jika stok aman, cek apakah sudah pernah ada permintaan (Biru)
     if ((item.Sudah_Minta || 0) > 0) {
-        return 'sudah-minta';
+        return 'sudah-minta'
     }
-    // 3. Jika tidak keduanya, warna default
-    return '';
-};
+    return ''
+}
 
 const exportData = () => {
     if (list.value.length === 0) {
@@ -144,7 +159,7 @@ const exportData = () => {
         XLSX.utils.book_append_sheet(workbook, worksheet, "Buffer Stok");
         XLSX.writeFile(workbook, "Export_Buffer_Stok.xlsx");
         toast.success('File berhasil dibuat.');
-    } catch (error) {
+    } catch {
         toast.error('Gagal mengekspor data.');
     }
 };
@@ -199,7 +214,7 @@ watch([selectedCabang, tampilkanBufferNol, kaosan, reszo], fetchData);
                     #[`item.${col}`]="{ item }">
                     {{ new Intl.NumberFormat('id-ID').format(item[col] || 0) }}
                 </template>
-                <template #item.Status="{ item }">
+                <template #[`item.Status`]="{ item }">
                     <v-chip v-if="item.Status !== 'Cukup'" size="x-small"
                         :color="item.Status === 'Harus Minta' ? 'error' : 'primary'" variant="tonal" label>
                         {{ item.Status }}

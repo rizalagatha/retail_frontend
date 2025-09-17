@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, computed, watch } from 'vue';
+import { ref, onUnmounted, onMounted, computed, watch } from 'vue';
 import api from '@/services/api';
 import PageLayout from '@/components/PageLayout.vue';
 import { useToast } from 'vue-toastification';
@@ -42,6 +42,7 @@ const selectedCabang = ref(authStore.user?.cabang === 'KDC' ? 'ALL' : authStore.
 const selected = ref<SoDtfHeader[]>([]);
 const expanded = ref<SoDtfHeader[]>([]);
 const loadingDetails = ref<Set<string>>(new Set());
+const fetchTimeout = ref(null);
 
 const isCloseDialogVisible = ref(false);
 const itemToClose = ref<SoDtfHeader | null>(null);
@@ -60,7 +61,7 @@ const filterOptions = ref([
     { title: 'Nama DTF', value: 'NamaDTF' },
     { title: 'Kd. Customer', value: 'KdCus' },
     { title: 'Nama Customer', value: 'Customer' },
-    { title: 'Jml', value: 'Jumlah'},
+    { title: 'Jml', value: 'Jumlah' },
     { title: 'Titik', value: 'Titik' },
     { title: 'Total Titik', value: 'TotalTitik' },
     { title: 'LHK', value: 'LHK' },
@@ -175,19 +176,16 @@ const loadDetails = async (newlyExpandedItems: SoDtfHeader[]) => {
     }
 };
 
-const getRowClass = (item: SoDtfHeader) => {
-    if (item.AlasanClose) return 'row-closed';
-    if (item.NoINV) return '';
-    if (item.NoSO) return 'row-no-invoice';
-    return 'row-no-so';
-};
-
-// Fungsi untuk mendapatkan teks status berdasarkan data item
-const getStatusText = (item: SoDtfHeader) => {
-    if (item.AlasanClose) return 'Closed';
-    if (item.NoINV) return 'Sudah Invoice';
-    if (item.NoSO) return 'Belum Invoice';
-    return 'Belum SO & Invoice';
+const getRowTextColor = (item: SoDtfHeader) => {
+    // Merah: Belum ada SO & Invoice
+    if (!item.NoSO && !item.NoINV) {
+        return 'text-red font-weight-bold';
+    }
+    // Biru: Sudah ada SO, tapi belum Invoice
+    if (item.NoSO && !item.NoINV) {
+        return 'text-blue font-weight-bold';
+    }
+    return ''; // Warna default
 };
 
 const getLhkClass = (item: SoDtfHeader) => {
@@ -323,6 +321,22 @@ const printData = () => {
     window.open(url, '_blank');
 };
 
+const formatDate = (dateValue) => {
+    if (!dateValue) return '-';
+    
+    try {
+        const date = new Date(dateValue);
+        // Periksa apakah date valid
+        if (isNaN(date.getTime())) {
+            return '-';
+        }
+        return format(date, 'dd/MM/yyyy');
+    } catch (error) {
+        console.warn('Invalid date format:', dateValue);
+        return '-';
+    }
+};
+
 onMounted(() => {
     if (hasViewPermission.value) {
         fetchData();
@@ -330,18 +344,30 @@ onMounted(() => {
     }
 });
 
-watch([filterDateType, startDate, endDate, selectedCabang], fetchData);
+onUnmounted(() => {
+    if (fetchTimeout.value) {
+        clearTimeout(fetchTimeout.value);
+    }
+});
+
+watch([filterDateType, startDate, endDate, selectedCabang], () => {
+    // Debounce untuk mencegah multiple calls
+    clearTimeout(fetchTimeout);
+    fetchTimeout.value = setTimeout(() => {
+        fetchData();
+    }, 300);
+});
 </script>
 
 <template>
     <PageLayout title="SO DTF Pesanan" desktop-mode icon="mdi-printer-3d">
         <template #header-actions>
             <v-btn v-if="authStore.can(MENU_ID, 'insert')" size="small" color="primary" prepend-icon="mdi-plus"
-                @click="$router.push('/transaksi/dtf/so-dtf/new')">Baru</v-btn>
+                @click="$router.push('/transaksi/penjualan/dtf/so-dtf/new')">Baru</v-btn>
             <v-btn v-if="authStore.can(MENU_ID, 'edit')" size="small" :disabled="!isSingleSelected"
                 prepend-icon="mdi-pencil"
-                @click="$router.push(`/transaksi/dtf/so-dtf/ubah/${selected[0].Nomor}`)">Ubah</v-btn>
-            <v-btn v-if="authStore.can(MENU_ID, 'delete')" size="small" :disabled="!isSingleSelected"
+                @click="$router.push(`/transaksi/penjualan/dtf/so-dtf/ubah/${selected[0].Nomor}`)">Ubah</v-btn>
+            <v-btn v-if="authStore.can(MENU_ID, 'delete')" size="small" color="error" :disabled="!isSingleSelected"
                 prepend-icon="mdi-delete" @click="showDeleteConfirmation"> Hapus
             </v-btn>
             <v-btn v-if="authStore.can(MENU_ID, 'view')" size="small" :disabled="!isSingleSelected" @click="printData"
@@ -418,26 +444,33 @@ watch([filterDateType, startDate, endDate, selectedCabang], fetchData);
                 </div>
             </div>
 
-            <v-data-table v-model="selected" :headers="headers" :items="filteredSoDtfList" :loading="isLoading"
-                :item-class="getRowClass" item-value="Nomor" density="compact" class="desktop-table fill-height-table"
-                fixed-header show-select return-object show-expand @update:expanded="loadDetails">
-
-                <template #item.status="{ item }">
-                    <span :class="getRowClass(item)">{{ getStatusText(item) }}</span>
-                </template>
-
-                <template #item.Tanggal="{ item }">{{ format(new Date(item.Tanggal), 'dd/MM/yyyy') }}</template>
-                <template #item.TglPengerjaan="{ item }">{{ item.TglPengerjaan ? format(new
-                    Date(item.TglPengerjaan),
-                    'dd/MM/yyyy') : '-' }}</template>
-                <template #item.DatelineCus="{ item }">{{ item.DatelineCus ? format(new Date(item.DatelineCus),
-                    'dd/MM/yyyy') : '-' }}</template>
-                <template #item.LHK="{ item }">
-                    <v-chip :class="getLhkClass(item)" size="x-small" label>{{ item.LHK }}</v-chip>
-                </template>
-                <template #item.Close="{ item }">
-                    <v-chip :color="item.Close === 'Y' ? 'success' : 'grey'" size="x-small">{{ item.Close === 'Y' ?
-                        'Closed' : 'Open' }}</v-chip>
+            <v-data-table v-model="selected" :headers="headers" :items="soDtfList" :loading="isLoading"
+                item-value="Nomor" density="compact" class="desktop-table fill-height-table" fixed-header show-select
+                return-object show-expand @update:expanded="loadDetails">
+                <template v-for="header in headers" #[`item.${header.key}`]="{ item }">
+                    <td :class="getRowTextColor(item)">
+                        <template v-if="['Tanggal', 'TglPengerjaan', 'DatelineCus'].includes(header.key)">
+                            {{ formatDate(item[header.key]) }}
+                        </template>
+                        <template v-else-if="header.key === 'status'">
+                            <v-chip v-if="item.AlasanClose" color="blue-grey" variant="tonal"
+                                size="x-small">Closed</v-chip>
+                            <v-chip v-else-if="item.NoINV" color="success" variant="tonal" size="x-small">Sudah
+                                INV</v-chip>
+                            <v-chip v-else-if="item.NoSO" color="info" variant="tonal" size="x-small">Sudah SO</v-chip>
+                            <v-chip v-else color="grey" variant="tonal" size="x-small">Open</v-chip>
+                        </template>
+                        <template v-else-if="header.key === 'LHK'">
+                            <v-chip :class="getLhkClass(item)" size="x-small" label>{{ item.LHK }}</v-chip>
+                        </template>
+                        <template v-else-if="header.key === 'Close'">
+                            <v-chip :color="item.Close === 'Y' ? 'success' : 'grey'" size="x-small">{{ item.Close ===
+                                'Y' ? 'Closed' : 'Open' }}</v-chip>
+                        </template>
+                        <template v-else>
+                            {{ item[header.key] }}
+                        </template>
+                    </td>
                 </template>
 
                 <template #expanded-row="{ columns, item }">

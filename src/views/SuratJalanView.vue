@@ -4,9 +4,10 @@ import { useRouter } from 'vue-router';
 import api from '@/services/api';
 import { useToast } from 'vue-toastification';
 import { useAuthStore } from '@/stores/authStore';
-import { format, subDays } from 'date-fns';
+import { format, subDays, parseISO } from 'date-fns';
 import PageLayout from '@/components/PageLayout.vue';
 import ProductSearchModal from '@/components/ProductSearchModal.vue';
+import * as XLSX from 'xlsx';
 
 // --- Tipe Data ---
 interface SuratJalanHeader {
@@ -201,6 +202,42 @@ const getStatusColor = (status: string) => {
     return 'grey';
 }
 
+const exportData = async (type: 'header' | 'detail') => {
+    if (type === 'header') {
+        if (masterData.value.length === 0) return toast.warning('Tidak ada data header untuk diekspor.');
+
+        try {
+            toast.info('Membuat file Excel Header...');
+            const worksheet = XLSX.utils.json_to_sheet(masterData.value);
+            const workbook = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(workbook, worksheet, "SJ Header");
+            XLSX.writeFile(workbook, "Export_Surat_Jalan_Header.xlsx");
+            toast.success('File Header berhasil dibuat.');
+        } catch (error) {
+            toast.error('Gagal membuat file Excel.');
+        }
+
+    } else if (type === 'detail') {
+        try {
+            toast.info('Mengambil data detail dari server...');
+            const response = await api.get('/surat-jalan/export-details', { params: filters });
+            const details = response.data;
+
+            if (details.length === 0) return toast.warning('Tidak ada data detail untuk diekspor pada filter ini.');
+
+            toast.info('Membuat file Excel Detail...');
+            const worksheet = XLSX.utils.json_to_sheet(details);
+            const workbook = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(workbook, worksheet, "SJ Detail");
+            XLSX.writeFile(workbook, "Export_Surat_Jalan_Detail.xlsx");
+            toast.success('File Detail berhasil dibuat.');
+
+        } catch (error) {
+            toast.error('Gagal mengekspor data detail.');
+        }
+    }
+};
+
 onMounted(() => {
     if (authStore.can(MENU_ID, 'view')) {
         fetchMasterData();
@@ -239,7 +276,7 @@ watch(() => filters.kodeBarang, (newVal) => {
                 @click="router.push({ name: 'SuratJalanEdit', params: { nomor: selected[0].Nomor } })">
                 Ubah
             </v-btn>
-            <v-btn v-if="authStore.can(MENU_ID, 'delete')" size="small" :disabled="!isSingleSelected"
+            <v-btn v-if="authStore.can(MENU_ID, 'delete')" size="small" color="error" :disabled="!isSingleSelected"
                 prepend-icon="mdi-delete" @click="showDeleteConfirmation">
                 Hapus
             </v-btn>
@@ -247,6 +284,21 @@ watch(() => filters.kodeBarang, (newVal) => {
                 prepend-icon="mdi-printer" @click="printData">
                 Cetak
             </v-btn>
+            <v-menu offset-y>
+                <template v-slot:activator="{ props }">
+                    <v-btn size="small" color="teal" prepend-icon="mdi-file-excel" v-bind="props">
+                        Export
+                    </v-btn>
+                </template>
+                <v-list density="compact">
+                    <v-list-item @click="exportData('header')">
+                        <v-list-item-title>Export Header</v-list-item-title>
+                    </v-list-item>
+                    <v-list-item @click="exportData('detail')">
+                        <v-list-item-title>Export Detail</v-list-item-title>
+                    </v-list-item>
+                </v-list>
+            </v-menu>
         </template>
 
         <div class="browse-content">
@@ -285,7 +337,7 @@ watch(() => filters.kodeBarang, (newVal) => {
                         <span :class="!value && 'text-red font-weight-bold'">{{ value || 'Belum' }}</span>
                     </template>
                     <template #item.NoSTBJ="{ value }"><span :class="value && 'text-blue font-weight-bold'">{{ value
-                            }}</span>
+                    }}</span>
                     </template>
 
                     <template #expanded-row="{ columns, item }">
@@ -314,8 +366,9 @@ watch(() => filters.kodeBarang, (newVal) => {
             </div>
         </div>
 
-        <ProductSearchModal v-if="dialog.searchProduct" category="ALL" :source="'surat-jalan'" :gudang="authStore.user?.cabang || ''"
-            @close="dialog.searchProduct = false" @products-selected="onProductSelected" />
+        <ProductSearchModal v-if="dialog.searchProduct" category="ALL" :source="'surat-jalan'"
+            :gudang="authStore.user?.cabang || ''" @close="dialog.searchProduct = false"
+            @products-selected="onProductSelected" />
 
         <v-dialog v-model="dialog.confirm" max-width="400px" persistent>
             <v-card>

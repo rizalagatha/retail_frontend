@@ -46,8 +46,13 @@ const save = async () => {
         };
         emit('customer-saved', mappedCustomer);
         emit('close');
-    } catch (error: any) {
-        toast.error(error.response?.data?.message || 'Gagal menyimpan customer.');
+    } catch (error: unknown) {
+        if (error instanceof Error) {
+            // pesan bawaan Error
+            toast.error(error.message);
+        } else {
+            toast.error('Gagal menyimpan customer.');
+        }
     } finally {
         isSaving.value = false;
     }
@@ -57,7 +62,7 @@ onMounted(async () => {
     try {
         const levelsResponse = await api.get('/customers/levels');
         availableLevels.value = levelsResponse.data;
-    } catch (e) {
+    } catch {
         toast.error("Gagal memuat data level customer.");
     }
 });

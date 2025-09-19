@@ -1,45 +1,45 @@
 <script setup lang="ts">
-import { ref, onMounted, nextTick } from 'vue';
+import { ref, onMounted, nextTick, computed } from 'vue';
 import { useRoute } from 'vue-router';
 import api from '@/services/api';
 import { format, parseISO } from 'date-fns';
 import Logo from '@/assets/logo.png';
 
 const route = useRoute();
-
-interface PrintData {
-  gdg_inv_alamat: string;
-  gdg_inv_telp: string;
-  sh_nomor: string;
-  sh_tanggal: string;
-  cus_nama: string;
-  cus_alamat: string;
-  cus_telp: string;
-  sh_nominal: number;
-  terbilang: string;
-  sh_ket: string;
-  jenis_pembayaran: string;
-  nama_akun?: string;
-  no_rekening?: string;
-  tgl_transfer?: string;
-  sh_so_nomor: string;
-}
-
-const printData = ref<PrintData | null>(null);
+const printData = ref<any>(null);
 const isLoading = ref(true);
 const appLogo = Logo;
+
+// Computed property untuk menentukan judul dokumen secara dinamis
+const documentTitle = computed(() => {
+    if (!printData.value) return '';
+    switch (printData.value.header.sh_jenis) {
+        case 0: return 'CASH RECEIPT';
+        case 1: return 'TRANSFER RECEIPT';
+        case 2: return 'GIRO RECEIPT';
+        default: return 'TANDA TERIMA PEMBAYARAN';
+    }
+});
 
 const formatRupiah = (angka: number) => new Intl.NumberFormat('id-ID').format(angka || 0);
 
 const fetchPrintData = async (nomor: string) => {
     try {
-        const response = await api.get(`/so-form/print-data/dp/${nomor}`);
+        let apiUrl = '';
+        if (route.name === 'CetakSetoranBayar') {
+            apiUrl = `/setoran-bayar-form/print/${nomor}`;
+        } else {
+            apiUrl = `/so-form/print-data/dp/${nomor}`;
+        }
+
+        const response = await api.get(apiUrl);
         printData.value = response.data;
+
+        document.title = printData.value?.header?.sh_nomor || 'Dokumen';
         await nextTick();
         window.print();
     } catch (error) {
         alert("Gagal memuat data untuk dicetak.");
-        console.error("Error fetching DP print data:", error);
     } finally {
         isLoading.value = false;
     }
@@ -54,68 +54,75 @@ onMounted(() => {
 <template>
     <div class="print-container">
         <div v-if="isLoading" class="text-center">Memuat data...</div>
-        <div v-if="printData" class="page">
+        <div v-if="printData && printData.header" class="page">
             <div class="receipt-copy" v-for="copy in 2" :key="copy">
                 <div class="company-header">
                     <img :src="appLogo" alt="Logo" class="company-logo">
                     <div class="company-info">
-                        <div class="company-name">KAOSAN.OFFICIAL</div>
-                        <div>{{ printData.gdg_inv_alamat }}</div>
-                        <div>{{ printData.gdg_inv_telp }}</div>
+                        <div class="company-name">{{ printData.header.perush_nama }}</div>
+                        <div>{{ printData.header.perush_alamat }}</div>
+                        <div>Wa: {{ printData.header.perush_telp }}</div>
                     </div>
                 </div>
-                <div class="document-title">CASH RECEIPT</div>
-                <div class="details-grid">
-                    <div class="label">Nomor Dokumen</div>
-                    <div class="value">: {{ printData.sh_nomor }}</div>
-                    <div class="label">Tanggal Dokumen</div>
-                    <div class="value">: {{ format(parseISO(printData.sh_tanggal), 'dd-MM-yyyy') }}</div>
-                    <div class="label">Nama Customer</div>
-                    <div class="value">: {{ printData.cus_nama }}</div>
-                    <div class="label">Alamat</div>
-                    <div class="value address-value">: {{ printData.cus_alamat }}</div>
-                    <div class="label">No. Kontak</div>
-                    <div class="value">: {{ printData.cus_telp }}</div>
-                    <div class="label">Nominal yang Diterima</div>
-                    <div class="value">: Rp {{ formatRupiah(printData.sh_nominal) }}</div>
-                    <div class="label">Terbilang</div>
-                    <div class="value terbilang-value">: <em>{{ printData.terbilang }}</em></div>
-                    <div class="label">Keterangan</div>
-                    <div class="value">: {{ printData.sh_ket }}</div>
+
+                <div class="document-title">{{ documentTitle }}</div>
+
+                <div class="details-container">
+                    <div class="details-grid">
+                        <div class="label">Nomor Dokumen</div>
+                        <div class="value">: {{ printData.header.sh_nomor }}</div>
+                        <div class="label">Tanggal Dokumen</div>
+                        <div class="value">: {{ format(parseISO(printData.header.sh_tanggal), 'dd-MM-yyyy') }}</div>
+                        <div class="label">Nama Customer</div>
+                        <div class="value">: {{ printData.header.cus_nama }}</div>
+                        <div class="label">Alamat</div>
+                        <div class="value address-value">: {{ printData.header.cus_alamat }}, {{
+                            printData.header.cus_kota }}</div>
+                        <div class="label">No. Kontak</div>
+                        <div class="value">: {{ printData.header.cus_telp }}</div>
+                        <div class="label">Nominal yang Diterima</div>
+                        <div class="value">: Rp {{ formatRupiah(printData.header.sh_nominal) }}</div>
+                        <div class="label">Terbilang</div>
+                        <div class="value terbilang-value">: <em>{{ printData.header.terbilang }}</em></div>
+                    </div>
+                    <div v-if="printData.header.sh_jenis === 1" class="details-grid-right">
+                        <div class="label">Akun</div>
+                        <div class="value">: {{ printData.header.rek_nama }}</div>
+                        <div class="label">No. Rekening</div>
+                        <div class="value">: {{ printData.header.sh_norek }}</div>
+                        <div class="label">Tgl. Transfer</div>
+                        <div class="value">: {{ printData.header.sh_tgltransfer ?
+                            format(parseISO(printData.header.sh_tgltransfer), 'dd-MM-yyyy') : '' }}</div>
+                    </div>
                 </div>
-                <div class="details-grid-right" v-if="printData.jenis_pembayaran === 'TRANSFER'">
-                    <div class="label">Akun</div>
-                    <div class="value">: {{ printData.nama_akun }}</div>
-                    <div class="label">No. Rekening</div>
-                    <div class="value">: {{ printData.no_rekening }}</div>
-                    <div class="label">Tgl. Transfer</div>
-                    <div class="value">: {{ printData.tgl_transfer }}</div>
-                </div>
+
                 <div class="items-table">
                     <table>
                         <thead>
                             <tr>
-                                <th>No.</th>
-                                <th>No. Sales Order</th>
-                                <th>No. Invoice</th>
-                                <th>Nominal</th>
-                                <th>Keterangan</th>
+                                <th style="width: 5%;">No.</th>
+                                <th style="width: 25%;">No. Sales Order</th>
+                                <th style="width: 25%;">No. Invoice</th>
+                                <th class="text-end" style="width: 20%;">Nominal</th>
+                                <th style="width: 25%;">Keterangan</th>
                             </tr>
                         </thead>
                         <tbody>
-                            <tr>
-                                <td style="text-align: center;">1</td>
-                                <td>{{ printData.sh_so_nomor }}</td>
-                                <td>-</td>
-                                <td class="text-end">{{ formatRupiah(printData.sh_nominal) }}</td>
-                                <td>{{ printData.sh_ket }}</td>
+                            <tr v-for="(item, index) in printData.details" :key="index">
+                                <td style="text-align: center;">{{ index + 1 }}</td>
+                                <td>{{ item.so }}</td>
+                                <td>{{ item.sd_inv }}</td>
+                                <td class="text-end">{{ formatRupiah(item.sd_bayar) }}</td>
+                                <td>{{ item.sd_ket }}</td>
                             </tr>
                         </tbody>
                         <tfoot>
                             <tr>
-                                <td colspan="3" class="text-end grand-total">Grand Total</td>
-                                <td class="text-end grand-total">{{ formatRupiah(printData.sh_nominal) }}</td>
-                                <td></td>
+                                <td colspan="3" class="keterangan-header">
+                                    <strong>Keterangan:</strong> {{ printData.header.sh_ket }}
+                                </td>
+                                <td class="text-end grand-total">Grand Total</td>
+                                <td class="text-end grand-total">{{ formatRupiah(printData.header.sh_nominal) }}</td>
                             </tr>
                         </tfoot>
                     </table>
@@ -130,35 +137,12 @@ onMounted(() => {
 </template>
 
 <style scoped>
-@media print {
-    @page {
-        size: A4;
-        margin: 1cm;
-    }
-
-    body * {
-        visibility: hidden;
-    }
-
-    .print-container,
-    .print-container * {
-        visibility: visible;
-    }
-
-    .print-container {
-        position: absolute;
-        left: 0;
-        top: 0;
-        width: 100%;
-    }
-}
-
+/* (Style dari DpPrintView.vue yang disempurnakan) */
 .page {
     font-family: 'Arial', sans-serif;
-    /* <-- FONT MODERN */
     font-size: 10pt;
     background: white;
-    padding: 1.5cm;
+    padding: 1cm;
     margin: 20px auto;
     width: 21cm;
     box-shadow: 0 0 5px rgba(0, 0, 0, 0.1);
@@ -166,10 +150,8 @@ onMounted(() => {
 
 .receipt-copy {
     border-bottom: 2px dashed #ccc;
-    padding-bottom: 1.5cm;
-    margin-bottom: 1.5cm;
-    position: relative;
-    /* Diperlukan untuk details-grid-right */
+    padding-bottom: 1cm;
+    margin-bottom: 1cm;
 }
 
 .receipt-copy:last-child {
@@ -186,7 +168,6 @@ onMounted(() => {
 
 .company-logo {
     height: 40px;
-    width: auto;
 }
 
 .company-name {
@@ -202,45 +183,44 @@ onMounted(() => {
     text-align: center;
     font-size: 14pt;
     font-weight: bold;
-    margin: 15px 0;
+    margin: 10px 0;
     border-top: 1px solid #333;
     border-bottom: 1px solid #333;
     padding: 5px 0;
 }
 
+.details-container {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+}
+
 .details-grid {
     display: grid;
-    grid-template-columns: 150px auto;
-    /* Lebar label, sisa untuk value */
+    grid-template-columns: 160px auto;
     row-gap: 4px;
-    /* Spasi rapat */
     line-height: 1.5;
+    flex-grow: 1;
 }
 
 .details-grid-right {
-    position: absolute;
-    top: 70px;
-    /* Sesuaikan posisi vertikal */
-    right: 0;
     display: grid;
     grid-template-columns: 80px auto;
     font-size: 9pt;
+    flex-shrink: 0;
 }
 
 .label {
     font-weight: bold;
 }
 
-.address-value {
-    white-space: pre-line;
-}
-
+.address-value,
 .terbilang-value {
     font-style: italic;
 }
 
 .items-table {
-    margin-top: 20px;
+    margin-top: 15px;
 }
 
 .items-table table {
@@ -270,15 +250,49 @@ onMounted(() => {
 
 .signatures {
     display: flex;
-    justify-content: space-between;
-    margin-top: 30px;
+    justify-content: space-around;
+    margin-top: 20px;
 }
 
 .signature-box {
-    width: 45%;
+    width: 40%;
     text-align: center;
-    padding-top: 50px;
-    /* Ruang untuk tanda tangan */
-    border-top: 1px solid #333;
+    padding-top: 10px;
+}
+
+@media print {
+    @page {
+        size: A4;
+        margin: 1cm;
+    }
+
+    body * {
+        visibility: hidden;
+    }
+
+    .print-container,
+    .print-container * {
+        visibility: visible;
+    }
+
+    .print-container {
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 100%;
+    }
+
+    .page {
+        box-shadow: none;
+        margin: 0;
+        padding: 0;
+    }
+}
+
+.keterangan-header {
+    text-align: left;
+    vertical-align: top;
+    font-weight: bold;
+    padding: 5px 8px;
 }
 </style>

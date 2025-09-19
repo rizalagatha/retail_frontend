@@ -39,6 +39,28 @@ const filters = reactive({
 
 const isSingleSelected = computed(() => selected.value.length === 1);
 const selectedRow = computed(() => isSingleSelected.value ? selected.value[0] : null);
+const canBeEdited = computed(() => {
+    // Tombol Ubah aktif jika:
+    // 1. Hanya satu baris yang dipilih
+    if (selected.value.length !== 1) return false;
+
+    const item = selected.value[0];
+
+    // 2. Setoran tersebut BUKAN Otomatis
+    return item.Otomatis !== 'YA';
+});
+const canBeDeleted = computed(() => {
+    // Tombol Hapus aktif jika:
+    // 1. Hanya satu baris yang dipilih
+    if (selected.value.length !== 1) return false;
+
+    const item = selected.value[0];
+
+    // 2. Setoran tersebut BUKAN Otomatis
+    // 3. Setoran belum di-link ke SO (sesuai logika Delphi 'sh_so_nomor')
+    // 4. Setoran belum di-Closing
+    return item.Otomatis !== 'YA' && !item.NoSO && item.Closing !== 'Y';
+});
 
 // --- Konfigurasi Tabel ---
 const headers = [
@@ -49,9 +71,22 @@ const headers = [
     { title: 'Dibayarkan', key: 'diBayarkan', align: 'end', width: '150px' },
     { title: 'Sisa', key: 'Sisa', align: 'end', width: '150px' },
     { title: 'Posting', key: 'Posting', align: 'center', width: '100px' },
-    { title: 'Customer', key: 'Customer', width: '250px' },
-    { title: 'Keterangan', key: 'Keterangan', width: '300px' },
+    { title: 'No SO', key: 'NoSO', width: '180px' },
+    { title: 'Kd Cus', key: 'KdCus', width: '120px' },
+    { title: 'Customer', key: 'Customer', minWidth: '250px' },
+    { title: 'Alamat', key: 'Alamat', minWidth: '350px' },
+    { title: 'Kota', key: 'Kota', width: '150px' },
+    { title: 'Telepon', key: 'Telepon', width: '150px' },
+    { title: 'Akun', key: 'Akun', width: '120px' },
+    { title: 'No Rekening', key: 'NoRekening', width: '150px' },
+    { title: 'Nama Bank', key: 'NamaBank', width: '150px' },
+    { title: 'Tgl Transfer', key: 'TglTransfer', width: '120px' },
+    { title: 'No Giro', key: 'NoGiro', width: '150px' },
+    { title: 'Tgl Giro', key: 'TglGiro', width: '120px' },
+    { title: 'Jatuh Tempo', key: 'TglJatuhTempo', width: '120px' },
+    { title: 'Keterangan', key: 'Keterangan', minWidth: '300px' },
     { title: 'Otomatis', key: 'Otomatis', align: 'center', width: '100px' },
+    { title: 'Closing', key: 'Closing', align: 'center', width: '100px' },
 ];
 const detailHeaders = [
     { title: 'Tgl Bayar', key: 'TglBayar' },
@@ -117,26 +152,25 @@ const handleDelete = () => {
 
 const exportData = async (type: 'header' | 'detail') => {
     if (type === 'header') {
-        if (masterData.value.length === 0) return toast.warning('Tidak ada data header untuk diekspor.');
-        try {
-            const worksheet = XLSX.utils.json_to_sheet(masterData.value);
-            const workbook = XLSX.utils.book_new();
-            XLSX.utils.book_append_sheet(workbook, worksheet, "Setoran Header");
-            XLSX.writeFile(workbook, "Export_Setoran_Header.xlsx");
-        } catch (error) { toast.error('Gagal membuat file Excel.'); }
+        if (masterData.value.length === 0) return toast.warning('Tidak ada data header.');
+        const worksheet = XLSX.utils.json_to_sheet(masterData.value);
+        const workbook = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(workbook, worksheet, "Setoran Header");
+        XLSX.writeFile(workbook, "Export_Setoran_Header.xlsx");
     } else if (type === 'detail') {
         try {
-            toast.info('Mengambil data detail dari server...');
             const response = await api.get('/setoran-bayar/export-details', { params: filters });
-            if (response.data.length === 0) return toast.warning('Tidak ada data detail untuk diekspor.');
-
+            if (response.data.length === 0) return toast.warning('Tidak ada data detail.');
             const worksheet = XLSX.utils.json_to_sheet(response.data);
             const workbook = XLSX.utils.book_new();
             XLSX.utils.book_append_sheet(workbook, worksheet, "Setoran Detail");
             XLSX.writeFile(workbook, "Export_Setoran_Detail.xlsx");
-        } catch (error) { toast.error('Gagal mengekspor data detail.'); }
+        } catch (error) {
+            toast.error('Gagal mengekspor data detail.');
+        }
     }
 };
+
 
 const formatRupiah = (value: number) => {
     return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(value || 0);
@@ -154,6 +188,13 @@ const getRowTextColor = (item: SetoranHeader) => {
     return ''; // Warna default
 };
 
+const printData = () => {
+    if (!isSingleSelected.value) return;
+    const nomor = selected.value[0].Nomor;
+    const url = router.resolve({ name: 'CetakSetoranBayar', params: { nomor } }).href;
+    window.open(url, '_blank');
+};
+
 onMounted(() => {
     fetchCabangList();
     fetchMasterData();
@@ -167,20 +208,31 @@ watch(filters, fetchMasterData, { deep: true });
         <template #header-actions>
             <v-btn v-if="authStore.can(MENU_ID, 'insert')" size="small" color="primary"
                 @click="router.push({ name: 'SetoranBayarCreate' })">Baru</v-btn>
-            <v-btn v-if="authStore.can(MENU_ID, 'edit')" size="small" :disabled="!isSingleSelected"
-                @click="router.push({ name: 'SetoranBayarEdit', params: { nomor: selectedRow?.Nomor } })">Ubah</v-btn>
-            <v-btn v-if="authStore.can(MENU_ID, 'delete')" size="small" color="error" :disabled="!isSingleSelected"
-                @click="handleDelete">Hapus</v-btn>
-            <v-btn v-if="authStore.can(MENU_ID, 'view')" size="small" color="green"
-                :disabled="!isSingleSelected">Cetak</v-btn>
+            <v-btn v-if="authStore.can(MENU_ID, 'edit')" size="small" :disabled="!canBeEdited" prepend-icon="mdi-pencil"
+                @click="router.push({ name: 'SetoranBayarEdit', params: { nomor: selected[0].Nomor } })">
+                Ubah
+            </v-btn>
+            <v-btn v-if="authStore.can(MENU_ID, 'delete')" size="small" color="error" :disabled="!canBeDeleted"
+                prepend-icon="mdi-delete" @click="handleDelete">
+                Hapus
+            </v-btn>
+            <v-btn v-if="authStore.can(MENU_ID, 'view')" size="small" color="green" :disabled="!isSingleSelected"
+                @click="printData" prepend-icon="mdi-printer">
+                Cetak
+            </v-btn>
             <v-menu offset-y>
-                <template v-slot:activator="{ props }"><v-btn size="small" color="teal" prepend-icon="mdi-file-excel"
-                        v-bind="props">Export</v-btn></template>
+                <template v-slot:activator="{ props }">
+                    <v-btn size="small" color="teal" prepend-icon="mdi-file-excel" v-bind="props">
+                        Export
+                    </v-btn>
+                </template>
                 <v-list density="compact">
-                    <v-list-item @click="exportData('header')"><v-list-item-title>Export
-                            Header</v-list-item-title></v-list-item>
-                    <v-list-item @click="exportData('detail')"><v-list-item-title>Export
-                            Detail</v-list-item-title></v-list-item>
+                    <v-list-item @click="exportData('header')">
+                        <v-list-item-title>Export Header</v-list-item-title>
+                    </v-list-item>
+                    <v-list-item @click="exportData('detail')">
+                        <v-list-item-title>Export Detail</v-list-item-title>
+                    </v-list-item>
                 </v-list>
             </v-menu>
         </template>
@@ -207,20 +259,10 @@ watch(filters, fetchMasterData, { deep: true });
                 <v-data-table v-model="selected" v-model:expanded="expanded" :headers="headers" :items="masterData"
                     :loading="loading" item-value="Nomor" density="compact" class="desktop-table" fixed-header
                     show-select return-object show-expand @update:expanded="loadDetails">
-                    <template #item.Tanggal="{ value }">{{ format(parseISO(value), 'dd/MM/yyyy') }}</template>
-                    <template #item.Nominal="{ value }">{{ formatRupiah(value) }}</template>
-                    <template #item.diBayarkan="{ value }">{{ formatRupiah(value) }}</template>
-                    <template #item.Sisa="{ value }">{{ formatRupiah(value) }}</template>
-                    <template #item.Posting="{ value }">
-                        <v-chip size="x-small" :color="value === 'SUDAH' ? 'green' : 'grey'">{{ value }}</v-chip>
-                    </template>
-                    <template #item.Otomatis="{ value }">
-                        <v-chip v-if="value === 'YA'" size="x-small" color="blue-darken-2" variant="tonal">YA</v-chip>
-                    </template>
-
                     <template v-for="header in headers" #[`item.${header.key}`]="{ item }">
                         <td :class="getRowTextColor(item)">
-                            <template v-if="header.key === 'Tanggal' || header.key === 'TglTerima'">
+                            <template
+                                v-if="['Tanggal', 'TglTerima', 'TglTransfer', 'TglGiro', 'TglJatuhTempo'].includes(header.key)">
                                 {{ item[header.key] ? format(parseISO(item[header.key]), 'dd/MM/yyyy') : '' }}
                             </template>
                             <template v-else-if="['Nominal', 'diBayarkan', 'Sisa'].includes(header.key)">
@@ -232,6 +274,10 @@ watch(filters, fetchMasterData, { deep: true });
                             </template>
                             <template v-else-if="header.key === 'Otomatis'">
                                 <v-chip v-if="item.Otomatis === 'YA'" size="x-small" color="blue-darken-2"
+                                    variant="tonal">YA</v-chip>
+                            </template>
+                            <template v-else-if="header.key === 'Closing'">
+                                <v-chip v-if="item.Closing === 'Y'" size="x-small" color="success"
                                     variant="tonal">YA</v-chip>
                             </template>
                             <template v-else>

@@ -47,10 +47,11 @@ const fetchInitialMenus = async () => {
             keterangan: menu.men_keterangan,
             view: false, insert: false, edit: false, delete: false,
         }));
-    } catch (error) {
+    } catch {
         toast.error("Gagal memuat daftar menu.");
     }
 };
+
 const fetchBranches = async () => {
     try {
         const response = await api.get(`/users/branches`);
@@ -73,7 +74,7 @@ const handleKodeSearch = async () => {
         permissions.value = data.permissions;
         password.value = '';
         toast.info(`Mode Edit: Menampilkan data untuk user ${kode.value}.`);
-    } catch (error: any) {
+    } catch {
         if (error.response && error.response.status === 404) {
             isNewUser.value = true;
             nama.value = '';
@@ -147,24 +148,20 @@ const openHelpModal = () => { isHelpModalVisible.value = true; };
 
 onMounted(() => {
     if (hasViewPermission.value) {
-      fetchBranches();
-      fetchInitialMenus();
+        fetchBranches();
+        fetchInitialMenus();
     } else {
-      toast.error("Anda tidak memiliki izin untuk melihat halaman ini.");
+        toast.error("Anda tidak memiliki izin untuk melihat halaman ini.");
     }
 });
 </script>
 
 <template>
-    <PageLayout 
-        title="Master User" 
-        icon="mdi-account-group"
-        desktop-mode
-        :loading="isLoading"
-    >
+    <PageLayout title="Master User" icon="mdi-account-group" desktop-mode :loading="isLoading">
         <template #header-actions>
             <v-btn v-if="authStore.can(MENU_ID, 'insert')" size="small" @click="resetForm">Baru</v-btn>
-            <v-btn v-if="authStore.can(MENU_ID, 'insert') || authStore.can(MENU_ID, 'edit')" size="small" color="primary" @click="saveUser" :loading="isLoading">Simpan</v-btn>
+            <v-btn v-if="authStore.can(MENU_ID, 'insert') || authStore.can(MENU_ID, 'edit')" size="small"
+                color="primary" @click="saveUser" :loading="isLoading">Simpan</v-btn>
         </template>
 
         <div v-if="!hasViewPermission" class="state-container">
@@ -177,49 +174,61 @@ onMounted(() => {
             <div class="desktop-form-section">
                 <v-row dense>
                     <v-col cols="12" sm="6" md="3">
-                        <v-text-field v-model="kode" label="Kode" placeholder="Ketik atau F1..." variant="outlined" density="compact" hide-details @keydown.enter.prevent="handleKodeSearch" @blur="handleKodeSearch" @keydown.f1.prevent="openHelpModal">
-                            <template #append-inner><v-icon size="small" @click="openHelpModal" icon="mdi-magnify"></v-icon></template>
+                        <v-text-field v-model="kode" label="Kode" placeholder="Ketik atau F1..." variant="outlined"
+                            density="compact" hide-details @keydown.enter.prevent="handleKodeSearch"
+                            @blur="handleKodeSearch" @keydown.f1.prevent="openHelpModal">
+                            <template #append-inner><v-icon size="small" @click="openHelpModal"
+                                    icon="mdi-magnify"></v-icon></template>
                         </v-text-field>
                     </v-col>
                     <v-col cols="12" sm="6" md="3">
-                        <v-text-field v-model="nama" label="Nama" variant="outlined" density="compact" hide-details></v-text-field>
+                        <v-text-field v-model="nama" label="Nama" variant="outlined" density="compact"
+                            hide-details></v-text-field>
                     </v-col>
                     <v-col cols="12" sm="6" md="3">
-                        <v-text-field v-model="password" label="Password" type="password" :placeholder="isNewUser ? 'Wajib diisi' : 'Isi untuk ganti'" variant="outlined" density="compact" hide-details></v-text-field>
+                        <v-text-field v-model="password" label="Password" type="password"
+                            :placeholder="isNewUser ? 'Wajib diisi' : 'Isi untuk ganti'" variant="outlined"
+                            density="compact" hide-details></v-text-field>
                     </v-col>
                     <v-col cols="12" sm="6" md="3">
-                        <v-select v-model="cabang" :items="branches" item-title="gdg_kode" item-value="gdg_kode" label="Cabang" variant="outlined" density="compact" hide-details></v-select>
+                        <v-select v-model="cabang" :items="branches" item-title="gdg_kode" item-value="gdg_kode"
+                            label="Cabang" variant="outlined" density="compact" hide-details></v-select>
                     </v-col>
                 </v-row>
             </div>
 
             <!-- Permissions Section -->
             <div class="desktop-form-section flex-grow-1 d-flex flex-column">
-                 <div class="d-flex justify-space-between align-center mb-2">
+                <div class="d-flex justify-space-between align-center mb-2">
                     <h3 class="section-title">Hak Akses Menu</h3>
-                    <v-checkbox v-model="checkAll" label="Cek Semua" @update:model-value="toggleCheckAll" hide-details density="compact" color="primary"></v-checkbox>
+                    <v-checkbox v-model="checkAll" label="Cek Semua" @update:model-value="toggleCheckAll" hide-details
+                        density="compact" color="primary"></v-checkbox>
                 </div>
-                <v-data-table
-                    :items="permissions"
-                    :headers="[
-                        { title: 'Id', key: 'id', sortable: false, width: '60px' },
-                        { title: 'Nama Menu', key: 'nama', sortable: false },
-                        { title: 'View', key: 'view', sortable: false, align: 'center', width: '70px' },
-                        { title: 'Insert', key: 'insert', sortable: false, align: 'center', width: '70px' },
-                        { title: 'Update', key: 'edit', sortable: false, align: 'center', width: '70px' },
-                        { title: 'Delete', key: 'delete', sortable: false, align: 'center', width: '70px' }
-                    ]"
-                    :loading="isLoading && permissions.length === 0"
-                    density="compact"
-                    class="desktop-table flex-grow-1"
-                    fixed-header
-                    height="100%"
-                    :items-per-page="-1"
-                >
-                    <template #item.view="{ item }"><div class="d-flex justify-center"><v-checkbox-btn v-model="item.view" hide-details density="compact" color="primary"></v-checkbox-btn></div></template>
-                    <template #item.insert="{ item }"><div class="d-flex justify-center"><v-checkbox-btn v-model="item.insert" hide-details density="compact" color="success"></v-checkbox-btn></div></template>
-                    <template #item.edit="{ item }"><div class="d-flex justify-center"><v-checkbox-btn v-model="item.edit" hide-details density="compact" color="warning"></v-checkbox-btn></div></template>
-                    <template #item.delete="{ item }"><div class="d-flex justify-center"><v-checkbox-btn v-model="item.delete" hide-details density="compact" color="error"></v-checkbox-btn></div></template>
+                <v-data-table :items="permissions" :headers="[
+                    { title: 'Id', key: 'id', sortable: false, width: '60px' },
+                    { title: 'Nama Menu', key: 'nama', sortable: false },
+                    { title: 'View', key: 'view', sortable: false, align: 'center', width: '70px' },
+                    { title: 'Insert', key: 'insert', sortable: false, align: 'center', width: '70px' },
+                    { title: 'Update', key: 'edit', sortable: false, align: 'center', width: '70px' },
+                    { title: 'Delete', key: 'delete', sortable: false, align: 'center', width: '70px' }
+                ]" :loading="isLoading && permissions.length === 0" density="compact"
+                    class="desktop-table flex-grow-1" fixed-header height="100%" :items-per-page="-1">
+                    <template #item.view="{ item }">
+                        <div class="d-flex justify-center"><v-checkbox-btn v-model="item.view" hide-details
+                                density="compact" color="primary"></v-checkbox-btn></div>
+                    </template>
+                    <template #item.insert="{ item }">
+                        <div class="d-flex justify-center"><v-checkbox-btn v-model="item.insert" hide-details
+                                density="compact" color="success"></v-checkbox-btn></div>
+                    </template>
+                    <template #item.edit="{ item }">
+                        <div class="d-flex justify-center"><v-checkbox-btn v-model="item.edit" hide-details
+                                density="compact" color="warning"></v-checkbox-btn></div>
+                    </template>
+                    <template #item.delete="{ item }">
+                        <div class="d-flex justify-center"><v-checkbox-btn v-model="item.delete" hide-details
+                                density="compact" color="error"></v-checkbox-btn></div>
+                    </template>
                 </v-data-table>
             </div>
         </div>
@@ -233,13 +242,8 @@ onMounted(() => {
                 <span v-if="!isNewUser" class="text-caption">Current User: {{ kode }}</span>
             </div>
         </template>
-        
-        <UserSearchModal 
-            v-if="isHelpModalVisible"
-            fetch-url="/users"
-            @close="isHelpModalVisible = false"
-            @user-selected="handleUserSelected"
-        />
+
+        <UserSearchModal v-if="isHelpModalVisible" fetch-url="/users" @close="isHelpModalVisible = false"
+            @user-selected="handleUserSelected" />
     </PageLayout>
 </template>
-

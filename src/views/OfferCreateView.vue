@@ -123,6 +123,7 @@ const canEditFooter = computed(() => {
 
 const tableHeaders = [
     { title: 'Kode', key: 'kode', width: '300px' },
+    { title: 'Barcode', key: 'barcode', sortable: false },
     { title: 'Nama Barang', key: 'nama', width: '900px' },
     { title: 'Ukuran', key: 'ukuran', width: '30px' },
     { title: 'Jml', key: 'jumlah', width: '30px' },
@@ -130,7 +131,6 @@ const tableHeaders = [
     { title: 'Diskon %', key: 'diskonPersen', width: '30px' },
     { title: 'Diskon Rp', key: 'diskonRp', width: '50px' },
     { title: 'Total', key: 'total', align: 'end', width: '90px' },
-    { title: 'Barcode', key: 'barcode', sortable: false },
     { title: 'No. SO DTF', key: 'noSoDtf', width: '90px' },
     { title: 'No. Pengajuan', key: 'noPengajuanHarga', width: '90px' },
     { title: 'Actions', key: 'actions', sortable: false, width: '40px' },

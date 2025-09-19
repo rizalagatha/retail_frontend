@@ -156,7 +156,7 @@ const menuItems = [
           },
           { title: 'Surat Pesanan', to: '/transaksi/penjualan/surat-pesanan', icon: 'mdi-file-document-edit-outline' },
           { title: 'Proforma Invoice', to: '/proforma-invoices', icon: 'mdi-receipt-text-outline' },
-          { title: 'Invoice', to: '/invoices', icon: 'mdi-receipt' },
+          { title: 'Invoice', to: '/transaksi/penjualan/invoice', icon: 'mdi-receipt' },
           { title: 'Retur Jual', to: '/returns', icon: 'mdi-keyboard-return' }
         ]
       },
@@ -191,7 +191,7 @@ const menuItems = [
     model: piutangMenu,
     items: [
       { title: 'Setoran Pembayaran', to: '/piutang/setoran-pembayaran', icon: 'mdi-bank-transfer' },
-      { title: 'Form Setoran Kasir', to: '/receivables/cashier-deposits', icon: 'mdi-cash-multiple' },
+      { title: 'Form Setoran Kasir', to: '/piutang/fsk', icon: 'mdi-cash-multiple' },
       { title: 'Kartu Piutang', to: '/receivables/card', icon: 'mdi-credit-card-outline' },
       { divider: true },
       { title: 'Potongan', to: '/receivables/discounts', icon: 'mdi-tag-minus-outline' },

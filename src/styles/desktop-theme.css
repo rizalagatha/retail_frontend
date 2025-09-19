@@ -99,8 +99,12 @@
 }
 
 .header-section .v-col {
-  padding-top: 2px !important;
-  padding-bottom: 2px !important;
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+}
+
+.header-section .v-input {
+  margin-bottom: 8px !important; /* Beri sedikit jarak antar field */
 }
 
 /* Styling v-data-table
@@ -108,14 +112,15 @@
 .table-container {
     flex-grow: 1;
     display: flex;
+    flex-direction: column;
     min-height: 0;
-    overflow-x: auto;
 }
 
 .desktop-table {
     font-size: 11px;
     border: 1px solid #e0e0e0;
     vertical-align: middle;
+    overflow: hidden;
 }
 
 .desktop-table td,
@@ -145,9 +150,60 @@
 
 .fill-height-table .v-table__wrapper {
     flex-grow: 1;
+    overflow-x: auto;
     overflow-y: auto;
 }
 
+.desktop-table :deep(.v-table) {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+}
+
+.desktop-table :deep(.v-table__wrapper) {
+    overflow-x: scroll !important;
+    overflow-y: auto !important;
+    flex-grow: 1;
+}
+
+.desktop-table :deep(.v-data-table-footer) {
+    flex-shrink: 0;
+    overflow-x: visible !important;
+    border-top: 1px solid #e0e0e0;
+}
+
+.desktop-table :deep(.v-table__wrapper table) {
+    min-width: max-content !important;
+}
+
+.scroll-wrapper {
+  overflow-x: auto;
+  overflow-y: hidden;   /* supaya scroll X tidak "ketumpuk" sama scroll Y */
+  width: 100%;
+}
+
+/* pastikan tabel tidak ngecil */
+.scroll-wrapper .v-table,
+.scroll-wrapper .v-data-table {
+  min-width: max-content; /* biar kolom panjang muncul scroll X */
+}
+
+/* Pastikan wrapper hanya untuk body tabel */
+.scroll-wrapper .v-table__wrapper {
+  overflow-x: auto !important;
+  overflow-y: hidden !important;
+  display: block;
+}
+
+/* Paksa footer pagination tetap full lebar layar */
+.scroll-wrapper .v-data-table-footer {
+  position: sticky;
+  left: 0;
+  right: 0;
+  min-width: 100% !important;
+  background: white;
+  z-index: 5; /* biar di atas table */
+}
 /* ==========================================================================
    👇 TAMBAHKAN BLOK BARU DI SINI 👇
    ========================================================================== */

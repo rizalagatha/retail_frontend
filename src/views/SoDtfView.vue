@@ -443,7 +443,7 @@ watch([filterDateType, startDate, endDate, selectedCabang], () => {
                     <div class="legend-item"><v-chip size="x-small" class="lhk-progress" label>1</v-chip> Progress</div>
                 </div>
             </div>
-
+            
             <v-data-table v-model="selected" :headers="headers" :items="soDtfList" :loading="isLoading"
                 item-value="Nomor" density="compact" class="desktop-table fill-height-table" fixed-header show-select
                 return-object show-expand @update:expanded="loadDetails">

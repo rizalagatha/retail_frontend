@@ -46,7 +46,7 @@ const fetchData = async () => {
     try {
         const response = await api.get('/laporan-stok/real-time', { params: filters.value });
         stokList.value = response.data;
-    } catch (error) {
+    } catch {
         toast.error('Gagal memuat data stok.');
     } finally {
         isLoading.value = false;
@@ -108,7 +108,8 @@ onMounted(() => {
                 <v-data-table :headers="headers" :items="stokList" :loading="isLoading" density="compact"
                     class="desktop-table fill-height-table" fixed-header>
                     <template v-for="col in headers.slice(2)" #[`item.${col.key}`]="{ item }">
-                        <td :class="{ 'text-red font-weight-bold': item.TOTAL < item.Buffer && item.Buffer > 0 }"
+                        <td v-for="col in columns" :key="col.key"
+                            :class="{ 'text-red font-weight-bold': item.TOTAL < item.Buffer && item.Buffer > 0 }"
                             class="text-end">
                             {{ item[col.key] }}
                         </td>

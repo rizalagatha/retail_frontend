@@ -6,6 +6,7 @@ interface User {
   kode: string;
   nama: string;
   cabang: string;
+  cabangNama: string;
 }
 
 interface Permission {

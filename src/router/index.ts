@@ -59,6 +59,12 @@ import MutasiStokView from '@/views/MutasiStokView.vue';
 import MutasiStokCreateView from '@/views/MutasiStokCreateView.vue';
 import MutasiStokPrintView from '@/views/MutasiStokPrintView.vue';
 import SetoranBayarView from '@/views/SetoranBayarView.vue';
+import SetoranBayarCreateView from '@/views/SetoranBayarCreateView.vue';
+import FskView from '@/views/FskView.vue';
+import FskCreateView from '@/views/FskCreateView.vue';
+import FskPrintView from '@/views/FskPrintView.vue';
+import InvoiceView from '@/views/InvoiceView.vue';
+import InvoiceCreateView from '@/views/InvoiceCreateView.vue';
 import LaporanStokView from '@/views/LaporanStokView.vue';
 
 const routes = [
@@ -715,6 +721,104 @@ const routes = [
       title: 'Setoran Pembayaran',
       requiresAuth: true,
       menuId: '51'
+    }
+  },
+  {
+    path: '/piutang/setoran-pembayaran/new',
+    name: 'SetoranBayarCreate',
+    component: SetoranBayarCreateView,
+    meta: {
+      title: 'Buat Setoran Pembayaran',
+      requiresAuth: true,
+      menuId: '51'
+    }
+  },
+  {
+    path: '/piutang/setoran-pembayaran/edit/:nomor',
+    name: 'SetoranBayarEdit',
+    component: SetoranBayarCreateView,
+    meta: {
+      title: 'Ubah Setoran Pembayaran',
+      requiresAuth: true,
+      menuId: '51'
+    }
+  },
+  {
+    path: '/piutang/setoran-pembayaran/print/:nomor',
+    name: 'CetakSetoranBayar',
+    component: DpPrintView,
+    meta: {
+      requiresAuth: true,
+      printLayout: true
+    }
+  },
+  {
+    path: '/piutang/fsk',
+    name: 'Fsk',
+    component: FskView,
+    meta: {
+      title: 'Form Setoran Kasir',
+      requiresAuth: true,
+      menuId: '54'
+    }
+  },
+  {
+    path: '/piutang/fsk/new',
+    name: 'FskCreate',
+    component: FskCreateView,
+    meta: {
+      title: 'Buat Form Setoran Kasir',
+      requiresAuth: true,
+      menuId: '54'
+    }
+  },
+  {
+    path: '/piutang/fsk/edit/:nomor',
+    name: 'FskEdit',
+    component: FskCreateView,
+    meta: {
+      title: 'Ubah Form Setoran Kasir',
+      requiresAuth: true,
+      menuId: '54'
+    }
+  },
+  {
+    path: '/piutang/fsk/print/:nomor',
+    name: 'FskPrint',
+    component: FskPrintView,
+    meta: {
+      requiresAuth: true,
+      printLayout: true
+    }
+  },
+  {
+    path: '/transaksi/penjualan/invoice',
+    name: 'Invoice',
+    component: InvoiceView,
+    meta: {
+      title: 'Invoice',
+      requiresAuth: true,
+      menuId: '27'
+    }
+  },
+  {
+    path: '/transaksi/penjualan/invoice/new',
+    name: 'InvoiceCreate',
+    component: InvoiceCreateView,
+    meta: {
+      title: 'Buat Invoice Baru',
+      requiresAuth: true,
+      menuId: '27'
+    }
+  },
+  {
+    path: '/transaksi/penjualan/invoice/edit/:nomor',
+    name: 'InvoiceEdit',
+    component: InvoiceCreateView,
+    meta: {
+      title: 'Ubah Invoice',
+      requiresAuth: true,
+      menuId: '27'
     }
   },
   {

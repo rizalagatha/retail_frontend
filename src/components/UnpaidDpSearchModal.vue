@@ -30,7 +30,7 @@ const headers = [
     { title: 'Nomor Setoran', key: 'nomor' },
     { title: 'Jenis', key: 'jenis' },
     { title: 'Sisa Nominal', key: 'nominal', align: 'end' },
-];
+] as const;
 
 const loadItems = async () => {
     loading.value = true;
@@ -72,7 +72,7 @@ onMounted(loadItems);
                     <v-data-table :headers="headers" :items="filteredItems" :loading="loading" density="compact"
                         class="desktop-table" fixed-header hover :items-per-page="-1"
                         @click:row="(_, { item }) => selectItem(item)">
-                        <template #item.nominal="{ value }">
+                        <template #[`item.nominal`]="{ value }">
                             {{ formatRupiah(value) }}
                         </template>
                         <template #no-data>

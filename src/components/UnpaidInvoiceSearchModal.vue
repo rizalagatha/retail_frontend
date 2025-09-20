@@ -32,7 +32,7 @@ const headers = [
     { title: 'Nominal', key: 'nominal', align: 'end' },
     { title: 'Terbayar', key: 'terbayar', align: 'end' },
     { title: 'Sisa Piutang', key: 'sisa', align: 'end' },
-];
+] as const;
 
 const loadItems = async ({ page, itemsPerPage }: { page: number, itemsPerPage: number }) => {
     loading.value = true;

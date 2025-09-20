@@ -65,6 +65,7 @@ import FskCreateView from '@/views/FskCreateView.vue';
 import FskPrintView from '@/views/FskPrintView.vue';
 import InvoiceView from '@/views/InvoiceView.vue';
 import InvoiceCreateView from '@/views/InvoiceCreateView.vue';
+import InvoicePrintView from '@/views/InvoicePrintView.vue';
 import LaporanStokView from '@/views/LaporanStokView.vue';
 
 const routes = [
@@ -819,6 +820,15 @@ const routes = [
       title: 'Ubah Invoice',
       requiresAuth: true,
       menuId: '27'
+    }
+  },
+  {
+    path: '/transaksi/penjualan/invoice/print/:nomor',
+    name: 'InvoicePrint',
+    component: InvoicePrintView,
+    meta: {
+      requiresAuth: true,
+      printLayout: true
     }
   },
   {

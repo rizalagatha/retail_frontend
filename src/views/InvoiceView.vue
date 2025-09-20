@@ -148,6 +148,30 @@ const handleEdit = () => {
     router.push({ name: 'InvoiceEdit', params: { nomor } });
 };
 
+const printData = (type: 'invoice' | 'sj') => {
+    if (!isSingleSelected.value) return;
+
+    const item = selected.value[0];
+    let routeName = '';
+
+    if (type === 'invoice') {
+        routeName = 'InvoicePrint'; // Nama route untuk cetak Invoice A4
+    } else if (type === 'sj') {
+        if (!item.NomorSO) { // Validasi dari Delphi
+            toast.warning('Transaksi Cash tidak perlu cetak surat jalan.');
+            return;
+        }
+        routeName = 'CetakSuratJalan'; // Asumsi nama route untuk cetak SJ
+    }
+
+    const url = router.resolve({
+        name: routeName,
+        params: { nomor: item.Nomor }
+    }).href;
+
+    window.open(url, '_blank');
+};
+
 onMounted(() => {
     fetchCabangList();
     fetchMasterData();
@@ -167,10 +191,15 @@ watch(filters, fetchMasterData, { deep: true });
             </v-btn>
             <v-btn v-if="authStore.can(MENU_ID, 'delete')" size="small" color="error" :disabled="!isSingleSelected"
                 @click="handleDelete">Hapus</v-btn>
-            <v-btn v-if="authStore.can(MENU_ID, 'view')" size="small" color="green"
-                :disabled="!isSingleSelected">Cetak</v-btn>
+            <v-btn v-if="authStore.can(MENU_ID, 'view')" size="small" color="green" :disabled="!isSingleSelected"
+                prepend-icon="mdi-printer" @click="printData('invoice')">
+                Cetak
+            </v-btn>
             <v-btn v-if="authStore.can(MENU_ID, 'view')" size="small" color="cyan"
-                :disabled="!isSingleSelected || !selectedRow?.NomorSO">Cetak SJ</v-btn>
+                :disabled="!isSingleSelected || !selectedRow?.NomorSO" prepend-icon="mdi-truck-delivery-outline"
+                @click="printData('sj')">
+                Cetak SJ
+            </v-btn>
             <v-menu offset-y>
                 <template v-slot:activator="{ props }"><v-btn size="small" color="teal" prepend-icon="mdi-file-excel"
                         v-bind="props">Export</v-btn></template>

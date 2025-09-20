@@ -15,7 +15,7 @@ interface So {
 const props = defineProps({
     cabang: { type: String, required: true }
 });
-const emit = defineEmits(['close', 'selected']);
+const emit = defineEmits(['close', 'so-selected']);
 const toast = useToast();
 
 const items = ref<So[]>([]);
@@ -60,7 +60,7 @@ const loadItems = async ({ page, itemsPerPage }: { page: number, itemsPerPage: n
 };
 
 const selectItem = (item: So) => {
-    emit('selected', item);
+    emit('so-selected', item);
     emit('close');
 };
 

@@ -20,7 +20,7 @@ const fetchPrintData = async (nomor: string) => {
         await nextTick();
         window.print();
     } catch (error) {
-        alert("Gagal memuat data untuk dicetak.");
+        alert("Gagal memuat data untuk dicetak.", error);
     } finally {
         isLoading.value = false;
     }

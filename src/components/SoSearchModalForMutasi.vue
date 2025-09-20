@@ -45,7 +45,7 @@ const loadItems = async ({ page, itemsPerPage }: { page: number, itemsPerPage: n
             totalItems.value = 0;
         }
     } catch (error) {
-        toast.error("Gagal memuat data SO.");
+        toast.error("Gagal memuat data SO.", error);
         items.value = [];
         totalItems.value = 0;
     } finally {

@@ -23,7 +23,7 @@ const filters = ref({
     tanggal: format(new Date(), 'yyyy-MM-dd'),
 });
 const gudangList = ref([]);
-const headers = ref([
+const headers = [
     { title: 'Kode', key: 'KODE', fixed: true, width: '180px' },
     { title: 'Nama Barang', key: 'NAMA', fixed: true, width: '300px' },
     { title: 'S', key: 'S', align: 'start' },
@@ -36,7 +36,7 @@ const headers = ref([
     { title: '5XL', key: '5XL', align: 'start' },
     { title: 'Total', key: 'TOTAL', align: 'start', class: 'font-weight-bold' },
     { title: 'Buffer', key: 'Buffer', align: 'start' },
-]);
+] as const;
 
 const hasViewPermission = computed(() => authStore.can(MENU_ID, 'view'));
 
@@ -107,9 +107,8 @@ onMounted(() => {
             <div class="table-container">
                 <v-data-table :headers="headers" :items="stokList" :loading="isLoading" density="compact"
                     class="desktop-table fill-height-table" fixed-header>
-                    <template v-for="col in headers.slice(2)" #[`item.${col.key}`]="{ item }">
-                        <td v-for="col in columns" :key="col.key"
-                            :class="{ 'text-red font-weight-bold': item.TOTAL < item.Buffer && item.Buffer > 0 }"
+                    <template v-for="col in headers.slice(2)" :key="col.key" #[`item.${col.key}`]="{ item }">
+                        <td :class="{ 'text-red font-weight-bold': item.TOTAL < item.Buffer && item.Buffer > 0 }"
                             class="text-end">
                             {{ item[col.key] }}
                         </td>

@@ -5,8 +5,34 @@ import api from '@/services/api';
 import { format, parseISO } from 'date-fns';
 import Logo from '@/assets/logo.png';
 
+interface PrintHeader {
+    mo_nomor: string;
+    mo_so_nomor: string;
+    mo_tanggal: string;
+    mo_kecab: string;
+    pab_nama: string;
+    mo_ket: string;
+    perush_nama: string;
+    perush_alamat: string;
+    perush_telp: string;
+    created?: string;
+    user_create?: string;
+}
+
+interface PrintItem {
+    mod_kode: string;
+    nama: string;
+    mod_ukuran: string;
+    mod_jumlah: number;
+}
+
+interface PrintData {
+    header: PrintHeader;
+    details: PrintItem[];
+}
+
 const route = useRoute();
-const printData = ref<any>(null);
+const printData = ref<PrintData | null>(null);
 const isLoading = ref(true);
 const appLogo = Logo;
 

@@ -22,7 +22,7 @@ interface SoHeader {
     StatusKirim: string;
     Aktif: string;
     AlasanClose: string;
-    [key: string]: any;
+    [key: string]: unknown;
 }
 
 interface SoDetail {
@@ -32,6 +32,9 @@ interface SoDetail {
     QtySO: number;
     QtyInvoice: number;
     BlmJadiInvoice: number;
+    Nomor: string;
+    Harga: number;
+    TotalSO: number;
 }
 
 // --- State ---
@@ -104,7 +107,7 @@ const headers = [
     { title: 'Keterangan', key: 'Keterangan', width: '300px' },
     { title: 'Aktif', key: 'Aktif', align: 'center' },
     { title: 'Sales Counter', key: 'SC', width: '150px' },
-];
+] as const;
 
 const detailHeaders = [
     { title: 'Nomor', key: 'Nomor', width: '120px' },
@@ -117,7 +120,7 @@ const detailHeaders = [
     { title: 'Total SO', key: 'TotalSO', align: 'end', width: '120px' },
     { title: 'Qty Invoice', key: 'QtyInvoice', align: 'end', width: '100px' },
     { title: 'Belum Jadi Inv', key: 'BlmJadiInvoice', align: 'end', width: '120px' },
-];
+] as const;
 
 // --- Methods ---
 
@@ -125,7 +128,7 @@ const fetchCabangList = async () => {
     try {
         const response = await api.get('/so/lookup/cabang');
         cabangList.value = response.data;
-    } catch (error) {
+    } catch {
         toast.error('Gagal memuat daftar cabang.');
     }
 };
@@ -141,7 +144,7 @@ const fetchData = async () => {
             }
         });
         list.value = response.data;
-    } catch (error) {
+    } catch {
         toast.error('Gagal memuat data Surat Pesanan.');
     } finally {
         isLoading.value = false;
@@ -157,7 +160,7 @@ const loadDetails = async (newlyExpandedItems: SoHeader[]) => {
     try {
         const response = await api.get(`/so/${nomorToLoad}`);
         details.value[nomorToLoad] = response.data;
-    } catch (error) {
+    } catch {
         toast.error(`Gagal memuat detail untuk ${nomorToLoad}`);
         // Hapus dari daftar expanded jika gagal
         expanded.value = expanded.value.filter(nomor => nomor !== nomorToLoad);
@@ -199,8 +202,15 @@ const submitClose = async () => {
         }
 
         selected.value = [];
-    } catch (error: any) {
-        toast.error(error.response?.data?.message || 'Gagal menutup SO.');
+    } catch (error: unknown) {
+        if (error instanceof Error) {
+            toast.error(error.message || 'Gagal menutup SO.');
+        } else if (typeof error === 'object' && error !== null && 'response' in error) {
+            const e = error as { response?: { data?: { message?: string } } };
+            toast.error(e.response?.data?.message || 'Gagal menutup SO.');
+        } else {
+            toast.error('Gagal menutup SO.');
+        }
     }
 };
 
@@ -225,8 +235,15 @@ const executeDelete = async () => {
         toast.success(`Surat Pesanan ${itemToDelete.value.Nomor} berhasil dihapus.`);
         fetchData();
         selected.value = [];
-    } catch (error: any) {
-        toast.error(error.response?.data?.message || 'Gagal menghapus data.');
+    } catch (error: unknown) {
+        if (error instanceof Error) {
+            toast.error(error.message || 'Gagal menghapus data.');
+        } else if (typeof error === 'object' && error !== null && 'response' in error) {
+            const e = error as { response?: { data?: { message?: string } } };
+            toast.error(e.response?.data?.message || 'Gagal menghapus data.');
+        } else {
+            toast.error('Gagal menghapus data.');
+        }
     } finally {
         isConfirmDeleteVisible.value = false;
         itemToDelete.value = null;
@@ -311,7 +328,7 @@ const exportData = async (type: 'header' | 'detail') => {
             XLSX.writeFile(workbook, "Export_SO_Detail.xlsx");
             toast.success('File Detail berhasil dibuat.');
         }
-    } catch (error) {
+    } catch {
         toast.error('Gagal mengekspor data.');
     }
 };
@@ -400,28 +417,35 @@ watch([startDate, endDate, selectedCabang], fetchData);
 
             <div class="table-container">
                 <v-data-table v-model="selected" :headers="headers" :items="filteredList" :loading="isLoading"
-                    :item-class="getRowClass" item-value="Nomor" density="compact" class="desktop-table" fixed-header
-                    show-select return-object show-expand @update:expanded="loadDetails">
-                    <template v-for="header in headers" #[`item.${header.key}`]="{ item }">
+                    :item-class="getRowTextColor" item-value="Nomor" density="compact" class="desktop-table"
+                    fixed-header show-select return-object show-expand @update:expanded="loadDetails">
+                    <template v-for="header in headers" #[`item.${header.key}`]="{ item }" :key="header.key">
                         <td :class="getRowTextColor(item)">
                             <template v-if="['Tanggal', 'Dateline'].includes(header.key)">
-                                {{ item[header.key] ? format(parseISO(item[header.key]), 'dd/MM/yyyy') : '-' }}
+                                {{
+                                    item[header.key]
+                                        ? format(parseISO(item[header.key] as string), 'dd/MM/yyyy')
+                                        : '-'
+                                }}
                             </template>
                             <template
                                 v-else-if="['Nominal', 'Diskon', 'Dp', 'QtySO', 'QtyInv', 'Belum'].includes(header.key)">
-                                {{ new Intl.NumberFormat('id-ID').format(item[header.key] || 0) }}
+                                {{ new Intl.NumberFormat('id-ID').format((item[header.key] as number) || 0) }}
                             </template>
                             <template v-else-if="header.key === 'Status'">
-                                <v-chip size="x-small" :color="getStatusChip(item.Status).color" variant="tonal">{{
-                                    getStatusChip(item.Status).text }}</v-chip>
+                                <v-chip size="x-small" :color="getStatusChip(item.Status).color" variant="tonal">
+                                    {{ getStatusChip(item.Status).text }}
+                                </v-chip>
                             </template>
                             <template v-else-if="header.key === 'StatusKirim'">
-                                <v-chip size="x-small" :color="item.StatusKirim === 'BELUM' ? 'orange' : 'indigo'">{{
-                                    item.StatusKirim }}</v-chip>
+                                <v-chip size="x-small" :color="item.StatusKirim === 'BELUM' ? 'orange' : 'indigo'">
+                                    {{ item.StatusKirim }}
+                                </v-chip>
                             </template>
                             <template v-else-if="header.key === 'Aktif'">
-                                <v-chip size="x-small" :color="item.Aktif === 'Y' ? 'success' : 'grey'">{{ item.Aktif
-                                    === 'Y' ? 'Aktif' : 'Pasif' }}</v-chip>
+                                <v-chip size="x-small" :color="item.Aktif === 'Y' ? 'success' : 'grey'">
+                                    {{ item.Aktif === 'Y' ? 'Aktif' : 'Pasif' }}
+                                </v-chip>
                             </template>
                             <template v-else>
                                 {{ item[header.key] }}
@@ -439,11 +463,17 @@ watch([startDate, endDate, selectedCabang], fetchData);
                                         <v-data-table v-else-if="details[item.Nomor]" :headers="detailHeaders"
                                             :items="details[item.Nomor]" item-value="Kode" density="compact"
                                             class="detail-table" :items-per-page="-1">
-                                            <template #item.Nomor="{ item: detailItem }">{{ item.Nomor }}</template>
-                                            <template #item.Harga="{ item: detailItem }">{{ new
-                                                Intl.NumberFormat('id-ID').format(detailItem.Harga || 0) }}</template>
-                                            <template #item.TotalSO="{ item: detailItem }">{{ new
-                                                Intl.NumberFormat('id-ID').format(detailItem.TotalSO || 0) }}</template>
+                                            <template #[`item.Nomor`]="{ item: detailItem }">
+                                                {{ detailItem.Nomor }}
+                                            </template>
+                                            <template #[`item.Harga`]="{ item: detailItem }">
+                                                {{ new Intl.NumberFormat('id-ID').format(detailItem.Harga as number ||
+                                                0) }}
+                                            </template>
+                                            <template #[`item.TotalSO`]="{ item: detailItem }">
+                                                {{ new Intl.NumberFormat('id-ID').format(detailItem.TotalSO as number ||
+                                                0) }}
+                                            </template>
                                             <template #bottom></template>
                                         </v-data-table>
                                         <div v-else class="text-center text-caption py-2">
@@ -462,7 +492,7 @@ watch([startDate, endDate, selectedCabang], fetchData);
             <v-card>
                 <v-card-title class="text-h6 font-weight-bold">Konfirmasi Hapus</v-card-title>
                 <v-card-text>Anda yakin ingin menghapus Surat Pesanan: <strong>{{ itemToDelete?.Nomor
-                }}</strong>?</v-card-text>
+                        }}</strong>?</v-card-text>
                 <v-card-actions>
                     <v-spacer></v-spacer>
                     <v-btn @click="isConfirmDeleteVisible = false">Batal</v-btn>

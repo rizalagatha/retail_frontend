@@ -6,6 +6,7 @@ import { useToast } from 'vue-toastification';
 import { useAuthStore } from '@/stores/authStore';
 import { format, parseISO } from 'date-fns';
 import { useRouter } from 'vue-router';
+import { AxiosError } from 'axios';
 
 const toast = useToast();
 const authStore = useAuthStore();
@@ -16,7 +17,7 @@ interface LhkItem {
     Tanggal: string;
     Cab: string;
     SoDtf: string;
-    [key: string]: any;
+    [key: string]: unknown;
 }
 
 // --- State ---
@@ -62,7 +63,7 @@ const headers = [
     { title: 'Panjang (Mtr)', key: 'PanjangMtr', align: 'end', width: '120px' },
     { title: 'Buangan (Mtr)', key: 'BuanganMtr', align: 'end', width: '120px' },
     { title: 'Keterangan', key: 'Keterangan', width: '300px' },
-];
+] as const;
 
 const footerProps = { 'items-per-page-options': [10, 25, 50, -1] };
 const getItemId = (item: LhkItem) => `${item.Tanggal}-${item.SoDtf}-${item.Cab}`;
@@ -77,7 +78,7 @@ const fetchCabangList = async () => {
             selectedCabang.value = 'KDC';
         }
     } catch (error) {
-        toast.error('Gagal memuat daftar cabang.');
+        toast.error('Gagal memuat daftar cabang.', error);
     }
 };
 
@@ -94,7 +95,7 @@ const fetchData = async () => {
         });
         lhkList.value = response.data;
     } catch (error) {
-        toast.error('Gagal memuat data LHK SO DTF.');
+        toast.error('Gagal memuat data LHK SO DTF.', error);
     } finally {
         isLoading.value = false;
     }
@@ -119,8 +120,12 @@ const deleteItem = async () => {
         toast.success('Data LHK berhasil dihapus.');
         fetchData();
         selected.value = [];
-    } catch (error: any) {
-        toast.error(error.response?.data?.message || 'Gagal menghapus data.');
+    } catch (err) {
+        if (err instanceof AxiosError) {
+            toast.error(err.response?.data?.message || 'Gagal menghapus data.');
+        } else {
+            toast.error('Gagal menghapus data.');
+        }
     } finally {
         isConfirmDialogVisible.value = false;
         itemToDelete.value = null;
@@ -175,7 +180,7 @@ watch([startDate, endDate, selectedCabang], fetchData);
             <v-data-table v-model="selected" :headers="headers" :items="lhkList" :loading="isLoading"
                 :item-value="getItemId" :footer-props="footerProps" density="compact"
                 class="desktop-table fill-height-table" fixed-header show-select return-object>
-                <template #item.Tanggal="{ item }">
+                <template v-slot:[`item.Tanggal`]="{ item }">
                     {{ format(new Date(item.Tanggal), 'dd/MM/yyyy') }}
                 </template>
             </v-data-table>

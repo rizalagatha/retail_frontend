@@ -7,6 +7,30 @@ import { useToast } from 'vue-toastification';
 import { useAuthStore } from '@/stores/authStore';
 import { format, parseISO } from 'date-fns';
 import * as XLSX from 'xlsx';
+import { AxiosError } from 'axios';
+
+interface MintaBarangHeader {
+    Nomor: string;
+    Tanggal: string;
+    NoSO?: string;
+    NoSJ?: string;
+    TerimaSJ?: string;
+    Keterangan?: string;
+    Otomatis?: 'Y' | 'N';
+    Created?: string;
+    Closing?: 'Y' | 'N';
+}
+
+interface MintaBarangDetail {
+    Kode: string;
+    Barcode: string;
+    Nama: string;
+    Ukuran?: string;
+    StokMinimal?: number;
+    StokMaximal?: number;
+    Jumlah?: number;
+    SJ?: number;
+}
 
 const toast = useToast();
 const authStore = useAuthStore();
@@ -14,8 +38,8 @@ const router = useRouter();
 const MENU_ID = '37';
 
 // --- State ---
-const list = ref<any[]>([]);
-const details = ref<{ [key: string]: any[] }>({});
+const list = ref<MintaBarangHeader[]>([]);
+const details = ref<{ [nomor: string]: MintaBarangDetail[] }>({});
 const isLoading = ref(true);
 const startDate = ref(format(new Date(), 'yyyy-MM-dd'));
 const endDate = ref(format(new Date(), 'yyyy-MM-dd'));
@@ -26,7 +50,7 @@ const expanded = ref<string[]>([]);
 const loadingDetails = ref(new Set<string>());
 const filterJenis = ref('semua'); // 'semua', 'manual', 'otomatis'
 const isConfirmDeleteVisible = ref(false);
-const itemToDelete = ref<any>(null);
+const itemToDelete = ref<MintaBarangHeader | null>(null);
 const confirmDialogText = ref('');
 
 //--- Computed ---
@@ -47,7 +71,7 @@ const headers = [
     { title: 'Otomatis', key: 'Otomatis', align: 'center' },
     { title: 'User', key: 'Created' },
     { title: 'Closing', key: 'Closing', align: 'center' },
-];
+] as const;
 
 const detailHeaders = [
     { title: 'Kode', key: 'Kode' },
@@ -58,13 +82,13 @@ const detailHeaders = [
     { title: 'Stok Maximal', key: 'StokMaximal', align: 'end' },
     { title: 'Jumlah', key: 'Jumlah', align: 'end' },
     { title: 'SJ', key: 'SJ', align: 'end' },
-];
+] as const;
 
 const fetchCabangList = async () => {
     try {
         const response = await api.get('/minta-barang/lookup/cabang');
         cabangList.value = response.data;
-    } catch (error) { toast.error('Gagal memuat daftar cabang.'); }
+    } catch (error) { toast.error('Gagal memuat daftar cabang.', error); }
 };
 
 const fetchData = async () => {
@@ -80,23 +104,24 @@ const fetchData = async () => {
         });
         list.value = response.data;
     } catch (error) {
-        toast.error('Gagal memuat data.');
+        toast.error('Gagal memuat data.', error);
     } finally {
         isLoading.value = false;
     }
 };
 
-const loadDetails = async (newlyExpandedItems: any[]) => {
+const loadDetails = async (newlyExpandedItems: MintaBarangHeader[]) => {
     // Cari item yang baru saja di-expand dan belum ada datanya
     const itemToLoad = newlyExpandedItems.find(item => !details.value[item.Nomor] && !loadingDetails.value.has(item.Nomor));
     if (!itemToLoad) return;
 
     const nomorToLoad = itemToLoad.Nomor;
     loadingDetails.value.add(nomorToLoad);
+
     try {
-        const response = await api.get(`/minta-barang/${nomorToLoad}`);
+        const response = await api.get<MintaBarangDetail[]>(`/minta-barang/${nomorToLoad}`);
         details.value[nomorToLoad] = response.data;
-    } catch (error) {
+    } catch {
         toast.error(`Gagal memuat detail untuk ${nomorToLoad}`);
         // Hapus dari daftar expanded jika gagal agar bisa dicoba lagi
         expanded.value = expanded.value.filter(nomor => nomor !== nomorToLoad);
@@ -105,7 +130,7 @@ const loadDetails = async (newlyExpandedItems: any[]) => {
     }
 };
 
-const getRowTextColor = (item: any) => {
+const getRowTextColor = (item: MintaBarangHeader) => {
     // Merah: Belum ada No. SJ
     if (!item.NoSJ) {
         return 'text-red font-weight-bold';
@@ -158,13 +183,15 @@ const showDeleteConfirmation = () => {
 
 const executeDelete = async () => {
     if (!itemToDelete.value) return;
+
     try {
         await api.delete(`/minta-barang/${itemToDelete.value.Nomor}`);
         toast.success(`Permintaan Barang ${itemToDelete.value.Nomor} berhasil dihapus.`);
         fetchData();
         selected.value = [];
-    } catch (error: any) {
-        toast.error(error.response?.data?.message || 'Gagal menghapus data.');
+    } catch (error) {
+        const axiosError = error as AxiosError<{ message: string }>;
+        toast.error(axiosError.response?.data?.message || 'Gagal menghapus data.');
     } finally {
         isConfirmDeleteVisible.value = false;
         itemToDelete.value = null;
@@ -204,7 +231,7 @@ const exportData = async (type: 'header' | 'detail') => {
             toast.success('File Detail berhasil dibuat.');
         }
     } catch (error) {
-        toast.error('Gagal mengekspor data.');
+        toast.error('Gagal mengekspor data.', error);
     }
 };
 
@@ -283,7 +310,7 @@ watch(
                 <v-data-table v-model="selected" :headers="headers" :items="list" :loading="isLoading"
                     item-value="Nomor" density="compact" class="desktop-table" fixed-header show-select return-object
                     show-expand @update:expanded="loadDetails">
-                    <template v-for="header in headers" #[`item.${header.key}`]="{ item }">
+                    <template v-for="header in headers" :key="header.key" #[`item.${header.key}`]="{ item }">
                         <td :class="getRowTextColor(item)">
                             <template v-if="header.key === 'Tanggal'">
                                 {{ format(parseISO(item.Tanggal), 'dd/MM/yyyy') }}
@@ -298,6 +325,7 @@ watch(
                             </template>
                         </td>
                     </template>
+
                     <template #expanded-row="{ columns, item }">
                         <tr>
                             <td :colspan="columns.length">
@@ -329,7 +357,7 @@ watch(
         <v-dialog v-model="isConfirmDeleteVisible" max-width="400px" persistent>
             <v-card>
                 <v-card-title class="text-h6 font-weight-bold">Konfirmasi Hapus</v-card-title>
-                <v-card-text v-html="confirmDialogText"></v-card-text>
+                <v-card-text>{{ confirmDialogText }}</v-card-text>
                 <v-card-actions>
                     <v-spacer></v-spacer>
                     <v-btn @click="isConfirmDeleteVisible = false">Batal</v-btn>
@@ -337,6 +365,7 @@ watch(
                 </v-card-actions>
             </v-card>
         </v-dialog>
+
 
     </PageLayout>
 </template>

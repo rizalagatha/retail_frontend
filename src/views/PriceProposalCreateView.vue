@@ -36,15 +36,36 @@ interface Customer {
     top: number;
     level: string;
 }
-interface Gudang {
-    kode: string;
-    nama: string;
-}
 
 interface AdditionalCostItem {
     id: number;
     tambahan: string;
     harga: number;
+}
+
+interface SizeItem {
+    ukuran: string;
+    hargaPcs: number;
+}
+
+interface CostsDetail {
+    cm: number;
+    min: number;
+}
+
+interface Costs {
+    bordir?: CostsDetail;
+    dtf?: CostsDetail;
+}
+
+interface TshirtTypeResponse {
+    sizes: SizeItem[];
+    costs?: Costs;
+}
+
+interface AdditionalCostResponse {
+    pht_jenis: string;
+    pht_harga: number;
 }
 
 // --- State ---
@@ -159,18 +180,21 @@ const onTshirtTypeSelected = async (type: { jenisKaos: string }) => {
     isTshirtTypeSearchVisible.value = false;
 
     try {
-        const response = await api.get('/price-proposal-form/tshirt-type-details', {
+        const response = await api.get<TshirtTypeResponse>('/price-proposal-form/tshirt-type-details', {
             params: {
                 jenisKaos: type.jenisKaos,
                 custom: header.value.ketersediaan === 'Custom' ? 'Y' : 'N'
             }
         });
 
+        const data = response.data;
+
         // Map data ukuran seperti biasa
-        if (response.data && Array.isArray(response.data.sizes)) {
-            sizeItems.value = response.data.sizes.map((item: any) => ({
+        if (data && Array.isArray(data.sizes)) {
+            sizeItems.value = data.sizes.map(item => ({
                 id: Date.now() + Math.random(),
                 size: item.ukuran,
+                ukuran: item.ukuran,
                 qty: null,
                 hargaPcs: item.hargaPcs,
                 totalHarga: 0,
@@ -181,9 +205,7 @@ const onTshirtTypeSelected = async (type: { jenisKaos: string }) => {
         }
 
         // Ambil data biaya dari respons
-        const costs = response.data.costs;
-
-        // Pastikan objek costs ada sebelum diakses
+        const costs = data.costs;
         if (costs) {
             if (costs.bordir) {
                 biayaPerCmBordir.value = costs.bordir.cm || 0;
@@ -218,7 +240,7 @@ const executeSave = async () => {
     try {
         // Filter dan persiapkan data dengan benar
         const filteredDetails = sizeItems.value.filter(item => (item.qty || 0) > 0);
-        const filteredAdditionalCosts = additionalCostItems.value.filter(item => 
+        const filteredAdditionalCosts = additionalCostItems.value.filter(item =>
             item.tambahan && item.tambahan.trim() && (item.harga || 0) > 0
         );
 
@@ -233,7 +255,7 @@ const executeSave = async () => {
             isNew: !isEditMode.value,
             // Tambahkan data yang hilang
             biayaPerCmBordir: biayaPerCmBordir.value,
-            bordirMinCharge: bordirMinCharge.value, 
+            bordirMinCharge: bordirMinCharge.value,
             bordirCost: bordirCost.value,
             biayaPerCmDtf: biayaPerCmDtf.value,
             dtfMinCharge: dtfMinCharge.value,
@@ -250,7 +272,7 @@ const executeSave = async () => {
             formData.append('image', selectedFile.value);
             try {
                 // Upload ke endpoint yang menyertakan nomor di URL
-                const uploadResponse = await api.post(`/price-proposal-form/upload-image/${savedNomor}`, formData, {
+                await api.post(`/price-proposal-form/upload-image/${savedNomor}`, formData, {
                     headers: {
                         'Content-Type': 'multipart/form-data'
                     }
@@ -273,6 +295,46 @@ const executeSave = async () => {
     } finally {
         isSaving.value = false;
     }
+};
+
+const resetForm = () => {
+    // Reset header
+    header.value = {
+        nomor: '',
+        tanggal: new Date().toISOString().substr(0, 10),
+        approval: '',
+        isApproved: false,
+        customerKode: '',
+        customerNama: '',
+        keterangan: '',
+        jenisKaos: '',
+        ketersediaan: 'Custom',
+    };
+
+    // Reset size items
+    sizeItems.value = [];
+    additionalCostItems.value = [];
+    imagePreview.value = null;
+    selectedFile.value = null;
+
+    // Reset footer
+    footer.value = {
+        hargaBruto: 0,
+        diskon: 0,
+        hargaNetto: 0
+    };
+
+    // Reset Bordir & DTF
+    bordirItems.value = Array.from({ length: 8 }, () => ({ p: 0, l: 0 }));
+    dtfItems.value = Array.from({ length: 8 }, () => ({ p: 0, l: 0 }));
+    biayaPerCmBordir.value = 0;
+    bordirMinCharge.value = 3000;
+    bordirCost.value = 0;
+    biayaPerCmDtf.value = 0;
+    dtfMinCharge.value = 3000;
+    dtfCost.value = 0;
+
+    activeTab.value = 'pengajuan';
 };
 
 const confirmCancel = () => {
@@ -468,7 +530,7 @@ const loadOfferData = async (nomor: string) => {
             }
         }
 
-        additionalCostItems.value = (data.additionalCosts || []).map((c: any) => ({
+        additionalCostItems.value = (data.additionalCosts as AdditionalCostResponse[] || []).map((c) => ({
             id: Date.now() + Math.random(),
             tambahan: c.pht_jenis,
             harga: c.pht_harga,
@@ -658,8 +720,8 @@ onMounted(() => {
                                 <p>Harga Kaos = Harga/Pcs + Total Harga Tambahan.</p>
                                 <p>Total Harga = Qty Order x Harga Kaos.</p>
                                 <p class="mt-2 font-weight-bold">Diskon:</p>
-                                <p>- Jika Harga Netto >= 3 juta dan Harga Netto < 6 juta=5% dari Harga Netto.</p>
-                                        <p>- Jika Harga Netto >= 6 juta = 10% dari Harga Netto.</p>
+                                <p>- Jika Harga Netto >= 3 juta dan Harga Netto kurang dari 6 juta=5% dari Harga Netto.</p>
+                                <p>- Jika Harga Netto >= 6 juta = 10% dari Harga Netto.</p>
                             </div>
                         </v-col>
                     </v-row>
@@ -689,16 +751,16 @@ onMounted(() => {
                                     { title: 'Nama Barang', key: 'namaBarang' }
                                 ]" no-data-text="Pilih Jenis Kaos untuk menampilkan data" density="compact"
                                     class="desktop-table flex-grow-1" fixed-header height="100%">
-                                    <template #item.qty="{ item }">
+                                    <template #[`item.qty`]="{ item }">
                                         <v-text-field v-model.number="item.qty" type="number" variant="underlined" dense
                                             hide-details></v-text-field>
                                     </template>
 
-                                    <template #item.hargaKaos="{ item }">
+                                    <template #[`item.hargaKaos`]="{ item }">
                                         {{ new Intl.NumberFormat('id-ID').format(item.hargaKaos || 0) }}
                                     </template>
 
-                                    <template #item.kodeBarang="{ item }">
+                                    <template #[`item.kodeBarang`]="{ item }">
                                         <v-text-field v-model="item.kodeBarang" variant="underlined" dense hide-details
                                             placeholder="F1..."
                                             @keydown.f1.prevent="openProductSearch(sizeItems.indexOf(item))">
@@ -708,6 +770,7 @@ onMounted(() => {
                                             </template>
                                         </v-text-field>
                                     </template>
+
                                 </v-data-table>
                             </div>
                             <!-- Side tabel -->
@@ -730,16 +793,18 @@ onMounted(() => {
                                     :headers="[{ title: 'Keterangan', key: 'tambahan' }, { title: 'Harga', key: 'harga' }]"
                                     density="compact" class="desktop-table flex-grow-1" fixed-header height="100%"
                                     hide-default-footer>
-                                    <template #item.tambahan="{ item }">
+                                    <template #[`item.tambahan`]="{ item }">
                                         <v-text-field v-model="item.tambahan" variant="underlined" dense hide-details
                                             placeholder="F1..." readonly
                                             @keydown.f1.prevent="openAdditionalCostSearch(additionalCostItems.indexOf(item))"
                                             @click="openAdditionalCostSearch(additionalCostItems.indexOf(item))"
                                             style="cursor: pointer;"></v-text-field>
                                     </template>
-                                    <template #item.harga="{ item }">
-                                        <span class="text-caption">{{ new Intl.NumberFormat('id-ID').format(item.harga
-                                            || 0) }}</span>
+
+                                    <template #[`item.harga`]="{ item }">
+                                        <span class="text-caption">
+                                            {{ new Intl.NumberFormat('id-ID').format(item.harga || 0) }}
+                                        </span>
                                     </template>
                                 </v-data-table>
                                 <div class="total-footer">

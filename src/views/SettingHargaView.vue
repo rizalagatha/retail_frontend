@@ -15,11 +15,22 @@ const MENU_ID = '39';
 interface JenisKaos {
     JenisKaos: string;
     Custom: 'Y' | 'N';
-    [key: string]: any;
+    [key: string]: unknown;
 }
 interface UkuranHarga {
     ukuran: string;
     harga: number | null;
+}
+interface UkuranTemplate {
+    ukuran: string;
+    harga: number | null;
+}
+
+interface SettingHarga {
+    jenisKaos: string;
+    custom: 'Y' | 'N';
+    ukuranHarga: UkuranTemplate[];
+    [key: string]: unknown;
 }
 
 // --- State ---
@@ -61,7 +72,7 @@ const headers = [
     { title: '10XL', key: 'Harga_10XL', align: 'end' },
     { title: 'Oversize', key: 'Harga_Oversize', align: 'end' },
     { title: 'Jumbo', key: 'Harga_Jumbo', align: 'end' },
-];
+] as const;
 
 // --- Methods ---
 const fetchData = async () => {
@@ -70,7 +81,7 @@ const fetchData = async () => {
         const response = await api.get('/setting-harga');
         jenisKaosList.value = response.data;
     } catch (error) {
-        toast.error('Gagal memuat data setting harga.');
+        toast.error('Gagal memuat data setting harga.', error);
     } finally {
         isLoading.value = false;
     }
@@ -94,17 +105,18 @@ const handleKetersediaanConfirmed = async (custom: 'Y' | 'N') => {
     editedItem.value.jenisKaos = selectedJenisKaos.value;
     editedItem.value.custom = custom;
 
-    // Coba muat harga yang sudah ada untuk kombinasi ini (seperti di Delphi)
     try {
-        const response = await api.get(`/setting-harga/${encodeURIComponent(selectedJenisKaos.value)}/${custom}`);
+        const response = await api.get<SettingHarga>(
+            `/setting-harga/${encodeURIComponent(selectedJenisKaos.value)}/${custom}`
+        );
         editedItem.value = response.data;
         isNew.value = false; // Jika data ditemukan, ini menjadi mode 'edit'
-    } catch (error) {
+    } catch {
         // Jika tidak ditemukan (404), muat template ukuran baru
         try {
-            const templateResponse = await api.get('/setting-harga/ukuran-template');
-            editedItem.value.ukuranHarga = templateResponse.data.map((u: any) => ({ ukuran: u.ukuran, harga: null }));
-        } catch (templateError) {
+            const templateResponse = await api.get<UkuranTemplate[]>('/setting-harga/ukuran-template');
+            editedItem.value.ukuranHarga = templateResponse.data.map(u => ({ ukuran: u.ukuran, harga: null }));
+        } catch {
             toast.error('Gagal memuat template ukuran.');
         }
     } finally {
@@ -119,7 +131,7 @@ const openEditDialog = async (item: JenisKaos) => {
         const response = await api.get(`/setting-harga/${encodeURIComponent(item.JenisKaos)}/${item.Custom}`);
         editedItem.value = response.data;
     } catch (error) {
-        toast.error('Gagal memuat detail harga.');
+        toast.error('Gagal memuat detail harga.', error);
     }
 };
 
@@ -134,7 +146,7 @@ const save = async () => {
         isEditPanelVisible.value = false;
         fetchData();
     } catch (error) {
-        toast.error('Gagal menyimpan data.');
+        toast.error('Gagal menyimpan data.', error);
     }
 };
 
@@ -148,7 +160,7 @@ const remove = async () => {
             fetchData();
             selected.value = [];
         } catch (error) {
-            toast.error('Gagal menghapus data.');
+            toast.error('Gagal menghapus data.', error);
         }
     }
 };
@@ -222,14 +234,15 @@ onMounted(() => {
             </div>
 
             <v-data-table v-model="selected" :headers="headers" :items="jenisKaosList" :search="search"
-                :loading="isLoading" item-value="JenisKaos" v-model:items-per-page="itemsPerPage" density="compact" class="desktop-table fill-height-table"
-                fixed-header show-select return-object>
-                <template #item.Custom="{ item }">
-                    <v-chip :color="item.Custom === 'Y' ? 'blue' : 'green'" size="x-small">{{ item.Custom === 'Y' ?
-                        'Custom' : 'Stok' }}</v-chip>
+                :loading="isLoading" item-value="JenisKaos" v-model:items-per-page="itemsPerPage" density="compact"
+                class="desktop-table fill-height-table" fixed-header show-select return-object>
+                <template #[`item.Custom`]="{ item }">
+                    <v-chip :color="item.Custom === 'Y' ? 'blue' : 'green'" size="x-small">
+                        {{ item.Custom === 'Y' ? 'Custom' : 'Stok' }}
+                    </v-chip>
                 </template>
                 <template v-for="col in headers.filter(h => h.key.startsWith('Harga'))" #[`item.${col.key}`]="{ item }">
-                    {{ new Intl.NumberFormat('id-ID').format(item[col.key] || 0) }}
+                    {{ new Intl.NumberFormat('id-ID').format(Number(item[col.key] ?? 0)) }}
                 </template>
             </v-data-table>
         </div>
@@ -270,9 +283,9 @@ onMounted(() => {
                     <v-data-table :items="editedItem.ukuranHarga"
                         :headers="[{ title: 'Ukuran', key: 'ukuran' }, { title: 'Harga', key: 'harga' }]"
                         density="compact" class="desktop-table mt-4" fixed-header height="300px">
-                        <template #item.harga="{ item }">
+                        <template #[`item.harga`]="{ item }">
                             <v-text-field v-model.number="item.harga" type="number" variant="underlined"
-                                density="compact" hide-details></v-text-field>
+                                density="compact" hide-details />
                         </template>
                     </v-data-table>
                 </v-card-text>

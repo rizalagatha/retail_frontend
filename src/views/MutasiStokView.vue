@@ -8,17 +8,43 @@ import { format, subDays, parseISO } from 'date-fns';
 import PageLayout from '@/components/PageLayout.vue';
 import * as XLSX from 'xlsx';
 
+interface MutasiStokHeader {
+    Nomor: string;
+    Tanggal: string;
+    Jenis: string;
+    NoSO: string;
+    Invoice?: string;
+    KdCus?: string;
+    Customer?: string;
+    Alamat?: string;
+    Kota?: string;
+    Keterangan?: string;
+    Usr?: string;
+}
+
+interface MutasiStokDetail {
+    Kode: string;
+    Nama: string;
+    Ukuran: string;
+    Qty: number;
+}
+
+interface MasterItem {
+    Nomor: string;
+    [key: string]: unknown; // bisa diperluas sesuai field
+}
+
 const router = useRouter();
 const toast = useToast();
 const authStore = useAuthStore();
 const MENU_ID = '45';
 
-const masterData = ref<any[]>([]);
-const details = ref<Record<string, any[]>>({});
+const masterData = ref<MutasiStokHeader[]>([]);
+const details = ref<Record<string, MutasiStokDetail[]>>({});
 const loading = ref(true);
 const loadingDetails = ref(new Set<string>());
-const selected = ref<any[]>([]);
-const expanded = ref<any[]>([]);
+const selected = ref<MutasiStokHeader[]>([]);
+const expanded = ref<string[]>([]);
 const cabangList = ref([]);
 
 const filters = reactive({
@@ -42,43 +68,52 @@ const headers = [
     { title: 'Kota', key: 'Kota', width: '150px' },
     { title: 'Keterangan', key: 'Keterangan', width: '250px' },
     { title: 'User', key: 'Usr', width: '120px' },
-];
+] as const;
 const detailHeaders = [
     { title: 'Kode Barang', key: 'Kode' },
     { title: 'Nama Barang', key: 'Nama' },
     { title: 'Ukuran', key: 'Ukuran' },
     { title: 'Qty', key: 'Qty', align: 'end' },
-];
+] as const;
 
 const fetchCabangList = async () => {
     try {
         const response = await api.get('/mutasi-stok/lookup/cabang');
         cabangList.value = response.data;
-    } catch (error) { toast.error('Gagal memuat daftar cabang.'); }
+    } catch (error) { toast.error('Gagal memuat daftar cabang.', error); }
 };
 
 const fetchMasterData = async () => {
     loading.value = true;
     try {
-        const response = await api.get('/mutasi-stok', { params: filters });
+        const response = await api.get<MutasiStokHeader[]>('/mutasi-stok', { params: filters });
         masterData.value = response.data;
-    } catch (error: any) {
-        toast.error(error.response?.data?.message || 'Gagal mengambil data.');
+    } catch (error: unknown) {
+        // Gunakan type assertion untuk akses properti error
+        const msg = (error as { response?: { data?: { message?: string } } })?.response?.data?.message;
+        toast.error(msg || 'Gagal mengambil data.');
     } finally {
         loading.value = false;
     }
 };
 
-const loadDetails = async (newlyExpandedItems: any[]) => {
-    const itemToLoad = newlyExpandedItems.find(item => !details.value[item.Nomor] && !loadingDetails.value.has(item.Nomor));
+const loadDetails = async (newlyExpandedItems: MasterItem[]) => {
+    const itemToLoad = newlyExpandedItems.find(
+        item => !details.value[item.Nomor] && !loadingDetails.value.has(item.Nomor)
+    );
     if (!itemToLoad) return;
 
     loadingDetails.value.add(itemToLoad.Nomor);
+
     try {
-        const response = await api.get(`/mutasi-stok/details/${itemToLoad.Nomor}`);
+        const response = await api.get<MutasiStokDetail[]>(`/mutasi-stok/details/${itemToLoad.Nomor}`);
         details.value[itemToLoad.Nomor] = response.data;
-    } catch (error) { toast.error(`Gagal memuat detail untuk ${itemToLoad.Nomor}`); }
-    finally { loadingDetails.value.delete(itemToLoad.Nomor); }
+    } catch (error: unknown) {
+        const msg = (error as { response?: { data?: { message?: string } } })?.response?.data?.message;
+        toast.error(msg || `Gagal memuat detail untuk ${itemToLoad.Nomor}`);
+    } finally {
+        loadingDetails.value.delete(itemToLoad.Nomor);
+    }
 };
 
 const handleDelete = () => {
@@ -117,7 +152,7 @@ const exportData = async (type: 'header' | 'detail') => {
             const workbook = XLSX.utils.book_new();
             XLSX.utils.book_append_sheet(workbook, worksheet, "Mutasi Stok Header");
             XLSX.writeFile(workbook, "Export_Mutasi_Stok_Header.xlsx");
-        } catch (error) { toast.error('Gagal membuat file Excel.'); }
+        } catch (error) { toast.error('Gagal membuat file Excel.', error); }
     } else if (type === 'detail') {
         try {
             toast.info('Mengambil data detail dari server...');
@@ -128,7 +163,7 @@ const exportData = async (type: 'header' | 'detail') => {
             const workbook = XLSX.utils.book_new();
             XLSX.utils.book_append_sheet(workbook, worksheet, "Mutasi Stok Detail");
             XLSX.writeFile(workbook, "Export_Mutasi_Stok_Detail.xlsx");
-        } catch (error) { toast.error('Gagal mengekspor data detail.'); }
+        } catch (error) { toast.error('Gagal mengekspor data detail.', error); }
     }
 };
 
@@ -188,7 +223,9 @@ watch(filters, fetchMasterData, { deep: true });
                 <v-data-table v-model="selected" v-model:expanded="expanded" :headers="headers" :items="masterData"
                     :loading="loading" item-value="Nomor" density="compact" class="desktop-table" fixed-header
                     show-select return-object show-expand @update:expanded="loadDetails">
-                    <template #item.Tanggal="{ value }">{{ format(parseISO(value), 'dd/MM/yyyy') }}</template>
+                    <template #[`item.Tanggal`]="{ value }">
+                        {{ format(parseISO(value), 'dd/MM/yyyy') }}
+                    </template>
                     <template #expanded-row="{ columns, item }">
                         <tr>
                             <td :colspan="columns.length">

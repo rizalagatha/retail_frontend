@@ -6,6 +6,12 @@ import { useRouter } from 'vue-router';
 import RekeningSearchModal from './RekeningSearchModal.vue'; // Asumsi modal ini sudah ada
 import AuthorizationModal from '@/components/AuthorizationModal.vue';
 
+interface BankAccount {
+  kode: string;
+  nama: string;
+  rekening: string;
+}
+
 const props = defineProps({
     invoiceHeader: { type: Object, required: true },
     invoiceItems: { type: Array, required: true },
@@ -36,7 +42,7 @@ const authDialog = reactive({
     title: 'Otorisasi Invoice Belum Lunas',
     challengeCode: '',
 });
-const authModalRef = ref<any>(null);
+const authModalRef = ref<InstanceType<typeof AuthorizationModal> | null>(null);
 const temporaryPin = ref('');
 
 // --- Computed Properties for Real-time Calculation ---
@@ -51,20 +57,14 @@ const kembali = computed(() => {
 });
 
 const nettoKembali = computed(() => {
-    // Logika pundi amal sederhana
-    const sisaKembalian = kembali.value;
-    if (sisaKembalian > 0 && sisaKembalian < 1000) { // Contoh: jika kembalian di bawah 1000
-        payment.pundiAmal = sisaKembalian;
-        return 0;
-    }
-    payment.pundiAmal = 0;
-    return sisaKembalian;
+  const sisaKembalian = kembali.value;
+  return sisaKembalian >= 1000 ? sisaKembalian : 0;
 });
 
 const formatRupiah = (value: number) => new Intl.NumberFormat('id-ID').format(value || 0);
 
 // --- Methods ---
-const onRekeningSelected = (rekening: any) => {
+const onRekeningSelected = (rekening: BankAccount) => {
     payment.transfer.akun = rekening;
     dialogs.rekeningSearch = false;
 };
@@ -148,6 +148,10 @@ const executeSave = async () => {
     }
 }
 
+watch(nettoKembali, (value) => {
+  const sisaKembalian = kembali.value;
+  payment.pundiAmal = (sisaKembalian > 0 && sisaKembalian < 1000) ? sisaKembalian : 0;
+});
 </script>
 
 <template>

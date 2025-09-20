@@ -2,6 +2,7 @@
 import { ref, onMounted } from 'vue';
 import api from '@/services/api';
 import { useToast } from 'vue-toastification';
+import type { AxiosError } from 'axios';
 
 const props = defineProps({
     initialHp: { type: String, default: '' }
@@ -34,12 +35,13 @@ const searchMemberByHp = async () => {
         Object.assign(member.value, response.data);
         isNewMember.value = false;
         toast.success('Data member ditemukan.');
-    } catch (error: any) {
+    } catch (err) {
+        const error = err as AxiosError<{ message?: string }>; // tipe respons opsional
         if (error.response?.status === 404) {
             isNewMember.value = true;
             toast.info('No. HP belum terdaftar, silakan lengkapi data member baru.');
         } else {
-            toast.error('Gagal mencari data member.');
+            toast.error(error.response?.data?.message || 'Gagal mencari data member.');
         }
     } finally {
         isLoading.value = false;
@@ -56,7 +58,8 @@ const saveMember = async () => {
         toast.success(response.data.message);
         emit('member-saved', response.data.savedMember);
         emit('close');
-    } catch (error: any) {
+    } catch (err) {
+        const error = err as AxiosError<{ message?: string }>;
         toast.error(error.response?.data?.message || 'Gagal menyimpan data member.');
     } finally {
         isSaving.value = false;
@@ -127,6 +130,6 @@ onMounted(() => {
 .v-card-text :deep(.v-text-field),
 .v-card-text :deep(.v-textarea),
 .v-card-text :deep(.v-select) {
-  margin-bottom: 8px;
+    margin-bottom: 8px;
 }
 </style>

@@ -47,7 +47,7 @@ const headers = [
   { title: 'Usia', key: 'usia' },
   { title: 'Referensi', key: 'referensi' },
   { title: 'Actions', key: 'actions', sortable: false, align: 'center' },
-];
+] as const;
 
 const genderItems = ['Pria', 'Wanita'];
 const ageItems = ['< 17', '18-24', '25-34', '35-44', '45+'];
@@ -66,7 +66,7 @@ const fetchMembers = async () => {
     const response = await api.get('/members'); // Gunakan API
     members.value = response.data;
   } catch (error) {
-    toast.error('Gagal memuat data member.');
+    toast.error('Gagal memuat data member.', error);
   } finally {
     isLoading.value = false;
   }
@@ -106,7 +106,7 @@ const saveMember = async () => {
     toast.success('Data member berhasil disimpan.');
     fetchMembers();
   } catch (error) {
-    toast.error('Gagal menyimpan data member.');
+    toast.error('Gagal menyimpan data member.', error);
   } finally {
     dialog.value = false;
   }
@@ -119,7 +119,7 @@ const deleteMember = async (item: Member) => {
     toast.success('Data member berhasil dihapus.');
     fetchMembers();
   } catch (error) {
-    toast.error('Gagal menghapus data member.');
+    toast.error('Gagal menghapus data member.', error);
   }
 };
 
@@ -180,8 +180,8 @@ onMounted(() => {
         prepend-icon="mdi-plus">Baru</v-btn>
       <v-btn v-if="authStore.can(MENU_ID, 'edit')" size="small" :disabled="!canEdit" @click="handleEditFromHeader"
         prepend-icon="mdi-pencil">Ubah</v-btn>
-      <v-btn v-if="authStore.can(MENU_ID, 'delete')" size="small" color="error" :disabled="!canDelete" @click="handleDeleteFromHeader"
-        prepend-icon="mdi-delete">Hapus</v-btn>
+      <v-btn v-if="authStore.can(MENU_ID, 'delete')" size="small" color="error" :disabled="!canDelete"
+        @click="handleDeleteFromHeader" prepend-icon="mdi-delete">Hapus</v-btn>
       <v-btn v-if="authStore.can(MENU_ID, 'view')" size="small" @click="printData"
         prepend-icon="mdi-printer">Cetak</v-btn>
       <v-btn v-if="authStore.can(MENU_ID, 'view')" size="small" @click="exportData"
@@ -205,7 +205,7 @@ onMounted(() => {
       <!-- Table Section -->
       <v-data-table v-model="selected" :headers="headers" :items="members" :search="search" :loading="isLoading"
         item-value="hp" density="compact" class="desktop-table" fixed-header show-select return-object>
-        <template #item.actions="{ item }">
+        <template #[`item.actions`]="{ item }">
           <v-icon v-if="authStore.can(MENU_ID, 'edit')" size="small" class="me-2"
             @click="openEditDialog(item)">mdi-pencil</v-icon>
           <v-icon v-if="authStore.can(MENU_ID, 'delete')" size="small" @click="confirmDelete(item)">mdi-delete</v-icon>

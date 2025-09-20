@@ -5,8 +5,39 @@ import api from '@/services/api';
 import { format, parseISO } from 'date-fns';
 import Logo from '@/assets/logo.png';
 
+interface PrintDetail1 {
+    jenis: string;
+    tgltrf?: string;
+    kdcus: string;
+    nmcus: string;
+    inv: string;
+    nominal: number;
+}
+
+interface PrintDetail2 {
+    jenis: string;
+    summary_nominal: number;
+    nominalv: number;
+}
+
+interface PrintHeader {
+    fsk_nomor: string;
+    fsk_tanggal: string;
+    perush_nama: string;
+    perush_alamat: string;
+    perush_telp: string;
+    created: string;
+    user_create: string;
+}
+
+interface PrintData {
+    header: PrintHeader;
+    details1: PrintDetail1[];
+    details2: PrintDetail2[];
+}
+
 const route = useRoute();
-const printData = ref<any>(null);
+const printData = ref<PrintData | null>(null);
 const isLoading = ref(true);
 const appLogo = Logo;
 
@@ -14,13 +45,15 @@ const formatRupiah = (angka: number) => new Intl.NumberFormat('id-ID').format(an
 
 // --- COMPUTED PROPERTIES UNTUK TOTAL ---
 const totalNominalRincian = computed(() => {
-    return printData.value?.details1.reduce((sum: number, item: any) => sum + (item.nominal || 0), 0) || 0;
+    return printData.value?.details1.reduce((sum, item) => sum + item.nominal, 0) || 0;
 });
+
 const totalNominalRekap = computed(() => {
-    return printData.value?.details2.reduce((sum: number, item: any) => sum + (item.summary_nominal || 0), 0) || 0;
+    return printData.value?.details2.reduce((sum, item) => sum + item.summary_nominal, 0) || 0;
 });
+
 const totalNominalVerifikasi = computed(() => {
-    return printData.value?.details2.reduce((sum: number, item: any) => sum + (item.nominalv || 0), 0) || 0;
+    return printData.value?.details2.reduce((sum, item) => sum + item.nominalv, 0) || 0;
 });
 // --- AKHIR COMPUTED PROPERTIES ---
 
@@ -31,7 +64,7 @@ const fetchPrintData = async (nomor: string) => {
         document.title = response.data.header?.fsk_nomor || 'FSK';
         await nextTick();
         window.print();
-    } catch (error) {
+    } catch {
         alert("Gagal memuat data untuk dicetak.");
     } finally {
         isLoading.value = false;

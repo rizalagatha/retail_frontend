@@ -5,8 +5,27 @@ import api from '@/services/api';
 import { format, parseISO } from 'date-fns';
 import Logo from '@/assets/logo.png';
 
+interface PrintData {
+  sd_nomor: string;
+  sd_tanggal: string;
+  jo_nama: string;
+  sd_nama: string;
+  jumlah: number;
+  ukuran: string;
+  sd_datekerja: string;
+  gdg_nama: string;
+  sd_desain: string;
+  sd_ket: string;
+  sd_jo_kode: string;
+  imageUrl?: string;
+  AlasanClose?: string;
+  NoINV?: string;
+  NoSO?: string;
+  user_create: string;
+}
+
 const route = useRoute();
-const printData = ref<any>(null);
+const printData = ref<PrintData | null>(null);
 const isLoading = ref(true);
 const appLogo = Logo;
 const BASE_IMAGE_URL = import.meta.env.VITE_API_BASE_URL || '';

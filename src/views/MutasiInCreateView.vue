@@ -4,9 +4,22 @@ import { useRoute, useRouter } from 'vue-router';
 import { useToast } from 'vue-toastification';
 import { useAuthStore } from '@/stores/authStore';
 import api from '@/services/api';
-import { format, parseISO } from 'date-fns';
+import { format } from 'date-fns';
 import PageLayout from '@/components/PageLayout.vue';
 import MutasiOutSearchModal from '@/components/MutasiOutSearchModal.vue';
+import axios from 'axios';
+
+interface MutasiInItem {
+    kode: string;
+    nama: string;
+    ukuran: string;
+    qtyOut: number;
+    sudah: number;
+    belum?: number;
+    qtyIn?: number;
+    barcode?: string;
+    // tambahkan properti lain yang ada dari backend
+}
 
 const router = useRouter();
 const route = useRoute();
@@ -30,6 +43,9 @@ interface Item {
 // --- State ---
 const isEditMode = computed(() => !!route.params.nomor);
 const pageTitle = computed(() => isEditMode.value ? 'Ubah Mutasi In' : 'Buat Mutasi In');
+const canView = computed(() => authStore.can(MENU_ID, 'view'));
+const canInsert = computed(() => authStore.can(MENU_ID, 'insert'));
+const canEdit = computed(() => authStore.can(MENU_ID, 'edit'));
 
 const initialHeaderState = {
     nomor: '',
@@ -64,7 +80,7 @@ const tableHeaders = [
     { title: 'Belum', key: 'belum', align: 'center', width: '40px' },
     { title: 'Qty In', key: 'qtyIn', align: 'center', width: '40px' },
     { title: 'Barcode', key: 'barcode', width: '90px' },
-];
+] as const;
 
 // --- Methods ---
 const addNewRow = () => {
@@ -83,18 +99,22 @@ const loadDataForEdit = async (nomor: string) => {
         const response = await api.get(`/mutasi-in-form/${nomor}`);
         const { header: miHeader, items: miItems } = response.data;
 
-        Object.assign(header, miHeader); // Salin semua data header
+        Object.assign(header, miHeader);
         header.tanggal = format(new Date(miHeader.tanggal), 'yyyy-MM-dd');
 
-        items.value = miItems.map((item: any) => ({
+        items.value = miItems.map((item: MutasiInItem) => ({
             ...item,
             id: Date.now() + Math.random(),
-            belum: (item.qtyOut || 0) - (item.sudah || 0), // <-- Hitung 'belum'
+            belum: (item.qtyOut || 0) - (item.sudah || 0),
         }));
         addNewRow();
 
-    } catch (error: any) {
-        toast.error(error.response?.data?.message || 'Gagal memuat data.');
+    } catch (error: unknown) {
+        if (axios.isAxiosError(error) && error.response) {
+            toast.error(error.response.data?.message || 'Gagal memuat data.');
+        } else {
+            toast.error('Gagal memuat data.');
+        }
         router.back();
     } finally {
         isLoading.value = false;
@@ -128,14 +148,22 @@ const executeSave = async () => {
         const url = router.resolve({ name: 'Cetak Mutasi In', params: { nomor: nomorMI } }).href;
         window.open(url, '_blank');
         router.push({ name: 'MutasiIn' });
-    } catch (error: any) {
-        toast.error(error.response?.data?.message || 'Gagal menyimpan data.');
+
+    } catch (error: unknown) {
+        if (axios.isAxiosError(error) && error.response) {
+            toast.error(error.response.data?.message || 'Gagal menyimpan data.');
+        } else {
+            toast.error('Gagal menyimpan data.');
+        }
     } finally {
         isSaving.value = false;
     }
 };
 
 const handleSave = () => {
+    if (!canInsert.value && !isEditMode.value) return toast.warning('Anda tidak punya hak akses untuk membuat Mutasi In.');
+    if (!canEdit.value && isEditMode.value) return toast.warning('Anda tidak punya hak akses untuk mengubah Mutasi In.');
+
     if (!header.nomorMutasiOut) return toast.error('Nomor Mutasi Out harus diisi.');
     const validItems = items.value.filter(i => i.kode && (i.qtyIn || 0) > 0);
     if (validItems.length === 0) return toast.error('Detail barang atau Qty In harus diisi.');
@@ -174,15 +202,20 @@ const loadItemsFromMutasiOut = async (nomorMutasiOut: string) => {
         header.nomorSo = moHeader.nomorSo;
         header.dariCabang = { kode: moHeader.dariCabangKode, nama: moHeader.dariCabangNama };
 
-        items.value = moItems.map((item: any) => ({
+        items.value = moItems.map(item => ({
             ...item,
             id: Date.now() + Math.random(),
-            belum: (item.qtyOut || 0) - (item.sudah || 0), // <-- Hitung 'belum'
+            belum: (item.qtyOut || 0) - (item.sudah || 0),
             qtyIn: 0,
         }));
         addNewRow();
-    } catch (error: any) {
-        toast.error(error.response?.data?.message || 'Gagal memuat data dari Mutasi Out.');
+
+    } catch (error: unknown) {
+        if (axios.isAxiosError(error) && error.response) {
+            toast.error(error.response.data?.message || 'Gagal memuat data dari Mutasi Out.');
+        } else {
+            toast.error('Gagal memuat data dari Mutasi Out.');
+        }
         header.nomorMutasiOut = '';
     } finally {
         isLoading.value = false;
@@ -213,13 +246,20 @@ onMounted(() => {
 <template>
     <PageLayout :title="pageTitle" icon="mdi-truck-plus-outline">
         <template #header-actions>
-            <v-btn size="small" color="primary" @click="handleSave" :loading="isSaving"
+            <v-btn v-if="canInsert" size="small" color="primary" @click="handleSave" :loading="isSaving"
                 prepend-icon="mdi-content-save">Simpan</v-btn>
-            <v-btn size="small" @click="handleCancel" prepend-icon="mdi-refresh">
+
+            <v-btn v-if="canEdit" size="small" @click="handleCancel" prepend-icon="mdi-refresh">
                 Batal
             </v-btn>
-            <v-btn size="small" @click="handleClose" prepend-icon="mdi-close">Tutup</v-btn>
+
+            <v-btn v-if="canEdit" size="small" @click="handleClose" prepend-icon="mdi-close">Tutup</v-btn>
         </template>
+
+        <div v-if="!canView" class="state-container text-center my-5">
+            <v-icon size="64" class="mb-4">mdi-lock-outline</v-icon>
+            <h3 class="text-h6">Akses Ditolak</h3>
+        </div>
 
         <div class="form-grid-container">
             <!-- Left Column: Header -->
@@ -262,7 +302,7 @@ onMounted(() => {
                 <div class="desktop-form-section d-flex flex-column fill-height">
                     <v-data-table :headers="tableHeaders" :items="items" :loading="isLoading" density="compact"
                         class="desktop-table fill-height-table" fixed-header :items-per-page="-1">
-                        <template #item.qtyIn="{ item }">
+                        <template #[`item.qtyIn`]="{ item }">
                             <v-text-field v-model.number="item.qtyIn" type="number" variant="underlined"
                                 density="compact" hide-details class="text-right" :class="getQtyInClass(item)" />
                         </template>
@@ -294,8 +334,9 @@ onMounted(() => {
 
 <style scoped>
 .desktop-table :deep(td) {
-  vertical-align: middle !important;
+    vertical-align: middle !important;
 }
+
 /* Tambahkan blok CSS ini */
 .desktop-table :deep(td.v-data-table__td) {
     vertical-align: top;

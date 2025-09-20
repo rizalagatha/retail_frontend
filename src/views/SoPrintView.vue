@@ -6,8 +6,49 @@ import { format, parseISO } from 'date-fns';
 import Logo from '@/assets/logo.png';
 import InstagramLogo from '@/assets/instagram.jpg'; // Import logo Instagram
 
+interface PrintHeader {
+  so_nomor: string;
+  so_tanggal: string;
+  so_top: number;
+  so_ket: string;
+  so_sc: string;
+  cus_nama: string;
+  cus_alamat: string;
+  cus_kota: string;
+  cus_telp: string;
+  gdg_inv_instagram: string;
+  gdg_inv_alamat: string;
+  gdg_inv_kota: string;
+  gdg_inv_telp: string;
+}
+
+interface PrintItem {
+  nama_barang: string;
+  ukuran: string;
+  qty: number;
+  harga: number;
+  diskon: number;
+  total: number;
+}
+
+interface PrintSummary {
+  terbilang: string;
+  total: number;
+  diskon: number;
+  biaya_kirim: number;
+  grand_total: number;
+  dp: number;
+  belumbayar: number;
+}
+
+interface PrintData {
+  header: PrintHeader;
+  details: PrintItem[];
+  summary: PrintSummary;
+}
+
 const route = useRoute();
-const printData = ref<any>(null);
+const printData = ref<PrintData | null>(null);
 const isLoading = ref(true);
 const appLogo = Logo;
 const instagramLogo = InstagramLogo; // Definisikan untuk digunakan di template

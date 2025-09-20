@@ -45,7 +45,7 @@ const filterOptions = ref([
 const selectedFilterField = ref('nomor'); // Filter default
 const filterSearchValue = ref('');
 
-const hasViewPermission = computed(() => authStore.can(MENU_ID, 'view'));
+const hasViewPermission = ref(false);
 const dialogDelete = ref(false);
 const itemToDelete = ref<PriceProposal | null>(null);
 
@@ -87,7 +87,7 @@ const fetchCabangList = async () => {
     } else {
       cabangList.value = response.data;
     }
-  } catch (error) {
+  } catch {
     toast.error('Gagal memuat daftar cabang.');
   }
 };
@@ -107,7 +107,7 @@ const fetchData = async () => {
       }
     });
     proposals.value = response.data;
-  } catch (error) {
+  } catch {
     toast.error('Gagal memuat data pengajuan harga.');
   } finally {
     isLoading.value = false;
@@ -127,7 +127,7 @@ const deleteProposal = async (item: PriceProposal) => {
     toast.success(`Pengajuan harga ${item.nomor} berhasil dihapus.`);
     fetchData();
     selected.value = [];
-  } catch (error) {
+  } catch {
     toast.error('Gagal menghapus pengajuan harga.');
   }
 };
@@ -223,7 +223,7 @@ watch([selectedCabang, belumApproval, startDate, endDate], () => {
       <!-- Table Section -->
       <v-data-table v-model="selected" :headers="tableHeaders" :items="filteredProposals" :loading="isLoading"
         item-value="nomor" density="compact" class="desktop-table" fixed-header show-select return-object>
-        <template v-for="header in tableHeaders" #[`item.${header.key}`]="{ item }">
+        <template v-for="header in tableHeaders" #[`item.${header.key}`]="{ item }" :key="header.key">
           <td :class="getRowTextColor(item)">
             <template v-if="header.key === 'tanggal'">
               {{ format(new Date(item.tanggal), 'dd/MM/yyyy') }}

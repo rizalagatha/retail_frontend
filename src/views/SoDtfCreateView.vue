@@ -397,7 +397,7 @@ const fetchSisaKuota = async () => {
         });
         sisaKuota.value = response.data.sisaKuota;
     } catch (error) {
-        toast.error("Gagal mengambil data sisa kuota.");
+        toast.error("Gagal mengambil data sisa kuota.", error);
         sisaKuota.value = 0;
     }
 };
@@ -485,7 +485,7 @@ const fetchUkuranKaosList = async () => { // <-- TAMBAHKAN FUNGSI INI
         const response = await api.get('/so-dtf-form/lookup/ukuran-kaos');
         ukuranKaosList.value = response.data;
     } catch (error) {
-        toast.error('Gagal memuat daftar ukuran kaos.');
+        toast.error('Gagal memuat daftar ukuran kaos.', error);
     }
 };
 
@@ -500,7 +500,7 @@ const fetchSizeCetakList = async (jenisOrder: string) => {
         });
         sizeCetakList.value = response.data;
     } catch (error) {
-        toast.error('Gagal memuat daftar size cetak.');
+        toast.error('Gagal memuat daftar size cetak.', error);
         sizeCetakList.value = [];
     }
 };
@@ -513,7 +513,7 @@ const getHargaDTG = async () => {
         });
         return response.data.harga || 0;
     } catch (error) {
-        toast.error("Gagal menghitung harga DTG.");
+        toast.error("Gagal menghitung harga DTG.", error);
         return 0;
     }
 };

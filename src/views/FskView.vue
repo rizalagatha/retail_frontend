@@ -8,17 +8,34 @@ import { format, subDays, parseISO } from 'date-fns';
 import PageLayout from '@/components/PageLayout.vue';
 import * as XLSX from 'xlsx';
 
+interface FskMaster {
+    Nomor: string;
+    TglSetor: string;
+    TglVerifikasi?: string;
+    Created: string;
+    Verified?: string;
+    Closing?: string;
+    [key: string]: unknown;
+}
+
+interface FskDetail {
+    Jenis: string;
+    NominalSetor: number;
+    NominalVerifikasi: number;
+    [key: string]: unknown;
+}
+
 const router = useRouter();
 const toast = useToast();
 const authStore = useAuthStore();
 const MENU_ID = '54';
 
-const masterData = ref<any[]>([]);
-const details = ref<Record<string, any[]>>({});
+const masterData = ref<FskMaster[]>([]);
+const details = ref<Record<string, FskDetail[]>>({});
 const loading = ref(true);
 const loadingDetails = ref(new Set<string>());
-const selected = ref<any[]>([]);
-const expanded = ref<any[]>([]);
+const selected = ref<FskMaster[]>([]);
+const expanded = ref<string[]>([]);
 const cabangList = ref([]);
 
 const filters = reactive({
@@ -47,12 +64,12 @@ const headers = [
     { title: 'Dibuat Oleh', key: 'Created' },
     { title: 'Diverifikasi Oleh', key: 'Verified' },
     { title: 'Closing', key: 'Closing', align: 'center' },
-];
+] as const;
 const detailHeaders = [
     { title: 'Jenis', key: 'Jenis' },
     { title: 'Nominal Setor', key: 'NominalSetor', align: 'end' },
     { title: 'Nominal Verifikasi', key: 'NominalVerifikasi', align: 'end' },
-];
+] as const;
 
 const formatRupiah = (value: number) => {
     return new Intl.NumberFormat('id-ID').format(value || 0);
@@ -62,7 +79,7 @@ const fetchCabangList = async () => {
     try {
         const response = await api.get('/fsk/lookup/cabang');
         cabangList.value = response.data;
-    } catch (error) { toast.error('Gagal memuat daftar cabang.'); }
+    } catch { toast.error('Gagal memuat daftar cabang.'); }
 };
 
 const fetchMasterData = async () => {
@@ -70,23 +87,40 @@ const fetchMasterData = async () => {
     try {
         const response = await api.get('/fsk', { params: filters });
         masterData.value = response.data;
-    } catch (error: any) {
-        toast.error(error.response?.data?.message || 'Gagal mengambil data.');
+    } catch (error: unknown) {
+        if (error instanceof Error) {
+            toast.error(error.message || 'Gagal mengambil data.');
+        } else if (typeof error === 'object' && error !== null && 'response' in error) {
+            // Jika error dari Axios
+            const axiosError = error as { response?: { data?: { message?: string } } };
+            toast.error(axiosError.response?.data?.message || 'Gagal mengambil data.');
+        } else {
+            toast.error('Gagal mengambil data.');
+        }
     } finally {
         loading.value = false;
     }
 };
 
-const loadDetails = async (newlyExpandedItems: any[]) => {
-    const itemToLoad = newlyExpandedItems.find(item => !details.value[item.Nomor] && !loadingDetails.value.has(item.Nomor));
+const loadDetails = async (newlyExpandedItems: { Nomor: string }[]) => {
+    const itemToLoad = newlyExpandedItems.find(
+        item => !details.value[item.Nomor] && !loadingDetails.value.has(item.Nomor)
+    );
     if (!itemToLoad) return;
 
     loadingDetails.value.add(itemToLoad.Nomor);
     try {
-        const response = await api.get(`/fsk/details/${itemToLoad.Nomor}`);
+        const response = await api.get<FskDetail[]>(`/fsk/details/${itemToLoad.Nomor}`);
         details.value[itemToLoad.Nomor] = response.data;
-    } catch (error) { toast.error(`Gagal memuat detail untuk ${itemToLoad.Nomor}`); }
-    finally { loadingDetails.value.delete(itemToLoad.Nomor); }
+    } catch (error: unknown) {
+        if (error instanceof Error) {
+            toast.error(error.message || `Gagal memuat detail untuk ${itemToLoad.Nomor}`);
+        } else {
+            toast.error(`Gagal memuat detail untuk ${itemToLoad.Nomor}`);
+        }
+    } finally {
+        loadingDetails.value.delete(itemToLoad.Nomor);
+    }
 };
 
 const handleDelete = () => {
@@ -104,7 +138,7 @@ const handleDelete = () => {
 };
 
 // Pola pewarnaan baris sesuai permintaan
-const getRowTextColor = (item: any) => {
+const getRowTextColor = (item: FskMaster) => {
     // Merah untuk yang belum diverifikasi
     if (!item.Verified) {
         return 'text-red font-weight-bold';
@@ -134,7 +168,7 @@ const exportData = async (type: 'header' | 'detail') => {
             const workbook = XLSX.utils.book_new();
             XLSX.utils.book_append_sheet(workbook, worksheet, "FSK Detail");
             XLSX.writeFile(workbook, "Export_FSK_Detail.xlsx");
-        } catch (error) {
+        } catch {
             toast.error('Gagal mengekspor data detail.');
         }
     }
@@ -203,7 +237,7 @@ watch(filters, fetchMasterData, { deep: true });
                 <v-data-table v-model="selected" v-model:expanded="expanded" :headers="headers" :items="masterData"
                     :loading="loading" item-value="Nomor" density="compact" class="desktop-table" fixed-header
                     show-select return-object show-expand @update:expanded="loadDetails">
-                    <template v-for="header in headers" #[`item.${header.key}`]="{ item }">
+                    <template v-for="header in headers" :key="header.key" #[`item.${header.key}`]="{ item }">
                         <td :class="getRowTextColor(item)">
                             <template v-if="['TglSetor', 'TglVerifikasi'].includes(header.key)">
                                 {{ item[header.key] ? format(parseISO(item[header.key]), 'dd/MM/yyyy') : '' }}
@@ -226,10 +260,10 @@ watch(filters, fetchMasterData, { deep: true });
                                             detail...</div>
                                         <v-data-table v-else :headers="detailHeaders" :items="details[item.Nomor]"
                                             density="compact" class="detail-table" :items-per-page="-1">
-                                            <template #item.NominalSetor="{ value }">{{ formatRupiah(value)
-                                            }}</template>
-                                            <template #item.NominalVerifikasi="{ value }">{{ formatRupiah(value)
-                                            }}</template>
+                                            <template v-for="headerKey in ['NominalSetor', 'NominalVerifikasi']"
+                                                #[`item.${headerKey}`]="{ value }">
+                                                {{ formatRupiah(value) }}
+                                            </template>
                                             <template #bottom></template>
                                         </v-data-table>
                                     </div>

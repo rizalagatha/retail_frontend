@@ -246,7 +246,7 @@ const fetchSalesCounters = async () => {
         const response = await api.get('/invoice-form/lookup/sales-counters');
         salesCounters.value = response.data;
     } catch (error) {
-        toast.error('Gagal memuat daftar Sales Counter.');
+        toast.error('Gagal memuat daftar Sales Counter.', error);
     }
 };
 

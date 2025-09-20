@@ -12,6 +12,7 @@ import { useToast } from 'vue-toastification';
 import { useAuthStore } from '@/stores/authStore';
 import { useRouter, useRoute } from 'vue-router';
 import { format, addDays, isValid } from 'date-fns';
+import axios, { AxiosError } from 'axios';
 
 const toast = useToast();
 const authStore = useAuthStore();
@@ -59,6 +60,15 @@ interface DiscountRule {
     nominal: number;
 }
 
+interface Product {
+    kode: string;
+    nama: string;
+    ukuran: string;
+    stok: number;
+    harga: number;
+    barcode: string;
+}
+
 // --- State ---
 const header = ref({
     nomor: '',
@@ -86,7 +96,9 @@ const footer = ref({
     pinDiskon2: '',
 });
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 const productCategory = ref('Kaosan');
+
 const isCustomerSearchVisible = ref(false);
 // const isGudangSearchVisible = ref(false);
 const isProductSearchVisible = ref(false);
@@ -99,7 +111,10 @@ const isConfirmDialogVisible = ref(false);
 const confirmText = ref('');
 const pendingAction = ref<(() => void) | null>(null);
 const isAuthModalVisible = ref(false);
+
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 const defaultDiscount = ref(0);
+
 const previousDiscount = ref(0);
 const isAuth2ModalVisible = ref(false);
 const previousDiscount2 = ref(0);
@@ -107,14 +122,18 @@ const isItemAuthModalVisible = ref(false);
 const activeItemIndexForAuth = ref(-1);
 const previousItemDiscount = ref({ persen: 0, rp: 0 });
 const challengeCode = ref('');
-const authModalRef = ref<any>(null);
-const auth2ModalRef = ref<any>(null);
-const itemAuthModalRef = ref<any>(null);
+const authModalRef = ref<InstanceType<typeof AuthorizationModal> | null>(null);
+const auth2ModalRef = ref<InstanceType<typeof AuthorizationModal> | null>(null);
+
+
+const itemAuthModalRef = ref<InstanceType<typeof AuthorizationModal> | null>(null);
+
 const scannedBarcode = ref('');
 
 const isEditMode = computed(() => !!route.params.nomor);
 const pageTitle = computed(() => isEditMode.value ? `Ubah Penawaran: ${header.value.nomor}` : 'Buat Penawaran Baru');
 const requiredPermission = computed(() => isEditMode.value ? 'edit' : 'insert');
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 const canEditFooter = computed(() => {
     // Tombol/field di footer hanya aktif jika customer sudah dipilih
     // DAN setidaknya ada satu baris barang yang sudah terisi (memiliki kode).
@@ -157,7 +176,12 @@ const loadCustomerDetails = async () => {
             kota: response.data.cus_kota || '',
             telp: response.data.cus_telp || '',
             top: response.data.cus_top || 0,
-            level: response.data.xlevel
+            level: response.data.xlevel || '',
+            discountRule: {
+                diskon1: response.data.diskon1 || 0,
+                diskon2: response.data.diskon2 || 0,
+                nominal: response.data.nominal || 0,
+            }
         };
 
         header.value.top = response.data.cus_top || 0;
@@ -184,7 +208,7 @@ const loadOfferData = async (nomor: string) => {
 
         toast.success(`Data untuk penawaran ${nomor} berhasil dimuat.`);
     } catch (error) {
-        toast.error('Gagal memuat data penawaran.');
+        toast.error('Gagal memuat data penawaran.', error);
         router.push('/transaksi/penjualan/penawaran'); // Kembali ke daftar jika gagal
     }
 };
@@ -198,22 +222,24 @@ const onCustomerSelected = async (customer: { kode: string }) => {
     if (!customer || !customer.kode) return;
 
     try {
-        // Panggil API yang sudah kita perbaiki, tambahkan parameter 'gudang'
         const response = await api.get(`/offer-form/customer-details/${customer.kode}`, {
             params: { gudang: header.value.gudang.kode }
         });
 
-        // Data yang diterima sudah lengkap dan tervalidasi
         header.value.customer = response.data;
         header.value.top = response.data.top;
         applyDefaultDiscount();
-        calculateTotals(); // Panggil kalkulasi ulang setelah customer dipilih
+        calculateTotals();
         toast.success(`Customer ${response.data.nama} berhasil dipilih.`);
 
-    } catch (error: any) {
-        // Menampilkan pesan error validasi dari backend
-        toast.error(error.response?.data?.message || 'Gagal memuat detail customer.');
-        header.value.customer = null; // Kosongkan customer jika validasi gagal
+    } catch (error: unknown) {
+        // Cek dulu apakah error adalah AxiosError
+        if (axios.isAxiosError(error) && error.response) {
+            toast.error(error.response.data?.message || 'Gagal memuat detail customer.');
+        } else {
+            toast.error('Gagal memuat detail customer.');
+        }
+        header.value.customer = null;
     }
 };
 
@@ -255,42 +281,36 @@ const openProductSearch = (index: number, isMulti: boolean) => {
     isProductSearchVisible.value = true;
 };
 
-// Di dalam <script setup> PADA FORM INDUK (bukan di modal)
-
-const onProductsSelected = (selectedProducts: any[]) => {
+const onProductsSelected = (selectedProducts: Product[]) => {
     isProductSearchVisible.value = false; // Tutup modal
     if (!selectedProducts || selectedProducts.length === 0) return;
 
-    // Saring produk baru untuk membuang duplikat
-    const newProducts = selectedProducts.filter(product =>
-        !items.value.some(item => item.barcode === product.barcode)
-    ).map(product => ({
-        // Map produk terpilih ke dalam format item tabel
-        id: Date.now() + Math.random(),
-        kode: product.kode,
-        nama: product.nama,
-        ukuran: product.ukuran,
-        stok: product.stok,
-        harga: product.harga,
-        jumlah: 1,
-        diskonPersen: 0,
-        diskonRp: 0,
-        total: product.harga,
-        barcode: product.barcode,
-        noSoDtf: '',
-        noPengajuanHarga: '',
-        pin: ''
-    }));
+    const newProducts = selectedProducts
+        .filter(product => !items.value.some(item => item.barcode === product.barcode))
+        .map(product => ({
+            id: Date.now() + Math.random(),
+            kode: product.kode,
+            nama: product.nama,
+            ukuran: product.ukuran,
+            stok: product.stok,
+            harga: product.harga,
+            jumlah: 1,
+            diskonPersen: 0,
+            diskonRp: 0,
+            total: product.harga,
+            barcode: product.barcode,
+            noSoDtf: '',
+            noPengajuanHarga: '',
+            pin: ''
+        }));
 
     if (newProducts.length === 0) {
         toast.info("Semua produk yang dipilih sudah ada di dalam daftar.");
         return;
     }
 
-    // Ganti baris kosong dengan semua produk baru yang sudah difilter
     items.value.splice(activeRowIndex.value, 1, ...newProducts);
 
-    // Panggil fungsi-fungsi lain yang relevan
     addNewRow();
     calculateTotals();
 };
@@ -339,9 +359,25 @@ const calculateTotals = () => {
 const addNewRow = () => {
     const lastItem = items.value[items.value.length - 1];
     if (!lastItem || lastItem.kode) {
-        items.value.push({ id: Date.now(), kode: '', nama: '', ukuran: '', stok: 0, jumlah: 0, harga: 0, diskonPersen: 0, diskonRp: 0, total: 0, barcode: '', noSoDtf: '', noPengajuanHarga: '' });
+        items.value.push({
+            id: Date.now(),
+            kode: '',
+            nama: '',
+            ukuran: '',
+            stok: 0,
+            jumlah: 0,
+            harga: 0,
+            diskonPersen: 0,
+            diskonRp: 0,
+            total: 0,
+            barcode: '',
+            noSoDtf: '',
+            noPengajuanHarga: '',
+            pin: '' // tambahkan ini
+        });
     }
 };
+
 
 const removeRow = (index: number) => {
     items.value.splice(index, 1);
@@ -392,8 +428,17 @@ const save = async () => {
         toast.success(response.data.message);
         router.push('/transaksi/penjualan/penawaran');
 
-    } catch (error: any) {
-        toast.error(error.response?.data?.message || 'Gagal menyimpan data penawaran.');
+    } catch (error: unknown) {
+        if (axios.isAxiosError(error)) {
+            // error dari Axios
+            const message = error.response?.data?.message || error.message || 'Gagal menyimpan data penawaran.';
+            toast.error(message);
+        } else if (error instanceof Error) {
+            // error JS biasa
+            toast.error(error.message);
+        } else {
+            toast.error('Gagal menyimpan data penawaran.');
+        }
     } finally {
         isSaving.value = false;
     }
@@ -446,7 +491,7 @@ const handleDiscountChange = async () => {
             calculateTotals();
         }
     } catch (error) {
-        toast.error('Gagal memvalidasi diskon standar.');
+        toast.error('Gagal memvalidasi diskon standar.', error);
         // Kembalikan ke nilai sebelumnya jika API gagal
         footer.value.diskonPersen1 = previousDiscount.value;
     }
@@ -463,17 +508,21 @@ const onAuthSuccess = async (pin: string) => {
         isAuthModalVisible.value = false;
         toast.success('Otorisasi diskon berhasil.');
         calculateTotals();
-    } catch (error: any) {
-        // --- 👇 PENANGANAN ERROR LOKAL 👇 ---
-        // Jika status error adalah 401 (PIN salah), tangani di sini
-        if (error.response && error.response.status === 401) {
-            // Panggil method 'setFailed' di komponen modal untuk menampilkan pesan error
-            if (authModalRef.value) {
-                authModalRef.value.setFailed(error.response.data.message || 'Otorisasi Gagal.');
+    } catch (error: unknown) {
+        if (axios.isAxiosError(error)) {
+            // Error dari Axios
+            if (error.response?.status === 401) {
+                if (authModalRef.value) {
+                    authModalRef.value.setFailed(error.response.data.message || 'Otorisasi Gagal.');
+                }
+            } else {
+                toast.error(error.response?.data?.message || 'Terjadi kesalahan.');
             }
+        } else if (error instanceof Error) {
+            // Error JS biasa
+            toast.error(error.message);
         } else {
-            // Jika error lain, tampilkan toast seperti biasa
-            toast.error(error.response?.data?.message || 'Terjadi kesalahan.');
+            toast.error('Terjadi kesalahan.');
         }
     }
 };
@@ -509,17 +558,21 @@ const onItemAuthSuccess = async (pin: string) => {
         isItemAuthModalVisible.value = false;
         toast.success('Otorisasi diskon item berhasil.');
         calculateTotals();
-    } catch (error: any) {
-        // --- 👇 PENANGANAN ERROR LOKAL 👇 ---
-        // Jika status error adalah 401 (PIN salah), tangani di sini
-        if (error.response && error.response.status === 401) {
-            // Panggil method 'setFailed' di komponen modal untuk menampilkan pesan error
-            if (ItemAuthModalRef.value) {
-                ItemAuthModalRef.value.setFailed(error.response.data.message || 'Otorisasi Gagal.');
+    } catch (error: unknown) {
+        if (axios.isAxiosError(error)) {
+            // Error dari Axios
+            if (error.response?.status === 401) {
+                if (itemAuthModalRef.value) {
+                    itemAuthModalRef.value.setFailed(error.response.data.message || 'Otorisasi Gagal.');
+                }
+            } else {
+                toast.error(error.response?.data?.message || 'Terjadi kesalahan.');
             }
+        } else if (error instanceof Error) {
+            // Error JS biasa
+            toast.error(error.message);
         } else {
-            // Jika error lain, tampilkan toast seperti biasa
-            toast.error(error.response?.data?.message || 'Terjadi kesalahan.');
+            toast.error('Terjadi kesalahan.');
         }
     }
 };
@@ -557,17 +610,21 @@ const onAuth2Success = async (pin: string) => {
         isAuth2ModalVisible.value = false;
         toast.success('Otorisasi diskon berhasil.');
         calculateTotals();
-    } catch (error: any) {
-        // --- 👇 PENANGANAN ERROR LOKAL 👇 ---
-        // Jika status error adalah 401 (PIN salah), tangani di sini
-        if (error.response && error.response.status === 401) {
-            // Panggil method 'setFailed' di komponen modal untuk menampilkan pesan error
-            if (auth2ModalRef.value) {
-                auth2ModalRef.value.setFailed(error.response.data.message || 'Otorisasi Gagal.');
+    } catch (error: unknown) {
+        if (axios.isAxiosError(error)) {
+            // Error dari Axios
+            if (error.response?.status === 401) {
+                if (auth2ModalRef.value) {
+                    auth2ModalRef.value.setFailed(error.response.data.message || 'Otorisasi Gagal.');
+                }
+            } else {
+                toast.error(error.response?.data?.message || 'Terjadi kesalahan.');
             }
+        } else if (error instanceof Error) {
+            // Error JS biasa
+            toast.error(error.message);
         } else {
-            // Jika error lain, tampilkan toast seperti biasa
-            toast.error(error.response?.data?.message || 'Terjadi kesalahan.');
+            toast.error('Terjadi kesalahan.');
         }
     }
 };
@@ -599,16 +656,13 @@ const openPriceProposalSearch = (index: number) => {
 // Method untuk menangani hasil pilihan dari modal SO DTF
 const onSoDtfSelected = async (so: { nomor: string }) => {
     isSoDtfSearchVisible.value = false;
-    // Hapus baris kosong tempat F1 ditekan
     items.value.splice(activeRowIndex.value, 1);
 
     try {
-        // Panggil API untuk mengambil detail dari SO DTF yang dipilih
-        const response = await api.get(`/so-dtf-form/${so.nomor}`); // Gunakan endpoint yang sudah ada
+        const response = await api.get(`/so-dtf-form/${so.nomor}`);
         const { header, detailsUkuran } = response.data;
 
-        // Tambahkan setiap item dari detail SO DTF ke grid penawaran
-        detailsUkuran.forEach((detail: any) => {
+        detailsUkuran.forEach((detail: { ukuran: string; jumlah: number; harga: number }) => {
             items.value.push({
                 id: Date.now() + Math.random(),
                 kode: header.sd_nomor,
@@ -618,13 +672,24 @@ const onSoDtfSelected = async (so: { nomor: string }) => {
                 harga: detail.harga,
                 total: detail.jumlah * detail.harga,
                 noSoDtf: header.sd_nomor,
-                // ... isi properti lain dengan default
-                stok: 0, diskonPersen: 0, diskonRp: 0, barcode: '', noPengajuanHarga: '', pin: ''
+                stok: 0,
+                diskonPersen: 0,
+                diskonRp: 0,
+                barcode: '',
+                noPengajuanHarga: '',
+                pin: ''
             });
         });
-        addNewRow(); // Tambah baris kosong baru di akhir
-    } catch (error) {
-        toast.error(`Gagal memuat detail SO DTF ${so.nomor}`);
+
+        addNewRow();
+    } catch (error: unknown) {
+        if (axios.isAxiosError(error)) {
+            toast.error(error.response?.data?.message || `Gagal memuat detail SO DTF ${so.nomor}`);
+        } else if (error instanceof Error) {
+            toast.error(error.message);
+        } else {
+            toast.error(`Gagal memuat detail SO DTF ${so.nomor}`);
+        }
     }
 };
 
@@ -634,13 +699,11 @@ const onPriceProposalSelected = async (proposal: { nomor: string }) => {
     items.value.splice(activeRowIndex.value, 1);
 
     try {
-        // Panggil API untuk mengambil detail Pengajuan yang dipilih
-        const response = await api.get(`/price-proposal-form/edit-details/${proposal.nomor}`); // Gunakan endpoint yang sudah ada
+        const response = await api.get(`/price-proposal-form/edit-details/${proposal.nomor}`);
         const { headerData, itemsData } = response.data;
 
-        itemsData.forEach((detail: any) => {
+        itemsData.forEach((detail: { kode: string; nama: string; ukuran: string; jumlah: number; harga: number; total: number }) => {
             items.value.push({
-                // ... map data dari itemsData ke item Penawaran ...
                 id: Date.now() + Math.random(),
                 kode: detail.kode,
                 nama: detail.nama,
@@ -648,13 +711,25 @@ const onPriceProposalSelected = async (proposal: { nomor: string }) => {
                 jumlah: detail.jumlah,
                 harga: detail.harga,
                 total: detail.total,
-                noPengajuanHarga: headerData.nomor,
-                // ...
+                stok: 0,
+                diskonPersen: 0,
+                diskonRp: 0,
+                barcode: '',
+                noSoDtf: '', // tambahkan properti ini supaya sesuai tipe
+                noPengajuanHarga: headerData.nomor, // pastikan ini string
+                pin: ''
             });
         });
+
         addNewRow();
-    } catch (error) {
-        toast.error(`Gagal memuat detail Pengajuan ${proposal.nomor}`);
+    } catch (error: unknown) {
+        if (axios.isAxiosError(error)) {
+            toast.error(error.response?.data?.message || `Gagal memuat detail Pengajuan ${proposal.nomor}`);
+        } else if (error instanceof Error) {
+            toast.error(error.message);
+        } else {
+            toast.error(`Gagal memuat detail Pengajuan ${proposal.nomor}`);
+        }
     }
 };
 
@@ -739,8 +814,11 @@ const handleBarcodeScan = async () => {
                 diskonRp: 0,
                 total: product.harga,
                 barcode: product.barcode,
-                // ... properti lain diset default
+                noSoDtf: '',          // tambahkan properti default
+                noPengajuanHarga: '', // tambahkan properti default
+                pin: ''               // tambahkan properti default
             });
+
             addNewRow(); // Tambah baris kosong baru di akhir
         } else {
             // Jika tidak ada baris kosong (seharusnya tidak terjadi jika addNewRow dipakai)
@@ -751,10 +829,16 @@ const handleBarcodeScan = async () => {
         // Panggil fungsi untuk hitung ulang total jika ada
         // calculateTotals();
 
-    } catch (error: any) {
-        toast.error(error.response?.data?.message || `Barcode ${barcode} tidak valid.`);
+    } catch (err: unknown) {
+        let message = `Barcode ${barcode} tidak valid.`;
+
+        if (err instanceof AxiosError) {
+            message = err.response?.data?.message || message;
+        }
+
+        toast.error(message);
     } finally {
-        scannedBarcode.value = ''; // Selalu kosongkan input setelah proses selesai
+        scannedBarcode.value = ''; // selalu kosongkan input
     }
 };
 
@@ -774,6 +858,9 @@ watch(() => header.value.tanggal, (newDate) => {
         header.value.tempo = format(addDays(date, header.value.top || 0), 'yyyy-MM-dd');
     }
 });
+watch(() => header.value.customerKode, (newKode) => {
+    if (newKode) loadCustomerDetails();
+});
 
 onMounted(() => {
     // Pengecekan otorisasi sebelum memuat apa pun
@@ -789,6 +876,7 @@ onMounted(() => {
         addNewRow();
     }
 });
+
 
 </script>
 
@@ -889,48 +977,66 @@ onMounted(() => {
                 </div>
                 <v-data-table :headers="tableHeaders" :items="items" density="compact" class="desktop-table"
                     fixed-header :items-per-page="-1">
-                    <template #item.kode="{ item, index }">
+                    <template #[`item.kode`]="{ item, index }">
                         <v-text-field v-model="item.kode" variant="underlined" density="compact" hide-details
                             placeholder="F1/F2..." @keydown.f1.prevent="openProductSearch(index, false)"
-                            @keydown.f2.prevent="openProductSearch(index, true)">
-                        </v-text-field>
+                            @keydown.f2.prevent="openProductSearch(index, true)"></v-text-field>
                     </template>
-                    <template #item.nama="{ item }">
-                        <div class="scrollable-cell">
-                            {{ item.nama }}
-                        </div>
+
+                    <template #[`item.nama`]="{ item }">
+                        <div class="scrollable-cell">{{ item.nama }}</div>
                     </template>
-                    <template #item.jumlah="{ item }"><v-text-field v-model.number="item.jumlah" type="number"
-                            variant="underlined" dense hide-details single-line
-                            :disabled="!item.kode"></v-text-field></template>
-                    <template #item.harga="{ item }">
+
+                    <template #[`item.jumlah`]="{ item }">
+                        <v-text-field v-model.number="item.jumlah" type="number" variant="underlined" dense hide-details
+                            single-line :disabled="!item.kode"></v-text-field>
+                    </template>
+
+                    <template #[`item.harga`]="{ item }">
                         <v-text-field v-model.number="item.harga" type="number" variant="underlined" dense hide-details
                             single-line :disabled="!item.kode" :readonly="item.harga > 0"></v-text-field>
                     </template>
-                    <template #item.diskonPersen="{ item }"><v-text-field v-model.number="item.diskonPersen"
-                            type="number" variant="underlined" dense hide-details single-line
-                            @blur="handleItemDiscountChange(items.indexOf(item))"
-                            :disabled="!item.kode"></v-text-field></template>
-                    <template #item.diskonRp="{ item }"><v-text-field v-model.number="item.diskonRp" type="number"
-                            variant="underlined" dense hide-details single-line
-                            @blur="handleItemDiscountChange(items.indexOf(item))"
-                            :disabled="!item.kode"></v-text-field></template>
-                    <template #item.total="{ item }"><span class="text-caption font-weight-bold">{{ new
-                        Intl.NumberFormat('id-ID').format(item.total) }}</span></template>
-                    <template #item.actions="{ item }"><v-btn icon="mdi-delete" size="x-small" variant="text"
-                            color="error" @click="removeRow(items.indexOf(item))"></v-btn></template>
-                    <template #item.noSoDtf="{ item, index }">
-                        <v-text-field v-model="item.noSoDtf" variant="underlined" density="compact" hide-details
-                            placeholder="F1..." @keydown.f1.prevent="openSoDtfSearch(index)"><template
-                                #append-inner><v-icon @click="openSoDtfSearch(items.indexOf(item))"
-                                    size="small">mdi-magnify</v-icon></template></v-text-field>
+
+                    <template #[`item.diskonPersen`]="{ item }">
+                        <v-text-field v-model.number="item.diskonPersen" type="number" variant="underlined" dense
+                            hide-details single-line @blur="handleItemDiscountChange(items.indexOf(item))"
+                            :disabled="!item.kode"></v-text-field>
                     </template>
-                    <template #item.noPengajuanHarga="{ item, index }">
+
+                    <template #[`item.diskonRp`]="{ item }">
+                        <v-text-field v-model.number="item.diskonRp" type="number" variant="underlined" dense
+                            hide-details single-line @blur="handleItemDiscountChange(items.indexOf(item))"
+                            :disabled="!item.kode"></v-text-field>
+                    </template>
+
+                    <template #[`item.total`]="{ item }">
+                        <span class="text-caption font-weight-bold">
+                            {{ new Intl.NumberFormat('id-ID').format(item.total) }}
+                        </span>
+                    </template>
+
+                    <template #[`item.actions`]="{ item }">
+                        <v-btn icon="mdi-delete" size="x-small" variant="text" color="error"
+                            @click="removeRow(items.indexOf(item))"></v-btn>
+                    </template>
+
+                    <template #[`item.noSoDtf`]="{ item, index }">
+                        <v-text-field v-model="item.noSoDtf" variant="underlined" density="compact" hide-details
+                            placeholder="F1..." @keydown.f1.prevent="openSoDtfSearch(index)">
+                            <template #append-inner>
+                                <v-icon @click="openSoDtfSearch(items.indexOf(item))" size="small">mdi-magnify</v-icon>
+                            </template>
+                        </v-text-field>
+                    </template>
+
+                    <template #[`item.noPengajuanHarga`]="{ item, index }">
                         <v-text-field v-model="item.noPengajuanHarga" variant="underlined" density="compact"
-                            hide-details placeholder="F1..."
-                            @keydown.f1.prevent="openPriceProposalSearch(index)"><template #append-inner><v-icon
-                                    @click="openPriceProposalSearch(items.indexOf(item))"
-                                    size="small">mdi-magnify</v-icon></template></v-text-field>
+                            hide-details placeholder="F1..." @keydown.f1.prevent="openPriceProposalSearch(index)">
+                            <template #append-inner>
+                                <v-icon @click="openPriceProposalSearch(items.indexOf(item))"
+                                    size="small">mdi-magnify</v-icon>
+                            </template>
+                        </v-text-field>
                     </template>
                     <template #bottom>
                         <div class="pa-1 text-right border-t"><v-btn size="small" @click="addNewRow"
@@ -945,8 +1051,8 @@ onMounted(() => {
             @close="isCustomerSearchVisible = false" @customer-selected="onCustomerSelected" />
         <!-- <GudangSearchModal v-if="isGudangSearchVisible" :user-cabang="authStore.user?.cabang || ''"
             @close="isGudangSearchVisible = false" @gudang-selected="onGudangSelected" /> -->
-        <ProductSearchModal v-if="isProductSearchVisible" :category="'Kaosan'" :source="'penawaran'" :gudang="header.gudang.kode"
-            :multi="isMultiSelectProduct" @close="isProductSearchVisible = false"
+        <ProductSearchModal v-if="isProductSearchVisible" :category="'Kaosan'" :source="'penawaran'"
+            :gudang="header.gudang.kode" :multi="isMultiSelectProduct" @close="isProductSearchVisible = false"
             @products-selected="onProductsSelected" />
         <AuthorizationModal ref="authModalRef" v-if="isAuthModalVisible" title="Otorisasi Ganti Diskon Faktur"
             :challenge-code="challengeCode" @close="onAuthCancel" @success="onAuthSuccess" />
@@ -1002,8 +1108,10 @@ onMounted(() => {
 }
 
 .scanner-wrapper {
-  max-width: 400px; /* <-- ATUR LEBAR MAKSIMUM DI SINI */
-  flex: none;       /* Mencegah flexbox meregangkan wrapper ini */
-  margin-bottom: 16px;
+    max-width: 400px;
+    /* <-- ATUR LEBAR MAKSIMUM DI SINI */
+    flex: none;
+    /* Mencegah flexbox meregangkan wrapper ini */
+    margin-bottom: 16px;
 }
 </style>

@@ -84,7 +84,7 @@ const fetchTemplateItems = async (jenisOrder: string) => {
         const response = await api.get(`/so-dtf-stok-form/lookup/template-items/${jenisOrder}`);
         items.value = response.data.map((item: any, index: number) => ({ ...item, id: Date.now() + index, jumlah: 0 }));
         form.value.namaDtf = jenisOrder === 'SD' ? 'STICKER DTF' : 'STICKER DTF PREMIUM';
-    } catch (error) {
+    } catch {
         toast.error('Gagal memuat template item.');
     } finally {
         isLoading.value = false;
@@ -120,7 +120,7 @@ const loadDataForEdit = async (nomor: string) => {
                 itemToUpdate.lebar = savedItem.sds_lebar;
             }
         });
-    } catch (error) {
+    } catch {
         toast.error('Gagal memuat data SO Stok.');
         router.back();
     } finally {

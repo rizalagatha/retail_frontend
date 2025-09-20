@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { ref, reactive } from 'vue';
+import { ref } from 'vue';
 import api from '@/services/api';
 import { useAuthStore } from '@/stores/authStore';
 import { useToast } from 'vue-toastification';
 import { useRouter } from 'vue-router';
+import { AxiosError } from 'axios';
 
 interface Branch {
   kode: string;
@@ -49,7 +50,8 @@ const handleLogin = async () => {
       router.push('/'); // Arahkan ke halaman utama
     }
 
-  } catch (error: any) {
+  } catch (err) {
+    const error = err as AxiosError<{ message: string }>; // cast ke AxiosError
     toast.error(error.response?.data?.message || 'Terjadi kesalahan saat login.');
   } finally {
     isLoading.value = false;
@@ -74,8 +76,12 @@ const handleBranchSelect = async () => {
     toast.success(`Login sebagai cabang ${selectedCabang.value} berhasil!`);
     router.push('/');
 
-  } catch (error: any) {
-    toast.error(error.response?.data?.message || 'Gagal finalisasi login.');
+  } catch (err) {
+    if (err instanceof AxiosError) {
+      toast.error(err.response?.data?.message || 'Gagal finalisasi login.');
+    } else {
+      toast.error('Gagal finalisasi login.');
+    }
   } finally {
     isLoading.value = false;
     // Reset state

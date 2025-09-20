@@ -6,7 +6,7 @@ import PageLayout from '@/components/PageLayout.vue';
 import { useToast } from 'vue-toastification';
 import { useAuthStore } from '@/stores/authStore';
 import { format, parseISO } from 'date-fns';
-import * as XLSX from 'xlsx';
+import { AxiosError } from 'axios';
 
 const toast = useToast();
 const authStore = useAuthStore();
@@ -21,7 +21,7 @@ interface LhkStokHeader {
     Jumlah: number;
     Usr: string;
     Created: string;
-    [key: string]: any;
+    [key: string]: unknown;
 }
 
 interface LhkStokDetail {
@@ -81,14 +81,14 @@ const headers = [
     { title: 'Jumlah', key: 'Jumlah', align: 'end' },
     { title: 'User', key: 'Usr', width: '150px' },
     { title: 'Created', key: 'Created', width: '180px' },
-];
+] as const;
 
 const detailHeaders = [
     { title: 'Kode', key: 'Kode' },
     { title: 'Nama', key: 'Nama' },
     { title: 'Ukuran', key: 'Ukuran' },
     { title: 'Jumlah', key: 'Jumlah', align: 'end' },
-];
+] as const;
 
 // --- Methods ---
 const fetchCabangList = async () => {
@@ -96,7 +96,7 @@ const fetchCabangList = async () => {
         const response = await api.get('/lhk-so-dtf-stok/lookup/cabang');
         cabangList.value = response.data;
     } catch (error) {
-        toast.error('Gagal memuat daftar cabang.');
+        toast.error('Gagal memuat daftar cabang.', error);
     }
 };
 
@@ -112,7 +112,7 @@ const fetchData = async () => {
         });
         list.value = response.data;
     } catch (error) {
-        toast.error('Gagal memuat data LHK Stok.');
+        toast.error('Gagal memuat data LHK Stok.', error);
     } finally {
         isLoading.value = false;
     }
@@ -128,7 +128,7 @@ const loadDetails = async (newlyExpandedItems: LhkStokHeader[]) => {
         const response = await api.get(`/lhk-so-dtf-stok/${nomorToLoad}`);
         details.value[nomorToLoad] = response.data;
     } catch (error) {
-        toast.error(`Gagal memuat detail untuk ${nomorToLoad}`);
+        toast.error(`Gagal memuat detail untuk ${nomorToLoad}`, error);
         expanded.value = expanded.value.filter(nomor => nomor !== nomorToLoad);
     } finally {
         loadingDetails.value.delete(nomorToLoad);
@@ -148,8 +148,12 @@ const executeDelete = async () => {
         toast.success(`LHK Stok ${itemToDelete.value.Nomor} berhasil dihapus.`);
         fetchData();
         selected.value = [];
-    } catch (error: any) {
-        toast.error(error.response?.data?.message || 'Gagal menghapus data.');
+    } catch (err) {
+        if (err instanceof AxiosError) {
+            toast.error(err.response?.data?.message || 'Gagal menghapus data.');
+        } else {
+            toast.error('Gagal menghapus data.');
+        }
     } finally {
         isConfirmDeleteVisible.value = false;
         itemToDelete.value = null;
@@ -209,8 +213,13 @@ watch([startDate, endDate, selectedCabang], fetchData, { immediate: false });
                 <v-data-table v-model="selected" :headers="headers" :items="filteredList" :loading="isLoading"
                     v-model:expanded="expanded" @update:expanded="loadDetails" item-value="Nomor" density="compact"
                     class="desktop-table" fixed-header show-select return-object show-expand>
-                    <template #item.Tanggal="{ item }">{{ format(parseISO(item.Tanggal), 'dd/MM/yyyy') }}</template>
-                    <template #item.Created="{ item }">{{ item.Created ? format(parseISO(item.Created), 'dd/MM/yyyy HH:mm:ss') : '-' }}</template>
+                    <template v-slot:[`item.Tanggal`]="{ item }">
+                        {{ format(parseISO(item.Tanggal), 'dd/MM/yyyy') }}
+                    </template>
+
+                    <template v-slot:[`item.Created`]="{ item }">
+                        {{ item.Created ? format(parseISO(item.Created), 'dd/MM/yyyy HH:mm:ss') : '-' }}
+                    </template>
                     <template #expanded-row="{ columns, item }">
                         <tr>
                             <td :colspan="columns.length" class="pa-2 bg-grey-lighten-5">

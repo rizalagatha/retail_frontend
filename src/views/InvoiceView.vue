@@ -75,7 +75,7 @@ const headers = [
     { title: 'Prn', key: 'Prn', align: 'center' },
     { title: 'Puas', key: 'Puas', align: 'center' },
     { title: 'Closing', key: 'Closing', align: 'center' },
-];
+] as const;
 const detailHeaders = [
     { title: 'Kode', key: 'Kode' },
     { title: 'Barcode', key: 'Barcode' },
@@ -85,14 +85,14 @@ const detailHeaders = [
     { title: 'Harga', key: 'Harga', align: 'end' },
     { title: 'Dis %', key: 'Dis%', align: 'end' },
     { title: 'Total', key: 'Total', align: 'end' },
-];
+] as const;
 
 // --- Methods ---
 const fetchCabangList = async () => {
     try {
         const response = await api.get('/invoices/lookup/cabang');
         cabangList.value = response.data;
-    } catch (error) { toast.error('Gagal memuat daftar cabang.'); }
+    } catch (error) { toast.error('Gagal memuat daftar cabang.', error); }
 };
 
 const fetchMasterData = async () => {
@@ -115,7 +115,7 @@ const loadDetails = async (newlyExpandedItems: any[]) => {
     try {
         const response = await api.get(`/invoices/details/${itemToLoad.Nomor}`);
         details.value[itemToLoad.Nomor] = response.data;
-    } catch (error) { toast.error(`Gagal memuat detail untuk ${itemToLoad.Nomor}`); }
+    } catch (error) { toast.error(`Gagal memuat detail untuk ${itemToLoad.Nomor}`, error); }
     finally { loadingDetails.value.delete(itemToLoad.Nomor); }
 };
 
@@ -269,8 +269,12 @@ watch(filters, fetchMasterData, { deep: true });
                                             detail...</div>
                                         <v-data-table v-else :headers="detailHeaders" :items="details[item.Nomor]"
                                             density="compact" class="detail-table" :items-per-page="-1">
-                                            <template #item.Harga="{ value }">{{ formatRupiah(value) }}</template>
-                                            <template #item.Total="{ value }">{{ formatRupiah(value) }}</template>
+                                            <template #[`item.Harga`]="{ value }">
+                                                {{ formatRupiah(value) }}
+                                            </template>
+                                            <template #[`item.Total`]="{ value }">
+                                                {{ formatRupiah(value) }}
+                                            </template>
                                             <template #bottom></template>
                                         </v-data-table>
                                     </div>

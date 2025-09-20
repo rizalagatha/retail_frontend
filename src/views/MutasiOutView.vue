@@ -18,7 +18,7 @@ interface MutasiHeader {
     Nomor: string;
     Tanggal: string;
     Status: string;
-    [key: string]: any;
+    [key: string]: unknown;
 }
 interface MutasiDetail {
     Kode: string;
@@ -53,7 +53,7 @@ const headers = [
     { title: 'Status', key: 'Status', align: 'center' },
     { title: 'Keterangan', key: 'Keterangan', width: '300px' },
     { title: 'User', key: 'Usr' },
-];
+] as const;
 
 const detailHeaders = [
     { title: 'Kode', key: 'Kode' },
@@ -61,7 +61,7 @@ const detailHeaders = [
     { title: 'Ukuran', key: 'Ukuran' },
     { title: 'Qty Out', key: 'QtyOut', align: 'end' },
     { title: 'Qty In', key: 'QtyIn', align: 'end' },
-];
+] as const;
 
 // --- Methods ---
 const fetchCabangList = async () => {
@@ -72,7 +72,7 @@ const fetchCabangList = async () => {
             selectedCabang.value = cabangList.value[0].kode;
         }
     } catch (error) {
-        toast.error('Gagal memuat daftar cabang.');
+        toast.error('Gagal memuat daftar cabang.', error);
     }
 };
 
@@ -89,7 +89,7 @@ const fetchData = async () => {
         });
         list.value = response.data;
     } catch (error) {
-        toast.error('Gagal memuat data Mutasi Out.');
+        toast.error('Gagal memuat data Mutasi Out.', error);
     } finally {
         isLoading.value = false;
     }
@@ -105,7 +105,7 @@ const loadDetails = async (newlyExpandedItems: MutasiHeader[]) => {
         const response = await api.get(`/mutasi-out/${nomorToLoad}`);
         details.value[nomorToLoad] = response.data;
     } catch (error) {
-        toast.error(`Gagal memuat detail untuk ${nomorToLoad}`);
+        toast.error(`Gagal memuat detail untuk ${nomorToLoad}`, error);
         expanded.value = expanded.value.filter(nomor => nomor !== nomorToLoad);
     } finally {
         loadingDetails.value.delete(nomorToLoad);
@@ -114,16 +114,23 @@ const loadDetails = async (newlyExpandedItems: MutasiHeader[]) => {
 
 const exportData = async (type: 'header' | 'detail') => {
     if (type === 'header') {
-        if (masterData.value.length === 0) return toast.warning('Tidak ada data header untuk diekspor.');
+        if (list.value.length === 0) return toast.warning('Tidak ada data header untuk diekspor.');
         try {
-            const worksheet = XLSX.utils.json_to_sheet(masterData.value);
+            const worksheet = XLSX.utils.json_to_sheet(list.value);
             const workbook = XLSX.utils.book_new();
             XLSX.utils.book_append_sheet(workbook, worksheet, "Mutasi Out Header");
             XLSX.writeFile(workbook, "Export_Mutasi_Out_Header.xlsx");
-        } catch (error) { toast.error('Gagal membuat file Excel.'); }
+        } catch (error) {
+            toast.error('Gagal membuat file Excel.', error);
+        }
     } else if (type === 'detail') {
         try {
             toast.info('Mengambil data detail dari server...');
+            const filters = {
+                startDate: startDate.value,
+                endDate: endDate.value,
+                cabang: selectedCabang.value
+            };
             const response = await api.get('/mutasi-out/export-details', { params: filters });
             if (response.data.length === 0) return toast.warning('Tidak ada data detail untuk diekspor.');
 
@@ -131,21 +138,21 @@ const exportData = async (type: 'header' | 'detail') => {
             const workbook = XLSX.utils.book_new();
             XLSX.utils.book_append_sheet(workbook, worksheet, "Mutasi Out Detail");
             XLSX.writeFile(workbook, "Export_Mutasi_Out_Detail.xlsx");
-        } catch (error) { toast.error('Gagal mengekspor data detail.'); }
+        } catch (error) {
+            toast.error('Gagal mengekspor data detail.', error);
+        }
     }
 };
 
-const getRowTextColor = (item: any) => {
-    // Merah untuk open
-    if (item.Status === 'OPEN') {
-        return 'text-red font-weight-bold';
+const getRowTextColor = (item: MutasiHeader): string => {
+    switch (item.Status) {
+        case 'OPEN':
+            return 'text-red font-weight-bold';
+        case 'PROSES':
+            return 'text-blue font-weight-bold';
+        default:
+            return '';
     }
-    // Biru untuk proses
-    if (item.Status === 'PROSES') {
-        return 'text-blue font-weight-bold';
-    }
-    // Hitam (default) untuk close
-    return '';
 };
 
 // Tambahkan juga fungsi untuk chip status
@@ -240,7 +247,7 @@ watch([startDate, endDate, selectedCabang], fetchData);
                 <v-data-table v-model="selected" :headers="headers" :items="list" :loading="isLoading"
                     item-value="Nomor" density="compact" class="desktop-table fill-height-table" fixed-header
                     show-select return-object show-expand @update:expanded="loadDetails">
-                    <template v-for="header in headers" #[`item.${header.key}`]="{ item }">
+                    <template v-for="header in headers" :key="header.key" #[`item.${header.key}`]="{ item }">
                         <td :class="getRowTextColor(item)">
                             <template v-if="header.key === 'Tanggal'">
                                 {{ format(parseISO(item.Tanggal), 'dd/MM/yyyy') }}

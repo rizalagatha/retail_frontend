@@ -19,6 +19,12 @@ interface Permission {
   delete: boolean;
 }
 
+interface LoginResponse {
+  token: string;
+  user: User;
+  permissions: Permission[];
+}
+
 // 'useAuthStore' adalah nama hook yang akan kita gunakan di komponen
 export const useAuthStore = defineStore('auth', () => {
   const router = useRouter();
@@ -46,7 +52,7 @@ export const useAuthStore = defineStore('auth', () => {
   // Fungsi untuk mengubah state
 
   // Aksi yang dipanggil setelah login berhasil
-  function setLoginData(loginResponse: any) {
+  function setLoginData(loginResponse: LoginResponse) {
     token.value = loginResponse.token;
     user.value = loginResponse.user;
     permissions.value = loginResponse.permissions;

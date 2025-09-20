@@ -9,6 +9,7 @@ import PageLayout from '@/components/PageLayout.vue';
 import CustomerSearchModal from '@/components/CustomerSearchModal.vue';
 import RekeningSearchModal from '@/components/RekeningSearchModal.vue';
 import UnpaidInvoiceSearchModal from '@/components/UnpaidInvoiceSearchModal.vue';
+import { AxiosError } from 'axios';
 
 // --- Tipe Data ---
 interface Header {
@@ -42,6 +43,28 @@ interface Item {
     lunasi: boolean;
     keterangan: string;
     angsur: string;
+}
+interface Customer {
+    kode: string;
+    nama: string;
+    alamat: string;
+    kota: string;
+    telp: string;
+}
+interface Akun {
+    kode: string;
+    nama: string;
+    rekening: string;
+}
+
+interface InvoiceItem {
+    invoice: string;
+    tanggal: string;
+    top: number;
+    jatuhTempo: string;
+    nominal: number;
+    terbayar: number;
+    sisa: number;
 }
 
 // --- Inisialisasi ---
@@ -102,7 +125,7 @@ const tableHeaders = [
     { title: 'Tgl Bayar', key: 'tglBayar', width: '130px' },
     { title: 'Keterangan', key: 'keterangan', width: '200px' },
     { title: 'Actions', key: 'actions', sortable: false, width: '50px' },
-];
+] as const;
 
 // --- Methods ---
 const calculateTotals = () => {
@@ -127,7 +150,7 @@ const removeRow = (id: number) => {
     calculateTotals();
 };
 
-const onCustomerSelected = (customer: any) => {
+const onCustomerSelected = (customer: Customer) => {
     header.customer = customer;
     dialog.customerSearch = false;
     items.value = []; // Reset grid saat ganti customer
@@ -137,7 +160,7 @@ const onCustomerSelected = (customer: any) => {
 const openRekeningSearch = () => {
     dialog.rekeningSearch = true;
 };
-const onRekeningSelected = (akun: any) => {
+const onRekeningSelected = (akun: Akun) => {
     header.akun = akun;
     dialog.rekeningSearch = false;
 };
@@ -148,7 +171,7 @@ const openUnpaidInvoiceSearch = (index: number) => {
     dialog.invoiceSearch = true;
 };
 
-const onUnpaidInvoiceSelected = (invoice: any) => {
+const onUnpaidInvoiceSelected = (invoice: InvoiceItem) => {
     dialog.invoiceSearch = false;
     const isDuplicate = items.value.some(item => item.invoice === invoice.invoice);
     if (isDuplicate) return toast.warning('Invoice tersebut sudah ada di dalam daftar.');
@@ -191,14 +214,14 @@ const executeSave = async () => {
         const response = await api.post('/setoran-bayar-form/save', payload);
         toast.success(response.data.message);
 
-        // --- ARAHKAN KE HALAMAN CETAK ---
+        // Arahkan ke halaman cetak
         const nomorSetoran = response.data.nomor;
         const url = router.resolve({ name: 'CetakSetoranBayar', params: { nomor: nomorSetoran } }).href;
         window.open(url, '_blank');
-        // --- AKHIR ---
 
         router.push({ name: 'SetoranBayar' });
-    } catch (error: any) {
+    } catch (err) {
+        const error = err as AxiosError<{ message: string }>;
         toast.error(error.response?.data?.message || 'Gagal menyimpan data.');
     } finally {
         isSaving.value = false;
@@ -224,20 +247,21 @@ const handleClose = () => {
 
 onMounted(() => {
     const nomor = route.params.nomor as string;
+
     if (!authStore.can(MENU_ID, requiredPermission.value)) {
         toast.error(`Anda tidak memiliki izin untuk ${isEditMode.value ? 'mengubah' : 'membuat'} data Setoran.`);
-        router.push({ name: 'SetoranBayar' }); // Arahkan kembali ke halaman browse
+        router.push({ name: 'SetoranBayar' });
         return;
     }
 
     if (isEditMode.value && nomor) {
-        // --- LOGIKA UNTUK MODE UBAH ---
         isLoading.value = true;
+
         api.get(`/setoran-bayar-form/${nomor}`)
             .then(response => {
                 const data = response.data;
 
-                // Isi header form
+                // --- Isi header ---
                 header.nomor = data.header.nomor;
                 header.tanggal = format(new Date(data.header.tanggal), 'yyyy-MM-dd');
                 header.customer = {
@@ -255,36 +279,53 @@ onMounted(() => {
                     nama: data.header.akun_nama,
                     rekening: data.header.akun_rekening
                 };
-                header.tanggalTransfer = data.header.tanggalTransfer ? format(new Date(data.header.tanggalTransfer), 'yyyy-MM-dd') : '';
+                header.tanggalTransfer = data.header.tanggalTransfer
+                    ? format(new Date(data.header.tanggalTransfer), 'yyyy-MM-dd')
+                    : '';
                 header.nomorGiro = data.header.nomorGiro;
-                header.tanggalGiro = data.header.tanggalGiro ? format(new Date(data.header.tanggalGiro), 'yyyy-MM-dd') : '';
-                header.tanggalJatuhTempo = data.header.tanggalJatuhTempo ? format(new Date(data.header.tanggalJatuhTempo), 'yyyy-MM-dd') : '';
+                header.tanggalGiro = data.header.tanggalGiro
+                    ? format(new Date(data.header.tanggalGiro), 'yyyy-MM-dd')
+                    : '';
+                header.tanggalJatuhTempo = data.header.tanggalJatuhTempo
+                    ? format(new Date(data.header.tanggalJatuhTempo), 'yyyy-MM-dd')
+                    : '';
                 header.nomorSo = data.header.nomorSo;
 
-                // Isi detail grid
-                items.value = data.items.map((item: any) => ({
-                    ...item,
+                // --- Isi detail grid ---
+                items.value = data.items.map((item: Partial<Item>) => ({
                     id: Date.now() + Math.random(),
+                    invoice: item.invoice || '',
+                    tanggal: item.tanggal || '',
+                    top: item.top || 0,
+                    jatuhTempo: item.jatuhTempo || '',
+                    nominal: item.nominal || 0,
+                    terbayar: item.terbayar || 0,
+                    sisa: item.sisa || 0,
+                    bayar: 0, // default 0
+                    tglBayar: format(new Date(), 'yyyy-MM-dd'), // default hari ini
                     lunasi: false,
+                    keterangan: item.keterangan || '',
+                    angsur: item.angsur || '',
                 }));
                 addNewRow();
                 calculateTotals();
 
-                // Cek apakah sudah diposting untuk menonaktifkan field
+                // --- Cek posting ---
                 isPosted.value = data.header.isPosted;
                 if (isPosted.value) {
                     toast.warning('Data ini sudah di-posting oleh finance dan tidak bisa diubah.');
                 }
             })
-            .catch(err => {
-                toast.error('Gagal memuat data setoran.');
+            .catch((err: unknown) => {
+                const error = err as AxiosError<{ message: string }>;
+                toast.error(error.response?.data?.message || 'Gagal memuat data setoran.');
                 router.back();
             })
             .finally(() => {
                 isLoading.value = false;
             });
     } else {
-        // --- LOGIKA UNTUK MODE BARU ---
+        // Mode baru
         resetForm();
         isLoading.value = false;
     }
@@ -418,37 +459,42 @@ watch(() => header.nominal, calculateTotals);
                 <div class="desktop-form-section d-flex flex-column fill-height">
                     <v-data-table :headers="tableHeaders" :items="items" :loading="isLoading" density="compact"
                         class="desktop-table fill-height-table" fixed-header :items-per-page="-1">
-                        <template #item.invoice="{ item, index }">
+                        <template #[`item.invoice`]="{ item, index }">
                             <v-text-field v-model="item.invoice" variant="underlined" density="compact" hide-details
                                 @keydown.f1.prevent="openUnpaidInvoiceSearch(index)" placeholder="F1..." readonly />
                         </template>
-                        <template #item.tanggal="{ value }">{{ value ? format(parseISO(value), 'dd-MM-yyyy') : ''
-                            }}</template>
-                        <template #item.jatuhTempo="{ value }">{{ value ? format(parseISO(value), 'dd-MM-yyyy') : ''
-                            }}</template>
-                        <template #item.nominal="{ value }">{{ new Intl.NumberFormat('id-ID').format(value)
-                            }}</template>
-                        <template #item.terbayar="{ value }">{{ new Intl.NumberFormat('id-ID').format(value)
-                            }}</template>
-                        <template #item.sisa="{ value }">{{ new Intl.NumberFormat('id-ID').format(value) }}</template>
-
-                        <template #item.bayar="{ item }">
+                        <template #[`item.tanggal`]="{ value }">
+                            {{ value ? format(parseISO(value), 'dd-MM-yyyy') : '' }}
+                        </template>
+                        <template #[`item.jatuhTempo`]="{ value }">
+                            {{ value ? format(parseISO(value), 'dd-MM-yyyy') : '' }}
+                        </template>
+                        <template #[`item.nominal`]="{ value }">
+                            {{ new Intl.NumberFormat('id-ID').format(value) }}
+                        </template>
+                        <template #[`item.terbayar`]="{ value }">
+                            {{ new Intl.NumberFormat('id-ID').format(value) }}
+                        </template>
+                        <template #[`item.sisa`]="{ value }">
+                            {{ new Intl.NumberFormat('id-ID').format(value) }}
+                        </template>
+                        <template #[`item.bayar`]="{ item }">
                             <v-text-field v-model.number="item.bayar" type="number" variant="underlined"
                                 density="compact" hide-details class="text-right" @input="calculateTotals" />
                         </template>
-                        <template #item.lunasi="{ item }">
+                        <template #[`item.lunasi`]="{ item }">
                             <v-checkbox v-model="item.lunasi" @change="handleLunasi(item)" hide-details
                                 density="compact" />
                         </template>
-                        <template #item.tglBayar="{ item }">
+                        <template #[`item.tglBayar`]="{ item }">
                             <v-text-field v-model="item.tglBayar" type="date" variant="underlined" density="compact"
                                 hide-details />
                         </template>
-                        <template #item.keterangan="{ item }">
+                        <template #[`item.keterangan`]="{ item }">
                             <v-text-field v-model="item.keterangan" variant="underlined" density="compact"
                                 hide-details />
                         </template>
-                        <template #item.actions="{ item }">
+                        <template #[`item.actions`]="{ item }">
                             <v-btn icon="mdi-delete" size="x-small" variant="text" color="error"
                                 @click="removeRow(item.id)" />
                         </template>
@@ -461,8 +507,8 @@ watch(() => header.nominal, calculateTotals);
             </div>
         </div>
 
-        <CustomerSearchModal v-if="dialog.customerSearch" @close="dialog.customerSearch = false"
-            @customer-selected="onCustomerSelected" />
+        <CustomerSearchModal v-if="dialog.customerSearch" :gudang="authStore.user?.cabang || ''"
+            @close="dialog.customerSearch = false" @customer-selected="onCustomerSelected" />
         <RekeningSearchModal v-if="dialog.rekeningSearch" :cabang="authStore.user?.cabang || ''"
             @close="dialog.rekeningSearch = false" @selected="onRekeningSelected" />
         <UnpaidInvoiceSearchModal v-if="dialog.invoiceSearch" :customer-kode="header.customer.kode"

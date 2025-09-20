@@ -7,6 +7,7 @@ import api from '@/services/api';
 import { format, parseISO } from 'date-fns';
 import PageLayout from '@/components/PageLayout.vue';
 import SoSearchModalForMutasi from '@/components/SoSearchModalForMutasi.vue';
+import type { AxiosError } from 'axios';
 
 // --- Tipe Data ---
 interface Item {
@@ -60,8 +61,6 @@ const dialogConfirm = reactive({
     text: '',
     onConfirm: () => { },
 });
-const confirmAction = ref<(() => void) | null>(null);
-const confirmText = ref('');
 
 const tableHeaders = [
     { title: 'Kode Barang', key: 'kode', width: '150px' },
@@ -75,19 +74,20 @@ const tableHeaders = [
     { title: 'Kurang', key: 'kurang', align: 'end', width: '100px' },
     { title: 'Qty Mutasi', key: 'jumlah', align: 'end', width: '150px' },
     { title: 'Barcode', key: 'barcode', width: '150px' },
-];
+] as const;
 
 // --- Methods ---
 const loadDataFromSo = async (nomorSo: string) => {
     isLoading.value = true;
     try {
-        const response = await api.get(`/mutasi-stok-form/load-from-so/${nomorSo}`);
-        items.value = response.data.map((item: any) => ({
+        const response = await api.get<Item[]>(`/mutasi-stok-form/load-from-so/${nomorSo}`);
+        items.value = response.data.map((item) => ({
             ...item,
             id: Date.now() + Math.random(),
             jumlah: 0,
         }));
-    } catch (error: any) {
+    } catch (err: unknown) {
+        const error = err as AxiosError<{ message: string }>;
         toast.error(error.response?.data?.message || 'Gagal memuat detail SO.');
         header.nomorSo = ''; // Reset jika gagal
     } finally {
@@ -105,12 +105,13 @@ const loadDataForEdit = async (nomor: string) => {
         header.nomorSo = msoHeader.nomorSo;
         header.jenisMutasi = msoHeader.jenisMutasi;
         header.keterangan = msoHeader.keterangan;
-        items.value = msoItems.map((item: any) => ({
+        items.value = msoItems.map((item: Item) => ({
             ...item,
             id: Date.now() + Math.random(),
         }));
         isDataSaved.value = true;
-    } catch (error: any) {
+    } catch (err: unknown) {
+        const error = err as AxiosError<{ message: string }>;
         toast.error(error.response?.data?.message || 'Gagal memuat data.');
         router.back();
     } finally {
@@ -146,7 +147,8 @@ const executeSave = async () => {
         window.open(url, '_blank');
 
         router.push({ name: 'MutasiStok' }); // Kembali ke halaman browse
-    } catch (error: any) {
+    } catch (err: unknown) {
+        const error = err as AxiosError<{ message: string }>;
         toast.error(error.response?.data?.message || 'Gagal menyimpan data.');
     } finally {
         isSaving.value = false;
@@ -213,7 +215,7 @@ onMounted(() => {
 <template>
     <PageLayout :title="pageTitle" desktop-mode icon="mdi-swap-horizontal-bold">
         <template #header-actions>
-            <v-btn size="small" color="primary" @click="save" :loading="isSaving"
+            <v-btn size="small" color="primary" @click="handleSave" :loading="isSaving"
                 :disabled="isSaving || !authStore.can(MENU_ID, requiredPermission)">
                 Simpan
             </v-btn>
@@ -262,10 +264,10 @@ onMounted(() => {
                 <div class="desktop-form-section d-flex flex-column fill-height">
                     <v-data-table :headers="tableHeaders" :items="items" :loading="isLoading" density="compact"
                         class="desktop-table fill-height-table" fixed-header :items-per-page="-1">
-                        <template #item.nama="{ item }">
+                        <template #[`item.nama`]="{ item }">
                             <div class="nama-barang-cell">{{ item.nama }}</div>
                         </template>
-                        <template #item.jumlah="{ item }">
+                        <template #[`item.jumlah`]="{ item }">
                             <v-text-field v-model.number="item.jumlah" type="number" min="0" variant="underlined"
                                 density="compact" hide-details class="text-end" :class="getQtyMutasiClass(item)" />
                         </template>

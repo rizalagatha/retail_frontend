@@ -8,12 +8,20 @@ import { format, subDays, parseISO } from 'date-fns';
 import PageLayout from '@/components/PageLayout.vue';
 import MasterProductSearchModal from '@/components/MasterProductSearchModal.vue';
 import * as XLSX from 'xlsx';
+import axios from "axios";
+import type { DataTableHeader } from "vuetify";
 
 // --- Tipe Data ---
 interface SjHeader {
     Nomor: string;
     NomorTerima: string;
-    [key: string]: any;
+    Tanggal?: string | null;
+    TglTerima?: string | null;
+    Closing?: string;
+    [key: string]: unknown;
+}
+interface ErrorResponse {
+    message?: string;
 }
 
 // --- Inisialisasi ---
@@ -24,7 +32,7 @@ const MENU_ID = '31';
 
 // --- State ---
 const masterData = ref<SjHeader[]>([]);
-const details = ref<Record<string, any[]>>({});
+const details = ref<Record<string, unknown[]>>({});
 const loading = ref(true);
 const loadingDetails = ref(new Set<string>());
 const selected = ref<SjHeader[]>([]);
@@ -44,7 +52,7 @@ const isSingleSelected = computed(() => selected.value.length === 1);
 const selectedRow = computed(() => isSingleSelected.value ? selected.value[0] : null);
 
 // --- Konfigurasi Tabel ---
-const headers = [
+const headers: DataTableHeader[] = [
     { title: 'Nomor SJ', key: 'Nomor', width: '180px' },
     { title: 'Tanggal SJ', key: 'Tanggal', width: '120px' },
     { title: 'Nomor Minta', key: 'NomorMinta', width: '180px' },
@@ -55,7 +63,7 @@ const headers = [
     { title: 'Keterangan', key: 'Keterangan' },
     { title: 'Closing', key: 'Closing', align: 'center', width: '100px' },
 ];
-const detailHeaders = [
+const detailHeaders: DataTableHeader[] = [
     { title: 'Kode', key: 'Kode' },
     { title: 'Nama Barang', key: 'Nama' },
     { title: 'Ukuran', key: 'Ukuran' },
@@ -67,7 +75,7 @@ const fetchCabangList = async () => {
     try {
         const response = await api.get('/terima-sj/lookup/cabang');
         cabangList.value = response.data;
-    } catch (error) {
+    } catch {
         toast.error('Gagal memuat daftar cabang.');
     }
 };
@@ -79,8 +87,13 @@ const fetchMasterData = async () => {
         masterData.value = response.data;
         selected.value = [];
         expanded.value = [];
-    } catch (error: any) {
-        toast.error(error.response?.data?.message || 'Gagal mengambil data.');
+    } catch (error: unknown) {
+        if (axios.isAxiosError<ErrorResponse>(error)) {
+            toast.error(error.response?.data?.message || "Gagal mengambil data.");
+        } else {
+            console.error("Unexpected error:", error);
+            toast.error("Gagal mengambil data.");
+        }
     } finally {
         loading.value = false;
     }
@@ -94,7 +107,7 @@ const loadDetails = async (newlyExpandedItems: SjHeader[]) => {
     try {
         const response = await api.get(`/terima-sj/details/${itemToLoad.Nomor}`);
         details.value[itemToLoad.Nomor] = response.data;
-    } catch (error) {
+    } catch {
         toast.error(`Gagal memuat detail untuk ${itemToLoad.Nomor}`);
         expanded.value = expanded.value.filter(nomor => nomor !== itemToLoad.Nomor);
     } finally {
@@ -116,8 +129,13 @@ const handleBatalTerima = async () => {
             const response = await api.delete(`/terima-sj/${Nomor}/${NomorTerima}`);
             toast.success(response.data.message);
             fetchMasterData(); // Refresh data
-        } catch (error: any) {
-            toast.error(error.response?.data?.message || 'Gagal membatalkan penerimaan.');
+        } catch (error: unknown) {
+            if (axios.isAxiosError<ErrorResponse>(error)) {
+                toast.error(error.response?.data?.message || "Gagal membatalkan penerimaan.");
+            } else {
+                console.error("Unexpected error:", error);
+                toast.error("Gagal membatalkan penerimaan.");
+            }
         }
     }
 };
@@ -143,7 +161,7 @@ const exportData = async (type: 'header' | 'detail') => {
             XLSX.utils.book_append_sheet(workbook, worksheet, "Terima SJ Header");
             XLSX.writeFile(workbook, "Export_Terima_SJ_Header.xlsx");
             toast.success('File Header berhasil dibuat.');
-        } catch (error) {
+        } catch {
             toast.error('Gagal membuat file Excel.');
         }
 
@@ -163,7 +181,7 @@ const exportData = async (type: 'header' | 'detail') => {
             XLSX.writeFile(workbook, "Export_Terima_SJ_Detail.xlsx");
             toast.success('File Detail berhasil dibuat.');
 
-        } catch (error) {
+        } catch {
             toast.error('Gagal mengekspor data detail.');
         }
     }
@@ -232,16 +250,16 @@ watch(filters, fetchMasterData, { deep: true });
                     :loading="loading" :item-class="getRowClass" item-value="Nomor" density="compact"
                     class="desktop-table" fixed-header show-select return-object show-expand
                     @update:expanded="loadDetails">
-                    <template #item.Tanggal="{ value }">
-                        {{ value ? format(parseISO(value), 'dd/MM/yyyy') : '' }}
+                    <template #[`item.Tanggal`]="{ item }">
+                        {{ item.Tanggal ? format(parseISO(item.Tanggal), 'dd/MM/yyyy') : '' }}
                     </template>
 
-                    <template #item.TglTerima="{ value }">
-                        {{ value ? format(parseISO(value), 'dd/MM/yyyy') : '' }}
+                    <template #[`item.TglTerima`]="{ item }">
+                        {{ item.TglTerima ? format(parseISO(item.TglTerima), 'dd/MM/yyyy') : '' }}
                     </template>
 
-                    <template #item.Closing="{ value }">
-                        <v-chip v-if="value === 'Y'" size="x-small" color="green" variant="tonal">
+                    <template #[`item.Closing`]="{ item }">
+                        <v-chip v-if="item.Closing === 'Y'" size="x-small" color="green" variant="tonal">
                             Closed
                         </v-chip>
                         <v-chip v-else size="x-small" color="grey" variant="tonal">

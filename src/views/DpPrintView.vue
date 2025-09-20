@@ -5,8 +5,39 @@ import api from '@/services/api';
 import { format, parseISO } from 'date-fns';
 import Logo from '@/assets/logo.png';
 
+interface PrintHeader {
+  sh_jenis: number;
+  sh_nomor: string;
+  sh_tanggal: string;
+  perush_nama: string;
+  perush_alamat: string;
+  perush_telp: string;
+  cus_nama: string;
+  cus_alamat: string;
+  cus_kota: string;
+  cus_telp: string;
+  sh_nominal: number;
+  sh_ket: string;
+  sh_norek?: string;
+  rek_nama?: string;
+  sh_tgltransfer?: string;
+  terbilang: string;
+}
+
+interface PrintDetail {
+  so: string;
+  sd_inv: string;
+  sd_bayar: number;
+  sd_ket: string;
+}
+
+interface PrintData {
+  header: PrintHeader;
+  details: PrintDetail[];
+}
+
 const route = useRoute();
-const printData = ref<any>(null);
+const printData = ref<PrintData | null>(null);
 const isLoading = ref(true);
 const appLogo = Logo;
 
@@ -38,7 +69,7 @@ const fetchPrintData = async (nomor: string) => {
         document.title = printData.value?.header?.sh_nomor || 'Dokumen';
         await nextTick();
         window.print();
-    } catch (error) {
+    } catch {
         alert("Gagal memuat data untuk dicetak.");
     } finally {
         isLoading.value = false;

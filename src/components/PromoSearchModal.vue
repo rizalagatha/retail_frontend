@@ -31,7 +31,7 @@ const loadItems = async () => {
         });
         items.value = response.data;
     } catch (error) {
-        toast.error("Gagal memuat data promo.");
+        toast.error("Gagal memuat data promo.", error);
     } finally {
         loading.value = false;
     }

@@ -5,6 +5,7 @@ import PageLayout from '@/components/PageLayout.vue';
 import UserSearchModal from '@/components/UserSearchModal.vue';
 import { useToast } from 'vue-toastification';
 import { useAuthStore } from '@/stores/authStore';
+import axios, { AxiosError } from "axios";
 
 const toast = useToast();
 const authStore = useAuthStore();
@@ -23,6 +24,14 @@ interface Permission {
 interface Branch {
     gdg_kode: string;
 }
+interface MenuResponse {
+    men_id: string;
+    men_nama: string;
+    men_keterangan: string;
+}
+interface ErrorResponse {
+    message: string;
+}
 
 // --- State ---
 const isNewUser = ref(true);
@@ -40,12 +49,15 @@ const hasViewPermission = computed(() => authStore.can(MENU_ID, 'view'));
 // --- Methods ---
 const fetchInitialMenus = async () => {
     try {
-        const response = await api.get(`/users/menus`);
-        permissions.value = response.data.map((menu: any) => ({
+        const response = await api.get<MenuResponse[]>("/users/menus");
+        permissions.value = response.data.map((menu): Permission => ({
             id: menu.men_id,
             nama: menu.men_nama,
             keterangan: menu.men_keterangan,
-            view: false, insert: false, edit: false, delete: false,
+            view: false,
+            insert: false,
+            edit: false,
+            delete: false,
         }));
     } catch {
         toast.error("Gagal memuat daftar menu.");
@@ -74,17 +86,16 @@ const handleKodeSearch = async () => {
         permissions.value = data.permissions;
         password.value = '';
         toast.info(`Mode Edit: Menampilkan data untuk user ${kode.value}.`);
-    } catch {
-        if (error.response && error.response.status === 404) {
+    } catch (error: unknown) {
+        const err = error as AxiosError<ErrorResponse>;
+        if (err.response && err.response.status === 404) {
             isNewUser.value = true;
-            nama.value = '';
+            nama.value = "";
             await fetchInitialMenus();
             toast.info(`Kode user ${kode.value} tidak ditemukan. Silakan isi data baru.`);
         } else {
-            toast.error("Terjadi kesalahan saat mencari data user.");
+            toast.error(err.response?.data?.message || "Terjadi kesalahan saat mencari data user.");
         }
-    } finally {
-        isLoading.value = false;
     }
 };
 const saveUser = async () => {
@@ -116,8 +127,13 @@ const saveUser = async () => {
         const response = await api.post(`/users/save`, payload);
         toast.success(response.data.message);
         resetForm();
-    } catch (error: any) {
-        toast.error(error.response?.data?.message || 'Gagal menyimpan data.');
+    } catch (error: unknown) {
+        if (axios.isAxiosError<ErrorResponse>(error)) {
+            toast.error(error.response?.data?.message || "Gagal menyimpan data.");
+        } else {
+            toast.error("Gagal menyimpan data (unknown error).");
+            console.error(error);
+        }
     } finally {
         isLoading.value = false;
     }
@@ -211,21 +227,21 @@ onMounted(() => {
                     { title: 'Insert', key: 'insert', sortable: false, align: 'center', width: '70px' },
                     { title: 'Update', key: 'edit', sortable: false, align: 'center', width: '70px' },
                     { title: 'Delete', key: 'delete', sortable: false, align: 'center', width: '70px' }
-                ]" :loading="isLoading && permissions.length === 0" density="compact"
-                    class="desktop-table flex-grow-1" fixed-header height="100%" :items-per-page="-1">
-                    <template #item.view="{ item }">
+                ]" :loading="isLoading && permissions.length === 0" density="compact" class="desktop-table flex-grow-1"
+                    fixed-header height="100%" :items-per-page="-1">
+                    <template v-slot:[`item.view`]="{ item }">
                         <div class="d-flex justify-center"><v-checkbox-btn v-model="item.view" hide-details
                                 density="compact" color="primary"></v-checkbox-btn></div>
                     </template>
-                    <template #item.insert="{ item }">
+                    <template v-slot:[`item.insert`]="{ item }">
                         <div class="d-flex justify-center"><v-checkbox-btn v-model="item.insert" hide-details
                                 density="compact" color="success"></v-checkbox-btn></div>
                     </template>
-                    <template #item.edit="{ item }">
+                    <template v-slot:[`item.edit`]="{ item }">
                         <div class="d-flex justify-center"><v-checkbox-btn v-model="item.edit" hide-details
                                 density="compact" color="warning"></v-checkbox-btn></div>
                     </template>
-                    <template #item.delete="{ item }">
+                    <template v-slot:[`item.delete`]="{ item }">
                         <div class="d-flex justify-center"><v-checkbox-btn v-model="item.delete" hide-details
                                 density="compact" color="error"></v-checkbox-btn></div>
                     </template>

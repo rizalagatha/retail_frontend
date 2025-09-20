@@ -6,8 +6,40 @@ import { format, parseISO } from 'date-fns';
 import Logo from '@/assets/logo.png';
 import InstagramLogo from '@/assets/instagram.jpg'; // Impor logo Instagram
 
+interface PrintHeader {
+  pen_nomor: string;
+  pen_tanggal: string;
+  cus_nama: string;
+  cus_alamat: string;
+  cus_telp: string;
+  gdg_inv_alamat: string;
+  gdg_inv_kota: string;
+  gdg_inv_telp: string;
+  user_create: string;
+  total: number;
+  diskon: number;
+  ppn: number;
+  biaya_kirim: number;
+  grand_total: number;
+  pen_ket?: string;
+}
+
+interface PrintDetail {
+  nama_barang: string;
+  ukuran: string;
+  qty: number;
+  harga: number;
+  diskon: number;
+  total: number;
+}
+
+interface PrintData {
+  header: PrintHeader;
+  details: PrintDetail[];
+}
+
 const route = useRoute();
-const printData = ref<any>(null);
+const printData = ref<PrintData | null>(null);
 const isLoading = ref(true);
 const appLogo = Logo;
 const igLogo = InstagramLogo;

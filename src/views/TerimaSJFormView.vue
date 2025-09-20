@@ -1,11 +1,12 @@
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue';
+import { ref, reactive, onMounted, computed } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useToast } from 'vue-toastification';
 import { useAuthStore } from '@/stores/authStore';
 import api from '@/services/api';
 import { format } from 'date-fns';
 import PageLayout from '@/components/PageLayout.vue';
+import type { DataTableHeader } from "vuetify";
 
 // --- Tipe Data ---
 interface Item {
@@ -17,6 +18,10 @@ interface Item {
     jumlahKirim: number;
     jumlahTerima: number;
 }
+interface ItemWithExtra extends Item {
+    id: number;
+    jumlahTerima: number;
+}
 
 // --- Inisialisasi ---
 const route = useRoute();
@@ -26,6 +31,14 @@ const authStore = useAuthStore();
 const MENU_ID = '31';
 
 // --- State ---
+const isEditMode = computed(() => !!route.params.nomor);
+// const pageTitle = computed(() =>
+//     isEditMode.value ? 'Ubah Penerimaan Surat Jalan' : 'Form Terima Surat Jalan'
+// );
+const requiredPermission = computed(() =>
+    isEditMode.value ? 'edit' : 'insert'
+);
+
 const isLoading = ref(true);
 const isSaving = ref(false);
 const scannedBarcode = ref('');
@@ -48,7 +61,7 @@ const dialogConfirm = reactive({
 });
 
 // --- Konfigurasi Tabel ---
-const tableHeaders = [
+const tableHeaders: DataTableHeader[] = [
     { title: 'Kode Barang', key: 'kode' },
     { title: 'Nama Barang', key: 'nama' },
     { title: 'Ukuran', key: 'ukuran' },
@@ -71,13 +84,13 @@ const loadData = async (nomorSj: string) => {
         header.keterangan = data.header.keterangan;
 
         // Isi grid
-        items.value = data.items.map((item: any) => ({
+        items.value = data.items.map((item: Item): ItemWithExtra => ({
             ...item,
             id: Date.now() + Math.random(),
-            jumlahTerima: 0, // Inisialisasi jumlah terima
+            jumlahTerima: 0,
         }));
 
-    } catch (error) {
+    } catch {
         toast.error('Gagal memuat data SJ untuk diterima.');
         router.back();
     } finally {
@@ -117,8 +130,13 @@ const executeSave = async () => {
         const response = await api.post('/terima-sj-form/save', payload);
         toast.success(response.data.message);
         router.push({ name: 'TerimaSj' });
-    } catch (error: any) {
-        toast.error(error.response?.data?.message || 'Gagal menyimpan data.');
+    } catch (error: unknown) {
+        if (typeof error === 'object' && error !== null && 'response' in error) {
+            const err = error as { response?: { data?: { message?: string } } };
+            toast.error(err.response?.data?.message || 'Gagal menyimpan data.');
+        } else {
+            toast.error('Gagal menyimpan data.');
+        }
     } finally {
         isSaving.value = false;
     }
@@ -135,6 +153,14 @@ const handleClose = () => {
 };
 
 onMounted(() => {
+    if (!authStore.can(MENU_ID, requiredPermission.value)) {
+        toast.error(
+            `Anda tidak memiliki izin untuk ${isEditMode.value ? 'mengubah' : 'membuat'} data Terima SJ.`
+        );
+        router.push({ name: 'TerimaSj' });
+        return;
+    }
+
     const nomorSj = route.params.nomor as string;
     if (nomorSj) {
         loadData(nomorSj);
@@ -148,8 +174,10 @@ onMounted(() => {
 <template>
     <PageLayout title="Form Terima SJ" icon="mdi-package-variant-closed">
         <template #header-actions>
-            <v-btn size="small" color="primary" @click="handleSave" :loading="isSaving"
-                prepend-icon="mdi-content-save">Simpan</v-btn>
+            <v-btn size="small" color="primary" @click="handleSave" :loading="isSaving" prepend-icon="mdi-content-save"
+                :disabled="!authStore.can(MENU_ID, requiredPermission)">
+                Simpan
+            </v-btn>
             <v-btn size="small" @click="handleClose" prepend-icon="mdi-close">Tutup</v-btn>
         </template>
 
@@ -158,19 +186,21 @@ onMounted(() => {
             <!-- Left Column: Header -->
             <div class="left-column">
                 <div class="desktop-form-section header-section">
-                    <v-text-field label="Nomor Terima" v-model="header.nomor" readonly filled density="compact" hide-details />
+                    <v-text-field label="Nomor Terima" v-model="header.nomor" readonly filled density="compact"
+                        hide-details />
                     <v-text-field label="Tgl. Terima" v-model="header.tanggalTerima" type="date" variant="outlined"
                         density="compact" hide-details />
                     <v-text-field label="Gudang Terima"
                         :model-value="`${header.gudangTerima.kode} - ${header.gudangTerima.nama}`" readonly filled
                         density="compact" hide-details />
                     <v-divider class="my-3" />
-                    <v-text-field label="No. Surat Jalan" v-model="header.nomorSj" readonly filled density="compact" hide-details />
+                    <v-text-field label="No. Surat Jalan" v-model="header.nomorSj" readonly filled density="compact"
+                        hide-details />
                     <v-text-field label="Tgl. Surat Jalan"
                         :model-value="format(new Date(header.tanggalSj), 'dd-MM-yyyy')" readonly filled
                         density="compact" hide-details />
-                    <v-text-field label="No. Permintaan" v-model="header.nomorMinta" readonly filled
-                        density="compact" hide-details />
+                    <v-text-field label="No. Permintaan" v-model="header.nomorMinta" readonly filled density="compact"
+                        hide-details />
                     <v-text-field label="Dari Gudang"
                         :model-value="`${header.gudangAsal.kode} - ${header.gudangAsal.nama}`" readonly filled
                         density="compact" hide-details />
@@ -189,7 +219,7 @@ onMounted(() => {
                     </div>
                     <v-data-table :headers="tableHeaders" :items="items" class="desktop-table fill-height-table"
                         density="compact" fixed-header :items-per-page="-1">
-                        <template #item.jumlahTerima="{ item }">
+                        <template #[`item.jumlahTerima`]="{ item }">
                             <v-text-field v-model.number="item.jumlahTerima" type="number" variant="underlined"
                                 density="compact" hide-details class="text-right" />
                         </template>

@@ -7,9 +7,23 @@ import { useToast } from 'vue-toastification';
 import { useAuthStore } from '@/stores/authStore';
 import { format } from 'date-fns';
 import SoPoSearchModal from '@/components/SoPoSearchModal.vue';
+import type { AxiosError } from 'axios';
 
 interface LhkItem {
     id: number;
+    kode: string;
+    nama: string;
+    depan: number | null;
+    belakang: number | null;
+    lengan: number | null;
+    variasi: number | null;
+    saku: number | null;
+    panjang: number | null;
+    buangan: number | null;
+    ket: string;
+}
+
+interface LhkApiResponseItem {
     kode: string;
     nama: string;
     depan: number | null;
@@ -42,6 +56,9 @@ const confirmText = ref('');
 const pendingAction = ref<(() => void) | null>(null);
 
 const pageTitle = computed(() => `Form LHK SO DTF`);
+const canView = computed(() => authStore.can(MENU_ID, 'view'));
+const canEdit = computed(() => authStore.can(MENU_ID, 'edit'));
+const canSave = computed(() => authStore.can(MENU_ID, 'insert'));
 
 const tableHeaders = [
     { title: 'No.', key: 'no', sortable: false, width: '40px' },
@@ -61,10 +78,25 @@ const tableHeaders = [
 const loadLhkData = async () => {
     isLoading.value = true;
     try {
-        const response = await api.get(`/lhk-so-dtf-form/${selectedTanggal.value}/${selectedCabang.value}`);
-        items.value = response.data.map((item: any, index: number) => ({ ...item, id: Date.now() + index }));
-    } catch (error) {
+        const response = await api.get<LhkApiResponseItem[]>(
+            `/lhk-so-dtf-form/${selectedTanggal.value}/${selectedCabang.value}`
+        );
+        items.value = response.data.map((item, index) => ({
+            ...item,
+            id: Date.now() + index, // id untuk key v-for
+            // pastikan semua properti sesuai LhkItem
+            depan: item.depan ?? 0,
+            belakang: item.belakang ?? 0,
+            lengan: item.lengan ?? 0,
+            variasi: item.variasi ?? 0,
+            saku: item.saku ?? 0,
+            panjang: item.panjang ?? 0,
+            buangan: item.buangan ?? 0,
+            ket: item.ket ?? ''
+        }));
+    } catch (error: unknown) {
         toast.error('Gagal memuat data LHK.');
+        console.error(error);
         items.value = [];
     } finally {
         addNewRowIfNeeded();
@@ -119,8 +151,21 @@ const save = async () => {
         });
         toast.success('Data LHK berhasil disimpan.');
         loadLhkData();
-    } catch (error: any) {
-        toast.error(error.response?.data?.message || 'Gagal menyimpan data.');
+    } catch (error: unknown) {
+        let message = 'Gagal menyimpan data.';
+
+        if (error instanceof Error) {
+            // error JS standar
+            message = error.message;
+        } else if (typeof error === 'object' && error !== null) {
+            // Cek jika error objek dan mungkin AxiosError
+            const axiosError = error as AxiosError<{ message: string }>;
+            if (axiosError.response?.data?.message) {
+                message = axiosError.response.data.message;
+            }
+        }
+
+        toast.error(message);
     } finally {
         isSaving.value = false;
     }
@@ -164,12 +209,13 @@ watch([selectedTanggal, selectedCabang], loadLhkData);
 <template>
     <PageLayout :title="pageTitle" desktop-mode icon="mdi-clipboard-edit-outline">
         <template #header-actions>
-            <v-btn size="small" color="primary"
+            <v-btn v-if="canSave" size="small" color="primary"
                 @click="showConfirmation(save, 'Anda yakin ingin menyimpan data LHK ini?')" :loading="isSaving"
                 prepend-icon="mdi-content-save">
                 Simpan
             </v-btn>
-            <v-btn size="small" @click="showConfirmation(loadLhkData, 'Batalkan perubahan dan muat ulang data asli?')"
+            <v-btn v-if="canEdit" size="small"
+                @click="showConfirmation(loadLhkData, 'Batalkan perubahan dan muat ulang data asli?')"
                 prepend-icon="mdi-refresh">
                 Batal
             </v-btn>
@@ -179,6 +225,11 @@ watch([selectedTanggal, selectedCabang], loadLhkData);
                 Tutup
             </v-btn>
         </template>
+
+        <div v-if="!canView" class="state-container">
+            <v-icon size="64" class="mb-4">mdi-lock-outline</v-icon>
+            <h3 class="text-h6">Akses Ditolak</h3>
+        </div>
 
         <div class="form-content">
             <div class="header-filters">
@@ -192,10 +243,12 @@ watch([selectedTanggal, selectedCabang], loadLhkData);
 
             <v-data-table :headers="tableHeaders" :items="items" :loading="isLoading" density="compact"
                 class="desktop-table" fixed-header :items-per-page="-1">
-                <template #item.no="{ index }">
+                <!-- Kolom No. -->
+                <template #[`item.no`]="{ index }">
                     <div class="cell-text">{{ index + 1 }}</div>
                 </template>
-                <template #item.kode="{ item, index }">
+                <!-- Kolom Kode -->
+                <template #[`item.kode`]="{ item, index }">
                     <v-text-field v-model="item.kode" variant="underlined" density="compact" hide-details
                         @keydown.f1.prevent="openSearchModal(index)">
                         <template #append-inner>
@@ -203,30 +256,56 @@ watch([selectedTanggal, selectedCabang], loadLhkData);
                         </template>
                     </v-text-field>
                 </template>
-                <template #item.nama="{ item }">
+                <!-- Kolom Nama -->
+                <template #[`item.nama`]="{ item }">
                     <v-text-field v-model="item.nama" variant="underlined" density="compact" hide-details readonly
                         filled />
                 </template>
-                <template #item.depan="{ item }"><v-text-field v-model.number="item.depan" type="number" min="0"
-                        variant="underlined" density="compact" hide-details class="text-end" /></template>
-                <template #item.belakang="{ item }"><v-text-field v-model.number="item.belakang" type="number" min="0"
-                        variant="underlined" density="compact" hide-details class="text-end" /></template>
-                <template #item.lengan="{ item }"><v-text-field v-model.number="item.lengan" type="number" min="0"
-                        variant="underlined" density="compact" hide-details class="text-end" /></template>
-                <template #item.variasi="{ item }"><v-text-field v-model.number="item.variasi" type="number" min="0"
-                        variant="underlined" density="compact" hide-details class="text-end" /></template>
-                <template #item.saku="{ item }"><v-text-field v-model.number="item.saku" type="number" min="0"
-                        variant="underlined" density="compact" hide-details class="text-end" /></template>
-                <template #item.panjang="{ item }"><v-text-field v-model.number="item.panjang" type="number" min="0"
-                        variant="underlined" density="compact" hide-details class="text-end" /></template>
-                <template #item.buangan="{ item }"><v-text-field v-model.number="item.buangan" type="number" min="0"
-                        variant="underlined" density="compact" hide-details class="text-end" /></template>
-                <template #item.ket="{ item }"><v-text-field v-model="item.ket" variant="underlined" density="compact"
-                        hide-details /></template>
-                <template #item.actions="{ item }">
+                <!-- Kolom Depan -->
+                <template #[`item.depan`]="{ item }">
+                    <v-text-field v-model.number="item.depan" type="number" min="0" variant="underlined"
+                        density="compact" hide-details class="text-end" />
+                </template>
+                <!-- Kolom Belakang -->
+                <template #[`item.belakang`]="{ item }">
+                    <v-text-field v-model.number="item.belakang" type="number" min="0" variant="underlined"
+                        density="compact" hide-details class="text-end" />
+                </template>
+                <!-- Kolom Lengan -->
+                <template #[`item.lengan`]="{ item }">
+                    <v-text-field v-model.number="item.lengan" type="number" min="0" variant="underlined"
+                        density="compact" hide-details class="text-end" />
+                </template>
+                <!-- Kolom Variasi -->
+                <template #[`item.variasi`]="{ item }">
+                    <v-text-field v-model.number="item.variasi" type="number" min="0" variant="underlined"
+                        density="compact" hide-details class="text-end" />
+                </template>
+                <!-- Kolom Saku -->
+                <template #[`item.saku`]="{ item }">
+                    <v-text-field v-model.number="item.saku" type="number" min="0" variant="underlined"
+                        density="compact" hide-details class="text-end" />
+                </template>
+                <!-- Kolom Panjang -->
+                <template #[`item.panjang`]="{ item }">
+                    <v-text-field v-model.number="item.panjang" type="number" min="0" variant="underlined"
+                        density="compact" hide-details class="text-end" />
+                </template>
+                <!-- Kolom Buangan -->
+                <template #[`item.buangan`]="{ item }">
+                    <v-text-field v-model.number="item.buangan" type="number" min="0" variant="underlined"
+                        density="compact" hide-details class="text-end" />
+                </template>
+                <!-- Kolom Keterangan -->
+                <template #[`item.ket`]="{ item }">
+                    <v-text-field v-model="item.ket" variant="underlined" density="compact" hide-details />
+                </template>
+                <!-- Kolom Actions -->
+                <template #[`item.actions`]="{ item }">
                     <v-btn icon="mdi-delete" size="x-small" variant="text" color="error" @click="removeRow(item.id)"
                         v-if="items.length > 1" />
                 </template>
+                <!-- Bottom kosong -->
                 <template #bottom></template>
             </v-data-table>
         </div>

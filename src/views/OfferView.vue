@@ -8,6 +8,23 @@ import { format } from 'date-fns';
 import { useRouter } from 'vue-router';
 import * as XLSX from 'xlsx';
 
+interface OfferDetail {
+    nomor: string;
+    tanggal: string;
+    cus_nama: string;
+    nama_barang: string;
+    qty: number;
+    harga: number;
+    diskon: number;
+    total: number;
+    [key: string]: unknown; // Optional, jika ada field lain yang tidak pasti
+}
+
+interface OfferItem {
+    nomor: string;
+    [key: string]: unknown; // opsional, kalau ada field lain
+}
+
 const toast = useToast();
 const authStore = useAuthStore();
 const router = useRouter();
@@ -116,7 +133,7 @@ const tableHeaders = [
     { title: 'Alasan Close', key: 'alasan', width: '250px' },
     { title: 'User', key: 'created', width: '120px' },
     { title: 'Status', key: 'status', align: 'center', width: '120px' },
-];
+] as const;
 
 const detailHeaders = [
     { title: 'Kode', key: 'kode' },
@@ -162,7 +179,7 @@ const fetchBranches = async () => {
         });
         branchList.value = response.data;
     } catch (error) {
-        toast.error('Gagal memuat daftar cabang.');
+        toast.error('Gagal memuat daftar cabang.', error);
     }
 };
 
@@ -178,7 +195,7 @@ const fetchData = async () => {
         });
         offerList.value = response.data;
     } catch (error) {
-        toast.error('Gagal memuat data penawaran.');
+        toast.error('Gagal memuat data penawaran.', error);
     } finally {
         isLoading.value = false;
     }
@@ -221,16 +238,6 @@ const loadDetails = async (expandedItems: OfferHeader[]) => {
     }
 };
 
-const getStatus = (item: OfferHeader) => {
-    if (item.noSO) {
-        return { text: 'Sudah Jadi SO', color: 'success' };
-    }
-    if (item.alasan) {
-        return { text: 'Closed', color: 'blue' };
-    }
-    return { text: 'Open', color: 'red' };
-};
-
 const editOffer = () => {
     if (!isSingleSelected.value) return;
     const nomor = selected.value[0].nomor;
@@ -248,7 +255,7 @@ const deleteOffer = async (item: OfferHeader) => {
         fetchData();
         selected.value = [];
     } catch (error) {
-        toast.error('Gagal menghapus penawaran.');
+        toast.error('Gagal menghapus penawaran.', error);
     }
 };
 
@@ -264,14 +271,6 @@ const deleteConfirmed = () => {
     }
     dialogDelete.value = false;
     itemToDelete.value = null;
-};
-
-const exportData = () => {
-    const worksheet = XLSX.utils.json_to_sheet(offerList.value);
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, "Penawaran");
-    XLSX.writeFile(workbook, "DaftarPenawaran.xlsx");
-    toast.success('Data berhasil diekspor ke Excel.');
 };
 
 const openCloseDialog = () => {
@@ -297,7 +296,7 @@ const submitCloseOffer = async () => {
         fetchData(); // Muat ulang data untuk melihat status baru
         selected.value = []; // Kosongkan seleksi
     } catch (error) {
-        toast.error('Gagal menutup penawaran.');
+        toast.error('Gagal menutup penawaran.', error);
     } finally {
         isClosing.value = false;
     }
@@ -319,10 +318,9 @@ const exportDetailData = async () => {
     toast.info('Menyiapkan data detail untuk diekspor...');
     try {
         const cabang = authStore.user?.cabang || '';
-        const response = await api.get('/offers/export-details', {
+        const response = await api.get<OfferDetail[]>('/offers/export-details', {
             params: { startDate: startDate.value, endDate: endDate.value, cabang }
         });
-
         const dataToExport = response.data;
 
         if (dataToExport.length === 0) {
@@ -336,7 +334,7 @@ const exportDetailData = async () => {
         const tableHeaders = Object.keys(dataToExport[0]);
 
         // 2. Ubah data JSON menjadi array of arrays
-        const tableData = dataToExport.map((row: any) => Object.values(row));
+        const tableData = dataToExport.map((row: OfferDetail) => Object.values(row));
 
         // 3. Gabungkan semua bagian menjadi satu array besar
         const excelData = [
@@ -369,25 +367,22 @@ const exportDetailData = async () => {
         toast.success('Data detail berhasil diekspor.');
 
     } catch (error) {
-        toast.error('Gagal mengekspor data detail.');
+        toast.error('Gagal mengekspor data detail.', error);
         console.error("Export detail error:", error);
     }
 };
 
-const printData = (item: any) => {
-    // Cek jika tidak ada item yang dipilih (untuk keamanan)
+const printData = (item: OfferItem) => {
     if (!item || !item.nomor) {
         toast.error('Silakan pilih satu data untuk dicetak.');
         return;
     }
 
-    // Membuat URL untuk halaman cetak
     const url = router.resolve({
         name: 'Cetak Penawaran',
         params: { nomor: item.nomor }
     }).href;
 
-    // Membuka halaman cetak di tab baru
     window.open(url, '_blank');
 };
 
@@ -422,7 +417,7 @@ onMounted(() => {
 });
 
 // Watcher untuk expanded items sebagai backup
-watch(expanded, (newExpanded, oldExpanded) => {
+watch(expanded, (newExpanded) => {
     if (newExpanded.length > 0) {
         loadDetails(newExpanded);
     }
@@ -498,9 +493,9 @@ watch(selectedBranch, () => {
             <!-- Table Section -->
             <div class="table-container">
                 <v-data-table v-model="selected" :headers="tableHeaders" :items="filteredOffers" :loading="isLoading"
-                    :item-class="getRowClass" item-value="nomor" density="compact" class="desktop-table" fixed-header
-                    show-select return-object show-expand @update:expanded="loadDetails">
-                    <template v-for="header in tableHeaders" #[`item.${header.key}`]="{ item }">
+                    item-value="nomor" density="compact" class="desktop-table" fixed-header show-select return-object
+                    show-expand @update:expanded="loadDetails">
+                    <template v-for="header in tableHeaders" #[`item.${header.key}`]="{ item }" :key="header.key">
                         <td :class="getRowTextColor(item)">
                             <template v-if="header.key === 'tanggal' || header.key === 'tempo'">
                                 {{ item[header.key] ? format(new Date(item[header.key]), 'dd/MM/yyyy') : '-' }}
@@ -528,12 +523,15 @@ watch(selectedBranch, () => {
                                 <v-data-table v-else-if="details[item.nomor] && details[item.nomor].length > 0"
                                     :headers="detailHeaders" :items="details[item.nomor]" density="compact"
                                     hide-default-footer :items-per-page="-1" class="elevation-0 detail-table">
-                                    <template #item.harga="{ item: detailItem }">{{ new
-                                        Intl.NumberFormat('id-ID').format(detailItem.harga) }}</template>
-                                    <template #item.diskon="{ item: detailItem }">{{ new
-                                        Intl.NumberFormat('id-ID').format(detailItem.diskon) }}</template>
-                                    <template #item.total="{ item: detailItem }">{{ new
-                                        Intl.NumberFormat('id-ID').format(detailItem.total) }}</template>
+                                    <template #[`item.harga`]="{ item: detailItem }">
+                                        {{ new Intl.NumberFormat('id-ID').format(detailItem.harga) }}
+                                    </template>
+                                    <template #[`item.diskon`]="{ item: detailItem }">
+                                        {{ new Intl.NumberFormat('id-ID').format(detailItem.diskon) }}
+                                    </template>
+                                    <template #[`item.total`]="{ item: detailItem }">
+                                        {{ new Intl.NumberFormat('id-ID').format(detailItem.total) }}
+                                    </template>
                                 </v-data-table>
                             </td>
                         </tr>

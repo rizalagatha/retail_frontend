@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, computed, watch } from 'vue';
+import { ref, onMounted, computed } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import api from '@/services/api';
 import PageLayout from '@/components/PageLayout.vue';
@@ -8,6 +8,41 @@ import { useAuthStore } from '@/stores/authStore';
 import { format } from 'date-fns';
 import SoSearchModal from '@/components/SoSearchModal.vue';
 import WorkshopSearchModal from '@/components/WorkshopSearchModal.vue';
+import type { AxiosError } from 'axios';
+
+interface MutasiOutItem {
+    id: number;
+    kode: string;
+    nama: string;
+    ukuran: string;
+    stok?: number;
+    qtyso?: number;
+    sudah?: number;
+    belum?: number;
+    jumlah?: number;
+    barcode?: string;
+}
+
+interface SoDetailItem {
+    kode: string;
+    nama: string;
+    ukuran: string;
+    stok: number;
+    qtyso: number;
+    sudah: number;
+    belum: number;
+    jumlah: number;
+    barcode: string;
+}
+
+interface MutasiOutHeader {
+    mo_nomor: string;
+    mo_tanggal: string;
+    mo_so_nomor: string;
+    mo_kecab: string;
+    pab_nama: string;
+    mo_ket: string;
+}
 
 const router = useRouter();
 const route = useRoute();
@@ -17,6 +52,8 @@ const MENU_ID = '43';
 
 const isEditMode = computed(() => !!route.params.nomor);
 const pageTitle = computed(() => isEditMode.value ? 'Ubah Mutasi Out' : 'Buat Mutasi Out');
+const requiredPermission = computed(() => isEditMode.value ? 'edit' : 'insert');
+
 const initialHeaderState = {
     nomor: '',
     tanggal: format(new Date(), 'yyyy-MM-dd'),
@@ -26,7 +63,7 @@ const initialHeaderState = {
     keterangan: '',
 };
 const formHeader = ref({ ...initialHeaderState });
-const items = ref<any[]>([]);
+const items = ref<MutasiOutItem[]>([]);
 const isLoading = ref(true);
 const isSaving = ref(false);
 const isSavingDisabled = ref(false);
@@ -46,17 +83,18 @@ const tableHeaders = [
     { title: 'Belum', key: 'belum', align: 'end' },
     { title: 'Qty Out', key: 'jumlah', align: 'end', width: '150px' },
     { title: 'Barcode', key: 'barcode' },
-];
+] as const;
 
 const onSoSelected = async (so: { Nomor: string }) => {
     isSoSearchVisible.value = false;
     formHeader.value.soNomor = so.Nomor;
     isLoading.value = true;
     try {
-        const response = await api.get(`/mutasi-out-form/lookup/so-details/${so.Nomor}`);
-        items.value = response.data.map((item: any, index: number) => ({ ...item, id: Date.now() + index }));
-    } catch (error) {
+        const response = await api.get<SoDetailItem[]>(`/mutasi-out-form/lookup/so-details/${so.Nomor}`);
+        items.value = response.data.map((item, index) => ({ ...item, id: Date.now() + index }));
+    } catch (error: unknown) {
         toast.error('Gagal memuat detail SO.');
+        console.error(error);
     } finally {
         isLoading.value = false;
     }
@@ -71,17 +109,22 @@ const onWorkshopSelected = (workshop: { kode: string, nama: string }) => {
 const loadDataForEdit = async (nomor: string) => {
     isLoading.value = true;
     try {
-        const response = await api.get(`/mutasi-out-form/${nomor}`);
+        const response = await api.get<{ header: MutasiOutHeader; items: MutasiOutItem[] }>(
+            `/mutasi-out-form/${nomor}`
+        );
         const { header, items: loadedItems } = response.data;
+
         formHeader.value.nomor = header.mo_nomor;
         formHeader.value.tanggal = format(new Date(header.mo_tanggal), 'yyyy-MM-dd');
         formHeader.value.soNomor = header.mo_so_nomor;
         formHeader.value.keCabang = header.mo_kecab;
         formHeader.value.keCabangNama = header.pab_nama;
         formHeader.value.keterangan = header.mo_ket;
-        items.value = loadedItems.map((item: any) => ({ ...item, id: Date.now() + Math.random() }));
-    } catch (error: any) {
-        toast.error(error.response?.data?.message || 'Gagal memuat data.');
+
+        items.value = loadedItems.map(item => ({ ...item, id: Date.now() + Math.random() }));
+    } catch (error: unknown) {
+        toast.error('Gagal memuat data.');
+        console.error(error);
         router.back();
     } finally {
         isLoading.value = false;
@@ -113,22 +156,19 @@ const executeSave = async () => {
             items: items.value.filter(item => (item.jumlah || 0) > 0),
             isNew: !isEditMode.value,
         };
-        const response = await api.post('/mutasi-out-form/save', payload);
+        const response = await api.post<{ message: string; nomor: string }>('/mutasi-out-form/save', payload);
         toast.success(response.data.message);
 
-        // --- PERUBAHAN DI SINI ---
-        const nomorMutasi = response.data.nomor; // Ambil nomor dari response
+        const nomorMutasi = response.data.nomor;
         const url = router.resolve({
-            name: 'Cetak Mutasi Out', // Nama route baru
+            name: 'Cetak Mutasi Out',
             params: { nomor: nomorMutasi }
         }).href;
-        window.open(url, '_blank'); // Buka di tab baru
-        
-        // Tetap kembali ke halaman browse
+        window.open(url, '_blank');
+
         router.push('/transaksi/mutasi/out-produksi');
-        // --- AKHIR PERUBAHAN ---
-        
-    } catch (error: any) {
+    } catch (err) {
+        const error = err as AxiosError<{ message: string }>;
         toast.error(error.response?.data?.message || 'Gagal menyimpan data.');
     } finally {
         isSaving.value = false;
@@ -160,22 +200,25 @@ const closeForm = () => {
     router.push('/transaksi/mutasi/out-produksi');
 };
 
-const getQtyOutClass = (item: any) => {
+const getQtyOutClass = (item: MutasiOutItem): string => {
     const qtyOut = item.jumlah || 0;
     const stok = item.stok || 0;
     const belum = item.belum || 0;
-    if (qtyOut > stok || qtyOut > belum) {
-        return 'qty-error';
-    }
-    return '';
+
+    return qtyOut > stok || qtyOut > belum ? 'qty-error' : '';
 };
 
 onMounted(() => {
+    if (!authStore.can(MENU_ID, requiredPermission.value)) {
+        toast.error(`Anda tidak memiliki izin untuk ${isEditMode.value ? 'mengubah' : 'membuat'} data Mutasi Out.`);
+        router.push({ name: 'MutasiOut' }); // Arahkan kembali ke halaman browse
+        return;
+    }
+
     const nomor = route.params.nomor as string;
     if (isEditMode.value && nomor) {
         loadDataForEdit(nomor);
     } else {
-        resetForm();
         isLoading.value = false;
     }
 });
@@ -184,8 +227,10 @@ onMounted(() => {
 <template>
     <PageLayout :title="pageTitle" desktop-mode icon="mdi-package-variant-closed-edit">
         <template #header-actions>
-            <v-btn size="small" color="primary" @click="save" :loading="isSaving"
-                :disabled="isSaving || isSavingDisabled">Simpan</v-btn>
+            <v-btn v-if="authStore.can(MENU_ID, requiredPermission)" size="small" color="primary" @click="save"
+                :loading="isSaving" :disabled="isSaving || isSavingDisabled">
+                Simpan
+            </v-btn>
             <v-btn size="small" @click="showConfirmation(resetForm, 'Batalkan dan kosongkan form?')">Batal</v-btn>
             <v-btn size="small" @click="showConfirmation(closeForm, 'Tutup form?')">Tutup</v-btn>
         </template>
@@ -230,7 +275,7 @@ onMounted(() => {
                 <div class="desktop-form-section d-flex flex-column fill-height">
                     <v-data-table :headers="tableHeaders" :items="items" :loading="isLoading" density="compact"
                         class="desktop-table fill-height-table" fixed-header :items-per-page="-1">
-                        <template #item.jumlah="{ item }">
+                        <template #[`item.jumlah`]="{ item }">
                             <v-text-field v-model.number="item.jumlah" type="number" min="0" variant="underlined"
                                 density="compact" hide-details class="text-end" :class="getQtyOutClass(item)" />
                         </template>

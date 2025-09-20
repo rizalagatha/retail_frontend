@@ -19,7 +19,7 @@ interface HeaderItem {
     Jumlah: number;
     AlasanClose: string;
     Close: string;
-    [key: string]: any;
+    [key: string]: unknown;
 }
 
 interface DetailItem {
@@ -94,7 +94,7 @@ const headers = [
     { title: 'Keterangan', key: 'Keterangan', width: '300px' },
     { title: 'Created', key: 'Created', width: '180px' },
     { title: 'Status Close', key: 'Close', align: 'center', width: '120px' },
-];
+] as const;
 
 const detailHeaders = [
     { title: 'Kode', key: 'Kode', width: '150px' },
@@ -113,7 +113,7 @@ const fetchCabangList = async () => {
         if (authStore.user?.cabang === 'KDC' && cabangList.value.length > 0) {
             selectedCabang.value = cabangList.value[0].kode;
         }
-    } catch (error) {
+    } catch {
         toast.error('Gagal memuat daftar cabang.');
     }
 };
@@ -131,7 +131,7 @@ const fetchData = async () => {
             }
         });
         list.value = response.data;
-    } catch (error) {
+    } catch {
         toast.error('Gagal memuat data SO DTF Stok.');
     } finally {
         isLoading.value = false;
@@ -161,7 +161,7 @@ const loadDetails = async (newlyExpandedItems: HeaderItem[]) => { // Menerima ar
         });
         // Simpan detail menggunakan .Nomor sebagai kunci
         details.value[nomorToLoad] = response.data;
-    } catch (error) {
+    } catch {
         toast.error(`Gagal memuat detail untuk ${nomorToLoad}`);
         // Hapus dari daftar expanded jika gagal
         expanded.value = expanded.value.filter(nomor => nomor !== nomorToLoad);
@@ -234,7 +234,7 @@ const exportData = async (type: 'header' | 'detail') => {
             XLSX.writeFile(workbook, "Export_SO_DTF_Stok_Detail.xlsx");
             toast.success('File Detail berhasil dibuat.');
         }
-    } catch (error) {
+    } catch {
         toast.error('Gagal mengekspor data.');
     }
 };

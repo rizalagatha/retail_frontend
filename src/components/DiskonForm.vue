@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, reactive, toRefs } from 'vue';
+import { reactive } from 'vue';
 
 const props = defineProps({
     diskonPersen1: { type: Number, default: 0 },

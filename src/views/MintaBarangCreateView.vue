@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, computed, watch } from 'vue';
+import { ref, onMounted, computed } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import api from '@/services/api';
 import PageLayout from '@/components/PageLayout.vue';
@@ -9,6 +9,94 @@ import { format } from 'date-fns';
 import SoSearchModal from '@/components/SoSearchModal.vue';
 import CustomerSearchModal from '@/components/CustomerSearchModal.vue';
 import ProductSearchModal from '@/components/ProductSearchModal.vue';
+import { AxiosError } from 'axios';
+
+interface Customer {
+    kode: string;
+    nama: string;
+    alamat: string;
+}
+
+interface FormHeader {
+    nomor: string;
+    tanggal: string;
+    soNomor: string;
+    customer: Customer | null;
+    keterangan: string;
+    gudang?: { kode: string; nama?: string };
+}
+
+interface Product {
+    kode: string;
+    nama: string;
+    ukuran?: string;
+    stok?: number;
+    harga?: number;
+    barcode?: string;
+    // tambahkan properti lain sesuai API
+}
+
+interface Item {
+    id: number;
+    kode: string;
+    nama: string;
+    ukuran?: string;
+    stokmin?: number;
+    stokmax?: number;
+    sudahminta?: number;
+    sj?: number;
+    stok?: number;
+    mino?: number;
+    jumlah?: number;
+    barcode?: string;
+}
+
+interface SoItem {
+    kode: string;
+    nama: string;
+    ukuran?: string;
+    stok?: number;
+    jumlah?: number;
+    barcode?: string;
+    // properti lain sesuai response API
+}
+
+interface SoDetailsResponse {
+    items: SoItem[];
+    customer: Customer;
+}
+
+interface MintaBarangHeader {
+    nomor: string;
+    tanggal: string;
+    soNomor?: string;
+    customer?: Customer;
+    keterangan?: string;
+}
+
+interface MintaBarangItem {
+    id: number;
+    kode: string;
+    nama: string;
+    ukuran?: string;
+    stokmin?: number;
+    stokmax?: number;
+    sudahminta?: number;
+    sj?: number;
+    stok?: number;
+    mino?: number;
+    jumlah?: number;
+    barcode?: string;
+    harga?: number;      // tambahkan properti harga
+    diskonPersen?: number;
+    diskonRp?: number;
+    total?: number;
+}
+
+interface LoadMintaBarangResponse {
+    header: MintaBarangHeader;
+    items: MintaBarangItem[];
+}
 
 const router = useRouter();
 const route = useRoute();
@@ -19,15 +107,16 @@ const MENU_ID = '37';
 const isEditMode = computed(() => !!route.params.nomor);
 const pageTitle = computed(() => isEditMode.value ? 'Ubah Minta Barang ke DC' : 'Buat Minta Barang ke DC');
 
-const initialHeaderState = {
+const initialHeaderState: FormHeader = {
     nomor: '',
     tanggal: format(new Date(), 'yyyy-MM-dd'),
     soNomor: '',
-    customer: null as any,
+    customer: null,
     keterangan: '',
 };
-const formHeader = ref({ ...initialHeaderState });
-const items = ref<any[]>([]);
+
+const formHeader = ref<FormHeader>({ ...initialHeaderState });
+const items = ref<Item[]>([]);
 const isLoading = ref(true);
 const isSaving = ref(false);
 const isSoSearchVisible = ref(false);
@@ -53,7 +142,7 @@ const tableHeaders = [
     { title: 'Jumlah', key: 'jumlah', align: 'end', width: '40px' },
     { title: 'Barcode', key: 'barcode', width: '100px' },
     { title: 'Actions', key: 'actions', sortable: false, width: '40px' },
-];
+] as const;
 
 const addNewRow = () => {
     const lastItem = items.value[items.value.length - 1];
@@ -82,7 +171,7 @@ const openProductSearch = (index: number, isMulti: boolean) => {
     isProductSearchVisible.value = true;
 };
 
-const onProductsSelected = async (selectedProducts: any[]) => {
+const onProductsSelected = async (selectedProducts: Product[]) => {
     isProductSearchVisible.value = false;
     if (!selectedProducts || selectedProducts.length === 0) return;
 
@@ -124,7 +213,7 @@ const onProductsSelected = async (selectedProducts: any[]) => {
         addNewRow();
 
     } catch (error) {
-        toast.error(`Gagal memuat detail produk.`);
+        toast.error(`Gagal memuat detail produk.`, error);
         // Jika terjadi error, pastikan baris kosong tetap ada
         if (!items.value.some(item => !item.kode)) {
             addNewRow();
@@ -139,12 +228,12 @@ const openCustomerSearch = () => {
     }
 };
 
-const onCustomerSelected = (customer: any) => {
+const onCustomerSelected = (customer: Customer) => {
     formHeader.value.customer = customer;
     isCustomerSearchVisible.value = false;
 };
 
-const onSoSelected = async (so: { Nomor: string, Customer: string, KdCus: string, Alamat: string }) => {
+const onSoSelected = async (so: { Nomor: string; Customer: string; KdCus: string; Alamat: string }) => {
     isSoSearchVisible.value = false;
     formHeader.value.soNomor = so.Nomor;
     formHeader.value.customer = {
@@ -153,17 +242,20 @@ const onSoSelected = async (so: { Nomor: string, Customer: string, KdCus: string
         alamat: so.Alamat
     };
     isLoading.value = true;
+
     try {
-        const response = await api.get(`/minta-barang-form/lookup/so-details/${so.Nomor}`);
-        items.value = response.data.items.map((item: any, index: number) => ({
+        const response = await api.get<SoDetailsResponse>(`/minta-barang-form/lookup/so-details/${so.Nomor}`);
+
+        items.value = response.data.items.map((item: SoItem, index: number) => ({
             ...item,
             id: Date.now() + index
         }));
 
-        formHeader.value.customer = response.data.customer; // langsung pakai dari backend
+        formHeader.value.customer = response.data.customer;
         addNewRow();
-    } catch (error) {
-        toast.error('Gagal memuat detail SO.');
+
+    } catch (error: unknown) {
+        toast.error('Gagal memuat detail SO.', error);
     } finally {
         isLoading.value = false;
     }
@@ -191,7 +283,7 @@ const closeForm = () => {
 const loadDataForEdit = async (nomor: string) => {
     isLoading.value = true;
     try {
-        const response = await api.get(`/minta-barang-form/${nomor}`);
+        const response = await api.get<LoadMintaBarangResponse>(`/minta-barang-form/${nomor}`);
         const { header, items: loadedItems } = response.data;
 
         // Isi header form
@@ -202,11 +294,15 @@ const loadDataForEdit = async (nomor: string) => {
         };
 
         // Isi grid
-        items.value = loadedItems.map((item: any) => ({ ...item, id: Date.now() + Math.random() }));
+        items.value = loadedItems.map((item: MintaBarangItem) => ({
+            ...item,
+            id: Date.now() + Math.random()
+        }));
+
         addNewRow();
 
-    } catch (error: any) {
-        toast.error(error.response?.data?.message || 'Gagal memuat data.');
+    } catch (error: unknown) {
+        toast.error('Gagal memuat data.', error);
         router.back();
     } finally {
         isLoading.value = false;
@@ -249,7 +345,7 @@ const executeSave = async () => {
         const response = await api.post('/minta-barang-form/save', payload);
         toast.success(response.data.message);
         router.push('/transaksi/internal/minta-barang');
-    } catch (error: any) {
+    } catch (error) {
         toast.error(error.response?.data?.message || 'Gagal menyimpan data.');
     } finally {
         isSaving.value = false;
@@ -257,39 +353,32 @@ const executeSave = async () => {
 };
 
 const handleBarcodeScan = async () => {
-    if (!formHeader.value.customer?.kode) { // Ganti 'header.value.customer?.kode' jika perlu
+    if (!formHeader.value.customer?.kode) {
         toast.error('Pilih customer terlebih dahulu sebelum scan barcode!');
-        return; // Hentikan fungsi jika customer belum dipilih
+        return;
     }
 
     const barcode = scannedBarcode.value;
     if (!barcode) return;
 
-    // --- LOGIKA 1: Jika barang sudah ada di grid, tambah jumlahnya ---
+    // Jika barang sudah ada
     const existingItem = items.value.find(item => item.barcode === barcode && item.kode);
     if (existingItem) {
-        existingItem.jumlah += 1;
-        // Panggil fungsi untuk hitung ulang total jika ada
-        // calculateTotals(); 
+        existingItem.jumlah = (existingItem.jumlah || 0) + 1;
         toast.info(`Jumlah untuk ${existingItem.nama} ditambah menjadi ${existingItem.jumlah}`);
-        scannedBarcode.value = ''; // Kosongkan input untuk scan berikutnya
+        scannedBarcode.value = '';
         return;
     }
 
-    // --- LOGIKA 2: Jika barang belum ada, cari via API dan tambahkan baris baru ---
     try {
-        // Panggil API baru yang kita buat
-        const response = await api.get(`/products/by-barcode/${barcode}`, {
-            params: { gudang: header.value.gudang.kode } // Sesuaikan dengan cara Anda menyimpan kode gudang
+        const response = await api.get<MintaBarangItem>(`/products/by-barcode/${barcode}`, {
+            params: { gudang: formHeader.value.gudang?.kode } // pakai formHeader
         });
 
         const product = response.data;
 
-        // Cari baris kosong pertama untuk diganti
         const emptyRowIndex = items.value.findIndex(item => !item.kode);
-
         if (emptyRowIndex !== -1) {
-            // Ganti baris kosong dengan data produk baru
             items.value.splice(emptyRowIndex, 1, {
                 id: Date.now(),
                 kode: product.kode,
@@ -297,27 +386,25 @@ const handleBarcodeScan = async () => {
                 ukuran: product.ukuran,
                 stok: product.stok,
                 harga: product.harga,
-                jumlah: 1, // Default jumlah 1
+                jumlah: 1,
                 diskonPersen: 0,
                 diskonRp: 0,
                 total: product.harga,
                 barcode: product.barcode,
-                // ... properti lain diset default
-            });
-            addNewRow(); // Tambah baris kosong baru di akhir
+            } as MintaBarangItem); // type-safe
+            addNewRow();
         } else {
-            // Jika tidak ada baris kosong (seharusnya tidak terjadi jika addNewRow dipakai)
-            // Anda bisa tambahkan logika push di sini
             toast.error("Tidak ada baris kosong untuk menambahkan item baru.");
         }
 
-        // Panggil fungsi untuk hitung ulang total jika ada
-        // calculateTotals();
-
-    } catch (error: any) {
-        toast.error(error.response?.data?.message || `Barcode ${barcode} tidak valid.`);
+    } catch (err: unknown) {
+        if (err instanceof AxiosError) {
+            toast.error(err.response?.data?.message || `Barcode ${barcode} tidak valid.`);
+        } else {
+            toast.error(`Barcode ${barcode} tidak valid.`);
+        }
     } finally {
-        scannedBarcode.value = ''; // Selalu kosongkan input setelah proses selesai
+        scannedBarcode.value = '';
     }
 };
 
@@ -403,21 +490,20 @@ onMounted(() => {
                 <div class="desktop-form-section fill-height">
                     <v-data-table :headers="tableHeaders" :items="items" :loading="isLoading" density="compact"
                         class="desktop-table fill-height-table" fixed-header :items-per-page="-1">
-                        <template #item.kode="{ item, index }">
+                        <template v-slot:[`item.kode`]="{ item, index }">
                             <v-text-field v-model="item.kode" variant="underlined" density="compact" hide-details
                                 placeholder="F1/F2..." @keydown.f1.prevent="openProductSearch(index, false)"
-                                @keydown.f2.prevent="openProductSearch(index, true)">
-                            </v-text-field>
+                                @keydown.f2.prevent="openProductSearch(index, true)" />
                         </template>
-                        <template #item.jumlah="{ item }">
+                        <template v-slot:[`item.jumlah`]="{ item }">
                             <v-text-field v-model.number="item.jumlah" type="number" min="0" variant="underlined"
                                 density="compact" hide-details class="text-end" />
                         </template>
-                        <template #item.sj="{ item }">
+                        <template v-slot:[`item.sj`]="{ item }">
                             <v-text-field v-model.number="item.sj" type="number" min="0" variant="underlined"
                                 density="compact" hide-details class="text-end" />
                         </template>
-                        <template #item.actions="{ item }">
+                        <template v-slot:[`item.actions`]="{ item }">
                             <v-btn v-if="item.kode" icon="mdi-delete" size="x-small" variant="text" color="error"
                                 @click="removeRow(item.id)" title="Hapus baris" />
                         </template>

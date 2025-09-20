@@ -5,8 +5,30 @@ import api from '@/services/api';
 import { format } from 'date-fns';
 import Logo from '@/assets/logo.png'; // <-- Impor logo
 
+interface PrintData {
+  sd_nomor: string;
+  sd_tanggal: string;
+  jo_nama: string;
+  sd_nama: string;
+  jumlah: number;
+  ukuran: string;
+  sd_kain: string;
+  sd_finishing: string;
+  sd_datekerja: string;
+  sd_workshop: string;
+  gdg_nama: string;
+  sd_desain: string;
+  sd_ket: string;
+  sd_jo_kode: string;
+  sd_customer?: string;
+  imageUrl?: string;
+  titik?: string;
+  user_create: string;
+  created?: string;
+}
+
 const route = useRoute();
-const printData = ref<any>(null);
+const printData = ref<PrintData | null>(null);
 const isLoading = ref(true);
 const appLogo = Logo; // <-- Sediakan logo untuk template
 

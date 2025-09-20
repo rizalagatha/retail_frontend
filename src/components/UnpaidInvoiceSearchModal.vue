@@ -53,7 +53,7 @@ const loadItems = async ({ page, itemsPerPage }: { page: number, itemsPerPage: n
             totalItems.value = 0;
         }
     } catch (error) {
-        toast.error("Gagal memuat data invoice.");
+        toast.error("Gagal memuat data invoice.", error);
         items.value = [];
         totalItems.value = 0;
     } finally {

@@ -1,11 +1,29 @@
 <script setup lang="ts">
-import { ref, reactive, onMounted, computed, watch } from 'vue';
+import { ref, reactive, onMounted, computed } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useToast } from 'vue-toastification';
 import { useAuthStore } from '@/stores/authStore';
 import api from '@/services/api';
 import { format, parseISO } from 'date-fns';
 import PageLayout from '@/components/PageLayout.vue';
+import { isAxiosError } from 'axios';
+
+interface Detail1 {
+    jenis: string;
+    tgltrf: string;
+    kdcus: string;
+    nmcus: string;
+    alamat: string;
+    inv: string;
+    nomor: string;
+    nominal: number;
+}
+
+interface Detail2 {
+    jenis: string;
+    nominal: number;
+    nominalv: number;
+}
 
 // --- Inisialisasi ---
 const router = useRouter();
@@ -16,7 +34,7 @@ const MENU_ID = '54';
 
 // --- State ---
 const isEditMode = computed(() => !!route.params.nomor);
-const pageTitle = computed(() => isEditMode.value ? 'Ubah Form Setoran Kasir' : 'Buat Form Setoran Kasir');
+// const pageTitle = computed(() => isEditMode.value ? 'Ubah Form Setoran Kasir' : 'Buat Form Setoran Kasir'); 
 const totalNominalSetor = computed(() => {
     // Gunakan .reduce() untuk menjumlahkan semua nilai 'nominal' di tabel rekapitulasi
     return details2.value.reduce((sum, item) => sum + (item.nominal || 0), 0);
@@ -32,8 +50,8 @@ const header = reactive({
     tglVerifikasi: '',
 });
 
-const details1 = ref<any[]>([]); // Grid detail atas
-const details2 = ref<any[]>([]); // Grid summary bawah
+const details1 = ref<Detail1[]>([]);
+const details2 = ref<Detail2[]>([]);
 
 const isLoading = ref(false);
 const isSaving = ref(false);
@@ -57,12 +75,12 @@ const tableHeaders1 = [
     { title: 'No. Invoice', key: 'inv' },
     { title: 'No. Setor', key: 'nomor' },
     { title: 'Nominal', key: 'nominal', align: 'end' },
-];
+] as const;
 const tableHeaders2 = [
     { title: 'Jenis Setoran', key: 'jenis' },
     { title: 'Total Nominal Setor', key: 'nominal', align: 'end' },
     { title: 'Nominal Verifikasi', key: 'nominalv', align: 'end' },
-];
+] as const;
 
 const formatRupiah = (value: number) => new Intl.NumberFormat('id-ID').format(value || 0);
 
@@ -88,15 +106,22 @@ const loadData = async () => {
         }
 
         details1.value = response.data.details1;
-        details2.value = response.data.details2.map((d: any) => ({ ...d, nominalv: d.nominalv || d.nominal })); // Pre-fill nominal verifikasi
+        details2.value = response.data.details2.map((d: Partial<Detail2>) => ({
+            ...d,
+            nominalv: d.nominalv ?? d.nominal ?? 0,
+        })) as Detail2[]; // Pre-fill nominal verifikasi
         isDataLoaded.value = true;
 
         if (isVerified.value) {
             toast.warning('Data ini sudah diverifikasi dan tidak bisa diubah.');
         }
 
-    } catch (error: any) {
-        toast.error(error.response?.data?.message || 'Gagal memuat data.');
+    } catch (error: unknown) {
+        if (isAxiosError(error)) {
+            toast.error(error.response?.data?.message || 'Gagal memuat data.');
+        } else {
+            toast.error('Gagal memuat data.');
+        }
     } finally {
         isLoading.value = false;
     }
@@ -122,7 +147,7 @@ const executeSave = async () => {
         window.open(url, '_blank');
 
         router.push({ name: 'Fsk' });
-    } catch (error: any) {
+    } catch {
         // ...
     } finally {
         isSaving.value = false;
@@ -198,9 +223,13 @@ onMounted(() => {
                     <div class="text-subtitle-1 font-weight-bold mb-2">Rincian Setoran</div>
                     <v-data-table :headers="tableHeaders1" :items="details1" density="compact"
                         class="desktop-table fill-height-table" :items-per-page="-1" :loading="isLoading">
-                        <template #item.nominal="{ value }">{{ formatRupiah(value) }}</template>
-                        <template #item.tgltrf="{ value }">{{ value ? format(parseISO(value), 'dd/MM/yyyy') : ''
-                        }}</template>
+                        <template #[`item.nominal`]="{ item }">
+                            {{ formatRupiah(item.nominal) }}
+                        </template>
+
+                        <template #[`item.tgltrf`]="{ item }">
+                            {{ item.tgltrf ? format(parseISO(item.tgltrf), 'dd/MM/yyyy') : '' }}
+                        </template>
                         <template #bottom></template>
                     </v-data-table>
                 </div>
@@ -208,9 +237,13 @@ onMounted(() => {
                     <div class="text-subtitle-1 font-weight-bold mb-2">Rekapitulasi Setoran</div>
                     <v-data-table :headers="tableHeaders2" :items="details2" density="compact" class="desktop-table"
                         :items-per-page="-1" :loading="isLoading">
-                        <template #item.nominal="{ value }">{{ formatRupiah(value) }}</template>
-                        <template #item.nominalv="{ value }">{{ formatRupiah(value) }}</template>
+                        <template #[`item.nominal`]="{ item }">
+                            {{ formatRupiah(item.nominal) }}
+                        </template>
 
+                        <template #[`item.nominalv`]="{ item }">
+                            {{ formatRupiah(item.nominalv) }}
+                        </template>
                         <template #bottom></template>
                     </v-data-table>
                 </div>

@@ -1,13 +1,14 @@
 <script setup lang="ts">
-import { ref, reactive, onMounted, computed, nextTick, watch } from 'vue';
+import { ref, reactive, onMounted, computed, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import api from '@/services/api';
 import { useToast } from 'vue-toastification';
 import { useAuthStore } from '@/stores/authStore';
-import { format, subDays, parseISO } from 'date-fns';
+import { format, subDays } from 'date-fns';
 import PageLayout from '@/components/PageLayout.vue';
 import ProductSearchModal from '@/components/ProductSearchModal.vue';
 import * as XLSX from 'xlsx';
+import { AxiosError } from 'axios';
 
 // --- Tipe Data ---
 interface SuratJalanHeader {
@@ -17,11 +18,18 @@ interface SuratJalanHeader {
     NoSTBJ: string;
     Ngedit: 'WAIT' | 'ACC' | 'TOLAK' | '';
     Closing: 'Y' | 'N';
-    [key: string]: any;
+    Keterangan: string;
+    [key: string]: unknown;
 }
 
 interface SuratJalanDetail {
-    [key: string]: any;
+    [key: string]: unknown;
+}
+
+interface Product {
+    kode: string;
+    nama: string;
+    [key: string]: unknown; // jika ada properti lain yang mungkin ada
 }
 
 // --- Inisialisasi ---
@@ -76,7 +84,7 @@ const detailHeaders = [
     { title: 'Nama Barang', key: 'Nama' },
     { title: 'Ukuran', key: 'Ukuran', width: '100px' },
     { title: 'Jumlah', key: 'Jumlah', align: 'end', width: '120px' },
-];
+] as const;
 
 // --- Method ---
 const fetchMasterData = async () => {
@@ -87,8 +95,9 @@ const fetchMasterData = async () => {
     try {
         const response = await api.get('/surat-jalan', { params: filters });
         masterData.value = response.data;
-    } catch (error: any) {
-        toast.error(error.response?.data?.message || 'Gagal mengambil data.');
+    } catch (error: unknown) {
+        const err = error as AxiosError<{ message?: string }>;
+        toast.error(err.response?.data?.message || 'Gagal mengambil data.');
     } finally {
         loading.master = false;
     }
@@ -104,7 +113,7 @@ const loadDetails = async (newlyExpandedItems: SuratJalanHeader[]) => {
     try {
         const response = await api.get(`/surat-jalan/${nomorToLoad}`);
         details.value[nomorToLoad] = response.data;
-    } catch (error) {
+    } catch {
         toast.error(`Gagal memuat detail untuk ${nomorToLoad}`);
         // Jika gagal, biarkan Vuetify yang mengatur array expanded
         // Cukup pastikan datanya kosong agar menampilkan pesan error
@@ -124,7 +133,10 @@ const printData = () => {
     window.open(url, '_blank');
 };
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 const handleNew = () => router.push({ name: 'SuratJalanCreate' });
+
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 const handleEdit = () => {
     if (!selectedRow.value) return;
     if (selectedRow.value.NomorTerima) return toast.warning('Sudah ada penerimaan. Tidak bisa diubah.');
@@ -145,11 +157,13 @@ const executeDelete = async () => {
         const response = await api.delete(`/surat-jalan/${selectedRow.value.Nomor}`);
         toast.success(response.data.message);
         fetchMasterData();
-    } catch (error: any) {
-        toast.error(error.response?.data?.message || 'Gagal menghapus data.');
+    } catch (error: unknown) {
+        const err = error as AxiosError<{ message?: string }>;
+        toast.error(err.response?.data?.message || 'Gagal menghapus data.');
     }
 };
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 const openPengajuanDialog = async () => {
     if (!selectedRow.value) return;
     // Validasi
@@ -165,14 +179,16 @@ const openPengajuanDialog = async () => {
         pengajuan.keterangan = selectedRow.value.Keterangan;
         pengajuan.urut = response.data.nextUrut;
         pengajuan.alasan = response.data.alasan;
-    } catch (error: any) {
-        toast.error(error.response?.data?.message || 'Gagal mendapatkan status pengajuan.');
+    } catch (error: unknown) {
+        const err = error as AxiosError<{ message?: string }>;
+        toast.error(err.response?.data?.message || 'Gagal mendapatkan status pengajuan.');
         dialog.pengajuan = false;
     } finally {
         loading.pengajuan = false;
     }
 };
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 const submitPengajuan = async () => {
     loading.pengajuan = true;
     try {
@@ -180,14 +196,15 @@ const submitPengajuan = async () => {
         toast.success(response.data.message);
         dialog.pengajuan = false;
         fetchMasterData();
-    } catch (error: any) {
-        toast.error(error.response?.data?.message || 'Gagal mengirim pengajuan.');
+    } catch (error: unknown) {
+        const err = error as AxiosError<{ message?: string }>;
+        toast.error(err.response?.data?.message || 'Gagal mengirim pengajuan.');
     } finally {
         loading.pengajuan = false;
     }
 };
 
-const onProductSelected = (products: any[]) => {
+const onProductSelected = (products: Product[]) => {
     if (products.length > 0) {
         filters.kodeBarang = products[0].kode;
         filters.namaBarang = products[0].nama;
@@ -213,7 +230,7 @@ const exportData = async (type: 'header' | 'detail') => {
             XLSX.utils.book_append_sheet(workbook, worksheet, "SJ Header");
             XLSX.writeFile(workbook, "Export_Surat_Jalan_Header.xlsx");
             toast.success('File Header berhasil dibuat.');
-        } catch (error) {
+        } catch {
             toast.error('Gagal membuat file Excel.');
         }
 
@@ -232,7 +249,7 @@ const exportData = async (type: 'header' | 'detail') => {
             XLSX.writeFile(workbook, "Export_Surat_Jalan_Detail.xlsx");
             toast.success('File Detail berhasil dibuat.');
 
-        } catch (error) {
+        } catch {
             toast.error('Gagal mengekspor data detail.');
         }
     }
@@ -329,15 +346,24 @@ watch(() => filters.kodeBarang, (newVal) => {
                     :items="masterData" :loading="loading.master" item-value="Nomor" density="compact"
                     class="desktop-table" fixed-header show-select return-object show-expand
                     @update:expanded="loadDetails">
-                    <template #item.Nomor="{ item }">
+                    <template #[`item.Nomor`]="{ item }">
                         <strong :style="{ color: getStatusColor(item.Ngedit) }">{{ item.Nomor }}</strong>
                     </template>
-                    <template #item.Tanggal="{ value }">{{ format(new Date(value), 'dd-MM-yyyy') }}</template>
-                    <template #item.NomorTerima="{ value }">
-                        <span :class="!value && 'text-red font-weight-bold'">{{ value || 'Belum' }}</span>
+
+                    <template #[`item.Tanggal`]="{ item }">
+                        {{ format(new Date(item.Tanggal as string), 'dd-MM-yyyy') }}
                     </template>
-                    <template #item.NoSTBJ="{ value }"><span :class="value && 'text-blue font-weight-bold'">{{ value
-                    }}</span>
+
+                    <template #[`item.NomorTerima`]="{ item }">
+                        <span :class="!item.NomorTerima && 'text-red font-weight-bold'">
+                            {{ item.NomorTerima || 'Belum' }}
+                        </span>
+                    </template>
+
+                    <template #[`item.NoSTBJ`]="{ item }">
+                        <span :class="item.NoSTBJ && 'text-blue font-weight-bold'">
+                            {{ item.NoSTBJ }}
+                        </span>
                     </template>
 
                     <template #expanded-row="{ columns, item }">

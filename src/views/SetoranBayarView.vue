@@ -7,6 +7,8 @@ import api from '@/services/api';
 import { format, subDays, parseISO } from 'date-fns';
 import PageLayout from '@/components/PageLayout.vue';
 import * as XLSX from 'xlsx';
+import type { AxiosError } from 'axios';
+import axios from 'axios';
 
 // --- Inisialisasi ---
 const router = useRouter();
@@ -19,16 +21,26 @@ interface SetoranHeader {
     Nomor: string;
     Otomatis: string;
     Sisa: number;
-    [key: string]: any;
+    [key: string]: unknown;
+}
+
+interface SetoranDetail {
+    TglBayar: string;
+    Invoice: string;
+    TglInvoice: string;
+    JatuhTempo: string;
+    Nominal: number;
+    Bayar: number;
+    Keterangan: string;
 }
 
 // --- State ---
 const masterData = ref<SetoranHeader[]>([]);
-const details = ref<Record<string, any[]>>({});
+const details = ref<Record<string, SetoranDetail[]>>({});
 const loading = ref(true);
 const loadingDetails = ref(new Set<string>());
 const selected = ref<SetoranHeader[]>([]);
-const expanded = ref<SetoranHeader[]>([]);
+const expanded = ref<string[]>([]);
 const cabangList = ref([]);
 
 const filters = reactive({
@@ -87,7 +99,7 @@ const headers = [
     { title: 'Keterangan', key: 'Keterangan', minWidth: '300px' },
     { title: 'Otomatis', key: 'Otomatis', align: 'center', width: '100px' },
     { title: 'Closing', key: 'Closing', align: 'center', width: '100px' },
-];
+] as const;
 const detailHeaders = [
     { title: 'Tgl Bayar', key: 'TglBayar' },
     { title: 'Invoice', key: 'Invoice' },
@@ -96,14 +108,14 @@ const detailHeaders = [
     { title: 'Nominal', key: 'Nominal', align: 'end' },
     { title: 'Bayar', key: 'Bayar', align: 'end' },
     { title: 'Keterangan', key: 'Keterangan' },
-];
+] as const;
 
 // --- Methods ---
 const fetchCabangList = async () => {
     try {
         const response = await api.get('/setoran-bayar/lookup/cabang');
         cabangList.value = response.data;
-    } catch (error) { toast.error('Gagal memuat daftar cabang.'); }
+    } catch (error) { toast.error('Gagal memuat daftar cabang.', error); }
 };
 
 const fetchMasterData = async () => {
@@ -113,28 +125,44 @@ const fetchMasterData = async () => {
         masterData.value = response.data;
         selected.value = [];
         expanded.value = [];
-    } catch (error: any) {
-        toast.error(error.response?.data?.message || 'Gagal mengambil data.');
+    } catch (error) {
+        const axiosError = error as AxiosError<{ message: string }>;
+        toast.error(axiosError.response?.data?.message || 'Gagal mengambil data.');
     } finally {
         loading.value = false;
     }
 };
 
-const loadDetails = async (newlyExpandedItems: SetoranHeader[]) => {
-    const itemToLoad = newlyExpandedItems.find(item => !details.value[item.Nomor] && !loadingDetails.value.has(item.Nomor));
-    if (!itemToLoad) return;
+const loadDetails = async (newlyExpandedKeys: string[]) => {
+    // cari item yang belum dimuat detailnya
+    const itemToLoadKey = newlyExpandedKeys.find(
+        key => !details.value[key] && !loadingDetails.value.has(key)
+    );
+    if (!itemToLoadKey) return;
 
-    loadingDetails.value.add(itemToLoad.Nomor);
+    loadingDetails.value.add(itemToLoadKey);
     try {
-        const response = await api.get(`/setoran-bayar/details/${itemToLoad.Nomor}`);
-        details.value[itemToLoad.Nomor] = response.data;
-    } catch (error) {
-        toast.error(`Gagal memuat detail untuk ${itemToLoad.Nomor}`);
-        expanded.value = expanded.value.filter(i => i.Nomor !== itemToLoad.Nomor);
+        const response = await api.get(`/setoran-bayar/details/${itemToLoadKey}`);
+        details.value[itemToLoadKey] = response.data;
+    } catch (err: unknown) {
+        if (axios.isAxiosError(err)) {
+            toast.error(
+                `Gagal memuat detail untuk ${itemToLoadKey}: ${err.response?.data?.message || err.message}`
+            );
+        } else if (err instanceof Error) {
+            // fallback jika error bukan AxiosError
+            toast.error(`Gagal memuat detail untuk ${itemToLoadKey}: ${err.message}`);
+        } else {
+            toast.error(`Gagal memuat detail untuk ${itemToLoadKey}: unknown error`);
+        }
+
+        // hapus key dari expanded jika gagal load
+        expanded.value = expanded.value.filter(k => k !== itemToLoadKey);
     } finally {
-        loadingDetails.value.delete(itemToLoad.Nomor);
+        loadingDetails.value.delete(itemToLoadKey);
     }
 };
+
 
 const handleDelete = () => {
     if (!selectedRow.value) return;
@@ -166,7 +194,7 @@ const exportData = async (type: 'header' | 'detail') => {
             XLSX.utils.book_append_sheet(workbook, worksheet, "Setoran Detail");
             XLSX.writeFile(workbook, "Export_Setoran_Detail.xlsx");
         } catch (error) {
-            toast.error('Gagal mengekspor data detail.');
+            toast.error('Gagal mengekspor data detail.', error);
         }
     }
 };
@@ -201,6 +229,10 @@ onMounted(() => {
 });
 
 watch(filters, fetchMasterData, { deep: true });
+
+watch(expanded, (newExpanded) => {
+    loadDetails(newExpanded);
+});
 </script>
 
 <template>
@@ -259,14 +291,14 @@ watch(filters, fetchMasterData, { deep: true });
                 <v-data-table v-model="selected" v-model:expanded="expanded" :headers="headers" :items="masterData"
                     :loading="loading" item-value="Nomor" density="compact" class="desktop-table" fixed-header
                     show-select return-object show-expand @update:expanded="loadDetails">
-                    <template v-for="header in headers" #[`item.${header.key}`]="{ item }">
+                    <template v-for="header in headers" #[`item.${header.key}`]="{ item }" :key="header.key">
                         <td :class="getRowTextColor(item)">
                             <template
                                 v-if="['Tanggal', 'TglTerima', 'TglTransfer', 'TglGiro', 'TglJatuhTempo'].includes(header.key)">
-                                {{ item[header.key] ? format(parseISO(item[header.key]), 'dd/MM/yyyy') : '' }}
+                                {{ format(parseISO(item[header.key] as string), 'dd/MM/yyyy') }}
                             </template>
                             <template v-else-if="['Nominal', 'diBayarkan', 'Sisa'].includes(header.key)">
-                                {{ formatRupiah(item[header.key]) }}
+                                {{ formatRupiah(item[header.key] as number) }}
                             </template>
                             <template v-else-if="header.key === 'Posting'">
                                 <v-chip size="x-small" :color="item.Posting === 'SUDAH' ? 'green' : 'grey'">{{
@@ -295,12 +327,18 @@ watch(filters, fetchMasterData, { deep: true });
                                             detail...</div>
                                         <v-data-table v-else :headers="detailHeaders" :items="details[item.Nomor]"
                                             density="compact" class="detail-table" :items-per-page="-1">
-                                            <template #item.TglBayar="{ value }">{{ value ? format(parseISO(value),
-                                                'dd/MM/yyyy') : '' }}</template>
-                                            <template #item.TglInvoice="{ value }">{{ value ? format(parseISO(value),
-                                                'dd/MM/yyyy') : '' }}</template>
-                                            <template #item.Nominal="{ value }">{{ formatRupiah(value) }}</template>
-                                            <template #item.Bayar="{ value }">{{ formatRupiah(value) }}</template>
+                                            <template #[`item.TglBayar`]="{ value }">
+                                                {{ value ? format(parseISO(value as string), 'dd/MM/yyyy') : '' }}
+                                            </template>
+                                            <template #[`item.TglInvoice`]="{ value }">
+                                                {{ value ? format(parseISO(value as string), 'dd/MM/yyyy') : '' }}
+                                            </template>
+                                            <template #[`item.Nominal`]="{ value }">
+                                                {{ formatRupiah(value as number) }}
+                                            </template>
+                                            <template #[`item.Bayar`]="{ value }">
+                                                {{ formatRupiah(value as number) }}
+                                            </template>
                                             <template #bottom></template>
                                         </v-data-table>
                                     </div>

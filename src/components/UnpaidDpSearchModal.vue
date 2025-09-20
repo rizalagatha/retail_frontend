@@ -38,7 +38,7 @@ const loadItems = async () => {
         const response = await api.get(`/invoice-form/lookup/unpaid-dp/${props.customerKode}`);
         items.value = response.data;
     } catch (error) {
-        toast.error("Gagal memuat data DP yang belum lunas.");
+        toast.error("Gagal memuat data DP yang belum lunas.", error);
     } finally {
         loading.value = false;
     }

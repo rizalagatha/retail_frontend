@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, computed, watch } from 'vue';
+import { ref, onMounted, computed } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import api from '@/services/api';
 import PageLayout from '@/components/PageLayout.vue';
@@ -7,6 +7,7 @@ import { useToast } from 'vue-toastification';
 import { useAuthStore } from '@/stores/authStore';
 import { format } from 'date-fns';
 import SoDtfStokSearchModal from '@/components/SoDtfStokSearchModal.vue';
+import { AxiosError } from 'axios';
 
 interface LhkItem {
     id: number;
@@ -28,6 +29,7 @@ const MENU_ID = '48';
 
 const isEditMode = computed(() => !!route.params.nomor);
 const pageTitle = computed(() => isEditMode.value ? `Ubah LHK SO DTF Stok` : 'Buat LHK SO DTF Stok');
+const hasViewPermission = computed(() => authStore.can(MENU_ID, 'view'));
 
 const formHeader = ref({
     nomor: '',
@@ -56,7 +58,7 @@ const tableHeaders = [
     { title: 'Sudah LHK', key: 'sudah', sortable: false, align: 'end' },
     { title: 'Belum LHK', key: 'belum', sortable: false, align: 'end' },
     { title: 'Jumlah', key: 'jumlah', sortable: false, width: '150px' },
-];
+] as const;
 
 // --- Methods ---
 const onSoSelected = async (so: { nomor: string }) => {
@@ -67,7 +69,7 @@ const onSoSelected = async (so: { nomor: string }) => {
         const response = await api.get(`/lhk-so-dtf-stok-form/lookup/so-stok-details/${so.nomor}`);
         items.value = response.data;
     } catch (error) {
-        toast.error('Gagal memuat detail SO Stok.');
+        toast.error('Gagal memuat detail SO Stok.', error);
     } finally {
         isLoading.value = false;
     }
@@ -106,15 +108,21 @@ const save = async () => {
             toast.success(response.data.message);
 
             if (isEditMode.value) {
-                // Jika mode ubah, cukup muat ulang data
-                loadLhkData();
+                // Mode ubah: reload data berdasarkan nomor LHK
+                if (formHeader.value.nomor) {
+                    await loadDataForEdit(formHeader.value.nomor);
+                }
             } else {
                 // Jika mode baru, arahkan ke mode ubah dengan nomor baru
                 router.push(`/transaksi/penjualan/dtf/lhk-so-dtf-stok/ubah/${response.data.nomor}`);
             }
 
-        } catch (error: any) {
-            toast.error(error.response?.data?.message || 'Gagal menyimpan data.');
+        } catch (err) {
+            if (err instanceof AxiosError) {
+                toast.error(err.response?.data?.message || 'Gagal menyimpan data.');
+            } else {
+                toast.error('Gagal menyimpan data.');
+            }
         } finally {
             isSaving.value = false;
         }
@@ -133,9 +141,16 @@ const loadDataForEdit = async (nomor: string) => {
         formHeader.value.soNomor = header.ds_sd_nomor;
 
         // Isi grid
-        items.value = loadedItems.map((item: any, index: number) => ({ ...item, id: Date.now() + index }));
-    } catch (error: any) {
-        toast.error(error.response?.data?.message || 'Gagal memuat data LHK.');
+        items.value = loadedItems.map((item: Partial<LhkItem>, index: number) => ({
+            ...item,
+            id: Date.now() + index
+        })) as LhkItem[];
+    } catch (err) {
+        if (err instanceof AxiosError) {
+            toast.error(err.response?.data?.message || 'Gagal memuat data LHK.');
+        } else {
+            toast.error('Gagal memuat data LHK.');
+        }
         router.back();
     } finally {
         isLoading.value = false;
@@ -190,13 +205,23 @@ const revertQty = () => {
     itemToValidate.value = null;
 };
 
+const loadLhkData = async () => {
+    if (!formHeader.value.nomor) return;
+    isLoading.value = true;
+    try {
+        await loadDataForEdit(formHeader.value.nomor); // gunakan fungsi yang sudah ada
+    } finally {
+        isLoading.value = false;
+    }
+};
+
 onMounted(() => {
+    if (!hasViewPermission.value) return;
+
     const nomor = route.params.nomor as string;
     if (isEditMode.value && nomor) {
-        // Jika mode Ubah, panggil fungsi ini
         loadDataForEdit(nomor);
     } else {
-        // Jika mode Baru
         isLoading.value = false;
     }
 });
@@ -218,6 +243,11 @@ onMounted(() => {
             </v-btn>
         </template>
 
+        <div v-if="!hasViewPermission" class="state-container">
+            <v-icon size="64" class="mb-4">mdi-lock-outline</v-icon>
+            <h3 class="text-h6">Akses Ditolak</h3>
+        </div>
+
         <div class="form-content">
             <div class="header-filters">
                 <v-text-field label="Nomor LHK" v-model="formHeader.nomor" readonly filled density="compact"
@@ -230,8 +260,11 @@ onMounted(() => {
             <div class="table-container">
                 <v-data-table :headers="tableHeaders" :items="items" :loading="isLoading" density="compact"
                     class="desktop-table fill-height-table" fixed-header :items-per-page="-1">
-                    <template #item.no="{ index }">{{ index + 1 }}</template>
-                    <template #item.jumlah="{ item }">
+                    <template v-slot:[`item.no`]="{ index }">
+                        {{ index + 1 }}
+                    </template>
+
+                    <template v-slot:[`item.jumlah`]="{ item }">
                         <v-text-field v-model.number="item.jumlah" type="number" min="0" variant="underlined"
                             density="compact" hide-details class="text-end" @focus="onJumlahFocus(item)"
                             @blur="validateJumlah(item)" />
@@ -272,7 +305,7 @@ onMounted(() => {
                 </v-card-title>
                 <v-card-text>
                     Qty LHK yang diinput ({{ itemToValidate?.jumlah }}) lebih besar dari sisa kuota SO ({{
-                    itemToValidate?.belum
+                        itemToValidate?.belum
                     }}).
                     <br>
                     Yakin akan dilanjutkan?

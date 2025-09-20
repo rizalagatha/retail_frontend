@@ -7,6 +7,7 @@ import { useAuthStore } from '@/stores/authStore';
 import { format } from 'date-fns';
 import { useRouter } from 'vue-router';
 import * as XLSX from 'xlsx';
+import axios from 'axios';
 
 const toast = useToast();
 const authStore = useAuthStore();
@@ -23,7 +24,7 @@ interface SoDtfHeader {
     AlasanClose: string;
     LHK: number;
     TotalTitik: number;
-    [key: string]: any;
+    [key: string]: unknown;
 }
 interface SoDtfDetail {
     Ukuran: string;
@@ -42,7 +43,7 @@ const selectedCabang = ref(authStore.user?.cabang === 'KDC' ? 'ALL' : authStore.
 const selected = ref<SoDtfHeader[]>([]);
 const expanded = ref<SoDtfHeader[]>([]);
 const loadingDetails = ref<Set<string>>(new Set());
-const fetchTimeout = ref(null);
+const fetchTimeout = ref<number | undefined>(undefined);
 
 const isCloseDialogVisible = ref(false);
 const itemToClose = ref<SoDtfHeader | null>(null);
@@ -83,18 +84,18 @@ const filterSearchValue = ref('');
 // --- Computed ---
 const hasViewPermission = computed(() => authStore.can(MENU_ID, 'view'));
 const isSingleSelected = computed(() => selected.value.length === 1);
-const filteredSoDtfList = computed(() => {
-    if (!filterSearchValue.value) {
-        return soDtfList.value;
-    }
-    return soDtfList.value.filter(item => {
-        const itemValue = item[selectedFilterField.value];
-        if (itemValue !== null && itemValue !== undefined) {
-            return itemValue.toString().toLowerCase().includes(filterSearchValue.value.toLowerCase());
-        }
-        return false;
-    });
-});
+// const filteredSoDtfList = computed(() => {
+//     if (!filterSearchValue.value) {
+//         return soDtfList.value;
+//     }
+//     return soDtfList.value.filter(item => {
+//         const itemValue = item[selectedFilterField.value];
+//         if (itemValue !== null && itemValue !== undefined) {
+//             return itemValue.toString().toLowerCase().includes(filterSearchValue.value.toLowerCase());
+//         }
+//         return false;
+//     });
+// });
 
 const headers = [
     { title: 'Nomor', key: 'Nomor', width: '150px', fixed: true },
@@ -120,7 +121,7 @@ const headers = [
     { title: 'Alasan Close', key: 'AlasanClose', width: '250px' },
     { title: 'User', key: 'Created', width: '120px' },
     { title: 'Status Close', key: 'Close', align: 'center', width: '120px' },
-];
+] as const;
 
 // --- Methods ---
 const fetchCabangList = async () => {
@@ -134,7 +135,7 @@ const fetchCabangList = async () => {
         } else {
             cabangList.value = response.data;
         }
-    } catch (error) {
+    } catch {
         toast.error('Gagal memuat daftar cabang.');
     }
 };
@@ -149,7 +150,7 @@ const fetchData = async () => {
             }
         });
         soDtfList.value = response.data;
-    } catch (error) {
+    } catch {
         toast.error('Gagal memuat data SO DTF.');
     } finally {
         isLoading.value = false;
@@ -168,7 +169,7 @@ const loadDetails = async (newlyExpandedItems: SoDtfHeader[]) => {
     try {
         const response = await api.get(`/so-dtf/${nomor}`);
         details.value[nomor] = response.data;
-    } catch (error) {
+    } catch {
         toast.error(`Gagal memuat detail untuk ${nomor}`);
         expanded.value = expanded.value.filter(item => item.Nomor !== nomor);
     } finally {
@@ -218,7 +219,7 @@ const submitCloseSo = async () => {
         isCloseDialogVisible.value = false;
         fetchData();
         selected.value = [];
-    } catch (error) {
+    } catch {
         toast.error('Gagal menutup SO DTF.');
     }
 };
@@ -255,9 +256,14 @@ const executeDelete = async () => {
         toast.success(`SO DTF ${itemToDelete.value.Nomor} berhasil dihapus.`);
         fetchData(); // Muat ulang data tabel
         selected.value = []; // Kosongkan pilihan
-    } catch (error: any) {
-        // Menampilkan pesan error dari backend
-        toast.error(error.response?.data?.message || 'Gagal menghapus data.');
+    } catch (error: unknown) {
+        if (axios.isAxiosError(error)) {
+            // error berasal dari axios
+            toast.error(error.response?.data?.message || 'Gagal menghapus data.');
+        } else {
+            // error non-axios
+            toast.error('Terjadi kesalahan.');
+        }
     } finally {
         isConfirmDialogVisible.value = false;
         itemToDelete.value = null;
@@ -323,7 +329,7 @@ const printData = () => {
 
 const formatDate = (dateValue) => {
     if (!dateValue) return '-';
-    
+
     try {
         const date = new Date(dateValue);
         // Periksa apakah date valid
@@ -331,7 +337,7 @@ const formatDate = (dateValue) => {
             return '-';
         }
         return format(date, 'dd/MM/yyyy');
-    } catch (error) {
+    } catch {
         console.warn('Invalid date format:', dateValue);
         return '-';
     }
@@ -351,11 +357,12 @@ onUnmounted(() => {
 });
 
 watch([filterDateType, startDate, endDate, selectedCabang], () => {
-    // Debounce untuk mencegah multiple calls
-    clearTimeout(fetchTimeout);
-    fetchTimeout.value = setTimeout(() => {
-        fetchData();
-    }, 300);
+  // Debounce untuk mencegah multiple calls
+  if (fetchTimeout.value) clearTimeout(fetchTimeout.value);
+  
+  fetchTimeout.value = window.setTimeout(() => {
+    fetchData();
+  }, 300);
 });
 </script>
 
@@ -443,11 +450,11 @@ watch([filterDateType, startDate, endDate, selectedCabang], () => {
                     <div class="legend-item"><v-chip size="x-small" class="lhk-progress" label>1</v-chip> Progress</div>
                 </div>
             </div>
-            
+
             <v-data-table v-model="selected" :headers="headers" :items="soDtfList" :loading="isLoading"
                 item-value="Nomor" density="compact" class="desktop-table fill-height-table" fixed-header show-select
                 return-object show-expand @update:expanded="loadDetails">
-                <template v-for="header in headers" #[`item.${header.key}`]="{ item }">
+                <template v-for="header in headers" #[`item.${header.key}`]="{ item }" :key="header.key">
                     <td :class="getRowTextColor(item)">
                         <template v-if="['Tanggal', 'TglPengerjaan', 'DatelineCus'].includes(header.key)">
                             {{ formatDate(item[header.key]) }}
@@ -464,14 +471,16 @@ watch([filterDateType, startDate, endDate, selectedCabang], () => {
                             <v-chip :class="getLhkClass(item)" size="x-small" label>{{ item.LHK }}</v-chip>
                         </template>
                         <template v-else-if="header.key === 'Close'">
-                            <v-chip :color="item.Close === 'Y' ? 'success' : 'grey'" size="x-small">{{ item.Close ===
-                                'Y' ? 'Closed' : 'Open' }}</v-chip>
+                            <v-chip :color="item.Close === 'Y' ? 'success' : 'grey'" size="x-small">
+                                {{ item.Close === 'Y' ? 'Closed' : 'Open' }}
+                            </v-chip>
                         </template>
                         <template v-else>
                             {{ item[header.key] }}
                         </template>
                     </td>
                 </template>
+
 
                 <template #expanded-row="{ columns, item }">
                     <tr>
@@ -583,11 +592,6 @@ watch([filterDateType, startDate, endDate, selectedCabang], () => {
 .row-no-invoice,
 .row-no-invoice :deep(td) {
     color: blue !important;
-}
-
-.row-closed,
-.row-closed :deep(td) {
-    /* Color handled by first child only */
 }
 
 .row-closed :deep(td:first-child) {

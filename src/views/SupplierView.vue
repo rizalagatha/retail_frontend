@@ -50,7 +50,7 @@ const headers = [
   { title: 'Contact Person', key: 'contactPerson' },
   { title: 'Status', key: 'status', align: 'center' },
   { title: 'Actions', key: 'actions', sortable: false, align: 'center' },
-];
+] as const;
 
 // --- Computed Properties ---
 const canEdit = computed(() => selected.value.length === 1);
@@ -64,7 +64,7 @@ const fetchSuppliers = async () => {
   try {
     const response = await api.get('/suppliers'); // Gunakan API
     suppliers.value = response.data;
-  } catch (error) {
+  } catch {
     toast.error('Gagal memuat data supplier.');
   } finally {
     isLoading.value = false;
@@ -104,7 +104,7 @@ const saveSupplier = async () => {
     await api.post('/suppliers/save', payload); // Gunakan API
     toast.success('Data supplier berhasil disimpan.');
     fetchSuppliers();
-  } catch (error) {
+  } catch {
     toast.error('Gagal menyimpan data supplier.');
   } finally {
     dialog.value = false;
@@ -117,7 +117,7 @@ const deleteSupplier = async (item: Supplier) => {
     await api.delete(`/suppliers/${item.kode}`); // Gunakan API
     toast.success('Data supplier berhasil dihapus.');
     fetchSuppliers();
-  } catch (error) {
+  } catch {
     toast.error('Gagal menghapus data supplier.');
   }
 };
@@ -204,14 +204,18 @@ onMounted(() => {
       <!-- Table Section -->
       <v-data-table v-model="selected" :headers="headers" :items="suppliers" :search="search" :loading="isLoading"
         item-value="kode" density="compact" class="desktop-table" fixed-header show-select return-object>
-        <template #item.status="{ item }">
-          <v-chip :color="item.status === 'AKTIF' ? 'success' : 'error'" variant="tonal" size="x-small">{{ item.status
-            }}</v-chip>
+        <template #[`item.status`]="{ item }">
+          <v-chip :color="item.status === 'AKTIF' ? 'success' : 'error'" variant="tonal" size="x-small">
+            {{ item.status }}
+          </v-chip>
         </template>
-        <template #item.actions="{ item }">
-          <v-icon v-if="authStore.can(MENU_ID, 'edit')" size="small" class="me-2"
-            @click="openEditDialog(item)">mdi-pencil</v-icon>
-          <v-icon v-if="authStore.can(MENU_ID, 'delete')" size="small" @click="confirmDelete(item)">mdi-delete</v-icon>
+        <template #[`item.actions`]="{ item }">
+          <v-icon v-if="authStore.can(MENU_ID, 'edit')" size="small" class="me-2" @click="openEditDialog(item)">
+            mdi-pencil
+          </v-icon>
+          <v-icon v-if="authStore.can(MENU_ID, 'delete')" size="small" @click="confirmDelete(item)">
+            mdi-delete
+          </v-icon>
         </template>
       </v-data-table>
     </div>

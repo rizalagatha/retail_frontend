@@ -3,19 +3,23 @@ import { ref, reactive, computed, watch } from 'vue';
 import { useToast } from 'vue-toastification';
 import api from '@/services/api';
 import { useRouter } from 'vue-router';
-import RekeningSearchModal from './RekeningSearchModal.vue'; // Asumsi modal ini sudah ada
+import RekeningSearchModal from './RekeningSearchModal.vue';
 import AuthorizationModal from '@/components/AuthorizationModal.vue';
+import PrintOptionModal from './PrintOptionModal.vue';
+import ReturJualSearchModal from '@/components/ReturJualSearchModal.vue';
+import SatisfactionSurveyModal from '@/components/SatisfactionSurveyModal.vue';
 
 interface BankAccount {
-  kode: string;
-  nama: string;
-  rekening: string;
+    kode: string;
+    nama: string;
+    rekening: string;
 }
 
 const props = defineProps({
     invoiceHeader: { type: Object, required: true },
     invoiceItems: { type: Array, required: true },
     totals: { type: Object, required: true },
+    authPins: { type: Object, required: true }
 });
 
 const emit = defineEmits(['close', 'save-success']);
@@ -35,6 +39,7 @@ const payment = reactive({
 const isSaving = ref(false);
 const dialogs = reactive({
     rekeningSearch: false,
+    returJualSearch: false,
 });
 
 const authDialog = reactive({
@@ -44,6 +49,10 @@ const authDialog = reactive({
 });
 const authModalRef = ref<InstanceType<typeof AuthorizationModal> | null>(null);
 const temporaryPin = ref('');
+const isPrintOptionVisible = ref(false);
+const savedInvoiceNumber = ref('');
+const isSurveyVisible = ref(false);
+const isFromSO = !!props.invoiceHeader.nomorSo;
 
 // --- Computed Properties for Real-time Calculation ---
 const totalBayar = computed(() => {
@@ -57,8 +66,8 @@ const kembali = computed(() => {
 });
 
 const nettoKembali = computed(() => {
-  const sisaKembalian = kembali.value;
-  return sisaKembalian >= 1000 ? sisaKembalian : 0;
+    const sisaKembalian = kembali.value;
+    return sisaKembalian >= 1000 ? sisaKembalian : 0;
 });
 
 const formatRupiah = (value: number) => new Intl.NumberFormat('id-ID').format(value || 0);
@@ -67,6 +76,14 @@ const formatRupiah = (value: number) => new Intl.NumberFormat('id-ID').format(va
 const onRekeningSelected = (rekening: BankAccount) => {
     payment.transfer.akun = rekening;
     dialogs.rekeningSearch = false;
+};
+
+const onReturSelected = (retur: { Nomor: string, Sisa: number }) => {
+    payment.retur.nomor = retur.Nomor;
+    // Logika Delphi: ambil nilai terkecil antara sisa retur dan sisa piutang
+    const sisaPiutang = props.totals.sisaPiutang;
+    payment.retur.nominal = Math.min(retur.Sisa, sisaPiutang);
+    dialogs.returJualSearch = false;
 };
 
 const handleFinalSave = async () => {
@@ -129,16 +146,16 @@ const executeSave = async () => {
                 ...payment,
                 pinBelumLunas: temporaryPin.value // Sertakan PIN jika ada
             },
+            totals: props.totals,
+            pins: props.authPins,
             isNew: !props.invoiceHeader.nomor,
         };
 
         const response = await api.post('/invoice-form/save', payload);
         toast.success(response.data.message);
-        emit('save-success', response.data.nomor);
-        emit('close');
+        savedInvoiceNumber.value = response.data.nomor;
 
-        const url = router.resolve({ name: 'InvoicePrint', params: { nomor: response.data.nomor } }).href;
-        window.open(url, '_blank');
+        isSurveyVisible.value = true;
 
     } catch (error: any) {
         toast.error(error.response?.data?.message || 'Gagal menyimpan invoice.');
@@ -148,9 +165,68 @@ const executeSave = async () => {
     }
 }
 
+const handleSurveySubmit = async (rating: number) => {
+    isSurveyVisible.value = false;
+
+    try {
+        await api.post('/invoice-form/save-satisfaction', { nomor: savedInvoiceNumber.value, rating });
+        toast.success('Terima kasih atas masukan Anda!');
+    } catch {
+        toast.error('Gagal menyimpan hasil survey.');
+    }
+
+    // Tampilkan print options
+    if (isFromSO) {
+        // Jika dari SO, langsung cetak A4
+        handlePrintSelection('a4');
+    } else {
+        // Penjualan langsung → tampilkan pilihan print
+        isPrintOptionVisible.value = true;
+    }
+};
+
+const formatHpToWa = (hp: string) => {
+    if (!hp) return '';
+    let sanitizedHp = hp.replace(/[^0-9]/g, ''); // Hapus semua selain angka
+    if (sanitizedHp.startsWith('0')) {
+        sanitizedHp = '62' + sanitizedHp.substring(1); // Ganti 0 di depan dengan 62
+    }
+    return sanitizedHp;
+};
+
+const handlePrintSelection = async (type: 'a4' | 'kasir' | 'wa') => {
+    const nomor = savedInvoiceNumber.value;
+    if (!nomor) return;
+
+    if (type === 'a4' || type === 'kasir') {
+        const routeName = type === 'a4' ? 'InvoicePrint' : 'InvoicePrintKasir';
+        const url = router.resolve({ name: routeName, params: { nomor } }).href;
+        window.open(url, '_blank');
+    } else if (type === 'wa') {
+        const memberHp = props.invoiceHeader.Hp || props.invoiceHeader.memberHp;
+        if (!memberHp) return toast.error('No. HP Member tidak ada, tidak bisa kirim via WA.');
+        try {
+            toast.info(`Mengirim struk ke ${memberHp}...`);
+            const response = await api.post('/whatsapp/send-receipt', {
+                nomor,
+                hp: formatHpToWa(memberHp)
+            });
+            toast.success(response.data.message);
+        } catch (error: any) {
+            toast.error(error.response?.data?.message || 'Gagal mengirim struk via WhatsApp.');
+        }
+    }
+
+    // Tutup modal print hanya jika user sudah memilih dan aksi selesai
+    isPrintOptionVisible.value = false;
+
+    // Finalisasi jika dari PaymentModal
+    emit('save-success', nomor);
+};
+
 watch(nettoKembali, (value) => {
-  const sisaKembalian = kembali.value;
-  payment.pundiAmal = (sisaKembalian > 0 && sisaKembalian < 1000) ? sisaKembalian : 0;
+    const sisaKembalian = kembali.value;
+    payment.pundiAmal = (sisaKembalian > 0 && sisaKembalian < 1000) ? sisaKembalian : 0;
 });
 </script>
 
@@ -224,8 +300,8 @@ watch(nettoKembali, (value) => {
                     <v-col cols="12" md="7">
                         <div class="desktop-form-section">
                             <div class="text-subtitle-2 font-weight-bold mb-2">Input Pembayaran</div>
-                            <v-text-field label="Tunai" v-model.number="payment.tunai" type="number" variant="outlined"
-                                density="compact" hide-details>
+                            <v-text-field label="Tunai" v-model.number="payment.tunai" type="number" min="0"
+                                variant="outlined" density="compact" hide-details>
                                 <template #prepend-inner>
                                     <span class="input-prefix">Rp</span>
                                 </template>
@@ -235,7 +311,7 @@ watch(nettoKembali, (value) => {
                                         variant="outlined" density="compact" hide-details /></v-col>
                                 <v-col cols="6">
                                     <v-text-field label="Nominal Voucher" v-model.number="payment.voucher.nominal"
-                                        type="number" variant="outlined" density="compact" hide-details>
+                                        type="number" variant="outlined" min="0" density="compact" hide-details>
                                         <template #prepend-inner>
                                             <span class="input-prefix">Rp</span>
                                         </template>
@@ -244,7 +320,7 @@ watch(nettoKembali, (value) => {
                             </v-row>
                             <v-divider class="my-3" />
                             <v-text-field label="Transfer / Card" v-model.number="payment.transfer.nominal"
-                                type="number" variant="outlined" density="compact" hide-details>
+                                type="number" variant="outlined" min="0" density="compact" hide-details>
                                 <template #prepend-inner>
                                     <span class="input-prefix">Rp</span>
                                 </template>
@@ -257,10 +333,12 @@ watch(nettoKembali, (value) => {
                                 variant="outlined" density="compact" hide-details />
                             <v-divider class="my-3" />
                             <v-row dense>
-                                <v-col cols="6"><v-text-field label="No. Retur" v-model="payment.retur.nomor"
-                                        variant="outlined" density="compact" hide-details /></v-col>
+                                <v-text-field label="No. Retur" v-model="payment.retur.nomor" variant="outlined"
+                                    density="compact" hide-details readonly @click="dialogs.returJualSearch = true"
+                                    @keydown.f1.prevent="dialogs.returJualSearch = true"
+                                    prepend-inner-icon="mdi-magnify" />
                                 <v-col cols="6"><v-text-field label="Nominal Retur"
-                                        v-model.number="payment.retur.nominal" type="number" variant="outlined"
+                                        v-model.number="payment.retur.nominal" type="number" min="0" variant="outlined"
                                         density="compact" hide-details>
                                         <template #prepend-inner>
                                             <span class="input-prefix">Rp</span>
@@ -288,6 +366,11 @@ watch(nettoKembali, (value) => {
             @close="dialogs.rekeningSearch = false" @selected="onRekeningSelected" />
         <AuthorizationModal v-if="authDialog.show" ref="authModalRef" :title="authDialog.title"
             :challenge-code="authDialog.challengeCode" @close="authDialog.show = false" @success="handleAuthSuccess" />
+        <PrintOptionModal v-if="isPrintOptionVisible" @close="handlePrintSelection('a4')"
+            @select="handlePrintSelection" />
+        <ReturJualSearchModal v-if="dialogs.returJualSearch" :customer-kode="invoiceHeader.customer.kode"
+            :invoice-nomor="invoiceHeader.nomor" @close="dialogs.returJualSearch = false" @selected="onReturSelected" />
+        <SatisfactionSurveyModal v-if="isSurveyVisible" @close="isSurveyVisible = false" @submit="handleSurveySubmit" />
     </v-dialog>
 </template>
 

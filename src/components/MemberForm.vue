@@ -49,21 +49,12 @@ const searchMemberByHp = async () => {
 };
 
 const saveMember = async () => {
-    if (!member.value.hp || !member.value.nama) {
-        return toast.error('No. HP dan Nama Member harus diisi.');
+    if (!member.value.hp ) {
+        return toast.error('No. HP harus diisi.');
     }
-    isSaving.value = true;
-    try {
-        const response = await api.post('/invoice-form/save-member', member.value);
-        toast.success(response.data.message);
-        emit('member-saved', response.data.savedMember);
-        emit('close');
-    } catch (err) {
-        const error = err as AxiosError<{ message?: string }>;
-        toast.error(error.response?.data?.message || 'Gagal menyimpan data member.');
-    } finally {
-        isSaving.value = false;
-    }
+    // Tidak ada lagi panggilan API ke /members/save
+    emit('member-saved', member.value); // Langsung emit data yang diinput
+    emit('close');
 };
 
 onMounted(() => {

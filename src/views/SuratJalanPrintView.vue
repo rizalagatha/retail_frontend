@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, nextTick } from 'vue';
+import { ref, onMounted, nextTick, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import api from '@/services/api';
 import { format, parseISO } from 'date-fns';
@@ -43,8 +43,6 @@ const fetchPrintData = async (nomor: string) => {
         if (printData.value.header?.sj_nomor) { 
             document.title = printData.value.header.sj_nomor;
         }
-        await nextTick();
-        window.print();
     } catch (error) {
         alert("Gagal memuat data untuk dicetak.");
         console.error("Error fetching print data:", error);
@@ -52,6 +50,16 @@ const fetchPrintData = async (nomor: string) => {
         isLoading.value = false;
     }
 };
+
+watch(isLoading, (newValue) => {
+    // Jika loading SUDAH SELESAI (dari true menjadi false)
+    if (newValue === false) {
+        // Tunggu satu tick lagi untuk memastikan DOM sudah 100% ter-update
+        nextTick(() => {
+            window.print();
+        });
+    }
+});
 
 onMounted(() => {
     const nomor = route.params.nomor as string;

@@ -30,7 +30,7 @@ const headers = [
 const loadItems = async () => {
     loading.value = true;
     try {
-        const response = await api.get('/offer-form/search/so-dtf', {
+        const response = await api.get('/invoice-form/lookup/so-dtf', {
             params: {
                 term: search.value,
                 cabang: props.cabang,

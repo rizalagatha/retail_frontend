@@ -46,7 +46,14 @@ const headers = [
 const loadItems = async (opts: { page: number, itemsPerPage: number }) => {
   loading.value = true;
   try {
-    const response = await api.get('/barcode-form/search-products', {
+    // --- PERBAIKAN DI SINI ---
+    // Tentukan endpoint berdasarkan source
+    let apiUrl = '/barcode-form/search-products'; // Endpoint default
+    if (props.source === 'invoice-cash') {
+        apiUrl = '/invoice-form/lookup/products'; // Endpoint baru yang benar
+    }
+    // --- AKHIR PERBAIKAN ---
+    const response = await api.get(apiUrl, {
       params: {
         term: search.value,
         category: props.category,

@@ -17,6 +17,7 @@ import MemberForm from '@/components/MemberForm.vue';
 import DiskonForm from '@/components/DiskonForm.vue';
 import LinkedDpModal from '@/components/LinkedDpModal.vue';
 import AuthorizationModal from '@/components/AuthorizationModal.vue';
+import SoDtfSearchModal from '@/components/SoDtfSearchModal.vue';
 
 // --- Tipe Data ---
 interface Item {
@@ -75,6 +76,10 @@ const initialHeaderState = {
     namaPromo: '',
     memberHp: '',
     memberNama: '',
+    memberAlamat: '',
+    memberGender: '',
+    memberUsia: '',
+    memberReferensi: '',
 };
 
 const header = reactive({ ...initialHeaderState });
@@ -102,6 +107,7 @@ const dialogs = reactive({
     memberForm: false,
     diskonForm: false,
     linkedDp: false,
+    soDtfSearch: false
 });
 
 const authDialog = reactive({
@@ -120,11 +126,19 @@ const originalDiscount = reactive({
     item: { persen: 0, rp: 0 }
 });
 
+const authPins = reactive({
+    pinDiskon1: '',
+    pinDiskon2: '',
+    pinItem: {} as Record<string, string>, // Untuk menyimpan pin per item
+});
+
 const activeRowIndex = ref(0);
 const isMultiSelectProduct = ref(false);
 const salesCounters = ref([]);
 const isSoLoaded = ref(false);
 const memberHpToSearch = ref('');
+const scannedBarcode = ref('');
+const customerDiscountRule = ref(null);
 
 // --- Konfigurasi Tabel ---
 const tableHeaders = [
@@ -164,27 +178,17 @@ const addNewRow = () => {
     }
 };
 const onDiskonSaved = (data: any) => {
-    // Cek jika ada perubahan yang butuh otorisasi
-    if (data.diskonPersen1 !== header.diskonPersen1 ||
-        data.diskonPersen2 !== header.diskonPersen2 ||
-        data.diskonRp !== header.diskonRp) {
-        originalDiscount.faktur = {
-            persen1: header.diskonPersen1,
-            persen2: header.diskonPersen2,
-            rp: header.diskonRp,
-        };
-
-        requestAuthorization(
-            'Otorisasi Diskon Faktur',
+    if (data.diskonPersen1 !== header.diskonPersen1 || data.diskonPersen2 !== header.diskonPersen2 || data.diskonRp !== header.diskonRp) {
+        originalDiscount.faktur = { persen1: header.diskonPersen1, persen2: header.diskonPersen2, rp: header.diskonRp };
+        requestAuthorization('Otorisasi Diskon Faktur',
             (pin) => { // onSuccess
+                if (data.diskonPersen1 !== header.diskonPersen1) authPins.pinDiskon1 = pin;
+                if (data.diskonPersen2 !== header.diskonPersen2) authPins.pinDiskon2 = pin;
                 header.diskonPersen1 = data.diskonPersen1;
                 header.diskonPersen2 = data.diskonPersen2;
                 header.diskonRp = data.diskonRp;
-                // Simpan pin jika perlu: header.pinDiskon = pin
-                toast.success('Otorisasi diskon faktur berhasil.');
             },
             () => { // onCancel
-                // Kembalikan ke nilai semula jika dibatalkan
                 header.diskonPersen1 = originalDiscount.faktur.persen1;
                 header.diskonPersen2 = originalDiscount.faktur.persen2;
                 header.diskonRp = originalDiscount.faktur.rp;
@@ -193,42 +197,35 @@ const onDiskonSaved = (data: any) => {
     }
     header.biayaKirim = data.biayaKirim;
 };
-const handleItemDiscountChange = (item: Item) => {
-    // Simpan nilai asli item
-    originalDiscount.item = { persen: item.diskonPersen, rp: item.diskonRp };
-    activeItemForAuth.value = item;
 
-    requestAuthorization(
-        `Otorisasi Diskon: ${item.nama}`,
-        (pin) => { // onSuccess
-            if (activeItemForAuth.value) {
-                activeItemForAuth.value.pin = pin; // Simpan pin di item jika perlu
+const handleItemDiscountChange = (item: any) => {
+    if (item.diskonPersen > 0 || item.diskonRp > 0) {
+        activeItemForAuth.value = item;
+        originalDiscount.item = { persen: item.diskonPersen, rp: item.diskonRp };
+        requestAuthorization(`Otorisasi Diskon: ${item.nama}`,
+            (pin) => { if (activeItemForAuth.value) authPins.pinItem[activeItemForAuth.value.barcode] = pin; },
+            () => {
+                if (activeItemForAuth.value) {
+                    activeItemForAuth.value.diskonPersen = originalDiscount.item.persen;
+                    activeItemForAuth.value.diskonRp = originalDiscount.item.rp;
+                }
             }
-            toast.success('Otorisasi diskon item berhasil.');
-        },
-        () => { // onCancel
-            if (activeItemForAuth.value) {
-                activeItemForAuth.value.diskonPersen = originalDiscount.item.persen;
-                activeItemForAuth.value.diskonRp = originalDiscount.item.rp;
-            }
-        }
-    );
+        );
+    }
 };
 
-const requestAuthorization = (title: string, onSuccess: (pin: string) => void, onCancel: () => void) => {
+const requestAuthorization = (title: string, onConfirm: (pin: string) => void, onCancel: () => void) => {
     authDialog.challengeCode = Math.floor(100 + Math.random() * 900).toString();
     authDialog.title = title;
-    authDialog.onSuccess = onSuccess;
+    authDialog.onSuccess = onConfirm;
     authDialog.onCancel = onCancel;
     authDialog.show = true;
 };
 
 const handleAuthSuccess = async (pin: string) => {
     try {
-        await api.post('/otorisasi/validate-pin', {
-            pin,
-            challengeCode: authDialog.challengeCode
-        });
+        await api.post('/otorisasi/validate-pin', { pin, challengeCode: authDialog.challengeCode });
+        toast.success('Otorisasi berhasil.');
         authDialog.onSuccess(pin);
         authDialog.show = false;
     } catch (error: any) {
@@ -262,15 +259,66 @@ const openProductSearch = (index: number, isMulti: boolean) => {
     dialogs.productSearch = true;
 };
 
-const onCustomerSelected = (cust: any) => {
+const openSoDtfSearch = (item: any, index: number) => {
+    // Cek semua kondisi di sini
+    if (header.nomorSo || item.kode) {
+        return; // Hentikan aksi jika sudah readonly
+    }
+    if (!header.customer.kode) {
+        return toast.error("Pilih customer terlebih dahulu.");
+    }
+
+    // Jika semua kondisi terpenuhi, buka modal
+    activeRowIndex.value = index;
+    dialogs.soDtfSearch = true;
+};
+
+const onCustomerSelected = async (cust: any) => {
     if (cust) {
-        header.customer = cust;
-        updateMemberInfo(cust); // Panggil fungsi update member di sini
+        // PERBAIKAN: Gabungkan level_kode dan level_nama secara manual
+        const levelText = cust.level_kode ? `${cust.level_kode} - ${cust.level_nama}` : '';
+
+        header.customer = {
+            kode: cust.kode,
+            nama: cust.nama,
+            alamat: cust.alamat,
+            kota: cust.kota,
+            telp: cust.telp,
+            level: levelText,
+        };
+
+        // PERBAIKAN: Panggil fungsi update member setelah customer dipilih
+        updateMemberInfo(header.customer);
+
+        // Ambil aturan diskon untuk customer yang baru dipilih
+        try {
+            const response = await api.get(`/invoice-form/lookup/discount-rule/${cust.kode}`);
+            customerDiscountRule.value = response.data;
+        } catch (error) {
+            customerDiscountRule.value = null; // Reset jika tidak ada aturan
+        }
     } else {
+        // Kosongkan field jika tidak ada customer
         header.customer = { kode: '', nama: '', alamat: '', kota: '', telp: '', level: '' };
-        updateMemberInfo(null); // Kosongkan juga info member
+        updateMemberInfo(null);
     }
     dialogs.customerSearch = false;
+};
+
+const applyDefaultDiscount = () => {
+    const rule = customerDiscountRule.value;
+    if (!rule || header.nomorSo) { // Jangan terapkan jika dari SO
+        return;
+    }
+
+    // Logika dari Delphi: cek nominal belanja
+    if (totals.nettoSetelahDiskon >= rule.nominal1) {
+        header.diskonPersen1 = rule.diskon1;
+    } else if (totals.nettoSetelahDiskon >= rule.nominal2) {
+        header.diskonPersen1 = rule.diskon2;
+    } else {
+        header.diskonPersen1 = 0;
+    }
 };
 
 const onNewCustomerSaved = (customer: any) => {
@@ -285,12 +333,17 @@ const onNewCustomerSaved = (customer: any) => {
     };
     dialogs.customerForm = false; // Tutup modal form
 };
-
-const onMemberSaved = (member: { hp: string, nama: string }) => {
-    // Otomatis isi field di header dengan data member yang baru disimpan
+const onMemberSaved = (member: any) => {
+    // Isi semua field member di header
     header.memberHp = member.hp;
     header.memberNama = member.nama;
+    header.memberAlamat = member.alamat;
+    header.memberGender = member.gender;
+    header.memberUsia = member.usia;
+    header.memberReferensi = member.referensi;
+
     dialogs.memberForm = false;
+    toast.info('Data member telah diperbarui di form.');
 };
 
 const onPromoSelected = (promo: { nomor: string, namaPromo: string }) => {
@@ -381,7 +434,11 @@ const onProductsSelected = (selectedProducts: any[]) => {
         barcode: product.barcode,
     }));
 
-    items.value.splice(activeRowIndex.value, 1, ...newItems);
+    if (items.value[activeRowIndex.value] && !items.value[activeRowIndex.value].kode) {
+        items.value.splice(activeRowIndex.value, 1, ...newItems);
+    } else {
+        items.value.push(...newItems);
+    }
     addNewRow();
 };
 
@@ -391,6 +448,42 @@ const onUnpaidDpSelected = (dp: any) => {
         linkedDps.value.push(dp);
     } else {
         toast.warning('DP tersebut sudah ditambahkan.');
+    }
+};
+
+const onSoDtfSelected = async (soDtf: any) => {
+    dialogs.soDtfSearch = false;
+    if (!soDtf.nomor) return;
+
+    try {
+        // Panggil API baru untuk mendapatkan detailnya
+        const response = await api.get(`/invoice-form/lookup/so-dtf-details/${soDtf.nomor}`);
+        const soDtfItems = response.data;
+
+        if (soDtfItems.length === 0) {
+            return toast.warning('SO DTF ini tidak memiliki detail item.');
+        }
+
+        const newItems = soDtfItems.map((item: any) => ({
+            id: Date.now() + Math.random(),
+            kode: item.kode,
+            nama: item.nama,
+            ukuran: item.ukuran,
+            jumlah: item.jumlah,
+            harga: item.harga,
+            stok: 0,
+            qtyso: 0,
+            diskonPersen: 0,
+            diskonRp: 0,
+            total: item.jumlah * item.harga,
+            noSoDtf: item.kode,
+        }));
+
+        // Hapus baris kosong yang sedang aktif, lalu sisipkan semua item baru
+        items.value.splice(activeRowIndex.value, 1, ...newItems);
+        addNewRow();
+    } catch (error: any) {
+        toast.error(error.response?.data?.message || 'Gagal memuat detail SO DTF.');
     }
 };
 
@@ -427,10 +520,10 @@ const handleProceedToPayment = () => {
     if (!header.customer.kode) return toast.error("Customer harus diisi.");
     if (items.value.filter(i => i.kode).length === 0) return toast.error("Detail item belum diisi.");
     if (totals.sisaPiutang < 0) return toast.error("Sisa piutang tidak boleh minus. Periksa kembali DP yang diinput.");
-    
+
     const totalQty = items.value.reduce((sum, item) => sum + (item.jumlah || 0), 0);
     if (totalQty <= 0) return toast.error('Qty Invoice kosong semua.');
-    
+
     dialogs.payment = true;
 };
 
@@ -440,12 +533,63 @@ const onSaveSuccess = (newInvoiceNumber: string) => {
 };
 
 const updateMemberInfo = (customer: any) => {
-    if (customer && customer.telp) {
-        header.memberHp = customer.telp;
-        // Anda bisa tambahkan trigger untuk otomatis membuka & mencari di MemberFormModal di sini jika mau
-    } else {
-        header.memberHp = '';
-        header.memberNama = '';
+    const phone = customer?.telp || '';
+    header.memberHp = phone;
+    memberHpToSearch.value = phone;
+};
+
+const handleBarcodeScan = async () => {
+    if (!header.customer.kode) {
+        return toast.error('Pilih customer terlebih dahulu sebelum scan!');
+    }
+    const barcode = scannedBarcode.value;
+    if (!barcode) return;
+
+    // --- LOGIKA 1: Jika barang sudah ada di grid, tambah jumlahnya ---
+    const existingItem = items.value.find(item => item.barcode === barcode && item.kode);
+    if (existingItem) {
+        existingItem.jumlah += 1;
+        toast.info(`Jumlah untuk ${existingItem.nama} ditambah menjadi ${existingItem.jumlah}`);
+        scannedBarcode.value = ''; // Kosongkan input
+        return;
+    }
+
+    // --- LOGIKA 2: Jika belum ada, cari via API ---
+    try {
+        // Gunakan endpoint yang sudah ada untuk produk
+        const response = await api.get(`/invoice-form/by-barcode/${barcode}`, {
+            params: { gudang: header.gudang.kode }
+        });
+        const product = response.data;
+
+        // Cari baris kosong pertama untuk diganti
+        const emptyRowIndex = items.value.findIndex(item => !item.kode);
+
+        const newItem = {
+            id: Date.now(),
+            kode: product.kode,
+            nama: product.nama,
+            ukuran: product.ukuran,
+            stok: product.stok,
+            harga: product.harga,
+            jumlah: 1, // Default jumlah 1
+            diskonPersen: 0,
+            diskonRp: 0,
+            total: product.harga,
+            barcode: product.barcode,
+            qtyso: 0, // Tidak ada SO
+        };
+
+        if (emptyRowIndex !== -1) {
+            items.value.splice(emptyRowIndex, 1, newItem);
+        } else {
+            items.value.push(newItem);
+        }
+        addNewRow();
+    } catch (error: any) {
+        toast.error(error.response?.data?.message || `Barcode ${barcode} tidak valid.`);
+    } finally {
+        scannedBarcode.value = '';
     }
 };
 
@@ -490,6 +634,11 @@ const getQtyClass = (item: Item) => {
     return '';
 };
 
+const isHargaEditable = (item: Item) => {
+    // Harga bisa diedit hanya jika belum ada SO dan harga awal dari produk adalah 0
+    return !header.nomorSo && item.harga === 0;
+};
+
 watch(header, () => {
     if (header.top > 0 && header.tanggal) {
         header.tanggalTempo = format(addDays(new Date(header.tanggal), header.top), 'yyyy-MM-dd');
@@ -497,6 +646,19 @@ watch(header, () => {
 }, { deep: true });
 watch(items, calculateTotals, { deep: true });
 watch(linkedDps, calculateTotals, { deep: true });
+watch(items, (newItems) => {
+    // Loop melalui setiap item dan hitung ulang totalnya
+    newItems.forEach(item => {
+        const hargaSetelahDiskon = (item.harga || 0) - (item.diskonRp || 0);
+        item.total = (item.jumlah || 0) * hargaSetelahDiskon;
+    });
+    // Panggil kalkulasi total keseluruhan
+    calculateTotals();
+}, { deep: true });
+watch(items, () => {
+    calculateTotals();
+    applyDefaultDiscount(); // Terapkan diskon setelah total dihitung
+}, { deep: true });
 
 onMounted(() => {
     fetchSalesCounters();
@@ -577,8 +739,8 @@ onMounted(() => {
                                 density="compact" hide-details />
                         </v-col>
                         <v-col cols="2">
-                            <v-text-field label="TOP" v-model.number="header.top" type="number" density="compact"
-                                variant="outlined" hide-details />
+                            <v-text-field label="TOP" v-model.number="header.top" type="number" min="0"
+                                density="compact" variant="outlined" hide-details />
                         </v-col>
                         <v-col cols="4">
                             <v-text-field label="Tgl. Jatuh Tempo" v-model="header.tanggalTempo" type="date"
@@ -617,13 +779,30 @@ onMounted(() => {
 
             <div class="right-column">
                 <div class="desktop-form-section d-flex flex-column fill-height">
-
+                    <div v-if="!header.nomorSo" class="scanner-wrapper">
+                        <v-text-field v-model="scannedBarcode" label="Scan Barcode di Sini..."
+                            placeholder="Input barcode lalu tekan Enter" variant="outlined" density="compact"
+                            prepend-inner-icon="mdi-barcode-scan" hide-details clearable
+                            @keydown.enter.prevent="handleBarcodeScan" />
+                    </div>
                     <div class="table-wrapper">
                         <v-data-table :headers="tableHeaders" :items="items" class="desktop-table flex-grow-1"
                             :items-per-page="-1">
+                            <template #item.kode="{ item, index }">
+                                <v-text-field v-model="item.kode" variant="underlined" density="compact" hide-details
+                                    placeholder="F1/F2..." :readonly="!!header.nomorSo"
+                                    :class="{ 'field-disabled': !!header.nomorSo }"
+                                    @keydown.f1.prevent="!header.nomorSo && openProductSearch(index, false)"
+                                    @keydown.f2.prevent="!header.nomorSo && openProductSearch(index, true)" />
+                            </template>
                             <template #item.jumlah="{ item }">
                                 <v-text-field v-model.number="item.jumlah" type="number" min="0" variant="underlined"
                                     density="compact" hide-details class="text-right" :class="getQtyClass(item)" />
+                            </template>
+                            <template #item.harga="{ item }">
+                                <v-text-field v-model.number="item.harga" type="number" min="0" variant="underlined"
+                                    density="compact" hide-details class="text-right"
+                                    :readonly="!isHargaEditable(item)" />
                             </template>
                             <template #item.diskonPersen="{ item }">
                                 <v-text-field v-model.number="item.diskonPersen" type="number" min="0"
@@ -634,6 +813,13 @@ onMounted(() => {
                                 <v-text-field v-model.number="item.diskonRp" type="number" min="0" variant="underlined"
                                     density="compact" hide-details class="text-right"
                                     @blur="handleItemDiscountChange(item)" />
+                            </template>
+                            <template #item.noSoDtf="{ item, index }">
+                                <v-text-field v-model="item.noSoDtf" variant="underlined" density="compact" hide-details
+                                    placeholder="F1 atau Klik..." :readonly="!!header.nomorSo || !!item.kode"
+                                    :class="{ 'field-disabled': !!header.nomorSo || !!item.kode }"
+                                    @click="openSoDtfSearch(item, index)"
+                                    @keydown.f1.prevent="openSoDtfSearch(item, index)" />
                             </template>
                         </v-data-table>
 
@@ -679,10 +865,13 @@ onMounted(() => {
         <MemberForm v-if="dialogs.memberForm" :initial-hp="memberHpToSearch" @close="dialogs.memberForm = false"
             @member-saved="onMemberSaved" />
         <DiskonForm v-if="dialogs.diskonForm" :diskon-persen1="header.diskonPersen1" :diskon-rp="header.diskonRp"
-            :biaya-kirim="header.biayaKirim" @close="dialogs.diskonForm = false" @save="onDiskonSaved" />
+            :biaya-kirim="header.biayaKirim" @close="dialogs.diskonForm = false" :sub-total="totals.subTotal"
+            @save="onDiskonSaved" />
         <LinkedDpModal v-if="dialogs.linkedDp" :dps="linkedDps" @close="dialogs.linkedDp = false" />
         <AuthorizationModal v-if="authDialog.show" ref="authModalRef" :title="authDialog.title"
             :challenge-code="authDialog.challengeCode" @close="handleAuthCancel" @success="handleAuthSuccess" />
+        <SoDtfSearchModal v-if="dialogs.soDtfSearch" :customer-kode="header.customer.kode"
+            @close="dialogs.soDtfSearch = false" @selected="onSoDtfSelected" />
     </PageLayout>
 </template>
 

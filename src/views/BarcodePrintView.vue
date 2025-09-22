@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue';
+import { ref, onMounted, computed, } from 'vue';
 import api from '@/services/api';
 import PageLayout from '@/components/PageLayout.vue';
 import { useToast } from 'vue-toastification';

@@ -1,14 +1,18 @@
 <script setup lang="ts">
-import { ref, onMounted, nextTick } from 'vue';
+import { ref, onMounted, nextTick, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import api from '@/services/api';
 import { format, parseISO } from 'date-fns';
 import Logo from '@/assets/logo.png';
+import InstagramLogo from '@/assets/instagram.jpg';
+import FacebookLogo from '@/assets/facebook.jpg';
 
 const route = useRoute();
 const printData = ref<any>(null);
 const isLoading = ref(true);
 const appLogo = Logo;
+const igLogo = InstagramLogo;
+const fbLogo = FacebookLogo;
 
 const formatRupiah = (angka: number) => new Intl.NumberFormat('id-ID').format(Math.round(angka || 0));
 
@@ -17,14 +21,22 @@ const fetchPrintData = async (nomor: string) => {
         const response = await api.get(`/invoice-form/print/${nomor}`);
         printData.value = response.data;
         document.title = response.data.header?.inv_nomor || 'Invoice';
-        await nextTick();
-        window.print();
     } catch (error) {
-        alert("Gagal memuat data untuk dicetak.", error);
+        alert("Gagal memuat data untuk dicetak.");
     } finally {
         isLoading.value = false;
     }
 };
+
+watch(isLoading, (newValue) => {
+    // Jika loading SUDAH SELESAI (dari true menjadi false)
+    if (newValue === false) {
+        // Tunggu satu tick lagi untuk memastikan DOM sudah 100% ter-update
+        nextTick(() => {
+            window.print();
+        });
+    }
+});
 
 onMounted(() => {
     const nomor = route.params.nomor as string;
@@ -91,21 +103,10 @@ onMounted(() => {
                 </table>
             </div>
 
-            <div class="terbilang-section">
-                <strong>Terbilang:</strong>
-                <em>{{ printData.header.terbilang }}</em>
-            </div>
-
             <div class="footer-grid">
-                <div class="signatures">
-                    <div>Sales Counter,</div>
-                    <div>Mengetahui,</div>
-                    <div>Customer,</div>
-                    <div class="names">
-                        <span>( {{ printData.header.inv_sc }} )</span>
-                        <span>( .................... )</span>
-                        <span>( .................... )</span>
-                    </div>
+                <div class="terbilang-section">
+                    <strong>Terbilang:</strong>
+                    <em>{{ printData.header.terbilang }}</em>
                 </div>
                 <div class="summary">
                     <div class="summary-item"><span>Total :</span><span>{{
@@ -128,21 +129,63 @@ onMounted(() => {
                         formatRupiah(printData.header.summary.kembali) }}</span></div>
                 </div>
             </div>
+
+            <div class="signatures">
+                <div class="signature-box">
+                    <div>Sales Counter,</div>
+                    <div class="signature-space"></div>
+                    <div class="signature-name">( {{ printData.header.inv_sc }} )</div>
+                </div>
+                <div class="signature-box">
+                    <div>Mengetahui,</div>
+                    <div class="signature-space"></div>
+                    <div class="signature-name">( .................... )</div>
+                </div>
+                <div class="signature-box">
+                    <div>Customer,</div>
+                    <div class="signature-space"></div>
+                    <div class="signature-name">( .................... )</div>
+                </div>
+            </div>
             <div class="note">Note: Barang yg sudah dibeli tidak bisa dikembalikan. Terimakasih atas kunjungan anda.
+            </div>
+
+            <div class="social-media">
+                <div class="social-item">
+                    <img :src="igLogo" alt="Instagram" />
+                    <span>{{ printData.header.gdg_inv_instagram }}</span>
+                </div>
+                <div class="social-item">
+                    <img :src="fbLogo" alt="Facebook" />
+                    <span>{{ printData.header.gdg_inv_fb }}</span>
+                </div>
             </div>
         </div>
     </div>
 </template>
 
 <style scoped>
-/* (Style dari MutasiOutPrintView.vue yang disesuaikan) */
 .page {
     font-family: 'Arial', sans-serif;
     font-size: 9pt;
+    display: flex;
+    flex-direction: column;
+}
+
+.header {
+    display: flex;
+    align-items: center;
+    margin-bottom: 10px;
 }
 
 .logo {
     height: 40px;
+    width: auto;
+    margin-right: 15px;
+}
+
+.company-info {
+    font-size: 8.5pt;
 }
 
 .title {
@@ -155,7 +198,7 @@ onMounted(() => {
 
 .info-grid {
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: 1fr 1.5fr;
     gap: 2px 15px;
     margin-bottom: 10px;
 }
@@ -191,6 +234,7 @@ td {
 .terbilang-section {
     margin: 10px 0;
     font-style: italic;
+    font-weight: bold;
 }
 
 .footer-grid {
@@ -198,18 +242,21 @@ td {
     grid-template-columns: 1.5fr 1fr;
     margin-top: 10px;
     gap: 20px;
+    align-items: flex-start;
 }
 
 .signatures {
     display: grid;
     grid-template-columns: 1fr 1fr 1fr;
     text-align: center;
+    margin-top: 10px;
 }
 
-.signatures .names {
-    grid-column: 1 / -1;
-    margin-top: 40px;
+.signature-space {
+    height: 40px;
 }
+
+.signature-name {}
 
 .summary .summary-item {
     display: flex;
@@ -229,41 +276,56 @@ td {
     padding-top: 5px;
 }
 
+.social-media {
+    display: flex;
+    gap: 20px;
+    border-top: 1px solid black;
+    padding-top: 5px;
+    margin-top: auto;
+}
+
+.social-item {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.social-item img {
+    height: 12px;
+}
+
 @media print {
-  /* Atur ukuran kertas dan margin cetak */
-  @page {
-    size: A4;
-    margin: 1cm;
-  }
+    @page {
+        size: A4;
+        margin: 1cm;
+    }
 
-  /* Sembunyikan semua elemen di halaman KECUALI kontainer cetak */
-  body * {
-    visibility: hidden;
-  }
-  .print-container, .print-container * {
-    visibility: visible;
-  }
+    body * {
+        visibility: hidden;
+    }
 
-  /* Posisikan kontainer cetak agar mengisi seluruh halaman */
-  .print-container {
-    position: absolute;
-    left: 0;
-    top: 0;
-    width: 100%;
-  }
+    .print-container,
+    .print-container * {
+        visibility: visible;
+    }
 
-  /* Hilangkan border dan shadow dari 'page' saat dicetak */
-  .page {
-    border: none;
-    box-shadow: none;
-    margin: 0;
-    padding: 0;
-  }
+    .print-container {
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 100%;
+    }
 
-  /* Pastikan warna latar belakang (spt di header tabel) ikut tercetak */
-  body {
-    -webkit-print-color-adjust: exact !important;
-    print-color-adjust: exact !important;
-  }
+    .page {
+        border: none;
+        box-shadow: none;
+        margin: 0;
+        padding: 0;
+    }
+
+    body {
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
+    }
 }
 </style>

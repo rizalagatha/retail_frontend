@@ -6,7 +6,9 @@ import { useAuthStore } from '@/stores/authStore';
 import api from '@/services/api';
 import { format, subDays, parseISO } from 'date-fns';
 import PageLayout from '@/components/PageLayout.vue';
+import PrintOptionModal from '@/components/PrintOptionModal.vue';
 import * as XLSX from 'xlsx';
+import html2canvas from 'html2canvas';
 
 // --- Inisialisasi ---
 const router = useRouter();
@@ -31,6 +33,7 @@ const filters = reactive({
 
 const isSingleSelected = computed(() => selected.value.length === 1);
 const selectedRow = computed(() => isSingleSelected.value ? selected.value[0] : null);
+const isPrintOptionVisible = ref(false);
 
 const formatRupiah = (value: number) => new Intl.NumberFormat('id-ID').format(value || 0);
 
@@ -172,6 +175,52 @@ const printData = (type: 'invoice' | 'sj') => {
     window.open(url, '_blank');
 };
 
+const openPrintOptions = () => {
+    if (!isSingleSelected.value) return;
+    isPrintOptionVisible.value = true;
+};
+
+const formatHpToWa = (hp: string) => {
+    if (!hp) return '';
+    let sanitizedHp = hp.replace(/[^0-9]/g, ''); // Hapus semua selain angka
+    if (sanitizedHp.startsWith('0')) {
+        sanitizedHp = '62' + sanitizedHp.substring(1); // Ganti 0 di depan dengan 62
+    }
+    return sanitizedHp;
+};
+
+const handlePrintSelection = async (type: 'a4' | 'kasir' | 'wa') => {
+    // Sesuaikan cara mengambil 'nomor' dan 'item' berdasarkan file
+    const nomor = selectedRow.value?.Nomor;
+    const item = selectedRow.value;
+
+    if (!nomor) return;
+    if (typeof isPrintOptionVisible.value !== 'undefined') isPrintOptionVisible.value = false;
+
+    if (type === 'a4' || type === 'kasir') {
+        const routeName = type === 'a4' ? 'InvoicePrint' : 'InvoicePrintKasir';
+        const url = router.resolve({ name: routeName, params: { nomor } }).href;
+        window.open(url, '_blank');
+        
+    } else if (type === 'wa') {
+        const memberHp = item.Hp || item.memberHp;
+        if (!memberHp) {
+            return toast.error('No. HP Member tidak ada, tidak bisa kirim via WA.');
+        }
+
+        try {
+            toast.info(`Mengirim struk ke ${memberHp}...`);
+            const response = await api.post('/whatsapp/send-receipt', {
+                nomor: nomor,
+                hp: formatHpToWa(memberHp) // Pastikan fungsi formatHpToWa ada
+            });
+            toast.success(response.data.message);
+        } catch (error: any) {
+            toast.error(error.response?.data?.message || 'Gagal mengirim struk via WhatsApp.');
+        }
+    }
+};
+
 onMounted(() => {
     fetchCabangList();
     fetchMasterData();
@@ -192,7 +241,7 @@ watch(filters, fetchMasterData, { deep: true });
             <v-btn v-if="authStore.can(MENU_ID, 'delete')" size="small" color="error" :disabled="!isSingleSelected"
                 @click="handleDelete">Hapus</v-btn>
             <v-btn v-if="authStore.can(MENU_ID, 'view')" size="small" color="green" :disabled="!isSingleSelected"
-                prepend-icon="mdi-printer" @click="printData('invoice')">
+                prepend-icon="mdi-printer" @click="openPrintOptions">
                 Cetak
             </v-btn>
             <v-btn v-if="authStore.can(MENU_ID, 'view')" size="small" color="cyan"
@@ -285,5 +334,7 @@ watch(filters, fetchMasterData, { deep: true });
                 </v-data-table>
             </div>
         </div>
+        <PrintOptionModal v-if="isPrintOptionVisible" @close="isPrintOptionVisible = false"
+            @select="handlePrintSelection" />
     </PageLayout>
 </template>

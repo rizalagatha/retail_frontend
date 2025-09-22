@@ -66,7 +66,10 @@ import FskPrintView from '@/views/FskPrintView.vue';
 import InvoiceView from '@/views/InvoiceView.vue';
 import InvoiceCreateView from '@/views/InvoiceCreateView.vue';
 import InvoicePrintView from '@/views/InvoicePrintView.vue';
+import InvoicePrintKasirView from '@/views/InvoicePrintKasirView.vue';
+import InvoicePrintImageView from '@/views/InvoicePrintImageView.vue';
 import LaporanStokView from '@/views/LaporanStokView.vue';
+import WhatsappLinkView from '@/views/WhatsappLinkView.vue';
 
 const routes = [
   {
@@ -832,6 +835,23 @@ const routes = [
     }
   },
   {
+    path: '/transaksi/penjualan/invoice/print-kasir/:nomor',
+    name: 'InvoicePrintKasir',
+    component: InvoicePrintKasirView,
+    meta: {
+      requiresAuth: true,
+      printLayout: true
+    }
+  },
+  {
+    path: '/transaksi/penjualan/invoice/image-kasir/:nomor',
+    name: 'InvoicePrintImageView',
+    component: InvoicePrintImageView,
+    meta: {
+      printLayout: true,
+    }
+  },
+  {
     path: '/laporan/stok',
     name: 'frmRptStok',
     component: LaporanStokView,
@@ -839,6 +859,15 @@ const routes = [
       title: 'Laporan Stok Real Time',
       requiresAuth: true,
       menuId: '501'
+    }
+  },
+  {
+    path: '/pengaturan/whatsapp',
+    name: 'WhatsappLink',
+    component: WhatsappLinkView,
+    meta: {
+      title: 'Tautkan Perangkat WhatsApp',
+      requiresAuth: true
     }
   },
 ];
@@ -864,6 +893,11 @@ router.beforeEach((to, from, next) => {
   document.title = `${title} - Retail Kaosan`;
 
   const loggedIn = authStore.isAuthenticated;
+
+  // Izinkan akses ke halaman cetak manapun, terutama jika dari backend
+  if (to.meta.printLayout) {
+    return next();
+  }
 
   // Route yang tidak memerlukan auth
   if (!to.meta?.requiresAuth) {

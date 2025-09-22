@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, nextTick, computed } from 'vue';
+import { ref, onMounted, nextTick, computed, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import api from '@/services/api';
 import { format, parseISO } from 'date-fns';
@@ -67,14 +67,22 @@ const fetchPrintData = async (nomor: string) => {
         printData.value = response.data;
 
         document.title = printData.value?.header?.sh_nomor || 'Dokumen';
-        await nextTick();
-        window.print();
     } catch {
         alert("Gagal memuat data untuk dicetak.");
     } finally {
         isLoading.value = false;
     }
 };
+
+watch(isLoading, (newValue) => {
+    // Jika loading SUDAH SELESAI (dari true menjadi false)
+    if (newValue === false) {
+        // Tunggu satu tick lagi untuk memastikan DOM sudah 100% ter-update
+        nextTick(() => {
+            window.print();
+        });
+    }
+});
 
 onMounted(() => {
     const nomor = route.params.nomor as string;

@@ -125,7 +125,6 @@ const challengeCode = ref('');
 const authModalRef = ref<InstanceType<typeof AuthorizationModal> | null>(null);
 const auth2ModalRef = ref<InstanceType<typeof AuthorizationModal> | null>(null);
 
-
 const itemAuthModalRef = ref<InstanceType<typeof AuthorizationModal> | null>(null);
 
 const scannedBarcode = ref('');

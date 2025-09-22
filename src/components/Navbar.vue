@@ -498,6 +498,8 @@ onUnmounted(() => {
 
           <v-divider class="user-divider" />
 
+          <v-list-item prepend-icon="mdi-whatsapp" title="Tautkan WhatsApp" to="/pengaturan/whatsapp"></v-list-item>
+
           <v-list-item to="/user/ganti-password" prepend-icon="mdi-lock-outline" class="user-menu-item">
             <v-list-item-title>Ganti Password</v-list-item-title>
           </v-list-item>

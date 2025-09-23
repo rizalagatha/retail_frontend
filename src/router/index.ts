@@ -68,8 +68,13 @@ import InvoiceCreateView from '@/views/InvoiceCreateView.vue';
 import InvoicePrintView from '@/views/InvoicePrintView.vue';
 import InvoicePrintKasirView from '@/views/InvoicePrintKasirView.vue';
 import InvoicePrintImageView from '@/views/InvoicePrintImageView.vue';
+import InvoiceAsSjPrintView from '@/views/InvoiceAsSjPrintView.vue';
 import LaporanStokView from '@/views/LaporanStokView.vue';
 import WhatsappLinkView from '@/views/WhatsappLinkView.vue';
+import KuponPrintView from '@/views/KuponPrintView.vue';
+import VoucherPrintView from '@/views/VoucherPrintView.vue';
+import MutasiStoreKirimView from '@/views/MutasiStoreKirimView.vue';
+
 
 const routes = [
   {
@@ -849,6 +854,37 @@ const routes = [
     component: InvoicePrintImageView,
     meta: {
       printLayout: true,
+    }
+  },
+  {
+    path: '/invoice/print-kupon/:nomor',
+    name: 'CetakKupon',
+    component: KuponPrintView,
+    meta: { printLayout: true, requiresAuth: true }
+  },
+  {
+    path: '/invoice/print-voucher/:nomor',
+    name: 'CetakVoucher',
+    component: VoucherPrintView,
+    meta: { printLayout: true, requiresAuth: true }
+  },
+  {
+    path: '/transaksi/penjualan/invoice/print-sj/:nomor',
+    name: 'CetakInvoiceAsSJ',
+    component: InvoiceAsSjPrintView,
+    meta: {
+      requiresAuth: true,
+      printLayout: true
+    }
+  },
+  {
+    path: '/transaksi/mutasi/store-kirim',
+    name: 'MutasiKirim',
+    component: MutasiStoreKirimView,
+    meta: {
+      title: 'Mutasi Antar Store Kirim',
+      requiresAuth: true,
+      menuId: '46' // Pastikan ID ini sesuai dengan yang ada di database
     }
   },
   {

@@ -46,7 +46,7 @@ const formatRupiah = (value: number) => new Intl.NumberFormat('id-ID').format(va
                     density="compact" />
                 <v-text-field label="Disc % 2" v-model.number="formData.diskonPersen2" variant="outlined" hide-details
                     density="compact" />
-                <v-text-field label="Diskon Rp" :model-value="formatRupiah(calculatedDiskonRp)" readonly filled
+                <v-text-field label="Diskon Rp" :model-value="formatRupiah(calculatedDiskonRp)" variant="outlined" min="0"
                     hide-details density="compact" />
                 <v-text-field label="Biaya Kirim" v-model.number="formData.biayaKirim" variant="outlined" hide-details
                     density="compact" />

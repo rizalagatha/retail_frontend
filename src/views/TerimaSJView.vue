@@ -48,6 +48,13 @@ const filters = reactive({
     namaBarang: '',
 });
 
+const dialogConfirm = reactive({
+    show: false,
+    title: '',
+    text: '',
+    onConfirm: () => { },
+});
+
 const isSingleSelected = computed(() => selected.value.length === 1);
 const selectedRow = computed(() => isSingleSelected.value ? selected.value[0] : null);
 
@@ -120,24 +127,30 @@ const handleTerima = () => {
     router.push({ name: 'TerimaSjCreate', params: { nomor: selectedRow.value.Nomor } });
 };
 
+const showConfirmation = (title: string, text: string, onConfirm: () => void) => {
+    dialogConfirm.title = title;
+    dialogConfirm.text = text;
+    dialogConfirm.onConfirm = onConfirm;
+    dialogConfirm.show = true;
+};
+
 const handleBatalTerima = async () => {
     if (!selectedRow.value) return;
     const { Nomor, NomorTerima } = selectedRow.value;
 
-    if (confirm(`Yakin ingin membatalkan penerimaan untuk SJ ${Nomor}?`)) {
-        try {
-            const response = await api.delete(`/terima-sj/${Nomor}/${NomorTerima}`);
-            toast.success(response.data.message);
-            fetchMasterData(); // Refresh data
-        } catch (error: unknown) {
-            if (axios.isAxiosError<ErrorResponse>(error)) {
+    showConfirmation(
+        'Konfirmasi Pembatalan',
+        `Yakin ingin membatalkan penerimaan untuk SJ ${Nomor}?`,
+        async () => { // Fungsi onConfirm
+            try {
+                const response = await api.delete(`/terima-sj/${Nomor}/${NomorTerima}`);
+                toast.success(response.data.message);
+                fetchMasterData(); // Refresh data
+            } catch (error: any) {
                 toast.error(error.response?.data?.message || "Gagal membatalkan penerimaan.");
-            } else {
-                console.error("Unexpected error:", error);
-                toast.error("Gagal membatalkan penerimaan.");
             }
         }
-    }
+    );
 };
 
 const onProductSelected = (product: { kode: string, nama: string }) => {
@@ -287,6 +300,21 @@ watch(filters, fetchMasterData, { deep: true });
         </div>
         <MasterProductSearchModal v-if="isMasterProductSearchVisible" @close="isMasterProductSearchVisible = false"
             @product-selected="onProductSelected" />
+
+        <v-dialog v-model="dialogConfirm.show" max-width="400px" persistent>
+            <v-card>
+                <v-card-title class="text-h6 font-weight-bold">{{ dialogConfirm.title }}</v-card-title>
+                <v-card-text>{{ dialogConfirm.text }}</v-card-text>
+                <v-card-actions>
+                    <v-spacer></v-spacer>
+                    <v-btn text @click="dialogConfirm.show = false">Tidak</v-btn>
+                    <v-btn color="primary" variant="tonal"
+                        @click="dialogConfirm.onConfirm(); dialogConfirm.show = false;">
+                        Ya, Lanjutkan
+                    </v-btn>
+                </v-card-actions>
+            </v-card>
+        </v-dialog>
     </PageLayout>
 </template>
 

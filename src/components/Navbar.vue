@@ -179,7 +179,7 @@ const menuItems = [
           { title: 'Mutasi Out ke Produksi', to: '/transaksi/mutasi/out-produksi', icon: 'mdi-export' },
           { title: 'Mutasi In dari Produksi', to: '/transaksi/mutasi/in-produksi', icon: 'mdi-import' },
           { title: 'Mutasi Stok', to: '/transaksi/mutasi/stok', icon: 'mdi-swap-vertical' },
-          { title: 'Mutasi Antar Store (Kirim)', to: '/mutation/store-send', icon: 'mdi-send' },
+          { title: 'Mutasi Antar Store (Kirim)', to: '/transaksi/mutasi/store-kirim', icon: 'mdi-send' },
           { title: 'Mutasi Antar Store (Terima)', to: '/mutation/store-receive', icon: 'mdi-inbox-arrow-down' }
         ]
       }

@@ -79,6 +79,7 @@ const headers = [
     { title: 'Puas', key: 'Puas', align: 'center' },
     { title: 'Closing', key: 'Closing', align: 'center' },
 ] as const;
+
 const detailHeaders = [
     { title: 'Kode', key: 'Kode' },
     { title: 'Barcode', key: 'Barcode' },
@@ -122,19 +123,19 @@ const loadDetails = async (newlyExpandedItems: any[]) => {
     finally { loadingDetails.value.delete(itemToLoad.Nomor); }
 };
 
-const handleDelete = () => {
-    if (!selectedRow.value) return;
-    if (confirm(`Yakin ingin menghapus Invoice nomor ${selectedRow.value.Nomor}?`)) {
-        api.delete(`/invoices/${selectedRow.value.Nomor}`)
-            .then(response => {
-                toast.success(response.data.message);
-                fetchMasterData();
-            })
-            .catch(error => {
-                toast.error(error.response?.data?.message || 'Gagal menghapus data.');
-            });
-    }
-};
+// const handleDelete = () => {
+//     if (!selectedRow.value) return;
+//     if (confirm(`Yakin ingin menghapus Invoice nomor ${selectedRow.value.Nomor}?`)) {
+//         api.delete(`/invoices/${selectedRow.value.Nomor}`)
+//             .then(response => {
+//                 toast.success(response.data.message);
+//                 fetchMasterData();
+//             })
+//             .catch(error => {
+//                 toast.error(error.response?.data?.message || 'Gagal menghapus data.');
+//             });
+//     }
+// };
 
 const getRowTextColor = (item: any) => {
     if (item.SisaPiutang > 0) return 'text-red font-weight-bold';
@@ -160,11 +161,7 @@ const printData = (type: 'invoice' | 'sj') => {
     if (type === 'invoice') {
         routeName = 'InvoicePrint'; // Nama route untuk cetak Invoice A4
     } else if (type === 'sj') {
-        if (!item.NomorSO) { // Validasi dari Delphi
-            toast.warning('Transaksi Cash tidak perlu cetak surat jalan.');
-            return;
-        }
-        routeName = 'CetakSuratJalan'; // Asumsi nama route untuk cetak SJ
+        routeName = 'CetakInvoiceAsSJ';
     }
 
     const url = router.resolve({
@@ -201,7 +198,7 @@ const handlePrintSelection = async (type: 'a4' | 'kasir' | 'wa') => {
         const routeName = type === 'a4' ? 'InvoicePrint' : 'InvoicePrintKasir';
         const url = router.resolve({ name: routeName, params: { nomor } }).href;
         window.open(url, '_blank');
-        
+
     } else if (type === 'wa') {
         const memberHp = item.Hp || item.memberHp;
         if (!memberHp) {
@@ -217,6 +214,27 @@ const handlePrintSelection = async (type: 'a4' | 'kasir' | 'wa') => {
             toast.success(response.data.message);
         } catch (error: any) {
             toast.error(error.response?.data?.message || 'Gagal mengirim struk via WhatsApp.');
+        }
+    }
+};
+
+const exportData = async (type: 'header' | 'detail') => {
+    if (type === 'header') {
+        if (masterData.value.length === 0) return toast.warning('Tidak ada data header.');
+        const worksheet = XLSX.utils.json_to_sheet(masterData.value);
+        const workbook = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(workbook, worksheet, "Invoice Header");
+        XLSX.writeFile(workbook, "Export_Invoice_Header.xlsx");
+    } else if (type === 'detail') {
+        try {
+            const response = await api.get('/invoices/export-details', { params: filters });
+            if (response.data.length === 0) return toast.warning('Tidak ada data detail.');
+            const worksheet = XLSX.utils.json_to_sheet(response.data);
+            const workbook = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(workbook, worksheet, "Invoice Detail");
+            XLSX.writeFile(workbook, "Export_Invoice_Detail.xlsx");
+        } catch (error) {
+            toast.error('Gagal mengekspor data detail.');
         }
     }
 };
@@ -238,23 +256,29 @@ watch(filters, fetchMasterData, { deep: true });
             <v-btn v-if="authStore.can(MENU_ID, 'edit')" size="small" :disabled="!isSingleSelected" @click="handleEdit">
                 Ubah
             </v-btn>
-            <v-btn v-if="authStore.can(MENU_ID, 'delete')" size="small" color="error" :disabled="!isSingleSelected"
-                @click="handleDelete">Hapus</v-btn>
+            <!-- <v-btn v-if="authStore.can(MENU_ID, 'delete')" size="small" color="error" :disabled="!isSingleSelected"
+                @click="handleDelete">Hapus</v-btn> -->
             <v-btn v-if="authStore.can(MENU_ID, 'view')" size="small" color="green" :disabled="!isSingleSelected"
                 prepend-icon="mdi-printer" @click="openPrintOptions">
                 Cetak
             </v-btn>
-            <v-btn v-if="authStore.can(MENU_ID, 'view')" size="small" color="cyan"
-                :disabled="!isSingleSelected || !selectedRow?.NomorSO" prepend-icon="mdi-truck-delivery-outline"
-                @click="printData('sj')">
+            <v-btn v-if="authStore.can(MENU_ID, 'view')" size="small" color="cyan" :disabled="!isSingleSelected"
+                prepend-icon="mdi-truck-delivery-outline" @click="printData('sj')">
                 Cetak SJ
             </v-btn>
             <v-menu offset-y>
-                <template v-slot:activator="{ props }"><v-btn size="small" color="teal" prepend-icon="mdi-file-excel"
-                        v-bind="props">Export</v-btn></template>
+                <template v-slot:activator="{ props }">
+                    <v-btn size="small" color="teal" prepend-icon="mdi-file-excel" v-bind="props">
+                        Export
+                    </v-btn>
+                </template>
                 <v-list density="compact">
-                    <v-list-item><v-list-item-title>Export Header</v-list-item-title></v-list-item>
-                    <v-list-item><v-list-item-title>Export Detail</v-list-item-title></v-list-item>
+                    <v-list-item @click="exportData('header')">
+                        <v-list-item-title>Export Header</v-list-item-title>
+                    </v-list-item>
+                    <v-list-item @click="exportData('detail')">
+                        <v-list-item-title>Export Detail</v-list-item-title>
+                    </v-list-item>
                 </v-list>
             </v-menu>
         </template>

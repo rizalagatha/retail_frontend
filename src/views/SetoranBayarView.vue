@@ -295,14 +295,13 @@ watch(expanded, (newExpanded) => {
                         <td :class="getRowTextColor(item)">
                             <template
                                 v-if="['Tanggal', 'TglTerima', 'TglTransfer', 'TglGiro', 'TglJatuhTempo'].includes(header.key)">
-                                {{ format(parseISO(item[header.key] as string), 'dd/MM/yyyy') }}
+                                {{ item[header.key] ? format(parseISO(item[header.key] as string), 'dd/MM/yyyy') : '-' }}
                             </template>
                             <template v-else-if="['Nominal', 'diBayarkan', 'Sisa'].includes(header.key)">
                                 {{ formatRupiah(item[header.key] as number) }}
                             </template>
                             <template v-else-if="header.key === 'Posting'">
-                                <v-chip size="x-small" :color="item.Posting === 'SUDAH' ? 'green' : 'grey'">{{
-                                    item.Posting }}</v-chip>
+                                <v-chip size="x-small" :color="item.Posting === 'SUDAH' ? 'green' : 'grey'">{{ item.Posting }}</v-chip>
                             </template>
                             <template v-else-if="header.key === 'Otomatis'">
                                 <v-chip v-if="item.Otomatis === 'YA'" size="x-small" color="blue-darken-2"

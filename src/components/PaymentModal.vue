@@ -167,14 +167,30 @@ const executeSave = async () => {
 
 const handleSurveySubmit = async (rating: number) => {
     isSurveyVisible.value = false;
+    const nomor = savedInvoiceNumber.value;
 
     try {
-        await api.post('/invoice-form/save-satisfaction', { nomor: savedInvoiceNumber.value, rating });
+        await api.post('/invoice-form/save-satisfaction', { nomor, rating });
         toast.success('Terima kasih atas masukan Anda!');
     } catch {
         toast.error('Gagal menyimpan hasil survey.');
     }
 
+    try {
+        const printables = await api.get(`/invoice-form/check-printables/${nomor}`);
+        
+        if (printables.data.needsPrintKupon) {
+            const kuponUrl = router.resolve({ name: 'CetakKupon', params: { nomor } }).href;
+            window.open(kuponUrl, '_blank');
+        }
+        if (printables.data.needsPrintVoucher) {
+            const voucherUrl = router.resolve({ name: 'CetakVoucher', params: { nomor } }).href;
+            window.open(voucherUrl, '_blank');
+        }
+    } catch {
+        toast.error('Gagal memeriksa data kupon/voucher.');
+    }
+    
     // Tampilkan print options
     if (isFromSO) {
         // Jika dari SO, langsung cetak A4
@@ -222,6 +238,26 @@ const handlePrintSelection = async (type: 'a4' | 'kasir' | 'wa') => {
 
     // Finalisasi jika dari PaymentModal
     emit('save-success', nomor);
+};
+
+const validateVoucher = async () => {
+    const voucherNo = payment.voucher.nomor;
+    if (!voucherNo) {
+        payment.voucher.nominal = 0; // Reset nominal jika field kosong
+        return;
+    }
+
+    try {
+        const response = await api.post('/invoice-form/validate-voucher', {
+            voucherNo: voucherNo,
+            invoiceNo: props.invoiceHeader.nomor, // Kirim nomor invoice saat ini
+        });
+        payment.voucher.nominal = response.data.nominal;
+        toast.success('Voucher valid.');
+    } catch (error: any) {
+        payment.voucher.nominal = 0;
+        toast.error(error.response?.data?.message || 'Gagal memvalidasi voucher.');
+    }
 };
 
 watch(nettoKembali, (value) => {
@@ -308,7 +344,7 @@ watch(nettoKembali, (value) => {
                             </v-text-field>
                             <v-row dense class="mt-2">
                                 <v-col cols="6"><v-text-field label="No. Voucher" v-model="payment.voucher.nomor"
-                                        variant="outlined" density="compact" hide-details /></v-col>
+                                        variant="outlined" density="compact" hide-details @blur="validateVoucher" /></v-col>
                                 <v-col cols="6">
                                     <v-text-field label="Nominal Voucher" v-model.number="payment.voucher.nominal"
                                         type="number" variant="outlined" min="0" density="compact" hide-details>
@@ -333,10 +369,11 @@ watch(nettoKembali, (value) => {
                                 variant="outlined" density="compact" hide-details />
                             <v-divider class="my-3" />
                             <v-row dense>
-                                <v-text-field label="No. Retur" v-model="payment.retur.nomor" variant="outlined"
+                                <v-col cols="6"><v-text-field label="No. Retur" v-model="payment.retur.nomor" variant="outlined"
                                     density="compact" hide-details readonly @click="dialogs.returJualSearch = true"
                                     @keydown.f1.prevent="dialogs.returJualSearch = true"
-                                    prepend-inner-icon="mdi-magnify" />
+                                    prepend-inner-icon="mdi-magnify" ></v-text-field>
+                                </v-col>
                                 <v-col cols="6"><v-text-field label="Nominal Retur"
                                         v-model.number="payment.retur.nominal" type="number" min="0" variant="outlined"
                                         density="compact" hide-details>

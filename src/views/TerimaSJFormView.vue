@@ -220,7 +220,7 @@ onMounted(() => {
                     <v-data-table :headers="tableHeaders" :items="items" class="desktop-table fill-height-table"
                         density="compact" fixed-header :items-per-page="-1">
                         <template #[`item.jumlahTerima`]="{ item }">
-                            <v-text-field v-model.number="item.jumlahTerima" type="number" variant="underlined"
+                            <v-text-field v-model.number="item.jumlahTerima" type="number" min="0" variant="underlined"
                                 density="compact" hide-details class="text-right" />
                         </template>
                         <template #bottom></template>

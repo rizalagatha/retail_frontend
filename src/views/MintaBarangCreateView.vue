@@ -8,7 +8,7 @@ import { useAuthStore } from '@/stores/authStore';
 import { format } from 'date-fns';
 import SoSearchModal from '@/components/SoSearchModal.vue';
 import CustomerSearchModal from '@/components/CustomerSearchModal.vue';
-import ProductSearchModal from '@/components/ProductSearchModal.vue';
+import MintaBarangSearchModal from '@/components/MintaBarangSearchModal.vue';
 import { AxiosError } from 'axios';
 
 interface Customer {
@@ -171,54 +171,42 @@ const openProductSearch = (index: number, isMulti: boolean) => {
     isProductSearchVisible.value = true;
 };
 
-const onProductsSelected = async (selectedProducts: Product[]) => {
+const onProductsSelected = (selectedProducts: Product[]) => {
     isProductSearchVisible.value = false;
     if (!selectedProducts || selectedProducts.length === 0) return;
 
-    // 1. Saring produk yang akan ditambahkan, buang yang sudah ada di tabel
+    // Saring produk duplikat yang sudah ada di grid
     const productsToAdd = selectedProducts.filter(p =>
         !items.value.some(item => item.kode === p.kode && item.ukuran === p.ukuran)
     );
 
     if (productsToAdd.length === 0) {
         toast.info("Semua produk yang dipilih sudah ada di dalam daftar.");
-        // Pastikan baris kosong tetap ada jika tidak ada produk baru yang ditambahkan
         if (!items.value.some(item => !item.kode)) {
             addNewRow();
         }
         return;
     }
 
-    // 2. Buat array of promises untuk mengambil detail semua produk baru secara bersamaan
-    try {
-        const detailPromises = productsToAdd.map(product =>
-            api.get('/minta-barang-form/lookup/product-details', {
-                params: { kode: product.kode, ukuran: product.ukuran }
-            })
-        );
+    // Ubah produk terpilih menjadi format item untuk grid
+    // Tidak perlu API call tambahan karena semua data (stok, harga) sudah ada
+    const newItems = productsToAdd.map(product => ({
+        ...product, // Salin semua properti dari produk (kode, nama, ukuran, stok, harga, barcode)
+        id: Date.now() + Math.random(),
+        jumlah: 1, // Atur jumlah awal
+        // Set nilai default untuk kolom lain jika perlu
+        stokmin: 0,
+        stokmax: 0,
+        sudahminta: 0,
+        sj: 0,
+        mino: 0,
+    }));
 
-        // Tunggu semua API call selesai
-        const responses = await Promise.all(detailPromises);
+    // Ganti baris kosong saat ini dengan item-item baru
+    items.value.splice(activeRowIndex.value, 1, ...newItems);
 
-        // 3. Map hasil response menjadi objek item yang siap dimasukkan ke tabel
-        const newItems = responses.map(response => ({
-            ...response.data,
-            id: Date.now() + Math.random()
-        }));
-
-        // 4. INTI PERBAIKAN: Ganti 1 baris kosong dengan semua item baru
-        items.value.splice(activeRowIndex.value, 1, ...newItems);
-
-        // 5. Tambahkan baris kosong baru di paling akhir
-        addNewRow();
-
-    } catch (error) {
-        toast.error(`Gagal memuat detail produk.`, error);
-        // Jika terjadi error, pastikan baris kosong tetap ada
-        if (!items.value.some(item => !item.kode)) {
-            addNewRow();
-        }
-    }
+    // Tambahkan baris kosong baru di akhir
+    addNewRow();
 };
 
 const openCustomerSearch = () => {
@@ -353,32 +341,43 @@ const executeSave = async () => {
 };
 
 const handleBarcodeScan = async () => {
+    // Validasi dasar: gudang dan barcode harus ada
+    const gudangKode = authStore.user?.cabang; // Menggunakan gudang dari user yang login
     if (!formHeader.value.customer?.kode) {
         toast.error('Pilih customer terlebih dahulu sebelum scan barcode!');
         return;
     }
-
+    if (!gudangKode) {
+        toast.error('Gudang tidak terdefinisi, tidak bisa scan barcode!');
+        return;
+    }
     const barcode = scannedBarcode.value;
     if (!barcode) return;
 
-    // Jika barang sudah ada
+    // Cek apakah item dengan barcode yang sama sudah ada di grid
     const existingItem = items.value.find(item => item.barcode === barcode && item.kode);
     if (existingItem) {
+        // Jika sudah ada, cukup tambahkan jumlahnya
         existingItem.jumlah = (existingItem.jumlah || 0) + 1;
         toast.info(`Jumlah untuk ${existingItem.nama} ditambah menjadi ${existingItem.jumlah}`);
-        scannedBarcode.value = '';
+        scannedBarcode.value = ''; // Kosongkan input scanner
         return;
     }
 
     try {
-        const response = await api.get<MintaBarangItem>(`/products/by-barcode/${barcode}`, {
-            params: { gudang: formHeader.value.gudang?.kode } // pakai formHeader
+        // --- PERUBAHAN ENDPOINT ---
+        // Panggil endpoint baru yang spesifik untuk minta barang
+        const response = await api.get<MintaBarangItem>(`/minta-barang-form/by-barcode/${barcode}`, {
+            params: { gudang: gudangKode }
         });
 
         const product = response.data;
 
+        // Cari baris kosong pertama di grid untuk diisi
         const emptyRowIndex = items.value.findIndex(item => !item.kode);
         if (emptyRowIndex !== -1) {
+            // --- PENYESUAIAN KOLOM ---
+            // Ganti baris kosong dengan data produk, termasuk nilai default untuk kolom yang tidak ada dari API
             items.value.splice(emptyRowIndex, 1, {
                 id: Date.now(),
                 kode: product.kode,
@@ -386,13 +385,16 @@ const handleBarcodeScan = async () => {
                 ukuran: product.ukuran,
                 stok: product.stok,
                 harga: product.harga,
-                jumlah: 1,
-                diskonPersen: 0,
-                diskonRp: 0,
-                total: product.harga,
                 barcode: product.barcode,
-            } as MintaBarangItem); // type-safe
-            addNewRow();
+                jumlah: 1, // Jumlah awal saat scan
+                // Kolom tambahan dari grid Minta Barang diisi nilai default
+                stokmin: 0,
+                stokmax: 0,
+                sudahminta: 0,
+                sj: 0,
+                mino: 0,
+            });
+            addNewRow(); // Tambah baris kosong baru di akhir
         } else {
             toast.error("Tidak ada baris kosong untuk menambahkan item baru.");
         }
@@ -404,7 +406,7 @@ const handleBarcodeScan = async () => {
             toast.error(`Barcode ${barcode} tidak valid.`);
         }
     } finally {
-        scannedBarcode.value = '';
+        scannedBarcode.value = ''; // Selalu kosongkan input scanner
     }
 };
 
@@ -522,8 +524,8 @@ onMounted(() => {
             @close="isSoSearchVisible = false" @selected="onSoSelected" />
         <CustomerSearchModal v-if="isCustomerSearchVisible" :gudang="authStore.user?.cabang || ''"
             @close="isCustomerSearchVisible = false" @customer-selected="onCustomerSelected" />
-        <ProductSearchModal v-if="isProductSearchVisible" :source="'minta-barang'" :multi="isMultiSelectProduct"
-            :gudang="authStore.user?.cabang || ''" category="REGULER" @close="isProductSearchVisible = false"
+        <MintaBarangSearchModal v-if="isProductSearchVisible" :gudang="authStore.user?.cabang || ''"
+            :multi="isMultiSelectProduct" @close="isProductSearchVisible = false"
             @products-selected="onProductsSelected" />
 
         <v-dialog v-model="isConfirmDialogVisible" max-width="400px" persistent>

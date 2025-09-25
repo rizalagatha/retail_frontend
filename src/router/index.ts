@@ -74,7 +74,10 @@ import WhatsappLinkView from '@/views/WhatsappLinkView.vue';
 import KuponPrintView from '@/views/KuponPrintView.vue';
 import VoucherPrintView from '@/views/VoucherPrintView.vue';
 import MutasiStoreKirimView from '@/views/MutasiStoreKirimView.vue';
-
+import MutasiStoreKirimCreateView from '@/views/MutasiStoreKirimCreateView.vue';
+import MutasiStoreKirimPrintView from '@/views/MutasiStoreKirimPrintView.vue';
+import MutasiStoreTerimaView from '@/views/MutasiStoreTerimaView.vue';
+import MutasiStoreTerimaCreateView from '@/views/MutasiStoreTerimaCreateView.vue';
 
 const routes = [
   {
@@ -887,6 +890,56 @@ const routes = [
       menuId: '46' // Pastikan ID ini sesuai dengan yang ada di database
     }
   },
+  {
+    path: '/transaksi/mutasi/store-kirim/new',
+    name: 'MutasiKirimCreate',
+    component: MutasiStoreKirimCreateView,
+    meta: {
+      title: 'Buat Mutasi Antar Store',
+      requiresAuth: true,
+      menuId: '46' // Sesuaikan
+    }
+  },
+  {
+    path: '/transaksi/mutasi/store-kirim/edit/:nomor',
+    name: 'MutasiKirimEdit',
+    component: MutasiStoreKirimCreateView,
+    meta: {
+      title: 'Ubah Mutasi Antar Store',
+      requiresAuth: true,
+      menuId: '46' // Sesuaikan
+    }
+  },
+  {
+    path: '/transaksi/mutasi/store-kirim/print/:nomor',
+    name: 'MutasiKirimPrint',
+    component: MutasiStoreKirimPrintView,
+    meta: {
+      title: 'Cetak Mutasi Antar Store',
+      printLayout: true, // Bypass layout utama & nav guard
+      requiresAuth: true
+    }
+  },
+  {
+    path: '/transaksi/mutasi/store-terima',
+    name: 'MutasiTerima',
+    component: MutasiStoreTerimaView,
+    meta: {
+      title: 'Mutasi Antar Store Terima',
+      requiresAuth: true,
+      menuId: '47'
+    }
+  },
+  {
+    path: '/transaksi/mutasi/store-terima/new', // Mode 'create' untuk penerimaan
+    name: 'MutasiTerimaCreate',
+    component: MutasiStoreTerimaCreateView,
+    meta: {
+      title: 'Buat Mutasi Antar Store Terima',
+      requiresAuth: true,
+      menuId: '47'
+    }
+},
   {
     path: '/laporan/stok',
     name: 'frmRptStok',

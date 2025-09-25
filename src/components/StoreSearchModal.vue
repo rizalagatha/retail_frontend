@@ -7,6 +7,9 @@ interface Store {
     nama: string;
 }
 
+const props = defineProps({
+    excludeBranch: { type: String, default: null }
+});
 const emit = defineEmits(['close', 'store-selected']);
 
 const items = ref<Store[]>([]);
@@ -21,35 +24,35 @@ const headers = [
 ];
 
 const loadItems = async ({ page, itemsPerPage }: { page: number, itemsPerPage: number }) => {
-  loading.value = true;
-  try {
-    const response = await api.get('/surat-jalan-form/lookup/stores', {
-      params: {
-        term: search.value,
-        page: page,
-        itemsPerPage: itemsPerPage,
-      },
-    });
+    loading.value = true;
+    try {
+        const response = await api.get('/surat-jalan-form/lookup/stores', { // atau endpoint generik Anda
+            params: {
+                term: search.value,
+                page: page,
+                itemsPerPage: itemsPerPage,
+                excludeBranch: props.excludeBranch, // Kirim prop ke backend
+            },
+        });
+        // --- TAMBAHKAN VALIDASI RESPON INI ---
+        if (response.data && Array.isArray(response.data.items) && typeof response.data.total === 'number') {
+            // Jika data valid, set seperti biasa
+            items.value = response.data.items;
+            totalItems.value = response.data.total;
+        } else {
+            // Jika struktur data tidak sesuai, set ke default kosong untuk mencegah error
+            items.value = [];
+            totalItems.value = 0;
+        }
+        // --- AKHIR VALIDASI ---
 
-    // --- TAMBAHKAN VALIDASI RESPON INI ---
-    if (response.data && Array.isArray(response.data.items) && typeof response.data.total === 'number') {
-        // Jika data valid, set seperti biasa
-        items.value = response.data.items;
-        totalItems.value = response.data.total;
-    } else {
-        // Jika struktur data tidak sesuai, set ke default kosong untuk mencegah error
+    } catch (error) {
+        console.error("Gagal memuat data store:", error);
         items.value = [];
         totalItems.value = 0;
+    } finally {
+        loading.value = false;
     }
-    // --- AKHIR VALIDASI ---
-
-  } catch (error) {
-    console.error("Gagal memuat data store:", error);
-    items.value = [];
-    totalItems.value = 0;
-  } finally {
-    loading.value = false;
-  }
 };
 
 const selectStore = (item: Store) => {

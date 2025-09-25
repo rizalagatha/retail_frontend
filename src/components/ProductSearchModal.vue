@@ -46,13 +46,18 @@ const headers = [
 const loadItems = async (opts: { page: number, itemsPerPage: number }) => {
   loading.value = true;
   try {
-    // --- PERBAIKAN DI SINI ---
     // Tentukan endpoint berdasarkan source
     let apiUrl = '/barcode-form/search-products'; // Endpoint default
+
     if (props.source === 'invoice-cash') {
-        apiUrl = '/invoice-form/lookup/products'; // Endpoint baru yang benar
+      apiUrl = '/invoice-form/lookup/products';
+
+    } else if (props.source === 'mutasi-kirim') {
+      apiUrl = '/mutasi-kirim/lookup/products';
+    } else if (props.source === 'minta-barang') {
+      apiUrl = '/minta-barang-form/lookup/products';
     }
-    // --- AKHIR PERBAIKAN ---
+
     const response = await api.get(apiUrl, {
       params: {
         term: search.value,

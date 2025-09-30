@@ -1071,19 +1071,19 @@ const handleBarcodeScan = async () => {
         // calculateTotals();
 
     } catch (err: unknown) {
-    if (axios.isAxiosError(err)) {
-        // Error berasal dari Axios
-        toast.error(err.response?.data?.message || `Barcode ${barcode} tidak valid.`);
-    } else if (err instanceof Error) {
-        // Error JS biasa
-        toast.error(err.message);
-    } else {
-        // Error tak dikenal
-        toast.error(`Barcode ${barcode} tidak valid.`);
+        if (axios.isAxiosError(err)) {
+            // Error berasal dari Axios
+            toast.error(err.response?.data?.message || `Barcode ${barcode} tidak valid.`);
+        } else if (err instanceof Error) {
+            // Error JS biasa
+            toast.error(err.message);
+        } else {
+            // Error tak dikenal
+            toast.error(`Barcode ${barcode} tidak valid.`);
+        }
+    } finally {
+        scannedBarcode.value = '';
     }
-} finally {
-    scannedBarcode.value = '';
-}
 };
 
 watch(

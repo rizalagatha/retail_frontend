@@ -1,963 +1,1027 @@
-import { createRouter, createWebHistory } from 'vue-router';
-import { useAuthStore } from '@/stores/authStore';
+import { createRouter, createWebHistory } from "vue-router";
+import { useAuthStore } from "@/stores/authStore";
 
 // Impor semua komponen View/halaman Anda
-import DaftarIndex from '@/views/DaftarIndex.vue';
-import LoginView from '../views/LoginView.vue';
-import HomeView from '../views/HomeView.vue';
-import NotFoundView from '@/views/NotFoundView.vue';
-import UnauthorizedView from '@/views/UnauthorizedView.vue';
-import ManualProgramView from '../views/ManualProgramView.vue';
-import HistoryUpdateView from '../views/HistoryUpdateView.vue';
-import VersionCheckView from '../views/VersionCheckView.vue';
-import UpdateBufferStockView from '../views/UpdateBufferStockView.vue';
-import SettingsProcessView from '../views/SettingsProcessView.vue';
-import UserManagementView from '../views/UserManagementView.vue';
-import ChangePasswordView from '../views/ChangePasswordView.vue';
-import CustomerView from '@/views/CustomerView.vue';
-import MemberView from '@/views/MemberView.vue';
-import SupplierView from '@/views/SupplierView.vue';
-import SalesCounterView from '@/views/SalesCounterView.vue';
-import BarcodePrintView from '@/views/BarcodePrintView.vue';
-import BarcodeCreateView from '../views/BarcodeCreateView.vue';
-import OfferView from '@/views/OfferView.vue';
-import OfferCreateView from '@/views/OfferCreateView.vue';
-import OfferPrintView from '@/views/OfferPrintView.vue';
-import PriceProposalView from '@/views/PriceProposalView.vue';
-import PriceProposalCreateView from '@/views/PriceProposalCreateView.vue';
-import SettingHargaView from '@/views/SettingHargaView.vue';
-import SoDtfView from '@/views/SoDtfView.vue';
-import SoDtfCreateView from '@/views/SoDtfCreateView.vue';
-import SoDtfPrintView from '@/views/SoDtfPrintView.vue';
-import LhkSoDtfView from '@/views/LhkSoDtfView.vue';
-import LhkSoDtfCreateView from '@/views/LhkSoDtfCreateView.vue';
-import DasborDtfView from '@/views/DasborDtfView.vue';
-import SoDtfStokView from '@/views/SoDtfStokView.vue';
-import SoDtfStokCreateView from '@/views/SoDtfStokCreateView.vue';
-import SoDtfStokPrintView from '@/views/SoDtfStokPrintView.vue';
-import LhkSoDtfStokView from '@/views/LhkSoDtfStokView.vue';
-import LhkSoDtfStokCreateView from '@/views/LhkSoDtfStokCreateView.vue';
-import SoView from '@/views/SoView.vue';
-import SoPrintView from '@/views/SoPrintView.vue';
-import SoCreateView from '@/views/SoCreateView.vue';
-import DpPrintView from '@/views/DpPrintView.vue';
-import BufferStokView from '@/views/BufferStokView.vue';
-import MutasiOutView from '@/views/MutasiOutView.vue';
-import MutasiOutPrintView from '@/views/MutasiOutPrintView.vue';
-import MutasiOutCreateView from '@/views/MutasiOutCreateView.vue';
-import MintaBarangView from '@/views/MintaBarangView.vue';
-import MintaBarangCreateView from '@/views/MintaBarangCreateView.vue';
-import SuratJalanView from '@/views/SuratJalanView.vue';
-import SuratJalanPrintView from '@/views/SuratJalanPrintView.vue';
-import SuratJalanCreateView from '@/views/SuratJalanCreateView.vue';
-import TerimaSjView from '@/views/TerimaSJView.vue';
-import TerimaSjFormView from '@/views/TerimaSJFormView.vue';
-import MutasiInView from '@/views/MutasiInView.vue';
-import MutasiInPrintView from '@/views/MutasiInPrintView.vue';
-import MutasiInCreateView from '@/views/MutasiInCreateView.vue';
-import MutasiStokView from '@/views/MutasiStokView.vue';
-import MutasiStokCreateView from '@/views/MutasiStokCreateView.vue';
-import MutasiStokPrintView from '@/views/MutasiStokPrintView.vue';
-import SetoranBayarView from '@/views/SetoranBayarView.vue';
-import SetoranBayarCreateView from '@/views/SetoranBayarCreateView.vue';
-import FskView from '@/views/FskView.vue';
-import FskCreateView from '@/views/FskCreateView.vue';
-import FskPrintView from '@/views/FskPrintView.vue';
-import InvoiceView from '@/views/InvoiceView.vue';
-import InvoiceCreateView from '@/views/InvoiceCreateView.vue';
-import InvoicePrintView from '@/views/InvoicePrintView.vue';
-import InvoicePrintKasirView from '@/views/InvoicePrintKasirView.vue';
-import InvoicePrintImageView from '@/views/InvoicePrintImageView.vue';
-import InvoiceAsSjPrintView from '@/views/InvoiceAsSjPrintView.vue';
-import LaporanStokView from '@/views/LaporanStokView.vue';
-import WhatsappLinkView from '@/views/WhatsappLinkView.vue';
-import KuponPrintView from '@/views/KuponPrintView.vue';
-import VoucherPrintView from '@/views/VoucherPrintView.vue';
-import MutasiStoreKirimView from '@/views/MutasiStoreKirimView.vue';
-import MutasiStoreKirimCreateView from '@/views/MutasiStoreKirimCreateView.vue';
-import MutasiStoreKirimPrintView from '@/views/MutasiStoreKirimPrintView.vue';
-import MutasiStoreTerimaView from '@/views/MutasiStoreTerimaView.vue';
-import MutasiStoreTerimaCreateView from '@/views/MutasiStoreTerimaCreateView.vue';
+import DaftarIndex from "@/views/DaftarIndex.vue";
+import LoginView from "../views/LoginView.vue";
+import HomeView from "../views/HomeView.vue";
+import NotFoundView from "@/views/NotFoundView.vue";
+import UnauthorizedView from "@/views/UnauthorizedView.vue";
+import ManualProgramView from "../views/ManualProgramView.vue";
+import HistoryUpdateView from "../views/HistoryUpdateView.vue";
+import VersionCheckView from "../views/VersionCheckView.vue";
+import UpdateBufferStockView from "../views/UpdateBufferStockView.vue";
+import SettingsProcessView from "../views/SettingsProcessView.vue";
+import UserManagementView from "../views/UserManagementView.vue";
+import ChangePasswordView from "../views/ChangePasswordView.vue";
+import CustomerView from "@/views/CustomerView.vue";
+import MemberView from "@/views/MemberView.vue";
+import SupplierView from "@/views/SupplierView.vue";
+import SalesCounterView from "@/views/SalesCounterView.vue";
+import BarcodePrintView from "@/views/BarcodePrintView.vue";
+import BarcodeCreateView from "../views/BarcodeCreateView.vue";
+import OfferView from "@/views/OfferView.vue";
+import OfferCreateView from "@/views/OfferCreateView.vue";
+import OfferPrintView from "@/views/OfferPrintView.vue";
+import PriceProposalView from "@/views/PriceProposalView.vue";
+import PriceProposalCreateView from "@/views/PriceProposalCreateView.vue";
+import SettingHargaView from "@/views/SettingHargaView.vue";
+import SoDtfView from "@/views/SoDtfView.vue";
+import SoDtfCreateView from "@/views/SoDtfCreateView.vue";
+import SoDtfPrintView from "@/views/SoDtfPrintView.vue";
+import LhkSoDtfView from "@/views/LhkSoDtfView.vue";
+import LhkSoDtfCreateView from "@/views/LhkSoDtfCreateView.vue";
+import DasborDtfView from "@/views/DasborDtfView.vue";
+import SoDtfStokView from "@/views/SoDtfStokView.vue";
+import SoDtfStokCreateView from "@/views/SoDtfStokCreateView.vue";
+import SoDtfStokPrintView from "@/views/SoDtfStokPrintView.vue";
+import LhkSoDtfStokView from "@/views/LhkSoDtfStokView.vue";
+import LhkSoDtfStokCreateView from "@/views/LhkSoDtfStokCreateView.vue";
+import SoView from "@/views/SoView.vue";
+import SoPrintView from "@/views/SoPrintView.vue";
+import SoCreateView from "@/views/SoCreateView.vue";
+import DpPrintView from "@/views/DpPrintView.vue";
+import BufferStokView from "@/views/BufferStokView.vue";
+import MutasiOutView from "@/views/MutasiOutView.vue";
+import MutasiOutPrintView from "@/views/MutasiOutPrintView.vue";
+import MutasiOutCreateView from "@/views/MutasiOutCreateView.vue";
+import MintaBarangView from "@/views/MintaBarangView.vue";
+import MintaBarangCreateView from "@/views/MintaBarangCreateView.vue";
+import SuratJalanView from "@/views/SuratJalanView.vue";
+import SuratJalanPrintView from "@/views/SuratJalanPrintView.vue";
+import SuratJalanCreateView from "@/views/SuratJalanCreateView.vue";
+import TerimaSjView from "@/views/TerimaSJView.vue";
+import TerimaSjFormView from "@/views/TerimaSJFormView.vue";
+import MutasiInView from "@/views/MutasiInView.vue";
+import MutasiInPrintView from "@/views/MutasiInPrintView.vue";
+import MutasiInCreateView from "@/views/MutasiInCreateView.vue";
+import MutasiStokView from "@/views/MutasiStokView.vue";
+import MutasiStokCreateView from "@/views/MutasiStokCreateView.vue";
+import MutasiStokPrintView from "@/views/MutasiStokPrintView.vue";
+import SetoranBayarView from "@/views/SetoranBayarView.vue";
+import SetoranBayarCreateView from "@/views/SetoranBayarCreateView.vue";
+import FskView from "@/views/FskView.vue";
+import FskCreateView from "@/views/FskCreateView.vue";
+import FskPrintView from "@/views/FskPrintView.vue";
+import InvoiceView from "@/views/InvoiceView.vue";
+import InvoiceCreateView from "@/views/InvoiceCreateView.vue";
+import InvoicePrintView from "@/views/InvoicePrintView.vue";
+import InvoicePrintKasirView from "@/views/InvoicePrintKasirView.vue";
+import InvoicePrintImageView from "@/views/InvoicePrintImageView.vue";
+import InvoiceAsSjPrintView from "@/views/InvoiceAsSjPrintView.vue";
+import LaporanStokView from "@/views/LaporanStokView.vue";
+import WhatsappLinkView from "@/views/WhatsappLinkView.vue";
+import KuponPrintView from "@/views/KuponPrintView.vue";
+import VoucherPrintView from "@/views/VoucherPrintView.vue";
+import MutasiStoreKirimView from "@/views/MutasiStoreKirimView.vue";
+import MutasiStoreKirimCreateView from "@/views/MutasiStoreKirimCreateView.vue";
+import MutasiStoreKirimPrintView from "@/views/MutasiStoreKirimPrintView.vue";
+import MutasiStoreTerimaView from "@/views/MutasiStoreTerimaView.vue";
+import MutasiStoreTerimaCreateView from "@/views/MutasiStoreTerimaCreateView.vue";
+import KoreksiStokView from "@/views/KoreksiStokView.vue";
+import KoreksiStokCreateView from "@/views/KoreksiStokCreateView.vue";
+import KoreksiStokPrintView from "@/views/KoreksiStokPrintView.vue";
+import ReturJualView from "@/views/ReturJualView.vue";
 
 const routes = [
   {
-    path: '/login',
-    name: 'Login',
+    path: "/login",
+    name: "Login",
     component: LoginView,
     meta: {
-      title: 'Login'
-    }
+      title: "Login",
+      layout: "AuthLayout",
+    },
   },
   {
-    path: '/',
-    name: 'Home',
+    path: "/",
+    name: "Home",
     component: HomeView,
     meta: {
-      title: 'Beranda',
+      title: "Beranda",
       requiresAuth: true,
-      public: true
-    }
+      public: true,
+    },
   },
   {
-    path: '/unauthorized',
-    name: 'Unauthorized',
+    path: "/unauthorized",
+    name: "Unauthorized",
     component: UnauthorizedView,
     meta: {
-      requiresAuth: true
-    }
+      requiresAuth: true,
+    },
   },
 
   {
-    path: '/:pathMatch(.*)*',
-    name: 'NotFound',
-    component: NotFoundView
+    path: "/:pathMatch(.*)*",
+    name: "NotFound",
+    component: NotFoundView,
   },
   {
-    path: '/file/manual',
-    name: 'Manual Program',
+    path: "/file/manual",
+    name: "Manual Program",
     component: ManualProgramView,
     meta: {
-      title: 'Petunjuk Penggunaan',
+      title: "Petunjuk Penggunaan",
       requiresAuth: true,
-      public: true
-    }
+      public: true,
+    },
   },
   {
-    path: '/file/history-updates',
-    name: 'Riwayat Update',
+    path: "/file/history-updates",
+    name: "Riwayat Update",
     component: HistoryUpdateView,
     meta: {
-      title: 'Riwayat Update',
+      title: "Riwayat Update",
       requiresAuth: true,
-      public: true
-    }
+      public: true,
+    },
   },
   {
-    path: '/user/update-program',
-    name: 'Cek Versi',
+    path: "/user/update-program",
+    name: "Cek Versi",
     component: VersionCheckView,
     meta: {
-      title: 'Cek Versi',
+      title: "Cek Versi",
       requiresAuth: true,
-      public: true
-    }
+      public: true,
+    },
   },
   {
-    path: '/file/update-buffer-stock',
-    name: 'Update Buffer Stok',
+    path: "/file/update-buffer-stock",
+    name: "Update Buffer Stok",
     component: UpdateBufferStockView,
     meta: {
-      title: 'Update Buffer Stok',
+      title: "Update Buffer Stok",
       requiresAuth: true,
-      public: true
-    }
+      public: true,
+    },
   },
   {
-    path: '/file/settings',
-    name: 'frmPengaturan',
+    path: "/file/settings",
+    name: "frmPengaturan",
     component: SettingsProcessView,
     meta: {
-      title: 'Setting',
+      title: "Setting",
       requiresAuth: true,
-      menuId: '3'
-    }
+      menuId: "3",
+    },
   },
   {
-    path: '/file/users',
-    name: 'frmUser',
+    path: "/file/users",
+    name: "frmUser",
     component: UserManagementView,
     meta: {
-      title: 'Master User',
+      title: "Master User",
       requiresAuth: true,
-      menuId: '1'
-    }
+      menuId: "1",
+    },
   },
   {
-    path: '/user/ganti-password',
-    name: 'Ganti Password',
+    path: "/user/ganti-password",
+    name: "Ganti Password",
     component: ChangePasswordView,
     meta: {
-      title: 'Ganti Password',
+      title: "Ganti Password",
       requiresAuth: true,
-      public: true
-    }
+      public: true,
+    },
   },
   {
-    path: '/daftar',
-    name: 'DaftarIndex',
+    path: "/daftar",
+    name: "DaftarIndex",
     component: DaftarIndex,
     meta: {
-      title: 'Menu Master Data',
-      requiresAuth: true
+      title: "Menu Master Data",
+      requiresAuth: true,
       // menuId tidak diperlukan di sini karena ini adalah halaman navigasi
-    }
+    },
   },
   {
-    path: '/daftar/customers',
-    name: 'frmBrowCus',
+    path: "/daftar/customers",
+    name: "frmBrowCus",
     component: CustomerView,
     meta: {
       requiresAuth: true,
-      title: 'Master Customer',
-      menuId: '9'
+      title: "Master Customer",
+      menuId: "9",
     },
   },
   {
-    path: '/daftar/members',
-    name: 'frmBrowMember',
+    path: "/daftar/members",
+    name: "frmBrowMember",
     component: MemberView,
     meta: {
       requiresAuth: true,
-      title: 'Master Member',
-      menuId: '7',
+      title: "Master Member",
+      menuId: "7",
     },
   },
   {
-    path: '/daftar/suppliers',
-    name: 'frmBrowSupplier',
+    path: "/daftar/suppliers",
+    name: "frmBrowSupplier",
     component: SupplierView,
     meta: {
       requiresAuth: true,
-      title: 'Master Supplier',
-      menuId: '8'
+      title: "Master Supplier",
+      menuId: "8",
     },
   },
   {
-    path: '/daftar/sales-counters',
-    name: 'frmBrowSC',
+    path: "/daftar/sales-counters",
+    name: "frmBrowSC",
     component: SalesCounterView,
     meta: {
       requiresAuth: true,
-      title: 'Master Sales Counter',
-      menuId: '10'
+      title: "Master Sales Counter",
+      menuId: "10",
     },
   },
   {
-    path: '/daftar/cetak-barcode',
-    name: 'frmBrowBcd',
+    path: "/daftar/cetak-barcode",
+    name: "frmBrowBcd",
     component: BarcodePrintView,
     meta: {
       requiresAuth: true,
-      title: 'Cetak Barcode',
-      menuId: '11'
+      title: "Cetak Barcode",
+      menuId: "11",
     },
   },
   {
-    path: '/daftar/cetak-barcode/new', // Rute untuk form baru
-    name: 'Buat Barcode',
+    path: "/daftar/cetak-barcode/new", // Rute untuk form baru
+    name: "Buat Barcode",
     component: BarcodeCreateView,
     meta: {
-      title: 'Buat Barcode',
-      requiresAuth: true
-    }
+      title: "Buat Barcode",
+      requiresAuth: true,
+    },
   },
   {
-    path: '/transaksi/penjualan/penawaran',
-    name: 'frmBrowPenawaran',
+    path: "/transaksi/penjualan/penawaran",
+    name: "frmBrowPenawaran",
     component: OfferView,
     meta: {
       requiresAuth: true,
-      title: 'Penawaran',
-      menuId: '42'
+      title: "Penawaran",
+      menuId: "42",
     },
   },
   {
-    path: '/transaksi/penjualan/penawaran/new', // Rute untuk form baru
-    name: 'Buat Penawaran',
+    path: "/transaksi/penjualan/penawaran/new", // Rute untuk form baru
+    name: "Buat Penawaran",
     component: OfferCreateView,
     meta: {
-      title: 'Buat Penawaran',
-      requiresAuth: true
-    }
+      title: "Buat Penawaran",
+      requiresAuth: true,
+    },
   },
   {
-    path: '/transaksi/penjualan/penawaran/ubah/:nomor', // Halaman ubah
-    name: 'Ubah Penawaran',
+    path: "/transaksi/penjualan/penawaran/ubah/:nomor", // Halaman ubah
+    name: "Ubah Penawaran",
     component: OfferCreateView,
     meta: {
-      title: 'Ubah Penawaran',
-      requiresAuth: true
-    }
+      title: "Ubah Penawaran",
+      requiresAuth: true,
+    },
   },
   {
-    path: '/transaksi/penjualan/penawaran/print/:nomor',
-    name: 'Cetak Penawaran',
+    path: "/transaksi/penjualan/penawaran/print/:nomor",
+    name: "Cetak Penawaran",
     component: OfferPrintView,
     meta: {
       requiresAuth: true,
-      printLayout: true
-    }
+      printLayout: true,
+      layout: "PrintLayout",
+    },
   },
   {
-    path: '/transaksi/penjualan/pengajuan/pengajuan-harga',
-    name: 'frmBrowPengajuanHarga',
+    path: "/transaksi/penjualan/pengajuan/pengajuan-harga",
+    name: "frmBrowPengajuanHarga",
     component: PriceProposalView,
     meta: {
-      title: 'Pengajuan Harga',
+      title: "Pengajuan Harga",
       requiresAuth: true,
-      menuId: '38'
-    }
+      menuId: "38",
+    },
   },
   {
-    path: '/transaksi/penjualan/pengajuan/pengajuan-harga/new',
-    name: 'Buat Pengajuan Harga',
+    path: "/transaksi/penjualan/pengajuan/pengajuan-harga/new",
+    name: "Buat Pengajuan Harga",
     component: PriceProposalCreateView,
     meta: {
-      title: 'Buat Pengajuan Harga',
-      requiresAuth: true
-    }
+      title: "Buat Pengajuan Harga",
+      requiresAuth: true,
+    },
   },
   {
-    path: '/transaksi/penjualan/pengajuan/pengajuan-harga/ubah/:nomor',
-    name: 'Ubah Pengajuan Harga',
+    path: "/transaksi/penjualan/pengajuan/pengajuan-harga/ubah/:nomor",
+    name: "Ubah Pengajuan Harga",
     component: PriceProposalCreateView,
     meta: {
-      title: 'Ubah Pengajuan Harga',
-      requiresAuth: true
-    }
+      title: "Ubah Pengajuan Harga",
+      requiresAuth: true,
+    },
   },
   {
-    path: '/transaksi/penjualan/pengajuan/setting-harga',
-    name: 'frmBrowSettingHarga',
+    path: "/transaksi/penjualan/pengajuan/setting-harga",
+    name: "frmBrowSettingHarga",
     component: SettingHargaView,
     meta: {
-      title: 'Setting Harga',
+      title: "Setting Harga",
       requiresAuth: true,
-      menuId: '39'
-    }
+      menuId: "39",
+    },
   },
   {
-    path: '/transaksi/penjualan/dtf/so-dtf',
-    name: 'frmBrowSODTF',
+    path: "/transaksi/penjualan/dtf/so-dtf",
+    name: "frmBrowSODTF",
     component: SoDtfView,
     meta: {
-      title: 'SO DTF Pesanan',
+      title: "SO DTF Pesanan",
       requiresAuth: true,
-      menuId: '35'
-    }
+      menuId: "35",
+    },
   },
   {
-    path: '/transaksi/penjualan/dtf/so-dtf/new',
-    name: 'Buat SO DTF Pesanan',
+    path: "/transaksi/penjualan/dtf/so-dtf/new",
+    name: "Buat SO DTF Pesanan",
     component: SoDtfCreateView,
     meta: {
-      title: 'Buat SO DTF Pesanan',
-      requiresAuth: true
-    }
+      title: "Buat SO DTF Pesanan",
+      requiresAuth: true,
+    },
   },
   {
-    path: '/transaksi/penjualan/dtf/so-dtf/ubah/:nomor',
-    name: 'Ubah SO DTF Pesanan',
+    path: "/transaksi/penjualan/dtf/so-dtf/ubah/:nomor",
+    name: "Ubah SO DTF Pesanan",
     component: SoDtfCreateView,
     meta: {
-      title: 'Ubah SO DTF Pesanan',
-      requiresAuth: true
-    }
+      title: "Ubah SO DTF Pesanan",
+      requiresAuth: true,
+    },
   },
   {
-    path: '/transaksi/penjualan/dtf/so-dtf/print/:nomor',
-    name: 'Cetak SO DTF',
+    path: "/transaksi/penjualan/dtf/so-dtf/print/:nomor",
+    name: "Cetak SO DTF",
     component: SoDtfPrintView,
     meta: {
       requiresAuth: true,
-      printLayout: true
-    }
+      printLayout: true,
+      layout: "PrintLayout",
+    },
   },
   {
-    path: '/transaksi/penjualan/dtf/lhk-so-dtf',
-    name: 'frmBrowDTF',
+    path: "/transaksi/penjualan/dtf/lhk-so-dtf",
+    name: "frmBrowDTF",
     component: LhkSoDtfView,
     meta: {
-      title: 'LHK SO DTF',
+      title: "LHK SO DTF",
       requiresAuth: true,
-      menuId: '41'
-    }
+      menuId: "41",
+    },
   },
   {
-    path: '/transaksi/penjualan/dtf/lhk-so-dtf/edit',
-    name: 'LhkSoDtfCreate',
+    path: "/transaksi/penjualan/dtf/lhk-so-dtf/edit",
+    name: "LhkSoDtfCreate",
     component: LhkSoDtfCreateView,
     meta: {
-      title: 'Form LHK SO DTF',
+      title: "Form LHK SO DTF",
       requiresAuth: true,
-      menuId: '41'
-    }
+      menuId: "41",
+    },
   },
   {
-    path: '/transaksi/penjualan/dtf/dasbor-dtf',
-    name: 'frmLapDasborDtf',
+    path: "/transaksi/penjualan/dtf/dasbor-dtf",
+    name: "frmLapDasborDtf",
     component: DasborDtfView,
     meta: {
-      title: 'Dasbor DTF',
+      title: "Dasbor DTF",
       requiresAuth: true,
-      menuId: '40'
-    }
+      menuId: "40",
+    },
   },
   {
-    path: '/transaksi/penjualan/dtf/so-dtf-stok',
-    name: 'SoDtfStok',
+    path: "/transaksi/penjualan/dtf/so-dtf-stok",
+    name: "SoDtfStok",
     component: SoDtfStokView,
     meta: {
-      title: 'SO DTF Stok',
+      title: "SO DTF Stok",
       requiresAuth: true,
-      menuId: '36'
-    }
+      menuId: "36",
+    },
   },
   {
-    path: '/transaksi/penjualan/dtf/so-dtf-stok/new',
-    name: 'SoDtfStokCreate',
+    path: "/transaksi/penjualan/dtf/so-dtf-stok/new",
+    name: "SoDtfStokCreate",
     component: SoDtfStokCreateView,
     meta: {
-      title: 'Buat SO DTF Stok',
+      title: "Buat SO DTF Stok",
       requiresAuth: true,
-      menuId: '36'
-    }
+      menuId: "36",
+    },
   },
   {
-    path: '/transaksi/penjualan/dtf/so-dtf-stok/ubah/:nomor',
-    name: 'SoDtfStokEdit',
+    path: "/transaksi/penjualan/dtf/so-dtf-stok/ubah/:nomor",
+    name: "SoDtfStokEdit",
     component: SoDtfStokCreateView,
     meta: {
-      title: 'Ubah SO DTF Stok',
+      title: "Ubah SO DTF Stok",
       requiresAuth: true,
-      menuId: '36'
-    }
+      menuId: "36",
+    },
   },
   {
-    path: '/transaksi/penjualan/dtf/so-dtf-stok/print/:nomor',
-    name: 'Cetak SO DTF Stok',
+    path: "/transaksi/penjualan/dtf/so-dtf-stok/print/:nomor",
+    name: "Cetak SO DTF Stok",
     component: SoDtfStokPrintView,
     meta: {
       requiresAuth: true,
-      printLayout: true
-    }
+      printLayout: true,
+      layout: "PrintLayout",
+    },
   },
   {
-    path: '/transaksi/penjualan/dtf/lhk-so-dtf-stok',
-    name: 'LhkSoDtfStok',
+    path: "/transaksi/penjualan/dtf/lhk-so-dtf-stok",
+    name: "LhkSoDtfStok",
     component: LhkSoDtfStokView,
     meta: {
-      title: 'LHK SO DTF Stok',
+      title: "LHK SO DTF Stok",
       requiresAuth: true,
-      menuId: '48'
-    }
+      menuId: "48",
+    },
   },
   {
-    path: '/transaksi/penjualan/dtf/lhk-so-dtf-stok/new',
-    name: 'LhkSoDtfStokCreate',
+    path: "/transaksi/penjualan/dtf/lhk-so-dtf-stok/new",
+    name: "LhkSoDtfStokCreate",
     component: LhkSoDtfStokCreateView,
     meta: {
-      title: 'Buat LHK SO DTF Stok',
+      title: "Buat LHK SO DTF Stok",
       requiresAuth: true,
-      menuId: '48'
-    }
+      menuId: "48",
+    },
   },
   {
-    path: '/transaksi/penjualan/dtf/lhk-so-dtf-stok/ubah/:nomor',
-    name: 'LhkSoDtfStokEdit',
+    path: "/transaksi/penjualan/dtf/lhk-so-dtf-stok/ubah/:nomor",
+    name: "LhkSoDtfStokEdit",
     component: LhkSoDtfStokCreateView,
     meta: {
-      title: 'Ubah LHK SO DTF Stok',
+      title: "Ubah LHK SO DTF Stok",
       requiresAuth: true,
-      menuId: '48'
-    }
+      menuId: "48",
+    },
   },
   {
-    path: '/transaksi/penjualan/surat-pesanan',
-    name: 'frmBrowseSo',
+    path: "/transaksi/penjualan/surat-pesanan",
+    name: "frmBrowseSo",
     component: SoView,
     meta: {
-      title: 'Surat Pesanan',
+      title: "Surat Pesanan",
       requiresAuth: true,
-      menuId: '26'
-    }
+      menuId: "26",
+    },
   },
   {
-    path: '/transaksi/penjualan/surat-pesanan/print/:nomor',
-    name: 'Cetak Surat Pesanan',
+    path: "/transaksi/penjualan/surat-pesanan/print/:nomor",
+    name: "Cetak Surat Pesanan",
     component: SoPrintView,
     meta: {
       requiresAuth: true,
-      printLayout: true
-    }
+      printLayout: true,
+      layout: "PrintLayout",
+    },
   },
   {
-    path: '/transaksi/penjualan/surat-pesanan/new',
-    name: 'SuratPesananCreate',
+    path: "/transaksi/penjualan/surat-pesanan/new",
+    name: "SuratPesananCreate",
     component: SoCreateView,
     meta: {
-      title: 'Buat Surat Pesanan',
+      title: "Buat Surat Pesanan",
       requiresAuth: true,
-      menuId: '26'
-    }
+      menuId: "26",
+    },
   },
   {
-    path: '/transaksi/penjualan/surat-pesanan/ubah/:nomor',
-    name: 'SuratPesananEdit',
+    path: "/transaksi/penjualan/surat-pesanan/ubah/:nomor",
+    name: "SuratPesananEdit",
     component: SoCreateView,
     meta: {
-      title: 'Ubah Surat Pesanan',
+      title: "Ubah Surat Pesanan",
       requiresAuth: true,
-      menuId: '26'
-    }
+      menuId: "26",
+    },
   },
   {
-    path: '/transaksi/penjualan/surat-pesanan/print-dp/:nomor',
-    name: 'Cetak DP',
+    path: "/transaksi/penjualan/surat-pesanan/print-dp/:nomor",
+    name: "Cetak DP",
     component: DpPrintView,
     meta: {
       requiresAuth: true,
-      printLayout: true
-    }
+      printLayout: true,
+      layout: "PrintLayout",
+    },
   },
   {
-    path: '/transaksi/internal/buffer-stok',
-    name: 'BufferStok',
+    path: "/transaksi/internal/buffer-stok",
+    name: "BufferStok",
     component: BufferStokView,
     meta: {
-      title: 'Buffer Stok',
-      requiresAuth: true
-    }
+      title: "Buffer Stok",
+      requiresAuth: true,
+    },
   },
   {
-    path: '/transaksi/mutasi/out-produksi',
-    name: 'frmBrowMutasiOut',
+    path: "/transaksi/mutasi/out-produksi",
+    name: "frmBrowMutasiOut",
     component: MutasiOutView,
     meta: {
-      title: 'Mutasi Out ke Produksi',
+      title: "Mutasi Out ke Produksi",
       requiresAuth: true,
-      menuId: '43'
-    }
+      menuId: "43",
+    },
   },
   {
-    path: '/transaksi/mutasi/out-produksi/new',
-    name: 'MutasiOutProduksiCreate',
+    path: "/transaksi/mutasi/out-produksi/new",
+    name: "MutasiOutProduksiCreate",
     component: MutasiOutCreateView,
     meta: {
-      title: 'Buat Mutasi Out',
+      title: "Buat Mutasi Out",
       requiresAuth: true,
-      menuId: '43'
-    }
+      menuId: "43",
+    },
   },
   {
-    path: '/transaksi/mutasi/out-produksi/ubah/:nomor',
-    name: 'MutasiOutProduksiEdit',
+    path: "/transaksi/mutasi/out-produksi/ubah/:nomor",
+    name: "MutasiOutProduksiEdit",
     component: MutasiOutCreateView,
     meta: {
-      title: 'Ubah Mutasi Out',
+      title: "Ubah Mutasi Out",
       requiresAuth: true,
-      menuId: '43'
-    }
+      menuId: "43",
+    },
   },
   {
-    path: '/transaksi/mutasi/out-produksi/print/:nomor',
-    name: 'Cetak Mutasi Out',
+    path: "/transaksi/mutasi/out-produksi/print/:nomor",
+    name: "Cetak Mutasi Out",
     component: MutasiOutPrintView,
     meta: {
       requiresAuth: true,
-      printLayout: true // Flag untuk layout khusus cetak
-    }
+      printLayout: true, // Flag untuk layout khusus cetak
+      layout: "PrintLayout",
+    },
   },
   {
-    path: '/transaksi/internal/minta-barang', // Sesuaikan path jika perlu
-    name: 'ufrmBrowMintaBarang',
+    path: "/transaksi/internal/minta-barang", // Sesuaikan path jika perlu
+    name: "ufrmBrowMintaBarang",
     component: MintaBarangView,
     meta: {
-      title: 'Minta Barang ke DC',
+      title: "Minta Barang ke DC",
       requiresAuth: true,
-      menuId: '37'
-    }
+      menuId: "37",
+    },
   },
   {
-    path: '/transaksi/internal/minta-barang/new',
-    name: 'MintaBarangCreate',
+    path: "/transaksi/internal/minta-barang/new",
+    name: "MintaBarangCreate",
     component: MintaBarangCreateView,
     meta: {
-      title: 'Buat Minta Barang ke DC',
+      title: "Buat Minta Barang ke DC",
       requiresAuth: true,
-      menuId: '37'
-    }
+      menuId: "37",
+    },
   },
   {
-    path: '/transaksi/internal/minta-barang/ubah/:nomor',
-    name: 'MintaBarangEdit',
+    path: "/transaksi/internal/minta-barang/ubah/:nomor",
+    name: "MintaBarangEdit",
     component: MintaBarangCreateView,
     meta: {
-      title: 'Ubah Minta Barang ke DC',
+      title: "Ubah Minta Barang ke DC",
       requiresAuth: true,
-      menuId: '37'
-    }
+      menuId: "37",
+    },
   },
   {
-    path: '/gudang-dc/operasional/surat-jalan-store',
-    name: 'SuratJalanStore',
+    path: "/gudang-dc/operasional/surat-jalan-store",
+    name: "SuratJalanStore",
     component: SuratJalanView,
     meta: {
-      title: 'Surat Jalan ke Store',
+      title: "Surat Jalan ke Store",
       requiresAuth: true,
-      menuId: '213'
-    }
+      menuId: "213",
+    },
   },
   {
-    path: '/gudang-dc/operasional/surat-jalan-store/print/:nomor',
-    name: 'Cetak Surat Jalan',
+    path: "/gudang-dc/operasional/surat-jalan-store/print/:nomor",
+    name: "Cetak Surat Jalan",
     component: SuratJalanPrintView,
     meta: {
       requiresAuth: true,
-      printLayout: true // Flag untuk layout khusus cetak
-    }
+      printLayout: true, // Flag untuk layout khusus cetak
+      layout: "PrintLayout",
+    },
   },
   {
-    path: '/gudang-dc/operasional/surat-jalan-store/new',
-    name: 'SuratJalanCreate',
+    path: "/gudang-dc/operasional/surat-jalan-store/new",
+    name: "SuratJalanCreate",
     component: SuratJalanCreateView,
     meta: {
-      title: 'Buat Surat Jalan ke Store',
+      title: "Buat Surat Jalan ke Store",
       requiresAuth: true,
-      menuId: '213'
-    }
+      menuId: "213",
+    },
   },
   {
-    path: '/gudang-dc/operasional/surat-jalan-store/ubah/:nomor',
-    name: 'SuratJalanEdit',
+    path: "/gudang-dc/operasional/surat-jalan-store/ubah/:nomor",
+    name: "SuratJalanEdit",
     component: SuratJalanCreateView,
     meta: {
-      title: 'Ubah Surat Jalan ke Store',
+      title: "Ubah Surat Jalan ke Store",
       requiresAuth: true,
-      menuId: '213'
-    }
+      menuId: "213",
+    },
   },
   {
-    path: '/transaksi/internal/terima-sj',
-    name: 'TerimaSj',
+    path: "/transaksi/internal/terima-sj",
+    name: "TerimaSj",
     component: TerimaSjView,
     meta: {
-      title: 'Terima SJ dari DC',
+      title: "Terima SJ dari DC",
       requiresAuth: true,
-      menuId: '31'
-    }
+      menuId: "31",
+    },
   },
   {
-    path: '/transaksi/internal/terima-sj/create/:nomor',
-    name: 'TerimaSjCreate',
+    path: "/transaksi/internal/terima-sj/create/:nomor",
+    name: "TerimaSjCreate",
     component: TerimaSjFormView,
     meta: {
-      title: 'Buat Terima SJ',
+      title: "Buat Terima SJ",
       requiresAuth: true,
-      menuId: '31'
-    }
+      menuId: "31",
+    },
   },
   {
-    path: '/transaksi/mutasi/in-produksi',
-    name: 'MutasiIn',
+    path: "/transaksi/mutasi/in-produksi",
+    name: "MutasiIn",
     component: MutasiInView,
     meta: {
-      title: 'Mutasi In dari Produksi',
+      title: "Mutasi In dari Produksi",
       requiresAuth: true,
-      menuId: '44'
-    }
+      menuId: "44",
+    },
   },
   {
-    path: '/transaksi/mutasi/in-produksi/new',
-    name: 'MutasiInCreate',
+    path: "/transaksi/mutasi/in-produksi/new",
+    name: "MutasiInCreate",
     component: MutasiInCreateView,
     meta: {
-      title: 'Buat Mutasi In',
+      title: "Buat Mutasi In",
       requiresAuth: true,
-      menuId: '44'
-    }
+      menuId: "44",
+    },
   },
   {
-    path: '/transaksi/mutasi/in-produksi/edit/:nomor',
-    name: 'MutasiInEdit',
+    path: "/transaksi/mutasi/in-produksi/edit/:nomor",
+    name: "MutasiInEdit",
     component: MutasiInCreateView,
     meta: {
-      title: 'Ubah Mutasi In',
+      title: "Ubah Mutasi In",
       requiresAuth: true,
-      menuId: '44'
-    }
+      menuId: "44",
+    },
   },
   {
-    path: '/transaksi/mutasi/in-produksi/print/:nomor',
-    name: 'Cetak Mutasi In',
+    path: "/transaksi/mutasi/in-produksi/print/:nomor",
+    name: "Cetak Mutasi In",
     component: MutasiInPrintView,
     meta: {
       requiresAuth: true,
-      printLayout: true
-    }
+      printLayout: true,
+      layout: "PrintLayout",
+    },
   },
   {
-    path: '/transaksi/mutasi/stok',
-    name: 'MutasiStok',
+    path: "/transaksi/mutasi/stok",
+    name: "MutasiStok",
     component: MutasiStokView,
     meta: {
-      title: 'Mutasi Stok',
+      title: "Mutasi Stok",
       requiresAuth: true,
-      menuId: '45'
-    }
+      menuId: "45",
+    },
   },
   {
-    path: '/transaksi/mutasi/stok/new',
-    name: 'MutasiStokCreate',
+    path: "/transaksi/mutasi/stok/new",
+    name: "MutasiStokCreate",
     component: MutasiStokCreateView,
     meta: {
-      title: 'Buat Mutasi Stok',
+      title: "Buat Mutasi Stok",
       requiresAuth: true,
-      menuId: '45'
-    }
+      menuId: "45",
+    },
   },
   {
-    path: '/transaksi/mutasi/stok/edit/:nomor',
-    name: 'MutasiStokEdit',
+    path: "/transaksi/mutasi/stok/edit/:nomor",
+    name: "MutasiStokEdit",
     component: MutasiStokCreateView,
     meta: {
-      title: 'Ubah Mutasi Stok',
+      title: "Ubah Mutasi Stok",
       requiresAuth: true,
-      menuId: '45'
-    }
+      menuId: "45",
+    },
   },
   {
-    path: '/transaksi/mutasi/stok/print/:nomor',
-    name: 'Cetak Mutasi Stok',
+    path: "/transaksi/mutasi/stok/print/:nomor",
+    name: "Cetak Mutasi Stok",
     component: MutasiStokPrintView,
     meta: {
       requiresAuth: true,
-      printLayout: true
-    }
+      printLayout: true,
+      layout: "PrintLayout",
+    },
   },
   {
-    path: '/piutang/setoran-pembayaran',
-    name: 'SetoranBayar',
+    path: "/piutang/setoran-pembayaran",
+    name: "SetoranBayar",
     component: SetoranBayarView,
     meta: {
-      title: 'Setoran Pembayaran',
+      title: "Setoran Pembayaran",
       requiresAuth: true,
-      menuId: '51'
-    }
+      menuId: "51",
+    },
   },
   {
-    path: '/piutang/setoran-pembayaran/new',
-    name: 'SetoranBayarCreate',
+    path: "/piutang/setoran-pembayaran/new",
+    name: "SetoranBayarCreate",
     component: SetoranBayarCreateView,
     meta: {
-      title: 'Buat Setoran Pembayaran',
+      title: "Buat Setoran Pembayaran",
       requiresAuth: true,
-      menuId: '51'
-    }
+      menuId: "51",
+    },
   },
   {
-    path: '/piutang/setoran-pembayaran/edit/:nomor',
-    name: 'SetoranBayarEdit',
+    path: "/piutang/setoran-pembayaran/edit/:nomor",
+    name: "SetoranBayarEdit",
     component: SetoranBayarCreateView,
     meta: {
-      title: 'Ubah Setoran Pembayaran',
+      title: "Ubah Setoran Pembayaran",
       requiresAuth: true,
-      menuId: '51'
-    }
+      menuId: "51",
+    },
   },
   {
-    path: '/piutang/setoran-pembayaran/print/:nomor',
-    name: 'CetakSetoranBayar',
+    path: "/piutang/setoran-pembayaran/print/:nomor",
+    name: "CetakSetoranBayar",
     component: DpPrintView,
     meta: {
       requiresAuth: true,
-      printLayout: true
-    }
+      printLayout: true,
+      layout: "PrintLayout",
+    },
   },
   {
-    path: '/piutang/fsk',
-    name: 'Fsk',
+    path: "/piutang/fsk",
+    name: "Fsk",
     component: FskView,
     meta: {
-      title: 'Form Setoran Kasir',
+      title: "Form Setoran Kasir",
       requiresAuth: true,
-      menuId: '54'
-    }
+      menuId: "54",
+    },
   },
   {
-    path: '/piutang/fsk/new',
-    name: 'FskCreate',
+    path: "/piutang/fsk/new",
+    name: "FskCreate",
     component: FskCreateView,
     meta: {
-      title: 'Buat Form Setoran Kasir',
+      title: "Buat Form Setoran Kasir",
       requiresAuth: true,
-      menuId: '54'
-    }
+      menuId: "54",
+    },
   },
   {
-    path: '/piutang/fsk/edit/:nomor',
-    name: 'FskEdit',
+    path: "/piutang/fsk/edit/:nomor",
+    name: "FskEdit",
     component: FskCreateView,
     meta: {
-      title: 'Ubah Form Setoran Kasir',
+      title: "Ubah Form Setoran Kasir",
       requiresAuth: true,
-      menuId: '54'
-    }
+      menuId: "54",
+    },
   },
   {
-    path: '/piutang/fsk/print/:nomor',
-    name: 'FskPrint',
+    path: "/piutang/fsk/print/:nomor",
+    name: "FskPrint",
     component: FskPrintView,
     meta: {
       requiresAuth: true,
-      printLayout: true
-    }
+      printLayout: true,
+      layout: "PrintLayout",
+    },
   },
   {
-    path: '/transaksi/penjualan/invoice',
-    name: 'Invoice',
+    path: "/transaksi/penjualan/invoice",
+    name: "Invoice",
     component: InvoiceView,
     meta: {
-      title: 'Invoice',
+      title: "Invoice",
       requiresAuth: true,
-      menuId: '27'
-    }
+      menuId: "27",
+    },
   },
   {
-    path: '/transaksi/penjualan/invoice/new',
-    name: 'InvoiceCreate',
+    path: "/transaksi/penjualan/invoice/new",
+    name: "InvoiceCreate",
     component: InvoiceCreateView,
     meta: {
-      title: 'Buat Invoice Baru',
+      title: "Buat Invoice Baru",
       requiresAuth: true,
-      menuId: '27'
-    }
+      menuId: "27",
+    },
   },
   {
-    path: '/transaksi/penjualan/invoice/edit/:nomor',
-    name: 'InvoiceEdit',
+    path: "/transaksi/penjualan/invoice/edit/:nomor",
+    name: "InvoiceEdit",
     component: InvoiceCreateView,
     meta: {
-      title: 'Ubah Invoice',
+      title: "Ubah Invoice",
       requiresAuth: true,
-      menuId: '27'
-    }
+      menuId: "27",
+    },
   },
   {
-    path: '/transaksi/penjualan/invoice/print/:nomor',
-    name: 'InvoicePrint',
+    path: "/transaksi/penjualan/invoice/print/:nomor",
+    name: "InvoicePrint",
     component: InvoicePrintView,
     meta: {
       requiresAuth: true,
-      printLayout: true
-    }
+      printLayout: true,
+      layout: "PrintLayout",
+    },
   },
   {
-    path: '/transaksi/penjualan/invoice/print-kasir/:nomor',
-    name: 'InvoicePrintKasir',
+    path: "/transaksi/penjualan/invoice/print-kasir/:nomor",
+    name: "InvoicePrintKasir",
     component: InvoicePrintKasirView,
     meta: {
       requiresAuth: true,
-      printLayout: true
-    }
+      printLayout: true,
+      layout: "PrintLayout",
+    },
   },
   {
-    path: '/transaksi/penjualan/invoice/image-kasir/:nomor',
-    name: 'InvoicePrintImageView',
+    path: "/transaksi/penjualan/invoice/image-kasir/:nomor",
+    name: "InvoicePrintImageView",
     component: InvoicePrintImageView,
     meta: {
       printLayout: true,
-    }
+      layout: "PrintLayout",
+    },
   },
   {
-    path: '/invoice/print-kupon/:nomor',
-    name: 'CetakKupon',
+    path: "/invoice/print-kupon/:nomor",
+    name: "CetakKupon",
     component: KuponPrintView,
-    meta: { printLayout: true, requiresAuth: true }
+    meta: { printLayout: true, requiresAuth: true, layout: "PrintLayout" },
   },
   {
-    path: '/invoice/print-voucher/:nomor',
-    name: 'CetakVoucher',
+    path: "/invoice/print-voucher/:nomor",
+    name: "CetakVoucher",
     component: VoucherPrintView,
-    meta: { printLayout: true, requiresAuth: true }
+    meta: { printLayout: true, requiresAuth: true, layout: "PrintLayout" },
   },
   {
-    path: '/transaksi/penjualan/invoice/print-sj/:nomor',
-    name: 'CetakInvoiceAsSJ',
+    path: "/transaksi/penjualan/invoice/print-sj/:nomor",
+    name: "CetakInvoiceAsSJ",
     component: InvoiceAsSjPrintView,
     meta: {
       requiresAuth: true,
-      printLayout: true
-    }
+      printLayout: true,
+      layout: "PrintLayout",
+    },
   },
   {
-    path: '/transaksi/mutasi/store-kirim',
-    name: 'MutasiKirim',
+    path: "/transaksi/mutasi/store-kirim",
+    name: "MutasiKirim",
     component: MutasiStoreKirimView,
     meta: {
-      title: 'Mutasi Antar Store Kirim',
+      title: "Mutasi Antar Store Kirim",
       requiresAuth: true,
-      menuId: '46' // Pastikan ID ini sesuai dengan yang ada di database
-    }
+      menuId: "46", // Pastikan ID ini sesuai dengan yang ada di database
+    },
   },
   {
-    path: '/transaksi/mutasi/store-kirim/new',
-    name: 'MutasiKirimCreate',
+    path: "/transaksi/mutasi/store-kirim/new",
+    name: "MutasiKirimCreate",
     component: MutasiStoreKirimCreateView,
     meta: {
-      title: 'Buat Mutasi Antar Store',
+      title: "Buat Mutasi Antar Store",
       requiresAuth: true,
-      menuId: '46' // Sesuaikan
-    }
+      menuId: "46", // Sesuaikan
+    },
   },
   {
-    path: '/transaksi/mutasi/store-kirim/edit/:nomor',
-    name: 'MutasiKirimEdit',
+    path: "/transaksi/mutasi/store-kirim/edit/:nomor",
+    name: "MutasiKirimEdit",
     component: MutasiStoreKirimCreateView,
     meta: {
-      title: 'Ubah Mutasi Antar Store',
+      title: "Ubah Mutasi Antar Store",
       requiresAuth: true,
-      menuId: '46' // Sesuaikan
-    }
+      menuId: "46", // Sesuaikan
+    },
   },
   {
-    path: '/transaksi/mutasi/store-kirim/print/:nomor',
-    name: 'MutasiKirimPrint',
+    path: "/transaksi/mutasi/store-kirim/print/:nomor",
+    name: "MutasiKirimPrint",
     component: MutasiStoreKirimPrintView,
     meta: {
-      title: 'Cetak Mutasi Antar Store',
+      title: "Cetak Mutasi Antar Store",
       printLayout: true, // Bypass layout utama & nav guard
-      requiresAuth: true
-    }
+      requiresAuth: true,
+      layout: "PrintLayout",
+    },
   },
   {
-    path: '/transaksi/mutasi/store-terima',
-    name: 'MutasiTerima',
+    path: "/transaksi/mutasi/store-terima",
+    name: "MutasiTerima",
     component: MutasiStoreTerimaView,
     meta: {
-      title: 'Mutasi Antar Store Terima',
+      title: "Mutasi Antar Store Terima",
       requiresAuth: true,
-      menuId: '47'
-    }
+      menuId: "47",
+    },
   },
   {
-    path: '/transaksi/mutasi/store-terima/new', // Mode 'create' untuk penerimaan
-    name: 'MutasiTerimaCreate',
+    path: "/transaksi/mutasi/store-terima/new", // Mode 'create' untuk penerimaan
+    name: "MutasiTerimaCreate",
     component: MutasiStoreTerimaCreateView,
     meta: {
-      title: 'Buat Mutasi Antar Store Terima',
+      title: "Buat Mutasi Antar Store Terima",
       requiresAuth: true,
-      menuId: '47'
-    }
-},
-  {
-    path: '/laporan/stok',
-    name: 'frmRptStok',
-    component: LaporanStokView,
-    meta: {
-      title: 'Laporan Stok Real Time',
-      requiresAuth: true,
-      menuId: '501'
-    }
+      menuId: "47",
+    },
   },
   {
-    path: '/pengaturan/whatsapp',
-    name: 'WhatsappLink',
+    path: "/transaksi/internal/koreksi-stok",
+    name: "KoreksiStok",
+    component: KoreksiStokView,
+    meta: {
+      title: "Koreksi Stok",
+      requiresAuth: true,
+      menuId: "25",
+    },
+  },
+  {
+    path: "/transaksi/internal/koreksi-stok/create",
+    name: "KoreksiStokCreate",
+    component: KoreksiStokCreateView,
+    meta: { title: "Buat Koreksi Stok", requiresAuth: true, menuId: "25" },
+  },
+  {
+    path: "/transaksi/internal/koreksi-stok/edit/:nomor",
+    name: "KoreksiStokEdit",
+    component: KoreksiStokCreateView,
+    meta: { title: "Ubah Koreksi Stok", requiresAuth: true, menuId: "25" },
+  },
+  {
+    path: "/transaksi/internal/koreksi-stok/print/:nomor",
+    name: "KoreksiStokPrint",
+    component: KoreksiStokPrintView,
+    meta: {
+      title: "Cetak Koreksi Stok",
+      printLayout: true,
+      requiresAuth: true,
+      layout: "PrintLayout",
+    },
+  },
+  {
+    path: "/transaksi/penjualan/retur-jual",
+    name: "ReturJual",
+    component: ReturJualView,
+    meta: {
+      title: "Retur Jual",
+      requiresAuth: true,
+      menuId: "29",
+    },
+  },
+  {
+    path: "/laporan/stok",
+    name: "frmRptStok",
+    component: LaporanStokView,
+    meta: {
+      title: "Laporan Stok Real Time",
+      requiresAuth: true,
+      menuId: "501",
+    },
+  },
+  {
+    path: "/pengaturan/whatsapp",
+    name: "WhatsappLink",
     component: WhatsappLinkView,
     meta: {
-      title: 'Tautkan Perangkat WhatsApp',
-      requiresAuth: true
-    }
+      title: "Tautkan Perangkat WhatsApp",
+      requiresAuth: true,
+    },
   },
 ];
 
@@ -969,7 +1033,13 @@ const router = createRouter({
 // Navigation Guard (Satpam Router)
 router.beforeEach((to, from, next) => {
   const authStore = useAuthStore();
+  const loggedIn = authStore.isAuthenticated;
   const allowedMenus = authStore.allowedMenus || [];
+
+  if (loggedIn && authStore.isTokenExpired) {
+    authStore.logout(); // Panggil aksi logout
+    return; // Hentikan navigasi lebih lanjut, karena logout akan redirect ke /login
+  }
 
   // Hindari infinite loop - jangan proses route yang sama berulang
   if (from.path === to.path) {
@@ -978,10 +1048,8 @@ router.beforeEach((to, from, next) => {
 
   // console.log("[ROUTER] Navigating to:", to.name, "path:", to.path);
 
-  const title = to.meta?.title || to.name || 'Retail';
+  const title = to.meta?.title || to.name || "Retail";
   document.title = `${title} - Retail Kaosan`;
-
-  const loggedIn = authStore.isAuthenticated;
 
   // Izinkan akses ke halaman cetak manapun, terutama jika dari backend
   if (to.meta.printLayout) {
@@ -996,13 +1064,13 @@ router.beforeEach((to, from, next) => {
   // Belum login, redirect ke login
   if (!loggedIn) {
     // console.log("[ROUTER] Not logged in, redirect to login");
-    return next('/login');
+    return next("/login");
   }
 
   // Sudah login tapi akses login page
-  if (to.name === 'Login' && loggedIn) {
+  if (to.name === "Login" && loggedIn) {
     // console.log("[ROUTER] Already logged in, redirect to home");
-    return next('/');
+    return next("/");
   }
 
   // Cek akses untuk route yang memerlukan permission
@@ -1010,7 +1078,7 @@ router.beforeEach((to, from, next) => {
     const hasPermission = allowedMenus.includes(to.meta.menuId);
     if (!hasPermission) {
       // console.log("[ROUTER] No permission for menuId:", to.meta.menuId);
-      return next({ name: 'Unauthorized' }); // redirect ke home, bukan unauthorized
+      return next({ name: "Unauthorized" }); // redirect ke home, bukan unauthorized
     }
   }
 

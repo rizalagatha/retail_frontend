@@ -5,6 +5,7 @@ import { useAuthStore } from '@/stores/authStore';
 import { useToast } from 'vue-toastification';
 import { useRouter } from 'vue-router';
 import { AxiosError } from 'axios';
+import logoUrl from '@/assets/logo.png';
 
 interface Branch {
   kode: string;
@@ -113,7 +114,7 @@ const handleCancel = () => {
                 </p>
               </div>
               <v-avatar size="56" color="white" class="elevation-2">
-                <v-icon size="32" color="primary">mdi-account-circle</v-icon>
+                <v-img :src="logoUrl" alt="Company Logo" />
               </v-avatar>
             </v-sheet>
           </v-card-title>

@@ -18,6 +18,7 @@ interface Product {
 const props = defineProps({
     gudang: { type: String, required: true },
     multi: { type: Boolean, default: false },
+    source: { type: String, required: true } 
 });
 const emit = defineEmits(['close', 'products-selected']);
 
@@ -42,11 +43,25 @@ const headers = [
 const loadItems = async ({ page, itemsPerPage, sortBy }: any = {}) => {
     loading.value = true;
     try {
-        const response = await api.get('/minta-barang-form/lookup/products', {
+        let apiUrl = '';
+        if (props.source === 'minta-barang') {
+            apiUrl = '/minta-barang-form/lookup/products';
+        } else if (props.source === 'koreksi-stok') {
+            apiUrl = '/koreksi-stok-form/lookup/products';
+        }
+
+        if (!apiUrl) {
+            toast.error('Sumber data untuk modal pencarian tidak valid.');
+            loading.value = false;
+            return;
+        }
+
+        const response = await api.get(apiUrl, {
             params: {
                 term: search.value,
-                page: page ?? options.page,
-                limit: itemsPerPage ?? options.itemsPerPage,
+                gudang: props.gudang,
+                page: page ?? options.value.page,
+                itemsPerPage: itemsPerPage ?? options.value.itemsPerPage,
                 sortBy: sortBy ?? [],
             },
         });
@@ -54,7 +69,7 @@ const loadItems = async ({ page, itemsPerPage, sortBy }: any = {}) => {
         items.value = response.data.items;
         totalItems.value = response.data.total;
     } catch (error) {
-        toast.error('Gagal memuat data produk.');
+        toast.error('Gagal memuat data produk.', error);
     } finally {
         loading.value = false;
     }

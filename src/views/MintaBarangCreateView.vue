@@ -524,9 +524,8 @@ onMounted(() => {
             @close="isSoSearchVisible = false" @selected="onSoSelected" />
         <CustomerSearchModal v-if="isCustomerSearchVisible" :gudang="authStore.user?.cabang || ''"
             @close="isCustomerSearchVisible = false" @customer-selected="onCustomerSelected" />
-        <MintaBarangSearchModal v-if="isProductSearchVisible" :gudang="authStore.user?.cabang || ''"
-            :multi="isMultiSelectProduct" @close="isProductSearchVisible = false"
-            @products-selected="onProductsSelected" />
+        <MintaBarangSearchModal v-if="isProductSearchVisible" :gudang="authStore.user?.cabang || ''" :multi="true"
+            source="minta-barang" @close="isProductSearchVisible = false" @products-selected="onProductsSelected" />
 
         <v-dialog v-model="isConfirmDialogVisible" max-width="400px" persistent>
             <v-card>

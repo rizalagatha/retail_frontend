@@ -1,7 +1,6 @@
 <script setup lang="ts">
-import { watch, onMounted } from "vue";
+import { computed, defineAsyncComponent, onMounted, watch } from 'vue';
 import { useRoute } from "vue-router";
-import Navbar from "./components/Navbar.vue";
 import { useAuthStore } from "./stores/authStore";
 
 const authStore = useAuthStore();
@@ -10,6 +9,11 @@ const route = useRoute();
 // panggil sekali di awal supaya state sinkron dengan localStorage
 onMounted(() => {
   authStore.checkAuthStatus();
+});
+
+const layoutComponent = computed(() => {
+  const layoutName = route.meta.layout || 'DefaultLayout';
+  return defineAsyncComponent(() => import(`@/layouts/${layoutName}.vue`));
 });
 
 // update title halaman
@@ -28,11 +32,7 @@ watch(
 
 <template>
   <v-app class="desktop-app-container">
-    <Navbar v-if="authStore.isAuthenticated && !route.meta.printLayout" />
-
-    <v-main>
-      <router-view />
-    </v-main>
+    <component :is="layoutComponent" />
 
     <v-dialog v-model="authStore.isSessionExpired" persistent max-width="450px">
       <v-card>
@@ -41,7 +41,7 @@ watch(
           <span class="text-h6">Sesi Telah Habis</span>
         </v-card-title>
         <v-card-text>
-          Sesi login Anda telah berakhir karena tidak ada aktivitas. Silakan login kembali untuk melanjutkan.
+          Sesi login Anda telah berakhir. Silakan login kembali untuk melanjutkan.
         </v-card-text>
         <v-card-actions>
           <v-spacer></v-spacer>
@@ -51,7 +51,6 @@ watch(
         </v-card-actions>
       </v-card>
     </v-dialog>
-
   </v-app>
 </template>
 

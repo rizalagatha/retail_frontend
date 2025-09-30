@@ -114,15 +114,15 @@ onMounted(() => {
                     <div class="summary-item"><span>Diskon :</span><span>{{
                         formatRupiah(printData.header.summary.diskon) }}</span></div>
                     <div class="summary-item"><span>Netto :</span><span>{{ formatRupiah(printData.header.summary.netto)
-                            }}</span></div>
+                    }}</span></div>
                     <div class="summary-item"><span>Biaya Kirim :</span><span>{{
                         formatRupiah(printData.header.summary.biayaKirim) }}</span></div>
                     <div class="summary-item"><span>DP :</span><span>{{ formatRupiah(printData.header.summary.dp)
-                            }}</span></div>
+                    }}</span></div>
                     <div class="summary-item grand-total"><span>Grand Total :</span><span>{{
                         formatRupiah(printData.header.summary.grandTotal) }}</span></div>
                     <div class="summary-item"><span>Bayar :</span><span>{{ formatRupiah(printData.header.summary.bayar)
-                            }}</span></div>
+                    }}</span></div>
                     <div class="summary-item"><span>Pundi amal :</span><span>{{
                         formatRupiah(printData.header.summary.pundiAmal) }}</span></div>
                     <div class="summary-item"><span>Kembali :</span><span>{{
@@ -165,13 +165,30 @@ onMounted(() => {
 </template>
 
 <style scoped>
+/* Style untuk tampilan di browser (sebelum print) */
+.print-container {
+    background: #f5f5f5;
+    padding: 20px 0;
+}
+
 .page {
     font-family: 'Arial', sans-serif;
     font-size: 9pt;
     display: flex;
     flex-direction: column;
+    background: white;
+    margin: 0 auto;
+
+    /* Ukuran A4 Portrait untuk simulasi di layar */
+    width: 210mm;
+    min-height: 297mm;
+
+    padding: 15mm;
+    box-sizing: border-box;
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.15);
 }
 
+/* (Salin sisa CSS untuk .header, .title, .info-grid, dll. dari kode Anda sebelumnya) */
 .header {
     display: flex;
     align-items: center;
@@ -256,8 +273,6 @@ td {
     height: 40px;
 }
 
-.signature-name {}
-
 .summary .summary-item {
     display: flex;
     justify-content: space-between;
@@ -294,38 +309,39 @@ td {
     height: 12px;
 }
 
+/* --- ATURAN BARU YANG LEBIH SEDERHANA UNTUK PRINT --- */
 @media print {
+
+    /* Atur ukuran kertas dan margin cetak */
     @page {
-        size: A4;
-        margin: 1cm;
+        size: A4 portrait;
+        margin: 15mm;
     }
 
-    body * {
-        visibility: hidden;
-    }
-
-    .print-container,
-    .print-container * {
-        visibility: visible;
-    }
-
-    .print-container {
-        position: absolute;
-        left: 0;
-        top: 0;
-        width: 100%;
-    }
-
+    /* Paksa browser untuk menggunakan warna dan background */
+    body,
     .page {
-        border: none;
-        box-shadow: none;
-        margin: 0;
-        padding: 0;
-    }
-
-    body {
         -webkit-print-color-adjust: exact !important;
         print-color-adjust: exact !important;
+    }
+
+    /* Hilangkan background abu-abu dari container saat print */
+    .print-container {
+        padding: 0;
+        background: none;
+    }
+
+    /* Reset style visual dan PAKSA FONT saat mencetak */
+    .page {
+        font-family: 'Arial', sans-serif !important;
+        font-size: 9pt !important;
+        color: #000 !important;
+        margin: 0;
+        padding: 0;
+        border: none;
+        box-shadow: none;
+        width: auto;
+        min-height: auto;
     }
 }
 </style>

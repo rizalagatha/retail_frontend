@@ -157,7 +157,7 @@ const menuItems = [
           { title: 'Surat Pesanan', to: '/transaksi/penjualan/surat-pesanan', icon: 'mdi-file-document-edit-outline' },
           { title: 'Proforma Invoice', to: '/proforma-invoices', icon: 'mdi-receipt-text-outline' },
           { title: 'Invoice', to: '/transaksi/penjualan/invoice', icon: 'mdi-receipt' },
-          { title: 'Retur Jual', to: '/returns', icon: 'mdi-keyboard-return' }
+          { title: 'Retur Jual', to: '/transaksi/penjualan/retur-jual', icon: 'mdi-keyboard-return' }
         ]
       },
       {
@@ -168,7 +168,7 @@ const menuItems = [
           { title: 'Minta Barang ke DC', to: '/transaksi/internal/minta-barang', icon: 'mdi-arrow-up-bold-circle-outline' },
           { title: 'Terima SJ dari DC', to: '/transaksi/internal/terima-sj', icon: 'mdi-arrow-down-bold-circle-outline' },
           { title: 'Retur Barang ke DC', to: '/return-to-dc', icon: 'mdi-undo-variant' },
-          { title: 'Koreksi Stok', to: '/stock-corrections', icon: 'mdi-pencil-outline' },
+          { title: 'Koreksi Stok', to: '/transaksi/internal/koreksi-stok', icon: 'mdi-pencil-outline' },
           { title: 'Klerek', to: '/klerek', icon: 'mdi-clipboard-check-outline' }
         ]
       },

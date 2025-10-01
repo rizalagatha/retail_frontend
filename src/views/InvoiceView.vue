@@ -8,7 +8,82 @@ import { format, subDays, parseISO } from 'date-fns';
 import PageLayout from '@/components/PageLayout.vue';
 import PrintOptionModal from '@/components/PrintOptionModal.vue';
 import * as XLSX from 'xlsx';
-import html2canvas from 'html2canvas';
+
+interface InvoiceHeader {
+    Nomor: string;
+    Tanggal: string;
+    Posting: string;
+    NomorSO?: string;
+    TglSO?: string;
+    Top?: number;
+    Tempo?: string;
+    LastPayment?: string;
+    Diskon?: number;
+    Dp?: number;
+    Biayakirim?: number;
+    Nominal?: number;
+    Piutang?: number;
+    Bayar?: number;
+    SisaPiutang?: number;
+    RpRetur?: number;
+    Kdcus?: string;
+    Nama?: string;
+    Alamat?: string;
+    Kota?: string;
+    Telp?: string;
+    Level?: string;
+    Hp?: string;
+    Member?: string;
+    Keterangan?: string;
+    RpTunai?: number;
+    NoVoucher?: string;
+    RpVoucher?: number;
+    RpTransfer?: number;
+    NoSetoran?: string;
+    TglTransfer?: string;
+    Akun?: string;
+    NoRekening?: string;
+    NoRetur?: string;
+    SC?: string;
+    Created?: string;
+    Prn?: string;
+    Puas?: string;
+    Closing?: string;
+    [key: string]: string | number | undefined; 
+}
+
+interface InvoiceDetail {
+    Kode: string;
+    Barcode?: string;
+    Nama: string;
+    Ukuran?: string;
+    Jumlah: number;
+    Harga: number;
+    'Dis%'?: number;
+    Total: number;
+}
+
+interface InvoiceItem {
+    Nomor: string;
+    Tanggal: string;
+    Posting: string;
+    NomorSO?: string;
+    TglSO?: string;
+    Top?: number;
+    Tempo?: string;
+    LastPayment?: string;
+    Diskon?: number;
+    Dp?: number;
+    Biayakirim?: number;
+    Nominal?: number;
+    Piutang?: number;
+    Hp?: string;
+    Member?: string;
+    SisaPiutang?: number;
+    Closing?: string;
+    [key: string]: unknown;
+}
+
 
 // --- Inisialisasi ---
 const router = useRouter();
@@ -17,12 +92,12 @@ const authStore = useAuthStore();
 const MENU_ID = '27';
 
 // --- State ---
-const masterData = ref<any[]>([]);
-const details = ref<Record<string, any[]>>({});
+const masterData = ref<InvoiceHeader[]>([]);
+const details = ref<Record<string, InvoiceDetail[]>>({});
 const loading = ref(true);
 const loadingDetails = ref(new Set<string>());
-const selected = ref<any[]>([]);
-const expanded = ref<any[]>([]);
+const selected = ref<InvoiceHeader[]>([]);
+const expanded = ref<InvoiceHeader[]>([]);
 const cabangList = ref([]);
 
 const filters = reactive({
@@ -32,7 +107,9 @@ const filters = reactive({
 });
 
 const isSingleSelected = computed(() => selected.value.length === 1);
-const selectedRow = computed(() => isSingleSelected.value ? selected.value[0] : null);
+const selectedRow = computed<InvoiceItem | null>(() =>
+    isSingleSelected.value ? selected.value[0] as InvoiceItem : null
+);
 const isPrintOptionVisible = ref(false);
 
 const formatRupiah = (value: number) => new Intl.NumberFormat('id-ID').format(value || 0);
@@ -102,25 +179,43 @@ const fetchCabangList = async () => {
 const fetchMasterData = async () => {
     loading.value = true;
     try {
-        const response = await api.get('/invoices', { params: filters });
+        const response = await api.get<InvoiceHeader[]>('/invoices', { params: filters });
         masterData.value = response.data;
-    } catch (error: any) {
-        toast.error(error.response?.data?.message || 'Gagal mengambil data.');
+    } catch (error: unknown) {
+        if (error instanceof Error) {
+            toast.error(error.message);
+        } else if (typeof error === 'object' && error !== null && 'response' in error) {
+            // Type assertion untuk axios error
+            const axiosError = error as { response?: { data?: { message?: string } } };
+            toast.error(axiosError.response?.data?.message || 'Gagal mengambil data.');
+        } else {
+            toast.error('Gagal mengambil data.');
+        }
     } finally {
         loading.value = false;
     }
 };
 
-const loadDetails = async (newlyExpandedItems: any[]) => {
-    const itemToLoad = newlyExpandedItems.find(item => !details.value[item.Nomor] && !loadingDetails.value.has(item.Nomor));
+
+const loadDetails = async (newlyExpandedItems: InvoiceItem[]) => {
+    const itemToLoad = newlyExpandedItems.find(item =>
+        !details.value[item.Nomor] && !loadingDetails.value.has(item.Nomor)
+    );
     if (!itemToLoad) return;
 
     loadingDetails.value.add(itemToLoad.Nomor);
     try {
-        const response = await api.get(`/invoices/details/${itemToLoad.Nomor}`);
+        const response = await api.get<InvoiceDetail[]>(`/invoices/details/${itemToLoad.Nomor}`);
         details.value[itemToLoad.Nomor] = response.data;
-    } catch (error) { toast.error(`Gagal memuat detail untuk ${itemToLoad.Nomor}`, error); }
-    finally { loadingDetails.value.delete(itemToLoad.Nomor); }
+    } catch (error: unknown) {
+        if (error instanceof Error) {
+            toast.error(`Gagal memuat detail untuk ${itemToLoad.Nomor}: ${error.message}`);
+        } else {
+            toast.error(`Gagal memuat detail untuk ${itemToLoad.Nomor}`);
+        }
+    } finally {
+        loadingDetails.value.delete(itemToLoad.Nomor);
+    }
 };
 
 // const handleDelete = () => {
@@ -137,9 +232,8 @@ const loadDetails = async (newlyExpandedItems: any[]) => {
 //     }
 // };
 
-const getRowTextColor = (item: any) => {
-    if (item.SisaPiutang > 0) return 'text-red font-weight-bold';
-    return '';
+const getRowTextColor = (item: InvoiceItem) => {
+    return item.SisaPiutang > 0 ? 'text-red font-weight-bold' : '';
 };
 
 const handleNew = () => {
@@ -187,12 +281,12 @@ const formatHpToWa = (hp: string) => {
 };
 
 const handlePrintSelection = async (type: 'a4' | 'kasir' | 'wa') => {
-    // Sesuaikan cara mengambil 'nomor' dan 'item' berdasarkan file
     const nomor = selectedRow.value?.Nomor;
     const item = selectedRow.value;
 
-    if (!nomor) return;
-    if (typeof isPrintOptionVisible.value !== 'undefined') isPrintOptionVisible.value = false;
+    if (!nomor || !item) return;
+
+    isPrintOptionVisible.value = false;
 
     if (type === 'a4' || type === 'kasir') {
         const routeName = type === 'a4' ? 'InvoicePrint' : 'InvoicePrintKasir';
@@ -200,7 +294,7 @@ const handlePrintSelection = async (type: 'a4' | 'kasir' | 'wa') => {
         window.open(url, '_blank');
 
     } else if (type === 'wa') {
-        const memberHp = item.Hp || item.memberHp;
+        const memberHp = item.Hp; // pakai Hp yang ada
         if (!memberHp) {
             return toast.error('No. HP Member tidak ada, tidak bisa kirim via WA.');
         }
@@ -208,12 +302,13 @@ const handlePrintSelection = async (type: 'a4' | 'kasir' | 'wa') => {
         try {
             toast.info(`Mengirim struk ke ${memberHp}...`);
             const response = await api.post('/whatsapp/send-receipt', {
-                nomor: nomor,
-                hp: formatHpToWa(memberHp) // Pastikan fungsi formatHpToWa ada
+                nomor,
+                hp: formatHpToWa(memberHp)
             });
             toast.success(response.data.message);
-        } catch (error: any) {
-            toast.error(error.response?.data?.message || 'Gagal mengirim struk via WhatsApp.');
+        } catch (error: unknown) {
+            if (error instanceof Error) toast.error(error.message);
+            else toast.error('Gagal mengirim struk via WhatsApp.');
         }
     }
 };
@@ -234,7 +329,7 @@ const exportData = async (type: 'header' | 'detail') => {
             XLSX.utils.book_append_sheet(workbook, worksheet, "Invoice Detail");
             XLSX.writeFile(workbook, "Export_Invoice_Detail.xlsx");
         } catch (error) {
-            toast.error('Gagal mengekspor data detail.');
+            toast.error('Gagal mengekspor data detail.', error);
         }
     }
 };
@@ -306,30 +401,24 @@ watch(filters, fetchMasterData, { deep: true });
                     show-select return-object show-expand @update:expanded="loadDetails">
                     <template v-for="header in headers" #[`item.${header.key}`]="{ item }">
                         <td :class="getRowTextColor(item)">
-
                             <template
                                 v-if="['Tanggal', 'TglSO', 'TglSJ', 'LastPayment', 'TglTransfer', 'Created'].includes(header.key)">
                                 {{ item[header.key] ? format(parseISO(item[header.key]), 'dd/MM/yyyy') : '' }}
                             </template>
-
                             <template
                                 v-else-if="['Dis%', 'Diskon', 'Dp', 'Biayakirim', 'Nominal', 'Piutang', 'Bayar', 'SisaPiutang', 'RpVoucher', 'RpTransfer', 'RpRetur', 'RpTunai'].includes(header.key)">
                                 {{ formatRupiah(item[header.key]) }}
                             </template>
-
                             <template v-else-if="header.key === 'Posting'">
                                 <v-chip size="x-small" :color="item.Posting === 'SUDAH' ? 'green' : 'grey'">{{
                                     item.Posting }}</v-chip>
                             </template>
-
                             <template v-else-if="header.key === 'Closing'">
                                 <v-chip v-if="item.Closing === 'Y'" size="x-small" color="success">YA</v-chip>
                             </template>
-
                             <template v-else>
                                 {{ item[header.key] }}
                             </template>
-
                         </td>
                     </template>
 
@@ -358,7 +447,7 @@ watch(filters, fetchMasterData, { deep: true });
                 </v-data-table>
             </div>
         </div>
-        <PrintOptionModal v-if="isPrintOptionVisible" @close="isPrintOptionVisible = false"
-            @select="handlePrintSelection" />
+        <PrintOptionModal v-if="isPrintOptionVisible" :options="['a4', 'kasir', 'wa']"
+            @close="isPrintOptionVisible = false" @select="handlePrintSelection" />
     </PageLayout>
 </template>

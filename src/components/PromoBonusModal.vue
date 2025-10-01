@@ -23,7 +23,7 @@ onMounted(async () => {
         const response = await api.get(`/invoice-form/lookup/promo-bonus/${props.promoNomor}`);
         items.value = response.data;
     } catch (error) {
-        toast.error("Gagal memuat item bonus.");
+        toast.error("Gagal memuat item bonus.", error);
     } finally {
         loading.value = false;
     }

@@ -24,7 +24,7 @@ const headers = [
     { title: 'Nomor Retur', key: 'Nomor' },
     { title: 'Tanggal', key: 'Tanggal' },
     { title: 'Sisa Nominal', key: 'Sisa', align: 'end' },
-];
+] as const;
 
 const loadItems = async () => {
     loading.value = true;
@@ -34,13 +34,13 @@ const loadItems = async () => {
         });
         items.value = response.data;
     } catch (error) {
-        toast.error("Gagal memuat data retur jual.");
+        toast.error("Gagal memuat data retur jual.", error);
     } finally {
         loading.value = false;
     }
 };
 
-const formatRupiah = (value: number) => new Intl.NumberFormat('id-ID').format(value || 0);
+// const formatRupiah = (value: number) => new Intl.NumberFormat('id-ID').format(value || 0);
 
 onMounted(loadItems);
 </script>

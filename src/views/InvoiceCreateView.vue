@@ -19,31 +19,117 @@ import LinkedDpModal from '@/components/LinkedDpModal.vue';
 import AuthorizationModal from '@/components/AuthorizationModal.vue';
 import SoDtfSearchModal from '@/components/SoDtfSearchModal.vue';
 import PromoBonusModal from '@/components/PromoBonusModal.vue';
+import type { AxiosError } from 'axios';
+import axios from 'axios';
 
 // --- Tipe Data ---
 interface Item {
     id: number;
-    kode: string;
-    nama: string;
-    ukuran: string;
-    stok: number;
-    qtyso: number;
+    kode?: string;
+    nama?: string;
+    ukuran?: string;
+    stok?: number;
+    qtyso?: number;
     jumlah: number;
-    harga: number;
-    diskonPersen: number;
-    diskonRp: number;
-    total: number;
-    barcode: string;
-    hpp: number;
-    noSoDtf: string;
-    kategori: string;
+    harga?: number;
+    diskonPersen?: number;
+    diskonRp?: number;
+    total?: number;
+    barcode?: string;
+    hpp?: number;
+    kategori?: string;
+    noSoDtf?: string;
     terhitungPromo: boolean;
     _isHargaEditable: boolean;
+    promo?: string;
+    originalDiskonRp?: number;
+    originalDiskonPersen?: number;
+    subtotal?: number;
+    lastPin?: string;
 }
 interface LinkedDp {
     nomor: string;
     jenis: string;
     nominal: number;
+}
+interface DiskonFormData {
+    diskonPersen1: number;
+    diskonPersen2: number;
+    diskonRp: number;
+    biayaKirim: number;
+}
+interface AuthDialog {
+    isFakturVisible: boolean;
+    isItemVisible: boolean;
+    title: string;
+    challengeCode: string;
+    onSuccess: (pin: string) => void;
+    onCancel: () => void;
+    show: boolean;
+}
+interface Customer {
+    kode: string;
+    nama: string;
+    alamat: string;
+    kota: string;
+    telp: string;
+    level?: string;
+    level_kode?: string;
+    level_nama?: string;
+}
+interface Member {
+    hp: string;
+    nama: string;
+    alamat: string;
+    gender: string;
+    usia: number;
+    referensi: string;
+}
+interface ProductInput {
+    kode: string;
+    nama: string;
+    ukuran: string;
+    stok: number;
+    harga: number;
+    barcode: string;
+}
+interface DownPayment {
+    nomor: string;
+    jenis: string;
+    nominal: number;
+}
+interface SoDtf {
+    nomor: string;
+    // tambahkan properti lain jika ada
+}
+interface SoDtfItem {
+    kode: string;
+    nama: string;
+    ukuran: string;
+    jumlah: number;
+    harga: number;
+}
+interface ApiInvoiceItem {
+    invd_kode: string;
+    nama_barang: string;
+    invd_ukuran: string;
+    invd_jumlah: number;
+    invd_harga: number;
+    invd_diskon: number;
+    // field tambahan jika ada
+    [key: string]: unknown;
+}
+
+interface InvoiceItem {
+    id: number;
+    kode: string;
+    nama: string;
+    ukuran: string;
+    jumlah: number;
+    harga: number;
+    diskonRp: number;
+    // field lain dari item jika perlu
+    [key: string]: unknown;
 }
 
 // --- Inisialisasi ---
@@ -115,15 +201,16 @@ const dialogs = reactive({
     promoBonus: false
 });
 
-const authDialog = reactive({
+const authDialog = reactive<AuthDialog>({
     isFakturVisible: false,
     isItemVisible: false,
     title: '',
     challengeCode: '',
-    onSuccess: (pin: string) => { },
+    onSuccess: () => { }, // 👈 sekarang valid
     onCancel: () => { },
+    show: false,
 });
-const authModalRef = ref<any>(null);
+const authModalRef = ref<InstanceType<typeof AuthorizationModal> | null>(null);
 
 const activeItemForAuth = ref<Item | null>(null);
 const originalDiscount = reactive({
@@ -155,8 +242,8 @@ const activePromoForBonus = ref({ nomor: '', qty: 0 });
 
 // --- Konfigurasi Tabel ---
 const tableHeaders = [
-    { title: 'Kode Barang', key: 'kode', width: '150px' },
-    { title: 'Nama Barang', key: 'nama', width: '750px' },
+    { title: 'Kode Barang', key: 'kode', width: '100px' },
+    { title: 'Nama Barang', key: 'nama' },
     { title: 'Ukuran', key: 'ukuran', width: '30px' },
     { title: 'Stok', key: 'stok', align: 'end', width: '30px' },
     { title: 'Qty SO', key: 'qtyso', align: 'end', width: '30px' },
@@ -170,15 +257,15 @@ const tableHeaders = [
     { title: 'Kategori', key: 'kategori', width: '70px' },
     { title: 'Promo', key: 'terhitungPromo', align: 'center', width: '70px' },
     { title: 'Actions', key: 'actions', sortable: false, width: '30px' },
-];
-const linkedDpsHeaders = [
-    { title: 'Nomor Setoran', key: 'nomor' },
-    { title: 'Jenis', key: 'jenis' },
-    { title: 'Nominal', key: 'nominal', align: 'end' },
-    { title: 'Actions', key: 'actions', sortable: false, width: '50px' },
-];
+] as const;
+// const linkedDpsHeaders = [
+//     { title: 'Nomor Setoran', key: 'nomor' },
+//     { title: 'Jenis', key: 'jenis' },
+//     { title: 'Nominal', key: 'nominal', align: 'end' },
+//     { title: 'Actions', key: 'actions', sortable: false, width: '50px' },
+// ];
 
-const formatRupiah = (value: number) => new Intl.NumberFormat('id-ID').format(value || 0);
+// const formatRupiah = (value: number) => new Intl.NumberFormat('id-ID').format(value || 0);
 
 // --- Methods ---
 const showConfirmation = (title: string, text: string, onConfirm: () => void) => {
@@ -191,21 +278,44 @@ const showConfirmation = (title: string, text: string, onConfirm: () => void) =>
 const addNewRow = () => {
     const lastItem = items.value[items.value.length - 1];
     if (!lastItem || lastItem.kode) {
-        items.value.push({
-            id: Date.now(), jumlah: 0, harga: 0, diskonPersen: 0, diskonRp: 0, total: 0,
-            barcode: '', noSoDtf: '', kategori: '', terhitungPromo: false, _isHargaEditable: true,
-        } as any);
+        const newItem: Item = {
+            id: Date.now(),
+            kode: '',          // tambahkan properti wajib
+            nama: '',
+            ukuran: '',
+            stok: 0,
+            qtyso: 0,
+            jumlah: 0,
+            harga: 0,
+            diskonPersen: 0,
+            diskonRp: 0,
+            total: 0,
+            barcode: '',
+            hpp: 0,
+            noSoDtf: '',
+            kategori: '',
+            terhitungPromo: false,
+            _isHargaEditable: true,
+        };
+        items.value.push(newItem);
     }
 };
 
-const onDiskonSaved = (data: any) => {
+const onDiskonSaved = (data: DiskonFormData) => {
     if (data.diskonPersen1 !== header.diskonPersen1 ||
         data.diskonPersen2 !== header.diskonPersen2 ||
-        data.diskonRp !== header.diskonRp) 
-        {
-        originalDiscount.faktur = { persen1: header.diskonPersen1, persen2: header.diskonPersen2, rp: header.diskonRp };
-        requestAuthorization('Otorisasi Diskon Faktur',
-            (pin) => { // onSuccess
+        data.diskonRp !== header.diskonRp) {
+
+        originalDiscount.faktur = {
+            persen1: header.diskonPersen1,
+            persen2: header.diskonPersen2,
+            rp: header.diskonRp,
+            biayaKirim: header.biayaKirim,
+        };
+
+        requestAuthorization(
+            'Otorisasi Diskon Faktur',
+            (pin: string) => { // onSuccess
                 if (data.diskonPersen1 !== header.diskonPersen1) authPins.pinDiskon1 = pin;
                 if (data.diskonPersen2 !== header.diskonPersen2) authPins.pinDiskon2 = pin;
                 header.diskonPersen1 = data.diskonPersen1;
@@ -219,6 +329,7 @@ const onDiskonSaved = (data: any) => {
             }
         );
     }
+
     header.biayaKirim = data.biayaKirim;
 };
 
@@ -230,22 +341,21 @@ const handleItemDiscountChange = (item: Item) => {
         const originalPersen = item.originalDiskonPersen || 0;
         const currentRp = item.diskonRp || 0;
         const currentPersen = item.diskonPersen || 0;
-        
+
         // Hanya panggil otorisasi jika nilainya benar-benar berubah
         if (currentRp !== originalRp || currentPersen !== originalPersen) {
             requestAuthorization(
                 `Otorisasi Diskon: ${item.nama}`,
                 (pin) => { // onSuccess
                     if (activeItemForAuth.value) {
-                        // Simpan nilai baru sebagai nilai original setelah sukses
                         activeItemForAuth.value.originalDiskonRp = activeItemForAuth.value.diskonRp;
                         activeItemForAuth.value.originalDiskonPersen = activeItemForAuth.value.diskonPersen;
+                        activeItemForAuth.value.lastPin = pin; // contoh: simpan pin
                     }
                     toast.success('Otorisasi diskon item berhasil.');
                 },
-                () => { // onCancel
+                () => {
                     if (activeItemForAuth.value) {
-                        // Kembalikan ke nilai original jika dibatalkan
                         activeItemForAuth.value.diskonRp = originalDiscount.item.rp;
                         activeItemForAuth.value.diskonPersen = originalDiscount.item.persen;
                     }
@@ -274,8 +384,9 @@ const handleAuthSuccess = async (pin: string) => {
         toast.success('Otorisasi berhasil.');
         authDialog.onSuccess(pin);
         authDialog.show = false;
-    } catch (error: any) {
-        authModalRef.value?.setFailed(error.response?.data?.message || 'PIN tidak valid');
+    } catch (error: unknown) {
+        const err = error as { response?: { data?: { message?: string } } };
+        authModalRef.value?.setFailed(err.response?.data?.message || 'PIN tidak valid');
     }
 };
 
@@ -343,7 +454,7 @@ const openProductSearch = (index: number, isMulti: boolean) => {
     dialogs.productSearch = true;
 };
 
-const openSoDtfSearch = (item: any, index: number) => {
+const openSoDtfSearch = (item: Item, index: number) => {
     // Cek semua kondisi di sini
     if (header.nomorSo || item.kode) {
         return; // Hentikan aksi jika sudah readonly
@@ -357,7 +468,7 @@ const openSoDtfSearch = (item: any, index: number) => {
     dialogs.soDtfSearch = true;
 };
 
-const onCustomerSelected = async (cust: any) => {
+const onCustomerSelected = async (cust: Customer | null) => {
     if (cust) {
         // PERBAIKAN: Gabungkan level_kode dan level_nama secara manual
         const levelText = cust.level_kode ? `${cust.level_kode} - ${cust.level_nama}` : '';
@@ -378,8 +489,9 @@ const onCustomerSelected = async (cust: any) => {
         try {
             const response = await api.get(`/invoice-form/lookup/discount-rule/${cust.kode}`);
             customerDiscountRule.value = response.data;
-        } catch (error) {
-            customerDiscountRule.value = null; // Reset jika tidak ada aturan
+        } catch (error: unknown) {
+            console.error(error);
+            customerDiscountRule.value = null;
         }
     } else {
         // Kosongkan field jika tidak ada customer
@@ -405,25 +517,24 @@ const applyDefaultDiscount = () => {
     }
 };
 
-const onNewCustomerSaved = (customer: any) => {
-    // Otomatis isi field customer dengan data baru
+const onNewCustomerSaved = (customer: Customer) => {
     header.customer = {
         kode: customer.kode,
         nama: customer.nama,
         alamat: customer.alamat,
         kota: customer.kota,
         telp: customer.telp,
-        level: customer.level,
+        level: customer.level ?? '',
     };
-    dialogs.customerForm = false; // Tutup modal form
+    dialogs.customerForm = false;
 };
-const onMemberSaved = (member: any) => {
-    // Isi semua field member di header
+
+const onMemberSaved = (member: Member) => {
     header.memberHp = member.hp;
     header.memberNama = member.nama;
     header.memberAlamat = member.alamat;
     header.memberGender = member.gender;
-    header.memberUsia = member.usia;
+    header.memberUsia = member.usia?.toString() ?? '';
     header.memberReferensi = member.referensi;
 
     dialogs.memberForm = false;
@@ -475,12 +586,29 @@ const onSoSelected = async (so: { Nomor: string }) => {
         header.memberHp = soHeader.customer.telp || '';
 
         // Map items dengan memastikan semua field yang diperlukan ada
-        items.value = soItems.map((item: any, index: number) => ({
-            ...item,
-            id: Date.now() + index, // Gunakan index untuk memastikan unique ID
-            jumlah: item.qtyso || 0,
-            // Pastikan field lain yang diperlukan ada
-            subtotal: (item.qtyso || 0) * (item.harga || 0)
+        items.value = soItems.map((item: Partial<Item>, index: number): Item => ({
+            id: Date.now() + index,
+            kode: item.kode ?? "",
+            nama: item.nama ?? "",
+            ukuran: item.ukuran ?? "",
+            stok: item.stok ?? 0,
+            qtyso: item.qtyso ?? 0,
+            jumlah: item.qtyso ?? 0,
+            harga: item.harga ?? 0,
+            diskonPersen: item.diskonPersen ?? 0,
+            diskonRp: item.diskonRp ?? 0,
+            total: item.total ?? 0,
+            barcode: item.barcode ?? "",
+            hpp: item.hpp ?? 0,
+            kategori: item.kategori ?? "",
+            noSoDtf: item.noSoDtf ?? "",
+            terhitungPromo: item.terhitungPromo ?? false,
+            _isHargaEditable: item._isHargaEditable ?? true,
+            promo: item.promo ?? "",
+            originalDiskonRp: item.originalDiskonRp ?? 0,
+            originalDiskonPersen: item.originalDiskonPersen ?? 0,
+            subtotal: (item.qtyso ?? 0) * (item.harga ?? 0),
+            lastPin: item.lastPin ?? "",
         }));
 
         console.log('Mapped items:', items.value);
@@ -491,20 +619,21 @@ const onSoSelected = async (so: { Nomor: string }) => {
         // Force reactivity update
         await nextTick();
 
-    } catch (error: any) {
-        console.error('Error loading SO details:', error);
-        toast.error(error.response?.data?.message || "Gagal memuat data SO.");
+    } catch (error) {
+        const axiosError = error as AxiosError<{ message: string }>;
+        console.error('Error loading SO details:', axiosError);
+        toast.error(axiosError.response?.data?.message || "Gagal memuat data SO.");
     }
     finally {
         isLoading.value = false;
     }
 };
 
-const onProductsSelected = (selectedProducts: any[]) => {
+const onProductsSelected = (selectedProducts: ProductInput[]) => {
     dialogs.productSearch = false;
     if (!selectedProducts || selectedProducts.length === 0) return;
 
-    const newItems = selectedProducts.map(product => ({
+    const newItems: Item[] = selectedProducts.map(product => ({
         id: Date.now() + Math.random(),
         kode: product.kode,
         nama: product.nama,
@@ -516,7 +645,12 @@ const onProductsSelected = (selectedProducts: any[]) => {
         diskonRp: 0,
         total: product.harga,
         barcode: product.barcode,
+        qtyso: 0,
+        noSoDtf: '',
+        kategori: '',
+        terhitungPromo: false,
         _isHargaEditable: product.harga === 0,
+        hpp: 0
     }));
 
     if (items.value[activeRowIndex.value] && !items.value[activeRowIndex.value].kode) {
@@ -527,8 +661,9 @@ const onProductsSelected = (selectedProducts: any[]) => {
     addNewRow();
 };
 
-const onUnpaidDpSelected = (dp: any) => {
+const onUnpaidDpSelected = (dp: DownPayment) => {
     dialogs.unpaidDpSearch = false;
+
     if (!linkedDps.value.some(d => d.nomor === dp.nomor)) {
         linkedDps.value.push(dp);
     } else {
@@ -536,20 +671,19 @@ const onUnpaidDpSelected = (dp: any) => {
     }
 };
 
-const onSoDtfSelected = async (soDtf: any) => {
+const onSoDtfSelected = async (soDtf: SoDtf) => {
     dialogs.soDtfSearch = false;
     if (!soDtf.nomor) return;
 
     try {
-        // Panggil API baru untuk mendapatkan detailnya
-        const response = await api.get(`/invoice-form/lookup/so-dtf-details/${soDtf.nomor}`);
+        const response = await api.get<SoDtfItem[]>(`/invoice-form/lookup/so-dtf-details/${soDtf.nomor}`);
         const soDtfItems = response.data;
 
         if (soDtfItems.length === 0) {
             return toast.warning('SO DTF ini tidak memiliki detail item.');
         }
 
-        const newItems = soDtfItems.map((item: any) => ({
+        const newItems = soDtfItems.map(item => ({
             id: Date.now() + Math.random(),
             kode: item.kode,
             nama: item.nama,
@@ -562,13 +696,19 @@ const onSoDtfSelected = async (soDtf: any) => {
             diskonRp: 0,
             total: item.jumlah * item.harga,
             noSoDtf: item.kode,
+            terhitungPromo: false,
+            _isHargaEditable: true,
         }));
 
-        // Hapus baris kosong yang sedang aktif, lalu sisipkan semua item baru
         items.value.splice(activeRowIndex.value, 1, ...newItems);
         addNewRow();
-    } catch (error: any) {
-        toast.error(error.response?.data?.message || 'Gagal memuat detail SO DTF.');
+    } catch (error: unknown) {
+        // safe handling untuk unknown
+        if (axios.isAxiosError(error)) {
+            toast.error(error.response?.data?.message || 'Gagal memuat detail SO DTF.');
+        } else {
+            toast.error('Gagal memuat detail SO DTF.');
+        }
     }
 };
 
@@ -600,10 +740,9 @@ const calculateTotals = () => {
     totals.sisaPiutang = totals.grandTotal - totalDp;
 };
 
-const handleBonusSelection = (bonusItem: any) => {
+const handleBonusSelection = (bonusItem: Item) => {
     dialogs.promoBonus = false;
 
-    // Logika dari Delphi: tambahkan item bonus ke grid
     items.value.push({
         id: Date.now(),
         kode: bonusItem.kode,
@@ -613,12 +752,16 @@ const handleBonusSelection = (bonusItem: any) => {
         qtyso: 0,
         jumlah: activePromoForBonus.value.qty, // Ambil qty dari promo
         harga: 0,
+        diskonPersen: 0,
         diskonRp: 0,
         total: 0,
         promo: activePromoForBonus.value.nomor,
+        _isHargaEditable: true,
+        terhitungPromo: true,
     });
     addNewRow();
 };
+
 
 const handleProceedToPayment = () => {
     // --- VALIDASI DARI DELPHI ---
@@ -667,12 +810,12 @@ const handleProceedToPayment = () => {
     dialogs.payment = true;
 };
 
-const onSaveSuccess = (newInvoiceNumber: string) => {
+const onSaveSuccess = () => {
     // Dipanggil dari PaymentModal setelah save berhasil
     router.push({ name: 'Invoice' }); // Kembali ke halaman browse
 };
 
-const updateMemberInfo = (customer: any) => {
+const updateMemberInfo = (customer: Customer | null) => {
     const phone = customer?.telp || '';
     header.memberHp = phone;
     memberHpToSearch.value = phone;
@@ -712,12 +855,14 @@ const handleBarcodeScan = async () => {
             ukuran: product.ukuran,
             stok: product.stok,
             harga: product.harga,
-            jumlah: 1, // Default jumlah 1
+            jumlah: 1,
             diskonPersen: 0,
             diskonRp: 0,
             total: product.harga,
             barcode: product.barcode,
-            qtyso: 0, // Tidak ada SO
+            qtyso: 0,
+            terhitungPromo: false,       // properti wajib
+            _isHargaEditable: product.harga === 0, // properti wajib
         };
 
         if (emptyRowIndex !== -1) {
@@ -726,10 +871,21 @@ const handleBarcodeScan = async () => {
             items.value.push(newItem);
         }
         addNewRow();
-    } catch (error: any) {
-        toast.error(error.response?.data?.message || `Barcode ${barcode} tidak valid.`);
+    } catch (error: unknown) {
+        if (axios.isAxiosError(error) && error.response) {
+            toast.error(error.response.data?.message || `Barcode ${barcode} tidak valid.`);
+        } else {
+            toast.error(`Barcode ${barcode} tidak valid.`);
+        }
     } finally {
         scannedBarcode.value = '';
+    }
+};
+
+const validateQty = (item: Item) => {
+    if (item.jumlah > (item.stok || 0)) {
+        item.jumlah = item.stok || 0;
+        toast.warning(`Jumlah tidak boleh melebihi stok (${item.stok}) untuk ${item.nama}`);
     }
 };
 
@@ -812,7 +968,6 @@ const loadDataForEdit = async (nomor: string) => {
         const response = await api.get(`/invoice-form/${nomor}`);
         const { header: dataHeader, items: dataItems, dps: dataDps } = response.data;
 
-        // Isi semua field header
         header.nomor = dataHeader.inv_nomor;
         header.tanggal = format(parseISO(dataHeader.inv_tanggal), 'yyyy-MM-dd');
         header.customer = {
@@ -835,9 +990,7 @@ const loadDataForEdit = async (nomor: string) => {
         header.memberHp = dataHeader.inv_mem_hp;
         header.memberNama = dataHeader.inv_mem_nama;
 
-        // Isi grid item
-        items.value = dataItems.map((item: any) => ({
-            ...item,
+        items.value = dataItems.map((item: ApiInvoiceItem): InvoiceItem => ({
             id: Date.now() + Math.random(),
             kode: item.invd_kode,
             nama: item.nama_barang,
@@ -848,14 +1001,18 @@ const loadDataForEdit = async (nomor: string) => {
         }));
         addNewRow();
 
-        // Isi grid DP
         linkedDps.value = dataDps;
-
-        // Kunci field SO dan Customer
         isSoLoaded.value = !!header.nomorSo;
 
-    } catch (error: any) {
-        toast.error(error.response?.data?.message || 'Gagal memuat data Invoice.');
+    } catch (error: unknown) {
+        let message = 'Gagal memuat data Invoice.';
+
+        if (axios.isAxiosError(error)) {
+            // Sekarang TypeScript tahu ini AxiosError
+            message = error.response?.data?.message || message;
+        }
+
+        toast.error(message);
         router.back();
     } finally {
         isLoading.value = false;
@@ -1017,44 +1174,51 @@ onMounted(() => {
                     <div class="table-wrapper">
                         <v-data-table :headers="tableHeaders" :items="items" class="desktop-table flex-grow-1"
                             :items-per-page="-1">
-                            <template #item.kode="{ item, index }">
+                            <template v-slot:[`item.kode`]="{ item, index }">
                                 <v-text-field v-model="item.kode" variant="underlined" density="compact" hide-details
                                     placeholder="F1/F2..." :readonly="!!header.nomorSo"
                                     :class="{ 'field-disabled': !!header.nomorSo }"
                                     @keydown.f1.prevent="!header.nomorSo && openProductSearch(index, false)"
                                     @keydown.f2.prevent="!header.nomorSo && openProductSearch(index, true)" />
                             </template>
-                            <template #item.jumlah="{ item }">
+
+                            <template v-slot:[`item.jumlah`]="{ item }">
                                 <v-text-field v-model.number="item.jumlah" type="number" min="0" variant="underlined"
                                     density="compact" hide-details class="text-right" :class="getQtyClass(item)"
                                     @blur="handleJumlahChange(item)" />
                             </template>
-                            <template #item.harga="{ item }">
+
+                            <template v-slot:[`item.harga`]="{ item }">
                                 <v-text-field v-model.number="item.harga" type="number" min="0" variant="underlined"
                                     density="compact" hide-details class="text-right"
                                     :readonly="!isHargaEditable(item)" />
                             </template>
-                            <template #item.diskonPersen="{ item }">
+
+                            <template v-slot:[`item.diskonPersen`]="{ item }">
                                 <v-text-field v-model.number="item.diskonPersen" type="number" min="0"
                                     variant="underlined" density="compact" hide-details class="text-right"
                                     @blur="handleItemDiscountChange(item)" @focus="onItemDiscountFocus(item)" />
                             </template>
-                            <template #item.diskonRp="{ item }">
+
+                            <template v-slot:[`item.diskonRp`]="{ item }">
                                 <v-text-field v-model.number="item.diskonRp" type="number" min="0" variant="underlined"
                                     density="compact" hide-details class="text-right"
                                     @blur="handleItemDiscountChange(item)" @focus="onItemDiscountFocus(item)" />
                             </template>
-                            <template #item.noSoDtf="{ item, index }">
+
+                            <template v-slot:[`item.noSoDtf`]="{ item, index }">
                                 <v-text-field v-model="item.noSoDtf" variant="underlined" density="compact" hide-details
                                     placeholder="F1 atau Klik..." :readonly="!!header.nomorSo || !!item.kode"
                                     :class="{ 'field-disabled': !!header.nomorSo || !!item.kode }"
                                     @click="openSoDtfSearch(item, index)"
                                     @keydown.f1.prevent="openSoDtfSearch(item, index)" />
                             </template>
-                            <template #item.actions="{ item }">
+
+                            <template v-slot:[`item.actions`]="{ item }">
                                 <v-btn v-if="item.kode" icon="mdi-delete" variant="text" color="error" size="x-small"
                                     @click="handleDeleteItem(item)"
-                                    :title="item.noSoDtf ? 'Hapus Semua Item SO DTF Ini' : 'Hapus Item Ini'"></v-btn>
+                                    :title="item.noSoDtf ? 'Hapus Semua Item SO DTF Ini' : 'Hapus Item Ini'">
+                                </v-btn>
                             </template>
                         </v-data-table>
 
@@ -1083,8 +1247,8 @@ onMounted(() => {
             </div>
         </div>
 
-        <CustomerSearchModal v-if="dialogs.customerSearch" @close="dialogs.customerSearch = false"
-            @customer-selected="onCustomerSelected" />
+        <CustomerSearchModal v-if="dialogs.customerSearch" :gudang="header.gudang.kode"
+            @close="dialogs.customerSearch = false" @customer-selected="onCustomerSelected" />
         <CustomerForm v-if="dialogs.customerForm" @close="dialogs.customerForm = false"
             @customer-saved="onNewCustomerSaved" />
         <SoSearchModalForInvoice v-if="dialogs.soSearch" :cabang="header.gudang.kode" @close="dialogs.soSearch = false"
@@ -1095,7 +1259,8 @@ onMounted(() => {
         <UnpaidDpSearchModal v-if="dialogs.unpaidDpSearch" :customer-kode="header.customer.kode"
             @close="dialogs.unpaidDpSearch = false" @selected="onUnpaidDpSelected" />
         <PaymentModal v-if="dialogs.payment" :invoice-header="header" :invoice-items="items" :totals="totals"
-            :linked-dps="linkedDps" @close="dialogs.payment = false" @save-success="onSaveSuccess" />
+            :auth-pins="authPins" :linked-dps="linkedDps" @close="dialogs.payment = false"
+            @save-success="onSaveSuccess" />
         <PromoSearchModal v-if="dialogs.promoSearch" :tanggal="header.tanggal" @close="dialogs.promoSearch = false"
             @selected="onPromoSelected" />
         <MemberForm v-if="dialogs.memberForm" :initial-hp="memberHpToSearch" @close="dialogs.memberForm = false"
@@ -1106,7 +1271,7 @@ onMounted(() => {
         <LinkedDpModal v-if="dialogs.linkedDp" :dps="linkedDps" @close="dialogs.linkedDp = false" />
         <AuthorizationModal v-if="authDialog.show" ref="authModalRef" :title="authDialog.title"
             :challenge-code="authDialog.challengeCode" @close="handleAuthCancel" @success="handleAuthSuccess" />
-        <SoDtfSearchModal v-if="dialogs.soDtfSearch" :customer-kode="header.customer.kode"
+        <SoDtfSearchModal v-if="dialogs.soDtfSearch" :customer-kode="header.customer.kode" :cabang="header.gudang.kode"
             @close="dialogs.soDtfSearch = false" @selected="onSoDtfSelected" />
         <PromoBonusModal v-if="dialogs.promoBonus" :promo-nomor="activePromoForBonus.nomor"
             @close="dialogs.promoBonus = false" @selected="handleBonusSelection" />

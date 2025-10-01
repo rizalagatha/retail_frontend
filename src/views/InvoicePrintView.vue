@@ -7,8 +7,53 @@ import Logo from '@/assets/logo.png';
 import InstagramLogo from '@/assets/instagram.jpg';
 import FacebookLogo from '@/assets/facebook.jpg';
 
+interface PrintHeaderSummary {
+    subTotal: number;
+    diskon: number;
+    netto: number;
+    biayaKirim: number;
+    dp: number;
+    grandTotal: number;
+    bayar: number;
+    pundiAmal: number;
+    kembali: number;
+}
+
+interface PrintHeader {
+    inv_nomor: string;
+    inv_tanggal: string;
+    inv_nomor_so: string;
+    cus_nama: string;
+    cus_alamat: string;
+    inv_top: number;
+    tempo: string;
+    perush_nama: string;
+    perush_alamat: string;
+    perush_telp: string;
+    inv_sc: string;
+    gdg_inv_instagram: string;
+    gdg_inv_fb: string;
+    terbilang: string;
+    summary: PrintHeaderSummary;
+}
+
+interface PrintDetail {
+    invd_kode: string;
+    nama_barang: string;
+    invd_ukuran: string;
+    invd_jumlah: number;
+    invd_harga: number;
+    invd_diskon: number;
+    total: number;
+}
+
+interface PrintData {
+    header: PrintHeader;
+    details: PrintDetail[];
+}
+
 const route = useRoute();
-const printData = ref<any>(null);
+const printData = ref<PrintData | null>(null);
 const isLoading = ref(true);
 const appLogo = Logo;
 const igLogo = InstagramLogo;
@@ -21,7 +66,7 @@ const fetchPrintData = async (nomor: string) => {
         const response = await api.get(`/invoice-form/print/${nomor}`);
         printData.value = response.data;
         document.title = response.data.header?.inv_nomor || 'Invoice';
-    } catch (error) {
+    } catch {
         alert("Gagal memuat data untuk dicetak.");
     } finally {
         isLoading.value = false;

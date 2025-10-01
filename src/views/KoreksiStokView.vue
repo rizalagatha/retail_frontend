@@ -7,18 +7,39 @@ import api from '@/services/api';
 import { format, subDays, parseISO } from 'date-fns';
 import PageLayout from '@/components/PageLayout.vue';
 import * as XLSX from 'xlsx';
+import axios, { AxiosError } from 'axios';
+
+interface KoreksiStokHeader {
+    nomor: string;
+    tanggal: string;
+    keterangan: string;
+    diAccOleh?: string;
+    tglAcc?: string;
+    closing?: string;
+}
+
+interface KoreksiStokDetail {
+    kode: string;
+    nama: string;
+    ukuran: string;
+    stok: number;
+    jumlah: number;
+    selisih: number;
+    nominal: number;
+    keterangan: string;
+}
 
 const router = useRouter();
 const toast = useToast();
 const authStore = useAuthStore();
 const MENU_ID = '25';
 
-const masterData = ref<any[]>([]);
-const details = ref<Record<string, any[]>>({});
+const masterData = ref<KoreksiStokHeader[]>([]);
+const details = ref<Record<string, KoreksiStokDetail[]>>({});
 const loading = ref(true);
 const loadingDetails = ref(new Set<string>());
-const selected = ref<any[]>([]);
-const expanded = ref<any[]>([]);
+const selected = ref<KoreksiStokHeader[]>([]);
+const expanded = ref<KoreksiStokHeader[]>([]);
 const dialogConfirm = reactive({ show: false, title: '', text: '', onConfirm: () => { } });
 
 const filters = reactive({
@@ -65,31 +86,40 @@ const fetchMasterData = async () => {
     selected.value = [];
     expanded.value = [];
     try {
-        const response = await api.get('/koreksi-stok', { params: filters });
+        const response = await api.get<KoreksiStokHeader[]>('/koreksi-stok', { params: filters });
         masterData.value = response.data;
-    } catch (error: any) {
-        toast.error(error.response?.data?.message || 'Gagal mengambil data.');
+    } catch (error: unknown) {
+        if (error instanceof AxiosError) {
+            toast.error(error.response?.data?.message || 'Gagal mengambil data.');
+        } else {
+            toast.error('Gagal mengambil data.');
+        }
     } finally {
         loading.value = false;
     }
 };
 
-const loadDetails = async (newlyExpandedItems: any[]) => {
-    const itemToLoad = newlyExpandedItems.find(item => !details.value[item.nomor] && !loadingDetails.value.has(item.nomor));
+const loadDetails = async (newlyExpandedItems: { nomor: string }[]) => {
+    const itemToLoad = newlyExpandedItems.find(
+        item => !details.value[item.nomor] && !loadingDetails.value.has(item.nomor)
+    );
     if (!itemToLoad) return;
     const nomorToLoad = itemToLoad.nomor;
 
     loadingDetails.value.add(nomorToLoad);
     try {
-        const response = await api.get(`/koreksi-stok/details/${nomorToLoad}`);
+        const response = await api.get<KoreksiStokDetail[]>(`/koreksi-stok/details/${nomorToLoad}`);
         details.value[nomorToLoad] = response.data;
-    } catch (error) {
-        toast.error(`Gagal memuat detail untuk ${nomorToLoad}`);
+    } catch (error: unknown) {
+        if (axios.isAxiosError(error)) {
+            toast.error(error.response?.data?.message || `Gagal memuat detail untuk ${nomorToLoad}`);
+        } else {
+            toast.error(`Gagal memuat detail untuk ${nomorToLoad}`);
+        }
     } finally {
         loadingDetails.value.delete(nomorToLoad);
     }
 };
-
 const showConfirmation = (title: string, text: string, onConfirm: () => void) => {
     dialogConfirm.title = title;
     dialogConfirm.text = text;
@@ -105,16 +135,21 @@ const handleEdit = () => {
 
 const handleDelete = () => {
     if (!canDelete.value) return;
+
     showConfirmation(
         'Konfirmasi Hapus',
         `Yakin ingin menghapus dokumen ${selectedRow.value.nomor}?`,
         async () => {
             try {
-                const response = await api.delete(`/koreksi-stok/${selectedRow.value.nomor}`);
+                const response = await api.delete<{ message: string }>(`/koreksi-stok/${selectedRow.value.nomor}`);
                 toast.success(response.data.message);
                 fetchMasterData();
-            } catch (error: any) {
-                toast.error(error.response?.data?.message || 'Gagal menghapus data.');
+            } catch (error: unknown) {
+                if (axios.isAxiosError(error)) {
+                    toast.error(error.response?.data?.message || 'Gagal menghapus data.');
+                } else {
+                    toast.error('Gagal menghapus data.');
+                }
             }
         }
     );
@@ -124,16 +159,21 @@ const handleAcc = () => {
     if (!canAcc.value) return;
     const isApproved = !!selectedRow.value.diAccOleh;
     const actionText = isApproved ? 'membatalkan ACC' : 'menyetujui (ACC)';
+
     showConfirmation(
         `Konfirmasi ${isApproved ? 'Batal ACC' : 'ACC'}`,
         `Yakin ingin ${actionText} dokumen ${selectedRow.value.nomor}?`,
         async () => {
             try {
-                const response = await api.post(`/koreksi-stok/toggle-approval/${selectedRow.value.nomor}`);
+                const response = await api.post<{ message: string }>(`/koreksi-stok/toggle-approval/${selectedRow.value.nomor}`);
                 toast.success(response.data.message);
                 fetchMasterData();
-            } catch (error: any) {
-                toast.error(error.response?.data?.message || 'Gagal memproses permintaan.');
+            } catch (error: unknown) {
+                if (axios.isAxiosError(error)) {
+                    toast.error(error.response?.data?.message || 'Gagal memproses permintaan.');
+                } else {
+                    toast.error('Gagal memproses permintaan.');
+                }
             }
         }
     );
@@ -166,12 +206,12 @@ const exportData = async (type: 'header' | 'detail') => {
             XLSX.utils.book_append_sheet(workbook, worksheet, "Koreksi Stok Detail");
             XLSX.writeFile(workbook, "Export_KoreksiStok_Detail.xlsx");
         } catch (error) {
-            toast.error('Gagal mengekspor data detail.');
+            toast.error('Gagal mengekspor data detail.', error);
         }
     }
 };
 
-const getRowTextColor = (item: any) => {
+const getRowTextColor = (item: KoreksiStokHeader) => {
     if (!item.diAccOleh) return 'text-red font-weight-bold';
     return '';
 };
@@ -231,8 +271,8 @@ watch(filters, fetchMasterData, { deep: true });
 
             <div class="table-container">
                 <v-data-table v-model="selected" v-model:expanded="expanded" :headers="headers" :items="masterData"
-                    :loading="loading" item-value="nomor" density="compact" class="desktop-table" fixed-header
-                    show-select show-expand return-object single-select @update:expanded="loadDetails">
+                    :loading="loading" density="compact" class="desktop-table" fixed-header show-select show-expand
+                    return-object single-select @update:expanded="loadDetails" >
                     <template v-for="header in headers" #[`item.${header.key}`]="{ item }">
                         <td :class="getRowTextColor(item)">
                             <template v-if="header.key === 'tanggal'">

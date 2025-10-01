@@ -6,8 +6,49 @@ import Logo from '@/assets/logo.png';
 import InstagramLogo from '@/assets/instagram.jpg';
 import FacebookLogo from '@/assets/facebook.jpg';
 
+interface PrintHeader {
+    inv_nomor: string;
+    created: string;
+    user_create: string;
+    perush_nama: string;
+    perush_alamat: string;
+    perush_telp: string;
+    gdg_inv_instagram?: string;
+    gdg_inv_fb?: string;
+    summary: {
+        subTotal: number;
+        diskon: number;
+        ppn: number;
+        netto: number;
+        biayaKirim: number;
+        dp: number;
+        grandTotal: number;
+        bayar: number;
+        pundiAmal: number;
+        kembali: number;
+    };
+}
+
+interface PrintDetail {
+    invd_kode: string;
+    nama_barang: string;
+    invd_ukuran: string;
+    invd_jumlah: number;
+    invd_harga: number;
+    total: number;
+}
+
+interface PrintData {
+    header: PrintHeader;
+    details: PrintDetail[];
+}
+
+const props = defineProps<{
+    nomorInvoice: string;
+}>();
+
 const route = useRoute();
-const printData = ref<any>(null);
+const printData = ref<PrintData | null>(null);
 const isLoading = ref(true);
 const appLogo = Logo;
 const igLogo = InstagramLogo;
@@ -16,6 +57,8 @@ const fbLogo = FacebookLogo;
 const formatRupiah = (angka: number) => new Intl.NumberFormat('id-ID').format(Math.round(angka || 0));
 
 const fetchPrintData = async (nomor: string) => {
+    const tujuanHp = route.query.hp as string || '';
+
     try {
         const response = await api.get(`/invoice-form/print-kasir/${nomor}`);
         printData.value = response.data;
@@ -31,7 +74,7 @@ const fetchPrintData = async (nomor: string) => {
                 hp: tujuanHp,
             });
         }
-    } catch (error) { alert("Gagal memuat data struk."); }
+    } catch { alert("Gagal memuat data struk."); }
     finally { isLoading.value = false; }
 };
 
@@ -76,13 +119,13 @@ onMounted(() => {
             </div>
             <div class="summary">
                 <div class="summary-item"><span>Total </span><span>{{ formatRupiah(printData.header.summary.subTotal)
-                        }}</span></div>
+                }}</span></div>
                 <div class="summary-item"><span>Diskon </span><span>{{ formatRupiah(printData.header.summary.diskon)
-                        }}</span></div>
+                }}</span></div>
                 <div class="summary-item"><span>Ppn </span><span>{{ formatRupiah(printData.header.summary.ppn) }}</span>
                 </div>
                 <div class="summary-item"><span>Netto </span><span>{{ formatRupiah(printData.header.summary.netto)
-                        }}</span></div>
+                }}</span></div>
                 <div class="summary-item"><span>Biaya Kirim
                     </span><span>{{ formatRupiah(printData.header.summary.biayaKirim) }}</span></div>
                 <div class="summary-item"><span>Dp </span><span>{{ formatRupiah(printData.header.summary.dp) }}</span>
@@ -90,11 +133,11 @@ onMounted(() => {
                 <div class="summary-item grand-total"><span>Grand Total </span><span>{{
                     formatRupiah(printData.header.summary.grandTotal) }}</span></div>
                 <div class="summary-item"><span>Bayar </span><span>{{ formatRupiah(printData.header.summary.bayar)
-                        }}</span></div>
+                }}</span></div>
                 <div class="summary-item"><span>Pundi amal </span><span>{{
                     formatRupiah(printData.header.summary.pundiAmal) }}</span></div>
                 <div class="summary-item"><span>Kembali </span><span>{{ formatRupiah(printData.header.summary.kembali)
-                        }}</span></div>
+                }}</span></div>
             </div>
             <div class="footer text-center">
                 <div v-if="printData.header.summary.pundiAmal > 0" class="donation-text">

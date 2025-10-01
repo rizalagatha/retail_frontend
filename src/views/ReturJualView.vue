@@ -6,6 +6,7 @@ import { useAuthStore } from '@/stores/authStore';
 import api from '@/services/api';
 import { format, subDays, parseISO } from 'date-fns';
 import PageLayout from '@/components/PageLayout.vue';
+import PrintOptionModal from '@/components/PrintOptionModal.vue';
 import * as XLSX from 'xlsx';
 
 // --- Tipe Data ---
@@ -51,6 +52,7 @@ const loadingDetails = ref(new Set<string>());
 const selected = ref<any[]>([]);
 const expanded = ref<any[]>([]);
 const cabangList = ref([]);
+const isPrintOptionVisible = ref(false);
 
 const dialogConfirm = reactive({
     show: false,
@@ -69,8 +71,17 @@ const filters = reactive({
 const isSingleSelected = computed(() => selected.value.length === 1);
 const selectedRow = computed<MasterItem | null>(() => isSingleSelected.value ? selected.value[0] : null);
 
-const canEdit = computed(() => isSingleSelected.value && selectedRow.value?.diBayarkan == 0);
-const canDelete = computed(() => isSingleSelected.value && selectedRow.value?.diBayarkan == 0 && selectedRow.value?.closing !== 'Y');
+const canEdit = computed(() => {
+    if (!isSingleSelected.value || !selectedRow.value) return false;
+    // Paksa konversi ke Angka sebelum membandingkan
+    return Number(selectedRow.value.diBayarkan) === 0;
+});
+
+const canDelete = computed(() => {
+    if (!isSingleSelected.value || !selectedRow.value) return false;
+    // Paksa konversi ke Angka dan cek status closing
+    return Number(selectedRow.value.diBayarkan) === 0 && selectedRow.value.closing !== 'Y';
+});
 
 // --- Konfigurasi Tabel ---
 const headers = [
@@ -178,13 +189,36 @@ const handleDelete = () => {
 
 const handlePrint = () => {
     if (!isSingleSelected.value) return;
-    // const url = router.resolve({ name: 'ReturJualPrint', params: { nomor: selectedRow.value.nomor } }).href;
-    // window.open(url, '_blank');
-    toast.info('Fungsi cetak belum dibuat.');
+    isPrintOptionVisible.value = true; // Buka modal pilihan
+};
+
+const handlePrintSelection = (type: 'a4' | 'kasir') => {
+    isPrintOptionVisible.value = false;
+    const routeName = type === 'a4' ? 'ReturJualPrint' : 'ReturJualPrintKasir';
+    const url = router.resolve({ name: routeName, params: { nomor: selectedRow.value.nomor } }).href;
+    window.open(url, '_blank');
 };
 
 const exportData = async (type: 'header' | 'detail') => {
-    toast.info(`Fungsi export ${type} belum dibuat.`);
+    if (type === 'header') {
+        if (masterData.value.length === 0) return toast.warning('Tidak ada data header untuk diexport.');
+        const worksheet = XLSX.utils.json_to_sheet(masterData.value);
+        const workbook = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(workbook, worksheet, "Retur Jual Header");
+        XLSX.writeFile(workbook, "Export_ReturJual_Header.xlsx");
+    } else if (type === 'detail') {
+        try {
+            const response = await api.get('/retur-jual/export-details', { params: filters });
+            if (response.data.length === 0) return toast.warning('Tidak ada data detail untuk diexport.');
+
+            const worksheet = XLSX.utils.json_to_sheet(response.data);
+            const workbook = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(workbook, worksheet, "Retur Jual Detail");
+            XLSX.writeFile(workbook, "Export_ReturJual_Detail.xlsx");
+        } catch (error) {
+            toast.error('Gagal mengekspor data detail.', error);
+        }
+    }
 };
 
 onMounted(async () => {
@@ -209,13 +243,17 @@ watch(filters, fetchMasterData, { deep: true });
             </v-btn>
             <v-menu offset-y>
                 <template v-slot:activator="{ props }">
-                    <v-btn size="small" color="teal" prepend-icon="mdi-file-excel" v-bind="props">Export</v-btn>
+                    <v-btn size="small" color="teal" prepend-icon="mdi-file-excel" v-bind="props">
+                        Export
+                    </v-btn>
                 </template>
                 <v-list density="compact">
-                    <v-list-item @click="exportData('header')"><v-list-item-title>Export
-                            Header</v-list-item-title></v-list-item>
-                    <v-list-item @click="exportData('detail')"><v-list-item-title>Export
-                            Detail</v-list-item-title></v-list-item>
+                    <v-list-item @click="exportData('header')">
+                        <v-list-item-title>Export Header</v-list-item-title>
+                    </v-list-item>
+                    <v-list-item @click="exportData('detail')">
+                        <v-list-item-title>Export Detail</v-list-item-title>
+                    </v-list-item>
                 </v-list>
             </v-menu>
         </template>
@@ -239,9 +277,9 @@ watch(filters, fetchMasterData, { deep: true });
                     show-select show-expand return-object single-select @update:expanded="loadDetails">
                     <template #item.tanggal="{ item }">{{ format(parseISO(item.tanggal), 'dd/MM/yyyy') }}</template>
                     <template #item.nominal="{ item }">{{ new Intl.NumberFormat('id-ID').format(item.nominal)
-                    }}</template>
+                        }}</template>
                     <template #item.diBayarkan="{ item }">{{ new Intl.NumberFormat('id-ID').format(item.diBayarkan)
-                    }}</template>
+                        }}</template>
                     <template #item.sisa="{ item }">{{ new Intl.NumberFormat('id-ID').format(item.sisa) }}</template>
 
                     <template #expanded-row="{ columns, item }">
@@ -276,6 +314,9 @@ watch(filters, fetchMasterData, { deep: true });
                 </v-data-table>
             </div>
         </div>
+
+        <PrintOptionModal v-if="isPrintOptionVisible" :options="['a4', 'kasir']" @close="isPrintOptionVisible = false"
+            @select="handlePrintSelection" />
 
         <v-dialog v-model="dialogConfirm.show" max-width="400px" persistent>
             <v-card>

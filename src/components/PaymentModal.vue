@@ -8,18 +8,24 @@ import AuthorizationModal from '@/components/AuthorizationModal.vue';
 import PrintOptionModal from './PrintOptionModal.vue';
 import ReturJualSearchModal from '@/components/ReturJualSearchModal.vue';
 import SatisfactionSurveyModal from '@/components/SatisfactionSurveyModal.vue';
+import type { AxiosError } from 'axios';
 
 interface BankAccount {
     kode: string;
     nama: string;
     rekening: string;
 }
+interface InvoiceItem {
+    kode: string;
+    [key: string]: unknown;
+}
 
 const props = defineProps({
     invoiceHeader: { type: Object, required: true },
     invoiceItems: { type: Array, required: true },
     totals: { type: Object, required: true },
-    authPins: { type: Object, required: true }
+    authPins: { type: Object, required: true },
+    linkedDps: { type: Object, required: false },
 });
 
 const emit = defineEmits(['close', 'save-success']);
@@ -49,6 +55,8 @@ const authDialog = reactive({
 });
 const authModalRef = ref<InstanceType<typeof AuthorizationModal> | null>(null);
 const temporaryPin = ref('');
+const authOnSuccess = ref<null | ((pin: string) => void)>(null);
+const authOnCancel = ref<null | (() => void)>(null);
 const isPrintOptionVisible = ref(false);
 const savedInvoiceNumber = ref('');
 const isSurveyVisible = ref(false);
@@ -111,27 +119,36 @@ const handleFinalSave = async () => {
     }
 };
 
-const requestAuthorization = () => {
+const requestAuthorization = (
+    title: string,
+    onSuccess: (pin: string) => void,
+    onCancel: () => void
+) => {
     authDialog.challengeCode = Math.floor(100 + Math.random() * 900).toString();
+    authDialog.title = title;
+    authOnSuccess.value = onSuccess;
+    authOnCancel.value = onCancel;
     authDialog.show = true;
 };
 
 const handleAuthSuccess = async (pin: string) => {
     try {
-        // Validasi PIN ke backend
         await api.post('/otorisasi/validate-pin', {
             pin,
             challengeCode: authDialog.challengeCode
         });
         toast.success('Otorisasi berhasil.');
         authDialog.show = false;
-        temporaryPin.value = pin; // Simpan PIN yang valid
+        temporaryPin.value = pin;
 
-        // Lanjutkan proses simpan setelah otorisasi berhasil
         await executeSave();
-
-    } catch (error: any) {
-        authModalRef.value?.setFailed(error.response?.data?.message || 'PIN tidak valid');
+    } catch (error: unknown) {
+        if (error && typeof error === 'object' && 'response' in error) {
+            const err = error as { response?: { data?: { message?: string } } };
+            authModalRef.value?.setFailed(err.response?.data?.message || 'PIN tidak valid');
+        } else {
+            authModalRef.value?.setFailed('Terjadi kesalahan.');
+        }
     }
 };
 
@@ -140,7 +157,7 @@ const executeSave = async () => {
     try {
         const payload = {
             header: props.invoiceHeader,
-            items: props.invoiceItems.filter((item: any) => item.kode),
+            items: (props.invoiceItems as InvoiceItem[]).filter((item) => item.kode),
             dps: props.linkedDps,
             payment: {
                 ...payment,
@@ -157,8 +174,9 @@ const executeSave = async () => {
 
         isSurveyVisible.value = true;
 
-    } catch (error: any) {
-        toast.error(error.response?.data?.message || 'Gagal menyimpan invoice.');
+    } catch (error: unknown) {
+        const axiosError = error as AxiosError<{ message?: string }>;
+        toast.error(axiosError.response?.data?.message || 'Gagal menyimpan invoice.');
     } finally {
         isSaving.value = false;
         temporaryPin.value = ''; // Reset PIN
@@ -178,7 +196,7 @@ const handleSurveySubmit = async (rating: number) => {
 
     try {
         const printables = await api.get(`/invoice-form/check-printables/${nomor}`);
-        
+
         if (printables.data.needsPrintKupon) {
             const kuponUrl = router.resolve({ name: 'CetakKupon', params: { nomor } }).href;
             window.open(kuponUrl, '_blank');
@@ -190,7 +208,7 @@ const handleSurveySubmit = async (rating: number) => {
     } catch {
         toast.error('Gagal memeriksa data kupon/voucher.');
     }
-    
+
     // Tampilkan print options
     if (isFromSO) {
         // Jika dari SO, langsung cetak A4
@@ -211,6 +229,7 @@ const formatHpToWa = (hp: string) => {
 };
 
 const handlePrintSelection = async (type: 'a4' | 'kasir' | 'wa') => {
+    isPrintOptionVisible.value = false;
     const nomor = savedInvoiceNumber.value;
     if (!nomor) return;
 
@@ -228,16 +247,18 @@ const handlePrintSelection = async (type: 'a4' | 'kasir' | 'wa') => {
                 hp: formatHpToWa(memberHp)
             });
             toast.success(response.data.message);
-        } catch (error: any) {
-            toast.error(error.response?.data?.message || 'Gagal mengirim struk via WhatsApp.');
+        } catch (error: unknown) {
+            const axiosError = error as AxiosError<{ message?: string }>;
+            toast.error(axiosError.response?.data?.message || 'Gagal mengirim struk via WhatsApp.');
         }
     }
+    onPrintModalClose();
+};
 
-    // Tutup modal print hanya jika user sudah memilih dan aksi selesai
+const onPrintModalClose = () => {
     isPrintOptionVisible.value = false;
-
-    // Finalisasi jika dari PaymentModal
-    emit('save-success', nomor);
+    // Emit event bahwa proses simpan & cetak selesai, lalu tutup PaymentModal
+    emit('save-success', savedInvoiceNumber.value);
 };
 
 const validateVoucher = async () => {
@@ -254,15 +275,17 @@ const validateVoucher = async () => {
         });
         payment.voucher.nominal = response.data.nominal;
         toast.success('Voucher valid.');
-    } catch (error: any) {
+    } catch (error: unknown) {
         payment.voucher.nominal = 0;
-        toast.error(error.response?.data?.message || 'Gagal memvalidasi voucher.');
+
+        const axiosError = error as AxiosError<{ message?: string }>;
+        toast.error(axiosError.response?.data?.message || 'Gagal memvalidasi voucher.');
     }
 };
 
-watch(nettoKembali, (value) => {
-    const sisaKembalian = kembali.value;
-    payment.pundiAmal = (sisaKembalian > 0 && sisaKembalian < 1000) ? sisaKembalian : 0;
+watch(nettoKembali, () => {
+  const sisaKembalian = kembali.value;
+  payment.pundiAmal = (sisaKembalian > 0 && sisaKembalian < 1000) ? sisaKembalian : 0;
 });
 </script>
 
@@ -344,7 +367,8 @@ watch(nettoKembali, (value) => {
                             </v-text-field>
                             <v-row dense class="mt-2">
                                 <v-col cols="6"><v-text-field label="No. Voucher" v-model="payment.voucher.nomor"
-                                        variant="outlined" density="compact" hide-details @blur="validateVoucher" /></v-col>
+                                        variant="outlined" density="compact" hide-details
+                                        @blur="validateVoucher" /></v-col>
                                 <v-col cols="6">
                                     <v-text-field label="Nominal Voucher" v-model.number="payment.voucher.nominal"
                                         type="number" variant="outlined" min="0" density="compact" hide-details>
@@ -369,10 +393,11 @@ watch(nettoKembali, (value) => {
                                 variant="outlined" density="compact" hide-details />
                             <v-divider class="my-3" />
                             <v-row dense>
-                                <v-col cols="6"><v-text-field label="No. Retur" v-model="payment.retur.nomor" variant="outlined"
-                                    density="compact" hide-details readonly @click="dialogs.returJualSearch = true"
-                                    @keydown.f1.prevent="dialogs.returJualSearch = true"
-                                    prepend-inner-icon="mdi-magnify" ></v-text-field>
+                                <v-col cols="6"><v-text-field label="No. Retur" v-model="payment.retur.nomor"
+                                        variant="outlined" density="compact" hide-details readonly
+                                        @click="dialogs.returJualSearch = true"
+                                        @keydown.f1.prevent="dialogs.returJualSearch = true"
+                                        prepend-inner-icon="mdi-magnify"></v-text-field>
                                 </v-col>
                                 <v-col cols="6"><v-text-field label="Nominal Retur"
                                         v-model.number="payment.retur.nominal" type="number" min="0" variant="outlined"
@@ -403,7 +428,7 @@ watch(nettoKembali, (value) => {
             @close="dialogs.rekeningSearch = false" @selected="onRekeningSelected" />
         <AuthorizationModal v-if="authDialog.show" ref="authModalRef" :title="authDialog.title"
             :challenge-code="authDialog.challengeCode" @close="authDialog.show = false" @success="handleAuthSuccess" />
-        <PrintOptionModal v-if="isPrintOptionVisible" @close="handlePrintSelection('a4')"
+        <PrintOptionModal v-if="isPrintOptionVisible" :options="['a4', 'kasir', 'wa']" @close="onPrintModalClose"
             @select="handlePrintSelection" />
         <ReturJualSearchModal v-if="dialogs.returJualSearch" :customer-kode="invoiceHeader.customer.kode"
             :invoice-nomor="invoiceHeader.nomor" @close="dialogs.returJualSearch = false" @selected="onReturSelected" />

@@ -8,6 +8,7 @@ import { format, parseISO } from 'date-fns';
 import PageLayout from '@/components/PageLayout.vue';
 import GudangSearchModal from '@/components/GudangSearchModal.vue';
 import MintaBarangSearchModal from '@/components/MintaBarangSearchModal.vue';
+import type { AxiosError } from 'axios';
 
 // --- Tipe Data ---
 interface Header {
@@ -27,6 +28,28 @@ interface Item {
     total: number;
     keterangan: string;
     barcode: string;
+}
+interface ProductLookup {
+    kode: string;
+    nama: string;
+    ukuran: string;
+    stok: number;
+    hpp: number;
+    barcode: string;
+    // tambahkan field lain jika ada dari API lookup
+}
+interface ProductItem {
+    kode: string;
+    nama: string;
+    ukuran: string;
+    stok: number;
+    jumlah: number;
+    selisih: number;
+    hpp: number;
+    total: number;
+    keterangan: string;
+    barcode: string;
+    // tambahkan properti lain jika ada
 }
 
 const router = useRouter();
@@ -97,14 +120,20 @@ const openProductSearch = (index: number, isMulti: boolean) => {
     dialog.productSearch = true;
 };
 
-const onProductsSelected = async (selectedProducts: any[]) => {
+const onProductsSelected = async (selectedProducts: ProductLookup[]) => {
     dialog.productSearch = false;
-    const productsToAdd = selectedProducts.filter(p => !items.value.some(item => item.kode === p.kode && item.ukuran === p.ukuran));
-    if (productsToAdd.length === 0) return toast.info('Semua produk yang dipilih sudah ada di daftar.');
+
+    const productsToAdd = selectedProducts.filter(
+        p => !items.value.some(item => item.kode === p.kode && item.ukuran === p.ukuran)
+    );
+
+    if (productsToAdd.length === 0) {
+        return toast.info('Semua produk yang dipilih sudah ada di daftar.');
+    }
 
     try {
         const detailPromises = productsToAdd.map(p =>
-            api.get('/koreksi-stok-form/lookup/product-details', {
+            api.get<ProductLookup>('/koreksi-stok-form/lookup/product-details', {
                 params: {
                     kode: p.kode,
                     ukuran: p.ukuran,
@@ -113,15 +142,28 @@ const onProductsSelected = async (selectedProducts: any[]) => {
                 }
             })
         );
+
         const responses = await Promise.all(detailPromises);
-        const newItems = responses.map(res => {
-            const newItem: Item = { ...res.data, id: Date.now() + Math.random(), jumlah: 0, selisih: 0, total: 0, keterangan: '' };
+
+        const newItems: Item[] = responses.map(res => {
+            const newItem: Item = {
+                ...res.data,
+                id: Date.now() + Math.random(),
+                jumlah: 0,
+                selisih: 0,
+                total: 0,
+                keterangan: ''
+            };
             calculateRow(newItem);
             return newItem;
         });
+
         items.value.splice(activeRowIndex.value, 1, ...newItems);
         addNewRow();
-    } catch (error) { toast.error('Gagal memuat detail produk.', error); }
+    } catch (error: unknown) {
+        const axiosError = error as AxiosError<{ message?: string }>;
+        toast.error(axiosError.response?.data?.message || 'Gagal memuat detail produk.');
+    }
 };
 
 const onGudangSelected = (gudang: { kode: string, nama: string }) => {
@@ -182,8 +224,9 @@ const executeSave = async () => {
             window.open(url, '_blank');
         }
         router.push({ name: 'KoreksiStok' });
-    } catch (error: any) {
-        toast.error(error.response?.data?.message || 'Gagal menyimpan data.');
+    } catch (error: unknown) {
+        const axiosError = error as AxiosError<{ message?: string }>;
+        toast.error(axiosError.response?.data?.message || 'Gagal menyimpan data.');
     } finally {
         isSaving.value = false;
     }
@@ -191,16 +234,17 @@ const executeSave = async () => {
 
 const loadDataForEdit = async (nomor: string) => {
     try {
-        const response = await api.get(`/koreksi-stok-form/${nomor}`);
+        const response = await api.get<{ header: Header; items: ProductItem[] }>(`/koreksi-stok-form/${nomor}`);
         Object.assign(header, response.data.header);
         header.tanggal = format(parseISO(header.tanggal), 'yyyy-MM-dd');
-        items.value = response.data.items.map((item: any) => {
+        items.value = response.data.items.map(item => {
             const newItem = { ...item, id: Date.now() + Math.random() };
             calculateRow(newItem);
             return newItem;
         });
-    } catch (error: any) {
-        toast.error(error.response?.data?.message || 'Gagal memuat data.');
+    } catch (error: unknown) {
+        const axiosError = error as AxiosError<{ message?: string }>;
+        toast.error(axiosError.response?.data?.message || 'Gagal memuat data.');
         router.back();
     }
 };
@@ -235,8 +279,9 @@ const handleBarcodeScan = async () => {
         } else {
             toast.error("Tidak ada baris kosong untuk menambahkan item.");
         }
-    } catch (error: any) {
-        toast.error(error.response?.data?.message || `Barcode ${barcode} tidak valid.`);
+    } catch (error: unknown) {
+        const axiosError = error as AxiosError<{ message?: string }>;
+        toast.error(axiosError.response?.data?.message || `Barcode ${barcode} tidak valid.`);
     } finally {
         scannedBarcode.value = '';
     }
@@ -304,21 +349,21 @@ onMounted(async () => {
                 <div class="desktop-form-section d-flex flex-column fill-height">
                     <v-data-table :headers="tableHeaders" :items="items" :loading="isLoading" density="compact"
                         class="desktop-table fill-height-table" fixed-header :items-per-page="-1">
-                        <template #item.kode="{ item, index }">
+                        <template v-slot:[`item.kode`]="{ item, index }">
                             <v-text-field v-model="item.kode" variant="underlined" density="compact" hide-details
                                 placeholder="F1/F2..." @keydown.f1.prevent="openProductSearch(index, false)"
                                 @keydown.f2.prevent="openProductSearch(index, true)" />
                         </template>
-                        <template #item.jumlah="{ item }">
+                        <template v-slot:[`item.jumlah`]="{ item }">
                             <v-text-field v-model.number="item.jumlah" type="number" variant="underlined"
                                 density="compact" hide-details class="text-end"
                                 @update:model-value="calculateRow(item)" />
                         </template>
-                        <template #item.keterangan="{ item }">
+                        <template v-slot:[`item.keterangan`]="{ item }">
                             <v-text-field v-model="item.keterangan" variant="underlined" density="compact"
                                 hide-details />
                         </template>
-                        <template #item.actions="{ item }">
+                        <template v-slot:[`item.actions`]="{ item }">
                             <v-btn v-if="item.kode" icon="mdi-delete" size="x-small" variant="text" color="error"
                                 @click="removeRow(item.id)" />
                         </template>

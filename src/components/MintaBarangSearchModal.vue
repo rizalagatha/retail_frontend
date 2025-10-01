@@ -7,18 +7,24 @@ const toast = useToast();
 
 // Tipe Data
 interface Product {
+    uniqueId: string | number;
     kode: string;
     barcode: string;
     nama: string;
     ukuran: string;
     kategori: string;
 }
+interface LoadItemsOptions {
+    page?: number;
+    itemsPerPage?: number;
+    sortBy?: string[]; // atau { key: string; order: 'asc' | 'desc' }[] kalau pakai Vuetify v-data-table
+}
 
 // Props & Emits
 const props = defineProps({
     gudang: { type: String, required: true },
     multi: { type: Boolean, default: false },
-    source: { type: String, required: true } 
+    source: { type: String, required: true }
 });
 const emit = defineEmits(['close', 'products-selected']);
 
@@ -40,7 +46,7 @@ const headers = [
 ];
 
 // Methods
-const loadItems = async ({ page, itemsPerPage, sortBy }: any = {}) => {
+const loadItems = async ({ page, itemsPerPage, sortBy }: LoadItemsOptions = {}) => {
     loading.value = true;
     try {
         let apiUrl = '';
@@ -91,12 +97,12 @@ const submitSelection = () => {
     }
 };
 
-const toggleSelection = (item: any) => {
+const toggleSelection = (item: Product) => {
     const index = selected.value.findIndex(s => s.uniqueId === item.uniqueId);
     if (index > -1) {
-        selected.value.splice(index, 1); // Jika sudah ada, hapus (unselect)
+        selected.value.splice(index, 1);
     } else {
-        selected.value.push(item); // Jika belum ada, tambahkan (select)
+        selected.value.push(item);
     }
 };
 

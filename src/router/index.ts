@@ -82,6 +82,10 @@ import KoreksiStokView from "@/views/KoreksiStokView.vue";
 import KoreksiStokCreateView from "@/views/KoreksiStokCreateView.vue";
 import KoreksiStokPrintView from "@/views/KoreksiStokPrintView.vue";
 import ReturJualView from "@/views/ReturJualView.vue";
+import ReturJualCreateView from "@/views/ReturJualCreateView.vue";
+import ReturJualPrintView from "@/views/ReturJualPrintView.vue";
+import ReturJualPrintKasirView from "@/views/ReturJualPrintKasirView.vue";
+import ReturDcView from "@/views/ReturDcView.vue";
 
 const routes = [
   {
@@ -1002,6 +1006,50 @@ const routes = [
       title: "Retur Jual",
       requiresAuth: true,
       menuId: "29",
+    },
+  },
+  {
+    path: "/transaksi/penjualan/retur-jual/create",
+    name: "ReturJualCreate",
+    component: ReturJualCreateView,
+    meta: { title: "Buat Retur Jual", requiresAuth: true, menuId: "29" },
+  },
+  {
+    path: "/transaksi/penjualan/retur-jual/edit/:nomor",
+    name: "ReturJualEdit",
+    component: ReturJualCreateView,
+    meta: { title: "Ubah Retur Jual", requiresAuth: true, menuId: "29" },
+  },
+  {
+    path: "/transaksi/penjualan/retur-jual/print/:nomor",
+    name: "ReturJualPrint",
+    component: ReturJualPrintView,
+    meta: {
+      title: "Cetak Retur Jual",
+      printLayout: true,
+      requiresAuth: true,
+      layout: "PrintLayout",
+    },
+  },
+  {
+    path: "/transaksi/penjualan/retur-jual/print-kasir/:nomor",
+    name: "ReturJualPrintKasir",
+    component: ReturJualPrintKasirView,
+    meta: {
+      title: "Cetak Struk Retur",
+      printLayout: true,
+      requiresAuth: true,
+      layout: "PrintLayout",
+    },
+  },
+  {
+    path: "/transaksi/internal/retur-dc",
+    name: "ReturDc",
+    component: ReturDcView,
+    meta: {
+      title: "Retur Barang ke DC",
+      requiresAuth: true,
+      menuId: "32",
     },
   },
   {

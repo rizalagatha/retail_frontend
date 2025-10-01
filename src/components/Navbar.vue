@@ -167,7 +167,7 @@ const menuItems = [
           { title: 'Buffer Stok', to: '/transaksi/internal/buffer-stok', icon: 'mdi-database-outline' },
           { title: 'Minta Barang ke DC', to: '/transaksi/internal/minta-barang', icon: 'mdi-arrow-up-bold-circle-outline' },
           { title: 'Terima SJ dari DC', to: '/transaksi/internal/terima-sj', icon: 'mdi-arrow-down-bold-circle-outline' },
-          { title: 'Retur Barang ke DC', to: '/return-to-dc', icon: 'mdi-undo-variant' },
+          { title: 'Retur Barang ke DC', to: '/transaksi/internal/retur-dc', icon: 'mdi-undo-variant' },
           { title: 'Koreksi Stok', to: '/transaksi/internal/koreksi-stok', icon: 'mdi-pencil-outline' },
           { title: 'Klerek', to: '/klerek', icon: 'mdi-clipboard-check-outline' }
         ]

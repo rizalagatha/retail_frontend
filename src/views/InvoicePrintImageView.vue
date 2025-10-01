@@ -6,8 +6,48 @@ import Logo from '@/assets/logo.png';
 import InstagramLogo from '@/assets/instagram.jpg';
 import FacebookLogo from '@/assets/facebook.jpg';
 
+interface PrintSummary {
+  subTotal: number;
+  diskon: number;
+  ppn: number;
+  netto: number;
+  biayaKirim: number;
+  dp: number;
+  grandTotal: number;
+  bayar: number;
+  pundiAmal: number;
+  kembali: number;
+}
+
+interface PrintHeader {
+  inv_nomor: string;
+  created: string;
+  user_create: string;
+  perush_nama: string;
+  perush_alamat: string;
+  perush_telp: string;
+  gdg_inv_instagram: string;
+  gdg_inv_fb: string;
+  summary: PrintSummary;
+}
+
+interface PrintDetail {
+  invd_kode: string;
+  nama_barang: string;
+  invd_ukuran: string;
+  invd_jumlah: number;
+  invd_harga: number;
+  total: number;
+}
+
+interface PrintData {
+  header: PrintHeader;
+  details: PrintDetail[];
+}
+
+
 const route = useRoute();
-const printData = ref<any>(null);
+const printData = ref<PrintData | null>(null);
 const isLoading = ref(true);
 
 const appLogo = Logo;
@@ -22,7 +62,7 @@ const fetchPrintData = async (nomor: string) => {
     const response = await api.get(`/invoice-form/print-kasir/${nomor}`);
     printData.value = response.data;
     document.title = response.data.header?.inv_nomor || 'Struk';
-  } catch (error) {
+  } catch {
     alert("Gagal memuat data struk.");
   } finally {
     isLoading.value = false;

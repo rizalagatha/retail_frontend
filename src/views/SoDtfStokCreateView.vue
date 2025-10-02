@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, computed, watch } from 'vue';
+import { ref, onMounted, computed, watch, nextTick } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import api from '@/services/api';
 import PageLayout from '@/components/PageLayout.vue';
@@ -40,8 +40,9 @@ const initialFormState = {
     namaDtf: '',
     desain: '',
     workshopKode: authStore.user?.cabang || '',
-    workshopNama: '', // Akan diisi nanti
+    workshopNama: '',
     keterangan: '',
+    imageUrl: null as string | null, // Tambahkan ini
 };
 
 const form = ref({ ...initialFormState });
@@ -60,7 +61,8 @@ const pendingAction = ref<(() => void) | null>(null);
 
 // State untuk gambar
 const imagePreview = ref<string | null>(null);
-const imageFile = ref<File[]>([]);
+const imageFile = ref<File | null>(null);
+const isImageUploading = ref(false);
 
 const totalJumlah = computed(() => items.value.reduce((sum, item) => sum + (item.jumlah || 0), 0));
 
@@ -72,7 +74,7 @@ const tableHeaders = [
     { title: 'Panjang(cm)', key: 'panjang', sortable: false, width: '100px', align: 'end' },
     { title: 'Lebar(cm)', key: 'lebar', sortable: false, width: '100px', align: 'end' },
     { title: 'Jumlah', key: 'jumlah', sortable: false, width: '120px' },
-];
+] as const;
 
 const fetchTemplateItems = async (jenisOrder: string) => {
     if (!jenisOrder) {
@@ -109,6 +111,9 @@ const loadDataForEdit = async (nomor: string) => {
         form.value.workshopKode = header.sd_workshop;
         form.value.workshopNama = header.pab_nama;
         form.value.keterangan = header.sd_ket;
+        form.value.imageUrl = header.imageUrl || null;
+
+        imagePreview.value = getFullImageUrl(header.imageUrl);
 
         await fetchTemplateItems(header.sd_jo_kode);
 
@@ -166,14 +171,10 @@ const save = async () => {
         }
 
         // Logika upload gambar
-        if (imageFile.value.length > 0 && nomorSoDtf) {
-            const formData = new FormData();
-            formData.append('image', imageFile.value[0]);
-            try {
-                await api.post(`/so-dtf-stok-form/upload-image/${nomorSoDtf}`, formData);
-                toast.success('Gambar berhasil diunggah.');
-            } catch (uploadError) {
-                toast.warning('Data utama berhasil disimpan, tetapi gambar gagal diunggah.');
+        if (!isEditMode.value && imageFile.value) {
+            const uploadSuccess = await uploadImageToServer(nomorSoDtf);
+            if (!uploadSuccess) {
+                toast.warning("Data berhasil disimpan, tapi gambar gagal diunggah.");
             }
         }
 
@@ -186,12 +187,17 @@ const save = async () => {
     }
 };
 
+const getFullImageUrl = (path: string | null) => {
+    if (!path) return null;
+    if (path.startsWith("http")) return path;
+    return `${import.meta.env.VITE_API_BASE_URL}${path}`;
+};
 
 const resetForm = () => {
     form.value = { ...initialFormState };
     items.value = [];
     imagePreview.value = null;
-    imageFile.value = [];
+    imageFile.value = null;
     toast.info("Form telah dikosongkan.");
 };
 
@@ -199,24 +205,82 @@ const closeForm = () => {
     router.push('/transaksi/penjualan/dtf/so-dtf-stok');
 };
 
-const handleImageUpload = (files: File[]) => {
-    const file = files[0];
+const handleImageUpload = async () => {
+    await nextTick();
+
+    const file = imageFile.value;
+
     if (!file) {
-        imagePreview.value = null;
+        imagePreview.value = form.value.imageUrl ? getFullImageUrl(form.value.imageUrl) : null;
         return;
     }
-    // Validasi ukuran file < 1MB seperti di Delphi
+
+    // Validasi ukuran
     if (file.size > 1024 * 1024) {
-        toast.error('Ukuran gambar tidak boleh lebih dari 1MB.');
-        imageFile.value = [];
-        imagePreview.value = null;
+        toast.error("Ukuran file tidak boleh lebih dari 1MB.");
+        imageFile.value = null;
         return;
     }
-    const reader = new FileReader();
-    reader.onload = (e) => {
-        imagePreview.value = e.target?.result as string;
-    };
-    reader.readAsDataURL(file);
+
+    // Validasi tipe
+    if (!["image/jpeg", "image/jpg", "image/png", "image/gif"].includes(file.type)) {
+        toast.error("Tipe file tidak valid. Gunakan JPG, PNG, atau GIF.");
+        imageFile.value = null;
+        return;
+    }
+
+    // Jika dalam mode edit dan sudah ada nomor, langsung upload
+    if (form.value.nomor) {
+        await uploadImageToServer(form.value.nomor);
+    } else {
+        // Jika mode tambah baru, hanya buat preview sementara
+        imagePreview.value = URL.createObjectURL(file);
+        toast.info("Gambar akan diupload setelah data disimpan");
+    }
+};
+
+const uploadImageToServer = async (nomor: string): Promise<boolean> => {
+    if (!imageFile.value) return true;
+
+    isImageUploading.value = true;
+    try {
+        const formData = new FormData();
+        formData.append("image", imageFile.value);
+
+        const response = await api.post(`/so-dtf-stok-form/upload-image/${nomor}`, formData, {
+            headers: { "Content-Type": "multipart/form-data" }
+        });
+
+        if (response.data.success) {
+            form.value.imageUrl = response.data.imageUrl;
+
+            if (imagePreview.value && imagePreview.value.startsWith('blob:')) {
+                URL.revokeObjectURL(imagePreview.value);
+            }
+
+            imagePreview.value = getFullImageUrl(response.data.imageUrl);
+            imageFile.value = null;
+
+            toast.success("Gambar berhasil diunggah");
+            return true;
+        } else {
+            throw new Error(response.data.message || "Upload gagal");
+        }
+    } catch (error: any) {
+        toast.error("Upload gagal: " + (error.response?.data?.message || error.message));
+        return false;
+    } finally {
+        isImageUploading.value = false;
+    }
+};
+
+const clearImage = () => {
+    if (imagePreview.value && imagePreview.value.startsWith('blob:')) {
+        URL.revokeObjectURL(imagePreview.value);
+    }
+    imagePreview.value = null;
+    imageFile.value = null;
+    form.value.imageUrl = null;
 };
 
 const showConfirmation = (action: () => void, text: string) => {
@@ -278,17 +342,16 @@ onMounted(() => {
             <v-btn size="small" color="primary" @click="showConfirmation(save, 'Anda yakin ingin menyimpan data ini?')"
                 :loading="isSaving" prepend-icon="mdi-content-save">
                 Simpan
-                </v-btn>
-                <v-btn v-if="!isEditMode" size="small"
-                    @click="showConfirmation(resetForm, 'Batalkan dan kosongkan semua isian?')"
-                    prepend-icon="mdi-refresh">
-                    Batal
-                </v-btn>
-                <v-btn size="small"
-                    @click="showConfirmation(closeForm, 'Tutup form? Perubahan yang belum disimpan akan hilang.')"
-                    prepend-icon="mdi-close">
-                    Tutup
-                </v-btn>
+            </v-btn>
+            <v-btn v-if="!isEditMode" size="small"
+                @click="showConfirmation(resetForm, 'Batalkan dan kosongkan semua isian?')" prepend-icon="mdi-refresh">
+                Batal
+            </v-btn>
+            <v-btn size="small"
+                @click="showConfirmation(closeForm, 'Tutup form? Perubahan yang belum disimpan akan hilang.')"
+                prepend-icon="mdi-close">
+                Tutup
+            </v-btn>
         </template>
 
         <div class="form-grid-container" v-if="!isLoading">
@@ -320,62 +383,118 @@ onMounted(() => {
                                 hide-details append-inner-icon="mdi-magnify" /></v-col>
                     </v-row>
                 </div>
-                <v-textarea label="Keterangan" v-model="form.keterangan" rows="4" variant="outlined" density="compact"
-                    hide-details class="notes-area" />
             </div>
             <div class="right-column">
-                <div class="desktop-form-section image-section">
-                    <div class="d-flex align-center ga-2">
-                        <v-file-input v-model="imageFile" @update:model-value="handleImageUpload"
-                            label="Upload Gambar (Max 1Mb)" variant="outlined" density="compact"
-                            prepend-icon="mdi-camera" hide-details clearable />
-                        <v-btn @click="isImageFullscreenVisible = true" :disabled="!imagePreview" icon="mdi-fullscreen"
-                            size="small" variant="tonal" title="Lihat Ukuran Penuh">
-                        </v-btn>
-                    </div>
-                    <v-img v-if="imagePreview" class="mt-2 border rounded" height="120" aspect-ratio="16/9" cover
-                        :src="imagePreview">
-                    </v-img>
-                    <div v-else
-                        class="mt-2 border rounded d-flex align-center justify-center bg-grey-lighten-4 image-preview">
-                        <span class="text-caption text-grey">Preview Gambar</span>
-                    </div>
-                </div>
-                <div class="desktop-form-section grid-section">
-                    <v-data-table :headers="tableHeaders" :items="items" density="compact" class="desktop-table"
-                        fixed-header :items-per-page="-1">
-                        <template #item.no="{ index }">
-                            <div class="cell-text">{{ index + 1 }}</div>
-                        </template>
-                        <template #item.kode="{ item }">
-                            <div class="cell-text">{{ item.kode }}</div>
-                        </template>
-                        <template #item.nama="{ item }">
-                            <div class="cell-text">{{ item.nama }}</div>
-                        </template>
-                        <template #item.ukuran="{ item }">
-                            <div class="cell-text">{{ item.ukuran }}</div>
-                        </template>
-                        <template #item.panjang="{ item }">
-                            <div class="cell-text text-end">{{ item.panjang }}</div>
-                        </template>
-                        <template #item.lebar="{ item }">
-                            <div class="cell-text text-end">{{ item.lebar }}</div>
-                        </template>
-                        <template #item.jumlah="{ item }"><v-text-field v-model.number="item.jumlah" type="number"
-                                min="0" variant="underlined" density="compact" hide-details
-                                class="text-end" /></template>
-                        <template #bottom>
-                            <tfoot>
-                                <tr class="total-row">
-                                    <td :colspan="tableHeaders.length - 1" class="text-right font-weight-bold">Total
-                                        Jumlah</td>
-                                    <td class="text-right font-weight-bold">{{ totalJumlah }}</td>
-                                </tr>
-                            </tfoot>
-                        </template>
-                    </v-data-table>
-                </div>
+                <v-row dense>
+                    <!-- KOLOM KIRI: TABEL -->
+                    <v-col cols="12" md="8">
+                        <div class="desktop-form-section grid-section">
+                            <v-data-table :headers="tableHeaders" :items="items" density="compact" class="desktop-table"
+                                fixed-header :items-per-page="-1">
+                                <template #item.no="{ index }">
+                                    <div class="cell-text">{{ index + 1 }}</div>
+                                </template>
+                                <template #item.kode="{ item }">
+                                    <div class="cell-text">{{ item.kode }}</div>
+                                </template>
+                                <template #item.nama="{ item }">
+                                    <div class="cell-text">{{ item.nama }}</div>
+                                </template>
+                                <template #item.ukuran="{ item }">
+                                    <div class="cell-text">{{ item.ukuran }}</div>
+                                </template>
+                                <template #item.panjang="{ item }">
+                                    <div class="cell-text text-end">{{ item.panjang }}</div>
+                                </template>
+                                <template #item.lebar="{ item }">
+                                    <div class="cell-text text-end">{{ item.lebar }}</div>
+                                </template>
+                                <template #item.jumlah="{ item }">
+                                    <v-text-field v-model.number="item.jumlah" type="number" min="0"
+                                        variant="underlined" density="compact" hide-details class="text-end" />
+                                </template>
+                                <template #bottom>
+                                    <tfoot>
+                                        <tr class="total-row">
+                                            <td :colspan="tableHeaders.length - 1" class="text-right font-weight-bold">
+                                                Total Jumlah
+                                            </td>
+                                            <td class="text-right font-weight-bold">{{ totalJumlah }}</td>
+                                        </tr>
+                                    </tfoot>
+                                </template>
+                            </v-data-table>
+                        </div>
+                    </v-col>
+
+                    <!-- KOLOM KANAN: GAMBAR & KETERANGAN -->
+                    <v-col cols="12" md="4">
+                        <!-- Gambar Section -->
+                        <div class="desktop-form-section mb-3">
+                            <div class="image-upload-section">
+                                <div class="d-flex align-center ga-2 mb-3">
+                                    <v-file-input v-model="imageFile" label="Upload Gambar (Max 1MB)" variant="outlined"
+                                        density="compact" prepend-icon="mdi-camera" hide-details clearable
+                                        accept="image/jpeg,image/png,image/jpg,image/gif" :loading="isImageUploading"
+                                        :disabled="isImageUploading" @update:model-value="handleImageUpload" />
+                                    <v-btn @click="clearImage" :disabled="!imagePreview || isImageUploading"
+                                        icon="mdi-delete" size="small" variant="tonal" color="error"
+                                        title="Hapus Gambar" />
+                                </div>
+
+                                <div class="image-preview-container">
+                                    <div v-if="imagePreview" class="position-relative">
+                                        <v-img :src="imagePreview" height="200" aspect-ratio="16/9" cover
+                                            class="border rounded elevation-1 cursor-pointer"
+                                            @click="imagePreview ? isImageFullscreenVisible = true : null"
+                                            title="Klik untuk memperbesar">
+                                            <v-overlay v-if="isImageUploading" contained persistent
+                                                class="d-flex align-center justify-center">
+                                                <div class="text-center text-white">
+                                                    <v-progress-circular indeterminate color="primary" size="40" />
+                                                    <div class="mt-2">Mengunggah...</div>
+                                                </div>
+                                            </v-overlay>
+                                        </v-img>
+
+                                        <div class="mt-2">
+                                            <v-chip v-if="imageFile" size="small" color="warning" variant="tonal">
+                                                <v-icon start size="small">mdi-clock-outline</v-icon>
+                                                Belum tersimpan
+                                            </v-chip>
+                                            <v-chip v-else-if="form.imageUrl && imagePreview" size="small"
+                                                color="success" variant="tonal">
+                                                <v-icon start size="small">mdi-check</v-icon>
+                                                Tersimpan di server
+                                            </v-chip>
+                                        </div>
+                                    </div>
+
+                                    <div v-else
+                                        class="border rounded d-flex align-center justify-center bg-grey-lighten-4"
+                                        style="height: 200px;">
+                                        <div class="text-center text-grey">
+                                            <v-icon size="48" class="mb-2">mdi-image-outline</v-icon>
+                                            <div class="text-caption">Tidak ada gambar</div>
+                                            <div class="text-caption">Pilih file untuk upload otomatis</div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div v-if="isImageUploading" class="mt-2">
+                                    <v-progress-linear indeterminate color="primary" height="2" />
+                                    <div class="text-caption text-center mt-1">Sedang mengunggah gambar...</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Keterangan Section -->
+                        <div class="desktop-form-section">
+                            <v-textarea label="Keterangan" v-model="form.keterangan" rows="6" variant="outlined"
+                                density="compact" hide-details />
+                        </div>
+                    </v-col>
+                </v-row>
             </div>
         </div>
         <v-skeleton-loader v-else type="article, actions"></v-skeleton-loader>
@@ -391,11 +510,38 @@ onMounted(() => {
         <!-- Fullscreen Image Modal -->
         <v-dialog v-model="isImageFullscreenVisible" max-width="90vw">
             <v-card>
-                <v-toolbar density="compact">
+                <v-toolbar density="compact" color="primary" dark>
+                    <v-toolbar-title>
+                        <v-icon start>mdi-image</v-icon>
+                        Preview Gambar - {{ form.nomor || 'SO Baru' }}
+                    </v-toolbar-title>
                     <v-spacer />
-                    <v-btn icon="mdi-close" @click="isImageFullscreenVisible = false"></v-btn>
+                    <v-btn icon="mdi-close" @click="isImageFullscreenVisible = false" variant="text" />
                 </v-toolbar>
-                <v-img :src="imagePreview || ''" max-height="90vh" contain></v-img>
+
+                <v-card-text class="pa-4 bg-grey-lighten-4">
+                    <div class="d-flex justify-center align-center" style="min-height: 60vh;">
+                        <v-img :src="imagePreview" max-height="80vh" max-width="100%" contain
+                            class="rounded elevation-2" />
+                    </div>
+                </v-card-text>
+
+                <v-card-actions class="justify-space-between pa-4">
+                    <div>
+                        <v-chip v-if="imageFile" size="small" color="warning" variant="tonal">
+                            <v-icon start size="small">mdi-clock-outline</v-icon>
+                            Belum tersimpan
+                        </v-chip>
+                        <v-chip v-else-if="form.imageUrl" size="small" color="success" variant="tonal">
+                            <v-icon start size="small">mdi-check-circle</v-icon>
+                            Tersimpan di server
+                        </v-chip>
+                    </div>
+                    <v-btn color="primary" @click="isImageFullscreenVisible = false" prepend-icon="mdi-close"
+                        variant="tonal">
+                        Tutup
+                    </v-btn>
+                </v-card-actions>
             </v-card>
         </v-dialog>
         <v-dialog v-model="isConfirmDialogVisible" max-width="400px" persistent>
@@ -532,5 +678,27 @@ onMounted(() => {
 .field-disabled {
     background-color: #f0f0f0;
     pointer-events: none;
+}
+
+.cursor-pointer {
+    cursor: pointer;
+    transition: opacity 0.2s;
+}
+
+.cursor-pointer:hover {
+    opacity: 0.9;
+}
+
+.image-upload-section {
+    background-color: #fafafa;
+    border: 1px solid #e0e0e0;
+    border-radius: 8px;
+    padding: 16px;
+}
+
+.image-preview-container {
+    position: relative;
+    overflow: hidden;
+    transition: all 0.3s ease;
 }
 </style>

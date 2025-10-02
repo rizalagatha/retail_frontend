@@ -13,7 +13,8 @@ const props = defineProps({
     type: String,
     required: true,
   },
-  onlyDc: { type: Boolean, default: false }
+  onlyDc: { type: Boolean, default: false },
+  source: { type: String, default: 'default' }
 });
 const emit = defineEmits(['close', 'gudang-selected']);
 
@@ -33,15 +34,24 @@ const headers = [
 const loadItems = async ({ page, itemsPerPage }: { page: number, itemsPerPage: number }) => {
   loading.value = true;
   try {
-    const response = await api.get('/warehouses', { // Sesuaikan endpoint jika perlu
-      params: {
-        term: search.value,
-        userCabang: props.userCabang,
-        page: page,
-        itemsPerPage: itemsPerPage,
-        onlyDc: props.onlyDc, // Kirim prop ke backend
-      },
-    });
+    // --- LOGIKA PEMILIHAN ENDPOINT ---
+    let apiUrl = '/warehouses'; // Endpoint default
+    let params: any = {
+      term: search.value,
+      userCabang: props.userCabang,
+      page: page,
+      itemsPerPage: itemsPerPage,
+      onlyDc: props.onlyDc
+    };
+
+    if (props.source === 'retur-dc') {
+      apiUrl = '/retur-dc-form/lookup/gudang-dc';
+      // Hapus userCabang karena tidak dibutuhkan oleh endpoint baru ini
+      delete params.userCabang;
+    }
+    // --- AKHIR LOGIKA ---
+
+    const response = await api.get(apiUrl, { params });
 
     if (response.data && Array.isArray(response.data.items) && typeof response.data.total === 'number') {
       items.value = response.data.items;

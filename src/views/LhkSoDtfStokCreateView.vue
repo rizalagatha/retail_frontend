@@ -30,6 +30,11 @@ const MENU_ID = '48';
 const isEditMode = computed(() => !!route.params.nomor);
 const pageTitle = computed(() => isEditMode.value ? `Ubah LHK SO DTF Stok` : 'Buat LHK SO DTF Stok');
 const hasViewPermission = computed(() => authStore.can(MENU_ID, 'view'));
+const canSaveOrEdit = computed(() => {
+    // User bisa menyimpan jika punya hak 'insert' (untuk data baru) 
+    // ATAU hak 'edit' (untuk data yang sudah ada)
+    return authStore.can(MENU_ID, 'insert') || authStore.can(MENU_ID, 'edit');
+});
 
 const formHeader = ref({
     nomor: '',
@@ -44,7 +49,7 @@ const isSaving = ref(false);
 const isSoSearchVisible = ref(false);
 const isConfirmDialogVisible = ref(false);
 const confirmText = ref('');
-const pendingAction = ref<(() => void) | null>(null);
+const pendingAction = ref<(() => Promise<void>) | (() => void) | null>(null);
 const isQtyConfirmVisible = ref(false);
 const itemToValidate = ref<LhkItem | null>(null);
 const originalJumlah = ref(0);
@@ -75,8 +80,7 @@ const onSoSelected = async (so: { nomor: string }) => {
     }
 };
 
-const save = async () => {
-    // --- Migrasi Validasi dari Delphi ---
+const save = () => {
     if (!formHeader.value.soNomor) {
         toast.error('Nomor SO DTF harus dipilih terlebih dahulu.');
         return;
@@ -94,39 +98,38 @@ const save = async () => {
         return;
     }
 
-    // --- Konfirmasi dan Proses Simpan ---
-    showConfirmation(async () => {
-        isSaving.value = true;
-        try {
-            const payload = {
-                header: formHeader.value,
-                items: items.value,
-                isNew: !isEditMode.value,
-            };
+    // langsung konfirmasi → lalu jalankan executeSave
+    showConfirmation(executeSave, "Anda yakin ingin menyimpan data LHK ini?");
+};
 
-            const response = await api.post('/lhk-so-dtf-form/save', payload);
-            toast.success(response.data.message);
+// Buat fungsi executeSave terpisah dan async
+const executeSave = async () => {
+    isSaving.value = true;
+    try {
+        const payload = {
+            header: formHeader.value,
+            // Kirim hanya item yang memiliki jumlah > 0
+            items: items.value.filter(item => item.nama && (item.jumlah || 0) > 0),
+            isNew: !isEditMode.value,
+        };
 
-            if (isEditMode.value) {
-                // Mode ubah: reload data berdasarkan nomor LHK
-                if (formHeader.value.nomor) {
-                    await loadDataForEdit(formHeader.value.nomor);
-                }
-            } else {
-                // Jika mode baru, arahkan ke mode ubah dengan nomor baru
-                router.push(`/transaksi/penjualan/dtf/lhk-so-dtf-stok/ubah/${response.data.nomor}`);
-            }
+        const response = await api.post('/lhk-so-dtf-stok-form/save/', payload);
+        toast.success(response.data.message);
 
-        } catch (err) {
-            if (err instanceof AxiosError) {
-                toast.error(err.response?.data?.message || 'Gagal menyimpan data.');
-            } else {
-                toast.error('Gagal menyimpan data.');
-            }
-        } finally {
-            isSaving.value = false;
+        if (isEditMode.value) {
+            // setelah edit sukses, langsung balik ke browse
+            router.push('/transaksi/penjualan/dtf/lhk-so-dtf-stok');
+        } else {
+            // setelah insert sukses, juga balik ke browse
+            router.push('/transaksi/penjualan/dtf/lhk-so-dtf-stok');
         }
-    }, "Anda yakin ingin menyimpan data LHK ini?");
+
+    } catch (err: unknown) {
+        const error = err as AxiosError<{ message: string }>;
+        toast.error(error.response?.data?.message || 'Gagal menyimpan data.');
+    } finally {
+        isSaving.value = false;
+    }
 };
 
 const loadDataForEdit = async (nomor: string) => {
@@ -159,15 +162,16 @@ const loadDataForEdit = async (nomor: string) => {
 
 const closeForm = () => router.push('/transaksi/penjualan/dtf/lhk-so-dtf-stok');
 
-const showConfirmation = (action: () => void, text: string) => {
+const showConfirmation = (action: () => Promise<void> | void, text: string) => {
     pendingAction.value = action;
     confirmText.value = text;
     isConfirmDialogVisible.value = true;
 };
 
-const executePendingAction = () => {
+const executePendingAction = async () => {
     if (pendingAction.value) {
-        pendingAction.value();
+        // 'await' akan memastikan kita menunggu fungsi (misal: save) selesai
+        await pendingAction.value();
     }
     isConfirmDialogVisible.value = false;
 };
@@ -230,15 +234,20 @@ onMounted(() => {
 <template>
     <PageLayout :title="pageTitle" desktop-mode icon="mdi-package-variant-closed-edit">
         <template #header-actions>
-            <v-btn size="small" color="primary"
-                @click="showConfirmation(save, 'Anda yakin ingin menyimpan data LHK ini?')" :loading="isSaving">
+            <v-btn v-if="canSaveOrEdit" size="small" color="primary" @click="save" :loading="isSaving"
+                prepend-icon="mdi-content-save">
                 Simpan
             </v-btn>
-            <v-btn size="small" @click="showConfirmation(loadLhkData, 'Batalkan perubahan dan muat ulang data asli?')">
+
+            <v-btn size="small"
+                @click="showConfirmation(isEditMode ? loadLhkData : resetForm, isEditMode ? 'Batalkan perubahan dan muat ulang data asli?' : 'Kosongkan form?')"
+                prepend-icon="mdi-refresh">
                 Batal
             </v-btn>
+
             <v-btn size="small"
-                @click="showConfirmation(closeForm, 'Tutup form? Perubahan yang belum disimpan akan hilang.')">
+                @click="showConfirmation(closeForm, 'Tutup form? Perubahan yang belum disimpan akan hilang.')"
+                prepend-icon="mdi-close">
                 Tutup
             </v-btn>
         </template>
@@ -248,29 +257,46 @@ onMounted(() => {
             <h3 class="text-h6">Akses Ditolak</h3>
         </div>
 
-        <div class="form-content">
-            <div class="header-filters">
-                <v-text-field label="Nomor LHK" v-model="formHeader.nomor" readonly filled density="compact"
-                    hide-details />
-                <v-text-field label="Tanggal" v-model="formHeader.tanggal" type="date" density="compact" hide-details />
-                <v-text-field label="No. SO DTF Stok" v-model="formHeader.soNomor" readonly
-                    @click="isSoSearchVisible = true" prepend-inner-icon="mdi-magnify" density="compact" hide-details />
+        <div class="form-grid-container">
+            <div class="left-column">
+                <div class="desktop-form-section header-section">
+                    <v-row dense>
+                        <v-col cols="12">
+                            <v-text-field label="Nomor LHK" v-model="formHeader.nomor" readonly filled density="compact"
+                                hide-details />
+                        </v-col>
+                        <v-col cols="12">
+                            <v-text-field label="Tanggal" v-model="formHeader.tanggal" type="date" density="compact"
+                                hide-details variant="outlined" />
+                        </v-col>
+                        <v-col cols="12">
+                            <v-text-field label="Cabang" :model-value="formHeader.cabang" readonly filled
+                                density="compact" hide-details />
+                        </v-col>
+                        <v-col cols="12">
+                            <v-text-field label="No. SO DTF Stok" v-model="formHeader.soNomor" readonly
+                                @click="isSoSearchVisible = true" prepend-inner-icon="mdi-magnify" density="compact"
+                                hide-details variant="outlined" :disabled="isEditMode" />
+                        </v-col>
+                    </v-row>
+                </div>
             </div>
 
-            <div class="table-container">
-                <v-data-table :headers="tableHeaders" :items="items" :loading="isLoading" density="compact"
-                    class="desktop-table fill-height-table" fixed-header :items-per-page="-1">
-                    <template v-slot:[`item.no`]="{ index }">
-                        {{ index + 1 }}
-                    </template>
-
-                    <template v-slot:[`item.jumlah`]="{ item }">
-                        <v-text-field v-model.number="item.jumlah" type="number" min="0" variant="underlined"
-                            density="compact" hide-details class="text-end" @focus="onJumlahFocus(item)"
-                            @blur="validateJumlah(item)" />
-                    </template>
-                    <template #bottom></template>
-                </v-data-table>
+            <div class="right-column">
+                <div class="desktop-form-section d-flex flex-column fill-height">
+                    <v-data-table :headers="tableHeaders" :items="items" :loading="isLoading" density="compact"
+                        class="desktop-table fill-height-table" fixed-header :items-per-page="-1">
+                        <template v-slot:[`item.no`]="{ index }">
+                            {{ index + 1 }}
+                        </template>
+                        <template v-slot:[`item.jumlah`]="{ item }">
+                            <v-text-field v-model.number="item.jumlah" type="number" min="0" variant="underlined"
+                                density="compact" hide-details class="text-end" @focus="onJumlahFocus(item)"
+                                @blur="validateJumlah(item)" />
+                        </template>
+                        <template #bottom></template>
+                    </v-data-table>
+                </div>
             </div>
         </div>
 

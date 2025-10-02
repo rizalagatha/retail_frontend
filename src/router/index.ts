@@ -86,6 +86,11 @@ import ReturJualCreateView from "@/views/ReturJualCreateView.vue";
 import ReturJualPrintView from "@/views/ReturJualPrintView.vue";
 import ReturJualPrintKasirView from "@/views/ReturJualPrintKasirView.vue";
 import ReturDcView from "@/views/ReturDcView.vue";
+import ReturDcCreateView from "@/views/ReturDcCreateView.vue";
+import ReturDcPrintView from "@/views/ReturDcPrintView.vue";
+import TerimaReturView from "@/views/TerimaReturView.vue";
+import TerimaReturCreateView from "@/views/TerimaReturCreateView.vue";
+import KartuPiutangView from "@/views/KartuPiutangView.vue";
 
 const routes = [
   {
@@ -1050,6 +1055,61 @@ const routes = [
       title: "Retur Barang ke DC",
       requiresAuth: true,
       menuId: "32",
+    },
+  },
+  {
+    path: "/transaksi/internal/retur-dc/create",
+    name: "ReturDcCreate",
+    component: ReturDcCreateView,
+    meta: { title: "Buat Retur Barang ke DC", requiresAuth: true, menuId: "32" },
+  },
+  {
+    path: "/transaksi/internal/retur-dc/edit/:nomor",
+    name: "ReturDcEdit",
+    component: ReturDcCreateView,
+    meta: { title: "Ubah Retur Barang ke DC", requiresAuth: true, menuId: "32" },
+  },
+  {
+    path: "/transaksi/internal/retur-dc/print/:nomor",
+    name: "ReturDcPrint",
+    component: ReturDcPrintView,
+    meta: {
+      title: "Cetak Retur Barang ke DC",
+      printLayout: true,
+      requiresAuth: true,
+      layout: "PrintLayout",
+    },
+  },
+  {
+    path: "/gudang-dc/operasional/terima-rb",
+    name: "TerimaRetur",
+    component: TerimaReturView,
+    meta: {
+      title: "Terima Retur dari Store",
+      requiresAuth: true,
+      menuId: "214",
+    },
+  },
+  {
+    path: "/gudang-dc/operasional/terima-rb/create",
+    name: "TerimaReturCreate",
+    component: TerimaReturCreateView,
+    meta: { title: "Buat Terima Retur", requiresAuth: true, menuId: "214" },
+  },
+  {
+    path: "/gudang-dc/operasional/terima-rb/edit/:nomor",
+    name: "TerimaReturEdit",
+    component: TerimaReturCreateView,
+    meta: { title: "Ubah Terima Retur", requiresAuth: true, menuId: "214" },
+  },
+  {
+    path: "/piutang/kartu-piutang",
+    name: "KartuPiutang",
+    component: KartuPiutangView,
+    meta: {
+      title: "Kartu Piutang",
+      requiresAuth: true,
+      menuId: "52",
     },
   },
   {

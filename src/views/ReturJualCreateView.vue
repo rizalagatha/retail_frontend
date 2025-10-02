@@ -4,7 +4,7 @@ import { useRoute, useRouter } from 'vue-router';
 import { useToast } from 'vue-toastification';
 import { useAuthStore } from '@/stores/authStore';
 import api from '@/services/api';
-import { format, parseISO, differenceInHours } from 'date-fns';
+import { format, parseISO, differenceInHours, differenceInCalendarDays } from 'date-fns';
 import PageLayout from '@/components/PageLayout.vue';
 import InvoiceSearchModal from '@/components/InvoiceSearchModal.vue';
 import MintaBarangSearchModal from '@/components/MintaBarangSearchModal.vue';
@@ -105,9 +105,11 @@ const tableHeaders = [
 
 // --- Methods ---
 const onInvoiceSelected = async (invoice: { nomor: string, tanggal: string }) => {
-    const hoursSinceInvoice = differenceInHours(new Date(), parseISO(invoice.tanggal));
-    if (hoursSinceInvoice > 24) {
-        toast.error(`Invoice ${invoice.nomor} sudah lebih dari 24 jam dan tidak bisa diretur.`);
+    const hariSejakInvoice = differenceInCalendarDays(new Date(), parseISO(invoice.tanggal));
+
+    // Cek jika selisih hari lebih dari 1
+    if (hariSejakInvoice > 1) {
+        toast.error(`Invoice ${invoice.nomor} sudah lebih dari 1 hari dan tidak bisa diretur.`);
         dialog.invoiceSearch = false;
         return; // Hentikan proses
     }
@@ -359,11 +361,11 @@ const loadDataForEdit = async (nomor: string) => {
     try {
         const response = await api.get(`/retur-jual-form/${nomor}`);
         const { header: returHeader, items: returItems } = response.data;
-        
+
         // Isi data header
         Object.assign(header, returHeader);
         header.tanggal = format(parseISO(header.tanggal), 'yyyy-MM-dd');
-        
+
         // Isi data footer dari header
         footer.diskonRp = returHeader.diskonRp;
         footer.diskonPersen1 = returHeader.diskonPersen1;
@@ -374,7 +376,7 @@ const loadDataForEdit = async (nomor: string) => {
             ...item,
             id: Date.now() + Math.random(),
         }));
-        
+
         calculateTotals();
         toast.success(`Data Retur ${nomor} berhasil dimuat.`);
 

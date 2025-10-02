@@ -12,7 +12,8 @@ interface SoPoItem {
 }
 
 const props = defineProps({
-    cabang: { type: String, required: true }
+    cabang: { type: String, required: true },
+    tipe: { type: String, default: 'ALL' }
 });
 const emit = defineEmits(['close', 'selected']);
 
@@ -32,7 +33,7 @@ const loadItems = async () => {
     loading.value = true;
     try {
         const response = await api.get('/lhk-so-dtf-form/search/so-po', {
-            params: { term: search.value, cabang: props.cabang },
+            params: { term: search.value, cabang: props.cabang, tipe: props.tipe },
         });
         items.value = response.data;
     } catch (error) {

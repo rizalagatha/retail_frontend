@@ -6,33 +6,41 @@ import { format, parseISO } from 'date-fns';
 import Logo from '@/assets/logo.png';
 
 interface PrintData {
-  sd_nomor: string;
-  sd_tanggal: string;
-  jo_nama: string;
-  sd_nama: string;
-  jumlah: number;
-  ukuran: string;
-  sd_datekerja: string;
-  gdg_nama: string;
-  sd_desain: string;
-  sd_ket: string;
-  sd_jo_kode: string;
-  imageUrl?: string;
-  AlasanClose?: string;
-  NoINV?: string;
-  NoSO?: string;
-  user_create: string;
+    sd_nomor: string;
+    sd_tanggal: string;
+    jo_nama: string;
+    sd_nama: string;
+    jumlah: number;
+    ukuran: string;
+    sd_datekerja: string;
+    gdg_nama: string;
+    sd_desain: string;
+    sd_ket: string;
+    sd_jo_kode: string;
+    imageUrl?: string;
+    AlasanClose?: string;
+    NoINV?: string;
+    NoSO?: string;
+    user_create: string;
 }
 
 const route = useRoute();
 const printData = ref<PrintData | null>(null);
 const isLoading = ref(true);
 const appLogo = Logo;
-const BASE_IMAGE_URL = import.meta.env.VITE_API_BASE_URL || '';
 
+// Fungsi helper untuk membuat full URL gambar
+const getFullImageUrl = (path: string | null | undefined) => {
+    if (!path) return null;
+    if (path.startsWith("http")) return path;
+
+    // path dari backend contoh: /images/KDC/...
+    return `${import.meta.env.VITE_API_BASE_URL}${path}`;
+};
+
+// Computed untuk URL gambar lengkap
 const imageFullUrl = computed(() => {
-    if (!printData.value?.imageUrl) return null;
-    return BASE_IMAGE_URL + printData.value.imageUrl;
+    return getFullImageUrl(printData.value?.imageUrl);
 });
 
 // Fungsi ini meniru IIF di FastReport dan menambahkan "(Sticker)"
@@ -51,7 +59,7 @@ const fetchPrintData = async (nomor: string) => {
     try {
         const response = await api.get(`/so-dtf-stok-form/print-data/${nomor}`);
         printData.value = response.data;
-        if (printData.value.sd_nomor) { 
+        if (printData.value.sd_nomor) {
             document.title = printData.value.sd_nomor;
         }
     } catch (error) {
@@ -63,9 +71,7 @@ const fetchPrintData = async (nomor: string) => {
 };
 
 watch(isLoading, (newValue) => {
-    // Jika loading SUDAH SELESAI (dari true menjadi false)
     if (newValue === false) {
-        // Tunggu satu tick lagi untuk memastikan DOM sudah 100% ter-update
         nextTick(() => {
             window.print();
         });

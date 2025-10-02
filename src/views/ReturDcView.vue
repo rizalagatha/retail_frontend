@@ -146,11 +146,33 @@ const handleDelete = () => {
 
 const handlePrint = () => {
     if (!isSingleSelected.value) return;
-    toast.info('Fungsi cetak belum dibuat.');
+    const url = router.resolve({ 
+        name: 'ReturDcPrint', 
+        params: { nomor: selectedRow.value.nomor } 
+    }).href;
+    window.open(url, '_blank');
 };
 
 const exportData = async (type: 'header' | 'detail') => {
-    toast.info(`Fungsi export ${type} belum dibuat.`);
+    if (type === 'header') {
+        if (masterData.value.length === 0) return toast.warning('Tidak ada data header untuk diexport.');
+        const worksheet = XLSX.utils.json_to_sheet(masterData.value);
+        const workbook = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(workbook, worksheet, "Retur DC Header");
+        XLSX.writeFile(workbook, "Export_ReturDC_Header.xlsx");
+    } else if (type === 'detail') {
+        try {
+            const response = await api.get('/retur-dc/export-details', { params: filters });
+            if (response.data.length === 0) return toast.warning('Tidak ada data detail untuk diexport pada filter ini.');
+            
+            const worksheet = XLSX.utils.json_to_sheet(response.data);
+            const workbook = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(workbook, worksheet, "Retur DC Detail");
+            XLSX.writeFile(workbook, "Export_ReturDC_Detail.xlsx");
+        } catch (error) {
+            toast.error('Gagal mengekspor data detail.');
+        }
+    }
 };
 
 const getRowTextColor = (item: any) => {

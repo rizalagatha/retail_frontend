@@ -37,13 +37,12 @@ const hasViewPermission = computed(() => authStore.can(MENU_ID, 'view'));
 const isSingleSelected = computed(() => selected.value.length === 1);
 
 const canEditOrDelete = computed(() => {
-    // Tombol tidak aktif jika tidak ada 1 baris yang dipilih
     if (!isSingleSelected.value) return false;
 
     const userCabang = authStore.user?.cabang;
     const recordCabang = selected.value[0].Cab;
 
-    // User KDC boleh melakukan apa saja
+    // User KDC boleh melakukan apa saja (sesuai asumsi dari Delphi, KDC punya akses luas)
     if (userCabang === 'KDC') return true;
 
     // Selain itu, cabang user harus sama dengan cabang di data
@@ -132,6 +131,18 @@ const deleteItem = async () => {
     }
 };
 
+const handleEdit = () => {
+    if (!canEditOrDelete.value) return;
+    const selectedItem = selected.value[0];
+    router.push({
+        path: '/transaksi/penjualan/dtf/lhk-so-dtf/edit', // Gunakan path eksplisit
+        query: {
+            tanggal: format(parseISO(selectedItem.Tanggal), 'yyyy-MM-dd'),
+            cabang: selectedItem.Cab
+        }
+    });
+};
+
 onMounted(() => {
     if (hasViewPermission.value) {
         fetchCabangList();
@@ -148,7 +159,7 @@ watch([startDate, endDate, selectedCabang], fetchData);
             <v-btn v-if="authStore.can(MENU_ID, 'insert')" size="small" color="primary" prepend-icon="mdi-plus"
                 @click="router.push('/transaksi/penjualan/dtf/lhk-so-dtf/edit')">Baru</v-btn>
             <v-btn v-if="authStore.can(MENU_ID, 'edit')" size="small" :disabled="!canEditOrDelete"
-                prepend-icon="mdi-pencil" @click="router.push('/transaksi/penjualan/dtf/lhk-so-dtf/edit')">
+                prepend-icon="mdi-pencil" @click="handleEdit">
                 Ubah
             </v-btn>
             <v-btn v-if="authStore.can(MENU_ID, 'delete')" size="small" color="error" :disabled="!canEditOrDelete"
@@ -192,7 +203,7 @@ watch([startDate, endDate, selectedCabang], fetchData);
                 <v-card-text>
                     Anda yakin ingin menghapus data LHK untuk SO: <strong>{{ itemToDelete?.SoDtf }}</strong>
                     pada tanggal <strong>{{ itemToDelete ? format(new Date(itemToDelete.Tanggal), 'dd/MM/yyyy') : ''
-                        }}</strong>?
+                    }}</strong>?
                 </v-card-text>
                 <v-card-actions>
                     <v-spacer></v-spacer>

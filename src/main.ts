@@ -17,9 +17,7 @@ import './styles/desktop-theme.css'
 // (2) Impor Ikon Material Design (opsional tapi direkomendasikan)
 import '@mdi/font/css/materialdesignicons.css' 
 
-// // (1) Impor library toast
 import Toast from 'vue-toastification'
-// (2) Impor file CSS-nya
 import 'vue-toastification/dist/index.css'
 
 const vuetify = createVuetify({

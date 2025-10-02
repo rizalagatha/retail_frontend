@@ -192,7 +192,7 @@ const menuItems = [
     items: [
       { title: 'Setoran Pembayaran', to: '/piutang/setoran-pembayaran', icon: 'mdi-bank-transfer' },
       { title: 'Form Setoran Kasir', to: '/piutang/fsk', icon: 'mdi-cash-multiple' },
-      { title: 'Kartu Piutang', to: '/receivables/card', icon: 'mdi-credit-card-outline' },
+      { title: 'Kartu Piutang', to: '/piutang/kartu-piutang', icon: 'mdi-credit-card-outline' },
       { divider: true },
       { title: 'Potongan', to: '/receivables/discounts', icon: 'mdi-tag-minus-outline' },
       { title: 'Refund', to: '/receivables/refunds', icon: 'mdi-cash-refund' }
@@ -224,7 +224,7 @@ const menuItems = [
           { title: 'Terima dari Gudang Repair', to: '/dc/receive-from-repair', icon: 'mdi-tools' },
           { title: 'Surat Jalan ke Store', to: '/gudang-dc/operasional/surat-jalan-store', icon: 'mdi-truck-delivery-outline' },
           { title: 'Pengambilan Barang', to: '/dc/goods-pickup', icon: 'mdi-package-up' },
-          { title: 'Terima Retur dari Store', to: '/dc/receive-return-from-store', icon: 'mdi-package-down' },
+          { title: 'Terima Retur dari Store', to: '/gudang-dc/operasional/terima-rb', icon: 'mdi-package-down' },
           { title: 'QC ke Garmen', to: '/dc/qc-to-garment', icon: 'mdi-quality-high' },
           { title: 'Mutasi Stok Antar Gudang', to: '/dc/inter-warehouse-mutation', icon: 'mdi-swap-horizontal-circle-outline' }
         ]

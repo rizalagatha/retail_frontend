@@ -3,41 +3,49 @@ import { ref, onMounted, nextTick, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import api from '@/services/api';
 import { format } from 'date-fns';
-import Logo from '@/assets/logo.png'; // <-- Impor logo
+import Logo from '@/assets/logo.png';
 
 interface PrintData {
-  sd_nomor: string;
-  sd_tanggal: string;
-  jo_nama: string;
-  sd_nama: string;
-  jumlah: number;
-  ukuran: string;
-  sd_kain: string;
-  sd_finishing: string;
-  sd_datekerja: string;
-  sd_workshop: string;
-  gdg_nama: string;
-  sd_desain: string;
-  sd_ket: string;
-  sd_jo_kode: string;
-  sd_customer?: string;
-  imageUrl?: string;
-  titik?: string;
-  user_create: string;
-  created?: string;
+    sd_nomor: string;
+    sd_tanggal: string;
+    jo_nama: string;
+    sd_nama: string;
+    jumlah: number;
+    ukuran: string;
+    sd_kain: string;
+    sd_finishing: string;
+    sd_datekerja: string;
+    sd_workshop: string;
+    gdg_nama: string;
+    sd_desain: string;
+    sd_ket: string;
+    sd_jo_kode: string;
+    sd_customer?: string;
+    imageUrl?: string;
+    titik?: string;
+    user_create: string;
+    created?: string;
 }
 
 const route = useRoute();
 const printData = ref<PrintData | null>(null);
 const isLoading = ref(true);
-const appLogo = Logo; // <-- Sediakan logo untuk template
+const appLogo = Logo;
+
+// Tambahkan fungsi ini
+const getFullImageUrl = (path: string | null | undefined) => {
+    if (!path) return null;
+    if (path.startsWith("http")) return path;
+
+    // path dari backend contoh: /images/KDC/...
+    return `${import.meta.env.VITE_API_BASE_URL}${path}`;
+};
 
 const getJenisOrderDisplay = (joKode: string) => {
     switch (joKode) {
         case 'BR': return 'BORDIR';
         case 'SB': return 'SABLON';
         case 'SD': return 'DTF';
-        // Tambahkan kode lain jika ada, misal 'PF' untuk 'POLYFLEX'
         default: return joKode;
     }
 };
@@ -46,7 +54,7 @@ const fetchPrintData = async (nomor: string) => {
     try {
         const response = await api.get(`/so-dtf-form/print-data/${nomor}`);
         printData.value = response.data;
-        if (printData.value.sd_nomor) { 
+        if (printData.value.sd_nomor) {
             document.title = printData.value.sd_nomor;
         }
     } catch (error) {
@@ -58,9 +66,7 @@ const fetchPrintData = async (nomor: string) => {
 };
 
 watch(isLoading, (newValue) => {
-    // Jika loading SUDAH SELESAI (dari true menjadi false)
     if (newValue === false) {
-        // Tunggu satu tick lagi untuk memastikan DOM sudah 100% ter-update
         nextTick(() => {
             window.print();
         });
@@ -117,7 +123,7 @@ onMounted(() => {
                     <div class="value">: {{ printData.sd_ket }}</div>
                 </div>
                 <div v-if="printData.imageUrl" class="image-preview">
-                    <img :src="printData.imageUrl" alt="Design Preview">
+                    <img :src="getFullImageUrl(printData.imageUrl)" alt="Design Preview">
                 </div>
             </div>
 
@@ -176,7 +182,7 @@ onMounted(() => {
 .page-header {
     display: flex;
     align-items: center;
-    justify-content: space-between; 
+    justify-content: space-between;
     border-bottom: 2px solid black;
     padding-bottom: 10px;
     margin-bottom: 15px;

@@ -48,12 +48,14 @@ const items = ref<LhkItem[]>([]);
 const isLoading = ref(false);
 const isSaving = ref(false);
 
-const isSearchModalVisible = ref(false);
+const isSoSearchVisible = ref(false); // Untuk F1
+const isPoSearchVisible = ref(false); // Untuk F2
 const activeRowIndex = ref(0);
 
 const isConfirmDialogVisible = ref(false);
 const confirmText = ref('');
 const pendingAction = ref<(() => void) | null>(null);
+const spkSearch = ref('');
 
 const pageTitle = computed(() => `Form LHK SO DTF`);
 const canView = computed(() => authStore.can(MENU_ID, 'view'));
@@ -119,10 +121,16 @@ const removeRow = (id: number) => {
     addNewRowIfNeeded();
 };
 
-const openSearchModal = (index: number) => {
+const openSoSearchModal = (index: number) => {
     activeRowIndex.value = index;
-    isSearchModalVisible.value = true;
+    isSoSearchVisible.value = true;
 };
+
+const openPoSearchModal = (index: number) => {
+    activeRowIndex.value = index;
+    isPoSearchVisible.value = true;
+};
+
 
 const onSoPoSelected = (selectedItem: { kode: string, nama: string }) => {
     const isDuplicate = items.value.some(item => item.kode === selectedItem.kode && item.id !== items.value[activeRowIndex.value].id);
@@ -133,7 +141,8 @@ const onSoPoSelected = (selectedItem: { kode: string, nama: string }) => {
     items.value[activeRowIndex.value].kode = selectedItem.kode;
     items.value[activeRowIndex.value].nama = selectedItem.nama;
     addNewRowIfNeeded();
-    isSearchModalVisible.value = false;
+    isSoSearchVisible.value = false; // Tutup modal SO
+    isPoSearchVisible.value = false; // Tutup modal PO
 };
 
 const save = async () => {
@@ -231,83 +240,82 @@ watch([selectedTanggal, selectedCabang], loadLhkData);
             <h3 class="text-h6">Akses Ditolak</h3>
         </div>
 
-        <div class="form-content">
-            <div class="header-filters">
-                <v-text-field label="Store" :model-value="selectedCabang" density="compact" hide-details
-                    variant="outlined" style="max-width: 120px;" readonly filled />
-                <v-text-field label="Tanggal" v-model="selectedTanggal" type="date" density="compact" hide-details
-                    variant="outlined" style="max-width: 180px;" />
-                <v-text-field label="Cari SPK..." density="compact" hide-details variant="outlined"
-                    prepend-inner-icon="mdi-magnify" style="max-width: 250px;" />
+        <div class="form-grid-container">
+            <div class="left-column">
+                <div class="desktop-form-section header-section">
+                    <v-row dense>
+                        <v-col cols="12">
+                            <v-text-field label="Store" :model-value="selectedCabang" density="compact" hide-details
+                                variant="outlined" readonly filled />
+                        </v-col>
+                        <v-col cols="12">
+                            <v-text-field label="Tanggal" v-model="selectedTanggal" type="date" density="compact"
+                                hide-details variant="outlined" />
+                        </v-col>
+                        <v-col cols="12">
+                            <v-text-field label="Cari SPK..." v-model="spkSearch" density="compact" hide-details
+                                variant="outlined" prepend-inner-icon="mdi-magnify" clearable />
+                        </v-col>
+                    </v-row>
+                </div>
             </div>
 
-            <v-data-table :headers="tableHeaders" :items="items" :loading="isLoading" density="compact"
-                class="desktop-table" fixed-header :items-per-page="-1">
-                <!-- Kolom No. -->
-                <template #[`item.no`]="{ index }">
-                    <div class="cell-text">{{ index + 1 }}</div>
-                </template>
-                <!-- Kolom Kode -->
-                <template #[`item.kode`]="{ item, index }">
-                    <v-text-field v-model="item.kode" variant="underlined" density="compact" hide-details
-                        @keydown.f1.prevent="openSearchModal(index)">
-                        <template #append-inner>
-                            <v-icon @click="openSearchModal(index)" size="small">mdi-magnify</v-icon>
+            <div class="right-column">
+                <div class="desktop-form-section d-flex flex-column fill-height">
+                    <v-data-table :headers="tableHeaders" :items="items" :loading="isLoading" :search="spkSearch"
+                        density="compact" class="desktop-table fill-height-table" fixed-header :items-per-page="-1">
+                        <template #[`item.no`]="{ index }">
+                            <div class="cell-text">{{ index + 1 }}</div>
                         </template>
-                    </v-text-field>
-                </template>
-                <!-- Kolom Nama -->
-                <template #[`item.nama`]="{ item }">
-                    <v-text-field v-model="item.nama" variant="underlined" density="compact" hide-details readonly
-                        filled />
-                </template>
-                <!-- Kolom Depan -->
-                <template #[`item.depan`]="{ item }">
-                    <v-text-field v-model.number="item.depan" type="number" min="0" variant="underlined"
-                        density="compact" hide-details class="text-end" />
-                </template>
-                <!-- Kolom Belakang -->
-                <template #[`item.belakang`]="{ item }">
-                    <v-text-field v-model.number="item.belakang" type="number" min="0" variant="underlined"
-                        density="compact" hide-details class="text-end" />
-                </template>
-                <!-- Kolom Lengan -->
-                <template #[`item.lengan`]="{ item }">
-                    <v-text-field v-model.number="item.lengan" type="number" min="0" variant="underlined"
-                        density="compact" hide-details class="text-end" />
-                </template>
-                <!-- Kolom Variasi -->
-                <template #[`item.variasi`]="{ item }">
-                    <v-text-field v-model.number="item.variasi" type="number" min="0" variant="underlined"
-                        density="compact" hide-details class="text-end" />
-                </template>
-                <!-- Kolom Saku -->
-                <template #[`item.saku`]="{ item }">
-                    <v-text-field v-model.number="item.saku" type="number" min="0" variant="underlined"
-                        density="compact" hide-details class="text-end" />
-                </template>
-                <!-- Kolom Panjang -->
-                <template #[`item.panjang`]="{ item }">
-                    <v-text-field v-model.number="item.panjang" type="number" min="0" variant="underlined"
-                        density="compact" hide-details class="text-end" />
-                </template>
-                <!-- Kolom Buangan -->
-                <template #[`item.buangan`]="{ item }">
-                    <v-text-field v-model.number="item.buangan" type="number" min="0" variant="underlined"
-                        density="compact" hide-details class="text-end" />
-                </template>
-                <!-- Kolom Keterangan -->
-                <template #[`item.ket`]="{ item }">
-                    <v-text-field v-model="item.ket" variant="underlined" density="compact" hide-details />
-                </template>
-                <!-- Kolom Actions -->
-                <template #[`item.actions`]="{ item }">
-                    <v-btn icon="mdi-delete" size="x-small" variant="text" color="error" @click="removeRow(item.id)"
-                        v-if="items.length > 1" />
-                </template>
-                <!-- Bottom kosong -->
-                <template #bottom></template>
-            </v-data-table>
+                        <template #[`item.kode`]="{ item, index }">
+                            <v-text-field v-model="item.kode" variant="underlined" density="compact" hide-details
+                                placeholder="F1: SO, F2: PO" @keydown.f1.prevent="openSoSearchModal(index)"
+                                @keydown.f2.prevent="openPoSearchModal(index)">
+                            </v-text-field>
+                        </template>
+                        <template #[`item.nama`]="{ item }">
+                            <v-text-field v-model="item.nama" variant="underlined" density="compact" hide-details
+                                readonly filled />
+                        </template>
+                        <template #[`item.depan`]="{ item }">
+                            <v-text-field v-model.number="item.depan" type="number" min="0" variant="underlined"
+                                density="compact" hide-details class="text-end" />
+                        </template>
+                        <template #[`item.belakang`]="{ item }">
+                            <v-text-field v-model.number="item.belakang" type="number" min="0" variant="underlined"
+                                density="compact" hide-details class="text-end" />
+                        </template>
+                        <template #[`item.lengan`]="{ item }">
+                            <v-text-field v-model.number="item.lengan" type="number" min="0" variant="underlined"
+                                density="compact" hide-details class="text-end" />
+                        </template>
+                        <template #[`item.variasi`]="{ item }">
+                            <v-text-field v-model.number="item.variasi" type="number" min="0" variant="underlined"
+                                density="compact" hide-details class="text-end" />
+                        </template>
+                        <template #[`item.saku`]="{ item }">
+                            <v-text-field v-model.number="item.saku" type="number" min="0" variant="underlined"
+                                density="compact" hide-details class="text-end" />
+                        </template>
+                        <template #[`item.panjang`]="{ item }">
+                            <v-text-field v-model.number="item.panjang" type="number" min="0" variant="underlined"
+                                density="compact" hide-details class="text-end" />
+                        </template>
+                        <template #[`item.buangan`]="{ item }">
+                            <v-text-field v-model.number="item.buangan" type="number" min="0" variant="underlined"
+                                density="compact" hide-details class="text-end" />
+                        </template>
+                        <template #[`item.ket`]="{ item }">
+                            <v-text-field v-model="item.ket" variant="underlined" density="compact" hide-details />
+                        </template>
+                        <template #[`item.actions`]="{ item }">
+                            <v-btn icon="mdi-delete" size="x-small" variant="text" color="error"
+                                @click="removeRow(item.id)" v-if="items.length > 1" />
+                        </template>
+                        <template #bottom></template>
+                    </v-data-table>
+                </div>
+            </div>
         </div>
 
         <v-dialog v-model="isConfirmDialogVisible" max-width="400px" persistent>
@@ -322,7 +330,10 @@ watch([selectedTanggal, selectedCabang], loadLhkData);
             </v-card>
         </v-dialog>
 
-        <SoPoSearchModal v-if="isSearchModalVisible" :cabang="selectedCabang" @close="isSearchModalVisible = false"
+        <SoPoSearchModal v-if="isSoSearchVisible" :cabang="selectedCabang" tipe="SO" @close="isSoSearchVisible = false"
+            @selected="onSoPoSelected" />
+
+        <SoPoSearchModal v-if="isPoSearchVisible" :cabang="selectedCabang" tipe="PO" @close="isPoSearchVisible = false"
             @selected="onSoPoSelected" />
     </PageLayout>
 </template>

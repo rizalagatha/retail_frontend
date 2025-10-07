@@ -202,8 +202,7 @@ watch([startDate, endDate, selectedCabang], fetchData);
                 <v-card-title class="text-h6 font-weight-bold">Konfirmasi Hapus</v-card-title>
                 <v-card-text>
                     Anda yakin ingin menghapus data LHK untuk SO: <strong>{{ itemToDelete?.SoDtf }}</strong>
-                    pada tanggal <strong>{{ itemToDelete ? format(new Date(itemToDelete.Tanggal), 'dd/MM/yyyy') : ''
-                    }}</strong>?
+                    pada tanggal <strong>{{ itemToDelete ? format(new Date(itemToDelete.Tanggal), 'dd/MM/yyyy') : ''}}</strong>?
                 </v-card-text>
                 <v-card-actions>
                     <v-spacer></v-spacer>

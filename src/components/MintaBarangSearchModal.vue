@@ -54,6 +54,8 @@ const loadItems = async ({ page, itemsPerPage, sortBy }: LoadItemsOptions = {}) 
             apiUrl = '/minta-barang-form/lookup/products';
         } else if (props.source === 'koreksi-stok') {
             apiUrl = '/koreksi-stok-form/lookup/products';
+        } else if (props.source === 'pengajuan-barcode') {
+            apiUrl = '/pengajuan-barcode-form/lookup/products';
         }
 
         if (!apiUrl) {

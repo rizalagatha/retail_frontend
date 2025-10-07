@@ -169,6 +169,7 @@ const menuItems = [
           { title: 'Terima SJ dari DC', to: '/transaksi/internal/terima-sj', icon: 'mdi-arrow-down-bold-circle-outline' },
           { title: 'Retur Barang ke DC', to: '/transaksi/internal/retur-dc', icon: 'mdi-undo-variant' },
           { title: 'Koreksi Stok', to: '/transaksi/internal/koreksi-stok', icon: 'mdi-pencil-outline' },
+          { title: 'Pengajuan Barcode Baru', to: '/transaksi/internal/pengajuan-barcode', icon: 'mdi-barcode' },
           { title: 'Klerek', to: '/klerek', icon: 'mdi-clipboard-check-outline' }
         ]
       },
@@ -260,7 +261,7 @@ const menuItems = [
         icon: 'mdi-archive-outline',
         items: [
           { title: 'Laporan Stok', to: '/laporan/stok', icon: 'mdi-package-variant' },
-          { title: 'Mutasi Stok', to: '/reports/stock-mutation', icon: 'mdi-swap-horizontal' },
+          { title: 'Mutasi Stok', to: '/laporan/mutasi-stok', icon: 'mdi-swap-horizontal' },
           { title: 'Kartu Stok', to: '/reports/stock-card', icon: 'mdi-card-text-outline' },
           { title: 'Stok Stagnan', to: '/reports/stagnant-stock', icon: 'mdi-clock-outline' },
           { title: 'Dead Stok', to: '/reports/dead-stock', icon: 'mdi-alert-circle-outline' }

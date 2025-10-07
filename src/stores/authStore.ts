@@ -9,6 +9,7 @@ interface User {
   cabang: string;
   cabangNama: string;
   canApproveCorrection?: boolean;
+  canApprovePrice?: boolean;
 }
 
 interface Permission {

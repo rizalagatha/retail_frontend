@@ -91,6 +91,10 @@ import ReturDcPrintView from "@/views/ReturDcPrintView.vue";
 import TerimaReturView from "@/views/TerimaReturView.vue";
 import TerimaReturCreateView from "@/views/TerimaReturCreateView.vue";
 import KartuPiutangView from "@/views/KartuPiutangView.vue";
+import PengajuanBarcodeView from "@/views/PengajuanBarcodeView.vue";
+import PengajuanBarcodeCreateView from "@/views/PengajuanBarcodeCreateView.vue";
+import CetakBarcodeBaruView from "@/views/CetakBarcodeBaruView.vue";
+import LaporanMutasiStokView from "@/views/LaporanMutasiStokView.vue";
 
 const routes = [
   {
@@ -1113,6 +1117,40 @@ const routes = [
     },
   },
   {
+    path: "/transaksi/internal/pengajuan-barcode",
+    name: "PengajuanBarcode",
+    component: PengajuanBarcodeView,
+    meta: {
+      title: "Pengajuan Barcode Baru",
+      requiresAuth: true,
+      menuId: "33",
+      layout: "DefaultLayout",
+    },
+  },
+  {
+    path: "/transaksi/internal/pengajuan-barcode/create",
+    name: "PengajuanBarcodeCreate",
+    component: PengajuanBarcodeCreateView,
+    meta: { title: "Buat Pengajuan Barcode", requiresAuth: true, menuId: "33" },
+  },
+  {
+    path: "/transaksi/internal/pengajuan-barcode/edit/:nomor",
+    name: "PengajuanBarcodeEdit",
+    component: PengajuanBarcodeCreateView,
+    meta: { title: "Ubah Pengajuan Barcode", requiresAuth: true, menuId: "33" },
+  },
+  {
+    path: "/transaksi/internal/pengajuan-barcode/print-barcode/:nomor",
+    name: "CetakBarcodeBaru",
+    component: CetakBarcodeBaruView, // <-- Pastikan komponennya ini
+    meta: {
+      title: "Cetak Barcode Baru",
+      printLayout: true,
+      requiresAuth: true,
+      layout: "PrintLayout", // Seharusnya sudah ada dari instruksi sebelumnya
+    },
+  },
+  {
     path: "/laporan/stok",
     name: "frmRptStok",
     component: LaporanStokView,
@@ -1120,6 +1158,16 @@ const routes = [
       title: "Laporan Stok Real Time",
       requiresAuth: true,
       menuId: "501",
+    },
+  },
+  {
+    path: "/laporan/mutasi-stok",
+    name: "LaporanMutasiStok",
+    component: LaporanMutasiStokView,
+    meta: {
+      title: "Laporan Mutasi Stok",
+      requiresAuth: true,
+      menuId: "502",
     },
   },
   {

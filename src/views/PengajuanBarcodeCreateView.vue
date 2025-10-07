@@ -1,0 +1,496 @@
+<script setup lang="ts">
+import { ref, reactive, onMounted, computed, watch } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
+import { useToast } from 'vue-toastification';
+import { useAuthStore } from '@/stores/authStore';
+import api from '@/services/api';
+import { format, parseISO } from 'date-fns';
+import PageLayout from '@/components/PageLayout.vue';
+import MintaBarangSearchModal from '@/components/MintaBarangSearchModal.vue';
+import StickerSearchModal from '@/components/StickerSearchModal.vue';
+import type { AxiosError } from 'axios';
+
+// --- Tipe Data ---
+interface Header {
+    nomor: string;
+    tanggal: string;
+    approved: string | null;
+}
+interface Item {
+    id: number;
+    kode: string;
+    barcode: string;
+    nama: string;
+    ukuran: string;
+    stok: number;
+    jumlah: number;
+    harga: number; // Harga/Pcs
+    hargaDtf: number; // Harga + Total Stiker
+    jenis: string;
+    ket: string;
+    diskon: number;
+    hargabaru: number;
+    kodebaru: string;
+}
+interface StickerItem {
+    id: number;
+    kode: string; // Kode item kaos parent
+    kodes: string; // Kode stiker
+    barcode: string;
+    nama: string;
+    ukuran: string;
+    stok: number;
+    jumlah: number;
+    harga: number;
+}
+
+// --- Inisialisasi & State ---
+const router = useRouter();
+const route = useRoute();
+const toast = useToast();
+const authStore = useAuthStore();
+const MENU_ID = '33';
+
+const isEditMode = computed(() => !!route.params.nomor);
+const pageTitle = computed(() => isEditMode.value ? 'Ubah Pengajuan Barcode' : 'Buat Pengajuan Barcode');
+const hasApprovalRights = computed(() => authStore.user?.canApprovePrice); // Asumsi hak akses
+
+const header = reactive<Header>({ nomor: '', tanggal: format(new Date(), 'yyyy-MM-dd'), approved: null });
+const items = ref<Item[]>([]);
+const stickers = ref<StickerItem[]>([]);
+const jenisRejectOptions = ref([]);
+const isLoading = ref(true);
+const isSaving = ref(false);
+const isApproved = ref(false);
+
+const dialogs = reactive({ productSearch: false, stickerSearch: false, confirm: false });
+const isMultiSelectProduct = ref(false);
+const activeRowIndex = ref(0);
+const activeParentKode = ref('');
+const dialogConfirm = reactive({ show: false, title: '', text: '', onConfirm: () => { } });
+const formatRupiah = (value: number) => {
+    return new Intl.NumberFormat('id-ID').format(Math.round(value || 0));
+};
+const selectedKaosItem = ref<Item[]>([]);
+
+// --- Konfigurasi Tabel ---
+const itemsHeaders = computed(() => [
+    { title: 'Kode Kaos', key: 'kode', width: '100px' },
+    { title: 'Nama Barang', key: 'nama' },
+    { title: 'Ukuran', key: 'ukuran', width: '60px' },
+    { title: 'Stok', key: 'stok', align: 'end', width: '60px', 'v-if': !hasApprovalRights.value },
+    { title: 'Jumlah', key: 'jumlah', width: '60px' },
+    { title: 'Harga/Pcs', key: 'harga', align: 'end', width: '60px' },
+    { title: 'Harga DTF', key: 'hargaDtf', align: 'end', width: '60px' },
+    { title: 'Jenis', key: 'jenis', width: '100px' },
+    { title: 'Ket', key: 'ket', width: '100px' },
+    ...(hasApprovalRights.value ? [
+        { title: 'Diskon %', key: 'diskon', width: '60px' },
+        { title: 'Harga Baru', key: 'hargabaru', width: '90px' },
+        { title: 'Barcode Baru', key: 'kodebaru', width: '90px' },
+    ] : []),
+    { title: 'Actions', key: 'actions', sortable: false, width: '50px' },
+].filter(h => h['v-if'] !== false));
+
+const stickersHeaders = computed(() => [
+    { title: 'Kode Kaos Induk', key: 'kode', width: '150px' },
+    { title: 'Kode Stiker', key: 'kodes', width: '150px' },
+    { title: 'Nama Stiker', key: 'nama' },
+    { title: 'Ukuran', key: 'ukuran', width: '60px' },
+    { title: 'Stok', key: 'stok', align: 'end', width: '60px', 'v-if': !hasApprovalRights.value },
+    { title: 'Jumlah', key: 'jumlah', width: '60px' },
+    { title: 'Harga', key: 'harga', align: 'end', width: '80px' },
+    { title: 'Actions', key: 'actions', sortable: false, width: '50px' },
+].filter(h => h['v-if'] !== false));
+
+// --- Methods ---
+const addNewRow = () => {
+    const last = items.value[items.value.length - 1];
+    if (!last || last.kode) items.value.push({ id: Date.now() + Math.random(), kode: '', nama: '', ukuran: '', stok: 0, jumlah: 1, harga: 0, jenis: '', ket: '', barcode: '', diskon: 0, hargabaru: 0, kodebaru: '' });
+};
+
+const addNewStickerRow = () => {
+    // Tombol ini hanya akan aktif jika ada kaos yang dipilih
+    const parentKode = selectedKaosItem.value[0]?.kode;
+    if (!parentKode) {
+        toast.error('Pilih satu baris item kaos di tabel atas terlebih dahulu.');
+        return;
+    }
+
+    const lastStickerForParent = stickers.value.filter(s => s.kode === parentKode).pop();
+    if (!lastStickerForParent || lastStickerForParent.kodes) {
+        stickers.value.push({
+            id: Date.now() + Math.random(),
+            kode: parentKode, // Set kode induk
+            kodes: '', nama: '', ukuran: '', stok: 0, jumlah: 1, harga: 0, barcode: ''
+        });
+    }
+};
+
+const removeRow = (id: number) => { items.value = items.value.filter(i => i.id !== id); if (items.value.length === 0) addNewRow(); };
+const removeStickerRow = (id: number) => { stickers.value = stickers.value.filter(s => s.id !== id); };
+
+const openProductSearch = (index: number, isMulti: boolean) => {
+    activeRowIndex.value = index;
+    isMultiSelectProduct.value = isMulti;
+    dialogs.productSearch = true;
+};
+
+const calculateHargaDtf = () => {
+    items.value.forEach(item => {
+        if (!item.kode) return;
+        const totalStickerPrice = stickers.value
+            .filter(sticker => sticker.kode === item.kode)
+            .reduce((sum, sticker) => sum + (sticker.harga * sticker.jumlah), 0);
+        item.hargaDtf = (item.harga * item.jumlah) + totalStickerPrice;
+    });
+};
+
+const onProductsSelected = async (selectedProducts: any[]) => {
+    dialogs.productSearch = false;
+    const productsToAdd = selectedProducts.filter(p => !items.value.some(item => item.kode === p.kode && item.ukuran === p.ukuran));
+    if (productsToAdd.length === 0 && selectedProducts.length > 0) {
+        return toast.info('Semua produk yang dipilih sudah ada di daftar.');
+    }
+
+    try {
+        // Asumsi Anda punya endpoint untuk mendapatkan detail lengkap produk
+        const detailPromises = productsToAdd.map(p =>
+            api.get('/pengajuan-barcode-form/lookup/product-details', {
+                params: { kode: p.kode, ukuran: p.ukuran, gudang: authStore.user?.cabang }
+            })
+        );
+        const responses = await Promise.all(detailPromises);
+
+        const newItems = responses.map(res => ({
+            id: Date.now() + Math.random(),
+            kode: res.data.kode,
+            barcode: res.data.barcode,
+            nama: res.data.nama,
+            ukuran: res.data.ukuran,
+            stok: res.data.stok,
+            harga: res.data.harga,
+            hpp: res.data.hpp,
+            jumlah: 1,
+            jenis: '',
+            ket: '',
+            diskon: 0,
+            hargabaru: 0,
+            kodebaru: '',
+        }));
+
+        items.value.splice(activeRowIndex.value, 1, ...newItems);
+        addNewRow();
+    } catch (error) {
+        toast.error('Gagal memuat detail produk.');
+    }
+};
+
+const showConfirmation = (title: string, text: string, onConfirm: () => void) => { dialogConfirm.title = title; dialogConfirm.text = text; dialogConfirm.onConfirm = onConfirm; dialogConfirm.show = true; };
+const closeForm = () => router.push({ name: 'PengajuanBarcode' });
+const handleCancel = () => {
+    showConfirmation('Konfirmasi Batal', 'Batalkan semua perubahan dan kosongkan form?', resetForm);
+};
+const handleClose = () => showConfirmation('Konfirmasi Tutup', 'Tutup form?', closeForm);
+
+const save = () => {
+    // Validasi dari Delphi
+    if (!isEditMode.value && new Date(header.tanggal) < new Date(format(new Date(), 'yyyy-MM-dd'))) {
+        return toast.error('Tanggal tidak boleh mundur dari hari ini.');
+    }
+
+    const validItems = items.value.filter(i => i.kode);
+    if (validItems.length === 0) return toast.error('Detail item harus diisi.');
+
+    for (const item of validItems) {
+        if (!item.jumlah || item.jumlah <= 0) return toast.error(`Jumlah untuk item '${item.nama}' harus diisi.`);
+        if (!item.harga || item.harga <= 0) return toast.error(`Harga untuk item '${item.nama}' harus diisi.`);
+        if (!item.jenis) return toast.error(`Jenis untuk item '${item.nama}' harus diisi.`);
+        if (item.jumlah > item.stok && !hasApprovalRights.value) return toast.error(`Jumlah untuk '${item.nama}' tidak boleh melebihi stok.`);
+    }
+
+    showConfirmation('Konfirmasi Simpan', 'Anda yakin ingin menyimpan data ini?', executeSave);
+};
+
+const executeSave = async () => {
+    isSaving.value = true;
+    try {
+        const payload = {
+            header,
+            items: items.value.filter(i => i.kode),
+            stickers: stickers.value.filter(s => s.kodes),
+            isNew: !isEditMode.value,
+            isApproved: isApproved.value,
+        };
+        const response = await api.post('/pengajuan-barcode-form/save', payload);
+        toast.success(response.data.message);
+
+        router.push({ name: 'PengajuanBarcode' }); // Kembali ke browse
+    } catch (error: any) {
+        toast.error(error.response?.data?.message || 'Gagal menyimpan data.');
+    } finally {
+        isSaving.value = false;
+    }
+};
+
+const loadDataForEdit = async (nomor: string) => {
+    isLoading.value = true;
+    try {
+        const response = await api.get(`/pengajuan-barcode-form/${nomor}`);
+        const data = response.data;
+
+        Object.assign(header, data.header);
+        header.tanggal = format(parseISO(header.tanggal), 'yyyy-MM-dd');
+        isApproved.value = !!data.header.approved;
+
+        items.value = data.items.map((item: any) => ({
+            ...item,
+            id: Date.now() + Math.random(),
+            hargaDtf: 0,
+        }));
+
+        // --- PERBAIKAN DI SINI ---
+        stickers.value = data.stickers.map((item: any) => ({
+            id: Date.now() + Math.random(),
+            kode: item.pcs_kode,       // Ambil 'pcs_kode' sebagai kode kaos induk
+            kodes: item.pcs_kodes,     // Ambil 'pcs_kodes' sebagai kode stiker
+            barcode: item.barcode,
+            nama: item.nama,
+            ukuran: item.pcs_ukuran,   // Ambil 'pcs_ukuran'
+            stok: item.stok,
+            jumlah: item.pcs_jumlah,   // Ambil 'pcs_jumlah'
+            harga: item.harga,
+        }));
+
+        // --- Picu kalkulasi ulang setelah data terisi ---
+        calculateHargaDtf();
+
+        toast.success(`Data ${nomor} berhasil dimuat.`);
+    } catch (error: any) {
+        toast.error(error.response?.data?.message || 'Gagal memuat data.');
+        router.back();
+    } finally {
+        addNewRow();
+        addNewStickerRow('');
+        isLoading.value = false;
+    }
+};
+
+const resetForm = () => {
+    Object.assign(header, { nomor: '', tanggal: format(new Date(), 'yyyy-MM-dd'), approved: null });
+    items.value = [];
+    stickers.value = [];
+    addNewRow();
+    toast.info('Form telah dibersihkan.');
+};
+
+const openStickerSearch = (index: number) => {
+    if (selectedKaosItem.value.length === 0) {
+        return toast.error('Pilih satu baris item kaos di tabel atas untuk menambahkan stiker.');
+    }
+    activeRowIndex.value = index;
+    dialogs.stickerSearch = true;
+};
+
+const onStickersSelected = (selectedSticker: any) => {
+    dialogs.stickerSearch = false;
+    if (!selectedSticker) return;
+
+    // 1. Dapatkan item kaos induk yang sedang aktif dari tabel atas
+    const parentItem = selectedKaosItem.value[0];
+    if (!parentItem || !parentItem.kode) {
+        // Seharusnya tidak terjadi karena openStickerSearch sudah divalidasi, tapi ini sebagai pengaman
+        return toast.error('Kesalahan: Tidak ada item kaos induk yang dipilih.');
+    }
+
+    // 2. Cek duplikasi stiker untuk item kaos yang sama
+    const isDuplicate = stickers.value.some(s =>
+        s.kodes === selectedSticker.kode &&
+        s.ukuran === selectedSticker.ukuran &&
+        s.kode === parentItem.kode
+    );
+    if (isDuplicate) {
+        return toast.error('Stiker ini sudah ditambahkan untuk item kaos tersebut.');
+    }
+
+    // 3. Ambil baris stiker kosong yang akan diisi
+    const targetItem = stickers.value[activeRowIndex.value];
+
+    // 4. Isi semua data dengan benar
+    targetItem.kode = parentItem.kode;           // <- Mengambil dari kaos induk yang dipilih
+    targetItem.kodes = selectedSticker.kode;
+    targetItem.nama = selectedSticker.nama;
+    targetItem.barcode = selectedSticker.barcode;
+    targetItem.ukuran = selectedSticker.ukuran;       // <- Mengambil dari stiker yang dipilih
+    targetItem.stok = selectedSticker.stok;
+    targetItem.harga = selectedSticker.harga;
+    targetItem.jumlah = 1;                         // <- Set jumlah awal ke 1
+};
+
+watch([items, stickers], calculateHargaDtf, { deep: true });
+
+onMounted(async () => {
+    try {
+        const response = await api.get('/pengajuan-barcode-form/lookup/jenis-reject');
+        jenisRejectOptions.value = response.data;
+    } catch (e) { toast.error('Gagal memuat opsi Jenis.', e); }
+
+    const nomor = route.params.nomor as string;
+    if (isEditMode.value && nomor) {
+        // Panggil fungsi ini jika URL berisi nomor (mode edit)
+        await loadDataForEdit(nomor);
+    } else {
+        // Mode "Baru"
+        addNewRow();
+        addNewStickerRow('');
+        isLoading.value = false;
+    }
+});
+</script>
+
+<template>
+    <PageLayout :title="pageTitle" desktop-mode icon="mdi-barcode-scan">
+        <template #header-actions>
+            <v-btn size="small" color="primary" @click="save" :loading="isSaving">Simpan</v-btn>
+            <v-btn size="small" @click="handleCancel">Batal</v-btn>
+            <v-btn size="small" @click="handleClose">Tutup</v-btn>
+        </template>
+
+        <div class="form-grid-container">
+            <div class="left-column">
+                <div class="desktop-form-section header-section">
+                    <v-row dense>
+                        <v-col cols="12"><v-text-field label="No. Pengajuan" v-model="header.nomor" readonly filled
+                                hide-details density="compact" /></v-col>
+                        <v-col cols="12"><v-text-field label="Tanggal" v-model="header.tanggal" type="date"
+                                variant="outlined" hide-details density="compact" /></v-col>
+                        <v-checkbox v-if="hasApprovalRights" v-model="isApproved"
+                            :label="`Approved oleh: ${authStore.user?.kode}`" hide-details density="compact" />
+                    </v-row>
+                </div>
+            </div>
+
+            <div class="right-column">
+                <div class="desktop-form-section d-flex flex-column" style="min-height: 300px;">
+                    <div class="text-subtitle-1 font-weight-bold mb-2">Detail Item Pengajuan</div>
+                    <v-data-table v-model="selectedKaosItem" :headers="itemsHeaders" :items="items"
+                        class="desktop-table" fixed-header :items-per-page="-1" show-select single-select return-object>
+                        <template #item.kode="{ item, index }">
+                            <v-text-field v-model="item.kode" variant="underlined" placeholder="F1/F2..."
+                                @keydown.f1.prevent="openProductSearch(index, false)"
+                                @keydown.f2.prevent="openProductSearch(index, true)" :readonly="hasApprovalRights" />
+                        </template>
+                        <template #item.jumlah="{ item }"><v-text-field v-model.number="item.jumlah" type="number"
+                                variant="underlined" class="text-end" :readonly="hasApprovalRights" /></template>
+                        <template #item.harga="{ item }"><v-text-field v-model.number="item.harga" type="number"
+                                variant="underlined" class="text-end" :readonly="hasApprovalRights" /></template>
+                        <template #item.hargaDtf="{ item }"><v-text-field :model-value="formatRupiah(item.hargaDtf)"
+                                variant="underlined" class="text-end" readonly filled /></template>
+                        <template #item.jenis="{ item }">
+                            <v-select v-model="item.jenis" :items="jenisRejectOptions" variant="underlined"
+                                density="compact" hide-details :readonly="hasApprovalRights" />
+                        </template>
+                        <template #item.ket="{ item }"><v-text-field v-model="item.ket" variant="underlined"
+                                :readonly="hasApprovalRights" /></template>
+                        <template #item.diskon="{ item }"><v-text-field v-model.number="item.diskon" type="number"
+                                variant="underlined" class="text-end" :readonly="!hasApprovalRights" /></template>
+                        <template #item.hargabaru="{ item }"><v-text-field v-model.number="item.hargabaru" type="number"
+                                variant="underlined" class="text-end" :readonly="!hasApprovalRights" /></template>
+                        <template #item.actions="{ item }"><v-btn v-if="item.kode" icon="mdi-delete" size="x-small"
+                                variant="text" color="error" @click="removeRow(item.id)" /></template>
+                        <template #bottom>
+                            <div class="pa-2 text-right">
+                                <v-btn size="small" @click="addNewStickerRow" prepend-icon="mdi-plus"
+                                    :disabled="selectedKaosItem.length === 0">
+                                    Tambah Stiker
+                                </v-btn>
+                            </div>
+                        </template>
+                    </v-data-table>
+                </div>
+
+                <div class="desktop-form-section d-flex flex-column" style="min-height: 200px;">
+                    <div class="text-subtitle-1 font-weight-bold mb-2">Detail Stiker Tambahan</div>
+                    <v-data-table :headers="stickersHeaders" :items="stickers" class="desktop-table flex-grow-1"
+                        fixed-header :items-per-page="-1">
+                        <template #item.kodes="{ item, index }">
+                            <v-text-field v-model="item.kodes" variant="underlined" density="compact" hide-details
+                                placeholder="F1..." @keydown.f1.prevent="openStickerSearch(index)"
+                                :readonly="hasApprovalRights" />
+                        </template>
+                        <template #item.jumlah="{ item }"><v-text-field v-model.number="item.jumlah" type="number"
+                                variant="underlined" density="compact" hide-details class="text-end"
+                                :readonly="hasApprovalRights" /></template>
+                        <template #item.harga="{ item }">
+                            <div class="text-end">{{ formatRupiah(item.harga) }}</div>
+                        </template>
+                        <template #item.actions="{ item }"><v-btn v-if="item.kodes" icon="mdi-delete" size="x-small"
+                                variant="text" color="error" @click="removeStickerRow(item.id)" /></template>
+                        <template #bottom>
+                            <div class="pa-2 text-right"><v-btn size="small" @click="addNewStickerRow('')"
+                                    prepend-icon="mdi-plus">Tambah Stiker</v-btn></div>
+                        </template>
+                    </v-data-table>
+                </div>
+            </div>
+        </div>
+
+        <MintaBarangSearchModal v-if="dialogs.productSearch" source="pengajuan-barcode"
+            :gudang="authStore.user?.cabang || ''" :multi="isMultiSelectProduct" @close="dialogs.productSearch = false"
+            @products-selected="onProductsSelected" />
+        <StickerSearchModal v-if="dialogs.stickerSearch" :gudang="authStore.user?.cabang || ''"
+            @close="dialogs.stickerSearch = false" @selected="onStickersSelected" />
+
+        <v-dialog v-model="dialogConfirm.show" max-width="400px" persistent>
+            <v-card>
+                <v-card-title class="text-h6 font-weight-bold">{{ dialogConfirm.title }}</v-card-title>
+                <v-card-text>{{ dialogConfirm.text }}</v-card-text>
+                <v-card-actions>
+                    <v-spacer />
+                    <v-btn text @click="dialogConfirm.show = false">Batal</v-btn>
+                    <v-btn color="primary" variant="tonal"
+                        @click="dialogConfirm.onConfirm(); dialogConfirm.show = false;">Ya</v-btn>
+                </v-card-actions>
+            </v-card>
+        </v-dialog>
+    </PageLayout>
+</template>
+
+<style scoped>
+.form-grid-container {
+    padding: 12px;
+    height: 100%;
+    display: grid;
+    grid-template-columns: 350px 1fr;
+    /* Lebar kolom kiri 350px */
+    gap: 12px;
+}
+
+.left-column,
+.right-column {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    /* Jarak antara 2 tabel di kolom kanan */
+    min-height: 0;
+}
+
+.desktop-form-section {
+    display: flex;
+    flex-direction: column;
+}
+
+.right-column .desktop-form-section {
+    flex: 1;
+    /* Agar kedua bagian tabel mengisi ruang yang tersedia */
+}
+
+.v-data-table {
+    flex-grow: 1;
+    /* Agar tabel mengisi ruang di dalam section */
+}
+
+.text-end :deep(input) {
+    text-align: right;
+}
+</style>

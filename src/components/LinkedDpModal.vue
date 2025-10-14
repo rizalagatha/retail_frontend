@@ -4,6 +4,7 @@ interface DP {
     nomor: string;
     jenis: string;
     nominal: number;
+    tanggal?: string; // Format: YYYY-MM-DD atau ISO string
 }
 
 const props = defineProps<{
@@ -14,11 +15,22 @@ const emit = defineEmits(['close']);
 
 const headers = [
     { title: 'Nomor Setoran', key: 'nomor' },
+    { title: 'Tanggal', key: 'tanggal' },
     { title: 'Jenis', key: 'jenis' },
     { title: 'Nominal', key: 'nominal', align: 'end' },
 ] as const;
 
 const formatRupiah = (value: number) => new Intl.NumberFormat('id-ID').format(value || 0);
+
+const formatTanggal = (tanggal?: string) => {
+    if (!tanggal) return '-';
+    const date = new Date(tanggal);
+    return new Intl.DateTimeFormat('id-ID', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric'
+    }).format(date);
+};
 </script>
 
 <template>
@@ -36,6 +48,9 @@ const formatRupiah = (value: number) => new Intl.NumberFormat('id-ID').format(va
                     <template v-for="header in headers" #[`item.${header.key}`]="{ item }">
                         <template v-if="header.key === 'nominal'">
                             {{ formatRupiah(item[header.key]) }}
+                        </template>
+                        <template v-else-if="header.key === 'tanggal'">
+                            {{ formatTanggal(item[header.key]) }}
                         </template>
                         <template v-else>
                             {{ item[header.key] }}

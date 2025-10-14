@@ -92,10 +92,8 @@ onMounted(() => {
 </template>
 
 <style scoped>
-/* CSS ini dirancang khusus untuk hasil cetak di printer label */
 @page {
     size: 68mm 15mm;
-    /* Ukuran satu lembar (2 label) */
     margin: 0;
 }
 
@@ -115,15 +113,14 @@ html {
     justify-content: space-between !important;
     align-items: center;
     page-break-after: always;
-    /* Setiap sheet akan menjadi halaman baru saat print */
 }
 
 .barcode-container {
     box-sizing: border-box;
     width: 33mm;
-    /* Lebar satu label */
+    /* Lebar pasti untuk satu label */
     height: 15mm;
-    /* Tinggi satu label */
+    /* Tinggi pasti untuk satu label */
     display: flex !important;
     flex-direction: column;
     justify-content: center !important;
@@ -137,7 +134,6 @@ html {
 .item-size {
     font-family: Arial, sans-serif;
     font-size: 5px;
-    /* Font sangat kecil untuk label */
     line-height: 1.1;
     margin: 0;
     white-space: nowrap;

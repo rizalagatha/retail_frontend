@@ -95,6 +95,13 @@ import PengajuanBarcodeView from "@/views/PengajuanBarcodeView.vue";
 import PengajuanBarcodeCreateView from "@/views/PengajuanBarcodeCreateView.vue";
 import CetakBarcodeBaruView from "@/views/CetakBarcodeBaruView.vue";
 import LaporanMutasiStokView from "@/views/LaporanMutasiStokView.vue";
+import LaporanKartuStokView from "@/views/LaporanKartuStokView.vue";
+import LaporanListOtorisasiView from "@/views/LaporanListOtorisasiView.vue";
+import LaporanInvoiceView from "@/views/LaporanInvoiceView.vue";
+import LaporanSalesVsTargetView from "@/views/LaporanSalesVsTargetView.vue";
+import PotonganView from "@/views/PotonganView.vue";
+import PotonganCreateView from "@/views/PotonganCreateView.vue";
+
 
 const routes = [
   {
@@ -833,6 +840,26 @@ const routes = [
     },
   },
   {
+    path: "/piutang/potongan",
+    name: "Potongan",
+    component: PotonganView,
+    meta: {
+      title: "Potongan Pembayaran",
+      requiresAuth: true,
+      menuId: "53",
+    },
+  },
+    {
+    path: "/piutang/potongan/new",
+    name: "PotonganCreate",
+    component: PotonganCreateView,
+    meta: {
+      title: "Buat Potongan Baru",
+      requiresAuth: true,
+      menuId: "53",
+    },
+  },
+  {
     path: "/transaksi/penjualan/invoice",
     name: "Invoice",
     component: InvoiceView,
@@ -1170,6 +1197,46 @@ const routes = [
       menuId: "502",
     },
   },
+    {
+    path: "/laporan/kartu-stok",
+    name: "LaporanKartuStok",
+    component: LaporanKartuStokView,
+    meta: {
+      title: "Laporan Kartu Stok",
+      requiresAuth: true,
+      menuId: "502",
+    },
+  },
+  {
+    path: "/laporan/list-otorisasi",
+    name: "LaporanListOtorisasi",
+    component: LaporanListOtorisasiView,
+    meta: {
+      title: "Laporan List Otorisasi",
+      requiresAuth: true,
+      menuId: "502",
+    },
+  },
+  {
+    path: "/laporan/invoice",
+    name: "LaporanInvoice",
+    component: LaporanInvoiceView,
+    meta: {
+      title: "Laporan Invoice",
+      requiresAuth: true,
+      menuId: "502",
+    },
+  },
+  {
+    path: "/laporan/sales-vs-target",
+    name: "LaporanSalesVsTarget",
+    component: LaporanSalesVsTargetView,
+    meta: {
+      title: "Laporan Invoice",
+      requiresAuth: true,
+      menuId: "502",
+    },
+  },
   {
     path: "/pengaturan/whatsapp",
     name: "WhatsappLink",
@@ -1237,9 +1304,6 @@ router.beforeEach((to, from, next) => {
       return next({ name: "Unauthorized" }); // redirect ke home, bukan unauthorized
     }
   }
-
-  // Route public atau sudah punya akses
-  // console.log("[ROUTER] Access granted to:", to.name);
   next();
 });
 

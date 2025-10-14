@@ -109,7 +109,15 @@ import AmbilBarangView from "@/views/AmbilBarangView.vue";
 import AmbilBarangCreateView from "@/views/AmbilBarangCreateView.vue";
 import LaporanStokView from "@/views/LaporanStokView.vue";
 import LaporanMutasiStokView from "@/views/LaporanMutasiStokView.vue";
-import WhatsappLinkView from "@/views/WhatsappLinkView.vue";
+import LaporanKartuStokView from "@/views/LaporanKartuStokView.vue";
+import LaporanListOtorisasiView from "@/views/LaporanListOtorisasiView.vue";
+import LaporanInvoiceView from "@/views/LaporanInvoiceView.vue";
+import LaporanSalesVsTargetView from "@/views/LaporanSalesVsTargetView.vue";
+import PotonganView from "@/views/PotonganView.vue";
+import PotonganCreateView from "@/views/PotonganCreateView.vue";
+import RefundView from "@/views/RefundView.vue";
+import RefundCreateView from "@/views/RefundCreateView.vue";
+import QckeGarmenView from "@/views/QCkeGarmenView.vue";
 
 const routes = [
   {
@@ -668,6 +676,16 @@ const routes = [
     },
   },
   {
+    path: '/gudang-dc/operasional/qc-ke-garmen',
+    name: 'QckeGarmen',
+    component: QckeGarmenView,
+    meta: {
+      title: 'QC ke Garmen',
+      requiresAuth: true,
+      menuId: '215',
+    },
+  },
+  {
     path: "/transaksi/internal/terima-sj",
     name: "TerimaSj",
     component: TerimaSjView,
@@ -845,6 +863,46 @@ const routes = [
       requiresAuth: true,
       printLayout: true,
       layout: "PrintLayout",
+    },
+  },
+  {
+    path: "/piutang/potongan",
+    name: "Potongan",
+    component: PotonganView,
+    meta: {
+      title: "Potongan Pembayaran",
+      requiresAuth: true,
+      menuId: "53",
+    },
+  },
+    {
+    path: "/piutang/potongan/new",
+    name: "PotonganCreate",
+    component: PotonganCreateView,
+    meta: {
+      title: "Buat Potongan Baru",
+      requiresAuth: true,
+      menuId: "53",
+    },
+  },
+  {
+    path: "/piutang/refund",
+    name: "Refund",
+    component: RefundView,
+    meta: {
+      title: "Refund",
+      requiresAuth: true,
+      menuId: "55",
+    },
+  },
+    {
+    path: "/piutang/refund/new",
+    name: "refundCreate",
+    component: RefundCreateView,
+    meta: {
+      title: "Buat Refund Baru",
+      requiresAuth: true,
+      menuId: "55",
     },
   },
   {
@@ -1338,6 +1396,46 @@ const routes = [
       menuId: "502",
     },
   },
+    {
+    path: "/laporan/kartu-stok",
+    name: "LaporanKartuStok",
+    component: LaporanKartuStokView,
+    meta: {
+      title: "Laporan Kartu Stok",
+      requiresAuth: true,
+      menuId: "502",
+    },
+  },
+  {
+    path: "/laporan/list-otorisasi",
+    name: "LaporanListOtorisasi",
+    component: LaporanListOtorisasiView,
+    meta: {
+      title: "Laporan List Otorisasi",
+      requiresAuth: true,
+      menuId: "502",
+    },
+  },
+  {
+    path: "/laporan/invoice",
+    name: "LaporanInvoice",
+    component: LaporanInvoiceView,
+    meta: {
+      title: "Laporan Invoice",
+      requiresAuth: true,
+      menuId: "502",
+    },
+  },
+  {
+    path: "/laporan/sales-vs-target",
+    name: "LaporanSalesVsTarget",
+    component: LaporanSalesVsTargetView,
+    meta: {
+      title: "Laporan Invoice",
+      requiresAuth: true,
+      menuId: "502",
+    },
+  },
   {
     path: "/pengaturan/whatsapp",
     name: "WhatsappLink",
@@ -1405,9 +1503,6 @@ router.beforeEach((to, from, next) => {
       return next({ name: "Unauthorized" }); // redirect ke home, bukan unauthorized
     }
   }
-
-  // Route public atau sudah punya akses
-  // console.log("[ROUTER] Access granted to:", to.name);
   next();
 });
 

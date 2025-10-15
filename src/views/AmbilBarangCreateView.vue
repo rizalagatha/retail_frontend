@@ -8,6 +8,7 @@ import { format } from 'date-fns';
 import PageLayout from '@/components/PageLayout.vue';
 import MintaBarangSearchModal from '@/components/MintaBarangSearchModal.vue';
 import GudangSearchModal from '@/components/GudangSearchModal.vue';
+import AuthorizationModal from '@/components/AuthorizationModal.vue';
 
 // --- Tipe Data ---
 interface FormHeader {
@@ -60,11 +61,24 @@ const items = ref<DetailItem[]>([]);
 const scannedBarcode = ref('');
 const activeRowIndex = ref(0);
 const isMultiSelectProduct = ref(false);
+const isClosed = ref(false);
 
 // --- State Modal & Otorisasi ---
 const isLookupVisible = ref(false);
 const isGudangLookupVisible = ref(false);
 const authDialog = reactive({ show: false, code: '', input: '' });
+const authModalRef = ref<InstanceType<typeof AuthorizationModal> | null>(null); // <-- 2. Ref untuk modal
+const authModal = reactive({ // <-- 3. Ganti nama dari authDialog
+    show: false,
+    challengeCode: '',
+});
+const approvalInfo = ref({ status: '', urut: 0 });
+const dialogConfirm = reactive({
+    show: false,
+    title: '',
+    text: '',
+    onConfirm: () => { },
+});
 
 // --- Computed Properties ---
 const pageTitle = computed(() => isEditMode.value ? 'Ubah Pengambilan Barang' : 'Buat Pengambilan Barang');
@@ -82,6 +96,22 @@ const headers = [
 ];
 
 // --- Methods ---
+const showConfirmation = (title: string, text: string, onConfirm: () => void) => {
+    dialogConfirm.title = title;
+    dialogConfirm.text = text;
+    dialogConfirm.onConfirm = onConfirm;
+    dialogConfirm.show = true;
+};
+
+const refreshdata = () => {
+    formHeader.value.peminta = '';
+    formHeader.value.tanggal = format(new Date(), 'yyyy-MM-dd');
+    // reset header lain jika perlu
+    items.value = [];
+    addNewRow();
+    toast.info('Form telah dibatalkan dan direset.');
+};
+
 const addNewRow = () => {
     if (!items.value.some(item => !item.kode)) {
         items.value.push({
@@ -92,11 +122,24 @@ const addNewRow = () => {
 };
 
 const loadDataForEdit = async (id: string) => {
+    loading.value = true;
     try {
+        // 1. Ambil data utama (header & item)
         const response = await api.get(`/ambil-barang-form/${id}`);
         formHeader.value = response.data.header;
         items.value = response.data.items.map((item: any) => ({ ...item, id: Math.random() }));
         addNewRow();
+
+        if (response.data.header.closing === 'Y') {
+            isClosed.value = true;
+            toast.warning('Dokumen ini sudah di-closing dan tidak dapat diubah.');
+        }
+
+        // 2. Ambil status approval jika tanggal transaksi < tanggal closing (logika disederhanakan)
+        // Anda perlu logika tanggal closing yang lebih detail di sini jika diperlukan
+        const responseStatus = await api.get(`/ambil-barang-form/${id}/approval-status`);
+        approvalInfo.value = responseStatus.data;
+
     } catch (error: any) {
         toast.error(error.response?.data?.message || 'Gagal memuat data.');
         router.back();
@@ -269,26 +312,39 @@ const validateForm = () => {
 };
 
 const handleSave = () => {
-    if (!validateForm()) return;
-
-    // Tampilkan dialog otorisasi
-    authDialog.code = String(Math.floor(Math.random() * (999 - 100 + 1) + 100));
-    authDialog.input = '';
-    authDialog.show = true;
-};
-
-const submitSave = async () => {
-    const expectedAuth = (parseFloat(authDialog.code) * 11 + 33 * 3);
-    if (parseFloat(authDialog.input) !== expectedAuth) {
-        toast.error('Kode Otorisasi Salah!');
+    // Validasi status approval (meniru `btnSimpanClick` Delphi)
+    if (isEditMode.value && ['MINTA', 'WAIT', 'TOLAK'].includes(approvalInfo.value.status)) {
+        toast.warning('Transaksi ini sudah ditutup. Silakan ajukan & tunggu persetujuan untuk mengubah data.');
         return;
     }
-    authDialog.show = false;
 
+    if (!validateForm()) return;
+
+    showConfirmation('Konfirmasi Simpan', 'Apakah Anda yakin ingin menyimpan data ini?', () => {
+        // Logika otorisasi yang sudah ada dipindahkan ke dalam onConfirm
+        authModal.challengeCode = String(Math.floor(Math.random() * (999 - 100 + 1) + 100));
+        authModal.show = true;
+    });
+};
+
+const handleBatal = () => {
+    showConfirmation('Konfirmasi Batal', 'Semua perubahan yang belum disimpan akan hilang. Lanjutkan?', () => {
+        refreshdata();
+    });
+};
+
+const handleTutup = () => {
+    showConfirmation('Konfirmasi Tutup', 'Anda yakin ingin menutup form ini?', () => {
+        router.back();
+    });
+};
+
+const executeSave = async () => {
     try {
         const payload = {
             header: formHeader.value,
             items: items.value.filter(item => item.kode && item.jumlah > 0),
+            approvalInfo: approvalInfo.value
         };
 
         const response = isEditMode.value
@@ -302,6 +358,24 @@ const submitSave = async () => {
     }
 };
 
+const onAuthSuccess = async (pin: string) => {
+    try {
+        // Panggil API validasi yang BARU dan SPESIFIK
+        await api.post('/ambil-barang-form/validate-pin', { // <-- UBAH ENDPOINT DI SINI
+            code: authModal.challengeCode,
+            pin: pin,
+        });
+
+        // Jika berhasil, tutup modal dan lanjutkan simpan
+        authModal.show = false;
+        await executeSave();
+
+    } catch (error: any) {
+        // Jika gagal, tampilkan error di dalam modal
+        const message = error.response?.data?.message || 'Terjadi kesalahan';
+        authModalRef.value?.setFailed(message);
+    }
+};
 
 onMounted(() => {
     const id = route.params.id as string;
@@ -319,14 +393,32 @@ onMounted(() => {
 <template>
     <PageLayout :title="pageTitle" :menu-id="MENU_ID">
         <template #header-actions>
-            <v-btn color="primary" @click="handleSave">Simpan</v-btn>
-            <v-btn @click="router.back()">Batal</v-btn>
+            <v-btn color="primary" @click="handleSave" :disabled="isClosed">Simpan</v-btn>
+            <v-btn variant="tonal" @click="handleBatal">Batal</v-btn>
+            <v-btn @click="handleTutup">Tutup</v-btn>
         </template>
 
         <div v-if="loading" class="state-container"><v-progress-circular indeterminate /></div>
         <div v-else class="form-grid-container">
             <div class="left-column">
                 <div class="desktop-form-section header-section">
+                    <v-alert v-if="isEditMode && approvalInfo.status && approvalInfo.status !== 'ACC'"
+                        :color="approvalInfo.status === 'WAIT' ? 'orange' : (approvalInfo.status === 'TOLAK' ? 'error' : 'info')"
+                        density="compact" class="mb-3" variant="tonal">
+                        <template v-if="approvalInfo.status === 'MINTA'">
+                            Perlu Pengajuan Ubah
+                        </template>
+                        <template v-else-if="approvalInfo.status === 'WAIT'">
+                            Menunggu Persetujuan
+                        </template>
+                        <template v-else-if="approvalInfo.status === 'TOLAK'">
+                            Pengajuan Ditolak
+                        </template>
+                    </v-alert>
+                    <v-alert v-if="isEditMode && approvalInfo.status === 'ACC'" color="success" density="compact"
+                        class="mb-3" variant="tonal">
+                        Perubahan Disetujui
+                    </v-alert>
                     <v-text-field label="Nomor" v-model="formHeader.nomor" readonly variant="filled" density="compact"
                         hide-details />
                     <v-text-field label="Tanggal" v-model="formHeader.tanggal" type="date" density="compact"
@@ -386,17 +478,17 @@ onMounted(() => {
             </div>
         </div>
 
-        <v-dialog v-model="authDialog.show" max-width="350px" persistent>
+        <v-dialog v-model="dialogConfirm.show" max-width="400px" persistent>
             <v-card>
-                <v-card-title>Masukkan Otorisasi</v-card-title>
-                <v-card-text>
-                    <v-text-field label="Kode" v-model="authDialog.code" readonly variant="filled" />
-                    <v-text-field label="Otorisasi" v-model="authDialog.input" autofocus @keydown.enter="submitSave" />
-                </v-card-text>
+                <v-card-title class="text-h6 font-weight-bold">{{ dialogConfirm.title }}</v-card-title>
+                <v-card-text v-html="dialogConfirm.text"></v-card-text>
                 <v-card-actions>
                     <v-spacer />
-                    <v-btn color="warning" text @click="authDialog.show = false">Batal</v-btn>
-                    <v-btn color="primary" @click="submitSave">OK</v-btn>
+                    <v-btn text @click="dialogConfirm.show = false">Tidak</v-btn>
+                    <v-btn color="primary" variant="tonal"
+                        @click="() => { dialogConfirm.onConfirm(); dialogConfirm.show = false; }">
+                        Ya
+                    </v-btn>
                 </v-card-actions>
             </v-card>
         </v-dialog>
@@ -406,6 +498,9 @@ onMounted(() => {
 
         <GudangSearchModal v-if="isGudangLookupVisible" :user-cabang="authStore.user?.cabang || ''" source="retur-dc"
             @close="isGudangLookupVisible = false" @gudang-selected="onGudangSelected" />
+
+        <AuthorizationModal v-if="authModal.show" ref="authModalRef" title="Masukkan Otorisasi"
+            :challenge-code="authModal.challengeCode" @close="authModal.show = false" @success="onAuthSuccess" />
     </PageLayout>
 </template>
 

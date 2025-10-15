@@ -7,6 +7,7 @@ import api from '@/services/api';
 import { format, subDays, parseISO } from 'date-fns';
 import PageLayout from '@/components/PageLayout.vue';
 import MintaBarangSearchModal from '@/components/MintaBarangSearchModal.vue';
+import * as XLSX from 'xlsx';
 
 // --- Tipe Data ---
 interface MasterItem {
@@ -163,6 +164,28 @@ const handleProductSelected = (products: any[]) => {
     isLookupVisible.value = false;
 };
 
+const exportData = async (type: 'header' | 'detail') => {
+    if (type === 'header') {
+        if (masterData.value.length === 0) return toast.warning('Tidak ada data header untuk diexport.');
+        const worksheet = XLSX.utils.json_to_sheet(masterData.value);
+        const workbook = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(workbook, worksheet, "Pengambilan Barang");
+        XLSX.writeFile(workbook, "Export_Pengambilan_Barang_Header.xlsx");
+    } else if (type === 'detail') {
+        try {
+            const response = await api.get('/ambil-barang/export-detail', { params: filters });
+            if (response.data.length === 0) return toast.warning('Tidak ada data detail untuk diexport pada filter ini.');
+
+            const worksheet = XLSX.utils.json_to_sheet(response.data);
+            const workbook = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(workbook, worksheet, "Detail Pengambilan Barang");
+            XLSX.writeFile(workbook, "Export_Pengambilan_Barang_Detail.xlsx");
+        } catch (error) {
+            toast.error('Gagal mengekspor data detail.', error);
+        }
+    }
+};
+
 onMounted(fetchMasterData);
 
 watch(() => filters.kodeBarang, (newValue) => {
@@ -183,6 +206,22 @@ watch(() => filters.kodeBarang, (newValue) => {
                 :disabled="!canEdit">Ubah</v-btn>
             <v-btn v-if="authStore.can(MENU_ID, 'delete')" size="small" color="error" @click="handleDelete"
                 :disabled="!canDelete">Hapus</v-btn>
+            <v-menu offset-y>
+                <template v-slot:activator="{ props }">
+                    <v-btn v-if="authStore.can(MENU_ID, 'view')" size="small" color="teal" prepend-icon="mdi-file-excel"
+                        v-bind="props">
+                        Export
+                    </v-btn>
+                </template>
+                <v-list density="compact">
+                    <v-list-item @click="exportData('header')">
+                        <v-list-item-title>Export Header</v-list-item-title>
+                    </v-list-item>
+                    <v-list-item @click="exportData('detail')">
+                        <v-list-item-title>Export Detail</v-list-item-title>
+                    </v-list-item>
+                </v-list>
+            </v-menu>
         </template>
 
         <div class="browse-content">

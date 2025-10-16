@@ -1,11 +1,14 @@
 <script setup lang="ts">
-import { ref } from 'vue'
-import { useAuthStore } from '@/stores/authStore'
-import { useRouter } from 'vue-router'
-import logoUrl from '@/assets/logo.png'
+import { ref, onMounted } from 'vue';
+import { useAuthStore } from '@/stores/authStore';
+import { useRouter } from 'vue-router';
+import logoUrl from '@/assets/logo.png';
+import api from '@/services/api';
+import { useToast } from 'vue-toastification';
 
 const authStore = useAuthStore()
 const router = useRouter()
+const toast = useToast();
 
 const goToLogin = () => {
   router.push('/login')
@@ -13,11 +16,14 @@ const goToLogin = () => {
 
 // Sample data - ganti dengan data dari API
 const stats = ref({
-  todaySales: 2450000,
-  todayTransactions: 47,
-  lowStock: 12,
-  totalProducts: 1247
-})
+  todaySales: 0,
+  todayTransactions: 0,
+  lowStock: 0,
+  totalProducts: 0,
+  totalProductsAktif: 0, // <-- Tambahkan ini
+  totalProductsPasif: 0, // <-- Tambahkan ini
+});
+const isLoadingStats = ref(true);
 
 const recentTransactions = ref([
   { id: 'TRX001', customer: 'John Doe', amount: 150000, time: '10:30' },
@@ -25,11 +31,9 @@ const recentTransactions = ref([
   { id: 'TRX003', customer: 'Bob Wilson', amount: 200000, time: '09:45' }
 ])
 
-const lowStockProducts = ref([
-  { name: 'Beras Premium 5kg', stock: 3, minStock: 10 },
-  { name: 'Minyak Goreng 1L', stock: 5, minStock: 15 },
-  { name: 'Gula Pasir 1kg', stock: 2, minStock: 20 }
-])
+const lowStockProducts = ref([]);
+const lowStockCount = ref(0);
+const isLoadingLowStock = ref(true);
 
 // Computed untuk format currency
 const formatCurrency = (amount: number) => {
@@ -42,10 +46,55 @@ const formatCurrency = (amount: number) => {
 
 const currentTime = ref(new Date().toLocaleString('id-ID'))
 
+const fetchDashboardStats = async () => {
+  isLoadingStats.value = true;
+  try {
+    // Panggil endpoint baru untuk total produk
+    const response = await api.get('/barang-dc/summary/total');
+    stats.value.totalProducts = response.data.total;
+    stats.value.totalProductsAktif = response.data.totalAktif;
+    stats.value.totalProductsPasif = response.data.totalPasif;
+
+    // Di sini Anda juga bisa memanggil API lain untuk data statistik lainnya
+    // Contoh: const salesResponse = await api.get('/sales/summary/today');
+    // stats.value.todaySales = salesResponse.data.total;
+
+  } catch (error) {
+    toast.error('Gagal memuat data statistik dashboard.');
+  } finally {
+    isLoadingStats.value = false;
+  }
+};
+
+const fetchLowStockData = async () => {
+  isLoadingLowStock.value = true;
+  try {
+    const response = await api.get('/laporan-stok/low-stock');
+    const lowStockData = response.data;
+
+    lowStockCount.value = lowStockData.length;
+    // HAPUS .slice(0, 5) agar semua data masuk ke list
+    lowStockProducts.value = lowStockData;
+
+  } catch (error) {
+    toast.error('Gagal memuat data stok menipis.');
+  } finally {
+    isLoadingLowStock.value = false;
+  }
+}
+
 // Update time setiap menit
 setInterval(() => {
   currentTime.value = new Date().toLocaleString('id-ID')
 }, 60000)
+
+onMounted(() => {
+  if (authStore.isAuthenticated) {
+    fetchLowStockData();
+    fetchDashboardStats();
+    // Anda juga bisa memanggil API lain di sini untuk mengisi stats & recentTransactions
+  }
+});
 </script>
 
 <template>
@@ -103,7 +152,7 @@ setInterval(() => {
         <v-card class="stat-card" color="warning" variant="tonal">
           <v-card-text class="text-center">
             <v-icon size="40" class="mb-2">mdi-alert-circle</v-icon>
-            <div class="text-h4 font-weight-bold">{{ stats.lowStock }}</div>
+            <div class="text-h4 font-weight-bold">{{ isLoadingLowStock ? '...' : lowStockCount }}</div>
             <div class="text-subtitle-2">Stok Menipis</div>
           </v-card-text>
         </v-card>
@@ -112,9 +161,23 @@ setInterval(() => {
       <v-col cols="12" sm="6" md="3">
         <v-card class="stat-card" color="primary" variant="tonal">
           <v-card-text class="text-center">
-            <v-icon size="40" class="mb-2">mdi-package-variant</v-icon>
-            <div class="text-h4 font-weight-bold">{{ stats.totalProducts }}</div>
+            <v-icon size="40" class="mb-2">mdi-package-variant-closed</v-icon>
+            <div class="text-h4 font-weight-bold">
+              <span v-if="isLoadingStats">...</span>
+              <span v-else>{{ stats.totalProducts.toLocaleString('id-ID') }}</span>
+            </div>
             <div class="text-subtitle-2">Total Produk</div>
+
+            <div v-if="!isLoadingStats" class="d-flex justify-center align-center ga-3 mt-2 text-caption">
+              <span class="d-flex align-center">
+                <v-icon color="success" size="x-small" class="mr-1">mdi-check-circle</v-icon>
+                {{ stats.totalProductsAktif }} Aktif
+              </span>
+              <span class="d-flex align-center">
+                <v-icon color="error" size="x-small" class="mr-1">mdi-close-circle</v-icon>
+                {{ stats.totalProductsPasif }} Pasif
+              </span>
+            </div>
           </v-card-text>
         </v-card>
       </v-col>
@@ -134,7 +197,7 @@ setInterval(() => {
               <v-col cols="6" sm="4">
                 <v-btn block color="primary" variant="elevated" size="large" class="mb-2" to="/transaksi">
                   <v-icon class="mr-2">mdi-cash-register</v-icon>
-                  Transaksi Baru
+                  Transaksi
                 </v-btn>
               </v-col>
               <v-col cols="6" sm="4">
@@ -178,23 +241,30 @@ setInterval(() => {
             Peringatan Stok Menipis
           </v-card-title>
           <v-card-text>
-            <v-list dense>
-              <v-list-item v-for="product in lowStockProducts" :key="product.name" class="px-0">
-                <v-list-item-content>
-                  <v-list-item-title>{{ product.name }}</v-list-item-title>
-                  <v-list-item-subtitle>
-                    Sisa: {{ product.stock }} | Min: {{ product.minStock }}
-                  </v-list-item-subtitle>
-                </v-list-item-content>
-                <v-list-item-action>
-                  <v-chip color="warning" size="small">
-                    {{ product.stock }}
+            <div v-if="isLoadingLowStock" class="text-center pa-4">
+              <v-progress-circular indeterminate color="warning"></v-progress-circular>
+              <div class="mt-2">Memuat data...</div>
+            </div>
+            <div v-else-if="lowStockProducts.length === 0" class="text-center pa-4">
+              <v-icon size="48" color="success">mdi-check-circle-outline</v-icon>
+              <div class="mt-2">Stok aman! Tidak ada produk yang menipis.</div>
+            </div>
+            <v-list v-else dense bg-color="transparent" class="scrollable-list">
+              <v-list-item v-for="product in lowStockProducts" :key="product.KODE" class="px-0">
+                <v-list-item-title class="font-weight-bold">{{ product.NAMA }}</v-list-item-title>
+                <v-list-item-subtitle>
+                  Sisa: {{ product.TOTAL }} | Buffer: {{ product.Buffer }}
+                </v-list-item-subtitle>
+                <template #append>
+                  <v-chip color="error" size="small" variant="flat">
+                    Sisa {{ product.TOTAL }}
                   </v-chip>
-                </v-list-item-action>
+                </template>
               </v-list-item>
             </v-list>
-            <v-btn color="warning" variant="outlined" block class="mt-3" to="/daftar">
-              Kelola Stok Produk
+
+            <v-btn color="warning" variant="outlined" block class="mt-3" to="/laporan/stok">
+              Lihat Laporan Lengkap
             </v-btn>
           </v-card-text>
         </v-card>
@@ -296,6 +366,12 @@ setInterval(() => {
 
 .v-btn {
   text-transform: none;
+}
+
+.scrollable-list {
+  max-height: 180px;
+  /* Atur tinggi maksimal yang Anda inginkan */
+  overflow-y: auto;
 }
 
 /* Responsive adjustments */

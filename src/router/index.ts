@@ -2,9 +2,11 @@ import { createRouter, createWebHistory } from "vue-router";
 import { useAuthStore } from "@/stores/authStore";
 
 // Impor semua komponen View/halaman Anda
-import DaftarIndex from "@/views/DaftarIndex.vue";
 import LoginView from "../views/LoginView.vue";
 import HomeView from "../views/HomeView.vue";
+import DaftarIndex from "@/views/DaftarIndex.vue";
+import TransaksiIndex from "@/views/TransaksiIndex.vue";
+import TransaksiSectionIndex from "@/views/TransaksiSectionIndex.vue";
 import NotFoundView from "@/views/NotFoundView.vue";
 import UnauthorizedView from "@/views/UnauthorizedView.vue";
 import ManualProgramView from "../views/ManualProgramView.vue";
@@ -107,6 +109,9 @@ import TerimaRepairView from "@/views/TerimaRepairView.vue";
 import TerimaRepairCreateView from "@/views/TerimaRepairCreateView.vue";
 import AmbilBarangView from "@/views/AmbilBarangView.vue";
 import AmbilBarangCreateView from "@/views/AmbilBarangCreateView.vue";
+import ProformaView from "@/views/ProformaView.vue";
+import ProformaCreateView from "@/views/ProformaCreateView.vue";
+import ProformaPrintView from "@/views/ProformaPrintView.vue";
 import LaporanStokView from "@/views/LaporanStokView.vue";
 import LaporanMutasiStokView from "@/views/LaporanMutasiStokView.vue";
 import WhatsappLinkView from "@/views/WhatsappLinkView.vue";
@@ -224,6 +229,21 @@ const routes = [
       requiresAuth: true,
       // menuId tidak diperlukan di sini karena ini adalah halaman navigasi
     },
+  },
+  {
+    path: "/transaksi",
+    name: "Transaksi",
+    component: TransaksiIndex,
+    meta: {
+      title: "Menu Transaksi",
+      requiresAuth: true,
+    },
+  },
+  {
+    path: "/transaksi/:section", // Halaman dinamis untuk setiap seksi
+    name: "TransaksiSection",
+    component: TransaksiSectionIndex,
+    meta: { requiresAuth: true }, // Judul akan diatur di dalam komponen
   },
   {
     path: "/daftar/customers",
@@ -546,6 +566,40 @@ const routes = [
       requiresAuth: true,
       printLayout: true,
       layout: "PrintLayout",
+    },
+  },
+  {
+    path: "/transaksi/penjualan/proforma",
+    name: "Proforma",
+    component: ProformaView,
+    meta: {
+      title: "Proforma Invoice",
+      requiresAuth: true, // Asumsi perlu login
+      menuId: "28",
+    },
+  },
+  {
+    path: "/transaksi/penjualan/proforma/create",
+    name: "ProformaCreate",
+    component: ProformaCreateView,
+    meta: { title: "Buat Proforma Invoice", requiresAuth: true, menuId: "28" },
+  },
+  {
+    path: "/transaksi/penjualan/proforma/edit/:id",
+    name: "ProformaEdit",
+    component: ProformaCreateView, // Menggunakan komponen yang sama
+    meta: { title: "Ubah Proforma Invoice", requiresAuth: true, menuId: "28" },
+  },
+  {
+    path: "/transaksi/penjualan/proforma/print/:nomor",
+    name: "ProformaPrint",
+    component: ProformaPrintView,
+    meta: {
+      title: "Cetak Proforma Invoice",
+      requiresAuth: true,
+      menuId: "28",
+      layout: "PrintLayout",
+      printLayout: true,
     },
   },
   {

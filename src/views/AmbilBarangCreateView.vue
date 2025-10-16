@@ -393,8 +393,8 @@ onMounted(() => {
 <template>
     <PageLayout :title="pageTitle" :menu-id="MENU_ID">
         <template #header-actions>
-            <v-btn color="primary" @click="handleSave" :disabled="isClosed">Simpan</v-btn>
-            <v-btn variant="tonal" @click="handleBatal">Batal</v-btn>
+            <v-btn size="small" color="primary" @click="handleSave" :disabled="isClosed">Simpan</v-btn>
+            <v-btn size="small" variant="tonal" @click="handleBatal">Batal</v-btn>
             <v-btn @click="handleTutup">Tutup</v-btn>
         </template>
 

@@ -155,7 +155,7 @@ const menuItems = [
             ]
           },
           { title: 'Surat Pesanan', to: '/transaksi/penjualan/surat-pesanan', icon: 'mdi-file-document-edit-outline' },
-          { title: 'Proforma Invoice', to: '/proforma-invoices', icon: 'mdi-receipt-text-outline' },
+          { title: 'Proforma Invoice', to: '/transaksi/penjualan/proforma', icon: 'mdi-receipt-text-outline' },
           { title: 'Invoice', to: '/transaksi/penjualan/invoice', icon: 'mdi-receipt' },
           { title: 'Retur Jual', to: '/transaksi/penjualan/retur-jual', icon: 'mdi-keyboard-return' }
         ]
@@ -170,7 +170,7 @@ const menuItems = [
           { title: 'Retur Barang ke DC', to: '/transaksi/internal/retur-dc', icon: 'mdi-undo-variant' },
           { title: 'Koreksi Stok', to: '/transaksi/internal/koreksi-stok', icon: 'mdi-pencil-outline' },
           { title: 'Pengajuan Barcode Baru', to: '/transaksi/internal/pengajuan-barcode', icon: 'mdi-barcode' },
-          { title: 'Klerek', to: '/klerek', icon: 'mdi-clipboard-check-outline' }
+          { title: 'Klerek', to: '/transaksi/internal/klerek', icon: 'mdi-clipboard-check-outline' }
         ]
       },
       {
@@ -183,7 +183,44 @@ const menuItems = [
           { title: 'Mutasi Antar Store (Kirim)', to: '/transaksi/mutasi/store-kirim', icon: 'mdi-send' },
           { title: 'Mutasi Antar Store (Terima)', to: '/transaksi/mutasi/store-terima', icon: 'mdi-inbox-arrow-down' }
         ]
+      },
+      {
+        title: 'Stok Opname',
+        icon: 'mdi-clipboard-list-outline', // ikon umum untuk stok opname / pencatatan stok
+        items: [
+          {
+            title: 'List HPP Kosong Ada Stok',
+            to: '/transaksi/stok-opname/hpp-kosong',
+            icon: 'mdi-currency-usd-off', // menunjukkan harga (HPP) kosong
+          },
+          {
+            title: 'Setting Tanggal',
+            to: '/transaksi/stok-opname/setting-tanggal',
+            icon: 'mdi-calendar-edit-outline', // pengaturan tanggal
+          },
+          {
+            title: 'Input Hitung Stok',
+            to: '/transaksi/stok-opname/input-hitung-stok',
+            icon: 'mdi-clipboard-edit-outline', // input data stok
+          },
+          {
+            title: 'Hitung Stok per Lokasi',
+            to: '/transaksi/stok-opname/hitung-per-lokasi',
+            icon: 'mdi-map-marker-multiple-outline', // lokasi-lokasi stok
+          },
+          {
+            title: 'Cek Selisih',
+            to: '/transaksi/stok-opname/cek-selisih',
+            icon: 'mdi-scale-balance', // perbandingan/selisih stok
+          },
+          {
+            title: 'Proses',
+            to: '/transaksi/stok-opname/proses',
+            icon: 'mdi-progress-check', // proses atau eksekusi perhitungan
+          },
+        ],
       }
+
     ]
   },
   {

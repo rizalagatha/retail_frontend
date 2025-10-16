@@ -101,6 +101,11 @@ import LaporanInvoiceView from "@/views/LaporanInvoiceView.vue";
 import LaporanSalesVsTargetView from "@/views/LaporanSalesVsTargetView.vue";
 import PotonganView from "@/views/PotonganView.vue";
 import PotonganCreateView from "@/views/PotonganCreateView.vue";
+import RefundView from "@/views/RefundView.vue";
+import RefundCreateView from "@/views/RefundCreateView.vue";
+import QckeGarmenView from "@/views/QCkeGarmenView.vue";
+
+
 
 
 const routes = [
@@ -660,6 +665,16 @@ const routes = [
     },
   },
   {
+    path: '/gudang-dc/operasional/qc-ke-garmen',
+    name: 'QckeGarmen',
+    component: QckeGarmenView,
+    meta: {
+      title: 'QC ke Garmen',
+      requiresAuth: true,
+      menuId: '215',
+    },
+  },
+  {
     path: "/transaksi/internal/terima-sj",
     name: "TerimaSj",
     component: TerimaSjView,
@@ -857,6 +872,26 @@ const routes = [
       title: "Buat Potongan Baru",
       requiresAuth: true,
       menuId: "53",
+    },
+  },
+  {
+    path: "/piutang/refund",
+    name: "Refund",
+    component: RefundView,
+    meta: {
+      title: "Refund",
+      requiresAuth: true,
+      menuId: "55",
+    },
+  },
+    {
+    path: "/piutang/refund/new",
+    name: "refundCreate",
+    component: RefundCreateView,
+    meta: {
+      title: "Buat Refund Baru",
+      requiresAuth: true,
+      menuId: "55",
     },
   },
   {

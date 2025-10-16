@@ -196,7 +196,7 @@ const menuItems = [
       { title: 'Kartu Piutang', to: '/piutang/kartu-piutang', icon: 'mdi-credit-card-outline' },
       { divider: true },
       { title: 'Potongan', to: '/piutang/potongan', icon: 'mdi-tag-minus-outline' },
-      { title: 'Refund', to: '/receivables/refunds', icon: 'mdi-cash-refund' }
+      { title: 'Refund', to: '/piutang/refund', icon: 'mdi-cash-refund' }
     ]
   },
   {
@@ -226,7 +226,7 @@ const menuItems = [
           { title: 'Surat Jalan ke Store', to: '/gudang-dc/operasional/surat-jalan-store', icon: 'mdi-truck-delivery-outline' },
           { title: 'Pengambilan Barang', to: '/dc/goods-pickup', icon: 'mdi-package-up' },
           { title: 'Terima Retur dari Store', to: '/gudang-dc/operasional/terima-rb', icon: 'mdi-package-down' },
-          { title: 'QC ke Garmen', to: '/dc/qc-to-garment', icon: 'mdi-quality-high' },
+          { title: 'QC ke Garmen', to: '/gudang-dc/operasional/qc-ke-garmen', icon: 'mdi-quality-high' },
           { title: 'Mutasi Stok Antar Gudang', to: '/dc/inter-warehouse-mutation', icon: 'mdi-swap-horizontal-circle-outline' }
         ]
       },

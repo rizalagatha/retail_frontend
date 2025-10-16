@@ -234,8 +234,8 @@ watch(filters, fetchMasterData, { deep: true });
     <PageLayout title="Daftar Potongan" icon="mdi-account-cash">
         <template #header-actions>
             <v-btn v-if="authStore.can(MENU_ID, 'insert')" size="small" color="primary" @click="handleNew">
-    Baru
-</v-btn>
+                Baru
+            </v-btn>
             <v-btn v-if="authStore.can(MENU_ID, 'edit')" size="small" :disabled="!isSingleSelected" @click="handleEdit">
                 Ubah
             </v-btn>

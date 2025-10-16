@@ -3,7 +3,12 @@ import { useAuthStore } from '@/stores/authStore';
 
 // Buat instance Axios dengan tipe yang jelas
 const api: AxiosInstance = axios.create({
+<<<<<<< HEAD
   baseURL: 'http://localhost:8000/api',
+=======
+  baseURL: '/api',
+  withCredentials: true
+>>>>>>> origin/main
 });
 
 // Buat Interceptor dengan parameter yang sudah diberi tipe

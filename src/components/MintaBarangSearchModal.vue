@@ -56,7 +56,11 @@ const loadItems = async ({ page, itemsPerPage, sortBy }: LoadItemsOptions = {}) 
             apiUrl = '/koreksi-stok-form/lookup/products';
         } else if (props.source === 'pengajuan-barcode') {
             apiUrl = '/pengajuan-barcode-form/lookup/products';
-        }
+        } else if (props.source === 'promo-applicable' || props.source === 'promo-bonus') {
+            apiUrl = '/promo-form/lookup/products'; // Panggil endpoint baru yang spesifik
+        } else if (props.source === 'ambil-barang') {
+            apiUrl = '/ambil-barang/lookup/products';
+        }   
 
         if (!apiUrl) {
             toast.error('Sumber data untuk modal pencarian tidak valid.');

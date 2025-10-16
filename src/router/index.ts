@@ -69,8 +69,6 @@ import InvoicePrintView from "@/views/InvoicePrintView.vue";
 import InvoicePrintKasirView from "@/views/InvoicePrintKasirView.vue";
 import InvoicePrintImageView from "@/views/InvoicePrintImageView.vue";
 import InvoiceAsSjPrintView from "@/views/InvoiceAsSjPrintView.vue";
-import LaporanStokView from "@/views/LaporanStokView.vue";
-import WhatsappLinkView from "@/views/WhatsappLinkView.vue";
 import KuponPrintView from "@/views/KuponPrintView.vue";
 import VoucherPrintView from "@/views/VoucherPrintView.vue";
 import MutasiStoreKirimView from "@/views/MutasiStoreKirimView.vue";
@@ -94,7 +92,24 @@ import KartuPiutangView from "@/views/KartuPiutangView.vue";
 import PengajuanBarcodeView from "@/views/PengajuanBarcodeView.vue";
 import PengajuanBarcodeCreateView from "@/views/PengajuanBarcodeCreateView.vue";
 import CetakBarcodeBaruView from "@/views/CetakBarcodeBaruView.vue";
+import JenisKainView from "@/views/JenisKainView.vue";
+import WarnaKainView from "@/views/WarnaKainView.vue";
+import LenganView from "@/views/LenganView.vue";
+import BarangDcView from "@/views/BarangDcView.vue";
+import BarangDcCreateView from "@/views/BarangDcCreateView.vue";
+import PriceListView from "@/views/PriceListView.vue";
+import PromoView from "@/views/PromoView.vue";
+import PromoCreateView from "@/views/PromoCreateView.vue";
+import TerimaStbjView from "@/views/TerimaStbjView.vue";
+import TerimaStbjCreateView from "@/views/TerimaStbjCreateView.vue";
+import TolakStbjCreateView from "@/views/TolakStbjCreateView.vue";
+import TerimaRepairView from "@/views/TerimaRepairView.vue";
+import TerimaRepairCreateView from "@/views/TerimaRepairCreateView.vue";
+import AmbilBarangView from "@/views/AmbilBarangView.vue";
+import AmbilBarangCreateView from "@/views/AmbilBarangCreateView.vue";
+import LaporanStokView from "@/views/LaporanStokView.vue";
 import LaporanMutasiStokView from "@/views/LaporanMutasiStokView.vue";
+<<<<<<< HEAD
 import LaporanKartuStokView from "@/views/LaporanKartuStokView.vue";
 import LaporanListOtorisasiView from "@/views/LaporanListOtorisasiView.vue";
 import LaporanInvoiceView from "@/views/LaporanInvoiceView.vue";
@@ -107,6 +122,9 @@ import QckeGarmenView from "@/views/QCkeGarmenView.vue";
 
 
 
+=======
+import WhatsappLinkView from "@/views/WhatsappLinkView.vue";
+>>>>>>> origin/main
 
 const routes = [
   {
@@ -1210,6 +1228,159 @@ const routes = [
       printLayout: true,
       requiresAuth: true,
       layout: "PrintLayout", // Seharusnya sudah ada dari instruksi sebelumnya
+    },
+  },
+  {
+    path: "/gudang-dc/master-data/jenis-kain",
+    name: "JenisKain",
+    component: JenisKainView,
+    meta: {
+      title: "Jenis Kain",
+      requiresAuth: true,
+      menuId: "201",
+    },
+  },
+  {
+    path: "/gudang-dc/master-data/warna-kain",
+    name: "WarnaKain",
+    component: WarnaKainView,
+    meta: {
+      title: "Warna Kain",
+      requiresAuth: true,
+      menuId: "202",
+    },
+  },
+  {
+    path: "/gudang-dc/master-data/lengan",
+    name: "Lengan",
+    component: LenganView,
+    meta: {
+      title: "Lengan",
+      requiresAuth: true,
+      menuId: "203",
+    },
+  },
+  {
+    path: "/gudang-dc/master-data/barang-dc",
+    name: "BarangDc",
+    component: BarangDcView,
+    meta: {
+      title: "Barang DC",
+      requiresAuth: true,
+      menuId: "204",
+    },
+  },
+  {
+    path: "/gudang-dc/master-data/barang-dc/create",
+    name: "BarangDcCreate",
+    component: BarangDcCreateView,
+    meta: { title: "Buat Barang DC", requiresAuth: true, menuId: "204" },
+  },
+  {
+    path: "/gudang-dc/master-data/barang-dc/edit/:kode",
+    name: "BarangDcEdit",
+    component: BarangDcCreateView,
+    meta: { title: "Ubah Barang DC", requiresAuth: true, menuId: "204" },
+  },
+  {
+    path: "/gudang-dc/master-data/price-list",
+    name: "PriceList",
+    component: PriceListView,
+    meta: {
+      title: "Price List",
+      requiresAuth: true,
+      menuId: "206",
+    },
+  },
+  {
+    path: "/gudang-dc/master-data/promo",
+    name: "Promo",
+    component: PromoView,
+    meta: {
+      title: "Promo",
+      requiresAuth: true,
+      menuId: "205",
+    },
+  },
+  {
+    path: "/gudang-dc/master-data/promo/create",
+    name: "PromoCreate",
+    component: PromoCreateView,
+    meta: { title: "Buat Promo", requiresAuth: true, menuId: "205" },
+  },
+  {
+    path: "/gudang-dc/master-data/promo/edit/:nomor",
+    name: "PromoEdit",
+    component: PromoCreateView,
+    meta: { title: "Ubah Promo", requiresAuth: true, menuId: "205" },
+  },
+  {
+    path: "/gudang-dc/operasional/terima-stbj",
+    name: "TerimaStbj",
+    component: TerimaStbjView,
+    meta: {
+      title: "Terima STBJ",
+      requiresAuth: true,
+      menuId: "211",
+    },
+  },
+  {
+    path: "/gudang-dc/operasional/terima-stbj/create",
+    name: "TerimaStbjCreate",
+    component: TerimaStbjCreateView,
+    meta: { title: "Buat Terima STBJ", requiresAuth: true, menuId: "211" },
+  },
+  {
+    path: "/gudang-dc/operasional/tolak-stbj/create",
+    name: "TolakStbjCreate",
+    component: TolakStbjCreateView,
+    meta: { title: "Buat Tolak STBJ", requiresAuth: true, menuId: "211" },
+  },
+  {
+    path: "/gudang-dc/operasional/terima-repair",
+    name: "TerimaRepair",
+    component: TerimaRepairView,
+    meta: {
+      title: "Terima dari Gudang Repair",
+      requiresAuth: true,
+      menuId: "212",
+    },
+  },
+  {
+    path: "/gudang-dc/operasional/terima-repair/create",
+    name: "TerimaRepairCreate",
+    component: TerimaRepairCreateView,
+    meta: { title: "Buat Terima dari Gudang Repair", requiresAuth: true, menuId: "212" },
+  },
+  {
+    path: "/gudang-dc/operasional/ambil-barang",
+    name: "AmbilBarang",
+    component: AmbilBarangView,
+    meta: {
+      title: "Pengambilan Barang",
+      requiresAuth: true,
+      menuId: "253",
+    },
+  },
+
+  {
+    path: "/gudang-dc/operasional/ambil-barang/create",
+    name: "AmbilBarangCreate",
+    component: AmbilBarangCreateView,
+    meta: {
+      title: "Buat Pengambilan Barang",
+      requiresAuth: true,
+      menuId: "253",
+    },
+  },
+  {
+    path: "/gudang-dc/operasional/ambil-barang/edit/:id",
+    name: "AmbilBarangEdit",
+    component: AmbilBarangCreateView,
+    meta: {
+      title: "Ubah Pengambilan Barang",
+      requiresAuth: true,
+      menuId: "253",
     },
   },
   {

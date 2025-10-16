@@ -209,11 +209,12 @@ const menuItems = [
         title: 'Master Data',
         icon: 'mdi-database-outline',
         items: [
-          { title: 'Jenis Kain', to: '/dc/fabric-types', icon: 'mdi-texture' },
-          { title: 'Warna Kain', to: '/dc/fabric-colors', icon: 'mdi-palette-outline' },
-          { title: 'Lengan', to: '/dc/sleeves', icon: 'mdi-tshirt-crew-outline' },
-          { title: 'Barang', to: '/dc/products', icon: 'mdi-package-variant-closed' },
-          { title: 'Promo', to: '/dc/promos', icon: 'mdi-percent-outline' },
+          { title: 'Jenis Kain', to: '/gudang-dc/master-data/jenis-kain', icon: 'mdi-texture' },
+          { title: 'Warna Kain', to: '/gudang-dc/master-data/warna-kain', icon: 'mdi-palette-outline' },
+          { title: 'Lengan', to: '/gudang-dc/master-data/lengan', icon: 'mdi-tshirt-crew-outline' },
+          { title: 'Barang', to: '/gudang-dc/master-data/barang-dc', icon: 'mdi-package-variant-closed' },
+          { title: 'Price List', to: '/gudang-dc/master-data/price-list', icon: 'mdi-receipt-text-outline' },
+          { title: 'Promo', to: '/gudang-dc/master-data/promo', icon: 'mdi-percent-outline' },
           { title: 'Master Barang External', to: '/dc/external-products', icon: 'mdi-link-variant' }
         ]
       },
@@ -221,10 +222,10 @@ const menuItems = [
         title: 'Operasional Gudang',
         icon: 'mdi-forklift',
         items: [
-          { title: 'Terima STBJ', to: '/dc/receive-stbj', icon: 'mdi-inbox-arrow-down' },
-          { title: 'Terima dari Gudang Repair', to: '/dc/receive-from-repair', icon: 'mdi-tools' },
+          { title: 'Terima STBJ', to: '/gudang-dc/operasional/terima-stbj', icon: 'mdi-inbox-arrow-down' },
+          { title: 'Terima dari Gudang Repair', to: '/gudang-dc/operasional/terima-repair', icon: 'mdi-tools' },
           { title: 'Surat Jalan ke Store', to: '/gudang-dc/operasional/surat-jalan-store', icon: 'mdi-truck-delivery-outline' },
-          { title: 'Pengambilan Barang', to: '/dc/goods-pickup', icon: 'mdi-package-up' },
+          { title: 'Pengambilan Barang', to: '/gudang-dc/operasional/ambil-barang', icon: 'mdi-package-up' },
           { title: 'Terima Retur dari Store', to: '/gudang-dc/operasional/terima-rb', icon: 'mdi-package-down' },
           { title: 'QC ke Garmen', to: '/gudang-dc/operasional/qc-ke-garmen', icon: 'mdi-quality-high' },
           { title: 'Mutasi Stok Antar Gudang', to: '/dc/inter-warehouse-mutation', icon: 'mdi-swap-horizontal-circle-outline' }

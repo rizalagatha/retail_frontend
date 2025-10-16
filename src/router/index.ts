@@ -114,7 +114,6 @@ import ProformaCreateView from "@/views/ProformaCreateView.vue";
 import ProformaPrintView from "@/views/ProformaPrintView.vue";
 import LaporanStokView from "@/views/LaporanStokView.vue";
 import LaporanMutasiStokView from "@/views/LaporanMutasiStokView.vue";
-<<<<<<< HEAD
 import LaporanKartuStokView from "@/views/LaporanKartuStokView.vue";
 import LaporanListOtorisasiView from "@/views/LaporanListOtorisasiView.vue";
 import LaporanInvoiceView from "@/views/LaporanInvoiceView.vue";
@@ -124,12 +123,6 @@ import PotonganCreateView from "@/views/PotonganCreateView.vue";
 import RefundView from "@/views/RefundView.vue";
 import RefundCreateView from "@/views/RefundCreateView.vue";
 import QckeGarmenView from "@/views/QCkeGarmenView.vue";
-
-
-
-=======
-import WhatsappLinkView from "@/views/WhatsappLinkView.vue";
->>>>>>> origin/main
 
 const routes = [
   {

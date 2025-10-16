@@ -232,8 +232,8 @@ const menuItems = [
       { title: 'Form Setoran Kasir', to: '/piutang/fsk', icon: 'mdi-cash-multiple' },
       { title: 'Kartu Piutang', to: '/piutang/kartu-piutang', icon: 'mdi-credit-card-outline' },
       { divider: true },
-      { title: 'Potongan', to: '/receivables/discounts', icon: 'mdi-tag-minus-outline' },
-      { title: 'Refund', to: '/receivables/refunds', icon: 'mdi-cash-refund' }
+      { title: 'Potongan', to: '/piutang/potongan', icon: 'mdi-tag-minus-outline' },
+      { title: 'Refund', to: '/piutang/refund', icon: 'mdi-cash-refund' }
     ]
   },
   {
@@ -264,7 +264,7 @@ const menuItems = [
           { title: 'Surat Jalan ke Store', to: '/gudang-dc/operasional/surat-jalan-store', icon: 'mdi-truck-delivery-outline' },
           { title: 'Pengambilan Barang', to: '/gudang-dc/operasional/ambil-barang', icon: 'mdi-package-up' },
           { title: 'Terima Retur dari Store', to: '/gudang-dc/operasional/terima-rb', icon: 'mdi-package-down' },
-          { title: 'QC ke Garmen', to: '/dc/qc-to-garment', icon: 'mdi-quality-high' },
+          { title: 'QC ke Garmen', to: '/gudang-dc/operasional/qc-ke-garmen', icon: 'mdi-quality-high' },
           { title: 'Mutasi Stok Antar Gudang', to: '/dc/inter-warehouse-mutation', icon: 'mdi-swap-horizontal-circle-outline' }
         ]
       },
@@ -300,7 +300,8 @@ const menuItems = [
         items: [
           { title: 'Laporan Stok', to: '/laporan/stok', icon: 'mdi-package-variant' },
           { title: 'Mutasi Stok', to: '/laporan/mutasi-stok', icon: 'mdi-swap-horizontal' },
-          { title: 'Kartu Stok', to: '/reports/stock-card', icon: 'mdi-card-text-outline' },
+          { title: 'Kartu Stok', to: '/laporan/kartu-stok', icon: 'mdi-card-text-outline' },
+          { title: 'List Otorisasi', to: '/laporan/list-otorisasi', icon: 'mdi-card-text-outline' },
           { title: 'Stok Stagnan', to: '/reports/stagnant-stock', icon: 'mdi-clock-outline' },
           { title: 'Dead Stok', to: '/reports/dead-stock', icon: 'mdi-alert-circle-outline' }
         ]
@@ -309,9 +310,9 @@ const menuItems = [
         title: 'Penjualan',
         icon: 'mdi-trending-up',
         items: [
-          { title: 'Laporan Invoice', to: '/reports/invoice', icon: 'mdi-receipt' },
+          { title: 'Laporan Invoice', to: '/laporan/invoice', icon: 'mdi-receipt' },
           { title: 'Pareto Barang', to: '/reports/pareto', icon: 'mdi-chart-bar' },
-          { title: 'Sales vs Target', to: '/reports/sales-vs-target', icon: 'mdi-target' },
+          { title: 'Sales vs Target', to: '/laporan/sales-vs-target', icon: 'mdi-target' },
           { title: 'Target Achievement', to: '/reports/achievement-monitoring', icon: 'mdi-trophy-outline' }
         ]
       },

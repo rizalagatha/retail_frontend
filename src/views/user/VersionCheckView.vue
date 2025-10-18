@@ -3,7 +3,7 @@ import { ref, onMounted } from 'vue';
 import api from '@/services/api';
 
 // Ambil versi dari package.json
-import packageJson from '../../package.json';
+import packageJson from '../../../package.json';
 
 const clientVersion = ref<string>(packageJson.version || 'N/A');
 const serverVersion = ref<string>('');

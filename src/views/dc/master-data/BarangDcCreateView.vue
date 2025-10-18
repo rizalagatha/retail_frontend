@@ -3,6 +3,7 @@ import { ref, reactive, onMounted, computed, watch, nextTick } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useToast } from 'vue-toastification';
 import { useAuthStore } from '@/stores/authStore';
+import type { AxiosError } from 'axios';
 import api from '@/services/api';
 import PageLayout from '@/components/PageLayout.vue';
 import JenisKainSearchModal from '@/components/JenisKainSearchModal.vue';
@@ -38,6 +39,15 @@ interface Header {
     bcdId: number;
     gambarUrl: string | null;
 }
+interface HistoryHargaItem {
+    tanggal: string;
+    allsize: number | null;
+    s: number | null;
+    m: number | null;
+    l: number | null;
+    xl: number | null;
+}
+
 
 // --- Inisialisasi & State ---
 const router = useRouter();
@@ -54,7 +64,7 @@ const header = reactive<Header>({
     warna: '', warnaKode: '', kategoriProduk: 'REGULER', status: 0, logStok: 'Y', bcdId: 0, gambarUrl: null
 });
 const varianItems = ref<VarianItem[]>([]);
-const historyHarga = ref<any[]>([]);
+const historyHarga = ref<HistoryHargaItem[]>([]);
 const options = reactive({ jenisKaos: [], tipe: [], lengan: [] });
 const isLoading = ref(true);
 const isSaving = ref(false);
@@ -161,12 +171,14 @@ const uploadImageToServer = async (kode: string): Promise<boolean> => {
         } else {
             throw new Error(response.data.message || "Upload gagal");
         }
-    } catch (error: any) {
+    } catch (error: unknown) {
         console.error('Upload error:', error);
-        toast.error("Upload gagal: " + (error.response?.data?.message || error.message));
+
+        const axiosError = error as AxiosError<{ message?: string }>;
+        const message = axiosError.response?.data?.message || axiosError.message || 'Upload gagal';
+
+        toast.error("Upload gagal: " + message);
         return false;
-    } finally {
-        isImageUploading.value = false;
     }
 };
 
@@ -201,8 +213,11 @@ const save = async () => {
         try {
             // Kita bisa buat endpoint baru untuk cek duplikasi sebelum menyimpan
             // await api.post('/barang-dc-form/check-duplicate', { header });
-        } catch (error: any) {
-            return toast.error(error.response?.data?.message || 'Error cek duplikasi.');
+        } catch (error: unknown) {
+            const axiosError = error as AxiosError<{ message?: string }>;
+            const message = axiosError.response?.data?.message || axiosError.message || 'Error cek duplikasi.';
+            toast.error(message);
+            return;
         }
     }
 
@@ -234,8 +249,10 @@ const executeSave = async () => {
         // Redirect ke halaman browse
         router.push({ name: 'BarangDc' });
 
-    } catch (error: any) {
-        toast.error(error.response?.data?.message || 'Gagal menyimpan data.');
+    } catch (error: unknown) {
+        const axiosError = error as AxiosError<{ message?: string }>;
+        const message = axiosError.response?.data?.message || axiosError.message || 'Gagal menyimpan data.';
+        toast.error(message);
     } finally {
         isSaving.value = false;
     }
@@ -311,8 +328,10 @@ const loadDataForEdit = async (kode: string) => {
         // --- ISI GRID HISTORY HARGA ---
         historyHarga.value = data.priceHistory;
 
-    } catch (error: any) {
-        toast.error(error.response?.data?.message || 'Gagal memuat data.');
+    } catch (error: unknown) {
+        const axiosError = error as AxiosError<{ message?: string }>;
+        const message = axiosError.response?.data?.message || axiosError.message || 'Gagal memuat data.';
+        toast.error(message);
         router.back();
     } finally {
         isLoading.value = false;
@@ -531,35 +550,34 @@ watch(
                 <div class="desktop-form-section varian-section">
                     <v-data-table :headers="varianHeaders" :items="varianItems" class="desktop-table" density="compact"
                         fixed-header :items-per-page="-1">
-                        <template #item.aktif="{ item }">
+                        <template #[`item.aktif`]="{ item }">
                             <v-checkbox-btn v-model="item.aktif" hide-details density="compact"
                                 @update:model-value="handleAktifChange(item)" />
                         </template>
-                        <template #item.hpp="{ item }">
+                        <template #[`item.hpp`]="{ item }">
                             <v-text-field v-model.number="item.hpp" type="number" variant="underlined" density="compact"
                                 hide-details class="text-end" :disabled="!item.aktif" />
                         </template>
-                        <template #item.harga="{ item }">
-                            <v-text-field v-model.number="item.harga" type="number" variant="underlined"
-                                density="compact" hide-details class="text-end" :disabled="!item.aktif" />
+                        <template #[`item.harga`]="{ item }">
+                            {{ new Intl.NumberFormat('id-ID').format(item.harga) }}
                         </template>
-                        <template #item.barcode="{ item }">
+                        <template #[`item.barcode`]="{ item }">
                             <v-text-field v-model="item.barcode" variant="underlined" density="compact" hide-details
                                 :disabled="!item.aktif" />
                         </template>
-                        <template #item.stokmin="{ item }">
+                        <template #[`item.stokmin`]="{ item }">
                             <v-text-field v-model.number="item.stokmin" type="number" variant="underlined"
                                 density="compact" hide-details class="text-end" :disabled="!item.aktif" />
                         </template>
-                        <template #item.stokmax="{ item }">
+                        <template #[`item.stokmax`]="{ item }">
                             <v-text-field v-model.number="item.stokmax" type="number" variant="underlined"
                                 density="compact" hide-details class="text-end" :disabled="!item.aktif" />
                         </template>
-                        <template #item.stokmindc="{ item }">
+                        <template #[`item.stokmindc`]="{ item }">
                             <v-text-field v-model.number="item.stokmindc" type="number" variant="underlined"
                                 density="compact" hide-details class="text-end" :disabled="!item.aktif" />
                         </template>
-                        <template #item.stokmaxdc="{ item }">
+                        <template #[`item.stokmaxdc`]="{ item }">
                             <v-text-field v-model.number="item.stokmaxdc" type="number" variant="underlined"
                                 density="compact" hide-details class="text-end" :disabled="!item.aktif" />
                         </template>

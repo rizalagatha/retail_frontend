@@ -200,7 +200,7 @@ const menuItems = [
           },
           {
             title: 'Input Hitung Stok',
-            to: '/transaksi/stok-opname/input-hitung-stok',
+            to: '/transaksi/stok-opname/hitung-stok',
             icon: 'mdi-clipboard-edit-outline', // input data stok
           },
           {
@@ -298,10 +298,10 @@ const menuItems = [
         title: 'Stok',
         icon: 'mdi-archive-outline',
         items: [
-          { title: 'Laporan Stok', to: '/laporan/stok', icon: 'mdi-package-variant' },
-          { title: 'Mutasi Stok', to: '/laporan/mutasi-stok', icon: 'mdi-swap-horizontal' },
-          { title: 'Kartu Stok', to: '/laporan/kartu-stok', icon: 'mdi-card-text-outline' },
-          { title: 'List Otorisasi', to: '/laporan/list-otorisasi', icon: 'mdi-card-text-outline' },
+          { title: 'Laporan Stok', to: '/laporan/stok/real-time', icon: 'mdi-package-variant' },
+          { title: 'Mutasi Stok', to: '/laporan/stok/mutasi-stok', icon: 'mdi-swap-horizontal' },
+          { title: 'Kartu Stok', to: '/laporan/stok/kartu-stok', icon: 'mdi-card-text-outline' },
+          { title: 'List Otorisasi', to: '/laporan/stok/list-otorisasi', icon: 'mdi-card-text-outline' },
           { title: 'Stok Stagnan', to: '/reports/stagnant-stock', icon: 'mdi-clock-outline' },
           { title: 'Dead Stok', to: '/reports/dead-stock', icon: 'mdi-alert-circle-outline' }
         ]
@@ -310,9 +310,9 @@ const menuItems = [
         title: 'Penjualan',
         icon: 'mdi-trending-up',
         items: [
-          { title: 'Laporan Invoice', to: '/laporan/invoice', icon: 'mdi-receipt' },
-          { title: 'Pareto Barang', to: '/reports/pareto', icon: 'mdi-chart-bar' },
-          { title: 'Sales vs Target', to: '/laporan/sales-vs-target', icon: 'mdi-target' },
+          { title: 'Laporan Invoice', to: '/laporan/penjualan/invoice', icon: 'mdi-receipt' },
+          { title: 'Pareto Barang', to: '/laporan/penjualan/pareto', icon: 'mdi-chart-bar' },
+          { title: 'Sales vs Target', to: '/laporan/penjualan/sales-vs-target', icon: 'mdi-target' },
           { title: 'Target Achievement', to: '/reports/achievement-monitoring', icon: 'mdi-trophy-outline' }
         ]
       },
@@ -320,7 +320,7 @@ const menuItems = [
         title: 'Analisa',
         icon: 'mdi-chart-timeline-variant',
         items: [
-          { title: 'Penjualan Pivot', to: '/reports/sales-pivot', icon: 'mdi-table-pivot' },
+          { title: 'Penjualan Pivot', to: '/laporan/analisa/with-pivot', icon: 'mdi-table-pivot' },
           { title: 'Stok Pivot', to: '/reports/stock-pivot', icon: 'mdi-table-large' }
         ]
       },

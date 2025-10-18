@@ -2,13 +2,13 @@
 import { ref, onMounted, onUnmounted } from 'vue';
 import api from '@/services/api';
 import PageLayout from '@/components/PageLayout.vue';
-import QrcodeVue from 'qrcode.vue'; // Pastikan Anda sudah install: npm install qrcode.vue
 import { useToast } from 'vue-toastification';
+import type { AxiosError } from 'axios';
 
 const toast = useToast();
 const qrDataUrl = ref('');
 const message = ref('Meminta QR Code dari server...');
-let intervalId: any = null; // Variabel untuk menyimpan ID interval
+let intervalId: ReturnType<typeof setInterval> | null = null;
 
 const fetchQr = async () => {
     try {
@@ -24,8 +24,9 @@ const fetchQr = async () => {
         } else {
             message.value = response.data.message || 'Menunggu server siap...';
         }
-    } catch (error: any) {
-        toast.error(error.response?.data?.message || 'Gagal memuat QR Code.');
+    } catch (error) {
+        const err = error as AxiosError<{ message?: string }>;
+        toast.error(err.response?.data?.message || 'Gagal memuat QR Code.');
     }
 };
 

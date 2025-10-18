@@ -58,7 +58,7 @@ const allSections = {
         items: [
             { title: 'List HPP Kosong Ada Stok', description: 'Lihat daftar produk dengan stok tapi HPP nol.', to: '/transaksi/stok-opname/hpp-kosong', icon: 'mdi-currency-usd-off', menuId: '704' },
             { title: 'Setting Tanggal', description: 'Atur tanggal cut-off untuk proses stok opname.', to: '/transaksi/stok-opname/setting-tanggal', icon: 'mdi-calendar-edit-outline', menuId: '21' },
-            { title: 'Input Hitung Stok', description: 'Masukkan hasil perhitungan stok fisik.', to: '/transaksi/stok-opname/input-hitung-stok', icon: 'mdi-clipboard-edit-outline', menuId: '23' },
+            { title: 'Input Hitung Stok', description: 'Masukkan hasil perhitungan stok fisik.', to: '/transaksi/stok-opname/hitung-stok', icon: 'mdi-clipboard-edit-outline', menuId: '23' },
             { title: 'Hitung Stok per Lokasi', description: 'Proses perhitungan stok berdasarkan lokasi rak.', to: '/transaksi/stok-opname/hitung-per-lokasi', icon: 'mdi-map-marker-multiple-outline', menuId: '20' },
             { title: 'Cek Selisih', description: 'Bandingkan hasil stok fisik dengan stok sistem.', to: '/transaksi/stok-opname/cek-selisih', icon: 'mdi-scale-balance', menuId: '22' },
             { title: 'Proses', description: 'Lakukan proses finalisasi stok opname.', to: '/transaksi/stok-opname/proses', icon: 'mdi-progress-check', menuId: '24' },

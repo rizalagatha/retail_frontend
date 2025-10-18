@@ -1,10 +1,13 @@
 <script setup lang="ts">
 import { ref, reactive, onMounted, computed, watch } from 'vue';
+import type { Ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { useToast } from 'vue-toastification';
 import { useAuthStore } from '@/stores/authStore';
 import api from '@/services/api';
 import { format, subDays, parseISO } from 'date-fns';
+import type { AxiosError } from 'axios';
+import type { DataTableHeader } from 'vuetify'
 import PageLayout from '@/components/PageLayout.vue';
 import * as XLSX from 'xlsx';
 
@@ -18,6 +21,18 @@ interface MasterItem {
     adaStok: 'Y' | 'N';
     status: 'AKTIF' | 'PASIF';
 }
+interface DetailItem {
+    ukuran: string;
+    barcode: string;
+    hargaJual: number;
+    tglSpk: string | null;
+    tglProduksi: string | null;
+    minBufferStore: number;
+    maxBufferStore: number;
+    minBufferDC: number;
+    maxBufferDC: number;
+    hpp?: number; // hanya ada kalau cabang KDC
+}
 
 // --- Inisialisasi & State ---
 const router = useRouter();
@@ -26,11 +41,11 @@ const authStore = useAuthStore();
 const MENU_ID = '204';
 
 const masterData = ref<MasterItem[]>([]);
-const details = ref<Record<string, any[]>>({});
+const details = ref<Record<string, DetailItem[]>>({});
 const loading = ref(true);
 const loadingDetails = ref(new Set<string>());
-const selected = ref<any[]>([]);
-const expanded = ref<any[]>([]);
+const selected = ref<MasterItem[]>([]);
+const expanded = ref([]) as unknown as Ref<MasterItem[]>;
 
 const filters = reactive({
     startDate: format(subDays(new Date(), 30), 'yyyy-MM-dd'),
@@ -54,8 +69,8 @@ const headers = [
     { title: 'Status', key: 'status', align: 'center' },
 ] as const;
 
-const detailHeaders = computed(() => {
-    const baseHeaders = [
+const detailHeaders = computed<DataTableHeader[]>(() => {
+    const baseHeaders: DataTableHeader[] = [
         { title: 'Ukuran', key: 'ukuran' },
         { title: 'Barcode', key: 'barcode' },
         { title: 'Harga Jual', key: 'hargaJual', align: 'end' },
@@ -65,12 +80,15 @@ const detailHeaders = computed(() => {
         { title: 'Max Store', key: 'maxBufferStore', align: 'end' },
         { title: 'Min DC', key: 'minBufferDC', align: 'end' },
         { title: 'Max DC', key: 'maxBufferDC', align: 'end' },
-    ] as const;
+    ];
+
     if (authStore.user?.cabang === 'KDC') {
         baseHeaders.splice(2, 0, { title: 'HPP', key: 'hpp', align: 'end' });
     }
+
     return baseHeaders;
 });
+
 
 // --- Methods ---
 const fetchMasterData = async () => {
@@ -80,8 +98,10 @@ const fetchMasterData = async () => {
     try {
         const response = await api.get('/barang-dc', { params: filters });
         masterData.value = response.data;
-    } catch (error: any) {
-        toast.error(error.response?.data?.message || 'Gagal mengambil data.');
+    } catch (error) {
+        const err = error as AxiosError<{ message?: string }>;
+        const msg = err.response?.data?.message || err.message || 'Gagal mengambil data.';
+        toast.error(msg);
     } finally {
         loading.value = false;
     }
@@ -117,7 +137,7 @@ const handleEdit = () => {
     });
 };
 
-const getRowTextColor = (item: any) => {
+const getRowTextColor = (item: MasterItem) => {
     if (item.status === 'PASIF') return 'text-red';
     if (item.adaStok === 'N') return 'text-blue';
     return '';
@@ -188,21 +208,23 @@ watch(filters, fetchMasterData, { deep: true });
                     <v-icon color="red" icon="mdi-square-rounded" size="small"></v-icon> Pasif
                     <v-icon color="blue" icon="mdi-square-rounded" size="small" class="ms-2"></v-icon> Tidak Ada Stok
                 </div>
-                <v-btn @click="fetchMasterData" icon="mdi-refresh" variant="text" size="small" :loading="isLoading" />
+                <v-btn @click="fetchMasterData" icon="mdi-refresh" variant="text" size="small" :loading="loading" />
             </div>
 
             <div class="table-container">
                 <v-data-table v-model="selected" v-model:expanded="expanded" :headers="headers" :items="masterData"
                     :loading="loading" class="desktop-table" density="compact" fixed-header item-value="kode"
-                    show-expand show-select return-object single-select @update:expanded="loadDetails">
-                    <template v-for="header in headers" #[`item.${header.key}`]="{ item }">
+                    show-expand show-select :return-object="true" single-select @update:expanded="loadDetails">
+                    <template v-for="header in headers" :key="header.key" #[`item.${header.key}`]="{ item }">
                         <td :class="getRowTextColor(item)">
                             <template v-if="header.key === 'date_create'">
                                 {{ item.date_create ? format(parseISO(item.date_create), 'dd/MM/yyyy') : '' }}
                             </template>
                             <template v-else-if="header.key === 'status'">
                                 <v-chip :color="item.status === 'AKTIF' ? 'success' : 'error'" size="x-small"
-                                    variant="tonal">{{ item.status }}</v-chip>
+                                    variant="tonal">
+                                    {{ item.status }}
+                                </v-chip>
                             </template>
                             <template v-else>
                                 {{ item[header.key] }}
@@ -220,12 +242,11 @@ watch(filters, fetchMasterData, { deep: true });
                                         </div>
                                         <v-data-table v-else :headers="detailHeaders" :items="details[item.kode]"
                                             density="compact" class="detail-table" :items-per-page="-1">
-                                            <template #item.tglSpk="{ item }">
+                                            <template #[`item.tglSpk`]="{ item }">
                                                 {{ item.tglSpk ? format(parseISO(item.tglSpk), 'dd/MM/yyyy') : '' }}
                                             </template>
-                                            <template #item.tglProduksi="{ item }">
-                                                {{ item.tglProduksi ? format(parseISO(item.tglProduksi), 'dd/MM/yyyy') :
-                                                    '' }}
+                                            <template #[`item.tglProduksi`]="{ item }">
+                                                {{ item.tglProduksi ? format(parseISO(item.tglProduksi), 'dd/MM/yyyy') : '' }}
                                             </template>
                                             <template #bottom></template>
                                         </v-data-table>

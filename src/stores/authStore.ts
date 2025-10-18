@@ -66,6 +66,28 @@ export const useAuthStore = defineStore("auth", () => {
     }
   });
 
+  const isOnline = ref(navigator.onLine);
+  let heartbeatInterval: number;
+
+  const checkServerStatus = async () => {
+    try {
+      // Kita gunakan 'HEAD' request karena lebih ringan, tidak butuh body respons
+      await api.head("/health");
+      isOnline.value = true;
+    } catch (error) {
+      isOnline.value = false;
+    }
+  };
+
+  const initConnectivityCheck = () => {
+    // Dengarkan event online/offline dari browser
+    window.addEventListener("online", () => (isOnline.value = true));
+    window.addEventListener("offline", () => (isOnline.value = false));
+
+    // Mulai "heartbeat" ke server setiap 30 detik
+    heartbeatInterval = window.setInterval(checkServerStatus, 30000);
+  };
+
   // --- ACTIONS ---
   // Fungsi untuk mengubah state
 
@@ -152,5 +174,7 @@ export const useAuthStore = defineStore("auth", () => {
     allowedMenus,
     isSessionExpired,
     handleSessionExpired,
+    isOnline,
+    initConnectivityCheck,
   };
 });

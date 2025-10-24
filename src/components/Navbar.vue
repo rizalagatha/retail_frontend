@@ -252,7 +252,7 @@ const menuItems = [
           { title: 'Barang', to: '/gudang-dc/master-data/barang-dc', icon: 'mdi-package-variant-closed' },
           { title: 'Price List', to: '/gudang-dc/master-data/price-list', icon: 'mdi-receipt-text-outline' },
           { title: 'Promo', to: '/gudang-dc/master-data/promo', icon: 'mdi-percent-outline' },
-          { title: 'Master Barang External', to: '/dc/external-products', icon: 'mdi-link-variant' }
+          { title: 'Master Barang External', to: '/gudang-dc/master-data/barang-external', icon: 'mdi-link-variant' }
         ]
       },
       {
@@ -265,15 +265,15 @@ const menuItems = [
           { title: 'Pengambilan Barang', to: '/gudang-dc/operasional/ambil-barang', icon: 'mdi-package-up' },
           { title: 'Terima Retur dari Store', to: '/gudang-dc/operasional/terima-rb', icon: 'mdi-package-down' },
           { title: 'QC ke Garmen', to: '/gudang-dc/operasional/qc-ke-garmen', icon: 'mdi-quality-high' },
-          { title: 'Mutasi Stok Antar Gudang', to: '/dc/inter-warehouse-mutation', icon: 'mdi-swap-horizontal-circle-outline' }
+          { title: 'Mutasi Stok Antar Gudang', to: '/gudang-dc/operasional/mutasi-antar-gudang', icon: 'mdi-swap-horizontal-circle-outline' }
         ]
       },
       {
         title: 'Produksi & Supplier',
         icon: 'mdi-factory',
         items: [
-          { title: 'Pengajuan Produksi', to: '/dc/production-proposal', icon: 'mdi-clipboard-text-outline' },
-          { title: 'Approve Produksi', to: '/dc/approve-production-proposal', icon: 'mdi-clipboard-check-outline' },
+          { title: 'Pengajuan Produksi', to: '/gudang-dc/produksi-supplier/pengajuan-produksi', icon: 'mdi-clipboard-text-outline' },
+          { title: 'Approve Produksi', to: '/gudang-dc/produksi-supplier/apv-pengajuan-produksi', icon: 'mdi-clipboard-check-outline' },
           { title: 'PO ke Supplier', to: '/dc/po-to-supplier', icon: 'mdi-file-send-outline' },
           { title: 'BPB dari Supplier', to: '/dc/bpb-from-supplier', icon: 'mdi-file-receive-outline' }
         ]
@@ -301,9 +301,8 @@ const menuItems = [
           { title: 'Laporan Stok', to: '/laporan/stok/real-time', icon: 'mdi-package-variant' },
           { title: 'Mutasi Stok', to: '/laporan/stok/mutasi-stok', icon: 'mdi-swap-horizontal' },
           { title: 'Kartu Stok', to: '/laporan/stok/kartu-stok', icon: 'mdi-card-text-outline' },
-          { title: 'List Otorisasi', to: '/laporan/stok/list-otorisasi', icon: 'mdi-card-text-outline' },
-          { title: 'Stok Stagnan', to: '/reports/stagnant-stock', icon: 'mdi-clock-outline' },
-          { title: 'Dead Stok', to: '/reports/dead-stock', icon: 'mdi-alert-circle-outline' }
+          { title: 'Stok Stagnan', to: '/laporan/stok/stagnan', icon: 'mdi-clock-outline' },
+          { title: 'Dead Stok', to: '/laporan/stok/dead-stok', icon: 'mdi-alert-circle-outline' }
         ]
       },
       {
@@ -313,7 +312,7 @@ const menuItems = [
           { title: 'Laporan Invoice', to: '/laporan/penjualan/invoice', icon: 'mdi-receipt' },
           { title: 'Pareto Barang', to: '/laporan/penjualan/pareto', icon: 'mdi-chart-bar' },
           { title: 'Sales vs Target', to: '/laporan/penjualan/sales-vs-target', icon: 'mdi-target' },
-          { title: 'Target Achievement', to: '/reports/achievement-monitoring', icon: 'mdi-trophy-outline' }
+          { title: 'Target Achievement', to: '/laporan/penjualan/monitoring-achievement', icon: 'mdi-trophy-outline' }
         ]
       },
       {
@@ -321,15 +320,15 @@ const menuItems = [
         icon: 'mdi-chart-timeline-variant',
         items: [
           { title: 'Penjualan Pivot', to: '/laporan/analisa/with-pivot', icon: 'mdi-table-pivot' },
-          { title: 'Stok Pivot', to: '/reports/stock-pivot', icon: 'mdi-table-large' }
+          { title: 'Stok Pivot', to: '/laporan/analisa/stok-pivot', icon: 'mdi-table-large' }
         ]
       },
       {
         title: 'Lain-lain',
         icon: 'mdi-dots-horizontal',
         items: [
-          { title: 'List Otorisasi', to: '/reports/authorization-list', icon: 'mdi-shield-check-outline' },
-          { title: 'Saldo Kasir', to: '/reports/cashier-balance', icon: 'mdi-cash-register' }
+          { title: 'List Otorisasi', to: '/laporan/lain-lain/list-otorisasi', icon: 'mdi-card-text-outline' },
+          { title: 'Saldo Kasir', to: '/laporan/lain-lain/saldo-kasir', icon: 'mdi-cash-register' }
         ]
       }
     ]

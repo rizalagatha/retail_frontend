@@ -20,6 +20,7 @@
     "axios": "^1.11.0",
     "c3": "^0.7.20",
     "chart.js": "^4.5.1",
+    "chartjs-plugin-datalabels": "^2.2.0",
     "d3": "^7.9.0",
     "date-fns": "^4.1.0",
     "handsontable": "^16.1.1",
@@ -38,6 +39,7 @@
     "vue-pivottable": "^1.2.2",
     "vue-router": "^4.5.1",
     "vue-toastification": "^2.0.0-rc.5",
+    "vue3-gauge": "^0.0.5",
     "vuetify": "^3.9.6",
     "xlsx": "^0.18.5"
   },

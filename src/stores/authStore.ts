@@ -2,6 +2,7 @@ import { defineStore } from "pinia";
 import { ref, computed } from "vue";
 import { useRouter } from "vue-router";
 import { jwtDecode } from "jwt-decode";
+import axios from "axios";
 
 interface User {
   kode: string;
@@ -50,6 +51,7 @@ export const useAuthStore = defineStore("auth", () => {
   const userName = computed(() => user.value?.nama || "User");
   const userInitial = computed(() => userName.value.charAt(0).toUpperCase());
   const userCabang = computed(() => user.value?.cabang || "-");
+  const userCabangNama = computed(() => user.value?.cabangNama || "");
   const allowedMenus = computed(() => {
     return permissions.value.filter((p) => p.view).map((p) => p.id.toString()); // convert number ke string untuk match dengan menuId di router
   });
@@ -71,10 +73,10 @@ export const useAuthStore = defineStore("auth", () => {
 
   const checkServerStatus = async () => {
     try {
-      // Kita gunakan 'HEAD' request karena lebih ringan, tidak butuh body respons
-      await api.head("/health");
+      // Gunakan instance axios yang bersih, tanpa interceptor
+      await axios.head("/api/health");
       isOnline.value = true;
-    } catch (error) {
+    } catch {
       isOnline.value = false;
     }
   };
@@ -86,6 +88,10 @@ export const useAuthStore = defineStore("auth", () => {
 
     // Mulai "heartbeat" ke server setiap 30 detik
     heartbeatInterval = window.setInterval(checkServerStatus, 30000);
+  };
+
+  const clearConnectivityCheck = () => {
+    clearInterval(heartbeatInterval);
   };
 
   // --- ACTIONS ---
@@ -166,6 +172,7 @@ export const useAuthStore = defineStore("auth", () => {
     userName,
     userInitial,
     userCabang,
+    userCabangNama,
     isTokenExpired,
     setLoginData,
     logout,
@@ -176,5 +183,6 @@ export const useAuthStore = defineStore("auth", () => {
     handleSessionExpired,
     isOnline,
     initConnectivityCheck,
+    clearConnectivityCheck,
   };
 });

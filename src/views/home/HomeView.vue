@@ -2,6 +2,7 @@
 import { ref, onMounted, onUnmounted, computed, reactive, watch } from 'vue';
 import { useAuthStore } from '@/stores/authStore';
 import { useRouter } from 'vue-router';
+import VueGauge from 'vue3-gauge';
 import logoUrl from '@/assets/logo.png';
 import api from '@/services/api';
 import { useToast } from 'vue-toastification';
@@ -60,6 +61,16 @@ const isLoadingActions = ref(true);
 const topProducts = ref([]);
 const isLoadingTopProducts = ref(true);
 
+const salesTargetSummary = ref({ nominal: 0, target: 0 });
+const isLoadingSalesTarget = ref(true);
+
+const topPerformers = ref<any[]>([]);
+const bottomPerformers = ref<any[]>([]);
+const isLoadingPerformance = ref(false);
+
+const stagnantStockValue = ref(0);
+const isLoadingStagnantStock = ref(true);
+
 const quickActions = ref([
   { title: 'Transaksi Baru', icon: 'mdi-cash-register', to: '/transaksi', color: 'primary' },
   { title: 'Master Data', icon: 'mdi-plus-circle', to: '/daftar', color: 'success' },
@@ -77,6 +88,28 @@ const formatCurrency = (amount: number) => {
     minimumFractionDigits: 0
   }).format(amount)
 }
+
+const targetPercentage = computed(() => {
+  if (!salesTargetSummary.value.target || salesTargetSummary.value.target === 0) {
+    return 0;
+  }
+
+  // PENTING: Pastikan hasil dalam bentuk persentase (0-100)
+  const percentage = (salesTargetSummary.value.nominal / salesTargetSummary.value.target) * 100;
+
+  console.log('Calculated percentage:', percentage); // Debug
+
+  // Batasi maksimal 100% untuk tampilan gauge
+  return Math.min(percentage, 100);
+});
+
+const getProgressColor = (percentage) => {
+  if (percentage >= 100) return '#4CAF50'; // Hijau - target tercapai
+  if (percentage >= 75) return '#2196F3';  // Biru - mendekati target
+  if (percentage >= 50) return '#FF9800';  // Orange - setengah jalan
+  if (percentage >= 25) return '#FFC107';  // Kuning - perlu effort
+  return '#F44336';                        // Merah - jauh dari target
+};
 
 const currentTime = ref(new Date().toLocaleString('id-ID', { dateStyle: 'long', timeStyle: 'medium' }));
 let intervalId: number;
@@ -211,6 +244,54 @@ const fetchTopProducts = async () => {
   }
 }
 
+const fetchSalesTargetSummary = async () => {
+  isLoadingSalesTarget.value = true;
+  try {
+    const response = await api.get('/dashboard/sales-target-summary');
+    salesTargetSummary.value = response.data;
+
+    // Debug lengkap
+    console.log('Sales Target Data:', {
+      nominal: salesTargetSummary.value.nominal,
+      target: salesTargetSummary.value.target,
+      percentage: targetPercentage.value,
+      percentageFormatted: `${targetPercentage.value.toFixed(2)}%`
+    });
+
+  } catch (error) {
+    console.error('Error:', error);
+    toast.error('Gagal memuat ringkasan target penjualan.');
+  } finally {
+    isLoadingSalesTarget.value = false;
+  }
+};
+
+const fetchBranchPerformance = async () => {
+  isLoadingPerformance.value = true;
+  try {
+    const response = await api.get('/dashboard/branch-performance');
+    topPerformers.value = response.data.top;
+    bottomPerformers.value = response.data.bottom;
+  } catch (error) {
+    // Jangan tampilkan error, cukup sembunyikan kartunya
+    console.error('Gagal memuat performa cabang:', error);
+  } finally {
+    isLoadingPerformance.value = false;
+  }
+};
+
+const fetchStagnantStockSummary = async () => {
+  isLoadingStagnantStock.value = true;
+  try {
+    const response = await api.get('/dashboard/stagnant-stock-summary');
+    stagnantStockValue.value = response.data.totalStagnantValue || 0;
+  } catch (error) {
+    toast.error('Gagal memuat ringkasan stok stagnan.');
+  } finally {
+    isLoadingStagnantStock.value = false;
+  }
+};
+
 // Update time setiap menit
 setInterval(() => {
   currentTime.value = new Date().toLocaleString('id-ID')
@@ -225,6 +306,11 @@ onMounted(() => {
     fetchRecentTransactions();
     fetchPendingActions();
     fetchTopProducts();
+    fetchSalesTargetSummary();
+    fetchStagnantStockSummary();
+    if (authStore.user?.cabang === 'KDC') {
+      fetchBranchPerformance();
+    }
   }
 });
 
@@ -414,89 +500,124 @@ watch(chartGroupBy, fetchSalesChartData);
 
     <!-- Main Content Row -->
     <v-row>
-      <!-- Quick Actions -->
+      <!-- Left Column -->
       <v-col cols="12" lg="6">
+        <!-- Quick Actions -->
         <v-card class="mb-4" elevation="2">
-          <v-card-title class="d-flex align-center">
-            <v-icon class="mr-2">mdi-lightning-bolt</v-icon>
-            Aksi Cepat
+          <v-card-title class="d-flex align-center bg-blue-grey-lighten-5">
+            <v-icon class="mr-2" color="primary">mdi-lightning-bolt</v-icon>
+            <span class="text-h6">Aksi Cepat</span>
           </v-card-title>
-          <v-card-text>
-            <div class="d-flex justify-space-around align-center flex-wrap ga-4 pa-2">
-              <div v-for="action in quickActions" :key="action.title">
-                <v-tooltip :text="action.title" location="top">
+          <v-card-text class="pa-6">
+            <v-row class="justify-center">
+              <v-col v-for="action in quickActions" :key="action.title" cols="4" sm="2" class="text-center">
+                <v-tooltip :text="action.title" location="bottom">
                   <template v-slot:activator="{ props }">
-                    <v-btn v-bind="props" :to="action.to" :color="action.color" icon size="x-large" variant="tonal">
+                    <v-btn v-bind="props" :to="action.to" :color="action.color" icon size="large" variant="flat"
+                      class="mb-2" elevation="2">
                       <v-icon size="28">{{ action.icon }}</v-icon>
                     </v-btn>
                   </template>
                 </v-tooltip>
-              </div>
-            </div>
+                <div class="text-caption text-medium-emphasis">{{ action.title }}</div>
+              </v-col>
+            </v-row>
           </v-card-text>
         </v-card>
 
-        <!-- Low Stock Alert -->
-        <v-card elevation="2" color="warning" variant="tonal">
-          <v-card-title class="d-flex align-center">
-            <v-icon class="mr-2">mdi-alert-circle</v-icon>
-            Peringatan Stok Menipis
+        <!-- Sales Target -->
+        <v-card elevation="2" class="mb-4" hover>
+          <v-card-title class="d-flex align-center bg-blue-lighten-5">
+            <v-icon class="mr-2" color="primary">mdi-target</v-icon>
+            <span class="text-h6">Pencapaian Target (Bulan Ini)</span>
           </v-card-title>
-          <v-card-text>
-            <div v-if="isLoadingLowStock" class="text-center pa-4">
-              <v-progress-circular indeterminate color="warning"></v-progress-circular>
-              <div class="mt-2">Memuat data...</div>
+          <v-card-text class="pa-6">
+            <div v-if="isLoadingSalesTarget" class="text-center pa-8">
+              <v-progress-circular indeterminate color="primary" size="48"></v-progress-circular>
             </div>
-            <div v-else-if="lowStockProducts.length === 0" class="text-center pa-4">
-              <v-icon size="48" color="success">mdi-check-circle-outline</v-icon>
-              <div class="mt-2">Stok aman! Tidak ada produk yang menipis.</div>
-            </div>
-            <v-list v-else dense bg-color="transparent" class="scrollable-list">
-              <v-list-item v-for="product in lowStockProducts" :key="product.KODE" class="px-0">
-                <v-list-item-title class="font-weight-bold">{{ product.NAMA }}</v-list-item-title>
-                <v-list-item-subtitle>
-                  Sisa: {{ product.TOTAL }} | Buffer: {{ product.Buffer }}
-                </v-list-item-subtitle>
-                <template #append>
-                  <v-chip color="error" size="small" variant="flat">
-                    Sisa {{ product.TOTAL }}
-                  </v-chip>
-                </template>
-              </v-list-item>
-            </v-list>
 
-            <v-btn color="warning" variant="outlined" block class="mt-3" to="/laporan/stok">
-              Lihat Laporan Lengkap
-            </v-btn>
+            <div v-else>
+              <v-row align="center">
+                <v-col cols="12" sm="5" class="text-center">
+                  <VueGauge :value="Math.round(targetPercentage * 10) / 10" :options="{
+                    arcColor: getProgressColor(targetPercentage),
+                    arcWidth: 14,
+                    pointerWidth: 10,
+                    pointerColor: '#616161',
+                    digitColor: '#212121',
+                    label: '% Target',
+                    labelColor: '#757575',
+                    max: 100,
+                    min: 0,
+                    decimals: 2
+                  }" />
+                </v-col>
+                <v-col cols="12" sm="7">
+                  <v-card variant="outlined" class="mb-3">
+                    <v-card-text>
+                      <div class="text-caption text-medium-emphasis mb-1">Realisasi</div>
+                      <div class="text-h5 font-weight-bold text-success">
+                        {{ formatCurrency(salesTargetSummary.nominal) }}
+                      </div>
+                      <div class="text-caption text-primary mt-1">
+                        {{ targetPercentage.toFixed(2) }}% dari target
+                      </div>
+                    </v-card-text>
+                  </v-card>
+                  <v-card variant="outlined">
+                    <v-card-text>
+                      <div class="text-caption text-medium-emphasis mb-1">Target</div>
+                      <div class="text-h6 font-weight-medium">
+                        {{ formatCurrency(salesTargetSummary.target) }}
+                      </div>
+                    </v-card-text>
+                  </v-card>
+                </v-col>
+              </v-row>
+            </div>
           </v-card-text>
         </v-card>
-      </v-col>
 
-      <!-- Recent Transactions -->
-      <v-col cols="12" lg="6">
+        <!-- Recent Transactions -->
         <v-card class="mb-4" elevation="2">
-          <v-card-title class="d-flex align-center justify-space-between">
+          <v-card-title class="d-flex align-center justify-space-between bg-green-lighten-5">
             <div class="d-flex align-center">
               <v-icon class="mr-2" color="success">mdi-point-of-sale</v-icon>
-              Penjualan Terbaru
+              <span class="text-h6">Penjualan Terbaru</span>
             </div>
-            <v-btn size="small" variant="text" color="primary" to="/transaksi/penjualan/invoice">
+            <v-btn size="small" variant="text" color="success" to="/transaksi/penjualan/invoice"
+              append-icon="mdi-chevron-right">
               Lihat Semua
             </v-btn>
           </v-card-title>
-          <v-card-text>
-            <div v-if="isLoadingTransactions" class="text-center pa-4">
-              <v-progress-circular indeterminate color="primary"></v-progress-circular>
+          <v-card-text class="pa-4">
+            <div v-if="isLoadingTransactions" class="text-center pa-8">
+              <v-progress-circular indeterminate color="success" size="48"></v-progress-circular>
             </div>
-            <div v-else-if="recentTransactions.length === 0" class="text-center pa-4">
-              Belum ada transaksi hari ini.
+
+            <div v-else-if="recentTransactions.length === 0" class="text-center pa-8">
+              <v-icon size="64" color="grey">mdi-receipt-text-outline</v-icon>
+              <div class="mt-3 text-medium-emphasis">Belum ada transaksi hari ini</div>
             </div>
-            <v-list v-else dense>
-              <v-list-item v-for="transaction in recentTransactions" :key="transaction.id" class="px-0">
-                <v-list-item-title>{{ transaction.customer }}</v-list-item-title>
-                <v-list-item-subtitle>{{ transaction.id }} - {{ transaction.time }}</v-list-item-subtitle>
+
+            <v-list v-else bg-color="transparent" style="max-height: 300px; overflow-y: auto;">
+              <v-list-item v-for="transaction in recentTransactions" :key="transaction.id" class="px-2 mb-2"
+                rounded="lg" border>
+                <template #prepend>
+                  <v-avatar color="success-lighten-1" size="40">
+                    <v-icon color="white">mdi-cart-check</v-icon>
+                  </v-avatar>
+                </template>
+
+                <v-list-item-title class="font-weight-bold">
+                  {{ transaction.customer }}
+                </v-list-item-title>
+                <v-list-item-subtitle class="mt-1">
+                  {{ transaction.id }} • {{ transaction.time }}
+                </v-list-item-subtitle>
+
                 <template #append>
-                  <v-chip color="success" size="small">
+                  <v-chip color="success" size="small" variant="flat" class="font-weight-bold">
                     {{ formatCurrency(transaction.amount) }}
                   </v-chip>
                 </template>
@@ -504,33 +625,157 @@ watch(chartGroupBy, fetchSalesChartData);
             </v-list>
           </v-card-text>
         </v-card>
-        <v-card elevation="2" class="mt-4">
-          <v-card-title class="d-flex align-center">
-            <v-icon class="mr-2" color="amber">mdi-star-circle-outline</v-icon>
-            Produk Terlaris (Bulan Ini)
+      </v-col>
+
+      <!-- Right Column -->
+      <v-col cols="12" lg="6">
+        <!-- Low Stock Alert -->
+        <v-card elevation="2" class="mb-4">
+          <v-card-title class="d-flex align-center bg-orange-lighten-5">
+            <v-icon class="mr-2" color="warning">mdi-alert-circle</v-icon>
+            <span class="text-h6">Peringatan Stok Menipis</span>
           </v-card-title>
-          <v-card-text>
-            <div v-if="isLoadingTopProducts" class="text-center pa-4">
-              <v-progress-circular indeterminate color="primary"></v-progress-circular>
+          <v-card-text class="pa-4">
+            <div v-if="isLoadingLowStock" class="text-center pa-8">
+              <v-progress-circular indeterminate color="warning" size="48"></v-progress-circular>
+              <div class="mt-3 text-medium-emphasis">Memuat data...</div>
             </div>
-            <v-list v-else dense>
-              <v-list-item v-for="(product, index) in topProducts" :key="product.KODE" class="px-0">
+
+            <div v-else-if="lowStockProducts.length === 0" class="text-center pa-8">
+              <v-icon size="64" color="success">mdi-check-circle-outline</v-icon>
+              <div class="mt-3 text-h6">Stok Aman!</div>
+              <div class="text-medium-emphasis">Tidak ada produk yang menipis</div>
+            </div>
+
+            <div v-else>
+              <v-list bg-color="transparent" class="scrollable-list" style="max-height: 300px; overflow-y: auto;">
+                <v-list-item v-for="product in lowStockProducts" :key="product.KODE" class="px-2 mb-2" rounded="lg"
+                  border>
+                  <template #prepend>
+                    <v-avatar color="error" size="40">
+                      <v-icon color="white">mdi-package-variant</v-icon>
+                    </v-avatar>
+                  </template>
+
+                  <v-list-item-title class="font-weight-bold text-body-1">
+                    {{ product.NAMA }}
+                  </v-list-item-title>
+                  <v-list-item-subtitle class="mt-1">
+                    Sisa: <strong>{{ product.TOTAL }}</strong> | Buffer: <strong>{{ product.Buffer }}</strong>
+                  </v-list-item-subtitle>
+
+                  <template #append>
+                    <v-chip color="error" size="small" variant="flat" class="font-weight-bold">
+                      {{ product.TOTAL }} pcs
+                    </v-chip>
+                  </template>
+                </v-list-item>
+              </v-list>
+
+              <v-btn color="warning" variant="tonal" block class="mt-4" to="/laporan/stok/real-time"
+                prepend-icon="mdi-file-chart-outline">
+                Lihat Laporan Lengkap
+              </v-btn>
+            </div>
+          </v-card-text>
+        </v-card>
+
+        <v-card elevation="2" class="mt-4" color="deep-orange" variant="tonal" hover
+          @click="router.push('/laporan/stok/dead-stok')">
+          <v-card-text>
+            <div v-if="isLoadingStagnantStock" class="text-center pa-2">
+              <v-progress-circular indeterminate color="deep-orange" size="24"></v-progress-circular>
+            </div>
+            <div v-else class="d-flex align-center">
+              <v-icon size="40" class="mr-4">mdi-archive-arrow-down-outline</v-icon>
+              <div>
+                <div class="text-caption text-deep-orange">Nilai Stok Stagnan (30 Hari)</div>
+                <div class="text-h5 font-weight-bold">
+                  {{ formatCurrency(stagnantStockValue) }}
+                </div>
+              </div>
+            </div>
+          </v-card-text>
+        </v-card>
+
+        <!-- Top Products -->
+        <v-card elevation="2" class="mb-4">
+          <v-card-title class="d-flex align-center bg-amber-lighten-5">
+            <v-icon class="mr-2" color="amber-darken-2">mdi-star-circle-outline</v-icon>
+            <span class="text-h6">Produk Terlaris (Bulan Ini)</span>
+          </v-card-title>
+          <v-card-text class="pa-4">
+            <div v-if="isLoadingTopProducts" class="text-center pa-8">
+              <v-progress-circular indeterminate color="amber" size="48"></v-progress-circular>
+            </div>
+
+            <v-list v-else bg-color="transparent" style="max-height: 300px; overflow-y: auto;">
+              <v-list-item v-for="(product, index) in topProducts" :key="product.KODE" class="px-2 mb-2" rounded="lg"
+                border>
                 <template #prepend>
-                  <v-avatar color="blue-grey-lighten-4" size="small" class="mr-4">
-                    <span class="font-weight-bold">{{ index + 1 }}</span>
+                  <v-avatar :color="index === 0 ? 'amber' : index === 1 ? 'blue-grey-lighten-1' : 'brown-lighten-1'"
+                    size="40">
+                    <span class="font-weight-bold text-white">{{ index + 1 }}</span>
                   </v-avatar>
                 </template>
 
-                <v-list-item-title class="font-weight-medium">{{ product.NAMA }}</v-list-item-title>
-                <v-list-item-subtitle>{{ product.KODE }}</v-list-item-subtitle>
+                <v-list-item-title class="font-weight-bold">
+                  {{ product.NAMA }}
+                </v-list-item-title>
+                <v-list-item-subtitle class="mt-1">
+                  {{ product.KODE }}
+                </v-list-item-subtitle>
 
                 <template #append>
-                  <v-chip color="primary" size="small" variant="flat">
+                  <v-chip color="primary" size="small" variant="flat" class="font-weight-bold">
                     {{ product.TOTAL?.toLocaleString('id-ID') }} pcs
                   </v-chip>
                 </template>
               </v-list-item>
             </v-list>
+          </v-card-text>
+        </v-card>
+
+        <!-- Branch Performance -->
+        <v-card v-if="authStore.user?.cabang === 'KDC' && (topPerformers.length > 0 || bottomPerformers.length > 0)"
+          elevation="2">
+          <v-card-title class="d-flex align-center bg-purple-lighten-5">
+            <v-icon class="mr-2" color="purple">mdi-trophy-outline</v-icon>
+            <span class="text-h6">Performa Cabang (Bulan Ini)</span>
+          </v-card-title>
+          <v-card-text class="pa-4">
+            <div v-if="isLoadingPerformance" class="text-center pa-4">
+              <v-progress-circular indeterminate color="primary" />
+            </div>
+            <v-row v-else>
+              <v-col cols="6">
+                <v-list-subheader class="font-weight-bold text-success">TOP PERFORMERS</v-list-subheader>
+                <v-list dense nav>
+                  <v-list-item v-for="item in topPerformers" :key="item.kode_cabang" class="px-0">
+                    <v-list-item-title class="font-weight-medium">{{ item.nama_cabang }}</v-list-item-title>
+                    <template #append>
+                      <v-chip color="success" size="small" variant="tonal">
+                        {{ item.ach.toFixed(2) }}%
+                      </v-chip>
+                    </template>
+                  </v-list-item>
+                </v-list>
+              </v-col>
+
+              <v-col cols="6">
+                <v-list-subheader class="font-weight-bold text-error">PERLU PERHATIAN</v-list-subheader>
+                <v-list dense nav>
+                  <v-list-item v-for="item in bottomPerformers" :key="item.kode_cabang" class="px-0">
+                    <v-list-item-title class="font-weight-medium">{{ item.nama_cabang }}</v-list-item-title>
+                    <template #append>
+                      <v-chip color="error" size="small" variant="tonal">
+                        {{ item.ach.toFixed(2) }}%
+                      </v-chip>
+                    </template>
+                  </v-list-item>
+                </v-list>
+              </v-col>
+            </v-row>
           </v-card-text>
         </v-card>
       </v-col>
@@ -561,6 +806,25 @@ watch(chartGroupBy, fetchSalesChartData);
   max-height: 180px;
   /* Atur tinggi maksimal yang Anda inginkan */
   overflow-y: auto;
+}
+
+/* Smooth scrollbar */
+.scrollable-list::-webkit-scrollbar {
+  width: 6px;
+}
+
+.scrollable-list::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 10px;
+}
+
+.scrollable-list::-webkit-scrollbar-thumb {
+  background: #888;
+  border-radius: 10px;
+}
+
+.scrollable-list::-webkit-scrollbar-thumb:hover {
+  background: #555;
 }
 
 /* Responsive adjustments */

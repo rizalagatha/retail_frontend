@@ -116,7 +116,7 @@ import ProformaPrintView from "@/views/transaksi/penjualan/ProformaPrintView.vue
 import LaporanStokView from "@/views/laporan/stok/LaporanStokView.vue";
 import LaporanMutasiStokView from "@/views/laporan/stok/LaporanMutasiStokView.vue";
 import LaporanKartuStokView from "@/views/laporan/stok/LaporanKartuStokView.vue";
-import LaporanListOtorisasiView from "@/views/laporan/stok/LaporanListOtorisasiView.vue";
+import LaporanListOtorisasiView from "@/views/laporan/lain-lain/LaporanListOtorisasiView.vue";
 import LaporanInvoiceView from "@/views/laporan/penjualan/LaporanInvoiceView.vue";
 import LaporanSalesVsTargetView from "@/views/laporan/penjualan/LaporanSalesVsTargetView.vue";
 import PotonganView from "@/views/piutang/PotonganView.vue";
@@ -135,6 +135,22 @@ import ParetoView from "@/views/laporan/penjualan/ParetoView.vue";
 import ParetoPrintView from "@/views/laporan/penjualan/ParetoPrintView.vue";
 import LaporanPenjualanPivotView from "@/views/laporan/analisa/LaporanPenjualanPivotView.vue";
 import LaporanPenjualanGrafikView from "@/views/laporan/analisa/LaporanPenjualanGrafikView.vue";
+import MonitoringAchievementView from "@/views/laporan/penjualan/MonitoringAchievementView.vue";
+import LaporanStokPivotView from "@/views/laporan/analisa/LaporanStokPivotView.vue";
+import LaporanStokGrafikView from "@/views/laporan/analisa/LaporanStokGrafikView.vue";
+import LaporanStokStagnanView from "@/views/laporan/stok/LaporanStokStagnanView.vue";
+import LaporanDeadStokView from "@/views/laporan/stok/LaporanDeadStokView.vue";
+import LaporanSaldoKasirView from "@/views/laporan/lain-lain/LaporanSaldoKasirView.vue";
+import MutasiAntarGudangView from "@/views/dc/operasional/MutasiAntarGudangView.vue";
+import MutasiAntarGudangCreateView from "@/views/dc/operasional/MutasiAntarGudangCreateView.vue";
+import MutasiAntarGudangPrintView from "@/views/dc/operasional/MutasiAntarGudangPrintView.vue";
+import PengajuanProduksiView from "@/views/dc/produksi-supplier/PengajuanProduksiView.vue";
+import PengajuanProduksiCreateView from "@/views/dc/produksi-supplier/PengajuanProduksiCreateView.vue";
+import PengajuanProduksiPrintView from "@/views/dc/produksi-supplier/PengajuanProduksiPrintView.vue";
+import ApprovePengajuanProduksiView from "@/views/dc/produksi-supplier/ApprovePengajuanProduksiView.vue";
+import ApprovePengajuanProduksiCreateView from "@/views/dc/produksi-supplier/ApprovePengajuanProduksiCreateView.vue";
+import BarangExternalView from "@/views/dc/master-data/BarangExternalView.vue";
+import BarangExternalCreateView from "@/views/dc/master-data/BarangExternalCreateView.vue";
 import WhatsappLinkView from "@/views/user/WhatsappLinkView.vue";
 
 const routes = [
@@ -1483,7 +1499,7 @@ const routes = [
     },
   },
   {
-    path: "/laporan/stok/list-otorisasi",
+    path: "/laporan/lain-lain/list-otorisasi",
     name: "LaporanListOtorisasi",
     component: LaporanListOtorisasiView,
     meta: {
@@ -1504,12 +1520,42 @@ const routes = [
   },
   {
     path: "/laporan/penjualan/sales-vs-target",
-    name: "LaporanSalesVsTarget",
+    name: "SalesVsTarget",
     component: LaporanSalesVsTargetView,
     meta: {
-      title: "Laporan Invoice",
+      title: "Laporan Sales VS Target",
       requiresAuth: true,
-      menuId: "502",
+      menuId: "509",
+    },
+  },
+  {
+    path: "/laporan/analisa/stok-pivot",
+    name: "LaporanStokPivot",
+    component: LaporanStokPivotView,
+    meta: {
+      title: "Laporan Stok (Pivot)",
+      requiresAuth: true,
+      menuId: "507",
+    },
+  },
+  {
+    path: "/laporan/analisa/stok-pivot/chart",
+    name: "LaporanStokChart",
+    component: LaporanStokGrafikView,
+    meta: {
+      title: "Grafik Laporan Stok",
+      requiresAuth: true,
+      menuId: "507",
+    },
+  },
+  {
+    path: "/laporan/stok/stagnan",
+    name: "LaporanStokStagnan",
+    component: LaporanStokStagnanView,
+    meta: {
+      title: "Laporan Stok Stagnan",
+      requiresAuth: true,
+      menuId: "508",
     },
   },
   {
@@ -1623,7 +1669,169 @@ const routes = [
     path: "/laporan/analisa/penjualan-grafik",
     name: "LaporanPenjualanChart",
     component: LaporanPenjualanGrafikView,
-    meta: { title: "Grafik Laporan Penjualan", requiresAuth: true, menuId: "506", },
+    meta: { title: "Grafik Laporan Penjualan", requiresAuth: true, menuId: "506" },
+  },
+  {
+    path: "/laporan/penjualan/monitoring-achievement",
+    name: "MonitoringAchievement",
+    component: MonitoringAchievementView,
+    meta: {
+      title: "Monitoring Achievement",
+      requiresAuth: true,
+      menuId: "705",
+    },
+  },
+  {
+    path: "/laporan/stok/dead-stok",
+    name: "LaporanDeadStok",
+    component: LaporanDeadStokView,
+    meta: {
+      title: "Laporan Dead Stock",
+      requiresAuth: true,
+      menuId: "510",
+    },
+  },
+  {
+    path: "/laporan/lain-lain/saldo-kasir",
+    name: "LaporanSaldoKasir",
+    component: LaporanSaldoKasirView,
+    meta: {
+      title: "Laporan Saldo Kasir",
+      requiresAuth: true,
+      menuId: "601",
+    },
+  },
+  {
+    path: "/gudang-dc/operasional/mutasi-antar-gudang",
+    name: "MutasiAntarGudang",
+    component: MutasiAntarGudangView,
+    meta: {
+      title: "Mutasi Antar Gudang",
+      requiresAuth: true,
+      menuId: "216",
+    },
+  },
+  {
+    path: "/gudang-dc/operasional/mutasi-antar-gudang/create",
+    name: "MutasiAntarGudangCreate",
+    component: MutasiAntarGudangCreateView,
+    meta: {
+      title: "Buat Mutasi Antar Gudang",
+      requiresAuth: true,
+      menuId: "216",
+    },
+  },
+  {
+    path: "/gudang-dc/operasional/mutasi-antar-gudang/edit/:nomor",
+    name: "MutasiAntarGudangEdit",
+    component: MutasiAntarGudangCreateView,
+    meta: {
+      title: "Ubah Mutasi Antar Gudang",
+      requiresAuth: true,
+      menuId: "216",
+    },
+  },
+  {
+    path: "/gudang-dc/operasional/mutasi-antar-gudang/print/:nomor",
+    name: "MutasiAntarGudangPrint",
+    component: MutasiAntarGudangPrintView,
+    meta: {
+      title: "Cetak Mutasi Antar Gudang",
+      requiresAuth: true,
+      menuId: "216",
+      layout: "PrintLayout",
+    },
+  },
+  {
+    path: "/gudang-dc/produksi-supplier/pengajuan-produksi",
+    name: "PengajuanProduksi",
+    component: PengajuanProduksiView,
+    meta: {
+      title: "Browse Pengajuan Produksi",
+      requiresAuth: true,
+      menuId: "217",
+    },
+  },
+  {
+    path: "/gudang-dc/produksi-supplier/pengajuan-produksi/create",
+    name: "PengajuanProduksiCreate",
+    component: PengajuanProduksiCreateView,
+    meta: {
+      title: "Buat Pengajuan Produksi",
+      requiresAuth: true,
+      menuId: "217",
+    },
+  },
+  {
+    path: "/gudang-dc/produksi-supplier/pengajuan-produksi/edit/:nomor",
+    name: "PengajuanProduksiEdit",
+    component: PengajuanProduksiCreateView,
+    meta: {
+      title: "Ubah Pengajuan Produksi",
+      requiresAuth: true,
+      menuId: "217",
+    },
+  },
+  {
+    path: "/gudang-dc/produksi-supplier/pengajuan-produksi/print/:nomor",
+    name: "PengajuanProduksiPrint",
+    component: PengajuanProduksiPrintView,
+    meta: {
+      title: "Cetak Pengajuan Produksi",
+      requiresAuth: true,
+      menuId: "217",
+      layout: "PrintLayout",
+    },
+  },
+  {
+    path: "/gudang-dc/produksi-supplier/apv-pengajuan-produksi",
+    name: "ApprovePengajuanProduksi",
+    component: ApprovePengajuanProduksiView,
+    meta: {
+      title: "Approve Pengajuan Produksi",
+      requiresAuth: true,
+      menuId: "218",
+    },
+  },
+  {
+    path: "/gudang-dc/produksi-supplier/approve-pengajuan/form/:nomor",
+    name: "ApprovePengajuanProduksiForm",
+    component: ApprovePengajuanProduksiCreateView,
+    meta: {
+      title: "Form Approve Pengajuan Produksi",
+      requiresAuth: true,
+      menuId: "218",
+    },
+  },
+  {
+    path: "/gudang-dc/master-data/barang-external",
+    name: "BarangExternal",
+    component: BarangExternalView,
+    meta: {
+      title: "Master Barang External",
+      requiresAuth: true,
+      menuId: "219",
+    },
+  },
+  {
+    path: "/gudang-dc/master-data/barang-external/create",
+    name: "BarangExternalCreate",
+    component: BarangExternalCreateView,
+    meta: {
+      title: "Buat Barang External",
+      requiresAuth: true,
+      menuId: "219",
+    },
+  },
+  {
+    path: "/gudang-dc/master-data/barang-external/edit/:kode",
+    name: "BarangExternalEdit",
+    component: BarangExternalCreateView, // Menggunakan form yang sama
+    meta: {
+      title: "Ubah Barang External",
+      requiresAuth: true,
+      menuId: "219",
+    },
   },
   {
     path: "/pengaturan/whatsapp",

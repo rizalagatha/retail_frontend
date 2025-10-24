@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { ref, reactive, onMounted, computed, watch } from 'vue';
-import type { Ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { useToast } from 'vue-toastification';
 import { useAuthStore } from '@/stores/authStore';
@@ -45,7 +44,7 @@ const details = ref<Record<string, DetailItem[]>>({});
 const loading = ref(true);
 const loadingDetails = ref(new Set<string>());
 const selected = ref<MasterItem[]>([]);
-const expanded = ref([]) as unknown as Ref<MasterItem[]>;
+const expanded = ref<string[]>([]);
 
 const filters = reactive({
     startDate: format(subDays(new Date(), 30), 'yyyy-MM-dd'),

@@ -66,19 +66,6 @@ const hasAccess = (routeNameOrPath?: string) => {
 // Menu configuration
 const menuItems = [
   {
-    title: 'File',
-    icon: 'mdi-file-outline',
-    model: fileMenu,
-    items: [
-      { title: 'Manual Program', to: '/file/manual', icon: 'mdi-book-open-outline' },
-      { title: 'History Update Program', to: '/file/history-updates', icon: 'mdi-history' },
-      { title: 'Update Buffer Stok', to: '/file/update-buffer-stock', icon: 'mdi-database-sync' },
-      { title: 'Setting', to: '/file/settings', icon: 'mdi-cog-outline' },
-      { divider: true },
-      { title: 'User', to: '/file/users', icon: 'mdi-account-group-outline' }
-    ]
-  },
-  {
     title: 'Daftar',
     icon: 'mdi-clipboard-list-outline',
     model: daftarMenu,
@@ -264,28 +251,28 @@ const menuItems = [
           { title: 'Surat Jalan ke Store', to: '/gudang-dc/operasional/surat-jalan-store', icon: 'mdi-truck-delivery-outline' },
           { title: 'Pengambilan Barang', to: '/gudang-dc/operasional/ambil-barang', icon: 'mdi-package-up' },
           { title: 'Terima Retur dari Store', to: '/gudang-dc/operasional/terima-rb', icon: 'mdi-package-down' },
-          { title: 'QC ke Garmen', to: '/gudang-dc/operasional/qc-ke-garmen', icon: 'mdi-quality-high' },
+          { title: 'QC ke Garmen', to: '/gudang-dc/operasional/qc-garmen', icon: 'mdi-quality-high' },
           { title: 'Mutasi Stok Antar Gudang', to: '/gudang-dc/operasional/mutasi-antar-gudang', icon: 'mdi-swap-horizontal-circle-outline' }
         ]
       },
-      {
-        title: 'Produksi & Supplier',
-        icon: 'mdi-factory',
-        items: [
-          { title: 'Pengajuan Produksi', to: '/gudang-dc/produksi-supplier/pengajuan-produksi', icon: 'mdi-clipboard-text-outline' },
-          { title: 'Approve Produksi', to: '/gudang-dc/produksi-supplier/apv-pengajuan-produksi', icon: 'mdi-clipboard-check-outline' },
-          { title: 'PO ke Supplier', to: '/dc/po-to-supplier', icon: 'mdi-file-send-outline' },
-          { title: 'BPB dari Supplier', to: '/dc/bpb-from-supplier', icon: 'mdi-file-receive-outline' }
-        ]
-      },
-      {
-        title: 'Finansial',
-        icon: 'mdi-calculator-variant-outline',
-        items: [
-          { title: 'Voucher Pembayaran', to: '/dc/payment-voucher', icon: 'mdi-ticket-confirmation-outline' },
-          { title: 'Kartu Hutang', to: '/dc/accounts-payable-card', icon: 'mdi-credit-card-outline' }
-        ]
-      }
+      // {
+      //   title: 'Produksi & Supplier',
+      //   icon: 'mdi-factory',
+      //   items: [
+      //     { title: 'Pengajuan Produksi', to: '/gudang-dc/produksi-supplier/pengajuan-produksi', icon: 'mdi-clipboard-text-outline' },
+      //     { title: 'Approve Produksi', to: '/gudang-dc/produksi-supplier/apv-pengajuan-produksi', icon: 'mdi-clipboard-check-outline' },
+      //     { title: 'PO ke Supplier', to: '/gudang-dc/produksi-supplier/po-kaosan', icon: 'mdi-file-send-outline' },
+      //     { title: 'BPB dari Supplier', to: '/gudang-dc/produksi-supplier/bpb-kaosan', icon: 'mdi-file-document-outline' }
+      //   ]
+      // },
+      // {
+      //   title: 'Finansial',
+      //   icon: 'mdi-calculator-variant-outline',
+      //   items: [
+      //     { title: 'Voucher Pembayaran', to: '/dc/payment-voucher', icon: 'mdi-ticket-confirmation-outline' },
+      //     { title: 'Kartu Hutang', to: '/dc/accounts-payable-card', icon: 'mdi-credit-card-outline' }
+      //   ]
+      // }
     ]
   },
   {
@@ -331,6 +318,19 @@ const menuItems = [
           { title: 'Saldo Kasir', to: '/laporan/lain-lain/saldo-kasir', icon: 'mdi-cash-register' }
         ]
       }
+    ]
+  },
+  {
+    title: 'Tools',
+    icon: 'mdi-wrench-outline',
+    model: fileMenu,
+    items: [
+      { title: 'Manual Program', to: '/file/manual', icon: 'mdi-book-open-outline' },
+      // { title: 'History Update Program', to: '/file/history-updates', icon: 'mdi-history' },
+      { title: 'Update Buffer Stok', to: '/file/update-buffer-stock', icon: 'mdi-database-sync' },
+      { title: 'Setting', to: '/file/settings', icon: 'mdi-cog-outline' },
+      { divider: true },
+      { title: 'User', to: '/file/users', icon: 'mdi-account-group-outline' }
     ]
   }
 ]
@@ -543,9 +543,9 @@ onUnmounted(() => {
             <v-list-item-title>Ganti Password</v-list-item-title>
           </v-list-item>
 
-          <v-list-item to="/user/update-program" prepend-icon="mdi-update" class="user-menu-item">
+          <!-- <v-list-item to="/user/update-program" prepend-icon="mdi-update" class="user-menu-item">
             <v-list-item-title>Cek Versi</v-list-item-title>
-          </v-list-item>
+          </v-list-item> -->
 
           <v-divider class="user-divider" />
 

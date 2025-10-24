@@ -124,6 +124,8 @@ import PotonganCreateView from "@/views/piutang/PotonganCreateView.vue";
 import RefundView from "@/views/piutang/RefundView.vue";
 import RefundCreateView from "@/views/piutang/RefundCreateView.vue";
 import QckeGarmenView from "@/views/dc/operasional/QckeGarmenView.vue";
+import QckeGarmenCreateView from "@/views/dc/operasional/QckeGarmenCreateView.vue";
+import QckeGarmenPrintView from "@/views/dc/operasional/QckeGarmenPrintView.vue";
 import StokOpnameSettingTanggalView from "@/views/transaksi/stok-opname/StokOpnameSettingTanggalView.vue";
 import HitungStokView from "@/views/transaksi/stok-opname/HitungStokView.vue";
 import HitungStokCreateView from "@/views/transaksi/stok-opname/HitungStokCreateView.vue";
@@ -151,6 +153,14 @@ import ApprovePengajuanProduksiView from "@/views/dc/produksi-supplier/ApprovePe
 import ApprovePengajuanProduksiCreateView from "@/views/dc/produksi-supplier/ApprovePengajuanProduksiCreateView.vue";
 import BarangExternalView from "@/views/dc/master-data/BarangExternalView.vue";
 import BarangExternalCreateView from "@/views/dc/master-data/BarangExternalCreateView.vue";
+import PoKaosanView from "@/views/dc/produksi-supplier/PoKaosanView.vue";
+import PoKaosanCreateView from "@/views/dc/produksi-supplier/PoKaosanCreateView.vue";
+import PoKaosanPrintView from "@/views/dc/produksi-supplier/PoKaosanPrintView.vue";
+import BpbKaosanView from "@/views/dc/produksi-supplier/BpbKaosanView.vue";
+import BpbKaosanCreateView from "@/views/dc/produksi-supplier/BpbKaosanCreateView.vue";
+import BpbKaosanPrintView from "@/views/dc/produksi-supplier/BpbKaosanPrintView.vue";
+import LaporanHppKosongView from "@/views/transaksi/stok-opname/LaporanHppKosongView.vue";
+import KlerekView from "@/views/transaksi/internal/KlerekView.vue";
 import WhatsappLinkView from "@/views/user/WhatsappLinkView.vue";
 
 const routes = [
@@ -768,13 +778,43 @@ const routes = [
     },
   },
   {
-    path: "/gudang-dc/operasional/qc-ke-garmen",
-    name: "QckeGarmen",
+    path: "/gudang-dc/operasional/qc-garmen",
+    name: "QCkeGarmen",
     component: QckeGarmenView,
     meta: {
       title: "QC ke Garmen",
       requiresAuth: true,
       menuId: "215",
+    },
+  },
+  {
+    path: "/gudang-dc/operasional/qc-garmen/create",
+    name: "QCkeGarmenCreate",
+    component: QckeGarmenCreateView,
+    meta: {
+      title: "Buat QC Garmen",
+      requiresAuth: true,
+      menuId: "215", // Asumsi
+    },
+  },
+  {
+    path: "/gudang-dc/operasional/qc-garmen/edit/:nomor",
+    name: "QCkeGarmenEdit",
+    component: QckeGarmenCreateView,
+    meta: {
+      title: "Ubah QC Garmen",
+      requiresAuth: true,
+      menuId: "215",
+    },
+  },
+  {
+    path: "/gudang-dc/produksi-supplier/qc-garmen/print/:nomor",
+    name: "QcGarmenPrint",
+    component: QckeGarmenPrintView,
+    meta: {
+      title: "Cetak QC Garmen",
+      requiresAuth: true,
+      layout: "PrintLayout",
     },
   },
   {
@@ -1831,6 +1871,108 @@ const routes = [
       title: "Ubah Barang External",
       requiresAuth: true,
       menuId: "219",
+    },
+  },
+  {
+    path: "/gudang-dc/produksi-supplier/po-kaosan",
+    name: "PoKaosan",
+    component: PoKaosanView,
+    meta: {
+      title: "Browse PO ke Supplier",
+      requiresAuth: true,
+      menuId: "220",
+    },
+  },
+  {
+    path: "/gudang-dc/produksi-supplier/po-kaosan/create",
+    name: "PoKaosanCreate",
+    component: PoKaosanCreateView,
+    meta: {
+      title: "Buat PO Kaosan",
+      requiresAuth: true,
+      menuId: "220",
+    },
+  },
+  {
+    path: "/gudang-dc/produksi-supplier/po-kaosan/edit/:nomor",
+    name: "PoKaosanEdit",
+    component: PoKaosanCreateView, // Menggunakan form yang sama
+    meta: {
+      title: "Ubah PO Kaosan",
+      requiresAuth: true,
+      menuId: "220",
+    },
+  },
+  {
+    path: "/gudang-dc/produksi-supplier/po-kaosan/print/:nomor",
+    name: "PoKaosanPrint",
+    component: PoKaosanPrintView,
+    meta: {
+      title: "Cetak PO Kaosan",
+      requiresAuth: true,
+      menuId: "220",
+      layout: "PrintLayout",
+    },
+  },
+  {
+    path: "/gudang-dc/produksi-supplier/bpb-kaosan",
+    name: "BpbKaosan",
+    component: BpbKaosanView,
+    meta: {
+      title: "Browse BPB Kaosan",
+      requiresAuth: true,
+      menuId: "221",
+    },
+  },
+  {
+    path: "/gudang-dc/produksi-supplier/bpb-kaosan/create",
+    name: "BpbKaosanCreate",
+    component: BpbKaosanCreateView,
+    meta: {
+      title: "Buat BPB Kaosan",
+      requiresAuth: true,
+      menuId: "221",
+    },
+  },
+  {
+    path: "/gudang-dc/produksi-supplier/bpb-kaosan/edit/:nomor",
+    name: "BpbKaosanEdit",
+    component: BpbKaosanCreateView, // Menggunakan form yang sama
+    meta: {
+      title: "Ubah BPB Kaosan",
+      requiresAuth: true,
+      menuId: "221",
+    },
+  },
+  {
+    path: "/gudang-dc/produksi-supplier/bpb-kaosan/print/:nomor",
+    name: "BpbKaosanPrint",
+    component: BpbKaosanPrintView,
+    meta: {
+      title: "Cetak BPB Kaosan",
+      requiresAuth: true,
+      menuId: "221",
+      layout: "PrintLayout",
+    },
+  },
+  {
+    path: "/transaksi/stok-opname/hpp-kosong",
+    name: "LaporanHppKosong",
+    component: LaporanHppKosongView,
+    meta: {
+      title: "List HPP 0 Ada Stok",
+      requiresAuth: true,
+      menuId: "704",
+    },
+  },
+  {
+    path: "/transaksi/internal/klerek",
+    name: "Klerek",
+    component: KlerekView,
+    meta: {
+      title: "Klerek (Transfer Invoice Bazar)",
+      requiresAuth: true,
+      menuId: "34",
     },
   },
   {

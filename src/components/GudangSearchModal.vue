@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue';
 import api from '@/services/api';
+import { useToast } from 'vue-toastification';
 
 interface Gudang {
   kode: string;
@@ -36,7 +37,7 @@ const loadItems = async ({ page, itemsPerPage }: { page: number, itemsPerPage: n
   try {
     // --- LOGIKA PEMILIHAN ENDPOINT ---
     let apiUrl = '/warehouses'; // Endpoint default
-    let params: any = {
+    const params: any = {
       term: search.value,
       userCabang: props.userCabang,
       page: page,
@@ -46,14 +47,30 @@ const loadItems = async ({ page, itemsPerPage }: { page: number, itemsPerPage: n
 
     if (props.source === 'retur-dc') {
       apiUrl = '/retur-dc-form/lookup/gudang-dc';
-      // Hapus userCabang karena tidak dibutuhkan oleh endpoint baru ini
       delete params.userCabang;
     }
-    // --- AKHIR LOGIKA ---
+    // --- TAMBAHKAN BLOK ELSE IF INI ---
+    else if (props.source === 'qc-ke-garmen') {
+      apiUrl = '/qc-ke-garmen-form/gudang-options'; // API spesifik
+      // Hapus parameter yang tidak dibutuhkan oleh endpoint ini
+      delete params.userCabang;
+      delete params.page;
+      delete params.itemsPerPage;
+      delete params.onlyDc;
+      // Filter 'term' akan dilakukan di frontend karena datanya sedikit (hanya GJ001, GJ002)
+    }
+    // --- AKHIR BLOK ---
 
     const response = await api.get(apiUrl, { params });
 
-    if (response.data && Array.isArray(response.data.items) && typeof response.data.total === 'number') {
+    // --- PERBARUI LOGIKA RESPON ---
+    // Cek apakah data adalah array (untuk qc-garmen) atau objek (untuk paginasi)
+    if (Array.isArray(response.data)) {
+      // Untuk qc-garmen
+      items.value = response.data;
+      totalItems.value = response.data.length;
+    } else if (response.data && Array.isArray(response.data.items) && typeof response.data.total === 'number') {
+      // Untuk paginasi default
       items.value = response.data.items;
       totalItems.value = response.data.total;
     } else {

@@ -5,8 +5,48 @@ import api from '@/services/api';
 import { format, parseISO } from 'date-fns';
 import Logo from '@/assets/logo.png';
 
+interface ReturJualHeader {
+  nomor: string;
+  tanggal: string;
+  invoice: string;
+  keterangan: string;
+  user_create: string;
+  gudang: {
+    nama: string;
+    alamat: string;
+    telp: string;
+  };
+  customer: {
+    nama: string;
+    alamat: string;
+    kota: string;
+    telp: string;
+  };
+  summary: {
+    subtotal: number;
+    diskon: number;
+    grandTotal: number;
+    terbilang: string;
+  };
+}
+
+interface ReturJualDetail {
+  kode: string;
+  nama: string;
+  ukuran: string;
+  jumlah: number;
+  harga: number;
+  diskon: number;
+  total: number;
+}
+
+interface ReturJualPrintData {
+  header: ReturJualHeader;
+  details: ReturJualDetail[];
+}
+
 const route = useRoute();
-const printData = ref<any>(null);
+const printData = ref<ReturJualPrintData | null>(null);
 const isLoading = ref(true);
 const appLogo = Logo;
 
@@ -264,7 +304,7 @@ onMounted(() => {
         print-color-adjust: exact !important;
         background: #fff !important;
     }
-    
+
     .print-container {
         padding: 0;
         background: none;

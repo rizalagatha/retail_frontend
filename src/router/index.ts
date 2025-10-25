@@ -8,6 +8,10 @@ import DaftarIndex from "@/views/home/DaftarIndex.vue";
 import TransaksiIndex from "@/views/home/TransaksiIndex.vue";
 import PiutangIndex from "@/views/home/PiutangIndex.vue";
 import TransaksiSectionIndex from "@/views/home/TransaksiSectionIndex.vue";
+import LaporanIndex from "@/views/home/LaporanIndex.vue";
+import LaporanSectionIndex from "@/views/home/LaporanSectionIndex.vue";
+import DcIndex from "@/views/home/DcIndex.vue";
+import DcSectionIndex from "@/views/home/DcSectionIndex.vue";
 import NotFoundView from "@/views/file/NotFoundView.vue";
 import UnauthorizedView from "@/views/file/UnauthorizedView.vue";
 import ManualProgramView from "../views/file/ManualProgramView.vue";
@@ -123,6 +127,7 @@ import PotonganView from "@/views/piutang/PotonganView.vue";
 import PotonganCreateView from "@/views/piutang/PotonganCreateView.vue";
 import RefundView from "@/views/piutang/RefundView.vue";
 import RefundCreateView from "@/views/piutang/RefundCreateView.vue";
+import RefundPrintView from "@/views/piutang/RefundPrintView.vue";
 import QckeGarmenView from "@/views/dc/operasional/QckeGarmenView.vue";
 import QckeGarmenCreateView from "@/views/dc/operasional/QckeGarmenCreateView.vue";
 import QckeGarmenPrintView from "@/views/dc/operasional/QckeGarmenPrintView.vue";
@@ -290,7 +295,7 @@ const routes = [
     path: "/transaksi/:section", // Halaman dinamis untuk setiap seksi
     name: "TransaksiSection",
     component: TransaksiSectionIndex,
-    meta: { requiresAuth: true }, // Judul akan diatur di dalam komponen
+    meta: { title: "Section Transaksi", requiresAuth: true }, // Judul akan diatur di dalam komponen
   },
   {
     path: "/piutang",
@@ -300,6 +305,36 @@ const routes = [
       title: "Menu Piutang",
       requiresAuth: true,
     },
+  },
+  {
+    path: "/Laporan",
+    name: "Laporan",
+    component: LaporanIndex,
+    meta: {
+      title: "Menu Laporan",
+      requiresAuth: true,
+    },
+  },
+  {
+    path: "/laporan/:section", // Halaman dinamis untuk setiap seksi
+    name: "LaporanSection",
+    component: LaporanSectionIndex,
+    meta: { title: "Section Laporan", requiresAuth: true }, // Judul akan diatur di dalam komponen
+  },
+  {
+    path: "/gudang-dc",
+    name: "Gudang DC",
+    component: DcIndex,
+    meta: {
+      title: "Menu Gudang DC",
+      requiresAuth: true,
+    },
+  },
+  {
+    path: "/gudang-dc/:section", // Halaman dinamis untuk setiap seksi
+    name: "DcSection",
+    component: DcSectionIndex,
+    meta: { title: "Section Gudang DC", requiresAuth: true }, // Judul akan diatur di dalam komponen
   },
   {
     path: "/daftar/customers",
@@ -1018,6 +1053,16 @@ const routes = [
     },
   },
   {
+    path: "/piutang/potongan/edit/:nomor",
+    name: "PotonganEdit",
+    component: PotonganCreateView,
+    meta: {
+      title: "Ubah Potongan",
+      requiresAuth: true,
+      menuId: "53",
+    },
+  },
+  {
     path: "/piutang/refund",
     name: "Refund",
     component: RefundView,
@@ -1035,6 +1080,27 @@ const routes = [
       title: "Buat Refund Baru",
       requiresAuth: true,
       menuId: "55",
+    },
+  },
+  {
+    path: "/piutang/refund/edit/:nomor",
+    name: "RefundEdit",
+    component: RefundCreateView,
+    meta: {
+      title: "Buat Refund Baru",
+      requiresAuth: true,
+      menuId: "55",
+    },
+  },
+  {
+    path: "/piutang/refund/print/:nomor",
+    name: "RefundPrint",
+    component: RefundPrintView,
+    meta: {
+      title: "Cetak Pengajuan Refund",
+      requiresAuth: true,
+      menuId: "55",
+      layout: "PrintLayout",
     },
   },
   {

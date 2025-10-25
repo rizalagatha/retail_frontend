@@ -2,6 +2,7 @@
 import { ref, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
 import api from '@/services/api' // axios instance yang sudah ada
+import type { AxiosError } from "axios";
 
 interface Voucher {
   invk_kupon: string
@@ -19,8 +20,12 @@ const fetchVoucher = async () => {
     const nomor = route.params.nomor as string
     const { data } = await api.get(`/print-voucher/${nomor}`)
     printData.value = data
-  } catch (error: any) {
-    console.error('Gagal ambil data voucher:', error.response?.data || error.message)
+  } catch (error) {
+    const err = error as AxiosError<{ message?: string }>;
+    console.error(
+      "Gagal ambil data voucher:",
+      err["response"]?.["data"] || err["message"]
+    );
   }
 }
 
@@ -29,11 +34,7 @@ onMounted(fetchVoucher)
 
 <template>
   <div class="print-container">
-    <div
-      v-for="voucher in printData"
-      :key="voucher.invk_kupon"
-      class="voucher-page"
-    >
+    <div v-for="voucher in printData" :key="voucher.invk_kupon" class="voucher-page">
       <h3>VOUCHER BELANJA</h3>
       <div class="nominal">
         Rp {{ new Intl.NumberFormat('id-ID').format(voucher.invk_nominal) }}
@@ -53,17 +54,20 @@ onMounted(fetchVoucher)
   margin-bottom: 10mm;
   text-align: center;
 }
+
 .nominal {
   font-size: 20pt;
   font-weight: bold;
   margin: 5px 0;
   color: green;
 }
+
 .nomor {
   font-size: 12pt;
   font-family: 'Courier New', monospace;
   margin: 5px 0;
 }
+
 .note {
   font-style: italic;
   margin-top: 10px;

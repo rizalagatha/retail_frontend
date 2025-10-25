@@ -5,8 +5,48 @@ import api from '@/services/api';
 import { format, parseISO } from 'date-fns';
 import Logo from '@/assets/logo.png'; // Pastikan logo diimpor
 
+interface PrintHeader {
+  nomor: string;
+  tanggal: string;
+  invoice?: string;
+  keterangan?: string;
+  user_create: string;
+  customer: {
+    nama: string;
+    alamat?: string;
+    kota?: string;
+    telp?: string;
+  };
+  gudang: {
+    nama: string;
+    alamat?: string;
+    telp?: string;
+  };
+  summary: {
+    subtotal: number;
+    diskon: number;
+    grandTotal: number;
+    terbilang?: string;
+  };
+}
+
+interface PrintDetail {
+  kode: string;
+  nama: string;
+  ukuran: string;
+  jumlah: number;
+  harga: number;
+  diskon: number;
+  total: number;
+}
+
+interface PrintData {
+  header: PrintHeader;
+  details: PrintDetail[];
+}
+
 const route = useRoute();
-const printData = ref<any>(null);
+const printData = ref<PrintData | null>(null);
 const isLoading = ref(true);
 const appLogo = Logo; // Sediakan logo untuk template
 

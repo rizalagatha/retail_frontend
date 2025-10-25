@@ -6,40 +6,34 @@ import { useAuthStore } from '@/stores/authStore';
 import api from '@/services/api';
 import { format, subDays, parseISO, isValid } from 'date-fns';
 import PageLayout from '@/components/PageLayout.vue';
-import PrintOptionModal from '@/components/PrintOptionModal.vue';
 import * as XLSX from 'xlsx';
 
-
 interface RefundHeader {
-    Nomor: string;
-    Tanggal: string;
-    User: string;
-    Status: 'PROSES' | 'APPROVE' | '';
-    Appvoved: string | null;
-    TglApvove: string | null;
-    Clossing: string | null;
+  Nomor: string;
+  Tanggal: string;
+  User: string;
+  Status: 'PROSES' | 'APPROVE' | '';
+  Approved: string | null;
+  TglApvove: string | null;
+  Closing: string | null;
 }
 
 interface RefundDetail {
-    no: number;
-    iddrec: string;
-    nomor: string;
-    tanggal: string;
-    kdcus: string;
-    customer: string;
-    nominal: number;
-    refund: number;
-    apv: boolean;
-    ket: string;
-    bank: string;
-    norek: string;
-    atasnama: string;
+  no: number;
+  NoTransaksi: string;
+  Customer: string;
+  Nominal: number;
+  Approval: number;
+  BankTujuan: string;
+  NoRekening: string;
+  AtasNama: string;
+  Keterangan: string;
 }
 
 const router = useRouter();
 const toast = useToast();
 const authStore = useAuthStore();
-const MENU_ID = '54';
+const MENU_ID = '55';
 
 const masterData = ref<RefundHeader[]>([]);
 const details = ref<Record<string, RefundDetail[]>>({});
@@ -47,208 +41,341 @@ const loading = ref(true);
 const loadingDetails = ref(new Set<string>());
 const selected = ref<RefundHeader[]>([]);
 const expanded = ref<string[]>([]); // Ganti tipe menjadi string[]
-const isPrintOptionVisible = ref(false);
+const cabangList = ref([]);
+const dialogConfirm = reactive({
+  show: false,
+  title: '',
+  text: '',
+  onConfirm: () => { },
+  onCancel: () => { dialogConfirm.show = false; }
+});
 
 const filters = reactive({
-    startDate: format(subDays(new Date(), 7), 'yyyy-MM-dd'),
-    endDate: format(new Date(), 'yyyy-MM-dd'),
+  startDate: format(subDays(new Date(), 7), 'yyyy-MM-dd'),
+  endDate: format(new Date(), 'yyyy-MM-dd'),
 });
 
 const isSingleSelected = computed(() => selected.value.length === 1);
 const selectedRow = computed<RefundHeader | null>(() =>
-    isSingleSelected.value ? selected.value[0] : null
+  isSingleSelected.value ? selected.value[0] : null
 );
+const isApprover = computed(() => authStore.user?.cabang === 'KDC');
+
+const canNew = computed(() => !isApprover.value);
+const canEdit = computed(() => {
+  if (!isSingleSelected.value) return false;
+  if (!isApprover.value) { // Jika Pengaju
+    return !selectedRow.value?.Approved && selectedRow.value?.Closing !== 'Y';
+  }
+  return true; // Approver selalu bisa ubah (untuk approve)
+});
+const canDelete = computed(() => {
+  if (!isSingleSelected.value || isApprover.value) return false;
+  return !selectedRow.value?.Approved && selectedRow.value?.Closing !== 'Y';
+});
+const canCetak = computed(() => isSingleSelected.value);
 
 // --- Formatter & Konfigurasi Tabel ---
 const formatRupiah = (value: number | undefined): string => {
-    if (value === undefined || value === null) return '0';
-    return new Intl.NumberFormat('id-ID', { minimumFractionDigits: 0 }).format(value);
+  if (value === undefined || value === null) return '0';
+  return new Intl.NumberFormat('id-ID', { minimumFractionDigits: 0 }).format(value);
 };
-
 const formatTanggal = (dateString: string | undefined | null) => {
-    if (!dateString) return '';
-    const date = parseISO(dateString);
-    return isValid(date) ? format(date, 'dd/MM/yyyy') : '';
+  if (!dateString) return '';
+  const date = parseISO(dateString);
+  return isValid(date) ? format(date, 'dd/MM/yyyy') : dateString;
 };
 
 // Pastikan header ekspansi ditempatkan di posisi yang diinginkan
 const headers = [
-    { title: 'Nomor', key: 'Nomor', minWidth: '180px', fixed: true },
-    { title: 'Tanggal', key: 'Tanggal', minWidth: '120px' },
-    { title: 'User', key: 'User', minWidth: '100px' },
-    { title: 'Status', key: 'Status', minWidth: '100px' },
-    { title: 'Appvoved', key: 'Appvoved', minWidth: '100px' },
-    { title: 'Tgl Apvove', key: 'TglApvove', minWidth: '120px' },
-    { title: 'Clossing', key: 'Clossing', minWidth: '120px' },
-    { title: '', key: 'data-table-expand', fixed: true, sortable: false },
+  { title: 'Nomor', key: 'Nomor', minWidth: '180px', fixed: true },
+  { title: 'Tanggal', key: 'Tanggal', minWidth: '120px' },
+  { title: 'User', key: 'User', minWidth: '100px' },
+  { title: 'Status', key: 'Status', minWidth: '100px' },
+  { title: 'Approved', key: 'Approved', minWidth: '100px' },
+  { title: 'Tgl Approve', key: 'TglApprove', minWidth: '120px' },
+  { title: 'Closing', key: 'Closing', minWidth: '120px' },
 ] as const;
 
-const detailHeaders = [
+const detailHeaders = computed(() => {
+  const h: any[] = [
     { title: 'No.', key: 'no' },
-    { title: 'Nomor Transaksi', key: 'nomor', minWidth: '150px' },
-    { title: 'Pelanggan', key: 'customer', minWidth: '200px' },
-    { title: 'Nominal Transaksi', key: 'nominal', align: 'end' },
-    { title: 'Nominal Refund', key: 'refund', align: 'end' },
-    { title: 'Bank', key: 'bank', minWidth: '120px' },
-    { title: 'No. Rekening', key: 'norek', minWidth: '150px' },
-    { title: 'Atas Nama', key: 'atasnama', minWidth: '150px' },
-    { title: 'Keterangan', key: 'ket', minWidth: '200px' },
-] as const;
+    { title: 'Nomor Transaksi', key: 'NoTransaksi', minWidth: '150px' },
+    { title: 'Pelanggan', key: 'Customer', minWidth: '200px' },
+    { title: 'Nominal Saldo', key: 'Nominal', align: 'end' },
+    { title: 'Nominal Refund', key: 'Approval', align: 'end' },
+  ];
+  if (isApprover.value) {
+    h.push({ title: 'Bank', key: 'BankTujuan', minWidth: '120px' });
+    h.push({ title: 'No. Rekening', key: 'NoRekening', minWidth: '150px' });
+    h.push({ title: 'Atas Nama', key: 'AtasNama', minWidth: '150px' });
+  }
+  h.push({ title: 'Keterangan', key: 'Keterangan', minWidth: '200px' });
+  return h;
+});
 
 // --- Methods ---
 const fetchMasterData = async () => {
-    loading.value = true;
-    selected.value = [];
-    expanded.value = [];
-    details.value = {};
-
-    try {
-        const response = await api.get<RefundHeader[]>('/refund/master', { params: filters });
-        masterData.value = response.data;
-    } catch (error: any) {
-        toast.error(error.response?.data?.message || 'Gagal mengambil data.');
-    } finally {
-        loading.value = false;
-    }
+  loading.value = true;
+  selected.value = [];
+  expanded.value = [];
+  details.value = {};
+  try {
+    const response = await api.get<RefundHeader[]>('/refund', { params: filters });
+    masterData.value = response.data;
+  } catch (error: any) {
+    toast.error(error.response?.data?.message || 'Gagal mengambil data.');
+  } finally {
+    loading.value = false;
+  }
 };
 
-const loadDetails = async (newlyExpandedItems: any[]) => { // Menggunakan 'any[]' untuk mengakomodasi struktur yang fleksibel
-    const itemToLoad = newlyExpandedItems.find(item =>
-        !details.value[item.Nomor] && !loadingDetails.value.has(item.Nomor)
-    );
-    if (!itemToLoad) return;
-
-    loadingDetails.value.add(itemToLoad.Nomor);
-    try {
-        const response = await api.get<RefundDetail[]>(`/refund/details/${itemToLoad.Nomor}`);
-        details.value[itemToLoad.Nomor] = response.data.map((d, index) => ({ ...d, no: index + 1 }));
-    } catch (error: any) {
-        toast.error(`Gagal memuat detail untuk ${itemToLoad.Nomor}.`);
-    } finally {
-        loadingDetails.value.delete(itemToLoad.Nomor);
+const fetchCabangOptions = async () => {
+  try {
+    const response = await api.get('/refund/cabang-options');
+    cabangList.value = response.data;
+    if (authStore.user?.cabang !== 'KDC') {
+      filters.cabang = authStore.user?.cabang || '';
     }
+  } catch (error) {
+    toast.error('Gagal memuat filter cabang.', error);
+  }
+};
+
+const loadDetails = async (newlyExpandedItems: any[]) => {
+  const itemToLoad = newlyExpandedItems.find(item =>
+    !details.value[item.Nomor] && !loadingDetails.value.has(item.Nomor)
+  );
+  if (!itemToLoad) return;
+
+  loadingDetails.value.add(itemToLoad.Nomor);
+  try {
+    const response = await api.get<RefundDetail[]>(`/refund/details/${itemToLoad.Nomor}`);
+    details.value[itemToLoad.Nomor] = response.data.map((d, index) => ({ ...d, no: index + 1 }));
+  } catch (error: any) {
+    toast.error(`Gagal memuat detail untuk ${itemToLoad.Nomor}.`);
+  } finally {
+    loadingDetails.value.delete(itemToLoad.Nomor);
+  }
 };
 
 const getRowTextColor = (item: RefundHeader) => {
-    return item.Status === 'APPROVE' ? 'text-success' : 'text-orange-darken-3';
+  // Logika Delphi TfrmBrowRefund.cxGrdMasterCustomDrawCell
+  if (item.Status === 'PROSES') return 'text-blue';
+  if (!item.Status) return 'text-red';
+  return '';
 };
 
 const handleNew = () => {
-    // Navigasi ke halaman buat baru
-    router.push({ name: 'refundCreate' }); 
+  // Navigasi ke halaman buat baru
+  router.push({ name: 'refundCreate' });
 };
 
 const handleEdit = () => {
-    if (!selectedRow.value) return;
-    router.push({ name: 'RefundEdit', params: { nomor: selectedRow.value.Nomor } });
+  if (!selectedRow.value) return;
+  router.push({ name: 'RefundEdit', params: { nomor: selectedRow.value.Nomor } });
 };
 
-const handlePrintSelection = (type: 'a4' | 'kasir' | 'wa') => {
-    if (!selectedRow.value) return;
-    isPrintOptionVisible.value = false;
-    
-    const nomor = selectedRow.value.Nomor;
-    const url = router.resolve({ name: 'RefundPrint', params: { nomor } }).href;
-    window.open(url, '_blank');
+const handleCetak = () => {
+  if (!canCetak.value) return;
+  const routeData = router.resolve({
+    name: 'RefundPrint',
+    params: { nomor: selectedRow.value!.Nomor }
+  });
+  window.open(routeData.href, '_blank');
 };
 
-const exportData = async () => {
-    const fileName = `Export_Refund_Header.xlsx`;
-    try {
-        if (masterData.value.length === 0) return toast.warning('Tidak ada data untuk diekspor.');
-        
-        const worksheet = XLSX.utils.json_to_sheet(masterData.value);
-        const workbook = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(workbook, worksheet, "Refund Header");
-        XLSX.writeFile(workbook, fileName);
-        toast.success(`Data berhasil diekspor.`);
-    } catch (error) {
-        toast.error(`Gagal mengekspor data.`);
-        console.error(error);
+const openDeleteDialog = () => {
+  if (!canDelete.value) return;
+  showConfirmation(
+    'Konfirmasi Hapus',
+    `Yakin ingin hapus refund ${selectedRow.value!.Nomor}?`,
+    handleDelete
+  );
+};
+
+const handleDelete = async () => {
+  try {
+    const response = await api.delete(`/refund/${selectedRow.value!.Nomor}`);
+    toast.success(response.data.message);
+    fetchMasterData();
+  } catch (error: any) {
+    toast.error(error.response?.data?.message || 'Gagal menghapus data.');
+  }
+};
+
+const exportData = async (type: 'header' | 'detail') => {
+  const fileName = type === 'header' ? 'Export_Refund_Header.xlsx' : 'Export_Refund_Detail.xlsx';
+  try {
+    if (type === 'header') {
+      if (masterData.value.length === 0) return toast.warning('Tidak ada data header.');
+      const worksheet = XLSX.utils.json_to_sheet(masterData.value);
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, "Header");
+      XLSX.writeFile(workbook, fileName);
+    } else {
+      loading.value = true;
+      const response = await api.get('/refund/export-details', { params: filters });
+      if (response.data.length === 0) return toast.warning('Tidak ada data detail.');
+      const worksheet = XLSX.utils.json_to_sheet(response.data);
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, "Detail");
+      XLSX.writeFile(workbook, fileName);
     }
+    toast.success(`Data berhasil diekspor.`);
+  } catch (error: any) {
+    toast.error(error.response?.data?.message || `Gagal mengekspor data.`);
+  } finally {
+    loading.value = false;
+  }
 };
+
+const showConfirmation = (action: () => void, text: string) => {
+  dialogConfirm.onConfirm = () => {
+    action();
+    dialogConfirm.show = false;
+  };
+  dialogConfirm.text = text;
+  dialogConfirm.title = 'Konfirmasi'; // Judul default
+  dialogConfirm.show = true;
+};
+
 
 onMounted(() => {
-    fetchMasterData();
+  if (!authStore.can(MENU_ID, 'view')) {
+    toast.error('Anda tidak memiliki hak akses untuk membuka halaman ini.');
+    return router.push('/');
+  }
+  fetchCabangOptions();
+  fetchMasterData();
 });
 
 watch(filters, fetchMasterData, { deep: true });
 </script>
 
 <template>
-    <PageLayout title="Daftar Return" icon="mdi-account-cash">
-        <template #header-actions>
-            <v-btn v-if="authStore.can(MENU_ID, 'insert')" size="small" color="primary" @click="handleNew">
-                Baru
-            </v-btn>
-            <v-btn v-if="authStore.can(MENU_ID, 'edit')" size="small" :disabled="!isSingleSelected" @click="handleEdit">
-                Ubah
-            </v-btn>
-            <v-btn v-if="authStore.can(MENU_ID, 'view')" size="small" color="green" :disabled="!isSingleSelected"
-                prepend-icon="mdi-printer" @click="isPrintOptionVisible = true">
-                Cetak
-            </v-btn>
-            <v-btn size="small" color="teal" prepend-icon="mdi-file-excel" @click="exportData" :disabled="loading || masterData.length === 0">
-                Export
-            </v-btn>
+  <PageLayout title="Browse Pengajuan Refund" :menu-id="MENU_ID">
+    <template #header-actions>
+      <v-btn v-if="authStore.can(MENU_ID, 'insert') && canNew" size="small" color="primary" prepend-icon="mdi-plus"
+        @click="handleNew">Baru</v-btn>
+      <v-btn v-if="authStore.can(MENU_ID, 'edit')" size="small" prepend-icon="mdi-pencil" :disabled="!canEdit"
+        @click="handleEdit">Ubah</v-btn>
+      <v-btn v-if="authStore.can(MENU_ID, 'delete') && canDelete" size="small" color="error" prepend-icon="mdi-delete"
+        :disabled="!canDelete" @click="openDeleteDialog">Hapus</v-btn>
+      <v-btn v-if="authStore.can(MENU_ID, 'view')" size="small" color="green" prepend-icon="mdi-printer"
+        :disabled="!canCetak" @click="handleCetak">Cetak</v-btn>
+      <v-menu offset-y>
+        <template v-slot:activator="{ props }">
+          <v-btn v-if="authStore.can(MENU_ID, 'view')" size="small" color="teal" prepend-icon="mdi-file-excel"
+            v-bind="props">Export</v-btn>
         </template>
+        <v-list density="compact">
+          <v-list-item @click="exportData('header')"><v-list-item-title>Export Header</v-list-item-title></v-list-item>
+          <v-list-item @click="exportData('detail')"><v-list-item-title>Export Detail</v-list-item-title></v-list-item>
+        </v-list>
+      </v-menu>
+    </template>
 
-        <div class="browse-content">
-            <div class="filter-section">
-                <v-label class="filter-label">Periode:</v-label>
-                <v-text-field v-model="filters.startDate" type="date" density="compact" hide-details variant="outlined" />
-                <v-label class="mx-2">s/d</v-label>
-                <v-text-field v-model="filters.endDate" type="date" density="compact" hide-details variant="outlined" />
-                <v-spacer />
-                <div class="d-flex align-center ga-2 text-caption">
-                    <v-icon color="orange-darken-3" icon="mdi-square-rounded" size="small"></v-icon> Proses
-                    <v-icon color="success" icon="mdi-square-rounded" size="small"></v-icon> Approve
-                </div>
-                <v-btn @click="fetchMasterData" icon="mdi-refresh" variant="text" size="small" :loading="loading" />
-            </div>
-
-            <div class="table-container">
-                <v-data-table v-model="selected" v-model:expanded="expanded" :headers="headers" :items="masterData"
-                    :loading="loading" item-value="Nomor" density="compact" class="desktop-table" fixed-header
-                    show-select return-object @update:expanded="loadDetails">
-                    <template #item.Tanggal="{ item }">
-                        <span :class="getRowTextColor(item)">{{ formatTanggal(item.Tanggal) }}</span>
-                    </template>
-                    <template #item.Nominal="{ item }">
-                        <span class="d-block text-right" :class="getRowTextColor(item)">{{ formatRupiah(item.Nominal) }}</span>
-                    </template>
-                    <template #item.Status="{ item }">
-                        <v-chip :color="item.Status === 'APPROVE' ? 'success' : 'orange-darken-3'" size="x-small">
-                            {{ item.Status || 'PROSES' }}
-                        </v-chip>
-                    </template>
-
-                    <template #expanded-row="{ columns, item }">
-                        <tr>
-                            <td :colspan="columns.length">
-                                <div class="detail-container">
-                                    <div class="detail-table-wrapper">
-                                        <div v-if="loadingDetails.has(item.Nomor)" class="text-center pa-4">Memuat detail...</div>
-                                        <v-data-table v-else :headers="detailHeaders" :items="details[item.Nomor] || []"
-                                            density="compact" class="detail-table" :items-per-page="-1">
-                                            <template #item.nominal="{ item }">
-                                                <span class="d-block text-right">{{ formatRupiah(item.nominal) }}</span>
-                                            </template>
-                                            <template #item.refund="{ item }">
-                                                <span class="d-block text-right">{{ formatRupiah(item.refund) }}</span>
-                                            </template>
-                                            <template #bottom></template>
-                                        </v-data-table>
-                                    </div>
-                                </div>
-                            </td>
-                        </tr>
-                    </template>
-                </v-data-table>
-            </div>
+    <div class="browse-content">
+      <div class="filter-section">
+        <v-label class="filter-label">Periode:</v-label>
+        <v-text-field v-model="filters.startDate" type="date" density="compact" hide-details variant="outlined"
+          style="max-width: 180px;" />
+        <v-label class="mx-2">s/d</v-label>
+        <v-text-field v-model="filters.endDate" type="date" density="compact" hide-details variant="outlined"
+          style="max-width: 180px;" />
+        <v-select label="Cabang" v-model="filters.cabang" :items="cabangList" item-title="nama" item-value="kode"
+          density="compact" hide-details variant="outlined" class="ms-4" style="max-width: 200px;"
+          :readonly="!isApprover" />
+        <v-spacer />
+        <div class="d-flex align-center ga-2 text-caption">
+          <v-icon color="red" icon="mdi-square-rounded" size="small"></v-icon> Belum diproses
+          <v-icon color="blue" icon="mdi-square-rounded" size="small" class="ms-2"></v-icon> Sedang diproses
         </div>
-        
-        <PrintOptionModal v-if="isPrintOptionVisible" :options="['a4']"
-            @close="isPrintOptionVisible = false" @select="handlePrintSelection" />
-    </PageLayout>
+        <v-btn @click="fetchMasterData" icon="mdi-refresh" variant="text" size="small" :loading="loading" />
+      </div>
+
+      <div class="table-container">
+        <v-data-table v-model="selected" v-model:expanded="expanded" :headers="headers" :items="masterData"
+          :loading="loading" item-value="Nomor" density="compact" class="desktop-table" fixed-header show-select
+          return-object show-expand single-select @update:expanded="loadDetails">
+          <template v-for="header in headers" :key="header.key" #[`item.${header.key}`]="{ item }">
+            <td :class="getRowTextColor(item)">
+              <template v-if="header.key === 'Tanggal' || header.key === 'TglApprove'">
+                {{ formatTanggal(item[header.key]) }}
+              </template>
+              <template v-else-if="header.key === 'Status'">
+                <v-chip :color="item.Status === 'APPROVE' ? 'success' : 'blue'" size="x-small">
+                  {{ item.Status || 'PROSES' }}
+                </v-chip>
+              </template>
+              <template v-else>
+                {{ item[header.key] }}
+              </template>
+            </td>
+          </template>
+
+          <template #expanded-row="{ columns, item }">
+            <tr>
+              <td :colspan="columns.length">
+                <div class="detail-container pa-4">
+                  <div class="detail-table-wrapper">
+                    <div v-if="loadingDetails.has(item.Nomor)" class="text-center">Memuat detail...</div>
+                    <v-data-table v-else :headers="detailHeaders" :items="details[item.Nomor] || []" density="compact"
+                      class="detail-table" :items-per-page="-1">
+                      <template #item.Nominal="{ item }">
+                        <span class="d-block text-right">{{ formatRupiah(item.Nominal) }}</span>
+                      </template>
+                      <template #item.Approval="{ item }">
+                        <span class="d-block text-right">{{ formatRupiah(item.Approval) }}</span>
+                      </template>
+                      <template #bottom></template>
+                    </v-data-table>
+                  </div>
+                </div>
+              </td>
+            </tr>
+          </template>
+        </v-data-table>
+      </div>
+    </div>
+
+    <v-dialog v-model="dialogConfirm.show" max-width="400px" persistent>
+      <v-card>
+        <v-card-title class="text-h6 font-weight-bold">
+          {{ dialogConfirm.title }} </v-card-title>
+        <v-card-text>
+          {{ dialogConfirm.text }}
+        </v-card-text>
+        <v-card-actions>
+          <v-spacer></v-spacer>
+          <v-btn color="grey-darken-1" variant="text" @click="dialogConfirm.onCancel">
+            Tidak
+          </v-btn>
+          <v-btn color="primary" variant="tonal" @click="dialogConfirm.onConfirm">
+            Ya, Lanjutkan
+          </v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+  </PageLayout>
 </template>
+
+<style scoped>
+.filter-section {
+  padding: 8px 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.table-container {
+  height: calc(100vh - 180px);
+  overflow-y: auto;
+}
+
+.detail-table-wrapper {
+  max-height: 400px;
+  overflow-y: auto;
+}
+</style>

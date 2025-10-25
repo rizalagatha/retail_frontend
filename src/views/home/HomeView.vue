@@ -77,7 +77,6 @@ const quickActions = ref([
   { title: 'Lihat Laporan', icon: 'mdi-chart-line', to: '/laporan', color: 'info' },
   { title: 'Kelola Piutang', icon: 'mdi-account-clock', to: '/piutang', color: 'orange' },
   { title: 'Cek Gudang', icon: 'mdi-warehouse', to: '/gudang-dc', color: 'purple' },
-  { title: 'Kelola File', icon: 'mdi-file-document', to: '/file', color: 'teal' },
 ]);
 
 // Computed untuk format currency

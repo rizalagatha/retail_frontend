@@ -206,7 +206,7 @@ watch(filters, fetchMasterData, { deep: true, immediate: true });
 </script>
 
 <template>
-    <PageLayout title="Laporan Mutasi Stok" icon="mdi-file-chart-outline">
+    <PageLayout title="Laporan Kartu Stok" icon="mdi-file-chart-outline">
         <template #header-actions>
             <v-btn size="small" @click="exportToExcel" prepend-icon="mdi-file-excel" color="teal">Export</v-btn>
         </template>
@@ -244,7 +244,7 @@ watch(filters, fetchMasterData, { deep: true, immediate: true });
                 fixed-header
                 show-expand
                 return-object
-                item-value="uniqueId"  
+                item-value="uniqueId"
                 v-model:expanded="expanded"
                 @update:expanded="loadDetails"
                 >

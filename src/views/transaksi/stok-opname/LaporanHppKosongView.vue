@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, reactive, onMounted, computed, watch } from 'vue';
+import { ref, reactive, onMounted, watch } from 'vue';
 import { useToast } from 'vue-toastification';
 import { useAuthStore } from '@/stores/authStore';
 import api from '@/services/api';
@@ -7,6 +7,16 @@ import PageLayout from '@/components/PageLayout.vue';
 import * as XLSX from 'xlsx';
 import { VDataTableServer } from 'vuetify/components/VDataTable';
 import { useRouter } from 'vue-router';
+import type { AxiosError } from 'axios';
+
+interface HppKosongItem {
+  Kode: string;
+  Barcode: string;
+  Nama: string;
+  Ukuran: string;
+  Stok: number;
+  Hpp: number;
+}
 
 // --- Inisialisasi & State ---
 const toast = useToast();
@@ -14,7 +24,7 @@ const authStore = useAuthStore();
 const router = useRouter();
 const MENU_ID = '704';
 
-const items = ref<any[]>([]);
+const items = ref<HppKosongItem[]>([]);
 const loading = ref(true);
 const totalItems = ref(0);
 const options = ref({ page: 1, itemsPerPage: 10 });
@@ -32,7 +42,7 @@ const headers = [
   { title: 'Ukuran', key: 'Ukuran', width: '100px' },
   { title: 'Stok', key: 'Stok', align: 'end' },
   { title: 'HPP', key: 'Hpp', align: 'end' },
-];
+] as const;
 
 // --- Methods ---
 const fetchData = async () => {
@@ -46,8 +56,9 @@ const fetchData = async () => {
     const response = await api.get('/laporan-hpp-kosong', { params });
     items.value = response.data.items;
     totalItems.value = response.data.totalItems;
-  } catch (error: any) {
-    toast.error(error.response?.data?.message || 'Gagal mengambil data.');
+  } catch (error) {
+    const err = error as AxiosError<{ message?: string }>;
+    toast.error(err.response?.data?.message || 'Gagal mengambil data.');
   } finally {
     loading.value = false;
   }
@@ -63,8 +74,8 @@ const fetchCabangOptions = async () => {
     } else {
       filters.cabang = 'ALL'; // KDC default ke SEMUA
     }
-  } catch (error: any) {
-    toast.error('Gagal memuat filter cabang.');
+  } catch (error) {
+    toast.error('Gagal memuat filter cabang.', error);
   }
 };
 
@@ -85,8 +96,9 @@ const exportData = async () => {
     XLSX.utils.book_append_sheet(workbook, worksheet, "HPP Kosong");
     XLSX.writeFile(workbook, `Laporan_HPP_Kosong_${filters.cabang}.xlsx`);
     toast.success('Data berhasil diekspor.');
-  } catch (error: any) {
-    toast.error(error.response?.data?.message || 'Gagal mengekspor data.');
+  } catch (error) {
+    const err = error as AxiosError<{ message?: string }>;
+    toast.error(err.response?.data?.message || 'Gagal mengekspor data.');
   } finally {
     loading.value = false;
   }
@@ -128,11 +140,13 @@ watch(options, fetchData, { deep: true });
         <v-data-table-server :headers="headers" :items="items" :items-length="totalItems" :loading="loading"
           v-model:page="options.page" v-model:items-per-page="options.itemsPerPage" @update:options="options = $event"
           density="compact" class="desktop-table" fixed-header>
-          <template #item.no="{ index }">
-            {{ (options.page - 1) * options.itemsPerPage + index + 1 }}
+          <template #[`item.no`]="{ index }">
+            {{ (options["page"] - 1) * options["itemsPerPage"] + index + 1 }}
           </template>
-          <template v-for="col in ['Stok', 'Hpp']" #[`item.${col}`]="{ item }">
-            <td class="text-end">{{ (item[col] || 0).toLocaleString('id-ID') }}</td>
+          <template v-for="col in ['Stok', 'Hpp']" #[`item.${col}`]="{ item }" :key="col">
+            <td class="text-end">
+              {{ (item[col] || 0).toLocaleString('id-ID') }}
+            </td>
           </template>
         </v-data-table-server>
       </div>

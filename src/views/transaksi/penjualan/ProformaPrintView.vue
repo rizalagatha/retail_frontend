@@ -6,9 +6,43 @@ import { format, parseISO } from 'date-fns';
 import Logo from '@/assets/logo.png';
 
 // Tipe data disesuaikan dengan query backend
+interface PrintHeader {
+  nomor: string;
+  nomorSo: string;
+  tanggal: string;
+  tempo: string;
+  top: number;
+  cus_nama: string;
+  cus_alamat: string;
+  cus_kota: string;
+  cus_telp: string;
+  gdg_inv_nama: string;
+  gdg_inv_alamat: string;
+  gdg_inv_kota: string;
+  gdg_inv_telp: string;
+  total: number;
+  diskon: number;
+  ppn: number;
+  biayakirim: number;
+  dprp: number;
+  bilang: string;
+  user_nama: string;
+  ket: string;
+  created: string;
+}
+
+interface PrintDetail {
+  nama: string;
+  ukuran: string;
+  jumlah: number;
+  harga: number;
+  disrp: number;
+  subtotal: number;
+}
+
 interface PrintData {
-    header: any;
-    details: any[];
+  header: PrintHeader;
+  details: PrintDetail[];
 }
 
 const route = useRoute();
@@ -336,6 +370,7 @@ onMounted(() => {
     .print-container {
         background: white;
         -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
     }
 
     .page {

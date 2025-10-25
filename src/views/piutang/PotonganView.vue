@@ -20,13 +20,13 @@ interface PotonganHeader {
     NoRekening: string; // 003
     Kdcus: string;      // K-01126
     Customer: string;   // KARYAWAN POTONG GAJI
-    Alamat: string;     
-    Kota: string;       
-    Usr: string;        
-    Cab: string;        
+    Alamat: string;
+    Kota: string;
+    Usr: string;
+    Cab: string;
     Closing: string;    // Y/N
     Keterangan?: string;
-    [key: string]: string | number | undefined; 
+    [key: string]: string | number | undefined;
 }
 
 interface PotonganDetail {
@@ -183,7 +183,7 @@ const handlePrintSelection = (type: 'a4' | 'kasir' | 'wa') => {
         const url = router.resolve({ name: routeName, params: { nomor } }).href;
         window.open(url, '_blank');
     } else if (type === 'wa') {
-        // Biasanya Potongan tidak memiliki no HP pelanggan, 
+        // Biasanya Potongan tidak memiliki no HP pelanggan,
         // Anda mungkin perlu menyesuaikan logika atau menghapus opsi ini.
         toast.warning('Opsi kirim WA belum diimplementasikan atau tidak relevan untuk Potongan.');
     }
@@ -208,7 +208,7 @@ const exportData = async (type: 'header' | 'detail') => {
             // Asumsi ada endpoint khusus untuk export detail dari backend
             const response = await api.get('/potongan/export-details', { params: filters });
             if (response.data.length === 0) return toast.warning('Tidak ada data detail.');
-            
+
             const worksheet = XLSX.utils.json_to_sheet(response.data);
             const workbook = XLSX.utils.book_new();
             XLSX.utils.book_append_sheet(workbook, worksheet, "Potongan Detail");
@@ -281,7 +281,7 @@ watch(filters, fetchMasterData, { deep: true });
                 <v-data-table v-model="selected" v-model:expanded="expanded" :headers="headers" :items="masterData"
                     :loading="loading" item-value="Nomor" density="compact" class="desktop-table" fixed-header
                     show-select return-object show-expand @update:expanded="loadDetails">
-                    
+
                     <template v-for="header in headers" #[`item.${header.key}`]="{ item }">
                         <td :class="getRowTextColor(item)">
                             <template v-if="['Tanggal'].includes(header.key)">
@@ -309,7 +309,7 @@ watch(filters, fetchMasterData, { deep: true });
                                             detail...</div>
                                         <v-data-table v-else :headers="detailHeaders" :items="details[item.Nomor]"
                                             density="compact" class="detail-table" :items-per-page="-1">
-                                            
+
                                             <template #[`item.Harga`]="{ value }">
                                                 <span class="d-block text-right">{{ formatRupiah(value) }}</span>
                                             </template>
@@ -326,7 +326,7 @@ watch(filters, fetchMasterData, { deep: true });
                 </v-data-table>
             </div>
         </div>
-        
+
         <PrintOptionModal v-if="isPrintOptionVisible" :options="['a4', 'kasir']"
             @close="isPrintOptionVisible = false" @select="handlePrintSelection" />
     </PageLayout>
@@ -371,8 +371,8 @@ watch(filters, fetchMasterData, { deep: true });
 .desktop-table :deep(th) {
     padding-left: 8px !important;
     padding-right: 8px !important;
-    height: 36px !important; 
-    font-size: 0.75rem !important; 
+    height: 36px !important;
+    font-size: 0.75rem !important;
     line-height: 1 !important;
 }
 

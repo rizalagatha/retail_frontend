@@ -2,7 +2,7 @@
 import { ref, onMounted, computed } from 'vue';
 import api from '@/services/api';
 import PageLayout from '@/components/PageLayout.vue';
-import SupplierSearchModal from '@/components/SupplierSearchModal.vue';
+import SupplierSearchModal from '@/components/lookup/SupplierSearchModal.vue';
 import { useToast } from 'vue-toastification';
 import { useAuthStore } from '@/stores/authStore';
 import jsPDF from 'jspdf';

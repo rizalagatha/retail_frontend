@@ -6,7 +6,7 @@ import { useAuthStore } from '@/stores/authStore';
 import api from '@/services/api'; // Pastikan path ini benar
 import { format, subDays, parseISO } from 'date-fns';
 import PageLayout from '@/components/PageLayout.vue'; // Pastikan path ini benar
-import PrintOptionModal from '@/components/PrintOptionModal.vue'; // Pastikan path ini benar
+import PrintOptionModal from '@/components/modal/PrintOptionModal.vue'; // Pastikan path ini benar
 import * as XLSX from 'xlsx';
 
 // --- Interfaces Potongan ---

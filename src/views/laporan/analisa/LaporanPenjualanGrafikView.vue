@@ -78,7 +78,7 @@ onMounted(async () => {
     try {
         const response = await api.get('/laporan-penjualan-pivot/chart-data', { params: route.query });
         chartRawData.value = response.data;
-    } catch (e) {
+    } catch {
         alert('Gagal memuat data grafik. Pastikan filter tanggal valid.');
     } finally {
         isLoading.value = false;

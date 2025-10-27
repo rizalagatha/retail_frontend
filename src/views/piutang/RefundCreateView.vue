@@ -2,7 +2,7 @@
 import { ref, onMounted, computed, watch, reactive } from 'vue';
 import api from '@/services/api';
 import PageLayout from '@/components/PageLayout.vue';
-import TransactionSearchModal from '@/components/TransactionSearchModal.vue';
+import TransactionSearchModal from '@/components/lookup/TransactionSearchModal.vue';
 import { useToast } from 'vue-toastification';
 import { useAuthStore } from '@/stores/authStore';
 import { useRouter, useRoute } from 'vue-router';

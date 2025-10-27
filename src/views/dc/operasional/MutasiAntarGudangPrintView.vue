@@ -5,8 +5,34 @@ import api from '@/services/api';
 import { format, parseISO } from 'date-fns';
 import Logo from '@/assets/logo.png'; // Pastikan path logo ini benar
 
+interface PrintHeader {
+  mts_nomor: string;
+  perush_nama: string;
+  perush_alamat: string;
+  perush_kota: string;
+  perush_telp: string;
+  mts_drcab: string;
+  nama_dari_cabang: string;
+  mts_tanggal: string; // ISO string
+  mts_kecab: string;
+  nama_ke_cabang: string;
+  mts_ket: string;
+}
+
+interface PrintDetail {
+  mtsd_kode: string;
+  nama: string;
+  mtsd_ukuran: string;
+  mtsd_jumlah: number;
+}
+
+interface PrintData {
+  header: PrintHeader;
+  details: PrintDetail[];
+}
+
 const route = useRoute();
-const printData = ref<any>(null);
+const printData = ref<PrintData | null>(null);
 const isLoading = ref(true);
 const appLogo = Logo;
 
@@ -230,6 +256,7 @@ onMounted(() => {
   .print-container {
     background: white;
     -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
   }
 
   .page {

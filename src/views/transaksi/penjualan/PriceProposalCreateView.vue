@@ -2,10 +2,10 @@
 import { ref, onMounted, computed, watch, nextTick } from 'vue';
 import api from '@/services/api';
 import PageLayout from '@/components/PageLayout.vue';
-import CustomerSearchModal from '@/components/CustomerSearchModal.vue';
-import TshirtTypeSearchModal from '@/components/TshirtTypeSearchModal.vue';
-import ProductVariantSearchModal from '@/components/ProductVariantSearchModal.vue';
-import AdditionalCostSearchModal from '@/components/AdditionalCostSearchModal.vue';
+import CustomerSearchModal from '@/components/lookup/CustomerSearchModal.vue';
+import TshirtTypeSearchModal from '@/components/lookup/TshirtTypeSearchModal.vue';
+import ProductVariantSearchModal from '@/components/lookup/ProductVariantSearchModal.vue';
+import AdditionalCostSearchModal from '@/components/lookup/AdditionalCostSearchModal.vue';
 import { useToast } from 'vue-toastification';
 import { useAuthStore } from '@/stores/authStore';
 import { useRouter, useRoute } from 'vue-router';

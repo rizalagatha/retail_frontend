@@ -6,7 +6,7 @@ import { useAuthStore } from '@/stores/authStore';
 import api from '@/services/api';
 import { format, subDays, parseISO } from 'date-fns';
 import PageLayout from '@/components/PageLayout.vue';
-import AuthorizationModal from '@/components/AuthorizationModal.vue';
+import AuthorizationModal from '@/components/modal/AuthorizationModal.vue';
 import * as XLSX from 'xlsx';
 import type { AxiosError } from 'axios';
 

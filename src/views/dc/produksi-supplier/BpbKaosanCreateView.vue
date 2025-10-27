@@ -1,12 +1,13 @@
 <script setup lang="ts">
-import { ref, reactive, onMounted, computed, watch, nextTick } from 'vue';
+import { ref, reactive, onMounted, computed, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useToast } from 'vue-toastification';
 import { useAuthStore } from '@/stores/authStore';
 import api from '@/services/api';
-import { format, parseISO } from 'date-fns';
+import { format } from 'date-fns';
 import PageLayout from '@/components/PageLayout.vue';
-import PoSearchModal from '@/components/PoSearchModal.vue';
+import PoSearchModal from '@/components/lookup/PoSearchModal.vue';
+import type { AxiosError } from 'axios';
 
 // --- Tipe Data & State ---
 interface Item {
@@ -56,15 +57,15 @@ const headers = [
   { title: 'Nama Barang', key: 'nama', width: '250px' },
   { title: 'Bahan', key: 'bahan', width: '100px' },
   { title: 'Ukuran', key: 'ukuran', width: '100px' },
-  { title: 'Qty PO', key: 'qtyPO', align: 'end', width: '90px' },
-  { title: 'Qty Bagus', key: 'qtyBagus', align: 'end', width: '120px' },
-  { title: 'Qty BS', key: 'qtyBS', align: 'end', width: '120px' },
-  { title: 'Qty Terima', key: 'jumlah', align: 'end', width: '110px' },
-  { title: 'Sudah', key: 'sudah', align: 'end', width: '90px' },
-  { title: 'Kurang', key: 'kurang', align: 'end', width: '90px' },
-  { title: 'Harga Bagus', key: 'hargaBagus', align: 'end', width: '130px' },
-  { title: 'Harga BS', key: 'hargaBS', align: 'end', width: '130px' },
-  { title: 'Total', key: 'total', align: 'end', width: '150px' },
+  { title: 'Qty PO', key: 'qtyPO', width: '90px' },
+  { title: 'Qty Bagus', key: 'qtyBagus', width: '120px' },
+  { title: 'Qty BS', key: 'qtyBS', width: '120px' },
+  { title: 'Qty Terima', key: 'jumlah', width: '110px' },
+  { title: 'Sudah', key: 'sudah', width: '90px' },
+  { title: 'Kurang', key: 'kurang', width: '90px' },
+  { title: 'Harga Bagus', key: 'hargaBagus', width: '130px' },
+  { title: 'Harga BS', key: 'hargaBS', width: '130px' },
+  { title: 'Total', key: 'total', width: '150px' },
 ];
 
 // --- Computed Totals (dari hitung) ---
@@ -78,7 +79,8 @@ const loadDataForEdit = async (nomor: string) => {
     const { header: dataHeader, items: dataItems } = response.data;
     Object.assign(header, dataHeader);
     items.value = dataItems.map(item => ({ ...item, id: Math.random() }));
-  } catch (error: any) {
+  } catch (err: unknown) {
+    const error = err as AxiosError<{ message: string }>;
     toast.error(error.response?.data?.message || 'Gagal memuat data BPB.');
     router.back();
   } finally {
@@ -99,8 +101,25 @@ const onPoSelected = async (po: { nomor: string }) => {
     header.supplierNama = poHeader.supplierNama;
     header.alamat = poHeader.alamat;
     header.kota = poHeader.kota;
-    items.value = poItems.map((item: any) => ({ ...item, id: Math.random() }));
-  } catch (error: any) {
+    items.value = (poItems as Partial<Item>[]).map(item => ({
+      ...item,
+      id: Math.random(),
+      qtyPO: item.qtyPO ?? 0,
+      qtyBagus: item.qtyBagus ?? 0,
+      qtyBS: item.qtyBS ?? 0,
+      jumlah: item.jumlah ?? 0,
+      sudah: item.sudah ?? 0,
+      kurang: item.kurang ?? 0,
+      hargaBagus: item.hargaBagus ?? 0,
+      hargaBS: item.hargaBS ?? 0,
+      total: item.total ?? 0,
+      kode: item.kode ?? '',
+      nama: item.nama ?? '',
+      bahan: item.bahan ?? '',
+      ukuran: item.ukuran ?? ''
+    }));
+  } catch (err: unknown) {
+    const error = err as AxiosError<{ message: string }>;
     toast.error(error.response?.data?.message || 'Gagal memuat data PO.');
   } finally {
     isLoading.value = false;
@@ -143,7 +162,8 @@ const executeSave = async () => {
       router.push({ name: 'BpbKaosan' });
     };
     dialogConfirmCetak.show = true;
-  } catch (error: any) {
+  } catch (err: unknown) {
+    const error = err as AxiosError<{ message: string }>;
     toast.error(error.response?.data?.message || 'Gagal menyimpan data.');
   } finally {
     isSaving.value = false;
@@ -258,22 +278,25 @@ onMounted(async () => {
         <div class="desktop-form-section d-flex flex-column" style="flex-grow: 1;">
           <v-data-table :headers="headers" :items="items" :loading="isLoading" class="desktop-table fill-height"
             density="compact" fixed-header :items-per-page="-1">
-            <template #item.no="{ index }">{{ index + 1 }}</template>
-            <template v-for="col in ['nama', 'bahan', 'ukuran']" #[`item.${col}`]="{ item }">
+            <template #[`item.no`]="{ index }">{{ index + 1 }}</template>
+
+            <!-- Kolom readonly text -->
+            <template v-for="col in ['nama', 'bahan', 'ukuran']" :key="col" #[`item.${col}`]="{ item }">
               <td class="readonly-cell">{{ item[col] }}</td>
             </template>
-            <template v-for="col in ['qtyPO', 'jumlah', 'sudah', 'kurang', 'total']" #[`item.${col}`]="{ item }">
+
+            <!-- Kolom numeric readonly -->
+            <template v-for="col in ['qtyPO', 'jumlah', 'sudah', 'kurang', 'total']" :key="col"
+              #[`item.${col}`]="{ item }">
               <td class="text-end readonly-cell">{{ (item[col] || 0).toLocaleString('id-ID') }}</td>
             </template>
 
-            <template #item.qtyBagus="{ item }"><v-text-field v-model.number="item.qtyBagus" type="number"
-                variant="underlined" density="compact" hide-details class="text-end" /></template>
-            <template #item.qtyBS="{ item }"><v-text-field v-model.number="item.qtyBS" type="number"
-                variant="underlined" density="compact" hide-details class="text-end" /></template>
-            <template #item.hargaBagus="{ item }"><v-text-field v-model.number="item.hargaBagus" type="number"
-                variant="underlined" density="compact" hide-details class="text-end" /></template>
-            <template #item.hargaBS="{ item }"><v-text-field v-model.number="item.hargaBS" type="number"
-                variant="underlined" density="compact" hide-details class="text-end" /></template>
+            <!-- Kolom input editable -->
+            <template v-for="col in ['qtyBagus', 'qtyBS', 'hargaBagus', 'hargaBS']" :key="col"
+              #[`item.${col}`]="{ item }">
+              <v-text-field v-model.number="item[col]" type="number" variant="underlined" density="compact" hide-details
+                class="text-end" />
+            </template>
 
             <template #bottom></template>
           </v-data-table>
@@ -292,7 +315,7 @@ onMounted(async () => {
     <v-dialog v-model="dialogConfirm.show" max-width="400px" persistent>
       <v-card>
         <v-card-title class="text-h6 font-weight-bold">{{ dialogConfirm.title }}</v-card-title>
-        <v-card-text v-html="dialogConfirm.text"></v-card-text>
+        <v-card-text>{{ dialogConfirm.text }}</v-card-text>
         <v-card-actions>
           <v-spacer />
           <v-btn text @click="dialogConfirm.onCancel">Batal</v-btn>

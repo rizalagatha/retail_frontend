@@ -4,14 +4,15 @@ import { useRoute, useRouter } from 'vue-router';
 import { useToast } from 'vue-toastification';
 import { useAuthStore } from '@/stores/authStore';
 import api from '@/services/api';
-import { format, parseISO } from 'date-fns';
+import { format } from 'date-fns';
 import PageLayout from '@/components/PageLayout.vue';
-import SupplierSearchModal from '@/components/SupplierSearchModal.vue';
-import ReferensiSearchModal from '@/components/ReferensiSearchModal.vue';
-import MintaBarangSearchModal from '@/components/MintaBarangSearchModal.vue';
+import SupplierSearchModal from '@/components/lookup/SupplierSearchModal.vue';
+import ReferensiSearchModal from '@/components/lookup/ReferensiSearchModal.vue';
+import MintaBarangSearchModal from '@/components/lookup/MintaBarangSearchModal.vue';
+import type { AxiosError } from 'axios';
 
 // --- Tipe Data & State ---
-interface Item {
+interface ReferensiItem {
   id: number;
   kode: string;
   nama: string;
@@ -25,6 +26,30 @@ interface Item {
   gambar: string;
   fileObject?: File;
 }
+interface ReferensiHeader {
+  pp_sup_kode: string;
+  pp_ket: string;
+  Sup_nama: string;
+  Sup_alamat: string;
+  Sup_kota: string;
+}
+interface Referensi {
+  nomor: string;
+  header: ReferensiHeader;
+  items: ReferensiItem[];
+}
+interface Product {
+  kode: string;
+  nama: string;
+  bahan?: string;
+  ukuran: string;
+  harga?: number;
+  barcode?: string;
+}
+interface Item extends ReferensiItem {
+  barcode?: string; // Tambahkan properti barcode
+}
+
 const router = useRouter();
 const route = useRoute();
 const toast = useToast();
@@ -41,7 +66,7 @@ const isReferensiSearchVisible = ref(false);
 const isBarangSearchVisible = ref(false);
 const activeRowIndex = ref(0);
 const fileInput = ref<HTMLInputElement | null>(null); // <-- Tambahkan ini
-const activeItemForUpload = ref<Item | null>(null); // <-- Tambahkan ini
+const activeItemForUpload = ref<ReferensiItem | null>(null); // <-- Tambahkan ini
 const dialogConfirmCetak = reactive({
   show: false,
   nomor: '',
@@ -72,10 +97,10 @@ const headers = [
   { title: 'Nama', key: 'nama', width: '250px' },
   { title: 'Bahan', key: 'bahan', width: '100px' },
   { title: 'Ukuran', key: 'ukuran', width: '100px' },
-  { title: 'Jumlah', key: 'jumlah', align: 'end', width: '100px' },
-  { title: 'Harga Beli', key: 'harga', align: 'end', width: '130px' },
-  { title: 'Diskon(%)', key: 'diskon', align: 'end', width: '100px' },
-  { title: 'Total', key: 'total', align: 'end', width: '150px' },
+  { title: 'Jumlah', key: 'jumlah', width: '100px' },
+  { title: 'Harga Beli', key: 'harga', width: '130px' },
+  { title: 'Diskon(%)', key: 'diskon', width: '100px' },
+  { title: 'Total', key: 'total', width: '150px' },
   { title: 'Keterangan', key: 'ket', width: '200px' },
   { title: 'Gambar', key: 'gambar', sortable: false, width: '200px' },
   { title: 'Actions', key: 'actions', sortable: false, width: '50px' },
@@ -95,8 +120,9 @@ const loadDataForEdit = async (nomor: string) => {
     Object.assign(header, dataHeader);
     items.value = dataItems.map(item => ({ ...item, id: Math.random() }));
     addNewRow();
-  } catch (error: any) {
-    toast.error(error.response?.data?.message || 'Gagal memuat data PO.');
+  } catch (error) {
+    const err = error as AxiosError<{ message: string }>;
+    toast.error(err.response?.data?.message || 'Gagal memuat data PO.');
     router.back();
   } finally {
     isLoading.value = false;
@@ -113,28 +139,31 @@ const onSupplierSelected = async (sup: { kode: string }) => {
     header.sup_alamat = data.sup_alamat;
     header.sup_kota = data.sup_kota;
     isSupplierSearchVisible.value = false;
-  } catch (error: any) {
-    toast.error(error.response?.data?.message || 'Gagal mengambil data supplier.');
+  } catch (error) {
+    const err = error as AxiosError<{ message: string }>;
+    toast.error(err.response?.data?.message || 'Gagal mengambil data supplier.');
   }
 };
 
-const onReferensiSelected = async (ref: any) => {
-  // Implementasi dari edtreferensiExit
+const onReferensiSelected = async (ref: Referensi) => {
   isReferensiSearchVisible.value = false;
   header.po_referensi = ref.nomor;
   isLoading.value = true;
   try {
-    const response = await api.get(`/po-kaosan-form/from-pengajuan/${ref.nomor}`);
+    const response = await api.get<Referensi>(`/po-kaosan-form/from-pengajuan/${ref.nomor}`);
     const { header: refHeader, items: refItems } = response.data;
+
     header.po_sup_kode = refHeader.pp_sup_kode;
     header.po_ket = refHeader.pp_ket;
     header.sup_nama = refHeader.Sup_nama;
     header.sup_alamat = refHeader.Sup_alamat;
     header.sup_kota = refHeader.Sup_kota;
-    items.value = refItems.map((item: any) => ({ ...item, id: Math.random() }));
+
+    items.value = refItems.map(item => ({ ...item, id: Math.random() }));
     addNewRow();
-  } catch (error: any) {
-    toast.error(error.response?.data?.message || 'Gagal memuat data referensi.');
+  } catch (error) {
+    const err = error as AxiosError<{ message: string }>;
+    toast.error(err.response?.data?.message || 'Gagal memuat data referensi.');
     header.po_referensi = ''; // Kosongkan jika gagal
   } finally {
     isLoading.value = false;
@@ -204,8 +233,9 @@ const executeSave = async () => {
       router.push({ name: 'PoKaosan' });
     };
     dialogConfirmCetak.show = true;
-  } catch (error: any) {
-    toast.error(error.response?.data?.message || 'Gagal menyimpan data.');
+  } catch (error) {
+    const err = error as AxiosError<{ message: string }>;
+    toast.error(err.response?.data?.message || 'Gagal menyimpan data.');
   } finally {
     isSaving.value = false;
   }
@@ -247,14 +277,16 @@ const openBarangSearch = (index: number) => {
   isBarangSearchVisible.value = true;
 };
 
-const onBarangSelected = (products: any[]) => {
+const onBarangSelected = (products: Product[]) => {
   isBarangSearchVisible.value = false;
   if (!products || products.length === 0) return;
 
   const product = products[0]; // F1 hanya single select
 
   // Cek duplikat
-  if (items.value.some((item, i) => item.kode === product.kode && item.ukuran === product.ukuran && i !== activeRowIndex.value)) {
+  if (items.value.some((item, i) =>
+    item.kode === product.kode && item.ukuran === product.ukuran && i !== activeRowIndex.value
+  )) {
     return toast.warning('Barang ini sudah ada di daftar.');
   }
 
@@ -268,6 +300,7 @@ const onBarangSelected = (products: any[]) => {
     targetRow.harga = product.harga || 0;
     targetRow.jumlah = 1;
   }
+
   addNewRow();
 };
 
@@ -281,9 +314,9 @@ const handleGridBarcodeEnter = async (item: Item, index: number) => {
     return toast.warning(`Barcode ${barcode} sudah ada di daftar.`);
   }
 
-  // 2. Panggil API (logika 'loadbrg' by barcode)
+  // 2. Panggil API
   try {
-    const response = await api.get('/po-kaosan-form/product-by-barcode', {
+    const response = await api.get<Product>('/po-kaosan-form/product-by-barcode', {
       params: { barcode }
     });
     const product = response.data;
@@ -291,9 +324,9 @@ const handleGridBarcodeEnter = async (item: Item, index: number) => {
     // 3. Update baris saat ini
     item.kode = product.kode;
     item.nama = product.nama;
-    item.bahan = product.bahan;
+    item.bahan = product.bahan || '';
     item.ukuran = product.ukuran;
-    item.harga = product.harga;
+    item.harga = product.harga || 0;
     item.jumlah = 1;
     item.barcode = product.barcode;
 
@@ -303,8 +336,9 @@ const handleGridBarcodeEnter = async (item: Item, index: number) => {
       document.getElementById(`jumlah-${item.id}`)?.focus();
     });
 
-  } catch (error: any) {
-    toast.error(error.response?.data?.message || 'Barcode tidak terdaftar.');
+  } catch (error: unknown) {
+    const err = error as AxiosError<{ message: string }>;
+    toast.error(err.response?.data?.message || 'Barcode tidak terdaftar.');
     item.kode = ''; // Kosongkan input
   }
 };
@@ -403,33 +437,43 @@ onMounted(async () => {
         <div class="desktop-form-section d-flex flex-column" style="flex-grow: 1;">
           <v-data-table :headers="headers" :items="items" :loading="isLoading" class="desktop-table fill-height"
             density="compact" fixed-header :items-per-page="-1">
-            <template #item.no="{ index }">{{ index + 1 }}</template>
-            <template #item.kode="{ item, index }">
+            <template #[`item.no`]="{ index }">
+              {{ index + 1 }}
+            </template>
+            <template #[`item.kode`]="{ item, index }">
               <v-text-field v-model="item.kode" variant="underlined" density="compact" hide-details
                 :readonly="!!item.nama" placeholder="Scan/F1..." @keydown.f1.prevent="openBarangSearch(index)"
                 @keydown.enter.prevent="handleGridBarcodeEnter(item, index)" />
             </template>
-            <template #item.nama="{ item }"><v-text-field v-model="item.nama" variant="underlined" density="compact"
-                hide-details /></template>
-            <template #item.bahan="{ item }"><v-text-field v-model="item.bahan" variant="underlined" density="compact"
-                hide-details /></template>
-            <template #item.ukuran="{ item }"><v-text-field v-model="item.ukuran" variant="underlined" density="compact"
-                hide-details /></template>
-            <template #item.jumlah="{ item }">
+            <template #[`item.nama`]="{ item }">
+              <v-text-field v-model="item.nama" variant="underlined" density="compact" hide-details />
+            </template>
+            <template #[`item.bahan`]="{ item }">
+              <v-text-field v-model="item.bahan" variant="underlined" density="compact" hide-details />
+            </template>
+            <template #[`item.ukuran`]="{ item }">
+              <v-text-field v-model="item.ukuran" variant="underlined" density="compact" hide-details />
+            </template>
+            <template #[`item.jumlah`]="{ item }">
               <v-text-field :id="`jumlah-${item.id}`" v-model.number="item.jumlah" type="number" variant="underlined"
                 density="compact" hide-details class="text-end" :readonly="!item.kode" />
             </template>
-            <template #item.harga="{ item }"><v-text-field v-model.number="item.harga" type="number"
-                variant="underlined" density="compact" hide-details class="text-end" /></template>
-            <template #item.diskon="{ item }"><v-text-field v-model.number="item.diskon" type="number"
-                variant="underlined" density="compact" hide-details class="text-end" /></template>
-            <template #item.total="{ item }">
+            <template #[`item.harga`]="{ item }">
+              <v-text-field v-model.number="item.harga" type="number" variant="underlined" density="compact"
+                hide-details class="text-end" />
+            </template>
+            <template #[`item.diskon`]="{ item }">
+              <v-text-field v-model.number="item.diskon" type="number" variant="underlined" density="compact"
+                hide-details class="text-end" />
+            </template>
+            <template #[`item.total`]="{ item }">
               <td class="text-end">{{ (item.total || 0).toLocaleString('id-ID') }}</td>
             </template>
-            <template #item.ket="{ item }"><v-text-field v-model="item.ket" variant="underlined" density="compact"
-                hide-details /></template>
-            <template #item.gambar="{ item }">
-              <div class-="d-flex align-center pa-1">
+            <template #[`item.ket`]="{ item }">
+              <v-text-field v-model="item.ket" variant="underlined" density="compact" hide-details />
+            </template>
+            <template #[`item.gambar`]="{ item }">
+              <div class="d-flex align-center pa-1">
                 <v-btn size="x-small" icon="mdi-upload" @click="triggerFileUpload(item)" class="me-2" />
                 <div class="text-truncate" style="font-size: 10px;">
                   <v-icon v-if="item.fileObject" color="primary" size="small">mdi-file-image</v-icon>
@@ -440,7 +484,7 @@ onMounted(async () => {
                   color="error" @click="item.gambar = ''; item.fileObject = undefined" />
               </div>
             </template>
-            <template #item.actions="{ item }">
+            <template #[`item.actions`]="{ item }">
               <v-btn v-if="item.nama" icon="mdi-delete" size="x-small" variant="text" color="error"
                 @click="removeRow(item.id)" />
             </template>
@@ -462,7 +506,7 @@ onMounted(async () => {
     <v-dialog v-model="dialogConfirm.show" max-width="400px" persistent>
       <v-card>
         <v-card-title class="text-h6 font-weight-bold">{{ dialogConfirm.title }}</v-card-title>
-        <v-card-text v-html="dialogConfirm.text"></v-card-text>
+        <v-card-text {{ dialogConfirm.text }}></v-card-text>
         <v-card-actions>
           <v-spacer />
           <v-btn text @click="dialogConfirm.onCancel">Batal</v-btn>

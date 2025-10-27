@@ -6,6 +6,7 @@ import { useAuthStore } from '@/stores/authStore';
 import api from '@/services/api';
 import { format, parseISO } from 'date-fns';
 import PageLayout from '@/components/PageLayout.vue';
+import type { AxiosError } from 'axios';
 
 // --- Tipe Data & State ---
 interface Item {
@@ -17,6 +18,12 @@ interface Item {
   barcode: string;
   old: 'Y' | 'N';
 }
+interface Detail {
+  brgd_ukuran: string;
+  brgd_hpp: number;
+  brgd_harga: number;
+  brgd_barcode: string;
+}
 const router = useRouter();
 const route = useRoute();
 const toast = useToast();
@@ -25,6 +32,10 @@ const MENU_ID = '219';
 
 const isEditMode = computed(() => !!route.params.kode);
 const pageTitle = computed(() => isEditMode.value ? 'Ubah Barang External' : 'Buat Barang External');
+const canView = computed(() => authStore.can(MENU_ID, 'view'));
+const canInsert = computed(() => authStore.can(MENU_ID, 'insert'));
+const canEdit = computed(() => authStore.can(MENU_ID, 'edit'));
+const canSave = computed(() => isEditMode.value ? canEdit.value : canInsert.value);
 const isLoading = ref(true);
 const isSaving = ref(false);
 const isLoadingBarcode = ref(false);
@@ -74,14 +85,14 @@ const loadInitialData = async () => {
     if (kategoriOptions.value.length > 0) {
       header.brg_ktg = kategoriOptions.value[0];
     }
-  } catch (error) { toast.error('Gagal memuat data awal.'); }
+  } catch (error) { toast.error('Gagal memuat data awal.', error); }
 };
 
 const loadUkuran = async () => {
   try {
     const response = await api.get(`/barang-external-form/ukuran-options/${header.brg_ktg}`);
     items.value = response.data;
-  } catch (error) { toast.error('Gagal memuat daftar ukuran.'); }
+  } catch (error) { toast.error('Gagal memuat daftar ukuran.', error); }
 };
 
 const loadDataForEdit = async (kode: string) => {
@@ -95,7 +106,7 @@ const loadDataForEdit = async (kode: string) => {
     await loadUkuran(); // Muat template ukuran
 
     // Ceklis dan isi data yang sudah ada
-    response.data.details.forEach((detail: any) => {
+    response.data.details.forEach((detail: Detail) => {
       const item = items.value.find(i => i.ukuran === detail.brgd_ukuran);
       if (item) {
         item.aktif = true;
@@ -105,7 +116,10 @@ const loadDataForEdit = async (kode: string) => {
         item.old = 'Y';
       }
     });
-  } catch (error: any) { toast.error(error.response?.data?.message || 'Gagal memuat data.'); }
+  } catch (error) {
+    const err = error as AxiosError<{ message?: string }>;
+    toast.error(err.response?.data?.message || 'Gagal memuat data.');
+  }
 };
 
 const onFileSelect = (event: Event) => {
@@ -142,6 +156,10 @@ const resetForm = () => {
 };
 
 const save = () => {
+  if (!canSave.value) {
+    toast.error('Anda tidak memiliki izin untuk menyimpan data ini.');
+    return;
+  }
   // Validasi
   if (!header.brg_ktgp) return toast.error('Kategori produk belum dipilih.');
   if (!header.nama) return toast.error('Nama barang harus diisi.');
@@ -151,6 +169,11 @@ const save = () => {
 };
 
 const executeSave = async () => {
+  if (!canSave.value) {
+    toast.error('Anda tidak memiliki izin untuk menyimpan data ini.');
+    isSaving.value = false; // Pastikan loading dihentikan
+    return;
+  }
   isSaving.value = true;
   const formData = new FormData();
   const payload = {
@@ -172,8 +195,9 @@ const executeSave = async () => {
 
     toast.success(response.data.message);
     router.push({ name: 'BarangExternal' });
-  } catch (error: any) {
-    toast.error(error.response?.data?.message || 'Gagal menyimpan data.');
+  } catch (error) {
+    const err = error as AxiosError<{ message?: string }>;
+    toast.error(err.response?.data?.message || 'Gagal menyimpan data.');
   } finally {
     isSaving.value = false;
   }
@@ -290,9 +314,15 @@ const onAktifChanged = async (item: Item) => {
     console.log('Generated barcode:', item.barcode);
     item.old = 'N';
 
-  } catch (error: any) {
-    console.error('Error in onAktifChanged:', error);
-    toast.error('Gagal membuat barcode: ' + (error.response?.data?.message || error.message));
+  } catch (error) {
+    const err = error as AxiosError<{ message?: string }>;
+    console.error('Error in onAktifChanged:', err);
+
+    const message =
+      err.response?.data?.message ||
+      (err.message ? err.message : 'Terjadi kesalahan saat membuat barcode.');
+
+    toast.error('Gagal membuat barcode: ' + message);
     item.aktif = false;
   } finally {
     isLoadingBarcode.value = false;
@@ -300,6 +330,13 @@ const onAktifChanged = async (item: Item) => {
 };
 
 onMounted(async () => {
+  if (!canView.value) {
+    isLoading.value = false; // Hentikan loading
+    toast.error('Anda tidak memiliki izin untuk mengakses halaman ini.');
+    // Opsional: Redirect atau tampilkan pesan akses ditolak di template
+    // router.replace({ name: 'Forbidden' }); // Contoh redirect
+    return; // Hentikan eksekusi onMounted lebih lanjut
+  }
   isLoading.value = true;
   try {
     // Muat opsi awal (kategori, dll)
@@ -311,9 +348,14 @@ onMounted(async () => {
       // Mode edit: muat data; tangkap 404 supaya tidak uncaught
       try {
         await loadDataForEdit(kode);
-      } catch (err: any) {
-        // Jika backend balikin 404, beri pesan yg ramah dan kembali ke list
-        toast.error(err.response?.data?.message || 'Kode barang external tidak ditemukan.');
+      } catch (error) {
+        const err = error as AxiosError<{ message?: string }>;
+
+        const message =
+          err.response?.data?.message ||
+          (err.message ? err.message : 'Kode barang external tidak ditemukan.');
+
+        toast.error(message);
         // optional: redirect atau stop further actions
         // router.push({ name: 'BarangExternal' });
       }
@@ -333,9 +375,13 @@ onMounted(async () => {
           } else {
             console.warn('get-new-barcode-id returned no newId:', response);
           }
-        } catch (err: any) {
-          // Log & notify, tapi tidak memblokir user
-          console.warn('Auto-generate barcode ID failed:', err?.response?.status, err?.message);
+        } catch (error) {
+          const err = error as AxiosError;
+          console.warn(
+            'Auto-generate barcode ID failed:',
+            err.response?.status,
+            err.message
+          );
           toast.info('Barcode ID otomatis tidak tersedia — isi manual jika diperlukan.');
           // tetap lanjut, user bisa centang dan memicu generation via checkbox
         }
@@ -361,15 +407,14 @@ watch(() => header.brg_ktg, () => {
 <template>
   <PageLayout :title="pageTitle" :menu-id="MENU_ID">
     <template #header-actions>
-      <v-btn color="primary" size="small" @click="save" :loading="isSaving" prepend-icon="mdi-content-save">
+      <v-btn v-if="canSave" color="primary" size="small" @click="save" :loading="isSaving"
+        prepend-icon="mdi-content-save">
         Simpan
       </v-btn>
       <v-btn size="small" @click="handleBatal" prepend-icon="mdi-refresh">
-        Batal
-      </v-btn>
+        Batal </v-btn>
       <v-btn size="small" @click="handleTutup" prepend-icon="mdi-close">
-        Tutup
-      </v-btn>
+        Tutup </v-btn>
     </template>
 
     <div class="form-grid-container">
@@ -414,16 +459,18 @@ watch(() => header.brg_ktg, () => {
         <div class="desktop-form-section d-flex flex-column" style="flex-grow: 1;">
           <v-data-table :headers="headers" :items="items" :loading="isLoading || isLoadingBarcode"
             class="desktop-table fill-height" density="compact" fixed-header :items-per-page="-1">
-            <template #item.aktif="{ item }">
+            <template #[`item.aktif`]="{ item }">
               <v-checkbox-btn v-model="item.aktif" density="compact" hide-details
                 @update:modelValue="() => onAktifChanged(item)" />
             </template>
-            <template #item.hpp="{ item }"><v-text-field v-model.number="item.hpp" type="number" variant="underlined"
-                density="compact" hide-details class="text-end" /></template>
-            <template #item.harga="{ item }"><v-text-field v-model.number="item.harga" type="number"
-                variant="underlined" density="compact" hide-details class="text-end"
-                @update:modelValue="updateHpp(item)" /></template>
-
+            <template #[`item.hpp`]="{ item }">
+              <v-text-field v-model.number="item.hpp" type="number" variant="underlined" density="compact" hide-details
+                class="text-end" />
+            </template>
+            <template #[`item.harga`]="{ item }">
+              <v-text-field v-model.number="item.harga" type="number" variant="underlined" density="compact"
+                hide-details class="text-end" @update:modelValue="updateHpp(item)" />
+            </template>
             <template #bottom></template>
           </v-data-table>
         </div>
@@ -433,7 +480,7 @@ watch(() => header.brg_ktg, () => {
     <v-dialog v-model="dialogConfirm.show" max-width="400px" persistent>
       <v-card>
         <v-card-title class="text-h6 font-weight-bold">{{ dialogConfirm.title }}</v-card-title>
-        <v-card-text v-html="dialogConfirm.text"></v-card-text>
+        <v-card-text>{{ dialogConfirm.text }}</v-card-text>
         <v-card-actions>
           <v-spacer />
           <v-btn text @click="dialogConfirm.onCancel">Tidak</v-btn>

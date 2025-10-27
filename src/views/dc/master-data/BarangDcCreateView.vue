@@ -6,8 +6,8 @@ import { useAuthStore } from '@/stores/authStore';
 import type { AxiosError } from 'axios';
 import api from '@/services/api';
 import PageLayout from '@/components/PageLayout.vue';
-import JenisKainSearchModal from '@/components/JenisKainSearchModal.vue';
-import WarnaKainSearchModal from '@/components/WarnaKainSearchModal.vue';
+import JenisKainSearchModal from '@/components/lookup/JenisKainSearchModal.vue';
+import WarnaKainSearchModal from '@/components/lookup/WarnaKainSearchModal.vue';
 
 // --- Tipe Data ---
 interface VarianItem {

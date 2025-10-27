@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue';
 import api from '@/services/api';
-import { useToast } from 'vue-toastification';
 
 interface Gudang {
   kode: string;
@@ -37,11 +36,11 @@ const loadItems = async ({ page, itemsPerPage }: { page: number, itemsPerPage: n
   try {
     // --- LOGIKA PEMILIHAN ENDPOINT ---
     let apiUrl = '/warehouses'; // Endpoint default
-    const params: any = {
+    const params: Record<string, string | number | boolean | undefined> = {
       term: search.value,
       userCabang: props.userCabang,
-      page: page,
-      itemsPerPage: itemsPerPage,
+      page,
+      itemsPerPage,
       onlyDc: props.onlyDc
     };
 

@@ -3,11 +3,11 @@ import { ref, reactive, computed, watch } from 'vue';
 import { useToast } from 'vue-toastification';
 import api from '@/services/api';
 import { useRouter } from 'vue-router';
-import RekeningSearchModal from './RekeningSearchModal.vue';
-import AuthorizationModal from '@/components/AuthorizationModal.vue';
+import RekeningSearchModal from '../lookup/RekeningSearchModal.vue';
+import AuthorizationModal from '@/components/modal/AuthorizationModal.vue';
 import PrintOptionModal from './PrintOptionModal.vue';
-import ReturJualSearchModal from '@/components/ReturJualSearchModal.vue';
-import SatisfactionSurveyModal from '@/components/SatisfactionSurveyModal.vue';
+import ReturJualSearchModal from '@/components/lookup/ReturJualSearchModal.vue';
+import SatisfactionSurveyModal from '@/components/modal/SatisfactionSurveyModal.vue';
 import type { AxiosError } from 'axios';
 
 interface BankAccount {

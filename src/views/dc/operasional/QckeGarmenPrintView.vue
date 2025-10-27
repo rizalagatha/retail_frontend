@@ -5,8 +5,30 @@ import api from '@/services/api';
 import { format, parseISO } from 'date-fns';
 import Logo from '@/assets/logo.png';
 
+interface PrintHeader {
+  mut_nomor: string;
+  perush_nama: string;
+  perush_alamat: string;
+  perush_telp: string;
+  gdg_nama: string;
+  mut_tanggal: string;
+  mut_ket: string;
+}
+
+interface PrintDetail {
+  kode: string;
+  Nama: string;
+  ukuran: string;
+  jumlah: number;
+}
+
+interface PrintData {
+  header: PrintHeader;
+  details: PrintDetail[];
+}
+
 const route = useRoute();
-const printData = ref<any>(null);
+const printData = ref<PrintData | null>(null);
 const isLoading = ref(true);
 const appLogo = Logo;
 
@@ -268,6 +290,7 @@ onMounted(() => {
   .print-container {
     background: white;
     -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
   }
 
   .page {

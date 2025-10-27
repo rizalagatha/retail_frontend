@@ -1,14 +1,24 @@
 <script setup lang="ts">
 import { ref, onMounted, computed } from 'vue';
 import api from '@/services/api';
+import { useToast } from 'vue-toastification';
+import { format } from 'date-fns';
 
+interface ReferensiItem {
+  nomor: string;
+  tanggal: string;
+  namaSupplier: string;
+  keterangan?: string;
+}
 interface Props {
   source: string;
 }
+const toast = useToast();
+
 const props = defineProps<Props>();
 const emit = defineEmits(['close', 'select']);
 
-const items = ref<any[]>([]);
+const items = ref<ReferensiItem[]>([]);
 const searchTerm = ref('');
 const isLoading = ref(false);
 
@@ -18,6 +28,14 @@ const headers = [
   { title: 'Supplier', key: 'namaSupplier', minWidth: '250px' },
   { title: 'Keterangan', key: 'keterangan' },
 ];
+
+const formatTanggal = (tanggal: string) => {
+  try {
+    return format(new Date(tanggal), 'dd-MM-yyyy');
+  } catch {
+    return '-';
+  }
+};
 
 const fetchReferensi = async () => {
   isLoading.value = true;
@@ -52,7 +70,7 @@ const filteredItems = computed(() => {
   );
 });
 
-const selectItem = (item: any) => {
+const selectItem = (item: ReferensiItem) => {
   emit('select', item);
 };
 
@@ -77,7 +95,7 @@ onMounted(fetchReferensi);
           <template #item="{ item }">
             <tr @click="selectItem(item)" style="cursor: pointer;">
               <td>{{ item.nomor }}</td>
-              <td>{{ format(new Date(item.tanggal), 'dd-MM-yyyy') }}</td>
+              <td>{{ formatTanggal(item.tanggal) }}</td>
               <td>{{ item.namaSupplier }}</td>
               <td>{{ item.keterangan }}</td>
             </tr>

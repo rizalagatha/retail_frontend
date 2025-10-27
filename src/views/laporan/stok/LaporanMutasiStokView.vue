@@ -6,7 +6,7 @@ import { useAuthStore } from '@/stores/authStore';
 import api from '@/services/api';
 import { format, subDays, parseISO } from 'date-fns';
 import PageLayout from '@/components/PageLayout.vue';
-import MasterProductSearchModal from '@/components/MasterProductSearchModal.vue';
+import MasterProductSearchModal from '@/components/lookup/MasterProductSearchModal.vue';
 import * as XLSX from 'xlsx';
 import type { AxiosError } from 'axios';
 

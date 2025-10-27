@@ -6,8 +6,8 @@ import { useAuthStore } from '@/stores/authStore';
 import api from '@/services/api';
 import { format, parseISO } from 'date-fns';
 import PageLayout from '@/components/PageLayout.vue';
-import GudangSearchModal from '@/components/GudangSearchModal.vue';
-import MintaBarangSearchModal from '@/components/MintaBarangSearchModal.vue';
+import GudangSearchModal from '@/components/lookup/GudangSearchModal.vue';
+import MintaBarangSearchModal from '@/components/lookup/MintaBarangSearchModal.vue';
 import type { AxiosError } from 'axios';
 
 // --- Tipe Data ---

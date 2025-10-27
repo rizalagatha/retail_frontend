@@ -2,7 +2,7 @@
 import { ref, computed, onMounted } from 'vue';
 import api from '@/services/api';
 import PageLayout from '@/components/PageLayout.vue';
-import ConfirmationModal from '@/components/ConfirmationModal.vue';
+import ConfirmationModal from '@/components/modal/ConfirmationModal.vue';
 import { useToast } from 'vue-toastification';
 import { useAuthStore } from '@/stores/authStore';
 import axios from 'axios';

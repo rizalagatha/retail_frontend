@@ -2,7 +2,7 @@
 import { ref, computed, watch } from 'vue';
 import api from '@/services/api';
 import { useToast } from 'vue-toastification';
-import RekeningSearchModal from './RekeningSearchModal.vue';
+import RekeningSearchModal from '../lookup/RekeningSearchModal.vue';
 import { useAuthStore } from '@/stores/authStore';
 import { useRouter } from 'vue-router';
 

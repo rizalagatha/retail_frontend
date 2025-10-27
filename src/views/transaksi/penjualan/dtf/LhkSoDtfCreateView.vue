@@ -6,7 +6,7 @@ import PageLayout from '@/components/PageLayout.vue';
 import { useToast } from 'vue-toastification';
 import { useAuthStore } from '@/stores/authStore';
 import { format } from 'date-fns';
-import SoPoSearchModal from '@/components/SoPoSearchModal.vue';
+import SoPoSearchModal from '@/components/lookup/SoPoSearchModal.vue';
 import type { AxiosError } from 'axios';
 
 interface LhkItem {

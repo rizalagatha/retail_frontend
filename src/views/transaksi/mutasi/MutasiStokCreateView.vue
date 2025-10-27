@@ -6,7 +6,7 @@ import { useAuthStore } from '@/stores/authStore';
 import api from '@/services/api';
 import { format, parseISO } from 'date-fns';
 import PageLayout from '@/components/PageLayout.vue';
-import SoSearchModalForMutasi from '@/components/SoSearchModalForMutasi.vue';
+import SoSearchModalForMutasi from '@/components/lookup/SoSearchModalForMutasi.vue';
 import type { AxiosError } from 'axios';
 
 // --- Tipe Data ---

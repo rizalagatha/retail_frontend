@@ -6,7 +6,8 @@ import { useAuthStore } from '@/stores/authStore';
 import api from '@/services/api';
 import { format, parseISO } from 'date-fns';
 import PageLayout from '@/components/PageLayout.vue';
-import MintaBarangSearchModal from '@/components/MintaBarangSearchModal.vue';
+import MintaBarangSearchModal from '@/components/lookup/MintaBarangSearchModal.vue';
+import type { AxiosError } from 'axios';
 
 // --- Tipe Data & State ---
 interface Item {
@@ -26,6 +27,11 @@ const MENU_ID = '216';
 
 const isEditMode = computed(() => !!route.params.nomor);
 const pageTitle = computed(() => isEditMode.value ? 'Ubah Mutasi Antar Gudang' : 'Buat Mutasi Antar Gudang');
+const canView = computed(() => authStore.can(MENU_ID, 'view'));
+const canInsert = computed(() => authStore.can(MENU_ID, 'insert'));
+const canEdit = computed(() => authStore.can(MENU_ID, 'edit'));
+// Pengecekan izin gabungan untuk tombol 'Simpan'
+const canSave = computed(() => isEditMode.value ? canEdit.value : canInsert.value);
 const isLoading = ref(true);
 const isDataLoading = ref(true);
 const isSaving = ref(false);
@@ -79,14 +85,17 @@ const loadDataForEdit = async (nomor: string) => {
     header.keterangan = data.header.mts_ket;
     items.value = data.items.map(item => ({ ...item, id: Math.random() }));
     addNewRow();
-  } catch (error: any) { toast.error(error.response?.data?.message || 'Gagal memuat data.'); }
+  } catch (err: unknown) {
+    const error = err as AxiosError<{ message: string }>;
+    toast.error(error.response?.data?.message || 'Gagal memuat data.');
+  }
 };
 
 const fetchGudangOptions = async () => {
   try {
     const response = await api.get('/mutasi-antar-gudang-form/gudang-options');
     gudangOptions.value = response.data;
-  } catch (error) { toast.error('Gagal memuat opsi gudang.'); }
+  } catch (error) { toast.error('Gagal memuat opsi gudang.', error); }
 };
 
 const handleBarcodeScan = async () => {
@@ -113,7 +122,8 @@ const handleBarcodeScan = async () => {
       });
       addNewRow(); // Tambah baris kosong baru di akhir
     }
-  } catch (error: any) {
+  } catch (err: unknown) {
+    const error = err as AxiosError<{ message: string }>;
     toast.error(error.response?.data?.message || 'Barcode tidak ditemukan.');
   } finally {
     scannedBarcode.value = '';
@@ -132,6 +142,10 @@ const removeRow = (id: number) => {
 };
 
 const save = () => {
+  if (!canSave.value) {
+    toast.error('Anda tidak memiliki izin untuk menyimpan data ini.');
+    return;
+  }
   // Validasi dari btnSimpanClick Delphi
   if (header.dariGudang === header.keGudang) return toast.error('Gudang tidak boleh sama.');
   if (!items.value.some(item => item.kode && item.jumlah > 0)) return toast.error('Detail barang harus diisi.');
@@ -148,6 +162,11 @@ const save = () => {
 };
 
 const executeSave = async () => {
+  if (!canSave.value) {
+    toast.error('Anda tidak memiliki izin untuk menyimpan data ini.');
+    isSaving.value = false; // Pastikan loading dihentikan
+    return;
+  }
   isSaving.value = true;
   try {
     const payload = {
@@ -174,7 +193,8 @@ const executeSave = async () => {
     };
     dialogConfirmCetak.show = true;
 
-  } catch (error: any) {
+  } catch (err: unknown) {
+    const error = err as AxiosError<{ message: string }>;
     toast.error(error.response?.data?.message || 'Gagal menyimpan data.');
   } finally {
     isSaving.value = false;
@@ -240,46 +260,40 @@ const handleGridBarcodeEnter = async (item: Item, index: number) => {
       document.getElementById(`jumlah-${item.id}`)?.focus();
     });
 
-  } catch (error: any) {
+  } catch (err: unknown) {
+    const error = err as AxiosError<{ message: string }>;
     toast.error(error.response?.data?.message || 'Barcode tidak terdaftar.');
     item.kode = ''; // Kosongkan input
   }
 };
 
 // Dipanggil setelah memilih dari MintaBarangSearchModal
-const onProductsSelected = (products: any[]) => {
+const onProductsSelected = (products: Item[]) => {
   isBarangSearchVisible.value = false;
   if (!products || products.length === 0) return;
 
   if (isModalMultiSelect.value) {
-    // --- Mode F2 (Multi-select) ---
-    // Tambahkan semua produk yang dipilih sebagai baris baru
+    // Mode F2 (Multi-select)
     products.forEach(product => {
       const isDuplicate = items.value.some(item =>
         item.kode === product.kode && item.ukuran === product.ukuran
       );
       if (!isDuplicate) {
-        // Sisipkan di atas baris kosong terakhir
         const lastIndex = items.value.length - 1;
         items.value.splice(lastIndex, 0, {
           id: Date.now() + Math.random(),
-          kode: product.kode,
-          nama: product.nama,
-          ukuran: product.ukuran,
-          stok: product.stok,
-          jumlah: 1, // Default qty
-          barcode: product.barcode,
+          ...product,
+          jumlah: 1
         });
       }
     });
   } else {
-    // --- Mode F1 (Single-select) ---
-    // Update baris yang sedang aktif
+    // Mode F1 (Single-select)
     const product = products[0];
     const isDuplicate = items.value.some((item, index) =>
       item.kode === product.kode &&
       item.ukuran === product.ukuran &&
-      index !== activeRowIndex.value // Cek duplikat di baris LAIN
+      index !== activeRowIndex.value
     );
 
     if (isDuplicate) {
@@ -288,19 +302,31 @@ const onProductsSelected = (products: any[]) => {
 
     const targetRow = items.value[activeRowIndex.value];
     if (targetRow) {
-      targetRow.kode = product.kode;
-      targetRow.nama = product.nama;
-      targetRow.ukuran = product.ukuran;
-      targetRow.stok = product.stok;
-      targetRow.jumlah = 1; // Default qty
-      targetRow.barcode = product.barcode;
+      Object.assign(targetRow, { ...product, jumlah: 1 });
     }
   }
 
   addNewRow(); // Pastikan baris kosong tetap ada di akhir
 };
 
+
 onMounted(async () => {
+  // --- TAMBAHKAN PENGECEKAN AWAL ---
+  if (!canView.value) {
+    isLoading.value = false;
+    isDataLoading.value = false;
+    toast.error('Anda tidak memiliki izin untuk mengakses halaman ini.');
+    // Opsional: Tampilkan pesan akses ditolak di template atau redirect
+    // router.replace({ name: 'Forbidden' });
+    return; // Hentikan eksekusi
+  }
+  // ------------------------------------
+
+  // --- Perubahan: Set isLoading di sini, bukan di awal ---
+  isLoading.value = true;
+  isDataLoading.value = true;
+  // ------------------------------------
+
   await fetchGudangOptions();
   const nomor = route.params.nomor as string;
   if (nomor) {
@@ -309,7 +335,7 @@ onMounted(async () => {
     addNewRow();
   }
   isLoading.value = false;
-  isDataLoading.value = false; // <-- Set isDataLoading ke false setelah selesai
+  isDataLoading.value = false;
 });
 
 watch(() => header.dariGudang, (newValue, oldValue) => {
@@ -349,10 +375,14 @@ watch(() => header.dariGudang, (newValue, oldValue) => {
 <template>
   <PageLayout :title="pageTitle" :menu-id="MENU_ID">
     <template #header-actions>
-      <v-btn color="primary" @click="save" :loading="isSaving" size="small"
-        prepend-icon="mdi-content-save">Simpan</v-btn>
+      <v-btn v-if="canSave" color="primary" @click="save" :loading="isSaving" size="small"
+        prepend-icon="mdi-content-save">
+        Simpan
+      </v-btn>
       <v-btn size="small"
-        @click="() => showConfirmation('Konfirmasi Batal', 'Batalkan perubahan?', () => router.back())">Batal</v-btn>
+        @click="() => showConfirmation('Konfirmasi Batal', 'Batalkan perubahan?', () => router.back())">
+        Batal
+      </v-btn>
     </template>
 
     <div class="form-grid-container">
@@ -364,7 +394,7 @@ watch(() => header.dariGudang, (newValue, oldValue) => {
             <v-col cols="6"><v-text-field label="Tanggal" v-model="header.tanggal" type="date" variant="outlined"
                 density="compact" hide-details /></v-col>
             <v-col cols="6"><v-select label="Dari Gudang" v-model="header.dariGudang" :items="gudangOptions"
-                :readonly="isEditMode" density="compact" hide-details /></v-col>
+                :readonly="isEditMode || !canSave" density="compact" hide-details /></v-col>
             <v-col cols="6"><v-select label="Ke Gudang" v-model="header.keGudang" :items="gudangOptions"
                 :readonly="isEditMode" density="compact" hide-details /></v-col>
             <v-col cols="12"><v-textarea label="Keterangan" v-model="header.keterangan" rows="3" variant="outlined"
@@ -382,23 +412,24 @@ watch(() => header.dariGudang, (newValue, oldValue) => {
         <div class="desktop-form-section d-flex flex-column" style="flex-grow: 1;">
           <v-data-table :headers="headers" :items="items" :loading="isLoading" class="desktop-table fill-height"
             density="compact" fixed-header :items-per-page="-1">
-            <template #item.no="{ index }">{{ index + 1 }}</template>
-            <template #item.kode="{ item, index }">
+            <template #[`item.no`]="{ index }">{{ index + 1 }}</template>
+            <template #[`item.kode`]="{ item, index }">
               <v-text-field v-model="item.kode" variant="underlined" density="compact" hide-details
-                :readonly="isEditMode || !!item.nama" placeholder="Scan/F1/F2..."
+                :readonly="isEditMode || !!item.nama || !canSave" placeholder="Scan/F1/F2..."
                 @keydown.f1.prevent="openBarangSearch(index, false)" @keydown.f2.prevent="openBarangSearch(index, true)"
                 @keydown.enter.prevent="handleGridBarcodeEnter(item, index)" />
             </template>
-            <template #item.stok="{ item }">
+            <template #[`item.stok`]="{ item }">
               <td class="text-end">{{ item.stok || 0 }}</td>
             </template>
-            <template #item.jumlah="{ item }">
+            <template #[`item.jumlah`]="{ item }">
               <v-text-field :id="`jumlah-${item.id}`" v-model.number="item.jumlah" type="number" variant="underlined"
-                density="compact" hide-details class="text-end" :max="item.stok" min="0" :readonly="!item.kode" />
+                density="compact" hide-details class="text-end" :max="item.stok" min="0"
+                :readonly="!item.kode || !canSave" />
             </template>
-            <template #item.actions="{ item }">
+            <template #[`item.actions`]="{ item }">
               <v-btn v-if="item.kode" icon="mdi-delete" size="x-small" variant="text" color="error"
-                @click="removeRow(item.id)" />
+                @click="removeRow(item.id)" :disabled="!canSave" />
             </template>
             <template #bottom></template>
           </v-data-table>
@@ -412,7 +443,7 @@ watch(() => header.dariGudang, (newValue, oldValue) => {
     <v-dialog v-model="dialogConfirm.show" max-width="400px" persistent>
       <v-card>
         <v-card-title class="text-h6 font-weight-bold">{{ dialogConfirm.title }}</v-card-title>
-        <v-card-text v-html="dialogConfirm.text"></v-card-text>
+        <v-card-text>{{ dialogConfirm.text }}</v-card-text>
         <v-card-actions>
           <v-spacer />
           <v-btn text @click="dialogConfirm.onCancel">

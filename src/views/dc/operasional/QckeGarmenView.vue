@@ -7,6 +7,7 @@ import api from '@/services/api';
 import { format, subDays, parseISO, isValid } from 'date-fns';
 import PageLayout from '@/components/PageLayout.vue';
 import * as XLSX from 'xlsx';
+import type { AxiosError } from 'axios';
 
 // --- Tipe Data & State ---
 interface QCMaster {
@@ -58,17 +59,17 @@ const headers = [
   { title: 'Tanggal', key: 'Tanggal', minWidth: '120px' },
   { title: 'Gudang Tujuan', key: 'NamaGudang', minWidth: '150px' },
   { title: 'Keterangan', key: 'Keterangan', minWidth: '250px' },
-  { title: 'Kirim', key: 'Kirim', align: 'end' },
-  { title: 'Terima', key: 'Terima', align: 'end' },
+  { title: 'Kirim', key: 'Kirim' },
+  { title: 'Terima', key: 'Terima' },
   { title: 'Status', key: 'Closing', align: 'center', minWidth: '100px' },
-];
+] as const;
 const detailHeaders = [
   { title: 'No.', key: 'no', width: '60px', sortable: false },
   { title: 'Kode Barang', key: 'Kode', minWidth: '150px' },
   { title: 'Nama Barang', key: 'Nama', minWidth: '300px' },
   { title: 'Ukuran', key: 'Ukuran' },
-  { title: 'Jumlah', key: 'Jumlah', align: 'end' },
-  { title: 'Sudah Terima', key: 'SudahTerima', align: 'end' },
+  { title: 'Jumlah', key: 'Jumlah' },
+  { title: 'Sudah Terima', key: 'SudahTerima' },
 ];
 
 // --- Methods ---
@@ -86,7 +87,8 @@ const fetchData = async () => {
   try {
     const response = await api.get('/qc-ke-garmen', { params: filters });
     masterData.value = response.data;
-  } catch (error: any) {
+  } catch (err) {
+    const error = err as AxiosError<{ message: string }>;
     toast.error(error.response?.data?.message || 'Gagal mengambil data master QC.');
   } finally {
     loading.value = false;
@@ -102,8 +104,8 @@ const loadDetails = async (newlyExpandedItems: QCMaster[]) => {
   try {
     const response = await api.get(`/qc-ke-garmen/details/${nomor}`);
     details.value[nomor] = response.data.map((d: QCDetail, index: number) => ({ ...d, no: index + 1 }));
-  } catch (error: any) {
-    toast.error(`Gagal memuat detail untuk ${nomor}.`);
+  } catch (error) {
+    toast.error(`Gagal memuat detail untuk ${nomor}.`, error);
   } finally {
     loadingDetails.value.delete(nomor);
   }
@@ -137,7 +139,8 @@ const handleDelete = async () => {
     });
     toast.success(response.data.message);
     fetchData();
-  } catch (error: any) {
+  } catch (err) {
+    const error = err as AxiosError<{ message: string }>;
     toast.error(error.response?.data?.message || 'Gagal menghapus data.');
   }
 };
@@ -155,15 +158,20 @@ const exportData = async (type: 'header' | 'detail') => {
   if (type === 'header') {
     if (masterData.value.length === 0) return toast.warning('Tidak ada data header.');
     const worksheet = XLSX.utils.json_to_sheet(masterData.value);
-    XLSX.writeFile(XLSX.utils.book_new_append_sheet(worksheet, "Header"), "Export_QC_Header.xlsx");
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Header");
+    XLSX.writeFile(workbook, "Export_QC_Header.xlsx");
   } else if (type === 'detail') {
     loading.value = true;
     try {
       const response = await api.get('/qc-ke-garmen/export-details', { params: filters });
       if (response.data.length === 0) return toast.warning('Tidak ada data detail.');
       const worksheet = XLSX.utils.json_to_sheet(response.data);
-      XLSX.writeFile(XLSX.utils.book_new_append_sheet(worksheet, "Detail"), "Export_QC_Detail.xlsx");
-    } catch (error: any) {
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, "Detail");
+      XLSX.writeFile(workbook, "Export_QC_Detail.xlsx");
+    } catch (err) {
+      const error = err as AxiosError<{ message: string }>;
       toast.error(error.response?.data?.message || 'Gagal mengekspor data detail.');
     } finally {
       loading.value = false;
@@ -225,15 +233,15 @@ watch(filters, fetchData, { deep: true });
           <template v-for="header in headers" :key="header.key" #[`item.${header.key}`]="{ item }">
             <td>
               <template v-if="header.key === 'Tanggal'">
-                {{ format(parseISO(item.Tanggal), 'dd-MM-yyyy') }}
+                {{ formatTanggal(item.Tanggal) }}
               </template>
               <template v-else-if="['Nominal', 'Terbayar', 'Sisa'].includes(header.key)">
                 {{ (item[header.key] || 0).toLocaleString('id-ID') }}
               </template>
-              <template v-else-if="header.key === 'Status'">
+              <template v-else-if="header.key === 'Closing'">
                 <v-chip size="x-small"
-                  :color="item.Status === 'OPEN' ? 'error' : (item.Status === 'CLOSE' ? 'success' : 'info')">
-                  {{ item.Status }}
+                  :color="item.Closing === 'N' ? 'error' : (item.Closing === 'Y' ? 'success' : 'info')">
+                  {{ item.Closing === 'Y' ? 'CLOSE' : 'OPEN' }}
                 </v-chip>
               </template>
               <template v-else>
@@ -250,7 +258,7 @@ watch(filters, fetchData, { deep: true });
                     <div v-if="loadingDetails.has(item.Nomor)" class="text-center">Memuat detail...</div>
                     <v-data-table v-else :headers="detailHeaders" :items="details[item.Nomor] || []" density="compact"
                       class="detail-table" :items-per-page="-1">
-                      <template v-for="col in ['Jumlah', 'SudahTerima']" #[`item.${col}`]="{ item }">
+                      <template v-for="col in ['Jumlah', 'SudahTerima']" :key="col" #[`item.${col}`]="{ item }">
               <td class="text-end">{{ (item[col] || 0).toLocaleString('id-ID') }}</td>
           </template>
           <template #bottom></template>
@@ -267,7 +275,7 @@ watch(filters, fetchData, { deep: true });
 <v-dialog v-model="dialogConfirm.show" max-width="400px" persistent>
   <v-card>
     <v-card-title class="text-h6 font-weight-bold">{{ dialogConfirm.title }}</v-card-title>
-    <v-card-text v-html="dialogConfirm.text"></v-card-text>
+    <v-card-text>{{ dialogConfirm.text }}</v-card-text>
     <v-card-actions>
       <v-spacer />
       <v-btn text @click="dialogConfirm.show = false">Batal</v-btn>

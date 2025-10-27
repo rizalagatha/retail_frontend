@@ -45,7 +45,7 @@ const fetchPrintData = async (nomor: string) => {
         copies.value = [response.data, response.data];
 
         document.title = response.data.header.nomor;
-    } catch (error) {
+    } catch {
         alert("Gagal memuat data untuk dicetak.");
     } finally {
         isLoading.value = false;
@@ -67,7 +67,7 @@ onMounted(() => {
 <template>
     <div class="print-container">
         <div v-if="isLoading" class="text-center">Memuat data...</div>
-        
+
         <template v-if="printData">
             <div class="page">
                 <div class="header">

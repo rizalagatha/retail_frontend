@@ -2,8 +2,16 @@
 import { ref, onMounted, computed } from 'vue';
 import api from '@/services/api';
 import { useToast } from 'vue-toastification';
-import { format, parseISO } from 'date-fns';
+import { AxiosError } from 'axios';
 
+interface TransaksiItem {
+  Nomor: string;
+  Tanggal: string;
+  Customer: string;
+  Nominal: number;
+  Bayar: number;
+  Sisa: number;
+}
 interface Props {
   searchType: 'invoice' | 'deposit';
   cabang: string;
@@ -12,7 +20,7 @@ const props = defineProps<Props>();
 const emit = defineEmits(['close', 'selected']);
 const toast = useToast();
 
-const items = ref<any[]>([]);
+const items = ref<TransaksiItem[]>([]);
 const loading = ref(true);
 const search = ref('');
 
@@ -20,9 +28,9 @@ const headers = [
   { title: 'No. Transaksi', key: 'Nomor' },
   { title: 'Tanggal', key: 'Tanggal' },
   { title: 'Customer', key: 'Customer' },
-  { title: 'Nominal', key: 'Nominal', align: 'end' },
-  { title: 'Terbayar', key: 'Bayar', align: 'end' },
-  { title: 'Sisa Saldo', key: 'Sisa', align: 'end' },
+  { title: 'Nominal', key: 'Nominal' },
+  { title: 'Terbayar', key: 'Bayar' },
+  { title: 'Sisa Saldo', key: 'Sisa' },
 ];
 
 const loadItems = async () => {
@@ -33,8 +41,10 @@ const loadItems = async () => {
       : '/refund-form/lookup/deposit';
     const response = await api.get(apiUrl);
     items.value = response.data;
-  } catch (error: any) {
-    toast.error(error.response?.data?.message || 'Gagal memuat data transaksi.');
+  } catch (error) {
+    const err = error as AxiosError<{ message?: string }>;
+    const message = err.response?.data?.message || 'Gagal memuat data transaksi.';
+    toast.error(message);
   } finally {
     loading.value = false;
   }
@@ -49,7 +59,7 @@ const filteredItems = computed(() => {
   );
 });
 
-const selectItem = (item: any) => {
+const selectItem = (item: TransaksiItem) => {
   emit('selected', item);
   emit('close');
 };

@@ -6,7 +6,7 @@ import { useAuthStore } from '@/stores/authStore';
 import api from '@/services/api';
 import { format } from 'date-fns';
 import PageLayout from '@/components/PageLayout.vue';
-import MutasiOutSearchModal from '@/components/MutasiOutSearchModal.vue';
+import MutasiOutSearchModal from '@/components/lookup/MutasiOutSearchModal.vue';
 import axios from 'axios';
 
 interface MutasiInItem {

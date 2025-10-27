@@ -6,10 +6,10 @@ import { useAuthStore } from '@/stores/authStore';
 import api from '@/services/api';
 import { format } from 'date-fns';
 import PageLayout from '@/components/PageLayout.vue';
-import GudangSearchModal from '@/components/GudangSearchModal.vue';
-import StoreSearchModal from '@/components/StoreSearchModal.vue';
-import PermintaanSearchModal from '@/components/PermintaanSearchModal.vue';
-import TerimaRbSearchModal from '@/components/TerimaRbSearchModal.vue';
+import GudangSearchModal from '@/components/lookup/GudangSearchModal.vue';
+import StoreSearchModal from '@/components/lookup/StoreSearchModal.vue';
+import PermintaanSearchModal from '@/components/lookup/PermintaanSearchModal.vue';
+import TerimaRbSearchModal from '@/components/lookup/TerimaRbSearchModal.vue';
 import type { AxiosError } from 'axios';
 import type { DataTableHeader } from 'vuetify';
 

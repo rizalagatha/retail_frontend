@@ -6,7 +6,7 @@ import { useAuthStore } from '@/stores/authStore';
 import api from '@/services/api';
 import { format, subDays, parseISO } from 'date-fns';
 import PageLayout from '@/components/PageLayout.vue';
-import MintaBarangSearchModal from '@/components/MintaBarangSearchModal.vue';
+import MintaBarangSearchModal from '@/components/lookup/MintaBarangSearchModal.vue';
 import * as XLSX from 'xlsx';
 import { AxiosError } from 'axios';
 

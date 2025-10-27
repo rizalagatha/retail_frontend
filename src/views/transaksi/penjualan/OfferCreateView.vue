@@ -2,12 +2,12 @@
 import { ref, onMounted, computed, watch } from 'vue';
 import api from '@/services/api';
 import PageLayout from '@/components/PageLayout.vue';
-import CustomerSearchModal from '@/components/CustomerSearchModal.vue';
+import CustomerSearchModal from '@/components/lookup/CustomerSearchModal.vue';
 // import GudangSearchModal from '@/components/GudangSearchModal.vue';
-import ProductSearchModal from '@/components/ProductSearchModal.vue';
-import AuthorizationModal from '@/components/AuthorizationModal.vue';
-import SoDtfSearchModal from '@/components/SoDtfSearchModal.vue';
-import PriceProposalSearchModal from '@/components/PriceProposalSearchModal.vue';
+import ProductSearchModal from '@/components/lookup/ProductSearchModal.vue';
+import AuthorizationModal from '@/components/modal/AuthorizationModal.vue';
+import SoDtfSearchModal from '@/components/lookup/SoDtfSearchModal.vue';
+import PriceProposalSearchModal from '@/components/lookup/PriceProposalSearchModal.vue';
 import { useToast } from 'vue-toastification';
 import { useAuthStore } from '@/stores/authStore';
 import { useRouter, useRoute } from 'vue-router';
@@ -781,7 +781,7 @@ const handleBarcodeScan = async () => {
     if (existingItem) {
         existingItem.jumlah += 1;
         // Panggil fungsi untuk hitung ulang total jika ada
-        // calculateTotals(); 
+        // calculateTotals();
         toast.info(`Jumlah untuk ${existingItem.nama} ditambah menjadi ${existingItem.jumlah}`);
         scannedBarcode.value = ''; // Kosongkan input untuk scan berikutnya
         return;

@@ -2,7 +2,7 @@
 import { ref, onMounted, computed, watch } from 'vue';
 import api from '@/services/api';
 import PageLayout from '@/components/PageLayout.vue';
-import MasterProductSearchModal from '@/components/MasterProductSearchModal.vue';
+import MasterProductSearchModal from '@/components/lookup/MasterProductSearchModal.vue';
 import { useToast } from 'vue-toastification';
 import { useAuthStore } from '@/stores/authStore';
 import { format } from 'date-fns';

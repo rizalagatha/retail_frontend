@@ -95,6 +95,7 @@ const handleCancel = () => {
   kodeUser.value = '';
   password.value = '';
   showPassword.value = false;
+  router.push({ name: 'Home' }); // arahkan ke home
 };
 </script>
 

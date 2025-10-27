@@ -35,9 +35,12 @@ const monthOptions = Array.from({ length: 12 }, (_, i) => ({ value: i + 1, title
 const headersDaily = [
   { title: 'No', key: 'no', sortable: false, width: '50px' }, { title: 'Kode Cabang', key: 'kode_cabang' },
   { title: 'Nama Cabang', key: 'nama_cabang', minWidth: '150px' }, { title: 'Hari', key: 'hari' },
-  { title: 'Tanggal', key: 'tanggal' }, { title: 'Omset', key: 'omset' },
-  { title: 'Total Omset', key: 'total_omset' }, { title: 'Target', key: 'target' },
-  { title: 'Ach(%)', key: 'ach' },
+  { title: 'Tanggal', key: 'tanggal' },
+  { title: 'Omset (Harian)', key: 'omset' }, // Ganti judul
+  { title: 'Total Omset (Kumulatif)', key: 'total_omset' }, // Ganti judul
+  { title: 'Target (Harian)', key: 'target' }, // Ganti judul
+  { title: 'Total Target (Kumulatif)', key: 'total_target' }, // <-- TAMBAHKAN INI
+  { title: 'Ach(%)', key: 'ach' }, // Ini sudah kumulatif (benar)
 ];
 const headersWeeklyGroup = [
   { title: 'No', rowspan: 2, key: 'no' }, { title: 'Kode Cabang', rowspan: 2, key: 'kode_cabang' }, { title: 'Nama Cabang', rowspan: 2, key: 'nama_cabang' },
@@ -83,17 +86,21 @@ const totalSummary = computed(() => {
 
 const dailyTotalSummary = computed(() => {
   if (!dailyData.value || dailyData.value.length === 0) return {};
+  const lastItem = dailyData.value[dailyData.value.length - 1]; // Ambil baris terakhir
   const totals = {
-    omset: dailyData.value.reduce((sum, item) => sum + (Number(item.omset) || 0), 0),
-    target: dailyData.value.reduce((sum, item) => sum + (Number(item.target) || 0), 0),
-    // Total omset kumulatif adalah nilai terakhir dari item terakhir
-    total_omset: dailyData.value[dailyData.value.length - 1]?.total_omset || 0,
+    omset: dailyData.value.reduce((sum, item) => sum + (Number(item.omset) || 0), 0), // Total omset harian
+    target: dailyData.value.reduce((sum, item) => sum + (Number(item.target) || 0), 0), // Total target harian
+    // Ambil nilai kumulatif terakhir dari baris terakhir
+    total_omset: lastItem?.total_omset || 0,
+    total_target: lastItem?.total_target || 0, // <-- TAMBAHKAN INI
   };
   return {
     ...totals,
-    ach: totals.target > 0 ? (totals.omset / totals.target * 100) : 0,
+    // Pastikan ACH juga dihitung dari nilai kumulatif
+    ach: totals.total_target > 0 ? (totals.total_omset / totals.total_target * 100) : 0, // <-- UBAH INI
   };
 });
+
 const weeklyTotalSummary = computed(() => {
   if (!weeklyData.value || weeklyData.value.length === 0) return {};
   const totals = weeklyData.value.reduce((acc, item) => {
@@ -214,26 +221,27 @@ watch([filters, activeTab], fetchData, { deep: true });
           <!-- Tab Daily -->
           <v-window-item value="daily">
             <v-data-table :headers="headersDaily" :items="dailyData" :loading="isLoading" class="desktop-table"
-              density="compact" fixed-header :items-per-page="-1">
+              density="compact" height="500" fixed-header :items-per-page="-1">
               <template #item.no="{ index }">
                 {{ index + 1 }}
               </template>
               <template #item.tanggal="{ item }">{{ format(new Date(item.tanggal), 'dd-MM-yyyy') }}</template>
-              <template v-for="col in ['omset', 'total_omset', 'target']" #[`item.${col}`]="{ item }">
+              <template v-for="col in ['omset', 'total_omset', 'target', 'total_target']" #[`item.${col}`]="{ item }">
                 <td class="text-end">{{ (item[col] || 0).toLocaleString('id-ID') }}</td>
               </template>
               <template #item.ach="{ item }">
                 <td class="text-end">
                   <v-chip size="small" :color="item.ach >= 100 ? 'success' : 'error'">{{ (item.ach || 0).toFixed(2)
-                  }}%</v-chip>
+                    }}%</v-chip>
                 </td>
               </template>
-              <template #tfoot>
-                <tr class="bg-grey-lighten-3 font-weight-bold">
+              <template #body.append>
+                <tr class="bg-grey-lighten-3 font-weight-bold total-row-sticky">
                   <td colspan="5" class="text-start">GRAND TOTAL :</td>
                   <td class="text-start">{{ totalSummary.omset?.toLocaleString('id-ID') }}</td>
                   <td class="text-start">{{ totalSummary.total_omset?.toLocaleString('id-ID') }}</td>
                   <td class="text-start">{{ totalSummary.target?.toLocaleString('id-ID') }}</td>
+                  <td class="text-start">{{ totalSummary.total_target?.toLocaleString('id-ID') }}</td>
                   <td class="text-start">{{ totalSummary.ach?.toFixed(2) }}%</td>
                 </tr>
               </template>
@@ -300,8 +308,8 @@ watch([filters, activeTab], fetchData, { deep: true });
                   </template>
                 </tbody>
                 <tfoot v-if="weeklyData.length > 0">
-                  <tr class="grand-total-row">
-                    <td colspan="3" class="text-end font-weight-bold">GRAND TOTAL :</td>
+                  <tr class="total-row-sticky">
+                    <td colspan="3" class="text-end">GRAND TOTAL :</td>
                     <template v-for="w in 5" :key="w">
                       <td class="text-end">{{ (weeklyTotalSummary[`nominal_w${w}`] || 0).toLocaleString('id-ID') }}</td>
                       <td class="text-end">{{ (weeklyTotalSummary[`target_w${w}`] || 0).toLocaleString('id-ID') }}</td>
@@ -326,15 +334,15 @@ watch([filters, activeTab], fetchData, { deep: true });
               <template #item.ach="{ item }">
                 <td class="text-end">
                   <v-chip size="small" :color="item.ach >= 100 ? 'success' : 'error'">{{ (item.ach || 0).toFixed(2)
-                  }}%</v-chip>
+                    }}%</v-chip>
                 </td>
               </template>
-              <template #tfoot>
-                <tr class="bg-grey-lighten-3 font-weight-bold">
-                  <td></td> <!-- Tahun -->
-                  <td></td> <!-- Bulan -->
-                  <td></td> <!-- Kode Cabang -->
-                  <td class="text-start">GRAND TOTAL :</td> <!-- Nama Cabang -->
+              <template #body.append>
+                <tr class="total-row-sticky">
+                  <td></td>
+                  <td></td>
+                  <td></td>
+                  <td class="text-start">GRAND TOTAL :</td>
                   <td class="text-start">{{ (totalSummary.nominal || 0).toLocaleString('id-ID') }}</td>
                   <td class="text-start">{{ (totalSummary.target || 0).toLocaleString('id-ID') }}</td>
                   <td class="text-start">{{ (totalSummary.ach || 0).toFixed(2) }}%</td>
@@ -356,18 +364,17 @@ watch([filters, activeTab], fetchData, { deep: true });
               <template #item.ach="{ item }">
                 <td class="text-end">
                   <v-chip size="small" :color="item.ach >= 100 ? 'success' : 'error'">{{ (item.ach || 0).toFixed(2)
-                  }}%</v-chip>
+                    }}%</v-chip>
                 </td>
               </template>
-              <template #tfoot>
-                <tr class="bg-grey-lighten-3 font-weight-bold">
-                  <td></td> <!-- No -->
-                  <td></td> <!-- Tahun -->
-                  <td class="text-start font-weight-bold">GRAND TOTAL :</td> <!-- Bulan -->
+              <template #body.append>
+                <tr class="total-row-sticky">
+                  <td></td>
+                  <td></td>
+                  <td class="text-start">GRAND TOTAL :</td>
                   <td class="text-start">{{ (totalSummary.nominal || 0).toLocaleString('id-ID') }}</td>
-                  <!-- Total Omset -->
-                  <td class="text-start">{{ (totalSummary.target || 0).toLocaleString('id-ID') }}</td> <!-- Target -->
-                  <td class="text-start">{{ (totalSummary.ach || 0).toFixed(2) }}%</td> <!-- Ach(%) -->
+                  <td class="text-start">{{ (totalSummary.target || 0).toLocaleString('id-ID') }}</td>
+                  <td class="text-start">{{ (totalSummary.ach || 0).toFixed(2) }}%</td>
                 </tr>
               </template>
               <template #bottom></template>
@@ -392,14 +399,15 @@ watch([filters, activeTab], fetchData, { deep: true });
 }
 
 .table-container {
-  overflow-x: auto;
+  /* overflow-x: auto; */
   border: 1px solid #e0e0e0;
   border-radius: 4px;
 }
 
-:deep(tfoot td) {
-  border-top: 2px solid #bdbdbd !important;
-  padding: 12px !important;
+:deep(.v-table__wrapper) {
+  max-height: 500px; /* tinggi scroll area */
+  overflow-y: auto !important; /* wajib agar sticky bisa berfungsi */
+  position: relative; /* buat referensi posisi sticky */
 }
 
 /* Styling untuk tabel weekly */
@@ -431,14 +439,6 @@ watch([filters, activeTab], fetchData, { deep: true });
   font-size: 11px !important;
 }
 
-.weekly-table tfoot td {
-  background-color: #f5f5f5 !important;
-  border-top: 2px solid #9e9e9e !important;
-  font-size: 11px !important;
-  font-weight: 600 !important;
-  padding: 8px !important;
-}
-
 /* Override v-chip untuk tabel weekly */
 .weekly-table :deep(.v-chip) {
   font-size: 10px !important;
@@ -468,23 +468,23 @@ watch([filters, activeTab], fetchData, { deep: true });
   background-color: #f5f5f5 !important;
 }
 
-:deep(.v-data-table tfoot tr td) {
-  font-size: 12px !important;
+.total-row-sticky td {
+  position: sticky;
+  bottom: 0;
+  z-index: 20; /* pastikan lebih tinggi dari header */
+  background-color: #eeeeee !important;
+  border-top: 2px solid #bdbdbd !important;
   font-weight: 600 !important;
+  font-size: 12px !important;
   padding: 10px 16px !important;
 }
 
-:deep(.v-data-table tfoot tr td:empty) {
-  background-color: transparent !important;
-}
-
-:deep(.desktop-table tfoot td) {
-  padding-left: 16px !important;
-  padding-right: 16px !important;
-  vertical-align: middle !important;
-}
-
-:deep(.desktop-table tfoot td:empty) {
-  padding: 0 !important;
+/* Penyesuaian kecil untuk font tabel weekly agar konsisten */
+.weekly-table .total-row-sticky td {
+  font-size: 11px !important;
+  padding: 8px !important;
+  background-color: #f5f5f5 !important;
+  /* Samakan dengan tfoot weekly sebelumnya */
+  border-top: 2px solid #9e9e9e !important;
 }
 </style>

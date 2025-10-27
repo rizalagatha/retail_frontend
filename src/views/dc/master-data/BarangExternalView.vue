@@ -7,12 +7,31 @@ import api from '@/services/api';
 import { format, subDays, parseISO } from 'date-fns';
 import PageLayout from '@/components/PageLayout.vue';
 import * as XLSX from 'xlsx';
+import type { AxiosError } from 'axios';
 
 // --- Tipe Data & State ---
 interface Header {
   kode: string;
-  status: 'AKTIF' | 'PASIF';
+  nama: string;
+  KtgProduk?: string;
+  KtgBarang?: string;
+  date_create?: string; // yyyy-MM-dd
+  otomatis?: string;
   adaStok: 'Y' | 'N';
+  status: 'AKTIF' | 'PASIF';
+}
+interface DetailItem {
+  kode: string;
+  ukuran: string;
+  barcode: string;
+  harga: number;
+  hpp?: number; // optional karena hanya ada untuk cabang KDC
+}
+interface TableHeader {
+  title: string;
+  key: keyof DetailItem; // gunakan key dari DetailItem
+  width?: string;
+  align?: 'start' | 'center' | 'end';
 }
 const router = useRouter();
 const toast = useToast();
@@ -20,11 +39,11 @@ const authStore = useAuthStore();
 const MENU_ID = '219';
 
 const masterData = ref<Header[]>([]);
-const details = ref<Record<string, any[]>>({});
+const details = ref<Record<string, DetailItem[]>>({});
 const loading = ref(true);
 const loadingDetails = ref(new Set<string>());
 const selected = ref<Header[]>([]);
-const expanded = ref<Header[]>([]);
+const expanded = ref<string[]>([]);
 
 const filters = reactive({
   startDate: format(subDays(new Date(), 30), 'yyyy-MM-dd'),
@@ -43,13 +62,13 @@ const headers = [
   { title: 'KtgProduk', key: 'KtgProduk', width: '120px' },
   { title: 'KtgBarang', key: 'KtgBarang', width: '120px' },
   { title: 'Tgl Buat', key: 'date_create' },
-  { title: 'Otomatis', key: 'otomatis', align: 'center' },
-  { title: 'Log Stok', key: 'adaStok', align: 'center' },
-  { title: 'Status', key: 'status', align: 'center' },
+  { title: 'Otomatis', key: 'otomatis' },
+  { title: 'Log Stok', key: 'adaStok' },
+  { title: 'Status', key: 'status' },
 ];
 
-const detailHeaders = computed(() => {
-  const baseHeaders: any[] = [
+const detailHeaders = computed<TableHeader[]>(() => {
+  const baseHeaders: TableHeader[] = [
     { title: 'Kode', key: 'kode', width: '180px' },
     { title: 'Ukuran', key: 'ukuran', width: '100px' },
     { title: 'Barcode', key: 'barcode', width: '150px' },
@@ -70,8 +89,9 @@ const fetchData = async () => {
   try {
     const response = await api.get('/barang-external', { params: filters });
     masterData.value = response.data;
-  } catch (error: any) {
-    toast.error(error.response?.data?.message || 'Gagal mengambil data.');
+  } catch (error) {
+    const axiosError = error as AxiosError<{ message: string }>;
+    toast.error(axiosError.response?.data?.message || 'Gagal mengambil data.');
   } finally {
     loading.value = false;
   }
@@ -87,7 +107,7 @@ const loadDetails = async (newlyExpandedItems: Header[]) => {
     const response = await api.get(`/barang-external/details/${nomorToLoad}`);
     details.value[nomorToLoad] = response.data;
   } catch (error) {
-    toast.error(`Gagal memuat detail untuk ${nomorToLoad}.`);
+    toast.error(`Gagal memuat detail untuk ${nomorToLoad}.`, error);
   } finally {
     loadingDetails.value.delete(nomorToLoad);
   }
@@ -107,7 +127,7 @@ const exportData = async (type: 'header' | 'detail') => {
     XLSX.utils.book_append_sheet(workbook, worksheet, "Header Barang External");
     XLSX.writeFile(workbook, "Export_BarangExternal_Header.xlsx");
   } else if (type === 'detail') {
-    isLoading.value = true;
+    loading.value = true;
     try {
       const response = await api.get('/barang-external/export-details', { params: filters });
       if (response.data.length === 0) return toast.warning('Tidak ada data detail.');
@@ -115,10 +135,11 @@ const exportData = async (type: 'header' | 'detail') => {
       const workbook = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(workbook, worksheet, "Detail Barang External");
       XLSX.writeFile(workbook, "Export_BarangExternal_Detail.xlsx");
-    } catch (error: any) {
-      toast.error(error.response?.data?.message || 'Gagal mengekspor data detail.');
+    } catch (error) {
+      const axiosError = error as AxiosError<{ message: string }>;
+      toast.error(axiosError.response?.data?.message || 'Gagal mengekspor data detail.');
     } finally {
-      isLoading.value = false;
+      loading.value = false;
     }
   }
 };
@@ -185,14 +206,16 @@ watch(filters, fetchData, { deep: true });
           :loading="loading" item-value="kode" density="compact" class="desktop-table" fixed-header show-select
           show-expand return-object single-select @update:expanded="loadDetails" :item-class="getRowTextColor">
 
-          <template #item.date_create="{ item }">
+          <template #[`item.date_create`]="{ item }">
             {{ item.date_create ? format(parseISO(item.date_create), 'dd-MM-yyyy') : '' }}
           </template>
-          <template #item.status="{ item }">
+
+          <template #[`item.status`]="{ item }">
             <v-chip size="x-small" :color="item.status === 'AKTIF' ? 'success' : 'error'" variant="tonal">
               {{ item.status }}
             </v-chip>
           </template>
+
 
           <template #expanded-row="{ columns, item }">
             <tr>
@@ -202,7 +225,7 @@ watch(filters, fetchData, { deep: true });
                     <div v-if="loadingDetails.has(item.kode)" class="text-center">Memuat detail...</div>
                     <v-data-table v-else :headers="detailHeaders" :items="details[item.kode]" density="compact"
                       class="detail-table" :items-per-page="-1">
-                      <template v-for="col in ['harga', 'hpp']" #[`item.${col}`]="{ item }">
+                      <template v-for="col in ['harga', 'hpp']" #[`item.${col}`]="{ item }" :key="col">
               <td class="text-end">{{ (item[col] || 0).toLocaleString('id-ID') }}</td>
           </template>
           <template #bottom></template>

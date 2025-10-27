@@ -4,7 +4,7 @@ import { useToast } from 'vue-toastification';
 import { useAuthStore } from '@/stores/authStore';
 import api from '@/services/api';
 import PageLayout from '@/components/PageLayout.vue';
-import MasterSimpleFormModal from '@/components/MasterSimpleFormModal.vue';
+import MasterSimpleFormModal from '@/components/form/MasterSimpleFormModal.vue';
 import * as XLSX from 'xlsx';
 
 // --- Tipe Data ---

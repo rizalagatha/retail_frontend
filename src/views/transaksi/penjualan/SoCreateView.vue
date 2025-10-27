@@ -10,16 +10,16 @@ import type { AxiosError } from 'axios';
 import axios from 'axios';
 
 // Impor semua komponen modal yang akan digunakan
-import CustomerSearchModal from '@/components/CustomerSearchModal.vue';
-import GudangSearchModal from '@/components/GudangSearchModal.vue';
-import SalesCounterSearchModal from '@/components/SalesCounterSearchModal.vue';
-import ProductSearchModal from '@/components/ProductSearchModal.vue';
-import PenawaranSearchModal from '@/components/PenawaranSearchModal.vue';
-import SoDtfSearchModal from '@/components/SoDtfSearchModal.vue';
-import PriceProposalSearchModal from '@/components/PriceProposalSearchModal.vue';
-import AuthorizationModal from '@/components/AuthorizationModal.vue';
-import DpInputModal from '@/components/DpInputModal.vue';
-import CustomerForm from '@/components/CustomerForm.vue';
+import CustomerSearchModal from '@/components/lookup/CustomerSearchModal.vue';
+import GudangSearchModal from '@/components/lookup/GudangSearchModal.vue';
+import SalesCounterSearchModal from '@/components/lookup/SalesCounterSearchModal.vue';
+import ProductSearchModal from '@/components/lookup/ProductSearchModal.vue';
+import PenawaranSearchModal from '@/components/lookup/PenawaranSearchModal.vue';
+import SoDtfSearchModal from '@/components/lookup/SoDtfSearchModal.vue';
+import PriceProposalSearchModal from '@/components/lookup/PriceProposalSearchModal.vue';
+import AuthorizationModal from '@/components/modal/AuthorizationModal.vue';
+import DpInputModal from '@/components/modal/DpInputModal.vue';
+import CustomerForm from '@/components/form/CustomerForm.vue';
 
 const router = useRouter();
 const route = useRoute();
@@ -244,7 +244,7 @@ const minimalDpText = computed(() => {
     return `Minimal DP ${percentage}% dari nominal SO : ${amount}`;
 });
 
-// --- Functions ---    
+// --- Functions ---
 function toDateInputValue(dateStr: string) {
     if (!dateStr) return ''
     return dateStr.split('T')[0] // ambil yyyy-MM-dd saja
@@ -269,7 +269,7 @@ const loadDataForEdit = async (nomor: string) => {
             dateline: toDateInputValue(headerData.dateline),
         };
 
-        // ===== MAPPING FOOTER =====      
+        // ===== MAPPING FOOTER =====
         footer.value = {
             ...footer.value,
             ...footerData
@@ -292,7 +292,7 @@ const loadDataForEdit = async (nomor: string) => {
             toast.warning('SO ini sudah menjadi Invoice, data tidak bisa diubah.');
         }
 
-        // ===== CRITICAL SECTION: ADD NEW ROW =====    
+        // ===== CRITICAL SECTION: ADD NEW ROW =====
         try {
             addNewRow();
         } catch (addRowError) {
@@ -306,7 +306,7 @@ const loadDataForEdit = async (nomor: string) => {
             throw new Error(`nextTick failed: ${nextTickError.message}`);
         }
 
-        // ===== CRITICAL SECTION: CALCULATE TOTALS =====       
+        // ===== CRITICAL SECTION: CALCULATE TOTALS =====
         try {
             calculateTotals();
         } catch (calcError) {
@@ -377,7 +377,7 @@ const calculateTotals = () => {
                 footer.value.diskonPersen1 = rule.diskon2;
             }
             // Asumsi diskon 2 tidak diatur secara default dari level
-            // footer.value.diskonPersen2 = rule.diskon2; 
+            // footer.value.diskonPersen2 = rule.diskon2;
         } else {
             footer.value.diskonPersen1 = 0;
         }
@@ -1024,7 +1024,7 @@ const handleBarcodeScan = async () => {
     if (existingItem) {
         existingItem.jumlah += 1;
         // Panggil fungsi untuk hitung ulang total jika ada
-        // calculateTotals(); 
+        // calculateTotals();
         toast.info(`Jumlah untuk ${existingItem.nama} ditambah menjadi ${existingItem.jumlah}`);
         scannedBarcode.value = ''; // Kosongkan input untuk scan berikutnya
         return;

@@ -6,7 +6,7 @@ import { useToast } from 'vue-toastification';
 import { useAuthStore } from '@/stores/authStore';
 import { format, subDays } from 'date-fns';
 import PageLayout from '@/components/PageLayout.vue';
-import ProductSearchModal from '@/components/ProductSearchModal.vue';
+import ProductSearchModal from '@/components/lookup/ProductSearchModal.vue';
 import * as XLSX from 'xlsx';
 import { AxiosError } from 'axios';
 

@@ -2,15 +2,33 @@
 import { ref, onMounted, onUnmounted, computed, reactive, watch } from 'vue';
 import { useAuthStore } from '@/stores/authStore';
 import { useRouter } from 'vue-router';
-import VueGauge from 'vue3-gauge';
 import logoUrl from '@/assets/logo.png';
 import api from '@/services/api';
 import { useToast } from 'vue-toastification';
 import { format, subDays } from 'date-fns';
 import { Bar } from 'vue-chartjs';
 import { Chart as ChartJS, Title, Tooltip, Legend, BarElement, CategoryScale, LinearScale } from 'chart.js';
+import type { TooltipItem } from 'chart.js';
+import ChartDataLabels from 'chartjs-plugin-datalabels';
 
-ChartJS.register(Title, Tooltip, Legend, BarElement, CategoryScale, LinearScale);
+ChartJS.register(Title, Tooltip, Legend, BarElement, CategoryScale, LinearScale, ChartDataLabels);
+
+interface PendingAction {
+  key: string;
+  title: string;
+  icon: string;
+  to: string;
+  count: number;
+}
+interface BranchPerformance {
+  kode_cabang: string;
+  nama_cabang: string;
+  ach: number; // persentase achievement
+}
+interface SalesChartItem {
+  tanggal: string; // format ISO dari backend
+  total: number;
+}
 
 const authStore = useAuthStore()
 const router = useRouter()
@@ -26,8 +44,8 @@ const stats = ref({
   todayTransactions: 0,
   lowStock: 0,
   totalProducts: 0,
-  totalProductsAktif: 0, // <-- Tambahkan ini
-  totalProductsPasif: 0, // <-- Tambahkan ini
+  totalProductsAktif: 0,
+  totalProductsPasif: 0,
 });
 const isLoadingStats = ref(true);
 
@@ -55,7 +73,7 @@ const lowStockProducts = ref([]);
 const lowStockCount = ref(0);
 const isLoadingLowStock = ref(true);
 
-const pendingActions = ref<any[]>([]);
+const pendingActions = ref<PendingAction[]>([]);
 const isLoadingActions = ref(true);
 
 const topProducts = ref([]);
@@ -64,8 +82,8 @@ const isLoadingTopProducts = ref(true);
 const salesTargetSummary = ref({ nominal: 0, target: 0 });
 const isLoadingSalesTarget = ref(true);
 
-const topPerformers = ref<any[]>([]);
-const bottomPerformers = ref<any[]>([]);
+const topPerformers = ref<BranchPerformance[]>([]);
+const bottomPerformers = ref<BranchPerformance[]>([]);
 const isLoadingPerformance = ref(false);
 
 const stagnantStockValue = ref(0);
@@ -77,6 +95,46 @@ const quickActions = ref([
   { title: 'Lihat Laporan', icon: 'mdi-chart-line', to: '/laporan', color: 'info' },
   { title: 'Kelola Piutang', icon: 'mdi-account-clock', to: '/piutang', color: 'orange' },
   { title: 'Cek Gudang', icon: 'mdi-warehouse', to: '/gudang-dc', color: 'purple' },
+]);
+
+// Features untuk landing page
+const features = ref([
+  {
+    icon: 'mdi-cart-outline',
+    title: 'Transaksi',
+    description: 'Kelola penjualan, pembelian, dan invoice dengan mudah',
+    color: 'primary'
+  },
+  {
+    icon: 'mdi-warehouse',
+    title: 'Gudang DC',
+    description: 'Manajemen stok, mutasi, dan inventori gudang',
+    color: 'success'
+  },
+  {
+    icon: 'mdi-chart-line',
+    title: 'Laporan',
+    description: 'Analisa bisnis dan monitoring performa real-time',
+    color: 'info'
+  },
+  {
+    icon: 'mdi-account-multiple',
+    title: 'Master Data',
+    description: 'Kelola data customer, supplier, dan produk',
+    color: 'orange'
+  },
+  {
+    icon: 'mdi-currency-usd',
+    title: 'Piutang',
+    description: 'Monitor dan kelola piutang pelanggan',
+    color: 'purple'
+  },
+  {
+    icon: 'mdi-cog-outline',
+    title: 'Tools',
+    description: 'Utilitas dan pengaturan sistem',
+    color: 'blue-grey'
+  }
 ]);
 
 // Computed untuk format currency
@@ -92,23 +150,93 @@ const targetPercentage = computed(() => {
   if (!salesTargetSummary.value.target || salesTargetSummary.value.target === 0) {
     return 0;
   }
-
-  // PENTING: Pastikan hasil dalam bentuk persentase (0-100)
+  // Hitung persentase tanpa batasan
   const percentage = (salesTargetSummary.value.nominal / salesTargetSummary.value.target) * 100;
+  return percentage;
+});
 
-  console.log('Calculated percentage:', percentage); // Debug
-
-  // Batasi maksimal 100% untuk tampilan gauge
-  return Math.min(percentage, 100);
+const isOverTarget = computed(() => {
+  return targetPercentage.value > 100;
 });
 
 const getProgressColor = (percentage) => {
-  if (percentage >= 100) return '#4CAF50'; // Hijau - target tercapai
-  if (percentage >= 75) return '#2196F3';  // Biru - mendekati target
-  if (percentage >= 50) return '#FF9800';  // Orange - setengah jalan
-  if (percentage >= 25) return '#FFC107';  // Kuning - perlu effort
-  return '#F44336';                        // Merah - jauh dari target
+  if (percentage >= 100) return '#4CAF50';
+  if (percentage >= 75) return '#2196F3';
+  if (percentage >= 50) return '#FF9800';
+  if (percentage >= 25) return '#FFC107';
+  return '#F44336';
 };
+
+const targetChartData = computed(() => ({ // <-- NAMA BARU
+  labels: ['Pencapaian'],
+  datasets: [
+    {
+      label: 'Target',
+      data: [salesTargetSummary.value.target],
+      backgroundColor: '#E0E0E0',
+      borderRadius: 4,
+      barPercentage: 1.0,
+    },
+    {
+      label: 'Realisasi',
+      data: [salesTargetSummary.value.nominal],
+      backgroundColor: getProgressColor(targetPercentage.value),
+      borderRadius: 4,
+      barPercentage: 0.6,
+    }
+  ]
+}));
+
+const targetChartOptions = ref({ // <-- NAMA BARU
+  responsive: true,
+  maintainAspectRatio: false,
+  scales: {
+    y: {
+      beginAtZero: true,
+      ticks: {
+        callback: (value: number) => {
+          if (value >= 1000000) return `Rp ${value / 1000000} Jt`;
+          if (value >= 1000) return `Rp ${value / 1000} Rb`;
+          return formatCurrency(value);
+        }
+      }
+    },
+    x: {
+      grouped: false,
+      categoryPercentage: 0.5,
+      grid: {
+        display: false
+      }
+    }
+  },
+  plugins: {
+    legend: {
+      position: 'bottom' as const,
+    },
+    tooltip: {
+      callbacks: {
+        label: (context: TooltipItem<'bar'>) => {
+          const label = context.dataset.label || '';
+          const value = context.parsed.y as number; // parsed bisa number | null
+          return `${label}: ${formatCurrency(value)}`;
+        }
+      }
+    },
+    datalabels: {
+      anchor: 'end',
+      align: 'top',
+      formatter: (value: number, context) => {
+        if (context.datasetIndex === 1) return formatCurrency(value);
+        return null;
+      },
+      font: {
+        weight: 'bold',
+        size: 10
+      },
+      color: '#424242'
+    }
+  }
+});
 
 const currentTime = ref(new Date().toLocaleString('id-ID', { dateStyle: 'long', timeStyle: 'medium' }));
 let intervalId: number;
@@ -116,19 +244,40 @@ let intervalId: number;
 const fetchDashboardStats = async () => {
   isLoadingStats.value = true;
   try {
-    // Panggil endpoint baru untuk total produk
     const response = await api.get('/barang-dc/summary/total');
     stats.value.totalProducts = response.data.total;
     stats.value.totalProductsAktif = response.data.totalAktif;
     stats.value.totalProductsPasif = response.data.totalPasif;
+  } catch (error) {
+    toast.error('Gagal memuat data statistik dashboard.', error);
+  } finally {
+    isLoadingStats.value = false;
+  }
+};
 
-    // Di sini Anda juga bisa memanggil API lain untuk data statistik lainnya
-    // Contoh: const salesResponse = await api.get('/sales/summary/today');
-    // stats.value.todaySales = salesResponse.data.total;
+const fetchTodayStats = async () => {
+  // isLoadingStats di-set di awal (mungkin bersamaan dengan loading lain)
+  try {
+    // 1. Panggil endpoint yang sesuai dengan 'getTodayStats' di controller
+    // (Asumsi routernya adalah '/dashboard/today-stats')
+    const response = await api.get('/dashboard/today-stats');
+
+    // 2. Update 'stats' ref dengan data yang diterima
+    // Kita gunakan ...stats.value agar tidak menimpa data lain
+    // seperti lowStock, totalProducts, dll.
+    stats.value = {
+      ...stats.value,
+      todaySales: response.data.todaySales || 0,
+      todayTransactions: response.data.todayTransactions || 0,
+    };
 
   } catch (error) {
-    toast.error('Gagal memuat data statistik dashboard.');
+    console.error("Error fetching today stats:", error);
+    toast.error('Gagal memuat statistik hari ini.');
   } finally {
+    // 3. Set loading ke false
+    // (Anda mungkin ingin menunggu semua data dashboard selesai
+    // sebelum men-set ini ke false)
     isLoadingStats.value = false;
   }
 };
@@ -136,19 +285,18 @@ const fetchDashboardStats = async () => {
 const fetchSalesChartData = async () => {
   isLoadingChart.value = true;
   try {
-    // Gabungkan filter tanggal/cabang dengan filter groupBy
     const response = await api.get('/dashboard/sales-chart', {
       params: { ...chartFilters, groupBy: chartGroupBy.value }
     });
 
-    // Logika pembuatan label menjadi lebih sederhana
-    const labels = response.data.map((d: any) => {
+    const labels = (response.data as SalesChartItem[]).map((d) => {
       const date = new Date(d.tanggal);
       if (chartGroupBy.value === 'month') return format(date, 'MMM yyyy');
       if (chartGroupBy.value === 'week') return `W${format(date, 'ww')}`;
       return format(date, 'dd/MM');
     });
-    const data = response.data.map((d: any) => d.total);
+
+    const data = (response.data as SalesChartItem[]).map(d => d.total);
 
     chartData.value = {
       labels: labels,
@@ -160,7 +308,7 @@ const fetchSalesChartData = async () => {
       }]
     }
   } catch (error) {
-    toast.error('Gagal memuat data grafik penjualan.');
+    toast.error('Gagal memuat data grafik penjualan.', error);
   } finally {
     isLoadingChart.value = false;
   }
@@ -171,13 +319,10 @@ const fetchLowStockData = async () => {
   try {
     const response = await api.get('/laporan-stok/low-stock');
     const lowStockData = response.data;
-
     lowStockCount.value = lowStockData.length;
-    // HAPUS .slice(0, 5) agar semua data masuk ke list
     lowStockProducts.value = lowStockData;
-
   } catch (error) {
-    toast.error('Gagal memuat data stok menipis.');
+    toast.error('Gagal memuat data stok menipis.', error);
   } finally {
     isLoadingLowStock.value = false;
   }
@@ -188,7 +333,7 @@ const fetchCabangOptions = async () => {
     const response = await api.get('/dashboard/cabang-options');
     cabangList.value = response.data;
   } catch (error) {
-    toast.error('Gagal memuat pilihan cabang.');
+    toast.error('Gagal memuat pilihan cabang.', error);
   }
 };
 
@@ -198,7 +343,7 @@ const fetchRecentTransactions = async () => {
     const response = await api.get('/dashboard/recent-transactions');
     recentTransactions.value = response.data;
   } catch (error) {
-    toast.error('Gagal memuat data transaksi terbaru.');
+    toast.error('Gagal memuat data transaksi terbaru.', error);
   } finally {
     isLoadingTransactions.value = false;
   }
@@ -207,19 +352,48 @@ const fetchRecentTransactions = async () => {
 const fetchPendingActions = async () => {
   isLoadingActions.value = true;
   try {
+    const endDate = format(new Date(), 'yyyy-MM-dd');
+    const startDate = format(subDays(new Date(), 30), 'yyyy-MM-dd');
+    const dateQuery = `?startDate=${startDate}&endDate=${endDate}`;
+
     const response = await api.get('/dashboard/pending-actions');
     const data = response.data;
 
-    // Definisikan daftar tindakan dan petakan dengan data dari API
+    // --- PERBARUI 'actionsMap' INI ---
     const actionsMap = [
-      { key: 'so_open', title: 'Surat Pesanan Open', icon: 'mdi-file-document-edit-outline', to: '/transaksi/penjualan/surat-pesanan' },
-      { key: 'so_dtf_open', title: 'SO DTF Belum Invoice', icon: 'mdi-printer-alert', to: '/transaksi/penjualan/dtf/so-dtf' },
-      { key: 'invoice_belum_lunas', title: 'Invoice Belum Lunas', icon: 'mdi-receipt-text-clock-outline', to: '/transaksi/penjualan/invoice' },
-      { key: 'penawaran_open', title: 'Penawaran Open', icon: 'mdi-handshake-outline', to: '/transaksi/penjualan/penawaran' },
-      { key: 'pengajuan_harga_pending', title: 'Pengajuan Harga Pending', icon: 'mdi-currency-usd-circle-outline', to: '/transaksi/penjualan/pengajuan/setting-harga' },
+      {
+        key: 'so_open',
+        title: 'Surat Pesanan Open',
+        icon: 'mdi-file-document-edit-outline',
+        to: `/transaksi/penjualan/surat-pesanan${dateQuery}&status=open` // <-- Tambah status
+      },
+      {
+        key: 'so_dtf_open',
+        title: 'SO DTF Belum Invoice',
+        icon: 'mdi-printer-alert',
+        to: `/transaksi/penjualan/dtf/so-dtf${dateQuery}&status=belum_invoice` // <-- Tambah status
+      },
+      {
+        key: 'invoice_belum_lunas',
+        title: 'Invoice Belum Lunas',
+        icon: 'mdi-receipt-text-clock-outline',
+        to: `/transaksi/penjualan/invoice${dateQuery}&status=belum_lunas` // <-- Tambah status
+      },
+      {
+        key: 'penawaran_open',
+        title: 'Penawaran Open',
+        icon: 'mdi-handshake-outline',
+        to: `/transaksi/penjualan/penawaran${dateQuery}&status=open` // <-- Tambah status
+      },
+      {
+        key: 'pengajuan_harga_pending',
+        title: 'Pengajuan Harga Pending',
+        icon: 'mdi-currency-usd-circle-outline',
+        to: `/transaksi/penjualan/pengajuan/setting-harga${dateQuery}&status=pending` // <-- Tambah status
+      },
     ];
+    // ------------------------------------
 
-    // Filter hanya tindakan yang jumlahnya lebih dari 0
     pendingActions.value = actionsMap
       .map(action => ({ ...action, count: data[action.key] }))
       .filter(action => action.count > 0);
@@ -237,7 +411,7 @@ const fetchTopProducts = async () => {
     const response = await api.get('/dashboard/top-products');
     topProducts.value = response.data;
   } catch (error) {
-    toast.error('Gagal memuat data produk terlaris.');
+    toast.error('Gagal memuat data produk terlaris.', error);
   } finally {
     isLoadingTopProducts.value = false;
   }
@@ -248,15 +422,6 @@ const fetchSalesTargetSummary = async () => {
   try {
     const response = await api.get('/dashboard/sales-target-summary');
     salesTargetSummary.value = response.data;
-
-    // Debug lengkap
-    console.log('Sales Target Data:', {
-      nominal: salesTargetSummary.value.nominal,
-      target: salesTargetSummary.value.target,
-      percentage: targetPercentage.value,
-      percentageFormatted: `${targetPercentage.value.toFixed(2)}%`
-    });
-
   } catch (error) {
     console.error('Error:', error);
     toast.error('Gagal memuat ringkasan target penjualan.');
@@ -272,7 +437,6 @@ const fetchBranchPerformance = async () => {
     topPerformers.value = response.data.top;
     bottomPerformers.value = response.data.bottom;
   } catch (error) {
-    // Jangan tampilkan error, cukup sembunyikan kartunya
     console.error('Gagal memuat performa cabang:', error);
   } finally {
     isLoadingPerformance.value = false;
@@ -285,19 +449,15 @@ const fetchStagnantStockSummary = async () => {
     const response = await api.get('/dashboard/stagnant-stock-summary');
     stagnantStockValue.value = response.data.totalStagnantValue || 0;
   } catch (error) {
-    toast.error('Gagal memuat ringkasan stok stagnan.');
+    toast.error('Gagal memuat ringkasan stok stagnan.', error);
   } finally {
     isLoadingStagnantStock.value = false;
   }
 };
 
-// Update time setiap menit
-setInterval(() => {
-  currentTime.value = new Date().toLocaleString('id-ID')
-}, 60000)
-
 onMounted(() => {
   if (authStore.isAuthenticated) {
+    fetchTodayStats();
     fetchDashboardStats();
     fetchLowStockData();
     fetchSalesChartData();
@@ -311,17 +471,13 @@ onMounted(() => {
       fetchBranchPerformance();
     }
   }
-});
 
-onMounted(() => {
-  // Jalankan interval setiap 1000 milidetik (1 detik)
   intervalId = window.setInterval(() => {
     currentTime.value = new Date().toLocaleString('id-ID', { dateStyle: 'long', timeStyle: 'medium' });
   }, 1000);
 });
 
 onUnmounted(() => {
-  // Hentikan interval saat komponen dihancurkan (pindah halaman)
   clearInterval(intervalId);
 });
 
@@ -330,7 +486,66 @@ watch(chartGroupBy, fetchSalesChartData);
 </script>
 
 <template>
-  <v-container class="home-container" fluid>
+  <!-- LANDING PAGE untuk user yang belum login -->
+  <v-container v-if="!authStore.isAuthenticated" class="landing-container fill-height" fluid>
+    <v-row align="center" justify="center" class="fill-height">
+      <v-col cols="12" lg="10" xl="9">
+        <!-- Hero Section - Compact -->
+        <div class="text-center mb-8">
+          <v-avatar size="100" class="mb-4 elevation-8">
+            <v-img :src="logoUrl" alt="Kaosan Logo" />
+          </v-avatar>
+
+          <h1 class="text-h3 font-weight-bold mb-3 text-white">
+            Kaosan Retail Management
+          </h1>
+          <p class="text-h6 mb-6 text-white" style="opacity: 0.95;">
+            Solusi Terpadu untuk Manajemen Bisnis Retail Anda
+          </p>
+
+          <v-btn color="white" size="x-large" @click="goToLogin" prepend-icon="mdi-login" elevation="4"
+            class="px-8 text-primary mb-8">
+            Login untuk Melanjutkan
+          </v-btn>
+        </div>
+
+        <!-- Features Grid - Horizontal & Compact -->
+        <v-row justify="center">
+          <v-col v-for="feature in features" :key="feature.title" cols="6" sm="4" md="2">
+            <v-card class="feature-card-compact text-center pa-4" elevation="3" hover height="100%">
+              <v-avatar :color="feature.color" size="56" class="mb-3">
+                <v-icon :icon="feature.icon" size="32" color="white"></v-icon>
+              </v-avatar>
+              <h4 class="text-subtitle-1 font-weight-bold text-grey-darken-3 mb-2">
+                {{ feature.title }}
+              </h4>
+              <p class="text-caption text-grey-darken-1" style="line-height: 1.3;">
+                {{ feature.description }}
+              </p>
+            </v-card>
+          </v-col>
+        </v-row>
+
+        <!-- Bottom Info - Compact -->
+        <div class="text-center mt-8">
+          <v-chip-group class="justify-center">
+            <v-chip color="white" variant="flat" prepend-icon="mdi-check-circle">
+              <span class="text-primary font-weight-bold">Real-time Monitoring</span>
+            </v-chip>
+            <v-chip color="white" variant="flat" prepend-icon="mdi-check-circle">
+              <span class="text-primary font-weight-bold">Mudah Digunakan</span>
+            </v-chip>
+            <v-chip color="white" variant="flat" prepend-icon="mdi-check-circle">
+              <span class="text-primary font-weight-bold">Laporan Lengkap</span>
+            </v-chip>
+          </v-chip-group>
+        </div>
+      </v-col>
+    </v-row>
+  </v-container>
+
+  <!-- DASHBOARD untuk user yang sudah login -->
+  <v-container v-else class="home-container" fluid>
     <!-- Header Section -->
     <v-row class="mb-6">
       <v-col cols="12">
@@ -346,12 +561,6 @@ watch(chartGroupBy, fetchSalesChartData);
               Retail Management System - {{ currentTime }}
             </p>
           </div>
-
-          <v-spacer></v-spacer>
-          <v-btn v-if="!authStore.isAuthenticated" color="primary" variant="elevated" size="large" @click="goToLogin">
-            <v-icon class="mr-2">mdi-login</v-icon>
-            Login
-          </v-btn>
         </div>
       </v-col>
     </v-row>
@@ -537,29 +746,25 @@ watch(chartGroupBy, fetchSalesChartData);
 
             <div v-else>
               <v-row align="center">
+
                 <v-col cols="12" sm="5" class="text-center">
-                  <VueGauge :value="Math.round(targetPercentage * 10) / 10" :options="{
-                    arcColor: getProgressColor(targetPercentage),
-                    arcWidth: 14,
-                    pointerWidth: 10,
-                    pointerColor: '#616161',
-                    digitColor: '#212121',
-                    label: '% Target',
-                    labelColor: '#757575',
-                    max: 100,
-                    min: 0,
-                    decimals: 2
-                  }" />
+                  <div style="height: 250px; position: relative;">
+                    <Bar :data="targetChartData" :options="targetChartOptions" />
+                  </div>
                 </v-col>
                 <v-col cols="12" sm="7">
                   <v-card variant="outlined" class="mb-3">
                     <v-card-text>
                       <div class="text-caption text-medium-emphasis mb-1">Realisasi</div>
-                      <div class="text-h5 font-weight-bold text-success">
+                      <div class="text-h5 font-weight-bold"
+                        :class="isOverTarget ? 'text-success' : 'text-deep-orange-darken-1'">
                         {{ formatCurrency(salesTargetSummary.nominal) }}
                       </div>
-                      <div class="text-caption text-primary mt-1">
+                      <div class="text-caption mt-1"
+                        :class="getProgressColor(targetPercentage).includes('#') ? '' : `text-${getProgressColor(targetPercentage)}`"
+                        :style="{ color: getProgressColor(targetPercentage) }">
                         {{ targetPercentage.toFixed(2) }}% dari target
+                        <v-icon v-if="isOverTarget" small color="success">mdi-arrow-up-bold</v-icon>
                       </div>
                     </v-card-text>
                   </v-card>
@@ -783,6 +988,27 @@ watch(chartGroupBy, fetchSalesChartData);
 </template>
 
 <style scoped>
+/* Landing Page Styles */
+.landing-container {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  min-height: 100vh;
+  padding: 2rem;
+  overflow: hidden;
+  /* Prevent scroll */
+}
+
+.feature-card-compact {
+  transition: all 0.3s ease;
+  background: white;
+  border-radius: 12px;
+}
+
+.feature-card-compact:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.15) !important;
+}
+
+/* Dashboard Styles */
 .home-container {
   padding: 1.5rem;
   background-color: #fafafa;
@@ -803,11 +1029,9 @@ watch(chartGroupBy, fetchSalesChartData);
 
 .scrollable-list {
   max-height: 180px;
-  /* Atur tinggi maksimal yang Anda inginkan */
   overflow-y: auto;
 }
 
-/* Smooth scrollbar */
 .scrollable-list::-webkit-scrollbar {
   width: 6px;
 }
@@ -826,9 +1050,12 @@ watch(chartGroupBy, fetchSalesChartData);
   background: #555;
 }
 
-/* Responsive adjustments */
 @media (max-width: 960px) {
   .home-container {
+    padding: 1rem;
+  }
+
+  .landing-container {
     padding: 1rem;
   }
 }
@@ -840,6 +1067,14 @@ watch(chartGroupBy, fetchSalesChartData);
 
   .text-h4 {
     font-size: 1.5rem !important;
+  }
+
+  .landing-container .text-h2 {
+    font-size: 2rem !important;
+  }
+
+  .landing-container .text-h5 {
+    font-size: 1.25rem !important;
   }
 }
 </style>

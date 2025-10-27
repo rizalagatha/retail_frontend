@@ -6,8 +6,8 @@ import PageLayout from '@/components/PageLayout.vue';
 import { useToast } from 'vue-toastification';
 import { useAuthStore } from '@/stores/authStore';
 import { format } from 'date-fns';
-import SoSearchModal from '@/components/SoSearchModal.vue';
-import WorkshopSearchModal from '@/components/WorkshopSearchModal.vue';
+import SoSearchModal from '@/components/lookup/SoSearchModal.vue';
+import WorkshopSearchModal from '@/components/lookup/WorkshopSearchModal.vue';
 import type { AxiosError } from 'axios';
 
 interface MutasiOutItem {

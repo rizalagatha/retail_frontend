@@ -2,7 +2,7 @@
 import { ref, onMounted, computed } from 'vue';
 import api from '@/services/api';
 import PageLayout from '@/components/PageLayout.vue';
-import UserSearchModal from '@/components/UserSearchModal.vue';
+import UserSearchModal from '@/components/lookup/UserSearchModal.vue';
 import { useToast } from 'vue-toastification';
 import { useAuthStore } from '@/stores/authStore';
 

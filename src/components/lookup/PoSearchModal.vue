@@ -3,9 +3,17 @@ import { ref, onMounted, computed } from 'vue';
 import api from '@/services/api';
 import { format, parseISO } from 'date-fns';
 
+interface PoItem {
+  nomor: string;
+  tanggal: string;
+  referensi?: string;
+  namaSupplier?: string;
+  keterangan?: string;
+}
+
 const emit = defineEmits(['close', 'select']);
 
-const items = ref<any[]>([]);
+const items = ref<PoItem[]>([]);
 const searchTerm = ref('');
 const isLoading = ref(false);
 
@@ -43,7 +51,7 @@ const filteredItems = computed(() => {
   );
 });
 
-const selectItem = (item: any) => {
+const selectItem = (item: PoItem) => {
   emit('select', item);
 };
 

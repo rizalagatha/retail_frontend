@@ -184,7 +184,8 @@ const routes = [
     component: HomeView,
     meta: {
       title: "Beranda",
-      requiresAuth: true,
+      layout: "DefaultLayout",
+      requiresAuth: false,
       public: true,
     },
   },

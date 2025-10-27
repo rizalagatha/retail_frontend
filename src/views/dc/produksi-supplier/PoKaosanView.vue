@@ -7,6 +7,7 @@ import api from '@/services/api';
 import { format, subDays, parseISO } from 'date-fns';
 import PageLayout from '@/components/PageLayout.vue';
 import * as XLSX from 'xlsx';
+import type { AxiosError } from 'axios';
 
 // --- Tipe Data & State ---
 interface Header {
@@ -14,17 +15,29 @@ interface Header {
   Tanggal: string;
   Status: 'OPEN' | 'CLOSE' | 'ONPROSES';
 }
+interface DetailItem {
+  Kode: string;
+  Nama: string;
+  Bahan: string;
+  Ukuran: string;
+  QtyPO: number;
+  QtyBPB: number;
+  Harga: number;
+  Disc: number;
+  NominalPO: number;
+  Keterangan: string;
+}
 const router = useRouter();
 const toast = useToast();
 const authStore = useAuthStore();
 const MENU_ID = '220';
 
 const masterData = ref<Header[]>([]);
-const details = ref<Record<string, any[]>>({});
+const details = ref<Record<string, DetailItem[]>>({});
 const loading = ref(true);
 const loadingDetails = ref(new Set<string>());
 const selected = ref<Header[]>([]);
-const expanded = ref<Header[]>([]);
+const expanded = ref<string[]>([]);
 const dialogConfirm = reactive({ show: false, title: '', text: '', onConfirm: () => { } });
 
 const filters = reactive({
@@ -43,18 +56,18 @@ const toggleCloseText = computed(() => selectedRow.value?.Status === 'CLOSE' ? '
 // --- Konfigurasi Tabel ---
 const headers = [
   { title: 'Nomor', key: 'Nomor', width: '200px', fixed: true },
-  { title: 'Tanggal', key: 'Tanggal' }, { title: 'Nominal', key: 'Nominal', align: 'end' },
-  { title: 'Terbayar', key: 'Terbayar', align: 'end' }, { title: 'Sisa', key: 'Sisa', align: 'end' },
+  { title: 'Tanggal', key: 'Tanggal' }, { title: 'Nominal', key: 'Nominal' },
+  { title: 'Terbayar', key: 'Terbayar' }, { title: 'Sisa', key: 'Sisa' },
   { title: 'Kd Sup', key: 'Kdsup' }, { title: 'Supplier', key: 'Supplier', minWidth: '200px' },
   { title: 'Alamat', key: 'Alamat', minWidth: '250px' }, { title: 'Keterangan', key: 'Keterangan' },
   { title: 'Status', key: 'Status', align: 'center', fixed: true },
-];
+] as const;
 const detailHeaders = [
   { title: 'Kode', key: 'Kode' }, { title: 'Nama Barang', key: 'Nama', minWidth: '300px' },
   { title: 'Bahan', key: 'Bahan' }, { title: 'Ukuran', key: 'Ukuran' },
-  { title: 'Qty PO', key: 'QtyPO', align: 'end' }, { title: 'Qty BPB', key: 'QtyBPB', align: 'end' },
-  { title: 'Harga', key: 'Harga', align: 'end' }, { title: 'Disc(%)', key: 'Disc', align: 'end' },
-  { title: 'Nominal PO', key: 'NominalPO', align: 'end' }, { title: 'Keterangan', key: 'Keterangan' },
+  { title: 'Qty PO', key: 'QtyPO' }, { title: 'Qty BPB', key: 'QtyBPB' },
+  { title: 'Harga', key: 'Harga' }, { title: 'Disc(%)', key: 'Disc' },
+  { title: 'Nominal PO', key: 'NominalPO' }, { title: 'Keterangan', key: 'Keterangan' },
 ];
 
 // --- Methods ---
@@ -65,8 +78,9 @@ const fetchData = async () => {
   try {
     const response = await api.get('/po-kaosan', { params: filters });
     masterData.value = response.data;
-  } catch (error: any) {
-    toast.error(error.response?.data?.message || 'Gagal mengambil data.');
+  } catch (error) {
+    const axiosError = error as AxiosError<{ message: string }>;
+    toast.error(axiosError.response?.data?.message || 'Gagal mengambil data.');
   } finally {
     loading.value = false;
   }
@@ -82,7 +96,7 @@ const loadDetails = async (newlyExpandedItems: Header[]) => {
     const response = await api.get(`/po-kaosan/details/${nomorToLoad}`);
     details.value[nomorToLoad] = response.data;
   } catch (error) {
-    toast.error(`Gagal memuat detail untuk ${nomorToLoad}.`);
+    toast.error(`Gagal memuat detail untuk ${nomorToLoad}.`, error);
   } finally {
     loadingDetails.value.delete(nomorToLoad);
   }
@@ -124,7 +138,10 @@ const handleDelete = async () => {
     const response = await api.delete(`/po-kaosan/${selectedRow.value!.Nomor}`);
     toast.success(response.data.message);
     fetchData();
-  } catch (error: any) { toast.error(error.response?.data?.message || 'Gagal menghapus.'); }
+  } catch (error) {
+    const axiosError = error as AxiosError<{ message: string }>;
+    toast.error(axiosError.response?.data?.message || 'Gagal menghapus.');
+  }
 };
 
 const handleToggleClose = () => {
@@ -140,7 +157,10 @@ const executeToggleClose = async () => {
     const index = masterData.value.findIndex(item => item.Nomor === selectedRow.value!.Nomor);
     if (index > -1) masterData.value[index].Status = response.data.newStatus;
     selected.value = [];
-  } catch (error: any) { toast.error(error.response?.data?.message || 'Gagal update status.'); }
+  } catch (error) {
+    const axiosError = error as AxiosError<{ message: string }>;
+    toast.error(axiosError.response?.data?.message || 'Gagal update status.');
+  }
 };
 
 const exportData = async (type: 'header' | 'detail') => {
@@ -162,12 +182,12 @@ const exportData = async (type: 'header' | 'detail') => {
 
   } else if (type === 'detail') {
     // Panggil endpoint 'export-details' yang sudah kita buat di backend
-    isLoading.value = true;
+    loading.value = true;
     try {
       const response = await api.get('/po-kaosan/export-details', { params: filters });
 
       if (response.data.length === 0) {
-        isLoading.value = false;
+        loading.value = false;
         return toast.warning('Tidak ada data detail untuk diekspor pada filter ini.');
       }
 
@@ -177,10 +197,11 @@ const exportData = async (type: 'header' | 'detail') => {
       XLSX.utils.book_append_sheet(workbook, worksheet, "Detail PO Kaosan");
       XLSX.writeFile(workbook, "Export_PO_Kaosan_Detail.xlsx");
       toast.success('Ekspor detail berhasil.');
-    } catch (error: any) {
-      toast.error(error.response?.data?.message || 'Gagal mengekspor data detail.');
+    } catch (error) {
+      const axiosError = error as AxiosError<{ message: string }>;
+      toast.error(axiosError.response?.data?.message || 'Gagal mengekspor data detail.');
     } finally {
-      isLoading.value = false;
+      loading.value = false;
     }
   }
 };
@@ -283,7 +304,8 @@ watch(filters, fetchData, { deep: true });
                     <div v-if="loadingDetails.has(item.Nomor)" class="text-center">Memuat detail...</div>
                     <v-data-table v-else :headers="detailHeaders" :items="details[item.Nomor]" density="compact"
                       class="detail-table" :items-per-page="-1">
-                      <template v-for="col in ['QtyPO', 'QtyBPB', 'Harga', 'NominalPO']" #[`item.${col}`]="{ item }">
+                      <template v-for="col in ['QtyPO', 'QtyBPB', 'Harga', 'NominalPO']" #[`item.${col}`]="{ item }"
+                        :key="col">
               <td class="text-end">{{ (item[col] || 0).toLocaleString('id-ID') }}</td>
           </template>
           <template #bottom></template>
@@ -300,7 +322,7 @@ watch(filters, fetchData, { deep: true });
 <v-dialog v-model="dialogConfirm.show" max-width="400px" persistent>
   <v-card>
     <v-card-title class="text-h6 font-weight-bold">{{ dialogConfirm.title }}</v-card-title>
-    <v-card-text v-html="dialogConfirm.text"></v-card-text>
+    <v-card-text {{ dialogConfirm.text }}></v-card-text>
     <v-card-actions>
       <v-spacer />
       <v-btn text @click="dialogConfirm.show = false">Batal</v-btn>

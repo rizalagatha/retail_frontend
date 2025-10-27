@@ -7,6 +7,7 @@ import api from '@/services/api';
 import { format, subDays, parseISO } from 'date-fns';
 import PageLayout from '@/components/PageLayout.vue';
 import * as XLSX from 'xlsx';
+import type { AxiosError } from 'axios';
 
 // --- Tipe Data & State ---
 interface Header {
@@ -15,6 +16,16 @@ interface Header {
   approved: string;
   noPO: string;
   cabang: string;
+  tglApprove?: string;
+}
+interface DetailItem {
+  approve: 'Y' | 'N';
+  nama: string;
+  bahan: string;
+  ukuran: string;
+  jumlah: number;
+  harga: number;
+  total: number;
 }
 const router = useRouter();
 const toast = useToast();
@@ -22,11 +33,11 @@ const authStore = useAuthStore();
 const MENU_ID = '217';
 
 const masterData = ref<Header[]>([]);
-const details = ref<Record<string, any[]>>({});
+const details = ref<Record<string, DetailItem[]>>({});
 const loading = ref(true);
 const loadingDetails = ref(new Set<string>());
 const selected = ref<Header[]>([]);
-const expanded = ref<Header[]>([]);
+const expanded = ref<string[]>([]);
 const dialogConfirm = reactive({ show: false, title: '', text: '', onConfirm: () => { } });
 
 const filters = reactive({
@@ -60,8 +71,8 @@ const headers = [
 const detailHeaders = [
   { title: 'Approve', key: 'approve', width: '80px' }, { title: 'Nama Barang', key: 'nama', minWidth: '300px' },
   { title: 'Bahan', key: 'bahan' }, { title: 'Ukuran', key: 'ukuran' },
-  { title: 'Jumlah', key: 'jumlah', align: 'end' }, { title: 'Harga', key: 'harga', align: 'end' },
-  { title: 'Total', key: 'total', align: 'end' },
+  { title: 'Jumlah', key: 'jumlah' }, { title: 'Harga', key: 'harga' },
+  { title: 'Total', key: 'total' },
 ];
 
 // --- Methods ---
@@ -72,8 +83,9 @@ const fetchData = async () => {
   try {
     const response = await api.get('/pengajuan-produksi', { params: filters });
     masterData.value = response.data;
-  } catch (error: any) {
-    toast.error(error.response?.data?.message || 'Gagal mengambil data.');
+  } catch (error) {
+    const err = error as AxiosError<{ message: string }>;
+    toast.error(err.response?.data?.message || 'Gagal mengambil data.');
   } finally {
     loading.value = false;
   }
@@ -89,7 +101,7 @@ const loadDetails = async (newlyExpandedItems: Header[]) => {
     const response = await api.get(`/pengajuan-produksi/details/${nomorToLoad}`);
     details.value[nomorToLoad] = response.data;
   } catch (error) {
-    toast.error(`Gagal memuat detail untuk ${nomorToLoad}.`);
+    toast.error(`Gagal memuat detail untuk ${nomorToLoad}.`, error);
   } finally {
     loadingDetails.value.delete(nomorToLoad);
   }
@@ -130,7 +142,10 @@ const handleDelete = async () => {
     const response = await api.delete(`/pengajuan-produksi/${selectedRow.value!.nomor}`);
     toast.success(response.data.message);
     fetchData();
-  } catch (error: any) { toast.error(error.response?.data?.message || 'Gagal menghapus.'); }
+  } catch (error) {
+    const err = error as AxiosError<{ message: string }>;
+    toast.error(err.response?.data?.message || 'Gagal menghapus.');
+  }
 };
 
 const exportData = async (type: 'header' | 'detail') => {
@@ -161,8 +176,9 @@ const exportData = async (type: 'header' | 'detail') => {
       XLSX.utils.book_append_sheet(workbook, worksheet, "Detail Pengajuan");
       XLSX.writeFile(workbook, "Export_PengajuanProduksi_Detail.xlsx");
       toast.success('Ekspor detail berhasil.');
-    } catch (error: any) {
-      toast.error(error.response?.data?.message || 'Gagal mengekspor data detail.');
+    } catch (error) {
+      const err = error as AxiosError<{ message: string }>;
+      toast.error(err.response?.data?.message || 'Gagal mengekspor data detail.');
     } finally {
       loading.value = false;
     }
@@ -182,11 +198,10 @@ const getRowTextColor = (item: Header) => {
   if (item.approved && !item.noPO) return 'text-blue';
   return '';
 };
-const getDetailRowTextColor = (item: any) => {
+const getDetailRowTextColor = (item: DetailItem) => {
   if (item.approve === 'N') return 'text-red';
   return '';
 };
-
 
 onMounted(fetchData);
 watch(filters, fetchData, { deep: true });
@@ -241,9 +256,13 @@ watch(filters, fetchData, { deep: true });
           :loading="loading" item-value="nomor" density="compact" class="desktop-table" fixed-header show-select
           show-expand return-object single-select @update:expanded="loadDetails" :item-class="getRowTextColor">
 
-          <template #item.tanggal="{ item }">{{ format(parseISO(item.tanggal), 'dd-MM-yyyy') }}</template>
-          <template #item.tglApprove="{ item }">{{ item.tglApprove ? format(parseISO(item.tglApprove), 'dd-MM-yyyy') :
-            '' }}</template>
+          <template #[`item.tanggal`]="{ item }">
+            {{ format(parseISO(item.tanggal), 'dd-MM-yyyy') }}
+          </template>
+
+          <template #[`item.tglApprove`]="{ item }">
+            {{ item.tglApprove ? format(parseISO(item.tglApprove), 'dd-MM-yyyy') : '' }}
+          </template>
 
           <template #expanded-row="{ columns, item }">
             <tr>
@@ -253,12 +272,13 @@ watch(filters, fetchData, { deep: true });
                     <div v-if="loadingDetails.has(item.nomor)" class="text-center">Memuat detail...</div>
                     <v-data-table v-else :headers="detailHeaders" :items="details[item.nomor]" density="compact"
                       class="detail-table" :items-per-page="-1" :item-class="getDetailRowTextColor">
-                      <template #item.approve="{ item }">
-                        <v-chip size="x-small" :color="item.approve === 'Y' ? 'success' : 'error'">{{ item.approve
-                          }}</v-chip>
+                      <template #[`item.approve`]="{ item }">
+                        <v-chip size="x-small" :color="item.approve === 'Y' ? 'success' : 'error'">
+                          {{ item.approve }}
+                        </v-chip>
                       </template>
-                      <template v-for="col in ['jumlah', 'harga', 'total']" #[`item.${col}`]="{ item }">
-              <td class="text-end">{{ (item[col] || 0).toLocaleString('id-ID') }}</td>
+                      <template v-for="col in ['jumlah', 'harga', 'total']" #[`item.${col}`]="{ item }" :key="col">
+              <td class="text-end">{{ (item[col as keyof typeof item] || 0).toLocaleString('id-ID') }}</td>
           </template>
           <template #bottom></template>
         </v-data-table>
@@ -274,7 +294,7 @@ watch(filters, fetchData, { deep: true });
 <v-dialog v-model="dialogConfirm.show" max-width="400px" persistent>
   <v-card>
     <v-card-title class="text-h6 font-weight-bold">{{ dialogConfirm.title }}</v-card-title>
-    <v-card-text v-html="dialogConfirm.text"></v-card-text>
+    <v-card-text {{ dialogConfirm.text }}></v-card-text>
     <v-card-actions>
       <v-spacer />
       <v-btn text @click="dialogConfirm.show = false">Batal</v-btn>

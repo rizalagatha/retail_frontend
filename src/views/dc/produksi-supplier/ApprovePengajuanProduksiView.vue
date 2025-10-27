@@ -7,6 +7,7 @@ import api from '@/services/api';
 import { format, subDays, parseISO } from 'date-fns';
 import PageLayout from '@/components/PageLayout.vue';
 import * as XLSX from 'xlsx';
+import type { AxiosError } from 'axios';
 
 // --- Tipe Data & State ---
 interface Header {
@@ -16,17 +17,27 @@ interface Header {
   noPO: string;
   cabang: string;
 }
+interface DetailItem {
+  approve: 'Y' | 'N';
+  nama: string;
+  bahan: string;
+  ukuran: string;
+  jumlah: number;
+  harga: number;
+  total: number;
+}
+
 const router = useRouter();
 const toast = useToast();
 const authStore = useAuthStore();
 const MENU_ID = '218';
 
 const masterData = ref<Header[]>([]);
-const details = ref<Record<string, any[]>>({});
+const details = ref<Record<string, DetailItem[]>>({});
 const loading = ref(true);
 const loadingDetails = ref(new Set<string>());
 const selected = ref<Header[]>([]);
-const expanded = ref<Header[]>([]);
+const expanded = ref<string[]>([]);
 
 const filters = reactive({
   startDate: format(subDays(new Date(), 30), 'yyyy-MM-dd'),
@@ -51,8 +62,8 @@ const headers = [
 const detailHeaders = [
   { title: 'Approve', key: 'approve', width: '80px' }, { title: 'Nama Barang', key: 'nama', minWidth: '300px' },
   { title: 'Bahan', key: 'bahan' }, { title: 'Ukuran', key: 'ukuran' },
-  { title: 'Jumlah', key: 'jumlah', align: 'end' }, { title: 'Harga', key: 'harga', align: 'end' },
-  { title: 'Total', key: 'total', align: 'end' },
+  { title: 'Jumlah', key: 'jumlah' }, { title: 'Harga', key: 'harga' },
+  { title: 'Total', key: 'total' },
 ];
 
 // --- Methods ---
@@ -63,7 +74,8 @@ const fetchData = async () => {
   try {
     const response = await api.get('/approve-pengajuan-produksi', { params: filters });
     masterData.value = response.data;
-  } catch (error: any) {
+  } catch (err: unknown) {
+    const error = err as AxiosError<{ message: string }>;
     toast.error(error.response?.data?.message || 'Gagal mengambil data.');
   } finally {
     loading.value = false;
@@ -80,7 +92,7 @@ const loadDetails = async (newlyExpandedItems: Header[]) => {
     const response = await api.get(`/approve-pengajuan-produksi/details/${nomorToLoad}`);
     details.value[nomorToLoad] = response.data;
   } catch (error) {
-    toast.error(`Gagal memuat detail untuk ${nomorToLoad}.`);
+    toast.error(`Gagal memuat detail untuk ${nomorToLoad}.`, error);
   } finally {
     loadingDetails.value.delete(nomorToLoad);
   }
@@ -118,7 +130,8 @@ const exportData = async (type: 'header' | 'detail') => {
       const workbook = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(workbook, worksheet, "Detail Pengajuan");
       XLSX.writeFile(workbook, "Export_PengajuanProduksi_Detail.xlsx");
-    } catch (error: any) {
+    } catch (err: unknown) {
+      const error = err as AxiosError<{ message: string }>;
       toast.error(error.response?.data?.message || 'Gagal mengekspor data detail.');
     } finally {
       loading.value = false;
@@ -132,8 +145,8 @@ const getRowTextColor = (item: Header) => {
   if (item.approved && !item.noPO) return 'text-blue'; // Sudah approve, belum PO
   return '';
 };
-const getDetailRowTextColor = (item: any) => {
-  if (item.approve === 'N') return 'text-red';
+const getDetailRowTextColor = (item: Header) => {
+  if (item.approved === 'N') return 'text-red';
   return '';
 };
 
@@ -192,9 +205,11 @@ watch(filters, fetchData, { deep: true });
           :loading="loading" item-value="nomor" density="compact" class="desktop-table" fixed-header show-select
           show-expand return-object single-select @update:expanded="loadDetails" :item-class="getRowTextColor">
 
-          <template #item.tanggal="{ item }">{{ format(parseISO(item.tanggal), 'dd-MM-yyyy') }}</template>
-          <template #item.tglApprove="{ item }">{{ item.tglApprove ? format(parseISO(item.tglApprove), 'dd-MM-yyyy') :
-            '' }}</template>
+          <template v-for="col in ['tanggal', 'tglApprove']" #[`item.${col}`]="{ item }" :key="col">
+            <span>
+              {{ item[col] ? format(parseISO(item[col]), 'dd-MM-yyyy') : '' }}
+            </span>
+          </template>
 
           <template #expanded-row="{ columns, item }">
             <tr>
@@ -204,11 +219,12 @@ watch(filters, fetchData, { deep: true });
                     <div v-if="loadingDetails.has(item.nomor)" class="text-center">Memuat detail...</div>
                     <v-data-table v-else :headers="detailHeaders" :items="details[item.nomor]" density="compact"
                       class="detail-table" :items-per-page="-1" :item-class="getDetailRowTextColor">
-                      <template #item.approve="{ item }">
-                        <v-chip size="x-small" :color="item.approve === 'Y' ? 'success' : 'error'">{{ item.approve
-                        }}</v-chip>
+                      <template #[`item.approve`]="{ item }">
+                        <v-chip size="x-small" :color="item.approve === 'Y' ? 'success' : 'error'">
+                          {{ item.approve }}
+                        </v-chip>
                       </template>
-                      <template v-for="col in ['jumlah', 'harga', 'total']" #[`item.${col}`]="{ item }">
+                      <template v-for="col in ['jumlah', 'harga', 'total']" #[`item.${col}`]="{ item }" :key="col">
               <td class="text-end">{{ (item[col] || 0).toLocaleString('id-ID') }}</td>
           </template>
           <template #bottom></template>

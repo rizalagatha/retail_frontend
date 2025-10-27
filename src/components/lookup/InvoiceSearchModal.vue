@@ -3,11 +3,23 @@ import { ref, onMounted, computed } from 'vue';
 import api from '@/services/api';
 import { useToast } from 'vue-toastification';
 import { format, parseISO } from 'date-fns';
+import type { AxiosError } from 'axios';
+import type { DataTableHeader } from 'vuetify';
 
-interface Invoice {
+interface ReturJualInvoice {
   nomor: string;
   tanggal: string;
   cus_nama: string;
+}
+
+interface PotonganPiutangInvoice {
+  Invoice: string;
+  TglInvoice: string;
+  Top: number;
+  JatuhTempo: string;
+  Nominal: number;
+  Bayar: number;
+  Sisa: number;
 }
 
 interface Props {
@@ -16,6 +28,24 @@ interface Props {
   gudangKode?: string;
 }
 
+type ReturItem = {
+  nomor: string;
+  tanggal: string;
+  cus_nama: string;
+};
+
+type PiutangItem = {
+  Invoice: string;
+  TglInvoice: string;
+  Top: number;
+  JatuhTempo: string;
+  Nominal: number;
+  Bayar: number;
+  Sisa: number;
+};
+
+type TableItem = ReturItem | PiutangItem;
+type Invoice = ReturJualInvoice | PotonganPiutangInvoice;
 const props = defineProps<Props>();
 const emit = defineEmits(['close', 'invoice-selected']);
 const toast = useToast();
@@ -24,9 +54,8 @@ const items = ref<Invoice[]>([]);
 const loading = ref(true);
 const search = ref('');
 
-const headers = computed(() => {
+const headers = computed<DataTableHeader[]>(() => {
   if (props.source === 'potongan-piutang') {
-    // Kolom dari TfrmPotongan.BantuanInvoive
     return [
       { title: 'No. Invoice', key: 'Invoice' },
       { title: 'Tgl. Invoice', key: 'TglInvoice' },
@@ -37,6 +66,7 @@ const headers = computed(() => {
       { title: 'Sisa Piutang', key: 'Sisa', align: 'end' },
     ];
   }
+
   // Default (untuk 'retur-jual')
   return [
     { title: 'Nomor Invoice', key: 'nomor' },
@@ -49,7 +79,7 @@ const loadItems = async () => {
   loading.value = true;
   try {
     let apiUrl = '';
-    const params: any = {};
+    const params: Record<string, string | undefined> = {};
 
     if (props.source === 'potongan-piutang') {
       apiUrl = '/potongan-form/lookup/invoices';
@@ -64,8 +94,10 @@ const loadItems = async () => {
 
     const response = await api.get(apiUrl, { params });
     items.value = response.data;
-  } catch (error: any) {
-    toast.error(error.response?.data?.message || 'Gagal memuat daftar invoice.');
+  } catch (err) {
+    const error = err as AxiosError<{ message?: string }>;
+    const message = error.response?.data?.message || 'Gagal memuat daftar invoice.';
+    toast.error(message);
   } finally {
     loading.value = false;
   }
@@ -76,16 +108,18 @@ const filteredItems = computed(() => {
   const lower = search.value.toLowerCase();
 
   if (props.source === 'potongan-piutang') {
-    // Filter Delphi: 'Invoice'
-    return items.value.filter(item =>
-      item.Invoice.toLowerCase().includes(lower)
+    return items.value.filter(
+      (item): item is PotonganPiutangInvoice =>
+        'Invoice' in item && item.Invoice.toLowerCase().includes(lower)
     );
   }
 
-  // Filter default (retur-jual)
-  return items.value.filter(item =>
-    item.nomor.toLowerCase().includes(lower) ||
-    item.cus_nama.toLowerCase().includes(lower)
+  // Default (retur-jual)
+  return items.value.filter(
+    (item): item is ReturJualInvoice =>
+      'nomor' in item &&
+      (item.nomor.toLowerCase().includes(lower) ||
+        item.cus_nama.toLowerCase().includes(lower))
   );
 });
 
@@ -93,6 +127,10 @@ const selectItem = (item: Invoice) => {
   emit('invoice-selected', item);
   emit('close');
 };
+
+function isPiutangItem(item: TableItem): item is PiutangItem {
+  return 'Invoice' in item;
+}
 
 onMounted(loadItems);
 </script>
@@ -114,7 +152,7 @@ onMounted(loadItems);
           density="compact" fixed-header class="flex-grow-1">
           <template #item="{ item }">
             <tr @click="selectItem(item)" style="cursor: pointer;">
-              <template v-if="props.source === 'potongan-piutang'">
+              <template v-if="isPiutangItem(item)">
                 <td>{{ item.Invoice }}</td>
                 <td>{{ format(parseISO(item.TglInvoice), 'dd/MM/yyyy') }}</td>
                 <td class="text-end">{{ item.Top }}</td>

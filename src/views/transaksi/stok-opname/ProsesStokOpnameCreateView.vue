@@ -5,7 +5,7 @@ import { useToast } from 'vue-toastification';
 import { useAuthStore } from '@/stores/authStore';
 import api from '@/services/api';
 import PageLayout from '@/components/PageLayout.vue';
-import GudangSearchModal from '@/components/GudangSearchModal.vue';
+import GudangSearchModal from '@/components/lookup/GudangSearchModal.vue';
 import type { AxiosError } from 'axios';
 
 // --- Interface ---

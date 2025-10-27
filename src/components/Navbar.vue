@@ -1,8 +1,13 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from 'vue'
-import { useRouter } from 'vue-router'
-import { useAuthStore } from '@/stores/authStore'
-import logoSrc from '@/assets/logo.png'
+import { ref, computed, onMounted, onUnmounted } from 'vue';
+import { useRouter } from 'vue-router';
+import { useAuthStore } from '@/stores/authStore';
+import logoSrc from '@/assets/logo.png';
+import { usePasswordDialog } from '@/composables/usePasswordDialog';
+import { useWhatsAppDialog } from '@/composables/useWhatsappDialog';
+import { useBufferStockDialog } from '@/composables/useBufferStockDialog';
+import { useSettingsProcessDialog } from '@/composables/useSettingsProcessDialog';
+import { useManualProgramDialog } from '@/composables/useManualProgramDialog';
 
 interface NavItem {
   title: string
@@ -62,6 +67,12 @@ const hasAccess = (routeNameOrPath?: string) => {
   // Karena user sudah login, maka tampilkan menunya.
   return true;
 };
+
+const { openPasswordDialog } = usePasswordDialog();
+const { openWhatsAppDialog } = useWhatsAppDialog();
+const { openBufferStockDialog } = useBufferStockDialog();
+const { openSettingsProcessDialog } = useSettingsProcessDialog();
+const { openManualDialog } = useManualProgramDialog();
 
 // Menu configuration
 const menuItems = [
@@ -325,10 +336,22 @@ const menuItems = [
     icon: 'mdi-wrench-outline',
     model: fileMenu,
     items: [
-      { title: 'Manual Program', to: '/file/manual', icon: 'mdi-book-open-outline' },
+      {
+        title: 'Manual Program',
+        icon: 'mdi-book-open-outline',
+        onClick: () => openManualDialog(),
+      },
       // { title: 'History Update Program', to: '/file/history-updates', icon: 'mdi-history' },
-      { title: 'Update Buffer Stok', to: '/file/update-buffer-stock', icon: 'mdi-database-sync' },
-      { title: 'Setting', to: '/file/settings', icon: 'mdi-cog-outline' },
+      {
+        title: 'Update Buffer Stok',
+        icon: 'mdi-database-sync',
+        onClick: () => openBufferStockDialog(), // 👈 panggil dialog, bukan route
+      },
+      {
+        title: 'Setting',
+        icon: 'mdi-cog-outline',
+        onClick: () => openSettingsProcessDialog(),
+      },
       { divider: true },
       { title: 'User', to: '/file/users', icon: 'mdi-account-group-outline' }
     ]
@@ -433,7 +456,14 @@ onUnmounted(() => {
                 </v-list-group>
 
                 <!-- Regular Menu Item -->
-                <v-list-item v-else :to="item.to" :prepend-icon="item.icon" class="nav-list-item" @click="closeMenus">
+                <v-list-item v-else :to="item.to" :prepend-icon="item.icon" class="nav-list-item" @click="
+                  () => {
+                    if (item.onClick) {
+                      item.onClick();
+                    }
+                    closeMenus();
+                  }
+                ">
                   <v-list-item-title>{{ item.title }}</v-list-item-title>
                 </v-list-item>
               </template>
@@ -537,9 +567,11 @@ onUnmounted(() => {
 
           <v-divider class="user-divider" />
 
-          <v-list-item prepend-icon="mdi-whatsapp" title="Tautkan WhatsApp" to="/pengaturan/whatsapp"></v-list-item>
+          <v-list-item @click="openWhatsAppDialog" prepend-icon="mdi-whatsapp" class="user-menu-item">
+            <v-list-item-title>Tautkan WhatsApp</v-list-item-title>
+          </v-list-item>
 
-          <v-list-item to="/user/ganti-password" prepend-icon="mdi-lock-outline" class="user-menu-item">
+          <v-list-item @click="openPasswordDialog" prepend-icon="mdi-lock-outline" class="user-menu-item">
             <v-list-item-title>Ganti Password</v-list-item-title>
           </v-list-item>
 

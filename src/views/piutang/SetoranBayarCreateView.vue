@@ -6,9 +6,9 @@ import { useAuthStore } from '@/stores/authStore';
 import api from '@/services/api';
 import { format, parseISO } from 'date-fns';
 import PageLayout from '@/components/PageLayout.vue';
-import CustomerSearchModal from '@/components/CustomerSearchModal.vue';
-import RekeningSearchModal from '@/components/RekeningSearchModal.vue';
-import UnpaidInvoiceSearchModal from '@/components/UnpaidInvoiceSearchModal.vue';
+import CustomerSearchModal from '@/components/lookup/CustomerSearchModal.vue';
+import RekeningSearchModal from '@/components/lookup/RekeningSearchModal.vue';
+import UnpaidInvoiceSearchModal from '@/components/lookup/UnpaidInvoiceSearchModal.vue';
 import { AxiosError } from 'axios';
 
 // --- Tipe Data ---

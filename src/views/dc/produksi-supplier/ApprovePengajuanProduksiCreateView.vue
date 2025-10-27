@@ -1,11 +1,12 @@
 <script setup lang="ts">
-import { ref, reactive, onMounted, computed, watch } from 'vue';
+import { ref, reactive, onMounted, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useToast } from 'vue-toastification';
 import { useAuthStore } from '@/stores/authStore';
 import api from '@/services/api';
-import { format, parseISO } from 'date-fns';
+import { format } from 'date-fns';
 import PageLayout from '@/components/PageLayout.vue';
+import type { AxiosError } from 'axios';
 
 // --- Tipe Data & State ---
 interface Header {
@@ -76,7 +77,8 @@ const loadData = async (nomor: string) => {
     const response = await api.get(`/approve-pengajuan-form/${nomor}`);
     Object.assign(header, response.data.header);
     items.value = response.data.items;
-  } catch (error: any) {
+  } catch (err: unknown) {
+    const error = err as AxiosError<{ message: string }>;
     toast.error(error.response?.data?.message || 'Gagal memuat data.');
     router.back();
   } finally {
@@ -106,7 +108,8 @@ const executeSave = async () => {
     const response = await api.put(`/approve-pengajuan-form/${route.params.nomor}`, payload);
     toast.success(response.data.message);
     router.push({ name: 'ApprovePengajuanProduksi' });
-  } catch (error: any) {
+  } catch (err: unknown) {
+    const error = err as AxiosError<{ message: string }>;
     toast.error(error.response?.data?.message || 'Gagal menyimpan data.');
   } finally {
     isSaving.value = false;
@@ -270,11 +273,13 @@ onMounted(() => {
           <v-data-table :headers="headers" :items="items" :loading="isLoading" class="desktop-table fill-height"
             density="compact" fixed-header :items-per-page="-1" show-select v-model-select="items" item-value="id"
             select-strategy="page">
-            <template #item.no="{ item }">{{ item.no }}</template>
-            <template #item.approved="{ item }">
+            <template #[`item.no`]="{ item }">
+              {{ item.no }}
+            </template>
+            <template #[`item.approved`]="{ item }">
               <v-checkbox-btn v-model="item.approved" density="compact" hide-details />
             </template>
-            <template v-for="col in ['jumlah', 'harga', 'total']" #[`item.${col}`]="{ item }">
+            <template v-for="col in ['jumlah', 'harga', 'total']" #[`item.${col}`]="{ item }" :key="col">
               <td class="text-end">{{ (item[col] || 0).toLocaleString('id-ID') }}</td>
             </template>
             <template #bottom></template>
@@ -286,11 +291,12 @@ onMounted(() => {
     <v-dialog v-model="dialogConfirm.show" max-width="400px" persistent>
       <v-card>
         <v-card-title class="text-h6 font-weight-bold">{{ dialogConfirm.title }}</v-card-title>
-        <v-card-text v-html="dialogConfirm.text"></v-card-text>
+        <v-card-text>{{ dialogConfirm.text }}</v-card-text>
         <v-card-actions>
           <v-spacer />
           <v-btn text @click="dialogConfirm.onCancel">
-            {{ (dialogConfirm.title === 'Konfirmasi Simpan' || dialogConfirm.title === 'Konfirmasi Batal') ? 'Batal' : 'Tidak' }}
+            {{ (dialogConfirm.title === 'Konfirmasi Simpan' || dialogConfirm.title === 'Konfirmasi Batal') ? 'Batal' :
+              'Tidak' }}
           </v-btn>
           <v-btn color="primary" variant="tonal" @click="dialogConfirm.onConfirm">
             Ya

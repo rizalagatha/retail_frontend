@@ -4,9 +4,10 @@ import { useRoute, useRouter } from 'vue-router';
 import { useToast } from 'vue-toastification';
 import { useAuthStore } from '@/stores/authStore';
 import api from '@/services/api';
-import { format, parseISO } from 'date-fns';
+import { format } from 'date-fns';
 import PageLayout from '@/components/PageLayout.vue';
-import SupplierSearchModal from '@/components/SupplierSearchModal.vue';
+import SupplierSearchModal from '@/components/lookup/SupplierSearchModal.vue';
+import { AxiosError } from 'axios';
 
 // --- Tipe Data & State ---
 interface Item {
@@ -56,9 +57,9 @@ const headers = [
   { title: 'Nama Barang', key: 'nama', width: '250px' },
   { title: 'Bahan', key: 'bahan', width: '150px' },
   { title: 'Ukuran', key: 'ukuran', width: '120px' },
-  { title: 'Jumlah', key: 'jumlah', align: 'end', width: '100px' },
-  { title: 'Harga', key: 'harga', align: 'end', width: '120px' },
-  { title: 'Total', key: 'total', align: 'end', width: '150px' },
+  { title: 'Jumlah', key: 'jumlah', width: '100px' },
+  { title: 'Harga', key: 'harga', width: '120px' },
+  { title: 'Total', key: 'total', width: '150px' },
   { title: 'File Upload', key: 'filegambar', sortable: false, width: '250px' },
   { title: 'Actions', key: 'actions', sortable: false, width: '50px' },
 ];
@@ -75,7 +76,10 @@ const loadDataForEdit = async (nomor: string) => {
     Object.assign(header, response.data.header);
     items.value = response.data.items.map(item => ({ ...item, id: Math.random() }));
     addNewRow();
-  } catch (error: any) { toast.error(error.response?.data?.message || 'Gagal memuat data.'); }
+  } catch (err) {
+    const error = err as AxiosError<{ message: string }>;
+    toast.error(error.response?.data?.message || 'Gagal memuat data.');
+  }
 };
 
 const onSupplierSelected = (sup: { kode: string, nama: string, alamat: string, kota: string, telp: string }) => {
@@ -160,7 +164,8 @@ const executeSave = async () => {
       router.push({ name: 'PengajuanProduksi' });
     };
     dialogConfirmCetak.show = true;
-  } catch (error: any) {
+  } catch (err) {
+    const error = err as AxiosError<{ message: string }>;
     toast.error(error.response?.data?.message || 'Gagal menyimpan data.');
   } finally {
     isSaving.value = false;
@@ -180,8 +185,8 @@ const validateUkuran = async (item: Item) => {
   try {
     await api.get(`/pengajuan-produksi-form/validate-ukuran/${item.ukuran}`);
     // Jika berhasil (status 200), tidak terjadi apa-apa
-  } catch (error: any) {
-    // Jika error (404 Not Found)
+  } catch (err) {
+    const error = err as AxiosError<{ message: string }>;
     toast.error(error.response?.data?.message || 'Gagal validasi ukuran.');
     item.ukuran = ''; // Kosongkan field
   }
@@ -238,25 +243,27 @@ onMounted(async () => {
         <div class="desktop-form-section d-flex flex-column" style="flex-grow: 1;">
           <v-data-table :headers="headers" :items="items" :loading="isLoading" class="desktop-table fill-height"
             density="compact" fixed-header :items-per-page="-1">
-            <template #item.no="{ index }">{{ index + 1 }}</template>
+            <template #[`item.no`]="{ index }">
+              {{ index + 1 }}
+            </template>
 
-            <template #item.nama="{ item }"><v-text-field v-model="item.nama" variant="underlined" density="compact"
-                hide-details /></template>
-            <template #item.bahan="{ item }"><v-text-field v-model="item.bahan" variant="underlined" density="compact"
-                hide-details /></template>
-            <template #item.ukuran="{ item }"><v-text-field v-model="item.ukuran" variant="underlined" density="compact"
-                hide-details @blur="validateUkuran(item)" /></template>
-            <template #item.jumlah="{ item }"><v-text-field v-model.number="item.jumlah" type="number"
-                variant="underlined" density="compact" hide-details class="text-end"
-                @update:modelValue="item.total = item.jumlah * item.harga" /></template>
-            <template #item.harga="{ item }"><v-text-field v-model.number="item.harga" type="number"
-                variant="underlined" density="compact" hide-details class="text-end"
-                @update:modelValue="item.total = item.jumlah * item.harga" /></template>
-            <template #item.total="{ item }">
+            <template v-for="col in ['nama', 'bahan', 'ukuran']" :key="col" #[`item.${col}`]="{ item }">
+              <v-text-field v-model="item[col]" variant="underlined" density="compact" hide-details
+                v-if="col !== 'ukuran'" />
+              <v-text-field v-model="item.ukuran" variant="underlined" density="compact" hide-details
+                @blur="validateUkuran(item)" v-else />
+            </template>
+
+            <template v-for="col in ['jumlah', 'harga']" :key="col" #[`item.${col}`]="{ item }">
+              <v-text-field v-model.number="item[col]" type="number" variant="underlined" density="compact" hide-details
+                class="text-end" @update:modelValue="item.total = item.jumlah * item.harga" />
+            </template>
+
+            <template #[`item.total`]="{ item }">
               <td class="text-end">{{ (item.total || 0).toLocaleString('id-ID') }}</td>
             </template>
 
-            <template #item.filegambar="{ item }">
+            <template #[`item.filegambar`]="{ item }">
               <v-file-input :label="item.filegambar === 'Y' ? 'Ganti File?' : 'Upload File'"
                 @change="(e) => onFileSelect(e.target.files[0], item)" variant="underlined" density="compact"
                 hide-details clearable @click:clear="item.filegambar = ''; item.fileObject = undefined">
@@ -265,13 +272,12 @@ onMounted(async () => {
                 </template>
               </v-file-input>
             </template>
-
-            <template #item.actions="{ item }">
+            <template #[`item.actions`]="{ item }">
               <v-btn v-if="item.nama" icon="mdi-delete" size="x-small" variant="text" color="error"
                 @click="removeRow(item.id)" />
             </template>
             <template #bottom>
-              <vM-btn size="small" @click="addNewRow" prepend-icon="mdi-plus" class="ma-2">Tambah Baris</vM-btn>
+              <v-btn size="small" @click="addNewRow" prepend-icon="mdi-plus" class="ma-2">Tambah Baris</v-btn>
             </template>
           </v-data-table>
         </div>
@@ -290,7 +296,7 @@ onMounted(async () => {
     <v-dialog v-model="dialogConfirm.show" max-width="400px" persistent>
       <v-card>
         <v-card-title class="text-h6 font-weight-bold">{{ dialogConfirm.title }}</v-card-title>
-        <v-card-text v-html="dialogConfirm.text"></v-card-text>
+        <v-card-text>{{ dialogConfirm.text }}></v-card-text>
         <v-card-actions>
           <v-spacer />
           <v-btn text @click="dialogConfirm.show = false">Batal</v-btn>

@@ -1,13 +1,14 @@
 <script setup lang="ts">
-import { ref, reactive, onMounted, computed, watch, nextTick } from 'vue';
+import { ref, reactive, onMounted, computed, nextTick } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useToast } from 'vue-toastification';
 import { useAuthStore } from '@/stores/authStore';
 import api from '@/services/api';
-import { format, parseISO, isValid } from 'date-fns';
+import { format } from 'date-fns';
 import PageLayout from '@/components/PageLayout.vue';
-import GudangSearchModal from '@/components/GudangSearchModal.vue';
-import MintaBarangSearchModal from '@/components/MintaBarangSearchModal.vue';
+import GudangSearchModal from '@/components/lookup/GudangSearchModal.vue';
+import MintaBarangSearchModal from '@/components/lookup/MintaBarangSearchModal.vue';
+import type { AxiosError } from 'axios';
 
 // --- Tipe Data & State ---
 interface Item1 {
@@ -20,6 +21,10 @@ interface Item2 {
   jumlah: number; resize: string; tanggal: string; mutasi: string;
   kodelama: string; ukuranlama: string; closing: string;
   jumlahx: number; // Untuk validasi
+}
+interface Grid1RowClick {
+  item: Item1;
+  index: number;
 }
 const router = useRouter();
 const route = useRoute();
@@ -62,10 +67,10 @@ const headers1 = [
   { title: 'Kode Barang', key: 'kode', width: '200px' },
   { title: 'Nama Barang', key: 'nama', minWidth: '300px' },
   { title: 'Ukuran', key: 'ukuran', width: '100px' },
-  { title: 'Stok', key: 'stok', align: 'end', width: '90px' },
-  { title: 'Jumlah', key: 'jumlah', align: 'end', width: '120px' },
-  { title: 'Sudah Terima', key: 'sudah', align: 'end', width: '120px' },
-  { title: 'Belum Terima', key: 'belum', align: 'end', width: '120px' },
+  { title: 'Stok', key: 'stok', width: '90px' },
+  { title: 'Jumlah', key: 'jumlah', width: '120px' },
+  { title: 'Sudah Terima', key: 'sudah', width: '120px' },
+  { title: 'Belum Terima', key: 'belum', width: '120px' },
   { title: 'Actions', key: 'actions', sortable: false, width: '50px' },
 ];
 const headers2 = [
@@ -73,12 +78,12 @@ const headers2 = [
   { title: 'Kode Barang', key: 'kode', width: '150px' },
   { title: 'Nama Barang', key: 'nama', minWidth: '250px' },
   { title: 'Ukuran', key: 'ukuran', width: '80px' },
-  { title: 'Jumlah', key: 'jumlah', align: 'end', width: '100px' },
+  { title: 'Jumlah', key: 'jumlah', width: '100px' },
   { title: 'Tanggal', key: 'tanggal', width: '110px' },
   { title: 'No Mutasi', key: 'mutasi', width: '140px' },
   { title: 'Kode Lama', key: 'kodelama', width: '120px' },
   { title: 'Ukuran Lama', key: 'ukuranlama', width: '100px' },
-  { title: 'Resize', key: 'resize', align: 'center', width: '70px' },
+  { title: 'Resize', key: 'resize', width: '70px' },
   { title: 'Actions', key: 'actions', sortable: false, width: '50px' },
 ];
 
@@ -104,8 +109,9 @@ const loadDataForEdit = async (nomor: string) => {
 
     addNewRow1();
     addNewRow2();
-  } catch (error: any) {
-    toast.error(error.response?.data?.message || 'Gagal memuat data.');
+  } catch (error) {
+    const err = error as AxiosError<{ message?: string }>;
+    toast.error(err.response?.data?.message || 'Gagal memuat data.');
     router.back();
   } finally {
     isDataLoading.value = false;
@@ -153,9 +159,9 @@ const handleOpenBarangSearchF2 = () => {
   openBarangSearch(2, activeGrid1Row.value.kode);
 };
 
-const onSelectGrid1Row = (event: any, { item }: any) => {
-  activeGrid1Row.value = item; // item sudah berisi data row yang diklik
-  console.log('✅ Row aktif:', item.kode, item.ukuran);
+const onSelectGrid1Row = (event: MouseEvent, payload: Grid1RowClick) => {
+  activeGrid1Row.value = payload.item;
+  console.log('✅ Row aktif:', payload.item.kode, payload.item.ukuran);
 };
 
 // --- FUNGSI BARU: Enter di Grid 1 (loadbrg) ---
@@ -177,7 +183,8 @@ const handleGridBarcodeEnterGrid1 = async (item: Item1) => {
     item.jumlah = 1;
     addNewRow1();
     nextTick(() => { document.getElementById(`jumlah-${item.id}`)?.focus(); });
-  } catch (error: any) {
+  } catch (err) {
+    const error = err as AxiosError<{ message?: string }>;
     toast.error(error.response?.data?.message || 'Barcode tidak terdaftar.');
     item.kode = '';
   }
@@ -211,33 +218,31 @@ const handleGridBarcodeEnterGrid2 = async (item: Item2) => {
 
     addNewRow2();
     nextTick(() => { document.getElementById(`jumlah2-${item.id}`)?.focus(); });
-  } catch (error: any) {
+  } catch (err) {
+    const error = err as AxiosError<{ message?: string }>;
     toast.error(error.response?.data?.message || 'Barcode tidak terdaftar.');
     item.kode = '';
   }
 };
 
-const onBarangSelected = (products: any[]) => {
+const onBarangSelected = (products: { kode: string; barcode: string; nama: string; ukuran: string; stok: number }[]) => {
   isBarangSearchVisible.value = false;
   if (products.length === 0) return;
 
   const product = products[0];
   const isGrid1 = barangSearchTargetGrid.value === 1;
-  const grid = isGrid1 ? items1 : items2;
-  const gridElId = isGrid1 ? 'jumlah' : 'jumlah2'; // Awalan ID untuk input
-  const addNewRow = isGrid1 ? addNewRow1 : addNewRow2;
 
-  // Cek duplikat
-  if (grid.value.some(item => item.kode === product.kode && item.ukuran === product.ukuran)) {
-    return toast.warning('Barang ini sudah ada di daftar.');
-  }
+  if (isGrid1) {
+    // --- Grid 1 (Item1) ---
+    const targetRow = items1.value[items1.value.length - 1] as Item1;
+    if (!targetRow) return;
 
-  // Ambil baris kosong terakhir yang akan diisi
-  const lastIndex = grid.value.length - 1;
-  const targetRow = grid.value[lastIndex];
+    // Cek duplikat
+    if (items1.value.some(item => item.kode === product.kode && item.ukuran === product.ukuran)) {
+      return toast.warning('Barang ini sudah ada di daftar.');
+    }
 
-  if (targetRow) {
-    targetRow.id = Date.now(); // Buat ID unik untuk baris ini
+    targetRow.id = Date.now();
     targetRow.kode = product.kode;
     targetRow.barcode = product.barcode;
     targetRow.nama = product.nama;
@@ -246,26 +251,46 @@ const onBarangSelected = (products: any[]) => {
     targetRow.jumlah = 1;
     targetRow.closing = 'N';
 
-    if (!isGrid1 && activeGrid1Row.value) { // Hanya untuk Grid 2
-      const item1 = activeGrid1Row.value;
-      targetRow.kodelama = item1.kode;
-      targetRow.ukuranlama = item1.ukuran;
-      targetRow.tanggal = format(new Date(), 'yyyy-MM-dd');
-      targetRow.resize = (item1.kode !== product.kode || item1.ukuran !== product.ukuran) ? 'Y' : 'N';
-    }
+    addNewRow1();
 
-    addNewRow(); // Tambahkan baris kosong baru di bawahnya
-
-    // --- PENGGANTI PLACEHOLDER ---
-    // Pindahkan fokus ke input 'Jumlah' pada baris yang baru diisi
     nextTick(() => {
-      const inputId = `${gridElId}-${targetRow.id}`;
-      const inputElement = document.getElementById(inputId) as HTMLInputElement | null;
+      const inputElement = document.getElementById(`jumlah-${targetRow.id}`) as HTMLInputElement | null;
       inputElement?.focus();
     });
-    // ------------------------------
+  } else {
+    // --- Grid 2 (Item2) ---
+    const targetRow = items2.value[items2.value.length - 1] as Item2;
+    if (!targetRow) return;
+
+    // Cek duplikat
+    if (items2.value.some(item => item.kode === product.kode && item.ukuran === product.ukuran)) {
+      return toast.warning('Barang ini sudah ada di daftar.');
+    }
+
+    targetRow.id = Date.now();
+    targetRow.kode = product.kode;
+    targetRow.barcode = product.barcode;
+    targetRow.nama = product.nama;
+    targetRow.ukuran = product.ukuran;
+    targetRow.jumlah = 1;
+    targetRow.closing = 'N';
+
+    if (activeGrid1Row.value) {
+      targetRow.kodelama = activeGrid1Row.value.kode;
+      targetRow.ukuranlama = activeGrid1Row.value.ukuran;
+      targetRow.tanggal = format(new Date(), 'yyyy-MM-dd');
+      targetRow.resize = (activeGrid1Row.value.kode !== product.kode || activeGrid1Row.value.ukuran !== product.ukuran) ? 'Y' : 'N';
+    }
+
+    addNewRow2();
+
+    nextTick(() => {
+      const inputElement = document.getElementById(`jumlah2-${targetRow.id}`) as HTMLInputElement | null;
+      inputElement?.focus();
+    });
   }
 };
+
 
 const addNewRow1 = () => {
   if (!items1.value.find(item => !item.kode)) {
@@ -394,7 +419,8 @@ const executeSave = async () => {
       router.push({ name: 'QcGarmen' });
     };
     dialogConfirmCetak.show = true;
-  } catch (error: any) {
+  } catch (err) {
+    const error = err as AxiosError<{ message?: string }>;
     toast.error(error.response?.data?.message || 'Gagal menyimpan data.');
   } finally {
     isSaving.value = false;
@@ -489,27 +515,29 @@ onMounted(async () => {
           <v-data-table :headers="headers1" :items="items1" :loading="isLoading" class="desktop-table fill-height"
             density="compact" fixed-header :items-per-page="-1" @click:row="onSelectGrid1Row"
             :item-class="(item) => item.id === activeGrid1Row?.id ? 'bg-blue-lighten-5' : ''">
-            <template #item.no="{ index }">{{ index + 1 }}</template>
-            <template #item.kode="{ item }">
+            <template v-slot:[`item.no`]="{ index }">
+              {{ index + 1 }}
+            </template>
+            <template v-slot:[`item.kode`]="{ item }">
               <v-text-field v-model="item.kode" variant="underlined" density="compact" hide-details
                 placeholder="Scan/F1..." @keydown.f1.prevent="openBarangSearch(1, null)"
                 @keydown.enter.prevent="handleGridBarcodeEnterGrid1(item)"
                 :readonly="!!item.nama || header.closing === 'Y'" />
             </template>
-            <template #item.stok="{ item }">
+            <template v-slot:[`item.stok`]="{ item }">
               <td class="text-end">{{ (item.stok || 0).toLocaleString('id-ID') }}</td>
             </template>
-            <template #item.jumlah="{ item }">
+            <template v-slot:[`item.jumlah`]="{ item }">
               <v-text-field :id="`jumlah-${item.id}`" v-model.number="item.jumlah" type="number" variant="underlined"
                 density="compact" hide-details class="text-end" :readonly="header.closing === 'Y'" />
             </template>
-            <template #item.sudah="{ item }">
+            <template v-slot:[`item.sudah`]="{ item }">
               <td class="text-end">{{ (item.sudah || 0).toLocaleString('id-ID') }}</td>
             </template>
-            <template #item.belum="{ item }">
+            <template v-slot:[`item.belum`]="{ item }">
               <td class="text-end">{{ (item.belum || 0).toLocaleString('id-ID') }}</td>
             </template>
-            <template #item.actions="{ item }">
+            <template v-slot:[`item.actions`]="{ item }">
               <v-btn v-if="item.kode && header.closing !== 'Y'" icon="mdi-delete" size="x-small" variant="text"
                 color="error" @click="removeRow1(item.id)" />
             </template>
@@ -520,40 +548,43 @@ onMounted(async () => {
           <div class="text-subtitle-1 font-weight-bold mb-2">Item Terima / Resize (F1: All, F2: Sesuai Item Kirim)</div>
           <v-data-table :headers="headers2" :items="items2" :loading="isLoading" class="desktop-table fill-height"
             density="compact" fixed-header :items-per-page="-1">
-            <template #item.no="{ index }">{{ index + 1 }}</template>
-            <template #item.kode="{ item, index }">
+            <template v-slot:[`item.no`]="{ index }">
+              {{ index + 1 }}
+            </template>
+            <template v-slot:[`item.kode`]="{ item }">
               <v-text-field v-model="item.kode" variant="underlined" density="compact" hide-details
                 placeholder="Scan/F1/F2..." @keydown.f1.prevent="openBarangSearch(2, null)"
                 @keydown.f2.prevent="handleOpenBarangSearchF2"
                 @keydown.enter.prevent="handleGridBarcodeEnterGrid2(item)"
                 :readonly="!!item.nama || item.closing === 'Y'" />
             </template>
-            <template #item.tanggal="{ item }">
+            <template v-slot:[`item.tanggal`]="{ item }">
               <v-menu :close-on-content-click="false">
-                <template #activator="{ props }">
+                <template v-slot:activator="{ props }">
                   <v-text-field v-model="item.tanggal" type="date" variant="underlined" density="compact" hide-details
                     :readonly="item.closing === 'Y'" v-bind="props" />
                 </template>
               </v-menu>
             </template>
-            <template #item.jumlah="{ item }">
+            <template v-slot:[`item.jumlah`]="{ item }">
               <v-text-field :id="`jumlah2-${item.id}`" v-model.number="item.jumlah" type="number" variant="underlined"
                 density="compact" hide-details class="text-end" :readonly="item.closing === 'Y'" />
             </template>
-            <template #item.resize="{ item }">
-              <v-chip size="x-small" :color="item.resize === 'Y' ? 'primary' : 'default'">{{ item.resize }}</v-chip>
+            <template v-slot:[`item.resize`]="{ item }">
+              <v-chip size="x-small" :color="item.resize === 'Y' ? 'primary' : 'default'">
+                {{ item.resize }}
+              </v-chip>
             </template>
-            <template #item.mutasi="{ item }">
+            <template v-slot:[`item.mutasi`]="{ item }">
               <span class="text-caption">{{ item.mutasi || '-' }}</span>
             </template>
-            <template #item.kodelama="{ item }">
+            <template v-slot:[`item.kodelama`]="{ item }">
               <span class="text-caption text-grey-darken-1">{{ item.kodelama || '-' }}</span>
             </template>
-
-            <template #item.ukuranlama="{ item }">
+            <template v-slot:[`item.ukuranlama`]="{ item }">
               <span class="text-caption text-grey-darken-1">{{ item.ukuranlama || '-' }}</span>
             </template>
-            <template #item.actions="{ item }">
+            <template v-slot:[`item.actions`]="{ item }">
               <v-btn v-if="item.kode && item.closing !== 'Y'" icon="mdi-delete" size="x-small" variant="text"
                 color="error" @click="removeRow2(item.id)" />
             </template>
@@ -563,8 +594,8 @@ onMounted(async () => {
       </div>
     </div>
 
-    <GudangSearchModal v-if="isGudangSearchVisible" source="qc-ke-garmen" @close="isGudangSearchVisible = false"
-      @select="onGudangSelected" />
+    <GudangSearchModal v-if="isGudangSearchVisible" source="qc-ke-garmen" :user-cabang="authStore.user?.cabang || ''"
+      @close="isGudangSearchVisible = false" @select="onGudangSelected" />
     <MintaBarangSearchModal v-if="isBarangSearchVisible" :key="barangSearchSource + (barangSearchFilter.kode || '')"
       :source="barangSearchSource" :gudang="authStore.user?.cabang || 'KDC'" :filter-kode="barangSearchFilter.kode"
       :multi="false" @close="isBarangSearchVisible = false" @products-selected="onBarangSelected" />
@@ -572,7 +603,7 @@ onMounted(async () => {
     <v-dialog v-model="dialogConfirm.show" max-width="400px" persistent>
       <v-card>
         <v-card-title class="text-h6 font-weight-bold">{{ dialogConfirm.title }}</v-card-title>
-        <v-card-text v-html="dialogConfirm.text"></v-card-text>
+        <v-card-text>{{ dialogConfirm.text }}</v-card-text>
         <v-card-actions>
           <v-spacer />
           <v-btn text @click="dialogConfirm.onCancel">Batal</v-btn>

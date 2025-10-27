@@ -6,9 +6,9 @@ import { useAuthStore } from '@/stores/authStore';
 import api from '@/services/api';
 import { format } from 'date-fns';
 import PageLayout from '@/components/PageLayout.vue';
-import MintaBarangSearchModal from '@/components/MintaBarangSearchModal.vue';
-import GudangSearchModal from '@/components/GudangSearchModal.vue';
-import AuthorizationModal from '@/components/AuthorizationModal.vue';
+import MintaBarangSearchModal from '@/components/lookup/MintaBarangSearchModal.vue';
+import GudangSearchModal from '@/components/lookup/GudangSearchModal.vue';
+import AuthorizationModal from '@/components/modal/AuthorizationModal.vue';
 import { AxiosError } from "axios";
 
 // --- Tipe Data ---

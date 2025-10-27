@@ -6,9 +6,9 @@ import PageLayout from '@/components/PageLayout.vue';
 import { useToast } from 'vue-toastification';
 import { useAuthStore } from '@/stores/authStore';
 import { format } from 'date-fns';
-import SoSearchModal from '@/components/SoSearchModal.vue';
-import CustomerSearchModal from '@/components/CustomerSearchModal.vue';
-import MintaBarangSearchModal from '@/components/MintaBarangSearchModal.vue';
+import SoSearchModal from '@/components/lookup/SoSearchModal.vue';
+import CustomerSearchModal from '@/components/lookup/CustomerSearchModal.vue';
+import MintaBarangSearchModal from '@/components/lookup/MintaBarangSearchModal.vue';
 import { AxiosError } from 'axios';
 
 interface Customer {

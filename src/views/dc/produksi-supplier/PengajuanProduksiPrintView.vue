@@ -5,8 +5,37 @@ import api from '@/services/api';
 import { format, parseISO } from 'date-fns';
 import Logo from '@/assets/logo.png';
 
+interface PrintHeader {
+  pp_nomor: string;
+  perush_nama: string;
+  perush_alamat: string;
+  perush_kota: string;
+  perush_telp: string;
+  sup_kode: string;
+  sup_nama: string;
+  sup_telp: string;
+  alamat: string;
+  pp_ket: string;
+  pp_tanggal: string;
+  created: string;
+  grandTotal: number;
+  user_create: string;
+}
+
+interface PrintDetail {
+  nama: string;
+  bahan: string;
+  ukuran_qty_harga: string;
+  total_harga: number;
+}
+
+interface PrintData {
+  header: PrintHeader;
+  details: PrintDetail[];
+}
+
 const route = useRoute();
-const printData = ref<any>(null);
+const printData = ref<PrintData | null>(null);
 const isLoading = ref(true);
 const appLogo = Logo;
 
@@ -16,7 +45,7 @@ const fetchPrintData = async (nomor: string) => {
     const response = await api.get(`/pengajuan-produksi-form/print/${nomor}`);
     printData.value = response.data;
     document.title = response.data.header.pp_nomor;
-  } catch (error) {
+  } catch {
     alert("Gagal memuat data untuk dicetak.");
   } finally {
     isLoading.value = false;
@@ -245,6 +274,7 @@ onMounted(() => {
   .print-container {
     background: white;
     -webkit-print-color-adjust: exact;
+    print-color-adjust: exact
   }
 
   .page {

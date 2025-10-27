@@ -2,6 +2,7 @@
 import { ref, watch, onMounted, computed } from 'vue';
 import api from '@/services/api';
 import { useToast } from 'vue-toastification';
+import type { AxiosError } from 'axios';
 
 const toast = useToast();
 
@@ -13,6 +14,7 @@ interface Product {
   nama: string;
   ukuran: string;
   kategori: string;
+  stok?: number;
 }
 interface LoadItemsOptions {
   page?: number;
@@ -47,7 +49,7 @@ const headers = computed(() => {
       { title: 'Kode', key: 'kode', width: '150px' },
       { title: 'Nama Barang', key: 'nama', minWidth: '300px' },
       { title: 'Ukuran', key: 'ukuran', width: '100px' },
-      { title: 'Stok', key: 'stok', align: 'end', width: '100px' },
+      { title: 'Stok', key: 'stok', width: '100px' },
     ];
   }
   // Default (ambil-barang, po-barang, dll)
@@ -65,7 +67,7 @@ const loadItems = async ({ page, itemsPerPage, sortBy }: LoadItemsOptions = {}) 
   loading.value = true;
   try {
     let apiUrl = '';
-    let params: any = {};
+    let params: Record<string, string | number | string[] | undefined> = {};
     let isClientSideFilter = false;
 
     // --- LOGIKA PEMILIHAN ENDPOINT ---
@@ -114,8 +116,10 @@ const loadItems = async ({ page, itemsPerPage, sortBy }: LoadItemsOptions = {}) 
       totalItems.value = 0;
     }
 
-  } catch (error: any) {
-    toast.error(error.response?.data?.message || 'Gagal memuat data produk.');
+  } catch (err) {
+    const error = err as AxiosError<{ message?: string }>;
+    const message = error.response?.data?.message || 'Gagal memuat data produk.';
+    toast.error(message);
   } finally {
     loading.value = false;
   }
@@ -191,7 +195,7 @@ onMounted(() => {
         <v-data-table v-if="props.source === 'qc-grid1-f1'" v-model="selected" :headers="headers" :items="items"
           :search="search" :loading="loading" :show-select="multi" return-object item-value="uniqueId" hover
           density="compact" fixed-header class="desktop-table flex-grow-1">
-          <template #item="{ item, isSelected, toggleSelect }">
+          <template #item="{ item }">
             <tr style="cursor: pointer;" @click="multi ? toggleSelection(item) : selectAndClose(item)">
               <td v-if="multi" @click.stop>
                 <v-checkbox-btn :model-value="selected.some(s => s.uniqueId === item.uniqueId)"

@@ -7,6 +7,7 @@ import api from '@/services/api';
 import { format, subDays, parseISO } from 'date-fns';
 import PageLayout from '@/components/PageLayout.vue';
 import * as XLSX from 'xlsx';
+import type { AxiosError } from 'axios';
 
 // --- Tipe Data & State ---
 interface Header {
@@ -15,17 +16,30 @@ interface Header {
   nomorPO: string;
   cabang: string;
 }
+interface DetailItem {
+  kode: string;
+  nama: string;
+  bahan: string;
+  ukuran: string;
+  qtyBagus: number;
+  qtyBS: number;
+  qtyTerima: number;
+  hargaBagus: number;
+  hargaBS: number;
+  total: number;
+}
+
 const router = useRouter();
 const toast = useToast();
 const authStore = useAuthStore();
 const MENU_ID = '221';
 
 const masterData = ref<Header[]>([]);
-const details = ref<Record<string, any[]>>({});
+const details = ref<Record<string, DetailItem[]>>({});
 const loading = ref(true);
 const loadingDetails = ref(new Set<string>());
 const selected = ref<Header[]>([]);
-const expanded = ref<Header[]>([]);
+const expanded = ref<string[]>([]);
 const dialogConfirm = reactive({ show: false, title: '', text: '', onConfirm: () => { } });
 
 const filters = reactive({
@@ -45,7 +59,7 @@ const headers = [
   { title: 'Nomor', key: 'nomor', width: '200px' },
   { title: 'Tanggal', key: 'tanggal' },
   { title: 'Nomor PO', key: 'nomorPO' },
-  { title: 'Nominal BPB', key: 'nominalBPB', align: 'end' },
+  { title: 'Nominal BPB', key: 'nominalBPB' },
   { title: 'Kd Sup', key: 'kdsup' },
   { title: 'Supplier', key: 'suplier', minWidth: '200px' },
 
@@ -60,9 +74,9 @@ const headers = [
 const detailHeaders = [
   { title: 'Kode', key: 'kode' }, { title: 'Nama Barang', key: 'nama', minWidth: '300px' },
   { title: 'Bahan', key: 'bahan' }, { title: 'Ukuran', key: 'ukuran' },
-  { title: 'Qty Bagus', key: 'qtyBagus', align: 'end' }, { title: 'Qty BS', key: 'qtyBS', align: 'end' },
-  { title: 'Qty Terima', key: 'qtyTerima', align: 'end' }, { title: 'Harga Bagus', key: 'hargaBagus', align: 'end' },
-  { title: 'Harga BS', key: 'hargaBS', align: 'end' }, { title: 'Total', key: 'total', align: 'end' },
+  { title: 'Qty Bagus', key: 'qtyBagus' }, { title: 'Qty BS', key: 'qtyBS' },
+  { title: 'Qty Terima', key: 'qtyTerima' }, { title: 'Harga Bagus', key: 'hargaBagus' },
+  { title: 'Harga BS', key: 'hargaBS' }, { title: 'Total', key: 'total' },
 ];
 
 // --- Methods ---
@@ -73,7 +87,8 @@ const fetchData = async () => {
   try {
     const response = await api.get('/bpb-kaosan', { params: filters });
     masterData.value = response.data;
-  } catch (error: any) {
+  } catch (err: unknown) {
+    const error = err as AxiosError<{ message: string }>;
     toast.error(error.response?.data?.message || 'Gagal mengambil data.');
   } finally {
     loading.value = false;
@@ -90,7 +105,7 @@ const loadDetails = async (newlyExpandedItems: Header[]) => {
     const response = await api.get(`/bpb-kaosan/details/${nomorToLoad}`);
     details.value[nomorToLoad] = response.data;
   } catch (error) {
-    toast.error(`Gagal memuat detail untuk ${nomorToLoad}.`);
+    toast.error(`Gagal memuat detail untuk ${nomorToLoad}.`, error);
   } finally {
     loadingDetails.value.delete(nomorToLoad);
   }
@@ -125,7 +140,10 @@ const handleDelete = async () => {
     });
     toast.success(response.data.message);
     fetchData();
-  } catch (error: any) { toast.error(error.response?.data?.message || 'Gagal menghapus.'); }
+  } catch (err: unknown) {
+    const error = err as AxiosError<{ message: string }>;
+    toast.error(error.response?.data?.message || 'Gagal menghapus.');
+  }
 };
 
 const exportData = async (type: 'header' | 'detail') => {
@@ -144,7 +162,8 @@ const exportData = async (type: 'header' | 'detail') => {
       const workbook = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(workbook, worksheet, "Detail BPB Kaosan");
       XLSX.writeFile(workbook, "Export_BPB_Kaosan_Detail.xlsx");
-    } catch (error: any) {
+    } catch (err: unknown) {
+      const error = err as AxiosError<{ message: string }>;
       toast.error(error.response?.data?.message || 'Gagal mengekspor data detail.');
     } finally {
       loading.value = false;
@@ -157,12 +176,6 @@ const showConfirmation = (title: string, text: string, onConfirm: () => void) =>
   dialogConfirm.text = text;
   dialogConfirm.onConfirm = onConfirm;
   dialogConfirm.show = true;
-};
-
-const getRowTextColor = (item: Header) => {
-  // Tidak ada logika pewarnaan khusus di Delphi untuk halaman ini,
-  // jadi kita kembalikan string kosong.
-  return '';
 };
 
 onMounted(() => {
@@ -216,7 +229,7 @@ watch(filters, fetchData, { deep: true });
           show-expand return-object single-select @update:expanded="loadDetails">
 
           <template v-for="header in headers" :key="header.key" #[`item.${header.key}`]="{ item }">
-            <td :class="getRowTextColor(item)">
+            <td>
               <template v-if="header.key === 'tanggal'">
                 {{ format(parseISO(item.tanggal), 'dd-MM-yyyy') }}
               </template>
@@ -238,7 +251,7 @@ watch(filters, fetchData, { deep: true });
                     <v-data-table v-else :headers="detailHeaders" :items="details[item.nomor]" density="compact"
                       class="detail-table" :items-per-page="-1">
                       <template v-for="col in ['qtyBagus', 'qtyBS', 'qtyTerima', 'hargaBagus', 'hargaBS', 'total']"
-                        #[`item.${col}`]="{ item }">
+                        :key="col" #[`item.${col}`]="{ item }">
               <td class="text-end">{{ (item[col] || 0).toLocaleString('id-ID') }}</td>
           </template>
           <template #bottom></template>
@@ -255,7 +268,7 @@ watch(filters, fetchData, { deep: true });
 <v-dialog v-model="dialogConfirm.show" max-width="400px" persistent>
   <v-card>
     <v-card-title class="text-h6 font-weight-bold">{{ dialogConfirm.title }}</v-card-title>
-    <v-card-text v-html="dialogConfirm.text"></v-card-text>
+    <v-card-text>{{ dialogConfirm.text }}</v-card-text>
     <v-card-actions>
       <v-spacer />
       <v-btn text @click="dialogConfirm.show = false">Batal</v-btn>

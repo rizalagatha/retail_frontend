@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch, onMounted } from 'vue';
+import { ref, watch } from 'vue';
 import api from '@/services/api';
 import { useToast } from 'vue-toastification';
 

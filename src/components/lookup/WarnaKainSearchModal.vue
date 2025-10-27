@@ -45,7 +45,7 @@ const selectWarnaKain = (item: WarnaKain) => {
     }
 };
 
-let searchTimeout: any;
+let searchTimeout: ReturnType<typeof setTimeout>;
 watch(search, () => {
     clearTimeout(searchTimeout);
     searchTimeout = setTimeout(() => {

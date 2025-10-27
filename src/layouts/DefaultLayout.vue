@@ -1,13 +1,20 @@
 <script setup lang="ts">
 import { useAuthStore } from '@/stores/authStore';
 import Navbar from '@/components/Navbar.vue'; // Pastikan path Navbar benar
+import ChangePasswordDialog from '@/components/dialog/ChangePasswordDialog.vue';
+import WhatsAppLinkDialog from '@/components/dialog/WhatsappLinkDialog.vue';
+import BufferStockDialog from '@/components/dialog/BufferStockDialog.vue';
+import SettingsProcessDialog from '@/components/dialog/SettingsProcessDialog.vue';
+import { useSettingsProcessDialog } from '@/composables/useSettingsProcessDialog';
+import ManualProgramDialog from '@/components/dialog/ManualProgramDialog.vue';
 
 const authStore = useAuthStore();
+const { isSettingsProcessDialogOpen, closeSettingsProcessDialog } = useSettingsProcessDialog();
 </script>
 
 <template>
   <div>
-    <Navbar />
+    <Navbar v-if="authStore.isAuthenticated" />
     <v-main>
       <router-view />
     </v-main>
@@ -34,5 +41,15 @@ const authStore = useAuthStore();
         <span class="text-medium-emphasis">© 2025 IT Kencana Print</span>
       </div>
     </v-footer>
+
+    <ChangePasswordDialog />
+
+    <WhatsAppLinkDialog />
+
+    <BufferStockDialog />
+
+    <SettingsProcessDialog v-if="isSettingsProcessDialogOpen" @close="closeSettingsProcessDialog" />
+
+    <ManualProgramDialog />
   </div>
 </template>

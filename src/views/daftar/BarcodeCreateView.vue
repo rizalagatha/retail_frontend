@@ -2,7 +2,7 @@
 import { ref, onMounted, nextTick, computed, watch } from 'vue';
 import api from '@/services/api';
 import PageLayout from '@/components/PageLayout.vue';
-import ProductSearchModal from '@/components/ProductSearchModal.vue';
+import ProductSearchModal from '@/components/lookup/ProductSearchModal.vue';
 import { useToast } from 'vue-toastification';
 import { useAuthStore } from '@/stores/authStore';
 import { useRouter } from 'vue-router';
@@ -78,7 +78,7 @@ const printStyles = `
         size: 68mm 15mm;
         margin: 0;
     }
-    
+
     body, html {
         margin: 0;
         padding: 0;
@@ -91,7 +91,7 @@ const printStyles = `
         width: 100%;
         height: 100%;
         display: flex !important;
-        justify-content: space-between !important; 
+        justify-content: space-between !important;
         align-items: center;
         page-break-after: always;
     }
@@ -111,7 +111,7 @@ const printStyles = `
 
     .item-name, .item-size {
         font-family: Arial, sans-serif;
-        font-size: 5px; 
+        font-size: 5px;
         line-height: 1.1;
         margin: 0;
         white-space: nowrap;
@@ -334,7 +334,7 @@ const executePrint = () => {
                                     const value = svg.dataset.value;
                                     if (value) { JsBarcode(svg, value, options); }
                                 });
-                                
+
                                 // Langsung cetak setelah barcode untuk halaman INI digambar
                                 window.print();
                             });

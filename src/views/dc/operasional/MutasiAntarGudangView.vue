@@ -7,7 +7,8 @@ import api from '@/services/api';
 import { format, subDays, parseISO } from 'date-fns';
 import PageLayout from '@/components/PageLayout.vue';
 import * as XLSX from 'xlsx';
-import MintaBarangSearchModal from '@/components/MintaBarangSearchModal.vue';
+import MintaBarangSearchModal from '@/components/lookup/MintaBarangSearchModal.vue';
+import type { AxiosError } from 'axios';
 
 // --- Tipe Data & State ---
 interface MutasiHeader {
@@ -17,6 +18,13 @@ interface MutasiHeader {
   closing: 'Y' | 'N';
   ngedit: 'WAIT' | 'ACC' | 'TOLAK' | '';
   keterangan: string;
+  total?: number;
+}
+interface MutasiDetail {
+  kode: string;
+  nama: string;
+  ukuran: string;
+  jumlah: number;
 }
 const router = useRouter();
 const toast = useToast();
@@ -24,11 +32,11 @@ const authStore = useAuthStore();
 const MENU_ID = '216';
 
 const masterData = ref<MutasiHeader[]>([]);
-const details = ref<Record<string, any[]>>({});
+const details = ref<Record<string, MutasiDetail[]>>({});
 const loading = ref(true);
 const loadingDetails = ref(new Set<string>());
 const selected = ref<MutasiHeader[]>([]);
-const expanded = ref<MutasiHeader[]>([]);
+const expanded = ref<string[]>([]);
 
 const dialogConfirm = reactive({ show: false, title: '', text: '', onConfirm: () => { } });
 const dialogAlasan = reactive({
@@ -62,12 +70,12 @@ const headers = [
   { title: 'Nomor', key: 'nomor', width: '200px' }, { title: 'Tanggal', key: 'tanggal' },
   { title: 'Dari Gudang', key: 'dariGudang' }, { title: 'Ke Gudang', key: 'keGudang' },
   { title: 'Nama Store', key: 'namaStore' }, { title: 'Keterangan', key: 'keterangan' },
-  { title: 'No. STBJ', key: 'noSTBJ' }, { title: 'Total', key: 'total', align: 'end' },
-  { title: 'Status', key: 'ngedit', align: 'center' }, { title: 'User', key: 'usr' },
+  { title: 'No. STBJ', key: 'noSTBJ' }, { title: 'Total', key: 'total' },
+  { title: 'Status', key: 'ngedit' }, { title: 'User', key: 'usr' },
 ];
 const detailHeaders = [
   { title: 'Kode', key: 'kode' }, { title: 'Nama Barang', key: 'nama', minWidth: '300px' },
-  { title: 'Ukuran', key: 'ukuran' }, { title: 'Jumlah', key: 'jumlah', align: 'end' },
+  { title: 'Ukuran', key: 'ukuran' }, { title: 'Jumlah', key: 'jumlah' },
 ];
 
 // --- Methods ---
@@ -78,8 +86,9 @@ const fetchData = async () => {
   try {
     const response = await api.get('/mutasi-antar-gudang', { params: filters });
     masterData.value = response.data;
-  } catch (error: any) {
-    toast.error(error.response?.data?.message || 'Gagal mengambil data.');
+  } catch (error) {
+    const axiosError = error as AxiosError<{ message: string }>;
+    toast.error(axiosError.response?.data?.message || 'Gagal mengambil data.');
   } finally {
     loading.value = false;
   }
@@ -100,7 +109,7 @@ const loadDetails = async (newlyExpandedItems: MutasiHeader[]) => {
     const response = await api.get(`/mutasi-antar-gudang/details/${nomorToLoad}`);
     details.value[nomorToLoad] = response.data;
   } catch (error) {
-    toast.error(`Gagal memuat detail untuk ${nomorToLoad}.`);
+    toast.error(`Gagal memuat detail untuk ${nomorToLoad}.`, error);
   } finally {
     loadingDetails.value.delete(nomorToLoad);
   }
@@ -136,7 +145,10 @@ const handleDelete = async () => {
     const response = await api.delete(`/mutasi-antar-gudang/${selectedRow.value!.nomor}`);
     toast.success(response.data.message);
     fetchData();
-  } catch (error: any) { toast.error(error.response?.data?.message || 'Gagal menghapus.'); }
+  } catch (error) {
+    const axiosError = error as AxiosError<{ message: string }>;
+    toast.error(axiosError.response?.data?.message || 'Gagal menghapus.');
+  }
 };
 
 const openAlasanDialog = () => {
@@ -156,9 +168,10 @@ const handleAjukan = async () => {
     });
     toast.success(response.data.message);
     dialogAlasan.show = false;
-    fetchData(); // Muat ulang data untuk melihat status "WAIT"
-  } catch (error: any) {
-    toast.error(error.response?.data?.message || 'Gagal mengajukan.');
+    fetchData();
+  } catch (error) {
+    const axiosError = error as AxiosError<{ message: string }>;
+    toast.error(axiosError.response?.data?.message || 'Gagal mengajukan.');
   } finally {
     dialogAlasan.isLoading = false;
   }
@@ -203,8 +216,9 @@ const exportData = async (type: 'header' | 'detail') => {
       const workbook = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(workbook, worksheet, "Detail Mutasi");
       XLSX.writeFile(workbook, "Export_MutasiAG_Detail.xlsx");
-    } catch (error: any) {
-      toast.error(error.response?.data?.message || 'Gagal mengekspor data detail.');
+    } catch (error) {
+      const axiosError = error as AxiosError<{ message: string }>;
+      toast.error(axiosError.response?.data?.message || 'Gagal mengekspor data detail.');
     } finally {
       loading.value = false;
     }
@@ -285,12 +299,16 @@ watch(() => [filters.startDate, filters.endDate], fetchData, { deep: true });
         <v-data-table v-model="selected" v-model:expanded="expanded" :headers="headers" :items="masterData"
           :loading="loading" item-value="nomor" density="compact" class="desktop-table" fixed-header show-select
           show-expand return-object single-select @update:expanded="loadDetails" :item-class="getRowTextColor">
-
-          <template #item.tanggal="{ item }">{{ format(parseISO(item.tanggal), 'dd-MM-yyyy') }}</template>
-          <template #item.total="{ item }">{{ (item.total || 0).toLocaleString('id-ID') }}</template>
-          <template #item.ngedit="{ item }">
-            <v-chip v-if="item.ngedit" :color="getStatusChipColor(item.ngedit)" size="x-small">{{ item.ngedit
-            }}</v-chip>
+          <template v-slot:[`item.tanggal`]="{ item }">
+            {{ format(parseISO(item.tanggal), 'dd-MM-yyyy') }}
+          </template>
+          <template v-slot:[`item.total`]="{ item }">
+            {{ (item.total || 0).toLocaleString('id-ID') }}
+          </template>
+          <template v-slot:[`item.ngedit`]="{ item }">
+            <v-chip v-if="item.ngedit" :color="getStatusChipColor(item.ngedit)" size="x-small">
+              {{ item.ngedit }}
+            </v-chip>
           </template>
 
           <template #expanded-row="{ columns, item }">
@@ -335,7 +353,7 @@ watch(() => [filters.startDate, filters.endDate], fetchData, { deep: true });
     <v-dialog v-model="dialogConfirm.show" max-width="400px" persistent>
       <v-card>
         <v-card-title class="text-h6 font-weight-bold">{{ dialogConfirm.title }}</v-card-title>
-        <v-card-text v-html="dialogConfirm.text"></v-card-text>
+        <v-card-text>{{ dialogConfirm.text }}</v-card-text>
         <v-card-actions>
           <v-spacer />
           <v-btn text @click="dialogConfirm.show = false">Batal</v-btn>

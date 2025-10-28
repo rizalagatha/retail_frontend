@@ -49,6 +49,7 @@ interface Item {
     mino?: number;
     jumlah?: number;
     barcode?: string;
+    harga?: number;
 }
 
 interface SoItem {

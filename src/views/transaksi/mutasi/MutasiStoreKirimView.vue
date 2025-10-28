@@ -8,6 +8,7 @@ import { format, subDays, parseISO } from 'date-fns';
 import PageLayout from '@/components/PageLayout.vue';
 import MasterProductSearchModal from '@/components/lookup/MasterProductSearchModal.vue';
 import * as XLSX from 'xlsx';
+import type { AxiosError } from 'axios';
 
 interface MasterDataItem {
   nomor: string;
@@ -126,14 +127,15 @@ const fetchMasterData = async () => {
   try {
     const response = await api.get('/mutasi-kirim', { params: filters });
     masterData.value = response.data;
-  } catch (error: any) {
+  } catch (err: unknown) {
+    const error = err as AxiosError<{ message: string }>;
     toast.error(error.response?.data?.message || 'Gagal mengambil data.');
   } finally {
     loading.value = false;
   }
 };
 
-const loadDetails = async (newlyExpandedItems: any[]) => {
+const loadDetails = async (newlyExpandedItems: MasterDataItem[]) => {
   const itemToLoad = newlyExpandedItems.find(item => !details.value[item.nomor] && !loadingDetails.value.has(item.nomor));
   if (!itemToLoad) return;
 
@@ -142,7 +144,7 @@ const loadDetails = async (newlyExpandedItems: any[]) => {
     const response = await api.get(`/mutasi-kirim/details/${itemToLoad.nomor}`);
     details.value[itemToLoad.nomor] = response.data;
   } catch (error) {
-    toast.error(`Gagal memuat detail untuk ${itemToLoad.nomor}`);
+    toast.error(`Gagal memuat detail untuk ${itemToLoad.nomor}`, error);
   } finally {
     loadingDetails.value.delete(itemToLoad.nomor);
   }
@@ -159,14 +161,15 @@ const handleDelete = () => {
         const response = await api.delete(`/mutasi-kirim/${selectedRow.value.nomor}`);
         toast.success(response.data.message);
         fetchMasterData();
-      } catch (error: any) {
+      } catch (err: unknown) {
+        const error = err as AxiosError<{ message: string }>;
         toast.error(error.response?.data?.message || 'Gagal menghapus data.');
       }
     }
   );
 };
 
-const getRowTextColor = (item: any) => {
+const getRowTextColor = (item: MasterDataItem) => {
   if (!item.nomorTerima) return 'text-red font-weight-bold';
   return '';
 };
@@ -207,7 +210,7 @@ const exportData = async (type: 'header' | 'detail') => {
       XLSX.utils.book_append_sheet(workbook, worksheet, "Mutasi Detail");
       XLSX.writeFile(workbook, "Export_Mutasi_Detail.xlsx");
     } catch (error) {
-      toast.error('Gagal mengekspor data detail.');
+      toast.error('Gagal mengekspor data detail.', error);
     }
   }
 };
@@ -304,7 +307,7 @@ watch(
           :loading="loading" item-value="nomor" density="compact" class="desktop-table" fixed-header show-select
           return-object show-expand single-select @update:expanded="loadDetails">
 
-          <template v-for="header in headers" #[`item.${header.key}`]="{ item }">
+          <template v-for="header in headers" :key="header.key" #[`item.${header.key}`]="{ item }">
             <td :class="getRowTextColor(item)">
               <template v-if="['tanggal', 'tglTerima'].includes(header.key)">
                 {{ item[header.key] ? format(parseISO(item[header.key]), 'dd/MM/yyyy') : '' }}
@@ -328,7 +331,7 @@ watch(
                     </div>
                     <v-data-table v-else :headers="detailHeaders" :items="details[item.nomor]" density="compact"
                       class="detail-table" :items-per-page="-1">
-                      <template #item.jumlah="{ item }">
+                      <template #[`item.jumlah`]="{ item }">
                         <div class="text-end">{{ item.jumlah }}</div>
                       </template>
 

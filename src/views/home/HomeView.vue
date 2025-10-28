@@ -29,6 +29,12 @@ interface SalesChartItem {
   tanggal: string; // format ISO dari backend
   total: number;
 }
+interface BarDataset {
+  label: string;
+  backgroundColor: string;
+  data: number[];
+  borderRadius?: number; // optional
+}
 
 const authStore = useAuthStore()
 const router = useRouter()
@@ -187,7 +193,7 @@ const targetChartData = computed(() => ({ // <-- NAMA BARU
   ]
 }));
 
-const targetChartOptions = ref({ // <-- NAMA BARU
+const targetChartOptions = ref({
   responsive: true,
   maintainAspectRatio: false,
   scales: {
@@ -304,9 +310,9 @@ const fetchSalesChartData = async () => {
         label: 'Penjualan (Rp)',
         backgroundColor: '#42A5F5',
         data: data,
-        borderRadius: 4,
-      }]
-    }
+        borderRadius: 4
+      } as BarDataset] // cast ke interface sendiri
+    };
   } catch (error) {
     toast.error('Gagal memuat data grafik penjualan.', error);
   } finally {

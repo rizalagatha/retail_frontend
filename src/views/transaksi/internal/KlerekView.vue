@@ -3,9 +3,20 @@ import { ref, reactive, onMounted, computed, watch } from 'vue';
 import { useToast } from 'vue-toastification';
 import { useAuthStore } from '@/stores/authStore';
 import api from '@/services/api';
-import { format, subDays, parseISO } from 'date-fns';
+import { format, parseISO } from 'date-fns';
 import PageLayout from '@/components/PageLayout.vue';
 import { useRouter } from 'vue-router';
+import type { AxiosError } from 'axios';
+
+interface KlerekItem {
+  tanggal: string;
+  ket: string;
+  nominal: number;
+  kdcus: string;
+  nmcus: string;
+  setor: string;
+  klerek: string | null;
+}
 
 // --- Inisialisasi & State ---
 const toast = useToast();
@@ -13,7 +24,7 @@ const authStore = useAuthStore();
 const router = useRouter();
 const MENU_ID = '34';
 
-const items = ref<any[]>([]);
+const items = ref<KlerekItem[]>([]);
 const loading = ref(true);
 const isProcessing = ref(false);
 const cabangOptions = ref([]);
@@ -48,7 +59,8 @@ const fetchData = async () => {
   try {
     const response = await api.get('/klerek', { params: filters });
     items.value = response.data;
-  } catch (error: any) {
+  } catch (err: unknown) {
+    const error = err as AxiosError<{ message: string }>;
     toast.error(error.response?.data?.message || 'Gagal mengambil data.');
   } finally {
     loading.value = false;
@@ -63,8 +75,9 @@ const fetchCabangOptions = async () => {
     if (authStore.user?.cabang === 'KDC' && cabangOptions.value.length > 0) {
       filters.cabang = cabangOptions.value[0].kode;
     }
-  } catch (error: any) {
-    toast.error('Gagal memuat filter cabang.');
+  } catch (err: unknown) {
+    const error = err as AxiosError<{ message: string }>;
+    toast.error(error.response?.data?.message || 'Gagal memuat filter cabang.');
   }
 };
 
@@ -97,7 +110,8 @@ const executeProses = async () => {
     const response = await api.post('/klerek/proses', payload);
     toast.success(response.data.message);
     fetchData(); // Muat ulang data
-  } catch (error: any) {
+  } catch (err: unknown) {
+    const error = err as AxiosError<{ message: string }>;
     toast.error(error.response?.data?.message || 'Gagal memproses klerek.');
   } finally {
     isProcessing.value = false;
@@ -143,16 +157,16 @@ watch(filters, fetchData, { deep: true });
       <div class="table-container">
         <v-data-table :headers="headers" :items="items" :loading="loading" density="compact" class="desktop-table"
           fixed-header :items-per-page="-1">
-          <template #item.no="{ index }">{{ index + 1 }}</template>
-          <template #item.tanggal="{ item }">{{ format(parseISO(item.tanggal), 'dd-MM-yyyy') }}</template>
-          <template #item.nominal="{ item }">
-            <td class="text-end">{{ (item.nominal || 0).toLocaleString('id-ID') }}</td>
+          <template #[`item.no`]="{ index }">{{ index + 1 }}</template>
+          <template #[`item.tanggal`]="{ item }">{{ format(parseISO(item.tanggal), 'dd-MM-yyyy') }}</template>
+          <template #[`item.nominal`]="{ item }">
+            <div class="text-end">{{ (item.nominal || 0).toLocaleString('id-ID') }}</div>
           </template>
-          <template #item.klerek="{ item }">
+          <template #[`item.klerek`]="{ item }">
             <v-chip v-if="item.klerek" color="success" size="x-small" variant="tonal">{{ item.klerek }}</v-chip>
             <v-chip v-else color="error" size="x-small" variant="tonal">Belum</v-chip>
           </template>
-          <template #body.append>
+          <template #[`body.append`]>
             <tr class="bg-grey-lighten-3 font-weight-bold total-row-sticky">
               <td colspan="3" class="text-end">GRAND TOTAL :</td>
               <td class="text-start">{{ totalSummary.nominal.toLocaleString('id-ID') }}</td>
@@ -166,7 +180,7 @@ watch(filters, fetchData, { deep: true });
     <v-dialog v-model="dialogConfirm.show" max-width="400px" persistent>
       <v-card>
         <v-card-title class="text-h6 font-weight-bold">{{ dialogConfirm.title }}</v-card-title>
-        <v-card-text v-html="dialogConfirm.text"></v-card-text>
+        <v-card-text {{ dialogConfirm.text }}></v-card-text>
         <v-card-actions>
           <v-spacer />
           <v-btn text @click="dialogConfirm.show = false">Batal</v-btn>

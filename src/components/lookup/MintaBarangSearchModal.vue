@@ -42,11 +42,11 @@ const selected = ref<Product[]>([]);
 
 // --- 1. Buat Headers Dinamis ---
 const headers = computed(() => {
-  if (props.source === 'qc-grid1-f1' || props.source === 'qc-grid2-f2') {
+  if (props.source === 'qc-grid1-f1' || props.source === 'qc-grid2-f2' || props.source === 'mutasi-kirim') {
     // Tampilan F1 dari TfrmQC.cxGrdMasterEditKeyDown
     return [
-      { title: 'Barcode', key: 'barcode', width: '150px' },
       { title: 'Kode', key: 'kode', width: '150px' },
+      { title: 'Barcode', key: 'barcode', width: '150px' },
       { title: 'Nama Barang', key: 'nama', minWidth: '300px' },
       { title: 'Ukuran', key: 'ukuran', width: '100px' },
       { title: 'Stok', key: 'stok', width: '100px' },
@@ -71,8 +71,11 @@ const loadItems = async ({ page, itemsPerPage, sortBy }: LoadItemsOptions = {}) 
     let isClientSideFilter = false;
 
     // --- LOGIKA PEMILIHAN ENDPOINT ---
-    if (props.source === 'qc-grid1-f1') {
-      apiUrl = '/qc-ke-garmen-form/barang-lookup/all';
+    if (props.source === 'qc-grid1-f1' || props.source === 'mutasi-kirim') {
+      // Untuk QC Grid 1 dan Mutasi Kirim, ambil semua data dari endpoint masing-masing
+      apiUrl = props.source === 'qc-grid1-f1'
+        ? '/qc-ke-garmen-form/barang-lookup/all'
+        : '/mutasi-kirim-form/lookup/products'; // <-- Endpoint baru
       isClientSideFilter = true;
     } else if (props.source === 'qc-grid2-f2') {
       apiUrl = '/qc-ke-garmen-form/barang-lookup/varian';
@@ -156,7 +159,7 @@ watch(search, () => {
   searchTimeout = setTimeout(() => {
     options.value.page = 1;
     // Hanya panggil loadItems jika BUKAN qc-grid1-f1 (karena itu client-side filter)
-    if (props.source !== 'qc-grid1-f1') {
+    if (props.source !== 'qc-grid1-f1' && props.source !== 'mutasi-kirim' && props.source !== 'qc-grid2-f2') {
       loadItems(options.value);
     }
   }, 500);
@@ -192,9 +195,10 @@ onMounted(() => {
         <v-text-field v-model="search" label="Cari berdasarkan kode, nama, atau barcode..." class="mb-4 flex-shrink-0"
           variant="outlined" density="comfortable" clearable hide-details></v-text-field>
 
-        <v-data-table v-if="props.source === 'qc-grid1-f1'" v-model="selected" :headers="headers" :items="items"
-          :search="search" :loading="loading" :show-select="multi" return-object item-value="uniqueId" hover
-          density="compact" fixed-header class="desktop-table flex-grow-1">
+        <v-data-table
+          v-if="props.source === 'qc-grid1-f1' || props.source === 'mutasi-kirim' || props.source === 'qc-grid2-f2'"
+          v-model="selected" :headers="headers" :items="items" :search="search" :loading="loading" :show-select="multi"
+          return-object item-value="uniqueId" hover density="compact" fixed-header class="desktop-table flex-grow-1">
           <template #item="{ item }">
             <tr style="cursor: pointer;" @click="multi ? toggleSelection(item) : selectAndClose(item)">
               <td v-if="multi" @click.stop>

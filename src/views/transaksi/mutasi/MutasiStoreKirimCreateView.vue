@@ -26,6 +26,7 @@ interface Item {
   stok: number;
   jumlah: number;
   barcode: string;
+  harga?: number;
 }
 interface Product {
   kode: string;
@@ -127,8 +128,8 @@ const onProductsSelected = async (selectedProducts: Product[]) => {
     const newItems = responses.map(res => ({
       ...res.data,
       id: Date.now() + Math.random(),
-      jumlah: 1
-    }));
+      jumlah: 1,
+    })) as Item[];
 
     items.value.splice(activeRowIndex.value, 1, ...newItems);
     addNewRow();
@@ -267,7 +268,8 @@ const handleBarcodeScan = async () => {
     } else {
       toast.error("Tidak ada baris kosong untuk menambahkan item baru.");
     }
-  } catch (error: any) {
+  } catch (err: unknown) {
+    const error = err as AxiosError<{ message: string }>;
     toast.error(error.response?.data?.message || `Barcode ${barcode} tidak valid.`);
   } finally {
     scannedBarcode.value = ''; // Selalu kosongkan input scanner
@@ -287,7 +289,10 @@ onMounted(async () => {
     const response = await api.get(`/mutasi-kirim-form/${nomor}`);
     Object.assign(header, response.data.header);
     header.tanggal = format(parseISO(header.tanggal), 'yyyy-MM-dd');
-    items.value = response.data.items.map((item: any) => ({ ...item, id: Date.now() + Math.random() }));
+    items.value = response.data.items.map((item: Item) => ({
+      ...item,
+      id: Date.now() + Math.random()
+    }));
   }
   addNewRow();
   isLoading.value = false;
@@ -341,16 +346,16 @@ onMounted(async () => {
         </div>
         <v-data-table :headers="tableHeaders" :items="items" :loading="isLoading" density="compact"
           class="desktop-table fill-height-table" fixed-header>
-          <template #item.kode="{ item, index }">
+          <template v-slot:[`item.kode`]="{ item, index }">
             <v-text-field v-model="item.kode" variant="underlined" density="compact" hide-details placeholder="F1/F2..."
               @keydown.f1.prevent="openProductSearch(index, false)"
               @keydown.f2.prevent="openProductSearch(index, true)" />
           </template>
-          <template #item.jumlah="{ item }">
+          <template v-slot:[`item.jumlah`]="{ item }">
             <v-text-field v-model.number="item.jumlah" type="number" min="0" variant="underlined" density="compact"
               hide-details class="text-end" @blur="validateJumlah(item)" />
           </template>
-          <template #item.actions="{ item }">
+          <template v-slot:[`item.actions`]="{ item }">
             <v-btn v-if="item.kode" icon="mdi-delete" size="x-small" variant="text" color="error"
               @click="removeRow(item.id)" />
           </template>
@@ -365,7 +370,7 @@ onMounted(async () => {
 
     <StoreSearchModal v-if="dialog.storeSearch" :exclude-branch="authStore.user?.cabang"
       @close="dialog.storeSearch = false" @store-selected="onStoreSelected" />
-    <MintaBarangSearchModal v-if="dialog.productSearch" :gudang="authStore.user?.cabang || ''"
+    <MintaBarangSearchModal v-if="dialog.productSearch" source="mutasi-kirim" :gudang="authStore.user?.cabang || ''"
       :multi="isMultiSelectProduct" @close="dialog.productSearch = false" @products-selected="onProductsSelected" />
 
     <v-dialog v-model="dialogConfirm.show" max-width="400px" persistent>

@@ -1,15 +1,31 @@
 <script setup lang="ts">
 import { useAuthStore } from '@/stores/authStore';
-import Navbar from '@/components/Navbar.vue'; // Pastikan path Navbar benar
-import ChangePasswordDialog from '@/components/dialog/ChangePasswordDialog.vue';
-import WhatsAppLinkDialog from '@/components/dialog/WhatsappLinkDialog.vue';
-import BufferStockDialog from '@/components/dialog/BufferStockDialog.vue';
-import SettingsProcessDialog from '@/components/dialog/SettingsProcessDialog.vue';
+import Navbar from '@/components/Navbar.vue';
+import { defineAsyncComponent } from 'vue';
+
+// Import composables atau store untuk state dialog
+import { usePasswordDialog } from '@/composables/usePasswordDialog';
+import { useWhatsAppDialog } from '@/composables/useWhatsappDialog';
+import { useBufferStockDialog } from '@/composables/useBufferStockDialog'; // Contoh
 import { useSettingsProcessDialog } from '@/composables/useSettingsProcessDialog';
-import ManualProgramDialog from '@/components/dialog/ManualProgramDialog.vue';
+import { useManualProgramDialog } from '@/composables/useManualProgramDialog'; // Contoh
+
+// Import komponen dialog (lazy load jika memungkinkan untuk performa lebih baik)
+const ChangePasswordDialog = defineAsyncComponent(() => import('@/components/dialog/ChangePasswordDialog.vue'));
+const WhatsAppLinkDialog = defineAsyncComponent(() => import('@/components/dialog/WhatsappLinkDialog.vue'));
+const BufferStockDialog = defineAsyncComponent(() => import('@/components/dialog/BufferStockDialog.vue'));
+const SettingsProcessDialog = defineAsyncComponent(() => import('@/components/dialog/SettingsProcessDialog.vue'));
+const ManualProgramDialog = defineAsyncComponent(() => import('@/components/dialog/ManualProgramDialog.vue'));
 
 const authStore = useAuthStore();
+
+// Dapatkan state visibilitas dari composables/store
+const { showPasswordDialog, closePasswordDialog } = usePasswordDialog(); // Contoh
+const { showWhatsAppDialog, closeWhatsAppDialog } = useWhatsAppDialog();
+const { showBufferStockDialog, closeBufferStockDialog } = useBufferStockDialog();
 const { isSettingsProcessDialogOpen, closeSettingsProcessDialog } = useSettingsProcessDialog();
+const { showManualDialog, closeManualDialog } = useManualProgramDialog(); // Contoh
+
 </script>
 
 <template>
@@ -42,14 +58,13 @@ const { isSettingsProcessDialogOpen, closeSettingsProcessDialog } = useSettingsP
       </div>
     </v-footer>
 
-    <ChangePasswordDialog />
+    <ChangePasswordDialog v-if="showPasswordDialog" @close="closePasswordDialog" />
 
-    <WhatsAppLinkDialog />
+    <WhatsAppLinkDialog v-if="showWhatsAppDialog" @close="closeWhatsAppDialog" />
 
-    <BufferStockDialog />
-
+    <BufferStockDialog v-if="showBufferStockDialog" @close="closeBufferStockDialog" />
     <SettingsProcessDialog v-if="isSettingsProcessDialogOpen" @close="closeSettingsProcessDialog" />
 
-    <ManualProgramDialog />
+    <ManualProgramDialog v-if="showManualDialog" @close="closeManualDialog" />
   </div>
 </template>

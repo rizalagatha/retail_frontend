@@ -6,15 +6,26 @@ import api from '@/services/api';
 import { format, subDays, parseISO } from 'date-fns';
 import PageLayout from '@/components/PageLayout.vue';
 import * as XLSX from 'xlsx';
+import type { AxiosError } from 'axios';
 
 // --- Inisialisasi & State ---
+interface LaporanSaldoKasirItem {
+  Jenis: string;
+  Tanggal: string;
+  Nominal: number | string;
+  'Tanggal Verifikasi': string;
+  'Nominal Verifikasi': number | string;
+  Saldo: number | string;
+  Keterangan: string;
+}
+
 const toast = useToast();
 const authStore = useAuthStore();
 const MENU_ID = '601';
 
-const items = ref<any[]>([]);
+const items = ref<LaporanSaldoKasirItem[]>([]);
 const isLoading = ref(true);
-const gudangOptions = ref<any[]>([]);
+const gudangOptions = ref<{ kode: string; nama: string }[]>([]);
 
 const filters = reactive({
   startDate: format(subDays(new Date(), 30), 'yyyy-MM-dd'),
@@ -72,9 +83,12 @@ const fetchData = async () => {
     const response = await api.get('/laporan-saldo-kasir', { params: filters });
     items.value = Array.isArray(response.data) ? response.data : [];
     console.log('Data loaded:', items.value.length, 'items');
-  } catch (error: any) {
-    console.error('Fetch error:', error);
-    toast.error(error.response?.data?.message || 'Gagal memuat data.');
+  } catch (error) {
+    const err = error as AxiosError<{ message?: string }>;
+    console.error('Fetch error:', err);
+    const message =
+      err.response?.data?.message || 'Gagal memuat data.';
+    toast.error(message);
     items.value = [];
   } finally {
     isLoading.value = false;
@@ -107,7 +121,7 @@ onMounted(() => {
 });
 
 // Hapus watch yang lama, ganti dengan debounce
-let timeoutId: any = null;
+let timeoutId: ReturnType<typeof setTimeout> | null = null;
 watch(filters, () => {
   if (timeoutId) clearTimeout(timeoutId);
   timeoutId = setTimeout(() => {
@@ -161,10 +175,10 @@ watch(filters, () => {
                 <tr v-for="(item, index) in items" :key="index">
                   <td>{{ item.Jenis }}</td>
                   <td class="text-center">{{ formatDate(item.Tanggal) }}</td>
-                  <td class="text-end">{{ formatCurrency(item.Nominal) }}</td>
-                  <td class="text-center">{{ formatDate(item['Tanggal Verifikasi']) }}</td>
-                  <td class="text-end">{{ formatCurrency(item['Nominal Verifikasi']) }}</td>
-                  <td class="text-end">{{ formatCurrency(item.Saldo) }}</td>
+                  <td class="text-end">{{ formatCurrency(Number(item.Nominal || 0)) }}</td>
+                  <td class="text-center">{{ formatDate(String(item['Tanggal Verifikasi'] || '')) }}</td>
+                  <td class="text-end">{{ formatCurrency(Number(item['Nominal Verifikasi'] || 0)) }}</td>
+                  <td class="text-end">{{ formatCurrency(Number(item.Saldo || 0)) }}</td>
                   <td>{{ item.Keterangan }}</td>
                 </tr>
               </template>

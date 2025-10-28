@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, nextTick, watch, computed } from 'vue';
+import { ref, onMounted, nextTick, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import api from '@/services/api';
 import { format } from 'date-fns';
@@ -232,6 +232,7 @@ onMounted(fetchPrintData);
     .print-container {
         background: white;
         -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
     }
 
     .page {

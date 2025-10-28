@@ -78,6 +78,7 @@ const canInsert = computed(() => authStore.can(MENU_ID, 'insert'));
 const canEdit = computed(() => authStore.can(MENU_ID, 'edit'));
 // Izin simpan bergantung pada mode (insert/edit)
 const canSave = computed(() => isEditMode.value ? canEdit.value : canInsert.value);
+const canApprove = computed(() => authStore.user?.canApprovePrice || false);
 
 const header = reactive<Header>({ nomor: '', tanggal: format(new Date(), 'yyyy-MM-dd'), approved: null });
 const items = ref<Item[]>([]);
@@ -121,9 +122,9 @@ const stickersHeaders = computed(() => [
   { title: 'Kode Stiker', key: 'kodes', width: '150px' },
   { title: 'Nama Stiker', key: 'nama' },
   { title: 'Ukuran', key: 'ukuran', width: '60px' },
-  { title: 'Stok', key: 'stok', align: 'end', width: '60px', 'v-if': !hasApprovalRights.value },
+  { title: 'Stok', key: 'stok', width: '60px', 'v-if': !hasApprovalRights.value },
   { title: 'Jumlah', key: 'jumlah', width: '60px' },
-  { title: 'Harga', key: 'harga', align: 'end', width: '80px' },
+  { title: 'Harga', key: 'harga', width: '80px' },
   { title: 'Actions', key: 'actions', sortable: false, width: '50px' },
 ].filter(h => h['v-if'] !== false));
 
@@ -443,32 +444,44 @@ onMounted(async () => {
           <div class="text-subtitle-1 font-weight-bold mb-2">Detail Item Pengajuan</div>
           <v-data-table v-model="selectedKaosItem" :headers="itemsHeaders" :items="items" class="desktop-table"
             fixed-header :items-per-page="-1" show-select single-select return-object>
-            <template #item.kode="{ item, index }">
+            <template v-slot:[`item.kode`]="{ item, index }">
               <v-text-field v-model="item.kode" variant="underlined" placeholder="F1/F2..."
                 @keydown.f1.prevent="openProductSearch(index, false)"
                 @keydown.f2.prevent="openProductSearch(index, true)"
                 :readonly="hasApprovalRights || isApproved || !canSave" />
             </template>
-            <template #item.jumlah="{ item }"><v-text-field v-model.number="item.jumlah" type="number"
-                variant="underlined" class="text-end"
-                :readonly="hasApprovalRights || isApproved || !canSave" /></template>
-            <template #item.harga="{ item }"><v-text-field v-model.number="item.harga" type="number"
-                variant="underlined" class="text-end"
-                :readonly="hasApprovalRights || isApproved || !canSave" /></template>
-            <template #item.hargaDtf="{ item }"><v-text-field :model-value="formatRupiah(item.hargaDtf)"
-                variant="underlined" class="text-end" readonly filled /></template>
-            <template #item.jenis="{ item }">
+            <template v-slot:[`item.jumlah`]="{ item }">
+              <v-text-field v-model.number="item.jumlah" type="number" variant="underlined" class="text-end"
+                :readonly="hasApprovalRights || isApproved || !canSave" />
+            </template>
+            <template v-slot:[`item.harga`]="{ item }">
+              <v-text-field v-model.number="item.harga" type="number" variant="underlined" class="text-end"
+                :readonly="hasApprovalRights || isApproved || !canSave" />
+            </template>
+            <template v-slot:[`item.hargaDtf`]="{ item }">
+              <v-text-field :model-value="formatRupiah(item.hargaDtf)" variant="underlined" class="text-end" readonly
+                filled />
+            </template>
+            <template v-slot:[`item.jenis`]="{ item }">
               <v-select v-model="item.jenis" :items="jenisRejectOptions" variant="underlined" density="compact"
                 hide-details :readonly="hasApprovalRights || isApproved || !canSave" />
             </template>
-            <template #item.ket="{ item }"><v-text-field v-model="item.ket" variant="underlined"
-                :readonly="hasApprovalRights || isApproved || !canSave" /></template>
-            <template #item.diskon="{ item }"><v-text-field v-model.number="item.diskon" type="number"
-                variant="underlined" class="text-end" :readonly="!canApprove || isApproved" /></template>
-            <template #item.hargabaru="{ item }"><v-text-field v-model.number="item.hargabaru" type="number"
-                variant="underlined" class="text-end" :readonly="!canApprove || isApproved" /></template>
-            <template #item.actions="{ item }"><v-btn v-if="item.kode" icon="mdi-delete" size="x-small" variant="text"
-                color="error" @click="removeRow(item.id)" /></template>
+            <template v-slot:[`item.ket`]="{ item }">
+              <v-text-field v-model="item.ket" variant="underlined"
+                :readonly="hasApprovalRights || isApproved || !canSave" />
+            </template>
+            <template v-slot:[`item.diskon`]="{ item }">
+              <v-text-field v-model.number="item.diskon" type="number" variant="underlined" class="text-end"
+                :readonly="!canApprove || isApproved" />
+            </template>
+            <template v-slot:[`item.hargabaru`]="{ item }">
+              <v-text-field v-model.number="item.hargabaru" type="number" variant="underlined" class="text-end"
+                :readonly="!canApprove || isApproved" />
+            </template>
+            <template v-slot:[`item.actions`]="{ item }">
+              <v-btn v-if="item.kode" icon="mdi-delete" size="x-small" variant="text" color="error"
+                @click="removeRow(item.id)" />
+            </template>
             <template #bottom>
               <div class="pa-2 text-right">
                 <v-btn size="small" @click="addNewStickerRow" prepend-icon="mdi-plus"
@@ -484,20 +497,23 @@ onMounted(async () => {
           <div class="text-subtitle-1 font-weight-bold mb-2">Detail Stiker Tambahan</div>
           <v-data-table :headers="stickersHeaders" :items="stickers" class="desktop-table flex-grow-1" fixed-header
             :items-per-page="-1">
-            <template #item.kodes="{ item, index }">
+            <template v-slot:[`item.kodes`]="{ item, index }">
               <v-text-field v-model="item.kodes" variant="underlined" density="compact" hide-details placeholder="F1..."
                 @keydown.f1.prevent="openStickerSearch(index)" :readonly="hasApprovalRights" />
             </template>
-            <template #item.jumlah="{ item }"><v-text-field v-model.number="item.jumlah" type="number"
-                variant="underlined" density="compact" hide-details class="text-end"
-                :readonly="hasApprovalRights" /></template>
-            <template #item.harga="{ item }">
+            <template v-slot:[`item.jumlah`]="{ item }">
+              <v-text-field v-model.number="item.jumlah" type="number" variant="underlined" density="compact"
+                hide-details class="text-end" :readonly="hasApprovalRights" />
+            </template>
+            <template v-slot:[`item.harga`]="{ item }">
               <div class="text-end">{{ formatRupiah(item.harga) }}</div>
             </template>
-            <template #item.actions="{ item }"><v-btn v-if="item.kodes" icon="mdi-delete" size="x-small" variant="text"
-                color="error" @click="removeStickerRow(item.id)" /></template>
+            <template v-slot:[`item.actions`]="{ item }">
+              <v-btn v-if="item.kodes" icon="mdi-delete" size="x-small" variant="text" color="error"
+                @click="removeStickerRow(item.id)" />
+            </template>
             <template #bottom>
-              <div class="pa-2 text-right"><v-btn size="small" @click="addNewStickerRow('')" prepend-icon="mdi-plus"
+              <div class="pa-2 text-right"><v-btn size="small" @click="addNewStickerRow()" prepend-icon="mdi-plus"
                   :disabled="selectedKaosItem.length === 0 || isApproved || !canSave">Tambah Stiker</v-btn></div>
             </template>
           </v-data-table>

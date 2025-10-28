@@ -5,8 +5,39 @@ import api from '@/services/api';
 import { format, parseISO } from 'date-fns';
 import Logo from '@/assets/logo.png';
 
+interface PrintDetail {
+  rfd_notrs: string;
+  rfd_cus_kode: string;
+  cus_nama: string;
+  rfd_nominal: number;
+  rfd_refund: number;
+  rfd_ket: string;
+  rfd_bank: string;
+  rfd_norek: string;
+  rfd_atasnama: string;
+}
+
+interface PrintHeader {
+  rf_nomor: string;
+  rf_tanggal: string;
+  gdg_inv_nama: string;
+  gdg_inv_alamat: string;
+  gdg_inv_kota: string;
+  gdg_inv_telp: string;
+  totalRefund: number;
+  terbilang: string;
+  usr_signature: string;
+  user_create: string;
+}
+
+interface PrintData {
+  header: PrintHeader;
+  details: PrintDetail[];
+}
+
+
 const route = useRoute();
-const printData = ref<any>(null);
+const printData = ref<PrintData | null>(null);
 const isLoading = ref(true);
 const appLogo = Logo;
 

@@ -6,13 +6,53 @@ import { format, startOfMonth, endOfMonth } from 'date-fns';
 import api from '@/services/api';
 import PageLayout from '@/components/PageLayout.vue';
 import * as XLSX from 'xlsx';
+import type { AxiosError } from 'axios';
 
 // --- Inisialisasi & State ---
+interface SalesVsTargetItem {
+  tahun: number;
+  bulan: number;
+  kode_cabang: string;
+  nama_cabang: string;
+  qty_bulan_ini: number;
+  nominal_bulan_ini: number;
+  target_bulan_ini: number;
+  persen_target_bulan_ini?: number;
+  qty_bulan_lalu: number;
+  nominal_bulan_lalu: number;
+  persen_bulan_lalu?: number;
+  realisasi_kumulatif: number;
+  target_kumulatif: number;
+  persen_target_kumulatif?: number;
+  realisasi_bulan_ini_thn_lalu: number;
+  persen_thn_lalu?: number;
+  realisasi_akhir_tahun: number;
+  target_akhir_tahun: number;
+  persen_target_akhir_tahun?: number;
+}
+interface TotalSummary {
+  qty_bulan_ini: number;
+  nominal_bulan_ini: number;
+  target_bulan_ini: number;
+  persen_target_bulan_ini: number;
+  qty_bulan_lalu: number;
+  nominal_bulan_lalu: number;
+  persen_bulan_lalu: number;
+  realisasi_kumulatif: number;
+  target_kumulatif: number;
+  persen_target_kumulatif: number;
+  realisasi_bulan_ini_thn_lalu: number;
+  persen_thn_lalu: number;
+  realisasi_akhir_tahun: number;
+  target_akhir_tahun: number;
+  persen_target_akhir_tahun: number;
+}
+
 const toast = useToast();
 const authStore = useAuthStore();
 const MENU_ID = '509';
 
-const items = ref<any[]>([]);
+const items = ref<SalesVsTargetItem[]>([]);
 const isLoading = ref(true);
 const cabangOptions = ref([]);
 
@@ -30,39 +70,57 @@ const monthOptions = [
   { value: 10, title: 'Oktober' }, { value: 11, title: 'November' }, { value: 12, title: 'Desember' },
 ];
 
-const headers = [
-  { title: 'No', key: 'no', sortable: false, width: '50px', rowspan: 2 },
-  { title: 'Tahun', key: 'tahun', rowspan: 2 },
-  { title: 'Bulan', key: 'bulan', rowspan: 2 },
-  { title: 'Kode Cabang', key: 'kode_cabang', rowspan: 2 },
-  { title: 'Nama Cabang', key: 'nama_cabang', minWidth: '200px', rowspan: 2 },
-  { title: 'Bulan Ini', colspan: 4, align: 'center' },
-  { title: 'Bulan Lalu', colspan: 3, align: 'center' },
-  { title: 'Kum. s.d Bulan Ini', colspan: 3, align: 'center' },
-  { title: 'Bulan Ini Tahun Lalu', colspan: 2, align: 'center' },
-  { title: 's.d Akhir Tahun', colspan: 3, align: 'center' },
-];
-// Sub-headers untuk kolom yang digabung
-const subHeaders = [
-  { title: 'Qty', key: 'qty_bulan_ini', align: 'end' },
-  { title: 'Nominal', key: 'nominal_bulan_ini', align: 'end' },
-  { title: 'Target', key: 'target_bulan_ini', align: 'end' },
-  { title: '%', key: 'persen_target_bulan_ini', align: 'end', sortable: false },
-  { title: 'Qty', key: 'qty_bulan_lalu', align: 'end' },
-  { title: 'Nominal', key: 'nominal_bulan_lalu', align: 'end' },
-  { title: '%', key: 'persen_bulan_lalu', align: 'end', sortable: false },
-  { title: 'Realisasi', key: 'realisasi_kumulatif', align: 'end' },
-  { title: 'Target', key: 'target_kumulatif', align: 'end' },
-  { title: '%', key: 'persen_target_kumulatif', align: 'end', sortable: false },
-  { title: 'Realisasi', key: 'realisasi_bulan_ini_thn_lalu', align: 'end' },
-  { title: '%', key: 'persen_thn_lalu', align: 'end', sortable: false },
-  { title: 'Realisasi', key: 'realisasi_akhir_tahun', align: 'end' }, // Placeholder
-  { title: 'Target', key: 'target_akhir_tahun', align: 'end' },
-  { title: '%', key: 'persen_target_akhir_tahun', align: 'end', sortable: false },
-];
+// const headers = [
+//   { title: 'No', key: 'no', sortable: false, width: '50px', rowspan: 2 },
+//   { title: 'Tahun', key: 'tahun', rowspan: 2 },
+//   { title: 'Bulan', key: 'bulan', rowspan: 2 },
+//   { title: 'Kode Cabang', key: 'kode_cabang', rowspan: 2 },
+//   { title: 'Nama Cabang', key: 'nama_cabang', minWidth: '200px', rowspan: 2 },
+//   { title: 'Bulan Ini', colspan: 4, align: 'center' },
+//   { title: 'Bulan Lalu', colspan: 3, align: 'center' },
+//   { title: 'Kum. s.d Bulan Ini', colspan: 3, align: 'center' },
+//   { title: 'Bulan Ini Tahun Lalu', colspan: 2, align: 'center' },
+//   { title: 's.d Akhir Tahun', colspan: 3, align: 'center' },
+// ];
+// // Sub-headers untuk kolom yang digabung
+// const subHeaders = [
+//   { title: 'Qty', key: 'qty_bulan_ini', align: 'end' },
+//   { title: 'Nominal', key: 'nominal_bulan_ini', align: 'end' },
+//   { title: 'Target', key: 'target_bulan_ini', align: 'end' },
+//   { title: '%', key: 'persen_target_bulan_ini', align: 'end', sortable: false },
+//   { title: 'Qty', key: 'qty_bulan_lalu', align: 'end' },
+//   { title: 'Nominal', key: 'nominal_bulan_lalu', align: 'end' },
+//   { title: '%', key: 'persen_bulan_lalu', align: 'end', sortable: false },
+//   { title: 'Realisasi', key: 'realisasi_kumulatif', align: 'end' },
+//   { title: 'Target', key: 'target_kumulatif', align: 'end' },
+//   { title: '%', key: 'persen_target_kumulatif', align: 'end', sortable: false },
+//   { title: 'Realisasi', key: 'realisasi_bulan_ini_thn_lalu', align: 'end' },
+//   { title: '%', key: 'persen_thn_lalu', align: 'end', sortable: false },
+//   { title: 'Realisasi', key: 'realisasi_akhir_tahun', align: 'end' }, // Placeholder
+//   { title: 'Target', key: 'target_akhir_tahun', align: 'end' },
+//   { title: '%', key: 'persen_target_akhir_tahun', align: 'end', sortable: false },
+// ];
 
-const totalSummary = computed(() => {
-  if (!items.value || items.value.length === 0) return {};
+const totalSummary = computed<TotalSummary>(() => {
+  if (!items.value || items.value.length === 0) {
+    return {
+      qty_bulan_ini: 0,
+      nominal_bulan_ini: 0,
+      target_bulan_ini: 0,
+      persen_target_bulan_ini: 0,
+      qty_bulan_lalu: 0,
+      nominal_bulan_lalu: 0,
+      persen_bulan_lalu: 0,
+      realisasi_kumulatif: 0,
+      target_kumulatif: 0,
+      persen_target_kumulatif: 0,
+      realisasi_bulan_ini_thn_lalu: 0,
+      persen_thn_lalu: 0,
+      realisasi_akhir_tahun: 0,
+      target_akhir_tahun: 0,
+      persen_target_akhir_tahun: 0,
+    };
+  }
 
   const totals = {
     qty_bulan_ini: items.value.reduce((sum, item) => sum + (Number(item.qty_bulan_ini) || 0), 0),
@@ -73,28 +131,23 @@ const totalSummary = computed(() => {
     realisasi_kumulatif: items.value.reduce((sum, item) => sum + (Number(item.realisasi_kumulatif) || 0), 0),
     target_kumulatif: items.value.reduce((sum, item) => sum + (Number(item.target_kumulatif) || 0), 0),
     realisasi_bulan_ini_thn_lalu: items.value.reduce((sum, item) => sum + (Number(item.realisasi_bulan_ini_thn_lalu) || 0), 0),
-    realisasi_akhir_tahun: 0, // Placeholder
+    realisasi_akhir_tahun: 0,
     target_akhir_tahun: items.value.reduce((sum, item) => sum + (Number(item.target_akhir_tahun) || 0), 0),
   };
 
-  // Hitung semua persentase berdasarkan total
-  const persen_target_bulan_ini = totals.target_bulan_ini > 0 ? ((totals.nominal_bulan_ini / totals.target_bulan_ini) * 100) : 0;
-  const persen_bulan_lalu = totals.nominal_bulan_lalu > 0 ? (((totals.nominal_bulan_ini - totals.nominal_bulan_lalu) / totals.nominal_bulan_lalu) * 100) : 0;
-  const persen_target_kumulatif = totals.target_kumulatif > 0 ? ((totals.realisasi_kumulatif / totals.target_kumulatif) * 100) : 0;
-  const persen_thn_lalu = totals.realisasi_bulan_ini_thn_lalu > 0 ? (((totals.nominal_bulan_ini - totals.realisasi_bulan_ini_thn_lalu) / totals.realisasi_bulan_ini_thn_lalu) * 100) : 0;
-  const persen_target_akhir_tahun = totals.target_akhir_tahun > 0
-    ? ((totals.realisasi_kumulatif / totals.target_akhir_tahun) * 100) // Gunakan realisasi kumulatif
-    : 0;
-
   return {
     ...totals,
-    persen_target_bulan_ini,
-    persen_bulan_lalu,
-    persen_target_kumulatif,
-    persen_thn_lalu,
-    persen_target_akhir_tahun,
+    persen_target_bulan_ini: totals.target_bulan_ini ? (totals.nominal_bulan_ini / totals.target_bulan_ini) * 100 : 0,
+    persen_bulan_lalu: totals.nominal_bulan_lalu ? ((totals.nominal_bulan_ini - totals.nominal_bulan_lalu) / totals.nominal_bulan_lalu) * 100 : 0,
+    persen_target_kumulatif: totals.target_kumulatif ? (totals.realisasi_kumulatif / totals.target_kumulatif) * 100 : 0,
+    persen_thn_lalu: totals.realisasi_bulan_ini_thn_lalu ? ((totals.nominal_bulan_ini - totals.realisasi_bulan_ini_thn_lalu) / totals.realisasi_bulan_ini_thn_lalu) * 100 : 0,
+    persen_target_akhir_tahun: totals.target_akhir_tahun ? (totals.realisasi_kumulatif / totals.target_akhir_tahun) * 100 : 0,
   };
 });
+
+const canView = computed(() => authStore.can(MENU_ID, 'view'));
+// Asumsi export memerlukan izin view
+const canExport = computed(() => authStore.can(MENU_ID, 'view'));
 
 // --- Methods ---
 const fetchData = async () => {
@@ -102,8 +155,9 @@ const fetchData = async () => {
   try {
     const response = await api.get('/sales-vs-target', { params: filters });
     items.value = response.data;
-  } catch (error: any) {
-    toast.error(error.response?.data?.message || 'Gagal memuat data.');
+  } catch (error) {
+    const axiosError = error as AxiosError<{ message: string }>;
+    toast.error(axiosError.response?.data?.message || 'Gagal memuat data.');
   } finally {
     isLoading.value = false;
   }
@@ -122,11 +176,15 @@ const fetchCabangOptions = async () => {
     });
     cabangOptions.value = response.data;
   } catch (error) {
-    toast.error('Gagal memuat filter cabang dinamis.');
+    toast.error('Gagal memuat filter cabang dinamis.', error);
   }
 };
 
 const exportToExcel = () => {
+  if (!canExport.value) {
+    toast.error('Anda tidak memiliki izin untuk mengekspor data.');
+    return;
+  }
   if (items.value.length === 0) return toast.warning('Tidak ada data untuk diekspor.');
   const worksheet = XLSX.utils.json_to_sheet(items.value);
   const workbook = XLSX.utils.book_new();
@@ -136,12 +194,28 @@ const exportToExcel = () => {
 };
 
 onMounted(() => {
-  // onMounted sekarang tidak perlu memanggil apa-apa,
-  // karena watcher dengan 'immediate: true' akan menanganinya.
+  // --- TAMBAHKAN PENGECEKAN AWAL ---
+  if (!canView.value) {
+    isLoading.value = false; // Hentikan loading
+    toast.error("Anda tidak memiliki izin untuk melihat halaman ini.");
+    items.value = []; // Pastikan data kosong
+  }
+  // Tidak perlu memanggil fetchData/fetchCabangOptions di sini
+  // karena watch immediate: true akan melakukannya (setelah cek izin)
+  // ------------------------------------
 });
 
 // Watcher ini akan memantau SEMUA perubahan di object 'filters'
 watch(filters, () => {
+  // --- TAMBAHKAN PENGECEKAN IZIN ---
+  if (!canView.value) {
+    isLoading.value = false; // Hentikan loading jika belum
+    items.value = []; // Kosongkan data
+    // Tidak perlu toast di sini karena onMounted akan menanganinya
+    return; // Hentikan jika tidak ada izin
+  }
+  // ---------------------------------
+
   fetchData();
   fetchCabangOptions(); // Panggil kedua fungsi saat filter berubah
 }, { deep: true, immediate: true });
@@ -150,7 +224,9 @@ watch(filters, () => {
 <template>
   <PageLayout title="Laporan Sales VS Target" :menu-id="MENU_ID">
     <template #header-actions>
-      <v-btn size="small" color="teal" @click="exportToExcel" prepend-icon="mdi-file-excel">Export</v-btn>
+      <v-btn v-if="canExport" size="small" color="teal" @click="exportToExcel" prepend-icon="mdi-file-excel">
+        Export
+      </v-btn>
     </template>
 
     <div class="browse-content">

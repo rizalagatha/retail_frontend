@@ -1,12 +1,12 @@
 <script setup lang="ts">
-import { ref, reactive, onMounted, computed, watch } from 'vue';
+import { ref, reactive, onMounted, computed } from 'vue';
 import { useToast } from 'vue-toastification';
 import { useRouter } from 'vue-router';
 import { useAuthStore } from '@/stores/authStore';
 import api from '@/services/api';
-import { format } from 'date-fns';
 import PageLayout from '@/components/PageLayout.vue';
 import * as XLSX from 'xlsx';
+import type { AxiosError } from 'axios';
 
 // --- 1. Gunakan Impor yang Sudah Berhasil ---
 import { HotTable } from '@handsontable/vue3';
@@ -22,12 +22,24 @@ registerCellType(DateCellType);
 registerCellType(NumericCellType); // <-- Ini penting untuk kolom Stok
 
 // --- Inisialisasi & State ---
+interface StokItem {
+  Cabang: string;
+  Kode: string;
+  Nama: string;
+  Ukuran: string;
+  Stok: number;
+}
+interface PivotTableSettings {
+  rows: string[];
+  cols: string[];
+  values: [string, string][];
+}
 const toast = useToast();
 const router = useRouter();
 const authStore = useAuthStore();
 const MENU_ID = '507';
 
-const rawData = ref<any[]>([]);
+const rawData = ref<StokItem[]>([]);
 const isLoading = ref(true);
 const isPivotMode = ref(false);
 const cabangOptions = ref([]);
@@ -38,8 +50,8 @@ const filters = reactive({
 });
 
 // --- Konfigurasi Handsontable ---
-const hotSettings = computed(() => {
-  const settings: any = {
+const hotSettings = computed<Handsontable.GridSettings>(() => {
+  const settings: Partial<Handsontable.GridSettings> & { pivotTable?: PivotTableSettings } = {
     data: rawData.value,
     height: 'auto',
     width: '100%',
@@ -64,11 +76,11 @@ const hotSettings = computed(() => {
       { data: 'Kode' },
       { data: 'Nama' },
       { data: 'Ukuran' },
-      // --- 3. Terapkan Tipe Numerik ---
       { data: 'Stok', type: NumericCellType, numericFormat: { pattern: '0,0' } },
-    ];
+    ] as Handsontable.ColumnSettings[];
   }
-  return settings;
+
+  return settings as Handsontable.GridSettings;
 });
 
 const fetchData = async () => {
@@ -76,8 +88,9 @@ const fetchData = async () => {
   try {
     const response = await api.get('/laporan-stok-pivot', { params: filters });
     rawData.value = response.data;
-  } catch (error: any) {
-    toast.error(error.response?.data?.message || 'Gagal memuat data.');
+  } catch (error) {
+    const err = error as AxiosError<{ message?: string }>;
+    toast.error(err.response?.data?.message || 'Gagal memuat data.');
   } finally {
     isLoading.value = false;
   }
@@ -88,7 +101,7 @@ const fetchCabangOptions = async () => {
     const response = await api.get('/laporan-stok-pivot/cabang-options');
     cabangOptions.value = response.data;
   } catch (error) {
-    toast.error('Gagal memuat filter cabang.');
+    toast.error('Gagal memuat filter cabang.', error);
   }
 };
 
@@ -103,7 +116,10 @@ const exportData = () => {
 const goToChart = () => {
   const routeData = router.resolve({
     name: 'LaporanStokChart',
-    query: { ...filters }
+    query: {
+      cabang: filters.cabang,
+      tampilkanKosong: String(filters.tampilkanKosong)
+    }
   });
   window.open(routeData.href, '_blank');
 };

@@ -39,7 +39,7 @@ const fetchPrintData = async (nomor: string) => {
         const response = await api.get(`/retur-dc-form/print/${nomor}`);
         printData.value = response.data;
         document.title = response.data.header.nomor;
-    } catch (error) {
+    } catch {
         alert("Gagal memuat data untuk dicetak.");
     } finally {
         isLoading.value = false;
@@ -144,7 +144,7 @@ onMounted(() => {
     display: flex;
     justify-content: flex-start;
     align-items: flex-start;
-    margin-bottom: 20px; 
+    margin-bottom: 20px;
 }
 
 .logo {

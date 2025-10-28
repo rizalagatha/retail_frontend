@@ -4,6 +4,7 @@ import { useToast } from 'vue-toastification';
 import { format } from 'date-fns';
 import PageLayout from '@/components/PageLayout.vue';
 import api from '@/services/api';
+import { AxiosError } from 'axios';
 
 interface OtorisasiItem {
   nomor: string;
@@ -46,7 +47,7 @@ const headers = [
   { title: 'Nomor Otorisasi', key: 'nomor', fixed: true, width: '150px' },
   { title: 'Transaksi', key: 'transaksi', width: '180px' },
   { title: 'Jenis', key: 'jenis', width: '120px' },
-  { title: 'Nominal', key: 'nominal', align: 'end', width: '120px' },
+  { title: 'Nominal', key: 'nominal', width: '120px' },
   { title: 'Otoritator', key: 'otoritator', width: '150px' },
   { title: 'Tanggal/Waktu', key: 'tanggal', width: '200px' },
   { title: 'Barcode', key: 'barcode', width: '150px' },
@@ -61,21 +62,21 @@ const fetchMasterData = async () => {
       params: { startDate: filters.startDate, endDate: filters.endDate },
     });
 
-    // Ambil data
-    const rows = response.data?.data ?? response.data ?? [];
-    masterData.value = rows.map((item: any, idx: number) => ({
-      nomor: item.Nomor ?? item.nomor ?? '',
-      transaksi: item.Transaksi ?? item.transaksi ?? '',
-      jenis: item.Jenis ?? item.jenis ?? '',
+    const rows = (response.data?.data ?? response.data ?? []) as Record<string, unknown>[];
+    masterData.value = rows.map((item, idx) => ({
+      nomor: String(item.Nomor ?? item.nomor ?? ''),
+      transaksi: String(item.Transaksi ?? item.transaksi ?? ''),
+      jenis: String(item.Jenis ?? item.jenis ?? ''),
       nominal: Number(item.Nominal ?? item.nominal ?? 0),
-      otoritator: item.Otoritator ?? item.otoritator ?? '',
-      tanggal: item.tanggal ?? item.Tanggal ?? '',
-      barcode: item.Barcode ?? item.barcode ?? '',
+      otoritator: String(item.Otoritator ?? item.otoritator ?? ''),
+      tanggal: String(item.Tanggal ?? item.tanggal ?? ''),
+      barcode: String(item.Barcode ?? item.barcode ?? ''),
       uniqueId: `${item.Nomor ?? item.nomor ?? ''}-${idx}`,
     }));
-  } catch (err: any) {
-    console.error('Fetch error:', err);
-    toast.error(err.response?.data?.message || 'Gagal memuat daftar otorisasi.');
+  } catch (err) {
+    const error = err as AxiosError<{ message?: string }>;
+    console.error('Fetch error:', error);
+    toast.error(error.response?.data?.message || 'Gagal memuat daftar otorisasi.');
   } finally {
     isLoading.value = false;
   }
@@ -120,79 +121,36 @@ watch(filters, fetchMasterData, { deep: true });
       <div class="filter-section d-flex align-center pa-2 bg-grey-lighten-3 rounded">
         <v-label class="filter-label font-weight-bold">Periode Transaksi:</v-label>
 
-        <v-text-field
-          v-model="filters.startDate"
-          type="date"
-          density="compact"
-          hide-details
-          variant="outlined"
-          style="max-width: 180px;"
-          class="ms-4"
-        />
+        <v-text-field v-model="filters.startDate" type="date" density="compact" hide-details variant="outlined"
+          style="max-width: 180px;" class="ms-4" />
 
         <v-label class="mx-2">s/d</v-label>
 
-        <v-text-field
-          v-model="filters.endDate"
-          type="date"
-          density="compact"
-          hide-details
-          variant="outlined"
-          style="max-width: 180px;"
-        />
+        <v-text-field v-model="filters.endDate" type="date" density="compact" hide-details variant="outlined"
+          style="max-width: 180px;" />
 
         <v-divider vertical class="mx-4"></v-divider>
 
         <!-- Filter text -->
         <div class="d-flex align-center ga-2">
-          <v-select
-            v-model="selectedFilterField"
-            :items="filterOptions"
-            label="Filter Berdasarkan"
-            density="compact"
-            hide-details
-            variant="outlined"
-            style="max-width: 280px;"
-          />
-          <v-text-field
-            v-model="filterSearchValue"
-            label="Cari..."
-            density="compact"
-            hide-details
-            variant="outlined"
-            style="min-width: 250px;"
-            clearable
-            prepend-inner-icon="mdi-magnify"
-          />
+          <v-select v-model="selectedFilterField" :items="filterOptions" label="Filter Berdasarkan" density="compact"
+            hide-details variant="outlined" style="max-width: 280px;" />
+          <v-text-field v-model="filterSearchValue" label="Cari..." density="compact" hide-details variant="outlined"
+            style="min-width: 250px;" clearable prepend-inner-icon="mdi-magnify" />
         </div>
 
         <v-spacer></v-spacer>
 
-        <v-btn
-          @click="fetchMasterData"
-          icon="mdi-refresh"
-          variant="tonal"
-          size="small"
-          :loading="isLoading"
-          title="Muat Ulang Data"
-          color="primary"
-        />
+        <v-btn @click="fetchMasterData" icon="mdi-refresh" variant="tonal" size="small" :loading="isLoading"
+          title="Muat Ulang Data" color="primary" />
       </div>
 
       <!-- Tabel utama -->
       <div class="table-container mt-4">
-        <v-data-table
-          :headers="headers"
-          :items="filteredData"
-          :loading="isLoading"
-          class="elevation-1"
-          density="compact"
-          fixed-header
-          :items-per-page="20"
-          item-value="uniqueId"
-        >
-          <template #item.nominal="{ value }">
-            {{ new Intl.NumberFormat('id-ID').format(value) }}
+        <v-data-table :headers="headers" :items="filteredData" :loading="isLoading" class="elevation-1"
+          density="compact" fixed-header :items-per-page="20" item-value="uniqueId">
+          <template v-slot:[`item.nominal`]="{ item }">
+            {{ new Intl.NumberFormat('id-ID').format(item.nominal) }}
           </template>
 
           <template #no-data>

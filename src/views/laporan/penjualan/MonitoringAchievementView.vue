@@ -6,6 +6,85 @@ import api from '@/services/api';
 import { format } from 'date-fns';
 import PageLayout from '@/components/PageLayout.vue';
 import * as XLSX from 'xlsx';
+import { AxiosError } from 'axios';
+
+interface DailyItem {
+  kode_cabang: string;
+  nama_cabang: string;
+  hari: string;
+  tanggal: string; // atau Date jika sudah parse
+  omset: number;
+  total_omset: number;
+  target: number;
+  total_target: number;
+  ach: number;
+}
+interface WeeklyItem {
+  kode_cabang: string;
+  nama_cabang: string;
+  nominal_w1: number;
+  target_w1: number;
+  nominal_w2: number;
+  target_w2: number;
+  nominal_w3: number;
+  target_w3: number;
+  nominal_w4: number;
+  target_w4: number;
+  nominal_w5: number;
+  target_w5: number;
+  total_nominal: number;
+  total_target: number;
+  // ACH bisa dihitung, jadi opsional
+}
+interface MonthlyItem {
+  tahun: number;
+  bulan: number;
+  kode_cabang: string;
+  nama_cabang: string;
+  nominal: number;
+  target: number;
+  ach: number;
+}
+interface YtdItem {
+  tahun: number;
+  bulan: number;
+  kode_cabang: string;
+  nama_cabang: string;
+  nominal: number;
+  target: number;
+  ach: number;
+}
+type WeeklyTotals = {
+  nominal_w1: number; target_w1: number;
+  nominal_w2: number; target_w2: number;
+  nominal_w3: number; target_w3: number;
+  nominal_w4: number; target_w4: number;
+  nominal_w5: number; target_w5: number;
+  total_nominal: number; total_target: number;
+  ach_w1: number; ach_w2: number; ach_w3: number; ach_w4: number; ach_w5: number;
+  total_ach: number;
+};
+interface DailySummary {
+  omset: number;
+  total_omset: number;
+  target: number;
+  total_target: number;
+  ach: number;
+  nominal: number;
+}
+interface MonthlySummary {
+  nominal: number;
+  target: number;
+  ach: number;
+}
+interface YtdSummary {
+  nominal: number;
+  target: number;
+  ach: number;
+}
+interface ExcelRow {
+  [key: string]: string | number | undefined;
+}
 
 const toast = useToast();
 const authStore = useAuthStore();
@@ -15,10 +94,10 @@ const activeTab = ref('daily');
 const isLoading = ref(false);
 const cabangOptions = ref([]);
 
-const dailyData = ref<any[]>([]);
-const weeklyData = ref<any[]>([]);
-const monthlyData = ref<any[]>([]);
-const ytdData = ref<any[]>([]);
+const dailyData = ref<DailyItem[]>([]);
+const weeklyData = ref<WeeklyItem[]>([]);
+const monthlyData = ref<MonthlyItem[]>([]);
+const ytdData = ref<YtdItem[]>([]);
 
 const currentYear = new Date().getFullYear();
 const filters = reactive({
@@ -42,16 +121,16 @@ const headersDaily = [
   { title: 'Total Target (Kumulatif)', key: 'total_target' }, // <-- TAMBAHKAN INI
   { title: 'Ach(%)', key: 'ach' }, // Ini sudah kumulatif (benar)
 ];
-const headersWeeklyGroup = [
-  { title: 'No', rowspan: 2, key: 'no' }, { title: 'Kode Cabang', rowspan: 2, key: 'kode_cabang' }, { title: 'Nama Cabang', rowspan: 2, key: 'nama_cabang' },
-  { title: 'Minggu 1', colspan: 3, align: 'center' }, { title: 'Minggu 2', colspan: 3, align: 'center' },
-  { title: 'Minggu 3', colspan: 3, align: 'center' }, { title: 'Minggu 4', colspan: 3, align: 'center' },
-  { title: 'Minggu 5', colspan: 3, align: 'center' }, { title: 'Total', colspan: 3, align: 'center' },
-];
-const headersWeeklySub = [
-  'Omset', 'Target', 'Ach(%)', 'Omset', 'Target', 'Ach(%)', 'Omset', 'Target', 'Ach(%)',
-  'Omset', 'Target', 'Ach(%)', 'Omset', 'Target', 'Ach(%)', 'Omset', 'Target', 'Ach(%)',
-];
+// const headersWeeklyGroup = [
+//   { title: 'No', rowspan: 2, key: 'no' }, { title: 'Kode Cabang', rowspan: 2, key: 'kode_cabang' }, { title: 'Nama Cabang', rowspan: 2, key: 'nama_cabang' },
+//   { title: 'Minggu 1', colspan: 3, align: 'center' }, { title: 'Minggu 2', colspan: 3, align: 'center' },
+//   { title: 'Minggu 3', colspan: 3, align: 'center' }, { title: 'Minggu 4', colspan: 3, align: 'center' },
+//   { title: 'Minggu 5', colspan: 3, align: 'center' }, { title: 'Total', colspan: 3, align: 'center' },
+// ];
+// const headersWeeklySub = [
+//   'Omset', 'Target', 'Ach(%)', 'Omset', 'Target', 'Ach(%)', 'Omset', 'Target', 'Ach(%)',
+//   'Omset', 'Target', 'Ach(%)', 'Omset', 'Target', 'Ach(%)', 'Omset', 'Target', 'Ach(%)',
+// ];
 const headersMonthly = [
   { title: 'Tahun', key: 'tahun' }, { title: 'Bulan', key: 'bulan' },
   { title: 'Kode Cabang', key: 'kode_cabang' }, { title: 'Nama Cabang', key: 'nama_cabang' },
@@ -74,71 +153,106 @@ const headersYtd = [
 //   }
 // });
 
-const totalSummary = computed(() => {
-  switch (activeTab.value) {
-    case 'daily': return dailyTotalSummary.value;
-    case 'weekly': return weeklyTotalSummary.value;
-    case 'monthly': return monthlyTotalSummary.value;
-    case 'ytd': return ytdTotalSummary.value;
-    default: return {};
-  }
-});
+const totalSummary = computed<DailySummary>(() =>
+  (activeTab.value === 'daily' ? dailyTotalSummary.value :
+    activeTab.value === 'weekly' ? weeklyTotalSummary.value :
+      activeTab.value === 'monthly' ? monthlyTotalSummary.value :
+        activeTab.value === 'ytd' ? ytdTotalSummary.value :
+          { omset: 0, total_omset: 0, target: 0, total_target: 0, ach: 0 }) as DailySummary
+);
 
-const dailyTotalSummary = computed(() => {
-  if (!dailyData.value || dailyData.value.length === 0) return {};
-  const lastItem = dailyData.value[dailyData.value.length - 1]; // Ambil baris terakhir
+const dailyTotalSummary = computed<DailySummary>(() => {
+  if (!dailyData.value || dailyData.value.length === 0) {
+    return { omset: 0, target: 0, total_omset: 0, total_target: 0, ach: 0 } as DailySummary;
+  }
+
+  const lastItem = dailyData.value[dailyData.value.length - 1];
   const totals = {
-    omset: dailyData.value.reduce((sum, item) => sum + (Number(item.omset) || 0), 0), // Total omset harian
-    target: dailyData.value.reduce((sum, item) => sum + (Number(item.target) || 0), 0), // Total target harian
-    // Ambil nilai kumulatif terakhir dari baris terakhir
-    total_omset: lastItem?.total_omset || 0,
-    total_target: lastItem?.total_target || 0, // <-- TAMBAHKAN INI
+    omset: dailyData.value.reduce((sum, item) => sum + (Number(item.omset) || 0), 0),
+    target: dailyData.value.reduce((sum, item) => sum + (Number(item.target) || 0), 0),
+    total_omset: Number(lastItem.total_omset) || 0,
+    total_target: Number(lastItem.total_target) || 0,
   };
+
   return {
     ...totals,
-    // Pastikan ACH juga dihitung dari nilai kumulatif
-    ach: totals.total_target > 0 ? (totals.total_omset / totals.total_target * 100) : 0, // <-- UBAH INI
-  };
+    ach: totals.total_target > 0 ? (totals.total_omset / totals.total_target * 100) : 0,
+  } as DailySummary;
 });
 
-const weeklyTotalSummary = computed(() => {
-  if (!weeklyData.value || weeklyData.value.length === 0) return {};
-  const totals = weeklyData.value.reduce((acc, item) => {
-    for (let i = 1; i <= 5; i++) {
-      acc[`nominal_w${i}`] += (Number(item[`nominal_w${i}`]) || 0);
-      acc[`target_w${i}`] += (Number(item[`target_w${i}`]) || 0);
-    }
-    acc.total_nominal += (Number(item.total_nominal) || 0);
-    acc.total_target += (Number(item.total_target) || 0);
-    return acc;
-  }, { nominal_w1: 0, target_w1: 0, nominal_w2: 0, target_w2: 0, nominal_w3: 0, target_w3: 0, nominal_w4: 0, target_w4: 0, nominal_w5: 0, target_w5: 0, total_nominal: 0, total_target: 0 });
+const weeklyTotalSummary = computed<WeeklyTotals>(() => {
+  if (!weeklyData.value || weeklyData.value.length === 0) {
+    // kosongkan semua properti
+    return {
+      nominal_w1: 0, target_w1: 0,
+      nominal_w2: 0, target_w2: 0,
+      nominal_w3: 0, target_w3: 0,
+      nominal_w4: 0, target_w4: 0,
+      nominal_w5: 0, target_w5: 0,
+      total_nominal: 0, total_target: 0,
+      ach_w1: 0, ach_w2: 0, ach_w3: 0, ach_w4: 0, ach_w5: 0,
+      total_ach: 0
+    };
+  }
 
-  for (let i = 1; i <= 5; i++) totals[`ach_w${i}`] = totals[`target_w${i}`] > 0 ? (totals[`nominal_w${i}`] / totals[`target_w${i}`] * 100) : 0;
+  const totals = weeklyData.value.reduce<WeeklyTotals>((acc, item) => {
+    for (let i = 1; i <= 5; i++) {
+      acc[`nominal_w${i}`] += Number(item[`nominal_w${i}`] || 0);
+      acc[`target_w${i}`] += Number(item[`target_w${i}`] || 0);
+    }
+    acc.total_nominal += Number(item.total_nominal || 0);
+    acc.total_target += Number(item.total_target || 0);
+    return acc;
+  }, {
+    nominal_w1: 0, target_w1: 0,
+    nominal_w2: 0, target_w2: 0,
+    nominal_w3: 0, target_w3: 0,
+    nominal_w4: 0, target_w4: 0,
+    nominal_w5: 0, target_w5: 0,
+    total_nominal: 0, total_target: 0,
+    ach_w1: 0, ach_w2: 0, ach_w3: 0, ach_w4: 0, ach_w5: 0,
+    total_ach: 0
+  });
+
+  // Hitung Ach(%) tiap minggu
+  for (let i = 1; i <= 5; i++) {
+    totals[`ach_w${i}`] = totals[`target_w${i}`] > 0 ? (totals[`nominal_w${i}`] / totals[`target_w${i}`] * 100) : 0;
+  }
   totals.total_ach = totals.total_target > 0 ? (totals.total_nominal / totals.total_target * 100) : 0;
+
   return totals;
 });
-const monthlyTotalSummary = computed(() => {
-  if (!monthlyData.value || monthlyData.value.length === 0) return {};
+const monthlyTotalSummary = computed<MonthlySummary>(() => {
+  if (!monthlyData.value || monthlyData.value.length === 0) {
+    // Return object lengkap, tidak boleh kosong
+    return { nominal: 0, target: 0, ach: 0 } as MonthlySummary;
+  }
+
   const totals = {
     nominal: monthlyData.value.reduce((sum, item) => sum + (Number(item.nominal) || 0), 0),
     target: monthlyData.value.reduce((sum, item) => sum + (Number(item.target) || 0), 0),
   };
+
   return {
     ...totals,
     ach: totals.target > 0 ? (totals.nominal / totals.target * 100) : 0,
-  };
+  } as MonthlySummary;
 });
 
-const ytdTotalSummary = computed(() => {
-  if (!ytdData.value || ytdData.value.length === 0) return {};
+const ytdTotalSummary = computed<YtdSummary>(() => {
+  if (!ytdData.value || ytdData.value.length === 0) {
+    return { nominal: 0, target: 0, ach: 0 } as YtdSummary;
+  }
+
   const totals = {
     nominal: ytdData.value.reduce((sum, item) => sum + (Number(item.nominal) || 0), 0),
     target: ytdData.value.reduce((sum, item) => sum + (Number(item.target) || 0), 0),
   };
+
   return {
     ...totals,
     ach: totals.target > 0 ? (totals.nominal / totals.target * 100) : 0,
-  };
+  } as YtdSummary;
 });
 
 const fetchData = async () => {
@@ -152,8 +266,15 @@ const fetchData = async () => {
     else if (activeTab.value === 'weekly') weeklyData.value = response.data;
     else if (activeTab.value === 'monthly') monthlyData.value = response.data;
     else if (activeTab.value === 'ytd') ytdData.value = response.data;
-  } catch (error: any) {
-    toast.error(error.response?.data?.message || 'Gagal memuat data.');
+  } catch (err: unknown) {
+    const error = err as AxiosError<{ message?: string }>; // <- cast ke AxiosError dengan kemungkinan ada property message
+    if (error.response) {
+      toast.error(error.response.data?.message || `Gagal memuat data. Status: ${error.response.status}`);
+    } else if (error.request) {
+      toast.error('Tidak ada respon dari server. Periksa koneksi.');
+    } else {
+      toast.error(`Terjadi kesalahan: ${error.message || 'Unknown error'}`);
+    }
   } finally {
     isLoading.value = false;
   }
@@ -164,7 +285,234 @@ const fetchCabangOptions = async () => {
     const response = await api.get('/monitoring-achievement/cabang-options');
     cabangOptions.value = response.data;
   } catch (error) {
-    toast.error('Gagal memuat filter cabang.');
+    toast.error('Gagal memuat filter cabang.', error);
+  }
+};
+
+const exportData = () => {
+  let dataToExport: ExcelRow[] = [];
+  let worksheet: XLSX.WorkSheet | null = null;
+  let fileName = `Laporan_Monitoring_Achievement_${filters.tahun}-${filters.bulan}.xlsx`;
+  let sheetName = 'Data';
+
+  const dailyTotals = dailyTotalSummary.value;
+  const weeklyTotals = weeklyTotalSummary.value;
+  const monthlyTotals = monthlyTotalSummary.value;
+  const ytdTotals = ytdTotalSummary.value;
+
+  // --- Ambil Data dan Format Sesuai Tab Aktif ---
+  switch (activeTab.value) {
+    case 'daily':
+      if (dailyData.value.length === 0) return toast.warning('Tidak ada data Harian untuk diekspor.');
+      sheetName = 'Daily';
+      fileName = `Laporan_Harian_${filters.cabang}_${filters.tahun}-${filters.bulan}.xlsx`;
+      dataToExport = dailyData.value.map((item, index) => ({
+        No: index + 1,
+        'Kode Cabang': item.kode_cabang,
+        'Nama Cabang': item.nama_cabang,
+        Hari: item.hari,
+        Tanggal: item.tanggal ? format(new Date(item.tanggal), 'dd-MM-yyyy') : '',
+        'Omset Harian': item.omset,
+        'Total Omset Kumulatif': item.total_omset,
+        'Target Harian': item.target,
+        'Total Target Kumulatif': item.total_target,
+        'Ach (%)': item.ach, // Ach sudah kumulatif
+      }));
+      // Tambahkan Grand Total
+      if (dailyTotals && Object.keys(dailyTotals).length > 0) {
+        dataToExport.push({}); // Baris kosong
+        dataToExport.push({
+          No: '', 'Kode Cabang': '', 'Nama Cabang': '', Hari: '', Tanggal: 'GRAND TOTAL:',
+          'Omset Harian': dailyTotals.omset, // <-- Akses properti dari dailyTotals
+          'Total Omset Kumulatif': dailyTotals.total_omset,
+          'Target Harian': dailyTotals.target,
+          'Total Target Kumulatif': dailyTotals.total_target,
+          'Ach (%)': dailyTotals.ach,
+        });
+      }
+      break;
+
+    case 'weekly':
+      if (weeklyData.value.length === 0) return toast.warning('Tidak ada data Mingguan untuk diekspor.');
+      sheetName = 'Weekly';
+      fileName = `Laporan_Mingguan_${filters.tahun}-${filters.bulan}.xlsx`;
+      dataToExport = weeklyData.value.map((item, index) => ({
+        No: index + 1,
+        'Kode Cabang': item.kode_cabang,
+        'Nama Cabang': item.nama_cabang,
+        'Omset W1': item.nominal_w1,
+        'Target W1': item.target_w1,
+        'Ach W1 (%)': item.target_w1 > 0 ? (item.nominal_w1 / item.target_w1 * 100) : 0,
+        'Omset W2': item.nominal_w2,
+        'Target W2': item.target_w2,
+        'Ach W2 (%)': item.target_w2 > 0 ? (item.nominal_w2 / item.target_w2 * 100) : 0,
+        'Omset W3': item.nominal_w3,
+        'Target W3': item.target_w3,
+        'Ach W3 (%)': item.target_w3 > 0 ? (item.nominal_w3 / item.target_w3 * 100) : 0,
+        'Omset W4': item.nominal_w4,
+        'Target W4': item.target_w4,
+        'Ach W4 (%)': item.target_w4 > 0 ? (item.nominal_w4 / item.target_w4 * 100) : 0,
+        'Omset W5': item.nominal_w5,
+        'Target W5': item.target_w5,
+        'Ach W5 (%)': item.target_w5 > 0 ? (item.nominal_w5 / item.target_w5 * 100) : 0,
+        'Total Omset': item.total_nominal,
+        'Total Target': item.total_target,
+        'Total Ach (%)': item.total_target > 0 ? (item.total_nominal / item.total_target * 100) : 0,
+      }));
+      // Tambahkan Grand Total
+      if (weeklyTotals && Object.keys(weeklyTotals).length > 0) {
+        dataToExport.push({}); // Baris kosong
+        dataToExport.push({
+          No: '', 'Kode Cabang': '', 'Nama Cabang': 'GRAND TOTAL:',
+          'Omset W1': weeklyTotals.nominal_w1, // <-- Akses properti dari weeklyTotals
+          'Target W1': weeklyTotals.target_w1,
+          'Ach W1 (%)': weeklyTotals.ach_w1,
+          'Omset W2': weeklyTotals.nominal_w2,
+          'Target W2': weeklyTotals.target_w2,
+          'Ach W2 (%)': weeklyTotals.ach_w2,
+          'Omset W3': weeklyTotals.nominal_w3,
+          'Target W3': weeklyTotals.target_w3,
+          'Ach W3 (%)': weeklyTotals.ach_w3,
+          'Omset W4': weeklyTotals.nominal_w4,
+          'Target W4': weeklyTotals.target_w4,
+          'Ach W4 (%)': weeklyTotals.ach_w4,
+          'Omset W5': weeklyTotals.nominal_w5,
+          'Target W5': weeklyTotals.target_w5,
+          'Ach W5 (%)': weeklyTotals.ach_w5,
+          'Total Omset': weeklyTotals.total_nominal,
+          'Total Target': weeklyTotals.total_target,
+          'Total Ach (%)': weeklyTotals.total_ach,
+        });
+      }
+      break;
+
+    case 'monthly':
+      if (monthlyData.value.length === 0) return toast.warning('Tidak ada data Bulanan untuk diekspor.');
+      sheetName = 'Monthly';
+      fileName = `Laporan_Bulanan_${filters.tahun}-${filters.bulan}.xlsx`;
+      dataToExport = monthlyData.value.map((item, index) => ({
+        No: index + 1,
+        Tahun: item.tahun,
+        Bulan: monthOptions.find(m => m.value === item.bulan)?.title || item.bulan,
+        'Kode Cabang': item.kode_cabang,
+        'Nama Cabang': item.nama_cabang,
+        Omset: item.nominal,
+        Target: item.target,
+        'Ach (%)': item.ach,
+      }));
+      // Tambahkan Grand Total
+      if (monthlyTotals && Object.keys(monthlyTotals).length > 0) {
+        dataToExport.push({}); // Baris kosong
+        dataToExport.push({
+          No: '', Tahun: '', Bulan: '', 'Kode Cabang': '', 'Nama Cabang': 'GRAND TOTAL:',
+          Omset: monthlyTotals.nominal, // <-- Akses properti dari monthlyTotals
+          Target: monthlyTotals.target,
+          'Ach (%)': monthlyTotals.ach,
+        });
+      }
+      break;
+
+    case 'ytd':
+      if (ytdData.value.length === 0) return toast.warning('Tidak ada data Year to Date untuk diekspor.');
+      sheetName = 'YearToDate';
+      fileName = `Laporan_Ytd_${filters.cabang}_${filters.tahun}.xlsx`;
+      dataToExport = ytdData.value.map((item, index) => ({
+        No: index + 1,
+        Tahun: item.tahun,
+        Bulan: monthOptions.find(m => m.value === item.bulan)?.title || item.bulan,
+        'Kode Cabang': item.kode_cabang, // Tambahkan ini jika perlu
+        'Nama Cabang': item.nama_cabang, // Tambahkan ini jika perlu
+        'Total Omset': item.nominal,
+        Target: item.target,
+        'Ach (%)': item.ach,
+      }));
+      // Tambahkan Grand Total
+      if (ytdTotals && Object.keys(ytdTotals).length > 0) {
+        dataToExport.push({}); // Baris kosong
+        dataToExport.push({
+          No: '', Tahun: '', Bulan: 'GRAND TOTAL:', 'Kode Cabang': '', 'Nama Cabang': '',
+          'Total Omset': ytdTotals.nominal, // <-- Akses properti dari ytdTotals
+          Target: ytdTotals.target,
+          'Ach (%)': ytdTotals.ach,
+        });
+      }
+      break;
+
+    default:
+      toast.error('Tab tidak valid untuk ekspor.');
+      return;
+  }
+
+  // --- Buat Worksheet & Download ---
+  try {
+    toast.info(`Membuat file Excel untuk tab ${sheetName}...`);
+    if (dataToExport.length === 0) {
+      toast.error('Tidak ada data sama sekali untuk diekspor.');
+      return;
+    }
+    worksheet = XLSX.utils.json_to_sheet(dataToExport);
+
+    // Optional: Atur lebar kolom (bisa disesuaikan)
+    const firstDataRow = dataToExport.find(row => row.No === 1) || dataToExport[0];
+    const cols = Object.keys(firstDataRow).map(key => ({
+      wch: key.includes('Nama') ? 30 : key.includes('Cabang') ? 15 : key.includes('Tanggal') ? 12 : key.includes('%') ? 8 : 12
+    }));
+    if (worksheet) worksheet['!cols'] = cols;
+
+    // Atur format angka untuk kolom numerik (contoh)
+    dataToExport.forEach((_row, r) => {
+      // Cek jika baris BUKAN baris kosong atau label GRAND TOTAL
+      const rowData = dataToExport[r];
+      const isDataRow = rowData && Object.values(rowData).some(val => val !== '' && !String(val).includes('GRAND TOTAL'));
+
+      if (isDataRow) {
+        // Ambil keys dari baris ini atau baris data pertama
+        const keys = Object.keys(rowData);
+        keys.forEach((key, c) => {
+          const cellRef = XLSX.utils.encode_cell({ r: r + 1, c }); // +1 karena header otomatis json_to_sheet
+
+          // --- PERBAIKAN: Tambahkan cek worksheet && worksheet[cellRef] ---
+          if (worksheet && worksheet[cellRef]) {
+            const cellValue = worksheet[cellRef].v;
+
+            if (typeof cellValue === 'number') {
+              if (key.includes('%')) {
+                worksheet[cellRef].z = '0.00%';
+                worksheet[cellRef].t = 'n';
+                // Cek jika nilai belum dibagi 100 (misalnya dari total summary)
+                if (cellValue > 1 || cellValue < -1) {
+                  worksheet[cellRef].v = cellValue / 100;
+                }
+              } else if (!key.toLowerCase().includes('no') && !key.toLowerCase().includes('tahun') && !key.toLowerCase().includes('bulan')) {
+                worksheet[cellRef].z = '#,##0';
+                worksheet[cellRef].t = 'n';
+              }
+            } else if (key.includes('%') && typeof cellValue === 'string' && cellValue.endsWith('%')) {
+              // Jika sudah string dengan %, coba konversi
+              const numValue = parseFloat(cellValue.replace('%', ''));
+              if (!isNaN(numValue)) {
+                worksheet[cellRef].v = numValue / 100;
+                worksheet[cellRef].z = '0.00%';
+                worksheet[cellRef].t = 'n';
+              }
+            }
+          }
+          // -----------------------------------------------------------------
+        });
+      }
+    });
+
+    if (!worksheet) {
+      throw new Error('Worksheet gagal dibuat.');
+    }
+
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, sheetName);
+    XLSX.writeFile(workbook, fileName);
+    toast.success(`File ${fileName} berhasil diekspor.`);
+  } catch (error) {
+    toast.error('Gagal membuat file Excel.');
+    console.error("Export Excel error:", error);
   }
 };
 
@@ -192,7 +540,9 @@ watch([filters, activeTab], fetchData, { deep: true });
 <template>
   <PageLayout title="Laporan Monitoring Achievement" :menu-id="MENU_ID">
     <template #header-actions>
-      <v-btn size="small" color="teal" prepend-icon="mdi-file-excel">Export</v-btn>
+      <v-btn size="small" color="teal" prepend-icon="mdi-file-excel" @click="exportData">
+        Export
+      </v-btn>
     </template>
 
     <v-tabs v-model="activeTab" class="mb-2">
@@ -222,20 +572,24 @@ watch([filters, activeTab], fetchData, { deep: true });
           <v-window-item value="daily">
             <v-data-table :headers="headersDaily" :items="dailyData" :loading="isLoading" class="desktop-table"
               density="compact" height="500" fixed-header :items-per-page="-1">
-              <template #item.no="{ index }">
+              <template v-slot:[`item.no`]="{ index }">
                 {{ index + 1 }}
               </template>
-              <template #item.tanggal="{ item }">{{ format(new Date(item.tanggal), 'dd-MM-yyyy') }}</template>
-              <template v-for="col in ['omset', 'total_omset', 'target', 'total_target']" #[`item.${col}`]="{ item }">
+              <template v-slot:[`item.tanggal`]="{ item }">
+                {{ format(new Date(item.tanggal), 'dd-MM-yyyy') }}
+              </template>
+              <template v-for="col in ['omset', 'total_omset', 'target', 'total_target']" :key="col"
+                v-slot:[`item.${col}`]="{ item }">
                 <td class="text-end">{{ (item[col] || 0).toLocaleString('id-ID') }}</td>
               </template>
-              <template #item.ach="{ item }">
+              <template v-slot:[`item.ach`]="{ item }">
                 <td class="text-end">
-                  <v-chip size="small" :color="item.ach >= 100 ? 'success' : 'error'">{{ (item.ach || 0).toFixed(2)
-                    }}%</v-chip>
+                  <v-chip size="small" :color="item.ach >= 100 ? 'success' : 'error'">
+                    {{ (item.ach || 0).toFixed(2) }}%
+                  </v-chip>
                 </td>
               </template>
-              <template #body.append>
+              <template v-slot:[`body.append`]>
                 <tr class="bg-grey-lighten-3 font-weight-bold total-row-sticky">
                   <td colspan="5" class="text-start">GRAND TOTAL :</td>
                   <td class="text-start">{{ totalSummary.omset?.toLocaleString('id-ID') }}</td>
@@ -328,16 +682,17 @@ watch([filters, activeTab], fetchData, { deep: true });
           <v-window-item value="monthly">
             <v-data-table :headers="headersMonthly" :items="monthlyData" :loading="isLoading" class="desktop-table"
               density="compact" fixed-header :items-per-page="-1">
-              <template v-for="col in ['nominal', 'target']" #[`item.${col}`]="{ item }">
+              <template v-for="col in ['nominal', 'target']" :key="col" v-slot:[`item.${col}`]="{ item }">
                 <td class="text-end">{{ (item[col] || 0).toLocaleString('id-ID') }}</td>
               </template>
-              <template #item.ach="{ item }">
+              <template v-slot:[`item.ach`]="{ item }">
                 <td class="text-end">
-                  <v-chip size="small" :color="item.ach >= 100 ? 'success' : 'error'">{{ (item.ach || 0).toFixed(2)
-                    }}%</v-chip>
+                  <v-chip size="small" :color="item.ach >= 100 ? 'success' : 'error'">
+                    {{ (item.ach || 0).toFixed(2) }}%
+                  </v-chip>
                 </td>
               </template>
-              <template #body.append>
+              <template v-slot:[`body.append`]>
                 <tr class="total-row-sticky">
                   <td></td>
                   <td></td>
@@ -356,18 +711,23 @@ watch([filters, activeTab], fetchData, { deep: true });
           <v-window-item value="ytd">
             <v-data-table :headers="headersYtd" :items="ytdData" :loading="isLoading" class="desktop-table"
               density="compact" fixed-header :items-per-page="-1">
-              <template #item.no="{ index }">{{ index + 1 }}</template>
-              <template #item.bulan="{ item }">{{monthOptions.find(m => m.value === item.bulan)?.title}}</template>
-              <template v-for="col in ['nominal', 'target']" #[`item.${col}`]="{ item }">
+              <template v-slot:[`item.no`]="{ index }">
+                {{ index + 1 }}
+              </template>
+              <template v-slot:[`item.bulan`]="{ item }">
+                {{monthOptions.find(m => m.value === item.bulan)?.title}}
+              </template>
+              <template v-for="col in ['nominal', 'target']" :key="col" v-slot:[`item.${col}`]="{ item }">
                 <td class="text-end">{{ (item[col] || 0).toLocaleString('id-ID') }}</td>
               </template>
-              <template #item.ach="{ item }">
+              <template v-slot:[`item.ach`]="{ item }">
                 <td class="text-end">
-                  <v-chip size="small" :color="item.ach >= 100 ? 'success' : 'error'">{{ (item.ach || 0).toFixed(2)
-                    }}%</v-chip>
+                  <v-chip size="small" :color="item.ach >= 100 ? 'success' : 'error'">
+                    {{ (item.ach || 0).toFixed(2) }}%
+                  </v-chip>
                 </td>
               </template>
-              <template #body.append>
+              <template v-slot:[`body.append`]>
                 <tr class="total-row-sticky">
                   <td></td>
                   <td></td>
@@ -405,9 +765,12 @@ watch([filters, activeTab], fetchData, { deep: true });
 }
 
 :deep(.v-table__wrapper) {
-  max-height: 500px; /* tinggi scroll area */
-  overflow-y: auto !important; /* wajib agar sticky bisa berfungsi */
-  position: relative; /* buat referensi posisi sticky */
+  max-height: 500px;
+  /* tinggi scroll area */
+  overflow-y: auto !important;
+  /* wajib agar sticky bisa berfungsi */
+  position: relative;
+  /* buat referensi posisi sticky */
 }
 
 /* Styling untuk tabel weekly */
@@ -471,7 +834,8 @@ watch([filters, activeTab], fetchData, { deep: true });
 .total-row-sticky td {
   position: sticky;
   bottom: 0;
-  z-index: 20; /* pastikan lebih tinggi dari header */
+  z-index: 20;
+  /* pastikan lebih tinggi dari header */
   background-color: #eeeeee !important;
   border-top: 2px solid #bdbdbd !important;
   font-weight: 600 !important;

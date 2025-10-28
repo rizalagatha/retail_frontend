@@ -229,14 +229,14 @@ const targetChartOptions = ref({
       }
     },
     datalabels: {
-      anchor: 'end',
-      align: 'top',
+      anchor: 'end' as const,
+      align: 'top' as const,
       formatter: (value: number, context) => {
         if (context.datasetIndex === 1) return formatCurrency(value);
         return null;
       },
       font: {
-        weight: 'bold',
+        weight: 'bold' as const,
         size: 10
       },
       color: '#424242'

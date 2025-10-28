@@ -6,8 +6,8 @@ import TransactionSearchModal from '@/components/lookup/TransactionSearchModal.v
 import { useToast } from 'vue-toastification';
 import { useAuthStore } from '@/stores/authStore';
 import { useRouter, useRoute } from 'vue-router';
-import { format, addDays, parseISO, isValid } from 'date-fns';
-import axios, { AxiosError } from 'axios';
+import { format } from 'date-fns';
+import axios from 'axios';
 
 const toast = useToast();
 const authStore = useAuthStore();
@@ -43,11 +43,19 @@ interface RefundHeader {
   keterangan: string;
 }
 
+interface Transaction {
+  Nomor: string;
+  Tanggal: string;
+  Kdcus: string;
+  Customer: string;
+  Sisa: number;
+}
+
 // --- State (Disesuaikan dari Form Delphi) ---
 const header = ref<RefundHeader>({
   nomor: '',
   tanggal: format(new Date(), 'yyyy-MM-dd'),
-  userCreate: authStore.user?.username || '',
+  userCreate: authStore.user?.kode || '',
   userApv: '',
   isProcessed: false,
   isApproved: false,
@@ -63,6 +71,7 @@ const searchType = ref<'invoice' | 'deposit'>('invoice'); // F1 atau F2
 const isSaving = ref(false);
 const isLoading = ref(true);
 const isDataLoading = ref(false);
+const isEditMode = ref(false);
 const dialogConfirm = reactive({
   show: false,
   title: '',
@@ -86,13 +95,23 @@ const totalRefund = computed(() => {
 
 // Komputasi Izin Aproval (Analogi zAccKor di Delphi)
 const isApprover = computed(() => authStore.user?.cabang === 'KDC');
-const isEditMode = computed(() => !!route.params.nomor);
 const pageTitle = computed(() =>
   isEditMode.value
     ? `Ubah Refund: ${header.value?.nomor || ''}`
     : 'Pengajuan Refund'
 );
-const requiredPermission = computed(() => isEditMode.value ? 'edit' : 'insert');
+const canView = computed(() => authStore.can(MENU_ID, 'view'));
+const canInsert = computed(() => authStore.can(MENU_ID, 'insert'));
+const canEdit = computed(() => authStore.can(MENU_ID, 'edit'));
+// Izin simpan bergantung pada mode dan apakah user adalah approver atau bukan
+const canSave = computed(() => {
+  // Jika Approver, mereka bisa 'edit' (meskipun hanya checkbox APV/Refund/Bank)
+  if (isApprover.value) return canEdit.value;
+  // Jika bukan Approver, mereka bisa 'insert' (baru) atau 'edit' (jika belum diapprove)
+  return isEditMode.value ? (canEdit.value && !header.value.isApproved) : canInsert.value;
+});
+// Izin approve hanya jika KDC DAN punya hak edit
+const canApprove = computed(() => isApprover.value && canEdit.value);
 
 const tableHeaders = [
   { title: 'No. Transaksi', key: 'nomor', width: '150px' },
@@ -122,7 +141,7 @@ const initForm = async () => {
   header.value = {
     nomor: '',
     tanggal: format(new Date(), 'yyyy-MM-dd'),
-    userCreate: authStore.user?.username || '',
+    userCreate: authStore.user?.nama || '',
     userApv: '',
     isProcessed: false,
     isApproved: false,
@@ -150,35 +169,29 @@ const loadRefundData = async (nomor: string) => {
   isLoading.value = true;
   isDataLoading.value = true;
   try {
-    // Panggil API yang benar (dari prompt sebelumnya)
-    const response = await api.get(`${API_BASE_PATH}/${nomor}`);
-
-    // --- PERBAIKAN DI SINI ---
-    // Backend mengirim { header, details }, bukan { headerData, detailsData }
+    const response = await axios.get(`${API_BASE_PATH}/${nomor}`);
     const { header: dataHeader, details: dataDetails } = response.data;
 
-    if (dataHeader) {
-      isEditMode.value = true;
+    if (!dataHeader) throw new Error('Data header tidak ditemukan');
 
-      // Gunakan Object.assign untuk memperbarui ref, BUKAN menggantinya
-      Object.assign(header.value, dataHeader);
+    Object.assign(header.value, dataHeader);
 
-      items.value = dataDetails.map((item: any) => ({
-        ...item,
-        id: Math.random(), // Buat ID unik untuk v-for
-      }));
+    items.value = (dataDetails as RefundDetail[]).map(item => ({
+      ...item,
+      id: Math.random(), // ID unik untuk v-for
+    }));
 
-      addNewRow();
-      toast.success(`Data refund ${nomor} berhasil dimuat.`);
+    addNewRow();
+    toast.success(`Data refund ${nomor} berhasil dimuat.`);
+  } catch (error: unknown) {
+    if (axios.isAxiosError(error)) {
+      toast.error(error.response?.data?.message || 'Gagal memuat data refund.');
+    } else if (error instanceof Error) {
+      toast.error(error.message);
     } else {
-      toast.error('Data header tidak ditemukan dalam respons.');
-      router.push({ name: 'RefundCreate' });
+      toast.error('Terjadi kesalahan tidak diketahui.');
     }
-    // --- AKHIR PERBAIKAN ---
-
-  } catch (error: any) {
-    toast.error(error.response?.data?.message || 'Gagal memuat data refund.');
-    router.push({ name: 'RefundCreate' }); // Kembali ke form kosong
+    router.push({ name: 'RefundCreate' });
   } finally {
     isLoading.value = false;
     isDataLoading.value = false;
@@ -202,13 +215,15 @@ const openSearchDeposit = (index: number) => {
 };
 
 // Logika untuk mengisi data setelah pencarian (Analogi F1/F2 result processing)
-const onTransactionSelected = (selectedTransaction: any) => {
+const onTransactionSelected = (selectedTransaction: Transaction) => {
   isTransactionSearchVisible.value = false;
+
   const existingItem = items.value.find(item => item.nomor === selectedTransaction.Nomor);
   if (existingItem) {
     toast.warning(`Nomor transaksi ${selectedTransaction.Nomor} sudah ada.`);
     return;
   }
+
   const item = items.value[activeRowIndex.value];
   if (item) {
     item.nomor = selectedTransaction.Nomor;
@@ -218,6 +233,7 @@ const onTransactionSelected = (selectedTransaction: any) => {
     item.nominal = Math.abs(selectedTransaction.Sisa);
     item.iddrec = `${authStore.user?.cabang || 'K01'}RF${Date.now()}`;
   }
+
   addNewRow();
 };
 
@@ -252,7 +268,11 @@ const removeRow = (id: number) => {
 
 
 // Logika Simpan (Analogi simpandata dan btnSimpanClick)
-const save = () => {
+const simpanData = () => {
+  if (!canSave.value) {
+    toast.error('Anda tidak memiliki izin untuk menyimpan data ini.');
+    return;
+  }
   // Validasi dari btnSimpanClick
   const validItems = items.value.filter(item => item.nomor);
   if (validItems.length === 0) {
@@ -282,6 +302,10 @@ const save = () => {
 
 // Metode Konfirmasi dan Pembatalan (Analogi MessageDlg)
 const executeSave = async () => {
+  if (!canSave.value) {
+    toast.error('Anda tidak memiliki izin untuk menyimpan data ini.');
+    return;
+  }
   isSaving.value = true;
   try {
     const payload = {
@@ -310,8 +334,15 @@ const executeSave = async () => {
     };
     dialogConfirmCetak.show = true;
 
-  } catch (error: any) {
-    toast.error(error.response?.data?.message || 'Gagal menyimpan data.');
+  } catch (error: unknown) {
+    if (axios.isAxiosError(error)) {
+      // Sekarang AxiosError digunakan untuk akses properti response
+      toast.error(error.response?.data?.message || 'Gagal menyimpan data.');
+    } else if (error instanceof Error) {
+      toast.error(error.message);
+    } else {
+      toast.error('Terjadi kesalahan yang tidak diketahui.');
+    }
   } finally {
     isSaving.value = false;
   }
@@ -333,14 +364,33 @@ const handleTutup = () => {
 // --- Watchers & Lifecycle ---
 watch(items, updateHeaderApprovalStatus, { deep: true }); // Update header APV jika ada perubahan detail
 
-onMounted(() => {
-  const nomor = route.params.nomor as string;
-  if (nomor) {
-    loadRefundData(nomor);
-  } else {
-    initForm();
+onMounted(async () => {
+  // --- PENGECEKAN AWAL OTORISASI ---
+  if (!canView.value) {
+    isLoading.value = false;
+    isDataLoading.value = false; // Assuming you have this ref
+    toast.error('Anda tidak memiliki izin untuk mengakses halaman ini.');
+    return;
   }
+  // ------------------------------------
+
+  isLoading.value = true;
+  isDataLoading.value = true; // Assuming you have this ref
+
+  const nomor = route.params.nomor as string;
+
+  if (nomor) {
+    // Mode Edit: Panggil fungsi load data refund
+    await loadRefundData(nomor);
+  } else {
+    // Mode Baru: Panggil fungsi inisialisasi form
+    await initForm(); // Panggil initForm untuk reset/inisialisasi
+    isEditMode.value = false; // Pastikan false saat baru
+  }
+
+  // Set loading flags to false AFTER data loading/initialization is complete
   isLoading.value = false;
+  isDataLoading.value = false; // Assuming you have this ref
 });
 
 </script>
@@ -348,11 +398,22 @@ onMounted(() => {
 <template>
   <PageLayout :title="pageTitle" desktop-mode icon="mdi-cash-refund">
     <template #header-actions>
-      <v-btn color="primary" @click="save" size="small" :loading="isSaving"
-        prepend-icon="mdi-content-save">Simpan</v-btn>
-      <v-btn @click="handleBatal" size="small" prepend-icon="mdi-refresh">Batal</v-btn>
-      <v-btn @click="handleTutup" size="small" prepend-icon="mdi-close">Tutup</v-btn>
+      <v-btn v-if="canSave" color="primary" size="small" @click="simpanData" :loading="isSaving"
+        prepend-icon="mdi-content-save">
+        Simpan
+      </v-btn>
+      <v-btn size="small" @click="handleBatal" prepend-icon="mdi-refresh"> Batal
+      </v-btn>
+      <v-btn @click="handleTutup" size="small" prepend-icon="mdi-close">
+        Tutup
+      </v-btn>
     </template>
+
+    <div v-if="!canView && !isLoading && !isDataLoading" class="state-container pa-4 text-center">
+      <v-icon size="64" class="mb-4">mdi-lock-outline</v-icon>
+      <h3 class="text-h6">Akses Ditolak</h3>
+      <p>Anda tidak memiliki izin untuk melihat halaman ini.</p>
+    </div>
 
     <div class="form-grid-container">
       <div class="left-column">
@@ -361,7 +422,7 @@ onMounted(() => {
             <v-col cols="6"><v-text-field label="Nomor" v-model="header.nomor" readonly filled
                 density="compact" /></v-col>
             <v-col cols="6"><v-text-field label="Tanggal" v-model="header.tanggal" type="date" variant="outlined"
-                density="compact" :readonly="isApprover" /></v-col>
+                density="compact" :readonly="isApprover || !canSave || header.isApproved" /></v-col>
             <v-col cols="6"><v-text-field label="User Pengaju" v-model="header.userCreate" readonly filled
                 density="compact" /></v-col>
             <v-col cols="6"><v-text-field label="User Approval" v-model="header.userApv" readonly filled
@@ -386,39 +447,48 @@ onMounted(() => {
           <div class="text-subtitle-1 font-weight-bold mb-2">Detail Transaksi (F1=Invoice, F2=Deposit)</div>
           <v-data-table :headers="tableHeaders" :items="items" :loading="isLoading" class="desktop-table fill-height"
             density="compact" fixed-header :items-per-page="-1">
-            <template #item.nomor="{ item, index }">
+            <template v-slot:[`item.nomor`]="{ item, index }">
               <v-text-field v-model="item.nomor" variant="underlined" density="compact" hide-details
                 placeholder="F1/F2..." @keydown.f1.prevent="openSearchInvoice(index)"
                 @keydown.f2.prevent="openSearchDeposit(index)"
-                :readonly="!!item.nomor || isApprover || header.isApproved" />
+                :readonly="!!item.nomor || isApprover || header.isApproved || !canSave" />
             </template>
-            <template #item.nominal="{ item }">
+            <template v-slot:[`item.nominal`]="{ item }">
               <td class="text-end">{{ (item.nominal || 0).toLocaleString('id-ID') }}</td>
             </template>
-            <template #item.refund="{ item }">
+            <template v-slot:[`item.refund`]="{ item }">
               <v-text-field v-model.number="item.refund" type="number" variant="underlined" density="compact"
-                hide-details class="text-end" :disabled="!isApprover || !item.apv" :readonly="!item.apv"
+                hide-details class="text-end" :disabled="!canApprove || !item.apv" :readonly="!item.apv"
                 :max="item.nominal" min="0" />
             </template>
-            <template #item.apv="{ item }">
+            <template v-slot:[`item.apv`]="{ item }">
               <v-checkbox-btn v-model="item.apv" density="compact" hide-details
-                :disabled="!isApprover || header.isApproved || !item.nomor" @change="handleLineItemApproval(item)" />
+                :disabled="!canApprove || header.isApproved || !item.nomor" @change="handleLineItemApproval(item)" />
             </template>
-            <template #item.bank="{ item }"><v-text-field v-model="item.bank" variant="underlined" density="compact"
-                hide-details :disabled="!isApprover || !item.apv" /></template>
-            <template #item.norek="{ item }"><v-text-field v-model="item.norek" variant="underlined" density="compact"
-                hide-details :disabled="!isApprover || !item.apv" /></template>
-            <template #item.atasnama="{ item }"><v-text-field v-model="item.atasnama" variant="underlined"
-                density="compact" hide-details :disabled="!isApprover || !item.apv" /></template>
-            <template #item.ket="{ item }"><v-text-field v-model="item.ket" variant="underlined" density="compact"
-                hide-details :disabled="isApprover" /></template>
-            <template #item.actions="{ item, index }">
+            <template v-slot:[`item.bank`]="{ item }">
+              <v-text-field v-model="item.bank" variant="underlined" density="compact" hide-details
+                :disabled="!canApprove || !item.apv" />
+            </template>
+            <template v-slot:[`item.norek`]="{ item }">
+              <v-text-field v-model="item.norek" variant="underlined" density="compact" hide-details
+                :disabled="!canApprove || !item.apv" />
+            </template>
+            <template v-slot:[`item.atasnama`]="{ item }">
+              <v-text-field v-model="item.atasnama" variant="underlined" density="compact" hide-details
+                :disabled="!canApprove || !item.apv" />
+            </template>
+            <template v-slot:[`item.ket`]="{ item }">
+              <v-text-field v-model="item.ket" variant="underlined" density="compact" hide-details
+                :readonly="isApprover || header.isApproved || !canSave" />
+            </template>
+            <template v-slot:[`item.actions`]="{ item, index }">
               <v-btn v-if="item.nomor && !isApprover && !header.isApproved" icon="mdi-delete" size="x-small"
-                variant="text" color="error" @click="showConfirmation(() => removeRow(index), 'Hapus baris ini?')" />
+                variant="text" color="error" :disabled="!canSave"
+                @click="showConfirmation('Konfirmasi', 'Hapus baris ini?', () => removeRow(index))" />
             </template>
             <template #bottom>
               <v-btn v-if="!isApprover && !header.isApproved" size="small" @click="addNewRow" prepend-icon="mdi-plus"
-                class="ma-2">Tambah Baris</v-btn>
+                :disabled="!canSave" class="ma-2">Tambah Baris</v-btn>
             </template>
           </v-data-table>
         </div>
@@ -432,7 +502,7 @@ onMounted(() => {
     <v-dialog v-model="dialogConfirm.show" max-width="400px" persistent>
       <v-card>
         <v-card-title class="text-h6 font-weight-bold">{{ dialogConfirm.title }}</v-card-title>
-        <v-card-text v-html="dialogConfirm.text"></v-card-text>
+        <v-card-text {{ dialogConfirm.text }}></v-card-text>
         <v-card-actions>
           <v-spacer />
           <v-btn text @click="dialogConfirm.onCancel">Batal</v-btn>

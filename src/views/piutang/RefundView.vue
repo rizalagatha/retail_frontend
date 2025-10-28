@@ -7,6 +7,7 @@ import api from '@/services/api';
 import { format, subDays, parseISO, isValid } from 'date-fns';
 import PageLayout from '@/components/PageLayout.vue';
 import * as XLSX from 'xlsx';
+import axios, { AxiosError } from 'axios';
 
 interface RefundHeader {
   Nomor: string;
@@ -28,6 +29,17 @@ interface RefundDetail {
   NoRekening: string;
   AtasNama: string;
   Keterangan: string;
+}
+
+interface TableColumn {
+  title: string;
+  key: keyof RefundDetail; // gunakan keyof RefundDetail agar ketat
+  minWidth?: string;
+  align?: 'start' | 'center' | 'end';
+}
+
+interface ExpandedItem {
+  Nomor: string;
 }
 
 const router = useRouter();
@@ -53,6 +65,7 @@ const dialogConfirm = reactive({
 const filters = reactive({
   startDate: format(subDays(new Date(), 7), 'yyyy-MM-dd'),
   endDate: format(new Date(), 'yyyy-MM-dd'),
+  cabang: '', // tambahkan ini
 });
 
 const isSingleSelected = computed(() => selected.value.length === 1);
@@ -97,8 +110,8 @@ const headers = [
   { title: 'Closing', key: 'Closing', minWidth: '120px' },
 ] as const;
 
-const detailHeaders = computed(() => {
-  const h: any[] = [
+const detailHeaders = computed<TableColumn[]>(() => {
+  const h: TableColumn[] = [
     { title: 'No.', key: 'no' },
     { title: 'Nomor Transaksi', key: 'NoTransaksi', minWidth: '150px' },
     { title: 'Pelanggan', key: 'Customer', minWidth: '200px' },
@@ -123,8 +136,15 @@ const fetchMasterData = async () => {
   try {
     const response = await api.get<RefundHeader[]>('/refund', { params: filters });
     masterData.value = response.data;
-  } catch (error: any) {
-    toast.error(error.response?.data?.message || 'Gagal mengambil data.');
+  } catch (err) {
+    let message = 'Gagal mengambil data.';
+    if (axios.isAxiosError(err)) {
+      const axiosErr = err as AxiosError<{ message?: string }>;
+      message = axiosErr.response?.data?.message || message;
+    } else if (err instanceof Error) {
+      message = err.message;
+    }
+    toast.error(message);
   } finally {
     loading.value = false;
   }
@@ -142,9 +162,9 @@ const fetchCabangOptions = async () => {
   }
 };
 
-const loadDetails = async (newlyExpandedItems: any[]) => {
-  const itemToLoad = newlyExpandedItems.find(item =>
-    !details.value[item.Nomor] && !loadingDetails.value.has(item.Nomor)
+const loadDetails = async (newlyExpandedItems: ExpandedItem[]) => {
+  const itemToLoad = newlyExpandedItems.find(
+    item => !details.value[item.Nomor] && !loadingDetails.value.has(item.Nomor)
   );
   if (!itemToLoad) return;
 
@@ -152,8 +172,10 @@ const loadDetails = async (newlyExpandedItems: any[]) => {
   try {
     const response = await api.get<RefundDetail[]>(`/refund/details/${itemToLoad.Nomor}`);
     details.value[itemToLoad.Nomor] = response.data.map((d, index) => ({ ...d, no: index + 1 }));
-  } catch (error: any) {
-    toast.error(`Gagal memuat detail untuk ${itemToLoad.Nomor}.`);
+  } catch (error: unknown) {
+    // Tangani error Axios
+    const err = error as AxiosError<{ message?: string }>;
+    toast.error(err.response?.data?.message || `Gagal memuat detail untuk ${itemToLoad.Nomor}.`);
   } finally {
     loadingDetails.value.delete(itemToLoad.Nomor);
   }
@@ -188,9 +210,8 @@ const handleCetak = () => {
 const openDeleteDialog = () => {
   if (!canDelete.value) return;
   showConfirmation(
-    'Konfirmasi Hapus',
-    `Yakin ingin hapus refund ${selectedRow.value!.Nomor}?`,
-    handleDelete
+    handleDelete,
+    `Yakin ingin hapus refund ${selectedRow.value!.Nomor}?`
   );
 };
 
@@ -199,8 +220,9 @@ const handleDelete = async () => {
     const response = await api.delete(`/refund/${selectedRow.value!.Nomor}`);
     toast.success(response.data.message);
     fetchMasterData();
-  } catch (error: any) {
-    toast.error(error.response?.data?.message || 'Gagal menghapus data.');
+  } catch (error) {
+    const err = error as AxiosError<{ message: string }>;
+    toast.error(err.response?.data?.message || 'Gagal menghapus data.');
   }
 };
 
@@ -223,8 +245,9 @@ const exportData = async (type: 'header' | 'detail') => {
       XLSX.writeFile(workbook, fileName);
     }
     toast.success(`Data berhasil diekspor.`);
-  } catch (error: any) {
-    toast.error(error.response?.data?.message || `Gagal mengekspor data.`);
+  } catch (error) {
+    const err = error as AxiosError<{ message: string }>;
+    toast.error(err.response?.data?.message || 'Gagal mengekspor data.');
   } finally {
     loading.value = false;
   }
@@ -323,10 +346,10 @@ watch(filters, fetchMasterData, { deep: true });
                     <div v-if="loadingDetails.has(item.Nomor)" class="text-center">Memuat detail...</div>
                     <v-data-table v-else :headers="detailHeaders" :items="details[item.Nomor] || []" density="compact"
                       class="detail-table" :items-per-page="-1">
-                      <template #item.Nominal="{ item }">
+                      <template v-slot:[`item.Nominal`]="{ item }">
                         <span class="d-block text-right">{{ formatRupiah(item.Nominal) }}</span>
                       </template>
-                      <template #item.Approval="{ item }">
+                      <template v-slot:[`item.Approval`]="{ item }">
                         <span class="d-block text-right">{{ formatRupiah(item.Approval) }}</span>
                       </template>
                       <template #bottom></template>

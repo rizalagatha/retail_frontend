@@ -1,33 +1,53 @@
 <script setup lang="ts">
-import { ref, onMounted, computed, reactive } from 'vue';
+import { ref, onMounted, computed } from 'vue';
 import { useRoute } from 'vue-router';
 import api from '@/services/api';
 import PageLayout from '@/components/PageLayout.vue';
 import { Bar, Pie } from 'vue-chartjs';
 import { Chart as ChartJS, Title, Tooltip, Legend, BarElement, CategoryScale, LinearScale, ArcElement } from 'chart.js';
 import ChartDataLabels from 'chartjs-plugin-datalabels';
+import type { ChartOptions } from 'chart.js';
 
 ChartJS.register(Title, Tooltip, Legend, BarElement, CategoryScale, LinearScale, ArcElement, ChartDataLabels);
 
+interface ChartItem {
+  NamaGrup: string;
+  Cabang: string;
+  TotalStok: number;
+}
+
 const route = useRoute();
 const isLoading = ref(true);
-const chartRawData = ref<any[]>([]);
+const chartRawData = ref<ChartItem[]>([]);
 const chartType = ref<'bar' | 'pie'>('bar');
 
-const chartOptions = computed(() => ({
+const chartOptionsBar = computed<ChartOptions<'bar'>>(() => ({
   responsive: true,
   maintainAspectRatio: false,
   plugins: {
-    legend: {
-      display: chartType.value === 'pie' // Hanya tampilkan legenda untuk Pie
-    },
-    datalabels: { // Konfigurasi datalabels
+    legend: { display: false },
+    datalabels: {
       anchor: 'end',
       align: 'top',
-      formatter: (value) => value.toLocaleString('id-ID'),
-      font: { weight: 'bold' }
-    }
-  }
+      formatter: (value: number) => value.toLocaleString('id-ID'),
+      font: { weight: 'bold' },
+    },
+  },
+  scales: { y: { beginAtZero: true } },
+}));
+
+const chartOptionsPie = computed<ChartOptions<'pie'>>(() => ({
+  responsive: true,
+  maintainAspectRatio: false,
+  plugins: {
+    legend: { display: true },
+    datalabels: {
+      anchor: 'end',
+      align: 'top',
+      formatter: (value: number) => value.toLocaleString('id-ID'),
+      font: { weight: 'bold' },
+    },
+  },
 }));
 
 const chartData = computed(() => {
@@ -49,14 +69,12 @@ const chartData = computed(() => {
   };
 });
 
-const ChartComponent = computed(() => chartType.value === 'pie' ? Pie : Bar);
-
 onMounted(async () => {
   isLoading.value = true;
   try {
     const response = await api.get('/laporan-stok-pivot/chart-data', { params: route.query });
     chartRawData.value = response.data;
-  } catch (e) {
+  } catch {
     alert('Gagal memuat data grafik.');
   } finally {
     isLoading.value = false;
@@ -70,17 +88,28 @@ onMounted(async () => {
       <div v-if="isLoading" class="d-flex justify-center align-center fill-height">
         <v-progress-circular indeterminate size="64" />
       </div>
+
       <div v-else class="d-flex flex-column fill-height">
         <v-card class="mb-4 pa-2 flex-shrink-0" variant="tonal">
           <v-btn-toggle v-model="chartType" mandatory density="compact" variant="outlined">
-            <v-tooltip text="Bar Chart"><template v-slot:activator="{ props }"><v-btn v-bind="props"
-                  icon="mdi-chart-bar" value="bar"></v-btn></template></v-tooltip>
-            <v-tooltip text="Pie Chart"><template v-slot:activator="{ props }"><v-btn v-bind="props"
-                  icon="mdi-chart-pie" value="pie"></v-btn></template></v-tooltip>
+            <v-tooltip text="Bar Chart">
+              <template #activator="{ props }">
+                <v-btn v-bind="props" icon="mdi-chart-bar" value="bar" />
+              </template>
+            </v-tooltip>
+
+            <v-tooltip text="Pie Chart">
+              <template #activator="{ props }">
+                <v-btn v-bind="props" icon="mdi-chart-pie" value="pie" />
+              </template>
+            </v-tooltip>
           </v-btn-toggle>
         </v-card>
+
         <div class="chart-wrapper">
-          <component :is="ChartComponent" :data="chartData" :options="chartOptions" />
+          <!-- 🟢 Pisahkan komponen biar typing sesuai -->
+          <Bar v-if="chartType === 'bar'" :data="chartData" :options="chartOptionsBar" />
+          <Pie v-else :data="chartData" :options="chartOptionsPie" />
         </div>
       </div>
     </div>

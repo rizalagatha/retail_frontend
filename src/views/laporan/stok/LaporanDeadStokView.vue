@@ -6,13 +6,30 @@ import api from '@/services/api';
 import { format } from 'date-fns';
 import PageLayout from '@/components/PageLayout.vue';
 import * as XLSX from 'xlsx';
+import type { AxiosError } from 'axios';
 
 // --- Inisialisasi & State ---
+interface DeadStockItem {
+  cabang: string;
+  'Nama Cabang': string;
+  KtgProduk: string;
+  KtgBarang: string;
+  'Kode Barang': string;
+  'Nama Barang': string;
+  Ukuran: string;
+  Stok: number;
+  'Last Terima STBJ/Tanggal': string | null;
+  'No STBJ/SJ': string;
+  'Umur (Hari)': number;
+  'Umur (Bulan)': number;
+  'Umur (Tahun)': number;
+}
+
 const toast = useToast();
 const authStore = useAuthStore();
 const MENU_ID = '510';
 
-const items = ref<any[]>([]);
+const items = ref<DeadStockItem[]>([]);
 const isLoading = ref(true);
 const cabangOptions = ref([]);
 
@@ -57,8 +74,19 @@ const fetchData = async () => {
   try {
     const response = await api.get('/laporan-dead-stok', { params: filters });
     items.value = response.data;
-  } catch (error: any) {
-    toast.error(error.response?.data?.message || 'Gagal memuat data.');
+  } catch (err) {
+    const error = err as AxiosError<{ message?: string }>;
+
+    if (error.response) {
+      // Error dari server (HTTP 4xx/5xx)
+      toast.error(error.response.data?.message || `Gagal memuat data. Status: ${error.response.status}`);
+    } else if (error.request) {
+      // Request dibuat tapi tidak ada response
+      toast.error('Tidak ada respon dari server. Periksa koneksi.');
+    } else {
+      // Error lain (misal konfigurasi axios)
+      toast.error(`Terjadi kesalahan: ${error.message}`);
+    }
   } finally {
     isLoading.value = false;
   }
@@ -69,7 +97,7 @@ const fetchCabangOptions = async () => {
     const response = await api.get('/laporan-dead-stok/cabang-options');
     cabangOptions.value = response.data;
   } catch (error) {
-    toast.error('Gagal memuat filter cabang.');
+    toast.error('Gagal memuat filter cabang.', error);
   }
 };
 

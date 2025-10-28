@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, watch } from 'vue';
+import { ref, onMounted, onUnmounted, watch, type Ref } from 'vue';
 import { useToast } from 'vue-toastification';
 import api from '@/services/api';
 import type { AxiosError } from 'axios';
@@ -11,7 +11,9 @@ const { showWhatsAppDialog, closeWhatsAppDialog } = useWhatsAppDialog();
 // --- State Baru ---
 const qrDataUrl = ref('');
 const message = ref('Klik tombol di bawah untuk memulai tautan WhatsApp.');
-const status = ref<'idle' | 'requesting' | 'polling' | 'qr' | 'ready' | 'disconnected' | 'error'>('idle');
+const status = ref<'idle' | 'requesting' | 'polling' | 'qr' | 'ready' | 'disconnected' | 'error'>('idle') as Ref<
+  'idle' | 'requesting' | 'polling' | 'qr' | 'ready' | 'disconnected' | 'error'
+>;
 const isLoadingLogout = ref(false); // Untuk tombol logout
 // -----------------
 
@@ -25,8 +27,9 @@ const requestQrCode = async () => {
   message.value = 'Meminta QR Code dari server...';
   qrDataUrl.value = ''; // Hapus QR lama
   await fetchStatus(true); // Panggil fetchStatus sekali untuk trigger & dapatkan status awal
-  if (status.value !== 'ready' && status.value !== 'error') {
-    startPolling(); // Mulai polling HANYA SETELAH request awal
+  if ((status.value as 'idle' | 'requesting' | 'polling' | 'qr' | 'ready' | 'disconnected' | 'error') !== 'ready'
+    && (status.value as 'idle' | 'requesting' | 'polling' | 'qr' | 'ready' | 'disconnected' | 'error') !== 'error') {
+    startPolling();
   }
 };
 

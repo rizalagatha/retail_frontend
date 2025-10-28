@@ -6,13 +6,31 @@ import api from '@/services/api';
 import { format } from 'date-fns';
 import PageLayout from '@/components/PageLayout.vue';
 import * as XLSX from 'xlsx';
+import type { AxiosError } from 'axios';
 
 // --- Inisialisasi & State ---
+interface StokStagnanItem {
+  Cabang: string;
+  StokAwal?: number;
+  RpAwal?: number;
+  QtyInv?: number;
+  RpInvoice?: number;
+  StokAkhir?: number;
+  RpAkhir?: number;
+}
+interface TotalSummary {
+  StokAwal: number;
+  RpAwal: number;
+  QtyInv: number;
+  RpInvoice: number;
+  StokAkhir: number;
+  RpAkhir: number;
+}
 const toast = useToast();
 const authStore = useAuthStore();
 const MENU_ID = '508';
 
-const items = ref<any[]>([]);
+const items = ref<StokStagnanItem[]>([]);
 const isLoading = ref(true);
 
 const currentYear = new Date().getFullYear();
@@ -25,25 +43,32 @@ const yearOptions = Array.from({ length: 10 }, (_, i) => currentYear - 5 + i);
 const monthOptions = Array.from({ length: 12 }, (_, i) => ({ value: i + 1, title: format(new Date(0, i), 'MMMM') }));
 
 // --- Headers dengan Grup ---
-const headers = [
-  { title: 'Cabang', key: 'Cabang', rowspan: 2, fixed: true, minWidth: '200px' },
-  { title: 'Stok Awal', colspan: 2, align: 'center' },
-  { title: 'Terjual', colspan: 2, align: 'center' },
-  { title: 'Stok Akhir', colspan: 2, align: 'center' },
-];
-const subHeaders = [
-  { title: 'Qty', key: 'StokAwal', align: 'end' },
-  { title: 'Value', key: 'RpAwal', align: 'end' },
-  { title: 'Qty', key: 'QtyInv', align: 'end' },
-  { title: 'Value', key: 'RpInvoice', align: 'end' },
-  { title: 'Qty', key: 'StokAkhir', align: 'end' },
-  { title: 'Value', key: 'RpAkhir', align: 'end' },
-];
+// const headers = [
+//   { title: 'Cabang', key: 'Cabang', rowspan: 2, fixed: true, minWidth: '200px' },
+//   { title: 'Stok Awal', colspan: 2, align: 'center' },
+//   { title: 'Terjual', colspan: 2, align: 'center' },
+//   { title: 'Stok Akhir', colspan: 2, align: 'center' },
+// ];
+// const subHeaders = [
+//   { title: 'Qty', key: 'StokAwal', align: 'end' },
+//   { title: 'Value', key: 'RpAwal', align: 'end' },
+//   { title: 'Qty', key: 'QtyInv', align: 'end' },
+//   { title: 'Value', key: 'RpInvoice', align: 'end' },
+//   { title: 'Qty', key: 'StokAkhir', align: 'end' },
+//   { title: 'Value', key: 'RpAkhir', align: 'end' },
+// ];
 
 // --- Kalkulasi Total ---
-const totalSummary = computed(() => {
-  if (!items.value || items.value.length === 0) return {};
-  const totals = {
+const totalSummary = computed<TotalSummary>(() => {
+  if (!items.value || items.value.length === 0) return {
+    StokAwal: 0,
+    RpAwal: 0,
+    QtyInv: 0,
+    RpInvoice: 0,
+    StokAkhir: 0,
+    RpAkhir: 0,
+  };
+  return {
     StokAwal: items.value.reduce((sum, item) => sum + (Number(item.StokAwal) || 0), 0),
     RpAwal: items.value.reduce((sum, item) => sum + (Number(item.RpAwal) || 0), 0),
     QtyInv: items.value.reduce((sum, item) => sum + (Number(item.QtyInv) || 0), 0),
@@ -51,8 +76,10 @@ const totalSummary = computed(() => {
     StokAkhir: items.value.reduce((sum, item) => sum + (Number(item.StokAkhir) || 0), 0),
     RpAkhir: items.value.reduce((sum, item) => sum + (Number(item.RpAkhir) || 0), 0),
   };
-  return totals;
 });
+const canView = computed(() => authStore.can(MENU_ID, 'view'));
+// Asumsi export memerlukan izin view
+const canExport = computed(() => authStore.can(MENU_ID, 'view'));
 
 // --- Methods ---
 const fetchData = async () => {
@@ -60,7 +87,8 @@ const fetchData = async () => {
   try {
     const response = await api.get('/laporan-stok-stagnan', { params: filters });
     items.value = response.data;
-  } catch (error: any) {
+  } catch (err) {
+    const error = err as AxiosError<{ message: string }>;
     toast.error(error.response?.data?.message || 'Gagal memuat data.');
   } finally {
     isLoading.value = false;
@@ -68,6 +96,13 @@ const fetchData = async () => {
 };
 
 const exportData = () => {
+  // --- TAMBAHKAN PENGECEKAN IZIN ---
+  if (!canExport.value) {
+    toast.error('Anda tidak memiliki izin untuk mengekspor data.');
+    return;
+  }
+  // ---------------------------------
+
   if (items.value.length === 0) return toast.warning('Tidak ada data untuk diekspor.');
   const worksheet = XLSX.utils.json_to_sheet(items.value);
   const workbook = XLSX.utils.book_new();
@@ -76,15 +111,43 @@ const exportData = () => {
   toast.success('Data berhasil diekspor.');
 };
 
-onMounted(fetchData);
-watch(filters, fetchData, { deep: true });
+onMounted(() => {
+  // --- TAMBAHKAN PENGECEKAN AWAL ---
+  if (!canView.value) {
+    isLoading.value = false; // Hentikan loading
+    toast.error("Anda tidak memiliki izin untuk melihat halaman ini.");
+    items.value = []; // Pastikan data kosong
+    return; // Hentikan eksekusi
+  }
+  // ------------------------------------
+
+  // fetchData(); // Hapus ini, karena watch immediate akan memanggil
+});
+watch(filters, () => {
+  // --- TAMBAHKAN PENGECEKAN IZIN ---
+  if (!canView.value) {
+    isLoading.value = false; // Hentikan loading jika belum
+    items.value = []; // Kosongkan data
+    return; // Hentikan jika tidak ada izin
+  }
+  // ---------------------------------
+  fetchData();
+}, { deep: true, immediate: true });
 </script>
 
 <template>
   <PageLayout title="Laporan Stok Stagnan" :menu-id="MENU_ID">
     <template #header-actions>
-      <v-btn size="small" color="teal" @click="exportData" prepend-icon="mdi-file-excel">Export</v-btn>
+      <v-btn v-if="canExport" size="small" color="teal" @click="exportData" prepend-icon="mdi-file-excel">
+        Export
+      </v-btn>
     </template>
+
+    <div v-if="!canView && !isLoading" class="state-container pa-4 text-center">
+      <v-icon size="64" class="mb-4">mdi-lock-outline</v-icon>
+      <h3 class="text-h6">Akses Ditolak</h3>
+      <p>Anda tidak memiliki izin untuk melihat laporan ini.</p>
+    </div>
 
     <div class="browse-content">
       <div class="filter-section">

@@ -546,24 +546,28 @@ watch(() => [filters.startDate, filters.endDate], () => {
           </template>
           <template #expanded-row="{ columns, item }">
             <tr>
-              <td :colspan="columns.length" class="pa-2 bg-grey-lighten-5">
-                <div v-if="loadingDetails.has(item.nomor)" class="text-center py-2">
-                  <v-progress-circular indeterminate size="20" class="mr-2"></v-progress-circular>
-                  <span class="text-caption">Memuat detail...</span>
+              <td :colspan="columns.length" class="pa-0">
+                <div class="detail-container">
+                  <div class="detail-table-wrapper">
+                    <div v-if="loadingDetails.has(item.nomor)" class="text-center py-2">
+                      <v-progress-circular indeterminate size="20" class="mr-2"></v-progress-circular>
+                      <span class="text-caption">Memuat detail...</span>
+                    </div>
+                    <v-data-table v-else-if="details[item.nomor] && details[item.nomor].length > 0"
+                      :headers="detailHeaders" :items="details[item.nomor]" density="compact" hide-default-footer
+                      :items-per-page="-1" class="detail-table">
+                      <template #[`item.harga`]="{ item: detailItem }">
+                        {{ new Intl.NumberFormat('id-ID').format(detailItem.harga) }}
+                      </template>
+                      <template #[`item.diskon`]="{ item: detailItem }">
+                        {{ new Intl.NumberFormat('id-ID').format(detailItem.diskon) }}
+                      </template>
+                      <template #[`item.total`]="{ item: detailItem }">
+                        {{ new Intl.NumberFormat('id-ID').format(detailItem.total) }}
+                      </template>
+                    </v-data-table>
+                  </div>
                 </div>
-                <v-data-table v-else-if="details[item.nomor] && details[item.nomor].length > 0" :headers="detailHeaders"
-                  :items="details[item.nomor]" density="compact" hide-default-footer :items-per-page="-1"
-                  class="elevation-0 detail-table">
-                  <template #[`item.harga`]="{ item: detailItem }">
-                    {{ new Intl.NumberFormat('id-ID').format(detailItem.harga) }}
-                  </template>
-                  <template #[`item.diskon`]="{ item: detailItem }">
-                    {{ new Intl.NumberFormat('id-ID').format(detailItem.diskon) }}
-                  </template>
-                  <template #[`item.total`]="{ item: detailItem }">
-                    {{ new Intl.NumberFormat('id-ID').format(detailItem.total) }}
-                  </template>
-                </v-data-table>
               </td>
             </tr>
           </template>
@@ -594,7 +598,7 @@ watch(() => [filters.startDate, filters.endDate], () => {
       <v-card>
         <v-card-title class="text-h5">Konfirmasi Hapus</v-card-title>
         <v-card-text>Apakah Anda yakin ingin menghapus penawaran nomor <strong>{{ itemToDelete?.nomor
-            }}</strong>?</v-card-text>
+        }}</strong>?</v-card-text>
         <v-card-actions><v-spacer></v-spacer><v-btn @click="dialogDelete = false">Batal</v-btn><v-btn
             color="red-darken-1" variant="elevated"
             @click="deleteConfirmed">Hapus</v-btn><v-spacer></v-spacer></v-card-actions>

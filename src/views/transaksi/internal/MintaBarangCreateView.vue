@@ -495,6 +495,12 @@ onMounted(() => {
                 placeholder="F1/F2..." @keydown.f1.prevent="openProductSearch(index, false)"
                 @keydown.f2.prevent="openProductSearch(index, true)" />
             </template>
+            <template v-slot:[`item.nama`]="{ item }">
+              <v-tooltip activator="parent" location="top">
+                {{ item.nama }}
+              </v-tooltip>
+              {{ item.nama }}
+            </template>
             <template v-slot:[`item.jumlah`]="{ item }">
               <v-text-field v-model.number="item.jumlah" type="number" min="0" variant="underlined" density="compact"
                 hide-details class="text-end" />
@@ -587,14 +593,16 @@ onMounted(() => {
   margin-bottom: 16px;
 }
 
+/* Buat semua kolom default tetap rapi */
 .desktop-table .v-data-table__td {
   white-space: nowrap !important;
-  overflow: visible !important;
-  text-overflow: unset !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
 }
 
+/* Khusus kolom Nama Barang biar panjang penuh (tanpa batas lebar) */
 .desktop-table td:nth-child(2) {
-  width: auto !important;
-  min-width: 600px;
+  white-space: nowrap !important;
+  max-width: none !important;
 }
 </style>

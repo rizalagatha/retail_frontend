@@ -1,17 +1,6 @@
 /* ==========================================================================
-   Global Desktop Theme CSS - RESPONSIVE VERSION
+   Global Desktop Theme CSS
    ========================================================================== */
-
-/* Base Variables untuk scaling */
-:root {
-  --base-gap: 12px;
-  --base-padding: 12px;
-  --table-font-size: 11px;
-  --table-row-height: 28px;
-  --input-font-size: 12px;
-  --label-font-size: 11px;
-  --left-column-width: 400px;
-}
 
 /* Layout Dasar Form & Browse
    ========================================================================== */
@@ -20,26 +9,26 @@
   height: auto;
   display: flex;
   flex-direction: column;
-  gap: var(--base-gap);
+  gap: 12px;
 }
 
 .form-content {
-  padding: var(--base-padding);
+  padding: 12px;
 }
 
 .form-grid-container {
-  padding: var(--base-padding);
+  padding: 12px;
   height: 100%;
   display: grid;
-  grid-template-columns: var(--left-column-width) 1fr;
-  gap: var(--base-gap);
+  grid-template-columns: 400px 1fr;
+  gap: 12px;
 }
 
 .left-column,
 .right-column {
   display: flex;
   flex-direction: column;
-  gap: var(--base-gap);
+  gap: 12px;
   min-height: 0;
 }
 
@@ -48,7 +37,7 @@
 }
 
 .desktop-form-section {
-  padding: var(--base-padding);
+  padding: 12px;
   border: 1px solid #e0e0e0;
   border-radius: 4px;
   background-color: white;
@@ -60,24 +49,24 @@
 .filter-section {
   display: flex;
   align-items: center;
-  gap: var(--base-gap);
+  gap: 12px;
   padding: 6px 10px;
   border-bottom: 1px solid #e0e0e0;
   flex-shrink: 0;
 }
 
 .filter-label {
-  font-size: var(--label-font-size);
+  font-size: 11px;
   font-weight: 500;
 }
 
 .filter-section .v-label,
 .filter-section .v-select__selection-text {
-  font-size: var(--label-font-size) !important;
+  font-size: 11px !important;
 }
 
 .filter-section input {
-  font-size: var(--input-font-size) !important;
+  font-size: 12px !important;
 }
 
 .filter-section .v-field {
@@ -99,13 +88,13 @@
 
 .header-filters .v-label,
 .header-section .v-label {
-  font-size: var(--label-font-size) !important;
+  font-size: 11px !important;
 }
 
 .header-filters input,
 .header-section input,
 .header-section .v-select__selection-text {
-  font-size: var(--input-font-size) !important;
+  font-size: 12px !important;
 }
 
 .header-section .v-col {
@@ -114,7 +103,7 @@
 }
 
 .header-section .v-input {
-  margin-bottom: 8px !important;
+  margin-bottom: 8px !important; /* Beri sedikit jarak antar field */
 }
 
 /* Styling v-data-table
@@ -127,7 +116,7 @@
 }
 
 .desktop-table {
-  font-size: var(--table-font-size);
+  font-size: 11px;
   border: 1px solid #e0e0e0;
   vertical-align: middle;
   overflow: hidden;
@@ -136,19 +125,19 @@
 .desktop-table td,
 .desktop-table th {
   padding: 0 8px !important;
-  height: var(--table-row-height) !important;
+  height: 28px !important;
 }
 
 .desktop-table input {
-  font-size: var(--table-font-size) !important;
+  font-size: 11px !important;
 }
 
 .desktop-table .v-select__selection-text {
-  font-size: var(--table-font-size) !important;
+  font-size: 11px !important;
 }
 
 .desktop-table .v-field__input {
-  font-size: var(--table-font-size) !important;
+  font-size: 11px !important;
 }
 
 .desktop-table .v-data-table__td {
@@ -157,7 +146,8 @@
 }
 
 .desktop-table td:nth-child(2) {
-  max-width: 400px;
+  /* kolom Nama Barang */
+  max-width: 400px; /* boleh disesuaikan */
 }
 
 .fill-height-table {
@@ -197,42 +187,48 @@
 
 .scroll-wrapper {
   overflow-x: auto;
-  overflow-y: hidden;
+  overflow-y: hidden; /* supaya scroll X tidak "ketumpuk" sama scroll Y */
   width: 100%;
 }
 
+/* pastikan tabel tidak ngecil */
 .scroll-wrapper .v-table,
 .scroll-wrapper .v-data-table {
-  min-width: max-content;
+  min-width: max-content; /* biar kolom panjang muncul scroll X */
 }
 
+/* Pastikan wrapper hanya untuk body tabel */
 .scroll-wrapper .v-table__wrapper {
   overflow-x: auto !important;
   overflow-y: hidden !important;
   display: block;
 }
 
+/* Paksa footer pagination tetap full lebar layar */
 .scroll-wrapper .v-data-table-footer {
   position: sticky;
   left: 0;
   right: 0;
   min-width: 100% !important;
   background: white;
-  z-index: 5;
+  z-index: 5; /* biar di atas table */
 }
+/* ==========================================================================
+   👇 TAMBAHKAN BLOK BARU DI SINI 👇
+   ========================================================================== */
 
 /* Styling Detail Table (Expanded Row)
    ========================================================================== */
 .detail-container {
   display: flex;
-  justify-content: flex-end;
+  justify-content: flex-end; /* Mendorong tabel detail ke kanan */
   padding: 8px;
   background-color: #f7f7f7;
 }
 
 .detail-table-wrapper {
   width: 100%;
-  max-width: 900px;
+  max-width: 900px; /* Lebar tabel detail, bisa disesuaikan */
   border: 1px solid #ddd;
   border-radius: 4px;
   overflow: hidden;
@@ -240,13 +236,13 @@
 }
 
 .detail-table {
-  font-size: 10px !important;
+  font-size: 10px !important; /* Font lebih kecil untuk detail */
 }
 
 .detail-table td,
 .detail-table th {
   padding: 0 8px !important;
-  height: 26px !important;
+  height: 26px !important; /* Baris sedikit lebih pendek */
 }
 
 /* Utility Classes
@@ -264,178 +260,27 @@
 }
 
 .footer-right .v-field--variant-filled .v-field__input {
-  font-size: var(--table-font-size) !important;
+  font-size: 11px !important;
 }
 
+/* Menyesuaikan tinggi agar tetap rapi */
 .footer-right .v-input--density-compact {
   --v-input-control-height: 28px;
   --v-input-padding-top: 5px;
 }
 
 .footer-left .v-field--variant-filled .v-field__input {
-  font-size: var(--table-font-size) !important;
+  font-size: 11px !important;
 }
 
+/* Menyesuaikan tinggi agar tetap rapi */
 .footer-left .v-input--density-compact {
   --v-input-control-height: 28px;
   --v-input-padding-top: 5px;
 }
 
 .scanner-wrapper {
-  max-width: 400px;
-  flex: none;
+  max-width: 400px; /* <-- ATUR LEBAR MAKSIMUM DI SINI */
+  flex: none; /* Mencegah flexbox meregangkan wrapper ini */
   margin-bottom: 16px;
-}
-
-/* ==========================================================================
-   RESPONSIVE BREAKPOINTS
-   ========================================================================== */
-
-/* Layar HD/HD+ (1366x768 - 1600x900) */
-@media screen and (max-width: 1600px) {
-  :root {
-    --base-gap: 10px;
-    --base-padding: 10px;
-    --table-font-size: 10px;
-    --table-row-height: 26px;
-    --input-font-size: 11px;
-    --label-font-size: 10px;
-    --left-column-width: 340px;
-  }
-
-  .scanner-wrapper {
-    max-width: 340px;
-  }
-
-  .desktop-table td:nth-child(2) {
-    max-width: 350px;
-  }
-
-  .detail-table-wrapper {
-    max-width: 800px;
-  }
-}
-
-/* Layar 720p dan kecil (1280x720 - 1366x768) */
-@media screen and (max-width: 1366px) {
-  :root {
-    --base-gap: 8px;
-    --base-padding: 8px;
-    --table-font-size: 9px;
-    --table-row-height: 24px;
-    --input-font-size: 10px;
-    --label-font-size: 9px;
-    --left-column-width: 300px;
-  }
-
-  .desktop-table td,
-  .desktop-table th {
-    padding: 0 6px !important;
-  }
-
-  .scanner-wrapper {
-    max-width: 300px;
-  }
-
-  .desktop-table td:nth-child(2) {
-    max-width: 300px;
-  }
-
-  .detail-table {
-    font-size: 9px !important;
-  }
-
-  .detail-table td,
-  .detail-table th {
-    padding: 0 6px !important;
-    height: 22px !important;
-  }
-
-  .detail-table-wrapper {
-    max-width: 700px;
-  }
-
-  .filter-section .v-field {
-    height: 32px !important;
-  }
-
-  .filter-section .v-field__input {
-    min-height: 32px !important;
-  }
-}
-
-/* Layar sangat kecil (di bawah 1280px) */
-@media screen and (max-width: 1280px) {
-  :root {
-    --base-gap: 8px;
-    --base-padding: 8px;
-    --table-font-size: 9px;
-    --table-row-height: 22px;
-    --input-font-size: 10px;
-    --label-font-size: 9px;
-    --left-column-width: 280px;
-  }
-
-  .form-grid-container {
-    grid-template-columns: 1fr; /* Stack jadi satu kolom */
-    gap: 8px;
-  }
-
-  .scanner-wrapper {
-    max-width: 100%;
-  }
-
-  .desktop-form-section {
-    padding: 8px;
-  }
-}
-
-/* Layar Full HD+ (1920x1080 ke atas) */
-@media screen and (min-width: 1920px) {
-  :root {
-    --base-gap: 14px;
-    --base-padding: 14px;
-    --table-font-size: 12px;
-    --table-row-height: 30px;
-    --input-font-size: 13px;
-    --label-font-size: 12px;
-    --left-column-width: 450px;
-  }
-
-  .scanner-wrapper {
-    max-width: 450px;
-  }
-
-  .desktop-table td:nth-child(2) {
-    max-width: 450px;
-  }
-
-  .detail-table-wrapper {
-    max-width: 1000px;
-  }
-}
-
-/* Layar 2K/QHD (2560x1440) */
-@media screen and (min-width: 2560px) {
-  :root {
-    --base-gap: 16px;
-    --base-padding: 16px;
-    --table-font-size: 13px;
-    --table-row-height: 32px;
-    --input-font-size: 14px;
-    --label-font-size: 13px;
-    --left-column-width: 500px;
-  }
-
-  .scanner-wrapper {
-    max-width: 500px;
-  }
-
-  .desktop-table td:nth-child(2) {
-    max-width: 500px;
-  }
-
-  .detail-table-wrapper {
-    max-width: 1200px;
-  }
 }

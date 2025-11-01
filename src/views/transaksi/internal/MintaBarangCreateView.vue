@@ -588,13 +588,13 @@ onMounted(() => {
 }
 
 .desktop-table .v-data-table__td {
-  white-space: normal !important;
-  word-wrap: break-word !important;
+  white-space: nowrap !important;
+  overflow: visible !important;
+  text-overflow: unset !important;
 }
 
 .desktop-table td:nth-child(2) {
-  /* kolom Nama Barang */
-  max-width: 400px;
-  /* boleh disesuaikan */
+  width: auto !important;
+  min-width: 600px;
 }
 </style>

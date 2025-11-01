@@ -949,10 +949,10 @@ const resetForm = async () => {
   }
 };
 
-const getQtyClass = (item: Item) => {
-  // Beri class 'qty-error' jika jumlah melebihi stok
-  if (item.jumlah > item.stok) {
-    return 'qty-error';
+const getQtyClass = (item) => {
+  // Hanya tandai merah kalau stok kurang dari jumlah DAN bukan item SO DTF
+  if (!item.noSoDtf && item.stok < item.jumlah) {
+    return 'text-red font-weight-bold';
   }
   return '';
 };

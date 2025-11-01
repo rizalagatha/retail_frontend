@@ -487,7 +487,7 @@ onMounted(() => {
             prepend-inner-icon="mdi-barcode-scan" hide-details clearable @keydown.enter.prevent="handleBarcodeScan">
           </v-text-field>
         </div>
-        <div class="desktop-form-section fill-height">
+        <div class="table-scroll-wrapper">
           <v-data-table :headers="tableHeaders" :items="items" :loading="isLoading" density="compact"
             class="desktop-table fill-height-table" fixed-header :items-per-page="-1">
             <template v-slot:[`item.kode`]="{ item, index }">
@@ -495,28 +495,26 @@ onMounted(() => {
                 placeholder="F1/F2..." @keydown.f1.prevent="openProductSearch(index, false)"
                 @keydown.f2.prevent="openProductSearch(index, true)" />
             </template>
+
             <template v-slot:[`item.nama`]="{ item }">
-              <v-tooltip activator="parent" location="top">
-                {{ item.nama }}
-              </v-tooltip>
-              {{ item.nama }}
+              <span class="nama-barang" :title="item.nama">{{ item.nama }}</span>
             </template>
+
             <template v-slot:[`item.jumlah`]="{ item }">
               <v-text-field v-model.number="item.jumlah" type="number" min="0" variant="underlined" density="compact"
                 hide-details class="text-end" />
             </template>
-            <template v-slot:[`item.sj`]="{ item }">
-              <v-text-field v-model.number="item.sj" type="number" min="0" variant="underlined" density="compact"
-                hide-details class="text-end" />
-            </template>
+
             <template v-slot:[`item.actions`]="{ item }">
               <v-btn v-if="item.kode" icon="mdi-delete" size="x-small" variant="text" color="error"
                 @click="removeRow(item.id)" title="Hapus baris" />
             </template>
+
             <template #bottom>
               <div class="pa-2 text-right">
-                <v-btn size="small" @click="addNewRow" prepend-icon="mdi-plus" variant="text" color="primary">Tambah
-                  Baris</v-btn>
+                <v-btn size="small" @click="addNewRow" prepend-icon="mdi-plus" variant="text" color="primary">
+                  Tambah Baris
+                </v-btn>
               </div>
             </template>
           </v-data-table>
@@ -593,16 +591,31 @@ onMounted(() => {
   margin-bottom: 16px;
 }
 
-/* Buat semua kolom default tetap rapi */
+.table-scroll-wrapper {
+  overflow-x: auto;
+  /* ✅ biar bisa scroll horizontal */
+  width: 100%;
+}
+
+/* Hilangkan wrapping teks */
 .desktop-table .v-data-table__td {
   white-space: nowrap !important;
   overflow: hidden !important;
   text-overflow: ellipsis !important;
 }
 
-/* Khusus kolom Nama Barang biar panjang penuh (tanpa batas lebar) */
+/* Kolom Nama Barang biar panjang penuh */
 .desktop-table td:nth-child(2) {
-  white-space: nowrap !important;
-  max-width: none !important;
+  min-width: 600px;
+  /* sesuaikan dengan kebutuhanmu */
+}
+
+/* Biar teks nama barang tetap rapi */
+.nama-barang {
+  display: inline-block;
+  max-width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 </style>

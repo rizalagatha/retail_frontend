@@ -114,7 +114,7 @@ const itemToDelete = ref<OfferHeader | null>(null);
 const filters = reactive({
   startDate: format(subDays(new Date(), 7), 'yyyy-MM-dd'),
   endDate: format(new Date(), 'yyyy-MM-dd'),
-  cabang: authStore.user?.cabang === 'KDC' ? 'K01' : authStore.user?.cabang || '',
+  cabang: authStore.user?.cabang || '',
 });
 
 const tableHeaders = [

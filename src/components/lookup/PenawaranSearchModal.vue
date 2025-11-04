@@ -4,8 +4,9 @@ import api from '@/services/api';
 import { format } from 'date-fns';
 
 const props = defineProps({
-    cabang: { type: String, required: true },
-    customerKode: { type: String, required: true },
+  cabang: { type: String, required: true },
+  // Ubah 'required: true' menjadi 'required: false'
+  customerKode: { type: String, required: false, default: '' },
 });
 const emit = defineEmits(['close', 'selected']);
 

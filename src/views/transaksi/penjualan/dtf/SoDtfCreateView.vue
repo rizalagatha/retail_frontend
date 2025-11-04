@@ -103,6 +103,8 @@ const isImageFullscreenVisible = ref(false); // State untuk modal fullscreen
 const isConfirmDialogVisible = ref(false);
 const confirmText = ref('');
 const pendingAction = ref<(() => void) | null>(null);
+const isPrintConfirmVisible = ref(false); // State untuk dialog cetak baru
+const printConfirmNomor = ref(''); // Untuk menyimpan nomor SO DTF yang akan dicetak
 const ukuranKaosList = ref<string[]>([]);
 
 // --- Modal Visibility State ---
@@ -372,6 +374,7 @@ const save = async () => {
 
   showConfirmation(async () => {
     isSaving.value = true;
+    let savedNomor: string = ''; // Deklarasikan di scope yang lebih tinggi
 
     try {
       // 1. Simpan data utama
@@ -381,22 +384,21 @@ const save = async () => {
         detailsTitik: validDetailsTitik
       };
 
-      let savedNomor: string;
-
       if (isEditMode.value) {
         if (!form.value.nomor) {
           toast.error("Nomor tidak ditemukan, tidak bisa update.")
-          return
+          isSaving.value = false; // Reset loading
+          return;
         }
         await api.put(`/so-dtf-form/${form.value.nomor}`, payload)
-        savedNomor = form.value.nomor
+        savedNomor = form.value.nomor;
       } else {
         delete payload.header.nomor // jangan kirim null
         const response = await api.post("/so-dtf-form", payload)
-        savedNomor = response.data.header.sd_nomor
+        savedNomor = response.data.header.sd_nomor;
       }
 
-      toast.success("Data berhasil disimpan.")
+      toast.success("Data berhasil disimpan.");
 
       // 2. Upload gambar jika ada
       if (!isEditMode.value && imageFile.value) {
@@ -406,16 +408,66 @@ const save = async () => {
         }
       }
 
-      router.push("/transaksi/penjualan/dtf/so-dtf")
+      // --- PERUBAHAN LOGIKA REDIRECT DIMULAI DI SINI ---
+
+      // 3. Alih-alih router.push, tampilkan dialog cetak
+      if (savedNomor) {
+        printConfirmNomor.value = savedNomor;
+        isPrintConfirmVisible.value = true; // Buka dialog baru
+      } else {
+        // Fallback jika (karena alasan aneh) nomor tidak ada
+        toast.error("Gagal mendapatkan nomor, kembali ke daftar.");
+        router.push("/transaksi/penjualan/dtf/so-dtf");
+      }
+
+      // HAPUS router.push lama:
+      // router.push("/transaksi/penjualan/dtf/so-dtf");
+
+      // --- AKHIR PERUBAHAN ---
+
     } catch (err) {
       const error = err as AxiosError<{ message: string }>
       console.error("Save error:", error)
       toast.error(error.response?.data?.message || "Gagal menyimpan data.")
     } finally {
-      isSaving.value = false
+      isSaving.value = false;
+      // isConfirmDialogVisible ditutup oleh executePendingAction
     }
   }, "Anda yakin ingin menyimpan data ini?")
 }
+
+// Fungsi ini dipanggil jika user menekan "Ya, Cetak"
+const handlePrintConfirm = () => {
+  if (!printConfirmNomor.value) return;
+
+  try {
+    // 1. Resolve URL dari named route 'Cetak SO DTF'
+    const routeData = router.resolve({
+      name: 'Cetak SO DTF', // Ini 'name' dari route yang Anda berikan
+      params: { nomor: printConfirmNomor.value }
+    });
+
+    // 2. Buka URL di tab baru
+    window.open(routeData.href, '_blank');
+
+  } catch (error) {
+    console.error("Gagal membuka halaman cetak SO DTF:", error);
+    toast.error('Gagal membuka halaman cetak. Pastikan route "Cetak SO DTF" ada.');
+  } finally {
+    // 3. Tutup dialog dan kembali ke halaman browse
+    isPrintConfirmVisible.value = false;
+    printConfirmNomor.value = '';
+    router.push('/transaksi/penjualan/dtf/so-dtf');
+  }
+};
+
+// Fungsi ini dipanggil jika user menekan "Tidak, Kembali"
+const handlePrintCancel = () => {
+  isPrintConfirmVisible.value = false;
+  printConfirmNomor.value = '';
+  // Langsung kembali ke halaman browse
+  router.push('/transaksi/penjualan/dtf/so-dtf');
+};
 
 const cancel = () => {
   router.push('/transaksi/penjualan/dtf/so-dtf');
@@ -441,11 +493,11 @@ const fetchSisaKuota = async () => {
 };
 
 const openCustomerSearch = () => { isCustomerSearchVisible.value = true; };
-const onCustomerSelected = (customer: { kode: string, nama: string, alamat: string, level: string }) => {
+const onCustomerSelected = (customer: { kode: string, nama: string, alamat: string, level_nama: string }) => {
   form.value.customerKode = customer.kode;
   form.value.customerNama = customer.nama;
   form.value.customerAlamat = customer.alamat;
-  form.value.customerLevel = customer.level;
+  form.value.customerLevel = customer.level_nama;
   isCustomerSearchVisible.value = false;
 };
 
@@ -982,6 +1034,28 @@ onMounted(() => {
           </v-btn>
           <v-btn color="primary" variant="tonal" @click="executePendingAction">
             Ya, Lanjutkan
+          </v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+
+    <v-dialog v-model="isPrintConfirmVisible" max-width="400px" persistent>
+      <v-card>
+        <v-card-title class="text-h6 font-weight-bold">
+          Simpan Berhasil
+        </v-card-title>
+        <v-card-text>
+          SO DTF {{ printConfirmNomor }} berhasil disimpan.
+          <br><br>
+          Apakah Anda ingin mencetak dokumen ini sekarang?
+        </v-card-text>
+        <v-card-actions>
+          <v-spacer></v-spacer>
+          <v-btn color="grey-darken-1" variant="text" @click="handlePrintCancel">
+            Tidak, Kembali
+          </v-btn>
+          <v-btn color="primary" variant="tonal" @click="handlePrintConfirm">
+            Ya, Cetak
           </v-btn>
         </v-card-actions>
       </v-card>

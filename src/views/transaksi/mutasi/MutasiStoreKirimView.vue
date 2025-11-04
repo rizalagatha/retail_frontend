@@ -247,14 +247,16 @@ watch(
 <template>
   <PageLayout title="Mutasi Antar Store Kirim" :icon="'mdi-store-transfer-outline'">
     <template #header-actions>
-      <v-btn v-if="authStore.can(MENU_ID, 'insert')" size="small" color="primary" @click="handleNew">
+      <v-btn v-if="authStore.can(MENU_ID, 'insert')" size="small" prepend-icon="mdi-plus" color="primary"
+        @click="handleNew">
         Baru
       </v-btn>
-      <v-btn v-if="authStore.can(MENU_ID, 'edit')" size="small" :disabled="!isSingleSelected" @click="handleEdit">
+      <v-btn v-if="authStore.can(MENU_ID, 'edit')" size="small" prepend-icon="mdi-pencil" :disabled="!isSingleSelected"
+        @click="handleEdit">
         Ubah
       </v-btn>
-      <v-btn v-if="authStore.can(MENU_ID, 'delete')" size="small" color="error" :disabled="!isSingleSelected"
-        @click="handleDelete">
+      <v-btn v-if="authStore.can(MENU_ID, 'delete')" size="small" prepend-icon="mdi-delete" color="error"
+        :disabled="!isSingleSelected" @click="handleDelete">
         Hapus
       </v-btn>
       <v-btn v-if="authStore.can(MENU_ID, 'view')" size="small" color="green" :disabled="!isSingleSelected"

@@ -30,7 +30,7 @@ const items = ref<ProductVariant[]>([]);
 const totalItems = ref(0);
 const loading = ref(true);
 const search = ref('');
-const options = ref({ page: 1, itemsPerPage: 10 });
+const options = ref({ page: 1, itemsPerPage: 25 });
 const selected = ref<ProductVariant[]>([]);
 
 const headers = [

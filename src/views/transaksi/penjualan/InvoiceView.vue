@@ -372,10 +372,12 @@ watch(filters, () => {
 <template>
   <PageLayout title="Invoice" icon="mdi-receipt-text">
     <template #header-actions>
-      <v-btn v-if="authStore.can(MENU_ID, 'insert')" size="small" color="primary" @click="handleNew">
+      <v-btn v-if="authStore.can(MENU_ID, 'insert')" size="small" prepend-icon="mdi-plus" color="primary"
+        @click="handleNew">
         Baru
       </v-btn>
-      <v-btn v-if="authStore.can(MENU_ID, 'edit')" size="small" :disabled="!isSingleSelected" @click="handleEdit">
+      <v-btn v-if="authStore.can(MENU_ID, 'edit')" size="small" prepend-icon="mdi-pencil" :disabled="!isSingleSelected"
+        @click="handleEdit">
         Ubah
       </v-btn>
       <!-- <v-btn v-if="authStore.can(MENU_ID, 'delete')" size="small" color="error" :disabled="!isSingleSelected"

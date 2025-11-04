@@ -435,8 +435,8 @@ watch(filters, () => {
         <span class="mx-2">s/d</span>
         <v-text-field v-model="filters.endDate" type="date" density="compact" hide-details variant="outlined"
           style="min-width: 140px;"></v-text-field>
-        <v-text-field v-model="filters.endDate" type="date" density="compact" hide-details variant="outlined"
-          style="min-width: 140px;"></v-text-field>
+        <v-select v-model="filters.cabang" :items="cabangList" item-title="nama" item-value="kode" label="Cabang"
+          density="compact" hide-details variant="outlined" class="ms-2" style="min-width: 180px;"></v-select>
         <v-divider vertical class="mx-2"></v-divider>
         <div class="d-flex align-center ga-2">
           <v-select v-model="selectedFilterField" :items="filterOptions" label="Filter Berdasarkan" density="compact"

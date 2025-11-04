@@ -789,16 +789,22 @@ const handleProceedToPayment = () => {
     return toast.error('Qty Invoice kosong semua.');
   }
 
-  // Validasi No. HP (jika ada promo undian, dibuat lebih umum)
-  // Untuk saat ini, kita hanya akan memberikan peringatan jika No. HP kosong
+  // --- LOGIKA KONFIRMASI BARU ---
   if (!header.memberHp) {
-    if (!confirm('No. HP Member kosong. Yakin akan melanjutkan?')) {
-      // Di sini Anda bisa menambahkan logika untuk fokus ke input member
-      return;
-    }
+    // Panggil dialog konfirmasi yang sudah ada
+    showConfirmation(
+      'Konfirmasi Member',
+      'No. HP Member kosong. Yakin akan melanjutkan?',
+      proceedToPaymentOrBonus // Panggil fungsi lanjutan HANYA jika "Ya"
+    );
+  } else {
+    // Jika HP ada, langsung panggil fungsi lanjutan
+    proceedToPaymentOrBonus();
   }
-  // --- AKHIR VALIDASI ---
+  // --- AKHIR VALIDASI & LOGIKA KONFIRMASI ---
+};
 
+const proceedToPaymentOrBonus = () => {
   const promoTebusMurah = header.nomorPromo; // Asumsi dari field promo
   if (promoTebusMurah === 'PRO-2025-002') { // Contoh kode promo
     activePromoForBonus.value = { nomor: promoTebusMurah, qty: 1 };
@@ -1061,7 +1067,13 @@ onMounted(() => {
 <template>
   <PageLayout :title="pageTitle" icon="mdi-receipt-text-edit">
     <template #header-actions>
-      <v-btn size="small" @click="handleClose">Tutup</v-btn>
+      <v-btn v-if="!isEditMode" size="small" prepend-icon="mdi-cancel"
+        @click="showConfirmation('Batalkan Isian', 'Batalkan dan kosongkan semua isian?', resetForm)">
+        Batal
+      </v-btn>
+      <v-btn size="small" prepend-icon="mdi-close" @click=handleClose>
+        Tutup
+      </v-btn>
     </template>
 
     <div class="form-grid-container">
@@ -1162,79 +1174,80 @@ onMounted(() => {
       </div>
 
       <div class="right-column">
-        <div class="desktop-form-section d-flex flex-column fill-height">
-          <div v-if="!header.nomorSo" class="scanner-wrapper">
-            <v-text-field v-model="scannedBarcode" label="Scan Barcode di Sini..."
-              placeholder="Input barcode lalu tekan Enter" variant="outlined" density="compact"
-              prepend-inner-icon="mdi-barcode-scan" hide-details clearable @keydown.enter.prevent="handleBarcodeScan" />
-          </div>
-          <div class="table-wrapper">
-            <v-data-table :headers="tableHeaders" :items="items" class="desktop-table flex-grow-1" :items-per-page="-1">
-              <template v-slot:[`item.kode`]="{ item, index }">
-                <v-text-field v-model="item.kode" variant="underlined" density="compact" hide-details
-                  placeholder="F1/F2..." :readonly="!!header.nomorSo" :class="{ 'field-disabled': !!header.nomorSo }"
-                  @keydown.f1.prevent="!header.nomorSo && openProductSearch(index, false)"
-                  @keydown.f2.prevent="!header.nomorSo && openProductSearch(index, true)" />
-              </template>
+        <div v-if="!header.nomorSo" class="scanner-wrapper">
+          <v-text-field v-model="scannedBarcode" label="Scan Barcode di Sini..."
+            placeholder="Input barcode lalu tekan Enter" variant="outlined" density="compact"
+            prepend-inner-icon="mdi-barcode-scan" hide-details clearable @keydown.enter.prevent="handleBarcodeScan" />
+        </div>
 
-              <template v-slot:[`item.jumlah`]="{ item }">
-                <v-text-field v-model.number="item.jumlah" type="number" min="0" variant="underlined" density="compact"
-                  hide-details class="text-right" :class="getQtyClass(item)" @blur="handleJumlahChange(item)" />
-              </template>
+        <div class="desktop-form-section table-section">
+          <v-data-table :headers="tableHeaders" :items="items" class="desktop-table" :items-per-page="-1">
+            <template v-slot:[`item.kode`]="{ item, index }">
+              <v-text-field v-model="item.kode" variant="underlined" density="compact" hide-details
+                placeholder="F1/F2..." :readonly="!!header.nomorSo" :class="{ 'field-disabled': !!header.nomorSo }"
+                @keydown.f1.prevent="!header.nomorSo && openProductSearch(index, false)"
+                @keydown.f2.prevent="!header.nomorSo && openProductSearch(index, true)" />
+            </template>
 
-              <template v-slot:[`item.harga`]="{ item }">
-                <v-text-field v-model.number="item.harga" type="number" min="0" variant="underlined" density="compact"
-                  hide-details class="text-right" :readonly="!isHargaEditable(item)" />
-              </template>
+            <template v-slot:[`item.jumlah`]="{ item }">
+              <v-text-field v-model.number="item.jumlah" type="number" min="0" variant="underlined" density="compact"
+                hide-details class="text-right" :class="getQtyClass(item)" @blur="handleJumlahChange(item)" />
+            </template>
 
-              <template v-slot:[`item.diskonPersen`]="{ item }">
-                <v-text-field v-model.number="item.diskonPersen" type="number" min="0" variant="underlined"
-                  density="compact" hide-details class="text-right" @blur="handleItemDiscountChange(item)"
-                  @focus="onItemDiscountFocus(item)" />
-              </template>
+            <template v-slot:[`item.harga`]="{ item }">
+              <v-text-field v-model.number="item.harga" type="number" min="0" variant="underlined" density="compact"
+                hide-details class="text-right" :readonly="!isHargaEditable(item)" />
+            </template>
 
-              <template v-slot:[`item.diskonRp`]="{ item }">
-                <v-text-field v-model.number="item.diskonRp" type="number" min="0" variant="underlined"
-                  density="compact" hide-details class="text-right" @blur="handleItemDiscountChange(item)"
-                  @focus="onItemDiscountFocus(item)" />
-              </template>
+            <template v-slot:[`item.diskonPersen`]="{ item }">
+              <v-text-field v-model.number="item.diskonPersen" type="number" min="0" variant="underlined"
+                density="compact" hide-details class="text-right" @blur="handleItemDiscountChange(item)"
+                @focus="onItemDiscountFocus(item)" />
+            </template>
 
-              <template v-slot:[`item.noSoDtf`]="{ item, index }">
-                <v-text-field v-model="item.noSoDtf" variant="underlined" density="compact" hide-details
-                  placeholder="F1 atau Klik..." :readonly="!!header.nomorSo || !!item.kode"
-                  :class="{ 'field-disabled': !!header.nomorSo || !!item.kode }" @click="openSoDtfSearch(item, index)"
-                  @keydown.f1.prevent="openSoDtfSearch(item, index)" />
-              </template>
+            <template v-slot:[`item.diskonRp`]="{ item }">
+              <v-text-field v-model.number="item.diskonRp" type="number" min="0" variant="underlined" density="compact"
+                hide-details class="text-right" @blur="handleItemDiscountChange(item)"
+                @focus="onItemDiscountFocus(item)" />
+            </template>
 
-              <template v-slot:[`item.actions`]="{ item }">
-                <v-btn v-if="item.kode" icon="mdi-delete" variant="text" color="error" size="x-small"
-                  @click="handleDeleteItem(item)"
-                  :title="item.noSoDtf ? 'Hapus Semua Item SO DTF Ini' : 'Hapus Item Ini'">
-                </v-btn>
-              </template>
-            </v-data-table>
+            <template v-slot:[`item.noSoDtf`]="{ item, index }">
+              <v-text-field v-model="item.noSoDtf" variant="underlined" density="compact" hide-details
+                placeholder="F1 atau Klik..." :readonly="!!header.nomorSo || !!item.kode"
+                :class="{ 'field-disabled': !!header.nomorSo || !!item.kode }" @click="openSoDtfSearch(item, index)"
+                @keydown.f1.prevent="openSoDtfSearch(item, index)" />
+            </template>
 
-            <v-row class="mt-4" align="end">
-              <v-col cols="auto" class="d-flex ga-2">
-                <v-btn size="small" prepend-icon="mdi-cash-multiple" @click="dialogs.linkedDp = true"
-                  :disabled="!header.customer.kode">
-                  Lihat DP
-                </v-btn>
-                <v-btn size="small" prepend-icon="mdi-sale" @click="dialogs.diskonForm = true">
-                  Input Diskon/Biaya
-                </v-btn>
-              </v-col>
+            <template v-slot:[`item.actions`]="{ item }">
+              <v-btn v-if="item.kode" icon="mdi-delete" variant="text" color="error" size="x-small"
+                @click="handleDeleteItem(item)"
+                :title="item.noSoDtf ? 'Hapus Semua Item SO DTF Ini' : 'Hapus Item Ini'">
+              </v-btn>
+            </template>
+          </v-data-table>
+        </div>
 
-              <v-spacer></v-spacer>
+        <div class="footer-actions-section">
+          <v-row align="center">
+            <v-col cols="auto" class="d-flex ga-2">
+              <v-btn size="small" prepend-icon="mdi-cash-multiple" @click="dialogs.linkedDp = true"
+                :disabled="!header.customer.kode">
+                Lihat DP
+              </v-btn>
+              <v-btn size="small" prepend-icon="mdi-sale" @click="dialogs.diskonForm = true">
+                Input Diskon/Biaya
+              </v-btn>
+            </v-col>
 
-              <v-col cols="auto">
-                <v-btn color="primary" size="large" @click="handleProceedToPayment"
-                  :disabled="!authStore.can(MENU_ID, requiredPermission)">
-                  Lanjutkan ke Pembayaran
-                </v-btn>
-              </v-col>
-            </v-row>
-          </div>
+            <v-spacer></v-spacer>
+
+            <v-col cols="auto">
+              <v-btn color="primary" size="large" prepend-icon="mdi-credit-card-check" @click="handleProceedToPayment"
+                :disabled="!authStore.can(MENU_ID, requiredPermission)">
+                Lanjutkan ke Pembayaran
+              </v-btn>
+            </v-col>
+          </v-row>
         </div>
       </div>
     </div>
@@ -1321,10 +1334,10 @@ onMounted(() => {
 
 .desktop-table :deep(.nama-barang-cell) {
   white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: 350px;
-  /* Sesuaikan lebar maksimum jika perlu */
+  /* tetap satu baris */
+  min-width: 300px;
+  /* minimum width untuk kolom nama */
+  line-height: 1.4;
 }
 
 .desktop-table .v-data-table__td {
@@ -1332,7 +1345,53 @@ onMounted(() => {
   word-wrap: break-word !important;
 }
 
-.desktop-table td:nth-child(2) { /* kolom Nama Barang */
-  max-width: 400px; /* boleh disesuaikan */
+.desktop-table td:nth-child(2) {
+  /* kolom Nama Barang */
+  max-width: 400px;
+  /* boleh disesuaikan */
+}
+
+.right-column {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.scanner-wrapper {
+  flex-shrink: 0;
+  max-width: 400px;
+}
+
+.table-section {
+  flex-grow: 1;
+  min-height: 0;
+  overflow-x: auto;
+  /* scroll horizontal di sini */
+  overflow-y: auto;
+  /* scroll vertical untuk isi tabel */
+  display: flex;
+  flex-direction: column;
+}
+
+.table-section .v-data-table {
+  width: max-content;
+  /* biarkan tabel selebar kontennya */
+  min-width: 100%;
+  /* minimal selebar container */
+}
+
+.footer-actions-section {
+  flex-shrink: 0;
+  padding: 8px 0;
+  /* kurangi padding atas-bawah */
+  border-top: 1px solid #e0e0e0;
+  /* opsional: beri garis pembatas */
+}
+
+.footer-actions-section .v-row {
+  margin: 0 !important;
+  /* hilangkan margin */
 }
 </style>

@@ -199,10 +199,12 @@ watch(filters, fetchMasterData, { deep: true, immediate: true });
 <template>
   <PageLayout title="Browse Pengajuan Barcode Baru" icon="mdi-barcode-scan">
     <template #header-actions>
-      <v-btn v-if="authStore.can(MENU_ID, 'insert')" size="small" color="primary" @click="handleNew">Baru</v-btn>
-      <v-btn v-if="authStore.can(MENU_ID, 'edit')" size="small" @click="handleEdit" :disabled="!canEdit">Ubah</v-btn>
-      <v-btn v-if="authStore.can(MENU_ID, 'delete')" size="small" color="error" @click="handleDelete"
-        :disabled="!canDelete">Hapus</v-btn>
+      <v-btn v-if="authStore.can(MENU_ID, 'insert')" size="small" prepend-icon="mdi-plus" color="primary"
+        @click="handleNew">Baru</v-btn>
+      <v-btn v-if="authStore.can(MENU_ID, 'edit')" size="small" prepend-icon="mdi-pencil" @click="handleEdit"
+        :disabled="!canEdit">Ubah</v-btn>
+      <v-btn v-if="authStore.can(MENU_ID, 'delete')" size="small" prepend-icon="mdi-delete" color="error"
+        @click="handleDelete" :disabled="!canDelete">Hapus</v-btn>
       <v-menu offset-y>
         <template v-slot:activator="{ props }">
           <v-btn size="small" color="teal" prepend-icon="mdi-file-excel" v-bind="props">
@@ -216,8 +218,8 @@ watch(filters, fetchMasterData, { deep: true, immediate: true });
               Detail</v-list-item-title></v-list-item>
         </v-list>
       </v-menu>
-      <v-btn v-if="authStore.can(MENU_ID, 'insert')" size="small" color="success" @click="handleCetakBarcode"
-        :disabled="!canPrintBarcode">
+      <v-btn v-if="authStore.can(MENU_ID, 'insert')" size="small" prepend-icon="mdi-printer" color="success"
+        @click="handleCetakBarcode" :disabled="!canPrintBarcode">
         Cetak Barcode Baru
       </v-btn>
     </template>

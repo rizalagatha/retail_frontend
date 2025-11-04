@@ -97,6 +97,45 @@
   flex-shrink: 0;
 }
 
+.left-column .desktop-form-section {
+  background-color: #e3f2fd; /* Biru langit Material Design */
+  padding: 16px;
+  border-radius: 8px; /* Sesuaikan dengan rounded field */
+}
+
+.right-column .desktop-form-section {
+  background-color: #e8f4f8; /* Biru langit lebih muda */
+  padding: 16px;
+  border-radius: 8px;
+}
+
+.header-section .v-row {
+  margin: -4px !important; /* Kurangi gap antar row */
+}
+
+.header-section .v-col {
+  padding: 4px !important; /* Padding kecil antar col */
+}
+
+.header-section .v-field {
+  background-color: white !important;
+  border-radius: 4px !important; /* Rounded corner standar Vuetify */
+}
+
+.header-section .v-field--variant-filled .v-field__overlay {
+  background-color: white !important;
+  border-radius: 4px !important;
+}
+
+.header-section .v-field--variant-outlined {
+  background-color: white !important;
+  border-radius: 4px !important;
+}
+
+.header-section .v-input {
+  margin-bottom: 0 !important; /* Hilangkan margin bawah */
+}
+
 .header-filters .v-label,
 .header-section .v-label {
   font-size: var(--label-font-size) !important;
@@ -458,4 +497,3 @@
     zoom: 0.85;
   }
 }
-

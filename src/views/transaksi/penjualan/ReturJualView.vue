@@ -239,10 +239,12 @@ watch(filters, fetchMasterData, { deep: true });
 <template>
   <PageLayout title="Browse Retur Jual" icon="mdi-keyboard-return">
     <template #header-actions>
-      <v-btn v-if="authStore.can(MENU_ID, 'insert')" size="small" color="primary" @click="handleNew">Baru</v-btn>
-      <v-btn v-if="authStore.can(MENU_ID, 'edit')" size="small" @click="handleEdit" :disabled="!canEdit">Ubah</v-btn>
-      <v-btn v-if="authStore.can(MENU_ID, 'delete')" size="small" color="error" @click="handleDelete"
-        :disabled="!canDelete">Hapus</v-btn>
+      <v-btn v-if="authStore.can(MENU_ID, 'insert')" size="small" color="primary" prepend-icon="mdi-plus"
+        @click="handleNew">Baru</v-btn>
+      <v-btn v-if="authStore.can(MENU_ID, 'edit')" size="small" prepend-icon="mdi-pencil" @click="handleEdit"
+        :disabled="!canEdit">Ubah</v-btn>
+      <v-btn v-if="authStore.can(MENU_ID, 'delete')" size="small" prepend-icon="mdi-delete" color="error"
+        @click="handleDelete" :disabled="!canDelete">Hapus</v-btn>
       <v-btn v-if="authStore.can(MENU_ID, 'view')" size="small" color="green" :disabled="!isSingleSelected"
         prepend-icon="mdi-printer" @click="handlePrint">
         Cetak

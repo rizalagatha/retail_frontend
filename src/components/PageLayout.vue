@@ -54,7 +54,7 @@ const loadingModel = computed({
         <v-overlay v-model="loadingModel" contained persistent class="d-flex align-center justify-center">
             <v-progress-circular indeterminate color="primary"></v-progress-circular>
         </v-overlay>
-        
+
         <!-- Slot Konten Utama -->
         <div class="content-wrapper">
           <slot />
@@ -134,7 +134,7 @@ const loadingModel = computed({
   position: relative; /* Untuk v-overlay */
   display: flex;
   flex-direction: column;
-  
+
   /* Menerapkan style dari desktop-app.css jika dalam mode desktop */
   background: var(--content-bg, #ffffff);
   border: var(--content-border, 1px solid #e0e0e0);

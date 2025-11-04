@@ -132,6 +132,15 @@ interface InvoiceItem {
   [key: string]: unknown;
 }
 
+interface ActivePromo {
+  pro_nomor: string;
+  pro_judul: string;
+  pro_totalrp: number;
+  pro_disrp: number;
+  pro_lipat: 'Y' | 'N';
+  [key: string]: unknown; // Untuk properti lain yang mungkin ada
+}
+
 // --- Inisialisasi ---
 const router = useRouter();
 const route = useRoute();
@@ -239,6 +248,7 @@ const memberHpToSearch = ref('');
 const scannedBarcode = ref('');
 const customerDiscountRule = ref(null);
 const activePromoForBonus = ref({ nomor: '', qty: 0 });
+const focusedRowId = ref<number | string>(-1);
 
 // --- Konfigurasi Tabel ---
 const tableHeaders = [
@@ -265,7 +275,9 @@ const tableHeaders = [
 //     { title: 'Actions', key: 'actions', sortable: false, width: '50px' },
 // ];
 
-// const formatRupiah = (value: number) => new Intl.NumberFormat('id-ID').format(value || 0);
+const formatRupiah = (value: number) => {
+  return new Intl.NumberFormat('id-ID').format(value || 0);
+};
 
 // --- Methods ---
 const showConfirmation = (title: string, text: string, onConfirm: () => void) => {
@@ -762,46 +774,154 @@ const handleBonusSelection = (bonusItem: Item) => {
   addNewRow();
 };
 
-
-const handleProceedToPayment = () => {
-  // --- VALIDASI DARI DELPHI ---
+const handleProceedToPayment = async () => {
+  // --- 1. VALIDASI DASAR ---
   const validItems = items.value.filter(i => i.kode);
-  if (!header.customer.kode) {
-    return toast.error("Customer harus diisi.");
-  }
-  if (!header.customer.level) {
-    return toast.error("Level customer belum di-setting.");
-  }
-  if (validItems.length === 0) {
-    return toast.error("Detail barang harus diisi.");
-  }
-
-  // Loop untuk validasi per item
+  if (!header.customer.kode) return toast.error("Customer harus diisi.");
+  if (!header.customer.level) return toast.error("Level customer belum di-setting.");
+  if (validItems.length === 0) return toast.error("Detail barang harus diisi.");
   for (const item of validItems) {
     if ((item.harga || 0) === 0 && !item.promo) {
       return toast.error(`Harga untuk ${item.nama} harus diisi.`);
     }
   }
-
-  // Validasi total qty
   const totalQty = validItems.reduce((sum, item) => sum + (item.jumlah || 0), 0);
-  if (totalQty <= 0) {
-    return toast.error('Qty Invoice kosong semua.');
+  if (totalQty <= 0) return toast.error('Qty Invoice kosong semua.');
+
+  // --- 2. VALIDASI STOK MINUS ---
+  const stokOk = await checkStokMinus();
+  if (!stokOk) return;
+
+  // --- 3. VALIDASI PROMO SPESIFIK ---
+  const totalQtyKaos = items.value.reduce((sum, item) =>
+    (item.kategori === 'KAOS' && !item.promo) ? sum + (item.jumlah || 0) : sum, 0);
+
+  if (header.nomorPromo === 'PRO-2025-005') {
+    if (totalQtyKaos < 3) {
+      return toast.error('Qty belanja minimal 3 pcs untuk promo ini.');
+    }
   }
 
-  // --- LOGIKA KONFIRMASI BARU ---
+  // --- 4. PENGECEKAN PROMO OTOMATIS ---
+  try {
+    const promoResponse = await api.get('/invoice-form/lookup/active-promos', {
+      params: {
+        tanggal: header.tanggal,
+        cabang: header.gudang.kode
+      }
+    });
+
+    // Gunakan interface yang baru ditambahkan
+    const activePromos = promoResponse.data as ActivePromo[];
+
+    const promo008 = activePromos.find((p: ActivePromo) => p.pro_nomor === 'PRO-2025-008');
+    const promo009 = activePromos.find((p: ActivePromo) => p.pro_nomor === 'PRO-2025-009');
+
+    let promoToApply: ActivePromo | null = null;
+    let promoDiskon = 0;
+
+    if (promo008) {
+      if (totals.nettoSetelahDiskon >= promo008.pro_totalrp) {
+        promoDiskon = promo008.pro_disrp * Math.floor(totals.nettoSetelahDiskon / promo008.pro_totalrp);
+        promoToApply = promo008;
+      }
+    }
+
+    if (!promoToApply && promo009) {
+      if (totals.nettoSetelahDiskon >= promo009.pro_totalrp) {
+        promoDiskon = promo009.pro_disrp * Math.floor(totals.nettoSetelahDiskon / promo009.pro_totalrp);
+        promoToApply = promo009;
+      }
+    }
+
+    if (promoToApply && promoDiskon > 0) {
+      const promoConfirmed = await new Promise((resolve) => {
+        showConfirmation(
+          `Dapat ${promoToApply.pro_judul}`,
+          // Fungsi formatRupiah() sekarang sudah ditemukan
+          `Anda mendapatkan diskon promo ${formatRupiah(promoDiskon)}. Akan pakai promo ini? (Diskon faktur lain akan direset)`,
+          () => resolve(true)
+        );
+        const unwatch = watch(() => dialogConfirm.show, (newValue) => {
+          if (!newValue) { unwatch(); resolve(false); }
+        });
+        dialogConfirm.onConfirm = () => { resolve(true); unwatch(); };
+      });
+
+      if (promoConfirmed) {
+        header.diskonPersen1 = 0;
+        header.diskonPersen2 = 0;
+        header.diskonRp = promoDiskon;
+        header.nomorPromo = promoToApply.pro_nomor;
+        calculateTotals();
+      }
+    }
+
+  } catch (error) {
+    toast.error('Gagal memeriksa promo otomatis.', error);
+  }
+
+  // --- 5. VALIDASI NO HP & LANJUT KE PEMBAYARAN ---
+  // [PERBAIKAN] Hapus 'const proceedToPayment' yang lokal
+  // dan panggil 'proceedToPaymentOrBonus' secara langsung.
+
   if (!header.memberHp) {
-    // Panggil dialog konfirmasi yang sudah ada
     showConfirmation(
       'Konfirmasi Member',
       'No. HP Member kosong. Yakin akan melanjutkan?',
-      proceedToPaymentOrBonus // Panggil fungsi lanjutan HANYA jika "Ya"
+      proceedToPaymentOrBonus // Panggil fungsi utama
     );
   } else {
-    // Jika HP ada, langsung panggil fungsi lanjutan
-    proceedToPaymentOrBonus();
+    proceedToPaymentOrBonus(); // Panggil fungsi utama
   }
-  // --- AKHIR VALIDASI & LOGIKA KONFIRMASI ---
+};
+
+const checkStokMinus = (): Promise<boolean> => {
+  return new Promise((resolve) => {
+    const validItems = items.value.filter(i => i.kode);
+    const itemsMinus = validItems.filter(item =>
+      (item.jumlah || 0) > (item.stok || 0) &&
+      item.kategori !== 'SO-DTF' && // Asumsi item SO DTF boleh minus (sesuai Delphi)
+      !item.noSoDtf // Dobel cek jika item dari SO DTF
+      // NOTE: Anda mungkin perlu menambahkan 'item.logstok' jika ada
+    );
+
+    if (itemsMinus.length > 0) {
+      const itemNames = itemsMinus.map(i => `${i.nama} (${i.ukuran})`).join(', ');
+
+      // Gunakan dialog konfirmasi yang sudah ada
+      showConfirmation(
+        'Konfirmasi Stok Minus',
+        `Stok untuk item (${itemNames}) akan minus. Yakin akan melanjutkan?`,
+        () => resolve(true) // Jika "Ya", resolve true
+      );
+
+      // Kita perlu cara untuk mendeteksi 'Batal'.
+      // Kita akan tambahkan watcher sementara.
+      const unwatch = watch(() => dialogConfirm.show, (newValue) => {
+        if (!newValue) { // Jika dialog ditutup
+          unwatch();
+          // Jika onConfirm tidak dipanggil, 'pendingAction' akan null
+          if (dialogConfirm.onConfirm) {
+            // 'onConfirm' sudah di-set, artinya 'Ya' sudah ditekan.
+          } else {
+            resolve(false); // Dialog ditutup tanpa konfirmasi (Batal)
+          }
+        }
+      });
+
+      // Reset onConfirm setelah 'showConfirmation'
+      // agar kita bisa deteksi 'Batal'
+      dialogConfirm.onConfirm = () => {
+        resolve(true);
+        // Hapus watcher
+        unwatch();
+      };
+
+    } else {
+      resolve(true); // Tidak ada stok minus, lanjut
+    }
+  });
 };
 
 const proceedToPaymentOrBonus = () => {
@@ -888,17 +1008,14 @@ const handleBarcodeScan = async () => {
   }
 };
 
-const validateQty = (item: Item) => {
-  if (item.jumlah > (item.stok || 0)) {
-    item.jumlah = item.stok || 0;
-    toast.warning(`Jumlah tidak boleh melebihi stok (${item.stok}) untuk ${item.nama}`);
-  }
-};
+// const validateQty = (item: Item) => {
+//   if (item.jumlah > (item.stok || 0)) {
+//     item.jumlah = item.stok || 0;
+//     toast.warning(`Jumlah tidak boleh melebihi stok (${item.stok}) untuk ${item.nama}`);
+//   }
+// };
 
 const handleJumlahChange = async (item: Item) => {
-  // Jalankan validasi Qty vs Stok yang sudah ada
-  validateQty(item);
-
   // Cek ke backend apakah ada promo untuk item ini
   try {
     const response = await api.get('/invoice-form/lookup/applicable-item-promo', {
@@ -1195,8 +1312,12 @@ onMounted(() => {
             </template>
 
             <template v-slot:[`item.harga`]="{ item }">
-              <v-text-field v-model.number="item.harga" type="number" min="0" variant="underlined" density="compact"
-                hide-details class="text-right" :readonly="!isHargaEditable(item)" />
+              <v-text-field
+                :model-value="focusedRowId === item.id ? item.harga : new Intl.NumberFormat('id-ID').format(item.harga || 0)"
+                @update:model-value="item.harga = Number(String($event).replace(/[^0-9]/g, '')) || 0"
+                @focus="focusedRowId = item.id" @blur="focusedRowId = -1" type="text" min="0" variant="underlined"
+                density="compact" hide-details class="text-right" :readonly="!isHargaEditable(item)"
+                placeholder="0"></v-text-field>
             </template>
 
             <template v-slot:[`item.diskonPersen`]="{ item }">
@@ -1209,6 +1330,12 @@ onMounted(() => {
               <v-text-field v-model.number="item.diskonRp" type="number" min="0" variant="underlined" density="compact"
                 hide-details class="text-right" @blur="handleItemDiscountChange(item)"
                 @focus="onItemDiscountFocus(item)" />
+            </template>
+
+            <template v-slot:[`item.total`]="{ item }">
+              <div class="text-end text-body-2 font-weight-bold pt-3 pb-1">
+                {{ new Intl.NumberFormat('id-ID').format(item.total || 0) }}
+              </div>
             </template>
 
             <template v-slot:[`item.noSoDtf`]="{ item, index }">

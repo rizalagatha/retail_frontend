@@ -157,6 +157,7 @@ const headers = [
   { title: 'No Retur', key: 'NoRetur', minWidth: '180px' },
   { title: 'SC', key: 'SC', minWidth: '150px' },
   { title: 'Created', key: 'Created', minWidth: '180px' },
+  { title: 'Minus', key: 'Minus', minWidth: '80px', align: 'center' },
   { title: 'Prn', key: 'Prn', align: 'center' },
   { title: 'Puas', key: 'Puas', align: 'center' },
   { title: 'Closing', key: 'Closing', align: 'center' },
@@ -237,8 +238,18 @@ const loadDetails = async (newlyExpandedItems: InvoiceItem[]) => {
 //     }
 // };
 
-const getRowTextColor = (item: InvoiceItem) => {
-  return item.SisaPiutang > 0 ? 'text-red font-weight-bold' : '';
+const getRowClass = (item: InvoiceItem) => {
+  // Kondisi 1: Sisa Piutang
+  if (item.SisaPiutang > 0) {
+    return 'row-sisa-piutang';
+  }
+
+  // Kondisi 2: Stok Minus (Akan berfungsi setelah Anda update backend)
+  if (item.Minus === 'Y') {
+    return 'row-stok-minus';
+  }
+
+  return ''; // Default
 };
 
 const handleNew = () => {
@@ -421,6 +432,7 @@ watch(filters, () => {
         </v-chip>
         <v-spacer />
         <div class="d-flex align-center ga-2 text-caption">
+          <v-icon color="yellow-darken-3" icon="mdi-square-rounded" size="small"></v-icon> Stok Minus
           <v-icon color="red" icon="mdi-square-rounded" size="small"></v-icon> Belum Lunas
         </div>
         <v-btn @click="fetchMasterData" icon="mdi-refresh" variant="text" size="small" />
@@ -429,9 +441,10 @@ watch(filters, () => {
       <div class="table-container">
         <v-data-table v-model="selected" v-model:expanded="expanded" :headers="headers" :items="masterData"
           :loading="loading" item-value="Nomor" density="compact" class="desktop-table" fixed-header show-select
-          return-object show-expand @update:expanded="loadDetails">
+          return-object show-expand @update:expanded="loadDetails"
+          :item-props="(item) => ({ class: getRowClass(item) })">
           <template v-for="header in headers" :key="header.key" #[`item.${header.key}`]="{ item }">
-            <td :class="getRowTextColor(item)">
+            <td>
               <template
                 v-if="['Tanggal', 'TglSO', 'TglSJ', 'LastPayment', 'TglTransfer', 'Created'].includes(header.key)">
                 {{ item[header.key] ? format(parseISO(String(item[header.key])), 'dd/MM/yyyy') : '' }}
@@ -482,3 +495,27 @@ watch(filters, () => {
       @select="handlePrintSelection" />
   </PageLayout>
 </template>
+
+<style scoped>
+/* --- TAMBAHKAN STYLE BARU YANG LEBIH SPESIFIK INI --- */
+
+/* Targetkan sel <td> di dalam baris 'row-sisa-piutang' */
+.desktop-table :deep(tr.row-sisa-piutang > td) {
+  background-color: #FFEBEE !important;
+}
+
+.desktop-table :deep(tr.row-sisa-piutang:hover > td) {
+  background-color: #FFCDD2 !important;
+  /* Warna saat di-hover */
+}
+
+/* Targetkan sel <td> di dalam baris 'row-stok-minus' */
+.desktop-table :deep(tr.row-stok-minus > td) {
+  background-color: #FFF9C4 !important;
+}
+
+.desktop-table :deep(tr.row-stok-minus:hover > td) {
+  background-color: #FFF59D !important;
+  /* Warna saat di-hover */
+}
+</style>

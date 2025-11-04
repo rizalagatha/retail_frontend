@@ -35,6 +35,11 @@ interface BarDataset {
   data: number[];
   borderRadius?: number; // optional
 }
+interface PiutangBreakdown {
+  cabang_kode: string;
+  cabang_nama: string;
+  sisa_piutang: number;
+}
 
 const authStore = useAuthStore()
 const router = useRouter()
@@ -44,7 +49,6 @@ const goToLogin = () => {
   router.push('/login')
 }
 
-// Sample data - ganti dengan data dari API
 const stats = ref({
   todaySales: 0,
   todayTransactions: 0,
@@ -52,8 +56,12 @@ const stats = ref({
   totalProducts: 0,
   totalProductsAktif: 0,
   totalProductsPasif: 0,
+  totalSisaPiutang: 0,
 });
 const isLoadingStats = ref(true);
+const isLoadingPiutang = ref(true);
+const isLoadingPiutangBreakdown = ref(true);
+const piutangBreakdown = ref<PiutangBreakdown[]>([]);
 
 const chartGroupBy = ref<'day' | 'week' | 'month'>('day');
 const chartFilters = reactive({
@@ -461,6 +469,36 @@ const fetchStagnantStockSummary = async () => {
   }
 };
 
+const fetchTotalPiutang = async () => {
+  isLoadingPiutang.value = true;
+  try {
+    const response = await api.get('/dashboard/total-sisa-piutang');
+    stats.value.totalSisaPiutang = response.data.totalSisaPiutang || 0;
+  } catch (error) {
+    toast.error('Gagal memuat total sisa piutang.', error);
+  } finally {
+    isLoadingPiutang.value = false;
+  }
+};
+
+const fetchPiutangBreakdown = async () => {
+  // Hanya fetch jika user adalah KDC
+  if (authStore.user?.cabang !== 'KDC') {
+    isLoadingPiutangBreakdown.value = false;
+    return;
+  }
+
+  isLoadingPiutangBreakdown.value = true;
+  try {
+    const response = await api.get('/dashboard/piutang-per-cabang');
+    piutangBreakdown.value = response.data;
+  } catch (error) {
+    toast.error('Gagal memuat breakdown piutang.', error);
+  } finally {
+    isLoadingPiutangBreakdown.value = false;
+  }
+};
+
 onMounted(() => {
   if (authStore.isAuthenticated) {
     fetchTodayStats();
@@ -476,6 +514,8 @@ onMounted(() => {
     if (authStore.user?.cabang === 'KDC') {
       fetchBranchPerformance();
     }
+    fetchTotalPiutang();
+    fetchPiutangBreakdown();
   }
 
   intervalId = window.setInterval(() => {
@@ -572,9 +612,10 @@ watch(chartGroupBy, fetchSalesChartData);
     </v-row>
 
     <!-- Quick Stats Cards -->
-    <v-row class="mb-6">
-      <v-col cols="12" sm="6" md="3">
-        <v-card class="stat-card" color="success" variant="tonal">
+    <v-row class="mb-6" justify="center">
+
+      <v-col cols="12" sm="6" md="auto">
+        <v-card class="stat-card fill-height" color="success" variant="tonal">
           <v-card-text class="text-center">
             <v-icon size="40" class="mb-2">mdi-cash-multiple</v-icon>
             <div class="text-h4 font-weight-bold">
@@ -586,8 +627,8 @@ watch(chartGroupBy, fetchSalesChartData);
         </v-card>
       </v-col>
 
-      <v-col cols="12" sm="6" md="3">
-        <v-card class="stat-card" color="info" variant="tonal">
+      <v-col cols="12" sm="6" md="auto">
+        <v-card class="stat-card fill-height" color="info" variant="tonal">
           <v-card-text class="text-center">
             <v-icon size="40" class="mb-2">mdi-receipt</v-icon>
             <div class="text-h4 font-weight-bold">
@@ -599,8 +640,8 @@ watch(chartGroupBy, fetchSalesChartData);
         </v-card>
       </v-col>
 
-      <v-col cols="12" sm="6" md="3">
-        <v-card class="stat-card" color="warning" variant="tonal">
+      <v-col cols="12" sm="6" md="auto">
+        <v-card class="stat-card fill-height" color="warning" variant="tonal">
           <v-card-text class="text-center">
             <v-icon size="40" class="mb-2">mdi-alert-circle</v-icon>
             <div class="text-h4 font-weight-bold">{{ isLoadingLowStock ? '...' : lowStockCount }}</div>
@@ -609,8 +650,8 @@ watch(chartGroupBy, fetchSalesChartData);
         </v-card>
       </v-col>
 
-      <v-col cols="12" sm="6" md="3">
-        <v-card class="stat-card" color="primary" variant="tonal">
+      <v-col cols="12" sm="6" md="auto">
+        <v-card class="stat-card fill-height" color="primary" variant="tonal">
           <v-card-text class="text-center">
             <v-icon size="40" class="mb-2">mdi-package-variant-closed</v-icon>
             <div class="text-h4 font-weight-bold">
@@ -631,6 +672,65 @@ watch(chartGroupBy, fetchSalesChartData);
             </div>
           </v-card-text>
         </v-card>
+      </v-col>
+
+      <v-col cols="12" sm="6" md="auto">
+
+        <v-menu v-if="authStore.user?.cabang === 'KDC'" open-on-hover location="bottom center" origin="top center"
+          transition="scale-transition" :close-on-content-click="false">
+          <template v-slot:activator="{ props }">
+            <v-card v-bind="props" class="stat-card fill-height" color="orange" variant="tonal" style="cursor: help;">
+              <v-card-text class="text-center">
+                <v-icon size="40" class="mb-2">mdi-account-clock</v-icon>
+                <div class="text-h4 font-weight-bold">
+                  <span v-if="isLoadingPiutang">...</span>
+                  <span v-else>{{ formatCurrency(stats.totalSisaPiutang) }}</span>
+                </div>
+                <div class="text-subtitle-2">Total Sisa Piutang</div>
+              </v-card-text>
+            </v-card>
+          </template>
+
+          <v-card max-width="350" elevation="8">
+            <v-list-item class="bg-orange-lighten-4">
+              <v-list-item-title class="font-weight-bold">Piutang per Cabang</v-list-item-title>
+            </v-list-item>
+            <v-divider></v-divider>
+
+            <v-card-text class="pa-0" style="max-height: 300px; overflow-y: auto;">
+              <div v-if="isLoadingPiutangBreakdown" class="text-center pa-4">
+                <v-progress-circular indeterminate size="20"></v-progress-circular>
+              </div>
+              <v-list v-else-if="piutangBreakdown.length > 0" density="compact">
+                <v-list-item v-for="item in piutangBreakdown" :key="item.cabang_kode">
+                  <v-list-item-title class="text-caption">
+                    {{ item.cabang_nama || item.cabang_kode }}
+                  </v-list-item-title>
+                  <template #append>
+                    <span class="text-caption font-weight-bold">
+                      {{ new Intl.NumberFormat('id-ID').format(item.sisa_piutang) }}
+                    </span>
+                  </template>
+                </v-list-item>
+              </v-list>
+              <div v-else class="text-center pa-4 text-caption">
+                Tidak ada data piutang per cabang.
+              </div>
+            </v-card-text>
+          </v-card>
+        </v-menu>
+
+        <v-card v-else class="stat-card fill-height" color="orange" variant="tonal">
+          <v-card-text class="text-center">
+            <v-icon size="40" class="mb-2">mdi-account-clock</v-icon>
+            <div class="text-h4 font-weight-bold">
+              <span v-if="isLoadingPiutang">...</span>
+              <span v-else>{{ formatCurrency(stats.totalSisaPiutang) }}</span>
+            </div>
+            <div class="text-subtitle-2">Total Sisa Piutang</div>
+          </v-card-text>
+        </v-card>
+
       </v-col>
     </v-row>
 

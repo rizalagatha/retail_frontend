@@ -56,7 +56,7 @@ watch(isLoading, (val) => {
                     const svgElement = document.querySelector(elementId);
                     if (svgElement && item) {
                         JsBarcode(svgElement, item.barcode, {
-                            format: "CODE128", width: 1.2, height: 18,
+                            format: "CODE128C", width: 1.2, height: 18,
                             displayValue: true, fontSize: 7, margin: 1
                         });
                     }

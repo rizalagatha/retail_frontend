@@ -1242,6 +1242,24 @@ onMounted(() => {
 </template>
 
 <style scoped>
+/* Background color untuk left column sections - tone biru langit */
+.left-column .desktop-form-section.header-section {
+  background-color: #e3f2fd;
+  /* Biru langit Material Design */
+}
+
+.left-column .desktop-form-section.footer-section {
+  background-color: #fff3e0;
+  /* Orange muda untuk section summary/total */
+}
+
+/* Background color untuk right column */
+.right-column.desktop-form-section {
+  background-color: #e8f4f8;
+  /* Biru langit lebih muda */
+}
+
+/* Existing styles - jangan diubah */
 .desktop-table :deep(.scrollable-cell) {
   white-space: nowrap;
   overflow-x: auto;
@@ -1251,22 +1269,13 @@ onMounted(() => {
 
 .scanner-wrapper {
   max-width: 400px;
-  /* <-- ATUR LEBAR MAKSIMUM DI SINI */
   flex: none;
-  /* Mencegah flexbox meregangkan wrapper ini */
   margin-bottom: 16px;
 }
 
 .summary-field :deep(input) {
   font-weight: 900 !important;
-  /* 900 = black (paling tebal) */
   font-size: 1.1rem !important;
-  /* Sesuaikan ukurannya di sini */
-
-  /* CATATAN:
-    Untuk variant="filled", inputnya mungkin perlu padding-top
-    agar sejajar. Jika terlihat aneh, tambahkan ini:
-  */
   padding-top: 10px !important;
 }
 

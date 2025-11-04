@@ -297,6 +297,7 @@ const menuItems = [
         icon: 'mdi-archive-outline',
         items: [
           { title: 'Laporan Stok', to: '/laporan/stok/real-time', icon: 'mdi-package-variant' },
+          { title: 'Stok Minus', to: '/laporan/stok/stok-minus', icon: 'mdi-trending-down' },
           { title: 'Mutasi Stok', to: '/laporan/stok/mutasi-stok', icon: 'mdi-swap-horizontal' },
           { title: 'Kartu Stok', to: '/laporan/stok/kartu-stok', icon: 'mdi-card-text-outline' },
           { title: 'Stok Stagnan', to: '/laporan/stok/stagnan', icon: 'mdi-clock-outline' },

@@ -33,12 +33,8 @@ const displayOptions = computed(() => {
       <v-card-title>Pilih Format Cetak</v-card-title>
       <v-card-text>
         <v-list density="compact">
-          <v-list-item
-            v-for="option in displayOptions"
-            :key="option.key"
-            @click="emit('select', option.key)"
-            :prepend-icon="option.icon"
-          >
+          <v-list-item v-for="option in displayOptions" :key="option.key" @click="emit('select', option.key)"
+            :prepend-icon="option.icon">
             <v-list-item-title>{{ option.title }}</v-list-item-title>
           </v-list-item>
         </v-list>

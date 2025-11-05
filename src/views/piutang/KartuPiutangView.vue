@@ -7,6 +7,7 @@ import PageLayout from '@/components/PageLayout.vue';
 import CustomerSearchModal from '@/components/lookup/CustomerSearchModal.vue';
 import KartuPiutangDetailModal from '@/components/modal/KartuPiutangDetailModal.vue';
 import type { AxiosError } from 'axios';
+import AppDataTable from '@/components/AppDataTable.vue';
 
 // --- Tipe Data ---
 interface PiutangItem {
@@ -167,7 +168,7 @@ watch(filters, () => {
       </div>
 
       <div class="table-container">
-        <v-data-table v-model="selected" :headers="headers" :items="masterData" :loading="loading" class="desktop-table"
+        <AppDataTable v-model="selected" :headers="headers" :items="masterData" :loading="loading" class="desktop-table"
           density="compact" fixed-header show-select single-select return-object item-value="kode">
           <template #[`item.nominalNota`]="{ item }">
             <td :class="getRowTextColor(item)" class="text-end">
@@ -211,7 +212,7 @@ watch(filters, () => {
               {{ item.kota }}
             </td>
           </template>
-        </v-data-table>
+        </AppDataTable>
       </div>
     </div>
 

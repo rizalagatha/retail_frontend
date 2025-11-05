@@ -166,6 +166,7 @@ import BpbKaosanCreateView from "@/views/dc/produksi-supplier/BpbKaosanCreateVie
 import BpbKaosanPrintView from "@/views/dc/produksi-supplier/BpbKaosanPrintView.vue";
 import LaporanHppKosongView from "@/views/transaksi/stok-opname/LaporanHppKosongView.vue";
 import KlerekView from "@/views/transaksi/internal/KlerekView.vue";
+import LaporanStokMinusView from "@/views/laporan/stok/LaporanStokMinusView.vue";
 import WhatsappLinkView from "@/views/user/WhatsappLinkView.vue";
 
 const routes = [
@@ -2040,6 +2041,15 @@ const routes = [
       title: "Klerek (Transfer Invoice Bazar)",
       requiresAuth: true,
       menuId: "34",
+    },
+  },
+  {
+    path: "/laporan/stok/stok-minus",
+    name: "LaporanStokMinus",
+    component: LaporanStokMinusView,
+    meta: {
+      title: "Laporan Stok Minus",
+      requiresAuth: true,
     },
   },
   {

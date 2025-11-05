@@ -8,6 +8,7 @@ import { format, subDays, parseISO } from 'date-fns';
 import PageLayout from '@/components/PageLayout.vue';
 import * as XLSX from 'xlsx';
 import type { AxiosError } from 'axios';
+import AppDataTable from '@/components/AppDataTable.vue';
 
 // --- Tipe Data ---
 interface ProformaItem {
@@ -217,7 +218,7 @@ onMounted(() => {
       </div>
 
       <div class="table-container">
-        <v-data-table-server v-model="selected" v-model:expanded="expanded" :headers="headers" :items="masterData"
+        <AppDataTable v-model="selected" v-model:expanded="expanded" :headers="headers" :items="masterData"
           :items-length="masterData.length" :loading="loading" item-value="nomor" density="compact"
           class="desktop-table" fixed-header show-select show-expand return-object single-select
           @update:expanded="loadDetails">
@@ -250,7 +251,7 @@ onMounted(() => {
               </td>
             </tr>
           </template>
-        </v-data-table-server>
+        </AppDataTable>
       </div>
     </div>
     <v-dialog v-model="dialogConfirm.show" max-width="400px" persistent>

@@ -523,7 +523,7 @@ watch(() => [filters.startDate, filters.endDate], () => {
 
       <!-- Table Section -->
       <div class="table-container">
-        <v-data-table v-model="selected" :headers="tableHeaders" :items="filteredOffers" :loading="isLoading"
+        <AppDataTable v-model="selected" :headers="tableHeaders" :items="filteredOffers" :loading="isLoading"
           item-value="nomor" density="compact" class="desktop-table" fixed-header show-select return-object show-expand
           @update:expanded="loadDetails">
           <template v-for="header in tableHeaders" #[`item.${header.key}`]="{ item }" :key="header.key">
@@ -571,7 +571,7 @@ watch(() => [filters.startDate, filters.endDate], () => {
               </td>
             </tr>
           </template>
-        </v-data-table>
+        </AppDataTable>
       </div>
     </div>
 
@@ -598,7 +598,7 @@ watch(() => [filters.startDate, filters.endDate], () => {
       <v-card>
         <v-card-title class="text-h5">Konfirmasi Hapus</v-card-title>
         <v-card-text>Apakah Anda yakin ingin menghapus penawaran nomor <strong>{{ itemToDelete?.nomor
-        }}</strong>?</v-card-text>
+            }}</strong>?</v-card-text>
         <v-card-actions><v-spacer></v-spacer><v-btn @click="dialogDelete = false">Batal</v-btn><v-btn
             color="red-darken-1" variant="elevated"
             @click="deleteConfirmed">Hapus</v-btn><v-spacer></v-spacer></v-card-actions>

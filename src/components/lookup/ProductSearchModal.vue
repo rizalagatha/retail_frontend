@@ -20,7 +20,8 @@ const props = defineProps({
   category: { type: String, required: true },
   gudang: { type: String, required: true },
   multi: { type: Boolean, default: false },
-  source: { type: String, default: 'default' }
+  source: { type: String, default: 'default' },
+  promoNomor: { type: String, default: '' }
 });
 // Emit 'products-selected' sekarang selalu mengirim array
 const emit = defineEmits(['close', 'products-selected']);
@@ -66,6 +67,7 @@ const loadItems = async (opts: { page: number, itemsPerPage: number }) => {
         page: opts.page,
         itemsPerPage: opts.itemsPerPage,
         source: props.source,
+        promoNomor: props.promoNomor,
       },
     });
     items.value = response.data.items || [];

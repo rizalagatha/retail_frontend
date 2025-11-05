@@ -7,6 +7,7 @@ import { format, parseISO } from 'date-fns';
 import PageLayout from '@/components/PageLayout.vue';
 import { useRouter } from 'vue-router';
 import type { AxiosError } from 'axios';
+import AppDataTable from '@/components/AppDataTable.vue';
 
 interface KlerekItem {
   tanggal: string;
@@ -155,7 +156,7 @@ watch(filters, fetchData, { deep: true });
       </div>
 
       <div class="table-container">
-        <v-data-table :headers="headers" :items="items" :loading="loading" density="compact" class="desktop-table"
+        <AppDataTable :headers="headers" :items="items" :loading="loading" density="compact" class="desktop-table"
           fixed-header :items-per-page="-1">
           <template #[`item.no`]="{ index }">{{ index + 1 }}</template>
           <template #[`item.tanggal`]="{ item }">{{ format(parseISO(item.tanggal), 'dd-MM-yyyy') }}</template>
@@ -173,7 +174,7 @@ watch(filters, fetchData, { deep: true });
               <td colspan="4"></td>
             </tr>
           </template>
-        </v-data-table>
+        </AppDataTable>
       </div>
     </div>
 

@@ -470,7 +470,7 @@ watch(filters, () => {
         </div>
       </div>
 
-      <v-data-table v-model="selected" :headers="headers" :items="soDtfList" :loading="isLoading" item-value="Nomor"
+      <AppDataTable v-model="selected" :headers="headers" :items="soDtfList" :loading="isLoading" item-value="Nomor"
         density="compact" class="desktop-table fill-height-table" fixed-header show-select return-object show-expand
         @update:expanded="loadDetails">
         <template v-for="header in headers" #[`item.${header.key}`]="{ item }" :key="header.key">
@@ -529,7 +529,7 @@ watch(filters, () => {
             </td>
           </tr>
         </template>
-      </v-data-table>
+      </AppDataTable>
     </div>
 
     <v-dialog v-model="isCloseDialogVisible" max-width="500px" persistent>

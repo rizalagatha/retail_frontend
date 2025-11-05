@@ -7,6 +7,7 @@ import api from '@/services/api';
 import PageLayout from '@/components/PageLayout.vue';
 import * as XLSX from 'xlsx';
 import type { AxiosError } from 'axios';
+import AppDataTable from '@/components/AppDataTable.vue';
 
 // --- Inisialisasi & State ---
 interface SalesVsTargetItem {
@@ -240,7 +241,7 @@ watch(filters, () => {
       </div>
 
       <div class="table-container">
-        <v-data-table :headers="[]" :items="items" :loading="isLoading" class="desktop-table" density="compact"
+        <AppDataTable :headers="[]" :items="items" :loading="isLoading" class="desktop-table" density="compact"
           fixed-header :items-per-page="-1">
 
           <!-- Multi-Level Header menggunakan slot #thead -->
@@ -346,7 +347,7 @@ watch(filters, () => {
             </tr>
           </template>
 
-        </v-data-table>
+        </AppDataTable>
       </div>
     </div>
   </PageLayout>

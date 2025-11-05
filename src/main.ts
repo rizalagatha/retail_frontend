@@ -2,6 +2,7 @@
 import { createApp } from 'vue'
 import { createPinia } from 'pinia'
 import App from './App.vue'
+import AppDataTable from './components/AppDataTable.vue'
 import router from './router'
 import { useAuthStore } from '@/stores/authStore';
 
@@ -15,7 +16,7 @@ import './styles/desktop-app.css'
 import './styles/desktop-theme.css'
 
 // (2) Impor Ikon Material Design (opsional tapi direkomendasikan)
-import '@mdi/font/css/materialdesignicons.css' 
+import '@mdi/font/css/materialdesignicons.css'
 
 import Toast from 'vue-toastification'
 import 'vue-toastification/dist/index.css'
@@ -29,6 +30,7 @@ const vuetify = createVuetify({
 })
 
 const app = createApp(App)
+app.component('AppDataTable', AppDataTable)
 const pinia = createPinia()
 
 app.use(pinia)

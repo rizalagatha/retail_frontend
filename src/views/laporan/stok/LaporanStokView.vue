@@ -7,6 +7,7 @@ import { useToast } from 'vue-toastification';
 import { useAuthStore } from '@/stores/authStore';
 import { format } from 'date-fns';
 import * as XLSX from 'xlsx';
+import AppDataTable from '@/components/AppDataTable.vue';
 
 interface StokItem {
   KODE: string;
@@ -154,14 +155,14 @@ onMounted(() => {
         <v-btn @click="fetchData" icon="mdi-refresh" variant="text" size="small" :loading="isLoading"></v-btn>
       </div>
       <div class="table-container">
-        <v-data-table :headers="headers" :items="stokList" :loading="isLoading" density="compact"
+        <AppDataTable :headers="headers" :items="stokList" :loading="isLoading" density="compact"
           class="desktop-table fill-height-table" fixed-header>
           <template v-for="col in headers" :key="col.key" #[`item.${col.key}`]="{ item }">
             <td :class="getRowTextColor(item)">
               {{ item[col.key] }}
             </td>
           </template>
-        </v-data-table>
+        </AppDataTable>
       </div>
     </div>
     <MasterProductSearchModal v-if="isProductSearchVisible" :gudang="filters.gudang"

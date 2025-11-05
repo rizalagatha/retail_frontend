@@ -7,6 +7,7 @@ import { format } from 'date-fns';
 import PageLayout from '@/components/PageLayout.vue';
 import * as XLSX from 'xlsx';
 import { AxiosError } from 'axios';
+import AppDataTable from '@/components/AppDataTable.vue';
 
 interface DailyItem {
   kode_cabang: string;
@@ -570,7 +571,7 @@ watch([filters, activeTab], fetchData, { deep: true });
         <v-window v-model="activeTab">
           <!-- Tab Daily -->
           <v-window-item value="daily">
-            <v-data-table :headers="headersDaily" :items="dailyData" :loading="isLoading" class="desktop-table"
+            <AppDataTable :headers="headersDaily" :items="dailyData" :loading="isLoading" class="desktop-table"
               density="compact" height="500" fixed-header :items-per-page="-1">
               <template v-slot:[`item.no`]="{ index }">
                 {{ index + 1 }}
@@ -600,7 +601,7 @@ watch([filters, activeTab], fetchData, { deep: true });
                 </tr>
               </template>
               <template #bottom></template>
-            </v-data-table>
+            </AppDataTable>
           </v-window-item>
 
           <!-- Tab Weekly -->
@@ -680,7 +681,7 @@ watch([filters, activeTab], fetchData, { deep: true });
 
           <!-- Tab Monthly -->
           <v-window-item value="monthly">
-            <v-data-table :headers="headersMonthly" :items="monthlyData" :loading="isLoading" class="desktop-table"
+            <AppDataTable :headers="headersMonthly" :items="monthlyData" :loading="isLoading" class="desktop-table"
               density="compact" fixed-header :items-per-page="-1">
               <template v-for="col in ['nominal', 'target']" :key="col" v-slot:[`item.${col}`]="{ item }">
                 <td class="text-end">{{ (item[col] || 0).toLocaleString('id-ID') }}</td>
@@ -704,12 +705,12 @@ watch([filters, activeTab], fetchData, { deep: true });
                 </tr>
               </template>
               <template #bottom></template>
-            </v-data-table>
+            </AppDataTable>
           </v-window-item>
 
           <!-- Tab Year to Date -->
           <v-window-item value="ytd">
-            <v-data-table :headers="headersYtd" :items="ytdData" :loading="isLoading" class="desktop-table"
+            <AppDataTable :headers="headersYtd" :items="ytdData" :loading="isLoading" class="desktop-table"
               density="compact" fixed-header :items-per-page="-1">
               <template v-slot:[`item.no`]="{ index }">
                 {{ index + 1 }}
@@ -738,7 +739,7 @@ watch([filters, activeTab], fetchData, { deep: true });
                 </tr>
               </template>
               <template #bottom></template>
-            </v-data-table>
+            </AppDataTable>
           </v-window-item>
         </v-window>
       </div>

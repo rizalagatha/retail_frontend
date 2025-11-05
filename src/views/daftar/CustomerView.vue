@@ -155,7 +155,7 @@ const saveCustomer = async () => {
 };
 
 // const deleteCustomer = async (item: Customer) => {
-//   // if (confirm(`Yakin ingin menghapus customer ${item.nama}?`)) { 
+//   // if (confirm(`Yakin ingin menghapus customer ${item.nama}?`)) {
 //   try {
 //     const response = await api.delete(`/customers/${item.kode}`);
 //     toast.success(response.data.message);
@@ -163,7 +163,7 @@ const saveCustomer = async () => {
 //   } catch (error) {
 //     toast.error('Gagal menghapus data customer.');
 //   }
-//   // } 
+//   // }
 // };
 
 // const handleDeleteFromHeader = () => {
@@ -224,7 +224,7 @@ const exportData = () => {
 // };
 
 // Menjalankan aksi hapus setelah konfirmasi
-// const deleteConfirmed = () => { 
+// const deleteConfirmed = () => {
 //   if (itemToDelete.value) {
 //     deleteCustomer(itemToDelete.value);
 //   }
@@ -274,7 +274,7 @@ onMounted(() => {
       </div>
 
       <!-- Table Section -->
-      <v-data-table v-model="selected" :headers="headers" :items="customers" :search="search" :loading="isLoading"
+      <AppDataTable v-model="selected" :headers="headers" :items="customers" :search="search" :loading="isLoading"
         :item-value="getItemKey" density="compact" class="desktop-table" fixed-header show-select return-object>
         <template #[`item.status`]="{ item }">
           <v-chip :color="item.status === 'AKTIF' ? 'success' : 'error'" size="x-small" variant="tonal">
@@ -298,7 +298,7 @@ onMounted(() => {
             mdi-delete
           </v-icon> -->
         </template>
-      </v-data-table>
+      </AppDataTable>
     </div>
 
     <!-- Dialogs -->

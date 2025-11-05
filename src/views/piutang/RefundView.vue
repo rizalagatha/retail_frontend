@@ -8,6 +8,7 @@ import { format, subDays, parseISO, isValid } from 'date-fns';
 import PageLayout from '@/components/PageLayout.vue';
 import * as XLSX from 'xlsx';
 import axios, { AxiosError } from 'axios';
+import AppDataTable from '@/components/AppDataTable.vue';
 
 interface RefundHeader {
   Nomor: string;
@@ -319,7 +320,7 @@ watch(filters, fetchMasterData, { deep: true });
       </div>
 
       <div class="table-container">
-        <v-data-table v-model="selected" v-model:expanded="expanded" :headers="headers" :items="masterData"
+        <AppDataTable v-model="selected" v-model:expanded="expanded" :headers="headers" :items="masterData"
           :loading="loading" item-value="Nomor" density="compact" class="desktop-table" fixed-header show-select
           return-object show-expand single-select @update:expanded="loadDetails">
           <template v-for="header in headers" :key="header.key" #[`item.${header.key}`]="{ item }">
@@ -359,7 +360,7 @@ watch(filters, fetchMasterData, { deep: true });
               </td>
             </tr>
           </template>
-        </v-data-table>
+        </AppDataTable>
       </div>
     </div>
 

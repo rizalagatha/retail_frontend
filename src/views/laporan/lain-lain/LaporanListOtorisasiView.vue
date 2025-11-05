@@ -5,6 +5,7 @@ import { format } from 'date-fns';
 import PageLayout from '@/components/PageLayout.vue';
 import api from '@/services/api';
 import { AxiosError } from 'axios';
+import AppDataTable from '@/components/AppDataTable.vue';
 
 interface OtorisasiItem {
   nomor: string;
@@ -147,7 +148,7 @@ watch(filters, fetchMasterData, { deep: true });
 
       <!-- Tabel utama -->
       <div class="table-container mt-4">
-        <v-data-table :headers="headers" :items="filteredData" :loading="isLoading" class="elevation-1"
+        <AppDataTable :headers="headers" :items="filteredData" :loading="isLoading" class="elevation-1"
           density="compact" fixed-header :items-per-page="20" item-value="uniqueId">
           <template v-slot:[`item.nominal`]="{ item }">
             {{ new Intl.NumberFormat('id-ID').format(item.nominal) }}
@@ -162,7 +163,7 @@ watch(filters, fetchMasterData, { deep: true });
           <template #loading>
             <v-skeleton-loader type="table-row@10"></v-skeleton-loader>
           </template>
-        </v-data-table>
+        </AppDataTable>
       </div>
     </div>
   </PageLayout>

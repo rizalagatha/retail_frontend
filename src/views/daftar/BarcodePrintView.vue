@@ -150,7 +150,7 @@ onMounted(() => {
       </div>
 
       <div class="table-wrapper">
-        <v-data-table v-model="selected" v-model:expanded="expanded" :headers="tableHeaders" :items="headers"
+        <AppDataTable v-model="selected" v-model:expanded="expanded" :headers="tableHeaders" :items="headers"
           :loading="isLoading" item-value="nomor" density="compact" class="desktop-table" fixed-header show-select
           select-strategy="single" return-object show-expand @update:expanded="loadDetails">
           <template #[`item.tanggal`]="{ item }">
@@ -167,9 +167,9 @@ onMounted(() => {
                       <v-progress-circular indeterminate size="20" class="mr-2"></v-progress-circular>
                       <span class="text-caption">Memuat detail...</span>
                     </div>
-                    <v-data-table v-else-if="details[item.nomor] && details[item.nomor].length > 0"
+                    <AppDataTable v-else-if="details[item.nomor] && details[item.nomor].length > 0"
                       :headers="detailHeaders" :items="details[item.nomor]" density="compact" hide-default-footer
-                      :items-per-page="-1" class="detail-table"></v-data-table>
+                      :items-per-page="-1" class="detail-table"></AppDataTable>
                     <div v-else class="text-center py-2 text-caption text-medium-emphasis">
                       Tidak ada detail ditemukan untuk nomor {{ item.nomor }}
                     </div>
@@ -179,7 +179,7 @@ onMounted(() => {
             </tr>
           </template>
 
-        </v-data-table>
+        </AppDataTable>
       </div>
     </div>
   </PageLayout>

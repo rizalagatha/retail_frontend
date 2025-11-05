@@ -7,6 +7,7 @@ import { useToast } from 'vue-toastification';
 import { useAuthStore } from '@/stores/authStore';
 import { format, parseISO, subDays } from 'date-fns';
 import * as XLSX from 'xlsx';
+import AppDataTable from '@/components/AppDataTable.vue';
 
 const toast = useToast();
 const authStore = useAuthStore();
@@ -442,7 +443,7 @@ watch(filters, () => {
       </div>
 
       <div class="table-container">
-        <v-data-table v-model="selected" :headers="headers" :items="filteredList" :loading="isLoading"
+        <AppDataTable v-model="selected" :headers="headers" :items="filteredList" :loading="isLoading"
           :item-class="getRowTextColor" item-value="Nomor" density="compact" class="desktop-table" fixed-header
           show-select return-object show-expand @update:expanded="loadDetails">
           <template v-for="header in headers" #[`item.${header.key}`]="{ item }" :key="header.key">
@@ -508,7 +509,7 @@ watch(filters, () => {
               </td>
             </tr>
           </template>
-        </v-data-table>
+        </AppDataTable>
       </div>
     </div>
 

@@ -11,6 +11,7 @@ import * as XLSX from 'xlsx';
 import axios from "axios";
 import type { DataTableHeader } from "vuetify";
 import type { AxiosError } from 'axios';
+import AppDataTable from '@/components/AppDataTable.vue';
 
 // --- Tipe Data ---
 interface SjHeader {
@@ -259,7 +260,7 @@ watch(filters, fetchMasterData, { deep: true });
       </div>
 
       <div class="table-container">
-        <v-data-table v-model="selected" v-model:expanded="expanded" :headers="headers" :items="masterData"
+        <AppDataTable v-model="selected" v-model:expanded="expanded" :headers="headers" :items="masterData"
           :loading="loading" :item-class="getRowClass" item-value="Nomor" density="compact" class="desktop-table"
           fixed-header show-select return-object show-expand @update:expanded="loadDetails">
           <template #[`item.Tanggal`]="{ item }">
@@ -294,7 +295,7 @@ watch(filters, fetchMasterData, { deep: true });
               </td>
             </tr>
           </template>
-        </v-data-table>
+        </AppDataTable>
       </div>
     </div>
     <MasterProductSearchModal v-if="isMasterProductSearchVisible" @close="isMasterProductSearchVisible = false"

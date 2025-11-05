@@ -6,6 +6,7 @@ import { useToast } from 'vue-toastification';
 import { useAuthStore } from '@/stores/authStore';
 import { format } from 'date-fns';
 import { useRouter } from 'vue-router';
+import AppDataTable from '@/components/AppDataTable.vue';
 
 const toast = useToast();
 const authStore = useAuthStore();
@@ -221,7 +222,7 @@ watch([selectedCabang, belumApproval, startDate, endDate], () => {
       </div>
 
       <!-- Table Section -->
-      <v-data-table v-model="selected" :headers="tableHeaders" :items="filteredProposals" :loading="isLoading"
+      <AppDataTable v-model="selected" :headers="tableHeaders" :items="filteredProposals" :loading="isLoading"
         item-value="nomor" density="compact" class="desktop-table" fixed-header show-select return-object>
         <template v-for="header in tableHeaders" #[`item.${header.key}`]="{ item }" :key="header.key">
           <td :class="getRowTextColor(item)">
@@ -238,14 +239,13 @@ watch([selectedCabang, belumApproval, startDate, endDate], () => {
             </template>
           </td>
         </template>
-      </v-data-table>
+      </AppDataTable>
     </div>
 
     <v-dialog v-model="dialogDelete" max-width="500px">
       <v-card>
         <v-card-title class="text-h5">Konfirmasi Hapus</v-card-title>
-        <v-card-text>Apakah Anda yakin ingin menghapus pengajuan harga nomor <strong>{{ itemToDelete?.nomor
-            }}</strong>?</v-card-text>
+        <v-card-text>Apakah Anda yakin ingin menghapus pengajuan harga nomor <strong>{{ itemToDelete?.nomor }}</strong>?</v-card-text>
         <v-card-actions>
           <v-spacer></v-spacer>
           <v-btn variant="text" @click="dialogDelete = false">Batal</v-btn>

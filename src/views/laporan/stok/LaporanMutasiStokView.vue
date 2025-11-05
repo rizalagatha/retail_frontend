@@ -8,6 +8,7 @@ import PageLayout from '@/components/PageLayout.vue';
 import MasterProductSearchModal from '@/components/lookup/MasterProductSearchModal.vue';
 import * as XLSX from 'xlsx';
 import type { AxiosError } from 'axios';
+import AppDataTable from '@/components/AppDataTable.vue';
 
 // --- Tipe Data ---
 interface GudangOption {
@@ -324,7 +325,7 @@ watch(filters, () => {
       </div>
 
       <div class="table-container">
-        <v-data-table :headers="headers" :items="masterData" :loading="isLoading" class="desktop-table"
+        <AppDataTable :headers="headers" :items="masterData" :loading="isLoading" class="desktop-table"
           density="compact" fixed-header show-expand return-object item-value="kode" @update:expanded="loadDetails">
           <template #expanded-row="{ columns, item }">
             <tr>
@@ -343,7 +344,7 @@ watch(filters, () => {
               </td>
             </tr>
           </template>
-        </v-data-table>
+        </AppDataTable>
       </div>
     </div>
     <MasterProductSearchModal v-if="isProductSearchVisible" :gudang="filters.gudang"

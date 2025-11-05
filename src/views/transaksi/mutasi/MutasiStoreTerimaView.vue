@@ -9,6 +9,7 @@ import PageLayout from '@/components/PageLayout.vue';
 import MasterProductSearchModal from '@/components/lookup/MasterProductSearchModal.vue';
 import * as XLSX from 'xlsx';
 import { AxiosError } from 'axios';
+import AppDataTable from '@/components/AppDataTable.vue';
 
 // --- Inisialisasi ---
 const router = useRouter();
@@ -317,7 +318,7 @@ watch(filters, () => {
       </div>
 
       <div class="table-container">
-        <v-data-table v-model="selected" v-model:expanded="expanded" :headers="headers" :items="masterData"
+        <AppDataTable v-model="selected" v-model:expanded="expanded" :headers="headers" :items="masterData"
           :loading="loading" item-value="nomor" density="compact" class="desktop-table" fixed-header show-select
           show-expand return-object single-select @update:expanded="loadDetails">
           <template v-for="header in headers" :key="header.key" #[`item.${header.key}`]="{ item }">
@@ -355,7 +356,7 @@ watch(filters, () => {
               </td>
             </tr>
           </template>
-        </v-data-table>
+        </AppDataTable>
       </div>
     </div>
 

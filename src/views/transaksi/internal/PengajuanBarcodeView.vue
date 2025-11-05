@@ -240,7 +240,7 @@ watch(filters, fetchMasterData, { deep: true, immediate: true });
         </div>
       </div>
       <div class="table-container">
-        <v-data-table v-model="selected" v-model:expanded="expanded" :headers="headers" :items="masterData"
+        <AppDataTable v-model="selected" v-model:expanded="expanded" :headers="headers" :items="masterData"
           :loading="loading" item-value="nomor" density="compact" class="desktop-table" fixed-header show-select
           show-expand return-object single-select @update:expanded="loadDetails">
           <template v-for="header in headers" #[`item.${header.key}`]="{ item }" :key="`${item.nomor}-${header.key}`">
@@ -274,7 +274,7 @@ watch(filters, fetchMasterData, { deep: true, immediate: true });
               </td>
             </tr>
           </template>
-        </v-data-table>
+        </AppDataTable>
       </div>
     </div>
 

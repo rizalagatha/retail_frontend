@@ -154,7 +154,7 @@ onMounted(() => {
       </div>
 
       <!-- Table Section -->
-      <v-data-table v-model="selected" :headers="headers" :items="salesCounters" :search="search" :loading="isLoading"
+      <AppDataTable v-model="selected" :headers="headers" :items="salesCounters" :search="search" :loading="isLoading"
         item-value="kode" density="compact" class="desktop-table" fixed-header show-select return-object>
         <template #[`item.status`]="{ item }">
           <v-chip :color="item.status === 'AKTIF' ? 'success' : 'error'" variant="tonal" size="x-small">
@@ -170,7 +170,7 @@ onMounted(() => {
             mdi-delete
           </v-icon>
         </template>
-      </v-data-table>
+      </AppDataTable>
     </div>
 
     <!-- Dialogs -->

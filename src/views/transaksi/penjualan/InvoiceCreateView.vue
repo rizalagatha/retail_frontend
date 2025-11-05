@@ -21,6 +21,8 @@ import SoDtfSearchModal from '@/components/lookup/SoDtfSearchModal.vue';
 import PromoBonusModal from '@/components/modal/PromoBonusModal.vue';
 import type { AxiosError } from 'axios';
 import axios from 'axios';
+import LogoKaosan from '@/assets/logo.png';
+import LogoRezso from '@/assets/rezso.jpg';
 
 // --- Tipe Data ---
 interface Item {
@@ -152,6 +154,12 @@ const MENU_ID = '27';
 const isEditMode = computed(() => !!route.params.nomor);
 const pageTitle = computed(() => isEditMode.value ? 'Ubah Invoice' : 'Buat Invoice');
 const requiredPermission = computed(() => isEditMode.value ? 'edit' : 'insert');
+const dynamicLogo = computed(() => {
+  if (authStore.user?.cabang === 'K04') {
+    return LogoRezso;
+  }
+  return LogoKaosan;
+});
 
 const isLoading = ref(true);
 
@@ -554,10 +562,47 @@ const onMemberSaved = (member: Member) => {
 };
 
 const onPromoSelected = (promo: { nomor: string, namaPromo: string }) => {
-  header.nomorPromo = promo.nomor;
-  header.namaPromo = promo.namaPromo;
-  dialogs.promoSearch = false;
-  // Tambahkan logika `initgrid` atau hitung ulang jika perlu
+  // Cek apakah promo berubah dan item sudah ada
+  if (promo.nomor === 'PRO-2025-005' && items.value.some(i => i.kode)) {
+    // Tampilkan konfirmasi
+    showConfirmation(
+      'Terapkan Promo?',
+      'Menerapkan promo ini akan menghapus semua barang di keranjang. Lanjutkan?',
+      () => {
+        // User klik "Ya"
+        header.nomorPromo = promo.nomor;
+        header.namaPromo = promo.namaPromo;
+        items.value = []; // Kosongkan grid
+        addNewRow(); // Tambah baris kosong baru
+        dialogs.promoSearch = false;
+      }
+    );
+    // Saat 'showConfirmation' dipanggil, 'dialogConfirm.onConfirm' akan di-set
+    // Kita juga perlu menangani 'Batal'
+    dialogConfirm.onConfirm = () => {
+      header.nomorPromo = promo.nomor;
+      header.namaPromo = promo.namaPromo;
+      items.value = [];
+      addNewRow();
+      dialogs.promoSearch = false;
+      dialogConfirm.show = false; // Tutup dialog
+    };
+
+    // Jika user menutup/membatalkan dialog
+    const unwatch = watch(() => dialogConfirm.show, (newValue) => {
+      if (!newValue && dialogConfirm.onConfirm) { // Cek jika 'onConfirm' masih ada
+        // 'onConfirm' belum dijalankan, artinya user klik Batal/Tutup
+        unwatch();
+        // Jangan set promo jika dibatalkan
+      }
+    });
+
+  } else {
+    // Jika grid kosong atau promo lain, langsung set
+    header.nomorPromo = promo.nomor;
+    header.namaPromo = promo.namaPromo;
+    dialogs.promoSearch = false;
+  }
 };
 
 const onSoSelected = async (so: { Nomor: string }) => {
@@ -645,23 +690,27 @@ const onProductsSelected = (selectedProducts: ProductInput[]) => {
   dialogs.productSearch = false;
   if (!selectedProducts || selectedProducts.length === 0) return;
 
+  const isPromoActive = header.nomorPromo === 'PRO-2025-005';
+  // Sesuai permintaan Anda, harga 100rb / 3 = 33333
+  const promoPrice = 33333;
+
   const newItems: Item[] = selectedProducts.map(product => ({
     id: Date.now() + Math.random(),
     kode: product.kode,
     nama: product.nama,
     ukuran: product.ukuran,
     stok: product.stok,
-    harga: product.harga,
+    harga: isPromoActive ? promoPrice : product.harga,
     jumlah: 1,
     diskonPersen: 0,
     diskonRp: 0,
-    total: product.harga,
+    total: isPromoActive ? promoPrice : product.harga,
     barcode: product.barcode,
     qtyso: 0,
     noSoDtf: '',
     kategori: '',
-    terhitungPromo: false,
-    _isHargaEditable: product.harga === 0,
+    terhitungPromo: isPromoActive,
+    _isHargaEditable: !isPromoActive,
     hpp: 0
   }));
 
@@ -793,11 +842,8 @@ const handleProceedToPayment = async () => {
   if (!stokOk) return;
 
   // --- 3. VALIDASI PROMO SPESIFIK ---
-  const totalQtyKaos = items.value.reduce((sum, item) =>
-    (item.kategori === 'KAOS' && !item.promo) ? sum + (item.jumlah || 0) : sum, 0);
-
-  if (header.nomorPromo === 'PRO-2025-005') {
-    if (totalQtyKaos < 3) {
+  if (header.nomorPromo === 'PRO-2025-005') { // PROMO BELI 3 HARGA 100RB
+    if (totalQty < 3) {
       return toast.error('Qty belanja minimal 3 pcs untuk promo ini.');
     }
   }
@@ -948,6 +994,10 @@ const updateMemberInfo = (customer: Customer | null) => {
 };
 
 const handleBarcodeScan = async () => {
+  if (header.nomorPromo === 'PRO-2025-005') {
+    return toast.error('Scan barcode non-aktif saat promo ini. Silakan gunakan F1/F2 (klik kolom Kode) untuk mencari barang promo.');
+  }
+
   if (!header.customer.kode) {
     return toast.error('Pilih customer terlebih dahulu sebelum scan!');
   }
@@ -1201,8 +1251,8 @@ onMounted(() => {
               <v-text-field label="No. Invoice" v-model="header.nomor" readonly density="compact" filled hide-details />
             </v-col>
             <v-col cols="6">
-              <v-text-field label="Tanggal" v-model="header.tanggal" type="date" variant="outlined" density="compact"
-                hide-details />
+              <v-text-field label="Tanggal" v-model="header.tanggal" type="date" variant="filled" density="compact"
+                hide-details readonly />
             </v-col>
             <v-col cols="4">
               <v-text-field label="Kode Cabang" :model-value="header.gudang.kode" readonly density="compact" filled
@@ -1291,10 +1341,16 @@ onMounted(() => {
       </div>
 
       <div class="right-column">
-        <div v-if="!header.nomorSo" class="scanner-wrapper">
-          <v-text-field v-model="scannedBarcode" label="Scan Barcode di Sini..."
-            placeholder="Input barcode lalu tekan Enter" variant="outlined" density="compact"
-            prepend-inner-icon="mdi-barcode-scan" hide-details clearable @keydown.enter.prevent="handleBarcodeScan" />
+        <div class="top-right-header">
+          <div v-if="!header.nomorSo" class="scanner-wrapper">
+            <v-text-field v-model="scannedBarcode" label="Scan Barcode di Sini..."
+              placeholder="Input barcode lalu tekan Enter" variant="outlined" density="compact"
+              prepend-inner-icon="mdi-barcode-scan" hide-details clearable @keydown.enter.prevent="handleBarcodeScan" />
+          </div>
+
+          <div class="logo-container">
+            <v-img :src="dynamicLogo" max-width="60" contain />
+          </div>
         </div>
 
         <div class="desktop-form-section table-section">
@@ -1386,8 +1442,8 @@ onMounted(() => {
     <SoSearchModalForInvoice v-if="dialogs.soSearch" :cabang="header.gudang.kode" @close="dialogs.soSearch = false"
       @so-selected="onSoSelected" />
     <ProductSearchModal v-if="dialogs.productSearch" :gudang="header.gudang.kode" category="ALL"
-      :multi="isMultiSelectProduct" source="invoice-cash" @close="dialogs.productSearch = false"
-      @products-selected="onProductsSelected" />
+      :multi="isMultiSelectProduct" source="invoice-cash" :promo-nomor="header.nomorPromo"
+      @close="dialogs.productSearch = false" @products-selected="onProductsSelected" />
     <UnpaidDpSearchModal v-if="dialogs.unpaidDpSearch" :customer-kode="header.customer.kode"
       @close="dialogs.unpaidDpSearch = false" @selected="onUnpaidDpSelected" />
     <PaymentModal v-if="dialogs.payment" :invoice-header="header" :invoice-items="items" :totals="totals"
@@ -1486,39 +1542,46 @@ onMounted(() => {
   overflow: hidden;
 }
 
-.scanner-wrapper {
+.top-right-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  flex-wrap: nowrap;
   flex-shrink: 0;
-  max-width: 400px;
+}
+
+.scanner-wrapper {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.logo-container {
+  width: 60px;
+  flex-shrink: 0;
 }
 
 .table-section {
   flex-grow: 1;
   min-height: 0;
   overflow-x: auto;
-  /* scroll horizontal di sini */
   overflow-y: auto;
-  /* scroll vertical untuk isi tabel */
   display: flex;
   flex-direction: column;
 }
 
 .table-section .v-data-table {
   width: max-content;
-  /* biarkan tabel selebar kontennya */
   min-width: 100%;
-  /* minimal selebar container */
 }
 
 .footer-actions-section {
   flex-shrink: 0;
   padding: 8px 0;
-  /* kurangi padding atas-bawah */
   border-top: 1px solid #e0e0e0;
-  /* opsional: beri garis pembatas */
 }
 
 .footer-actions-section .v-row {
   margin: 0 !important;
-  /* hilangkan margin */
 }
 </style>

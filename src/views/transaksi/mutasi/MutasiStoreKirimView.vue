@@ -305,7 +305,7 @@ watch(
       </div>
 
       <div class="table-container">
-        <v-data-table v-model="selected" v-model:expanded="expanded" :headers="headers" :items="masterData"
+        <AppDataTable v-model="selected" v-model:expanded="expanded" :headers="headers" :items="masterData"
           :loading="loading" item-value="nomor" density="compact" class="desktop-table" fixed-header show-select
           return-object show-expand single-select @update:expanded="loadDetails">
 
@@ -344,7 +344,7 @@ watch(
               </td>
             </tr>
           </template>
-        </v-data-table>
+        </AppDataTable>
       </div>
     </div>
 

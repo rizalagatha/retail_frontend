@@ -379,7 +379,7 @@ watch([startDate, endDate, selectedCabang, filterDateType], fetchData);
         </div>
       </div>
 
-      <v-data-table v-model="selected" :headers="headers" :items="filteredList" :loading="isLoading"
+      <AppDataTable v-model="selected" :headers="headers" :items="filteredList" :loading="isLoading"
         v-model:expanded="expanded" @update:expanded="loadDetails" :item-class="getRowClass" item-value="Nomor"
         density="compact" class="desktop-table fill-height-table" fixed-header show-select return-object show-expand>
         <template v-for="header in headers" :key="header.key" #[`item.${header.key}`]="{ item }">
@@ -417,7 +417,7 @@ watch([startDate, endDate, selectedCabang, filterDateType], fetchData);
             </td>
           </tr>
         </template>
-      </v-data-table>
+      </AppDataTable>
     </div>
 
     <!-- Dialog untuk Hapus -->

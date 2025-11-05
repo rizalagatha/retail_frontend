@@ -9,6 +9,7 @@ import PageLayout from '@/components/PageLayout.vue';
 // import GudangSearchModal from '@/components/GudangSearchModal.vue';
 import * as XLSX from 'xlsx';
 import type { AxiosError } from 'axios';
+import AppDataTable from '@/components/AppDataTable.vue';
 
 // --- Tipe Data ---
 interface CabangOption {
@@ -291,7 +292,7 @@ watch([filters, reportType], fetchMasterData, { deep: true, immediate: true });
       </div>
 
       <div class="table-container">
-        <v-data-table v-if="reportType === 'level'" :headers="activeHeaders" :items="masterData" :loading="isLoading"
+        <AppDataTable v-if="reportType === 'level'" :headers="activeHeaders" :items="masterData" :loading="isLoading"
           class="desktop-table main-table" density="compact" fixed-header show-expand item-value="Kode"
           v-model:expanded="expanded" @update:expanded="loadDetails" height="420px">
           <template v-slot:[`item.Nominal`]="{ item }">
@@ -342,9 +343,9 @@ watch([filters, reportType], fetchMasterData, { deep: true, immediate: true });
               </td>
             </tr>
           </template>
-        </v-data-table>
+        </AppDataTable>
 
-        <v-data-table v-else :headers="activeHeaders" :items="masterData" :loading="isLoading"
+        <AppDataTable v-else :headers="activeHeaders" :items="masterData" :loading="isLoading"
           class="desktop-table main-table" density="compact" fixed-header height="420px">
           <template v-slot:[`item.Nominal`]="{ item }">
             {{ new Intl.NumberFormat('id-ID').format(item.Nominal) }}
@@ -373,7 +374,7 @@ watch([filters, reportType], fetchMasterData, { deep: true, immediate: true });
             </tr>
           </template>
 
-        </v-data-table>
+        </AppDataTable>
       </div>
     </div>
   </PageLayout>

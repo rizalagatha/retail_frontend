@@ -259,7 +259,7 @@ watch(filters, fetchData, { deep: true });
       </div>
 
       <div class="table-container">
-        <v-data-table v-model="selected" v-model:expanded="expanded" :headers="headers" :items="items"
+        <AppDataTable v-model="selected" v-model:expanded="expanded" :headers="headers" :items="items"
           :loading="isLoading" item-value="nomor" return-object single-select show-expand show-select
           @update:expanded="loadDetails">
           <template #[`item.tanggal`]="{ item }">
@@ -294,13 +294,13 @@ watch(filters, fetchData, { deep: true });
           </template>
 
           <template #bottom></template>
-        </v-data-table>
+          </v-data-table>
       </div>
     </div>
     </td>
     </tr>
 </template>
-</v-data-table>
+</AppDataTable>
 </div>
 </div>
 

@@ -7,6 +7,7 @@ import api from '@/services/api';
 import { format, subDays, parseISO } from 'date-fns';
 import PageLayout from '@/components/PageLayout.vue';
 import * as XLSX from 'xlsx';
+import AppDataTable from '@/components/AppDataTable.vue';
 
 interface MutasiStokHeader {
   Nomor: string;
@@ -218,7 +219,7 @@ watch(filters, fetchMasterData, { deep: true });
       </div>
 
       <div class="table-container">
-        <v-data-table v-model="selected" v-model:expanded="expanded" :headers="headers" :items="masterData"
+        <AppDataTable v-model="selected" v-model:expanded="expanded" :headers="headers" :items="masterData"
           :loading="loading" item-value="Nomor" density="compact" class="desktop-table" fixed-header show-select
           return-object show-expand @update:expanded="loadDetails">
           <template #[`item.Tanggal`]="{ value }">
@@ -240,7 +241,7 @@ watch(filters, fetchMasterData, { deep: true });
               </td>
             </tr>
           </template>
-        </v-data-table>
+        </AppDataTable>
       </div>
     </div>
   </PageLayout>

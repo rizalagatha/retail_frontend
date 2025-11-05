@@ -8,6 +8,7 @@ import PageLayout from '@/components/PageLayout.vue';
 import MasterProductSearchModal from '@/components/lookup/MasterProductSearchModal.vue';
 import * as XLSX from 'xlsx';
 import type { AxiosError } from 'axios';
+import AppDataTable from '@/components/AppDataTable.vue';
 
 // --- Tipe Data ---
 interface GudangOption {
@@ -40,6 +41,7 @@ interface DetailItem {
   In?: number;
   Out?: number;
   transaksi?: string;
+  saldo?: number;
 }
 interface DetailHeader {
   title: string;
@@ -97,12 +99,13 @@ const detailHeaders = ref<DetailHeader[]>([]);
 
 const generateHeaders = () => {
   detailHeaders.value = [
-    { title: 'Id', key: 'id' },
+    { title: 'Id', key: 'id', cellProps: { class: 'd-none' } }, // Sembunyikan ID
     { title: 'Tanggal', key: 'tanggal', align: 'end' },
-    { title: 'Nomor', key: 'nomor', align: 'end' },
+    { title: 'Nomor', key: 'nomor', align: 'start' },
+    { title: 'Transaksi', key: 'transaksi', align: 'start' },
     { title: 'In', key: 'In', align: 'end' },
     { title: 'Out', key: 'Out', align: 'end' },
-    { title: 'Transaksi', key: 'transaksi', align: 'end' },
+    { title: 'Saldo', key: 'saldo', align: 'end', cellProps: { class: 'font-weight-bold' } } // <-- TAMBAHKAN INI
   ];
 };
 
@@ -137,21 +140,27 @@ const fetchMasterData = async () => {
   }
 };
 
-const loadDetails = async (newlyExpandedItems: DetailItem[]) => {
+const loadDetails = async (newlyExpandedItems: MasterDataItem[]) => {
+  // 'newlyExpandedItems' adalah array objek dari 'masterData'
+
   const itemToLoad = newlyExpandedItems.find(item => {
-    const id = item.id; // id = kode+ukuran atau sesuai struktur
-    return !details.value[id] && !loadingDetails.value.has(id);
+    // [FIX] Buat ID unik dari kode + ukuran
+    const idProduk = item.kode + (item.ukuran || '');
+    return !details.value[idProduk] && !loadingDetails.value.has(idProduk);
   });
+
   if (!itemToLoad) return;
 
-  const idProduk = itemToLoad.id;
+  // [FIX] Buat ID unik lagi untuk dipakai
+  const idProduk = itemToLoad.kode + (itemToLoad.ukuran || '');
+
   loadingDetails.value.add(idProduk);
   try {
     const response = await api.get<DetailItem[]>('/laporan-kartu-stok/kartu-stok-details', {
-      params: { ...filters, id: idProduk },
+      // 'filters' sudah berisi gudang, startDate, endDate
+      params: { ...filters, id: idProduk }, // Kirim ID unik yang benar
     });
 
-    // Gunakan spread agar reaktif
     details.value = {
       ...details.value,
       [idProduk]: response.data,
@@ -178,10 +187,13 @@ const onProductSelected = (product: { kode: string; nama: string; }) => {
   filters.kodeBarang = product.kode;
   filters.namaBarang = product.nama;
   isProductSearchVisible.value = false;
+  fetchMasterData();
 };
 const clearProductFilter = () => {
   filters.kodeBarang = '';
   filters.namaBarang = '';
+  masterData.value = [];
+  details.value = {};
 };
 
 const exportToExcel = () => {
@@ -205,31 +217,43 @@ const exportToExcel = () => {
 };
 
 // --- Lifecycle ---
-onMounted(async () => { // <-- Jadikan async
-  // --- TAMBAHKAN PENGECEKAN AWAL ---
+onMounted(async () => {
   if (!canView.value) {
-    isLoading.value = false; // Hentikan loading
+    isLoading.value = false;
     toast.error("Anda tidak memiliki izin untuk melihat halaman ini.");
-    masterData.value = []; // Pastikan data kosong
-    return; // Hentikan eksekusi
+    masterData.value = [];
+    return;
   }
-  // ------------------------------------
 
-  // Panggil fetchGudangList jika punya izin
   await fetchGudangList();
-  // Tidak perlu memanggil fetchMasterData di sini,
-  // karena watch immediate: true akan melakukannya (setelah cek izin di watch)
-});
-watch(filters, () => {
-  // --- TAMBAHKAN PENGECEKAN IZIN ---
-  if (!canView.value) {
-    isLoading.value = false; // Hentikan loading jika belum
-    masterData.value = []; // Kosongkan data
-    return; // Hentikan jika tidak ada izin
+
+  // [PERBAIKAN REFRESH]
+  // Cek jika filter kodeBarang sudah ada nilainya saat halaman di-refresh
+  if (filters.kodeBarang) {
+    fetchMasterData(); // Langsung panggil fetch
+  } else {
+    // Jika tidak ada, baru kita set loading false (menampilkan pesan 'Pilih Produk')
+    isLoading.value = false;
   }
-  // ---------------------------------
-  fetchMasterData();
-}, { deep: true, immediate: true });
+});
+// 1. Watcher ini HANYA bereaksi pada perubahan filter utama
+//    (Tanggal, Gudang)
+watch([() => filters.startDate, () => filters.endDate, () => filters.gudang], () => {
+  // Hanya fetch jika kode barang SUDAH diisi
+  if (filters.kodeBarang) {
+    fetchMasterData();
+  }
+});
+
+// 2. Watcher ini HANYA bereaksi pada perubahan Kode Barang
+watch(() => filters.kodeBarang, (newKode) => {
+  if (newKode) {
+    // Jika kode baru dipilih (dari onProductSelected), fetch data
+    fetchMasterData();
+  }
+  // Jika 'newKode' kosong (dari clearProductFilter),
+  // kita tidak melakukan apa-apa (karena 'clear' sudah mengosongkan tabel)
+});
 </script>
 
 <template>
@@ -270,11 +294,23 @@ watch(filters, () => {
       </div>
 
       <div class="table-container">
-        <v-data-table :headers="headers" :items="masterData" :loading="isLoading" class="desktop-table"
-          density="compact" fixed-header show-expand return-object item-value="uniqueId" v-model:expanded="expanded"
+        <AppDataTable :headers="headers" :items="masterData" :loading="isLoading" class="desktop-table"
+          density="compact" fixed-header show-expand return-object
+          :item-value="(item) => item.kode + (item.ukuran || '')" v-model:expanded="expanded"
           @update:expanded="loadDetails">
-          <template v-slot:[`item.uniqueId`]="{ item }">
-            {{ item.kode + (item.ukuran || '') }}
+
+          <template #no-data>
+            <div class="empty-data-wrapper custom-empty-state">
+              <v-icon size="64" color="grey-lighten-2" class="mb-4">
+                mdi-text-search-variant
+              </v-icon>
+              <h4 class="text-h6 text-grey-darken-1">Pilih Produk Terlebih Dahulu</h4>
+              <p class="text-body-2 text-grey-lighten-1 mt-2">
+                Silakan gunakan filter "Gudang" dan "Kode Barang" (F1)
+                <br>
+                untuk memuat laporan kartu stok.
+              </p>
+            </div>
           </template>
 
           <template #expanded-row="{ columns, item }">
@@ -295,8 +331,7 @@ watch(filters, () => {
               </td>
             </tr>
           </template>
-        </v-data-table>
-
+        </AppDataTable>
 
       </div>
     </div>
@@ -304,3 +339,9 @@ watch(filters, () => {
       @close="isProductSearchVisible = false" @product-selected="onProductSelected" />
   </PageLayout>
 </template>
+
+<style scoped>
+.custom-empty-state {
+  padding: 64px 32px;
+}
+</style>

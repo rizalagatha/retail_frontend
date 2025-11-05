@@ -9,6 +9,7 @@ import PageLayout from '@/components/PageLayout.vue';
 import * as XLSX from 'xlsx';
 import type { AxiosError } from 'axios';
 import axios from 'axios';
+import AppDataTable from '@/components/AppDataTable.vue';
 
 // --- Inisialisasi ---
 const router = useRouter();
@@ -307,7 +308,7 @@ watch(expanded, (newExpanded) => {
       </div>
 
       <div class="table-container">
-        <v-data-table v-model="selected" v-model:expanded="expanded" :headers="headers" :items="masterData"
+        <AppDataTable v-model="selected" v-model:expanded="expanded" :headers="headers" :items="masterData"
           :loading="loading" item-value="Nomor" density="compact" class="desktop-table" fixed-header show-select
           return-object show-expand @update:expanded="loadDetails">
           <template v-for="header in headers" #[`item.${header.key}`]="{ item }" :key="header.key">
@@ -361,7 +362,7 @@ watch(expanded, (newExpanded) => {
               </td>
             </tr>
           </template>
-        </v-data-table>
+        </AppDataTable>
       </div>
     </div>
 

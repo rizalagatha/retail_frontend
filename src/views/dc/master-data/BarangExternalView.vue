@@ -8,6 +8,7 @@ import { format, subDays, parseISO } from 'date-fns';
 import PageLayout from '@/components/PageLayout.vue';
 import * as XLSX from 'xlsx';
 import type { AxiosError } from 'axios';
+import AppDataTable from '@/components/AppDataTable.vue';
 
 // --- Tipe Data & State ---
 interface Header {
@@ -202,7 +203,7 @@ watch(filters, fetchData, { deep: true });
       </div>
 
       <div class="table-container">
-        <v-data-table v-model="selected" v-model:expanded="expanded" :headers="headers" :items="masterData"
+        <AppDataTable v-model="selected" v-model:expanded="expanded" :headers="headers" :items="masterData"
           :loading="loading" item-value="kode" density="compact" class="desktop-table" fixed-header show-select
           show-expand return-object single-select @update:expanded="loadDetails" :item-class="getRowTextColor">
 
@@ -229,13 +230,13 @@ watch(filters, fetchData, { deep: true });
               <td class="text-end">{{ (item[col] || 0).toLocaleString('id-ID') }}</td>
           </template>
           <template #bottom></template>
-        </v-data-table>
+          </v-data-table>
       </div>
     </div>
     </td>
     </tr>
 </template>
-</v-data-table>
+</AppDataTable>
 </div>
 </div>
 </PageLayout>

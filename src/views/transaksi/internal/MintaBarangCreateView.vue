@@ -163,10 +163,6 @@ const resetForm = () => {
 };
 
 const openProductSearch = (index: number, isMulti: boolean) => {
-  if (!formHeader.value.customer?.kode) { // Ganti 'header.value.customer?.kode' jika perlu
-    toast.error('Pilih customer terlebih dahulu sebelum menambah item!');
-    return; // Hentikan fungsi jika customer belum dipilih
-  }
   activeRowIndex.value = index;
   isMultiSelectProduct.value = isMulti;
   isProductSearchVisible.value = true;
@@ -344,10 +340,6 @@ const executeSave = async () => {
 const handleBarcodeScan = async () => {
   // Validasi dasar: gudang dan barcode harus ada
   const gudangKode = authStore.user?.cabang; // Menggunakan gudang dari user yang login
-  if (!formHeader.value.customer?.kode) {
-    toast.error('Pilih customer terlebih dahulu sebelum scan barcode!');
-    return;
-  }
   if (!gudangKode) {
     toast.error('Gudang tidak terdefinisi, tidak bisa scan barcode!');
     return;

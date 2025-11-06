@@ -1078,11 +1078,11 @@ onMounted(() => {
           </v-row>
           <v-divider class="my-2"></v-divider>
           <v-text-field label="Diskon Rp"
-            :value="isFooterDiskonRpFocused ? footer.diskonRpInput : new Intl.NumberFormat('id-ID').format(footer.diskonRpInput || 0)"
-            @input="footer.diskonRpInput = Number(String($event.target.value).replace(/[^0-9]/g, '')) || 0"
+            :model-value="isFooterDiskonRpFocused ? footer.diskonRpInput : new Intl.NumberFormat('id-ID').format(footer.diskonRpInput || 0)"
+            @update:model-value="footer.diskonRpInput = Number(String($event).replace(/[^0-9]/g, '')) || 0"
             @focus="isFooterDiskonRpFocused = true" @blur="isFooterDiskonRpFocused = false; onDiskonRpBlur()"
             placeholder="0" type="text" variant="outlined" density="compact" hide-details
-            class="summary-field text-right font-weight-bold" />
+            class="summary-field text-right font-weight-black text-subtitle-1" />
 
           <v-text-field label="Total" :model-value="new Intl.NumberFormat('id-ID').format(footer.total)" readonly
             variant="filled" density="compact" hide-details class="summary-field text-right font-weight-bold" />

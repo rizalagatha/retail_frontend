@@ -227,11 +227,12 @@ onMounted(() => {
 <template>
   <PageLayout :title="pageTitle" desktop-mode icon="mdi-package-variant-closed-edit">
     <template #header-actions>
-      <v-btn v-if="authStore.can(MENU_ID, requiredPermission)" size="small" color="primary" @click="save"
-        :loading="isSaving" :disabled="isSaving || isSavingDisabled">
+      <v-btn v-if="authStore.can(MENU_ID, requiredPermission)" size="small" prepend-icon="mdi-content-save"
+        color="primary" @click="save" :loading="isSaving" :disabled="isSaving || isSavingDisabled">
         Simpan
       </v-btn>
-      <v-btn size="small" @click="showConfirmation(resetForm, 'Batalkan dan kosongkan form?')">Batal</v-btn>
+      <v-btn size="small" prepend-icon="mdi-cancel"
+        @click="showConfirmation(resetForm, 'Batalkan dan kosongkan form?')">Batal</v-btn>
       <v-btn size="small" @click="showConfirmation(closeForm, 'Tutup form?')">Tutup</v-btn>
     </template>
 

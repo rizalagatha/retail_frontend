@@ -11,18 +11,18 @@ import type { AxiosError } from 'axios';
 
 // --- Tipe Data ---
 interface Item {
-    id: number;
-    kode: string;
-    nama: string;
-    ukuran: string;
-    qtyso: number;
-    produksi: number;
-    pesan: number;
-    ready: number;
-    showroom: number;
-    kurang: number;
-    jumlah: number;
-    barcode: string;
+  id: number;
+  kode: string;
+  nama: string;
+  ukuran: string;
+  qtyso: number;
+  produksi: number;
+  pesan: number;
+  ready: number;
+  showroom: number;
+  kurang: number;
+  jumlah: number;
+  barcode: string;
 }
 
 // --- Inisialisasi ---
@@ -38,11 +38,11 @@ const pageTitle = computed(() => isEditMode.value ? 'Ubah Mutasi Stok' : 'Buat M
 const requiredPermission = computed(() => isEditMode.value ? 'edit' : 'insert');
 
 const initialHeaderState = {
-    nomor: '',
-    tanggal: format(new Date(), 'yyyy-MM-dd'),
-    nomorSo: '',
-    jenisMutasi: 'SP', // SP: Showroom ke Pesanan, PS: Pesanan ke Showroom
-    keterangan: '',
+  nomor: '',
+  tanggal: format(new Date(), 'yyyy-MM-dd'),
+  nomorSo: '',
+  jenisMutasi: 'SP', // SP: Showroom ke Pesanan, PS: Pesanan ke Showroom
+  keterangan: '',
 };
 const header = reactive({ ...initialHeaderState });
 const items = ref<Item[]>([]);
@@ -52,264 +52,260 @@ const isSaving = ref(false);
 const isDataSaved = ref(false);
 
 const dialog = reactive({
-    soSearch: false,
-    confirm: false,
+  soSearch: false,
+  confirm: false,
 });
 const dialogConfirm = reactive({
-    show: false,
-    title: '',
-    text: '',
-    onConfirm: () => { },
+  show: false,
+  title: '',
+  text: '',
+  onConfirm: () => { },
 });
 
 const tableHeaders = [
-    { title: 'Kode Barang', key: 'kode', width: '150px' },
-    { title: 'Nama Barang', key: 'nama' },
-    { title: 'Ukuran', key: 'ukuran', width: '80px' },
-    { title: 'Qty Pesan', key: 'qtyso', align: 'end', width: '100px' },
-    { title: 'Produksi', key: 'produksi', align: 'end', width: '100px' },
-    { title: 'Stok Pesan', key: 'pesan', align: 'end', width: '100px' },
-    { title: 'Ready', key: 'ready', align: 'end', width: '100px' },
-    { title: 'Stok Showroom', key: 'showroom', align: 'end', width: '120px' },
-    { title: 'Kurang', key: 'kurang', align: 'end', width: '100px' },
-    { title: 'Qty Mutasi', key: 'jumlah', align: 'end', width: '150px' },
-    { title: 'Barcode', key: 'barcode', width: '150px' },
+  { title: 'Kode Barang', key: 'kode', width: '150px' },
+  { title: 'Nama Barang', key: 'nama' },
+  { title: 'Ukuran', key: 'ukuran', width: '80px' },
+  { title: 'Qty Pesan', key: 'qtyso', align: 'end', width: '100px' },
+  { title: 'Produksi', key: 'produksi', align: 'end', width: '100px' },
+  { title: 'Stok Pesan', key: 'pesan', align: 'end', width: '100px' },
+  { title: 'Ready', key: 'ready', align: 'end', width: '100px' },
+  { title: 'Stok Showroom', key: 'showroom', align: 'end', width: '120px' },
+  { title: 'Kurang', key: 'kurang', align: 'end', width: '100px' },
+  { title: 'Qty Mutasi', key: 'jumlah', align: 'end', width: '150px' },
+  { title: 'Barcode', key: 'barcode', width: '150px' },
 ] as const;
 
 // --- Methods ---
 const loadDataFromSo = async (nomorSo: string) => {
-    isLoading.value = true;
-    try {
-        const response = await api.get<Item[]>(`/mutasi-stok-form/load-from-so/${nomorSo}`);
-        items.value = response.data.map((item) => ({
-            ...item,
-            id: Date.now() + Math.random(),
-            jumlah: 0,
-        }));
-    } catch (err: unknown) {
-        const error = err as AxiosError<{ message: string }>;
-        toast.error(error.response?.data?.message || 'Gagal memuat detail SO.');
-        header.nomorSo = ''; // Reset jika gagal
-    } finally {
-        isLoading.value = false;
-    }
+  isLoading.value = true;
+  try {
+    const response = await api.get<Item[]>(`/mutasi-stok-form/load-from-so/${nomorSo}`);
+    items.value = response.data.map((item) => ({
+      ...item,
+      id: Date.now() + Math.random(),
+      jumlah: 0,
+    }));
+  } catch (err: unknown) {
+    const error = err as AxiosError<{ message: string }>;
+    toast.error(error.response?.data?.message || 'Gagal memuat detail SO.');
+    header.nomorSo = ''; // Reset jika gagal
+  } finally {
+    isLoading.value = false;
+  }
 };
 
 const loadDataForEdit = async (nomor: string) => {
-    isLoading.value = true;
-    try {
-        const response = await api.get(`/mutasi-stok-form/${nomor}`);
-        const { header: msoHeader, items: msoItems } = response.data;
-        header.nomor = msoHeader.nomor;
-        header.tanggal = format(parseISO(msoHeader.tanggal), 'yyyy-MM-dd');
-        header.nomorSo = msoHeader.nomorSo;
-        header.jenisMutasi = msoHeader.jenisMutasi;
-        header.keterangan = msoHeader.keterangan;
-        items.value = msoItems.map((item: Item) => ({
-            ...item,
-            id: Date.now() + Math.random(),
-        }));
-        isDataSaved.value = true;
-    } catch (err: unknown) {
-        const error = err as AxiosError<{ message: string }>;
-        toast.error(error.response?.data?.message || 'Gagal memuat data.');
-        router.back();
-    } finally {
-        isLoading.value = false;
-    }
+  isLoading.value = true;
+  try {
+    const response = await api.get(`/mutasi-stok-form/${nomor}`);
+    const { header: msoHeader, items: msoItems } = response.data;
+    header.nomor = msoHeader.nomor;
+    header.tanggal = format(parseISO(msoHeader.tanggal), 'yyyy-MM-dd');
+    header.nomorSo = msoHeader.nomorSo;
+    header.jenisMutasi = msoHeader.jenisMutasi;
+    header.keterangan = msoHeader.keterangan;
+    items.value = msoItems.map((item: Item) => ({
+      ...item,
+      id: Date.now() + Math.random(),
+    }));
+    isDataSaved.value = true;
+  } catch (err: unknown) {
+    const error = err as AxiosError<{ message: string }>;
+    toast.error(error.response?.data?.message || 'Gagal memuat data.');
+    router.back();
+  } finally {
+    isLoading.value = false;
+  }
 };
 
 const resetForm = () => {
-    Object.assign(header, initialHeaderState);
-    items.value = [];
-    isDataSaved.value = false;
-    toast.info('Form telah dibersihkan.');
+  Object.assign(header, initialHeaderState);
+  items.value = [];
+  isDataSaved.value = false;
+  toast.info('Form telah dibersihkan.');
 };
 
 const showConfirmation = (title: string, text: string, onConfirm: () => void) => {
-    dialogConfirm.title = title;
-    dialogConfirm.text = text;
-    dialogConfirm.onConfirm = onConfirm;
-    dialogConfirm.show = true;
+  dialogConfirm.title = title;
+  dialogConfirm.text = text;
+  dialogConfirm.onConfirm = onConfirm;
+  dialogConfirm.show = true;
 };
 
 const executeSave = async () => {
-    isSaving.value = true;
-    const validItems = items.value.filter(item => item.kode && (item.jumlah || 0) > 0);
-    const payload = { header, items: validItems, isNew: !isEditMode.value };
-    try {
-        const response = await api.post('/mutasi-stok-form/save', payload);
-        toast.success(response.data.message);
+  isSaving.value = true;
+  const validItems = items.value.filter(item => item.kode && (item.jumlah || 0) > 0);
+  const payload = { header, items: validItems, isNew: !isEditMode.value };
+  try {
+    const response = await api.post('/mutasi-stok-form/save', payload);
+    toast.success(response.data.message);
 
-        // --- Arahkan ke Halaman Cetak ---
-        const nomorMSO = response.data.nomor;
-        const url = router.resolve({ name: 'Cetak Mutasi Stok', params: { nomor: nomorMSO } }).href;
-        window.open(url, '_blank');
+    // --- Arahkan ke Halaman Cetak ---
+    const nomorMSO = response.data.nomor;
+    const url = router.resolve({ name: 'Cetak Mutasi Stok', params: { nomor: nomorMSO } }).href;
+    window.open(url, '_blank');
 
-        router.push({ name: 'MutasiStok' }); // Kembali ke halaman browse
-    } catch (err: unknown) {
-        const error = err as AxiosError<{ message: string }>;
-        toast.error(error.response?.data?.message || 'Gagal menyimpan data.');
-    } finally {
-        isSaving.value = false;
-    }
+    router.push({ name: 'MutasiStok' }); // Kembali ke halaman browse
+  } catch (err: unknown) {
+    const error = err as AxiosError<{ message: string }>;
+    toast.error(error.response?.data?.message || 'Gagal menyimpan data.');
+  } finally {
+    isSaving.value = false;
+  }
 };
 
 const handleSave = () => {
-    if (!header.nomorSo) return toast.error('No. Pesanan harus diisi.');
-    const validItems = items.value.filter(i => i.kode);
-    if (validItems.length === 0) return toast.error('Detail barang harus diisi.');
+  if (!header.nomorSo) return toast.error('No. Pesanan harus diisi.');
+  const validItems = items.value.filter(i => i.kode);
+  if (validItems.length === 0) return toast.error('Detail barang harus diisi.');
 
-    const totalQty = validItems.reduce((sum, item) => sum + (item.jumlah || 0), 0);
-    if (totalQty <= 0) return toast.error('Qty Mutasi kosong semua.');
+  const totalQty = validItems.reduce((sum, item) => sum + (item.jumlah || 0), 0);
+  if (totalQty <= 0) return toast.error('Qty Mutasi kosong semua.');
 
-    for (const item of validItems) {
-        const qtyMutasi = item.jumlah || 0;
-        if (header.jenisMutasi === 'SP' && qtyMutasi > item.showroom) {
-            return toast.error(`Qty Mutasi untuk ${item.nama} (${item.ukuran}) melebihi Stok Showroom.`);
-        }
-        if (header.jenisMutasi === 'PS' && qtyMutasi > item.pesan) {
-            return toast.error(`Qty Mutasi untuk ${item.nama} (${item.ukuran}) melebihi Stok Pesanan.`);
-        }
+  for (const item of validItems) {
+    const qtyMutasi = item.jumlah || 0;
+    if (header.jenisMutasi === 'SP' && qtyMutasi > item.showroom) {
+      return toast.error(`Qty Mutasi untuk ${item.nama} (${item.ukuran}) melebihi Stok Showroom.`);
     }
+    if (header.jenisMutasi === 'PS' && qtyMutasi > item.pesan) {
+      return toast.error(`Qty Mutasi untuk ${item.nama} (${item.ukuran}) melebihi Stok Pesanan.`);
+    }
+  }
 
-    showConfirmation('Konfirmasi Simpan', 'Anda yakin ingin menyimpan data Mutasi Stok ini?', executeSave);
+  showConfirmation('Konfirmasi Simpan', 'Anda yakin ingin menyimpan data Mutasi Stok ini?', executeSave);
 };
 
 const handleCancel = () => {
-    showConfirmation('Konfirmasi Batal', 'Data yang belum disimpan akan hilang. Lanjutkan?', resetForm);
+  showConfirmation('Konfirmasi Batal', 'Data yang belum disimpan akan hilang. Lanjutkan?', resetForm);
 };
 
 const handleClose = () => {
-    showConfirmation('Konfirmasi Tutup', 'Tutup form dan kembali ke halaman browse?', () => router.push({ name: 'MutasiStok' }));
+  showConfirmation('Konfirmasi Tutup', 'Tutup form dan kembali ke halaman browse?', () => router.push({ name: 'MutasiStok' }));
 };
 
 const onSoSelected = (so: { Nomor: string }) => {
-    header.nomorSo = so.Nomor;
-    dialog.soSearch = false;
-    loadDataFromSo(so.Nomor);
+  header.nomorSo = so.Nomor;
+  dialog.soSearch = false;
+  loadDataFromSo(so.Nomor);
 };
 
 const getQtyMutasiClass = (item: Item) => {
-    const qtyMutasi = item.jumlah || 0;
-    if (header.jenisMutasi === 'SP' && qtyMutasi > item.showroom) return 'qty-error';
-    if (header.jenisMutasi === 'PS' && qtyMutasi > item.pesan) return 'qty-error';
-    return '';
+  const qtyMutasi = item.jumlah || 0;
+  if (header.jenisMutasi === 'SP' && qtyMutasi > item.showroom) return 'qty-error';
+  if (header.jenisMutasi === 'PS' && qtyMutasi > item.pesan) return 'qty-error';
+  return '';
 };
 
 onMounted(() => {
-    if (!authStore.can(MENU_ID, requiredPermission.value)) {
-        toast.error(`Anda tidak memiliki izin untuk ${isEditMode.value ? 'mengubah' : 'membuat'} data Mutasi Stok.`);
-        router.push({ name: 'MutasiStok' }); // Arahkan kembali ke halaman browse
-        return;
-    }
-    const nomor = route.params.nomor as string;
-    if (isEditMode.value && nomor) {
-        loadDataForEdit(nomor);
-    } else {
-        isLoading.value = false;
-    }
+  if (!authStore.can(MENU_ID, requiredPermission.value)) {
+    toast.error(`Anda tidak memiliki izin untuk ${isEditMode.value ? 'mengubah' : 'membuat'} data Mutasi Stok.`);
+    router.push({ name: 'MutasiStok' }); // Arahkan kembali ke halaman browse
+    return;
+  }
+  const nomor = route.params.nomor as string;
+  if (isEditMode.value && nomor) {
+    loadDataForEdit(nomor);
+  } else {
+    isLoading.value = false;
+  }
 });
 </script>
 
 <template>
-    <PageLayout :title="pageTitle" desktop-mode icon="mdi-swap-horizontal-bold">
-        <template #header-actions>
-            <v-btn size="small" color="primary" @click="handleSave" :loading="isSaving"
-                :disabled="isSaving || !authStore.can(MENU_ID, requiredPermission)">
-                Simpan
-            </v-btn>
-            <v-btn size="small" @click="handleCancel" prepend-icon="mdi-refresh">Batal</v-btn>
-            <v-btn size="small" @click="handleClose" prepend-icon="mdi-close">Tutup</v-btn>
-        </template>
+  <PageLayout :title="pageTitle" desktop-mode icon="mdi-swap-horizontal-bold">
+    <template #header-actions>
+      <v-btn size="small" color="primary" prepend-icon="mdi-content-save" @click="handleSave" :loading="isSaving"
+        :disabled="isSaving || !authStore.can(MENU_ID, requiredPermission)">
+        Simpan
+      </v-btn>
+      <v-btn size="small" @click="handleCancel" prepend-icon="mdi-refresh">Batal</v-btn>
+      <v-btn size="small" @click="handleClose" prepend-icon="mdi-close">Tutup</v-btn>
+    </template>
 
-        <div class="form-grid-container">
-            <div class="left-column">
-                <div class="desktop-form-section header-section">
-                    <v-row dense>
-                        <v-col cols="12">
-                            <v-text-field label="Nomor" v-model="header.nomor" readonly filled density="compact"
-                                hide-details>
-                                <template #append-inner><span v-if="!isEditMode"
-                                        class="text-caption">&lt;Otomatis&gt;</span></template>
-                            </v-text-field>
-                        </v-col>
-                        <v-col cols="12">
-                            <v-text-field label="Tanggal" v-model="header.tanggal" type="date" variant="outlined"
-                                density="compact" hide-details />
-                        </v-col>
-                        <v-col cols="12">
-                            <v-text-field label="No. Pesanan" v-model="header.nomorSo" @click="dialog.soSearch = true"
-                                prepend-inner-icon="mdi-magnify" density="compact" hide-details
-                                :readonly="isEditMode" />
-                        </v-col>
-                        <v-col cols="12">
-                            <v-radio-group v-model="header.jenisMutasi" inline hide-details :readonly="isEditMode">
-                                <template v-slot:label>
-                                    <div class="text-caption">Jenis Mutasi</div>
-                                </template>
-                                <v-radio label="Showroom ke Pesanan" value="SP"></v-radio>
-                                <v-radio label="Pesanan ke Showroom" value="PS"></v-radio>
-                            </v-radio-group>
-                        </v-col>
-                        <v-col cols="12">
-                            <v-textarea label="Keterangan" v-model="header.keterangan" variant="outlined" rows="3"
-                                density="compact" hide-details />
-                        </v-col>
-                    </v-row>
-                </div>
-            </div>
-
-            <div class="right-column">
-                <div class="desktop-form-section d-flex flex-column fill-height">
-                    <v-data-table :headers="tableHeaders" :items="items" :loading="isLoading" density="compact"
-                        class="desktop-table fill-height-table" fixed-header :items-per-page="-1">
-                        <template #[`item.nama`]="{ item }">
-                            <div class="nama-barang-cell">{{ item.nama }}</div>
-                        </template>
-                        <template #[`item.jumlah`]="{ item }">
-                            <v-text-field v-model.number="item.jumlah" type="number" min="0" variant="underlined"
-                                density="compact" hide-details class="text-end" :class="getQtyMutasiClass(item)" />
-                        </template>
-                        <template #bottom></template>
-                    </v-data-table>
-                </div>
-            </div>
+    <div class="form-grid-container">
+      <div class="left-column">
+        <div class="desktop-form-section header-section">
+          <v-row dense>
+            <v-col cols="12">
+              <v-text-field label="Nomor" v-model="header.nomor" readonly filled density="compact" hide-details>
+                <template #append-inner><span v-if="!isEditMode" class="text-caption">&lt;Otomatis&gt;</span></template>
+              </v-text-field>
+            </v-col>
+            <v-col cols="12">
+              <v-text-field label="Tanggal" v-model="header.tanggal" type="date" variant="outlined" density="compact"
+                hide-details />
+            </v-col>
+            <v-col cols="12">
+              <v-text-field label="No. Pesanan" v-model="header.nomorSo" @click="dialog.soSearch = true"
+                prepend-inner-icon="mdi-magnify" density="compact" hide-details :readonly="isEditMode" />
+            </v-col>
+            <v-col cols="12">
+              <v-radio-group v-model="header.jenisMutasi" inline hide-details :readonly="isEditMode">
+                <template v-slot:label>
+                  <div class="text-caption">Jenis Mutasi</div>
+                </template>
+                <v-radio label="Showroom ke Pesanan" value="SP"></v-radio>
+                <v-radio label="Pesanan ke Showroom" value="PS"></v-radio>
+              </v-radio-group>
+            </v-col>
+            <v-col cols="12">
+              <v-textarea label="Keterangan" v-model="header.keterangan" variant="outlined" rows="3" density="compact"
+                hide-details />
+            </v-col>
+          </v-row>
         </div>
+      </div>
 
-        <SoSearchModalForMutasi v-if="dialog.soSearch" @close="dialog.soSearch = false" @so-selected="onSoSelected" />
+      <div class="right-column">
+        <div class="desktop-form-section d-flex flex-column fill-height">
+          <v-data-table :headers="tableHeaders" :items="items" :loading="isLoading" density="compact"
+            class="desktop-table fill-height-table" fixed-header :items-per-page="-1">
+            <template #[`item.nama`]="{ item }">
+              <div class="nama-barang-cell">{{ item.nama }}</div>
+            </template>
+            <template #[`item.jumlah`]="{ item }">
+              <v-text-field v-model.number="item.jumlah" type="number" min="0" variant="underlined" density="compact"
+                hide-details class="text-end" :class="getQtyMutasiClass(item)" />
+            </template>
+            <template #bottom></template>
+          </v-data-table>
+        </div>
+      </div>
+    </div>
 
-        <v-dialog v-model="dialogConfirm.show" max-width="400px" persistent>
-            <v-card>
-                <v-card-title class="text-h6 font-weight-bold">{{ dialogConfirm.title }}</v-card-title>
-                <v-card-text>{{ dialogConfirm.text }}</v-card-text>
-                <v-card-actions>
-                    <v-spacer></v-spacer>
-                    <v-btn text @click="dialogConfirm.show = false">Tidak</v-btn>
-                    <v-btn color="primary" variant="tonal"
-                        @click="dialogConfirm.onConfirm(); dialogConfirm.show = false">
-                        Ya, Lanjutkan
-                    </v-btn>
-                </v-card-actions>
-            </v-card>
-        </v-dialog>
-    </PageLayout>
+    <SoSearchModalForMutasi v-if="dialog.soSearch" @close="dialog.soSearch = false" @so-selected="onSoSelected" />
+
+    <v-dialog v-model="dialogConfirm.show" max-width="400px" persistent>
+      <v-card>
+        <v-card-title class="text-h6 font-weight-bold">{{ dialogConfirm.title }}</v-card-title>
+        <v-card-text>{{ dialogConfirm.text }}</v-card-text>
+        <v-card-actions>
+          <v-spacer></v-spacer>
+          <v-btn text @click="dialogConfirm.show = false">Tidak</v-btn>
+          <v-btn color="primary" variant="tonal" @click="dialogConfirm.onConfirm(); dialogConfirm.show = false">
+            Ya, Lanjutkan
+          </v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+  </PageLayout>
 </template>
 
 <style scoped>
 .desktop-table :deep(td) {
-    vertical-align: middle !important;
+  vertical-align: middle !important;
 }
 
 .desktop-table :deep(.nama-barang-cell) {
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    max-width: 350px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 350px;
 }
 
 :deep(.qty-error input) {
-    color: red !important;
-    font-weight: bold;
+  color: red !important;
+  font-weight: bold;
 }
 </style>

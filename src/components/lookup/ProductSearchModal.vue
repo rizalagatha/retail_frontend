@@ -57,6 +57,8 @@ const loadItems = async (opts: { page: number, itemsPerPage: number }) => {
       apiUrl = '/mutasi-kirim/lookup/products';
     } else if (props.source === 'minta-barang') {
       apiUrl = '/minta-barang-form/lookup/products';
+    } else if (props.source === 'surat-pesanan') {
+      apiUrl = '/invoice-form/lookup/products';
     }
 
     const response = await api.get(apiUrl, {

@@ -1421,9 +1421,9 @@ onMounted(() => {
       @sales-counter-selected="onSalesCounterSelected" />
     <PenawaranSearchModal v-if="isPenawaranSearchVisible" :cabang="header.gudang.kode"
       @close="isPenawaranSearchVisible = false" @selected="onPenawaranSelected" />
-    <ProductSearchModal v-if="isProductSearchVisible" :category="'Kaosan'" :source="'surat-pesanan'"
-      :gudang="header.gudang.kode" :multi="isMultiSelectProduct" @close="isProductSearchVisible = false"
-      @products-selected="onProductsSelected" />
+    <ProductSearchModal v.if="isProductSearchVisible" :gudang="header.gudang.kode" category="ALL"
+      :multi="isMultiSelectProduct" source="surat-pesanan" :promo-nomor="header.penawaran"
+      @close="isProductSearchVisible = false" @products-selected="onProductsSelected" />
     <AuthorizationModal ref="ItemAuthModalRef" v-if="isItemAuthModalVisible" title="Otorisasi Diskon per Item"
       :challenge-code="challengeCode" @close="onItemAuthCancel" @success="onItemAuthSuccess" />
     <AuthorizationModal ref="dpAuthModalRef" v-if="isDpAuthVisible" title="Otorisasi SO Tanpa DP"

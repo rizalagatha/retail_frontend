@@ -132,6 +132,17 @@ onMounted(() => {
         <pre class="titik-details">{{ printData.titik }}</pre>
       </div>
 
+      <div class="signatures">
+        <div class="signature-box">
+          <div>Kaosan SC,</div>
+          <div class="name-line">( {{ printData.user_create }} )</div>
+        </div>
+        <div class="signature-box">
+          <div>Mengetahui,</div>
+          <div class="name-line">( ......................... )</div>
+        </div>
+      </div>
+
       <div class="footer">
         Dibuat oleh: {{ printData.user_create }} pada {{ printData.created }}
       </div>
@@ -254,15 +265,30 @@ onMounted(() => {
   border-top: 1px dashed #ccc;
   padding-top: 10px;
   margin-top: auto;
-  /* Mendorong ke bawah */
 }
 
 .titik-details {
   white-space: pre-wrap;
-  /* Agar baris baru (\n) berfungsi */
   font-family: inherit;
   font-size: inherit;
   margin-top: 5px;
+}
+
+.signatures {
+  display: flex;
+  justify-content: space-around;
+  margin-top: 30px;
+  text-align: center;
+  font-size: 10pt;
+}
+
+.signature-box {
+  width: 40%;
+}
+
+.name-line {
+  margin-top: 50px;
+  font-weight: bold;
 }
 
 .footer {

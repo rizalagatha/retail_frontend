@@ -1421,7 +1421,7 @@ onMounted(() => {
       @sales-counter-selected="onSalesCounterSelected" />
     <PenawaranSearchModal v-if="isPenawaranSearchVisible" :cabang="header.gudang.kode"
       @close="isPenawaranSearchVisible = false" @selected="onPenawaranSelected" />
-    <ProductSearchModal v.if="isProductSearchVisible" :gudang="header.gudang.kode" category="ALL"
+    <ProductSearchModal v-if="isProductSearchVisible" :gudang="header.gudang.kode" category="ALL"
       :multi="isMultiSelectProduct" source="surat-pesanan" :promo-nomor="header.penawaran"
       @close="isProductSearchVisible = false" @products-selected="onProductsSelected" />
     <AuthorizationModal ref="ItemAuthModalRef" v-if="isItemAuthModalVisible" title="Otorisasi Diskon per Item"

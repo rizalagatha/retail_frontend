@@ -497,3 +497,52 @@
     zoom: 0.85;
   }
 }
+
+/* --- Global Override untuk v-pagination --- */
+
+/* 1. Paksa semua tombol di pagination menjadi bulat & ukuran tetap */
+/* Targetkan v-pagination DAN pagination di dalam v-data-table-footer */
+.v-pagination .v-btn,
+.v-data-table-footer .v-pagination .v-btn {
+  height: 36px !important;
+  width: 36px !important;
+  min-width: 36px !important;
+  border-radius: 50% !important;
+  box-shadow: none !important;
+}
+
+/* 2. Style tombol angka yang TIDAK aktif */
+.v-pagination__list .v-pagination__item:not(.v-pagination__item--active) .v-btn,
+.v-data-table-footer .v-pagination__list .v-pagination__item:not(.v-pagination__item--active) .v-btn {
+  background-color: white !important;
+  border: 1px solid #e0e0e0 !important;
+  color: #424242 !important;
+}
+
+/* 3. Style tombol angka yang AKTIF */
+.v-pagination__list .v-pagination__item--active .v-btn,
+.v-data-table-footer .v-pagination__list .v-pagination__item--active .v-btn {
+  background-color: #1976d2 !important;
+  color: white !important;
+  border: none !important;
+}
+
+/* 4. Style tombol panah (Prev/Next) */
+.v-pagination__prev .v-btn,
+.v-pagination__next .v-btn,
+.v-data-table-footer .v-pagination__prev .v-btn,
+.v-data-table-footer .v-pagination__next .v-btn {
+  background-color: white !important;
+  border: 1px solid #e0e0e0 !important;
+  color: #424242 !important;
+}
+
+/* 5. Style tombol panah saat disabled */
+.v-pagination__prev .v-btn:disabled,
+.v-pagination__next .v-btn:disabled,
+.v-data-table-footer .v-pagination__prev .v-btn:disabled,
+.v-data-table-footer .v-pagination__next .v-btn:disabled {
+  background-color: #f5f5f5 !important;
+  border-color: #eeeeee !important;
+  opacity: 0.6;
+}

@@ -95,7 +95,7 @@ const headers = [
   { title: 'Telepon', key: 'Telepon', width: '150px' },
   { title: 'Akun', key: 'Akun', width: '120px' },
   { title: 'No Rekening', key: 'NoRekening', width: '150px' },
-  { title: 'Nama Bank', key: 'NamaBank', width: '150px' },
+  { title: 'Nama Bank', key: 'NamaBank', minWidth: '250px' },
   { title: 'Tgl Transfer', key: 'TglTransfer', width: '120px' },
   { title: 'No Giro', key: 'NoGiro', width: '150px' },
   { title: 'Tgl Giro', key: 'TglGiro', width: '120px' },
@@ -387,5 +387,11 @@ watch(expanded, (newExpanded) => {
 
 :deep(.row-sisa) {
   color: red !important;
+}
+
+:deep(.desktop-table .v-data-table__td) {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 </style>

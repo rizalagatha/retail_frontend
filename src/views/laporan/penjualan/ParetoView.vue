@@ -157,7 +157,7 @@ watch(filters, fetchData, { deep: true });
                   ? item[col.key].toLocaleString('id-ID')
                   : typeof item[col.key] === 'string'
                     ? item[col.key]
-              : '' }}
+                    : '' }}
             </td>
           </template>
           <template #bottom></template>

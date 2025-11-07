@@ -132,10 +132,9 @@ const validateQtyIn = (item: Item) => {
   const belum = item.belum || 0;
 
   if (qtyIn > belum) {
-    toast.error(`Qty In (${qtyIn}) > Belum (${belum})`);
-    // [PERBAIKAN] Gunakan nextTick agar reset-nya berhasil
+    toast.error(`Qty In (${qtyIn}) tidak boleh melebihi Belum (${belum}).`);
     nextTick(() => {
-      item.qtyIn = 0;
+      item.qtyIn = belum;
     });
   }
 };
@@ -230,12 +229,15 @@ const loadItemsFromMutasiOut = async (nomorMutasiOut: string) => {
     header.nomorSo = moHeader.nomorSo;
     header.dariCabang = { kode: moHeader.dariCabangKode, nama: moHeader.dariCabangNama };
 
-    items.value = moItems.map(item => ({
-      ...item,
-      id: Date.now() + Math.random(),
-      belum: (item.qtyOut || 0) - (item.sudah || 0),
-      qtyIn: 0,
-    }));
+    items.value = moItems.map(item => {
+      const belum = item.belum ?? ((item.qtyMo || 0) - (item.sudah || 0));
+      return {
+        ...item,
+        id: Date.now() + Math.random(),
+        belum: belum > 0 ? belum : 0,
+        qtyIn: 0,
+      };
+    });
     addNewRow();
 
   } catch (error: unknown) {

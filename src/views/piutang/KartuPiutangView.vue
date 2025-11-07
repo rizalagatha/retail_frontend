@@ -51,9 +51,9 @@ const headers = [
   { title: 'Nama Customer', key: 'nama', width: '300px' },
   { title: 'Alamat', key: 'alamat' },
   { title: 'Kota', key: 'kota', width: '150px' },
-  { title: 'Nominal Nota', key: 'nominalNota', align: 'end' },
-  { title: 'Terbayar', key: 'terbayar', align: 'end' },
-  { title: 'Sisa Piutang', key: 'sisaPiutang', align: 'end', cellProps: { class: 'font-weight-bold' } },
+  { title: 'Nominal Nota', key: 'nominalNota' },
+  { title: 'Terbayar', key: 'terbayar' },
+  { title: 'Sisa Piutang', key: 'sisaPiutang', cellProps: { class: 'font-weight-bold' } },
   { title: 'Status', key: 'status', align: 'center' },
 ] as const;
 

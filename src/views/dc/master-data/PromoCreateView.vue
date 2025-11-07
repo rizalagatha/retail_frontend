@@ -83,6 +83,9 @@ const dialogConfirm = reactive({ show: false, title: '', text: '', onConfirm: ()
 const applicableItems = ref<ApplicableItem[]>([]);
 const isApplicableSearchVisible = ref(false);
 const activeApplicableRowIndex = ref(0);
+const applicableItemsPage = ref(1);
+const applicableItemsPerPage = ref(10);
+const applicableItemsTotal = ref(0);
 
 // --- Konfigurasi Tabel ---
 const bonusHeaders = [
@@ -237,6 +240,9 @@ const loadDataForEdit = async (nomor: string) => {
 
     // --- ISI GRID-GRID ---
     // Gunakan .map untuk menambahkan 'id' unik di frontend
+    applicableItemsTotal.value = data.applicableItemsCount || data.applicableItems.length;
+
+    // Map items dengan id unik
     applicableItems.value = data.applicableItems.map((item: ApplicableItem) => ({
       ...item,
       id: Math.random(),
@@ -286,6 +292,28 @@ const addNewApplicableRow = () => {
 const removeApplicableRow = (id: number) => {
   applicableItems.value = applicableItems.value.filter(i => i.id !== id);
   if (applicableItems.value.length === 0) addNewApplicableRow();
+};
+
+const loadApplicableItems = async (nomor: string, page: number = 1) => {
+  try {
+    const response = await api.get(`/promo-form/${nomor}/applicable-items`, {
+      params: {
+        page,
+        itemsPerPage: applicableItemsPerPage.value
+      }
+    });
+
+    applicableItems.value = response.data.items.map((item: ApplicableItem) => ({
+      ...item,
+      id: Math.random(),
+    }));
+    applicableItemsTotal.value = response.data.total;
+
+    addNewApplicableRow();
+  } catch (error) {
+    console.error('Error loading applicable items:', error);
+    toast.error('Gagal memuat data barang pemicu promo.');
+  }
 };
 
 const openApplicableSearch = (index: number) => {
@@ -491,7 +519,10 @@ watch(() => header.generate, (val) => {
               Barang Pemicu Promo (Item yang harus dibeli)
             </div>
             <v-data-table :headers="applicableHeaders" :items="applicableItems" class="desktop-table flex-grow-1"
-              :items-per-page="-1" density="compact" fixed-header>
+              v-model:page="applicableItemsPage" :items-per-page="applicableItemsPerPage"
+              :items-length="applicableItemsTotal" density="compact" fixed-header
+              @update:page="isEditMode && loadApplicableItems(header.nomor, $event)"
+              @update:items-per-page="applicableItemsPerPage = $event; isEditMode && loadApplicableItems(header.nomor, 1)">
               <template #[`item.kode`]="{ item, index }">
                 <v-text-field v-model="item.kode" variant="underlined" density="compact" hide-details
                   placeholder="F1..." @keydown.f1.prevent="openApplicableSearch(index)" />
@@ -517,8 +548,14 @@ watch(() => header.generate, (val) => {
                   @click="removeApplicableRow(item.id)" />
               </template>
               <template #bottom>
-                <div class="pa-2 text-right"><v-btn size="small" @click="addNewApplicableRow"
-                    prepend-icon="mdi-plus">Tambah Item</v-btn></div>
+                <div class="d-flex justify-space-between align-center pa-2">
+                  <v-btn size="small" @click="addNewApplicableRow" prepend-icon="mdi-plus">
+                    Tambah Item
+                  </v-btn>
+                  <div class="text-caption">
+                    Menampilkan {{ applicableItems.length }} dari {{ applicableItemsTotal }} item
+                  </div>
+                </div>
               </template>
             </v-data-table>
           </div>

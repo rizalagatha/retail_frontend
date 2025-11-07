@@ -41,6 +41,7 @@ interface Item {
   hpp?: number;
   kategori?: string;
   noSoDtf?: string;
+  noPengajuanHarga?: string;
   terhitungPromo: boolean;
   _isHargaEditable: boolean;
   promo?: string;
@@ -137,10 +138,10 @@ interface InvoiceItem {
 interface ActivePromo {
   pro_nomor: string;
   pro_judul: string;
-  pro_totalrp: number;
-  pro_disrp: number;
+  pro_totalrp: number; // Minimal belanja
+  pro_disrp: number; // Diskon Rp
+  pro_diskon: number; // <-- TAMBAHKAN INI (untuk diskon 10%)
   pro_lipat: 'Y' | 'N';
-  [key: string]: unknown; // Untuk properti lain yang mungkin ada
 }
 
 // --- Inisialisasi ---
@@ -885,38 +886,67 @@ const handleProceedToPayment = async () => {
     // Gunakan interface yang baru ditambahkan
     const activePromos = promoResponse.data as ActivePromo[];
 
+    const promo004 = activePromos.find((p: ActivePromo) => p.pro_nomor === 'PRO-2025-004'); // Grand Opening (10%)
     const promo008 = activePromos.find((p: ActivePromo) => p.pro_nomor === 'PRO-2025-008');
     const promo009 = activePromos.find((p: ActivePromo) => p.pro_nomor === 'PRO-2025-009');
 
     let promoToApply: ActivePromo | null = null;
     let promoDiskon = 0;
 
-    if (promo008) {
-      if (totals.nettoSetelahDiskon >= promo008.pro_totalrp) {
-        promoDiskon = promo008.pro_disrp * Math.floor(totals.nettoSetelahDiskon / promo008.pro_totalrp);
-        promoToApply = promo008;
+    const totalBelanjaPromo = items.value.reduce((sum, item) => {
+      if (!item.noSoDtf && !item.noPengajuanHarga) {
+        return sum + (item.total || 0);
       }
+      return sum;
+    }, 0);
+
+    if (promo004 && totalBelanjaPromo >= promo004.pro_totalrp) {
+      // Ini adalah promo 10%
+      promoDiskon = (promo004.pro_diskon / 100) * totalBelanjaPromo;
+      promoToApply = promo004;
     }
 
-    if (!promoToApply && promo009) {
-      if (totals.nettoSetelahDiskon >= promo009.pro_totalrp) {
-        promoDiskon = promo009.pro_disrp * Math.floor(totals.nettoSetelahDiskon / promo009.pro_totalrp);
-        promoToApply = promo009;
-      }
+    if (!promoToApply && promo008 && totalBelanjaPromo >= promo008.pro_totalrp) {
+      // Ini promo diskon Rp tetap (dari Delphi)
+      promoDiskon = promo008.pro_disrp * Math.floor(totalBelanjaPromo / promo008.pro_totalrp);
+      promoToApply = promo008;
     }
 
-    if (promoToApply && promoDiskon > 0) {
+    // Cek Promo 009 (Lainnya)
+    if (!promoToApply && promo009 && totalBelanjaPromo >= promo009.pro_totalrp) {
+      promoDiskon = promo009.pro_disrp * Math.floor(totalBelanjaPromo / promo009.pro_totalrp);
+      promoToApply = promo009;
+    }
+
+    // Jika ada promo diskon ditemukan DAN belum ada promo F1 yang dipilih
+    if (promoToApply && promoDiskon > 0 && !header.nomorPromo) {
       const promoConfirmed = await new Promise((resolve) => {
-        showConfirmation(
+         showConfirmation(
           `Dapat ${promoToApply.pro_judul}`,
-          // Fungsi formatRupiah() sekarang sudah ditemukan
           `Anda mendapatkan diskon promo ${formatRupiah(promoDiskon)}. Akan pakai promo ini? (Diskon faktur lain akan direset)`,
           () => resolve(true)
         );
+
+        // [PERBAIKAN] Monitor 'Batal'
+        // Jika dialog ditutup (show=false) tapi onConfirm belum dijalankan,
+        // kita anggap 'Batal' (resolve(false)).
         const unwatch = watch(() => dialogConfirm.show, (newValue) => {
-          if (!newValue) { unwatch(); resolve(false); }
+          if (!newValue) { // Jika dialog ditutup
+            unwatch();
+            if (dialogConfirm.onConfirm) { // Jika 'Ya' ditekan, onConfirm akan di-clear
+              // 'Ya' sudah ditekan, resolve(true) sudah dipanggil
+            } else {
+              resolve(false); // 'Ya' tidak ditekan, user klik Batal/Tutup
+            }
+          }
         });
-        dialogConfirm.onConfirm = () => { resolve(true); unwatch(); };
+
+        // Ganti onConfirm agar me-resolve dan menghapus dirinya sendiri
+        dialogConfirm.onConfirm = () => {
+          resolve(true);
+          dialogConfirm.onConfirm = () => {}; // Hapus onConfirm
+          unwatch();
+        };
       });
 
       if (promoConfirmed) {
@@ -924,26 +954,34 @@ const handleProceedToPayment = async () => {
         header.diskonPersen2 = 0;
         header.diskonRp = promoDiskon;
         header.nomorPromo = promoToApply.pro_nomor;
-        calculateTotals();
+        calculateTotals(); // Hitung ulang
       }
     }
 
   } catch (error) {
-    toast.error('Gagal memeriksa promo otomatis.', error);
+    console.error("Gagal memeriksa promo otomatis:", error);
+    toast.error('Gagal memeriksa promo otomatis.');
   }
 
-  // --- 5. VALIDASI NO HP & LANJUT KE PEMBAYARAN ---
-  // [PERBAIKAN] Hapus 'const proceedToPayment' yang lokal
-  // dan panggil 'proceedToPaymentOrBonus' secara langsung.
+  // --- 5. CEK PROMO BONUS (TEBUS MURAH) ---
+  const promoTebusMurah = header.nomorPromo;
+  if (promoTebusMurah === 'PRO-2025-002') {
+    activePromoForBonus.value = { nomor: promoTebusMurah, qty: 1 };
+    dialogs.promoBonus = true;
+    return; // Berhenti di sini, tunggu bonus dipilih
+  }
+
+  // --- 6. VALIDASI NO HP & LANJUT KE PEMBAYARAN ---
+  const proceedToPayment = () => { dialogs.payment = true; };
 
   if (!header.memberHp) {
     showConfirmation(
       'Konfirmasi Member',
       'No. HP Member kosong. Yakin akan melanjutkan?',
-      proceedToPaymentOrBonus // Panggil fungsi utama
+      proceedToPayment
     );
   } else {
-    proceedToPaymentOrBonus(); // Panggil fungsi utama
+    proceedToPayment();
   }
 };
 
@@ -993,18 +1031,6 @@ const checkStokMinus = (): Promise<boolean> => {
       resolve(true); // Tidak ada stok minus, lanjut
     }
   });
-};
-
-const proceedToPaymentOrBonus = () => {
-  const promoTebusMurah = header.nomorPromo; // Asumsi dari field promo
-  if (promoTebusMurah === 'PRO-2025-002') { // Contoh kode promo
-    activePromoForBonus.value = { nomor: promoTebusMurah, qty: 1 };
-    dialogs.promoBonus = true; // Buka modal bonus, JANGAN dulu buka modal bayar
-    return; // Hentikan proses
-  }
-
-  // Jika semua validasi lolos, buka modal pembayaran
-  dialogs.payment = true;
 };
 
 const onSaveSuccess = () => {

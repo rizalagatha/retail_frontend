@@ -205,7 +205,12 @@ const activeRowIndex = ref(0);
 const isItemAuthModalVisible = ref(false);
 const isDpAuthVisible = ref(false);
 const activeItemIndexForAuth = ref(-1);
-const previousDiscount = ref({ persen1: 0, persen2: 0, item: 0 });
+// const previousDiscount = ref({ persen1: 0, persen2: 0, item: 0 });
+const previousItemDiscount = ref<{ index: number; diskonPersen: number; diskonRp: number }>({
+  index: -1,
+  diskonPersen: 0,
+  diskonRp: 0
+});
 const challengeCode = ref('');
 const itemAuthModalRef = ref<InstanceType<typeof AuthorizationModal> | null>(null);
 const dpAuthModalRef = ref<InstanceType<typeof AuthorizationModal> | null>(null);
@@ -214,6 +219,7 @@ const isNewCustomerFormVisible = ref(false);
 const focusedRowId = ref<number | string>(-1);
 const isDiscountCostModalVisible = ref(false);
 const isDpListModalVisible = ref(false);
+const totalDiscountable = ref(0);
 
 const formatRupiah = (angka: number) => {
   return new Intl.NumberFormat('id-ID').format(angka || 0);
@@ -331,75 +337,58 @@ const loadDataForEdit = async (nomor: string) => {
 };
 
 const calculateTotals = () => {
-  // --- Kalkulasi Total per Baris ---
-  let totalSo = 0;
+  let totalSoBruto = 0;
+  let newTotalDiscountable = 0; // Variabel sementara untuk total yang bisa didiskon
   let containsDtf = false;
+
   items.value.forEach(item => {
     const qty = Number(item.jumlah) || 0;
     const harga = Number(item.harga) || 0;
 
-    // Prioritaskan diskon persen jika diisi
+    // Logika diskon per item (tidak berubah)
     if (item.diskonPersen > 0) {
       item.diskonRp = (item.diskonPersen / 100) * harga;
     }
-
     item.total = qty * (harga - (item.diskonRp || 0));
-    totalSo += item.total;
 
-    // Cek jika ada item SO DTF di dalam grid
+    // Tambahkan ke total bruto (semua item)
+    totalSoBruto += item.total;
+
     if (item.noSoDtf) {
       containsDtf = true;
+    } else {
+      // [PERUBAIKAN] Hanya item non-DTF yang masuk hitungan diskon faktur
+      newTotalDiscountable += item.total;
     }
   });
-  footer.value.totalSo = totalSo;
 
-  // --- Kalkulasi Total DP ---
+  footer.value.totalSo = totalSoBruto; // Total SO adalah total bruto
+  totalDiscountable.value = newTotalDiscountable; // Simpan total diskon-able ke ref
+
+  // Kalkulasi Total DP (tidak berubah)
   const totalDp = dpItems.value.reduce((sum, dp) => sum + (dp.nominal || 0), 0);
   footer.value.totalDp = totalDp;
 
-  // --- Kalkulasi Diskon Faktur ---
-  // Hanya terapkan diskon default jika belum ada otorisasi PIN
-  if (!footer.value.pinDiskon1) {
-    const rule = header.value.customer?.discountRule;
-    if (rule) {
-      if (totalSo >= rule.nominal) {
-        footer.value.diskonPersen1 = rule.diskon1;
-      } else {
-        footer.value.diskonPersen1 = rule.diskon2;
-      }
-    } else {
-      footer.value.diskonPersen1 = 0;
-    }
-  }
+  // --- [PERBAIKAN] Kalkulasi Diskon Faktur ---
 
-  // --- Kalkulasi Diskon Faktur ---
-  // Hanya terapkan diskon default jika belum ada otorisasi PIN manual
-  if (!footer.value.pinDiskon1) {
-    const rule = header.value.customer?.discountRule;
-    if (rule) {
-      if (totalSo >= rule.nominal) {
-        footer.value.diskonPersen1 = rule.diskon1;
-      } else {
-        footer.value.diskonPersen1 = rule.diskon2;
-      }
-      // Asumsi diskon 2 tidak diatur secara default dari level
-      // footer.value.diskonPersen2 = rule.diskon2;
-    } else {
-      footer.value.diskonPersen1 = 0;
-    }
-  }
-
-  // Lanjutkan sisa kalkulasi dengan nilai diskon yang sudah benar
+  // Ambil nilai diskon % dari footer
   const diskonPersen1 = footer.value.diskonPersen1 || 0;
   const diskonPersen2 = footer.value.diskonPersen2 || 0;
 
-  const diskon1Rp = (diskonPersen1 / 100) * totalSo;
-  const afterDiscount1 = totalSo - diskon1Rp;
-  const diskon2Rp = (diskonPersen2 / 100) * afterDiscount1;
-  footer.value.diskonRp = diskon1Rp + diskon2Rp;
+  // Cek apakah diskonRp diisi manual (dari modal)
+  if (footer.value.diskonRp > 0) {
+    // Jika diisi manual, biarkan.
+    // (Modal sudah me-reset persen menjadi 0)
+  } else {
+    // Jika tidak, hitung diskonRp berdasarkan PERSEN dan total yang BISA DIDISKON
+    const diskon1Rp = (diskonPersen1 / 100) * newTotalDiscountable;
+    const afterDiscount1 = newTotalDiscountable - diskon1Rp;
+    const diskon2Rp = (diskonPersen2 / 100) * afterDiscount1;
+    footer.value.diskonRp = diskon1Rp + diskon2Rp;
+  }
 
-  // --- Kalkulasi PPN, Netto, dan Grand Total ---
-  const netto = totalSo - (footer.value.diskonRp || 0);
+  // --- Kalkulasi Grand Total (berdasarkan Total Bruto) ---
+  const netto = totalSoBruto - footer.value.diskonRp; // Netto = Total Bruto - Diskon Faktur
   footer.value.netto = netto;
 
   const ppnRp = (header.value.ppnPersen / 100) * netto;
@@ -408,17 +397,16 @@ const calculateTotals = () => {
   const grandTotal = netto + ppnRp + (footer.value.biayaKirim || 0);
   footer.value.grandTotal = grandTotal;
 
-  // --- Kalkulasi Minimal DP dan Sisa Bayar ---
+  // Kalkulasi Minimal DP (berdasarkan Netto, sudah benar)
   if (containsDtf) {
-    footer.value.minimalDp = 0.5 * footer.value.netto; // Minimal DP 50% jika ada SO DTF
+    footer.value.minimalDp = 0.5 * footer.value.netto;
   } else {
-    footer.value.minimalDp = 0.3 * footer.value.netto; // Minimal DP 30% untuk SO biasa
+    footer.value.minimalDp = 0.3 * footer.value.netto;
   }
 
   footer.value.belumDibayar = footer.value.grandTotal - footer.value.totalDp;
 
-  // --- Penentuan Status SO (AKTIF/PASIF) ---
-  // Level 8 (mungkin user khusus) dan DP yang mencukupi akan membuat status AKTIF
+  // Penentuan Status SO (tidak berubah)
   const isLevel8 = header.value.levelKode?.toString().startsWith('8');
   if (isLevel8 || totalDp >= footer.value.minimalDp) {
     header.value.statusSo = 'AKTIF';
@@ -950,9 +938,22 @@ const onPriceProposalSelected = async (proposal: { nomor: string }) => {
 // Fungsi untuk menangani perubahan Diskon % per item
 const handleItemDiscountChange = (index: number) => {
   const item = items.value[index];
+
+  // Skip jika tidak ada perubahan atau diskon = 0
+  if (item.diskonPersen === 0) {
+    calculateTotals();
+    return;
+  }
+
   if (item.diskonPersen > 0) {
+    // Backup nilai sebelum meminta otorisasi
+    previousItemDiscount.value = {
+      index: index,
+      diskonPersen: 0, // Nilai lama (asumsi sebelumnya 0)
+      diskonRp: 0
+    };
+
     activeItemIndexForAuth.value = index;
-    previousDiscount.value.item = 0; // Asumsi nilai lama adalah 0
     challengeCode.value = Math.floor(1000 + Math.random() * 9000).toString();
     isItemAuthModalVisible.value = true;
   } else {
@@ -963,14 +964,16 @@ const handleItemDiscountChange = (index: number) => {
 const onItemAuthSuccess = async (pin: string) => {
   try {
     await api.post('/auth-pin/validate', { code: challengeCode.value, pin: pin });
-    items.value[activeItemIndexForAuth.value].pin = pin; // Simpan PIN yang valid
+    items.value[activeItemIndexForAuth.value].pin = pin;
+
+    // Clear backup setelah sukses
+    previousItemDiscount.value = { index: -1, diskonPersen: 0, diskonRp: 0 };
+
     isItemAuthModalVisible.value = false;
     toast.success('Otorisasi diskon item berhasil.');
     calculateTotals();
   } catch (error) {
     const axiosError = error as AxiosError<{ message: string }>;
-
-    // Jika status error 401 (PIN salah)
     if (axiosError.response?.status === 401) {
       if (itemAuthModalRef.value) {
         itemAuthModalRef.value.setFailed(
@@ -985,7 +988,17 @@ const onItemAuthSuccess = async (pin: string) => {
 
 const onItemAuthCancel = () => {
   isItemAuthModalVisible.value = false;
-  items.value[activeItemIndexForAuth.value].diskonPersen = previousDiscount.value.item;
+
+  // Restore nilai dari backup
+  const backup = previousItemDiscount.value;
+  if (backup.index !== -1 && items.value[backup.index]) {
+    items.value[backup.index].diskonPersen = backup.diskonPersen;
+    items.value[backup.index].diskonRp = backup.diskonRp;
+  }
+
+  // Reset backup
+  previousItemDiscount.value = { index: -1, diskonPersen: 0, diskonRp: 0 };
+
   calculateTotals();
 };
 
@@ -1283,64 +1296,62 @@ onMounted(() => {
         <!-- Wrapper untuk bagian yang bisa scroll -->
         <div class="scrollable-content">
           <div class="desktop-form-section main-grid-section">
-            <div class="table-wrapper">
-              <v-data-table :headers="mainTableHeaders" :items="items" class="desktop-table vertically-aligned-table"
-                fixed-header>
-                <template #[`item.kode`]="{ item, index }">
-                  <v-text-field v-model="item.kode" variant="underlined" density="compact" hide-details
-                    placeholder="F1/F2..." @keydown.f1.prevent="openProductSearch(index, false)"
-                    @keydown.f2.prevent="openProductSearch(index, true)">
-                  </v-text-field>
-                </template>
-                <template #[`item.nama`]="{ item }">
-                  <div class="product-name-cell">{{ item.nama }}</div>
-                </template>
-                <template #[`item.jumlah`]="{ item }">
-                  <v-text-field v-model.number="item.jumlah" type="number" variant="underlined" density="compact"
-                    hide-details class="text-end" :disabled="!item.kode" />
-                </template>
-                <template #[`item.harga`]="{ item }">
-                  <v-text-field
-                    :value="focusedRowId === item.id ? item.harga : new Intl.NumberFormat('id-ID').format(item.harga || 0)"
-                    @input="item.harga = Number(String($event.target.value).replace(/[^0-9]/g, '')) || 0"
-                    @focus="focusedRowId = item.id" @blur="focusedRowId = -1" placeholder="0" type="text"
-                    variant="underlined" density="compact" hide-details single-line class="text-end"
-                    :disabled="!item.kode" :readonly="!!item.noSoDtf || !!item.noPengajuanHarga"></v-text-field>
-                </template>
-                <template #[`item.diskonPersen`]="{ item, index }">
-                  <v-text-field v-model.number="item.diskonPersen" type="number" variant="underlined" density="compact"
-                    hide-details class="text-end" @blur="handleItemDiscountChange(index)" />
-                </template>
-                <template #[`item.diskonRp`]="{ item }">
-                  <v-text-field
-                    :value="focusedRowId === item.id ? item.diskonRp : new Intl.NumberFormat('id-ID').format(item.diskonRp || 0)"
-                    @input="item.diskonRp = Number(String($event.target.value).replace(/[^0-9]/g, '')) || 0"
-                    @focus="focusedRowId = item.id"
-                    @blur="focusedRowId = -1; handleItemDiscountChange(items.indexOf(item))" placeholder="0" type="text"
-                    variant="underlined" density="compact" hide-details single-line class="text-end"
-                    :disabled="!item.kode" :readonly="item.diskonPersen > 0"></v-text-field>
-                </template>
-                <template #[`item.total`]="{ item }">
-                  <div class="text-end text-body-2 font-weight-bold">
-                    {{ new Intl.NumberFormat('id-ID').format(item.total || 0) }}
-                  </div>
-                </template>
-                <template #[`item.noSoDtf`]="{ item, index }">
-                  <v-text-field v-model="item.noSoDtf" variant="underlined" density="compact" hide-details
-                    placeholder="F1..." @keydown.f1.prevent="openSoDtfSearch(index)" readonly>
-                  </v-text-field>
-                </template>
-                <template #[`item.noPengajuanHarga`]="{ item, index }">
-                  <v-text-field v-model="item.noPengajuanHarga" variant="underlined" density="compact" hide-details
-                    placeholder="F1..." @keydown.f1.prevent="openPriceProposalSearch(index)" readonly>
-                  </v-text-field>
-                </template>
-                <template #[`item.actions`]="{ item }">
-                  <v-btn v-if="item.kode" icon="mdi-delete" size="x-small" variant="text" color="error"
-                    @click="removeRow(item.id)" title="Hapus baris" />
-                </template>
-              </v-data-table>
-            </div>
+            <v-data-table :headers="mainTableHeaders" :items="items" class="desktop-table vertically-aligned-table"
+              fixed-header height="calc(100vh - 480px)">
+              <template #[`item.kode`]="{ item, index }">
+                <v-text-field v-model="item.kode" variant="underlined" density="compact" hide-details
+                  placeholder="F1/F2..." @keydown.f1.prevent="openProductSearch(index, false)"
+                  @keydown.f2.prevent="openProductSearch(index, true)">
+                </v-text-field>
+              </template>
+              <template #[`item.nama`]="{ item }">
+                <div class="product-name-cell">{{ item.nama }}</div>
+              </template>
+              <template #[`item.jumlah`]="{ item }">
+                <v-text-field v-model.number="item.jumlah" type="number" variant="underlined" density="compact"
+                  hide-details class="text-end" :disabled="!item.kode" />
+              </template>
+              <template #[`item.harga`]="{ item }">
+                <v-text-field
+                  :value="focusedRowId === item.id ? item.harga : new Intl.NumberFormat('id-ID').format(item.harga || 0)"
+                  @input="item.harga = Number(String($event.target.value).replace(/[^0-9]/g, '')) || 0"
+                  @focus="focusedRowId = item.id" @blur="focusedRowId = -1" placeholder="0" type="text"
+                  variant="underlined" density="compact" hide-details single-line class="text-end"
+                  :disabled="!item.kode" :readonly="!!item.noSoDtf || !!item.noPengajuanHarga"></v-text-field>
+              </template>
+              <template #[`item.diskonPersen`]="{ item, index }">
+                <v-text-field v-model.number="item.diskonPersen" type="number" variant="underlined" density="compact"
+                  hide-details class="text-end" @blur="handleItemDiscountChange(index)" />
+              </template>
+              <template #[`item.diskonRp`]="{ item }">
+                <v-text-field
+                  :value="focusedRowId === item.id ? item.diskonRp : new Intl.NumberFormat('id-ID').format(item.diskonRp || 0)"
+                  @input="item.diskonRp = Number(String($event.target.value).replace(/[^0-9]/g, '')) || 0"
+                  @focus="focusedRowId = item.id"
+                  @blur="focusedRowId = -1; handleItemDiscountChange(items.indexOf(item))" placeholder="0" type="text"
+                  variant="underlined" density="compact" hide-details single-line class="text-end"
+                  :disabled="!item.kode" :readonly="item.diskonPersen > 0"></v-text-field>
+              </template>
+              <template #[`item.total`]="{ item }">
+                <div class="text-end text-body-2 font-weight-bold">
+                  {{ new Intl.NumberFormat('id-ID').format(item.total || 0) }}
+                </div>
+              </template>
+              <template #[`item.noSoDtf`]="{ item, index }">
+                <v-text-field v-model="item.noSoDtf" variant="underlined" density="compact" hide-details
+                  placeholder="F1..." @keydown.f1.prevent="openSoDtfSearch(index)" readonly>
+                </v-text-field>
+              </template>
+              <template #[`item.noPengajuanHarga`]="{ item, index }">
+                <v-text-field v-model="item.noPengajuanHarga" variant="underlined" density="compact" hide-details
+                  placeholder="F1..." @keydown.f1.prevent="openPriceProposalSearch(index)" readonly>
+                </v-text-field>
+              </template>
+              <template #[`item.actions`]="{ item }">
+                <v-btn v-if="item.kode" icon="mdi-delete" size="x-small" variant="text" color="error"
+                  @click="removeRow(item.id)" title="Hapus baris" />
+              </template>
+            </v-data-table>
           </div>
         </div>
 
@@ -1437,7 +1448,7 @@ onMounted(() => {
       :existing-dp="footer.totalDp" @close="isDpInputVisible = false" @dp-saved="onDpSaved" />
     <CustomerForm v-if="isNewCustomerFormVisible" @close="isNewCustomerFormVisible = false"
       @customer-saved="onNewCustomerSaved" />
-    <DiscountCostModal v-if="isDiscountCostModalVisible" :footer-data="footer" :total-so="footer.totalSo"
+    <DiscountCostModal v-if="isDiscountCostModalVisible" :footer-data="footer" :total-so="totalDiscountable"
       :customer="header.customer" :gudang-kode="header.gudang.kode" :ppn-persen="header.ppnPersen"
       @close="isDiscountCostModalVisible = false" @update="Object.assign(footer, $event)" />
     <DpListModal v-if="isDpListModalVisible" :dp-items="dpItems" @close="isDpListModalVisible = false"
@@ -1482,6 +1493,7 @@ onMounted(() => {
 <style scoped>
 .form-grid-container {
   grid-template-columns: 450px 1fr;
+  height: calc(100vh - 120px);
 }
 
 .left-column,
@@ -1491,15 +1503,16 @@ onMounted(() => {
   gap: 12px;
   min-height: 0;
   overflow: hidden;
-  /* penting: cegah overflow di right-column */
+  height: 100%;
 }
 
 .scrollable-content {
   flex-grow: 1;
   min-height: 0;
-  overflow-x: auto;
-  /* horizontal scroll di sini */
-  overflow-y: hidden;
+  overflow: hidden;
+  /* UBAH dari overflow-x: auto */
+  display: flex;
+  flex-direction: column;
 }
 
 .header-section {
@@ -1512,14 +1525,11 @@ onMounted(() => {
 
 .main-grid-section {
   flex-grow: 1;
-  min-height: 200px;
+  min-height: 0;
+  overflow: hidden;
+  /* UBAH: biarkan v-data-table yang handle scroll */
   display: flex;
   flex-direction: column;
-  overflow-x: auto;
-  /* scroll horizontal DI SINI */
-  overflow-y: hidden;
-  min-height: 0;
-  /* penting untuk flex */
 }
 
 .main-grid-section .v-data-table {
@@ -1528,10 +1538,25 @@ onMounted(() => {
   min-width: 100%;
 }
 
-.table-wrapper {
+.desktop-table {
+  width: 100%;
   flex-grow: 1;
-  overflow-y: auto;
-  /* vertical scroll untuk isi tabel */
+  overflow: hidden;
+  /* Penting! */
+}
+
+/* PENTING: Biarkan VDataTable wrapper yang handle SEMUA scrolling */
+.desktop-table :deep(.v-table__wrapper) {
+  overflow-x: auto !important;
+  /* Horizontal scroll */
+  overflow-y: auto !important;
+  /* Vertical scroll */
+  max-height: 100%;
+}
+
+/* TAMBAHAN: Pastikan tabel bisa lebih lebar dari container */
+.desktop-table :deep(.v-table) {
+  min-width: max-content;
 }
 
 .footer-summary-section {

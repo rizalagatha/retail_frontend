@@ -1353,61 +1353,63 @@ onMounted(() => {
           </div>
         </div>
 
-        <div class="desktop-form-section table-section">
-          <v-data-table :headers="tableHeaders" :items="items" class="desktop-table" :items-per-page="-1">
-            <template v-slot:[`item.kode`]="{ item, index }">
-              <v-text-field v-model="item.kode" variant="underlined" density="compact" hide-details
-                placeholder="F1/F2..." :readonly="!!header.nomorSo" :class="{ 'field-disabled': !!header.nomorSo }"
-                @keydown.f1.prevent="!header.nomorSo && openProductSearch(index, false)"
-                @keydown.f2.prevent="!header.nomorSo && openProductSearch(index, true)" />
-            </template>
+        <div class="scrollable-table-wrapper">
+          <div class="desktop-form-section table-section">
+            <v-data-table :headers="tableHeaders" :items="items" class="desktop-table" :items-per-page="-1">
+              <template v-slot:[`item.kode`]="{ item, index }">
+                <v-text-field v-model="item.kode" variant="underlined" density="compact" hide-details
+                  placeholder="F1/F2..." :readonly="!!header.nomorSo" :class="{ 'field-disabled': !!header.nomorSo }"
+                  @keydown.f1.prevent="!header.nomorSo && openProductSearch(index, false)"
+                  @keydown.f2.prevent="!header.nomorSo && openProductSearch(index, true)" />
+              </template>
 
-            <template v-slot:[`item.jumlah`]="{ item }">
-              <v-text-field v-model.number="item.jumlah" type="number" min="0" variant="underlined" density="compact"
-                hide-details class="text-right" :class="getQtyClass(item)" @blur="handleJumlahChange(item)" />
-            </template>
+              <template v-slot:[`item.jumlah`]="{ item }">
+                <v-text-field v-model.number="item.jumlah" type="number" min="0" variant="underlined" density="compact"
+                  hide-details class="text-right" :class="getQtyClass(item)" @blur="handleJumlahChange(item)" />
+              </template>
 
-            <template v-slot:[`item.harga`]="{ item }">
-              <v-text-field
-                :model-value="focusedRowId === item.id ? item.harga : new Intl.NumberFormat('id-ID').format(item.harga || 0)"
-                @update:model-value="item.harga = Number(String($event).replace(/[^0-9]/g, '')) || 0"
-                @focus="focusedRowId = item.id" @blur="focusedRowId = -1" type="text" min="0" variant="underlined"
-                density="compact" hide-details class="text-right" :readonly="!isHargaEditable(item)"
-                placeholder="0"></v-text-field>
-            </template>
+              <template v-slot:[`item.harga`]="{ item }">
+                <v-text-field
+                  :model-value="focusedRowId === item.id ? item.harga : new Intl.NumberFormat('id-ID').format(item.harga || 0)"
+                  @update:model-value="item.harga = Number(String($event).replace(/[^0-9]/g, '')) || 0"
+                  @focus="focusedRowId = item.id" @blur="focusedRowId = -1" type="text" min="0" variant="underlined"
+                  density="compact" hide-details class="text-right" :readonly="!isHargaEditable(item)"
+                  placeholder="0"></v-text-field>
+              </template>
 
-            <template v-slot:[`item.diskonPersen`]="{ item }">
-              <v-text-field v-model.number="item.diskonPersen" type="number" min="0" variant="underlined"
-                density="compact" hide-details class="text-right" @blur="handleItemDiscountChange(item)"
-                @focus="onItemDiscountFocus(item)" />
-            </template>
+              <template v-slot:[`item.diskonPersen`]="{ item }">
+                <v-text-field v-model.number="item.diskonPersen" type="number" min="0" variant="underlined"
+                  density="compact" hide-details class="text-right" @blur="handleItemDiscountChange(item)"
+                  @focus="onItemDiscountFocus(item)" />
+              </template>
 
-            <template v-slot:[`item.diskonRp`]="{ item }">
-              <v-text-field v-model.number="item.diskonRp" type="number" min="0" variant="underlined" density="compact"
-                hide-details class="text-right" @blur="handleItemDiscountChange(item)"
-                @focus="onItemDiscountFocus(item)" />
-            </template>
+              <template v-slot:[`item.diskonRp`]="{ item }">
+                <v-text-field v-model.number="item.diskonRp" type="number" min="0" variant="underlined"
+                  density="compact" hide-details class="text-right" @blur="handleItemDiscountChange(item)"
+                  @focus="onItemDiscountFocus(item)" />
+              </template>
 
-            <template v-slot:[`item.total`]="{ item }">
-              <div class="text-end text-body-2 font-weight-bold pt-3 pb-1">
-                {{ new Intl.NumberFormat('id-ID').format(item.total || 0) }}
-              </div>
-            </template>
+              <template v-slot:[`item.total`]="{ item }">
+                <div class="text-end text-body-2 font-weight-bold pt-3 pb-1">
+                  {{ new Intl.NumberFormat('id-ID').format(item.total || 0) }}
+                </div>
+              </template>
 
-            <template v-slot:[`item.noSoDtf`]="{ item, index }">
-              <v-text-field v-model="item.noSoDtf" variant="underlined" density="compact" hide-details
-                placeholder="F1 atau Klik..." :readonly="!!header.nomorSo || !!item.kode"
-                :class="{ 'field-disabled': !!header.nomorSo || !!item.kode }" @click="openSoDtfSearch(item, index)"
-                @keydown.f1.prevent="openSoDtfSearch(item, index)" />
-            </template>
+              <template v-slot:[`item.noSoDtf`]="{ item, index }">
+                <v-text-field v-model="item.noSoDtf" variant="underlined" density="compact" hide-details
+                  placeholder="F1 atau Klik..." :readonly="!!header.nomorSo || !!item.kode"
+                  :class="{ 'field-disabled': !!header.nomorSo || !!item.kode }" @click="openSoDtfSearch(item, index)"
+                  @keydown.f1.prevent="openSoDtfSearch(item, index)" />
+              </template>
 
-            <template v-slot:[`item.actions`]="{ item }">
-              <v-btn v-if="item.kode" icon="mdi-delete" variant="text" color="error" size="x-small"
-                @click="handleDeleteItem(item)"
-                :title="item.noSoDtf ? 'Hapus Semua Item SO DTF Ini' : 'Hapus Item Ini'">
-              </v-btn>
-            </template>
-          </v-data-table>
+              <template v-slot:[`item.actions`]="{ item }">
+                <v-btn v-if="item.kode" icon="mdi-delete" variant="text" color="error" size="x-small"
+                  @click="handleDeleteItem(item)"
+                  :title="item.noSoDtf ? 'Hapus Semua Item SO DTF Ini' : 'Hapus Item Ini'">
+                </v-btn>
+              </template>
+            </v-data-table>
+          </div>
         </div>
 
         <div class="footer-actions-section">
@@ -1540,6 +1542,8 @@ onMounted(() => {
   gap: 12px;
   min-height: 0;
   overflow: hidden;
+  height: 100%;
+  /* Tambahkan ini */
 }
 
 .top-right-header {
@@ -1549,6 +1553,7 @@ onMounted(() => {
   gap: 16px;
   flex-wrap: nowrap;
   flex-shrink: 0;
+  /* Penting: jangan menyusut */
 }
 
 .scanner-wrapper {
@@ -1561,22 +1566,44 @@ onMounted(() => {
   flex-shrink: 0;
 }
 
+.scrollable-table-wrapper {
+  flex-grow: 1;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
 .table-section {
   flex-grow: 1;
   min-height: 0;
-  overflow-x: auto;
-  overflow-y: auto;
+  overflow: hidden;
+  /* Biarkan v-data-table yang handle scroll */
   display: flex;
   flex-direction: column;
 }
 
 .table-section .v-data-table {
-  width: max-content;
-  min-width: 100%;
+  width: 100%;
+  flex-grow: 1;
+}
+
+.desktop-table :deep(.v-table__wrapper) {
+  overflow-x: auto !important;
+  /* Horizontal scroll */
+  overflow-y: auto !important;
+  /* Vertical scroll */
+  max-height: 100%;
+}
+
+/* Pastikan tabel bisa lebih lebar dari container */
+.desktop-table :deep(.v-table) {
+  min-width: max-content;
 }
 
 .footer-actions-section {
   flex-shrink: 0;
+  /* Penting: jangan menyusut */
   padding: 8px 0;
   border-top: 1px solid #e0e0e0;
 }

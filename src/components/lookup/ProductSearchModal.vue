@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue';
+import { onMounted, ref, watch } from 'vue';
 import api from '@/services/api';
 import { useToast } from 'vue-toastification';
 
@@ -63,7 +63,7 @@ const loadItems = async (opts: { page: number, itemsPerPage: number }) => {
 
     const response = await api.get(apiUrl, {
       params: {
-        term: search.value,
+        term: search.value.trim(),
         category: props.category,
         gudang: props.gudang,
         page: opts.page,
@@ -135,12 +135,18 @@ const handleEnterKey = async () => {
 
 // --- Watchers ---
 let searchTimeout: ReturnType<typeof setTimeout>;
-watch(search, () => {
+// --- Debounce search ---
+watch(search, (val) => {
   clearTimeout(searchTimeout);
   searchTimeout = setTimeout(() => {
     options.value.page = 1;
-    loadItems(options.value);
-  }, 500);
+    if (val.trim() !== '') loadItems(options.value);
+  }, 300);
+});
+
+// --- Auto-load on open ---
+onMounted(() => {
+  loadItems(options.value);
 });
 </script>
 

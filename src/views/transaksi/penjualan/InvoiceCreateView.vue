@@ -611,6 +611,31 @@ const onSoSelected = async (so: { Nomor: string }) => {
   dialogs.soSearch = false;
   if (!so.Nomor) return;
 
+  if (header.nomorSo && header.nomorSo !== so.Nomor) {
+    const confirmed = await new Promise((resolve) => {
+      showConfirmation(
+        'Ganti SO?',
+        `Mengganti SO dari ${header.nomorSo} ke ${so.Nomor} akan menghapus semua item. Lanjutkan?`,
+        () => resolve(true)
+      );
+
+      // Watch untuk deteksi jika user klik Batal
+      const unwatch = watch(() => dialogConfirm.show, (newValue) => {
+        if (!newValue) {
+          unwatch();
+          resolve(false);
+        }
+      });
+
+      dialogConfirm.onConfirm = () => {
+        resolve(true);
+        unwatch();
+      };
+    });
+
+    if (!confirmed) return; // User klik Batal
+  }
+
   isLoading.value = true;
   try {
     console.log('Fetching SO details for:', so.Nomor);
@@ -1192,6 +1217,56 @@ const loadDataForEdit = async (nomor: string) => {
   }
 };
 
+const handleClearSo = () => {
+  showConfirmation(
+    'Hapus SO?',
+    'Menghapus SO akan mengosongkan semua item di keranjang. Lanjutkan?',
+    async () => { // UBAH: Tambahkan async
+      // Reset semua data terkait SO
+      header.nomorSo = '';
+      header.tanggalSo = '';
+      header.diskonPersen1 = 0;
+      header.diskonPersen2 = 0;
+      header.diskonRp = 0;
+      header.biayaKirim = 0;
+      header.nomorPromo = '';
+      header.namaPromo = '';
+
+      // Kosongkan items dan linked DPs
+      items.value = [];
+      linkedDps.value = [];
+      isSoLoaded.value = false;
+
+      // Tambah baris kosong
+      addNewRow();
+
+      // [TAMBAHAN] Reset ke default customer
+      try {
+        const cabang = authStore.user?.cabang;
+
+        if (cabang && cabang !== '-') {
+          const response = await api.get(`/invoice-form/lookup/default-customer?cabang=${cabang}`);
+
+          if (response.data) {
+            onCustomerSelected(response.data);
+            toast.success('SO berhasil dihapus. Customer direset ke default toko.');
+          } else {
+            onCustomerSelected(null);
+            toast.success('SO berhasil dihapus. Silakan pilih customer.');
+          }
+        } else {
+          onCustomerSelected(null);
+          toast.success('SO berhasil dihapus. Silakan pilih customer.');
+        }
+      } catch (error) {
+        console.error('Error fetching default customer:', error);
+        onCustomerSelected(null);
+        toast.success('SO berhasil dihapus. Silakan pilih customer.');
+      }
+    }
+  );
+};
+
 watch(header, () => {
   if (header.top > 0 && header.tanggal) {
     header.tanggalTempo = format(addDays(new Date(header.tanggal), header.top), 'yyyy-MM-dd');
@@ -1263,9 +1338,9 @@ onMounted(() => {
                 hide-details />
             </v-col>
             <v-col cols="6">
-              <v-text-field label="No. Pesanan (SO)" v-model="header.nomorSo" :readonly="isSoLoaded"
-                @click="isSoLoaded ? null : dialogs.soSearch = true" prepend-inner-icon="mdi-magnify" density="compact"
-                hide-details />
+              <v-text-field label="No. Pesanan (SO)" v-model="header.nomorSo" readonly @click="dialogs.soSearch = true"
+                prepend-inner-icon="mdi-magnify" density="compact" hide-details clearable
+                @click:clear="handleClearSo" />
             </v-col>
             <v-col cols="6">
               <v-text-field label="Tgl. SO"
@@ -1359,9 +1434,10 @@ onMounted(() => {
               height="calc(100vh - 420px)">
               <template v-slot:[`item.kode`]="{ item, index }">
                 <v-text-field v-model="item.kode" variant="underlined" density="compact" hide-details
-                  placeholder="F1/F2..." :readonly="!!header.nomorSo" :class="{ 'field-disabled': !!header.nomorSo }"
-                  @keydown.f1.prevent="!header.nomorSo && openProductSearch(index, false)"
-                  @keydown.f2.prevent="!header.nomorSo && openProductSearch(index, true)" />
+                  placeholder="F1/F2..." :readonly="!!header.nomorSo || !!item.noSoDtf"
+                  :class="{ 'field-disabled': !!header.nomorSo || !!item.noSoDtf }"
+                  @keydown.f1.prevent="!header.nomorSo && !item.noSoDtf && openProductSearch(index, false)"
+                  @keydown.f2.prevent="!header.nomorSo && !item.noSoDtf && openProductSearch(index, true)" />
               </template>
 
               <template v-slot:[`item.jumlah`]="{ item }">

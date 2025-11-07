@@ -1355,7 +1355,8 @@ onMounted(() => {
 
         <div class="scrollable-table-wrapper">
           <div class="desktop-form-section table-section">
-            <v-data-table :headers="tableHeaders" :items="items" class="desktop-table" :items-per-page="-1">
+            <v-data-table :headers="tableHeaders" :items="items" class="desktop-table" :items-per-page="-1" fixed-header
+              height="calc(100vh - 420px)">>
               <template v-slot:[`item.kode`]="{ item, index }">
                 <v-text-field v-model="item.kode" variant="underlined" density="compact" hide-details
                   placeholder="F1/F2..." :readonly="!!header.nomorSo" :class="{ 'field-disabled': !!header.nomorSo }"

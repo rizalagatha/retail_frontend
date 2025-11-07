@@ -19,7 +19,7 @@ interface CabangOption {
 interface MasterDataItem {
   Kode: string;
   Nama?: string;
-  Level_nama?: string;
+  level_nama?: string;
   Alamat?: string;
   Kota?: string;
   Nominal?: number;
@@ -90,7 +90,7 @@ const headersTanggal = [
 const headersCustomer = [
   { title: 'Kode', key: 'Kode', fixed: true, width: '80px' },
   { title: 'Nama', key: 'Nama', fixed: true, width: '250px' },
-  { title: 'Level', key: 'Level_nama', width: '150px' },
+  { title: 'Level', key: 'level_nama', width: '150px' },
   { title: 'Alamat', key: 'Alamat', sortable: false },
   { title: 'Kota', key: 'Kota' },
   { title: 'Nominal', key: 'Nominal' },
@@ -198,22 +198,24 @@ const fetchMasterData = async () => {
   }
 };
 
-const loadDetails = async (newlyExpandedItems: Array<{ Kode: string }>) => {
+const loadDetails = async (expandedKodes: string[]) => {
   if (reportType.value !== 'level') return;
 
-  const itemToLoad = newlyExpandedItems.find(item => {
-    const id = item.Kode;
-    return !details.value[id] && !loadingDetails.value.has(id);
+  // Cari 'kode' (string) pertama di array expandedKodes
+  // yang datanya BELUM ada di 'details' dan BELUM sedang di-load
+  const kodeToLoad = expandedKodes.find(kode => {
+    return !details.value[kode] && !loadingDetails.value.has(kode);
   });
 
-  if (!itemToLoad) return;
+  // Jika tidak ada kode baru untuk di-load (misal, saat menutup row), hentikan
+  if (!kodeToLoad) return;
 
-  const levelKode = itemToLoad.Kode;
+  const levelKode = kodeToLoad; // levelKode sekarang adalah string, misal: "L01"
   loadingDetails.value.add(levelKode);
 
   try {
     const response = await api.get<DetailCustomer[]>('/laporan-invoice/detail-customer-by-level', {
-      params: { ...filters, levelKode },
+      params: { ...filters, levelKode }, // Kirim levelKode (string) ke params
     });
 
     details.value = { ...details.value, [levelKode]: response.data };
@@ -326,19 +328,22 @@ watch([filters, reportType], fetchMasterData, { deep: true, immediate: true });
             <tr>
               <td :colspan="columns.length">
                 <div class="detail-container pa-2">
-                  <v-data-table :headers="detailHeadersLevel" :items="details[item.Kode]" density="compact"
-                    class="detail-table" :items-per-page="-1">
-                    <template #bottom></template>
-                    <template v-slot:[`item.Nominal`]="{ item }">
-                      {{ new Intl.NumberFormat('id-ID').format(item.Nominal) }}
-                    </template>
-                    <template v-slot:[`item.Hpp`]="{ item }">
-                      {{ new Intl.NumberFormat('id-ID').format(item.Hpp) }}
-                    </template>
-                    <template v-slot:[`item.Laba`]="{ item }">
-                      {{ new Intl.NumberFormat('id-ID').format(item.Laba) }}
-                    </template>
-                  </v-data-table>
+
+                  <div class="detail-table-wrapper">
+                    <v-data-table :headers="detailHeadersLevel" :items="details[item.Kode]" density="compact"
+                      class="detail-table" :items-per-page="-1">
+                      <template #bottom></template>
+                      <template v-slot:[`item.Nominal`]="{ item }">
+                        {{ new Intl.NumberFormat('id-ID').format(item.Nominal) }}
+                      </template>
+                      <template v-slot:[`item.Hpp`]="{ item }">
+                        {{ new Intl.NumberFormat('id-ID').format(item.Hpp) }}
+                      </template>
+                      <template v-slot:[`item.Laba`]="{ item }">
+                        {{ new Intl.NumberFormat('id-ID').format(item.Laba) }}
+                      </template>
+                    </v-data-table>
+                  </div>
                 </div>
               </td>
             </tr>
@@ -347,6 +352,9 @@ watch([filters, reportType], fetchMasterData, { deep: true, immediate: true });
 
         <AppDataTable v-else :headers="activeHeaders" :items="masterData" :loading="isLoading"
           class="desktop-table main-table" density="compact" fixed-header height="420px">
+          <template v-slot:[`item.Tanggal`]="{ item }">
+            {{ item.Tanggal ? format(new Date(item.Tanggal), 'dd-MM-yyyy') : '' }}
+          </template>
           <template v-slot:[`item.Nominal`]="{ item }">
             {{ new Intl.NumberFormat('id-ID').format(item.Nominal) }}
           </template>

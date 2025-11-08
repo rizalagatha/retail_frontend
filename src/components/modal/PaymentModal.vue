@@ -132,7 +132,7 @@ const formatRupiah = (value: number) => new Intl.NumberFormat('id-ID').format(va
 // --- Methods ---
 const printStylesKasir = `
   @page {
-    size: 58mm auto;
+    size: 58mm 3276mm
     margin: 0;
   }
   body, html {
@@ -144,11 +144,9 @@ const printStylesKasir = `
     box-sizing: border-box;
   }
   .receipt {
-    width: 100%;
-    max-width: 52mm;
-    overflow: hidden;
-    margin: 0 auto;
-    box-sizing: border-box;
+  width: 58mm;
+  padding: 2mm 3mm 2mm 5mm;  /* Kiri lebih besar, kanan lebih kecil */
+  box-sizing: border-box;
   }
   .text-center { text-align: center; }
   .logo { max-width: 10mm; margin: 0 auto 5px; display: block; }
@@ -628,22 +626,22 @@ watch(nettoKembali, () => {
             </div>
             <div class="summary">
               <div class="summary-item"><span>Total </span><span>{{ formatRupiah(printKasirData.header.summary.subTotal)
-                  }}</span></div>
+              }}</span></div>
               <div class="summary-item"><span>Diskon </span><span>{{ formatRupiah(printKasirData.header.summary.diskon)
-                  }}</span></div>
+              }}</span></div>
               <div class="summary-item"><span>Ppn </span><span>{{ formatRupiah(printKasirData.header.summary.ppn)
-                  }}</span></div>
+              }}</span></div>
               <div class="summary-item"><span>Netto </span><span>{{ formatRupiah(printKasirData.header.summary.netto)
-                  }}</span></div>
+              }}</span></div>
               <div class="summary-item"><span>Biaya Kirim </span><span>{{
                 formatRupiah(printKasirData.header.summary.biayaKirim) }}</span></div>
               <div class="summary-item"><span>Dp </span><span>{{ formatRupiah(printKasirData.header.summary.dp)
-                  }}</span>
+              }}</span>
               </div>
               <div class="summary-item grand-total"><span>Grand Total </span><span>{{
                 formatRupiah(printKasirData.header.summary.grandTotal) }}</span></div>
               <div class="summary-item"><span>Bayar </span><span>{{ formatRupiah(printKasirData.header.summary.bayar)
-                  }}</span></div>
+              }}</span></div>
               <div class="summary-item"><span>Pundi amal </span><span>{{
                 formatRupiah(printKasirData.header.summary.pundiAmal) }}</span></div>
               <div class="summary-item"><span>Kembali </span><span>{{

@@ -159,11 +159,19 @@ const stickersHeaders = computed(() => [
 // (misal: 'http://localhost:3000/api' -> 'http://localhost:3000')
 let backendOrigin = '';
 try {
-  // Ambil origin (protokol + host + port) dari baseURL axios
-  backendOrigin = new URL(api.defaults.baseURL || window.location.origin).origin;
+  // Cek dulu apakah baseURL valid dan merupakan URL absolut
+  if (api.defaults.baseURL && (api.defaults.baseURL.startsWith('http://') || api.defaults.baseURL.startsWith('https://'))) {
+    // Jika ya, ambil origin-nya
+    backendOrigin = new URL(api.defaults.baseURL).origin;
+  } else {
+    // Jika baseURL relative ('/api'), undefined, atau invalid (seperti '103.94.238.252' saja),
+    // kita asumsikan backend (dan gambar) ada di origin yang sama dengan frontend.
+    backendOrigin = window.location.origin;
+  }
 } catch (e) {
-  backendOrigin = window.location.origin; // Fallback jika baseURL tidak diset
-  console.error("Gagal mem-parse baseURL API, preview gambar mungkin tidak berfungsi.", e);
+  // Fallback jika terjadi error aneh
+  console.warn("Gagal mem-parse baseURL API, menggunakan location.origin sebagai fallback.", e);
+  backendOrigin = window.location.origin;
 }
 
 // --- Methods ---
@@ -445,7 +453,7 @@ const getFullImageUrl = (url: string | null) => {
   if (url.startsWith('http') || url.startsWith('blob:')) {
     return url;
   }
-  // Jika URL relatif, gabungkan dengan origin backend
+  // Jika URL relatif (dimulai dengan '/'), gabungkan dengan origin backend
   return `${backendOrigin}${url}`;
 };
 

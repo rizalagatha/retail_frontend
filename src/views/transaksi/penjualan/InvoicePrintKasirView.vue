@@ -128,13 +128,13 @@ onMounted(() => {
       </div>
       <div class="summary">
         <div class="summary-item"><span>Total </span><span>{{ formatRupiah(printData.header.summary.subTotal)
-            }}</span></div>
+        }}</span></div>
         <div class="summary-item"><span>Diskon </span><span>{{ formatRupiah(printData.header.summary.diskon)
-            }}</span></div>
+        }}</span></div>
         <div class="summary-item"><span>Ppn </span><span>{{ formatRupiah(printData.header.summary.ppn) }}</span>
         </div>
         <div class="summary-item"><span>Netto </span><span>{{ formatRupiah(printData.header.summary.netto)
-            }}</span></div>
+        }}</span></div>
         <div class="summary-item"><span>Biaya Kirim
           </span><span>{{ formatRupiah(printData.header.summary.biayaKirim) }}</span></div>
         <div class="summary-item"><span>Dp </span><span>{{ formatRupiah(printData.header.summary.dp) }}</span>
@@ -142,11 +142,11 @@ onMounted(() => {
         <div class="summary-item grand-total"><span>Grand Total </span><span>{{
           formatRupiah(printData.header.summary.grandTotal) }}</span></div>
         <div class="summary-item"><span>Bayar </span><span>{{ formatRupiah(printData.header.summary.bayar)
-            }}</span></div>
+        }}</span></div>
         <div class="summary-item"><span>Pundi amal </span><span>{{
           formatRupiah(printData.header.summary.pundiAmal) }}</span></div>
         <div class="summary-item"><span>Kembali </span><span>{{ formatRupiah(printData.header.summary.kembali)
-            }}</span></div>
+        }}</span></div>
       </div>
       <div class="footer text-center">
         <div v-if="printData.header.summary.pundiAmal > 0" class="donation-text">
@@ -173,8 +173,10 @@ onMounted(() => {
 <style scoped>
 .receipt {
   width: 58mm;
+  padding: 3mm 5mm;
+  box-sizing: border-box;
   font-family: 'Roboto Mono', monospace;
-  font-size: 8pt;
+  font-size: 9pt;
   color: black;
 }
 
@@ -183,7 +185,7 @@ onMounted(() => {
 }
 
 .logo {
-  max-width: 10mm;
+  max-width: 12mm;
   margin: 0 auto 5px;
   display: block;
 }
@@ -214,8 +216,9 @@ onMounted(() => {
 .social-media {
   display: flex;
   justify-content: center;
-  gap: 10px;
+  gap: 8px;
   margin-top: 5px;
+  flex-wrap: wrap;
 }
 
 .social-item {
@@ -228,44 +231,15 @@ onMounted(() => {
   height: 8px;
 }
 
-.info-grid {
-  display: grid;
-  /* Buat 2 kolom: satu untuk label, satu untuk nilai */
-  grid-template-columns: auto 1fr;
-  gap: 2px 8px;
-  /* Atur jarak antar baris dan kolom */
-  margin-bottom: 10px;
-  align-items: center;
-}
-
-.info-grid .label {
-  font-weight: bold;
-  grid-column: 1 / 2;
-  /* Pastikan label selalu di kolom pertama */
-}
-
-.info-grid .value {
-  grid-column: 2 / 3;
-  /* Pastikan nilai selalu di kolom kedua */
-}
-
-.info-grid .alamat {
-  grid-column: 1 / -1;
-  /* Biarkan alamat mengisi seluruh lebar */
-  padding-left: 0;
-  /* Hapus padding kiri jika ada */
-}
-
-/* Sedikit penyesuaian agar titik dua tidak menempel */
-.info-grid .value::before {
-  content: ":";
-  margin-right: 8px;
-}
-
 @media print {
   @page {
     size: 58mm auto;
-    margin: 2mm;
+    margin: 0;
+  }
+
+  body {
+    margin: 0;
+    padding: 0;
   }
 }
 </style>

@@ -367,57 +367,94 @@ const handlePrintSelection = async (type: 'a4' | 'kasir' | 'wa') => {
   }
 };
 
+// Ganti method triggerBrowserPrint dengan ini
 const triggerBrowserPrint = () => {
-  const printContentEl = document.getElementById('kasir-print-area');
-  if (!printContentEl) {
-    toast.error("Area cetak kasir tidak ditemukan.");
-    return;
-  }
+  // Tutup preview modal DULU sebelum print
+  isKasirPreviewVisible.value = false;
 
-  const contentToPrint = printContentEl.innerHTML;
-  const stylesToInject = printStylesKasir;
-
-  const printFrame = document.createElement('iframe');
-  printFrame.style.position = 'fixed';
-  printFrame.style.top = '-9999px';
-  printFrame.style.left = '-9999px';
-  document.body.appendChild(printFrame);
-
-  printFrame.onload = () => {
-    try {
-      printFrame.contentWindow?.focus();
-      printFrame.contentWindow?.print();
-    } catch (e) {
-      toast.error("Gagal memicu cetak: " + (e as Error).message);
-    } finally {
-      setTimeout(() => { document.body.removeChild(printFrame); }, 2000);
+  // Tunggu sebentar agar modal benar-benar tertutup
+  setTimeout(() => {
+    const printContentEl = document.getElementById('kasir-print-area');
+    if (!printContentEl) {
+      toast.error("Area cetak kasir tidak ditemukan.");
+      return;
     }
-  };
 
-  const frameDoc = printFrame.contentWindow?.document;
-  if (frameDoc) {
-    frameDoc.open();
-    frameDoc.write(`
+    const contentToPrint = printContentEl.innerHTML;
+
+    // Buat window baru untuk print, bukan iframe
+    const printWindow = window.open('', '_blank', 'width=400,height=600');
+    if (!printWindow) {
+      toast.error("Popup diblokir. Izinkan popup untuk mencetak.");
+      return;
+    }
+
+    printWindow.document.write(`
+      <!DOCTYPE html>
       <html>
         <head>
           <title>Struk Kasir</title>
-          <style>${stylesToInject}</style>
+          <style>
+            @page {
+              size: 58mm auto;
+              margin: 0;
+            }
+            body, html {
+              margin: 0;
+              padding: 0;
+              font-family: 'Roboto Mono', monospace;
+              font-size: 9pt;
+              color: black;
+            }
+            .receipt {
+              width: 58mm;
+              padding: 3mm 5mm;
+              box-sizing: border-box;
+            }
+            .text-center { text-align: center; }
+            .logo { max-width: 12mm; margin: 0 auto 5px; display: block; }
+            .info, .items, .summary, .footer {
+              border-top: 1px dashed black;
+              padding-top: 5px;
+              margin-top: 5px;
+            }
+            .item-details, .summary-item {
+              display: flex;
+              justify-content: space-between;
+            }
+            .grand-total { font-weight: bold; }
+            .social-media {
+              display: flex;
+              justify-content: center;
+              gap: 8px;
+              margin-top: 5px;
+              flex-wrap: wrap;
+            }
+            .social-item {
+              display: flex;
+              align-items: center;
+              gap: 3px;
+            }
+            .social-item img { height: 8px; }
+          </style>
         </head>
-        <body>
+        <body onload="window.print(); window.close();">
           ${contentToPrint}
         </body>
       </html>
     `);
-    frameDoc.close(); // Memicu iframe.onload
-  }
+    printWindow.document.close();
 
-  closeKasirPreview();
+    // Emit save-success setelah print dialog muncul
+    emit('save-success', savedInvoiceNumber.value);
+  }, 100);
 };
 
+// Hapus atau comment closeKasirPreview, ganti dengan ini
 const closeKasirPreview = () => {
   isKasirPreviewVisible.value = false;
   printKasirData.value = null;
-  // Panggil emit 'save-success' untuk menutup PaymentModal
+  // Emit save-success saat user tutup preview tanpa cetak
   emit('save-success', savedInvoiceNumber.value);
 };
 
@@ -635,22 +672,22 @@ watch(nettoKembali, () => {
             </div>
             <div class="summary">
               <div class="summary-item"><span>Total </span><span>{{ formatRupiah(printKasirData.header.summary.subTotal)
-              }}</span></div>
+                  }}</span></div>
               <div class="summary-item"><span>Diskon </span><span>{{ formatRupiah(printKasirData.header.summary.diskon)
-              }}</span></div>
+                  }}</span></div>
               <div class="summary-item"><span>Ppn </span><span>{{ formatRupiah(printKasirData.header.summary.ppn)
-              }}</span></div>
+                  }}</span></div>
               <div class="summary-item"><span>Netto </span><span>{{ formatRupiah(printKasirData.header.summary.netto)
-              }}</span></div>
+                  }}</span></div>
               <div class="summary-item"><span>Biaya Kirim </span><span>{{
                 formatRupiah(printKasirData.header.summary.biayaKirim) }}</span></div>
               <div class="summary-item"><span>Dp </span><span>{{ formatRupiah(printKasirData.header.summary.dp)
-              }}</span>
+                  }}</span>
               </div>
               <div class="summary-item grand-total"><span>Grand Total </span><span>{{
                 formatRupiah(printKasirData.header.summary.grandTotal) }}</span></div>
               <div class="summary-item"><span>Bayar </span><span>{{ formatRupiah(printKasirData.header.summary.bayar)
-              }}</span></div>
+                  }}</span></div>
               <div class="summary-item"><span>Pundi amal </span><span>{{
                 formatRupiah(printKasirData.header.summary.pundiAmal) }}</span></div>
               <div class="summary-item"><span>Kembali </span><span>{{

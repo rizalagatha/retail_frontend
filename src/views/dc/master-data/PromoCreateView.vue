@@ -217,6 +217,8 @@ const loadDataForEdit = async (nomor: string) => {
     // Menggunakan Object.assign untuk field yang namanya sama
     Object.assign(header, data.header);
 
+    header.nomor = nomor;
+
     header.judul = data.header.pro_judul;
 
     // Konversi format tanggal dari server untuk input type="date"
@@ -309,7 +311,6 @@ const loadApplicableItems = async (nomor: string, page: number = 1) => {
     }));
     applicableItemsTotal.value = response.data.total;
 
-    addNewApplicableRow();
   } catch (error) {
     console.error('Error loading applicable items:', error);
     toast.error('Gagal memuat data barang pemicu promo.');
@@ -518,7 +519,7 @@ watch(() => header.generate, (val) => {
             <div class="text-subtitle-1 font-weight-bold mb-2">
               Barang Pemicu Promo (Item yang harus dibeli)
             </div>
-            <v-data-table :headers="applicableHeaders" :items="applicableItems" class="desktop-table flex-grow-1"
+            <v-data-table-server :headers="applicableHeaders" :items="applicableItems" class="desktop-table flex-grow-1"
               v-model:page="applicableItemsPage" :items-per-page="applicableItemsPerPage"
               :items-length="applicableItemsTotal" density="compact" fixed-header
               @update:page="isEditMode && loadApplicableItems(header.nomor, $event)"
@@ -547,17 +548,7 @@ watch(() => header.generate, (val) => {
                 <v-btn v-if="item.kode" icon="mdi-delete" size="x-small" variant="text" color="error"
                   @click="removeApplicableRow(item.id)" />
               </template>
-              <template #bottom>
-                <div class="d-flex justify-space-between align-center pa-2">
-                  <v-btn size="small" @click="addNewApplicableRow" prepend-icon="mdi-plus">
-                    Tambah Item
-                  </v-btn>
-                  <div class="text-caption">
-                    Menampilkan {{ applicableItems.length }} dari {{ applicableItemsTotal }} item
-                  </div>
-                </div>
-              </template>
-            </v-data-table>
+              </v-data-table-server>
           </div>
 
           <div class="desktop-form-section d-flex flex-column" style="min-height: 400px;">

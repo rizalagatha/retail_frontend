@@ -133,18 +133,22 @@ const formatRupiah = (value: number) => new Intl.NumberFormat('id-ID').format(va
 const printStylesKasir = `
   @page {
     size: 58mm auto;
-    margin: 0 2mm;
+    margin: 0;
   }
   body, html {
     margin: 0;
-    padding: 0;
+    padding: 3mm 2mm;
     font-family: 'Roboto Mono', monospace;
     font-size: 8pt;
     color: black;
+    box-sizing: border-box;
   }
   .receipt {
     width: 100%;
-    overflow: hidden; /* Mencegah overflow */
+    max-width: 52mm;
+    overflow: hidden;
+    margin: 0 auto;
+    box-sizing: border-box;
   }
   .text-center { text-align: center; }
   .logo { max-width: 10mm; margin: 0 auto 5px; display: block; }

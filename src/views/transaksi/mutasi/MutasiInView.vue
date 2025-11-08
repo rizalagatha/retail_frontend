@@ -58,6 +58,8 @@ const loadingDetails = ref(new Set<string>());
 const selected = ref<MutasiInHeader[]>([]);
 const expanded = ref<string[]>([]);
 const cabangList = ref([]);
+const dialogDelete = ref(false);
+const isDeleting = ref(false);
 
 const filters = reactive({
   startDate: format(subDays(new Date(), 7), 'yyyy-MM-dd'),
@@ -136,16 +138,46 @@ const loadDetails = async (newlyExpandedItems: MasterItem[]) => {
 
 const handleDelete = () => {
   if (!selectedRow.value) return;
-  if (confirm(`Yakin ingin menghapus Mutasi In nomor ${selectedRow.value.Nomor}?`)) {
-    api.delete(`/mutasi-in/${selectedRow.value.Nomor}`)
-      .then(response => {
-        toast.success(response.data.message);
-        fetchMasterData();
-      })
-      .catch(error => {
-        toast.error(error.response?.data?.message || 'Gagal menghapus data.');
-      });
+
+  // === VALIDASI DARI DELPHI ===
+  // 1. Cek apakah sudah ada invoice
+  if (selectedRow.value.Invoice) {
+    toast.error('Sudah dibuat invoice. Tidak bisa dihapus.');
+    return;
   }
+
+  // 2. Cek kepemilikan cabang (user non-KDC hanya bisa hapus data cabangnya sendiri)
+  const userCabang = authStore.user?.cabang;
+  const docCabang = selectedRow.value.Nomor.substring(0, 3);
+
+  if (userCabang !== 'KDC' && userCabang !== docCabang) {
+    toast.error(`Data ini milik cabang ${docCabang}. Anda tidak berhak menghapus.`);
+    return;
+  }
+  // === AKHIR VALIDASI ===
+
+  // Jika lolos validasi, buka dialog konfirmasi
+  dialogDelete.value = true;
+};
+
+// --- TAMBAHKAN FUNGSI BARU INI ---
+const executeDelete = () => {
+  if (!selectedRow.value) return;
+
+  isDeleting.value = true;
+  api.delete(`/mutasi-in/${selectedRow.value.Nomor}`)
+    .then(response => {
+      toast.success(response.data.message);
+      fetchMasterData();
+      selected.value = []; // Kosongkan seleksi setelah hapus
+    })
+    .catch(error => {
+      toast.error(error.response?.data?.message || 'Gagal menghapus data.');
+    })
+    .finally(() => {
+      isDeleting.value = false;
+      dialogDelete.value = false; // Tutup dialog
+    });
 };
 
 const exportData = async (type: 'header' | 'detail') => {
@@ -253,5 +285,24 @@ watch(filters, fetchMasterData, { deep: true });
         </AppDataTable>
       </div>
     </div>
+
+    <v-dialog v-model="dialogDelete" max-width="400px" persistent>
+      <v-card>
+        <v-card-title class="text-h6 font-weight-bold">Konfirmasi Hapus</v-card-title>
+        <v-card-text>
+          Yakin ingin menghapus Mutasi In nomor
+          <strong>{{ selectedRow?.Nomor }}</strong>?
+          <br />
+          Tindakan ini tidak dapat dibatalkan.
+        </v-card-text>
+        <v-card-actions>
+          <v-spacer />
+          <v-btn text @click="dialogDelete = false" :disabled="isDeleting">Batal</v-btn>
+          <v-btn color="error" variant="tonal" @click="executeDelete" :loading="isDeleting">
+            Ya, Hapus
+          </v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
   </PageLayout>
 </template>

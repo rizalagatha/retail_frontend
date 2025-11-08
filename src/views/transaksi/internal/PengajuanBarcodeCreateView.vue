@@ -31,6 +31,24 @@ interface Item {
   diskon: number;
   hargabaru: number;
   kodebaru: string;
+  imageUrl: string | null;
+  fileObject?: File | null;
+}
+interface BackendItem {
+  kode: string;
+  barcode: string;
+  ukuran: string;
+  jumlah: number;
+  harga: number;
+  jenis: string;
+  ket: string;
+  hpp: number;
+  nama: string;
+  stok: number;
+  kodebaru: string;
+  diskon: number;
+  hargabaru: number;
+  pcd_gambar_url: string | null; // <-- Kunci utamanya di sini
 }
 interface StickerItem {
   id: number;
@@ -97,12 +115,21 @@ const formatRupiah = (value: number) => {
   return new Intl.NumberFormat('id-ID').format(Math.round(value || 0));
 };
 const selectedKaosItem = ref<Item[]>([]);
+const isUploading = reactive<Record<number, boolean>>({});
+const fileInputRef = ref<HTMLInputElement | null>(null); // <-- TAMBAHKAN INI
+const activeUploadItem = ref<Item | null>(null);
+
+const previewDialog = reactive({
+  show: false,
+  url: '',
+});
 
 // --- Konfigurasi Tabel ---
 const itemsHeaders = computed(() => [
   { title: 'Kode Kaos', key: 'kode', width: '100px' },
   { title: 'Nama Barang', key: 'nama' },
   { title: 'Ukuran', key: 'ukuran', width: '60px' },
+  { title: 'Gambar', key: 'image', width: '220px', sortable: false },
   { title: 'Stok', key: 'stok', width: '60px', 'v-if': !hasApprovalRights.value },
   { title: 'Jumlah', key: 'jumlah', width: '60px' },
   { title: 'Harga/Pcs', key: 'harga', width: '60px' },
@@ -128,6 +155,17 @@ const stickersHeaders = computed(() => [
   { title: 'Actions', key: 'actions', sortable: false, width: '50px' },
 ].filter(h => h['v-if'] !== false));
 
+// 2. Helper untuk mendapatkan URL origin backend dari baseURL axios
+// (misal: 'http://localhost:3000/api' -> 'http://localhost:3000')
+let backendOrigin = '';
+try {
+  // Ambil origin (protokol + host + port) dari baseURL axios
+  backendOrigin = new URL(api.defaults.baseURL || window.location.origin).origin;
+} catch (e) {
+  backendOrigin = window.location.origin; // Fallback jika baseURL tidak diset
+  console.error("Gagal mem-parse baseURL API, preview gambar mungkin tidak berfungsi.", e);
+}
+
 // --- Methods ---
 const addNewRow = () => {
   const last = items.value[items.value.length - 1];
@@ -147,6 +185,8 @@ const addNewRow = () => {
       diskon: 0,
       hargabaru: 0,
       kodebaru: '',
+      imageUrl: null, // <-- TAMBAHKAN INI
+      fileObject: null
     });
   }
 };
@@ -223,6 +263,8 @@ const onProductsSelected = async (selectedProducts: ProductDetail[]) => {
       diskon: 0,
       hargabaru: 0,
       kodebaru: "",
+      imageUrl: null, // <-- TAMBAHKAN INI
+      fileObject: null
     }));
 
     items.value.splice(activeRowIndex.value, 1, ...newItems);
@@ -270,6 +312,7 @@ const executeSave = async () => {
     return;
   }
   isSaving.value = true;
+  let savedNomor = isEditMode.value ? header.nomor : '';
   try {
     const payload = {
       header,
@@ -281,12 +324,57 @@ const executeSave = async () => {
     const response = await api.post('/pengajuan-barcode-form/save', payload);
     toast.success(response.data.message);
 
+    if (!isEditMode.value) {
+      savedNomor = response.data.nomor;
+    }
+
+    // --- STEP 2: Upload Gambar yang Tertunda ---
+    const itemsWithFiles = items.value.filter(item => item.fileObject);
+
+    if (itemsWithFiles.length > 0) {
+      toast.info(`Mengunggah ${itemsWithFiles.length} gambar...`);
+
+      for (const item of itemsWithFiles) {
+        if (!item.fileObject) continue; // Pengecekan typescript
+
+        isUploading[item.id] = true;
+        const formData = new FormData();
+        formData.append('image', item.fileObject);
+        formData.append('nomor', savedNomor); // Gunakan nomor yang sudah tersimpan/baru
+        formData.append('kode', item.kode);
+        formData.append('ukuran', item.ukuran);
+
+        try {
+          // Panggil API upload per item
+          await api.post('/pengajuan-barcode-form/upload-item-image', formData, {
+            headers: { 'Content-Type': 'multipart/form-data' },
+          });
+
+          // Bersihkan file object setelah berhasil
+          item.fileObject = null;
+
+        } catch (uploadError) {
+          toast.error(`Gagal upload gambar untuk ${item.nama} (${item.ukuran}).`, uploadError);
+        } finally {
+          isUploading[item.id] = false;
+        }
+      }
+    }
+
+    // --- STEP 3: Selesai ---
     router.push({ name: 'PengajuanBarcode' }); // Kembali ke browse
-  } catch (error) {
+
+  } catch (error) { // Error dari STEP 1 (Save Utama)
     const err = error as AxiosError<{ message?: string }>;
     toast.error(err.response?.data?.message || err.message || 'Gagal menyimpan data.');
   } finally {
     isSaving.value = false;
+    // Bersihkan local URL object untuk menghindari memory leak
+    items.value.forEach(item => {
+      if (item.fileObject && item.imageUrl && item.imageUrl.startsWith('blob:')) {
+        URL.revokeObjectURL(item.imageUrl);
+      }
+    });
   }
 };
 
@@ -300,10 +388,16 @@ const loadDataForEdit = async (nomor: string) => {
     header.tanggal = format(parseISO(header.tanggal), 'yyyy-MM-dd');
     isApproved.value = !!data.header.approved;
 
-    items.value = data.items.map((item: Omit<Item, 'id' | 'hargaDtf'>) => ({
-      ...item,
+    items.value = data.items.map((item: BackendItem) => ({
+      ...item, // Sebarkan semua properti yang namanya sama (kode, nama, dll)
+
+      // Properti khusus frontend
       id: Date.now() + Math.random(),
       hargaDtf: 0,
+      fileObject: null,
+
+      // Petakan properti backend ke properti frontend
+      imageUrl: item.pcd_gambar_url || null,
     }));
 
     // --- PERBAIKAN DI SINI ---
@@ -333,6 +427,61 @@ const loadDataForEdit = async (nomor: string) => {
     addNewStickerRow();
     isLoading.value = false;
   }
+};
+
+const triggerFileUpload = (item: Item) => {
+  if (!item.kode || isUploading[item.id]) {
+    return;
+  }
+
+  // TIDAK ADA LAGI PENGECEKAN 'isEditMode'
+  activeUploadItem.value = item;
+  fileInputRef.value?.click();
+};
+
+const getFullImageUrl = (url: string | null) => {
+  if (!url) return '';
+  // Jika sudah URL penuh (http) atau URL lokal (blob), langsung pakai
+  if (url.startsWith('http') || url.startsWith('blob:')) {
+    return url;
+  }
+  // Jika URL relatif, gabungkan dengan origin backend
+  return `${backendOrigin}${url}`;
+};
+
+const openImage = (url: string | null) => {
+  if (url) {
+    // window.open(url, '_blank'); // <-- HAPUS INI
+
+    // UBAH JADI INI:
+    previewDialog.url = getFullImageUrl(url); // Gunakan helper untuk URL penuh
+    previewDialog.show = true; // Buka dialog
+  }
+};
+
+const onFileSelect = (event: Event) => {
+  const target = event.target as HTMLInputElement;
+  const file = target.files?.[0];
+  const item = activeUploadItem.value;
+
+  if (!file || !item) {
+    if (target) target.value = ''; // Reset input
+    return;
+  }
+
+  // 1. Simpan file object ke state
+  item.fileObject = file;
+
+  // 2. Buat URL preview lokal
+  if (item.imageUrl && item.imageUrl.startsWith('blob:')) {
+    // Hapus URL blob lama jika ada untuk hindari memory leak
+    URL.revokeObjectURL(item.imageUrl);
+  }
+  item.imageUrl = URL.createObjectURL(file); // Ini akan menampilkan preview
+
+  // 3. Reset
+  activeUploadItem.value = null;
+  if (target) target.value = ''; // Selalu reset file input
 };
 
 const resetForm = () => {
@@ -442,84 +591,100 @@ onMounted(async () => {
       <div class="right-column">
         <div class="desktop-form-section d-flex flex-column" style="min-height: 300px;">
           <div class="text-subtitle-1 font-weight-bold mb-2">Detail Item Pengajuan</div>
-          <v-data-table v-model="selectedKaosItem" :headers="itemsHeaders" :items="items" class="desktop-table"
-            fixed-header :items-per-page="-1" show-select single-select return-object>
-            <template v-slot:[`item.kode`]="{ item, index }">
-              <v-text-field v-model="item.kode" variant="underlined" placeholder="F1/F2..."
-                @keydown.f1.prevent="openProductSearch(index, false)"
-                @keydown.f2.prevent="openProductSearch(index, true)"
-                :readonly="hasApprovalRights || isApproved || !canSave" />
-            </template>
-            <template v-slot:[`item.jumlah`]="{ item }">
-              <v-text-field v-model.number="item.jumlah" type="number" variant="underlined" class="text-end"
-                :readonly="hasApprovalRights || isApproved || !canSave" />
-            </template>
-            <template v-slot:[`item.harga`]="{ item }">
-              <v-text-field v-model.number="item.harga" type="number" variant="underlined" class="text-end"
-                :readonly="hasApprovalRights || isApproved || !canSave" />
-            </template>
-            <template v-slot:[`item.hargaDtf`]="{ item }">
-              <v-text-field :model-value="formatRupiah(item.hargaDtf)" variant="underlined" class="text-end" readonly
-                filled />
-            </template>
-            <template v-slot:[`item.jenis`]="{ item }">
-              <v-select v-model="item.jenis" :items="jenisRejectOptions" variant="underlined" density="compact"
-                hide-details :readonly="hasApprovalRights || isApproved || !canSave" />
-            </template>
-            <template v-slot:[`item.ket`]="{ item }">
-              <v-text-field v-model="item.ket" variant="underlined"
-                :readonly="hasApprovalRights || isApproved || !canSave" />
-            </template>
-            <template v-slot:[`item.diskon`]="{ item }">
-              <v-text-field v-model.number="item.diskon" type="number" variant="underlined" class="text-end"
-                :readonly="!canApprove || isApproved" />
-            </template>
-            <template v-slot:[`item.hargabaru`]="{ item }">
-              <v-text-field v-model.number="item.hargabaru" type="number" variant="underlined" class="text-end"
-                :readonly="!canApprove || isApproved" />
-            </template>
-            <template v-slot:[`item.actions`]="{ item }">
-              <v-btn v-if="item.kode" icon="mdi-delete" size="x-small" variant="text" color="error"
-                @click="removeRow(item.id)" />
-            </template>
-            <template #bottom>
-              <div class="pa-2 text-right">
-                <v-btn size="small" @click="addNewStickerRow" prepend-icon="mdi-plus"
-                  :disabled="selectedKaosItem.length === 0">
-                  Tambah Stiker
+          <div class="table-wrapper-scroll">
+            <v-data-table v-model="selectedKaosItem" :headers="itemsHeaders" :items="items" class="desktop-table"
+              fixed-header :items-per-page="-1" show-select single-select return-object>
+              <template v-slot:[`item.kode`]="{ item, index }">
+                <v-text-field v-model="item.kode" variant="underlined" placeholder="F1/F2..."
+                  @keydown.f1.prevent="openProductSearch(index, false)"
+                  @keydown.f2.prevent="openProductSearch(index, true)"
+                  :readonly="hasApprovalRights || isApproved || !canSave" />
+              </template>
+              <template v-slot:[`item.jumlah`]="{ item }">
+                <v-text-field v-model.number="item.jumlah" type="number" variant="underlined" class="text-end"
+                  :readonly="hasApprovalRights || isApproved || !canSave" />
+              </template>
+              <template v-slot:[`item.image`]="{ item }">
+                <v-img v-if="item.imageUrl" :src="getFullImageUrl(item.imageUrl)" height="50" width="50"
+                  aspect-ratio="1" class="mt-1" @click="openImage(item.imageUrl)"
+                  style="cursor: pointer; border: 1px solid #ddd;" title="Klik untuk melihat gambar" />
+
+                <v-btn v-else size="small" variant="outlined" prepend-icon="mdi-camera" @click="triggerFileUpload(item)"
+                  :loading="isUploading[item.id]" :disabled="!item.kode || isUploading[item.id]"
+                  title="Upload gambar (Simpan draft dulu)">
+                  Upload
                 </v-btn>
-              </div>
-            </template>
-          </v-data-table>
+              </template>
+              <template v-slot:[`item.harga`]="{ item }">
+                <v-text-field v-model.number="item.harga" type="number" variant="underlined" class="text-end"
+                  :readonly="hasApprovalRights || isApproved || !canSave" />
+              </template>
+              <template v-slot:[`item.hargaDtf`]="{ item }">
+                <v-text-field :model-value="formatRupiah(item.hargaDtf)" variant="underlined" class="text-end" readonly
+                  filled />
+              </template>
+              <template v-slot:[`item.jenis`]="{ item }">
+                <v-select v-model="item.jenis" :items="jenisRejectOptions" variant="underlined" density="compact"
+                  hide-details :readonly="hasApprovalRights || isApproved || !canSave" />
+              </template>
+              <template v-slot:[`item.ket`]="{ item }">
+                <v-text-field v-model="item.ket" variant="underlined"
+                  :readonly="hasApprovalRights || isApproved || !canSave" />
+              </template>
+              <template v-slot:[`item.diskon`]="{ item }">
+                <v-text-field v-model.number="item.diskon" type="number" variant="underlined" class="text-end"
+                  :readonly="!canApprove || isApproved" />
+              </template>
+              <template v-slot:[`item.hargabaru`]="{ item }">
+                <v-text-field v-model.number="item.hargabaru" type="number" variant="underlined" class="text-end"
+                  :readonly="!canApprove || isApproved" />
+              </template>
+              <template v-slot:[`item.actions`]="{ item }">
+                <v-btn v-if="item.kode" icon="mdi-delete" size="x-small" variant="text" color="error"
+                  @click="removeRow(item.id)" />
+              </template>
+              <template #bottom>
+                <div class="pa-2 text-right">
+                  <v-btn size="small" @click="addNewStickerRow" prepend-icon="mdi-plus"
+                    :disabled="selectedKaosItem.length === 0">
+                    Tambah Stiker
+                  </v-btn>
+                </div>
+              </template>
+            </v-data-table>
+          </div>
         </div>
 
         <div class="desktop-form-section d-flex flex-column" style="min-height: 200px;">
           <div class="text-subtitle-1 font-weight-bold mb-2">Detail Stiker Tambahan</div>
-          <v-data-table :headers="stickersHeaders" :items="stickers" class="desktop-table flex-grow-1" fixed-header
-            :items-per-page="-1">
-            <template v-slot:[`item.kodes`]="{ item, index }">
-              <v-text-field v-model="item.kodes" variant="underlined" density="compact" hide-details placeholder="F1..."
-                @keydown.f1.prevent="openStickerSearch(index)" :readonly="hasApprovalRights" />
-            </template>
-            <template v-slot:[`item.jumlah`]="{ item }">
-              <v-text-field v-model.number="item.jumlah" type="number" variant="underlined" density="compact"
-                hide-details class="text-end" :readonly="hasApprovalRights" />
-            </template>
-            <template v-slot:[`item.harga`]="{ item }">
-              <div class="text-end">{{ formatRupiah(item.harga) }}</div>
-            </template>
-            <template v-slot:[`item.actions`]="{ item }">
-              <v-btn v-if="item.kodes" icon="mdi-delete" size="x-small" variant="text" color="error"
-                @click="removeStickerRow(item.id)" />
-            </template>
-            <template #bottom>
-              <div class="pa-2 text-right"><v-btn size="small" @click="addNewStickerRow()" prepend-icon="mdi-plus"
-                  :disabled="selectedKaosItem.length === 0 || isApproved || !canSave">Tambah Stiker</v-btn></div>
-            </template>
-          </v-data-table>
+          <div class="table-wrapper-scroll">
+            <v-data-table :headers="stickersHeaders" :items="stickers" class="desktop-table flex-grow-1" fixed-header
+              :items-per-page="-1">
+              <template v-slot:[`item.kodes`]="{ item, index }">
+                <v-text-field v-model="item.kodes" variant="underlined" density="compact" hide-details
+                  placeholder="F1..." @keydown.f1.prevent="openStickerSearch(index)" :readonly="hasApprovalRights" />
+              </template>
+              <template v-slot:[`item.jumlah`]="{ item }">
+                <v-text-field v-model.number="item.jumlah" type="number" variant="underlined" density="compact"
+                  hide-details class="text-end" :readonly="hasApprovalRights" />
+              </template>
+              <template v-slot:[`item.harga`]="{ item }">
+                <div class="text-end">{{ formatRupiah(item.harga) }}</div>
+              </template>
+              <template v-slot:[`item.actions`]="{ item }">
+                <v-btn v-if="item.kodes" icon="mdi-delete" size="x-small" variant="text" color="error"
+                  @click="removeStickerRow(item.id)" />
+              </template>
+              <template #bottom>
+                <div class="pa-2 text-right"><v-btn size="small" @click="addNewStickerRow()" prepend-icon="mdi-plus"
+                    :disabled="selectedKaosItem.length === 0 || isApproved || !canSave">Tambah Stiker</v-btn></div>
+              </template>
+            </v-data-table>
+          </div>
         </div>
+
       </div>
-    </div>
+    </div> <input type="file" ref="fileInputRef" @change="onFileSelect" style="display: none;" accept="image/*" />
 
     <MintaBarangSearchModal v-if="dialogs.productSearch" source="pengajuan-barcode"
       :gudang="authStore.user?.cabang || ''" :multi="isMultiSelectProduct" @close="dialogs.productSearch = false"
@@ -536,6 +701,16 @@ onMounted(async () => {
           <v-btn text @click="dialogConfirm.show = false">Batal</v-btn>
           <v-btn color="primary" variant="tonal"
             @click="dialogConfirm.onConfirm(); dialogConfirm.show = false;">Ya</v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+
+    <v-dialog v-model="previewDialog.show" max-width="600px">
+      <v-card>
+        <v-img :src="previewDialog.url" max-height="80vh" contain />
+        <v-card-actions>
+          <v-spacer />
+          <v-btn color="primary" text @click="previewDialog.show = false">Tutup</v-btn>
         </v-card-actions>
       </v-card>
     </v-dialog>
@@ -571,9 +746,24 @@ onMounted(async () => {
   /* Agar kedua bagian tabel mengisi ruang yang tersedia */
 }
 
-.v-data-table {
+.table-wrapper-scroll {
+  /* Mengaktifkan scroll horizontal dan vertikal */
+  overflow: auto;
+
+  /* Penting: 'flex-grow: 1' dan 'flex-basis: 0'
+    membuat wrapper ini mengisi sisa ruang
+    dan mengizinkannya menyusut/tumbuh.
+  */
   flex-grow: 1;
-  /* Agar tabel mengisi ruang di dalam section */
+  flex-basis: 0;
+  min-height: 0;
+  /* Mencegah overflow aneh pada flex column */
+}
+
+/* Memaksa semua sel tabel menjadi 1 baris */
+.desktop-table.nowrap-table :deep(td),
+.desktop-table.nowrap-table :deep(th) {
+  white-space: nowrap !important;
 }
 
 .text-end :deep(input) {

@@ -369,8 +369,10 @@ const handlePrintSelection = async (type: 'a4' | 'kasir' | 'wa') => {
 
 // Ganti method triggerBrowserPrint dengan ini
 const triggerBrowserPrint = () => {
+  // Tutup preview modal DULU sebelum print
   isKasirPreviewVisible.value = false;
 
+  // Tunggu sebentar agar modal benar-benar tertutup
   setTimeout(() => {
     const printContentEl = document.getElementById('kasir-print-area');
     if (!printContentEl) {
@@ -380,6 +382,7 @@ const triggerBrowserPrint = () => {
 
     const contentToPrint = printContentEl.innerHTML;
 
+    // Buat window baru untuk print, bukan iframe
     const printWindow = window.open('', '_blank', 'width=400,height=600');
     if (!printWindow) {
       toast.error("Popup diblokir. Izinkan popup untuk mencetak.");
@@ -391,151 +394,48 @@ const triggerBrowserPrint = () => {
       <html>
         <head>
           <title>Struk Kasir</title>
-          <meta charset="UTF-8">
           <style>
-            * {
-              margin: 0;
-              padding: 0;
-              box-sizing: border-box;
-            }
-
             @page {
               size: 58mm auto;
               margin: 0;
             }
-
-            @media print {
-              html, body {
-                width: 58mm;
-                margin: 0 !important;
-                padding: 0 !important;
-              }
-            }
-
-            body {
-              width: 58mm;
+            body, html {
               margin: 0;
               padding: 0;
-              font-family: 'Courier New', 'Courier', monospace;
-              font-size: 8pt;
-              line-height: 1.3;
-              color: #000;
-              background: white;
+              font-family: 'Roboto Mono', monospace;
+              font-size: 9pt;
+              color: black;
             }
-
             .receipt {
-              width: 100%;
-              padding: 2mm 3mm;
+              width: 58mm;
+              padding: 3mm 5mm;
               box-sizing: border-box;
             }
-
-            .text-center {
-              text-align: center;
-            }
-
-            .logo {
-              max-width: 15mm;
-              height: auto;
-              margin: 2mm auto;
-              display: block;
-            }
-
-            .header {
-              margin-bottom: 3mm;
-            }
-
-            .header strong {
-              font-size: 9pt;
-              display: block;
-              margin: 1mm 0;
-            }
-
-            .header div {
-              font-size: 7pt;
-              line-height: 1.2;
-            }
-
+            .text-center { text-align: center; }
+            .logo { max-width: 12mm; margin: 0 auto 5px; display: block; }
             .info, .items, .summary, .footer {
-              border-top: 1px dashed #000;
-              padding-top: 2mm;
-              margin-top: 2mm;
+              border-top: 1px dashed black;
+              padding-top: 5px;
+              margin-top: 5px;
             }
-
-            .info div {
-              font-size: 7pt;
-              margin: 0.5mm 0;
-            }
-
-            .item {
-              margin-bottom: 2mm;
-              font-size: 7pt;
-            }
-
-            .item > div:first-child {
-              font-weight: bold;
-              margin-bottom: 0.5mm;
-            }
-
             .item-details, .summary-item {
               display: flex;
               justify-content: space-between;
-              align-items: center;
-              gap: 2mm;
             }
-
-            .summary-item {
-              font-size: 7pt;
-              margin: 1mm 0;
-            }
-
-            .grand-total {
-              font-weight: bold;
-              font-size: 8pt;
-              margin: 2mm 0;
-              padding: 1mm 0;
-            }
-
-            .footer {
-              margin-top: 3mm;
-            }
-
-            .footer div {
-              font-size: 6pt;
-              line-height: 1.3;
-              margin: 1mm 0;
-            }
-
-            .donation-text {
-              font-size: 6pt;
-              margin-bottom: 2mm;
-              line-height: 1.4;
-            }
-
+            .grand-total { font-weight: bold; }
             .social-media {
               display: flex;
               justify-content: center;
-              align-items: center;
-              gap: 3mm;
-              margin-top: 2mm;
+              gap: 8px;
+              margin-top: 5px;
               flex-wrap: wrap;
             }
-
             .social-item {
               display: flex;
               align-items: center;
-              gap: 1mm;
-              font-size: 6pt;
+              gap: 3px;
             }
-
-            .social-item img {
-              height: 3mm;
-              width: auto;
-            }
-
-            /* Prevent page breaks */
-            .receipt, .receipt * {
-              page-break-inside: avoid;
-            }
+            .social-item img { height: 8px; }
           </style>
         </head>
         <body onload="window.print(); window.close();">
@@ -545,6 +445,7 @@ const triggerBrowserPrint = () => {
     `);
     printWindow.document.close();
 
+    // Emit save-success setelah print dialog muncul
     emit('save-success', savedInvoiceNumber.value);
   }, 100);
 };
@@ -771,22 +672,22 @@ watch(nettoKembali, () => {
             </div>
             <div class="summary">
               <div class="summary-item"><span>Total </span><span>{{ formatRupiah(printKasirData.header.summary.subTotal)
-              }}</span></div>
+                  }}</span></div>
               <div class="summary-item"><span>Diskon </span><span>{{ formatRupiah(printKasirData.header.summary.diskon)
-              }}</span></div>
+                  }}</span></div>
               <div class="summary-item"><span>Ppn </span><span>{{ formatRupiah(printKasirData.header.summary.ppn)
-              }}</span></div>
+                  }}</span></div>
               <div class="summary-item"><span>Netto </span><span>{{ formatRupiah(printKasirData.header.summary.netto)
-              }}</span></div>
+                  }}</span></div>
               <div class="summary-item"><span>Biaya Kirim </span><span>{{
                 formatRupiah(printKasirData.header.summary.biayaKirim) }}</span></div>
               <div class="summary-item"><span>Dp </span><span>{{ formatRupiah(printKasirData.header.summary.dp)
-              }}</span>
+                  }}</span>
               </div>
               <div class="summary-item grand-total"><span>Grand Total </span><span>{{
                 formatRupiah(printKasirData.header.summary.grandTotal) }}</span></div>
               <div class="summary-item"><span>Bayar </span><span>{{ formatRupiah(printKasirData.header.summary.bayar)
-              }}</span></div>
+                  }}</span></div>
               <div class="summary-item"><span>Pundi amal </span><span>{{
                 formatRupiah(printKasirData.header.summary.pundiAmal) }}</span></div>
               <div class="summary-item"><span>Kembali </span><span>{{

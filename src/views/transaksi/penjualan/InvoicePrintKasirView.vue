@@ -78,19 +78,28 @@ const fetchPrintData = async (nomor: string) => {
   finally { isLoading.value = false; }
 };
 
-watch(isLoading, (newValue) => {
-  // Jika loading SUDAH SELESAI (dari true menjadi false)
-  if (newValue === false) {
-    // Tunggu satu tick lagi untuk memastikan DOM sudah 100% ter-update
-    nextTick(() => {
-      window.print();
-    });
+watch(printData, (newData) => {
+  // Tonton 'printData'. Ketika nilainya berubah dari 'null' menjadi berisi data...
+  if (newData) {
+    // ...dan jika tujuannya BUKAN whatsapp...
+    if (route.query.source !== 'whatsapp') {
+      // ...tunggu DOM selesai di-render dengan data baru...
+      nextTick(() => {
+        // ...lalu panggil print.
+        window.print();
+      });
+    }
   }
-});
+}, { immediate: false }); // 'immediate: false' penting agar tidak jalan saat inisialisasi
 
 onMounted(() => {
   const nomor = route.params.nomor as string;
-  if (nomor) fetchPrintData(nomor);
+  if (nomor) {
+    fetchPrintData(nomor);
+  } else {
+    alert("Nomor invoice tidak ditemukan.");
+    isLoading.value = false;
+  }
 });
 </script>
 
@@ -119,13 +128,13 @@ onMounted(() => {
       </div>
       <div class="summary">
         <div class="summary-item"><span>Total </span><span>{{ formatRupiah(printData.header.summary.subTotal)
-        }}</span></div>
+            }}</span></div>
         <div class="summary-item"><span>Diskon </span><span>{{ formatRupiah(printData.header.summary.diskon)
-        }}</span></div>
+            }}</span></div>
         <div class="summary-item"><span>Ppn </span><span>{{ formatRupiah(printData.header.summary.ppn) }}</span>
         </div>
         <div class="summary-item"><span>Netto </span><span>{{ formatRupiah(printData.header.summary.netto)
-        }}</span></div>
+            }}</span></div>
         <div class="summary-item"><span>Biaya Kirim
           </span><span>{{ formatRupiah(printData.header.summary.biayaKirim) }}</span></div>
         <div class="summary-item"><span>Dp </span><span>{{ formatRupiah(printData.header.summary.dp) }}</span>
@@ -133,11 +142,11 @@ onMounted(() => {
         <div class="summary-item grand-total"><span>Grand Total </span><span>{{
           formatRupiah(printData.header.summary.grandTotal) }}</span></div>
         <div class="summary-item"><span>Bayar </span><span>{{ formatRupiah(printData.header.summary.bayar)
-        }}</span></div>
+            }}</span></div>
         <div class="summary-item"><span>Pundi amal </span><span>{{
           formatRupiah(printData.header.summary.pundiAmal) }}</span></div>
         <div class="summary-item"><span>Kembali </span><span>{{ formatRupiah(printData.header.summary.kembali)
-        }}</span></div>
+            }}</span></div>
       </div>
       <div class="footer text-center">
         <div v-if="printData.header.summary.pundiAmal > 0" class="donation-text">

@@ -132,24 +132,23 @@ const formatRupiah = (value: number) => new Intl.NumberFormat('id-ID').format(va
 // --- Methods ---
 const printStylesKasir = `
   @page {
-    size: 58mm 3276mm
+    size: 58mm auto;
     margin: 0;
   }
   body, html {
     margin: 0;
-    padding: 3mm 2mm;
+    padding: 0;
     font-family: 'Roboto Mono', monospace;
-    font-size: 8pt;
+    font-size: 9pt;
     color: black;
-    box-sizing: border-box;
   }
   .receipt {
-  width: 58mm;
-  padding: 2mm 3mm 2mm 5mm;  /* Kiri lebih besar, kanan lebih kecil */
-  box-sizing: border-box;
+    width: 58mm;
+    padding: 3mm 5mm;
+    box-sizing: border-box;
   }
   .text-center { text-align: center; }
-  .logo { max-width: 10mm; margin: 0 auto 5px; display: block; }
+  .logo { max-width: 12mm; margin: 0 auto 5px; display: block; }
   .info, .items, .summary, .footer {
     border-top: 1px dashed black;
     padding-top: 5px;
@@ -160,8 +159,18 @@ const printStylesKasir = `
     justify-content: space-between;
   }
   .grand-total { font-weight: bold; }
-  .social-media { display: flex; justify-content: center; gap: 10px; margin-top: 5px; }
-  .social-item { display: flex; align-items: center; gap: 3px; }
+  .social-media {
+    display: flex;
+    justify-content: center;
+    gap: 8px;
+    margin-top: 5px;
+    flex-wrap: wrap;
+  }
+  .social-item {
+    display: flex;
+    align-items: center;
+    gap: 3px;
+  }
   .social-item img { height: 8px; }
 `;
 

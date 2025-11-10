@@ -142,7 +142,7 @@ const tableHeaders = [
 const detailHeaders = [
   { title: 'Kode', key: 'kode' },
   { title: 'Barcode', key: 'barcode' },
-  { title: 'Nama Barang', key: 'nama' },
+  { title: 'Nama Barang', key: 'Nama' },
   { title: 'Ukuran', key: 'ukuran' },
   { title: 'Qty', key: 'qty', align: 'end' },
   { title: 'Harga', key: 'harga', align: 'end' },

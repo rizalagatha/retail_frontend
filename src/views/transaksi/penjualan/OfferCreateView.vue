@@ -1014,7 +1014,7 @@ onMounted(() => {
         @click="showConfirmation(resetForm, 'Batalkan dan kosongkan semua isian?')">
         Batal
       </v-btn>
-      <v-btn size="small"
+      <v-btn size="small" prepend-icon="mdi-close"
         @click="showConfirmation(closeForm, 'Tutup form? Perubahan yang belum disimpan akan hilang.')">
         Tutup
       </v-btn>

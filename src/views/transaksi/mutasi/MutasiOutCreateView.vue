@@ -233,7 +233,7 @@ onMounted(() => {
       </v-btn>
       <v-btn size="small" prepend-icon="mdi-cancel"
         @click="showConfirmation(resetForm, 'Batalkan dan kosongkan form?')">Batal</v-btn>
-      <v-btn size="small" @click="showConfirmation(closeForm, 'Tutup form?')">Tutup</v-btn>
+      <v-btn size="small" prepend-icon="mdi-close" @click="showConfirmation(closeForm, 'Tutup form?')">Tutup</v-btn>
     </template>
 
     <div class="form-grid-container">

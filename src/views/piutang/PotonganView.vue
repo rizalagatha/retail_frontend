@@ -31,12 +31,13 @@ interface PotonganHeader {
 }
 
 interface PotonganDetail {
-  Kode: string;
-  Nama: string;
-  Keterangan?: string;
-  Jumlah: number; // Jumlah item/satuan
-  Harga: number;  // Harga satuan
-  Total: number;  // Jumlah * Harga
+  tglbayar: string;
+  invoice: string;
+  bayar: number;
+  angsur: string;
+  nominal: number; // Nominal asli invoice
+  terbayar: number; // Total terbayar (sebelum potongan ini)
+  sisa_piutang: number; // Sisa piutang (sebelum potongan ini)
 }
 
 // --- Inisialisasi ---
@@ -74,11 +75,10 @@ const formatRupiah = (value: number | string | undefined): string => {
 
 // --- Konfigurasi Tabel ---
 const headers = [
-  { title: '', key: 'data-table-expand', fixed: true },
   { title: 'Nomor', key: 'Nomor', minWidth: '180px', fixed: true },
   { title: 'Tanggal', key: 'Tanggal', minWidth: '120px' },
-  { title: 'Nominal', key: 'Nominal', align: 'end', minWidth: '120px' },
-  { title: 'Dibayarkan', key: 'dBayarkan', align: 'end', minWidth: '120px' },
+  { title: 'Nominal', key: 'Nominal', minWidth: '120px' },
+  { title: 'Dibayarkan', key: 'dBayarkan',minWidth: '120px' },
   { title: 'Akun', key: 'Akun', minWidth: '120px' },
   { title: 'Nama Akun', key: 'NamaAkun', minWidth: '250px' },
   { title: 'NoRekening', key: 'NoRekening', minWidth: '100px' },
@@ -92,12 +92,12 @@ const headers = [
 ] as const;
 
 const detailHeaders = [
-  { title: 'Kode', key: 'Kode' },
-  { title: 'Nama Item/Keterangan', key: 'Nama', minWidth: '350px' },
-  { title: 'Keterangan Detail', key: 'Keterangan', minWidth: '250px' },
-  { title: 'Jumlah', key: 'Jumlah', align: 'end' },
-  { title: 'Harga', key: 'Harga', align: 'end' },
-  { title: 'Total', key: 'Total', align: 'end' },
+  { title: 'Tgl Bayar', key: 'tglbayar', width: '120px' },
+  { title: 'No. Invoice', key: 'invoice', minWidth: '180px' },
+  { title: 'Nominal Invoice', key: 'nominal', align: 'end' },
+  { title: 'Terbayar (sblmnya)', key: 'terbayar', align: 'end' },
+  { title: 'Sisa Piutang (sblmnya)', key: 'sisa_piutang', align: 'end' },
+  { title: 'Dibayarkan Potongan', key: 'bayar', align: 'end', cellClass: 'font-weight-bold text-blue-darken-2' },
 ] as const;
 
 // --- Methods ---
@@ -141,7 +141,9 @@ const loadDetails = async (newlyExpandedItems: PotonganHeader[]) => {
 
   loadingDetails.value.add(itemToLoad.Nomor);
   try {
-    const response = await api.get<PotonganDetail[]>(`/potongan/details/${itemToLoad.Nomor}`);
+    // Kita akan memanggil endpoint baru 'browse-details'
+    // agar tidak mengambil data 'header' yang tidak perlu
+    const response = await api.get<PotonganDetail[]>(`/potongan/browse-details/${itemToLoad.Nomor}`);
     details.value[itemToLoad.Nomor] = response.data;
   } catch (error: unknown) {
     const msg = `Gagal memuat detail untuk ${itemToLoad.Nomor}.`;
@@ -300,15 +302,22 @@ watch(filters, fetchMasterData, { deep: true });
               <td :colspan="columns.length">
                 <div class="detail-container">
                   <div class="detail-table-wrapper">
-                    <div v-if="loadingDetails.has(item.Nomor)" class="text-center pa-4">Memuat
-                      detail...</div>
+                    <div v-if="loadingDetails.has(item.Nomor)" class="text-center pa-4">Memuat detail...</div>
                     <v-data-table v-else :headers="detailHeaders" :items="details[item.Nomor]" density="compact"
                       class="detail-table" :items-per-page="-1">
-
-                      <template #[`item.Harga`]="{ value }">
+                      <template #[`item.tglbayar`]="{ value }">
+                        {{ value ? format(parseISO(value), 'dd/MM/yyyy') : '' }}
+                      </template>
+                      <template #[`item.nominal`]="{ value }">
                         <span class="d-block text-right">{{ formatRupiah(value) }}</span>
                       </template>
-                      <template #[`item.Total`]="{ value }">
+                      <template #[`item.terbayar`]="{ value }">
+                        <span class="d-block text-right">{{ formatRupiah(value) }}</span>
+                      </template>
+                      <template #[`item.sisa_piutang`]="{ value }">
+                        <span class="d-block text-right">{{ formatRupiah(value) }}</span>
+                      </template>
+                      <template #[`item.bayar`]="{ value }">
                         <span class="d-block text-right">{{ formatRupiah(value) }}</span>
                       </template>
                       <template #bottom></template>

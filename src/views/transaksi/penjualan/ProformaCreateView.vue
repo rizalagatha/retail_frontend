@@ -308,9 +308,11 @@ onMounted(() => {
 <template>
   <PageLayout :title="isEditMode ? 'Ubah Proforma Invoice' : 'Buat Proforma Invoice'" :menu-id="MENU_ID">
     <template #header-actions>
-      <v-btn color="primary" size="small" @click="handleSave" :loading="loading">Simpan</v-btn>
-      <v-btn size="small" variant="tonal" @click="handleBatal" :disabled="loading">Batal</v-btn>
-      <v-btn size="small" @click="handleTutup" :disabled="loading">Tutup</v-btn>
+      <v-btn color="primary" size="small" prepend-icon="mdi-content-save" @click="handleSave"
+        :loading="loading">Simpan</v-btn>
+      <v-btn size="small" variant="tonal" prepend-icon="mdi-refresh" @click="handleBatal"
+        :disabled="loading">Batal</v-btn>
+      <v-btn size="small" prepend-icon="mdi-close" @click="handleTutup" :disabled="loading">Tutup</v-btn>
     </template>
 
     <v-overlay v-model="loading" contained class="align-center justify-center"><v-progress-circular

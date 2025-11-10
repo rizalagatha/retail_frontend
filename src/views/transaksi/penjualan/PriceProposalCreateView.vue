@@ -665,7 +665,7 @@ onMounted(() => {
       <v-btn size="small" color="primary" prepend-icon="mdi-content-save" @click="save"
         :loading="isSaving">Simpan</v-btn>
       <v-btn size="small" prepend-icon="mdi-cancel" @click="confirmCancel">Batal</v-btn>
-      <v-btn size="small"
+      <v-btn size="small" prepend-icon="mdi-close"
         @click="showConfirmation(closeForm, 'Anda yakin ingin menutup form? Perubahan yang belum disimpan akan hilang.')">
         Tutup
       </v-btn>

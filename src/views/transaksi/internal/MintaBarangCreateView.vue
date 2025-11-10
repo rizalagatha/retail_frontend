@@ -424,13 +424,14 @@ onMounted(() => {
 <template>
   <PageLayout :title="pageTitle" desktop-mode icon="mdi-playlist-plus">
     <template #header-actions>
-      <v-btn size="small" color="primary" @click="save" :loading="isSaving">
+      <v-btn size="small" prepend-icon="mdi-content-save" color="primary" @click="save" :loading="isSaving">
         Simpan
       </v-btn>
-      <v-btn size="small" @click="showConfirmation(resetForm, 'Batalkan perubahan dan kosongkan form?')">
+      <v-btn size="small" prepend-icon="mdi-refresh"
+        @click="showConfirmation(resetForm, 'Batalkan perubahan dan kosongkan form?')">
         Batal
       </v-btn>
-      <v-btn size="small"
+      <v-btn size="small" prepend-icon="mdi-close"
         @click="showConfirmation(closeForm, 'Tutup form? Perubahan yang belum disimpan akan hilang.')">
         Tutup
       </v-btn>

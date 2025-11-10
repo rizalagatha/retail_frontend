@@ -360,9 +360,10 @@ onMounted(async () => {
 <template>
   <PageLayout :title="pageTitle" desktop-mode icon="mdi-truck-minus-outline">
     <template #header-actions>
-      <v-btn size="small" color="primary" @click="save" :loading="isSaving">Simpan</v-btn>
-      <v-btn size="small" @click="handleCancel">Batal</v-btn>
-      <v-btn size="small" @click="handleClose">Tutup</v-btn>
+      <v-btn size="small" prepend-icon="mdi-content-save" color="primary" @click="save"
+        :loading="isSaving">Simpan</v-btn>
+      <v-btn size="small" prepend-icon="mdi-refresh" @click="handleCancel">Batal</v-btn>
+      <v-btn size="small" prepend-icon="mdi-close" @click="handleClose">Tutup</v-btn>
     </template>
     <div class="form-grid-container">
       <div class="left-column">

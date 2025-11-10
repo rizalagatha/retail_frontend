@@ -183,12 +183,14 @@ onMounted(() => {
 <template>
   <PageLayout title="Browse Proforma Invoice" :menu-id="MENU_ID">
     <template #header-actions>
-      <v-btn v-if="authStore.can(MENU_ID, 'insert')" size="small" color="primary" @click="handleNew">Baru</v-btn>
-      <v-btn v-if="authStore.can(MENU_ID, 'edit')" size="small" @click="handleEdit" :disabled="!canEdit">Ubah</v-btn>
-      <v-btn v-if="authStore.can(MENU_ID, 'delete')" size="small" color="error" @click="handleDelete"
-        :disabled="!canDelete">Hapus</v-btn>
-      <v-btn v-if="authStore.can(MENU_ID, 'view')" size="small" color="info" @click="handleCetak"
-        :disabled="!canCetak">Cetak</v-btn>
+      <v-btn v-if="authStore.can(MENU_ID, 'insert')" size="small" prepend-icon="mdi-plus" color="primary"
+        @click="handleNew">Baru</v-btn>
+      <v-btn v-if="authStore.can(MENU_ID, 'edit')" size="small" prepend-icon="mdi-pencil" @click="handleEdit"
+        :disabled="!canEdit">Ubah</v-btn>
+      <v-btn v-if="authStore.can(MENU_ID, 'delete')" size="small" prepend-icon="mdi-delete" color="error"
+        @click="handleDelete" :disabled="!canDelete">Hapus</v-btn>
+      <v-btn v-if="authStore.can(MENU_ID, 'view')" size="small" prepend-icon="mdi-printer" color="green"
+        @click="handleCetak" :disabled="!canCetak">Cetak</v-btn>
       <v-menu offset-y v-if="authStore.can(MENU_ID, 'view')">
         <template v-slot:activator="{ props }">
           <v-btn size="small" color="teal" prepend-icon="mdi-file-excel" v-bind="props">Export</v-btn>

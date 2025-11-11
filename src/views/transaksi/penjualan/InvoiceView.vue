@@ -62,6 +62,8 @@ interface InvoiceDetail {
   Harga: number;
   'Dis%'?: number;
   Total: number;
+  HargaAsli?: number;       // harga sebelum diskon (per pcs)
+  DiskonAktif?: number;     // nilai diskon aktif per pcs
 }
 
 interface InvoiceItem {
@@ -475,8 +477,14 @@ watch(filters, () => {
                       detail...</div>
                     <v-data-table v-else :headers="detailHeaders" :items="details[item.Nomor]" density="compact"
                       class="detail-table" :items-per-page="-1">
-                      <template #[`item.Harga`]="{ value }">
-                        {{ formatRupiah(value) }}
+                      <template #[`item.Harga`]="{ item }">
+                        <div class="harga-cell">
+                          <div>{{ formatRupiah(item.HargaAsli || item.Harga) }}</div>
+                          <div v-if="item.DiskonAktif && item.DiskonAktif > 0" class="promo-info">
+                            (Promo {{ formatRupiah(item.Harga) }})
+                            <div class="discount-info">-{{ formatRupiah(item.DiskonAktif) }}/pcs</div>
+                          </div>
+                        </div>
                       </template>
                       <template #[`item.Total`]="{ value }">
                         {{ formatRupiah(value) }}
@@ -517,5 +525,23 @@ watch(filters, () => {
 .desktop-table :deep(tr.row-stok-minus:hover > td) {
   background-color: #FFF59D !important;
   /* Warna saat di-hover */
+}
+
+.harga-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  line-height: 1.2;
+}
+
+.promo-info {
+  color: #d32f2f;
+  font-size: 0.8rem;
+  font-weight: 500;
+}
+
+.discount-info {
+  color: #9e9e9e;
+  font-size: 0.75rem;
 }
 </style>

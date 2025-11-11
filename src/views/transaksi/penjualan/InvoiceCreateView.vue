@@ -43,6 +43,7 @@ interface Item {
   noSoDtf?: string;
   noPengajuanHarga?: string;
   terhitungPromo: boolean;
+  promoQty?: number;
   _isHargaEditable: boolean;
   promo?: string;
   originalDiskonRp?: number;
@@ -317,6 +318,7 @@ const addNewRow = () => {
       kategori: '',
       terhitungPromo: false,
       _isHargaEditable: true,
+      promoQty: 0,
     };
     items.value.push(newItem);
   }
@@ -800,18 +802,15 @@ const onSoDtfSelected = async (soDtf: SoDtf) => {
 };
 
 const calculateTotals = () => {
-  const subTotal = items.value.reduce((sum, item) => sum + (item.jumlah * item.harga), 0);
-  const totalDiskonItem = items.value.reduce((sum, item) => sum + (item.jumlah * item.diskonRp), 0);
+  const subTotal = items.value.reduce((sum, it) => sum + (it.jumlah || 0) * (it.harga || 0), 0);
+
+  const totalDiskonItem = items.value.reduce((sum, it) => sum + (it.jumlah || 0) * (it.diskonRp || 0), 0);
 
   const afterItemDiscount = subTotal - totalDiskonItem;
-
   const diskon1Amount = (header.diskonPersen1 / 100) * afterItemDiscount;
   const afterDiscount1 = afterItemDiscount - diskon1Amount;
   const diskon2Amount = (header.diskonPersen2 / 100) * afterDiscount1;
-
   const diskonFaktur = header.diskonRp + diskon1Amount + diskon2Amount;
-
-  // (Tambahkan logika diskon persen 2 jika perlu)
 
   const nettoSetelahDiskon = subTotal - totalDiskonItem - diskonFaktur;
   const totalPpn = nettoSetelahDiskon * (header.ppnPersen / 100);
@@ -849,102 +848,157 @@ const handleBonusSelection = (bonusItem: Item) => {
   addNewRow();
 };
 
+const applyPromoToItems = async (promoNomor: string) => {
+  if (!promoNomor) return;
+
+  try {
+    const { data } = await api.get(`/invoice-form/lookup/promo-items/${promoNomor}`);
+    const promoItems = data || [];
+
+    items.value.forEach(item => {
+      const match = promoItems.find(p => p.kode === item.kode && p.ukuran === item.ukuran);
+      if (match) {
+        const harga = item.harga || 0;
+        const diskonPersen = match.discPersen || 0;
+        const diskonRp = match.discRp || (harga * diskonPersen / 100);
+
+        // Diskon berlaku untuk semua qty
+        item.diskonPersen = diskonPersen;
+        item.diskonRp = diskonRp;
+        item.total = (item.jumlah || 0) * (harga - diskonRp);
+        item.terhitungPromo = true;
+      } else {
+        item.diskonPersen = 0;
+        item.diskonRp = 0;
+        item.terhitungPromo = false;
+        item.total = (item.jumlah || 0) * (item.harga || 0);
+      }
+    });
+
+    calculateTotals();
+  } catch (err) {
+    console.error('Gagal menerapkan promo:', err);
+  }
+};
+
+// const computeItemDiscount = (item: Item): number => {
+//   const qty = item.jumlah || 0;
+//   const perUnitDisc = item.diskonRp || 0;
+
+//   if (item.terhitungPromo && (item.promoQty ?? 0) > 0) {
+//     const discQty = Math.min(item.promoQty!, qty); // non-kelipatan: maksimal 1
+//     return discQty * perUnitDisc;
+//   }
+//   // kasus diskon manual/normal: berlaku ke semua qty
+//   return qty * perUnitDisc;
+// };
+
+const computeLineTotal = (item) => {
+  const harga = item.harga || 0;
+  const diskonRp = item.diskonRp || 0;
+  return (item.jumlah || 0) * (harga - diskonRp);
+};
+
 const handleProceedToPayment = async () => {
-  // --- 1. VALIDASI DASAR ---
+  // --- 1) Validasi dasar ---
   const validItems = items.value.filter(i => i.kode);
   if (!header.customer.kode) return toast.error("Customer harus diisi.");
   if (!header.customer.level) return toast.error("Level customer belum di-setting.");
   if (validItems.length === 0) return toast.error("Detail barang harus diisi.");
+
   for (const item of validItems) {
     if ((item.harga || 0) === 0 && !item.promo) {
       return toast.error(`Harga untuk ${item.nama} harus diisi.`);
     }
   }
+
   const totalQty = validItems.reduce((sum, item) => sum + (item.jumlah || 0), 0);
   if (totalQty <= 0) return toast.error('Qty Invoice kosong semua.');
 
-  // --- 2. VALIDASI STOK MINUS ---
+  // --- 2) Validasi stok minus ---
   const stokOk = await checkStokMinus();
   if (!stokOk) return;
 
-  // --- 3. VALIDASI PROMO SPESIFIK ---
-  if (header.nomorPromo === 'PRO-2025-005') { // PROMO BELI 3 HARGA 100RB
-    if (totalQty < 3) {
-      return toast.error('Qty belanja minimal 3 pcs untuk promo ini.');
-    }
+  // --- 3) Validasi promo spesifik (beli 3 = 100rb) ---
+  if (header.nomorPromo === 'PRO-2025-005' && totalQty < 3) {
+    return toast.error('Qty minimal 3 pcs untuk promo ini.');
   }
 
-  // --- 4. PENGECEKAN PROMO OTOMATIS ---
+  // --- 4) Cek promo aktif & terapkan ---
   try {
     const promoResponse = await api.get('/invoice-form/lookup/active-promos', {
-      params: {
-        tanggal: header.tanggal,
-        cabang: header.gudang.kode
-      }
+      params: { tanggal: header.tanggal, cabang: header.gudang.kode }
     });
 
-    // Gunakan interface yang baru ditambahkan
-    const activePromos = promoResponse.data as ActivePromo[];
+    const activePromos = (promoResponse.data ?? []) as ActivePromo[];
 
-    const promo004 = activePromos.find((p: ActivePromo) => p.pro_nomor === 'PRO-2025-004'); // Grand Opening (10%)
-    const promo008 = activePromos.find((p: ActivePromo) => p.pro_nomor === 'PRO-2025-008');
-    const promo009 = activePromos.find((p: ActivePromo) => p.pro_nomor === 'PRO-2025-009');
+    const promo004 = activePromos.find(p => p.pro_nomor === 'PRO-2025-004'); // item-based (tpromo_barang)
+    const promo008 = activePromos.find(p => p.pro_nomor === 'PRO-2025-008'); // header-based Rp
+    const promo009 = activePromos.find(p => p.pro_nomor === 'PRO-2025-009'); // header-based Rp
 
     let promoToApply: ActivePromo | null = null;
     let promoDiskon = 0;
 
-    const totalBelanjaPromo = items.value.reduce((sum, item) => {
-      if (!item.noSoDtf && !item.noPengajuanHarga) {
-        return sum + (item.total || 0);
-      }
+    const totalBelanja = items.value.reduce((sum, item) => {
+      if (!item.noSoDtf && !item.noPengajuanHarga) return sum + (item.total || 0);
       return sum;
     }, 0);
 
-    if (promo004 && totalBelanjaPromo >= promo004.pro_totalrp) {
-      // Ini adalah promo 10%
-      promoDiskon = (promo004.pro_diskon / 100) * totalBelanjaPromo;
-      promoToApply = promo004;
-    }
-
-    if (!promoToApply && promo008 && totalBelanjaPromo >= promo008.pro_totalrp) {
-      // Ini promo diskon Rp tetap (dari Delphi)
-      promoDiskon = promo008.pro_disrp * Math.floor(totalBelanjaPromo / promo008.pro_totalrp);
+    // Urutan prioritas header-based (sesuai contoh sebelumnya)
+    if (promo008 && totalBelanja >= promo008.pro_totalrp) {
+      promoDiskon = promo008.pro_disrp * Math.floor(totalBelanja / promo008.pro_totalrp);
       promoToApply = promo008;
-    }
-
-    // Cek Promo 009 (Lainnya)
-    if (!promoToApply && promo009 && totalBelanjaPromo >= promo009.pro_totalrp) {
-      promoDiskon = promo009.pro_disrp * Math.floor(totalBelanjaPromo / promo009.pro_totalrp);
+    } else if (promo009 && totalBelanja >= promo009.pro_totalrp) {
+      promoDiskon = promo009.pro_disrp * Math.floor(totalBelanja / promo009.pro_totalrp);
       promoToApply = promo009;
     }
 
-    // Jika ada promo diskon ditemukan DAN belum ada promo F1 yang dipilih
-    if (promoToApply && promoDiskon > 0 && !header.nomorPromo) {
-      const promoConfirmed = await new Promise((resolve) => {
-         showConfirmation(
-          `Dapat ${promoToApply.pro_judul}`,
-          `Anda mendapatkan diskon promo ${formatRupiah(promoDiskon)}. Akan pakai promo ini? (Diskon faktur lain akan direset)`,
+    // Jika promo item-based (004) aktif, kita tetap apply juga—tapi tidak menimpa diskon faktur
+    // Kalau kamu ingin 004 diprioritaskan di atas 008/009, pindahkan blok ini ke atas.
+    if (promo004) {
+      // Kalau belum ada promo F1 dipilih, tawarkan untuk apply item-based
+      if (!header.nomorPromo) {
+        const promoConfirmed = await new Promise<boolean>((resolve) => {
+          showConfirmation(
+            `Dapat ${promo004.pro_judul}`,
+            `Promo ini memberikan diskon per item (sesuai daftar). Terapkan promo ini ke daftar barang?`,
+            () => resolve(true)
+          );
+
+          const unwatch = watch(() => dialogConfirm.show, (open) => {
+            if (!open) { unwatch(); resolve(false); }
+          });
+
+          dialogConfirm.onConfirm = () => {
+            resolve(true);
+            dialogConfirm.onConfirm = () => { };
+            unwatch();
+          };
+        });
+
+        if (promoConfirmed) {
+          await applyPromoToItems(promo004.pro_nomor);
+          header.nomorPromo = promo004.pro_nomor;
+        }
+      }
+    }
+
+    // Jika ada promo header-based yang memenuhi & belum ada promo F1 dipilih, tawarkan
+    if (promoToApply && !header.nomorPromo) {
+      const promoConfirmed = await new Promise<boolean>((resolve) => {
+        showConfirmation(
+          `Dapat ${promoToApply!.pro_judul}`,
+          `Anda mendapatkan diskon promo ${formatRupiah(promoDiskon)}. Gunakan promo ini? (Diskon faktur lain akan direset)`,
           () => resolve(true)
         );
 
-        // [PERBAIKAN] Monitor 'Batal'
-        // Jika dialog ditutup (show=false) tapi onConfirm belum dijalankan,
-        // kita anggap 'Batal' (resolve(false)).
-        const unwatch = watch(() => dialogConfirm.show, (newValue) => {
-          if (!newValue) { // Jika dialog ditutup
-            unwatch();
-            if (dialogConfirm.onConfirm) { // Jika 'Ya' ditekan, onConfirm akan di-clear
-              // 'Ya' sudah ditekan, resolve(true) sudah dipanggil
-            } else {
-              resolve(false); // 'Ya' tidak ditekan, user klik Batal/Tutup
-            }
-          }
+        const unwatch = watch(() => dialogConfirm.show, (open) => {
+          if (!open) { unwatch(); resolve(false); }
         });
 
-        // Ganti onConfirm agar me-resolve dan menghapus dirinya sendiri
         dialogConfirm.onConfirm = () => {
           resolve(true);
-          dialogConfirm.onConfirm = () => {}; // Hapus onConfirm
+          dialogConfirm.onConfirm = () => { };
           unwatch();
         };
       });
@@ -954,32 +1008,25 @@ const handleProceedToPayment = async () => {
         header.diskonPersen2 = 0;
         header.diskonRp = promoDiskon;
         header.nomorPromo = promoToApply.pro_nomor;
-        calculateTotals(); // Hitung ulang
+        calculateTotals();
       }
     }
-
   } catch (error) {
-    console.error("Gagal memeriksa promo otomatis:", error);
+    console.error("❌ Gagal memeriksa promo otomatis:", error);
     toast.error('Gagal memeriksa promo otomatis.');
   }
 
-  // --- 5. CEK PROMO BONUS (TEBUS MURAH) ---
-  const promoTebusMurah = header.nomorPromo;
-  if (promoTebusMurah === 'PRO-2025-002') {
-    activePromoForBonus.value = { nomor: promoTebusMurah, qty: 1 };
+  // --- 5) Promo tebus murah (bonus) ---
+  if (header.nomorPromo === 'PRO-2025-002') {
+    activePromoForBonus.value = { nomor: header.nomorPromo, qty: 1 };
     dialogs.promoBonus = true;
-    return; // Berhenti di sini, tunggu bonus dipilih
+    return;
   }
 
-  // --- 6. VALIDASI NO HP & LANJUT KE PEMBAYARAN ---
+  // --- 6) Validasi member & lanjut pembayaran ---
   const proceedToPayment = () => { dialogs.payment = true; };
-
   if (!header.memberHp) {
-    showConfirmation(
-      'Konfirmasi Member',
-      'No. HP Member kosong. Yakin akan melanjutkan?',
-      proceedToPayment
-    );
+    showConfirmation('Konfirmasi Member', 'No. HP Member kosong. Yakin akan melanjutkan?', proceedToPayment);
   } else {
     proceedToPayment();
   }
@@ -1293,26 +1340,24 @@ const handleClearSo = () => {
   );
 };
 
+// Hitung tanggal tempo otomatis
 watch(header, () => {
   if (header.top > 0 && header.tanggal) {
     header.tanggalTempo = format(addDays(new Date(header.tanggal), header.top), 'yyyy-MM-dd');
   }
 }, { deep: true });
-watch(items, calculateTotals, { deep: true });
-watch(linkedDps, calculateTotals, { deep: true });
+
+// Recalculate saat item berubah (harga, diskon, qty, promo, dsb)
 watch(items, (newItems) => {
-  // Loop melalui setiap item dan hitung ulang totalnya
   newItems.forEach(item => {
-    const hargaSetelahDiskon = (item.harga || 0) - (item.diskonRp || 0);
-    item.total = (item.jumlah || 0) * hargaSetelahDiskon;
+    item.total = computeLineTotal(item);
   });
-  // Panggil kalkulasi total keseluruhan
   calculateTotals();
+  applyDefaultDiscount();
 }, { deep: true });
-watch(items, () => {
-  calculateTotals();
-  applyDefaultDiscount(); // Terapkan diskon setelah total dihitung
-}, { deep: true });
+
+// Jika ada DP tambahan dihubungkan
+watch(linkedDps, calculateTotals, { deep: true });
 
 onMounted(() => {
   if (!authStore.can(MENU_ID, requiredPermission.value)) {

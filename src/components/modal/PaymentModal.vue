@@ -7,7 +7,6 @@ import RekeningSearchModal from '../lookup/RekeningSearchModal.vue';
 import AuthorizationModal from '@/components/modal/AuthorizationModal.vue';
 import PrintOptionModal from './PrintOptionModal.vue';
 import ReturJualSearchModal from '@/components/lookup/ReturJualSearchModal.vue';
-import SatisfactionSurveyModal from '@/components/modal/SatisfactionSurveyModal.vue';
 import type { AxiosError } from 'axios';
 
 interface BankAccount {
@@ -29,6 +28,7 @@ interface PrintKasirHeader {
   perush_telp: string;
   gdg_inv_instagram?: string;
   gdg_inv_fb?: string;
+  pro_lipat?: string;
   summary: {
     subTotal: number;
     diskon: number;
@@ -50,6 +50,9 @@ interface PrintKasirDetail {
   invd_jumlah: number;
   invd_harga: number;
   total: number;
+  invd_diskon?: number;       // potongan per pcs (jika ada)
+  invd_harga_asli?: number;   // harga per pcs SEBELUM diskon (jika ada)
+  total_asli?: number;        // total sebelum diskon (jika ada)
 }
 
 interface PrintKasirData {
@@ -96,7 +99,6 @@ const authOnSuccess = ref<null | ((pin: string) => void)>(null);
 const authOnCancel = ref<null | (() => void)>(null);
 const isPrintOptionVisible = ref(false);
 const savedInvoiceNumber = ref('');
-const isSurveyVisible = ref(false);
 const isFromSO = !!props.invoiceHeader.nomorSo;
 const isTunaiFocused = ref(false);
 const isTransferFocused = ref(false);
@@ -173,6 +175,62 @@ const formatRupiah = (value: number) => new Intl.NumberFormat('id-ID').format(va
 //   }
 //   .social-item img { height: 8px; }
 // `;
+
+// ===== Helpers untuk item diskon di struk =====
+const getUnitDiscount = (d: PrintKasirDetail): number => {
+  // Prioritas: invd_diskon dari backend; fallback: selisih harga_asli vs harga
+  if (typeof d.invd_diskon === 'number') return Math.max(d.invd_diskon, 0);
+  if (typeof d.invd_harga_asli === 'number') {
+    return Math.max(d.invd_harga_asli - d.invd_harga, 0);
+  }
+  return 0;
+};
+
+const getOriginalUnitPrice = (d: PrintKasirDetail): number => {
+  if (typeof d.invd_harga_asli === 'number') return d.invd_harga_asli;
+  const disc = getUnitDiscount(d);
+  return disc > 0 ? d.invd_harga + disc : d.invd_harga;
+};
+
+// const getOriginalTotal = (d: PrintKasirDetail): number => {
+//   if (typeof d.total_asli === 'number') return d.total_asli;
+//   return getOriginalUnitPrice(d) * d.invd_jumlah;
+// };
+
+// const isDiscounted = (d: PrintKasirDetail): boolean => {
+//   const disc = getUnitDiscount(d);
+//   const isEligible = disc > 0 || (typeof d.invd_harga_asli === 'number' && d.invd_harga_asli > d.invd_harga);
+
+//   // Cek apakah promo berlaku kelipatan
+//   const kelipatanAktif = printKasirData.value?.header?.pro_lipat === 'Y';
+
+//   if (!kelipatanAktif && isEligible) {
+//     promoAppliedCount++;
+//     return promoAppliedCount <= 1; // hanya item pertama yang tampil promo
+//   }
+
+//   // Jika promo kelipatan, semua eligible
+//   return isEligible;
+// };
+
+const calculateTotalsWithDiscount = (details: PrintKasirDetail[]) => {
+  let totalAsli = 0;
+  let totalDiskon = 0;
+  let totalNetto = 0;
+
+  for (const item of details) {
+    const qty = item.invd_jumlah;
+    const hargaAsli = getOriginalUnitPrice(item);
+    const hargaSetelahDiskon = item.invd_harga;
+    const diskonPerUnit = getUnitDiscount(item);
+
+    totalAsli += hargaAsli * qty;
+    totalDiskon += diskonPerUnit * qty;
+    totalNetto += hargaSetelahDiskon * qty;
+  }
+
+  return { totalAsli, totalDiskon, totalNetto };
+};
 
 const onRekeningSelected = (rekening: BankAccount) => {
   payment.transfer.akun = rekening;
@@ -265,7 +323,14 @@ const executeSave = async () => {
     toast.success(response.data.message);
     savedInvoiceNumber.value = response.data.nomor;
 
-    isSurveyVisible.value = true;
+    // Langsung buka print option setelah save
+    if (isFromSO) {
+      // Jika berasal dari SO → langsung cetak A4
+      handlePrintSelection('a4');
+    } else {
+      // Jika bukan dari SO → tampilkan opsi print
+      isPrintOptionVisible.value = true;
+    }
 
   } catch (error: unknown) {
     const axiosError = error as AxiosError<{ message?: string }>;
@@ -275,42 +340,6 @@ const executeSave = async () => {
     temporaryPin.value = ''; // Reset PIN
   }
 }
-
-const handleSurveySubmit = async (rating: number) => {
-  isSurveyVisible.value = false;
-  const nomor = savedInvoiceNumber.value;
-
-  try {
-    await api.post('/invoice-form/save-satisfaction', { nomor, rating });
-    toast.success('Terima kasih atas masukan Anda!');
-  } catch {
-    toast.error('Gagal menyimpan hasil survey.');
-  }
-
-  try {
-    const printables = await api.get(`/invoice-form/check-printables/${nomor}`);
-
-    if (printables.data.needsPrintKupon) {
-      const kuponUrl = router.resolve({ name: 'CetakKupon', params: { nomor } }).href;
-      window.open(kuponUrl, '_blank');
-    }
-    if (printables.data.needsPrintVoucher) {
-      const voucherUrl = router.resolve({ name: 'CetakVoucher', params: { nomor } }).href;
-      window.open(voucherUrl, '_blank');
-    }
-  } catch {
-    toast.error('Gagal memeriksa data kupon/voucher.');
-  }
-
-  // Tampilkan print options
-  if (isFromSO) {
-    // Jika dari SO, langsung cetak A4
-    handlePrintSelection('a4');
-  } else {
-    // Penjualan langsung → tampilkan pilihan print
-    isPrintOptionVisible.value = true;
-  }
-};
 
 const formatHpToWa = (hp: string) => {
   if (!hp) return '';
@@ -382,8 +411,14 @@ const triggerBrowserPrint = () => {
 
     const contentToPrint = printContentEl.innerHTML;
 
-    // Buat window baru untuk print, bukan iframe
-    const printWindow = window.open('', '_blank', 'width=400,height=600');
+    const screenWidth = window.screen.availWidth;
+    const screenHeight = window.screen.availHeight;
+
+    const printWindow = window.open(
+      '',
+      '_blank',
+      `width=${screenWidth},height=${screenHeight},left=0,top=0`
+    );
     if (!printWindow) {
       toast.error("Popup diblokir. Izinkan popup untuk mencetak.");
       return;
@@ -512,7 +547,7 @@ watch(nettoKembali, () => {
               </div>
               <div class="d-flex justify-space-between text-caption">
                 <span>Total Diskon:</span>
-                <span>- {{ formatRupiah(totals.totalDiskonFaktur) }}</span>
+                <span>- {{ formatRupiah(totals.totalDiskonItem + totals.totalDiskonFaktur) }}</span>
               </div>
               <div class="d-flex justify-space-between text-caption">
                 <span>Total PPN:</span>
@@ -637,7 +672,6 @@ watch(nettoKembali, () => {
       @select="handlePrintSelection" />
     <ReturJualSearchModal v-if="dialogs.returJualSearch" :customer-kode="invoiceHeader.customer.kode"
       :invoice-nomor="invoiceHeader.nomor" @close="dialogs.returJualSearch = false" @selected="onReturSelected" />
-    <SatisfactionSurveyModal v-if="isSurveyVisible" @close="isSurveyVisible = false" @submit="handleSurveySubmit" />
   </v-dialog>
 
   <v-dialog v-model="isKasirPreviewVisible" max-width="400px" persistent>
@@ -662,32 +696,68 @@ watch(nettoKembali, () => {
               <div>Tgl: {{ printKasirData.header.created }} {{ printKasirData.header.user_create }}</div>
             </div>
             <div class="items">
-              <div v-for="item in printKasirData.details" :key="item.invd_kode" class="item">
+              <div v-for="item in printKasirData?.details" :key="item.invd_kode" class="item"
+                :class="{ 'item-discounted': item.invd_diskon > 0 }">
                 <div>{{ item.nama_barang }} ({{ item.invd_ukuran }})</div>
-                <div class="item-details">
-                  <span>{{ item.invd_jumlah }} x {{ formatRupiah(item.invd_harga) }}</span>
-                  <span>{{ formatRupiah(item.total) }}</span>
-                </div>
+
+                <template v-if="item.invd_diskon > 0">
+                  <div class="item-details discounted">
+                    <span class="line-through">
+                      {{ item.invd_jumlah }} x {{ formatRupiah(item.invd_harga + item.invd_diskon) }}
+                    </span>
+                    <span class="line-through">
+                      {{ formatRupiah((item.invd_harga + item.invd_diskon) * item.invd_jumlah) }}
+                    </span>
+                  </div>
+                  <div class="item-details">
+                    <span>
+                      {{ item.invd_jumlah }} x {{ formatRupiah(item.invd_harga) }}
+                      <small class="discount-label">(Promo -{{ formatRupiah(item.invd_diskon) }}/pcs)</small>
+                    </span>
+                    <span>{{ formatRupiah(item.total) }}</span>
+                  </div>
+                </template>
+
+                <template v-else>
+                  <div class="item-details">
+                    <span>{{ item.invd_jumlah }} x {{ formatRupiah(item.invd_harga) }}</span>
+                    <span>{{ formatRupiah(item.total) }}</span>
+                  </div>
+                </template>
               </div>
             </div>
             <div class="summary">
-              <div class="summary-item"><span>Total </span><span>{{ formatRupiah(printKasirData.header.summary.subTotal)
-                  }}</span></div>
-              <div class="summary-item"><span>Diskon </span><span>{{ formatRupiah(printKasirData.header.summary.diskon)
-                  }}</span></div>
-              <div class="summary-item"><span>Ppn </span><span>{{ formatRupiah(printKasirData.header.summary.ppn)
-                  }}</span></div>
-              <div class="summary-item"><span>Netto </span><span>{{ formatRupiah(printKasirData.header.summary.netto)
-                  }}</span></div>
+              <template v-if="printKasirData?.details?.length">
+                <div v-if="calculateTotalsWithDiscount(printKasirData.details).totalDiskon > 0">
+                  <div class="summary-item">
+                    <span>Total (Sebelum Diskon)</span>
+                    <span>{{ formatRupiah(calculateTotalsWithDiscount(printKasirData.details).totalAsli) }}</span>
+                  </div>
+                  <div class="summary-item">
+                    <span>Total Diskon</span>
+                    <span>-{{ formatRupiah(calculateTotalsWithDiscount(printKasirData.details).totalDiskon) }}</span>
+                  </div>
+                  <div class="summary-item">
+                    <span>Netto (Setelah Diskon)</span>
+                    <span>{{ formatRupiah(calculateTotalsWithDiscount(printKasirData.details).totalNetto) }}</span>
+                  </div>
+                </div>
+                <div v-else>
+                  <div class="summary-item">
+                    <span>Total</span>
+                    <span>{{ formatRupiah(printKasirData.header.summary.subTotal) }}</span>
+                  </div>
+                </div>
+              </template>
               <div class="summary-item"><span>Biaya Kirim </span><span>{{
                 formatRupiah(printKasirData.header.summary.biayaKirim) }}</span></div>
               <div class="summary-item"><span>Dp </span><span>{{ formatRupiah(printKasirData.header.summary.dp)
-                  }}</span>
+              }}</span>
               </div>
               <div class="summary-item grand-total"><span>Grand Total </span><span>{{
                 formatRupiah(printKasirData.header.summary.grandTotal) }}</span></div>
               <div class="summary-item"><span>Bayar </span><span>{{ formatRupiah(printKasirData.header.summary.bayar)
-                  }}</span></div>
+              }}</span></div>
               <div class="summary-item"><span>Pundi amal </span><span>{{
                 formatRupiah(printKasirData.header.summary.pundiAmal) }}</span></div>
               <div class="summary-item"><span>Kembali </span><span>{{
@@ -761,5 +831,43 @@ watch(nettoKembali, () => {
 
 .text-end :deep(input) {
   text-align: right;
+}
+
+.item-discounted {
+  margin-bottom: 2px;
+}
+
+.item-details.discounted {
+  color: #888;
+  font-size: 8pt;
+}
+
+.line-through {
+  text-decoration: line-through;
+}
+
+.discount-label {
+  color: #c62828;
+  font-weight: bold;
+  font-size: 8pt;
+  margin-left: 3px;
+}
+
+.summary-item span:first-child {
+  color: #444;
+}
+
+.summary-item span:last-child {
+  font-weight: 500;
+}
+
+.summary-item:nth-child(2) span:last-child {
+  color: #c62828;
+  /* Merah untuk diskon */
+}
+
+.summary-item:nth-child(3) span:last-child {
+  color: #2e7d32;
+  /* Hijau untuk netto */
 }
 </style>

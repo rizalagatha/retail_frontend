@@ -37,14 +37,16 @@ interface PrintDetail {
   invd_ukuran: string;
   invd_jumlah: number;
   invd_harga: number;
+  invd_harga_asli?: number; // harga sebelum diskon
+  invd_diskon?: number;     // diskon total
   total: number;
+  total_asli?: number;      // total sebelum diskon
 }
 
 interface PrintData {
   header: PrintHeader;
   details: PrintDetail[];
 }
-
 
 const route = useRoute();
 const printData = ref<PrintData | null>(null);
@@ -63,10 +65,31 @@ const fetchPrintData = async (nomor: string) => {
     printData.value = response.data;
     document.title = response.data.header?.inv_nomor || 'Struk';
   } catch {
-    alert("Gagal memuat data struk.");
+    alert('Gagal memuat data struk.');
   } finally {
     isLoading.value = false;
   }
+};
+
+// ✅ Hitung total sebelum diskon, total diskon, dan total setelah diskon
+const calculateTotalsWithDiscount = (details: PrintDetail[]) => {
+  let totalAsli = 0;
+  let totalDiskon = 0;
+  let totalNetto = 0;
+
+  for (const item of details) {
+    const qty = item.invd_jumlah || 0;
+    const hargaAsli = item.invd_harga_asli ?? item.invd_harga ?? 0;
+    const totalAsliItem = hargaAsli * qty;
+    const totalItem = item.total ?? 0;
+    const diskonItem = Math.max(0, totalAsliItem - totalItem);
+
+    totalAsli += totalAsliItem;
+    totalDiskon += diskonItem;
+    totalNetto += totalItem;
+  }
+
+  return { totalAsli, totalDiskon, totalNetto };
 };
 
 onMounted(() => {
@@ -78,7 +101,7 @@ onMounted(() => {
 <template>
   <div class="receipt">
     <div v-if="isLoading" class="text-center">Memuat data...</div>
-    <div v-if="printData">
+    <div v-else-if="printData">
       <div class="header text-center">
         <img :src="appLogo" alt="Logo" class="logo" />
         <strong>{{ printData.header.perush_nama }}</strong>
@@ -101,17 +124,58 @@ onMounted(() => {
         </div>
       </div>
 
-      <div class="summary">
-        <div class="summary-item"><span>Total </span><span>{{ formatRupiah(printData.header.summary.subTotal) }}</span></div>
-        <div class="summary-item"><span>Diskon </span><span>{{ formatRupiah(printData.header.summary.diskon) }}</span></div>
-        <div class="summary-item"><span>Ppn </span><span>{{ formatRupiah(printData.header.summary.ppn) }}</span></div>
-        <div class="summary-item"><span>Netto </span><span>{{ formatRupiah(printData.header.summary.netto) }}</span></div>
-        <div class="summary-item"><span>Biaya Kirim </span><span>{{ formatRupiah(printData.header.summary.biayaKirim) }}</span></div>
-        <div class="summary-item"><span>Dp </span><span>{{ formatRupiah(printData.header.summary.dp) }}</span></div>
-        <div class="summary-item grand-total"><span>Grand Total </span><span>{{ formatRupiah(printData.header.summary.grandTotal) }}</span></div>
-        <div class="summary-item"><span>Bayar </span><span>{{ formatRupiah(printData.header.summary.bayar) }}</span></div>
-        <div class="summary-item"><span>Pundi amal </span><span>{{ formatRupiah(printData.header.summary.pundiAmal) }}</span></div>
-        <div class="summary-item"><span>Kembali </span><span>{{ formatRupiah(printData.header.summary.kembali) }}</span></div>
+      <!-- 🧾 Summary dengan perhitungan diskon -->
+      <div class="summary" v-if="printData.details.length">
+        <template v-if="calculateTotalsWithDiscount(printData.details).totalDiskon > 0">
+          <div class="summary-item">
+            <span>Total (Sebelum Diskon)</span>
+            <span>{{ formatRupiah(calculateTotalsWithDiscount(printData.details).totalAsli) }}</span>
+          </div>
+          <div class="summary-item diskon">
+            <span>Total Diskon</span>
+            <span>-{{ formatRupiah(calculateTotalsWithDiscount(printData.details).totalDiskon) }}</span>
+          </div>
+          <div class="summary-item netto">
+            <span>Netto (Setelah Diskon)</span>
+            <span>{{ formatRupiah(calculateTotalsWithDiscount(printData.details).totalNetto) }}</span>
+          </div>
+        </template>
+
+        <template v-else>
+          <div class="summary-item">
+            <span>Total</span>
+            <span>{{ formatRupiah(printData.header.summary.subTotal) }}</span>
+          </div>
+        </template>
+
+        <div class="summary-item">
+          <span>Ppn</span>
+          <span>{{ formatRupiah(printData.header.summary.ppn) }}</span>
+        </div>
+        <div class="summary-item">
+          <span>Biaya Kirim</span>
+          <span>{{ formatRupiah(printData.header.summary.biayaKirim) }}</span>
+        </div>
+        <div class="summary-item">
+          <span>Dp</span>
+          <span>{{ formatRupiah(printData.header.summary.dp) }}</span>
+        </div>
+        <div class="summary-item grand-total">
+          <span>Grand Total</span>
+          <span>{{ formatRupiah(printData.header.summary.grandTotal) }}</span>
+        </div>
+        <div class="summary-item">
+          <span>Bayar</span>
+          <span>{{ formatRupiah(printData.header.summary.bayar) }}</span>
+        </div>
+        <div class="summary-item">
+          <span>Pundi Amal</span>
+          <span>{{ formatRupiah(printData.header.summary.pundiAmal) }}</span>
+        </div>
+        <div class="summary-item">
+          <span>Kembali</span>
+          <span>{{ formatRupiah(printData.header.summary.kembali) }}</span>
+        </div>
       </div>
 
       <div class="footer text-center">
@@ -170,6 +234,17 @@ onMounted(() => {
 }
 
 .grand-total {
+  font-weight: bold;
+}
+
+/* Tambahan styling untuk diskon & netto */
+.summary-item.diskon span:last-child {
+  color: #c62828;
+  font-weight: bold;
+}
+
+.summary-item.netto span:last-child {
+  color: #2e7d32;
   font-weight: bold;
 }
 

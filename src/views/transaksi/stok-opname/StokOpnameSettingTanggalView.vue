@@ -102,10 +102,10 @@ onMounted(fetchData);
 <template>
   <PageLayout title="Setting Tanggal Stok Opname" :menu-id="MENU_ID">
     <template #header-actions>
-      <v-btn v-if="authStore.can(MENU_ID, 'insert')" size="small" color="primary"
+      <v-btn v-if="authStore.can(MENU_ID, 'insert')" size="small" prepend-icon="mdi-cog" color="primary"
         @click="openSettingDialog">Setting</v-btn>
-      <v-btn v-if="authStore.can(MENU_ID, 'delete')" size="small" color="error" :disabled="!canDelete"
-        @click="openDeleteDialog">Hapus</v-btn>
+      <v-btn v-if="authStore.can(MENU_ID, 'delete')" size="small" prepend-icon="mdi-delete" color="error"
+        :disabled="!canDelete" @click="openDeleteDialog">Hapus</v-btn>
     </template>
 
     <div class="browse-content">

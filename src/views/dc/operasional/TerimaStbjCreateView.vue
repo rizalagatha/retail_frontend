@@ -228,10 +228,11 @@ watch(allocationItems, (newItems) => {
 <template>
   <PageLayout :title="pageTitle" desktop-mode>
     <template #header-actions>
-      <v-btn v-if="authStore.can(MENU_ID, 'insert')" size="small" color="primary" @click="save" :loading="isSaving">
+      <v-btn v-if="authStore.can(MENU_ID, 'insert')" size="small" prepend-icon="mdi-content-save" color="primary"
+        @click="save" :loading="isSaving">
         Simpan
       </v-btn>
-      <v-btn size="small"
+      <v-btn size="small" prepend-icon="mdi-refresh"
         @click="showConfirmation('Konfirmasi Batal', 'Tutup form? Perubahan yang belum disimpan akan hilang.', closeForm)">
         Batal
       </v-btn>

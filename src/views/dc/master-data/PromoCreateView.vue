@@ -369,13 +369,13 @@ watch(() => header.generate, (val) => {
 <template>
   <PageLayout :title="pageTitle" desktop-mode icon="mdi-gift">
     <template #header-actions>
-      <v-btn size="small" color="primary" @click="save" :loading="isSaving">
+      <v-btn size="small" color="primary" prepend-icon="mdi-content-save" @click="save" :loading="isSaving">
         Simpan
       </v-btn>
-      <v-btn size="small" @click="handleCancel">
+      <v-btn size="small" prepend-icon="mdi-refresh" @click="handleCancel">
         Batal
       </v-btn>
-      <v-btn size="small"
+      <v-btn size="small" prepend-icon="mdi-close"
         @click="showConfirmation('Konfirmasi Tutup', 'Tutup form? Perubahan yang belum disimpan akan hilang.', closeForm)">
         Tutup
       </v-btn>
@@ -548,7 +548,7 @@ watch(() => header.generate, (val) => {
                 <v-btn v-if="item.kode" icon="mdi-delete" size="x-small" variant="text" color="error"
                   @click="removeApplicableRow(item.id)" />
               </template>
-              </v-data-table-server>
+            </v-data-table-server>
           </div>
 
           <div class="desktop-form-section d-flex flex-column" style="min-height: 400px;">

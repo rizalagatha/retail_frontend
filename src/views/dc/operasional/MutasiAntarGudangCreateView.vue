@@ -379,7 +379,7 @@ watch(() => header.dariGudang, (newValue, oldValue) => {
         prepend-icon="mdi-content-save">
         Simpan
       </v-btn>
-      <v-btn size="small"
+      <v-btn size="small" prepend-icon="mdi-close"
         @click="() => showConfirmation('Konfirmasi Batal', 'Batalkan perubahan?', () => router.back())">
         Batal
       </v-btn>

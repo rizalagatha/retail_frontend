@@ -121,11 +121,12 @@ onMounted(fetchData);
 <template>
   <PageLayout title="Browse Promo" icon="mdi-gift-outline">
     <template #header-actions>
-      <v-btn v-if="authStore.can(MENU_ID, 'insert')" size="small" color="primary" @click="handleNew">Baru</v-btn>
-      <v-btn v-if="authStore.can(MENU_ID, 'edit')" size="small" @click="handleEdit"
+      <v-btn v-if="authStore.can(MENU_ID, 'insert')" size="small" prepend-icon="mdi-plus" color="primary"
+        @click="handleNew">Baru</v-btn>
+      <v-btn v-if="authStore.can(MENU_ID, 'edit')" size="small" prepend-icon="mdi-pencil" @click="handleEdit"
         :disabled="!isSingleSelected">Ubah</v-btn>
-      <v-btn v-if="authStore.can(MENU_ID, 'delete')" size="small" color="error" @click="handleDelete"
-        :disabled="!isSingleSelected">Hapus</v-btn>
+      <v-btn v-if="authStore.can(MENU_ID, 'delete')" size="small" prepend-icon="mdi-delete" color="error"
+        @click="handleDelete" :disabled="!isSingleSelected">Hapus</v-btn>
       <v-btn size="small" color="teal" @click="exportData" prepend-icon="mdi-file-excel">Export</v-btn>
     </template>
 
@@ -138,7 +139,7 @@ onMounted(fetchData);
               <template v-if="['tanggal1', 'tanggal2'].includes(header.key)">
                 {{ item[header.key]
                   ? format(parseISO(String(item[header.key])), 'dd/MM/yyyy')
-                : '' }}
+                  : '' }}
               </template>
               <template v-else>
                 {{ item[header.key] }}

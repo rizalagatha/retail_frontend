@@ -401,9 +401,10 @@ onMounted(() => {
 <template>
   <PageLayout :title="pageTitle" :menu-id="MENU_ID">
     <template #header-actions>
-      <v-btn size="small" color="primary" @click="handleSave" :disabled="isClosed">Simpan</v-btn>
-      <v-btn size="small" variant="tonal" @click="handleBatal">Batal</v-btn>
-      <v-btn @click="handleTutup">Tutup</v-btn>
+      <v-btn size="small" prepend-icon="mdi-content-save" color="primary" @click="handleSave"
+        :disabled="isClosed">Simpan</v-btn>
+      <v-btn size="small" prepend-icon="mdi-refresh" variant="tonal" @click="handleBatal">Batal</v-btn>
+      <v-btn size="small" prepend-icon="mdi-close" @click="handleTutup">Tutup</v-btn>
     </template>
 
     <div v-if="loading" class="state-container"><v-progress-circular indeterminate /></div>

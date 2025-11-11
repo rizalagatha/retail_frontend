@@ -206,10 +206,11 @@ watch(filters, fetchMasterData, { deep: true });
 <template>
   <PageLayout title="Price List" icon="mdi-tag-multiple-outline">
     <template #header-actions>
-      <v-btn v-if="authStore.can(MENU_ID, 'edit')" size="small" color="primary" @click="openUpdateModal(selectedRow)"
-        :disabled="!isSingleSelected">
+      <v-btn v-if="authStore.can(MENU_ID, 'edit')" size="small" color="primary" prepend-icon="mdi-cash-edit"
+        @click="openUpdateModal(selectedRow)" :disabled="!isSingleSelected">
         Update Harga
       </v-btn>
+
     </template>
 
     <div class="browse-content">

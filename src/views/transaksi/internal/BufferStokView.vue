@@ -182,7 +182,8 @@ watch([selectedCabang, tampilkanBufferNol, kaosan, reszo], fetchData);
 <template>
   <PageLayout title="Buffer Stok" desktop-mode icon="mdi-buffer">
     <template #header-actions>
-      <v-btn size="small" :disabled="selected.length !== 1" @click="openSetting(selected[0])">Setting (F1)</v-btn>
+      <v-btn size="small" prepend-icon="mdi-cog" :disabled="selected.length !== 1"
+        @click="openSetting(selected[0])">Setting (F1)</v-btn>
       <v-btn size="small" color="teal" @click="exportData">Export</v-btn>
     </template>
 

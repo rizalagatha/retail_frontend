@@ -151,8 +151,9 @@ onMounted(async () => {
 <template>
   <PageLayout title="Terima dari Gudang Repair" desktop-mode>
     <template #header-actions>
-      <v-btn size="small" color="primary" @click="save" :loading="isSaving">Simpan</v-btn>
-      <v-btn size="small"
+      <v-btn size="small" prepend-icon="mdi-content-save" color="primary" @click="save"
+        :loading="isSaving">Simpan</v-btn>
+      <v-btn size="small" prepend-icon="mdi-refresh"
         @click="showConfirmation('Konfirmasi Batal', 'Tutup form?', () => router.back())">Batal</v-btn>
     </template>
     <div class="form-grid-container">

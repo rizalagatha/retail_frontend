@@ -238,12 +238,12 @@ watch(filters, fetchMasterData, { deep: true });
 <template>
   <PageLayout title="Browse Terima Retur Barang dari Store" icon="mdi-package-check">
     <template #header-actions>
-      <v-btn v-if="authStore.can(MENU_ID, 'insert')" size="small" color="primary" @click="handleTerima"
-        :disabled="!canTerima">
+      <v-btn v-if="authStore.can(MENU_ID, 'insert')" size="small" prepend-icon="mdi-check" color="primary"
+        @click="handleTerima" :disabled="!canTerima">
         Terima
       </v-btn>
-      <v-btn v-if="authStore.can(MENU_ID, 'delete')" size="small" color="error" @click="handleBatalTerima"
-        :disabled="!canBatalTerima">
+      <v-btn v-if="authStore.can(MENU_ID, 'delete')" size="small" prepend-icon="mdi-undo" color="error"
+        @click="handleBatalTerima" :disabled="!canBatalTerima">
         Batal Terima
       </v-btn>
       <!-- <v-btn v-if="authStore.can(MENU_ID, 'view')" size="small" color="green" :disabled="!canEditOrPrint"

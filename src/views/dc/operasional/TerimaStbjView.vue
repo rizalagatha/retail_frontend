@@ -135,7 +135,7 @@ const handleBatalTerima = () => {
   if (!canBatalTerima.value) return;
   showConfirmation(
     'Konfirmasi Batal Terima',
-    `Yakin membatalkan penerimaan untuk STBJ dengan nomor <strong>${selectedRow.value.nomor}</strong>?`,
+    `Yakin membatalkan penerimaan untuk STBJ dengan nomor ${selectedRow.value.nomor}?`,
     async () => {
       try {
         // Gunakan query parameter, bukan path parameter
@@ -213,14 +213,14 @@ watch(filters, fetchMasterData, { deep: true });
 <template>
   <PageLayout title="Browse Terima STBJ" icon="mdi-truck-check-outline">
     <template #header-actions>
-      <v-btn v-if="authStore.can(MENU_ID, 'insert')" size="small" color="primary" @click="handleTerima"
-        :disabled="!canTerima">Terima</v-btn>
-      <v-btn v-if="authStore.can(MENU_ID, 'delete')" size="small" color="error" @click="handleBatalTerima"
-        :disabled="!canBatalTerima">Batal Terima</v-btn>
-      <v-btn v-if="authStore.can(MENU_ID, 'insert')" size="small" color="blue" @click="handleTolak"
-        :disabled="!canTolak">Tolak</v-btn>
-      <v-btn v-if="authStore.can(MENU_ID, 'delete')" size="small" color="orange" @click="handleBatalTolak"
-        :disabled="!canBatalTolak">Batal Tolak</v-btn>
+      <v-btn v-if="authStore.can(MENU_ID, 'insert')" size="small" prepend-icon="mdi-check" color="primary"
+        @click="handleTerima" :disabled="!canTerima">Terima</v-btn>
+      <v-btn v-if="authStore.can(MENU_ID, 'delete')" size="small" prepend-icon="mdi-undo" color="error"
+        @click="handleBatalTerima" :disabled="!canBatalTerima">Batal Terima</v-btn>
+      <v-btn v-if="authStore.can(MENU_ID, 'insert')" size="small" prepend-icon="mdi-close" color="blue"
+        @click="handleTolak" :disabled="!canTolak">Tolak</v-btn>
+      <v-btn v-if="authStore.can(MENU_ID, 'delete')" size="small" prepend-icon="mdi-restore" color="orange"
+        @click="handleBatalTolak" :disabled="!canBatalTolak">Batal Tolak</v-btn>
       <v-menu offset-y>
         <template v-slot:activator="{ props }">
           <v-btn size="small" color="teal" prepend-icon="mdi-file-excel" v-bind="props">Export</v-btn>
@@ -303,9 +303,7 @@ watch(filters, fetchMasterData, { deep: true });
     <v-dialog v-model="dialogConfirm.show" max-width="400px" persistent>
       <v-card>
         <v-card-title class="text-h6 font-weight-bold">{{ dialogConfirm.title }}</v-card-title>
-        <v-card-text>
-          Anda yakin ingin <strong>{{ dialogConfirm.text }}</strong>
-        </v-card-text>
+        <v-card-text> <strong>{{ dialogConfirm.text }}</strong> </v-card-text>
         <v-card-actions>
           <v-spacer />
           <v-btn text @click="dialogConfirm.show = false">Batal</v-btn>

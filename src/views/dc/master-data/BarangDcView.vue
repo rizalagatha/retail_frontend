@@ -172,8 +172,9 @@ watch(filters, fetchMasterData, { deep: true });
 <template>
   <PageLayout title="Browse Barang DC" icon="mdi-package-variant-closed">
     <template #header-actions>
-      <v-btn v-if="authStore.can(MENU_ID, 'insert')" size="small" color="primary" @click="handleNew">Baru</v-btn>
-      <v-btn v-if="authStore.can(MENU_ID, 'edit')" size="small" @click="handleEdit"
+      <v-btn v-if="authStore.can(MENU_ID, 'insert')" size="small" prepend-icon="mdi-plus" color="primary"
+        @click="handleNew">Baru</v-btn>
+      <v-btn v-if="authStore.can(MENU_ID, 'edit')" size="small" prepend-icon="mdi-pencil" @click="handleEdit"
         :disabled="!isSingleSelected">Ubah</v-btn>
       <v-menu offset-y>
         <template v-slot:activator="{ props }">

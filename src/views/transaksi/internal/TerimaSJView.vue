@@ -214,12 +214,12 @@ watch(filters, fetchMasterData, { deep: true });
 <template>
   <PageLayout title="Terima SJ dari DC" icon="mdi-package-down">
     <template #header-actions>
-      <v-btn v-if="authStore.can(MENU_ID, 'insert')" size="small" color="primary" @click="handleTerima"
-        :disabled="!isSingleSelected || !!selectedRow?.NomorTerima">
+      <v-btn v-if="authStore.can(MENU_ID, 'insert')" size="small" prepend-icon="mdi-check" color="primary"
+        @click="handleTerima" :disabled="!isSingleSelected || !!selectedRow?.NomorTerima">
         Terima
       </v-btn>
-      <v-btn v-if="authStore.can(MENU_ID, 'delete')" size="small" color="error" @click="handleBatalTerima"
-        :disabled="!isSingleSelected || !selectedRow?.NomorTerima">
+      <v-btn v-if="authStore.can(MENU_ID, 'delete')" size="small" prepend-icon="mdi-undo" color="error"
+        @click="handleBatalTerima" :disabled="!isSingleSelected || !selectedRow?.NomorTerima">
         Batal Terima
       </v-btn>
       <v-menu offset-y>

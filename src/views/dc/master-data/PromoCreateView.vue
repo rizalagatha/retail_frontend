@@ -86,6 +86,7 @@ const activeApplicableRowIndex = ref(0);
 const applicableItemsPage = ref(1);
 const applicableItemsPerPage = ref(10);
 const applicableItemsTotal = ref(0);
+const applicableItemsDirty = ref(false);
 
 // --- Konfigurasi Tabel ---
 const bonusHeaders = [
@@ -188,9 +189,14 @@ const save = () => {
 const executeSave = async () => {
   isSaving.value = true;
   try {
+    const shouldSendApplicableItems =
+      applicableItemsDirty.value && applicableItemsTotal.value <= applicableItems.value.length;
+
     const payload = {
       header,
-      applicableItems: applicableItems.value.filter(i => i.kode),
+      applicableItems: shouldSendApplicableItems
+        ? applicableItems.value.filter(i => i.kode)
+        : null,
       bonusItems: bonusItems.value.filter(i => i.kode),
       cabang: cabangList.value.filter(c => c.berlaku).map(c => c.cab),
       level: levelList.value.filter(l => l.berlaku).map(l => l.kode),
@@ -274,14 +280,20 @@ const loadDataForEdit = async (nomor: string) => {
     toast.error(message);
     router.back();
   } finally {
-    // Tambahkan baris kosong di akhir grid jika diperlukan
-    addNewApplicableRow();
-    addNewBonusRow();
+    // --- UBAH BARIS INI ---
+    addNewApplicableRow(false); // Kirim 'false' agar TIDAK set flag dirty
+    // --- BATAS PERUBAHAN ---
+
+    addNewBonusRow(); // (Anda mungkin perlu melakukan hal yang sama untuk bonus)
     isLoading.value = false;
   }
 };
 
-const addNewApplicableRow = () => {
+const addNewApplicableRow = (setDirty = true) => {
+  if (setDirty) { // <-- TAMBAHKAN IF INI
+    applicableItemsDirty.value = true;
+  }
+
   const last = applicableItems.value[applicableItems.value.length - 1];
   if (!last || last.kode) {
     applicableItems.value.push({
@@ -326,6 +338,7 @@ const onApplicableSelected = (products: ApplicableItem[]) => {
   isApplicableSearchVisible.value = false;
   const selected = products[0];
   if (!selected) return;
+  applicableItemsDirty.value = true;
 
   const isDuplicate = applicableItems.value.some(
     item => item.kode === selected.kode && item.ukuran === selected.ukuran
@@ -341,6 +354,10 @@ const onApplicableSelected = (products: ApplicableItem[]) => {
   addNewApplicableRow();
 };
 
+const setApplicableDirty = () => {
+  applicableItemsDirty.value = true;
+}
+
 onMounted(async () => {
   isLoading.value = true;
   try {
@@ -352,7 +369,9 @@ onMounted(async () => {
     if (isEditMode.value && nomor) {
       await loadDataForEdit(nomor);
     } else {
-      addNewBonusRow();
+      // --- UBAH BAGIAN INI ---
+      addNewApplicableRow(false); // Kirim 'false'
+      addNewBonusRow(); // (Asumsi ini juga diubah agar menerima 'setDirty = false')
     }
   } catch (err) {
     toast.error('Gagal memuat data awal.', err);
@@ -364,6 +383,14 @@ onMounted(async () => {
 watch(() => header.generate, (val) => {
   if (val !== 'K') header.jenisKupon = '';
 });
+
+// Untuk mendeteksi perubahan manual di field (Qty, Harga, Disc)
+watch(applicableItems, () => {
+  // Hanya tandai 'dirty' jika kita tidak sedang loading data
+  if (!isLoading.value) {
+    applicableItemsDirty.value = true;
+  }
+}, { deep: true });
 </script>
 
 <template>
@@ -393,8 +420,8 @@ watch(() => header.generate, (val) => {
               <div class="text-subtitle-1 font-weight-bold mb-3">Data Promo</div>
               <v-row dense class="compact-form">
                 <v-col cols="12">
-                  <v-text-field label="Nomor Promo" v-model="header.nomor" readonly filled hide-details
-                    density="compact" />
+                  <v-text-field label="Nomor Promo" variant="outlined" v-model="header.nomor" readonly filled
+                    hide-details density="compact" />
                 </v-col>
 
                 <v-col cols="12">
@@ -417,6 +444,7 @@ watch(() => header.generate, (val) => {
                     <v-radio label="Total Rp" :value="1"></v-radio>
                     <v-radio label="Total Qty" :value="2"></v-radio>
                     <v-radio label="Lain-lain" :value="3"></v-radio>
+                    <v-radio label="Diskon Item" :value="4"></v-radio>
                   </v-radio-group>
                 </v-col>
 
@@ -529,20 +557,20 @@ watch(() => header.generate, (val) => {
                   placeholder="F1..." @keydown.f1.prevent="openApplicableSearch(index)" />
               </template>
               <template #[`item.qty`]="{ item }">
-                <v-text-field v-model.number="item.qty" type="number" variant="underlined" density="compact"
-                  hide-details class="text-end" />
+                <v-text-field v-model.number="item.qty" @change="setApplicableDirty" type="number" variant="underlined"
+                  density="compact" hide-details class="text-end" />
               </template>
               <template #[`item.harga`]="{ item }">
-                <v-text-field v-model.number="item.harga" type="number" variant="underlined" density="compact"
-                  hide-details class="text-end" />
+                <v-text-field v-model.number="item.harga" @change="setApplicableDirty" type="number"
+                  variant="underlined" density="compact" hide-details class="text-end" />
               </template>
               <template #[`item.disc`]="{ item }">
-                <v-text-field v-model.number="item.disc" type="number" variant="underlined" density="compact"
-                  hide-details class="text-end" />
+                <v-text-field v-model.number="item.disc" @change="setApplicableDirty" type="number" variant="underlined"
+                  density="compact" hide-details class="text-end" />
               </template>
               <template #[`item.diskon`]="{ item }">
-                <v-text-field v-model.number="item.diskon" type="number" variant="underlined" density="compact"
-                  hide-details class="text-end" />
+                <v-text-field v-model.number="item.diskon" @change="setApplicableDirty" type="number"
+                  variant="underlined" density="compact" hide-details class="text-end" />
               </template>
               <template #[`item.actions`]="{ item }">
                 <v-btn v-if="item.kode" icon="mdi-delete" size="x-small" variant="text" color="error"

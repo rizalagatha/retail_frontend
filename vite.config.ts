@@ -14,6 +14,8 @@ export default defineConfig({
     },
   },
 
+  base: process.env.VITE_APP_BASE || '/',
+
   // --- PERBAIKAN DI SINI ---
   // 'proxy' harus berada di dalam object 'server'
   server: {

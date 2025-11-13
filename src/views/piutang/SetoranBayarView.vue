@@ -310,7 +310,7 @@ watch(expanded, (newExpanded) => {
       <div class="table-container">
         <AppDataTable v-model="selected" v-model:expanded="expanded" :headers="headers" :items="masterData"
           :loading="loading" item-value="Nomor" density="compact" class="desktop-table" fixed-header show-select
-          return-object show-expand @update:expanded="loadDetails">
+          show-expand @update:expanded="loadDetails">
           <template v-for="header in headers" #[`item.${header.key}`]="{ item }" :key="header.key">
             <td :class="getRowTextColor(item)">
               <template v-if="['Tanggal', 'TglTerima', 'TglTransfer', 'TglGiro', 'TglJatuhTempo'].includes(header.key)">

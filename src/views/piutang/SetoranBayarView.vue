@@ -239,11 +239,25 @@ const getRowTextColor = (item: SetoranHeader) => {
 };
 
 const printData = () => {
-  if (!isSingleSelected.value) return;
-  const nomor = selected.value[0].Nomor;
-  const url = router.resolve({ name: 'CetakSetoranBayar', params: { nomor } }).href;
-  window.open(url, '_blank');
+  console.log("SELECTED ROW:", selected.value[0]); // Debug
+  console.log("NOMOR FIELD:", selected.value[0]?.Nomor);
+
+  const nomor = selected.value[0]?.Nomor; // <-- BENAR
+
+  if (!nomor) {
+    toast.error("Data tidak memiliki nomor");
+    return;
+  }
+
+  const url = router.resolve({
+    name: "CetakSetoranBayar",
+    params: { nomor },
+  }).href;
+
+  window.open(url, "_blank");
 };
+
+
 
 onMounted(() => {
   fetchCabangList();
@@ -309,8 +323,8 @@ watch(expanded, (newExpanded) => {
 
       <div class="table-container">
         <AppDataTable v-model="selected" v-model:expanded="expanded" :headers="headers" :items="masterData"
-          :loading="loading" item-value="Nomor" density="compact" class="desktop-table" fixed-header show-select
-          show-expand @update:expanded="loadDetails">
+          item-value="Nomor" return-object density="compact" class="desktop-table" fixed-header show-select show-expand
+          @update:expanded="loadDetails">
           <template v-for="header in headers" #[`item.${header.key}`]="{ item }" :key="header.key">
             <td :class="getRowTextColor(item)">
               <template v-if="['Tanggal', 'TglTerima', 'TglTransfer', 'TglGiro', 'TglJatuhTempo'].includes(header.key)">

@@ -189,17 +189,24 @@ onMounted(() => {
   margin: 20px auto;
   width: 21cm;
   box-shadow: 0 0 5px rgba(0, 0, 0, 0.1);
+  page-break-after: always;
+}
+
+.page:last-child {
+  page-break-after: auto;
 }
 
 .receipt-copy {
   border-bottom: 2px dashed #ccc;
   padding-bottom: 1cm;
   margin-bottom: 1cm;
+  page-break-after: always;
 }
 
 .receipt-copy:last-child {
   border-bottom: none;
   margin-bottom: 0;
+  page-break-after: auto;
 }
 
 .company-header {

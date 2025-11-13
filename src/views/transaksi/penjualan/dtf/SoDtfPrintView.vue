@@ -234,6 +234,7 @@ onMounted(() => {
   display: flex;
   gap: 1rem;
   padding: 10px 0;
+  align-items: stretch; /* penting */
 }
 
 .data-grid {
@@ -251,16 +252,19 @@ onMounted(() => {
 
 .image-preview {
   flex-shrink: 0;
-  width: 150px;
+  width: 200px;
   border: 1px solid #ccc;
   padding: 5px;
+  display: flex;
+  align-items: stretch;
+  justify-content: center;
 }
 
 .image-preview img {
   width: 100%;
-  height: auto;
+  height: 100%;
+  object-fit: contain; /* gambar tidak melar */
 }
-
 .titik-section {
   border-top: 1px dashed #ccc;
   padding-top: 10px;

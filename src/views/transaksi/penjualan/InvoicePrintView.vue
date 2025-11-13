@@ -111,8 +111,15 @@ onMounted(() => {
           <div><span class="label">No. Pesanan</span>: {{ printData.header.inv_nomor_so }}</div>
         </div>
         <div class="info-right">
-          <div><span class="label">Customer</span>: {{ printData.header.cus_nama }}</div>
-          <div class="alamat"><span class="label"></span> {{ printData.header.cus_alamat }}</div>
+          <div class="info-line">
+            <span class="label">Customer</span>
+            <span>: {{ printData.header.cus_nama }}</span>
+          </div>
+
+          <div class="info-line alamat-multi">
+            <span class="label"></span>
+            <span>{{ printData.header.cus_alamat }}</span>
+          </div>
           <div><span class="label">Top</span>: {{ printData.header.inv_top }} Hari</div>
           <div><span class="label">Jatuh Tempo</span>: {{ format(parseISO(printData.header.tempo),
             'dd-MM-yyyy') }}</div>
@@ -159,15 +166,15 @@ onMounted(() => {
           <div class="summary-item"><span>Diskon :</span><span>{{
             formatRupiah(printData.header.summary.diskon) }}</span></div>
           <div class="summary-item"><span>Netto :</span><span>{{ formatRupiah(printData.header.summary.netto)
-          }}</span></div>
+              }}</span></div>
           <div class="summary-item"><span>Biaya Kirim :</span><span>{{
             formatRupiah(printData.header.summary.biayaKirim) }}</span></div>
           <div class="summary-item"><span>DP :</span><span>{{ formatRupiah(printData.header.summary.dp)
-          }}</span></div>
+              }}</span></div>
           <div class="summary-item grand-total"><span>Grand Total :</span><span>{{
             formatRupiah(printData.header.summary.grandTotal) }}</span></div>
           <div class="summary-item"><span>Bayar :</span><span>{{ formatRupiah(printData.header.summary.bayar)
-          }}</span></div>
+              }}</span></div>
           <div class="summary-item"><span>Pundi amal :</span><span>{{
             formatRupiah(printData.header.summary.pundiAmal) }}</span></div>
           <div class="summary-item"><span>Kembali :</span><span>{{
@@ -236,18 +243,34 @@ onMounted(() => {
 /* (Salin sisa CSS untuk .header, .title, .info-grid, dll. dari kode Anda sebelumnya) */
 .header {
   display: flex;
-  align-items: center;
+  flex-direction: row;
+  align-items: flex-start;
+  justify-content: flex-start;
+  gap: 15px;
   margin-bottom: 10px;
+  width: 100%;
+  /* penting */
+}
+
+.page>.header {
+  align-self: flex-start !important;
+  /* cegah center */
+}
+
+.company-info {
+  display: flex;
+  flex-direction: column;
+  text-align: left;
+  font-size: 8.5pt;
+  line-height: 1.3;
+  flex: 1; /* ✅ Agar company info mengambil sisa ruang */
 }
 
 .logo {
   height: 40px;
   width: auto;
-  margin-right: 15px;
-}
-
-.company-info {
-  font-size: 8.5pt;
+  margin: 0; /* ✅ Hapus margin-right, gunakan gap di parent */
+  flex-shrink: 0; /* ✅ Cegah logo menyusut */
 }
 
 .title {
@@ -352,6 +375,20 @@ td {
 
 .social-item img {
   height: 12px;
+}
+
+.info-line {
+  display: flex;
+  align-items: flex-start;
+}
+
+.info-line span:first-child {
+  width: 80px; /* sama seperti label lain */
+}
+
+.alamat-multi span:last-child {
+  margin-left: 3px;
+  display: block;
 }
 
 /* --- ATURAN BARU YANG LEBIH SEDERHANA UNTUK PRINT --- */

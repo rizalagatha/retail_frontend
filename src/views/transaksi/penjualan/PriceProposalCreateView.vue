@@ -629,6 +629,12 @@ const closeForm = () => {
 };
 
 watch(() => header.value.isApproved, (isNowApproved) => {
+  if (!authStore.user?.canApprovePrice) {
+    toast.error("Anda tidak memiliki hak untuk melakukan approval.");
+    header.value.isApproved = false;  // reset
+    return;
+  }
+
   if (isNowApproved) {
     header.value.approval = authStore.user?.kode || 'UNKNOWN';
   } else {
@@ -681,7 +687,8 @@ onMounted(() => {
             <div class="grid-item-tanggal"><v-text-field label="Tanggal" v-model="header.tanggal" type="date"
                 variant="outlined" density="compact" hide-details></v-text-field></div>
             <div class="grid-item-approval"><v-checkbox v-model="header.isApproved"
-                :label="`Approval: ${header.approval}`" density="compact" hide-details></v-checkbox>
+                :label="`Approval: ${header.approval}`" :disabled="!authStore.user?.canApprovePrice" density="compact"
+                hide-details></v-checkbox>
             </div>
             <div class="grid-item-upload"><v-file-input label="Upload Gambar" @change="onFileChange"
                 accept="image/jpeg, image/png" variant="outlined" density="compact" hide-details

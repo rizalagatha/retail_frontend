@@ -111,15 +111,14 @@ const fetchPrintData = async (nomor: string) => {
 };
 
 // Cetak otomatis setelah data siap (kecuali mode WhatsApp)
-watch(
-  printData,
-  (newData) => {
-    if (newData && route.query.source !== 'whatsapp') {
-      nextTick(() => window.print());
-    }
-  },
-  { immediate: false }
-);
+watch(printData, async (newData) => {
+  if (newData && route.query.source !== 'whatsapp') {
+    document.body.classList.add('print-mode');
+    await nextTick();
+    window.print();
+    setTimeout(() => document.body.classList.remove('print-mode'), 500);
+  }
+});
 
 onMounted(() => {
   const nomor = route.params.nomor as string;
@@ -245,7 +244,7 @@ onMounted(() => {
   </div>
 </template>
 
-<style scoped>
+<style>
 .receipt {
   width: 58mm;
   padding: 3mm 5mm;
@@ -322,15 +321,23 @@ onMounted(() => {
   height: 8px;
 }
 
+.print-mode {
+  overflow: visible !important;
+}
+
 @media print {
-  @page {
-    size: 58mm auto;
-    margin: 0;
+  body, html {
+    width: 58mm !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: white !important;
   }
 
-  body {
-    margin: 0;
-    padding: 0;
+  .receipt {
+    display: block !important;
+    width: 58mm !important;
+    min-width: 58mm !important;
+    max-width: 58mm !important;
   }
 }
 </style>

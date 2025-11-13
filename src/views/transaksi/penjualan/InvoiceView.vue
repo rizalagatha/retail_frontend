@@ -8,6 +8,7 @@ import api from '@/services/api';
 import { format, subDays, parseISO } from 'date-fns';
 import PageLayout from '@/components/PageLayout.vue';
 import PrintOptionModal from '@/components/modal/PrintOptionModal.vue';
+import KasirPrintPreviewModal from "@/components/modal/KasirPrintPreviewModal.vue";
 import * as XLSX from 'xlsx';
 
 interface InvoiceHeader {
@@ -103,6 +104,8 @@ const loadingDetails = ref(new Set<string>());
 const selected = ref<InvoiceHeader[]>([]);
 const expanded = ref<string[]>([]);
 const cabangList = ref([]);
+const isKasirPreviewVisible = ref(false);
+const selectedInvoice = ref<string | null>(null);
 
 const filters = reactive({
   startDate: format(subDays(new Date(), 7), 'yyyy-MM-dd'),
@@ -304,15 +307,32 @@ const handlePrintSelection = async (type: 'a4' | 'kasir' | 'wa') => {
 
   if (!nomor || !item) return;
 
+  // Tutup pilihan modal awal
   isPrintOptionVisible.value = false;
 
-  if (type === 'a4' || type === 'kasir') {
-    const routeName = type === 'a4' ? 'InvoicePrint' : 'InvoicePrintKasir';
-    const url = router.resolve({ name: routeName, params: { nomor } }).href;
-    window.open(url, '_blank');
+  // ===============================
+  // PRINT KASIR (PAKAI MODAL PREVIEW)
+  // ===============================
+  if (type === 'kasir') {
+    selectedInvoice.value = nomor;
+    isKasirPreviewVisible.value = true;
+    return;
+  }
 
-  } else if (type === 'wa') {
-    const memberHp = item.Hp; // pakai Hp yang ada
+  // ===============================
+  // PRINT A4 (MASIH TAB BARU)
+  // ===============================
+  if (type === 'a4') {
+    const url = router.resolve({ name: 'InvoicePrint', params: { nomor } }).href;
+    window.open(url, '_blank');
+    return;
+  }
+
+  // ===============================
+  // WHATSAPP
+  // ===============================
+  if (type === 'wa') {
+    const memberHp = item.Hp;
     if (!memberHp) {
       return toast.error('No. HP Member tidak ada, tidak bisa kirim via WA.');
     }
@@ -501,6 +521,8 @@ watch(filters, () => {
     </div>
     <PrintOptionModal v-if="isPrintOptionVisible" :options="['a4', 'kasir', 'wa']" @close="isPrintOptionVisible = false"
       @select="handlePrintSelection" />
+    <KasirPrintPreviewModal v-model="isKasirPreviewVisible" :nomorInvoice="selectedInvoice"
+      @close="isKasirPreviewVisible = false" />
   </PageLayout>
 </template>
 

@@ -174,18 +174,28 @@ body {
 
 .header {
   display: flex;
-  align-items: center;
+  flex-direction: row;
+  justify-content: flex-start; /* ✅ Pastikan rata kiri */
+  align-items: flex-start; /* ✅ Ubah dari center ke flex-start */
+  gap: 15px; /* ✅ Gunakan gap untuk jarak */
   margin-bottom: 8px;
+  width: 100%;
 }
 
 .logo {
-  height: 35px;
+  height: 40px;
   width: auto;
-  margin-right: 15px;
+  margin: 0; /* ✅ Hapus margin-right, gunakan gap di parent */
+  flex-shrink: 0; /* ✅ Cegah logo menyusut */
 }
 
 .company-info {
-  font-size: 8.5pt;
+  display: flex;
+  flex-direction: column;
+  text-align: left;
+  font-size: 9pt;
+  line-height: 1.4;
+  flex: 1; /* ✅ Ambil sisa ruang */
 }
 
 .title {

@@ -473,6 +473,16 @@ const triggerBrowserPrint = () => {
               gap: 3px;
             }
             .social-item img { height: 8px; }
+            .donation-text {
+              margin-top: 6px;
+              margin-bottom: 6px;
+              padding: 4px 0;
+              text-align: center;
+              font-size: 8pt;
+              font-weight: bold;
+              border-top: 1px dashed black;
+              border-bottom: 1px dashed black;
+          }
           </style>
         </head>
         <body onload="window.print(); window.close();">
@@ -540,6 +550,17 @@ const calculatePundiAmal = (kembali: number) => {
   }
 
   return kembali;
+};
+
+const hitungPundiAmal = (details: PrintKasirDetail[]) => {
+  if (!details || details.length === 0) return 0;
+
+  let totalQty = 0;
+  for (const item of details) {
+    totalQty += Number(item.invd_jumlah) || 0;
+  }
+
+  return totalQty * maxPundi;
 };
 
 watch(kembali, (newVal) => {
@@ -785,9 +806,9 @@ watch(kembali, (newVal) => {
                   }}</span></div>
             </div>
             <div class="footer text-center">
-              <div v-if="printKasirData.header.summary.pundiAmal > 0" class="donation-text">
+              <div class="donation-text">
                 Dengan membeli produk kaosan ini, Kaosan telah menyisihkan/peduli dengan sesama yg membutuhkan
-                sebesar {{ formatRupiah(printKasirData.header.summary.pundiAmal) }}
+                sebesar Rp {{ formatRupiah(hitungPundiAmal(printKasirData.details)) }}
               </div>
               <div>BARANG YANG SUDAH DIBELI TIDAK BISA DIKEMBALIKAN</div>
               <div>TERIMAKASIH ATAS KUNJUNGAN ANDA</div>

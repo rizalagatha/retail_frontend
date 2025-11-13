@@ -55,6 +55,7 @@ const isLoading = ref(true);
 const appLogo = Logo;
 const igLogo = InstagramLogo;
 const fbLogo = FacebookLogo;
+const maxPundi = 500;
 
 const formatRupiah = (angka: number) =>
   new Intl.NumberFormat('id-ID').format(Math.round(angka || 0));
@@ -90,6 +91,17 @@ const calculateTotalsWithDiscount = (details: PrintDetail[]) => {
   }
 
   return { totalAsli, totalDiskon, totalNetto };
+};
+
+const hitungPundiAmal = (details: PrintDetail[]) => {
+  if (!details) return 0;
+
+  let totalQty = 0;
+  for (const item of details) {
+    totalQty += Number(item.invd_jumlah) || 0;
+  }
+
+  return totalQty * maxPundi;
 };
 
 onMounted(() => {
@@ -179,9 +191,9 @@ onMounted(() => {
       </div>
 
       <div class="footer text-center">
-        <div v-if="printData.header.summary.pundiAmal > 0" class="donation-text">
+        <div class="donation-text">
           Dengan membeli produk kaosan ini, Kaosan telah menyisihkan/peduli dengan sesama yg membutuhkan
-          sebesar {{ formatRupiah(printData.header.summary.pundiAmal) }}
+          sebesar {{ formatRupiah(hitungPundiAmal(printData.details)) }}
         </div>
         <div>BARANG YANG SUDAH DIBELI TIDAK BISA DIKEMBALIKAN</div>
         <div>TERIMAKASIH ATAS KUNJUNGAN ANDA</div>
@@ -249,7 +261,14 @@ onMounted(() => {
 }
 
 .donation-text {
-  margin-bottom: 5px;
+  margin-top: 6px;
+  margin-bottom: 6px;
+  padding: 4px 0;
+  text-align: center;
+  font-size: 8pt;
+  font-weight: bold;
+  border-top: 1px dashed black;
+  border-bottom: 1px dashed black;
 }
 
 .social-media {

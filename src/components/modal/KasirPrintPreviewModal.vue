@@ -54,6 +54,7 @@ const emit = defineEmits(["update:modelValue"]);
 
 const printData = ref<PrintData | null>(null);
 const isLoading = ref(false);
+const maxPundi = 500;
 
 // ===================================================================
 // CSS STRUK (100% sama dengan InvoicePrintKasirView)
@@ -129,6 +130,17 @@ const printCss = `
 
   .social-item img {
     height: 8px;
+  }
+
+  .donation-text {
+    margin-top: 6px;
+    margin-bottom: 6px;
+    padding: 4px 0;
+    text-align: center;
+    font-size: 8pt;
+    font-weight: bold;
+    border-top: 1px dashed black;
+    border-bottom: 1px dashed black;
   }
 
   @page {
@@ -226,6 +238,17 @@ const calculateTotals = (details: PrintDetail[]) => {
   });
 
   return { totalAsli, totalDiskon, totalNetto };
+};
+
+const hitungPundiAmal = (details: PrintDetail[]) => {
+  if (!details) return 0;
+
+  let totalQty = 0;
+  for (const item of details) {
+    totalQty += Number(item.invd_jumlah) || 0;
+  }
+
+  return totalQty * maxPundi;
 };
 </script>
 
@@ -336,6 +359,11 @@ const calculateTotals = (details: PrintDetail[]) => {
 
             <!-- Footer -->
             <div class="footer text-center">
+              <div class="donation-text">
+                Dengan membeli produk kaosan ini, Kaosan telah menyisihkan/peduli dengan sesama yg membutuhkan
+                sebesar {{ formatRupiah(hitungPundiAmal(printData.details)) }}
+              </div>
+
               <div>BARANG YANG SUDAH DIBELI TIDAK BISA DIKEMBALIKAN</div>
               <div>TERIMAKASIH ATAS KUNJUNGAN ANDA</div>
 
@@ -366,5 +394,16 @@ const calculateTotals = (details: PrintDetail[]) => {
 <style scoped>
 .receipt {
   font-family: 'Roboto Mono', monospace;
+}
+
+.donation-text {
+  margin-top: 6px;
+  margin-bottom: 6px;
+  padding: 4px 0;
+  text-align: center;
+  font-size: 8pt;
+  font-weight: bold;
+  border-top: 1px dashed black;
+  border-bottom: 1px dashed black;
 }
 </style>

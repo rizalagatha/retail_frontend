@@ -114,9 +114,13 @@ const fetchPrintData = async (nomor: string) => {
 watch(printData, async (newData) => {
   if (newData && route.query.source !== 'whatsapp') {
     document.body.classList.add('print-mode');
+    document.body.classList.add('print-kasir');
     await nextTick();
     window.print();
-    setTimeout(() => document.body.classList.remove('print-mode'), 500);
+    setTimeout(() => {
+      document.body.classList.remove('print-mode');
+      document.body.classList.remove('print-kasir');
+    }, 500);
   }
 });
 
@@ -326,14 +330,16 @@ onMounted(() => {
 }
 
 @media print {
-  body, html {
+
+  body.print-kasir,
+  html.print-kasir {
     width: 58mm !important;
     margin: 0 !important;
     padding: 0 !important;
     background: white !important;
   }
 
-  .receipt {
+  body.print-kasir .receipt {
     display: block !important;
     width: 58mm !important;
     min-width: 58mm !important;

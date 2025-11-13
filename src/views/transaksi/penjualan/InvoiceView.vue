@@ -108,7 +108,7 @@ const isKasirPreviewVisible = ref(false);
 const selectedInvoice = ref<string | null>(null);
 
 const filters = reactive({
-  startDate: format(subDays(new Date(), 7), 'yyyy-MM-dd'),
+  startDate: format(new Date(), 'yyyy-MM-dd'),
   endDate: format(new Date(), 'yyyy-MM-dd'),
   cabang: authStore.user?.cabang === 'KDC' ? 'K01' : authStore.user?.cabang || '',
   status: null as string | null,

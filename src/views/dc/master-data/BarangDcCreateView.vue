@@ -354,6 +354,10 @@ const handleAktifChange = async (item: VarianItem) => {
   // Hanya jalankan jika checkbox diaktifkan
   if (!item.aktif) return;
 
+  if (!item.barcode) {
+    item.barcode = generateBarcode(item);
+  }
+
   // Logika penentuan tipe warna dan lengan dari Delphi
   let warnaType = 'WARNA';
   if (header.warna === 'HITAM') {
@@ -400,6 +404,14 @@ const updateAllActiveBuffers = async () => {
   }
 };
 
+const generateBarcode = (variant: VarianItem) => {
+  if (!header.bcdId) return '';
+
+  const yearYY = new Date().getFullYear().toString().substring(2);
+  const bcdIdPadded = header.bcdId.toString().padStart(4, "0");
+  const kodeUkuran = variant.no; // 2 digit
+  return `${yearYY}${bcdIdPadded}${kodeUkuran}`;
+};
 
 onMounted(async () => {
   if (!authStore.can(MENU_ID, requiredPermission.value)) {
@@ -432,11 +444,25 @@ onMounted(async () => {
 
 watch(
   [() => header.jenisKaos, () => header.tipe, () => header.lengan, () => header.jenisKain, () => header.warna],
-  () => {
+  async ([jk, tp, lg, jkain, wr]) => {
     generateNamaBarang();
-    updateAllActiveBuffers(); // <-- PANGGIL FUNGSI BARU DI SINI
+    updateAllActiveBuffers();
+
+    // ✅ Tambahkan logika ini
+    if (!isEditMode.value && jk && tp && lg && jkain && wr && !header.bcdId) {
+      try {
+        const { data } = await api.get('/barang-dc-form/next-bcdid');
+        if (data.success) {
+          header.bcdId = data.nextId;
+          toast.success(`ID Barcode berhasil digenerate: ${data.nextId}`);
+        }
+      } catch (error) {
+        toast.error('Gagal generate ID Barcode otomatis.', error);
+      }
+    }
   }
 );
+
 </script>
 
 <template>
@@ -462,8 +488,10 @@ watch(
           <v-row dense>
             <v-col cols="6"><v-text-field label="Kode" v-model="header.kode" readonly filled density="compact"
                 hide-details /></v-col>
-            <v-col cols="6"><v-text-field label="ID Barcode" v-model="header.bcdId" density="compact" hide-details
-                variant="outlined" /></v-col>
+            <v-col cols="6">
+              <v-text-field label="ID Barcode" v-model="header.bcdId" density="compact" hide-details variant="outlined"
+                readonly :disabled="true" prepend-inner-icon="mdi-barcode" />
+            </v-col>
             <v-col cols="12"><v-text-field label="Nama Barang" v-model="header.nama" readonly filled density="compact"
                 hide-details /></v-col>
             <v-col cols="6"><v-select label="Kategori Produk" v-model="header.kategoriProduk"

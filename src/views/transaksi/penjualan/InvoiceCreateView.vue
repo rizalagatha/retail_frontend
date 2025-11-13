@@ -403,9 +403,10 @@ const requestAuthorization = (title: string, onConfirm: (pin: string) => void, o
 
 const handleAuthSuccess = async (pin: string) => {
   try {
-    await api.post('/otorisasi/validate-pin', { pin, challengeCode: authDialog.challengeCode });
+    await api.post('/auth-pin/validate', { pin, code: authDialog.challengeCode, });
     toast.success('Otorisasi berhasil.');
     authDialog.onSuccess(pin);
+    calculateTotals();
     authDialog.show = false;
   } catch (error: unknown) {
     const err = error as { response?: { data?: { message?: string } } };
@@ -804,24 +805,39 @@ const onSoDtfSelected = async (soDtf: SoDtf) => {
 const calculateTotals = () => {
   const subTotal = items.value.reduce((sum, it) => sum + (it.jumlah || 0) * (it.harga || 0), 0);
 
-  const totalDiskonItem = items.value.reduce((sum, it) => sum + (it.jumlah || 0) * (it.diskonRp || 0), 0);
+  const totalDiskonItem = items.value.reduce((sum, item) => {
+    const qty = item.jumlah || 0;
+    const diskonPerUnit = item.diskonRp || 0;
+    return sum + (qty * diskonPerUnit);
+  }, 0);
 
   const afterItemDiscount = subTotal - totalDiskonItem;
+
   const diskon1Amount = (header.diskonPersen1 / 100) * afterItemDiscount;
   const afterDiscount1 = afterItemDiscount - diskon1Amount;
+
   const diskon2Amount = (header.diskonPersen2 / 100) * afterDiscount1;
+
   const diskonFaktur = header.diskonRp + diskon1Amount + diskon2Amount;
 
-  const nettoSetelahDiskon = subTotal - totalDiskonItem - diskonFaktur;
+  const nettoSetelahDiskon = afterItemDiscount - diskonFaktur;
+
   const totalPpn = nettoSetelahDiskon * (header.ppnPersen / 100);
+
   const totalDp = linkedDps.value.reduce((sum, dp) => sum + (dp.nominal || 0), 0);
 
-  totals.subTotal = subTotal;
+  // ✔ subtotal SETELAH diskon per item
+  totals.subTotal = items.value.reduce((sum, item) => sum + (item.total || 0), 0);
+
   totals.totalDiskonItem = totalDiskonItem;
   totals.totalDiskonFaktur = diskonFaktur;
+
   totals.nettoSetelahDiskon = nettoSetelahDiskon;
   totals.totalPpn = totalPpn;
-  totals.grandTotal = nettoSetelahDiskon + totalPpn + header.biayaKirim;
+
+  // ⭐ FIX UTAMA DI SINI
+  totals.grandTotal = nettoSetelahDiskon + totalPpn + (header.biayaKirim || 0);
+
   totals.totalDp = totalDp;
   totals.sisaPiutang = totals.grandTotal - totalDp;
 };
@@ -895,8 +911,13 @@ const applyPromoToItems = async (promoNomor: string) => {
 
 const computeLineTotal = (item) => {
   const harga = item.harga || 0;
+  const persen = item.diskonPersen || 0;
   const diskonRp = item.diskonRp || 0;
-  return (item.jumlah || 0) * (harga - diskonRp);
+
+  const diskonPersenRp = (persen / 100) * harga;
+  const totalDiskonPerUnit = diskonRp + diskonPersenRp;
+
+  return (item.jumlah || 0) * (harga - totalDiskonPerUnit);
 };
 
 const handleProceedToPayment = async () => {

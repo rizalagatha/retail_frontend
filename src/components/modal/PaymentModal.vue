@@ -112,6 +112,8 @@ import FacebookLogo from '@/assets/facebook.jpg';
 const appLogo = Logo;
 const igLogo = InstagramLogo;
 const fbLogo = FacebookLogo;
+const dtPundi = new Date('2024-06-01');
+const maxPundi = 500;
 
 // --- Computed Properties for Real-time Calculation ---
 const totalBayar = computed(() => {
@@ -284,9 +286,9 @@ const requestAuthorization = (
 
 const handleAuthSuccess = async (pin: string) => {
   try {
-    await api.post('/otorisasi/validate-pin', {
+    await api.post('/auth-pin/validate', {
       pin,
-      challengeCode: authDialog.challengeCode
+      code: authDialog.challengeCode,
     });
     toast.success('Otorisasi berhasil.');
     authDialog.show = false;
@@ -521,9 +523,27 @@ const validateVoucher = async () => {
   }
 };
 
-watch(nettoKembali, () => {
-  const sisaKembalian = kembali.value;
-  payment.pundiAmal = (sisaKembalian > 0 && sisaKembalian < 1000) ? sisaKembalian : 0;
+const calculatePundiAmal = (kembali: number) => {
+  if (!kembali || kembali <= 0) return 0;
+
+  // Tanggal mulai berlaku Pundi
+  if (new Date() < dtPundi) return 0;
+
+  // ambil 3 digit terakhir (RightStr(...,3) Delphi)
+  const threeDigits = kembali % 1000;
+
+  if (kembali >= maxPundi) {
+    if (threeDigits >= maxPundi) {
+      return threeDigits - maxPundi;
+    }
+    return threeDigits;
+  }
+
+  return kembali;
+};
+
+watch(kembali, (newVal) => {
+  payment.pundiAmal = calculatePundiAmal(newVal);
 });
 </script>
 

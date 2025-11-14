@@ -409,7 +409,11 @@ const handlePrintSelection = async (type: 'a4' | 'kasir' | 'wa') => {
         s.biayaKirim = Number(s.biayaKirim ?? 0);
         s.grandTotal = Number(s.grandTotal ?? (s.netto + s.biayaKirim));
         s.bayar = Number(s.bayar ?? 0);
-        s.kembali = Number(printKasirData.value.header.inv_kembali ?? (s.bayar - s.grandTotal));
+        const rawKembali = Number(printKasirData.value.header.inv_kembali ?? (s.bayar - s.grandTotal));
+        s.pundiAmal = Number(s.pundiAmal ?? 0);
+
+        // KEMBALI SETELAH DONASI
+        s.kembali = rawKembali;
       }
 
       isKasirPreviewVisible.value = true;
@@ -835,6 +839,10 @@ watch(kembali, (newVal) => {
                 formatRupiah(printKasirData.header.summary.grandTotal) }}</span></div>
               <div class="summary-item"><span>Bayar </span><span>{{ formatRupiah(printKasirData.header.summary.bayar)
                   }}</span></div>
+              <div class="summary-item" v-if="printKasirData.header.summary.pundiAmal">
+                <span>Pundi Amal </span>
+                <span>{{ formatRupiah(printKasirData.header.summary.pundiAmal) }}</span>
+              </div>
               <div class="summary-item"><span>Kembali </span><span>{{
                 formatRupiah(printKasirData.header.summary.kembali)
                   }}</span></div>

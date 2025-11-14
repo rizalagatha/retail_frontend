@@ -191,7 +191,20 @@ const fetchMasterData = async () => {
   loading.value = true;
   try {
     const response = await api.get<InvoiceHeader[]>('/invoices', { params: filters });
-    masterData.value = response.data;
+    masterData.value = response.data.map(h => {
+      const nominal = Number(h.Nominal) || 0;
+      const dp = Number(h.Dp) || 0;
+
+      const grandTotal = nominal;     // nominal sudah final NET dari backend
+      const piutang = grandTotal - dp;
+
+      return {
+        ...h,
+        Nominal: nominal,
+        Piutang: piutang,
+        SisaPiutang: piutang - (Number(h.Bayar) || 0),
+      };
+    });
   } catch (error: unknown) {
     if (error instanceof Error) {
       toast.error(error.message);

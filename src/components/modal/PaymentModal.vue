@@ -29,7 +29,7 @@ interface PrintKasirHeader {
   gdg_inv_instagram?: string;
   gdg_inv_fb?: string;
   pro_lipat?: string;
-  summary: {
+  summary: Partial<{
     subTotal: number;
     diskon: number;
     ppn: number;
@@ -40,7 +40,7 @@ interface PrintKasirHeader {
     bayar: number;
     pundiAmal: number;
     kembali: number;
-  };
+  }>;
 }
 
 interface PrintKasirDetail {
@@ -50,9 +50,16 @@ interface PrintKasirDetail {
   invd_jumlah: number;
   invd_harga: number;
   total: number;
-  invd_diskon?: number;       // potongan per pcs (jika ada)
-  invd_harga_asli?: number;   // harga per pcs SEBELUM diskon (jika ada)
-  total_asli?: number;        // total sebelum diskon (jika ada)
+
+  // === new fields from backend ===
+  harga_setelah_diskon?: number;
+  harga_asli?: number;
+  diskonRp?: number;
+
+  // existing optional
+  invd_diskon?: number;
+  invd_harga_asli?: number;
+  total_asli?: number;
 }
 
 interface PrintKasirData {
@@ -178,22 +185,7 @@ const formatRupiah = (value: number) => new Intl.NumberFormat('id-ID').format(va
 //   .social-item img { height: 8px; }
 // `;
 
-// ===== Helpers untuk item diskon di struk =====
-const getUnitDiscount = (d: PrintKasirDetail): number => {
-  // Prioritas: invd_diskon dari backend; fallback: selisih harga_asli vs harga
-  if (typeof d.invd_diskon === 'number') return Math.max(d.invd_diskon, 0);
-  if (typeof d.invd_harga_asli === 'number') {
-    return Math.max(d.invd_harga_asli - d.invd_harga, 0);
-  }
-  return 0;
-};
-
-const getOriginalUnitPrice = (d: PrintKasirDetail): number => {
-  if (typeof d.invd_harga_asli === 'number') return d.invd_harga_asli;
-  const disc = getUnitDiscount(d);
-  return disc > 0 ? d.invd_harga + disc : d.invd_harga;
-};
-
+// ===== Helpers untuk item diskon di struk ====
 // const getOriginalTotal = (d: PrintKasirDetail): number => {
 //   if (typeof d.total_asli === 'number') return d.total_asli;
 //   return getOriginalUnitPrice(d) * d.invd_jumlah;
@@ -214,25 +206,6 @@ const getOriginalUnitPrice = (d: PrintKasirDetail): number => {
 //   // Jika promo kelipatan, semua eligible
 //   return isEligible;
 // };
-
-const calculateTotalsWithDiscount = (details: PrintKasirDetail[]) => {
-  let totalAsli = 0;
-  let totalDiskon = 0;
-  let totalNetto = 0;
-
-  for (const item of details) {
-    const qty = item.invd_jumlah;
-    const hargaAsli = getOriginalUnitPrice(item);
-    const hargaSetelahDiskon = item.invd_harga;
-    const diskonPerUnit = getUnitDiscount(item);
-
-    totalAsli += hargaAsli * qty;
-    totalDiskon += diskonPerUnit * qty;
-    totalNetto += hargaSetelahDiskon * qty;
-  }
-
-  return { totalAsli, totalDiskon, totalNetto };
-};
 
 const onRekeningSelected = (rekening: BankAccount) => {
   payment.transfer.akun = rekening;
@@ -314,9 +287,22 @@ const executeSave = async () => {
       dps: props.linkedDps,
       payment: {
         ...payment,
-        pinBelumLunas: temporaryPin.value // Sertakan PIN jika ada
+        // keep existing shape but include numeric fields
+        tunai: Number(payment.tunai || 0),
+        transfer: { ...payment.transfer, nominal: Number(payment.transfer.nominal || 0) },
+        voucher: { ...payment.voucher, nominal: Number(payment.voucher.nominal || 0) },
+        retur: { ...payment.retur, nominal: Number(payment.retur.nominal || 0) },
+        pinBelumLunas: temporaryPin.value
       },
-      totals: props.totals,
+      totals: {
+        subTotal: props.totals.subTotal,
+        totalDiskonItem: props.totals.totalDiskonItem || 0,
+        totalDiskonFaktur: props.totals.totalDiskonFaktur || 0,
+        totalDp: props.totals.totalDp || 0,
+        netto: props.totals.subTotal - (props.totals.totalDiskonItem || 0) - (props.totals.totalDiskonFaktur || 0),
+        grandTotal: props.totals.grandTotal,
+        sisaPiutang: props.totals.sisaPiutang || 0
+      },
       pins: props.authPins,
       isNew: !props.invoiceHeader.nomor,
     };
@@ -364,19 +350,71 @@ const handlePrintSelection = async (type: 'a4' | 'kasir' | 'wa') => {
     emit('save-success', savedInvoiceNumber.value);
 
   } else if (type === 'kasir') {
-    // [LOGIKA BARU] Buka Pratinjau Dialog
     isPrintingKasir.value = true;
     try {
       const response = await api.get(`/invoice-form/print-kasir/${nomor}`);
-      printKasirData.value = response.data;
-      isKasirPreviewVisible.value = true; // Buka modal preview
+      printKasirData.value = response.data as PrintKasirData;
+
+      if (printKasirData.value?.details) {
+        // --- NORMALISASI DETAIL (TANPA ANY) ---
+        printKasirData.value.details = printKasirData.value.details.map(
+          (d: PrintKasirDetail): PrintKasirDetail => {
+            const hargaSetelah = Number(d.harga_setelah_diskon ?? d.invd_harga ?? 0);
+            const hargaAsli = Number(
+              d.harga_asli ??
+              d.invd_harga_asli ??
+              (d.invd_harga ?? 0) + (d.invd_diskon ?? 0)
+            );
+            const diskonRp = Number(d.invd_diskon ?? d.diskonRp ?? 0);
+            const qty = Number(d.invd_jumlah ?? 0);
+
+            return {
+              ...d,
+              invd_harga: hargaSetelah,
+              invd_harga_asli: hargaAsli,
+              invd_diskon: diskonRp,
+              total: d.total ?? hargaSetelah * qty,
+            };
+          }
+        );
+
+        // ------ NORMALISASI SUMMARY (TANPA ANY) ------
+        const h: PrintKasirHeader = printKasirData.value.header;
+
+        if (!h.summary) h.summary = {};
+
+        const details = printKasirData.value.details;
+
+        const fallbackSubTotal = details.reduce(
+          (sum, d) =>
+            sum + (Number(d.invd_harga) + Number(d.invd_diskon ?? 0)) * Number(d.invd_jumlah),
+          0
+        );
+
+        const fallbackNetto = details.reduce(
+          (sum, d) => sum + Number(d.invd_harga) * Number(d.invd_jumlah),
+          0
+        );
+
+        const fallbackDiskon = Math.max(fallbackSubTotal - fallbackNetto, 0);
+
+        const s = h.summary;
+
+        s.subTotal = Number(s.subTotal ?? fallbackSubTotal);
+        s.diskon = Number(s.diskon ?? fallbackDiskon);
+        s.netto = Number(s.netto ?? (s.subTotal - s.diskon));
+        s.biayaKirim = Number(s.biayaKirim ?? 0);
+        s.grandTotal = Number(s.grandTotal ?? (s.netto + s.biayaKirim));
+        s.bayar = Number(s.bayar ?? 0);
+        s.kembali = Math.max(s.bayar - s.grandTotal, 0);
+      }
+
+      isKasirPreviewVisible.value = true;
     } catch {
       toast.error("Gagal memuat data struk.");
     } finally {
       isPrintingKasir.value = false;
     }
-    // 'onPrintModalClose()' akan dipanggil saat dialog pratinjau ditutup
-
   } else if (type === 'wa') {
     const memberHp = props.invoiceHeader.Hp || props.invoiceHeader.memberHp;
     if (!memberHp) {
@@ -768,39 +806,32 @@ watch(kembali, (newVal) => {
               </div>
             </div>
             <div class="summary">
-              <template v-if="printKasirData?.details?.length">
-                <div v-if="calculateTotalsWithDiscount(printKasirData.details).totalDiskon > 0">
-                  <div class="summary-item">
-                    <span>Total (Sebelum Diskon)</span>
-                    <span>{{ formatRupiah(calculateTotalsWithDiscount(printKasirData.details).totalAsli) }}</span>
-                  </div>
-                  <div class="summary-item">
-                    <span>Total Diskon</span>
-                    <span>-{{ formatRupiah(calculateTotalsWithDiscount(printKasirData.details).totalDiskon) }}</span>
-                  </div>
-                  <div class="summary-item">
-                    <span>Netto (Setelah Diskon)</span>
-                    <span>{{ formatRupiah(calculateTotalsWithDiscount(printKasirData.details).totalNetto) }}</span>
-                  </div>
-                </div>
-                <div v-else>
-                  <div class="summary-item">
-                    <span>Total</span>
-                    <span>{{ formatRupiah(printKasirData.header.summary.subTotal) }}</span>
-                  </div>
-                </div>
-              </template>
+              <div class="summary-item">
+                <span>Total (Sebelum Diskon)</span>
+                <span>{{ formatRupiah(printKasirData.header.summary.subTotal) }}</span>
+              </div>
+
+
+              <div v-if="printKasirData.header.summary.diskon > 0" class="summary-item">
+                <span>Total Diskon</span>
+                <span>-{{ formatRupiah(printKasirData.header.summary.diskon) }}</span>
+              </div>
+
+
+              <div class="summary-item">
+                <span>Netto (Setelah Diskon)</span>
+                <span>{{ formatRupiah(printKasirData.header.summary.netto) }}</span>
+              </div>
+
+
               <div class="summary-item"><span>Biaya Kirim </span><span>{{
                 formatRupiah(printKasirData.header.summary.biayaKirim) }}</span></div>
-              <div class="summary-item"><span>Dp </span><span>{{ formatRupiah(printKasirData.header.summary.dp)
-              }}</span>
-              </div>
+
+
               <div class="summary-item grand-total"><span>Grand Total </span><span>{{
                 formatRupiah(printKasirData.header.summary.grandTotal) }}</span></div>
               <div class="summary-item"><span>Bayar </span><span>{{ formatRupiah(printKasirData.header.summary.bayar)
-              }}</span></div>
-              <div class="summary-item"><span>Pundi amal </span><span>{{
-                formatRupiah(printKasirData.header.summary.pundiAmal) }}</span></div>
+                  }}</span></div>
               <div class="summary-item"><span>Kembali </span><span>{{
                 formatRupiah(printKasirData.header.summary.kembali)
                   }}</span></div>

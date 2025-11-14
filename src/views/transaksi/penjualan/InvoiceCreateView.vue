@@ -345,16 +345,22 @@ const onDiskonSaved = (data: DiskonFormData) => {
         header.diskonPersen1 = data.diskonPersen1;
         header.diskonPersen2 = data.diskonPersen2;
         header.diskonRp = data.diskonRp;
+        header.biayaKirim = data.biayaKirim;
+        calculateTotals();
       },
       () => { // onCancel
         header.diskonPersen1 = originalDiscount.faktur.persen1;
         header.diskonPersen2 = originalDiscount.faktur.persen2;
         header.diskonRp = originalDiscount.faktur.rp;
+        header.biayaKirim = originalDiscount.faktur.biayaKirim;
+
+        calculateTotals();
       }
     );
   }
 
   header.biayaKirim = data.biayaKirim;
+  calculateTotals();
 };
 
 const handleItemDiscountChange = (item: Item) => {
@@ -1659,9 +1665,9 @@ onMounted(() => {
       @selected="onPromoSelected" />
     <MemberForm v-if="dialogs.memberForm" :initial-hp="memberHpToSearch" @close="dialogs.memberForm = false"
       @member-saved="onMemberSaved" />
-    <DiskonForm v-if="dialogs.diskonForm" :diskon-persen1="header.diskonPersen1" :diskon-rp="header.diskonRp"
-      :biaya-kirim="header.biayaKirim" @close="dialogs.diskonForm = false" :sub-total="totals.subTotal"
-      @save="onDiskonSaved" />
+    <DiskonForm v-if="dialogs.diskonForm" :diskon-persen1="header.diskonPersen1" :diskon-persen2="header.diskonPersen2"
+      :diskon-rp="header.diskonRp" :biaya-kirim="header.biayaKirim" @close="dialogs.diskonForm = false"
+      :sub-total="totals.subTotal" @save="onDiskonSaved" />
     <LinkedDpModal v-if="dialogs.linkedDp" :dps="linkedDps" @close="dialogs.linkedDp = false" />
     <AuthorizationModal v-if="authDialog.show" ref="authModalRef" :title="authDialog.title"
       :challenge-code="authDialog.challengeCode" @close="handleAuthCancel" @success="handleAuthSuccess" />

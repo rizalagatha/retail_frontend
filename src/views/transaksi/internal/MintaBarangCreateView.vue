@@ -299,11 +299,7 @@ const save = () => {
     toast.error('Anda tidak memiliki izin untuk menyimpan data ini.');
     return;
   }
-  // --- Migrasi Validasi dari Delphi (btnSimpanClick) ---
-  if (!formHeader.value.soNomor && !formHeader.value.customer?.kode) {
-    toast.error('No. Pesanan atau Customer harus diisi.');
-    return;
-  }
+
   const validItems = items.value.filter(item => item.kode);
   if (validItems.length === 0) {
     toast.error('Detail barang harus diisi minimal 1 baris.');

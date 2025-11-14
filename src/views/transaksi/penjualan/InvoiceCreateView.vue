@@ -120,7 +120,8 @@ interface ApiInvoiceItem {
   invd_jumlah: number;
   invd_harga: number;
   invd_diskon: number;
-  // field tambahan jika ada
+  stok?: number;
+  stokSO?: number;
   [key: string]: unknown;
 }
 
@@ -1290,6 +1291,11 @@ const loadDataForEdit = async (nomor: string) => {
       jumlah: item.invd_jumlah,
       harga: item.invd_harga,
       diskonRp: item.invd_diskon,
+
+      // === PATCH BARU ===
+      stok: item.stok ?? 0,
+      stokSO: item.stokSO ?? 0,
+      stokTotal: (item.stok ?? 0) + (item.stokSO ?? 0),
     }));
     addNewRow();
 
@@ -1361,6 +1367,33 @@ const handleClearSo = () => {
   );
 };
 
+const saveHeaderOnly = async () => {
+  try {
+    const payload = {
+      nomor: header.nomor,
+      customer: header.customer.kode,
+      keterangan: header.keterangan,
+      salesCounter: header.salesCounter,
+      top: header.top,
+      tanggal: header.tanggal,
+      biayaKirim: header.biayaKirim,
+      diskonPersen1: header.diskonPersen1,
+      diskonRp: header.diskonRp,
+      ppnPersen: header.ppnPersen,
+      memberHp: header.memberHp,
+      memberNama: header.memberNama,
+    };
+
+    await api.put(`/invoice-form/update-header/${header.nomor}`, payload);
+
+    toast.success("Header invoice berhasil diperbarui.");
+    router.push({ name: 'Invoice', params: { nomor: header.nomor } });
+  } catch (error) {
+    console.error(error);
+    toast.error("Gagal menyimpan header invoice.");
+  }
+};
+
 // Hitung tanggal tempo otomatis
 watch(header, () => {
   if (header.top > 0 && header.tanggal) {
@@ -1401,6 +1434,9 @@ onMounted(() => {
 <template>
   <PageLayout :title="pageTitle" icon="mdi-receipt-text-edit">
     <template #header-actions>
+      <v-btn v-if="isEditMode" color="primary" size="small" prepend-icon="mdi-content-save" @click="saveHeaderOnly">
+        Simpan
+      </v-btn>
       <v-btn v-if="!isEditMode" size="small" prepend-icon="mdi-cancel"
         @click="showConfirmation('Batalkan Isian', 'Batalkan dan kosongkan semua isian?', resetForm)">
         Batal

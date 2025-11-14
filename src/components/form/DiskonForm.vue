@@ -5,53 +5,52 @@ const props = defineProps({
   subTotal: { type: Number, default: 0 },
   diskonPersen1: { type: Number, default: 0 },
   diskonPersen2: { type: Number, default: 0 },
-  diskonRp: { type: Number, default: 0 }, // 1. Tambahkan prop diskonRp
+  diskonRp: { type: Number, default: 0 },
   biayaKirim: { type: Number, default: 0 },
+  mode: { type: String, default: 'persen' } // ← TAMBAHAN MODE
 });
-const emit = defineEmits(['close', 'save']);
 
-// 2. Tambahkan state untuk input Rp (terpisah) dan fokus
-const diskonRpInput = ref(props.diskonRp || 0);
-const isDiskonRpFocused = ref(false);
+const emit = defineEmits(['close', 'save']);
 
 const formData = reactive({
   diskonPersen1: props.diskonPersen1,
   diskonPersen2: props.diskonPersen2,
   biayaKirim: props.biayaKirim,
+  mode: props.mode
 });
 
-// 3. Perbarui 'computed' untuk memprioritaskan input Rp
-const calculatedDiskonRp = computed(() => {
-  if (diskonRpInput.value > 0) {
+// diskon rupiah input
+const diskonRpInput = ref(props.diskonRp || 0);
+const isDiskonRpFocused = ref(false);
+
+// hitung diskon berdasarkan persen
+const hitungDiskonPersen = computed(() => {
+  const disc1 = (formData.diskonPersen1 / 100) * props.subTotal;
+  const afterDisc1 = props.subTotal - disc1;
+  const disc2 = (formData.diskonPersen2 / 100) * afterDisc1;
+  return Math.round(disc1 + disc2);
+});
+
+// hitung diskon final tergantung mode
+const finalDiskonRp = computed(() => {
+  if (formData.mode === 'rp') {
     return diskonRpInput.value;
   }
-  const diskon1 = (formData.diskonPersen1 / 100) * props.subTotal;
-  const afterDiscount1 = props.subTotal - diskon1;
-  const diskon2 = (formData.diskonPersen2 / 100) * afterDiscount1;
-  return Math.round(diskon1 + diskon2);
+  return hitungDiskonPersen.value;
 });
 
-// 4. Perbarui 'save' untuk me-reset field yang lain
 const save = () => {
-  let finalDiskonRp = calculatedDiskonRp.value;
-
-  if (diskonRpInput.value > 0) {
-    // Jika Rp diisi, reset persen
-    formData.diskonPersen1 = 0;
-    formData.diskonPersen2 = 0;
-  } else {
-    // Jika persen diisi, pastikan Rp adalah hasil kalkulasi
-    finalDiskonRp = calculatedDiskonRp.value;
-  }
-
   emit('save', {
-    ...formData,
-    diskonRp: finalDiskonRp
+    diskonPersen1: formData.mode === 'persen' ? formData.diskonPersen1 : 0,
+    diskonPersen2: formData.mode === 'persen' ? formData.diskonPersen2 : 0,
+    diskonRp: finalDiskonRp.value,
+    mode: formData.mode,
+    biayaKirim: formData.biayaKirim
   });
   emit('close');
 };
 
-const formatRupiah = (value: number) => new Intl.NumberFormat('id-ID').format(value || 0);
+const formatRupiah = (v: number) => new Intl.NumberFormat('id-ID').format(v || 0);
 </script>
 
 <template>
@@ -65,9 +64,9 @@ const formatRupiah = (value: number) => new Intl.NumberFormat('id-ID').format(va
 
       <v-card-text class="pa-4 header-section">
         <v-text-field label="Disc % 1" v-model.number="formData.diskonPersen1" variant="outlined" hide-details
-          density="compact" :disabled="diskonRpInput > 0" />
+          density="compact" />
         <v-text-field label="Disc % 2" v-model.number="formData.diskonPersen2" variant="outlined" hide-details
-          density="compact" :disabled="diskonRpInput > 0" />
+          density="compact" />
 
         <v-text-field label="Diskon Rp"
           :model-value="isDiskonRpFocused ? diskonRpInput : formatRupiah(diskonRpInput || 0)"

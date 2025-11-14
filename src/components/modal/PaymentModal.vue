@@ -29,6 +29,7 @@ interface PrintKasirHeader {
   gdg_inv_instagram?: string;
   gdg_inv_fb?: string;
   pro_lipat?: string;
+  inv_kembali?: number;
   summary: Partial<{
     subTotal: number;
     diskon: number;
@@ -292,6 +293,8 @@ const executeSave = async () => {
         transfer: { ...payment.transfer, nominal: Number(payment.transfer.nominal || 0) },
         voucher: { ...payment.voucher, nominal: Number(payment.voucher.nominal || 0) },
         retur: { ...payment.retur, nominal: Number(payment.retur.nominal || 0) },
+        bayarTotal: totalBayar.value,   // PATCH: total uang masuk
+        kembali: kembali.value,         // PATCH: kembalian dihitung frontend
         pinBelumLunas: temporaryPin.value
       },
       totals: {
@@ -406,7 +409,7 @@ const handlePrintSelection = async (type: 'a4' | 'kasir' | 'wa') => {
         s.biayaKirim = Number(s.biayaKirim ?? 0);
         s.grandTotal = Number(s.grandTotal ?? (s.netto + s.biayaKirim));
         s.bayar = Number(s.bayar ?? 0);
-        s.kembali = Math.max(s.bayar - s.grandTotal, 0);
+        s.kembali = Number(printKasirData.value.header.inv_kembali ?? (s.bayar - s.grandTotal));
       }
 
       isKasirPreviewVisible.value = true;

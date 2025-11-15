@@ -191,35 +191,22 @@ const fetchMasterData = async () => {
   loading.value = true;
   try {
     const response = await api.get<InvoiceHeader[]>('/invoices', { params: filters });
-    masterData.value = response.data.map(h => {
-      const nominal = Number(h.Nominal) || 0;
-      const dp = Number(h.Dp) || 0;
 
-      const grandTotal = nominal;     // nominal sudah final NET dari backend
-      const piutang = grandTotal - dp;
+    masterData.value = response.data.map(h => ({
+      ...h,
+      Nominal: Number(h.Nominal) || 0,
+      Piutang: Number(h.Piutang) || 0,
+      SisaPiutang: Number(h.SisaPiutang) || 0,   // <-- PENTING! JANGAN HITUNG ULANG
+      Bayar: Number(h.Bayar) || 0,               // pastikan aman
+      Dp: Number(h.Dp) || 0,
+    }));
 
-      return {
-        ...h,
-        Nominal: nominal,
-        Piutang: piutang,
-        SisaPiutang: piutang - (Number(h.Bayar) || 0),
-      };
-    });
-  } catch (error: unknown) {
-    if (error instanceof Error) {
-      toast.error(error.message);
-    } else if (typeof error === 'object' && error !== null && 'response' in error) {
-      // Type assertion untuk axios error
-      const axiosError = error as { response?: { data?: { message?: string } } };
-      toast.error(axiosError.response?.data?.message || 'Gagal mengambil data.');
-    } else {
-      toast.error('Gagal mengambil data.');
-    }
+  } catch (error) {
+    toast.error('Gagal mengambil data.', error);
   } finally {
     loading.value = false;
   }
 };
-
 
 const loadDetails = async (newlyExpandedItems: InvoiceItem[]) => {
   const itemToLoad = newlyExpandedItems.find(item =>

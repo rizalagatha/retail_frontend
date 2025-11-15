@@ -124,14 +124,22 @@ const dtPundi = new Date('2024-06-01');
 const maxPundi = 500;
 
 // --- Computed Properties for Real-time Calculation ---
+const dpTotal = computed(() => {
+  if (!props.linkedDps) return 0;
+  return props.linkedDps.reduce((s: number, d: any) => s + (d.nominal || 0), 0);
+});
+
 const totalBayar = computed(() => {
-  return (payment.tunai || 0) + (payment.voucher.nominal || 0) + (payment.transfer.nominal || 0) + (payment.retur.nominal || 0);
+  return dpTotal.value +
+    (payment.tunai || 0) +
+    (payment.voucher.nominal || 0) +
+    (payment.transfer.nominal || 0) +
+    (payment.retur.nominal || 0);
 });
 
 const kembali = computed(() => {
   const grand = props.totals.grandTotal || 0;
-  const bayar = totalBayar.value;
-  return Math.max(bayar - grand, 0);
+  return Math.max(totalBayar.value - grand, 0);
 });
 
 const nettoKembali = computed(() => {
@@ -838,7 +846,7 @@ watch(kembali, (newVal) => {
               <div class="summary-item grand-total"><span>Grand Total </span><span>{{
                 formatRupiah(printKasirData.header.summary.grandTotal) }}</span></div>
               <div class="summary-item"><span>Bayar </span><span>{{ formatRupiah(printKasirData.header.summary.bayar)
-                  }}</span></div>
+              }}</span></div>
               <div class="summary-item" v-if="printKasirData.header.summary.pundiAmal">
                 <span>Pundi Amal </span>
                 <span>{{ formatRupiah(printKasirData.header.summary.pundiAmal) }}</span>

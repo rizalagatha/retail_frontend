@@ -659,7 +659,10 @@ const onSoSelected = async (so: { Nomor: string }) => {
     items.value = [];
 
     // Assign header data
-    Object.assign(header, soHeader);
+    Object.assign(header, {
+      ...soHeader,
+      tanggal: format(new Date(), "yyyy-MM-dd"), // <-- tanggal invoice HARUS hari ini
+    });
     if (soHeader.tanggal) {
       const date = new Date(soHeader.tanggal);
       header.tanggalSo = date.toISOString().split('T')[0]; // Ambil bagian tanggal saja
@@ -827,6 +830,36 @@ const calculateTotals = () => {
   }, 0);
 
   const afterItemDiscount = subTotal - totalDiskonItem;
+
+  // ---------------------------------------------------------------------
+  // FIX: JIKA INVOICE BERASAL DARI SO → DISKON FAKTUR TIDAK BOLEH DIHITUNG ULANG
+  // ---------------------------------------------------------------------
+  if (header.nomorSo) {
+    // Gunakan diskon faktur dari SO apa adanya
+    totals.totalDiskonItem = totalDiskonItem;
+
+    totals.totalDiskonFaktur = Number(header.diskonRp || 0);
+
+    const afterAllDiscount = afterItemDiscount - totals.totalDiskonFaktur;
+
+    const totalPpn = afterAllDiscount * (header.ppnPersen / 100);
+    const totalDp = linkedDps.value.reduce(
+      (sum, dp) => sum + (dp.nominal || 0),
+      0
+    );
+
+    totals.subTotal = items.value.reduce(
+      (sum, item) => sum + (item.total || 0),
+      0
+    );
+
+    totals.totalPpn = totalPpn;
+    totals.grandTotal = afterAllDiscount + totalPpn + (header.biayaKirim || 0);
+    totals.totalDp = totalDp;
+    totals.sisaPiutang = totals.grandTotal - totalDp;
+
+    return; // ← STOP, jangan lanjut hitung diskon persen
+  }
 
   // ---------------------------------------------------------------------
   // 3. DISKON FAKTUR (PERSEN)

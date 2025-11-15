@@ -1558,6 +1558,14 @@ watch(
 // Jika ada DP tambahan dihubungkan
 watch(linkedDps, calculateTotals, { deep: true });
 
+const grandQty = computed(() =>
+  items.value.reduce((sum, it) => sum + (Number(it.jumlah) || 0), 0)
+);
+
+const grandNominal = computed(() =>
+  items.value.reduce((sum, it) => sum + (Number(it.total) || 0), 0)
+);
+
 onMounted(() => {
   if (!authStore.can(MENU_ID, requiredPermission.value)) {
     toast.error(`Anda tidak memiliki izin untuk ${isEditMode.value ? 'mengubah' : 'membuat'} data Invoice.`);
@@ -1759,6 +1767,15 @@ onMounted(() => {
                 </v-btn>
               </template>
             </v-data-table>
+            <div class="table-summary-footer">
+              <div class="summary-row">
+                <div class="label">Grand Qty</div>
+                <div class="value">{{ grandQty }}</div>
+
+                <div class="label">Grand Total</div>
+                <div class="value">Rp {{ new Intl.NumberFormat('id-ID').format(grandNominal) }}</div>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -1960,5 +1977,40 @@ onMounted(() => {
 
 .footer-actions-section .v-row {
   margin: 0 !important;
+}
+
+.table-summary-footer {
+  background: linear-gradient(135deg, #ffffff 0%, #f3f7ff 100%);
+  border-top: 1px solid #dce3f0;
+  padding: 12px 18px;
+  font-size: 13px;
+  flex-shrink: 0;
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  box-shadow: 0 -3px 8px rgba(0, 0, 0, 0.06);
+}
+
+.summary-row {
+  display: flex;
+  justify-content: flex-end;
+  gap: 40px;
+  align-items: center;
+  font-weight: 600;
+}
+
+.summary-row .label {
+  color: #4d5e80;
+  background: #e8eef9;
+  padding: 4px 10px;
+  border-radius: 12px;
+  font-size: 12px;
+}
+
+.summary-row .value {
+  min-width: 80px;
+  text-align: right;
+  color: #1e3a8a;
+  font-size: 14px;
+  font-weight: 700;
 }
 </style>

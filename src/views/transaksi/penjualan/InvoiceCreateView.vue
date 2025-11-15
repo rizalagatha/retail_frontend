@@ -1767,15 +1767,15 @@ onMounted(() => {
                 </v-btn>
               </template>
             </v-data-table>
-            <div class="table-summary-footer">
-              <div class="summary-row">
-                <div class="label">Grand Qty</div>
-                <div class="value">{{ grandQty }}</div>
+          </div>
+        </div>
+        <div class="table-summary-footer">
+          <div class="summary-row">
+            <div class="label">Grand Qty</div>
+            <div class="value">{{ grandQty }}</div>
 
-                <div class="label">Grand Total</div>
-                <div class="value">Rp {{ new Intl.NumberFormat('id-ID').format(grandNominal) }}</div>
-              </div>
-            </div>
+            <div class="label">Grand Total</div>
+            <div class="value">Rp {{ new Intl.NumberFormat('id-ID').format(grandNominal) }}</div>
           </div>
         </div>
 

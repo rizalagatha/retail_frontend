@@ -259,8 +259,8 @@ watch(expanded, (newExpanded) => {
         @click="router.push({ name: 'SetoranBayarEdit', params: { nomor: selected[0].Nomor } })">
         Ubah
       </v-btn>
-      <v-btn color="error" variant="tonal" :loading="deleteLoading" @click="executeDelete">
-        Ya, Hapus
+      <v-btn size="small" color="error" prepend-icon="mdi-delete" :loading="deleteLoading" @click="executeDelete">
+        Hapus
       </v-btn>
       <v-btn v-if="authStore.can(MENU_ID, 'view')" size="small" color="green" :disabled="!isSingleSelected"
         @click="printData" prepend-icon="mdi-printer">

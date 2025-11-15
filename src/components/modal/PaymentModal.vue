@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, reactive, computed, watch } from 'vue';
+import { ref, reactive, computed, watch, PropType } from 'vue';
 import { useToast } from 'vue-toastification';
 import api from '@/services/api';
 import { useRouter } from 'vue-router';
@@ -68,12 +68,17 @@ interface PrintKasirData {
   details: PrintKasirDetail[];
 }
 
+interface LinkedDp {
+  nominal: number;
+  [key: string]: unknown;
+}
+
 const props = defineProps({
   invoiceHeader: { type: Object, required: true },
   invoiceItems: { type: Array, required: true },
   totals: { type: Object, required: true },
   authPins: { type: Object, required: true },
-  linkedDps: { type: Object, required: false },
+  linkedDps: { type: Array as PropType<LinkedDp[]>, required: false },
 });
 
 const emit = defineEmits(['close', 'save-success']);
@@ -85,7 +90,7 @@ const router = useRouter();
 const payment = reactive({
   tunai: 0,
   voucher: { nomor: '', nominal: 0 },
-  transfer: { nominal: 0, akun: { kode: '', nama: '', rekening: '' }, tanggal: new Date().toISOString().substring(0, 10) },
+  transfer: { nominal: null as number | null, akun: { kode: '', nama: '', rekening: '' }, tanggal: new Date().toISOString().substring(0, 10) },
   retur: { nomor: '', nominal: 0 },
   pundiAmal: 0,
 });
@@ -126,14 +131,14 @@ const maxPundi = 500;
 // --- Computed Properties for Real-time Calculation ---
 const dpTotal = computed(() => {
   if (!props.linkedDps) return 0;
-  return props.linkedDps.reduce((s: number, d: any) => s + (d.nominal || 0), 0);
+  return props.linkedDps.reduce((s, d) => s + (d.nominal || 0), 0);
 });
 
 const totalBayar = computed(() => {
   return dpTotal.value +
     (payment.tunai || 0) +
     (payment.voucher.nominal || 0) +
-    (payment.transfer.nominal || 0) +
+    (payment.transfer.nominal ?? 0) +
     (payment.retur.nominal || 0);
 });
 
@@ -691,9 +696,11 @@ watch(kembali, (newVal) => {
           <v-col cols="12" md="7">
             <div class="desktop-form-section">
               <div class="text-subtitle-2 font-weight-bold mb-2">Input Pembayaran</div>
-              <v-text-field label="Tunai" :model-value="isTunaiFocused ? payment.tunai : formatRupiah(payment.tunai)"
-                @update:model-value="payment.tunai = Number(String($event).replace(/[^0-9]/g, '')) || 0"
-                @focus="isTunaiFocused = true" @blur="isTunaiFocused = false" type="text" min="0" variant="outlined"
+              <v-text-field label="Tunai" :model-value="isTunaiFocused
+                ? (payment.tunai === 0 ? '' : payment.tunai)
+                : formatRupiah(payment.tunai)
+                " @update:model-value="payment.tunai = Number(String($event).replace(/[^0-9]/g, '')) || 0"
+                @focus="isTunaiFocused = true" @blur="isTunaiFocused = false" type="text" variant="outlined"
                 density="compact" hide-details class="text-end">
                 <template #prepend-inner>
                   <span class="input-prefix">Rp</span>
@@ -712,11 +719,12 @@ watch(kembali, (newVal) => {
                 </v-col>
               </v-row>
               <v-divider class="my-3" />
-              <v-text-field label="Transfer / Card"
-                :model-value="isTransferFocused ? payment.transfer.nominal : formatRupiah(payment.transfer.nominal)"
-                @update:model-value="payment.transfer.nominal = Number(String($event).replace(/[^0-9]/g, '')) || 0"
-                @focus="isTransferFocused = true" @blur="isTransferFocused = false" type="text" variant="outlined"
-                min="0" density="compact" hide-details class="text-end">
+              <v-text-field label="Transfer / Card" :model-value="isTransferFocused
+                ? (payment.transfer.nominal === null ? '' : payment.transfer.nominal)
+                : formatRupiah(payment.transfer.nominal ?? 0)" @update:model-value="
+      payment.transfer.nominal = $event === '' ? null : Number(String($event).replace(/[^0-9]/g, ''))
+      " @focus="isTransferFocused = true" @blur="isTransferFocused = false" type="text" variant="outlined" min="0"
+                density="compact" hide-details class="text-end">
                 <template #prepend-inner>
                   <span class="input-prefix">Rp</span>
                 </template>
@@ -846,7 +854,7 @@ watch(kembali, (newVal) => {
               <div class="summary-item grand-total"><span>Grand Total </span><span>{{
                 formatRupiah(printKasirData.header.summary.grandTotal) }}</span></div>
               <div class="summary-item"><span>Bayar </span><span>{{ formatRupiah(printKasirData.header.summary.bayar)
-              }}</span></div>
+                  }}</span></div>
               <div class="summary-item" v-if="printKasirData.header.summary.pundiAmal">
                 <span>Pundi Amal </span>
                 <span>{{ formatRupiah(printKasirData.header.summary.pundiAmal) }}</span>

@@ -56,12 +56,6 @@ interface LinkedDp {
   jenis: string;
   nominal: number;
 }
-interface DiskonFormData {
-  diskonPersen1: number;
-  diskonPersen2: number;
-  diskonRp: number;
-  biayaKirim: number;
-}
 interface AuthDialog {
   isFakturVisible: boolean;
   isItemVisible: boolean;
@@ -113,29 +107,29 @@ interface SoDtfItem {
   jumlah: number;
   harga: number;
 }
-interface ApiInvoiceItem {
-  invd_kode: string;
-  nama_barang: string;
-  invd_ukuran: string;
-  invd_jumlah: number;
-  invd_harga: number;
-  invd_diskon: number;
-  stok?: number;
-  stokSO?: number;
-  [key: string]: unknown;
-}
+// interface ApiInvoiceItem {
+//   invd_kode: string;
+//   nama_barang: string;
+//   invd_ukuran: string;
+//   invd_jumlah: number;
+//   invd_harga: number;
+//   invd_diskon: number;
+//   stok?: number;
+//   stokSO?: number;
+//   [key: string]: unknown;
+// }
 
-interface InvoiceItem {
-  id: number;
-  kode: string;
-  nama: string;
-  ukuran: string;
-  jumlah: number;
-  harga: number;
-  diskonRp: number;
-  // field lain dari item jika perlu
-  [key: string]: unknown;
-}
+// interface InvoiceItem {
+//   id: number;
+//   kode: string;
+//   nama: string;
+//   ukuran: string;
+//   jumlah: number;
+//   harga: number;
+//   diskonRp: number;
+//   // field lain dari item jika perlu
+//   [key: string]: unknown;
+// }
 
 interface ActivePromo {
   pro_nomor: string;
@@ -325,42 +319,47 @@ const addNewRow = () => {
   }
 };
 
-const onDiskonSaved = (data: DiskonFormData) => {
-  if (data.diskonPersen1 !== header.diskonPersen1 ||
-    data.diskonPersen2 !== header.diskonPersen2 ||
-    data.diskonRp !== header.diskonRp) {
+const onDiskonSaved = (data: { diskonPersen1: number, diskonPersen2: number, diskonRp: number, biayaKirim: number, mode?: string }) => {
+  // Jika user memilih mode "persen", simpan hanya persen.
+  // Jika mode "rp" (manual), simpan diskonRp (manual).
+  const isPercentMode = data.mode !== 'rp' && (data.diskonPersen1 > 0 || data.diskonPersen2 > 0);
 
-    originalDiscount.faktur = {
-      persen1: header.diskonPersen1,
-      persen2: header.diskonPersen2,
-      rp: header.diskonRp,
-      biayaKirim: header.biayaKirim,
-    };
+  // Simpan original untuk rollback/otorisasi
+  originalDiscount.faktur = {
+    persen1: header.diskonPersen1,
+    persen2: header.diskonPersen2,
+    rp: header.diskonRp,
+    biayaKirim: header.biayaKirim,
+  };
 
-    requestAuthorization(
-      'Otorisasi Diskon Faktur',
-      (pin: string) => { // onSuccess
-        if (data.diskonPersen1 !== header.diskonPersen1) authPins.pinDiskon1 = pin;
-        if (data.diskonPersen2 !== header.diskonPersen2) authPins.pinDiskon2 = pin;
-        header.diskonPersen1 = data.diskonPersen1;
-        header.diskonPersen2 = data.diskonPersen2;
-        header.diskonRp = data.diskonRp;
-        header.biayaKirim = data.biayaKirim;
-        calculateTotals();
-      },
-      () => { // onCancel
-        header.diskonPersen1 = originalDiscount.faktur.persen1;
-        header.diskonPersen2 = originalDiscount.faktur.persen2;
-        header.diskonRp = originalDiscount.faktur.rp;
-        header.biayaKirim = originalDiscount.faktur.biayaKirim;
+  requestAuthorization(
+    'Otorisasi Diskon Faktur',
+    (pin: string) => { // onSuccess
+      if (data.diskonPersen1 !== header.diskonPersen1) authPins.pinDiskon1 = pin;
+      if (data.diskonPersen2 !== header.diskonPersen2) authPins.pinDiskon2 = pin;
 
-        calculateTotals();
-      }
-    );
-  }
+      // terapkan perubahan: bila persen mode -> set diskonRp = 0 (hanya persentase dipakai)
+      header.diskonPersen1 = isPercentMode ? data.diskonPersen1 : 0;
+      header.diskonPersen2 = isPercentMode ? data.diskonPersen2 : 0;
+      header.diskonRp = isPercentMode ? 0 : Number(data.diskonRp || 0);
 
-  header.biayaKirim = data.biayaKirim;
-  calculateTotals();
+      header.biayaKirim = Number(data.biayaKirim || 0);
+
+      // Recalculate setelah update header
+      calculateTotals();
+      toast.success('Diskon disimpan dan terhitung.');
+    },
+    () => { // onCancel
+      // rollback ke nilai asli
+      header.diskonPersen1 = originalDiscount.faktur.persen1;
+      header.diskonPersen2 = originalDiscount.faktur.persen2;
+      header.diskonRp = originalDiscount.faktur.rp;
+      header.biayaKirim = originalDiscount.faktur.biayaKirim;
+
+      calculateTotals();
+      toast.info('Perubahan diskon dibatalkan.');
+    }
+  );
 };
 
 const handleItemDiscountChange = (item: Item) => {
@@ -810,31 +809,71 @@ const onSoDtfSelected = async (soDtf: SoDtf) => {
 };
 
 const calculateTotals = () => {
-  const subTotal = items.value.reduce((sum, it) => sum + (it.jumlah || 0) * (it.harga || 0), 0);
+  // ---------------------------------------------------------------------
+  // 1. SUBTOTAL (sebelum diskon item)
+  // ---------------------------------------------------------------------
+  const subTotal = items.value.reduce(
+    (sum, it) => sum + (it.jumlah || 0) * (it.harga || 0),
+    0
+  );
 
+  // ---------------------------------------------------------------------
+  // 2. TOTAL DISKON ITEM
+  // ---------------------------------------------------------------------
   const totalDiskonItem = items.value.reduce((sum, item) => {
     const qty = item.jumlah || 0;
     const diskonPerUnit = item.diskonRp || 0;
-    return sum + (qty * diskonPerUnit);
+    return sum + qty * diskonPerUnit;
   }, 0);
 
   const afterItemDiscount = subTotal - totalDiskonItem;
 
+  // ---------------------------------------------------------------------
+  // 3. DISKON FAKTUR (PERSEN)
+  // ---------------------------------------------------------------------
   const diskon1Amount = (header.diskonPersen1 / 100) * afterItemDiscount;
   const afterDiscount1 = afterItemDiscount - diskon1Amount;
 
   const diskon2Amount = (header.diskonPersen2 / 100) * afterDiscount1;
 
-  const diskonFaktur = header.diskonRp + diskon1Amount + diskon2Amount;
+  // ---------------------------------------------------------------------
+  // 4. DISKON FAKTUR MANUAL (RP)
+  // NOTE: header.diskonRp TIDAK diubah di sini
+  // ---------------------------------------------------------------------
+  const diskonManual = Number(header.diskonRp || 0);
 
+  // ---------------------------------------------------------------------
+  // 5. TOTAL DISKON FAKTUR (gabungan)
+  // ---------------------------------------------------------------------
+  const diskonFaktur = Math.round(
+    diskonManual + diskon1Amount + diskon2Amount
+  );
+
+  // ---------------------------------------------------------------------
+  // 6. NETTO SETELAH SEMUA DISKON
+  // ---------------------------------------------------------------------
   const nettoSetelahDiskon = afterItemDiscount - diskonFaktur;
 
+  // ---------------------------------------------------------------------
+  // 7. PPN
+  // ---------------------------------------------------------------------
   const totalPpn = nettoSetelahDiskon * (header.ppnPersen / 100);
 
-  const totalDp = linkedDps.value.reduce((sum, dp) => sum + (dp.nominal || 0), 0);
+  // ---------------------------------------------------------------------
+  // 8. DP
+  // ---------------------------------------------------------------------
+  const totalDp = linkedDps.value.reduce(
+    (sum, dp) => sum + (dp.nominal || 0),
+    0
+  );
 
-  // ✔ subtotal SETELAH diskon per item
-  totals.subTotal = items.value.reduce((sum, item) => sum + (item.total || 0), 0);
+  // ---------------------------------------------------------------------
+  // 9. UPDATE TOTALS
+  // ---------------------------------------------------------------------
+  totals.subTotal = items.value.reduce(
+    (sum, item) => sum + (item.total || 0),
+    0
+  );
 
   totals.totalDiskonItem = totalDiskonItem;
   totals.totalDiskonFaktur = diskonFaktur;
@@ -842,7 +881,6 @@ const calculateTotals = () => {
   totals.nettoSetelahDiskon = nettoSetelahDiskon;
   totals.totalPpn = totalPpn;
 
-  // ⭐ FIX UTAMA DI SINI
   totals.grandTotal = nettoSetelahDiskon + totalPpn + (header.biayaKirim || 0);
 
   totals.totalDp = totalDp;
@@ -1265,58 +1303,111 @@ const loadDataForEdit = async (nomor: string) => {
   isLoading.value = true;
   try {
     const response = await api.get(`/invoice-form/${nomor}`);
-    const { header: dataHeader, items: dataItems, dps: dataDps } = response.data;
+    const { header: h, items: its, dps } = response.data;
 
-    header.nomor = dataHeader.inv_nomor;
-    header.tanggal = format(parseISO(dataHeader.inv_tanggal), 'yyyy-MM-dd');
+    /* =======================
+       HEADER
+       ======================= */
+    header.nomor = h.inv_nomor;
+    header.tanggal = format(parseISO(h.inv_tanggal), 'yyyy-MM-dd');
+
     header.customer = {
-      kode: dataHeader.inv_cus_kode,
-      nama: dataHeader.cus_nama,
-      alamat: dataHeader.cus_alamat,
-      kota: dataHeader.cus_kota,
-      telp: dataHeader.cus_telp,
-      level: dataHeader.xLevel
+      kode: h.inv_cus_kode,
+      nama: h.cus_nama,
+      alamat: h.cus_alamat,
+      kota: h.cus_kota,
+      telp: h.cus_telp,
+      level: h.xLevel
     };
-    header.nomorSo = dataHeader.inv_nomor_so;
-    header.tanggalSo = dataHeader.so_tanggal ? format(parseISO(dataHeader.so_tanggal), 'yyyy-MM-dd') : '';
-    header.top = dataHeader.inv_top;
-    header.salesCounter = dataHeader.inv_sc;
-    header.keterangan = dataHeader.inv_ket;
-    header.diskonPersen1 = dataHeader.inv_disc1;
-    header.diskonRp = dataHeader.inv_disc;
-    header.ppnPersen = dataHeader.inv_ppn;
-    header.biayaKirim = dataHeader.inv_bkrm;
-    header.memberHp = dataHeader.inv_mem_hp;
-    header.memberNama = dataHeader.inv_mem_nama;
 
-    items.value = dataItems.map((item: ApiInvoiceItem): InvoiceItem => ({
-      id: Date.now() + Math.random(),
-      kode: item.invd_kode,
-      nama: item.nama_barang,
-      ukuran: item.invd_ukuran,
-      jumlah: item.invd_jumlah,
-      harga: item.invd_harga,
-      diskonRp: item.invd_diskon,
+    header.nomorSo = h.inv_nomor_so || '';
+    header.tanggalSo = h.so_tanggal ? format(parseISO(h.so_tanggal), 'yyyy-MM-dd') : '';
+    header.top = h.inv_top;
+    header.salesCounter = h.inv_sc;
+    header.keterangan = h.inv_ket;
 
-      // === PATCH BARU ===
-      stok: item.stok ?? 0,
-      stokSO: item.stokSO ?? 0,
-      stokTotal: (item.stok ?? 0) + (item.stokSO ?? 0),
-    }));
-    addNewRow();
+    header.diskonPersen1 = h.inv_disc1 || 0;
+    header.diskonPersen2 = h.inv_disc2 || 0;
+    header.diskonRp = 0;
+    header.biayaKirim = h.inv_bkrm;
 
-    linkedDps.value = dataDps;
-    isSoLoaded.value = !!header.nomorSo;
+    header.ppnPersen = Number(h.inv_ppn) || 0;
 
-  } catch (error: unknown) {
-    let message = 'Gagal memuat data Invoice.';
+    header.memberHp = h.inv_mem_hp || '';
+    header.memberNama = h.inv_mem_nama || '';
+    header.memberAlamat = h.inv_mem_alamat || '';
+    header.memberGender = h.inv_mem_gender || '';
+    header.memberUsia = h.inv_mem_usia || '';
+    header.memberReferensi = h.inv_mem_referensi || '';
 
-    if (axios.isAxiosError(error)) {
-      // Sekarang TypeScript tahu ini AxiosError
-      message = error.response?.data?.message || message;
+    try {
+      const r = await api.get(
+        `/invoice-form/lookup/discount-rule/${header.customer.kode}`
+      );
+      customerDiscountRule.value = r.data;
+    } catch {
+      customerDiscountRule.value = null;
     }
 
-    toast.error(message);
+    /* =======================
+       ITEMS
+       ======================= */
+
+    items.value = its.map((it, idx) => {
+      const harga = Number(it.harga);
+      const qty = Number(it.jumlah);
+      const diskRp = Number(it.diskonRp);
+      const hargaSetelah = harga; // backend sudah hitung
+
+      return {
+        id: Date.now() + idx,
+
+        kode: it.kode,
+        nama: it.nama_barang,
+        ukuran: it.ukuran,
+
+        jumlah: qty,
+        harga: hargaSetelah,
+        diskonRp: diskRp,
+        diskonPersen: 0, // backend tidak kirim — wajib isi
+
+        total: hargaSetelah * qty,
+
+        barcode: it.barcode || "",
+        stok: it.stok || 0,
+        qtyso: it.qtySO || 0,
+        stokSO: it.stokSO || 0,
+
+        kategori: '',
+
+        originalDiskonRp: diskRp,
+        originalDiskonPersen: 0,
+
+        terhitungPromo: false,
+        promoQty: 0,
+        promo: "",
+        _isHargaEditable: true,
+
+        nourut: it.nourut
+      };
+    });
+
+    addNewRow();
+
+    linkedDps.value = dps;
+
+    await nextTick();
+    calculateTotals();
+    applyDefaultDiscount(); // ini wajib dipanggil setelah load
+    calculateTotals(); // hitung ulang setelah diskon berubah
+
+    isSoLoaded.value = !!header.nomorSo;
+
+  } catch (error) {
+    const msg = axios.isAxiosError(error)
+      ? error.response?.data?.message
+      : "Gagal memuat data Invoice.";
+    toast.error(msg);
     router.back();
   } finally {
     isLoading.value = false;
@@ -1408,13 +1499,28 @@ watch(header, () => {
 }, { deep: true });
 
 // Recalculate saat item berubah (harga, diskon, qty, promo, dsb)
-watch(items, (newItems) => {
-  newItems.forEach(item => {
-    item.total = computeLineTotal(item);
-  });
-  calculateTotals();
-  applyDefaultDiscount();
-}, { deep: true });
+watch(
+  items,
+  async (newItems) => {
+    // 1. Hitung total per barang (boleh saja)
+    newItems.forEach(item => {
+      item.total = computeLineTotal(item);
+    });
+
+    // 2. Tunggu DOM dan reaktifitas settle dulu
+    await nextTick();
+
+    // 3. Hitung total invoice
+    calculateTotals();
+
+    // 4. Terapkan rule diskon customer (kalau ada)
+    applyDefaultDiscount();
+
+    // 5. Hitung ulang total karena diskon berubah
+    calculateTotals();
+  },
+  { deep: true }
+);
 
 // Jika ada DP tambahan dihubungkan
 watch(linkedDps, calculateTotals, { deep: true });
@@ -1441,7 +1547,7 @@ onMounted(() => {
   <PageLayout :title="pageTitle" icon="mdi-receipt-text-edit">
     <template #header-actions>
       <v-btn v-if="isEditMode" color="primary" size="small" prepend-icon="mdi-content-save" @click="saveHeaderOnly">
-        Simpan
+        Simpan Header
       </v-btn>
       <v-btn v-if="!isEditMode" size="small" prepend-icon="mdi-cancel"
         @click="showConfirmation('Batalkan Isian', 'Batalkan dan kosongkan semua isian?', resetForm)">

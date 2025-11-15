@@ -43,6 +43,7 @@ const loadingDetails = ref(new Set<string>());
 const selected = ref<SetoranHeader[]>([]);
 const expanded = ref<string[]>([]);
 const cabangList = ref([]);
+const deleteLoading = ref(false);
 
 const filters = reactive({
   startDate: format(subDays(new Date(), 7), 'yyyy-MM-dd'),
@@ -64,18 +65,6 @@ const canBeEdited = computed(() => {
 
   // 2. Setoran tersebut BUKAN Otomatis
   return item.Otomatis !== 'YA';
-});
-const canBeDeleted = computed(() => {
-  // Tombol Hapus aktif jika:
-  // 1. Hanya satu baris yang dipilih
-  if (selected.value.length !== 1) return false;
-
-  const item = selected.value[0];
-
-  // 2. Setoran tersebut BUKAN Otomatis
-  // 3. Setoran belum di-link ke SO (sesuai logika Delphi 'sh_so_nomor')
-  // 4. Setoran belum di-Closing
-  return item.Otomatis !== 'YA' && !item.NoSO && item.Closing !== 'Y';
 });
 
 // --- Konfigurasi Tabel ---
@@ -167,32 +156,22 @@ const loadDetails = async (newlyExpandedKeys: string[]) => {
   }
 };
 
-
-const handleDelete = () => {
+const executeDelete = async () => {
   if (!selectedRow.value) return;
 
-  // 1. Set Teks dan Tampilkan Dialog
-  confirmDialogText.value = `Yakin ingin menghapus Setoran nomor ${selectedRow.value.Nomor}?`;
-  isConfirmDialogVisible.value = true;
+  deleteLoading.value = true;
 
-  // 2. Logika 'confirm()' dan API dipindahkan
-};
-
-const executeDelete = () => {
-  if (!selectedRow.value) return;
-
-  api.delete(`/setoran-bayar/${selectedRow.value.Nomor}`)
-    .then(response => {
-      toast.success(response.data.message);
-      fetchMasterData(); // Muat ulang data
-      selected.value = []; // Kosongkan pilihan
-    })
-    .catch(error => {
-      toast.error(error.response?.data?.message || 'Gagal menghapus data.');
-    })
-    .finally(() => {
-      isConfirmDialogVisible.value = false; // Tutup dialog
-    });
+  try {
+    const response = await api.delete(`/setoran-bayar/${selectedRow.value.Nomor}`);
+    toast.success(response.data.message);
+    fetchMasterData();
+    selected.value = [];
+  } catch (error) {
+    toast.error(error.response?.data?.message || "Gagal menghapus data.");
+  } finally {
+    deleteLoading.value = false;
+    isConfirmDialogVisible.value = false;
+  }
 };
 
 // Fungsi untuk tombol "Batal"
@@ -280,9 +259,8 @@ watch(expanded, (newExpanded) => {
         @click="router.push({ name: 'SetoranBayarEdit', params: { nomor: selected[0].Nomor } })">
         Ubah
       </v-btn>
-      <v-btn v-if="authStore.can(MENU_ID, 'delete')" size="small" color="error" :disabled="!canBeDeleted"
-        prepend-icon="mdi-delete" @click="handleDelete">
-        Hapus
+      <v-btn color="error" variant="tonal" :loading="deleteLoading" @click="executeDelete">
+        Ya, Hapus
       </v-btn>
       <v-btn v-if="authStore.can(MENU_ID, 'view')" size="small" color="green" :disabled="!isSingleSelected"
         @click="printData" prepend-icon="mdi-printer">
@@ -379,6 +357,18 @@ watch(expanded, (newExpanded) => {
         </AppDataTable>
       </div>
     </div>
+
+    <v-dialog v-model="isConfirmDialogVisible" max-width="400px" persistent>
+      <v-card>
+        <v-card-title class="text-h6 font-weight-bold">Konfirmasi Hapus</v-card-title>
+        <v-card-text>{{ confirmDialogText }}</v-card-text>
+        <v-card-actions>
+          <v-spacer></v-spacer>
+          <v-btn color="grey-darken-1" variant="text" @click="closeConfirmDialog">Batal</v-btn>
+          <v-btn color="error" variant="tonal" @click="executeDelete">Ya, Hapus</v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
 
     <v-dialog v-model="isConfirmDialogVisible" max-width="400px" persistent>
       <v-card>

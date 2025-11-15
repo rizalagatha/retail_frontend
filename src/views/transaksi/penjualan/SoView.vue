@@ -5,7 +5,7 @@ import api from '@/services/api';
 import PageLayout from '@/components/PageLayout.vue';
 import { useToast } from 'vue-toastification';
 import { useAuthStore } from '@/stores/authStore';
-import { format, parseISO, subDays } from 'date-fns';
+import { format, parseISO } from 'date-fns';
 import * as XLSX from 'xlsx';
 import AppDataTable from '@/components/AppDataTable.vue';
 
@@ -49,7 +49,7 @@ const loadingDetails = ref<Set<string>>(new Set());
 const isMounted = ref(false);
 const cabangList = ref([]);
 const filters = reactive({
-  startDate: format(subDays(new Date(), 7), 'yyyy-MM-dd'), // Default 7 hari
+  startDate: format(new Date(), 'yyyy-MM-dd'),
   endDate: format(new Date(), 'yyyy-MM-dd'),
   cabang: authStore.user?.cabang || '',
   status: null as string | null,

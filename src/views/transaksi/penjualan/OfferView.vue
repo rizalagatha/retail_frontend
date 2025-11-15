@@ -6,7 +6,7 @@ import { useToast } from 'vue-toastification';
 import { useAuthStore } from '@/stores/authStore';
 import { useRouter } from 'vue-router';
 import { useRoute } from 'vue-router';
-import { format, subDays } from 'date-fns';
+import { format } from 'date-fns';
 import * as XLSX from 'xlsx';
 
 interface OfferDetail {
@@ -112,7 +112,7 @@ const dialogDelete = ref(false);
 const itemToDelete = ref<OfferHeader | null>(null);
 
 const filters = reactive({
-  startDate: format(subDays(new Date(), 7), 'yyyy-MM-dd'),
+  startDate: format(new Date(), 'yyyy-MM-dd'),
   endDate: format(new Date(), 'yyyy-MM-dd'),
   cabang: authStore.user?.cabang || '',
 });

@@ -129,14 +129,14 @@ const totalBayar = computed(() => {
 });
 
 const kembali = computed(() => {
-  const sisa = props.totals.sisaPiutang || 0;
+  const grand = props.totals.grandTotal || 0;
   const bayar = totalBayar.value;
-  return bayar > sisa ? bayar - sisa : 0;
+  return Math.max(bayar - grand, 0);
 });
 
 const nettoKembali = computed(() => {
-  const sisaKembalian = kembali.value;
-  return sisaKembalian >= 1000 ? sisaKembalian : 0;
+  const afterPundi = kembali.value - (payment.pundiAmal || 0);
+  return afterPundi >= 1000 ? afterPundi : kembali.value;
 });
 
 const formatRupiah = (value: number) => new Intl.NumberFormat('id-ID').format(value || 0);
@@ -304,7 +304,7 @@ const executeSave = async () => {
         totalDp: props.totals.totalDp || 0,
         netto: props.totals.subTotal - (props.totals.totalDiskonItem || 0) - (props.totals.totalDiskonFaktur || 0),
         grandTotal: props.totals.grandTotal,
-        sisaPiutang: props.totals.sisaPiutang || 0
+        sisaPiutang: 0
       },
       pins: props.authPins,
       isNew: !props.invoiceHeader.nomor,

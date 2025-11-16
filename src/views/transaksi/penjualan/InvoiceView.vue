@@ -122,6 +122,22 @@ const selectedRow = computed<InvoiceItem | null>(() =>
 );
 const isPrintOptionVisible = ref(false);
 
+const totalNominal = computed(() =>
+  masterData.value.reduce((sum, r) => sum + (Number(r.Nominal) || 0), 0)
+);
+
+const totalBayar = computed(() =>
+  masterData.value.reduce((sum, r) => sum + (Number(r.Bayar) || 0), 0)
+);
+
+const totalPiutang = computed(() =>
+  masterData.value.reduce((sum, r) => sum + (Number(r.Piutang) || 0), 0)
+);
+
+const totalSisaPiutang = computed(() =>
+  masterData.value.reduce((sum, r) => sum + (Number(r.SisaPiutang) || 0), 0)
+);
+
 const formatRupiah = (value: number) => new Intl.NumberFormat('id-ID').format(value || 0);
 
 // --- Konfigurasi Tabel ---
@@ -518,7 +534,29 @@ watch(filters, () => {
           </template>
         </AppDataTable>
       </div>
+      <div class="footer-summary">
+        <div class="footer-item">
+          <span>Grand Nominal:</span>
+          <strong>{{ formatRupiah(totalNominal) }}</strong>
+        </div>
+
+        <div class="footer-item">
+          <span>Grand Bayar:</span>
+          <strong>{{ formatRupiah(totalBayar) }}</strong>
+        </div>
+
+        <div class="footer-item">
+          <span>Grand Piutang:</span>
+          <strong>{{ formatRupiah(totalPiutang) }}</strong>
+        </div>
+
+        <div class="footer-item">
+          <span>Grand Sisa Piutang:</span>
+          <strong>{{ formatRupiah(totalSisaPiutang) }}</strong>
+        </div>
+      </div>
     </div>
+
     <PrintOptionModal v-if="isPrintOptionVisible" :options="['a4', 'kasir', 'wa']" @close="isPrintOptionVisible = false"
       @select="handlePrintSelection" />
     <KasirPrintPreviewModal v-model="isKasirPreviewVisible" :nomorInvoice="selectedInvoice"
@@ -565,5 +603,23 @@ watch(filters, () => {
 .discount-info {
   color: #9e9e9e;
   font-size: 0.75rem;
+}
+
+.footer-summary {
+  position: sticky;
+  bottom: 0;
+  z-index: 10;
+  background: #f5f5f5;
+  border-top: 1px solid #ccc;
+  padding: 10px 20px;
+  display: flex;
+  gap: 40px;
+  justify-content: flex-end;
+  font-size: 14px;
+}
+
+.footer-item {
+  display: flex;
+  gap: 8px;
 }
 </style>

@@ -50,6 +50,7 @@ interface Item {
   originalDiskonPersen?: number;
   subtotal?: number;
   lastPin?: string;
+  fromBackend?: boolean;
 }
 interface LinkedDp {
   nomor: string;
@@ -704,6 +705,7 @@ const onSoSelected = async (so: { Nomor: string }) => {
       originalDiskonPersen: item.originalDiskonPersen ?? 0,
       subtotal: (item.qtyso ?? 0) * (item.harga ?? 0),
       lastPin: item.lastPin ?? "",
+      fromBackend: true,
     }));
 
     console.log('Mapped items:', items.value);
@@ -950,6 +952,7 @@ const applyPromoToItems = async (promoNomor: string) => {
     const promoItems = data || [];
 
     items.value.forEach(item => {
+      if (item.terhitungPromo === true) return;
       const match = promoItems.find(p => p.kode === item.kode && p.ukuran === item.ukuran);
       if (match) {
         const harga = item.harga || 0;
@@ -1263,6 +1266,8 @@ const handleBarcodeScan = async () => {
 // };
 
 const handleJumlahChange = async (item: Item) => {
+  if (item.terhitungPromo) return;
+
   // Cek ke backend apakah ada promo untuk item ini
   try {
     const response = await api.get('/invoice-form/lookup/applicable-item-promo', {
@@ -1421,7 +1426,8 @@ const loadDataForEdit = async (nomor: string) => {
         promo: "",
         _isHargaEditable: true,
 
-        nourut: it.nourut
+        nourut: it.nourut,
+        fromBackend: true,
       };
     });
 
@@ -1535,35 +1541,31 @@ watch(header, () => {
 watch(
   items,
   async (newItems) => {
-    // 1. Hitung total per barang (boleh saja)
+    // Recalculate total hanya untuk item yang BUKAN promo
     newItems.forEach(item => {
-      item.total = computeLineTotal(item);
+      if (!item.terhitungPromo) {
+        item.total = computeLineTotal(item);
+      }
     });
 
-    // 2. Tunggu DOM dan reaktifitas settle dulu
     await nextTick();
-
-    // 3. Hitung total invoice
     calculateTotals();
 
-    // 4. Terapkan rule diskon customer (kalau ada)
-    applyDefaultDiscount();
-
-    // 5. Hitung ulang total karena diskon berubah
-    calculateTotals();
+    // Terapkan aturan diskon customer hanya jika bukan promo
+    if (!header.nomorPromo || header.nomorPromo.startsWith("PRO-")) {
+      applyDefaultDiscount();
+      calculateTotals();
+    }
   },
   { deep: true }
 );
+
 
 // Jika ada DP tambahan dihubungkan
 watch(linkedDps, calculateTotals, { deep: true });
 
 const grandQty = computed(() =>
   items.value.reduce((sum, it) => sum + (Number(it.jumlah) || 0), 0)
-);
-
-const grandNominal = computed(() =>
-  items.value.reduce((sum, it) => sum + (Number(it.total) || 0), 0)
 );
 
 onMounted(() => {
@@ -1775,7 +1777,7 @@ onMounted(() => {
             <div class="value">{{ grandQty }}</div>
 
             <div class="label">Grand Total</div>
-            <div class="value">Rp {{ new Intl.NumberFormat('id-ID').format(grandNominal) }}</div>
+            <div class="value">Rp {{ new Intl.NumberFormat('id-ID').format(totals.grandTotal) }}</div>
           </div>
         </div>
 

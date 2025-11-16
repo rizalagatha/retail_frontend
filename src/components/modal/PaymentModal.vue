@@ -317,7 +317,7 @@ const executeSave = async () => {
         totalDp: props.totals.totalDp || 0,
         netto: props.totals.subTotal - (props.totals.totalDiskonItem || 0) - (props.totals.totalDiskonFaktur || 0),
         grandTotal: props.totals.grandTotal,
-        sisaPiutang: 0
+        sisaPiutang: correctedSisaPiutang.value
       },
       pins: props.authPins,
       isNew: !props.invoiceHeader.nomor,
@@ -621,6 +621,29 @@ const hitungPundiAmal = (details: PrintKasirDetail[]) => {
   return totalQty * maxPundi;
 };
 
+const correctedSubTotal = computed(() => {
+  return (props.invoiceItems as InvoiceItem[])
+    .filter(i => i.kode)
+    .reduce((sum, item) => {
+      const qty = Number(item.jumlah || 0);
+      const hargaAsli = Number(item.harga || 0);
+      return sum + hargaAsli * qty;
+    }, 0);
+});
+
+const correctedGrandTotal = computed(() => {
+  return (
+    correctedSubTotal.value
+    - (props.totals.totalDiskonItem || 0)
+    - (props.totals.totalDiskonFaktur || 0)
+    + Number(props.invoiceHeader.biayaKirim || 0)
+  );
+});
+
+const correctedSisaPiutang = computed(() => {
+  return correctedGrandTotal.value - Number(props.totals.totalDp || 0);
+});
+
 watch(kembali, (newVal) => {
   payment.pundiAmal = calculatePundiAmal(newVal);
 });
@@ -642,7 +665,7 @@ watch(kembali, (newVal) => {
               <div class="text-subtitle-2 font-weight-bold mb-2">Ringkasan Invoice</div>
               <div class="d-flex justify-space-between text-caption">
                 <span>Sub Total:</span>
-                <span>{{ formatRupiah(totals.subTotal) }}</span>
+                <span>{{ formatRupiah(correctedSubTotal) }}</span>
               </div>
               <div class="d-flex justify-space-between text-caption">
                 <span>Total Diskon:</span>
@@ -668,7 +691,7 @@ watch(kembali, (newVal) => {
               <v-divider class="my-2" />
               <div class="d-flex justify-space-between font-weight-bold text-h6 text-primary">
                 <span>Sisa Piutang:</span>
-                <span>{{ formatRupiah(totals.sisaPiutang) }}</span>
+                <span>{{ formatRupiah(correctedSisaPiutang) }}</span>
               </div>
             </div>
 

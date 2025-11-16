@@ -644,6 +644,12 @@ const correctedSisaPiutang = computed(() => {
   return correctedGrandTotal.value - Number(props.totals.totalDp || 0);
 });
 
+const effectiveSisaPiutang = computed(() => {
+  return isFromSO
+    ? props.totals.sisaPiutang   // gunakan backend (benar)
+    : correctedSisaPiutang.value; // default existing logic
+});
+
 watch(kembali, (newVal) => {
   payment.pundiAmal = calculatePundiAmal(newVal);
 });
@@ -691,7 +697,7 @@ watch(kembali, (newVal) => {
               <v-divider class="my-2" />
               <div class="d-flex justify-space-between font-weight-bold text-h6 text-primary">
                 <span>Sisa Piutang:</span>
-                <span>{{ formatRupiah(correctedSisaPiutang) }}</span>
+                <span>{{ formatRupiah(effectiveSisaPiutang) }}</span>
               </div>
             </div>
 

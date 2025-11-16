@@ -516,20 +516,28 @@ watch(filters, () => {
                       <template #[`item.Harga`]="{ item }">
                         <div class="harga-cell">
 
-                          <!-- Harga asli dicoret -->
-                          <div class="text-grey text-decoration-line-through">
-                            {{ formatRupiah(item.HargaAsli) }}
-                          </div>
+                          <!-- Jika ADA diskon (HargaAsli > Harga) -->
+                          <template v-if="item.HargaAsli > item.Harga">
+                            <div class="text-grey text-decoration-line-through">
+                              {{ formatRupiah(item.HargaAsli) }}
+                            </div>
 
-                          <!-- Harga setelah diskon -->
-                          <div>
-                            {{ formatRupiah(item.HargaAsli - item.DiskonAktif) }}
-                          </div>
+                            <div>
+                              {{ formatRupiah(item.Harga) }}
+                            </div>
 
-                          <!-- diskon per pcs -->
-                          <div v-if="item.DiskonAktif > 0" class="promo-info">
-                            -{{ formatRupiah(item.DiskonAktif) }}/pcs
-                          </div>
+                            <div v-if="item.DiskonAktif > 0" class="promo-info">
+                              -{{ formatRupiah(item.DiskonAktif) }}/pcs
+                            </div>
+                          </template>
+
+                          <!-- Jika TIDAK ADA diskon -->
+                          <template v-else>
+                            <div>
+                              {{ formatRupiah(item.Harga) }}
+                            </div>
+                          </template>
+
                         </div>
                       </template>
                       <template #[`item.Total`]="{ value }">

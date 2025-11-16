@@ -4,7 +4,7 @@ import api from '@/services/api';
 import PageLayout from '@/components/PageLayout.vue';
 import { useToast } from 'vue-toastification';
 import { useAuthStore } from '@/stores/authStore';
-import { format, subDays } from 'date-fns';
+import { format } from 'date-fns';
 import { useRouter, useRoute } from 'vue-router';
 import * as XLSX from 'xlsx';
 import axios from 'axios';
@@ -44,7 +44,7 @@ const isMounted = ref(false); // <-- TAMBAHKAN INI
 const cabangList = ref([]);
 const filters = reactive({
   filterDateType: 'dtf',
-  startDate: format(subDays(new Date(), 7), 'yyyy-MM-dd'), // Default 7 hari
+  startDate: format(new Date(), 'yyyy-MM-dd'),
   endDate: format(new Date(), 'yyyy-MM-dd'),
   cabang: authStore.user?.cabang === 'KDC' ? 'ALL' : authStore.user?.cabang || '',
   status: null as string | null,

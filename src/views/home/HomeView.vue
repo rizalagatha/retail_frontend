@@ -40,6 +40,24 @@ interface PiutangBreakdown {
   cabang_nama: string;
   sisa_piutang: number;
 }
+interface StockCabang {
+  kode_cabang: string;
+  nama_cabang: string;
+  totalStock: number;
+}
+
+interface DashboardStats {
+  todaySales: number;
+  todayTransactions: number;
+  lowStock: number;
+
+  totalStock: number;     // stok cabang (untuk store)
+  totalStok: number;      // stok semua cabang (untuk KDC)
+
+  totalSisaPiutang: number;
+
+  stokPerCabang: StockCabang[];  // breakdown untuk KDC
+}
 
 const authStore = useAuthStore()
 const router = useRouter()
@@ -49,14 +67,17 @@ const goToLogin = () => {
   router.push('/login')
 }
 
-const stats = ref({
+const stats = ref<DashboardStats>({
   todaySales: 0,
   todayTransactions: 0,
   lowStock: 0,
-  totalProducts: 0,
-  totalProductsAktif: 0,
-  totalProductsPasif: 0,
+
+  totalStock: 0,
+  totalStok: 0,
+
   totalSisaPiutang: 0,
+
+  stokPerCabang: [],
 });
 const isLoadingStats = ref(true);
 const isLoadingPiutang = ref(true);
@@ -102,6 +123,10 @@ const isLoadingPerformance = ref(false);
 
 const stagnantStockValue = ref(0);
 const isLoadingStagnantStock = ref(true);
+
+const stockBreakdown = ref<{ kode_cabang: string; nama_cabang: string; totalStock: number }[]>([]);
+const isLoadingStock = ref(true);
+const isLoadingStockBreakdown = ref(true);
 
 const quickActions = ref([
   { title: 'Transaksi Baru', icon: 'mdi-cash-register', to: '/transaksi', color: 'primary' },
@@ -258,12 +283,12 @@ let intervalId: number;
 const fetchDashboardStats = async () => {
   isLoadingStats.value = true;
   try {
-    const response = await api.get('/barang-dc/summary/total');
-    stats.value.totalProducts = response.data.total;
-    stats.value.totalProductsAktif = response.data.totalAktif;
-    stats.value.totalProductsPasif = response.data.totalPasif;
+    const response = await api.get('/dashboard/total-stok');
+
+    stats.value.totalStok = Number(response.data.totalStok || 0);
+    stats.value.stokPerCabang = response.data.perCabang || [];
   } catch (error) {
-    toast.error('Gagal memuat data statistik dashboard.', error);
+    toast.error('Gagal memuat total stok.', error);
   } finally {
     isLoadingStats.value = false;
   }
@@ -499,6 +524,40 @@ const fetchPiutangBreakdown = async () => {
   }
 };
 
+const fetchTotalStock = async () => {
+  isLoadingStock.value = true;
+  try {
+    const response = await api.get('/dashboard/total-stok');
+    // backend mengembalikan { totalStock: number }
+    stats.value.totalStock = Number(response.data.totalStock || 0);
+  } catch (err) {
+    toast.error('Gagal memuat total stok.');
+    console.error(err);
+  } finally {
+    isLoadingStock.value = false;
+  }
+};
+
+const fetchStockBreakdown = async () => {
+  isLoadingStockBreakdown.value = true;
+
+  try {
+    const response = await api.get<StockCabang[]>('/dashboard/total-stok-per-cabang');
+
+    stockBreakdown.value = response.data.map((r) => ({
+      kode_cabang: r.kode_cabang,
+      nama_cabang: r.nama_cabang,
+      totalStock: Number(r.totalStock || 0),
+    }));
+  } catch (err) {
+    toast.error('Gagal memuat breakdown stok per cabang.');
+    console.error(err);
+    stockBreakdown.value = [];
+  } finally {
+    isLoadingStockBreakdown.value = false;
+  }
+};
+
 onMounted(() => {
   if (authStore.isAuthenticated) {
     fetchTodayStats();
@@ -513,9 +572,11 @@ onMounted(() => {
     fetchStagnantStockSummary();
     if (authStore.user?.cabang === 'KDC') {
       fetchBranchPerformance();
+      fetchStockBreakdown();
     }
     fetchTotalPiutang();
     fetchPiutangBreakdown();
+    fetchTotalStock();
   }
 
   intervalId = window.setInterval(() => {
@@ -655,23 +716,65 @@ watch(chartGroupBy, fetchSalesChartData);
           <v-card-text class="text-center">
             <v-icon size="40" class="mb-2">mdi-package-variant-closed</v-icon>
             <div class="text-h4 font-weight-bold">
-              <span v-if="isLoadingStats">...</span>
-              <span v-else>{{ stats.totalProducts.toLocaleString('id-ID') }}</span>
+              <span v-if="isLoadingStats || isLoadingStock">...</span>
+              <span v-else>{{ stats.totalStock.toLocaleString('id-ID') }}</span>
             </div>
-            <div class="text-subtitle-2">Total Produk</div>
+            <div class="text-subtitle-2">Total Stok (pcs)</div>
 
-            <div v-if="!isLoadingStats" class="d-flex justify-center align-center ga-3 mt-2 text-caption">
-              <span class="d-flex align-center">
-                <v-icon color="success" size="x-small" class="mr-1">mdi-check-circle</v-icon>
-                {{ stats.totalProductsAktif }} Aktif
-              </span>
-              <span class="d-flex align-center">
-                <v-icon color="error" size="x-small" class="mr-1">mdi-close-circle</v-icon>
-                {{ stats.totalProductsPasif }} Pasif
-              </span>
+            <div v-if="!isLoadingStats && !isLoadingStock"
+              class="d-flex justify-center align-center ga-3 mt-2 text-caption">
             </div>
           </v-card-text>
         </v-card>
+      </v-col>
+
+      <v-col cols="12" sm="6" md="auto">
+        <v-menu v-if="authStore.user?.cabang === 'KDC'" open-on-hover location="bottom center" origin="top center"
+          transition="scale-transition" :close-on-content-click="false">
+          <template v-slot:activator="{ props }">
+            <v-card v-bind="props" class="stat-card fill-height" color="deep-purple" variant="tonal"
+              style="cursor: help;">
+              <v-card-text class="text-center">
+                <v-icon size="40" class="mb-2">mdi-warehouse</v-icon>
+                <div class="text-h4 font-weight-bold">
+                  <span v-if="isLoadingStock">...</span>
+                  <span v-else>{{ stats.totalStock.toLocaleString('id-ID') }}</span>
+                </div>
+                <div class="text-subtitle-2">Total Stok (Semua Cabang)</div>
+              </v-card-text>
+            </v-card>
+          </template>
+
+          <v-card max-width="420" elevation="8">
+            <v-list-item class="bg-deep-purple-lighten-4">
+              <v-list-item-title class="font-weight-bold">Stok per Cabang</v-list-item-title>
+            </v-list-item>
+            <v-divider></v-divider>
+
+            <v-card-text class="pa-0" style="max-height: 300px; overflow-y: auto;">
+              <div v-if="isLoadingStockBreakdown" class="text-center pa-4">
+                <v-progress-circular indeterminate size="20"></v-progress-circular>
+              </div>
+
+              <v-list v-else-if="stockBreakdown.length > 0" density="compact">
+                <v-list-item v-for="item in stockBreakdown" :key="item.kode_cabang">
+                  <v-list-item-title class="text-caption">
+                    {{ item.nama_cabang || item.kode_cabang }}
+                  </v-list-item-title>
+                  <template #append>
+                    <span class="text-caption font-weight-bold">
+                      {{ item.totalStock.toLocaleString('id-ID') }} pcs
+                    </span>
+                  </template>
+                </v-list-item>
+              </v-list>
+
+              <div v-else class="text-center pa-4 text-caption">
+                Tidak ada data stok per cabang.
+              </div>
+            </v-card-text>
+          </v-card>
+        </v-menu>
       </v-col>
 
       <v-col cols="12" sm="6" md="auto">

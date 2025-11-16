@@ -515,10 +515,20 @@ watch(filters, () => {
                       class="detail-table" :items-per-page="-1">
                       <template #[`item.Harga`]="{ item }">
                         <div class="harga-cell">
-                          <div>{{ formatRupiah(item.HargaAsli || item.Harga) }}</div>
-                          <div v-if="item.DiskonAktif && item.DiskonAktif > 0" class="promo-info">
-                            (Promo {{ formatRupiah(item.Harga) }})
-                            <div class="discount-info">-{{ formatRupiah(item.DiskonAktif) }}/pcs</div>
+
+                          <!-- Harga asli dicoret -->
+                          <div class="text-grey text-decoration-line-through">
+                            {{ formatRupiah(item.HargaAsli) }}
+                          </div>
+
+                          <!-- Harga setelah diskon -->
+                          <div>
+                            {{ formatRupiah(item.HargaAsli - item.DiskonAktif) }}
+                          </div>
+
+                          <!-- diskon per pcs -->
+                          <div v-if="item.DiskonAktif > 0" class="promo-info">
+                            -{{ formatRupiah(item.DiskonAktif) }}/pcs
                           </div>
                         </div>
                       </template>

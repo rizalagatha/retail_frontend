@@ -47,6 +47,7 @@ interface SoItem {
   noPengajuanHarga: string;
   pin: string;
   isCustomOrder?: boolean;
+  isJasa?: boolean;
 
   ukuranKaos?: { ukuran: string; jumlah: number; harga: number }[];
   titikCetak?: { keterangan: string; sizeCetak: string; panjang: number; lebar: number }[];
@@ -444,6 +445,20 @@ const loadDataForEdit = async (nomor: string) => {
   }
 };
 
+const isDiscountableItem = (item: SoItem) => {
+  // barang yang tidak boleh kena diskon:
+  // 1. Jasa           → kode/nama mengandung jasa
+  // 2. Custom Order   → isCustomOrder = true
+  // 3. SO DTF         → ada noSoDtf
+  const isJasa =
+    item.kode?.toUpperCase().startsWith("JASA") ||
+    item.kode?.toUpperCase().startsWith("JS") ||
+    item.nama?.toLowerCase().includes("jasa") ||
+    item.nama?.toLowerCase().includes("desain");
+
+  return !isJasa && !item.isCustomOrder && !item.noSoDtf;
+};
+
 const calculateTotals = async () => {
   let totalSoBruto = 0;
   let newTotalDiscountable = 0; // Variabel sementara untuk total yang bisa didiskon
@@ -466,7 +481,9 @@ const calculateTotals = async () => {
     if (item.noSoDtf) containsDtf = true;
     if (item.isCustomOrder) containsCustomOrder = true; // 👈 deteksi jasa custom
 
-    if (!item.noSoDtf) newTotalDiscountable += item.total;
+    if (isDiscountableItem(item)) {
+      newTotalDiscountable += item.total;
+    }
   });
 
   footer.value.totalSo = totalSoBruto; // Total SO adalah total bruto
@@ -911,7 +928,9 @@ const onProductsSelected = (selectedProducts: SoItemApi[]) => {
         barcode: product.barcode || product.kode, // fallback
         noSoDtf: '',
         noPengajuanHarga: '',
-        pin: ''
+        pin: '',
+        isCustomOrder: false,
+        isJasa: true
       });
 
       return; // lanjut ke produk berikutnya
@@ -1124,26 +1143,30 @@ const applyDefaultDiscount = async () => {
 const handleItemDiscountChange = (index: number) => {
   const item = items.value[index];
 
-  // Skip jika tidak ada perubahan atau diskon = 0
+  // ❌ Exclude jasa, custom order, dan DTF dari diskon item
+  if (!isDiscountableItem(item)) {
+    item.diskonPersen = 0;
+    item.diskonRp = 0;
+    calculateTotals();
+    return;
+  }
+
+  // Skip jika diskon tidak diubah (0)
   if (item.diskonPersen === 0) {
     calculateTotals();
     return;
   }
 
-  if (item.diskonPersen > 0) {
-    // Backup nilai sebelum meminta otorisasi
-    previousItemDiscount.value = {
-      index: index,
-      diskonPersen: 0, // Nilai lama (asumsi sebelumnya 0)
-      diskonRp: 0
-    };
+  // Kalau diskon > 0 → minta otorisasi
+  previousItemDiscount.value = {
+    index: index,
+    diskonPersen: 0,
+    diskonRp: 0
+  };
 
-    activeItemIndexForAuth.value = index;
-    challengeCode.value = Math.floor(1000 + Math.random() * 9000).toString();
-    isItemAuthModalVisible.value = true;
-  } else {
-    calculateTotals();
-  }
+  activeItemIndexForAuth.value = index;
+  challengeCode.value = Math.floor(1000 + Math.random() * 9000).toString();
+  isItemAuthModalVisible.value = true;
 };
 
 const onItemAuthSuccess = async (pin: string) => {

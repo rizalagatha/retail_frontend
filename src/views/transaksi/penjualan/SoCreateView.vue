@@ -483,14 +483,13 @@ const calculateTotals = async () => {
   const diskonPersen2 = footer.value.diskonPersen2 || 0;
 
   // Cek apakah diskonRp diisi manual (dari modal)
-  if (footer.value.diskonRp > 0) {
-    // Jika diisi manual, biarkan.
-    // (Modal sudah me-reset persen menjadi 0)
+  if (footer.value.diskonRp > 0 && (diskonPersen1 === 0 && diskonPersen2 === 0)) {
+    // manual mode
   } else {
-    // Jika tidak, hitung diskonRp berdasarkan PERSEN dan total yang BISA DIDISKON
     const diskon1Rp = (diskonPersen1 / 100) * newTotalDiscountable;
     const afterDiscount1 = newTotalDiscountable - diskon1Rp;
     const diskon2Rp = (diskonPersen2 / 100) * afterDiscount1;
+
     footer.value.diskonRp = diskon1Rp + diskon2Rp;
   }
 
@@ -1007,17 +1006,24 @@ const applyDefaultDiscount = async () => {
     const response = await api.get('/so-form/lookup/default-discount', {
       params: {
         level: header.value.levelKode,
-        total: totalDiscountable.value, // <= PERBAIKAN PENTING
-        gudang: header.value.gudang.kode
+        total: totalDiscountable.value,
+        gudang: header.value.gudang.kode,
+        hasPin: footer.value.pinTanpaDp ?? "",
+        hasAcc: footer.value.pinDiskon1 ? "Y" : "N",
+        penawaran: header.value.penawaran || "",
       }
     });
 
     const defaultDisc = Number(response.data.discount ?? 0);
 
-    // SET jika belum diubah user
-    if (!footer.value.diskonPersen1 || footer.value.diskonPersen1 === 0) {
-      footer.value.diskonPersen1 = defaultDisc;
-    }
+    // Jangan set diskon jika user sudah ubah manual
+    if (footer.value.diskonPersen1 && footer.value.diskonPersen1 !== 0) return;
+
+    // Jika total 0, tidak hitung diskon
+    if (totalDiscountable.value <= 0) return;
+
+    // SET diskon dari backend
+    footer.value.diskonPersen1 = defaultDisc;
 
   } catch (err) {
     console.error('Gagal ambil diskon default:', err);
@@ -1426,9 +1432,9 @@ watch(() => dialogs.jenisOrder, (val) => {
   if (val) loadJenisOrder();
 });
 
-watch(() => items.value, async () => {
+watch(totalDiscountable, async () => {
   await applyDefaultDiscount();
-}, { deep: true });
+});
 
 onMounted(() => {
   // Cek hak akses 'insert' (untuk baru) atau 'edit' (untuk ubah)
@@ -1599,8 +1605,8 @@ const handleGlobalShortcuts = (e: KeyboardEvent) => {
         <div class="scrollable-content">
           <div class="desktop-form-section main-grid-section">
             <v-data-table :headers="mainTableHeaders" :items="items" :page="page" :items-per-page="rowsPerPage"
-              :item-key="'id'" class="desktop-table vertically-aligned-table" fixed-header height="calc(100vh - 480px)"
-              :item-class="item => item.isCustomOrder ? 'custom-row' : ''">
+              :item-key="'id'" class="desktop-table vertically-aligned-table" fixed-header
+              :max-height="'calc(100vh - 300px)'" :item-class="item => item.isCustomOrder ? 'custom-row' : ''">
               <template #[`item.kode`]="{ item, index }">
                 <div class="d-flex align-center">
                   <v-icon v-if="item.isCustomOrder" color="blue" size="18" class="me-2"
@@ -1684,7 +1690,7 @@ const handleGlobalShortcuts = (e: KeyboardEvent) => {
 
           <div class="footer-summary-section">
             <v-row dense>
-              <v-col cols="8">
+              <v-col cols="12" md="7" lg="6" xl="6">
                 <v-row dense>
                   <v-col cols="6">
                     <v-btn block color="teal" @click="openDpInput" prepend-icon="mdi-cash-plus">
@@ -1715,7 +1721,7 @@ const handleGlobalShortcuts = (e: KeyboardEvent) => {
                 </v-row>
               </v-col>
 
-              <v-col cols="4">
+              <v-col cols="12" md="5" lg="6" xl="6">
                 <div class="summary-totals">
                   <v-list density="compact" class="summary-list">
                     <!-- Diskon Faktur (hanya muncul jika ada) -->
@@ -1985,61 +1991,49 @@ const handleGlobalShortcuts = (e: KeyboardEvent) => {
 }
 
 .summary-totals {
-  height: 100%;
-  min-height: 150px;
-  /* Pastikan ada tinggi minimum */
-  max-height: 280px;
-  /* Batas maksimal tinggi */
-  overflow-y: auto;
-  /* Scroll jika konten terlalu banyak */
+  height: auto !important;
+  /* Selalu auto */
+  min-height: auto !important;
+  max-height: none !important;
+  overflow-y: visible !important;
+  /* Tidak perlu scroll */
 }
 
 .summary-list {
   background-color: transparent !important;
   height: auto !important;
-  /* Ubah dari 100% ke auto */
   display: flex;
   flex-direction: column;
-  gap: 2px;
-  /* Kurangi gap agar lebih ringkas */
+  gap: 4px;
+  /* Default gap */
 }
 
 .summary-list .v-list-item {
-  padding: 2px 2px !important;
-  /* Kurangi padding vertikal */
-  min-height: 28px !important;
-  /* Kurangi min-height */
+  padding: 4px 2px !important;
+  /* Default padding */
+  min-height: 32px !important;
+  /* Default min-height */
 }
 
 .summary-list .v-list-item-title {
-  font-size: 0.8rem;
-  /* Kecilkan font sedikit */
-  line-height: 1.2;
+  font-size: 0.85rem;
+  /* Default font */
+  line-height: 1.3;
 }
 
-/* Sesuaikan ukuran font value agar tidak terlalu besar */
 .summary-list .text-h6 {
-  font-size: 1rem !important;
+  font-size: 1.05rem !important;
+  /* Default font value */
   font-weight: 700 !important;
 }
 
 .summary-list .text-body-1 {
-  font-size: 0.85rem !important;
+  font-size: 0.9rem !important;
 }
 
 .summary-discount .v-list-item-title,
 .summary-discount span {
-  font-size: 0.8rem;
-}
-
-.summary-netto {
-  border-bottom: 1px solid #e0e0e0;
-  padding-bottom: 4px !important;
-  margin-bottom: 4px;
-}
-
-.summary-netto .v-list-item-title {
-  font-size: 0.8rem;
+  font-size: 0.85rem;
 }
 
 .summary-total {
@@ -2051,23 +2045,149 @@ const handleGlobalShortcuts = (e: KeyboardEvent) => {
 }
 
 .summary-list .v-list-item:last-child {
-  margin-top: 4px; /* Beri sedikit jarak di atas */
-  padding-top: 4px !important;
-  border-top: 1px solid #e0e0e0; /* Garis pemisah */
+  margin-top: 6px;
+  padding-top: 6px !important;
+  border-top: 1px solid #e0e0e0;
 }
 
-/* Responsive untuk layar kecil */
-@media (max-height: 800px) {
-  .summary-totals {
-    min-height: 160px;
-    max-height: 200px;
+/* ===== RESPONSIVE MEDIA QUERIES ===== */
+
+/* Layar sangat besar (1920px ke atas) - Desktop 4K */
+@media (min-height: 1080px) {
+  .summary-list {
+    gap: 8px;
   }
 
   .summary-list .v-list-item {
-    min-height: 28px !important;
-    padding: 2px 4px !important;
+    padding: 6px 4px !important;
+    min-height: 40px !important;
   }
 
+  .summary-list .v-list-item-title {
+    font-size: 1rem;
+  }
+
+  .summary-list .text-h6 {
+    font-size: 1.25rem !important;
+  }
+
+  .summary-list .text-body-1 {
+    font-size: 1.05rem !important;
+  }
+}
+
+/* Layar besar (900px - 1080px) - Desktop standar */
+@media (min-height: 900px) and (max-height: 1079px) {
+  .summary-list {
+    gap: 5px;
+  }
+
+  .summary-list .v-list-item {
+    padding: 5px 3px !important;
+    min-height: 36px !important;
+  }
+
+  .summary-list .v-list-item-title {
+    font-size: 0.9rem;
+  }
+
+  .summary-list .text-h6 {
+    font-size: 1.15rem !important;
+  }
+}
+
+/* Layar sedang (768px - 900px) - Laptop standar */
+@media (min-height: 768px) and (max-height: 899px) {
+  .summary-list {
+    gap: 4px;
+  }
+
+  .summary-list .v-list-item {
+    padding: 4px 2px !important;
+    min-height: 32px !important;
+  }
+
+  .summary-list .v-list-item-title {
+    font-size: 0.85rem;
+  }
+
+  .summary-list .text-h6 {
+    font-size: 1.05rem !important;
+  }
+}
+
+/* Layar kecil (600px - 768px) - Laptop kecil */
+@media (min-height: 600px) and (max-height: 767px) {
+  .summary-list {
+    gap: 3px;
+  }
+
+  .summary-list .v-list-item {
+    padding: 3px 2px !important;
+    min-height: 28px !important;
+  }
+
+  .summary-list .v-list-item-title {
+    font-size: 0.8rem;
+    line-height: 1.2;
+  }
+
+  .summary-list .text-h6 {
+    font-size: 0.95rem !important;
+  }
+
+  .summary-list .text-body-1 {
+    font-size: 0.85rem !important;
+  }
+
+  .summary-list .v-list-item:last-child {
+    margin-top: 4px;
+    padding-top: 4px !important;
+  }
+}
+
+/* Layar sangat kecil (di bawah 600px) - Tablet/Netbook */
+@media (max-height: 599px) {
+  .footer-summary-section {
+    padding: 6px 8px;
+    /* Padding lebih kecil */
+  }
+
+  .summary-list {
+    gap: 2px;
+  }
+
+  .summary-list .v-list-item {
+    padding: 2px 2px !important;
+    min-height: 24px !important;
+  }
+
+  .summary-list .v-list-item-title {
+    font-size: 0.75rem;
+    line-height: 1.1;
+  }
+
+  .summary-list .text-h6 {
+    font-size: 0.9rem !important;
+  }
+
+  .summary-list .text-body-1 {
+    font-size: 0.8rem !important;
+  }
+
+  .summary-discount .v-list-item-title,
+  .summary-discount span {
+    font-size: 0.75rem;
+  }
+
+  .summary-list .v-list-item:last-child {
+    margin-top: 3px;
+    padding-top: 3px !important;
+  }
+}
+
+/* Responsive berdasarkan lebar layar (opsional, untuk sidebar collapse) */
+@media (max-width: 1366px) {
   .summary-list .v-list-item-title {
     font-size: 0.8rem;
   }
@@ -2077,15 +2197,18 @@ const handleGlobalShortcuts = (e: KeyboardEvent) => {
   }
 }
 
-/* Responsive untuk layar sangat kecil */
-@media (max-height: 700px) {
-  .summary-totals {
-    min-height: 140px;
-    max-height: 180px;
+@media (max-width: 1024px) {
+  .summary-list .v-list-item {
+    padding: 3px 2px !important;
+    min-height: 28px !important;
   }
 
-  .summary-list .v-list-item {
-    min-height: 24px !important;
+  .summary-list .v-list-item-title {
+    font-size: 0.75rem;
+  }
+
+  .summary-list .text-h6 {
+    font-size: 0.95rem !important;
   }
 }
 </style>

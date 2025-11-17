@@ -33,6 +33,7 @@ const loading = ref(true);
 const search = ref('');
 const options = ref({ page: 1, itemsPerPage: 25 });
 const selected = ref<ProductVariant[]>([]);
+const sizeOrder = ref<string[]>([]);
 
 const headers = [
   { title: 'Kode', key: 'kode', sortable: false },
@@ -72,7 +73,9 @@ const loadItems = async (opts: { page: number, itemsPerPage: number }) => {
         promoNomor: props.promoNomor,
       },
     });
-    items.value = response.data.items || [];
+    items.value = (response.data.items || []).sort((a, b) => {
+      return a.barcode.localeCompare(b.barcode);
+    });
     totalItems.value = response.data.total || 0;
   } catch (error) {
     console.error("Gagal memuat data produk:", error);
@@ -147,6 +150,18 @@ watch(search, (val) => {
 // --- Auto-load on open ---
 onMounted(() => {
   loadItems(options.value);
+});
+
+onMounted(async () => {
+  loadItems(options.value);
+
+  // Load urutan ukuran dari backend
+  try {
+    const res = await api.get('/so-form/lookup/ukuran-kaos');
+    sizeOrder.value = res.data || [];
+  } catch (err) {
+    console.error("Gagal mengambil urutan ukuran:", err);
+  }
 });
 </script>
 

@@ -165,7 +165,7 @@ onMounted(() => {
 @media print {
   @page {
     size: A4;
-    margin: 0.5cm;
+    margin: 0.3cm 0.5cm;
   }
 
   body * {
@@ -187,8 +187,8 @@ onMounted(() => {
 
 .page {
   background: white;
-  padding: 1cm;
-  margin: 20px auto;
+  padding: 0.3cm 0.5cm;
+  margin: 10px auto;
   width: 21cm;
   min-height: 29.7cm;
   box-shadow: 0 0 5px rgba(0, 0, 0, 0.1);
@@ -203,9 +203,9 @@ onMounted(() => {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  border-bottom: 2px solid black;
-  padding-bottom: 10px;
-  margin-bottom: 15px;
+  border-bottom: 1.5px solid black;
+  padding-bottom: 5px;
+  margin-bottom: 8px;
 }
 
 .header-left {
@@ -214,26 +214,26 @@ onMounted(() => {
 }
 
 .header-right {
-  font-size: 12pt;
+  font-size: 10pt;
   font-weight: bold;
 }
 
 .logo {
-  width: 60px;
+  width: 45px;
   height: auto;
-  margin-right: 15px;
+  margin-right: 10px;
 }
 
 .main-title {
-  font-size: 18pt;
+  font-size: 14pt;
   font-weight: bold;
 }
 
 /* Layout Utama: Data + Gambar */
 .content-wrapper {
   display: flex;
-  gap: 20px;
-  margin-bottom: 15px;
+  gap: 15px;
+  margin-bottom: 10px;
   flex-grow: 1;
 }
 
@@ -245,20 +245,20 @@ onMounted(() => {
 
 .data-grid {
   display: grid;
-  grid-template-columns: 110px auto;
-  row-gap: 4px;
-  column-gap: 10px;
-  margin-bottom: 15px;
+  grid-template-columns: 100px auto;
+  row-gap: 3px;
+  column-gap: 8px;
+  margin-bottom: 10px;
 }
 
 .label {
   font-weight: bold;
-  font-size: 9.5pt;
+  font-size: 9pt;
 }
 
 .value {
   word-wrap: break-word;
-  font-size: 9.5pt;
+  font-size: 9pt;
 }
 
 .keterangan-text {
@@ -268,41 +268,41 @@ onMounted(() => {
 
 .titik-section {
   margin-top: auto;
-  padding-top: 10px;
+  padding-top: 8px;
   border-top: 1px dashed #ccc;
-  margin-bottom: 15px;
+  margin-bottom: 10px;
 }
 
 .titik-details {
   white-space: pre-wrap;
   font-family: inherit;
-  font-size: 9.5pt;
-  margin-top: 5px;
+  font-size: 9pt;
+  margin-top: 4px;
   margin-bottom: 0;
 }
 
 /* TTD Section - 2 Kolom Kecil */
 .signatures {
   display: flex;
-  gap: 30px;
-  margin-top: 20px;
+  gap: 25px;
+  margin-top: 12px;
   text-align: center;
-  font-size: 9pt;
+  font-size: 8.5pt;
 }
 
 .signature-box {
-  width: 150px;
+  width: 140px;
   /* Lebar tetap, kecil */
 }
 
 .name-line {
-  margin-top: 40px;
+  margin-top: 35px;
   font-weight: bold;
 }
 
 /* Gambar Tanpa Border */
 .image-container {
-  width: 45%;
+  width: 50%;
   flex-shrink: 0;
 }
 
@@ -330,10 +330,10 @@ onMounted(() => {
 
 .footer {
   border-top: 1px solid #ccc;
-  padding-top: 5px;
-  margin-top: 10px;
+  padding-top: 4px;
+  margin-top: 8px;
   font-style: italic;
-  font-size: 8pt;
+  font-size: 7.5pt;
   color: #555;
 }
 </style>

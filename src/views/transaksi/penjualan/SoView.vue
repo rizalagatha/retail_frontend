@@ -70,7 +70,7 @@ const filterOptions = ref([
   { title: 'Keterangan', value: 'Keterangan' },
   { title: 'Sales Counter', value: 'SC' },
 ]);
-const selectedFilterField = ref('Nomor');
+const selectedFilterField = ref('Nama');
 const filterSearchValue = ref('');
 
 // --- Computed Properties ---

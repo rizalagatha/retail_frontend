@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, computed, watch, nextTick, reactive } from 'vue';
+import { ref, onMounted, onUnmounted, computed, watch, nextTick, reactive } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import api from '@/services/api';
 import PageLayout from '@/components/PageLayout.vue';
@@ -254,6 +254,8 @@ const totalDiscountable = ref(0);
 const dialogs = reactive({ jenisOrder: false });
 const jenisOrderList = ref([]);
 const loadingJenisOrder = ref(false);
+const page = ref(1);
+const rowsPerPage = ref(10);
 // const formJenisOrder = reactive({
 //   jenis: null,
 //   ukuran: 0,
@@ -1455,6 +1457,26 @@ onMounted(async () => {
     loadingJenisOrder.value = false;
   }
 });
+
+onMounted(() => {
+  window.addEventListener("keydown", handleGlobalShortcuts);
+});
+
+onUnmounted(() => {
+  window.removeEventListener("keydown", handleGlobalShortcuts);
+});
+
+const handleGlobalShortcuts = (e: KeyboardEvent) => {
+  if (e.code === "F1") {
+    e.preventDefault();
+    openProductSearch(activeRowIndex.value, false);
+  }
+
+  if (e.code === "F2") {
+    e.preventDefault();
+    openProductSearch(activeRowIndex.value, true);
+  }
+};
 </script>
 
 <template>
@@ -1576,8 +1598,9 @@ onMounted(async () => {
         <!-- Wrapper untuk bagian yang bisa scroll -->
         <div class="scrollable-content">
           <div class="desktop-form-section main-grid-section">
-            <v-data-table :headers="mainTableHeaders" :items="items" class="desktop-table vertically-aligned-table"
-              fixed-header height="calc(100vh - 480px)" :item-class="item => item.isCustomOrder ? 'custom-row' : ''">
+            <v-data-table :headers="mainTableHeaders" :items="items" :page="page" :items-per-page="rowsPerPage"
+              :item-key="'id'" class="desktop-table vertically-aligned-table" fixed-header height="calc(100vh - 480px)"
+              :item-class="item => item.isCustomOrder ? 'custom-row' : ''">
               <template #[`item.kode`]="{ item, index }">
                 <div class="d-flex align-center">
                   <v-icon v-if="item.isCustomOrder" color="blue" size="18" class="me-2"
@@ -1585,8 +1608,9 @@ onMounted(async () => {
                     mdi-tshirt-crew-outline
                   </v-icon>
 
-                  <v-text-field v-model="item.kode" variant="underlined" density="compact" hide-details
-                    placeholder="F1/F2..." :disabled="item.isCustomOrder"
+                  <v-text-field v-model="item.kode" @focus="activeRowIndex = index" @click="activeRowIndex = index"
+                    variant="underlined" density="compact" hide-details placeholder="F1/F2..."
+                    :disabled="item.isCustomOrder"
                     @keydown.f1.prevent="!item.isCustomOrder && openProductSearch(index, false)"
                     @keydown.f2.prevent="!item.isCustomOrder && openProductSearch(index, true)" />
                 </div>
@@ -1649,81 +1673,92 @@ onMounted(async () => {
               </template>
             </v-data-table>
           </div>
-        </div>
 
-        <div class="so-sticky-footer">
-          <div class="footer-col label-left">TOTAL QTY</div>
-          <div class="footer-col value-center">{{ grandQty }}</div>
+          <div class="so-sticky-footer">
+            <div class="footer-col label-left">TOTAL QTY</div>
+            <div class="footer-col value-center">{{ grandQty }}</div>
 
-          <div class="footer-col label-right">TOTAL NOMINAL</div>
-          <div class="footer-col value-right">{{ formatRupiah(grandTotal) }}</div>
-        </div>
+            <div class="footer-col label-right">TOTAL NOMINAL</div>
+            <div class="footer-col value-right">{{ formatRupiah(grandTotal) }}</div>
+          </div>
 
-        <div class="footer-summary-section">
-          <v-row dense>
+          <div class="footer-summary-section">
+            <v-row dense>
 
-            <v-col cols="8">
-              <v-row dense>
-                <v-col cols="6">
-                  <v-btn block color="teal" @click="openDpInput" prepend-icon="mdi-cash-plus">
-                    Input DP (Uang Muka)
-                  </v-btn>
-                </v-col>
+              <v-col cols="8">
+                <v-row dense>
+                  <v-col cols="6">
+                    <v-btn block color="teal" @click="openDpInput" prepend-icon="mdi-cash-plus">
+                      Input DP (Uang Muka)
+                    </v-btn>
+                  </v-col>
 
-                <v-col cols="6">
-                  <v-btn color="blue-darken-2" variant="outlined" block prepend-icon="mdi-sale"
-                    @click="isDiscountCostModalVisible = true">
-                    Atur Diskon & Biaya
-                  </v-btn>
-                </v-col>
+                  <v-col cols="6">
+                    <v-btn color="blue-darken-2" variant="outlined" block prepend-icon="mdi-sale"
+                      @click="isDiscountCostModalVisible = true">
+                      Atur Diskon & Biaya
+                    </v-btn>
+                  </v-col>
 
-                <v-col cols="6">
-                  <v-btn v-if="header.statusSo === 'PASIF'" block color="orange" @click="openDpAuthorization"
-                    prepend-icon="mdi-key-variant">
-                    Minta Otorisasi
-                  </v-btn>
-                </v-col>
+                  <v-col cols="6">
+                    <v-btn v-if="header.statusSo === 'PASIF'" block color="orange" @click="openDpAuthorization"
+                      prepend-icon="mdi-key-variant">
+                      Minta Otorisasi
+                    </v-btn>
+                  </v-col>
 
-                <v-col cols="6">
-                  <v-btn color="teal" variant="outlined" block prepend-icon="mdi-format-list-bulleted"
-                    @click="isDpListModalVisible = true">
-                    Lihat Rincian DP
-                  </v-btn>
-                </v-col>
-              </v-row>
-            </v-col>
+                  <v-col cols="6">
+                    <v-btn color="teal" variant="outlined" block prepend-icon="mdi-format-list-bulleted"
+                      @click="isDpListModalVisible = true">
+                      Lihat Rincian DP
+                    </v-btn>
+                  </v-col>
+                </v-row>
+              </v-col>
 
-            <v-col cols="4">
-              <div class="summary-totals">
-                <v-list density="compact" class="summary-list">
-                  <v-list-item class="summary-total">
-                    <v-list-item-title class="font-weight-bold">Grand Total</v-list-item-title>
-                    <template #append>
-                      <span class="text-h6 font-weight-black">{{ formatRupiah(footer.grandTotal) }}</span>
-                    </template>
-                  </v-list-item>
+              <v-col cols="4">
+                <div class="summary-totals">
+                  <v-list density="compact" class="summary-list">
+                    <!-- Grand Total -->
+                    <v-list-item class="summary-total">
+                      <v-list-item-title class="font-weight-bold">Grand Total</v-list-item-title>
+                      <template #append>
+                        <span class="text-h6 font-weight-black">{{ formatRupiah(footer.grandTotal) }}</span>
+                      </template>
+                    </v-list-item>
 
-                  <v-list-item class="summary-total">
-                    <v-list-item-title>Total DP</v-list-item-title>
-                    <template #append>
-                      <span class="text-h6">{{ formatRupiah(footer.totalDp) }}</span>
-                    </template>
-                  </v-list-item>
+                    <!-- Diskon Faktur (hanya muncul jika ada) -->
+                    <!-- <v-list-item v-if="footer.diskonRp > 0" class="summary-discount">
+                      <v-list-item-title class="text-error">Diskon Faktur</v-list-item-title>
+                      <template #append>
+                        <span class="text-body-1 text-error">- {{ formatRupiah(footer.diskonRp) }}</span>
+                      </template>
+                    </v-list-item> -->
 
-                  <v-list-item class="summary-total">
-                    <v-list-item-title class="font-weight-bold">Belum Dibayar</v-list-item-title>
-                    <template #append>
-                      <span class="text-h6 font-weight-black"
-                        :class="footer.belumDibayar > 0 ? 'text-error' : 'text-success'">
-                        {{ formatRupiah(footer.belumDibayar) }}
-                      </span>
-                    </template>
-                  </v-list-item>
-                </v-list>
-              </div>
-            </v-col>
+                    <!-- Total DP -->
+                    <v-list-item class="summary-total">
+                      <v-list-item-title>Total DP</v-list-item-title>
+                      <template #append>
+                        <span class="text-h6">{{ formatRupiah(footer.totalDp) }}</span>
+                      </template>
+                    </v-list-item>
 
-          </v-row>
+                    <!-- Belum Dibayar -->
+                    <v-list-item class="summary-total summary-belum-bayar">
+                      <v-list-item-title class="font-weight-bold">Belum Dibayar</v-list-item-title>
+                      <template #append>
+                        <span class="text-h6 font-weight-black"
+                          :class="footer.belumDibayar > 0 ? 'text-error' : 'text-success'">
+                          {{ formatRupiah(footer.belumDibayar) }}
+                        </span>
+                      </template>
+                    </v-list-item>
+                  </v-list>
+                </div>
+              </v-col>
+
+            </v-row>
+          </div>
         </div>
       </div>
     </div>
@@ -1866,39 +1901,6 @@ onMounted(async () => {
   min-width: max-content;
 }
 
-.footer-summary-section {
-  flex-shrink: 0;
-  padding: 16px;
-  border: 1px solid #e0e0e0;
-  border-radius: 4px;
-  background-color: #fcfcfc;
-  /* Sedikit warna latar */
-}
-
-.summary-totals {
-  /* Class ini sekarang membungkus v-list */
-  height: 100%;
-}
-
-.summary-list {
-  background-color: transparent !important;
-  /* PENTING: Hapus latar belakang v-list */
-  height: 100%;
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-  /* Memberi spasi antar total */
-}
-
-.summary-list .v-list-item {
-  padding: 0 4px !important;
-  min-height: 40px;
-}
-
-.summary-list .v-list-item-title {
-  font-size: 0.95rem;
-}
-
 .dp-table {
   max-height: 150px;
 }
@@ -1977,5 +1979,122 @@ onMounted(async () => {
   font-weight: 900;
   text-align: right;
   font-size: 17px;
+}
+
+.v-data-table .v-input input {
+  caret-color: transparent;
+}
+
+.footer-summary-section {
+  flex-shrink: 0;
+  padding: 8px 12px;
+  border: 1px solid #e0e0e0;
+  border-radius: 4px;
+  background-color: #fcfcfc;
+}
+
+.summary-totals {
+  height: 100%;
+  min-height: 150px;
+  /* Pastikan ada tinggi minimum */
+  max-height: 280px;
+  /* Batas maksimal tinggi */
+  overflow-y: auto;
+  /* Scroll jika konten terlalu banyak */
+}
+
+.summary-list {
+  background-color: transparent !important;
+  height: auto !important;
+  /* Ubah dari 100% ke auto */
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  /* Kurangi gap agar lebih ringkas */
+}
+
+.summary-list .v-list-item {
+  padding: 2px 2px !important;
+  /* Kurangi padding vertikal */
+  min-height: 28px !important;
+  /* Kurangi min-height */
+}
+
+.summary-list .v-list-item-title {
+  font-size: 0.8rem;
+  /* Kecilkan font sedikit */
+  line-height: 1.2;
+}
+
+/* Sesuaikan ukuran font value agar tidak terlalu besar */
+.summary-list .text-h6 {
+  font-size: 1rem !important;
+  font-weight: 700 !important;
+}
+
+.summary-list .text-body-1 {
+  font-size: 0.85rem !important;
+}
+
+.summary-discount .v-list-item-title,
+.summary-discount span {
+  font-size: 0.8rem;
+}
+
+.summary-netto {
+  border-bottom: 1px solid #e0e0e0;
+  padding-bottom: 4px !important;
+  margin-bottom: 4px;
+}
+
+.summary-netto .v-list-item-title {
+  font-size: 0.8rem;
+}
+
+.summary-total {
+  margin-top: 0px;
+}
+
+.summary-total:first-child {
+  margin-top: 0;
+}
+
+.summary-list .v-list-item:last-child {
+  margin-top: 4px; /* Beri sedikit jarak di atas */
+  padding-top: 4px !important;
+  border-top: 1px solid #e0e0e0; /* Garis pemisah */
+}
+
+/* Responsive untuk layar kecil */
+@media (max-height: 800px) {
+  .summary-totals {
+    min-height: 160px;
+    max-height: 200px;
+  }
+
+  .summary-list .v-list-item {
+    min-height: 28px !important;
+    padding: 2px 4px !important;
+  }
+
+  .summary-list .v-list-item-title {
+    font-size: 0.8rem;
+  }
+
+  .summary-list .text-h6 {
+    font-size: 1rem !important;
+  }
+}
+
+/* Responsive untuk layar sangat kecil */
+@media (max-height: 700px) {
+  .summary-totals {
+    min-height: 140px;
+    max-height: 180px;
+  }
+
+  .summary-list .v-list-item {
+    min-height: 24px !important;
+  }
 }
 </style>

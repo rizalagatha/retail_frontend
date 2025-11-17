@@ -83,24 +83,24 @@ const filterOptions = ref([
   { title: 'User', value: 'Created' },
   { title: 'Status Close', value: 'Close' },
 ]);
-const selectedFilterField = ref('Nomor'); // Filter default
+const selectedFilterField = ref('Customer');
 const filterSearchValue = ref('');
 
 // --- Computed ---
 const hasViewPermission = computed(() => authStore.can(MENU_ID, 'view'));
 const isSingleSelected = computed(() => selected.value.length === 1);
-// const filteredSoDtfList = computed(() => {
-//     if (!filterSearchValue.value) {
-//         return soDtfList.value;
-//     }
-//     return soDtfList.value.filter(item => {
-//         const itemValue = item[selectedFilterField.value];
-//         if (itemValue !== null && itemValue !== undefined) {
-//             return itemValue.toString().toLowerCase().includes(filterSearchValue.value.toLowerCase());
-//         }
-//         return false;
-//     });
-// });
+const filteredSoDtfList = computed(() => {
+  if (!filterSearchValue.value) {
+    return soDtfList.value;
+  }
+  return soDtfList.value.filter(item => {
+    const itemValue = item[selectedFilterField.value];
+    if (itemValue !== null && itemValue !== undefined) {
+      return itemValue.toString().toLowerCase().includes(filterSearchValue.value.toLowerCase());
+    }
+    return false;
+  });
+});
 
 const headers = [
   { title: 'Nomor', key: 'Nomor', width: '150px', fixed: true },
@@ -374,6 +374,7 @@ onUnmounted(() => {
 watch(filters, () => {
   // Hanya jalankan jika halaman sudah dimuat
   if (isMounted.value) {
+    if (selectedFilterField.value && filterSearchValue.value) return;
     // Debounce logic Anda tetap di sini
     if (fetchTimeout.value) clearTimeout(fetchTimeout.value);
 
@@ -470,9 +471,9 @@ watch(filters, () => {
         </div>
       </div>
 
-      <AppDataTable v-model="selected" :headers="headers" :items="soDtfList" :loading="isLoading" item-value="Nomor"
-        density="compact" class="desktop-table fill-height-table" fixed-header show-select return-object show-expand
-        @update:expanded="loadDetails">
+      <AppDataTable v-model="selected" :headers="headers" :items="filteredSoDtfList" :loading="isLoading"
+        item-value="Nomor" density="compact" class="desktop-table fill-height-table" fixed-header show-select
+        return-object show-expand @update:expanded="loadDetails">
         <template v-for="header in headers" #[`item.${header.key}`]="{ item }" :key="header.key">
           <td :class="getRowTextColor(item)">
             <template v-if="['Tanggal', 'TglPengerjaan', 'DatelineCus'].includes(header.key)">

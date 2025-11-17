@@ -116,6 +116,23 @@ const filters = reactive({
 
 const isMounted = ref(false);
 
+const filterOptions = ref([
+  { title: 'Nomor Invoice', value: 'Nomor' },
+  { title: 'Customer', value: 'Nama' },
+  { title: 'Kd Customer', value: 'Kdcus' },
+  { title: 'Alamat', value: 'Alamat' },
+  { title: 'Kota', value: 'Kota' },
+  { title: 'Nomor SO', value: 'NomorSO' },
+  { title: 'Sales', value: 'SC' },
+  { title: 'HP', value: 'Hp' },
+]);
+
+// DEFAULT → Nama customer
+const selectedFilterField = ref('Nama');
+
+// input pencarian
+const filterSearchValue = ref('');
+
 const isSingleSelected = computed(() => selected.value.length === 1);
 const selectedRow = computed<InvoiceItem | null>(() =>
   isSingleSelected.value ? selected.value[0] as InvoiceItem : null
@@ -137,6 +154,19 @@ const totalPiutang = computed(() =>
 const totalSisaPiutang = computed(() =>
   masterData.value.reduce((sum, r) => sum + (Number(r.SisaPiutang) || 0), 0)
 );
+
+const filteredMasterData = computed(() => {
+  if (!filterSearchValue.value) return masterData.value;
+
+  const key = selectedFilterField.value;
+  const search = filterSearchValue.value.toLowerCase();
+
+  return masterData.value.filter(item => {
+    const val = item[key];
+    if (!val) return false;
+    return String(val).toLowerCase().includes(search);
+  });
+});
 
 const formatRupiah = (value: number) => new Intl.NumberFormat('id-ID').format(value || 0);
 
@@ -412,9 +442,12 @@ onMounted(async () => { // Jadikan async
 });
 
 watch(filters, () => {
-  if (isMounted.value) { // <-- TAMBAHKAN KONDISI INI
-    fetchMasterData();
-  }
+  if (!isMounted.value) return;
+
+  // Jika user sedang search → JANGAN fetch
+  if (filterSearchValue.value) return;
+
+  fetchMasterData();
 }, { deep: true });
 </script>
 
@@ -468,6 +501,13 @@ watch(filters, () => {
           @click:close="filters.status = null">
           Filter Aktif: {{ filters.status === 'belum_lunas' ? 'Belum Lunas' : filters.status }}
         </v-chip>
+        <div class="d-flex align-center ga-2 ms-4">
+          <v-select v-model="selectedFilterField" :items="filterOptions" label="Filter Berdasarkan" density="compact"
+            hide-details variant="outlined" style="max-width: 200px;" />
+
+          <v-text-field v-model="filterSearchValue" label="Cari..." density="compact" hide-details variant="outlined"
+            clearable prepend-inner-icon="mdi-magnify" style="min-width: 250px;" />
+        </div>
         <v-spacer />
         <div class="d-flex align-center ga-2 text-caption">
           <v-icon color="yellow-darken-3" icon="mdi-square-rounded" size="small"></v-icon> Stok Minus
@@ -477,7 +517,7 @@ watch(filters, () => {
       </div>
 
       <div class="table-container">
-        <AppDataTable v-model="selected" v-model:expanded="expanded" :headers="headers" :items="masterData"
+        <AppDataTable v-model="selected" v-model:expanded="expanded" :headers="headers" :items="filteredMasterData"
           :loading="loading" item-value="Nomor" density="compact" class="desktop-table" fixed-header show-select
           return-object show-expand @update:expanded="loadDetails"
           :item-props="(item) => ({ class: getRowClass(item) })">

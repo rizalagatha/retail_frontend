@@ -1605,8 +1605,8 @@ const handleGlobalShortcuts = (e: KeyboardEvent) => {
         <div class="scrollable-content">
           <div class="desktop-form-section main-grid-section">
             <v-data-table :headers="mainTableHeaders" :items="items" :page="page" :items-per-page="rowsPerPage"
-              :item-key="'id'" class="desktop-table vertically-aligned-table" fixed-header
-              :max-height="'calc(100vh - 300px)'" :item-class="item => item.isCustomOrder ? 'custom-row' : ''">
+              :item-key="'id'" class="desktop-table vertically-aligned-table" fixed-header height="calc(100vh - 480px)"
+              :item-class="item => item.isCustomOrder ? 'custom-row' : ''">
               <template #[`item.kode`]="{ item, index }">
                 <div class="d-flex align-center">
                   <v-icon v-if="item.isCustomOrder" color="blue" size="18" class="me-2"
@@ -1866,7 +1866,6 @@ const handleGlobalShortcuts = (e: KeyboardEvent) => {
   flex-grow: 1;
   min-height: 0;
   overflow: hidden;
-  /* UBAH: biarkan v-data-table yang handle scroll */
   display: flex;
   flex-direction: column;
 }
@@ -1879,18 +1878,15 @@ const handleGlobalShortcuts = (e: KeyboardEvent) => {
 
 .desktop-table {
   width: 100%;
+  height: 100%;
   flex-grow: 1;
-  overflow: hidden;
-  /* Penting! */
 }
 
 /* PENTING: Biarkan VDataTable wrapper yang handle SEMUA scrolling */
 .desktop-table :deep(.v-table__wrapper) {
   overflow-x: auto !important;
-  /* Horizontal scroll */
   overflow-y: auto !important;
-  /* Vertical scroll */
-  max-height: 100%;
+  max-height: calc(100vh - 480px) !important; /* Sama dengan height v-data-table */
 }
 
 /* TAMBAHAN: Pastikan tabel bisa lebih lebar dari container */
@@ -2049,7 +2045,6 @@ const handleGlobalShortcuts = (e: KeyboardEvent) => {
   padding-top: 6px !important;
   border-top: 1px solid #e0e0e0;
 }
-
 /* ===== RESPONSIVE MEDIA QUERIES ===== */
 
 /* Layar sangat besar (1920px ke atas) - Desktop 4K */

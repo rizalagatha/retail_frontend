@@ -33,7 +33,6 @@ const loading = ref(true);
 const search = ref('');
 const options = ref({ page: 1, itemsPerPage: 25 });
 const selected = ref<ProductVariant[]>([]);
-const sizeOrder = ref<string[]>([]);
 
 const headers = [
   { title: 'Kode', key: 'kode', sortable: false },
@@ -150,18 +149,6 @@ watch(search, (val) => {
 // --- Auto-load on open ---
 onMounted(() => {
   loadItems(options.value);
-});
-
-onMounted(async () => {
-  loadItems(options.value);
-
-  // Load urutan ukuran dari backend
-  try {
-    const res = await api.get('/so-form/lookup/ukuran-kaos');
-    sizeOrder.value = res.data || [];
-  } catch (err) {
-    console.error("Gagal mengambil urutan ukuran:", err);
-  }
 });
 </script>
 

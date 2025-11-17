@@ -601,7 +601,7 @@ const save = () => {
     toast.error('Customer harus diisi.');
     return;
   }
-  const validItems = items.value.filter(item => item.kode);
+  const validItems = items.value.filter(item => item.kode || item.isCustomOrder);
   if (validItems.length === 0) {
     toast.error('Detail barang harus diisi minimal 1 baris.');
     return;
@@ -878,23 +878,61 @@ const onProductsSelected = (selectedProducts: SoItemApi[]) => {
   // Hapus baris kosong tempat F1/F2 ditekan
   items.value.splice(activeRowIndex.value, 1);
 
-  // Loop melalui setiap produk yang dipilih dari modal
   selectedProducts.forEach(product => {
-    // Cek duplikasi sebelum menambahkan
+
+    // ================================
+    // 1️⃣ DETEKSI PRODUK JASA
+    // ================================
+    const isJasa =
+      product.kode.startsWith("JASA") ||
+      product.kode.startsWith("JS") ||
+      product.nama.toLowerCase().includes("jasa") ||
+      product.nama.toLowerCase().includes("desain");
+
+    // ================================
+    // 2️⃣ HANDLING KHUSUS JASA
+    // ================================
+    if (isJasa) {
+      // Jasa boleh tanpa ukuran
+      product.ukuran = "";
+
+      // Jasa boleh masuk berkali-kali → jangan cek duplikasi barcode
+      items.value.push({
+        id: Date.now() + Math.random(),
+        kode: product.kode,
+        nama: product.nama,
+        ukuran: "",
+        stok: product.stok ?? 0,
+        harga: product.harga,
+        jumlah: 1,
+        diskonPersen: 0,
+        diskonRp: 0,
+        total: product.harga,
+        barcode: product.barcode || product.kode, // fallback
+        noSoDtf: '',
+        noPengajuanHarga: '',
+        pin: ''
+      });
+
+      return; // lanjut ke produk berikutnya
+    }
+
+    // ================================
+    // 3️⃣ PRODUK NORMAL → CEK DUPLIKASI
+    // ================================
     const isDuplicate = items.value.some(item => item.barcode === product.barcode);
     if (!isDuplicate) {
-      // Buat objek item SO yang lengkap dan tambahkan ke grid
       items.value.push({
-        id: Date.now() + Math.random(), // Kunci unik sementara
+        id: Date.now() + Math.random(),
         kode: product.kode,
         nama: product.nama,
         ukuran: product.ukuran,
         stok: product.stok,
         harga: product.harga,
-        jumlah: 1, // Default jumlah 1
+        jumlah: 1,
         diskonPersen: 0,
         diskonRp: 0,
-        total: product.harga, // Total awal adalah harga satuan
+        total: product.harga,
         barcode: product.barcode,
         noSoDtf: '',
         noPengajuanHarga: '',
@@ -903,9 +941,10 @@ const onProductsSelected = (selectedProducts: SoItemApi[]) => {
     }
   });
 
-  addNewRow(); // Tambah baris kosong baru di akhir
-  calculateTotals(); // Hitung ulang semua total
+  addNewRow();
+  calculateTotals();
 };
+
 
 const onSoDtfSelected = async (soDtf: { nomor: string }) => {
   isSoDtfSearchVisible.value = false;
@@ -1886,7 +1925,8 @@ const handleGlobalShortcuts = (e: KeyboardEvent) => {
 .desktop-table :deep(.v-table__wrapper) {
   overflow-x: auto !important;
   overflow-y: auto !important;
-  max-height: calc(100vh - 480px) !important; /* Sama dengan height v-data-table */
+  max-height: calc(100vh - 480px) !important;
+  /* Sama dengan height v-data-table */
 }
 
 /* TAMBAHAN: Pastikan tabel bisa lebih lebar dari container */
@@ -2045,6 +2085,7 @@ const handleGlobalShortcuts = (e: KeyboardEvent) => {
   padding-top: 6px !important;
   border-top: 1px solid #e0e0e0;
 }
+
 /* ===== RESPONSIVE MEDIA QUERIES ===== */
 
 /* Layar sangat besar (1920px ke atas) - Desktop 4K */

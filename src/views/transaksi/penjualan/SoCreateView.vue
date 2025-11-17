@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, computed, watch, nextTick } from 'vue';
+import { ref, onMounted, computed, watch, nextTick, reactive } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import api from '@/services/api';
 import PageLayout from '@/components/PageLayout.vue';
@@ -22,6 +22,7 @@ import DpInputModal from '@/components/modal/DpInputModal.vue';
 import CustomerForm from '@/components/form/CustomerForm.vue';
 import DpListModal from '@/components/modal/DpListModal.vue';
 import DiscountCostModal from '@/components/modal/DiscountCostModal.vue';
+import JenisOrderModal from '@/components/modal/JenisOrderModal.vue';
 
 const router = useRouter();
 const route = useRoute();
@@ -45,6 +46,10 @@ interface SoItem {
   noSoDtf: string;
   noPengajuanHarga: string;
   pin: string;
+  isCustomOrder?: boolean;
+
+  ukuranKaos?: { ukuran: string; jumlah: number; harga: number }[];
+  titikCetak?: { keterangan: string; sizeCetak: string; panjang: number; lebar: number }[];
 }
 
 interface DpItem {
@@ -89,13 +94,25 @@ interface SoItemApi {
 }
 
 interface Item {
-  kode: string;
-  jumlah: number;
-  diskonPersen: number;
-  noSoDtf?: string;
-  noPengajuanHarga?: string;
   id: number;
-  [key: string]: unknown;
+  kode: string;
+  nama: string;
+  ukuran: string;
+  stok: number;
+  jumlah: number;
+  harga: number;
+  diskonPersen: number;
+  diskonRp: number;
+  total: number;
+  barcode: string;
+  noSoDtf: string;
+  noPengajuanHarga: string;
+  pin: string;
+  isCustomOrder?: boolean;
+
+  // tambahkan ini biar payload custom order valid:
+  ukuranKaos?: { ukuran: string; jumlah: number; harga: number }[];
+  titikCetak?: { keterangan: string; sizeCetak: string; panjang: number; lebar: number }[];
 }
 
 interface PenawaranDetail {
@@ -135,6 +152,20 @@ interface PriceProposalDetail {
   barcode: string;
 }
 
+interface JenisOrderSaved {
+  namaOrder: string;
+  jenisOrder: string;
+  namaBarang: string;
+  kodeBarang: string;
+  totalJumlah: number;
+  totalHarga: number;
+
+  // tambahan untuk custom order
+  ukuranKaos?: { ukuran: string; jumlah: number; harga: number }[];
+  titikCetak?: { keterangan: string; sizeCetak: string; panjang: number; lebar: number }[];
+  hargaPerCm?: number;
+}
+
 // --- State ---
 const isEditMode = computed(() => !!route.params.nomor);
 const pageTitle = computed(() => isEditMode.value ? 'Ubah Surat Pesanan' : 'Buat Surat Pesanan');
@@ -169,7 +200,7 @@ const header = ref({ ...initialHeaderState });
 
 const items = ref<SoItem[]>([]);
 const dpItems = ref<DpItem[]>([]);
-
+const existingDpNomor = ref<string>('');
 const footer = ref({
   totalSo: 0,
   diskonRp: 0,
@@ -220,9 +251,23 @@ const focusedRowId = ref<number | string>(-1);
 const isDiscountCostModalVisible = ref(false);
 const isDpListModalVisible = ref(false);
 const totalDiscountable = ref(0);
+const dialogs = reactive({ jenisOrder: false });
+const jenisOrderList = ref([]);
+const loadingJenisOrder = ref(false);
+// const formJenisOrder = reactive({
+//   jenis: null,
+//   ukuran: 0,
+//   titik: 0,
+// });
 
 const formatRupiah = (angka: number) => {
   return new Intl.NumberFormat('id-ID').format(angka || 0);
+};
+
+const parseDate = (str: string) => {
+  // aman: tidak di-convert ke timezone
+  const [y, m, d] = str.split('-');
+  return new Date(Number(y), Number(m) - 1, Number(d), 12);
 };
 
 const mainTableHeaders = [
@@ -251,16 +296,67 @@ const mainTableHeaders = [
 // --- Computed Properties ---
 const minimalDpText = computed(() => {
   const containsDtf = items.value.some(item => item.noSoDtf);
-  const percentage = containsDtf ? 50 : 30;
+  const containsCustom = items.value.some(item => item.isCustomOrder);
+  const percentage = containsDtf || containsCustom ? 50 : 30;
   const amount = new Intl.NumberFormat('id-ID').format(footer.value.minimalDp);
   return `Minimal DP ${percentage}% dari nominal SO : ${amount}`;
 });
 
+// const selectedPenawaran = computed(() => {
+//   // Ambil nama barang pertama dari penawaran (kalau ada)
+//   if (items.value.length > 0) {
+//     const first = items.value.find(it => it.nama);
+//     return first ? { namaBarang: first.nama } : null;
+//   }
+//   return null;
+// });
+
+/**
+ * penawaranDetails → Dikirim ke modal JenisOrderModal
+ *   Berisi semua kombinasi kodeBarang + ukuran
+ *   Digunakan untuk validasi ukuran di dropdown Ukuran Kaos
+ */
+const penawaranDetails = computed(() => {
+  const detailMap = new Map<string, { kodeBarang: string; namaBarang: string; ukuran?: string }>();
+
+  items.value.forEach((it) => {
+    if (it.kode && it.nama) {
+      const key = `${it.kode}|${it.ukuran || ''}`;
+      if (!detailMap.has(key)) {
+        detailMap.set(key, {
+          kodeBarang: it.kode,
+          namaBarang: it.nama,
+          ukuran: it.ukuran || '',
+        });
+      }
+    }
+  });
+
+  return Array.from(detailMap.values());
+});
+
+/**
+ * penawaranBarangList → Digunakan untuk dropdown Nama Barang di modal
+ *   Berisi hanya satu item per kodeBarang (tanpa duplikat ukuran)
+ */
+const penawaranBarangList = computed(() => {
+  const map = new Map<string, string>();
+  items.value.forEach((it) => {
+    if (it.kode && it.nama && !map.has(it.kode)) {
+      map.set(it.kode, it.nama);
+    }
+  });
+  return Array.from(map.entries()).map(([kodeBarang, namaBarang]) => ({
+    kodeBarang,
+    namaBarang,
+  }));
+});
+
 // --- Functions ---
-function toDateInputValue(dateStr: string) {
-  if (!dateStr) return ''
-  return dateStr.split('T')[0] // ambil yyyy-MM-dd saja
-}
+// function toDateInputValue(dateStr: string) {
+//   if (!dateStr) return '';
+//   return dateStr.substring(0, 10); // aman, tidak berubah timezone
+// }
 
 // --- Methods ---
 const loadDataForEdit = async (nomor: string) => {
@@ -277,8 +373,8 @@ const loadDataForEdit = async (nomor: string) => {
       level: headerData.levelKode || '',
       levelKode: headerData.levelKode || '',
       levelNama: headerData.levelNama || '',
-      tanggal: toDateInputValue(headerData.tanggal),
-      dateline: toDateInputValue(headerData.dateline),
+      tanggal: headerData.tanggal.substring(0, 10),
+      dateline: headerData.dateline.substring(0, 10),
     };
 
     // ===== MAPPING FOOTER =====
@@ -292,11 +388,13 @@ const loadDataForEdit = async (nomor: string) => {
       return {
         ...item,
         id: Date.now() + Math.random() + index,
+        isCustomOrder: item.isCustomOrder ?? false,
       };
     });
 
     // ===== MAPPING DP ITEMS =====
     dpItems.value = dpItemsData;
+    existingDpNomor.value = dpItemsData.length > 0 ? dpItemsData[0].nomor : '';
 
     // ===== EDIT PERMISSION CHECK =====
     if (!headerData.canEdit) {
@@ -336,10 +434,11 @@ const loadDataForEdit = async (nomor: string) => {
   }
 };
 
-const calculateTotals = () => {
+const calculateTotals = async () => {
   let totalSoBruto = 0;
   let newTotalDiscountable = 0; // Variabel sementara untuk total yang bisa didiskon
   let containsDtf = false;
+  let containsCustomOrder = false;
 
   items.value.forEach(item => {
     const qty = Number(item.jumlah) || 0;
@@ -354,12 +453,10 @@ const calculateTotals = () => {
     // Tambahkan ke total bruto (semua item)
     totalSoBruto += item.total;
 
-    if (item.noSoDtf) {
-      containsDtf = true;
-    } else {
-      // [PERUBAIKAN] Hanya item non-DTF yang masuk hitungan diskon faktur
-      newTotalDiscountable += item.total;
-    }
+    if (item.noSoDtf) containsDtf = true;
+    if (item.isCustomOrder) containsCustomOrder = true; // 👈 deteksi jasa custom
+
+    if (!item.noSoDtf) newTotalDiscountable += item.total;
   });
 
   footer.value.totalSo = totalSoBruto; // Total SO adalah total bruto
@@ -398,7 +495,9 @@ const calculateTotals = () => {
   footer.value.grandTotal = grandTotal;
 
   // Kalkulasi Minimal DP (berdasarkan Netto, sudah benar)
-  if (containsDtf) {
+  if (containsCustomOrder) {
+    footer.value.minimalDp = 0.5 * footer.value.netto;
+  } else if (containsDtf) {
     footer.value.minimalDp = 0.5 * footer.value.netto;
   } else {
     footer.value.minimalDp = 0.3 * footer.value.netto;
@@ -526,7 +625,7 @@ const executeSave = async () => {
         level: header.value.levelKode
       },
       footer: footer.value,
-      details: items.value.filter(item => item.kode),
+      details: items.value.filter(item => item.kode || item.isCustomOrder),
       dps: dpItems.value,
       isNew: !isEditMode.value,
       user: authStore.user // Pastikan user juga dikirim
@@ -625,8 +724,13 @@ const resetForm = () => {
 };
 
 const removeRow = (id: number) => {
+  const item = items.value.find(i => i.id === id);
+  if (item?.isCustomOrder && item.noSoDtf) {
+    toast.warning("Item custom ini sudah punya No. SO DTF dan tidak bisa dihapus.");
+    return;
+  }
   items.value = items.value.filter(item => item.id !== id);
-  calculateTotals(); // Hitung ulang total setelah menghapus
+  calculateTotals();
 };
 
 const onGudangSelected = (gudang: { kode: string, nama: string }) => {
@@ -667,6 +771,7 @@ const onCustomerSelected = async (customer: Customer) => {
   header.value.kota = customer.kota;
   header.value.telp = customer.telp;
 
+  await applyDefaultDiscount();
   calculateTotals();
   toast.success(`Customer ${customer.nama} berhasil dipilih.`);
 };
@@ -884,6 +989,31 @@ const onPriceProposalSelected = async (proposal: { nomor: string }) => {
   }
 };
 
+const applyDefaultDiscount = async () => {
+  if (!header.value.customer) return;
+  if (!header.value.levelKode) return;
+
+  try {
+    const response = await api.get('/so-form/lookup/default-discount', {
+      params: {
+        level: header.value.levelKode,
+        total: totalDiscountable.value, // <= PERBAIKAN PENTING
+        gudang: header.value.gudang.kode
+      }
+    });
+
+    const defaultDisc = Number(response.data.discount ?? 0);
+
+    // SET jika belum diubah user
+    if (!footer.value.diskonPersen1 || footer.value.diskonPersen1 === 0) {
+      footer.value.diskonPersen1 = defaultDisc;
+    }
+
+  } catch (err) {
+    console.error('Gagal ambil diskon default:', err);
+  }
+};
+
 // const handleDiscount1Change = async () => {
 //   // Jangan lakukan apa-apa jika customer belum dipilih
 //   if (!header.value.customer || !header.value.customer.level_kode) {
@@ -1037,6 +1167,21 @@ const openDpInput = () => {
 const onDpSaved = (newDp: DpItem) => {
   dpItems.value.push(newDp);
   calculateTotals();
+
+  // Pastikan minimal DP diupdate berdasarkan jenis item yang ada
+  const containsCustomOrder = items.value.some(i => i.isCustomOrder);
+  const containsDtf = items.value.some(i => i.noSoDtf);
+
+  if (containsCustomOrder || containsDtf) {
+    footer.value.minimalDp = 0.5 * footer.value.netto;
+  } else {
+    footer.value.minimalDp = 0.3 * footer.value.netto;
+  }
+
+  // Refresh status SO setelah DP masuk
+  const totalDp = footer.value.totalDp;
+  header.value.statusSo =
+    totalDp >= footer.value.minimalDp ? 'AKTIF' : 'PASIF';
 };
 
 const removeDpRow = (itemToRemove: DpItem) => {
@@ -1138,6 +1283,108 @@ const handleBarcodeScan = async () => {
   }
 };
 
+// const saveJenisOrder = async () => {
+//   dialogs.jenisOrder = false;
+//   if (!formJenisOrder.jenis) {
+//     toast.error("Pilih jenis order terlebih dahulu.");
+//     return;
+//   }
+
+//   header.value.jenisOrder = formJenisOrder.jenis;
+//   header.value.ukuranOrder = formJenisOrder.ukuran;
+//   header.value.titikOrder = formJenisOrder.titik;
+
+//   // update DP minimal
+//   if (formJenisOrder.jenis.toUpperCase().includes("CUSTOM")) {
+//     footer.value.minimalDp = 0.5 * footer.value.netto;
+//     toast.info("Minimal DP diubah menjadi 50% karena jenis order custom.");
+//   } else {
+//     footer.value.minimalDp = 0.3 * footer.value.netto;
+//   }
+
+//   // Hitung ulang harga otomatis via backend
+//   try {
+//     const { data } = await api.post("/so-form/hitung-harga", {
+//       jenis: formJenisOrder.jenis,
+//       ukuran: formJenisOrder.ukuran,
+//       titik: formJenisOrder.titik,
+//       items: items.value,
+//     });
+//     items.value = data.items;
+//     calculateTotals();
+//     toast.success("Harga berhasil diperbarui berdasarkan jenis order.");
+//   } catch (err) {
+//     toast.error("Gagal menghitung harga custom.", err);
+//   }
+// };
+
+const handleJenisOrderSaved = (data: JenisOrderSaved) => {
+  items.value.push({
+    id: Date.now() + Math.random(),
+    kode: '', // custom order
+    nama: data.namaOrder || 'Order Custom',
+    ukuran: '',
+    stok: 0,
+    jumlah: data.totalJumlah || 0,
+    harga: data.totalHarga || 0,
+    diskonPersen: 0,
+    diskonRp: 0,
+    total: data.totalHarga || 0,
+    barcode: '',
+    noSoDtf: '',
+    noPengajuanHarga: '',
+    pin: '',
+    isCustomOrder: true,
+    ukuranKaos: data.ukuranKaos || [],
+    titikCetak: data.titikCetak || [],
+  });
+
+  calculateTotals();
+  dialogs.jenisOrder = false;
+  toast.success("Jenis Order Custom berhasil ditambahkan ke daftar item.");
+};
+
+const loadJenisOrder = async () => {
+  loadingJenisOrder.value = true;
+  try {
+    const { data } = await api.get('/so-form/lookup/jenis-order');
+    console.log('📦 Jenis Order:', data);
+    jenisOrderList.value = data;
+  } catch (err) {
+    console.error('❌ Gagal load jenis order:', err);
+  } finally {
+    loadingJenisOrder.value = false;
+  }
+};
+
+const openJenisOrderModal = () => {
+  // 🔹 Validasi 1: Pastikan customer dipilih
+  if (!header.value.customer) {
+    toast.error('Pilih customer terlebih dahulu sebelum input jenis order.');
+    return;
+  }
+
+  // 🔹 Validasi 2: Pastikan ada penawaran atau tabel item sudah keisi
+  const hasPenawaran = !!header.value.penawaran;
+  const hasItems = items.value.some(it => it.kode && it.nama);
+
+  if (!hasPenawaran && !hasItems) {
+    toast.error('Isi detail barang dari Penawaran terlebih dahulu sebelum input jenis order.');
+    return;
+  }
+
+  // ✅ Semua aman, buka modal
+  dialogs.jenisOrder = true;
+};
+
+const openSoDtfInNewTab = (item: SoItem) => {
+  const url = router.resolve({
+    path: '/transaksi/penjualan/dtf/so-dtf/new',
+    query: { ref: item.kode || '' },
+  }).href;
+  window.open(url, '_blank'); // buka tab baru
+};
+
 watch(
   // Daftar semua state yang akan memicu kalkulasi ulang
   [
@@ -1157,13 +1404,21 @@ watch(
 watch(
   [() => header.value.tanggal, () => header.value.top],
   ([newTanggal, newTop]) => {
-    const date = new Date(newTanggal);
+    const date = parseDate(newTanggal);
     if (isValid(date)) {
       header.value.tempo = format(addDays(date, newTop || 0), 'yyyy-MM-dd');
     }
   },
   { immediate: true } // immediate: true agar langsung dihitung saat form dimuat
 );
+
+watch(() => dialogs.jenisOrder, (val) => {
+  if (val) loadJenisOrder();
+});
+
+watch(() => items.value, async () => {
+  await applyDefaultDiscount();
+}, { deep: true });
 
 onMounted(() => {
   // Cek hak akses 'insert' (untuk baru) atau 'edit' (untuk ubah)
@@ -1180,11 +1435,28 @@ onMounted(() => {
     isLoading.value = false;
   }
 });
+
+onMounted(async () => {
+  try {
+    loadingJenisOrder.value = true;
+    const { data } = await api.get('/so-form/lookup/jenis-order'); // tanpa params
+    jenisOrderList.value = data;
+  } catch (error) {
+    console.error('Gagal mengambil jenis order:', error);
+  } finally {
+    loadingJenisOrder.value = false;
+  }
+});
 </script>
 
 <template>
   <PageLayout :title="pageTitle" desktop-mode icon="mdi-file-document-edit-outline">
     <template #header-actions>
+      <v-btn color="secondary" size="small" prepend-icon="mdi-tshirt-crew-outline"
+        :disabled="!header.customer && !header.penawaran" @click="openJenisOrderModal">
+        Input Jenis Order
+      </v-btn>
+      <v-spacer></v-spacer>
       <v-btn size="small" color="primary" prepend-icon="mdi-content-save" @click="save" :loading="isSaving"
         :disabled="isSaving || isSavingDisabled">
         Simpan
@@ -1297,12 +1569,19 @@ onMounted(() => {
         <div class="scrollable-content">
           <div class="desktop-form-section main-grid-section">
             <v-data-table :headers="mainTableHeaders" :items="items" class="desktop-table vertically-aligned-table"
-              fixed-header height="calc(100vh - 480px)">
+              fixed-header height="calc(100vh - 480px)" :item-class="item => item.isCustomOrder ? 'custom-row' : ''">
               <template #[`item.kode`]="{ item, index }">
-                <v-text-field v-model="item.kode" variant="underlined" density="compact" hide-details
-                  placeholder="F1/F2..." @keydown.f1.prevent="openProductSearch(index, false)"
-                  @keydown.f2.prevent="openProductSearch(index, true)">
-                </v-text-field>
+                <div class="d-flex align-center">
+                  <v-icon v-if="item.isCustomOrder" color="blue" size="18" class="me-2"
+                    title="Item Custom (Jenis Order)">
+                    mdi-tshirt-crew-outline
+                  </v-icon>
+
+                  <v-text-field v-model="item.kode" variant="underlined" density="compact" hide-details
+                    placeholder="F1/F2..." :disabled="item.isCustomOrder"
+                    @keydown.f1.prevent="!item.isCustomOrder && openProductSearch(index, false)"
+                    @keydown.f2.prevent="!item.isCustomOrder && openProductSearch(index, true)" />
+                </div>
               </template>
               <template #[`item.nama`]="{ item }">
                 <div class="product-name-cell">{{ item.nama }}</div>
@@ -1338,9 +1617,18 @@ onMounted(() => {
                 </div>
               </template>
               <template #[`item.noSoDtf`]="{ item, index }">
-                <v-text-field v-model="item.noSoDtf" variant="underlined" density="compact" hide-details
-                  placeholder="F1..." @keydown.f1.prevent="openSoDtfSearch(index)" readonly>
-                </v-text-field>
+                <v-row dense align="center" no-gutters>
+                  <v-col>
+                    <v-text-field v-model="item.noSoDtf" variant="underlined" density="compact" hide-details
+                      placeholder="F1..." @keydown.f1.prevent="openSoDtfSearch(index)" readonly />
+                  </v-col>
+
+                  <!-- Tombol untuk grid jasa custom -->
+                  <v-col cols="auto" v-if="item.isCustomOrder">
+                    <v-btn icon="mdi-plus-circle" size="x-small" color="primary" variant="text"
+                      @click="openSoDtfInNewTab(item)" title="Buat SO DTF Baru" />
+                  </v-col>
+                </v-row>
               </template>
               <template #[`item.noPengajuanHarga`]="{ item, index }">
                 <v-text-field v-model="item.noPengajuanHarga" variant="underlined" density="compact" hide-details
@@ -1445,7 +1733,8 @@ onMounted(() => {
       :customerKode="header.customer?.kode" @close="isPriceProposalSearchVisible = false"
       @selected="onPriceProposalSelected" />
     <DpInputModal v-if="isDpInputVisible" :customerKode="header.customer?.kode" :minimal-dp="footer.minimalDp"
-      :existing-dp="footer.totalDp" @close="isDpInputVisible = false" @dp-saved="onDpSaved" />
+      :existing-dp="footer.totalDp" :existing-dp-nomor="existingDpNomor" @close="isDpInputVisible = false"
+      @dp-saved="onDpSaved" />
     <CustomerForm v-if="isNewCustomerFormVisible" @close="isNewCustomerFormVisible = false"
       @customer-saved="onNewCustomerSaved" />
     <DiscountCostModal v-if="isDiscountCostModalVisible" :footer-data="footer" :total-so="totalDiscountable"
@@ -1453,6 +1742,8 @@ onMounted(() => {
       @close="isDiscountCostModalVisible = false" @update="Object.assign(footer, $event)" />
     <DpListModal v-if="isDpListModalVisible" :dp-items="dpItems" @close="isDpListModalVisible = false"
       @remove-dp="removeDpRow($event)" />
+    <JenisOrderModal v-if="dialogs.jenisOrder" :model-value="dialogs.jenisOrder" :penawaran-details="penawaranDetails"
+      :penawaran-barang-list="penawaranBarangList" @close="dialogs.jenisOrder = false" @saved="handleJenisOrderSaved" />
 
     <v-dialog v-model="isConfirmDialogVisible" max-width="400px" persistent>
       <v-card>
@@ -1620,5 +1911,16 @@ onMounted(() => {
   padding-bottom: 4px;
   min-width: 250px;
   /* minimum width untuk kolom nama */
+}
+
+:deep(.custom-row) {
+  background-color: #f3f8ff;
+  /* biru muda */
+  font-style: italic;
+}
+
+:deep(.v-icon.me-2) {
+  margin-right: 6px;
+  opacity: 0.8;
 }
 </style>

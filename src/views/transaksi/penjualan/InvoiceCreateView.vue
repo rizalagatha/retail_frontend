@@ -1138,6 +1138,7 @@ const checkStokMinus = (): Promise<boolean> => {
   return new Promise((resolve) => {
     const validItems = items.value.filter(i => i.kode);
     const itemsMinus = validItems.filter(item =>
+      !item.kode?.toUpperCase().startsWith("JASA") &&
       (item.jumlah || 0) > (item.stok || 0) &&
       item.kategori !== 'SO-DTF' && // Asumsi item SO DTF boleh minus (sesuai Delphi)
       !item.noSoDtf // Dobel cek jika item dari SO DTF
@@ -1325,12 +1326,13 @@ const resetForm = async () => {
 };
 
 const getQtyClass = (item) => {
-  // Hanya tandai merah kalau stok kurang dari jumlah DAN bukan item SO DTF
+  if (item.kode && item.kode.toUpperCase().startsWith("JASA")) return '';
   if (!item.noSoDtf && item.stok < item.jumlah) {
     return 'text-red font-weight-bold';
   }
   return '';
 };
+
 
 const isHargaEditable = (item: Item) => {
   // Bisa diedit hanya kalau row ini memang ditandai editable

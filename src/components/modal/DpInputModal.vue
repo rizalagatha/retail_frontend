@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue';
+import { ref, computed } from 'vue';
 import api from '@/services/api';
 import { useToast } from 'vue-toastification';
 import RekeningSearchModal from '../lookup/RekeningSearchModal.vue';
@@ -67,15 +67,16 @@ const documentTitle = computed(() => {
 const props = defineProps({
   customerKode: { type: String, required: true },
   minimalDp: { type: Number, default: 0 },
-  existingDp: { type: Number, default: 0 }
+  existingDp: { type: Number, default: 0 },
+  existingDpNomor: { type: String, default: "" }
 });
 const emit = defineEmits(['close', 'dp-saved']);
 
 const dpData = ref({
   tanggal: new Date().toISOString().substring(0, 10),
   jenis: 'TUNAI',
-  nominal: kekuranganDp.value,
-  keterangan: 'DP Tambahan',
+  nominal: 0,
+  keterangan: 'DP',
   bankData: {
     akun: '',
     namaBank: '',
@@ -96,11 +97,22 @@ const isPrinting = ref(false); // Loading untuk mengambil data cetak
 const printHeaderData = ref<PrintHeader | null>(null); // Menyimpan data cetak
 const newDpFromSave = ref<NewDpItem | null>(null); // Menyimpan data newDp untuk di-emit nanti
 
-watch(kekuranganDp, (newValue) => {
-  dpData.value.nominal = newValue;
-}, { immediate: true });
-
 const save = async () => {
+  if ((dpData.value.nominal || 0) === 0 && props.existingDpNomor) {
+    try {
+      const res = await api.post('/so-form/delete-dp', {
+        nomor: props.existingDpNomor
+      });
+      toast.success(res.data.message || "DP berhasil dihapus.");
+
+      emit("dp-saved", null);  // kasih tahu parent untuk refresh list DP
+      emit("close");
+      return; // STOP — jangan lanjut ke proses simpan DP baru
+    } catch (err) {
+      toast.error("Gagal menghapus DP.", err);
+      return;
+    }
+  }
   // --- (Validasi Anda sebelumnya tetap di sini) ---
   const nominal = dpData.value.nominal || 0;
   if (nominal < kekuranganDp.value) {
@@ -160,6 +172,16 @@ const save = async () => {
   }
 };
 
+const onNominalFocus = () => {
+  isNominalFocused.value = true;
+  if (dpData.value.nominal === 0) dpData.value.nominal = null;
+};
+
+const onNominalBlur = () => {
+  isNominalFocused.value = false;
+  if (!dpData.value.nominal) dpData.value.nominal = 0;
+};
+
 const handlePrint = () => {
   // Memanggil print preview browser
   window.print();
@@ -199,10 +221,10 @@ const onRekeningSelected = (rekening: Rekening) => {
               variant="outlined" density="compact" /></v-col>
           <v-col cols="12">
             <v-text-field label="Nominal"
-              :model-value="isNominalFocused ? dpData.nominal : new Intl.NumberFormat('id-ID').format(dpData.nominal || 0)"
+              :model-value="isNominalFocused ? dpData.nominal : formatRupiah(dpData.nominal || 0)"
               @update:model-value="dpData.nominal = Number(String($event).replace(/[^0-9]/g, '')) || 0"
-              @focus="isNominalFocused = true" @blur="isNominalFocused = false" type="text" variant="outlined"
-              density="compact" class="text-end" />
+              @focus="onNominalFocus" @blur="onNominalBlur" type="text" variant="outlined" density="compact"
+              class="text-end" />
           </v-col>
           <v-col cols="12"><v-text-field label="Keterangan" v-model="dpData.keterangan" variant="outlined"
               density="compact" /></v-col>

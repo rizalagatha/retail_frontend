@@ -90,7 +90,7 @@ onMounted(loadItems);
           autofocus></v-text-field>
 
         <v-data-table :headers="headers" :items="items" :loading="loading" hover class="desktop-table flex-grow-1"
-          density="compact" fixed-header :items-per-page="itemsPerPage" v-model:page="page"
+          density="compact" fixed-header :items-per-page="itemsPerPage" :page="page" :hide-default-footer="true"
           :server-items-length="totalItems">
           <template #item="{ item }">
             <tr @click="selectItem(item)" style="cursor: pointer;">
@@ -103,8 +103,7 @@ onMounted(loadItems);
           </template>
 
           <template #bottom>
-            <v-pagination v-model="page" :length="Math.ceil(totalItems / itemsPerPage)" total-visible="7"
-              class="mt-2" />
+            <v-pagination v-model="page" :length="Math.ceil(totalItems / itemsPerPage)" total-visible="7" />
           </template>
         </v-data-table>
       </v-card-text>

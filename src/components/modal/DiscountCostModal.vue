@@ -65,6 +65,14 @@ const diskonPersen1Input = ref(0);
 const diskonPersen2Input = ref(0);
 
 // Watch untuk sync dengan localFooter
+watch(
+  () => props.footerData,
+  () => {
+    diskonRpInput.value = 0; // RESET setiap buka modal
+  },
+  { immediate: true }
+);
+
 watch(() => localFooter.value.diskonPersen1, (newVal) => {
   diskonPersen1Input.value = newVal;
 });
@@ -126,6 +134,7 @@ const restorePreviousState = async () => {
 };
 
 const handleDiscount1Change = async () => {
+  diskonRpInput.value = 0;
   if (isRestoring.value) return; // PENTING!
 
   // Reset diskon Rp saat ubah persen
@@ -172,6 +181,7 @@ const handleDiscount1Change = async () => {
 };
 
 const handleDiscount2Change = () => {
+  diskonRpInput.value = 0;
   if (isRestoring.value) return; // PENTING!
 
   diskonRpInput.value = 0;

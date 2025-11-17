@@ -352,6 +352,14 @@ const penawaranBarangList = computed(() => {
   }));
 });
 
+const grandQty = computed(() =>
+  items.value.reduce((sum, i) => sum + (Number(i.jumlah) || 0), 0)
+);
+
+const grandTotal = computed(() =>
+  footer.value.totalSo || 0
+);
+
 // --- Functions ---
 // function toDateInputValue(dateStr: string) {
 //   if (!dateStr) return '';
@@ -1643,6 +1651,14 @@ onMounted(async () => {
           </div>
         </div>
 
+        <div class="so-sticky-footer">
+          <div class="footer-col label-left">TOTAL QTY</div>
+          <div class="footer-col value-center">{{ grandQty }}</div>
+
+          <div class="footer-col label-right">TOTAL NOMINAL</div>
+          <div class="footer-col value-right">{{ formatRupiah(grandTotal) }}</div>
+        </div>
+
         <div class="footer-summary-section">
           <v-row dense>
 
@@ -1922,5 +1938,44 @@ onMounted(async () => {
 :deep(.v-icon.me-2) {
   margin-right: 6px;
   opacity: 0.8;
+}
+
+.so-sticky-footer {
+  display: grid;
+  grid-template-columns: 1fr 0.7fr 1fr 1fr;
+  /* spacing kolom */
+  align-items: center;
+  padding: 8px 16px;
+  border-top: 2px solid #1976d2;
+  font-size: 15px;
+  background: #fff;
+  position: sticky;
+  bottom: 0;
+  z-index: 10;
+}
+
+.footer-col {
+  padding: 4px 12px;
+}
+
+.label-left {
+  font-weight: 600;
+  text-align: left;
+}
+
+.value-center {
+  font-weight: 700;
+  text-align: center;
+}
+
+.label-right {
+  font-weight: 600;
+  text-align: right;
+}
+
+.value-right {
+  font-weight: 900;
+  text-align: right;
+  font-size: 17px;
 }
 </style>

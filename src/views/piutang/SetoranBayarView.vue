@@ -49,10 +49,13 @@ const filters = reactive({
   startDate: format(subDays(new Date(), 7), 'yyyy-MM-dd'),
   endDate: format(new Date(), 'yyyy-MM-dd'),
   cabang: authStore.user?.cabang || '',
+  search: '',
 });
 
 const isConfirmDialogVisible = ref(false);
 const confirmDialogText = ref('');
+const search = ref('');
+let searchTimeout: ReturnType<typeof setTimeout>;
 
 const isSingleSelected = computed(() => selected.value.length === 1);
 const selectedRow = computed(() => isSingleSelected.value ? selected.value[0] : null);
@@ -248,6 +251,14 @@ watch(filters, fetchMasterData, { deep: true });
 watch(expanded, (newExpanded) => {
   loadDetails(newExpanded);
 });
+
+watch(search, (val) => {
+  clearTimeout(searchTimeout);
+  searchTimeout = setTimeout(() => {
+    filters.search = val;
+    fetchMasterData();
+  }, 300);
+});
 </script>
 
 <template>
@@ -291,6 +302,8 @@ watch(expanded, (newExpanded) => {
         <v-text-field v-model="filters.endDate" type="date" density="compact" hide-details variant="outlined" />
         <v-select label="Cabang" v-model="filters.cabang" :items="cabangList" item-title="nama" item-value="kode"
           density="compact" hide-details variant="outlined" class="ms-4" style="max-width: 200px;" />
+        <v-text-field v-model="filters.search" placeholder="Cari nomor, customer, kode customer, no SO..."
+          density="compact" hide-details variant="outlined" clearable style="max-width: 300px;" />
         <v-spacer />
         <div class="d-flex align-center ga-2 text-caption">
           <v-icon color="blue" icon="mdi-square-rounded" size="small"></v-icon> Otomatis

@@ -55,39 +55,161 @@
   flex-shrink: 0;
 }
 
-/* Styling Filter Section (untuk halaman browse)
+/* Styling Filter Section (Compact Mode - Fixed Alignment)
    ========================================================================== */
 .filter-section {
   display: flex;
-  align-items: center;
-  gap: var(--base-gap);
-  padding: 6px 10px;
+  align-items: center; /* KUNCI: Pastikan semua item rata tengah secara vertikal */
+  flex-wrap: nowrap;
+  gap: 8px !important;
+  padding: 6px 8px !important;
   border-bottom: 1px solid #e0e0e0;
+  background-color: #fff;
   flex-shrink: 0;
+  height: auto;
+  min-height: 42px;
+  overflow-x: auto;
 }
 
-.filter-label {
-  font-size: var(--label-font-size);
-  font-weight: 500;
+/* --- 1. Perbaikan Label Teks (Periode, s/d, Label Cabang) --- */
+.filter-label,
+.filter-section .v-label {
+  font-size: 11px !important;
+  font-weight: 600;
+  color: #555;
+  margin-right: 4px;
+  white-space: nowrap;
+  line-height: 1; /* Reset line-height agar flexbox align-items bekerja */
+  display: flex;
+  align-items: center;
+  height: 100%; /* Samakan tinggi dengan container */
+  margin-bottom: 0 !important; /* Hapus margin bawaan */
+  opacity: 1 !important;
 }
 
-.filter-section .v-label,
-.filter-section .v-select__selection-text {
-  font-size: var(--label-font-size) !important;
+/* Label teks biasa (seperti 's/d') */
+.filter-section .mx-2 {
+  font-size: 11px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  height: 28px; /* Paksa tinggi sama dengan input */
+  line-height: 1;
 }
 
-.filter-section input {
-  font-size: var(--input-font-size) !important;
+/* --- 2. Styling Input Field (Compact 28px) --- */
+/* Reset Margin Input */
+.filter-section .v-input {
+  margin: 0 !important;
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center; /* Penting untuk checkbox */
 }
 
+/* Container field input text/select */
 .filter-section .v-field {
-  height: 36px !important;
+  height: 28px !important;
+  min-height: 28px !important;
+  border-radius: 4px !important;
+  font-size: 11px !important;
+  display: flex;
+  align-items: center;
+  box-shadow: none !important; /* Optional: Hilangkan shadow jika ada */
 }
 
+/* Area Ketik */
 .filter-section .v-field__input {
-  min-height: 36px !important;
+  min-height: 28px !important;
+  height: 28px !important;
   padding-top: 0 !important;
   padding-bottom: 0 !important;
+  padding-left: 8px !important;
+  padding-right: 8px !important;
+  font-size: 11px !important;
+  line-height: 28px !important;
+  letter-spacing: 0;
+  display: flex;
+  align-items: center;
+}
+
+/* KHUSUS SELECT (Dropdown) agar tetap kecil secara default */
+.filter-section .v-select {
+  width: auto;
+  min-width: 120px;
+}
+
+/* KHUSUS INPUT DATE */
+.filter-section input[type="date"] {
+  font-size: 11px !important;
+  text-transform: uppercase;
+  width: 110px !important;
+}
+
+/* --- 4. Perbaikan Checkbox & Radio Button --- */
+.filter-section .v-checkbox,
+.filter-section .v-radio {
+  height: 28px !important; /* Samakan tinggi dengan input text */
+}
+
+.filter-section .v-selection-control {
+  min-height: 28px !important;
+  height: 28px !important;
+  display: flex;
+  align-items: center;
+}
+
+.filter-section .v-selection-control__wrapper {
+  height: 20px !important; /* Perkecil area klik icon */
+  width: 20px !important;
+}
+
+.filter-section .v-selection-control__input i {
+  font-size: 18px !important; /* Perkecil icon checkbox */
+}
+
+.filter-section .v-label {
+  font-size: 11px !important;
+  /* Pastikan label checkbox juga rata tengah */
+  padding-bottom: 1px;
+}
+
+/* --- 5. Elemen Lain (Icon, Tombol) --- */
+.filter-section .v-select__selection {
+  margin: 0 !important;
+  padding: 0 !important;
+  line-height: 28px !important;
+}
+.filter-section .v-select__selection-text {
+  font-size: 11px !important;
+}
+
+.filter-section .v-field__append-inner,
+.filter-section .v-field__clearable,
+.filter-section .v-field__prepend-inner {
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+  align-items: center !important;
+  height: 100%;
+  display: flex;
+}
+
+.filter-section .v-icon {
+  font-size: 16px !important;
+  opacity: 0.7;
+}
+
+.filter-section .v-btn {
+  height: 28px !important;
+  width: 28px !important;
+  min-width: 0 !important;
+  padding: 0 !important;
+  font-size: 11px !important;
+}
+
+/* Chip (Filter Aktif) */
+.filter-section .v-chip {
+  height: 24px !important; /* Sedikit lebih kecil dari input */
+  font-size: 10px !important;
 }
 
 /* Styling Header Section (untuk halaman form)

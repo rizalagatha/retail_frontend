@@ -95,51 +95,62 @@ onMounted(() => {
         </div>
       </div>
 
-      <div class="master-data">
-        <div class="data-grid">
-          <div class="label">No. SO DTF</div>
-          <div class="value">: {{ printData.sd_nomor }}</div>
-          <div class="label">Tanggal</div>
-          <div class="value">: {{ format(new Date(printData.sd_tanggal), 'dd/MM/yyyy') }}</div>
-          <div class="label">Jenis Order</div>
-          <div class="value">: {{ printData.jo_nama }}</div>
-          <div class="label">Nama Desain</div>
-          <div class="value">: {{ printData.sd_nama }}</div>
-          <div class="label">Jumlah</div>
-          <div class="value">: {{ printData.jumlah }}</div>
-          <div class="label">Ukuran</div>
-          <div class="value">: {{ printData.ukuran }}</div>
-          <div class="label">Kain</div>
-          <div class="value">: {{ printData.sd_kain }}</div>
-          <div class="label">Finishing</div>
-          <div class="value">: {{ printData.sd_finishing }}</div>
-          <div class="label">Date Line</div>
-          <div class="value">: {{ format(new Date(printData.sd_datekerja), 'dd/MM/yyyy') }}</div>
-          <div class="label">Workshop</div>
-          <div class="value">: {{ printData.sd_workshop }} - {{ printData.gdg_nama }}</div>
-          <div class="label">Desainer</div>
-          <div class="value">: {{ printData.sd_desain }}</div>
-          <div class="label">Keterangan</div>
-          <div class="value">: {{ printData.sd_ket }}</div>
-        </div>
-        <div v-if="printData.imageUrl" class="image-preview">
-          <img :src="getFullImageUrl(printData.imageUrl)" alt="Design Preview">
-        </div>
-      </div>
+      <div class="content-wrapper">
+        <!-- Kolom Kiri: Data -->
+        <div class="data-section">
+          <div class="data-grid">
+            <div class="label">No. SO DTF</div>
+            <div class="value">: {{ printData.sd_nomor }}</div>
+            <div class="label">Tanggal</div>
+            <div class="value">: {{ format(new Date(printData.sd_tanggal), 'dd/MM/yyyy') }}</div>
+            <div class="label">Jenis Order</div>
+            <div class="value">: {{ printData.jo_nama }}</div>
+            <div class="label">Nama Desain</div>
+            <div class="value">: {{ printData.sd_nama }}</div>
+            <div class="label">Jumlah</div>
+            <div class="value">: {{ printData.jumlah }}</div>
+            <div class="label">Ukuran</div>
+            <div class="value">: {{ printData.ukuran }}</div>
+            <div class="label">Kain</div>
+            <div class="value">: {{ printData.sd_kain }}</div>
+            <div class="label">Finishing</div>
+            <div class="value">: {{ printData.sd_finishing }}</div>
+            <div class="label">Date Line</div>
+            <div class="value">: {{ format(new Date(printData.sd_datekerja), 'dd/MM/yyyy') }}</div>
+            <div class="label">Workshop</div>
+            <div class="value">: {{ printData.sd_workshop }} - {{ printData.gdg_nama }}</div>
+            <div class="label">Desainer</div>
+            <div class="value">: {{ printData.sd_desain }}</div>
+            <div class="label">Keterangan</div>
+            <div class="value keterangan-text">: {{ printData.sd_ket }}</div>
+          </div>
 
-      <div class="titik-section">
-        <strong>TITIK {{ printData.jo_nama }}:</strong>
-        <pre class="titik-details">{{ printData.titik }}</pre>
-      </div>
+          <div class="titik-section">
+            <strong>TITIK {{ printData.jo_nama }}:</strong>
+            <pre class="titik-details">{{ printData.titik }}</pre>
+          </div>
 
-      <div class="signatures">
-        <div class="signature-box">
-          <div>Kaosan SC,</div>
-          <div class="name-line">( {{ printData.user_create }} )</div>
+          <!-- TTD Section Kecil -->
+          <div class="signatures">
+            <div class="signature-box">
+              <div>Kaosan SC,</div>
+              <div class="name-line">( {{ printData.user_create }} )</div>
+            </div>
+            <div class="signature-box">
+              <div>Mengetahui,</div>
+              <div class="name-line">( ......................... )</div>
+            </div>
+          </div>
         </div>
-        <div class="signature-box">
-          <div>Mengetahui,</div>
-          <div class="name-line">( ......................... )</div>
+
+        <!-- Kolom Kanan: Gambar -->
+        <div class="image-container">
+          <div v-if="printData.imageUrl" class="image-box">
+            <img :src="getFullImageUrl(printData.imageUrl)" alt="Design Preview">
+          </div>
+          <div v-else class="image-placeholder">
+            <span>Preview Gambar</span>
+          </div>
         </div>
       </div>
 
@@ -154,7 +165,7 @@ onMounted(() => {
 @media print {
   @page {
     size: A4;
-    margin: 1cm;
+    margin: 0.5cm;
   }
 
   body * {
@@ -176,15 +187,13 @@ onMounted(() => {
 
 .page {
   background: white;
-  padding: 1.5cm;
+  padding: 1cm;
   margin: 20px auto;
   width: 21cm;
   min-height: 29.7cm;
   box-shadow: 0 0 5px rgba(0, 0, 0, 0.1);
   font-family: 'Arial', sans-serif;
-  /* <-- FONT BARU */
   font-size: 10pt;
-  /* <-- Ukuran font disesuaikan */
   color: #333;
   display: flex;
   flex-direction: column;
@@ -211,13 +220,8 @@ onMounted(() => {
 
 .logo {
   width: 60px;
-  /* Ukuran logo */
   height: auto;
   margin-right: 15px;
-}
-
-.title-section {
-  flex-grow: 1;
 }
 
 .main-title {
@@ -225,80 +229,109 @@ onMounted(() => {
   font-weight: bold;
 }
 
-.sub-title {
-  font-size: 11pt;
-  color: #555;
+/* Layout Utama: Data + Gambar */
+.content-wrapper {
+  display: flex;
+  gap: 20px;
+  margin-bottom: 15px;
+  flex-grow: 1;
 }
 
-.master-data {
+.data-section {
+  flex: 1;
   display: flex;
-  gap: 1rem;
-  padding: 10px 0;
-  align-items: stretch; /* penting */
+  flex-direction: column;
 }
 
 .data-grid {
   display: grid;
-  grid-template-columns: 120px auto;
-  row-gap: 5px;
-  /* Jarak antar baris */
+  grid-template-columns: 110px auto;
+  row-gap: 4px;
   column-gap: 10px;
-  flex-grow: 1;
+  margin-bottom: 15px;
 }
 
 .label {
   font-weight: bold;
+  font-size: 9.5pt;
 }
 
-.image-preview {
-  flex-shrink: 0;
-  width: 200px;
-  border: 1px solid #ccc;
-  padding: 5px;
-  display: flex;
-  align-items: stretch;
-  justify-content: center;
+.value {
+  word-wrap: break-word;
+  font-size: 9.5pt;
 }
 
-.image-preview img {
-  width: 100%;
-  height: 100%;
-  object-fit: contain; /* gambar tidak melar */
+.keterangan-text {
+  white-space: pre-wrap;
+  word-wrap: break-word;
 }
+
 .titik-section {
-  border-top: 1px dashed #ccc;
-  padding-top: 10px;
   margin-top: auto;
+  padding-top: 10px;
+  border-top: 1px dashed #ccc;
+  margin-bottom: 15px;
 }
 
 .titik-details {
   white-space: pre-wrap;
   font-family: inherit;
-  font-size: inherit;
+  font-size: 9.5pt;
   margin-top: 5px;
+  margin-bottom: 0;
 }
 
+/* TTD Section - 2 Kolom Kecil */
 .signatures {
   display: flex;
-  justify-content: space-around;
-  margin-top: 30px;
+  gap: 30px;
+  margin-top: 20px;
   text-align: center;
-  font-size: 10pt;
+  font-size: 9pt;
 }
 
 .signature-box {
-  width: 40%;
+  width: 150px;
+  /* Lebar tetap, kecil */
 }
 
 .name-line {
-  margin-top: 50px;
+  margin-top: 40px;
   font-weight: bold;
+}
+
+/* Gambar Tanpa Border */
+.image-container {
+  width: 45%;
+  flex-shrink: 0;
+}
+
+.image-box,
+.image-placeholder {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #f9f9f9;
+  min-height: 500px;
+}
+
+.image-box img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+
+.image-placeholder {
+  color: #ccc;
+  font-size: 14pt;
 }
 
 .footer {
   border-top: 1px solid #ccc;
   padding-top: 5px;
-  margin-top: 20px;
+  margin-top: 10px;
   font-style: italic;
   font-size: 8pt;
   color: #555;

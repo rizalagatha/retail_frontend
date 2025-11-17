@@ -546,3 +546,29 @@
   border-color: #eeeeee !important;
   opacity: 0.6;
 }
+
+/* ========================================================================== */
+/* 🔲 Garis Grid di Semua Tabel Browse */
+/* ========================================================================== */
+.desktop-table :deep(table) {
+  border-collapse: collapse !important;
+  border-spacing: 0 !important;
+  width: 100%;
+}
+
+.desktop-table :deep(th),
+.desktop-table :deep(td) {
+  border: 1px solid #dcdcdc !important;
+}
+
+/* Warna dan efek hover agar tetap clean */
+.desktop-table :deep(tr:hover) {
+  background-color: #f5faff !important;
+}
+
+/* Header tabel tetap menonjol */
+.desktop-table :deep(th) {
+  background-color: #f2f2f2 !important;
+  font-weight: 600 !important;
+  text-transform: uppercase;
+}

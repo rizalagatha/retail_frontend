@@ -1533,8 +1533,18 @@ onMounted(() => {
 onUnmounted(() => {
   window.removeEventListener("keydown", handleGlobalShortcuts);
 });
-
+const blockedSelectors = [
+  ".so-dtf-field",
+  ".pengajuan-field"
+];
 const handleGlobalShortcuts = (e: KeyboardEvent) => {
+  const target = e.target as HTMLElement;
+
+  // Jika fokus di input SO DTF atau Pengajuan Harga → blok F1 global
+  if (blockedSelectors.some(sel => target.closest(sel))) {
+    return;
+  }
+
   if (e.code === "F1") {
     e.preventDefault();
     openProductSearch(activeRowIndex.value, false);
@@ -1545,6 +1555,17 @@ const handleGlobalShortcuts = (e: KeyboardEvent) => {
     openProductSearch(activeRowIndex.value, true);
   }
 };
+
+const stopAndOpenSoDtf = (index: number) => {
+  event?.stopImmediatePropagation?.();  // ⛔ blok F1 global
+  openSoDtfSearch(index);
+};
+
+const stopAndOpenPriceProposal = (index: number) => {
+  event?.stopImmediatePropagation?.();  // ⛔ blok F1 global
+  openPriceProposalSearch(index);
+};
+
 </script>
 
 <template>
@@ -1719,8 +1740,8 @@ const handleGlobalShortcuts = (e: KeyboardEvent) => {
               <template #[`item.noSoDtf`]="{ item, index }">
                 <v-row dense align="center" no-gutters>
                   <v-col>
-                    <v-text-field v-model="item.noSoDtf" variant="underlined" density="compact" hide-details
-                      placeholder="F1..." @keydown.f1.prevent="openSoDtfSearch(index)" readonly />
+                    <v-text-field class="so-dtf-field" v-model="item.noSoDtf" variant="underlined" density="compact" hide-details
+                      placeholder="F1..." @mousedown.stop @click.stop @keydown.f1.stop.prevent="stopAndOpenSoDtf(index)" />
                   </v-col>
 
                   <!-- Tombol untuk grid jasa custom -->
@@ -1731,8 +1752,8 @@ const handleGlobalShortcuts = (e: KeyboardEvent) => {
                 </v-row>
               </template>
               <template #[`item.noPengajuanHarga`]="{ item, index }">
-                <v-text-field v-model="item.noPengajuanHarga" variant="underlined" density="compact" hide-details
-                  placeholder="F1..." @keydown.f1.prevent="openPriceProposalSearch(index)" readonly>
+                <v-text-field class="pengajuan-field" v-model="item.noPengajuanHarga" variant="underlined" density="compact" hide-details
+                  placeholder="F1..." @mousedown.stop @click.stop @keydown.f1.stop.prevent="stopAndOpenPriceProposal(index)">
                 </v-text-field>
               </template>
               <template #[`item.actions`]="{ item }">

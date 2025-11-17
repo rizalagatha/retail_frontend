@@ -1684,7 +1684,6 @@ const handleGlobalShortcuts = (e: KeyboardEvent) => {
 
           <div class="footer-summary-section">
             <v-row dense>
-
               <v-col cols="8">
                 <v-row dense>
                   <v-col cols="6">
@@ -1719,21 +1718,13 @@ const handleGlobalShortcuts = (e: KeyboardEvent) => {
               <v-col cols="4">
                 <div class="summary-totals">
                   <v-list density="compact" class="summary-list">
-                    <!-- Grand Total -->
-                    <v-list-item class="summary-total">
-                      <v-list-item-title class="font-weight-bold">Grand Total</v-list-item-title>
-                      <template #append>
-                        <span class="text-h6 font-weight-black">{{ formatRupiah(footer.grandTotal) }}</span>
-                      </template>
-                    </v-list-item>
-
                     <!-- Diskon Faktur (hanya muncul jika ada) -->
-                    <!-- <v-list-item v-if="footer.diskonRp > 0" class="summary-discount">
+                    <v-list-item v-if="footer.diskonRp > 0" class="summary-discount">
                       <v-list-item-title class="text-error">Diskon Faktur</v-list-item-title>
                       <template #append>
                         <span class="text-body-1 text-error">- {{ formatRupiah(footer.diskonRp) }}</span>
                       </template>
-                    </v-list-item> -->
+                    </v-list-item>
 
                     <!-- Total DP -->
                     <v-list-item class="summary-total">

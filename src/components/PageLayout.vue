@@ -94,17 +94,38 @@ const loadingModel = computed({
   gap: 16px;
 }
 
-/* Header */
 .page-header {
   flex-shrink: 0;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 16px;
+
+  /* --- SETTING STICKY YANG BENAR --- */
+  position: sticky;
+
+  /* GANTI '0' DENGAN TINGGI NAVBAR APLIKASI ANDA */
+  /* Jika navbar Anda tingginya 64px, set 64px. Jika 50px, set 50px. */
+  top: 64px;
+
+  /* Pastikan Z-Index tinggi agar mengapung di atas tabel */
+  z-index: 99;
+
+  /* Wajib ada background agar tulisan tabel tidak tembus pandang saat discroll */
+  background-color: #f5f5f5; /* Sesuaikan dengan warna background aplikasi */
+
+  /* Tambahkan padding agar terlihat rapi saat menempel */
+  padding-top: 8px;
+  padding-bottom: 8px;
+
+  /* Opsional: Sedikit bayangan agar terlihat batasnya saat menempel */
+  box-shadow: 0 4px 6px -4px rgba(0,0,0,0.1);
 }
 .desktop-mode .page-header {
   min-height: 36px;
   margin-bottom: 0;
+  padding-top: 4px;    /* Tambahkan sedikit padding atas */
+  padding-bottom: 8px; /* Tambahkan sedikit padding bawah sebelum konten */
 }
 .page-title-section {
   display: flex;

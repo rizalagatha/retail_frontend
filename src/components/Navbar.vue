@@ -595,12 +595,14 @@ onUnmounted(() => {
 /* Main navbar styling */
 .desktop-navbar {
   border-bottom: 1px solid rgba(0, 0, 0, 0.08);
-  backdrop-filter: blur(8px);
+  background-color: rgba(255, 255, 255, 0.85); /* Sedikit background agar blur terlihat */
+  backdrop-filter: blur(12px); /* Blur ditingkatkan */
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .navbar-scrolled {
-  background-color: rgba(255, 255, 255, 0.95) !important;
+  background-color: rgba(255, 255, 255, 0.98) !important;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05); /* Tambah shadow saat scroll */
 }
 
 /* Logo section */
@@ -608,14 +610,14 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   text-decoration: none;
-  padding: 8px 16px;
+  padding: 8px 12px;
   border-radius: 8px;
   transition: background-color 0.2s ease;
+  margin-right: 24px;
 }
 
 .logo-section:hover {
   background-color: rgba(25, 118, 210, 0.04);
-  text-decoration: none !important;
 }
 
 .logo-avatar {
@@ -629,54 +631,64 @@ onUnmounted(() => {
 }
 
 .brand-title {
-  font-size: 1rem;
-  font-weight: 600;
+  font-size: 1.1rem;
+  font-weight: 700;
   color: #1976d2;
-  letter-spacing: -0.02em;
+  letter-spacing: -0.03em;
+  line-height: 1.2;
 }
 
 .brand-subtitle {
-  font-size: 0.75rem;
+  font-size: 0.7rem;
   color: #6b7280;
   font-weight: 500;
+  letter-spacing: 0.02em;
 }
 
 /* Main navigation */
 .main-navigation {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 8px; /* Jarak antar tombol diperlebar sedikit */
 }
 
 .nav-button {
-  height: 40px;
+  height: 38px; /* Sedikit lebih compact */
   padding: 0 16px;
-  font-weight: 500;
+  font-weight: 600; /* Lebih tebal agar mudah dibaca */
   font-size: 0.875rem;
-  color: #374151;
-  border-radius: 6px;
+  color: #4b5563;
+  border-radius: 8px;
   text-transform: none;
-  letter-spacing: 0;
-  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  letter-spacing: 0.01em;
+  transition: all 0.2s ease;
 }
 
 .nav-button:hover {
-  background-color: rgba(25, 118, 210, 0.06);
+  background-color: rgba(25, 118, 210, 0.08);
   color: #1976d2;
 }
 
 .nav-button.v-btn--active {
-  background-color: rgba(25, 118, 210, 0.1);
+  background-color: rgba(25, 118, 210, 0.12);
   color: #1976d2;
+}
+
+.nav-button .v-icon {
+  font-size: 18px;
+  margin-right: 6px;
+  opacity: 0.8;
 }
 
 /* Dropdown styling */
 .nav-dropdown,
 .large-nav-dropdown {
-  border-radius: 8px;
-  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 12px; /* Lebih rounded */
+  border: 1px solid rgba(0, 0, 0, 0.06);
   overflow: hidden;
-  backdrop-filter: blur(8px);
+  background-color: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(16px);
+  box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.15);
 }
 
 .nav-list,
@@ -888,14 +900,14 @@ onUnmounted(() => {
 /* Styling khusus untuk menu Transaksi yang lebih besar */
 .nav-menu.large .v-overlay__content {
   position: fixed !important;
-  top: 64px !important;
-  /* tinggi app-bar */
+  top: 70px !important; /* Sesuaikan tinggi navbar */
   left: 50% !important;
   transform: translateX(-50%) !important;
-  width: 1100px;
-  /* konsisten untuk semua */
-  max-width: 90vw;
-  /* supaya tetap responsif */
+  width: auto;
+  min-width: 800px; /* Minimal lebar agar tidak gepeng */
+  max-width: 95vw;
+  max-height: 85vh;
+  overflow-y: auto;
 }
 
 /* Untuk semua menu dropdown */

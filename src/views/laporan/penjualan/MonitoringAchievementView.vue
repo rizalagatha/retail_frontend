@@ -8,6 +8,8 @@ import PageLayout from '@/components/PageLayout.vue';
 import * as XLSX from 'xlsx';
 import { AxiosError } from 'axios';
 import AppDataTable from '@/components/AppDataTable.vue';
+import { formatCurrency } from "@/utils/numberUtils";
+import { AppConfig } from "@/config/appConfig";
 
 interface DailyItem {
   kode_cabang: string;
@@ -109,6 +111,7 @@ const filters = reactive({
 
 const yearOptions = [currentYear - 2, currentYear - 1, currentYear, currentYear + 1];
 const monthOptions = Array.from({ length: 12 }, (_, i) => ({ value: i + 1, title: format(new Date(0, i), 'MMMM') }));
+const rupiah = (v: number) => formatCurrency(v || 0, AppConfig.roundingPolicy);
 
 // Headers dinamis berdasarkan tab
 // --- Definisi Headers untuk Setiap Tab ---
@@ -581,7 +584,7 @@ watch([filters, activeTab], fetchData, { deep: true });
               </template>
               <template v-for="col in ['omset', 'total_omset', 'target', 'total_target']" :key="col"
                 v-slot:[`item.${col}`]="{ item }">
-                <td class="text-end">{{ (item[col] || 0).toLocaleString('id-ID') }}</td>
+                <td class="text-end">{{ rupiah(item[col]) }}</td>
               </template>
               <template v-slot:[`item.ach`]="{ item }">
                 <td class="text-end">
@@ -593,10 +596,10 @@ watch([filters, activeTab], fetchData, { deep: true });
               <template v-slot:[`body.append`]>
                 <tr class="bg-grey-lighten-3 font-weight-bold total-row-sticky">
                   <td colspan="5" class="text-start">GRAND TOTAL :</td>
-                  <td class="text-start">{{ totalSummary.omset?.toLocaleString('id-ID') }}</td>
-                  <td class="text-start">{{ totalSummary.total_omset?.toLocaleString('id-ID') }}</td>
-                  <td class="text-start">{{ totalSummary.target?.toLocaleString('id-ID') }}</td>
-                  <td class="text-start">{{ totalSummary.total_target?.toLocaleString('id-ID') }}</td>
+                  <td class="text-start">{{ rupiah(totalSummary.omset) }}</td>
+                  <td class="text-start">{{ rupiah(totalSummary.total_omset) }}</td>
+                  <td class="text-start">{{ rupiah(totalSummary.target) }}</td>
+                  <td class="text-start">{{ rupiah(totalSummary.total_target) }}</td>
                   <td class="text-start">{{ totalSummary.ach?.toFixed(2) }}%</td>
                 </tr>
               </template>
@@ -641,8 +644,8 @@ watch([filters, activeTab], fetchData, { deep: true });
                       <td>{{ item.kode_cabang }}</td>
                       <td>{{ item.nama_cabang }}</td>
                       <template v-for="w in 5" :key="w">
-                        <td class="text-end">{{ (item[`nominal_w${w}`] || 0).toLocaleString('id-ID') }}</td>
-                        <td class="text-end">{{ (item[`target_w${w}`] || 0).toLocaleString('id-ID') }}</td>
+                        <td class="text-end">{{ rupiah(item[`nominal_w${w}`]) }}</td>
+                        <td class="text-end">{{ rupiah(item[`target_w${w}`]) }}</td>
                         <td class="text-center">
                           <v-chip size="x-small"
                             :color="(item[`target_w${w}`] > 0 ? (item[`nominal_w${w}`] / item[`target_w${w}`] * 100) : 0) >= 100 ? 'success' : 'error'">
@@ -651,8 +654,8 @@ watch([filters, activeTab], fetchData, { deep: true });
                           </v-chip>
                         </td>
                       </template>
-                      <td class="text-end font-weight-bold">{{ (item.total_nominal || 0).toLocaleString('id-ID') }}</td>
-                      <td class="text-end font-weight-bold">{{ (item.total_target || 0).toLocaleString('id-ID') }}</td>
+                      <td class="text-end font-weight-bold">{{ rupiah(item.total_nominal) }}</td>
+                      <td class="text-end font-weight-bold">{{ rupiah(item.total_target) }}</td>
                       <td class="text-center">
                         <v-chip size="x-small"
                           :color="(item.total_target > 0 ? (item.total_nominal / item.total_target * 100) : 0) >= 100 ? 'success' : 'error'">
@@ -666,12 +669,12 @@ watch([filters, activeTab], fetchData, { deep: true });
                   <tr class="total-row-sticky">
                     <td colspan="3" class="text-end">GRAND TOTAL :</td>
                     <template v-for="w in 5" :key="w">
-                      <td class="text-end">{{ (weeklyTotalSummary[`nominal_w${w}`] || 0).toLocaleString('id-ID') }}</td>
-                      <td class="text-end">{{ (weeklyTotalSummary[`target_w${w}`] || 0).toLocaleString('id-ID') }}</td>
+                      <td class="text-end">{{ rupiah(weeklyTotalSummary[`nominal_w${w}`]) }}</td>
+                      <td class="text-end">{{ rupiah(weeklyTotalSummary[`target_w${w}`]) }}</td>
                       <td class="text-center">{{ (weeklyTotalSummary[`ach_w${w}`] || 0).toFixed(2) }}%</td>
                     </template>
-                    <td class="text-end">{{ (weeklyTotalSummary.total_nominal || 0).toLocaleString('id-ID') }}</td>
-                    <td class="text-end">{{ (weeklyTotalSummary.total_target || 0).toLocaleString('id-ID') }}</td>
+                    <td class="text-end">{{ rupiah(weeklyTotalSummary.total_nominal) }}</td>
+                    <td class="text-end">{{ rupiah(weeklyTotalSummary.total_target) }}</td>
                     <td class="text-center">{{ (weeklyTotalSummary.total_ach || 0).toFixed(2) }}%</td>
                   </tr>
                 </tfoot>
@@ -684,7 +687,7 @@ watch([filters, activeTab], fetchData, { deep: true });
             <AppDataTable :headers="headersMonthly" :items="monthlyData" :loading="isLoading" class="desktop-table"
               density="compact" fixed-header :items-per-page="-1">
               <template v-for="col in ['nominal', 'target']" :key="col" v-slot:[`item.${col}`]="{ item }">
-                <td class="text-end">{{ (item[col] || 0).toLocaleString('id-ID') }}</td>
+                <td class="text-end">{{ rupiah(item[col]) }}</td>
               </template>
               <template v-slot:[`item.ach`]="{ item }">
                 <td class="text-end">
@@ -699,8 +702,8 @@ watch([filters, activeTab], fetchData, { deep: true });
                   <td></td>
                   <td></td>
                   <td class="text-start">GRAND TOTAL :</td>
-                  <td class="text-start">{{ (totalSummary.nominal || 0).toLocaleString('id-ID') }}</td>
-                  <td class="text-start">{{ (totalSummary.target || 0).toLocaleString('id-ID') }}</td>
+                  <td class="text-start">{{ rupiah(totalSummary.nominal) }}</td>
+                  <td class="text-start">{{ rupiah(totalSummary.target) }}</td>
                   <td class="text-start">{{ (totalSummary.ach || 0).toFixed(2) }}%</td>
                 </tr>
               </template>
@@ -719,7 +722,7 @@ watch([filters, activeTab], fetchData, { deep: true });
                 {{monthOptions.find(m => m.value === item.bulan)?.title}}
               </template>
               <template v-for="col in ['nominal', 'target']" :key="col" v-slot:[`item.${col}`]="{ item }">
-                <td class="text-end">{{ (item[col] || 0).toLocaleString('id-ID') }}</td>
+                <td class="text-end">{{ rupiah(item[col]) }}</td>
               </template>
               <template v-slot:[`item.ach`]="{ item }">
                 <td class="text-end">
@@ -733,8 +736,8 @@ watch([filters, activeTab], fetchData, { deep: true });
                   <td></td>
                   <td></td>
                   <td class="text-start">GRAND TOTAL :</td>
-                  <td class="text-start">{{ (totalSummary.nominal || 0).toLocaleString('id-ID') }}</td>
-                  <td class="text-start">{{ (totalSummary.target || 0).toLocaleString('id-ID') }}</td>
+                  <td class="text-start">{{ rupiah(totalSummary.nominal) }}</td>
+                  <td class="text-start">{{ rupiah(totalSummary.target) }}</td>
                   <td class="text-start">{{ (totalSummary.ach || 0).toFixed(2) }}%</td>
                 </tr>
               </template>

@@ -10,6 +10,7 @@ import PageLayout from '@/components/PageLayout.vue';
 import * as XLSX from 'xlsx';
 import type { AxiosError } from 'axios';
 import AppDataTable from '@/components/AppDataTable.vue';
+import { formatRupiah } from "@/utils/formatRupiah";
 
 // --- Tipe Data ---
 interface CabangOption {
@@ -298,26 +299,26 @@ watch([filters, reportType], fetchMasterData, { deep: true, immediate: true });
           class="desktop-table main-table" density="compact" fixed-header show-expand item-value="Kode"
           v-model:expanded="expanded" @update:expanded="loadDetails" height="420px">
           <template v-slot:[`item.Nominal`]="{ item }">
-            {{ new Intl.NumberFormat('id-ID').format(item.Nominal) }}
+            {{ formatRupiah(item.Nominal) }}
           </template>
           <template v-slot:[`item.Hpp`]="{ item }">
-            {{ new Intl.NumberFormat('id-ID').format(item.Hpp) }}
+            {{ formatRupiah(item.Hpp) }}
           </template>
           <template v-slot:[`item.Laba`]="{ item }">
-            {{ new Intl.NumberFormat('id-ID').format(item.Laba) }}
+            {{ formatRupiah(item.Laba) }}
           </template>
           <template v-slot:[`item.Donasi`]="{ item }">
-            {{ new Intl.NumberFormat('id-ID').format(item.Donasi) }}
+            {{ formatRupiah(item.Donasi) }}
           </template>
           <template v-slot:[`item.PundiAmal`]="{ item }">
-            {{ new Intl.NumberFormat('id-ID').format(item.PundiAmal) }}
+            {{ formatRupiah(item.PundiAmal) }}
           </template>
           <template v-slot:[`body.append`]>
             <tr class="bg-grey-lighten-4 font-weight-bold total-row-fixed">
               <td v-for="(header, index) in activeHeaders" :key="header.key" class="text-end pa-2">
                 <template v-if="index === 0">TOTAL :</template>
                 <template v-else-if="['Qty', 'Nominal', 'Hpp', 'Laba', 'Donasi', 'PundiAmal'].includes(header.key)">
-                  {{ new Intl.NumberFormat('id-ID').format(totalSummary[header.key] || 0) }}
+                  {{ formatRupiah(totalSummary[header.key] || 0) }}
                 </template>
                 <template v-else>&nbsp;</template>
               </td>
@@ -334,13 +335,13 @@ watch([filters, reportType], fetchMasterData, { deep: true, immediate: true });
                       class="detail-table" :items-per-page="-1">
                       <template #bottom></template>
                       <template v-slot:[`item.Nominal`]="{ item }">
-                        {{ new Intl.NumberFormat('id-ID').format(item.Nominal) }}
+                        {{ formatRupiah(item.Nominal) }}
                       </template>
                       <template v-slot:[`item.Hpp`]="{ item }">
-                        {{ new Intl.NumberFormat('id-ID').format(item.Hpp) }}
+                        {{ formatRupiah(item.Hpp) }}
                       </template>
                       <template v-slot:[`item.Laba`]="{ item }">
-                        {{ new Intl.NumberFormat('id-ID').format(item.Laba) }}
+                        {{ formatRupiah(item.Laba) }}
                       </template>
                     </v-data-table>
                   </div>
@@ -356,26 +357,26 @@ watch([filters, reportType], fetchMasterData, { deep: true, immediate: true });
             {{ item.Tanggal ? format(new Date(item.Tanggal), 'dd-MM-yyyy') : '' }}
           </template>
           <template v-slot:[`item.Nominal`]="{ item }">
-            {{ new Intl.NumberFormat('id-ID').format(item.Nominal) }}
+            {{ formatRupiah(item.Nominal) }}
           </template>
           <template v-slot:[`item.Hpp`]="{ item }">
-            {{ new Intl.NumberFormat('id-ID').format(item.Hpp) }}
+            {{ formatRupiah(item.Hpp) }}
           </template>
           <template v-slot:[`item.Laba`]="{ item }">
-            {{ new Intl.NumberFormat('id-ID').format(item.Laba) }}
+            {{ formatRupiah(item.Laba) }}
           </template>
           <template v-slot:[`item.Donasi`]="{ item }">
-            {{ new Intl.NumberFormat('id-ID').format(item.Donasi) }}
+            {{ formatRupiah(item.Donasi) }}
           </template>
           <template v-slot:[`item.PundiAmal`]="{ item }">
-            {{ new Intl.NumberFormat('id-ID').format(item.PundiAmal) }}
+            {{ formatRupiah(item.PundiAmal) }}
           </template>
           <template v-slot:[`body.append`]>
             <tr class="bg-grey-lighten-4 font-weight-bold total-row-fixed">
               <td v-for="(header, index) in activeHeaders" :key="header.key" class="text-end pa-2">
                 <template v-if="index === 0">TOTAL :</template>
                 <template v-else-if="['Nominal', 'Hpp', 'Laba', 'Donasi', 'PundiAmal'].includes(header.key)">
-                  {{ new Intl.NumberFormat('id-ID').format(totalSummary[header.key] || 0) }}
+                  {{ formatRupiah(totalSummary[header.key] || 0) }}
                 </template>
                 <template v-else>&nbsp;</template>
               </td>

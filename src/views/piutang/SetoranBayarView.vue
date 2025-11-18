@@ -10,6 +10,7 @@ import * as XLSX from 'xlsx';
 import type { AxiosError } from 'axios';
 import axios from 'axios';
 import AppDataTable from '@/components/AppDataTable.vue';
+import { formatRupiah } from "@/utils/formatRupiah";
 
 // --- Inisialisasi ---
 const router = useRouter();
@@ -201,11 +202,6 @@ const exportData = async (type: 'header' | 'detail') => {
       toast.error('Gagal mengekspor data detail.', error);
     }
   }
-};
-
-
-const formatRupiah = (value: number) => {
-  return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(value || 0);
 };
 
 const getRowTextColor = (item: SetoranHeader) => {

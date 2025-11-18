@@ -8,6 +8,7 @@ import { useRouter } from 'vue-router';
 import { useRoute } from 'vue-router';
 import { format } from 'date-fns';
 import * as XLSX from 'xlsx';
+import { formatRupiah } from "@/utils/formatRupiah";
 
 interface OfferDetail {
   nomor: string;
@@ -108,8 +109,8 @@ const closeReason = ref('');
 const isClosing = ref(false);
 
 const hasViewPermission = computed(() => authStore.can(MENU_ID, 'view'));
-const dialogDelete = ref(false);
-const itemToDelete = ref<OfferHeader | null>(null);
+// const dialogDelete = ref(false);
+// const itemToDelete = ref<OfferHeader | null>(null);
 
 const filters = reactive({
   startDate: format(new Date(), 'yyyy-MM-dd'),
@@ -250,34 +251,34 @@ const editOffer = () => {
   router.push(`/transaksi/penjualan/penawaran/ubah/${nomor}`);
 };
 
-const deleteOffer = async (item: OfferHeader) => {
-  if (item.noSO || item.alasan) {
-    toast.warning('Penawaran yang sudah menjadi SO atau ditutup tidak bisa dihapus.');
-    return;
-  }
-  try {
-    await api.delete(`/offers/${item.nomor}`);
-    toast.success('Penawaran berhasil dihapus.');
-    fetchData();
-    selected.value = [];
-  } catch (error) {
-    toast.error('Gagal menghapus penawaran.', error);
-  }
-};
+// const deleteOffer = async (item: OfferHeader) => {
+//   if (item.noSO || item.alasan) {
+//     toast.warning('Penawaran yang sudah menjadi SO atau ditutup tidak bisa dihapus.');
+//     return;
+//   }
+//   try {
+//     await api.delete(`/offers/${item.nomor}`);
+//     toast.success('Penawaran berhasil dihapus.');
+//     fetchData();
+//     selected.value = [];
+//   } catch (error) {
+//     toast.error('Gagal menghapus penawaran.', error);
+//   }
+// };
 
-const confirmDelete = () => {
-  if (!isSingleSelected.value) return;
-  itemToDelete.value = selected.value[0];
-  dialogDelete.value = true;
-};
+// const confirmDelete = () => {
+//   if (!isSingleSelected.value) return;
+//   itemToDelete.value = selected.value[0];
+//   dialogDelete.value = true;
+// };
 
-const deleteConfirmed = () => {
-  if (itemToDelete.value) {
-    deleteOffer(itemToDelete.value);
-  }
-  dialogDelete.value = false;
-  itemToDelete.value = null;
-};
+// const deleteConfirmed = () => {
+//   if (itemToDelete.value) {
+//     deleteOffer(itemToDelete.value);
+//   }
+//   dialogDelete.value = false;
+//   itemToDelete.value = null;
+// };
 
 const openCloseDialog = () => {
   if (!canBeClosed.value) return; // Validasi tambahan
@@ -469,8 +470,8 @@ watch(() => [filters.startDate, filters.endDate], () => {
         @click="router.push('/transaksi/penjualan/penawaran/new')">Baru</v-btn>
       <v-btn v-if="authStore.can(MENU_ID, 'edit')" size="small" :disabled="!isSingleSelected" prepend-icon="mdi-pencil"
         @click="editOffer">Ubah</v-btn>
-      <v-btn v-if="authStore.can(MENU_ID, 'delete')" size="small" color="error" :disabled="!isSingleSelected"
-        prepend-icon="mdi-delete" @click="confirmDelete">Hapus</v-btn>
+      <!-- <v-btn v-if="authStore.can(MENU_ID, 'delete')" size="small" color="error" :disabled="!isSingleSelected"
+        prepend-icon="mdi-delete" @click="confirmDelete">Hapus</v-btn> -->
       <v-btn size="small" color="green" prepend-icon="mdi-printer" @click="printData(selected[0])"
         :disabled="selected.length !== 1">
         Cetak
@@ -532,7 +533,7 @@ watch(() => [filters.startDate, filters.endDate], () => {
                 {{ item[header.key] ? format(new Date(item[header.key]), 'dd/MM/yyyy') : '-' }}
               </template>
               <template v-else-if="header.key === 'nominal'">
-                {{ new Intl.NumberFormat('id-ID').format(item.nominal) }}
+                {{ formatRupiah(item.nominal) }}
               </template>
               <template v-else-if="header.key === 'status'">
                 <v-chip :color="getStatusChip(item).color" variant="tonal" size="x-small">
@@ -557,13 +558,13 @@ watch(() => [filters.startDate, filters.endDate], () => {
                       :headers="detailHeaders" :items="details[item.nomor]" density="compact" hide-default-footer
                       :items-per-page="-1" class="detail-table">
                       <template #[`item.harga`]="{ item: detailItem }">
-                        {{ new Intl.NumberFormat('id-ID').format(detailItem.harga) }}
+                        {{ formatRupiah(detailItem.harga) }}
                       </template>
                       <template #[`item.diskon`]="{ item: detailItem }">
-                        {{ new Intl.NumberFormat('id-ID').format(detailItem.diskon) }}
+                        {{ formatRupiah(detailItem.diskon) }}
                       </template>
                       <template #[`item.total`]="{ item: detailItem }">
-                        {{ new Intl.NumberFormat('id-ID').format(detailItem.total) }}
+                        {{ formatRupiah(detailItem.total) }}
                       </template>
                     </v-data-table>
                   </div>
@@ -593,7 +594,7 @@ watch(() => [filters.startDate, filters.endDate], () => {
       </v-card>
     </v-dialog>
 
-    <!-- (8) Tambahkan Dialog Konfirmasi Hapus -->
+    <!-- (8) Tambahkan Dialog Konfirmasi Hapus
     <v-dialog v-model="dialogDelete" max-width="500px">
       <v-card>
         <v-card-title class="text-h5">Konfirmasi Hapus</v-card-title>
@@ -603,7 +604,7 @@ watch(() => [filters.startDate, filters.endDate], () => {
             color="red-darken-1" variant="elevated"
             @click="deleteConfirmed">Hapus</v-btn><v-spacer></v-spacer></v-card-actions>
       </v-card>
-    </v-dialog>
+    </v-dialog> -->
   </PageLayout>
 </template>
 

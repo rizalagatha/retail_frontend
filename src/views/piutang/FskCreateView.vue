@@ -7,6 +7,7 @@ import api from '@/services/api';
 import { format, parseISO } from 'date-fns';
 import PageLayout from '@/components/PageLayout.vue';
 import { isAxiosError } from 'axios';
+import { formatRupiah } from "@/utils/formatRupiah";
 
 interface Detail1 {
   jenis: string;
@@ -81,8 +82,6 @@ const tableHeaders2 = [
   { title: 'Total Nominal Setor', key: 'nominal', align: 'end' },
   { title: 'Nominal Verifikasi', key: 'nominalv', align: 'end' },
 ] as const;
-
-const formatRupiah = (value: number) => new Intl.NumberFormat('id-ID').format(value || 0);
 
 // --- Methods ---
 const loadData = async () => {

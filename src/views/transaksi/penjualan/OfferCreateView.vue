@@ -13,6 +13,7 @@ import { useAuthStore } from '@/stores/authStore';
 import { useRouter, useRoute } from 'vue-router';
 import { format, addDays, isValid } from 'date-fns';
 import axios, { AxiosError } from 'axios';
+import { formatRupiah } from "@/utils/formatRupiah";
 
 const toast = useToast();
 const authStore = useAuthStore();
@@ -1077,19 +1078,19 @@ onMounted(() => {
             </v-col>
           </v-row>
           <v-divider class="my-2"></v-divider>
-          <v-text-field label="Diskon Rp"
-            :model-value="isFooterDiskonRpFocused ? footer.diskonRpInput : new Intl.NumberFormat('id-ID').format(footer.diskonRpInput || 0)"
+          <v-text-field label="Diskon Rp" :model-value="isFooterDiskonRpFocused
+            ? footer.diskonRpInput
+            : formatRupiah(footer.diskonRpInput)"
             @update:model-value="footer.diskonRpInput = Number(String($event).replace(/[^0-9]/g, '')) || 0"
             @focus="isFooterDiskonRpFocused = true" @blur="isFooterDiskonRpFocused = false; onDiskonRpBlur()"
             placeholder="0" type="text" variant="outlined" density="compact" hide-details
             class="summary-field text-right font-weight-black text-subtitle-1" />
 
-          <v-text-field label="Total" :model-value="new Intl.NumberFormat('id-ID').format(footer.total)" readonly
-            variant="filled" density="compact" hide-details class="summary-field text-right font-weight-bold" />
+          <v-text-field label="Total" :model-value="formatRupiah(footer.total)" readonly variant="filled"
+            density="compact" hide-details class="summary-field text-right font-weight-bold" />
 
-          <v-text-field label="Grand Total" :model-value="new Intl.NumberFormat('id-ID').format(footer.grandTotal)"
-            readonly variant="filled" density="compact" hide-details
-            class="summary-field text-right font-weight-bold" />
+          <v-text-field label="Grand Total" :model-value="formatRupiah(footer.grandTotal)" readonly variant="filled"
+            density="compact" hide-details class="summary-field text-right font-weight-bold" />
         </div>
       </div>
 
@@ -1123,8 +1124,7 @@ onMounted(() => {
           </template>
 
           <template #[`item.harga`]="{ item }">
-            <v-text-field
-              :model-value="focusedRowId === item.id ? item.harga : new Intl.NumberFormat('id-ID').format(item.harga || 0)"
+            <v-text-field :model-value="focusedRowId === item.id ? item.harga : formatRupiah(item.harga)"
               @update:model-value="item.harga = Number(String($event).replace(/[^0-9]/g, '')) || 0"
               @focus="focusedRowId = item.id" @blur="focusedRowId = -1" placeholder="0" type="text" variant="underlined"
               dense hide-details single-line class="text-right" :disabled="!item.kode"
@@ -1138,8 +1138,7 @@ onMounted(() => {
           </template>
 
           <template #[`item.diskonRp`]="{ item }">
-            <v-text-field
-              :model-value="focusedRowId === item.id ? item.diskonRp : new Intl.NumberFormat('id-ID').format(item.diskonRp || 0)"
+            <v-text-field :model-value="focusedRowId === item.id ? item.diskonRp : formatRupiah(item.diskonRp)"
               @update:model-value="item.diskonRp = Number(String($event).replace(/[^0-9]/g, '')) || 0"
               @focus="focusedRowId = item.id" @blur="focusedRowId = -1; handleItemDiscountChange(items.indexOf(item))"
               placeholder="0" type="text" variant="underlined" dense hide-details single-line class="text-right"
@@ -1148,7 +1147,7 @@ onMounted(() => {
 
           <template #[`item.total`]="{ item }">
             <div class="text-caption font-weight-bold text-right">
-              {{ new Intl.NumberFormat('id-ID').format(item.total) }}
+              {{ formatRupiah(item.total) }}
             </div>
           </template>
 

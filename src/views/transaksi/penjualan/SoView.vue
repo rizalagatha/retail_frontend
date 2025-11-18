@@ -8,6 +8,7 @@ import { useAuthStore } from '@/stores/authStore';
 import { format, parseISO } from 'date-fns';
 import * as XLSX from 'xlsx';
 import AppDataTable from '@/components/AppDataTable.vue';
+import { formatRupiah } from "@/utils/formatRupiah";
 
 const toast = useToast();
 const authStore = useAuthStore();
@@ -456,7 +457,7 @@ watch(filters, () => {
                 }}
               </template>
               <template v-else-if="['Nominal', 'Diskon', 'Dp', 'QtySO', 'QtyInv', 'Belum'].includes(header.key)">
-                {{ new Intl.NumberFormat('id-ID').format((item[header.key] as number) || 0) }}
+                {{ formatRupiah(Number(item[header.key] || 0)) }}
               </template>
               <template v-else-if="header.key === 'Status'">
                 <v-chip size="x-small" :color="getStatusChip(item.Status).color" variant="tonal">
@@ -492,12 +493,10 @@ watch(filters, () => {
                         {{ detailItem.Nomor }}
                       </template>
                       <template #[`item.Harga`]="{ item: detailItem }">
-                        {{ new Intl.NumberFormat('id-ID').format(detailItem.Harga as number ||
-                          0) }}
+                        {{ formatRupiah(Number(detailItem.Harga || 0)) }}
                       </template>
                       <template #[`item.TotalSO`]="{ item: detailItem }">
-                        {{ new Intl.NumberFormat('id-ID').format(detailItem.TotalSO as number ||
-                          0) }}
+                        {{ formatRupiah(Number(detailItem.TotalSO || 0)) }}
                       </template>
                       <template #bottom></template>
                     </v-data-table>

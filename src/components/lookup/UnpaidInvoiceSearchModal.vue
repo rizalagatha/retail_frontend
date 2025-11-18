@@ -3,6 +3,7 @@ import { ref, watch } from 'vue';
 import api from '@/services/api';
 import { useToast } from 'vue-toastification';
 import { format, parseISO } from 'date-fns';
+import { formatRupiah } from "@/utils/formatRupiah";
 
 interface Invoice {
     invoice: string;
@@ -75,9 +76,6 @@ watch(search, () => {
     }, 500);
 });
 
-const formatRupiah = (value: number) => {
-    return new Intl.NumberFormat('id-ID').format(value || 0);
-};
 </script>
 
 <template>

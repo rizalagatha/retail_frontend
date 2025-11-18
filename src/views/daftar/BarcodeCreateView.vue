@@ -9,6 +9,8 @@ import { format } from 'date-fns';
 import type { AxiosError } from 'axios';
 import JsBarcode from 'jsbarcode';
 import ProductSearchModal from '@/components/lookup/ProductSearchModal.vue';
+import { formatRupiah } from "@/utils/formatRupiah";
+const fr = (v: number) => formatRupiah(v);
 
 // Daftarkan JsBarcode ke window agar bisa diakses di iframe
 (window as Window & { JsBarcode: typeof JsBarcode }).JsBarcode = JsBarcode;
@@ -307,7 +309,7 @@ const preparePrintData = (
       const qty = item.jumlah || 0;
       for (let i = 1; i <= qty; i++) {
         const hargaFormatted = options.showPrice && item.harga && item.harga > 0
-          ? `Rp ${new Intl.NumberFormat('id-ID').format(item.harga)}`
+          ? fr(item.harga)
           : '';
 
         outputLabels.push({
@@ -463,11 +465,6 @@ const closePreview = () => {
   isAfterSave.value = false;
 };
 
-const formatCurrency = (value: number | null | undefined): string => {
-  if (value === null || value === undefined) return '-';
-  return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(value);
-};
-
 // --- Watchers ---
 watch(printPreviewData, (newVal) => {
   if (isPrintPreviewVisible.value && newVal.length > 0) {
@@ -572,7 +569,7 @@ onMounted(() => {
             </template>
 
             <template #[`item.harga`]="{ item }">
-              {{ formatCurrency(item.harga) }}
+              {{ fr(item.harga) }}
             </template>
 
             <template #[`item.jumlah`]="{ item }">
@@ -630,7 +627,7 @@ onMounted(() => {
                   <span>{{ printPreviewData[(i - 1) * 2 + 1].tgl }}</span>
                   <span>{{ printPreviewData[(i - 1) * 2 + 1].ukuran }}</span>
                   <span v-if="printPreviewData[(i - 1) * 2 + 1].charga">{{ printPreviewData[(i - 1) * 2 + 1].charga
-                  }}</span>
+                    }}</span>
                 </div>
               </div>
               <div v-else class="barcode-label"></div>

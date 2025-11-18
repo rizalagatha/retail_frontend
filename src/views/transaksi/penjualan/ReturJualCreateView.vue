@@ -11,6 +11,7 @@ import MintaBarangSearchModal from '@/components/lookup/MintaBarangSearchModal.v
 import GudangSearchModal from '@/components/lookup/GudangSearchModal.vue';
 import PrintOptionModal from '@/components/modal/PrintOptionModal.vue';
 import type { AxiosError } from 'axios';
+import { formatRupiah } from "@/utils/formatRupiah";
 
 // --- Tipe Data ---
 interface Header {
@@ -550,19 +551,17 @@ watch([() => footer.diskonRp, () => footer.diskonPersen1, () => footer.diskonPer
         </v-data-table>
         <div class="footer-section pa-4">
           <v-row dense>
-            <v-col cols="4"><v-text-field label="Total"
-                :model-value="new Intl.NumberFormat('id-ID').format(footer.subTotal)" readonly filled class="text-end"
-                hide-details density="compact" /></v-col>
+            <v-col cols="4"><v-text-field label="Total" :model-value="formatRupiah(footer.subTotal)" readonly filled
+                class="text-end" hide-details density="compact" /></v-col>
             <v-col cols="4"><v-text-field label="Diskon Rp" v-model.number="footer.diskonRp" type="number"
                 variant="outlined" class="text-end" hide-details density="compact" /></v-col>
-            <v-col cols="4"><v-text-field label="PPN" :model-value="new Intl.NumberFormat('id-ID').format(footer.ppnRp)"
-                readonly filled class="text-end" hide-details density="compact" /></v-col>
+            <v-col cols="4"><v-text-field label="PPN" :model-value="formatRupiah(footer.ppnRp)" readonly filled
+                class="text-end" hide-details density="compact" /></v-col>
             <v-col cols="4"></v-col>
             <v-col cols="4"><v-text-field label="Diskon % 1" v-model.number="footer.diskonPersen1" type="number"
                 variant="outlined" class="text-end" hide-details density="compact" /></v-col>
-            <v-col cols="4"><v-text-field label="Grand Total"
-                :model-value="new Intl.NumberFormat('id-ID').format(footer.grandTotal)" readonly filled
-                class="text-end font-weight-bold" hide-details density="compact" /></v-col>
+            <v-col cols="4"><v-text-field label="Grand Total" :model-value="formatRupiah(footer.grandTotal)" readonly
+                filled class="text-end font-weight-bold" hide-details density="compact" /></v-col>
             <v-col cols="4"></v-col>
             <v-col cols="4"><v-text-field label="Diskon % 2" v-model.number="footer.diskonPersen2" type="number"
                 variant="outlined" class="text-end" hide-details density="compact" /></v-col>

@@ -10,6 +10,7 @@ import { useToast } from 'vue-toastification';
 import { useAuthStore } from '@/stores/authStore';
 import { useRouter, useRoute } from 'vue-router';
 import { format } from 'date-fns';
+import { formatRupiah } from "@/utils/formatRupiah";
 
 const toast = useToast();
 const authStore = useAuthStore();
@@ -474,7 +475,7 @@ const applyBordirCost = () => {
 
   // Set nilai ke `bordirCost` yang digunakan di fungsi Hitung utama
   bordirCost.value = finalCost;
-  toast.success(`Biaya Bordir sebesar ${new Intl.NumberFormat('id-ID').format(finalCost)} diterapkan.`);
+  toast.success(`Biaya Bordir sebesar ${formatRupiah(finalCost)} diterapkan.`);
 
   // Pindah kembali ke tab utama
   activeTab.value = 'pengajuan';
@@ -489,7 +490,7 @@ const applyDtfCost = () => {
 
   // Set nilai ke `dtfCost` yang digunakan di fungsi Hitung utama
   dtfCost.value = finalCost;
-  toast.success(`Biaya DTF sebesar ${new Intl.NumberFormat('id-ID').format(finalCost)} diterapkan.`);
+  toast.success(`Biaya DTF sebesar ${formatRupiah(finalCost)} diterapkan.`);
 
   // Pindah kembali ke tab utama
   activeTab.value = 'pengajuan';
@@ -713,12 +714,12 @@ onMounted(() => {
         <div class="desktop-form-section footer-section">
           <v-row dense>
             <v-col md="12">
-              <v-text-field label="Harga Bruto" v-model="footer.hargaBruto" readonly variant="filled" density="compact"
-                hide-details class="summary-field"></v-text-field>
-              <v-text-field label="Diskon" v-model="footer.diskon" readonly variant="filled" density="compact"
-                hide-details class="summary-field"></v-text-field>
-              <v-text-field label="Harga Netto" v-model="footer.hargaNetto" readonly variant="filled" density="compact"
-                class="font-weight-bold summary-field" hide-details></v-text-field>
+              <v-text-field label="Harga Bruto" :model-value="formatRupiah(footer.hargaBruto)" readonly variant="filled"
+                density="compact" hide-details class="summary-field"></v-text-field>
+              <v-text-field label="Diskon" :model-value="formatRupiah(footer.diskon)" readonly variant="filled"
+                density="compact" hide-details class="summary-field"></v-text-field>
+              <v-text-field label="Harga Netto" :model-value="formatRupiah(footer.hargaNetto)" readonly variant="filled"
+                density="compact" hide-details class="font-weight-bold summary-field"></v-text-field>
             </v-col>
             <v-col md="8" class="d-flex align-center">
               <div class="text-caption text-medium-emphasis pa-2">
@@ -763,7 +764,7 @@ onMounted(() => {
                   </template>
 
                   <template #[`item.hargaKaos`]="{ item }">
-                    {{ new Intl.NumberFormat('id-ID').format(item.hargaKaos || 0) }}
+                    {{ formatRupiah(item.hargaKaos || 0) }}
                   </template>
 
                   <template #[`item.kodeBarang`]="{ item }">
@@ -804,14 +805,13 @@ onMounted(() => {
 
                   <template #[`item.harga`]="{ item }">
                     <span class="text-caption">
-                      {{ new Intl.NumberFormat('id-ID').format(item.harga || 0) }}
+                      {{ formatRupiah(item.harga || 0) }}
                     </span>
                   </template>
                 </v-data-table>
                 <div class="total-footer">
-                  <v-text-field label="Total Harga Tambahan"
-                    :model-value="new Intl.NumberFormat('id-ID').format(totalHargaTambahan)" readonly variant="filled"
-                    density="compact" hide-details class="text-right"></v-text-field>
+                  <v-text-field label="Total Harga Tambahan" :model-value="formatRupiah(totalHargaTambahan)" readonly
+                    variant="filled" density="compact" hide-details class="text-right"></v-text-field>
                 </div>
               </div>
             </div>
@@ -850,9 +850,8 @@ onMounted(() => {
                       density="compact" hide-details></v-text-field>
                     <v-text-field label="Biaya /Cm2" v-model.number="biayaPerCmBordir" type="number" density="compact"
                       variant="filled" readonly hide-details></v-text-field>
-                    <v-text-field label="Total Harga"
-                      :model-value="new Intl.NumberFormat('id-ID').format(totalHargaBordir)" readonly variant="filled"
-                      density="compact" hide-details class="font-weight-bold"></v-text-field>
+                    <v-text-field label="Total Harga" :model-value="formatRupiah(totalHargaBordir)" readonly
+                      variant="filled" density="compact" hide-details class="font-weight-bold"></v-text-field>
                   </v-col>
                 </v-row>
               </div>
@@ -895,9 +894,8 @@ onMounted(() => {
                       density="compact" hide-details></v-text-field>
                     <v-text-field label="Biaya /Cm2" v-model.number="biayaPerCmDtf" type="number" density="compact"
                       variant="filled" readonly hide-details></v-text-field>
-                    <v-text-field label="Total Harga"
-                      :model-value="new Intl.NumberFormat('id-ID').format(totalHargaDtf)" readonly variant="filled"
-                      density="compact" hide-details class="font-weight-bold"></v-text-field>
+                    <v-text-field label="Total Harga" :model-value="formatRupiah(totalHargaDtf)" readonly
+                      variant="filled" density="compact" hide-details class="font-weight-bold"></v-text-field>
                   </v-col>
                 </v-row>
               </div>

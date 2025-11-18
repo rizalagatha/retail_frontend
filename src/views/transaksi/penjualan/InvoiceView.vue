@@ -10,6 +10,7 @@ import PageLayout from '@/components/PageLayout.vue';
 import PrintOptionModal from '@/components/modal/PrintOptionModal.vue';
 import KasirPrintPreviewModal from "@/components/modal/KasirPrintPreviewModal.vue";
 import * as XLSX from 'xlsx';
+import { formatRupiah } from "@/utils/formatRupiah";
 
 interface InvoiceHeader {
   Nomor: string;
@@ -167,8 +168,6 @@ const filteredMasterData = computed(() => {
     return String(val).toLowerCase().includes(search);
   });
 });
-
-const formatRupiah = (value: number) => new Intl.NumberFormat('id-ID').format(value || 0);
 
 // --- Konfigurasi Tabel ---
 const headers = [

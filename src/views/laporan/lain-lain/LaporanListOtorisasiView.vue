@@ -6,6 +6,7 @@ import PageLayout from '@/components/PageLayout.vue';
 import api from '@/services/api';
 import { AxiosError } from 'axios';
 import AppDataTable from '@/components/AppDataTable.vue';
+import { formatRupiah } from "@/utils/formatRupiah";
 
 interface OtorisasiItem {
   nomor: string;
@@ -149,7 +150,7 @@ watch(filters, fetchMasterData, { deep: true });
 
           <!-- Formatting kolom nominal -->
           <template #[`item.nominal`]="{ item }">
-            {{ new Intl.NumberFormat('id-ID').format(item.nominal) }}
+            {{ formatRupiah(item.nominal) }}
           </template>
 
           <!-- No Data -->

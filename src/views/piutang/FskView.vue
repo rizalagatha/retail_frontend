@@ -8,6 +8,7 @@ import { format, subDays, parseISO } from 'date-fns';
 import PageLayout from '@/components/PageLayout.vue';
 import * as XLSX from 'xlsx';
 import AppDataTable from '@/components/AppDataTable.vue';
+import { formatRupiah } from "@/utils/formatRupiah";
 
 interface FskMaster {
   Nomor: string;
@@ -71,10 +72,6 @@ const detailHeaders = [
   { title: 'Nominal Setor', key: 'NominalSetor', align: 'end' },
   { title: 'Nominal Verifikasi', key: 'NominalVerifikasi', align: 'end' },
 ] as const;
-
-const formatRupiah = (value: number) => {
-  return new Intl.NumberFormat('id-ID').format(value || 0);
-};
 
 const fetchCabangList = async () => {
   try {

@@ -8,6 +8,7 @@ import CustomerSearchModal from '@/components/lookup/CustomerSearchModal.vue';
 import KartuPiutangDetailModal from '@/components/modal/KartuPiutangDetailModal.vue';
 import type { AxiosError } from 'axios';
 import AppDataTable from '@/components/AppDataTable.vue';
+import { formatRupiah } from "@/utils/formatRupiah";
 
 // --- Tipe Data ---
 interface PiutangItem {
@@ -58,8 +59,6 @@ const headers = [
 ] as const;
 
 // --- Methods ---
-const formatRupiah = (value: number) => new Intl.NumberFormat('id-ID').format(value || 0);
-
 const getRowTextColor = (item: PiutangItem) => {
   if (item.status === 'Pasif') return 'text-red';
   return '';

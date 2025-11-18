@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { formatRupiah } from "@/utils/formatRupiah";
 
 interface DP {
   nomor: string;
@@ -19,8 +20,6 @@ const headers = [
   { title: 'Jenis', key: 'jenis' },
   { title: 'Nominal', key: 'nominal', align: 'end' },
 ] as const;
-
-const formatRupiah = (value: number) => new Intl.NumberFormat('id-ID').format(value || 0);
 
 const formatTanggal = (tanggal?: string) => {
   if (!tanggal) return '-';

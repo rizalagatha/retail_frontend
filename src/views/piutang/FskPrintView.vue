@@ -4,6 +4,7 @@ import { useRoute } from 'vue-router';
 import api from '@/services/api';
 import { format, parseISO } from 'date-fns';
 import Logo from '@/assets/logo.png';
+import { formatRupiah } from "@/utils/formatRupiah";
 
 interface PrintDetail1 {
   jenis: string;
@@ -40,8 +41,6 @@ const route = useRoute();
 const printData = ref<PrintData | null>(null);
 const isLoading = ref(true);
 const appLogo = Logo;
-
-const formatRupiah = (angka: number) => new Intl.NumberFormat('id-ID').format(angka || 0);
 
 // --- COMPUTED PROPERTIES UNTUK TOTAL ---
 const totalNominalRincian = computed(() => {

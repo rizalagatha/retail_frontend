@@ -9,6 +9,7 @@ import PageLayout from '@/components/PageLayout.vue'; // Pastikan path ini benar
 import PrintOptionModal from '@/components/modal/PrintOptionModal.vue'; // Pastikan path ini benar
 import * as XLSX from 'xlsx';
 import AppDataTable from '@/components/AppDataTable.vue';
+import { formatRupiah } from "@/utils/formatRupiah";
 
 // --- Interfaces Potongan ---
 interface PotonganHeader {
@@ -67,11 +68,6 @@ const selectedRow = computed<PotonganHeader | null>(() =>
   isSingleSelected.value ? selected.value[0] : null
 );
 const isPrintOptionVisible = ref(false);
-
-const formatRupiah = (value: number | string | undefined): string => {
-  const num = Number(value) || 0;
-  return new Intl.NumberFormat('id-ID').format(num);
-};
 
 // --- Konfigurasi Tabel ---
 const headers = [

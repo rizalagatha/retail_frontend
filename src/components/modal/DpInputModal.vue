@@ -6,6 +6,7 @@ import RekeningSearchModal from '../lookup/RekeningSearchModal.vue';
 import { useAuthStore } from '@/stores/authStore';
 import { format, parseISO } from 'date-fns';
 import Logo from '@/assets/logo.png';
+import { formatRupiah } from "@/utils/formatRupiah";
 
 interface Rekening {
   kode: string;
@@ -43,10 +44,6 @@ interface NewDpItem {
 const toast = useToast();
 const authStore = useAuthStore();
 const appLogo = Logo;
-
-const formatRupiah = (angka: number) => {
-  return new Intl.NumberFormat('id-ID').format(angka || 0);
-};
 
 // --- Computed ---
 const kekuranganDp = computed(() => {

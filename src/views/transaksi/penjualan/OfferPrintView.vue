@@ -5,6 +5,7 @@ import api from '@/services/api';
 import { format, parseISO } from 'date-fns';
 import Logo from '@/assets/logo.png';
 import InstagramLogo from '@/assets/instagram.jpg'; // Impor logo Instagram
+import { formatRupiah } from "@/utils/formatRupiah";
 
 interface PrintHeader {
   pen_nomor: string;
@@ -59,7 +60,6 @@ function terbilang(n: number) {
     if (n < 1000000000) return terbilang(Math.floor(n / 1000000)) + " juta " + terbilang(n % 1000000);
     return "angka terlalu besar";
 }
-const formatRupiah = (angka: number) => new Intl.NumberFormat('id-ID').format(angka || 0);
 const capitalize = (s: string) => (s ? s.charAt(0).toUpperCase() + s.slice(1).toLowerCase().replace(/\s+/g, ' ') : '').trim();
 
 const fetchPrintData = async (nomor: string) => {
@@ -67,7 +67,7 @@ const fetchPrintData = async (nomor: string) => {
     try {
         const response = await api.get(`/offer-form/print-data/${nomor}`);
         printData.value = response.data;
-        if (printData.value.header?.pen_nomor) { 
+        if (printData.value.header?.pen_nomor) {
             document.title = printData.value.header.pen_nomor;
         }
     } catch (error) {

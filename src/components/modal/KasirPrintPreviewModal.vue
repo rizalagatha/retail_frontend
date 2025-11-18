@@ -5,6 +5,7 @@ import api from "@/services/api";
 import Logo from "@/assets/logo.png";
 import InstagramLogo from "@/assets/instagram.jpg";
 import FacebookLogo from "@/assets/facebook.jpg";
+import { formatRupiah } from "@/utils/formatRupiah";
 
 interface PrintHeader {
   inv_nomor: string;
@@ -273,9 +274,6 @@ watch(
     if (v) fetchData();
   }
 );
-
-const formatRupiah = (angka: number) =>
-  new Intl.NumberFormat("id-ID").format(Math.round(angka || 0));
 
 // const calculateTotals = (details: PrintDetail[]) => {
 //   let totalAsli = 0;

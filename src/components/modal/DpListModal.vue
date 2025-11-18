@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { formatRupiah } from "@/utils/formatRupiah";
 
 // 1. Definisikan Interface
 interface DpItem {
@@ -28,11 +29,6 @@ const dpTableHeaders = [
   { title: 'Posting', key: 'posting', width: '100px' },
   { title: 'Actions', key: 'actions', sortable: false, width: '50px' },
 ] as const;
-
-// 5. Fungsi untuk memformat
-const formatRupiah = (angka: number) => {
-  return new Intl.NumberFormat('id-ID').format(angka || 0);
-};
 
 // 6. Fungsi Emitter: Meminta parent untuk menghapus item
 const requestRemoveDp = (item: DpItem) => {

@@ -36,6 +36,17 @@ const MENU_ID = '45';
 const isEditMode = computed(() => !!route.params.nomor);
 const pageTitle = computed(() => isEditMode.value ? 'Ubah Mutasi Stok' : 'Buat Mutasi Stok');
 const requiredPermission = computed(() => isEditMode.value ? 'edit' : 'insert');
+const summaryTotals = computed(() => {
+  const totalJumlah = items.value.reduce((sum, item) => sum + (item.jumlah || 0), 0);
+  const totalShowroom = items.value.reduce((sum, item) => sum + (item.showroom || 0), 0);
+  const totalPesan = items.value.reduce((sum, item) => sum + (item.pesan || 0), 0);
+
+  return {
+    totalJumlah,
+    totalShowroom,
+    totalPesan
+  };
+});
 
 const initialHeaderState = {
   nomor: '',
@@ -270,6 +281,20 @@ onMounted(() => {
             </template>
             <template #bottom></template>
           </v-data-table>
+          <div class="table-summary sticky-footer">
+            <div class="summary-row">
+              <div class="label">Total Pesanan:</div>
+              <div class="value">{{ summaryTotals.totalPesan }}</div>
+            </div>
+            <div class="summary-row">
+              <div class="label">Total Showroom:</div>
+              <div class="value">{{ summaryTotals.totalShowroom }}</div>
+            </div>
+            <div class="summary-row">
+              <div class="label">Total Qty Mutasi:</div>
+              <div class="value">{{ summaryTotals.totalJumlah }}</div>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -307,5 +332,32 @@ onMounted(() => {
 :deep(.qty-error input) {
   color: red !important;
   font-weight: bold;
+}
+
+.table-summary {
+  border-top: 1px solid #ddd;
+  padding: 10px 16px;
+  background: white;
+  display: flex;
+  justify-content: flex-end;
+  gap: 40px;
+  font-size: 14px;
+}
+
+.summary-row {
+  display: flex;
+  gap: 10px;
+}
+
+.summary-row .label {
+  font-weight: bold;
+}
+
+.sticky-footer {
+  position: sticky;
+  bottom: 0;
+  background: white;
+  z-index: 5;
+  border-top: 1px solid #ccc;
 }
 </style>

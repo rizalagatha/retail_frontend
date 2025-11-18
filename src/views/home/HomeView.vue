@@ -10,6 +10,7 @@ import { Bar } from 'vue-chartjs';
 import { Chart as ChartJS, Title, Tooltip, Legend, BarElement, CategoryScale, LinearScale } from 'chart.js';
 import type { TooltipItem } from 'chart.js';
 import ChartDataLabels from 'chartjs-plugin-datalabels';
+import { formatRupiah } from "@/utils/formatRupiah";
 
 ChartJS.register(Title, Tooltip, Legend, BarElement, CategoryScale, LinearScale, ChartDataLabels);
 
@@ -176,15 +177,6 @@ const features = ref([
   }
 ]);
 
-// Computed untuk format currency
-const formatCurrency = (amount: number) => {
-  return new Intl.NumberFormat('id-ID', {
-    style: 'currency',
-    currency: 'IDR',
-    minimumFractionDigits: 0
-  }).format(amount)
-}
-
 const targetPercentage = computed(() => {
   if (!salesTargetSummary.value.target || salesTargetSummary.value.target === 0) {
     return 0;
@@ -226,6 +218,8 @@ const targetChartData = computed(() => ({ // <-- NAMA BARU
   ]
 }));
 
+const fr = (val: number) => formatRupiah(val);
+
 const targetChartOptions = ref({
   responsive: true,
   maintainAspectRatio: false,
@@ -236,7 +230,7 @@ const targetChartOptions = ref({
         callback: (value: number) => {
           if (value >= 1000000) return `Rp ${value / 1000000} Jt`;
           if (value >= 1000) return `Rp ${value / 1000} Rb`;
-          return formatCurrency(value);
+          return fr(Number(value));
         }
       }
     },
@@ -257,7 +251,7 @@ const targetChartOptions = ref({
         label: (context: TooltipItem<'bar'>) => {
           const label = context.dataset.label || '';
           const value = context.parsed.y as number; // parsed bisa number | null
-          return `${label}: ${formatCurrency(value)}`;
+          return `${label}: ${fr(value)}`;
         }
       }
     },
@@ -265,7 +259,7 @@ const targetChartOptions = ref({
       anchor: 'end' as const,
       align: 'top' as const,
       formatter: (value: number, context) => {
-        if (context.datasetIndex === 1) return formatCurrency(value);
+        if (context.datasetIndex === 1) return fr(value);
         return null;
       },
       font: {
@@ -681,7 +675,8 @@ watch(chartGroupBy, fetchSalesChartData);
             <v-icon size="40" class="mb-2">mdi-cash-multiple</v-icon>
             <div class="text-h4 font-weight-bold">
               <span v-if="isLoadingStats">...</span>
-              <span v-else>{{ formatCurrency(stats.todaySales) }}</span>
+              <span v-else>{{ formatRupiah(stats.todaySales) }}</span>
+
             </div>
             <div class="text-subtitle-2">Penjualan Hari Ini</div>
           </v-card-text>
@@ -787,7 +782,7 @@ watch(chartGroupBy, fetchSalesChartData);
                 <v-icon size="40" class="mb-2">mdi-account-clock</v-icon>
                 <div class="text-h4 font-weight-bold">
                   <span v-if="isLoadingPiutang">...</span>
-                  <span v-else>{{ formatCurrency(stats.totalSisaPiutang) }}</span>
+                  <span v-else>{{ formatRupiah(stats.totalSisaPiutang) }}</span>
                 </div>
                 <div class="text-subtitle-2">Total Sisa Piutang</div>
               </v-card-text>
@@ -811,7 +806,7 @@ watch(chartGroupBy, fetchSalesChartData);
                   </v-list-item-title>
                   <template #append>
                     <span class="text-caption font-weight-bold">
-                      {{ new Intl.NumberFormat('id-ID').format(item.sisa_piutang) }}
+                      {{ formatRupiah(item.sisa_piutang) }}
                     </span>
                   </template>
                 </v-list-item>
@@ -828,7 +823,7 @@ watch(chartGroupBy, fetchSalesChartData);
             <v-icon size="40" class="mb-2">mdi-account-clock</v-icon>
             <div class="text-h4 font-weight-bold">
               <span v-if="isLoadingPiutang">...</span>
-              <span v-else>{{ formatCurrency(stats.totalSisaPiutang) }}</span>
+              <span v-else>{{ formatRupiah(stats.totalSisaPiutang) }}</span>
             </div>
             <div class="text-subtitle-2">Total Sisa Piutang</div>
           </v-card-text>
@@ -967,7 +962,7 @@ watch(chartGroupBy, fetchSalesChartData);
                       <div class="text-caption text-medium-emphasis mb-1">Realisasi</div>
                       <div class="text-h5 font-weight-bold"
                         :class="isOverTarget ? 'text-success' : 'text-deep-orange-darken-1'">
-                        {{ formatCurrency(salesTargetSummary.nominal) }}
+                        {{ formatRupiah(salesTargetSummary.nominal) }}
                       </div>
                       <div class="text-caption mt-1"
                         :class="getProgressColor(targetPercentage).includes('#') ? '' : `text-${getProgressColor(targetPercentage)}`"
@@ -981,7 +976,7 @@ watch(chartGroupBy, fetchSalesChartData);
                     <v-card-text>
                       <div class="text-caption text-medium-emphasis mb-1">Target</div>
                       <div class="text-h6 font-weight-medium">
-                        {{ formatCurrency(salesTargetSummary.target) }}
+                        {{ formatRupiah(salesTargetSummary.target) }}
                       </div>
                     </v-card-text>
                   </v-card>
@@ -1031,7 +1026,7 @@ watch(chartGroupBy, fetchSalesChartData);
 
                 <template #append>
                   <v-chip color="success" size="small" variant="flat" class="font-weight-bold">
-                    {{ formatCurrency(transaction.amount) }}
+                    {{ formatRupiah(transaction.amount) }}
                   </v-chip>
                 </template>
               </v-list-item>
@@ -1104,7 +1099,7 @@ watch(chartGroupBy, fetchSalesChartData);
               <div>
                 <div class="text-caption text-deep-orange">Nilai Stok Stagnan (30 Hari)</div>
                 <div class="text-h5 font-weight-bold">
-                  {{ formatCurrency(stagnantStockValue) }}
+                  {{ formatRupiah(stagnantStockValue) }}
                 </div>
               </div>
             </div>

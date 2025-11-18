@@ -4,6 +4,7 @@ import { useRoute } from 'vue-router';
 import api from '@/services/api';
 import { format, parseISO } from 'date-fns';
 import Logo from '@/assets/logo.png';
+import { formatRupiah } from "@/utils/formatRupiah";
 
 interface ReturJualHeader {
   nomor: string;
@@ -49,8 +50,6 @@ const route = useRoute();
 const printData = ref<ReturJualPrintData | null>(null);
 const isLoading = ref(true);
 const appLogo = Logo;
-
-const formatRupiah = (angka: number) => new Intl.NumberFormat('id-ID').format(Math.round(angka || 0));
 
 const fetchPrintData = async (nomor: string) => {
   isLoading.value = true;

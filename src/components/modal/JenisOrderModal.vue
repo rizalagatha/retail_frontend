@@ -2,6 +2,8 @@
 import { ref, watch, onMounted, computed } from 'vue';
 import api from '@/services/api';
 import { useToast } from 'vue-toastification';
+import { formatRupiah } from "@/utils/formatRupiah";
+const fr = (v: number) => formatRupiah(v);
 
 /**
  * ======== 1️⃣ Props definition ========
@@ -505,7 +507,7 @@ watch(
                     hide-details class="text-xs text-end" @blur="() => addUkuranRowIfNeeded(i)" min="0" />
                 </v-col>
                 <v-col cols="4" class="text-end">
-                  Rp {{ new Intl.NumberFormat('id-ID').format(row.harga || 0) }}
+                  {{ fr(row.harga || 0) }}
                 </v-col>
                 <v-col cols="1" class="text-center">
                   <v-btn icon="mdi-delete-outline" size="x-small" variant="text" color="error"
@@ -565,12 +567,12 @@ watch(
               variant="outlined" hide-details class="text-xs" />
           </v-col>
           <v-col cols="6">
-            <v-text-field label="Total Harga" :model-value="new Intl.NumberFormat('id-ID').format(form.totalHarga)"
-              readonly density="compact" variant="outlined" hide-details class="text-xs" />
+            <v-text-field label="Total Harga" :model-value="fr(form.totalHarga)" readonly density="compact"
+              variant="outlined" hide-details class="text-xs" />
           </v-col>
           <v-col cols="6">
-            <v-text-field label="Harga per cm²" :model-value="new Intl.NumberFormat('id-ID').format(form.hargaPerCm)"
-              readonly density="compact" variant="outlined" hide-details class="text-xs" />
+            <v-text-field label="Harga per cm²" :model-value="fr(form.hargaPerCm)" readonly density="compact"
+              variant="outlined" hide-details class="text-xs" />
           </v-col>
         </v-row>
       </v-card-text>

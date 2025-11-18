@@ -4,6 +4,7 @@ import { useRoute } from 'vue-router';
 import api from '@/services/api';
 import { format, parseISO } from 'date-fns';
 import Logo from '@/assets/logo.png'; // Pastikan logo diimpor
+import { formatRupiah } from "@/utils/formatRupiah";
 
 interface PrintHeader {
   nomor: string;
@@ -49,8 +50,6 @@ const route = useRoute();
 const printData = ref<PrintData | null>(null);
 const isLoading = ref(true);
 const appLogo = Logo; // Sediakan logo untuk template
-
-const formatRupiah = (angka: number) => new Intl.NumberFormat('id-ID').format(Math.round(angka || 0));
 
 const fetchPrintData = async (nomor: string) => {
   isLoading.value = true;

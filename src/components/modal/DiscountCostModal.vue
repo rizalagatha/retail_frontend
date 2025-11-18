@@ -4,6 +4,7 @@ import { useToast } from 'vue-toastification';
 import api from '@/services/api';
 import AuthorizationModal from '@/components/modal/AuthorizationModal.vue';
 import axios, { type AxiosError } from 'axios';
+import { formatRupiah } from "@/utils/formatRupiah";
 
 interface Customer {
   level_kode: string;
@@ -107,10 +108,6 @@ const ppnRp = computed(() => {
 const grandTotal = computed(() => {
   return netto.value + ppnRp.value + (localFooter.value.biayaKirim || 0);
 });
-
-const formatRupiah = (angka: number) => {
-  return new Intl.NumberFormat('id-ID').format(angka || 0);
-};
 
 // --- Fungsi Otorisasi (Dipindahkan dari parent) ---
 const backupCurrentState = () => {

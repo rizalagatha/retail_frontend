@@ -8,6 +8,7 @@ import { useAuthStore } from '@/stores/authStore';
 import { format, addDays, isValid } from 'date-fns';
 import type { AxiosError } from 'axios';
 import axios from 'axios';
+import { formatRupiah } from "@/utils/formatRupiah";
 
 // Impor semua komponen modal yang akan digunakan
 import CustomerSearchModal from '@/components/lookup/CustomerSearchModal.vue';
@@ -262,10 +263,6 @@ const rowsPerPage = ref(10);
 //   ukuran: 0,
 //   titik: 0,
 // });
-
-const formatRupiah = (angka: number) => {
-  return new Intl.NumberFormat('id-ID').format(angka || 0);
-};
 
 const parseDate = (str: string) => {
   // aman: tidak di-convert ke timezone
@@ -1713,7 +1710,7 @@ const stopAndOpenPriceProposal = (index: number) => {
               </template>
               <template #[`item.harga`]="{ item }">
                 <v-text-field
-                  :value="focusedRowId === item.id ? item.harga : new Intl.NumberFormat('id-ID').format(item.harga || 0)"
+                  :value="focusedRowId === item.id ? item.harga : formatRupiah(item.harga || 0)"
                   @input="item.harga = Number(String($event.target.value).replace(/[^0-9]/g, '')) || 0"
                   @focus="focusedRowId = item.id" @blur="focusedRowId = -1" placeholder="0" type="text"
                   variant="underlined" density="compact" hide-details single-line class="text-end"
@@ -1725,7 +1722,7 @@ const stopAndOpenPriceProposal = (index: number) => {
               </template>
               <template #[`item.diskonRp`]="{ item }">
                 <v-text-field
-                  :value="focusedRowId === item.id ? item.diskonRp : new Intl.NumberFormat('id-ID').format(item.diskonRp || 0)"
+                  :value="focusedRowId === item.id ? item.diskonRp : formatRupiah(item.diskonRp || 0)"
                   @input="item.diskonRp = Number(String($event.target.value).replace(/[^0-9]/g, '')) || 0"
                   @focus="focusedRowId = item.id"
                   @blur="focusedRowId = -1; handleItemDiscountChange(items.indexOf(item))" placeholder="0" type="text"
@@ -1734,7 +1731,7 @@ const stopAndOpenPriceProposal = (index: number) => {
               </template>
               <template #[`item.total`]="{ item }">
                 <div class="text-end text-body-2 font-weight-bold">
-                  {{ new Intl.NumberFormat('id-ID').format(item.total || 0) }}
+                  {{ formatRupiah(item.total || 0) }}
                 </div>
               </template>
               <template #[`item.noSoDtf`]="{ item, index }">

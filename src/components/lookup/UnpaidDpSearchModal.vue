@@ -2,6 +2,7 @@
 import { ref, onMounted, computed } from 'vue';
 import api from '@/services/api';
 import { useToast } from 'vue-toastification';
+import { formatRupiah } from "@/utils/formatRupiah";
 
 interface UnpaidDp {
     nomor: string;
@@ -48,8 +49,6 @@ const selectItem = (item: UnpaidDp) => {
     emit('selected', item);
     emit('close');
 };
-
-const formatRupiah = (value: number) => new Intl.NumberFormat('id-ID').format(value || 0);
 
 onMounted(loadItems);
 </script>

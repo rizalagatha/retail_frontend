@@ -23,6 +23,7 @@ import type { AxiosError } from 'axios';
 import axios from 'axios';
 import LogoKaosan from '@/assets/logo.png';
 import LogoRezso from '@/assets/rezso.jpg';
+import { formatRupiah } from "@/utils/formatRupiah";
 
 // --- Tipe Data ---
 interface Item {
@@ -280,10 +281,6 @@ const tableHeaders = [
 //     { title: 'Nominal', key: 'nominal', align: 'end' },
 //     { title: 'Actions', key: 'actions', sortable: false, width: '50px' },
 // ];
-
-const formatRupiah = (value: number) => {
-  return new Intl.NumberFormat('id-ID').format(value || 0);
-};
 
 // --- Methods ---
 const showConfirmation = (title: string, text: string, onConfirm: () => void) => {
@@ -1731,8 +1728,9 @@ onMounted(() => {
               </template>
 
               <template v-slot:[`item.harga`]="{ item }">
-                <v-text-field
-                  :model-value="focusedRowId === item.id ? item.harga : new Intl.NumberFormat('id-ID').format(item.harga || 0)"
+                <v-text-field :model-value="focusedRowId === item.id
+                  ? item.harga
+                  : formatRupiah(item.harga || 0)"
                   @update:model-value="item.harga = Number(String($event).replace(/[^0-9]/g, '')) || 0"
                   @focus="focusedRowId = item.id" @blur="focusedRowId = -1" type="text" min="0" variant="underlined"
                   density="compact" hide-details class="text-right" :readonly="!isHargaEditable(item)"
@@ -1753,7 +1751,7 @@ onMounted(() => {
 
               <template v-slot:[`item.total`]="{ item }">
                 <div class="text-end text-body-2 font-weight-bold pt-3 pb-1">
-                  {{ new Intl.NumberFormat('id-ID').format(item.total || 0) }}
+                  {{ formatRupiah(item.total) }}
                 </div>
               </template>
 
@@ -1779,7 +1777,7 @@ onMounted(() => {
             <div class="value">{{ grandQty }}</div>
 
             <div class="label">Grand Total</div>
-            <div class="value">Rp {{ new Intl.NumberFormat('id-ID').format(totals.grandTotal) }}</div>
+            <div class="value">Rp {{ formatRupiah(totals.grandTotal) }}</div>
           </div>
         </div>
 

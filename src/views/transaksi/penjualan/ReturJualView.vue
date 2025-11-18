@@ -9,6 +9,7 @@ import PageLayout from '@/components/PageLayout.vue';
 import PrintOptionModal from '@/components/modal/PrintOptionModal.vue';
 import * as XLSX from 'xlsx';
 import type { AxiosError } from "axios";
+import { formatRupiah } from "@/utils/formatRupiah";
 
 // --- Tipe Data ---
 interface MasterItem {
@@ -287,15 +288,15 @@ watch(filters, fetchMasterData, { deep: true });
           </template>
 
           <template #[`item.nominal`]="{ item }">
-            {{ new Intl.NumberFormat('id-ID').format(item.nominal) }}
+            {{ formatRupiah(item.nominal) }}
           </template>
 
           <template #[`item.diBayarkan`]="{ item }">
-            {{ new Intl.NumberFormat('id-ID').format(item.diBayarkan) }}
+            {{ formatRupiah(item.diBayarkan) }}
           </template>
 
           <template #[`item.sisa`]="{ item }">
-            {{ new Intl.NumberFormat('id-ID').format(item.sisa) }}
+            {{ formatRupiah(item.sisa) }}
           </template>
 
           <template #expanded-row="{ columns, item }">

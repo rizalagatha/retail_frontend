@@ -5,6 +5,7 @@ import api from '@/services/api';
 import { format, parseISO } from 'date-fns';
 import Logo from '@/assets/logo.png';
 import InstagramLogo from '@/assets/instagram.jpg'; // Import logo Instagram
+import { formatRupiah } from "@/utils/formatRupiah";
 
 interface PrintHeader {
   so_nomor: string;
@@ -53,14 +54,12 @@ const isLoading = ref(true);
 const appLogo = Logo;
 const instagramLogo = InstagramLogo; // Definisikan untuk digunakan di template
 
-const formatRupiah = (angka: number) => new Intl.NumberFormat('id-ID').format(angka || 0);
-
 const fetchPrintData = async (nomor: string) => {
     isLoading.value = true;
     try {
         const response = await api.get(`/so/print-data/${nomor}`);
         printData.value = response.data;
-        if (printData.value.header?.so_nomor) { 
+        if (printData.value.header?.so_nomor) {
             document.title = printData.value.header.so_nomor;
         }
     } catch (error) {

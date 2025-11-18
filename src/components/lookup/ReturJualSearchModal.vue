@@ -40,8 +40,6 @@ const loadItems = async () => {
     }
 };
 
-// const formatRupiah = (value: number) => new Intl.NumberFormat('id-ID').format(value || 0);
-
 onMounted(loadItems);
 </script>
 

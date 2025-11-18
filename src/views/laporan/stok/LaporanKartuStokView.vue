@@ -99,10 +99,10 @@ const detailHeaders = ref<DetailHeader[]>([]);
 
 const generateHeaders = () => {
   detailHeaders.value = [
-    { title: 'Id', key: 'id', cellProps: { class: 'd-none' } }, // Sembunyikan ID
+    { title: 'Id', key: 'id', align: 'end', cellProps: { class: 'd-none' } }, // Sembunyikan ID
     { title: 'Tanggal', key: 'tanggal', align: 'end' },
-    { title: 'Nomor', key: 'nomor', align: 'start' },
-    { title: 'Transaksi', key: 'transaksi', align: 'start' },
+    { title: 'Nomor', key: 'nomor', align: 'end' },
+    { title: 'Transaksi', key: 'transaksi', align: 'end' },
     { title: 'In', key: 'In', align: 'end' },
     { title: 'Out', key: 'Out', align: 'end' },
     { title: 'Saldo', key: 'saldo', align: 'end', cellProps: { class: 'font-weight-bold' } } // <-- TAMBAHKAN INI

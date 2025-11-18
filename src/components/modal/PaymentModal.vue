@@ -8,6 +8,7 @@ import AuthorizationModal from '@/components/modal/AuthorizationModal.vue';
 import PrintOptionModal from './PrintOptionModal.vue';
 import ReturJualSearchModal from '@/components/lookup/ReturJualSearchModal.vue';
 import type { AxiosError } from 'axios';
+import { formatRupiah } from "@/utils/formatRupiah";
 
 interface BankAccount {
   kode: string;
@@ -150,8 +151,6 @@ const kembali = computed(() => {
 const nettoKembali = computed(() => {
   return Math.max(kembali.value - (payment.pundiAmal || 0), 0);
 });
-
-const formatRupiah = (value: number) => new Intl.NumberFormat('id-ID').format(value || 0);
 
 // --- Methods ---
 // const printStylesKasir = `

@@ -9,6 +9,7 @@ import PageLayout from '@/components/PageLayout.vue';
 import * as XLSX from 'xlsx';
 import axios, { AxiosError } from 'axios';
 import AppDataTable from '@/components/AppDataTable.vue';
+import { formatRupiah } from "@/utils/formatRupiah";
 
 interface RefundHeader {
   Nomor: string;
@@ -90,10 +91,6 @@ const canDelete = computed(() => {
 const canCetak = computed(() => isSingleSelected.value);
 
 // --- Formatter & Konfigurasi Tabel ---
-const formatRupiah = (value: number | undefined): string => {
-  if (value === undefined || value === null) return '0';
-  return new Intl.NumberFormat('id-ID', { minimumFractionDigits: 0 }).format(value);
-};
 const formatTanggal = (dateString: string | undefined | null) => {
   if (!dateString) return '';
   const date = parseISO(dateString);

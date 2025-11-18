@@ -1281,4 +1281,15 @@ onMounted(() => {
 .vertically-aligned-table :deep(tbody tr td) {
   vertical-align: middle !important;
 }
+
+.desktop-table :deep(thead tr th) {
+  background-color: #0D47A1 !important; /* Biru Tua */
+  color: #ffffff !important;            /* Teks Putih */
+  font-weight: bold !important;
+  text-transform: uppercase;
+  font-size: 11px !important;
+  height: 40px !important;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  border-bottom: none !important; /* Supaya lebih rapi */
+}
 </style>

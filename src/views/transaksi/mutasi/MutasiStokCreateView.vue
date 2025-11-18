@@ -176,9 +176,9 @@ const handleSave = () => {
 
   for (const item of validItems) {
     const qtyMutasi = item.jumlah || 0;
-    if (header.jenisMutasi === 'SP' && qtyMutasi > item.showroom) {
-      return toast.error(`Qty Mutasi untuk ${item.nama} (${item.ukuran}) melebihi Stok Showroom.`);
-    }
+    // if (header.jenisMutasi === 'SP' && qtyMutasi > item.showroom) {
+    //   return toast.error(`Qty Mutasi untuk ${item.nama} (${item.ukuran}) melebihi Stok Showroom.`);
+    // }
     if (header.jenisMutasi === 'PS' && qtyMutasi > item.pesan) {
       return toast.error(`Qty Mutasi untuk ${item.nama} (${item.ukuran}) melebihi Stok Pesanan.`);
     }

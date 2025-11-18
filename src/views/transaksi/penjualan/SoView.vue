@@ -59,8 +59,8 @@ const filters = reactive({
 const isCloseDialogVisible = ref(false);
 const itemToClose = ref<SoHeader | null>(null);
 const closeReason = ref('');
-const isConfirmDeleteVisible = ref(false);
-const itemToDelete = ref<SoHeader | null>(null);
+// const isConfirmDeleteVisible = ref(false);
+// const itemToDelete = ref<SoHeader | null>(null);
 
 // State untuk Filter Kustom
 const filterOptions = ref([
@@ -216,41 +216,41 @@ const submitClose = async () => {
   }
 };
 
-const showDeleteConfirmation = () => {
-  if (!isSingleSelected.value) return;
-  const item = selected.value[0];
+// const showDeleteConfirmation = () => {
+//   if (!isSingleSelected.value) return;
+//   const item = selected.value[0];
 
-  // Validasi status di frontend untuk feedback cepat
-  if (item.Status !== 'OPEN') {
-    toast.warning(`SO dengan status "${item.Status}" tidak bisa dihapus.`);
-    return;
-  }
+//   // Validasi status di frontend untuk feedback cepat
+//   if (item.Status !== 'OPEN') {
+//     toast.warning(`SO dengan status "${item.Status}" tidak bisa dihapus.`);
+//     return;
+//   }
 
-  itemToDelete.value = item;
-  isConfirmDeleteVisible.value = true;
-};
+//   itemToDelete.value = item;
+//   isConfirmDeleteVisible.value = true;
+// };
 
-const executeDelete = async () => {
-  if (!itemToDelete.value) return;
-  try {
-    await api.delete(`/so/${itemToDelete.value.Nomor}`);
-    toast.success(`Surat Pesanan ${itemToDelete.value.Nomor} berhasil dihapus.`);
-    fetchData();
-    selected.value = [];
-  } catch (error: unknown) {
-    if (error instanceof Error) {
-      toast.error(error.message || 'Gagal menghapus data.');
-    } else if (typeof error === 'object' && error !== null && 'response' in error) {
-      const e = error as { response?: { data?: { message?: string } } };
-      toast.error(e.response?.data?.message || 'Gagal menghapus data.');
-    } else {
-      toast.error('Gagal menghapus data.');
-    }
-  } finally {
-    isConfirmDeleteVisible.value = false;
-    itemToDelete.value = null;
-  }
-};
+// const executeDelete = async () => {
+//   if (!itemToDelete.value) return;
+//   try {
+//     await api.delete(`/so/${itemToDelete.value.Nomor}`);
+//     toast.success(`Surat Pesanan ${itemToDelete.value.Nomor} berhasil dihapus.`);
+//     fetchData();
+//     selected.value = [];
+//   } catch (error: unknown) {
+//     if (error instanceof Error) {
+//       toast.error(error.message || 'Gagal menghapus data.');
+//     } else if (typeof error === 'object' && error !== null && 'response' in error) {
+//       const e = error as { response?: { data?: { message?: string } } };
+//       toast.error(e.response?.data?.message || 'Gagal menghapus data.');
+//     } else {
+//       toast.error('Gagal menghapus data.');
+//     }
+//   } finally {
+//     isConfirmDeleteVisible.value = false;
+//     itemToDelete.value = null;
+//   }
+// };
 
 const getRowTextColor = (item: SoHeader) => {
   // Prioritas utama adalah status pasif
@@ -378,8 +378,8 @@ watch(filters, () => {
         @click="router.push(`/transaksi/penjualan/surat-pesanan/ubah/${selected[0].Nomor}`)">
         Ubah
       </v-btn>
-      <v-btn v-if="authStore.can(MENU_ID, 'delete')" size="small" color="error" :disabled="!isSingleSelected"
-        prepend-icon="mdi-delete" @click="showDeleteConfirmation">Hapus</v-btn>
+      <!-- <v-btn v-if="authStore.can(MENU_ID, 'delete')" size="small" color="error" :disabled="!isSingleSelected"
+        prepend-icon="mdi-delete" @click="showDeleteConfirmation">Hapus</v-btn> -->
       <v-btn v.if="authStore.can(MENU_ID, 'view')" size="small" color="green" :disabled="!isSingleSelected"
         prepend-icon="mdi-printer" @click="printData">Cetak</v-btn>
       <v-menu offset-y>
@@ -513,7 +513,7 @@ watch(filters, () => {
       </div>
     </div>
 
-    <v-dialog v-model="isConfirmDeleteVisible" max-width="400px" persistent>
+    <!-- <v-dialog v-model="isConfirmDeleteVisible" max-width="400px" persistent>
       <v-card>
         <v-card-title class="text-h6 font-weight-bold">Konfirmasi Hapus</v-card-title>
         <v-card-text>Anda yakin ingin menghapus Surat Pesanan: <strong>{{ itemToDelete?.Nomor
@@ -524,7 +524,7 @@ watch(filters, () => {
           <v-btn color="error" @click="executeDelete">Ya, Hapus</v-btn>
         </v-card-actions>
       </v-card>
-    </v-dialog>
+    </v-dialog> -->
 
     <v-dialog v-model="isCloseDialogVisible" max-width="500px" persistent>
       <v-card>

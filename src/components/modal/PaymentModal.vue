@@ -148,8 +148,7 @@ const kembali = computed(() => {
 });
 
 const nettoKembali = computed(() => {
-  const afterPundi = kembali.value - (payment.pundiAmal || 0);
-  return afterPundi >= 1000 ? afterPundi : kembali.value;
+  return Math.max(kembali.value - (payment.pundiAmal || 0), 0);
 });
 
 const formatRupiah = (value: number) => new Intl.NumberFormat('id-ID').format(value || 0);
@@ -295,6 +294,12 @@ const handleAuthSuccess = async (pin: string) => {
 const executeSave = async () => {
   isSaving.value = true;
   try {
+    const kembalianBeforePundi = Math.max(totalBayar.value - props.totals.grandTotal, 0);
+
+    const tunaiAfterChange = Math.max(
+      Number(payment.tunai || 0) - kembalianBeforePundi,
+      0
+    );
     const payload = {
       header: props.invoiceHeader,
       items: (props.invoiceItems as InvoiceItem[]).filter((item) => item.kode),
@@ -303,6 +308,7 @@ const executeSave = async () => {
         ...payment,
         // keep existing shape but include numeric fields
         tunai: Number(payment.tunai || 0),
+        tunaiAfterChange,
         transfer: { ...payment.transfer, nominal: Number(payment.transfer.nominal || 0) },
         voucher: { ...payment.voucher, nominal: Number(payment.voucher.nominal || 0) },
         retur: { ...payment.retur, nominal: Number(payment.retur.nominal || 0) },
@@ -751,9 +757,9 @@ watch(kembali, (newVal) => {
               <v-text-field label="Transfer / Card" :model-value="isTransferFocused
                 ? (payment.transfer.nominal === null ? '' : payment.transfer.nominal)
                 : formatRupiah(payment.transfer.nominal ?? 0)" @update:model-value="
-      payment.transfer.nominal = $event === '' ? null : Number(String($event).replace(/[^0-9]/g, ''))
-      " @focus="isTransferFocused = true" @blur="isTransferFocused = false" type="text" variant="outlined" min="0"
-                density="compact" hide-details class="text-end">
+                  payment.transfer.nominal = $event === '' ? null : Number(String($event).replace(/[^0-9]/g, ''))
+                  " @focus="isTransferFocused = true" @blur="isTransferFocused = false" type="text" variant="outlined"
+                min="0" density="compact" hide-details class="text-end">
                 <template #prepend-inner>
                   <span class="input-prefix">Rp</span>
                 </template>
@@ -883,7 +889,7 @@ watch(kembali, (newVal) => {
               <div class="summary-item grand-total"><span>Grand Total </span><span>{{
                 formatRupiah(printKasirData.header.summary.grandTotal) }}</span></div>
               <div class="summary-item"><span>Bayar </span><span>{{ formatRupiah(printKasirData.header.summary.bayar)
-                  }}</span></div>
+              }}</span></div>
               <div class="summary-item" v-if="printKasirData.header.summary.pundiAmal">
                 <span>Pundi Amal </span>
                 <span>{{ formatRupiah(printKasirData.header.summary.pundiAmal) }}</span>

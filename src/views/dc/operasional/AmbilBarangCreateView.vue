@@ -455,7 +455,7 @@ onMounted(() => {
         </div>
 
         <div class="table-container" style="height: 400px;">
-          <v-data-table :headers="headers" :items="items" class="desktop-table" density="compact" fixed-header
+          <v-data-table :headers="headers" :items="items" class="desktop-table header-browse-blue" density="compact" fixed-header
             :items-per-page="-1">
             <template v-slot:[`item.kode`]="{ item, index }">
               <v-text-field v-model="item.kode" variant="underlined" density="compact" hide-details

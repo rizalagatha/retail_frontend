@@ -341,7 +341,7 @@ watch(() => filters.kodeBarang, (newVal) => {
 
       <div class="table-container">
         <AppDataTable v-model="selected" v-model:expanded="expanded" :headers="masterHeaders" :items="masterData"
-          :loading="loading.master" item-value="Nomor" density="compact" class="desktop-table" fixed-header show-select
+          :loading="loading.master" item-value="Nomor" density="compact" class="desktop-table header-browse-blue" fixed-header show-select
           return-object show-expand @update:expanded="loadDetails">
           <template #[`item.Nomor`]="{ item }">
             <strong :style="{ color: getStatusColor(item.Ngedit) }">{{ item.Nomor }}</strong>

@@ -10,13 +10,18 @@ import * as XLSX from 'xlsx';
 import AppDataTable from '@/components/AppDataTable.vue';
 import { formatRupiah } from "@/utils/formatRupiah";
 
-const toast = useToast();
-const authStore = useAuthStore();
-const router = useRouter();
-const route = useRoute();
-const MENU_ID = '26';
+// Interface Header (Resize)
+interface DataTableHeader {
+  title: string;
+  key: string;
+  width?: number;
+  fixed?: boolean;
+  align?: 'start' | 'center' | 'end';
+  minWidth?: string | number;
+  maxWidth?: string | number;
+  sortable?: boolean;
+}
 
-// --- Interfaces ---
 interface SoHeader {
   Nomor: string;
   Tanggal: string;
@@ -40,6 +45,12 @@ interface SoDetail {
   TotalSO: number;
 }
 
+const toast = useToast();
+const authStore = useAuthStore();
+const router = useRouter();
+const route = useRoute();
+const MENU_ID = '26';
+
 // --- State ---
 const list = ref<SoHeader[]>([]);
 const details = ref<{ [key: string]: SoDetail[] }>({});
@@ -56,14 +67,10 @@ const filters = reactive({
   status: null as string | null,
 });
 
-// State untuk Dialog
 const isCloseDialogVisible = ref(false);
 const itemToClose = ref<SoHeader | null>(null);
 const closeReason = ref('');
-// const isConfirmDeleteVisible = ref(false);
-// const itemToDelete = ref<SoHeader | null>(null);
 
-// State untuk Filter Kustom
 const filterOptions = ref([
   { title: 'Nomor', value: 'Nomor' },
   { title: 'Penawaran', value: 'Penawaran' },
@@ -83,7 +90,7 @@ const filteredList = computed(() => {
     return list.value;
   }
   return list.value.filter(item => {
-    const itemValue = item[selectedFilterField.value];
+    const itemValue = item[selectedFilterField.value as keyof SoHeader];
     if (itemValue !== null && itemValue !== undefined) {
       return itemValue.toString().toLowerCase().includes(filterSearchValue.value.toLowerCase());
     }
@@ -91,30 +98,32 @@ const filteredList = computed(() => {
   });
 });
 
-const headers = [
-  { title: 'Nomor', key: 'Nomor', width: '180px', fixed: true },
-  { title: 'Tanggal', key: 'Tanggal', width: '120px' },
-  { title: 'Dateline', key: 'Dateline', width: '120px' },
-  { title: 'Penawaran', key: 'Penawaran', width: '180px' },
-  { title: 'TOP', key: 'Top', align: 'end' },
-  { title: 'Nominal', key: 'Nominal', align: 'end', width: '150px' },
-  { title: 'Diskon', key: 'Diskon', align: 'end' },
-  { title: 'DP', key: 'Dp', align: 'end' },
-  { title: 'Qty SO', key: 'QtySO', align: 'end' },
-  { title: 'Qty Inv', key: 'QtyInv', align: 'end' },
-  { title: 'Belum', key: 'Belum', align: 'end' },
-  { title: 'Status', key: 'Status', width: '150px' },
-  { title: 'Alasan Close', key: 'AlasanClose', width: '250px' },
-  { title: 'Status Kirim', key: 'StatusKirim', width: '150px' },
-  { title: 'Kd Customer', key: 'kdcus', width: '120px' },
-  { title: 'Nama Customer', key: 'Nama', width: '250px' },
-  { title: 'Alamat', key: 'Alamat', width: '600px' },
-  { title: 'Kota', key: 'Kota', width: '150px' },
-  { title: 'Level', key: 'Level', width: '150px' },
-  { title: 'Keterangan', key: 'Keterangan', width: '300px' },
-  { title: 'Aktif', key: 'Aktif', align: 'center' },
-  { title: 'Sales Counter', key: 'SC', width: '150px' },
-] as const;
+// --- Header Definisi (Resize) ---
+const headers = ref<DataTableHeader[]>([
+  { title: '', key: 'data-table-expand', width: 50, fixed: true },
+  { title: 'Nomor', key: 'Nomor', width: 180, fixed: true },
+  { title: 'Tanggal', key: 'Tanggal', width: 120 },
+  { title: 'Dateline', key: 'Dateline', width: 120 },
+  { title: 'Penawaran', key: 'Penawaran', width: 180 },
+  { title: 'TOP', key: 'Top', width: 80 },
+  { title: 'Nominal', key: 'Nominal', width: 150 },
+  { title: 'Diskon', key: 'Diskon', width: 120 },
+  { title: 'DP', key: 'Dp', width: 120 },
+  { title: 'Qty SO', key: 'QtySO', width: 100 },
+  { title: 'Qty Inv', key: 'QtyInv', width: 100 },
+  { title: 'Belum', key: 'Belum', width: 150 },
+  { title: 'Status', key: 'Status', width: 150 },
+  { title: 'Alasan Close', key: 'AlasanClose', width: 250 },
+  { title: 'Status Kirim', key: 'StatusKirim', width: 150 },
+  { title: 'Kd Customer', key: 'kdcus', width: 120 },
+  { title: 'Nama Customer', key: 'Nama', width: 250 },
+  { title: 'Alamat', key: 'Alamat', width: 600 },
+  { title: 'Kota', key: 'Kota', width: 150 },
+  { title: 'Level', key: 'Level', width: 150 },
+  { title: 'Keterangan', key: 'Keterangan', width: 300 },
+  { title: 'Aktif', key: 'Aktif', align: 'center', width: 80 },
+  { title: 'Sales Counter', key: 'SC', width: 150 },
+]);
 
 const detailHeaders = [
   { title: 'Nomor', key: 'Nomor', width: '120px' },
@@ -129,8 +138,41 @@ const detailHeaders = [
   { title: 'Belum Jadi Inv', key: 'BlmJadiInvoice', align: 'end', width: '120px' },
 ] as const;
 
-// --- Methods ---
+// --- Logic Resize Column ---
+const resizingColumn = ref<DataTableHeader | null>(null);
+const startX = ref(0);
+const startWidth = ref(0);
 
+const onResizeStart = (e: MouseEvent, column: DataTableHeader) => {
+  e.preventDefault();
+  e.stopPropagation();
+  resizingColumn.value = column;
+  startX.value = e.pageX;
+  startWidth.value = (typeof column.width === 'number' ? column.width : 100);
+  document.addEventListener('mousemove', onResizeMove);
+  document.addEventListener('mouseup', onResizeEnd);
+  document.body.style.cursor = 'col-resize';
+};
+
+const onResizeMove = (e: MouseEvent) => {
+  if (!resizingColumn.value) return;
+  const diff = e.pageX - startX.value;
+  resizingColumn.value.width = Math.max(50, startWidth.value + diff);
+};
+
+const onResizeEnd = () => {
+  resizingColumn.value = null;
+  document.removeEventListener('mousemove', onResizeMove);
+  document.removeEventListener('mouseup', onResizeEnd);
+  document.body.style.cursor = '';
+};
+
+// --- Logic Selected Row ---
+const handleRowClick = (_event: Event, { item }: { item: SoHeader }) => {
+  selected.value = [item];
+};
+
+// --- Methods ---
 const fetchCabangList = async () => {
   try {
     const response = await api.get('/so/lookup/cabang');
@@ -144,7 +186,7 @@ const fetchData = async () => {
   isLoading.value = true;
   try {
     const response = await api.get('/so', {
-      params: filters // <-- KIRIM SELURUH OBJEK FILTERS
+      params: filters
     });
     list.value = response.data;
   } catch {
@@ -165,7 +207,6 @@ const loadDetails = async (newlyExpandedItems: SoHeader[]) => {
     details.value[nomorToLoad] = response.data;
   } catch {
     toast.error(`Gagal memuat detail untuk ${nomorToLoad}`);
-    // Hapus dari daftar expanded jika gagal
     expanded.value = expanded.value.filter(nomor => nomor !== nomorToLoad);
   } finally {
     loadingDetails.value.delete(nomorToLoad);
@@ -184,90 +225,35 @@ const openCloseDialog = () => {
   isCloseDialogVisible.value = true;
 };
 
-// Di file: src/views/SoView.vue
-
 const submitClose = async () => {
   if (!itemToClose.value) return;
   try {
     await api.post('/so/close', {
       nomor: itemToClose.value.Nomor,
       alasan: closeReason.value,
-      user: authStore.user.kode, // Kirim data user untuk audit
+      user: authStore.user.kode,
     });
     toast.success('SO berhasil ditutup.');
     isCloseDialogVisible.value = false;
-
-    // Perbarui status item yang dipilih di frontend secara langsung
     const itemInList = list.value.find(item => item.Nomor === itemToClose.value.Nomor);
     if (itemInList) {
       itemInList.Status = 'DICLOSE';
       itemInList.AlasanClose = closeReason.value;
     }
-
     selected.value = [];
   } catch (error: unknown) {
-    if (error instanceof Error) {
-      toast.error(error.message || 'Gagal menutup SO.');
-    } else if (typeof error === 'object' && error !== null && 'response' in error) {
-      const e = error as { response?: { data?: { message?: string } } };
-      toast.error(e.response?.data?.message || 'Gagal menutup SO.');
-    } else {
-      toast.error('Gagal menutup SO.');
-    }
+    const e = error as { response?: { data?: { message?: string } } };
+    toast.error(e.response?.data?.message || 'Gagal menutup SO.');
   }
 };
 
-// const showDeleteConfirmation = () => {
-//   if (!isSingleSelected.value) return;
-//   const item = selected.value[0];
-
-//   // Validasi status di frontend untuk feedback cepat
-//   if (item.Status !== 'OPEN') {
-//     toast.warning(`SO dengan status "${item.Status}" tidak bisa dihapus.`);
-//     return;
-//   }
-
-//   itemToDelete.value = item;
-//   isConfirmDeleteVisible.value = true;
-// };
-
-// const executeDelete = async () => {
-//   if (!itemToDelete.value) return;
-//   try {
-//     await api.delete(`/so/${itemToDelete.value.Nomor}`);
-//     toast.success(`Surat Pesanan ${itemToDelete.value.Nomor} berhasil dihapus.`);
-//     fetchData();
-//     selected.value = [];
-//   } catch (error: unknown) {
-//     if (error instanceof Error) {
-//       toast.error(error.message || 'Gagal menghapus data.');
-//     } else if (typeof error === 'object' && error !== null && 'response' in error) {
-//       const e = error as { response?: { data?: { message?: string } } };
-//       toast.error(e.response?.data?.message || 'Gagal menghapus data.');
-//     } else {
-//       toast.error('Gagal menghapus data.');
-//     }
-//   } finally {
-//     isConfirmDeleteVisible.value = false;
-//     itemToDelete.value = null;
-//   }
-// };
-
 const getRowTextColor = (item: SoHeader) => {
-  // Prioritas utama adalah status pasif
-  if (item.Aktif === 'N') {
-    return 'text-grey'; // Abu-abu
-  }
-  // Logika pewarnaan berdasarkan Status dan StatusKirim
+  if (item.Aktif === 'N') return 'text-grey';
   switch (item.Status) {
-    case 'OPEN':
-      return 'text-red font-weight-bold'; // Merah
-    case 'PROSES':
-      return item.StatusKirim === 'SEBAGIAN' ? 'text-purple font-weight-bold' : 'text-blue font-weight-bold'; // Magenta / Biru
-    case 'JADI':
-      return 'text-green-darken-2 font-weight-bold'; // Hijau Tua
-    default:
-      return ''; // Warna default untuk 'CLOSE', 'DICLOSE'
+    case 'OPEN': return 'text-red font-weight-bold';
+    case 'PROSES': return item.StatusKirim === 'SEBAGIAN' ? 'text-purple font-weight-bold' : 'text-blue font-weight-bold';
+    case 'JADI': return 'text-green-darken-2 font-weight-bold';
+    default: return '';
   }
 };
 
@@ -277,8 +263,7 @@ const getStatusChip = (status: string) => {
     case 'PROSES': return { color: 'navy', text: 'Proses' };
     case 'JADI': return { color: 'olive', text: 'Jadi' };
     case 'CLOSE':
-    case 'DICLOSE':
-      return { color: 'grey-darken-1', text: 'Close' };
+    case 'DICLOSE': return { color: 'grey-darken-1', text: 'Close' };
     default: return { color: 'grey', text: status };
   }
 };
@@ -286,13 +271,10 @@ const getStatusChip = (status: string) => {
 const printData = () => {
   if (!isSingleSelected.value) return;
   const item = selected.value[0];
-
-  // Validasi dari Delphi
   if (item.Aktif === 'N') {
     toast.warning('No. Pesanan tersebut pasif. Tidak bisa dicetak.');
     return;
   }
-
   const url = router.resolve({
     name: 'Cetak Surat Pesanan',
     params: { nomor: item.Nomor }
@@ -306,24 +288,19 @@ const exportData = async (type: 'header' | 'detail') => {
     endDate: filters.endDate,
     cabang: filters.cabang,
   };
-
   try {
     if (type === 'header') {
       if (list.value.length === 0) return toast.warning('Tidak ada data header untuk diekspor.');
-
       toast.info('Membuat file Excel Header...');
       const worksheet = XLSX.utils.json_to_sheet(list.value);
       const workbook = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(workbook, worksheet, "SO Header");
       XLSX.writeFile(workbook, "Export_SO_Header.xlsx");
       toast.success('File Header berhasil dibuat.');
-
     } else if (type === 'detail') {
       toast.info('Mengambil data detail dari server...');
       const response = await api.get('/so/export-details', { params: exportFilters });
-
       if (response.data.length === 0) return toast.warning('Tidak ada data detail untuk diekspor.');
-
       toast.info('Membuat file Excel Detail...');
       const worksheet = XLSX.utils.json_to_sheet(response.data);
       const workbook = XLSX.utils.book_new();
@@ -336,27 +313,20 @@ const exportData = async (type: 'header' | 'detail') => {
   }
 };
 
-onMounted(async () => { // <-- Jadikan async
+onMounted(async () => {
   if (hasViewPermission.value) {
-    // 1. Baca query parameter dari URL
     const queryStartDate = route.query.startDate as string;
     const queryEndDate = route.query.endDate as string;
     const queryStatus = route.query.status as string;
-
-    // 2. Jika ada, timpa filter default
     if (queryStartDate && queryEndDate) {
       filters.startDate = queryStartDate;
       filters.endDate = queryEndDate;
     }
     if (queryStatus) {
-      filters.status = queryStatus; // <-- Simpan status
+      filters.status = queryStatus;
     }
-
-    // 3. Panggil load awal
     await fetchCabangList();
-    await fetchData(); // Panggil sekali setelah filter di-set
-
-    // 4. Aktifkan watch
+    await fetchData();
     isMounted.value = true;
   }
 });
@@ -372,22 +342,14 @@ watch(filters, () => {
   <PageLayout title="Surat Pesanan" desktop-mode icon="mdi-file-document-multiple-outline">
     <template #header-actions>
       <v-btn v-if="authStore.can(MENU_ID, 'insert')" size="small" color="primary" prepend-icon="mdi-plus"
-        @click="router.push('/transaksi/penjualan/surat-pesanan/new')">
-        Baru
-      </v-btn>
+        @click="router.push('/transaksi/penjualan/surat-pesanan/new')">Baru</v-btn>
       <v-btn v-if="authStore.can(MENU_ID, 'edit')" size="small" :disabled="!isSingleSelected" prepend-icon="mdi-pencil"
-        @click="router.push(`/transaksi/penjualan/surat-pesanan/ubah/${selected[0].Nomor}`)">
-        Ubah
-      </v-btn>
-      <!-- <v-btn v-if="authStore.can(MENU_ID, 'delete')" size="small" color="error" :disabled="!isSingleSelected"
-        prepend-icon="mdi-delete" @click="showDeleteConfirmation">Hapus</v-btn> -->
-      <v-btn v.if="authStore.can(MENU_ID, 'view')" size="small" color="green" :disabled="!isSingleSelected"
+        @click="router.push(`/transaksi/penjualan/surat-pesanan/ubah/${selected[0].Nomor}`)">Ubah</v-btn>
+      <v-btn v-if="authStore.can(MENU_ID, 'view')" size="small" color="green" :disabled="!isSingleSelected"
         prepend-icon="mdi-printer" @click="printData">Cetak</v-btn>
       <v-menu offset-y>
         <template v-slot:activator="{ props }">
-          <v-btn size="small" color="teal" prepend-icon="mdi-file-excel" v-bind="props">
-            Export
-          </v-btn>
+          <v-btn size="small" color="teal" prepend-icon="mdi-file-excel" v-bind="props">Export</v-btn>
         </template>
         <v-list density="compact">
           <v-list-item @click="exportData('header')">
@@ -434,27 +396,48 @@ watch(filters, () => {
         <div class="legend-group">
           <div class="legend-item"><v-icon color="red" size="small">mdi-circle-medium</v-icon>Open</div>
           <div class="legend-item"><v-icon color="blue" size="small">mdi-circle-medium</v-icon>Proses</div>
-          <div class="legend-item"><v-icon color="purple" size="small">mdi-circle-medium</v-icon>Kirim
-            Sebagian</div>
-          <div class="legend-item"><v-icon color="green-darken-2" size="small">mdi-circle-medium</v-icon>Jadi
-          </div>
+          <div class="legend-item"><v-icon color="purple" size="small">mdi-circle-medium</v-icon>Kirim Sebagian</div>
+          <div class="legend-item"><v-icon color="green-darken-2" size="small">mdi-circle-medium</v-icon>Jadi</div>
           <div class="legend-item"><v-icon color="grey" size="small">mdi-circle-medium</v-icon>Pasif</div>
         </div>
         <v-btn @click="fetchData" icon="mdi-refresh" variant="text" size="small" />
       </div>
 
       <div class="table-container">
-        <AppDataTable v-model="selected" :headers="headers" :items="filteredList" :loading="isLoading"
-          :item-class="getRowTextColor" item-value="Nomor" density="compact" class="desktop-table" fixed-header
-          show-select return-object show-expand @update:expanded="loadDetails">
-          <template v-for="header in headers" #[`item.${header.key}`]="{ item }" :key="header.key">
+        <AppDataTable v-model="selected" v-model:expanded="expanded" :headers="headers" :items="filteredList"
+          :loading="isLoading" :item-class="getRowTextColor" item-value="Nomor" density="compact"
+          class="desktop-table header-browse-blue" fixed-header show-select return-object show-expand
+          @update:expanded="loadDetails" @click:row="handleRowClick">
+          <template #headers="{ columns, isSorted, getSortIcon, toggleSort }">
+            <tr>
+              <template v-for="header in columns" :key="header.key">
+                <th
+                  :style="{ width: header.width + 'px', minWidth: header.width + 'px', maxWidth: header.width + 'px' }"
+                  class="resizable-header"
+                  :class="{ 'text-center': header.align === 'center', 'text-end': header.align === 'end' }"
+                  @click="toggleSort(header)">
+                  <div class="header-content">
+                    <span>{{ header.title }}</span>
+                    <v-icon v-if="isSorted(header)" size="small" class="ms-1">
+                      {{ getSortIcon(header) }}
+                    </v-icon>
+                  </div>
+                  <div class="resizer" @mousedown.stop="onResizeStart($event, header)" @click.stop></div>
+                </th>
+              </template>
+            </tr>
+          </template>
+
+          <template #[`item.data-table-expand`]="{ internalItem, toggleExpand, isExpanded }">
+            <v-btn icon="mdi-chevron-down" :class="{ 'rotate-180': isExpanded(internalItem) }" size="x-small"
+              variant="text" @click.stop="toggleExpand(internalItem)" />
+          </template>
+
+          <template v-for="header in headers.filter(h => h.key !== 'data-table-expand')"
+            #[`item.${header.key}`]="{ item }" :key="header.key">
             <td :class="getRowTextColor(item)">
               <template v-if="['Tanggal', 'Dateline'].includes(header.key)">
-                {{
-                  item[header.key]
-                    ? format(parseISO(item[header.key] as string), 'dd/MM/yyyy')
-                    : '-'
-                }}
+                {{ item[header.key] ? format(parseISO(item[header.key] as string), 'dd/MM/yyyy') : '-' }}
               </template>
               <template v-else-if="['Nominal', 'Diskon', 'Dp', 'QtySO', 'QtyInv', 'Belum'].includes(header.key)">
                 {{ formatRupiah(Number(item[header.key] || 0)) }}
@@ -482,27 +465,20 @@ watch(filters, () => {
 
           <template #expanded-row="{ columns, item }">
             <tr>
-              <td :colspan="columns.length">
+              <td :colspan="columns.length" class="pa-0">
                 <div class="detail-container">
                   <div class="detail-table-wrapper">
-                    <div v-if="loadingDetails.has(item.Nomor)" class="text-center py-2">Memuat
-                      detail...</div>
+                    <div v-if="loadingDetails.has(item.Nomor)" class="text-center py-2">Memuat detail...</div>
                     <v-data-table v-else-if="details[item.Nomor]" :headers="detailHeaders" :items="details[item.Nomor]"
-                      item-value="Kode" density="compact" class="detail-table" :items-per-page="-1">
-                      <template #[`item.Nomor`]="{ item: detailItem }">
-                        {{ detailItem.Nomor }}
-                      </template>
-                      <template #[`item.Harga`]="{ item: detailItem }">
-                        {{ formatRupiah(Number(detailItem.Harga || 0)) }}
-                      </template>
-                      <template #[`item.TotalSO`]="{ item: detailItem }">
-                        {{ formatRupiah(Number(detailItem.TotalSO || 0)) }}
-                      </template>
+                      item-value="Kode" density="compact" class="detail-table" :items-per-page="-1" hide-default-footer>
+                      <template #[`item.Nomor`]="{ item: detailItem }">{{ detailItem.Nomor }}</template>
+                      <template #[`item.Harga`]="{ item: detailItem }">{{ formatRupiah(Number(detailItem.Harga || 0))
+                        }}</template>
+                      <template #[`item.TotalSO`]="{ item: detailItem }">{{ formatRupiah(Number(detailItem.TotalSO ||
+                        0)) }}</template>
                       <template #bottom></template>
                     </v-data-table>
-                    <div v-else class="text-center text-caption py-2">
-                      Tidak ada data detail untuk nomor ini.
-                    </div>
+                    <div v-else class="text-center text-caption py-2">Tidak ada data detail untuk nomor ini.</div>
                   </div>
                 </div>
               </td>
@@ -512,25 +488,11 @@ watch(filters, () => {
       </div>
     </div>
 
-    <!-- <v-dialog v-model="isConfirmDeleteVisible" max-width="400px" persistent>
-      <v-card>
-        <v-card-title class="text-h6 font-weight-bold">Konfirmasi Hapus</v-card-title>
-        <v-card-text>Anda yakin ingin menghapus Surat Pesanan: <strong>{{ itemToDelete?.Nomor
-        }}</strong>?</v-card-text>
-        <v-card-actions>
-          <v-spacer></v-spacer>
-          <v-btn @click="isConfirmDeleteVisible = false">Batal</v-btn>
-          <v-btn color="error" @click="executeDelete">Ya, Hapus</v-btn>
-        </v-card-actions>
-      </v-card>
-    </v-dialog> -->
-
     <v-dialog v-model="isCloseDialogVisible" max-width="500px" persistent>
       <v-card>
         <v-card-title class="text-subtitle-1">Isi Alasan Close SO</v-card-title>
         <v-card-text class="pa-4">
-          <p class="text-caption mb-2">Anda akan menutup SO Nomor: <strong>{{ itemToClose?.Nomor }}</strong>
-          </p>
+          <p class="text-caption mb-2">Anda akan menutup SO Nomor: <strong>{{ itemToClose?.Nomor }}</strong></p>
           <v-textarea v-model="closeReason" label="Alasan" rows="3" variant="outlined" autofocus></v-textarea>
         </v-card-text>
         <v-card-actions>
@@ -544,201 +506,163 @@ watch(filters, () => {
 </template>
 
 <style scoped>
-/* Kelas-kelas ini sekarang akan memberi warna pada teks */
-.status-open {
+/* Layout Full Height */
+.browse-content {
+  display: flex;
+  flex-direction: column;
+  height: calc(100vh - 64px - 32px);
+  overflow: hidden;
+}
+
+.filter-section {
+  flex-shrink: 0;
+  padding: 8px;
+  border-bottom: 1px solid #e0e0e0;
+  background: white;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.table-container {
+  flex-grow: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* Table Style */
+.desktop-table {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.desktop-table :deep(.v-table__wrapper) {
+  flex-grow: 1;
+  height: 100% !important;
+  overflow-x: auto !important;
+  overflow-y: auto !important;
+}
+
+.desktop-table :deep(table) {
+  width: max-content;
+  min-width: 100%;
+}
+
+/* Header Resize */
+.resizable-header {
+  position: relative;
+  background-color: #e3f2fd !important;
+  color: #0d47a1 !important;
+  font-weight: 700 !important;
+  text-transform: uppercase;
+  font-size: 11px !important;
+  height: 40px !important;
+  border-bottom: 2px solid #1976d2 !important;
+  padding: 0 8px !important;
+  user-select: none;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.header-content {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  height: 100%;
+}
+
+.resizable-header.text-center .header-content {
+  justify-content: center;
+}
+
+.resizable-header.text-end .header-content {
+  justify-content: flex-end;
+}
+
+.resizer {
+  position: absolute;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  width: 5px;
+  cursor: col-resize;
+  z-index: 10;
+}
+
+.resizer:hover,
+.resizable-header:hover .resizer {
+  border-right: 2px solid #1565c0;
+}
+
+/* Detail Sticky */
+.detail-container {
+  position: sticky;
+  left: 0;
+  z-index: 2;
+  display: flex;
+  justify-content: flex-start;
+  align-items: flex-start;
+  background-color: #fafafa;
+  padding: 16px 16px 16px 64px;
+  border-bottom: 1px solid #e0e0e0;
+  width: fit-content;
+  min-width: 100%;
+  box-sizing: border-box;
+}
+
+.detail-table-wrapper {
+  width: 100%;
+  max-width: 800px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  overflow: hidden;
+  background-color: white;
+}
+
+/* Pewarnaan Teks Baris (TD) */
+:deep(td.text-red) {
   color: red !important;
 }
 
-.status-proses {
-  color: navy !important;
+:deep(td.text-blue) {
+  color: blue !important;
 }
 
-.status-proses-sebagian {
-  color: fuchsia !important;
+:deep(td.text-purple) {
+  color: purple !important;
 }
 
-.status-jadi {
-  color: olive !important;
+:deep(td.text-green-darken-2) {
+  color: #388E3C !important;
 }
 
-/* Styling untuk legend box */
+/* Green Darken 2 */
+:deep(td.text-grey) {
+  color: grey !important;
+}
+
+.state-container {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+}
+
 .legend-group {
   display: flex;
-  gap: 1rem;
-  font-size: 10px;
   align-items: center;
+  gap: 8px;
+  font-size: 11px;
 }
 
 .legend-item {
   display: flex;
   align-items: center;
-  gap: 4px;
-}
-
-.color-box {
-  width: 12px;
-  height: 12px;
-  border: 1px solid #ccc;
-}
-
-.detail-table .v-data-table__td {
-  white-space: nowrap;
-  /* Mencegah teks wrapping */
-  overflow: hidden;
-  /* Menyembunyikan overflow */
-  text-overflow: ellipsis;
-  /* Menambahkan elipsis jika teks terpotong */
-  padding-inline: 4px !important;
-  /* Kurangi padding horizontal */
-}
-
-/* Override lebar header kolom */
-.detail-table .v-data-table__th {
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  padding-inline: 4px !important;
-  /* Kurangi padding horizontal */
-  font-size: 0.75rem !important;
-  /* Kecilkan ukuran font header */
-}
-
-/* Paksa lebar kolom pada thead dan tbody */
-.detail-table table>thead>tr>th:nth-child(1),
-.detail-table table>tbody>tr>td:nth-child(1) {
-  width: 120px;
-  min-width: 120px;
-  max-width: 120px;
-}
-
-/* Nomor */
-.detail-table table>thead>tr>th:nth-child(2),
-.detail-table table>tbody>tr>td:nth-child(2) {
-  width: 120px;
-  min-width: 120px;
-  max-width: 120px;
-}
-
-/* Barcode */
-.detail-table table>thead>tr>th:nth-child(3),
-.detail-table table>tbody>tr>td:nth-child(3) {
-  width: 100px;
-  min-width: 100px;
-  max-width: 100px;
-}
-
-/* Kode */
-.detail-table table>thead>tr>th:nth-child(4),
-.detail-table table>tbody>tr>td:nth-child(4) {
-  width: 200px;
-  min-width: 200px;
-  max-width: 200px;
-}
-
-/* Nama Barang */
-.detail-table table>thead>tr>th:nth-child(5),
-.detail-table table>tbody>tr>td:nth-child(5) {
-  width: 70px;
-  min-width: 70px;
-  max-width: 70px;
-}
-
-/* Ukuran */
-.detail-table table>thead>tr>th:nth-child(6),
-.detail-table table>tbody>tr>td:nth-child(6) {
-  width: 80px;
-  min-width: 80px;
-  max-width: 80px;
-}
-
-/* Qty SO */
-.detail-table table>thead>tr>th:nth-child(7),
-.detail-table table>tbody>tr>td:nth-child(7) {
-  width: 100px;
-  min-width: 100px;
-  max-width: 100px;
-}
-
-/* Harga */
-.detail-table table>thead>tr>th:nth-child(8),
-.detail-table table>tbody>tr>td:nth-child(8) {
-  width: 120px;
-  min-width: 120px;
-  max-width: 120px;
-}
-
-/* Total SO */
-.detail-table table>thead>tr>th:nth-child(9),
-.detail-table table>tbody>tr>td:nth-child(9) {
-  width: 100px;
-  min-width: 100px;
-  max-width: 100px;
-}
-
-/* Qty Invoice */
-.detail-table table>thead>tr>th:nth-child(10),
-.detail-table table>tbody>tr>td:nth-child(10) {
-  width: 120px;
-  min-width: 120px;
-  max-width: 120px;
-}
-
-/* Belum Jadi Inv */
-.v-data-table.detail-table {
-  max-width: fit-content;
-  margin-inline: auto;
-  background-color: transparent !important;
-}
-
-.table-container {
-  position: relative;
-  border: 1px solid #e0e0e0;
-  border-radius: 4px;
-  overflow: hidden;
-}
-
-/* Wrapper untuk table dengan sticky scrollbar */
-:deep(.desktop-table .v-table__wrapper) {
-  overflow-x: auto;
-  overflow-y: auto;
-  max-height: calc(100vh - 280px);
-}
-
-/* Sticky horizontal scrollbar */
-:deep(.desktop-table .v-table__wrapper)::-webkit-scrollbar {
-  height: 12px;
-}
-
-:deep(.desktop-table .v-table__wrapper)::-webkit-scrollbar-track {
-  background: #f1f1f1;
-}
-
-:deep(.desktop-table .v-table__wrapper)::-webkit-scrollbar-thumb {
-  background: #888;
-  border-radius: 6px;
-}
-
-:deep(.desktop-table .v-table__wrapper)::-webkit-scrollbar-thumb:hover {
-  background: #555;
-}
-
-:deep(.desktop-table thead th) {
-  position: sticky;
-  top: 0;
-  z-index: 10;
-  background-color: white;
-}
-
-/* Alternatif: Sticky scrollbar menggunakan wrapper tambahan */
-.table-container::after {
-  content: '';
-  position: sticky;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  height: 12px;
-  background: transparent;
-  pointer-events: none;
-  z-index: 12;
+  gap: 2px;
 }
 </style>

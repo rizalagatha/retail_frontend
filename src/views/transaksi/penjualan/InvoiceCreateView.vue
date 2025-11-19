@@ -270,7 +270,7 @@ const tableHeaders = [
   { title: 'Diskon Rp', key: 'diskonRp', align: 'end', width: '80px' },
   { title: 'Total', key: 'total', align: 'end', width: '90px' },
   { title: 'Barcode', key: 'barcode', width: '90px' },
-  { title: 'No. SO DTF', key: 'noSoDtf', width: '120px' },
+  { title: 'SO DTF', key: 'noSoDtf', width: '120px' },
   { title: 'Kategori', key: 'kategori', width: '90px' },
   { title: 'Promo', key: 'terhitungPromo', align: 'center', width: '70px' },
   { title: 'Actions', key: 'actions', sortable: false, width: '50px' },
@@ -1712,7 +1712,7 @@ onMounted(() => {
 
         <div class="scrollable-table-wrapper">
           <div class="desktop-form-section table-section">
-            <v-data-table :headers="tableHeaders" :items="items" class="desktop-table" :items-per-page="-1" fixed-header
+            <v-data-table :headers="tableHeaders" :items="items" class="desktop-table header-browse-blue" :items-per-page="-1" fixed-header
               height="calc(100vh - 420px)">
               <template v-slot:[`item.kode`]="{ item, index }">
                 <v-text-field v-model="item.kode" variant="underlined" density="compact" hide-details

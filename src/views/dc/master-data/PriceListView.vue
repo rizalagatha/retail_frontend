@@ -225,7 +225,7 @@ watch(filters, fetchMasterData, { deep: true });
       </div>
 
       <div class="table-container">
-        <v-data-table v-model="selected" :headers="headers" :items="masterData" :loading="loading" class="desktop-table"
+        <v-data-table v-model="selected" :headers="headers" :items="masterData" :loading="loading" class="desktop-table header-browse-blue"
           density="compact" fixed-header show-select single-select return-object show-expand item-value="kode"
           @update:expanded="loadDetails">
           <template #expanded-row="{ columns, item }">
@@ -257,7 +257,7 @@ watch(filters, fetchMasterData, { deep: true });
           <v-btn icon="mdi-close" @click="isUpdateModalVisible = false" />
         </v-toolbar>
         <v-card-text>
-          <v-data-table :headers="updateModalHeaders" :items="variantsToUpdate" class="desktop-table"
+          <v-data-table :headers="updateModalHeaders" :items="variantsToUpdate" class="desktop-table header-browse-blue"
             :items-per-page="-1">
             <template #[`item.hpp`]="{ item }">
               <v-text-field v-model.number="item.hpp" type="number" variant="underlined" density="compact" hide-details

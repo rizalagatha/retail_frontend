@@ -51,7 +51,7 @@ const requestRemoveDp = (item: DpItem) => {
       </v-toolbar>
       <v-card-text class="pa-0">
 
-        <v-data-table :headers="dpTableHeaders" :items="props.dpItems" density="compact" class="desktop-table"
+        <v-data-table :headers="dpTableHeaders" :items="props.dpItems" density="compact" class="desktop-table header-browse-blue"
           :items-per-page="-1" fixed-header>
           <template #[`item.nomor`]="{ item }">
             <v-text-field :model-value="item.nomor" variant="underlined" density="compact" hide-details readonly

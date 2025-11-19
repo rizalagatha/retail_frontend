@@ -13,6 +13,17 @@ const authStore = useAuthStore();
 const router = useRouter();
 const MENU_ID = '38';
 
+interface DataTableHeader {
+  title: string;
+  key: string;
+  width?: number;
+  fixed?: boolean;
+  align?: 'start' | 'center' | 'end';
+  minWidth?: string | number;
+  maxWidth?: string | number;
+  sortable?: boolean;
+}
+
 interface PriceProposal {
   nomor: string;
   tanggal: string;
@@ -50,16 +61,51 @@ const hasViewPermission = ref(false);
 const dialogDelete = ref(false);
 const itemToDelete = ref<PriceProposal | null>(null);
 
-const tableHeaders = [
-  { title: 'Nomor', key: 'nomor' },
-  { title: 'Tanggal', key: 'tanggal' },
-  { title: 'Customer', key: 'customer' },
-  { title: 'Jenis Kaos', key: 'jenisKaos' },
-  { title: 'Keterangan', key: 'keterangan' },
-  { title: 'Approval', key: 'approval' },
-  { title: 'Cabang', key: 'cabang' },
-  { title: 'User', key: 'created' },
-];
+const tableHeaders = ref<DataTableHeader[]>([
+  { title: 'Nomor', key: 'nomor', width: 150, fixed: true },
+  { title: 'Tanggal', key: 'tanggal', width: 120 },
+  { title: 'Customer', key: 'customer', width: 250 },
+  { title: 'Jenis Kaos', key: 'jenisKaos', width: 200 },
+  { title: 'Keterangan', key: 'keterangan', width: 300 },
+  { title: 'Approval', key: 'approval', width: 120 },
+  { title: 'Cabang', key: 'cabang', width: 120 },
+  { title: 'User', key: 'created', width: 120 },
+]);
+
+// --- Logic Resize Column ---
+const resizingColumn = ref<DataTableHeader | null>(null);
+const startX = ref(0);
+const startWidth = ref(0);
+
+const onResizeStart = (e: MouseEvent, column: DataTableHeader) => {
+  e.preventDefault();
+  e.stopPropagation();
+  resizingColumn.value = column;
+  startX.value = e.pageX;
+  startWidth.value = (typeof column.width === 'number' ? column.width : 100);
+
+  document.addEventListener('mousemove', onResizeMove);
+  document.addEventListener('mouseup', onResizeEnd);
+  document.body.style.cursor = 'col-resize';
+};
+
+const onResizeMove = (e: MouseEvent) => {
+  if (!resizingColumn.value) return;
+  const diff = e.pageX - startX.value;
+  resizingColumn.value.width = Math.max(50, startWidth.value + diff);
+};
+
+const onResizeEnd = () => {
+  resizingColumn.value = null;
+  document.removeEventListener('mousemove', onResizeMove);
+  document.removeEventListener('mouseup', onResizeEnd);
+  document.body.style.cursor = '';
+};
+
+// --- Logic Selected Row ---
+const handleRowClick = (_event: Event, { item }: { item: PriceProposal }) => {
+  selected.value = [item];
+};
 
 const isSingleSelected = computed(() => selected.value.length === 1);
 const filteredProposals = computed(() => {
@@ -222,30 +268,54 @@ watch([selectedCabang, belumApproval, startDate, endDate], () => {
       </div>
 
       <!-- Table Section -->
-      <AppDataTable v-model="selected" :headers="tableHeaders" :items="filteredProposals" :loading="isLoading"
-        item-value="nomor" density="compact" class="desktop-table" fixed-header show-select return-object>
-        <template v-for="header in tableHeaders" #[`item.${header.key}`]="{ item }" :key="header.key">
-          <td :class="getRowTextColor(item)">
-            <template v-if="header.key === 'tanggal'">
-              {{ format(new Date(item.tanggal), 'dd/MM/yyyy') }}
-            </template>
-            <template v-else-if="header.key === 'approval'">
-              <v-chip :color="item.approval ? 'success' : 'grey'" variant="tonal" size="x-small">
-                {{ item.approval || 'Belum' }}
-              </v-chip>
-            </template>
-            <template v-else>
-              {{ item[header.key] }}
-            </template>
-          </td>
-        </template>
-      </AppDataTable>
+      <div class="table-container">
+        <AppDataTable v-model="selected" :headers="tableHeaders" :items="filteredProposals" :loading="isLoading"
+          item-value="nomor" density="compact" class="desktop-table header-browse-blue" fixed-header show-select
+          return-object @click:row="handleRowClick">
+          <template #headers="{ columns, isSorted, getSortIcon, toggleSort }">
+            <tr>
+              <template v-for="header in columns" :key="header.key">
+                <th
+                  :style="{ width: header.width + 'px', minWidth: header.width + 'px', maxWidth: header.width + 'px' }"
+                  class="resizable-header"
+                  :class="{ 'text-center': header.align === 'center', 'text-end': header.align === 'end' }"
+                  @click="toggleSort(header)">
+                  <div class="header-content">
+                    <span>{{ header.title }}</span>
+                    <v-icon v-if="isSorted(header)" size="small" class="ms-1">
+                      {{ getSortIcon(header) }}
+                    </v-icon>
+                  </div>
+                  <div class="resizer" @mousedown.stop="onResizeStart($event, header)" @click.stop></div>
+                </th>
+              </template>
+            </tr>
+          </template>
+
+          <template v-for="header in tableHeaders" #[`item.${header.key}`]="{ item }" :key="header.key">
+            <td :class="getRowTextColor(item)">
+              <template v-if="header.key === 'tanggal'">
+                {{ format(new Date(item.tanggal), 'dd/MM/yyyy') }}
+              </template>
+              <template v-else-if="header.key === 'approval'">
+                <v-chip :color="item.approval ? 'success' : 'grey'" variant="tonal" size="x-small">
+                  {{ item.approval || 'Belum' }}
+                </v-chip>
+              </template>
+              <template v-else>
+                {{ item[header.key] }}
+              </template>
+            </td>
+          </template>
+        </AppDataTable>
+      </div>
     </div>
 
     <v-dialog v-model="dialogDelete" max-width="500px">
       <v-card>
         <v-card-title class="text-h5">Konfirmasi Hapus</v-card-title>
-        <v-card-text>Apakah Anda yakin ingin menghapus pengajuan harga nomor <strong>{{ itemToDelete?.nomor }}</strong>?</v-card-text>
+        <v-card-text>Apakah Anda yakin ingin menghapus pengajuan harga nomor <strong>{{ itemToDelete?.nomor
+            }}</strong>?</v-card-text>
         <v-card-actions>
           <v-spacer></v-spacer>
           <v-btn variant="text" @click="dialogDelete = false">Batal</v-btn>
@@ -260,5 +330,94 @@ watch([selectedCabang, belumApproval, startDate, endDate], () => {
 <style scoped>
 :deep(.compact-select-list .v-list-item-title) {
   font-size: 11px !important;
+}
+
+/* Layout Utama Full Height */
+.browse-content {
+  display: flex;
+  flex-direction: column;
+  height: calc(100vh - 64px - 32px);
+  overflow: hidden;
+}
+
+.filter-section {
+  flex-shrink: 0;
+  padding: 8px;
+  border-bottom: 1px solid #e0e0e0;
+  background: white;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.table-container {
+  flex-grow: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* Table Full Height & Scrollbar */
+.desktop-table {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.desktop-table :deep(.v-table__wrapper) {
+  flex-grow: 1;
+  height: 100% !important;
+  overflow-x: auto !important;
+  overflow-y: auto !important;
+}
+
+.desktop-table :deep(table) {
+  width: max-content;
+  min-width: 100%;
+}
+
+/* Header Resize */
+.resizable-header {
+  position: relative;
+  background-color: #e3f2fd !important;
+  color: #0d47a1 !important;
+  font-weight: 700 !important;
+  text-transform: uppercase;
+  font-size: 11px !important;
+  height: 40px !important;
+  border-bottom: 2px solid #1976d2 !important;
+  padding: 0 8px !important;
+  user-select: none;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.header-content {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  height: 100%;
+}
+
+.resizer {
+  position: absolute;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  width: 5px;
+  cursor: col-resize;
+  z-index: 10;
+}
+
+.resizer:hover,
+.resizable-header:hover .resizer {
+  border-right: 2px solid #1565c0;
+}
+
+/* Pewarnaan Baris (Langsung Target TD) */
+:deep(td.text-red) {
+  color: #d32f2f !important;
 }
 </style>

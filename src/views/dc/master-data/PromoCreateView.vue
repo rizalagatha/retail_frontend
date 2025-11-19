@@ -482,7 +482,7 @@ watch(applicableItems, () => {
             <div class="top-row">
               <div class="desktop-form-section fill-height">
                 <div class="text-subtitle-1 font-weight-bold mb-2">Cabang Berlaku</div>
-                <v-data-table :headers="cabangHeaders" :items="cabangList" class="desktop-table" :items-per-page="-1"
+                <v-data-table :headers="cabangHeaders" :items="cabangList" class="desktop-table header-browse-blue" :items-per-page="-1"
                   density="compact" fixed-header>
                   <template #[`item.berlaku`]="{ item }">
                     <v-checkbox-btn v-model="item.berlaku" hide-details />
@@ -492,7 +492,7 @@ watch(applicableItems, () => {
               </div>
               <div class="desktop-form-section fill-height">
                 <div class="text-subtitle-1 font-weight-bold mb-2">Level Berlaku</div>
-                <v-data-table :headers="levelHeaders" :items="levelList" class="desktop-table" :items-per-page="-1"
+                <v-data-table :headers="levelHeaders" :items="levelList" class="desktop-table header-browse-blue" :items-per-page="-1"
                   density="compact" fixed-header>
                   <template #[`item.berlaku`]="{ item }">
                     <v-checkbox-btn v-model="item.berlaku" hide-details />

@@ -213,7 +213,7 @@ watch(filters, fetchMasterData, { deep: true });
 
       <div class="table-container">
         <AppDataTable v-model="selected" v-model:expanded="expanded" :headers="headers" :items="masterData"
-          :loading="loading" class="desktop-table" density="compact" fixed-header item-value="kode" show-expand
+          :loading="loading" class="desktop-table header-browse-blue" density="compact" fixed-header item-value="kode" show-expand
           show-select :return-object="true" single-select @update:expanded="loadDetails">
           <template v-for="header in headers" :key="header.key" #[`item.${header.key}`]="{ item }">
             <td :class="getRowTextColor(item)">

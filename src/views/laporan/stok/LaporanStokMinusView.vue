@@ -138,7 +138,7 @@ watch(filters, fetchData, { deep: true });
 
       <div class="table-wrapper">
         <AppDataTable :headers="tableHeaders" :items="items" :loading="isLoading" density="compact"
-          class="desktop-table" :items-per-page="-1" :height="'auto'">
+          class="desktop-table header-browse-blue" :items-per-page="-1" :height="'auto'">
           <template #[`item.stok`]="{ item }">
             <span class="text-red font-weight-bold">
               {{ item.stok }}

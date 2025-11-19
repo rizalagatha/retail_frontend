@@ -574,7 +574,7 @@ watch([filters, activeTab], fetchData, { deep: true });
         <v-window v-model="activeTab">
           <!-- Tab Daily -->
           <v-window-item value="daily">
-            <AppDataTable :headers="headersDaily" :items="dailyData" :loading="isLoading" class="desktop-table"
+            <AppDataTable :headers="headersDaily" :items="dailyData" :loading="isLoading" class="desktop-table header-browse-blue"
               density="compact" height="500" fixed-header :items-per-page="-1">
               <template v-slot:[`item.no`]="{ index }">
                 {{ index + 1 }}
@@ -684,7 +684,7 @@ watch([filters, activeTab], fetchData, { deep: true });
 
           <!-- Tab Monthly -->
           <v-window-item value="monthly">
-            <AppDataTable :headers="headersMonthly" :items="monthlyData" :loading="isLoading" class="desktop-table"
+            <AppDataTable :headers="headersMonthly" :items="monthlyData" :loading="isLoading" class="desktop-table header-browse-blue"
               density="compact" fixed-header :items-per-page="-1">
               <template v-for="col in ['nominal', 'target']" :key="col" v-slot:[`item.${col}`]="{ item }">
                 <td class="text-end">{{ rupiah(item[col]) }}</td>
@@ -713,7 +713,7 @@ watch([filters, activeTab], fetchData, { deep: true });
 
           <!-- Tab Year to Date -->
           <v-window-item value="ytd">
-            <AppDataTable :headers="headersYtd" :items="ytdData" :loading="isLoading" class="desktop-table"
+            <AppDataTable :headers="headersYtd" :items="ytdData" :loading="isLoading" class="desktop-table header-browse-blue"
               density="compact" fixed-header :items-per-page="-1">
               <template v-slot:[`item.no`]="{ index }">
                 {{ index + 1 }}

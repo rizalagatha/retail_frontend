@@ -69,7 +69,7 @@ onMounted(loadItems);
 
                 <div class="table-container">
                     <v-data-table :headers="headers" :items="filteredItems" :loading="loading" density="compact"
-                        class="desktop-table" fixed-header hover :items-per-page="-1"
+                        class="desktop-table header-browse-blue" fixed-header hover :items-per-page="-1"
                         @click:row="(_, { item }) => selectItem(item)">
                         <template #[`item.nominal`]="{ value }">
                             {{ formatRupiah(value) }}

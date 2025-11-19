@@ -556,7 +556,7 @@ onMounted(() => {
         </div>
 
         <div class="desktop-form-section flex-grow-1 d-flex flex-column">
-          <v-data-table :headers="tableHeaders" :items="items" density="compact" class="desktop-table" fixed-header
+          <v-data-table :headers="tableHeaders" :items="items" density="compact" class="desktop-table header-browse-blue" fixed-header
             height="100%" :items-per-page="-1" no-data-text="Scan barcode atau cari kode (F1) untuk menambah item.">
             <template #[`item.no`]="{ index }">
               {{ index + 1 }}

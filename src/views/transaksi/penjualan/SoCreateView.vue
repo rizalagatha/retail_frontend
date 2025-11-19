@@ -1685,7 +1685,7 @@ const stopAndOpenPriceProposal = (index: number) => {
         <div class="scrollable-content">
           <div class="desktop-form-section main-grid-section">
             <v-data-table :headers="mainTableHeaders" :items="items" :page="page" :items-per-page="rowsPerPage"
-              :item-key="'id'" class="desktop-table vertically-aligned-table" fixed-header height="calc(100vh - 480px)"
+              :item-key="'id'" class="desktop-table vertically-aligned-table" fixed-header
               :item-class="item => item.isCustomOrder ? 'custom-row' : ''">
               <template #[`item.kode`]="{ item, index }">
                 <div class="d-flex align-center">
@@ -1926,12 +1926,12 @@ const stopAndOpenPriceProposal = (index: number) => {
 }
 
 .scrollable-content {
-  flex-grow: 1;
+  flex: 1 1 auto;
   min-height: 0;
-  overflow: hidden;
-  /* UBAH dari overflow-x: auto */
   display: flex;
   flex-direction: column;
+  overflow-y: auto;     /* scroll disini */
+  overflow-x: hidden;
 }
 
 .header-section {
@@ -1957,16 +1957,14 @@ const stopAndOpenPriceProposal = (index: number) => {
 }
 
 .desktop-table {
-  width: 100%;
-  height: 100%;
-  flex-grow: 1;
+  flex: 1 1 auto;
+  min-height: 0;
 }
 
 /* PENTING: Biarkan VDataTable wrapper yang handle SEMUA scrolling */
 .desktop-table :deep(.v-table__wrapper) {
   overflow-x: auto !important;
   overflow-y: auto !important;
-  max-height: calc(100vh - 480px) !important;
   /* Sama dengan height v-data-table */
 }
 
@@ -2017,17 +2015,45 @@ const stopAndOpenPriceProposal = (index: number) => {
 }
 
 .so-sticky-footer {
-  display: grid;
-  grid-template-columns: 1fr 0.7fr 1fr 1fr;
-  /* spacing kolom */
-  align-items: center;
-  padding: 8px 16px;
-  border-top: 2px solid #1976d2;
-  font-size: 15px;
-  background: #fff;
   position: sticky;
   bottom: 0;
-  z-index: 10;
+
+  display: grid;
+  grid-template-columns: 1fr 0.7fr 1fr 1fr;
+  align-items: center;
+
+  background: #fff;
+  padding: 10px 16px;
+  border-top: 2px solid #1976d2;
+
+  z-index: 105; /* lebih tinggi dari table scroll */
+  min-height: 48px;
+
+  /* cegah mengecil ketika tabel kecil */
+  flex-shrink: 0;
+
+  /* full width ALWAYS */
+  width: 100%;
+  box-sizing: border-box;
+
+  /* cegah ikut scroll horizontal */
+  position: sticky;
+  left: 0;
+}
+
+.so-sticky-footer .footer-col {
+  padding: 4px 8px;
+  font-size: 14px;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.so-sticky-footer,
+.footer-summary-section {
+  position: sticky;
+  bottom: 0;
+  background: #fff;
+  z-index: 100;
 }
 
 .footer-col {
@@ -2060,6 +2086,7 @@ const stopAndOpenPriceProposal = (index: number) => {
 }
 
 .footer-summary-section {
+  position: sticky;
   flex-shrink: 0;
   padding: 8px 12px;
   border: 1px solid #e0e0e0;

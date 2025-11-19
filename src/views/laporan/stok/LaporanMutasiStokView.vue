@@ -325,7 +325,7 @@ watch(filters, () => {
       </div>
 
       <div class="table-container">
-        <AppDataTable :headers="headers" :items="masterData" :loading="isLoading" class="desktop-table"
+        <AppDataTable :headers="headers" :items="masterData" :loading="isLoading" class="desktop-table header-browse-blue"
           density="compact" fixed-header show-expand return-object item-value="kode" @update:expanded="loadDetails">
           <template #expanded-row="{ columns, item }">
             <tr>

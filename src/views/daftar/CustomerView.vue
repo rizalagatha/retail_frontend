@@ -275,7 +275,7 @@ onMounted(() => {
 
       <!-- Table Section -->
       <AppDataTable v-model="selected" :headers="headers" :items="customers" :search="search" :loading="isLoading"
-        :item-value="getItemKey" density="compact" class="desktop-table" fixed-header show-select return-object>
+        :item-value="getItemKey" density="compact" class="desktop-table header-browse-blue" fixed-header show-select return-object>
         <template #[`item.status`]="{ item }">
           <v-chip :color="item.status === 'AKTIF' ? 'success' : 'error'" size="x-small" variant="tonal">
             {{ item.status }}

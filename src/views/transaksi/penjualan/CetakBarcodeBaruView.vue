@@ -36,7 +36,7 @@ const barcodeSheets = computed(() => {
 const fetchPrintData = async (nomor: string) => {
   isLoading.value = true;
   try {
-    const response = await api.get(`/pengajuan-barcode-form/print-barcode/${nomor}`);
+    const response = await api.get(`/pengajuan-barcode-form/print-a4/${nomor}`);
     itemsToPrint.value = response.data;
     document.title = `Cetak Barcode - ${nomor}`;
   } catch {

@@ -110,8 +110,9 @@ onMounted(fetchData);
 
     <div class="browse-content">
       <div class="table-container">
-        <AppDataTable v-model="selected" :headers="headers" :items="items" :loading="isLoading" class="desktop-table"
-          density="compact" fixed-header item-value="tanggal" return-object single-select>
+        <AppDataTable v-model="selected" :headers="headers" :items="items" :loading="isLoading"
+          class="desktop-table header-browse-blue" density="compact" fixed-header item-value="tanggal" return-object
+          single-select>
           <template #[`item.tanggal`]="{ item }">
             {{ format(parseISO(item.tanggal), 'dd MMMM yyyy') }}
           </template>

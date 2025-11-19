@@ -42,7 +42,7 @@ const formatTanggal = (tanggal?: string) => {
       </v-toolbar>
 
       <v-card-text class="pa-4">
-        <v-data-table :headers="headers" :items="props.dps" density="compact" class="desktop-table" :items-per-page="-1"
+        <v-data-table :headers="headers" :items="props.dps" density="compact" class="desktop-table header-browse-blue" :items-per-page="-1"
           hide-default-footer>
           <template v-for="header in headers" #[`item.${header.key}`]="{ item }">
             <template v-if="header.key === 'nominal'">

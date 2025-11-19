@@ -204,7 +204,7 @@ onMounted(() => {
 
       <!-- Table Section -->
       <AppDataTable v-model="selected" :headers="headers" :items="members" :search="search" :loading="isLoading"
-        item-value="hp" density="compact" class="desktop-table" fixed-header show-select return-object>
+        item-value="hp" density="compact" class="desktop-table header-browse-blue" fixed-header show-select return-object>
         <template #[`item.actions`]="{ item }">
           <v-icon v-if="authStore.can(MENU_ID, 'edit')" size="small" class="me-2"
             @click="openEditDialog(item)">mdi-pencil</v-icon>

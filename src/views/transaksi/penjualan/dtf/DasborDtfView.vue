@@ -1,16 +1,28 @@
 <script setup lang="ts">
 import { ref, onMounted, computed, watch } from 'vue';
-import type { DataTableHeader } from 'vuetify';
 import api from '@/services/api';
 import PageLayout from '@/components/PageLayout.vue';
 import { useToast } from 'vue-toastification';
 import { useAuthStore } from '@/stores/authStore';
 import { format, subDays, addDays, parseISO } from 'date-fns';
 import * as XLSX from 'xlsx';
+import AppDataTable from '@/components/AppDataTable.vue';
 
 const toast = useToast();
 const authStore = useAuthStore();
 const MENU_ID = '40';
+
+// --- Interfaces ---
+interface DataTableHeader {
+  title: string;
+  key: string;
+  width?: number;
+  fixed?: boolean;
+  align?: 'start' | 'center' | 'end';
+  minWidth?: string | number;
+  maxWidth?: string | number;
+  sortable?: boolean;
+}
 
 interface DasborItem {
   TglPengerjaan: string;
@@ -21,11 +33,6 @@ interface DasborItem {
 interface DetailItem {
   SoDTF: string;
   [key: string]: unknown;
-}
-
-interface MyHeader extends DataTableHeader {
-  width?: string;
-  align?: 'start' | 'center' | 'end';
 }
 
 // --- State ---
@@ -39,32 +46,62 @@ const selectedCabang = ref(authStore.user?.cabang || '');
 const expanded = ref<string[]>([]);
 const loadingDetails = ref<Set<string>>(new Set());
 
-// --- Computed ---
 const hasViewPermission = computed(() => authStore.can(MENU_ID, 'view'));
 
-const headers: MyHeader[] = [
-  { title: 'Tgl Pengerjaan', key: 'TglPengerjaan', width: '200px' },
-  { title: 'Kuota', key: 'Kuota', align: 'end' },
-  { title: 'Total Titik', key: 'TotalTitik', align: 'end' },
-  { title: 'Sisa', key: 'Sisa', align: 'end' },
-];
+// --- Header Definisi (Resize) ---
+// Perhatikan width angka agar tabel lebih rapat ke kiri
+const headers = ref<DataTableHeader[]>([
+  { title: '', key: 'data-table-expand', width: 50, fixed: true },
+  { title: 'Tgl Pengerjaan', key: 'TglPengerjaan', width: 150, align: 'start' },
+  { title: 'Kuota', key: 'Kuota', width: 100, align: 'end' },
+  { title: 'Total Titik', key: 'TotalTitik', width: 100, align: 'end' },
+  { title: 'Sisa', key: 'Sisa', width: 100, align: 'end' },
+]);
 
-const detailHeaders: MyHeader[] = [
-  { title: 'SoDTF', key: 'SoDTF', width: '200px' },
-  { title: 'TglPengerjaan', key: 'TglPengerjaan', width: '120px' },
-  { title: 'Nama', key: 'Nama', width: '300px' },
-  { title: 'Jumlah', key: 'Jumlah', align: 'end' },
-  { title: 'Titik', key: 'Titik', align: 'end' },
-  { title: 'TotalTitik', key: 'TotalTitik', align: 'end' },
-];
+// Detail Header (Lebih rapat)
+const detailHeaders = [
+  { title: 'SoDTF', key: 'SoDTF', width: '180px' },
+  { title: 'Tgl Pengerjaan', key: 'TglPengerjaan', width: '120px' },
+  { title: 'Nama', key: 'Nama', width: '250px' },
+  { title: 'Jumlah', key: 'Jumlah', align: 'end', width: '80px' },
+  { title: 'Titik', key: 'Titik', align: 'end', width: '80px' },
+  { title: 'Total Titik', key: 'TotalTitik', align: 'end', width: '100px' },
+] as const;
+
+// --- Logic Resize Column ---
+const resizingColumn = ref<DataTableHeader | null>(null);
+const startX = ref(0);
+const startWidth = ref(0);
+
+const onResizeStart = (e: MouseEvent, column: DataTableHeader) => {
+  e.preventDefault();
+  e.stopPropagation();
+  resizingColumn.value = column;
+  startX.value = e.pageX;
+  startWidth.value = (typeof column.width === 'number' ? column.width : 100);
+  document.addEventListener('mousemove', onResizeMove);
+  document.addEventListener('mouseup', onResizeEnd);
+  document.body.style.cursor = 'col-resize';
+};
+
+const onResizeMove = (e: MouseEvent) => {
+  if (!resizingColumn.value) return;
+  const diff = e.pageX - startX.value;
+  resizingColumn.value.width = Math.max(50, startWidth.value + diff);
+};
+
+const onResizeEnd = () => {
+  resizingColumn.value = null;
+  document.removeEventListener('mousemove', onResizeMove);
+  document.removeEventListener('mouseup', onResizeEnd);
+  document.body.style.cursor = '';
+};
 
 // --- Methods ---
 const fetchCabangList = async () => {
   try {
     const response = await api.get('/dasbor-dtf/cabang-list');
     cabangList.value = response.data;
-
-    // Jika user adalah KDC, pilih cabang pertama dari daftar sebagai default
     if (authStore.user?.cabang === 'KDC' && cabangList.value.length > 0) {
       selectedCabang.value = cabangList.value[0].kode;
     }
@@ -93,6 +130,8 @@ const fetchData = async () => {
 };
 
 const loadDetails = async (newlyExpandedItems: string[]) => {
+  // Cari tanggal yang baru di-expand
+  // Note: Vuetify 'expanded' berisi array value item-key (TglPengerjaan)
   const tglToLoad = newlyExpandedItems.find(
     tgl => !details.value[tgl] && !loadingDetails.value.has(tgl)
   );
@@ -157,15 +196,20 @@ watch([startDate, endDate, selectedCabang], fetchData);
           <v-btn size="small" color="teal" prepend-icon="mdi-file-excel" v-bind="props">Export</v-btn>
         </template>
         <v-list density="compact">
-          <v-list-item @click="exportData('header')"><v-list-item-title>Export
-              Header</v-list-item-title></v-list-item>
-          <v-list-item @click="exportData('detail')"><v-list-item-title>Export
-              Detail</v-list-item-title></v-list-item>
+          <v-list-item @click="exportData('header')">
+            <v-list-item-title>Export Header</v-list-item-title>
+          </v-list-item>
+          <v-list-item @click="exportData('detail')">
+            <v-list-item-title>Export Detail</v-list-item-title>
+          </v-list-item>
         </v-list>
       </v-menu>
     </template>
 
-    <div v-if="!hasViewPermission" class="state-container"><!-- Akses Ditolak --></div>
+    <div v-if="!hasViewPermission" class="state-container">
+      <v-icon size="64" class="mb-4">mdi-lock-outline</v-icon>
+      <h3 class="text-h6">Akses Ditolak</h3>
+    </div>
 
     <div v-else class="browse-content">
       <div class="filter-section">
@@ -182,41 +226,206 @@ watch([startDate, endDate, selectedCabang], fetchData);
         <v-btn @click="fetchData" icon="mdi-refresh" variant="text" size="small" title="Muat Ulang Data" />
       </div>
 
-      <v-data-table :headers="headers" :items="dasborList" :loading="isLoading" v-model:expanded="expanded"
-        @update:expanded="loadDetails" :item-class="getRowClass" item-value="TglPengerjaan" density="compact"
-        class="desktop-table fill-height-table" fixed-header show-expand>
-        <template #[`item.TglPengerjaan`]="{ item }">
-          {{ format(parseISO(item.TglPengerjaan), 'dd-MM-yyyy') }}
-        </template>
+      <div class="table-container">
+        <AppDataTable v-model:expanded="expanded" :headers="headers" :items="dasborList" :loading="isLoading"
+          item-value="TglPengerjaan" density="compact" class="desktop-table header-browse-blue" fixed-header show-expand
+          @update:expanded="loadDetails" :item-props="(item) => ({ class: getRowClass(item) })">
+          <template #headers="{ columns, isSorted, getSortIcon, toggleSort }">
+            <tr>
+              <template v-for="header in columns" :key="header.key">
+                <th
+                  :style="{ width: header.width + 'px', minWidth: header.width + 'px', maxWidth: header.width + 'px' }"
+                  class="resizable-header"
+                  :class="{ 'text-center': header.align === 'center', 'text-end': header.align === 'end' }"
+                  @click="toggleSort(header)">
+                  <div class="header-content">
+                    <span>{{ header.title }}</span>
+                    <v-icon v-if="isSorted(header)" size="small" class="ms-1">
+                      {{ getSortIcon(header) }}
+                    </v-icon>
+                  </div>
+                  <div class="resizer" @mousedown.stop="onResizeStart($event, header)" @click.stop></div>
+                </th>
+              </template>
+            </tr>
+          </template>
 
+          <template #[`item.data-table-expand`]="{ internalItem, toggleExpand, isExpanded }">
+            <v-btn icon="mdi-chevron-down" :class="{ 'rotate-180': isExpanded(internalItem) }" size="x-small"
+              variant="text" @click.stop="toggleExpand(internalItem)" />
+          </template>
 
-        <template #expanded-row="{ columns, item }">
-          <tr>
-            <td :colspan="columns.length" class="pa-2 bg-grey-lighten-5">
-              <div v-if="loadingDetails.has(item.TglPengerjaan)" class="text-center py-2">Memuat detail...
-              </div>
-              <v-data-table v-else-if="details[item.TglPengerjaan]" :headers="detailHeaders"
-                :items="details[item.TglPengerjaan]" item-value="SoDTF" density="compact" class="detail-table"
-                :items-per-page="-1">
-                <template #bottom></template>
-              </v-data-table>
-              <div v-else class="text-center text-caption py-2">Tidak ada data detail untuk tanggal ini.
-              </div>
+          <template v-for="header in headers.filter(h => h.key !== 'data-table-expand')"
+            #[`item.${header.key}`]="{ item }" :key="header.key">
+            <td>
+              <template v-if="header.key === 'TglPengerjaan'">
+                {{ format(parseISO(item.TglPengerjaan), 'dd-MM-yyyy') }}
+              </template>
+              <template v-else>
+                {{ item[header.key] }}
+              </template>
             </td>
-          </tr>
-        </template>
-      </v-data-table>
+          </template>
+
+          <template #expanded-row="{ columns, item }">
+            <tr>
+              <td :colspan="columns.length" class="pa-0">
+                <div class="detail-container">
+                  <div class="detail-table-wrapper">
+                    <div v-if="loadingDetails.has(item.TglPengerjaan)" class="text-center py-2">
+                      <v-progress-circular indeterminate size="20" class="mr-2"></v-progress-circular>
+                      Memuat detail...
+                    </div>
+                    <v-data-table v-else-if="details[item.TglPengerjaan]" :headers="detailHeaders"
+                      :items="details[item.TglPengerjaan]" item-value="SoDTF" density="compact" class="detail-table"
+                      :items-per-page="-1" hide-default-footer>
+                      <template #bottom></template>
+                    </v-data-table>
+                    <div v-else class="text-center text-caption py-2 text-grey">Tidak ada data detail.</div>
+                  </div>
+                </div>
+              </td>
+            </tr>
+          </template>
+
+        </AppDataTable>
+      </div>
     </div>
   </PageLayout>
 </template>
 
 <style scoped>
+/* --- Layout Full Height --- */
+.browse-content {
+  display: flex;
+  flex-direction: column;
+  height: calc(100vh - 64px - 32px);
+  overflow: hidden;
+}
+
+.filter-section {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 12px;
+  border-bottom: 1px solid #e0e0e0;
+  flex-shrink: 0;
+  background-color: white;
+}
+
+.table-container {
+  flex-grow: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* --- Tabel Style --- */
+.desktop-table {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.desktop-table :deep(.v-table__wrapper) {
+  flex-grow: 1;
+  height: 100% !important;
+  overflow-x: auto !important;
+  overflow-y: auto !important;
+}
+
+/* Penting: width: max-content agar kolom tidak dipaksa melebar memenuhi layar */
+.desktop-table :deep(table) {
+  width: max-content;
+  min-width: 100%;
+}
+
+/* --- Header Resize --- */
+.resizable-header {
+  position: relative;
+  background-color: #e3f2fd !important;
+  color: #0d47a1 !important;
+  font-weight: 700 !important;
+  text-transform: uppercase;
+  font-size: 11px !important;
+  height: 40px !important;
+  border-bottom: 2px solid #1976d2 !important;
+  padding: 0 8px !important;
+  user-select: none;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.header-content {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  height: 100%;
+}
+
+/* Alignment untuk header content */
+.resizable-header.text-center .header-content {
+  justify-content: center;
+}
+
+.resizable-header.text-end .header-content {
+  justify-content: flex-end;
+}
+
+.resizer {
+  position: absolute;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  width: 5px;
+  cursor: col-resize;
+  z-index: 10;
+}
+
+.resizer:hover,
+.resizable-header:hover .resizer {
+  border-right: 2px solid #1565c0;
+}
+
+/* --- Sticky Detail --- */
+.detail-container {
+  position: sticky;
+  left: 0;
+  z-index: 2;
+  display: flex;
+  justify-content: flex-start;
+  align-items: flex-start;
+  background-color: #fafafa;
+  padding: 16px 16px 16px 64px;
+  border-bottom: 1px solid #e0e0e0;
+  width: fit-content;
+  min-width: 100%;
+  box-sizing: border-box;
+}
+
+.detail-table-wrapper {
+  width: 100%;
+  max-width: 900px;
+  /* Agar detail table tidak melebar berlebihan */
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  overflow: hidden;
+  background-color: white;
+}
+
+/* Pewarnaan Baris Minus */
 .row-sisa-minus :deep(td) {
   color: red !important;
   font-weight: bold;
 }
 
-.detail-table {
-  font-size: 10px;
+.state-container {
+  height: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  flex-direction: column;
 }
 </style>

@@ -12,13 +12,18 @@ import axios from 'axios';
 import AppDataTable from '@/components/AppDataTable.vue';
 import { formatRupiah } from "@/utils/formatRupiah";
 
-// --- Inisialisasi ---
-const router = useRouter();
-const toast = useToast();
-const authStore = useAuthStore();
-const MENU_ID = '51';
+// Interface Header (Resize)
+interface DataTableHeader {
+  title: string;
+  key: string;
+  width?: number;
+  fixed?: boolean;
+  align?: 'start' | 'center' | 'end';
+  minWidth?: string | number;
+  maxWidth?: string | number;
+  sortable?: boolean;
+}
 
-// --- Tipe Data ---
 interface SetoranHeader {
   Nomor: string;
   Otomatis: string;
@@ -36,6 +41,11 @@ interface SetoranDetail {
   Keterangan: string;
 }
 
+const router = useRouter();
+const toast = useToast();
+const authStore = useAuthStore();
+const MENU_ID = '51';
+
 // --- State ---
 const masterData = ref<SetoranHeader[]>([]);
 const details = ref<Record<string, SetoranDetail[]>>({});
@@ -45,6 +55,8 @@ const selected = ref<SetoranHeader[]>([]);
 const expanded = ref<string[]>([]);
 const cabangList = ref([]);
 const deleteLoading = ref(false);
+const search = ref('');
+let searchTimeout: ReturnType<typeof setTimeout>;
 
 const filters = reactive({
   startDate: format(subDays(new Date(), 7), 'yyyy-MM-dd'),
@@ -55,57 +67,87 @@ const filters = reactive({
 
 const isConfirmDialogVisible = ref(false);
 const confirmDialogText = ref('');
-const search = ref('');
-let searchTimeout: ReturnType<typeof setTimeout>;
 
+// --- Computed ---
 const isSingleSelected = computed(() => selected.value.length === 1);
 const selectedRow = computed(() => isSingleSelected.value ? selected.value[0] : null);
 const canBeEdited = computed(() => {
-  // Tombol Ubah aktif jika:
-  // 1. Hanya satu baris yang dipilih
   if (selected.value.length !== 1) return false;
-
   const item = selected.value[0];
-
-  // 2. Setoran tersebut BUKAN Otomatis
   return item.Otomatis !== 'YA';
 });
 
-// --- Konfigurasi Tabel ---
-const headers = [
-  { title: 'Nomor', key: 'Nomor', width: '180px' },
-  { title: 'Tanggal', key: 'Tanggal', width: '120px' },
-  { title: 'Jenis Bayar', key: 'JenisBayar', width: '120px' },
-  { title: 'Nominal', key: 'Nominal', align: 'end', width: '150px' },
-  { title: 'Dibayarkan', key: 'diBayarkan', align: 'end', width: '150px' },
-  { title: 'Sisa', key: 'Sisa', align: 'end', width: '150px' },
-  { title: 'Posting', key: 'Posting', align: 'center', width: '100px' },
-  { title: 'No SO', key: 'NoSO', width: '180px' },
-  { title: 'Kd Cus', key: 'KdCus', width: '120px' },
-  { title: 'Customer', key: 'Customer', minWidth: '250px' },
-  { title: 'Alamat', key: 'Alamat', minWidth: '350px' },
-  { title: 'Kota', key: 'Kota', width: '150px' },
-  { title: 'Telepon', key: 'Telepon', width: '150px' },
-  { title: 'Akun', key: 'Akun', width: '120px' },
-  { title: 'No Rekening', key: 'NoRekening', width: '150px' },
-  { title: 'Nama Bank', key: 'NamaBank', minWidth: '250px' },
-  { title: 'Tgl Transfer', key: 'TglTransfer', width: '120px' },
-  { title: 'No Giro', key: 'NoGiro', width: '150px' },
-  { title: 'Tgl Giro', key: 'TglGiro', width: '120px' },
-  { title: 'Jatuh Tempo', key: 'TglJatuhTempo', width: '120px' },
-  { title: 'Keterangan', key: 'Keterangan', minWidth: '300px' },
-  { title: 'Otomatis', key: 'Otomatis', align: 'center', width: '100px' },
-  { title: 'Closing', key: 'Closing', align: 'center', width: '100px' },
-] as const;
+// --- Header Definisi (Ref & Width Angka) ---
+const headers = ref<DataTableHeader[]>([
+  { title: '', key: 'data-table-expand', width: 50, fixed: true },
+  { title: 'Nomor', key: 'Nomor', width: 180, fixed: true },
+  { title: 'Tanggal', key: 'Tanggal', width: 120 },
+  { title: 'Jenis Bayar', key: 'JenisBayar', width: 120 },
+  { title: 'Nominal', key: 'Nominal', align: 'end', width: 150 },
+  { title: 'Dibayarkan', key: 'diBayarkan', align: 'end', width: 150 },
+  { title: 'Sisa', key: 'Sisa', align: 'end', width: 150 },
+  { title: 'Posting', key: 'Posting', align: 'center', width: 100 },
+  { title: 'No SO', key: 'NoSO', width: 180 },
+  { title: 'Kd Cus', key: 'KdCus', width: 120 },
+  { title: 'Customer', key: 'Customer', width: 250 },
+  { title: 'Alamat', key: 'Alamat', width: 350 },
+  { title: 'Kota', key: 'Kota', width: 150 },
+  { title: 'Telepon', key: 'Telepon', width: 150 },
+  { title: 'Akun', key: 'Akun', width: 120 },
+  { title: 'No Rekening', key: 'NoRekening', width: 150 },
+  { title: 'Nama Bank', key: 'NamaBank', width: 250 },
+  { title: 'Tgl Transfer', key: 'TglTransfer', width: 120 },
+  { title: 'No Giro', key: 'NoGiro', width: 150 },
+  { title: 'Tgl Giro', key: 'TglGiro', width: 120 },
+  { title: 'Jatuh Tempo', key: 'TglJatuhTempo', width: 120 },
+  { title: 'Keterangan', key: 'Keterangan', width: 300 },
+  { title: 'Otomatis', key: 'Otomatis', align: 'center', width: 100 },
+  { title: 'Closing', key: 'Closing', align: 'center', width: 100 },
+]);
+
 const detailHeaders = [
-  { title: 'Tgl Bayar', key: 'TglBayar' },
-  { title: 'Invoice', key: 'Invoice' },
-  { title: 'Tgl Invoice', key: 'TglInvoice' },
-  { title: 'Jatuh Tempo', key: 'JatuhTempo' },
-  { title: 'Nominal', key: 'Nominal', align: 'end' },
-  { title: 'Bayar', key: 'Bayar', align: 'end' },
-  { title: 'Keterangan', key: 'Keterangan' },
+  { title: 'Tgl Bayar', key: 'TglBayar', width: '120px' },
+  { title: 'Invoice', key: 'Invoice', width: '180px' },
+  { title: 'Tgl Invoice', key: 'TglInvoice', width: '120px' },
+  { title: 'Jatuh Tempo', key: 'JatuhTempo', width: '120px' },
+  { title: 'Nominal', key: 'Nominal', align: 'end', width: 150 },
+  { title: 'Bayar', key: 'Bayar', align: 'end', width: 150 },
+  { title: 'Keterangan', key: 'Keterangan', width: 200 },
 ] as const;
+
+// --- Logic Resize Column ---
+const resizingColumn = ref<DataTableHeader | null>(null);
+const startX = ref(0);
+const startWidth = ref(0);
+
+const onResizeStart = (e: MouseEvent, column: DataTableHeader) => {
+  e.preventDefault();
+  e.stopPropagation();
+  resizingColumn.value = column;
+  startX.value = e.pageX;
+  startWidth.value = (typeof column.width === 'number' ? column.width : 100);
+  document.addEventListener('mousemove', onResizeMove);
+  document.addEventListener('mouseup', onResizeEnd);
+  document.body.style.cursor = 'col-resize';
+};
+
+const onResizeMove = (e: MouseEvent) => {
+  if (!resizingColumn.value) return;
+  const diff = e.pageX - startX.value;
+  resizingColumn.value.width = Math.max(50, startWidth.value + diff);
+};
+
+const onResizeEnd = () => {
+  resizingColumn.value = null;
+  document.removeEventListener('mousemove', onResizeMove);
+  document.removeEventListener('mouseup', onResizeEnd);
+  document.body.style.cursor = '';
+};
+
+// --- Logic Selected Row ---
+const handleRowClick = (_event: Event, { item }: { item: SetoranHeader }) => {
+  selected.value = [item];
+};
 
 // --- Methods ---
 const fetchCabangList = async () => {
@@ -130,55 +172,51 @@ const fetchMasterData = async () => {
   }
 };
 
-const loadDetails = async (newlyExpandedKeys: string[]) => {
-  // cari item yang belum dimuat detailnya
-  const itemToLoadKey = newlyExpandedKeys.find(
-    key => !details.value[key] && !loadingDetails.value.has(key)
-  );
-  if (!itemToLoadKey) return;
+const loadDetails = async (newlyExpandedItems: SetoranHeader[]) => {
+  const itemToLoad = newlyExpandedItems.find(item => !details.value[item.Nomor] && !loadingDetails.value.has(item.Nomor));
+  if (!itemToLoad) return;
 
-  loadingDetails.value.add(itemToLoadKey);
+  const nomorToLoad = itemToLoad.Nomor;
+  loadingDetails.value.add(nomorToLoad);
   try {
-    const response = await api.get(`/setoran-bayar/details/${itemToLoadKey}`);
-    details.value[itemToLoadKey] = response.data;
+    const response = await api.get(`/setoran-bayar/details/${nomorToLoad}`);
+    details.value[nomorToLoad] = response.data;
   } catch (err: unknown) {
     if (axios.isAxiosError(err)) {
-      toast.error(
-        `Gagal memuat detail untuk ${itemToLoadKey}: ${err.response?.data?.message || err.message}`
-      );
-    } else if (err instanceof Error) {
-      // fallback jika error bukan AxiosError
-      toast.error(`Gagal memuat detail untuk ${itemToLoadKey}: ${err.message}`);
+      toast.error(`Gagal memuat detail untuk ${nomorToLoad}: ${err.response?.data?.message || err.message}`);
     } else {
-      toast.error(`Gagal memuat detail untuk ${itemToLoadKey}: unknown error`);
+      toast.error(`Gagal memuat detail untuk ${nomorToLoad}`);
     }
-
-    // hapus key dari expanded jika gagal load
-    expanded.value = expanded.value.filter(k => k !== itemToLoadKey);
+    expanded.value = expanded.value.filter(k => k !== nomorToLoad);
   } finally {
-    loadingDetails.value.delete(itemToLoadKey);
+    loadingDetails.value.delete(nomorToLoad);
   }
+};
+
+const showDeleteConfirmation = () => {
+  if (!selectedRow.value) return;
+  // Validasi tambahan jika perlu (misal status closing)
+  confirmDialogText.value = `Yakin ingin menghapus Setoran ${selectedRow.value.Nomor}?`;
+  isConfirmDialogVisible.value = true;
 };
 
 const executeDelete = async () => {
   if (!selectedRow.value) return;
-
   deleteLoading.value = true;
-
   try {
     const response = await api.delete(`/setoran-bayar/${selectedRow.value.Nomor}`);
     toast.success(response.data.message);
     fetchMasterData();
     selected.value = [];
   } catch (error) {
-    toast.error(error.response?.data?.message || "Gagal menghapus data.");
+    const err = error as AxiosError<{ message: string }>;
+    toast.error(err.response?.data?.message || "Gagal menghapus data.");
   } finally {
     deleteLoading.value = false;
     isConfirmDialogVisible.value = false;
   }
 };
 
-// Fungsi untuk tombol "Batal"
 const closeConfirmDialog = () => {
   isConfirmDialogVisible.value = false;
 };
@@ -205,56 +243,42 @@ const exportData = async (type: 'header' | 'detail') => {
 };
 
 const getRowTextColor = (item: SetoranHeader) => {
-  // Prioritas utama adalah Sisa (warna merah)
-  if (item.Sisa !== 0) {
-    return 'text-red font-weight-bold';
-  }
-  // Jika lunas, baru cek apakah Otomatis (warna biru)
-  if (item.Otomatis === 'YA') {
-    return 'text-blue font-weight-bold';
-  }
-  return ''; // Warna default
+  if (item.Sisa !== 0) return 'text-red font-weight-bold';
+  if (item.Otomatis === 'YA') return 'text-blue font-weight-bold';
+  return '';
 };
 
 const printData = () => {
-  console.log("SELECTED ROW:", selected.value[0]); // Debug
-  console.log("NOMOR FIELD:", selected.value[0]?.Nomor);
-
-  const nomor = selected.value[0]?.Nomor; // <-- BENAR
-
+  const nomor = selectedRow.value?.Nomor;
   if (!nomor) {
-    toast.error("Data tidak memiliki nomor");
+    toast.error("Pilih data terlebih dahulu");
     return;
   }
-
-  const url = router.resolve({
-    name: "CetakSetoranBayar",
-    params: { nomor },
-  }).href;
-
+  const url = router.resolve({ name: "CetakSetoranBayar", params: { nomor } }).href;
   window.open(url, "_blank");
 };
-
-
 
 onMounted(() => {
   fetchCabangList();
   fetchMasterData();
 });
 
-watch(filters, fetchMasterData, { deep: true });
-
-watch(expanded, (newExpanded) => {
-  loadDetails(newExpanded);
-});
-
-watch(search, (val) => {
+// Debounce Search
+watch(search, (newVal) => {
   clearTimeout(searchTimeout);
   searchTimeout = setTimeout(() => {
-    filters.search = val;
+    filters.search = newVal; // Gunakan newVal agar parameter 'val' terpakai
     fetchMasterData();
-  }, 300);
+  }, 500); // Jeda 500ms
 });
+
+// Watch filter lain (langsung fetch)
+watch(
+  () => [filters.startDate, filters.endDate, filters.cabang],
+  () => {
+    fetchMasterData();
+  }
+);
 </script>
 
 <template>
@@ -266,7 +290,8 @@ watch(search, (val) => {
         @click="router.push({ name: 'SetoranBayarEdit', params: { nomor: selected[0].Nomor } })">
         Ubah
       </v-btn>
-      <v-btn size="small" color="error" prepend-icon="mdi-delete" :loading="deleteLoading" @click="executeDelete">
+      <v-btn size="small" color="error" prepend-icon="mdi-delete" :loading="deleteLoading" :disabled="!isSingleSelected"
+        @click="showDeleteConfirmation">
         Hapus
       </v-btn>
       <v-btn v-if="authStore.can(MENU_ID, 'view')" size="small" color="green" :disabled="!isSingleSelected"
@@ -293,13 +318,15 @@ watch(search, (val) => {
     <div class="browse-content">
       <div class="filter-section">
         <v-label class="filter-label">Periode:</v-label>
-        <v-text-field v-model="filters.startDate" type="date" density="compact" hide-details variant="outlined" />
+        <v-text-field v-model="filters.startDate" type="date" density="compact" hide-details variant="outlined"
+          style="max-width: 140px;" />
         <v-label class="mx-2">s/d</v-label>
-        <v-text-field v-model="filters.endDate" type="date" density="compact" hide-details variant="outlined" />
+        <v-text-field v-model="filters.endDate" type="date" density="compact" hide-details variant="outlined"
+          style="max-width: 140px;" />
         <v-select label="Cabang" v-model="filters.cabang" :items="cabangList" item-title="nama" item-value="kode"
           density="compact" hide-details variant="outlined" class="ms-4" style="max-width: 200px;" />
-        <v-text-field v-model="filters.search" placeholder="Cari nomor, customer, kode customer, no SO..."
-          density="compact" hide-details variant="outlined" clearable style="max-width: 300px;" />
+        <v-text-field v-model="search" label="Cari nomor, customer..." density="compact" hide-details variant="outlined"
+          clearable style="min-width: 250px;" prepend-inner-icon="mdi-magnify" />
         <v-spacer />
         <div class="d-flex align-center ga-2 text-caption">
           <v-icon color="blue" icon="mdi-square-rounded" size="small"></v-icon> Otomatis
@@ -310,9 +337,35 @@ watch(search, (val) => {
 
       <div class="table-container">
         <AppDataTable v-model="selected" v-model:expanded="expanded" :headers="headers" :items="masterData"
-          item-value="Nomor" return-object density="compact" class="desktop-table" fixed-header show-select show-expand
-          @update:expanded="loadDetails">
-          <template v-for="header in headers" #[`item.${header.key}`]="{ item }" :key="header.key">
+          :loading="loading" item-value="Nomor" density="compact" class="desktop-table header-browse-blue" fixed-header
+          show-select return-object show-expand @update:expanded="loadDetails" @click:row="handleRowClick">
+          <template #headers="{ columns, isSorted, getSortIcon, toggleSort }">
+            <tr>
+              <template v-for="header in columns" :key="header.key">
+                <th
+                  :style="{ width: header.width + 'px', minWidth: header.width + 'px', maxWidth: header.width + 'px' }"
+                  class="resizable-header"
+                  :class="{ 'text-center': header.align === 'center', 'text-end': header.align === 'end' }"
+                  @click="toggleSort(header)">
+                  <div class="header-content">
+                    <span>{{ header.title }}</span>
+                    <v-icon v-if="isSorted(header)" size="small" class="ms-1">
+                      {{ getSortIcon(header) }}
+                    </v-icon>
+                  </div>
+                  <div class="resizer" @mousedown.stop="onResizeStart($event, header)" @click.stop></div>
+                </th>
+              </template>
+            </tr>
+          </template>
+
+          <template #[`item.data-table-expand`]="{ internalItem, toggleExpand, isExpanded }">
+            <v-btn icon="mdi-chevron-down" :class="{ 'rotate-180': isExpanded(internalItem) }" size="x-small"
+              variant="text" @click.stop="toggleExpand(internalItem)" />
+          </template>
+
+          <template v-for="header in headers.filter(h => h.key !== 'data-table-expand')"
+            #[`item.${header.key}`]="{ item }" :key="header.key">
             <td :class="getRowTextColor(item)">
               <template v-if="['Tanggal', 'TglTerima', 'TglTransfer', 'TglGiro', 'TglJatuhTempo'].includes(header.key)">
                 {{ item[header.key] ? format(parseISO(item[header.key] as string), 'dd/MM/yyyy') : '-' }}
@@ -337,13 +390,13 @@ watch(search, (val) => {
 
           <template #expanded-row="{ columns, item }">
             <tr>
-              <td :colspan="columns.length">
+              <td :colspan="columns.length" class="pa-0">
                 <div class="detail-container">
                   <div class="detail-table-wrapper">
-                    <div v-if="loadingDetails.has(item.Nomor)" class="text-center pa-4">Memuat
-                      detail...</div>
+                    <div v-if="loadingDetails.has(item.Nomor)" class="text-center pa-4 text-caption">Memuat detail...
+                    </div>
                     <v-data-table v-else :headers="detailHeaders" :items="details[item.Nomor]" density="compact"
-                      class="detail-table" :items-per-page="-1">
+                      class="detail-table" :items-per-page="-1" hide-default-footer>
                       <template #[`item.TglBayar`]="{ value }">
                         {{ value ? format(parseISO(value as string), 'dd/MM/yyyy') : '' }}
                       </template>
@@ -373,20 +426,8 @@ watch(search, (val) => {
         <v-card-text>{{ confirmDialogText }}</v-card-text>
         <v-card-actions>
           <v-spacer></v-spacer>
-          <v-btn color="grey-darken-1" variant="text" @click="closeConfirmDialog">Batal</v-btn>
-          <v-btn color="error" variant="tonal" @click="executeDelete">Ya, Hapus</v-btn>
-        </v-card-actions>
-      </v-card>
-    </v-dialog>
-
-    <v-dialog v-model="isConfirmDialogVisible" max-width="400px" persistent>
-      <v-card>
-        <v-card-title class="text-h6 font-weight-bold">Konfirmasi Hapus</v-card-title>
-        <v-card-text>{{ confirmDialogText }}</v-card-text>
-        <v-card-actions>
-          <v-spacer></v-spacer>
-          <v-btn color="grey-darken-1" variant="text" @click="closeConfirmDialog">Batal</v-btn>
-          <v-btn color="error" variant="tonal" @click="executeDelete">Ya, Hapus</v-btn>
+          <v-btn text @click="closeConfirmDialog">Batal</v-btn>
+          <v-btn color="error" variant="tonal" @click="executeDelete" :loading="deleteLoading">Ya, Hapus</v-btn>
         </v-card-actions>
       </v-card>
     </v-dialog>
@@ -394,17 +435,129 @@ watch(search, (val) => {
 </template>
 
 <style scoped>
-:deep(.row-otomatis) {
-  color: blue !important;
-}
-
-:deep(.row-sisa) {
-  color: red !important;
-}
-
-:deep(.desktop-table .v-data-table__td) {
-  white-space: nowrap;
+/* --- Layout Full Height --- */
+.browse-content {
+  display: flex;
+  flex-direction: column;
+  height: calc(100vh - 64px - 32px);
   overflow: hidden;
+}
+
+.filter-section {
+  flex-shrink: 0;
+  padding: 8px;
+  border-bottom: 1px solid #e0e0e0;
+  background: white;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.table-container {
+  flex-grow: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* --- Tabel Style --- */
+.desktop-table {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.desktop-table :deep(.v-table__wrapper) {
+  flex-grow: 1;
+  height: 100% !important;
+  overflow-x: auto !important;
+  overflow-y: auto !important;
+}
+
+.desktop-table :deep(table) {
+  width: max-content;
+  min-width: 100%;
+}
+
+/* --- Header Resize --- */
+.resizable-header {
+  position: relative;
+  background-color: #e3f2fd !important;
+  color: #0d47a1 !important;
+  font-weight: 700 !important;
+  text-transform: uppercase;
+  font-size: 11px !important;
+  height: 40px !important;
+  border-bottom: 2px solid #1976d2 !important;
+  padding: 0 8px !important;
+  user-select: none;
+  overflow: hidden;
+  white-space: nowrap;
   text-overflow: ellipsis;
+}
+
+.header-content {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  height: 100%;
+}
+
+.resizable-header.text-center .header-content {
+  justify-content: center;
+}
+
+.resizable-header.text-end .header-content {
+  justify-content: flex-end;
+}
+
+.resizer {
+  position: absolute;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  width: 5px;
+  cursor: col-resize;
+  z-index: 10;
+}
+
+.resizer:hover,
+.resizable-header:hover .resizer {
+  border-right: 2px solid #1565c0;
+}
+
+/* --- Detail Sticky --- */
+.detail-container {
+  position: sticky;
+  left: 0;
+  z-index: 2;
+  display: flex;
+  justify-content: flex-start;
+  align-items: flex-start;
+  background-color: #fafafa;
+  padding: 16px 16px 16px 64px;
+  border-bottom: 1px solid #e0e0e0;
+  width: fit-content;
+  min-width: 100%;
+  box-sizing: border-box;
+}
+
+.detail-table-wrapper {
+  width: 100%;
+  max-width: 900px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  overflow: hidden;
+  background-color: white;
+}
+
+/* Pewarnaan Baris */
+:deep(td.text-red) {
+  color: #d32f2f !important;
+}
+
+:deep(td.text-blue) {
+  color: #1976d2 !important;
 }
 </style>

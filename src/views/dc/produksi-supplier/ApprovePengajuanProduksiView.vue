@@ -202,7 +202,7 @@ watch(filters, fetchData, { deep: true });
 
       <div class="table-container">
         <v-data-table v-model="selected" v-model:expanded="expanded" :headers="headers" :items="masterData"
-          :loading="loading" item-value="nomor" density="compact" class="desktop-table" fixed-header show-select
+          :loading="loading" item-value="nomor" density="compact" class="desktop-table header-browse-blue" fixed-header show-select
           show-expand return-object single-select @update:expanded="loadDetails" :item-class="getRowTextColor">
 
           <template v-for="col in ['tanggal', 'tglApprove']" #[`item.${col}`]="{ item }" :key="col">

@@ -118,6 +118,12 @@ const selectedKaosItem = ref<Item[]>([]);
 const isUploading = reactive<Record<number, boolean>>({});
 const fileInputRef = ref<HTMLInputElement | null>(null); // <-- TAMBAHKAN INI
 const activeUploadItem = ref<Item | null>(null);
+const dialogPrintSuccess = reactive({
+  show: false,
+  nomor: '',
+  onConfirm: () => { },
+  onCancel: () => { }
+});
 
 const previewDialog = reactive({
   show: false,
@@ -369,8 +375,25 @@ const executeSave = async () => {
       }
     }
 
-    // --- STEP 3: Selesai ---
-    router.push({ name: 'PengajuanBarcode' }); // Kembali ke browse
+    dialogPrintSuccess.nomor = savedNomor;
+
+    // Aksi jika user klik "Ya, Cetak"
+    dialogPrintSuccess.onConfirm = () => {
+      const url = router.resolve({
+        name: 'CetakBarcodeBaruA4', // Sesuai route
+        params: { nomor: savedNomor }
+      }).href;
+      window.open(url, '_blank');
+
+      dialogPrintSuccess.show = false;
+      router.push({ name: 'PengajuanBarcode' }); // Kembali ke browse
+    };
+
+    // Aksi jika user klik "Tidak"
+    dialogPrintSuccess.onCancel = () => {
+      dialogPrintSuccess.show = false;
+      router.push({ name: 'PengajuanBarcode' }); // Kembali ke browse
+    };
 
   } catch (error) { // Error dari STEP 1 (Save Utama)
     const err = error as AxiosError<{ message?: string }>;
@@ -601,8 +624,9 @@ onMounted(async () => {
         <div class="desktop-form-section d-flex flex-column" style="min-height: 300px;">
           <div class="text-subtitle-1 font-weight-bold mb-2">Detail Item Pengajuan</div>
           <div class="table-wrapper-scroll">
-            <v-data-table v-model="selectedKaosItem" :headers="itemsHeaders" :items="items" class="desktop-table"
-              fixed-header :items-per-page="-1" show-select single-select return-object>
+            <v-data-table v-model="selectedKaosItem" :headers="itemsHeaders" :items="items"
+              class="desktop-table header-browse-blue" fixed-header :items-per-page="-1" show-select single-select
+              return-object>
               <template v-slot:[`item.kode`]="{ item, index }">
                 <v-text-field v-model="item.kode" variant="underlined" placeholder="F1/F2..."
                   @keydown.f1.prevent="openProductSearch(index, false)"
@@ -723,6 +747,27 @@ onMounted(async () => {
         </v-card-actions>
       </v-card>
     </v-dialog>
+
+    <v-dialog v-model="dialogPrintSuccess.show" max-width="400px" persistent>
+      <v-card>
+        <v-card-title class="text-h6 font-weight-bold text-success">
+          <v-icon start color="success">mdi-check-circle</v-icon>
+          Berhasil Disimpan
+        </v-card-title>
+        <v-card-text class="pt-4">
+          Data Pengajuan Barcode <strong>{{ dialogPrintSuccess.nomor }}</strong> berhasil disimpan.
+          <br><br>
+          Apakah Anda ingin mencetak Formulir (A4)?
+        </v-card-text>
+        <v-card-actions>
+          <v-spacer></v-spacer>
+          <v-btn text @click="dialogPrintSuccess.onCancel">Tidak, Kembali</v-btn>
+          <v-btn color="primary" variant="tonal" @click="dialogPrintSuccess.onConfirm" prepend-icon="mdi-printer">
+            Ya, Cetak
+          </v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
   </PageLayout>
 </template>
 
@@ -780,13 +825,16 @@ onMounted(async () => {
 }
 
 .desktop-table :deep(thead tr th) {
-  background-color: #0D47A1 !important; /* Biru Tua */
-  color: #ffffff !important;            /* Teks Putih */
+  background-color: #0D47A1 !important;
+  /* Biru Tua */
+  color: #ffffff !important;
+  /* Teks Putih */
   font-weight: bold !important;
   text-transform: uppercase;
   font-size: 11px !important;
   height: 40px !important;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-  border-bottom: none !important; /* Supaya lebih rapi */
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  border-bottom: none !important;
+  /* Supaya lebih rapi */
 }
 </style>

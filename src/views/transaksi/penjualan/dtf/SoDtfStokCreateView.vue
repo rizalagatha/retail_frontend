@@ -439,7 +439,7 @@ onMounted(async () => {
           <!-- KOLOM KIRI: TABEL -->
           <v-col cols="12" md="8">
             <div class="desktop-form-section grid-section">
-              <v-data-table :headers="tableHeaders" :items="items" density="compact" class="desktop-table" fixed-header
+              <v-data-table :headers="tableHeaders" :items="items" density="compact" class="desktop-table header-browse-blue" fixed-header
                 :items-per-page="-1">
                 <template #[`item.no`]="{ index }">
                   <div class="cell-text">{{ index + 1 }}</div>

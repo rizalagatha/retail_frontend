@@ -48,7 +48,7 @@ onMounted(loadItems);
           :items="items"
           :loading="loading"
           density="compact"
-          class="desktop-table"
+          class="desktop-table header-browse-blue"
           hover
           @click:row="(_, { item }) => selectProduct(item)"
         ></v-data-table>

@@ -569,7 +569,7 @@ watch(
       <div class="right-column">
         <div class="text-subtitle-1 font-weight-bold">Varian Ukuran</div>
         <div class="desktop-form-section varian-section">
-          <v-data-table :headers="varianHeaders" :items="varianItems" class="desktop-table" density="compact"
+          <v-data-table :headers="varianHeaders" :items="varianItems" class="desktop-table header-browse-blue" density="compact"
             fixed-header :items-per-page="-1">
             <template #[`item.aktif`]="{ item }">
               <v-checkbox-btn v-model="item.aktif" hide-details density="compact"
@@ -608,7 +608,7 @@ watch(
 
         <div class="text-subtitle-1 font-weight-bold mt-4">History Perubahan Harga Jual</div>
         <div class="desktop-form-section history-section">
-          <v-data-table :headers="historyHeaders" :items="historyHarga" class="desktop-table" density="compact"
+          <v-data-table :headers="historyHeaders" :items="historyHarga" class="desktop-table header-browse-blue" density="compact"
             fixed-header :items-per-page="-1">
             <template #bottom></template>
           </v-data-table>

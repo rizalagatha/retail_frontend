@@ -3,32 +3,44 @@ import { ref, reactive, onMounted, computed, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { useToast } from 'vue-toastification';
 import { useAuthStore } from '@/stores/authStore';
-import api from '@/services/api'; // Pastikan path ini benar
+import api from '@/services/api';
 import { format, subDays, parseISO } from 'date-fns';
-import PageLayout from '@/components/PageLayout.vue'; // Pastikan path ini benar
-import PrintOptionModal from '@/components/modal/PrintOptionModal.vue'; // Pastikan path ini benar
+import PageLayout from '@/components/PageLayout.vue';
+import PrintOptionModal from '@/components/modal/PrintOptionModal.vue';
 import * as XLSX from 'xlsx';
 import AppDataTable from '@/components/AppDataTable.vue';
 import { formatRupiah } from "@/utils/formatRupiah";
 
-// --- Interfaces Potongan ---
+// Interface Header (Wajib untuk Resize)
+interface DataTableHeader {
+  title: string;
+  key: string;
+  width?: number;
+  fixed?: boolean;
+  align?: 'start' | 'center' | 'end';
+  minWidth?: string | number;
+  maxWidth?: string | number;
+  sortable?: boolean;
+  cellClass?: string;
+}
+
 interface PotonganHeader {
-  Nomor: string;      // K01.POT.2509.0001
-  Tanggal: string;    // 18/09/2025
-  Nominal: number;    // Total Potongan Transaksi
-  Dibayarkan: number; // Nilai yang sudah dibayarkan/dijurnal
-  Akun: string;       // D-111198
-  NamaAkun: string;   // Potongan Penjualan Kencana Print
-  NoRekening: string; // 003
-  Kdcus: string;      // K-01126
-  Customer: string;   // KARYAWAN POTONG GAJI
+  Nomor: string;
+  Tanggal: string;
+  Nominal: number;
+  Dibayarkan: number;
+  Akun: string;
+  NamaAkun: string;
+  NoRekening: string;
+  Kdcus: string;
+  Customer: string;
   Alamat: string;
   Kota: string;
   Usr: string;
   Cab: string;
-  Closing: string;    // Y/N
+  Closing: string;
   Keterangan?: string;
-  [key: string]: string | number | undefined;
+  [key: string]: unknown;
 }
 
 interface PotonganDetail {
@@ -36,16 +48,15 @@ interface PotonganDetail {
   invoice: string;
   bayar: number;
   angsur: string;
-  nominal: number; // Nominal asli invoice
-  terbayar: number; // Total terbayar (sebelum potongan ini)
-  sisa_piutang: number; // Sisa piutang (sebelum potongan ini)
+  nominal: number;
+  terbayar: number;
+  sisa_piutang: number;
 }
 
-// --- Inisialisasi ---
 const router = useRouter();
 const toast = useToast();
 const authStore = useAuthStore();
-const MENU_ID = '53'; // Ganti dengan ID menu untuk 'Potongan' jika berbeda
+const MENU_ID = '53';
 
 // --- State ---
 const masterData = ref<PotonganHeader[]>([]);
@@ -55,49 +66,81 @@ const loadingDetails = ref(new Set<string>());
 const selected = ref<PotonganHeader[]>([]);
 const expanded = ref<string[]>([]);
 const cabangList = ref<{ kode: string, nama: string }[]>([]);
+const isPrintOptionVisible = ref(false);
 
 const filters = reactive({
   startDate: format(subDays(new Date(), 7), 'yyyy-MM-dd'),
   endDate: format(new Date(), 'yyyy-MM-dd'),
-  // Default cabang: 'K01' jika user 'KDC', atau cabang user sendiri
   cabang: authStore.user?.cabang === 'KDC' ? 'K01' : authStore.user?.cabang || '',
 });
 
+// --- Computed ---
 const isSingleSelected = computed(() => selected.value.length === 1);
-const selectedRow = computed<PotonganHeader | null>(() =>
-  isSingleSelected.value ? selected.value[0] : null
-);
-const isPrintOptionVisible = ref(false);
+const selectedRow = computed<PotonganHeader | null>(() => isSingleSelected.value ? selected.value[0] : null);
 
-// --- Konfigurasi Tabel ---
-const headers = [
-  { title: 'Nomor', key: 'Nomor', minWidth: '180px', fixed: true },
-  { title: 'Tanggal', key: 'Tanggal', minWidth: '120px' },
-  { title: 'Nominal', key: 'Nominal', minWidth: '120px' },
-  { title: 'Dibayarkan', key: 'dBayarkan',minWidth: '120px' },
-  { title: 'Akun', key: 'Akun', minWidth: '120px' },
-  { title: 'Nama Akun', key: 'NamaAkun', minWidth: '250px' },
-  { title: 'NoRekening', key: 'NoRekening', minWidth: '100px' },
-  { title: 'Kdcus', key: 'Kdcust', minWidth: '100px' },
-  { title: 'Customer', key: 'customer_nama', minWidth: '200px' },
-  { title: 'Alamat', key: 'alamat', minWidth: '300px' },
-  { title: 'Kota', key: 'Kota', minWidth: '150px' },
-  { title: 'Usr', key: 'Usr', minWidth: '80px' },
-  { title: 'Cab', key: 'Cab', minWidth: '80px' },
-  { title: 'Closing', key: 'Closing', align: 'center', minWidth: '100px' },
-] as const;
+// --- Header Definisi (Ref & Width Angka) ---
+const headers = ref<DataTableHeader[]>([
+  { title: '', key: 'data-table-expand', width: 50, fixed: true },
+  { title: 'Nomor', key: 'Nomor', width: 180, fixed: true },
+  { title: 'Tanggal', key: 'Tanggal', width: 120 },
+  { title: 'Nominal', key: 'Nominal', width: 120, align: 'end' },
+  { title: 'Dibayarkan', key: 'Dibayarkan', width: 120, align: 'end' },
+  { title: 'Akun', key: 'Akun', width: 120 },
+  { title: 'Nama Akun', key: 'NamaAkun', width: 250 },
+  { title: 'NoRekening', key: 'NoRekening', width: 100 },
+  { title: 'Kdcus', key: 'Kdcus', width: 100 },
+  { title: 'Customer', key: 'Customer', width: 200 },
+  { title: 'Alamat', key: 'Alamat', width: 300 },
+  { title: 'Kota', key: 'Kota', width: 150 },
+  { title: 'Usr', key: 'Usr', width: 80 },
+  { title: 'Cab', key: 'Cab', width: 80 },
+  { title: 'Closing', key: 'Closing', align: 'center', width: 100 },
+]);
 
-const detailHeaders = [
-  { title: 'Tgl Bayar', key: 'tglbayar', width: '120px' },
-  { title: 'No. Invoice', key: 'invoice', minWidth: '180px' },
+const detailHeaders: DataTableHeader[] = [
+  { title: 'Tgl Bayar', key: 'tglbayar', width: 120 },
+  { title: 'No. Invoice', key: 'invoice', width: 180 },
   { title: 'Nominal Invoice', key: 'nominal', align: 'end' },
   { title: 'Terbayar (sblmnya)', key: 'terbayar', align: 'end' },
   { title: 'Sisa Piutang (sblmnya)', key: 'sisa_piutang', align: 'end' },
   { title: 'Dibayarkan Potongan', key: 'bayar', align: 'end', cellClass: 'font-weight-bold text-blue-darken-2' },
-] as const;
+];
+
+// --- Logic Resize Column ---
+const resizingColumn = ref<DataTableHeader | null>(null);
+const startX = ref(0);
+const startWidth = ref(0);
+
+const onResizeStart = (e: MouseEvent, column: DataTableHeader) => {
+  e.preventDefault();
+  e.stopPropagation();
+  resizingColumn.value = column;
+  startX.value = e.pageX;
+  startWidth.value = (typeof column.width === 'number' ? column.width : 100);
+  document.addEventListener('mousemove', onResizeMove);
+  document.addEventListener('mouseup', onResizeEnd);
+  document.body.style.cursor = 'col-resize';
+};
+
+const onResizeMove = (e: MouseEvent) => {
+  if (!resizingColumn.value) return;
+  const diff = e.pageX - startX.value;
+  resizingColumn.value.width = Math.max(50, startWidth.value + diff);
+};
+
+const onResizeEnd = () => {
+  resizingColumn.value = null;
+  document.removeEventListener('mousemove', onResizeMove);
+  document.removeEventListener('mouseup', onResizeEnd);
+  document.body.style.cursor = '';
+};
+
+// --- Logic Selected Row ---
+const handleRowClick = (_event: Event, { item }: { item: PotonganHeader }) => {
+  selected.value = [item];
+};
 
 // --- Methods ---
-
 const fetchCabangList = async () => {
   try {
     const response = await api.get('/potongan/lookup/cabang-options');
@@ -107,12 +150,11 @@ const fetchCabangList = async () => {
 
 const fetchMasterData = async () => {
   loading.value = true;
-  selected.value = []; // Reset seleksi
-  expanded.value = []; // Reset expand
-  details.value = {}; // Reset detail data
+  selected.value = [];
+  expanded.value = [];
+  details.value = {};
 
   try {
-    // Ganti endpoint menjadi /potongan
     const response = await api.get<PotonganHeader[]>('/potongan/master', { params: filters });
     masterData.value = response.data;
   } catch (error: unknown) {
@@ -137,48 +179,42 @@ const loadDetails = async (newlyExpandedItems: PotonganHeader[]) => {
 
   loadingDetails.value.add(itemToLoad.Nomor);
   try {
-    // Kita akan memanggil endpoint baru 'browse-details'
-    // agar tidak mengambil data 'header' yang tidak perlu
     const response = await api.get<PotonganDetail[]>(`/potongan/browse-details/${itemToLoad.Nomor}`);
     details.value[itemToLoad.Nomor] = response.data;
   } catch (error: unknown) {
     const msg = `Gagal memuat detail untuk ${itemToLoad.Nomor}.`;
     if (error instanceof Error) toast.error(`${msg}: ${error.message}`);
     else toast.error(msg);
+    expanded.value = expanded.value.filter(nomor => nomor !== itemToLoad.Nomor);
   } finally {
     loadingDetails.value.delete(itemToLoad.Nomor);
   }
 };
 
-// Logika pewarnaan baris (Misal: baris yang belum ditutup/Closing='N' diwarnai)
 const getRowTextColor = (item: PotonganHeader) => {
   return item.Closing === 'N' ? 'text-orange-darken-3 font-weight-bold' : '';
 };
 
 const handleNew = () => {
-  router.push({ name: 'PotonganCreate' }); // Ganti dengan nama route Anda
+  router.push({ name: 'PotonganCreate' });
 }
 
 const handleEdit = () => {
   if (!isSingleSelected.value || !selectedRow.value) return;
   const nomor = selectedRow.value.Nomor;
-  router.push({ name: 'PotonganEdit', params: { nomor } }); // Ganti dengan nama route Anda
+  router.push({ name: 'PotonganEdit', params: { nomor } });
 };
 
 const handlePrintSelection = (type: 'a4' | 'kasir' | 'wa') => {
   if (!isSingleSelected.value || !selectedRow.value) return;
   const nomor = selectedRow.value.Nomor;
-
   isPrintOptionVisible.value = false;
 
   if (type === 'a4' || type === 'kasir') {
-    // Asumsi ada route untuk cetak Potongan
     const routeName = type === 'a4' ? 'PotonganPrintA4' : 'PotonganPrintKasir';
     const url = router.resolve({ name: routeName, params: { nomor } }).href;
     window.open(url, '_blank');
   } else if (type === 'wa') {
-    // Biasanya Potongan tidak memiliki no HP pelanggan,
-    // Anda mungkin perlu menyesuaikan logika atau menghapus opsi ini.
     toast.warning('Opsi kirim WA belum diimplementasikan atau tidak relevan untuk Potongan.');
   }
 };
@@ -190,7 +226,6 @@ const openPrintOptions = () => {
 
 const exportData = async (type: 'header' | 'detail') => {
   const fileName = `Export_Potongan_${type === 'header' ? 'Header' : 'Detail'}.xlsx`;
-
   try {
     if (type === 'header') {
       if (masterData.value.length === 0) return toast.warning('Tidak ada data header.');
@@ -199,10 +234,8 @@ const exportData = async (type: 'header' | 'detail') => {
       XLSX.utils.book_append_sheet(workbook, worksheet, "Potongan Header");
       XLSX.writeFile(workbook, fileName);
     } else if (type === 'detail') {
-      // Asumsi ada endpoint khusus untuk export detail dari backend
       const response = await api.get('/potongan/export-details', { params: filters });
       if (response.data.length === 0) return toast.warning('Tidak ada data detail.');
-
       const worksheet = XLSX.utils.json_to_sheet(response.data);
       const workbook = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(workbook, worksheet, "Potongan Detail");
@@ -220,19 +253,16 @@ onMounted(() => {
   fetchMasterData();
 });
 
-// Watcher untuk memuat ulang data saat filter berubah
 watch(filters, fetchMasterData, { deep: true });
 </script>
 
 <template>
   <PageLayout title="Daftar Potongan" icon="mdi-account-cash">
     <template #header-actions>
-      <v-btn v-if="authStore.can(MENU_ID, 'insert')" size="small" color="primary" @click="handleNew">
-        Baru
-      </v-btn>
-      <v-btn v-if="authStore.can(MENU_ID, 'edit')" size="small" :disabled="!isSingleSelected" @click="handleEdit">
-        Ubah
-      </v-btn>
+      <v-btn v-if="authStore.can(MENU_ID, 'insert')" size="small" color="primary" @click="handleNew"
+        prepend-icon="mdi-plus">Baru</v-btn>
+      <v-btn v-if="authStore.can(MENU_ID, 'edit')" size="small" :disabled="!isSingleSelected" @click="handleEdit"
+        prepend-icon="mdi-pencil">Ubah</v-btn>
       <v-btn v-if="authStore.can(MENU_ID, 'view')" size="small" color="green" :disabled="!isSingleSelected"
         prepend-icon="mdi-printer" @click="openPrintOptions">
         Cetak
@@ -257,12 +287,15 @@ watch(filters, fetchMasterData, { deep: true });
 
     <div class="browse-content">
       <div class="filter-section">
-        <v-label class="filter-label">Periode:</v-label>
-        <v-text-field v-model="filters.startDate" type="date" density="compact" hide-details variant="outlined" />
-        <v-label class="mx-2">s/d</v-label>
-        <v-text-field v-model="filters.endDate" type="date" density="compact" hide-details variant="outlined" />
-        <v-select label="Cabang" v-model="filters.cabang" :items="cabangList" item-title="nama" item-value="kode"
-          density="compact" hide-details variant="outlined" class="ms-4" style="max-width: 200px;" />
+        <span class="filter-label">Periode:</span>
+        <v-text-field v-model="filters.startDate" type="date" density="compact" hide-details variant="outlined"
+          style="max-width: 140px;" />
+        <span class="mx-2">s/d</span>
+        <v-text-field v-model="filters.endDate" type="date" density="compact" hide-details variant="outlined"
+          style="max-width: 140px;" />
+        <span class="filter-label ms-4">Cabang:</span>
+        <v-select v-model="filters.cabang" :items="cabangList" item-title="nama" item-value="kode" density="compact"
+          hide-details variant="outlined" style="max-width: 200px;" />
         <v-spacer />
         <div class="d-flex align-center ga-2 text-caption">
           <v-icon color="orange-darken-3" icon="mdi-square-rounded" size="small"></v-icon> Belum Closing
@@ -272,16 +305,41 @@ watch(filters, fetchMasterData, { deep: true });
 
       <div class="table-container">
         <AppDataTable v-model="selected" v-model:expanded="expanded" :headers="headers" :items="masterData"
-          :loading="loading" item-value="Nomor" density="compact" class="desktop-table" fixed-header show-select
-          return-object show-expand @update:expanded="loadDetails">
+          :loading="loading" item-value="Nomor" density="compact" class="desktop-table header-browse-blue" fixed-header
+          show-select return-object show-expand @update:expanded="loadDetails" @click:row="handleRowClick">
+          <template #headers="{ columns, isSorted, getSortIcon, toggleSort }">
+            <tr>
+              <template v-for="header in columns" :key="header.key">
+                <th
+                  :style="{ width: header.width + 'px', minWidth: header.width + 'px', maxWidth: header.width + 'px' }"
+                  class="resizable-header"
+                  :class="{ 'text-center': header.align === 'center', 'text-end': header.align === 'end' }"
+                  @click="toggleSort(header)">
+                  <div class="header-content">
+                    <span>{{ header.title }}</span>
+                    <v-icon v-if="isSorted(header)" size="small" class="ms-1">
+                      {{ getSortIcon(header) }}
+                    </v-icon>
+                  </div>
+                  <div class="resizer" @mousedown.stop="onResizeStart($event, header)" @click.stop></div>
+                </th>
+              </template>
+            </tr>
+          </template>
 
-          <template v-for="header in headers" :key="header.key" #[`item.${header.key}`]="{ item }">
+          <template #[`item.data-table-expand`]="{ internalItem, toggleExpand, isExpanded }">
+            <v-btn icon="mdi-chevron-down" :class="{ 'rotate-180': isExpanded(internalItem) }" size="x-small"
+              variant="text" @click.stop="toggleExpand(internalItem)" />
+          </template>
+
+          <template v-for="header in headers.filter(h => h.key !== 'data-table-expand')"
+            #[`item.${header.key}`]="{ item }" :key="header.key">
             <td :class="getRowTextColor(item)">
-              <template v-if="['Tanggal'].includes(header.key)">
-                {{ item[header.key] ? format(parseISO(String(item[header.key])), 'dd/MM/yyyy') : '' }}
+              <template v-if="header.key === 'Tanggal'">
+                {{ item.Tanggal ? format(parseISO(String(item.Tanggal)), 'dd/MM/yyyy') : '' }}
               </template>
               <template v-else-if="['Nominal', 'Dibayarkan'].includes(header.key)">
-                <span class="d-block text-right">{{ formatRupiah(item[header.key]) }}</span>
+                {{ formatRupiah(Number(item[header.key])) }}
               </template>
               <template v-else-if="header.key === 'Closing'">
                 <v-chip v-if="item.Closing === 'Y'" size="x-small" color="success">YA</v-chip>
@@ -295,29 +353,28 @@ watch(filters, fetchMasterData, { deep: true });
 
           <template #expanded-row="{ columns, item }">
             <tr>
-              <td :colspan="columns.length">
+              <td :colspan="columns.length" class="pa-0">
                 <div class="detail-container">
                   <div class="detail-table-wrapper">
-                    <div v-if="loadingDetails.has(item.Nomor)" class="text-center pa-4">Memuat detail...</div>
+                    <div v-if="loadingDetails.has(item.Nomor)" class="text-center pa-4 text-caption">
+                      Memuat detail...
+                    </div>
                     <v-data-table v-else :headers="detailHeaders" :items="details[item.Nomor]" density="compact"
-                      class="detail-table" :items-per-page="-1">
+                      class="detail-table" :items-per-page="-1" hide-default-footer>
                       <template #[`item.tglbayar`]="{ value }">
                         {{ value ? format(parseISO(value), 'dd/MM/yyyy') : '' }}
                       </template>
-                      <template #[`item.nominal`]="{ value }">
-                        <span class="d-block text-right">{{ formatRupiah(value) }}</span>
-                      </template>
-                      <template #[`item.terbayar`]="{ value }">
-                        <span class="d-block text-right">{{ formatRupiah(value) }}</span>
-                      </template>
-                      <template #[`item.sisa_piutang`]="{ value }">
-                        <span class="d-block text-right">{{ formatRupiah(value) }}</span>
-                      </template>
-                      <template #[`item.bayar`]="{ value }">
-                        <span class="d-block text-right">{{ formatRupiah(value) }}</span>
+                      <template v-for="key in ['nominal', 'terbayar', 'sisa_piutang', 'bayar']"
+                        #[`item.${key}`]="{ value }">
+                        {{ formatRupiah(Number(value)) }}
                       </template>
                       <template #bottom></template>
                     </v-data-table>
+                    <div
+                      v-if="!loadingDetails.has(item.Nomor) && (!details[item.Nomor] || details[item.Nomor].length === 0)"
+                      class="text-center py-2 text-caption">
+                      Tidak ada data detail.
+                    </div>
                   </div>
                 </div>
               </td>
@@ -333,60 +390,125 @@ watch(filters, fetchMasterData, { deep: true });
 </template>
 
 <style scoped>
-/* Styling dari komponen InvoiceView Anda */
+/* --- Layout Full Height --- */
 .browse-content {
   display: flex;
   flex-direction: column;
-  height: 100%;
+  height: calc(100vh - 64px - 32px);
+  overflow: hidden;
 }
 
 .filter-section {
+  flex-shrink: 0;
+  padding: 8px;
+  border-bottom: 1px solid #e0e0e0;
+  background: white;
   display: flex;
   align-items: center;
-  padding: 8px 16px;
-  gap: 10px;
-  border-bottom: 1px solid #ccc;
-  background-color: #f7f7f7;
-}
-
-.filter-label {
-  font-size: 0.85rem;
-  font-weight: 500;
+  gap: 12px;
 }
 
 .table-container {
   flex-grow: 1;
-  overflow: auto;
-  /* Membuat tabel dapat di-scroll */
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 
+/* --- Tabel Style --- */
 .desktop-table {
-  /* Mengurangi padding untuk tampilan padat ala aplikasi desktop/grid */
-  --v-table-header-height: 36px;
-  /* Tinggi header yang lebih kecil */
+  height: 100%;
+  display: flex;
+  flex-direction: column;
 }
 
-/* Penyesuaian padding dan font untuk sel tabel agar lebih padat */
-.desktop-table :deep(td),
-.desktop-table :deep(th) {
-  padding-left: 8px !important;
-  padding-right: 8px !important;
-  height: 36px !important;
-  font-size: 0.75rem !important;
-  line-height: 1 !important;
+.desktop-table :deep(.v-table__wrapper) {
+  flex-grow: 1;
+  height: 100% !important;
+  overflow-x: auto !important;
+  overflow-y: auto !important;
 }
 
-/* Styling untuk Detail Table */
+.desktop-table :deep(table) {
+  width: max-content;
+  min-width: 100%;
+}
+
+/* --- Header Resize --- */
+.resizable-header {
+  position: relative;
+  background-color: #e3f2fd !important;
+  color: #0d47a1 !important;
+  font-weight: 700 !important;
+  text-transform: uppercase;
+  font-size: 11px !important;
+  height: 40px !important;
+  border-bottom: 2px solid #1976d2 !important;
+  padding: 0 8px !important;
+  user-select: none;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.header-content {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  height: 100%;
+}
+
+.resizable-header.text-center .header-content {
+  justify-content: center;
+}
+
+.resizable-header.text-end .header-content {
+  justify-content: flex-end;
+}
+
+.resizer {
+  position: absolute;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  width: 5px;
+  cursor: col-resize;
+  z-index: 10;
+}
+
+.resizer:hover,
+.resizable-header:hover .resizer {
+  border-right: 2px solid #1565c0;
+}
+
+/* --- Detail Sticky --- */
+.detail-container {
+  position: sticky;
+  left: 0;
+  z-index: 2;
+  display: flex;
+  justify-content: flex-start;
+  align-items: flex-start;
+  background-color: #fafafa;
+  padding: 16px 16px 16px 64px;
+  border-bottom: 1px solid #e0e0e0;
+  width: fit-content;
+  min-width: 100%;
+  box-sizing: border-box;
+}
+
 .detail-table-wrapper {
-  max-height: 300px;
-  /* Batasi tinggi container detail */
-  overflow-y: auto;
-  margin: 8px 0;
+  width: 100%;
+  max-width: 900px;
   border: 1px solid #ddd;
+  border-radius: 4px;
+  overflow: hidden;
+  background-color: white;
 }
 
-.detail-table :deep(td),
-.detail-table :deep(th) {
-  font-size: 0.75rem !important;
+/* Pewarnaan Baris */
+:deep(td.text-orange-darken-3) {
+  color: #EF6C00 !important;
 }
 </style>

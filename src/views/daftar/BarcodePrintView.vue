@@ -151,7 +151,7 @@ onMounted(() => {
 
       <div class="table-wrapper">
         <AppDataTable v-model="selected" v-model:expanded="expanded" :headers="tableHeaders" :items="headers"
-          :loading="isLoading" item-value="nomor" density="compact" class="desktop-table" fixed-header show-select
+          :loading="isLoading" item-value="nomor" density="compact" class="desktop-table header-browse-blue" fixed-header show-select
           select-strategy="single" return-object show-expand @update:expanded="loadDetails">
           <template #[`item.tanggal`]="{ item }">
             {{ format(new Date(item.tanggal), 'dd/MM/yyyy') }}

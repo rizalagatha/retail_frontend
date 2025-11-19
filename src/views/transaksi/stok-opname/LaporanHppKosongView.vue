@@ -139,7 +139,7 @@ watch(options, fetchData, { deep: true });
       <div class="table-container">
         <v-data-table-server :headers="headers" :items="items" :items-length="totalItems" :loading="loading"
           v-model:page="options.page" v-model:items-per-page="options.itemsPerPage" @update:options="options = $event"
-          density="compact" class="desktop-table" fixed-header>
+          density="compact" class="desktop-table header-browse-blue" fixed-header>
           <template #[`item.no`]="{ index }">
             {{ (options["page"] - 1) * options["itemsPerPage"] + index + 1 }}
           </template>

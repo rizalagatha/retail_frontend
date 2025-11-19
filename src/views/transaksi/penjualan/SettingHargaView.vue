@@ -13,6 +13,18 @@ const authStore = useAuthStore();
 const MENU_ID = '39';
 
 // --- Interfaces ---
+// Interface Header untuk Resize
+interface DataTableHeader {
+  title: string;
+  key: string;
+  width?: number;
+  fixed?: boolean;
+  align?: 'start' | 'center' | 'end';
+  minWidth?: string | number;
+  maxWidth?: string | number;
+  sortable?: boolean;
+}
+
 interface JenisKaos {
   JenisKaos: string;
   Custom: 'Y' | 'N';
@@ -26,7 +38,6 @@ interface UkuranTemplate {
   ukuran: string;
   harga: number | null;
 }
-
 interface SettingHarga {
   jenisKaos: string;
   custom: 'Y' | 'N';
@@ -49,31 +60,65 @@ const editedItem = ref({
 });
 
 const hasViewPermission = computed(() => authStore.can(MENU_ID, 'view'));
-
 const isJenisKaosSearchVisible = ref(false);
 const isKetersediaanConfirmVisible = ref(false);
 const selectedJenisKaos = ref('');
 const itemsPerPage = ref(25);
 
-const headers = [
-  { title: 'Jenis Kaos', key: 'JenisKaos' },
-  { title: 'Tipe', key: 'Custom', align: 'center', width: '100px' },
-  { title: 'S', key: 'Harga_S', align: 'end' },
-  { title: 'M', key: 'Harga_M', align: 'end' },
-  { title: 'L', key: 'Harga_L', align: 'end' },
-  { title: 'XL', key: 'Harga_XL', align: 'end' },
-  { title: '2XL', key: 'Harga_2XL', align: 'end' },
-  { title: '3XL', key: 'Harga_3XL', align: 'end' },
-  { title: '4XL', key: 'Harga_4XL', align: 'end' },
-  { title: '5XL', key: 'Harga_5XL', align: 'end' },
-  { title: '6XL', key: 'Harga_6XL', align: 'end' },
-  { title: '7XL', key: 'Harga_7XL', align: 'end' },
-  { title: '8XL', key: 'Harga_8XL', align: 'end' },
-  { title: '9XL', key: 'Harga_9XL', align: 'end' },
-  { title: '10XL', key: 'Harga_10XL', align: 'end' },
-  { title: 'Oversize', key: 'Harga_Oversize', align: 'end' },
-  { title: 'Jumbo', key: 'Harga_Jumbo', align: 'end' },
-] as const;
+// --- Header Definisi (Updated) ---
+const headers = ref<DataTableHeader[]>([
+  { title: 'Jenis Kaos', key: 'JenisKaos', width: 250, fixed: true },
+  { title: 'Tipe', key: 'Custom', align: 'center', width: 100 },
+  { title: 'S', key: 'Harga_S', align: 'end', width: 100 },
+  { title: 'M', key: 'Harga_M', align: 'end', width: 100 },
+  { title: 'L', key: 'Harga_L', align: 'end', width: 100 },
+  { title: 'XL', key: 'Harga_XL', align: 'end', width: 100 },
+  { title: '2XL', key: 'Harga_2XL', align: 'end', width: 100 },
+  { title: '3XL', key: 'Harga_3XL', align: 'end', width: 100 },
+  { title: '4XL', key: 'Harga_4XL', align: 'end', width: 100 },
+  { title: '5XL', key: 'Harga_5XL', align: 'end', width: 100 },
+  { title: '6XL', key: 'Harga_6XL', align: 'end', width: 100 },
+  { title: '7XL', key: 'Harga_7XL', align: 'end', width: 100 },
+  { title: '8XL', key: 'Harga_8XL', align: 'end', width: 100 },
+  { title: '9XL', key: 'Harga_9XL', align: 'end', width: 100 },
+  { title: '10XL', key: 'Harga_10XL', align: 'end', width: 100 },
+  { title: 'Oversize', key: 'Harga_Oversize', align: 'end', width: 100 },
+  { title: 'Jumbo', key: 'Harga_Jumbo', align: 'end', width: 100 },
+]);
+
+// --- Logic Resize Column ---
+const resizingColumn = ref<DataTableHeader | null>(null);
+const startX = ref(0);
+const startWidth = ref(0);
+
+const onResizeStart = (e: MouseEvent, column: DataTableHeader) => {
+  e.preventDefault();
+  e.stopPropagation();
+  resizingColumn.value = column;
+  startX.value = e.pageX;
+  startWidth.value = (typeof column.width === 'number' ? column.width : 100);
+  document.addEventListener('mousemove', onResizeMove);
+  document.addEventListener('mouseup', onResizeEnd);
+  document.body.style.cursor = 'col-resize';
+};
+
+const onResizeMove = (e: MouseEvent) => {
+  if (!resizingColumn.value) return;
+  const diff = e.pageX - startX.value;
+  resizingColumn.value.width = Math.max(50, startWidth.value + diff);
+};
+
+const onResizeEnd = () => {
+  resizingColumn.value = null;
+  document.removeEventListener('mousemove', onResizeMove);
+  document.removeEventListener('mouseup', onResizeEnd);
+  document.body.style.cursor = '';
+};
+
+// --- Logic Selected Row ---
+const handleRowClick = (_event: Event, { item }: { item: JenisKaos }) => {
+  selected.value = [item];
+};
 
 // --- Methods ---
 const fetchData = async () => {
@@ -95,25 +140,21 @@ const openNewDialog = () => {
 const handleJenisKaosSelected = (jenisKaos: string) => {
   isJenisKaosSearchVisible.value = false;
   selectedJenisKaos.value = jenisKaos;
-  isKetersediaanConfirmVisible.value = true; // Buka dialog konfirmasi ketersediaan
+  isKetersediaanConfirmVisible.value = true;
 };
 
 const handleKetersediaanConfirmed = async (custom: 'Y' | 'N') => {
   isKetersediaanConfirmVisible.value = false;
-  isNew.value = true; // Set mode ke 'baru'
-
-  // Siapkan item untuk diedit
+  isNew.value = true;
   editedItem.value.jenisKaos = selectedJenisKaos.value;
   editedItem.value.custom = custom;
-
   try {
     const response = await api.get<SettingHarga>(
       `/setting-harga/${encodeURIComponent(selectedJenisKaos.value)}/${custom}`
     );
     editedItem.value = response.data;
-    isNew.value = false; // Jika data ditemukan, ini menjadi mode 'edit'
+    isNew.value = false;
   } catch {
-    // Jika tidak ditemukan (404), muat template ukuran baru
     try {
       const templateResponse = await api.get<UkuranTemplate[]>('/setting-harga/ukuran-template');
       editedItem.value.ukuranHarga = templateResponse.data.map(u => ({ ukuran: u.ukuran, harga: null }));
@@ -121,7 +162,7 @@ const handleKetersediaanConfirmed = async (custom: 'Y' | 'N') => {
       toast.error('Gagal memuat template ukuran.');
     }
   } finally {
-    isEditPanelVisible.value = true; // Tampilkan panel edit
+    isEditPanelVisible.value = true;
   }
 };
 
@@ -171,8 +212,6 @@ const exportData = () => {
     toast.info("Tidak ada data untuk diekspor.");
     return;
   }
-
-  // Mengubah nama kolom agar lebih ramah pengguna di file Excel
   const dataToExport = jenisKaosList.value.map(item => ({
     "Jenis Kaos": item.JenisKaos,
     "Tipe": item.Custom === 'Y' ? 'Custom' : 'Stok',
@@ -192,7 +231,6 @@ const exportData = () => {
     "Harga Oversize": item.Harga_Oversize,
     "Harga Jumbo": item.Harga_Jumbo,
   }));
-
   const worksheet = XLSX.utils.json_to_sheet(dataToExport);
   const workbook = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(workbook, worksheet, "Setting Harga");
@@ -234,18 +272,47 @@ onMounted(() => {
         <v-btn @click="fetchData" icon="mdi-refresh" variant="text" size="small"></v-btn>
       </div>
 
-      <AppDataTable v-model="selected" :headers="headers" :items="jenisKaosList" :search="search" :loading="isLoading"
-        item-value="JenisKaos" v-model:items-per-page="itemsPerPage" density="compact"
-        class="desktop-table fill-height-table" fixed-header show-select return-object>
-        <template #[`item.Custom`]="{ item }">
-          <v-chip :color="item.Custom === 'Y' ? 'blue' : 'green'" size="x-small">
-            {{ item.Custom === 'Y' ? 'Custom' : 'Stok' }}
-          </v-chip>
-        </template>
-        <template v-for="col in headers.filter(h => h.key.startsWith('Harga'))" #[`item.${col.key}`]="{ item }">
-          {{ new Intl.NumberFormat('id-ID').format(Number(item[col.key] ?? 0)) }}
-        </template>
-      </AppDataTable>
+      <div class="table-container">
+        <AppDataTable v-model="selected" :headers="headers" :items="jenisKaosList" :search="search" :loading="isLoading"
+          item-value="JenisKaos" v-model:items-per-page="itemsPerPage" density="compact"
+          class="desktop-table header-browse-blue" fixed-header show-select return-object @click:row="handleRowClick">
+          <template #headers="{ columns, isSorted, getSortIcon, toggleSort }">
+            <tr>
+              <template v-for="header in columns" :key="header.key">
+                <th
+                  :style="{ width: header.width + 'px', minWidth: header.width + 'px', maxWidth: header.width + 'px' }"
+                  class="resizable-header"
+                  :class="{ 'text-center': header.align === 'center', 'text-end': header.align === 'end' }"
+                  @click="toggleSort(header)">
+                  <div class="header-content">
+                    <span>{{ header.title }}</span>
+                    <v-icon v-if="isSorted(header)" size="small" class="ms-1">
+                      {{ getSortIcon(header) }}
+                    </v-icon>
+                  </div>
+                  <div class="resizer" @mousedown.stop="onResizeStart($event, header)" @click.stop></div>
+                </th>
+              </template>
+            </tr>
+          </template>
+
+          <template v-for="header in headers" #[`item.${header.key}`]="{ item }" :key="header.key">
+            <td>
+              <template v-if="header.key === 'Custom'">
+                <v-chip :color="item.Custom === 'Y' ? 'blue' : 'green'" size="x-small">
+                  {{ item.Custom === 'Y' ? 'Custom' : 'Stok' }}
+                </v-chip>
+              </template>
+              <template v-else-if="header.key.startsWith('Harga')">
+                {{ new Intl.NumberFormat('id-ID').format(Number(item[header.key] ?? 0)) }}
+              </template>
+              <template v-else>
+                {{ item[header.key] }}
+              </template>
+            </td>
+          </template>
+        </AppDataTable>
+      </div>
     </div>
 
     <JenisKaosSearchModal v-if="isJenisKaosSearchVisible" @close="isJenisKaosSearchVisible = false"
@@ -267,7 +334,7 @@ onMounted(() => {
       <v-card class="dialog-card">
         <v-toolbar color="primary" density="compact">
           <v-toolbar-title class="text-subtitle-1">{{ isNew ? 'Tambah Setting Harga Baru' : 'Ubah Setting Harga'
-            }}</v-toolbar-title>
+          }}</v-toolbar-title>
         </v-toolbar>
         <v-card-text class="pa-4">
           <v-row dense>
@@ -299,71 +366,101 @@ onMounted(() => {
         </v-card-actions>
       </v-card>
     </v-dialog>
-
   </PageLayout>
 </template>
 
 <style scoped>
-/* >> GANTI KESELURUHAN BLOK STYLE ANDA DENGAN INI << */
-
+/* --- Layout Full Height --- */
 .browse-content {
+  display: flex;
+  flex-direction: column;
+  height: calc(100vh - 64px - 32px);
+  overflow: hidden;
+}
+
+.filter-section {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 12px;
+  border-bottom: 1px solid #e0e0e0;
+  flex-shrink: 0;
+  background-color: white;
+}
+
+.table-container {
+  flex-grow: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* --- Tabel Desktop Style --- */
+.desktop-table {
   height: 100%;
   display: flex;
   flex-direction: column;
 }
 
-/* --- Styling untuk Filter Section --- */
-.filter-section {
+.desktop-table :deep(.v-table__wrapper) {
+  flex-grow: 1;
+  height: 100% !important;
+  overflow-x: auto !important;
+  overflow-y: auto !important;
+}
+
+.desktop-table :deep(table) {
+  width: max-content;
+  min-width: 100%;
+}
+
+/* --- Header Resize --- */
+.resizable-header {
+  position: relative;
+  background-color: #e3f2fd !important;
+  /* Warna Biru Konsisten */
+  color: #0d47a1 !important;
+  font-weight: 700 !important;
+  text-transform: uppercase;
+  font-size: 11px !important;
+  height: 40px !important;
+  border-bottom: 2px solid #1976d2 !important;
+  padding: 0 8px !important;
+  user-select: none;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.header-content {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 6px 10px;
-  border-bottom: 1px solid #e0e0e0;
-  flex-shrink: 0;
+  width: 100%;
+  height: 100%;
 }
 
-.filter-section :deep(.v-field__input),
-.filter-section :deep(.v-label) {
-  font-size: 12px !important;
+.resizable-header.text-center .header-content {
+  justify-content: center;
 }
 
-.filter-section :deep(.v-field) {
-  height: 36px;
+.resizable-header.text-end .header-content {
+  justify-content: flex-end;
 }
 
-/* --- Styling untuk Tabel Utama --- */
-.desktop-table {
-  font-size: 11px;
-  flex: 1 1 auto;
-  min-height: 0;
+.resizer {
+  position: absolute;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  width: 5px;
+  cursor: col-resize;
+  z-index: 10;
 }
 
-.desktop-table :deep(td),
-.desktop-table :deep(th) {
-  padding: 0 8px !important;
-  height: 28px !important;
-}
-
-/* --- Styling untuk Dialog Ubah/Tambah --- */
-.dialog-card,
-.dialog-footer {
-  font-size: 11px;
-}
-
-.dialog-footer {
-  background-color: #f5f5f5;
-}
-
-.dialog-card :deep(.v-label) {
-  font-size: 11px !important;
-}
-
-.dialog-card :deep(input) {
-  font-size: 12px !important;
-}
-
-.dialog-card .desktop-table :deep(input) {
-  font-size: 11px !important;
+.resizer:hover,
+.resizable-header:hover .resizer {
+  border-right: 2px solid #1565c0;
 }
 
 /* --- Utility & State --- */

@@ -88,7 +88,16 @@ interface InvoiceItem {
   Closing?: string;
   [key: string]: unknown;
 }
-
+interface DataTableHeader {
+  title: string;
+  key: string;
+  width?: number;
+  fixed?: boolean;
+  align?: 'start' | 'center' | 'end';
+  minWidth?: string | number;
+  maxWidth?: string | number;
+  sortable?: boolean;
+}
 
 // --- Inisialisasi ---
 const router = useRouter();
@@ -107,6 +116,9 @@ const expanded = ref<string[]>([]);
 const cabangList = ref([]);
 const isKasirPreviewVisible = ref(false);
 const selectedInvoice = ref<string | null>(null);
+const resizingColumn = ref<DataTableHeader | null>(null);
+const startX = ref(0);
+const startWidth = ref(0);
 
 const filters = reactive({
   startDate: format(new Date(), 'yyyy-MM-dd'),
@@ -171,43 +183,44 @@ const filteredMasterData = computed(() => {
 
 // --- Konfigurasi Tabel ---
 const headers = [
-  { title: 'Nomor', key: 'Nomor', minWidth: '180px', fixed: true },
-  { title: 'Tanggal', key: 'Tanggal', minWidth: '120px' },
-  { title: 'Posting', key: 'Posting', minWidth: '100px' },
-  { title: 'No. SO', key: 'NomorSO', minWidth: '180px' },
-  { title: 'Tgl SO', key: 'TglSO', minWidth: '120px' },
-  { title: 'TOP', key: 'Top', minWidth: '70px' },
-  { title: 'Jatuh Tempo', key: 'Tempo', minWidth: '120px' },
-  { title: 'Last Payment', key: 'LastPayment', minWidth: '120px' },
-  { title: 'Diskon', key: 'Diskon', minWidth: '120px' },
-  { title: 'DP', key: 'Dp', minWidth: '120px' },
-  { title: 'Biaya Kirim', key: 'Biayakirim', minWidth: '120px' },
-  { title: 'Nominal', key: 'Nominal', minWidth: '150px' },
-  { title: 'Piutang', key: 'Piutang', minWidth: '150px' },
-  { title: 'Bayar', key: 'Bayar', minWidth: '150px' },
-  { title: 'Sisa Piutang', key: 'SisaPiutang', minWidth: '150px' },
-  { title: 'Rp Retur', key: 'RpRetur', minWidth: '120px' },
-  { title: 'Kd Cus', key: 'Kdcus', minWidth: '120px' },
-  { title: 'Customer', key: 'Nama', minWidth: '250px' },
-  { title: 'Alamat', key: 'Alamat', minWidth: '350px' },
-  { title: 'Kota', key: 'Kota', minWidth: '150px' },
-  { title: 'Telepon', key: 'Telp', minWidth: '150px' },
-  { title: 'Level', key: 'Level', minWidth: '150px' },
-  { title: 'HP', key: 'Hp', minWidth: '150px' },
-  { title: 'Nama Member', key: 'Member', minWidth: '250px' },
-  { title: 'Keterangan', key: 'Keterangan', minWidth: '250px' },
-  { title: 'Rp Tunai', key: 'RpTunai', minWidth: '120px' },
-  { title: 'No Voucher', key: 'NoVoucher', minWidth: '150px' },
-  { title: 'Rp Voucher', key: 'RpVoucher', minWidth: '120px' },
-  { title: 'Rp Transfer', key: 'RpTransfer', minWidth: '120px' },
-  { title: 'No Setoran', key: 'NoSetoran', minWidth: '180px' },
-  { title: 'Tgl Transfer', key: 'TglTransfer', minWidth: '120px' },
-  { title: 'Akun', key: 'Akun', minWidth: '120px' },
-  { title: 'No Rekening', key: 'NoRekening', minWidth: '150px' },
-  { title: 'No Retur', key: 'NoRetur', minWidth: '180px' },
-  { title: 'SC', key: 'SC', minWidth: '150px' },
-  { title: 'Created', key: 'Created', minWidth: '180px' },
-  { title: 'Minus', key: 'Minus', minWidth: '80px', align: 'center' },
+  { title: '', key: 'data-table-expand', width: '50px', fixed: true },
+  { title: 'Nomor', key: 'Nomor', width: '180px', fixed: true },
+  { title: 'Tanggal', key: 'Tanggal', width: '120px' },
+  { title: 'Posting', key: 'Posting', width: '100px' },
+  { title: 'No. SO', key: 'NomorSO', width: '180px' },
+  { title: 'Tgl SO', key: 'TglSO', width: '120px' },
+  { title: 'TOP', key: 'Top', width: '70px' },
+  { title: 'Jatuh Tempo', key: 'Tempo', width: '120px' },
+  { title: 'Last Payment', key: 'LastPayment', width: '120px' },
+  { title: 'Diskon', key: 'Diskon', width: '120px' },
+  { title: 'DP', key: 'Dp', width: '120px' },
+  { title: 'Biaya Kirim', key: 'Biayakirim', width: '120px' },
+  { title: 'Nominal', key: 'Nominal', width: '150px' },
+  { title: 'Piutang', key: 'Piutang', width: '150px' },
+  { title: 'Bayar', key: 'Bayar', width: '150px' },
+  { title: 'Sisa Piutang', key: 'SisaPiutang', width: '150px' },
+  { title: 'Rp Retur', key: 'RpRetur', width: '120px' },
+  { title: 'Kd Cus', key: 'Kdcus', width: '120px' },
+  { title: 'Customer', key: 'Nama', width: '250px' },
+  { title: 'Alamat', key: 'Alamat', width: '350px' },
+  { title: 'Kota', key: 'Kota', width: '150px' },
+  { title: 'Telepon', key: 'Telp', width: '150px' },
+  { title: 'Level', key: 'Level', width: '150px' },
+  { title: 'HP', key: 'Hp', width: '150px' },
+  { title: 'Nama Member', key: 'Member', width: '250px' },
+  { title: 'Keterangan', key: 'Keterangan', width: '250px' },
+  { title: 'Rp Tunai', key: 'RpTunai', width: '120px' },
+  { title: 'No Voucher', key: 'NoVoucher', width: '150px' },
+  { title: 'Rp Voucher', key: 'RpVoucher', width: '120px' },
+  { title: 'Rp Transfer', key: 'RpTransfer', width: '120px' },
+  { title: 'No Setoran', key: 'NoSetoran', width: '180px' },
+  { title: 'Tgl Transfer', key: 'TglTransfer', width: '120px' },
+  { title: 'Akun', key: 'Akun', width: '120px' },
+  { title: 'No Rekening', key: 'NoRekening', width: '150px' },
+  { title: 'No Retur', key: 'NoRetur', width: '180px' },
+  { title: 'SC', key: 'SC', width: '150px' },
+  { title: 'Created', key: 'Created', width: '180px' },
+  { title: 'Minus', key: 'Minus', width: '80px', align: 'center' },
   { title: 'Prn', key: 'Prn', align: 'center' },
   { title: 'Puas', key: 'Puas', align: 'center' },
   { title: 'Closing', key: 'Closing', align: 'center' },
@@ -216,7 +229,7 @@ const headers = [
 const detailHeaders = [
   { title: 'Kode', key: 'Kode' },
   { title: 'Barcode', key: 'Barcode' },
-  { title: 'Nama Barang', key: 'Nama', minWidth: '300px' },
+  { title: 'Nama Barang', key: 'Nama', width: '300px' },
   { title: 'Ukuran', key: 'Ukuran' },
   { title: 'Jumlah', key: 'Jumlah', align: 'end' },
   { title: 'Harga', key: 'Harga', align: 'end' },
@@ -225,6 +238,44 @@ const detailHeaders = [
 ] as const;
 
 // --- Methods ---
+const handleRowClick = (event: Event, { item }: { item: InvoiceHeader }) => {
+  // Toggle select: Jika sudah dipilih, jangan di-unselect (biar mirip behavior desktop)
+  // Atau ganti logika: Klik row = set selected cuma row itu saja (single select behavior)
+
+  selected.value = [item]; // Set item ini sebagai satu-satunya yang terpilih
+};
+
+const onResizeStart = (e: MouseEvent, column: DataTableHeader) => {
+  // Mencegah sorting saat mau resize
+  e.preventDefault();
+  e.stopPropagation();
+
+  resizingColumn.value = column;
+  startX.value = e.pageX;
+  startWidth.value = column.width || 100; // Default width jika belum ada
+
+  // Pasang event listener global
+  document.addEventListener('mousemove', onResizeMove);
+  document.addEventListener('mouseup', onResizeEnd);
+  document.body.style.cursor = 'col-resize'; // Ubah kursor body
+};
+
+const onResizeMove = (e: MouseEvent) => {
+  if (!resizingColumn.value) return;
+
+  const diff = e.pageX - startX.value;
+  const newWidth = Math.max(50, startWidth.value + diff); // Minimal 50px
+
+  resizingColumn.value.width = newWidth;
+};
+
+const onResizeEnd = () => {
+  resizingColumn.value = null;
+  document.removeEventListener('mousemove', onResizeMove);
+  document.removeEventListener('mouseup', onResizeEnd);
+  document.body.style.cursor = ''; // Reset kursor
+};
+
 const fetchCabangList = async () => {
   try {
     const response = await api.get('/invoices/lookup/cabang');
@@ -517,10 +568,40 @@ watch(filters, () => {
 
       <div class="table-container">
         <AppDataTable v-model="selected" v-model:expanded="expanded" :headers="headers" :items="filteredMasterData"
-          :loading="loading" item-value="Nomor" density="compact" class="desktop-table" fixed-header show-select
-          return-object show-expand @update:expanded="loadDetails"
+          :loading="loading" item-value="Nomor" density="compact" class="desktop-table header-browse-blue" fixed-header
+          show-select return-object @update:expanded="loadDetails" @click:row="handleRowClick"
           :item-props="(item) => ({ class: getRowClass(item) })">
-          <template v-for="header in headers" :key="header.key" #[`item.${header.key}`]="{ item }">
+          <template #headers="{ columns, isSorted, getSortIcon, toggleSort }">
+            <tr>
+              <template v-for="header in columns" :key="header.key">
+                <th :style="{
+                  width: header.width + 'px',
+                  minWidth: header.width + 'px',
+                  maxWidth: header.width + 'px'
+                }" class="resizable-header"
+                  :class="{ 'text-center': header.align === 'center', 'text-end': header.align === 'end' }"
+                  @click="toggleSort(header)">
+                  <div class="header-content">
+                    <span>{{ header.title }}</span>
+
+                    <v-icon v-if="isSorted(header)" size="small" class="ms-1">
+                      {{ getSortIcon(header) }}
+                    </v-icon>
+                  </div>
+
+                  <div class="resizer" @mousedown.stop="onResizeStart($event, header)" @click.stop></div>
+                </th>
+              </template>
+            </tr>
+          </template>
+
+          <template #[`item.data-table-expand`]="{ internalItem, toggleExpand, isExpanded }">
+            <v-btn icon="mdi-chevron-down" :class="{ 'rotate-180': isExpanded(internalItem) }" size="x-small"
+              variant="text" @click.stop="toggleExpand(internalItem)" />
+          </template>
+
+          <template v-for="header in headers.filter(h => h.key !== 'data-table-expand')" :key="header.key"
+            #[`item.${header.key}`]="{ item }">
             <td>
               <template
                 v-if="['Tanggal', 'TglSO', 'TglSJ', 'LastPayment', 'TglTransfer', 'Created'].includes(header.key)">
@@ -542,47 +623,27 @@ watch(filters, () => {
             </td>
           </template>
 
-
           <template #expanded-row="{ columns, item }">
             <tr>
-              <td :colspan="columns.length">
+              <td :colspan="columns.length" class="pa-0">
                 <div class="detail-container">
                   <div class="detail-table-wrapper">
-                    <div v-if="loadingDetails.has(item.Nomor)" class="text-center pa-4">Memuat
-                      detail...</div>
-                    <v-data-table v-else :headers="detailHeaders" :items="details[item.Nomor]" density="compact"
-                      class="detail-table" :items-per-page="-1">
+                    <v-data-table :headers="detailHeaders" :items="details[item.Nomor]" density="compact"
+                      hide-default-footer>
                       <template #[`item.Harga`]="{ item }">
                         <div class="harga-cell">
-
-                          <!-- Jika ADA diskon (HargaAsli > Harga) -->
                           <template v-if="item.HargaAsli > item.Harga">
-                            <div class="text-grey text-decoration-line-through">
-                              {{ formatRupiah(item.HargaAsli) }}
-                            </div>
-
-                            <div>
-                              {{ formatRupiah(item.Harga) }}
-                            </div>
-
-                            <div v-if="item.DiskonAktif > 0" class="promo-info">
-                              -{{ formatRupiah(item.DiskonAktif) }}/pcs
-                            </div>
+                            <div class="text-grey text-decoration-line-through">{{ formatRupiah(item.HargaAsli) }}</div>
+                            <div>{{ formatRupiah(item.Harga) }}</div>
                           </template>
-
-                          <!-- Jika TIDAK ADA diskon -->
                           <template v-else>
-                            <div>
-                              {{ formatRupiah(item.Harga) }}
-                            </div>
+                            <div>{{ formatRupiah(item.Harga) }}</div>
                           </template>
-
                         </div>
                       </template>
                       <template #[`item.Total`]="{ value }">
                         {{ formatRupiah(value) }}
                       </template>
-                      <template #bottom></template>
                     </v-data-table>
                   </div>
                 </div>
@@ -622,7 +683,49 @@ watch(filters, () => {
 </template>
 
 <style scoped>
-/* --- TAMBAHKAN STYLE BARU YANG LEBIH SPESIFIK INI --- */
+.browse-content {
+  display: flex;
+  flex-direction: column;
+  /* Hitung sisa tinggi: 100vh - (Tinggi Header/Navbar + Padding) */
+  height: calc(100vh - 64px - 32px);
+  overflow: hidden;
+  /* Sembunyikan scrollbar window utama */
+}
+
+.filter-section {
+  flex-shrink: 0;
+}
+
+.table-container {
+  flex-grow: 1;
+  min-height: 0;
+  /* CRITICAL: Agar flexbox mengizinkan anak elemen untuk scroll */
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  /* Sembunyikan scrollbar di wrapper ini */
+}
+
+.desktop-table {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.desktop-table :deep(.v-table__wrapper) {
+  /* Pastikan area ini mengambil sisa tinggi */
+  flex-grow: 1;
+  height: 100% !important;
+
+  /* Aktifkan scrollbar di SINI */
+  overflow-x: auto !important;
+  /* Scrollbar Horizontal */
+  overflow-y: auto !important;
+  /* Scrollbar Vertikal */
+
+  /* Trik CSS agar scrollbar selalu terlihat (Opsional, tapi bagus) */
+  scrollbar-width: thin;
+}
 
 /* Targetkan sel <td> di dalam baris 'row-sisa-piutang' */
 .desktop-table :deep(tr.row-sisa-piutang > td) {
@@ -664,6 +767,7 @@ watch(filters, () => {
 
 .footer-summary {
   position: sticky;
+  flex-shrink: 0;
   bottom: 0;
   z-index: 10;
   background: #f5f5f5;
@@ -678,5 +782,80 @@ watch(filters, () => {
 .footer-item {
   display: flex;
   gap: 8px;
+}
+
+.detail-container {
+  display: flex;
+  /* UBAH INI: dari flex-end (kanan) menjadi flex-start (kiri) */
+  justify-content: flex-start;
+  padding: 16px 16px 16px 64px;
+  /* Padding kiri lebih besar (64px) agar sejajar indentasi */
+  background-color: #fafafa;
+  border-bottom: 1px solid #e0e0e0;
+  width: 100%;
+  /* Pastikan lebar penuh */
+}
+
+/* Styling header tabel detail agar beda dikit (opsional) */
+.detail-table :deep(thead tr th) {
+  background-color: #f5f5f5 !important;
+  /* Abu muda */
+  color: #424242 !important;
+  font-size: 10px !important;
+  height: 32px !important;
+}
+
+.footer-summary {
+  flex-shrink: 0;
+  z-index: 5;
+  /* Pastikan di atas scrollbar jika perlu */
+}
+
+.resizable-header {
+  position: relative;
+  /* Pastikan border dan background sesuai tema biru Anda */
+  background-color: #e3f2fd !important;
+  color: #0d47a1 !important;
+  font-weight: 700 !important;
+  text-transform: uppercase;
+  font-size: 11px !important;
+  height: 40px !important;
+  border-bottom: 2px solid #1976d2 !important;
+  padding: 0 8px !important;
+  /* Reset padding agar muat */
+  user-select: none;
+  /* Supaya teks tidak terblok saat drag */
+}
+
+/* Konten Header (Teks) */
+.header-content {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  /* Atau flex-start */
+  width: 100%;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* Garis Penarik (Resizer Handle) */
+.resizer {
+  position: absolute;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  width: 5px;
+  /* Area klik selebar 5px */
+  cursor: col-resize;
+  /* Kursor berubah jadi panah kiri-kanan */
+  z-index: 1;
+}
+
+/* Visualisasi garis saat di-hover (Opsional) */
+.resizer:hover,
+.resizable-header:hover .resizer {
+  border-right: 2px solid #1565c0;
+  /* Muncul garis biru saat hover */
 }
 </style>

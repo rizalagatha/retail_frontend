@@ -241,7 +241,7 @@ watch(filters, () => {
       </div>
 
       <div class="table-container">
-        <AppDataTable :headers="[]" :items="items" :loading="isLoading" class="desktop-table" density="compact"
+        <AppDataTable :headers="[]" :items="items" :loading="isLoading" class="desktop-table header-browse-blue" density="compact"
           fixed-header :items-per-page="-1">
 
           <!-- Multi-Level Header menggunakan slot #thead -->

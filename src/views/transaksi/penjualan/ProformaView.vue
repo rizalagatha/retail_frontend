@@ -222,7 +222,7 @@ onMounted(() => {
       <div class="table-container">
         <AppDataTable v-model="selected" v-model:expanded="expanded" :headers="headers" :items="masterData"
           :items-length="masterData.length" :loading="loading" item-value="nomor" density="compact"
-          class="desktop-table" fixed-header show-select show-expand return-object single-select
+          class="desktop-table header-browse-blue" fixed-header show-select show-expand return-object single-select
           @update:expanded="loadDetails">
           <template #[`item.tanggal`]="{ item }">
             {{ format(parseISO(item['tanggal']), 'dd/MM/yyyy') }}

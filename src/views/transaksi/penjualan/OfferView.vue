@@ -10,6 +10,17 @@ import { format } from 'date-fns';
 import * as XLSX from 'xlsx';
 import { formatRupiah } from "@/utils/formatRupiah";
 
+interface DataTableHeader {
+  title: string;
+  key: string;
+  width?: number;
+  fixed?: boolean;
+  align?: 'start' | 'center' | 'end';
+  minWidth?: string | number;
+  maxWidth?: string | number;
+  sortable?: boolean;
+}
+
 interface OfferDetail {
   nomor: string;
   tanggal: string;
@@ -109,8 +120,6 @@ const closeReason = ref('');
 const isClosing = ref(false);
 
 const hasViewPermission = computed(() => authStore.can(MENU_ID, 'view'));
-// const dialogDelete = ref(false);
-// const itemToDelete = ref<OfferHeader | null>(null);
 
 const filters = reactive({
   startDate: format(new Date(), 'yyyy-MM-dd'),
@@ -118,27 +127,28 @@ const filters = reactive({
   cabang: authStore.user?.cabang || '',
 });
 
-const tableHeaders = [
-  { title: 'Nomor', key: 'nomor', width: '150px', fixed: true },
-  { title: 'Tanggal', key: 'tanggal', width: '100px' },
-  { title: 'No. SO', key: 'noSO', width: '150px' },
-  { title: 'TOP', key: 'top', align: 'center', width: '70px' },
-  { title: 'Tgl Tempo', key: 'tempo', width: '100px' },
-  { title: 'PPN', key: 'ppn', align: 'end', width: '100px' },
-  { title: 'Disc %', key: 'disc%', align: 'end', width: '80px' },
-  { title: 'Diskon', key: 'diskon', align: 'end', width: '100px' },
-  { title: 'Nominal', key: 'nominal', align: 'end', width: '120px' },
-  { title: 'Kode Customer', key: 'kdcus', width: '120px' },
-  { title: 'Nama Customer', key: 'nama', width: '250px' },
-  { title: 'Alamat', key: 'alamat' },
-  { title: 'Kota', key: 'kota', width: '150px' },
-  { title: 'Telepon', key: 'telp', width: '120px' },
-  { title: 'Level', key: 'level', width: '150px' },
-  { title: 'Keterangan', key: 'keterangan', width: '250px' },
-  { title: 'Alasan Close', key: 'alasan', width: '250px' },
-  { title: 'User', key: 'created', width: '120px' },
-  { title: 'Status', key: 'status', align: 'center', width: '120px' },
-] as const;
+const tableHeaders = ref<DataTableHeader[]>([
+  { title: '', key: 'data-table-expand', width: 50, fixed: true },
+  { title: 'Nomor', key: 'nomor', width: 150, fixed: true },
+  { title: 'Tanggal', key: 'tanggal', width: 100 },
+  { title: 'No. SO', key: 'noSO', width: 150 },
+  { title: 'TOP', key: 'top', align: 'center', width: 70 },
+  { title: 'Tgl Tempo', key: 'tempo', width: 100 },
+  { title: 'PPN', key: 'ppn', align: 'end', width: 100 },
+  { title: 'Disc %', key: 'disc%', align: 'end', width: 80 },
+  { title: 'Diskon', key: 'diskon', align: 'end', width: 100 },
+  { title: 'Nominal', key: 'nominal', align: 'end', width: 120 },
+  { title: 'Kode Customer', key: 'kdcus', width: 120 },
+  { title: 'Nama Customer', key: 'nama', width: 250 },
+  { title: 'Alamat', key: 'alamat', width: 350 },
+  { title: 'Kota', key: 'kota', width: 150 },
+  { title: 'Telepon', key: 'telp', width: 120 },
+  { title: 'Level', key: 'level', width: 150 },
+  { title: 'Keterangan', key: 'keterangan', width: 250 },
+  { title: 'Alasan Close', key: 'alasan', width: 250 },
+  { title: 'User', key: 'created', width: 120 },
+  { title: 'Status', key: 'status', align: 'center', width: 120 },
+]);
 
 const detailHeaders = [
   { title: 'Kode', key: 'kode' },
@@ -150,6 +160,37 @@ const detailHeaders = [
   { title: 'Diskon', key: 'diskon', align: 'end' },
   { title: 'Total', key: 'total', align: 'end' },
 ] as const;
+
+// --- Resize Logic ---
+const resizingColumn = ref<DataTableHeader | null>(null);
+const startX = ref(0);
+const startWidth = ref(0);
+
+const onResizeStart = (e: MouseEvent, column: DataTableHeader) => {
+  e.preventDefault();
+  e.stopPropagation();
+
+  resizingColumn.value = column;
+  startX.value = e.pageX;
+  startWidth.value = (typeof column.width === 'number' ? column.width : 100);
+
+  document.addEventListener('mousemove', onResizeMove);
+  document.addEventListener('mouseup', onResizeEnd);
+  document.body.style.cursor = 'col-resize';
+};
+
+const onResizeMove = (e: MouseEvent) => {
+  if (!resizingColumn.value) return;
+  const diff = e.pageX - startX.value;
+  resizingColumn.value.width = Math.max(50, startWidth.value + diff);
+};
+
+const onResizeEnd = () => {
+  resizingColumn.value = null;
+  document.removeEventListener('mousemove', onResizeMove);
+  document.removeEventListener('mouseup', onResizeEnd);
+  document.body.style.cursor = '';
+};
 
 const isSingleSelected = computed(() => selected.value.length === 1);
 const canBeClosed = computed(() => {
@@ -176,6 +217,10 @@ const filteredOffers = computed(() => {
 });
 
 // --- Methods ---
+const handleRowClick = (_event: Event, { item }: { item: OfferHeader }) => {
+  selected.value = [item];
+};
+
 const fetchBranches = async () => {
   try {
     // Perbaikan: Panggil endpoint yang benar
@@ -250,35 +295,6 @@ const editOffer = () => {
   const nomor = selected.value[0].nomor;
   router.push(`/transaksi/penjualan/penawaran/ubah/${nomor}`);
 };
-
-// const deleteOffer = async (item: OfferHeader) => {
-//   if (item.noSO || item.alasan) {
-//     toast.warning('Penawaran yang sudah menjadi SO atau ditutup tidak bisa dihapus.');
-//     return;
-//   }
-//   try {
-//     await api.delete(`/offers/${item.nomor}`);
-//     toast.success('Penawaran berhasil dihapus.');
-//     fetchData();
-//     selected.value = [];
-//   } catch (error) {
-//     toast.error('Gagal menghapus penawaran.', error);
-//   }
-// };
-
-// const confirmDelete = () => {
-//   if (!isSingleSelected.value) return;
-//   itemToDelete.value = selected.value[0];
-//   dialogDelete.value = true;
-// };
-
-// const deleteConfirmed = () => {
-//   if (itemToDelete.value) {
-//     deleteOffer(itemToDelete.value);
-//   }
-//   dialogDelete.value = false;
-//   itemToDelete.value = null;
-// };
 
 const openCloseDialog = () => {
   if (!canBeClosed.value) return; // Validasi tambahan
@@ -525,10 +541,42 @@ watch(() => [filters.startDate, filters.endDate], () => {
       <!-- Table Section -->
       <div class="table-container">
         <AppDataTable v-model="selected" :headers="tableHeaders" :items="filteredOffers" :loading="isLoading"
-          item-value="nomor" density="compact" class="desktop-table" fixed-header show-select return-object show-expand
-          @update:expanded="loadDetails">
-          <template v-for="header in tableHeaders" #[`item.${header.key}`]="{ item }" :key="header.key">
+          item-value="nomor" density="compact" class="desktop-table header-browse-blue" fixed-header show-select
+          return-object @update:expanded="loadDetails" @click:row="handleRowClick"
+          :item-props="(item) => ({ class: getRowTextColor(item) })">
+
+          <template #headers="{ columns, isSorted, getSortIcon, toggleSort }">
+            <tr>
+              <template v-for="header in columns" :key="header.key">
+                <th :style="{
+                  width: header.width + 'px',
+                  minWidth: header.width + 'px',
+                  maxWidth: header.width + 'px'
+                }" class="resizable-header"
+                  :class="{ 'text-center': header.align === 'center', 'text-end': header.align === 'end' }"
+                  @click="toggleSort(header)">
+                  <div class="header-content">
+                    <span>{{ header.title }}</span>
+                    <v-icon v-if="isSorted(header)" size="small" class="ms-1">
+                      {{ getSortIcon(header) }}
+                    </v-icon>
+                  </div>
+                  <div class="resizer" @mousedown.stop="onResizeStart($event, header)" @click.stop></div>
+                </th>
+              </template>
+            </tr>
+          </template>
+
+          <template #[`item.data-table-expand`]="{ internalItem, toggleExpand, isExpanded }">
+            <v-btn icon="mdi-chevron-down" :class="{ 'rotate-180': isExpanded(internalItem) }" size="x-small"
+              variant="text" @click.stop="toggleExpand(internalItem)" />
+          </template>
+
+          <template v-for="header in tableHeaders.filter(h => h.key !== 'data-table-expand')"
+            #[`item.${header.key}`]="{ item }" :key="header.key">
+
             <td :class="getRowTextColor(item)">
+
               <template v-if="header.key === 'tanggal' || header.key === 'tempo'">
                 {{ item[header.key] ? format(new Date(item[header.key]), 'dd/MM/yyyy') : '-' }}
               </template>
@@ -545,6 +593,7 @@ watch(() => [filters.startDate, filters.endDate], () => {
               </template>
             </td>
           </template>
+
           <template #expanded-row="{ columns, item }">
             <tr>
               <td :colspan="columns.length" class="pa-0">
@@ -576,7 +625,6 @@ watch(() => [filters.startDate, filters.endDate], () => {
       </div>
     </div>
 
-    <!-- Dialog untuk Close Penawaran -->
     <v-dialog v-model="isCloseDialogVisible" max-width="500px" persistent>
       <v-card>
         <v-card-title>
@@ -593,18 +641,6 @@ watch(() => [filters.startDate, filters.endDate], () => {
         </v-card-actions>
       </v-card>
     </v-dialog>
-
-    <!-- (8) Tambahkan Dialog Konfirmasi Hapus
-    <v-dialog v-model="dialogDelete" max-width="500px">
-      <v-card>
-        <v-card-title class="text-h5">Konfirmasi Hapus</v-card-title>
-        <v-card-text>Apakah Anda yakin ingin menghapus penawaran nomor <strong>{{ itemToDelete?.nomor
-            }}</strong>?</v-card-text>
-        <v-card-actions><v-spacer></v-spacer><v-btn @click="dialogDelete = false">Batal</v-btn><v-btn
-            color="red-darken-1" variant="elevated"
-            @click="deleteConfirmed">Hapus</v-btn><v-spacer></v-spacer></v-card-actions>
-      </v-card>
-    </v-dialog> -->
   </PageLayout>
 </template>
 
@@ -613,11 +649,151 @@ watch(() => [filters.startDate, filters.endDate], () => {
   font-size: 11px !important;
 }
 
-:deep(.row-open td) {
-  color: red !important;
+/* Warna Teks Status */
+.desktop-table :deep(td.text-red) {
+  color: #d32f2f !important; /* Merah Material Design */
 }
 
-:deep(.row-closed td) {
-  color: blue !important;
+.desktop-table :deep(td.text-blue) {
+  color: #1976d2 !important; /* Biru Material Design */
+}
+
+.desktop-table :deep(tr:hover td.text-red) {
+  background-color: #ffebee !important; /* Merah sangat muda */
+}
+
+/* --- Layout Baru (Mirip InvoiceBrowse) --- */
+
+/* 1. Container Utama Full Height */
+.browse-content {
+  display: flex;
+  flex-direction: column;
+  height: calc(100vh - 64px - 32px);
+  overflow: hidden;
+}
+
+/* 2. Filter Section Tetap */
+.filter-section {
+  flex-shrink: 0;
+  /* Styling tambahan biar rapi */
+  padding: 8px;
+  border-bottom: 1px solid #e0e0e0;
+  background: white;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+/* 3. Table Container (Flex Grow) */
+.table-container {
+  flex-grow: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* 4. Sticky Footer Summary (Jika ada, di sini OfferView belum pakai summary, tapi siap) */
+.footer-summary {
+  flex-shrink: 0;
+  z-index: 10;
+}
+
+/* --- Styling Table Scrollbar & Full Height --- */
+.desktop-table {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.desktop-table :deep(.v-table__wrapper) {
+  flex-grow: 1;
+  height: 100% !important;
+  overflow-x: auto !important;
+  overflow-y: auto !important;
+}
+
+.desktop-table :deep(table) {
+  width: max-content;
+  min-width: 100%;
+}
+
+/* --- Styling Header Resize --- */
+.resizable-header {
+  position: relative;
+  background-color: #e3f2fd !important;
+  color: #0d47a1 !important;
+  font-weight: 700 !important;
+  text-transform: uppercase;
+  font-size: 11px !important;
+  height: 40px !important;
+  border-bottom: 2px solid #1976d2 !important;
+  padding: 0 8px !important;
+  user-select: none;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.header-content {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  height: 100%;
+}
+
+.resizable-header.text-center .header-content {
+  justify-content: center;
+}
+
+.resizable-header.text-end .header-content {
+  justify-content: flex-end;
+}
+
+.resizer {
+  position: absolute;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  width: 5px;
+  cursor: col-resize;
+  z-index: 10;
+}
+
+.resizer:hover,
+.resizable-header:hover .resizer {
+  border-right: 2px solid #1565c0;
+}
+
+/* --- Styling Detail Row Sticky --- */
+.detail-container {
+  position: sticky;
+  left: 0;
+  z-index: 2;
+  display: flex;
+  justify-content: flex-start;
+  align-items: flex-start;
+  background-color: #fafafa;
+  padding: 16px 16px 16px 64px;
+  border-bottom: 1px solid #e0e0e0;
+  width: fit-content;
+  min-width: 100%;
+  box-sizing: border-box;
+}
+
+.detail-table-wrapper {
+  width: 100%;
+  max-width: 900px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  overflow: hidden;
+  background-color: white;
+}
+
+.detail-table :deep(thead tr th) {
+  background-color: #f5f5f5 !important;
+  color: #424242 !important;
+  font-size: 10px !important;
+  height: 32px !important;
 }
 </style>

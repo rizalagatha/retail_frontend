@@ -156,7 +156,7 @@ watch(filters, fetchData, { deep: true });
       </div>
 
       <div class="table-container">
-        <AppDataTable :headers="headers" :items="items" :loading="loading" density="compact" class="desktop-table"
+        <AppDataTable :headers="headers" :items="items" :loading="loading" density="compact" class="desktop-table header-browse-blue"
           fixed-header :items-per-page="-1">
           <template #[`item.no`]="{ index }">{{ index + 1 }}</template>
           <template #[`item.tanggal`]="{ item }">{{ format(parseISO(item.tanggal), 'dd-MM-yyyy') }}</template>

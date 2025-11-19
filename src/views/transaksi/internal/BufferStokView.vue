@@ -5,6 +5,19 @@ import PageLayout from '@/components/PageLayout.vue';
 import { useToast } from 'vue-toastification';
 import { useAuthStore } from '@/stores/authStore';
 import * as XLSX from 'xlsx';
+import AppDataTable from '@/components/AppDataTable.vue';
+
+// Interface Header (Wajib untuk Resize)
+interface DataTableHeader {
+  title: string;
+  key: string;
+  width?: number;
+  fixed?: boolean;
+  align?: 'start' | 'center' | 'end';
+  minWidth?: string | number;
+  maxWidth?: string | number;
+  sortable?: boolean;
+}
 
 interface BufferStockItem {
   Status: string
@@ -41,19 +54,54 @@ const maxBuffer = ref(0);
 
 const hasAccess = computed(() => authStore.isAuthenticated);
 
-const headers = [
-  { title: 'Status', key: 'status', width: '120px' },
-  { title: 'Kategori', key: 'KtgProduk', width: '120px' },
-  { title: 'Kode', key: 'Kode', width: '120px' },
-  { title: 'Barcode', key: 'Barcode', width: '120px' },
-  { title: 'Nama', key: 'Nama', width: '300px' },
-  { title: 'Ukuran', key: 'Ukuran' },
-  { title: 'Stok', key: 'Stok', align: 'end' as const },
-  { title: 'Min Buffer', key: 'MinBuffer', align: 'end' as const },
-  { title: 'Max Buffer', key: 'MaxBuffer', align: 'end' as const },
-  { title: 'Harus Minta', key: 'Harus_Minta', align: 'end' as const },
-  { title: 'Sudah Minta', key: 'Sudah_Minta', align: 'end' as const },
-];
+// --- Header Definisi (Ref & Width Angka) ---
+const headers = ref<DataTableHeader[]>([
+  { title: 'Status', key: 'Status', width: 120, fixed: true },
+  { title: 'Kategori', key: 'KtgProduk', width: 120 },
+  { title: 'Kode', key: 'Kode', width: 120 },
+  { title: 'Barcode', key: 'Barcode', width: 120 },
+  { title: 'Nama', key: 'Nama', width: 300 },
+  { title: 'Ukuran', key: 'Ukuran', width: 100 },
+  { title: 'Stok', key: 'Stok', align: 'end', width: 100 },
+  { title: 'Min Buffer', key: 'MinBuffer', align: 'end', width: 100 },
+  { title: 'Max Buffer', key: 'MaxBuffer', align: 'end', width: 100 },
+  { title: 'Harus Minta', key: 'Harus_Minta', align: 'end', width: 100 },
+  { title: 'Sudah Minta', key: 'Sudah_Minta', align: 'end', width: 100 },
+]);
+
+// --- Logic Resize Column ---
+const resizingColumn = ref<DataTableHeader | null>(null);
+const startX = ref(0);
+const startWidth = ref(0);
+
+const onResizeStart = (e: MouseEvent, column: DataTableHeader) => {
+  e.preventDefault();
+  e.stopPropagation();
+  resizingColumn.value = column;
+  startX.value = e.pageX;
+  startWidth.value = (typeof column.width === 'number' ? column.width : 100);
+  document.addEventListener('mousemove', onResizeMove);
+  document.addEventListener('mouseup', onResizeEnd);
+  document.body.style.cursor = 'col-resize';
+};
+
+const onResizeMove = (e: MouseEvent) => {
+  if (!resizingColumn.value) return;
+  const diff = e.pageX - startX.value;
+  resizingColumn.value.width = Math.max(50, startWidth.value + diff);
+};
+
+const onResizeEnd = () => {
+  resizingColumn.value = null;
+  document.removeEventListener('mousemove', onResizeMove);
+  document.removeEventListener('mouseup', onResizeEnd);
+  document.body.style.cursor = '';
+};
+
+// --- Logic Selected Row ---
+const handleRowClick = (_event: Event, { item }: { item: BufferStockItem }) => {
+  selected.value = [item];
+};
 
 // --- Methods ---
 const fetchCabangList = async () => {
@@ -113,7 +161,7 @@ const saveSetting = async () => {
     };
     await api.post('/buffer-stock/setting', payload);
 
-    const itemInList = list.value.find(i => i.Barcode === itemToSetting.value.Barcode);
+    const itemInList = list.value.find(i => i.Barcode === itemToSetting.value?.Barcode);
     if (itemInList) {
       itemInList.MinBuffer = minBuffer.value;
       itemInList.MaxBuffer = maxBuffer.value;
@@ -134,26 +182,22 @@ const saveSetting = async () => {
   } finally {
     isSettingSaving.value = false;
   }
-
 };
 
 const getRowTextColor = (item: BufferStockItem) => {
-  // Prioritaskan Merah: Stok < Minimal
   if ((item.Stok || 0) < (item.MinBuffer || 0) && (item.MinBuffer || 0) > 0) {
-    return 'text-red font-weight-bold'; // Merah
+    return 'text-red font-weight-bold';
   }
-  // Biru: Sudah Minta
   if ((item.Sudah_Minta || 0) > 0) {
-    return 'text-blue font-weight-bold'; // Biru
+    return 'text-blue font-weight-bold';
   }
-  return ''; // Default
+  return '';
 }
 
 const exportData = () => {
   if (list.value.length === 0) {
     return toast.warning('Tidak ada data untuk diekspor.');
   }
-
   try {
     toast.info('Membuat file Excel...');
     const worksheet = XLSX.utils.json_to_sheet(list.value);
@@ -182,8 +226,9 @@ watch([selectedCabang, tampilkanBufferNol, kaosan, reszo], fetchData);
 <template>
   <PageLayout title="Buffer Stok" desktop-mode icon="mdi-buffer">
     <template #header-actions>
-      <v-btn size="small" prepend-icon="mdi-cog" :disabled="selected.length !== 1"
-        @click="openSetting(selected[0])">Setting (F1)</v-btn>
+      <v-btn size="small" prepend-icon="mdi-cog" :disabled="selected.length !== 1" @click="openSetting(selected[0])">
+        Setting (F1)
+      </v-btn>
       <v-btn size="small" color="teal" @click="exportData">Export</v-btn>
     </template>
 
@@ -202,34 +247,54 @@ watch([selectedCabang, tampilkanBufferNol, kaosan, reszo], fetchData);
         <v-checkbox v-model="reszo" label="RESZO" density="compact" hide-details />
         <v-spacer />
         <div class="legend-group">
-          <div class="legend-item"><v-icon color="red" size="small">mdi-circle-medium</v-icon> Harus Minta
-          </div>
-          <div class="legend-item"><v-icon color="blue" size="small">mdi-circle-medium</v-icon> Sudah Minta
-          </div>
+          <div class="legend-item"><v-icon color="red" size="small">mdi-circle-medium</v-icon> Harus Minta</div>
+          <div class="legend-item"><v-icon color="blue" size="small">mdi-circle-medium</v-icon> Sudah Minta</div>
         </div>
         <v-btn @click="fetchData" icon="mdi-refresh" variant="text" size="small" />
       </div>
 
-      <v-data-table v-model="selected" :headers="headers" :items="list" :loading="isLoading" item-value="Barcode"
-        density="compact" class="desktop-table" fixed-header show-select return-object>
+      <div class="table-container">
+        <AppDataTable v-model="selected" :headers="headers" :items="list" :loading="isLoading" item-value="Barcode"
+          density="compact" class="desktop-table header-browse-blue" fixed-header show-select return-object
+          @click:row="handleRowClick">
+          <template #headers="{ columns, isSorted, getSortIcon, toggleSort }">
+            <tr>
+              <template v-for="header in columns" :key="header.key">
+                <th
+                  :style="{ width: header.width + 'px', minWidth: header.width + 'px', maxWidth: header.width + 'px' }"
+                  class="resizable-header"
+                  :class="{ 'text-center': header.align === 'center', 'text-end': header.align === 'end' }"
+                  @click="toggleSort(header)">
+                  <div class="header-content">
+                    <span>{{ header.title }}</span>
+                    <v-icon v-if="isSorted(header)" size="small" class="ms-1">
+                      {{ getSortIcon(header) }}
+                    </v-icon>
+                  </div>
+                  <div class="resizer" @mousedown.stop="onResizeStart($event, header)" @click.stop></div>
+                </th>
+              </template>
+            </tr>
+          </template>
 
-        <template v-for="header in headers" #[`item.${header.key}`]="{ item }" :key="header.key">
-          <td :class="getRowTextColor(item)">
-            <template v-if="['Stok', 'MinBuffer', 'MaxBuffer', 'Harus_Minta', 'Sudah_Minta'].includes(header.key)">
-              {{ new Intl.NumberFormat('id-ID').format(item[header.key] || 0) }}
-            </template>
-            <template v-else-if="header.key === 'Status'">
-              <v-chip v-if="item.Status !== 'Cukup'" size="x-small"
-                :color="item.Status === 'Harus Minta' ? 'error' : 'primary'" variant="tonal" label>
-                {{ item.Status }}
-              </v-chip>
-            </template>
-            <template v-else>
-              {{ item[header.key] }}
-            </template>
-          </td>
-        </template>
-      </v-data-table>
+          <template v-for="header in headers" #[`item.${header.key}`]="{ item }" :key="header.key">
+            <td :class="getRowTextColor(item)">
+              <template v-if="['Stok', 'MinBuffer', 'MaxBuffer', 'Harus_Minta', 'Sudah_Minta'].includes(header.key)">
+                {{ new Intl.NumberFormat('id-ID').format(item[header.key as keyof BufferStockItem] as number || 0) }}
+              </template>
+              <template v-else-if="header.key === 'Status'">
+                <v-chip v-if="item.Status !== 'Cukup'" size="x-small"
+                  :color="item.Status === 'Harus Minta' ? 'error' : 'primary'" variant="tonal" label>
+                  {{ item.Status }}
+                </v-chip>
+              </template>
+              <template v-else>
+                {{ item[header.key as keyof BufferStockItem] }}
+              </template>
+            </td>
+          </template>
+        </AppDataTable>
+      </div>
     </div>
 
     <v-dialog v-model="isSettingVisible" max-width="400px" persistent>
@@ -253,7 +318,107 @@ watch([selectedCabang, tampilkanBufferNol, kaosan, reszo], fetchData);
 </template>
 
 <style scoped>
-/* --- Style untuk Legend --- */
+/* --- Layout Full Height --- */
+.browse-content {
+  display: flex;
+  flex-direction: column;
+  height: calc(100vh - 64px - 32px);
+  overflow: hidden;
+}
+
+.filter-section {
+  flex-shrink: 0;
+  padding: 8px;
+  border-bottom: 1px solid #e0e0e0;
+  background: white;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.table-container {
+  flex-grow: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* --- Tabel Style --- */
+.desktop-table {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.desktop-table :deep(.v-table__wrapper) {
+  flex-grow: 1;
+  height: 100% !important;
+  overflow-x: auto !important;
+  overflow-y: auto !important;
+}
+
+.desktop-table :deep(table) {
+  width: max-content;
+  min-width: 100%;
+}
+
+/* --- Header Resize --- */
+.resizable-header {
+  position: relative;
+  background-color: #e3f2fd !important;
+  color: #0d47a1 !important;
+  font-weight: 700 !important;
+  text-transform: uppercase;
+  font-size: 11px !important;
+  height: 40px !important;
+  border-bottom: 2px solid #1976d2 !important;
+  padding: 0 8px !important;
+  user-select: none;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.header-content {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  height: 100%;
+}
+
+.resizable-header.text-center .header-content {
+  justify-content: center;
+}
+
+.resizable-header.text-end .header-content {
+  justify-content: flex-end;
+}
+
+.resizer {
+  position: absolute;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  width: 5px;
+  cursor: col-resize;
+  z-index: 10;
+}
+
+.resizer:hover,
+.resizable-header:hover .resizer {
+  border-right: 2px solid #1565c0;
+}
+
+/* --- Pewarnaan Baris --- */
+:deep(td.text-red) {
+  color: #d32f2f !important;
+}
+
+:deep(td.text-blue) {
+  color: #1976d2 !important;
+}
+
 .legend-group {
   display: flex;
   gap: 1rem;
@@ -265,5 +430,13 @@ watch([selectedCabang, tampilkanBufferNol, kaosan, reszo], fetchData);
   display: flex;
   align-items: center;
   gap: 4px;
+}
+
+.state-container {
+  height: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  flex-direction: column;
 }
 </style>

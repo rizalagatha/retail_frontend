@@ -92,7 +92,7 @@ watch(selectedInvoice, (newSelection) => {
         <div class="table-wrapper">
           <div class="text-subtitle-1 font-weight-bold mb-2">Daftar Invoice</div>
           <v-data-table v-model="selectedInvoice" :headers="invoiceHeaders" :items="invoices" :loading="loadingInvoices"
-            class="desktop-table" density="compact" show-select single-select return-object item-value="nomor">
+            class="desktop-table header-browse-blue" density="compact" show-select single-select return-object item-value="nomor">
             <template #[`item.no`]="{ index }">
               {{ index + 1 }}
             </template>
@@ -115,7 +115,7 @@ watch(selectedInvoice, (newSelection) => {
         </div>
         <div class="table-wrapper">
           <div class="text-subtitle-1 font-weight-bold mb-2">Detail Pembayaran</div>
-          <v-data-table :headers="paymentHeaders" :items="payments" :loading="loadingPayments" class="desktop-table"
+          <v-data-table :headers="paymentHeaders" :items="payments" :loading="loadingPayments" class="desktop-table header-browse-blue"
             density="compact">
             <template #[`item.no`]="{ index }">
               {{ index + 1 }}

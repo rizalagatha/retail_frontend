@@ -11,6 +11,18 @@ import axios, { AxiosError } from 'axios';
 import AppDataTable from '@/components/AppDataTable.vue';
 import { formatRupiah } from "@/utils/formatRupiah";
 
+// Interface Header (Resize)
+interface DataTableHeader {
+  title: string;
+  key: string;
+  width?: number;
+  fixed?: boolean;
+  align?: 'start' | 'center' | 'end';
+  minWidth?: string | number;
+  maxWidth?: string | number;
+  sortable?: boolean;
+}
+
 interface RefundHeader {
   Nomor: string;
   Tanggal: string;
@@ -33,13 +45,6 @@ interface RefundDetail {
   Keterangan: string;
 }
 
-interface TableColumn {
-  title: string;
-  key: keyof RefundDetail; // gunakan keyof RefundDetail agar ketat
-  minWidth?: string;
-  align?: 'start' | 'center' | 'end';
-}
-
 interface ExpandedItem {
   Nomor: string;
 }
@@ -54,7 +59,7 @@ const details = ref<Record<string, RefundDetail[]>>({});
 const loading = ref(true);
 const loadingDetails = ref(new Set<string>());
 const selected = ref<RefundHeader[]>([]);
-const expanded = ref<string[]>([]); // Ganti tipe menjadi string[]
+const expanded = ref<string[]>([]);
 const cabangList = ref([]);
 const dialogConfirm = reactive({
   show: false,
@@ -67,22 +72,21 @@ const dialogConfirm = reactive({
 const filters = reactive({
   startDate: format(subDays(new Date(), 7), 'yyyy-MM-dd'),
   endDate: format(new Date(), 'yyyy-MM-dd'),
-  cabang: '', // tambahkan ini
+  cabang: '',
 });
 
+// --- Computed ---
 const isSingleSelected = computed(() => selected.value.length === 1);
-const selectedRow = computed<RefundHeader | null>(() =>
-  isSingleSelected.value ? selected.value[0] : null
-);
+const selectedRow = computed<RefundHeader | null>(() => isSingleSelected.value ? selected.value[0] : null);
 const isApprover = computed(() => authStore.user?.cabang === 'KDC');
 
 const canNew = computed(() => !isApprover.value);
 const canEdit = computed(() => {
   if (!isSingleSelected.value) return false;
-  if (!isApprover.value) { // Jika Pengaju
+  if (!isApprover.value) {
     return !selectedRow.value?.Approved && selectedRow.value?.Closing !== 'Y';
   }
-  return true; // Approver selalu bisa ubah (untuk approve)
+  return true;
 });
 const canDelete = computed(() => {
   if (!isSingleSelected.value || isApprover.value) return false;
@@ -90,40 +94,75 @@ const canDelete = computed(() => {
 });
 const canCetak = computed(() => isSingleSelected.value);
 
-// --- Formatter & Konfigurasi Tabel ---
+// --- Formatter ---
 const formatTanggal = (dateString: string | undefined | null) => {
   if (!dateString) return '';
   const date = parseISO(dateString);
   return isValid(date) ? format(date, 'dd/MM/yyyy') : dateString;
 };
 
-// Pastikan header ekspansi ditempatkan di posisi yang diinginkan
-const headers = [
-  { title: 'Nomor', key: 'Nomor', minWidth: '180px', fixed: true },
-  { title: 'Tanggal', key: 'Tanggal', minWidth: '120px' },
-  { title: 'User', key: 'User', minWidth: '100px' },
-  { title: 'Status', key: 'Status', minWidth: '100px' },
-  { title: 'Approved', key: 'Approved', minWidth: '100px' },
-  { title: 'Tgl Approve', key: 'TglApprove', minWidth: '120px' },
-  { title: 'Closing', key: 'Closing', minWidth: '120px' },
-] as const;
+// --- Header Definisi (Resize) ---
+const headers = ref<DataTableHeader[]>([
+  { title: '', key: 'data-table-expand', width: 50, fixed: true },
+  { title: 'Nomor', key: 'Nomor', width: 180, fixed: true },
+  { title: 'Tanggal', key: 'Tanggal', width: 120 },
+  { title: 'User', key: 'User', width: 100 },
+  { title: 'Status', key: 'Status', width: 100 },
+  { title: 'Approved', key: 'Approved', width: 100 },
+  { title: 'Tgl Approve', key: 'TglApprove', width: 120 },
+  { title: 'Closing', key: 'Closing', width: 120 },
+]);
 
-const detailHeaders = computed<TableColumn[]>(() => {
-  const h: TableColumn[] = [
-    { title: 'No.', key: 'no' },
-    { title: 'Nomor Transaksi', key: 'NoTransaksi', minWidth: '150px' },
-    { title: 'Pelanggan', key: 'Customer', minWidth: '200px' },
-    { title: 'Nominal Saldo', key: 'Nominal', align: 'end' },
-    { title: 'Nominal Refund', key: 'Approval', align: 'end' },
+const detailHeaders = computed<DataTableHeader[]>(() => {
+  const h: DataTableHeader[] = [
+    { title: 'No.', key: 'no', width: 50 },
+    { title: 'Nomor Transaksi', key: 'NoTransaksi', width: 150 },
+    { title: 'Pelanggan', key: 'Customer', width: 200 },
+    { title: 'Nominal Saldo', key: 'Nominal', align: 'end', width: 120 },
+    { title: 'Nominal Refund', key: 'Approval', align: 'end', width: 120 },
   ];
   if (isApprover.value) {
-    h.push({ title: 'Bank', key: 'BankTujuan', minWidth: '120px' });
-    h.push({ title: 'No. Rekening', key: 'NoRekening', minWidth: '150px' });
-    h.push({ title: 'Atas Nama', key: 'AtasNama', minWidth: '150px' });
+    h.push({ title: 'Bank', key: 'BankTujuan', width: 120 });
+    h.push({ title: 'No. Rekening', key: 'NoRekening', width: 150 });
+    h.push({ title: 'Atas Nama', key: 'AtasNama', width: 150 });
   }
-  h.push({ title: 'Keterangan', key: 'Keterangan', minWidth: '200px' });
+  h.push({ title: 'Keterangan', key: 'Keterangan', width: 200 });
   return h;
 });
+
+// --- Logic Resize Column ---
+const resizingColumn = ref<DataTableHeader | null>(null);
+const startX = ref(0);
+const startWidth = ref(0);
+
+const onResizeStart = (e: MouseEvent, column: DataTableHeader) => {
+  e.preventDefault();
+  e.stopPropagation();
+  resizingColumn.value = column;
+  startX.value = e.pageX;
+  startWidth.value = (typeof column.width === 'number' ? column.width : 100);
+  document.addEventListener('mousemove', onResizeMove);
+  document.addEventListener('mouseup', onResizeEnd);
+  document.body.style.cursor = 'col-resize';
+};
+
+const onResizeMove = (e: MouseEvent) => {
+  if (!resizingColumn.value) return;
+  const diff = e.pageX - startX.value;
+  resizingColumn.value.width = Math.max(50, startWidth.value + diff);
+};
+
+const onResizeEnd = () => {
+  resizingColumn.value = null;
+  document.removeEventListener('mousemove', onResizeMove);
+  document.removeEventListener('mouseup', onResizeEnd);
+  document.body.style.cursor = '';
+};
+
+// --- Logic Selected Row ---
+const handleRowClick = (_event: Event, { item }: { item: RefundHeader }) => {
+  selected.value = [item];
+};
 
 // --- Methods ---
 const fetchMasterData = async () => {
@@ -171,7 +210,6 @@ const loadDetails = async (newlyExpandedItems: ExpandedItem[]) => {
     const response = await api.get<RefundDetail[]>(`/refund/details/${itemToLoad.Nomor}`);
     details.value[itemToLoad.Nomor] = response.data.map((d, index) => ({ ...d, no: index + 1 }));
   } catch (error: unknown) {
-    // Tangani error Axios
     const err = error as AxiosError<{ message?: string }>;
     toast.error(err.response?.data?.message || `Gagal memuat detail untuk ${itemToLoad.Nomor}.`);
   } finally {
@@ -180,16 +218,12 @@ const loadDetails = async (newlyExpandedItems: ExpandedItem[]) => {
 };
 
 const getRowTextColor = (item: RefundHeader) => {
-  // Logika Delphi TfrmBrowRefund.cxGrdMasterCustomDrawCell
-  if (item.Status === 'PROSES') return 'text-blue';
-  if (!item.Status) return 'text-red';
+  if (item.Status === 'PROSES') return 'text-blue font-weight-bold';
+  if (!item.Status) return 'text-red font-weight-bold';
   return '';
 };
 
-const handleNew = () => {
-  // Navigasi ke halaman buat baru
-  router.push({ name: 'refundCreate' });
-};
+const handleNew = () => router.push({ name: 'refundCreate' });
 
 const handleEdit = () => {
   if (!selectedRow.value) return;
@@ -197,25 +231,26 @@ const handleEdit = () => {
 };
 
 const handleCetak = () => {
-  if (!canCetak.value) return;
+  if (!canCetak.value || !selectedRow.value) return;
   const routeData = router.resolve({
     name: 'RefundPrint',
-    params: { nomor: selectedRow.value!.Nomor }
+    params: { nomor: selectedRow.value.Nomor }
   });
   window.open(routeData.href, '_blank');
 };
 
 const openDeleteDialog = () => {
-  if (!canDelete.value) return;
+  if (!canDelete.value || !selectedRow.value) return;
   showConfirmation(
     handleDelete,
-    `Yakin ingin hapus refund ${selectedRow.value!.Nomor}?`
+    `Yakin ingin hapus refund ${selectedRow.value.Nomor}?`
   );
 };
 
 const handleDelete = async () => {
+  if (!selectedRow.value) return;
   try {
-    const response = await api.delete(`/refund/${selectedRow.value!.Nomor}`);
+    const response = await api.delete(`/refund/${selectedRow.value.Nomor}`);
     toast.success(response.data.message);
     fetchMasterData();
   } catch (error) {
@@ -257,10 +292,9 @@ const showConfirmation = (action: () => void, text: string) => {
     dialogConfirm.show = false;
   };
   dialogConfirm.text = text;
-  dialogConfirm.title = 'Konfirmasi'; // Judul default
+  dialogConfirm.title = 'Konfirmasi';
   dialogConfirm.show = true;
 };
-
 
 onMounted(() => {
   if (!authStore.can(MENU_ID, 'view')) {
@@ -291,8 +325,12 @@ watch(filters, fetchMasterData, { deep: true });
             v-bind="props">Export</v-btn>
         </template>
         <v-list density="compact">
-          <v-list-item @click="exportData('header')"><v-list-item-title>Export Header</v-list-item-title></v-list-item>
-          <v-list-item @click="exportData('detail')"><v-list-item-title>Export Detail</v-list-item-title></v-list-item>
+          <v-list-item @click="exportData('header')">
+            <v-list-item-title>Export Header</v-list-item-title>
+          </v-list-item>
+          <v-list-item @click="exportData('detail')">
+            <v-list-item-title>Export Detail</v-list-item-title>
+          </v-list-item>
         </v-list>
       </v-menu>
     </template>
@@ -301,10 +339,10 @@ watch(filters, fetchMasterData, { deep: true });
       <div class="filter-section">
         <v-label class="filter-label">Periode:</v-label>
         <v-text-field v-model="filters.startDate" type="date" density="compact" hide-details variant="outlined"
-          style="max-width: 180px;" />
+          style="max-width: 140px;" />
         <v-label class="mx-2">s/d</v-label>
         <v-text-field v-model="filters.endDate" type="date" density="compact" hide-details variant="outlined"
-          style="max-width: 180px;" />
+          style="max-width: 140px;" />
         <v-select label="Cabang" v-model="filters.cabang" :items="cabangList" item-title="nama" item-value="kode"
           density="compact" hide-details variant="outlined" class="ms-4" style="max-width: 200px;"
           :readonly="!isApprover" />
@@ -318,12 +356,39 @@ watch(filters, fetchMasterData, { deep: true });
 
       <div class="table-container">
         <AppDataTable v-model="selected" v-model:expanded="expanded" :headers="headers" :items="masterData"
-          :loading="loading" item-value="Nomor" density="compact" class="desktop-table" fixed-header show-select
-          return-object show-expand single-select @update:expanded="loadDetails">
-          <template v-for="header in headers" :key="header.key" #[`item.${header.key}`]="{ item }">
+          :loading="loading" item-value="Nomor" density="compact" class="desktop-table header-browse-blue" fixed-header
+          show-select return-object show-expand single-select @update:expanded="loadDetails"
+          @click:row="handleRowClick">
+          <template #headers="{ columns, isSorted, getSortIcon, toggleSort }">
+            <tr>
+              <template v-for="header in columns" :key="header.key">
+                <th
+                  :style="{ width: header.width + 'px', minWidth: header.width + 'px', maxWidth: header.width + 'px' }"
+                  class="resizable-header"
+                  :class="{ 'text-center': header.align === 'center', 'text-end': header.align === 'end' }"
+                  @click="toggleSort(header)">
+                  <div class="header-content">
+                    <span>{{ header.title }}</span>
+                    <v-icon v-if="isSorted(header)" size="small" class="ms-1">
+                      {{ getSortIcon(header) }}
+                    </v-icon>
+                  </div>
+                  <div class="resizer" @mousedown.stop="onResizeStart($event, header)" @click.stop></div>
+                </th>
+              </template>
+            </tr>
+          </template>
+
+          <template #[`item.data-table-expand`]="{ internalItem, toggleExpand, isExpanded }">
+            <v-btn icon="mdi-chevron-down" :class="{ 'rotate-180': isExpanded(internalItem) }" size="x-small"
+              variant="text" @click.stop="toggleExpand(internalItem)" />
+          </template>
+
+          <template v-for="header in headers.filter(h => h.key !== 'data-table-expand')"
+            #[`item.${header.key}`]="{ item }" :key="header.key">
             <td :class="getRowTextColor(item)">
               <template v-if="header.key === 'Tanggal' || header.key === 'TglApprove'">
-                {{ formatTanggal(item[header.key]) }}
+                {{ formatTanggal(item[header.key] as string) }}
               </template>
               <template v-else-if="header.key === 'Status'">
                 <v-chip :color="item.Status === 'APPROVE' ? 'success' : 'blue'" size="x-small">
@@ -338,17 +403,17 @@ watch(filters, fetchMasterData, { deep: true });
 
           <template #expanded-row="{ columns, item }">
             <tr>
-              <td :colspan="columns.length">
-                <div class="detail-container pa-4">
+              <td :colspan="columns.length" class="pa-0">
+                <div class="detail-container">
                   <div class="detail-table-wrapper">
-                    <div v-if="loadingDetails.has(item.Nomor)" class="text-center">Memuat detail...</div>
+                    <div v-if="loadingDetails.has(item.Nomor)" class="text-center pa-4">Memuat detail...</div>
                     <v-data-table v-else :headers="detailHeaders" :items="details[item.Nomor] || []" density="compact"
-                      class="detail-table" :items-per-page="-1">
-                      <template v-slot:[`item.Nominal`]="{ item }">
-                        <span class="d-block text-right">{{ formatRupiah(item.Nominal) }}</span>
+                      class="detail-table" :items-per-page="-1" hide-default-footer>
+                      <template v-slot:[`item.Nominal`]="{ item: detailItem }">
+                        <span class="d-block text-right">{{ formatRupiah(detailItem.Nominal) }}</span>
                       </template>
-                      <template v-slot:[`item.Approval`]="{ item }">
-                        <span class="d-block text-right">{{ formatRupiah(item.Approval) }}</span>
+                      <template v-slot:[`item.Approval`]="{ item: detailItem }">
+                        <span class="d-block text-right">{{ formatRupiah(detailItem.Approval) }}</span>
                       </template>
                       <template #bottom></template>
                     </v-data-table>
@@ -363,19 +428,12 @@ watch(filters, fetchMasterData, { deep: true });
 
     <v-dialog v-model="dialogConfirm.show" max-width="400px" persistent>
       <v-card>
-        <v-card-title class="text-h6 font-weight-bold">
-          {{ dialogConfirm.title }} </v-card-title>
-        <v-card-text>
-          {{ dialogConfirm.text }}
-        </v-card-text>
+        <v-card-title class="text-h6 font-weight-bold">{{ dialogConfirm.title }}</v-card-title>
+        <v-card-text>{{ dialogConfirm.text }}</v-card-text>
         <v-card-actions>
           <v-spacer></v-spacer>
-          <v-btn color="grey-darken-1" variant="text" @click="dialogConfirm.onCancel">
-            Tidak
-          </v-btn>
-          <v-btn color="primary" variant="tonal" @click="dialogConfirm.onConfirm">
-            Ya, Lanjutkan
-          </v-btn>
+          <v-btn color="grey-darken-1" variant="text" @click="dialogConfirm.onCancel">Tidak</v-btn>
+          <v-btn color="primary" variant="tonal" @click="dialogConfirm.onConfirm">Ya, Lanjutkan</v-btn>
         </v-card-actions>
       </v-card>
     </v-dialog>
@@ -383,20 +441,129 @@ watch(filters, fetchMasterData, { deep: true });
 </template>
 
 <style scoped>
+/* --- Layout Full Height --- */
+.browse-content {
+  display: flex;
+  flex-direction: column;
+  height: calc(100vh - 64px - 32px);
+  overflow: hidden;
+}
+
 .filter-section {
-  padding: 8px 12px;
+  flex-shrink: 0;
+  padding: 8px;
+  border-bottom: 1px solid #e0e0e0;
+  background: white;
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 12px;
 }
 
 .table-container {
-  height: calc(100vh - 180px);
-  overflow-y: auto;
+  flex-grow: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* --- Tabel Style --- */
+.desktop-table {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.desktop-table :deep(.v-table__wrapper) {
+  flex-grow: 1;
+  height: 100% !important;
+  overflow-x: auto !important;
+  overflow-y: auto !important;
+}
+
+.desktop-table :deep(table) {
+  width: max-content;
+  min-width: 100%;
+}
+
+/* --- Header Resize --- */
+.resizable-header {
+  position: relative;
+  background-color: #e3f2fd !important;
+  color: #0d47a1 !important;
+  font-weight: 700 !important;
+  text-transform: uppercase;
+  font-size: 11px !important;
+  height: 40px !important;
+  border-bottom: 2px solid #1976d2 !important;
+  padding: 0 8px !important;
+  user-select: none;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.header-content {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  height: 100%;
+}
+
+.resizable-header.text-center .header-content {
+  justify-content: center;
+}
+
+.resizable-header.text-end .header-content {
+  justify-content: flex-end;
+}
+
+.resizer {
+  position: absolute;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  width: 5px;
+  cursor: col-resize;
+  z-index: 10;
+}
+
+.resizer:hover,
+.resizable-header:hover .resizer {
+  border-right: 2px solid #1565c0;
+}
+
+/* --- Detail Sticky --- */
+.detail-container {
+  position: sticky;
+  left: 0;
+  z-index: 2;
+  display: flex;
+  justify-content: flex-start;
+  align-items: flex-start;
+  background-color: #fafafa;
+  padding: 16px 16px 16px 64px;
+  border-bottom: 1px solid #e0e0e0;
+  width: fit-content;
+  min-width: 100%;
+  box-sizing: border-box;
 }
 
 .detail-table-wrapper {
-  max-height: 400px;
-  overflow-y: auto;
+  width: 100%;
+  max-width: 800px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  overflow: hidden;
+  background-color: white;
+}
+
+/* Pewarnaan Baris */
+:deep(td.text-red) {
+  color: #d32f2f !important;
+}
+
+:deep(td.text-blue) {
+  color: #1976d2 !important;
 }
 </style>

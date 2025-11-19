@@ -294,7 +294,7 @@ watch(() => filters.kodeBarang, (newKode) => {
       </div>
 
       <div class="table-container">
-        <AppDataTable :headers="headers" :items="masterData" :loading="isLoading" class="desktop-table"
+        <AppDataTable :headers="headers" :items="masterData" :loading="isLoading" class="desktop-table header-browse-blue"
           density="compact" fixed-header show-expand return-object
           :item-value="(item) => item.kode + (item.ukuran || '')" v-model:expanded="expanded"
           @update:expanded="loadDetails">

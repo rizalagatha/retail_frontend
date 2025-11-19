@@ -10,8 +10,20 @@ import PrintOptionModal from '@/components/modal/PrintOptionModal.vue';
 import * as XLSX from 'xlsx';
 import type { AxiosError } from "axios";
 import { formatRupiah } from "@/utils/formatRupiah";
+import AppDataTable from '@/components/AppDataTable.vue';
 
-// --- Tipe Data ---
+// Interface Header (Resize)
+interface DataTableHeader {
+  title: string;
+  key: string;
+  width?: number;
+  fixed?: boolean;
+  align?: 'start' | 'center' | 'end';
+  minWidth?: string | number;
+  maxWidth?: string | number;
+  sortable?: boolean;
+}
+
 interface MasterItem {
   nomor: string;
   tanggal: string;
@@ -40,12 +52,12 @@ interface PaymentLinkItem {
   nominal: number;
 }
 
-// --- Inisialisasi & State ---
 const router = useRouter();
 const toast = useToast();
 const authStore = useAuthStore();
 const MENU_ID = '29';
 
+// --- State ---
 const masterData = ref<MasterItem[]>([]);
 const details = ref<Record<string, DetailItem[]>>({});
 const paymentLinks = ref<Record<string, PaymentLinkItem[]>>({});
@@ -69,35 +81,35 @@ const filters = reactive({
   cabang: authStore.user?.cabang || '',
 });
 
-// --- Computed Properties ---
+// --- Computed ---
 const isSingleSelected = computed(() => selected.value.length === 1);
 const selectedRow = computed<MasterItem | null>(() => isSingleSelected.value ? selected.value[0] : null);
 
 const canEdit = computed(() => {
   if (!isSingleSelected.value || !selectedRow.value) return false;
-  // Paksa konversi ke Angka sebelum membandingkan
   return Number(selectedRow.value.diBayarkan) === 0;
 });
 
 const canDelete = computed(() => {
   if (!isSingleSelected.value || !selectedRow.value) return false;
-  // Paksa konversi ke Angka dan cek status closing
   return Number(selectedRow.value.diBayarkan) === 0 && selectedRow.value.closing !== 'Y';
 });
 
-// --- Konfigurasi Tabel ---
-const headers = [
-  { title: 'Nomor', key: 'nomor', minWidth: '180px' },
-  { title: 'Tanggal', key: 'tanggal', minWidth: '120px' },
-  { title: 'Nominal', key: 'nominal', align: 'end' },
-  { title: 'Dibayarkan', key: 'diBayarkan', align: 'end' },
-  { title: 'Sisa', key: 'sisa', align: 'end' },
-  { title: 'No. Invoice', key: 'invoice', minWidth: '180px' },
-  { title: 'Jenis', key: 'jenis' },
-  { title: 'Customer', key: 'nama' },
-  { title: 'Keterangan', key: 'keterangan' },
-  { title: 'Closing', key: 'closing', align: 'center' },
-] as const;
+// --- Header Definisi (Resize) ---
+const headers = ref<DataTableHeader[]>([
+  { title: '', key: 'data-table-expand', width: 50, fixed: true },
+  { title: 'Nomor', key: 'nomor', width: 180, fixed: true },
+  { title: 'Tanggal', key: 'tanggal', width: 120 },
+  { title: 'Nominal', key: 'nominal', align: 'end', width: 120 },
+  { title: 'Dibayarkan', key: 'diBayarkan', align: 'end', width: 120 },
+  { title: 'Sisa', key: 'sisa', align: 'end', width: 120 },
+  { title: 'No. Invoice', key: 'invoice', width: 180 },
+  { title: 'Jenis', key: 'jenis', width: 100 },
+  { title: 'Customer', key: 'nama', width: 250 },
+  { title: 'Keterangan', key: 'keterangan', width: 250 },
+  { title: 'Closing', key: 'closing', align: 'center', width: 80 },
+]);
+
 const detailHeaders = [
   { title: 'Kode', key: 'kode' },
   { title: 'Nama Barang', key: 'nama' },
@@ -108,16 +120,50 @@ const detailHeaders = [
   { title: 'Diskon Rp', key: 'diskon', align: 'end' },
   { title: 'Total', key: 'total', align: 'end' },
 ] as const;
+
 const paymentLinkHeaders = [
   { title: 'Invoice', key: 'invoice' },
   { title: 'Tanggal Bayar', key: 'tanggal' },
   { title: 'Nominal', key: 'nominal', align: 'end' },
 ] as const;
 
+// --- Logic Resize Column ---
+const resizingColumn = ref<DataTableHeader | null>(null);
+const startX = ref(0);
+const startWidth = ref(0);
+
+const onResizeStart = (e: MouseEvent, column: DataTableHeader) => {
+  e.preventDefault();
+  e.stopPropagation();
+  resizingColumn.value = column;
+  startX.value = e.pageX;
+  startWidth.value = (typeof column.width === 'number' ? column.width : 100);
+  document.addEventListener('mousemove', onResizeMove);
+  document.addEventListener('mouseup', onResizeEnd);
+  document.body.style.cursor = 'col-resize';
+};
+
+const onResizeMove = (e: MouseEvent) => {
+  if (!resizingColumn.value) return;
+  const diff = e.pageX - startX.value;
+  resizingColumn.value.width = Math.max(50, startWidth.value + diff);
+};
+
+const onResizeEnd = () => {
+  resizingColumn.value = null;
+  document.removeEventListener('mousemove', onResizeMove);
+  document.removeEventListener('mouseup', onResizeEnd);
+  document.body.style.cursor = '';
+};
+
+// --- Logic Selected Row ---
+const handleRowClick = (_event: Event, { item }: { item: MasterItem }) => {
+  selected.value = [item];
+};
+
 // --- Methods ---
 const fetchCabangList = async () => {
   try {
-    // Ganti endpoint ke route yang baru saja kita buat
     const response = await api.get('/retur-jual/lookup/cabang');
     cabangList.value = response.data;
   } catch (error) {
@@ -141,9 +187,7 @@ const fetchMasterData = async () => {
 };
 
 const loadDetails = async (newlyExpandedItems: MasterItem[]) => {
-  const itemToLoad = newlyExpandedItems.find(
-    (item) => !details.value[item.nomor]
-  );
+  const itemToLoad = newlyExpandedItems.find((item) => !details.value[item.nomor]);
   if (!itemToLoad) return;
   const nomorToLoad = itemToLoad.nomor;
 
@@ -157,12 +201,10 @@ const loadDetails = async (newlyExpandedItems: MasterItem[]) => {
     paymentLinks.value[nomorToLoad] = paymentsRes.data;
   } catch (error) {
     toast.error(`Gagal memuat detail untuk ${nomorToLoad}`, error);
-    console.error(error);
   } finally {
     loadingDetails.value.delete(nomorToLoad);
   }
 };
-
 
 const showConfirmation = (title: string, text: string, onConfirm: () => void) => {
   dialogConfirm.title = title;
@@ -173,17 +215,18 @@ const showConfirmation = (title: string, text: string, onConfirm: () => void) =>
 
 const handleNew = () => router.push({ name: 'ReturJualCreate' });
 const handleEdit = () => {
-  if (!canEdit.value) return;
+  if (!canEdit.value || !selectedRow.value) return;
   router.push({ name: 'ReturJualEdit', params: { nomor: selectedRow.value.nomor } });
 };
 
 const handleDelete = () => {
-  if (!canDelete.value) return;
+  if (!canDelete.value || !selectedRow.value) return;
   showConfirmation(
     'Konfirmasi Hapus',
     `Yakin ingin menghapus Retur Jual ${selectedRow.value.nomor}?`,
     async () => {
       try {
+        if (!selectedRow.value) return;
         const response = await api.delete(`/retur-jual/${selectedRow.value.nomor}`);
         toast.success(response.data.message);
         fetchMasterData();
@@ -197,10 +240,11 @@ const handleDelete = () => {
 
 const handlePrint = () => {
   if (!isSingleSelected.value) return;
-  isPrintOptionVisible.value = true; // Buka modal pilihan
+  isPrintOptionVisible.value = true;
 };
 
 const handlePrintSelection = (type: 'a4' | 'kasir') => {
+  if (!selectedRow.value) return;
   isPrintOptionVisible.value = false;
   const routeName = type === 'a4' ? 'ReturJualPrint' : 'ReturJualPrintKasir';
   const url = router.resolve({ name: routeName, params: { nomor: selectedRow.value.nomor } }).href;
@@ -218,7 +262,6 @@ const exportData = async (type: 'header' | 'detail') => {
     try {
       const response = await api.get('/retur-jual/export-details', { params: filters });
       if (response.data.length === 0) return toast.warning('Tidak ada data detail untuk diexport.');
-
       const worksheet = XLSX.utils.json_to_sheet(response.data);
       const workbook = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(workbook, worksheet, "Retur Jual Detail");
@@ -252,9 +295,7 @@ watch(filters, fetchMasterData, { deep: true });
       </v-btn>
       <v-menu offset-y>
         <template v-slot:activator="{ props }">
-          <v-btn size="small" color="teal" prepend-icon="mdi-file-excel" v-bind="props">
-            Export
-          </v-btn>
+          <v-btn size="small" color="teal" prepend-icon="mdi-file-excel" v-bind="props">Export</v-btn>
         </template>
         <v-list density="compact">
           <v-list-item @click="exportData('header')">
@@ -269,10 +310,10 @@ watch(filters, fetchMasterData, { deep: true });
 
     <div class="browse-content">
       <div class="filter-section">
-        <v-label class="filter-label">Periode:</v-label>
+        <span class="filter-label">Periode:</span>
         <v-text-field v-model="filters.startDate" type="date" density="compact" hide-details variant="outlined"
           style="max-width: 180px;" />
-        <v-label class="mx-2">s/d</v-label>
+        <span class="mx-2">s/d</span>
         <v-text-field v-model="filters.endDate" type="date" density="compact" hide-details variant="outlined"
           style="max-width: 180px;" />
         <v-select label="Cabang" v-model="filters.cabang" :items="cabangList" item-title="nama" item-value="kode"
@@ -281,48 +322,79 @@ watch(filters, fetchMasterData, { deep: true });
 
       <div class="table-container">
         <AppDataTable v-model="selected" v-model:expanded="expanded" :headers="headers" :items="masterData"
-          :loading="loading" item-value="nomor" density="compact" class="desktop-table" fixed-header show-select
-          show-expand return-object single-select @update:expanded="loadDetails">
-          <template #[`item.tanggal`]="{ item }">
-            {{ format(parseISO(item.tanggal), 'dd/MM/yyyy') }}
+          :loading="loading" item-value="nomor" density="compact" class="desktop-table header-browse-blue" fixed-header
+          show-select show-expand return-object @update:expanded="loadDetails" @click:row="handleRowClick">
+          <template #headers="{ columns, isSorted, getSortIcon, toggleSort }">
+            <tr>
+              <template v-for="header in columns" :key="header.key">
+                <th
+                  :style="{ width: header.width + 'px', minWidth: header.width + 'px', maxWidth: header.width + 'px' }"
+                  class="resizable-header"
+                  :class="{ 'text-center': header.align === 'center', 'text-end': header.align === 'end' }"
+                  @click="toggleSort(header)">
+                  <div class="header-content">
+                    <span>{{ header.title }}</span>
+                    <v-icon v-if="isSorted(header)" size="small" class="ms-1">
+                      {{ getSortIcon(header) }}
+                    </v-icon>
+                  </div>
+                  <div class="resizer" @mousedown.stop="onResizeStart($event, header)" @click.stop></div>
+                </th>
+              </template>
+            </tr>
           </template>
 
-          <template #[`item.nominal`]="{ item }">
-            {{ formatRupiah(item.nominal) }}
+          <template #[`item.data-table-expand`]="{ internalItem, toggleExpand, isExpanded }">
+            <v-btn icon="mdi-chevron-down" :class="{ 'rotate-180': isExpanded(internalItem) }" size="x-small"
+              variant="text" @click.stop="toggleExpand(internalItem)" />
           </template>
 
-          <template #[`item.diBayarkan`]="{ item }">
-            {{ formatRupiah(item.diBayarkan) }}
-          </template>
-
-          <template #[`item.sisa`]="{ item }">
-            {{ formatRupiah(item.sisa) }}
+          <template v-for="header in headers.filter(h => h.key !== 'data-table-expand')"
+            #[`item.${header.key}`]="{ item }" :key="header.key">
+            <td>
+              <template v-if="header.key === 'tanggal'">
+                {{ format(parseISO(item.tanggal as string), 'dd/MM/yyyy') }}
+              </template>
+              <template v-else-if="['nominal', 'diBayarkan', 'sisa'].includes(header.key)">
+                {{ formatRupiah(Number(item[header.key])) }}
+              </template>
+              <template v-else>
+                {{ item[header.key] }}
+              </template>
+            </td>
           </template>
 
           <template #expanded-row="{ columns, item }">
             <tr>
-              <td :colspan="columns.length">
-                <!-- Ganti class 'pa-4' dan tambahkan wrapper -->
+              <td :colspan="columns.length" class="pa-0">
                 <div class="detail-container">
-                  <div v-if="loadingDetails.has(item.nomor)" class="text-center pa-4">Memuat detail...
-                  </div>
-                  <div v-else class="detail-wrapper">
-                    <div class="text-subtitle-2 font-weight-bold mb-2">Detail Barang Retur</div>
-                    <!-- Tambahkan class="desktop-table detail-table" -->
-                    <v-data-table :headers="detailHeaders" :items="details[item.nomor]" density="compact"
-                      class="desktop-table detail-table mb-4" :items-per-page="-1">
-                      <template #bottom></template>
-                    </v-data-table>
+                  <div class="detail-wrapper w-100">
+                    <div v-if="loadingDetails.has(item.nomor)" class="text-center pa-4">Memuat detail...</div>
+                    <div v-else>
+                      <div class="text-subtitle-2 font-weight-bold mb-2">Detail Barang Retur</div>
+                      <div class="detail-table-wrapper mb-4">
+                        <v-data-table :headers="detailHeaders" :items="details[item.nomor]" density="compact"
+                          class="detail-table" :items-per-page="-1" hide-default-footer>
+                          <template #bottom></template>
+                        </v-data-table>
+                      </div>
 
-                    <div class="text-subtitle-2 font-weight-bold mb-2">Link Pembayaran</div>
-                    <!-- Tambahkan class="desktop-table detail-table" -->
-                    <v-data-table :headers="paymentLinkHeaders" :items="paymentLinks[item.nomor]" density="compact"
-                      class="desktop-table detail-table" :items-per-page="-1">
-                      <template #[`item.tanggal`]="{ item }">
-                        {{ format(parseISO(item.tanggal), 'dd/MM/yyyy') }}
-                      </template>
-                      <template #bottom></template>
-                    </v-data-table>
+                      <div v-if="paymentLinks[item.nomor] && paymentLinks[item.nomor].length > 0">
+                        <div class="text-subtitle-2 font-weight-bold mb-2">Link Pembayaran</div>
+                        <div class="detail-table-wrapper">
+                          <v-data-table :headers="paymentLinkHeaders" :items="paymentLinks[item.nomor]"
+                            density="compact" class="detail-table" :items-per-page="-1" hide-default-footer>
+                            <template #[`item.tanggal`]="{ item: linkItem }">
+                              {{ format(parseISO(linkItem.tanggal), 'dd/MM/yyyy') }}
+                            </template>
+                            <template #[`item.nominal`]="{ item: linkItem }">
+                              {{ formatRupiah(Number(linkItem.nominal)) }}
+                            </template>
+                            <template #bottom></template>
+                          </v-data-table>
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </td>
@@ -349,3 +421,122 @@ watch(filters, fetchMasterData, { deep: true });
     </v-dialog>
   </PageLayout>
 </template>
+
+<style scoped>
+/* --- Layout Full Height --- */
+.browse-content {
+  display: flex;
+  flex-direction: column;
+  height: calc(100vh - 64px - 32px);
+  overflow: hidden;
+}
+
+.filter-section {
+  flex-shrink: 0;
+  padding: 8px;
+  border-bottom: 1px solid #e0e0e0;
+  background: white;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.table-container {
+  flex-grow: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* --- Tabel Style --- */
+.desktop-table {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.desktop-table :deep(.v-table__wrapper) {
+  flex-grow: 1;
+  height: 100% !important;
+  overflow-x: auto !important;
+  overflow-y: auto !important;
+}
+
+.desktop-table :deep(table) {
+  width: max-content;
+  min-width: 100%;
+}
+
+/* --- Header Resize --- */
+.resizable-header {
+  position: relative;
+  background-color: #e3f2fd !important;
+  color: #0d47a1 !important;
+  font-weight: 700 !important;
+  text-transform: uppercase;
+  font-size: 11px !important;
+  height: 40px !important;
+  border-bottom: 2px solid #1976d2 !important;
+  padding: 0 8px !important;
+  user-select: none;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.header-content {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  height: 100%;
+}
+
+.resizable-header.text-center .header-content {
+  justify-content: center;
+}
+
+.resizable-header.text-end .header-content {
+  justify-content: flex-end;
+}
+
+.resizer {
+  position: absolute;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  width: 5px;
+  cursor: col-resize;
+  z-index: 10;
+}
+
+.resizer:hover,
+.resizable-header:hover .resizer {
+  border-right: 2px solid #1565c0;
+}
+
+/* --- Detail Sticky --- */
+.detail-container {
+  position: sticky;
+  left: 0;
+  z-index: 2;
+  display: flex;
+  justify-content: flex-start;
+  align-items: flex-start;
+  background-color: #fafafa;
+  padding: 16px 16px 16px 64px;
+  border-bottom: 1px solid #e0e0e0;
+  width: fit-content;
+  min-width: 100%;
+  box-sizing: border-box;
+}
+
+.detail-table-wrapper {
+  width: 100%;
+  max-width: 800px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  overflow: hidden;
+  background-color: white;
+}
+</style>

@@ -35,9 +35,7 @@ const MENU_ID = '54';
 
 // --- State ---
 const isEditMode = computed(() => !!route.params.nomor);
-// const pageTitle = computed(() => isEditMode.value ? 'Ubah Form Setoran Kasir' : 'Buat Form Setoran Kasir');
 const totalNominalSetor = computed(() => {
-  // Gunakan .reduce() untuk menjumlahkan semua nilai 'nominal' di tabel rekapitulasi
   return details2.value.reduce((sum, item) => sum + (item.nominal || 0), 0);
 });
 const requiredPermission = computed(() => isEditMode.value ? 'edit' : 'insert');
@@ -56,8 +54,8 @@ const details2 = ref<Detail2[]>([]);
 
 const isLoading = ref(false);
 const isSaving = ref(false);
-const isDataLoaded = ref(false); // Untuk menandai jika data sudah diload
-const isVerified = ref(false); // Untuk menandai jika sudah diverifikasi finance
+const isDataLoaded = ref(false);
+const isVerified = ref(false);
 
 const dialogConfirm = reactive({
   show: false,
@@ -77,6 +75,7 @@ const tableHeaders1 = [
   { title: 'No. Setor', key: 'nomor' },
   { title: 'Nominal', key: 'nominal', align: 'end' },
 ] as const;
+
 const tableHeaders2 = [
   { title: 'Jenis Setoran', key: 'jenis' },
   { title: 'Total Nominal Setor', key: 'nominal', align: 'end' },
@@ -93,7 +92,6 @@ const loadData = async () => {
       const nomor = route.params.nomor as string;
       response = await api.get(`/fsk-form/${nomor}`);
       const data = response.data;
-      // Isi header
       header.nomor = data.header.nomor;
       header.tanggal = format(parseISO(data.header.tanggal), 'yyyy-MM-dd');
       header.dibuatOleh = data.header.createdBy;
@@ -108,7 +106,7 @@ const loadData = async () => {
     details2.value = response.data.details2.map((d: Partial<Detail2>) => ({
       ...d,
       nominalv: d.nominalv ?? d.nominal ?? 0,
-    })) as Detail2[]; // Pre-fill nominal verifikasi
+    })) as Detail2[];
     isDataLoaded.value = true;
 
     if (isVerified.value) {
@@ -145,13 +143,12 @@ const executeSave = async () => {
     const response = await api.post('/fsk-form/save', payload);
     toast.success(response.data.message);
 
-    // --- ARAHKAN KE HALAMAN CETAK ---
     const nomorFSK = response.data.nomor;
     const url = router.resolve({ name: 'FskPrint', params: { nomor: nomorFSK } }).href;
     window.open(url, '_blank');
 
     router.push({ name: 'Fsk' });
-  } catch (error: unknown) { // [PERBAIKAN] Tambahkan penanganan error
+  } catch (error: unknown) {
     if (isAxiosError(error)) {
       toast.error(error.response?.data?.message || 'Gagal menyimpan data.');
     } else {
@@ -170,7 +167,6 @@ const handleSave = () => {
 };
 
 const handleClose = () => {
-  // Tambahkan dialog konfirmasi untuk tombol Tutup
   showConfirmation('Konfirmasi Tutup', 'Data yang belum disimpan akan hilang. Yakin ingin menutup form?', () => {
     router.push({ name: 'Fsk' });
   });
@@ -179,13 +175,13 @@ const handleClose = () => {
 onMounted(() => {
   if (!authStore.can(MENU_ID, requiredPermission.value)) {
     toast.error(`Anda tidak memiliki izin untuk ${isEditMode.value ? 'mengubah' : 'membuat'} data FSK.`);
-    router.push({ name: 'Fsk' }); // Arahkan kembali ke halaman browse
+    router.push({ name: 'Fsk' });
     return;
   }
   if (isEditMode.value) {
     loadData();
   } else {
-    isLoading.value = false; // Mode baru, tunggu user klik "Refresh"
+    isLoading.value = false;
   }
 });
 </script>
@@ -228,7 +224,8 @@ onMounted(() => {
         <div class="desktop-form-section d-flex flex-column" style="flex: 3 1 0;">
           <div class="text-subtitle-1 font-weight-bold mb-2">Rincian Setoran</div>
           <v-data-table :headers="tableHeaders1" :items="details1" density="compact"
-            class="desktop-table fill-height-table" :items-per-page="-1" :loading="isLoading">
+            class="desktop-table fill-height-table header-blue" :items-per-page="-1" :loading="isLoading" fixed-header
+            hover>
             <template #[`item.nominal`]="{ item }">
               {{ formatRupiah(item.nominal) }}
             </template>
@@ -239,10 +236,12 @@ onMounted(() => {
             <template #bottom></template>
           </v-data-table>
         </div>
+
         <div class="desktop-form-section d-flex flex-column" style="flex: 1 1 0;">
           <div class="text-subtitle-1 font-weight-bold mb-2">Rekapitulasi Setoran</div>
-          <v-data-table :headers="tableHeaders2" :items="details2" density="compact" class="desktop-table"
-            :items-per-page="-1" :loading="isLoading">
+          <v-data-table :headers="tableHeaders2" :items="details2" density="compact" class="desktop-table header-blue"
+            :items-per-page="-1" :loading="isLoading" fixed-header>
+
             <template #[`item.nominal`]="{ item }">
               {{ formatRupiah(item.nominal) }}
             </template>
@@ -273,14 +272,23 @@ onMounted(() => {
 </template>
 
 <style scoped>
+
+/* Warna Header Biru Tua */
 .desktop-table :deep(thead tr th) {
-  background-color: #0D47A1 !important; /* Biru Tua */
-  color: #ffffff !important;            /* Teks Putih */
+  background-color: #0D47A1 !important;
+  /* Biru Tua */
+  color: #ffffff !important;
+  /* Teks Putih */
   font-weight: bold !important;
   text-transform: uppercase;
   font-size: 11px !important;
   height: 40px !important;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-  border-bottom: none !important; /* Supaya lebih rapi */
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  border-bottom: none !important;
+}
+
+.desktop-table :deep(tbody tr:hover td) {
+  background-color: #f5f5f5 !important; /* Warna abu-abu muda saat hover */
+  cursor: default; /* Ubah kursor jadi standar karena tidak bisa diklik */
 }
 </style>

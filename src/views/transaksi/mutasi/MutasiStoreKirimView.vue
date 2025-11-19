@@ -9,6 +9,19 @@ import PageLayout from '@/components/PageLayout.vue';
 import MasterProductSearchModal from '@/components/lookup/MasterProductSearchModal.vue';
 import * as XLSX from 'xlsx';
 import type { AxiosError } from 'axios';
+import AppDataTable from '@/components/AppDataTable.vue';
+
+// --- Interface Header (Wajib untuk Resize) ---
+interface DataTableHeader {
+  title: string;
+  key: string;
+  width?: number;
+  fixed?: boolean;
+  align?: 'start' | 'center' | 'end';
+  minWidth?: string | number;
+  maxWidth?: string | number;
+  sortable?: boolean;
+}
 
 interface MasterDataItem {
   nomor: string;
@@ -18,7 +31,7 @@ interface MasterDataItem {
   namaStoreTujuan: string;
   keterangan: string;
   usr: string;
-  closing: 'Y' | 'N' | string; // atau boolean tergantung backend
+  closing: 'Y' | 'N' | string;
 }
 interface DetailItem {
   kode: string;
@@ -27,7 +40,6 @@ interface DetailItem {
   jumlah: number;
 }
 
-// --- Inisialisasi ---
 const router = useRouter();
 const toast = useToast();
 const authStore = useAuthStore();
@@ -51,7 +63,6 @@ const filters = reactive({
   itemCode: '',
 });
 
-// --- State Dialog Konfirmasi ---
 const dialogConfirm = reactive({
   show: false,
   title: '',
@@ -59,28 +70,63 @@ const dialogConfirm = reactive({
   onConfirm: () => { },
 });
 
-// --- Computed ---
-const isSingleSelected = computed(() => selected.value.length === 1);
-const selectedRow = computed(() => isSingleSelected.value ? selected.value[0] : null);
-
-// --- Konfigurasi Tabel ---
-const headers = [
-  { title: 'Nomor', key: 'nomor', minWidth: '180px', fixed: true },
-  { title: 'Tanggal', key: 'tanggal', minWidth: '120px' },
-  { title: 'Nomor Terima', key: 'nomorTerima', minWidth: '180px' },
-  { title: 'Tgl Terima', key: 'tglTerima', minWidth: '120px' },
-  { title: 'Ke Store', key: 'namaStoreTujuan', minWidth: '200px' },
-  { title: 'Keterangan', key: 'keterangan', minWidth: '250px' },
-  { title: 'User', key: 'usr', minWidth: '100px' },
-  { title: 'Closing', key: 'closing', minWidth: '100px', align: 'center' },
-] as const;
+// --- Header Definisi (Ref & Width Angka) ---
+const headers = ref<DataTableHeader[]>([
+  { title: '', key: 'data-table-expand', width: 50, fixed: true },
+  { title: 'Nomor', key: 'nomor', width: 180, fixed: true },
+  { title: 'Tanggal', key: 'tanggal', width: 120 },
+  { title: 'Nomor Terima', key: 'nomorTerima', width: 180 },
+  { title: 'Tgl Terima', key: 'tglTerima', width: 120 },
+  { title: 'Ke Store', key: 'namaStoreTujuan', width: 200 },
+  { title: 'Keterangan', key: 'keterangan', width: 300 },
+  { title: 'User', key: 'usr', width: 100 },
+  { title: 'Closing', key: 'closing', width: 100, align: 'center' },
+]);
 
 const detailHeaders = [
   { title: 'Kode', key: 'kode', width: '150px' },
-  { title: 'Nama Barang', key: 'nama' },
+  { title: 'Nama Barang', key: 'nama', width: '300px' },
   { title: 'Ukuran', key: 'ukuran', width: '100px' },
   { title: 'Jumlah', key: 'jumlah', width: '100px', align: 'end' },
 ] as const;
+
+// --- Logic Resize Column ---
+const resizingColumn = ref<DataTableHeader | null>(null);
+const startX = ref(0);
+const startWidth = ref(0);
+
+const onResizeStart = (e: MouseEvent, column: DataTableHeader) => {
+  e.preventDefault();
+  e.stopPropagation();
+  resizingColumn.value = column;
+  startX.value = e.pageX;
+  startWidth.value = (typeof column.width === 'number' ? column.width : 100);
+  document.addEventListener('mousemove', onResizeMove);
+  document.addEventListener('mouseup', onResizeEnd);
+  document.body.style.cursor = 'col-resize';
+};
+
+const onResizeMove = (e: MouseEvent) => {
+  if (!resizingColumn.value) return;
+  const diff = e.pageX - startX.value;
+  resizingColumn.value.width = Math.max(50, startWidth.value + diff);
+};
+
+const onResizeEnd = () => {
+  resizingColumn.value = null;
+  document.removeEventListener('mousemove', onResizeMove);
+  document.removeEventListener('mouseup', onResizeEnd);
+  document.body.style.cursor = '';
+};
+
+// --- Logic Selected Row ---
+const handleRowClick = (_event: Event, { item }: { item: MasterDataItem }) => {
+  selected.value = [item];
+};
+
+// --- Computed ---
+const isSingleSelected = computed(() => selected.value.length === 1);
+const selectedRow = computed(() => isSingleSelected.value ? selected.value[0] : null);
 
 // --- Methods ---
 const showConfirmation = (title: string, text: string, onConfirm: () => void) => {
@@ -216,10 +262,7 @@ const exportData = async (type: 'header' | 'detail') => {
 };
 
 onMounted(async () => {
-  // 1. Tunggu sampai daftar cabang selesai dimuat dan filter cabang diatur
   await fetchCabangList();
-
-  // 2. Setelah semua filter siap, panggil data master secara eksplisit
   fetchMasterData();
 });
 
@@ -229,7 +272,6 @@ watch(() => filters.cabang, (newVal, oldVal) => {
   }
 });
 
-// Watch untuk filter lain (kecuali cabang)
 watch(
   () => ({ startDate: filters.startDate, endDate: filters.endDate, itemCode: filters.itemCode }),
   (newFilters, oldFilters) => {
@@ -284,11 +326,13 @@ watch(
     <div class="browse-content">
       <div class="filter-section">
         <v-label class="filter-label">Periode:</v-label>
-        <v-text-field v-model="filters.startDate" type="date" density="compact" hide-details variant="outlined" />
+        <v-text-field v-model="filters.startDate" type="date" density="compact" hide-details variant="outlined"
+          style="max-width: 150px;" />
         <v-label class="mx-2">s/d</v-label>
-        <v-text-field v-model="filters.endDate" type="date" density="compact" hide-details variant="outlined" />
+        <v-text-field v-model="filters.endDate" type="date" density="compact" hide-details variant="outlined"
+          style="max-width: 150px;" />
         <v-select label="Cabang" v-model="filters.cabang" :items="cabangList" item-title="nama" item-value="kode"
-          density="compact" hide-details variant="outlined" class="ms-4" style="max-width: 200px;" />
+          density="compact" hide-details variant="outlined" class="ms-4" style="max-width: 180px;" />
 
         <v-text-field v-model="filters.itemCode" label="Kode Barang" density="compact" hide-details variant="outlined"
           class="ms-4" style="max-width: 150px;" clearable readonly @click="openMasterProductSearch">
@@ -297,7 +341,7 @@ watch(
           </template>
         </v-text-field>
         <v-text-field v-model="searchItemName" variant="solo-filled" density="compact" hide-details readonly
-          class="ms-1" style="max-width: 300px;" />
+          class="ms-1" style="max-width: 250px;" />
         <v-spacer />
         <div class="d-flex align-center ga-2 text-caption">
           <v-icon color="red" icon="mdi-square-rounded" size="small"></v-icon> Belum Diterima
@@ -306,13 +350,38 @@ watch(
 
       <div class="table-container">
         <AppDataTable v-model="selected" v-model:expanded="expanded" :headers="headers" :items="masterData"
-          :loading="loading" item-value="nomor" density="compact" class="desktop-table" fixed-header show-select
-          return-object show-expand single-select @update:expanded="loadDetails">
+          :loading="loading" item-value="nomor" density="compact" class="desktop-table header-browse-blue" fixed-header
+          show-select return-object show-expand @update:expanded="loadDetails" @click:row="handleRowClick">
+          <template #headers="{ columns, isSorted, getSortIcon, toggleSort }">
+            <tr>
+              <template v-for="header in columns" :key="header.key">
+                <th
+                  :style="{ width: header.width + 'px', minWidth: header.width + 'px', maxWidth: header.width + 'px' }"
+                  class="resizable-header"
+                  :class="{ 'text-center': header.align === 'center', 'text-end': header.align === 'end' }"
+                  @click="toggleSort(header)">
+                  <div class="header-content">
+                    <span>{{ header.title }}</span>
+                    <v-icon v-if="isSorted(header)" size="small" class="ms-1">
+                      {{ getSortIcon(header) }}
+                    </v-icon>
+                  </div>
+                  <div class="resizer" @mousedown.stop="onResizeStart($event, header)" @click.stop></div>
+                </th>
+              </template>
+            </tr>
+          </template>
 
-          <template v-for="header in headers" :key="header.key" #[`item.${header.key}`]="{ item }">
+          <template #[`item.data-table-expand`]="{ internalItem, toggleExpand, isExpanded }">
+            <v-btn icon="mdi-chevron-down" :class="{ 'rotate-180': isExpanded(internalItem) }" size="x-small"
+              variant="text" @click.stop="toggleExpand(internalItem)" />
+          </template>
+
+          <template v-for="header in headers.filter(h => h.key !== 'data-table-expand')"
+            #[`item.${header.key}`]="{ item }" :key="header.key">
             <td :class="getRowTextColor(item)">
               <template v-if="['tanggal', 'tglTerima'].includes(header.key)">
-                {{ item[header.key] ? format(parseISO(item[header.key]), 'dd/MM/yyyy') : '' }}
+                {{ item[header.key] ? format(parseISO(item[header.key] as string), 'dd/MM/yyyy') : '' }}
               </template>
               <template v-else-if="header.key === 'closing'">
                 <v-chip v-if="item.closing === 'Y'" size="x-small" color="success">YA</v-chip>
@@ -325,20 +394,21 @@ watch(
 
           <template #expanded-row="{ columns, item }">
             <tr>
-              <td :colspan="columns.length">
+              <td :colspan="columns.length" class="pa-0">
                 <div class="detail-container">
                   <div class="detail-table-wrapper">
-                    <div v-if="loadingDetails.has(item.nomor)" class="text-center pa-4">
+                    <div v-if="loadingDetails.has(item.nomor)" class="text-center pa-4 text-caption">
                       Memuat detail...
                     </div>
                     <v-data-table v-else :headers="detailHeaders" :items="details[item.nomor]" density="compact"
-                      class="detail-table" :items-per-page="-1">
-                      <template #[`item.jumlah`]="{ item }">
-                        <div class="text-end">{{ item.jumlah }}</div>
-                      </template>
-
+                      class="detail-table" :items-per-page="-1" hide-default-footer>
                       <template #bottom></template>
                     </v-data-table>
+                    <div
+                      v-if="!loadingDetails.has(item.nomor) && (!details[item.nomor] || details[item.nomor].length === 0)"
+                      class="text-center pa-4 text-caption">
+                      Tidak ada data detail.
+                    </div>
                   </div>
                 </div>
               </td>
@@ -348,7 +418,6 @@ watch(
       </div>
     </div>
 
-    <!-- Dialog Konfirmasi Kustom -->
     <v-dialog v-model="dialogConfirm.show" max-width="400px" persistent>
       <v-card>
         <v-card-title class="text-h6 font-weight-bold">{{ dialogConfirm.title }}</v-card-title>
@@ -368,3 +437,127 @@ watch(
 
   </PageLayout>
 </template>
+
+<style scoped>
+/* --- Layout Full Height --- */
+.browse-content {
+  display: flex;
+  flex-direction: column;
+  height: calc(100vh - 64px - 32px);
+  overflow: hidden;
+}
+
+.filter-section {
+  flex-shrink: 0;
+  padding: 8px;
+  border-bottom: 1px solid #e0e0e0;
+  background: white;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.table-container {
+  flex-grow: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* --- Tabel Style --- */
+.desktop-table {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.desktop-table :deep(.v-table__wrapper) {
+  flex-grow: 1;
+  height: 100% !important;
+  overflow-x: auto !important;
+  overflow-y: auto !important;
+}
+
+.desktop-table :deep(table) {
+  width: max-content;
+  min-width: 100%;
+}
+
+/* --- Header Resize --- */
+.resizable-header {
+  position: relative;
+  background-color: #e3f2fd !important;
+  color: #0d47a1 !important;
+  font-weight: 700 !important;
+  text-transform: uppercase;
+  font-size: 11px !important;
+  height: 40px !important;
+  border-bottom: 2px solid #1976d2 !important;
+  padding: 0 8px !important;
+  user-select: none;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.header-content {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  height: 100%;
+}
+
+.resizable-header.text-center .header-content {
+  justify-content: center;
+}
+
+.resizable-header.text-end .header-content {
+  justify-content: flex-end;
+}
+
+.resizer {
+  position: absolute;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  width: 5px;
+  cursor: col-resize;
+  z-index: 10;
+}
+
+.resizer:hover,
+.resizable-header:hover .resizer {
+  border-right: 2px solid #1565c0;
+}
+
+/* --- Detail Sticky --- */
+.detail-container {
+  position: sticky;
+  left: 0;
+  z-index: 2;
+  display: flex;
+  justify-content: flex-start;
+  align-items: flex-start;
+  background-color: #fafafa;
+  padding: 16px 16px 16px 64px;
+  border-bottom: 1px solid #e0e0e0;
+  width: fit-content;
+  min-width: 100%;
+  box-sizing: border-box;
+}
+
+.detail-table-wrapper {
+  width: 100%;
+  max-width: 600px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  overflow: hidden;
+  background-color: white;
+}
+
+/* Pewarnaan Baris */
+:deep(td.text-red) {
+  color: #d32f2f !important;
+}
+</style>

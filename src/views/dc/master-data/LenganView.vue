@@ -103,7 +103,7 @@ onMounted(fetchData);
     <div class="browse-content">
       <div class="table-container">
         <v-data-table v-model="selected" :headers="headers" :items="dataList" :loading="loading" item-value="Lengan"
-          density="compact" class="desktop-table" fixed-header show-select return-object single-select>
+          density="compact" class="desktop-table header-browse-blue" fixed-header show-select return-object single-select>
         </v-data-table>
       </div>
     </div>

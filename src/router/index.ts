@@ -98,6 +98,7 @@ import TerimaReturCreateView from "@/views/dc/operasional/TerimaReturCreateView.
 import KartuPiutangView from "@/views/piutang/KartuPiutangView.vue";
 import PengajuanBarcodeView from "@/views/transaksi/internal/PengajuanBarcodeView.vue";
 import PengajuanBarcodeCreateView from "@/views/transaksi/internal/PengajuanBarcodeCreateView.vue";
+import PengajuanBarcodePrintView from "@/views/transaksi/internal/PengajuanBarcodePrintView.vue";
 import CetakBarcodeBaruView from "@/views/transaksi/penjualan/CetakBarcodeBaruView.vue";
 import JenisKainView from "@/views/dc/master-data/JenisKainView.vue";
 import WarnaKainView from "@/views/dc/master-data/WarnaKainView.vue";
@@ -1415,12 +1416,23 @@ const routes = [
   {
     path: "/transaksi/internal/pengajuan-barcode/print-barcode/:nomor",
     name: "CetakBarcodeBaru",
-    component: CetakBarcodeBaruView, // <-- Pastikan komponennya ini
+    component: CetakBarcodeBaruView,
     meta: {
       title: "Cetak Barcode Baru",
       printLayout: true,
       requiresAuth: true,
-      layout: "PrintLayout", // Seharusnya sudah ada dari instruksi sebelumnya
+      layout: "PrintLayout",
+    },
+  },
+  {
+    path: "/transaksi/internal/pengajuan-barcode/print-barcode-a4/:nomor",
+    name: "CetakBarcodeBaruA4",
+    component: PengajuanBarcodePrintView,
+    meta: {
+      title: "Cetak Barcode Baru A4",
+      printLayout: true,
+      requiresAuth: true,
+      layout: "PrintLayout",
     },
   },
   {

@@ -114,6 +114,7 @@ const loadItems = async ({ page, itemsPerPage, sortBy }: LoadItemsOptions = {}) 
     } else if (response.data && Array.isArray(response.data.items)) {
       items.value = response.data.items;
       totalItems.value = response.data.total;
+      items.value.sort((a, b) => a.barcode.localeCompare(b.barcode));
     } else {
       items.value = [];
       totalItems.value = 0;

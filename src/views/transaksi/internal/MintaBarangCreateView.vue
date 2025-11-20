@@ -360,6 +360,8 @@ const handleBarcodeScan = async () => {
       params: { gudang: gudangKode }
     });
 
+    console.log("API SCAN RESPONSE:", response.data);
+
     const product = response.data;
 
     // Cari baris kosong pertama di grid untuk diisi

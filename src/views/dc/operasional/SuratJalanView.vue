@@ -42,6 +42,7 @@ const MENU_ID = '213';
 const filters = reactive({
   startDate: format(subDays(new Date(), 7), 'yyyy-MM-dd'),
   endDate: format(new Date(), 'yyyy-MM-dd'),
+  cabang: authStore.user?.cabang === 'KDC' ? 'K01' : authStore.user?.cabang || '',
   kodeBarang: '',
   namaBarang: '',
 });
@@ -49,6 +50,7 @@ const loading = reactive({ master: false, pengajuan: false });
 const masterData = ref<SuratJalanHeader[]>([]);
 const selected = ref<SuratJalanHeader[]>([]);
 const expanded = ref<string[]>([]);
+const cabangList = ref([]);
 const loadingDetails = ref(new Set<string>());
 const details = ref<Record<string, SuratJalanDetail[]>>({});
 const dialog = reactive({ pengajuan: false, searchProduct: false, confirm: false });
@@ -100,6 +102,15 @@ const fetchMasterData = async () => {
     toast.error(err.response?.data?.message || 'Gagal mengambil data.');
   } finally {
     loading.master = false;
+  }
+};
+
+const fetchCabangList = async () => {
+  try {
+    const response = await api.get('/surat-jalan/lookup/cabang');
+    cabangList.value = response.data; // [{ kode: "K01", nama: "BOYOLALI" }, ...]
+  } catch (error) {
+    toast.error('Gagal memuat daftar cabang.', error);
   }
 };
 
@@ -255,7 +266,8 @@ const exportData = async (type: 'header' | 'detail') => {
   }
 };
 
-onMounted(() => {
+onMounted(async () => {
+  await fetchCabangList();
   if (authStore.can(MENU_ID, 'view')) {
     fetchMasterData();
   } else {
@@ -324,8 +336,10 @@ watch(() => filters.kodeBarang, (newVal) => {
         <v-text-field v-model="filters.startDate" type="date" density="compact" hide-details />
         <v-label class="filter-label">s/d</v-label>
         <v-text-field v-model="filters.endDate" type="date" density="compact" hide-details />
+        <v-select label="Cabang" v-model="filters.cabang" :items="cabangList" item-title="nama" item-value="kode"
+          density="compact" hide-details variant="outlined" class="ms-4" style="max-width: 200px;" />
         <v-text-field v-model="filters.kodeBarang" placeholder="Kode Barang (F1)" density="compact" hide-details
-          clearable variant="outlined" style="max-width: 150px;" @keydown.f1.prevent="dialog.searchProduct = true">
+          clearable variant="outlined" style="max-width: 350px;" @keydown.f1.prevent="dialog.searchProduct = true">
         </v-text-field>
         <v-text-field v-model="filters.namaBarang" placeholder="Nama Barang" density="compact" hide-details readonly
           variant="outlined" class="filter-nama-barang" style="max-width: 250px;">
@@ -341,8 +355,8 @@ watch(() => filters.kodeBarang, (newVal) => {
 
       <div class="table-container">
         <AppDataTable v-model="selected" v-model:expanded="expanded" :headers="masterHeaders" :items="masterData"
-          :loading="loading.master" item-value="Nomor" density="compact" class="desktop-table header-browse-blue" fixed-header show-select
-          return-object show-expand @update:expanded="loadDetails">
+          :loading="loading.master" item-value="Nomor" density="compact" class="desktop-table header-browse-blue"
+          fixed-header show-select return-object show-expand @update:expanded="loadDetails">
           <template #[`item.Nomor`]="{ item }">
             <strong :style="{ color: getStatusColor(item.Ngedit) }">{{ item.Nomor }}</strong>
           </template>

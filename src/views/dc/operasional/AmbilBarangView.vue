@@ -105,15 +105,31 @@ const fetchMasterData = async () => {
 };
 
 const loadDetails = async (expandedNomors: string[]) => {
-  const newlyExpanded = expandedNomors.filter(nomor => !details.value[nomor] && !loadingDetails.value.has(nomor));
+  // Filter aman: hanya string yang valid
+  const validNomors = expandedNomors.filter(
+    (nomor): nomor is string => typeof nomor === 'string' && nomor.trim() !== ''
+  );
+
+  const newlyExpanded = validNomors.filter(
+    nomor => !details.value[nomor] && !loadingDetails.value.has(nomor)
+  );
+
   for (const nomor of newlyExpanded) {
     loadingDetails.value.add(nomor);
+
     try {
       const response = await api.get('/ambil-barang/details', { params: { nomor } });
-      details.value[nomor] = response.data;
-    } catch (error: unknown) {
-      // gunakan AxiosError handling jika perlu
-      toast.error(`Gagal memuat detail untuk ${nomor}`, error);
+
+      // Pastikan selalu array
+      const rows = Array.isArray(response.data) ? response.data : [];
+
+      details.value[nomor] = rows;
+
+    } catch (error) {
+      const err = error as AxiosError<{ message?: string }>;
+      toast.error(err.response?.data?.message || `Gagal memuat detail ${nomor}`);
+
+      details.value[nomor] = [];
     } finally {
       loadingDetails.value.delete(nomor);
     }
@@ -211,10 +227,12 @@ watch(() => filters.kodeBarang, (newValue) => {
 <template>
   <PageLayout title="Browse Pengambilan Barang" :menu-id="MENU_ID">
     <template #header-actions>
-      <v-btn v-if="authStore.can(MENU_ID, 'insert')" size="small" color="primary" prepend-icon="mdi-plus" @click="handleNew">Baru</v-btn>
-      <v-btn v-if="authStore.can(MENU_ID, 'edit')" size="small" @click="handleEdit" prepend-icon="mdi-pencil" :disabled="!canEdit">Ubah</v-btn>
-      <v-btn v-if="authStore.can(MENU_ID, 'delete')" size="small" color="error" prepend-icon="mdi-delete" @click="handleDelete"
-        :disabled="!canDelete">Hapus</v-btn>
+      <v-btn v-if="authStore.can(MENU_ID, 'insert')" size="small" color="primary" prepend-icon="mdi-plus"
+        @click="handleNew">Baru</v-btn>
+      <v-btn v-if="authStore.can(MENU_ID, 'edit')" size="small" @click="handleEdit" prepend-icon="mdi-pencil"
+        :disabled="!canEdit">Ubah</v-btn>
+      <v-btn v-if="authStore.can(MENU_ID, 'delete')" size="small" color="error" prepend-icon="mdi-delete"
+        @click="handleDelete" :disabled="!canDelete">Hapus</v-btn>
       <v-menu offset-y>
         <template v-slot:activator="{ props }">
           <v-btn v-if="authStore.can(MENU_ID, 'view')" size="small" color="teal" prepend-icon="mdi-file-excel"
@@ -252,8 +270,8 @@ watch(() => filters.kodeBarang, (newValue) => {
 
       <div class="table-container">
         <AppDataTable v-model="selected" v-model:expanded="expanded" :headers="headers" :items="masterData"
-          :loading="loading" item-value="nomor" density="compact" class="desktop-table header-browse-blue" fixed-header show-select
-          show-expand return-object single-select @update:expanded="loadDetails">
+          :loading="loading" item-value="nomor" density="compact" class="desktop-table header-browse-blue" fixed-header
+          show-select show-expand return-object single-select @update:expanded="loadDetails">
           <template v-for="header in headers" :key="header.key" #[`item.${header.key}`]="{ item }">
             <td :class="getRowTextColor(item)">
               <template v-if="header.key === 'tanggal' || header.key === 'tglTerima'">

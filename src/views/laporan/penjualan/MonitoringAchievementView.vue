@@ -18,8 +18,8 @@ interface DailyItem {
   tanggal: string; // atau Date jika sudah parse
   omset: number;
   total_omset: number;
-  target: number;
-  total_target: number;
+  target_bulanan: number;
+  retur_jual: number;
   ach: number;
 }
 interface WeeklyItem {
@@ -69,9 +69,9 @@ type WeeklyTotals = {
 };
 interface DailySummary {
   omset: number;
+  retur_jual: number;
   total_omset: number;
-  target: number;
-  total_target: number;
+  target_bulanan: number;
   ach: number;
   nominal: number;
 }
@@ -120,9 +120,9 @@ const headersDaily = [
   { title: 'Nama Cabang', key: 'nama_cabang', minWidth: '150px' }, { title: 'Hari', key: 'hari' },
   { title: 'Tanggal', key: 'tanggal' },
   { title: 'Omset (Harian)', key: 'omset' }, // Ganti judul
+  { title: 'Retur Jual', key: 'retur_jual' },
   { title: 'Total Omset (Kumulatif)', key: 'total_omset' }, // Ganti judul
-  { title: 'Target (Harian)', key: 'target' }, // Ganti judul
-  { title: 'Total Target (Kumulatif)', key: 'total_target' }, // <-- TAMBAHKAN INI
+  { title: 'Target Bulanan', key: 'target_bulanan' },
   { title: 'Ach(%)', key: 'ach' }, // Ini sudah kumulatif (benar)
 ];
 // const headersWeeklyGroup = [
@@ -162,26 +162,25 @@ const totalSummary = computed<DailySummary>(() =>
     activeTab.value === 'weekly' ? weeklyTotalSummary.value :
       activeTab.value === 'monthly' ? monthlyTotalSummary.value :
         activeTab.value === 'ytd' ? ytdTotalSummary.value :
-          { omset: 0, total_omset: 0, target: 0, total_target: 0, ach: 0 }) as DailySummary
+          { omset: 0, total_omset: 0, target_bulanan: 0, ach: 0 }) as DailySummary
 );
 
-const dailyTotalSummary = computed<DailySummary>(() => {
-  if (!dailyData.value || dailyData.value.length === 0) {
-    return { omset: 0, target: 0, total_omset: 0, total_target: 0, ach: 0 } as DailySummary;
+const dailyTotalSummary = computed(() => {
+  if (!dailyData.value.length) {
+    return { omset: 0, retur_jual: 0, total_omset: 0, target_bulanan: 0, ach: 0 };
   }
 
-  const lastItem = dailyData.value[dailyData.value.length - 1];
-  const totals = {
-    omset: dailyData.value.reduce((sum, item) => sum + (Number(item.omset) || 0), 0),
-    target: dailyData.value.reduce((sum, item) => sum + (Number(item.target) || 0), 0),
-    total_omset: Number(lastItem.total_omset) || 0,
-    total_target: Number(lastItem.total_target) || 0,
-  };
+  const last = dailyData.value[dailyData.value.length - 1];
+
+  const bulanTarget = last.target_bulanan || 0;
 
   return {
-    ...totals,
-    ach: totals.total_target > 0 ? (totals.total_omset / totals.total_target * 100) : 0,
-  } as DailySummary;
+    omset: dailyData.value.reduce((s, i) => s + (i.omset || 0), 0),
+    retur_jual: dailyData.value.reduce((s, i) => s + (i.retur_jual || 0), 0),
+    total_omset: last.total_omset,
+    target_bulanan: bulanTarget,
+    ach: last.target_bulanan > 0 ? (last.total_omset / last.target_bulanan * 100) : 0,
+  };
 });
 
 const weeklyTotalSummary = computed<WeeklyTotals>(() => {
@@ -318,8 +317,7 @@ const exportData = () => {
         Tanggal: item.tanggal ? format(new Date(item.tanggal), 'dd-MM-yyyy') : '',
         'Omset Harian': item.omset,
         'Total Omset Kumulatif': item.total_omset,
-        'Target Harian': item.target,
-        'Total Target Kumulatif': item.total_target,
+        'Target Bulanan': item.target_bulanan,
         'Ach (%)': item.ach, // Ach sudah kumulatif
       }));
       // Tambahkan Grand Total
@@ -329,8 +327,7 @@ const exportData = () => {
           No: '', 'Kode Cabang': '', 'Nama Cabang': '', Hari: '', Tanggal: 'GRAND TOTAL:',
           'Omset Harian': dailyTotals.omset, // <-- Akses properti dari dailyTotals
           'Total Omset Kumulatif': dailyTotals.total_omset,
-          'Target Harian': dailyTotals.target,
-          'Total Target Kumulatif': dailyTotals.total_target,
+          'Target Bulanan': dailyTotals.target_bulanan,
           'Ach (%)': dailyTotals.ach,
         });
       }
@@ -574,21 +571,29 @@ watch([filters, activeTab], fetchData, { deep: true });
         <v-window v-model="activeTab">
           <!-- Tab Daily -->
           <v-window-item value="daily">
-            <AppDataTable :headers="headersDaily" :items="dailyData" :loading="isLoading" class="desktop-table header-browse-blue"
-              density="compact" height="500" fixed-header :items-per-page="-1">
+            <AppDataTable :headers="headersDaily" :items="dailyData" :loading="isLoading"
+              class="desktop-table header-browse-blue" density="compact" height="500" fixed-header :items-per-page="-1">
               <template v-slot:[`item.no`]="{ index }">
                 {{ index + 1 }}
               </template>
               <template v-slot:[`item.tanggal`]="{ item }">
                 {{ format(new Date(item.tanggal), 'dd-MM-yyyy') }}
               </template>
-              <template v-for="col in ['omset', 'total_omset', 'target', 'total_target']" :key="col"
+              <template v-slot:[`item.retur_jual`]="{ item }">
+                <td class="text-end">{{ rupiah(item.retur_jual || 0) }}</td>
+              </template>
+              <template v-for="col in ['omset', 'total_omset', 'target_bulanan']" :key="col"
                 v-slot:[`item.${col}`]="{ item }">
-                <td class="text-end">{{ rupiah(item[col]) }}</td>
+                <td class="text-end">{{ rupiah(item[col] || 0) }}</td>
               </template>
               <template v-slot:[`item.ach`]="{ item }">
                 <td class="text-end">
-                  <v-chip size="small" :color="item.ach >= 100 ? 'success' : 'error'">
+                  <v-chip size="small" :color="item.ach < 100
+                    ? 'error'
+                    : item.ach < 200
+                      ? 'success'
+                      : 'primary'
+                    ">
                     {{ (item.ach || 0).toFixed(2) }}%
                   </v-chip>
                 </td>
@@ -597,10 +602,10 @@ watch([filters, activeTab], fetchData, { deep: true });
                 <tr class="bg-grey-lighten-3 font-weight-bold total-row-sticky">
                   <td colspan="5" class="text-start">GRAND TOTAL :</td>
                   <td class="text-start">{{ rupiah(totalSummary.omset) }}</td>
+                  <td class="text-start">{{ rupiah(totalSummary.retur_jual) }}</td>
                   <td class="text-start">{{ rupiah(totalSummary.total_omset) }}</td>
-                  <td class="text-start">{{ rupiah(totalSummary.target) }}</td>
-                  <td class="text-start">{{ rupiah(totalSummary.total_target) }}</td>
-                  <td class="text-start">{{ totalSummary.ach?.toFixed(2) }}%</td>
+                  <td class="text-start">{{ rupiah(totalSummary.target_bulanan) }}</td>
+                  <td class="text-start">{{ totalSummary.ach.toFixed(2) }}%</td>
                 </tr>
               </template>
               <template #bottom></template>
@@ -647,10 +652,18 @@ watch([filters, activeTab], fetchData, { deep: true });
                         <td class="text-end">{{ rupiah(item[`nominal_w${w}`]) }}</td>
                         <td class="text-end">{{ rupiah(item[`target_w${w}`]) }}</td>
                         <td class="text-center">
-                          <v-chip size="x-small"
-                            :color="(item[`target_w${w}`] > 0 ? (item[`nominal_w${w}`] / item[`target_w${w}`] * 100) : 0) >= 100 ? 'success' : 'error'">
-                            {{ (item[`target_w${w}`] > 0 ? (item[`nominal_w${w}`] / item[`target_w${w}`] * 100) :
-                              0).toFixed(2) }}%
+                          <v-chip size="x-small" :color="(() => {
+                            const val = item[`target_w${w}`] > 0
+                              ? (item[`nominal_w${w}`] / item[`target_w${w}`] * 100)
+                              : 0;
+                            return val < 100 ? 'error' : val < 200 ? 'success' : 'primary';
+                          })()">
+                            {{
+                              (item[`target_w${w}`] > 0
+                                ? (item[`nominal_w${w}`] / item[`target_w${w}`] * 100)
+                            : 0
+                            ).toFixed(2)
+                            }}%
                           </v-chip>
                         </td>
                       </template>
@@ -684,14 +697,14 @@ watch([filters, activeTab], fetchData, { deep: true });
 
           <!-- Tab Monthly -->
           <v-window-item value="monthly">
-            <AppDataTable :headers="headersMonthly" :items="monthlyData" :loading="isLoading" class="desktop-table header-browse-blue"
-              density="compact" fixed-header :items-per-page="-1">
+            <AppDataTable :headers="headersMonthly" :items="monthlyData" :loading="isLoading"
+              class="desktop-table header-browse-blue" density="compact" fixed-header :items-per-page="-1">
               <template v-for="col in ['nominal', 'target']" :key="col" v-slot:[`item.${col}`]="{ item }">
                 <td class="text-end">{{ rupiah(item[col]) }}</td>
               </template>
               <template v-slot:[`item.ach`]="{ item }">
                 <td class="text-end">
-                  <v-chip size="small" :color="item.ach >= 100 ? 'success' : 'error'">
+                  <v-chip size="small" :color="item.ach < 100 ? 'error' : item.ach < 200 ? 'success' : 'primary'">
                     {{ (item.ach || 0).toFixed(2) }}%
                   </v-chip>
                 </td>
@@ -703,7 +716,7 @@ watch([filters, activeTab], fetchData, { deep: true });
                   <td></td>
                   <td class="text-start">GRAND TOTAL :</td>
                   <td class="text-start">{{ rupiah(totalSummary.nominal) }}</td>
-                  <td class="text-start">{{ rupiah(totalSummary.target) }}</td>
+                  <td class="text-start">{{ rupiah(totalSummary.target_bulanan) }}</td>
                   <td class="text-start">{{ (totalSummary.ach || 0).toFixed(2) }}%</td>
                 </tr>
               </template>
@@ -713,8 +726,8 @@ watch([filters, activeTab], fetchData, { deep: true });
 
           <!-- Tab Year to Date -->
           <v-window-item value="ytd">
-            <AppDataTable :headers="headersYtd" :items="ytdData" :loading="isLoading" class="desktop-table header-browse-blue"
-              density="compact" fixed-header :items-per-page="-1">
+            <AppDataTable :headers="headersYtd" :items="ytdData" :loading="isLoading"
+              class="desktop-table header-browse-blue" density="compact" fixed-header :items-per-page="-1">
               <template v-slot:[`item.no`]="{ index }">
                 {{ index + 1 }}
               </template>
@@ -737,7 +750,7 @@ watch([filters, activeTab], fetchData, { deep: true });
                   <td></td>
                   <td class="text-start">GRAND TOTAL :</td>
                   <td class="text-start">{{ rupiah(totalSummary.nominal) }}</td>
-                  <td class="text-start">{{ rupiah(totalSummary.target) }}</td>
+                  <td class="text-start">{{ rupiah(totalSummary.target_bulanan) }}</td>
                   <td class="text-start">{{ (totalSummary.ach || 0).toFixed(2) }}%</td>
                 </tr>
               </template>

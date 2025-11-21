@@ -556,7 +556,7 @@ watch(filters, () => {
             hide-details variant="outlined" style="max-width: 200px;" />
 
           <v-text-field v-model="filterSearchValue" label="Cari..." density="compact" hide-details variant="outlined"
-            clearable prepend-inner-icon="mdi-magnify" style="min-width: 250px;" />
+            clearable prepend-inner-icon="mdi-magnify" class="search-field" />
         </div>
         <v-spacer />
         <div class="d-flex align-center ga-2 text-caption">
@@ -579,7 +579,8 @@ watch(filters, () => {
                   minWidth: (header.width || 100) + 'px',
                   maxWidth: (header.width || 100) + 'px',
                   boxSizing: 'border-box'
-                }" class="resizable-header" :class="{ 'text-center': header.align === 'center', 'text-end': header.align === 'end' }"
+                }" class="resizable-header"
+                  :class="{ 'text-center': header.align === 'center', 'text-end': header.align === 'end' }"
                   @click="toggleSort(header)">
                   <div class="header-content">
                     <span>{{ header.title }}</span>
@@ -629,7 +630,7 @@ watch(filters, () => {
                 <div class="detail-container">
                   <div class="detail-table-wrapper">
                     <v-data-table :headers="detailHeaders" :items="details[item.Nomor]" density="compact"
-                      hide-default-footer>
+                      class="detail-table" hide-default-footer>
                       <template #[`item.Harga`]="{ item }">
                         <div class="harga-cell">
                           <template v-if="item.HargaAsli > item.Harga">
@@ -803,6 +804,15 @@ watch(filters, () => {
   color: #424242 !important;
   font-size: 10px !important;
   height: 32px !important;
+}
+
+.detail-table-wrapper {
+  width: 100%;
+  max-width: 900px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  overflow: hidden;
+  background-color: white;
 }
 
 .footer-summary {

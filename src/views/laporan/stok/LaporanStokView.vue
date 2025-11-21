@@ -143,6 +143,12 @@ onMounted(() => {
         <v-text-field v-model="filters.tanggal" type="date" label="Per Tanggal" density="compact" hide-details
           variant="outlined" style="max-width: 180px;"></v-text-field>
 
+        <v-radio-group v-model="filters.jenisStok" inline density="compact" hide-details style="margin-left: 12px;">
+          <v-radio label="Showroom" value="showroom"></v-radio>
+          <v-radio label="Pesanan" value="pesanan"></v-radio>
+          <v-radio label="Semua" value="semua"></v-radio>
+        </v-radio-group>
+
         <v-text-field v-model="filters.kodeBarang" label="Kode Barang (F1)" density="compact" hide-details
           variant="outlined" style="max-width: 180px;" readonly @click="openProductSearch"
           @keydown.f1.prevent="openProductSearch" clearable @click:clear="clearProductFilter">

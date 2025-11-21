@@ -212,6 +212,17 @@
   font-size: 10px !important;
 }
 
+.filter-section .search-field {
+  min-width: 250px !important; /* Paksa lebar minimal */
+  width: 300px !important;     /* Lebar ideal */
+  margin-left: 8px;            /* Beri jarak sedikit */
+}
+
+/* Pastikan input di dalamnya juga mengikuti lebar */
+.filter-section .search-field .v-field {
+  width: 100% !important;
+}
+
 /* Styling Header Section (untuk halaman form)
    ========================================================================== */
 .header-filters,
@@ -358,7 +369,7 @@
 
 .desktop-table.header-browse-blue thead tr th {
   background-color: #e3f2fd !important; /* Biru Sangat Muda */
-  color: #0d47a1 !important;            /* Biru Tua (Sama dengan Invoice Create) */
+  color: #0d47a1 !important; /* Biru Tua (Sama dengan Invoice Create) */
   font-weight: 700 !important;
   text-transform: uppercase;
   font-size: 11px !important;
@@ -410,8 +421,8 @@
   overflow: hidden;
   background-color: white;
   position: sticky;
-  left: 0;           /* Menempel di sisi kiri */
-  z-index: 2;        /* Pastikan di atas layer row biasa */
+  left: 0; /* Menempel di sisi kiri */
+  z-index: 2; /* Pastikan di atas layer row biasa */
 }
 
 .detail-table {
@@ -649,7 +660,10 @@
 
 /* 2. Style tombol angka yang TIDAK aktif */
 .v-pagination__list .v-pagination__item:not(.v-pagination__item--active) .v-btn,
-.v-data-table-footer .v-pagination__list .v-pagination__item:not(.v-pagination__item--active) .v-btn {
+.v-data-table-footer
+  .v-pagination__list
+  .v-pagination__item:not(.v-pagination__item--active)
+  .v-btn {
   background-color: white !important;
   border: 1px solid #e0e0e0 !important;
   color: #424242 !important;
@@ -712,8 +726,8 @@
 
 .desktop-table :deep(thead tr th) {
   background-color: #30f204 !important; /* Warna Background Biru Muda */
-  color: #4c5527 !important;            /* Warna Teks Biru Tua */
+  color: #4c5527 !important; /* Warna Teks Biru Tua */
   font-weight: bold !important;
   text-transform: uppercase;
-  font-size: 11px !important;           /* Memastikan ukuran font sesuai */
+  font-size: 11px !important; /* Memastikan ukuran font sesuai */
 }

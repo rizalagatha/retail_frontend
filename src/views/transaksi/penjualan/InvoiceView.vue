@@ -652,26 +652,23 @@ watch(filters, () => {
             </tr>
           </template>
         </AppDataTable>
-      </div>
-      <div class="footer-summary">
-        <div class="footer-item">
-          <span>Grand Nominal:</span>
-          <strong>{{ formatRupiah(totalNominal) }}</strong>
-        </div>
-
-        <div class="footer-item">
-          <span>Grand Bayar:</span>
-          <strong>{{ formatRupiah(totalBayar) }}</strong>
-        </div>
-
-        <div class="footer-item">
-          <span>Grand Piutang:</span>
-          <strong>{{ formatRupiah(totalPiutang) }}</strong>
-        </div>
-
-        <div class="footer-item">
-          <span>Grand Sisa Piutang:</span>
-          <strong>{{ formatRupiah(totalSisaPiutang) }}</strong>
+        <div class="invoice-footer-summary">
+          <div class="footer-item">
+            <span>Grand Nominal:</span>
+            <strong>{{ formatRupiah(totalNominal) }}</strong>
+          </div>
+          <div class="footer-item">
+            <span>Grand Bayar:</span>
+            <strong>{{ formatRupiah(totalBayar) }}</strong>
+          </div>
+          <div class="footer-item">
+            <span>Grand Piutang:</span>
+            <strong>{{ formatRupiah(totalPiutang) }}</strong>
+          </div>
+          <div class="footer-item">
+            <span>Grand Sisa Piutang:</span>
+            <strong>{{ formatRupiah(totalSisaPiutang) }}</strong>
+          </div>
         </div>
       </div>
     </div>
@@ -766,23 +763,22 @@ watch(filters, () => {
   font-size: 0.75rem;
 }
 
-.footer-summary {
+.invoice-footer-summary {
   position: sticky;
-  flex-shrink: 0;
   bottom: 0;
-  z-index: 10;
+  left: 0;
+  width: 100%;
   background: #f5f5f5;
-  border-top: 1px solid #ccc;
-  padding: 10px 20px;
+  border-top: 2px solid #ccc;
+  padding: 10px 16px;
   display: flex;
   gap: 40px;
-  justify-content: flex-end;
-  font-size: 14px;
+  z-index: 20;
 }
-
-.footer-item {
+.invoice-footer-summary .footer-item {
   display: flex;
-  gap: 8px;
+  gap: 6px;
+  font-size: 14px;
 }
 
 .detail-container {

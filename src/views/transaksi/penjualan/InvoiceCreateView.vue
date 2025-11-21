@@ -526,6 +526,12 @@ const onCustomerSelected = async (cust: Customer | null) => {
     header.customer = { kode: '', nama: '', alamat: '', kota: '', telp: '', level: '' };
     updateMemberInfo(null);
   }
+
+  if (customerDiscountRule.value && items.value.some(i => i.kode)) {
+    await nextTick();
+    applyDefaultDiscount();  // pasang diskon default reseller
+    calculateTotals();        // hitung ulang total
+  }
   dialogs.customerSearch = false;
 };
 
@@ -1712,8 +1718,8 @@ onMounted(() => {
 
         <div class="scrollable-table-wrapper">
           <div class="desktop-form-section table-section">
-            <v-data-table :headers="tableHeaders" :items="items" class="desktop-table header-browse-blue" :items-per-page="-1" fixed-header
-              height="calc(100vh - 420px)">
+            <v-data-table :headers="tableHeaders" :items="items" class="desktop-table header-browse-blue"
+              :items-per-page="-1" fixed-header height="calc(100vh - 420px)">
               <template v-slot:[`item.kode`]="{ item, index }">
                 <v-text-field v-model="item.kode" variant="underlined" density="compact" hide-details
                   placeholder="F1/F2..." :readonly="!!header.nomorSo || !!item.noSoDtf"
@@ -2018,13 +2024,16 @@ onMounted(() => {
 
 /* Mewarnai Header Tabel */
 .desktop-table :deep(thead tr th) {
-  background-color: #0D47A1 !important; /* Biru Tua */
-  color: #ffffff !important;            /* Teks Putih */
+  background-color: #0D47A1 !important;
+  /* Biru Tua */
+  color: #ffffff !important;
+  /* Teks Putih */
   font-weight: bold !important;
   text-transform: uppercase;
   font-size: 11px !important;
   height: 40px !important;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-  border-bottom: none !important; /* Supaya lebih rapi */
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  border-bottom: none !important;
+  /* Supaya lebih rapi */
 }
 </style>

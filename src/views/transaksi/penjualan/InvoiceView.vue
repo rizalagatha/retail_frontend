@@ -182,49 +182,49 @@ const filteredMasterData = computed(() => {
 });
 
 // --- Konfigurasi Tabel ---
-const headers = [
-  { title: '', key: 'data-table-expand', width: '50px', fixed: true },
-  { title: 'Nomor', key: 'Nomor', width: '180px', fixed: true },
-  { title: 'Tanggal', key: 'Tanggal', width: '120px' },
-  { title: 'Posting', key: 'Posting', width: '100px' },
-  { title: 'No. SO', key: 'NomorSO', width: '180px' },
-  { title: 'Tgl SO', key: 'TglSO', width: '120px' },
-  { title: 'TOP', key: 'Top', width: '70px' },
-  { title: 'Jatuh Tempo', key: 'Tempo', width: '120px' },
-  { title: 'Last Payment', key: 'LastPayment', width: '120px' },
-  { title: 'Diskon', key: 'Diskon', width: '120px' },
-  { title: 'DP', key: 'Dp', width: '120px' },
-  { title: 'Biaya Kirim', key: 'Biayakirim', width: '120px' },
-  { title: 'Nominal', key: 'Nominal', width: '150px' },
-  { title: 'Piutang', key: 'Piutang', width: '150px' },
-  { title: 'Bayar', key: 'Bayar', width: '150px' },
-  { title: 'Sisa Piutang', key: 'SisaPiutang', width: '150px' },
-  { title: 'Rp Retur', key: 'RpRetur', width: '120px' },
-  { title: 'Kd Cus', key: 'Kdcus', width: '120px' },
-  { title: 'Customer', key: 'Nama', width: '250px' },
-  { title: 'Alamat', key: 'Alamat', width: '350px' },
-  { title: 'Kota', key: 'Kota', width: '150px' },
-  { title: 'Telepon', key: 'Telp', width: '150px' },
-  { title: 'Level', key: 'Level', width: '150px' },
-  { title: 'HP', key: 'Hp', width: '150px' },
-  { title: 'Nama Member', key: 'Member', width: '250px' },
-  { title: 'Keterangan', key: 'Keterangan', width: '250px' },
-  { title: 'Rp Tunai', key: 'RpTunai', width: '120px' },
-  { title: 'No Voucher', key: 'NoVoucher', width: '150px' },
-  { title: 'Rp Voucher', key: 'RpVoucher', width: '120px' },
-  { title: 'Rp Transfer', key: 'RpTransfer', width: '120px' },
-  { title: 'No Setoran', key: 'NoSetoran', width: '180px' },
-  { title: 'Tgl Transfer', key: 'TglTransfer', width: '120px' },
-  { title: 'Akun', key: 'Akun', width: '120px' },
-  { title: 'No Rekening', key: 'NoRekening', width: '150px' },
-  { title: 'No Retur', key: 'NoRetur', width: '180px' },
-  { title: 'SC', key: 'SC', width: '150px' },
-  { title: 'Created', key: 'Created', width: '180px' },
-  { title: 'Minus', key: 'Minus', width: '80px', align: 'center' },
+const headers = ref<DataTableHeader[]>([
+  { title: '', key: 'data-table-expand', width: 50, fixed: true },
+  { title: 'Nomor', key: 'Nomor', width: 180, fixed: true },
+  { title: 'Tanggal', key: 'Tanggal', width: 120 },
+  { title: 'Posting', key: 'Posting', width: 100 },
+  { title: 'No. SO', key: 'NomorSO', width: 180 },
+  { title: 'Tgl SO', key: 'TglSO', width: 120 },
+  { title: 'TOP', key: 'Top', width: 70 },
+  { title: 'Jatuh Tempo', key: 'Tempo', width: 120 },
+  { title: 'Last Payment', key: 'LastPayment', width: 120 },
+  { title: 'Diskon', key: 'Diskon', width: 120 },
+  { title: 'DP', key: 'Dp', width: 120 },
+  { title: 'Biaya Kirim', key: 'Biayakirim', width: 120 },
+  { title: 'Nominal', key: 'Nominal', width: 150 },
+  { title: 'Piutang', key: 'Piutang', width: 150 },
+  { title: 'Bayar', key: 'Bayar', width: 150 },
+  { title: 'Sisa Piutang', key: 'SisaPiutang', width: 150 },
+  { title: 'Rp Retur', key: 'RpRetur', width: 120 },
+  { title: 'Kd Cus', key: 'Kdcus', width: 120 },
+  { title: 'Customer', key: 'Nama', width: 250 },
+  { title: 'Alamat', key: 'Alamat', width: 700 },
+  { title: 'Kota', key: 'Kota', width: 150 },
+  { title: 'Telepon', key: 'Telp', width: 150 },
+  { title: 'Level', key: 'Level', width: 150 },
+  { title: 'HP', key: 'Hp', width: 150 },
+  { title: 'Nama Member', key: 'Member', width: 250 },
+  { title: 'Keterangan', key: 'Keterangan', width: 250 },
+  { title: 'Rp Tunai', key: 'RpTunai', width: 120 },
+  { title: 'No Voucher', key: 'NoVoucher', width: 150 },
+  { title: 'Rp Voucher', key: 'RpVoucher', width: 120 },
+  { title: 'Rp Transfer', key: 'RpTransfer', width: 120 },
+  { title: 'No Setoran', key: 'NoSetoran', width: 180 },
+  { title: 'Tgl Transfer', key: 'TglTransfer', width: 120 },
+  { title: 'Akun', key: 'Akun', width: 120 },
+  { title: 'No Rekening', key: 'NoRekening', width: 150 },
+  { title: 'No Retur', key: 'NoRetur', width: 180 },
+  { title: 'SC', key: 'SC', width: 150 },
+  { title: 'Created', key: 'Created', width: 180 },
+  { title: 'Minus', key: 'Minus', width: 80, align: 'center' },
   { title: 'Prn', key: 'Prn', align: 'center' },
   { title: 'Puas', key: 'Puas', align: 'center' },
   { title: 'Closing', key: 'Closing', align: 'center' },
-] as const;
+]);
 
 const detailHeaders = [
   { title: 'Kode', key: 'Kode' },
@@ -575,11 +575,11 @@ watch(filters, () => {
             <tr>
               <template v-for="header in columns" :key="header.key">
                 <th :style="{
-                  width: header.width + 'px',
-                  minWidth: header.width + 'px',
-                  maxWidth: header.width + 'px'
-                }" class="resizable-header"
-                  :class="{ 'text-center': header.align === 'center', 'text-end': header.align === 'end' }"
+                  width: (header.width || 100) + 'px',
+                  minWidth: (header.width || 100) + 'px',
+                  maxWidth: (header.width || 100) + 'px',
+                  boxSizing: 'border-box'
+                }" class="resizable-header" :class="{ 'text-center': header.align === 'center', 'text-end': header.align === 'end' }"
                   @click="toggleSort(header)">
                   <div class="header-content">
                     <span>{{ header.title }}</span>

@@ -14,6 +14,7 @@ import SalesSearchModal from '@/components/lookup/SalesSearchModal.vue';
 import JenisOrderSearchModal from '@/components/lookup/JenisOrderSearchModal.vue';
 import JenisKainSearchModal from '@/components/lookup/JenisKainSearchModal.vue';
 import WorkshopSearchModal from '@/components/lookup/WorkshopSearchModal.vue';
+import SoSearchModalForInvoice from '@/components/lookup/SoSearchModalForInvoice.vue';
 
 // --- Interfaces ---
 interface FormHeader {
@@ -46,6 +47,7 @@ interface DetailUkuran {
   ukuran: string;
   jumlah: number | null;
   harga: number | null;
+  namaBarang?: string;
 }
 interface DetailTitik {
   id: number;
@@ -113,6 +115,7 @@ const isSalesSearchVisible = ref(false);
 const isJenisOrderSearchVisible = ref(false);
 const isJenisKainSearchVisible = ref(false);
 const isWorkshopSearchVisible = ref(false);
+const isSoSearchVisible = ref(false);
 const sizeCetakList = ref(['A3', 'A4', 'A5', 'Logo', 'Custom']);
 
 // --- Computed Properties for Totals ---
@@ -153,7 +156,13 @@ const removeDetailUkuran = (id: number) => {
 };
 const addDetailTitik = () => {
   if (detailsTitik.value.length === 0 || detailsTitik.value[detailsTitik.value.length - 1].keterangan) {
-    detailsTitik.value.push({ id: Date.now(), keterangan: '', sizeCetak: '', panjang: null, lebar: null });
+    detailsTitik.value.push({
+      id: Date.now(),
+      keterangan: '',
+      sizeCetak: form.value.jenisOrderKode === "SD" ? "Custom" : '',
+      panjang: null,
+      lebar: null
+    });
   }
 };
 const removeDetailTitik = (id: number) => {
@@ -513,6 +522,13 @@ const onJenisOrderSelected = (jenisOrder: { kode: string, nama: string }) => {
   form.value.jenisOrderKode = jenisOrder.kode;
   form.value.jenisOrderNama = jenisOrder.nama;
   isJenisOrderSearchVisible.value = false;
+
+  // 🔥 Jika jenis order SABLON DTF (SD), set default Size Cetak = "Custom"
+  if (jenisOrder.kode === "SD") {
+    detailsTitik.value.forEach(t => {
+      t.sizeCetak = "Custom";
+    });
+  }
 };
 
 const openJenisKainSearch = () => { isJenisKainSearchVisible.value = true; };
@@ -673,6 +689,108 @@ const calculatePrices = async () => {
   });
 };
 
+const openSoSearch = () => {
+  isSoSearchVisible.value = true;
+};
+
+const onSoSelected = async (selected) => {
+  try {
+    const nomorSo =
+      selected.nomor ||
+      selected.Nomor ||
+      selected.so_nomor ||
+      selected.soNomor;
+
+    if (!nomorSo) {
+      toast.error("Nomor SO tidak ditemukan.");
+      return;
+    }
+
+    const res = await api.get(`/so-dtf-form/so-detail/${nomorSo}`);
+    const soData = res.data;
+
+    // ==============================
+    // 1. NOMOR SO
+    // ==============================
+    form.value.nomor = soData.header.nomor; // ← FIXED
+
+    // ==============================
+    // 2. CUSTOMER
+    // ==============================
+    form.value.customerKode = soData.header.customerKode;
+    form.value.customerNama = soData.header.customerNama;
+    form.value.customerAlamat = soData.header.customerAlamat;
+    form.value.customerLevel = soData.header.levelNama;
+
+    // ==============================
+    // 3. SALES
+    // ==============================
+    form.value.sales = soData.header.salesCounter; // UI tunggal
+
+    // ==============================
+    // 4. JENIS ORDER
+    // ==============================
+    form.value.jenisOrder = soData.header.jenisOrderKode || "";
+    form.value.jenisOrderNama = soData.header.jenisOrderNama || "";
+
+    // ==============================
+    // 5. NAMA DTF
+    // ==============================
+    form.value.namaDtf = soData.header.namaDtf || "";
+
+    // Harga/cm2
+    if (form.value.jenisOrder) {
+      const hres = await api.get("/so-dtf-form/lookup/jenis-order-harga", {
+        params: { kode: form.value.jenisOrder }
+      });
+      form.value.hargaPerCm = hres.data.harga || 0;
+    } else {
+      form.value.hargaPerCm = 0;
+    }
+
+    // ==============================
+    // 6. DETAIL CUSTOM SAJA
+    // ==============================
+    const customItems = soData.items.filter(x => x.isCustomOrder);
+
+    // ---- Grid Ukuran ----
+    detailsUkuran.value = [];
+    customItems.forEach((item, idx) => {
+      item.ukuranKaos.forEach((u, i2) => {
+        detailsUkuran.value.push({
+          id: Date.now() + idx + i2,
+          namaBarang: item.nama, // nama item custom
+          ukuran: u.ukuran,
+          jumlah: u.jumlah,
+          harga: u.harga
+        });
+      });
+    });
+    addDetailUkuran();
+
+    // ---- Grid Titik Cetak ----
+    detailsTitik.value = [];
+    customItems.forEach((item, idx) => {
+      item.titikCetak.forEach((t, i2) => {
+        detailsTitik.value.push({
+          id: Date.now() + idx + i2,
+          keterangan: t.keterangan,
+          sizeCetak: t.sizeCetak,
+          panjang: t.panjang,
+          lebar: t.lebar,
+        });
+      });
+    });
+    addDetailTitik();
+
+    toast.success(`SO ${nomorSo} berhasil dimuat.`);
+
+  } catch (err) {
+    console.error(err);
+    toast.error("Gagal load SO.");
+  }
+};
+
 // const cleanupPreviewUrl = () => {
 //   if (imagePreview.value && imagePreview.value.startsWith('blob:')) {
 //     URL.revokeObjectURL(imagePreview.value);
@@ -758,7 +876,12 @@ onMounted(() => {
                 variant="outlined" density="compact" hide-details /></v-col>
             <v-col cols="6"><v-text-field label="Dateline Customer" v-model="form.datelineCustomer" type="date"
                 variant="outlined" density="compact" hide-details /></v-col>
-            <v-col cols="12"><v-text-field label="Sales"
+            <v-col cols="6">
+              <v-text-field label="Ambil dari Surat Pesanan (SO)" readonly prepend-inner-icon="mdi-magnify"
+                placeholder="Klik untuk mencari..." variant="outlined" density="compact" hide-details
+                @click="openSoSearch" />
+            </v-col>
+            <v-col cols="6"><v-text-field label="Sales"
                 :model-value="form.salesKode ? `${form.salesKode} - ${form.salesNama}` : ''" readonly
                 @click="openSalesSearch" @keydown.f1.prevent="openSalesSearch" variant="outlined" density="compact"
                 hide-details append-inner-icon="mdi-magnify" placeholder="F1 atau klik..." /></v-col>
@@ -811,19 +934,23 @@ onMounted(() => {
                 <v-text-field label="Total Jumlah" :model-value="totalJumlahKaos" readonly filled density="compact"
                   hide-details style="max-width: 120px;" />
               </div>
-              <v-table density="compact" class="desktop-table">
+              <v-table density="compact" class="desktop-table header-browse-blue">
                 <thead>
                   <tr>
                     <th style="width: 40px;">#</th>
+                    <th>Nama Barang</th>
                     <th>Ukuran</th>
-                    <th class="text-end" style="width: 90px;">Jumlah</th>
-                    <th class="text-end" style="width: 120px;">Harga/Pcs</th>
+                    <th class="text-end" style="width: 60px;">Jumlah</th>
+                    <th class="text-end" style="width: 60px;">Harga/Pcs</th>
                     <th style="width: 40px;"></th>
                   </tr>
                 </thead>
                 <tbody>
                   <tr v-for="(item, index) in detailsUkuran" :key="item.id">
                     <td class="pt-2 text-center">{{ index + 1 }}</td>
+                    <td>
+                      <v-text-field v-model="item.namaBarang" variant="underlined" density="compact" hide-details />
+                    </td>
                     <td>
                       <v-combobox v-model="item.ukuran" :items="ukuranKaosList" @update:model-value="addDetailUkuran"
                         variant="underlined" density="compact" hide-details />
@@ -853,7 +980,7 @@ onMounted(() => {
                 <v-text-field label="Total Titik" :model-value="totalTitik" readonly filled density="compact"
                   hide-details style="max-width: 120px;" />
               </div>
-              <v-table density="compact" class="desktop-table">
+              <v-table density="compact" class="desktop-table header-browse-blue">
                 <thead>
                   <tr>
                     <th style="width: 40px;">#</th>
@@ -981,6 +1108,8 @@ onMounted(() => {
       @jenis-kain-selected="onJenisKainSelected" />
     <WorkshopSearchModal v-if="isWorkshopSearchVisible" @close="isWorkshopSearchVisible = false"
       @workshop-selected="onWorkshopSelected" />
+    <SoSearchModalForInvoice v-if="isSoSearchVisible" :cabang="form.workshopKode" @close="isSoSearchVisible = false"
+      @so-selected="onSoSelected" />
 
     <!-- Fullscreen Image Modal -->
     <v-dialog v-model="isImageFullscreenVisible" max-width="90vw">

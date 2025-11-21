@@ -169,6 +169,9 @@ const initialHeaderState = {
   customer: { kode: '', nama: '', alamat: '', kota: '', telp: '', level: '' },
   nomorSo: '',
   tanggalSo: '',
+  jenisOrderKode: '',
+  jenisOrderNama: '',
+  namaDtf: '',
   top: 0,
   tanggalTempo: '',
   salesCounter: authStore.user?.kode || '',
@@ -662,23 +665,31 @@ const onSoSelected = async (so: { Nomor: string }) => {
     // Reset items terlebih dahulu
     items.value = [];
 
-    // Assign header data
+    // --- Assign header dari SO ---
     Object.assign(header, {
       ...soHeader,
-      tanggal: format(new Date(), "yyyy-MM-dd"), // <-- tanggal invoice HARUS hari ini
+      tanggal: format(new Date(), "yyyy-MM-dd"), // tanggal invoice hari ini
     });
+
+    // *** Perbaikan bagian jenis order ***
+    header.jenisOrderKode = soHeader.jenisOrderKode || "";
+    header.jenisOrderNama = soHeader.jenisOrderNama || "";  // <-- TAMBAHKAN INI
+    header.namaDtf = soHeader.namaDtf || "";
+
+    // --- Tanggal SO ---
     if (soHeader.tanggal) {
       const date = new Date(soHeader.tanggal);
-      header.tanggalSo = date.toISOString().split('T')[0]; // Ambil bagian tanggal saja
+      header.tanggalSo = date.toISOString().split("T")[0];
     } else {
-      header.tanggalSo = '';
+      header.tanggalSo = "";
     }
 
+    // --- Tanggal Tempo ---
     if (soHeader.tanggalTempo) {
       const date = new Date(soHeader.tanggalTempo);
-      header.tanggalTempo = date.toISOString().split('T')[0]; // Ambil bagian tanggal saja
+      header.tanggalTempo = date.toISOString().split("T")[0];
     } else {
-      header.tanggalTempo = '';
+      header.tanggalTempo = "";
     }
 
     memberHpToSearch.value = soHeader.customer.telp || '';

@@ -166,7 +166,16 @@ const initialHeaderState = {
   nomor: '',
   tanggal: format(new Date(), 'yyyy-MM-dd'),
   gudang: { kode: authStore.user?.cabang || '', nama: authStore.user?.cabangNama || '' },
-  customer: { kode: '', nama: '', alamat: '', kota: '', telp: '', level: '' },
+  customer: {
+    kode: '',
+    nama: '',
+    alamat: '',
+    kota: '',
+    telp: '',
+    level: '',
+    level_kode: null,
+    level_nama: null,
+  } as Customer,
   nomorSo: '',
   tanggalSo: '',
   jenisOrderKode: '',
@@ -561,8 +570,15 @@ const onNewCustomerSaved = (customer: Customer) => {
     alamat: customer.alamat,
     kota: customer.kota,
     telp: customer.telp,
-    level: customer.level ?? '',
+
+    // field utama yang dipakai invoice
+    level: customer.level_nama || customer.level || '',
+
+    // simpan juga metadata level jika diperlukan modul lain
+    level_kode: customer.level_kode || null,
+    level_nama: customer.level_nama || null,
   };
+
   dialogs.customerForm = false;
 };
 

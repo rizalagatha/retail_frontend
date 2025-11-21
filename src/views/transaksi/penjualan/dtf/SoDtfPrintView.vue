@@ -25,6 +25,7 @@ interface PrintData {
   titik?: string;
   user_create: string;
   created?: string;
+  salesNama: string;
 }
 
 const route = useRoute();
@@ -134,7 +135,7 @@ onMounted(() => {
           <div class="signatures">
             <div class="signature-box">
               <div>Kaosan SC,</div>
-              <div class="name-line">( {{ printData.user_create }} )</div>
+              <div class="name-line">( {{ printData.salesNama }} )</div>
             </div>
             <div class="signature-box">
               <div>Mengetahui,</div>

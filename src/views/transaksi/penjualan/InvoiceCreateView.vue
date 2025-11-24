@@ -142,6 +142,30 @@ interface ActivePromo {
   pro_lipat: 'Y' | 'N';
 }
 
+interface SoItem {
+  kode: string;
+  nama: string;
+  ukuran_dtf?: string;
+  custom_json?: string;
+  ukuran_asli?: string;
+  stok?: number;
+  qtyso?: number;
+  harga?: number;
+  diskonPersen?: number;
+  diskonRp?: number;
+  total?: number;
+  barcode?: string;
+  hpp?: number;
+  kategori?: string;
+  noSoDtf?: string;
+  terhitungPromo?: boolean;
+  _isHargaEditable?: boolean;
+  promo?: string;
+  originalDiskonRp?: number;
+  originalDiskonPersen?: number;
+  lastPin?: string;
+}
+
 // --- Inisialisasi ---
 const router = useRouter();
 const route = useRoute();
@@ -564,6 +588,11 @@ const applyDefaultDiscount = () => {
 };
 
 const onNewCustomerSaved = (customer: Customer) => {
+  // bentuk tampilan (UI)
+  const levelText = customer.level_kode
+    ? `${customer.level_kode} - ${customer.level_nama}`
+    : '';
+
   header.customer = {
     kode: customer.kode,
     nama: customer.nama,
@@ -571,10 +600,10 @@ const onNewCustomerSaved = (customer: Customer) => {
     kota: customer.kota,
     telp: customer.telp,
 
-    // field utama yang dipakai invoice
-    level: customer.level_nama || customer.level || '',
+    // tampil di UI
+    level: levelText,
 
-    // simpan juga metadata level jika diperlukan modul lain
+    // data backend
     level_kode: customer.level_kode || null,
     level_nama: customer.level_nama || null,
   };
@@ -637,6 +666,24 @@ const onPromoSelected = (promo: { nomor: string, namaPromo: string }) => {
     dialogs.promoSearch = false;
   }
 };
+
+function resolveUkuran(item: SoItem): string {
+  // 1. Dari SO-DTF
+  if (item.ukuran_dtf) return item.ukuran_dtf;
+
+  // 2. Jika item custom JSON
+  if (item.custom_json) {
+    try {
+      const parsed = JSON.parse(item.custom_json);
+      if (Array.isArray(parsed.ukuranKaos) && parsed.ukuranKaos.length > 0) {
+        return parsed.ukuranKaos[0].ukuran || "";
+      }
+    } catch { /* ignored */ }
+  }
+
+  // 3. fallback
+  return item.ukuran_asli || "";
+}
 
 const onSoSelected = async (so: { Nomor: string }) => {
   console.log('onSoSelected called with:', so);
@@ -712,31 +759,35 @@ const onSoSelected = async (so: { Nomor: string }) => {
     header.memberHp = soHeader.customer.telp || '';
 
     // Map items dengan memastikan semua field yang diperlukan ada
-    items.value = soItems.map((item: Partial<Item>, index: number): Item => ({
-      id: Date.now() + index,
-      kode: item.kode ?? "",
-      nama: item.nama ?? "",
-      ukuran: item.ukuran ?? "",
-      stok: item.stok ?? 0,
-      qtyso: item.qtyso ?? 0,
-      jumlah: item.qtyso ?? 0,
-      harga: item.harga ?? 0,
-      diskonPersen: item.diskonPersen ?? 0,
-      diskonRp: item.diskonRp ?? 0,
-      total: item.total ?? 0,
-      barcode: item.barcode ?? "",
-      hpp: item.hpp ?? 0,
-      kategori: item.kategori ?? "",
-      noSoDtf: item.noSoDtf ?? "",
-      terhitungPromo: item.terhitungPromo ?? false,
-      _isHargaEditable: item._isHargaEditable ?? true,
-      promo: item.promo ?? "",
-      originalDiskonRp: item.originalDiskonRp ?? 0,
-      originalDiskonPersen: item.originalDiskonPersen ?? 0,
-      subtotal: (item.qtyso ?? 0) * (item.harga ?? 0),
-      lastPin: item.lastPin ?? "",
-      fromBackend: true,
-    }));
+    items.value = soItems.map((item: SoItem, index: number) => {
+      const ukuranFinal = resolveUkuran(item);
+
+      return {
+        id: Date.now() + index,
+        kode: item.kode ?? "",
+        nama: item.nama ?? "",
+        ukuran: ukuranFinal,                 // 🔥 FIX UTAMA
+        stok: item.stok ?? 0,
+        qtyso: item.qtyso ?? 0,
+        jumlah: item.qtyso ?? 0,
+        harga: item.harga ?? 0,
+        diskonPersen: item.diskonPersen ?? 0,
+        diskonRp: item.diskonRp ?? 0,
+        total: item.total ?? 0,
+        barcode: item.barcode ?? "",
+        hpp: item.hpp ?? 0,
+        kategori: item.kategori ?? "",
+        noSoDtf: item.noSoDtf ?? "",
+        terhitungPromo: item.terhitungPromo ?? false,
+        _isHargaEditable: item._isHargaEditable ?? true,
+        promo: item.promo ?? "",
+        originalDiskonRp: item.originalDiskonRp ?? 0,
+        originalDiskonPersen: item.originalDiskonPersen ?? 0,
+        subtotal: (item.qtyso ?? 0) * (item.harga ?? 0),
+        lastPin: item.lastPin ?? "",
+        fromBackend: true,
+      };
+    });
 
     console.log('Mapped items:', items.value);
 
@@ -1844,7 +1895,7 @@ onMounted(() => {
     <CustomerForm v-if="dialogs.customerForm" @close="dialogs.customerForm = false"
       @customer-saved="onNewCustomerSaved" />
     <SoSearchModalForInvoice v-if="dialogs.soSearch" :cabang="header.gudang.kode" @close="dialogs.soSearch = false"
-      @so-selected="onSoSelected" />
+      @so-selected="onSoSelected" mode="invoice" />
     <ProductSearchModal v-if="dialogs.productSearch" :gudang="header.gudang.kode" category="ALL"
       :multi="isMultiSelectProduct" source="invoice-cash" :promo-nomor="header.nomorPromo"
       @close="dialogs.productSearch = false" @products-selected="onProductsSelected" />

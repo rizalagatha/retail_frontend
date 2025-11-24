@@ -113,6 +113,7 @@ const headers = ref<DataTableHeader[]>([
   { title: 'Qty Inv', key: 'QtyInv', width: 100 },
   { title: 'Belum', key: 'Belum', width: 150 },
   { title: 'Status', key: 'Status', width: 150 },
+  { title: 'SO DTF', key: 'DipakaiDTF', width: 90 },
   { title: 'Alasan Close', key: 'AlasanClose', width: 250 },
   { title: 'Status Kirim', key: 'StatusKirim', width: 150 },
   { title: 'Kd Customer', key: 'kdcus', width: 120 },
@@ -248,23 +249,27 @@ const submitClose = async () => {
 };
 
 const getRowTextColor = (item: SoHeader) => {
-  if (item.Aktif === 'N') return 'text-grey';
+  // 1️⃣ SO DTF tapi sudah 0 → jadi normal hitam
+  if (item.DipakaiDTF === 'Y' && item.Belum === 0)
+    return '';
+
+  // 2️⃣ SO DTF yang belum habis
+  if (item.DipakaiDTF === 'Y')
+    return 'text-deep-purple font-weight-bold';
+
+  // 3️⃣ Pasif
+  if (item.Aktif === 'N')
+    return 'text-grey';
+
   switch (item.Status) {
     case 'OPEN': return 'text-red font-weight-bold';
-    case 'PROSES': return item.StatusKirim === 'SEBAGIAN' ? 'text-purple font-weight-bold' : 'text-blue font-weight-bold';
+    case 'PROSES': return item.StatusKirim === 'SEBAGIAN'
+      ? 'text-purple font-weight-bold'
+      : 'text-blue font-weight-bold';
     case 'JADI': return 'text-green-darken-2 font-weight-bold';
+    case 'CLOSE': return '';
+    case 'DICLOSE': return 'text-grey';
     default: return '';
-  }
-};
-
-const getStatusChip = (status: string) => {
-  switch (status) {
-    case 'OPEN': return { color: 'red', text: 'Open' };
-    case 'PROSES': return { color: 'navy', text: 'Proses' };
-    case 'JADI': return { color: 'olive', text: 'Jadi' };
-    case 'CLOSE':
-    case 'DICLOSE': return { color: 'grey-darken-1', text: 'Close' };
-    default: return { color: 'grey', text: status };
   }
 };
 
@@ -442,11 +447,6 @@ watch(filters, () => {
               <template v-else-if="['Nominal', 'Diskon', 'Dp', 'QtySO', 'QtyInv', 'Belum'].includes(header.key)">
                 {{ formatRupiah(Number(item[header.key] || 0)) }}
               </template>
-              <template v-else-if="header.key === 'Status'">
-                <v-chip size="x-small" :color="getStatusChip(item.Status).color" variant="tonal">
-                  {{ getStatusChip(item.Status).text }}
-                </v-chip>
-              </template>
               <template v-else-if="header.key === 'StatusKirim'">
                 <v-chip size="x-small" :color="item.StatusKirim === 'BELUM' ? 'orange' : 'indigo'">
                   {{ item.StatusKirim }}
@@ -455,6 +455,12 @@ watch(filters, () => {
               <template v-else-if="header.key === 'Aktif'">
                 <v-chip size="x-small" :color="item.Aktif === 'Y' ? 'success' : 'grey'">
                   {{ item.Aktif === 'Y' ? 'Aktif' : 'Pasif' }}
+                </v-chip>
+              </template>
+              <template v-else-if="header.key === 'DipakaiDTF'">
+                <v-chip size="x-small" :color="item.DipakaiDTF === 'Y' && item.Belum > 0 ? 'deep-purple' : 'grey'"
+                  variant="tonal">
+                  {{ item.DipakaiDTF === 'Y' && item.Belum > 0 ? 'DTF' : '-' }}
                 </v-chip>
               </template>
               <template v-else>

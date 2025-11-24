@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, nextTick, watch } from 'vue';
+import { ref, onMounted, nextTick, watch, computed } from 'vue';
 import { useRoute } from 'vue-router';
 import api from '@/services/api';
 import { format } from 'date-fns';
@@ -7,6 +7,7 @@ import Logo from '@/assets/logo.png';
 
 interface PrintData {
   sd_nomor: string;
+  sd_so_nomor: string;
   sd_tanggal: string;
   jo_nama: string;
   sd_nama: string;
@@ -26,12 +27,15 @@ interface PrintData {
   user_create: string;
   created?: string;
   salesNama: string;
+  detailBarang: Array<{ nama: string; ukuran: string }>;
 }
 
 const route = useRoute();
 const printData = ref<PrintData | null>(null);
 const isLoading = ref(true);
 const appLogo = Logo;
+
+const barangList = computed(() => printData.value?.detailBarang || []);
 
 // Tambahkan fungsi ini
 const getFullImageUrl = (path: string | null | undefined) => {
@@ -102,6 +106,8 @@ onMounted(() => {
           <div class="data-grid">
             <div class="label">No. SO DTF</div>
             <div class="value">: {{ printData.sd_nomor }}</div>
+            <div class="label">No SO</div>
+            <div class="value">: {{ printData.sd_so_nomor || '-' }}</div>
             <div class="label">Tanggal</div>
             <div class="value">: {{ format(new Date(printData.sd_tanggal), 'dd/MM/yyyy') }}</div>
             <div class="label">Jenis Order</div>
@@ -124,6 +130,24 @@ onMounted(() => {
             <div class="value">: {{ printData.sd_desain }}</div>
             <div class="label">Keterangan</div>
             <div class="value keterangan-text">: {{ printData.sd_ket }}</div>
+          </div>
+
+          <div v-if="barangList.length" class="barang-table">
+            <strong>DETAIL BARANG:</strong>
+            <table>
+              <thead>
+                <tr>
+                  <th>Nama Barang</th>
+                  <th>Ukuran</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="(b, i) in barangList" :key="i">
+                  <td>{{ b.nama }}</td>
+                  <td>{{ b.ukuran }}</td>
+                </tr>
+              </tbody>
+            </table>
           </div>
 
           <div class="titik-section">
@@ -265,6 +289,23 @@ onMounted(() => {
 .keterangan-text {
   white-space: pre-wrap;
   word-wrap: break-word;
+}
+
+.barang-table {
+  margin: 10px 0;
+  font-size: 9pt;
+}
+
+.barang-table table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 5px;
+}
+
+.barang-table th,
+.barang-table td {
+  border: 1px solid #aaa;
+  padding: 4px 6px;
 }
 
 .titik-section {

@@ -79,6 +79,7 @@ const isSaving = ref(false);
 
 const initialFormState = {
   nomor: null,
+  soNomor: "",
   tanggal: format(new Date(), 'yyyy-MM-dd'),
   tglPengerjaan: format(new Date(), 'yyyy-MM-dd'),
   datelineCustomer: format(new Date(), 'yyyy-MM-dd'),
@@ -179,6 +180,7 @@ const fetchDataForEdit = async (nomor: string) => {
     // Set form data
     form.value = {
       nomor: data.header.nomor,
+      soNomor: data.header.soNomor || '',
       tanggal: format(new Date(data.header.tanggal), 'yyyy-MM-dd'),
       tglPengerjaan: format(new Date(data.header.tglPengerjaan), 'yyyy-MM-dd'),
       datelineCustomer: format(new Date(data.header.datelineCustomer), 'yyyy-MM-dd'),
@@ -217,6 +219,14 @@ const fetchDataForEdit = async (nomor: string) => {
     detailsTitik.value = data.detailsTitik.map((d: Omit<DetailTitik, 'id'>, i: number) => ({
       ...d,
       id: Date.now() + i + 1000
+    }));
+
+    detailsUkuran.value = data.detailsUkuran.map((d, i) => ({
+      id: Date.now() + i,
+      namaBarang: d.namaBarang,
+      ukuran: d.ukuran,
+      jumlah: d.jumlah,
+      harga: d.harga
     }));
 
     addDetailUkuran();
@@ -712,7 +722,7 @@ const onSoSelected = async (selected) => {
     // ==============================
     // 1. NOMOR SO
     // ==============================
-    form.value.nomor = soData.header.nomor; // ← FIXED
+    form.value.soNomor = soData.header.nomor;
 
     // ==============================
     // 2. CUSTOMER
@@ -725,12 +735,13 @@ const onSoSelected = async (selected) => {
     // ==============================
     // 3. SALES
     // ==============================
-    form.value.sales = soData.header.salesCounter; // UI tunggal
+    form.value.salesKode = soData.header.salesKode || form.value.salesKode;
+    form.value.salesNama = soData.header.salesNama || form.value.salesNama;
 
     // ==============================
     // 4. JENIS ORDER
     // ==============================
-    form.value.jenisOrder = soData.header.jenisOrderKode || "";
+    form.value.jenisOrderKode = soData.header.jenisOrderKode || "";
     form.value.jenisOrderNama = soData.header.jenisOrderNama || "";
 
     // ==============================
@@ -738,7 +749,7 @@ const onSoSelected = async (selected) => {
     // ==============================
     form.value.namaDtf = soData.header.namaDtf || "";
 
-    // Harga/cm2
+    // Harga/cm2 (logic asli)
     if (form.value.jenisOrder) {
       const hres = await api.get("/so-dtf-form/lookup/jenis-order-harga", {
         params: { kode: form.value.jenisOrder }
@@ -748,9 +759,9 @@ const onSoSelected = async (selected) => {
       form.value.hargaPerCm = 0;
     }
 
-    // ==============================
-    // 6. DETAIL CUSTOM SAJA
-    // ==============================
+    // ============================================
+    // 6. DETAIL CUSTOM SAJA (LOGIC ASLI)
+    // ============================================
     const customItems = soData.items.filter(x => x.isCustomOrder);
 
     // ---- Grid Ukuran ----
@@ -759,7 +770,10 @@ const onSoSelected = async (selected) => {
       item.ukuranKaos.forEach((u, i2) => {
         detailsUkuran.value.push({
           id: Date.now() + idx + i2,
-          namaBarang: item.nama, // nama item custom
+          namaBarang:
+            (item.sourceItems?.length > 0
+              ? item.sourceItems[0].nama
+              : item.sod_custom_nama || item.nama),
           ukuran: u.ukuran,
           jumlah: u.jumlah,
           harga: u.harga
@@ -878,8 +892,8 @@ onMounted(() => {
                 variant="outlined" density="compact" hide-details /></v-col>
             <v-col cols="6">
               <v-text-field label="Ambil dari Surat Pesanan (SO)" readonly prepend-inner-icon="mdi-magnify"
-                placeholder="Klik untuk mencari..." variant="outlined" density="compact" hide-details
-                @click="openSoSearch" />
+                placeholder="Klik untuk mencari..." v-model="form.soNomor" variant="outlined" density="compact"
+                hide-details @click="openSoSearch" />
             </v-col>
             <v-col cols="6"><v-text-field label="Sales"
                 :model-value="form.salesKode ? `${form.salesKode} - ${form.salesNama}` : ''" readonly
@@ -1108,8 +1122,8 @@ onMounted(() => {
       @jenis-kain-selected="onJenisKainSelected" />
     <WorkshopSearchModal v-if="isWorkshopSearchVisible" @close="isWorkshopSearchVisible = false"
       @workshop-selected="onWorkshopSelected" />
-    <SoSearchModalForInvoice v-if="isSoSearchVisible" :cabang="form.workshopKode" @close="isSoSearchVisible = false"
-      @so-selected="onSoSelected" />
+    <SoSearchModalForInvoice v-if="isSoSearchVisible" :cabang="authStore.user.cabang" @close="isSoSearchVisible = false"
+      @so-selected="onSoSelected" mode="dtf" />
 
     <!-- Fullscreen Image Modal -->
     <v-dialog v-model="isImageFullscreenVisible" max-width="90vw">

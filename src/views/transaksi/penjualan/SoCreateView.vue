@@ -52,6 +52,11 @@ interface SoItem {
 
   ukuranKaos?: { ukuran: string; jumlah: number; harga: number }[];
   titikCetak?: { keterangan: string; sizeCetak: string; panjang: number; lebar: number }[];
+  sourceItems?: { kode: string; nama: string; ukuran: string; jumlah: number }[];
+
+  sod_custom?: string;
+  sod_custom_nama?: string;
+  sod_custom_data?: string;
 }
 
 interface DpItem {
@@ -110,11 +115,24 @@ interface Item {
   noSoDtf: string;
   noPengajuanHarga: string;
   pin: string;
+
   isCustomOrder?: boolean;
 
-  // tambahkan ini biar payload custom order valid:
   ukuranKaos?: { ukuran: string; jumlah: number; harga: number }[];
   titikCetak?: { keterangan: string; sizeCetak: string; panjang: number; lebar: number }[];
+
+  /** 🔥 Tambahkan ini */
+  sourceItems?: {
+    kode: string;
+    nama: string;
+    ukuran: string;
+    jumlah: number;
+  }[];
+
+  /** 🔥 Flag custom dari backend */
+  sod_custom?: string;
+  sod_custom_nama?: string;
+  sod_custom_data?: string;
 }
 
 interface PenawaranDetail {
@@ -196,6 +214,9 @@ const initialHeaderState = {
   ppnPersen: 0,
   statusSo: 'PASIF',
   accDpPin: '',
+  jenisOrderKode: '',
+  jenisOrderNama: '',
+  namaDtf: '',
 };
 
 const header = ref({ ...initialHeaderState });
@@ -392,11 +413,24 @@ const loadDataForEdit = async (nomor: string) => {
     };
 
     // ===== MAPPING ITEMS =====
-    items.value = itemsData.map((item: Item, index: number): Item => {
+    items.value = itemsData.map((item, index) => {
+      let parsed: Partial<Item> = {};  // <<< FIX TYPE
+
+      if (item.sod_custom === "Y" && item.sod_custom_data) {
+        try {
+          parsed = JSON.parse(item.sod_custom_data);
+        } catch (e) {
+          console.error("Parse sod_custom_data failed", e);
+        }
+      }
+
       return {
         ...item,
-        id: Date.now() + Math.random() + index,
-        isCustomOrder: item.isCustomOrder ?? false,
+        id: Date.now() + index + Math.random(),
+        isCustomOrder: item.sod_custom === "Y",
+        ukuranKaos: parsed.ukuranKaos || [],
+        titikCetak: parsed.titikCetak || [],
+        sourceItems: parsed.sourceItems || []
       };
     });
 
@@ -648,7 +682,36 @@ const executeSave = async () => {
         level: header.value.levelKode
       },
       footer: footer.value,
-      details: items.value.filter(item => item.kode || item.isCustomOrder),
+      details: items.value
+        .filter(item => item.kode || item.isCustomOrder)
+        .map(item => ({
+          kode: item.kode || (item.isCustomOrder ? "CUSTOM" : ""),
+          nama: item.nama,
+          ukuran: item.ukuran,
+          jumlah: item.jumlah,
+          harga: item.harga,
+          total: item.total,
+
+          // 🔥 FLAG WAJIB: backend butuh ini
+          isCustomOrder: item.isCustomOrder || false,
+          sod_custom: item.isCustomOrder ? "Y" : "N",
+          sod_custom_nama: item.isCustomOrder ? item.nama : null,
+          sod_custom_data: item.isCustomOrder
+            ? JSON.stringify({
+              ukuranKaos: item.ukuranKaos || [],
+              titikCetak: item.titikCetak || [],
+              sourceItems: item.sourceItems || []
+            })
+            : null,
+
+          // opsional tapi aman dipertahankan
+          noSoDtf: item.noSoDtf || "",
+          noPengajuanHarga: item.noPengajuanHarga || "",
+          diskonPersen: item.diskonPersen || 0,
+          diskonRp: item.diskonRp || 0,
+          barcode: item.barcode || "",
+          pin: item.pin || "",
+        })),
       dps: dpItems.value,
       isNew: !isEditMode.value,
       user: authStore.user // Pastikan user juga dikirim
@@ -1394,24 +1457,54 @@ const handleBarcodeScan = async () => {
 // };
 
 const handleJenisOrderSaved = (data: JenisOrderSaved) => {
+  header.value.jenisOrderKode = data.jenisOrder;
+  header.value.jenisOrderNama = data.namaOrder;
+  header.value.namaDtf = data.namaOrder;
+
+  // ==============================
+  // 🔥 Snapshot item KO sebelum ditambah custom
+  // ==============================
+  const sourceItems = JSON.parse(JSON.stringify(
+    items.value
+      .filter(i => !i.isCustomOrder && i.kode !== "CUSTOM")
+      .map(i => ({
+        kode: i.kode,
+        nama: i.nama,
+        ukuran: i.ukuran,
+        jumlah: i.jumlah
+      }))
+  ));
+
+  // ==============================
+  // 🔥 Push item custom
+  // ==============================
   items.value.push({
     id: Date.now() + Math.random(),
-    kode: '', // custom order
-    nama: data.namaOrder || 'Order Custom',
-    ukuran: '',
+    kode: "CUSTOM",
+    nama: data.namaOrder,
+    ukuran: "",
     stok: 0,
     jumlah: data.totalJumlah || 0,
     harga: data.totalHarga || 0,
     diskonPersen: 0,
     diskonRp: 0,
     total: data.totalHarga || 0,
-    barcode: '',
-    noSoDtf: '',
-    noPengajuanHarga: '',
-    pin: '',
+    barcode: "",
+    noSoDtf: "",
+    noPengajuanHarga: "",
+    pin: "",
     isCustomOrder: true,
+    sod_custom: "Y",
+    sod_custom_nama: data.namaOrder,
+    sod_custom_data: JSON.stringify({
+      ukuranKaos: data.ukuranKaos,
+      titikCetak: data.titikCetak,
+      hargaPerCm: data.hargaPerCm,
+      sourceItems: sourceItems
+    }),
     ukuranKaos: data.ukuranKaos || [],
     titikCetak: data.titikCetak || [],
+    sourceItems: sourceItems
   });
 
   calculateTotals();
@@ -1709,8 +1802,7 @@ const stopAndOpenPriceProposal = (index: number) => {
                   hide-details class="text-end" :disabled="!item.kode" />
               </template>
               <template #[`item.harga`]="{ item }">
-                <v-text-field
-                  :value="focusedRowId === item.id ? item.harga : formatRupiah(item.harga || 0)"
+                <v-text-field :value="focusedRowId === item.id ? item.harga : formatRupiah(item.harga || 0)"
                   @input="item.harga = Number(String($event.target.value).replace(/[^0-9]/g, '')) || 0"
                   @focus="focusedRowId = item.id" @blur="focusedRowId = -1" placeholder="0" type="text"
                   variant="underlined" density="compact" hide-details single-line class="text-end"
@@ -1721,8 +1813,7 @@ const stopAndOpenPriceProposal = (index: number) => {
                   hide-details class="text-end" @blur="handleItemDiscountChange(index)" />
               </template>
               <template #[`item.diskonRp`]="{ item }">
-                <v-text-field
-                  :value="focusedRowId === item.id ? item.diskonRp : formatRupiah(item.diskonRp || 0)"
+                <v-text-field :value="focusedRowId === item.id ? item.diskonRp : formatRupiah(item.diskonRp || 0)"
                   @input="item.diskonRp = Number(String($event.target.value).replace(/[^0-9]/g, '')) || 0"
                   @focus="focusedRowId = item.id"
                   @blur="focusedRowId = -1; handleItemDiscountChange(items.indexOf(item))" placeholder="0" type="text"
@@ -1737,8 +1828,9 @@ const stopAndOpenPriceProposal = (index: number) => {
               <template #[`item.noSoDtf`]="{ item, index }">
                 <v-row dense align="center" no-gutters>
                   <v-col>
-                    <v-text-field class="so-dtf-field" v-model="item.noSoDtf" variant="underlined" density="compact" hide-details
-                      placeholder="F1..." @mousedown.stop @click.stop @keydown.f1.stop.prevent="stopAndOpenSoDtf(index)" />
+                    <v-text-field class="so-dtf-field" v-model="item.noSoDtf" variant="underlined" density="compact"
+                      hide-details placeholder="F1..." @mousedown.stop @click.stop
+                      @keydown.f1.stop.prevent="stopAndOpenSoDtf(index)" />
                   </v-col>
 
                   <!-- Tombol untuk grid jasa custom -->
@@ -1749,8 +1841,9 @@ const stopAndOpenPriceProposal = (index: number) => {
                 </v-row>
               </template>
               <template #[`item.noPengajuanHarga`]="{ item, index }">
-                <v-text-field class="pengajuan-field" v-model="item.noPengajuanHarga" variant="underlined" density="compact" hide-details
-                  placeholder="F1..." @mousedown.stop @click.stop @keydown.f1.stop.prevent="stopAndOpenPriceProposal(index)">
+                <v-text-field class="pengajuan-field" v-model="item.noPengajuanHarga" variant="underlined"
+                  density="compact" hide-details placeholder="F1..." @mousedown.stop @click.stop
+                  @keydown.f1.stop.prevent="stopAndOpenPriceProposal(index)">
                 </v-text-field>
               </template>
               <template #[`item.actions`]="{ item }">
@@ -1930,7 +2023,8 @@ const stopAndOpenPriceProposal = (index: number) => {
   min-height: 0;
   display: flex;
   flex-direction: column;
-  overflow-y: auto;     /* scroll disini */
+  overflow-y: auto;
+  /* scroll disini */
   overflow-x: hidden;
 }
 
@@ -2026,7 +2120,8 @@ const stopAndOpenPriceProposal = (index: number) => {
   padding: 10px 16px;
   border-top: 2px solid #1976d2;
 
-  z-index: 105; /* lebih tinggi dari table scroll */
+  z-index: 105;
+  /* lebih tinggi dari table scroll */
   min-height: 48px;
 
   /* cegah mengecil ketika tabel kecil */
@@ -2155,14 +2250,17 @@ const stopAndOpenPriceProposal = (index: number) => {
 }
 
 .desktop-table :deep(thead tr th) {
-  background-color: #0D47A1 !important; /* Biru Tua */
-  color: #ffffff !important;            /* Teks Putih */
+  background-color: #0D47A1 !important;
+  /* Biru Tua */
+  color: #ffffff !important;
+  /* Teks Putih */
   font-weight: bold !important;
   text-transform: uppercase;
   font-size: 11px !important;
   height: 40px !important;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-  border-bottom: none !important; /* Supaya lebih rapi */
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  border-bottom: none !important;
+  /* Supaya lebih rapi */
 }
 
 /* ===== RESPONSIVE MEDIA QUERIES ===== */

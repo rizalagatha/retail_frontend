@@ -37,6 +37,7 @@ interface SoDtfHeader {
 interface SoDtfDetail {
   Ukuran: string;
   Jumlah: number;
+  NamaBarang: string;
 }
 
 const toast = useToast();
@@ -539,12 +540,14 @@ watch(filters, () => {
                       class="detail-table">
                       <thead>
                         <tr>
+                          <th>Nama Barang</th>
                           <th>Ukuran</th>
                           <th class="text-end">Jumlah</th>
                         </tr>
                       </thead>
                       <tbody>
-                        <tr v-for="d in details[item.Nomor]" :key="d.Ukuran">
+                        <tr v-for="d in details[item.Nomor]" :key="d.Ukuran + d.NamaBarang">
+                          <td>{{ d.NamaBarang }}</td>
                           <td>{{ d.Ukuran }}</td>
                           <td class="text-end">{{ d.Jumlah }}</td>
                         </tr>

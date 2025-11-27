@@ -7,6 +7,7 @@ import api from '@/services/api';
 import { format, subDays, parseISO } from 'date-fns';
 import PageLayout from '@/components/PageLayout.vue';
 import PrintOptionModal from '@/components/modal/PrintOptionModal.vue';
+import ReturJualKasirPrintPreviewModal from '@/components/modal/ReturJualKasirPrintPreviewModal.vue';
 import * as XLSX from 'xlsx';
 import type { AxiosError } from "axios";
 import { formatRupiah } from "@/utils/formatRupiah";
@@ -67,6 +68,8 @@ const selected = ref<MasterItem[]>([]);
 const expanded = ref<string[]>([]);
 const cabangList = ref([]);
 const isPrintOptionVisible = ref(false);
+const isKasirPreviewVisible = ref(false);
+const selectedRetur = ref<string | null>(null);
 
 const dialogConfirm = reactive({
   show: false,
@@ -240,14 +243,25 @@ const handleDelete = () => {
 
 const handlePrint = () => {
   if (!isSingleSelected.value) return;
+  selectedRetur.value = selectedRow.value.nomor;
   isPrintOptionVisible.value = true;
 };
 
 const handlePrintSelection = (type: 'a4' | 'kasir') => {
   if (!selectedRow.value) return;
   isPrintOptionVisible.value = false;
-  const routeName = type === 'a4' ? 'ReturJualPrint' : 'ReturJualPrintKasir';
-  const url = router.resolve({ name: routeName, params: { nomor: selectedRow.value.nomor } }).href;
+
+  if (type === 'kasir') {
+    isKasirPreviewVisible.value = true;  // buka modal kasir
+    return;
+  }
+
+  // cetak a4
+  const url = router.resolve({
+      name: 'ReturJualPrint',
+      params: { nomor: selectedRow.value.nomor }
+  }).href;
+
   window.open(url, '_blank');
 };
 
@@ -406,6 +420,8 @@ watch(filters, fetchMasterData, { deep: true });
 
     <PrintOptionModal v-if="isPrintOptionVisible" :options="['a4', 'kasir']" @close="isPrintOptionVisible = false"
       @select="handlePrintSelection" />
+    <ReturJualKasirPrintPreviewModal v-model="isKasirPreviewVisible" :nomorRetur="selectedRetur"
+      @close="isKasirPreviewVisible = false" />
 
     <v-dialog v-model="dialogConfirm.show" max-width="400px" persistent>
       <v-card>

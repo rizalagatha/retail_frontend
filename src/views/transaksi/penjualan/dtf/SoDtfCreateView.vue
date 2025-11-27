@@ -222,10 +222,8 @@ const fetchDataForEdit = async (nomor: string) => {
       harga: d.harga
     }));
 
-    if (!isEditMode.value) {
       addDetailUkuran();
       addDetailTitik();
-    }
 
     toast.success(`Data untuk ${nomor} berhasil dimuat.`);
 

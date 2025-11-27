@@ -53,9 +53,9 @@ const hasViewPermission = computed(() => authStore.can(MENU_ID, 'view'));
 const headers = ref<DataTableHeader[]>([
   { title: '', key: 'data-table-expand', width: 50, fixed: true },
   { title: 'Tgl Pengerjaan', key: 'TglPengerjaan', width: 150, align: 'start' },
-  { title: 'Kuota', key: 'Kuota', width: 100, align: 'end' },
-  { title: 'Total Titik', key: 'TotalTitik', width: 100, align: 'end' },
-  { title: 'Sisa', key: 'Sisa', width: 100, align: 'end' },
+  { title: 'Kuota', key: 'Kuota', width: 100 },
+  { title: 'Total Titik', key: 'TotalTitik', width: 100 },
+  { title: 'Sisa', key: 'Sisa', width: 100 },
 ]);
 
 // Detail Header (Lebih rapat)

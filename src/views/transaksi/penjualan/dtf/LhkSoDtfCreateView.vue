@@ -159,7 +159,7 @@ const save = async () => {
       items: validItems
     });
     toast.success('Data LHK berhasil disimpan.');
-    loadLhkData();
+    router.push('/transaksi/penjualan/dtf/lhk-so-dtf');
   } catch (error: unknown) {
     let message = 'Gagal menyimpan data.';
 

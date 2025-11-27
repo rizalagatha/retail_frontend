@@ -56,10 +56,14 @@ interface SoItem {
   kode: string;
   nama: string;
   ukuran?: string;
+  stokmin?: number;
+  stokmax?: number;
+  sudahminta?: number;
+  sj?: number;
   stok?: number;
-  jumlah?: number;
+  mino?: number;
+  jumlah?: number; // jumlah otomatis (mintaan)
   barcode?: string;
-  // properti lain sesuai response API
 }
 
 interface SoDetailsResponse {
@@ -232,13 +236,23 @@ const onSoSelected = async (so: { Nomor: string; Customer: string; KdCus: string
     const response = await api.get<SoDetailsResponse>(`/minta-barang-form/lookup/so-details/${so.Nomor}`);
 
     items.value = response.data.items.map((item: SoItem, index: number) => ({
-      ...item,
-      id: Date.now() + index
+      id: Date.now() + index,
+      kode: item.kode,
+      nama: item.nama,
+      ukuran: item.ukuran,
+      stokmin: item.stokmin,
+      stokmax: item.stokmax,
+      sudahminta: item.sudahminta,
+      sj: item.sj,
+      stok: item.stok,
+      mino: item.mino,
+      jumlah: item.jumlah,   // dari backend (mino)
+      barcode: item.barcode,
     }));
 
     formHeader.value.customer = response.data.customer;
-    addNewRow();
 
+    addNewRow();
   } catch (error: unknown) {
     toast.error('Gagal memuat detail SO.', error);
   } finally {
@@ -611,13 +625,16 @@ onMounted(() => {
 }
 
 .desktop-table :deep(thead tr th) {
-  background-color: #0D47A1 !important; /* Biru Tua */
-  color: #ffffff !important;            /* Teks Putih */
+  background-color: #0D47A1 !important;
+  /* Biru Tua */
+  color: #ffffff !important;
+  /* Teks Putih */
   font-weight: bold !important;
   text-transform: uppercase;
   font-size: 11px !important;
   height: 40px !important;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-  border-bottom: none !important; /* Supaya lebih rapi */
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  border-bottom: none !important;
+  /* Supaya lebih rapi */
 }
 </style>

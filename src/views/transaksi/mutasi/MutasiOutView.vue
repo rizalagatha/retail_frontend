@@ -51,9 +51,12 @@ const selectedCabang = ref(authStore.user?.cabang || '');
 const selected = ref<MutasiHeader[]>([]);
 const expanded = ref<string[]>([]);
 const loadingDetails = ref<Set<string>>(new Set());
+const dialogDelete = ref(false);
+const isDeleting = ref(false);
 
 const hasViewPermission = computed(() => authStore.can(MENU_ID, 'view'));
 const isSingleSelected = computed(() => selected.value.length === 1);
+const selectedRow = computed(() => isSingleSelected.value ? selected.value[0] : null);
 
 // --- Header Definisi (Ref & Width Angka) ---
 const headers = ref<DataTableHeader[]>([
@@ -217,6 +220,35 @@ const printData = () => {
   window.open(url, '_blank');
 };
 
+const handleDelete = () => {
+  if (!selectedRow.value) return;
+  dialogDelete.value = true;
+};
+
+const executeDelete = async () => {
+  if (!selectedRow.value) return;
+
+  isDeleting.value = true;
+  try {
+    const nomor = selectedRow.value.Nomor;
+    const response = await api.delete(`/mutasi-out/${nomor}`);
+
+    toast.success(response.data.message);
+
+    dialogDelete.value = false;
+    isDeleting.value = false;
+
+    fetchData();       // reload
+    selected.value = []; // clear selection
+
+  } catch (err) {
+    const msg = err?.response?.data?.message || 'Gagal menghapus data.';
+    toast.error(msg);
+  } finally {
+    isDeleting.value = false;
+  }
+};
+
 onMounted(() => {
   if (hasViewPermission.value) {
     fetchCabangList();
@@ -239,7 +271,9 @@ watch([startDate, endDate, selectedCabang], fetchData);
         Ubah
       </v-btn>
       <v-btn v-if="authStore.can(MENU_ID, 'delete')" size="small" color="error" :disabled="!isSingleSelected"
-        prepend-icon="mdi-delete">Hapus</v-btn>
+        prepend-icon="mdi-delete" @click="handleDelete">
+        Hapus
+      </v-btn>
       <v-btn v-if="authStore.can(MENU_ID, 'view')" size="small" color="green" :disabled="!isSingleSelected"
         prepend-icon="mdi-printer" @click="printData">
         Cetak
@@ -352,6 +386,29 @@ watch([startDate, endDate, selectedCabang], fetchData);
         </AppDataTable>
       </div>
     </div>
+
+    <v-dialog v-model="dialogDelete" max-width="400px" persistent>
+      <v-card>
+        <v-card-title class="text-h6 font-weight-bold">
+          Konfirmasi Hapus
+        </v-card-title>
+
+        <v-card-text>
+          Yakin ingin menghapus Mutasi Out nomor
+          <strong>{{ selectedRow?.Nomor }}</strong>?<br />
+          Tindakan ini tidak dapat dibatalkan.
+        </v-card-text>
+
+        <v-card-actions>
+          <v-spacer />
+          <v-btn text @click="dialogDelete = false" :disabled="isDeleting">Batal</v-btn>
+          <v-btn color="error" variant="tonal" :loading="isDeleting" @click="executeDelete">
+            Ya, Hapus
+          </v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+
   </PageLayout>
 </template>
 

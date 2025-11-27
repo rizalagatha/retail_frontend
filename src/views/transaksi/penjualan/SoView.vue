@@ -255,7 +255,7 @@ const getRowTextColor = (item: SoHeader) => {
 
   // 2️⃣ SO DTF yang belum habis
   if (item.DipakaiDTF === 'Y')
-    return 'text-deep-purple font-weight-bold';
+    return 'text-brown-darken-2 font-weight-bold';
 
   // 3️⃣ Pasif
   if (item.Aktif === 'N')
@@ -458,7 +458,7 @@ watch(filters, () => {
                 </v-chip>
               </template>
               <template v-else-if="header.key === 'DipakaiDTF'">
-                <v-chip size="x-small" :color="item.DipakaiDTF === 'Y' && item.Belum > 0 ? 'deep-purple' : 'grey'"
+                <v-chip size="x-small" :color="item.DipakaiDTF === 'Y' && item.Belum > 0 ? 'brown-darken-2' : 'grey'"
                   variant="tonal">
                   {{ item.DipakaiDTF === 'Y' && item.Belum > 0 ? 'DTF' : '-' }}
                 </v-chip>

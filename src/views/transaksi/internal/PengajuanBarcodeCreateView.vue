@@ -15,6 +15,7 @@ interface Header {
   nomor: string;
   tanggal: string;
   approved: string | null;
+  cabang_kode?: string;
 }
 interface Item {
   id: number;

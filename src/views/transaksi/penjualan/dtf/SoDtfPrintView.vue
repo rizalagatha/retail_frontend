@@ -116,8 +116,6 @@ onMounted(() => {
             <div class="value">: {{ printData.sd_nama }}</div>
             <div class="label">Jumlah</div>
             <div class="value">: {{ printData.jumlah }}</div>
-            <div class="label">Ukuran</div>
-            <div class="value">: {{ printData.ukuran }}</div>
             <div class="label">Kain</div>
             <div class="value">: {{ printData.sd_kain }}</div>
             <div class="label">Finishing</div>
@@ -189,10 +187,24 @@ onMounted(() => {
 <style scoped>
 @media print {
   @page {
-    size: A4;
-    margin: 0.3cm 0.5cm;
+    size: A4 portrait;
+    margin: 0.3cm 0.5cm !important;
   }
 
+  /* ==== PAKSA SCALE 77% (AKURAT SESUAI PRINT PREVIEW KAMU) ==== */
+  html {
+    transform: scale(0.77) !important;
+    transform-origin: top left !important;
+    width: 130% !important;
+    /* kompensasi penyusutan agar layout tidak gepeng */
+  }
+
+  body {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* === Visibility rules === */
   body * {
     visibility: hidden;
   }
@@ -207,6 +219,20 @@ onMounted(() => {
     left: 0;
     top: 0;
     width: 100%;
+  }
+
+  /* biarkan tinggi flexible */
+  .page {
+    width: 100% !important;
+    min-height: auto !important;
+    margin: 0 !important;
+    padding: 0.3cm 0.5cm !important;
+    box-shadow: none !important;
+    page-break-after: always;
+  }
+
+  .image-box img {
+    max-height: 250px !important;
   }
 }
 

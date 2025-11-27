@@ -128,8 +128,8 @@ const loadDataForEdit = async (nomor: string) => {
 };
 
 const validateQtyIn = (item: Item) => {
-  const qtyIn = item.qtyIn || 0;
-  const belum = item.belum || 0;
+  const qtyIn = Number(item.qtyIn) || 0;
+  const belum = Number(item.belum) || 0;
 
   if (qtyIn > belum) {
     toast.error(`Qty In (${qtyIn}) tidak boleh melebihi Belum (${belum}).`);
@@ -139,12 +139,12 @@ const validateQtyIn = (item: Item) => {
   }
 };
 
-const resetForm = () => {
-  Object.assign(header, initialHeaderState); // Kembalikan header ke kondisi awal
-  items.value = []; // Kosongkan grid
-  addNewRow(); // Tambahkan satu baris kosong baru
-  isDataSaved.value = false; // Set ulang status simpan
-  toast.info('Form telah dibersihkan.');
+const resetForm = (showToast = true) => {
+  Object.assign(header, initialHeaderState);
+  items.value = [];
+  addNewRow();
+  isDataSaved.value = false;
+  if (showToast) toast.info('Form telah dibersihkan.');
 };
 
 const showConfirmation = (title: string, text: string, onConfirm: () => void) => {
@@ -267,7 +267,7 @@ onMounted(() => {
   if (isEditMode.value && nomor) {
     loadDataForEdit(nomor);
   } else {
-    resetForm();
+    resetForm(false);   // <-- tidak tampilkan toast
     isLoading.value = false;
   }
 });
@@ -377,13 +377,16 @@ onMounted(() => {
 }
 
 .desktop-table :deep(thead tr th) {
-  background-color: #0D47A1 !important; /* Biru Tua */
-  color: #ffffff !important;            /* Teks Putih */
+  background-color: #0D47A1 !important;
+  /* Biru Tua */
+  color: #ffffff !important;
+  /* Teks Putih */
   font-weight: bold !important;
   text-transform: uppercase;
   font-size: 11px !important;
   height: 40px !important;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-  border-bottom: none !important; /* Supaya lebih rapi */
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  border-bottom: none !important;
+  /* Supaya lebih rapi */
 }
 </style>

@@ -113,7 +113,9 @@ const save = async () => {
   // --- (Validasi Anda sebelumnya tetap di sini) ---
   const nominal = dpData.value.nominal || 0;
   if (nominal < kekuranganDp.value) {
-    return toast.error(`Nominal DP kurang. Minimal tambahan yang harus dibayar adalah: ${formatRupiah(kekuranganDp.value)}`);
+    toast.warning(
+      `DP kurang dari minimal (${formatRupiah(kekuranganDp.value)}). SO masih akan berstatus PASIF.`
+    );
   }
   if ((dpData.value.nominal || 0) <= 0) {
     return toast.error('Nominal harus diisi.');

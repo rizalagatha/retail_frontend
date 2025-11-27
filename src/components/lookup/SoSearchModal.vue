@@ -4,7 +4,9 @@ import api from '@/services/api';
 import { format } from 'date-fns';
 
 const props = defineProps({
-  cabang: { type: String, required: true }
+  cabang: { type: String, required: true },
+  source: { type: String, default: 'mutasi-out' },
+  customer: { type: String, default: '' }
 });
 const emit = defineEmits(['close', 'selected']);
 
@@ -21,13 +23,21 @@ const headers = [
   { title: 'Nama Customer', key: 'Customer' },
 ];
 
+const getEndpoint = () => {
+  if (props.source === 'setoran-bayar') {
+    return '/setoran-bayar-form/lookup/search-so';
+  }
+  return '/mutasi-out-form/lookup/so'; // default lama
+};
+
 const loadItems = async ({ page, itemsPerPage }: { page: number, itemsPerPage: number }) => {
   loading.value = true;
   try {
-    const response = await api.get('/mutasi-out-form/lookup/so', {
+    const response = await api.get(getEndpoint(), {
       params: {
         term: search.value,
         cabang: props.cabang,
+        customer: props.customer || undefined,
         page: page,
         itemsPerPage: itemsPerPage,
       },
@@ -43,9 +53,11 @@ const selectItem = <T>(item: T) => {
   emit('close');
 };
 
+let timer: number | undefined;
 watch(search, () => {
   options.value.page = 1;
-  setTimeout(() => loadItems(options.value), 500);
+  clearTimeout(timer);
+  timer = window.setTimeout(() => loadItems(options.value), 400);
 });
 </script>
 
@@ -54,8 +66,10 @@ watch(search, () => {
     <v-card class="dialog-card d-flex flex-column" style="height: 70vh;">
       <v-toolbar color="primary" density="compact">
         <v-toolbar-title>Bantuan - Pilih Surat Pesanan (SO)</v-toolbar-title>
-        <v-spacer /><v-btn icon="mdi-close" @click="$emit('close')" />
+        <v-spacer />
+        <v-btn icon="mdi-close" @click="$emit('close')" />
       </v-toolbar>
+
       <v-card-text class="pa-4 d-flex flex-column flex-grow-1">
         <v-text-field v-model="search" label="Cari Nomor SO atau Nama Customer..." variant="outlined" density="compact"
           clearable class="mb-4" hide-details autofocus />

@@ -48,16 +48,16 @@ const itemToDelete = ref<LhkItem | null>(null);
 // --- Header Definisi (Ref & Width Angka) ---
 const headers = ref<DataTableHeader[]>([
   { title: 'Tanggal', key: 'Tanggal', width: 120 },
-  { title: 'Cabang', key: 'Cab', width: 100 },
+  { title: 'Cabang', key: 'cab', width: 100 },
   { title: 'No. SO DTF', key: 'SoDtf', width: 180 },
   { title: 'Nama DTF', key: 'NamaDTF', width: 250 },
-  { title: 'Depan', key: 'Depan', align: 'end', width: 100 },
-  { title: 'Belakang', key: 'Belakang', align: 'end', width: 100 },
-  { title: 'Lengan', key: 'Lengan', align: 'end', width: 100 },
-  { title: 'Variasi', key: 'Variasi', align: 'end', width: 100 },
-  { title: 'Saku', key: 'Saku', align: 'end', width: 100 },
-  { title: 'Panjang (Mtr)', key: 'PanjangMtr', align: 'end', width: 120 },
-  { title: 'Buangan (Mtr)', key: 'BuanganMtr', align: 'end', width: 120 },
+  { title: 'Depan', key: 'depan', width: 100 },
+  { title: 'Belakang', key: 'belakang', width: 100 },
+  { title: 'Lengan', key: 'lengan', width: 100 },
+  { title: 'Variasi', key: 'variasi', width: 100 },
+  { title: 'Saku', key: 'saku', width: 100 },
+  { title: 'Panjang (Mtr)', key: 'PanjangMtr', width: 120 },
+  { title: 'Buangan (Mtr)', key: 'BuanganMtr', width: 120 },
   { title: 'Keterangan', key: 'Keterangan', width: 300 },
 ]);
 

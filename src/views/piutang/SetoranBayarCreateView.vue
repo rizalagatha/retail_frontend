@@ -9,6 +9,7 @@ import PageLayout from '@/components/PageLayout.vue';
 import CustomerSearchModal from '@/components/lookup/CustomerSearchModal.vue';
 import RekeningSearchModal from '@/components/lookup/RekeningSearchModal.vue';
 import UnpaidInvoiceSearchModal from '@/components/lookup/UnpaidInvoiceSearchModal.vue';
+import SoSearchModal from '@/components/lookup/SoSearchModal.vue';
 import { AxiosError } from 'axios';
 import { formatRupiah } from "@/utils/formatRupiah";
 
@@ -68,6 +69,13 @@ interface InvoiceItem {
   sisa: number;
 }
 
+interface SoLookupItem {
+  Nomor: string;
+  Tanggal: string;
+  KdCus: string;
+  Customer: string;
+}
+
 // --- Inisialisasi ---
 const router = useRouter();
 const route = useRoute();
@@ -103,6 +111,8 @@ const items = ref<Item[]>([]);
 const isLoading = ref(true);
 const isSaving = ref(false);
 const focusedRowId = ref<number | string>(-1);
+const isSoSearchVisible = ref(false);
+const selectedSo = ref(null);
 
 // handler untuk header.nominal
 function onHeaderNominalFocus() {
@@ -257,6 +267,27 @@ const handleCancel = () => {
 
 const handleClose = () => {
   showConfirmation('Konfirmasi Tutup', 'Tutup form dan kembali ke halaman browse?', () => router.push({ name: 'SetoranBayar' }));
+};
+
+const openSoSearch = () => {
+  if (!header.customer.kode) {
+    toast.error("Pilih customer terlebih dahulu.");
+    return;
+  }
+  isSoSearchVisible.value = true;
+};
+
+const onSoSelected = (item: SoLookupItem) => {
+  selectedSo.value = item;
+
+  // Isi nomor SO
+  header.nomorSo = item.Nomor;
+
+  // Update customer ke header
+  header.customer.kode = item.KdCus;
+  header.customer.nama = item.Customer;
+
+  isSoSearchVisible.value = false;
 };
 
 onMounted(() => {
@@ -451,16 +482,40 @@ watch(() => header.nominal, calculateTotals);
                 hide-details />
             </v-col>
 
-            <v-divider class="my-2" />
+            <v-divider class="my-4" />
 
-            <v-text-field
-              :model-value="focusedRowId === 'header_nominal' ? header.nominal : formatRupiah(header.nominal)"
-              @focus="onHeaderNominalFocus" @blur="onHeaderNominalBlur" @update:model-value="onHeaderNominalUpdate"
-              variant="outlined" density="compact" hide-details class="font-weight-bold" :readonly="isPosted" />
-            <v-col cols="12"><v-text-field :model-value="formatRupiah(header.terbayar)" readonly filled
-                density="compact" hide-details /></v-col>
-            <v-col cols="12"><v-text-field :model-value="formatRupiah(header.sisa)" readonly filled density="compact"
-                hide-details /></v-col>
+            <v-row dense>
+              <!-- NOMOR SO -->
+              <v-col cols="12" md="6">
+                <v-text-field v-model="header.nomorSo" label="Nomor SO" readonly variant="outlined" density="compact"
+                  hide-details>
+                  <template #append-inner>
+                    <v-btn icon="mdi-magnify" variant="text" @click="openSoSearch"></v-btn>
+                  </template>
+                </v-text-field>
+              </v-col>
+
+              <!-- NOMINAL DP -->
+              <v-col cols="12" md="6">
+                <v-text-field
+                  :model-value="focusedRowId === 'header_nominal' ? header.nominal : formatRupiah(header.nominal)"
+                  @focus="onHeaderNominalFocus" @blur="onHeaderNominalBlur" @update:model-value="onHeaderNominalUpdate"
+                  label="Nominal Setoran" variant="outlined" density="compact" hide-details class="font-weight-bold"
+                  :readonly="isPosted" />
+              </v-col>
+
+              <!-- TERBAYAR -->
+              <v-col cols="6" md="3">
+                <v-text-field :model-value="formatRupiah(header.terbayar)" label="Terbayar" readonly filled
+                  density="compact" hide-details />
+              </v-col>
+
+              <!-- SISA -->
+              <v-col cols="6" md="3">
+                <v-text-field :model-value="formatRupiah(header.sisa)" label="Sisa" readonly filled density="compact"
+                  hide-details />
+              </v-col>
+            </v-row>
 
           </v-row>
         </div>
@@ -522,6 +577,8 @@ watch(() => header.nominal, calculateTotals);
       @close="dialog.rekeningSearch = false" @selected="onRekeningSelected" />
     <UnpaidInvoiceSearchModal v-if="dialog.invoiceSearch" :customer-kode="header.customer.kode"
       @close="dialog.invoiceSearch = false" @invoice-selected="onUnpaidInvoiceSelected" />
+    <SoSearchModal v-if="isSoSearchVisible" :cabang="authStore.user?.cabang || ''" source="setoran-bayar"
+      :customer="header.customer.kode" @close="isSoSearchVisible = false" @selected="onSoSelected" />
     <v-dialog v-model="dialogConfirm.show" max-width="400px" persistent>
       <v-card>
         <v-card-title class="text-h6 font-weight-bold">{{ dialogConfirm.title }}</v-card-title>
@@ -539,13 +596,16 @@ watch(() => header.nominal, calculateTotals);
 
 <style scoped>
 .desktop-table :deep(thead tr th) {
-  background-color: #0D47A1 !important; /* Biru Tua */
-  color: #ffffff !important;            /* Teks Putih */
+  background-color: #0D47A1 !important;
+  /* Biru Tua */
+  color: #ffffff !important;
+  /* Teks Putih */
   font-weight: bold !important;
   text-transform: uppercase;
   font-size: 11px !important;
   height: 40px !important;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-  border-bottom: none !important; /* Supaya lebih rapi */
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  border-bottom: none !important;
+  /* Supaya lebih rapi */
 }
 </style>

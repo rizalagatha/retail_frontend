@@ -61,7 +61,6 @@ interface SoDtfPayload {
   detailsUkuran: DetailUkuran[];
   detailsTitik: DetailTitik[];
 }
-type DetailUkuranApi = Omit<DetailUkuran, 'id'>;
 
 // --- State & Dependencies ---
 const route = useRoute();
@@ -210,12 +209,6 @@ const fetchDataForEdit = async (nomor: string) => {
     // Clear file input karena ini data existing
     imageFile.value = null;
 
-    // Set detail data
-    detailsUkuran.value = (data.detailsUkuran as DetailUkuranApi[]).map((d, i) => ({
-      ...d,
-      id: Date.now() + i
-    }));
-
     detailsTitik.value = data.detailsTitik.map((d: Omit<DetailTitik, 'id'>, i: number) => ({
       ...d,
       id: Date.now() + i + 1000
@@ -229,8 +222,10 @@ const fetchDataForEdit = async (nomor: string) => {
       harga: d.harga
     }));
 
-    addDetailUkuran();
-    addDetailTitik();
+    if (!isEditMode.value) {
+      addDetailUkuran();
+      addDetailTitik();
+    }
 
     toast.success(`Data untuk ${nomor} berhasil dimuat.`);
 
@@ -646,6 +641,8 @@ const getHargaDTG = async () => {
  * Fungsi utama untuk menghitung semua harga.
  */
 const calculatePrices = async () => {
+  if (isLoading.value) return;
+
   if (totalJumlahKaos.value <= 0) {
     // Jika tidak ada jumlah, reset semua harga
     form.value.hargaPerCm = 0;
@@ -825,10 +822,9 @@ watch(
 
     // HANYA kosongkan isian jika user secara manual mengubah jenis order
     // (yaitu, saat nilai lama tidak kosong dan tidak dalam mode edit)
-    if (oldJenisOrder && !isEditMode.value) {
-      detailsTitik.value.forEach(item => {
-        item.sizeCetak = '';
-      });
+    if (isLoading.value) return;
+    if (!isEditMode.value && oldJenisOrder) {
+      detailsTitik.value.forEach(item => (item.sizeCetak = ""));
     }
   }
 );
@@ -837,7 +833,8 @@ watch(
   // Daftar semua state yang perlu dipantau
   [detailsUkuran, detailsTitik, () => form.value.jenisOrderKode, () => form.value.customerLevel],
   async () => {
-    calculatePrices();
+    if (isLoading.value) return;
+    await calculatePrices();
   },
   { deep: true } // deep: true penting untuk memantau perubahan di dalam array of objects
 );

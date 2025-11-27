@@ -30,6 +30,10 @@ interface Header {
   tanggalJatuhTempo: string;
   nomorSo: string;
   minimalDp: number;
+  totalDp?: number;
+  sisaMinimalDp?: number;
+  minimalPercent?: number;
+  containsCustomOrDtf?: boolean;
 }
 interface Item {
   id: number;
@@ -69,11 +73,14 @@ interface InvoiceItem {
   sisa: number;
 }
 
-interface SoLookupItem {
-  Nomor: string;
-  Tanggal: string;
-  KdCus: string;
-  Customer: string;
+interface InvoiceItem {
+  invoice: string;
+  tanggal: string;
+  top: number;
+  jatuhTempo: string;
+  nominal: number;
+  terbayar: number;
+  sisa: number;
 }
 
 // --- Inisialisasi ---
@@ -104,6 +111,8 @@ const initialHeaderState: Header = {
   tanggalJatuhTempo: format(new Date(), 'yyyy-MM-dd'),
   nomorSo: '',
   minimalDp: 0,
+  minimalPercent: 30,
+  containsCustomOrDtf: false,
 };
 const header = reactive<Header>({ ...initialHeaderState });
 const items = ref<Item[]>([]);
@@ -112,7 +121,8 @@ const isLoading = ref(true);
 const isSaving = ref(false);
 const focusedRowId = ref<number | string>(-1);
 const isSoSearchVisible = ref(false);
-const selectedSo = ref(null);
+const lockSoMode = ref(false);
+const statusSo = ref<'AKTIF' | 'PASIF' | ''>('');
 
 // handler untuk header.nominal
 function onHeaderNominalFocus() {
@@ -221,6 +231,10 @@ const resetForm = () => {
   Object.assign(header, initialHeaderState);
   items.value = [];
   addNewRow();
+};
+
+const resetFormWithToast = () => {
+  resetForm();
   toast.info('Form telah dibersihkan.');
 };
 
@@ -262,7 +276,7 @@ const handleSave = () => {
 };
 
 const handleCancel = () => {
-  showConfirmation('Konfirmasi Batal', 'Data yang belum disimpan akan hilang. Lanjutkan?', resetForm);
+  showConfirmation('Konfirmasi Batal', 'Data yang belum disimpan akan hilang. Lanjutkan?', resetFormWithToast);
 };
 
 const handleClose = () => {
@@ -270,24 +284,123 @@ const handleClose = () => {
 };
 
 const openSoSearch = () => {
-  if (!header.customer.kode) {
-    toast.error("Pilih customer terlebih dahulu.");
+  // kalau sudah locked via SO, biarkan tetap buka? Delphi: cuma boleh pilih SO jika customer diisi
+  if (!header.customer || !header.customer.kode) {
+    toast.error('Pilih customer terlebih dahulu.');
     return;
   }
   isSoSearchVisible.value = true;
 };
 
-const onSoSelected = (item: SoLookupItem) => {
-  selectedSo.value = item;
+const onSoSelected = async (item: { Nomor: string; KdCus?: string; Customer?: string }) => {
+  try {
+    isLoading.value = true;
 
-  // Isi nomor SO
-  header.nomorSo = item.Nomor;
+    // Ambil detail SO terbaru dari backend
+    const resp = await api.get(`/setoran-bayar-form/so/${encodeURIComponent(item.Nomor)}`);
+    const data = resp.data;
 
-  // Update customer ke header
-  header.customer.kode = item.KdCus;
-  header.customer.nama = item.Customer;
+    if (!data) {
+      toast.error("SO tidak ditemukan.");
+      return;
+    }
 
-  isSoSearchVisible.value = false;
+    // 1️⃣ Set nomor SO
+    header.nomorSo = data.nomor || item.Nomor;
+
+    // 2️⃣ Set customer
+    if (data.customer?.kode) {
+      header.customer = {
+        kode: data.customer.kode,
+        nama: data.customer.nama ?? "",
+        alamat: data.customer.alamat ?? "",
+        kota: data.customer.kota ?? "",
+        telp: data.customer.telp ?? "",
+      };
+    } else if (item.KdCus) {
+      header.customer = {
+        kode: item.KdCus,
+        nama: item.Customer || "",
+        alamat: "",
+        kota: "",
+        telp: "",
+      };
+    }
+
+    // 3️⃣ Minimal DP, total DP, sisa minimal DP
+    header.minimalDp = Number(data.minimalDp || 0);       // TOTAL dp wajib (30/50%)
+    header.totalDp = Number(data.totalDp || 0);         // sudah dibayar
+    header.sisaMinimalDp = Number(data.sisaMinimalDp || 0);   // kekurangan DP
+    header.minimalPercent = Number(data.minimalPercent || 30);
+    header.containsCustomOrDtf = !!data.containsCustomOrDtf;
+
+    // 4️⃣ Nominal default → sisa minimal DP (boleh diubah oleh user)
+    header.nominal = Math.round(header.sisaMinimalDp);
+
+    // 5️⃣ Isi field "terbayar" dan "sisa"
+    header.terbayar = header.totalDp;
+    header.sisa = Math.max(0, header.minimalDp - header.totalDp);
+
+    // 6️⃣ Kunci customer jika SO dipilih
+    lockSoMode.value = true;
+
+    // 7️⃣ Set status aktif/pasif
+    statusSo.value = data.soAktif === "Y" ? "AKTIF" : "PASIF";
+
+    // 8️⃣ Jika SO sudah jadi invoice → load invoice grid
+    if (data.isInvoiced) {
+      toast.info("Memuat invoice dari SO...");
+
+      const invResp = await api.get("/setoran-bayar-form/lookup/invoices-from-so", {
+        params: { nomorSo: item.Nomor },
+      });
+
+      const invItems = invResp.data || [];
+
+      items.value = invItems.map((inv: InvoiceItem) => ({
+        id: Date.now() + Math.random(),
+        invoice: inv.invoice,
+        tanggal: inv.tanggal,
+        top: inv.top,
+        jatuhTempo: inv.jatuhTempo,
+        nominal: inv.nominal,
+        terbayar: inv.terbayar,
+        sisa: inv.sisa,
+        bayar: 0,
+        tglBayar: format(new Date(), "yyyy-MM-dd"),
+        lunasi: false,
+        keterangan: "",
+        angsur: "",
+      }));
+
+      addNewRow();
+      calculateTotals();
+    }
+
+    // Tutup modal
+    isSoSearchVisible.value = false;
+
+  } catch (error) {
+    console.error("onSoSelected error", error);
+    toast.error("Gagal memuat detail SO.");
+  } finally {
+    isLoading.value = false;
+  }
+};
+
+const clearSo = () => {
+  header.nomorSo = "";
+  header.minimalDp = 0;
+  lockSoMode.value = false;
+
+  // Reset nominal
+  header.nominal = 0;
+
+  // Reset grid
+  items.value = [];
+  addNewRow();
+
+  toast.info("Nomor SO dibersihkan.");
 };
 
 onMounted(() => {
@@ -409,8 +522,9 @@ watch(() => header.nominal, calculateTotals);
                 hide-details />
             </v-col>
             <v-col cols="12">
-              <v-text-field label="Customer" v-model="header.customer.nama" readonly
-                @click="dialog.customerSearch = true" prepend-inner-icon="mdi-magnify" density="compact" hide-details />
+              <v-text-field label="Customer" v-model="header.customer.nama" readonly :disabled="lockSoMode"
+                @click="() => { if (!lockSoMode) dialog.customerSearch = true }" prepend-inner-icon="mdi-magnify"
+                density="compact" hide-details />
             </v-col>
             <v-col cols="12">
               <v-text-field label="Alamat" v-model="header.customer.alamat" readonly filled density="compact"
@@ -485,17 +599,42 @@ watch(() => header.nominal, calculateTotals);
             <v-divider class="my-4" />
 
             <v-row dense>
-              <!-- NOMOR SO -->
+
+              <!-- NOMOR SO (6 kolom) -->
               <v-col cols="12" md="6">
                 <v-text-field v-model="header.nomorSo" label="Nomor SO" readonly variant="outlined" density="compact"
                   hide-details>
                   <template #append-inner>
-                    <v-btn icon="mdi-magnify" variant="text" @click="openSoSearch"></v-btn>
+                    <v-btn icon="mdi-magnify" variant="text" density="compact" @click="openSoSearch" />
+                    <v-btn icon="mdi-close" variant="text" density="compact" v-if="header.nomorSo" @click="clearSo" />
                   </template>
                 </v-text-field>
               </v-col>
 
-              <!-- NOMINAL DP -->
+              <!-- MINIMAL DP (Muncul hanya jika ada SO) -->
+              <v-col cols="12" md="6" v-if="header.nomorSo">
+                <v-text-field :model-value="formatRupiah(header.minimalDp)"
+                  :label="`Minimal DP (${header.minimalPercent || 30}%)`" readonly filled density="compact"
+                  hide-details />
+              </v-col>
+
+              <!-- SPACER agar baris tetap seimbang (jika tidak ada SO minimal) -->
+              <v-col cols="12" md="4" v-else></v-col>
+
+              <!-- STATUS SO -->
+              <v-col cols="12" v-if="header.nomorSo">
+                <div v-if="statusSo === 'AKTIF'"
+                  class="pa-2 rounded bg-green-lighten-4 text-green-darken-3 text-caption">
+                  ✔ SO Aktif — Minimal DP terpenuhi
+                </div>
+
+                <div v-else-if="statusSo === 'PASIF'"
+                  class="pa-2 rounded bg-red-lighten-4 text-red-darken-3 text-caption">
+                  ✖ SO Pasif — Minimal DP belum terpenuhi
+                </div>
+              </v-col>
+
+              <!-- NOMINAL SETORAN (Selalu muncul) -->
               <v-col cols="12" md="6">
                 <v-text-field
                   :model-value="focusedRowId === 'header_nominal' ? header.nominal : formatRupiah(header.nominal)"
@@ -504,17 +643,18 @@ watch(() => header.nominal, calculateTotals);
                   :readonly="isPosted" />
               </v-col>
 
-              <!-- TERBAYAR -->
+              <!-- TERBAYAR (Selalu muncul) -->
               <v-col cols="6" md="3">
                 <v-text-field :model-value="formatRupiah(header.terbayar)" label="Terbayar" readonly filled
                   density="compact" hide-details />
               </v-col>
 
-              <!-- SISA -->
+              <!-- SISA (Selalu muncul) -->
               <v-col cols="6" md="3">
                 <v-text-field :model-value="formatRupiah(header.sisa)" label="Sisa" readonly filled density="compact"
                   hide-details />
               </v-col>
+
             </v-row>
 
           </v-row>
@@ -527,7 +667,8 @@ watch(() => header.nominal, calculateTotals);
             class="desktop-table fill-height-table" fixed-header :items-per-page="-1">
             <template #[`item.invoice`]="{ item, index }">
               <v-text-field v-model="item.invoice" variant="underlined" density="compact" hide-details
-                @keydown.f1.prevent="openUnpaidInvoiceSearch(index)" placeholder="F1..." readonly />
+                @keydown.f1.prevent="() => { if (!lockSoMode) openUnpaidInvoiceSearch(index); }" :readonly="lockSoMode"
+                placeholder="F1..." />
             </template>
             <template #[`item.tanggal`]="{ value }">
               {{ value ? format(parseISO(value), 'dd-MM-yyyy') : '' }}
@@ -563,8 +704,9 @@ watch(() => header.nominal, calculateTotals);
               <v-btn icon="mdi-delete" size="x-small" variant="text" color="error" @click="removeRow(item.id)" />
             </template>
             <template #bottom>
-              <div class="pa-2 text-right"><v-btn size="small" @click="addNewRow" prepend-icon="mdi-plus" variant="text"
-                  color="primary">Tambah Invoice</v-btn></div>
+              <div class="pa-2 text-right"><v-btn size="small" @click="() => { if (!lockSoMode) addNewRow(); }"
+                  :disabled="lockSoMode" prepend-icon="mdi-plus" variant="text" color="primary">Tambah Invoice</v-btn>
+              </div>
             </template>
           </v-data-table>
         </div>

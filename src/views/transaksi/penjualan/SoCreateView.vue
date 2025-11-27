@@ -1024,7 +1024,6 @@ const onProductsSelected = (selectedProducts: SoItemApi[]) => {
   calculateTotals();
 };
 
-
 const onSoDtfSelected = async (soDtf: { nomor: string }) => {
   isSoDtfSearchVisible.value = false;
   items.value.splice(activeRowIndex.value, 1);

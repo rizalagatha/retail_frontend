@@ -75,6 +75,7 @@ const requiredPermission = computed(() => isEditMode.value ? 'edit' : 'insert');
 
 const isLoading = ref(true);
 const isSaving = ref(false);
+const isInitializing = ref(false);
 
 const initialFormState = {
   nomor: null,
@@ -171,6 +172,7 @@ const removeDetailTitik = (id: number) => {
 
 const fetchDataForEdit = async (nomor: string) => {
   isLoading.value = true;
+  isInitializing.value = true;
   try {
 
     const response = await api.get(`/so-dtf-form/${nomor}`);
@@ -222,9 +224,6 @@ const fetchDataForEdit = async (nomor: string) => {
       harga: d.harga
     }));
 
-      addDetailUkuran();
-      addDetailTitik();
-
     toast.success(`Data untuk ${nomor} berhasil dimuat.`);
 
   } catch (error) {
@@ -237,6 +236,7 @@ const fetchDataForEdit = async (nomor: string) => {
 
     router.push('/transaksi/penjualan/dtf/so-dtf');
   } finally {
+    isInitializing.value = false;
     isLoading.value = false;
   }
 };
@@ -350,7 +350,9 @@ const save = async () => {
   }
 
   const validDetailsUkuran = detailsUkuran.value.filter(d => d.ukuran && d.jumlah);
-  const validDetailsTitik = detailsTitik.value.filter(d => d.keterangan);
+  const validDetailsTitik = detailsTitik.value.filter(
+    d => d.keterangan && d.panjang > 0 && d.lebar > 0
+  );
 
   if (validDetailsUkuran.length === 0) {
     toast.error("Detail Ukuran Kaos harus diisi minimal 1 baris.");
@@ -828,13 +830,12 @@ watch(
 );
 
 watch(
-  // Daftar semua state yang perlu dipantau
   [detailsUkuran, detailsTitik, () => form.value.jenisOrderKode, () => form.value.customerLevel],
   async () => {
-    if (isLoading.value) return;
+    if (isLoading.value || isInitializing.value) return;
     await calculatePrices();
   },
-  { deep: true } // deep: true penting untuk memantau perubahan di dalam array of objects
+  { deep: true }
 );
 
 onMounted(() => {

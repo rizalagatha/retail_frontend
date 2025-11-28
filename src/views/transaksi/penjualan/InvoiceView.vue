@@ -119,6 +119,7 @@ const selectedInvoice = ref<string | null>(null);
 const resizingColumn = ref<DataTableHeader | null>(null);
 const startX = ref(0);
 const startWidth = ref(0);
+const isLockedInvoice = ref(false);
 
 const filters = reactive({
   startDate: format(new Date(), 'yyyy-MM-dd'),
@@ -238,11 +239,16 @@ const detailHeaders = [
 ] as const;
 
 // --- Methods ---
-const handleRowClick = (event: Event, { item }: { item: InvoiceHeader }) => {
-  // Toggle select: Jika sudah dipilih, jangan di-unselect (biar mirip behavior desktop)
-  // Atau ganti logika: Klik row = set selected cuma row itu saja (single select behavior)
+const handleRowClick = async (event: Event, { item }: { item: InvoiceHeader }) => {
+  selected.value = [item];
 
-  selected.value = [item]; // Set item ini sebagai satu-satunya yang terpilih
+  // cek apakah invoice sudah masuk setoran kasir
+  try {
+    const res = await api.get(`/invoices/check-fsk/${item.Nomor}`);
+    isLockedInvoice.value = res.data.used; // true kalau invoice sudah disetorkan
+  } catch {
+    isLockedInvoice.value = false;
+  }
 };
 
 const onResizeStart = (e: MouseEvent, column: DataTableHeader) => {
@@ -447,6 +453,17 @@ const handlePrintSelection = async (type: 'a4' | 'kasir' | 'wa') => {
   }
 };
 
+const handleView = () => {
+  if (!isSingleSelected.value) return;
+  const nomor = selected.value[0].Nomor;
+
+  router.push({
+    name: 'InvoiceEdit',
+    params: { nomor },
+    query: { mode: 'view' }    // kirim flag ke halaman edit
+  });
+};
+
 const exportData = async (type: 'header' | 'detail') => {
   if (type === 'header') {
     if (masterData.value.length === 0) return toast.warning('Tidak ada data header.');
@@ -508,9 +525,15 @@ watch(filters, () => {
         @click="handleNew">
         Baru
       </v-btn>
-      <v-btn v-if="authStore.can(MENU_ID, 'edit')" size="small" prepend-icon="mdi-pencil" :disabled="!isSingleSelected"
-        @click="handleEdit">
+      <v-btn v-if="authStore.can(MENU_ID, 'edit') && !isLockedInvoice" size="small" prepend-icon="mdi-pencil"
+        :disabled="!isSingleSelected" @click="handleEdit">
         Ubah
+      </v-btn>
+
+      <!-- Jika invoice SUDAH locked → tombol Lihat -->
+      <v-btn v-if="authStore.can(MENU_ID, 'view') && isLockedInvoice" size="small" prepend-icon="mdi-eye" color="grey"
+        :disabled="!isSingleSelected" @click="handleView">
+        Lihat
       </v-btn>
       <!-- <v-btn v-if="authStore.can(MENU_ID, 'delete')" size="small" color="error" :disabled="!isSingleSelected"
                 @click="handleDelete">Hapus</v-btn> -->
@@ -775,6 +798,7 @@ watch(filters, () => {
   gap: 40px;
   z-index: 20;
 }
+
 .invoice-footer-summary .footer-item {
   display: flex;
   gap: 6px;

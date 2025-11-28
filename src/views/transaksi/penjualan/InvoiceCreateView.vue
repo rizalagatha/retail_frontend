@@ -183,6 +183,10 @@ const dynamicLogo = computed(() => {
   }
   return LogoKaosan;
 });
+const isViewMode = computed(() => route.query.mode === "view");
+const isReadonly = computed(() => {
+  return isLockedFsk.value || isViewMode.value;
+});
 
 const isLoading = ref(true);
 
@@ -292,6 +296,7 @@ const scannedBarcode = ref('');
 const customerDiscountRule = ref(null);
 const activePromoForBonus = ref({ nomor: '', qty: 0 });
 const focusedRowId = ref<number | string>(-1);
+const isLockedFsk = ref(false);
 
 // --- Konfigurasi Tabel ---
 const tableHeaders = [
@@ -1426,6 +1431,12 @@ const loadDataForEdit = async (nomor: string) => {
     const response = await api.get(`/invoice-form/${nomor}`);
     const { header: h, items: its, dps } = response.data;
 
+    isLockedFsk.value = response.data.isLockedFsk === true;
+
+    if (isLockedFsk.value) {
+      toast.warning("Invoice sudah masuk FSK — mode baca saja.");
+    }
+
     /* =======================
        HEADER
        ======================= */
@@ -1671,8 +1682,12 @@ onMounted(() => {
 
 <template>
   <PageLayout :title="pageTitle" icon="mdi-receipt-text-edit">
+    <v-alert v-if="isLockedFsk" type="warning" class="mb-3">
+      Invoice ini sudah masuk Form Setoran Kasir (FSK). Perubahan tidak diperbolehkan.
+    </v-alert>
     <template #header-actions>
-      <v-btn v-if="isEditMode" color="primary" size="small" prepend-icon="mdi-content-save" @click="saveHeaderOnly">
+      <v-btn v-if="isEditMode" color="primary" size="small" prepend-icon="mdi-content-save" :disabled="isLockedFsk"
+        @click="saveHeaderOnly">
         Simpan Header
       </v-btn>
       <v-btn v-if="!isEditMode" size="small" prepend-icon="mdi-cancel"
@@ -1693,37 +1708,39 @@ onMounted(() => {
             </v-col>
             <v-col cols="6">
               <v-text-field label="Tanggal" v-model="header.tanggal" type="date" variant="filled" density="compact"
-                hide-details readonly />
+                hide-details :readonly="isReadonly" />
             </v-col>
             <v-col cols="4">
-              <v-text-field label="Kode Cabang" :model-value="header.gudang.kode" readonly density="compact" filled
-                hide-details />
+              <v-text-field label="Kode Cabang" :model-value="header.gudang.kode" density="compact" filled hide-details
+                :readonly="isReadonly" />
             </v-col>
             <v-col cols="8">
-              <v-text-field label="Nama Cabang" :model-value="header.gudang.nama" readonly density="compact" filled
-                hide-details />
+              <v-text-field label="Nama Cabang" :model-value="header.gudang.nama" density="compact" filled hide-details
+                :readonly="isReadonly" />
             </v-col>
             <v-col cols="6">
-              <v-text-field label="No. Pesanan (SO)" v-model="header.nomorSo" readonly @click="dialogs.soSearch = true"
-                prepend-inner-icon="mdi-magnify" density="compact" hide-details clearable
-                @click:clear="handleClearSo" />
+              <v-text-field label="No. Pesanan (SO)" v-model="header.nomorSo" :readonly="isReadonly"
+                :prepend-inner-icon="isReadonly ? '' : 'mdi-magnify'" density="compact" hide-details clearable
+                :clear-icon="isReadonly ? '' : 'mdi-close'" @click="!isReadonly && (dialogs.soSearch = true)"
+                @click:clear.prevent="!isReadonly && handleClearSo()" />
             </v-col>
             <v-col cols="6">
               <v-text-field label="Tgl. SO"
-                :model-value="header.tanggalSo ? format(parseISO(header.tanggalSo), 'dd-MM-yy') : ''" readonly filled
-                density="compact" hide-details />
+                :model-value="header.tanggalSo ? format(parseISO(header.tanggalSo), 'dd-MM-yy') : ''"
+                :readonly="isReadonly" filled density="compact" hide-details />
             </v-col>
             <v-col cols="4">
               <v-text-field label=" Kode Customer" :model-value="header.customer.kode" density="compact"
-                :readonly="isSoLoaded" @click="isSoLoaded ? null : dialogs.customerSearch = true"
+                :readonly="isSoLoaded" @click="(!isReadonly && !isSoLoaded) && (dialogs.customerSearch = true)"
                 prepend-inner-icon="mdi-magnify" hide-details />
             </v-col>
             <v-col cols="8">
-              <v-text-field label="Nama Customer" :model-value="header.customer.nama" readonly density="compact"
-                hide-details>
+              <v-text-field label="Nama Customer" :model-value="header.customer.nama" :readonly="isReadonly"
+                density="compact" hide-details>
                 <template #append-inner>
-                  <v-btn icon="mdi-account-plus" size="x-small" variant="tonal" class="me-2"
-                    @click.stop="dialogs.customerForm = true" title="Buat Customer Baru"></v-btn>
+                  <v-btn icon="mdi-account-plus" size="x-small" variant="tonal" :disabled="isReadonly"
+                    @click.stop="!isReadonly && (dialogs.customerForm = true)" title="Buat Customer Baru">
+                  </v-btn>
                 </template>
               </v-text-field>
             </v-col>
@@ -1745,7 +1762,7 @@ onMounted(() => {
             </v-col>
             <v-col cols="2">
               <v-text-field label="TOP" v-model.number="header.top" type="number" min="0" density="compact"
-                variant="outlined" hide-details />
+                variant="outlined" hide-details :readonly="isReadonly" />
             </v-col>
             <v-col cols="4">
               <v-text-field label="Tgl. Jatuh Tempo" v-model="header.tanggalTempo" type="date" density="compact"
@@ -1753,23 +1770,25 @@ onMounted(() => {
             </v-col>
             <v-col cols="12">
               <v-select label="Sales Counter" v-model="header.salesCounter" :items="salesCounters" variant="outlined"
-                density="compact" hide-details />
+                density="compact" hide-details :readonly="isReadonly" />
             </v-col>
             <v-col cols="4">
-              <v-text-field label="Promo" v-model="header.nomorPromo" @click="dialogs.promoSearch = true"
-                prepend-inner-icon="mdi-magnify" density="compact" hide-details placeholder="F1 atau klik..." />
+              <v-text-field label="Promo" v-model="header.nomorPromo"
+                @click="!isReadonly && (dialogs.promoSearch = true)" prepend-inner-icon="mdi-magnify" density="compact"
+                hide-details placeholder="F1 atau klik..." :readonly="isReadonly" />
             </v-col>
             <v-col cols="8">
-              <v-text-field label="Nama Promo" v-model="header.namaPromo" density="compact" readonly filled
-                hide-details />
+              <v-text-field label="Nama Promo" v-model="header.namaPromo" density="compact" :readonly="isReadonly"
+                filled hide-details />
             </v-col>
             <v-col cols="12">
               <v-text-field label="Keterangan" v-model="header.keterangan" density="compact" variant="outlined"
-                hide-details />
+                hide-details :readonly="isReadonly" />
             </v-col>
           </v-row>
-          <v-input label="Info Member" append-inner-icon="mdi-pencil" @click="dialogs.memberForm = true" hide-details
-            class="custom-input-button">
+          <v-input label="Info Member" :append-inner-icon="isReadonly ? '' : 'mdi-pencil'" hide-details
+            class="custom-input-button" :class="{ 'disabled-input': isReadonly }"
+            @click="!isReadonly && (dialogs.memberForm = true)">
             <div v-if="header.memberHp || header.memberNama" class="input-content">
               <strong>{{ header.memberHp }}</strong> - {{ header.memberNama }}
             </div>
@@ -1800,15 +1819,16 @@ onMounted(() => {
               :items-per-page="-1" fixed-header height="calc(100vh - 420px)">
               <template v-slot:[`item.kode`]="{ item, index }">
                 <v-text-field v-model="item.kode" variant="underlined" density="compact" hide-details
-                  placeholder="F1/F2..." :readonly="!!header.nomorSo || !!item.noSoDtf"
+                  placeholder="F1/F2..." :readonly="isReadonly || !!header.nomorSo || !!item.noSoDtf"
                   :class="{ 'field-disabled': !!header.nomorSo || !!item.noSoDtf }"
                   @keydown.f1.prevent="!header.nomorSo && !item.noSoDtf && openProductSearch(index, false)"
                   @keydown.f2.prevent="!header.nomorSo && !item.noSoDtf && openProductSearch(index, true)" />
               </template>
 
               <template v-slot:[`item.jumlah`]="{ item }">
-                <v-text-field v-model.number="item.jumlah" type="number" min="0" variant="underlined" density="compact"
-                  hide-details class="text-right" :class="getQtyClass(item)" @blur="handleJumlahChange(item)" />
+                <v-text-field v-model.number="item.jumlah" :readonly="isReadonly" type="number" min="0"
+                  variant="underlined" density="compact" hide-details class="text-right" :class="getQtyClass(item)"
+                  @blur="handleJumlahChange(item)" />
               </template>
 
               <template v-slot:[`item.harga`]="{ item }">
@@ -1817,20 +1837,20 @@ onMounted(() => {
                   : formatRupiah(item.harga || 0)"
                   @update:model-value="item.harga = Number(String($event).replace(/[^0-9]/g, '')) || 0"
                   @focus="focusedRowId = item.id" @blur="focusedRowId = -1" type="text" min="0" variant="underlined"
-                  density="compact" hide-details class="text-right" :readonly="!isHargaEditable(item)"
+                  density="compact" hide-details class="text-right" :readonly="isReadonly || !isHargaEditable(item)"
                   placeholder="0"></v-text-field>
               </template>
 
               <template v-slot:[`item.diskonPersen`]="{ item }">
-                <v-text-field v-model.number="item.diskonPersen" type="number" min="0" variant="underlined"
-                  density="compact" hide-details class="text-right" @blur="handleItemDiscountChange(item)"
-                  @focus="onItemDiscountFocus(item)" />
+                <v-text-field v-model.number="item.diskonPersen" :readonly="isReadonly" type="number" min="0"
+                  variant="underlined" density="compact" hide-details class="text-right"
+                  @blur="handleItemDiscountChange(item)" @focus="onItemDiscountFocus(item)" />
               </template>
 
               <template v-slot:[`item.diskonRp`]="{ item }">
                 <v-text-field v-model.number="item.diskonRp" type="number" min="0" variant="underlined"
-                  density="compact" hide-details class="text-right" @blur="handleItemDiscountChange(item)"
-                  @focus="onItemDiscountFocus(item)" />
+                  density="compact" hide-details class="text-right" :readonly="isReadonly"
+                  @blur="handleItemDiscountChange(item)" @focus="onItemDiscountFocus(item)" />
               </template>
 
               <template v-slot:[`item.total`]="{ item }">
@@ -1847,8 +1867,8 @@ onMounted(() => {
               </template>
 
               <template v-slot:[`item.actions`]="{ item }">
-                <v-btn v-if="item.kode" icon="mdi-delete" variant="text" color="error" size="x-small"
-                  @click="handleDeleteItem(item)"
+                <v-btn v-if="item.kode" icon="mdi-delete" :disabled="isReadonly" variant="text" color="error"
+                  size="x-small" @click="handleDeleteItem(item)"
                   :title="item.noSoDtf ? 'Hapus Semua Item SO DTF Ini' : 'Hapus Item Ini'">
                 </v-btn>
               </template>
@@ -1869,10 +1889,10 @@ onMounted(() => {
           <v-row align="center">
             <v-col cols="auto" class="d-flex ga-2">
               <v-btn size="small" prepend-icon="mdi-cash-multiple" @click="dialogs.linkedDp = true"
-                :disabled="!header.customer.kode">
+                :disabled="isReadonly || !header.customer.kode">
                 Lihat DP
               </v-btn>
-              <v-btn size="small" prepend-icon="mdi-sale" @click="dialogs.diskonForm = true">
+              <v-btn size="small" prepend-icon="mdi-sale" @click="dialogs.diskonForm = true" :disabled="isReadonly">
                 Input Diskon/Biaya
               </v-btn>
             </v-col>
@@ -1881,7 +1901,7 @@ onMounted(() => {
 
             <v-col cols="auto">
               <v-btn color="primary" size="large" prepend-icon="mdi-credit-card-check" @click="handleProceedToPayment"
-                :disabled="!authStore.can(MENU_ID, requiredPermission)">
+                :disabled="isReadonly || !authStore.can(MENU_ID, requiredPermission)">
                 Lanjutkan ke Pembayaran
               </v-btn>
             </v-col>
@@ -2113,5 +2133,10 @@ onMounted(() => {
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
   border-bottom: none !important;
   /* Supaya lebih rapi */
+}
+
+.disabled-input {
+  opacity: 0.5;
+  pointer-events: none;
 }
 </style>

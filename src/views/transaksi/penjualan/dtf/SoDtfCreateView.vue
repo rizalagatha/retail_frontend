@@ -76,6 +76,7 @@ const requiredPermission = computed(() => isEditMode.value ? 'edit' : 'insert');
 const isLoading = ref(true);
 const isSaving = ref(false);
 const isInitializing = ref(false);
+const isRestoringData = ref(false);
 
 const initialFormState = {
   nomor: null,
@@ -171,6 +172,7 @@ const removeDetailTitik = (id: number) => {
 };
 
 const fetchDataForEdit = async (nomor: string) => {
+  isRestoringData.value = true;
   isLoading.value = true;
   isInitializing.value = true;
   try {
@@ -236,6 +238,7 @@ const fetchDataForEdit = async (nomor: string) => {
 
     router.push('/transaksi/penjualan/dtf/so-dtf');
   } finally {
+    isRestoringData.value = true;
     isInitializing.value = false;
     isLoading.value = false;
   }
@@ -832,7 +835,7 @@ watch(
 watch(
   [detailsUkuran, detailsTitik, () => form.value.jenisOrderKode, () => form.value.customerLevel],
   async () => {
-    if (isLoading.value || isInitializing.value) return;
+    if (isLoading.value || isInitializing.value || isRestoringData.value) return;
     await calculatePrices();
   },
   { deep: true }
@@ -940,7 +943,13 @@ onMounted(() => {
             <div class="desktop-form-section mb-4">
               <div class="d-flex align-center mb-2">
                 <span class="text-subtitle-2">Ukuran Kaos</span>
+
                 <v-spacer />
+
+                <!-- TOMBOL TAMBAH UKURAN -->
+                <v-btn icon="mdi-plus" size="x-small" variant="tonal" color="primary" class="me-2"
+                  @click="addDetailUkuran" title="Tambah Ukuran Kaos"></v-btn>
+
                 <v-text-field label="Total Jumlah" :model-value="totalJumlahKaos" readonly filled density="compact"
                   hide-details style="max-width: 120px;" />
               </div>
@@ -962,8 +971,9 @@ onMounted(() => {
                       <v-text-field v-model="item.namaBarang" variant="underlined" density="compact" hide-details />
                     </td>
                     <td>
-                      <v-combobox v-model="item.ukuran" :items="ukuranKaosList" @update:model-value="addDetailUkuran"
-                        variant="underlined" density="compact" hide-details />
+                      <v-combobox v-model="item.ukuran" :items="ukuranKaosList"
+                        @change="!isEditMode && addDetailUkuran()" variant="underlined" density="compact"
+                        hide-details />
                     </td>
                     <td>
                       <v-text-field v-model.number="item.jumlah" type="number" variant="underlined" density="compact"
@@ -986,7 +996,13 @@ onMounted(() => {
             <div class="desktop-form-section">
               <div class="d-flex align-center mb-2">
                 <span class="text-subtitle-2">Titik Bordir/Cetak</span>
+
                 <v-spacer />
+
+                <!-- TOMBOL TAMBAH TITIK CETAK -->
+                <v-btn icon="mdi-plus" size="x-small" variant="tonal" color="primary" class="me-2"
+                  @click="addDetailTitik" title="Tambah Titik Cetak"></v-btn>
+
                 <v-text-field label="Total Titik" :model-value="totalTitik" readonly filled density="compact"
                   hide-details style="max-width: 120px;" />
               </div>
@@ -1005,13 +1021,12 @@ onMounted(() => {
                   <tr v-for="(item, index) in detailsTitik" :key="item.id">
                     <td class="pt-2 text-center">{{ index + 1 }}</td>
                     <td>
-                      <v-text-field v-model="item.keterangan" @update:model-value="addDetailTitik" variant="underlined"
-                        density="compact" hide-details />
+                      <v-text-field v-model="item.keterangan" @change="!isEditMode && addDetailTitik()"
+                        variant="underlined" density="compact" hide-details />
                     </td>
                     <td>
                       <v-combobox v-model="item.sizeCetak" :items="sizeCetakList"
-                        @update:model-value="onSizeCetakChange(item, index)" variant="underlined" density="compact"
-                        hide-details />
+                        @change="onSizeCetakChange(item, index)" variant="underlined" density="compact" hide-details />
                     </td>
                     <td>
                       <v-text-field v-model.number="item.panjang" type="number" variant="underlined" density="compact"

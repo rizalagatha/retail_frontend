@@ -99,9 +99,6 @@ const footer = ref({
   pinDiskon2: '',
 });
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-const productCategory = ref('Kaosan');
-
 const isCustomerSearchVisible = ref(false);
 // const isGudangSearchVisible = ref(false);
 const isProductSearchVisible = ref(false);
@@ -148,6 +145,10 @@ const canEditFooter = computed(() => {
   // DAN setidaknya ada satu baris barang yang sudah terisi (memiliki kode).
   return header.value.customer && items.value.some(item => item.kode);
 });
+
+const totalQty = computed(() =>
+  items.value.reduce((sum, item) => sum + (Number(item.jumlah) || 0), 0)
+);
 
 const tableHeaders = [
   { title: 'Kode', key: 'kode', width: '300px' },
@@ -1168,8 +1169,36 @@ onMounted(() => {
             </v-text-field>
           </template>
           <template #bottom>
-            <div class="pa-1 text-right border-t"><v-btn size="small" @click="addNewRow" prepend-icon="mdi-plus"
-                variant="text" color="primary">Tambah Baris</v-btn></div>
+            <tr class="qty-footer-row">
+
+              <td></td> <!-- KODE -->
+              <td></td> <!-- BARCODE -->
+              <td></td> <!-- NAMA -->
+              <td></td> <!-- UKURAN -->
+              <td></td> <!-- STOK -->
+
+              <td></td> <!-- (KOLOM JML SEBELUMNYA, KOSONGKAN SAJA) -->
+
+              <!-- INI PERSIS DI KOLOM JML -->
+              <td class="text-right font-weight-bold qty-value">
+                TOTAL QTY: {{ totalQty }}
+              </td>
+
+              <td></td> <!-- Harga -->
+              <td></td> <!-- Diskon% -->
+              <td></td> <!-- DiskonRp -->
+              <td></td> <!-- Total -->
+              <td></td> <!-- NoPengajuan -->
+              <td></td> <!-- Barcode2 -->
+              <td></td> <!-- Actions -->
+
+            </tr>
+
+            <div class="pa-2 border-t d-flex align-center justify-start">
+              <v-btn size="small" @click="addNewRow" prepend-icon="mdi-plus" variant="text" color="primary">
+                Tambah Baris
+              </v-btn>
+            </div>
           </template>
         </v-data-table>
       </div>
@@ -1283,13 +1312,36 @@ onMounted(() => {
 }
 
 .desktop-table :deep(thead tr th) {
-  background-color: #0D47A1 !important; /* Biru Tua */
-  color: #ffffff !important;            /* Teks Putih */
+  background-color: #0D47A1 !important;
+  /* Biru Tua */
+  color: #ffffff !important;
+  /* Teks Putih */
   font-weight: bold !important;
   text-transform: uppercase;
   font-size: 11px !important;
   height: 40px !important;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-  border-bottom: none !important; /* Supaya lebih rapi */
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  border-bottom: none !important;
+  /* Supaya lebih rapi */
+}
+
+.qty-footer-row {
+  position: sticky;
+  bottom: 48px;
+  /* supaya tidak bertabrakan dengan tombol Tambah Baris */
+  background: white;
+  z-index: 9;
+  height: 36px;
+}
+
+.qty-footer-row td {
+  padding: 8px;
+  border-top: 2px solid #0D47A1;
+}
+
+.qty-footer-row .qty-value {
+  color: #0D47A1;
+  font-weight: 700;
+  font-size: 14px;
 }
 </style>

@@ -238,7 +238,7 @@ const fetchDataForEdit = async (nomor: string) => {
 
     router.push('/transaksi/penjualan/dtf/so-dtf');
   } finally {
-    isRestoringData.value = true;
+    isRestoringData.value = false;
     isInitializing.value = false;
     isLoading.value = false;
   }
@@ -644,7 +644,9 @@ const getHargaDTG = async () => {
  * Fungsi utama untuk menghitung semua harga.
  */
 const calculatePrices = async () => {
-  if (isLoading.value) return;
+  if (isEditMode.value && isRestoringData.value) return;
+
+  if (isLoading.value || isInitializing.value) return;
 
   if (totalJumlahKaos.value <= 0) {
     // Jika tidak ada jumlah, reset semua harga
@@ -909,10 +911,9 @@ onMounted(() => {
             <v-col cols="8">
               <v-text-field label="Jenis Order"
                 :model-value="form.jenisOrderKode ? `${form.jenisOrderKode} - ${form.jenisOrderNama}` : ''" readonly
-                @click="isEditMode ? null : openJenisOrderSearch()"
-                @keydown.f1.prevent="isEditMode ? null : openJenisOrderSearch()" variant="outlined" density="compact"
-                hide-details append-inner-icon="mdi-magnify" placeholder="F1 atau klik untuk mencari..."
-                :class="{ 'field-disabled': isEditMode }" />
+                @click="openJenisOrderSearch()" @keydown.f1.prevent="openJenisOrderSearch()" variant="outlined"
+                density="compact" hide-details append-inner-icon="mdi-magnify"
+                placeholder="F1 atau klik untuk mencari..." />
             </v-col>
             <v-col cols="4"><v-text-field label="Harga/cm2" :model-value="form.hargaPerCm" readonly filled
                 variant="outlined" density="compact" hide-details /></v-col>

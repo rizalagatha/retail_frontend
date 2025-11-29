@@ -92,6 +92,7 @@ interface ProductInput {
   stok: number;
   harga: number;
   barcode: string;
+  kategori: string;
 }
 interface DownPayment {
   nomor: string;
@@ -834,7 +835,7 @@ const onProductsSelected = (selectedProducts: ProductInput[]) => {
     barcode: product.barcode,
     qtyso: 0,
     noSoDtf: '',
-    kategori: '',
+    kategori: product.kategori || '',
     terhitungPromo: isPromoActive,
     _isHargaEditable: !isPromoActive,
     hpp: 0
@@ -1120,25 +1121,38 @@ const handleProceedToPayment = async () => {
 
     const activePromos = (promoResponse.data ?? []) as ActivePromo[];
 
-    const promo004 = activePromos.find(p => p.pro_nomor === 'PRO-2025-004'); // item-based (tpromo_barang)
-    const promo008 = activePromos.find(p => p.pro_nomor === 'PRO-2025-008'); // header-based Rp
-    const promo009 = activePromos.find(p => p.pro_nomor === 'PRO-2025-009'); // header-based Rp
+    const promo004 = activePromos.find(p => p.pro_nomor === 'PRO-2025-004');
+    const promo008 = activePromos.find(p => p.pro_nomor === 'PRO-2025-008');
+    const promo010 = activePromos.find(p => p.pro_nomor === 'PRO-2025-010');
 
     let promoToApply: ActivePromo | null = null;
     let promoDiskon = 0;
+
+    // Hitung total belanja REGULER saja
+    const totalReguler = items.value.reduce((sum, item) => {
+      if (item.kategori === 'REGULER') {
+        return sum + (item.total || 0);
+      }
+      return sum;
+    }, 0);
 
     const totalBelanja = items.value.reduce((sum, item) => {
       if (!item.noSoDtf && !item.noPengajuanHarga) return sum + (item.total || 0);
       return sum;
     }, 0);
 
-    // Urutan prioritas header-based (sesuai contoh sebelumnya)
-    if (promo008 && totalBelanja >= promo008.pro_totalrp) {
+    // === PROMO-2025-010 ===
+    // Rp 25.000 per kelipatan 250.000 — hanya barang reguler
+    if (promo010 && totalReguler >= 250000) {
+      const kelipatan = Math.floor(totalReguler / 250000);
+      promoDiskon = 25000 * kelipatan;
+      promoToApply = promo010;
+    }
+
+    // === PROMO-2025-008 (fallback jika promo010 tidak memenuhi) ===
+    if (!promoToApply && promo008 && totalBelanja >= promo008.pro_totalrp) {
       promoDiskon = promo008.pro_disrp * Math.floor(totalBelanja / promo008.pro_totalrp);
       promoToApply = promo008;
-    } else if (promo009 && totalBelanja >= promo009.pro_totalrp) {
-      promoDiskon = promo009.pro_disrp * Math.floor(totalBelanja / promo009.pro_totalrp);
-      promoToApply = promo009;
     }
 
     // Jika promo item-based (004) aktif, kita tetap apply juga—tapi tidak menimpa diskon faktur
@@ -1324,6 +1338,7 @@ const handleBarcodeScan = async () => {
       total: product.harga,
       barcode: product.barcode,
       qtyso: 0,
+      kategori: product.kategori || '',
       terhitungPromo: false,       // properti wajib
       _isHargaEditable: product.harga === 0, // properti wajib
     };

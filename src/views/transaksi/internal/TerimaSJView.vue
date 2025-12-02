@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { ref, reactive, onMounted, watch, computed } from 'vue';
-import { useRouter } from 'vue-router';
+import { ref, reactive, onMounted, watch } from 'vue';
+// import { useRouter } from 'vue-router';
 import { useToast } from 'vue-toastification';
 import { useAuthStore } from '@/stores/authStore';
 import api from '@/services/api';
@@ -9,7 +9,7 @@ import PageLayout from '@/components/PageLayout.vue';
 import MasterProductSearchModal from '@/components/lookup/MasterProductSearchModal.vue';
 import * as XLSX from 'xlsx';
 import axios from "axios";
-import type { AxiosError } from 'axios';
+// import type { AxiosError } from 'axios';
 import AppDataTable from '@/components/AppDataTable.vue';
 
 // --- Interface Header (Resize) ---
@@ -37,7 +37,7 @@ interface ErrorResponse {
   message?: string;
 }
 
-const router = useRouter();
+// const router = useRouter();
 const toast = useToast();
 const authStore = useAuthStore();
 // const MENU_ID = '31';
@@ -122,8 +122,8 @@ const handleRowClick = (_event: Event, { item }: { item: SjHeader }) => {
   selected.value = [item];
 };
 
-const isSingleSelected = computed(() => selected.value.length === 1);
-const selectedRow = computed(() => isSingleSelected.value ? selected.value[0] : null);
+// const isSingleSelected = computed(() => selected.value.length === 1);
+// const selectedRow = computed(() => isSingleSelected.value ? selected.value[0] : null);
 
 
 // --- Methods ---
@@ -171,37 +171,37 @@ const loadDetails = async (newlyExpandedItems: SjHeader[]) => {
   }
 };
 
-const handleTerima = () => {
-  if (!selectedRow.value) return;
-  router.push({ name: 'TerimaSjCreate', params: { nomor: selectedRow.value.Nomor } });
-};
+// const handleTerima = () => {
+//   if (!selectedRow.value) return;
+//   router.push({ name: 'TerimaSjCreate', params: { nomor: selectedRow.value.Nomor } });
+// };
 
-const showConfirmation = (title: string, text: string, onConfirm: () => void) => {
-  dialogConfirm.title = title;
-  dialogConfirm.text = text;
-  dialogConfirm.onConfirm = onConfirm;
-  dialogConfirm.show = true;
-};
+// const showConfirmation = (title: string, text: string, onConfirm: () => void) => {
+//   dialogConfirm.title = title;
+//   dialogConfirm.text = text;
+//   dialogConfirm.onConfirm = onConfirm;
+//   dialogConfirm.show = true;
+// };
 
-const handleBatalTerima = async () => {
-  if (!selectedRow.value) return;
-  const { Nomor, NomorTerima } = selectedRow.value;
+// const handleBatalTerima = async () => {
+//   if (!selectedRow.value) return;
+//   const { Nomor, NomorTerima } = selectedRow.value;
 
-  showConfirmation(
-    'Konfirmasi Pembatalan',
-    `Yakin ingin membatalkan penerimaan untuk SJ ${Nomor}?`,
-    async () => {
-      try {
-        const response = await api.delete(`/terima-sj/${Nomor}/${NomorTerima}`);
-        toast.success(response.data.message);
-        fetchMasterData();
-      } catch (err: unknown) {
-        const error = err as AxiosError<{ message: string }>;
-        toast.error(error.response?.data?.message || "Gagal membatalkan penerimaan.");
-      }
-    }
-  );
-};
+//   showConfirmation(
+//     'Konfirmasi Pembatalan',
+//     `Yakin ingin membatalkan penerimaan untuk SJ ${Nomor}?`,
+//     async () => {
+//       try {
+//         const response = await api.delete(`/terima-sj/${Nomor}/${NomorTerima}`);
+//         toast.success(response.data.message);
+//         fetchMasterData();
+//       } catch (err: unknown) {
+//         const error = err as AxiosError<{ message: string }>;
+//         toast.error(error.response?.data?.message || "Gagal membatalkan penerimaan.");
+//       }
+//     }
+//   );
+// };
 
 const onProductSelected = (product: { kode: string, nama: string }) => {
   filters.kodeBarang = product.kode;
@@ -265,14 +265,14 @@ watch(filters, fetchMasterData, { deep: true });
 <template>
   <PageLayout title="Terima SJ dari DC" icon="mdi-package-down">
     <template #header-actions>
-      <v-btn size="small" color="primary" prepend-icon="mdi-check"
+      <!-- <v-btn size="small" color="primary" prepend-icon="mdi-check"
         :disabled="!isSingleSelected || !!selectedRow?.NomorTerima" @click="handleTerima">
         Terima
       </v-btn>
       <v-btn size="small" color="error" prepend-icon="mdi-undo"
         :disabled="!isSingleSelected || !selectedRow?.NomorTerima" @click="handleBatalTerima">
         Batal Terima
-      </v-btn>
+      </v-btn> -->
 
       <v-menu offset-y>
         <template v-slot:activator="{ props }">

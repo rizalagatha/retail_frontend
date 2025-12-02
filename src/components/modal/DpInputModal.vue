@@ -65,7 +65,8 @@ const props = defineProps({
   customerKode: { type: String, required: true },
   minimalDp: { type: Number, default: 0 },
   existingDp: { type: Number, default: 0 },
-  existingDpNomor: { type: String, default: "" }
+  existingDpNomor: { type: String, default: "" },
+  nomorSo: { type: String, required: true }
 });
 const emit = defineEmits(['close', 'dp-saved']);
 
@@ -131,7 +132,7 @@ const save = async () => {
   isSaving.value = true;
   try {
     // 1. Simpan DP
-    const payload = { ...dpData.value, customerKode: props.customerKode };
+    const payload = { ...dpData.value, customerKode: props.customerKode, nomorSo: props.nomorSo };
     const saveResponse = await api.post('/so-form/save-dp', payload);
     toast.success(saveResponse.data.message);
 

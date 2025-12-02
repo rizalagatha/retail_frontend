@@ -717,6 +717,7 @@ const executeSave = async () => {
       user: authStore.user // Pastikan user juga dikirim
     };
     const response = await api.post('/so-form/save', payload);
+    header.value.nomor = response.data.nomor;
     toast.success(response.data.message);
     const soNomor = response.data.nomor;
     if (soNomor) {
@@ -1953,8 +1954,8 @@ const stopAndOpenPriceProposal = (index: number) => {
       :customerKode="header.customer?.kode" @close="isPriceProposalSearchVisible = false"
       @selected="onPriceProposalSelected" />
     <DpInputModal v-if="isDpInputVisible" :customerKode="header.customer?.kode" :minimal-dp="footer.minimalDp"
-      :existing-dp="footer.totalDp" :existing-dp-nomor="existingDpNomor" @close="isDpInputVisible = false"
-      @dp-saved="onDpSaved" />
+      :existing-dp="footer.totalDp" :existing-dp-nomor="existingDpNomor" :nomor-so="header.nomor"
+      @close="isDpInputVisible = false" @dp-saved="onDpSaved" />
     <CustomerForm v-if="isNewCustomerFormVisible" @close="isNewCustomerFormVisible = false"
       @customer-saved="onNewCustomerSaved" />
     <DiscountCostModal v-if="isDiscountCostModalVisible" :footer-data="footer" :total-so="totalDiscountable"

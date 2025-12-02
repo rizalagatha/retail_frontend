@@ -70,8 +70,9 @@ interface PrintKasirData {
 }
 
 interface LinkedDp {
-  nominal: number;
-  [key: string]: unknown;
+  nomor: string;     // WAJIB: nomor DP (sh_nomor)
+  nominal: number;   // sisa nominal
+  isNew?: boolean;   // optional, untuk DP baru
 }
 
 const props = defineProps({
@@ -299,10 +300,18 @@ const executeSave = async () => {
       Number(payment.tunai || 0) - kembalianBeforePundi,
       0
     );
+
+    const cleanDps = (props.linkedDps || [])
+      .filter((dp) => dp.nominal > 0)
+      .map((dp) => ({
+        nomor: dp.nomor,
+        nominal: Number(dp.nominal)
+      }));
+
     const payload = {
       header: props.invoiceHeader,
       items: (props.invoiceItems as InvoiceItem[]).filter((item) => item.kode),
-      dps: props.linkedDps,
+      dps: cleanDps,
       payment: {
         ...payment,
         // keep existing shape but include numeric fields

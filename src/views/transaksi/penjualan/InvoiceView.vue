@@ -98,6 +98,14 @@ interface DataTableHeader {
   maxWidth?: string | number;
   sortable?: boolean;
 }
+interface ColumnFilter {
+  type: 'simple' | 'multi' | 'custom';
+  values?: (string | number)[];   // untuk multi-select
+  operator?: string;
+  value?: string | number;
+}
+
+type FilterValue = string | number;
 
 // --- Inisialisasi ---
 const router = useRouter();
@@ -147,6 +155,27 @@ const selectedFilterField = ref('Nama');
 // input pencarian
 const filterSearchValue = ref('');
 
+const columnFilters = ref<Record<string, ColumnFilter>>({});
+
+const customFilterDialog = ref(false);
+const customFilter = reactive({
+  key: '',
+  operator: '=',
+  value: ''
+});
+
+const LS_FILTER_KEY = "invoice_table_filters";
+
+// LOAD FILTER DARI LOCAL STORAGE
+const savedFilter = localStorage.getItem(LS_FILTER_KEY);
+if (savedFilter) {
+  try {
+    columnFilters.value = JSON.parse(savedFilter);
+  } catch { }
+}
+
+const noFilterColumns = ['data-table-select', 'data-table-expand'];
+
 const isSingleSelected = computed(() => selected.value.length === 1);
 const selectedRow = computed<InvoiceItem | null>(() =>
   isSingleSelected.value ? selected.value[0] as InvoiceItem : null
@@ -170,17 +199,52 @@ const totalSisaPiutang = computed(() =>
 );
 
 const filteredMasterData = computed(() => {
-  if (!filterSearchValue.value) return masterData.value;
+  let data = [...masterData.value];
 
-  const key = selectedFilterField.value;
-  const search = filterSearchValue.value.toLowerCase();
+  // Global search
+  if (filterSearchValue.value) {
+    const key = selectedFilterField.value;
+    const term = filterSearchValue.value.toLowerCase();
+    data = data.filter(r => String(r[key] || '').toLowerCase().includes(term));
+  }
 
-  return masterData.value.filter(item => {
-    const val = item[key];
-    if (!val) return false;
-    return String(val).toLowerCase().includes(search);
-  });
+  // Excel-style filtering
+  for (const key in columnFilters.value) {
+    const filter = columnFilters.value[key];
+
+    // MULTI-SELECT
+    if (filter.type === 'multi' && filter.values) {
+      data = data.filter(r => filter.values!.includes(r[key]));
+      continue;
+    }
+
+    // CUSTOM
+    if (filter.type === 'custom' && filter.operator) {
+      const t = String(filter.value);
+
+      data = data.filter(row => {
+        const val = row[key];
+        if (val == null) return false;
+        const v = String(val);
+
+        switch (filter.operator) {
+          case '=': return v == t;
+          case '!=': return v != t;
+          case '>': return Number(v) > Number(t);
+          case '>=': return Number(v) >= Number(t);
+          case '<': return Number(v) < Number(t);
+          case '<=': return Number(v) <= Number(t);
+          case 'contains': return v.toLowerCase().includes(t.toLowerCase());
+          case 'starts': return v.toLowerCase().startsWith(t.toLowerCase());
+          case 'ends': return v.toLowerCase().endsWith(t.toLowerCase());
+        }
+      });
+    }
+  }
+
+  return data;
 });
+
 
 // --- Konfigurasi Tabel ---
 const headers = ref<DataTableHeader[]>([
@@ -487,6 +551,74 @@ const exportData = async (type: 'header' | 'detail') => {
   }
 };
 
+const openCustomFilter = (key: string) => {
+  customFilter.key = key;
+  customFilter.operator = '=';
+  customFilter.value = '';
+  customFilterDialog.value = true;
+};
+
+const applyCustomFilter = () => {
+  columnFilters.value[customFilter.key] = {
+    type: 'custom',
+    operator: customFilter.operator,
+    value: customFilter.value
+  };
+  customFilterDialog.value = false;
+};
+
+const uniqueValues = (key: string) => {
+  const set = new Set(
+    masterData.value
+      .map(r => r[key])
+      .filter(v =>
+        v !== null &&
+        v !== undefined &&
+        v !== ''
+      )
+  );
+  return Array.from(set).sort();
+};
+
+const isFilterActive = (key: string) => {
+  return Boolean(columnFilters.value[key]);
+};
+
+const filterType = (key: string): string => {
+  if (!columnFilters.value[key]) return '';
+  const f = columnFilters.value[key];
+  if (f.type === 'multi') return 'multi';
+  if (f.type === 'custom') return 'custom';
+  return 'simple';
+};
+
+const clearColumnFilter = (key: string) => {
+  delete columnFilters.value[key];
+};
+
+const toggleMultiSelectValue = (key: string, value: FilterValue) => {
+  const f = columnFilters.value[key];
+
+  if (!f || f.type !== 'multi') {
+    columnFilters.value[key] = { type: 'multi', values: [value] };
+    return;
+  }
+
+  const arr = f.values || [];
+
+  if (arr.includes(value)) {
+    f.values = arr.filter(v => v !== value);
+    if (f.values.length === 0) delete columnFilters.value[key];
+  } else {
+    f.values = [...arr, value];
+  }
+};
+
+const resetAllFilters = () => {
+  columnFilters.value = {};
+  localStorage.removeItem(LS_FILTER_KEY);
+};
+
 onMounted(async () => { // Jadikan async
   const queryStartDate = route.query.startDate as string;
   const queryEndDate = route.query.endDate as string;
@@ -509,6 +641,10 @@ onMounted(async () => { // Jadikan async
   // baru aktifkan 'watch' untuk perubahan di masa depan.
   isMounted.value = true; // <-- PINDAHKAN KE AKHIR
 });
+
+watch(columnFilters, (val) => {
+  localStorage.setItem(LS_FILTER_KEY, JSON.stringify(val));
+}, { deep: true });
 
 watch(filters, () => {
   if (!isMounted.value) return;
@@ -583,6 +719,10 @@ watch(filters, () => {
           <v-text-field v-model="filterSearchValue" label="Cari..." density="compact" hide-details variant="outlined"
             clearable prepend-inner-icon="mdi-magnify" class="search-field" />
         </div>
+        <v-btn color="error" variant="tonal" prepend-icon="mdi-filter-off" class="btn-detail reset-filter-btn ms-2"
+          @click="resetAllFilters">
+          Reset Filter
+        </v-btn>
         <v-spacer />
         <div class="d-flex align-center ga-2 text-caption">
           <v-icon color="yellow-darken-3" icon="mdi-square-rounded" size="small"></v-icon> Stok Minus
@@ -599,7 +739,22 @@ watch(filters, () => {
           <template #headers="{ columns, isSorted, getSortIcon, toggleSort }">
             <tr>
               <template v-for="header in columns" :key="header.key">
-                <th :style="{
+
+                <!-- HEADER TANPA FILTER (select & expand) -->
+                <th v-if="noFilterColumns.includes(header.key)" :style="{
+                  width: (header.width || 100) + 'px',
+                  minWidth: (header.width || 100) + 'px',
+                  maxWidth: (header.width || 100) + 'px',
+                  boxSizing: 'border-box'
+                }" class="resizable-header">
+                  <div class="header-content">
+                    <span>{{ header.title }}</span>
+                  </div>
+                  <div class="resizer" @mousedown.stop="onResizeStart($event, header)"></div>
+                </th>
+
+                <!-- HEADER NORMAL + EXCEL STYLE FILTER -->
+                <th v-else :style="{
                   width: (header.width || 100) + 'px',
                   minWidth: (header.width || 100) + 'px',
                   maxWidth: (header.width || 100) + 'px',
@@ -608,15 +763,64 @@ watch(filters, () => {
                   :class="{ 'text-center': header.align === 'center', 'text-end': header.align === 'end' }"
                   @click="toggleSort(header)">
                   <div class="header-content">
+
+                    <!-- Judul kolom -->
                     <span>{{ header.title }}</span>
 
-                    <v-icon v-if="isSorted(header)" size="small" class="ms-1">
+                    <!-- SORT ICON -->
+                    <v-icon v-if="isSorted(header)" size="14" class="ms-1">
                       {{ getSortIcon(header) }}
                     </v-icon>
+
+                    <!-- FILTER ICON -->
+                    <v-menu location="bottom start">
+                      <template #activator="{ props }">
+                        <v-icon size="16" v-bind="props" @click.stop :color="isFilterActive(header.key) ? 'blue' : ''"
+                          :icon="filterType(header.key) === 'custom'
+                            ? 'mdi-filter-cog'
+                            : filterType(header.key) === 'multi'
+                              ? 'mdi-filter-multiple'
+                              : 'mdi-filter-variant'" class="ms-1" />
+                      </template>
+
+                      <v-list class="filter-menu" style="min-width: 200px">
+
+                        <!-- SELECT ALL -->
+                        <v-list-item @click.stop="clearColumnFilter(header.key)">
+                          <v-list-item-title>(Select All)</v-list-item-title>
+                        </v-list-item>
+
+                        <v-divider />
+
+                        <!-- MULTI-SELECT VALUES -->
+                        <v-list-item v-for="value in uniqueValues(header.key)" :key="value"
+                          @click.stop="toggleMultiSelectValue(header.key, value)">
+                          <template #prepend>
+                            <v-checkbox :model-value="columnFilters[header.key]?.type === 'multi' &&
+                              columnFilters[header.key]?.values?.includes(value)" density="compact"
+                              @click.stop="toggleMultiSelectValue(header.key, value)" />
+                          </template>
+
+                          <v-list-item-title>{{ value }}</v-list-item-title>
+                        </v-list-item>
+
+                        <v-divider />
+
+                        <!-- CUSTOM FILTER -->
+                        <v-list-item @click.stop="openCustomFilter(header.key)">
+                          <v-list-item-title class="custom-filter-item">
+                            (Custom Filter…)
+                          </v-list-item-title>
+                        </v-list-item>
+                      </v-list>
+                    </v-menu>
+
                   </div>
 
+                  <!-- RESIZER -->
                   <div class="resizer" @mousedown.stop="onResizeStart($event, header)" @click.stop></div>
                 </th>
+
               </template>
             </tr>
           </template>
@@ -704,6 +908,37 @@ watch(filters, () => {
       @select="handlePrintSelection" />
     <KasirPrintPreviewModal v-model="isKasirPreviewVisible" :nomorInvoice="selectedInvoice"
       @close="isKasirPreviewVisible = false" />
+
+    <v-dialog v-model="customFilterDialog" max-width="350px">
+      <v-card>
+        <v-card-title class="text-h6">
+          Custom Filter — {{ customFilter.key }}
+        </v-card-title>
+
+        <v-card-text>
+          <v-select v-model="customFilter.operator" :items="[
+            { title: ' = (sama dengan)', value: '=' },
+            { title: ' ≠ (tidak sama)', value: '!=' },
+            { title: ' > (lebih besar)', value: '>' },
+            { title: ' ≥ (lebih besar sama)', value: '>=' },
+            { title: ' < (lebih kecil)', value: '<' },
+            { title: ' ≤ (lebih kecil sama)', value: '<=' },
+            { title: ' contains', value: 'contains' },
+            { title: ' starts with', value: 'starts' },
+            { title: ' ends with', value: 'ends' }
+          ]" label="Operator" density="compact" />
+
+          <v-text-field v-model="customFilter.value" label="Value" density="compact" autofocus />
+        </v-card-text>
+
+        <v-card-actions>
+          <v-spacer />
+          <v-btn text @click="customFilterDialog = false">Cancel</v-btn>
+          <v-btn color="primary" @click="applyCustomFilter">OK</v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+
   </PageLayout>
 </template>
 
@@ -891,5 +1126,64 @@ watch(filters, () => {
 .resizable-header:hover .resizer {
   border-right: 2px solid #1565c0;
   /* Muncul garis biru saat hover */
+}
+
+/* === Excel-style Filter Menu === */
+
+.filter-menu {
+  padding: 6px 0 !important;
+  font-size: 11px !important;
+}
+
+.filter-menu .v-list-item {
+  min-height: 26px !important;
+  padding: 2px 10px !important;
+}
+
+.filter-menu .v-list-item-title {
+  font-size: 11px !important;
+}
+
+.filter-menu .v-list-item:hover {
+  background-color: #e3f2fd !important;
+  /* biru muda */
+}
+
+.filter-menu .v-checkbox {
+  margin-right: 6px !important;
+}
+
+.filter-menu .v-input--selection-controls__input {
+  width: 16px !important;
+  height: 16px !important;
+}
+
+.filter-menu .v-checkbox .v-selection-control {
+  padding: 0 !important;
+}
+
+.filter-menu .custom-filter-item {
+  font-weight: 600;
+  color: #1565c0;
+  font-size: 11px;
+}
+
+.filter-section .btn-detail {
+  height: 36px !important;
+  width: auto !important;
+  min-width: 120px !important;
+  padding: 0 16px !important;
+  font-size: 0.875rem !important;
+  text-transform: none !important; /* supaya tidak kapital semua */
+}
+
+/* khusus warna merah Reset Filter */
+.reset-filter-btn {
+  color: #d32f2f !important;
+  background-color: rgba(211, 47, 47, 0.15) !important;
+}
+
+.reset-filter-btn:hover {
+  background-color: rgba(211, 47, 47, 0.25) !important;
 }
 </style>

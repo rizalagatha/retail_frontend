@@ -23,7 +23,8 @@ interface DataTableHeader {
 
 interface LhkItem {
   Tanggal: string;
-  Cab: string;
+  Cab: string;     // kalau backend kirim Cab
+  cab: string;     // kalau backend kirim cab
   SoDtf: string;
   [key: string]: unknown;
 }
@@ -101,7 +102,7 @@ const isSingleSelected = computed(() => selected.value.length === 1);
 const canEditOrDelete = computed(() => {
   if (!isSingleSelected.value) return false;
   const userCabang = authStore.user?.cabang;
-  const recordCabang = selected.value[0].Cab;
+  const recordCabang = selected.value[0].cab;
   if (userCabang === 'KDC') return true;
   return userCabang === recordCabang;
 });
@@ -154,7 +155,7 @@ const deleteItem = async () => {
       params: {
         Tanggal: format(parseISO(itemToDelete.value.Tanggal), 'yyyy-MM-dd'),
         SoDtf: itemToDelete.value.SoDtf,
-        Cab: itemToDelete.value.Cab
+        Cab: itemToDelete.value.cab
       }
     });
     toast.success('Data LHK berhasil dihapus.');
@@ -179,7 +180,7 @@ const handleEdit = () => {
     path: '/transaksi/penjualan/dtf/lhk-so-dtf/edit',
     query: {
       tanggal: format(parseISO(selectedItem.Tanggal), 'yyyy-MM-dd'),
-      cabang: selectedItem.Cab
+      cabang: selectedItem.cab
     }
   });
 };

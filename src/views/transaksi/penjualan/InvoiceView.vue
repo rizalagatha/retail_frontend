@@ -221,6 +221,8 @@ const headers = ref<DataTableHeader[]>([
   { title: 'No Retur', key: 'NoRetur', width: 180 },
   { title: 'SC', key: 'SC', width: 150 },
   { title: 'Created', key: 'Created', width: 180 },
+  { title: 'User Modified', key: 'UserModified', width: 150 },
+  { title: 'Date Modified', key: 'DateModified', width: 180 },
   { title: 'Minus', key: 'Minus', width: 80, align: 'center' },
   { title: 'Prn', key: 'Prn', align: 'center' },
   { title: 'Puas', key: 'Puas', align: 'center' },
@@ -627,8 +629,10 @@ watch(filters, () => {
           <template v-for="header in headers.filter(h => h.key !== 'data-table-expand')" :key="header.key"
             #[`item.${header.key}`]="{ item }">
             <td>
-              <template
-                v-if="['Tanggal', 'TglSO', 'TglSJ', 'LastPayment', 'TglTransfer', 'Created'].includes(header.key)">
+              <template v-if="['Created', 'LastPayment', 'TglTransfer', 'DateModified'].includes(header.key)">
+                {{ item[header.key] ? format(parseISO(String(item[header.key])), 'dd/MM/yyyy HH:mm:ss') : '' }}
+              </template>
+              <template v-else-if="['Tanggal', 'TglSO', 'TglSJ'].includes(header.key)">
                 {{ item[header.key] ? format(parseISO(String(item[header.key])), 'dd/MM/yyyy') : '' }}
               </template>
               <template

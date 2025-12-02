@@ -103,6 +103,10 @@ const headers = ref<DataTableHeader[]>([
   { title: 'Keterangan', key: 'Keterangan', width: 300 },
   { title: 'Otomatis', key: 'Otomatis', align: 'center', width: 100 },
   { title: 'Closing', key: 'Closing', align: 'center', width: 100 },
+  { title: 'User Create', key: 'UserCreate', width: 150 },
+  { title: 'Date Create', key: 'DateCreate', width: 150 },
+  { title: 'User Modified', key: 'UserModified', width: 150 },
+  { title: 'Date Modified', key: 'DateModified', width: 150 },
 ]);
 
 const detailHeaders = [
@@ -367,7 +371,11 @@ watch(
           <template v-for="header in headers.filter(h => h.key !== 'data-table-expand')"
             #[`item.${header.key}`]="{ item }" :key="header.key">
             <td :class="getRowTextColor(item)">
-              <template v-if="['Tanggal', 'TglTerima', 'TglTransfer', 'TglGiro', 'TglJatuhTempo'].includes(header.key)">
+              <template v-if="['DateCreate', 'DateModified'].includes(header.key)">
+                {{ item[header.key] ? format(parseISO(item[header.key] as string), 'dd/MM/yyyy HH:mm:ss') : '-' }}
+              </template>
+              <template
+                v-else-if="['Tanggal', 'TglTerima', 'TglTransfer', 'TglGiro', 'TglJatuhTempo'].includes(header.key)">
                 {{ item[header.key] ? format(parseISO(item[header.key] as string), 'dd/MM/yyyy') : '-' }}
               </template>
               <template v-else-if="['Nominal', 'diBayarkan', 'Sisa'].includes(header.key)">

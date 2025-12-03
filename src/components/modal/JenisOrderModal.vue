@@ -26,15 +26,15 @@ const emit = defineEmits(["close", "saved"]);
  */
 interface UkuranRow {
   ukuran: string;
-  jumlah: number;
+  jumlah: number | null;
   harga: number;
 }
 
 interface TitikRow {
   keterangan: string;
   sizeCetak: string;
-  panjang: number;
-  lebar: number;
+  panjang: number | null;
+  lebar: number | null;
 }
 
 interface JenisOrderForm {
@@ -71,8 +71,8 @@ const form = ref<JenisOrderForm>({
   namaBarang: "",
   kodeBarang: "",
   hargaPerCm: 0,
-  ukuranKaos: [{ ukuran: "", jumlah: 0, harga: 0 }],
-  titikCetak: [{ keterangan: "", sizeCetak: "", panjang: 0, lebar: 0 }],
+  ukuranKaos: [{ ukuran: "", jumlah: null, harga: 0 }],
+  titikCetak: [{ keterangan: "", sizeCetak: "", panjang: null, lebar: null }],
   totalJumlah: 0,
   totalHarga: 0,
 });
@@ -434,6 +434,25 @@ const onUkuranChanged = (row: UkuranRow, val: string) => {
   }
 };
 
+const formatAngka = (val: unknown): number | null => {
+  if (val === null || val === undefined || val === "") return null;
+  const cleaned = String(val).replace(/\D/g, "");
+  return cleaned === "" ? null : Number(cleaned);
+};
+
+const finalizeAngka = <T extends Record<string, number | null | string>>(
+  row: T,
+  key: keyof T
+) => {
+  const v = row[key];
+
+  if (v === null || v === "") {
+    row[key] = 0 as T[keyof T];
+  } else {
+    row[key] = Number(v) as T[keyof T];
+  }
+};
+
 /**
  * ======== 6️⃣ Auto-watch perubahan ========
  */
@@ -441,6 +460,21 @@ watch(
   [() => form.value.jenisOrder, () => form.value.ukuranKaos, () => form.value.titikCetak],
   () => calculatePrices(),
   { deep: true }
+);
+
+/* === DEFAULT SIZE CETAK UNTUK SD & DP === */
+watch(
+  () => form.value.jenisOrder,
+  (jenis) => {
+    form.value.titikCetak.forEach((t) => {
+      if (jenis === "SD" || jenis === "DP") {
+        t.sizeCetak = "Custom";     // default otomatis
+      } else {
+        t.sizeCetak = "";           // yang lain kosong
+      }
+    });
+  },
+  { immediate: true }
 );
 
 </script>
@@ -503,8 +537,11 @@ watch(
                     @update:model-value="(val) => onUkuranChanged(row, val)" />
                 </v-col>
                 <v-col cols="4">
-                  <v-text-field v-model.number="row.jumlah" type="number" density="compact" variant="outlined"
-                    hide-details class="text-xs text-end" @blur="() => addUkuranRowIfNeeded(i)" min="0" />
+                  <v-text-field v-model="row.jumlah" type="text" placeholder="0" density="compact" variant="outlined"
+                    hide-details class="text-xs text-end" @input="row.jumlah = formatAngka($event.target.value)" @blur="
+                      finalizeAngka(row, 'jumlah');
+                    addUkuranRowIfNeeded(i);
+                    " />
                 </v-col>
                 <v-col cols="4" class="text-end">
                   {{ fr(row.harga || 0) }}
@@ -539,16 +576,16 @@ watch(
                     @blur="() => addTitikRowIfNeeded(i)" />
                 </v-col>
                 <v-col cols="2">
-                  <v-text-field v-model.number="row.panjang" type="number" density="compact" variant="outlined"
-                    hide-details class="text-xs text-end" min="0"
+                  <v-text-field v-model="row.panjang" type="text" placeholder="0" density="compact" variant="outlined"
+                    hide-details class="text-xs text-end"
                     :readonly="row.sizeCetak && row.sizeCetak.toLowerCase() !== 'custom'"
-                    :placeholder="row.sizeCetak?.toLowerCase() === 'custom' ? 'Input manual' : 'Auto'" />
+                    @input="row.panjang = formatAngka($event.target.value)" @blur="finalizeAngka(row, 'panjang')" />
                 </v-col>
                 <v-col cols="2">
-                  <v-text-field v-model.number="row.lebar" type="number" density="compact" variant="outlined"
-                    hide-details class="text-xs text-end" min="0"
+                  <v-text-field v-model="row.lebar" type="text" placeholder="0" density="compact" variant="outlined"
+                    hide-details class="text-xs text-end"
                     :readonly="row.sizeCetak && row.sizeCetak.toLowerCase() !== 'custom'"
-                    :placeholder="row.sizeCetak?.toLowerCase() === 'custom' ? 'Input manual' : 'Auto'" />
+                    @input="row.lebar = formatAngka($event.target.value)" @blur="finalizeAngka(row, 'lebar')" />
                 </v-col>
                 <v-col cols="2" class="text-center">
                   <v-btn icon="mdi-delete-outline" size="x-small" variant="text" color="error"

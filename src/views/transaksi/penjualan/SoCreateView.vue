@@ -1478,17 +1478,24 @@ const handleJenisOrderSaved = (data: JenisOrderSaved) => {
   // ==============================
   // 🔥 Push item custom
   // ==============================
+  const qty = data.totalJumlah || 0;
+  const totalHarga = data.totalHarga || 0;
+  const hargaPerPcs = qty > 0 ? Math.round(totalHarga / qty) : 0;
+
   items.value.push({
     id: Date.now() + Math.random(),
     kode: "CUSTOM",
     nama: data.namaOrder,
     ukuran: "",
     stok: 0,
-    jumlah: data.totalJumlah || 0,
-    harga: data.totalHarga || 0,
+
+    jumlah: qty,
+    harga: hargaPerPcs,               // ✔ harga per pcs
     diskonPersen: 0,
     diskonRp: 0,
-    total: data.totalHarga || 0,
+
+    total: hargaPerPcs * qty,         // ✔ sesuai qty × harga per pcs
+
     barcode: "",
     noSoDtf: "",
     noPengajuanHarga: "",
@@ -1500,8 +1507,10 @@ const handleJenisOrderSaved = (data: JenisOrderSaved) => {
       ukuranKaos: data.ukuranKaos,
       titikCetak: data.titikCetak,
       hargaPerCm: data.hargaPerCm,
+      totalHarga: totalHarga,         // simpan total original
       sourceItems: sourceItems
     }),
+
     ukuranKaos: data.ukuranKaos || [],
     titikCetak: data.titikCetak || [],
     sourceItems: sourceItems

@@ -1130,7 +1130,7 @@ const handleProceedToPayment = async () => {
 
     // Hitung total belanja REGULER saja
     const totalReguler = items.value.reduce((sum, item) => {
-      if (item.kategori === 'REGULER') {
+      if (item.kategori === 'REGULER' && !item.nama.toUpperCase().includes('JERSEY')) {
         return sum + (item.total || 0);
       }
       return sum;

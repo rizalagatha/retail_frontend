@@ -201,50 +201,57 @@ const totalSisaPiutang = computed(() =>
 const filteredMasterData = computed(() => {
   let data = [...masterData.value];
 
-  // Global search
-  if (filterSearchValue.value) {
-    const key = selectedFilterField.value;
-    const term = filterSearchValue.value.toLowerCase();
-    data = data.filter(r => String(r[key] || '').toLowerCase().includes(term));
-  }
-
-  // Excel-style filtering
+  // 1) EXCEL-STYLE FILTERS (multi & custom)
   for (const key in columnFilters.value) {
     const filter = columnFilters.value[key];
 
     // MULTI-SELECT
     if (filter.type === 'multi' && filter.values) {
-      data = data.filter(r => filter.values!.includes(r[key]));
+      data = data.filter(row =>
+        filter.values!.includes(row[key] as string | number)
+      );
       continue;
     }
 
-    // CUSTOM
+    // CUSTOM FILTER
     if (filter.type === 'custom' && filter.operator) {
-      const t = String(filter.value);
+      const cmp = String(filter.value).toLowerCase();
 
       data = data.filter(row => {
-        const val = row[key];
-        if (val == null) return false;
-        const v = String(val);
+        const v = row[key];
+        if (v == null) return false;
+
+        const val = String(v).toLowerCase();
 
         switch (filter.operator) {
-          case '=': return v == t;
-          case '!=': return v != t;
-          case '>': return Number(v) > Number(t);
-          case '>=': return Number(v) >= Number(t);
-          case '<': return Number(v) < Number(t);
-          case '<=': return Number(v) <= Number(t);
-          case 'contains': return v.toLowerCase().includes(t.toLowerCase());
-          case 'starts': return v.toLowerCase().startsWith(t.toLowerCase());
-          case 'ends': return v.toLowerCase().endsWith(t.toLowerCase());
+          case '=': return val === cmp;
+          case '!=': return val !== cmp;
+          case '>': return Number(val) > Number(cmp);
+          case '>=': return Number(val) >= Number(cmp);
+          case '<': return Number(val) < Number(cmp);
+          case '<=': return Number(val) <= Number(cmp);
+          case 'contains': return val.includes(cmp);
+          case 'starts': return val.startsWith(cmp);
+          case 'ends': return val.endsWith(cmp);
         }
       });
     }
   }
 
+  // 2) GLOBAL SEARCH (dipindah ke paling akhir)
+  if (filterSearchValue.value) {
+    const key = selectedFilterField.value;
+    const term = filterSearchValue.value.toLowerCase();
+
+    data = data.filter(row =>
+      String(row[key] ?? '')
+        .toLowerCase()
+        .includes(term)
+    );
+  }
+
   return data;
 });
-
 
 // --- Konfigurasi Tabel ---
 const headers = ref<DataTableHeader[]>([

@@ -319,26 +319,18 @@ const canBeClosed = computed(() => {
 const filteredOffers = computed(() => {
   let data = [...offerList.value];
 
-  // Search global
-  if (filterSearchValue.value) {
-    const key = selectedFilterField.value;
-    const t = filterSearchValue.value.toLowerCase();
-    data = data.filter(r => String(r[key] || '').toLowerCase().includes(t));
-  }
-
-  // Excel-style filters
+  // 1) FILTER HEADER (MULTI & CUSTOM)
   for (const key in columnFilters.value) {
     const f = columnFilters.value[key];
 
-    // MULTI SELECT
     if (f.type === 'multi' && f.values) {
-      data = data.filter(r => f.values!.includes(r[key]));
+      data = data.filter(r => f.values!.includes(r[key] as string | number));
       continue;
     }
 
-    // CUSTOM FILTER
     if (f.type === 'custom' && f.operator) {
       const cmp = String(f.value).toLowerCase();
+
       data = data.filter(row => {
         const v = row[key];
         if (v == null) return false;
@@ -346,8 +338,8 @@ const filteredOffers = computed(() => {
         const val = String(v).toLowerCase();
 
         switch (f.operator) {
-          case '=': return val == cmp;
-          case '!=': return val != cmp;
+          case '=': return val === cmp;
+          case '!=': return val !== cmp;
           case '>': return Number(val) > Number(cmp);
           case '>=': return Number(val) >= Number(cmp);
           case '<': return Number(val) < Number(cmp);
@@ -358,6 +350,18 @@ const filteredOffers = computed(() => {
         }
       });
     }
+  }
+
+  // 2) GLOBAL SEARCH (DIPINDAH KE PALING AKHIR)
+  if (filterSearchValue.value) {
+    const key = selectedFilterField.value;
+    const term = filterSearchValue.value.toLowerCase();
+
+    data = data.filter(r =>
+      String(r[key] ?? '')
+        .toLowerCase()
+        .includes(term)
+    );
   }
 
   return data;

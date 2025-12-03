@@ -97,24 +97,25 @@ const isSingleSelected = computed(() => selected.value.length === 1);
 const filteredList = computed(() => {
   let data = [...list.value];
 
+  // 1) FILTER HEADER
   for (const key in columnFilters.value) {
     const f = columnFilters.value[key];
 
-    // MULTI
+    // MULTI FILTER
     if (f.type === 'multi' && f.values) {
-      data = data.filter(row => f.values!.includes(row[key] as string | number));
+      data = data.filter(row =>
+        f.values!.includes(row[key] as string | number)
+      );
     }
 
-    // CUSTOM
+    // CUSTOM FILTER
     if (f.type === 'custom' && f.value !== undefined) {
       const target = String(f.value).toLowerCase();
-
       data = data.filter(row => {
         const v = row[key];
         if (v === null || v === undefined) return false;
 
         const s = String(v).toLowerCase();
-
         switch (f.operator) {
           case '=': return s === target;
           case '!=': return s !== target;
@@ -128,6 +129,16 @@ const filteredList = computed(() => {
         }
       });
     }
+  }
+
+  // 2) SEARCH GLOBAL (INI YANG HILANG)
+  if (filterSearchValue.value) {
+    const key = selectedFilterField.value;
+    data = data.filter(item => {
+      const v = item[key];
+      return v !== null && v !== undefined &&
+        String(v).toLowerCase().includes(filterSearchValue.value.toLowerCase());
+    });
   }
 
   return data;
@@ -663,7 +674,7 @@ watch(filters, () => {
                       item-value="Kode" density="compact" class="detail-table" :items-per-page="-1" hide-default-footer>
                       <template #[`item.Nomor`]="{ item: detailItem }">{{ detailItem.Nomor }}</template>
                       <template #[`item.Harga`]="{ item: detailItem }">{{ formatRupiah(Number(detailItem.Harga || 0))
-                        }}</template>
+                      }}</template>
                       <template #[`item.TotalSO`]="{ item: detailItem }">{{ formatRupiah(Number(detailItem.TotalSO ||
                         0)) }}</template>
                       <template #bottom></template>

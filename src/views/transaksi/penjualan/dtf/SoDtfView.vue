@@ -115,19 +115,17 @@ const isSingleSelected = computed(() => selected.value.length === 1);
 const filteredSoDtfList = computed(() => {
   let data = [...soDtfList.value];
 
-  // --- FILTER KOLOM (multi / custom) ---
+  // === 1) FILTER KOLOM (MULTI & CUSTOM) ===
   for (const key in columnFilters.value) {
     const f = columnFilters.value[key];
     if (!f) continue;
 
-    if (f.type === 'multi') {
+    if (f.type === 'multi' && f.values) {
       data = data.filter(row => {
-        const v = row[key as keyof SoDtfHeader];
-
-        if (typeof v === 'string' || typeof v === 'number') {
-          return f.values!.includes(v);
-        }
-        return false;
+        const v = row[key];
+        return typeof v === 'string' || typeof v === 'number'
+          ? f.values!.includes(v)
+          : false;
       });
     }
 
@@ -135,12 +133,11 @@ const filteredSoDtfList = computed(() => {
       const filterValue = String(f.value).toLowerCase();
 
       data = data.filter(row => {
-        const rowValue = row[key as keyof SoDtfHeader];
-        const val = rowValue != null ? String(rowValue).toLowerCase() : '';
+        const val = row[key] == null ? '' : String(row[key]).toLowerCase();
 
         switch (f.operator) {
-          case '=': return val == filterValue;
-          case '!=': return val != filterValue;
+          case '=': return val === filterValue;
+          case '!=': return val !== filterValue;
           case '>': return Number(val) > Number(filterValue);
           case '>=': return Number(val) >= Number(filterValue);
           case '<': return Number(val) < Number(filterValue);
@@ -154,11 +151,16 @@ const filteredSoDtfList = computed(() => {
     }
   }
 
-  // --- FILTER QUICK SEARCH (yang ada di atas) ---
+  // === 2) QUICK SEARCH (HARUS PALING AKHIR, JANGAN RETURN LANGSUNG) ===
   if (filterSearchValue.value) {
-    return data.filter(row => {
-      const value = row[selectedFilterField.value as keyof SoDtfHeader];
-      return value?.toString().toLowerCase().includes(filterSearchValue.value.toLowerCase());
+    const key = selectedFilterField.value;
+    const term = filterSearchValue.value.toLowerCase();
+
+    data = data.filter(row => {
+      const value = row[key];
+      return value != null
+        ? String(value).toLowerCase().includes(term)
+        : false;
     });
   }
 

@@ -30,6 +30,8 @@ interface SoHeader {
   StatusKirim: string;
   Aktif: string;
   AlasanClose: string;
+  UserModified: string | null;
+  DateModified: string | null;
   [key: string]: unknown;
 }
 
@@ -43,6 +45,13 @@ interface SoDetail {
   Nomor: string;
   Harga: number;
   TotalSO: number;
+}
+
+interface ColumnFilter {
+  type: 'multi' | 'custom';
+  values?: (string | number)[];
+  operator?: string;
+  value?: string | number;
 }
 
 const toast = useToast();
@@ -86,16 +95,42 @@ const hasViewPermission = computed(() => authStore.can(MENU_ID, 'view'));
 const isSingleSelected = computed(() => selected.value.length === 1);
 
 const filteredList = computed(() => {
-  if (!filterSearchValue.value) {
-    return list.value;
-  }
-  return list.value.filter(item => {
-    const itemValue = item[selectedFilterField.value as keyof SoHeader];
-    if (itemValue !== null && itemValue !== undefined) {
-      return itemValue.toString().toLowerCase().includes(filterSearchValue.value.toLowerCase());
+  let data = [...list.value];
+
+  for (const key in columnFilters.value) {
+    const f = columnFilters.value[key];
+
+    // MULTI
+    if (f.type === 'multi' && f.values) {
+      data = data.filter(row => f.values!.includes(row[key] as string | number));
     }
-    return false;
-  });
+
+    // CUSTOM
+    if (f.type === 'custom' && f.value !== undefined) {
+      const target = String(f.value).toLowerCase();
+
+      data = data.filter(row => {
+        const v = row[key];
+        if (v === null || v === undefined) return false;
+
+        const s = String(v).toLowerCase();
+
+        switch (f.operator) {
+          case '=': return s === target;
+          case '!=': return s !== target;
+          case '>': return Number(s) > Number(target);
+          case '>=': return Number(s) >= Number(target);
+          case '<': return Number(s) < Number(target);
+          case '<=': return Number(s) <= Number(target);
+          case 'contains': return s.includes(target);
+          case 'starts': return s.startsWith(target);
+          case 'ends': return s.endsWith(target);
+        }
+      });
+    }
+  }
+
+  return data;
 });
 
 // --- Header Definisi (Resize) ---
@@ -115,6 +150,8 @@ const headers = ref<DataTableHeader[]>([
   { title: 'Status', key: 'Status', width: 150 },
   { title: 'SO DTF', key: 'DipakaiDTF', width: 90 },
   { title: 'Alasan Close', key: 'AlasanClose', width: 250 },
+  { title: 'User Modified', key: 'UserModified', width: 140 },
+  { title: 'Date Modified', key: 'DateModified', width: 140 },
   { title: 'Status Kirim', key: 'StatusKirim', width: 150 },
   { title: 'Kd Customer', key: 'kdcus', width: 120 },
   { title: 'Nama Customer', key: 'Nama', width: 250 },
@@ -138,6 +175,92 @@ const detailHeaders = [
   { title: 'Qty Invoice', key: 'QtyInvoice', align: 'end', width: '100px' },
   { title: 'Belum Jadi Inv', key: 'BlmJadiInvoice', align: 'end', width: '120px' },
 ] as const;
+
+// --- Logic Filtering ---
+const columnFilters = ref<Record<string, ColumnFilter>>({});
+
+const customFilterDialog = ref(false);
+const customFilter = reactive({
+  key: '',
+  operator: '=',
+  value: ''
+});
+
+const uniqueValues = (key: string): Array<string | number> => {
+  return Array.from(
+    new Set(
+      list.value
+        .map(i => i[key] as string | number | null | undefined)
+        .filter((v): v is string | number => v !== null && v !== undefined && v !== '')
+    )
+  ).sort((a, b) => String(a).localeCompare(String(b)));
+};
+
+const formatFilterValue = (key: string, val: string | number) => {
+  if (!val) return '-';
+
+  if (['Tanggal', 'Dateline', 'DateModified'].includes(key)) {
+    try {
+      return format(parseISO(String(val)), 'dd/MM/yyyy');
+    } catch {
+      return val;
+    }
+  }
+
+  return val;
+};
+
+const filterType = (key: string) =>
+  columnFilters.value[key]?.type ?? '';
+
+const isFilterActive = (key: string) =>
+  Boolean(columnFilters.value[key]);
+
+const clearColumnFilter = (key: string) => {
+  delete columnFilters.value[key];
+};
+
+// MULTI SELECT
+const toggleMultiSelectValue = (key: string, value: string | number) => {
+  const f = columnFilters.value[key];
+
+  if (!f || f.type !== 'multi') {
+    columnFilters.value[key] = { type: 'multi', values: [value] };
+    return;
+  }
+
+  const arr = f.values ?? [];
+
+  if (arr.includes(value)) {
+    f.values = arr.filter(v => v !== value);
+    if (f.values.length === 0) delete columnFilters.value[key];
+  } else {
+    f.values = [...arr, value];
+  }
+};
+
+// CUSTOM FILTER
+const openCustomFilter = (key: string) => {
+  customFilter.key = key;
+  customFilter.operator = '=';
+  customFilter.value = '';
+  customFilterDialog.value = true;
+};
+
+const applyCustomFilter = () => {
+  columnFilters.value[customFilter.key] = {
+    type: 'custom',
+    operator: customFilter.operator,
+    value: customFilter.value
+  };
+  customFilterDialog.value = false;
+};
+
+// RESET
+const resetAllFilters = () => {
+  columnFilters.value = {};
+};
+
 
 // --- Logic Resize Column ---
 const resizingColumn = ref<DataTableHeader | null>(null);
@@ -396,6 +519,10 @@ watch(filters, () => {
           @click:close="filters.status = null">
           Status: {{ filters.status === 'open' ? 'Open' : filters.status }}
         </v-chip>
+        <v-btn color="error" variant="tonal" prepend-icon="mdi-filter-off" class="btn-detail reset-filter-btn ms-2"
+          @click="resetAllFilters">
+          Reset Filter
+        </v-btn>
 
         <v-spacer />
         <div class="legend-group">
@@ -416,19 +543,70 @@ watch(filters, () => {
           <template #headers="{ columns, isSorted, getSortIcon, toggleSort }">
             <tr>
               <template v-for="header in columns" :key="header.key">
-                <th
-                  :style="{ width: header.width + 'px', minWidth: header.width + 'px', maxWidth: header.width + 'px' }"
-                  class="resizable-header"
-                  :class="{ 'text-center': header.align === 'center', 'text-end': header.align === 'end' }"
-                  @click="toggleSort(header)">
+
+                <!-- ❌ Kolom tanpa filter -->
+                <th v-if="['data-table-expand', 'data-table-select'].includes(header.key)"
+                  :style="{ width: header.width + 'px' }" class="resizable-header">
                   <div class="header-content">
                     <span>{{ header.title }}</span>
-                    <v-icon v-if="isSorted(header)" size="small" class="ms-1">
-                      {{ getSortIcon(header) }}
-                    </v-icon>
                   </div>
-                  <div class="resizer" @mousedown.stop="onResizeStart($event, header)" @click.stop></div>
+                  <div class="resizer" @mousedown.stop="onResizeStart($event, header)" />
                 </th>
+
+                <!-- ✅ Kolom dengan filter -->
+                <th v-else :style="{ width: header.width + 'px' }" class="resizable-header" @click="toggleSort(header)">
+                  <div class="header-content">
+
+                    <!-- Nama kolom -->
+                    <span>{{ header.title }}</span>
+
+                    <!-- Sort icon -->
+                    <v-icon v-if="isSorted(header)" size="14">{{ getSortIcon(header) }}</v-icon>
+
+                    <!-- FILTER ICON -->
+                    <v-menu location="bottom start">
+                      <template #activator="{ props }">
+                        <v-icon v-bind="props" size="16" class="ms-1" @click.stop
+                          :color="isFilterActive(header.key) ? 'blue' : ''" :icon="filterType(header.key) === 'custom'
+                            ? 'mdi-filter-cog'
+                            : filterType(header.key) === 'multi'
+                              ? 'mdi-filter-multiple'
+                              : 'mdi-filter-variant'
+                            " />
+                      </template>
+
+                      <v-list class="filter-menu">
+                        <v-list-item @click.stop="clearColumnFilter(header.key)">
+                          <v-list-item-title>(Select All)</v-list-item-title>
+                        </v-list-item>
+
+                        <v-divider />
+
+                        <!-- MULTI SELECT -->
+                        <v-list-item v-for="val in uniqueValues(header.key)" :key="val"
+                          @click.stop="toggleMultiSelectValue(header.key, val)">
+                          <template #prepend>
+                            <v-checkbox density="compact"
+                              :model-value="columnFilters[header.key]?.values?.includes(val)" />
+                          </template>
+                          <v-list-item-title>
+                            {{ formatFilterValue(header.key, val) }}
+                          </v-list-item-title>
+                        </v-list-item>
+
+                        <v-divider />
+
+                        <!-- CUSTOM FILTER -->
+                        <v-list-item @click.stop="openCustomFilter(header.key)">
+                          <v-list-item-title class="custom-filter-item">(Custom Filter…)</v-list-item-title>
+                        </v-list-item>
+                      </v-list>
+                    </v-menu>
+                  </div>
+
+                  <div class="resizer" @mousedown.stop="onResizeStart($event, header)" />
+                </th>
+
               </template>
             </tr>
           </template>
@@ -451,6 +629,12 @@ watch(filters, () => {
                 <v-chip size="x-small" :color="item.StatusKirim === 'BELUM' ? 'orange' : 'indigo'">
                   {{ item.StatusKirim }}
                 </v-chip>
+              </template>
+              <template v-else-if="header.key === 'UserModified'">
+                {{ item.UserModified || '-' }}
+              </template>
+              <template v-else-if="header.key === 'DateModified'">
+                {{ item.DateModified ? format(parseISO(item.DateModified as string), 'dd/MM/yyyy HH:mm') : '-' }}
               </template>
               <template v-else-if="header.key === 'Aktif'">
                 <v-chip size="x-small" :color="item.Aktif === 'Y' ? 'success' : 'grey'">
@@ -505,6 +689,35 @@ watch(filters, () => {
           <v-spacer></v-spacer>
           <v-btn @click="isCloseDialogVisible = false">Batal</v-btn>
           <v-btn color="primary" @click="submitClose">Simpan</v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+    <v-dialog v-model="customFilterDialog" max-width="350px">
+      <v-card>
+        <v-card-title class="text-h6">
+          Custom Filter — {{ customFilter.key }}
+        </v-card-title>
+
+        <v-card-text>
+          <v-select v-model="customFilter.operator" :items="[
+            { title: '= (sama dengan)', value: '=' },
+            { title: '≠ (tidak sama)', value: '!=' },
+            { title: '>', value: '>' },
+            { title: '≥', value: '>=' },
+            { title: '<', value: '<' },
+            { title: '≤', value: '<=' },
+            { title: 'contains', value: 'contains' },
+            { title: 'starts with', value: 'starts' },
+            { title: 'ends with', value: 'ends' }
+          ]" density="compact" />
+
+          <v-text-field v-model="customFilter.value" density="compact" autofocus />
+        </v-card-text>
+
+        <v-card-actions>
+          <v-spacer />
+          <v-btn text @click="customFilterDialog = false">Cancel</v-btn>
+          <v-btn color="primary" @click="applyCustomFilter">OK</v-btn>
         </v-card-actions>
       </v-card>
     </v-dialog>
@@ -670,5 +883,25 @@ watch(filters, () => {
   display: flex;
   align-items: center;
   gap: 2px;
+}
+
+.filter-section .btn-detail {
+  height: 36px !important;
+  width: auto !important;
+  min-width: 120px !important;
+  padding: 0 16px !important;
+  font-size: 0.875rem !important;
+  text-transform: none !important;
+  /* supaya tidak kapital semua */
+}
+
+/* khusus warna merah Reset Filter */
+.reset-filter-btn {
+  color: #d32f2f !important;
+  background-color: rgba(211, 47, 47, 0.15) !important;
+}
+
+.reset-filter-btn:hover {
+  background-color: rgba(211, 47, 47, 0.25) !important;
 }
 </style>

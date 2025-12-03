@@ -5,6 +5,7 @@ import api from '@/services/api';
 import { format, parseISO } from 'date-fns';
 import LogoKaosan from '@/assets/logo.png';
 // import { useAuthStore } from '@/stores/authStore'; // Tidak perlu store user lagi untuk header
+import QRCode from "qrcode";
 
 interface PrintHeader {
   gdg_inv_nama: string;
@@ -47,6 +48,7 @@ const route = useRoute();
 const printData = ref<PrintResponse | null>(null);
 const isLoading = ref(true);
 const logoUrl = LogoKaosan;
+const qrCodeDataUrl = ref("");
 
 // Helper URL
 const getFullImageUrl = (url) => {
@@ -91,6 +93,12 @@ onMounted(() => {
   const nomor = route.params.nomor as string;
   if (nomor) fetchPrintData(nomor);
 });
+
+watch(printData, async (val) => {
+  if (val) {
+    qrCodeDataUrl.value = await QRCode.toDataURL(val.header.nomor);
+  }
+});
 </script>
 
 <template>
@@ -110,6 +118,7 @@ onMounted(() => {
       <div class="doc-title">
         <h1>PENGAJUAN BARCODE BARU</h1>
         <div class="doc-number">{{ printData.header.nomor }}</div>
+        <img v-if="qrCodeDataUrl" :src="qrCodeDataUrl" class="qr-code" alt="QR Code" />
       </div>
     </div>
 
@@ -130,29 +139,30 @@ onMounted(() => {
       <table class="print-table">
         <thead>
           <tr>
-            <th style="width: 4%">No</th>
-            <th style="width: 12%">Kode</th>
-            <th style="width: 25%">Nama Barang</th>
-            <th style="width: 6%">Ukuran</th>
-            <th style="width: 10%">Harga/Pcs</th>
-            <th style="width: 10%">Harga DTF</th>
-            <th style="width: 8%">Jenis</th>
-            <th style="width: 15%">Ket</th>
-            <th style="width: 15%">Gambar</th> <!-- DIPINDAH KE KANAN -->
+            <th style="width: 5%">No</th>
+            <th style="width: 65%">Detail Barang</th>
+            <th style="width: 10%">Jenis</th>
+            <th style="width: 20%">Gambar</th>
           </tr>
         </thead>
         <tbody>
           <tr v-for="(item, index) in printData.items" :key="index">
             <td class="text-center">{{ index + 1 }}</td>
-            <td>{{ item.kode }}</td>
-            <td>{{ item.nama }}</td>
-            <td class="text-center">{{ item.ukuran }}</td>
 
-            <td class="text-end">{{ formatRupiah(item.harga) }}</td>
-            <td class="text-end">{{ formatRupiah(item.harga) }}</td>
+            <!-- KOLOM DETAIL BARANG -->
+            <td>
+              <div><strong>Kode:</strong> {{ item.kode }}</div>
+              <div><strong>Nama:</strong> {{ item.nama }}</div>
+              <div><strong>Ukuran:</strong> {{ item.ukuran }}</div>
+              <div><strong>Harga/Pcs:</strong> {{ formatRupiah(item.harga) }}</div>
+              <div><strong>Harga DTF:</strong> {{ formatRupiah(item.harga) }}</div>
+              <div><strong>Keterangan:</strong> {{ item.ket }}</div>
+            </td>
+
+            <!-- KOLOM JENIS -->
             <td class="text-center">{{ item.jenis }}</td>
-            <td>{{ item.ket }}</td>
 
+            <!-- KOLOM GAMBAR -->
             <td class="text-center">
               <img v-if="item.pcd_gambar_url" :src="getFullImageUrl(item.pcd_gambar_url)" class="item-image-large" />
               <span v-else>-</span>
@@ -194,12 +204,19 @@ onMounted(() => {
       <div class="sig-box">
         <div class="sig-title">Dibuat Oleh,</div>
         <div class="sig-space"></div>
-        <div class="sig-name">( {{ printData.header.usr_ins || '...................' }} )</div>
+        <div class="sig-name">( {{ printData.header.usr_ins || '..........................' }} )</div>
       </div>
+
       <div class="sig-box">
-        <div class="sig-title">Finance / Accounting,</div>
+        <div class="sig-title">Mengetahui,</div>
         <div class="sig-space"></div>
-        <div class="sig-name">( ........................... )</div>
+        <div class="sig-name">( .......................... )</div>
+      </div>
+
+      <div class="sig-box">
+        <div class="sig-title">Diacc Oleh,</div>
+        <div class="sig-space"></div>
+        <div class="sig-name">( .......................... )</div>
       </div>
     </div>
   </div>
@@ -322,18 +339,19 @@ onMounted(() => {
 }
 
 .item-image-large {
-  width: 180px;     /* sebelumnya default */
-  height: 180px;
+  width: 320px;
+  height: 320px;
   object-fit: cover;
   border: 1px solid #ccc;
-  display: block;
-  margin: 0 auto;
 }
 
 .item-image-portrait {
-  width: 100%;        /* full lebar kolom */
-  max-width: 180px;   /* supaya tetap rapi */
-  height: 180px;      /* BATAS TINGGI */
+  width: 100%;
+  /* full lebar kolom */
+  max-width: 180px;
+  /* supaya tetap rapi */
+  height: 180px;
+  /* BATAS TINGGI */
   object-fit: cover;
   border: 1px solid #ccc;
   display: block;
@@ -352,23 +370,22 @@ onMounted(() => {
   margin-top: 20px;
 }
 
-/* SIGNATURE */
 .footer-signature {
   display: flex;
   justify-content: space-between;
-  margin-top: 50px;
-  padding: 0 100px;
-  /* Padding tanda tangan */
+  margin-top: 40px;
+  padding: 0 30px;
 }
 
 .sig-box {
+  width: 30%;
   text-align: center;
-  width: 250px;
 }
 
 .sig-title {
   font-weight: bold;
   margin-bottom: 60px;
+  /* Area kosong untuk tanda tangan */
 }
 
 .sig-name {
@@ -382,6 +399,13 @@ onMounted(() => {
   padding: 50px;
   font-size: 14pt;
 }
+
+.qr-code {
+  width: 80px;
+  height: 80px;
+  margin-top: 8px;
+  border: 1px solid #000;
+}
 </style>
 
 <style>
@@ -393,9 +417,10 @@ onMounted(() => {
   }
 
   .item-image-large {
-    width: 240px !important;   /* lebih kecil */
-    height: 240px !important;
+    width: 320px;
+    height: 320px;
     object-fit: cover;
+    border: 1px solid #ccc;
   }
 
   .print-container {
@@ -416,8 +441,13 @@ onMounted(() => {
   }
 
   .footer-signature {
-    margin-top: 25px !important;
-    padding: 0 50px !important;
+    margin-top: 30px !important;
+    padding: 0 20px !important;
+  }
+
+  .qr-code {
+    width: 90px !important;
+    height: 90px !important;
   }
 }
 </style>

@@ -9,6 +9,7 @@ import KartuPiutangDetailModal from '@/components/modal/KartuPiutangDetailModal.
 import type { AxiosError } from 'axios';
 import AppDataTable from '@/components/AppDataTable.vue';
 import { formatRupiah } from "@/utils/formatRupiah";
+import { format } from 'date-fns';
 
 // --- Interface Header (Wajib untuk Resize) ---
 interface DataTableHeader {
@@ -230,6 +231,23 @@ const resetAllFilters = () => {
   fetchMasterData();            // reload data
 };
 
+const formatFilterValue = (key: string, val: string | number | undefined | null): string => {
+  // Kolom tanggal → format dd/MM/yyyy
+  if (['tanggal', 'tempo', 'dateModified'].includes(key)) {
+    if (!val) return '-';
+    if (typeof val === 'string' || typeof val === 'number') {
+      try {
+        return format(new Date(val), 'dd/MM/yyyy');
+      } catch {
+        return String(val);
+      }
+    }
+  }
+
+  // Default fallback
+  return String(val ?? '-');
+};
+
 // --- Methods ---
 const getRowTextColor = (item: PiutangItem) => {
   if (item.status === 'Pasif') return 'text-red font-weight-bold';
@@ -381,7 +399,9 @@ watch(filters, () => {
                               @click.stop="toggleMultiSelectValue(header.key, value)" />
                           </template>
 
-                          <v-list-item-title>{{ value }}</v-list-item-title>
+                          <v-list-item-title>
+                            {{ formatFilterValue(header.key, value) }}
+                          </v-list-item-title>
                         </v-list-item>
 
                         <v-divider />

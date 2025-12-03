@@ -619,6 +619,23 @@ const resetAllFilters = () => {
   localStorage.removeItem(LS_FILTER_KEY);
 };
 
+const formatFilterValue = (key: string, val: string | number | undefined | null): string => {
+  // Kolom tanggal → format dd/MM/yyyy
+  if (['tanggal', 'tempo', 'dateModified'].includes(key)) {
+    if (!val) return '-';
+    if (typeof val === 'string' || typeof val === 'number') {
+      try {
+        return format(new Date(val), 'dd/MM/yyyy');
+      } catch {
+        return String(val);
+      }
+    }
+  }
+
+  // Default fallback
+  return String(val ?? '-');
+};
+
 onMounted(async () => { // Jadikan async
   const queryStartDate = route.query.startDate as string;
   const queryEndDate = route.query.endDate as string;
@@ -801,7 +818,9 @@ watch(filters, () => {
                               @click.stop="toggleMultiSelectValue(header.key, value)" />
                           </template>
 
-                          <v-list-item-title>{{ value }}</v-list-item-title>
+                          <v-list-item-title>
+                            {{ formatFilterValue(header.key, value) }}
+                          </v-list-item-title>
                         </v-list-item>
 
                         <v-divider />
@@ -1174,7 +1193,8 @@ watch(filters, () => {
   min-width: 120px !important;
   padding: 0 16px !important;
   font-size: 0.875rem !important;
-  text-transform: none !important; /* supaya tidak kapital semua */
+  text-transform: none !important;
+  /* supaya tidak kapital semua */
 }
 
 /* khusus warna merah Reset Filter */

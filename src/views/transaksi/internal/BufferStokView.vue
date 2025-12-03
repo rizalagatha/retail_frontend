@@ -62,11 +62,11 @@ const headers = ref<DataTableHeader[]>([
   { title: 'Barcode', key: 'Barcode', width: 120 },
   { title: 'Nama', key: 'Nama', width: 300 },
   { title: 'Ukuran', key: 'Ukuran', width: 100 },
-  { title: 'Stok', key: 'Stok', align: 'end', width: 100 },
-  { title: 'Min Buffer', key: 'MinBuffer', align: 'end', width: 100 },
-  { title: 'Max Buffer', key: 'MaxBuffer', align: 'end', width: 100 },
-  { title: 'Harus Minta', key: 'Harus_Minta', align: 'end', width: 100 },
-  { title: 'Sudah Minta', key: 'Sudah_Minta', align: 'end', width: 100 },
+  { title: 'Stok', key: 'Stok', align: 'start', width: 100 },
+  { title: 'Min Buffer', key: 'MinBuffer', align: 'start', width: 100 },
+  { title: 'Max Buffer', key: 'MaxBuffer', align: 'start', width: 100 },
+  { title: 'Harus Minta', key: 'Harus_Minta', align: 'start', width: 100 },
+  { title: 'Sudah Minta', key: 'Sudah_Minta', align: 'start', width: 100 },
 ]);
 
 // --- Logic Resize Column ---

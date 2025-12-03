@@ -65,6 +65,8 @@ interface OfferHeader {
   created: string;
   alasanClose: string;
   noINV: string;
+  userModified: string;
+  dateModified: string;
 }
 
 interface OfferDetail {
@@ -81,6 +83,13 @@ interface OfferDetail {
 interface Branch {
   kode: string;
   nama: string;
+}
+
+interface ColumnFilter {
+  type: 'multi' | 'custom';
+  values?: (string | number)[];
+  operator?: string;
+  value?: string | number;
 }
 
 // --- State ---
@@ -147,6 +156,8 @@ const tableHeaders = ref<DataTableHeader[]>([
   { title: 'Keterangan', key: 'keterangan', width: 250 },
   { title: 'Alasan Close', key: 'alasan', width: 250 },
   { title: 'User', key: 'created', width: 120 },
+  { title: 'User Modified', key: 'userModified', width: 150 },
+  { title: 'Date Modified', key: 'dateModified', width: 160 },
   { title: 'Status', key: 'status', align: 'center', width: 120 },
 ]);
 
@@ -160,6 +171,111 @@ const detailHeaders = [
   { title: 'Diskon', key: 'diskon', align: 'end' },
   { title: 'Total', key: 'total', align: 'end' },
 ] as const;
+
+// --- Filter ----
+const columnFilters = ref<Record<string, ColumnFilter>>({});
+
+// Custom filter dialog
+const customFilterDialog = ref(false);
+const customFilter = reactive({
+  key: '',
+  operator: '=',
+  value: ''
+});
+
+// LocalStorage key
+const LS_FILTER_KEY = "offer_table_filters";
+
+// load existing filter
+const saved = localStorage.getItem(LS_FILTER_KEY);
+if (saved) {
+  try { columnFilters.value = JSON.parse(saved); }
+  catch { }
+}
+
+const uniqueValues = (key: string) => {
+  const set = new Set(
+    offerList.value
+      .map(r => r[key])
+      .filter(v => v !== null && v !== undefined && v !== '')
+  );
+  return Array.from(set).sort();
+};
+
+const isFilterActive = (key: string) => {
+  return Boolean(columnFilters.value[key]);
+};
+
+const filterType = (key: string) => {
+  const f = columnFilters.value[key];
+  if (!f) return '';
+  if (f.type === 'custom') return 'custom';
+  if (f.type === 'multi') return 'multi';
+  return '';
+};
+
+const clearColumnFilter = (key: string) => {
+  delete columnFilters.value[key];
+};
+
+// MULTI SELECT
+const toggleMultiSelectValue = (key: string, value: string | number) => {
+  const f = columnFilters.value[key];
+
+  if (!f || f.type !== 'multi') {
+    columnFilters.value[key] = { type: 'multi', values: [value] };
+    return;
+  }
+  const arr = f.values || [];
+
+  if (arr.includes(value)) {
+    f.values = arr.filter(v => v !== value);
+    if (f.values.length === 0) delete columnFilters.value[key];
+  } else {
+    f.values = [...arr, value];
+  }
+};
+
+// CUSTOM FILTER
+const openCustomFilter = (key: string) => {
+  customFilter.key = key;
+  customFilter.operator = '=';
+  customFilter.value = '';
+  customFilterDialog.value = true;
+};
+
+const applyCustomFilter = () => {
+  columnFilters.value[customFilter.key] = {
+    type: 'custom',
+    operator: customFilter.operator,
+    value: customFilter.value
+  };
+  customFilterDialog.value = false;
+};
+
+const resetAllFilters = () => {
+  columnFilters.value = {};
+  localStorage.removeItem(LS_FILTER_KEY);
+};
+
+const noFilterColumns = ['data-table-select', 'data-table-expand'];
+
+const formatFilterValue = (key: string, val: string | number | undefined | null): string => {
+  // Kolom tanggal → format dd/MM/yyyy
+  if (['tanggal', 'tempo', 'dateModified'].includes(key)) {
+    if (!val) return '-';
+    if (typeof val === 'string' || typeof val === 'number') {
+      try {
+        return format(new Date(val), 'dd/MM/yyyy');
+      } catch {
+        return String(val);
+      }
+    }
+  }
+
+  // Default fallback
+  return String(val ?? '-');
+};
 
 // --- Resize Logic ---
 const resizingColumn = ref<DataTableHeader | null>(null);
@@ -201,19 +317,50 @@ const canBeClosed = computed(() => {
 });
 
 const filteredOffers = computed(() => {
-  // Jika tidak ada data asli atau tidak ada kata kunci, tampilkan semua
-  if (!offerList.value || !filterSearchValue.value) {
-    return offerList.value;
+  let data = [...offerList.value];
+
+  // Search global
+  if (filterSearchValue.value) {
+    const key = selectedFilterField.value;
+    const t = filterSearchValue.value.toLowerCase();
+    data = data.filter(r => String(r[key] || '').toLowerCase().includes(t));
   }
 
-  // Lakukan filter berdasarkan field yang dipilih dan kata kunci
-  return offerList.value.filter(item => {
-    const itemValue = item[selectedFilterField.value];
-    if (itemValue) {
-      return itemValue.toString().toLowerCase().includes(filterSearchValue.value.toLowerCase());
+  // Excel-style filters
+  for (const key in columnFilters.value) {
+    const f = columnFilters.value[key];
+
+    // MULTI SELECT
+    if (f.type === 'multi' && f.values) {
+      data = data.filter(r => f.values!.includes(r[key]));
+      continue;
     }
-    return false;
-  });
+
+    // CUSTOM FILTER
+    if (f.type === 'custom' && f.operator) {
+      const cmp = String(f.value).toLowerCase();
+      data = data.filter(row => {
+        const v = row[key];
+        if (v == null) return false;
+
+        const val = String(v).toLowerCase();
+
+        switch (f.operator) {
+          case '=': return val == cmp;
+          case '!=': return val != cmp;
+          case '>': return Number(val) > Number(cmp);
+          case '>=': return Number(val) >= Number(cmp);
+          case '<': return Number(val) < Number(cmp);
+          case '<=': return Number(val) <= Number(cmp);
+          case 'contains': return val.includes(cmp);
+          case 'starts': return val.startsWith(cmp);
+          case 'ends': return val.endsWith(cmp);
+        }
+      });
+    }
+  }
+
+  return data;
 });
 
 // --- Methods ---
@@ -477,6 +624,10 @@ watch(() => [filters.startDate, filters.endDate], () => {
     fetchData();
   }
 });
+
+watch(columnFilters, (val) => {
+  localStorage.setItem(LS_FILTER_KEY, JSON.stringify(val));
+}, { deep: true });
 </script>
 
 <template>
@@ -530,6 +681,10 @@ watch(() => [filters.startDate, filters.endDate], () => {
           <v-text-field v-model="filterSearchValue" label="Cari..." density="compact" hide-details variant="outlined"
             style="min-width: 250px;" clearable prepend-inner-icon="mdi-magnify"></v-text-field>
         </div>
+        <v-btn color="error" variant="tonal" prepend-icon="mdi-filter-off" class="btn-detail reset-filter-btn ms-2"
+          @click="resetAllFilters">
+          Reset Filter
+        </v-btn>
         <v-spacer></v-spacer>
         <div class="d-flex align-center ga-2 text-caption">
           <v-icon color="red" icon="mdi-square-rounded" size="small"></v-icon> Open
@@ -548,7 +703,21 @@ watch(() => [filters.startDate, filters.endDate], () => {
           <template #headers="{ columns, isSorted, getSortIcon, toggleSort }">
             <tr>
               <template v-for="header in columns" :key="header.key">
-                <th :style="{
+
+                <!-- HEADER TANPA FILTER -->
+                <th v-if="noFilterColumns.includes(header.key)" :style="{
+                  width: header.width + 'px',
+                  minWidth: header.width + 'px',
+                  maxWidth: header.width + 'px'
+                }" class="resizable-header">
+                  <div class="header-content">
+                    <span>{{ header.title }}</span>
+                  </div>
+                  <div class="resizer" @mousedown.stop="onResizeStart($event, header)"></div>
+                </th>
+
+                <!-- HEADER DENGAN FILTER -->
+                <th v-else :style="{
                   width: header.width + 'px',
                   minWidth: header.width + 'px',
                   maxWidth: header.width + 'px'
@@ -556,13 +725,65 @@ watch(() => [filters.startDate, filters.endDate], () => {
                   :class="{ 'text-center': header.align === 'center', 'text-end': header.align === 'end' }"
                   @click="toggleSort(header)">
                   <div class="header-content">
+
+                    <!-- TITLE -->
                     <span>{{ header.title }}</span>
-                    <v-icon v-if="isSorted(header)" size="small" class="ms-1">
+
+                    <!-- SORT ICON -->
+                    <v-icon v-if="isSorted(header)" size="14" class="ms-1">
                       {{ getSortIcon(header) }}
                     </v-icon>
+
+                    <!-- FILTER ICON -->
+                    <v-menu location="bottom start">
+                      <template #activator="{ props }">
+                        <v-icon size="16" v-bind="props" @click.stop :color="isFilterActive(header.key) ? 'blue' : ''"
+                          :icon="filterType(header.key) === 'custom'
+                            ? 'mdi-filter-cog'
+                            : filterType(header.key) === 'multi'
+                              ? 'mdi-filter-multiple'
+                              : 'mdi-filter-variant'
+                            " class="ms-1" />
+                      </template>
+
+                      <v-list class="filter-menu">
+
+                        <v-list-item @click.stop="clearColumnFilter(header.key)">
+                          <v-list-item-title>(Select All)</v-list-item-title>
+                        </v-list-item>
+
+                        <v-divider />
+
+                        <!-- MULTI SELECT -->
+                        <v-list-item v-for="value in uniqueValues(header.key)" :key="value"
+                          @click.stop="toggleMultiSelectValue(header.key, value)">
+                          <template #prepend>
+                            <v-checkbox density="compact" :model-value="columnFilters[header.key]?.type === 'multi'
+                              && columnFilters[header.key]?.values?.includes(value)
+                              " @click.stop="toggleMultiSelectValue(header.key, value)" />
+                          </template>
+                          <v-list-item-title>
+                            {{ formatFilterValue(header.key, value) }}
+                          </v-list-item-title>
+                        </v-list-item>
+
+                        <v-divider />
+
+                        <!-- CUSTOM FILTER -->
+                        <v-list-item @click.stop="openCustomFilter(header.key)">
+                          <v-list-item-title class="custom-filter-item">
+                            (Custom Filter…)
+                          </v-list-item-title>
+                        </v-list-item>
+
+                      </v-list>
+                    </v-menu>
+
                   </div>
-                  <div class="resizer" @mousedown.stop="onResizeStart($event, header)" @click.stop></div>
+
+                  <div class="resizer" @mousedown.stop="onResizeStart($event, header)"></div>
                 </th>
+
               </template>
             </tr>
           </template>
@@ -587,6 +808,13 @@ watch(() => [filters.startDate, filters.endDate], () => {
                 <v-chip :color="getStatusChip(item).color" variant="tonal" size="x-small">
                   {{ getStatusChip(item).text }}
                 </v-chip>
+              </template>
+              <template v-else-if="header.key === 'dateModified'">
+                {{ item.dateModified ? format(new Date(item.dateModified), 'dd/MM/yyyy HH:mm:ss') : '-' }}
+              </template>
+
+              <template v-else-if="header.key === 'userModified'">
+                {{ item.userModified || '-' }}
               </template>
               <template v-else>
                 {{ item[header.key] }}
@@ -641,6 +869,36 @@ watch(() => [filters.startDate, filters.endDate], () => {
         </v-card-actions>
       </v-card>
     </v-dialog>
+
+    <v-dialog v-model="customFilterDialog" max-width="350px">
+      <v-card>
+        <v-card-title class="text-h6">
+          Custom Filter — {{ customFilter.key }}
+        </v-card-title>
+
+        <v-card-text>
+          <v-select v-model="customFilter.operator" :items="[
+            { title: '= sama dengan', value: '=' },
+            { title: '≠ tidak sama', value: '!=' },
+            { title: '> lebih besar', value: '>' },
+            { title: '≥ lebih besar sama', value: '>=' },
+            { title: '< lebih kecil', value: '<' },
+            { title: '≤ lebih kecil sama', value: '<=' },
+            { title: 'contains', value: 'contains' },
+            { title: 'starts with', value: 'starts' },
+            { title: 'ends with', value: 'ends' }
+          ]" label="Operator" density="compact" />
+
+          <v-text-field v-model="customFilter.value" label="Value" density="compact" autofocus />
+        </v-card-text>
+
+        <v-card-actions>
+          <v-spacer />
+          <v-btn text @click="customFilterDialog = false">Cancel</v-btn>
+          <v-btn color="primary" @click="applyCustomFilter">OK</v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
   </PageLayout>
 </template>
 
@@ -651,15 +909,18 @@ watch(() => [filters.startDate, filters.endDate], () => {
 
 /* Warna Teks Status */
 .desktop-table :deep(td.text-red) {
-  color: #d32f2f !important; /* Merah Material Design */
+  color: #d32f2f !important;
+  /* Merah Material Design */
 }
 
 .desktop-table :deep(td.text-blue) {
-  color: #1976d2 !important; /* Biru Material Design */
+  color: #1976d2 !important;
+  /* Biru Material Design */
 }
 
 .desktop-table :deep(tr:hover td.text-red) {
-  background-color: #ffebee !important; /* Merah sangat muda */
+  background-color: #ffebee !important;
+  /* Merah sangat muda */
 }
 
 /* --- Layout Baru (Mirip InvoiceBrowse) --- */
@@ -795,5 +1056,25 @@ watch(() => [filters.startDate, filters.endDate], () => {
   color: #424242 !important;
   font-size: 10px !important;
   height: 32px !important;
+}
+
+.filter-section .btn-detail {
+  height: 36px !important;
+  width: auto !important;
+  min-width: 120px !important;
+  padding: 0 16px !important;
+  font-size: 0.875rem !important;
+  text-transform: none !important;
+  /* supaya tidak kapital semua */
+}
+
+/* khusus warna merah Reset Filter */
+.reset-filter-btn {
+  color: #d32f2f !important;
+  background-color: rgba(211, 47, 47, 0.15) !important;
+}
+
+.reset-filter-btn:hover {
+  background-color: rgba(211, 47, 47, 0.25) !important;
 }
 </style>

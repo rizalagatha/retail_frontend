@@ -4,6 +4,7 @@ import { useRoute } from 'vue-router';
 import api from '@/services/api';
 import { format, parseISO } from 'date-fns';
 import Logo from '@/assets/logo.png';
+import QRCode from "qrcode";
 
 interface PrintHeader {
   mo_nomor: string;
@@ -33,6 +34,7 @@ interface PrintData {
 
 const route = useRoute();
 const printData = ref<PrintData | null>(null);
+const qrCodeData = ref<string | null>(null);
 const isLoading = ref(true);
 const appLogo = Logo;
 
@@ -41,12 +43,19 @@ const fetchPrintData = async (nomor: string) => {
   try {
     const response = await api.get(`/mutasi-out-form/print/${nomor}`);
     printData.value = response.data;
-    if (printData.value.header?.mo_nomor) {
-      document.title = printData.value.header.mo_nomor;
+
+    if (printData.value?.header?.mo_nomor) {
+      // Generate QR langsung di sini
+      qrCodeData.value = await QRCode.toDataURL(printData.value.header.mo_nomor, {
+        width: 90,
+        margin: 1
+      });
     }
+
+    document.title = printData.value.header.mo_nomor;
   } catch (error) {
     alert("Gagal memuat data untuk dicetak.");
-    console.error("Error fetching print data:", error);
+    console.error(error);
   } finally {
     isLoading.value = false;
   }
@@ -62,6 +71,15 @@ watch(isLoading, (newValue) => {
   }
 });
 
+watch(printData, async (val) => {
+  if (val) {
+    qrCodeData.value = await QRCode.toDataURL(val.header.mo_nomor, {
+      width: 90,
+      margin: 1
+    });
+  }
+});
+
 onMounted(() => {
   const nomor = route.params.nomor as string;
   if (nomor) fetchPrintData(nomor);
@@ -73,11 +91,17 @@ onMounted(() => {
     <div v-if="isLoading" class="text-center">Memuat data...</div>
     <div v-if="printData" class="page">
       <div class="header">
-        <img :src="appLogo" alt="Logo" class="logo" />
-        <div class="company-info">
-          <strong>{{ printData.header.perush_nama }}</strong>
-          <div>{{ printData.header.perush_alamat }}</div>
-          <div>Telp. {{ printData.header.perush_telp }}</div>
+        <div class="header-left">
+          <img :src="appLogo" alt="Logo" class="logo" />
+          <div class="company-info">
+            <strong>{{ printData.header.perush_nama }}</strong>
+            <div>{{ printData.header.perush_alamat }}</div>
+            <div>Telp. {{ printData.header.perush_telp }}</div>
+          </div>
+        </div>
+
+        <div class="header-right">
+          <img v-if="qrCodeData" :src="qrCodeData" class="qr-code" />
         </div>
       </div>
 
@@ -152,19 +176,41 @@ onMounted(() => {
 /* Header & Judul */
 .header {
   display: flex;
-  flex-direction: row;
-  justify-content: flex-start; /* ✅ Pastikan rata kiri */
-  align-items: flex-start; /* ✅ Ubah dari center ke flex-start */
-  gap: 15px; /* ✅ Gunakan gap untuk jarak */
-  margin-bottom: 8px;
+  justify-content: space-between;
+  align-items: center;
   width: 100%;
+  margin-bottom: 10px;
+}
+
+.header-left {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
 }
 
 .logo {
-  height: 35px;
+  height: 40px;
   width: auto;
-  margin: 0; /* ✅ Hapus margin-right, gunakan gap di parent */
-  flex-shrink: 0; /* ✅ Cegah logo menyusut */
+}
+
+/* KANAN */
+.header-right {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 5px;
+}
+
+.doc-number {
+  font-size: 11pt;
+  font-weight: bold;
+}
+
+.qr-code {
+  height: 40px;
+  /* ⬅ sama dengan logo */
+  width: 40px;
+  border: 1px solid #000;
 }
 
 .company-info {
@@ -173,7 +219,8 @@ onMounted(() => {
   text-align: left;
   font-size: 8.5pt;
   line-height: 1.4;
-  flex: 1; /* ✅ Ambil sisa ruang */
+  flex: 1;
+  /* ✅ Ambil sisa ruang */
 }
 
 .title {
@@ -300,6 +347,11 @@ onMounted(() => {
     box-shadow: none;
     margin: 0;
     padding: 0;
+  }
+
+  .qr-code {
+    height: 40px !important;
+    width: 40px !important;
   }
 }
 </style>

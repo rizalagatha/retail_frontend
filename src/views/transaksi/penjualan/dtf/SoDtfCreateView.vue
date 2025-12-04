@@ -135,6 +135,33 @@ const isHargaReadonly = computed(() => {
   return autoCalcTypes.includes(form.value.jenisOrderKode);
 });
 
+// === Perhitungan Luas Bordir ===
+const totalLuasBordir = computed(() => {
+  if (form.value.jenisOrderKode !== 'BR') return 0;
+  return detailsTitik.value.reduce((sum, t) => {
+    return sum + ((t.panjang || 0) * (t.lebar || 0));
+  }, 0);
+});
+
+const totalHargaBordir = computed(() => {
+  if (form.value.jenisOrderKode !== 'BR') return 0;
+  return totalLuasBordir.value * 100 * totalJumlahKaos.value;
+});
+
+// === Perhitungan Luas DTF ===
+const totalLuasDtf = computed(() => {
+  if (form.value.jenisOrderKode !== 'SD') return 0;
+  return detailsTitik.value.reduce((sum, t) => {
+    return sum + ((t.panjang || 0) * (t.lebar || 0));
+  }, 0);
+});
+
+const totalHargaDtf = computed(() => {
+  if (form.value.jenisOrderKode !== 'SD') return 0;
+  const harga = form.value.customerLevel === 'KORPORASI' ? 15 : 25;
+  return totalLuasDtf.value * harga * totalJumlahKaos.value;
+});
+
 const isPanjangLebarReadonly = (item: DetailTitik) => {
   return item.sizeCetak && item.sizeCetak !== 'Custom';
 };
@@ -668,7 +695,7 @@ const calculatePrices = async () => {
   switch (jenisOrder) {
     case 'SD': // Sablon
       hargaPerCm = form.value.customerLevel === 'KORPORASI' ? 15 : 25;
-      hargaSatuan = totalLuas * hargaPerCm;
+      hargaSatuan = totalHargaDtf.value / totalJumlahKaos.value;
       break;
     case 'DP': // DTF Premium
       hargaPerCm = 35;
@@ -676,7 +703,7 @@ const calculatePrices = async () => {
       break;
     case 'BR': // Bordir
       hargaPerCm = 100;
-      hargaSatuan = totalLuas * hargaPerCm;
+      hargaSatuan = totalHargaBordir.value / totalJumlahKaos.value;
       break;
     case 'TG': // DTG
       hargaPerCm = 0;
@@ -1027,7 +1054,8 @@ onMounted(() => {
                     </td>
                     <td>
                       <v-combobox v-model="item.sizeCetak" :items="sizeCetakList"
-                        @change="onSizeCetakChange(item, index)" variant="underlined" density="compact" hide-details />
+                        @update:model-value="() => onSizeCetakChange(item, index)" variant="underlined"
+                        density="compact" hide-details />
                     </td>
                     <td>
                       <v-text-field v-model.number="item.panjang" type="number" variant="underlined" density="compact"
@@ -1046,6 +1074,45 @@ onMounted(() => {
                   </tr>
                 </tbody>
               </v-table>
+            </div>
+            <div class="desktop-form-section mt-4" v-if="['BR', 'SD'].includes(form.jenisOrderKode)">
+              <div class="perhitungan-box">
+                <v-row dense>
+
+                  <!-- Bordir -->
+                  <v-col cols="12" v-if="form.jenisOrderKode === 'BR'">
+                    <v-alert density="compact" variant="tonal" type="info" class="mb-2">
+                      Perhitungan Bordir
+                    </v-alert>
+
+                    <v-text-field label="Luas Bordir /Cm²" :model-value="totalLuasBordir" readonly variant="filled"
+                      density="compact" hide-details class="mb-2" />
+
+                    <v-text-field label="Biaya /Cm²" model-value="100" readonly variant="filled" density="compact"
+                      hide-details class="mb-2" />
+
+                    <v-text-field label="Total Harga Bordir" :model-value="totalHargaBordir" readonly variant="filled"
+                      density="compact" hide-details />
+                  </v-col>
+
+                  <!-- DTF -->
+                  <v-col cols="12" v-if="form.jenisOrderKode === 'SD'">
+                    <v-alert density="compact" variant="tonal" type="info" class="mb-2">
+                      Perhitungan DTF
+                    </v-alert>
+
+                    <v-text-field label="Luas DTF /Cm²" :model-value="totalLuasDtf" readonly variant="filled"
+                      density="compact" hide-details class="mb-2" />
+
+                    <v-text-field label="Biaya /Cm²" :model-value="form.customerLevel === 'KORPORASI' ? 15 : 25"
+                      readonly variant="filled" density="compact" hide-details class="mb-2" />
+
+                    <v-text-field label="Total Harga DTF" :model-value="totalHargaDtf" readonly variant="filled"
+                      density="compact" hide-details />
+                  </v-col>
+
+                </v-row>
+              </div>
             </div>
           </v-col>
 
@@ -1277,5 +1344,20 @@ onMounted(() => {
 
 .cursor-pointer:hover {
   opacity: 0.9;
+}
+
+.perhitungan-box.compact {
+  max-width: 260px;
+  margin: 0 auto;
+  padding: 12px;
+  border-radius: 12px;
+  background: #f0f8ff;
+  border: 1px solid #d9e8ff;
+}
+
+.perhitungan-box.compact .v-text-field {
+  max-width: 200px;
+  margin-left: auto;
+  margin-right: auto;
 }
 </style>

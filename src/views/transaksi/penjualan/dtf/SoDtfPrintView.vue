@@ -4,6 +4,7 @@ import { useRoute } from 'vue-router';
 import api from '@/services/api';
 import { format } from 'date-fns';
 import Logo from '@/assets/logo.png';
+import QRCode from 'qrcode';
 
 interface PrintData {
   sd_nomor: string;
@@ -34,6 +35,7 @@ const route = useRoute();
 const printData = ref<PrintData | null>(null);
 const isLoading = ref(true);
 const appLogo = Logo;
+const qrCodeData = ref<string | null>(null);
 
 const barangList = computed(() => printData.value?.detailBarang || []);
 
@@ -61,6 +63,11 @@ const fetchPrintData = async (nomor: string) => {
     printData.value = response.data;
     if (printData.value.sd_nomor) {
       document.title = printData.value.sd_nomor;
+
+      qrCodeData.value = await QRCode.toDataURL(printData.value.sd_nomor, {
+        width: 200,
+        margin: 1,
+      });
     }
   } catch (error) {
     console.error("Gagal memuat data cetak:", error);
@@ -93,10 +100,16 @@ onMounted(() => {
       <div class="page-header">
         <div class="header-left">
           <img :src="appLogo" alt="Logo" class="logo">
-          <span class="main-title">SO {{ getJenisOrderDisplay(printData.sd_jo_kode) }}</span>
+
+          <div class="title-block">
+            <div class="main-title">SO {{ getJenisOrderDisplay(printData.sd_jo_kode) }}</div>
+            <span>PO: {{ printData.sd_jo_kode }} {{ printData.sd_customer }}</span>
+          </div>
         </div>
+
+        <!-- QR Code kanan -->
         <div class="header-right">
-          <span>PO: {{ printData.sd_jo_kode }} {{ printData.sd_customer }}</span>
+          <img v-if="qrCodeData" :src="qrCodeData" class="qr-image">
         </div>
       </div>
 
@@ -252,8 +265,8 @@ onMounted(() => {
 
 .page-header {
   display: flex;
-  align-items: center;
   justify-content: space-between;
+  align-items: flex-start;
   border-bottom: 1.5px solid black;
   padding-bottom: 5px;
   margin-bottom: 8px;
@@ -261,7 +274,30 @@ onMounted(() => {
 
 .header-left {
   display: flex;
-  align-items: center;
+  gap: 10px;
+  align-items: flex-start;
+}
+
+.title-block {
+  display: flex;
+  flex-direction: column;
+}
+
+.main-title {
+  font-size: 16pt;
+  font-weight: bold;
+  margin-bottom: 2px;
+}
+
+.po-title {
+  font-size: 11pt;
+  font-weight: bold;
+}
+
+.qr-image {
+  width: 50px;
+  height: 50px;
+  margin-left: 15px;
 }
 
 .header-right {

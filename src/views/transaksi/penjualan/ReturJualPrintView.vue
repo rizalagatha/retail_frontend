@@ -5,6 +5,7 @@ import api from '@/services/api';
 import { format, parseISO } from 'date-fns';
 import Logo from '@/assets/logo.png';
 import { formatRupiah } from "@/utils/formatRupiah";
+import QRCode from "qrcode";
 
 interface ReturJualHeader {
   nomor: string;
@@ -48,6 +49,7 @@ interface ReturJualPrintData {
 
 const route = useRoute();
 const printData = ref<ReturJualPrintData | null>(null);
+const qrCodeData = ref<string | null>(null);
 const isLoading = ref(true);
 const appLogo = Logo;
 
@@ -57,12 +59,19 @@ const fetchPrintData = async (nomor: string) => {
     const response = await api.get(`/retur-jual-form/print/${nomor}`);
     printData.value = response.data;
     document.title = response.data.header?.nomor || 'Retur Jual';
+
+    // ✅ Tambahkan QR Code
+    qrCodeData.value = await QRCode.toDataURL(printData.value.header.nomor, {
+      width: 180,
+      margin: 1
+    });
   } catch {
     alert("Gagal memuat data untuk dicetak.");
   } finally {
     isLoading.value = false;
   }
 };
+
 
 watch(isLoading, (val) => {
   if (!val) nextTick(() => window.print());
@@ -80,11 +89,15 @@ onMounted(() => {
     <div v-if="printData" class="page">
       <div class="header">
         <img :src="appLogo" alt="Logo" class="logo" />
+
         <div class="company-info">
           <strong>{{ printData.header.gudang.nama }}</strong>
           <div>{{ printData.header.gudang.alamat }}</div>
           <div>{{ printData.header.gudang.telp }}</div>
         </div>
+
+        <!-- ✅ QR CODE DI KANAN -->
+        <img v-if="qrCodeData" :src="qrCodeData" class="qr-code" />
       </div>
       <div class="title">RETUR PENJUALAN</div>
       <div class="info-grid">
@@ -196,6 +209,12 @@ onMounted(() => {
   /* ✅ Reset margin */
   flex-shrink: 0;
   /* ✅ Cegah logo menyusut */
+}
+
+.qr-code {
+  height: 50px;
+  width: 50px;
+  object-fit: contain;
 }
 
 .company-info {
@@ -363,6 +382,10 @@ onMounted(() => {
 
   .items-table thead th {
     background-color: #f0f0f0 !important;
+  }
+   .qr-code {
+    height: 42px !important;
+    width: 42px !important;
   }
 }
 </style>

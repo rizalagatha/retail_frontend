@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, computed } from 'vue';
 import api from '@/services/api';
 
 interface JenisKaos {
@@ -9,6 +9,19 @@ interface JenisKaos {
 const emit = defineEmits(['close', 'select']);
 const items = ref<JenisKaos[]>([]);
 const loading = ref(true);
+
+// 🔍 Input filter
+const search = ref("");
+
+// List terfilter otomatis
+const filteredItems = computed(() => {
+  if (!search.value) return items.value;
+
+  const keyword = search.value.toLowerCase();
+  return items.value.filter(i =>
+    i.JenisKaos.toLowerCase().includes(keyword)
+  );
+});
 
 const loadItems = async () => {
   loading.value = true;
@@ -37,16 +50,15 @@ onMounted(loadItems);
         <v-spacer></v-spacer>
         <v-btn icon="mdi-close" @click="emit('close')" variant="text" size="small"></v-btn>
       </v-toolbar>
+
       <v-card-text>
-        <v-data-table
-          :headers="[{ title: 'Jenis Kaos', key: 'JenisKaos' }]"
-          :items="items"
-          :loading="loading"
-          density="compact"
-          class="desktop-table header-browse-blue"
-          hover
-          @click:row="(_, { item }) => selectItem(item)"
-        ></v-data-table>
+        <!-- 🔍 Search Bar -->
+        <v-text-field v-model="search" label="Cari jenis kaos..." variant="outlined" density="compact" hide-details
+          prepend-inner-icon="mdi-magnify" class="mb-3" />
+
+        <v-data-table :headers="[{ title: 'Jenis Kaos', key: 'JenisKaos' }]" :items="filteredItems" :loading="loading"
+          density="compact" class="desktop-table header-browse-blue" hover
+          @click:row="(_, { item }) => selectItem(item)"></v-data-table>
       </v-card-text>
     </v-card>
   </v-dialog>

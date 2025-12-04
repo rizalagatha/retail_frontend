@@ -4,6 +4,7 @@ import { useRoute } from 'vue-router';
 import api from '@/services/api';
 import { format, parseISO } from 'date-fns';
 import Logo from '@/assets/logo.png';
+import QRCode from 'qrcode';
 
 interface PrintData {
   sd_nomor: string;
@@ -25,6 +26,7 @@ const route = useRoute();
 const printData = ref<PrintData | null>(null);
 const isLoading = ref(true);
 const appLogo = Logo;
+const qrCodeData = ref<string | null>(null);
 
 const getFullImageUrl = (path: string | null | undefined) => {
   if (!path) return null;
@@ -46,7 +48,15 @@ const fetchPrintData = async (nomor: string) => {
   try {
     const response = await api.get(`/so-dtf-stok-form/print-data/${nomor}`);
     printData.value = response.data;
-    if (printData.value.sd_nomor) document.title = printData.value.sd_nomor;
+    if (printData.value.sd_nomor) {
+      document.title = printData.value.sd_nomor;
+
+      // === Generate QR code (isi = nomor SO) ===
+      qrCodeData.value = await QRCode.toDataURL(printData.value.sd_nomor, {
+        width: 200,
+        margin: 1
+      });
+    }
   } catch {
     alert("Gagal memuat data cetak.");
   } finally {
@@ -75,11 +85,20 @@ onMounted(() => {
 
       <!-- HEADER -->
       <div class="page-header">
-        <img :src="appLogo" class="logo" />
-        <div class="header-title">
-          <div class="main-title">{{ getSoTitle(printData.sd_jo_kode) }}</div>
+        <div class="header-left">
+          <img :src="appLogo" class="logo" />
+
+          <div class="header-title">
+            <div class="main-title">{{ getSoTitle(printData.sd_jo_kode) }}</div>
+          </div>
+        </div>
+
+        <!-- QR Code Kanan -->
+        <div class="header-right">
+          <img v-if="qrCodeData" :src="qrCodeData" class="qr-image" />
         </div>
       </div>
+
 
       <!-- MASTER DATA -->
       <div class="master-data">
@@ -190,12 +209,27 @@ onMounted(() => {
 /* === HEADER === */
 .page-header {
   display: flex;
-  align-items: center;
-  justify-content: flex-start;
-  /* FIX HEADER KE KIRI */
+  align-items: flex-start;
+  justify-content: space-between;
   border-bottom: 2px solid #000;
   padding-bottom: 8px;
   margin-bottom: 20px;
+}
+
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+}
+
+.header-right {
+  display: flex;
+  align-items: flex-start;
+}
+
+.qr-image {
+  width: 50px;
+  height: 50px;
 }
 
 .logo {

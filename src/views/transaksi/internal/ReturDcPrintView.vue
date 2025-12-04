@@ -4,6 +4,7 @@ import { useRoute } from 'vue-router';
 import api from '@/services/api';
 import { format, parseISO } from 'date-fns';
 import Logo from '@/assets/logo.png';
+import QRCode from "qrcode";
 
 interface PrintHeader {
   nomor: string;
@@ -30,6 +31,7 @@ interface PrintData {
 
 const route = useRoute();
 const printData = ref<PrintData | null>(null);
+const qrCodeData = ref<string | null>(null);
 const isLoading = ref(true);
 const appLogo = Logo;
 
@@ -39,6 +41,13 @@ const fetchPrintData = async (nomor: string) => {
     const response = await api.get(`/retur-dc-form/print/${nomor}`);
     printData.value = response.data;
     document.title = response.data.header.nomor;
+
+    // ✅ Generate QR Code berdasarkan nomor retur DC
+    qrCodeData.value = await QRCode.toDataURL(printData.value.header.nomor, {
+      width: 180,
+      margin: 1,
+    });
+
   } catch {
     alert("Gagal memuat data untuk dicetak.");
   } finally {
@@ -68,6 +77,9 @@ onMounted(() => {
           <div>{{ printData.header.perush_alamat }}</div>
           <div>Telp. {{ printData.header.perush_telp }}</div>
         </div>
+
+        <!-- ✅ QR CODE DI KANAN HEADER -->
+        <img v-if="qrCodeData" :src="qrCodeData" class="qr-code" />
       </div>
 
       <div class="title">Retur Barang ke DC</div>
@@ -149,6 +161,12 @@ onMounted(() => {
   /* ✅ Gunakan gap untuk jarak */
   margin-bottom: 20px;
   width: 100%;
+}
+
+.qr-code {
+  height: 50px;
+  width: 50px;
+  object-fit: contain;
 }
 
 .logo {
@@ -291,6 +309,11 @@ onMounted(() => {
 
   .items-table thead th {
     background-color: #f0f0f0 !important;
+  }
+
+  .qr-code {
+    height: 42px !important;
+    width: 42px !important;
   }
 }
 </style>

@@ -5,6 +5,7 @@ import api from '@/services/api';
 interface Customer {
   kode: string;
   nama: string;
+  telp: number;
   alamat: string;
   kota: string;
   level_kode: number;
@@ -30,6 +31,7 @@ const options = ref({ page: 1, itemsPerPage: 10 });
 const headers = [
   { title: 'Kode', key: 'kode', sortable: false },
   { title: 'Nama Customer', key: 'nama', sortable: false, width: '30%' },
+  { title: 'No HP', key: 'telp', sortable: false, width: '120px' },
   { title: 'Level Kode', key: 'level_kode', sortable: false, width: '100px' },
   { title: 'Level', key: 'level_nama', sortable: false },
   { title: 'Alamat', key: 'alamat', sortable: false },
@@ -93,7 +95,7 @@ watch(search, () => {
       </v-toolbar>
 
       <v-card-text class="pa-4 d-flex flex-column flex-grow-1">
-        <v-text-field v-model="search" label="Cari berdasarkan kode atau nama customer..." variant="outlined"
+        <v-text-field v-model="search" label="Cari berdasarkan kode, nama, atau no HP..." variant="outlined"
           density="compact" clearable class="mb-4 flex-shrink-0" hide-details></v-text-field>
 
         <v-data-table-server v-model:page="options.page" v-model:items-per-page="options.itemsPerPage"
@@ -103,6 +105,7 @@ watch(search, () => {
             <tr @click="selectCustomer(item)" style="cursor: pointer;">
               <td>{{ item.kode }}</td>
               <td>{{ item.nama }}</td>
+              <td>{{ item.telp }}</td>
               <td>{{ item.level_kode }}</td>
               <td>{{ item.level_nama }}</td>
               <td>{{ item.alamat }}</td>

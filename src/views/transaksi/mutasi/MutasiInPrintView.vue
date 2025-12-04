@@ -4,6 +4,7 @@ import { useRoute } from 'vue-router';
 import api from '@/services/api';
 import { format, parseISO } from 'date-fns';
 import Logo from '@/assets/logo.png';
+import QRCode from "qrcode";
 
 interface PrintHeader {
   mi_nomor: string;
@@ -33,6 +34,7 @@ interface PrintData {
 
 const route = useRoute();
 const printData = ref<PrintData | null>(null);
+const qrCodeData = ref<string | null>(null);
 const isLoading = ref(true);
 const appLogo = Logo;
 
@@ -43,8 +45,15 @@ const fetchPrintData = async (nomor: string) => {
     printData.value = response.data;
 
     if (printData.value.header?.mi_nomor) {
+      // Generate QR code langsung setelah data masuk
+      qrCodeData.value = await QRCode.toDataURL(printData.value.header.mi_nomor, {
+        width: 90,
+        margin: 1
+      });
+
       document.title = printData.value.header.mi_nomor;
     }
+
   } catch (error) {
     alert("Gagal memuat data untuk dicetak.");
     console.error("Error fetching print data:", error);
@@ -74,11 +83,17 @@ onMounted(() => {
     <div v-if="isLoading" class="text-center">Memuat data...</div>
     <div v-if="printData" class="page">
       <div class="header">
-        <img :src="appLogo" alt="Logo" class="logo" />
-        <div class="company-info">
-          <strong>{{ printData.header.perush_nama }}</strong>
-          <div>{{ printData.header.perush_alamat }}</div>
-          <div>Telp. {{ printData.header.perush_telp }}</div>
+        <div class="header-left">
+          <img :src="appLogo" alt="Logo" class="logo" />
+          <div class="company-info">
+            <strong>{{ printData.header.perush_nama }}</strong>
+            <div>{{ printData.header.perush_alamat }}</div>
+            <div>Telp. {{ printData.header.perush_telp }}</div>
+          </div>
+        </div>
+
+        <div class="header-right">
+          <img v-if="qrCodeData" :src="qrCodeData" class="qr-code" />
         </div>
       </div>
 
@@ -88,7 +103,7 @@ onMounted(() => {
         <div><span class="label">Nomor</span>: {{ printData.header.mi_nomor }}</div>
         <div><span class="label">No. SO</span>: {{ printData.header.mi_so_nomor }}</div>
         <div><span class="label">Tanggal</span>: {{ format(parseISO(printData.header.mi_tanggal), 'dd-MM-yyyy')
-        }}</div>
+          }}</div>
         <div><span class="label">Dari</span>: {{ printData.header.dari_cabang_kode }} - {{
           printData.header.dari_cabang_nama }}</div>
         <div class="keterangan"><span class="label">Keterangan</span>: {{ printData.header.mi_ket }}</div>
@@ -152,19 +167,38 @@ onMounted(() => {
 
 .header {
   display: flex;
-  flex-direction: row;
-  justify-content: flex-start; /* ✅ Pastikan rata kiri */
-  align-items: flex-start; /* ✅ Ubah dari center ke flex-start */
-  gap: 15px; /* ✅ Gunakan gap untuk jarak */
-  margin-bottom: 8px;
+  justify-content: space-between;
+  align-items: center;
   width: 100%;
+  margin-bottom: 10px;
+}
+
+.header-left {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.header-right {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 5px;
+}
+
+.qr-code {
+  height: 40px;
+  width: 40px;
+  border: 1px solid #000;
 }
 
 .logo {
   height: 35px;
   width: auto;
-  margin: 0; /* ✅ Hapus margin-right, gunakan gap di parent */
-  flex-shrink: 0; /* ✅ Cegah logo menyusut */
+  margin: 0;
+  /* ✅ Hapus margin-right, gunakan gap di parent */
+  flex-shrink: 0;
+  /* ✅ Cegah logo menyusut */
 }
 
 .company-info {
@@ -173,7 +207,8 @@ onMounted(() => {
   text-align: left;
   font-size: 8.5pt;
   line-height: 1.4;
-  flex: 1; /* ✅ Ambil sisa ruang */
+  flex: 1;
+  /* ✅ Ambil sisa ruang */
 }
 
 .title {

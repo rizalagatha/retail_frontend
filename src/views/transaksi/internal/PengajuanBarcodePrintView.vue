@@ -104,25 +104,28 @@ watch(printData, async (val) => {
 <template>
   <div class="print-container" v-if="printData">
     <div class="header-section">
-      <div class="company-info">
-        <img :src="logoUrl" alt="Logo" class="logo" />
-        <div class="company-details">
-          <h2 class="company-name">{{ printData.header.gdg_inv_nama || 'CV. KENCANA PRINT' }}</h2>
-          <div class="company-address">
-            {{ printData.header.gdg_inv_alamat }}<br>
-            {{ printData.header.gdg_inv_kota }}<br>
-            Telp. {{ printData.header.gdg_inv_telp }}
-          </div>
+
+      <!-- KOLOM KIRI -->
+      <div class="header-left">
+        <img :src="logoUrl" class="logo" />
+        <div class="company-text">
+          <div class="company-title">{{ printData.header.gdg_inv_nama }}</div>
+          <div>{{ printData.header.gdg_inv_alamat }}</div>
+          <div>{{ printData.header.gdg_inv_kota }}</div>
+          <div>Telp. {{ printData.header.gdg_inv_telp }}</div>
         </div>
       </div>
-      <div class="doc-title">
-        <h1>PENGAJUAN BARCODE BARU</h1>
+
+      <!-- KOLOM KANAN (NOMOR + QR) -->
+      <div class="header-right">
         <div class="doc-number">{{ printData.header.nomor }}</div>
-        <img v-if="qrCodeDataUrl" :src="qrCodeDataUrl" class="qr-code" alt="QR Code" />
+        <img v-if="qrCodeDataUrl" :src="qrCodeDataUrl" class="qr-code" />
       </div>
+
     </div>
 
     <div class="info-grid">
+      <div class="info-title">PENGAJUAN BARCODE BARU</div>
       <div class="info-item">
         <span class="label">Tanggal</span>: {{ format(parseISO(printData.header.tanggal), 'dd-MM-yyyy') }}
       </div>
@@ -240,62 +243,85 @@ watch(printData, async (val) => {
   background-color: white;
 }
 
-/* HEADER */
 .header-section {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
-  border-bottom: 2px solid black;
-  padding-bottom: 10px;
-  margin-bottom: 15px;
+  /* semua sejajar */
+  border-bottom: 1px solid #000;
+  padding-bottom: 8px;
+  margin-bottom: 10px;
 }
 
-.company-info {
+/* KIRI */
+.header-left {
   display: flex;
   align-items: center;
-  gap: 15px;
+  gap: 10px;
+  flex: 0 0 auto;
+  justify-content: flex-start;
 }
 
 .logo {
-  height: 50px;
-  width: auto;
+  height: 48px;
 }
 
-.company-name {
-  font-size: 14pt;
-  font-weight: bold;
-  margin: 0;
-  color: #B71C1C;
-  text-transform: uppercase;
-}
-
-.company-address {
+.company-text {
   font-size: 9pt;
-  margin-top: 4px;
-  white-space: pre-line;
+  line-height: 1.25;
 }
 
-.doc-title {
-  text-align: right;
-}
-
-.doc-title h1 {
-  font-size: 16pt;
+.company-title {
+  font-size: 11pt;
   font-weight: bold;
-  margin: 0;
-  text-transform: uppercase;
+}
+
+/* TENGAH */
+.header-center {
+  flex: 1;
+  text-align: center;
+}
+
+.title-text {
+  font-size: 15pt;
+  font-weight: bold;
+}
+
+/* KANAN */
+.header-right {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 4px;
 }
 
 .doc-number {
-  font-size: 12pt;
+  font-size: 11pt;
   font-weight: bold;
-  margin-top: 5px;
+}
+
+.qr-code {
+  width: 48px;
+  height: 48px;
+  border: 1px solid #000;
 }
 
 /* INFO GRID - Dibuat lebih rapat untuk landscape */
+.info-title {
+  grid-column: 1 / 4; /* 3 kolom total */
+  text-align: center;
+  font-size: 15pt;
+  font-weight: bold;
+  margin-bottom: 5px;
+}
+
 .info-grid {
-  display: flex;
-  gap: 40px;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  text-align: left;
+  align-items: center;
   margin-bottom: 15px;
   font-size: 10pt;
   border-bottom: 1px solid #ddd;
@@ -399,13 +425,6 @@ watch(printData, async (val) => {
   padding: 50px;
   font-size: 14pt;
 }
-
-.qr-code {
-  width: 80px;
-  height: 80px;
-  margin-top: 8px;
-  border: 1px solid #000;
-}
 </style>
 
 <style>
@@ -414,6 +433,14 @@ watch(printData, async (val) => {
     size: A4 portrait !important;
     orientation: portrait;
     margin: 5mm;
+  }
+
+  .logo {
+    height: 48px !important;
+  }
+
+  .title-text {
+    font-size: 13pt !important;
   }
 
   .item-image-large {
@@ -446,8 +473,8 @@ watch(printData, async (val) => {
   }
 
   .qr-code {
-    width: 90px !important;
-    height: 90px !important;
+    width: 48px !important;
+    height: 48px !important;
   }
 }
 </style>

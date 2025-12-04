@@ -7,6 +7,7 @@ import Logo from '@/assets/logo.png';
 import InstagramLogo from '@/assets/instagram.jpg';
 import FacebookLogo from '@/assets/facebook.jpg';
 import { formatRupiah } from "@/utils/formatRupiah";
+import QRCode from "qrcode";
 
 interface PrintHeaderSummary {
   subTotal: number;
@@ -59,14 +60,23 @@ const isLoading = ref(true);
 const appLogo = Logo;
 const igLogo = InstagramLogo;
 const fbLogo = FacebookLogo;
+const qrCodeData = ref<string | null>(null);
 
 const fetchPrintData = async (nomor: string) => {
   try {
     const response = await api.get(`/invoice-form/print/${nomor}`);
     printData.value = response.data;
     document.title = response.data.header?.inv_nomor || 'Invoice';
-  } catch {
+
+    // 🔥 Tambahkan QR CODE DI SINI
+    qrCodeData.value = await QRCode.toDataURL(printData.value.header.inv_nomor, {
+      width: 200,
+      margin: 1
+    });
+
+  } catch (error) {
     alert("Gagal memuat data untuk dicetak.");
+    console.error(error);
   } finally {
     isLoading.value = false;
   }
@@ -93,12 +103,17 @@ onMounted(() => {
     <div v-if="isLoading" class="text-center">Memuat data...</div>
     <div v-if="printData" class="page">
       <div class="header">
-        <img :src="appLogo" alt="Logo" class="logo" />
-        <div class="company-info">
-          <strong>{{ printData.header.perush_nama }}</strong>
-          <div>{{ printData.header.perush_alamat }}</div>
-          <div>{{ printData.header.perush_telp }}</div>
+        <div class="header-left">
+          <img :src="appLogo" alt="Logo" class="logo" />
+          <div class="company-info">
+            <strong>{{ printData.header.perush_nama }}</strong>
+            <div>{{ printData.header.perush_alamat }}</div>
+            <div>{{ printData.header.perush_telp }}</div>
+          </div>
         </div>
+
+        <!-- QR CODE KANAN -->
+        <img v-if="qrCodeData" :src="qrCodeData" class="qr-code" />
       </div>
       <div class="title">INVOICE</div>
 
@@ -244,11 +259,23 @@ onMounted(() => {
   display: flex;
   flex-direction: row;
   align-items: flex-start;
-  justify-content: flex-start;
+  justify-content: space-between;
   gap: 15px;
   margin-bottom: 10px;
   width: 100%;
   /* penting */
+}
+
+.header-left {
+  display: flex;
+  gap: 10px;
+}
+
+.qr-code {
+  height: 50px;
+  /* sama seperti tinggi logo */
+  width: 50px;
+  object-fit: contain;
 }
 
 .page>.header {
@@ -262,14 +289,17 @@ onMounted(() => {
   text-align: left;
   font-size: 8.5pt;
   line-height: 1.3;
-  flex: 1; /* ✅ Agar company info mengambil sisa ruang */
+  flex: 1;
+  /* ✅ Agar company info mengambil sisa ruang */
 }
 
 .logo {
   height: 40px;
   width: auto;
-  margin: 0; /* ✅ Hapus margin-right, gunakan gap di parent */
-  flex-shrink: 0; /* ✅ Cegah logo menyusut */
+  margin: 0;
+  /* ✅ Hapus margin-right, gunakan gap di parent */
+  flex-shrink: 0;
+  /* ✅ Cegah logo menyusut */
 }
 
 .title {
@@ -382,7 +412,8 @@ td {
 }
 
 .info-line span:first-child {
-  width: 80px; /* sama seperti label lain */
+  width: 80px;
+  /* sama seperti label lain */
 }
 
 .alamat-multi span:last-child {
@@ -423,6 +454,11 @@ td {
     box-shadow: none;
     width: auto;
     min-height: auto;
+  }
+
+  .qr-code {
+    height: 38px !important;
+    width: 38px !important;
   }
 }
 </style>

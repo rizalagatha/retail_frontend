@@ -130,8 +130,18 @@ const handleEditFromHeader = () => {
   }
 };
 
+const normalizeNullableFields = () => {
+  const fields = ["npwp", "namaNpwp", "alamatNpwp", "kotaNpwp"];
+
+  fields.forEach(f => {
+    if (editedItem.value[f] === "" || editedItem.value[f] === undefined) {
+      editedItem.value[f] = null;
+    }
+  });
+};
+
 const saveCustomer = async () => {
-  // ... (validasi Anda tetap di sini) ...
+  normalizeNullableFields();
 
   isSaving.value = true;
   try {
@@ -275,7 +285,8 @@ onMounted(() => {
 
       <!-- Table Section -->
       <AppDataTable v-model="selected" :headers="headers" :items="customers" :search="search" :loading="isLoading"
-        :item-value="getItemKey" density="compact" class="desktop-table header-browse-blue" fixed-header show-select return-object>
+        :item-value="getItemKey" density="compact" class="desktop-table header-browse-blue" fixed-header show-select
+        return-object>
         <template #[`item.status`]="{ item }">
           <v-chip :color="item.status === 'AKTIF' ? 'success' : 'error'" size="x-small" variant="tonal">
             {{ item.status }}

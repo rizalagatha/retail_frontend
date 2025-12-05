@@ -35,6 +35,8 @@ interface PrintHeader {
   inv_sc: string;
   gdg_inv_instagram: string;
   gdg_inv_fb: string;
+  gdg_akun: string;
+  gdg_transferbank: string;
   terbilang: string;
   summary: PrintHeaderSummary;
 }
@@ -180,15 +182,15 @@ onMounted(() => {
           <div class="summary-item"><span>Diskon :</span><span>{{
             formatRupiah(printData.header.summary.diskon) }}</span></div>
           <div class="summary-item"><span>Netto :</span><span>{{ formatRupiah(printData.header.summary.netto)
-              }}</span></div>
+          }}</span></div>
           <div class="summary-item"><span>Biaya Kirim :</span><span>{{
             formatRupiah(printData.header.summary.biayaKirim) }}</span></div>
           <div class="summary-item"><span>DP :</span><span>{{ formatRupiah(printData.header.summary.dp)
-              }}</span></div>
+          }}</span></div>
           <div class="summary-item grand-total"><span>Grand Total :</span><span>{{
             formatRupiah(printData.header.summary.grandTotal) }}</span></div>
           <div class="summary-item"><span>Bayar :</span><span>{{ formatRupiah(printData.header.summary.bayar)
-              }}</span></div>
+          }}</span></div>
           <div class="summary-item"><span>Pundi amal :</span><span>{{
             formatRupiah(printData.header.summary.pundiAmal) }}</span></div>
           <div class="summary-item"><span>Kembali :</span><span>{{
@@ -212,6 +214,9 @@ onMounted(() => {
           <div class="signature-space"></div>
           <div class="signature-name">( .................... )</div>
         </div>
+      </div>
+      <div v-if="printData.header.gdg_transferbank || printData.header.gdg_akun" class="bank-info">
+        <strong>* Transfer Bank: {{ printData.header.gdg_transferbank }} {{ printData.header.gdg_akun }}</strong>
       </div>
       <div class="note">Note: Barang yg sudah dibeli tidak bisa dikembalikan. Terimakasih atas kunjungan anda.
       </div>
@@ -379,6 +384,12 @@ td {
   font-weight: bold;
   border-top: 1px solid black;
   padding-top: 5px;
+}
+
+.bank-info {
+  margin-top: 15px; /* Jarak dari tanda tangan */
+  margin-bottom: 5px;
+  font-size: 10pt; /* Sesuaikan ukuran font */
 }
 
 .note {

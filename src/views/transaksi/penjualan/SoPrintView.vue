@@ -22,6 +22,8 @@ interface PrintHeader {
   gdg_inv_alamat: string;
   gdg_inv_kota: string;
   gdg_inv_telp: string;
+  gdg_akun: string;
+  gdg_transferbank: string;
 }
 
 interface PrintItem {
@@ -206,6 +208,10 @@ onMounted(() => {
       </div>
       <div class="note-section">
         Note:<br>
+
+        <div v-if="printData.header.gdg_transferbank || printData.header.gdg_akun" class="bank-info">
+          <strong>* Transfer Bank: {{ printData.header.gdg_transferbank }} {{ printData.header.gdg_akun }}</strong>
+        </div>
         <em>*Apabila dalam waktu 30 hari setelah pemberitahuan bahwa barang telah selesai tidak dilakukan
           pengambilan, maka uang muka (DP) dianggap hangus dan barang sepenuhnya menjadi hak milik
           Kaosan.</em>
@@ -447,6 +453,13 @@ onMounted(() => {
   font-size: 0.9em;
   border-top: 1px solid #eee;
   padding-top: 10px;
+}
+
+.bank-info {
+  margin-bottom: 5px;
+  /* Memberi jarak ke teks disclaimer */
+  font-size: 1.1em;
+  /* Sedikit lebih besar agar terbaca jelas */
 }
 
 .qr-code {

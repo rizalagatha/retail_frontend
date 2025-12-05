@@ -17,6 +17,8 @@ interface PrintHeader {
   gdg_inv_alamat: string;
   gdg_inv_kota: string;
   gdg_inv_telp: string;
+  gdg_akun: string;
+  gdg_transferbank: string;
   user_create: string;
   total: number;
   diskon: number;
@@ -210,6 +212,9 @@ onMounted(() => {
       <div class="footer-names">
         <div class="name-column">( {{ printData.header.user_create }} )</div>
         <div class="name-column">( ......................... )</div>
+      </div>
+      <div v-if="printData.header.gdg_transferbank || printData.header.gdg_akun" class="bank-info">
+        <strong>* Transfer Bank: {{ printData.header.gdg_transferbank }} {{ printData.header.gdg_akun }}</strong>
       </div>
       <div class="note-section">
         Note: {{ printData.header.pen_ket }}
@@ -448,4 +453,10 @@ onMounted(() => {
   margin-left: 20px;
 }
 
+.bank-info {
+  font-size: 10pt;
+  margin-top: 20px;
+  border-top: 1px dashed #333;
+  padding-top: 5px;
+}
 </style>

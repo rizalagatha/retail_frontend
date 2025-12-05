@@ -298,6 +298,9 @@ const customerDiscountRule = ref(null);
 const activePromoForBonus = ref({ nomor: '', qty: 0 });
 const focusedRowId = ref<number | string>(-1);
 const isLockedFsk = ref(false);
+const activePromosList = ref<ActivePromo[]>([]); // Menyimpan daftar promo dari DB
+const promoNotification = ref(''); // Teks untuk running text/alert
+const potentialPromoDiscount = ref(0); // Menyimpan nominal potensi diskon
 
 // --- Konfigurasi Tabel ---
 const tableHeaders = [
@@ -1088,6 +1091,71 @@ const computeLineTotal = (item) => {
   return (item.jumlah || 0) * (harga - totalDiskonPerUnit);
 };
 
+// --- Method Baru: Fetch Promo saat Mounted ---
+// Pindahkan logic fetch promo dari handleProceedToPayment ke sini agar datanya standby
+const fetchActivePromos = async () => {
+  try {
+    const response = await api.get('/invoice-form/lookup/active-promos', {
+      params: { tanggal: header.tanggal, cabang: header.gudang.kode }
+    });
+    activePromosList.value = (response.data ?? []) as ActivePromo[];
+  } catch (error) {
+    console.error("Gagal memuat daftar promo:", error);
+  }
+};
+
+// --- Method Baru: Cek Promo Real-time ---
+// Fungsi ini hanya menghitung potensi, TIDAK mengubah header.diskonRp secara langsung
+const checkRealtimePromoEligibility = () => {
+  // Reset
+  promoNotification.value = '';
+  potentialPromoDiscount.value = 0;
+
+  // Jika sudah ada promo manual yang dipilih (misal F1), jangan timpa notifikasi
+  if (header.nomorPromo && header.nomorPromo !== '') return;
+
+  const validItems = items.value.filter(i => i.kode);
+  if (validItems.length === 0) return;
+
+  const promo008 = activePromosList.value.find(p => p.pro_nomor === 'PRO-2025-008');
+  const promo010 = activePromosList.value.find(p => p.pro_nomor === 'PRO-2025-010');
+
+  // Hitung Total (Logic sama seperti handleProceedToPayment)
+  const totalReguler = validItems.reduce((sum, item) => {
+    if (item.kategori === 'REGULER' && !item.nama?.toUpperCase().includes('JERSEY')) {
+      return sum + (item.total || 0);
+    }
+    return sum;
+  }, 0);
+
+  const totalBelanja = validItems.reduce((sum, item) => {
+    if (!item.noSoDtf && !item.noPengajuanHarga) return sum + (item.total || 0);
+    return sum;
+  }, 0);
+
+  let message = '';
+  let discount = 0;
+
+  // Cek Prioritas Promo
+  // 1. Cek Promo Kelipatan (PRO-2025-010)
+  if (promo010 && totalReguler >= 250000) {
+    const kelipatan = Math.floor(totalReguler / 250000);
+    discount = 25000 * kelipatan;
+    message = `🎉 SELAMAT! Transaksi ini berhak mendapatkan Potongan Kelipatan Rp ${formatRupiah(discount)}!`;
+  }
+  // 2. Cek Promo Bulanan (PRO-2025-008) - Fallback
+  else if (promo008 && totalBelanja >= promo008.pro_totalrp) {
+    discount = promo008.pro_disrp * Math.floor(totalBelanja / promo008.pro_totalrp);
+    message = `✨ DISKON BULANAN AKTIF: Anda berhak mendapatkan potongan Rp ${formatRupiah(discount)}`;
+  }
+
+  // Update State UI
+  if (message) {
+    promoNotification.value = message;
+    potentialPromoDiscount.value = discount;
+  }
+};
+
 const handleProceedToPayment = async () => {
   // --- 1) Validasi dasar ---
   const validItems = items.value.filter(i => i.kode);
@@ -1665,6 +1733,8 @@ watch(
       applyDefaultDiscount();
       calculateTotals();
     }
+
+    checkRealtimePromoEligibility();
   },
   { deep: true }
 );
@@ -1692,6 +1762,7 @@ onMounted(() => {
     resetForm(); // Panggil resetForm untuk mode baru
   }
   isLoading.value = false;
+  fetchActivePromos();
 });
 </script>
 
@@ -1901,6 +1972,38 @@ onMounted(() => {
         </div>
 
         <div class="footer-actions-section">
+          <v-slide-y-transition>
+            <div v-if="promoNotification" class="promo-card-wrapper mb-4">
+              <div class="promo-card">
+                <div class="card-texture"></div>
+
+                <div class="card-shine"></div>
+
+                <div class="card-content">
+                  <div class="icon-container">
+                    <div class="icon-circle pulse-animation">
+                      <v-icon icon="mdi-ticket-percent-outline" size="24" color="white" />
+                    </div>
+                  </div>
+
+                  <div class="text-container">
+                    <div class="promo-label">
+                      <v-icon icon="mdi-star-four-points" size="10" class="mr-1" color="yellow-lighten-3" />
+                      PENAWARAN TERSEDIA
+                    </div>
+                    <div class="promo-message">{{ promoNotification }}</div>
+                  </div>
+
+                  <div class="action-container">
+                    <div class="status-chip">
+                      <span class="pulse-dot"></span>
+                      Auto-Applied
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </v-slide-y-transition>
           <v-row align="center">
             <v-col cols="auto" class="d-flex ga-2">
               <v-btn size="small" prepend-icon="mdi-cash-multiple" @click="dialogs.linkedDp = true"
@@ -2153,5 +2256,203 @@ onMounted(() => {
 .disabled-input {
   opacity: 0.5;
   pointer-events: none;
+}
+
+/* --- Premium Promo Card Styles --- */
+
+.promo-card-wrapper {
+  padding: 0 12px;
+  perspective: 1000px;
+}
+
+.promo-card {
+  position: relative;
+  border-radius: 16px;
+  overflow: hidden;
+
+  /* --- OPSI WARNA GRADASI (Pilih salah satu) --- */
+
+  /* Opsi 1: Royal Mystic (Biru Tua ke Ungu) - KESAN MEWAH & PROFESIONAL */
+  background: linear-gradient(135deg, #1A2980 0%, #26D0CE 100%);
+
+  /* Opsi 2: Sunset Vibes (Orange ke Pink) - KESAN HOT PROMO */
+  /* background: linear-gradient(135deg, #FF512F 0%, #DD2476 100%); */
+
+  /* Opsi 3: Lush Green (Hijau ke Teal) - KESAN HEMAT/CUAN */
+  /* background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%); */
+
+  /* Shadow berwarna sesuai tema */
+  box-shadow: 0 10px 25px -5px rgba(38, 208, 206, 0.4);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  transition: all 0.3s ease;
+}
+
+/* Texture Pattern (Titik-titik background) */
+.card-texture {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-image: radial-gradient(rgba(255, 255, 255, 0.15) 1px, transparent 1px);
+  background-size: 12px 12px;
+  /* Jarak antar titik */
+  opacity: 0.6;
+  z-index: 1;
+}
+
+.card-content {
+  position: relative;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  padding: 16px 24px;
+  gap: 16px;
+  color: white;
+}
+
+/* --- ICON Styles --- */
+.icon-container {
+  flex-shrink: 0;
+}
+
+.icon-circle {
+  width: 48px;
+  height: 48px;
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  backdrop-filter: blur(4px);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+}
+
+.pulse-animation {
+  animation: softPulse 2s infinite;
+}
+
+/* --- TEXT Styles --- */
+.text-container {
+  flex-grow: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.promo-label {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.8);
+  margin-bottom: 4px;
+  display: flex;
+  align-items: center;
+}
+
+.promo-message {
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.3;
+  color: #ffffff;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+/* --- ACTION / BADGE Styles --- */
+.action-container {
+  flex-shrink: 0;
+}
+
+.status-chip {
+  background: rgba(0, 0, 0, 0.2);
+  padding: 6px 12px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.pulse-dot {
+  width: 8px;
+  height: 8px;
+  background-color: #00E676;
+  /* Hijau terang */
+  border-radius: 50%;
+  box-shadow: 0 0 8px #00E676;
+  animation: blink 1.5s infinite;
+}
+
+/* --- ANIMATIONS --- */
+
+/* Efek Kilau Lewat */
+.card-shine {
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 50%;
+  height: 100%;
+  background: linear-gradient(to right,
+      transparent 0%,
+      rgba(255, 255, 255, 0.2) 50%,
+      transparent 100%);
+  transform: skewX(-25deg);
+  z-index: 2;
+  animation: shineMove 4s infinite ease-in-out;
+  pointer-events: none;
+}
+
+@keyframes shineMove {
+  0% {
+    left: -100%;
+    opacity: 0;
+  }
+
+  20% {
+    opacity: 1;
+  }
+
+  50% {
+    left: 200%;
+    opacity: 0;
+  }
+
+  100% {
+    left: 200%;
+    opacity: 0;
+  }
+}
+
+@keyframes softPulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(255, 255, 255, 0.4);
+    transform: scale(1);
+  }
+
+  70% {
+    box-shadow: 0 0 0 10px rgba(255, 255, 255, 0);
+    transform: scale(1.05);
+  }
+
+  100% {
+    box-shadow: 0 0 0 0 rgba(255, 255, 255, 0);
+    transform: scale(1);
+  }
+}
+
+@keyframes blink {
+
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+
+  50% {
+    opacity: 0.5;
+    transform: scale(0.8);
+  }
 }
 </style>

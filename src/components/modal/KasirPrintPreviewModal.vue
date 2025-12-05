@@ -16,6 +16,8 @@ interface PrintHeader {
   perush_telp: string;
   gdg_inv_instagram?: string;
   gdg_inv_fb?: string;
+  gdg_akun?: string;
+  gdg_transferbank?: string;
   summary: {
     subTotal: number;
     diskon: number;
@@ -148,6 +150,15 @@ const printCss = `
     font-size: 8pt;
     font-weight: bold;
     border-top: 1px dashed black;
+    border-bottom: 1px dashed black;
+  }
+
+  .bank-info {
+    margin-top: 5px;
+    margin-bottom: 5px;
+    padding: 5px 0;
+    text-align: center;
+    font-weight: bold;
     border-bottom: 1px dashed black;
   }
 
@@ -417,6 +428,11 @@ const hitungPundiAmal = (details: PrintDetail[]) => {
 
             <!-- Footer -->
             <div class="footer text-center">
+              <div v-if="printData.header.gdg_transferbank || printData.header.gdg_akun" class="bank-info">
+                Transfer: {{ printData.header.gdg_transferbank }}<br>
+                {{ printData.header.gdg_akun }}
+              </div>
+
               <div class="donation-text">
                 Dengan membeli produk kaosan ini, Kaosan telah menyisihkan/peduli dengan sesama yg membutuhkan
                 sebesar {{ formatRupiah(hitungPundiAmal(printData.details)) }}

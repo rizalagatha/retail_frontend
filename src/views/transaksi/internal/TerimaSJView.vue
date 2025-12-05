@@ -183,21 +183,29 @@ const showConfirmation = (title: string, text: string, onConfirm: () => void) =>
   dialogConfirm.show = true;
 };
 
-const handleBatalTerima = async () => {
+const handleBatalTerima = () => {
   if (!selectedRow.value) return;
-  const { Nomor, NomorTerima } = selectedRow.value;
 
   showConfirmation(
     'Konfirmasi Pembatalan',
-    `Yakin ingin membatalkan penerimaan untuk SJ ${Nomor}?`,
+    `Yakin ingin membatalkan penerimaan untuk SJ ${selectedRow.value.Nomor}?`,
     async () => {
       try {
-        const response = await api.delete(`/terima-sj/${Nomor}/${NomorTerima}`);
+        const payload = {
+          header: {
+            nomorSj: selectedRow.value.Nomor,
+            nomorMinta: selectedRow.value.NomorMinta,
+            tanggalTerima: format(new Date(), 'yyyy-MM-dd'),
+          },
+          items: [] // <= semua item 0 = batal penerimaan
+        };
+
+        const response = await api.post('/terima-sj-form/save', payload);
         toast.success(response.data.message);
         fetchMasterData();
       } catch (err: unknown) {
         const error = err as AxiosError<{ message: string }>;
-        toast.error(error.response?.data?.message || "Gagal membatalkan penerimaan.");
+        toast.error(error.response?.data?.message || 'Gagal membatalkan penerimaan.');
       }
     }
   );

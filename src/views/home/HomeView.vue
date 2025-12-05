@@ -84,6 +84,8 @@ const isLoadingStats = ref(true);
 const isLoadingPiutang = ref(true);
 const isLoadingPiutangBreakdown = ref(true);
 const piutangBreakdown = ref<PiutangBreakdown[]>([]);
+const piutangByInvoice = ref([]);
+const isLoadingPiutangInvoice = ref(false);
 
 const chartGroupBy = ref<'day' | 'week' | 'month'>('day');
 const chartFilters = reactive({
@@ -518,6 +520,20 @@ const fetchPiutangBreakdown = async () => {
   }
 };
 
+const fetchPiutangByInvoice = async () => {
+  if (authStore.user?.cabang === "KDC") return; // KDC tidak pakai ini
+
+  isLoadingPiutangInvoice.value = true;
+  try {
+    const response = await api.get("/dashboard/piutang-per-invoice");
+    piutangByInvoice.value = response.data;
+  } catch {
+    toast.error("Gagal memuat breakdown invoice.");
+  } finally {
+    isLoadingPiutangInvoice.value = false;
+  }
+};
+
 const fetchTotalStock = async () => {
   isLoadingStock.value = true;
   try {
@@ -570,6 +586,7 @@ onMounted(() => {
     }
     fetchTotalPiutang();
     fetchPiutangBreakdown();
+    fetchPiutangByInvoice();
     fetchTotalStock();
   }
 
@@ -774,6 +791,9 @@ watch(chartGroupBy, fetchSalesChartData);
 
       <v-col cols="12" sm="6" md="auto">
 
+        <!-- ========================= -->
+        <!--   KDC => Breakdown Cabang  -->
+        <!-- ========================= -->
         <v-menu v-if="authStore.user?.cabang === 'KDC'" open-on-hover location="bottom center" origin="top center"
           transition="scale-transition" :close-on-content-click="false">
           <template v-slot:activator="{ props }">
@@ -799,6 +819,7 @@ watch(chartGroupBy, fetchSalesChartData);
               <div v-if="isLoadingPiutangBreakdown" class="text-center pa-4">
                 <v-progress-circular indeterminate size="20"></v-progress-circular>
               </div>
+
               <v-list v-else-if="piutangBreakdown.length > 0" density="compact">
                 <v-list-item v-for="item in piutangBreakdown" :key="item.cabang_kode">
                   <v-list-item-title class="text-caption">
@@ -811,6 +832,7 @@ watch(chartGroupBy, fetchSalesChartData);
                   </template>
                 </v-list-item>
               </v-list>
+
               <div v-else class="text-center pa-4 text-caption">
                 Tidak ada data piutang per cabang.
               </div>
@@ -818,16 +840,69 @@ watch(chartGroupBy, fetchSalesChartData);
           </v-card>
         </v-menu>
 
-        <v-card v-else class="stat-card fill-height" color="orange" variant="tonal">
-          <v-card-text class="text-center">
-            <v-icon size="40" class="mb-2">mdi-account-clock</v-icon>
-            <div class="text-h4 font-weight-bold">
-              <span v-if="isLoadingPiutang">...</span>
-              <span v-else>{{ formatRupiah(stats.totalSisaPiutang) }}</span>
-            </div>
-            <div class="text-subtitle-2">Total Sisa Piutang</div>
-          </v-card-text>
-        </v-card>
+        <!-- ======================================================== -->
+        <!--  USER STORE BIASA => Breakdown Invoice penyebab piutang  -->
+        <!-- ======================================================== -->
+        <v-menu v-else open-on-hover location="bottom center" origin="top center" transition="scale-transition"
+          :close-on-content-click="false">
+          <template v-slot:activator="{ props }">
+            <v-card v-bind="props" class="stat-card fill-height" color="orange" variant="tonal" style="cursor: help;">
+              <v-card-text class="text-center">
+                <v-icon size="40" class="mb-2">mdi-account-clock</v-icon>
+                <div class="text-h4 font-weight-bold">
+                  <span v-if="isLoadingPiutang">...</span>
+                  <span v-else>{{ formatRupiah(stats.totalSisaPiutang) }}</span>
+                </div>
+                <div class="text-subtitle-2">Total Sisa Piutang</div>
+              </v-card-text>
+            </v-card>
+          </template>
+
+          <v-card max-width="380" elevation="8">
+            <v-list-item class="bg-orange-lighten-4">
+              <v-list-item-title class="font-weight-bold">
+                Piutang per Invoice
+              </v-list-item-title>
+            </v-list-item>
+
+            <v-divider />
+
+            <v-card-text class="pa-0" style="max-height: 300px; overflow-y: auto;">
+              <div v-if="isLoadingPiutangInvoice" class="text-center pa-4">
+                <v-progress-circular indeterminate size="20"></v-progress-circular>
+              </div>
+
+              <v-list v-else-if="piutangByInvoice.length > 0" density="compact">
+                <v-list-item v-for="inv in piutangByInvoice" :key="inv.invoice" class="piutang-item">
+                  <div class="d-flex justify-space-between w-100 align-start">
+
+                    <!-- Kiri: Nomor & tanggal -->
+                    <div class="d-flex flex-column">
+                      <span class="text-body-2 font-weight-medium">
+                        {{ inv.invoice }}
+                      </span>
+                      <span class="text-caption text-grey">
+                        {{ inv.tanggal }}
+                      </span>
+                    </div>
+
+                    <!-- Kanan: Nominal -->
+                    <div class="text-right">
+                      <span class="text-body-2 font-weight-bold">
+                        {{ formatRupiah(inv.sisa_piutang) }}
+                      </span>
+                    </div>
+
+                  </div>
+                </v-list-item>
+              </v-list>
+
+              <div v-else class="text-center pa-4 text-caption">
+                Tidak ada invoice yang menunggak.
+              </div>
+            </v-card-text>
+          </v-card>
+        </v-menu>
 
       </v-col>
     </v-row>
@@ -1252,6 +1327,15 @@ watch(chartGroupBy, fetchSalesChartData);
 
 .scrollable-list::-webkit-scrollbar-thumb:hover {
   background: #555;
+}
+
+.piutang-item {
+  padding: 6px 12px !important;
+}
+
+.piutang-item:hover {
+  background-color: #fff7e6 !important;
+  /* soft orange hover */
 }
 
 @media (max-width: 960px) {

@@ -5,12 +5,13 @@ import PageLayout from '@/components/PageLayout.vue';
 import { useToast } from 'vue-toastification';
 import { useAuthStore } from '@/stores/authStore';
 import { format } from 'date-fns';
-import { useRouter } from 'vue-router';
+import { useRouter, useRoute } from 'vue-router';
 import AppDataTable from '@/components/AppDataTable.vue';
 
 const toast = useToast();
 const authStore = useAuthStore();
 const router = useRouter();
+const route = useRoute();
 const MENU_ID = '38';
 
 interface DataTableHeader {
@@ -42,7 +43,7 @@ const isLoading = ref(true);
 const startDate = ref(format(new Date(), 'yyyy-MM-dd'));
 const endDate = ref(format(new Date(), 'yyyy-MM-dd'));
 const selectedCabang = ref(authStore.user?.cabang === 'KDC' ? 'ALL' : authStore.user?.cabang || '');
-const belumApproval = ref(true);
+const belumApproval = ref(false);
 const cabangList = ref([]);
 const selected = ref<PriceProposal[]>([]);
 const filterOptions = ref([
@@ -202,9 +203,33 @@ const getRowTextColor = (item: PriceProposal) => {
 };
 
 onMounted(() => {
-  // (4) Cek hak view sebelum memuat data
+  // Pastikan authStore sudah siap sebelum cek izin
+  if (!authStore.isAuthenticated) {
+    // Handle jika belum login/reload page
+    return;
+  }
+
+  // Cek hak view
   if (authStore.can(MENU_ID, 'view')) {
     hasViewPermission.value = true;
+
+    // Logic untuk menangkap parameter dari Dashboard
+    const queryStartDate = route.query.startDate as string;
+    const queryEndDate = route.query.endDate as string;
+    const queryStatus = route.query.status as string;
+
+    if (queryStartDate && queryEndDate) {
+      startDate.value = queryStartDate;
+      endDate.value = queryEndDate;
+    }
+
+    if (queryStatus === 'pending') {
+      belumApproval.value = true;
+    } else {
+      // Default behavior
+      belumApproval.value = true;
+    }
+
     fetchData();
     fetchCabangList();
   } else {
@@ -315,7 +340,7 @@ watch([selectedCabang, belumApproval, startDate, endDate], () => {
       <v-card>
         <v-card-title class="text-h5">Konfirmasi Hapus</v-card-title>
         <v-card-text>Apakah Anda yakin ingin menghapus pengajuan harga nomor <strong>{{ itemToDelete?.nomor
-            }}</strong>?</v-card-text>
+        }}</strong>?</v-card-text>
         <v-card-actions>
           <v-spacer></v-spacer>
           <v-btn variant="text" @click="dialogDelete = false">Batal</v-btn>

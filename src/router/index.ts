@@ -1,5 +1,6 @@
-import { createRouter, createWebHistory } from "vue-router";
+import { createRouter, createWebHistory, type RouteLocationNormalized } from "vue-router";
 import { useAuthStore } from "@/stores/authStore";
+import api from "@/services/api";
 
 // Impor semua komponen View/halaman Anda
 import LoginView from "../views/user/LoginView.vue";
@@ -2080,6 +2081,41 @@ const router = createRouter({
   routes,
 });
 
+const getSmartIcon = (routeObj: RouteLocationNormalized) => {
+  // Casting meta agar TS tidak komplain properti 'icon' tidak ada
+  const meta = routeObj.meta as { icon?: string; title?: string };
+
+  // Jika di meta sudah ada icon, pakai itu
+  if (meta && meta.icon) {
+    return meta.icon;
+  }
+
+  const path = (routeObj.path || '').toLowerCase();
+  // Name bisa berupa symbol, jadi pastikan convert string
+  const name = (routeObj.name || '').toString().toLowerCase();
+  const fullString = `${path} ${name}`;
+
+  // Logika Penebak Icon
+  if (fullString.includes('invoice')) return 'mdi-receipt-text';
+  if (fullString.includes('so') || fullString.includes('pesanan')) return 'mdi-file-document-edit';
+  if (fullString.includes('dtf')) return 'mdi-printer-3d-nozzle';
+  if (fullString.includes('penawaran')) return 'mdi-handshake';
+  if (fullString.includes('pengajuan')) return 'mdi-file-clock';
+  if (fullString.includes('stok') || fullString.includes('stock')) return 'mdi-package-variant';
+  if (fullString.includes('mutasi')) return 'mdi-transfer';
+  if (fullString.includes('piutang') || fullString.includes('bayar')) return 'mdi-cash-multiple';
+  if (fullString.includes('laporan')) return 'mdi-chart-line';
+  if (fullString.includes('gudang') || fullString.includes('dc')) return 'mdi-warehouse';
+  if (fullString.includes('daftar') || fullString.includes('master')) return 'mdi-database';
+  if (fullString.includes('user') || fullString.includes('pengguna')) return 'mdi-account-group';
+  if (fullString.includes('setting') || fullString.includes('pengaturan')) return 'mdi-cog';
+  if (fullString.includes('retur')) return 'mdi-keyboard-return';
+  if (fullString.includes('surat-jalan')) return 'mdi-truck-delivery';
+
+  // Default
+  return 'mdi-star-circle-outline';
+};
+
 // Navigation Guard (Satpam Router)
 router.beforeEach((to, from, next) => {
   const authStore = useAuthStore();
@@ -2132,6 +2168,46 @@ router.beforeEach((to, from, next) => {
     }
   }
   next();
+});
+
+// --- NAVIGATION LOGGING ---
+// Mencatat setiap perpindahan halaman ke backend untuk fitur "Sering Diakses"
+router.afterEach((to) => {
+  const authStore = useAuthStore();
+
+  // Syarat pencatatan:
+  // 1. User sedang login (isAuthenticated)
+  // 2. Halaman memiliki judul (meta.title)
+  // 3. Bukan halaman Login, Home (Dashboard), atau Unauthorized
+  // 4. Bukan halaman cetak (printLayout)
+  if (
+    authStore.isAuthenticated &&
+    to.meta &&
+    to.meta.title &&
+    to.name !== 'Login' &&
+    to.name !== 'Home' &&
+    to.name !== 'Unauthorized' &&
+    !to.meta.printLayout
+  ) {
+
+    // Kirim data secara background (tanpa await) agar transisi halaman tetap ngebut
+    // Gunakan fullPath agar parameter query string (jika ada) tidak membuat duplikat
+    // Tapi untuk grouping menu, lebih baik pakai 'path' atau 'name'.
+    // Di sini kita pakai 'path' untuk konsistensi.
+
+    // Tentukan icon: Bisa ambil dari meta.icon (jika nanti Anda tambahkan)
+    // atau biarkan backend/frontend handle default icon.
+    // Di sini kita kirim default string jika meta.icon tidak ada.
+    const autoIcon = getSmartIcon(to);
+
+    api.post('/activity/log-menu', {
+      title: to.meta.title,
+      path: to.path,
+      icon: autoIcon
+    }).catch(() => {
+      // Error logging diabaikan saja (silent fail) agar tidak mengganggu user
+    });
+  }
 });
 
 export default router;

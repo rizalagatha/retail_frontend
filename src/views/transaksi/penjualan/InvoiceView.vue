@@ -734,7 +734,7 @@ watch(filters, () => {
           density="compact" hide-details variant="outlined" class="ms-4" style="max-width: 200px;" />
         <v-chip v-if="filters.status" class="ms-4" color="primary" variant="tonal" closable
           @click:close="filters.status = null">
-          Filter Aktif: {{ filters.status === 'belum_lunas' ? 'Belum Lunas' : filters.status }}
+          Filter Aktif: {{ filters.status === 'sisa_piutang' ? 'Sisa Piutang' : filters.status }}
         </v-chip>
         <div class="d-flex align-center ga-2 ms-4">
           <v-select v-model="selectedFilterField" :items="filterOptions" label="Filter Berdasarkan" density="compact"

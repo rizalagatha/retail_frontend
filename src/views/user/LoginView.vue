@@ -5,7 +5,11 @@ import { useAuthStore } from '@/stores/authStore';
 import { useToast } from 'vue-toastification';
 import { useRouter } from 'vue-router';
 import { AxiosError } from 'axios';
+
+// --- IMPORT ASSETS ---
+// Pastikan file-file ini ada di folder src/assets/ Anda
 import logoUrl from '@/assets/logo.png';
+import heroImage from '@/assets/login-hero.jpg';
 
 interface Branch {
   kode: string;
@@ -15,18 +19,18 @@ interface Branch {
 const toast = useToast();
 const router = useRouter();
 
+// --- STATE ---
 const kodeUser = ref('');
 const password = ref('');
 const isLoading = ref(false);
 const showPassword = ref(false);
-
 const isBranchDialogVisible = ref(false);
 const branchList = ref<Branch[]>([]);
 const tempToken = ref('');
 const selectedCabang = ref<string | null>(null);
-
 const authStore = useAuthStore();
 
+// --- LOGIC ---
 const handleLogin = async () => {
   if (!kodeUser.value || !password.value) {
     toast.error('User dan Password harus diisi.');
@@ -34,23 +38,16 @@ const handleLogin = async () => {
   }
   isLoading.value = true;
   try {
-    const response = await api.post('/auth/login', {
-      kodeUser: kodeUser.value,
-      password: password.value,
-    });
-
+    const response = await api.post('/auth/login', { kodeUser: kodeUser.value, password: password.value });
     if (response.data.requiresBranchSelection) {
-      // Tahap 1: User punya banyak cabang, tampilkan dialog
       branchList.value = response.data.branches;
       tempToken.value = response.data.tempToken;
       isBranchDialogVisible.value = true;
     } else {
-      // Login langsung berhasil
       authStore.setLoginData(response.data.data);
       toast.success('Login berhasil!');
-      router.push('/'); // Arahkan ke halaman utama
+      router.push('/');
     }
-
   } catch (err) {
     const error = err as AxiosError<{ message: string }>;
     toast.error(error.response?.data?.message || 'Terjadi kesalahan saat login.');
@@ -60,132 +57,126 @@ const handleLogin = async () => {
 };
 
 const handleBranchSelect = async () => {
-  if (!selectedCabang.value) {
-    toast.warning('Silahkan pilih cabang terlebih dahulu.');
-    return;
-  }
+  if (!selectedCabang.value) return;
   isLoading.value = true;
   isBranchDialogVisible.value = false;
   try {
-    const response = await api.post('/auth/select-branch', {
-      tempToken: tempToken.value,
-      selectedCabang: selectedCabang.value,
-    });
-
-    // Tahap 2: Login final berhasil
+    const response = await api.post('/auth/select-branch', { tempToken: tempToken.value, selectedCabang: selectedCabang.value });
     authStore.setLoginData(response.data);
-    toast.success(`Login sebagai cabang ${selectedCabang.value} berhasil!`);
+    toast.success(`Login cabang ${selectedCabang.value} berhasil!`);
     router.push('/');
-
   } catch (err) {
-    if (err instanceof AxiosError) {
-      toast.error(err.response?.data?.message || 'Gagal finalisasi login.');
-    } else {
-      toast.error('Gagal finalisasi login.');
-    }
+    const error = err as AxiosError<{ message: string }>;
+    toast.error(error.response?.data?.message || 'Gagal finalisasi login.');
   } finally {
     isLoading.value = false;
-    // Reset state
     selectedCabang.value = null;
     tempToken.value = '';
   }
 };
-
-const handleCancel = () => {
-  kodeUser.value = '';
-  password.value = '';
-  showPassword.value = false;
-  router.push({ name: 'Home' }); // arahkan ke home
-};
 </script>
 
 <template>
-  <v-container class="fill-height d-flex align-center justify-center" fluid>
-    <v-row align="center" justify="center" class="w-100">
-      <v-col cols="12" sm="10" md="6" lg="4" xl="3">
-        <v-card elevation="8" class="mx-auto" style="border-radius: 16px;">
-          <!-- Header -->
-          <v-card-title class="pa-0">
-            <v-sheet color="primary" class="d-flex align-center justify-space-between pa-6 w-100"
-              style="border-radius: 16px 16px 0 0;">
-              <div>
-                <h2 class="text-white text-h5 mb-1 font-weight-bold">Selamat Datang</h2>
-                <p class="text-white text-body-2 mb-0" style="opacity: 0.9;">
-                  Masuk ke aplikasi Retail
-                </p>
+  <v-container fluid class="pa-0 fill-height login-wrapper">
+    <v-row no-gutters class="fill-height">
+
+      <v-col cols="12" md="6" lg="7" class="d-none d-md-block hero-container">
+        <div class="image-wrapper">
+          <v-img :src="heroImage" cover class="fill-height zoom-effect" alt="Login Background">
+            <template #placeholder>
+              <div class="d-flex align-center justify-center fill-height bg-grey-lighten-4">
+                <v-progress-circular indeterminate color="primary"></v-progress-circular>
               </div>
-              <v-avatar size="56" color="white" class="elevation-2">
-                <v-img :src="logoUrl" alt="Company Logo" />
-              </v-avatar>
-            </v-sheet>
-          </v-card-title>
+            </template>
+            <div class="hero-overlay"></div>
+          </v-img>
+        </div>
+      </v-col>
 
-          <v-card-text class="pa-8">
+      <v-col cols="12" md="6" lg="5" class="bg-white d-flex flex-column position-relative form-side">
+
+        <div class="brand-header pt-8 pr-8 text-right w-100 fade-in-down">
+          <div class="d-inline-flex align-center gap-3 hover-scale">
+            <img :src="logoUrl" alt="Kaosan Logo" height="32" class="mr-2" />
+            <h3 class="text-h6 font-weight-bold text-grey-darken-4 tracking-wide"
+              style="font-family: 'Roboto', sans-serif;">
+              KAOSAN.OFFICIAL
+            </h3>
+          </div>
+        </div>
+
+        <div class="flex-grow-1 d-flex align-center justify-center pa-6 pa-md-16 fade-in-up">
+          <div class="w-100" style="max-width: 400px;">
+
+            <div class="mb-10">
+              <h2 class="text-h4 font-weight-bold text-grey-darken-4 mb-2">Welcome Back!</h2>
+              <p class="text-body-1 text-grey-darken-1 opacity-80">
+                Masuk untuk Melanjutkan ke Aplikasi Retail.
+              </p>
+            </div>
+
             <v-form @submit.prevent="handleLogin">
-              <!-- User Field -->
-              <v-text-field v-model="kodeUser" label="Kode User" placeholder="Masukkan kode user" variant="outlined"
-                prepend-inner-icon="mdi-account" class="mb-4" :rules="[v => !!v || 'Kode user harus diisi']"
-                hide-details="auto" autofocus></v-text-field>
+              <div class="mb-5 input-group">
+                <label class="text-caption font-weight-bold text-grey-darken-2 mb-1 d-block text-uppercase ls-1">User
+                  ID</label>
+                <v-text-field v-model="kodeUser" placeholder="Masukkan Kode User" variant="outlined" color="primary"
+                  bg-color="grey-lighten-5" density="comfortable" hide-details="auto"
+                  prepend-inner-icon="mdi-account-outline" class="custom-input" autofocus></v-text-field>
+              </div>
 
-              <!-- Password Field -->
-              <v-text-field v-model="password" label="Password" placeholder="Masukkan password"
-                :type="showPassword ? 'text' : 'password'" variant="outlined" prepend-inner-icon="mdi-lock"
-                :append-inner-icon="showPassword ? 'mdi-eye' : 'mdi-eye-off'"
-                @click:append-inner="showPassword = !showPassword" class="mb-6"
-                :rules="[v => !!v || 'Password harus diisi']" hide-details="auto"></v-text-field>
+              <div class="mb-8 input-group" style="animation-delay: 0.1s;">
+                <div class="d-flex justify-space-between align-center mb-1">
+                  <label
+                    class="text-caption font-weight-bold text-grey-darken-2 d-block text-uppercase ls-1">Password</label>
+                </div>
+                <v-text-field v-model="password" placeholder="Masukkan Password"
+                  :type="showPassword ? 'text' : 'password'" variant="outlined" color="primary"
+                  bg-color="grey-lighten-5" density="comfortable" hide-details="auto"
+                  prepend-inner-icon="mdi-lock-outline"
+                  :append-inner-icon="showPassword ? 'mdi-eye-outline' : 'mdi-eye-off-outline'"
+                  @click:append-inner="showPassword = !showPassword" class="custom-input"></v-text-field>
+              </div>
 
-              <!-- Actions -->
-              <div class="d-flex justify-space-between align-center">
-                <v-btn variant="text" color="grey-darken-1" @click="handleCancel" :disabled="isLoading"
-                  prepend-icon="mdi-close">
-                  Batal
-                </v-btn>
+              <v-btn type="submit" block color="primary" size="large" height="50"
+                class="text-body-1 font-weight-bold mb-4 elevation-4 btn-hover-effect" :loading="isLoading">
+                Login Sekarang
+              </v-btn>
 
-                <v-btn type="submit" color="primary" size="large" :loading="isLoading" variant="elevated"
-                  prepend-icon="mdi-login" min-width="120">
-                  {{ isLoading ? 'Masuk...' : 'Masuk' }}
+              <div class="text-center mt-6">
+                <v-btn variant="text" size="small" class="text-caption text-grey-darken-1 hover-underline" to="/"
+                  prepend-icon="mdi-arrow-left">
+                  Kembali ke Beranda
                 </v-btn>
               </div>
             </v-form>
-          </v-card-text>
-
-          <!-- Footer -->
-          <v-divider></v-divider>
-          <v-card-actions class="pa-4 justify-center">
-            <div class="text-center">
-              <div class="text-body-2 text-medium-emphasis mb-1">
-                <v-icon size="16" class="me-1">mdi-shield-check</v-icon>
-                Sistem Aplikasi Retail
-              </div>
-              <div class="text-caption text-medium-emphasis">
-                Version 1.0 - Secure Login
-              </div>
-            </div>
-          </v-card-actions>
-        </v-card>
-
-        <!-- Loading Overlay -->
-        <v-overlay v-model="isLoading" contained class="d-flex align-center justify-center">
-          <div class="text-center">
-            <v-progress-circular indeterminate size="48" width="4" color="primary"></v-progress-circular>
-            <div class="mt-3 text-white">Memverifikasi...</div>
           </div>
-        </v-overlay>
+        </div>
+
+        <div class="pb-4 text-center text-caption text-grey-lighten-1 d-md-none fade-in">
+          &copy; 2025 IT Kencana Print.
+        </div>
+
       </v-col>
     </v-row>
 
-    <v-dialog v-model="isBranchDialogVisible" persistent max-width="400px">
-      <v-card>
-        <v-card-title class="text-h6">Pilih Cabang</v-card-title>
-        <v-card-text>
-          <p class="mb-4">User {{ kodeUser }} terdaftar di beberapa cabang. Silahkan pilih cabang untuk melanjutkan.</p>
+    <v-dialog v-model="isBranchDialogVisible" persistent max-width="400px" transition="dialog-bottom-transition">
+      <v-card class="rounded-lg elevation-12">
+        <v-card-title class="text-h6 pt-6 px-6 font-weight-bold text-primary">Pilih Lokasi Kerja</v-card-title>
+        <v-card-text class="px-6 pb-2 pt-2">
+          <p class="mb-4 text-body-2 text-grey-darken-1">
+            Akun <strong>{{ kodeUser }}</strong> terdaftar di beberapa cabang.
+          </p>
           <v-select v-model="selectedCabang" :items="branchList" item-title="nama" item-value="kode"
-            label="Cabang Tersedia" variant="outlined" autofocus></v-select>
+            label="Pilih Cabang" variant="outlined" density="comfortable" color="primary"
+            bg-color="grey-lighten-5"></v-select>
         </v-card-text>
-        <v-card-actions>
+        <v-card-actions class="px-6 pb-6 pt-0">
           <v-spacer></v-spacer>
-          <v-btn text @click="isBranchDialogVisible = false; isLoading = false;">Batal</v-btn>
-          <v-btn color="primary" @click="handleBranchSelect" :disabled="!selectedCabang">Lanjutkan</v-btn>
+          <v-btn variant="text" color="grey-darken-1" @click="isBranchDialogVisible = false">Batal</v-btn>
+          <v-btn color="primary" variant="elevated" class="px-6 btn-hover-effect" @click="handleBranchSelect"
+            :disabled="!selectedCabang">
+            Lanjut
+          </v-btn>
         </v-card-actions>
       </v-card>
     </v-dialog>
@@ -193,24 +184,153 @@ const handleCancel = () => {
 </template>
 
 <style scoped>
-/* Custom styling for full height container */
-.fill-height {
-  min-height: 100vh;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+.login-wrapper {
+  height: 100vh;
+  overflow: hidden;
+  background-color: #fff;
 }
 
-/* Ensure proper width for responsiveness */
-.w-100 {
+/* HERO IMAGE ANIMATION */
+.hero-container {
+  position: relative;
+  background-color: #E3F2FD;
+  /* Fallback */
+  overflow: hidden;
+}
+
+.image-wrapper {
+  height: 100%;
   width: 100%;
+  overflow: hidden;
 }
 
-/* Custom card shadow enhancement */
-.v-card {
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1) !important;
+.zoom-effect {
+  transition: transform 10s ease;
 }
 
-/* Loading overlay styling */
-.v-overlay {
-  border-radius: 16px;
+.hero-container:hover .zoom-effect {
+  transform: scale(1.05);
+}
+
+/* PERUBAHAN 2: Menghapus background gradient agar gambar asli terlihat */
+.hero-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  /* background: linear-gradient(...) <-- DIHAPUS */
+  pointer-events: none;
+}
+
+/* TYPOGRAPHY */
+.tracking-wide {
+  letter-spacing: 0.05em;
+}
+
+.ls-1 {
+  letter-spacing: 1px;
+}
+
+/* INPUT FIELD CUSTOMIZATION */
+.custom-input {
+  transition: all 0.3s ease;
+}
+
+.custom-input :deep(.v-field__outline__start),
+.custom-input :deep(.v-field__outline__end),
+.custom-input :deep(.v-field__outline__notch) {
+  border-color: #E0E0E0 !important;
+  transition: border-color 0.3s ease;
+}
+
+/* Hover effect pada input (sebelum klik) */
+.custom-input:hover :deep(.v-field__outline__start),
+.custom-input:hover :deep(.v-field__outline__end),
+.custom-input:hover :deep(.v-field__outline__notch) {
+  border-color: #BDBDBD !important;
+}
+
+/* Focus effect (Biru) */
+.custom-input :deep(.v-field--focused .v-field__outline__start),
+.custom-input :deep(.v-field--focused .v-field__outline__end),
+.custom-input :deep(.v-field--focused .v-field__outline__notch) {
+  border-color: #1976D2 !important;
+  /* Primary Blue */
+  border-width: 2px;
+}
+
+/* BUTTON ANIMATION */
+.v-btn {
+  text-transform: none;
+  letter-spacing: 0.3px;
+  border-radius: 8px;
+  transition: all 0.3s ease;
+}
+
+.btn-hover-effect:hover {
+  transform: translateY(-2px);
+  /* Naik sedikit */
+  box-shadow: 0 6px 12px rgba(25, 118, 210, 0.3) !important;
+  /* Bayangan biru */
+}
+
+.hover-underline:hover {
+  text-decoration: underline;
+}
+
+.hover-scale {
+  transition: transform 0.3s ease;
+}
+
+.hover-scale:hover {
+  transform: scale(1.02);
+}
+
+/* PAGE ENTRANCE ANIMATIONS */
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 20px, 0);
+  }
+
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@keyframes fadeInDown {
+  from {
+    opacity: 0;
+    transform: translate3d(0, -20px, 0);
+  }
+
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+.fade-in-up {
+  animation: fadeInUp 0.8s ease-out forwards;
+}
+
+.fade-in-down {
+  animation: fadeInDown 0.8s ease-out forwards;
+}
+
+/* Stagger animation for inputs */
+.input-group {
+  opacity: 0;
+  animation: fadeInUp 0.6s ease-out forwards;
+}
+
+.input-group:nth-child(1) {
+  animation-delay: 0.2s;
+}
+
+.input-group:nth-child(2) {
+  animation-delay: 0.3s;
 }
 </style>

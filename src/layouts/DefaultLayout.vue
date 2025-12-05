@@ -46,6 +46,52 @@ const { showManualDialog, closeManualDialog } = useManualProgramDialog(); // Con
       <v-spacer></v-spacer>
 
       <div class="d-flex align-center">
+        <div class="d-flex align-center ga-1">
+
+          <v-tooltip text="Transaksi" location="top">
+            <template v-slot:activator="{ props }">
+              <v-btn v-bind="props" to="/transaksi" icon variant="text" density="comfortable" size="small">
+                <v-icon color="primary">mdi-cash-register</v-icon>
+              </v-btn>
+            </template>
+          </v-tooltip>
+
+          <v-tooltip text="Master Data" location="top">
+            <template v-slot:activator="{ props }">
+              <v-btn v-bind="props" to="/daftar" icon variant="text" density="comfortable" size="small">
+                <v-icon color="success">mdi-database</v-icon>
+              </v-btn>
+            </template>
+          </v-tooltip>
+
+          <v-tooltip text="Laporan" location="top">
+            <template v-slot:activator="{ props }">
+              <v-btn v-bind="props" to="/laporan" icon variant="text" density="comfortable" size="small">
+                <v-icon color="info">mdi-chart-line</v-icon>
+              </v-btn>
+            </template>
+          </v-tooltip>
+
+          <v-tooltip text="Piutang" location="top">
+            <template v-slot:activator="{ props }">
+              <v-btn v-bind="props" to="/piutang" icon variant="text" density="comfortable" size="small">
+                <v-icon color="orange">mdi-book-account</v-icon>
+              </v-btn>
+            </template>
+          </v-tooltip>
+
+          <v-tooltip text="Gudang DC" location="top">
+            <template v-slot:activator="{ props }">
+              <v-btn v-bind="props" to="/gudang-dc" icon variant="text" density="comfortable" size="small">
+                <v-icon color="purple">mdi-warehouse</v-icon>
+              </v-btn>
+            </template>
+          </v-tooltip>
+
+        </div>
+
+        <v-divider vertical class="mx-3 my-2" style="height: 20px;"></v-divider>
+
         <div v-if="authStore.isOnline" class="d-flex align-center">
           <v-icon color="success" size="small" class="mr-1">mdi-circle</v-icon>
           <span class="mr-4">Online</span>

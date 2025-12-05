@@ -176,8 +176,16 @@ const getFullImageUrl = (path: string | null) => {
 }
 
 const addDetailUkuran = () => {
+  // Logic lama: ...detailsUkuran.value[detailsUkuran.value.length - 1].ukuran
+  // Ubah menjadi:
   if (detailsUkuran.value.length === 0 || detailsUkuran.value[detailsUkuran.value.length - 1].ukuran) {
-    detailsUkuran.value.push({ id: Date.now(), ukuran: '', jumlah: null, harga: null });
+    detailsUkuran.value.push({
+      id: Date.now(),
+      ukuran: '',
+      jumlah: null,
+      harga: null,
+      namaBarang: '' // <--- WAJIB ADA (inisialisasi string kosong)
+    });
   }
 };
 const removeDetailUkuran = (id: number) => {
@@ -323,8 +331,18 @@ const resetForm = () => {
   detailsTitik.value = [];
   imagePreview.value = null;
   imageFile.value = null;
+
+  // Panggil addDetailUkuran agar baris pertama punya struktur yang benar
   addDetailUkuran();
-  addDetailTitik();
+
+  // Reset titik manual agar aman
+  detailsTitik.value.push({
+    id: Date.now(),
+    keterangan: '',
+    sizeCetak: form.value.jenisOrderKode === "SD" ? "Custom" : '',
+    panjang: null,
+    lebar: null
+  });
 };
 
 const uploadImageToServer = async (nomor: string): Promise<boolean> => {

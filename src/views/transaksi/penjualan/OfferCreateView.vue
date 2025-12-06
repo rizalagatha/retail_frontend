@@ -822,7 +822,7 @@ const onPriceProposalSelected = async (proposal: { nomor: string }) => {
   items.value.splice(activeRowIndex.value, 1);
 
   try {
-    const response = await api.get(`/price-proposal-form/edit-details/${proposal.nomor}`);
+    const response = await api.get(`/offer-form/search/price-proposal-details/${proposal.nomor}`);
     const { headerData, itemsData } = response.data;
 
     itemsData.forEach((detail: { kode: string; nama: string; ukuran: string; jumlah: number; harga: number; total: number }) => {

@@ -17,7 +17,7 @@ import MemberForm from '@/components/form/MemberForm.vue';
 import DiskonForm from '@/components/form/DiskonForm.vue';
 import LinkedDpModal from '@/components/modal/LinkedDpModal.vue';
 import AuthorizationModal from '@/components/modal/AuthorizationModal.vue';
-import SoDtfSearchModal from '@/components/lookup/SoDtfSearchModal.vue';
+// import SoDtfSearchModal from '@/components/lookup/SoDtfSearchModal.vue';
 import PromoBonusModal from '@/components/modal/PromoBonusModal.vue';
 import type { AxiosError } from 'axios';
 import axios from 'axios';
@@ -99,17 +99,17 @@ interface DownPayment {
   jenis: string;
   nominal: number;
 }
-interface SoDtf {
-  nomor: string;
-  // tambahkan properti lain jika ada
-}
-interface SoDtfItem {
-  kode: string;
-  nama: string;
-  ukuran: string;
-  jumlah: number;
-  harga: number;
-}
+// interface SoDtf {
+//   nomor: string;
+//   // tambahkan properti lain jika ada
+// }
+// interface SoDtfItem {
+//   kode: string;
+//   nama: string;
+//   ukuran: string;
+//   jumlah: number;
+//   harga: number;
+// }
 // interface ApiInvoiceItem {
 //   invd_kode: string;
 //   nama_barang: string;
@@ -254,7 +254,7 @@ const dialogs = reactive({
   memberForm: false,
   diskonForm: false,
   linkedDp: false,
-  soDtfSearch: false,
+  // soDtfSearch: false,
   promoBonus: false
 });
 
@@ -527,19 +527,19 @@ const openProductSearch = (index: number, isMulti: boolean) => {
   dialogs.productSearch = true;
 };
 
-const openSoDtfSearch = (item: Item, index: number) => {
-  // Cek semua kondisi di sini
-  if (header.nomorSo || item.kode) {
-    return; // Hentikan aksi jika sudah readonly
-  }
-  if (!header.customer.kode) {
-    return toast.error("Pilih customer terlebih dahulu.");
-  }
+// const openSoDtfSearch = (item: Item, index: number) => {
+//   // Cek semua kondisi di sini
+//   if (header.nomorSo || item.kode) {
+//     return; // Hentikan aksi jika sudah readonly
+//   }
+//   if (!header.customer.kode) {
+//     return toast.error("Pilih customer terlebih dahulu.");
+//   }
 
-  // Jika semua kondisi terpenuhi, buka modal
-  activeRowIndex.value = index;
-  dialogs.soDtfSearch = true;
-};
+//   // Jika semua kondisi terpenuhi, buka modal
+//   activeRowIndex.value = index;
+//   dialogs.soDtfSearch = true;
+// };
 
 const onCustomerSelected = async (cust: Customer | null) => {
   if (cust) {
@@ -862,46 +862,46 @@ const onUnpaidDpSelected = (dp: DownPayment) => {
   }
 };
 
-const onSoDtfSelected = async (soDtf: SoDtf) => {
-  dialogs.soDtfSearch = false;
-  if (!soDtf.nomor) return;
+// const onSoDtfSelected = async (soDtf: SoDtf) => {
+//   dialogs.soDtfSearch = false;
+//   if (!soDtf.nomor) return;
 
-  try {
-    const response = await api.get<SoDtfItem[]>(`/invoice-form/lookup/so-dtf-details/${soDtf.nomor}`);
-    const soDtfItems = response.data;
+//   try {
+//     const response = await api.get<SoDtfItem[]>(`/invoice-form/lookup/so-dtf-details/${soDtf.nomor}`);
+//     const soDtfItems = response.data;
 
-    if (soDtfItems.length === 0) {
-      return toast.warning('SO DTF ini tidak memiliki detail item.');
-    }
+//     if (soDtfItems.length === 0) {
+//       return toast.warning('SO DTF ini tidak memiliki detail item.');
+//     }
 
-    const newItems = soDtfItems.map(item => ({
-      id: Date.now() + Math.random(),
-      kode: item.kode,
-      nama: item.nama,
-      ukuran: item.ukuran,
-      jumlah: item.jumlah,
-      harga: item.harga,
-      stok: 0,
-      qtyso: 0,
-      diskonPersen: 0,
-      diskonRp: 0,
-      total: item.jumlah * item.harga,
-      noSoDtf: item.kode,
-      terhitungPromo: false,
-      _isHargaEditable: true,
-    }));
+//     const newItems = soDtfItems.map(item => ({
+//       id: Date.now() + Math.random(),
+//       kode: item.kode,
+//       nama: item.nama,
+//       ukuran: item.ukuran,
+//       jumlah: item.jumlah,
+//       harga: item.harga,
+//       stok: 0,
+//       qtyso: 0,
+//       diskonPersen: 0,
+//       diskonRp: 0,
+//       total: item.jumlah * item.harga,
+//       noSoDtf: item.kode,
+//       terhitungPromo: false,
+//       _isHargaEditable: true,
+//     }));
 
-    items.value.splice(activeRowIndex.value, 1, ...newItems);
-    addNewRow();
-  } catch (error: unknown) {
-    // safe handling untuk unknown
-    if (axios.isAxiosError(error)) {
-      toast.error(error.response?.data?.message || 'Gagal memuat detail SO DTF.');
-    } else {
-      toast.error('Gagal memuat detail SO DTF.');
-    }
-  }
-};
+//     items.value.splice(activeRowIndex.value, 1, ...newItems);
+//     addNewRow();
+//   } catch (error: unknown) {
+//     // safe handling untuk unknown
+//     if (axios.isAxiosError(error)) {
+//       toast.error(error.response?.data?.message || 'Gagal memuat detail SO DTF.');
+//     } else {
+//       toast.error('Gagal memuat detail SO DTF.');
+//     }
+//   }
+// };
 
 const calculateTotals = () => {
   // ---------------------------------------------------------------------
@@ -1945,11 +1945,10 @@ onMounted(() => {
                 </div>
               </template>
 
-              <template v-slot:[`item.noSoDtf`]="{ item, index }">
+              <template v-slot:[`item.noSoDtf`]="{ item }">
                 <v-text-field v-model="item.noSoDtf" variant="underlined" density="compact" hide-details
-                  placeholder="F1 atau Klik..." :readonly="!!header.nomorSo || !!item.kode"
-                  :class="{ 'field-disabled': !!header.nomorSo || !!item.kode }" @click="openSoDtfSearch(item, index)"
-                  @keydown.f1.prevent="openSoDtfSearch(item, index)" />
+                  :readonly="!!header.nomorSo || !!item.kode"
+                  :class="{ 'field-disabled': !!header.nomorSo || !!item.kode }" filled />
               </template>
 
               <template v-slot:[`item.actions`]="{ item }">
@@ -2051,8 +2050,8 @@ onMounted(() => {
     <LinkedDpModal v-if="dialogs.linkedDp" :dps="linkedDps" @close="dialogs.linkedDp = false" />
     <AuthorizationModal v-if="authDialog.show" ref="authModalRef" :title="authDialog.title"
       :challenge-code="authDialog.challengeCode" @close="handleAuthCancel" @success="handleAuthSuccess" />
-    <SoDtfSearchModal v-if="dialogs.soDtfSearch" :customer-kode="header.customer.kode" :cabang="header.gudang.kode"
-      @close="dialogs.soDtfSearch = false" @selected="onSoDtfSelected" />
+    <!-- <SoDtfSearchModal v-if="dialogs.soDtfSearch" :customer-kode="header.customer.kode" :cabang="header.gudang.kode"
+      @close="dialogs.soDtfSearch = false" @selected="onSoDtfSelected" /> -->
     <PromoBonusModal v-if="dialogs.promoBonus" :promo-nomor="activePromoForBonus.nomor"
       @close="dialogs.promoBonus = false" @selected="handleBonusSelection" />
 

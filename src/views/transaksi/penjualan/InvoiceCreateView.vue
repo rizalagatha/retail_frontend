@@ -1988,7 +1988,7 @@ onMounted(() => {
                   <div class="text-container">
                     <div class="promo-label">
                       <v-icon icon="mdi-star-four-points" size="10" class="mr-1" color="yellow-lighten-3" />
-                      PENAWARAN TERSEDIA
+                      YAYY!! DAPET DISKON!!!
                     </div>
                     <div class="promo-message">{{ promoNotification }}</div>
                   </div>

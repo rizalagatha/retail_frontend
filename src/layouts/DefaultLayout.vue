@@ -18,6 +18,7 @@ const SettingsProcessDialog = defineAsyncComponent(() => import('@/components/di
 const ManualProgramDialog = defineAsyncComponent(() => import('@/components/dialog/ManualProgramDialog.vue'));
 
 const authStore = useAuthStore();
+const version = __APP_VERSION__;
 
 // Dapatkan state visibilitas dari composables/store
 const { showPasswordDialog, closePasswordDialog } = usePasswordDialog(); // Contoh
@@ -100,7 +101,9 @@ const { showManualDialog, closeManualDialog } = useManualProgramDialog(); // Con
           <v-icon color="error" size="small" class="mr-1">mdi-circle-off-outline</v-icon>
           <span class="mr-4 font-weight-bold text-error">Offline</span>
         </div>
-        <span class="text-medium-emphasis">© 2025 IT Kencana Print</span>
+        <span class="text-medium-emphasis">
+          © 2025 IT Kencana Print — v{{ version }}
+        </span>
       </div>
     </v-footer>
 

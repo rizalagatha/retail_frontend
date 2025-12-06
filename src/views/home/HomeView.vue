@@ -4,6 +4,7 @@ import { useAuthStore } from '@/stores/authStore';
 import { useRouter } from 'vue-router';
 import logoUrl from '@/assets/logo.png';
 import bannerImage from '@/assets/banner-image.jpg';
+import storeBg from '@/assets/store-bg.jpg';
 import api from '@/services/api';
 import { useToast } from 'vue-toastification';
 import { format, subDays } from 'date-fns';
@@ -813,59 +814,61 @@ watch(chartGroupBy, fetchSalesChartData);
 
 <template>
   <!-- LANDING PAGE untuk user yang belum login -->
-  <v-container v-if="!authStore.isAuthenticated" class="landing-container fill-height" fluid>
-    <v-row align="center" justify="center" class="fill-height">
-      <v-col cols="12" lg="10" xl="9">
-        <!-- Hero Section - Compact -->
-        <div class="text-center mb-8">
-          <v-avatar size="100" class="mb-4 elevation-8">
+  <v-container v-if="!authStore.isAuthenticated" class="landing-container pa-0 fill-height" fluid>
+
+    <div class="bg-overlay"></div>
+    <v-img :src="storeBg" cover class="bg-image" position="center center" />
+
+    <v-row align="center" justify="center" class="fill-height content-layer ma-0">
+      <v-col cols="12" md="10" lg="8" class="text-center">
+
+        <div class="hero-glass-card pa-8 pa-md-12 mb-8">
+          <v-avatar size="110" class="mb-6 elevation-12 logo-glow">
             <v-img :src="logoUrl" alt="Kaosan Logo" />
           </v-avatar>
 
-          <h1 class="text-h3 font-weight-bold mb-3 text-white">
-            Kaosan Retail Management
+          <h1 class="text-h3 font-weight-black text-white mb-2 tracking-wide text-shadow">
+            KAOSAN
           </h1>
-          <p class="text-h6 mb-6 text-white" style="opacity: 0.95;">
-            Solusi Terpadu untuk Manajemen Bisnis Retail Anda
+          <div class="text-h6 text-uppercase text-white font-weight-light mb-6 tracking-widest text-shadow">
+            Retail Management System
+          </div>
+
+          <p class="text-body-1 text-white mx-auto mb-8 font-weight-regular"
+            style="max-width: 600px; opacity: 0.9; line-height: 1.6;">
+            Sistem manajemen toko terintegrasi untuk memantau penjualan, stok, dan performa cabang secara real-time.
+            Kelola bisnis retail Anda dengan lebih cerdas dan efisien.
           </p>
 
-          <v-btn color="white" size="x-large" @click="goToLogin" prepend-icon="mdi-login" elevation="4"
-            class="px-8 text-primary mb-8">
-            Login untuk Melanjutkan
+          <v-btn color="white" size="x-large" rounded="pill" @click="goToLogin" prepend-icon="mdi-login-variant"
+            class="px-10 text-primary font-weight-bold btn-glow" height="56">
+            Masuk ke Dashboard
           </v-btn>
         </div>
 
-        <!-- Features Grid - Horizontal & Compact -->
-        <v-row justify="center">
+        <v-row justify="center" class="mt-4" dense>
           <v-col v-for="feature in features" :key="feature.title" cols="6" sm="4" md="2">
-            <v-card class="feature-card-compact text-center pa-4" elevation="3" hover height="100%">
-              <v-avatar :color="feature.color" size="56" class="mb-3">
-                <v-icon :icon="feature.icon" size="32" color="white"></v-icon>
-              </v-avatar>
-              <h4 class="text-subtitle-1 font-weight-bold text-grey-darken-3 mb-2">
-                {{ feature.title }}
-              </h4>
-              <p class="text-caption text-grey-darken-1" style="line-height: 1.3;">
-                {{ feature.description }}
-              </p>
-            </v-card>
+            <v-hover v-slot="{ isHovering, props }">
+              <v-card v-bind="props" class="feature-glass-card fill-height py-5 px-2"
+                :class="{ 'hover-up': isHovering }" variant="text">
+                <div class="glass-icon-bg mb-3 mx-auto" :class="`text-${feature.color}`">
+                  <v-icon :icon="feature.icon" size="28" />
+                </div>
+                <h4 class="text-subtitle-2 font-weight-bold text-white mb-1 text-uppercase tracking-wider">
+                  {{ feature.title }}
+                </h4>
+                <div class="text-caption text-white opacity-70" style="font-size: 0.7rem; line-height: 1.3;">
+                  {{ feature.description }}
+                </div>
+              </v-card>
+            </v-hover>
           </v-col>
         </v-row>
 
-        <!-- Bottom Info - Compact -->
-        <div class="text-center mt-8">
-          <v-chip-group class="justify-center">
-            <v-chip color="white" variant="flat" prepend-icon="mdi-check-circle">
-              <span class="text-primary font-weight-bold">Real-time Monitoring</span>
-            </v-chip>
-            <v-chip color="white" variant="flat" prepend-icon="mdi-check-circle">
-              <span class="text-primary font-weight-bold">Mudah Digunakan</span>
-            </v-chip>
-            <v-chip color="white" variant="flat" prepend-icon="mdi-check-circle">
-              <span class="text-primary font-weight-bold">Laporan Lengkap</span>
-            </v-chip>
-          </v-chip-group>
+        <div class="mt-12 text-white text-caption opacity-60">
+          &copy; 2025 IT Kencana Print. All Rights Reserved.
         </div>
+
       </v-col>
     </v-row>
   </v-container>
@@ -1625,24 +1628,133 @@ watch(chartGroupBy, fetchSalesChartData);
 </template>
 
 <style scoped>
-/* Landing Page Styles */
+/* --- LANDING PAGE STYLES --- */
+
+/* 1. Background Setup */
 .landing-container {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  min-height: 100vh;
-  padding: 2rem;
+  position: relative;
   overflow: hidden;
-  /* Prevent scroll */
+  background-color: #1a1a1a;
+  /* Fallback color */
 }
 
-.feature-card-compact {
-  transition: all 0.3s ease;
-  background: white;
+.bg-image {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 0;
+  transform: scale(1.05);
+  /* Sedikit zoom agar tidak ada border putih */
+}
+
+/* Overlay Gelap Elegan */
+.bg-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 1;
+  /* Gradasi Gelap Ungu ke Hitam Transparan */
+  background: linear-gradient(135deg, rgba(30, 3, 61, 0.85) 0%, rgba(0, 0, 0, 0.75) 100%);
+  backdrop-filter: blur(4px);
+  /* Blur background foto sedikit agar teks fokus */
+}
+
+.content-layer {
+  position: relative;
+  z-index: 2;
+  /* Di atas overlay */
+}
+
+/* 2. Hero Glass Card */
+.hero-glass-card {
+  background: rgba(255, 255, 255, 0.05);
+  /* Sangat transparan */
+  backdrop-filter: blur(16px);
+  /* Efek kaca buram kuat */
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 32px;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.3);
+  position: relative;
+  overflow: hidden;
+}
+
+/* Kilauan cahaya di atas kartu (shine effect) */
+.hero-glass-card::before {
+  content: '';
+  position: absolute;
+  top: -50%;
+  left: -50%;
+  width: 200%;
+  height: 200%;
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.1) 0%, transparent 60%);
+  pointer-events: none;
+}
+
+/* 3. Feature Glass Cards */
+.feature-glass-card {
+  background: rgba(255, 255, 255, 0.03) !important;
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 16px;
+  transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  /* Bouncy transition */
+  cursor: default;
+}
+
+.feature-glass-card.hover-up {
+  background: rgba(255, 255, 255, 0.1) !important;
+  border-color: rgba(255, 255, 255, 0.3);
+  transform: translateY(-8px);
+  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.2);
+}
+
+.glass-icon-bg {
+  width: 48px;
+  height: 48px;
   border-radius: 12px;
+  background: rgba(255, 255, 255, 0.1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 12px;
+  box-shadow: inset 0 0 10px rgba(255, 255, 255, 0.05);
 }
 
-.feature-card-compact:hover {
-  transform: translateY(-4px);
-  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.15) !important;
+/* 4. Typography & Effects */
+.text-shadow {
+  text-shadow: 0 4px 10px rgba(0, 0, 0, 0.5);
+}
+
+.tracking-wide {
+  letter-spacing: 0.05em;
+}
+
+.tracking-wider {
+  letter-spacing: 0.1em;
+}
+
+.tracking-widest {
+  letter-spacing: 0.2em;
+}
+
+.logo-glow {
+  box-shadow: 0 0 30px rgba(255, 255, 255, 0.2);
+  border: 2px solid rgba(255, 255, 255, 0.2);
+}
+
+.btn-glow {
+  box-shadow: 0 0 20px rgba(255, 255, 255, 0.3);
+  transition: all 0.3s ease;
+}
+
+.btn-glow:hover {
+  transform: scale(1.05);
+  box-shadow: 0 0 30px rgba(255, 255, 255, 0.5);
 }
 
 /* Dashboard Styles */

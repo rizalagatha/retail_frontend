@@ -90,6 +90,7 @@ interface LowStockProduct {
   KODE: string;
   BARCODE?: string;
   NAMA: string;
+  UKURAN: string;
   TOTAL: number;
   Buffer: number;
   AVG_SALE: number; // <--- Tambahan
@@ -1470,12 +1471,12 @@ watch(chartGroupBy, fetchSalesChartData);
 
                 <div v-else>
                   <v-list bg-color="transparent" class="scrollable-list" style="max-height: 300px; overflow-y: auto;">
-                    <v-list-item v-for="product in lowStockProducts" :key="product.KODE" class="px-3 mb-2 py-2"
-                      rounded="lg" border>
+                    <v-list-item v-for="(product) in lowStockProducts" :key="`${product.KODE}-${product.UKURAN}`"
+                      class="px-3 mb-2 py-2" rounded="lg" border>
 
                       <template #prepend>
                         <v-avatar color="error" size="48" variant="tonal" class="mr-2">
-                          <v-icon color="error" icon="mdi-package-variant-closed"></v-icon>
+                          <span class="text-h6 font-weight-black">{{ product.UKURAN }}</span>
                         </v-avatar>
                       </template>
 
@@ -1507,7 +1508,6 @@ watch(chartGroupBy, fetchSalesChartData);
                         </div>
 
                       </div>
-
                     </v-list-item>
                   </v-list>
 

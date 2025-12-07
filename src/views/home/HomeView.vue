@@ -86,6 +86,15 @@ interface ItemTrend {
   total_qty: number;
 }
 
+interface LowStockProduct {
+  KODE: string;
+  BARCODE?: string;
+  NAMA: string;
+  TOTAL: number;
+  Buffer: number;
+  AVG_SALE: number; // <--- Tambahan
+}
+
 const authStore = useAuthStore()
 const router = useRouter()
 const toast = useToast();
@@ -140,7 +149,7 @@ const isLoadingChart = ref(true);
 const recentTransactions = ref([]);
 const isLoadingTransactions = ref(true);
 
-const lowStockProducts = ref([]);
+const lowStockProducts = ref<LowStockProduct[]>([]);
 const lowStockCount = ref(0);
 const isLoadingLowStock = ref(true);
 
@@ -1461,26 +1470,44 @@ watch(chartGroupBy, fetchSalesChartData);
 
                 <div v-else>
                   <v-list bg-color="transparent" class="scrollable-list" style="max-height: 300px; overflow-y: auto;">
-                    <v-list-item v-for="product in lowStockProducts" :key="product.KODE" class="px-2 mb-2" rounded="lg"
-                      border>
+                    <v-list-item v-for="product in lowStockProducts" :key="product.KODE" class="px-3 mb-2 py-2"
+                      rounded="lg" border>
+
                       <template #prepend>
-                        <v-avatar color="error" size="40">
-                          <v-icon color="white">mdi-package-variant</v-icon>
+                        <v-avatar color="error" size="48" variant="tonal" class="mr-2">
+                          <v-icon color="error" icon="mdi-package-variant-closed"></v-icon>
                         </v-avatar>
                       </template>
 
-                      <v-list-item-title class="font-weight-bold text-body-1">
-                        {{ product.NAMA }}
-                      </v-list-item-title>
-                      <v-list-item-subtitle class="mt-1">
-                        Sisa: <strong>{{ product.TOTAL }}</strong> | Buffer: <strong>{{ product.Buffer }}</strong>
-                      </v-list-item-subtitle>
+                      <div class="d-flex flex-column gap-1">
 
-                      <template #append>
-                        <v-chip color="error" size="small" variant="flat" class="font-weight-bold">
-                          {{ product.TOTAL }} pcs
-                        </v-chip>
-                      </template>
+                        <div class="text-subtitle-2 font-weight-bold text-wrap" style="line-height: 1.2;">
+                          {{ product.NAMA }}
+                        </div>
+
+                        <div class="d-flex align-center text-caption text-medium-emphasis mt-1">
+                          <v-chip size="x-small" label class="mr-2 px-2" color="grey-lighten-2" variant="flat">
+                            <span class="text-grey-darken-3 font-weight-medium">{{ product.KODE }}</span>
+                          </v-chip>
+                          <span v-if="product.BARCODE" class="d-flex align-center">
+                            <v-icon start size="x-small" icon="mdi-barcode" class="mr-1"></v-icon>
+                            {{ product.BARCODE }}
+                          </span>
+                        </div>
+
+                        <div class="d-flex align-center mt-2">
+                          <v-chip size="x-small" color="error" variant="flat" class="mr-2 font-weight-bold">
+                            Sisa: {{ product.TOTAL }}
+                          </v-chip>
+
+                          <div class="d-flex align-center text-caption text-info font-weight-medium">
+                            <v-icon size="x-small" start icon="mdi-speedometer" class="mr-1"></v-icon>
+                            Laku: {{ Number(product.AVG_SALE).toFixed(1) }} /bln
+                          </div>
+                        </div>
+
+                      </div>
+
                     </v-list-item>
                   </v-list>
 

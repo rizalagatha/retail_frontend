@@ -1511,6 +1511,7 @@ const isHargaEditable = (item: Item) => {
 const loadDataForEdit = async (nomor: string) => {
   isLoading.value = true;
   try {
+    await fetchActivePromos();
     const response = await api.get(`/invoice-form/${nomor}`);
     const { header: h, items: its, dps } = response.data;
 
@@ -1564,6 +1565,9 @@ const loadDataForEdit = async (nomor: string) => {
       customerDiscountRule.value = null;
     }
 
+    header.nomorPromo = h.inv_pro_nomor || ''; // [PENTING] Set nomor promo dari backend
+    header.namaPromo = h.namaPromo || '';      // [PENTING] Set nama promo
+
     /* =======================
        ITEMS
        ======================= */
@@ -1572,7 +1576,9 @@ const loadDataForEdit = async (nomor: string) => {
       const harga = Number(it.harga);
       const qty = Number(it.jumlah);
       const diskRp = Number(it.diskonRp);
-      const hargaSetelah = harga; // backend sudah hitung
+      const diskPersen = Number(it.diskonPersen || 0);
+
+      const isPromoItem = (diskRp > 0 || diskPersen > 0) && !!header.nomorPromo;
 
       return {
         id: Date.now() + idx,
@@ -1582,25 +1588,26 @@ const loadDataForEdit = async (nomor: string) => {
         ukuran: it.ukuran,
 
         jumlah: qty,
-        harga: hargaSetelah,
-        diskonRp: diskRp,
-        diskonPersen: 0, // backend tidak kirim — wajib isi
+        harga: harga, // Gunakan harga asli/netto dari backend
 
-        total: hargaSetelah * qty,
+        diskonRp: diskRp,
+        diskonPersen: diskPersen, // [FIX] Map diskon persen
+
+        total: it.total, // Gunakan total dari backend agar akurat
 
         barcode: it.barcode || "",
         stok: it.stok || 0,
         qtyso: it.qtySO || 0,
         stokSO: it.stokSO || 0,
 
-        kategori: '',
+        kategori: it.kategori || '', // [FIX] Map kategori dari backend ('REGULER', etc)
 
         originalDiskonRp: diskRp,
-        originalDiskonPersen: 0,
+        originalDiskonPersen: diskPersen,
 
-        terhitungPromo: false,
+        terhitungPromo: isPromoItem, // [FIX] Set status promo
         promoQty: 0,
-        promo: "",
+        promo: isPromoItem ? header.nomorPromo : "",
         _isHargaEditable: true,
 
         nourut: it.nourut,
@@ -1616,6 +1623,7 @@ const loadDataForEdit = async (nomor: string) => {
     calculateTotals();
     applyDefaultDiscount(); // ini wajib dipanggil setelah load
     calculateTotals(); // hitung ulang setelah diskon berubah
+    checkRealtimePromoEligibility();
 
     isSoLoaded.value = !!header.nomorSo;
 

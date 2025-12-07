@@ -724,28 +724,34 @@ const fetchActivePromos = async () => {
       }
     });
 
-    // 1. Casting response data ke tipe ActivePromo[]
     const promos = (response.data || []) as ActivePromo[];
-
     let promoMessages: string[] = [];
 
-    // 2. Hapus ': any', sekarang TypeScript sudah tahu tipe 'p' adalah ActivePromo
-    const promoReguler = promos.find(p => p.pro_nomor === 'PRO-2025-010' || p.pro_judul.toUpperCase().includes('REGULER'));
+    // --- LOGIKA CABANG ---
 
-    if (promoReguler) {
-      promoMessages.push(
-        `🎉 PROMO SPESIAL: Dapatkan Diskon Rp 25.000 setiap belanja kelipatan Rp 250.000 (Produk Reguler, Kecuali Jersey)!`
-      );
+    // 1. Cabang K11 (Grand Opening)
+    if (authStore.user?.cabang === 'K11') {
+       promoMessages.push(
+         `🎊 GRAND OPENING KEDIRI: Nikmati DISKON 10% ALL ITEM tanpa syarat minimal belanja! Berlaku untuk semua produk Kaosan. Serbu sekarang! 🎊`
+       );
     }
-    else if (promos.length > 0) {
-      // 3. Hapus ': any' di sini juga
-      promoMessages = promos.map(p => `✨ ${p.pro_judul}`);
+    // 2. Cabang Lain (Reguler)
+    else {
+       const promoReguler = promos.find(p => p.pro_nomor === 'PRO-2025-010' || p.pro_judul.toUpperCase().includes('REGULER'));
+
+       if (promoReguler) {
+         promoMessages.push(
+           `🔥 PROMO REGULER: Potongan Rp 25.000 tiap kelipatan Rp 250.000 (Khusus Kaos Polos/Reguler, Non-Jersey). Buruan Serbu!`
+         );
+       }
+       else if (promos.length > 0) {
+         promoMessages = promos.map(p => `✨ ${p.pro_judul}`);
+       }
     }
 
+    // Fallback jika kosong
     if (promoMessages.length === 0) {
-      promoMessages.push(
-        `🔥 PROMO REGULER: Potongan Rp 25.000 tiap kelipatan Rp 250.000 (Khusus Kaos Polos/Reguler, Non-Jersey). Buruan Serbu!`
-      );
+      promoMessages.push('Selamat Datang di Kaosan Retail Management System');
     }
 
     promoText.value = promoMessages.join('   •   ');

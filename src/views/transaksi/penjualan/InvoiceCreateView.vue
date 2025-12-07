@@ -301,6 +301,7 @@ const isLockedFsk = ref(false);
 const activePromosList = ref<ActivePromo[]>([]); // Menyimpan daftar promo dari DB
 const promoNotification = ref(''); // Teks untuk running text/alert
 const potentialPromoDiscount = ref(0); // Menyimpan nominal potensi diskon
+const isGrandOpeningPromo = ref(false);
 
 // --- Konfigurasi Tabel ---
 const tableHeaders = [
@@ -1110,43 +1111,60 @@ const checkRealtimePromoEligibility = () => {
   // Reset
   promoNotification.value = '';
   potentialPromoDiscount.value = 0;
+  isGrandOpeningPromo.value = false; // Reset flag style
 
-  // Jika sudah ada promo manual yang dipilih (misal F1), jangan timpa notifikasi
+  // Jika sudah ada promo manual yang dipilih (F1), jangan timpa
   if (header.nomorPromo && header.nomorPromo !== '') return;
 
   const validItems = items.value.filter(i => i.kode);
   if (validItems.length === 0) return;
 
-  const promo008 = activePromosList.value.find(p => p.pro_nomor === 'PRO-2025-008');
-  const promo010 = activePromosList.value.find(p => p.pro_nomor === 'PRO-2025-010');
-
-  // Hitung Total (Logic sama seperti handleProceedToPayment)
-  const totalReguler = validItems.reduce((sum, item) => {
-    if (item.kategori === 'REGULER' && !item.nama?.toUpperCase().includes('JERSEY')) {
-      return sum + (item.total || 0);
-    }
-    return sum;
-  }, 0);
-
-  const totalBelanja = validItems.reduce((sum, item) => {
-    if (!item.noSoDtf && !item.noPengajuanHarga) return sum + (item.total || 0);
-    return sum;
-  }, 0);
-
   let message = '';
   let discount = 0;
 
-  // Cek Prioritas Promo
-  // 1. Cek Promo Kelipatan (PRO-2025-010)
-  if (promo010 && totalReguler >= 250000) {
-    const kelipatan = Math.floor(totalReguler / 250000);
-    discount = 25000 * kelipatan;
-    message = `🎉 SELAMAT! Transaksi ini berhak mendapatkan Potongan Kelipatan Rp ${formatRupiah(discount)}!`;
+  // --- 1. LOGIKA KHUSUS GRAND OPENING (K11) ---
+  if (header.gudang.kode === 'K11') {
+    // Hitung total gross semua barang (kecuali jasa/ongkir jika ada filter khusus)
+    const totalGross = validItems.reduce((sum, item) => {
+      // Exclude item SO DTF / Pengajuan harga dari diskon otomatis jika diperlukan
+      if (item.noSoDtf || item.noPengajuanHarga) return sum;
+      return sum + ((item.harga || 0) * (item.jumlah || 0));
+    }, 0);
+
+    if (totalGross > 0) {
+      discount = totalGross * 0.10; // 10% All Item
+      message = `🎊 GRAND OPENING SPECIAL! Diskon 10% All Item Otomatis! (Hemat ${formatRupiah(discount)})`;
+      isGrandOpeningPromo.value = true; // Aktifkan style khusus
+    }
   }
-  // 2. Cek Promo Bulanan (PRO-2025-008) - Fallback
-  else if (promo008 && totalBelanja >= promo008.pro_totalrp) {
-    discount = promo008.pro_disrp * Math.floor(totalBelanja / promo008.pro_totalrp);
-    message = `✨ DISKON BULANAN AKTIF: Anda berhak mendapatkan potongan Rp ${formatRupiah(discount)}`;
+
+  // --- 2. LOGIKA REGULER (Cabang Lain) ---
+  else {
+    const promo008 = activePromosList.value.find(p => p.pro_nomor === 'PRO-2025-008');
+    const promo010 = activePromosList.value.find(p => p.pro_nomor === 'PRO-2025-010');
+
+    // Hitung Total Reguler & Belanja
+    const totalReguler = validItems.reduce((sum, item) => {
+      if (item.kategori === 'REGULER' && !item.nama?.toUpperCase().includes('JERSEY')) {
+        return sum + (item.total || 0);
+      }
+      return sum;
+    }, 0);
+
+    const totalBelanja = validItems.reduce((sum, item) => {
+      if (!item.noSoDtf && !item.noPengajuanHarga) return sum + (item.total || 0);
+      return sum;
+    }, 0);
+
+    // Cek Prioritas Promo Reguler
+    if (promo010 && totalReguler >= 250000) {
+      const kelipatan = Math.floor(totalReguler / 250000);
+      discount = 25000 * kelipatan;
+      message = `🎉 SELAMAT! Transaksi ini berhak mendapatkan Potongan Kelipatan Rp ${formatRupiah(discount)}!`;
+    } else if (promo008 && totalBelanja >= promo008.pro_totalrp) {
+      discount = promo008.pro_disrp * Math.floor(totalBelanja / promo008.pro_totalrp);
+      message = `✨ DISKON BULANAN AKTIF: Anda berhak mendapatkan potongan Rp ${formatRupiah(discount)}`;
+    }
   }
 
   // Update State UI
@@ -1981,22 +1999,22 @@ onMounted(() => {
         <div class="footer-actions-section">
           <v-slide-y-transition>
             <div v-if="promoNotification" class="promo-card-wrapper mb-4">
-              <div class="promo-card">
-                <div class="card-texture"></div>
+              <div class="promo-card" :class="{ 'grand-opening-style': isGrandOpeningPromo }">
 
+                <div class="card-texture"></div>
                 <div class="card-shine"></div>
 
                 <div class="card-content">
                   <div class="icon-container">
                     <div class="icon-circle pulse-animation">
-                      <v-icon icon="mdi-ticket-percent-outline" size="24" color="white" />
+                      <v-icon :icon="isGrandOpeningPromo ? 'mdi-party-popper' : 'mdi-ticket-percent-outline'" size="24" color="white" />
                     </div>
                   </div>
 
                   <div class="text-container">
                     <div class="promo-label">
                       <v-icon icon="mdi-star-four-points" size="10" class="mr-1" color="yellow-lighten-3" />
-                      YAYY!! DAPET DISKON!!!
+                      {{ isGrandOpeningPromo ? 'SPECIAL OFFER' : 'YAYY!! DAPET DISKON!!!' }}
                     </div>
                     <div class="promo-message">{{ promoNotification }}</div>
                   </div>
@@ -2292,6 +2310,17 @@ onMounted(() => {
   box-shadow: 0 10px 25px -5px rgba(38, 208, 206, 0.4);
   border: 1px solid rgba(255, 255, 255, 0.15);
   transition: all 0.3s ease;
+}
+
+/* Style Khusus Grand Opening (Emas ke Merah Maroon - Kesan Meriah) */
+.promo-card.grand-opening-style {
+  background: linear-gradient(135deg, #FF512F 0%, #DD2476 100%) !important;
+  box-shadow: 0 10px 25px -5px rgba(221, 36, 118, 0.5) !important;
+  border: 1px solid rgba(255, 215, 0, 0.3) !important; /* Border agak keemasan */
+}
+
+.grand-opening-style .promo-label {
+  color: #FFD700 !important; /* Teks label jadi emas */
 }
 
 /* Texture Pattern (Titik-titik background) */

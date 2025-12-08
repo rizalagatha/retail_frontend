@@ -23,7 +23,13 @@ const ManualProgramDialog = defineAsyncComponent(() => import('@/components/dial
 
 const authStore = useAuthStore();
 const uiStore = useUiStore();
-const version = __APP_VERSION__;
+
+// --- STATE VERSI & UPDATE ---
+const currentVersion = __APP_VERSION__; // Versi yang sedang jalan di browser
+const isUpdateAvailable = ref(false);   // Flag update
+const serverVersion = ref('');          // Versi dari server
+const isUpdateConfirmDialogVisible = ref(false);
+const latestChanges = ref<string[]>([]);
 
 // Dapatkan state visibilitas dari composables/store
 const { showPasswordDialog, closePasswordDialog } = usePasswordDialog(); // Contoh
@@ -44,28 +50,57 @@ const latencyColor = computed(() => {
   return 'error';                            // Lambat (> 400ms)
 });
 
+// --- MODIFIKASI LOGIC PING ---
 const checkPing = async () => {
   if (isCheckingPing.value) return;
   isCheckingPing.value = true;
   const start = Date.now();
 
   try {
-    // Panggil endpoint ringan di backend (misal: health check atau user profile)
-    // Jika tidak ada endpoint khusus, bisa pakai '/auth/me' atau root '/'
-    await api.get('/health-check').catch(() => { }); // Ganti dengan endpoint valid
+    // Panggil endpoint health
+    const response = await api.get('/health-check');
 
-    // Atau jika backend belum ada endpoint health, cukup panggil API paling ringan yg ada
-    // await api.get('/utility/ping');
+    // 1. Hitung Latency
+    latency.value = Date.now() - start;
+    authStore.isOnline = true;
 
-    const duration = Date.now() - start;
-    latency.value = duration;
-    authStore.isOnline = true; // Sekalian update store
+    // 2. [BARU] Cek Versi
+    // Pastikan response memiliki field version
+    if (response.data && response.data.version) {
+      const remoteVer = response.data.version;
+
+      if (remoteVer !== currentVersion) {
+        serverVersion.value = remoteVer;
+
+        // [BARU] Simpan changelog dari server ke state
+        if (response.data.changes && Array.isArray(response.data.changes)) {
+          latestChanges.value = response.data.changes;
+        } else {
+          latestChanges.value = ["Peningkatan performa dan perbaikan bug."];
+        }
+
+        isUpdateAvailable.value = true;
+      }
+    }
+
   } catch {
     latency.value = null;
     authStore.isOnline = false;
   } finally {
     isCheckingPing.value = false;
   }
+};
+
+// --- LOGIC RELOAD APP [DIMODIFIKASI] ---
+const handleUpdateClick = () => {
+  // Selalu buka dialog konfirmasi (baik ada unsaved changes atau tidak)
+  // karena kita ingin menampilkan Info Fitur Baru di dialog ini.
+  isUpdateConfirmDialogVisible.value = true;
+};
+
+const performReload = () => {
+  // Paksa reload dari server (bypass cache)
+  window.location.reload();
 };
 
 // --- LOGIC JADWAL SHOLAT ---
@@ -441,16 +476,90 @@ onUnmounted(() => {
 
         <v-tooltip text="Lapor Masalah" location="top">
           <template v-slot:activator="{ props }">
-            <v-btn v-bind="props" icon variant="text" size="small" density="compact" color="red-lighten-1"
+            <v-btn v-bind="props" icon variant="text" size="small" density="compact" color="green"
               href="https://wa.me/6282242748378?text=Halo%20IT,%20saya%20nemu%20error%20di..." target="_blank">
-              <v-icon size="16">mdi-bug-outline</v-icon>
+              <v-icon size="16">mdi-whatsapp</v-icon>
             </v-btn>
           </template>
         </v-tooltip>
 
-        <span class="text-caption text-disabled ml-1">v{{ version }}</span>
+        <span class="text-caption text-disabled ml-1">v{{ currentVersion }}</span>
       </div>
     </v-footer>
+
+    <v-snackbar v-model="isUpdateAvailable" color="indigo-darken-3" location="bottom center" :timeout="-1" vertical
+      class="mb-8">
+      <div class="text-subtitle-1 font-weight-bold pb-1">
+        <v-icon start icon="mdi-cloud-download-outline" />
+        Update Tersedia!
+      </div>
+      <p class="text-body-2">
+        Versi baru <strong>(v{{ serverVersion }})</strong> telah tersedia.
+      </p>
+
+      <template v-slot:actions>
+        <v-btn color="white" variant="text" @click="isUpdateAvailable = false">
+          Nanti Saja
+        </v-btn>
+        <v-btn color="yellow-accent-4" variant="flat" class="font-weight-bold text-black" @click="handleUpdateClick">
+          Update Sekarang
+        </v-btn>
+      </template>
+    </v-snackbar>
+
+    <v-dialog v-model="isUpdateConfirmDialogVisible" max-width="500" persistent>
+      <v-card class="rounded-lg">
+
+        <v-card-title class="text-h6 font-weight-bold d-flex align-center py-3 text-white"
+          :class="uiStore.hasUnsavedChanges ? 'bg-red-darken-1' : 'bg-primary'">
+          <v-icon start class="mr-2">
+            {{ uiStore.hasUnsavedChanges ? 'mdi-alert-octagon-outline' : 'mdi-rocket-launch' }}
+          </v-icon>
+          {{ uiStore.hasUnsavedChanges ? 'Peringatan & Update' : 'Versi Baru Tersedia!' }}
+        </v-card-title>
+
+        <v-card-text class="pt-4 text-body-1">
+
+          <v-alert v-if="uiStore.hasUnsavedChanges" type="error" variant="tonal" icon="mdi-alert" class="mb-4"
+            border="start">
+            <strong>Data Belum Disimpan!</strong><br>
+            Anda sedang mengisi form. Jika update sekarang, <span class="text-decoration-underline">semua input akan
+              hilang</span>.
+          </v-alert>
+
+          <div class="mb-2">
+            Update ke versi <strong>v{{ serverVersion }}</strong> sudah siap.
+          </div>
+
+          <div class="bg-grey-lighten-4 pa-3 rounded border">
+            <div class="text-caption font-weight-bold text-grey-darken-2 mb-1">
+              APA YANG BARU DI VERSI INI?
+            </div>
+            <ul class="pl-4 text-body-2 text-grey-darken-3">
+              <li v-for="(change, i) in latestChanges" :key="i" class="mb-1">
+                {{ change }}
+              </li>
+            </ul>
+          </div>
+
+        </v-card-text>
+
+        <v-divider></v-divider>
+
+        <v-card-actions class="px-4 py-3 bg-grey-lighten-5">
+          <v-spacer></v-spacer>
+
+          <v-btn color="grey-darken-3" variant="text" @click="isUpdateConfirmDialogVisible = false">
+            {{ uiStore.hasUnsavedChanges ? 'Batal (Simpan Dulu)' : 'Nanti Saja' }}
+          </v-btn>
+
+          <v-btn :color="uiStore.hasUnsavedChanges ? 'red' : 'primary'" variant="flat" @click="performReload"
+            :prepend-icon="uiStore.hasUnsavedChanges ? 'mdi-delete-restore' : 'mdi-update'" class="px-4">
+            {{ uiStore.hasUnsavedChanges ? 'Hapus Data & Update' : 'Update Sekarang' }}
+          </v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
 
     <ChangePasswordDialog v-if="showPasswordDialog" @close="closePasswordDialog" />
 

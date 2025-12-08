@@ -1,8 +1,10 @@
 <script setup lang="ts">
-import { ref, reactive, onMounted, computed, nextTick } from 'vue';
+import { ref, reactive, onMounted, computed, nextTick, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useToast } from 'vue-toastification';
 import { useAuthStore } from '@/stores/authStore';
+import { useUiStore } from '@/stores/uiStore';
+import { useUnsavedChanges } from '@/composables/useUnsavedChanges';
 import api from '@/services/api';
 import { format } from 'date-fns';
 import PageLayout from '@/components/PageLayout.vue';
@@ -25,6 +27,8 @@ const router = useRouter();
 const route = useRoute();
 const toast = useToast();
 const authStore = useAuthStore();
+const uiStore = useUiStore();
+const { markAsSaved } = useUnsavedChanges();
 const MENU_ID = '44';
 
 // --- Tipe Data ---
@@ -115,6 +119,9 @@ const loadDataForEdit = async (nomor: string) => {
     }));
     addNewRow();
 
+    await nextTick();
+    markAsSaved();
+
   } catch (error: unknown) {
     if (axios.isAxiosError(error) && error.response) {
       toast.error(error.response.data?.message || 'Gagal memuat data.');
@@ -144,6 +151,7 @@ const resetForm = (showToast = true) => {
   items.value = [];
   addNewRow();
   isDataSaved.value = false;
+  markAsSaved();
   if (showToast) toast.info('Form telah dibersihkan.');
 };
 
@@ -161,6 +169,8 @@ const executeSave = async () => {
   try {
     const response = await api.post('/mutasi-in-form/save', payload);
     toast.success(response.data.message);
+
+    markAsSaved();
 
     const nomorMI = response.data.nomor;
     const url = router.resolve({ name: 'Cetak Mutasi In', params: { nomor: nomorMI } }).href;
@@ -262,7 +272,32 @@ const handleCancel = () => {
   );
 };
 
+// --- WATCHERS (UNSAVED CHANGES) ---
+watch(
+  [header, items],
+  () => {
+    // Abaikan jika sedang loading awal atau saving
+    if (isLoading.value || isSaving.value) return;
+
+    // Cek apakah form "kotor"
+    // 1. Header: Nomor Mutasi Out dipilih atau Keterangan diisi
+    const hasHeader = (header.nomorMutasiOut !== '') || (header.keterangan.trim() !== '');
+
+    // 2. Items: Ada minimal 1 baris yang valid (kode terisi)
+    const hasItems = items.value.some(i => i.kode !== '');
+
+    if (hasHeader || hasItems) {
+      uiStore.setUnsavedChanges(true);
+    } else {
+      // Jika kembali kosong bersih
+      uiStore.setUnsavedChanges(false);
+    }
+  },
+  { deep: true }
+);
+
 onMounted(() => {
+  markAsSaved();
   const nomor = route.params.nomor as string;
   if (isEditMode.value && nomor) {
     loadDataForEdit(nomor);

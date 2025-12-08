@@ -74,7 +74,7 @@ export const useAuthStore = defineStore("auth", () => {
   const checkServerStatus = async () => {
     try {
       // Gunakan instance axios yang bersih, tanpa interceptor
-      await axios.head("/api/health");
+      await axios.head("/api/health-check");
       isOnline.value = true;
     } catch {
       isOnline.value = false;

@@ -8,6 +8,8 @@ import JenisOrderStokSearchModal from '@/components/lookup/JenisOrderStokSearchM
 import WorkshopSearchModal from '@/components/lookup/WorkshopSearchModal.vue';
 import { useToast } from 'vue-toastification';
 import { useAuthStore } from '@/stores/authStore';
+import { useUiStore } from '@/stores/uiStore';
+import { useUnsavedChanges } from '@/composables/useUnsavedChanges';
 import { format } from 'date-fns';
 import type { AxiosError } from 'axios';
 
@@ -39,6 +41,8 @@ const router = useRouter();
 const route = useRoute();
 const toast = useToast();
 const authStore = useAuthStore();
+const uiStore = useUiStore();
+const { markAsSaved } = useUnsavedChanges();
 const MENU_ID = '36';
 
 const isEditMode = computed(() => !!route.params.nomor);
@@ -154,6 +158,9 @@ const loadDataForEdit = async (nomor: string) => {
         itemToUpdate.lebar = savedItem.sds_lebar ?? null;
       }
     });
+
+    await nextTick();
+    markAsSaved();
   } catch {
     toast.error('Gagal memuat data SO Stok.');
     router.back();
@@ -203,6 +210,8 @@ const save = async () => {
       toast.success(`Data berhasil disimpan dengan nomor: ${nomorSoDtf}`);
     }
 
+    markAsSaved();
+
     // Logika upload gambar
     if (!isEditMode.value && imageFile.value) {
       const uploadSuccess = await uploadImageToServer(nomorSoDtf);
@@ -232,6 +241,7 @@ const resetForm = () => {
   items.value = [];
   imagePreview.value = null;
   imageFile.value = null;
+  markAsSaved();
   toast.info("Form telah dikosongkan.");
 };
 
@@ -360,7 +370,33 @@ watch(() => form.value.jenisOrderKode, (newVal) => {
   }
 });
 
+// --- WATCHERS (UNSAVED CHANGES) ---
+watch(
+  [form, items],
+  () => {
+    // Abaikan jika sedang loading awal atau saving
+    if (isLoading.value || isSaving.value) return;
+
+    // Cek apakah form "kotor"
+    // 1. Header: Sales dipilih atau Keterangan diisi
+    const hasHeader = (form.value.salesKode !== '') || (form.value.keterangan.trim() !== '');
+
+    // 2. Items: Ada item yang jumlahnya diisi > 0
+    const hasItems = items.value.some(i => (i.jumlah || 0) > 0);
+
+    if (hasHeader || hasItems) {
+      uiStore.setUnsavedChanges(true);
+    } else {
+      // Jika kembali kosong bersih
+      uiStore.setUnsavedChanges(false);
+    }
+  },
+  { deep: true }
+);
+
 onMounted(async () => {
+  markAsSaved();
+
   // --- TAMBAHKAN PENGECEKAN AWAL ---
   if (!canView.value) {
     isLoading.value = false; // Hentikan loading

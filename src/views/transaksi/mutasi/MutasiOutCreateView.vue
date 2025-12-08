@@ -1,10 +1,12 @@
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue';
+import { ref, onMounted, computed, nextTick, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import api from '@/services/api';
 import PageLayout from '@/components/PageLayout.vue';
 import { useToast } from 'vue-toastification';
 import { useAuthStore } from '@/stores/authStore';
+import { useUiStore } from '@/stores/uiStore';
+import { useUnsavedChanges } from '@/composables/useUnsavedChanges';
 import { format } from 'date-fns';
 import SoSearchModal from '@/components/lookup/SoSearchModal.vue';
 import WorkshopSearchModal from '@/components/lookup/WorkshopSearchModal.vue';
@@ -48,6 +50,8 @@ const router = useRouter();
 const route = useRoute();
 const toast = useToast();
 const authStore = useAuthStore();
+const uiStore = useUiStore();
+const { markAsSaved } = useUnsavedChanges();
 const MENU_ID = '43';
 
 const isEditMode = computed(() => !!route.params.nomor);
@@ -122,6 +126,9 @@ const loadDataForEdit = async (nomor: string) => {
     formHeader.value.keterangan = header.mo_ket;
 
     items.value = loadedItems.map(item => ({ ...item, id: Date.now() + Math.random() }));
+
+    await nextTick();
+    markAsSaved();
   } catch (error: unknown) {
     toast.error('Gagal memuat data.');
     console.error(error);
@@ -159,6 +166,8 @@ const executeSave = async () => {
     const response = await api.post<{ message: string; nomor: string }>('/mutasi-out-form/save', payload);
     toast.success(response.data.message);
 
+    markAsSaved();
+
     const nomorMutasi = response.data.nomor;
     const url = router.resolve({
       name: 'Cetak Mutasi Out',
@@ -178,6 +187,8 @@ const executeSave = async () => {
 const resetForm = () => {
   formHeader.value = { ...initialHeaderState };
   items.value = [];
+  markAsSaved();
+  toast.info('Form telah dibersihkan.');
 };
 
 const showConfirmation = (action: () => void, text: string) => {
@@ -208,7 +219,33 @@ const getQtyOutClass = (item: MutasiOutItem): string => {
   return qtyOut > stok || qtyOut > belum ? 'qty-error' : '';
 };
 
+// --- WATCHERS (UNSAVED CHANGES) ---
+watch(
+  [formHeader, items],
+  () => {
+    // Abaikan jika sedang loading awal atau saving
+    if (isLoading.value || isSaving.value) return;
+
+    // Cek apakah form "kotor"
+    // 1. Header: Nomor SO dipilih atau Keterangan diisi
+    const hasHeader = (formHeader.value.soNomor !== '') || (formHeader.value.keterangan.trim() !== '');
+
+    // 2. Items: Ada item yang sudah masuk ke grid
+    const hasItems = items.value.length > 0;
+
+    if (hasHeader || hasItems) {
+      uiStore.setUnsavedChanges(true);
+    } else {
+      // Jika kembali kosong bersih
+      uiStore.setUnsavedChanges(false);
+    }
+  },
+  { deep: true }
+);
+
 onMounted(() => {
+  markAsSaved();
+
   if (!authStore.can(MENU_ID, requiredPermission.value)) {
     toast.error(`Anda tidak memiliki izin untuk ${isEditMode.value ? 'mengubah' : 'membuat'} data Mutasi Out.`);
     router.push({ name: 'MutasiOut' }); // Arahkan kembali ke halaman browse

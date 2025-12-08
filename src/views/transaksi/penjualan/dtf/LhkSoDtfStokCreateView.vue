@@ -1,10 +1,12 @@
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue';
+import { ref, onMounted, computed, watch, nextTick } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import api from '@/services/api';
 import PageLayout from '@/components/PageLayout.vue';
 import { useToast } from 'vue-toastification';
 import { useAuthStore } from '@/stores/authStore';
+import { useUiStore } from '@/stores/uiStore';
+import { useUnsavedChanges } from '@/composables/useUnsavedChanges';
 import { format } from 'date-fns';
 import SoDtfStokSearchModal from '@/components/lookup/SoDtfStokSearchModal.vue';
 import { AxiosError } from 'axios';
@@ -25,6 +27,8 @@ const router = useRouter();
 const route = useRoute();
 const toast = useToast();
 const authStore = useAuthStore();
+const uiStore = useUiStore();
+const { markAsSaved } = useUnsavedChanges();
 const MENU_ID = '48';
 
 const isEditMode = computed(() => !!route.params.nomor);
@@ -116,6 +120,8 @@ const executeSave = async () => {
     const response = await api.post('/lhk-so-dtf-stok-form/save/', payload);
     toast.success(response.data.message);
 
+    markAsSaved();
+
     if (isEditMode.value) {
       // setelah edit sukses, langsung balik ke browse
       router.push('/transaksi/penjualan/dtf/lhk-so-dtf-stok');
@@ -148,6 +154,9 @@ const loadDataForEdit = async (nomor: string) => {
       ...item,
       id: Date.now() + index
     })) as LhkItem[];
+
+    await nextTick();
+    markAsSaved();
   } catch (err) {
     if (err instanceof AxiosError) {
       toast.error(err.response?.data?.message || 'Gagal memuat data LHK.');
@@ -160,7 +169,11 @@ const loadDataForEdit = async (nomor: string) => {
   }
 };
 
-const closeForm = () => router.push('/transaksi/penjualan/dtf/lhk-so-dtf-stok');
+const closeForm = () => {
+  // Reset status sebelum pindah (jika dikonfirmasi lewat dialog lokal)
+  markAsSaved();
+  router.push('/transaksi/penjualan/dtf/lhk-so-dtf-stok');
+};
 
 const showConfirmation = (action: () => Promise<void> | void, text: string) => {
   pendingAction.value = action;
@@ -229,7 +242,28 @@ const resetForm = () => {
   items.value = [];
 };
 
+// --- WATCHERS (UNSAVED CHANGES) ---
+watch(
+  items,
+  (newItems) => {
+    // Abaikan jika sedang loading awal atau saving
+    if (isLoading.value || isSaving.value) return;
+
+    // Cek apakah ada data yang "bermakna"
+    // Untuk form ini, jika items sudah terisi (dari SO) dianggap kotor
+    const hasItems = newItems.length > 0;
+
+    if (hasItems) {
+      uiStore.setUnsavedChanges(true);
+    } else {
+      uiStore.setUnsavedChanges(false);
+    }
+  },
+  { deep: true }
+);
+
 onMounted(() => {
+  markAsSaved();
   if (!hasViewPermission.value) return;
 
   const nomor = route.params.nomor as string;

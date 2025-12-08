@@ -1,8 +1,10 @@
 <script setup lang="ts">
-import { ref, reactive, onMounted, computed } from 'vue';
+import { ref, reactive, onMounted, computed, nextTick, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useToast } from 'vue-toastification';
 import { useAuthStore } from '@/stores/authStore';
+import { useUiStore } from '@/stores/uiStore';
+import { useUnsavedChanges } from '@/composables/useUnsavedChanges';
 import api from '@/services/api';
 import { format, parseISO } from 'date-fns';
 import PageLayout from '@/components/PageLayout.vue';
@@ -56,6 +58,8 @@ const router = useRouter();
 const route = useRoute();
 const toast = useToast();
 const authStore = useAuthStore();
+const uiStore = useUiStore();
+const { markAsSaved } = useUnsavedChanges();
 const MENU_ID = '25';
 const isEditMode = computed(() => !!route.params.nomor);
 const pageTitle = computed(() => isEditMode.value ? 'Ubah Koreksi Stok' : 'Buat Koreksi Stok');
@@ -184,6 +188,7 @@ const resetForm = () => {
   Object.assign(header, { nomor: '', tanggal: format(new Date(), 'yyyy-MM-dd'), keterangan: '' });
   items.value = [];
   addNewRow();
+  markAsSaved();
   toast.info('Form telah dibersihkan.');
 };
 
@@ -218,6 +223,7 @@ const executeSave = async () => {
   try {
     const response = await api.post('/koreksi-stok-form/save', payload);
     toast.success(response.data.message);
+    markAsSaved();
     const nomorDokumen = response.data.nomor;
     if (nomorDokumen) {
       const url = router.resolve({ name: 'KoreksiStokPrint', params: { nomor: nomorDokumen } }).href;
@@ -242,6 +248,8 @@ const loadDataForEdit = async (nomor: string) => {
       calculateRow(newItem);
       return newItem;
     });
+    await nextTick();
+    markAsSaved();
   } catch (error: unknown) {
     const axiosError = error as AxiosError<{ message?: string }>;
     toast.error(axiosError.response?.data?.message || 'Gagal memuat data.');
@@ -287,7 +295,32 @@ const handleBarcodeScan = async () => {
   }
 };
 
+// --- WATCHERS (UNSAVED CHANGES) ---
+watch(
+  [header, items],
+  () => {
+    // Abaikan jika sedang loading awal atau proses simpan
+    if (isLoading.value || isSaving.value) return;
+
+    // Cek apakah ada perubahan data yang signifikan
+    // 1. Header keterangan terisi
+    const hasHeader = header.keterangan.trim() !== '';
+    // 2. Ada item yang valid (sudah dipilih produknya)
+    const hasItems = items.value.some(i => i.kode !== '');
+
+    if (hasHeader || hasItems) {
+      uiStore.setUnsavedChanges(true);
+    } else {
+      // Jika form kembali kosong (misal dihapus manual semua), anggap saved
+      uiStore.setUnsavedChanges(false);
+    }
+  },
+  { deep: true }
+);
+
 onMounted(async () => {
+  markAsSaved();
+
   if (!authStore.can(MENU_ID, isEditMode.value ? 'edit' : 'insert')) {
     toast.error(`Anda tidak memiliki izin untuk ${isEditMode.value ? 'mengubah' : 'membuat'} data ini.`);
     return router.back();

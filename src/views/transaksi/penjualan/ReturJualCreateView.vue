@@ -1,8 +1,10 @@
 <script setup lang="ts">
-import { ref, reactive, onMounted, computed, watch } from 'vue';
+import { ref, reactive, onMounted, computed, watch, nextTick } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useToast } from 'vue-toastification';
 import { useAuthStore } from '@/stores/authStore';
+import { useUiStore } from '@/stores/uiStore';
+import { useUnsavedChanges } from '@/composables/useUnsavedChanges';
 import api from '@/services/api';
 import { format, parseISO, differenceInCalendarDays } from 'date-fns';
 import PageLayout from '@/components/PageLayout.vue';
@@ -81,11 +83,14 @@ const router = useRouter();
 const route = useRoute();
 const toast = useToast();
 const authStore = useAuthStore();
+const uiStore = useUiStore();
+const { markAsSaved } = useUnsavedChanges();
 const MENU_ID = '29';
 const isEditMode = computed(() => !!route.params.nomor);
 const pageTitle = computed(() => isEditMode.value ? 'Ubah Retur Jual' : 'Buat Retur Jual');
 
-const header = reactive<Header>({
+// [PERBAIKAN] Definisi Initial State
+const initialHeaderState: Header = {
   nomor: '',
   tanggal: format(new Date(), 'yyyy-MM-dd'),
   cabangKode: authStore.user?.cabang || '',
@@ -95,17 +100,22 @@ const header = reactive<Header>({
   jenis: 'Y',
   keterangan: '',
   ppnPersen: 0,
-});
-const items = ref<Item[]>([]);
-const footer = reactive<Footer>({
+};
+
+const initialFooterState: Footer = {
   subTotal: 0,
   diskonPersen1: 0,
   diskonPersen2: 0,
   diskonRp: 0,
   ppnRp: 0,
   grandTotal: 0,
-});
+};
 
+// Gunakan spread operator untuk inisialisasi reaktif
+const header = reactive<Header>({ ...initialHeaderState });
+const footer = reactive<Footer>({ ...initialFooterState });
+
+const items = ref<Item[]>([]);
 const isLoading = ref(true);
 const isSaving = ref(false);
 const dialog = reactive({ invoiceSearch: false });
@@ -164,6 +174,9 @@ const onInvoiceSelected = async (invoice: { nomor: string, tanggal: string }) =>
     }));
 
     calculateTotals();
+
+    await nextTick();
+    markAsSaved();
   } catch (error) {
     const err = error as AxiosError<{ message?: string }>;
     toast.error(err.response?.data?.message || 'Gagal memuat data invoice.');
@@ -240,6 +253,8 @@ const executeSave = async () => {
     const response = await api.post('/retur-jual-form/save', payload);
     toast.success(response.data.message);
 
+    markAsSaved();
+
     // Simpan nomor dokumen yang baru saja disimpan
     savedDocumentNumber.value = response.data.nomor;
     // Buka modal pilihan cetak, BUKAN langsung halaman cetak
@@ -260,7 +275,26 @@ const showConfirmation = (title: string, text: string, onConfirm: () => void) =>
   dialogConfirm.show = true;
 };
 const closeForm = () => router.push({ name: 'ReturJual' });
-const handleCancel = () => { /* Logika Batal */ };
+const resetForm = () => {
+  // Reset Header
+  Object.assign(header, initialHeaderState);
+  // Reset Footer
+  Object.assign(footer, initialFooterState);
+
+  items.value = [];
+  addNewRow();
+
+  // Reset status unsaved
+  markAsSaved();
+  toast.info('Form telah dibersihkan.');
+};
+const handleCancel = () => {
+  showConfirmation(
+    'Konfirmasi Batal',
+    'Batalkan dan kosongkan semua isian?',
+    resetForm // Panggil fungsi resetForm saat dikonfirmasi
+  );
+};
 const handleClose = () => showConfirmation('Konfirmasi Tutup', 'Tutup form? Perubahan yang belum disimpan akan hilang.', closeForm);
 
 const addNewRow = () => {
@@ -415,6 +449,9 @@ const loadDataForEdit = async (nomor: string) => {
     calculateTotals();
     toast.success(`Data Retur ${nomor} berhasil dimuat.`);
 
+    await nextTick();
+    markAsSaved();
+
   } catch (error) {
     toast.error(error.response?.data?.message || 'Gagal memuat data Retur Jual.');
     router.back();
@@ -428,7 +465,33 @@ const removeRow = (id: number) => {
   if (index !== -1) items.value.splice(index, 1);
 };
 
+// --- WATCHERS (UNSAVED CHANGES) ---
+watch(
+  [header, items, footer],
+  () => {
+    // Abaikan jika sedang loading awal atau saving
+    if (isLoading.value || isSaving.value) return;
+
+    // Cek apakah form "kotor"
+    // 1. Header: Invoice dipilih atau Keterangan diisi
+    const hasHeader = (header.invoice !== '') || (header.keterangan.trim() !== '');
+
+    // 2. Items: Ada item yang jumlah returnya > 0 (user mulai input retur)
+    //    ATAU ada item baru ditambahkan manual (kode terisi)
+    const hasItems = items.value.some(i => (i.jumlah || 0) > 0 || (i.kode !== '' && i.qtyInv === 0));
+
+    if (hasHeader || hasItems) {
+      uiStore.setUnsavedChanges(true);
+    } else {
+      uiStore.setUnsavedChanges(false);
+    }
+  },
+  { deep: true }
+);
+
 onMounted(() => {
+  markAsSaved();
+
   if (!authStore.can(MENU_ID, isEditMode.value ? 'edit' : 'insert')) {
     toast.error(`Anda tidak memiliki izin untuk ${isEditMode.value ? 'mengubah' : 'membuat'} data ini.`);
     router.back();
@@ -596,13 +659,16 @@ watch([() => footer.diskonRp, () => footer.diskonPersen1, () => footer.diskonPer
 
 <style scoped>
 .desktop-table :deep(thead tr th) {
-  background-color: #0D47A1 !important; /* Biru Tua */
-  color: #ffffff !important;            /* Teks Putih */
+  background-color: #0D47A1 !important;
+  /* Biru Tua */
+  color: #ffffff !important;
+  /* Teks Putih */
   font-weight: bold !important;
   text-transform: uppercase;
   font-size: 11px !important;
   height: 40px !important;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-  border-bottom: none !important; /* Supaya lebih rapi */
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  border-bottom: none !important;
+  /* Supaya lebih rapi */
 }
 </style>

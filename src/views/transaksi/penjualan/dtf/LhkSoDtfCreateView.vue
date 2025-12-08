@@ -1,10 +1,12 @@
 <script setup lang="ts">
-import { ref, onMounted, computed, watch } from 'vue';
+import { ref, onMounted, computed, watch, nextTick } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import api from '@/services/api';
 import PageLayout from '@/components/PageLayout.vue';
 import { useToast } from 'vue-toastification';
 import { useAuthStore } from '@/stores/authStore';
+import { useUiStore } from '@/stores/uiStore';
+import { useUnsavedChanges } from '@/composables/useUnsavedChanges';
 import { format } from 'date-fns';
 import SoPoSearchModal from '@/components/lookup/SoPoSearchModal.vue';
 import type { AxiosError } from 'axios';
@@ -40,6 +42,8 @@ const router = useRouter();
 const route = useRoute();
 const toast = useToast();
 const authStore = useAuthStore();
+const uiStore = useUiStore();
+const { markAsSaved } = useUnsavedChanges();
 const MENU_ID = '41';
 
 const selectedTanggal = ref(format(new Date(), 'yyyy-MM-dd'));
@@ -103,6 +107,8 @@ const loadLhkData = async () => {
   } finally {
     addNewRowIfNeeded();
     isLoading.value = false;
+    await nextTick();
+    markAsSaved();
   }
 };
 
@@ -159,6 +165,7 @@ const save = async () => {
       items: validItems
     });
     toast.success('Data LHK berhasil disimpan.');
+    markAsSaved();
     router.push('/transaksi/penjualan/dtf/lhk-so-dtf');
   } catch (error: unknown) {
     let message = 'Gagal menyimpan data.';
@@ -200,19 +207,48 @@ const closeConfirmDialog = () => {
 
 // Buat fungsi baru untuk navigasi Tutup agar bisa dipanggil
 const closeForm = () => {
+  markAsSaved();
   router.push('/transaksi/penjualan/dtf/lhk-so-dtf');
 };
 
+// --- WATCHERS (UNSAVED CHANGES) ---
+// Pantau perubahan pada array items
+watch(
+  items,
+  (newItems) => {
+    // Abaikan jika sedang loading awal atau saving
+    if (isLoading.value || isSaving.value) return;
+
+    // Cek apakah ada data yang "bermakna" (kode terisi)
+    // atau ada perubahan nilai pada baris yang sudah ada
+    const hasData = newItems.some(item => item.kode !== '');
+
+    if (hasData) {
+      uiStore.setUnsavedChanges(true);
+    } else {
+      uiStore.setUnsavedChanges(false);
+    }
+  },
+  { deep: true }
+);
+
+// Pantau perubahan tanggal/cabang (karena ini me-reload data, kita perlu handle khusus)
+watch([selectedTanggal, selectedCabang], async () => {
+  // Jika user ganti tanggal/cabang, data akan diload ulang.
+  // Kita biarkan proses loadLhkData yang mereset status unsaved di finally block.
+  await loadLhkData();
+});
+
 onMounted(() => {
-  // Navigasi dari browse view bisa menyertakan tanggal dan cabang
+  // Reset status awal
+  markAsSaved();
+
   if (route.query.tanggal && route.query.cabang) {
     selectedTanggal.value = route.query.tanggal as string;
     selectedCabang.value = route.query.cabang as string;
   }
   loadLhkData();
 });
-
-watch([selectedTanggal, selectedCabang], loadLhkData);
 </script>
 
 <template>

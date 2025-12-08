@@ -1,8 +1,10 @@
 <script setup lang="ts">
-import { ref, reactive, onMounted, computed } from 'vue';
+import { ref, reactive, onMounted, computed, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useToast } from 'vue-toastification';
 import { useAuthStore } from '@/stores/authStore';
+import { useUiStore } from '@/stores/uiStore';
+import { useUnsavedChanges } from '@/composables/useUnsavedChanges';
 import api from '@/services/api';
 import { format, parseISO } from 'date-fns';
 import PageLayout from '@/components/PageLayout.vue';
@@ -31,6 +33,8 @@ const router = useRouter();
 const route = useRoute();
 const toast = useToast();
 const authStore = useAuthStore();
+const uiStore = useUiStore();
+const { markAsSaved } = useUnsavedChanges();
 const MENU_ID = '54';
 
 // --- State ---
@@ -108,6 +112,7 @@ const loadData = async () => {
       nominalv: d.nominalv ?? d.nominal ?? 0,
     })) as Detail2[];
     isDataLoaded.value = true;
+    markAsSaved();
 
     if (isVerified.value) {
       toast.warning('Data ini sudah diverifikasi dan tidak bisa diubah.');
@@ -142,6 +147,7 @@ const executeSave = async () => {
     };
     const response = await api.post('/fsk-form/save', payload);
     toast.success(response.data.message);
+    markAsSaved();
 
     const nomorFSK = response.data.nomor;
     const url = router.resolve({ name: 'FskPrint', params: { nomor: nomorFSK } }).href;
@@ -172,7 +178,23 @@ const handleClose = () => {
   });
 };
 
+watch(
+  [details1, details2],
+  () => {
+    // Abaikan jika sedang loading atau saving
+    if (isLoading.value || isSaving.value) return;
+
+    // Jika data sudah dimuat dan ada isinya, set dirty
+    if (isDataLoaded.value) {
+      uiStore.setUnsavedChanges(true);
+    }
+  },
+  { deep: true }
+);
+
 onMounted(() => {
+  markAsSaved();
+
   if (!authStore.can(MENU_ID, requiredPermission.value)) {
     toast.error(`Anda tidak memiliki izin untuk ${isEditMode.value ? 'mengubah' : 'membuat'} data FSK.`);
     router.push({ name: 'Fsk' });
@@ -272,7 +294,6 @@ onMounted(() => {
 </template>
 
 <style scoped>
-
 /* Warna Header Biru Tua */
 .desktop-table :deep(thead tr th) {
   background-color: #0D47A1 !important;
@@ -288,7 +309,9 @@ onMounted(() => {
 }
 
 .desktop-table :deep(tbody tr:hover td) {
-  background-color: #f5f5f5 !important; /* Warna abu-abu muda saat hover */
-  cursor: default; /* Ubah kursor jadi standar karena tidak bisa diklik */
+  background-color: #f5f5f5 !important;
+  /* Warna abu-abu muda saat hover */
+  cursor: default;
+  /* Ubah kursor jadi standar karena tidak bisa diklik */
 }
 </style>

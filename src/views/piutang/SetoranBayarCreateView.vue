@@ -1,8 +1,10 @@
 <script setup lang="ts">
-import { ref, reactive, onMounted, computed, watch } from 'vue';
+import { ref, reactive, onMounted, computed, watch, nextTick } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useToast } from 'vue-toastification';
 import { useAuthStore } from '@/stores/authStore';
+import { useUiStore } from '@/stores/uiStore';
+import { useUnsavedChanges } from '@/composables/useUnsavedChanges';
 import api from '@/services/api';
 import { format, parseISO } from 'date-fns';
 import PageLayout from '@/components/PageLayout.vue';
@@ -88,6 +90,8 @@ const router = useRouter();
 const route = useRoute();
 const toast = useToast();
 const authStore = useAuthStore();
+const uiStore = useUiStore();
+const { markAsSaved } = useUnsavedChanges();
 const MENU_ID = '51';
 
 // --- State ---
@@ -231,6 +235,7 @@ const resetForm = () => {
   Object.assign(header, initialHeaderState);
   items.value = [];
   addNewRow();
+  markAsSaved();
 };
 
 const resetFormWithToast = () => {
@@ -251,6 +256,8 @@ const executeSave = async () => {
     const payload = { header, items: items.value, isNew: !isEditMode.value };
     const response = await api.post('/setoran-bayar-form/save', payload);
     toast.success(response.data.message);
+
+    markAsSaved();
 
     // Arahkan ke halaman cetak
     const nomorSetoran = response.data.nomor;
@@ -403,8 +410,32 @@ const clearSo = () => {
   toast.info("Nomor SO dibersihkan.");
 };
 
+// --- WATCHERS (UNSAVED CHANGES) ---
+// Pantau perubahan pada header dan items
+watch(
+  [items, header], // Pantau array items dan object header
+  () => {
+    // Abaikan jika sedang loading awal atau saving
+    if (isLoading.value || isSaving.value) return;
+
+    // Cek apakah ada data yang "bermakna" (bukan baris kosong default)
+    // atau header sudah diisi (customer dipilih)
+    const hasItems = items.value.some(i => i.invoice !== '' || i.nominal > 0);
+    const hasHeader = header.customer.kode !== '' || header.nominal > 0;
+
+    if (hasItems || hasHeader) {
+      uiStore.setUnsavedChanges(true);
+    } else {
+      uiStore.setUnsavedChanges(false);
+    }
+  },
+  { deep: true }
+);
+
 onMounted(() => {
   const nomor = route.params.nomor as string;
+
+  markAsSaved();
 
   if (!authStore.can(MENU_ID, requiredPermission.value)) {
     toast.error(`Anda tidak memiliki izin untuk ${isEditMode.value ? 'mengubah' : 'membuat'} data Setoran.`);
@@ -473,6 +504,9 @@ onMounted(() => {
         if (isPosted.value) {
           toast.warning('Data ini sudah di-posting oleh finance dan tidak bisa diubah.');
         }
+        nextTick(() => {
+          markAsSaved();
+        });
       })
       .catch((err: unknown) => {
         const error = err as AxiosError<{ message: string }>;

@@ -8,6 +8,8 @@ import ProductVariantSearchModal from '@/components/lookup/ProductVariantSearchM
 import AdditionalCostSearchModal from '@/components/lookup/AdditionalCostSearchModal.vue';
 import { useToast } from 'vue-toastification';
 import { useAuthStore } from '@/stores/authStore';
+import { useUiStore } from '@/stores/uiStore';
+import { useUnsavedChanges } from '@/composables/useUnsavedChanges';
 import { useRouter, useRoute } from 'vue-router';
 import { format } from 'date-fns';
 import { formatRupiah } from "@/utils/formatRupiah";
@@ -16,6 +18,8 @@ const toast = useToast();
 const authStore = useAuthStore();
 const router = useRouter();
 const route = useRoute();
+const uiStore = useUiStore();
+const { markAsSaved } = useUnsavedChanges();
 const MENU_ID = '38';
 
 // --- Interfaces ---
@@ -265,6 +269,8 @@ const executeSave = async () => {
 
     // 1. Simpan data utama
     const response = await api.post('/price-proposal-form/save', payload);
+    markAsSaved();
+
     const savedNomor = isEditMode.value ? header.value.nomor : response.data.nomor;
 
     // 2. Jika ada file, unggah sekarang menggunakan nomor yang sudah pasti ada
@@ -600,6 +606,8 @@ const loadOfferData = async (nomor: string) => {
 
     toast.success(`Data untuk ${nomor} berhasil dimuat.`);
 
+    markAsSaved();
+
   } catch (error) {
     toast.error('Gagal memuat data pengajuan untuk diedit.');
     console.error("Load Offer Error:", error);
@@ -649,7 +657,34 @@ watch(
   { deep: true }
 );
 
+// --- WATCHERS (UNSAVED CHANGES) ---
+watch(
+  [header, sizeItems, additionalCostItems, footer, bordirItems, dtfItems],
+  () => {
+    // Abaikan jika sedang loading awal atau saving
+    if (isSaving.value) return;
+
+    // Cek apakah form "kotor"
+    // 1. Header: Customer atau Jenis Kaos dipilih
+    const hasHeader = (header.value.customerKode !== '') || (header.value.jenisKaos !== '');
+
+    // 2. Items: Ada item yang qty-nya > 0
+    const hasItems = sizeItems.value.some(i => (i.qty || 0) > 0);
+
+    // 3. Biaya Tambahan: Ada input biaya tambahan
+    const hasAdditional = additionalCostItems.value.length > 0;
+
+    if (hasHeader || hasItems || hasAdditional) {
+      uiStore.setUnsavedChanges(true);
+    } else {
+      uiStore.setUnsavedChanges(false);
+    }
+  },
+  { deep: true }
+);
+
 onMounted(() => {
+  markAsSaved();
   // Cek otorisasi terlebih dahulu
   if (!authStore.can(MENU_ID, requiredPermission.value)) {
     toast.error(`Anda tidak memiliki izin untuk ${requiredPermission.value === 'insert' ? 'membuat' : 'mengubah'} data.`);

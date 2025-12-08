@@ -3,6 +3,8 @@ import { ref, reactive, onMounted, computed, watch, nextTick } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useToast } from 'vue-toastification';
 import { useAuthStore } from '@/stores/authStore';
+import { useUiStore } from '@/stores/uiStore';
+import { useUnsavedChanges } from '@/composables/useUnsavedChanges';
 import api from '@/services/api';
 import { format, parseISO, addDays } from 'date-fns';
 import PageLayout from '@/components/PageLayout.vue';
@@ -172,6 +174,8 @@ const router = useRouter();
 const route = useRoute();
 const toast = useToast();
 const authStore = useAuthStore();
+const uiStore = useUiStore();
+const { markAsSaved } = useUnsavedChanges();
 const MENU_ID = '27';
 
 // --- State ---
@@ -512,10 +516,15 @@ const handleDeleteItem = (item: Item) => {
 };
 
 const handleClose = () => {
+  // Tombol Tutup memicu konfirmasi manual,
+  // Jika user klik Ya, paksa reset status agar guard global tidak mencegat lagi
   showConfirmation(
     'Tutup Form',
     'Data yang belum disimpan akan hilang. Yakin ingin menutup form?',
-    () => router.back()
+    () => {
+      markAsSaved(); // Reset status
+      router.back();
+    }
   );
 };
 
@@ -1370,6 +1379,7 @@ const checkStokMinus = (): Promise<boolean> => {
 };
 
 const onSaveSuccess = () => {
+  markAsSaved();
   // Dipanggil dari PaymentModal setelah save berhasil
   router.push({ name: 'Invoice' }); // Kembali ke halaman browse
 };
@@ -1485,6 +1495,8 @@ const resetForm = async () => {
   linkedDps.value = [];
   isSoLoaded.value = false;
   addNewRow();
+
+  markAsSaved();
 
   try {
     const authStore = useAuthStore();
@@ -1645,6 +1657,9 @@ const loadDataForEdit = async (nomor: string) => {
 
     isSoLoaded.value = !!header.nomorSo;
 
+    await nextTick();
+    markAsSaved();
+
   } catch (error) {
     const msg = axios.isAxiosError(error)
       ? error.response?.data?.message
@@ -1765,7 +1780,6 @@ watch(
   { deep: true }
 );
 
-
 // Jika ada DP tambahan dihubungkan
 watch(linkedDps, calculateTotals, { deep: true });
 
@@ -1773,7 +1787,36 @@ const grandQty = computed(() =>
   items.value.reduce((sum, it) => sum + (Number(it.jumlah) || 0), 0)
 );
 
+// --- WATCHERS (UNSAVED CHANGES) ---
+watch(
+  [header, items, linkedDps],
+  () => {
+    // Abaikan jika sedang loading awal (misal saat edit load data)
+    if (isLoading.value) return;
+
+    // Cek apakah form "kotor"
+    // 1. Header: Customer dipilih
+    const hasHeader = (header.customer.kode !== '');
+
+    // 2. Items: Ada item valid (kode terisi)
+    const hasItems = items.value.some(i => i.kode);
+
+    // 3. DP: Ada DP terhubung
+    const hasDp = linkedDps.value.length > 0;
+
+    if (hasHeader || hasItems || hasDp) {
+      uiStore.setUnsavedChanges(true);
+    } else {
+      // Jika kembali kosong bersih
+      uiStore.setUnsavedChanges(false);
+    }
+  },
+  { deep: true }
+);
+
 onMounted(() => {
+  markAsSaved();
+
   if (!authStore.can(MENU_ID, requiredPermission.value)) {
     toast.error(`Anda tidak memiliki izin untuk ${isEditMode.value ? 'mengubah' : 'membuat'} data Invoice.`);
     router.push({ name: 'Invoice' }); // Arahkan kembali ke halaman browse
@@ -2007,7 +2050,8 @@ onMounted(() => {
                 <div class="card-content">
                   <div class="icon-container">
                     <div class="icon-circle pulse-animation">
-                      <v-icon :icon="isGrandOpeningPromo ? 'mdi-party-popper' : 'mdi-ticket-percent-outline'" size="24" color="white" />
+                      <v-icon :icon="isGrandOpeningPromo ? 'mdi-party-popper' : 'mdi-ticket-percent-outline'" size="24"
+                        color="white" />
                     </div>
                   </div>
 
@@ -2316,11 +2360,13 @@ onMounted(() => {
 .promo-card.grand-opening-style {
   background: linear-gradient(135deg, #FF512F 0%, #DD2476 100%) !important;
   box-shadow: 0 10px 25px -5px rgba(221, 36, 118, 0.5) !important;
-  border: 1px solid rgba(255, 215, 0, 0.3) !important; /* Border agak keemasan */
+  border: 1px solid rgba(255, 215, 0, 0.3) !important;
+  /* Border agak keemasan */
 }
 
 .grand-opening-style .promo-label {
-  color: #FFD700 !important; /* Teks label jadi emas */
+  color: #FFD700 !important;
+  /* Teks label jadi emas */
 }
 
 /* Texture Pattern (Titik-titik background) */

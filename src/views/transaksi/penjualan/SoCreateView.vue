@@ -5,6 +5,8 @@ import api from '@/services/api';
 import PageLayout from '@/components/PageLayout.vue';
 import { useToast } from 'vue-toastification';
 import { useAuthStore } from '@/stores/authStore';
+import { useUiStore } from '@/stores/uiStore';
+import { useUnsavedChanges } from '@/composables/useUnsavedChanges';
 import { format, addDays, isValid } from 'date-fns';
 import type { AxiosError } from 'axios';
 import axios from 'axios';
@@ -29,6 +31,8 @@ const router = useRouter();
 const route = useRoute();
 const toast = useToast();
 const authStore = useAuthStore();
+const uiStore = useUiStore();
+const { markAsSaved } = useUnsavedChanges();
 const MENU_ID = '26';
 
 // --- Interfaces ---
@@ -467,6 +471,8 @@ const loadDataForEdit = async (nomor: string) => {
 
     toast.success(`Data untuk SO ${nomor} berhasil dimuat.`);
 
+    markAsSaved();
+
   } catch (error) {
     const err = error as AxiosError<{ message: string }>;
     toast.error(err.response?.data?.message || err.message || 'Gagal memuat data SO.');
@@ -719,6 +725,7 @@ const executeSave = async () => {
     const response = await api.post('/so-form/save', payload);
     header.value.nomor = response.data.nomor;
     toast.success(response.data.message);
+    markAsSaved();
     const soNomor = response.data.nomor;
     if (soNomor) {
       // 2. Simpan nomor untuk dialog
@@ -762,6 +769,7 @@ const handlePrintConfirm = () => {
     // 3. Tutup dialog dan kembali ke halaman browse
     isPrintConfirmVisible.value = false;
     printConfirmNomor.value = '';
+    markAsSaved();
     router.push('/transaksi/penjualan/surat-pesanan');
   }
 };
@@ -770,6 +778,7 @@ const handlePrintConfirm = () => {
 const handlePrintCancel = () => {
   isPrintConfirmVisible.value = false;
   printConfirmNomor.value = '';
+  markAsSaved();
   // Langsung kembali ke halaman browse
   router.push('/transaksi/penjualan/surat-pesanan');
 };
@@ -808,6 +817,7 @@ const resetForm = () => {
   items.value = [];
   dpItems.value = []; // Pastikan DP items juga direset
   addNewRow(); // Panggil ini untuk membuat baris kosong awal
+  markAsSaved();
 };
 
 const removeRow = (id: number) => {
@@ -1597,7 +1607,35 @@ watch(totalDiscountable, async () => {
   await applyDefaultDiscount();
 });
 
+// --- WATCHERS (UNSAVED CHANGES) ---
+watch(
+  [header, items, footer, dpItems],
+  () => {
+    // Abaikan jika sedang loading awal atau saving
+    if (isLoading.value || isSaving.value) return;
+
+    // Cek apakah form "kotor"
+    // 1. Header: Customer atau Sales dipilih
+    const hasHeader = (header.value.customer !== null) || (header.value.salesCounter !== '');
+
+    // 2. Items: Ada item valid (kode terisi)
+    const hasItems = items.value.some(i => i.kode !== '');
+
+    // 3. DP: Ada data DP
+    const hasDp = dpItems.value.length > 0;
+
+    if (hasHeader || hasItems || hasDp) {
+      uiStore.setUnsavedChanges(true);
+    } else {
+      // Jika kembali kosong bersih
+      uiStore.setUnsavedChanges(false);
+    }
+  },
+  { deep: true }
+);
+
 onMounted(() => {
+  markAsSaved();
   // Cek hak akses 'insert' (untuk baru) atau 'edit' (untuk ubah)
   if (!authStore.can(MENU_ID, requiredPermission.value)) {
     toast.error(`Anda tidak memiliki izin untuk ${isEditMode.value ? 'mengubah' : 'membuat'} data ini.`);

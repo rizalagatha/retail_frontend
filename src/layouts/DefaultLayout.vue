@@ -1,7 +1,10 @@
 <script setup lang="ts">
 import { useAuthStore } from '@/stores/authStore';
+import { useUiStore } from '@/stores/uiStore';
 import Navbar from '@/components/Navbar.vue';
-import { defineAsyncComponent } from 'vue';
+import { ref, onMounted, onUnmounted, defineAsyncComponent, computed } from 'vue';
+import api from '@/services/api';
+import axios from 'axios';
 
 // Import composables atau store untuk state dialog
 import { usePasswordDialog } from '@/composables/usePasswordDialog';
@@ -9,6 +12,7 @@ import { useWhatsAppDialog } from '@/composables/useWhatsappDialog';
 import { useBufferStockDialog } from '@/composables/useBufferStockDialog'; // Contoh
 import { useSettingsProcessDialog } from '@/composables/useSettingsProcessDialog';
 import { useManualProgramDialog } from '@/composables/useManualProgramDialog'; // Contoh
+import GlobalUnsavedChangesDialog from '@/components/dialog/GlobalUnsavedChangesDialog.vue';
 
 // Import komponen dialog (lazy load jika memungkinkan untuk performa lebih baik)
 const ChangePasswordDialog = defineAsyncComponent(() => import('@/components/dialog/ChangePasswordDialog.vue'));
@@ -18,6 +22,7 @@ const SettingsProcessDialog = defineAsyncComponent(() => import('@/components/di
 const ManualProgramDialog = defineAsyncComponent(() => import('@/components/dialog/ManualProgramDialog.vue'));
 
 const authStore = useAuthStore();
+const uiStore = useUiStore();
 const version = __APP_VERSION__;
 
 // Dapatkan state visibilitas dari composables/store
@@ -27,6 +32,216 @@ const { showBufferStockDialog, closeBufferStockDialog } = useBufferStockDialog()
 const { isSettingsProcessDialogOpen, closeSettingsProcessDialog } = useSettingsProcessDialog();
 const { showManualDialog, closeManualDialog } = useManualProgramDialog(); // Contoh
 
+const latency = ref<number | null>(null);
+const isCheckingPing = ref(false);
+let pingInterval: number;
+
+// Warna indikator berdasarkan kecepatan
+const latencyColor = computed(() => {
+  if (latency.value === null) return 'grey';
+  if (latency.value < 150) return 'success'; // Cepat (< 150ms)
+  if (latency.value < 400) return 'warning'; // Sedang
+  return 'error';                            // Lambat (> 400ms)
+});
+
+const checkPing = async () => {
+  if (isCheckingPing.value) return;
+  isCheckingPing.value = true;
+  const start = Date.now();
+
+  try {
+    // Panggil endpoint ringan di backend (misal: health check atau user profile)
+    // Jika tidak ada endpoint khusus, bisa pakai '/auth/me' atau root '/'
+    await api.get('/health-check').catch(() => { }); // Ganti dengan endpoint valid
+
+    // Atau jika backend belum ada endpoint health, cukup panggil API paling ringan yg ada
+    // await api.get('/utility/ping');
+
+    const duration = Date.now() - start;
+    latency.value = duration;
+    authStore.isOnline = true; // Sekalian update store
+  } catch {
+    latency.value = null;
+    authStore.isOnline = false;
+  } finally {
+    isCheckingPing.value = false;
+  }
+};
+
+// --- LOGIC JADWAL SHOLAT ---
+const nextPrayerName = ref('');
+const nextPrayerTime = ref('');
+const fullSchedule = ref<Record<string, string>>({});
+const city = ref('');
+
+// Helper: Bersihkan nama kota (misal "RETAIL BOYOLALI KOTA" -> "Boyolali")
+const cleanCityName = (rawName: string) => {
+  if (!rawName) return 'Jakarta'; // Default
+  // Ambil kata pertama yang bukan "RETAIL" atau "CABANG"
+  const parts = rawName.toUpperCase().replace('RETAIL', '').replace('CABANG', '').replace('KOTA', '').trim().split(' ');
+  return parts[0] || 'Jakarta';
+};
+
+const fetchPrayerTimes = async () => {
+  try {
+    // --- LOGIKA PENENTUAN KOTA ---
+
+    // 1. Khusus KDC -> Set Boyolali (Biar gak nyasar ke Amerika)
+    if (authStore.user?.cabang === 'KDC') {
+      city.value = 'Boyolali';
+    }
+    // 2. Cabang Lain -> Ambil dari nama cabang di database
+    else {
+      const rawCabang = authStore.user?.cabangNama || '';
+      city.value = cleanCityName(rawCabang);
+    }
+
+    // API Aladhan (Method 20 = Kemenag RI)
+    const response = await axios.get('https://api.aladhan.com/v1/timingsByCity', {
+      params: {
+        city: city.value,
+        country: 'Indonesia',
+        method: 20 // Kemenag RI
+      }
+    });
+
+    const timings = response.data.data.timings;
+    fullSchedule.value = {
+      Subuh: timings.Fajr,
+      Dzuhur: timings.Dhuhr,
+      Ashar: timings.Asr,
+      Maghrib: timings.Maghrib,
+      Isya: timings.Isha
+    };
+
+    determineNextPrayer();
+  } catch (error) {
+    console.error("Gagal load jadwal sholat:", error);
+  }
+};
+
+const determineNextPrayer = () => {
+  const now = new Date();
+  const currentTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+
+  let found = false;
+  const prayers = [
+    { name: 'Subuh', time: fullSchedule.value.Subuh },
+    { name: 'Dzuhur', time: fullSchedule.value.Dzuhur },
+    { name: 'Ashar', time: fullSchedule.value.Ashar },
+    { name: 'Maghrib', time: fullSchedule.value.Maghrib },
+    { name: 'Isya', time: fullSchedule.value.Isya },
+  ];
+
+  for (const p of prayers) {
+    if (p.time > currentTime) {
+      nextPrayerName.value = p.name;
+      nextPrayerTime.value = p.time;
+      found = true;
+      break;
+    }
+  }
+
+  // Jika tidak ada yang lebih besar (lewat Isya), maka next adalah Subuh besok
+  if (!found && prayers.length > 0) {
+    nextPrayerName.value = 'Subuh';
+    nextPrayerTime.value = prayers[0].time;
+  }
+};
+
+// Daftar Shortcut untuk ditampilkan di tooltip
+const appShortcuts = [
+  { key: 'F1', desc: 'Cari Data (Lookup)' },
+  { key: 'F2', desc: 'Pilihan Multi/Detail' },
+  { key: 'Tab', desc: 'Pindah Kolom Selanjutnya' },
+  { key: 'Shift+Tab', desc: 'Pindah Kolom Sebelumnya' },
+  { key: 'Enter', desc: 'Pilih / Simpan' },
+
+];
+
+const browserShortcuts = [
+  { key: 'Ctrl + P', desc: 'Print Halaman' },
+  { key: 'Ctrl + R', desc: 'Refresh Halaman   ' },
+  { key: 'Ctrl + -/+', desc: 'Zoom Out / In' },
+  { key: 'Win + PrtSc', desc: 'Screenshot (Simpan)' },
+  { key: 'Ctrl+Shift+T', desc: 'Buka kembali tab terakhir yang ditutup' },
+  { key: 'Spacebar', desc: 'Gulir ke bawah pada halaman web' },
+  { key: 'Ctrl + Tab', desc: 'Beralih ke tab berikutnya' },
+  { key: 'Ctrl + Shift + Tab', desc: 'Beralih ke tab sebelumnya' },
+];
+
+// --- LOGIC CALCULATOR ---
+const showCalculator = ref(false);
+const calcDisplay = ref('0');
+const calcEquation = ref('');
+
+const appendCalc = (char: string) => {
+  if (calcDisplay.value === '0' && !['+', '-', '*', '/', '.'].includes(char)) {
+    calcDisplay.value = char;
+  } else {
+    calcDisplay.value += char;
+  }
+};
+
+const clearCalc = () => {
+  calcDisplay.value = '0';
+  calcEquation.value = '';
+};
+
+const deleteCalc = () => {
+  calcDisplay.value = calcDisplay.value.slice(0, -1) || '0';
+};
+
+const calculateResult = () => {
+  try {
+    // Ganti x dengan * untuk evaluasi
+    const expression = calcDisplay.value.replace(/x/g, '*');
+    // Evaluasi aman
+    const result = new Function('return ' + expression)();
+
+    // Format hasil
+    calcEquation.value = calcDisplay.value + ' =';
+    calcDisplay.value = String(result);
+  } catch {
+    calcDisplay.value = 'Error';
+  }
+};
+
+// --- LOGIC KEYBOARD LOCK STATUS ---
+const capsLockOn = ref(false);
+const numLockOn = ref(false);
+
+const updateLockStatus = (event: KeyboardEvent) => {
+  capsLockOn.value = event.getModifierState("CapsLock");
+  numLockOn.value = event.getModifierState("NumLock");
+};
+
+onMounted(() => {
+  checkPing();
+  pingInterval = window.setInterval(checkPing, 15000);
+
+  // Fetch jadwal sholat sekali saat mounted
+  fetchPrayerTimes();
+  // Update penunjuk waktu sholat setiap menit
+  setInterval(determineNextPrayer, 60000);
+
+  // Listener untuk Caps/Num Lock
+  window.addEventListener('keydown', updateLockStatus);
+  window.addEventListener('keyup', updateLockStatus);
+  window.addEventListener('click', (e) => {
+    // Trik untuk update status saat klik (jika event key terlewat)
+    if (e instanceof MouseEvent && e.getModifierState) {
+      capsLockOn.value = e.getModifierState("CapsLock");
+      numLockOn.value = e.getModifierState("NumLock");
+    }
+  });
+});
+
+onUnmounted(() => {
+  clearInterval(pingInterval);
+  window.removeEventListener('keydown', updateLockStatus);
+  window.removeEventListener('keyup', updateLockStatus);
+});
 </script>
 
 <template>
@@ -36,74 +251,204 @@ const { showManualDialog, closeManualDialog } = useManualProgramDialog(); // Con
       <router-view />
     </v-main>
 
-    <v-footer v-if="authStore.isAuthenticated" app class="pa-2" style="font-size: 12px; border-top: 1px solid #e0e0e0;">
-      <div class="d-flex align-center">
-        <v-icon size="small" class="mr-2">mdi-account-circle-outline</v-icon>
-        <strong>{{ authStore.user?.nama }}</strong>
-        <span class="mx-2 text-disabled">|</span>
-        <span>{{ authStore.user?.cabangNama }}</span>
+    <v-footer v-if="authStore.isAuthenticated" app class="pa-0 px-4 py-1 bg-grey-lighten-4 border-top"
+      style="font-size: 11px; height: 40px;">
+
+      <div class="d-flex align-center ga-3" style="min-width: 200px;">
+        <div class="d-flex align-center text-grey-darken-2 cursor-pointer" title="User Aktif">
+          <v-icon size="14" class="mr-1">mdi-account-circle</v-icon>
+          <span class="font-weight-bold mr-1">{{ authStore.user?.nama }}</span>
+          <span class="text-caption text-medium-emphasis">({{ authStore.user?.cabangNama }})</span>
+        </div>
+
+        <v-divider vertical class="my-1"></v-divider>
+
+        <div class="d-flex align-center cursor-pointer" @click="checkPing"
+          :title="authStore.isOnline ? `Respon Server: ${latency}ms` : 'Koneksi Terputus'">
+          <template v-if="authStore.isOnline && latency !== null">
+            <v-icon size="8" class="mr-1" :color="latencyColor">mdi-circle</v-icon>
+            <span class="text-caption text-grey-darken-1">{{ latency }} ms</span>
+          </template>
+          <template v-else>
+            <v-icon size="8" class="mr-1" color="error">mdi-circle</v-icon>
+            <span class="font-weight-bold text-error">Offline</span>
+          </template>
+        </div>
+
+        <div class="d-flex align-center ga-1 text-caption font-weight-bold" style="font-size: 9px; user-select: none;">
+          <span :class="capsLockOn ? 'text-primary' : 'text-disabled opacity-30'">CAPS</span>
+          <span :class="numLockOn ? 'text-primary' : 'text-disabled opacity-30'">NUM</span>
+        </div>
+
+        <v-slide-x-transition>
+          <div v-if="uiStore.hasUnsavedChanges" class="d-flex align-center ml-4 text-warning"
+            title="Ada perubahan yang belum disimpan">
+            <v-icon size="14" class="mr-1 blink-animation">mdi-content-save-alert-outline</v-icon>
+            <span class="font-weight-bold text-caption">Belum Disimpan</span>
+          </div>
+        </v-slide-x-transition>
       </div>
 
       <v-spacer></v-spacer>
 
-      <div class="d-flex align-center">
-        <div class="d-flex align-center ga-1">
+      <div v-if="nextPrayerName" class="d-none d-md-flex align-center justify-center">
+        <v-menu open-on-hover location="top center">
+          <template v-slot:activator="{ props }">
+            <div v-bind="props" class="d-flex align-center px-3 py-1 rounded bg-white border cursor-help"
+              style="height: 24px;">
+              <v-icon size="12" color="teal" class="mr-2">mdi-mosque</v-icon>
+              <span class="text-caption font-weight-medium text-grey-darken-2 mr-1">
+                {{ nextPrayerName }}
+              </span>
+              <span class="text-caption font-weight-bold text-teal">
+                {{ nextPrayerTime }}
+              </span>
+              <span class="text-caption text-disabled ml-2" style="font-size: 9px;">
+                ({{ city }})
+              </span>
+            </div>
+          </template>
 
-          <v-tooltip text="Transaksi" location="top">
-            <template v-slot:activator="{ props }">
-              <v-btn v-bind="props" to="/transaksi" icon variant="text" density="comfortable" size="small">
-                <v-icon color="primary">mdi-cash-register</v-icon>
-              </v-btn>
-            </template>
-          </v-tooltip>
+          <v-card width="200" class="rounded-lg shadow-sm">
+            <v-card-title class="text-caption font-weight-bold bg-teal-lighten-5 py-2 px-3 text-teal-darken-2">
+              Jadwal Sholat {{ city }}
+            </v-card-title>
+            <v-list density="compact" class="py-0">
+              <v-list-item v-for="(time, name) in fullSchedule" :key="name"
+                :class="{ 'bg-teal-lighten-5': name === nextPrayerName }" style="min-height: 28px;">
+                <div class="d-flex justify-space-between w-100 text-caption">
+                  <span :class="name === nextPrayerName ? 'font-weight-bold text-teal-darken-3' : 'text-grey-darken-2'">
+                    {{ name }}
+                  </span>
+                  <span class="font-weight-bold"
+                    :class="name === nextPrayerName ? 'text-teal-darken-3' : 'text-grey-darken-2'">
+                    {{ time }}
+                  </span>
+                </div>
+              </v-list-item>
+            </v-list>
+          </v-card>
+        </v-menu>
+      </div>
 
-          <v-tooltip text="Master Data" location="top">
-            <template v-slot:activator="{ props }">
-              <v-btn v-bind="props" to="/daftar" icon variant="text" density="comfortable" size="small">
-                <v-icon color="success">mdi-database</v-icon>
-              </v-btn>
-            </template>
-          </v-tooltip>
+      <v-spacer></v-spacer>
 
-          <v-tooltip text="Laporan" location="top">
-            <template v-slot:activator="{ props }">
-              <v-btn v-bind="props" to="/laporan" icon variant="text" density="comfortable" size="small">
-                <v-icon color="info">mdi-chart-line</v-icon>
-              </v-btn>
-            </template>
-          </v-tooltip>
+      <div class="d-flex align-center ga-2" style="min-width: 200px; justify-content: flex-end;">
 
-          <v-tooltip text="Piutang" location="top">
-            <template v-slot:activator="{ props }">
-              <v-btn v-bind="props" to="/piutang" icon variant="text" density="comfortable" size="small">
-                <v-icon color="orange">mdi-book-account</v-icon>
-              </v-btn>
-            </template>
-          </v-tooltip>
+        <v-tooltip text="Transaksi" location="top">
+          <template v-slot:activator="{ props }">
+            <v-btn v-bind="props" to="/transaksi" icon variant="text" size="x-small" density="compact"
+              color="grey-darken-1">
+              <v-icon size="16">mdi-cash-register</v-icon>
+            </v-btn>
+          </template>
+        </v-tooltip>
 
-          <v-tooltip text="Gudang DC" location="top">
-            <template v-slot:activator="{ props }">
-              <v-btn v-bind="props" to="/gudang-dc" icon variant="text" density="comfortable" size="small">
-                <v-icon color="purple">mdi-warehouse</v-icon>
-              </v-btn>
-            </template>
-          </v-tooltip>
+        <v-tooltip text="Laporan" location="top">
+          <template v-slot:activator="{ props }">
+            <v-btn v-bind="props" to="/laporan" icon variant="text" size="x-small" density="compact"
+              color="grey-darken-1">
+              <v-icon size="16">mdi-chart-bar</v-icon>
+            </v-btn>
+          </template>
+        </v-tooltip>
 
-        </div>
+        <v-divider vertical class="mx-1"></v-divider>
 
-        <v-divider vertical class="mx-3 my-2" style="height: 20px;"></v-divider>
+        <v-menu open-on-hover location="top end" :close-on-content-click="false" transition="slide-y-transition">
+          <template v-slot:activator="{ props }">
+            <v-btn v-bind="props" icon variant="text" size="small" density="compact" color="indigo">
+              <v-icon size="18">mdi-help-circle-outline</v-icon>
+            </v-btn>
+          </template>
 
-        <div v-if="authStore.isOnline" class="d-flex align-center">
-          <v-icon color="success" size="small" class="mr-1">mdi-circle</v-icon>
-          <span class="mr-4">Online</span>
-        </div>
-        <div v-else class="d-flex align-center">
-          <v-icon color="error" size="small" class="mr-1">mdi-circle-off-outline</v-icon>
-          <span class="mr-4 font-weight-bold text-error">Offline</span>
-        </div>
-        <span class="text-medium-emphasis">
-          © 2025 IT Kencana Print — v{{ version }}
-        </span>
+          <v-card width="320" class="rounded-lg shadow-lg">
+            <v-card-title class="text-caption font-weight-bold bg-grey-lighten-4 py-2 px-3 d-flex align-center">
+              <v-icon size="small" start color="indigo">mdi-keyboard-outline</v-icon>
+              Daftar Shortcut
+            </v-card-title>
+
+            <v-card-text class="pa-0">
+              <v-list density="compact" lines="one" class="py-0">
+                <v-list-subheader class="font-weight-bold text-indigo py-0" style="font-size: 10px; height: 32px;">
+                  APLIKASI
+                </v-list-subheader>
+                <v-list-item v-for="(item, i) in appShortcuts" :key="i" class="min-height-32">
+                  <template v-slot:prepend>
+                    <v-chip size="x-small" label color="grey-darken-3" variant="flat" class="font-weight-bold px-2"
+                      style="min-width: 45px; justify-content: center;">
+                      {{ item.key }}
+                    </v-chip>
+                  </template>
+                  <v-list-item-title class="text-caption ml-2">{{ item.desc }}</v-list-item-title>
+                </v-list-item>
+                <v-divider class="my-1"></v-divider>
+                <v-list-subheader class="font-weight-bold text-grey-darken-2 py-0"
+                  style="font-size: 10px; height: 32px;">
+                  BROWSER / UMUM
+                </v-list-subheader>
+                <v-list-item v-for="(item, i) in browserShortcuts" :key="'b' + i" class="min-height-32">
+                  <template v-slot:prepend>
+                    <div class="text-caption font-weight-bold text-grey-darken-3" style="min-width: 80px;">
+                      {{ item.key }}
+                    </div>
+                  </template>
+                  <v-list-item-title class="text-caption text-grey-darken-1">{{ item.desc }}</v-list-item-title>
+                </v-list-item>
+              </v-list>
+            </v-card-text>
+          </v-card>
+        </v-menu>
+
+        <v-menu v-model="showCalculator" :close-on-content-click="false" location="top end" offset="10">
+          <template v-slot:activator="{ props }">
+            <v-btn v-bind="props" icon variant="text" size="small" density="compact" color="brown" title="Kalkulator">
+              <v-icon size="18">mdi-calculator</v-icon>
+            </v-btn>
+          </template>
+
+          <v-card width="220" class="rounded-lg elevation-4">
+            <div class="bg-grey-lighten-3 pa-2 text-right">
+              <div class="text-caption text-medium-emphasis mb-1" style="height: 16px;">{{ calcEquation }}</div>
+              <div class="text-h5 font-weight-bold text-grey-darken-3">{{ calcDisplay }}</div>
+            </div>
+
+            <v-card-text class="pa-1">
+              <v-row dense no-gutters>
+                <v-col cols="3"
+                  v-for="btn in ['C', '/', '*', 'BS', '7', '8', '9', '-', '4', '5', '6', '+', '1', '2', '3', '=', '0', '00', '.', '']"
+                  :key="btn">
+                  <v-btn v-if="btn === '='" block variant="flat" color="blue-darken-1" height="40" class="rounded-0"
+                    @click="calculateResult">=</v-btn>
+                  <v-btn v-else-if="btn === 'C'" block variant="text" color="red" height="40" class="rounded-0"
+                    @click="clearCalc">C</v-btn>
+                  <v-btn v-else-if="btn === 'BS'" block variant="text" color="orange" height="40" class="rounded-0"
+                    @click="deleteCalc">
+                    <v-icon>mdi-backspace-outline</v-icon>
+                  </v-btn>
+                  <v-btn v-else-if="btn === ''" block variant="text" disabled height="40" class="rounded-0"></v-btn>
+                  <v-btn v-else block variant="text" height="40" class="rounded-0 font-weight-bold"
+                    :color="['/', '*', '-', '+'].includes(btn) ? 'blue' : 'grey-darken-3'" @click="appendCalc(btn)">
+                    {{ btn }}
+                  </v-btn>
+                </v-col>
+              </v-row>
+            </v-card-text>
+          </v-card>
+        </v-menu>
+
+        <v-divider vertical class="mx-1"></v-divider>
+
+        <v-tooltip text="Lapor Masalah" location="top">
+          <template v-slot:activator="{ props }">
+            <v-btn v-bind="props" icon variant="text" size="small" density="compact" color="red-lighten-1"
+              href="https://wa.me/6282242748378?text=Halo%20IT,%20saya%20nemu%20error%20di..." target="_blank">
+              <v-icon size="16">mdi-bug-outline</v-icon>
+            </v-btn>
+          </template>
+        </v-tooltip>
+
+        <span class="text-caption text-disabled ml-1">v{{ version }}</span>
       </div>
     </v-footer>
 
@@ -115,5 +460,55 @@ const { showManualDialog, closeManualDialog } = useManualProgramDialog(); // Con
     <SettingsProcessDialog v-if="isSettingsProcessDialogOpen" @close="closeSettingsProcessDialog" />
 
     <ManualProgramDialog v-if="showManualDialog" @close="closeManualDialog" />
+
+    <GlobalUnsavedChangesDialog />
   </div>
 </template>
+
+<style scoped>
+.border-top {
+  border-top: 1px solid #e0e0e0;
+}
+
+.border {
+  border: 1px solid #e0e0e0;
+}
+
+.min-height-32 {
+  min-height: 28px !important;
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+}
+
+.shadow-lg {
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15) !important;
+}
+
+.shadow-sm {
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1) !important;
+}
+
+.cursor-help {
+  cursor: help;
+}
+
+.blink-animation {
+  animation: blink-soft 2s infinite;
+}
+
+.opacity-30 {
+  opacity: 0.3;
+}
+
+@keyframes blink-soft {
+
+  0%,
+  100% {
+    opacity: 1;
+  }
+
+  50% {
+    opacity: 0.5;
+  }
+}
+</style>

@@ -1,8 +1,10 @@
 <script setup lang="ts">
-import { ref, reactive, onMounted, computed } from 'vue';
+import { ref, reactive, onMounted, computed, nextTick, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useToast } from 'vue-toastification';
 import { useAuthStore } from '@/stores/authStore';
+import { useUiStore } from '@/stores/uiStore';
+import { useUnsavedChanges } from '@/composables/useUnsavedChanges';
 import api from '@/services/api';
 import { format, parseISO } from 'date-fns';
 import PageLayout from '@/components/PageLayout.vue';
@@ -32,6 +34,8 @@ const router = useRouter();
 const route = useRoute();
 const toast = useToast();
 const authStore = useAuthStore();
+const uiStore = useUiStore();
+const { markAsSaved } = useUnsavedChanges();
 const MENU_ID = '45';
 
 // --- State ---
@@ -125,6 +129,8 @@ const loadDataForEdit = async (nomor: string) => {
       id: Date.now() + Math.random(),
     }));
     isDataSaved.value = true;
+    await nextTick();
+    markAsSaved();
   } catch (err: unknown) {
     const error = err as AxiosError<{ message: string }>;
     toast.error(error.response?.data?.message || 'Gagal memuat data.');
@@ -138,6 +144,7 @@ const resetForm = () => {
   Object.assign(header, initialHeaderState);
   items.value = [];
   isDataSaved.value = false;
+  markAsSaved();
   toast.info('Form telah dibersihkan.');
 };
 
@@ -155,6 +162,8 @@ const executeSave = async () => {
   try {
     const response = await api.post('/mutasi-stok-form/save', payload);
     toast.success(response.data.message);
+
+    markAsSaved();
 
     // --- Arahkan ke Halaman Cetak ---
     const nomorMSO = response.data.nomor;
@@ -212,7 +221,33 @@ const getQtyMutasiClass = (item: Item) => {
   return '';
 };
 
+// --- WATCHERS (UNSAVED CHANGES) ---
+watch(
+  [header, items],
+  () => {
+    // Abaikan jika sedang loading awal atau saving
+    if (isLoading.value || isSaving.value) return;
+
+    // Cek apakah form "kotor"
+    // 1. Header: Nomor SO dipilih atau Keterangan diisi
+    const hasHeader = (header.nomorSo !== '') || (header.keterangan.trim() !== '');
+
+    // 2. Items: Grid sudah terisi (dari SO atau manual)
+    const hasItems = items.value.length > 0;
+
+    if (hasHeader || hasItems) {
+      uiStore.setUnsavedChanges(true);
+    } else {
+      // Jika kembali kosong bersih
+      uiStore.setUnsavedChanges(false);
+    }
+  },
+  { deep: true }
+);
+
 onMounted(() => {
+  markAsSaved();
+
   if (!authStore.can(MENU_ID, requiredPermission.value)) {
     toast.error(`Anda tidak memiliki izin untuk ${isEditMode.value ? 'mengubah' : 'membuat'} data Mutasi Stok.`);
     router.push({ name: 'MutasiStok' }); // Arahkan kembali ke halaman browse

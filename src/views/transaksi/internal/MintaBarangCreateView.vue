@@ -1,10 +1,12 @@
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue';
+import { ref, onMounted, computed, nextTick, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import api from '@/services/api';
 import PageLayout from '@/components/PageLayout.vue';
 import { useToast } from 'vue-toastification';
 import { useAuthStore } from '@/stores/authStore';
+import { useUiStore } from '@/stores/uiStore';
+import { useUnsavedChanges } from '@/composables/useUnsavedChanges';
 import { format } from 'date-fns';
 import SoSearchModal from '@/components/lookup/SoSearchModal.vue';
 import CustomerSearchModal from '@/components/lookup/CustomerSearchModal.vue';
@@ -107,6 +109,8 @@ const router = useRouter();
 const route = useRoute();
 const toast = useToast();
 const authStore = useAuthStore();
+const uiStore = useUiStore();
+const { markAsSaved } = useUnsavedChanges();
 const MENU_ID = '37';
 
 const isEditMode = computed(() => !!route.params.nomor);
@@ -164,6 +168,7 @@ const resetForm = () => {
   formHeader.value = { ...initialHeaderState };
   items.value = [];
   addNewRow();
+  markAsSaved();
 };
 
 const openProductSearch = (index: number, isMulti: boolean) => {
@@ -300,6 +305,9 @@ const loadDataForEdit = async (nomor: string) => {
 
     addNewRow();
 
+    await nextTick();
+    markAsSaved();
+
   } catch (error: unknown) {
     toast.error('Gagal memuat data.', error);
     router.back();
@@ -339,6 +347,7 @@ const executeSave = async () => {
     };
     const response = await api.post('/minta-barang-form/save', payload);
     toast.success(response.data.message);
+    markAsSaved();
     router.push('/transaksi/internal/minta-barang');
   } catch (error) {
     toast.error(error.response?.data?.message || 'Gagal menyimpan data.');
@@ -415,7 +424,32 @@ const handleBarcodeScan = async () => {
   }
 };
 
+// --- WATCHERS (UNSAVED CHANGES) ---
+watch(
+  [formHeader, items],
+  () => {
+    // Abaikan saat loading awal atau saving
+    if (isLoading.value || isSaving.value) return;
+
+    // Cek apakah form "kotor"
+    // 1. Header: Customer dipilih atau Keterangan diisi
+    const hasHeader = (formHeader.value.customer !== null) || (formHeader.value.keterangan.trim() !== '');
+
+    // 2. Items: Ada minimal 1 baris yang valid (kode terisi)
+    const hasItems = items.value.some(i => i.kode !== '');
+
+    if (hasHeader || hasItems) {
+      uiStore.setUnsavedChanges(true);
+    } else {
+      // Jika kembali kosong bersih
+      uiStore.setUnsavedChanges(false);
+    }
+  },
+  { deep: true }
+);
+
 onMounted(() => {
+  markAsSaved();
   // Cek hak akses 'insert' (untuk baru) atau 'edit' (untuk ubah)
   if (!authStore.can(MENU_ID, isEditMode.value ? 'edit' : 'insert')) {
     toast.error(`Anda tidak memiliki izin untuk ${isEditMode.value ? 'mengubah' : 'membuat'} data ini.`);

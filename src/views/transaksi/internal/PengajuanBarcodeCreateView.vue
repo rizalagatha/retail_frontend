@@ -1,8 +1,10 @@
 <script setup lang="ts">
-import { ref, reactive, onMounted, computed, watch } from 'vue';
+import { ref, reactive, onMounted, computed, watch, nextTick } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useToast } from 'vue-toastification';
 import { useAuthStore } from '@/stores/authStore';
+import { useUiStore } from '@/stores/uiStore';
+import { useUnsavedChanges } from '@/composables/useUnsavedChanges';
 import api from '@/services/api';
 import { format, parseISO } from 'date-fns';
 import PageLayout from '@/components/PageLayout.vue';
@@ -87,6 +89,8 @@ const router = useRouter();
 const route = useRoute();
 const toast = useToast();
 const authStore = useAuthStore();
+const uiStore = useUiStore();
+const { markAsSaved } = useUnsavedChanges();
 const MENU_ID = '33';
 
 const isEditMode = computed(() => !!route.params.nomor);
@@ -339,6 +343,8 @@ const executeSave = async () => {
     const response = await api.post('/pengajuan-barcode-form/save', payload);
     toast.success(response.data.message);
 
+    markAsSaved();
+
     if (!isEditMode.value) {
       savedNomor = response.data.nomor;
     }
@@ -449,6 +455,9 @@ const loadDataForEdit = async (nomor: string) => {
     calculateHargaDtf();
 
     toast.success(`Data ${nomor} berhasil dimuat.`);
+
+    await nextTick();
+    markAsSaved();
   } catch (error) {
     const err = error as AxiosError<{ message?: string }>;
     const message = err.response?.data?.message || 'Gagal memuat data.';
@@ -521,6 +530,7 @@ const resetForm = () => {
   items.value = [];
   stickers.value = [];
   addNewRow();
+  markAsSaved();
   toast.info('Form telah dibersihkan.');
 };
 
@@ -569,7 +579,28 @@ const onStickersSelected = (selectedSticker: StickerItem | null) => {
 
 watch([items, stickers], calculateHargaDtf, { deep: true });
 
+// --- WATCHERS (UNSAVED CHANGES) ---
+watch(
+  [items, stickers],
+  () => {
+    // Abaikan jika sedang loading atau saving
+    if (isLoading.value || isSaving.value) return;
+
+    // Cek apakah ada data yang "bermakna"
+    const hasItems = items.value.some(i => i.kode !== '');
+    const hasStickers = stickers.value.some(s => s.kodes !== '');
+
+    if (hasItems || hasStickers) {
+      uiStore.setUnsavedChanges(true);
+    } else {
+      uiStore.setUnsavedChanges(false);
+    }
+  },
+  { deep: true }
+);
+
 onMounted(async () => {
+  markAsSaved();
   if (!canView.value) {
     isLoading.value = false; // Hentikan loading
     toast.error('Anda tidak memiliki izin untuk mengakses halaman ini.');

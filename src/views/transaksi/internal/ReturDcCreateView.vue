@@ -1,8 +1,10 @@
 <script setup lang="ts">
-import { ref, reactive, onMounted, computed } from 'vue';
+import { ref, reactive, onMounted, computed, nextTick, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useToast } from 'vue-toastification';
 import { useAuthStore } from '@/stores/authStore';
+import { useUiStore } from '@/stores/uiStore';
+import { useUnsavedChanges } from '@/composables/useUnsavedChanges';
 import api from '@/services/api';
 import { format, parseISO } from 'date-fns';
 import PageLayout from '@/components/PageLayout.vue';
@@ -53,6 +55,8 @@ const router = useRouter();
 const route = useRoute();
 const toast = useToast();
 const authStore = useAuthStore();
+const uiStore = useUiStore();
+const { markAsSaved } = useUnsavedChanges();
 const MENU_ID = '32';
 const isEditMode = ref(false);
 const pageTitle = computed(() => isEditMode.value ? 'Ubah Retur Barang ke DC' : 'Buat Retur Barang ke DC');
@@ -129,8 +133,26 @@ const showConfirmation = (title: string, text: string, onConfirm: () => void) =>
   dialogConfirm.show = true;
 };
 
+const resetForm = () => {
+  // Logic reset manual
+  Object.assign(header, {
+    nomor: '',
+    tanggal: format(new Date(), 'yyyy-MM-dd'),
+    gudangDc: { kode: 'KDC', nama: 'PUSAT' },
+    keterangan: ''
+  });
+  items.value = [];
+  addNewRow();
+
+  // [BARU] Reset status unsaved
+  markAsSaved();
+  toast.info('Form telah dibersihkan.');
+};
+
 const closeForm = () => router.push({ name: 'ReturDc' });
-const handleCancel = () => { /* Logika Batal/Reset Form */ };
+const handleCancel = () => {
+  showConfirmation('Konfirmasi Batal', 'Batalkan semua perubahan dan kosongkan form?', resetForm);
+};
 const handleClose = () => showConfirmation('Konfirmasi Tutup', 'Tutup form?', closeForm);
 
 const onGudangSelected = (gudang: { kode: string, nama: string }) => {
@@ -287,6 +309,8 @@ const executeSave = async () => {
     const response = await api.post('/retur-dc-form/save', payload);
     toast.success(response.data.message);
 
+    markAsSaved();
+
     // --- ALUR CETAK OTOMATIS ---
     const nomorDokumen = response.data.nomor;
     if (nomorDokumen) {
@@ -318,6 +342,9 @@ const loadDataForEdit = async (nomor: string) => {
       ...item,
       id: Date.now() + Math.random(), // tambahkan id unik
     }));
+
+    await nextTick();
+    markAsSaved();
   } catch (error: unknown) {
     if (error instanceof Error) {
       const axiosError = error as AxiosError<{ message?: string }>;
@@ -330,7 +357,33 @@ const loadDataForEdit = async (nomor: string) => {
   }
 };
 
+// --- WATCHERS (UNSAVED CHANGES) ---
+watch(
+  [header, items],
+  () => {
+    // Abaikan jika sedang loading awal atau saving
+    if (isLoading.value || isSaving.value) return;
+
+    // Cek apakah form "kotor"
+    // 1. Header: Keterangan diisi
+    const hasHeader = header.keterangan.trim() !== '';
+
+    // 2. Items: Ada minimal 1 baris yang valid (kode terisi)
+    const hasItems = items.value.some(i => i.kode !== '');
+
+    if (hasHeader || hasItems) {
+      uiStore.setUnsavedChanges(true);
+    } else {
+      // Jika kembali kosong bersih
+      uiStore.setUnsavedChanges(false);
+    }
+  },
+  { deep: true }
+);
+
 onMounted(async () => {
+  markAsSaved();
+
   // --- TAMBAHKAN PENGECEKAN AWAL ---
   if (!canView.value) {
     isLoading.value = false; // Hentikan loading
@@ -442,13 +495,16 @@ onMounted(async () => {
 
 <style scoped>
 .desktop-table :deep(thead tr th) {
-  background-color: #0D47A1 !important; /* Biru Tua */
-  color: #ffffff !important;            /* Teks Putih */
+  background-color: #0D47A1 !important;
+  /* Biru Tua */
+  color: #ffffff !important;
+  /* Teks Putih */
   font-weight: bold !important;
   text-transform: uppercase;
   font-size: 11px !important;
   height: 40px !important;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-  border-bottom: none !important; /* Supaya lebih rapi */
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  border-bottom: none !important;
+  /* Supaya lebih rapi */
 }
 </style>

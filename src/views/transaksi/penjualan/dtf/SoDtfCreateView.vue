@@ -5,6 +5,8 @@ import api from '@/services/api';
 import PageLayout from '@/components/PageLayout.vue';
 import { useToast } from 'vue-toastification';
 import { useAuthStore } from '@/stores/authStore';
+import { useUiStore } from '@/stores/uiStore';
+import { useUnsavedChanges } from '@/composables/useUnsavedChanges';
 import { format } from 'date-fns';
 import { AxiosError } from 'axios';
 
@@ -67,6 +69,8 @@ const route = useRoute();
 const router = useRouter();
 const toast = useToast();
 const authStore = useAuthStore();
+const uiStore = useUiStore();
+const { markAsSaved } = useUnsavedChanges();
 const MENU_ID = '35';
 
 const isEditMode = computed(() => !!route.params.nomor);
@@ -263,6 +267,9 @@ const fetchDataForEdit = async (nomor: string) => {
 
     toast.success(`Data untuk ${nomor} berhasil dimuat.`);
 
+    await nextTick();
+    markAsSaved();
+
   } catch (error) {
     const err = error as AxiosError<{ message: string }>;
 
@@ -343,6 +350,8 @@ const resetForm = () => {
     panjang: null,
     lebar: null
   });
+
+  markAsSaved();
 };
 
 const uploadImageToServer = async (nomor: string): Promise<boolean> => {
@@ -461,6 +470,8 @@ const save = async () => {
       }
 
       toast.success("Data berhasil disimpan.");
+
+      markAsSaved();
 
       // 2. Upload gambar jika ada
       if (!isEditMode.value && imageFile.value) {
@@ -888,7 +899,37 @@ watch(
   { deep: true }
 );
 
+// --- WATCHERS (UNSAVED CHANGES) ---
+watch(
+  [form, detailsUkuran, detailsTitik],
+  () => {
+    // Abaikan jika sedang loading awal, restoring data, atau proses simpan
+    if (isLoading.value || isSaving.value || isRestoringData.value || isInitializing.value) return;
+
+    // Cek apakah form "kotor"
+    // 1. Header: Customer atau Sales dipilih
+    const hasHeader = (form.value.customerKode !== '') || (form.value.salesKode !== '');
+
+    // 2. Details Ukuran: Ada data selain baris kosong default
+    // (Cek apakah ada ukuran yang diisi atau jumlah > 0)
+    const hasUkuran = detailsUkuran.value.some(d => d.ukuran !== '' || (d.jumlah || 0) > 0);
+
+    // 3. Details Titik: Ada keterangan diisi
+    const hasTitik = detailsTitik.value.some(d => d.keterangan !== '');
+
+    if (hasHeader || hasUkuran || hasTitik) {
+      uiStore.setUnsavedChanges(true);
+    } else {
+      // Jika kembali kosong bersih
+      uiStore.setUnsavedChanges(false);
+    }
+  },
+  { deep: true }
+);
+
 onMounted(() => {
+  markAsSaved();
+
   if (!authStore.can(MENU_ID, requiredPermission.value)) {
     toast.error(`Anda tidak memiliki izin untuk ${requiredPermission.value === 'insert' ? 'membuat' : 'mengubah'} data.`);
     router.back();

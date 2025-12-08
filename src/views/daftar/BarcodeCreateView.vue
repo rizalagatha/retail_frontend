@@ -10,6 +10,9 @@ import type { AxiosError } from 'axios';
 import JsBarcode from 'jsbarcode';
 import ProductSearchModal from '@/components/lookup/ProductSearchModal.vue';
 import { formatRupiah } from "@/utils/formatRupiah";
+import { useUiStore } from '@/stores/uiStore';
+import { useUnsavedChanges } from '@/composables/useUnsavedChanges';
+
 const fr = (v: number) => formatRupiah(v);
 
 // Daftarkan JsBarcode ke window agar bisa diakses di iframe
@@ -19,6 +22,8 @@ const fr = (v: number) => formatRupiah(v);
 const router = useRouter();
 const toast = useToast();
 const authStore = useAuthStore();
+const uiStore = useUiStore();
+const { markAsSaved } = useUnsavedChanges();
 const MENU_ID = '35'; // Diambil dari halaman browse Anda
 
 // --- Interface ---
@@ -249,6 +254,8 @@ const resetForm = () => {
   items.value = [];
   addNewRow();
   productCategory.value = 'Kaosan';
+  isAfterSave.value = false;
+  markAsSaved();
   selectedPrinter.value = 'XP-360B';
   showPriceOnLabel.value = false;
 };
@@ -277,6 +284,8 @@ const save = async () => {
     toast.success(`Data barcode ${nomor.value} berhasil disimpan. Siap untuk dicetak.`);
 
     isAfterSave.value = true;
+
+    markAsSaved();
 
     // --- Alur Baru: Panggil Pratinjau ---
     const printOptions = {
@@ -473,16 +482,38 @@ watch(printPreviewData, (newVal) => {
   }
 });
 
+watch(
+  items,
+  (newItems) => {
+    // Abaikan jika sedang proses simpan
+    if (isSaving.value) return;
+
+    // Cek apakah ada data yang "bermakna"
+    const hasData = newItems.some(item => item.kode !== '' || (item.jumlah || 0) > 0);
+
+    // Jika ada data valid & belum disimpan, set dirty state
+    if (hasData && !isAfterSave.value) {
+      uiStore.setUnsavedChanges(true);
+    }
+    // Jika kembali kosong (misal dihapus semua manual), anggap clean
+    else if (!hasData) {
+      uiStore.setUnsavedChanges(false);
+    }
+  },
+  { deep: true }
+);
+
 // --- Lifecycle ---
 onMounted(() => {
-  // Cek izin
+  markAsSaved(); // Reset status awal
+
   if (!authStore.can(MENU_ID, 'insert')) {
-    toast.error("Anda tidak memiliki izin untuk membuat data ini.");
+    toast.error("Anda tidak memiliki izin.");
     router.back();
     return;
   }
   getNextNumber();
-  addNewRow(); // Tambah baris kosong awal
+  addNewRow();
 });
 </script>
 

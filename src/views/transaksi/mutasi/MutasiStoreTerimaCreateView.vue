@@ -1,8 +1,10 @@
 <script setup lang="ts">
-import { ref, reactive, onMounted, computed } from 'vue';
+import { ref, reactive, onMounted, computed, nextTick, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useToast } from 'vue-toastification';
 import { useAuthStore } from '@/stores/authStore';
+import { useUiStore } from '@/stores/uiStore';
+import { useUnsavedChanges } from '@/composables/useUnsavedChanges';
 import api from '@/services/api';
 import { format, parseISO, isBefore } from 'date-fns';
 import PageLayout from '@/components/PageLayout.vue';
@@ -33,6 +35,8 @@ const router = useRouter();
 const route = useRoute();
 const toast = useToast();
 const authStore = useAuthStore();
+const uiStore = useUiStore();
+const { markAsSaved } = useUnsavedChanges();
 const MENU_ID = '47';
 
 const pageTitle = 'Buat Mutasi Antar Store Terima';
@@ -116,6 +120,7 @@ const executeSave = async () => {
   try {
     const response = await api.post('/mutasi-terima-form/save', payload);
     toast.success(response.data.message);
+    markAsSaved();
     router.push({ name: 'MutasiTerima' });
   } catch (err: unknown) {
     const error = err as AxiosError<{ message: string }>;
@@ -146,7 +151,26 @@ const handleClose = () => {
   showConfirmation('Konfirmasi Tutup', 'Tutup form? Perubahan yang belum disimpan akan hilang.', closeForm);
 };
 
+// --- WATCHERS (UNSAVED CHANGES) ---
+watch(
+  [items, header], // Pantau items (jumlah terima) dan header (tanggal)
+  () => {
+    // Abaikan jika sedang loading awal atau saving
+    if (isLoading.value || isSaving.value) return;
+
+    // Cek apakah ada perubahan
+    // 1. Items: Ada item yang jumlah terimanya > 0 (artinya user sudah mulai input terima)
+    //    ATAU user mengubah tanggal terima (header)
+    //    Catatan: Karena form ini "Load from Kirim", data awal items sudah ada.
+    //    Kita bisa anggap "Dirty" jika user mengubah apapun setelah load selesai.
+
+    uiStore.setUnsavedChanges(true);
+  },
+  { deep: true }
+);
+
 onMounted(async () => {
+  markAsSaved();
   if (!canView.value) {
     isLoading.value = false; // Hentikan loading
     toast.error('Anda tidak memiliki izin untuk mengakses halaman ini.');
@@ -172,6 +196,8 @@ onMounted(async () => {
       id: Date.now() + Math.random(),
       jumlahTerima: item.jumlahKirim, // default = jumlahKirim
     })) as Item[];
+    await nextTick();
+    markAsSaved();
   } catch (err: unknown) {
     const error = err as AxiosError<{ message: string }>;
     toast.error(error.response?.data?.message || 'Gagal memuat data pengiriman.');

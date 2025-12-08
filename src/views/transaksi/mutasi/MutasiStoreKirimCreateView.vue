@@ -1,8 +1,10 @@
 <script setup lang="ts">
-import { ref, reactive, onMounted, computed } from 'vue';
+import { ref, reactive, onMounted, computed, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useToast } from 'vue-toastification';
 import { useAuthStore } from '@/stores/authStore';
+import { useUiStore } from '@/stores/uiStore';
+import { useUnsavedChanges } from '@/composables/useUnsavedChanges';
 import api from '@/services/api';
 import { format, parseISO } from 'date-fns';
 import PageLayout from '@/components/PageLayout.vue';
@@ -48,6 +50,8 @@ const router = useRouter();
 const route = useRoute();
 const toast = useToast();
 const authStore = useAuthStore();
+const uiStore = useUiStore();
+const { markAsSaved } = useUnsavedChanges();
 const MENU_ID = '46'; // Sesuaikan
 
 const isEditMode = computed(() => !!route.params.nomor);
@@ -173,6 +177,7 @@ const executeSave = async () => {
   try {
     const response = await api.post('/mutasi-kirim-form/save', payload);
     toast.success(response.data.message);
+    markAsSaved();
     const nomorDokumen = response.data.nomor;
     if (nomorDokumen) {
       const url = router.resolve({ name: 'MutasiKirimPrint', params: { nomor: nomorDokumen } }).href;
@@ -205,6 +210,7 @@ const resetForm = () => {
   });
   items.value = [];
   addNewRow();
+  markAsSaved();
   toast.info('Form telah dibersihkan.');
 };
 
@@ -276,8 +282,33 @@ const handleBarcodeScan = async () => {
   }
 };
 
+// --- WATCHERS (UNSAVED CHANGES) ---
+watch(
+  [header, items],
+  () => {
+    // Abaikan jika sedang loading awal atau saving
+    if (isLoading.value || isSaving.value) return;
+
+    // Cek apakah form "kotor"
+    // 1. Header: Store tujuan dipilih atau Keterangan diisi
+    const hasHeader = (header.storeTujuanKode !== '') || (header.keterangan.trim() !== '');
+
+    // 2. Items: Ada minimal 1 baris yang valid (kode terisi)
+    const hasItems = items.value.some(i => i.kode !== '');
+
+    if (hasHeader || hasItems) {
+      uiStore.setUnsavedChanges(true);
+    } else {
+      // Jika kembali kosong bersih
+      uiStore.setUnsavedChanges(false);
+    }
+  },
+  { deep: true }
+);
 
 onMounted(async () => {
+  markAsSaved();
+
   if (!authStore.can(MENU_ID, isEditMode.value ? 'edit' : 'insert')) {
     toast.error(`Anda tidak memiliki izin untuk ${isEditMode.value ? 'mengubah' : 'membuat'} data ini.`);
     router.back(); // Lempar user kembali
@@ -391,13 +422,16 @@ onMounted(async () => {
 
 <style scoped>
 .desktop-table :deep(thead tr th) {
-  background-color: #0D47A1 !important; /* Biru Tua */
-  color: #ffffff !important;            /* Teks Putih */
+  background-color: #0D47A1 !important;
+  /* Biru Tua */
+  color: #ffffff !important;
+  /* Teks Putih */
   font-weight: bold !important;
   text-transform: uppercase;
   font-size: 11px !important;
   height: 40px !important;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-  border-bottom: none !important; /* Supaya lebih rapi */
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  border-bottom: none !important;
+  /* Supaya lebih rapi */
 }
 </style>

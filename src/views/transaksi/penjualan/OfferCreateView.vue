@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, computed, watch } from 'vue';
+import { ref, onMounted, computed, watch, nextTick } from 'vue';
 import api from '@/services/api';
 import PageLayout from '@/components/PageLayout.vue';
 import CustomerSearchModal from '@/components/lookup/CustomerSearchModal.vue';
@@ -10,6 +10,8 @@ import AuthorizationModal from '@/components/modal/AuthorizationModal.vue';
 import PriceProposalSearchModal from '@/components/lookup/PriceProposalSearchModal.vue';
 import { useToast } from 'vue-toastification';
 import { useAuthStore } from '@/stores/authStore';
+import { useUiStore } from '@/stores/uiStore';
+import { useUnsavedChanges } from '@/composables/useUnsavedChanges';
 import { useRouter, useRoute } from 'vue-router';
 import { format, addDays, isValid } from 'date-fns';
 import axios, { AxiosError } from 'axios';
@@ -17,6 +19,8 @@ import { formatRupiah } from "@/utils/formatRupiah";
 
 const toast = useToast();
 const authStore = useAuthStore();
+const uiStore = useUiStore();
+const { markAsSaved } = useUnsavedChanges();
 const router = useRouter();
 const route = useRoute();
 const MENU_ID = '42';
@@ -233,6 +237,9 @@ const loadOfferData = async (nomor: string) => {
     footer.value = footerData;
 
     toast.success(`Data untuk penawaran ${nomor} berhasil dimuat.`);
+
+    await nextTick();
+    markAsSaved();
   } catch (error) {
     toast.error('Gagal memuat data penawaran.', error);
     router.push('/transaksi/penjualan/penawaran'); // Kembali ke daftar jika gagal
@@ -455,6 +462,8 @@ const save = async () => {
     const response = await api.post('/offer-form/save', payload);
     toast.success(response.data.message);
 
+    markAsSaved();
+
     // --- PERUBAHAN LOGIKA REDIRECT ---
 
     const nomorPenawaran = response.data.nomor;
@@ -534,6 +543,8 @@ const resetForm = () => {
   };
   items.value = [];
   addNewRow();
+  markAsSaved();
+  toast.info('Form telah dibersihkan.');
 };
 
 const handleDiscountChange = async () => {
@@ -987,7 +998,34 @@ watch(() => header.value.customerKode, (newKode) => {
   if (newKode) loadCustomerDetails();
 });
 
+// --- WATCHERS (UNSAVED CHANGES) ---
+watch(
+  [header, items, footer],
+  () => {
+    // Abaikan jika sedang loading awal atau saving
+    if (isSaving.value) return;
+
+    // Cek apakah form "kotor"
+    // 1. Header: Customer dipilih atau Keterangan diisi
+    const hasHeader = (header.value.customer !== null) || (header.value.keterangan.trim() !== '');
+
+    // 2. Items: Ada item valid (kode terisi)
+    const hasItems = items.value.some(i => i.kode !== '');
+
+    // 3. Footer: Ada perubahan diskon manual
+    // (Bisa dicek lebih detail jika perlu, tapi perubahan footer biasanya mengikuti items)
+
+    if (hasHeader || hasItems) {
+      uiStore.setUnsavedChanges(true);
+    } else {
+      uiStore.setUnsavedChanges(false);
+    }
+  },
+  { deep: true }
+);
+
 onMounted(() => {
+  markAsSaved();
   // Pengecekan otorisasi sebelum memuat apa pun
   if (!authStore.can(MENU_ID, requiredPermission.value)) {
     toast.error(`Anda tidak memiliki izin untuk ${requiredPermission.value === 'insert' ? 'membuat' : 'mengubah'} data penawaran.`);

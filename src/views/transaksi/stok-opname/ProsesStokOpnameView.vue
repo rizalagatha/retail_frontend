@@ -67,26 +67,6 @@ const isSingleSelected = computed(() => selected.value.length === 1);
 const selectedRow = computed<SopHeader | null>(() => isSingleSelected.value ? selected.value[0] : null);
 const canTransfer = computed(() => isSingleSelected.value && selectedRow.value?.transfer !== 'Y');
 const canEdit = computed(() => isSingleSelected.value);
-const detailSummary = computed<DetailSummary>(() => {
-  if (!expanded.value.length) {
-    return { Stok: 0, Jumlah: 0, Selisih: 0, Nominal: 0 };
-  }
-
-  const nomor = expanded.value[0]; // string nomor
-  const currentDetails = details.value[nomor];
-
-  if (!currentDetails) {
-    return { Stok: 0, Jumlah: 0, Selisih: 0, Nominal: 0 };
-  }
-
-  return {
-    Stok: currentDetails.reduce((sum, item) => sum + (Number(item.Stok) || 0), 0),
-    Jumlah: currentDetails.reduce((sum, item) => sum + (Number(item.Jumlah) || 0), 0),
-    Selisih: currentDetails.reduce((sum, item) => sum + (Number(item.Selisih) || 0), 0),
-    Nominal: currentDetails.reduce((sum, item) => sum + (Number(item.Nominal) || 0), 0),
-  };
-});
-
 
 const headers = [
   { title: 'Nomor', key: 'nomor', width: '200px' },
@@ -212,6 +192,17 @@ const exportData = async (type: 'header' | 'detail') => {
   }
 };
 
+const makeDetailSummary = (nomor: string): DetailSummary => {
+  const currentDetails = details.value[nomor] || [];
+
+  return {
+    Stok: currentDetails.reduce((sum, item) => sum + Number(item.Stok || 0), 0),
+    Jumlah: currentDetails.reduce((sum, item) => sum + Number(item.Jumlah || 0), 0),
+    Selisih: currentDetails.reduce((sum, item) => sum + Number(item.Selisih || 0), 0),
+    Nominal: currentDetails.reduce((sum, item) => sum + Number(item.Nominal || 0), 0),
+  };
+};
+
 onMounted(() => {
   fetchCabangOptions(); // Panggil fungsi yang sudah diisi
   fetchData();
@@ -286,10 +277,12 @@ watch(filters, fetchData, { deep: true });
                       <template #[`body.append`]>
             <tr class="bg-grey-lighten-4 font-weight-bold">
               <td colspan="4" class="text-end">TOTAL :</td>
-              <td class="text-end">{{ detailSummary.Stok?.toLocaleString('id-ID') }}</td>
-              <td class="text-end">{{ detailSummary.Jumlah?.toLocaleString('id-ID') }}</td>
-              <td class="text-end">{{ detailSummary.Selisih?.toLocaleString('id-ID') }}</td>
-              <td class="text-end">{{ detailSummary.Nominal?.toLocaleString('id-ID') }}</td>
+
+              <td class="text-end">{{ makeDetailSummary(item.nomor).Stok.toLocaleString('id-ID') }}</td>
+              <td class="text-end">{{ makeDetailSummary(item.nomor).Jumlah.toLocaleString('id-ID') }}</td>
+              <td class="text-end">{{ makeDetailSummary(item.nomor).Selisih.toLocaleString('id-ID') }}</td>
+              <td class="text-end">{{ makeDetailSummary(item.nomor).Nominal.toLocaleString('id-ID') }}</td>
+
               <td></td>
             </tr>
           </template>

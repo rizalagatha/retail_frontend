@@ -15,6 +15,7 @@ interface SopHeader {
   nomor: string;
   tanggal: string;
   transfer: 'Y' | 'N';
+  selisih_qty: number
   nominal: number;
   keterangan: string;
 }
@@ -71,6 +72,7 @@ const canEdit = computed(() => isSingleSelected.value);
 const headers = [
   { title: 'Nomor', key: 'nomor', width: '200px' },
   { title: 'Tanggal', key: 'tanggal' },
+  { title: 'Selisih Qty', key: 'selisih_qty', align: 'end' },
   { title: 'Nominal Selisih', key: 'nominal', align: 'end' },
   { title: 'Keterangan', key: 'keterangan' },
   { title: 'Transfer', key: 'transfer', align: 'center' },
@@ -256,6 +258,11 @@ watch(filters, fetchData, { deep: true });
           @update:expanded="loadDetails">
           <template #[`item.tanggal`]="{ item }">
             {{ format(parseISO(item['tanggal']), 'dd-MM-yyyy') }}
+          </template>
+          <template #[`item.selisih_qty`]="{ item }">
+            <span :class="item.selisih_qty < 0 ? 'text-red' : 'text-green'">
+              {{ item.selisih_qty.toLocaleString('id-ID') }}
+            </span>
           </template>
           <template #[`item.nominal`]="{ item }">
             {{ new Intl.NumberFormat('id-ID').format(item['nominal'] || 0) }}

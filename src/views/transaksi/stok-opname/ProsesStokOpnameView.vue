@@ -248,6 +248,9 @@ watch(filters, fetchData, { deep: true });
         <v-label class="mx-2">s/d</v-label>
         <v-text-field v-model="filters.endDate" type="date" density="compact" hide-details variant="outlined"
           style="max-width: 180px;" />
+        <v-select v-if="authStore.user?.cabang === 'KDC'" v-model="filters.cabang" :items="cabangOptions"
+          item-title="nama" item-value="kode" density="compact" variant="outlined" hide-details style="width: 160px"
+          placeholder="Pilih Cabang" />
         <v-spacer />
         <v-btn @click="fetchData" icon="mdi-refresh" variant="text" size="small" :loading="isLoading" />
       </div>

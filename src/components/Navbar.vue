@@ -2,7 +2,7 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { useAuthStore } from '@/stores/authStore';
-import logoSrc from '@/assets/logo.png';
+import logo from '@/assets/logo.png';
 import { usePasswordDialog } from '@/composables/usePasswordDialog';
 import { useWhatsAppDialog } from '@/composables/useWhatsappDialog';
 import { useBufferStockDialog } from '@/composables/useBufferStockDialog';
@@ -20,6 +20,7 @@ interface NavItem {
 // Stores and composables
 const authStore = useAuthStore()
 const router = useRouter()
+const logoSrc = logo as string;
 
 // Component state
 const scrolled = ref(false)
@@ -153,8 +154,10 @@ const menuItems = [
             ]
           },
           { title: 'Surat Pesanan', to: '/transaksi/penjualan/surat-pesanan', icon: 'mdi-file-document-edit-outline' },
+          // { title: 'Pesanan Online', to: '/transaksi/penjualan/pesanan-online', icon: 'mdi-web' },
           { title: 'Proforma Invoice', to: '/transaksi/penjualan/proforma', icon: 'mdi-receipt-text-outline' },
           { title: 'Invoice', to: '/transaksi/penjualan/invoice', icon: 'mdi-receipt' },
+          { title: 'Pelunasan Invoice', to: '/transaksi/penjualan/pelunasan-invoice', icon: 'mdi-hand-coin' },
           { title: 'Retur Jual', to: '/transaksi/penjualan/retur-jual', icon: 'mdi-keyboard-return' }
         ]
       },

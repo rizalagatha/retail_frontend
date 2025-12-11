@@ -24,16 +24,9 @@ interface DataTableHeader {
 interface StokItem {
   KODE: string;
   NAMA: string;
-  S: number;
-  M: number;
-  L: number;
-  XL: number;
-  '2XL': number;
-  '3XL': number;
-  '4XL': number;
-  '5XL': number;
   TOTAL: number;
   Buffer: number;
+  [key: string]: string | number; // Allow dynamic keys (S, M, L, Jumbo, A3, etc)
 }
 
 const toast = useToast();
@@ -57,20 +50,7 @@ const isProductSearchVisible = ref(false);
 const hasViewPermission = computed(() => authStore.can(MENU_ID, 'view'));
 
 // --- Header Definisi (Resize) ---
-const headers = ref<DataTableHeader[]>([
-  { title: 'Kode', key: 'KODE', fixed: true, width: 180 },
-  { title: 'Nama Barang', key: 'NAMA', fixed: true, width: 300 },
-  { title: 'S', key: 'S',  width: 80 },
-  { title: 'M', key: 'M', width: 80 },
-  { title: 'L', key: 'L', width: 80 },
-  { title: 'XL', key: 'XL', width: 80 },
-  { title: '2XL', key: '2XL', width: 80 },
-  { title: '3XL', key: '3XL', width: 80 },
-  { title: '4XL', key: '4XL', width: 80 },
-  { title: '5XL', key: '5XL', width: 80 },
-  { title: 'Total', key: 'TOTAL', width: 100, class: 'font-weight-bold' },
-  { title: 'Buffer', key: 'Buffer', width: 100 },
-]);
+const headers = ref<DataTableHeader[]>([]);
 
 // --- Logic Resize Column ---
 const resizingColumn = ref<DataTableHeader | null>(null);
@@ -102,11 +82,61 @@ const onResizeEnd = () => {
 };
 
 // --- Methods ---
+// Fungsi Helper untuk mengurutkan Ukuran (agar S, M, L urut, sisanya alfabet)
+const sortSizes = (a: string, b: string) => {
+  const sizeOrder = ['XXXS', 'XXS', 'XS', 'S', 'M', 'L', 'XL', '2XL', '3XL', '4XL', '5XL', '6XL', '7XL', 'ALLSIZE'];
+  const idxA = sizeOrder.indexOf(a.toUpperCase());
+  const idxB = sizeOrder.indexOf(b.toUpperCase());
+
+  if (idxA !== -1 && idxB !== -1) return idxA - idxB;
+  if (idxA !== -1) return -1;
+  if (idxB !== -1) return 1;
+  return a.localeCompare(b);
+};
+
 const fetchData = async () => {
   isLoading.value = true;
   try {
     const response = await api.get('/laporan-stok/real-time', { params: filters });
     stokList.value = response.data;
+
+    // --- LOGIKA DINAMIS HEADER ---
+    if (stokList.value.length > 0) {
+      // 1. Ambil semua key dari baris pertama data
+      const firstItem = stokList.value[0];
+      const allKeys = Object.keys(firstItem);
+
+      // 2. Filter key yang BUKAN kolom statis
+      const staticKeys = ['KODE', 'NAMA', 'TOTAL', 'Buffer', 'KTGPRODUK', 'KTGBARANG'];
+      const dynamicKeys = allKeys.filter(k => !staticKeys.includes(k));
+
+      // 3. Urutkan kolom ukuran agar rapi
+      dynamicKeys.sort(sortSizes);
+
+      // 4. Susun Ulang Headers
+      headers.value = [
+        { title: 'Kode', key: 'KODE', fixed: true, width: 150 },
+        { title: 'Nama Barang', key: 'NAMA', fixed: true, width: 300 },
+
+        // Masukkan kolom dinamis di tengah
+        ...dynamicKeys.map(key => ({
+          title: key,
+          key: key,
+          width: 70,
+        })),
+
+        { title: 'Total', key: 'TOTAL', width: 100, class: 'font-weight-bold bg-grey-lighten-4' },
+        { title: 'Buffer', key: 'Buffer', width: 100 },
+      ];
+    } else {
+      // Fallback jika data kosong
+      headers.value = [
+        { title: 'Kode', key: 'KODE' },
+        { title: 'Nama Barang', key: 'NAMA' },
+        { title: 'Total', key: 'TOTAL' }
+      ];
+    }
+
   } catch {
     toast.error('Gagal memuat data stok.');
   } finally {

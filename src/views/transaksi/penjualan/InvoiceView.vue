@@ -52,6 +52,10 @@ interface InvoiceHeader {
   Prn?: string;
   Puas?: string;
   Closing?: string;
+  Marketplace?: string;
+  NoPesanan?: string;
+  NoResi?: string;
+  BiayaPlatform?: number;
   [key: string]: string | number | undefined;
 }
 
@@ -176,6 +180,7 @@ if (savedFilter) {
 
 const noFilterColumns = ['data-table-select', 'data-table-expand'];
 
+const isUserKon = computed(() => authStore.user?.cabang === 'KON');
 const isSingleSelected = computed(() => selected.value.length === 1);
 const selectedRow = computed<InvoiceItem | null>(() =>
   isSingleSelected.value ? selected.value[0] as InvoiceItem : null
@@ -254,51 +259,69 @@ const filteredMasterData = computed(() => {
 });
 
 // --- Konfigurasi Tabel ---
-const headers = ref<DataTableHeader[]>([
-  { title: '', key: 'data-table-expand', width: 50, fixed: true },
-  { title: 'Nomor', key: 'Nomor', width: 180, fixed: true },
-  { title: 'Tanggal', key: 'Tanggal', width: 120 },
-  { title: 'Posting', key: 'Posting', width: 100 },
-  { title: 'No. SO', key: 'NomorSO', width: 180 },
-  { title: 'Tgl SO', key: 'TglSO', width: 120 },
-  { title: 'TOP', key: 'Top', width: 70 },
-  { title: 'Jatuh Tempo', key: 'Tempo', width: 120 },
-  { title: 'Last Payment', key: 'LastPayment', width: 120 },
-  { title: 'Diskon', key: 'Diskon', width: 120 },
-  { title: 'DP', key: 'Dp', width: 120 },
-  { title: 'Biaya Kirim', key: 'Biayakirim', width: 120 },
-  { title: 'Nominal', key: 'Nominal', width: 150 },
-  { title: 'Piutang', key: 'Piutang', width: 150 },
-  { title: 'Bayar', key: 'Bayar', width: 150 },
-  { title: 'Sisa Piutang', key: 'SisaPiutang', width: 150 },
-  { title: 'Rp Retur', key: 'RpRetur', width: 120 },
-  { title: 'Kd Cus', key: 'Kdcus', width: 120 },
-  { title: 'Customer', key: 'Nama', width: 250 },
-  { title: 'Alamat', key: 'Alamat', width: 700 },
-  { title: 'Kota', key: 'Kota', width: 150 },
-  { title: 'Telepon', key: 'Telp', width: 150 },
-  { title: 'Level', key: 'Level', width: 150 },
-  { title: 'HP', key: 'Hp', width: 150 },
-  { title: 'Nama Member', key: 'Member', width: 250 },
-  { title: 'Keterangan', key: 'Keterangan', width: 250 },
-  { title: 'Rp Tunai', key: 'RpTunai', width: 120 },
-  { title: 'No Voucher', key: 'NoVoucher', width: 150 },
-  { title: 'Rp Voucher', key: 'RpVoucher', width: 120 },
-  { title: 'Rp Transfer', key: 'RpTransfer', width: 120 },
-  { title: 'No Setoran', key: 'NoSetoran', width: 180 },
-  { title: 'Tgl Transfer', key: 'TglTransfer', width: 120 },
-  { title: 'Akun', key: 'Akun', width: 120 },
-  { title: 'No Rekening', key: 'NoRekening', width: 150 },
-  { title: 'No Retur', key: 'NoRetur', width: 180 },
-  { title: 'SC', key: 'SC', width: 150 },
-  { title: 'Created', key: 'Created', width: 180 },
-  { title: 'User Modified', key: 'UserModified', width: 150 },
-  { title: 'Date Modified', key: 'DateModified', width: 180 },
-  { title: 'Minus', key: 'Minus', width: 80, align: 'center' },
-  { title: 'Prn', key: 'Prn', align: 'center' },
-  { title: 'Puas', key: 'Puas', align: 'center' },
-  { title: 'Closing', key: 'Closing', align: 'center' },
-]);
+const headers = computed<DataTableHeader[]>(() => {
+  const list: DataTableHeader[] = [
+    { title: '', key: 'data-table-expand', width: 50, fixed: true },
+    { title: 'Nomor', key: 'Nomor', width: 180, fixed: true },
+    { title: 'Tanggal', key: 'Tanggal', width: 120 },
+  ];
+  if (isUserKon.value) {
+    list.push(
+      { title: 'Marketplace', key: 'Marketplace', width: 120 },
+      { title: 'No. Pesanan', key: 'NoPesanan', width: 150 },
+      { title: 'No. Resi', key: 'NoResi', width: 150 }
+    );
+  }
+  list.push(
+    { title: 'Posting', key: 'Posting', width: 100 },
+    { title: 'No. SO', key: 'NomorSO', width: 180 },
+    { title: 'Tgl SO', key: 'TglSO', width: 120 },
+    { title: 'TOP', key: 'Top', width: 70 },
+    { title: 'Jatuh Tempo', key: 'Tempo', width: 120 },
+    { title: 'Last Payment', key: 'LastPayment', width: 120 },
+    { title: 'Diskon', key: 'Diskon', width: 120 },
+  );
+  if (isUserKon.value) {
+    list.push({ title: 'Biaya Platform', key: 'BiayaPlatform', width: 120 });
+  }
+  list.push(
+    { title: 'DP', key: 'Dp', width: 120 },
+    { title: 'Biaya Kirim', key: 'Biayakirim', width: 120 },
+    { title: 'Nominal', key: 'Nominal', width: 150 },
+    { title: 'Piutang', key: 'Piutang', width: 150 },
+    { title: 'Bayar', key: 'Bayar', width: 150 },
+    { title: 'Sisa Piutang', key: 'SisaPiutang', width: 150 },
+    { title: 'Rp Retur', key: 'RpRetur', width: 120 },
+    { title: 'Kd Cus', key: 'Kdcus', width: 120 },
+    { title: 'Customer', key: 'Nama', width: 250 },
+    { title: 'Alamat', key: 'Alamat', width: 700 },
+    { title: 'Kota', key: 'Kota', width: 150 },
+    { title: 'Telepon', key: 'Telp', width: 150 },
+    { title: 'Level', key: 'Level', width: 150 },
+    { title: 'HP', key: 'Hp', width: 150 },
+    { title: 'Nama Member', key: 'Member', width: 250 },
+    { title: 'Keterangan', key: 'Keterangan', width: 250 },
+    { title: 'Rp Tunai', key: 'RpTunai', width: 120 },
+    { title: 'No Voucher', key: 'NoVoucher', width: 150 },
+    { title: 'Rp Voucher', key: 'RpVoucher', width: 120 },
+    { title: 'Rp Transfer', key: 'RpTransfer', width: 120 },
+    { title: 'No Setoran', key: 'NoSetoran', width: 180 },
+    { title: 'Tgl Transfer', key: 'TglTransfer', width: 120 },
+    { title: 'Akun', key: 'Akun', width: 120 },
+    { title: 'No Rekening', key: 'NoRekening', width: 150 },
+    { title: 'No Retur', key: 'NoRetur', width: 180 },
+    { title: 'SC', key: 'SC', width: 150 },
+    { title: 'Created', key: 'Created', width: 180 },
+    { title: 'User Modified', key: 'UserModified', width: 150 },
+    { title: 'Date Modified', key: 'DateModified', width: 180 },
+    { title: 'Minus', key: 'Minus', width: 80, align: 'center' },
+    { title: 'Prn', key: 'Prn', align: 'center' },
+    { title: 'Puas', key: 'Puas', align: 'center' },
+    { title: 'Closing', key: 'Closing', align: 'center' },
+  );
+
+  return list;
+});
 
 const detailHeaders = [
   { title: 'Kode', key: 'Kode' },
@@ -374,6 +397,7 @@ const fetchMasterData = async () => {
       SisaPiutang: Number(h.SisaPiutang) || 0,   // <-- PENTING! JANGAN HITUNG ULANG
       Bayar: Number(h.Bayar) || 0,               // pastikan aman
       Dp: Number(h.Dp) || 0,
+      BiayaPlatform: Number(h.BiayaPlatform) || 0,
     }));
 
   } catch (error) {
@@ -866,8 +890,13 @@ watch(filters, () => {
                 {{ item[header.key] ? format(parseISO(String(item[header.key])), 'dd/MM/yyyy') : '' }}
               </template>
               <template
-                v-else-if="['Dis%', 'Diskon', 'Dp', 'Biayakirim', 'Nominal', 'Piutang', 'Bayar', 'SisaPiutang', 'RpVoucher', 'RpTransfer', 'RpRetur', 'RpTunai'].includes(header.key)">
+                v-else-if="['BiayaPlatform', 'Dis%', 'Diskon', 'Dp', 'Biayakirim', 'Nominal', 'Piutang', 'Bayar', 'SisaPiutang', 'RpVoucher', 'RpTransfer', 'RpRetur', 'RpTunai'].includes(header.key)">
                 {{ formatRupiah(Number(item[header.key])) }}
+              </template>
+              <template v-else-if="header.key === 'Marketplace'">
+                <v-chip v-if="item.Marketplace" color="orange-darken-1" size="x-small" label>
+                  {{ item.Marketplace }}
+                </v-chip>
               </template>
               <template v-else-if="header.key === 'Posting'">
                 <v-chip size="x-small" :color="item.Posting === 'SUDAH' ? 'green' : 'grey'">{{ item.Posting }}</v-chip>

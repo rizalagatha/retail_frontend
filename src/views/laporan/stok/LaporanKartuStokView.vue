@@ -3,7 +3,7 @@ import { ref, reactive, onMounted, watch, computed } from 'vue';
 import { useToast } from 'vue-toastification';
 import { useAuthStore } from '@/stores/authStore';
 import api from '@/services/api';
-import { format } from 'date-fns';
+import { format, parseISO } from 'date-fns';
 import PageLayout from '@/components/PageLayout.vue';
 import MasterProductSearchModal from '@/components/lookup/MasterProductSearchModal.vue';
 import * as XLSX from 'xlsx';
@@ -38,6 +38,7 @@ interface DetailItem {
   id: string;
   tanggal: string;
   nomor?: string;
+  no_pesanan?: string;
   In?: number;
   Out?: number;
   transaksi?: string;
@@ -54,6 +55,7 @@ interface DetailExportRow {
   ID: string;
   Tanggal: string;
   Nomor?: string;
+  'No. Pesanan'?: string;
   Transaksi?: string;
   In?: number;
   Out?: number;
@@ -112,11 +114,26 @@ const generateHeaders = () => {
     { title: 'ID', key: 'id', align: 'start', cellProps: { class: 'd-none' }, headerProps: { class: 'd-none' } },
     { title: 'Tanggal', key: 'tanggal', align: 'start' },
     { title: 'Nomor', key: 'nomor', align: 'start' },
+    { title: 'No. Pesanan', key: 'no_pesanan', align: 'start' },
     { title: 'Transaksi', key: 'transaksi', align: 'start' },
     { title: 'In', key: 'In', align: 'end' },
     { title: 'Out', key: 'Out', align: 'end' },
     { title: 'Saldo', key: 'saldo', align: 'end', cellProps: { class: 'font-weight-bold' } },
   ];
+};
+
+// --- Helper Format Tanggal ---
+const formatDateDisplay = (dateStr: string | undefined) => {
+  if (!dateStr || dateStr === '-') return '-';
+  try {
+    // Gunakan parseISO jika string ISO, atau new Date() jika standard
+    const date = new Date(dateStr);
+    // Cek validitas tanggal
+    if (isNaN(date.getTime())) return dateStr;
+    return format(date, 'dd-MM-yyyy'); // Format: 10-12-2025
+  } catch {
+    return dateStr;
+  }
 };
 
 // --- API Calls ---
@@ -255,8 +272,9 @@ const exportData = (type: 'header' | 'detail') => {
       rows.forEach(r => {
         detailRows.push({
           ID: r.id,
-          Tanggal: r.tanggal,
+          Tanggal: formatDateDisplay(r.tanggal),
           Nomor: r.nomor,
+          'No. Pesanan': r.no_pesanan || '-',
           Transaksi: r.transaksi,
           In: r.In,
           Out: r.Out,
@@ -408,7 +426,18 @@ watch(() => filters.kodeBarang, (newKode) => {
                       <template #[`item.id`]="{ item }">
                         <span class="d-none">{{ item.id }}</span>
                       </template>
-
+                      <template #[`item.tanggal`]="{ item }">
+                        <span>{{ formatDateDisplay(item.tanggal) }}</span>
+                      </template>
+                      <template #[`item.In`]="{ item }">
+                        {{ item.In ? item.In.toLocaleString('id-ID') : 0 }}
+                      </template>
+                      <template #[`item.Out`]="{ item }">
+                        {{ item.Out ? item.Out.toLocaleString('id-ID') : 0 }}
+                      </template>
+                      <template #[`item.saldo`]="{ item }">
+                        <strong>{{ item.saldo ? item.saldo.toLocaleString('id-ID') : 0 }}</strong>
+                      </template>
                       <template #bottom></template>
                     </v-data-table>
                   </div>

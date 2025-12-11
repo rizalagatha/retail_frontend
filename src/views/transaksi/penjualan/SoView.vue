@@ -144,35 +144,51 @@ const filteredList = computed(() => {
   return data;
 });
 
+const isUserKon = computed(() => authStore.user?.cabang === 'KON');
+
 // --- Header Definisi (Resize) ---
-const headers = ref<DataTableHeader[]>([
-  { title: '', key: 'data-table-expand', width: 50, fixed: true },
-  { title: 'Nomor', key: 'Nomor', width: 180, fixed: true },
-  { title: 'Tanggal', key: 'Tanggal', width: 120 },
-  { title: 'Dateline', key: 'Dateline', width: 120 },
-  { title: 'Penawaran', key: 'Penawaran', width: 180 },
-  { title: 'TOP', key: 'Top', width: 80 },
-  { title: 'Nominal', key: 'Nominal', width: 150 },
-  { title: 'Diskon', key: 'Diskon', width: 120 },
-  { title: 'DP', key: 'Dp', width: 120 },
-  { title: 'Qty SO', key: 'QtySO', width: 100 },
-  { title: 'Qty Inv', key: 'QtyInv', width: 100 },
-  { title: 'Belum', key: 'Belum', width: 150 },
-  { title: 'Status', key: 'Status', width: 150 },
-  { title: 'SO DTF', key: 'DipakaiDTF', width: 90 },
-  { title: 'Alasan Close', key: 'AlasanClose', width: 250 },
-  { title: 'User Modified', key: 'UserModified', width: 140 },
-  { title: 'Date Modified', key: 'DateModified', width: 140 },
-  { title: 'Status Kirim', key: 'StatusKirim', width: 150 },
-  { title: 'Kd Customer', key: 'kdcus', width: 120 },
-  { title: 'Nama Customer', key: 'Nama', width: 250 },
-  { title: 'Alamat', key: 'Alamat', width: 600 },
-  { title: 'Kota', key: 'Kota', width: 150 },
-  { title: 'Level', key: 'Level', width: 150 },
-  { title: 'Keterangan', key: 'Keterangan', width: 300 },
-  { title: 'Aktif', key: 'Aktif', align: 'center', width: 80 },
-  { title: 'Sales Counter', key: 'SC', width: 150 },
-]);
+const headers = computed<DataTableHeader[]>(() => {
+  const list = [
+    { title: '', key: 'data-table-expand', width: 50, fixed: true },
+    { title: 'Nomor', key: 'Nomor', width: 180, fixed: true },
+    { title: 'Tanggal', key: 'Tanggal', width: 120 },
+    { title: 'Dateline', key: 'Dateline', width: 120 },
+  ];
+  if (isUserKon.value) {
+    // [FIX] Add new columns here
+    list.push(
+      { title: 'No. Pesanan MP', key: 'MpPesanan', width: 180 },
+      { title: 'No. Resi', key: 'MpResi', width: 180 }
+    );
+  } else {
+    list.push({ title: 'Penawaran', key: 'Penawaran', width: 180 });
+  }
+  list.push(
+    { title: 'TOP', key: 'Top', width: 80 },
+    { title: 'Nominal', key: 'Nominal', width: 150 },
+    { title: 'Diskon', key: 'Diskon', width: 120 },
+    { title: 'DP', key: 'Dp', width: 120 },
+    { title: 'Qty SO', key: 'QtySO', width: 100 },
+    { title: 'Qty Inv', key: 'QtyInv', width: 100 },
+    { title: 'Belum', key: 'Belum', width: 150 },
+    { title: 'Status', key: 'Status', width: 150 },
+    { title: 'SO DTF', key: 'DipakaiDTF', width: 90 },
+    { title: 'Alasan Close', key: 'AlasanClose', width: 250 },
+    { title: 'User Modified', key: 'UserModified', width: 140 },
+    { title: 'Date Modified', key: 'DateModified', width: 140 },
+    { title: 'Status Kirim', key: 'StatusKirim', width: 150 },
+    { title: 'Kd Customer', key: 'kdcus', width: 120 },
+    { title: 'Nama Customer', key: 'Nama', width: 250 },
+    { title: 'Alamat', key: 'Alamat', width: 600 },
+    { title: 'Kota', key: 'Kota', width: 150 },
+    { title: 'Level', key: 'Level', width: 150 },
+    { title: 'Keterangan', key: 'Keterangan', width: 300 },
+    { title: 'Aktif', key: 'Aktif', width: 80 },
+    { title: 'Sales Counter', key: 'SC', width: 150 },
+  );
+
+  return list;
+});
 
 const detailHeaders = [
   { title: 'Nomor', key: 'Nomor', width: '120px' },
@@ -646,6 +662,18 @@ watch(filters, () => {
               </template>
               <template v-else-if="header.key === 'DateModified'">
                 {{ item.DateModified ? format(parseISO(item.DateModified as string), 'dd/MM/yyyy HH:mm') : '-' }}
+              </template>
+              <template v-else-if="header.key === 'MpPesanan'">
+                <span class="text-primary font-weight-bold" style="font-size: 11px;">
+                  {{ item.MpPesanan || '-' }}
+                </span>
+              </template>
+
+              <template v-else-if="header.key === 'MpResi'">
+                <div class="d-flex align-center">
+                  <v-icon size="small" class="mr-1 text-grey" v-if="item.MpResi">mdi-barcode</v-icon>
+                  <span style="font-size: 11px;">{{ item.MpResi || '-' }}</span>
+                </div>
               </template>
               <template v-else-if="header.key === 'Aktif'">
                 <v-chip size="x-small" :color="item.Aktif === 'Y' ? 'success' : 'grey'">

@@ -102,6 +102,7 @@ interface SoItemApi {
   noSoDtf: string;
   noPengajuanHarga: string;
   pin: string;
+  harga3?: number;
 }
 
 interface Item {
@@ -192,7 +193,17 @@ interface JenisOrderSaved {
 
 // --- State ---
 const isEditMode = computed(() => !!route.params.nomor);
-const pageTitle = computed(() => isEditMode.value ? 'Ubah Surat Pesanan' : 'Buat Surat Pesanan');
+const pageTitle = computed(() =>
+  header.value.isMarketplace
+    ? 'Pesanan Marketplace'
+    : (isEditMode.value ? 'Ubah Surat Pesanan' : 'Buat Surat Pesanan')
+)
+const statusDpText = computed(() => {
+  if (footer.value.totalDp >= footer.value.minimalDp || footer.value.pinTanpaDp) {
+    return 'DP Memenuhi Syarat/Ada Otorisasi';
+  }
+  return 'DP Belum Cukup';
+});
 const requiredPermission = computed(() => isEditMode.value ? 'edit' : 'insert');
 const isLoading = ref(true);
 const isSaving = ref(false);
@@ -221,6 +232,10 @@ const initialHeaderState = {
   jenisOrderKode: '',
   jenisOrderNama: '',
   namaDtf: '',
+
+  mpNomorPesanan: '',
+  mpResi: '',
+  isMarketplace: false,
 };
 
 const header = ref({ ...initialHeaderState });
@@ -385,6 +400,8 @@ const grandTotal = computed(() =>
   footer.value.totalSo || 0
 );
 
+const isUserKon = computed(() => authStore.user?.cabang === 'KON');
+
 // --- Functions ---
 // function toDateInputValue(dateStr: string) {
 //   if (!dateStr) return '';
@@ -409,6 +426,13 @@ const loadDataForEdit = async (nomor: string) => {
       tanggal: headerData.tanggal.substring(0, 10),
       dateline: headerData.dateline.substring(0, 10),
     };
+
+    if (headerData.so_is_marketplace === 'Y') {
+      header.value.isMarketplace = true;
+      header.value.penawaran = ''
+      header.value.top = 0;
+      header.value.tempo = header.value.tanggal;
+    }
 
     // ===== MAPPING FOOTER =====
     footer.value = {
@@ -496,9 +520,32 @@ const isDiscountableItem = (item: SoItem) => {
   return !isJasa && !item.isCustomOrder && !item.noSoDtf;
 };
 
+const applyMarketplaceMode = () => {
+  header.value.isMarketplace = true;
+  header.value.penawaran = ''; // Hapus penawaran
+  header.value.top = 0; // Cash
+  header.value.tempo = header.value.tanggal;
+  header.value.statusSo = 'AKTIF'; // Langsung Aktif tanpa DP
+
+  // Pastikan footer DP reset
+  footer.value.minimalDp = 0;
+  footer.value.totalDp = 0;
+};
+
+// --- Watchers Khusus User KON ---
+// [PENTING] Watcher ini menjamin mode MP aktif meski authStore telat loading
+watch(isUserKon, (newVal) => {
+  if (newVal) {
+    applyMarketplaceMode();
+  }
+}, { immediate: true });
+
 const calculateTotals = async () => {
+  // ---------------------------------------------------------
+  // 1. INISIALISASI & KALKULASI ITEM (Jalankan untuk SEMUA mode)
+  // ---------------------------------------------------------
   let totalSoBruto = 0;
-  let newTotalDiscountable = 0; // Variabel sementara untuk total yang bisa didiskon
+  let newTotalDiscountable = 0;
   let containsDtf = false;
   let containsCustomOrder = false;
 
@@ -506,40 +553,43 @@ const calculateTotals = async () => {
     const qty = Number(item.jumlah) || 0;
     const harga = Number(item.harga) || 0;
 
-    // Logika diskon per item (tidak berubah)
+    // Logika diskon per item
     if (item.diskonPersen > 0) {
       item.diskonRp = (item.diskonPersen / 100) * harga;
     }
     item.total = qty * (harga - (item.diskonRp || 0));
 
-    // Tambahkan ke total bruto (semua item)
+    // Tambahkan ke total bruto
     totalSoBruto += item.total;
 
+    // Cek Flag Khusus
     if (item.noSoDtf) containsDtf = true;
-    if (item.isCustomOrder) containsCustomOrder = true; // 👈 deteksi jasa custom
+    if (item.isCustomOrder) containsCustomOrder = true;
 
+    // Cek apakah item boleh kena diskon faktur
     if (isDiscountableItem(item)) {
       newTotalDiscountable += item.total;
     }
   });
 
-  footer.value.totalSo = totalSoBruto; // Total SO adalah total bruto
-  totalDiscountable.value = newTotalDiscountable; // Simpan total diskon-able ke ref
+  // Simpan ke State
+  footer.value.totalSo = totalSoBruto;
+  totalDiscountable.value = newTotalDiscountable;
 
-  // Kalkulasi Total DP (tidak berubah)
+  // Hitung Total DP yang sudah masuk
   const totalDp = dpItems.value.reduce((sum, dp) => sum + (dp.nominal || 0), 0);
   footer.value.totalDp = totalDp;
 
-  // --- [PERBAIKAN] Kalkulasi Diskon Faktur ---
+  // ---------------------------------------------------------
+  // 2. KALKULASI DISKON FAKTUR, PPN, & GRAND TOTAL
+  // ---------------------------------------------------------
 
-  // Ambil nilai diskon % dari footer
   const diskonPersen1 = footer.value.diskonPersen1 || 0;
   const diskonPersen2 = footer.value.diskonPersen2 || 0;
 
-  // Cek apakah diskonRp diisi manual (dari modal)
-  if (footer.value.diskonRp > 0 && (diskonPersen1 === 0 && diskonPersen2 === 0)) {
-    // manual mode
-  } else {
+  // Cek apakah diskonRp diisi manual (tanpa persen)
+  // Jika user isi manual, jangan ditimpa rumus persen
+  if (!(footer.value.diskonRp > 0 && diskonPersen1 === 0 && diskonPersen2 === 0)) {
     const diskon1Rp = (diskonPersen1 / 100) * newTotalDiscountable;
     const afterDiscount1 = newTotalDiscountable - diskon1Rp;
     const diskon2Rp = (diskonPersen2 / 100) * afterDiscount1;
@@ -547,33 +597,56 @@ const calculateTotals = async () => {
     footer.value.diskonRp = diskon1Rp + diskon2Rp;
   }
 
-  // --- Kalkulasi Grand Total (berdasarkan Total Bruto) ---
-  const netto = totalSoBruto - footer.value.diskonRp; // Netto = Total Bruto - Diskon Faktur
+  // Hitung Netto
+  const netto = totalSoBruto - footer.value.diskonRp;
   footer.value.netto = netto;
 
+  // Hitung PPN
   const ppnRp = (header.value.ppnPersen / 100) * netto;
   footer.value.ppnRp = ppnRp;
 
+  // Hitung Grand Total
   const grandTotal = netto + ppnRp + (footer.value.biayaKirim || 0);
   footer.value.grandTotal = grandTotal;
 
-  // Kalkulasi Minimal DP (berdasarkan Netto, sudah benar)
-  if (containsCustomOrder) {
-    footer.value.minimalDp = 0.5 * footer.value.netto;
-  } else if (containsDtf) {
-    footer.value.minimalDp = 0.5 * footer.value.netto;
-  } else {
-    footer.value.minimalDp = 0.3 * footer.value.netto;
-  }
+  // ---------------------------------------------------------
+  // 3. PENENTUAN STATUS & ATURAN KHUSUS (Marketplace vs Reguler)
+  // ---------------------------------------------------------
 
-  footer.value.belumDibayar = footer.value.grandTotal - footer.value.totalDp;
+  if (header.value.isMarketplace) {
+    // === RULES MARKETPLACE ===
+    // 1. Status selalu AKTIF (karena dianggap confirmed order dari MP)
+    // 2. Tidak butuh Minimal DP
+    // 3. Belum Dibayar = Grand Total (umumnya) - DP (jika ada iseng input)
 
-  // Penentuan Status SO (tidak berubah)
-  const isLevel8 = header.value.levelKode?.toString().startsWith('8');
-  if (isLevel8 || totalDp >= footer.value.minimalDp) {
     header.value.statusSo = 'AKTIF';
+    footer.value.minimalDp = 0;
+    footer.value.belumDibayar = footer.value.grandTotal - footer.value.totalDp;
+
   } else {
-    header.value.statusSo = 'PASIF';
+    // === RULES REGULER (Toko/Sales) ===
+
+    // 1. Hitung Belum Dibayar
+    footer.value.belumDibayar = footer.value.grandTotal - footer.value.totalDp;
+
+    // 2. Tentukan Minimal DP
+    if (containsCustomOrder) {
+      footer.value.minimalDp = 0.5 * footer.value.netto; // 50% untuk Custom
+    } else if (containsDtf) {
+      footer.value.minimalDp = 0.5 * footer.value.netto; // 50% untuk DTF
+    } else {
+      footer.value.minimalDp = 0.3 * footer.value.netto; // 30% untuk Reguler
+    }
+
+    // 3. Tentukan Status SO (PASIF/AKTIF)
+    const isLevel8 = header.value.levelKode?.toString().startsWith('8');
+
+    // Syarat Aktif: Level 8 (Prioritas) ATAU DP Cukup ATAU Ada Otorisasi Tanpa DP
+    if (isLevel8 || totalDp >= footer.value.minimalDp || footer.value.pinTanpaDp) {
+      header.value.statusSo = 'AKTIF';
+    } else {
+      header.value.statusSo = 'PASIF';
+    }
   }
 };
 
@@ -602,6 +675,11 @@ const openSalesCounterSearch = () => {
 };
 
 const openPenawaranSearch = () => {
+  if (header.value.isMarketplace) {
+    // skip penawaran logic completely
+    return
+  }
+
   if (!header.value.gudang.kode) {
     toast.error('Pilih Gudang terlebih dahulu.');
     return;
@@ -685,7 +763,10 @@ const executeSave = async () => {
     const payload = {
       header: {
         ...header.value,
-        level: header.value.levelKode
+        level: header.value.levelKode,
+        so_is_marketplace: header.value.isMarketplace ? 'Y' : 'N',
+        so_mp_nomor_pesanan: header.value.mpNomorPesanan,
+        so_mp_resi: header.value.mpResi,
       },
       footer: footer.value,
       details: items.value
@@ -813,10 +894,24 @@ const addNewRow = () => {
 };
 
 const resetForm = () => {
+  // 1. Reset ke default
   header.value = { ...initialHeaderState };
+
+  // 2. Set default gudang & user lagi
+  header.value.gudang = {
+    kode: authStore.user?.cabang || '',
+    nama: authStore.user?.cabangNama || ''
+  };
+  header.value.salesCounter = authStore.user?.kode || '';
+
+  // 3. [PENTING] Kembalikan mode MP jika user KON
+  if (isUserKon.value) {
+    applyMarketplaceMode();
+  }
+
   items.value = [];
-  dpItems.value = []; // Pastikan DP items juga direset
-  addNewRow(); // Panggil ini untuk membuat baris kosong awal
+  dpItems.value = [];
+  addNewRow();
   markAsSaved();
 };
 
@@ -968,14 +1063,19 @@ const onProductsSelected = (selectedProducts: SoItemApi[]) => {
 
   selectedProducts.forEach(product => {
 
+    const kodeUp = product.kode?.toUpperCase() || '';
+    const namaUp = product.nama?.toUpperCase() || '';
+
     // ================================
     // 1️⃣ DETEKSI PRODUK JASA
     // ================================
     const isJasa =
-      product.kode.startsWith("JASA") ||
-      product.kode.startsWith("JS") ||
-      product.nama.toLowerCase().includes("jasa") ||
-      product.nama.toLowerCase().includes("desain");
+      kodeUp.startsWith("JASA") ||
+      kodeUp.startsWith("JS") ||
+      kodeUp.includes("FILE") ||    // <-- LOGIC BARU
+      namaUp.includes("JASA") ||
+      namaUp.includes("DESAIN") ||
+      namaUp.includes("FILE");      // <-- LOGIC BARU
 
     // ================================
     // 2️⃣ HANDLING KHUSUS JASA
@@ -1007,6 +1107,12 @@ const onProductsSelected = (selectedProducts: SoItemApi[]) => {
       return; // lanjut ke produk berikutnya
     }
 
+    let initHarga = Number(product.harga);
+
+    if (header.value.isMarketplace) {
+      initHarga = Number(product.harga3 ?? product.harga ?? 0);
+    }
+
     // ================================
     // 3️⃣ PRODUK NORMAL → CEK DUPLIKASI
     // ================================
@@ -1018,11 +1124,11 @@ const onProductsSelected = (selectedProducts: SoItemApi[]) => {
         nama: product.nama,
         ukuran: product.ukuran,
         stok: product.stok,
-        harga: product.harga,
+        harga: initHarga,
         jumlah: 1,
         diskonPersen: 0,
         diskonRp: 0,
-        total: product.harga,
+        total: initHarga * 1,
         barcode: product.barcode,
         noSoDtf: '',
         noPengajuanHarga: '',
@@ -1384,6 +1490,11 @@ const handleBarcodeScan = async () => {
 
     const product = response.data;
 
+    let initHarga = Number(product.harga);
+    if (header.value.isMarketplace) {
+      initHarga = Number(product.harga3 || 0);
+    }
+
     // Cari baris kosong pertama untuk diganti
     const emptyRowIndex = items.value.findIndex(item => !item.kode);
 
@@ -1395,11 +1506,11 @@ const handleBarcodeScan = async () => {
         nama: product.nama as string,
         ukuran: product.ukuran as string,
         stok: Number(product.stok),
-        harga: Number(product.harga),
+        harga: initHarga,
         jumlah: 1, // Default jumlah 1
         diskonPersen: 0,
         diskonRp: 0,
-        total: Number(product.harga),
+        total: initHarga * 1,
         barcode: product.barcode as string,
         noSoDtf: '',            // default kosong
         noPengajuanHarga: '',   // default kosong
@@ -1635,6 +1746,10 @@ watch(
 );
 
 onMounted(() => {
+  if (isUserKon.value) {
+    applyMarketplaceMode();
+  }
+
   markAsSaved();
   // Cek hak akses 'insert' (untuk baru) atau 'edit' (untuk ubah)
   if (!authStore.can(MENU_ID, requiredPermission.value)) {
@@ -1731,6 +1846,25 @@ const stopAndOpenPriceProposal = (index: number) => {
       <!-- Kolom Kiri -->
       <div class="left-column">
         <div class="desktop-form-section header-section">
+          <template v-if="header.isMarketplace">
+            <div class="bg-orange-lighten-5 pa-2 mb-3 rounded border border-dashed border-orange">
+              <div class="text-subtitle-2 font-weight-bold text-orange-darken-4 mb-2 d-flex align-center">
+                <v-icon size="small" class="mr-1">mdi-store</v-icon>
+                MODE PESANAN MARKETPLACE
+              </div>
+              <v-row dense>
+                <v-col cols="6">
+                  <v-text-field label="Nomor Pesanan Marketplace" v-model="header.mpNomorPesanan" variant="outlined"
+                    density="compact" prepend-inner-icon="mdi-clipboard-text" hide-details bg-color="white"
+                    placeholder="Paste No. Pesanan" />
+                </v-col>
+                <v-col cols="6">
+                  <v-text-field label="Nomor Resi (AWB)" v-model="header.mpResi" variant="outlined" density="compact"
+                    prepend-inner-icon="mdi-barcode" hide-details bg-color="white" placeholder="Scan Resi" />
+                </v-col>
+              </v-row>
+            </div>
+          </template>
           <v-row dense>
             <v-col cols="5">
               <v-text-field label="Gudang" :disabled="!!header.penawaran" :model-value="header.gudang.kode" readonly
@@ -1769,19 +1903,20 @@ const stopAndOpenPriceProposal = (index: number) => {
             <v-col cols="6">
               <v-text-field label="Level" v-model="header.levelNama" readonly filled density="compact" hide-details />
             </v-col>
-            <v-col cols="6">
-              <v-text-field label="Penawaran" v-model="header.penawaran" readonly @click="openPenawaranSearch"
-                variant="outlined" density="compact" hide-details append-inner-icon="mdi-magnify" />
+            <v-col cols="6" v-if="!header.isMarketplace">
+              <v-text-field label="No. Penawaran" v-model="header.penawaran" readonly @click="openPenawaranSearch"
+                variant="outlined" density="compact" hide-details append-inner-icon="mdi-magnify" clearable
+                @click:clear="header.penawaran = ''" />
             </v-col>
             <v-col cols="6">
               <v-text-field label="Sales Counter" v-model="header.salesCounter" readonly @click="openSalesCounterSearch"
                 variant="outlined" density="compact" hide-details append-inner-icon="mdi-magnify" />
             </v-col>
-            <v-col cols="3">
+            <v-col cols="2">
               <v-text-field label="TOP" v-model.number="header.top" type="number" variant="outlined" density="compact"
                 hide-details class="text-end" />
             </v-col>
-            <v-col cols="5">
+            <v-col cols="6">
               <v-text-field label="Tempo/Tgl" v-model="header.tempo" type="date" readonly filled density="compact"
                 hide-details />
             </v-col>
@@ -1793,7 +1928,7 @@ const stopAndOpenPriceProposal = (index: number) => {
                 density="compact" hide-details /></v-col>
           </v-row>
         </div>
-        <div class="desktop-form-section status-section">
+        <div class="desktop-form-section status-section" v-if="!header.isMarketplace">
           <v-alert density="compact" variant="tonal" :color="header.statusSo === 'AKTIF' ? 'success' : 'error'"
             class="mb-2 d-flex align-center">
             Status SO: <strong>{{ header.statusSo }}</strong>
@@ -1807,7 +1942,7 @@ const stopAndOpenPriceProposal = (index: number) => {
                     'mdi-alert-circle' }}
                 </v-icon>
               </template>
-              <span>{{ (footer.totalDp >= footer.minimalDp) || footer.pinTanpaDp ? 'DP Memenuhi Syarat/Ada Otorisasi' : 'DP Belum Cukup' }}</span>
+              <span>{{ statusDpText }}</span>
             </v-tooltip>
           </v-alert>
         </div>
@@ -1849,11 +1984,9 @@ const stopAndOpenPriceProposal = (index: number) => {
                   hide-details class="text-end" :disabled="!item.kode" />
               </template>
               <template #[`item.harga`]="{ item }">
-                <v-text-field :value="focusedRowId === item.id ? item.harga : formatRupiah(item.harga || 0)"
-                  @input="item.harga = Number(String($event.target.value).replace(/[^0-9]/g, '')) || 0"
-                  @focus="focusedRowId = item.id" @blur="focusedRowId = -1" placeholder="0" type="text"
-                  variant="underlined" density="compact" hide-details single-line class="text-end"
-                  :disabled="!item.kode" :readonly="!!item.noSoDtf || !!item.noPengajuanHarga"></v-text-field>
+                <v-text-field v-model.number="item.harga" type="number" variant="underlined" density="compact"
+                  hide-details class="text-end" placeholder="0" :disabled="!item.kode"
+                  :readonly="!!item.noSoDtf || !!item.noPengajuanHarga" @update:model-value="calculateTotals" />
               </template>
               <template #[`item.diskonPersen`]="{ item, index }">
                 <v-text-field v-model.number="item.diskonPersen" type="number" variant="underlined" density="compact"
@@ -1908,12 +2041,13 @@ const stopAndOpenPriceProposal = (index: number) => {
             <div class="footer-col value-right">{{ formatRupiah(grandTotal) }}</div>
           </div>
 
-          <div class="footer-summary-section">
+          <div class="footer-summary-section" v-if="!header.isMarketplace">
             <v-row dense>
               <v-col cols="12" md="7" lg="6" xl="6">
                 <v-row dense>
                   <v-col cols="6">
-                    <v-btn block color="teal" @click="openDpInput" prepend-icon="mdi-cash-plus">
+                    <v-btn v-if="!header.isMarketplace" block color="teal" @click="openDpInput"
+                      prepend-icon="mdi-cash-plus">
                       Input DP (Uang Muka)
                     </v-btn>
                   </v-col>
@@ -1941,7 +2075,7 @@ const stopAndOpenPriceProposal = (index: number) => {
                 </v-row>
               </v-col>
 
-              <v-col cols="12" md="5" lg="6" xl="6">
+              <v-col cols="12" md="5" lg="6" xl="6" v-if="!header.isMarketplace">
                 <div class="summary-totals">
                   <v-list density="compact" class="summary-list">
                     <!-- Diskon Faktur (hanya muncul jika ada) -->
@@ -2308,6 +2442,19 @@ const stopAndOpenPriceProposal = (index: number) => {
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
   border-bottom: none !important;
   /* Supaya lebih rapi */
+}
+
+/* Tambahan Style untuk Mode MP */
+.border-dashed {
+  border-style: dashed !important;
+}
+
+.bg-orange-lighten-5 {
+  background-color: #FFF3E0 !important;
+}
+
+.border-orange {
+  border-color: #FFB74D !important;
 }
 
 /* ===== RESPONSIVE MEDIA QUERIES ===== */

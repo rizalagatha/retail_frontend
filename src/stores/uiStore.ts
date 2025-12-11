@@ -1,16 +1,18 @@
 import { defineStore } from "pinia";
 import { ref } from "vue";
-import type { RouteLocationNormalized } from "vue-router"; // Import tipe route
+import type { RouteLocationNormalized } from "vue-router";
 
 export const useUiStore = defineStore("ui", () => {
-  // State Dirty (Ada perubahan belum disimpan)
+  // --- STATE 1: UNSAVED CHANGES & NAVIGATION ---
   const hasUnsavedChanges = ref(false);
-
-  // State Dialog & Navigasi
   const isLeaveDialogVisible = ref(false);
   const pendingRoute = ref<RouteLocationNormalized | null>(null);
 
-  // Actions
+  // --- STATE 2: DARK MODE (BARU) ---
+  // Cek localStorage saat inisialisasi. Jika tidak ada, default false (Light Mode)
+  const isDark = ref(localStorage.getItem('user_theme') === 'dark');
+
+  // --- ACTIONS: NAVIGATION ---
   const setUnsavedChanges = (value: boolean) => {
     hasUnsavedChanges.value = value;
   };
@@ -25,12 +27,24 @@ export const useUiStore = defineStore("ui", () => {
     pendingRoute.value = null;
   };
 
+  // --- ACTIONS: DARK MODE (BARU) ---
+  const toggleTheme = () => {
+    isDark.value = !isDark.value;
+    // Simpan preferensi user ke browser agar tidak reset saat refresh
+    localStorage.setItem('user_theme', isDark.value ? 'dark' : 'light');
+  };
+
   return {
+    // Navigation Exports
     hasUnsavedChanges,
     isLeaveDialogVisible,
     pendingRoute,
     setUnsavedChanges,
     openLeaveDialog,
     closeLeaveDialog,
+
+    // Dark Mode Exports (Wajib di-return agar bisa dipakai di App.vue & Footer)
+    isDark,
+    toggleTheme,
   };
 });

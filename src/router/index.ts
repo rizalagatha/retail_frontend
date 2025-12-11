@@ -77,6 +77,10 @@ import InvoicePrintView from "@/views/transaksi/penjualan/InvoicePrintView.vue";
 import InvoicePrintKasirView from "@/views/transaksi/penjualan/InvoicePrintKasirView.vue";
 import InvoicePrintImageView from "@/views/transaksi/penjualan/InvoicePrintImageView.vue";
 import InvoiceAsSjPrintView from "@/views/transaksi/penjualan/InvoiceAsSjPrintView.vue";
+import PelunasanInvoiceCreateView from "@/views/transaksi/penjualan/PelunasanInvoiceCreateView.vue";
+import PelunasanInvoiceView from "@/views/transaksi/penjualan/PelunasanInvoiceView.vue";
+import PesananOnlineView from "@/views/transaksi/penjualan/PesananOnlineView.vue";
+import PesananOnlineCreateView from "@/views/transaksi/penjualan/PesananOnlineCreateView.vue";
 import KuponPrintView from "@/views/transaksi/penjualan/KuponPrintView.vue";
 import VoucherPrintView from "@/views/transaksi/penjualan/VoucherPrintView.vue";
 import MutasiStoreKirimView from "@/views/transaksi/mutasi/MutasiStoreKirimView.vue";
@@ -1189,6 +1193,34 @@ const routes = [
     },
   },
   {
+    path: "/transaksi/penjualan/pelunasan-invoice",
+    name: "PelunasanInvoice",
+    component: PelunasanInvoiceView,
+    meta: {
+      requiresAuth: true,
+      title: "Browse Pelunasan Marketplace",
+      menuId: "50", // Sesuai database
+    },
+  },
+  {
+    path: "/transaksi/penjualan/pelunasan-invoice/form/:nomor?", // :nomor? opsional (create/view)
+    name: "PelunasanInvoiceForm",
+    component: PelunasanInvoiceCreateView,
+    meta: { requiresAuth: true, title: "Form Pelunasan Marketplace", menuId: "50" },
+  },
+  {
+    path: "/transaksi/penjualan/pesanan-online",
+    name: "PesananOnline",
+    component: PesananOnlineView,
+    meta: { requiresAuth: true, title: "Daftar Pesanan Online", menuId: "56" },
+  },
+  {
+    path: "/transaksi/penjualan/pesanan-online/create",
+    name: "PesananOnlineCreate", // Nama ini dipanggil di handleCreate() di atas
+    component: PesananOnlineCreateView,
+    meta: { requiresAuth: true, title: "Input Pesanan Baru", menuId: "56" },
+  },
+  {
     path: "/transaksi/mutasi/store-kirim",
     name: "MutasiKirim",
     component: MutasiStoreKirimView,
@@ -2090,30 +2122,30 @@ const getSmartIcon = (routeObj: RouteLocationNormalized) => {
     return meta.icon;
   }
 
-  const path = (routeObj.path || '').toLowerCase();
+  const path = (routeObj.path || "").toLowerCase();
   // Name bisa berupa symbol, jadi pastikan convert string
-  const name = (routeObj.name || '').toString().toLowerCase();
+  const name = (routeObj.name || "").toString().toLowerCase();
   const fullString = `${path} ${name}`;
 
   // Logika Penebak Icon
-  if (fullString.includes('invoice')) return 'mdi-receipt-text';
-  if (fullString.includes('so') || fullString.includes('pesanan')) return 'mdi-file-document-edit';
-  if (fullString.includes('dtf')) return 'mdi-printer-3d-nozzle';
-  if (fullString.includes('penawaran')) return 'mdi-handshake';
-  if (fullString.includes('pengajuan')) return 'mdi-file-clock';
-  if (fullString.includes('stok') || fullString.includes('stock')) return 'mdi-package-variant';
-  if (fullString.includes('mutasi')) return 'mdi-transfer';
-  if (fullString.includes('piutang') || fullString.includes('bayar')) return 'mdi-cash-multiple';
-  if (fullString.includes('laporan')) return 'mdi-chart-line';
-  if (fullString.includes('gudang') || fullString.includes('dc')) return 'mdi-warehouse';
-  if (fullString.includes('daftar') || fullString.includes('master')) return 'mdi-database';
-  if (fullString.includes('user') || fullString.includes('pengguna')) return 'mdi-account-group';
-  if (fullString.includes('setting') || fullString.includes('pengaturan')) return 'mdi-cog';
-  if (fullString.includes('retur')) return 'mdi-keyboard-return';
-  if (fullString.includes('surat-jalan')) return 'mdi-truck-delivery';
+  if (fullString.includes("invoice")) return "mdi-receipt-text";
+  if (fullString.includes("so") || fullString.includes("pesanan")) return "mdi-file-document-edit";
+  if (fullString.includes("dtf")) return "mdi-printer-3d-nozzle";
+  if (fullString.includes("penawaran")) return "mdi-handshake";
+  if (fullString.includes("pengajuan")) return "mdi-file-clock";
+  if (fullString.includes("stok") || fullString.includes("stock")) return "mdi-package-variant";
+  if (fullString.includes("mutasi")) return "mdi-transfer";
+  if (fullString.includes("piutang") || fullString.includes("bayar")) return "mdi-cash-multiple";
+  if (fullString.includes("laporan")) return "mdi-chart-line";
+  if (fullString.includes("gudang") || fullString.includes("dc")) return "mdi-warehouse";
+  if (fullString.includes("daftar") || fullString.includes("master")) return "mdi-database";
+  if (fullString.includes("user") || fullString.includes("pengguna")) return "mdi-account-group";
+  if (fullString.includes("setting") || fullString.includes("pengaturan")) return "mdi-cog";
+  if (fullString.includes("retur")) return "mdi-keyboard-return";
+  if (fullString.includes("surat-jalan")) return "mdi-truck-delivery";
 
   // Default
-  return 'mdi-star-circle-outline';
+  return "mdi-star-circle-outline";
 };
 
 // Navigation Guard (Satpam Router)
@@ -2184,12 +2216,11 @@ router.afterEach((to) => {
     authStore.isAuthenticated &&
     to.meta &&
     to.meta.title &&
-    to.name !== 'Login' &&
-    to.name !== 'Home' &&
-    to.name !== 'Unauthorized' &&
+    to.name !== "Login" &&
+    to.name !== "Home" &&
+    to.name !== "Unauthorized" &&
     !to.meta.printLayout
   ) {
-
     // Kirim data secara background (tanpa await) agar transisi halaman tetap ngebut
     // Gunakan fullPath agar parameter query string (jika ada) tidak membuat duplikat
     // Tapi untuk grouping menu, lebih baik pakai 'path' atau 'name'.
@@ -2200,13 +2231,15 @@ router.afterEach((to) => {
     // Di sini kita kirim default string jika meta.icon tidak ada.
     const autoIcon = getSmartIcon(to);
 
-    api.post('/activity/log-menu', {
-      title: to.meta.title,
-      path: to.path,
-      icon: autoIcon
-    }).catch(() => {
-      // Error logging diabaikan saja (silent fail) agar tidak mengganggu user
-    });
+    api
+      .post("/activity/log-menu", {
+        title: to.meta.title,
+        path: to.path,
+        icon: autoIcon,
+      })
+      .catch(() => {
+        // Error logging diabaikan saja (silent fail) agar tidak mengganggu user
+      });
   }
 });
 

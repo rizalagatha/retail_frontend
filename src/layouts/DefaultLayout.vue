@@ -5,6 +5,7 @@ import Navbar from '@/components/Navbar.vue';
 import { ref, onMounted, onUnmounted, defineAsyncComponent, computed } from 'vue';
 import api from '@/services/api';
 import axios from 'axios';
+import { useTheme } from 'vuetify';
 
 // Import composables atau store untuk state dialog
 import { usePasswordDialog } from '@/composables/usePasswordDialog';
@@ -21,8 +22,11 @@ const BufferStockDialog = defineAsyncComponent(() => import('@/components/dialog
 const SettingsProcessDialog = defineAsyncComponent(() => import('@/components/dialog/SettingsProcessDialog.vue'));
 const ManualProgramDialog = defineAsyncComponent(() => import('@/components/dialog/ManualProgramDialog.vue'));
 
+const ChangelogModal = defineAsyncComponent(() => import('@/components/modal/ChangelogModal.vue'));
+
 const authStore = useAuthStore();
 const uiStore = useUiStore();
+const theme = useTheme();
 
 // --- STATE VERSI & UPDATE ---
 const currentVersion = __APP_VERSION__; // Versi yang sedang jalan di browser
@@ -30,6 +34,11 @@ const isUpdateAvailable = ref(false);   // Flag update
 const serverVersion = ref('');          // Versi dari server
 const isUpdateConfirmDialogVisible = ref(false);
 const latestChanges = ref<string[]>([]);
+
+// State Baru
+const showChangelog = ref(false);
+const changelogList = ref([]); // Menampung data dari API
+const isChangelogLoading = ref(false);
 
 // Dapatkan state visibilitas dari composables/store
 const { showPasswordDialog, closePasswordDialog } = usePasswordDialog(); // Contoh
@@ -251,6 +260,33 @@ const updateLockStatus = (event: KeyboardEvent) => {
   numLockOn.value = event.getModifierState("NumLock");
 };
 
+const toggleTheme = () => {
+  uiStore.toggleTheme(); // Panggil action di store
+  theme.global.name.value = uiStore.isDark ? 'dark' : 'light'; // Update Vuetify
+};
+
+// Function untuk Buka Modal & Fetch Data
+const openChangelog = async () => {
+  showChangelog.value = true; // Buka modal dulu (biar keliatan loadingnya)
+
+  // Cek jika data sudah pernah diambil, gak usah ambil lagi (optional caching)
+  if (changelogList.value.length > 0) return;
+
+  isChangelogLoading.value = true;
+  try {
+    const response = await api.get('/dashboard/changelog'); // Sesuaikan endpoint backend
+    changelogList.value = response.data;
+  } catch (error) {
+    console.error("Gagal ambil changelog", error);
+    // Fallback data jika error
+    changelogList.value = [
+      { version: currentVersion, changes: ['Gagal memuat riwayat dari server.'] }
+    ];
+  } finally {
+    isChangelogLoading.value = false;
+  }
+};
+
 onMounted(() => {
   checkPing();
   pingInterval = window.setInterval(checkPing, 15000);
@@ -388,6 +424,17 @@ onUnmounted(() => {
           </template>
         </v-tooltip>
 
+        <v-tooltip :text="uiStore.isDark ? 'Ganti ke Terang' : 'Ganti ke Gelap'" location="top">
+          <template v-slot:activator="{ props }">
+            <v-btn v-bind="props" icon variant="text" size="x-small" density="compact" @click="toggleTheme"
+              :color="uiStore.isDark ? 'yellow-darken-2' : 'blue-grey-darken-1'">
+              <v-icon size="16">
+                {{ uiStore.isDark ? 'mdi-weather-sunny' : 'mdi-weather-night' }}
+              </v-icon>
+            </v-btn>
+          </template>
+        </v-tooltip>
+
         <v-divider vertical class="mx-1"></v-divider>
 
         <v-menu open-on-hover location="top end" :close-on-content-click="false" transition="slide-y-transition">
@@ -483,7 +530,10 @@ onUnmounted(() => {
           </template>
         </v-tooltip>
 
-        <span class="text-caption text-disabled ml-1">v{{ currentVersion }}</span>
+        <span class="text-caption text-disabled ml-1 version-tag cursor-pointer" @click="openChangelog"
+          title="Klik untuk melihat riwayat pembaruan">
+          v{{ currentVersion }}
+        </span>
       </div>
     </v-footer>
 
@@ -571,6 +621,8 @@ onUnmounted(() => {
     <ManualProgramDialog v-if="showManualDialog" @close="closeManualDialog" />
 
     <GlobalUnsavedChangesDialog />
+
+    <ChangelogModal v-model="showChangelog" :items="changelogList" :loading="isChangelogLoading" />
   </div>
 </template>
 
@@ -607,6 +659,12 @@ onUnmounted(() => {
 
 .opacity-30 {
   opacity: 0.3;
+}
+
+.version-tag:hover {
+  color: #1976D2 !important;
+  /* Warna primary saat hover */
+  text-decoration: underline;
 }
 
 @keyframes blink-soft {

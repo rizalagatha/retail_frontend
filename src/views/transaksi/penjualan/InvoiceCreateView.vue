@@ -95,6 +95,10 @@ interface ProductInput {
   harga: number;
   barcode: string;
   kategori: string;
+  harga1?: number;
+  harga2?: number;
+  harga3?: number;
+  harga4?: number;
 }
 interface DownPayment {
   nomor: string;
@@ -192,6 +196,7 @@ const isViewMode = computed(() => route.query.mode === "view");
 const isReadonly = computed(() => {
   return isLockedFsk.value || isViewMode.value;
 });
+const isUserKon = computed(() => authStore.user?.cabang === 'KON');
 
 const isLoading = ref(true);
 
@@ -231,7 +236,18 @@ const initialHeaderState = {
   memberGender: '',
   memberUsia: '',
   memberReferensi: '',
+
+  // --- FIELD BARU MARKETPLACE ---
+  isMarketplace: false,
+  mpNama: 'SHOPEE',
+  mpNomorPesanan: '',
+  mpResi: '',
+  mpBiayaPlatform: 0,
 };
+
+// [BARU] Daftar Marketplace
+const marketplaceList = ['SHOPEE', 'TIKTOK SHOP'];
+const isSaving = ref(false);
 
 const header = reactive({ ...initialHeaderState });
 const items = ref<Item[]>([]);
@@ -367,47 +383,67 @@ const addNewRow = () => {
   }
 };
 
-const onDiskonSaved = (data: { diskonPersen1: number, diskonPersen2: number, diskonRp: number, biayaKirim: number, mode?: string }) => {
-  // Jika user memilih mode "persen", simpan hanya persen.
-  // Jika mode "rp" (manual), simpan diskonRp (manual).
+const onDiskonSaved = (data: { diskonPersen1: number, diskonPersen2: number, diskonRp: number, biayaKirim: number, biayaPlatform: number, mode?: string }) => {
+  // 1. Tentukan nilai target untuk Diskon
+  // Jika mode persen, maka Rp harus 0. Jika mode Rp, maka Persen harus 0.
   const isPercentMode = data.mode !== 'rp' && (data.diskonPersen1 > 0 || data.diskonPersen2 > 0);
 
-  // Simpan original untuk rollback/otorisasi
-  originalDiscount.faktur = {
-    persen1: header.diskonPersen1,
-    persen2: header.diskonPersen2,
-    rp: header.diskonRp,
-    biayaKirim: header.biayaKirim,
+  const newDiskonPersen1 = isPercentMode ? data.diskonPersen1 : 0;
+  const newDiskonPersen2 = isPercentMode ? data.diskonPersen2 : 0;
+  const newDiskonRp = isPercentMode ? 0 : Number(data.diskonRp || 0);
+
+  // 2. Deteksi Perubahan: Apakah DISKON berubah?
+  // (Kita abaikan perubahan biaya kirim/platform di cek ini)
+  const isDiscountChanged =
+    newDiskonPersen1 !== header.diskonPersen1 ||
+    newDiskonPersen2 !== header.diskonPersen2 ||
+    newDiskonRp !== header.diskonRp;
+
+  // Fungsi Helper: Terapkan perubahan ke state Header
+  const applyChanges = () => {
+    header.diskonPersen1 = newDiskonPersen1;
+    header.diskonPersen2 = newDiskonPersen2;
+    header.diskonRp = newDiskonRp;
+
+    // Update Biaya (Selalu diterapkan)
+    header.biayaKirim = Number(data.biayaKirim || 0);
+    header.mpBiayaPlatform = Number(data.biayaPlatform || 0);
+
+    // Hitung ulang total
+    calculateTotals();
+    toast.success('Data biaya & diskon diperbarui.');
   };
 
-  requestAuthorization(
-    'Otorisasi Diskon Faktur',
-    (pin: string) => { // onSuccess
-      if (data.diskonPersen1 !== header.diskonPersen1) authPins.pinDiskon1 = pin;
-      if (data.diskonPersen2 !== header.diskonPersen2) authPins.pinDiskon2 = pin;
+  // 3. Logika Percabangan Otorisasi
+  if (isDiscountChanged) {
+    // === JIKA DISKON BERUBAH: BUTUH OTORISASI ===
 
-      // terapkan perubahan: bila persen mode -> set diskonRp = 0 (hanya persentase dipakai)
-      header.diskonPersen1 = isPercentMode ? data.diskonPersen1 : 0;
-      header.diskonPersen2 = isPercentMode ? data.diskonPersen2 : 0;
-      header.diskonRp = isPercentMode ? 0 : Number(data.diskonRp || 0);
+    // Simpan nilai asli untuk rollback jika user membatalkan di tengah jalan
+    originalDiscount.faktur = {
+      persen1: header.diskonPersen1,
+      persen2: header.diskonPersen2,
+      rp: header.diskonRp,
+      biayaKirim: header.biayaKirim,
+    };
 
-      header.biayaKirim = Number(data.biayaKirim || 0);
+    requestAuthorization(
+      'Otorisasi Diskon Faktur',
+      (pin: string) => { // On Success
+        // Simpan PIN untuk keperluan backend
+        if (newDiskonPersen1 !== header.diskonPersen1) authPins.pinDiskon1 = pin;
+        if (newDiskonPersen2 !== header.diskonPersen2) authPins.pinDiskon2 = pin;
 
-      // Recalculate setelah update header
-      calculateTotals();
-      toast.success('Diskon disimpan dan terhitung.');
-    },
-    () => { // onCancel
-      // rollback ke nilai asli
-      header.diskonPersen1 = originalDiscount.faktur.persen1;
-      header.diskonPersen2 = originalDiscount.faktur.persen2;
-      header.diskonRp = originalDiscount.faktur.rp;
-      header.biayaKirim = originalDiscount.faktur.biayaKirim;
-
-      calculateTotals();
-      toast.info('Perubahan diskon dibatalkan.');
-    }
-  );
+        applyChanges();
+      },
+      () => { // On Cancel
+        // Tidak perlu rollback header secara manual karena header belum kita ubah
+        toast.info('Perubahan diskon dibatalkan.');
+      }
+    );
+  } else {
+    // === JIKA HANYA BIAYA KIRIM/PLATFORM BERUBAH: LANGSUNG SIMPAN ===
+    applyChanges();
+  }
 };
 
 const handleItemDiscountChange = (item: Item) => {
@@ -758,6 +794,14 @@ const onSoSelected = async (so: { Nomor: string }) => {
     header.jenisOrderNama = soHeader.jenisOrderNama || "";  // <-- TAMBAHKAN INI
     header.namaDtf = soHeader.namaDtf || "";
 
+    // [FIX] Gunakan soHeader, bukan headerRows[0]
+    // Pastikan backend mengirim field ini di object 'header'
+    header.mpNomorPesanan = soHeader.mpNomorPesanan || soHeader.so_mp_nomor_pesanan || '';
+    header.mpResi = soHeader.mpResi || soHeader.so_mp_resi || '';
+
+    // Cek flag marketplace. Backend mungkin mengirim boolean atau string 'Y'
+    header.isMarketplace = soHeader.isMarketplace === true || soHeader.isMarketplace === 'Y' || soHeader.so_is_marketplace === 'Y';
+
     // --- Tanggal SO ---
     if (soHeader.tanggal) {
       const date = new Date(soHeader.tanggal);
@@ -831,35 +875,65 @@ const onProductsSelected = (selectedProducts: ProductInput[]) => {
   if (!selectedProducts || selectedProducts.length === 0) return;
 
   const isPromoActive = header.nomorPromo === 'PRO-2025-005';
-  // Sesuai permintaan Anda, harga 100rb / 3 = 33333
   const promoPrice = 33333;
 
-  const newItems: Item[] = selectedProducts.map(product => ({
-    id: Date.now() + Math.random(),
-    kode: product.kode,
-    nama: product.nama,
-    ukuran: product.ukuran,
-    stok: product.stok,
-    harga: isPromoActive ? promoPrice : product.harga,
-    jumlah: 1,
-    diskonPersen: 0,
-    diskonRp: 0,
-    total: isPromoActive ? promoPrice : product.harga,
-    barcode: product.barcode,
-    qtyso: 0,
-    noSoDtf: '',
-    kategori: product.kategori || '',
-    terhitungPromo: isPromoActive,
-    _isHargaEditable: !isPromoActive,
-    hpp: 0
-  }));
+  // Ambil Level Customer (String)
+  const currentLevel = String(header.customer.level_kode || '1').trim();
+
+  const newItems: Item[] = selectedProducts.map(product => {
+
+    // Default: Selalu gunakan 'harga' (yang isinya brgd_harga atau 33333)
+    let basePrice = Number(product.harga || 0);
+
+    // PENGECUALIAN KHUSUS LEVEL 5
+    if (currentLevel === '5') {
+      // Pakai harga3
+      // Jika harga3 kosong (0), tetap pakai 0 (agar user sadar harus input manual)
+      // Jangan fallback ke harga retail!
+      basePrice = Number(product.harga3 || 0);
+    }
+    // Level lain (1, 2, 3, 4) -> Tetap pakai basePrice (brgd_harga)
+
+    const finalPrice = isPromoActive ? promoPrice : basePrice;
+
+    // Pastikan editable jika bukan promo
+    // Jika finalPrice 0, user WAJIB isi manual, jadi harus editable
+    const isEditable = !isPromoActive;
+
+    return {
+      id: Date.now() + Math.random(),
+      kode: product.kode,
+      nama: product.nama,
+      ukuran: product.ukuran,
+      stok: product.stok,
+
+      harga: finalPrice,
+      jumlah: 1,
+      diskonPersen: 0,
+      diskonRp: 0,
+
+      total: finalPrice,
+
+      barcode: product.barcode,
+      qtyso: 0,
+      noSoDtf: '',
+      kategori: product.kategori || '',
+
+      terhitungPromo: isPromoActive,
+      _isHargaEditable: isEditable,
+
+      hpp: 0
+    };
+  });
 
   if (items.value[activeRowIndex.value] && !items.value[activeRowIndex.value].kode) {
     items.value.splice(activeRowIndex.value, 1, ...newItems);
   } else {
     items.value.push(...newItems);
   }
+
   addNewRow();
+  calculateTotals();
 };
 
 const onUnpaidDpSelected = (dp: DownPayment) => {
@@ -956,7 +1030,7 @@ const calculateTotals = () => {
     );
 
     totals.totalPpn = totalPpn;
-    totals.grandTotal = afterAllDiscount + totalPpn + (header.biayaKirim || 0);
+    totals.grandTotal = afterAllDiscount + totalPpn + (header.biayaKirim || 0) - (header.mpBiayaPlatform || 0);
     totals.totalDp = totalDp;
     totals.sisaPiutang = totals.grandTotal - totalDp;
 
@@ -1016,7 +1090,7 @@ const calculateTotals = () => {
   totals.nettoSetelahDiskon = nettoSetelahDiskon;
   totals.totalPpn = totalPpn;
 
-  totals.grandTotal = nettoSetelahDiskon + totalPpn + (header.biayaKirim || 0);
+  totals.grandTotal = nettoSetelahDiskon + totalPpn + (header.biayaKirim || 0) - (header.mpBiayaPlatform || 0);
 
   totals.totalDp = totalDp;
   totals.sisaPiutang = totals.grandTotal - totalDp;
@@ -1191,8 +1265,12 @@ const handleProceedToPayment = async () => {
   if (validItems.length === 0) return toast.error("Detail barang harus diisi.");
 
   for (const item of validItems) {
-    if ((item.harga || 0) === 0 && !item.promo) {
+    const kodeUp = item.kode?.toUpperCase() || '';
+    const isNonStock = kodeUp.startsWith("JASA") || kodeUp.includes("FILE");
+    if ((item.harga || 0) === 0 && !item.promo && !header.isMarketplace && !isNonStock) {
       return toast.error(`Harga untuk ${item.nama} harus diisi.`);
+    } else if ((item.harga || 0) === 0 && !item.promo && header.isMarketplace) {
+      return toast.error(`Harga untuk ${item.nama} masih 0. Silakan input harga marketplace manual.`);
     }
   }
 
@@ -1320,25 +1398,78 @@ const handleProceedToPayment = async () => {
     return;
   }
 
-  // --- 6) Validasi member & lanjut pembayaran ---
-  const proceedToPayment = () => { dialogs.payment = true; };
-  if (!header.memberHp) {
-    showConfirmation('Konfirmasi Member', 'No. HP Member kosong. Yakin akan melanjutkan?', proceedToPayment);
+  // [BARU] Percabangan Flow Pembayaran
+  if (header.isMarketplace) {
+    // FLOW MARKETPLACE (KON)
+    // Tidak perlu bayar tunai sekarang. Langsung konfirmasi simpan.
+    showConfirmation(
+      'Simpan Transaksi Marketplace?',
+      `Total Tagihan: ${formatRupiah(totals.grandTotal)}\n\nTransaksi ini akan dicatat sebagai PIUTANG ke ${header.mpNama}. Lanjutkan?`,
+      () => executeSaveMarketplace() // Function baru khusus MP
+    );
   } else {
-    proceedToPayment();
+    const proceedToPayment = () => { dialogs.payment = true; };
+    if (!header.memberHp) {
+      showConfirmation('Konfirmasi Member', 'No. HP Member kosong. Yakin akan melanjutkan?', proceedToPayment);
+    } else {
+      proceedToPayment();
+    }
+  }
+};
+
+// [BARU] Function Simpan Khusus Marketplace
+const executeSaveMarketplace = async () => {
+  // Kita buat payload pembayaran "Palsu" tapi Valid
+  // Bayar 0, Sisanya masuk Piutang
+  const dummyPayment = {
+    tunai: 0,
+    transfer: { nominal: 0 },
+    voucher: { nominal: 0 },
+    retur: { nominal: 0 },
+    // Penting: Tandai ini pelunasan kredit/piutang di backend
+    status: 'PIUTANG'
+  };
+
+  const payload = {
+    header: header,
+    items: items.value.filter(i => i.kode),
+    footer: totals, // berisi total belanja
+    payment: dummyPayment, // Kirim payment 0
+    dps: linkedDps.value,
+    isNew: !isEditMode.value,
+    totals: totals,
+  };
+
+  isSaving.value = true; // Use existing isSaving ref if available or create one locally/globally
+  // Panggil API Save
+  try {
+    const response = await api.post('/invoice-form/save', payload);
+    toast.success(response.data.message);
+    onSaveSuccess();
+  } catch (error) {
+    console.error(error);
+    toast.error('Gagal menyimpan transaksi marketplace.');
+  } finally {
+    isSaving.value = false;
   }
 };
 
 const checkStokMinus = (): Promise<boolean> => {
   return new Promise((resolve) => {
     const validItems = items.value.filter(i => i.kode);
-    const itemsMinus = validItems.filter(item =>
-      !item.kode?.toUpperCase().startsWith("JASA") &&
-      (item.jumlah || 0) > (item.stok || 0) &&
-      item.kategori !== 'SO-DTF' && // Asumsi item SO DTF boleh minus (sesuai Delphi)
-      !item.noSoDtf // Dobel cek jika item dari SO DTF
-      // NOTE: Anda mungkin perlu menambahkan 'item.logstok' jika ada
-    );
+    const itemsMinus = validItems.filter(item => {
+      const kodeUp = item.kode?.toUpperCase() || '';
+
+      // [FIX] Anggap FILE (Design) sama seperti JASA -> Tidak perlu cek stok
+      const isNonStock = kodeUp.startsWith("JASA") || kodeUp.includes("FILE");
+
+      return (
+        !isNonStock &&
+        (item.jumlah || 0) > (item.stok || 0) &&
+        item.kategori !== 'SO-DTF' && // Asumsi item SO DTF boleh minus
+        !item.noSoDtf // Dobel cek jika item dari SO DTF
+      );
+    });
 
     if (itemsMinus.length > 0) {
       const itemNames = itemsMinus.map(i => `${i.nama} (${i.ukuran})`).join(', ');
@@ -1401,25 +1532,40 @@ const handleBarcodeScan = async () => {
   const barcode = scannedBarcode.value;
   if (!barcode) return;
 
-  // --- LOGIKA 1: Jika barang sudah ada di grid, tambah jumlahnya ---
   const existingItem = items.value.find(item => item.barcode === barcode && item.kode);
   if (existingItem) {
     existingItem.jumlah += 1;
     toast.info(`Jumlah untuk ${existingItem.nama} ditambah menjadi ${existingItem.jumlah}`);
-    scannedBarcode.value = ''; // Kosongkan input
+    scannedBarcode.value = '';
     return;
   }
 
-  // --- LOGIKA 2: Jika belum ada, cari via API ---
   try {
-    // Gunakan endpoint yang sudah ada untuk produk
     const response = await api.get(`/invoice-form/by-barcode/${barcode}`, {
       params: { gudang: header.gudang.kode }
     });
     const product = response.data;
-
-    // Cari baris kosong pertama untuk diganti
     const emptyRowIndex = items.value.findIndex(item => !item.kode);
+
+    const currentLevel = String(header.customer.level_kode || '1').trim();
+    let basePrice = Number(product.harga || 0);
+
+    if (currentLevel === '5') {
+      basePrice = Number(product.harga3 || 0);
+    }
+    else if (currentLevel === '2' && Number(product.harga2) > 0) {
+      basePrice = Number(product.harga2);
+    }
+    else if (currentLevel === '3' && Number(product.harga3) > 0) {
+      basePrice = Number(product.harga3);
+    }
+    else if (currentLevel === '4' && Number(product.harga4) > 0) {
+      basePrice = Number(product.harga4);
+    }
+
+    const isPromoActive = header.nomorPromo === 'PRO-2025-005';
+    const finalPrice = isPromoActive ? 33333 : basePrice;
+    const isEditable = !isPromoActive;
 
     const newItem = {
       id: Date.now(),
@@ -1427,16 +1573,16 @@ const handleBarcodeScan = async () => {
       nama: product.nama,
       ukuran: product.ukuran,
       stok: product.stok,
-      harga: product.harga,
+      harga: finalPrice,
       jumlah: 1,
       diskonPersen: 0,
       diskonRp: 0,
-      total: product.harga,
+      total: finalPrice,
       barcode: product.barcode,
       qtyso: 0,
       kategori: product.kategori || '',
-      terhitungPromo: false,       // properti wajib
-      _isHargaEditable: product.harga === 0, // properti wajib
+      terhitungPromo: isPromoActive,
+      _isHargaEditable: isEditable,
     };
 
     if (emptyRowIndex !== -1) {
@@ -1491,6 +1637,9 @@ const handleJumlahChange = async (item: Item) => {
 
 const resetForm = async () => {
   Object.assign(header, initialHeaderState);
+  if (authStore.user?.cabang === 'KON') {
+    header.isMarketplace = true;
+  }
   items.value = [];
   linkedDps.value = [];
   isSoLoaded.value = false;
@@ -1524,9 +1673,13 @@ const resetForm = async () => {
   }
 };
 
-const getQtyClass = (item) => {
-  if (item.kode && item.kode.toUpperCase().startsWith("JASA")) return '';
-  if (!item.noSoDtf && item.stok < item.jumlah) {
+const getQtyClass = (item: Item) => {
+  const kodeUp = item.kode?.toUpperCase() || '';
+
+  // [FIX] Jangan merah kalau JASA atau FILE
+  if (kodeUp.startsWith("JASA") || kodeUp.includes("FILE")) return '';
+
+  if (!item.noSoDtf && (item.stok || 0) < (item.jumlah || 0)) {
     return 'text-red font-weight-bold';
   }
   return '';
@@ -1597,6 +1750,14 @@ const loadDataForEdit = async (nomor: string) => {
 
     header.nomorPromo = h.inv_pro_nomor || ''; // [PENTING] Set nomor promo dari backend
     header.namaPromo = h.namaPromo || '';      // [PENTING] Set nama promo
+
+    // [BARU] Mapping Data Marketplace
+    // Backend mengirim: inv_is_marketplace ('Y'/'N'), inv_mp_nama, dst.
+    header.isMarketplace = h.inv_is_marketplace === 'Y';
+    header.mpNama = h.inv_mp_nama || 'SHOPEE';
+    header.mpNomorPesanan = h.inv_mp_nomor_pesanan || '';
+    header.mpResi = h.inv_mp_resi || '';
+    header.mpBiayaPlatform = Number(h.inv_mp_biaya_platform || 0);
 
     /* =======================
        ITEMS
@@ -1736,6 +1897,12 @@ const saveHeaderOnly = async () => {
       ppnPersen: header.ppnPersen,
       memberHp: header.memberHp,
       memberNama: header.memberNama,
+      // [BARU] Tambahkan field MP ke payload update header
+      isMarketplace: header.isMarketplace,
+      mpNama: header.mpNama,
+      mpNomorPesanan: header.mpNomorPesanan,
+      mpResi: header.mpResi,
+      mpBiayaPlatform: header.mpBiayaPlatform
     };
 
     await api.put(`/invoice-form/update-header/${header.nomor}`, payload);
@@ -1815,6 +1982,10 @@ watch(
 );
 
 onMounted(() => {
+  if (authStore.user?.cabang === 'KON') {
+    header.isMarketplace = true;
+  }
+
   markAsSaved();
 
   if (!authStore.can(MENU_ID, requiredPermission.value)) {
@@ -1832,6 +2003,15 @@ onMounted(() => {
   }
   isLoading.value = false;
   fetchActivePromos();
+});
+
+// Watcher untuk Toggle Marketplace
+watch(() => header.isMarketplace, async (isOnline) => {
+  if (isOnline) {
+    // Logic jika mode online aktif (misal otomatis set customer Shopee)
+  } else {
+    // Jika dimatikan, mungkin reset customer atau biarkan user memilih
+  }
 });
 </script>
 
@@ -1857,6 +2037,48 @@ onMounted(() => {
     <div class="form-grid-container">
       <div class="left-column">
         <div class="desktop-form-section header-section">
+          <v-row dense class="mb-2 align-center" v-if="isUserKon">
+            <v-col cols="12">
+              <v-sheet class="d-flex align-center px-3 py-1 rounded bg-orange-lighten-5 border border-orange-lighten-2"
+                elevation="0">
+                <v-switch v-model="header.isMarketplace" color="orange-darken-3" density="compact" hide-details inset
+                  class="font-weight-bold mr-2">
+                  <template #label>
+                    <span class="text-orange-darken-4 font-weight-medium">Mode Transaksi Online / Marketplace</span>
+                  </template>
+                </v-switch>
+                <v-icon v-if="header.isMarketplace" color="orange-darken-3" class="ml-auto">mdi-store-check</v-icon>
+              </v-sheet>
+            </v-col>
+          </v-row>
+
+          <v-expand-transition>
+            <div v-if="header.isMarketplace" class="mb-3">
+              <v-sheet class="pa-3 rounded bg-white border border-dashed border-orange-lighten-2 elevation-0">
+                <v-row dense>
+                  <v-col cols="12" md="4">
+                    <v-combobox label="Marketplace" v-model="header.mpNama" :items="marketplaceList"
+                      prepend-inner-icon="mdi-store" variant="outlined" density="compact" bg-color="grey-lighten-5"
+                      hide-details placeholder="Pilih Marketplace" :readonly="isReadonly"
+                      class="required-field marketplace-combo"></v-combobox>
+                  </v-col>
+
+                  <v-col cols="12" md="4">
+                    <v-text-field label="No. Pesanan / Order ID" v-model="header.mpNomorPesanan"
+                      prepend-inner-icon="mdi-clipboard-text-outline" variant="outlined" density="compact"
+                      bg-color="grey-lighten-5" hide-details placeholder="Contoh: 230801ABC..."
+                      :readonly="isReadonly"></v-text-field>
+                  </v-col>
+
+                  <v-col cols="12" md="4">
+                    <v-text-field label="No. Resi (AWB)" v-model="header.mpResi" prepend-inner-icon="mdi-barcode-scan"
+                      variant="outlined" density="compact" bg-color="grey-lighten-5" hide-details
+                      placeholder="Scan atau Ketik Resi" :readonly="isReadonly"></v-text-field>
+                  </v-col>
+                </v-row>
+              </v-sheet>
+            </div>
+          </v-expand-transition>
           <v-row dense>
             <v-col cols="6">
               <v-text-field label="No. Invoice" v-model="header.nomor" readonly density="compact" filled hide-details />
@@ -2114,9 +2336,10 @@ onMounted(() => {
       @selected="onPromoSelected" />
     <MemberForm v-if="dialogs.memberForm" :initial-hp="memberHpToSearch" @close="dialogs.memberForm = false"
       @member-saved="onMemberSaved" />
-    <DiskonForm v-if="dialogs.diskonForm" :diskon-persen1="header.diskonPersen1" :diskon-persen2="header.diskonPersen2"
-      :diskon-rp="header.diskonRp" :biaya-kirim="header.biayaKirim" @close="dialogs.diskonForm = false"
-      :sub-total="totals.subTotal" @save="onDiskonSaved" />
+    <DiskonForm v-if="dialogs.diskonForm" :sub-total="totals.subTotal" :diskon-persen1="header.diskonPersen1"
+      :diskon-persen2="header.diskonPersen2" :diskon-rp="header.diskonRp" :biaya-kirim="header.biayaKirim"
+      :biaya-platform="header.mpBiayaPlatform" :is-marketplace="header.isMarketplace"
+      @close="dialogs.diskonForm = false" @save="onDiskonSaved" />
     <LinkedDpModal v-if="dialogs.linkedDp" :dps="linkedDps" @close="dialogs.linkedDp = false" />
     <AuthorizationModal v-if="authDialog.show" ref="authModalRef" :title="authDialog.title"
       :challenge-code="authDialog.challengeCode" @close="handleAuthCancel" @success="handleAuthSuccess" />
@@ -2484,6 +2707,26 @@ onMounted(() => {
   z-index: 2;
   animation: shineMove 4s infinite ease-in-out;
   pointer-events: none;
+}
+
+/* [NEW] Style untuk mengecilkan font dropdown marketplace */
+.marketplace-combo :deep(input) {
+  font-size: 13px !important;
+}
+
+.marketplace-combo :deep(.v-field__input) {
+  font-size: 13px !important;
+  min-height: 32px !important;
+  /* Adjust height if needed */
+}
+
+.marketplace-combo :deep(.v-label) {
+  font-size: 13px !important;
+}
+
+/* Style untuk list item dropdown (saat dibuka) */
+:deep(.v-list-item-title) {
+  font-size: 13px !important;
 }
 
 @keyframes shineMove {

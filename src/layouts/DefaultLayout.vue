@@ -33,12 +33,17 @@ const currentVersion = __APP_VERSION__; // Versi yang sedang jalan di browser
 const isUpdateAvailable = ref(false);   // Flag update
 const serverVersion = ref('');          // Versi dari server
 const isUpdateConfirmDialogVisible = ref(false);
-const latestChanges = ref<string[]>([]);
+const latestChanges = ref<(string | { title: string; items: string[] })[]>([]);
 
 // State Baru
 const showChangelog = ref(false);
 const changelogList = ref([]); // Menampung data dari API
 const isChangelogLoading = ref(false);
+
+// State Notifikasi
+const notificationList = ref<{ title: string; count: number; to: string; icon: string; color: string }[]>([]);
+const totalNotifications = computed(() => notificationList.value.reduce((acc, item) => acc + item.count, 0));
+const isNotificationMenuOpen = ref(false);
 
 // Dapatkan state visibilitas dari composables/store
 const { showPasswordDialog, closePasswordDialog } = usePasswordDialog(); // Contoh
@@ -287,6 +292,44 @@ const openChangelog = async () => {
   }
 };
 
+// Function Fetch Notifikasi (Ringan)
+const fetchNotifications = async () => {
+  if (!authStore.isAuthenticated) return;
+
+  try {
+    const list = [];
+
+    // 1. Fetch Notifikasi Stok (Endpoint Baru)
+    const stockRes = await api.get('/dashboard/stock-alerts');
+    const stockData = stockRes.data;
+
+    if (stockData.sj_pending > 0) {
+      list.push({
+        title: 'Terima SJ dari DC',
+        count: stockData.sj_pending,
+        to: '/transaksi/internal/terima-sj', // Sesuaikan route vue Anda
+        icon: 'mdi-truck-delivery',
+        color: 'red'
+      });
+    }
+
+    if (stockData.mutasi_pending > 0) {
+      list.push({
+        title: 'Terima Mutasi Toko',
+        count: stockData.mutasi_pending,
+        to: '/transaksi/mutasi/store-terima', // Sesuaikan route vue Anda (Terima Mutasi Store)
+        icon: 'mdi-transfer-down',
+        color: 'purple'
+      });
+    }
+
+    notificationList.value = list;
+
+  } catch (error) {
+    console.error("Gagal cek notifikasi", error);
+  }
+};
+
 onMounted(() => {
   checkPing();
   pingInterval = window.setInterval(checkPing, 15000);
@@ -295,6 +338,10 @@ onMounted(() => {
   fetchPrayerTimes();
   // Update penunjuk waktu sholat setiap menit
   setInterval(determineNextPrayer, 60000);
+
+  fetchNotifications();
+  // Cek notifikasi setiap 60 detik (agar tidak membebani server)
+  setInterval(fetchNotifications, 60000);
 
   // Listener untuk Caps/Num Lock
   window.addEventListener('keydown', updateLockStatus);
@@ -436,6 +483,60 @@ onUnmounted(() => {
         </v-tooltip>
 
         <v-divider vertical class="mx-1"></v-divider>
+
+        <v-menu v-model="isNotificationMenuOpen" :close-on-content-click="true" location="top end" offset="10">
+          <template v-slot:activator="{ props }">
+            <v-btn v-bind="props" icon variant="text" size="small" density="compact" class="mr-1">
+              <v-badge :content="totalNotifications" :model-value="totalNotifications > 0" color="error" size="x-small"
+                floating>
+                <v-icon size="18" :color="totalNotifications > 0 ? 'orange-darken-4' : 'grey'"
+                  :class="{ 'bell-ring': totalNotifications > 0 }">
+                  {{ totalNotifications > 0 ? 'mdi-bell-ring' : 'mdi-bell-outline' }}
+                </v-icon>
+              </v-badge>
+            </v-btn>
+          </template>
+
+          <v-card width="300" class="rounded-lg shadow-lg">
+            <v-card-title
+              class="text-caption font-weight-bold bg-grey-lighten-4 py-2 px-3 d-flex align-center justify-space-between">
+              <div class="d-flex align-center">
+                <v-icon size="small" start color="orange-darken-4">mdi-bell-ring</v-icon>
+                Pemberitahuan
+              </div>
+              <v-chip v-if="totalNotifications > 0" size="x-small" color="error" variant="flat"
+                class="font-weight-bold">
+                {{ totalNotifications }} Pending
+              </v-chip>
+            </v-card-title>
+
+            <v-card-text class="pa-0">
+              <v-list density="compact" lines="one" class="py-0" v-if="notificationList.length > 0">
+                <template v-for="(notif, i) in notificationList" :key="i">
+                  <v-list-item :to="notif.to" @click="isNotificationMenuOpen = false" active-color="primary">
+                    <template v-slot:prepend>
+                      <v-avatar :color="notif.color" variant="tonal" size="24" class="mr-2">
+                        <v-icon size="14">{{ notif.icon }}</v-icon>
+                      </v-avatar>
+                    </template>
+                    <v-list-item-title class="text-caption font-weight-bold">
+                      {{ notif.title }}
+                    </v-list-item-title>
+                    <template v-slot:append>
+                      <v-badge inline :content="notif.count" color="grey-darken-3" class="font-weight-bold"></v-badge>
+                    </template>
+                  </v-list-item>
+                  <v-divider v-if="i < notificationList.length - 1"></v-divider>
+                </template>
+              </v-list>
+
+              <div v-else class="text-center pa-4 text-caption text-grey">
+                <v-icon size="24" class="mb-1" color="success">mdi-check-circle-outline</v-icon>
+                <div>Semua tugas selesai!</div>
+              </div>
+            </v-card-text>
+          </v-card>
+        </v-menu>
 
         <v-menu open-on-hover location="top end" :close-on-content-click="false" transition="slide-y-transition">
           <template v-slot:activator="{ props }">
@@ -585,9 +686,23 @@ onUnmounted(() => {
             <div class="text-caption font-weight-bold text-grey-darken-2 mb-1">
               APA YANG BARU DI VERSI INI?
             </div>
+
             <ul class="pl-4 text-body-2 text-grey-darken-3">
               <li v-for="(change, i) in latestChanges" :key="i" class="mb-1">
-                {{ change }}
+
+                <template v-if="typeof change === 'string'">
+                  {{ change }}
+                </template>
+
+                <template v-else>
+                  <div class="font-weight-bold">{{ change.title }}</div>
+                  <ul class="pl-4 mt-1" style="list-style-type: circle;">
+                    <li v-for="(subItem, j) in change.items" :key="j" class="mb-0 text-caption text-grey-darken-2">
+                      {{ subItem }}
+                    </li>
+                  </ul>
+                </template>
+
               </li>
             </ul>
           </div>
@@ -676,6 +791,109 @@ onUnmounted(() => {
 
   50% {
     opacity: 0.5;
+  }
+}
+
+.bell-ring {
+  animation: ring-bell 3s 1s ease-in-out infinite;
+  transform-origin: 50% 4px;
+}
+
+@keyframes ring-bell {
+  0% {
+    transform: rotate(0);
+  }
+
+  1% {
+    transform: rotate(30deg);
+  }
+
+  3% {
+    transform: rotate(-28deg);
+  }
+
+  5% {
+    transform: rotate(34deg);
+  }
+
+  7% {
+    transform: rotate(-32deg);
+  }
+
+  9% {
+    transform: rotate(30deg);
+  }
+
+  11% {
+    transform: rotate(-28deg);
+  }
+
+  13% {
+    transform: rotate(26deg);
+  }
+
+  15% {
+    transform: rotate(-24deg);
+  }
+
+  17% {
+    transform: rotate(22deg);
+  }
+
+  19% {
+    transform: rotate(-20deg);
+  }
+
+  21% {
+    transform: rotate(18deg);
+  }
+
+  23% {
+    transform: rotate(-16deg);
+  }
+
+  25% {
+    transform: rotate(14deg);
+  }
+
+  27% {
+    transform: rotate(-12deg);
+  }
+
+  29% {
+    transform: rotate(10deg);
+  }
+
+  31% {
+    transform: rotate(-8deg);
+  }
+
+  33% {
+    transform: rotate(6deg);
+  }
+
+  35% {
+    transform: rotate(-4deg);
+  }
+
+  37% {
+    transform: rotate(2deg);
+  }
+
+  39% {
+    transform: rotate(-1deg);
+  }
+
+  41% {
+    transform: rotate(1deg);
+  }
+
+  43% {
+    transform: rotate(0);
+  }
+
+  100% {
+    transform: rotate(0);
   }
 }
 </style>

@@ -8,13 +8,20 @@ import storeBg from '@/assets/store-bg.jpg';
 import api from '@/services/api';
 import { useToast } from 'vue-toastification';
 import { format, subDays } from 'date-fns';
-import { Bar } from 'vue-chartjs';
-import { Chart as ChartJS, Title, Tooltip, Legend, BarElement, CategoryScale, LinearScale } from 'chart.js';
-import type { TooltipItem } from 'chart.js';
+import { Bar, Line, Pie } from 'vue-chartjs';
+import {
+  Chart as ChartJS, Title, Tooltip, Legend, BarElement, LineElement,
+  PointElement, Filler, CategoryScale, LinearScale, ArcElement
+} from 'chart.js';
+import type { ChartOptions, TooltipItem } from 'chart.js';
 import ChartDataLabels from 'chartjs-plugin-datalabels';
 import { formatRupiah } from "@/utils/formatRupiah";
 
-ChartJS.register(Title, Tooltip, Legend, BarElement, CategoryScale, LinearScale, ChartDataLabels);
+ChartJS.register(
+  Title, Tooltip, Legend, BarElement, LineElement,
+  PointElement, Filler, CategoryScale, LinearScale,
+  ChartDataLabels, ArcElement
+);
 
 interface PendingAction {
   key: string;
@@ -130,6 +137,7 @@ const isLoadingPiutangInvoice = ref(false);
 const frequentMenus = ref<FrequentMenu[]>([]);
 const isLoadingFrequent = ref(true);
 
+const chartType = ref<'bar' | 'line' | 'area'>('bar');
 const chartGroupBy = ref<'day' | 'week' | 'month'>('day');
 const chartFilters = reactive({
   startDate: format(subDays(new Date(), 6), 'yyyy-MM-dd'),
@@ -279,23 +287,25 @@ const targetChartData = computed(() => ({ // <-- NAMA BARU
 
 const fr = (val: number) => formatRupiah(val);
 
-const targetChartOptions = ref({
+const targetChartOptions = ref<ChartOptions<'bar' | 'line'>>({
   responsive: true,
   maintainAspectRatio: false,
   scales: {
     y: {
       beginAtZero: true,
       ticks: {
-        callback: (value: number) => {
-          if (value >= 1000000) return `Rp ${value / 1000000} Jt`;
-          if (value >= 1000) return `Rp ${value / 1000} Rb`;
-          return fr(Number(value));
+        // Gunakan 'number | string' agar aman untuk segala jenis sumbu
+        callback: (value: number | string) => {
+          if (typeof value === 'number') {
+            if (value >= 1000000) return `Rp ${value / 1000000} Jt`;
+            if (value >= 1000) return `Rp ${value / 1000} Rb`;
+            return fr(value);
+          }
+          return value;
         }
       }
     },
     x: {
-      grouped: false,
-      categoryPercentage: 0.5,
       grid: {
         display: false
       }
@@ -303,32 +313,102 @@ const targetChartOptions = ref({
   },
   plugins: {
     legend: {
-      position: 'bottom' as const,
+      position: 'bottom',
     },
     tooltip: {
       callbacks: {
-        label: (context: TooltipItem<'bar'>) => {
+        // [FIX] Ubah tipe context menjadi union atau any
+        label: (context: TooltipItem<'bar' | 'line'>) => {
           const label = context.dataset.label || '';
-          const value = context.parsed.y as number; // parsed bisa number | null
+          const value = context.parsed.y as number;
           return `${label}: ${fr(value)}`;
         }
       }
     },
     datalabels: {
-      anchor: 'end' as const,
-      align: 'top' as const,
-      formatter: (value: number, context) => {
+      anchor: 'end',
+      align: 'top',
+      formatter: (value: number, context: any) => {
         if (context.datasetIndex === 1) return fr(value);
         return null;
       },
       font: {
-        weight: 'bold' as const,
+        weight: 'bold',
         size: 10
       },
       color: '#424242'
     }
   }
 });
+
+// --- LOGIC PIE CHART KONTRIBUSI CABANG ---
+// Warna-warna cerah untuk Pie Chart
+const chartColors = [
+  '#42A5F5', '#66BB6A', '#FFA726', '#EF5350', '#AB47BC',
+  '#FF7043', '#26C6DA', '#7E57C2', '#9CCC65', '#5C6BC0',
+  '#8D6E63', '#78909C'
+];
+
+const branchDistributionData = computed(() => {
+  // Ambil data dari state branchPerformances yang sudah ada
+  const labels = branchPerformances.value.map(b => b.nama_cabang);
+  const data = branchPerformances.value.map(b => b.nominal);
+
+  return {
+    labels: labels,
+    datasets: [
+      {
+        backgroundColor: chartColors.slice(0, labels.length),
+        data: data,
+        borderWidth: 2,
+        borderColor: '#ffffff',
+        hoverOffset: 4
+      }
+    ]
+  };
+});
+
+const pieChartOptions = {
+  responsive: true,
+  maintainAspectRatio: false,
+  plugins: {
+    legend: {
+      position: 'right' as const, // Legenda di sebelah kanan agar rapi
+      labels: {
+        usePointStyle: true,
+        boxWidth: 10,
+        font: { size: 11 }
+      }
+    },
+    tooltip: {
+      callbacks: {
+        label: (context: any) => {
+          const label = context.label || '';
+          const value = context.parsed || 0;
+          // Hitung persentase manual agar info lebih lengkap
+          const total = context.chart._metasets[context.datasetIndex].total;
+          const percentage = ((value / total) * 100).toFixed(1) + '%';
+          return `${label}: ${formatRupiah(value)} (${percentage})`;
+        }
+      }
+    },
+    datalabels: {
+      // Sembunyikan label angka di dalam slice jika terlalu kecil
+      display: (context: any) => {
+        return context.dataset.data[context.dataIndex] > 0;
+      },
+      color: '#fff',
+      font: { weight: 'bold' as const, size: 10 },
+      formatter: (value: number, ctx: any) => {
+        // Tampilkan persentase di dalam pie
+        const total = ctx.chart._metasets[ctx.datasetIndex].total;
+        const percentage = ((value / total) * 100);
+        // Hanya tampilkan jika > 5% agar tidak menumpuk
+        return percentage > 5 ? percentage.toFixed(0) + '%' : '';
+      }
+    }
+  }
+};
 
 const currentTime = ref(new Date().toLocaleString('id-ID', { dateStyle: 'long', timeStyle: 'medium' }));
 let intervalId: number;
@@ -466,16 +546,44 @@ const fetchSalesChartData = async () => {
       return format(date, 'dd/MM');
     });
 
-    const data = (response.data as SalesChartItem[]).map(d => d.total);
+    const dataValues = (response.data as SalesChartItem[]).map(d => d.total);
+
+    // Konfigurasi Tampilan Berdasarkan Tipe
+    let datasetConfig = {};
+
+    if (chartType.value === 'bar') {
+      // Tampilan BATANG (Bar)
+      datasetConfig = {
+        type: 'bar',
+        label: 'Penjualan (Rp)',
+        backgroundColor: '#42A5F5',
+        borderRadius: 4,
+        barPercentage: 0.6,
+      };
+    } else {
+      // Tampilan GARIS (Line / Area)
+      datasetConfig = {
+        type: 'line',
+        label: 'Penjualan (Rp)',
+        borderColor: '#42A5F5',
+        backgroundColor: chartType.value === 'area' ? 'rgba(66, 165, 245, 0.2)' : 'transparent',
+        borderWidth: 3,
+        pointBackgroundColor: '#fff',
+        pointBorderColor: '#42A5F5',
+        pointBorderWidth: 2,
+        pointRadius: 4,
+        pointHoverRadius: 6,
+        fill: chartType.value === 'area', // Isi area bawah garis jika tipe 'area'
+        tension: 0.4, // Membuat garis melengkung (smooth)
+      };
+    }
 
     chartData.value = {
       labels: labels,
       datasets: [{
-        label: 'Penjualan (Rp)',
-        backgroundColor: '#42A5F5',
-        data: data,
-        borderRadius: 4
-      } as BarDataset] // cast ke interface sendiri
+        data: dataValues,
+        ...datasetConfig
+      } as any]
     };
   } catch (error) {
     toast.error('Gagal memuat data grafik penjualan.', error);
@@ -483,6 +591,10 @@ const fetchSalesChartData = async () => {
     isLoadingChart.value = false;
   }
 };
+
+// --- 4. TAMBAHKAN WATCHER ---
+// Agar saat tipe chart diganti, data direfresh ulang (untuk apply style baru)
+watch(chartType, fetchSalesChartData);
 
 const fetchLowStockData = async () => {
   isLoadingLowStock.value = true;
@@ -731,22 +843,22 @@ const fetchActivePromos = async () => {
 
     // 1. Cabang K11 (Grand Opening)
     if (authStore.user?.cabang === 'K11') {
-       promoMessages.push(
-         `🎊 GRAND OPENING KEDIRI: Nikmati DISKON 10% ALL ITEM tanpa syarat minimal belanja! Berlaku untuk semua produk Kaosan. Serbu sekarang! 🎊`
-       );
+      promoMessages.push(
+        `🎊 GRAND OPENING KEDIRI: Nikmati DISKON 10% ALL ITEM tanpa syarat minimal belanja! Berlaku untuk semua produk Kaosan. Serbu sekarang! 🎊`
+      );
     }
     // 2. Cabang Lain (Reguler)
     else {
-       const promoReguler = promos.find(p => p.pro_nomor === 'PRO-2025-010' || p.pro_judul.toUpperCase().includes('REGULER'));
+      const promoReguler = promos.find(p => p.pro_nomor === 'PRO-2025-010' || p.pro_judul.toUpperCase().includes('REGULER'));
 
-       if (promoReguler) {
-         promoMessages.push(
-           `🔥 PROMO REGULER: Potongan Rp 25.000 tiap kelipatan Rp 250.000 (Khusus Kaos Polos/Reguler, Non-Jersey). Buruan Serbu!`
-         );
-       }
-       else if (promos.length > 0) {
-         promoMessages = promos.map(p => `✨ ${p.pro_judul}`);
-       }
+      if (promoReguler) {
+        promoMessages.push(
+          `🔥 PROMO REGULER: Potongan Rp 25.000 tiap kelipatan Rp 250.000 (Khusus Kaos Polos/Reguler, Non-Jersey). Buruan Serbu!`
+        );
+      }
+      else if (promos.length > 0) {
+        promoMessages = promos.map(p => `✨ ${p.pro_judul}`);
+      }
     }
 
     // Fallback jika kosong
@@ -1202,40 +1314,72 @@ watch(chartGroupBy, fetchSalesChartData);
         <!-- Chart and Pending Actions Row -->
         <v-row class="mb-4">
           <v-col cols="12" lg="8">
-            <v-card elevation="2">
-              <v-card-title>
-                <div class="d-flex align-center">
-                  <v-icon class="mr-2" color="primary">mdi-finance</v-icon>
-                  Grafik Penjualan
+            <v-card elevation="2" class="rounded-lg">
+              <v-card-title class="py-3 px-4 border-b">
+                <div class="d-flex align-center justify-space-between w-100">
+                  <div class="d-flex align-center text-primary font-weight-bold">
+                    <v-icon class="mr-2" color="primary">mdi-chart-timeline-variant</v-icon>
+                    Grafik Penjualan
+                  </div>
+
+                  <div class="bg-grey-lighten-4 rounded-lg pa-1 d-none d-sm-flex">
+                    <v-btn-toggle v-model="chartType" variant="text" density="compact" mandatory divided
+                      class="chart-type-toggle">
+                      <v-btn value="bar" size="small" :color="chartType === 'bar' ? 'primary' : 'grey-darken-1'"
+                        class="rounded-s-lg">
+                        <v-icon>mdi-chart-bar</v-icon>
+                        <v-tooltip activator="parent" location="top">Batang</v-tooltip>
+                      </v-btn>
+                      <v-btn value="line" size="small" :color="chartType === 'line' ? 'primary' : 'grey-darken-1'">
+                        <v-icon>mdi-chart-line</v-icon>
+                        <v-tooltip activator="parent" location="top">Garis</v-tooltip>
+                      </v-btn>
+                      <v-btn value="area" size="small" :color="chartType === 'area' ? 'primary' : 'grey-darken-1'"
+                        class="rounded-e-lg">
+                        <v-icon>mdi-chart-bell-curve-cumulative</v-icon>
+                        <v-tooltip activator="parent" location="top">Area</v-tooltip>
+                      </v-btn>
+                    </v-btn-toggle>
+                  </div>
                 </div>
               </v-card-title>
 
-              <v-card-text>
-                <div class="d-flex align-center justify-space-between flex-wrap ga-4 mb-4">
-                  <v-btn-toggle v-model="chartGroupBy" variant="outlined" density="compact" color="primary" mandatory>
-                    <v-btn size="small" value="day">Harian</v-btn>
-                    <v-btn size="small" value="week">Mingguan</v-btn>
-                    <v-btn size="small" value="month">Bulanan</v-btn>
+              <v-card-text class="pa-4">
+                <div class="filter-bar d-flex flex-column flex-md-row align-md-center justify-space-between gap-3 mb-6">
+
+                  <v-btn-toggle v-model="chartGroupBy" variant="outlined" density="compact" color="primary" mandatory
+                    rounded="lg" class="mr-auto mb-2 mb-md-0 shadow-sm" style="height: 36px;">
+                    <v-btn value="day" class="text-caption font-weight-bold px-4">Harian</v-btn>
+                    <v-btn value="week" class="text-caption font-weight-bold px-4">Mingguan</v-btn>
+                    <v-btn value="month" class="text-caption font-weight-bold px-4">Bulanan</v-btn>
                   </v-btn-toggle>
 
-                  <div class="d-flex align-center ga-2">
+                  <div class="d-flex flex-wrap align-center justify-end gap-2" style="gap: 8px;">
+
                     <v-select v-model="chartFilters.cabang" :items="cabangList" item-title="nama" item-value="kode"
-                      label="Cabang" density="compact" hide-details variant="outlined" style="max-width: 180px;"
-                      :readonly="authStore.user?.cabang !== 'KDC'" />
-                    <v-text-field v-model="chartFilters.startDate" type="date" density="compact" hide-details
-                      variant="outlined" style="max-width: 160px" />
-                    <span class="mx-1">s/d</span>
-                    <v-text-field v-model="chartFilters.endDate" type="date" density="compact" hide-details
-                      variant="outlined" style="max-width: 160px" />
+                      density="compact" variant="outlined" hide-details prepend-inner-icon="mdi-store-outline"
+                      bg-color="white" class="filter-input-select" :readonly="authStore.user?.cabang !== 'KDC'"
+                      style="min-width: 220px;"></v-select>
+
+                    <div class="d-flex align-center border rounded px-2 bg-white"
+                      style="height: 40px; border-color: #9E9E9E !important;">
+                      <input type="date" v-model="chartFilters.startDate" class="date-native-input text-body-2" />
+                      <span class="mx-2 text-caption text-grey">s/d</span>
+                      <input type="date" v-model="chartFilters.endDate" class="date-native-input text-body-2" />
+                    </div>
+
                   </div>
                 </div>
 
-                <div v-if="isLoadingChart" class="text-center pa-8">
-                  <v-progress-circular indeterminate color="primary" />
-                  <div class="mt-2">Memuat data grafik...</div>
+                <div v-if="isLoadingChart" class="d-flex flex-column align-center justify-center"
+                  style="height: 320px;">
+                  <v-progress-circular indeterminate color="primary" size="48" width="4" />
+                  <div class="mt-3 text-caption text-grey">Sedang memuat data grafik...</div>
                 </div>
-                <div v-else style="height: 300px; position: relative;">
-                  <Bar :data="chartData" :options="{ responsive: true, maintainAspectRatio: false }" />
+
+                <div v-else style="height: 350px; position: relative;">
+                  <Bar v-if="chartType === 'bar'" :data="chartData as any" :options="targetChartOptions as any" />
+                  <Line v-else :data="chartData as any" :options="targetChartOptions as any" />
                 </div>
               </v-card-text>
             </v-card>
@@ -1333,7 +1477,7 @@ watch(chartGroupBy, fetchSalesChartData);
 
                     <v-col cols="12" sm="5" class="text-center">
                       <div style="height: 250px; position: relative;">
-                        <Bar :data="targetChartData" :options="targetChartOptions" />
+                        <Bar :data="targetChartData" :options="targetChartOptions as any" />
                       </div>
                     </v-col>
                     <v-col cols="12" sm="7">
@@ -1651,6 +1795,31 @@ watch(chartGroupBy, fetchSalesChartData);
                     </tr>
                   </tbody>
                 </v-table>
+              </v-card-text>
+            </v-card>
+
+            <!-- Laporan Kontribusi Omset -->
+            <v-card v-if="authStore.user?.cabang === 'KDC'" elevation="2" class="mb-4 rounded-lg">
+              <v-card-title class="d-flex align-center bg-teal-lighten-5 py-3">
+                <v-icon class="mr-2" color="teal">mdi-chart-pie</v-icon>
+                <span class="text-subtitle-1 font-weight-bold text-teal-darken-2">
+                  Kontribusi Omset Cabang
+                </span>
+              </v-card-title>
+
+              <v-card-text class="pa-4">
+                <div v-if="isLoadingPerformance" class="text-center pa-8">
+                  <v-progress-circular indeterminate color="teal" size="40" />
+                  <div class="mt-2 text-caption">Menghitung kontribusi...</div>
+                </div>
+
+                <div v-else-if="branchPerformances.length === 0" class="text-center py-8 text-grey">
+                  Belum ada data penjualan.
+                </div>
+
+                <div v-else style="height: 300px; position: relative;">
+                  <Pie :data="branchDistributionData" :options="pieChartOptions" />
+                </div>
               </v-card-text>
             </v-card>
           </v-col>
@@ -2044,6 +2213,38 @@ watch(chartGroupBy, fetchSalesChartData);
 
   .landing-container .text-h5 {
     font-size: 1.25rem !important;
+  }
+}
+
+/* Style untuk input tanggal native agar seragam dengan Vuetify */
+.date-native-input {
+  border: none;
+  outline: none;
+  color: #424242;
+  font-family: inherit;
+  font-size: 0.875rem;
+  width: 110px;
+  cursor: pointer;
+}
+
+/* Style khusus untuk toggle chart type agar tidak ada border ganda */
+.chart-type-toggle {
+  border: none !important;
+  height: 32px !important;
+}
+
+.gap-3 {
+  gap: 12px;
+}
+
+/* Responsive adjustment */
+@media (max-width: 600px) {
+  .filter-bar {
+    align-items: stretch !important;
+  }
+
+  .filter-input-select {
+    width: 100% !important;
   }
 }
 </style>

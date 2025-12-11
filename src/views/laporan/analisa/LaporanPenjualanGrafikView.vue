@@ -136,7 +136,7 @@ onMounted(async () => {
         </v-card>
 
         <div style="position: relative; flex-grow: 1;">
-          <component :is="ChartComponent" :data="chartData" :options="chartOptions" />
+          <component :is="ChartComponent" :data="chartData" :options="chartOptions as any" />
         </div>
       </div>
     </div>

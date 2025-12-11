@@ -33,7 +33,8 @@ interface Item {
   kode?: string;
   nama?: string;
   ukuran?: string;
-  stok?: number;
+  stok?: number;         // Stok Fisik (Showroom)
+  stokPesanan?: number;  // Stok Pesanan (SO) [BARU]
   qtyso?: number;
   jumlah: number;
   harga?: number;
@@ -92,6 +93,8 @@ interface ProductInput {
   nama: string;
   ukuran: string;
   stok: number;
+  stokFisik?: number;   // [BARU]
+  stokPesanan?: number; // [BARU]
   harga: number;
   barcode: string;
   kategori: string;
@@ -155,7 +158,8 @@ interface SoItem {
   ukuran_dtf?: string;
   custom_json?: string;
   ukuran_asli?: string;
-  stok?: number;
+  stokFisik?: number;         // Stok Fisik (Showroom)
+  stokPesanan?: number;  // Stok Pesanan (SO) [BARU]
   qtyso?: number;
   harga?: number;
   diskonPersen?: number;
@@ -328,7 +332,8 @@ const tableHeaders = [
   { title: 'Kode Barang', key: 'kode', width: '120px' },
   { title: 'Nama Barang', key: 'nama', minWidth: '250px' }, // ubah ke minWidth
   { title: 'Ukuran', key: 'ukuran', width: '50px' },
-  { title: 'Stok', key: 'stok', align: 'end', width: '60px' },
+  { title: 'Stok Fisik', key: 'stok', align: 'end', width: '80px' },
+  { title: 'Stok Pesan', key: 'stokPesanan', align: 'end', width: '80px' },
   { title: 'Qty SO', key: 'qtyso', align: 'end', width: '60px' },
   { title: 'Jumlah', key: 'jumlah', align: 'end', width: '70px' },
   { title: 'Harga', key: 'harga', align: 'end', width: '80px' },
@@ -830,7 +835,8 @@ const onSoSelected = async (so: { Nomor: string }) => {
         kode: item.kode ?? "",
         nama: item.nama ?? "",
         ukuran: ukuranFinal,                 // 🔥 FIX UTAMA
-        stok: item.stok ?? 0,
+        stok: Number(item.stokFisik || 0),       // Masuk ke kolom Stok Fisik
+        stokPesanan: Number(item.stokPesanan || 0), // Masuk ke kolom Stok Pesan
         qtyso: item.qtyso ?? 0,
         jumlah: item.qtyso ?? 0,
         harga: item.harga ?? 0,
@@ -881,7 +887,6 @@ const onProductsSelected = (selectedProducts: ProductInput[]) => {
   const currentLevel = String(header.customer.level_kode || '1').trim();
 
   const newItems: Item[] = selectedProducts.map(product => {
-
     // Default: Selalu gunakan 'harga' (yang isinya brgd_harga atau 33333)
     let basePrice = Number(product.harga || 0);
 
@@ -905,7 +910,8 @@ const onProductsSelected = (selectedProducts: ProductInput[]) => {
       kode: product.kode,
       nama: product.nama,
       ukuran: product.ukuran,
-      stok: product.stok,
+      stok: Number(product.stokFisik || 0),       // Stok Fisik
+      stokPesanan: Number(product.stokPesanan || 0), // Stok Pesanan
 
       harga: finalPrice,
       jumlah: 1,
@@ -1457,54 +1463,73 @@ const executeSaveMarketplace = async () => {
 const checkStokMinus = (): Promise<boolean> => {
   return new Promise((resolve) => {
     const validItems = items.value.filter(i => i.kode);
+
     const itemsMinus = validItems.filter(item => {
       const kodeUp = item.kode?.toUpperCase() || '';
 
-      // [FIX] Anggap FILE (Design) sama seperti JASA -> Tidak perlu cek stok
+      // 1. Cek Pengecualian (JASA, FILE, SO-DTF tidak cek stok)
       const isNonStock = kodeUp.startsWith("JASA") || kodeUp.includes("FILE");
 
-      return (
-        !isNonStock &&
-        (item.jumlah || 0) > (item.stok || 0) &&
-        item.kategori !== 'SO-DTF' && // Asumsi item SO DTF boleh minus
-        !item.noSoDtf // Dobel cek jika item dari SO DTF
-      );
+      if (isNonStock || item.kategori === 'SO-DTF' || item.noSoDtf) {
+        return false;
+      }
+
+      // 2. Logika Validasi Stok Berdasarkan Konteks
+      const qty = item.jumlah || 0;
+
+      if (header.nomorSo) {
+        // Konteks SO: Cek terhadap Stok Pesanan
+        return qty > (item.stokPesanan || 0);
+      } else {
+        // Konteks Langsung: Cek terhadap Stok Fisik
+        return qty > (item.stok || 0);
+      }
     });
 
     if (itemsMinus.length > 0) {
       const itemNames = itemsMinus.map(i => `${i.nama} (${i.ukuran})`).join(', ');
 
-      // Gunakan dialog konfirmasi yang sudah ada
+      // Tentukan jenis stok untuk pesan konfirmasi agar user paham
+      const jenisStok = header.nomorSo ? 'Pesanan' : 'Fisik';
+
       showConfirmation(
         'Konfirmasi Stok Minus',
-        `Stok untuk item (${itemNames}) akan minus. Yakin akan melanjutkan?`,
-        () => resolve(true) // Jika "Ya", resolve true
+        `Stok ${jenisStok} untuk item (${itemNames}) akan minus. Yakin akan melanjutkan?`,
+        () => resolve(true)
       );
 
-      // Kita perlu cara untuk mendeteksi 'Batal'.
-      // Kita akan tambahkan watcher sementara.
+      // Watcher untuk tombol Batal/Tutup Dialog
       const unwatch = watch(() => dialogConfirm.show, (newValue) => {
-        if (!newValue) { // Jika dialog ditutup
+        if (!newValue) {
           unwatch();
-          // Jika onConfirm tidak dipanggil, 'pendingAction' akan null
+          // Jika onConfirm masih ada (belum dijalankan), berarti user klik batal/tutup
           if (dialogConfirm.onConfirm) {
-            // 'onConfirm' sudah di-set, artinya 'Ya' sudah ditekan.
+            // do nothing or handle cancel specifics
           } else {
-            resolve(false); // Dialog ditutup tanpa konfirmasi (Batal)
+            // Dialog confirm sudah tereksekusi (resolve true), kalau belum berarti batal
+            resolve(false);
+          }
+
+          // Fallback aman: jika user menutup dialog tanpa klik "Ya", kita anggap batal
+          // (Logic watcher Anda sebelumnya agak kompleks, ini penyederhanaan yang aman)
+          // Namun kita ikuti pola yang sudah ada:
+          if (!dialogConfirm.onConfirm) {
+            // Jika onConfirm sudah null, berarti sudah diklik Ya
+          } else {
+            resolve(false);
           }
         }
       });
 
-      // Reset onConfirm setelah 'showConfirmation'
-      // agar kita bisa deteksi 'Batal'
+      // Wrap onConfirm lama agar watcher bisa bersih
+      const originalOnConfirm = dialogConfirm.onConfirm;
       dialogConfirm.onConfirm = () => {
-        resolve(true);
-        // Hapus watcher
+        originalOnConfirm(); // Panggil resolve(true) yang dipassing showConfirmation
         unwatch();
       };
 
     } else {
-      resolve(true); // Tidak ada stok minus, lanjut
+      resolve(true);
     }
   });
 };
@@ -1676,15 +1701,27 @@ const resetForm = async () => {
 const getQtyClass = (item: Item) => {
   const kodeUp = item.kode?.toUpperCase() || '';
 
-  // [FIX] Jangan merah kalau JASA atau FILE
-  if (kodeUp.startsWith("JASA") || kodeUp.includes("FILE")) return '';
+  // [FIX] Pengecualian Global:
+  // JASA, FILE, dan SO-DTF (item yg punya noSoDtf) TIDAK PERLU warnai merah
+  const isNonStock =
+    kodeUp.startsWith("JASA") ||
+    kodeUp.includes("FILE") ||
+    !!item.noSoDtf ||              // <--- Tambahan Penting
+    item.kategori === 'SO-DTF';    // <--- Tambahan Penting
 
-  if (!item.noSoDtf && (item.stok || 0) < (item.jumlah || 0)) {
-    return 'text-red font-weight-bold';
+  if (isNonStock) return '';
+
+  // [FIX] Warna merah sesuai konteks
+  if (header.nomorSo) {
+    // Konteks SO: Cek Stok Pesanan
+    if ((item.stokPesanan || 0) < (item.jumlah || 0)) return 'text-red font-weight-bold';
+  } else {
+    // Konteks Fisik: Cek Stok Fisik
+    if ((item.stok || 0) < (item.jumlah || 0)) return 'text-red font-weight-bold';
   }
+
   return '';
 };
-
 
 const isHargaEditable = (item: Item) => {
   // Bisa diedit hanya kalau row ini memang ditandai editable
@@ -1787,9 +1824,9 @@ const loadDataForEdit = async (nomor: string) => {
         total: it.total, // Gunakan total dari backend agar akurat
 
         barcode: it.barcode || "",
-        stok: it.stok || 0,
+        stok: it.stok || 0,        // Fisik
+        stokPesanan: it.stokSO || 0, // Pesanan
         qtyso: it.qtySO || 0,
-        stokSO: it.stokSO || 0,
 
         kategori: it.kategori || '', // [FIX] Map kategori dari backend ('REGULER', etc)
 

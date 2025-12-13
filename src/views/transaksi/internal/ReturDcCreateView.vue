@@ -293,6 +293,8 @@ const save = () => {
 };
 
 const executeSave = async () => {
+  if (isSaving.value) return;
+
   if (!canSave.value) {
     toast.error('Anda tidak memiliki izin untuk menyimpan data ini.');
     isSaving.value = false; // Pastikan loading dihentikan

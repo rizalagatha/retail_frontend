@@ -1293,13 +1293,13 @@ const handleProceedToPayment = async () => {
   // Jika promo Grand Opening sedang terpilih, jalankan ulang perhitungan
   // untuk menangkap item baru yang ditambahkan setelah batal bayar.
   if (header.nomorPromo === 'PRO-2025-004') {
-     // Panggil fungsi existing yang mengambil aturan valid dari backend
-     // Fungsi ini akan mengecek item yang belum 'terhitungPromo'
-     // dan menerapkan diskon (2000 utk Jersey, 10% utk lainnya, dll)
-     await applyPromoToItems('PRO-2025-004');
+    // Panggil fungsi existing yang mengambil aturan valid dari backend
+    // Fungsi ini akan mengecek item yang belum 'terhitungPromo'
+    // dan menerapkan diskon (2000 utk Jersey, 10% utk lainnya, dll)
+    await applyPromoToItems('PRO-2025-004');
 
-     // Pastikan total terupdate di UI sebelum modal muncul
-     calculateTotals();
+    // Pastikan total terupdate di UI sebelum modal muncul
+    calculateTotals();
   }
   // ============================================================
 

@@ -1358,6 +1358,10 @@ const onPriceProposalSelected = async (proposal: { nomor: string }) => {
 };
 
 const applyDefaultDiscount = async () => {
+  if (header.value.nomorPromo) {
+    footer.value.diskonPersen1 = 0; // Paksa reset diskon member
+    return; // Stop, jangan lanjut ke logic level
+  }
   if (!header.value.customer) return;
   if (!header.value.levelKode) return;
 
@@ -1828,6 +1832,9 @@ const onPromoSelected = (promo: { nomor: string, namaPromo: string }) => {
     showConfirmation(() => {
       header.value.nomorPromo = promo.nomor;
       header.value.namaPromo = promo.namaPromo;
+      footer.value.diskonPersen1 = 0; // Hapus diskon member
+      footer.value.diskonPersen2 = 0;
+      footer.value.diskonRp = 0;      // Hapus diskon manual/bulanan
       items.value = []; // Kosongkan grid
       addNewRow();
       dialogs.promoSearch = false;
@@ -1836,6 +1843,9 @@ const onPromoSelected = (promo: { nomor: string, namaPromo: string }) => {
   } else {
     header.value.nomorPromo = promo.nomor;
     header.value.namaPromo = promo.namaPromo;
+    footer.value.diskonPersen1 = 0; // Hapus diskon member
+    footer.value.diskonPersen2 = 0;
+    footer.value.diskonRp = 0;      // Hapus diskon manual/bulanan
     dialogs.promoSearch = false;
   }
 };

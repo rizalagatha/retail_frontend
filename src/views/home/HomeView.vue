@@ -34,12 +34,12 @@ interface SalesChartItem {
   tanggal: string; // format ISO dari backend
   total: number;
 }
-interface BarDataset {
-  label: string;
-  backgroundColor: string;
-  data: number[];
-  borderRadius?: number; // optional
-}
+// interface BarDataset {
+//   label: string;
+//   backgroundColor: string;
+//   data: number[];
+//   borderRadius?: number; // optional
+// }
 interface PiutangBreakdown {
   cabang_kode: string;
   cabang_nama: string;
@@ -167,6 +167,9 @@ const isLoadingActions = ref(true);
 
 const topProducts = ref([]);
 const isLoadingTopProducts = ref(true);
+// [BARU] State untuk Filter Top Products
+const topProductsCabang = ref('ALL'); // Default ALL untuk KDC
+const topProductsList = ref([]); // State data produk (sesuaikan nama variabel anda, misal `topProducts`)
 
 const salesTargetSummary = ref({ nominal: 0, target: 0 });
 const isLoadingSalesTarget = ref(true);
@@ -186,6 +189,12 @@ const isLoadingPromo = ref(false);
 
 const itemTrendData = ref<ItemTrend[]>([]);
 const isLoadingItemTrend = ref(false);
+
+// [BARU] State untuk Stok Kosong Reguler
+const stokKosongList = ref([]);
+const isLoadingStokKosong = ref(false);
+const searchStokKosong = ref('');
+let searchStokKosongTimeout: ReturnType<typeof setTimeout>;
 
 const itemTrendHeaders = [
   { title: 'Nama Barang', key: 'nama', width: '40%' }, // Beri porsi lebar lebih besar
@@ -690,14 +699,23 @@ const fetchPendingActions = async () => {
 const fetchTopProducts = async () => {
   isLoadingTopProducts.value = true;
   try {
-    const response = await api.get('/dashboard/top-products');
-    topProducts.value = response.data;
+    const response = await api.get('/dashboard/top-products', {
+      params: {
+        // Kirim parameter cabang jika user KDC
+        cabang: authStore.user?.cabang === 'KDC' ? topProductsCabang.value : undefined
+      }
+    });
+    topProducts.value = response.data; // Simpan ke state existing
   } catch (error) {
     toast.error('Gagal memuat data produk terlaris.', error);
   } finally {
     isLoadingTopProducts.value = false;
   }
-}
+};
+
+watch(topProductsCabang, () => {
+  fetchTopProducts();
+});
 
 const fetchSalesTargetSummary = async () => {
   isLoadingSalesTarget.value = true;
@@ -902,6 +920,29 @@ const getTrendColor = (item: ItemTrend) => {
   return 'grey';
 };
 
+// [BARU] Function Fetch Data
+const fetchStokKosong = async () => {
+  isLoadingStokKosong.value = true;
+  try {
+    const response = await api.get('/dashboard/stok-kosong', {
+      params: { q: searchStokKosong.value }
+    });
+    stokKosongList.value = response.data.data || [];
+  } catch (error) {
+    console.error("Gagal memuat stok kosong:", error);
+  } finally {
+    isLoadingStokKosong.value = false;
+  }
+};
+
+// [BARU] Watcher untuk Pencarian (Debounce)
+watch(searchStokKosong, (newVal) => {
+  clearTimeout(searchStokKosongTimeout);
+  searchStokKosongTimeout = setTimeout(() => {
+    fetchStokKosong();
+  }, 500); // Delay 500ms agar tidak spam API saat mengetik
+});
+
 onMounted(() => {
   if (authStore.isAuthenticated) {
     fetchActivePromos();
@@ -920,6 +961,7 @@ onMounted(() => {
       fetchBranchPerformance();
       fetchStockBreakdown();
       fetchItemSalesTrend();
+      fetchStokKosong();
     }
     fetchTotalPiutang();
     fetchPiutangBreakdown();
@@ -1510,6 +1552,70 @@ watch(chartGroupBy, fetchSalesChartData);
               </v-card-text>
             </v-card>
 
+            <!-- Stok Kosong List -->
+            <v-card elevation="2" class="mb-4">
+              <v-card-title
+                class="d-flex flex-column flex-sm-row align-start align-sm-center bg-red-lighten-5 py-3 gap-2">
+                <div class="d-flex align-center">
+                  <v-icon class="mr-2" color="red">mdi-close-octagon-outline</v-icon>
+                  <span class="text-h6">Stok Kosong (Reguler)</span>
+                </div>
+
+                <v-spacer></v-spacer>
+
+                <div style="width: 200px; max-width: 100%;">
+                  <v-text-field v-model="searchStokKosong" density="compact" variant="outlined" label="Cari Barang..."
+                    prepend-inner-icon="mdi-magnify" hide-details bg-color="white" single-line
+                    class="text-caption"></v-text-field>
+                </div>
+              </v-card-title>
+
+              <v-card-text class="pa-0">
+                <div v-if="isLoadingStokKosong" class="text-center pa-6">
+                  <v-progress-circular indeterminate color="red" size="32" />
+                  <div class="mt-2 text-caption">Mencari data...</div>
+                </div>
+
+                <div v-else-if="stokKosongList.length === 0" class="text-center pa-6 text-grey">
+                  <v-icon size="40" class="mb-2">mdi-package-variant</v-icon>
+                  <div>Tidak ada data stok kosong.</div>
+                </div>
+
+                <v-list v-else bg-color="transparent" class="scrollable-list"
+                  style="max-height: 300px; overflow-y: auto;">
+                  <v-list-item v-for="(item, index) in stokKosongList" :key="item.kode + item.ukuran"
+                    class="px-3 py-2 border-b" lines="two">
+                    <template #prepend>
+                      <v-avatar color="red-lighten-4" size="36" class="mr-3 text-red-darken-4 font-weight-bold">
+                        {{ item.ukuran }}
+                      </v-avatar>
+                    </template>
+
+                    <v-list-item-title class="font-weight-bold text-body-2 mb-1 text-wrap">
+                      {{ item.nama_barang }}
+                    </v-list-item-title>
+
+                    <v-list-item-subtitle class="d-flex align-center text-caption">
+                      <v-chip size="x-small" label class="mr-2" color="grey-lighten-3">
+                        <span class="text-grey-darken-3 font-weight-bold">{{ item.kode }}</span>
+                      </v-chip>
+                      <span v-if="item.barcode">
+                        <v-icon size="x-small" start>mdi-barcode</v-icon> {{ item.barcode }}
+                      </span>
+                    </v-list-item-subtitle>
+
+                    <template #append>
+                      <div class="d-flex flex-column align-end">
+                        <v-chip color="red" size="x-small" variant="flat" class="font-weight-bold">
+                          0 pcs
+                        </v-chip>
+                      </div>
+                    </template>
+                  </v-list-item>
+                </v-list>
+              </v-card-text>
+            </v-card>
+
             <!-- Recent Transactions -->
             <v-card class="mb-4" elevation="2">
               <v-card-title class="d-flex align-center justify-space-between bg-green-lighten-5">
@@ -1690,18 +1796,27 @@ watch(chartGroupBy, fetchSalesChartData);
 
             <!-- Top Products -->
             <v-card elevation="2" class="mb-4">
-              <v-card-title class="d-flex align-center bg-amber-lighten-5">
-                <v-icon class="mr-2" color="amber-darken-2">mdi-star-circle-outline</v-icon>
-                <span class="text-h6">Produk Terlaris (Bulan Ini)</span>
+              <v-card-title class="d-flex align-center bg-amber-lighten-5 py-2 pr-2">
+                <div class="d-flex align-center flex-grow-1">
+                  <v-icon class="mr-2" color="amber-darken-2">mdi-star-circle-outline</v-icon>
+                  <span class="text-h6">Produk Terlaris (Bulan Ini)</span>
+                </div>
+
+                <div v-if="authStore.user?.cabang === 'KDC'" style="width: 150px;">
+                  <v-select v-model="topProductsCabang" :items="[{ kode: 'ALL', nama: 'Semua Cabang' }, ...cabangList]"
+                    item-title="nama" item-value="kode" density="compact" variant="outlined" hide-details
+                    bg-color="white" color="amber-darken-3" class="text-caption font-weight-bold"></v-select>
+                </div>
               </v-card-title>
+
               <v-card-text class="pa-4">
                 <div v-if="isLoadingTopProducts" class="text-center pa-8">
                   <v-progress-circular indeterminate color="amber" size="48"></v-progress-circular>
                 </div>
 
                 <v-list v-else bg-color="transparent" style="max-height: 300px; overflow-y: auto;">
-                  <v-list-item v-for="(product, index) in topProducts" :key="product.KODE" class="px-2 mb-2"
-                    rounded="lg" border>
+                  <v-list-item v-for="(product, index) in topProducts" :key="product.KODE + product.UKURAN"
+                    class="px-2 mb-2" rounded="lg" border>
                     <template #prepend>
                       <v-avatar :color="index === 0 ? 'amber' : index === 1 ? 'blue-grey-lighten-1' : 'brown-lighten-1'"
                         size="40">
@@ -1709,15 +1824,16 @@ watch(chartGroupBy, fetchSalesChartData);
                       </v-avatar>
                     </template>
 
-                    <v-list-item-title class="font-weight-bold">
+                    <v-list-item-title class="font-weight-bold text-wrap" style="line-height: 1.2; font-size: 0.9rem;">
                       {{ product.NAMA }}
                     </v-list-item-title>
-                    <v-list-item-subtitle class="mt-1">
-                      {{ product.KODE }}
+                    <v-list-item-subtitle class="mt-1 d-flex align-center">
+                      <v-chip size="x-small" class="mr-2">{{ product.KODE }}</v-chip>
+                      <v-chip size="x-small" color="grey-darken-3" variant="flat">{{ product.UKURAN }}</v-chip>
                     </v-list-item-subtitle>
 
                     <template #append>
-                      <v-chip color="primary" size="small" variant="flat" class="font-weight-bold">
+                      <v-chip color="amber-darken-3" size="small" variant="flat" class="font-weight-bold">
                         {{ product.TOTAL?.toLocaleString('id-ID') }} pcs
                       </v-chip>
                     </template>

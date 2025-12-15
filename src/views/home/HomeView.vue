@@ -191,9 +191,10 @@ const itemTrendData = ref<ItemTrend[]>([]);
 const isLoadingItemTrend = ref(false);
 
 // [BARU] State untuk Stok Kosong Reguler
+const searchStokKosong = ref('');
+const stokKosongCabang = ref(''); // To store selected branch for stock filter
 const stokKosongList = ref([]);
 const isLoadingStokKosong = ref(false);
-const searchStokKosong = ref('');
 let searchStokKosongTimeout: ReturnType<typeof setTimeout>;
 
 const itemTrendHeaders = [
@@ -924,8 +925,15 @@ const getTrendColor = (item: ItemTrend) => {
 const fetchStokKosong = async () => {
   isLoadingStokKosong.value = true;
   try {
+    // Determine which branch to send.
+    // If KDC, use the dropdown value. If Store, backend handles it (defaults to their branch).
+    const cabangParam = authStore.user?.cabang === 'KDC' ? stokKosongCabang.value : undefined;
+
     const response = await api.get('/dashboard/stok-kosong', {
-      params: { q: searchStokKosong.value }
+      params: {
+        q: searchStokKosong.value,
+        cabang: cabangParam
+      }
     });
     stokKosongList.value = response.data.data || [];
   } catch (error) {
@@ -935,12 +943,17 @@ const fetchStokKosong = async () => {
   }
 };
 
-// [BARU] Watcher untuk Pencarian (Debounce)
+// [NEW] Watcher for Branch Dropdown
+watch(stokKosongCabang, () => {
+  fetchStokKosong();
+});
+
+// Existing Watcher for Search
 watch(searchStokKosong, (newVal) => {
   clearTimeout(searchStokKosongTimeout);
   searchStokKosongTimeout = setTimeout(() => {
     fetchStokKosong();
-  }, 500); // Delay 500ms agar tidak spam API saat mengetik
+  }, 500);
 });
 
 onMounted(() => {
@@ -961,12 +974,12 @@ onMounted(() => {
       fetchBranchPerformance();
       fetchStockBreakdown();
       fetchItemSalesTrend();
-      fetchStokKosong();
     }
     fetchTotalPiutang();
     fetchPiutangBreakdown();
     fetchPiutangByInvoice();
     fetchTotalStock();
+    fetchStokKosong();
   }
 
   intervalId = window.setInterval(() => {
@@ -1555,18 +1568,25 @@ watch(chartGroupBy, fetchSalesChartData);
             <!-- Stok Kosong List -->
             <v-card elevation="2" class="mb-4">
               <v-card-title
-                class="d-flex flex-column flex-sm-row align-start align-sm-center bg-red-lighten-5 py-3 gap-2">
-                <div class="d-flex align-center">
+                class="d-flex flex-column flex-sm-row align-start align-sm-center bg-red-lighten-5 py-2 gap-2 pr-2">
+                <div class="d-flex align-center flex-grow-1">
                   <v-icon class="mr-2" color="red">mdi-close-octagon-outline</v-icon>
                   <span class="text-h6">Stok Kosong (Reguler)</span>
                 </div>
 
-                <v-spacer></v-spacer>
+                <div class="d-flex align-center gap-2 w-100 w-sm-auto" style="max-width: 400px;">
 
-                <div style="width: 200px; max-width: 100%;">
-                  <v-text-field v-model="searchStokKosong" density="compact" variant="outlined" label="Cari Barang..."
-                    prepend-inner-icon="mdi-magnify" hide-details bg-color="white" single-line
-                    class="text-caption"></v-text-field>
+                  <div v-if="authStore.user?.cabang === 'KDC'" style="width: 140px;">
+                    <v-select v-model="stokKosongCabang" :items="cabangList" item-title="nama" item-value="kode"
+                      density="compact" variant="outlined" hide-details bg-color="white" placeholder="Pilih Cabang"
+                      class="text-caption"></v-select>
+                  </div>
+
+                  <div class="flex-grow-1">
+                    <v-text-field v-model="searchStokKosong" density="compact" variant="outlined" label="Cari Barang..."
+                      prepend-inner-icon="mdi-magnify" hide-details bg-color="white" single-line
+                      class="text-caption"></v-text-field>
+                  </div>
                 </div>
               </v-card-title>
 
@@ -1579,6 +1599,9 @@ watch(chartGroupBy, fetchSalesChartData);
                 <div v-else-if="stokKosongList.length === 0" class="text-center pa-6 text-grey">
                   <v-icon size="40" class="mb-2">mdi-package-variant</v-icon>
                   <div>Tidak ada data stok kosong.</div>
+                  <div v-if="authStore.user?.cabang === 'KDC' && !stokKosongCabang" class="text-caption text-red mt-1">
+                    *Pilih cabang untuk melihat stok spesifik.
+                  </div>
                 </div>
 
                 <v-list v-else bg-color="transparent" class="scrollable-list"
@@ -1596,8 +1619,8 @@ watch(chartGroupBy, fetchSalesChartData);
                     </v-list-item-title>
 
                     <v-list-item-subtitle class="d-flex align-center text-caption">
-                      <v-chip size="x-small" label class="mr-2" color="grey-lighten-3">
-                        <span class="text-grey-darken-3 font-weight-bold">{{ item.kode }}</span>
+                      <v-chip size="x-small" label class="mr-2 text-grey-darken-3" color="grey-lighten-3">
+                        {{ item.kode }}
                       </v-chip>
                       <span v-if="item.barcode">
                         <v-icon size="x-small" start>mdi-barcode</v-icon> {{ item.barcode }}
@@ -1607,7 +1630,7 @@ watch(chartGroupBy, fetchSalesChartData);
                     <template #append>
                       <div class="d-flex flex-column align-end">
                         <v-chip color="red" size="x-small" variant="flat" class="font-weight-bold">
-                          0 pcs
+                          {{ item.stok_akhir }} pcs
                         </v-chip>
                       </div>
                     </template>

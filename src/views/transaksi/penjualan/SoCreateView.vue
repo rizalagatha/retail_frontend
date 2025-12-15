@@ -761,7 +761,7 @@ const openPriceProposalSearch = (index: number) => {
 
 // [UBAH] Tambahkan 'async' pada definisi fungsi
 const save = async () => {
-  // --- 1. Validasi Dasar (Migrasi dari Delphi) ---
+  // --- 1. Validasi Dasar (Sama seperti sebelumnya) ---
   if (!authStore.can(MENU_ID, requiredPermission.value)) {
     toast.error('Anda tidak memiliki izin untuk menyimpan data ini.');
     return;
@@ -790,92 +790,92 @@ const save = async () => {
       toast.error(`Jumlah untuk barang '${item.nama}' harus diisi dan lebih dari 0.`);
       return;
     }
-    // Pengecekan harga 0 (boleh 0 jika promo/bonus)
+    // Pengecekan harga 0 (boleh 0 jika promo/bonus/terhitungPromo)
     if ((item.harga === null || item.harga < 0) && !item.terhitungPromo) {
       toast.error(`Harga untuk barang '${item.nama}' harus diisi.`);
       return;
     }
   }
 
-  // --- 2. Integrasi Logika Promo Otomatis (Baru) ---
-  try {
-    // Cari promo yang sedang aktif dari list (pastikan fetchActivePromos sudah jalan di onMounted)
-    const promo004 = activePromosList.value.find(p => p.pro_nomor === 'PRO-2025-004'); // Grand Opening
-    const promo008 = activePromosList.value.find(p => p.pro_nomor === 'PRO-2025-008'); // Bulanan
-    const promo010 = activePromosList.value.find(p => p.pro_nomor === 'PRO-2025-010'); // Kelipatan
+  // --- 2. Integrasi Logika Promo Otomatis ---
+  // [PERBAIKAN UTAMA]
+  // Bungkus seluruh logika pencarian promo dalam blok ini.
+  // Jika header.nomorPromo SUDAH ADA (misal: PRO-2025-005), logic di dalam blok ini TIDAK AKAN JALAN.
 
-    let promoToApply: ActivePromo | null = null;
-    let promoDiskon = 0;
+  if (!header.value.nomorPromo) {
+    try {
+      // Cari promo yang sedang aktif
+      const promo004 = activePromosList.value.find(p => p.pro_nomor === 'PRO-2025-004'); // Grand Opening
+      const promo008 = activePromosList.value.find(p => p.pro_nomor === 'PRO-2025-008'); // Bulanan
+      const promo010 = activePromosList.value.find(p => p.pro_nomor === 'PRO-2025-010'); // Kelipatan
 
-    // Hitung Total Belanja untuk Kelayakan Promo
-    // 1. Total Reguler (tanpa Jersey, tanpa Custom, tanpa SO DTF) untuk Promo 010
-    const totalReguler = validItems.reduce((sum, item) => {
-      const isJersey = item.nama && item.nama.toUpperCase().includes('JERSEY');
-      if (!isJersey && !item.isCustomOrder && !item.noSoDtf) {
-        return sum + (item.total || 0);
+      let promoToApply: ActivePromo | null = null;
+      let promoDiskon = 0;
+
+      // Hitung Total Belanja untuk Kelayakan Promo
+      const totalReguler = validItems.reduce((sum, item) => {
+        const isJersey = item.nama && item.nama.toUpperCase().includes('JERSEY');
+        if (!isJersey && !item.isCustomOrder && !item.noSoDtf) {
+          return sum + (item.total || 0);
+        }
+        return sum;
+      }, 0);
+
+      const totalBelanja = validItems.reduce((sum, item) => {
+        if (!item.noSoDtf && !item.noPengajuanHarga) return sum + (item.total || 0);
+        return sum;
+      }, 0);
+
+      // Cek Kelayakan Promo Header (Diskon Faktur)
+      if (promo010 && totalReguler >= 250000) {
+        const kelipatan = Math.floor(totalReguler / 250000);
+        promoDiskon = 25000 * kelipatan;
+        promoToApply = promo010;
+      } else if (promo008 && totalBelanja >= promo008.pro_totalrp) {
+        promoDiskon = promo008.pro_disrp * Math.floor(totalBelanja / promo008.pro_totalrp);
+        promoToApply = promo008;
       }
-      return sum;
-    }, 0);
 
-    // 2. Total Belanja Umum (tanpa SO DTF/Pengajuan) untuk Promo 008
-    const totalBelanja = validItems.reduce((sum, item) => {
-      if (!item.noSoDtf && !item.noPengajuanHarga) return sum + (item.total || 0);
-      return sum;
-    }, 0);
-
-    // Cek Kelayakan Promo Header (Diskon Faktur)
-    if (promo010 && totalReguler >= 250000) {
-      // Promo Kelipatan 25rb
-      const kelipatan = Math.floor(totalReguler / 250000);
-      promoDiskon = 25000 * kelipatan;
-      promoToApply = promo010;
-    } else if (promo008 && totalBelanja >= promo008.pro_totalrp) {
-      // Promo Bulanan
-      promoDiskon = promo008.pro_disrp * Math.floor(totalBelanja / promo008.pro_totalrp);
-      promoToApply = promo008;
-    }
-
-    // A. PROMO ITEM (Grand Opening K11 - PRO-2025-004)
-    // Jika gudang K11 dan belum ada promo yg dipilih manual
-    if (promo004 && !header.value.nomorPromo) {
-      if (header.value.gudang.kode === 'K11') {
-        // Terapkan otomatis
+      // A. PROMO ITEM (Grand Opening K11 - PRO-2025-004)
+      if (promo004 && header.value.gudang.kode === 'K11') {
         await applyPromoToItems('PRO-2025-004');
         header.value.nomorPromo = 'PRO-2025-004';
         header.value.namaPromo = promo004.pro_judul;
-        toast.success('Promo Grand Opening (Diskon Item) diterapkan otomatis!');
+        toast.success('Promo Grand Opening diterapkan otomatis!');
+        // Return agar tidak lanjut ke promo B (salah satu saja)
+        // Atau biarkan lanjut jika logic bisnis memperbolehkan tumpuk (biasanya tidak)
       }
-    }
 
-    // B. PROMO HEADER (Potongan Harga Faktur - PRO-2025-008/010)
-    // Jika memenuhi syarat dan belum ada diskon manual yang diinput
-    if (promoToApply && !header.value.nomorPromo) {
-      if (footer.value.diskonRp === 0 && footer.value.diskonPersen1 === 0 && footer.value.diskonPersen2 === 0) {
-        footer.value.diskonRp = promoDiskon;
-        header.value.nomorPromo = promoToApply.pro_nomor;
-        header.value.namaPromo = promoToApply.pro_judul;
+      // B. PROMO HEADER (Potongan Harga Faktur - PRO-2025-008/010)
+      // Hanya jika promoToApply ketemu DAN belum ada promo item (K11) tadi
+      if (promoToApply && !header.value.nomorPromo) {
+        // Cek apakah user sudah input diskon manual?
+        if (footer.value.diskonRp === 0 && footer.value.diskonPersen1 === 0 && footer.value.diskonPersen2 === 0) {
+          footer.value.diskonRp = promoDiskon;
+          header.value.nomorPromo = promoToApply.pro_nomor;
+          header.value.namaPromo = promoToApply.pro_judul;
 
-        await calculateTotals(); // Hitung ulang total
-        toast.success(`Promo ${promoToApply.pro_judul} diterapkan otomatis!`);
+          await calculateTotals();
+          toast.success(`Promo ${promoToApply.pro_judul} diterapkan otomatis!`);
+        }
       }
-    }
 
-  } catch (error) {
-    console.error("Gagal mengecek promo otomatis:", error);
-    // Jangan return, biarkan proses simpan lanjut meski promo error
+    } catch (error) {
+      console.error("Gagal mengecek promo otomatis:", error);
+    }
   }
+  // [ELSE] Jika sudah ada promo (misal PRO-2025-005), kita lewati logic di atas sepenuhnya.
 
   // --- 3. Cek Promo Tebus Murah (Bonus Item) ---
   if (header.value.nomorPromo === 'PRO-2025-002') {
-    // Set data untuk modal dan hentikan proses simpan sementara
     activePromoForBonus.value = { nomor: header.value.nomorPromo, qty: 1 };
     dialogs.promoBonus = true;
     return;
   }
 
-  // --- 4. Validasi DP (Peringatan Saja) ---
+  // --- 4. Validasi DP ---
   if (footer.value.totalDp < footer.value.minimalDp && header.value.statusSo === 'PASIF') {
-    toast.warning('DP di bawah Minimal DP. SO ini akan berstatus PASIF. Minta otorisasi atau lunasi DP agar SO menjadi AKTIF.');
+    toast.warning('DP di bawah Minimal DP. SO ini akan berstatus PASIF.');
   }
 
   // --- 5. Konfirmasi Akhir ---
@@ -2226,7 +2226,7 @@ const stopAndOpenPriceProposal = (index: number) => {
             </v-col>
             <v-col cols="12"><v-text-field label="Keterangan" v-model="header.keterangan" variant="outlined"
                 density="compact" hide-details /></v-col>
-                <v-col cols="4" v-if="!header.isMarketplace">
+            <v-col cols="4" v-if="!header.isMarketplace">
               <v-text-field label="Promo" v-model="header.nomorPromo" @click="dialogs.promoSearch = true"
                 prepend-inner-icon="mdi-ticket-percent" density="compact" hide-details placeholder="F1..." readonly />
             </v-col>

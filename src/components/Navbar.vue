@@ -262,6 +262,7 @@ const menuItems = [
         items: [
           { title: 'Terima STBJ', to: '/gudang-dc/operasional/terima-stbj', icon: 'mdi-inbox-arrow-down' },
           { title: 'Terima dari Gudang Repair', to: '/gudang-dc/operasional/terima-repair', icon: 'mdi-tools' },
+          { title: 'Packing List / Pra-SJ', to: '/gudang-dc/operasional/packing-list', icon: 'mdi-package-variant-closed' },
           { title: 'Surat Jalan ke Store', to: '/gudang-dc/operasional/surat-jalan-store', icon: 'mdi-truck-delivery-outline' },
           { title: 'Pengambilan Barang', to: '/gudang-dc/operasional/ambil-barang', icon: 'mdi-package-up' },
           { title: 'Terima Retur dari Store', to: '/gudang-dc/operasional/terima-rb', icon: 'mdi-package-down' },

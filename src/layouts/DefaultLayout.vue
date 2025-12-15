@@ -21,6 +21,7 @@ const WhatsAppLinkDialog = defineAsyncComponent(() => import('@/components/dialo
 const BufferStockDialog = defineAsyncComponent(() => import('@/components/dialog/BufferStockDialog.vue'));
 const SettingsProcessDialog = defineAsyncComponent(() => import('@/components/dialog/SettingsProcessDialog.vue'));
 const ManualProgramDialog = defineAsyncComponent(() => import('@/components/dialog/ManualProgramDialog.vue'));
+const FaqModal = defineAsyncComponent(() => import('@/components/modal/FaqModal.vue'));
 
 const ChangelogModal = defineAsyncComponent(() => import('@/components/modal/ChangelogModal.vue'));
 
@@ -39,6 +40,8 @@ const latestChanges = ref<(string | { title: string; items: string[] })[]>([]);
 const showChangelog = ref(false);
 const changelogList = ref([]); // Menampung data dari API
 const isChangelogLoading = ref(false);
+
+const showFaq = ref(false);
 
 // State Notifikasi
 const notificationList = ref<{ title: string; count: number; to: string; icon: string; color: string }[]>([]);
@@ -398,6 +401,15 @@ onUnmounted(() => {
           <span :class="numLockOn ? 'text-primary' : 'text-disabled opacity-30'">NUM</span>
         </div>
 
+        <v-tooltip text="Bantuan / FAQ" location="top">
+          <template v-slot:activator="{ props }">
+            <v-btn v-bind="props" icon variant="text" size="small" density="compact" color="teal"
+              @click="showFaq = true">
+              <v-icon size="18">mdi-comment-question-outline</v-icon>
+            </v-btn>
+          </template>
+        </v-tooltip>
+
         <v-slide-x-transition>
           <div v-if="uiStore.hasUnsavedChanges" class="d-flex align-center ml-4 text-warning"
             title="Ada perubahan yang belum disimpan">
@@ -738,6 +750,8 @@ onUnmounted(() => {
     <GlobalUnsavedChangesDialog />
 
     <ChangelogModal v-model="showChangelog" :items="changelogList" :loading="isChangelogLoading" />
+
+    <FaqModal v-model="showFaq" />
   </div>
 </template>
 

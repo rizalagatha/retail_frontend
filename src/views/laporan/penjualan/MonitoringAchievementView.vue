@@ -102,11 +102,29 @@ const weeklyData = ref<WeeklyItem[]>([]);
 const monthlyData = ref<MonthlyItem[]>([]);
 const ytdData = ref<YtdItem[]>([]);
 
+// --- State Baru untuk Input Target ---
+const showTargetDialog = ref(false);
+const isSubmittingTarget = ref(false);
+
 const currentYear = new Date().getFullYear();
 const filters = reactive({
   tahun: currentYear,
   bulan: new Date().getMonth() + 1,
   cabang: authStore.user?.cabang === 'KDC' ? 'ALL' : authStore.user?.cabang,
+});
+// Form Target
+const targetForm = reactive({
+  tahun: currentYear,
+  bulan: new Date().getMonth() + 1,
+  kode_gudang: '',
+
+  // [FIX] Ubah menjadi 4 Minggu Saja
+  weeks: [
+    { minggu: 1, nominal: 0, label: 'Minggu 1 (Tgl 1 - 7)' },
+    { minggu: 2, nominal: 0, label: 'Minggu 2 (Tgl 8 - 14)' },
+    { minggu: 3, nominal: 0, label: 'Minggu 3 (Tgl 15 - 21)' },
+    { minggu: 4, nominal: 0, label: 'Minggu 4 (Tgl 22 - Akhir)' },
+  ]
 });
 
 const yearOptions = [currentYear - 2, currentYear - 1, currentYear, currentYear + 1];
@@ -258,6 +276,14 @@ const ytdTotalSummary = computed<YtdSummary>(() => {
   } as YtdSummary;
 });
 
+// Computed Check Hak Akses (KDC & HARIS)
+const canInputTarget = computed(() => {
+  const user = authStore.user;
+  // Sesuaikan 'user.kode' dengan field ID User di database/store Anda
+  return user?.cabang === 'KDC' && user?.kode === 'HARIS';
+});
+
+// --- Methods ---
 const fetchData = async () => {
   isLoading.value = true;
   try {
@@ -517,6 +543,58 @@ const exportData = () => {
   }
 };
 
+const openTargetDialog = () => {
+  // Reset form saat buka
+  targetForm.tahun = filters.tahun;
+  targetForm.bulan = filters.bulan;
+  targetForm.kode_gudang = ''; // User harus pilih gudang dulu
+  targetForm.weeks.forEach(w => w.nominal = 0);
+  showTargetDialog.value = true;
+};
+
+const saveTarget = async () => {
+  if (!targetForm.kode_gudang) {
+    toast.warning("Silakan pilih cabang terlebih dahulu.");
+    return;
+  }
+
+  isSubmittingTarget.value = true;
+  try {
+    const payload = {
+      tahun: targetForm.tahun,
+      bulan: targetForm.bulan,
+      kode_gudang: targetForm.kode_gudang,
+      targets: targetForm.weeks.map(w => ({
+        minggu: w.minggu,
+        nominal: w.nominal
+      }))
+    };
+
+    await api.post('/monitoring-achievement/save-target', payload);
+
+    toast.success("Target berhasil disimpan!");
+    showTargetDialog.value = false;
+
+    // Refresh data utama jika filter tahun/bulan sama
+    if (filters.tahun === targetForm.tahun && filters.bulan === targetForm.bulan) {
+      fetchData();
+    }
+  } catch (err: unknown) {
+    // Casting error ke tipe AxiosError dengan struktur response yang diharapkan
+    const error = err as AxiosError<{ message: string }>;
+
+    // Sekarang TypeScript mengenali .response.data.message
+    toast.error(error.response?.data?.message || "Gagal menyimpan target.");
+  } finally {
+    isSubmittingTarget.value = false;
+  }
+};
+
+// Hitung total target di form untuk preview
+const totalTargetInput = computed(() => {
+  return targetForm.weeks.reduce((sum, item) => sum + (Number(item.nominal) || 0), 0);
+});
+
 onMounted(() => {
   fetchCabangOptions();
   fetchData();
@@ -541,6 +619,10 @@ watch([filters, activeTab], fetchData, { deep: true });
 <template>
   <PageLayout title="Laporan Monitoring Achievement" :menu-id="MENU_ID">
     <template #header-actions>
+      <v-btn v-if="canInputTarget" size="small" color="primary" prepend-icon="mdi-target" class="mr-2"
+        @click="openTargetDialog">
+        Input Target
+      </v-btn>
       <v-btn size="small" color="teal" prepend-icon="mdi-file-excel" @click="exportData">
         Export
       </v-btn>
@@ -661,8 +743,8 @@ watch([filters, activeTab], fetchData, { deep: true });
                             {{
                               (item[`target_w${w}`] > 0
                                 ? (item[`nominal_w${w}`] / item[`target_w${w}`] * 100)
-                            : 0
-                            ).toFixed(2)
+                                : 0
+                              ).toFixed(2)
                             }}%
                           </v-chip>
                         </td>
@@ -760,6 +842,57 @@ watch([filters, activeTab], fetchData, { deep: true });
         </v-window>
       </div>
     </div>
+
+    <v-dialog v-model="showTargetDialog" max-width="600px" persistent>
+      <v-card>
+        <v-card-title class="bg-primary text-white">
+          Input Target Store
+        </v-card-title>
+        <v-card-text class="pt-4">
+          <v-row dense>
+            <v-col cols="4">
+              <v-select v-model="targetForm.tahun" :items="yearOptions" label="Tahun" density="compact"
+                variant="outlined" />
+            </v-col>
+            <v-col cols="4">
+              <v-select v-model="targetForm.bulan" :items="monthOptions" item-title="title" item-value="value"
+                label="Bulan" density="compact" variant="outlined" />
+            </v-col>
+            <v-col cols="4">
+              <v-select v-model="targetForm.kode_gudang" :items="cabangOptions.filter(c => c.kode !== 'ALL')"
+                item-title="nama" item-value="kode" label="Cabang" density="compact" variant="outlined" />
+            </v-col>
+          </v-row>
+
+          <v-divider class="my-3"></v-divider>
+          <div class="text-subtitle-2 mb-2">Rincian Target Mingguan</div>
+
+          <v-row dense v-for="(week, index) in targetForm.weeks" :key="index">
+            <v-col cols="5" class="d-flex align-center">
+              <span class="text-body-2">{{ week.label }}</span>
+            </v-col>
+            <v-col cols="7">
+              <v-text-field v-model.number="week.nominal" prefix="Rp" type="number" density="compact" variant="outlined"
+                hide-details />
+            </v-col>
+          </v-row>
+
+          <div class="mt-4 p-2 bg-grey-lighten-4 rounded d-flex justify-space-between align-center">
+            <span class="font-weight-bold">Total Target Bulan Ini:</span>
+            <span class="text-h6 text-primary">{{ rupiah(totalTargetInput) }}</span>
+          </div>
+
+        </v-card-text>
+        <v-card-actions>
+          <v-spacer></v-spacer>
+          <v-btn variant="text" @click="showTargetDialog = false">Batal</v-btn>
+          <v-btn color="primary" variant="flat" @click="saveTarget" :loading="isSubmittingTarget">
+            Simpan Target
+          </v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+
   </PageLayout>
 </template>
 

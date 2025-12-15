@@ -8,8 +8,9 @@ import { format } from 'date-fns';
 import PageLayout from '@/components/PageLayout.vue';
 import GudangSearchModal from '@/components/lookup/GudangSearchModal.vue';
 import StoreSearchModal from '@/components/lookup/StoreSearchModal.vue';
-import PermintaanSearchModal from '@/components/lookup/PermintaanSearchModal.vue';
+// import PermintaanSearchModal from '@/components/lookup/PermintaanSearchModal.vue';
 import TerimaRbSearchModal from '@/components/lookup/TerimaRbSearchModal.vue';
+import PackingListSearchModal from '@/components/lookup/PackingListSearchModal.vue';
 import type { AxiosError } from 'axios';
 import type { DataTableHeader } from 'vuetify';
 
@@ -48,6 +49,26 @@ interface SuratJalanItem {
   // tambahkan field lain sesuai data
 }
 
+interface PackingListSourceItem {
+  kode: string;
+  nama: string;
+  ukuran: string;
+  stok: number | string;
+  stokmin: number | string;
+  stokmax: number | string;
+  sudah: number | string;
+  minta: number | string;
+  jumlah: number | string;
+  barcode: string;
+}
+
+interface PackingListSelection {
+  Nomor: string;
+  Tanggal: string;
+  Keterangan?: string;
+  Status?: string;
+}
+
 // --- Inisialisasi ---
 const route = useRoute();
 const router = useRouter();
@@ -82,6 +103,7 @@ const dialog = reactive({
   permintaanSearch: false,
   terimaRbSearch: false,
   lookup: false,
+  packingListSearch: false,
 });
 
 const dialogConfirm = reactive({
@@ -198,13 +220,6 @@ const openStoreSearch = () => {
   dialog.storeSearch = true;
 };
 
-const openPermintaanSearch = () => {
-  if (!header.store.kode) {
-    return toast.error('Pilih Store terlebih dahulu');
-  }
-  dialog.permintaanSearch = true;
-};
-
 const openTerimaRbSearch = () => {
   dialog.terimaRbSearch = true;
 };
@@ -229,6 +244,57 @@ const onPermintaanSelected = async (permintaan: { nomor: string }) => {
   header.permintaan = permintaan.nomor;
   dialog.permintaanSearch = false;
   await loadItemsFromSource(permintaan.nomor);
+};
+
+// [UBAH] Fungsi Load Items
+const loadItemsFromPackingList = async (nomorPL: string) => {
+  isLoading.value = true;
+  try {
+    const response = await api.get('/surat-jalan-form/load-from-pl', {
+      params: { nomor: nomorPL }
+    });
+
+    const rawItems = response.data as PackingListSourceItem[];
+
+    // Mapping response ke items grid
+    items.value = rawItems.map((item) => ({
+      id: Date.now() + Math.random(),
+      kode: item.kode,
+      nama: item.nama,
+      ukuran: item.ukuran,
+      stok: Number(item.stok),
+
+      // Field Baru (TypeScript sekarang mengenali properti ini)
+      minstok: Number(item.stokmin),
+      maxstok: Number(item.stokmax),
+      sudah: Number(item.sudah),
+      belum: Number(item.minta) - Number(item.sudah),
+
+      minta: Number(item.minta),
+      jumlah: Number(item.jumlah),
+      barcode: item.barcode
+    }));
+
+    addNewRow();
+    toast.success('Item berhasil dimuat dari Packing List.');
+  } catch (error) {
+    console.error(error);
+    toast.error('Gagal memuat item Packing List.');
+  } finally {
+    isLoading.value = false;
+  }
+};
+
+const onPackingListSelected = (pl: PackingListSelection) => {
+  header.permintaan = pl.Nomor; // TypeScript sekarang tahu pl memiliki properti .Nomor
+  dialog.packingListSearch = false;
+
+  // Konfirmasi timpa data
+  showConfirmation(
+    'Load Packing List',
+    'Data item akan diganti dengan isi Packing List. Lanjutkan?',
+    () => loadItemsFromPackingList(pl.Nomor)
+  );
 };
 
 const loadItemsFromSource = async (nomor: string) => {
@@ -281,11 +347,7 @@ const executeSave = async () => {
     const url = router.resolve({ name: 'Cetak Surat Jalan', params: { nomor: nomorSJ } }).href;
     window.open(url, '_blank');
 
-    if (isEditMode.value) {
-      router.push({ name: 'SuratJalanStore' });
-    } else {
-      resetForm();
-    }
+    router.push({ name: 'SuratJalanStore' });
 
   } catch (error: unknown) {
     const axiosError = error as AxiosError<{ message: string }>;
@@ -418,8 +480,10 @@ onMounted(async () => {
                 hide-details />
             </v-col>
             <v-col cols="12">
-              <v-text-field label="No. Permintaan" v-model="header.permintaan" @click="openPermintaanSearch"
-                prepend-inner-icon="mdi-magnify" density="compact" :disabled="isEditMode" hide-details />
+              <v-text-field label="Ref. Packing List" v-model="header.permintaan" append-inner-icon="mdi-magnify"
+                readonly @click="!isEditMode && header.store.kode ? dialog.packingListSearch = true : null"
+                density="compact" hide-details variant="outlined" :disabled="isEditMode || !header.store.kode"
+                placeholder="Pilih Packing List..." />
             </v-col>
             <v-col cols="12">
               <v-textarea label="Keterangan" v-model="header.keterangan" rows="3" variant="outlined" density="compact"
@@ -475,6 +539,8 @@ onMounted(async () => {
       @close="dialog.permintaanSearch = false" @permintaan-selected="onPermintaanSelected" />
     <TerimaRbSearchModal v-if="dialog.terimaRbSearch" @close="dialog.terimaRbSearch = false"
       @terima-rb-selected="onTerimaRbSelected" />
+    <PackingListSearchModal v-if="dialog.packingListSearch" :store-kode="header.store.kode"
+      @close="dialog.packingListSearch = false" @selected="onPackingListSelected" />
 
     <v-dialog v-model="dialogConfirm.show" max-width="400px" persistent>
       <v-card>
@@ -513,13 +579,16 @@ onMounted(async () => {
 }
 
 .desktop-table :deep(thead tr th) {
-  background-color: #0D47A1 !important; /* Biru Tua */
-  color: #ffffff !important;            /* Teks Putih */
+  background-color: #0D47A1 !important;
+  /* Biru Tua */
+  color: #ffffff !important;
+  /* Teks Putih */
   font-weight: bold !important;
   text-transform: uppercase;
   font-size: 11px !important;
   height: 40px !important;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-  border-bottom: none !important; /* Supaya lebih rapi */
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  border-bottom: none !important;
+  /* Supaya lebih rapi */
 }
 </style>

@@ -55,6 +55,9 @@ import MutasiOutPrintView from "@/views/transaksi/mutasi/MutasiOutPrintView.vue"
 import MutasiOutCreateView from "@/views/transaksi/mutasi/MutasiOutCreateView.vue";
 import MintaBarangView from "@/views/transaksi/internal/MintaBarangView.vue";
 import MintaBarangCreateView from "@/views/transaksi/internal/MintaBarangCreateView.vue";
+import PackingListView from "@/views/dc/operasional/PackingListView.vue";
+import PackingListCreateView from "@/views/dc/operasional/PackingListCreateView.vue";
+import PackingListPrintView from "@/views/dc/operasional/PackingListPrintView.vue";
 import SuratJalanView from "@/views/dc/operasional/SuratJalanView.vue";
 import SuratJalanPrintView from "@/views/dc/operasional/SuratJalanPrintView.vue";
 import SuratJalanCreateView from "@/views/dc/operasional/SuratJalanCreateView.vue";
@@ -778,6 +781,50 @@ const routes = [
       title: "Ubah Minta Barang ke DC",
       requiresAuth: true,
       menuId: "37",
+    },
+  },
+  // Di dalam children dari path '/gudang-dc'
+  {
+    path: "/gudang-dc/operasional/packing-list",
+    name: "PackingList",
+    component: PackingListView,
+    meta: {
+      title: "Packing List / Pra-SJ",
+      requiresAuth: true,
+      menuId: "224", // Sesuaikan dengan ID di database
+    },
+  },
+  {
+    path: "/gudang-dc/operasional/packing-list/new",
+    name: "PackingListCreate",
+    // Pastikan file ini dibuat nanti
+    component: PackingListCreateView,
+    meta: {
+      title: "Buat Packing List",
+      requiresAuth: true,
+      menuId: "224",
+    },
+  },
+  {
+    path: "/gudang-dc/operasional/packing-list/edit/:nomor",
+    name: "PackingListEdit",
+    // Menggunakan komponen yang sama dengan Create
+    component: PackingListCreateView,
+    meta: {
+      title: "Ubah Packing List",
+      requiresAuth: true,
+      menuId: "224",
+    },
+  },
+  {
+    path: "/gudang-dc/operasional/packing-list/print/:nomor",
+    name: "PackingListPrint", // <-- Nama route yang dipanggil di CreateView
+    component: PackingListPrintView,
+    meta: {
+      title: "Cetak Packing List",
+      requiresAuth: true,
+      printLayout: true, // Flag untuk layout khusus cetak
+      layout: "PrintLayout",
     },
   },
   {

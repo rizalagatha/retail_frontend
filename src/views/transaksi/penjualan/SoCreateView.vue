@@ -812,17 +812,46 @@ const save = async () => {
       let promoToApply: ActivePromo | null = null;
       let promoDiskon = 0;
 
-      // Hitung Total Belanja untuk Kelayakan Promo
+      // Helper untuk cek barang exclude (Jasa/Custom/DTF)
+      const isExcludedItem = (item: SoItem) => {
+        const namaUp = item.nama?.toUpperCase() || '';
+        const kodeUp = item.kode?.toUpperCase() || '';
+
+        // 1. Cek Jasa / File Design
+        const isJasaOrDesign =
+          item.isJasa ||
+          kodeUp.startsWith('JS') ||
+          kodeUp.startsWith('JASA') ||
+          namaUp.includes('JASA') ||
+          namaUp.includes('DESAIN') ||
+          namaUp.includes('FILE');
+
+        // 2. Cek Custom / DTF / Pengajuan
+        const isCustomOrDtf =
+          item.isCustomOrder ||
+          !!item.noSoDtf ||
+          !!item.noPengajuanHarga;
+
+        return isJasaOrDesign || isCustomOrDtf;
+      };
+
+      // A. Hitung Total untuk Promo Kelipatan (Biasanya Exclude Jersey juga)
       const totalReguler = validItems.reduce((sum, item) => {
         const isJersey = item.nama && item.nama.toUpperCase().includes('JERSEY');
-        if (!isJersey && !item.isCustomOrder && !item.noSoDtf) {
+
+        // Syarat: Bukan Jersey DAN Bukan Item Excluded (Jasa/Custom/DTF)
+        if (!isJersey && !isExcludedItem(item)) {
           return sum + (item.total || 0);
         }
         return sum;
       }, 0);
 
+      // B. Hitung Total Belanja Umum (Bulanan)
       const totalBelanja = validItems.reduce((sum, item) => {
-        if (!item.noSoDtf && !item.noPengajuanHarga) return sum + (item.total || 0);
+        // Syarat: Hanya Item Kaos (Bukan Jasa/Custom/DTF)
+        if (!isExcludedItem(item)) {
+          return sum + (item.total || 0);
+        }
         return sum;
       }, 0);
 
@@ -1918,6 +1947,7 @@ const applyPromoToItems = async (promoNomor: string) => {
 };
 
 // [BARU] Cek Kelayakan Promo Real-time (Untuk Notifikasi)
+// [BARU] Cek Kelayakan Promo Real-time (Untuk Notifikasi)
 const checkRealtimePromoEligibility = () => {
   // Reset notification
   promoNotification.value = '';
@@ -1933,10 +1963,26 @@ const checkRealtimePromoEligibility = () => {
   let message = '';
   let discount = 0;
 
+  // ==========================================
+  // 🔥 HELPER LOGIKA EXCLUDE (SAMA DENGAN SAVE)
+  // ==========================================
+  const isExcludedItem = (item: SoItem) => {
+    const namaUp = item.nama?.toUpperCase() || '';
+    const kodeUp = item.kode?.toUpperCase() || '';
+
+    // Cek Jasa/Desain
+    const isJasaOrDesign = item.isJasa || kodeUp.startsWith('JS') || kodeUp.startsWith('JASA') || namaUp.includes('JASA') || namaUp.includes('DESAIN') || namaUp.includes('FILE');
+    // Cek Custom/DTF/Pengajuan
+    const isCustomOrDtf = item.isCustomOrder || !!item.noSoDtf || !!item.noPengajuanHarga;
+
+    return isJasaOrDesign || isCustomOrDtf;
+  };
+
   // 1. LOGIKA GRAND OPENING (K11)
   if (header.value.gudang.kode === 'K11') {
     const totalGross = validItems.reduce((sum, item) => {
-      if (item.noSoDtf || item.noPengajuanHarga) return sum;
+      // Grand opening K11 biasanya menghitung harga kotor barang non-custom
+      if (isExcludedItem(item)) return sum;
       return sum + ((item.harga || 0) * (item.jumlah || 0));
     }, 0);
 
@@ -1951,18 +1997,20 @@ const checkRealtimePromoEligibility = () => {
     const promo008 = activePromosList.value.find(p => p.pro_nomor === 'PRO-2025-008');
     const promo010 = activePromosList.value.find(p => p.pro_nomor === 'PRO-2025-010');
 
-    // Hitung Total Reguler (Excl Jersey)
+    // Hitung Total Reguler (Excl Jersey & Custom/Jasa)
     const totalReguler = validItems.reduce((sum, item) => {
-      // Asumsi kategori ada di item, jika tidak, logic ini mungkin perlu disesuaikan
-      // atau ambil dari backend saat lookup product
-      if (!item.nama.toUpperCase().includes('JERSEY') && !item.isCustomOrder) {
+      const isJersey = item.nama && item.nama.toUpperCase().includes('JERSEY');
+      if (!isJersey && !isExcludedItem(item)) {
         return sum + (item.total || 0);
       }
       return sum;
     }, 0);
 
+    // Hitung Total Belanja (Excl Custom/Jasa)
     const totalBelanja = validItems.reduce((sum, item) => {
-      if (!item.noSoDtf && !item.noPengajuanHarga) return sum + (item.total || 0);
+      if (!isExcludedItem(item)) {
+        return sum + (item.total || 0);
+      }
       return sum;
     }, 0);
 

@@ -77,6 +77,11 @@ const filters = reactive({
 
 const isSingleSelected = computed(() => selected.value.length === 1);
 
+// [BARU] Hitung Grand Total dari items yang tampil
+const grandTotal = computed(() => {
+  return items.value.reduce((sum, item) => sum + (Number(item.total_bayar) || 0), 0);
+});
+
 // --- Headers ---
 const headers = [
   { title: '', key: 'data-table-expand', width: '50px', sortable: false, fixed: true },
@@ -303,6 +308,17 @@ onMounted(() => {
           :loading="isLoading" show-select show-expand return-object item-value="sh_nomor"
           class="desktop-table elevation-1 header-browse-blue" density="compact" fixed-header
           height="calc(100vh - 220px)" @update:expanded="loadDetails" @click:row="handleRowClick">
+          <template #[`body.append`]>
+            <tr class="sticky-footer bg-grey-lighten-4">
+              <td colspan="7" class="text-right font-weight-bold text-grey-darken-3 pr-4">
+                GRAND TOTAL :
+              </td>
+              <td class="text-right font-weight-black text-primary text-body-2">
+                {{ formatRupiah(grandTotal) }}
+              </td>
+              <td></td>
+            </tr>
+          </template>
           <template #[`item.sh_tanggal`]="{ item }">
             {{ format(new Date(item.sh_tanggal), 'dd-MM-yyyy') }}
           </template>
@@ -405,5 +421,32 @@ onMounted(() => {
 
 .detail-table :deep(tbody tr td) {
   font-size: 11px !important;
+}
+
+/* [BARU] Style untuk Sticky Footer */
+.desktop-table :deep(.v-table__wrapper) {
+  height: 100% !important;
+  scrollbar-width: thin;
+  /* Pastikan wrapper relative agar sticky bekerja terhadap ini */
+  position: relative;
+}
+
+.sticky-footer {
+  position: sticky;
+  bottom: 0;
+  z-index: 5;
+  /* Supaya berada di atas row data biasa */
+  background-color: #f5f5f5 !important;
+  /* Warna background wajib agar tidak transparan */
+  border-top: 2px solid #e0e0e0;
+  box-shadow: 0 -2px 4px rgba(0, 0, 0, 0.05);
+}
+
+.sticky-footer td {
+  /* Pastikan cell juga punya background agar row di belakangnya tertutup */
+  background-color: #f5f5f5 !important;
+  font-size: 12px !important;
+  height: 48px !important;
+  /* Sedikit lebih tinggi biar tegas */
 }
 </style>

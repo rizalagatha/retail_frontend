@@ -937,25 +937,42 @@ watch(filters, () => {
               </td>
             </tr>
           </template>
+          <template #[`body.append`]>
+            <tr class="sticky-footer bg-grey-lighten-4 font-weight-bold text-caption">
+
+              <td class="select-column-spacer"></td>
+
+              <template v-for="header in headers" :key="header.key">
+
+                <td v-if="header.key === 'data-table-expand'" style="width: 50px"></td>
+
+                <td v-else class="px-2 py-2 border-top" :class="`text-${header.align || 'start'}`">
+                  <span v-if="header.key === 'Nomor'" class="text-grey-darken-3 text-body-2 font-weight-black pl-2">
+                    GRAND TOTAL :
+                  </span>
+
+                  <span v-else-if="header.key === 'Nominal'" class="text-primary text-body-2 font-weight-black">
+                    {{ formatRupiah(totalNominal) }}
+                  </span>
+
+                  <span v-else-if="header.key === 'Piutang'" class="text-orange-darken-2 text-body-2 font-weight-black">
+                    {{ formatRupiah(totalPiutang) }}
+                  </span>
+
+                  <span v-else-if="header.key === 'Bayar'" class="text-success text-body-2 font-weight-black">
+                    {{ formatRupiah(totalBayar) }}
+                  </span>
+
+                  <span v-else-if="header.key === 'SisaPiutang'" class="text-red text-body-2 font-weight-black">
+                    {{ formatRupiah(totalSisaPiutang) }}
+                  </span>
+
+                  <span v-else>&nbsp;</span>
+                </td>
+              </template>
+            </tr>
+          </template>
         </AppDataTable>
-        <div class="invoice-footer-summary">
-          <div class="footer-item">
-            <span>Grand Nominal:</span>
-            <strong>{{ formatRupiah(totalNominal) }}</strong>
-          </div>
-          <div class="footer-item">
-            <span>Grand Bayar:</span>
-            <strong>{{ formatRupiah(totalBayar) }}</strong>
-          </div>
-          <div class="footer-item">
-            <span>Grand Piutang:</span>
-            <strong>{{ formatRupiah(totalPiutang) }}</strong>
-          </div>
-          <div class="footer-item">
-            <span>Grand Sisa Piutang:</span>
-            <strong>{{ formatRupiah(totalSisaPiutang) }}</strong>
-          </div>
-        </div>
       </div>
     </div>
 
@@ -1080,25 +1097,6 @@ watch(filters, () => {
   font-size: 0.75rem;
 }
 
-.invoice-footer-summary {
-  position: sticky;
-  bottom: 0;
-  left: 0;
-  width: 100%;
-  background: #f5f5f5;
-  border-top: 2px solid #ccc;
-  padding: 10px 16px;
-  display: flex;
-  gap: 40px;
-  z-index: 20;
-}
-
-.invoice-footer-summary .footer-item {
-  display: flex;
-  gap: 6px;
-  font-size: 14px;
-}
-
 .detail-container {
   display: flex;
   /* UBAH INI: dari flex-end (kanan) menjadi flex-start (kiri) */
@@ -1127,12 +1125,6 @@ watch(filters, () => {
   border-radius: 4px;
   overflow: hidden;
   background-color: white;
-}
-
-.footer-summary {
-  flex-shrink: 0;
-  z-index: 5;
-  /* Pastikan di atas scrollbar jika perlu */
 }
 
 .resizable-header {
@@ -1241,5 +1233,44 @@ watch(filters, () => {
 
 .reset-filter-btn:hover {
   background-color: rgba(211, 47, 47, 0.25) !important;
+}
+
+/* [BARU] Sticky Footer Styles */
+.desktop-table :deep(.v-table__wrapper) {
+  /* Pastikan wrapper relative agar sticky bekerja terhadap container ini */
+  position: relative;
+  /* Pastikan height 100% agar scrollbar muncul di tabel, bukan di page */
+  height: 100% !important;
+  scrollbar-width: thin;
+}
+
+.sticky-footer {
+  position: sticky;
+  bottom: 0;
+  z-index: 5;
+  /* Di atas baris data biasa */
+  background-color: #f5f5f5 !important;
+  box-shadow: 0 -2px 6px rgba(0, 0, 0, 0.08);
+  /* Shadow ke atas agar terlihat ngambang */
+  border-top: 1px solid #bdbdbd;
+}
+
+.sticky-footer td {
+  background-color: #f5f5f5 !important;
+  /* Wajib set bg agar tidak transparan */
+  height: 48px !important;
+  vertical-align: middle;
+}
+
+/* Spacer untuk kolom Checkbox Vuetify */
+.select-column-spacer {
+  background-color: #f5f5f5 !important;
+  width: 48px;
+  /* Lebar default checkbox vuetify */
+  min-width: 48px;
+  position: sticky;
+  left: 0;
+  z-index: 6;
+  /* Agar checkbox spacer tetap di paling kiri jika scroll horizontal */
 }
 </style>

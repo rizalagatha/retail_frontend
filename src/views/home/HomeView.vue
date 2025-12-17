@@ -645,11 +645,19 @@ const fetchPendingActions = async () => {
   isLoadingActions.value = true;
   try {
     const endDate = format(new Date(), 'yyyy-MM-dd');
-    // UBAH: Ambil dari tahun 2000 (Seluruh Waktu)
-    const startDate = '2020-01-01';
+    const startDate = '2020-01-01'; // Seluruh waktu
+
+    // Query string ini HANYA untuk link (redirect), bukan untuk API fetch saat ini
+    // (Kecuali controller backendmu menangkap req.query)
     const dateQuery = `?startDate=${startDate}&endDate=${endDate}`;
 
-    const response = await api.get('/dashboard/pending-actions');
+    // Note: Pastikan API menerima query params jika backendmu diubah dinamis nanti
+    const response = await api.get('/dashboard/pending-actions', {
+        params: { startDate, endDate }
+    });
+
+    // Debugging: Cek apa isi data asli dari backend
+    console.log("Data Pending Actions:", response.data);
     const data = response.data;
 
     const actionsMap = [
@@ -667,9 +675,8 @@ const fetchPendingActions = async () => {
       },
       {
         key: 'invoice_belum_lunas',
-        title: 'Sisa Piutang Invoice', // <-- UBAH JUDUL
+        title: 'Sisa Piutang Invoice',
         icon: 'mdi-receipt-text-clock-outline',
-        // Pastikan filter di halaman Invoice juga mendukung status 'sisa_piutang' jika diperlukan
         to: `/transaksi/penjualan/invoice${dateQuery}&status=sisa_piutang`
       },
       {
@@ -686,12 +693,16 @@ const fetchPendingActions = async () => {
       },
     ];
 
-    pendingActions.value = actionsMap
-      .map(action => ({ ...action, count: data[action.key] }))
-      .filter(action => action.count > 0);
+    // HAPUS FILTER > 0 SEMENTARA
+    // Supaya kita tahu itemnya muncul meski angkanya 0
+    pendingActions.value = actionsMap.map(action => ({
+        ...action,
+        count: data[action.key] || 0 // Default ke 0 jika undefined
+    }));
 
   } catch (error) {
-    toast.error('Gagal memuat data tindakan tertunda.', error);
+    console.error(error); // Log error biar kebaca di inspect element
+    toast.error('Gagal memuat data tindakan tertunda.');
   } finally {
     isLoadingActions.value = false;
   }

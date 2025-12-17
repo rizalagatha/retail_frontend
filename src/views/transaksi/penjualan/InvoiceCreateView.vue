@@ -632,12 +632,25 @@ const onCustomerSelected = async (cust: Customer | null) => {
 };
 
 const applyDefaultDiscount = () => {
-  const rule = customerDiscountRule.value;
-  if (!rule || header.nomorSo) { // Jangan terapkan jika dari SO
+  // [BARU] 1. Pengecekan Customer RETAIL / RETAILER
+  // Pastikan ambil nama customer dengan aman (optional chaining)
+  const custNama = header.customer?.nama?.toUpperCase() || '';
+
+  // Jika customer RETAIL, paksa diskon 0 dan STOP.
+  if (custNama.includes('RETAIL')) {
+    header.diskonPersen1 = 0;
     return;
   }
 
-  // Logika dari Delphi: cek nominal belanja
+  // --- Logika Lama ---
+  const rule = customerDiscountRule.value;
+
+  // Jangan terapkan jika tidak ada rule level atau jika data berasal dari SO (tarikan SO)
+  if (!rule || header.nomorSo) {
+    return;
+  }
+
+  // Logika dari Delphi: cek nominal belanja vs Rule Level
   if (totals.nettoSetelahDiskon >= rule.nominal1) {
     header.diskonPersen1 = rule.diskon1;
   } else if (totals.nettoSetelahDiskon >= rule.nominal2) {

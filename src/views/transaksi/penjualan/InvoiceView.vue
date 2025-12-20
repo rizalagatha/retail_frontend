@@ -203,6 +203,35 @@ const totalSisaPiutang = computed(() =>
   masterData.value.reduce((sum, r) => sum + (Number(r.SisaPiutang) || 0), 0)
 );
 
+const totalRpRetur = computed(() => {
+  return masterData.value.reduce((acc, item) => {
+    // Pastikan konversi ke float aman (handle jika string/null)
+    const val = parseFloat(String(item.RpRetur || 0));
+    return acc + (isNaN(val) ? 0 : val);
+  }, 0);
+});
+
+const totalDiskon = computed(() => {
+  return masterData.value.reduce((acc, item) => {
+    const val = parseFloat(String(item.Diskon || 0));
+    return acc + (isNaN(val) ? 0 : val);
+  }, 0);
+});
+
+const totalDp = computed(() => {
+  return masterData.value.reduce((acc, item) => {
+    const val = parseFloat(String(item.Dp || 0));
+    return acc + (isNaN(val) ? 0 : val);
+  }, 0);
+});
+
+const totalBiayaKirim = computed(() => {
+  return masterData.value.reduce((acc, item) => {
+    const val = parseFloat(String(item.Biayakirim || 0));
+    return acc + (isNaN(val) ? 0 : val);
+  }, 0);
+});
+
 const filteredMasterData = computed(() => {
   let data = [...masterData.value];
 
@@ -951,6 +980,20 @@ watch(filters, () => {
                     GRAND TOTAL :
                   </span>
 
+                  <span v-else-if="header.key === 'Diskon'"
+                    class="text-blue-grey-darken-2 text-body-2 font-weight-black">
+                    {{ formatRupiah(totalDiskon) }}
+                  </span>
+
+                  <span v-else-if="header.key === 'Dp'" class="text-cyan-darken-2 text-body-2 font-weight-black">
+                    {{ formatRupiah(totalDp) }}
+                  </span>
+
+                  <span v-else-if="header.key === 'Biayakirim'"
+                    class="text-teal-darken-3 text-body-2 font-weight-black">
+                    {{ formatRupiah(totalBiayaKirim) }}
+                  </span>
+
                   <span v-else-if="header.key === 'Nominal'" class="text-primary text-body-2 font-weight-black">
                     {{ formatRupiah(totalNominal) }}
                   </span>
@@ -965,6 +1008,10 @@ watch(filters, () => {
 
                   <span v-else-if="header.key === 'SisaPiutang'" class="text-red text-body-2 font-weight-black">
                     {{ formatRupiah(totalSisaPiutang) }}
+                  </span>
+
+                  <span v-else-if="header.key === 'RpRetur'" class="text-brown-darken-1 text-body-2 font-weight-black">
+                    {{ formatRupiah(totalRpRetur) }}
                   </span>
 
                   <span v-else>&nbsp;</span>

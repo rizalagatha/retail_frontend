@@ -16,7 +16,8 @@ import {
   Chart as ChartJS, Title, Tooltip, Legend, BarElement, LineElement,
   PointElement, Filler, CategoryScale, LinearScale, ArcElement
 } from 'chart.js';
-import type { ChartOptions, TooltipItem } from 'chart.js';
+import type { ChartOptions, ChartData, ChartDataset, TooltipItem } from 'chart.js';
+import type { Context } from 'chartjs-plugin-datalabels';
 import ChartDataLabels from 'chartjs-plugin-datalabels';
 import { formatRupiah } from "@/utils/formatRupiah";
 
@@ -153,8 +154,11 @@ const animatedTargetRealization = useGsapNumber(() => salesTargetSummary.value.n
 const animatedStagnant = useGsapNumber(() => stagnantStockValue.value);
 
 // --- [GSAP] 3. ANIMASI LIST (STAGGER) ---
-const onListEnter = (el: any, done: any) => {
-  gsap.fromTo(el,
+const onListEnter = (el: Element, done: () => void) => {
+  // Casting 'el' ke HTMLElement agar bisa mengakses properti .dataset
+  const element = el as HTMLElement;
+
+  gsap.fromTo(element,
     { opacity: 0, x: -30 },
     {
       opacity: 1,
@@ -162,7 +166,9 @@ const onListEnter = (el: any, done: any) => {
       duration: 0.5,
       ease: "power2.out",
       onComplete: done,
-      delay: el.dataset.index * 0.1 // Stagger delay
+      // dataset.index bertipe string, harus dikonversi ke number
+      // '|| 0' digunakan sebagai fallback jika index tidak ditemukan
+      delay: Number(element.dataset.index || 0) * 0.1
     }
   );
 };
@@ -184,9 +190,9 @@ const chartFilters = reactive({
   cabang: authStore.user?.cabang === 'KDC' ? 'ALL' : authStore.user?.cabang || '',
 });
 const cabangList = ref([]);
-const chartData = ref({
+const chartData = ref<ChartData<'bar' | 'line'>>({
   labels: [],
-  datasets: [{ label: 'Penjualan', backgroundColor: '#42A5F5', data: [] }]
+  datasets: [] // Inisialisasi kosong saja, tidak perlu dummy object yang bikin strict
 });
 const isLoadingChart = ref(true);
 const recentTransactions = ref([]);
@@ -328,19 +334,38 @@ const pieChartOptions = {
     legend: { position: 'right' as const, labels: { usePointStyle: true, boxWidth: 10, font: { size: 11 } } },
     tooltip: {
       callbacks: {
-        label: (context: any) => {
-          const total = context.chart._metasets[context.datasetIndex].total;
-          const percentage = ((context.parsed / total) * 100).toFixed(1) + '%';
-          return `${context.label}: ${formatRupiah(context.parsed)} (${percentage})`;
+        label: (context: TooltipItem<'pie'>) => {
+          // Ambil dataset data asli
+          const dataset = context.chart.data.datasets[context.datasetIndex];
+          const dataArray = dataset.data as number[]; // Pastikan tipe data number
+
+          // Hitung total manual
+          const total = dataArray.reduce((acc, curr) => acc + (curr || 0), 0);
+
+          const value = context.parsed;
+          const percentage = ((value / total) * 100).toFixed(1) + '%';
+
+          return `${context.label}: ${formatRupiah(value)} (${percentage})`;
         }
       }
     },
     datalabels: {
-      display: (context: any) => context.dataset.data[context.dataIndex] > 0,
+      // Ganti 'any' dengan 'Context'
+      display: (context: Context) => {
+        const value = context.dataset.data[context.dataIndex];
+        // Pastikan value adalah number sebelum cek > 0
+        return typeof value === 'number' ? value > 0 : false;
+      },
       color: '#fff',
       font: { weight: 'bold' as const, size: 10 },
-      formatter: (value: number, ctx: any) => {
-        const total = ctx.chart._metasets[ctx.datasetIndex].total;
+
+      // Ganti 'ctx: any' dengan 'ctx: Context'
+      formatter: (value: number, ctx: Context) => {
+        // CARA AMAN (Type-Safe): Hitung total manual dari data dataset
+        // Kita casting data ke number[] karena ini Pie Chart
+        const dataArray = ctx.chart.data.datasets[ctx.datasetIndex].data as number[];
+        const total = dataArray.reduce((acc, curr) => acc + (curr || 0), 0);
+
         const percentage = ((value / total) * 100);
         return percentage > 5 ? percentage.toFixed(0) + '%' : '';
       }
@@ -483,18 +508,57 @@ const fetchCabangOptions = async () => {
 const fetchPendingActions = async (isBackground = false) => {
   if (!isBackground) isLoadingActions.value = true;
   try {
-    const endDate = format(new Date(), 'yyyy-MM-dd');
+    // 1. Tentukan Range Tanggal sesuai Backend (Mulai 2020-01-01)
     const startDate = '2020-01-01';
-    const response = await api.get('/dashboard/pending-actions', { params: { startDate, endDate } });
+    const endDate = format(new Date(), 'yyyy-MM-dd'); // Sampai Hari Ini
+
+    // 2. Request ke API
+    const response = await api.get('/dashboard/pending-actions', {
+      params: { startDate, endDate }
+    });
     const data = response.data;
+
+    // 3. Update actionsMap dengan menambahkan Query Params tanggal ke URL ('to')
     const actionsMap = [
-      { key: 'so_open', title: 'Surat Pesanan Open', icon: 'mdi-file-document-edit-outline', to: `/transaksi/penjualan/surat-pesanan?status=open` },
-      { key: 'so_dtf_open', title: 'SO DTF Belum Invoice', icon: 'mdi-printer-alert', to: `/transaksi/penjualan/dtf/so-dtf?status=belum_invoice` },
-      { key: 'invoice_belum_lunas', title: 'Sisa Piutang Invoice', icon: 'mdi-receipt-text-clock-outline', to: `/transaksi/penjualan/invoice?status=sisa_piutang` },
-      { key: 'penawaran_open', title: 'Penawaran Open', icon: 'mdi-handshake-outline', to: `/transaksi/penjualan/penawaran?status=open` },
-      { key: 'pengajuan_harga_pending', title: 'Pengajuan Harga Pending', icon: 'mdi-file-clock-outline', to: `/transaksi/penjualan/pengajuan/pengajuan-harga?status=pending` }
+      {
+        key: 'so_open',
+        title: 'Surat Pesanan Open',
+        icon: 'mdi-file-document-edit-outline',
+        // Tambahkan &startDate=...&endDate=...
+        to: `/transaksi/penjualan/surat-pesanan?status=open&startDate=${startDate}&endDate=${endDate}`
+      },
+      {
+        key: 'so_dtf_open',
+        title: 'SO DTF Belum Invoice',
+        icon: 'mdi-printer-alert',
+        to: `/transaksi/penjualan/dtf/so-dtf?status=belum_invoice&startDate=${startDate}&endDate=${endDate}`
+      },
+      {
+        key: 'invoice_belum_lunas',
+        title: 'Sisa Piutang Invoice',
+        icon: 'mdi-receipt-text-clock-outline',
+        to: `/transaksi/penjualan/invoice?status=sisa_piutang&startDate=${startDate}&endDate=${endDate}`
+      },
+      {
+        key: 'penawaran_open',
+        title: 'Penawaran Open',
+        icon: 'mdi-handshake-outline',
+        to: `/transaksi/penjualan/penawaran?status=open&startDate=${startDate}&endDate=${endDate}`
+      },
+      {
+        key: 'pengajuan_harga_pending',
+        title: 'Pengajuan Harga Pending',
+        icon: 'mdi-file-clock-outline',
+        to: `/transaksi/penjualan/pengajuan/pengajuan-harga?status=pending&startDate=${startDate}&endDate=${endDate}`
+      }
     ];
-    pendingActions.value = actionsMap.map(action => ({ ...action, count: data[action.key] || 0 }));
+
+    // Mapping data count
+    pendingActions.value = actionsMap.map(action => ({
+      ...action,
+      count: data[action.key] || 0
+    }));
+
   } catch (error) {
     console.error('Gagal memuat pending actions:', error);
   } finally {
@@ -617,20 +681,54 @@ const fetchSalesChartData = async (isBackground = false) => {
   if (!isBackground) isLoadingChart.value = true;
   try {
     const response = await api.get('/dashboard/sales-chart', { params: { ...chartFilters, groupBy: chartGroupBy.value } });
+
     const labels = (response.data as SalesChartItem[]).map((d) => {
       const date = new Date(d.tanggal);
       if (chartGroupBy.value === 'month') return format(date, 'MMM yyyy');
       if (chartGroupBy.value === 'week') return `W${format(date, 'ww')}`;
       return format(date, 'dd/MM');
     });
+
     const dataValues = (response.data as SalesChartItem[]).map(d => d.total);
-    let datasetConfig = {};
+
+    // Definisikan tipe datasetConfig sebagai Partial karena 'data' belum dimasukkan
+    let datasetConfig: Partial<ChartDataset<'bar' | 'line'>> = {};
+
     if (chartType.value === 'bar') {
-      datasetConfig = { type: 'bar', label: 'Penjualan (Rp)', backgroundColor: '#42A5F5', borderRadius: 4, barPercentage: 0.6 };
+      datasetConfig = {
+        type: 'bar',
+        label: 'Penjualan (Rp)',
+        backgroundColor: '#42A5F5',
+        borderRadius: 4,
+        barPercentage: 0.6
+      };
     } else {
-      datasetConfig = { type: 'line', label: 'Penjualan (Rp)', borderColor: '#42A5F5', backgroundColor: chartType.value === 'area' ? 'rgba(66, 165, 245, 0.2)' : 'transparent', borderWidth: 3, pointBackgroundColor: '#fff', pointBorderColor: '#42A5F5', pointBorderWidth: 2, pointRadius: 4, pointHoverRadius: 6, fill: chartType.value === 'area', tension: 0.4 };
+      // Logic untuk Line dan Area
+      datasetConfig = {
+        type: 'line',
+        label: 'Penjualan (Rp)',
+        borderColor: '#42A5F5',
+        backgroundColor: chartType.value === 'area' ? 'rgba(66, 165, 245, 0.2)' : 'transparent',
+        borderWidth: 3,
+        pointBackgroundColor: '#fff',
+        pointBorderColor: '#42A5F5',
+        pointBorderWidth: 2,
+        pointRadius: 4,
+        pointHoverRadius: 6,
+        fill: chartType.value === 'area',
+        tension: 0.4
+      };
     }
-    chartData.value = { labels: labels, datasets: [{ data: dataValues, ...datasetConfig } as any] };
+
+    chartData.value = {
+      labels: labels,
+      // [PERBAIKAN] Gunakan tipe ChartDataset[] alih-alih any
+      datasets: [{
+        data: dataValues,
+        ...datasetConfig
+      }] as ChartDataset<'bar' | 'line'>[]
+    };
+
   } catch (error) {
     toast.error('Gagal memuat data grafik penjualan.', error);
   } finally {
@@ -700,7 +798,7 @@ watch(stokKosongCabang, () => {
   fetchStokKosong();
 });
 
-watch(searchStokKosong, (newVal) => {
+watch(searchStokKosong, () => {
   clearTimeout(searchStokKosongTimeout);
   searchStokKosongTimeout = setTimeout(() => {
     fetchStokKosong();

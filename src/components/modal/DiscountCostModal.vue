@@ -410,8 +410,25 @@ const cancel = () => {
 
 <style scoped>
 .dialog-footer {
-  background-color: #f5f5f5;
+  background-color: rgb(var(--v-theme-surface));
+  border-top: 1px solid rgba(var(--v-theme-on-surface), 0.12);
   padding: 8px 12px;
+}
+
+.dialog-footer {
+  background-color: rgb(var(--v-theme-surface));
+  border-top: 1px solid rgba(var(--v-theme-on-surface), 0.12);
+  padding: 8px 12px;
+}
+
+:deep(.v-field),
+:deep(.v-field--variant-outlined),
+:deep(.v-field--variant-filled) {
+  background-color: rgb(var(--v-theme-surface)) !important;
+}
+
+:deep(.v-field--variant-filled .v-field__overlay) {
+  background-color: rgb(var(--v-theme-surface)) !important;
 }
 
 .summary-list .v-list-item {

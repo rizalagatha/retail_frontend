@@ -318,45 +318,49 @@ onMounted(() => {
         <v-card-title class="dialog-header">
           <span class="text-subtitle-1 font-weight-medium">{{ dialogTitle }}</span>
         </v-card-title>
+
         <v-card-text class="pa-4">
           <v-container>
             <v-row>
               <v-col cols="12" md="6">
                 <v-text-field v-model="editedItem.kode" label="Kode" readonly variant="outlined" density="compact"
-                  placeholder="(Otomatis)" hide-details></v-text-field>
-                <v-text-field v-model="editedItem.nama" label="Nama" variant="outlined" density="compact"
-                  hide-details></v-text-field>
+                  placeholder="(Otomatis)" hide-details class="mb-2"></v-text-field>
+                <v-text-field v-model="editedItem.nama" label="Nama" variant="outlined" density="compact" hide-details
+                  class="mb-2"></v-text-field>
                 <v-textarea v-model="editedItem.alamat" label="Alamat" variant="outlined" density="compact" rows="2"
-                  hide-details></v-textarea>
-                <v-text-field v-model="editedItem.kota" label="Kota" variant="outlined" density="compact"
-                  hide-details></v-text-field>
+                  hide-details class="mb-2"></v-textarea>
+                <v-text-field v-model="editedItem.kota" label="Kota" variant="outlined" density="compact" hide-details
+                  class="mb-2"></v-text-field>
                 <v-text-field v-model="editedItem.telp" label="No Telp/Hp" variant="outlined" density="compact"
-                  hide-details></v-text-field>
+                  hide-details class="mb-2"></v-text-field>
                 <v-text-field v-model="editedItem.namaKontak" label="Kontak Person" variant="outlined" density="compact"
-                  hide-details></v-text-field>
+                  hide-details class="mb-2"></v-text-field>
                 <v-text-field v-model="editedItem.tglLahir" label="Tanggal Lahir" type="date" variant="outlined"
-                  density="compact" hide-details></v-text-field>
+                  density="compact" hide-details class="mb-2"></v-text-field>
                 <v-text-field v-model="editedItem.top" label="TOP" type="number" suffix="hari" variant="outlined"
-                  density="compact" hide-details></v-text-field>
+                  density="compact" hide-details class="mb-2"></v-text-field>
                 <v-select v-model="editedItem.level" :items="availableLevels" item-title="nama" item-value="kode"
-                  label="Level" variant="outlined" density="compact" hide-details></v-select>
-                <v-radio-group v-model="editedItem.status" inline label="Status" density="compact" hide-details>
+                  label="Level" variant="outlined" density="compact" hide-details class="mb-2"></v-select>
+                <v-radio-group v-model="editedItem.status" inline label="Status" density="compact" hide-details
+                  class="mb-2">
                   <v-radio label="Aktif" value="AKTIF" color="success"></v-radio>
                   <v-radio label="Pasif" value="PASIF" color="error"></v-radio>
                 </v-radio-group>
               </v-col>
               <v-col cols="12" md="6">
-                <v-text-field v-model="editedItem.npwp" label="NPWP" variant="outlined" density="compact"
-                  hide-details></v-text-field>
+                <v-text-field v-model="editedItem.npwp" label="NPWP" variant="outlined" density="compact" hide-details
+                  class="mb-2"></v-text-field>
                 <v-text-field v-model="editedItem.namaNpwp" label="Nama NPWP" variant="outlined" density="compact"
-                  hide-details></v-text-field>
+                  hide-details class="mb-2"></v-text-field>
                 <v-textarea v-model="editedItem.alamatNpwp" label="Alamat NPWP" variant="outlined" density="compact"
-                  rows="2" hide-details></v-textarea>
+                  rows="2" hide-details class="mb-2"></v-textarea>
                 <v-text-field v-model="editedItem.kotaNpwp" label="Kota NPWP" variant="outlined" density="compact"
-                  hide-details></v-text-field>
-                <h3 class="text-subtitle-2 mt-4 mb-2">History Level</h3>
+                  hide-details class="mb-2"></v-text-field>
+
+                <h3 class="text-subtitle-2 mt-4 mb-2 text-high-emphasis">History Level</h3>
                 <v-data-table :headers="levelHistoryHeaders" :items="levelHistory" density="compact"
-                  class="border rounded-sm">
+                  class="border rounded-sm bg-surface"
+                  style="border-color: rgba(var(--v-border-color), var(--v-border-opacity)) !important;">
                   <template #[`item.no`]="{ index }">
                     {{ index + 1 }}
                   </template>
@@ -368,10 +372,11 @@ onMounted(() => {
             </v-row>
           </v-container>
         </v-card-text>
-        <v-card-actions>
+
+        <v-card-actions class="dialog-footer">
           <v-spacer></v-spacer>
-          <v-btn text @click="dialog = false">Batal</v-btn>
-          <v-btn color="primary" @click="saveCustomer" :loading="isSaving" :disabled="isSaving">
+          <v-btn variant="text" color="grey" @click="dialog = false">Batal</v-btn>
+          <v-btn color="primary" variant="flat" @click="saveCustomer" :loading="isSaving" :disabled="isSaving">
             Simpan
           </v-btn>
         </v-card-actions>
@@ -394,37 +399,57 @@ onMounted(() => {
 /* Dialog Styles */
 .dialog-card {
   font-size: 12px;
+  /* [FIX] Background card ikut tema */
+  background-color: rgb(var(--v-theme-surface));
+  color: rgb(var(--v-theme-on-surface));
 }
 
 .dialog-header {
-  border-bottom: 1px solid #e0e0e0;
+  border-bottom: 1px solid rgba(var(--v-border-color), var(--v-border-opacity));
   padding: 8px 16px;
-  background-color: #f5f5f5;
+  /* [FIX] Background header dialog lebih gelap/terang sedikit dari surface */
+  background-color: rgb(var(--v-theme-background));
 }
 
 .dialog-footer {
-  border-top: 1px solid #e0e0e0;
+  border-top: 1px solid rgba(var(--v-border-color), var(--v-border-opacity));
   padding: 8px 16px;
-  background-color: #f5f5f5;
+  background-color: rgb(var(--v-theme-background));
 }
 
-/* Mengatur font untuk label (Nama, Alamat, dll.) */
+/* Mengatur font untuk label */
 .dialog-card :deep(.v-label) {
   font-size: 11px !important;
+  color: rgba(var(--v-theme-on-surface), 0.7);
 }
 
-/* Mengatur font untuk teks yang diinput */
+/* Mengatur font untuk teks input */
 .dialog-card :deep(input),
 .dialog-card :deep(textarea),
 .dialog-card :deep(.v-select__selection-text) {
   font-size: 12px !important;
+  color: rgb(var(--v-theme-on-surface));
 }
 
-/* Mengatur jarak antar field agar lebih rapat */
+/* Fix input field background di dark mode */
+.dialog-card :deep(.v-field) {
+  background-color: rgb(var(--v-theme-surface)) !important;
+  border-color: rgba(var(--v-border-color), var(--v-border-opacity));
+}
+
+/* Mengatur jarak antar field */
 .dialog-card :deep(.v-text-field),
 .dialog-card :deep(.v-textarea),
 .dialog-card :deep(.v-select),
 .dialog-card :deep(.v-radio-group) {
-  margin-bottom: 4px;
+  margin-bottom: 8px;
+  /* Tambah jarak sedikit biar gak terlalu mepet */
+}
+
+/* Fix table header di dalam dialog (History Level) */
+.dialog-card :deep(thead tr th) {
+  background-color: rgb(var(--v-theme-background)) !important;
+  color: rgb(var(--v-theme-on-surface)) !important;
+  font-weight: 600;
 }
 </style>

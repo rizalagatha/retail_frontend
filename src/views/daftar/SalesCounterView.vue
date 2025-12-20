@@ -43,7 +43,7 @@ const headers = [
   { title: 'Actions', key: 'actions', sortable: false, align: 'center', width: '80px' },
 ] as const;
 
-// --- Computed Properties ---
+// --- Computed ---
 const canEdit = computed(() => selected.value.length === 1);
 const canDelete = computed(() => selected.value.length === 1);
 const dialogTitle = computed(() => (isNew.value ? 'Sales Counter Baru' : 'Ubah Sales Counter'));
@@ -64,36 +64,41 @@ const fetchSalesCounters = async () => {
     isLoading.value = false;
   }
 };
+
 const openNewDialog = () => {
   isNew.value = true;
   editedItem.value = { status: 'AKTIF' };
   dialog.value = true;
 };
+
 const openEditDialog = (item: SalesCounter) => {
   isNew.value = false;
   editedItem.value = { ...item };
   dialog.value = true;
 };
+
 const handleUserSelected = (user: { kode: string, nama: string }) => {
   isHelpModalVisible.value = false;
   editedItem.value.kode = user.kode;
   editedItem.value.nama = user.nama;
 };
+
 const handleEditFromHeader = () => {
   if (canEdit.value) { openEditDialog(selected.value[0]); }
 };
+
 const saveSalesCounter = async () => {
   try {
     const payload = { ...editedItem.value, isNew: isNew.value, user: authStore.user };
     await api.post('/sales-counters/save', payload);
     toast.success('Data sales counter berhasil disimpan.');
     fetchSalesCounters();
+    dialog.value = false;
   } catch (error) {
     toast.error('Gagal menyimpan data sales counter.', error);
-  } finally {
-    dialog.value = false;
   }
 };
+
 const deleteSalesCounter = async (item: SalesCounter) => {
   try {
     await api.delete(`/sales-counters/${item.kode}`);
@@ -103,13 +108,16 @@ const deleteSalesCounter = async (item: SalesCounter) => {
     toast.error('Gagal menghapus data.', error);
   }
 };
+
 const handleDeleteFromHeader = () => {
   if (canDelete.value) { confirmDelete(selected.value[0]); }
 };
+
 const confirmDelete = (item: SalesCounter) => {
   itemToDelete.value = item;
   dialogDelete.value = true;
 };
+
 const deleteConfirmed = () => {
   if (itemToDelete.value) {
     deleteSalesCounter(itemToDelete.value);
@@ -145,7 +153,6 @@ onMounted(() => {
     </div>
 
     <div v-else class="browse-content">
-      <!-- Filter Section -->
       <div class="filter-section">
         <v-text-field v-model="search" density="compact" label="Cari Sales Counter..." prepend-inner-icon="mdi-magnify"
           variant="outlined" hide-details single-line></v-text-field>
@@ -153,9 +160,9 @@ onMounted(() => {
         <v-btn @click="fetchSalesCounters" icon="mdi-refresh" variant="text" size="small"></v-btn>
       </div>
 
-      <!-- Table Section -->
       <AppDataTable v-model="selected" :headers="headers" :items="salesCounters" :search="search" :loading="isLoading"
-        item-value="kode" density="compact" class="desktop-table header-browse-blue" fixed-header show-select return-object>
+        item-value="kode" density="compact" class="desktop-table header-browse-blue" fixed-header show-select
+        return-object>
         <template #[`item.status`]="{ item }">
           <v-chip :color="item.status === 'AKTIF' ? 'success' : 'error'" variant="tonal" size="x-small">
             {{ item.status }}
@@ -173,12 +180,12 @@ onMounted(() => {
       </AppDataTable>
     </div>
 
-    <!-- Dialogs -->
     <v-dialog v-model="dialog" max-width="600px" persistent>
       <v-card class="dialog-card">
         <v-card-title class="dialog-header">
           <span class="text-subtitle-1 font-weight-medium">{{ dialogTitle }}</span>
         </v-card-title>
+
         <v-card-text class="pa-4">
           <v-container>
             <v-row>
@@ -186,14 +193,19 @@ onMounted(() => {
                 <v-text-field v-model="editedItem.kode" label="Kode" :disabled="!isNew" variant="outlined"
                   density="compact" placeholder="Pilih user atau F1" @keydown.f1.prevent="isHelpModalVisible = true"
                   append-inner-icon="mdi-magnify" @click:append-inner="isHelpModalVisible = true"></v-text-field>
+
                 <v-text-field v-model="editedItem.nama" label="Nama" variant="outlined" :disabled="!isNew"
                   density="compact"></v-text-field>
+
                 <v-textarea v-model="editedItem.alamat" label="Alamat" variant="outlined" density="compact"
                   rows="2"></v-textarea>
+
                 <v-text-field v-model="editedItem.hp" label="No. HP" variant="outlined"
                   density="compact"></v-text-field>
+
                 <v-text-field v-model="editedItem.ktp" label="No. KTP" variant="outlined"
                   density="compact"></v-text-field>
+
                 <v-radio-group v-model="editedItem.status" inline label="Status" density="compact" hide-details>
                   <v-radio label="Aktif" value="AKTIF" color="success"></v-radio>
                   <v-radio label="Pasif" value="PASIF" color="error"></v-radio>
@@ -202,9 +214,10 @@ onMounted(() => {
             </v-row>
           </v-container>
         </v-card-text>
+
         <v-card-actions class="dialog-footer">
           <v-spacer></v-spacer>
-          <v-btn size="small" @click="dialog = false">Batal</v-btn>
+          <v-btn size="small" variant="text" color="grey" @click="dialog = false">Batal</v-btn>
           <v-btn size="small" color="primary" @click="saveSalesCounter" variant="elevated">Simpan</v-btn>
         </v-card-actions>
       </v-card>
@@ -214,33 +227,52 @@ onMounted(() => {
       @user-selected="handleUserSelected" />
 
     <v-dialog v-model="dialogDelete" max-width="500px">
-      <v-card>
-        <v-card-title class="text-h5">Konfirmasi Hapus</v-card-title>
-        <v-card-text>Apakah Anda yakin ingin menghapus <strong>{{ itemToDelete?.nama }}</strong>?</v-card-text>
-        <v-card-actions><v-spacer></v-spacer><v-btn @click="dialogDelete = false">Batal</v-btn><v-btn
-            color="red-darken-1" variant="elevated"
-            @click="deleteConfirmed">Hapus</v-btn><v-spacer></v-spacer></v-card-actions>
+      <v-card class="dialog-card">
+        <v-card-title class="dialog-header">Konfirmasi Hapus</v-card-title>
+        <v-card-text class="pa-4 pt-6 text-body-1">
+          Apakah Anda yakin ingin menghapus <strong>{{ itemToDelete?.nama }}</strong>?
+        </v-card-text>
+        <v-card-actions class="dialog-footer">
+          <v-spacer></v-spacer>
+          <v-btn variant="text" color="grey" @click="dialogDelete = false">Batal</v-btn>
+          <v-btn color="error" variant="elevated" @click="deleteConfirmed">Hapus</v-btn>
+          <v-spacer></v-spacer>
+        </v-card-actions>
       </v-card>
     </v-dialog>
   </PageLayout>
 </template>
 
 <style scoped>
-/* Dialog Styles */
+/* Dialog Styles (Dark Mode Compatible) */
 .dialog-card {
   font-size: 12px;
+  background-color: rgb(var(--v-theme-surface));
+  color: rgb(var(--v-theme-on-surface));
 }
 
 .dialog-header {
-  border-bottom: 1px solid #e0e0e0;
+  border-bottom: 1px solid rgba(var(--v-border-color), var(--v-border-opacity));
   padding: 8px 16px;
-  background-color: #f5f5f5;
+  background-color: rgb(var(--v-theme-background));
 }
 
 .dialog-footer {
-  border-top: 1px solid #e0e0e0;
+  border-top: 1px solid rgba(var(--v-border-color), var(--v-border-opacity));
   padding: 8px 16px;
-  background-color: #f5f5f5;
+  background-color: rgb(var(--v-theme-background));
+}
+
+/* Fix Input Text Color in Dark Mode */
+.dialog-card :deep(.v-field__input),
+.dialog-card :deep(.v-label) {
+  color: rgb(var(--v-theme-on-surface));
+}
+
+/* Fix Input Background */
+.dialog-card :deep(.v-field) {
+  background-color: rgb(var(--v-theme-surface));
+  border-color: rgba(var(--v-border-color), var(--v-border-opacity));
 }
 
 .dialog-card :deep(.v-text-field),

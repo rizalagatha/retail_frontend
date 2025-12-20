@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { computed } from 'vue';
-import { VBtn } from 'vuetify/components';
 
 const props = withDefaults(defineProps<{
   variant?: 'primary' | 'success' | 'danger' | 'secondary';
@@ -12,20 +11,16 @@ const props = withDefaults(defineProps<{
 
 const color = computed(() => {
   switch (props.variant) {
-    case 'success':
-      return 'success';
-    case 'danger':
-      return 'error';
-    case 'secondary':
-      return 'secondary';
-    default:
-      return 'primary';
+    case 'success': return 'success';
+    case 'danger': return 'error';
+    case 'secondary': return 'secondary'; // Pastikan 'secondary' didefinisikan di theme vuetify.ts jika mau warna spesifik
+    default: return 'primary';
   }
 });
 </script>
 
 <template>
-  <v-btn :color="color" :disabled="props.disabled" elevation="1">
+  <v-btn :color="color" :disabled="props.disabled" elevation="1" class="text-white">
     <slot></slot>
   </v-btn>
 </template>

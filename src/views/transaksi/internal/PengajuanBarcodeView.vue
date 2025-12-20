@@ -396,11 +396,22 @@ watch(filters, fetchMasterData, { deep: true });
 .filter-section {
   flex-shrink: 0;
   padding: 8px;
-  border-bottom: 1px solid #e0e0e0;
-  background: white;
   display: flex;
   align-items: center;
   gap: 12px;
+
+  background-color: rgb(var(--v-theme-surface));
+  border-bottom: 1px solid rgba(var(--v-theme-on-surface), 0.12);
+}
+
+.filter-section :deep(.v-field),
+.filter-section :deep(.v-field--variant-outlined),
+.filter-section :deep(.v-field--variant-filled) {
+  background-color: rgb(var(--v-theme-surface)) !important;
+}
+
+.filter-section:deep(.v-field--variant-filled .v-field__overlay) {
+  background-color: rgb(var(--v-theme-surface)) !important;
 }
 
 .table-container {
@@ -433,19 +444,24 @@ watch(filters, fetchMasterData, { deep: true });
 /* --- Header Resize --- */
 .resizable-header {
   position: relative;
-  background-color: #e3f2fd !important;
-  color: #0d47a1 !important;
+
+  background-color: rgb(var(--v-theme-primary)) !important;
+  color: rgb(var(--v-theme-on-primary)) !important;
+
   font-weight: 700 !important;
   text-transform: uppercase;
   font-size: 11px !important;
   height: 40px !important;
-  border-bottom: 2px solid #1976d2 !important;
+
+  border-bottom: 2px solid rgb(var(--v-theme-primary)) !important;
   padding: 0 8px !important;
+
   user-select: none;
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
 }
+
 
 .header-content {
   display: flex;
@@ -474,7 +490,7 @@ watch(filters, fetchMasterData, { deep: true });
 
 .resizer:hover,
 .resizable-header:hover .resizer {
-  border-right: 2px solid #1565c0;
+  border-right: 2px solid rgb(var(--v-theme-on-primary));
 }
 
 /* --- Detail Sticky --- */
@@ -482,12 +498,15 @@ watch(filters, fetchMasterData, { deep: true });
   position: sticky;
   left: 0;
   z-index: 2;
+
   display: flex;
   justify-content: flex-start;
   align-items: flex-start;
-  background-color: #fafafa;
+
+  background-color: rgb(var(--v-theme-surface));
+  border-bottom: 1px solid rgba(var(--v-theme-on-surface), 0.12);
+
   padding: 16px 16px 16px 64px;
-  border-bottom: 1px solid #e0e0e0;
   width: fit-content;
   min-width: 100%;
   box-sizing: border-box;
@@ -496,14 +515,20 @@ watch(filters, fetchMasterData, { deep: true });
 .detail-table-wrapper {
   width: 100%;
   max-width: 600px;
-  border: 1px solid #ddd;
+
+  background-color: rgb(var(--v-theme-surface));
+  border: 1px solid rgba(var(--v-theme-on-surface), 0.12);
   border-radius: 4px;
   overflow: hidden;
-  background-color: white;
+}
+
+.detail-table :deep(thead tr th) {
+  background-color: rgba(var(--v-theme-on-surface), 0.06) !important;
+  color: rgb(var(--v-theme-on-surface)) !important;
 }
 
 /* Pewarnaan Baris */
 :deep(td.text-red) {
-  color: #d32f2f !important;
+  color: rgb(var(--v-theme-error)) !important;
 }
 </style>

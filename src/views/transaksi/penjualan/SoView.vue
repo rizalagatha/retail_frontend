@@ -702,7 +702,7 @@ watch(filters, () => {
                       item-value="Kode" density="compact" class="detail-table" :items-per-page="-1" hide-default-footer>
                       <template #[`item.Nomor`]="{ item: detailItem }">{{ detailItem.Nomor }}</template>
                       <template #[`item.Harga`]="{ item: detailItem }">{{ formatRupiah(Number(detailItem.Harga || 0))
-                      }}</template>
+                        }}</template>
                       <template #[`item.TotalSO`]="{ item: detailItem }">{{ formatRupiah(Number(detailItem.TotalSO ||
                         0)) }}</template>
                       <template #bottom></template>
@@ -775,11 +775,23 @@ watch(filters, () => {
 .filter-section {
   flex-shrink: 0;
   padding: 8px;
-  border-bottom: 1px solid #e0e0e0;
-  background: white;
   display: flex;
   align-items: center;
   gap: 12px;
+
+  background-color: rgb(var(--v-theme-surface));
+  border-bottom: 1px solid rgba(var(--v-theme-on-surface), 0.12);
+}
+
+.filter-section {
+  flex-shrink: 0;
+  padding: 8px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+
+  background-color: rgb(var(--v-theme-surface));
+  border-bottom: 1px solid rgba(var(--v-theme-on-surface), 0.12);
 }
 
 .table-container {
@@ -861,12 +873,15 @@ watch(filters, () => {
   position: sticky;
   left: 0;
   z-index: 2;
+
   display: flex;
   justify-content: flex-start;
   align-items: flex-start;
-  background-color: #fafafa;
+
+  background-color: rgb(var(--v-theme-surface));
+  border-bottom: 1px solid rgba(var(--v-theme-on-surface), 0.12);
+
   padding: 16px 16px 16px 64px;
-  border-bottom: 1px solid #e0e0e0;
   width: fit-content;
   min-width: 100%;
   box-sizing: border-box;
@@ -875,10 +890,11 @@ watch(filters, () => {
 .detail-table-wrapper {
   width: 100%;
   max-width: 800px;
-  border: 1px solid #ddd;
+
+  background-color: rgb(var(--v-theme-surface));
+  border: 1px solid rgba(var(--v-theme-on-surface), 0.12);
   border-radius: 4px;
   overflow: hidden;
-  background-color: white;
 }
 
 /* Pewarnaan Teks Baris (TD) */

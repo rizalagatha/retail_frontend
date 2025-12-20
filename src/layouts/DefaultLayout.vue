@@ -372,14 +372,14 @@ onUnmounted(() => {
       <router-view />
     </v-main>
 
-    <v-footer v-if="authStore.isAuthenticated" app class="pa-0 px-4 py-1 bg-grey-lighten-4 border-top"
+    <v-footer v-if="authStore.isAuthenticated" app class="pa-0 px-4 py-1 border-top bg-surface"
       style="font-size: 11px; height: 40px;">
 
       <div class="d-flex align-center ga-3" style="min-width: 200px;">
-        <div class="d-flex align-center text-grey-darken-2 cursor-pointer" title="User Aktif">
+        <div class="d-flex align-center cursor-pointer text-medium-emphasis" title="User Aktif">
           <v-icon size="14" class="mr-1">mdi-account-circle</v-icon>
           <span class="font-weight-bold mr-1">{{ authStore.user?.nama }}</span>
-          <span class="text-caption text-medium-emphasis">({{ authStore.user?.cabangNama }})</span>
+          <span class="text-caption text-disabled">({{ authStore.user?.cabangNama }})</span>
         </div>
 
         <v-divider vertical class="my-1"></v-divider>
@@ -388,7 +388,7 @@ onUnmounted(() => {
           :title="authStore.isOnline ? `Respon Server: ${latency}ms` : 'Koneksi Terputus'">
           <template v-if="authStore.isOnline && latency !== null">
             <v-icon size="8" class="mr-1" :color="latencyColor">mdi-circle</v-icon>
-            <span class="text-caption text-grey-darken-1">{{ latency }} ms</span>
+            <span class="text-caption text-disabled">{{ latency }} ms</span>
           </template>
           <template v-else>
             <v-icon size="8" class="mr-1" color="error">mdi-circle</v-icon>
@@ -424,10 +424,10 @@ onUnmounted(() => {
       <div v-if="nextPrayerName" class="d-none d-md-flex align-center justify-center">
         <v-menu open-on-hover location="top center">
           <template v-slot:activator="{ props }">
-            <div v-bind="props" class="d-flex align-center px-3 py-1 rounded bg-white border cursor-help"
+            <div v-bind="props" class="d-flex align-center px-3 py-1 rounded border cursor-help bg-surface"
               style="height: 24px;">
               <v-icon size="12" color="teal" class="mr-2">mdi-mosque</v-icon>
-              <span class="text-caption font-weight-medium text-grey-darken-2 mr-1">
+              <span class="text-caption font-weight-medium text-medium-emphasis mr-1">
                 {{ nextPrayerName }}
               </span>
               <span class="text-caption font-weight-bold text-teal">
@@ -447,11 +447,12 @@ onUnmounted(() => {
               <v-list-item v-for="(time, name) in fullSchedule" :key="name"
                 :class="{ 'bg-teal-lighten-5': name === nextPrayerName }" style="min-height: 28px;">
                 <div class="d-flex justify-space-between w-100 text-caption">
-                  <span :class="name === nextPrayerName ? 'font-weight-bold text-teal-darken-3' : 'text-grey-darken-2'">
+                  <span
+                    :class="name === nextPrayerName ? 'font-weight-bold text-teal-darken-3' : 'text-medium-emphasis'">
                     {{ name }}
                   </span>
                   <span class="font-weight-bold"
-                    :class="name === nextPrayerName ? 'text-teal-darken-3' : 'text-grey-darken-2'">
+                    :class="name === nextPrayerName ? 'text-teal-darken-3' : 'text-medium-emphasis'">
                     {{ time }}
                   </span>
                 </div>
@@ -467,8 +468,7 @@ onUnmounted(() => {
 
         <v-tooltip text="Transaksi" location="top">
           <template v-slot:activator="{ props }">
-            <v-btn v-bind="props" to="/transaksi" icon variant="text" size="x-small" density="compact"
-              color="grey-darken-1">
+            <v-btn v-bind="props" to="/transaksi" icon variant="text" size="x-small" density="compact" color="grey">
               <v-icon size="16">mdi-cash-register</v-icon>
             </v-btn>
           </template>
@@ -476,8 +476,7 @@ onUnmounted(() => {
 
         <v-tooltip text="Laporan" location="top">
           <template v-slot:activator="{ props }">
-            <v-btn v-bind="props" to="/laporan" icon variant="text" size="x-small" density="compact"
-              color="grey-darken-1">
+            <v-btn v-bind="props" to="/laporan" icon variant="text" size="x-small" density="compact" color="grey">
               <v-icon size="16">mdi-chart-bar</v-icon>
             </v-btn>
           </template>
@@ -511,7 +510,7 @@ onUnmounted(() => {
 
           <v-card width="300" class="rounded-lg shadow-lg">
             <v-card-title
-              class="text-caption font-weight-bold bg-grey-lighten-4 py-2 px-3 d-flex align-center justify-space-between">
+              class="text-caption font-weight-bold py-2 px-3 d-flex align-center justify-space-between bg-grey-lighten-4 text-grey-darken-3">
               <div class="d-flex align-center">
                 <v-icon size="small" start color="orange-darken-4">mdi-bell-ring</v-icon>
                 Pemberitahuan
@@ -558,7 +557,8 @@ onUnmounted(() => {
           </template>
 
           <v-card width="320" class="rounded-lg shadow-lg">
-            <v-card-title class="text-caption font-weight-bold bg-grey-lighten-4 py-2 px-3 d-flex align-center">
+            <v-card-title
+              class="text-caption font-weight-bold bg-grey-lighten-4 py-2 px-3 d-flex align-center text-grey-darken-3">
               <v-icon size="small" start color="indigo">mdi-keyboard-outline</v-icon>
               Daftar Shortcut
             </v-card-title>
@@ -578,17 +578,17 @@ onUnmounted(() => {
                   <v-list-item-title class="text-caption ml-2">{{ item.desc }}</v-list-item-title>
                 </v-list-item>
                 <v-divider class="my-1"></v-divider>
-                <v-list-subheader class="font-weight-bold text-grey-darken-2 py-0"
+                <v-list-subheader class="font-weight-bold text-medium-emphasis py-0"
                   style="font-size: 10px; height: 32px;">
                   BROWSER / UMUM
                 </v-list-subheader>
                 <v-list-item v-for="(item, i) in browserShortcuts" :key="'b' + i" class="min-height-32">
                   <template v-slot:prepend>
-                    <div class="text-caption font-weight-bold text-grey-darken-3" style="min-width: 80px;">
+                    <div class="text-caption font-weight-bold text-medium-emphasis" style="min-width: 80px;">
                       {{ item.key }}
                     </div>
                   </template>
-                  <v-list-item-title class="text-caption text-grey-darken-1">{{ item.desc }}</v-list-item-title>
+                  <v-list-item-title class="text-caption text-medium-emphasis">{{ item.desc }}</v-list-item-title>
                 </v-list-item>
               </v-list>
             </v-card-text>
@@ -756,12 +756,13 @@ onUnmounted(() => {
 </template>
 
 <style scoped>
+/* [PERBAIKAN DARK MODE] Gunakan var border agar tidak terang di dark mode */
 .border-top {
-  border-top: 1px solid #e0e0e0;
+  border-top: 1px solid rgba(var(--v-border-color), var(--v-border-opacity));
 }
 
 .border {
-  border: 1px solid #e0e0e0;
+  border: 1px solid rgba(var(--v-border-color), var(--v-border-opacity));
 }
 
 .min-height-32 {
@@ -794,6 +795,12 @@ onUnmounted(() => {
   color: #1976D2 !important;
   /* Warna primary saat hover */
   text-decoration: underline;
+}
+
+/* === GLOBAL FIX: FOOTER DIALOG (FAQ, DLL) === */
+:deep(.v-dialog) .v-card-actions {
+  background-color: rgb(var(--v-theme-surface));
+  border-top: 1px solid rgba(var(--v-theme-on-surface), 0.12);
 }
 
 @keyframes blink-soft {

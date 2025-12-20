@@ -334,7 +334,7 @@ onMounted(() => {
       <v-card class="dialog-card">
         <v-toolbar color="primary" density="compact">
           <v-toolbar-title class="text-subtitle-1">{{ isNew ? 'Tambah Setting Harga Baru' : 'Ubah Setting Harga'
-          }}</v-toolbar-title>
+            }}</v-toolbar-title>
         </v-toolbar>
         <v-card-text class="pa-4">
           <v-row dense>
@@ -385,7 +385,8 @@ onMounted(() => {
   padding: 8px 12px;
   border-bottom: 1px solid #e0e0e0;
   flex-shrink: 0;
-  background-color: white;
+  background-color: rgb(var(--v-theme-surface));
+  border-bottom: 1px solid rgba(var(--v-theme-on-surface), 0.12);
 }
 
 .table-container {
@@ -418,9 +419,8 @@ onMounted(() => {
 /* --- Header Resize --- */
 .resizable-header {
   position: relative;
-  background-color: #e3f2fd !important;
-  /* Warna Biru Konsisten */
-  color: #0d47a1 !important;
+  background-color: rgb(var(--v-theme-primary)) !important;
+  color: rgb(var(--v-theme-on-primary)) !important;
   font-weight: 700 !important;
   text-transform: uppercase;
   font-size: 11px !important;
@@ -460,7 +460,7 @@ onMounted(() => {
 
 .resizer:hover,
 .resizable-header:hover .resizer {
-  border-right: 2px solid #1565c0;
+  border-right: 2px solid rgb(var(--v-theme-on-primary));
 }
 
 /* --- Utility & State --- */

@@ -363,7 +363,18 @@ const onRekeningSelected = (rekening: Rekening) => {
 }
 
 .dialog-footer {
-  background-color: #f5f5f5;
+  background-color: rgb(var(--v-theme-surface));
+  border-top: 1px solid rgba(var(--v-theme-on-surface), 0.12);
+}
+
+.dialog-footer {
+  background-color: rgb(var(--v-theme-surface));
+  border-top: 1px solid rgba(var(--v-theme-on-surface), 0.12);
+}
+
+.dialog-card :deep(.v-field--variant-filled),
+.dialog-card :deep(.v-field--variant-filled .v-field__overlay) {
+  background-color: rgb(var(--v-theme-surface)) !important;
 }
 
 .text-end input {

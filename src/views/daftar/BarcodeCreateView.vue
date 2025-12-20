@@ -24,7 +24,7 @@ const toast = useToast();
 const authStore = useAuthStore();
 const uiStore = useUiStore();
 const { markAsSaved } = useUnsavedChanges();
-const MENU_ID = '35'; // Diambil dari halaman browse Anda
+const MENU_ID = '35';
 
 // --- Interface ---
 interface BarcodeItem {
@@ -36,7 +36,7 @@ interface BarcodeItem {
   harga: number | null;
   jumlah: number | null;
 }
-interface ProductDetail { // Dari ProductSearchModal Anda
+interface ProductDetail {
   kode: string;
   nama: string;
   barcode: string;
@@ -51,7 +51,7 @@ interface PrintLabelItem {
   barcode: string;
   nama: string;
   harga: string;
-  charga: string; // harga terformat
+  charga: string;
   nourut: number;
   layoutType: 'XP-360B' | '360B';
 }
@@ -62,18 +62,18 @@ const tanggal = ref(format(new Date(), 'yyyy-MM-dd'));
 const items = ref<BarcodeItem[]>([]);
 const isSaving = ref(false);
 const barcodeScanTerm = ref('');
-const productCategory = ref('Kaosan'); // State ini tetap dipakai
+const productCategory = ref('Kaosan');
 
-// --- State Lookup/Modal (Dari kode Retail Anda) ---
+// --- State Lookup/Modal ---
 const isProductSearchModalVisible = ref(false);
 const activeRowIndex = ref(-1);
 
-// --- State Cetak & Pratinjau (BARU - Diimpor dari Franchise) ---
+// --- State Cetak & Pratinjau ---
 const selectedPrinter = ref<'XP-360B' | '360B'>('XP-360B');
 const showPriceOnLabel = ref(false);
-const isPrinting = ref(false); // Untuk tombol Tes Printer
+const isPrinting = ref(false);
 const isPrintPreviewVisible = ref(false);
-const printPreviewData = ref<PrintLabelItem[]>([]); // Data untuk pratinjau
+const printPreviewData = ref<PrintLabelItem[]>([]);
 const isAfterSave = ref(false);
 
 // --- Konfigurasi Tabel ---
@@ -88,8 +88,7 @@ const tableHeaders = [
   { title: 'Actions', key: 'actions', sortable: false, width: '50px' },
 ] as const;
 
-// --- FUNGSI CETAK (BARU - Diimpor dari Franchise) ---
-// CSS untuk printer XP-360B (Layout A)
+// --- FUNGSI CETAK ---
 const printStylesXP360B = `
   @page {
     size: 68mm 15mm landscape;
@@ -103,9 +102,6 @@ const printStylesXP360B = `
     width: 68mm; height: auto;
     overflow: visible !important;
     font-family: Arial, sans-serif;
-    /* Rotasi 180 derajat untuk printer thermal tertentu */
-    /* transform: rotate(180deg); */
-    /* transform-origin: center; */
   }
   .label-pair-container {
     display: flex;
@@ -159,9 +155,8 @@ const printStylesXP360B = `
     .barcode-label { border: none; }
   }
 `;
-// TODO: Tambahkan printStyles360B jika layoutnya berbeda
 
-// --- FUNGSI BISNIS (Dipertahankan dari Retail / Diadaptasi) ---
+// --- FUNGSI BISNIS ---
 
 const getNextNumber = async () => {
   try {
@@ -194,7 +189,6 @@ const handleProductsSelected = (products: ProductDetail[]) => {
     jumlah: 0,
   }));
 
-  // Ganti baris aktif jika kosong, atau sisipkan
   if (items.value[activeRowIndex.value] && !items.value[activeRowIndex.value].kode) {
     items.value.splice(activeRowIndex.value, 1, ...newItems);
   } else {
@@ -214,14 +208,12 @@ const handleBarcodeScan = async () => {
       if (existingItem) {
         existingItem.jumlah = (existingItem.jumlah || 0) + 1;
       } else {
-        // Hapus baris kosong terakhir jika ada
         if (items.value.length > 0 && !items.value[items.value.length - 1].kode) {
           items.value.pop();
         }
         items.value.push({ ...product, id: Date.now(), jumlah: 1, harga: product.harga || 0 });
       }
       addNewRow();
-      // Fokus kembali ke input scan
       await nextTick();
       document.getElementById('scan-barcode-field')?.focus();
     } else {
@@ -230,7 +222,7 @@ const handleBarcodeScan = async () => {
   } catch {
     toast.error('Gagal mencari barcode.');
   } finally {
-    barcodeScanTerm.value = ''; // Selalu kosongkan
+    barcodeScanTerm.value = '';
   }
 };
 
@@ -260,8 +252,6 @@ const resetForm = () => {
   showPriceOnLabel.value = false;
 };
 
-// --- FUNGSI SAVE & PRINT BARU (Diimpor dari Franchise) ---
-
 const save = async () => {
   isSaving.value = true;
   const validItems = items.value.filter(item => item.kode && (item.jumlah || 0) > 0);
@@ -275,26 +265,20 @@ const save = async () => {
       header: { nomor: nomor.value, tanggal: tanggal.value },
       details: validItems,
       user: { kode: authStore.user?.kode },
-      isNew: true // Asumsi form ini selalu 'Baru'
+      isNew: true
     };
 
-    // Sesuaikan API call dengan service Anda
     await api.post('/barcode-form/save', payload);
-
-    toast.success(`Data barcode ${nomor.value} berhasil disimpan. Siap untuk dicetak.`);
-
+    toast.success(`Data barcode ${nomor.value} berhasil disimpan.`);
     isAfterSave.value = true;
-
     markAsSaved();
 
-    // --- Alur Baru: Panggil Pratinjau ---
     const printOptions = {
       showPrice: showPriceOnLabel.value,
       printerType: selectedPrinter.value,
     };
     const dataToPrint = preparePrintData(validItems, printOptions, nomor.value, format(new Date(tanggal.value), 'dd/MM/yy'));
     handlePrint(dataToPrint);
-    // --- Akhir Alur Baru ---
 
   } catch (error) {
     const err = error as AxiosError<{ message: string }>;
@@ -359,7 +343,7 @@ const testPrinter = () => {
     nama: 'TES PRINTER',
     ukuran: 'TES',
     harga: 50000,
-    jumlah: 4, // Cetak 4 label (2 halaman)
+    jumlah: 4,
   }];
   const printOptions = {
     showPrice: showPriceOnLabel.value,
@@ -377,7 +361,6 @@ const triggerBrowserPrint = () => {
     printFrame.style.width = '100mm';
     printFrame.style.height = '400mm';
     printFrame.style.border = 'none';
-    // Sembunyikan iframe di luar layar
     printFrame.style.top = '-9999px';
     printFrame.style.left = '-9999px';
     document.body.appendChild(printFrame);
@@ -389,26 +372,21 @@ const triggerBrowserPrint = () => {
       if (selectedPrinter.value === 'XP-360B') {
         stylesToInject += printStylesXP360B;
       } else {
-        stylesToInject += printStylesXP360B; // Ganti jika '360B' punya style beda
+        stylesToInject += printStylesXP360B;
       }
       frameDoc.write(`<html><head><title>Cetak Barcode</title><style>${stylesToInject}</style></head><body>`);
       frameDoc.write(printContent.innerHTML);
       frameDoc.write('</body></html>');
       frameDoc.close();
 
-      // [LANGKAH PENTING DARI FRANCHISE]
-      // Panggil generate barcode dari parent SEBELUM print
       generateBarcodesInIframe(printFrame);
 
-      // Jeda 500ms untuk memastikan barcode selesai di-render
       setTimeout(() => {
         printFrame.contentWindow?.focus();
         printFrame.contentWindow?.print();
-        // Hapus iframe setelah print
         setTimeout(() => { document.body.removeChild(printFrame); }, 1500);
       }, 500);
 
-      // Panggil fungsi close yang baru
       closePreview();
 
     } else {
@@ -417,24 +395,21 @@ const triggerBrowserPrint = () => {
   }
 };
 
-// GANTI FUNGSI 'generateBarcodesInIframe' ANDA DENGAN INI
 const generateBarcodesInIframe = (iframe: HTMLIFrameElement) => {
   const frameDoc = iframe.contentWindow?.document;
-  // Gunakan JsBarcode dari 'window' UTAMA (parent)
   if (frameDoc && window.JsBarcode) {
     const svgs = frameDoc.querySelectorAll('.barcode-svg');
     svgs.forEach((svgElement) => {
       const barcodeValue = svgElement.getAttribute('data-barcode-value');
       if (barcodeValue) {
         try {
-          // Panggil JsBarcode dari parent
           JsBarcode(svgElement as SVGElement, barcodeValue, {
             format: "CODE128C",
             lineColor: "#000",
-            width: 1.2, // Sesuaikan dengan style cetak Anda
-            height: 18, // Sesuaikan dengan style cetak Anda
+            width: 1.2,
+            height: 18,
             displayValue: false,
-            margin: 1, // Sesuaikan dengan style cetak Anda
+            margin: 1,
           });
         } catch (e) {
           console.error("JsBarcode error:", e);
@@ -445,7 +420,7 @@ const generateBarcodesInIframe = (iframe: HTMLIFrameElement) => {
 };
 
 const generateBarcodesInPreview = async () => {
-  await nextTick(); // Tunggu DOM dialog di-render
+  await nextTick();
   const previewArea = document.getElementById('print-area');
   if (!previewArea || !window.JsBarcode) return;
 
@@ -458,7 +433,7 @@ const generateBarcodesInPreview = async () => {
         format: 'CODE128C',
         lineColor: '#000',
         width: 1.2,
-        height: 25, // Lebih tinggi untuk preview
+        height: 25,
         displayValue: false,
         margin: 1,
       });
@@ -474,39 +449,24 @@ const closePreview = () => {
   isAfterSave.value = false;
 };
 
-// --- Watchers ---
 watch(printPreviewData, (newVal) => {
   if (isPrintPreviewVisible.value && newVal.length > 0) {
-    // Beri jeda agar dialog muncul sebelum generate barcode
     setTimeout(() => generateBarcodesInPreview(), 100);
   }
 });
 
-watch(
-  items,
-  (newItems) => {
-    // Abaikan jika sedang proses simpan
-    if (isSaving.value) return;
+watch(items, (newItems) => {
+  if (isSaving.value) return;
+  const hasData = newItems.some(item => item.kode !== '' || (item.jumlah || 0) > 0);
+  if (hasData && !isAfterSave.value) {
+    uiStore.setUnsavedChanges(true);
+  } else if (!hasData) {
+    uiStore.setUnsavedChanges(false);
+  }
+}, { deep: true });
 
-    // Cek apakah ada data yang "bermakna"
-    const hasData = newItems.some(item => item.kode !== '' || (item.jumlah || 0) > 0);
-
-    // Jika ada data valid & belum disimpan, set dirty state
-    if (hasData && !isAfterSave.value) {
-      uiStore.setUnsavedChanges(true);
-    }
-    // Jika kembali kosong (misal dihapus semua manual), anggap clean
-    else if (!hasData) {
-      uiStore.setUnsavedChanges(false);
-    }
-  },
-  { deep: true }
-);
-
-// --- Lifecycle ---
 onMounted(() => {
-  markAsSaved(); // Reset status awal
-
+  markAsSaved();
   if (!authStore.can(MENU_ID, 'insert')) {
     toast.error("Anda tidak memiliki izin.");
     router.back();
@@ -541,7 +501,7 @@ onMounted(() => {
             <v-col cols="12">
               <v-text-field v-model="nomor" label="Nomor" variant="filled" readonly density="compact" hide-details>
                 <template #append-inner>
-                  <span v-if="!nomor" class="text-caption text-disabled">&lt;Otomatis&gt;</span>
+                  <span v-if="!nomor" class="text-caption text-medium-emphasis">&lt;Otomatis&gt;</span>
                 </template>
               </v-text-field>
             </v-col>
@@ -555,25 +515,25 @@ onMounted(() => {
         <div class="desktop-form-section header-section">
           <v-row dense>
             <v-col cols="12">
-              <v-label class="mb-2 text-caption">Kategori Produk (untuk F1)</v-label>
+              <v-label class="mb-2 text-caption text-medium-emphasis">Kategori Produk (untuk F1)</v-label>
               <v-radio-group v-model="productCategory" inline hide-details density="compact" class="mt-n1">
-                <v-radio label="Kaosan" value="Kaosan"></v-radio>
-                <v-radio label="Reszo" value="Reszo"></v-radio>
+                <v-radio label="Kaosan" value="Kaosan" color="primary"></v-radio>
+                <v-radio label="Reszo" value="Reszo" color="primary"></v-radio>
               </v-radio-group>
             </v-col>
 
-            <v-divider class="my-3"></v-divider>
+            <v-divider class="my-3 border-opacity-25"></v-divider>
 
             <v-col cols="12">
-              <v-label class="mb-2 text-caption">Opsi Cetak</v-label>
+              <v-label class="mb-2 text-caption text-medium-emphasis">Opsi Cetak</v-label>
               <v-radio-group v-model="selectedPrinter" hide-details density="compact" class="mt-n1">
-                <v-radio label="XP-360B (Layout A)" value="XP-360B"></v-radio>
-                <v-radio label="360B (Layout B)" value="360B"></v-radio>
+                <v-radio label="XP-360B (Layout A)" value="XP-360B" color="primary"></v-radio>
+                <v-radio label="360B (Layout B)" value="360B" color="primary"></v-radio>
               </v-radio-group>
             </v-col>
             <v-col cols="12">
               <v-checkbox v-model="showPriceOnLabel" label="Tampilkan Harga Jual di Label" density="compact"
-                hide-details class="mt-n2"></v-checkbox>
+                hide-details class="mt-n2" color="primary"></v-checkbox>
             </v-col>
           </v-row>
         </div>
@@ -586,9 +546,10 @@ onMounted(() => {
             hide-details id="scan-barcode-field" autofocus></v-text-field>
         </div>
 
-        <div class="desktop-form-section flex-grow-1 d-flex flex-column">
-          <v-data-table :headers="tableHeaders" :items="items" density="compact" class="desktop-table header-browse-blue" fixed-header
-            height="100%" :items-per-page="-1" no-data-text="Scan barcode atau cari kode (F1) untuk menambah item.">
+        <div class="desktop-form-section flex-grow-1 d-flex flex-column pa-0 overflow-hidden">
+          <v-data-table :headers="tableHeaders" :items="items" density="compact"
+            class="desktop-table header-browse-blue" fixed-header height="100%" :items-per-page="-1"
+            no-data-text="Scan barcode atau cari kode (F1) untuk menambah item.">
             <template #[`item.no`]="{ index }">
               {{ index + 1 }}
             </template>
@@ -633,7 +594,7 @@ onMounted(() => {
           <v-btn icon="mdi-close" @click="closePreview"></v-btn>
         </v-toolbar>
 
-        <v-card-text class="pa-4 bg-grey-lighten-3">
+        <v-card-text class="pa-4 bg-background">
           <div id="print-area">
             <div v-for="i in Math.ceil(printPreviewData.length / 2)" :key="`page-${i}`" class="label-pair-container">
 
@@ -679,45 +640,84 @@ onMounted(() => {
 </template>
 
 <style scoped>
-/* Styles untuk layout grid, left/right column */
+/* Layout Grid */
 .form-grid-container {
   display: grid;
-  grid-template-columns: 350px 1fr;
-  /* Lebar kolom kiri 350px */
+  grid-template-columns: 320px 1fr;
   gap: 16px;
-  /* (Tinggi diatur oleh PageLayout 'desktop-mode') */
+  height: 100%;
+  overflow: hidden;
 }
 
 .left-column,
 .right-column {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 12px;
   min-height: 0;
+  overflow: hidden;
 }
 
 .desktop-form-section {
   padding: 12px 16px;
-  background-color: white;
+  /* [FIX DARK MODE] */
+  background-color: rgb(var(--v-theme-surface));
+  border: 1px solid rgba(var(--v-border-color), var(--v-border-opacity));
   border-radius: 8px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 }
 
+/* Header Section (Kiri) */
 .header-section {
   flex-shrink: 0;
+  background-color: rgb(var(--v-theme-surface));
 }
 
-.scanner-wrapper {
-  flex-shrink: 0;
-  max-width: 400px;
+/* Panel Kiri Background (Biru/Abu Gelap) */
+.left-column .desktop-form-section {
+  background-color: var(--bg-panel-left);
 }
 
+/* [FIX INPUT NOMOR & TANGGAL] */
+/* Memaksa background input transparan agar warna panel terlihat */
+.header-section :deep(.v-field) {
+  background-color: transparent !important;
+  box-shadow: none !important;
+}
+
+/* Memastikan teks input terbaca (putih di dark, hitam di light) */
+.header-section :deep(input),
+.header-section :deep(.v-field__input) {
+  color: rgb(var(--v-theme-on-surface)) !important;
+  opacity: 1 !important;
+}
+
+/* Memastikan label terbaca */
+.header-section :deep(.v-label) {
+  color: rgba(var(--v-theme-on-surface), 0.7) !important;
+}
+
+/* Radio Button Styling (Kembalikan ke ukuran standar) */
 :deep(.v-radio-group .v-label) {
   font-size: 0.875rem;
+  color: rgba(var(--v-theme-on-surface), 0.8);
+  margin-bottom: 4px;
 }
 
+:deep(.v-radio) {
+  /* Pastikan tidak ada scaling aneh */
+  transform: none !important;
+}
+
+/* Scanner Input */
+.scanner-wrapper {
+  flex-shrink: 0;
+  width: 100%;
+}
+
+/* Tabel Full Height */
 .desktop-table {
   height: 100%;
+  border: none !important;
 }
 
 .desktop-table :deep(.v-table__wrapper) {
@@ -725,11 +725,12 @@ onMounted(() => {
   overflow-y: auto;
 }
 
-/* Styling input di dalam tabel */
+/* Input Angka di Tabel */
 .v-data-table :deep(input[type='number']) {
   text-align: right;
   -moz-appearance: textfield;
   appearance: textfield;
+  color: rgb(var(--v-theme-on-surface));
 }
 
 .v-data-table :deep(input[type=number]::-webkit-inner-spin-button),
@@ -738,22 +739,27 @@ onMounted(() => {
   margin: 0;
 }
 
+/* Header Tabel */
 .desktop-table :deep(thead tr th) {
-  background-color: #0D47A1 !important; /* Biru Tua */
-  color: #ffffff !important;            /* Teks Putih */
+  background-color: var(--table-head-bg) !important;
+  color: var(--table-head-text) !important;
   font-weight: bold !important;
   text-transform: uppercase;
   font-size: 11px !important;
   height: 40px !important;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-  border-bottom: none !important; /* Supaya lebih rapi */
+  border-bottom: 1px solid rgba(var(--v-border-color), var(--v-border-opacity)) !important;
+}
+
+.v-text-field :deep(input) {
+  color: rgb(var(--v-theme-on-surface));
 }
 </style>
 
 <style>
 /* Preview container */
 #print-area {
-  background-color: #f5f5f5;
+  background-color: #333;
+  /* Background area preview abu gelap */
   padding: 16px;
   display: flex;
   flex-direction: column;
@@ -761,15 +767,17 @@ onMounted(() => {
   gap: 10px;
   box-sizing: border-box;
   overflow-y: auto;
+  max-height: 400px;
+  border: 1px solid #555;
 }
 
-/* Setiap baris label (2 kolom) */
+/* Setiap baris label (2 kolom) - WAJIB PUTIH */
 .label-pair-container {
   width: 148mm;
-  /* Lebar untuk preview */
   height: 32mm;
-  background-color: white;
-  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.15);
+  background-color: #ffffff !important;
+  /* [FIX] Paksa putih mutlak */
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.5);
   border-radius: 2px;
   display: flex;
   justify-content: space-between;
@@ -778,6 +786,8 @@ onMounted(() => {
   flex-shrink: 0;
   padding: 0;
   margin: 0;
+  color: #000000 !important;
+  /* [FIX] Paksa teks hitam mutlak */
 }
 
 /* Label individual */
@@ -793,6 +803,10 @@ onMounted(() => {
   padding: 2mm;
   box-sizing: border-box;
   overflow: hidden;
+  color: #000000 !important;
+  /* [FIX] Teks hitam */
+  background-color: #ffffff !important;
+  /* [FIX] Background putih */
 }
 
 /* Info teks */
@@ -803,18 +817,21 @@ onMounted(() => {
   max-width: 100%;
   line-height: 1.2;
   margin: 0;
-  color: #333;
+  color: #000000 !important;
+  /* [FIX] Teks hitam */
 }
 
 .item-name {
   font-weight: bold;
   font-size: 11px;
   margin-bottom: 1mm;
+  color: #000000 !important;
 }
 
 .item-size {
   font-size: 9px;
   font-weight: normal;
+  color: #000000 !important;
 }
 
 .barcode-svg {
@@ -825,6 +842,25 @@ onMounted(() => {
   display: block;
 }
 
+/* [FIX] Pastikan garis barcode dan teks barcode selalu hitam */
+.barcode-svg rect {
+  fill: #ffffff !important;
+  /* Background barcode putih */
+}
+
+.barcode-svg g,
+.barcode-svg path,
+.barcode-svg line {
+  stroke: #000000 !important;
+  /* Garis barcode hitam */
+  fill: #000000 !important;
+}
+
+.barcode-svg text {
+  fill: #000000 !important;
+  /* Angka barcode hitam */
+}
+
 .label-footer {
   font-size: 7px;
   display: flex;
@@ -832,6 +868,8 @@ onMounted(() => {
   width: 95%;
   margin-top: 1mm;
   gap: 3px;
+  color: #000000 !important;
+  /* [FIX] Teks footer hitam */
 }
 
 /* --- MODE PRINT (NON-SCOPED) --- */
@@ -853,11 +891,8 @@ onMounted(() => {
     padding: 0 !important;
     display: block !important;
     margin: 0 !important;
-
-    /* Geser ke kanan 4 mm */
     transform: translateX(6mm);
   }
-
 
   /* Ini adalah style dari printStylesXP360B */
   @page {
@@ -873,6 +908,8 @@ onMounted(() => {
     page-break-after: always !important;
     margin: 0 !important;
     padding: 0 !important;
+    background-color: white !important;
+    color: black !important;
   }
 
   .barcode-label {
@@ -881,16 +918,20 @@ onMounted(() => {
     padding: 0.5mm !important;
     font-size: 5px !important;
     line-height: 1.1 !important;
+    background-color: white !important;
+    color: black !important;
   }
 
   .item-name {
     font-size: 5px !important;
     margin: 0 !important;
+    color: black !important;
   }
 
   .item-size {
     font-size: 4px !important;
     margin: 0 !important;
+    color: black !important;
   }
 
   .barcode-svg {
@@ -899,10 +940,18 @@ onMounted(() => {
     margin: 0.3mm 0 !important;
   }
 
+  .barcode-svg line,
+  .barcode-svg rect,
+  .barcode-svg g {
+    fill: black !important;
+    stroke: black !important;
+  }
+
   .label-footer {
     font-size: 3px !important;
     width: 90% !important;
     margin-top: 0 !important;
+    color: black !important;
   }
 }
 </style>

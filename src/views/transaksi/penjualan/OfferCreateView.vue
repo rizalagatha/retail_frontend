@@ -75,6 +75,14 @@ interface Product {
   barcode: string;
 }
 
+interface TableHeader {
+  title: string;
+  key: string;
+  width?: string;
+  sortable?: boolean;
+  align?: 'start' | 'end' | 'center'; // Opsional (tanda tanya)
+}
+
 // --- State ---
 const header = ref({
   nomor: '',
@@ -154,21 +162,23 @@ const totalQty = computed(() =>
   items.value.reduce((sum, item) => sum + (Number(item.jumlah) || 0), 0)
 );
 
-const tableHeaders = [
+const tableHeaders: TableHeader[] = [
   { title: 'Kode', key: 'kode', width: '300px' },
   { title: 'Barcode', key: 'barcode', sortable: false },
   { title: 'Nama Barang', key: 'nama', width: '900px' },
   { title: 'Ukuran', key: 'ukuran', width: '30px' },
-  { title: 'Stok', key: 'stok', width: '30px', align: 'end' }, // <-- DIUBAH
-  { title: 'Jml', key: 'jumlah', width: '30px', align: 'end' }, // <-- DIUBAH
-  { title: 'Harga', key: 'harga', width: '90px', align: 'end' }, // <-- DIUBAH
-  { title: 'Diskon %', key: 'diskonPersen', width: '30px', align: 'end' }, // <-- DIUBAH
-  { title: 'Diskon Rp', key: 'diskonRp', width: '50px', align: 'end' }, // <-- DIUBAH
+  { title: 'Stok', key: 'stok', width: '30px', align: 'end' },
+  { title: 'Jml', key: 'jumlah', width: '30px', align: 'end' },
+  { title: 'Harga', key: 'harga', width: '90px', align: 'end' },
+  { title: 'Diskon %', key: 'diskonPersen', width: '30px', align: 'end' },
+  { title: 'Diskon Rp', key: 'diskonRp', width: '50px', align: 'end' },
   { title: 'Total', key: 'total', align: 'end', width: '90px' },
   { title: 'No. Pengajuan', key: 'noPengajuanHarga', width: '90px' },
-  { title: 'Barcode', key: 'barcode', width: '70px' },
+  // Perhatian: Ada key 'barcode' ganda di snippet Anda.
+  // Jika ini kolom berbeda, sebaiknya key-nya dibedakan, misal 'barcode2'.
+  { title: 'Barcode', key: 'barcode_scan', width: '70px' },
   { title: 'Actions', key: 'actions', sortable: false, width: '40px' },
-] as const;
+];
 
 // --- Methods ---
 const loadCustomerDetails = async () => {
@@ -1206,39 +1216,29 @@ onMounted(() => {
               placeholder="F1..." @keydown.f1.prevent="openPriceProposalSearch(index)">
             </v-text-field>
           </template>
-          <template #bottom>
+          <template #[`body.append`]>
             <tr class="qty-footer-row">
+              <td v-for="header in tableHeaders" :key="header.key"
+                :class="header.align === 'end' || header.key === 'jumlah' || header.key === 'harga' || header.key === 'total' ? 'text-right' : 'text-left'">
 
-              <td></td> <!-- KODE -->
-              <td></td> <!-- BARCODE -->
-              <td></td> <!-- NAMA -->
-              <td></td> <!-- UKURAN -->
-              <td></td> <!-- STOK -->
+                <div v-if="header.key === 'jumlah'" class="qty-value">
+                  {{ totalQty }}
+                </div>
 
-              <td></td> <!-- (KOLOM JML SEBELUMNYA, KOSONGKAN SAJA) -->
+                <div v-else-if="header.key === 'stok'"
+                  class="text-caption font-weight-bold text-medium-emphasis text-right mr-2">
+                  TOTAL QTY:
+                </div>
 
-              <!-- INI PERSIS DI KOLOM JML -->
-              <td class="text-right font-weight-bold qty-value">
-                TOTAL QTY: {{ totalQty }}
               </td>
-
-              <td></td> <!-- Harga -->
-              <td></td> <!-- Diskon% -->
-              <td></td> <!-- DiskonRp -->
-              <td></td> <!-- Total -->
-              <td></td> <!-- NoPengajuan -->
-              <td></td> <!-- Barcode2 -->
-              <td></td> <!-- Actions -->
-
             </tr>
-
-            <div class="pa-2 border-t d-flex align-center justify-start">
-              <v-btn size="small" @click="addNewRow" prepend-icon="mdi-plus" variant="text" color="primary">
-                Tambah Baris
-              </v-btn>
-            </div>
           </template>
         </v-data-table>
+        <div class="pa-2 border-t d-flex align-center justify-start bg-surface">
+          <v-btn size="small" @click="addNewRow" prepend-icon="mdi-plus" variant="text" color="primary">
+            Tambah Baris
+          </v-btn>
+        </div>
       </div>
     </div>
 
@@ -1308,24 +1308,130 @@ onMounted(() => {
 </template>
 
 <style scoped>
-/* Background color untuk left column sections - tone biru langit */
+/* --- 1. PERBAIKAN LAYOUT TABEL (Agar Sticky Footer Jalan) --- */
+
+/* Pastikan section kanan punya flex layout */
+.right-column.desktop-form-section {
+  display: flex;
+  flex-direction: column;
+  height: 100%; /* Penting */
+  overflow: hidden; /* Penting */
+}
+
+/* Tabel harus mengisi sisa ruang dan tidak scroll body-nya sendiri */
+.desktop-table {
+  flex-grow: 1;
+  height: 100%; /* Paksa full height */
+  display: flex;
+  flex-direction: column;
+  overflow: hidden; /* Prevent double scroll */
+}
+
+/* Wrapper dalam Vuetify adalah yang harus di-scroll */
+.desktop-table :deep(.v-table__wrapper) {
+  height: 100% !important; /* Paksa tinggi penuh */
+  overflow-y: auto !important; /* Scroll ada di sini */
+  position: relative; /* Penting untuk sticky */
+}
+
+/* --- 2. PERBAIKAN TOTAL QTY (STICKY BOTTOM) --- */
+.qty-footer-row {
+  position: sticky !important; /* Paksa sticky */
+  bottom: 0 !important; /* Tempel di bawah wrapper */
+  z-index: 5; /* Di atas baris data */
+}
+
+/* Background row total harus solid agar baris di bawahnya tidak tembus saat di-scroll */
+.qty-footer-row td {
+  background-color: rgb(var(--v-theme-surface)) !important; /* Ikut tema (Putih/Hitam) */
+  border-top: 3px solid #0D47A1 !important; /* Border pemisah tebal biru */
+  color: #0D47A1 !important; /* Teks Biru */
+  font-weight: 900;
+  font-size: 14px;
+  padding: 0 16px;
+  height: 40px;
+}
+
+/* --- 3. PERBAIKAN HEADER (TETAP BIRU) --- */
+.desktop-table :deep(thead tr th) {
+  background-color: #0D47A1 !important; /* [FIX] Paksa Biru Tua */
+  color: #ffffff !important; /* [FIX] Teks Putih */
+  font-weight: bold !important;
+  text-transform: uppercase;
+  font-size: 11px !important;
+  height: 40px !important;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+  border-bottom: none !important;
+  z-index: 6; /* Header di atas footer */
+}
+
+/* --- Lain-lain (Tetap Pertahankan) --- */
+.form-grid-container {
+  display: grid;
+  grid-template-columns: 400px 1fr;
+  gap: 16px;
+  height: 100%;
+  overflow: hidden;
+  background-color: transparent;
+}
+
+.left-column, .right-column {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.desktop-form-section {
+  padding: 12px 16px;
+  border-radius: 8px;
+  background-color: rgb(var(--v-theme-surface));
+  color: rgb(var(--v-theme-on-surface));
+}
+
 .left-column .desktop-form-section.header-section {
-  background-color: #e3f2fd;
-  /* Biru langit Material Design */
+  background-color: var(--bg-panel-left);
+  border: 1px solid rgba(var(--v-border-color), var(--v-border-opacity));
 }
 
 .left-column .desktop-form-section.footer-section {
-  background-color: #fff3e0;
-  /* Orange muda untuk section summary/total */
+  background-color: rgba(var(--v-theme-warning), 0.05);
+  border: 1px solid rgba(var(--v-theme-warning), 0.2);
 }
 
-/* Background color untuk right column */
 .right-column.desktop-form-section {
-  background-color: #e8f4f8;
-  /* Biru langit lebih muda */
+  background-color: var(--bg-panel-right);
+  border: 1px solid rgba(var(--v-border-color), var(--v-border-opacity));
 }
 
-/* Existing styles - jangan diubah */
+/* Fix Input Transparan di Header */
+.header-section :deep(.v-field),
+.footer-section :deep(.v-field) {
+    background-color: transparent !important;
+    box-shadow: none !important;
+}
+
+.header-section :deep(input),
+.footer-section :deep(input) {
+    color: rgb(var(--v-theme-on-surface)) !important;
+    opacity: 1 !important;
+}
+
+.header-section :deep(.v-label),
+.footer-section :deep(.v-label) {
+    color: rgba(var(--v-theme-on-surface), 0.7) !important;
+}
+
+/* Summary Field */
+.summary-field :deep(input) {
+  font-weight: 900 !important;
+  font-size: 1.1rem !important;
+  padding-top: 10px !important;
+  color: rgb(var(--v-theme-on-surface)) !important;
+}
+
+/* Scrollable Cell & Scanner */
 .desktop-table :deep(.scrollable-cell) {
   white-space: nowrap;
   overflow-x: auto;
@@ -1339,47 +1445,20 @@ onMounted(() => {
   margin-bottom: 16px;
 }
 
-.summary-field :deep(input) {
-  font-weight: 900 !important;
-  font-size: 1.1rem !important;
-  padding-top: 10px !important;
+/* Input angka dalam tabel */
+.v-data-table :deep(input[type='number']) {
+  text-align: right;
+  -moz-appearance: textfield;
+  appearance: textfield;
+  color: rgb(var(--v-theme-on-surface));
+}
+.v-data-table :deep(input) {
+    color: rgb(var(--v-theme-on-surface)) !important;
 }
 
-.vertically-aligned-table :deep(tbody tr td) {
-  vertical-align: middle !important;
-}
-
-.desktop-table :deep(thead tr th) {
-  background-color: #0D47A1 !important;
-  /* Biru Tua */
-  color: #ffffff !important;
-  /* Teks Putih */
-  font-weight: bold !important;
-  text-transform: uppercase;
-  font-size: 11px !important;
-  height: 40px !important;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-  border-bottom: none !important;
-  /* Supaya lebih rapi */
-}
-
-.qty-footer-row {
-  position: sticky;
-  bottom: 48px;
-  /* supaya tidak bertabrakan dengan tombol Tambah Baris */
-  background: white;
-  z-index: 9;
-  height: 36px;
-}
-
-.qty-footer-row td {
-  padding: 8px;
-  border-top: 2px solid #0D47A1;
-}
-
-.qty-footer-row .qty-value {
-  color: #0D47A1;
-  font-weight: 700;
-  font-size: 14px;
+/* Tombol Tambah Baris */
+.pa-2.border-t {
+    background-color: rgb(var(--v-theme-surface)) !important;
+    border-color: rgba(var(--v-border-color), var(--v-border-opacity)) !important;
 }
 </style>

@@ -145,15 +145,24 @@ watch(filters, fetchData, { deep: true });
             </span>
           </template>
 
+          <template #[`body.append`]>
+            <tr class="total-row">
+              <!-- Semua kolom sebelum stok -->
+              <td :colspan="tableHeaders.length - 1" class="text-end font-weight-bold">
+                TOTAL
+              </td>
+
+              <!-- Kolom stok -->
+              <td class="text-end total-cell">
+                <span class="text-red font-weight-black">
+                  {{ new Intl.NumberFormat('id-ID').format(grandTotalStok) }}
+                </span>
+              </td>
+            </tr>
+          </template>
+
           <template #bottom></template>
         </AppDataTable>
-
-        <div class="sticky-footer-total">
-          <span class="text-subtitle-1 font-weight-bold">Total Stok Minus:</span>
-          <span class="text-h6 font-weight-black text-red">
-            {{ new Intl.NumberFormat('id-ID').format(grandTotalStok) }}
-          </span>
-        </div>
       </div>
     </div>
   </PageLayout>
@@ -173,10 +182,21 @@ watch(filters, fetchData, { deep: true });
   gap: 8px;
   flex-wrap: wrap;
   padding: 8px 12px;
-  background-color: #f9f9f9;
-  border-radius: 8px;
-  border: 1px solid #eee;
   flex-shrink: 0;
+
+  background-color: rgb(var(--v-theme-surface));
+  border-radius: 8px;
+  border: 1px solid rgba(var(--v-theme-on-surface), 0.12);
+}
+
+.filter-section :deep(.v-field),
+.filter-section :deep(.v-field--variant-outlined),
+.filter-section :deep(.v-field--variant-filled) {
+  background-color: rgb(var(--v-theme-surface)) !important;
+}
+
+.filter-section:deep(.v-field--variant-filled .v-field__overlay) {
+  background-color: rgb(var(--v-theme-surface)) !important;
 }
 
 .filter-label {
@@ -198,16 +218,23 @@ watch(filters, fetchData, { deep: true });
   max-height: calc(100vh - 260px) !important;
 }
 
-.sticky-footer-total {
-  position: relative;
-  z-index: 10;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 12px 16px;
-  background-color: #f9f9f9;
-  border-top: 2px solid #e0e0e0;
-  flex-shrink: 0;
-  margin-top: -1px;
+.total-row {
+  position: sticky;
+  bottom: 0;
+  z-index: 5;
+}
+
+.total-row td {
+  background-color: rgb(var(--v-theme-surface));
+  border-top: 2px solid rgba(var(--v-theme-on-surface), 0.2);
+}
+
+.total-cell {
+  text-align: right;
+  padding-right: 16px;
+}
+
+.total-cell .text-red {
+  color: rgb(var(--v-theme-error)) !important;
 }
 </style>

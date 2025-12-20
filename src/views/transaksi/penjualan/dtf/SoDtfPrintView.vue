@@ -440,4 +440,14 @@ onMounted(() => {
   font-size: 7.5pt;
   color: #555;
 }
+
+/* ============================= */
+/* FORCE LIGHT MODE FOR PRINT VIEW */
+/* ============================= */
+
+.print-container,
+.print-container * {
+  color: #000 !important;
+  background: #fff !important;
+}
 </style>

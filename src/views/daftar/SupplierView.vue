@@ -63,7 +63,7 @@ const fetchSuppliers = async () => {
   isLoading.value = true;
   selected.value = [];
   try {
-    const response = await api.get('/suppliers'); // Gunakan API
+    const response = await api.get('/suppliers');
     suppliers.value = response.data;
   } catch {
     toast.error('Gagal memuat data supplier.');
@@ -102,20 +102,18 @@ const saveSupplier = async () => {
       isNew: isNew.value,
       user: authStore.user
     };
-    await api.post('/suppliers/save', payload); // Gunakan API
+    await api.post('/suppliers/save', payload);
     toast.success('Data supplier berhasil disimpan.');
     fetchSuppliers();
+    dialog.value = false;
   } catch {
     toast.error('Gagal menyimpan data supplier.');
-  } finally {
-    dialog.value = false;
   }
 };
 
-// (4) Ubah metode hapus, hilangkan confirm()
 const deleteSupplier = async (item: Supplier) => {
   try {
-    await api.delete(`/suppliers/${item.kode}`); // Gunakan API
+    await api.delete(`/suppliers/${item.kode}`);
     toast.success('Data supplier berhasil dihapus.');
     fetchSuppliers();
   } catch {
@@ -125,12 +123,10 @@ const deleteSupplier = async (item: Supplier) => {
 
 const handleDeleteFromHeader = () => {
   if (canDelete.value) {
-    // Panggil dialog konfirmasi
     confirmDelete(selected.value[0]);
   }
 };
 
-// (5) Tambahkan metode untuk dialog konfirmasi
 const confirmDelete = (item: Supplier) => {
   itemToDelete.value = item;
   dialogDelete.value = true;
@@ -194,7 +190,6 @@ onMounted(() => {
     </div>
 
     <div v-else class="browse-content">
-      <!-- Filter Section -->
       <div class="filter-section">
         <v-text-field v-model="search" density="compact" label="Cari Supplier..." prepend-inner-icon="mdi-magnify"
           variant="outlined" hide-details single-line></v-text-field>
@@ -202,7 +197,6 @@ onMounted(() => {
         <v-btn @click="fetchSuppliers" icon="mdi-refresh" variant="text" size="small"></v-btn>
       </div>
 
-      <!-- Table Section -->
       <AppDataTable v-model="selected" :headers="headers" :items="suppliers" :search="search" :loading="isLoading"
         item-value="kode" density="compact" class="desktop-table header-browse-blue" fixed-header show-select return-object>
         <template #[`item.status`]="{ item }">
@@ -221,38 +215,46 @@ onMounted(() => {
       </AppDataTable>
     </div>
 
-    <!-- Dialogs -->
     <v-dialog v-model="dialog" max-width="800px" persistent>
       <v-card class="dialog-card">
         <v-card-title class="dialog-header">
           <span class="text-subtitle-1 font-weight-medium">{{ dialogTitle }}</span>
         </v-card-title>
+
         <v-card-text class="pa-4">
           <v-container>
             <v-row>
               <v-col cols="12" md="6">
                 <v-text-field v-model="editedItem.kode" label="Kode" :disabled="!isNew" variant="outlined"
-                  density="compact" hide-details placeholder="Ketik atau F1..."
+                  density="compact" hide-details placeholder="Ketik atau F1..." class="mb-2"
                   @keydown.f1.prevent="isHelpModalVisible = true" append-inner-icon="mdi-magnify"
                   @click:append-inner="isHelpModalVisible = true"></v-text-field>
+
                 <v-text-field v-model="editedItem.nama" label="Nama" variant="outlined" density="compact"
-                  hide-details></v-text-field>
+                  hide-details class="mb-2"></v-text-field>
+
                 <v-textarea v-model="editedItem.alamat" label="Alamat" variant="outlined" density="compact" rows="2"
-                  hide-details></v-textarea>
+                  hide-details class="mb-2"></v-textarea>
+
                 <v-text-field v-model="editedItem.kota" label="Kota" variant="outlined" density="compact"
-                  hide-details></v-text-field>
+                  hide-details class="mb-2"></v-text-field>
+
                 <v-text-field v-model="editedItem.telp" label="Telepon" variant="outlined" density="compact"
-                  hide-details></v-text-field>
+                  hide-details class="mb-2"></v-text-field>
+
                 <v-text-field v-model="editedItem.contactPerson" label="Contact Person" variant="outlined"
-                  density="compact" hide-details></v-text-field>
+                  density="compact" hide-details class="mb-2"></v-text-field>
               </v-col>
               <v-col cols="12" md="6">
                 <v-text-field v-model="editedItem.rekening" label="No. Rekening" variant="outlined" density="compact"
-                  hide-details></v-text-field>
+                  hide-details class="mb-2"></v-text-field>
+
                 <v-text-field v-model="editedItem.bank" label="Bank" variant="outlined" density="compact"
-                  hide-details></v-text-field>
+                  hide-details class="mb-2"></v-text-field>
+
                 <v-text-field v-model="editedItem.atasNama" label="Atas Nama" variant="outlined" density="compact"
-                  hide-details></v-text-field>
+                  hide-details class="mb-2"></v-text-field>
+
                 <v-radio-group v-model="editedItem.status" inline label="Status" density="compact" hide-details
                   class="mt-4">
                   <v-radio label="Aktif" value="AKTIF" color="success"></v-radio>
@@ -262,10 +264,11 @@ onMounted(() => {
             </v-row>
           </v-container>
         </v-card-text>
+
         <v-card-actions class="dialog-footer">
           <v-spacer></v-spacer>
-          <v-btn size="small" @click="dialog = false">Batal</v-btn>
-          <v-btn size="small" color="primary" @click="saveSupplier" variant="elevated">Simpan</v-btn>
+          <v-btn size="small" variant="text" color="grey" @click="dialog = false">Batal</v-btn>
+          <v-btn size="small" color="primary" @click="saveSupplier" variant="flat">Simpan</v-btn>
         </v-card-actions>
       </v-card>
     </v-dialog>
@@ -274,33 +277,51 @@ onMounted(() => {
       @supplier-selected="handleSupplierSelected" />
 
     <v-dialog v-model="dialogDelete" max-width="500px">
-      <v-card>
-        <v-card-title class="text-h5">Konfirmasi Hapus</v-card-title>
-        <v-card-text>Apakah Anda yakin ingin menghapus supplier <strong>{{ itemToDelete?.nama }}</strong>?</v-card-text>
-        <v-card-actions><v-spacer></v-spacer><v-btn @click="dialogDelete = false">Batal</v-btn><v-btn
-            color="red-darken-1" variant="elevated"
-            @click="deleteConfirmed">Hapus</v-btn><v-spacer></v-spacer></v-card-actions>
+      <v-card class="dialog-card">
+        <v-card-title class="dialog-header">Konfirmasi Hapus</v-card-title>
+        <v-card-text class="pa-4 pt-6 text-body-1">
+            Apakah Anda yakin ingin menghapus supplier <strong>{{ itemToDelete?.nama }}</strong>?
+        </v-card-text>
+        <v-card-actions class="dialog-footer">
+          <v-spacer></v-spacer>
+          <v-btn variant="text" color="grey" @click="dialogDelete = false">Batal</v-btn>
+          <v-btn color="error" variant="flat" @click="deleteConfirmed">Hapus</v-btn>
+          <v-spacer></v-spacer>
+        </v-card-actions>
       </v-card>
     </v-dialog>
   </PageLayout>
 </template>
 
 <style scoped>
-/* Dialog Styles */
+/* Dialog Styles (Dark Mode Compatible) */
 .dialog-card {
   font-size: 12px;
+  background-color: rgb(var(--v-theme-surface));
+  color: rgb(var(--v-theme-on-surface));
 }
 
 .dialog-header {
-  border-bottom: 1px solid #e0e0e0;
+  border-bottom: 1px solid rgba(var(--v-border-color), var(--v-border-opacity));
   padding: 8px 16px;
-  background-color: #f5f5f5;
+  background-color: rgb(var(--v-theme-background));
 }
 
 .dialog-footer {
-  border-top: 1px solid #e0e0e0;
+  border-top: 1px solid rgba(var(--v-border-color), var(--v-border-opacity));
   padding: 8px 16px;
-  background-color: #f5f5f5;
+  background-color: rgb(var(--v-theme-background));
+}
+
+/* Fix Input Text Color & Background */
+.dialog-card :deep(.v-field__input),
+.dialog-card :deep(.v-label) {
+    color: rgb(var(--v-theme-on-surface));
+}
+
+.dialog-card :deep(.v-field) {
+    background-color: rgb(var(--v-theme-surface));
+    border-color: rgba(var(--v-border-color), var(--v-border-opacity));
 }
 
 .dialog-card :deep(.v-text-field),

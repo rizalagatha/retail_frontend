@@ -39,13 +39,14 @@ const items = ref<ParetoItem[]>([]);
 const isLoading = ref(true);
 const cabangOptions = ref([]);
 const kategoriOptions = ref([]);
+const page = ref(1);
+const itemsPerPage = ref(10);
 
 const filters = reactive({
   startDate: format(subDays(new Date(), 30), 'yyyy-MM-dd'),
   endDate: format(new Date(), 'yyyy-MM-dd'),
   cabang: authStore.user?.cabang === 'KDC' ? 'ALL' : authStore.user?.cabang || '',
   kategori: 'ALL',
-  limit: 20,
   search: '',
 });
 
@@ -280,9 +281,9 @@ watch(filters, fetchData, { deep: true });
           hide-details variant="outlined" class="ms-4" style="max-width: 180px;" />
         <v-select v-model="filters.cabang" :items="cabangOptions" item-title="nama" item-value="kode" label="Gudang"
           density="compact" hide-details variant="outlined" class="ms-4" style="max-width: 180px;" />
-        <v-text-field v-model.number="filters.limit" label="Item" type="number" density="compact" hide-details
-          variant="outlined" class="ms-4" style="max-width: 120px;" />
-          <v-text-field v-model="filters.search" placeholder="Cari Barang..." prepend-inner-icon="mdi-magnify"
+        <v-text-field label="Item" type="number" density="compact" hide-details variant="outlined" class="ms-4"
+          style="max-width: 120px;" />
+        <v-text-field v-model="filters.search" placeholder="Cari Barang..." prepend-inner-icon="mdi-magnify"
           density="compact" hide-details variant="outlined" class="ms-4" style="max-width: 250px;" clearable />
         <v-spacer />
         <v-btn prepend-icon="mdi-filter-off" variant="tonal" color="red" class="reset-filter-btn me-2"
@@ -293,8 +294,8 @@ watch(filters, fetchData, { deep: true });
       </div>
 
       <div class="table-container">
-        <AppDataTable :headers="headers" :items="filteredItems" :loading="isLoading"
-          class="desktop-table header-browse-blue" density="compact" fixed-header>
+        <AppDataTable :headers="headers" :items="filteredItems" v-model:page="page" :items-per-page="itemsPerPage"
+          :items-per-page-options="[10, 20, 50, 100]" show-current-page density="compact" fixed-header>
           <template #headers="{ columns, isSorted, getSortIcon, toggleSort }">
             <tr>
               <template v-for="col in columns" :key="col.key">

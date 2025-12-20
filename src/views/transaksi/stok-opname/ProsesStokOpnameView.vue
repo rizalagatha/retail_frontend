@@ -22,6 +22,7 @@ interface SopHeader {
 
 interface SopDetail {
   Kode: string;
+  Barcode: string;
   Nama: string;
   Ukuran: string;
   Stok: number;
@@ -96,6 +97,7 @@ const headers = ref<DataTableHeader[]>([
 
 const detailHeaders = [
   { title: 'Kode', key: 'Kode' },
+  { title: 'Barcode', key: 'Barcode' },
   { title: 'Nama Barang', key: 'Nama' },
   { title: 'Ukuran', key: 'Ukuran' },
   { title: 'Stok Sistem', key: 'Stok', align: 'end' },
@@ -452,11 +454,22 @@ onBeforeUnmount(() => {
 .filter-section {
   flex-shrink: 0;
   padding: 8px 16px;
-  border-bottom: 1px solid #e0e0e0;
-  background: white;
   display: flex;
   align-items: center;
   gap: 12px;
+
+  background-color: rgb(var(--v-theme-surface));
+  border-bottom: 1px solid rgba(var(--v-theme-on-surface), 0.12);
+}
+
+.filter-section :deep(.v-field),
+.filter-section :deep(.v-field--variant-outlined),
+.filter-section :deep(.v-field--variant-filled) {
+  background-color: rgb(var(--v-theme-surface)) !important;
+}
+
+.filter-section:deep(.v-field--variant-filled .v-field__overlay) {
+  background-color: rgb(var(--v-theme-surface)) !important;
 }
 
 .filter-label {
@@ -493,14 +506,18 @@ onBeforeUnmount(() => {
 /* 5. Custom Header Style (Biru seperti Penawaran) */
 .resizable-header {
   position: relative;
-  background-color: #e3f2fd !important;
-  color: #0d47a1 !important;
+
+  background-color: rgb(var(--v-theme-primary)) !important;
+  color: rgb(var(--v-theme-on-primary)) !important;
+
   font-weight: 700 !important;
   text-transform: uppercase;
   font-size: 11px !important;
   height: 40px !important;
-  border-bottom: 2px solid #1976d2 !important;
+
+  border-bottom: 2px solid rgb(var(--v-theme-primary)) !important;
   padding: 0 8px !important;
+
   user-select: none;
   white-space: nowrap;
 }
@@ -533,7 +550,7 @@ onBeforeUnmount(() => {
 
 .resizer:hover,
 .resizable-header:hover .resizer {
-  border-right: 2px solid #1565c0;
+  border-right: 2px solid rgba(var(--v-theme-on-primary), 0.6);
 }
 
 /* 6. Sticky Detail Row Style */
@@ -541,12 +558,15 @@ onBeforeUnmount(() => {
   position: sticky;
   left: 0;
   z-index: 2;
+
   display: flex;
   justify-content: flex-start;
   align-items: flex-start;
-  background-color: #fafafa;
+
+  background-color: rgb(var(--v-theme-surface));
+  border-bottom: 1px solid rgba(var(--v-theme-on-surface), 0.12);
+
   padding: 16px 16px 16px 64px;
-  border-bottom: 1px solid #e0e0e0;
   width: fit-content;
   min-width: 100%;
   box-sizing: border-box;
@@ -555,16 +575,19 @@ onBeforeUnmount(() => {
 .detail-table-wrapper {
   width: 100%;
   max-width: 1000px;
-  border: 1px solid #ddd;
+
+  background-color: rgb(var(--v-theme-surface));
+  border: 1px solid rgba(var(--v-theme-on-surface), 0.12);
   border-radius: 4px;
   overflow: hidden;
-  background-color: white;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.08);
 }
 
 .detail-table :deep(thead tr th) {
-  background-color: #f5f5f5 !important;
-  color: #424242 !important;
+  background-color: rgba(var(--v-theme-on-surface), 0.06) !important;
+  color: rgb(var(--v-theme-on-surface)) !important;
+
   font-size: 10px !important;
   height: 32px !important;
   text-transform: uppercase;
@@ -573,11 +596,11 @@ onBeforeUnmount(() => {
 
 /* Utilitas Warna */
 .text-red {
-  color: #d32f2f !important;
+  color: rgb(var(--v-theme-error)) !important;
 }
 
 .text-green {
-  color: #2e7d32 !important;
+  color: rgb(var(--v-theme-success)) !important;
 }
 
 .rotate-180 {

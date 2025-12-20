@@ -664,6 +664,12 @@ const effectiveSisaPiutang = computed(() => {
     : correctedSisaPiutang.value; // default existing logic
 });
 
+const sisaPiutangDisplay = computed(() => {
+  const baseSisa = effectiveSisaPiutang.value;
+  // Kurangi dengan nominal retur, pastikan tidak minus
+  return Math.max(baseSisa - (payment.retur.nominal || 0), 0);
+});
+
 watch(kembali, (newVal) => {
   payment.pundiAmal = calculatePundiAmal(newVal);
 });
@@ -711,7 +717,7 @@ watch(kembali, (newVal) => {
               <v-divider class="my-2" />
               <div class="d-flex justify-space-between font-weight-bold text-h6 text-primary">
                 <span>Sisa Piutang:</span>
-                <span>{{ formatRupiah(effectiveSisaPiutang) }}</span>
+                <span>{{ formatRupiah(sisaPiutangDisplay) }}</span>
               </div>
             </div>
 

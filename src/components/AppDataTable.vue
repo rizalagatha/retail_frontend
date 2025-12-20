@@ -5,63 +5,33 @@ import emptyDataAnimation from '@/assets/empty-state.json';
 import { VDataTable, VDataTableServer } from 'vuetify/components/VDataTable';
 
 const props = defineProps({
-  server: {
-    type: Boolean,
-    default: false,
-  },
-  items: {
-    type: Array,
-    default: () => []
-  },
-  itemsPerPageOptions: {
-    type: Array,
-    default: () => [10, 25, 50, 100]
-  },
-  search: {
-    type: String,
-    default: ''
-  }
+  server: { type: Boolean, default: false },
+  items: { type: Array, default: () => [] },
+  itemsPerPageOptions: { type: Array, default: () => [10, 25, 50, 100] },
+  search: { type: String, default: '' }
 });
 
-const tableComponent = computed(() => {
-  return props.server ? VDataTableServer : VDataTable;
-});
-
-// State pagination untuk mode client-side
+const tableComponent = computed(() => props.server ? VDataTableServer : VDataTable);
 const page = ref(1);
 const itemsPerPage = ref(10);
 
-// Computed untuk filtered items (handle search)
 const filteredItems = computed(() => {
   if (!props.items) return [];
   if (!props.search) return props.items;
-
   const searchLower = props.search.toLowerCase();
   return props.items.filter((item: Record<string, unknown>) => {
-    return Object.values(item).some(val =>
-      String(val).toLowerCase().includes(searchLower)
-    );
+    return Object.values(item).some(val => String(val).toLowerCase().includes(searchLower));
   });
 });
 
-// Computed untuk items yang ditampilkan per halaman
 const paginatedItems = computed(() => {
   if (props.server) return props.items;
-
-  const filtered = filteredItems.value;
   const start = (page.value - 1) * itemsPerPage.value;
-  const end = start + itemsPerPage.value;
-
-  return filtered.slice(start, end);
+  return filteredItems.value.slice(start, start + itemsPerPage.value);
 });
 
-// Computed untuk total halaman
-const pageCount = computed(() => {
-  if (props.server) return 0;
-  return Math.ceil(filteredItems.value.length / itemsPerPage.value);
-});
+const pageCount = computed(() => props.server ? 0 : Math.ceil(filteredItems.value.length / itemsPerPage.value));
 
-// Computed untuk info "1-25 of 120"
 const paginationText = computed(() => {
   const total = filteredItems.value.length;
   if (total === 0) return '0-0 of 0';
@@ -70,27 +40,14 @@ const paginationText = computed(() => {
   return `${start}-${end} of ${total}`;
 });
 
-// Reset page saat search berubah
-watch(() => props.search, () => {
-  page.value = 1;
-});
-
-// Reset page saat items per page berubah
-watch(itemsPerPage, () => {
-  page.value = 1;
-});
-
-// Debug logs
-watch(itemsPerPage, (newVal) => {
-  console.log('✅ Items per page:', newVal);
-  console.log('📊 Paginated items count:', paginatedItems.value.length);
-});
+watch(() => props.search, () => { page.value = 1; });
+watch(itemsPerPage, () => { page.value = 1; });
 </script>
 
 <template>
   <div class="app-data-table-wrapper">
     <component :is="tableComponent" v-bind="{ ...$attrs, items: paginatedItems }" hide-default-footer
-      :items-per-page="-1">
+      :items-per-page="-1" class="bg-surface">
       <template #no-data>
         <slot v-if="$slots['no-data']" name="no-data"></slot>
         <div v-else class="empty-data-wrapper">
@@ -98,28 +55,22 @@ watch(itemsPerPage, (newVal) => {
             <LottieVuePlayer :animation-data="emptyDataAnimation" :width="120" :height="120" :loop="true"
               :autoplay="true" />
           </div>
-          <h4 class="text-h7 text-grey-darken-1">Tidak Ada Data Ditemukan</h4>
-          <p class="text-body-3 text-grey-lighten-1 mt-2">
-            Coba ubah filter atau tanggal pencarian Anda.
-          </p>
+          <h4 class="text-h7 text-medium-emphasis">Tidak Ada Data Ditemukan</h4>
+          <p class="text-body-3 text-disabled mt-2">Coba ubah filter atau tanggal pencarian Anda.</p>
         </div>
       </template>
-
       <template v-for="(_, name) in $slots" v-slot:[name]="scope">
         <slot v-if="name !== 'no-data'" :name="name" v-bind="scope" />
       </template>
     </component>
 
-    <!-- Custom Footer dengan Pagination (hanya untuk mode client) -->
     <div v-if="!server && items && items.length > 0" class="custom-pagination-footer">
       <div class="items-per-page">
-        <span class="text-caption">Items per page:</span>
-        <v-select v-model="itemsPerPage" :items="itemsPerPageOptions" density="compact" variant="outlined"
-          hide-details></v-select>
+        <span class="text-caption text-medium-emphasis">Items per page:</span>
+        <v-select v-model="itemsPerPage" :items="itemsPerPageOptions" density="compact" variant="outlined" hide-details
+          class="items-per-page-select"></v-select>
       </div>
-
       <span class="pagination-text text-caption">{{ paginationText }}</span>
-
       <v-pagination v-model="page" :length="pageCount" :total-visible="5" density="compact" size="small"></v-pagination>
     </div>
   </div>
@@ -133,8 +84,9 @@ watch(itemsPerPage, (newVal) => {
 .empty-data-wrapper {
   padding: 48px 32px;
   text-align: center;
-  background-color: #fafafa;
-  border-top: 1px solid #e0e0e0;
+  /* [FIX] Background dinamis */
+  background-color: rgb(var(--v-theme-surface));
+  border-top: 1px solid rgba(var(--v-border-color), var(--v-border-opacity));
 }
 
 .lottie-container {
@@ -144,23 +96,16 @@ watch(itemsPerPage, (newVal) => {
   margin-bottom: 16px;
 }
 
-.empty-data-wrapper h4 {
-  font-size: 1.1rem;
-}
-
-.empty-data-wrapper p {
-  font-size: 0.85rem;
-}
-
-/* Custom Pagination Footer */
 .custom-pagination-footer {
   display: flex;
   align-items: center;
   justify-content: space-between;
   padding: 12px 16px;
-  border-top: thin solid rgba(var(--v-border-color), var(--v-border-opacity));
   gap: 16px;
-  background-color: white;
+  /* [FIX] Background footer pagination dinamis */
+  border-top: thin solid rgba(var(--v-border-color), var(--v-border-opacity));
+  background-color: rgb(var(--v-theme-surface));
+  color: rgb(var(--v-theme-on-surface));
 }
 
 .items-per-page {
@@ -174,50 +119,43 @@ watch(itemsPerPage, (newVal) => {
   max-width: 80px;
 }
 
+.custom-pagination-footer :deep(.v-field__input) {
+  min-height: 32px !important;
+  padding-top: 0;
+  padding-bottom: 0;
+}
+
 .pagination-text {
   color: rgba(var(--v-theme-on-surface), 0.6);
   white-space: nowrap;
   font-size: 0.875rem;
 }
 
-/* Custom styling untuk v-pagination agar mirip gambar 1 */
-.custom-pagination-footer :deep(.v-pagination) {
-  gap: 4px;
-}
-
+/* Tombol Pagination */
 .custom-pagination-footer :deep(.v-pagination__item),
 .custom-pagination-footer :deep(.v-pagination__prev),
-.custom-pagination-footer :deep(.v-pagination__next),
-.custom-pagination-footer :deep(.v-pagination__first),
-.custom-pagination-footer :deep(.v-pagination__last) {
+.custom-pagination-footer :deep(.v-pagination__next) {
   min-width: 36px;
   height: 36px;
   border-radius: 50%;
-  border: 1px solid #e0e0e0;
-  background-color: white;
   font-size: 14px;
   box-shadow: none;
+  /* [FIX] Tombol pagination ikut tema */
+  background-color: rgb(var(--v-theme-surface)) !important;
+  border: 1px solid rgba(var(--v-border-color), var(--v-border-opacity)) !important;
+  color: rgb(var(--v-theme-on-surface)) !important;
 }
 
 .custom-pagination-footer :deep(.v-pagination__item--is-active) {
-  background-color: #2196F3 !important;
-  color: white !important;
-  border-color: #2196F3 !important;
+  background-color: rgb(var(--v-theme-primary)) !important;
+  color: rgb(var(--v-theme-on-primary)) !important;
+  border: none !important;
 }
 
-.custom-pagination-footer :deep(.v-pagination__item:hover:not(.v-pagination__item--is-active)),
-.custom-pagination-footer :deep(.v-pagination__prev:hover),
-.custom-pagination-footer :deep(.v-pagination__next:hover) {
-  background-color: rgba(0, 0, 0, 0.04);
-}
-
-.custom-pagination-footer :deep(.v-pagination__item:disabled),
-.custom-pagination-footer :deep(.v-pagination__prev:disabled),
-.custom-pagination-footer :deep(.v-pagination__next:disabled) {
+.custom-pagination-footer :deep(.v-pagination__item:disabled) {
   opacity: 0.3;
 }
 
-/* Responsive */
 @media (max-width: 768px) {
   .custom-pagination-footer {
     flex-direction: column;

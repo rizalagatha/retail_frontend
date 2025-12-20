@@ -326,7 +326,7 @@ watch([startDate, endDate, selectedCabang], fetchData, { immediate: false });
       <v-card>
         <v-card-title class="text-h6 font-weight-bold">Konfirmasi Hapus</v-card-title>
         <v-card-text>Anda yakin ingin menghapus data LHK Stok Nomor: <strong>{{ itemToDelete?.Nomor
-            }}</strong>?</v-card-text>
+        }}</strong>?</v-card-text>
         <v-card-actions>
           <v-spacer></v-spacer>
           <v-btn color="grey-darken-1" variant="text" @click="isConfirmDeleteVisible = false">Batal</v-btn>
@@ -349,11 +349,23 @@ watch([startDate, endDate, selectedCabang], fetchData, { immediate: false });
 .filter-section {
   flex-shrink: 0;
   padding: 8px;
-  border-bottom: 1px solid #e0e0e0;
-  background: white;
   display: flex;
   align-items: center;
   gap: 12px;
+
+  background-color: rgb(var(--v-theme-surface));
+  border-bottom: 1px solid rgba(var(--v-theme-on-surface), 0.12);
+}
+
+/* Pastikan field di filter tidak putih */
+.filter-section :deep(.v-field),
+.filter-section :deep(.v-field--variant-outlined),
+.filter-section :deep(.v-field--variant-filled) {
+  background-color: rgb(var(--v-theme-surface)) !important;
+}
+
+.filter-section:deep(.v-field--variant-filled .v-field__overlay) {
+  background-color: rgb(var(--v-theme-surface)) !important;
 }
 
 .table-container {
@@ -435,12 +447,15 @@ watch([startDate, endDate, selectedCabang], fetchData, { immediate: false });
   position: sticky;
   left: 0;
   z-index: 2;
+
   display: flex;
   justify-content: flex-start;
   align-items: flex-start;
-  background-color: #fafafa;
+
+  background-color: rgb(var(--v-theme-surface));
+  border-bottom: 1px solid rgba(var(--v-theme-on-surface), 0.12);
+
   padding: 16px 16px 16px 64px;
-  border-bottom: 1px solid #e0e0e0;
   width: fit-content;
   min-width: 100%;
   box-sizing: border-box;
@@ -449,10 +464,11 @@ watch([startDate, endDate, selectedCabang], fetchData, { immediate: false });
 .detail-table-wrapper {
   width: 100%;
   max-width: 700px;
-  border: 1px solid #ddd;
+
+  background-color: rgb(var(--v-theme-surface));
+  border: 1px solid rgba(var(--v-theme-on-surface), 0.12);
   border-radius: 4px;
   overflow: hidden;
-  background-color: white;
 }
 
 .state-container {

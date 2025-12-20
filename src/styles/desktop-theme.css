@@ -51,7 +51,6 @@
   padding: var(--base-padding);
   border: 1px solid #e0e0e0;
   border-radius: 4px;
-  background-color: white;
   flex-shrink: 0;
 }
 
@@ -63,8 +62,8 @@
   flex-wrap: nowrap;
   gap: 8px !important;
   padding: 6px 8px !important;
-  border-bottom: 1px solid #e0e0e0;
-  background-color: #fff;
+  border-bottom: 1px solid rgba(var(--v-border-color), var(--v-border-opacity));
+  background-color: rgb(var(--v-theme-surface));
   flex-shrink: 0;
   height: auto;
   min-height: 42px;
@@ -76,7 +75,7 @@
 .filter-section .v-label {
   font-size: 11px !important;
   font-weight: 600;
-  color: #555;
+  color: rgba(var(--v-theme-on-surface), 0.7) !important;
   margin-right: 4px;
   white-space: nowrap;
   line-height: 1; /* Reset line-height agar flexbox align-items bekerja */
@@ -115,6 +114,8 @@
   display: flex;
   align-items: center;
   box-shadow: none !important; /* Optional: Hilangkan shadow jika ada */
+  background-color: rgb(var(--v-theme-background)) !important;
+  color: rgb(var(--v-theme-on-surface)) !important;
 }
 
 /* Area Ketik */
@@ -195,6 +196,7 @@
 
 .filter-section .v-icon {
   font-size: 16px !important;
+  color: rgba(var(--v-theme-on-surface), 0.7) !important;
   opacity: 0.7;
 }
 
@@ -214,8 +216,8 @@
 
 .filter-section .search-field {
   min-width: 250px !important; /* Paksa lebar minimal */
-  width: 300px !important;     /* Lebar ideal */
-  margin-left: 8px;            /* Beri jarak sedikit */
+  width: 300px !important; /* Lebar ideal */
+  margin-left: 8px; /* Beri jarak sedikit */
 }
 
 /* Pastikan input di dalamnya juga mengikuti lebar */
@@ -251,17 +253,14 @@
 }
 
 .header-section .v-field {
-  background-color: white !important;
   border-radius: 4px !important; /* Rounded corner standar Vuetify */
 }
 
 .header-section .v-field--variant-filled .v-field__overlay {
-  background-color: white !important;
   border-radius: 4px !important;
 }
 
 .header-section .v-field--variant-outlined {
-  background-color: white !important;
   border-radius: 4px !important;
 }
 
@@ -419,7 +418,6 @@
   border: 1px solid #ddd;
   border-radius: 4px;
   overflow: hidden;
-  background-color: white;
   position: sticky;
   left: 0; /* Menempel di sisi kiri */
   z-index: 2; /* Pastikan di atas layer row biasa */
@@ -664,7 +662,6 @@
   .v-pagination__list
   .v-pagination__item:not(.v-pagination__item--active)
   .v-btn {
-  background-color: white !important;
   border: 1px solid #e0e0e0 !important;
   color: #424242 !important;
 }
@@ -682,7 +679,6 @@
 .v-pagination__next .v-btn,
 .v-data-table-footer .v-pagination__prev .v-btn,
 .v-data-table-footer .v-pagination__next .v-btn {
-  background-color: white !important;
   border: 1px solid #e0e0e0 !important;
   color: #424242 !important;
 }
@@ -767,4 +763,61 @@
 :deep(td) {
   font-size: 11px !important;
   padding: 4px 8px !important;
+}
+
+/* =====================================================
+   GLOBAL DARK MODE FIX — DESKTOP
+   ===================================================== */
+
+/* Panel / Card / Section */
+.desktop-form-section,
+.v-card,
+.v-sheet {
+  background-color: rgb(var(--v-theme-surface)) !important;
+  border: 1px solid rgba(var(--v-theme-on-surface), 0.12);
+}
+
+/* Semua field (filled & outlined) */
+.v-field,
+.v-field--variant-filled,
+.v-field--variant-outlined {
+  background-color: rgb(var(--v-theme-surface)) !important;
+}
+
+.v-field--variant-filled .v-field__overlay {
+  background-color: rgb(var(--v-theme-surface)) !important;
+}
+
+/* Table body */
+.desktop-table,
+.v-table {
+  background-color: rgb(var(--v-theme-surface)) !important;
+}
+
+/* Header tabel — SELALU BIRU */
+.desktop-table thead th {
+  background-color: rgb(var(--v-theme-primary)) !important;
+  color: rgb(var(--v-theme-on-primary)) !important;
+  font-weight: 700;
+  font-size: 11px;
+}
+
+/* Pagination */
+.v-pagination .v-btn,
+.v-data-table-footer .v-btn {
+  background-color: rgb(var(--v-theme-surface)) !important;
+  color: rgb(var(--v-theme-on-surface)) !important;
+  border: 1px solid rgba(var(--v-theme-on-surface), 0.12);
+}
+
+.v-pagination__item--active .v-btn {
+  background-color: rgb(var(--v-theme-primary)) !important;
+  color: rgb(var(--v-theme-on-primary)) !important;
+}
+
+/* Anti putih terakhir (safety net) */
+.v-img,
+.v-table__wrapper,
+.v-card-text {
+  background-color: rgb(var(--v-theme-surface)) !important;
 }

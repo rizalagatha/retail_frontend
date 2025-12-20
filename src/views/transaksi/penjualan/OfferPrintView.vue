@@ -459,4 +459,14 @@ onMounted(() => {
   border-top: 1px dashed #333;
   padding-top: 5px;
 }
+
+/* ============================= */
+/* FORCE LIGHT MODE FOR PRINT VIEW */
+/* ============================= */
+
+.print-container,
+.print-container * {
+  color: #000 !important;
+  background: #fff !important;
+}
 </style>

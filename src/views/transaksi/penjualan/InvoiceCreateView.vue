@@ -2432,33 +2432,37 @@ watch(() => header.isMarketplace, async (isOnline) => {
 
 <style scoped>
 .totals-summary {
-  background-color: #f7f9fc;
+  background-color: rgb(var(--v-theme-surface));
   border-radius: 4px;
-  border: 1px solid #e0e0e0;
+  border: 1px solid rgba(var(--v-theme-on-surface), 0.12);
 }
 
 .custom-input-button {
-  border: 1px solid #BDBDBD;
+  border: 1px solid rgba(var(--v-theme-on-surface), 0.38);
   border-radius: 4px;
   padding: 8px 12px;
   cursor: pointer;
-  background-color: #f7f7f7;
   height: 40px;
-  /* Samakan dengan density compact */
+
+  background-color: rgb(var(--v-theme-surface));
+  color: rgb(var(--v-theme-on-surface));
+
+  display: flex;
   align-items: center;
 }
 
 .custom-input-button:hover {
-  border-color: #666666;
+  border-color: rgb(var(--v-theme-primary));
 }
 
 .input-content {
   font-size: 11px;
+  color: rgb(var(--v-theme-on-surface));
 }
 
 .input-placeholder {
   font-size: 11px;
-  color: #888888;
+  color: rgba(var(--v-theme-on-surface), 0.6);
 }
 
 :deep(.qty-error input) {
@@ -2554,7 +2558,7 @@ watch(() => header.isMarketplace, async (isOnline) => {
   flex-shrink: 0;
   /* Penting: jangan menyusut */
   padding: 8px 0;
-  border-top: 1px solid #e0e0e0;
+  border-top: 1px solid rgba(var(--v-theme-on-surface), 0.12);
 }
 
 .footer-actions-section .v-row {
@@ -2562,14 +2566,20 @@ watch(() => header.isMarketplace, async (isOnline) => {
 }
 
 .table-summary-footer {
-  background: linear-gradient(135deg, #ffffff 0%, #f3f7ff 100%);
-  border-top: 1px solid #dce3f0;
+  /* Surface + gradient theme-aware */
+  background: linear-gradient(135deg,
+      rgba(var(--v-theme-surface), 0.98) 0%,
+      rgba(var(--v-theme-primary), 0.06) 100%);
+
+  border-top: 1px solid rgba(var(--v-theme-on-surface), 0.12);
   padding: 12px 18px;
   font-size: 13px;
   flex-shrink: 0;
+
   backdrop-filter: blur(6px);
   -webkit-backdrop-filter: blur(6px);
-  box-shadow: 0 -3px 8px rgba(0, 0, 0, 0.06);
+
+  box-shadow: 0 -3px 8px rgba(0, 0, 0, 0.25);
 }
 
 .summary-row {
@@ -2580,28 +2590,29 @@ watch(() => header.isMarketplace, async (isOnline) => {
   font-weight: 600;
 }
 
+/* Label (chip-like) */
 .summary-row .label {
-  color: #4d5e80;
-  background: #e8eef9;
+  color: rgba(var(--v-theme-on-surface), 0.75);
+  background-color: rgba(var(--v-theme-primary), 0.12);
   padding: 4px 10px;
   border-radius: 12px;
   font-size: 12px;
+  white-space: nowrap;
 }
 
+/* Value (angka penting) */
 .summary-row .value {
   min-width: 80px;
   text-align: right;
-  color: #1e3a8a;
+  color: rgb(var(--v-theme-on-surface));
   font-size: 14px;
   font-weight: 700;
 }
 
 /* Mewarnai Header Tabel */
 .desktop-table :deep(thead tr th) {
-  background-color: #0D47A1 !important;
-  /* Biru Tua */
-  color: #ffffff !important;
-  /* Teks Putih */
+  background-color: rgb(var(--v-theme-primary)) !important;
+  color: rgb(var(--v-theme-on-primary)) !important;
   font-weight: bold !important;
   text-transform: uppercase;
   font-size: 11px !important;

@@ -843,8 +843,8 @@ watch(filters, () => {
 .filter-section {
   flex-shrink: 0;
   padding: 8px;
-  border-bottom: 1px solid #e0e0e0;
-  background: white;
+  background-color: rgb(var(--v-theme-surface));
+  border-bottom: 1px solid rgba(var(--v-theme-on-surface), 0.12);
   display: flex;
   align-items: center;
   flex-wrap: wrap;
@@ -859,8 +859,8 @@ watch(filters, () => {
   gap: 16px;
   padding: 8px 12px;
   font-size: 11px;
-  background-color: #f7f7f7;
-  border-bottom: 1px solid #e0e0e0;
+  background-color: rgb(var(--v-theme-surface));
+  border-bottom: 1px solid rgba(var(--v-theme-on-surface), 0.12);
   flex-shrink: 0;
 }
 
@@ -915,8 +915,8 @@ watch(filters, () => {
 /* Header Resize Style */
 .resizable-header {
   position: relative;
-  background-color: #e3f2fd !important;
-  color: #0d47a1 !important;
+  background-color: rgb(var(--v-theme-primary)) !important;
+  color: rgb(var(--v-theme-on-primary)) !important;
   font-weight: 700 !important;
   text-transform: uppercase;
   font-size: 11px !important;
@@ -948,7 +948,7 @@ watch(filters, () => {
 
 .resizer:hover,
 .resizable-header:hover .resizer {
-  border-right: 2px solid #1565c0;
+  border-right: 2px solid rgba(var(--v-theme-on-primary), 0.8);
 }
 
 /* Detail Sticky Container */
@@ -959,9 +959,9 @@ watch(filters, () => {
   display: flex;
   justify-content: flex-start;
   align-items: flex-start;
-  background-color: #fafafa;
+  background-color: rgb(var(--v-theme-surface));
   padding: 16px 16px 16px 64px;
-  border-bottom: 1px solid #e0e0e0;
+  border-bottom: 1px solid rgba(var(--v-theme-on-surface), 0.12);
   width: fit-content;
   min-width: 100%;
   box-sizing: border-box;
@@ -970,11 +970,10 @@ watch(filters, () => {
 .detail-table-wrapper {
   width: 100%;
   max-width: 500px;
-  /* Detail SO DTF biasanya tidak lebar */
-  border: 1px solid #ddd;
+  background-color: rgb(var(--v-theme-surface));
+  border: 1px solid rgba(var(--v-theme-on-surface), 0.12);
   border-radius: 4px;
   overflow: hidden;
-  background-color: white;
 }
 
 /* Pewarnaan Row & LHK */
@@ -987,8 +986,9 @@ watch(filters, () => {
 }
 
 .row-closed :deep(td:first-child) {
-  background-color: #FFFF99;
-  font-weight: bold;
+  background-color: rgba(255, 235, 59, 0.6);
+  border: 1px solid rgba(var(--v-theme-on-surface), 0.3);
+  font-weight: 600;
 }
 
 .lhk-zero {
@@ -1024,7 +1024,7 @@ watch(filters, () => {
 }
 
 .filter-menu .v-list-item:hover {
-  background-color: #e3f2fd !important;
+  background-color: rgba(var(--v-theme-primary), 0.08);
 }
 
 .custom-filter-item {
@@ -1045,11 +1045,11 @@ watch(filters, () => {
 
 /* khusus warna merah Reset Filter */
 .reset-filter-btn {
-  color: #d32f2f !important;
-  background-color: rgba(211, 47, 47, 0.15) !important;
+  color: rgb(var(--v-theme-error)) !important;
+  background-color: rgba(var(--v-theme-error), 0.15) !important;
 }
 
 .reset-filter-btn:hover {
-  background-color: rgba(211, 47, 47, 0.25) !important;
+  background-color: rgba(var(--v-theme-error), 0.25) !important;
 }
 </style>

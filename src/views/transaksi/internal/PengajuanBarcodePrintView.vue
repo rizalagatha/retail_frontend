@@ -477,4 +477,14 @@ watch(printData, async (val) => {
     height: 48px !important;
   }
 }
+
+/* ============================= */
+/* FORCE LIGHT MODE FOR PRINT VIEW */
+/* ============================= */
+
+.print-container,
+.print-container * {
+  color: #000 !important;
+  background: #fff !important;
+}
 </style>

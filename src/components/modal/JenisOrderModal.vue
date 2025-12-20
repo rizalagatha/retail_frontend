@@ -662,11 +662,12 @@ watch(
 }
 
 .section-box {
-  border: 1px solid #e0e0e0;
+  border: 1px solid rgba(var(--v-theme-on-surface), 0.12);
   border-radius: 4px;
   padding: 8px;
-  background-color: #fafafa;
   font-size: 11px;
+
+  background-color: rgb(var(--v-theme-surface));
 }
 
 .section-title {
@@ -678,20 +679,23 @@ watch(
 .table-header {
   font-size: 11px;
   font-weight: 500;
-  border-bottom: 1px solid #ddd;
   margin-bottom: 4px;
+
+  border-bottom: 1px solid rgba(var(--v-theme-on-surface), 0.12);
 }
 
 .row-line {
-  border-bottom: 1px dashed #eee;
   margin-bottom: 2px;
   padding-bottom: 2px;
+
+  border-bottom: 1px dashed rgba(var(--v-theme-on-surface), 0.12);
 }
 
 .caption-note {
   font-size: 10px;
-  color: #777;
   margin-top: -2px;
+
+  color: rgba(var(--v-theme-on-surface), 0.6);
 }
 
 .v-btn--icon {
@@ -738,5 +742,10 @@ watch(
   .grid-section {
     grid-template-columns: 1fr;
   }
+}
+
+.jenis-order-dialog {
+  background-color: rgb(var(--v-theme-surface));
+  color: rgb(var(--v-theme-on-surface));
 }
 </style>

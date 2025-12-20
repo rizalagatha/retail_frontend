@@ -25,9 +25,30 @@ const vuetify = createVuetify({
   components,
   directives,
   icons: {
-    defaultSet: 'mdi', // Mengaktifkan ikon Material Design
+    defaultSet: "mdi",
   },
-})
+  theme: {
+    defaultTheme: "light",
+    themes: {
+      light: {
+        colors: {
+          primary: "#1976D2",
+          secondary: "#424242",
+          background: "#f5f7fa",
+          surface: "#ffffff",
+        },
+      },
+      dark: {
+        colors: {
+          primary: "#2196F3", // Biru lebih terang untuk Dark Mode
+          secondary: "#B0BEC5",
+          background: "#121212", // Hitam pekat background
+          surface: "#1E1E1E", // Abu gelap surface (card/navbar)
+        },
+      },
+    },
+  },
+});
 
 const app = createApp(App)
 app.component('AppDataTable', AppDataTable)

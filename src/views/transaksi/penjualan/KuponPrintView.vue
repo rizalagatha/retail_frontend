@@ -70,4 +70,14 @@ onMounted(fetchKupon)
   margin-top: 10px;
   font-size: 8pt;
 }
+
+/* ============================= */
+/* FORCE LIGHT MODE FOR PRINT VIEW */
+/* ============================= */
+
+.print-container,
+.print-container * {
+  color: #000 !important;
+  background: #fff !important;
+}
 </style>

@@ -2685,7 +2685,7 @@ const stopAndOpenPriceProposal = (index: number) => {
   grid-template-columns: 1fr 0.7fr 1fr 1fr;
   align-items: center;
 
-  background: #fff;
+  background-color: rgb(var(--v-theme-surface));
   padding: 10px 16px;
   border-top: 2px solid #1976d2;
 
@@ -2710,14 +2710,6 @@ const stopAndOpenPriceProposal = (index: number) => {
   font-size: 14px;
   line-height: 1.2;
   white-space: nowrap;
-}
-
-.so-sticky-footer,
-.footer-summary-section {
-  position: sticky;
-  bottom: 0;
-  background: #fff;
-  z-index: 100;
 }
 
 .footer-col {
@@ -2753,9 +2745,9 @@ const stopAndOpenPriceProposal = (index: number) => {
   position: sticky;
   flex-shrink: 0;
   padding: 8px 12px;
-  border: 1px solid #e0e0e0;
+  border: 1px solid rgba(var(--v-theme-on-surface), 0.12);
   border-radius: 4px;
-  background-color: #fcfcfc;
+  background-color: rgb(var(--v-theme-surface));
 }
 
 .summary-totals {

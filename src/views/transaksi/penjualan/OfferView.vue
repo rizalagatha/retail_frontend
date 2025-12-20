@@ -942,11 +942,29 @@ watch(columnFilters, (val) => {
   flex-shrink: 0;
   /* Styling tambahan biar rapi */
   padding: 8px;
-  border-bottom: 1px solid #e0e0e0;
-  background: white;
+  background-color: rgb(var(--v-theme-surface));
+  border-bottom: 1px solid rgba(var(--v-border-color), var(--v-border-opacity));
+  color: rgb(var(--v-theme-on-surface));
+
   display: flex;
   align-items: center;
   gap: 12px;
+}
+
+/* [FIX] Input Field di dalam Filter Section */
+.filter-section :deep(.v-field) {
+  background-color: rgb(var(--v-theme-background)) !important;
+  color: rgb(var(--v-theme-on-surface));
+}
+
+.filter-section :deep(input) {
+  color: rgb(var(--v-theme-on-surface));
+}
+
+.filter-label {
+  color: rgba(var(--v-theme-on-surface), 0.7);
+  font-weight: 600;
+  font-size: 11px;
 }
 
 /* 3. Table Container (Flex Grow) */
@@ -986,19 +1004,19 @@ watch(columnFilters, (val) => {
 /* --- Styling Header Resize --- */
 .resizable-header {
   position: relative;
-  background-color: #e3f2fd !important;
-  color: #0d47a1 !important;
+  background-color: var(--table-head-bg) !important;
+    color: var(--table-head-text) !important;
   font-weight: 700 !important;
-  text-transform: uppercase;
-  font-size: 11px !important;
-  height: 40px !important;
-  border-bottom: 2px solid #1976d2 !important;
-  padding: 0 8px !important;
-  user-select: none;
-  overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
-}
+    text-transform: uppercase;
+    font-size: 11px !important;
+    height: 40px !important;
+    border-bottom: 1px solid rgba(var(--v-border-color), var(--v-border-opacity)) !important;
+    padding: 0 8px !important;
+    user-select: none;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
 
 .header-content {
   display: flex;
@@ -1038,7 +1056,7 @@ watch(columnFilters, (val) => {
   display: flex;
   justify-content: flex-start;
   align-items: flex-start;
-  background-color: #fafafa;
+  background-color: rgb(var(--v-theme-background));
   padding: 16px 16px 16px 64px;
   border-bottom: 1px solid #e0e0e0;
   width: fit-content;
@@ -1052,11 +1070,11 @@ watch(columnFilters, (val) => {
   border: 1px solid #ddd;
   border-radius: 4px;
   overflow: hidden;
-  background-color: white;
+  background-color: rgb(var(--v-theme-surface));
 }
 
 .detail-table :deep(thead tr th) {
-  background-color: #f5f5f5 !important;
+  background-color: rgb(var(--v-theme-surface-variant)) !important;
   color: #424242 !important;
   font-size: 10px !important;
   height: 32px !important;

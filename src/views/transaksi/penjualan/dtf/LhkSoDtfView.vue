@@ -299,9 +299,10 @@ watch([startDate, endDate, selectedCabang], fetchData);
   align-items: center;
   gap: 12px;
   padding: 8px 12px;
-  border-bottom: 1px solid #e0e0e0;
   flex-shrink: 0;
-  background-color: white;
+
+  background-color: rgb(var(--v-theme-surface));
+  border-bottom: 1px solid rgba(var(--v-theme-on-surface), 0.12);
 }
 
 .table-container {
@@ -385,5 +386,16 @@ watch([startDate, endDate, selectedCabang], fetchData);
   flex-direction: column;
   justify-content: center;
   align-items: center;
+}
+
+/* Pastikan field filter tidak putih */
+.filter-section :deep(.v-field),
+.filter-section :deep(.v-field--variant-outlined),
+.filter-section :deep(.v-field--variant-filled) {
+  background-color: rgb(var(--v-theme-surface)) !important;
+}
+
+.filter-section :deep(.v-field--variant-filled .v-field__overlay) {
+  background-color: rgb(var(--v-theme-surface)) !important;
 }
 </style>

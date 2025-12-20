@@ -1059,24 +1059,20 @@ watch(filters, () => {
   scrollbar-width: thin;
 }
 
-/* Targetkan sel <td> di dalam baris 'row-sisa-piutang' */
 .desktop-table :deep(tr.row-sisa-piutang > td) {
-  background-color: #FFEBEE !important;
+  background-color: rgba(var(--v-theme-error), 0.15) !important;
 }
 
 .desktop-table :deep(tr.row-sisa-piutang:hover > td) {
-  background-color: #FFCDD2 !important;
-  /* Warna saat di-hover */
+  background-color: rgba(var(--v-theme-error), 0.25) !important;
 }
 
-/* Targetkan sel <td> di dalam baris 'row-stok-minus' */
 .desktop-table :deep(tr.row-stok-minus > td) {
-  background-color: #FFF9C4 !important;
+  background-color: rgba(var(--v-theme-warning), 0.18) !important;
 }
 
 .desktop-table :deep(tr.row-stok-minus:hover > td) {
-  background-color: #FFF59D !important;
-  /* Warna saat di-hover */
+  background-color: rgba(var(--v-theme-warning), 0.28) !important;
 }
 
 .harga-cell {
@@ -1099,21 +1095,18 @@ watch(filters, () => {
 
 .detail-container {
   display: flex;
-  /* UBAH INI: dari flex-end (kanan) menjadi flex-start (kiri) */
   justify-content: flex-start;
   padding: 16px 16px 16px 64px;
-  /* Padding kiri lebih besar (64px) agar sejajar indentasi */
-  background-color: #fafafa;
-  border-bottom: 1px solid #e0e0e0;
   width: 100%;
-  /* Pastikan lebar penuh */
+
+  background-color: rgb(var(--v-theme-surface));
+  border-bottom: 1px solid rgba(var(--v-theme-on-surface), 0.12);
 }
 
 /* Styling header tabel detail agar beda dikit (opsional) */
 .detail-table :deep(thead tr th) {
-  background-color: #f5f5f5 !important;
-  /* Abu muda */
-  color: #424242 !important;
+  background-color: rgba(var(--v-theme-on-surface), 0.06) !important;
+  color: rgb(var(--v-theme-on-surface)) !important;
   font-size: 10px !important;
   height: 32px !important;
 }
@@ -1121,26 +1114,28 @@ watch(filters, () => {
 .detail-table-wrapper {
   width: 100%;
   max-width: 900px;
-  border: 1px solid #ddd;
+
+  background-color: rgb(var(--v-theme-surface));
+  border: 1px solid rgba(var(--v-theme-on-surface), 0.12);
   border-radius: 4px;
   overflow: hidden;
-  background-color: white;
 }
 
 .resizable-header {
   position: relative;
-  /* Pastikan border dan background sesuai tema biru Anda */
-  background-color: #e3f2fd !important;
-  color: #0d47a1 !important;
+
+  background-color: rgb(var(--v-theme-primary)) !important;
+  color: rgb(var(--v-theme-on-primary)) !important;
+
   font-weight: 700 !important;
   text-transform: uppercase;
   font-size: 11px !important;
   height: 40px !important;
-  border-bottom: 2px solid #1976d2 !important;
+
+  border-bottom: 2px solid rgb(var(--v-theme-primary)) !important;
   padding: 0 8px !important;
-  /* Reset padding agar muat */
+
   user-select: none;
-  /* Supaya teks tidak terblok saat drag */
 }
 
 /* Konten Header (Teks) */
@@ -1168,11 +1163,9 @@ watch(filters, () => {
   z-index: 1;
 }
 
-/* Visualisasi garis saat di-hover (Opsional) */
 .resizer:hover,
 .resizable-header:hover .resizer {
-  border-right: 2px solid #1565c0;
-  /* Muncul garis biru saat hover */
+  border-right: 2px solid rgba(var(--v-theme-on-primary), 0.6);
 }
 
 /* === Excel-style Filter Menu === */
@@ -1192,8 +1185,7 @@ watch(filters, () => {
 }
 
 .filter-menu .v-list-item:hover {
-  background-color: #e3f2fd !important;
-  /* biru muda */
+  background-color: rgba(var(--v-theme-primary), 0.12) !important;
 }
 
 .filter-menu .v-checkbox {
@@ -1211,7 +1203,7 @@ watch(filters, () => {
 
 .filter-menu .custom-filter-item {
   font-weight: 600;
-  color: #1565c0;
+  color: rgb(var(--v-theme-primary));
   font-size: 11px;
 }
 
@@ -1248,29 +1240,27 @@ watch(filters, () => {
   position: sticky;
   bottom: 0;
   z-index: 5;
-  /* Di atas baris data biasa */
-  background-color: #f5f5f5 !important;
-  box-shadow: 0 -2px 6px rgba(0, 0, 0, 0.08);
-  /* Shadow ke atas agar terlihat ngambang */
-  border-top: 1px solid #bdbdbd;
+
+  background-color: rgb(var(--v-theme-surface)) !important;
+  border-top: 1px solid rgba(var(--v-theme-on-surface), 0.12);
+
+  box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.35);
 }
 
 .sticky-footer td {
-  background-color: #f5f5f5 !important;
-  /* Wajib set bg agar tidak transparan */
+  background-color: rgb(var(--v-theme-surface)) !important;
+  color: rgb(var(--v-theme-on-surface));
   height: 48px !important;
   vertical-align: middle;
 }
 
 /* Spacer untuk kolom Checkbox Vuetify */
 .select-column-spacer {
-  background-color: #f5f5f5 !important;
+  background-color: rgb(var(--v-theme-surface)) !important;
   width: 48px;
-  /* Lebar default checkbox vuetify */
   min-width: 48px;
   position: sticky;
   left: 0;
   z-index: 6;
-  /* Agar checkbox spacer tetap di paling kiri jika scroll horizontal */
 }
 </style>

@@ -772,7 +772,7 @@ onMounted(() => {
 
       <!-- Kolom Kanan -->
       <div class="desktop-form-section right-column">
-        <v-tabs v-model="activeTab" bg-color="grey-lighten-4" density="compact" class="tabs-header">
+        <v-tabs v-model="activeTab" density="compact" class="tabs-header">
           <v-tab value="pengajuan">Pengajuan Harga</v-tab>
           <v-tab value="bordir">Bordir</v-tab>
           <v-tab value="dtf">DTF</v-tab>
@@ -791,8 +791,8 @@ onMounted(() => {
                   { title: 'Total Harga', key: 'totalHarga', align: 'end' },
                   { title: 'Kode Barang', key: 'kodeBarang' },
                   { title: 'Nama Barang', key: 'namaBarang' }
-                ]" no-data-text="Pilih Jenis Kaos untuk menampilkan data" density="compact"
-                  class="desktop-table flex-grow-1" fixed-header height="100%">
+                ]" no-data-text="Pilih Jenis Kaos untuk menampilkan data" density="compact" class="desktop-table"
+                  fixed-header height="calc(100vh - 280px)">
                   <template #[`item.qty`]="{ item }">
                     <v-text-field v-model.number="item.qty" type="number" variant="underlined" dense
                       hide-details></v-text-field>
@@ -1031,25 +1031,10 @@ onMounted(() => {
 </template>
 
 <style scoped>
-/* Background color untuk left column sections - tone biru langit */
-.left-column .desktop-form-section:not(.footer-section) {
-  background-color: #e3f2fd;
-  /* Biru langit Material Design untuk header */
-  padding: 16px;
-  border-radius: 8px;
-}
-
-.left-column .desktop-form-section.footer-section {
-  background-color: #fff3e0;
-  /* Orange muda untuk section summary/total */
-  padding: 16px;
-  border-radius: 8px;
-}
-
-/* Background color untuk right column */
+.left-column .desktop-form-section:not(.footer-section),
+.left-column .desktop-form-section.footer-section,
 .right-column.desktop-form-section {
-  background-color: #e8f4f8;
-  /* Biru langit lebih muda */
+  background-color: rgb(var(--v-theme-surface));
   padding: 16px;
   border-radius: 8px;
 }
@@ -1060,14 +1045,13 @@ onMounted(() => {
 }
 
 /* Pastikan semua v-field tetap putih dengan rounded corner */
-.desktop-form-section .v-field {
-  background-color: white !important;
-  border-radius: 4px !important;
+.desktop-form-section :deep(.v-field) {
+  background-color: rgb(var(--v-theme-surface));
+  border-radius: 4px;
 }
 
-.desktop-form-section .v-field--variant-filled .v-field__overlay {
-  background-color: white !important;
-  border-radius: 4px !important;
+.desktop-form-section:deep(.v-field--variant-filled .v-field__overlay) {
+  background-color: rgb(var(--v-theme-surface));
 }
 
 .desktop-form-section .v-field--variant-outlined {
@@ -1118,8 +1102,8 @@ onMounted(() => {
 }
 
 .tabs-header {
-  flex-shrink: 0;
-  border-bottom: 1px solid #e0e0e0;
+  background-color: rgb(var(--v-theme-surface));
+  border-bottom: 1px solid rgba(var(--v-theme-on-surface), 0.12);
 }
 
 .window-item {
@@ -1168,7 +1152,7 @@ onMounted(() => {
   height: 100%;
   display: flex;
   flex-direction: column;
-  border-left: 1px solid #e0e0e0;
+  border-left: 1px solid rgba(var(--v-theme-on-surface), 0.12);
 }
 
 .main-table-container .v-data-table,
@@ -1184,12 +1168,17 @@ onMounted(() => {
   display: flex;
   justify-content: center;
   align-items: center;
+
+  background-color: rgb(var(--v-theme-background));
 }
 
 .preview-image {
   max-width: 100%;
-  max-height: 100%;
-  border: 1px solid #e0e0e0;
+  max-height: 400px;
+  object-fit: contain;
+
+  background-color: rgb(var(--v-theme-surface));
+  border: 1px solid rgba(var(--v-theme-on-surface), 0.12);
 }
 
 .state-container {
@@ -1197,7 +1186,7 @@ onMounted(() => {
   justify-content: center;
   align-items: center;
   height: 100%;
-  color: #757575;
+  color: rgba(var(--v-theme-on-surface), 0.6);
 }
 
 .summary-field {
@@ -1253,8 +1242,9 @@ onMounted(() => {
   font-weight: bold;
   font-family: monospace;
   padding: 4px 8px;
-  background-color: #f5f5f5;
-  border: 1px solid #e0e0e0;
+  background-color: rgba(var(--v-theme-primary), 0.08);
+  border: 1px solid rgba(var(--v-theme-on-surface), 0.12);
+  color: rgb(var(--v-theme-on-surface));
   border-radius: 4px;
   min-height: 40px;
   display: flex;
@@ -1267,7 +1257,7 @@ onMounted(() => {
   /* Membentang di kedua kolom */
   grid-row: 2;
   padding-top: 8px;
-  border-top: 1px solid #e0e0e0;
+  border-top: 1px solid rgba(var(--v-theme-on-surface), 0.12);
 }
 
 .summary-section .v-text-field {
@@ -1308,17 +1298,31 @@ onMounted(() => {
   justify-content: center;
   align-items: center;
   height: 100%;
-  color: #757575;
+  color: rgba(var(--v-theme-on-surface), 0.6);
 }
 
 .desktop-table :deep(thead tr th) {
-  background-color: #0D47A1 !important; /* Biru Tua */
-  color: #ffffff !important;            /* Teks Putih */
-  font-weight: bold !important;
+  background-color: rgb(var(--v-theme-primary)) !important;
+  color: rgb(var(--v-theme-on-primary)) !important;
+  font-weight: 600;
+  font-size: 11px;
   text-transform: uppercase;
   font-size: 11px !important;
   height: 40px !important;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-  border-bottom: none !important; /* Supaya lebih rapi */
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  border-bottom: none !important;
+  /* Supaya lebih rapi */
+}
+
+.window-item {
+  height: 100%;
+  min-height: 0;
+  /* WAJIB untuk flex child */
+}
+
+.main-table-container,
+.side-table-container {
+  height: 100%;
+  min-height: 0;
 }
 </style>

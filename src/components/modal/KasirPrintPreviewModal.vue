@@ -480,4 +480,22 @@ const hitungPundiAmal = (details: PrintDetail[]) => {
   border-top: 1px dashed black;
   border-bottom: 1px dashed black;
 }
+
+/* ===============================
+   RECEIPT AREA — ALWAYS PRINT MODE
+   =============================== */
+#kasir-preview-area {
+  background-color: #ffffff;
+  color: #000000;
+}
+
+.receipt {
+  background-color: #ffffff;
+  color: #000000;
+  padding: 12px;
+}
+
+.receipt * {
+  color: #000000 !important;
+}
 </style>

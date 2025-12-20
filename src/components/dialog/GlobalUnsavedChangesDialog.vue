@@ -34,7 +34,7 @@ const cancelLeave = () => {
 <template>
   <v-dialog v-model="uiStore.isLeaveDialogVisible" max-width="420" persistent>
     <v-card class="rounded-lg">
-      <v-card-title class="text-h6 font-weight-bold d-flex align-center bg-warning text-white py-3">
+      <v-card-title class="text-h6 font-weight-bold d-flex align-center py-3 unsaved-dialog-title">
         <v-icon start icon="mdi-alert-circle-outline" class="mr-2"></v-icon>
         Data Belum Disimpan
       </v-card-title>
@@ -47,7 +47,7 @@ const cancelLeave = () => {
 
       <v-divider></v-divider>
 
-      <v-card-actions class="px-4 py-3 bg-grey-lighten-5">
+      <v-card-actions class="px-4 py-3 unsaved-dialog-actions">
         <v-spacer></v-spacer>
         <v-btn color="grey-darken-1" variant="text" @click="cancelLeave" class="font-weight-medium">
           Batal (Tetap di sini)
@@ -60,3 +60,23 @@ const cancelLeave = () => {
     </v-card>
   </v-dialog>
 </template>
+
+<style scoped>
+/* ===== UNSAVED CHANGE DIALOG ===== */
+
+.unsaved-dialog-title {
+  background-color: rgba(var(--v-theme-warning), 0.2);
+  color: rgb(var(--v-theme-on-surface));
+}
+
+.unsaved-dialog-actions {
+  background-color: rgb(var(--v-theme-surface));
+  border-top: 1px solid rgba(var(--v-theme-on-surface), 0.12);
+}
+
+/* Kunci body dialog */
+:deep(.v-dialog) .v-card {
+  background-color: rgb(var(--v-theme-surface));
+  color: rgb(var(--v-theme-on-surface));
+}
+</style>

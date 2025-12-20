@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted, computed } from 'vue';
-import api from '@/services/api'; // (1) Gunakan instance API, bukan axios
+import api from '@/services/api';
 import PageLayout from '@/components/PageLayout.vue';
 import MemberSearchModal from '@/components/lookup/MemberSearchModal.vue';
 import { useToast } from 'vue-toastification';
@@ -11,7 +11,7 @@ import * as XLSX from 'xlsx';
 
 const toast = useToast();
 const authStore = useAuthStore();
-const MENU_ID = '7'; // (2) Definisikan ID Menu
+const MENU_ID = '7';
 
 interface Member {
   hp: string;
@@ -33,7 +33,6 @@ const isNew = ref(true);
 const editedItem = ref<Partial<Member>>({});
 const isHelpModalVisible = ref(false);
 
-// (3) State untuk konfirmasi hapus
 const dialogDelete = ref(false);
 const itemToDelete = ref<Member | null>(null);
 
@@ -53,7 +52,7 @@ const genderItems = ['Pria', 'Wanita'];
 const ageItems = ['< 17', '18-24', '25-34', '35-44', '45+'];
 const refItems = ['Teman', 'Facebook', 'Instagram', 'Whatsapp', 'Website', 'Lain-lain'];
 
-// --- Computed Properties ---
+// --- Computed ---
 const canEdit = computed(() => selected.value.length === 1);
 const canDelete = computed(() => selected.value.length === 1);
 const dialogTitle = computed(() => (isNew.value ? 'Member Baru' : 'Ubah Member'));
@@ -63,7 +62,7 @@ const fetchMembers = async () => {
   isLoading.value = true;
   selected.value = [];
   try {
-    const response = await api.get('/members'); // Gunakan API
+    const response = await api.get('/members');
     members.value = response.data;
   } catch (error) {
     toast.error('Gagal memuat data member.', error);
@@ -102,20 +101,18 @@ const saveMember = async () => {
       isNew: isNew.value,
       user: authStore.user
     };
-    await api.post('/members/save', payload); // Gunakan API
+    await api.post('/members/save', payload);
     toast.success('Data member berhasil disimpan.');
     fetchMembers();
+    dialog.value = false;
   } catch (error) {
     toast.error('Gagal menyimpan data member.', error);
-  } finally {
-    dialog.value = false;
   }
 };
 
-// (4) Ubah metode hapus, hilangkan confirm()
 const deleteMember = async (item: Member) => {
   try {
-    await api.delete(`/members/${item.hp}`); // Gunakan API
+    await api.delete(`/members/${item.hp}`);
     toast.success('Data member berhasil dihapus.');
     fetchMembers();
   } catch (error) {
@@ -125,12 +122,10 @@ const deleteMember = async (item: Member) => {
 
 const handleDeleteFromHeader = () => {
   if (canDelete.value) {
-    // Panggil dialog konfirmasi
     confirmDelete(selected.value[0]);
   }
 };
 
-// (5) Tambahkan metode untuk dialog konfirmasi
 const confirmDelete = (item: Member) => {
   itemToDelete.value = item;
   dialogDelete.value = true;
@@ -194,7 +189,6 @@ onMounted(() => {
     </div>
 
     <div v-else class="browse-content">
-      <!-- Filter Section -->
       <div class="filter-section">
         <v-text-field v-model="search" density="compact" label="Cari Member..." prepend-inner-icon="mdi-magnify"
           variant="outlined" hide-details single-line></v-text-field>
@@ -202,7 +196,6 @@ onMounted(() => {
         <v-btn @click="fetchMembers" icon="mdi-refresh" variant="text" size="small"></v-btn>
       </div>
 
-      <!-- Table Section -->
       <AppDataTable v-model="selected" :headers="headers" :items="members" :search="search" :loading="isLoading"
         item-value="hp" density="compact" class="desktop-table header-browse-blue" fixed-header show-select return-object>
         <template #[`item.actions`]="{ item }">
@@ -213,46 +206,47 @@ onMounted(() => {
       </AppDataTable>
     </div>
 
-    <!-- Dialogs -->
     <v-dialog v-model="dialog" max-width="600px" persistent>
       <v-card class="dialog-card">
         <v-card-title class="dialog-header">
           <span class="text-subtitle-1 font-weight-medium">{{ dialogTitle }}</span>
         </v-card-title>
+
         <v-card-text class="pa-4">
           <v-container>
             <v-row>
               <v-col cols="12">
-                <v-col cols="12">
-                  <v-text-field v-model="editedItem.hp" label="No. HP" :disabled="!isNew" variant="outlined"
-                    density="compact" placeholder="Ketik No. HP atau klik ikon cari" hide-details
-                    @keydown.f1.prevent="isHelpModalVisible = true" append-inner-icon="mdi-magnify"
-                    @click:append-inner="isHelpModalVisible = true"></v-text-field>
-                </v-col>
+                <v-text-field v-model="editedItem.hp" label="No. HP" :disabled="!isNew" variant="outlined"
+                  density="compact" placeholder="Ketik No. HP atau klik ikon cari" hide-details class="mb-2"
+                  @keydown.f1.prevent="isHelpModalVisible = true" append-inner-icon="mdi-magnify"
+                  @click:append-inner="isHelpModalVisible = true"></v-text-field>
+
                 <v-text-field v-model="editedItem.nama" label="Nama" variant="outlined" density="compact"
-                  hide-details></v-text-field>
+                  hide-details class="mb-2"></v-text-field>
+
                 <v-textarea v-model="editedItem.alamat" label="Alamat" variant="outlined" density="compact" rows="2"
-                  hide-details></v-textarea>
+                  hide-details class="mb-2"></v-textarea>
               </v-col>
               <v-col cols="12" sm="6">
                 <v-select v-model="editedItem.gender" :items="genderItems" label="Gender" variant="outlined"
-                  density="compact" hide-details></v-select>
+                  density="compact" hide-details class="mb-2"></v-select>
               </v-col>
               <v-col cols="12" sm="6">
                 <v-select v-model="editedItem.usia" :items="ageItems" label="Rentang Usia" variant="outlined"
-                  density="compact" hide-details></v-select>
+                  density="compact" hide-details class="mb-2"></v-select>
               </v-col>
               <v-col cols="12">
                 <v-select v-model="editedItem.referensi" :items="refItems" label="Referensi" variant="outlined"
-                  density="compact" hide-details></v-select>
+                  density="compact" hide-details class="mb-2"></v-select>
               </v-col>
             </v-row>
           </v-container>
         </v-card-text>
+
         <v-card-actions class="dialog-footer">
           <v-spacer></v-spacer>
-          <v-btn size="small" @click="dialog = false">Batal</v-btn>
-          <v-btn size="small" color="primary" @click="saveMember" variant="elevated">Simpan</v-btn>
+          <v-btn size="small" variant="text" color="grey" @click="dialog = false">Batal</v-btn>
+          <v-btn size="small" color="primary" @click="saveMember" variant="flat">Simpan</v-btn>
         </v-card-actions>
       </v-card>
     </v-dialog>
@@ -261,13 +255,15 @@ onMounted(() => {
       @member-selected="handleMemberSelected" />
 
     <v-dialog v-model="dialogDelete" max-width="500px">
-      <v-card>
-        <v-card-title class="text-h5">Konfirmasi Hapus</v-card-title>
-        <v-card-text>Apakah Anda yakin ingin menghapus member <strong>{{ itemToDelete?.nama }}</strong>?</v-card-text>
-        <v-card-actions>
+      <v-card class="dialog-card">
+        <v-card-title class="dialog-header">Konfirmasi Hapus</v-card-title>
+        <v-card-text class="pa-4 pt-6 text-body-1">
+            Apakah Anda yakin ingin menghapus member <strong>{{ itemToDelete?.nama }}</strong>?
+        </v-card-text>
+        <v-card-actions class="dialog-footer">
           <v-spacer></v-spacer>
-          <v-btn variant="text" @click="dialogDelete = false">Batal</v-btn>
-          <v-btn color="red-darken-1" variant="elevated" @click="deleteConfirmed">Hapus</v-btn>
+          <v-btn variant="text" color="grey" @click="dialogDelete = false">Batal</v-btn>
+          <v-btn color="error" variant="flat" @click="deleteConfirmed">Hapus</v-btn>
           <v-spacer></v-spacer>
         </v-card-actions>
       </v-card>
@@ -279,25 +275,42 @@ onMounted(() => {
 /* Dialog Styles */
 .dialog-card {
   font-size: 12px;
+  /* [FIX] Background card ikut tema */
+  background-color: rgb(var(--v-theme-surface));
+  color: rgb(var(--v-theme-on-surface));
 }
 
 .dialog-header {
-  border-bottom: 1px solid #e0e0e0;
+  border-bottom: 1px solid rgba(var(--v-border-color), var(--v-border-opacity));
   padding: 8px 16px;
-  background-color: #f5f5f5;
+  /* [FIX] Background header dialog lebih gelap/terang sedikit dari surface */
+  background-color: rgb(var(--v-theme-background));
 }
 
 .dialog-footer {
-  border-top: 1px solid #e0e0e0;
+  border-top: 1px solid rgba(var(--v-border-color), var(--v-border-opacity));
   padding: 8px 16px;
-  background-color: #f5f5f5;
+  background-color: rgb(var(--v-theme-background));
 }
 
-/* Memberikan sedikit ruang antar field di dialog */
-.dialog-card :deep(.v-text-field),
-.dialog-card :deep(.v-select),
-.dialog-card :deep(.v-textarea) {
-  margin-bottom: 12px;
+/* Mengatur font untuk label */
+.dialog-card :deep(.v-label) {
+  font-size: 11px !important;
+  color: rgba(var(--v-theme-on-surface), 0.7);
+}
+
+/* Mengatur font untuk teks input */
+.dialog-card :deep(input),
+.dialog-card :deep(textarea),
+.dialog-card :deep(.v-select__selection-text) {
+  font-size: 12px !important;
+  color: rgb(var(--v-theme-on-surface));
+}
+
+/* Fix input field background di dark mode */
+.dialog-card :deep(.v-field) {
+    background-color: rgb(var(--v-theme-surface)) !important;
+    border-color: rgba(var(--v-border-color), var(--v-border-opacity));
 }
 
 /* Menghapus hint dari HP agar tidak memakan ruang */

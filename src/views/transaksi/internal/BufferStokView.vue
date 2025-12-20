@@ -329,11 +329,23 @@ watch([selectedCabang, tampilkanBufferNol, kaosan, reszo], fetchData);
 .filter-section {
   flex-shrink: 0;
   padding: 8px;
-  border-bottom: 1px solid #e0e0e0;
-  background: white;
   display: flex;
   align-items: center;
   gap: 12px;
+
+  background-color: rgb(var(--v-theme-surface));
+  border-bottom: 1px solid rgba(var(--v-theme-on-surface), 0.12);
+}
+
+.filter-section {
+  flex-shrink: 0;
+  padding: 8px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+
+  background-color: rgb(var(--v-theme-surface));
+  border-bottom: 1px solid rgba(var(--v-theme-on-surface), 0.12);
 }
 
 .table-container {
@@ -366,14 +378,18 @@ watch([selectedCabang, tampilkanBufferNol, kaosan, reszo], fetchData);
 /* --- Header Resize --- */
 .resizable-header {
   position: relative;
-  background-color: #e3f2fd !important;
-  color: #0d47a1 !important;
+
+  background-color: rgb(var(--v-theme-primary)) !important;
+  color: rgb(var(--v-theme-on-primary)) !important;
+
   font-weight: 700 !important;
   text-transform: uppercase;
   font-size: 11px !important;
   height: 40px !important;
-  border-bottom: 2px solid #1976d2 !important;
+
+  border-bottom: 2px solid rgb(var(--v-theme-primary)) !important;
   padding: 0 8px !important;
+
   user-select: none;
   overflow: hidden;
   white-space: nowrap;
@@ -407,16 +423,29 @@ watch([selectedCabang, tampilkanBufferNol, kaosan, reszo], fetchData);
 
 .resizer:hover,
 .resizable-header:hover .resizer {
-  border-right: 2px solid #1565c0;
+  border-right: 2px solid rgb(var(--v-theme-on-primary));
 }
 
 /* --- Pewarnaan Baris --- */
 :deep(td.text-red) {
-  color: #d32f2f !important;
+  color: rgb(var(--v-theme-error)) !important;
 }
 
 :deep(td.text-blue) {
-  color: #1976d2 !important;
+  color: rgb(var(--v-theme-primary)) !important;
+}
+
+:deep(td.text-red) {
+  color: rgb(var(--v-theme-error)) !important;
+}
+
+:deep(td.text-blue) {
+  color: rgb(var(--v-theme-primary)) !important;
+}
+
+:deep(.v-dialog) .v-card {
+  background-color: rgb(var(--v-theme-surface));
+  color: rgb(var(--v-theme-on-surface));
 }
 
 .legend-group {

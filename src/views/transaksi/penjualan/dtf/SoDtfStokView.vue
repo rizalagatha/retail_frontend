@@ -542,11 +542,23 @@ watch([startDate, endDate, selectedCabang, filterDateType], fetchData);
 .filter-section {
   flex-shrink: 0;
   padding: 8px;
-  border-bottom: 1px solid #e0e0e0;
-  background: white;
   display: flex;
   align-items: center;
   gap: 12px;
+
+  background-color: rgb(var(--v-theme-surface));
+  border-bottom: 1px solid rgba(var(--v-theme-on-surface), 0.12);
+}
+
+/* Paksa field filter ikut dark mode */
+.filter-section :deep(.v-field),
+.filter-section :deep(.v-field--variant-outlined),
+.filter-section :deep(.v-field--variant-filled) {
+  background-color: rgb(var(--v-theme-surface)) !important;
+}
+
+.filter-section:deep(.v-field--variant-filled .v-field__overlay) {
+  background-color: rgb(var(--v-theme-surface)) !important;
 }
 
 .legend-section {
@@ -556,9 +568,10 @@ watch([startDate, endDate, selectedCabang, filterDateType], fetchData);
   gap: 16px;
   padding: 8px 12px;
   font-size: 11px;
-  background-color: #f7f7f7;
-  border-bottom: 1px solid #e0e0e0;
   flex-shrink: 0;
+
+  background-color: rgb(var(--v-theme-surface));
+  border-bottom: 1px solid rgba(var(--v-theme-on-surface), 0.12);
 }
 
 .legend-group,
@@ -650,9 +663,11 @@ watch([startDate, endDate, selectedCabang, filterDateType], fetchData);
   display: flex;
   justify-content: flex-start;
   align-items: flex-start;
-  background-color: #fafafa;
+
+  background-color: rgb(var(--v-theme-surface));
+  border-bottom: 1px solid rgba(var(--v-theme-on-surface), 0.12);
+
   padding: 16px 16px 16px 64px;
-  border-bottom: 1px solid #e0e0e0;
   width: fit-content;
   min-width: 100%;
   box-sizing: border-box;
@@ -661,10 +676,11 @@ watch([startDate, endDate, selectedCabang, filterDateType], fetchData);
 .detail-table-wrapper {
   width: 100%;
   max-width: 600px;
-  border: 1px solid #ddd;
+
+  background-color: rgb(var(--v-theme-surface));
+  border: 1px solid rgba(var(--v-theme-on-surface), 0.12);
   border-radius: 4px;
   overflow: hidden;
-  background-color: white;
 }
 
 /* Row Styles */
@@ -673,18 +689,29 @@ watch([startDate, endDate, selectedCabang, filterDateType], fetchData);
   font-weight: bold;
 }
 
+/* Belum Input */
 .lhk-zero {
-  background-color: #FF5252 !important;
-  color: white !important;
+  background-color: rgba(var(--v-theme-error), 0.25) !important;
+  color: rgb(var(--v-theme-on-surface)) !important;
+  font-weight: 600;
 }
 
+/* Progress */
 .lhk-progress {
-  background-color: #1A237E !important;
-  color: white !important;
+  background-color: rgba(var(--v-theme-primary), 0.25) !important;
+  color: rgb(var(--v-theme-on-surface)) !important;
+  font-weight: 600;
 }
 
 .lhk-normal {
-  background-color: #E0E0E0 !important;
+  background-color: rgba(var(--v-theme-on-surface), 0.12) !important;
+  color: rgb(var(--v-theme-on-surface)) !important;
+}
+
+.lhk-zero :deep(.v-chip__content),
+.lhk-progress :deep(.v-chip__content),
+.lhk-normal :deep(.v-chip__content) {
+  color: rgb(var(--v-theme-on-surface)) !important;
 }
 
 .row-color-sample-closed {

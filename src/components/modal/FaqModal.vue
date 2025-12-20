@@ -56,13 +56,13 @@ const filteredFaq = computed<FaqCategory[]>(() => {
         <v-btn icon="mdi-close" variant="text" density="compact" @click="isOpen = false"></v-btn>
       </v-card-title>
 
-      <div class="px-4 py-3 bg-grey-lighten-4 border-bottom">
+      <div class="px-4 py-3 faq-search">
         <v-text-field v-model="search" prepend-inner-icon="mdi-magnify"
           label="Ketik pertanyaan (misal: stok, retur, password)..." variant="outlined" density="compact" hide-details
           bg-color="white" clearable autofocus class="rounded-lg"></v-text-field>
       </div>
 
-      <v-card-text class="pa-0 bg-grey-lighten-5" style="overflow-y: auto;">
+      <v-card-text class="pa-0 faq-body" style="overflow-y: auto;">
 
         <div v-if="filteredFaq.length === 0" class="text-center pa-10 text-grey-darken-1">
           <v-icon size="64" class="mb-2 text-grey-lighten-1">mdi-emoticon-confused-outline</v-icon>
@@ -83,7 +83,7 @@ const filteredFaq = computed<FaqCategory[]>(() => {
                   {{ item.q }}
                 </v-expansion-panel-title>
 
-                <v-expansion-panel-text class="text-body-2 bg-white pt-2">
+                <v-expansion-panel-text class="text-body-2 faq-answer pt-2">
 
                   <div v-html="item.a" class="text-grey-darken-3 mb-3" style="white-space: pre-wrap;"></div>
 
@@ -110,7 +110,7 @@ const filteredFaq = computed<FaqCategory[]>(() => {
       </v-card-text>
 
       <v-divider></v-divider>
-      <v-card-actions class="bg-white pa-3">
+      <v-card-actions class="faq-footer pa-3">
         <v-spacer></v-spacer>
         <v-btn color="grey-darken-1" variant="text" @click="isOpen = false">Tutup</v-btn>
       </v-card-actions>
@@ -136,8 +136,56 @@ const filteredFaq = computed<FaqCategory[]>(() => {
 </template>
 
 <style scoped>
+/* ===== FAQ MODAL DARK/LIGHT SAFE ===== */
+
+/* Search input text */
+.faq-search :deep(input) {
+  color: rgb(var(--v-theme-on-surface)) !important;
+}
+
+/* Placeholder */
+.faq-search :deep(input::placeholder) {
+  color: rgba(var(--v-theme-on-surface), 0.6) !important;
+}
+
+/* Icon search */
+.faq-search :deep(.v-field__prepend-inner .v-icon) {
+  color: rgba(var(--v-theme-on-surface), 0.7) !important;
+}
+.faq-body {
+  background-color: rgb(var(--v-theme-surface));
+}
+
+/* Jawaban FAQ */
+.faq-answer {
+  color: rgb(var(--v-theme-on-surface));
+}
+
+/* List & paragraf di dalam jawaban */
+.faq-answer p,
+.faq-answer li {
+  color: rgb(var(--v-theme-on-surface));
+  line-height: 1.6;
+}
+
+/* Penekanan */
+.faq-answer strong {
+  color: rgba(var(--v-theme-on-surface), 0.9);
+}
+
+:deep(.v-expansion-panel-title) {
+  color: rgb(var(--v-theme-on-surface));
+  font-weight: 600;
+}
+
+.faq-footer {
+  background-color: rgb(var(--v-theme-surface));
+  border-top: 1px solid rgba(var(--v-theme-on-surface), 0.12);
+}
+
+/* ganti border lama */
 .border-bottom {
-  border-bottom: 1px solid #e0e0e0;
+  border-bottom: 1px solid rgba(var(--v-theme-on-surface), 0.12);
 }
 
 .cursor-pointer {

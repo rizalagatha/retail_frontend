@@ -1,28 +1,25 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 
-// --- Props ---
 interface Props {
   title: string;
   icon?: string;
   loading?: boolean;
   desktopMode?: boolean;
-  maxWidth?: string; // Prop baru untuk mengontrol lebar maksimum
+  maxWidth?: string;
 }
 
 const props = withDefaults(defineProps<Props>(), {
   icon: 'mdi-file-document-outline',
   loading: false,
   desktopMode: true,
-  maxWidth: '100%' // Default ke lebar penuh, bisa di-override per halaman
+  maxWidth: '100%'
 });
 
-// --- Emits ---
 const emit = defineEmits<{
   'update:loading': [value: boolean]
 }>();
 
-// --- Computed ---
 const containerClass = computed(() => ({
   'page-container': true,
   'desktop-mode': props.desktopMode,
@@ -37,7 +34,6 @@ const loadingModel = computed({
 
 <template>
   <div :class="containerClass" :style="{ maxWidth: maxWidth }">
-    <!-- Header Section -->
     <div class="page-header">
       <div class="page-title-section">
         <v-icon size="small" class="title-icon">{{ icon }}</v-icon>
@@ -48,47 +44,36 @@ const loadingModel = computed({
       </div>
     </div>
 
-    <!-- Main Content Area -->
     <div class="content-area">
-        <!-- Loading Overlay -->
-        <v-overlay v-model="loadingModel" contained persistent class="d-flex align-center justify-center">
-            <v-progress-circular indeterminate color="primary"></v-progress-circular>
-        </v-overlay>
+      <v-overlay v-model="loadingModel" contained persistent class="d-flex align-center justify-center">
+        <v-progress-circular indeterminate color="primary"></v-progress-circular>
+      </v-overlay>
 
-        <!-- Slot Konten Utama -->
-        <div class="content-wrapper">
-          <slot />
-        </div>
+      <div class="content-wrapper">
+        <slot />
+      </div>
 
-        <!-- Slot Footer (untuk Status Bar) -->
-        <div v-if="$slots.footer" class="content-footer">
-          <slot name="footer" />
-        </div>
+      <div v-if="$slots.footer" class="content-footer">
+        <slot name="footer" />
+      </div>
     </div>
   </div>
 </template>
 
 <style scoped>
-/*
- * LAYOUT UTAMA
- * Bekerja sama dengan desktop-app.css untuk menciptakan tampilan yang diinginkan.
-*/
-
 .page-container {
   display: flex;
   flex-direction: column;
-  margin: 0 auto; /* Pusatkan container secara horizontal */
+  margin: 0 auto;
   width: 100%;
 }
 
-/* Gaya Desktop Mode */
 .desktop-mode {
-  height: calc(100vh - 48px); /* Tinggi viewport dikurangi tinggi app bar */
+  height: calc(100vh - 48px);
   padding: 8px 12px;
   gap: 8px;
 }
 
-/* Gaya Web Modern */
 .modern-mode {
   padding: 24px;
   gap: 16px;
@@ -100,89 +85,86 @@ const loadingModel = computed({
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-
-  /* --- SETTING STICKY YANG BENAR --- */
   position: sticky;
-
-  /* GANTI '0' DENGAN TINGGI NAVBAR APLIKASI ANDA */
-  /* Jika navbar Anda tingginya 64px, set 64px. Jika 50px, set 50px. */
   top: 64px;
-
-  /* Pastikan Z-Index tinggi agar mengapung di atas tabel */
   z-index: 99;
 
-  /* Wajib ada background agar tulisan tabel tidak tembus pandang saat discroll */
-  background-color: #f5f5f5; /* Sesuaikan dengan warna background aplikasi */
+  /* [FIX DARK MODE] Gunakan background aplikasi, bukan putih */
+  background-color: rgb(var(--v-theme-background));
 
-  /* Tambahkan padding agar terlihat rapi saat menempel */
   padding-top: 8px;
   padding-bottom: 8px;
-
-  /* Opsional: Sedikit bayangan agar terlihat batasnya saat menempel */
-  box-shadow: 0 4px 6px -4px rgba(0,0,0,0.1);
 }
+
 .desktop-mode .page-header {
   min-height: 36px;
   margin-bottom: 0;
-  padding-top: 4px;    /* Tambahkan sedikit padding atas */
-  padding-bottom: 8px; /* Tambahkan sedikit padding bawah sebelum konten */
+  padding-top: 4px;
+  padding-bottom: 8px;
 }
+
 .page-title-section {
   display: flex;
   align-items: center;
   gap: 8px;
 }
+
 .title-icon {
-  color: #555;
+  /* [FIX DARK MODE] Warna icon adaptif */
+  color: rgba(var(--v-theme-on-surface), 0.7);
 }
+
 .page-title {
   font-size: 1.25rem;
   font-weight: 600;
-  color: #212121;
+  /* [FIX DARK MODE] Warna teks adaptif */
+  color: rgb(var(--v-theme-on-background));
 }
+
 .desktop-mode .page-title {
-  font-size: 1rem; /* Judul lebih kecil di mode desktop */
+  font-size: 1rem;
 }
+
 .header-actions {
   display: flex;
   gap: 8px;
 }
 
-/* Area Konten Utama */
 .content-area {
   flex-grow: 1;
-  min-height: 0; /* Penting untuk flexbox scrolling */
-  position: relative; /* Untuk v-overlay */
+  min-height: 0;
+  position: relative;
   display: flex;
   flex-direction: column;
 
-  /* Menerapkan style dari desktop-app.css jika dalam mode desktop */
-  background: var(--content-bg, #ffffff);
-  border: var(--content-border, 1px solid #e0e0e0);
-  border-radius: var(--content-radius, 8px);
-  box-shadow: var(--content-shadow, 0 1px 3px rgba(0,0,0,0.05));
+  /* [FIX DARK MODE] Background Konten mengikuti Surface (Putih/Abu Gelap) */
+  background: rgb(var(--v-theme-surface));
+
+  /* [FIX DARK MODE] Border tipis adaptif */
+  border: 1px solid rgba(var(--v-border-color), var(--v-border-opacity));
+
+  border-radius: 8px;
+  box-shadow: none;
 }
+
 .desktop-mode .content-area {
-   --content-bg: #ffffff;
-   --content-border: 1px solid #dcdcdc;
-   --content-radius: 4px;
-   --content-shadow: none;
+  border-radius: 4px;
 }
+
 .content-wrapper {
   flex-grow: 1;
   overflow-y: auto;
   min-height: 0;
-  padding: var(--wrapper-padding, 16px);
-}
-.desktop-mode .content-wrapper {
-  --wrapper-padding: 0; /* Padding diatur oleh section di dalam komponen anak */
+  padding: 16px;
 }
 
-/* Footer (Status Bar) */
+.desktop-mode .content-wrapper {
+  padding: 0;
+}
+
 .content-footer {
   flex-shrink: 0;
-  /* Menerapkan style dari desktop-app.css */
-  border-top: 1px solid #e0e0e0;
+  border-top: 1px solid rgba(var(--v-border-color), var(--v-border-opacity));
+  background-color: rgb(var(--v-theme-surface));
 }
 </style>
-

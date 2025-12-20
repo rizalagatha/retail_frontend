@@ -363,16 +363,38 @@ watch([selectedCabang, belumApproval, startDate, endDate], () => {
   flex-direction: column;
   height: calc(100vh - 64px - 32px);
   overflow: hidden;
+  background-color: rgb(var(--v-theme-background));
+  /* [FIX] */
 }
 
+/* Filter Section */
 .filter-section {
   flex-shrink: 0;
   padding: 8px;
-  border-bottom: 1px solid #e0e0e0;
-  background: white;
+  /* [FIX DARK MODE] */
+  background-color: rgb(var(--v-theme-surface));
+  border-bottom: 1px solid rgba(var(--v-border-color), var(--v-border-opacity));
+  color: rgb(var(--v-theme-on-surface));
+
   display: flex;
   align-items: center;
   gap: 12px;
+}
+
+/* [FIX] Styling Input dalam Filter */
+.filter-section :deep(.v-field) {
+  background-color: rgb(var(--v-theme-background)) !important;
+  color: rgb(var(--v-theme-on-surface));
+}
+
+.filter-section :deep(input) {
+  color: rgb(var(--v-theme-on-surface));
+}
+
+.filter-label {
+  color: rgba(var(--v-theme-on-surface), 0.7);
+  font-weight: 600;
+  font-size: 11px;
 }
 
 .table-container {
@@ -388,6 +410,8 @@ watch([selectedCabang, belumApproval, startDate, endDate], () => {
   height: 100%;
   display: flex;
   flex-direction: column;
+  background-color: rgb(var(--v-theme-surface));
+  /* [FIX] */
 }
 
 .desktop-table :deep(.v-table__wrapper) {
@@ -405,13 +429,15 @@ watch([selectedCabang, belumApproval, startDate, endDate], () => {
 /* Header Resize */
 .resizable-header {
   position: relative;
-  background-color: #e3f2fd !important;
-  color: #0d47a1 !important;
+  /* [FIX] Gunakan variable tema global */
+  background-color: var(--table-head-bg) !important;
+  color: var(--table-head-text) !important;
+
   font-weight: 700 !important;
   text-transform: uppercase;
   font-size: 11px !important;
   height: 40px !important;
-  border-bottom: 2px solid #1976d2 !important;
+  border-bottom: 1px solid rgba(var(--v-border-color), var(--v-border-opacity)) !important;
   padding: 0 8px !important;
   user-select: none;
   overflow: hidden;
@@ -426,6 +452,14 @@ watch([selectedCabang, belumApproval, startDate, endDate], () => {
   height: 100%;
 }
 
+.resizable-header.text-center .header-content {
+  justify-content: center;
+}
+
+.resizable-header.text-end .header-content {
+  justify-content: flex-end;
+}
+
 .resizer {
   position: absolute;
   right: 0;
@@ -438,11 +472,17 @@ watch([selectedCabang, belumApproval, startDate, endDate], () => {
 
 .resizer:hover,
 .resizable-header:hover .resizer {
-  border-right: 2px solid #1565c0;
+  border-right: 2px solid rgba(var(--v-theme-on-surface), 0.5);
+  /* [FIX] */
 }
 
-/* Pewarnaan Baris (Langsung Target TD) */
+/* Pewarnaan Baris Merah (Belum Approve) */
 :deep(td.text-red) {
   color: #d32f2f !important;
+}
+
+/* [FIX] Hover row pada baris merah di Dark Mode */
+.v-theme--dark .desktop-table :deep(tr:hover td.text-red) {
+  background-color: rgba(211, 47, 47, 0.2) !important;
 }
 </style>

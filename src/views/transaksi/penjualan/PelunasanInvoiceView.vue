@@ -281,7 +281,7 @@ onMounted(() => {
     </template>
 
     <div class="browse-content">
-      <div class="filter-section pa-2 mb-2 bg-white border-bottom">
+      <div class="filter-section pa-2 mb-2 border-bottom">
         <v-row dense align="center">
           <v-col cols="12" md="2">
             <v-text-field v-model="filters.startDate" type="date" label="Dari Tanggal" density="compact"
@@ -364,7 +364,18 @@ onMounted(() => {
 
 .filter-section {
   flex-shrink: 0;
-  border-bottom: 1px solid #e0e0e0;
+  background-color: rgb(var(--v-theme-surface));
+  border-bottom: 1px solid rgba(var(--v-theme-on-surface), 0.12);
+}
+
+.filter-section :deep(.v-field),
+.filter-section :deep(.v-field--variant-outlined),
+.filter-section :deep(.v-field--variant-filled) {
+  background-color: rgb(var(--v-theme-surface)) !important;
+}
+
+.filter-section:deep(.v-field--variant-filled .v-field__overlay) {
+  background-color: rgb(var(--v-theme-surface)) !important;
 }
 
 .table-container {
@@ -395,25 +406,24 @@ onMounted(() => {
   display: flex;
   justify-content: flex-start;
   padding: 16px 16px 16px 64px;
-  /* Indentasi agar terlihat seperti anak */
-  background-color: #fafafa;
-  border-bottom: 1px solid #e0e0e0;
   width: 100%;
+
+  background-color: rgb(var(--v-theme-surface));
+  border-bottom: 1px solid rgba(var(--v-theme-on-surface), 0.12);
 }
 
 .detail-table-wrapper {
   width: 100%;
   max-width: 900px;
-  border: 1px solid #ddd;
+
+  background-color: rgb(var(--v-theme-surface));
+  border: 1px solid rgba(var(--v-theme-on-surface), 0.12);
   border-radius: 4px;
-  overflow: hidden;
-  background-color: white;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
 }
 
 .detail-table :deep(thead tr th) {
-  background-color: #f5f5f5 !important;
-  color: #424242 !important;
+  background-color: rgba(var(--v-theme-on-surface), 0.06) !important;
+  color: rgb(var(--v-theme-on-surface)) !important;
   font-size: 10px !important;
   height: 32px !important;
   text-transform: uppercase;
@@ -435,18 +445,16 @@ onMounted(() => {
   position: sticky;
   bottom: 0;
   z-index: 5;
-  /* Supaya berada di atas row data biasa */
-  background-color: #f5f5f5 !important;
-  /* Warna background wajib agar tidak transparan */
-  border-top: 2px solid #e0e0e0;
-  box-shadow: 0 -2px 4px rgba(0, 0, 0, 0.05);
+
+  background-color: rgb(var(--v-theme-surface)) !important;
+  border-top: 2px solid rgba(var(--v-theme-on-surface), 0.12);
+  box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.35);
 }
 
 .sticky-footer td {
-  /* Pastikan cell juga punya background agar row di belakangnya tertutup */
-  background-color: #f5f5f5 !important;
+  background-color: rgb(var(--v-theme-surface)) !important;
   font-size: 12px !important;
   height: 48px !important;
-  /* Sedikit lebih tinggi biar tegas */
+  color: rgb(var(--v-theme-on-surface));
 }
 </style>

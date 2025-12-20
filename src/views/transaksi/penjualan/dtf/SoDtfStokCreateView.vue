@@ -475,8 +475,8 @@ onMounted(async () => {
           <!-- KOLOM KIRI: TABEL -->
           <v-col cols="12" md="8">
             <div class="desktop-form-section grid-section">
-              <v-data-table :headers="tableHeaders" :items="items" density="compact" class="desktop-table header-browse-blue" fixed-header
-                :items-per-page="-1">
+              <v-data-table :headers="tableHeaders" :items="items" density="compact"
+                class="desktop-table header-browse-blue" fixed-header :items-per-page="-1">
                 <template #[`item.no`]="{ index }">
                   <div class="cell-text">{{ index + 1 }}</div>
                 </template>
@@ -665,9 +665,10 @@ onMounted(async () => {
 
 .desktop-form-section {
   padding: 12px;
-  border: 1px solid #e0e0e0;
   border-radius: 4px;
-  background-color: white;
+
+  background-color: rgb(var(--v-theme-surface));
+  border: 1px solid rgba(var(--v-theme-on-surface), 0.12);
 }
 
 .left-column .desktop-form-section {
@@ -751,12 +752,12 @@ onMounted(async () => {
 }
 
 .total-row td {
-  background-color: #f5f5f5;
-  border-top: 1px solid #ccc !important;
+  background-color: rgba(var(--v-theme-on-surface), 0.04);
+  border-top: 1px solid rgba(var(--v-theme-on-surface), 0.12) !important;
 }
 
 .field-disabled {
-  background-color: #f0f0f0;
+  background-color: rgba(var(--v-theme-on-surface), 0.04);
   pointer-events: none;
 }
 
@@ -770,8 +771,8 @@ onMounted(async () => {
 }
 
 .image-upload-section {
-  background-color: #fafafa;
-  border: 1px solid #e0e0e0;
+  background-color: rgb(var(--v-theme-surface));
+  border: 1px solid rgba(var(--v-theme-on-surface), 0.12);
   border-radius: 8px;
   padding: 16px;
 }
@@ -780,5 +781,10 @@ onMounted(async () => {
   position: relative;
   overflow: hidden;
   transition: all 0.3s ease;
+}
+
+:deep(.bg-grey-lighten-4) {
+  background-color: rgba(var(--v-theme-on-surface), 0.04) !important;
+  color: rgba(var(--v-theme-on-surface), 0.6);
 }
 </style>

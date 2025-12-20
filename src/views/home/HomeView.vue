@@ -2,6 +2,9 @@
 import { ref, onMounted, onUnmounted, computed, reactive, watch } from 'vue';
 import { useAuthStore } from '@/stores/authStore';
 import { useRouter } from 'vue-router';
+// [GSAP] Import Library
+import { gsap } from 'gsap';
+
 import logoUrl from '@/assets/logo.png';
 import bannerImage from '@/assets/banner-image.jpg';
 import storeBg from '@/assets/store-bg.jpg';
@@ -23,6 +26,7 @@ ChartJS.register(
   ChartDataLabels, ArcElement
 );
 
+// --- INTERFACES ---
 interface PendingAction {
   key: string;
   title: string;
@@ -30,21 +34,18 @@ interface PendingAction {
   to: string;
   count: number;
 }
+
 interface SalesChartItem {
-  tanggal: string; // format ISO dari backend
+  tanggal: string;
   total: number;
 }
-// interface BarDataset {
-//   label: string;
-//   backgroundColor: string;
-//   data: number[];
-//   borderRadius?: number; // optional
-// }
+
 interface PiutangBreakdown {
   cabang_kode: string;
   cabang_nama: string;
   sisa_piutang: number;
 }
+
 interface StockCabang {
   kode_cabang: string;
   nama_cabang: string;
@@ -56,15 +57,12 @@ interface DashboardStats {
   todayQty: number;
   todayTransactions: number;
   lowStock: number;
-
-  totalStock: number;     // stok cabang (untuk store)
-  totalStok: number;      // stok semua cabang (untuk KDC)
+  totalStock: number;
+  totalStok: number;
   todayStokIn: number;
   todayStokOut: number;
-
   totalSisaPiutang: number;
-
-  stokPerCabang: StockCabang[];  // breakdown untuk KDC
+  stokPerCabang: StockCabang[];
 }
 
 interface ActivePromo {
@@ -100,43 +98,84 @@ interface LowStockProduct {
   UKURAN: string;
   TOTAL: number;
   Buffer: number;
-  AVG_SALE: number; // <--- Tambahan
+  AVG_SALE: number;
 }
 
-const authStore = useAuthStore()
-const router = useRouter()
+const authStore = useAuthStore();
+const router = useRouter();
 const toast = useToast();
 
 const goToLogin = () => {
-  router.push('/login')
+  router.push('/login');
 }
 
+// --- STATE UTAMA ---
 const stats = ref<DashboardStats>({
   todaySales: 0,
   todayQty: 0,
   todayTransactions: 0,
   lowStock: 0,
-
   totalStock: 0,
   totalStok: 0,
-
   todayStokIn: 0,
   todayStokOut: 0,
-
   totalSisaPiutang: 0,
-
   stokPerCabang: [],
 });
+
+const salesTargetSummary = ref({ nominal: 0, target: 0 });
+const stagnantStockValue = ref(0);
+const lowStockCount = ref(0);
+
+// --- [GSAP] 1. COMPOSABLE ANIMASI ANGKA ---
+const useGsapNumber = (sourceGetter: () => number) => {
+  const displayValue = ref(0);
+
+  watch(sourceGetter, (newVal) => {
+    gsap.to(displayValue, {
+      value: Number(newVal) || 0,
+      duration: 1.5,
+      ease: "power2.out",
+    });
+  });
+
+  return displayValue;
+};
+
+// --- [GSAP] 2. TERAPKAN KE VARIABLE ---
+const animatedSales = useGsapNumber(() => stats.value.todaySales);
+const animatedTx = useGsapNumber(() => stats.value.todayTransactions);
+const animatedQty = useGsapNumber(() => stats.value.todayQty);
+const animatedTotalStock = useGsapNumber(() => stats.value.totalStock);
+const animatedLowStock = useGsapNumber(() => lowStockCount.value);
+const animatedPiutang = useGsapNumber(() => stats.value.totalSisaPiutang);
+const animatedTargetRealization = useGsapNumber(() => salesTargetSummary.value.nominal);
+const animatedStagnant = useGsapNumber(() => stagnantStockValue.value);
+
+// --- [GSAP] 3. ANIMASI LIST (STAGGER) ---
+const onListEnter = (el: any, done: any) => {
+  gsap.fromTo(el,
+    { opacity: 0, x: -30 },
+    {
+      opacity: 1,
+      x: 0,
+      duration: 0.5,
+      ease: "power2.out",
+      onComplete: done,
+      delay: el.dataset.index * 0.1 // Stagger delay
+    }
+  );
+};
+
+// --- STATE LAINNYA ---
 const isLoadingStats = ref(true);
 const isLoadingPiutang = ref(true);
 const isLoadingPiutangBreakdown = ref(true);
 const piutangBreakdown = ref<PiutangBreakdown[]>([]);
 const piutangByInvoice = ref([]);
 const isLoadingPiutangInvoice = ref(false);
-
 const frequentMenus = ref<FrequentMenu[]>([]);
 const isLoadingFrequent = ref(true);
-
 const chartType = ref<'bar' | 'line' | 'area'>('bar');
 const chartGroupBy = ref<'day' | 'week' | 'month'>('day');
 const chartFilters = reactive({
@@ -147,125 +186,62 @@ const chartFilters = reactive({
 const cabangList = ref([]);
 const chartData = ref({
   labels: [],
-  datasets: [{
-    label: 'Penjualan',
-    backgroundColor: '#42A5F5',
-    data: []
-  }]
+  datasets: [{ label: 'Penjualan', backgroundColor: '#42A5F5', data: [] }]
 });
 const isLoadingChart = ref(true);
-
 const recentTransactions = ref([]);
 const isLoadingTransactions = ref(true);
-
 const lowStockProducts = ref<LowStockProduct[]>([]);
-const lowStockCount = ref(0);
 const isLoadingLowStock = ref(true);
-
 const pendingActions = ref<PendingAction[]>([]);
 const isLoadingActions = ref(true);
-
 const topProducts = ref([]);
 const isLoadingTopProducts = ref(true);
-// [BARU] State untuk Filter Top Products
-const topProductsCabang = ref('ALL'); // Default ALL untuk KDC
-const topProductsList = ref([]); // State data produk (sesuaikan nama variabel anda, misal `topProducts`)
-
-const salesTargetSummary = ref({ nominal: 0, target: 0 });
+const topProductsCabang = ref('ALL');
 const isLoadingSalesTarget = ref(true);
-
 const branchPerformances = ref([]);
 const isLoadingPerformance = ref(false);
-
-const stagnantStockValue = ref(0);
 const isLoadingStagnantStock = ref(true);
-
 const stockBreakdown = ref<{ kode_cabang: string; nama_cabang: string; totalStock: number }[]>([]);
 const isLoadingStock = ref(true);
 const isLoadingStockBreakdown = ref(true);
-
-const promoText = ref(''); // Untuk menampung teks berjalan
+const promoText = ref('');
 const isLoadingPromo = ref(false);
-
 const itemTrendData = ref<ItemTrend[]>([]);
 const isLoadingItemTrend = ref(false);
-
-// [BARU] State untuk Stok Kosong Reguler
 const searchStokKosong = ref('');
-const stokKosongCabang = ref(''); // To store selected branch for stock filter
+const stokKosongCabang = ref('');
 const stokKosongList = ref([]);
 const isLoadingStokKosong = ref(false);
 let searchStokKosongTimeout: ReturnType<typeof setTimeout>;
 
 const itemTrendHeaders = [
-  { title: 'Nama Barang', key: 'nama', width: '40%' }, // Beri porsi lebar lebih besar
+  { title: 'Nama Barang', key: 'nama', width: '40%' },
   { title: 'Bln-3', key: 'bulan_min_3', align: 'end' },
   { title: 'Bln-2', key: 'bulan_min_2', align: 'end' },
   { title: 'Bln-1', key: 'bulan_min_1', align: 'end' },
-  { title: 'Bulan Ini (Qty)', key: 'bulan_ini', align: 'end' }, // Perjelas label disini
+  { title: 'Bulan Ini (Qty)', key: 'bulan_ini', align: 'end' },
   { title: 'Tren', key: 'trend', align: 'center', sortable: false, width: '50px' },
 ] as const;
 
-// const quickActions = ref([
-//   { title: 'Transaksi Baru', icon: 'mdi-cash-register', to: '/transaksi', color: 'primary' },
-//   { title: 'Master Data', icon: 'mdi-plus-circle', to: '/daftar', color: 'success' },
-//   { title: 'Lihat Laporan', icon: 'mdi-chart-line', to: '/laporan', color: 'info' },
-//   { title: 'Kelola Piutang', icon: 'mdi-account-clock', to: '/piutang', color: 'orange' },
-//   { title: 'Cek Gudang', icon: 'mdi-warehouse', to: '/gudang-dc', color: 'purple' },
-// ]);
+// --- TREND INDICATOR LOGIC ---
+const prevStats = ref({ todaySales: 0 });
+const trendIndicators = reactive({ sales: 'neutral' });
 
-// Features untuk landing page
-const features = ref([
-  {
-    icon: 'mdi-cart-outline',
-    title: 'Transaksi',
-    description: 'Kelola penjualan, pembelian, dan invoice dengan mudah',
-    color: 'primary'
-  },
-  {
-    icon: 'mdi-warehouse',
-    title: 'Gudang DC',
-    description: 'Manajemen stok, mutasi, dan inventori gudang',
-    color: 'success'
-  },
-  {
-    icon: 'mdi-chart-line',
-    title: 'Laporan',
-    description: 'Analisa bisnis dan monitoring performa real-time',
-    color: 'info'
-  },
-  {
-    icon: 'mdi-account-multiple',
-    title: 'Master Data',
-    description: 'Kelola data customer, supplier, dan produk',
-    color: 'orange'
-  },
-  {
-    icon: 'mdi-currency-usd',
-    title: 'Piutang',
-    description: 'Monitor dan kelola piutang pelanggan',
-    color: 'purple'
-  },
-  {
-    icon: 'mdi-cog-outline',
-    title: 'Tools',
-    description: 'Utilitas dan pengaturan sistem',
-    color: 'blue-grey'
-  }
-]);
+watch(() => stats.value.todaySales, (n) => {
+  if (n > prevStats.value.todaySales) trendIndicators.sales = 'up';
+  else if (n < prevStats.value.todaySales) trendIndicators.sales = 'down';
+  else trendIndicators.sales = 'neutral';
+  prevStats.value.todaySales = n;
+});
 
+// --- CHART & COLORS ---
 const targetPercentage = computed(() => {
-  if (!salesTargetSummary.value.target || salesTargetSummary.value.target === 0) {
-    return 0;
-  }
-  // Hitung persentase tanpa batasan
-  const percentage = (salesTargetSummary.value.nominal / salesTargetSummary.value.target) * 100;
-  return percentage;
+  if (!salesTargetSummary.value.target || salesTargetSummary.value.target === 0) return 0;
+  return (salesTargetSummary.value.nominal / salesTargetSummary.value.target) * 100;
 });
 
-const isOverTarget = computed(() => {
-  return targetPercentage.value > 100;
-});
+const isOverTarget = computed(() => targetPercentage.value > 100);
 
 const getProgressColor = (percentage) => {
   if (percentage >= 100) return '#4CAF50';
@@ -275,7 +251,7 @@ const getProgressColor = (percentage) => {
   return '#F44336';
 };
 
-const targetChartData = computed(() => ({ // <-- NAMA BARU
+const targetChartData = computed(() => ({
   labels: ['Pencapaian'],
   datasets: [
     {
@@ -283,14 +259,14 @@ const targetChartData = computed(() => ({ // <-- NAMA BARU
       data: [salesTargetSummary.value.target],
       backgroundColor: '#E0E0E0',
       borderRadius: 4,
-      barPercentage: 1.0,
+      barPercentage: 1.0
     },
     {
       label: 'Realisasi',
       data: [salesTargetSummary.value.nominal],
       backgroundColor: getProgressColor(targetPercentage.value),
       borderRadius: 4,
-      barPercentage: 0.6,
+      barPercentage: 0.6
     }
   ]
 }));
@@ -304,116 +280,68 @@ const targetChartOptions = ref<ChartOptions<'bar' | 'line'>>({
     y: {
       beginAtZero: true,
       ticks: {
-        // Gunakan 'number | string' agar aman untuk segala jenis sumbu
         callback: (value: number | string) => {
           if (typeof value === 'number') {
             if (value >= 1000000) return `Rp ${value / 1000000} Jt`;
-            if (value >= 1000) return `Rp ${value / 1000} Rb`;
             return fr(value);
           }
           return value;
         }
       }
     },
-    x: {
-      grid: {
-        display: false
-      }
-    }
+    x: { grid: { display: false } }
   },
   plugins: {
-    legend: {
-      position: 'bottom',
-    },
+    legend: { position: 'bottom' },
     tooltip: {
       callbacks: {
-        // [FIX] Ubah tipe context menjadi union atau any
-        label: (context: TooltipItem<'bar' | 'line'>) => {
-          const label = context.dataset.label || '';
-          const value = context.parsed.y as number;
-          return `${label}: ${fr(value)}`;
-        }
+        label: (context: TooltipItem<'bar' | 'line'>) => `${context.dataset.label}: ${fr(context.parsed.y as number)}`
       }
     },
     datalabels: {
       anchor: 'end',
       align: 'top',
-      formatter: (value: number, context: any) => {
-        if (context.datasetIndex === 1) return fr(value);
-        return null;
-      },
-      font: {
-        weight: 'bold',
-        size: 10
-      },
+      formatter: (value, context) => context.datasetIndex === 1 ? fr(value) : null,
+      font: { weight: 'bold', size: 10 },
       color: '#424242'
     }
   }
 });
 
-// --- LOGIC PIE CHART KONTRIBUSI CABANG ---
-// Warna-warna cerah untuk Pie Chart
-const chartColors = [
-  '#42A5F5', '#66BB6A', '#FFA726', '#EF5350', '#AB47BC',
-  '#FF7043', '#26C6DA', '#7E57C2', '#9CCC65', '#5C6BC0',
-  '#8D6E63', '#78909C'
-];
+const chartColors = ['#42A5F5', '#66BB6A', '#FFA726', '#EF5350', '#AB47BC', '#FF7043', '#26C6DA', '#7E57C2', '#9CCC65', '#5C6BC0', '#8D6E63', '#78909C'];
 
-const branchDistributionData = computed(() => {
-  // Ambil data dari state branchPerformances yang sudah ada
-  const labels = branchPerformances.value.map(b => b.nama_cabang);
-  const data = branchPerformances.value.map(b => b.nominal);
-
-  return {
-    labels: labels,
-    datasets: [
-      {
-        backgroundColor: chartColors.slice(0, labels.length),
-        data: data,
-        borderWidth: 2,
-        borderColor: '#ffffff',
-        hoverOffset: 4
-      }
-    ]
-  };
-});
+const branchDistributionData = computed(() => ({
+  labels: branchPerformances.value.map(b => b.nama_cabang),
+  datasets: [{
+    backgroundColor: chartColors.slice(0, branchPerformances.value.length),
+    data: branchPerformances.value.map(b => b.nominal),
+    borderWidth: 2,
+    borderColor: '#ffffff',
+    hoverOffset: 4
+  }]
+}));
 
 const pieChartOptions = {
   responsive: true,
   maintainAspectRatio: false,
   plugins: {
-    legend: {
-      position: 'right' as const, // Legenda di sebelah kanan agar rapi
-      labels: {
-        usePointStyle: true,
-        boxWidth: 10,
-        font: { size: 11 }
-      }
-    },
+    legend: { position: 'right' as const, labels: { usePointStyle: true, boxWidth: 10, font: { size: 11 } } },
     tooltip: {
       callbacks: {
         label: (context: any) => {
-          const label = context.label || '';
-          const value = context.parsed || 0;
-          // Hitung persentase manual agar info lebih lengkap
           const total = context.chart._metasets[context.datasetIndex].total;
-          const percentage = ((value / total) * 100).toFixed(1) + '%';
-          return `${label}: ${formatRupiah(value)} (${percentage})`;
+          const percentage = ((context.parsed / total) * 100).toFixed(1) + '%';
+          return `${context.label}: ${formatRupiah(context.parsed)} (${percentage})`;
         }
       }
     },
     datalabels: {
-      // Sembunyikan label angka di dalam slice jika terlalu kecil
-      display: (context: any) => {
-        return context.dataset.data[context.dataIndex] > 0;
-      },
+      display: (context: any) => context.dataset.data[context.dataIndex] > 0,
       color: '#fff',
       font: { weight: 'bold' as const, size: 10 },
       formatter: (value: number, ctx: any) => {
-        // Tampilkan persentase di dalam pie
         const total = ctx.chart._metasets[ctx.datasetIndex].total;
         const percentage = ((value / total) * 100);
-        // Hanya tampilkan jika > 5% agar tidak menumpuk
         return percentage > 5 ? percentage.toFixed(0) + '%' : '';
       }
     }
@@ -423,202 +351,125 @@ const pieChartOptions = {
 const currentTime = ref(new Date().toLocaleString('id-ID', { dateStyle: 'long', timeStyle: 'medium' }));
 let intervalId: number;
 
-const fetchDashboardStats = async () => {
-  isLoadingStats.value = true;
+// --- FETCH FUNCTIONS ---
+
+const fetchDashboardStats = async (isBackground = false) => {
+  if (!isBackground) isLoadingStats.value = true;
   try {
     const response = await api.get('/dashboard/total-stok');
-
     stats.value.totalStok = Number(response.data.totalStok || 0);
     stats.value.stokPerCabang = response.data.perCabang || [];
   } catch (error) {
     toast.error('Gagal memuat total stok.', error);
   } finally {
-    isLoadingStats.value = false;
+    if (!isBackground) isLoadingStats.value = false;
   }
 };
 
-const fetchTodayStats = async () => {
-  // isLoadingStats di-set di awal (mungkin bersamaan dengan loading lain)
+const fetchTodayStats = async (isBackground = false) => {
+  if (!isBackground) isLoadingStats.value = true;
   try {
-    // 1. Panggil endpoint yang sesuai dengan 'getTodayStats' di controller
-    // (Asumsi routernya adalah '/dashboard/today-stats')
     const response = await api.get('/dashboard/today-stats');
-
-    // 2. Update 'stats' ref dengan data yang diterima
-    // Kita gunakan ...stats.value agar tidak menimpa data lain
-    // seperti lowStock, totalProducts, dll.
     stats.value = {
       ...stats.value,
       todaySales: response.data.todaySales || 0,
       todayQty: Number(response.data.todayQty || 0),
-      todayTransactions: Number(response.data.todayTransactions || 0),
+      todayTransactions: Number(response.data.todayTransactions || 0)
     };
-
   } catch (error) {
     console.error("Error fetching today stats:", error);
-    toast.error('Gagal memuat statistik hari ini.');
   } finally {
-    // 3. Set loading ke false
-    // (Anda mungkin ingin menunggu semua data dashboard selesai
-    // sebelum men-set ini ke false)
-    isLoadingStats.value = false;
+    if (!isBackground) isLoadingStats.value = false;
   }
 };
 
-// Helper: Memberikan warna icon secara otomatis agar tidak monoton
-const getMenuColor = (iconName: string, index: number) => {
-  // 1. Warna berdasarkan konteks icon
-  if (iconName.includes('cash') || iconName.includes('receipt')) return 'primary';      // Transaksi -> Biru
-  if (iconName.includes('database') || iconName.includes('plus')) return 'success';     // Master -> Hijau
-  if (iconName.includes('chart') || iconName.includes('finance')) return 'info';        // Laporan -> Biru Muda
-  if (iconName.includes('account') || iconName.includes('clock')) return 'orange';      // Piutang -> Orange
-  if (iconName.includes('warehouse') || iconName.includes('package')) return 'purple';  // Gudang -> Ungu
-  if (iconName.includes('printer') || iconName.includes('print')) return 'deep-orange'; // DTF/Print -> Merah Bata
-  if (iconName.includes('target')) return 'red';                                        // Target -> Merah
-
-  // 2. Fallback: Rotasi warna berdasarkan index
-  const colors = ['teal', 'indigo', 'cyan', 'brown', 'blue-grey'];
-  return colors[index % colors.length];
-};
-
-// --- Method ---
-const fetchFrequentMenus = async () => {
-  isLoadingFrequent.value = true;
+const fetchRecentTransactions = async (isBackground = false) => {
+  if (!isBackground) isLoadingTransactions.value = true;
   try {
-    const response = await api.get('/activity/frequent-menus');
-
-    // Jika user punya history
-    if (response.data && response.data.length > 0) {
-      // Hapus 'any', gunakan tipe implisit atau eksplisit
-      frequentMenus.value = response.data.map((menu: { icon?: string; title: string; to: string }, index: number) => ({
-        ...menu,
-        color: getMenuColor(menu.icon || '', index)
-      }));
-    } else {
-      // --- FALLBACK ---
-      frequentMenus.value = [
-        {
-          title: 'Invoice',
-          icon: 'mdi-receipt-text',
-          to: '/transaksi/penjualan/invoice',
-          color: 'primary'
-        },
-        {
-          title: 'Surat Pesanan',
-          icon: 'mdi-file-document-edit',
-          to: '/transaksi/penjualan/surat-pesanan',
-          color: 'success'
-        },
-        {
-          title: 'SO DTF',
-          icon: 'mdi-printer-3d-nozzle',
-          to: '/transaksi/penjualan/dtf/so-dtf',
-          color: 'deep-orange'
-        },
-        {
-          title: 'Cek Stok',
-          icon: 'mdi-package-variant',
-          to: '/laporan/stok/real-time',
-          color: 'purple'
-        },
-        {
-          title: 'Monitoring Target',
-          icon: 'mdi-target',
-          to: '/laporan/penjualan/monitoring-achievement',
-          color: 'red'
-        },
-      ];
-    }
+    const response = await api.get('/dashboard/recent-transactions');
+    recentTransactions.value = response.data;
   } catch (error) {
-    console.error('Gagal memuat menu sering diakses', error);
-    // Fallback error
-    frequentMenus.value = [
-      { title: 'Invoice', icon: 'mdi-receipt-text', to: '/transaksi/penjualan/invoice', color: 'primary' },
-      { title: 'Surat Pesanan', icon: 'mdi-file-document-edit', to: '/transaksi/penjualan/surat-pesanan', color: 'success' },
-      { title: 'SO DTF', icon: 'mdi-printer-3d-nozzle', to: '/transaksi/penjualan/dtf/so-dtf', color: 'deep-orange' },
-    ];
+    console.error('Gagal memuat transaksi', error);
   } finally {
-    isLoadingFrequent.value = false;
+    if (!isBackground) isLoadingTransactions.value = false;
   }
 };
 
-const fetchSalesChartData = async () => {
-  isLoadingChart.value = true;
+const fetchTotalStock = async (isBackground = false) => {
+  if (!isBackground) isLoadingStock.value = true;
   try {
-    const response = await api.get('/dashboard/sales-chart', {
-      params: { ...chartFilters, groupBy: chartGroupBy.value }
-    });
-
-    const labels = (response.data as SalesChartItem[]).map((d) => {
-      const date = new Date(d.tanggal);
-      if (chartGroupBy.value === 'month') return format(date, 'MMM yyyy');
-      if (chartGroupBy.value === 'week') return `W${format(date, 'ww')}`;
-      return format(date, 'dd/MM');
-    });
-
-    const dataValues = (response.data as SalesChartItem[]).map(d => d.total);
-
-    // Konfigurasi Tampilan Berdasarkan Tipe
-    let datasetConfig = {};
-
-    if (chartType.value === 'bar') {
-      // Tampilan BATANG (Bar)
-      datasetConfig = {
-        type: 'bar',
-        label: 'Penjualan (Rp)',
-        backgroundColor: '#42A5F5',
-        borderRadius: 4,
-        barPercentage: 0.6,
-      };
-    } else {
-      // Tampilan GARIS (Line / Area)
-      datasetConfig = {
-        type: 'line',
-        label: 'Penjualan (Rp)',
-        borderColor: '#42A5F5',
-        backgroundColor: chartType.value === 'area' ? 'rgba(66, 165, 245, 0.2)' : 'transparent',
-        borderWidth: 3,
-        pointBackgroundColor: '#fff',
-        pointBorderColor: '#42A5F5',
-        pointBorderWidth: 2,
-        pointRadius: 4,
-        pointHoverRadius: 6,
-        fill: chartType.value === 'area', // Isi area bawah garis jika tipe 'area'
-        tension: 0.4, // Membuat garis melengkung (smooth)
-      };
-    }
-
-    chartData.value = {
-      labels: labels,
-      datasets: [{
-        data: dataValues,
-        ...datasetConfig
-      } as any]
-    };
-  } catch (error) {
-    toast.error('Gagal memuat data grafik penjualan.', error);
+    const response = await api.get('/dashboard/total-stok');
+    stats.value.totalStock = Number(response.data.totalStock || 0);
+    stats.value.todayStokIn = Number(response.data.todayStokIn || 0);
+    stats.value.todayStokOut = Number(response.data.todayStokOut || 0);
+  } catch (err) {
+    console.error('Gagal memuat total stok:', err);
   } finally {
-    isLoadingChart.value = false;
+    if (!isBackground) isLoadingStock.value = false;
   }
 };
 
-// --- 4. TAMBAHKAN WATCHER ---
-// Agar saat tipe chart diganti, data direfresh ulang (untuk apply style baru)
-watch(chartType, fetchSalesChartData);
-
-const fetchLowStockData = async () => {
-  isLoadingLowStock.value = true;
+const fetchLowStockData = async (isBackground = false) => {
+  if (!isBackground) isLoadingLowStock.value = true;
   try {
     const response = await api.get('/laporan-stok/low-stock');
-    const lowStockData = response.data;
-    lowStockCount.value = lowStockData.length;
-    lowStockProducts.value = lowStockData;
+    lowStockProducts.value = response.data;
+    lowStockCount.value = response.data.length;
   } catch (error) {
-    toast.error('Gagal memuat data stok menipis.', error);
+    console.error('Gagal memuat low stock:', error);
   } finally {
-    isLoadingLowStock.value = false;
+    if (!isBackground) isLoadingLowStock.value = false;
   }
-}
+};
+
+const fetchSalesTargetSummary = async (isBackground = false) => {
+  if (!isBackground) isLoadingSalesTarget.value = true;
+  try {
+    const response = await api.get('/dashboard/sales-target-summary');
+    salesTargetSummary.value = response.data;
+  } catch (error) {
+    console.error('Error target summary:', error);
+  } finally {
+    if (!isBackground) isLoadingSalesTarget.value = false;
+  }
+};
+
+const fetchStagnantStockSummary = async (isBackground = false) => {
+  if (!isBackground) isLoadingStagnantStock.value = true;
+  try {
+    const response = await api.get('/dashboard/stagnant-stock-summary');
+    stagnantStockValue.value = response.data.totalStagnantValue || 0;
+  } catch (error) {
+    console.error(error);
+  } finally {
+    if (!isBackground) isLoadingStagnantStock.value = false;
+  }
+};
+
+const fetchTotalPiutang = async (isBackground = false) => {
+  if (!isBackground) isLoadingPiutang.value = true;
+  try {
+    const response = await api.get('/dashboard/total-sisa-piutang');
+    stats.value.totalSisaPiutang = response.data.totalSisaPiutang || 0;
+  } catch (error) {
+    console.error(error);
+  } finally {
+    if (!isBackground) isLoadingPiutang.value = false;
+  }
+};
+
+const fetchStokKosong = async (isBackground = false) => {
+  if (!isBackground) isLoadingStokKosong.value = true;
+  try {
+    const cabangParam = authStore.user?.cabang === 'KDC' ? stokKosongCabang.value : undefined;
+    const response = await api.get('/dashboard/stok-kosong', { params: { q: searchStokKosong.value, cabang: cabangParam } });
+    stokKosongList.value = response.data.data || [];
+  } catch (error) {
+    console.error("Gagal memuat stok kosong:", error);
+  } finally {
+    if (!isBackground) isLoadingStokKosong.value = false;
+  }
+};
 
 const fetchCabangOptions = async () => {
   try {
@@ -629,169 +480,57 @@ const fetchCabangOptions = async () => {
   }
 };
 
-const fetchRecentTransactions = async () => {
-  isLoadingTransactions.value = true;
+const fetchPendingActions = async (isBackground = false) => {
+  if (!isBackground) isLoadingActions.value = true;
   try {
-    const response = await api.get('/dashboard/recent-transactions');
-    recentTransactions.value = response.data;
+    const endDate = format(new Date(), 'yyyy-MM-dd');
+    const startDate = '2020-01-01';
+    const response = await api.get('/dashboard/pending-actions', { params: { startDate, endDate } });
+    const data = response.data;
+    const actionsMap = [
+      { key: 'so_open', title: 'Surat Pesanan Open', icon: 'mdi-file-document-edit-outline', to: `/transaksi/penjualan/surat-pesanan?status=open` },
+      { key: 'so_dtf_open', title: 'SO DTF Belum Invoice', icon: 'mdi-printer-alert', to: `/transaksi/penjualan/dtf/so-dtf?status=belum_invoice` },
+      { key: 'invoice_belum_lunas', title: 'Sisa Piutang Invoice', icon: 'mdi-receipt-text-clock-outline', to: `/transaksi/penjualan/invoice?status=sisa_piutang` },
+      { key: 'penawaran_open', title: 'Penawaran Open', icon: 'mdi-handshake-outline', to: `/transaksi/penjualan/penawaran?status=open` },
+      { key: 'pengajuan_harga_pending', title: 'Pengajuan Harga Pending', icon: 'mdi-file-clock-outline', to: `/transaksi/penjualan/pengajuan/pengajuan-harga?status=pending` }
+    ];
+    pendingActions.value = actionsMap.map(action => ({ ...action, count: data[action.key] || 0 }));
   } catch (error) {
-    toast.error('Gagal memuat data transaksi terbaru.', error);
+    console.error('Gagal memuat pending actions:', error);
   } finally {
-    isLoadingTransactions.value = false;
+    if (!isBackground) isLoadingActions.value = false;
   }
 };
 
-const fetchPendingActions = async () => {
-  isLoadingActions.value = true;
+const fetchTopProducts = async (isBackground = false) => {
+  if (!isBackground) isLoadingTopProducts.value = true;
   try {
-    const endDate = format(new Date(), 'yyyy-MM-dd');
-    const startDate = '2020-01-01'; // Seluruh waktu
-
-    // Query string ini HANYA untuk link (redirect), bukan untuk API fetch saat ini
-    // (Kecuali controller backendmu menangkap req.query)
-    const dateQuery = `?startDate=${startDate}&endDate=${endDate}`;
-
-    // Note: Pastikan API menerima query params jika backendmu diubah dinamis nanti
-    const response = await api.get('/dashboard/pending-actions', {
-        params: { startDate, endDate }
-    });
-
-    // Debugging: Cek apa isi data asli dari backend
-    console.log("Data Pending Actions:", response.data);
-    const data = response.data;
-
-    const actionsMap = [
-      {
-        key: 'so_open',
-        title: 'Surat Pesanan Open',
-        icon: 'mdi-file-document-edit-outline',
-        to: `/transaksi/penjualan/surat-pesanan${dateQuery}&status=open`
-      },
-      {
-        key: 'so_dtf_open',
-        title: 'SO DTF Belum Invoice',
-        icon: 'mdi-printer-alert',
-        to: `/transaksi/penjualan/dtf/so-dtf${dateQuery}&status=belum_invoice`
-      },
-      {
-        key: 'invoice_belum_lunas',
-        title: 'Sisa Piutang Invoice',
-        icon: 'mdi-receipt-text-clock-outline',
-        to: `/transaksi/penjualan/invoice${dateQuery}&status=sisa_piutang`
-      },
-      {
-        key: 'penawaran_open',
-        title: 'Penawaran Open',
-        icon: 'mdi-handshake-outline',
-        to: `/transaksi/penjualan/penawaran${dateQuery}&status=open`
-      },
-      {
-        key: 'pengajuan_harga_pending',
-        title: 'Pengajuan Harga Pending',
-        icon: 'mdi-file-clock-outline',
-        to: `/transaksi/penjualan/pengajuan/pengajuan-harga${dateQuery}&status=pending`
-      },
-    ];
-
-    // HAPUS FILTER > 0 SEMENTARA
-    // Supaya kita tahu itemnya muncul meski angkanya 0
-    pendingActions.value = actionsMap.map(action => ({
-        ...action,
-        count: data[action.key] || 0 // Default ke 0 jika undefined
-    }));
-
+    const response = await api.get('/dashboard/top-products', { params: { cabang: authStore.user?.cabang === 'KDC' ? topProductsCabang.value : undefined } });
+    topProducts.value = response.data;
   } catch (error) {
-    console.error(error); // Log error biar kebaca di inspect element
-    toast.error('Gagal memuat data tindakan tertunda.');
+    console.error(error);
   } finally {
-    isLoadingActions.value = false;
+    if (!isBackground) isLoadingTopProducts.value = false;
   }
 }
 
-const fetchTopProducts = async () => {
-  isLoadingTopProducts.value = true;
-  try {
-    const response = await api.get('/dashboard/top-products', {
-      params: {
-        // Kirim parameter cabang jika user KDC
-        cabang: authStore.user?.cabang === 'KDC' ? topProductsCabang.value : undefined
-      }
-    });
-    topProducts.value = response.data; // Simpan ke state existing
-  } catch (error) {
-    toast.error('Gagal memuat data produk terlaris.', error);
-  } finally {
-    isLoadingTopProducts.value = false;
-  }
-};
-
-watch(topProductsCabang, () => {
-  fetchTopProducts();
-});
-
-const fetchSalesTargetSummary = async () => {
-  isLoadingSalesTarget.value = true;
-  try {
-    const response = await api.get('/dashboard/sales-target-summary');
-    salesTargetSummary.value = response.data;
-  } catch (error) {
-    console.error('Error:', error);
-    toast.error('Gagal memuat ringkasan target penjualan.');
-  } finally {
-    isLoadingSalesTarget.value = false;
-  }
-};
-
-const fetchBranchPerformance = async () => {
-  isLoadingPerformance.value = true;
+const fetchBranchPerformance = async (isBackground = false) => {
+  if (!isBackground) isLoadingPerformance.value = true;
   try {
     const response = await api.get('/dashboard/branch-performance');
-    // Backend sekarang mengembalikan array langsung, bukan object {top, bottom}
     branchPerformances.value = response.data;
   } catch (error) {
-    console.error('Gagal memuat performa cabang:', error);
+    console.error(error);
   } finally {
-    isLoadingPerformance.value = false;
+    if (!isBackground) isLoadingPerformance.value = false;
   }
-};
-
-const getAchColor = (ach: number) => {
-  if (ach >= 100) return 'success';
-  if (ach >= 80) return 'warning';
-  return 'error';
-};
-
-const fetchStagnantStockSummary = async () => {
-  isLoadingStagnantStock.value = true;
-  try {
-    const response = await api.get('/dashboard/stagnant-stock-summary');
-    stagnantStockValue.value = response.data.totalStagnantValue || 0;
-  } catch (error) {
-    toast.error('Gagal memuat ringkasan stok stagnan.', error);
-  } finally {
-    isLoadingStagnantStock.value = false;
-  }
-};
-
-const fetchTotalPiutang = async () => {
-  isLoadingPiutang.value = true;
-  try {
-    const response = await api.get('/dashboard/total-sisa-piutang');
-    stats.value.totalSisaPiutang = response.data.totalSisaPiutang || 0;
-  } catch (error) {
-    toast.error('Gagal memuat total sisa piutang.', error);
-  } finally {
-    isLoadingPiutang.value = false;
-  }
-};
+}
 
 const fetchPiutangBreakdown = async () => {
-  // Hanya fetch jika user adalah KDC
   if (authStore.user?.cabang !== 'KDC') {
     isLoadingPiutangBreakdown.value = false;
     return;
   }
-
   isLoadingPiutangBreakdown.value = true;
   try {
     const response = await api.get('/dashboard/piutang-per-cabang');
@@ -804,8 +543,7 @@ const fetchPiutangBreakdown = async () => {
 };
 
 const fetchPiutangByInvoice = async () => {
-  if (authStore.user?.cabang === "KDC") return; // KDC tidak pakai ini
-
+  if (authStore.user?.cabang === "KDC") return;
   isLoadingPiutangInvoice.value = true;
   try {
     const response = await api.get("/dashboard/piutang-per-invoice");
@@ -817,30 +555,10 @@ const fetchPiutangByInvoice = async () => {
   }
 };
 
-const fetchTotalStock = async () => {
-  isLoadingStock.value = true;
-  try {
-    const response = await api.get('/dashboard/total-stok');
-
-    // Update stats dengan data baru
-    stats.value.totalStock = Number(response.data.totalStock || 0);
-    stats.value.todayStokIn = Number(response.data.todayStokIn || 0);
-    stats.value.todayStokOut = Number(response.data.todayStokOut || 0);
-
-  } catch (err) {
-    toast.error('Gagal memuat total stok.');
-    console.error(err);
-  } finally {
-    isLoadingStock.value = false;
-  }
-};
-
 const fetchStockBreakdown = async () => {
   isLoadingStockBreakdown.value = true;
-
   try {
     const response = await api.get<StockCabang[]>('/dashboard/total-stok-per-cabang');
-
     stockBreakdown.value = response.data.map((r) => ({
       kode_cabang: r.kode_cabang,
       nama_cabang: r.nama_cabang,
@@ -855,49 +573,26 @@ const fetchStockBreakdown = async () => {
   }
 };
 
-// --- Method Baru: Fetch Promo ---
 const fetchActivePromos = async () => {
   isLoadingPromo.value = true;
   try {
-    const response = await api.get('/invoice-form/lookup/active-promos', {
-      params: {
-        tanggal: format(new Date(), 'yyyy-MM-dd'),
-        cabang: authStore.user?.cabang
-      }
-    });
-
+    const response = await api.get('/invoice-form/lookup/active-promos', { params: { tanggal: format(new Date(), 'yyyy-MM-dd'), cabang: authStore.user?.cabang } });
     const promos = (response.data || []) as ActivePromo[];
     let promoMessages: string[] = [];
-
-    // --- LOGIKA CABANG ---
-
-    // 1. Cabang K11 (Grand Opening)
     if (authStore.user?.cabang === 'K11') {
-      promoMessages.push(
-        `🎊 GRAND OPENING KEDIRI: Nikmati DISKON 10% ALL ITEM tanpa syarat minimal belanja! Berlaku untuk semua produk Kaosan. Serbu sekarang! 🎊`
-      );
-    }
-    // 2. Cabang Lain (Reguler)
-    else {
+      promoMessages.push(`🎊 GRAND OPENING KEDIRI: Nikmati DISKON 10% ALL ITEM tanpa syarat minimal belanja! Berlaku untuk semua produk Kaosan. Serbu sekarang! 🎊`);
+    } else {
       const promoReguler = promos.find(p => p.pro_nomor === 'PRO-2025-010' || p.pro_judul.toUpperCase().includes('REGULER'));
-
       if (promoReguler) {
-        promoMessages.push(
-          `🔥 PROMO REGULER: Potongan Rp 25.000 tiap kelipatan Rp 250.000 (Khusus Kaos Polos/Reguler, Non-Jersey). Buruan Serbu!`
-        );
-      }
-      else if (promos.length > 0) {
+        promoMessages.push(`🔥 PROMO REGULER: Potongan Rp 25.000 tiap kelipatan Rp 250.000 (Khusus Kaos Polos/Reguler, Non-Jersey). Buruan Serbu!`);
+      } else if (promos.length > 0) {
         promoMessages = promos.map(p => `✨ ${p.pro_judul}`);
       }
     }
-
-    // Fallback jika kosong
     if (promoMessages.length === 0) {
       promoMessages.push('Selamat Datang di Kaosan Retail Management System');
     }
-
-    promoText.value = promoMessages.join('   •   ');
-
+    promoText.value = promoMessages.join(' • ');
   } catch (error) {
     console.error("Gagal memuat promo:", error);
   } finally {
@@ -907,10 +602,9 @@ const fetchActivePromos = async () => {
 
 const fetchItemSalesTrend = async () => {
   if (authStore.user?.cabang !== 'KDC') return;
-
   isLoadingItemTrend.value = true;
   try {
-    const response = await api.get('/dashboard/item-sales-trend'); // Pastikan route backend sesuai
+    const response = await api.get('/dashboard/item-sales-trend');
     itemTrendData.value = response.data;
   } catch (error) {
     console.error('Gagal memuat trend barang:', error);
@@ -919,7 +613,43 @@ const fetchItemSalesTrend = async () => {
   }
 };
 
-// Helper untuk ikon trend (Naik/Turun)
+const fetchSalesChartData = async (isBackground = false) => {
+  if (!isBackground) isLoadingChart.value = true;
+  try {
+    const response = await api.get('/dashboard/sales-chart', { params: { ...chartFilters, groupBy: chartGroupBy.value } });
+    const labels = (response.data as SalesChartItem[]).map((d) => {
+      const date = new Date(d.tanggal);
+      if (chartGroupBy.value === 'month') return format(date, 'MMM yyyy');
+      if (chartGroupBy.value === 'week') return `W${format(date, 'ww')}`;
+      return format(date, 'dd/MM');
+    });
+    const dataValues = (response.data as SalesChartItem[]).map(d => d.total);
+    let datasetConfig = {};
+    if (chartType.value === 'bar') {
+      datasetConfig = { type: 'bar', label: 'Penjualan (Rp)', backgroundColor: '#42A5F5', borderRadius: 4, barPercentage: 0.6 };
+    } else {
+      datasetConfig = { type: 'line', label: 'Penjualan (Rp)', borderColor: '#42A5F5', backgroundColor: chartType.value === 'area' ? 'rgba(66, 165, 245, 0.2)' : 'transparent', borderWidth: 3, pointBackgroundColor: '#fff', pointBorderColor: '#42A5F5', pointBorderWidth: 2, pointRadius: 4, pointHoverRadius: 6, fill: chartType.value === 'area', tension: 0.4 };
+    }
+    chartData.value = { labels: labels, datasets: [{ data: dataValues, ...datasetConfig } as any] };
+  } catch (error) {
+    toast.error('Gagal memuat data grafik penjualan.', error);
+  } finally {
+    if (!isBackground) isLoadingChart.value = false;
+  }
+};
+
+const getMenuColor = (iconName: string, index: number) => {
+  if (iconName.includes('cash') || iconName.includes('receipt')) return 'primary';
+  if (iconName.includes('database') || iconName.includes('plus')) return 'success';
+  if (iconName.includes('chart') || iconName.includes('finance')) return 'info';
+  if (iconName.includes('account') || iconName.includes('clock')) return 'orange';
+  if (iconName.includes('warehouse') || iconName.includes('package')) return 'purple';
+  if (iconName.includes('printer') || iconName.includes('print')) return 'deep-orange';
+  if (iconName.includes('target')) return 'red';
+  const colors = ['teal', 'indigo', 'cyan', 'brown', 'blue-grey'];
+  return colors[index % colors.length];
+};
+
 const getTrendIcon = (item: ItemTrend) => {
   if (item.bulan_ini > item.bulan_min_1) return 'mdi-trending-up';
   if (item.bulan_ini < item.bulan_min_1) return 'mdi-trending-down';
@@ -932,40 +662,79 @@ const getTrendColor = (item: ItemTrend) => {
   return 'grey';
 };
 
-// [BARU] Function Fetch Data
-const fetchStokKosong = async () => {
-  isLoadingStokKosong.value = true;
-  try {
-    // Determine which branch to send.
-    // If KDC, use the dropdown value. If Store, backend handles it (defaults to their branch).
-    const cabangParam = authStore.user?.cabang === 'KDC' ? stokKosongCabang.value : undefined;
+const getAchColor = (ach: number) => {
+  if (ach >= 100) return 'success';
+  if (ach >= 80) return 'warning';
+  return 'error';
+};
 
-    const response = await api.get('/dashboard/stok-kosong', {
-      params: {
-        q: searchStokKosong.value,
-        cabang: cabangParam
-      }
-    });
-    stokKosongList.value = response.data.data || [];
+const fetchFrequentMenus = async () => {
+  isLoadingFrequent.value = true;
+  try {
+    const response = await api.get('/activity/frequent-menus');
+    if (response.data && response.data.length > 0) {
+      frequentMenus.value = response.data.map((menu: { icon?: string; title: string; to: string }, index: number) => ({ ...menu, color: getMenuColor(menu.icon || '', index) }));
+    } else {
+      frequentMenus.value = [
+        { title: 'Invoice', icon: 'mdi-receipt-text', to: '/transaksi/penjualan/invoice', color: 'primary' },
+        { title: 'Surat Pesanan', icon: 'mdi-file-document-edit', to: '/transaksi/penjualan/surat-pesanan', color: 'success' },
+        { title: 'SO DTF', icon: 'mdi-printer-3d-nozzle', to: '/transaksi/penjualan/dtf/so-dtf', color: 'deep-orange' },
+        { title: 'Cek Stok', icon: 'mdi-package-variant', to: '/laporan/stok/real-time', color: 'purple' },
+        { title: 'Monitoring Target', icon: 'mdi-target', to: '/laporan/penjualan/monitoring-achievement', color: 'red' },
+      ];
+    }
   } catch (error) {
-    console.error("Gagal memuat stok kosong:", error);
+    console.error('Gagal memuat menu sering diakses', error);
+    frequentMenus.value = [
+      { title: 'Invoice', icon: 'mdi-receipt-text', to: '/transaksi/penjualan/invoice', color: 'primary' },
+      { title: 'Surat Pesanan', icon: 'mdi-file-document-edit', to: '/transaksi/penjualan/surat-pesanan', color: 'success' },
+      { title: 'SO DTF', icon: 'mdi-printer-3d-nozzle', to: '/transaksi/penjualan/dtf/so-dtf', color: 'deep-orange' },
+    ];
   } finally {
-    isLoadingStokKosong.value = false;
+    isLoadingFrequent.value = false;
   }
 };
 
-// [NEW] Watcher for Branch Dropdown
+// --- WATCHERS ---
 watch(stokKosongCabang, () => {
   fetchStokKosong();
 });
 
-// Existing Watcher for Search
 watch(searchStokKosong, (newVal) => {
   clearTimeout(searchStokKosongTimeout);
   searchStokKosongTimeout = setTimeout(() => {
     fetchStokKosong();
   }, 500);
 });
+
+watch([chartFilters, chartType, chartGroupBy], () => {
+  fetchSalesChartData(false);
+}, { deep: true });
+
+watch(topProductsCabang, () => {
+  fetchTopProducts();
+});
+
+// --- POLLING & MOUNT ---
+let pollingInterval: number;
+
+const startPolling = () => {
+  pollingInterval = window.setInterval(() => {
+    fetchTodayStats(true);
+    fetchPendingActions(true);
+    fetchTotalStock(true);
+    fetchLowStockData(true);
+    fetchSalesTargetSummary(true);
+    fetchStokKosong(true);
+    fetchRecentTransactions(true);
+    fetchSalesChartData(true);
+    fetchTopProducts(true);
+    fetchStagnantStockSummary(true);
+    if (authStore.user?.cabang === 'KDC') {
+      fetchBranchPerformance(true);
+    }
+  }, 10000);
+};
 
 onMounted(() => {
   if (authStore.isAuthenticated) {
@@ -991,8 +760,8 @@ onMounted(() => {
     fetchPiutangByInvoice();
     fetchTotalStock();
     fetchStokKosong();
+    startPolling();
   }
-
   intervalId = window.setInterval(() => {
     currentTime.value = new Date().toLocaleString('id-ID', { dateStyle: 'long', timeStyle: 'medium' });
   }, 1000);
@@ -1000,123 +769,70 @@ onMounted(() => {
 
 onUnmounted(() => {
   clearInterval(intervalId);
+  clearInterval(pollingInterval);
 });
-
-watch(chartFilters, fetchSalesChartData);
-watch(chartGroupBy, fetchSalesChartData);
 </script>
 
 <template>
-  <!-- LANDING PAGE untuk user yang belum login -->
   <v-container v-if="!authStore.isAuthenticated" class="landing-container pa-0 fill-height" fluid>
-
     <div class="bg-overlay"></div>
     <v-img :src="storeBg" cover class="bg-image" position="center center" />
-
     <v-row align="center" justify="center" class="fill-height content-layer ma-0">
       <v-col cols="12" md="10" lg="8" class="text-center">
-
         <div class="hero-glass-card pa-8 pa-md-12 mb-8">
           <v-avatar size="110" class="mb-6 elevation-12 logo-glow">
             <v-img :src="logoUrl" alt="Kaosan Logo" />
           </v-avatar>
-
-          <h1 class="text-h3 font-weight-black text-white mb-2 tracking-wide text-shadow">
-            KAOSAN
-          </h1>
+          <h1 class="text-h3 font-weight-black text-white mb-2 tracking-wide text-shadow">KAOSAN</h1>
           <div class="text-h6 text-uppercase text-white font-weight-light mb-6 tracking-widest text-shadow">
             Retail Management System
           </div>
-
-          <p class="text-body-1 text-white mx-auto mb-8 font-weight-regular"
-            style="max-width: 600px; opacity: 0.9; line-height: 1.6;">
-            Sistem manajemen toko terintegrasi untuk memantau penjualan, stok, dan performa cabang secara real-time.
-            Kelola bisnis retail Anda dengan lebih cerdas dan efisien.
-          </p>
-
           <v-btn color="white" size="x-large" rounded="pill" @click="goToLogin" prepend-icon="mdi-login-variant"
             class="px-10 text-primary font-weight-bold btn-glow" height="56">
             Masuk ke Dashboard
           </v-btn>
         </div>
-
-        <v-row justify="center" class="mt-4" dense>
-          <v-col v-for="feature in features" :key="feature.title" cols="6" sm="4" md="2">
-            <v-hover v-slot="{ isHovering, props }">
-              <v-card v-bind="props" class="feature-glass-card fill-height py-5 px-2"
-                :class="{ 'hover-up': isHovering }" variant="text">
-                <div class="glass-icon-bg mb-3 mx-auto" :class="`text-${feature.color}`">
-                  <v-icon :icon="feature.icon" size="28" />
-                </div>
-                <h4 class="text-subtitle-2 font-weight-bold text-white mb-1 text-uppercase tracking-wider">
-                  {{ feature.title }}
-                </h4>
-                <div class="text-caption text-white opacity-70" style="font-size: 0.7rem; line-height: 1.3;">
-                  {{ feature.description }}
-                </div>
-              </v-card>
-            </v-hover>
-          </v-col>
-        </v-row>
-
-        <div class="mt-12 text-white text-caption opacity-60">
-          &copy; 2025 IT Kencana Print. All Rights Reserved.
-        </div>
-
       </v-col>
     </v-row>
   </v-container>
 
-  <!-- DASHBOARD untuk user yang sudah login -->
-  <v-container v-else class="home-container pa-0" fluid>
+  <v-container v-else class="home-container bg-background pa-0" fluid>
 
-    <!-- HEADER BANNER BARU -->
     <div class="dashboard-header">
-      <!-- Background Image -->
       <v-img :src="bannerImage" cover class="header-bg">
-        <!-- Overlay transparan agar teks terbaca -->
         <div class="header-overlay"></div>
       </v-img>
-
-      <!-- Content di atas Banner -->
       <div class="header-content pt-6 px-6 pb-12">
-        <!-- Teks Selamat Datang Besar -->
         <div class="welcome-text text-white mt-4">
           <div class="d-flex align-center mb-2">
             <v-avatar size="64" color="white" class="mr-4 elevation-4 pa-1">
               <v-img :src="logoUrl" alt="Kaosan Logo" />
             </v-avatar>
             <div>
-              <h1 class="text-h3 font-weight-bold text-white text-shadow mb-1">
-                Selamat Datang di Kaosan
-              </h1>
+              <h1 class="text-h3 font-weight-bold text-white text-shadow mb-1">Selamat Datang di Kaosan</h1>
               <p class="text-subtitle-1 text-white opacity-90 mb-0 font-weight-light">
                 Retail Management System • {{ currentTime }}
               </p>
             </div>
           </div>
         </div>
-
       </div>
     </div>
 
-    <!-- MAIN CONTENT AREA -->
     <div class="dashboard-content px-6 mt-n8 position-relative" style="z-index: 2;">
-
       <div class="deep-sky-gradient elevation-3 mb-6">
 
-        <!-- RUNNING TEXT PROMO (Overlapping Banner) -->
         <v-row v-if="promoText" class="mb-5">
           <v-col cols="12" class="pa-0">
-            <div class="promo-ticker-container elevation-4">
+            <div class="promo-ticker-container elevation-4 bg-surface text-high-emphasis">
               <div class="ticker-label">
                 <v-icon icon="mdi-bullhorn" size="18" class="mr-2 swing-animation" />
-                <span class="font-weight-bold text-uppercase" style="font-size: 0.75rem; letter-spacing: 1px;">Info
-                  Promo</span>
+                <span class="font-weight-bold text-uppercase" style="font-size: 0.75rem; letter-spacing: 1px;">
+                  Info Promo
+                </span>
               </div>
-              <div class="ticker-track-wrapper">
+              <div class="ticker-track-wrapper bg-surface-variant">
                 <div class="ticker-track">
-                  <span class="ticker-content">{{ promoText }}</span>
                   <span class="ticker-content">{{ promoText }}</span>
                   <span class="ticker-content">{{ promoText }}</span>
                 </div>
@@ -1125,25 +841,25 @@ watch(chartGroupBy, fetchSalesChartData);
           </v-col>
         </v-row>
 
-        <!-- Quick Stats Cards -->
         <v-row class="mb-6" justify="center">
-
           <v-col cols="12" sm="6" md="auto">
             <v-card class="stat-card fill-height" color="success" variant="tonal">
-              <v-card-text class="text-center">
-                <v-icon size="40" class="mb-2">mdi-cash-multiple</v-icon>
-                <div class="text-h4 font-weight-bold">
-                  <span v-if="isLoadingStats">...</span>
-                  <span v-else>{{ formatRupiah(stats.todaySales) }}</span>
-
+              <v-card-text class="text-center position-relative">
+                <div v-if="trendIndicators.sales === 'up'" class="trend-badge up">
+                  <v-icon size="small">mdi-arrow-up</v-icon>
                 </div>
-
+                <v-icon size="40" class="mb-2 transition-swing">mdi-cash-multiple</v-icon>
+                <div class="text-h4 font-weight-bold">
+                  <span v-if="isLoadingStats && animatedSales === 0">...</span>
+                  <span v-else class="animated-number">
+                    {{ formatRupiah(Number(animatedSales.toFixed(0))) }}
+                  </span>
+                </div>
                 <div v-if="!isLoadingStats" class="mt-1 mb-1">
                   <v-chip size="x-small" color="success" variant="flat" class="font-weight-bold">
-                    {{ stats.todayQty }} pcs terjual
+                    {{ Math.round(animatedQty) }} pcs terjual
                   </v-chip>
                 </div>
-
                 <div class="text-subtitle-2">Penjualan Hari Ini</div>
               </v-card-text>
             </v-card>
@@ -1155,7 +871,7 @@ watch(chartGroupBy, fetchSalesChartData);
                 <v-icon size="40" class="mb-2">mdi-receipt</v-icon>
                 <div class="text-h4 font-weight-bold">
                   <span v-if="isLoadingStats">...</span>
-                  <span v-else>{{ stats.todayTransactions }}</span>
+                  <span v-else>{{ Math.round(animatedTx) }}</span>
                 </div>
                 <div class="text-subtitle-2">Transaksi Hari Ini</div>
               </v-card-text>
@@ -1166,7 +882,10 @@ watch(chartGroupBy, fetchSalesChartData);
             <v-card class="stat-card fill-height" color="warning" variant="tonal">
               <v-card-text class="text-center">
                 <v-icon size="40" class="mb-2">mdi-alert-circle</v-icon>
-                <div class="text-h4 font-weight-bold">{{ isLoadingLowStock ? '...' : lowStockCount }}</div>
+                <div class="text-h4 font-weight-bold">
+                  <span v-if="isLoadingLowStock && animatedLowStock === 0">...</span>
+                  <span v-else class="animated-number">{{ Math.round(animatedLowStock) }}</span>
+                </div>
                 <div class="text-subtitle-2">Stok Menipis</div>
               </v-card-text>
             </v-card>
@@ -1177,32 +896,27 @@ watch(chartGroupBy, fetchSalesChartData);
               <v-card-text class="text-center">
                 <v-icon size="40" class="mb-2">mdi-package-variant-closed</v-icon>
                 <div class="text-h4 font-weight-bold">
-                  <span v-if="isLoadingStats || isLoadingStock">...</span>
-                  <span v-else>{{ stats.totalStock.toLocaleString('id-ID') }}</span>
+                  <span v-if="isLoadingStock && animatedTotalStock === 0">...</span>
+                  <span v-else class="animated-number">
+                    {{ Math.round(animatedTotalStock).toLocaleString('id-ID') }}
+                  </span>
                 </div>
                 <div class="text-subtitle-2">Total Stok (pcs)</div>
-
                 <div v-if="!isLoadingStats && !isLoadingStock && authStore.user?.cabang !== 'KDC'"
                   class="d-flex justify-center align-center ga-3 mt-3 pt-2 border-t">
-
                   <div class="d-flex flex-column align-center">
                     <div class="d-flex align-center text-caption text-success font-weight-bold">
-                      <v-icon size="small" start icon="mdi-arrow-up" />
-                      Masuk
+                      <v-icon size="small" start icon="mdi-arrow-up" />Masuk
                     </div>
                     <span class="text-body-2 font-weight-bold">{{ stats.todayStokIn }}</span>
                   </div>
-
                   <v-divider vertical class="mx-1" length="20"></v-divider>
-
                   <div class="d-flex flex-column align-center">
                     <div class="d-flex align-center text-caption text-error font-weight-bold">
-                      <v-icon size="small" start icon="mdi-arrow-down" />
-                      Keluar
+                      <v-icon size="small" start icon="mdi-arrow-down" />Keluar
                     </div>
                     <span class="text-body-2 font-weight-bold">{{ stats.todayStokOut }}</span>
                   </div>
-
                 </div>
               </v-card-text>
             </v-card>
@@ -1218,24 +932,21 @@ watch(chartGroupBy, fetchSalesChartData);
                     <v-icon size="40" class="mb-2">mdi-warehouse</v-icon>
                     <div class="text-h4 font-weight-bold">
                       <span v-if="isLoadingStock">...</span>
-                      <span v-else>{{ stats.totalStock.toLocaleString('id-ID') }}</span>
+                      <span v-else>{{ Math.round(animatedTotalStock).toLocaleString('id-ID') }}</span>
                     </div>
                     <div class="text-subtitle-2">Total Stok (Semua Cabang)</div>
                   </v-card-text>
                 </v-card>
               </template>
-
               <v-card max-width="420" elevation="8">
-                <v-list-item class="bg-deep-purple-lighten-4">
+                <v-list-item class="bg-deep-purple-lighten-4 text-deep-purple-darken-4">
                   <v-list-item-title class="font-weight-bold">Stok per Cabang</v-list-item-title>
                 </v-list-item>
                 <v-divider></v-divider>
-
                 <v-card-text class="pa-0" style="max-height: 300px; overflow-y: auto;">
                   <div v-if="isLoadingStockBreakdown" class="text-center pa-4">
                     <v-progress-circular indeterminate size="20"></v-progress-circular>
                   </div>
-
                   <v-list v-else-if="stockBreakdown.length > 0" density="compact">
                     <v-list-item v-for="item in stockBreakdown" :key="item.kode_cabang">
                       <v-list-item-title class="text-caption">
@@ -1248,71 +959,14 @@ watch(chartGroupBy, fetchSalesChartData);
                       </template>
                     </v-list-item>
                   </v-list>
-
-                  <div v-else class="text-center pa-4 text-caption">
-                    Tidak ada data stok per cabang.
-                  </div>
                 </v-card-text>
               </v-card>
             </v-menu>
           </v-col>
 
           <v-col cols="12" sm="6" md="auto">
-
-            <!-- ========================= -->
-            <!--   KDC => Breakdown Cabang  -->
-            <!-- ========================= -->
-            <v-menu v-if="authStore.user?.cabang === 'KDC'" open-on-hover location="bottom center" origin="top center"
-              transition="scale-transition" :close-on-content-click="false">
-              <template v-slot:activator="{ props }">
-                <v-card v-bind="props" class="stat-card fill-height" color="orange" variant="tonal"
-                  style="cursor: help;">
-                  <v-card-text class="text-center">
-                    <v-icon size="40" class="mb-2">mdi-account-clock</v-icon>
-                    <div class="text-h4 font-weight-bold">
-                      <span v-if="isLoadingPiutang">...</span>
-                      <span v-else>{{ formatRupiah(stats.totalSisaPiutang) }}</span>
-                    </div>
-                    <div class="text-subtitle-2">Total Sisa Piutang</div>
-                  </v-card-text>
-                </v-card>
-              </template>
-
-              <v-card max-width="350" elevation="8">
-                <v-list-item class="bg-orange-lighten-4">
-                  <v-list-item-title class="font-weight-bold">Piutang per Cabang</v-list-item-title>
-                </v-list-item>
-                <v-divider></v-divider>
-
-                <v-card-text class="pa-0" style="max-height: 300px; overflow-y: auto;">
-                  <div v-if="isLoadingPiutangBreakdown" class="text-center pa-4">
-                    <v-progress-circular indeterminate size="20"></v-progress-circular>
-                  </div>
-
-                  <v-list v-else-if="piutangBreakdown.length > 0" density="compact">
-                    <v-list-item v-for="item in piutangBreakdown" :key="item.cabang_kode">
-                      <v-list-item-title class="text-caption">
-                        {{ item.cabang_nama || item.cabang_kode }}
-                      </v-list-item-title>
-                      <template #append>
-                        <span class="text-caption font-weight-bold">
-                          {{ formatRupiah(item.sisa_piutang) }}
-                        </span>
-                      </template>
-                    </v-list-item>
-                  </v-list>
-
-                  <div v-else class="text-center pa-4 text-caption">
-                    Tidak ada data piutang per cabang.
-                  </div>
-                </v-card-text>
-              </v-card>
-            </v-menu>
-
-            <!-- ======================================================== -->
-            <!--  USER STORE BIASA => Breakdown Invoice penyebab piutang  -->
-            <!-- ======================================================== -->
-            <v-menu v-else open-on-hover location="bottom center" origin="top center" transition="scale-transition"
+            <v-menu v-if="authStore.user?.cabang === 'KDC' || authStore.user?.cabang !== 'KDC'" open-on-hover
+              location="bottom center" origin="top center" transition="scale-transition"
               :close-on-content-click="false">
               <template v-slot:activator="{ props }">
                 <v-card v-bind="props" class="stat-card fill-height" color="orange" variant="tonal"
@@ -1321,7 +975,7 @@ watch(chartGroupBy, fetchSalesChartData);
                     <v-icon size="40" class="mb-2">mdi-account-clock</v-icon>
                     <div class="text-h4 font-weight-bold">
                       <span v-if="isLoadingPiutang">...</span>
-                      <span v-else>{{ formatRupiah(stats.totalSisaPiutang) }}</span>
+                      <span v-else>{{ formatRupiah(Number(animatedPiutang.toFixed(0))) }}</span>
                     </div>
                     <div class="text-subtitle-2">Total Sisa Piutang</div>
                   </v-card-text>
@@ -1329,120 +983,98 @@ watch(chartGroupBy, fetchSalesChartData);
               </template>
 
               <v-card max-width="380" elevation="8">
-                <v-list-item class="bg-orange-lighten-4">
+                <v-list-item class="bg-orange-lighten-4 text-orange-darken-4">
                   <v-list-item-title class="font-weight-bold">
-                    Piutang per Invoice
+                    {{ authStore.user?.cabang === 'KDC' ? 'Piutang per Cabang' : 'Piutang per Invoice' }}
                   </v-list-item-title>
                 </v-list-item>
-
                 <v-divider />
-
                 <v-card-text class="pa-0" style="max-height: 300px; overflow-y: auto;">
-                  <div v-if="isLoadingPiutangInvoice" class="text-center pa-4">
+                  <div v-if="isLoadingPiutangBreakdown || isLoadingPiutangInvoice" class="text-center pa-4">
                     <v-progress-circular indeterminate size="20"></v-progress-circular>
                   </div>
-
-                  <v-list v-else-if="piutangByInvoice.length > 0" density="compact">
+                  <v-list v-else-if="authStore.user?.cabang === 'KDC' && piutangBreakdown.length > 0" density="compact">
+                    <v-list-item v-for="item in piutangBreakdown" :key="item.cabang_kode">
+                      <v-list-item-title class="text-caption">{{ item.cabang_nama }}</v-list-item-title>
+                      <template #append><span class="text-caption font-weight-bold">{{ formatRupiah(item.sisa_piutang)
+                          }}</span></template>
+                    </v-list-item>
+                  </v-list>
+                  <v-list v-else-if="authStore.user?.cabang !== 'KDC' && piutangByInvoice.length > 0" density="compact">
                     <v-list-item v-for="inv in piutangByInvoice" :key="inv.invoice" class="piutang-item">
                       <div class="d-flex justify-space-between w-100 align-start">
-
-                        <!-- Kiri: Nomor & tanggal -->
                         <div class="d-flex flex-column">
-                          <span class="text-body-2 font-weight-medium">
-                            {{ inv.invoice }}
-                          </span>
-                          <span class="text-caption text-grey">
-                            {{ inv.tanggal }}
-                          </span>
+                          <span class="text-body-2 font-weight-medium">{{ inv.invoice }}</span>
+                          <span class="text-caption text-medium-emphasis">{{ inv.tanggal }}</span>
                         </div>
-
-                        <!-- Kanan: Nominal -->
                         <div class="text-right">
-                          <span class="text-body-2 font-weight-bold">
-                            {{ formatRupiah(inv.sisa_piutang) }}
-                          </span>
+                          <span class="text-body-2 font-weight-bold">{{ formatRupiah(inv.sisa_piutang) }}</span>
                         </div>
-
                       </div>
                     </v-list-item>
                   </v-list>
-
-                  <div v-else class="text-center pa-4 text-caption">
-                    Tidak ada invoice yang menunggak.
+                  <div v-else class="text-center pa-4 text-caption text-medium-emphasis">
+                    Tidak ada data piutang.
                   </div>
                 </v-card-text>
               </v-card>
             </v-menu>
-
           </v-col>
         </v-row>
 
-        <!-- Chart and Pending Actions Row -->
         <v-row class="mb-4">
           <v-col cols="12" lg="8">
-            <v-card elevation="2" class="rounded-lg">
+            <v-card elevation="2" class="rounded-lg bg-surface">
               <v-card-title class="py-3 px-4 border-b">
                 <div class="d-flex align-center justify-space-between w-100">
                   <div class="d-flex align-center text-primary font-weight-bold">
-                    <v-icon class="mr-2" color="primary">mdi-chart-timeline-variant</v-icon>
-                    Grafik Penjualan
+                    <v-icon class="mr-2" color="primary">mdi-chart-timeline-variant</v-icon>Grafik Penjualan
                   </div>
-
-                  <div class="bg-grey-lighten-4 rounded-lg pa-1 d-none d-sm-flex">
+                  <div class="bg-surface-variant rounded-lg pa-1 d-none d-sm-flex">
                     <v-btn-toggle v-model="chartType" variant="text" density="compact" mandatory divided
                       class="chart-type-toggle">
-                      <v-btn value="bar" size="small" :color="chartType === 'bar' ? 'primary' : 'grey-darken-1'"
+                      <v-btn value="bar" size="small" :color="chartType === 'bar' ? 'primary' : 'medium-emphasis'"
                         class="rounded-s-lg">
                         <v-icon>mdi-chart-bar</v-icon>
-                        <v-tooltip activator="parent" location="top">Batang</v-tooltip>
                       </v-btn>
-                      <v-btn value="line" size="small" :color="chartType === 'line' ? 'primary' : 'grey-darken-1'">
+                      <v-btn value="line" size="small" :color="chartType === 'line' ? 'primary' : 'medium-emphasis'">
                         <v-icon>mdi-chart-line</v-icon>
-                        <v-tooltip activator="parent" location="top">Garis</v-tooltip>
                       </v-btn>
-                      <v-btn value="area" size="small" :color="chartType === 'area' ? 'primary' : 'grey-darken-1'"
+                      <v-btn value="area" size="small" :color="chartType === 'area' ? 'primary' : 'medium-emphasis'"
                         class="rounded-e-lg">
                         <v-icon>mdi-chart-bell-curve-cumulative</v-icon>
-                        <v-tooltip activator="parent" location="top">Area</v-tooltip>
                       </v-btn>
                     </v-btn-toggle>
                   </div>
                 </div>
               </v-card-title>
-
               <v-card-text class="pa-4">
                 <div class="filter-bar d-flex flex-column flex-md-row align-md-center justify-space-between gap-3 mb-6">
-
                   <v-btn-toggle v-model="chartGroupBy" variant="outlined" density="compact" color="primary" mandatory
                     rounded="lg" class="mr-auto mb-2 mb-md-0 shadow-sm" style="height: 36px;">
                     <v-btn value="day" class="text-caption font-weight-bold px-4">Harian</v-btn>
                     <v-btn value="week" class="text-caption font-weight-bold px-4">Mingguan</v-btn>
                     <v-btn value="month" class="text-caption font-weight-bold px-4">Bulanan</v-btn>
                   </v-btn-toggle>
-
                   <div class="d-flex flex-wrap align-center justify-end gap-2" style="gap: 8px;">
-
                     <v-select v-model="chartFilters.cabang" :items="cabangList" item-title="nama" item-value="kode"
                       density="compact" variant="outlined" hide-details prepend-inner-icon="mdi-store-outline"
-                      bg-color="white" class="filter-input-select" :readonly="authStore.user?.cabang !== 'KDC'"
+                      bg-color="surface" class="filter-input-select" :readonly="authStore.user?.cabang !== 'KDC'"
                       style="min-width: 220px;"></v-select>
 
-                    <div class="d-flex align-center border rounded px-2 bg-white"
-                      style="height: 40px; border-color: #9E9E9E !important;">
+                    <div class="d-flex align-center border rounded px-2 bg-surface"
+                      style="height: 40px; border-color: rgba(var(--v-border-color), var(--v-border-opacity)) !important;">
                       <input type="date" v-model="chartFilters.startDate" class="date-native-input text-body-2" />
-                      <span class="mx-2 text-caption text-grey">s/d</span>
+                      <span class="mx-2 text-caption text-medium-emphasis">s/d</span>
                       <input type="date" v-model="chartFilters.endDate" class="date-native-input text-body-2" />
                     </div>
-
                   </div>
                 </div>
-
                 <div v-if="isLoadingChart" class="d-flex flex-column align-center justify-center"
                   style="height: 320px;">
                   <v-progress-circular indeterminate color="primary" size="48" width="4" />
-                  <div class="mt-3 text-caption text-grey">Sedang memuat data grafik...</div>
+                  <div class="mt-3 text-caption text-medium-emphasis">Sedang memuat data grafik...</div>
                 </div>
-
                 <div v-else style="height: 350px; position: relative;">
                   <Bar v-if="chartType === 'bar'" :data="chartData as any" :options="targetChartOptions as any" />
                   <Line v-else :data="chartData as any" :options="targetChartOptions as any" />
@@ -1452,10 +1084,9 @@ watch(chartGroupBy, fetchSalesChartData);
           </v-col>
 
           <v-col cols="12" lg="4">
-            <v-card elevation="2" class="d-flex flex-column" style="height: 100%;">
+            <v-card elevation="2" class="d-flex flex-column bg-surface" style="height: 100%;">
               <v-card-title class="d-flex align-center flex-shrink-0">
-                <v-icon class="mr-2" color="info">mdi-bell-ring-outline</v-icon>
-                Perlu Tindakan (Penjualan)
+                <v-icon class="mr-2" color="info">mdi-bell-ring-outline</v-icon>Perlu Tindakan (Penjualan)
               </v-card-title>
               <v-card-text class="flex-grow-1 overflow-y-auto" style="max-height: calc(100% - 64px);">
                 <div v-if="isLoadingActions" class="text-center pa-4">
@@ -1463,7 +1094,7 @@ watch(chartGroupBy, fetchSalesChartData);
                 </div>
                 <div v-else-if="pendingActions.length === 0" class="text-center pa-4">
                   <v-icon size="48" color="success">mdi-check-all</v-icon>
-                  <div class="mt-2">Tidak ada tindakan tertunda. Kerja bagus!</div>
+                  <div class="mt-2 text-medium-emphasis">Tidak ada tindakan tertunda. Kerja bagus!</div>
                 </div>
                 <v-list v-else dense bg-color="transparent" lines="two">
                   <template v-for="(item, index) in pendingActions" :key="item.key">
@@ -1472,11 +1103,11 @@ watch(chartGroupBy, fetchSalesChartData);
                         <v-avatar :icon="item.icon" color="info" variant="flat" class="text-white"></v-avatar>
                       </template>
                       <v-list-item-title class="font-weight-bold">{{ item.title }}</v-list-item-title>
-                      <v-list-item-subtitle>Tugas yang perlu ditindaklanjuti</v-list-item-subtitle>
+                      <v-list-item-subtitle class="text-medium-emphasis">Tugas yang perlu
+                        ditindaklanjuti</v-list-item-subtitle>
                       <template #append>
-                        <v-chip color="info" size="large" variant="flat" class="font-weight-bold">
-                          {{ item.count }}
-                        </v-chip>
+                        <v-chip color="info" size="large" variant="flat" class="font-weight-bold">{{ item.count
+                          }}</v-chip>
                       </template>
                     </v-list-item>
                     <v-divider v-if="index < pendingActions.length - 1" class="my-1"></v-divider>
@@ -1487,27 +1118,20 @@ watch(chartGroupBy, fetchSalesChartData);
           </v-col>
         </v-row>
 
-        <!-- Main Content Row -->
         <v-row>
-          <!-- Left Column -->
           <v-col cols="12" lg="6">
-            <!-- Quick Actions -->
-            <v-card class="mb-4" elevation="2">
-              <v-card-title class="d-flex align-center bg-blue-grey-lighten-5">
-                <v-icon class="mr-2" color="primary">mdi-history</v-icon>
-                <span class="text-h6">Sering Diakses</span>
+            <v-card class="mb-4 bg-surface" elevation="2">
+              <v-card-title class="d-flex align-center bg-blue-grey-lighten-5 text-blue-grey-darken-3">
+                <v-icon class="mr-2" color="primary">mdi-history</v-icon><span class="text-h6">Sering Diakses</span>
               </v-card-title>
-
               <v-card-text class="pa-6">
                 <div v-if="isLoadingFrequent" class="text-center pa-4">
                   <v-progress-circular indeterminate color="primary" size="32" />
                   <div class="text-caption mt-2">Memuat menu...</div>
                 </div>
-
-                <div v-else-if="frequentMenus.length === 0" class="text-center text-grey">
+                <div v-else-if="frequentMenus.length === 0" class="text-center text-medium-emphasis">
                   Belum ada riwayat akses menu.
                 </div>
-
                 <v-row v-else class="justify-center">
                   <v-col v-for="menu in frequentMenus" :key="menu.title" cols="4" sm="2" class="text-center">
                     <v-tooltip :text="menu.title" location="bottom">
@@ -1518,7 +1142,6 @@ watch(chartGroupBy, fetchSalesChartData);
                         </v-btn>
                       </template>
                     </v-tooltip>
-
                     <div class="text-caption text-medium-emphasis font-weight-medium text-truncate px-1">
                       {{ menu.title }}
                     </div>
@@ -1527,20 +1150,16 @@ watch(chartGroupBy, fetchSalesChartData);
               </v-card-text>
             </v-card>
 
-            <!-- Sales Target -->
-            <v-card elevation="2" class="mb-4" hover>
-              <v-card-title class="d-flex align-center bg-blue-lighten-5">
-                <v-icon class="mr-2" color="primary">mdi-target</v-icon>
-                <span class="text-h6">Pencapaian Target (Bulan Ini)</span>
+            <v-card elevation="2" class="mb-4 bg-surface" hover>
+              <v-card-title class="d-flex align-center bg-blue-lighten-5 text-blue-darken-3">
+                <v-icon class="mr-2" color="primary">mdi-target</v-icon><span class="text-h6">Pencapaian Target</span>
               </v-card-title>
               <v-card-text class="pa-6">
                 <div v-if="isLoadingSalesTarget" class="text-center pa-8">
                   <v-progress-circular indeterminate color="primary" size="48"></v-progress-circular>
                 </div>
-
                 <div v-else>
                   <v-row align="center">
-
                     <v-col cols="12" sm="5" class="text-center">
                       <div style="height: 250px; position: relative;">
                         <Bar :data="targetChartData" :options="targetChartOptions as any" />
@@ -1552,7 +1171,9 @@ watch(chartGroupBy, fetchSalesChartData);
                           <div class="text-caption text-medium-emphasis mb-1">Realisasi</div>
                           <div class="text-h5 font-weight-bold"
                             :class="isOverTarget ? 'text-success' : 'text-deep-orange-darken-1'">
-                            {{ formatRupiah(salesTargetSummary.nominal) }}
+                            <span class="animated-number">
+                              {{ formatRupiah(Number(animatedTargetRealization.toFixed(0))) }}
+                            </span>
                           </div>
                           <div class="text-caption mt-1"
                             :class="getProgressColor(targetPercentage).includes('#') ? '' : `text-${getProgressColor(targetPercentage)}`"
@@ -1565,9 +1186,7 @@ watch(chartGroupBy, fetchSalesChartData);
                       <v-card variant="outlined">
                         <v-card-text>
                           <div class="text-caption text-medium-emphasis mb-1">Target</div>
-                          <div class="text-h6 font-weight-medium">
-                            {{ formatRupiah(salesTargetSummary.target) }}
-                          </div>
+                          <div class="text-h6 font-weight-medium">{{ formatRupiah(salesTargetSummary.target) }}</div>
                         </v-card-text>
                       </v-card>
                     </v-col>
@@ -1576,160 +1195,131 @@ watch(chartGroupBy, fetchSalesChartData);
               </v-card-text>
             </v-card>
 
-            <!-- Stok Kosong List -->
-            <v-card elevation="2" class="mb-4">
+            <v-card elevation="2" class="mb-4 bg-surface">
               <v-card-title
-                class="d-flex flex-column flex-sm-row align-start align-sm-center bg-red-lighten-5 py-2 gap-2 pr-2">
+                class="d-flex flex-column flex-sm-row align-start align-sm-center bg-red-lighten-5 py-2 gap-2 pr-2 text-red-darken-4">
                 <div class="d-flex align-center flex-grow-1">
-                  <v-icon class="mr-2" color="red">mdi-close-octagon-outline</v-icon>
-                  <span class="text-h6">Stok Kosong (Reguler)</span>
+                  <v-icon class="mr-2" color="red">mdi-close-octagon-outline</v-icon><span class="text-h6">Stok
+                    Kosong</span>
                 </div>
-
                 <div class="d-flex align-center gap-2 w-100 w-sm-auto" style="max-width: 400px;">
-
                   <div v-if="authStore.user?.cabang === 'KDC'" style="width: 140px;">
                     <v-select v-model="stokKosongCabang" :items="cabangList" item-title="nama" item-value="kode"
-                      density="compact" variant="outlined" hide-details bg-color="white" placeholder="Pilih Cabang"
+                      density="compact" variant="outlined" hide-details bg-color="surface" placeholder="Pilih Cabang"
                       class="text-caption"></v-select>
                   </div>
-
                   <div class="flex-grow-1">
                     <v-text-field v-model="searchStokKosong" density="compact" variant="outlined" label="Cari Barang..."
-                      prepend-inner-icon="mdi-magnify" hide-details bg-color="white" single-line
+                      prepend-inner-icon="mdi-magnify" hide-details bg-color="surface" single-line
                       class="text-caption"></v-text-field>
                   </div>
                 </div>
               </v-card-title>
-
               <v-card-text class="pa-0">
                 <div v-if="isLoadingStokKosong" class="text-center pa-6">
                   <v-progress-circular indeterminate color="red" size="32" />
                   <div class="mt-2 text-caption">Mencari data...</div>
                 </div>
-
-                <div v-else-if="stokKosongList.length === 0" class="text-center pa-6 text-grey">
+                <div v-else-if="stokKosongList.length === 0" class="text-center pa-6 text-medium-emphasis">
                   <v-icon size="40" class="mb-2">mdi-package-variant</v-icon>
                   <div>Tidak ada data stok kosong.</div>
-                  <div v-if="authStore.user?.cabang === 'KDC' && !stokKosongCabang" class="text-caption text-red mt-1">
-                    *Pilih cabang untuk melihat stok spesifik.
-                  </div>
                 </div>
-
                 <v-list v-else bg-color="transparent" class="scrollable-list"
                   style="max-height: 300px; overflow-y: auto;">
-                  <v-list-item v-for="(item, index) in stokKosongList" :key="item.kode + item.ukuran"
-                    class="px-3 py-2 border-b" lines="two">
-                    <template #prepend>
-                      <v-avatar color="red-lighten-4" size="36" class="mr-3 text-red-darken-4 font-weight-bold">
-                        {{ item.ukuran }}
-                      </v-avatar>
-                    </template>
-
-                    <v-list-item-title class="font-weight-bold text-body-2 mb-1 text-wrap">
-                      {{ item.nama_barang }}
-                    </v-list-item-title>
-
-                    <v-list-item-subtitle class="d-flex align-center text-caption">
-                      <v-chip size="x-small" label class="mr-2 text-grey-darken-3" color="grey-lighten-3">
-                        {{ item.kode }}
-                      </v-chip>
-                      <span v-if="item.barcode">
-                        <v-icon size="x-small" start>mdi-barcode</v-icon> {{ item.barcode }}
-                      </span>
-                    </v-list-item-subtitle>
-
-                    <template #append>
-                      <div class="d-flex flex-column align-end">
+                  <TransitionGroup tag="div" :css="false" @enter="onListEnter">
+                    <v-list-item v-for="(item, index) in stokKosongList" :key="item.kode + item.ukuran"
+                      :data-index="index" class="px-3 py-2 border-b" lines="two">
+                      <template #prepend>
+                        <v-avatar color="red-lighten-4" size="36" class="mr-3 text-red-darken-4 font-weight-bold">
+                          {{ item.ukuran }}
+                        </v-avatar>
+                      </template>
+                      <v-list-item-title class="font-weight-bold text-body-2 mb-1 text-wrap">
+                        {{ item.nama_barang }}
+                      </v-list-item-title>
+                      <v-list-item-subtitle class="d-flex align-center text-caption text-medium-emphasis">
+                        <span class="mr-2">{{ item.kode }}</span>
+                        <span v-if="item.barcode"><v-icon size="x-small" start>mdi-barcode</v-icon>{{ item.barcode
+                          }}</span>
+                      </v-list-item-subtitle>
+                      <template #append>
                         <v-chip color="red" size="x-small" variant="flat" class="font-weight-bold">
                           {{ item.stok_akhir }} pcs
                         </v-chip>
-                      </div>
-                    </template>
-                  </v-list-item>
+                      </template>
+                    </v-list-item>
+                  </TransitionGroup>
                 </v-list>
               </v-card-text>
             </v-card>
 
-            <!-- Recent Transactions -->
-            <v-card class="mb-4" elevation="2">
-              <v-card-title class="d-flex align-center justify-space-between bg-green-lighten-5">
+            <v-card class="mb-4 bg-surface" elevation="2">
+              <v-card-title class="d-flex align-center justify-space-between bg-green-lighten-5 text-green-darken-4">
                 <div class="d-flex align-center">
-                  <v-icon class="mr-2" color="success">mdi-point-of-sale</v-icon>
-                  <span class="text-h6">Penjualan Terbaru</span>
+                  <v-icon class="mr-2" color="success">mdi-point-of-sale</v-icon><span class="text-h6">Penjualan
+                    Terbaru</span>
                 </div>
                 <v-btn size="small" variant="text" color="success" to="/transaksi/penjualan/invoice"
-                  append-icon="mdi-chevron-right">
-                  Lihat Semua
-                </v-btn>
+                  append-icon="mdi-chevron-right">Lihat Semua</v-btn>
               </v-card-title>
               <v-card-text class="pa-4">
                 <div v-if="isLoadingTransactions" class="text-center pa-8">
                   <v-progress-circular indeterminate color="success" size="48"></v-progress-circular>
                 </div>
-
                 <div v-else-if="recentTransactions.length === 0" class="text-center pa-8">
                   <v-icon size="64" color="grey">mdi-receipt-text-outline</v-icon>
                   <div class="mt-3 text-medium-emphasis">Belum ada transaksi hari ini</div>
                 </div>
-
-                <v-list v-else bg-color="transparent" style="max-height: 300px; overflow-y: auto;">
-                  <v-list-item v-for="transaction in recentTransactions" :key="transaction.id" class="px-2 mb-2"
-                    rounded="lg" border>
-                    <template #prepend>
-                      <v-avatar color="success-lighten-1" size="40">
-                        <v-icon color="white">mdi-cart-check</v-icon>
-                      </v-avatar>
-                    </template>
-
-                    <v-list-item-title class="font-weight-bold">
-                      {{ transaction.customer }}
-                    </v-list-item-title>
-                    <v-list-item-subtitle class="mt-1">
-                      {{ transaction.id }} • {{ transaction.time }}
-                    </v-list-item-subtitle>
-
-                    <template #append>
-                      <v-chip color="success" size="small" variant="flat" class="font-weight-bold">
-                        {{ formatRupiah(transaction.amount) }}
-                      </v-chip>
-                    </template>
-                  </v-list-item>
-                </v-list>
+                <div v-else style="max-height: 300px; overflow-y: auto; overflow-x: hidden;">
+                  <TransitionGroup tag="div" :css="false" @enter="onListEnter">
+                    <div v-for="(transaction, index) in recentTransactions" :key="transaction.id" :data-index="index"
+                      class="mb-2">
+                      <v-list-item class="px-2 border rounded-lg bg-surface elevation-1" lines="two">
+                        <template #prepend>
+                          <v-avatar color="success-lighten-1" size="40">
+                            <v-icon color="white">mdi-cart-check</v-icon>
+                          </v-avatar>
+                        </template>
+                        <v-list-item-title class="font-weight-bold">{{ transaction.customer }}</v-list-item-title>
+                        <v-list-item-subtitle class="mt-1 text-caption text-medium-emphasis">
+                          {{ transaction.id }} • {{ transaction.time }}
+                        </v-list-item-subtitle>
+                        <template #append>
+                          <v-chip color="success" size="small" variant="flat" class="font-weight-bold price-pulse">
+                            {{ formatRupiah(transaction.amount) }}
+                          </v-chip>
+                        </template>
+                      </v-list-item>
+                    </div>
+                  </TransitionGroup>
+                </div>
               </v-card-text>
             </v-card>
 
-            <!-- Item Sales Trend (Hanya untuk KDC) -->
-            <v-card v-if="authStore.user?.cabang === 'KDC'" elevation="2" class="mb-4 rounded-lg d-flex flex-column">
-              <v-card-title class="d-flex align-center bg-blue-lighten-5 py-3">
+            <v-card v-if="authStore.user?.cabang === 'KDC'" elevation="2"
+              class="mb-4 rounded-lg d-flex flex-column bg-surface">
+              <v-card-title class="d-flex align-center bg-blue-lighten-5 py-3 text-blue-darken-3">
                 <v-icon class="mr-2" color="primary">mdi-chart-box-outline</v-icon>
-                <span class="text-subtitle-1 font-weight-bold text-primary">Trend Penjualan Item (Top 10)</span>
+                <span class="text-subtitle-1 font-weight-bold">Trend Penjualan Item (Top 10)</span>
                 <v-spacer></v-spacer>
               </v-card-title>
-
               <v-card-text class="pa-0 flex-grow-1">
                 <div v-if="isLoadingItemTrend" class="text-center pa-8">
                   <v-progress-circular indeterminate color="primary" size="40" />
                   <div class="mt-2 text-caption">Analisa data barang...</div>
                 </div>
-
                 <div v-else>
                   <v-data-table :headers="itemTrendHeaders" :items="itemTrendData" density="compact" hover
                     class="text-caption trend-table" hide-default-footer items-per-page="-1">
                     <template #[`item.nama`]="{ item }">
                       <div class="py-2">
-                        <div class="font-weight-bold text-wrap" style="white-space: normal; line-height: 1.3;">
-                          {{ item.nama }}
-                        </div>
-                        <div class="text-grey text-xs mt-1">{{ item.kode }}</div>
+                        <div class="font-weight-bold text-wrap">{{ item.nama }}</div>
+                        <div class="text-medium-emphasis text-xs mt-1">{{ item.kode }}</div>
                       </div>
                     </template>
-
                     <template #[`item.bulan_ini`]="{ item }">
-                      <span class="font-weight-black text-primary" style="font-size: 1.1em;">
-                        {{ item.bulan_ini }}
-                      </span>
+                      <span class="font-weight-black text-primary" style="font-size: 1.1em;">{{ item.bulan_ini }}</span>
                     </template>
-
                     <template #[`item.trend`]="{ item }">
                       <v-icon :icon="getTrendIcon(item)" :color="getTrendColor(item)" size="small" />
                     </template>
@@ -1739,68 +1329,54 @@ watch(chartGroupBy, fetchSalesChartData);
             </v-card>
           </v-col>
 
-          <!-- Right Column -->
           <v-col cols="12" lg="6">
-            <!-- Low Stock Alert -->
-            <v-card elevation="2" class="mb-4">
-              <v-card-title class="d-flex align-center bg-orange-lighten-5">
+            <v-card elevation="2" class="mb-4 bg-surface">
+              <v-card-title class="d-flex align-center bg-orange-lighten-5 text-orange-darken-4">
                 <v-icon class="mr-2" color="warning">mdi-alert-circle</v-icon>
                 <span class="text-h6">Peringatan Stok Menipis</span>
               </v-card-title>
               <v-card-text class="pa-4">
                 <div v-if="isLoadingLowStock" class="text-center pa-8">
                   <v-progress-circular indeterminate color="warning" size="48"></v-progress-circular>
-                  <div class="mt-3 text-medium-emphasis">Memuat data...</div>
                 </div>
-
                 <div v-else-if="lowStockProducts.length === 0" class="text-center pa-8">
                   <v-icon size="64" color="success">mdi-check-circle-outline</v-icon>
                   <div class="mt-3 text-h6">Stok Aman!</div>
-                  <div class="text-medium-emphasis">Tidak ada produk yang menipis</div>
                 </div>
-
                 <div v-else>
                   <v-list bg-color="transparent" class="scrollable-list" style="max-height: 300px; overflow-y: auto;">
-                    <v-list-item v-for="(product) in lowStockProducts" :key="`${product.KODE}-${product.UKURAN}`"
-                      class="px-3 mb-2 py-2" rounded="lg" border>
-
-                      <template #prepend>
-                        <v-avatar color="error" size="48" variant="tonal" class="mr-2">
-                          <span class="text-h6 font-weight-black">{{ product.UKURAN }}</span>
-                        </v-avatar>
-                      </template>
-
-                      <div class="d-flex flex-column gap-1">
-
-                        <div class="text-subtitle-2 font-weight-bold text-wrap" style="line-height: 1.2;">
-                          {{ product.NAMA }}
-                        </div>
-
-                        <div class="d-flex align-center text-caption text-medium-emphasis mt-1">
-                          <v-chip size="x-small" label class="mr-2 px-2" color="grey-lighten-2" variant="flat">
-                            <span class="text-grey-darken-3 font-weight-medium">{{ product.KODE }}</span>
-                          </v-chip>
-                          <span v-if="product.BARCODE" class="d-flex align-center">
-                            <v-icon start size="x-small" icon="mdi-barcode" class="mr-1"></v-icon>
-                            {{ product.BARCODE }}
-                          </span>
-                        </div>
-
-                        <div class="d-flex align-center mt-2">
-                          <v-chip size="x-small" color="error" variant="flat" class="mr-2 font-weight-bold">
-                            Sisa: {{ product.TOTAL }}
-                          </v-chip>
-
-                          <div class="d-flex align-center text-caption text-info font-weight-medium">
-                            <v-icon size="x-small" start icon="mdi-speedometer" class="mr-1"></v-icon>
-                            Laku: {{ Number(product.AVG_SALE).toFixed(1) }} /bln
+                    <TransitionGroup tag="div" :css="false" @enter="onListEnter">
+                      <v-list-item v-for="(product, i) in lowStockProducts" :key="`${product.KODE}-${product.UKURAN}`"
+                        :data-index="i" class="px-3 mb-2 py-2" rounded="lg" border>
+                        <template #prepend>
+                          <v-avatar color="error" size="48" variant="tonal" class="mr-2">
+                            <span class="text-h6 font-weight-black">{{ product.UKURAN }}</span>
+                          </v-avatar>
+                        </template>
+                        <div class="d-flex flex-column gap-1">
+                          <div class="text-subtitle-2 font-weight-bold text-wrap">{{ product.NAMA }}</div>
+                          <div class="d-flex align-center text-caption text-medium-emphasis mt-1">
+                            <v-chip size="x-small" label class="mr-2 px-2" color="grey-lighten-2" variant="flat">
+                              <span class="text-grey-darken-3 font-weight-medium">{{ product.KODE }}</span>
+                            </v-chip>
+                            <span v-if="product.BARCODE" class="d-flex align-center">
+                              <v-icon start size="x-small" icon="mdi-barcode" class="mr-1"></v-icon> {{ product.BARCODE
+                              }}
+                            </span>
+                          </div>
+                          <div class="d-flex align-center mt-2">
+                            <v-chip size="x-small" color="error" variant="flat" class="mr-2 font-weight-bold">
+                              Sisa: {{ product.TOTAL }}
+                            </v-chip>
+                            <div class="d-flex align-center text-caption text-info font-weight-medium">
+                              <v-icon size="x-small" start icon="mdi-speedometer" class="mr-1"></v-icon>
+                              Laku: {{ Number(product.AVG_SALE).toFixed(1) }} /bln
+                            </div>
                           </div>
                         </div>
-
-                      </div>
-                    </v-list-item>
+                      </v-list-item>
+                    </TransitionGroup>
                   </v-list>
-
                   <v-btn color="warning" variant="tonal" block class="mt-4" to="/laporan/stok/real-time"
                     prepend-icon="mdi-file-chart-outline">
                     Lihat Laporan Lengkap
@@ -1809,45 +1385,42 @@ watch(chartGroupBy, fetchSalesChartData);
               </v-card-text>
             </v-card>
 
-            <v-card elevation="3" class="mt-4 bg-white" hover @click="router.push('/laporan/stok/dead-stok')">
+            <v-card elevation="3" class="mt-4 bg-surface" hover @click="router.push('/laporan/stok/dead-stok')">
               <v-card-text>
                 <div v-if="isLoadingStagnantStock" class="text-center pa-2">
                   <v-progress-circular indeterminate color="deep-orange" size="24"></v-progress-circular>
                 </div>
-
                 <div v-else class="d-flex align-center">
                   <v-icon size="40" class="mr-4" color="deep-orange">mdi-archive-arrow-down-outline</v-icon>
                   <div>
                     <div class="text-caption text-deep-orange font-weight-bold">Nilai Stok Stagnan (30 Hari)</div>
-
                     <div class="text-h5 font-weight-bold text-deep-orange">
-                      {{ formatRupiah(stagnantStockValue) }}
+                      <span v-if="isLoadingStagnantStock && animatedStagnant === 0">...</span>
+                      <span v-else class="animated-number">
+                        {{ formatRupiah(Number(animatedStagnant.toFixed(0))) }}
+                      </span>
                     </div>
                   </div>
                 </div>
               </v-card-text>
             </v-card>
 
-            <!-- Top Products -->
-            <v-card elevation="2" class="mb-4">
-              <v-card-title class="d-flex align-center bg-amber-lighten-5 py-2 pr-2">
+            <v-card elevation="2" class="mb-4 bg-surface">
+              <v-card-title class="d-flex align-center bg-amber-lighten-5 py-2 pr-2 text-amber-darken-4">
                 <div class="d-flex align-center flex-grow-1">
                   <v-icon class="mr-2" color="amber-darken-2">mdi-star-circle-outline</v-icon>
-                  <span class="text-h6">Produk Terlaris (Bulan Ini)</span>
+                  <span class="text-h6">Produk Terlaris</span>
                 </div>
-
                 <div v-if="authStore.user?.cabang === 'KDC'" style="width: 150px;">
                   <v-select v-model="topProductsCabang" :items="[{ kode: 'ALL', nama: 'Semua Cabang' }, ...cabangList]"
                     item-title="nama" item-value="kode" density="compact" variant="outlined" hide-details
-                    bg-color="white" color="amber-darken-3" class="text-caption font-weight-bold"></v-select>
+                    bg-color="surface" color="amber-darken-3" class="text-caption font-weight-bold"></v-select>
                 </div>
               </v-card-title>
-
               <v-card-text class="pa-4">
                 <div v-if="isLoadingTopProducts" class="text-center pa-8">
                   <v-progress-circular indeterminate color="amber" size="48"></v-progress-circular>
                 </div>
-
                 <v-list v-else bg-color="transparent" style="max-height: 300px; overflow-y: auto;">
                   <v-list-item v-for="(product, index) in topProducts" :key="product.KODE + product.UKURAN"
                     class="px-2 mb-2" rounded="lg" border>
@@ -1857,15 +1430,11 @@ watch(chartGroupBy, fetchSalesChartData);
                         <span class="font-weight-bold text-white">{{ index + 1 }}</span>
                       </v-avatar>
                     </template>
-
-                    <v-list-item-title class="font-weight-bold text-wrap" style="line-height: 1.2; font-size: 0.9rem;">
-                      {{ product.NAMA }}
-                    </v-list-item-title>
-                    <v-list-item-subtitle class="mt-1 d-flex align-center">
+                    <v-list-item-title class="font-weight-bold text-wrap">{{ product.NAMA }}</v-list-item-title>
+                    <v-list-item-subtitle class="mt-1 d-flex align-center text-medium-emphasis">
                       <v-chip size="x-small" class="mr-2">{{ product.KODE }}</v-chip>
                       <v-chip size="x-small" color="grey-darken-3" variant="flat">{{ product.UKURAN }}</v-chip>
                     </v-list-item-subtitle>
-
                     <template #append>
                       <v-chip color="amber-darken-3" size="small" variant="flat" class="font-weight-bold">
                         {{ product.TOTAL?.toLocaleString('id-ID') }} pcs
@@ -1876,24 +1445,21 @@ watch(chartGroupBy, fetchSalesChartData);
               </v-card-text>
             </v-card>
 
-            <!-- Branch Performance -->
-            <v-card v-if="authStore.user?.cabang === 'KDC'" elevation="2" class="mb-4">
-              <v-card-title class="d-flex align-center bg-purple-lighten-5">
+            <v-card v-if="authStore.user?.cabang === 'KDC'" elevation="2" class="mb-4 bg-surface">
+              <v-card-title class="d-flex align-center bg-purple-lighten-5 text-purple-darken-4">
                 <v-icon class="mr-2" color="purple">mdi-trophy-outline</v-icon>
-                <span class="text-h6">Ranking Performa Cabang (Bulan Ini)</span>
+                <span class="text-h6">Ranking Performa Cabang</span>
                 <v-spacer></v-spacer>
                 <v-chip v-if="!isLoadingPerformance" size="small" color="purple" variant="flat">
                   {{ branchPerformances.length }} Cabang
                 </v-chip>
               </v-card-title>
-
               <v-card-text class="pa-0">
                 <div v-if="isLoadingPerformance" class="text-center pa-6">
                   <v-progress-circular indeterminate color="purple" size="40" />
                   <div class="mt-2 text-caption">Memuat data performa...</div>
                 </div>
-
-                <v-table v-else density="compact" hover>
+                <v-table v-else density="compact" hover class="bg-surface text-high-emphasis">
                   <thead>
                     <tr>
                       <th class="text-center" width="50">Rank</th>
@@ -1913,20 +1479,16 @@ watch(chartGroupBy, fetchSalesChartData);
                           </span>
                         </v-avatar>
                       </td>
-
                       <td class="font-weight-medium">
                         {{ item.nama_cabang }}
-                        <div class="text-caption text-grey">{{ item.kode_cabang }}</div>
+                        <div class="text-caption text-medium-emphasis">{{ item.kode_cabang }}</div>
                       </td>
-
                       <td class="text-right">
                         <div class="font-weight-bold text-body-2">{{ formatRupiah(item.nominal) }}</div>
                       </td>
-
-                      <td class="text-right text-grey-darken-1 text-caption">
+                      <td class="text-right text-medium-emphasis text-caption">
                         {{ formatRupiah(item.target) }}
                       </td>
-
                       <td class="text-right">
                         <div class="d-flex align-center justify-end ga-2">
                           <span :class="`text-${getAchColor(item.ach)} font-weight-bold`">
@@ -1937,36 +1499,21 @@ watch(chartGroupBy, fetchSalesChartData);
                         </div>
                       </td>
                     </tr>
-
-                    <tr v-if="branchPerformances.length === 0">
-                      <td colspan="5" class="text-center py-4 text-grey">
-                        Belum ada data penjualan bulan ini.
-                      </td>
-                    </tr>
                   </tbody>
                 </v-table>
               </v-card-text>
             </v-card>
 
-            <!-- Laporan Kontribusi Omset -->
-            <v-card v-if="authStore.user?.cabang === 'KDC'" elevation="2" class="mb-4 rounded-lg">
-              <v-card-title class="d-flex align-center bg-teal-lighten-5 py-3">
+            <v-card v-if="authStore.user?.cabang === 'KDC'" elevation="2" class="mb-4 rounded-lg bg-surface">
+              <v-card-title class="d-flex align-center bg-teal-lighten-5 py-3 text-teal-darken-4">
                 <v-icon class="mr-2" color="teal">mdi-chart-pie</v-icon>
-                <span class="text-subtitle-1 font-weight-bold text-teal-darken-2">
-                  Kontribusi Omset Cabang
-                </span>
+                <span class="text-subtitle-1 font-weight-bold">Kontribusi Omset Cabang</span>
               </v-card-title>
-
               <v-card-text class="pa-4">
                 <div v-if="isLoadingPerformance" class="text-center pa-8">
                   <v-progress-circular indeterminate color="teal" size="40" />
                   <div class="mt-2 text-caption">Menghitung kontribusi...</div>
                 </div>
-
-                <div v-else-if="branchPerformances.length === 0" class="text-center py-8 text-grey">
-                  Belum ada data penjualan.
-                </div>
-
                 <div v-else style="height: 300px; position: relative;">
                   <Pie :data="branchDistributionData" :options="pieChartOptions" />
                 </div>
@@ -1980,14 +1527,112 @@ watch(chartGroupBy, fetchSalesChartData);
 </template>
 
 <style scoped>
-/* --- LANDING PAGE STYLES --- */
+/* Gunakan variable CSS untuk text color */
+.date-native-input {
+  border: none;
+  outline: none;
+  color: rgb(var(--v-theme-on-surface));
+  /* [FIX] Warna teks input mengikuti tema */
+  font-family: inherit;
+  font-size: 0.875rem;
+  width: 110px;
+  cursor: pointer;
+  background-color: transparent;
+  /* [FIX] Transparan agar warna card tembus */
+}
 
-/* 1. Background Setup */
+/* Scrollbar styling agar rapi di dark mode */
+.scrollable-list::-webkit-scrollbar {
+  width: 6px;
+}
+
+.scrollable-list::-webkit-scrollbar-track {
+  background: rgba(var(--v-theme-on-surface), 0.05);
+  border-radius: 10px;
+}
+
+.scrollable-list::-webkit-scrollbar-thumb {
+  background: rgba(var(--v-theme-on-surface), 0.2);
+  border-radius: 10px;
+}
+
+.scrollable-list::-webkit-scrollbar-thumb:hover {
+  background: rgba(var(--v-theme-on-surface), 0.4);
+}
+
+/* --- CSS LAINNYA TETAP SAMA --- */
+.animated-number {
+  font-variant-numeric: tabular-nums;
+  transition: color 0.3s ease;
+}
+
+.price-pulse {
+  animation: pulse-green 2s infinite;
+}
+
+@keyframes pulse-green {
+  0% {
+    box-shadow: 0 0 0 0 rgba(76, 175, 80, 0.7);
+    transform: scale(1);
+  }
+
+  50% {
+    box-shadow: 0 0 0 8px rgba(76, 175, 80, 0);
+    transform: scale(1.05);
+  }
+
+  100% {
+    box-shadow: 0 0 0 0 rgba(76, 175, 80, 0);
+    transform: scale(1);
+  }
+}
+
+.trend-badge {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-weight: bold;
+  box-shadow: 0 0 10px rgba(0, 0, 0, 0.2);
+  animation: pulse-green 2s infinite;
+}
+
+.trend-badge.up {
+  background-color: #4CAF50;
+}
+
+.trend-badge.down {
+  background-color: #F44336;
+  animation: pulse-red 2s infinite;
+}
+
+@keyframes pulse-red {
+  0% {
+    transform: scale(0.95);
+    box-shadow: 0 0 0 0 rgba(244, 67, 54, 0.7);
+  }
+
+  70% {
+    transform: scale(1);
+    box-shadow: 0 0 0 10px rgba(244, 67, 54, 0);
+  }
+
+  100% {
+    transform: scale(0.95);
+    box-shadow: 0 0 0 0 rgba(244, 67, 54, 0);
+  }
+}
+
 .landing-container {
   position: relative;
   overflow: hidden;
   background-color: #1a1a1a;
-  /* Fallback color */
 }
 
 .bg-image {
@@ -1998,10 +1643,8 @@ watch(chartGroupBy, fetchSalesChartData);
   height: 100%;
   z-index: 0;
   transform: scale(1.05);
-  /* Sedikit zoom agar tidak ada border putih */
 }
 
-/* Overlay Gelap Elegan */
 .bg-overlay {
   position: absolute;
   top: 0;
@@ -2009,24 +1652,18 @@ watch(chartGroupBy, fetchSalesChartData);
   width: 100%;
   height: 100%;
   z-index: 1;
-  /* Gradasi Gelap Ungu ke Hitam Transparan */
   background: linear-gradient(135deg, rgba(30, 3, 61, 0.85) 0%, rgba(0, 0, 0, 0.75) 100%);
   backdrop-filter: blur(4px);
-  /* Blur background foto sedikit agar teks fokus */
 }
 
 .content-layer {
   position: relative;
   z-index: 2;
-  /* Di atas overlay */
 }
 
-/* 2. Hero Glass Card */
 .hero-glass-card {
   background: rgba(255, 255, 255, 0.05);
-  /* Sangat transparan */
   backdrop-filter: blur(16px);
-  /* Efek kaca buram kuat */
   -webkit-backdrop-filter: blur(16px);
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 32px;
@@ -2035,7 +1672,6 @@ watch(chartGroupBy, fetchSalesChartData);
   overflow: hidden;
 }
 
-/* Kilauan cahaya di atas kartu (shine effect) */
 .hero-glass-card::before {
   content: '';
   position: absolute;
@@ -2047,14 +1683,12 @@ watch(chartGroupBy, fetchSalesChartData);
   pointer-events: none;
 }
 
-/* 3. Feature Glass Cards */
 .feature-glass-card {
   background: rgba(255, 255, 255, 0.03) !important;
   backdrop-filter: blur(8px);
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 16px;
   transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-  /* Bouncy transition */
   cursor: default;
 }
 
@@ -2077,7 +1711,6 @@ watch(chartGroupBy, fetchSalesChartData);
   box-shadow: inset 0 0 10px rgba(255, 255, 255, 0.05);
 }
 
-/* 4. Typography & Effects */
 .text-shadow {
   text-shadow: 0 4px 10px rgba(0, 0, 0, 0.5);
 }
@@ -2109,9 +1742,7 @@ watch(chartGroupBy, fetchSalesChartData);
   box-shadow: 0 0 30px rgba(255, 255, 255, 0.5);
 }
 
-/* Dashboard Styles */
 .home-container {
-  background-color: #f5f7fa;
   min-height: 100vh;
 }
 
@@ -2133,34 +1764,14 @@ watch(chartGroupBy, fetchSalesChartData);
   overflow-y: auto;
 }
 
-.scrollable-list::-webkit-scrollbar {
-  width: 6px;
-}
-
-.scrollable-list::-webkit-scrollbar-track {
-  background: #f1f1f1;
-  border-radius: 10px;
-}
-
-.scrollable-list::-webkit-scrollbar-thumb {
-  background: #888;
-  border-radius: 10px;
-}
-
-.scrollable-list::-webkit-scrollbar-thumb:hover {
-  background: #555;
-}
-
 .piutang-item {
   padding: 6px 12px !important;
 }
 
 .piutang-item:hover {
-  background-color: #fff7e6 !important;
-  /* soft orange hover */
+  background-color: rgba(var(--v-theme-on-surface), 0.08) !important;
 }
 
-/* HEADER BANNER */
 .dashboard-header {
   position: relative;
   width: 100%;
@@ -2190,70 +1801,51 @@ watch(chartGroupBy, fetchSalesChartData);
   flex-direction: column;
 }
 
-.text-shadow {
-  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
-}
-
-/* CONTENT AREA */
 .dashboard-content {
   margin-top: -60px;
-  /* Overlap effect */
 }
 
-/* Container Gradasi Putih ke Biru Tua */
 .deep-sky-gradient {
-  /* --- KUNCI GRADASI --- */
-  background: linear-gradient(180deg,
-      #FFFFFF 0%,
-      /* Paling Atas: Putih Bersih */
-      #29B6F6 45%,
-      /* Tengah: Biru Langit Cerah */
-      #01579B 100%
-      /* Paling Bawah: Biru Tua Dalam */
-    );
-
-  /* Styling tambahan agar terlihat rapi dan modern */
+  background: linear-gradient(180deg, rgb(var(--v-theme-surface)) 0%, rgb(var(--v-theme-primary)) 100%);
   border-radius: 20px;
-  /* Sudut melengkung */
   padding: 24px 24px 32px 24px;
-  /* Jarak dalam agar konten lega */
-
-  /* Border tipis putih di sekelilingnya */
-  border: 2px solid rgba(255, 255, 255, 0.8);
-
-  /* Shadow biru tua di bawahnya */
-  box-shadow: 0 12px 32px rgba(1, 87, 155, 0.3) !important;
-
+  border: 2px solid rgba(255, 255, 255, 0.2);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.2) !important;
   position: relative;
   overflow: hidden;
 }
 
-/* --- Styles untuk Running Text Promo (Compact) --- */
+/* Override gradient untuk dark mode agar lebih soft */
+.v-theme--dark .deep-sky-gradient {
+  background: linear-gradient(180deg, #1E1E1E 0%, #0D47A1 100%);
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+/* Override gradient light mode (biru langit) */
+.v-theme--light .deep-sky-gradient {
+  background: linear-gradient(180deg, #FFFFFF 0%, #29B6F6 45%, #01579B 100%);
+  border-color: rgba(255, 255, 255, 0.8);
+}
+
+/* --- RUNNING TEXT PROMO --- */
 .promo-ticker-container {
   display: flex;
   align-items: stretch;
-  background: white;
   border-radius: 6px;
   overflow: hidden;
   border-left: 3px solid #E91E63;
   height: 32px;
   margin-top: 4px;
-  /* Margin atas agar ada jarak dikit dari navbar saat awal */
-
-  /* --- TAMBAHAN AGAR STICKY --- */
   position: sticky;
-  /* Kuncinya disini */
   top: 70px;
-  /* Sesuaikan dengan tinggi Navbar (64px) + sedikit jarak (misal 6px) */
   z-index: 10;
-  /* Supaya dia ngambang di atas konten lain (tapi di bawah menu dropdown navbar) */
   box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
-  /* Tambah bayangan biar kelihatan ngambang */
+  /* Background container ikut tema (Putih/Hitam) */
+  background-color: rgb(var(--v-theme-surface));
 }
 
 .ticker-label {
   background: #E91E63;
-  /* Pink Tua */
   color: white;
   padding: 0 12px;
   display: flex;
@@ -2270,30 +1862,45 @@ watch(chartGroupBy, fetchSalesChartData);
   position: relative;
   display: flex;
   align-items: center;
-  background: #FFF0F5;
-  /* Latar belakang pink sangat muda */
+}
+
+/* [MODE TERANG] - Background Pink Muda */
+.v-theme--light .ticker-track-wrapper {
+  background-color: #FFF0F5 !important;
+}
+
+/* [MODE GELAP] - Background Transparan */
+.v-theme--dark .ticker-track-wrapper {
+  background-color: rgba(255, 255, 255, 0.05) !important;
 }
 
 .ticker-track {
   display: flex;
   white-space: nowrap;
   animation: scroll-left 35s linear infinite;
-  /* Sedikit lebih lambat agar mudah dibaca */
 }
 
 .ticker-content {
   padding-right: 60px;
-  font-weight: 500;
-  color: #C2185B;
-  /* Warna teks pink tua, lebih nyaman di mata */
   font-size: 0.85rem;
-  /* Font size dikecilkan sedikit */
   display: inline-block;
   line-height: 32px;
-  /* Vertical center */
 }
 
-/* Animasi Gerak ke Kiri */
+/* [MODE TERANG] - Teks Pink Tua (Kembali ke Asal) */
+.v-theme--light .ticker-content {
+  color: #C2185B !important;
+  font-weight: 500;
+  text-shadow: none;
+}
+
+/* [MODE GELAP] - Teks Putih Tebal */
+.v-theme--dark .ticker-content {
+  color: #FFFFFF !important;
+  font-weight: 600;
+  text-shadow: 0 1px 2px rgba(0,0,0,0.5);
+}
+
 @keyframes scroll-left {
   0% {
     transform: translateX(0);
@@ -2304,7 +1911,6 @@ watch(chartGroupBy, fetchSalesChartData);
   }
 }
 
-/* Animasi Ikon Bergoyang Halus */
 .swing-animation {
   animation: swing 3s ease-in-out infinite;
 }
@@ -2333,16 +1939,13 @@ watch(chartGroupBy, fetchSalesChartData);
   }
 }
 
-/* Pause animasi saat mouse hover */
 .ticker-track-wrapper:hover .ticker-track {
   animation-play-state: paused;
 }
 
 @media (max-width: 960px) {
-  .home-container {
-    padding: 1rem;
-  }
 
+  .home-container,
   .landing-container {
     padding: 1rem;
   }
@@ -2364,31 +1967,7 @@ watch(chartGroupBy, fetchSalesChartData);
   .landing-container .text-h5 {
     font-size: 1.25rem !important;
   }
-}
 
-/* Style untuk input tanggal native agar seragam dengan Vuetify */
-.date-native-input {
-  border: none;
-  outline: none;
-  color: #424242;
-  font-family: inherit;
-  font-size: 0.875rem;
-  width: 110px;
-  cursor: pointer;
-}
-
-/* Style khusus untuk toggle chart type agar tidak ada border ganda */
-.chart-type-toggle {
-  border: none !important;
-  height: 32px !important;
-}
-
-.gap-3 {
-  gap: 12px;
-}
-
-/* Responsive adjustment */
-@media (max-width: 600px) {
   .filter-bar {
     align-items: stretch !important;
   }
@@ -2396,5 +1975,14 @@ watch(chartGroupBy, fetchSalesChartData);
   .filter-input-select {
     width: 100% !important;
   }
+}
+
+.chart-type-toggle {
+  border: none !important;
+  height: 32px !important;
+}
+
+.gap-3 {
+  gap: 12px;
 }
 </style>

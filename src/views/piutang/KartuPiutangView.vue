@@ -490,11 +490,22 @@ watch(filters, () => {
 .filter-section {
   flex-shrink: 0;
   padding: 8px;
-  border-bottom: 1px solid #e0e0e0;
-  background: white;
   display: flex;
   align-items: center;
   gap: 12px;
+
+  background-color: rgb(var(--v-theme-surface));
+  border-bottom: 1px solid rgba(var(--v-theme-on-surface), 0.12);
+}
+
+.filter-section :deep(.v-field),
+.filter-section :deep(.v-field--variant-outlined),
+.filter-section :deep(.v-field--variant-filled) {
+  background-color: rgb(var(--v-theme-surface)) !important;
+}
+
+.filter-section:deep(.v-field--variant-filled .v-field__overlay) {
+  background-color: rgb(var(--v-theme-surface)) !important;
 }
 
 .table-container {
@@ -527,14 +538,18 @@ watch(filters, () => {
 /* --- Header Resize --- */
 .resizable-header {
   position: relative;
-  background-color: #e3f2fd !important;
-  color: #0d47a1 !important;
+
+  background-color: rgb(var(--v-theme-primary)) !important;
+  color: rgb(var(--v-theme-on-primary)) !important;
+
   font-weight: 700 !important;
   text-transform: uppercase;
   font-size: 11px !important;
   height: 40px !important;
-  border-bottom: 2px solid #1976d2 !important;
+
+  border-bottom: 2px solid rgb(var(--v-theme-primary)) !important;
   padding: 0 8px !important;
+
   user-select: none;
   overflow: hidden;
   white-space: nowrap;
@@ -568,12 +583,12 @@ watch(filters, () => {
 
 .resizer:hover,
 .resizable-header:hover .resizer {
-  border-right: 2px solid #1565c0;
+  border-right: 2px solid rgba(var(--v-theme-on-primary), 0.6);
 }
 
 /* Pewarnaan Baris */
 :deep(td.text-red) {
-  color: #d32f2f !important;
+  color: rgb(var(--v-theme-error)) !important;
 }
 
 .state-container {
@@ -612,7 +627,7 @@ watch(filters, () => {
 }
 
 .filter-menu .v-list-item:hover {
-  background-color: #e3f2fd !important;
+  background-color: rgba(var(--v-theme-primary), 0.12) !important;
 }
 
 .filter-menu .v-checkbox {
@@ -621,8 +636,8 @@ watch(filters, () => {
 
 .custom-filter-item {
   font-weight: 600;
-  color: #1565c0;
   font-size: 11px;
+  color: rgb(var(--v-theme-primary));
 }
 
 .v-card-title {
@@ -639,11 +654,27 @@ watch(filters, () => {
   padding: 0 16px !important;
   font-size: 0.875rem !important;
   text-transform: none !important;
-  color: #d32f2f !important;
-  background-color: rgba(211, 47, 47, 0.15) !important;
+
+  color: rgb(var(--v-theme-error)) !important;
+  background-color: rgba(var(--v-theme-error), 0.18) !important;
 }
 
 .reset-filter-btn:hover {
-  background-color: rgba(211, 47, 47, 0.25) !important;
+  background-color: rgba(var(--v-theme-error), 0.28) !important;
+}
+
+.reset-filter-btn {
+  height: 36px !important;
+  min-width: 120px !important;
+  padding: 0 16px !important;
+  font-size: 0.875rem !important;
+  text-transform: none !important;
+
+  color: rgb(var(--v-theme-error)) !important;
+  background-color: rgba(var(--v-theme-error), 0.18) !important;
+}
+
+.reset-filter-btn:hover {
+  background-color: rgba(var(--v-theme-error), 0.28) !important;
 }
 </style>

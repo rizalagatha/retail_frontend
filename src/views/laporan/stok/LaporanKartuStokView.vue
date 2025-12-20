@@ -3,7 +3,7 @@ import { ref, reactive, onMounted, watch, computed } from 'vue';
 import { useToast } from 'vue-toastification';
 import { useAuthStore } from '@/stores/authStore';
 import api from '@/services/api';
-import { format, parseISO } from 'date-fns';
+import { format } from 'date-fns';
 import PageLayout from '@/components/PageLayout.vue';
 import MasterProductSearchModal from '@/components/lookup/MasterProductSearchModal.vue';
 import * as XLSX from 'xlsx';
@@ -27,10 +27,12 @@ interface MasterDataItem {
   terimaSJ?: number;
   mutStoreTerima?: number;
   mutInPesan?: number;
+  mutInProduksi?: number;
   invoice?: number;
   returKeDC?: number;
   mutStoreKirim?: number;
   mutOutPesan?: number;
+  mutOutProduksi?: number;
   saldoAkhir?: number;
   // tambahkan properti lain yang muncul di API
 }
@@ -95,10 +97,12 @@ const headers = [
   { title: 'Terima SJ', key: 'terimaSJ', align: 'end' },
   { title: 'Terima Mutasi', key: 'mutStoreTerima', align: 'end' },
   { title: 'Mutasi In (Pesan)', key: 'mutInPesan', align: 'end' },
+  { title: 'Mutasi In (Prod)', key: 'mutInProduksi', align: 'end', cellProps: { class: 'text-green' } }, // [BARU]
   { title: 'Invoice', key: 'invoice', align: 'end' },
   { title: 'Retur ke DC', key: 'returKeDC', align: 'end' },
   { title: 'Kirim Mutasi', key: 'mutStoreKirim', align: 'end' },
   { title: 'Mutasi Out (Pesan)', key: 'mutOutPesan', align: 'end' },
+  { title: 'Mutasi Out (Prod)', key: 'mutOutProduksi', align: 'end', cellProps: { class: 'text-red' } }, // [BARU]
   { title: 'Saldo Akhir', key: 'saldoAkhir', align: 'end', cellProps: { class: 'font-weight-bold' } },
 ] as const;
 

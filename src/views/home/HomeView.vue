@@ -793,6 +793,47 @@ onUnmounted(() => {
           </v-btn>
         </div>
       </v-col>
+      <v-col cols="12" md="12" lg="10">
+        <v-row>
+          <v-col cols="12" sm="6" md="3">
+            <div class="feature-glass-card pa-6 text-center text-white h-100">
+              <v-icon size="40" class="mb-3">mdi-monitor-dashboard</v-icon>
+              <h3 class="text-h6 font-weight-bold mb-2">POS & Penjualan</h3>
+              <p class="text-body-2 opacity-80">
+                Aplikasi kasir lengkap untuk mencatat penjualan tunai/kredit, cetak struk, dan kelola pelanggan dengan
+                cepat.
+              </p>
+            </div>
+          </v-col>
+
+          <v-col cols="12" sm="6" md="3">
+            <div class="feature-glass-card pa-6 text-center text-white h-100">
+              <v-icon size="40" class="mb-3">mdi-package-variant-closed</v-icon>
+              <h3 class="text-h6 font-weight-bold mb-2">Manajemen Stok</h3>
+              <p class="text-body-2 opacity-80">
+                Pantau stok real-time antar cabang, stok opname mudah, dan peringatan dini untuk barang yang menipis.
+              </p>
+            </div>
+          </v-col>
+
+          <v-col cols="12" sm="6" md="3">
+            <div class="feature-glass-card pa-6 text-center text-white h-100">
+              <v-icon size="40" class="mb-3">mdi-chart-timeline-variant</v-icon>
+              <h3 class="text-h6 font-weight-bold mb-2">Laporan Lengkap</h3>
+              <p class="text-body-2 opacity-80">Analisa omset, laba rugi, dan trend penjualan harian hingga bulanan
+                secara instan.</p>
+            </div>
+          </v-col>
+          <v-col cols="12" sm="6" md="3">
+            <div class="feature-glass-card pa-6 text-center text-white h-100">
+              <v-icon size="40" class="mb-3">mdi-store-cog</v-icon>
+              <h3 class="text-h6 font-weight-bold mb-2">Multi Cabang</h3>
+              <p class="text-body-2 opacity-80">Kelola operasional pusat (KDC) dan seluruh cabang retail dalam satu
+                platform terintegrasi.</p>
+            </div>
+          </v-col>
+        </v-row>
+      </v-col>
     </v-row>
   </v-container>
 
@@ -1629,10 +1670,13 @@ onUnmounted(() => {
   }
 }
 
+/* ==================================
+   1. LANDING PAGE STYLES
+   ================================== */
 .landing-container {
   position: relative;
   overflow: hidden;
-  background-color: #1a1a1a;
+  background-color: rgb(var(--v-theme-background));
 }
 
 .bg-image {
@@ -1647,12 +1691,12 @@ onUnmounted(() => {
 
 .bg-overlay {
   position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
+  inset: 0;
   z-index: 1;
-  background: linear-gradient(135deg, rgba(30, 3, 61, 0.85) 0%, rgba(0, 0, 0, 0.75) 100%);
+  background: linear-gradient(135deg,
+      rgba(0, 0, 0, 0.6) 0%,
+      /* Darker overlay for better contrast */
+      rgba(0, 0, 0, 0.85) 100%);
   backdrop-filter: blur(4px);
 }
 
@@ -1662,84 +1706,40 @@ onUnmounted(() => {
 }
 
 .hero-glass-card {
-  background: rgba(255, 255, 255, 0.05);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 32px;
-  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.3);
   position: relative;
   overflow: hidden;
-}
-
-.hero-glass-card::before {
-  content: '';
-  position: absolute;
-  top: -50%;
-  left: -50%;
-  width: 200%;
-  height: 200%;
-  background: radial-gradient(circle, rgba(255, 255, 255, 0.1) 0%, transparent 60%);
-  pointer-events: none;
+  background: rgba(255, 255, 255, 0.1);
+  /* White transparent for glass effect */
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 32px;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
 }
 
 .feature-glass-card {
-  background: rgba(255, 255, 255, 0.03) !important;
+  background: rgba(255, 255, 255, 0.08);
   backdrop-filter: blur(8px);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 16px;
-  transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-  cursor: default;
+  transition: all 0.3s ease;
+  height: 100%;
 }
 
-.feature-glass-card.hover-up {
-  background: rgba(255, 255, 255, 0.1) !important;
-  border-color: rgba(255, 255, 255, 0.3);
-  transform: translateY(-8px);
-  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.2);
-}
-
-.glass-icon-bg {
-  width: 48px;
-  height: 48px;
-  border-radius: 12px;
-  background: rgba(255, 255, 255, 0.1);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  margin-bottom: 12px;
-  box-shadow: inset 0 0 10px rgba(255, 255, 255, 0.05);
-}
-
-.text-shadow {
-  text-shadow: 0 4px 10px rgba(0, 0, 0, 0.5);
-}
-
-.tracking-wide {
-  letter-spacing: 0.05em;
-}
-
-.tracking-wider {
-  letter-spacing: 0.1em;
-}
-
-.tracking-widest {
-  letter-spacing: 0.2em;
+.feature-glass-card:hover {
+  background: rgba(255, 255, 255, 0.15);
+  transform: translateY(-5px);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
 }
 
 .logo-glow {
-  box-shadow: 0 0 30px rgba(255, 255, 255, 0.2);
-  border: 2px solid rgba(255, 255, 255, 0.2);
+  box-shadow: 0 0 30px rgba(255, 255, 255, 0.3);
+  border: 2px solid rgba(255, 255, 255, 0.5);
 }
 
-.btn-glow {
-  box-shadow: 0 0 20px rgba(255, 255, 255, 0.3);
-  transition: all 0.3s ease;
-}
-
-.btn-glow:hover {
-  transform: scale(1.05);
-  box-shadow: 0 0 30px rgba(255, 255, 255, 0.5);
+.text-shadow {
+  text-shadow: 0 4px 10px rgba(0, 0, 0, 0.8);
 }
 
 .home-container {
@@ -1898,7 +1898,7 @@ onUnmounted(() => {
 .v-theme--dark .ticker-content {
   color: #FFFFFF !important;
   font-weight: 600;
-  text-shadow: 0 1px 2px rgba(0,0,0,0.5);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
 }
 
 @keyframes scroll-left {

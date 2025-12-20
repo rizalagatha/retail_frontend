@@ -269,8 +269,10 @@ const updateLockStatus = (event: KeyboardEvent) => {
 };
 
 const toggleTheme = () => {
-  uiStore.toggleTheme(); // Panggil action di store
-  theme.global.name.value = uiStore.isDark ? 'dark' : 'light'; // Update Vuetify
+  uiStore.toggleTheme(); // Update state di Pinia store
+  const newTheme = uiStore.isDark ? 'dark' : 'light';
+  theme.global.name.value = newTheme; // Update tema Vuetify
+  localStorage.setItem('kaosan-theme', newTheme); // [PENTING] Simpan agar persisten
 };
 
 // Function untuk Buka Modal & Fetch Data
@@ -334,6 +336,17 @@ const fetchNotifications = async () => {
 };
 
 onMounted(() => {
+  // 1. Cek Tema Tersimpan
+  const savedTheme = localStorage.getItem('kaosan-theme');
+  if (savedTheme) {
+    // Jika ada, terapkan ke Vuetify & Store
+    theme.global.name.value = savedTheme;
+    uiStore.isDark = savedTheme === 'dark';
+  } else {
+    // Jika belum ada, simpan default (misal light)
+    localStorage.setItem('kaosan-theme', 'light');
+  }
+
   checkPing();
   pingInterval = window.setInterval(checkPing, 15000);
 

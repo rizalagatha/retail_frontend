@@ -30,6 +30,7 @@ interface InvoiceHeader {
   SisaPiutang?: number;
   RpRetur?: number;
   Kdcus?: string;
+  Customer?: string;
   Nama?: string;
   Alamat?: string;
   Kota?: string;
@@ -421,6 +422,7 @@ const fetchMasterData = async () => {
 
     masterData.value = response.data.map(h => ({
       ...h,
+      Nama: h.Customer || h.Nama,
       Nominal: Number(h.Nominal) || 0,
       Piutang: Number(h.Piutang) || 0,
       SisaPiutang: Number(h.SisaPiutang) || 0,   // <-- PENTING! JANGAN HITUNG ULANG

@@ -11,6 +11,7 @@ import PageLayout from '@/components/PageLayout.vue';
 import GudangSearchModal from '@/components/lookup/GudangSearchModal.vue';
 import MintaBarangSearchModal from '@/components/lookup/MintaBarangSearchModal.vue';
 import type { AxiosError } from 'axios';
+import { formatRupiah } from '@/utils/formatRupiah';
 
 // --- Tipe Data ---
 interface Header {
@@ -63,6 +64,23 @@ const { markAsSaved } = useUnsavedChanges();
 const MENU_ID = '25';
 const isEditMode = computed(() => !!route.params.nomor);
 const pageTitle = computed(() => isEditMode.value ? 'Ubah Koreksi Stok' : 'Buat Koreksi Stok');
+// --- 1. COMPUTED PROPERTY BARU UNTUK TOTAL ---
+const totals = computed(() => {
+  return items.value.reduce((acc, item) => {
+    // Pastikan nilai numeric valid
+    const stok = Number(item.stok) || 0;
+    const jumlah = Number(item.jumlah) || 0;
+    const selisih = Number(item.selisih) || 0;
+    const nominal = Number(item.total) || 0;
+
+    return {
+      stok: acc.stok + stok,
+      jumlah: acc.jumlah + jumlah,
+      selisih: acc.selisih + selisih,
+      nominal: acc.nominal + nominal,
+    };
+  }, { stok: 0, jumlah: 0, selisih: 0, nominal: 0 });
+});
 
 const header = reactive<Header>({
   nomor: '',
@@ -396,6 +414,27 @@ onMounted(async () => {
               <v-btn v-if="item.kode" icon="mdi-delete" size="x-small" variant="text" color="error"
                 @click="removeRow(item.id)" />
             </template>
+            <template #[`body.append`]>
+              <tr class="sticky-total-row bg-grey-lighten-4 font-weight-bold">
+                <td colspan="3" class="text-right pr-4">GRAND TOTAL :</td>
+
+                <td class="text-end text-primary">{{ totals.stok }}</td>
+
+                <td class="text-end text-success">{{ totals.jumlah }}</td>
+
+                <td class="text-end" :class="totals.selisih < 0 ? 'text-red' : 'text-blue'">
+                  {{ totals.selisih }}
+                </td>
+
+                <td></td>
+
+                <td class="text-end text-orange-darken-2">
+                  {{ formatRupiah(totals.nominal) }}
+                </td>
+
+                <td colspan="3"></td>
+              </tr>
+            </template>
             <template #bottom>
               <div class="pa-2 text-right">
                 <v-btn size="small" @click="addNewRow" prepend-icon="mdi-plus">Tambah Baris</v-btn>
@@ -438,5 +477,22 @@ onMounted(async () => {
   height: 40px !important;
   box-shadow: 0 2px 4px rgba(0,0,0,0.1);
   border-bottom: none !important; /* Supaya lebih rapi */
+}
+
+/* --- 3. CSS UNTUK STICKY TOTAL --- */
+.sticky-total-row {
+  position: sticky;
+  bottom: 0;
+  z-index: 5;
+  /* Agar di atas konten tabel saat scroll */
+  background-color: #f5f5f5 !important;
+  /* Warna latar baris total */
+  border-top: 2px solid #e0e0e0;
+  /* Garis pemisah di atas total */
+}
+
+.sticky-total-row td {
+  font-size: 0.85rem !important;
+  height: 40px !important;
 }
 </style>

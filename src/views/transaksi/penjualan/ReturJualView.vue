@@ -89,13 +89,27 @@ const isSingleSelected = computed(() => selected.value.length === 1);
 const selectedRow = computed<MasterItem | null>(() => isSingleSelected.value ? selected.value[0] : null);
 
 const canEdit = computed(() => {
+  // 1. Harus ada 1 baris terpilih
   if (!isSingleSelected.value || !selectedRow.value) return false;
-  return Number(selectedRow.value.diBayarkan) === 0;
+
+  // 2. Ambil nilai 'diBayarkan' (convert ke number untuk safety)
+  // Jika > 0, artinya retur ini sudah dilink ke Piutang/Invoice lain -> KUNCI
+  const totalTerpakai = Number(selectedRow.value.diBayarkan) || 0;
+
+  // 3. Cek status closing
+  const isNotClosing = selectedRow.value.closing !== 'Y';
+
+  // LOGIC: Bisa edit HANYA JIKA belum terpakai sama sekali (0) DAN belum closing
+  return totalTerpakai === 0 && isNotClosing;
 });
 
 const canDelete = computed(() => {
   if (!isSingleSelected.value || !selectedRow.value) return false;
-  return Number(selectedRow.value.diBayarkan) === 0 && selectedRow.value.closing !== 'Y';
+
+  const totalTerpakai = Number(selectedRow.value.diBayarkan) || 0;
+  const isNotClosing = selectedRow.value.closing !== 'Y';
+
+  return totalTerpakai === 0 && isNotClosing;
 });
 
 // --- Header Definisi (Resize) ---

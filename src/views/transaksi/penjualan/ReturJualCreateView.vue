@@ -78,6 +78,20 @@ interface Product {
   harga: number;
 }
 
+interface ApiReturItem {
+  kode: string;
+  nama: string;
+  ukuran: string;
+  barcode: string;
+  qtyInv?: number | string;
+  jumlah?: number | string;
+  harga?: number | string;
+  disc?: number | string;
+  diskon?: number | string;
+  total?: number | string;
+  sudah?: number | string;
+}
+
 // --- Inisialisasi & State ---
 const router = useRouter();
 const route = useRoute();
@@ -97,7 +111,10 @@ const initialHeaderState: Header = {
   cabangNama: authStore.user?.cabangNama || '',
   invoice: '',
   customer: null,
-  jenis: 'Y',
+
+  // [UBAH DI SINI] Default jadi 'N' (Tukar Barang) agar aman buat SC
+  jenis: 'N',
+
   keterangan: '',
   ppnPersen: 0,
 };
@@ -431,22 +448,35 @@ const loadDataForEdit = async (nomor: string) => {
     const response = await api.get(`/retur-jual-form/${nomor}`);
     const { header: returHeader, items: returItems } = response.data;
 
-    // Isi data header
+    // Isi Header
     Object.assign(header, returHeader);
-    header.tanggal = format(parseISO(header.tanggal), 'yyyy-MM-dd');
+    // Format tanggal agar input type="date" bisa membacanya (YYYY-MM-DD)
+    header.tanggal = format(parseISO(returHeader.tanggal), 'yyyy-MM-dd');
 
-    // Isi data footer dari header
-    footer.diskonRp = returHeader.diskonRp;
-    footer.diskonPersen1 = returHeader.diskonPersen1;
-    footer.diskonPersen2 = returHeader.diskonPersen2;
+    // Isi Footer
+    footer.diskonRp = Number(returHeader.diskonRp) || 0;
+    footer.diskonPersen1 = Number(returHeader.diskonPersen1) || 0;
+    footer.diskonPersen2 = Number(returHeader.diskonPersen2) || 0;
 
-    // Isi data grid
-    items.value = returItems.map((item: ReturItem) => ({
+    // Isi Items
+    items.value = returItems.map((item: ApiReturItem) => ({
       ...item,
-      id: Date.now() + Math.random(),
+      id: Date.now() + Math.random(), // ID unik untuk key v-for
+
+      // Lakukan konversi Number() untuk semua field numerik
+      // agar aman dari format string backend ("10.00")
+      jumlah: Number(item.jumlah || 0),
+      harga: Number(item.harga || 0),
+      qtyInv: Number(item.qtyInv || 0),
+      sudah: Number(item.sudah || 0),
+
+      // Tambahkan field lain yang diperlukan interface Item
+      disc: Number(item.disc || 0),
+      diskon: Number(item.diskon || 0),
+      total: Number(item.total || 0),
     }));
 
-    calculateTotals();
+    calculateTotals(); // Hitung ulang total di foote
     toast.success(`Data Retur ${nomor} berhasil dimuat.`);
 
     await nextTick();

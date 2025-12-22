@@ -115,6 +115,9 @@ const MENU_ID = '37';
 
 const isEditMode = computed(() => !!route.params.nomor);
 const pageTitle = computed(() => isEditMode.value ? 'Ubah Minta Barang ke DC' : 'Buat Minta Barang ke DC');
+const grandTotalQty = computed(() => {
+  return items.value.reduce((sum, item) => sum + (Number(item.jumlah) || 0), 0);
+});
 
 const initialHeaderState: FormHeader = {
   nomor: '',
@@ -333,6 +336,12 @@ const save = () => {
     return;
   }
 
+  // [LOGIKA BARU] Validasi Batas Maksimal 120
+  if (totalQty > 120) {
+    toast.error(`Total permintaan melebihi batas 120 pcs. (Total saat ini: ${totalQty})`);
+    return;
+  }
+
   // Jika semua validasi lolos, tampilkan dialog konfirmasi
   showConfirmation(executeSave, "Anda yakin ingin menyimpan data Minta Barang ini?");
 };
@@ -365,6 +374,13 @@ const handleBarcodeScan = async () => {
   }
   const barcode = scannedBarcode.value;
   if (!barcode) return;
+
+  // [LOGIKA BARU] Cek apakah menambah 1 pcs akan melebihi batas 120
+  if (grandTotalQty.value >= 120) {
+    toast.error('Batas maksimal 120 pcs per permintaan telah tercapai.');
+    scannedBarcode.value = '';
+    return;
+  }
 
   // Cek apakah item dengan barcode yang sama sudah ada di grid
   const existingItem = items.value.find(item => item.barcode === barcode && item.kode);
@@ -550,7 +566,14 @@ onMounted(() => {
             </template>
 
             <template #bottom>
-              <div class="pa-2 text-right">
+              <div class="d-flex align-center justify-space-between pa-2 border-top">
+                <div class="text-subtitle-2 ml-2">
+                  Total Qty:
+                  <span :class="grandTotalQty > 120 ? 'text-error font-weight-bold' : 'text-primary font-weight-bold'">
+                    {{ grandTotalQty }} / 120
+                  </span>
+                </div>
+
                 <v-btn size="small" @click="addNewRow" prepend-icon="mdi-plus" variant="text" color="primary">
                   Tambah Baris
                 </v-btn>

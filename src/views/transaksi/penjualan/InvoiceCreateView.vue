@@ -206,6 +206,7 @@ const isLoading = ref(true);
 
 const initialHeaderState = {
   nomor: '',
+  idrec: '',
   tanggal: format(new Date(), 'yyyy-MM-dd'),
   gudang: { kode: authStore.user?.cabang || '', nama: authStore.user?.cabangNama || '' },
   customer: {
@@ -1689,11 +1690,28 @@ const handleJumlahChange = async (item: Item) => {
   }
 };
 
+// Tambahkan di helper function atau di dalam component
+const generateIdRec = (cabang: string) => {
+  const timestamp = format(new Date(), "yyyyMMddHHmmssSSS");
+  const random = Math.floor(Math.random() * 1000).toString().padStart(3, '0');
+  return `${cabang}INV${timestamp}${random}`;
+};
+
 const resetForm = async () => {
+  // Reset state ke awal
   Object.assign(header, initialHeaderState);
+
+  // [BARU] GENERATE IDREC DI SINI (Idempotency Key)
+  // ID ini dibuat saat form kosong. Jika user klik simpan berkali-kali karena lag,
+  // ID yang dikirim ke backend TETAP SAMA, sehingga backend bisa mendeteksi duplikat.
+  const userCabang = authStore.user?.cabang || 'K01';
+  header.idrec = generateIdRec(userCabang);
+
+  // Logic existing Anda
   if (authStore.user?.cabang === 'KON') {
     header.isMarketplace = true;
   }
+
   items.value = [];
   linkedDps.value = [];
   isSoLoaded.value = false;
@@ -1702,10 +1720,10 @@ const resetForm = async () => {
   markAsSaved();
 
   try {
-    const authStore = useAuthStore();
-    const cabang = authStore.userCabang; // Ambil cabang dari authStore
+    const authStore = useAuthStore(); // (Opsional: authStore sudah ada di scope atas, tapi tidak apa-apa)
+    const cabang = authStore.userCabang;
 
-    console.log('User cabang from store:', cabang); // Debug log
+    console.log('User cabang from store:', cabang);
 
     if (!cabang || cabang === '-') {
       console.log('No cabang available');

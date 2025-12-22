@@ -304,7 +304,7 @@ const fetchNotifications = async () => {
   try {
     const list = [];
 
-    // 1. Fetch Notifikasi Stok (Endpoint Baru)
+    // Fetch Notifikasi Stok
     const stockRes = await api.get('/dashboard/stock-alerts');
     const stockData = stockRes.data;
 
@@ -312,7 +312,7 @@ const fetchNotifications = async () => {
       list.push({
         title: 'Terima SJ dari DC',
         count: stockData.sj_pending,
-        to: '/transaksi/internal/terima-sj', // Sesuaikan route vue Anda
+        to: '/transaksi/internal/terima-sj',
         icon: 'mdi-truck-delivery',
         color: 'red'
       });
@@ -322,9 +322,21 @@ const fetchNotifications = async () => {
       list.push({
         title: 'Terima Mutasi Toko',
         count: stockData.mutasi_pending,
-        to: '/transaksi/mutasi/store-terima', // Sesuaikan route vue Anda (Terima Mutasi Store)
+        to: '/transaksi/mutasi/store-terima',
         icon: 'mdi-transfer-down',
         color: 'purple'
+      });
+    }
+
+    // [BARU] Notifikasi Retur DC Belum Diterima
+    // Ini memberi tahu store bahwa barang retur mereka masih "menggantung" (belum sampai/diterima DC)
+    if (stockData.retur_dc_pending > 0) {
+      list.push({
+        title: 'Retur ke DC (Pending)',
+        count: stockData.retur_dc_pending,
+        to: '/transaksi/internal/retur-dc', // Arahkan ke list retur dc untuk monitoring
+        icon: 'mdi-keyboard-return',
+        color: 'orange'
       });
     }
 

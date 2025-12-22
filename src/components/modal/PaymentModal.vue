@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, reactive, computed, watch, PropType } from 'vue';
+import { ref, reactive, computed, onMounted, watch, PropType } from 'vue';
 import { useToast } from 'vue-toastification';
 import api from '@/services/api';
 import { useRouter } from 'vue-router';
@@ -75,6 +75,32 @@ interface LinkedDp {
   isNew?: boolean;   // optional, untuk DP baru
 }
 
+interface KaryawanSearchResult {
+  kar_nik: string;
+  kar_nama: string;
+  kar_alamat?: string; // Tanda ? artinya optional (bisa null/undefined)
+}
+
+// Interface untuk State Payment yang ada di reactive()
+interface PaymentState {
+  tunai: number;
+  voucher: { nomor: string; nominal: number };
+  transfer: {
+    nominal: number | null;
+    akun: { kode: string; nama: string; rekening: string };
+    tanggal: string;
+  };
+  retur: { nomor: string; nominal: number };
+  pundiAmal: number;
+}
+
+// Interface untuk Payload (Extend dari State + Field Tambahan)
+interface PaymentPayload extends PaymentState {
+  jenis: string;
+  nikKaryawan?: string;  // Optional (?) agar bisa di-delete atau undefined
+  namaKaryawan?: string; // Optional (?)
+}
+
 const props = defineProps({
   invoiceHeader: { type: Object, required: true },
   invoiceItems: { type: Array, required: true },
@@ -96,6 +122,41 @@ const payment = reactive({
   retur: { nomor: '', nominal: 0 },
   pundiAmal: 0,
 });
+
+// [BARU] State untuk Potong Gaji
+const KODE_CUSTOMER_TRIGGER = 'K-01126';
+const paymentTab = ref('umum'); // 'umum' | 'karyawan'
+// State untuk Pencarian Karyawan
+const karyawanList = ref<KaryawanSearchResult[]>([]);
+const isSearchingKaryawan = ref(false);
+const karyawan = reactive({
+  nik: null as KaryawanSearchResult | null,
+  nama: '',
+  alamat: '',
+  limitTotal: 0,
+  terpakai: 0,
+  sisaLimit: 0,
+  isValid: false,
+  isLoading: false,
+  message: '',
+});
+const LIMIT_KARYAWAN = 500000;
+
+onMounted(() => {
+  if (props.invoiceHeader.customer.kode === KODE_CUSTOMER_TRIGGER) {
+    paymentTab.value = 'karyawan';
+  } else {
+    paymentTab.value = 'umum';
+  }
+});
+
+function debounce(fn, delay) {
+  let timeoutId;
+  return (...args) => {
+    clearTimeout(timeoutId);
+    timeoutId = setTimeout(() => fn(...args), delay);
+  };
+}
 
 const isSaving = ref(false);
 const dialogs = reactive({
@@ -151,6 +212,14 @@ const kembali = computed(() => {
 
 const nettoKembali = computed(() => {
   return Math.max(kembali.value - (payment.pundiAmal || 0), 0);
+});
+
+// [BARU] Computed: Cek apakah over limit
+const isOverLimit = computed(() => {
+  const grandTotal = props.totals.grandTotal || 0;
+  // Cek total belanja bulan ini + transaksi sekarang
+  const totalAfterTransaction = karyawan.terpakai + grandTotal;
+  return totalAfterTransaction > LIMIT_KARYAWAN;
 });
 
 // --- Methods ---
@@ -233,29 +302,152 @@ const onReturSelected = (retur: { Nomor: string, Sisa: number }) => {
   dialogs.returJualSearch = false;
 };
 
+// [UPDATE] Handle Final Save
 const handleFinalSave = async () => {
-  // Validasi frontend sebelum lanjut
+
+  // 1. JIKA MODE POTONG GAJI
+  if (paymentTab.value === 'karyawan') {
+    if (!karyawan.nik || !karyawan.isValid) {
+      return toast.error('Silakan input dan validasi NIK karyawan terlebih dahulu.');
+    }
+
+    // Cek Otorisasi Limit
+    if (isOverLimit.value) {
+      requestAuthorization(
+        'Otorisasi Limit Karyawan',
+        (pin) => {
+          temporaryPin.value = pin;
+          executeSave(); // Lanjut simpan
+        },
+        () => toast.info('Transaksi dibatalkan.')
+      );
+      return;
+    }
+
+    // Jika aman, langsung simpan
+    await executeSave();
+    return;
+  }
+
+  // 2. JIKA MODE UMUM (Logic Lama)
   if (payment.transfer.nominal > 0 && !payment.transfer.akun.kode) {
     return toast.error('Akun bank untuk transfer harus diisi.');
   }
 
-  // Cek apakah pembayaran kurang dari tagihan
   if (totalBayar.value < props.totals.sisaPiutang) {
-    // Jika kurang, panggil modal otorisasi
     requestAuthorization(
       'Otorisasi Invoice Belum Lunas',
-      (pin) => { // Fungsi yang akan dijalankan jika otorisasi berhasil
-        temporaryPin.value = pin; // Simpan PIN untuk dikirim ke backend
+      (pin) => {
+        temporaryPin.value = pin;
         executeSave();
       },
-      () => { // Fungsi jika dibatalkan
-        toast.info('Penyimpanan dibatalkan.');
-      }
+      () => toast.info('Penyimpanan dibatalkan.')
     );
   } else {
-    // Jika lunas, langsung simpan
     await executeSave();
   }
+};
+
+// [BARU] Method Check Karyawan
+const checkKaryawan = async (nikParam?: string) => {
+  const nikString = nikParam || (karyawan.nik && typeof karyawan.nik === 'object' ? karyawan.nik.kar_nik : karyawan.nik);
+
+  if (!nikString) return;
+
+  karyawan.isLoading = true;
+  try {
+    // Endpoint baru di backend
+    const response = await api.get(`/hrd/karyawan/${nikString}`);
+    const res = response.data; // { found, active, data: { nik, nama, terpakaiBulanIni, ... } }
+
+    if (!res.found) {
+      toast.error(res.message || 'Karyawan tidak ditemukan');
+      resetKaryawanData();
+      return;
+    }
+    if (!res.active) {
+      toast.error('Status karyawan tidak aktif.');
+      resetKaryawanData();
+      return;
+    }
+
+    if (res.found && res.active) {
+      const d = res.data;
+      karyawan.nama = d.nama;
+      karyawan.alamat = d.alamat;
+      karyawan.terpakai = d.terpakaiBulanIni;
+      karyawan.sisaLimit = d.sisaLimit;
+      karyawan.isValid = true;
+
+      toast.success(`Data karyawan ditemukan: ${d.nama}`);
+    }
+
+  } catch (error) {
+    console.error(error);
+    toast.error('Gagal mengecek data karyawan.');
+    resetKaryawanData();
+  } finally {
+    karyawan.isLoading = false;
+  }
+};
+
+const resetKaryawanData = () => {
+  karyawan.nik = null; // [UBAH INI] Reset ke null
+  karyawan.nama = '';
+  karyawan.alamat = '';
+  karyawan.limitTotal = 0;
+  karyawan.terpakai = 0;
+  karyawan.sisaLimit = 0;
+  karyawan.isValid = false;
+  karyawan.message = '';
+};
+
+// [TAMBAHAN PENTING]
+// Pastikan saat modal dibuka atau tab berubah, datanya bersih.
+// Tambahkan watcher pada paymentTab.
+watch(paymentTab, (newTab) => {
+  if (newTab === 'karyawan') {
+    // Jika masuk tab karyawan tapi belum ada data yang valid, reset inputan.
+    if (!karyawan.isValid) {
+      resetKaryawanData();
+    }
+  }
+});
+
+// Method Search (Debounced)
+// Ini dipanggil saat user mengetik di field NIK/Nama
+const onSearchKaryawan = debounce(async (v: string) => {
+  if (!v || v.length < 3) {
+    karyawanList.value = [];
+    return;
+  }
+
+  isSearchingKaryawan.value = true;
+  try {
+    const { data } = await api.get('/hrd/search', { params: { term: v } });
+    karyawanList.value = data;
+  } catch (err) {
+    console.error(err);
+  } finally {
+    isSearchingKaryawan.value = false;
+  }
+}, 400); // Tunggu 400ms setelah user selesai mengetik
+
+// Method saat Karyawan Dipilih dari List
+const onSelectKaryawan = async (selected: KaryawanSearchResult | null) => {
+  // 1. Jika tombol X ditekan (Clear), selected akan bernilai null
+  if (!selected) {
+    resetKaryawanData();
+    return;
+  }
+
+  // 2. Update State manual
+  // TypeScript sekarang tahu bahwa 'selected' punya properti 'kar_nama'
+  karyawan.nama = selected.kar_nama;
+
+  // 3. Panggil Validasi ke Backend
+  // TypeScript juga tahu 'selected' punya properti 'kar_nik'
+  await checkKaryawan(selected.kar_nik);
 };
 
 const requestAuthorization = (
@@ -292,8 +484,53 @@ const handleAuthSuccess = async (pin: string) => {
 };
 
 const executeSave = async () => {
-  isSaving.value = true;
+  if (isSaving.value) return;
+  isSaving.value = true; // Kunci tombol
   try {
+    // [FIX 1] Gunakan tipe 'any' atau Interface baru untuk payload
+    // agar bisa menambahkan properti 'jenis' dan 'nikKaryawan' tanpa error
+    const paymentPayload: PaymentPayload = {
+      ...payment,
+      jenis: 'UMUM'
+    };
+
+    // [BARU] Inject data karyawan ke payment payload jika mode potong gaji
+    if (paymentTab.value === 'karyawan') {
+      paymentPayload.jenis = 'POTONG_GAJI';
+      paymentPayload.nikKaryawan = karyawan.nik?.kar_nik || '';
+      paymentPayload.namaKaryawan = karyawan.nama;
+
+      // [FIX 2] Reset nilai dengan struktur objek LENGKAP
+      // Jangan hanya { nominal: 0 }, tapi sertakan field wajib lainnya (meski kosong)
+
+      paymentPayload.tunai = 0;
+
+      // Fix Transfer: sertakan akun dan tanggal (default string kosong/tanggal hari ini)
+      paymentPayload.transfer = {
+        nominal: 0,
+        akun: { kode: '', nama: '', rekening: '' },
+        tanggal: payment.transfer.tanggal
+      };
+
+      // Fix Voucher: sertakan nomor
+      paymentPayload.voucher = {
+        nominal: 0,
+        nomor: ''
+      };
+
+      // Fix Retur: sertakan nomor
+      paymentPayload.retur = {
+        nominal: 0,
+        nomor: ''
+      };
+
+    } else {
+      paymentPayload.jenis = 'UMUM';
+      // Hapus nikKaryawan jika ada sisa (opsional, tapi bersih)
+      delete paymentPayload.nikKaryawan;
+      delete paymentPayload.namaKaryawan;
+    }
+
     const kembalianBeforePundi = Math.max(totalBayar.value - props.totals.grandTotal, 0);
 
     const tunaiAfterChange = Math.max(
@@ -312,16 +549,19 @@ const executeSave = async () => {
       header: props.invoiceHeader,
       items: (props.invoiceItems as InvoiceItem[]).filter((item) => item.kode),
       dps: cleanDps,
+      // Gunakan paymentPayload yang sudah kita modifikasi di atas
       payment: {
-        ...payment,
-        // keep existing shape but include numeric fields
-        tunai: Number(payment.tunai || 0),
+        ...paymentPayload,
+
+        // Pastikan field numerik ter-convert dengan benar
+        tunai: Number(paymentPayload.tunai || 0),
         tunaiAfterChange,
-        transfer: { ...payment.transfer, nominal: Number(payment.transfer.nominal || 0) },
-        voucher: { ...payment.voucher, nominal: Number(payment.voucher.nominal || 0) },
-        retur: { ...payment.retur, nominal: Number(payment.retur.nominal || 0) },
-        bayarTotal: totalBayar.value,   // PATCH: total uang masuk
-        kembali: kembali.value,         // PATCH: kembalian dihitung frontend
+        transfer: { ...paymentPayload.transfer, nominal: Number(paymentPayload.transfer.nominal || 0) },
+        voucher: { ...paymentPayload.voucher, nominal: Number(paymentPayload.voucher.nominal || 0) },
+        retur: { ...paymentPayload.retur, nominal: Number(paymentPayload.retur.nominal || 0) },
+
+        bayarTotal: totalBayar.value,
+        kembali: kembali.value,
         pinBelumLunas: temporaryPin.value
       },
       totals: {
@@ -354,8 +594,10 @@ const executeSave = async () => {
     const axiosError = error as AxiosError<{ message?: string }>;
     toast.error(axiosError.response?.data?.message || 'Gagal menyimpan invoice.');
   } finally {
-    isSaving.value = false;
-    temporaryPin.value = ''; // Reset PIN
+    if (temporaryPin.value === '') {
+      // Indikator sederhana bahwa proses selesai (error/batal), buka kunci
+      isSaving.value = false;
+    }
   }
 }
 
@@ -744,61 +986,132 @@ watch(kembali, (newVal) => {
 
           <v-col cols="12" md="7">
             <div class="desktop-form-section">
-              <div class="text-subtitle-2 font-weight-bold mb-2">Input Pembayaran</div>
-              <v-text-field label="Tunai" :model-value="isTunaiFocused
-                ? (payment.tunai === 0 ? '' : payment.tunai)
-                : formatRupiah(payment.tunai)
-                " @update:model-value="payment.tunai = Number(String($event).replace(/[^0-9]/g, '')) || 0"
-                @focus="isTunaiFocused = true" @blur="isTunaiFocused = false" type="text" variant="outlined"
-                density="compact" hide-details class="text-end">
-                <template #prepend-inner>
-                  <span class="input-prefix">Rp</span>
-                </template>
-              </v-text-field>
-              <v-row dense class="mt-2">
-                <v-col cols="6"><v-text-field label="No. Voucher" v-model="payment.voucher.nomor" variant="outlined"
-                    density="compact" hide-details @blur="validateVoucher" /></v-col>
-                <v-col cols="6">
-                  <v-text-field label="Nominal Voucher" v-model.number="payment.voucher.nominal" type="number"
-                    variant="outlined" min="0" density="compact" hide-details>
+              <div class="text-subtitle-2 font-weight-bold mb-2">
+                Metode Pembayaran:
+                <span class="text-primary">{{ paymentTab === 'karyawan' ? 'Potong Gaji Karyawan' : 'Umum (Tunai/TF)'
+                  }}</span>
+              </div>
+
+              <v-alert v-if="paymentTab === 'karyawan'" color="info" variant="tonal" icon="mdi-account-tie" class="mb-4"
+                density="compact">
+                Mode Khusus: <strong>Potong Gaji Karyawan</strong>
+              </v-alert>
+              <v-window v-model="paymentTab" class="pt-2">
+                <v-window-item value="umum">
+                  <v-text-field label="Tunai" :model-value="isTunaiFocused
+                    ? (payment.tunai === 0 ? '' : payment.tunai)
+                    : formatRupiah(payment.tunai)
+                    " @update:model-value="payment.tunai = Number(String($event).replace(/[^0-9]/g, '')) || 0"
+                    @focus="isTunaiFocused = true" @blur="isTunaiFocused = false" type="text" variant="outlined"
+                    density="compact" hide-details class="text-end">
                     <template #prepend-inner>
                       <span class="input-prefix">Rp</span>
                     </template>
                   </v-text-field>
-                </v-col>
-              </v-row>
-              <v-divider class="my-3" />
-              <v-text-field label="Transfer / Card" :model-value="isTransferFocused
-                ? (payment.transfer.nominal === null ? '' : payment.transfer.nominal)
-                : formatRupiah(payment.transfer.nominal ?? 0)" @update:model-value="
-                  payment.transfer.nominal = $event === '' ? null : Number(String($event).replace(/[^0-9]/g, ''))
-                  " @focus="isTransferFocused = true" @blur="isTransferFocused = false" type="text" variant="outlined"
-                min="0" density="compact" hide-details class="text-end">
-                <template #prepend-inner>
-                  <span class="input-prefix">Rp</span>
-                </template>
-              </v-text-field>
-              <v-text-field label="Akun Bank"
-                :model-value="`${payment.transfer.akun.kode || ''} - ${payment.transfer.akun.nama || ''}`" readonly
-                @click="dialogs.rekeningSearch = true" prepend-inner-icon="mdi-magnify" variant="outlined"
-                density="compact" hide-details />
-              <v-text-field label="Tgl. Transfer" v-model="payment.transfer.tanggal" type="date" variant="outlined"
-                density="compact" hide-details />
-              <v-divider class="my-3" />
-              <v-row dense>
-                <v-col cols="6"><v-text-field label="No. Retur" v-model="payment.retur.nomor" variant="outlined"
-                    density="compact" hide-details readonly @click="dialogs.returJualSearch = true"
-                    @keydown.f1.prevent="dialogs.returJualSearch = true"
-                    prepend-inner-icon="mdi-magnify"></v-text-field>
-                </v-col>
-                <v-col cols="6"><v-text-field label="Nominal Retur" v-model.number="payment.retur.nominal" type="number"
-                    min="0" variant="outlined" density="compact" hide-details>
+                  <v-row dense class="mt-2">
+                    <v-col cols="6"><v-text-field label="No. Voucher" v-model="payment.voucher.nomor" variant="outlined"
+                        density="compact" hide-details @blur="validateVoucher" /></v-col>
+                    <v-col cols="6">
+                      <v-text-field label="Nominal Voucher" v-model.number="payment.voucher.nominal" type="number"
+                        variant="outlined" min="0" density="compact" hide-details>
+                        <template #prepend-inner>
+                          <span class="input-prefix">Rp</span>
+                        </template>
+                      </v-text-field>
+                    </v-col>
+                  </v-row>
+                  <v-divider class="my-3" />
+                  <v-text-field label="Transfer / Card" :model-value="isTransferFocused
+                    ? (payment.transfer.nominal === null ? '' : payment.transfer.nominal)
+                    : formatRupiah(payment.transfer.nominal ?? 0)" @update:model-value="
+                      payment.transfer.nominal = $event === '' ? null : Number(String($event).replace(/[^0-9]/g, ''))
+                      " @focus="isTransferFocused = true" @blur="isTransferFocused = false" type="text"
+                    variant="outlined" min="0" density="compact" hide-details class="text-end">
                     <template #prepend-inner>
                       <span class="input-prefix">Rp</span>
                     </template>
                   </v-text-field>
-                </v-col>
-              </v-row>
+                  <v-text-field label="Akun Bank"
+                    :model-value="`${payment.transfer.akun.kode || ''} - ${payment.transfer.akun.nama || ''}`" readonly
+                    @click="dialogs.rekeningSearch = true" prepend-inner-icon="mdi-magnify" variant="outlined"
+                    density="compact" hide-details />
+                  <v-text-field label="Tgl. Transfer" v-model="payment.transfer.tanggal" type="date" variant="outlined"
+                    density="compact" hide-details />
+                  <v-divider class="my-3" />
+                  <v-row dense>
+                    <v-col cols="6"><v-text-field label="No. Retur" v-model="payment.retur.nomor" variant="outlined"
+                        density="compact" hide-details readonly @click="dialogs.returJualSearch = true"
+                        @keydown.f1.prevent="dialogs.returJualSearch = true"
+                        prepend-inner-icon="mdi-magnify"></v-text-field>
+                    </v-col>
+                    <v-col cols="6"><v-text-field label="Nominal Retur" v-model.number="payment.retur.nominal"
+                        type="number" min="0" variant="outlined" density="compact" hide-details>
+                        <template #prepend-inner>
+                          <span class="input-prefix">Rp</span>
+                        </template>
+                      </v-text-field>
+                    </v-col>
+                  </v-row>
+                </v-window-item>
+                <v-window-item value="karyawan">
+                  <v-row dense>
+                    <v-col cols="12">
+                      <v-autocomplete label="Cari Karyawan (Ketik Nama / NIK)" placeholder="Ketik minimal 3 karakter..."
+                        v-model="karyawan.nik" :items="karyawanList" :loading="isSearchingKaryawan"
+                        item-title="kar_nama" item-value="kar_nik" variant="outlined" density="compact"
+                        hide-details="auto" clearable no-filter return-object @update:search="onSearchKaryawan"
+                        @update:model-value="onSelectKaryawan">
+                        <template v-slot:item="{ props, item }">
+                          <v-list-item v-bind="props" :title="item.raw.kar_nama" :subtitle="item.raw.kar_nik">
+                            <template v-slot:prepend>
+                              <v-icon icon="mdi-account-tie" color="primary"></v-icon>
+                            </template>
+                          </v-list-item>
+                        </template>
+
+                        <template v-slot:selection="{ item }">
+                          <span class="text-body-2 text-high-emphasis text-truncate"
+                            style="width: 100%; max-width: 100%; display: block;">
+                            <strong>{{ item.raw.kar_nik }}</strong> - {{ item.raw.kar_nama }}
+                          </span>
+                        </template>
+                      </v-autocomplete>
+                    </v-col>
+
+                    <v-col cols="12" v-if="karyawan.isValid">
+                      <v-card variant="tonal" color="info" class="mt-2">
+                        <v-card-text>
+                          <div class="text-subtitle-2 font-weight-bold">{{ karyawan.nama }}</div>
+                          <div class="text-caption mb-2">{{ karyawan.alamat }}</div>
+
+                          <v-divider class="mb-2"></v-divider>
+
+                          <div class="d-flex justify-space-between text-caption">
+                            <span>Limit Bulanan:</span>
+                            <strong>{{ formatRupiah(500000) }}</strong>
+                          </div>
+                          <div class="d-flex justify-space-between text-caption">
+                            <span>Terpakai Bulan Ini:</span>
+                            <strong>{{ formatRupiah(karyawan.terpakai) }}</strong>
+                          </div>
+                          <div class="d-flex justify-space-between text-caption mt-1">
+                            <span>Transaksi Ini:</span>
+                            <strong>{{ formatRupiah(totals.grandTotal) }}</strong>
+                          </div>
+
+                          <v-divider class="my-2"></v-divider>
+
+                          <div class="d-flex justify-space-between font-weight-bold"
+                            :class="isOverLimit ? 'text-red' : 'text-success'">
+                            <span>Status Limit:</span>
+                            <span>{{ isOverLimit ? 'MELEBIHI LIMIT (Butuh Otorisasi)' : 'AMAN' }}</span>
+                          </div>
+                        </v-card-text>
+                      </v-card>
+                    </v-col>
+                  </v-row>
+                </v-window-item>
+              </v-window>
             </div>
           </v-col>
         </v-row>
@@ -808,7 +1121,8 @@ watch(kembali, (newVal) => {
       <v-card-actions class="pa-4">
         <v-spacer />
         <v-btn @click="$emit('close')" :disabled="isSaving">Batal</v-btn>
-        <v-btn color="primary" @click="handleFinalSave" :loading="isSaving" prepend-icon="mdi-check-circle"
+        <v-btn color="primary" @click="handleFinalSave" :loading="isSaving" :disabled="isSaving"
+          prepend-icon="mdi-check-circle"
           size="large">
           Simpan Pembayaran & Invoice
         </v-btn>
@@ -903,7 +1217,7 @@ watch(kembali, (newVal) => {
               <div class="summary-item grand-total"><span>Grand Total </span><span>{{
                 formatRupiah(printKasirData.header.summary.grandTotal) }}</span></div>
               <div class="summary-item"><span>Bayar </span><span>{{ formatRupiah(printKasirData.header.summary.bayar)
-              }}</span></div>
+                  }}</span></div>
               <div class="summary-item" v-if="printKasirData.header.summary.pundiAmal">
                 <span>Pundi Amal </span>
                 <span>{{ formatRupiah(printKasirData.header.summary.pundiAmal) }}</span>

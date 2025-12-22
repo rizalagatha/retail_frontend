@@ -7,11 +7,22 @@ import { useAuthStore } from '@/stores/authStore';
 import { format, subDays } from 'date-fns';
 import PageLayout from '@/components/PageLayout.vue';
 import ProductSearchModal from '@/components/lookup/ProductSearchModal.vue';
-import AppDataTable from '@/components/AppDataTable.vue'; // Pastikan import ini ada
+import AppDataTable from '@/components/AppDataTable.vue';
 import * as XLSX from 'xlsx';
 import { AxiosError } from 'axios';
 
 // --- Tipe Data ---
+interface DataTableHeader {
+  title: string;
+  key: string;
+  width?: number;
+  fixed?: boolean;
+  align?: 'start' | 'center' | 'end';
+  minWidth?: string | number;
+  maxWidth?: string | number;
+  sortable?: boolean;
+}
+
 interface PackingListHeader {
   Nomor: string;
   Tanggal: string;
@@ -31,7 +42,6 @@ interface PackingListDetail {
   Nama: string;
   Ukuran: string;
   Jumlah: number;
-  [key: string]: unknown;
 }
 
 interface Product {
@@ -39,11 +49,18 @@ interface Product {
   nama: string;
 }
 
+interface ColumnFilter {
+  type: 'multi' | 'custom';
+  values?: (string | number)[];
+  operator?: string;
+  value?: string | number;
+}
+
 // --- Inisialisasi ---
 const router = useRouter();
 const toast = useToast();
 const authStore = useAuthStore();
-const MENU_ID = '224'; // Samakan dengan backend
+const MENU_ID = '224';
 
 // --- State ---
 const filters = reactive({
@@ -65,32 +82,169 @@ const dialog = reactive({ searchProduct: false, confirm: false });
 const confirmAction = ref<(() => void) | null>(null);
 const confirmText = ref('');
 
-// --- Computed ---
-const isSingleSelected = computed(() => selected.value.length === 1);
-const selectedRow = computed(() => isSingleSelected.value ? selected.value[0] : null);
+// --- State Filter & Resize ---
+const columnFilters = ref<Record<string, ColumnFilter>>({});
+const customFilterDialog = ref(false);
+const customFilter = reactive({ key: '', operator: '=', value: '' });
+const resizingColumn = ref<DataTableHeader | null>(null);
+const startX = ref(0);
+const startWidth = ref(0);
 
-// --- Konfigurasi Tabel ---
-const masterHeaders = [
-  { title: 'No. Packing List', key: 'Nomor', width: '150px' },
-  { title: 'Tanggal', key: 'Tanggal', width: '100px' },
-  { title: 'Store', key: 'Store', width: '80px' },
-  { title: 'Nama Store', key: 'Nama_Store', width: '180px' },
-  { title: 'No. Minta', key: 'NoMinta', width: '140px' },
-  { title: 'Status', key: 'Status', width: '80px', align: 'center' },
-  { title: 'No. SJ Final', key: 'NoSJFinal', width: '140px' },
-  { title: 'Keterangan', key: 'Keterangan' },
-  { title: 'User', key: 'Usr', width: '100px' },
-];
+// --- Header Definisi (Resizable) ---
+const masterHeaders = ref<DataTableHeader[]>([
+  { title: '', key: 'data-table-expand', width: 50, fixed: true },
+  { title: 'No. Packing List', key: 'Nomor', width: 160, fixed: true },
+  { title: 'Tanggal', key: 'Tanggal', width: 110 },
+  { title: 'Store', key: 'Store', width: 80 },
+  { title: 'Nama Store', key: 'Nama_Store', width: 200 },
+  { title: 'No. Minta', key: 'NoMinta', width: 150 },
+  { title: 'Status', key: 'Status', width: 100, align: 'center' },
+  { title: 'No. SJ Final', key: 'NoSJFinal', width: 150 },
+  { title: 'Keterangan', key: 'Keterangan', width: 300 },
+  { title: 'User', key: 'Usr', width: 100 },
+]);
 
 const detailHeaders = [
   { title: 'Kode', key: 'Kode', width: '120px' },
-  { title: 'Nama Barang', key: 'Nama' },
+  { title: 'Nama Barang', key: 'Nama', width: '300px' },
   { title: 'Ukuran', key: 'Ukuran', width: '80px' },
   { title: 'Jumlah', key: 'Jumlah', align: 'end', width: '100px' },
 ] as const;
 
-// --- Methods ---
-// [TAMBAHAN] Helper untuk format angka (hilangkan desimal)
+// --- Computed Properties ---
+const isSingleSelected = computed(() => selected.value.length === 1);
+const selectedRow = computed(() => isSingleSelected.value ? selected.value[0] : null);
+
+// --- Logic Filter Client-Side ---
+const filteredList = computed(() => {
+  let data = [...masterData.value];
+
+  for (const key in columnFilters.value) {
+    const f = columnFilters.value[key];
+
+    // MULTI FILTER
+    if (f.type === 'multi' && f.values) {
+      data = data.filter(row =>
+        f.values!.includes(row[key] as string | number)
+      );
+    }
+
+    // CUSTOM FILTER
+    if (f.type === 'custom' && f.value !== undefined) {
+      const target = String(f.value).toLowerCase();
+      data = data.filter(row => {
+        const v = row[key];
+        if (v === null || v === undefined) return false;
+        const s = String(v).toLowerCase();
+
+        switch (f.operator) {
+          case '=': return s === target;
+          case '!=': return s !== target;
+          case '>': return Number(s) > Number(target);
+          case '>=': return Number(s) >= Number(target);
+          case '<': return Number(s) < Number(target);
+          case '<=': return Number(s) <= Number(target);
+          case 'contains': return s.includes(target);
+          case 'starts': return s.startsWith(target);
+          case 'ends': return s.endsWith(target);
+          default: return true;
+        }
+      });
+    }
+  }
+  return data;
+});
+
+// --- Methods: Filter Logic ---
+const uniqueValues = (key: string): Array<string | number> => {
+  return Array.from(
+    new Set(
+      masterData.value
+        .map(i => i[key] as string | number | null | undefined)
+        .filter((v): v is string | number => v !== null && v !== undefined && v !== '')
+    )
+  ).sort((a, b) => String(a).localeCompare(String(b)));
+};
+
+const formatFilterValue = (key: string, val: string | number) => {
+  if (!val) return '-';
+  if (['Tanggal'].includes(key)) {
+    try {
+      return format(new Date(String(val)), 'dd/MM/yyyy');
+    } catch {
+      return val;
+    }
+  }
+  return val;
+};
+
+const filterType = (key: string) => columnFilters.value[key]?.type ?? '';
+const isFilterActive = (key: string) => Boolean(columnFilters.value[key]);
+const clearColumnFilter = (key: string) => { delete columnFilters.value[key]; };
+
+const toggleMultiSelectValue = (key: string, value: string | number) => {
+  const f = columnFilters.value[key];
+  if (!f || f.type !== 'multi') {
+    columnFilters.value[key] = { type: 'multi', values: [value] };
+    return;
+  }
+  const arr = f.values ?? [];
+  if (arr.includes(value)) {
+    f.values = arr.filter(v => v !== value);
+    if (f.values.length === 0) delete columnFilters.value[key];
+  } else {
+    f.values = [...arr, value];
+  }
+};
+
+const openCustomFilter = (key: string) => {
+  customFilter.key = key;
+  customFilter.operator = '=';
+  customFilter.value = '';
+  customFilterDialog.value = true;
+};
+
+const applyCustomFilter = () => {
+  columnFilters.value[customFilter.key] = {
+    type: 'custom',
+    operator: customFilter.operator,
+    value: customFilter.value
+  };
+  customFilterDialog.value = false;
+};
+
+const resetAllFilters = () => {
+  columnFilters.value = {};
+};
+
+// --- Methods: Resize Logic ---
+const onResizeStart = (e: MouseEvent, column: DataTableHeader) => {
+  e.preventDefault(); e.stopPropagation();
+  resizingColumn.value = column;
+  startX.value = e.pageX;
+  startWidth.value = (typeof column.width === 'number' ? column.width : 100);
+  document.addEventListener('mousemove', onResizeMove);
+  document.addEventListener('mouseup', onResizeEnd);
+  document.body.style.cursor = 'col-resize';
+};
+const onResizeMove = (e: MouseEvent) => {
+  if (!resizingColumn.value) return;
+  const diff = e.pageX - startX.value;
+  resizingColumn.value.width = Math.max(50, startWidth.value + diff);
+};
+const onResizeEnd = () => {
+  resizingColumn.value = null;
+  document.removeEventListener('mousemove', onResizeMove);
+  document.removeEventListener('mouseup', onResizeEnd);
+  document.body.style.cursor = '';
+};
+
+// --- Logic Selection ---
+const handleRowClick = (_event: Event, { item }: { item: PackingListHeader }) => {
+  selected.value = [item];
+};
+
+// --- Methods: Data ---
 const formatNumber = (val: number | string) => {
   return Number(val).toLocaleString('id-ID');
 };
@@ -137,23 +291,20 @@ const loadDetails = async (newlyExpandedItems: PackingListHeader[]) => {
   }
 };
 
-// Navigasi ke Form Create
+// --- Actions ---
 const handleNew = () => router.push({ name: 'PackingListCreate' });
 
-// Navigasi ke Form Edit
 const handleEdit = () => {
   if (!selectedRow.value) return;
-  // Validasi: Jika sudah Closed (Jadi SJ), tidak bisa edit
-  if (selectedRow.value.Status === 'C') {
+  if (selectedRow.value.Status === 'C' || selectedRow.value.Status === 'SENT') {
     return toast.warning('Packing List sudah diproses menjadi Surat Jalan. Tidak bisa diubah.');
   }
   router.push({ name: 'PackingListEdit', params: { nomor: selectedRow.value.Nomor } });
 };
 
-// Hapus Data
 const showDeleteConfirmation = () => {
   if (!selectedRow.value) return;
-  if (selectedRow.value.Status === 'C') {
+  if (selectedRow.value.Status === 'C' || selectedRow.value.Status === 'SENT') {
     return toast.warning('Packing List sudah diproses menjadi Surat Jalan. Tidak bisa dihapus.');
   }
   confirmAction.value = executeDelete;
@@ -173,49 +324,32 @@ const executeDelete = async () => {
   }
 };
 
-// Fungsi untuk tombol Cetak di Header
 const handlePrint = () => {
-  // Pastikan ada 1 item yang dipilih
   if (selected.value.length !== 1) return;
-
-  const item = selected.value[0]; // Ambil item pertama dari array seleksi
-
-  const url = router.resolve({
-    name: 'PackingListPrint',
-    params: { nomor: item.Nomor }
-  }).href;
-
+  const item = selected.value[0];
+  const url = router.resolve({ name: 'PackingListPrint', params: { nomor: item.Nomor } }).href;
   window.open(url, '_blank');
 };
 
-// Export Excel
 const exportData = async (type: 'header' | 'detail') => {
   if (type === 'header') {
     if (masterData.value.length === 0) return toast.warning('Tidak ada data header.');
     try {
-      toast.info('Membuat file Excel Header...');
       const worksheet = XLSX.utils.json_to_sheet(masterData.value);
       const workbook = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(workbook, worksheet, "PL Header");
       XLSX.writeFile(workbook, "Export_Packing_List_Header.xlsx");
-      toast.success('File Header berhasil dibuat.');
     } catch {
       toast.error('Gagal membuat file Excel.');
     }
   } else if (type === 'detail') {
     try {
-      toast.info('Mengambil data detail...');
       const response = await api.get('/packing-list/export-details', { params: filters });
-      const detailsData = response.data;
-
-      if (detailsData.length === 0) return toast.warning('Tidak ada data detail.');
-
-      toast.info('Membuat file Excel Detail...');
-      const worksheet = XLSX.utils.json_to_sheet(detailsData);
+      if (response.data.length === 0) return toast.warning('Tidak ada data detail.');
+      const worksheet = XLSX.utils.json_to_sheet(response.data);
       const workbook = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(workbook, worksheet, "PL Detail");
       XLSX.writeFile(workbook, "Export_Packing_List_Detail.xlsx");
-      toast.success('File Detail berhasil dibuat.');
     } catch {
       toast.error('Gagal mengekspor data detail.');
     }
@@ -230,40 +364,31 @@ const onProductSelected = (products: Product[]) => {
   dialog.searchProduct = false;
 };
 
-// 1. Update Helper Teks (Sesuai update backend sebelumnya)
+// --- Helpers Display ---
 const getStatusText = (status: string) => {
   if (status === 'O' || status === 'OPEN') return 'OPEN';
-  if (status === 'SENT') return 'KIRIM (OTW)';
+  if (status === 'SENT' || status === 'C') return 'KIRIM (OTW)';
   if (status === 'RECEIVED') return 'DITERIMA';
-  return 'PROCESSED'; // Fallback
+  return status;
 };
 
-// 2. Update Helper Warna Chip (Sinkron dengan permintaan warna baris)
 const getStatusChipColor = (status: string) => {
-  if (status === 'O' || status === 'OPEN') return 'red';        // Merah
-  if (status === 'SENT') return 'blue';                         // Biru
-  if (status === 'RECEIVED') return 'grey-darken-3';            // Hitam/Gelap
-  return 'blue';
+  if (status === 'O' || status === 'OPEN') return 'red';
+  if (status === 'SENT' || status === 'C') return 'blue';
+  if (status === 'RECEIVED') return 'grey-darken-3';
+  return 'grey';
 };
 
-// 3. [BARU] Helper Warna Baris (Row Text Color)
 const rowProps = (data: { item: PackingListHeader }) => {
   const item = data.item;
   let textColor = '';
-
-  // Logika Warna Baris
   if (item.Status === 'O' || item.Status === 'OPEN') {
-    textColor = 'text-red font-weight-medium'; // Merah: Belum dibuat SJ
-  } else if (item.Status === 'SENT') {
-    textColor = 'text-blue'; // Biru: Sudah SJ (Sedang dikirim)
-  } else if (item.Status === 'RECEIVED') {
-    textColor = ''; // Hitam: Default (Sudah diterima)
+    textColor = 'text-red font-weight-medium';
+  } else if (item.Status === 'SENT' || item.Status === 'C') {
+    textColor = 'text-blue';
   } else {
-    // Fallback jika backend masih kirim status lama 'C'
-    // Jika 'C' tapi belum ada NoTerima -> Biru, Jika ada -> Hitam
-    textColor = (!item.NoTerima || item.NoTerima === '-') ? 'text-blue' : '';
+    textColor = '';
   }
-
   return { class: textColor };
 };
 
@@ -280,48 +405,30 @@ onMounted(async () => {
 let debounceTimer: number;
 watch(filters, () => {
   clearTimeout(debounceTimer);
-  debounceTimer = setTimeout(() => {
-    fetchMasterData();
-  }, 500);
+  debounceTimer = setTimeout(() => { fetchMasterData(); }, 500);
 }, { deep: true });
 
-watch(() => filters.kodeBarang, (newVal) => {
-  if (!newVal) filters.namaBarang = '';
-});
+watch(() => filters.kodeBarang, (newVal) => { if (!newVal) filters.namaBarang = ''; });
 </script>
 
 <template>
   <PageLayout title="Packing List / Pra-SJ" icon="mdi-package-variant-closed">
     <template #header-actions>
       <v-btn v-if="authStore.can(MENU_ID, 'insert')" size="small" color="primary" prepend-icon="mdi-plus"
-        @click="handleNew">
-        Baru
-      </v-btn>
+        @click="handleNew">Baru</v-btn>
       <v-btn v-if="authStore.can(MENU_ID, 'edit')" size="small" :disabled="!isSingleSelected" prepend-icon="mdi-pencil"
-        @click="handleEdit">
-        Ubah
-      </v-btn>
+        @click="handleEdit">Ubah</v-btn>
       <v-btn v-if="authStore.can(MENU_ID, 'delete')" size="small" color="error" :disabled="!isSingleSelected"
-        prepend-icon="mdi-delete" @click="showDeleteConfirmation">
-        Hapus
-      </v-btn>
+        prepend-icon="mdi-delete" @click="showDeleteConfirmation">Hapus</v-btn>
       <v-btn size="small" color="secondary" prepend-icon="mdi-printer" :disabled="!isSingleSelected"
-        @click="handlePrint">
-        Cetak
-      </v-btn>
+        @click="handlePrint">Cetak</v-btn>
       <v-menu offset-y>
         <template v-slot:activator="{ props }">
-          <v-btn size="small" color="teal" prepend-icon="mdi-file-excel" v-bind="props">
-            Export
-          </v-btn>
+          <v-btn size="small" color="teal" prepend-icon="mdi-file-excel" v-bind="props">Export</v-btn>
         </template>
         <v-list density="compact">
-          <v-list-item @click="exportData('header')">
-            <v-list-item-title>Export Header</v-list-item-title>
-          </v-list-item>
-          <v-list-item @click="exportData('detail')">
-            <v-list-item-title>Export Detail</v-list-item-title>
-          </v-list-item>
+          <v-list-item @click="exportData('header')"><v-list-item-title>Export Header</v-list-item-title></v-list-item>
+          <v-list-item @click="exportData('detail')"><v-list-item-title>Export Detail</v-list-item-title></v-list-item>
         </v-list>
       </v-menu>
     </template>
@@ -330,9 +437,9 @@ watch(() => filters.kodeBarang, (newVal) => {
       <div class="filter-section">
         <v-divider vertical class="mx-2" />
         <v-label class="filter-label">Tanggal:</v-label>
-        <v-text-field v-model="filters.startDate" type="date" density="compact" hide-details />
-        <v-label class="filter-label">s/d</v-label>
-        <v-text-field v-model="filters.endDate" type="date" density="compact" hide-details />
+        <v-text-field v-model="filters.startDate" type="date" density="compact" hide-details variant="outlined" />
+        <v-label class="filter-label mx-2">s/d</v-label>
+        <v-text-field v-model="filters.endDate" type="date" density="compact" hide-details variant="outlined" />
 
         <v-select label="Cabang Tujuan" v-model="filters.cabang" :items="cabangList" item-title="nama" item-value="kode"
           density="compact" hide-details variant="outlined" class="ms-4" style="max-width: 200px;" />
@@ -341,18 +448,74 @@ watch(() => filters.kodeBarang, (newVal) => {
           clearable variant="outlined" style="max-width: 300px;" @keydown.f1.prevent="dialog.searchProduct = true">
         </v-text-field>
         <v-text-field v-model="filters.namaBarang" placeholder="Nama Barang" density="compact" hide-details readonly
-          variant="outlined" class="filter-nama-barang" style="max-width: 200px;">
+          variant="outlined" class="filter-nama-barang ms-2" style="max-width: 200px;">
         </v-text-field>
 
         <v-spacer />
-        <v-btn @click="fetchMasterData" icon="mdi-refresh" variant="text" size="small" />
+
+        <v-btn class="reset-filter-btn ms-2" color="error" variant="tonal" icon @click="resetAllFilters">
+          <v-icon size="18">mdi-filter-off</v-icon>
+        </v-btn>
+
+        <v-btn @click="fetchMasterData" icon="mdi-refresh" variant="text" size="small" class="ms-2" />
       </div>
 
       <div class="table-container">
-        <AppDataTable v-model="selected" v-model:expanded="expanded" :headers="masterHeaders" :items="masterData"
+        <AppDataTable v-model="selected" v-model:expanded="expanded" :headers="masterHeaders" :items="filteredList"
           :loading="loading" :row-props="rowProps" item-value="Nomor" density="compact"
-          class="desktop-table header-browse-blue" fixed-header show-select return-object show-expand
-          @update:expanded="loadDetails">
+          class="desktop-table header-browse-blue" fixed-header show-select show-expand return-object single-select
+          @update:expanded="loadDetails" @click:row="handleRowClick">
+          <template #headers="{ columns, isSorted, getSortIcon, toggleSort }">
+            <tr>
+              <template v-for="header in columns" :key="header.key">
+                <th v-if="['data-table-expand', 'data-table-select'].includes(header.key)"
+                  :style="{ width: header.width + 'px' }" class="resizable-header">
+                  <div class="header-content"><span>{{ header.title }}</span></div>
+                  <div class="resizer" @mousedown.stop="onResizeStart($event, header)" />
+                </th>
+
+                <th v-else :style="{ width: header.width + 'px' }" class="resizable-header" @click="toggleSort(header)">
+                  <div class="header-content">
+                    <span>{{ header.title }}</span>
+                    <v-icon v-if="isSorted(header)" size="14">{{ getSortIcon(header) }}</v-icon>
+
+                    <v-menu location="bottom start" :close-on-content-click="false">
+                      <template #activator="{ props }">
+                        <v-icon v-bind="props" size="16" class="ms-1" @click.stop
+                          :color="isFilterActive(header.key) ? 'blue' : ''"
+                          :icon="filterType(header.key) === 'custom' ? 'mdi-filter-cog' : filterType(header.key) === 'multi' ? 'mdi-filter-multiple' : 'mdi-filter-variant'" />
+                      </template>
+                      <v-list class="filter-menu" density="compact">
+                        <v-list-item @click="clearColumnFilter(header.key)">
+                          <v-list-item-title class="text-caption font-weight-bold text-error">(Clear
+                            Filter)</v-list-item-title>
+                        </v-list-item>
+                        <v-divider />
+                        <v-list-item v-for="val in uniqueValues(header.key)" :key="val"
+                          @click="toggleMultiSelectValue(header.key, val)">
+                          <template #prepend>
+                            <v-checkbox-btn :model-value="columnFilters[header.key]?.values?.includes(val)"
+                              density="compact" />
+                          </template>
+                          <v-list-item-title>{{ formatFilterValue(header.key, val) }}</v-list-item-title>
+                        </v-list-item>
+                        <v-divider />
+                        <v-list-item @click="openCustomFilter(header.key)">
+                          <v-list-item-title class="text-caption text-primary">(Custom Filter...)</v-list-item-title>
+                        </v-list-item>
+                      </v-list>
+                    </v-menu>
+                  </div>
+                  <div class="resizer" @mousedown.stop="onResizeStart($event, header)" />
+                </th>
+              </template>
+            </tr>
+          </template>
+
+          <template #[`item.data-table-expand`]="{ internalItem, toggleExpand, isExpanded }">
+            <v-btn icon="mdi-chevron-down" :class="{ 'rotate-180': isExpanded(internalItem) }" size="x-small"
+              variant="text" @click.stop="toggleExpand(internalItem)" />
+          </template>
 
           <template #[`item.Nomor`]="{ item }">
             <strong>{{ item.Nomor }}</strong>
@@ -376,7 +539,7 @@ watch(() => filters.kodeBarang, (newVal) => {
 
           <template #expanded-row="{ columns, item }">
             <tr>
-              <td :colspan="columns.length">
+              <td :colspan="columns.length" class="pa-0">
                 <div class="detail-container">
                   <div class="detail-table-wrapper">
                     <div v-if="loadingDetails.has(item.Nomor)" class="state-container pa-4">
@@ -384,7 +547,7 @@ watch(() => filters.kodeBarang, (newVal) => {
                       <div class="mt-2 text-caption">Memuat detail...</div>
                     </div>
                     <v-data-table v-else-if="details[item.Nomor]" class="detail-table" :headers="detailHeaders"
-                      :items="details[item.Nomor]" density="compact" :items-per-page="-1">
+                      :items="details[item.Nomor]" density="compact" :items-per-page="-1" hide-default-footer>
                       <template #[`item.Jumlah`]="{ item }">
                         <strong>{{ formatNumber(item.Jumlah) }}</strong>
                       </template>
@@ -419,10 +582,158 @@ watch(() => filters.kodeBarang, (newVal) => {
         </v-card-actions>
       </v-card>
     </v-dialog>
+
+    <v-dialog v-model="customFilterDialog" max-width="350px">
+      <v-card>
+        <v-card-title class="text-subtitle-1 font-weight-bold">Custom Filter</v-card-title>
+        <v-card-text>
+          <v-select v-model="customFilter.operator"
+            :items="['=', '!=', '>', '>=', '<', '<=', 'contains', 'starts', 'ends']" density="compact" hide-details
+            class="mb-2" />
+          <v-text-field v-model="customFilter.value" density="compact" hide-details autofocus placeholder="Value..." />
+        </v-card-text>
+        <v-card-actions>
+          <v-spacer />
+          <v-btn text @click="customFilterDialog = false">Batal</v-btn>
+          <v-btn color="primary" @click="applyCustomFilter">Terapkan</v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
   </PageLayout>
 </template>
 
 <style scoped>
+/* Layout Full Height */
+.browse-content {
+  display: flex;
+  flex-direction: column;
+  height: calc(100vh - 64px - 32px);
+  overflow: hidden;
+}
+
+.filter-section {
+  flex-shrink: 0;
+  padding: 8px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background-color: rgb(var(--v-theme-surface));
+  border-bottom: 1px solid rgba(var(--v-theme-on-surface), 0.12);
+}
+
+.table-container {
+  flex-grow: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* Table Style */
+.desktop-table {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.desktop-table :deep(.v-table__wrapper) {
+  flex-grow: 1;
+  height: 100% !important;
+}
+
+.desktop-table :deep(table) {
+  width: max-content;
+  min-width: 100%;
+}
+
+/* Header Resize */
+.resizable-header {
+  position: relative;
+  background-color: #e3f2fd !important;
+  color: #0d47a1 !important;
+  font-weight: 700 !important;
+  text-transform: uppercase;
+  font-size: 11px !important;
+  height: 40px !important;
+  border-bottom: 2px solid #1976d2 !important;
+  padding: 0 8px !important;
+  user-select: none;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  cursor: pointer;
+}
+
+.header-content {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  height: 100%;
+}
+
+.resizer {
+  position: absolute;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  width: 5px;
+  cursor: col-resize;
+  z-index: 10;
+}
+
+.resizer:hover,
+.resizable-header:hover .resizer {
+  border-right: 2px solid #1565c0;
+}
+
+/* Detail Sticky (Left) */
+.detail-container {
+  position: sticky;
+  left: 0;
+  background-color: rgb(var(--v-theme-surface));
+  border-bottom: 1px solid rgba(var(--v-theme-on-surface), 0.12);
+  padding: 16px;
+  width: 100%;
+  box-sizing: border-box;
+  display: flex;
+  justify-content: flex-start;
+}
+
+.detail-table-wrapper {
+  width: 100%;
+  max-width: 900px;
+  border: 1px solid rgba(var(--v-theme-on-surface), 0.12);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.detail-table :deep(thead tr th) {
+  background-color: rgba(var(--v-theme-on-surface), 0.04) !important;
+  color: rgb(var(--v-theme-on-surface)) !important;
+  font-size: 11px !important;
+  height: 32px !important;
+}
+
+.filter-menu {
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+/* --- TOMBOL RESET FILTER --- */
+.reset-filter-btn {
+  width: 40px;
+  height: 40px;
+
+  border-radius: 6px !important;
+  /* sama seperti input */
+  background-color: rgba(211, 47, 47, 0.15) !important;
+}
+
+.reset-filter-btn:hover {
+  background-color: rgba(211, 47, 47, 0.25) !important;
+}
+
 .filter-nama-barang :deep(input) {
   font-size: 11px !important;
 }

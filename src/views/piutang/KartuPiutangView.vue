@@ -662,19 +662,4 @@ watch(filters, () => {
 .reset-filter-btn:hover {
   background-color: rgba(var(--v-theme-error), 0.28) !important;
 }
-
-.reset-filter-btn {
-  height: 36px !important;
-  min-width: 120px !important;
-  padding: 0 16px !important;
-  font-size: 0.875rem !important;
-  text-transform: none !important;
-
-  color: rgb(var(--v-theme-error)) !important;
-  background-color: rgba(var(--v-theme-error), 0.18) !important;
-}
-
-.reset-filter-btn:hover {
-  background-color: rgba(var(--v-theme-error), 0.28) !important;
-}
 </style>

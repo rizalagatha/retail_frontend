@@ -135,7 +135,7 @@ const totalTitik = computed(() => {
 });
 
 const isHargaReadonly = computed(() => {
-  const autoCalcTypes = ['SD', 'DP', 'TG', 'BR'];
+  const autoCalcTypes = ['SB','SD', 'DP', 'TG', 'BR'];
   return autoCalcTypes.includes(form.value.jenisOrderKode);
 });
 

@@ -799,6 +799,7 @@ watch(stokKosongCabang, () => {
 });
 
 watch(searchStokKosong, () => {
+  if (searchStokKosong.value.length < 3) return;
   clearTimeout(searchStokKosongTimeout);
   searchStokKosongTimeout = setTimeout(() => {
     fetchStokKosong();
@@ -823,7 +824,6 @@ const startPolling = () => {
     fetchTotalStock(true);
     fetchLowStockData(true);
     fetchSalesTargetSummary(true);
-    fetchStokKosong(true);
     fetchRecentTransactions(true);
     fetchSalesChartData(true);
     fetchTopProducts(true);
@@ -857,7 +857,6 @@ onMounted(() => {
     fetchPiutangBreakdown();
     fetchPiutangByInvoice();
     fetchTotalStock();
-    fetchStokKosong();
     startPolling();
   }
   intervalId = window.setInterval(() => {

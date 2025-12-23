@@ -722,6 +722,10 @@ const calculatePrices = async () => {
 
   // Menentukan harga berdasarkan Jenis Order (mirip blok if/else if di Delphi)
   switch (jenisOrder) {
+    case 'SB': // DTF Premium
+      hargaPerCm = 35;
+      hargaSatuan = totalLuas * hargaPerCm;
+      break;
     case 'SD': // Sablon
       hargaPerCm = form.value.customerLevel === 'KORPORASI' ? 15 : 25;
       hargaSatuan = totalHargaDtf.value / totalJumlahKaos.value;

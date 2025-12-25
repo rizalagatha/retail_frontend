@@ -6,6 +6,7 @@ import { format, parseISO } from 'date-fns';
 import type { AxiosError } from 'axios';
 import type { DataTableHeader } from 'vuetify';
 
+// --- Interfaces (Sesuai camelCase Backend) ---
 interface ReturJualInvoice {
   nomor: string;
   tanggal: string;
@@ -13,39 +14,24 @@ interface ReturJualInvoice {
 }
 
 interface PotonganPiutangInvoice {
-  Invoice: string;
-  TglInvoice: string;
-  Top: number;
-  JatuhTempo: string;
-  Nominal: number;
-  Bayar: number;
-  Sisa: number;
+  invoice: string;
+  tanggalInvoice: string;
+  top: number;
+  jatuhTempo: string;
+  nominalInvoice: number;
+  terbayarPiutang: number;
+  sisaPiutang: number;
 }
 
 interface Props {
-  source: string; // 'retur-jual' atau 'potongan-piutang'
+  source: string;
   customerKode?: string;
   gudangKode?: string;
 }
 
-type ReturItem = {
-  nomor: string;
-  tanggal: string;
-  cus_nama: string;
-};
-
-type PiutangItem = {
-  Invoice: string;
-  TglInvoice: string;
-  Top: number;
-  JatuhTempo: string;
-  Nominal: number;
-  Bayar: number;
-  Sisa: number;
-};
-
-type TableItem = ReturItem | PiutangItem;
+// Union Type
 type Invoice = ReturJualInvoice | PotonganPiutangInvoice;
+
 const props = defineProps<Props>();
 const emit = defineEmits(['close', 'invoice-selected']);
 const toast = useToast();
@@ -54,20 +40,20 @@ const items = ref<Invoice[]>([]);
 const loading = ref(true);
 const search = ref('');
 
+// --- Headers ---
 const headers = computed<DataTableHeader[]>(() => {
   if (props.source === 'potongan-piutang') {
     return [
-      { title: 'No. Invoice', key: 'Invoice' },
-      { title: 'Tgl. Invoice', key: 'TglInvoice' },
-      { title: 'TOP', key: 'Top', align: 'end' },
-      { title: 'Jatuh Tempo', key: 'JatuhTempo' },
-      { title: 'Nominal', key: 'Nominal', align: 'end' },
-      { title: 'Terbayar', key: 'Bayar', align: 'end' },
-      { title: 'Sisa Piutang', key: 'Sisa', align: 'end' },
+      { title: 'No. Invoice', key: 'invoice', width: '180px' },
+      { title: 'Tgl. Invoice', key: 'tanggalInvoice', width: '120px' },
+      { title: 'TOP', key: 'top', align: 'end', width: '80px' },
+      { title: 'Jatuh Tempo', key: 'jatuhTempo', width: '120px' },
+      { title: 'Nominal', key: 'nominalInvoice', align: 'end', width: '120px' },
+      { title: 'Terbayar', key: 'terbayarPiutang', align: 'end', width: '120px' },
+      { title: 'Sisa Piutang', key: 'sisaPiutang', align: 'end', width: '120px' },
     ];
   }
-
-  // Default (untuk 'retur-jual')
+  // Default (retur-jual)
   return [
     { title: 'Nomor Invoice', key: 'nomor' },
     { title: 'Tanggal', key: 'tanggal' },
@@ -75,6 +61,71 @@ const headers = computed<DataTableHeader[]>(() => {
   ];
 });
 
+// --- Helper Formatting & Type Safety ---
+
+const formatDateStr = (dateStr: string) => {
+  if (!dateStr) return '-';
+  try {
+    return format(parseISO(dateStr), 'dd/MM/yyyy');
+  } catch {
+    return dateStr;
+  }
+};
+
+const formatNum = (num: number) => {
+  return (num || 0).toLocaleString('id-ID');
+};
+
+// [SOLUSI TANPA ANY]
+// Fungsi-fungsi ini menerima 'Invoice' (Union Type) dan mengecek properti secara aman
+// sebelum mengaksesnya.
+
+// 1. Getter untuk Retur Jual
+const getTanggalRetur = (item: Invoice) => {
+  // Cek apakah properti 'tanggal' ada di item
+  if ('tanggal' in item) {
+    return formatDateStr(item.tanggal);
+  }
+  return '';
+};
+
+// 2. Getter untuk Potongan Piutang
+const getTanggalInvoice = (item: Invoice) => {
+  if ('tanggalInvoice' in item) {
+    return formatDateStr(item.tanggalInvoice);
+  }
+  return '';
+};
+
+const getJatuhTempo = (item: Invoice) => {
+  if ('jatuhTempo' in item) {
+    return formatDateStr(item.jatuhTempo);
+  }
+  return '';
+};
+
+const getNominal = (item: Invoice) => {
+  if ('nominalInvoice' in item) {
+    return formatNum(item.nominalInvoice);
+  }
+  return '0';
+};
+
+const getTerbayar = (item: Invoice) => {
+  if ('terbayarPiutang' in item) {
+    return formatNum(item.terbayarPiutang);
+  }
+  return '0';
+};
+
+const getSisa = (item: Invoice) => {
+  if ('sisaPiutang' in item) {
+    return formatNum(item.sisaPiutang);
+  }
+  return '0';
+};
+
+// --- Logic Load Data ---
 const loadItems = async () => {
   loading.value = true;
   try {
@@ -107,30 +158,24 @@ const filteredItems = computed(() => {
   if (!search.value) return items.value;
   const lower = search.value.toLowerCase();
 
-  if (props.source === 'potongan-piutang') {
-    return items.value.filter(
-      (item): item is PotonganPiutangInvoice =>
-        'Invoice' in item && item.Invoice.toLowerCase().includes(lower)
-    );
-  }
-
-  // Default (retur-jual)
-  return items.value.filter(
-    (item): item is ReturJualInvoice =>
-      'nomor' in item &&
-      (item.nomor.toLowerCase().includes(lower) ||
-        item.cus_nama.toLowerCase().includes(lower))
-  );
+  return items.value.filter((item) => {
+    // Type Guard manual untuk filter
+    if ('invoice' in item) {
+      return item.invoice.toLowerCase().includes(lower);
+    } else if ('nomor' in item) {
+      return (
+        item.nomor.toLowerCase().includes(lower) ||
+        item.cus_nama.toLowerCase().includes(lower)
+      );
+    }
+    return false;
+  });
 });
 
-const selectItem = (item: Invoice) => {
-  emit('invoice-selected', item);
+const handleRowClick = (_: Event, row: { item: Invoice }) => {
+  emit('invoice-selected', row.item);
   emit('close');
 };
-
-function isPiutangItem(item: TableItem): item is PiutangItem {
-  return 'Invoice' in item;
-}
 
 onMounted(loadItems);
 </script>
@@ -143,31 +188,39 @@ onMounted(loadItems);
         <v-spacer></v-spacer>
         <v-btn icon="mdi-close" @click="$emit('close')" variant="text" size="small"></v-btn>
       </v-toolbar>
+
       <v-card-text class="pa-4 d-flex flex-column flex-grow-1">
         <v-text-field v-model="search" label="Cari berdasarkan Nomor, Tanggal, atau Customer..."
           prepend-inner-icon="mdi-magnify" variant="outlined" density="compact" clearable hide-details autofocus
-          class="mb-4 flex-shrink-0"></v-text-field>
+          class="mb-4 flex-shrink-0">
+        </v-text-field>
 
-        <v-data-table :headers="headers" :items="filteredItems" :loading="loading" :search="search" hover
-          density="compact" fixed-header class="flex-grow-1">
-          <template #item="{ item }">
-            <tr @click="selectItem(item)" style="cursor: pointer;">
-              <template v-if="isPiutangItem(item)">
-                <td>{{ item.Invoice }}</td>
-                <td>{{ format(parseISO(item.TglInvoice), 'dd/MM/yyyy') }}</td>
-                <td class="text-end">{{ item.Top }}</td>
-                <td>{{ item.JatuhTempo }}</td>
-                <td class="text-end">{{ (item.Nominal || 0).toLocaleString('id-ID') }}</td>
-                <td class="text-end">{{ (item.Bayar || 0).toLocaleString('id-ID') }}</td>
-                <td class="text-end">{{ (item.Sisa || 0).toLocaleString('id-ID') }}</td>
-              </template>
-              <template v-else>
-                <td>{{ item.nomor }}</td>
-                <td>{{ format(parseISO(item.tanggal), 'dd/MM/yyyy') }}</td>
-                <td>{{ item.cus_nama }}</td>
-              </template>
-            </tr>
+        <v-data-table :headers="headers" :items="filteredItems" :loading="loading" hover density="compact" fixed-header
+          class="flex-grow-1" @click:row="handleRowClick">
+          <template #[`item.tanggal`]="{ item }">
+            {{ getTanggalRetur(item) }}
           </template>
+
+          <template #[`item.tanggalInvoice`]="{ item }">
+            {{ getTanggalInvoice(item) }}
+          </template>
+
+          <template #[`item.jatuhTempo`]="{ item }">
+            {{ getJatuhTempo(item) }}
+          </template>
+
+          <template #[`item.nominalInvoice`]="{ item }">
+            {{ getNominal(item) }}
+          </template>
+
+          <template #[`item.terbayarPiutang`]="{ item }">
+            {{ getTerbayar(item) }}
+          </template>
+
+          <template #[`item.sisaPiutang`]="{ item }">
+            {{ getSisa(item) }}
+          </template>
+
           <template #no-data>
             <div class="text-center pa-4">Tidak ada data invoice.</div>
           </template>

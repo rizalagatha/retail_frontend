@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, ref, watch } from 'vue';
+import { ref, watch } from 'vue';
 import api from '@/services/api';
 import { useToast } from 'vue-toastification';
 
@@ -13,6 +13,7 @@ interface ProductVariant {
   ukuran: string;
   harga: number;
   stok: number;
+  kategori?: string;
 }
 
 // --- Props & Emits ---
@@ -29,22 +30,25 @@ const emit = defineEmits(['close', 'products-selected']);
 // --- State ---
 const items = ref<ProductVariant[]>([]);
 const totalItems = ref(0);
-const loading = ref(true);
+const loading = ref(false);
 const search = ref('');
 const options = ref({ page: 1, itemsPerPage: 25 });
 const selected = ref<ProductVariant[]>([]);
+const requestId = ref(0);
 
 const headers = [
-  { title: 'Kode', key: 'kode', sortable: false },
-  { title: 'Barcode', key: 'barcode', sortable: false },
-  { title: 'Nama Barang', key: 'nama', sortable: false, width: '30%' },
-  { title: 'Ukuran', key: 'ukuran', sortable: false },
-  { title: 'Harga', key: 'harga', sortable: false, align: 'end' as const },
-  { title: 'Stok', key: 'stok', sortable: false, align: 'end' as const },
+  { title: 'Kode', key: 'kode', sortable: false, width: '120px' },
+  { title: 'Barcode', key: 'barcode', sortable: false, width: '120px' },
+  { title: 'Nama Barang', key: 'nama', sortable: false },
+  { title: 'Kategori', key: 'kategori', sortable: false, width: '100px' }, // [BARU] Kolom Kategori
+  { title: 'Ukuran', key: 'ukuran', sortable: false, width: '80px' },
+  { title: 'Harga', key: 'harga', sortable: false, align: 'end' as const, width: '100px' },
+  { title: 'Stok', key: 'stok', sortable: false, align: 'end' as const, width: '80px' },
 ];
 
 // --- Methods ---
 const loadItems = async (opts: { page: number, itemsPerPage: number }) => {
+  const currentRequestId = ++requestId.value;
   loading.value = true;
   try {
     // Tentukan endpoint berdasarkan source
@@ -72,9 +76,10 @@ const loadItems = async (opts: { page: number, itemsPerPage: number }) => {
         promoNomor: props.promoNomor,
       },
     });
-    items.value = (response.data.items || []).sort((a, b) => {
-      return a.barcode.localeCompare(b.barcode);
-    });
+    if (currentRequestId === requestId.value) {
+      items.value = (response.data.items || []);
+      totalItems.value = response.data.total || 0;
+    }
     totalItems.value = response.data.total || 0;
   } catch (error) {
     console.error("Gagal memuat data produk:", error);
@@ -87,13 +92,15 @@ const loadItems = async (opts: { page: number, itemsPerPage: number }) => {
 const selectAndClose = (item: ProductVariant | null) => {
   if (props.multi) {
     if (selected.value.length > 0) {
-      emit('products-selected', selected.value);
+      // Deep copy untuk memutus referensi
+      const selection = JSON.parse(JSON.stringify(selected.value));
+      emit('products-selected', selection);
       emit('close');
     } else {
       toast.warning('Pilih setidaknya satu produk.');
     }
   } else if (item) {
-    emit('products-selected', [item]);
+    emit('products-selected', [item]); // Kirim array
     emit('close');
   }
 };
@@ -108,47 +115,59 @@ const toggleMulti = (item: ProductVariant) => {
 };
 
 const handleEnterKey = async () => {
-  // Abaikan jika multi-select atau input kosong
   if (props.multi || !search.value.trim()) return;
 
-  console.log(`[DEBUG] Tombol Enter ditekan. Mencari barcode: "${search.value}"`);
-
-  // Hentikan timer pencarian otomatis
+  // Hentikan debounce timer agar tidak double request
   clearTimeout(searchTimeout);
 
-  // Paksa muat data segera dari API
+  // Reset page ke 1 saat enter ditekan
+  options.value.page = 1;
+
   await loadItems(options.value);
 
-  // Setelah API selesai, kita cek hasilnya
-  console.log(`[DEBUG] API selesai. Ditemukan ${totalItems.value} total hasil.`);
-  console.log('[DEBUG] Data mentah dari API:', JSON.parse(JSON.stringify(items.value)));
-
-  // Cari kecocokan barcode yang persis dari hasil yang ada
-  const exactMatch = items.value.find(item => item.barcode === search.value);
+  // Auto-select logic
+  const exactMatch = items.value.find(item =>
+    item.barcode === search.value || item.kode === search.value
+  );
 
   if (exactMatch) {
-    console.log('[DEBUG] KECOCOKAN PERSIS DITEMUKAN:', exactMatch);
     selectAndClose(exactMatch);
-  } else {
-    console.log('[DEBUG] Tidak ada kecocokan barcode yang persis di dalam hasil.');
-    toast.warning(`Barcode "${search.value}" tidak ditemukan dalam hasil pencarian.`);
+  } else if (items.value.length === 1) {
+    // Optional: Jika cuma ada 1 hasil, langsung pilih? (Bisa bahaya, opsional)
+    // selectAndClose(items.value[0]);
+  } else if (items.value.length === 0) {
+    toast.warning(`Produk "${search.value}" tidak ditemukan.`);
+  }
+};
+
+const getCategoryColor = (kategori: string | undefined) => {
+  const k = (kategori || '').toUpperCase();
+  switch (k) {
+    case 'SESIONAL':
+      return 'orange-darken-2'; // Warna Oranye untuk Sesional (Peringatan Promo)
+    case 'PESANAN':
+      return 'blue-darken-2';   // Warna Biru untuk Barang Pesanan
+    case 'REGULER':
+      return 'green-darken-2';  // Warna Hijau untuk Reguler (Aman)
+    default:
+      return 'grey-lighten-1';  // Default Abu-abu
   }
 };
 
 // --- Watchers ---
 let searchTimeout: ReturnType<typeof setTimeout>;
 // --- Debounce search ---
-watch(search, (val) => {
+watch(search, () => {
   clearTimeout(searchTimeout);
   searchTimeout = setTimeout(() => {
-    options.value.page = 1;
-    if (val.trim() !== '') loadItems(options.value);
-  }, 300);
-});
-
-// --- Auto-load on open ---
-onMounted(() => {
-  loadItems(options.value);
+    // Jika halaman bukan 1, ubah ke 1 (ini akan otomatis trigger loadItems via @update:options)
+    if (options.value.page !== 1) {
+      options.value.page = 1;
+    } else {
+      // Jika halaman sudah 1, table tidak mendeteksi perubahan, jadi load manual
+      loadItems(options.value);
+    }
+  }, 400);
 });
 </script>
 
@@ -171,6 +190,19 @@ onMounted(() => {
           v-model:page="options.page" v-model:items-per-page="options.itemsPerPage" :headers="headers" :items="items"
           :items-length="totalItems" :loading="loading" @update:options="loadItems" hover
           class="desktop-table flex-grow-1" density="compact" fixed-header>
+          <template #[`item.kategori`]="{ item }">
+            <v-chip size="x-small" :color="getCategoryColor(item.kategori)" variant="flat"
+              class="font-weight-bold text-white">
+              {{ item.kategori || 'REG' }}
+            </v-chip>
+          </template>
+          <template #[`item.harga`]="{ item }">
+            {{ new Intl.NumberFormat('id-ID').format(item.harga) }}
+          </template>
+
+          <template #[`item.stok`]="{ item }">
+            <span :class="item.stok <= 0 ? 'text-red' : 'text-green'">{{ item.stok }}</span>
+          </template>
           <template #item="{ item }">
             <tr style="cursor: pointer;" @click="multi ? toggleMulti(item) : selectAndClose(item)">
               <td v-if="multi" @click.stop>
@@ -180,6 +212,12 @@ onMounted(() => {
               <td>{{ item.kode }}</td>
               <td>{{ item.barcode }}</td>
               <td>{{ item.nama }}</td>
+              <td>
+                <v-chip size="x-small" :color="getCategoryColor(item.kategori)" variant="flat"
+                  class="font-weight-bold text-white">
+                  {{ item.kategori || 'REG' }}
+                </v-chip>
+              </td>
               <td>{{ item.ukuran }}</td>
               <td class="text-end">{{ new Intl.NumberFormat('id-ID').format(item.harga) }}</td>
               <td class="text-end font-weight-bold">{{ item.stok }}</td>
@@ -201,3 +239,15 @@ onMounted(() => {
     </v-card>
   </v-dialog>
 </template>
+
+<style scoped>
+.dialog-card {
+  display: flex;
+  flex-direction: column;
+}
+
+/* Memastikan tabel mengisi sisa ruang */
+:deep(.v-table__wrapper) {
+  height: 100%;
+}
+</style>

@@ -144,15 +144,54 @@ const fetchData = async () => {
   }
 };
 
-const exportToExcel = () => {
-  if (stokList.value.length === 0) {
-    return toast.warning('Tidak ada data untuk diekspor.');
+const exportToExcel = async () => {
+  try {
+    isLoading.value = true;
+
+    // Debugging (Opsional): Cek di console apakah gudang terkirim
+    console.log("Mengirim filter ke export:", filters);
+
+    // Panggil API dengan params: filters
+    // Ini otomatis mengirim: /laporan-stok/real-time/export?gudang=XXX&tanggal=YYYY-MM-DD...
+    const response = await api.get('/laporan-stok/real-time/export', {
+      params: filters
+    });
+
+    const dataExport = response.data;
+
+    if (!dataExport || dataExport.length === 0) {
+      toast.warning('Tidak ada data untuk diekspor.');
+      return;
+    }
+
+    // Sorting manual (Nama -> Ukuran)
+    dataExport.sort((a: StokItem, b: StokItem) => {
+      // 1. Sort by Nama Barang
+      const nameComp = a.NAMA.localeCompare(b.NAMA);
+      if (nameComp !== 0) return nameComp;
+
+      // 2. Sort by Ukuran (menggunakan helper)
+      // Pastikan konversi ke String karena UKURAN di interface bisa string | number
+      return sortSizes(String(a.UKURAN || ''), String(b.UKURAN || ''));
+    });
+
+    const worksheet = XLSX.utils.json_to_sheet(dataExport);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Stok Detail");
+
+    // Nama file dinamis dengan Gudang dan Tanggal
+    const namaGudang = filters.gudang === 'ALL' ? 'SEMUA' : filters.gudang;
+    const filename = `Stok_${namaGudang}_${filters.tanggal}.xlsx`;
+
+    XLSX.writeFile(workbook, filename);
+
+    toast.success('Data berhasil diekspor.');
+  } catch (error) {
+    console.error(error);
+    toast.error('Gagal mengekspor data.');
+  } finally {
+    isLoading.value = false;
   }
-  const worksheet = XLSX.utils.json_to_sheet(stokList.value);
-  const workbook = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(workbook, worksheet, "Laporan Stok");
-  XLSX.writeFile(workbook, "Laporan_Stok_Real_Time.xlsx");
-  toast.success('Data berhasil diekspor.');
 };
 
 const fetchGudangList = async () => {

@@ -10,6 +10,7 @@ import InvoiceSearchModal from '@/components/lookup/InvoiceSearchModal.vue';
 import { useToast } from 'vue-toastification';
 import type { AxiosError } from 'axios';
 import api from '@/services/api';
+import { formatRupiah } from "@/utils/formatRupiah";
 
 // --- Type Definitions ---
 interface Customer {
@@ -57,6 +58,7 @@ interface PotonganDetail {
   lunasi: boolean;
   tglBayar: string; // ptd_tanggal
   angsuranId: string; // ptd_angsur
+  pin: string;
 }
 
 interface SelectedInvoice {
@@ -69,6 +71,19 @@ interface SelectedInvoice {
   sisaPiutang: number;
 }
 
+// --- [BARU] Interface Auth Dialog ---
+interface AuthDialogState {
+  show: boolean;
+  title: string;
+  jenis: string;
+  nominal: number;
+  transaksi?: string;
+  barcode?: string;
+  keterangan?: string;
+  onSuccess: (data: { authNomor: string; approver: string }) => void;
+  onCancel: () => void;
+}
+
 const toast = useToast();
 const router = useRouter();
 const route = useRoute();
@@ -79,13 +94,21 @@ const isEditMode = ref(false);
 const isLoading = ref(true);
 const isSaving = ref(false);
 const xdis = ref(0);
-const authDialog = reactive({
+// --- [BARU] State Auth Dialog ---
+const authDialog = reactive<AuthDialogState>({
   show: false,
-  title: 'Otorisasi Potongan Piutang',
-  kodeO: '',
+  title: '',
+  jenis: '',
+  nominal: 0,
+  transaksi: '',
+  barcode: '',
+  keterangan: '',
   onSuccess: () => { },
   onCancel: () => { },
 });
+
+// Penanda item yang sedang diotorisasi
+const activeAuthItem = ref<PotonganDetail | null>(null);
 
 const header = reactive<PotonganHeader>({
   nomor: '',
@@ -136,6 +159,43 @@ const tableHeaders = [
   { title: 'Aksi', key: 'actions', sortable: false, width: '60px' },
 ] as const;
 
+// --- [BARU] Helper Request Authorization ---
+const requestAuthorization = (
+  title: string,
+  jenis: string,
+  nominal: number,
+  extraData: {
+    transaksi?: string,
+    barcode?: string,
+    keteranganLengkap?: string
+  } | null,
+  onSuccess: (data: { authNomor: string; approver: string }) => void,
+  onCancel: () => void
+) => {
+  authDialog.title = title;
+  authDialog.jenis = jenis;
+  authDialog.nominal = nominal;
+
+  if (extraData) {
+    authDialog.transaksi = extraData.transaksi || '';
+    authDialog.barcode = extraData.barcode || '';
+    authDialog.keterangan = extraData.keteranganLengkap || '';
+  } else {
+    authDialog.transaksi = '';
+    authDialog.barcode = '';
+    authDialog.keterangan = '';
+  }
+
+  // Wrapper agar modal tertutup sebelum callback
+  authDialog.onSuccess = (data) => {
+    authDialog.show = false;
+    onSuccess(data);
+  };
+
+  authDialog.onCancel = onCancel;
+  authDialog.show = true;
+};
+
 // Utility functions and event handlers
 const calculateTotals = () => {
   let xTerbayar = 0;
@@ -163,6 +223,7 @@ const addNewRow = () => {
       lunasi: false,
       tglBayar: format(new Date(), 'yyyy-MM-dd'),
       angsuranId: '',
+      pin: ''
     });
   }
 };
@@ -272,6 +333,7 @@ const onInvoiceSelected = async (invoice: SelectedInvoice) => {
 };
 
 
+// --- [REFACTOR] Handle Bayar Change (Auth Baru) ---
 const handleBayarChange = (item: PotonganDetail) => {
   if (!item.invoice) {
     item.bayar = 0;
@@ -288,19 +350,44 @@ const handleBayarChange = (item: PotonganDetail) => {
 
   calculateTotals();
 
+  // Logika: Minta otorisasi jika Gudang BUKAN KDC dan ada nominal bayar
   if (header.gudang.kode !== 'KDC' && item.bayar > 0) {
     xdis.value = item.bayar;
-    const cpin = format(new Date(), 'yyyMMddHHmmssS');
-    authDialog.kodeO = cpin.slice(-3);
-    authDialog.show = true;
-    authDialog.onSuccess = () => {
-      xdis.value = 0;
-    };
-    authDialog.onCancel = () => {
-      item.bayar = 0;
-      calculateTotals();
-      xdis.value = 0;
-    };
+
+    // Simpan context
+    activeAuthItem.value = item;
+
+    // Susun Info untuk Manager
+    const infoLengkap = `Cust: ${header.customer.nama}\nInv: ${item.invoice}\nPotongan: ${formatRupiah(item.bayar)}`;
+
+    requestAuthorization(
+      'Otorisasi Potongan Piutang',
+      'POTONGAN_PIUTANG', // Jenis Transaksi Baru
+      item.bayar,
+      {
+        transaksi: header.nomor || 'DRAFT',
+        keteranganLengkap: infoLengkap
+      },
+      (authResult) => {
+        // SUKSES
+        if (activeAuthItem.value) {
+          activeAuthItem.value.pin = authResult.approver; // Simpan PIN/Approver
+        }
+        toast.success('Potongan disetujui.');
+        xdis.value = 0;
+        activeAuthItem.value = null;
+      },
+      () => {
+        // BATAL
+        if (activeAuthItem.value) {
+          activeAuthItem.value.bayar = 0;
+        }
+        calculateTotals();
+        xdis.value = 0;
+        activeAuthItem.value = null;
+        toast.info('Potongan dibatalkan.');
+      }
+    );
   }
 };
 
@@ -332,16 +419,6 @@ const handleDeleteItem = (itemToDelete: PotonganDetail) => {
   items.value = items.value.filter(item => item.id !== itemToDelete.id);
   addNewRow();
   calculateTotals();
-};
-
-const handleAuthSuccess = () => {
-  authDialog.show = false;
-  authDialog.onSuccess();
-};
-
-const handleAuthCancel = () => {
-  authDialog.show = false;
-  authDialog.onCancel();
 };
 
 const simpanData = () => {
@@ -403,8 +480,9 @@ const loadDataAll = async (nomor: string) => {
     Object.assign(header, data.header);
     items.value = (data.details as PotonganDetail[]).map(item => ({
       ...item,
-      id: Math.random(),          // Generate unique id lokal
+      id: Math.random(),
       lunasi: item.bayar >= item.sisaPiutang,
+      pin: '' // Reset pin saat load (karena sudah tersimpan di backend)
     }));
     addNewRow();
     calculateTotals();
@@ -612,10 +690,12 @@ onMounted(async () => {
 
     <CustomerSearchModal v-if="dialogs.customerSearch" :gudang="header.gudang.kode"
       @close="dialogs.customerSearch = false" @customer-selected="onCustomerSelected" />
-    <AuthorizationModal v-if="authDialog.show" :title="authDialog.title" :challenge-code="authDialog.kodeO"
-      @close="handleAuthCancel" @success="handleAuthSuccess" />
+    <AuthorizationModal v-if="authDialog.show" :title="authDialog.title" :jenis="authDialog.jenis"
+      :nominal="authDialog.nominal" :transaksi="authDialog.transaksi" :barcode="authDialog.barcode"
+      :keterangan="authDialog.keterangan" @success="authDialog.onSuccess"
+      @close="() => { authDialog.show = false; authDialog.onCancel(); }" />
     <InvoiceSearchModal v-if="dialogs.invoiceSearch" source="potongan-piutang" :customer-kode="header.customer.kode"
-      :gudang-kode="header.gudang.kode" @close="dialogs.invoiceSearch = false" @select="onInvoiceSelected" />
+      :gudang-kode="header.gudang.kode" @close="dialogs.invoiceSearch = false" @invoice-selected="onInvoiceSelected" />
 
     <v-dialog v-model="dialogConfirm.show" max-width="400px" persistent>
       <v-card>

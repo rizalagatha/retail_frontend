@@ -42,6 +42,7 @@ interface SoItem {
   id: number;
   kode: string;
   nama: string;
+  kategori?: string;
   ukuran: string;
   stok: number;
   jumlah: number | null;
@@ -111,6 +112,7 @@ interface Customer {
 interface SoItemApi {
   kode: string;
   nama: string;
+  kategori?: string;
   ukuran: string;
   stok: number;
   jumlah: number | null;
@@ -220,6 +222,18 @@ interface ActivePromo {
   pro_lipat: 'Y' | 'N';
 }
 
+interface AuthDialogState {
+  show: boolean;
+  title: string;
+  jenis: string;
+  nominal: number;
+  transaksi?: string;
+  barcode?: string;
+  keterangan?: string;
+  onSuccess: (data: { authNomor: string; approver: string }) => void;
+  onCancel: () => void;
+}
+
 // --- State ---
 const isEditMode = computed(() => !!route.params.nomor);
 const pageTitle = computed(() =>
@@ -292,6 +306,18 @@ const footer = ref({
   pinDiskon2: undefined,
 });
 
+const authDialog = reactive<AuthDialogState>({
+  show: false,
+  title: '',
+  jenis: '',
+  nominal: 0,
+  transaksi: '',
+  barcode: '',
+  keterangan: '',
+  onSuccess: () => { },
+  onCancel: () => { },
+});
+
 // State untuk modals & dialogs
 const isGudangSearchVisible = ref(false);
 const isCustomerSearchVisible = ref(false);
@@ -307,18 +333,6 @@ const pendingAction = ref<(() => void) | null>(null);
 const isPrintConfirmVisible = ref(false); // State untuk dialog baru
 const printConfirmNomor = ref(''); // Untuk menyimpan nomor SO yang akan dicetak
 const activeRowIndex = ref(0);
-const isItemAuthModalVisible = ref(false);
-const isDpAuthVisible = ref(false);
-const activeItemIndexForAuth = ref(-1);
-// const previousDiscount = ref({ persen1: 0, persen2: 0, item: 0 });
-const previousItemDiscount = ref<{ index: number; diskonPersen: number; diskonRp: number }>({
-  index: -1,
-  diskonPersen: 0,
-  diskonRp: 0
-});
-const challengeCode = ref('');
-const itemAuthModalRef = ref<InstanceType<typeof AuthorizationModal> | null>(null);
-const dpAuthModalRef = ref<InstanceType<typeof AuthorizationModal> | null>(null);
 const isDpInputVisible = ref(false);
 const isNewCustomerFormVisible = ref(false);
 const focusedRowId = ref<number | string>(-1);
@@ -356,6 +370,7 @@ const parseDate = (str: string) => {
 const mainTableHeaders = [
   { title: 'Kode', key: 'kode', width: '180px' },
   { title: 'Nama Barang', key: 'nama', width: '250px' },
+  { title: 'Ktg', key: 'kategori', width: '90px' },
   { title: 'Ukuran', key: 'ukuran', width: '90px' },
   { title: 'Stok', key: 'stok', align: 'end', width: '80px' },
   { title: 'Jumlah', key: 'jumlah', width: '100px' },
@@ -695,8 +710,28 @@ const calculateTotals = async () => {
 };
 
 const openDpAuthorization = () => {
-  challengeCode.value = Math.floor(1000 + Math.random() * 9000).toString();
-  isDpAuthVisible.value = true;
+  // Hitung berapa nominal "Kekurangan DP" yang dimintakan otorisasi
+  const kekurangan = Math.max(0, footer.value.minimalDp - footer.value.totalDp);
+
+  const info = `Cust: ${header.value.customer?.nama || 'Umum'}\nTotal SO: ${formatRupiah(footer.value.grandTotal)}\nMin DP: ${formatRupiah(footer.value.minimalDp)}\nDP Masuk: ${formatRupiah(footer.value.totalDp)}\n\nPermintaan: Otorisasi SO Tanpa DP (Status AKTIF)`;
+
+  requestAuthorization(
+    'Otorisasi SO Tanpa DP',
+    'SO_TANPA_DP', // Jenis Otorisasi Baru (Pastikan backend support atau mapping ke jenis yg ada)
+    kekurangan, // Nominal yang diotorisasi adalah kekurangannya
+    {
+      transaksi: header.value.nomor || 'DRAFT SO',
+      keteranganLengkap: info
+    },
+    (authResult) => {
+      footer.value.pinTanpaDp = authResult.approver;
+      header.value.statusSo = 'AKTIF';
+      toast.success('Otorisasi SO Tanpa DP disetujui.');
+    },
+    () => {
+      toast.info('Permintaan otorisasi dibatalkan.');
+    }
+  );
 };
 
 const openGudangSearch = () => {
@@ -1243,6 +1278,7 @@ const onProductsSelected = (selectedProducts: SoItemApi[]) => {
         id: Date.now() + Math.random(),
         kode: product.kode,
         nama: product.nama,
+        kategori: product.kategori,
         ukuran: "",
         stok: product.stok ?? 0,
         harga: product.harga,
@@ -1276,6 +1312,7 @@ const onProductsSelected = (selectedProducts: SoItemApi[]) => {
         id: Date.now() + Math.random(),
         kode: product.kode,
         nama: product.nama,
+        kategori: product.kategori,
         ukuran: product.ukuran,
         stok: product.stok,
         harga: initHarga,
@@ -1473,11 +1510,65 @@ const applyDefaultDiscount = async () => {
 //   }
 // };
 
-// Fungsi untuk menangani perubahan Diskon % per item
+// --- [BARU] Helper Request Authorization ---
+const requestAuthorization = (
+  title: string,
+  jenis: string,
+  nominal: number,
+  extraData: {
+    transaksi?: string,
+    barcode?: string,
+    keteranganLengkap?: string
+  } | null,
+  onSuccess: (data: { authNomor: string; approver: string }) => void,
+  onCancel: () => void
+) => {
+  authDialog.title = title;
+  authDialog.jenis = jenis;
+  authDialog.nominal = nominal;
+
+  if (extraData) {
+    authDialog.transaksi = extraData.transaksi || '';
+    authDialog.barcode = extraData.barcode || '';
+    authDialog.keterangan = extraData.keteranganLengkap || '';
+  } else {
+    authDialog.transaksi = '';
+    authDialog.barcode = '';
+    authDialog.keterangan = '';
+  }
+
+  // Wrapper agar modal tertutup sebelum callback dijalankan
+  authDialog.onSuccess = (data) => {
+    authDialog.show = false;
+    onSuccess(data);
+  };
+
+  authDialog.onCancel = onCancel;
+  authDialog.show = true;
+};
+
+// Fungsi untuk menangani update dari Modal Diskon/Biaya
+const handleDiscountCostUpdate = (newData: typeof footer.value) => {
+  // 1. Terapkan perubahan ke state footer
+  footer.value.diskonPersen1 = newData.diskonPersen1;
+  footer.value.diskonPersen2 = newData.diskonPersen2;
+  footer.value.diskonRp = newData.diskonRp;
+  footer.value.biayaKirim = newData.biayaKirim;
+
+  // 2. Simpan PIN jika ada (dikirim dari modal setelah sukses auth)
+  if (newData.pinDiskon1) footer.value.pinDiskon1 = newData.pinDiskon1;
+  if (newData.pinDiskon2) footer.value.pinDiskon2 = newData.pinDiskon2;
+
+  // 3. Hitung ulang Grand Total
+  calculateTotals();
+
+  toast.success('Diskon dan biaya berhasil diperbarui.');
+};
+
 const handleItemDiscountChange = (index: number) => {
   const item = items.value[index];
 
-  // ❌ Exclude jasa, custom order, dan DTF dari diskon item
+  // Exclude jasa/custom/dtf (Sama seperti logika lama)
   if (!isDiscountableItem(item)) {
     item.diskonPersen = 0;
     item.diskonRp = 0;
@@ -1485,88 +1576,47 @@ const handleItemDiscountChange = (index: number) => {
     return;
   }
 
-  // Skip jika diskon tidak diubah (0)
-  if (item.diskonPersen === 0) {
-    calculateTotals();
-    return;
-  }
+  const currentPersen = item.diskonPersen || 0;
+  const currentRp = item.diskonRp || 0;
 
-  // Kalau diskon > 0 → minta otorisasi
-  previousItemDiscount.value = {
-    index: index,
-    diskonPersen: 0,
-    diskonRp: 0
-  };
+  // Jika diskon diisi (> 0), minta otorisasi
+  if (currentPersen > 0 || currentRp > 0) {
 
-  activeItemIndexForAuth.value = index;
-  challengeCode.value = Math.floor(1000 + Math.random() * 9000).toString();
-  isItemAuthModalVisible.value = true;
-};
-
-const onItemAuthSuccess = async (pin: string) => {
-  try {
-    await api.post('/auth-pin/validate', { code: challengeCode.value, pin: pin });
-    items.value[activeItemIndexForAuth.value].pin = pin;
-
-    // Clear backup setelah sukses
-    previousItemDiscount.value = { index: -1, diskonPersen: 0, diskonRp: 0 };
-
-    isItemAuthModalVisible.value = false;
-    toast.success('Otorisasi diskon item berhasil.');
-    calculateTotals();
-  } catch (error) {
-    const axiosError = error as AxiosError<{ message: string }>;
-    if (axiosError.response?.status === 401) {
-      if (itemAuthModalRef.value) {
-        itemAuthModalRef.value.setFailed(
-          axiosError.response.data?.message || 'Otorisasi Gagal.'
-        );
-      }
+    // Hitung nominal diskon item ini
+    let nominalAuth = 0;
+    if (currentRp > 0) {
+      nominalAuth = currentRp * (item.jumlah || 1);
     } else {
-      toast.error(axiosError.response?.data?.message || 'Terjadi kesalahan.');
+      nominalAuth = ((item.harga || 0) * currentPersen / 100) * (item.jumlah || 1);
     }
+
+    const info = `Cust: ${header.value.customer?.nama || 'Umum'}\nItem: ${item.nama}\nDiskon: ${currentPersen > 0 ? currentPersen + '%' : formatRupiah(currentRp)}`;
+
+    requestAuthorization(
+      'Otorisasi Diskon Item',
+      'DISKON_ITEM',
+      nominalAuth,
+      {
+        transaksi: header.value.nomor || 'DRAFT SO',
+        barcode: item.barcode,
+        keteranganLengkap: info
+      },
+      (authResult) => {
+        item.pin = authResult.approver; // Simpan Approver
+        calculateTotals();
+        toast.success('Diskon item disetujui.');
+      },
+      () => {
+        // Batal: Reset ke 0
+        item.diskonPersen = 0;
+        item.diskonRp = 0;
+        calculateTotals();
+        toast.info('Diskon item dibatalkan.');
+      }
+    );
+  } else {
+    calculateTotals();
   }
-};
-
-const onItemAuthCancel = () => {
-  isItemAuthModalVisible.value = false;
-
-  // Restore nilai dari backup
-  const backup = previousItemDiscount.value;
-  if (backup.index !== -1 && items.value[backup.index]) {
-    items.value[backup.index].diskonPersen = backup.diskonPersen;
-    items.value[backup.index].diskonRp = backup.diskonRp;
-  }
-
-  // Reset backup
-  previousItemDiscount.value = { index: -1, diskonPersen: 0, diskonRp: 0 };
-
-  calculateTotals();
-};
-
-const onDpAuthSuccess = async (pin: string) => {
-  try {
-    await api.post('/auth-pin/validate', { code: challengeCode.value, pin: pin });
-
-    // Simpan pin dan set status menjadi AKTIF
-    footer.value.pinTanpaDp = pin;
-    header.value.statusSo = 'AKTIF';
-
-    isDpAuthVisible.value = false;
-    toast.success('Otorisasi SO tanpa DP berhasil.');
-  } catch (error) {
-    const axiosError = error as AxiosError<{ message: string }>;
-
-    if (dpAuthModalRef.value) {
-      dpAuthModalRef.value.setFailed(
-        axiosError.response?.data?.message || 'Otorisasi Gagal.'
-      );
-    }
-  }
-};
-
-const onDpAuthCancel = () => {
-  isDpAuthVisible.value = false;
 };
 
 const openDpInput = () => {
@@ -2000,7 +2050,12 @@ const checkRealtimePromoEligibility = () => {
     // Hitung Total Reguler (Excl Jersey & Custom/Jasa)
     const totalReguler = validItems.reduce((sum, item) => {
       const isJersey = item.nama && item.nama.toUpperCase().includes('JERSEY');
-      if (!isJersey && !isExcludedItem(item)) {
+
+      // [FIX] Cek brg_ktgp (kategori)
+      const isSesional = item.kategori === 'SESIONAL';
+
+      // Syarat Promo Kelipatan: Bukan Jersey, Bukan Jasa/Custom, BUKAN SESIONAL
+      if (!isJersey && !isExcludedItem(item) && !isSesional) {
         return sum + (item.total || 0);
       }
       return sum;
@@ -2027,6 +2082,20 @@ const checkRealtimePromoEligibility = () => {
   if (message) {
     promoNotification.value = message;
     potentialPromoDiscount.value = discount;
+  }
+};
+
+const getCategoryColor = (kategori: string | undefined) => {
+  const k = (kategori || '').toUpperCase();
+  switch (k) {
+    case 'SESIONAL':
+      return 'orange-darken-2';
+    case 'PESANAN':
+      return 'blue-darken-2';
+    case 'REGULER':
+      return 'green-darken-2';
+    default:
+      return 'grey-lighten-1';
   }
 };
 
@@ -2335,6 +2404,16 @@ const stopAndOpenPriceProposal = (index: number) => {
               <template #[`item.nama`]="{ item }">
                 <div class="product-name-cell">{{ item.nama }}</div>
               </template>
+              <template #[`item.kategori`]="{ item }">
+                <div v-if="!item.isCustomOrder && item.kode">
+                  <v-chip size="x-small"
+                    :color="getCategoryColor(item.kategori)"
+                    variant="flat"
+                    class="font-weight-bold text-white">
+                    {{ item.kategori || 'REG' }}
+                  </v-chip>
+                </div>
+              </template>
               <template #[`item.jumlah`]="{ item }">
                 <v-text-field v-model.number="item.jumlah" type="number" variant="underlined" density="compact"
                   hide-details class="text-end" :disabled="!item.kode" />
@@ -2509,10 +2588,10 @@ const stopAndOpenPriceProposal = (index: number) => {
     <ProductSearchModal v-if="isProductSearchVisible" :gudang="header.gudang.kode" category="ALL"
       :multi="isMultiSelectProduct" source="surat-pesanan" :promo-nomor="header.nomorPromo"
       @close="isProductSearchVisible = false" @products-selected="onProductsSelected" />
-    <AuthorizationModal ref="ItemAuthModalRef" v-if="isItemAuthModalVisible" title="Otorisasi Diskon per Item"
-      :challenge-code="challengeCode" @close="onItemAuthCancel" @success="onItemAuthSuccess" />
-    <AuthorizationModal ref="dpAuthModalRef" v-if="isDpAuthVisible" title="Otorisasi SO Tanpa DP"
-      :challenge-code="challengeCode" @close="onDpAuthCancel" @success="onDpAuthSuccess" />
+    <AuthorizationModal v-if="authDialog.show" :title="authDialog.title" :jenis="authDialog.jenis"
+      :nominal="authDialog.nominal" :transaksi="authDialog.transaksi" :barcode="authDialog.barcode"
+      :keterangan="authDialog.keterangan" @success="authDialog.onSuccess"
+      @close="() => { authDialog.show = false; authDialog.onCancel(); }" />
     <SoDtfSearchModal v-if="isSoDtfSearchVisible" :cabang="header.gudang.kode" :customerKode="header.customer?.kode"
       @close="isSoDtfSearchVisible = false" @selected="onSoDtfSelected" />
     <PriceProposalSearchModal v-if="isPriceProposalSearchVisible" :cabang="header.gudang.kode"
@@ -2525,7 +2604,7 @@ const stopAndOpenPriceProposal = (index: number) => {
       @customer-saved="onNewCustomerSaved" />
     <DiscountCostModal v-if="isDiscountCostModalVisible" :footer-data="footer" :total-so="totalDiscountable"
       :customer="header.customer" :gudang-kode="header.gudang.kode" :ppn-persen="header.ppnPersen"
-      @close="isDiscountCostModalVisible = false" @update="Object.assign(footer, $event)" />
+      @close="isDiscountCostModalVisible = false" @update="handleDiscountCostUpdate" />
     <DpListModal v-if="isDpListModalVisible" :dp-items="dpItems" @close="isDpListModalVisible = false"
       @remove-dp="removeDpRow($event)" />
     <JenisOrderModal v-if="dialogs.jenisOrder" :model-value="dialogs.jenisOrder" :penawaran-details="penawaranDetails"

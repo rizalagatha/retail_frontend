@@ -9,6 +9,7 @@ import PageLayout from '@/components/PageLayout.vue';
 import AuthorizationModal from '@/components/modal/AuthorizationModal.vue';
 import * as XLSX from 'xlsx';
 import type { AxiosError } from 'axios';
+import { formatRupiah } from "@/utils/formatRupiah";
 
 // --- Tipe Data ---
 interface SopHeader {
@@ -51,6 +52,18 @@ interface DataTableHeader {
   sortable?: boolean;
 }
 
+interface AuthDialogState {
+  show: boolean;
+  title: string;
+  jenis: string;
+  nominal: number;
+  transaksi?: string;
+  barcode?: string;
+  keterangan?: string;
+  onSuccess: (data: { authNomor: string; approver: string }) => void;
+  onCancel: () => void;
+}
+
 const router = useRouter();
 const toast = useToast();
 const authStore = useAuthStore();
@@ -71,12 +84,17 @@ const filters = reactive({
   cabang: authStore.user?.cabang || '',
 });
 
-const authModal = reactive({
+const authDialog = reactive<AuthDialogState>({
   show: false,
-  challengeCode: '',
-  isLoading: false,
+  title: '',
+  jenis: '',
+  nominal: 0,
+  transaksi: '',
+  barcode: '',
+  keterangan: '',
+  onSuccess: () => { },
+  onCancel: () => { },
 });
-const authModalRef = ref<InstanceType<typeof AuthorizationModal> | null>(null);
 
 // --- Computed ---
 const isSingleSelected = computed(() => selected.value.length === 1);
@@ -135,6 +153,42 @@ const onResizeEnd = () => {
   document.removeEventListener('mousemove', onResizeMove);
   document.removeEventListener('mouseup', onResizeEnd);
   document.body.style.cursor = '';
+};
+
+const requestAuthorization = (
+  title: string,
+  jenis: string,
+  nominal: number,
+  extraData: {
+    transaksi?: string,
+    barcode?: string,
+    keteranganLengkap?: string
+  } | null,
+  onSuccess: (data: { authNomor: string; approver: string }) => void,
+  onCancel: () => void
+) => {
+  authDialog.title = title;
+  authDialog.jenis = jenis;
+  authDialog.nominal = nominal;
+
+  if (extraData) {
+    authDialog.transaksi = extraData.transaksi || '';
+    authDialog.barcode = extraData.barcode || '';
+    authDialog.keterangan = extraData.keteranganLengkap || '';
+  } else {
+    authDialog.transaksi = '';
+    authDialog.barcode = '';
+    authDialog.keterangan = '';
+  }
+
+  // Wrapper agar modal tertutup sebelum callback
+  authDialog.onSuccess = (data) => {
+    authDialog.show = false;
+    onSuccess(data);
+  };
+
+  authDialog.onCancel = onCancel;
+  authDialog.show = true;
 };
 
 // --- Methods ---
@@ -210,27 +264,43 @@ const loadDetails = async (expandedItems: (SopHeader | string)[]) => {
 };
 
 const openTransferDialog = () => {
-  if (!canTransfer.value) return;
-  authModal.challengeCode = String(Math.floor(Math.random() * (999 - 100 + 1) + 100));
-  authModal.show = true;
+  if (!canTransfer.value || !selectedRow.value) return;
+
+  const sop = selectedRow.value;
+  const infoLengkap = `No. SOP: ${sop.nomor}\nSelisih Qty: ${sop.selisih_qty}\nNominal: ${formatRupiah(sop.nominal)}`;
+
+  requestAuthorization(
+    'Otorisasi Transfer Stok Opname',
+    'TRANSFER_SOP', // Jenis Transaksi
+    sop.nominal,    // Nominal Selisih
+    {
+      transaksi: sop.nomor,
+      keteranganLengkap: infoLengkap,
+      barcode: ''
+    },
+    (authResult) => {
+      // Sukses -> Jalankan Transfer
+      executeTransfer(authResult.approver);
+    },
+    () => {
+      toast.info('Transfer SOP dibatalkan.');
+    }
+  );
 };
 
-const onAuthSuccess = async (pin: string) => {
-  authModal.isLoading = true;
+const executeTransfer = async (approver: string) => {
+  isLoading.value = true;
   try {
-    await api.post('/proses-stok-opname/validate-pin', {
-      code: authModal.challengeCode,
-      pin: pin,
+    const response = await api.post(`/proses-stok-opname/transfer/${selectedRow.value!.nomor}`, {
+      approver: approver // Kirim nama approver ke backend (opsional/log)
     });
-    const response = await api.post(`/proses-stok-opname/transfer/${selectedRow.value!.nomor}`);
     toast.success(response.data.message);
-    authModal.show = false;
     fetchData();
   } catch (error) {
     const err = error as AxiosError<{ message: string }>;
-    authModalRef.value?.setFailed(err.response?.data?.message || 'Terjadi kesalahan');
+    toast.error(err.response?.data?.message || 'Gagal melakukan transfer SOP.');
   } finally {
-    authModal.isLoading = false;
+    isLoading.value = false;
   }
 };
 
@@ -434,8 +504,10 @@ onBeforeUnmount(() => {
 </div>
 </div>
 
-<AuthorizationModal v-if="authModal.show" ref="authModalRef" title="Transfer Stok Opname"
-  :challenge-code="authModal.challengeCode" @close="authModal.show = false" @success="onAuthSuccess" />
+<AuthorizationModal v-if="authDialog.show" :title="authDialog.title" :jenis="authDialog.jenis"
+  :nominal="authDialog.nominal" :transaksi="authDialog.transaksi" :barcode="authDialog.barcode"
+  :keterangan="authDialog.keterangan" @success="authDialog.onSuccess"
+  @close="() => { authDialog.show = false; authDialog.onCancel(); }" />
 
 </PageLayout>
 </template>

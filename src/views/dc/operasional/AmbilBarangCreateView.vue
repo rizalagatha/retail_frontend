@@ -39,6 +39,19 @@ interface Product {
   stok: number;
 }
 
+// --- [BARU] Interface Auth Dialog ---
+interface AuthDialogState {
+  show: boolean;
+  title: string;
+  jenis: string;
+  nominal: number;
+  transaksi?: string;
+  barcode?: string;
+  keterangan?: string;
+  onSuccess: (data: { authNomor: string; approver: string }) => void;
+  onCancel: () => void;
+}
+
 // --- Inisialisasi & State ---
 const route = useRoute();
 const router = useRouter();
@@ -64,20 +77,29 @@ const activeRowIndex = ref(0);
 const isMultiSelectProduct = ref(false);
 const isClosed = ref(false);
 
-// --- State Modal & Otorisasi ---
+// --- State Modal ---
 const isLookupVisible = ref(false);
 const isGudangLookupVisible = ref(false);
-const authModalRef = ref<InstanceType<typeof AuthorizationModal> | null>(null); // <-- 2. Ref untuk modal
-const authModal = reactive({ // <-- 3. Ganti nama dari authDialog
-  show: false,
-  challengeCode: '',
-});
 const approvalInfo = ref({ status: '', urut: 0 });
+
 const dialogConfirm = reactive({
   show: false,
   title: '',
   text: '',
   onConfirm: () => { },
+});
+
+// --- [BARU] State Auth Dialog (Reactive) ---
+const authDialog = reactive<AuthDialogState>({
+  show: false,
+  title: '',
+  jenis: '',
+  nominal: 0,
+  transaksi: '',
+  barcode: '',
+  keterangan: '',
+  onSuccess: () => { },
+  onCancel: () => { },
 });
 
 // --- Computed Properties ---
@@ -95,6 +117,43 @@ const headers = [
   { title: 'Actions', key: 'actions', sortable: false, width: '80px', align: 'center' }
 ] as const;
 
+// --- [BARU] Helper Request Authorization ---
+const requestAuthorization = (
+  title: string,
+  jenis: string,
+  nominal: number,
+  extraData: {
+    transaksi?: string,
+    barcode?: string,
+    keteranganLengkap?: string
+  } | null,
+  onSuccess: (data: { authNomor: string; approver: string }) => void,
+  onCancel: () => void
+) => {
+  authDialog.title = title;
+  authDialog.jenis = jenis;
+  authDialog.nominal = nominal;
+
+  if (extraData) {
+    authDialog.transaksi = extraData.transaksi || '';
+    authDialog.barcode = extraData.barcode || '';
+    authDialog.keterangan = extraData.keteranganLengkap || '';
+  } else {
+    authDialog.transaksi = '';
+    authDialog.barcode = '';
+    authDialog.keterangan = '';
+  }
+
+  // Wrapper agar modal tertutup sebelum callback dijalankan
+  authDialog.onSuccess = (data) => {
+    authDialog.show = false;
+    onSuccess(data);
+  };
+
+  authDialog.onCancel = onCancel;
+  authDialog.show = true;
+};
+
 // --- Methods ---
 const showConfirmation = (title: string, text: string, onConfirm: () => void) => {
   dialogConfirm.title = title;
@@ -106,7 +165,6 @@ const showConfirmation = (title: string, text: string, onConfirm: () => void) =>
 const refreshdata = () => {
   formHeader.value.peminta = '';
   formHeader.value.tanggal = format(new Date(), 'yyyy-MM-dd');
-  // reset header lain jika perlu
   items.value = [];
   addNewRow();
   toast.info('Form telah dibatalkan dan direset.');
@@ -124,7 +182,6 @@ const addNewRow = () => {
 const loadDataForEdit = async (id: string) => {
   loading.value = true;
   try {
-    // 1. Ambil data utama (header & item)
     const response = await api.get(`/ambil-barang-form/${id}`);
     formHeader.value = response.data.header;
     items.value = response.data.items.map((item: Record<string, unknown>) => ({
@@ -138,8 +195,6 @@ const loadDataForEdit = async (id: string) => {
       toast.warning('Dokumen ini sudah di-closing dan tidak dapat diubah.');
     }
 
-    // 2. Ambil status approval jika tanggal transaksi < tanggal closing (logika disederhanakan)
-    // Anda perlu logika tanggal closing yang lebih detail di sini jika diperlukan
     const responseStatus = await api.get(`/ambil-barang-form/${id}/approval-status`);
     approvalInfo.value = responseStatus.data;
 
@@ -150,7 +205,6 @@ const loadDataForEdit = async (id: string) => {
   } finally {
     loading.value = false;
   }
-
 };
 
 const handleBarcodeScan = async () => {
@@ -160,7 +214,7 @@ const handleBarcodeScan = async () => {
     const response = await api.get('/ambil-barang-form/lookup/product-by-barcode', {
       params: { barcode, gudang: formHeader.value.gudangKode }
     });
-    processProductSelection(response.data); // Gunakan processProductSelection yang sudah ada
+    processProductSelection(response.data);
     scannedBarcode.value = '';
   } catch (error) {
     const err = error as AxiosError<{ message?: string }>;
@@ -175,13 +229,11 @@ const handleBarcodeEnter = async (index: number) => {
     const response = await api.get('/ambil-barang-form/lookup/product-by-barcode', {
       params: { barcode, gudang: formHeader.value.gudangKode }
     });
-    // Ganti onProductsSelected dengan onProductsSelected dari dalam grid
     const product = response.data;
-    // Cek duplikat
     const existingIndex = items.value.findIndex(i => i.kode === product.kode && i.ukuran === product.ukuran && i !== items.value[index]);
     if (existingIndex !== -1) {
       items.value[existingIndex].jumlah += 1;
-      items.value.splice(index, 1); // Hapus baris input
+      items.value.splice(index, 1);
       toast.info('Jumlah item yang sudah ada ditambah 1.');
     } else {
       const currentItem = items.value[index];
@@ -193,7 +245,6 @@ const handleBarcodeEnter = async (index: number) => {
       currentItem.jumlah = 1;
     }
     addNewRow();
-
   } catch (error) {
     const err = error as AxiosError<{ message?: string }>;
     toast.error(err.response?.data?.message || "Produk tidak ditemukan");
@@ -211,7 +262,6 @@ const onProductsSelected = (selectedProducts: Product[]) => {
   isLookupVisible.value = false;
   if (!selectedProducts || selectedProducts.length === 0) return;
 
-  // Saring produk duplikat yang sudah ada di grid
   const productsToAdd = selectedProducts.filter(p =>
     !items.value.some(item => item.kode === p.kode && item.ukuran === p.ukuran)
   );
@@ -221,7 +271,6 @@ const onProductsSelected = (selectedProducts: Product[]) => {
   }
   if (productsToAdd.length === 0) return;
 
-  // Ubah produk terpilih menjadi format item untuk grid
   const newItems = productsToAdd.map(product => ({
     id: Date.now() + Math.random(),
     kode: product.kode,
@@ -232,10 +281,7 @@ const onProductsSelected = (selectedProducts: Product[]) => {
     jumlah: 1,
   }));
 
-  // Ganti baris kosong saat ini (atau baris tempat F1/F2 ditekan) dengan item baru
   items.value.splice(activeRowIndex.value, 1, ...newItems);
-
-  // Tambahkan baris kosong baru di akhir
   addNewRow();
 };
 
@@ -251,9 +297,7 @@ const validateGudangKode = async () => {
     formHeader.value.gudangNama = '';
     return;
   }
-
   try {
-    // Asumsi ada endpoint untuk mengambil satu gudang berdasarkan kodenya
     const response = await api.get(`/warehouses/${kode}`);
     if (response.data) {
       formHeader.value.gudangNama = response.data.nama;
@@ -274,12 +318,10 @@ const processProductSelection = (product: Product) => {
     toast.info('Jumlah item yang sudah ada ditambah 1.');
     return;
   }
-  // Hapus baris kosong terakhir jika ada, sebelum menambah item baru
   const emptyRowIndex = items.value.findIndex(item => !item.kode);
   if (emptyRowIndex !== -1) {
     items.value.splice(emptyRowIndex, 1);
   }
-  // Tambahkan item baru
   items.value.push({
     id: Date.now(),
     kode: product.kode,
@@ -289,7 +331,6 @@ const processProductSelection = (product: Product) => {
     stok: product.stok,
     jumlah: 1,
   });
-  // Tambahkan lagi baris kosong di akhir
   addNewRow();
 };
 
@@ -318,8 +359,8 @@ const validateForm = () => {
   return true;
 };
 
+// --- [REFACTOR] Handle Save dengan Otorisasi Baru ---
 const handleSave = () => {
-  // Validasi status approval (meniru `btnSimpanClick` Delphi)
   if (isEditMode.value && ['MINTA', 'WAIT', 'TOLAK'].includes(approvalInfo.value.status)) {
     toast.warning('Transaksi ini sudah ditutup. Silakan ajukan & tunggu persetujuan untuk mengubah data.');
     return;
@@ -328,9 +369,27 @@ const handleSave = () => {
   if (!validateForm()) return;
 
   showConfirmation('Konfirmasi Simpan', 'Apakah Anda yakin ingin menyimpan data ini?', () => {
-    // Logika otorisasi yang sudah ada dipindahkan ke dalam onConfirm
-    authModal.challengeCode = String(Math.floor(Math.random() * (999 - 100 + 1) + 100));
-    authModal.show = true;
+
+    // Susun info lengkap untuk HP Manager
+    const infoLengkap = `Peminta: ${formHeader.value.peminta}\nGudang: ${formHeader.value.gudangNama}\nTotal Qty: ${totalJumlah.value}`;
+
+    requestAuthorization(
+      'Otorisasi Ambil Barang',
+      'AMBIL_BARANG', // Jenis Transaksi Baru
+      totalJumlah.value, // Nominal = Total Qty (karena ambil barang biasanya internal/non-rupiah)
+      {
+        transaksi: formHeader.value.nomor || 'DRAFT',
+        keteranganLengkap: infoLengkap
+      },
+      (authResult) => {
+        // Sukses -> Lanjut Simpan
+        // Kita bisa kirim nama approver ke backend jika diperlukan
+        executeSave(authResult.approver);
+      },
+      () => {
+        toast.info('Simpan dibatalkan.');
+      }
+    );
   });
 };
 
@@ -346,12 +405,14 @@ const handleTutup = () => {
   });
 };
 
-const executeSave = async () => {
+const executeSave = async (approverName: string = '') => {
   try {
     const payload = {
       header: formHeader.value,
       items: items.value.filter(item => item.kode && item.jumlah > 0),
-      approvalInfo: approvalInfo.value
+      approvalInfo: approvalInfo.value,
+      approver: approverName, // Kirim info approver ke backend
+      user: authStore.user
     };
 
     const response = isEditMode.value
@@ -366,36 +427,16 @@ const executeSave = async () => {
   }
 };
 
-const onAuthSuccess = async (pin: string) => {
-  try {
-    // Panggil API validasi yang BARU dan SPESIFIK
-    await api.post('/ambil-barang-form/validate-pin', { // <-- UBAH ENDPOINT DI SINI
-      code: authModal.challengeCode,
-      pin: pin,
-    });
-
-    // Jika berhasil, tutup modal dan lanjutkan simpan
-    authModal.show = false;
-    await executeSave();
-
-  } catch (error) {
-    const err = error as AxiosError<{ message?: string }>;
-    const message = err.response?.data?.message || 'Terjadi kesalahan';
-    authModalRef.value?.setFailed(message);
-  }
-};
-
 onMounted(() => {
   const id = route.params.id as string;
   if (id) {
     isEditMode.value = true;
     loadDataForEdit(id);
   } else {
-    addNewRow(); // <-- PASTIKAN INI ADA
+    addNewRow();
     loading.value = false;
   }
 });
-
 </script>
 
 <template>
@@ -506,8 +547,10 @@ onMounted(() => {
     <GudangSearchModal v-if="isGudangLookupVisible" :user-cabang="authStore.user?.cabang || ''" source="retur-dc"
       @close="isGudangLookupVisible = false" @gudang-selected="onGudangSelected" />
 
-    <AuthorizationModal v-if="authModal.show" ref="authModalRef" title="Masukkan Otorisasi"
-      :challenge-code="authModal.challengeCode" @close="authModal.show = false" @success="onAuthSuccess" />
+    <AuthorizationModal v-if="authDialog.show" :title="authDialog.title" :jenis="authDialog.jenis"
+      :nominal="authDialog.nominal" :transaksi="authDialog.transaksi" :barcode="authDialog.barcode"
+      :keterangan="authDialog.keterangan" @success="authDialog.onSuccess"
+      @close="() => { authDialog.show = false; authDialog.onCancel(); }" />
   </PageLayout>
 </template>
 

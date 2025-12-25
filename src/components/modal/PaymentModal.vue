@@ -101,6 +101,16 @@ interface PaymentPayload extends PaymentState {
   namaKaryawan?: string; // Optional (?)
 }
 
+interface AuthDialogState {
+  show: boolean;
+  title: string;
+  jenis: string;
+  nominal: number;
+  transaksi: string; // Tambahkan ini agar modal tahu ID transaksinya
+  onSuccess: ((data: { authNomor: string, approver: string }) => void) | null;
+  onCancel: (() => void) | null;
+}
+
 const props = defineProps({
   invoiceHeader: { type: Object, required: true },
   invoiceItems: { type: Array, required: true },
@@ -164,15 +174,17 @@ const dialogs = reactive({
   returJualSearch: false,
 });
 
-const authDialog = reactive({
+const authDialog = reactive<AuthDialogState>({
   show: false,
-  title: 'Otorisasi Invoice Belum Lunas',
-  challengeCode: '',
+  title: '',
+  jenis: '',
+  nominal: 0,
+  transaksi: '', // Init kosong
+  onSuccess: null,
+  onCancel: null
 });
-const authModalRef = ref<InstanceType<typeof AuthorizationModal> | null>(null);
+
 const temporaryPin = ref('');
-const authOnSuccess = ref<null | ((pin: string) => void)>(null);
-const authOnCancel = ref<null | (() => void)>(null);
 const isPrintOptionVisible = ref(false);
 const savedInvoiceNumber = ref('');
 const isFromSO = !!props.invoiceHeader.nomorSo;
@@ -289,6 +301,41 @@ const isOverLimit = computed(() => {
 //   return isEligible;
 // };
 
+// --- Helper Function BARU ---
+const requestAuthorization = (
+  title: string,
+  jenis: string,
+  nominal: number,
+  onSuccess: (data: { authNomor: string, approver: string }) => void,
+  onCancel: () => void
+) => {
+  authDialog.title = title;
+  authDialog.jenis = jenis;
+  authDialog.nominal = nominal;
+  // Gunakan IDREC atau NOMOR Invoice sebagai referensi transaksi
+  authDialog.transaksi = props.invoiceHeader.nomor || 'NEW_TRX';
+
+  authDialog.onSuccess = onSuccess;
+  authDialog.onCancel = onCancel;
+  authDialog.show = true;
+};
+
+// --- Handler BARU ---
+const handleAuthSuccess = (data: { authNomor: string, approver: string }) => {
+  toast.success(`Disetujui oleh ${data.approver}`);
+  if (authDialog.onSuccess) {
+    authDialog.onSuccess(data);
+  }
+  authDialog.show = false;
+};
+
+const handleAuthClose = () => {
+  if (authDialog.onCancel) {
+    authDialog.onCancel();
+  }
+  authDialog.show = false;
+};
+
 const onRekeningSelected = (rekening: BankAccount) => {
   payment.transfer.akun = rekening;
   dialogs.rekeningSearch = false;
@@ -313,13 +360,17 @@ const handleFinalSave = async () => {
 
     // Cek Otorisasi Limit
     if (isOverLimit.value) {
+
       requestAuthorization(
         'Otorisasi Limit Karyawan',
-        (pin) => {
-          temporaryPin.value = pin;
-          executeSave(); // Lanjut simpan
+        'LIMIT_KARYAWAN', // Jenis
+        props.totals.grandTotal, // Nominal transaksi yang mau diajukan
+        (authResult) => { // Callback Sukses (Approved)
+          // Simpan nama approver ke temporaryPin agar tersimpan di backend
+          temporaryPin.value = authResult.approver;
+          executeSave();
         },
-        () => toast.info('Transaksi dibatalkan.')
+        () => toast.info('Transaksi dibatalkan.') // Callback Batal
       );
       return;
     }
@@ -334,11 +385,17 @@ const handleFinalSave = async () => {
     return toast.error('Akun bank untuk transfer harus diisi.');
   }
 
+  // Cek apakah kurang bayar (Belum Lunas / Piutang)
   if (totalBayar.value < props.totals.sisaPiutang) {
+    const sisaTagihan = props.totals.sisaPiutang - totalBayar.value;
+
     requestAuthorization(
       'Otorisasi Invoice Belum Lunas',
-      (pin) => {
-        temporaryPin.value = pin;
+      'PIUTANG',      // Jenis
+      sisaTagihan,    // Nominal kekurangan
+      (authResult) => {
+        // Simpan nama approver sebagai bukti
+        temporaryPin.value = authResult.approver;
         executeSave();
       },
       () => toast.info('Penyimpanan dibatalkan.')
@@ -448,39 +505,6 @@ const onSelectKaryawan = async (selected: KaryawanSearchResult | null) => {
   // 3. Panggil Validasi ke Backend
   // TypeScript juga tahu 'selected' punya properti 'kar_nik'
   await checkKaryawan(selected.kar_nik);
-};
-
-const requestAuthorization = (
-  title: string,
-  onSuccess: (pin: string) => void,
-  onCancel: () => void
-) => {
-  authDialog.challengeCode = Math.floor(100 + Math.random() * 900).toString();
-  authDialog.title = title;
-  authOnSuccess.value = onSuccess;
-  authOnCancel.value = onCancel;
-  authDialog.show = true;
-};
-
-const handleAuthSuccess = async (pin: string) => {
-  try {
-    await api.post('/auth-pin/validate', {
-      pin,
-      code: authDialog.challengeCode,
-    });
-    toast.success('Otorisasi berhasil.');
-    authDialog.show = false;
-    temporaryPin.value = pin;
-
-    await executeSave();
-  } catch (error: unknown) {
-    if (error && typeof error === 'object' && 'response' in error) {
-      const err = error as { response?: { data?: { message?: string } } };
-      authModalRef.value?.setFailed(err.response?.data?.message || 'PIN tidak valid');
-    } else {
-      authModalRef.value?.setFailed('Terjadi kesalahan.');
-    }
-  }
 };
 
 const executeSave = async () => {
@@ -989,7 +1013,7 @@ watch(kembali, (newVal) => {
               <div class="text-subtitle-2 font-weight-bold mb-2">
                 Metode Pembayaran:
                 <span class="text-primary">{{ paymentTab === 'karyawan' ? 'Potong Gaji Karyawan' : 'Umum (Tunai/TF)'
-                  }}</span>
+                }}</span>
               </div>
 
               <v-alert v-if="paymentTab === 'karyawan'" color="info" variant="tonal" icon="mdi-account-tie" class="mb-4"
@@ -1122,8 +1146,7 @@ watch(kembali, (newVal) => {
         <v-spacer />
         <v-btn @click="$emit('close')" :disabled="isSaving">Batal</v-btn>
         <v-btn color="primary" @click="handleFinalSave" :loading="isSaving" :disabled="isSaving"
-          prepend-icon="mdi-check-circle"
-          size="large">
+          prepend-icon="mdi-check-circle" size="large">
           Simpan Pembayaran & Invoice
         </v-btn>
       </v-card-actions>
@@ -1131,8 +1154,15 @@ watch(kembali, (newVal) => {
 
     <RekeningSearchModal v-if="dialogs.rekeningSearch" :cabang="invoiceHeader.gudang.kode"
       @close="dialogs.rekeningSearch = false" @selected="onRekeningSelected" />
-    <AuthorizationModal v-if="authDialog.show" ref="authModalRef" :title="authDialog.title"
-      :challenge-code="authDialog.challengeCode" @close="authDialog.show = false" @success="handleAuthSuccess" />
+    <AuthorizationModal
+      v-if="authDialog.show"
+      :title="authDialog.title"
+      :jenis="authDialog.jenis"
+      :nominal="authDialog.nominal"
+      :transaksi="authDialog.transaksi"
+      @close="handleAuthClose"
+      @success="handleAuthSuccess"
+    />
     <PrintOptionModal v-if="isPrintOptionVisible" :options="['a4', 'kasir', 'wa']" @close="onPrintModalClose"
       @select="handlePrintSelection" />
     <ReturJualSearchModal v-if="dialogs.returJualSearch" :customer-kode="invoiceHeader.customer.kode"
@@ -1217,7 +1247,7 @@ watch(kembali, (newVal) => {
               <div class="summary-item grand-total"><span>Grand Total </span><span>{{
                 formatRupiah(printKasirData.header.summary.grandTotal) }}</span></div>
               <div class="summary-item"><span>Bayar </span><span>{{ formatRupiah(printKasirData.header.summary.bayar)
-                  }}</span></div>
+              }}</span></div>
               <div class="summary-item" v-if="printKasirData.header.summary.pundiAmal">
                 <span>Pundi Amal </span>
                 <span>{{ formatRupiah(printKasirData.header.summary.pundiAmal) }}</span>

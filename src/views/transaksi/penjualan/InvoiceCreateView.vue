@@ -54,6 +54,7 @@ interface Item {
   originalDiskonPersen?: number;
   subtotal?: number;
   lastPin?: string;
+  isCustomOrder?: boolean;
   fromBackend?: boolean;
 }
 interface LinkedDp {
@@ -61,14 +62,16 @@ interface LinkedDp {
   jenis: string;
   nominal: number;
 }
-interface AuthDialog {
-  isFakturVisible: boolean;
-  isItemVisible: boolean;
-  title: string;
-  challengeCode: string;
-  onSuccess: (pin: string) => void;
-  onCancel: () => void;
+interface AuthDialogState {
   show: boolean;
+  title: string;
+  jenis: string;
+  nominal: number;
+  transaksi?: string;
+  barcode?: string;
+  keterangan?: string; // [PENTING] Untuk info detail di HP
+  onSuccess: (data: { authNomor: string; approver: string }) => void;
+  onCancel: () => void;
 }
 interface Customer {
   kode: string;
@@ -175,6 +178,7 @@ interface SoItem {
   originalDiskonRp?: number;
   originalDiskonPersen?: number;
   lastPin?: string;
+  isCustomOrder?: boolean;
 }
 
 // --- Inisialisasi ---
@@ -283,16 +287,17 @@ const dialogs = reactive({
   promoBonus: false
 });
 
-const authDialog = reactive<AuthDialog>({
-  isFakturVisible: false,
-  isItemVisible: false,
-  title: '',
-  challengeCode: '',
-  onSuccess: () => { }, // 👈 sekarang valid
-  onCancel: () => { },
+const authDialog = reactive<AuthDialogState>({
   show: false,
+  title: '',
+  jenis: '',
+  nominal: 0,
+  transaksi: '',
+  barcode: '',
+  keterangan: '',
+  onSuccess: () => { },
+  onCancel: () => { },
 });
-const authModalRef = ref<InstanceType<typeof AuthorizationModal> | null>(null);
 
 const activeItemForAuth = ref<Item | null>(null);
 const originalDiscount = reactive({
@@ -332,6 +337,7 @@ const isGrandOpeningPromo = ref(false);
 const tableHeaders = [
   { title: 'Kode Barang', key: 'kode', width: '120px' },
   { title: 'Nama Barang', key: 'nama', minWidth: '250px' }, // ubah ke minWidth
+  { title: 'Kategori', key: 'kategori', width: '90px' },
   { title: 'Ukuran', key: 'ukuran', width: '50px' },
   { title: 'Stok Fisik', key: 'stok', align: 'end', width: '80px' },
   { title: 'Stok Pesan', key: 'stokPesanan', align: 'end', width: '80px' },
@@ -343,7 +349,6 @@ const tableHeaders = [
   { title: 'Total', key: 'total', align: 'end', width: '90px' },
   { title: 'Barcode', key: 'barcode', width: '90px' },
   { title: 'SO DTF', key: 'noSoDtf', width: '120px' },
-  { title: 'Kategori', key: 'kategori', width: '90px' },
   { title: 'Promo', key: 'terhitungPromo', align: 'center', width: '70px' },
   { title: 'Actions', key: 'actions', sortable: false, width: '50px' },
 ] as const;
@@ -383,6 +388,7 @@ const addNewRow = () => {
       kategori: '',
       terhitungPromo: false,
       _isHargaEditable: true,
+      isCustomOrder: false,
       promoQty: 0,
     };
     items.value.push(newItem);
@@ -390,23 +396,21 @@ const addNewRow = () => {
 };
 
 const onDiskonSaved = (data: { diskonPersen1: number, diskonPersen2: number, diskonRp: number, biayaKirim: number, biayaPlatform: number, mode?: string }) => {
-  // 1. Tentukan nilai target untuk Diskon
-  // Jika mode persen, maka Rp harus 0. Jika mode Rp, maka Persen harus 0.
+  // 1. Tentukan nilai target untuk Diskon (Sama seperti sebelumnya)
   const isPercentMode = data.mode !== 'rp' && (data.diskonPersen1 > 0 || data.diskonPersen2 > 0);
 
   const newDiskonPersen1 = isPercentMode ? data.diskonPersen1 : 0;
   const newDiskonPersen2 = isPercentMode ? data.diskonPersen2 : 0;
   const newDiskonRp = isPercentMode ? 0 : Number(data.diskonRp || 0);
 
-  // 2. Deteksi Perubahan: Apakah DISKON berubah?
-  // (Kita abaikan perubahan biaya kirim/platform di cek ini)
+  // 2. Deteksi Perubahan (Sama seperti sebelumnya)
   const isDiscountChanged =
     newDiskonPersen1 !== header.diskonPersen1 ||
     newDiskonPersen2 !== header.diskonPersen2 ||
     newDiskonRp !== header.diskonRp;
 
   // Fungsi Helper: Terapkan perubahan ke state Header
-  const applyChanges = () => {
+  const applyChanges = (authData?: { authNomor: string, approver: string }) => {
     header.diskonPersen1 = newDiskonPersen1;
     header.diskonPersen2 = newDiskonPersen2;
     header.diskonRp = newDiskonRp;
@@ -415,6 +419,13 @@ const onDiskonSaved = (data: { diskonPersen1: number, diskonPersen2: number, dis
     header.biayaKirim = Number(data.biayaKirim || 0);
     header.mpBiayaPlatform = Number(data.biayaPlatform || 0);
 
+    // [OPSIONAL] Jika backend butuh nomor otorisasi untuk divalidasi nanti saat simpan invoice
+    if (authData) {
+      // Pastikan Anda sudah menyiapkan field ini di state 'header'
+      // header.authNomorDiskon = authData.authNomor;
+      console.log("Otorisasi Diskon ID:", authData.authNomor);
+    }
+
     // Hitung ulang total
     calculateTotals();
     toast.success('Data biaya & diskon diperbarui.');
@@ -422,64 +433,115 @@ const onDiskonSaved = (data: { diskonPersen1: number, diskonPersen2: number, dis
 
   // 3. Logika Percabangan Otorisasi
   if (isDiscountChanged) {
-    // === JIKA DISKON BERUBAH: BUTUH OTORISASI ===
+    // Hitung estimasi nominal
+    let nominalAuth = 0;
+    if (newDiskonRp > 0) {
+      nominalAuth = newDiskonRp;
+    } else {
+      const subTotalNet = (items.value.reduce((sum, i) => sum + (i.total || 0), 0)) - totals.totalDiskonItem;
+      nominalAuth = (subTotalNet * newDiskonPersen1) / 100;
+    }
 
-    // Simpan nilai asli untuk rollback jika user membatalkan di tengah jalan
-    originalDiscount.faktur = {
-      persen1: header.diskonPersen1,
-      persen2: header.diskonPersen2,
-      rp: header.diskonRp,
-      biayaKirim: header.biayaKirim,
-    };
+    // Susun Info Lengkap
+    const custName = header.customer.nama || 'Umum';
+    const infoDiskon = `Cust: ${custName}\nDiskon Faktur: ${isPercentMode ? newDiskonPersen1 + '%' : 'Rp ' + formatRupiah(newDiskonRp)}`;
 
     requestAuthorization(
       'Otorisasi Diskon Faktur',
-      (pin: string) => { // On Success
-        // Simpan PIN untuk keperluan backend
-        if (newDiskonPersen1 !== header.diskonPersen1) authPins.pinDiskon1 = pin;
-        if (newDiskonPersen2 !== header.diskonPersen2) authPins.pinDiskon2 = pin;
-
-        applyChanges();
+      'DISKON_FAKTUR',
+      nominalAuth,
+      {
+        transaksi: header.nomor ? header.nomor : 'DRAFT INVOICE',
+        keteranganLengkap: infoDiskon, // <-- Kirim info ini
+        barcode: ''
       },
-      () => { // On Cancel
-        // Tidak perlu rollback header secara manual karena header belum kita ubah
-        toast.info('Perubahan diskon dibatalkan.');
+      (authResult) => {
+        applyChanges(authResult);
+      },
+      () => {
+        toast.info('Perubahan diskon faktur dibatalkan.');
       }
     );
+
   } else {
-    // === JIKA HANYA BIAYA KIRIM/PLATFORM BERUBAH: LANGSUNG SIMPAN ===
     applyChanges();
   }
 };
 
 const handleItemDiscountChange = (item: Item) => {
-  // Simpan nilai asli item sebelum diubah
-  // Kita perlu menunggu 'tick' berikutnya agar v-model selesai update
   nextTick(() => {
     const originalRp = item.originalDiskonRp || 0;
     const originalPersen = item.originalDiskonPersen || 0;
     const currentRp = item.diskonRp || 0;
     const currentPersen = item.diskonPersen || 0;
 
-    // Hanya panggil otorisasi jika nilainya benar-benar berubah
+    // Hanya minta otorisasi jika nilai berubah
     if (currentRp !== originalRp || currentPersen !== originalPersen) {
+
+      // 1. Hitung Nominal Auth
+      let diskonPerUnit = 0;
+      if (currentRp > 0) {
+        diskonPerUnit = currentRp;
+      } else {
+        diskonPerUnit = ((item.harga || 0) * currentPersen) / 100;
+      }
+      const totalNominalAuth = diskonPerUnit * (item.jumlah || 1);
+
+      // 2. Set Context (untuk restore jika batal)
+      activeItemForAuth.value = item;
+
+      // 3. Susun Info Lengkap (Agar muncul di HP)
+      const custName = header.customer.nama || 'Umum';
+      const itemName = item.nama || 'Unknown Item';
+
+      // Format: "Cust: ABC\nItem: Kaos Polos"
+      const infoLengkap = `Cust: ${custName}\nItem: ${itemName}`;
+
+      // 4. Request Auth
       requestAuthorization(
-        `Otorisasi Diskon: ${item.nama}`,
-        (pin) => { // onSuccess
+        `Otorisasi Diskon Item`,
+        'DISKON_ITEM',
+        totalNominalAuth,
+        {
+          barcode: item.barcode,
+          transaksi: header.nomor ? header.nomor : 'DRAFT INVOICE',
+          keteranganLengkap: infoLengkap   // <-- Kirim info ini
+        },
+        (authResult) => {
+          // --- SUKSES (APPROVED) ---
           if (activeItemForAuth.value) {
-            activeItemForAuth.value.originalDiskonRp = activeItemForAuth.value.diskonRp;
-            activeItemForAuth.value.originalDiskonPersen = activeItemForAuth.value.diskonPersen;
-            activeItemForAuth.value.lastPin = pin; // contoh: simpan pin
+            const currentItem = activeItemForAuth.value;
+
+            // Update nilai original agar tidak minta auth lagi jika tidak diubah
+            currentItem.originalDiskonRp = currentItem.diskonRp;
+            currentItem.originalDiskonPersen = currentItem.diskonPersen;
+            currentItem.lastPin = authResult.approver; // Simpan nama approver
+
+            // Hitung ulang total baris
+            currentItem.total = computeLineTotal(currentItem);
           }
-          toast.success('Otorisasi diskon item berhasil.');
+
+          toast.success('Otorisasi diskon item disetujui.');
+          calculateTotals();
+          activeItemForAuth.value = null;
         },
         () => {
+          // --- BATAL / DITOLAK ---
           if (activeItemForAuth.value) {
+            // Kembalikan ke nilai lama
             activeItemForAuth.value.diskonRp = originalDiscount.item.rp;
             activeItemForAuth.value.diskonPersen = originalDiscount.item.persen;
+            activeItemForAuth.value.total = computeLineTotal(activeItemForAuth.value);
           }
+          toast.info('Perubahan diskon dibatalkan.');
+          calculateTotals();
+          activeItemForAuth.value = null;
         }
       );
+    } else {
+      // Jika tidak berubah, tetap hitung total untuk keamanan
+      item.total = computeLineTotal(item);
+      calculateTotals();
     }
   });
 };
@@ -489,30 +551,42 @@ const onItemDiscountFocus = (item: Item) => {
   originalDiscount.item = { persen: item.diskonPersen || 0, rp: item.diskonRp || 0 };
 };
 
-const requestAuthorization = (title: string, onConfirm: (pin: string) => void, onCancel: () => void) => {
-  authDialog.challengeCode = Math.floor(100 + Math.random() * 900).toString();
+const requestAuthorization = (
+  title: string,
+  jenis: string,
+  nominal: number,
+  extraData: {
+    transaksi?: string,
+    barcode?: string,
+    keteranganLengkap?: string
+  } | null,
+  onSuccess: (data: { authNomor: string; approver: string }) => void,
+  onCancel: () => void
+) => {
   authDialog.title = title;
-  authDialog.onSuccess = onConfirm;
+  authDialog.jenis = jenis;
+  authDialog.nominal = nominal;
+
+  if (extraData) {
+    authDialog.transaksi = extraData.transaksi || '';
+    authDialog.barcode = extraData.barcode || '';
+    // Mapping keteranganLengkap ke state keterangan dialog
+    authDialog.keterangan = extraData.keteranganLengkap || '';
+  } else {
+    authDialog.transaksi = '';
+    authDialog.barcode = '';
+    authDialog.keterangan = '';
+  }
+
+  // [FIX] Wrapper untuk menutup modal sebelum menjalankan callback sukses
+  // Ini mencegah modal "muter-muter" setelah Approved di HP
+  authDialog.onSuccess = (data) => {
+    authDialog.show = false;
+    onSuccess(data);
+  };
+
   authDialog.onCancel = onCancel;
   authDialog.show = true;
-};
-
-const handleAuthSuccess = async (pin: string) => {
-  try {
-    await api.post('/auth-pin/validate', { pin, code: authDialog.challengeCode, });
-    toast.success('Otorisasi berhasil.');
-    authDialog.onSuccess(pin);
-    calculateTotals();
-    authDialog.show = false;
-  } catch (error: unknown) {
-    const err = error as { response?: { data?: { message?: string } } };
-    authModalRef.value?.setFailed(err.response?.data?.message || 'PIN tidak valid');
-  }
-};
-
-const handleAuthCancel = () => {
-  authDialog.onCancel();
-  authDialog.show = false;
 };
 
 const fetchSalesCounters = async () => {
@@ -1009,31 +1083,34 @@ const onUnpaidDpSelected = (dp: DownPayment) => {
 
 const calculateTotals = () => {
   // ---------------------------------------------------------------------
-  // 1. SUBTOTAL (sebelum diskon item)
+  // [REVISI] 1 & 2: HITUNG BERSIH DARI ITEM DULU (BOTTOM-UP)
+  // Agar support Diskon Persen maupun Rupiah dengan akurat
   // ---------------------------------------------------------------------
-  const subTotal = items.value.reduce(
-    (sum, it) => sum + (it.jumlah || 0) * (it.harga || 0),
-    0
-  );
+  let grossSubTotal = 0; // Total Kotor (Harga x Jumlah)
+  let netItemTotal = 0;  // Total Bersih (item.total)
 
-  // ---------------------------------------------------------------------
-  // 2. TOTAL DISKON ITEM
-  // ---------------------------------------------------------------------
-  const totalDiskonItem = items.value.reduce((sum, item) => {
-    const qty = item.jumlah || 0;
-    const diskonPerUnit = item.diskonRp || 0;
-    return sum + qty * diskonPerUnit;
-  }, 0);
+  // Loop sekali untuk update total per baris & akumulasi
+  items.value.forEach((item) => {
+    // a. Pastikan item.total terupdate logic terbaru
+    item.total = computeLineTotal(item);
 
-  const afterItemDiscount = subTotal - totalDiskonItem;
+    // b. Akumulasi
+    grossSubTotal += (item.jumlah || 0) * (item.harga || 0);
+    netItemTotal += item.total;
+  });
+
+  // Total Diskon Item adalah selisih Kotor - Bersih
+  const totalDiskonItem = grossSubTotal - netItemTotal;
+
+  // Base calculation untuk tahap selanjutnya (Netto Item)
+  const afterItemDiscount = netItemTotal;
 
   // ---------------------------------------------------------------------
   // FIX: JIKA INVOICE BERASAL DARI SO → DISKON FAKTUR TIDAK BOLEH DIHITUNG ULANG
   // ---------------------------------------------------------------------
   if (header.nomorSo) {
-    // Gunakan diskon faktur dari SO apa adanya
+    totals.subTotal = netItemTotal; // Set Subtotal Bersih
     totals.totalDiskonItem = totalDiskonItem;
-
     totals.totalDiskonFaktur = Number(header.diskonRp || 0);
 
     const afterAllDiscount = afterItemDiscount - totals.totalDiskonFaktur;
@@ -1044,22 +1121,18 @@ const calculateTotals = () => {
       0
     );
 
-    totals.subTotal = items.value.reduce(
-      (sum, item) => sum + (item.total || 0),
-      0
-    );
-
     totals.totalPpn = totalPpn;
     totals.grandTotal = afterAllDiscount + totalPpn + (header.biayaKirim || 0) - (header.mpBiayaPlatform || 0);
     totals.totalDp = totalDp;
-    totals.sisaPiutang = totals.grandTotal - totalDp;
+    totals.sisaPiutang = Math.max(0, totals.grandTotal - totalDp);
 
-    return; // ← STOP, jangan lanjut hitung diskon persen
+    return; // ← STOP
   }
 
   // ---------------------------------------------------------------------
   // 3. DISKON FAKTUR (PERSEN)
   // ---------------------------------------------------------------------
+  // Diskon persen diambil dari afterItemDiscount (Nilai bersih item)
   const diskon1Amount = (header.diskonPersen1 / 100) * afterItemDiscount;
   const afterDiscount1 = afterItemDiscount - diskon1Amount;
 
@@ -1067,7 +1140,6 @@ const calculateTotals = () => {
 
   // ---------------------------------------------------------------------
   // 4. DISKON FAKTUR MANUAL (RP)
-  // NOTE: header.diskonRp TIDAK diubah di sini
   // ---------------------------------------------------------------------
   const diskonManual = Number(header.diskonRp || 0);
 
@@ -1099,10 +1171,9 @@ const calculateTotals = () => {
   // ---------------------------------------------------------------------
   // 9. UPDATE TOTALS
   // ---------------------------------------------------------------------
-  totals.subTotal = items.value.reduce(
-    (sum, item) => sum + (item.total || 0),
-    0
-  );
+  // SubTotal di sini kita isi dengan Net Item Total (Total yg sudah dikurangi diskon item)
+  // Sesuai dengan logic 'netItemTotal' di atas.
+  totals.subTotal = netItemTotal;
 
   totals.totalDiskonItem = totalDiskonItem;
   totals.totalDiskonFaktur = diskonFaktur;
@@ -1110,10 +1181,10 @@ const calculateTotals = () => {
   totals.nettoSetelahDiskon = nettoSetelahDiskon;
   totals.totalPpn = totalPpn;
 
-  totals.grandTotal = nettoSetelahDiskon + totalPpn + (header.biayaKirim || 0) - (header.mpBiayaPlatform || 0);
+  totals.grandTotal = Math.max(0, nettoSetelahDiskon + totalPpn + (header.biayaKirim || 0) - (header.mpBiayaPlatform || 0));
 
   totals.totalDp = totalDp;
-  totals.sisaPiutang = totals.grandTotal - totalDp;
+  totals.sisaPiutang = Math.max(0, totals.grandTotal - totalDp);
 };
 
 const handleBonusSelection = (bonusItem: Item) => {
@@ -1186,13 +1257,20 @@ const applyPromoToItems = async (promoNomor: string) => {
 
 const computeLineTotal = (item) => {
   const harga = item.harga || 0;
-  const persen = item.diskonPersen || 0;
-  const diskonRp = item.diskonRp || 0;
+  const jumlah = item.jumlah || 0;
+  const sub = harga * jumlah;
 
-  const diskonPersenRp = (persen / 100) * harga;
-  const totalDiskonPerUnit = diskonRp + diskonPersenRp;
+  let nominalDiskon = 0;
 
-  return (item.jumlah || 0) * (harga - totalDiskonPerUnit);
+  // Logika Prioritas: Jika ada Diskon Rp, pakai itu. Jika tidak, pakai Persen.
+  if ((item.diskonRp || 0) > 0) {
+    nominalDiskon = (item.diskonRp || 0) * jumlah;
+  } else {
+    nominalDiskon = (sub * (item.diskonPersen || 0)) / 100;
+  }
+
+  // Cegah minus
+  return Math.max(0, sub - nominalDiskon);
 };
 
 // --- Method Baru: Fetch Promo saat Mounted ---
@@ -1999,6 +2077,20 @@ const saveHeaderOnly = async () => {
   }
 };
 
+const getCategoryColor = (kategori: string | undefined) => {
+  const k = (kategori || '').toUpperCase();
+  switch (k) {
+    case 'SESIONAL':
+      return 'orange-darken-2';
+    case 'PESANAN':
+      return 'blue-darken-2';
+    case 'REGULER':
+      return 'green-darken-2';
+    default:
+      return 'grey-lighten-1';
+  }
+};
+
 // Hitung tanggal tempo otomatis
 watch(header, () => {
   if (header.top > 0 && header.tanggal) {
@@ -2286,6 +2378,15 @@ watch(() => header.isMarketplace, async (isOnline) => {
                   @keydown.f2.prevent="!header.nomorSo && !item.noSoDtf && openProductSearch(index, true)" />
               </template>
 
+              <template #[`item.kategori`]="{ item }">
+                <div v-if="!item.isCustomOrder && item.kode">
+                  <v-chip size="x-small" :color="getCategoryColor(item.kategori)" variant="flat"
+                    class="font-weight-bold text-white">
+                    {{ item.kategori || 'REG' }}
+                  </v-chip>
+                </div>
+              </template>
+
               <template v-slot:[`item.jumlah`]="{ item }">
                 <v-text-field v-model.number="item.jumlah" :readonly="isReadonly" type="number" min="0"
                   variant="underlined" density="compact" hide-details class="text-right" :class="getQtyClass(item)"
@@ -2425,8 +2526,10 @@ watch(() => header.isMarketplace, async (isOnline) => {
       :biaya-platform="header.mpBiayaPlatform" :is-marketplace="header.isMarketplace"
       @close="dialogs.diskonForm = false" @save="onDiskonSaved" />
     <LinkedDpModal v-if="dialogs.linkedDp" :dps="linkedDps" @close="dialogs.linkedDp = false" />
-    <AuthorizationModal v-if="authDialog.show" ref="authModalRef" :title="authDialog.title"
-      :challenge-code="authDialog.challengeCode" @close="handleAuthCancel" @success="handleAuthSuccess" />
+    <AuthorizationModal v-if="authDialog.show" :title="authDialog.title" :jenis="authDialog.jenis"
+      :nominal="authDialog.nominal" :transaksi="authDialog.transaksi" :barcode="authDialog.barcode"
+      :keterangan="authDialog.keterangan" @success="authDialog.onSuccess"
+      @close="() => { authDialog.show = false; authDialog.onCancel(); }" />
     <!-- <SoDtfSearchModal v-if="dialogs.soDtfSearch" :customer-kode="header.customer.kode" :cabang="header.gudang.kode"
       @close="dialogs.soDtfSearch = false" @selected="onSoDtfSelected" /> -->
     <PromoBonusModal v-if="dialogs.promoBonus" :promo-nomor="activePromoForBonus.nomor"

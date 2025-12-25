@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, computed, watch, nextTick } from 'vue';
+import { ref, onMounted, computed, watch, reactive, nextTick } from 'vue';
 import api from '@/services/api';
 import PageLayout from '@/components/PageLayout.vue';
 import CustomerSearchModal from '@/components/lookup/CustomerSearchModal.vue';
@@ -83,6 +83,18 @@ interface TableHeader {
   align?: 'start' | 'end' | 'center'; // Opsional (tanda tanya)
 }
 
+interface AuthDialogState {
+  show: boolean;
+  title: string;
+  jenis: string;
+  nominal: number;
+  transaksi?: string;
+  barcode?: string;
+  keterangan?: string;
+  onSuccess: (data: { authNomor: string; approver: string }) => void;
+  onCancel: () => void;
+}
+
 // --- State ---
 const header = ref({
   nomor: '',
@@ -111,6 +123,18 @@ const footer = ref({
   pinDiskon2: '',
 });
 
+const authDialog = reactive<AuthDialogState>({
+  show: false,
+  title: '',
+  jenis: '',
+  nominal: 0,
+  transaksi: '',
+  barcode: '',
+  keterangan: '',
+  onSuccess: () => { },
+  onCancel: () => { },
+});
+
 const isCustomerSearchVisible = ref(false);
 // const isGudangSearchVisible = ref(false);
 const isProductSearchVisible = ref(false);
@@ -124,39 +148,17 @@ const focusedRowId = ref<number | string>(-1);
 const isFooterDiskonRpFocused = ref(false);
 const confirmText = ref('');
 const pendingAction = ref<(() => void) | null>(null);
-const isAuthModalVisible = ref(false);
-
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-const defaultDiscount = ref(0);
-
-const previousDiscount = ref(0);
-const isAuth2ModalVisible = ref(false);
 const isPrintConfirmVisible = ref(false);
 const printConfirmNomor = ref('');
-const previousDiscount2 = ref(0);
-const isItemAuthModalVisible = ref(false);
-const activeItemIndexForAuth = ref(-1);
-const previousItemDiscount = ref({ persen: 0, rp: 0 });
-const challengeCode = ref('');
-const authModalRef = ref<InstanceType<typeof AuthorizationModal> | null>(null);
-const auth2ModalRef = ref<InstanceType<typeof AuthorizationModal> | null>(null);
-
-const itemAuthModalRef = ref<InstanceType<typeof AuthorizationModal> | null>(null);
-
 const scannedBarcode = ref('');
+const isAuthPending = ref(false); // [BARU] Penanda sedang menunggu auth
+const previousDiskonRp = ref(0);  // [BARU] Untuk menyimpan nilai sebelum edit
 
 footer.value.diskonRpInput = footer.value.diskonRp;
-const isEditingDiskonRp = ref(false); // untuk menandai bahwa otorisasi dari diskon Rp
 
 const isEditMode = computed(() => !!route.params.nomor);
 const pageTitle = computed(() => isEditMode.value ? `Ubah Penawaran: ${header.value.nomor}` : 'Buat Penawaran Baru');
 const requiredPermission = computed(() => isEditMode.value ? 'edit' : 'insert');
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-const canEditFooter = computed(() => {
-  // Tombol/field di footer hanya aktif jika customer sudah dipilih
-  // DAN setidaknya ada satu baris barang yang sudah terisi (memiliki kode).
-  return header.value.customer && items.value.some(item => item.kode);
-});
 
 const totalQty = computed(() =>
   items.value.reduce((sum, item) => sum + (Number(item.jumlah) || 0), 0)
@@ -271,8 +273,14 @@ const onCustomerSelected = async (customer: { kode: string }) => {
 
     header.value.customer = response.data;
     header.value.top = response.data.top;
-    applyDefaultDiscount();
+
+    // [UPDATE] Panggil API Diskon
+    await applyDefaultDiscount();
+
+    // calculateTotals() sebenarnya sudah dipanggil di dalam applyDefaultDiscount,
+    // tapi dipanggil lagi di sini juga aman.
     calculateTotals();
+
     toast.success(`Customer ${response.data.nama} berhasil dipilih.`);
 
   } catch (error: unknown) {
@@ -379,21 +387,22 @@ const calculateTotals = () => {
 
   footer.value.total = subtotal;
 
-  // const rule = header.value.customer?.discountRule;
-  // if (rule) {
-  //     if (subtotal >= rule.nominal) {
-  //         footer.value.diskonPersen1 = rule.diskon1;
-  //     } else {
-  //         footer.value.diskonPersen1 = rule.diskon2;
-  //     }
-  // } else {
-  //     footer.value.diskonPersen1 = 0;
-  // }
+  const isManualOverride = isFooterDiskonRpFocused.value || isAuthPending.value;
 
-  const discount1 = (footer.value.diskonPersen1 / 100) * subtotal;
-  const afterDiscount1 = subtotal - discount1;
-  const discount2 = (footer.value.diskonPersen2 / 100) * afterDiscount1;
-  footer.value.diskonRp = discount1 + discount2;
+  if ((footer.value.diskonPersen1 > 0 || footer.value.diskonPersen2 > 0) && !isManualOverride) {
+    const discount1 = (footer.value.diskonPersen1 / 100) * subtotal;
+    const afterDiscount1 = subtotal - discount1;
+    const discount2 = (footer.value.diskonPersen2 / 100) * afterDiscount1;
+
+    footer.value.diskonRp = discount1 + discount2;
+    footer.value.diskonRpInput = footer.value.diskonRp;
+  } else {
+    // Jika Manual Mode, gunakan angka dari input user
+    const manualRp = Number(footer.value.diskonRpInput) || 0;
+    footer.value.diskonRp = manualRp;
+    // Jangan timpa footer.value.diskonRpInput
+  }
+
   const netto = subtotal - footer.value.diskonRp;
   footer.value.netto = netto;
   footer.value.ppnRp = (header.value.ppnPersen / 100) * netto;
@@ -557,15 +566,51 @@ const resetForm = () => {
   toast.info('Form telah dibersihkan.');
 };
 
+const requestAuthorization = (
+  title: string,
+  jenis: string,
+  nominal: number,
+  extraData: {
+    transaksi?: string,
+    barcode?: string,
+    keteranganLengkap?: string
+  } | null,
+  onSuccess: (data: { authNomor: string, approver: string }) => void,
+  onCancel: () => void
+) => {
+  authDialog.title = title;
+  authDialog.jenis = jenis;
+  authDialog.nominal = nominal;
+
+  if (extraData) {
+    authDialog.transaksi = extraData.transaksi || '';
+    authDialog.barcode = extraData.barcode || '';
+    authDialog.keterangan = extraData.keteranganLengkap || '';
+  } else {
+    authDialog.transaksi = '';
+    authDialog.barcode = '';
+    authDialog.keterangan = '';
+  }
+
+  authDialog.onSuccess = (data) => {
+    authDialog.show = false; // <--- Tutup modal secara paksa di sini
+    onSuccess(data);         // Baru jalankan logika simpan diskon/toast
+  };
+  authDialog.onCancel = onCancel;
+  authDialog.show = true;
+};
+
 const handleDiscountChange = async () => {
-  // Jangan lakukan apa-apa jika customer belum dipilih
   if (!header.value.customer || !header.value.customer.level) {
     calculateTotals();
     return;
   }
 
+  // Simpan nilai input saat ini untuk jaga-jaga kalau batal
+  const enteredDiscount = footer.value.diskonPersen1;
+
   try {
-    // 1. Panggil API untuk mendapatkan diskon standar
+    // 1. Cek Diskon Standar ke Backend
     const response = await api.get('/offer-form/get-default-discount', {
       params: {
         level: header.value.customer.level,
@@ -575,210 +620,175 @@ const handleDiscountChange = async () => {
     });
     const defaultDiscountValue = response.data.discount;
 
-    // 2. Bandingkan diskon yang diinput dengan diskon standar
-    const enteredDiscount = footer.value.diskonPersen1;
-
-    // 3. Jika diskonnya berbeda (lebih besar atau lebih kecil) & bukan 0, minta otorisasi
+    // 2. Jika beda dan > 0, minta Otorisasi
     if (enteredDiscount !== defaultDiscountValue && enteredDiscount > 0) {
-      previousDiscount.value = defaultDiscountValue; // Simpan nilai default untuk opsi batal
-      challengeCode.value = Math.floor(1000 + Math.random() * 9000).toString();
-      isAuthModalVisible.value = true; // Buka modal otorisasi
+
+      // Hitung nominal estimasi diskon
+      const estimasiNominal = (footer.value.total * enteredDiscount) / 100;
+      const info = `Cust: ${header.value.customer.nama}\nDiskon Std: ${defaultDiscountValue}%\nPengajuan: ${enteredDiscount}%`;
+
+      requestAuthorization(
+        'Otorisasi Diskon Faktur (%)',
+        'DISKON_FAKTUR',
+        estimasiNominal,
+        {
+          transaksi: header.value.nomor || 'DRAFT PENAWARAN',
+          keteranganLengkap: info
+        },
+        (authResult) => {
+          // Sukses
+          footer.value.pinDiskon1 = authResult.approver; // Simpan Nama Approver
+          calculateTotals();
+          toast.success('Diskon disetujui.');
+        },
+        () => {
+          // Batal: Kembalikan ke default
+          footer.value.diskonPersen1 = defaultDiscountValue;
+          calculateTotals();
+          toast.info('Perubahan diskon dibatalkan.');
+        }
+      );
+
     } else {
-      // Jika diskonnya sama dengan standar, atau 0, langsung hitung
       calculateTotals();
     }
   } catch (error) {
     toast.error('Gagal memvalidasi diskon standar.', error);
-    // Kembalikan ke nilai sebelumnya jika API gagal
-    footer.value.diskonPersen1 = previousDiscount.value;
-  }
-};
-
-const onAuthSuccess = async (pin: string) => {
-  try {
-    await api.post('/auth-pin/validate', {
-      code: challengeCode.value,
-      pin: pin
-    });
-
-    toast.success('Otorisasi diskon berhasil.');
-    isAuthModalVisible.value = false; // Tutup modal
-
-    // Cek field mana yang sedang diotorisasi
-    if (isEditingDiskonRp.value) {
-      // --- Ini untuk DISKON RP ---
-      footer.value.pinDiskon1 = pin; // Simpan PIN
-      // Sinkronkan input field (sebenarnya sudah sinkron)
-      footer.value.diskonRpInput = footer.value.diskonRp;
-      isEditingDiskonRp.value = false; // Reset flag
-    } else {
-      // --- Ini untuk DISKON PERSEN 1 ---
-      footer.value.pinDiskon1 = pin; // Simpan PIN
-      // Nilai sudah ada di v-model,
-      // kita panggil calculateTotals() untuk memastikan
-      // (meskipun 'watch' mungkin sudah menjalankannya)
-      calculateTotals();
-    }
-
-  } catch (error: unknown) {
-    // Logika error (JANGAN TUTUP MODAL JIKA GAGAL)
-    if (axios.isAxiosError(error)) {
-      if (error.response?.status === 401) {
-        if (authModalRef.value) {
-          authModalRef.value.setFailed(error.response.data.message || 'Otorisasi Gagal.');
-        }
-      } else {
-        toast.error(error.response?.data?.message || 'Terjadi kesalahan.');
-      }
-    } else if (error instanceof Error) {
-      toast.error(error.message);
-    } else {
-      toast.error('Terjadi kesalahan.');
-    }
+    calculateTotals();
   }
 };
 
 const onDiskonRpBlur = () => {
   const newValue = Number(footer.value.diskonRpInput) || 0;
 
-  // 1. Cek dulu apakah nilainya benar-benar berubah
-  if (newValue === footer.value.diskonRp) {
-    return; // Tidak ada perubahan, tidak perlu kalkulasi atau otorisasi
+  // Cek apakah ada perubahan dari nilai SEBELUM edit
+  if (newValue === previousDiskonRp.value) {
+    return;
   }
 
-  // 2. Simpan nilai LAMA (yang sah) untuk Batal
-  previousDiscount.value = footer.value.diskonRp;
+  // [SET FLAG] Supaya calculateTotals tidak mereset nilai saat modal muncul
+  isAuthPending.value = true;
 
-  // 3. SET nilai BARU-nya SEKARANG
-  footer.value.diskonRp = newValue;
-  // 'watch' akan otomatis memanggil calculateTotals() dan memperbarui tampilan
+  const info = `Cust: ${header.value.customer?.nama || ''}\nDiskon Rupiah: ${formatRupiah(newValue)}`;
 
-  // 4. Minta otorisasi
-  challengeCode.value = Math.floor(1000 + Math.random() * 9000).toString();
-  isEditingDiskonRp.value = true;
-  isAuthModalVisible.value = true;
-};
+  requestAuthorization(
+    'Otorisasi Diskon Rupiah',
+    'DISKON_FAKTUR',
+    newValue,
+    {
+      transaksi: header.value.nomor || 'DRAFT PENAWARAN',
+      keteranganLengkap: info
+    },
+    (authResult) => {
+      // SUKSES
+      // 1. Nol-kan persen karena sekarang pakai Rupiah
+      footer.value.diskonPersen1 = 0;
+      footer.value.diskonPersen2 = 0;
 
-const onAuthCancel = () => {
-  isAuthModalVisible.value = false; // Selalu tutup modal
+      footer.value.pinDiskon1 = authResult.approver;
 
-  if (isEditingDiskonRp.value) {
-    // --- Logika Batal untuk DISKON RP ---
-    footer.value.diskonRp = previousDiscount.value;
-    footer.value.diskonRpInput = previousDiscount.value;
-    isEditingDiskonRp.value = false; // Reset flag
-  } else {
-    // --- Logika Batal untuk DISKON PERSEN 1 ---
-    // 'previousDiscount' sudah diisi oleh handleDiscountChange()
-    footer.value.diskonPersen1 = previousDiscount.value;
-  }
-  // Saat nilai footer diubah (baik diskonRp atau diskonPersen1),
-  // 'watch' akan otomatis memanggil calculateTotals()
-  // dan mengembalikan perhitungannya ke nilai yang benar.
+      // 2. Matikan flag pending
+      isAuthPending.value = false;
+
+      calculateTotals();
+      toast.success('Diskon Rp disetujui.');
+    },
+    () => {
+      // BATAL / TOLAK
+      // 1. Kembalikan ke nilai lama
+      footer.value.diskonRp = previousDiskonRp.value;
+      footer.value.diskonRpInput = previousDiskonRp.value;
+
+      // 2. Matikan flag pending
+      isAuthPending.value = false;
+
+      calculateTotals();
+      toast.info('Perubahan diskon dibatalkan.');
+    }
+  );
 };
 
 const handleItemDiscountChange = (index: number) => {
   const item = items.value[index];
-  // Meniru logika Delphi: otorisasi diperlukan jika diskon diisi
-  // (di dunia nyata, ini akan diperiksa ke backend)
-  if (item.diskonPersen > 0 || item.diskonRp > 0) {
-    activeItemIndexForAuth.value = index;
-    previousItemDiscount.value = { persen: 0, rp: 0 }; // Asumsi diskon awal 0
-    challengeCode.value = Math.floor(1000 + Math.random() * 9000).toString(); // Buat kode acak
-    isItemAuthModalVisible.value = true;
+
+  // Simpan nilai awal (sebelum diedit user, idealnya punya originalDiskon, tapi di sini kita pakai asumsi reset ke 0 jika batal, atau Anda bisa tambahkan properti 'originalDiskon' di interface Item seperti di Invoice)
+  const currentPersen = item.diskonPersen || 0;
+  const currentRp = item.diskonRp || 0;
+
+  if (currentPersen > 0 || currentRp > 0) {
+
+    // Hitung nominal diskon item ini
+    let nominalAuth = 0;
+    if (currentRp > 0) {
+      nominalAuth = currentRp * item.jumlah;
+    } else {
+      nominalAuth = ((item.harga * currentPersen) / 100) * item.jumlah;
+    }
+
+    const info = `Cust: ${header.value.customer?.nama || 'Umum'}\nItem: ${item.nama}\nDiskon: ${currentPersen > 0 ? currentPersen + '%' : formatRupiah(currentRp)}`;
+
+    requestAuthorization(
+      'Otorisasi Diskon Item',
+      'DISKON_ITEM',
+      nominalAuth,
+      {
+        transaksi: header.value.nomor || 'DRAFT PENAWARAN',
+        barcode: item.barcode,
+        keteranganLengkap: info
+      },
+      (authResult) => {
+        item.pin = authResult.approver; // Simpan Approver di item
+        calculateTotals();
+        toast.success('Diskon item disetujui.');
+      },
+      () => {
+        // Batal: Reset ke 0
+        item.diskonPersen = 0;
+        item.diskonRp = 0;
+        calculateTotals();
+        toast.info('Diskon item dibatalkan.');
+      }
+    );
   } else {
     calculateTotals();
   }
-};
-
-const onItemAuthSuccess = async (pin: string) => {
-  try {
-    await api.post('/auth-pin/validate', {
-      code: challengeCode.value,
-      pin: pin
-    });
-
-    items.value[activeItemIndexForAuth.value].pin = pin; // Simpan PIN yang valid
-    isItemAuthModalVisible.value = false;
-    toast.success('Otorisasi diskon item berhasil.');
-    calculateTotals();
-  } catch (error: unknown) {
-    if (axios.isAxiosError(error)) {
-      // Error dari Axios
-      if (error.response?.status === 401) {
-        if (itemAuthModalRef.value) {
-          itemAuthModalRef.value.setFailed(error.response.data.message || 'Otorisasi Gagal.');
-        }
-      } else {
-        toast.error(error.response?.data?.message || 'Terjadi kesalahan.');
-      }
-    } else if (error instanceof Error) {
-      // Error JS biasa
-      toast.error(error.message);
-    } else {
-      toast.error('Terjadi kesalahan.');
-    }
-  }
-};
-
-const onItemAuthCancel = () => {
-  isItemAuthModalVisible.value = false;
-  const item = items.value[activeItemIndexForAuth.value];
-  // Kembalikan ke diskon sebelumnya jika dibatalkan
-  item.diskonPersen = previousItemDiscount.value.persen;
-  item.diskonRp = previousItemDiscount.value.rp;
-  calculateTotals();
 };
 
 const handleDiscount2Change = () => {
-  // Fungsi ini akan dipanggil saat input diskon % 2 selesai diisi
-  // Otorisasi diperlukan jika Diskon % 1 sudah diisi dan Diskon % 2 diubah menjadi > 0
-  if (footer.value.diskonPersen1 > 0 && footer.value.diskonPersen2 > 0) {
-    previousDiscount2.value = 0; // Simpan nilai lama (asumsi dari 0)
-    challengeCode.value = Math.floor(1000 + Math.random() * 9000).toString(); // Buat kode acak
-    isAuth2ModalVisible.value = true;
+  const disc2 = footer.value.diskonPersen2;
+
+  // Jika Diskon 1 ada isinya, dan user mengisi Diskon 2 > 0
+  if (footer.value.diskonPersen1 > 0 && disc2 > 0) {
+
+    // Estimasi nominal (dari sisa setelah disc 1)
+    const afterDisc1 = footer.value.total - ((footer.value.total * footer.value.diskonPersen1) / 100);
+    const estimasiNominal = (afterDisc1 * disc2) / 100;
+
+    const info = `Cust: ${header.value.customer?.nama || ''}\nPenambahan Diskon ke-2: ${disc2}%`;
+
+    requestAuthorization(
+      'Otorisasi Diskon Bertingkat',
+      'DISKON_FAKTUR',
+      estimasiNominal,
+      {
+        transaksi: header.value.nomor || 'DRAFT PENAWARAN',
+        keteranganLengkap: info
+      },
+      (authResult) => {
+        footer.value.pinDiskon2 = authResult.approver;
+        calculateTotals();
+        toast.success('Diskon ke-2 disetujui.');
+      },
+      () => {
+        footer.value.diskonPersen2 = 0; // Reset ke 0 jika batal
+        calculateTotals();
+        toast.info('Diskon ke-2 dibatalkan.');
+      }
+    );
   } else {
     calculateTotals();
   }
 };
-
-const onAuth2Success = async (pin: string) => {
-  try {
-    // Panggil API validasi PIN yang baru
-    await api.post('/auth-pin/validate', {
-      code: challengeCode.value,
-      pin: pin
-    });
-
-    footer.value.pinDiskon2 = pin; // Simpan PIN yang valid
-    isAuth2ModalVisible.value = false;
-    toast.success('Otorisasi diskon berhasil.');
-    calculateTotals();
-  } catch (error: unknown) {
-    if (axios.isAxiosError(error)) {
-      // Error dari Axios
-      if (error.response?.status === 401) {
-        if (auth2ModalRef.value) {
-          auth2ModalRef.value.setFailed(error.response.data.message || 'Otorisasi Gagal.');
-        }
-      } else {
-        toast.error(error.response?.data?.message || 'Terjadi kesalahan.');
-      }
-    } else if (error instanceof Error) {
-      // Error JS biasa
-      toast.error(error.message);
-    } else {
-      toast.error('Terjadi kesalahan.');
-    }
-  }
-};
-
-const onAuth2Cancel = () => {
-  isAuth2ModalVisible.value = false;
-  footer.value.diskonPersen2 = previousDiscount2.value; // Kembalikan ke nilai sebelumnya
-  calculateTotals();
-};
-
 // const openSoDtfSearch = (index: number) => {
 //   if (!header.value.customer) {
 //     toast.error('Pilih Customer terlebih dahulu.');
@@ -900,17 +910,39 @@ const closeForm = () => {
   router.push('/transaksi/penjualan/penawaran');
 };
 
-const applyDefaultDiscount = () => {
-  const rule = header.value.customer?.discountRule;
-  if (rule) {
-    // Logika ini dipindahkan dari calculateTotals
-    if (footer.value.total >= rule.nominal) {
-      footer.value.diskonPersen1 = rule.diskon1;
-    } else {
-      footer.value.diskonPersen1 = rule.diskon2;
-    }
-  } else {
+const applyDefaultDiscount = async () => {
+  // Validasi: Pastikan data pendukung ada
+  if (!header.value.customer || !header.value.customer.level) {
     footer.value.diskonPersen1 = 0;
+    return;
+  }
+
+  try {
+    const levelParam = header.value.customer.level;
+    // Jika format level di frontend "4 - Retailer", ambil "4" nya saja biar bersih
+    const cleanLevel = levelParam.includes(' - ') ? levelParam.split(' - ')[0] : levelParam;
+    const response = await api.get('/offer-form/get-default-discount', {
+      params: {
+        level: cleanLevel, // Kirim "4"
+        total: footer.value.total || 0,
+        gudang: header.value.gudang.kode,
+      }
+    });
+
+    // Update diskon sesuai balikan dari backend
+    // Backend mengembalikan { discount: ... }
+    const serverDiscount = response.data.discount;
+
+    // Hanya update jika nilai berbeda (untuk mencegah loop render berlebih)
+    if (footer.value.diskonPersen1 !== serverDiscount) {
+        footer.value.diskonPersen1 = serverDiscount;
+        // Hitung ulang total setelah diskon berubah
+        calculateTotals();
+    }
+
+  } catch (error) {
+    console.error('Gagal mengambil diskon default:', error);
+    // Opsional: fallback ke 0 atau pertahankan nilai lama jika error
   }
 };
 
@@ -988,8 +1020,31 @@ const handleBarcodeScan = async () => {
   }
 };
 
+// Gunakan debounce (opsional tapi disarankan) agar tidak nembak API setiap ngetik angka
+let debounceTimer: ReturnType<typeof setTimeout>;
+
+watch(() => footer.value.total, () => {
+  // 1. Jika sedang manual override (menunggu auth atau sudah ada PIN), JANGAN update otomatis
+  if (footer.value.pinDiskon1 || isAuthPending.value) {
+    return;
+  }
+
+  // 2. Clear timer sebelumnya
+  clearTimeout(debounceTimer);
+
+  // 3. Tunggu 500ms setelah user selesai edit barang, baru panggil API
+  debounceTimer = setTimeout(() => {
+    applyDefaultDiscount();
+  }, 500);
+});
+
 watch(items, calculateTotals, { deep: true });
 watch(footer, calculateTotals, { deep: true });
+watch(isFooterDiskonRpFocused, (focused) => {
+  if (focused) {
+    previousDiskonRp.value = footer.value.diskonRp;
+  }
+});
 watch(() => header.value.ppnPersen, calculateTotals);
 
 watch(() => header.value.top, (newTop) => {
@@ -1250,13 +1305,10 @@ onMounted(() => {
     <ProductSearchModal v-if="isProductSearchVisible" :category="'Kaosan'" :source="'penawaran'"
       :gudang="header.gudang.kode" :multi="isMultiSelectProduct" @close="isProductSearchVisible = false"
       @products-selected="onProductsSelected" />
-    <AuthorizationModal ref="authModalRef" v-if="isAuthModalVisible"
-      :title="isEditingDiskonRp ? 'Otorisasi Diskon Faktur (Rp)' : 'Otorisasi Diskon Faktur (%)'"
-      :challenge-code="challengeCode" @close="onAuthCancel" @success="onAuthSuccess" />
-    <AuthorizationModal ref="ItemAuthModalRef" v-if="isItemAuthModalVisible" title="Otorisasi Diskon per Item"
-      :challenge-code="challengeCode" @close="onItemAuthCancel" @success="onItemAuthSuccess" />
-    <AuthorizationModal ref="auth2ModalRef" v-if="isAuth2ModalVisible" title="Otorisasi Ganti Diskon 2"
-      :challenge-code="challengeCode" @close="onAuth2Cancel" @success="onAuth2Success" />
+    <AuthorizationModal v-if="authDialog.show" :title="authDialog.title" :jenis="authDialog.jenis"
+      :nominal="authDialog.nominal" :transaksi="authDialog.transaksi" :barcode="authDialog.barcode"
+      :keterangan="authDialog.keterangan" @success="authDialog.onSuccess"
+      @close="() => { authDialog.show = false; authDialog.onCancel(); }" />
     <!-- <SoDtfSearchModal v-if="isSoDtfSearchVisible" :cabang="header.gudang.kode" :customerKode="header.customer?.kode"
       @close="isSoDtfSearchVisible = false" @selected="onSoDtfSelected" /> -->
     <PriceProposalSearchModal v-if="isPriceProposalSearchVisible" :cabang="header.gudang.kode"

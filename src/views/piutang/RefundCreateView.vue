@@ -169,29 +169,41 @@ const loadRefundData = async (nomor: string) => {
   isLoading.value = true;
   isDataLoading.value = true;
   try {
-    const response = await axios.get(`${API_BASE_PATH}/${nomor}`);
+    // [FIX] Ubah 'axios.get' menjadi 'api.get'
+    // 'api' akan otomatis mengarahkan ke port Backend yang benar (misal 3000)
+    const response = await api.get(`${API_BASE_PATH}/${nomor}`);
+
     const { header: dataHeader, details: dataDetails } = response.data;
 
     if (!dataHeader) throw new Error('Data header tidak ditemukan');
 
     Object.assign(header.value, dataHeader);
 
-    items.value = (dataDetails as RefundDetail[]).map(item => ({
+    // Pastikan mapping detail aman (handle jika null/undefined)
+    items.value = (dataDetails || []).map((item: RefundDetail) => ({
       ...item,
-      id: Math.random(), // ID unik untuk v-for
+      id: Math.random(),
     }));
 
     addNewRow();
     toast.success(`Data refund ${nomor} berhasil dimuat.`);
   } catch (error: unknown) {
-    if (axios.isAxiosError(error)) {
-      toast.error(error.response?.data?.message || 'Gagal memuat data refund.');
-    } else if (error instanceof Error) {
-      toast.error(error.message);
-    } else {
-      toast.error('Terjadi kesalahan tidak diketahui.');
+    let msg = 'Gagal memuat data.';
+
+    // 1. Cek apakah error berasal dari Axios
+    if (axios.isAxiosError<{ message: string }>(error)) {
+      // Sekarang TypeScript tahu 'error' adalah AxiosError
+      // Kita juga mendefinisikan bahwa data response memiliki properti 'message'
+      msg = error.response?.data?.message || error.message || msg;
     }
-    router.push({ name: 'RefundCreate' });
+    // 2. Cek apakah error standar Javascript (misal: logic error)
+    else if (error instanceof Error) {
+      msg = error.message;
+    }
+
+    toast.error(msg);
+    // Pastikan nama route tujuan benar (biasanya kalau gagal load data kembali ke Browse/List)
+    router.push({ name: 'Refund' });
   } finally {
     isLoading.value = false;
     isDataLoading.value = false;
@@ -311,13 +323,17 @@ const executeSave = async () => {
     const payload = {
       header: header.value,
       details: items.value.filter(item => item.nomor),
-      isNew: !isEditMode.value,
+      isNew: !header.value.nomor,
       isApprover: isApprover.value,
     };
 
-    const response = isEditMode.value
-      ? await api.put(`${API_BASE_PATH}/${header.value.nomor}`, payload)
-      : await api.post(`${API_BASE_PATH}/`, payload);
+    const url = header.value.nomor
+      ? `${API_BASE_PATH}/${header.value.nomor}` // Edit (PUT)
+      : `${API_BASE_PATH}/`;                     // Baru (POST)
+
+    const response = header.value.nomor
+      ? await api.put(url, payload)
+      : await api.post(url, payload);
 
     toast.success(response.data.message);
     const savedNomor = response.data.nomor;
@@ -327,10 +343,10 @@ const executeSave = async () => {
     dialogConfirmCetak.onConfirm = () => {
       const routeData = router.resolve({ name: 'RefundPrint', params: { nomor: savedNomor } });
       window.open(routeData.href, '_blank');
-      router.push({ name: 'RefundBrowse' });
+      router.push({ name: 'Refund' });
     };
     dialogConfirmCetak.onCancel = () => {
-      router.push({ name: 'RefundBrowse' });
+      router.push({ name: 'Refund' });
     };
     dialogConfirmCetak.show = true;
 
@@ -458,7 +474,7 @@ onMounted(async () => {
             </template>
             <template v-slot:[`item.refund`]="{ item }">
               <v-text-field v-model.number="item.refund" type="number" variant="underlined" density="compact"
-                hide-details class="text-end" :disabled="!canApprove || !item.apv" :readonly="!item.apv"
+                hide-details class="text-end" :readonly="header.isApproved || (isApprover && !item.apv)"
                 :max="item.nominal" min="0" />
             </template>
             <template v-slot:[`item.apv`]="{ item }">

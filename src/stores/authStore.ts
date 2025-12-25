@@ -11,6 +11,7 @@ interface User {
   cabangNama: string;
   canApproveCorrection?: boolean;
   canApprovePrice?: boolean;
+  canApproveRefund?: boolean;
 }
 
 interface Permission {

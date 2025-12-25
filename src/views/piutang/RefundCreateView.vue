@@ -3,6 +3,7 @@ import { ref, onMounted, computed, watch, reactive } from 'vue';
 import api from '@/services/api';
 import PageLayout from '@/components/PageLayout.vue';
 import TransactionSearchModal from '@/components/lookup/TransactionSearchModal.vue';
+import SoSearchModal from '@/components/lookup/SoSearchModal.vue';
 import { useToast } from 'vue-toastification';
 import { useAuthStore } from '@/stores/authStore';
 import { useRouter, useRoute } from 'vue-router';
@@ -51,6 +52,14 @@ interface Transaction {
   Sisa: number;
 }
 
+interface SoSearchResult {
+  Nomor: string;
+  Tanggal: string;
+  KdCus: string;
+  Customer: string;
+  // field lain dari backend: Alamat, Kota, qtyso, qtyinv
+}
+
 // --- State (Disesuaikan dari Form Delphi) ---
 const header = ref<RefundHeader>({
   nomor: '',
@@ -85,6 +94,7 @@ const dialogConfirmCetak = reactive({
   onConfirm: () => { },
   onCancel: () => { }
 });
+const isSoSearchVisible = ref(false);
 
 // Komputasi Sisa Saldo (Analogi total refund yang diajukan)
 const totalRefund = computed(() => {
@@ -94,7 +104,16 @@ const totalRefund = computed(() => {
 });
 
 // Komputasi Izin Aproval (Analogi zAccKor di Delphi)
-const isApprover = computed(() => authStore.user?.cabang === 'KDC');
+const isApprover = computed(() => {
+  // Opsi A: Jika backend sudah diupdate dan user sudah login ulang
+  if (authStore.user?.canApproveRefund) return true;
+
+  // Opsi B: Hardcode di frontend sebagai backup (jika user belum relogin)
+  const allowedUsers = ['DARUL', 'LIA', 'HANI', 'DEVI'];
+  const currentUser = authStore.user?.kode?.toUpperCase() || '';
+  return allowedUsers.includes(currentUser);
+});
+
 const pageTitle = computed(() =>
   isEditMode.value
     ? `Ubah Refund: ${header.value?.nomor || ''}`
@@ -183,6 +202,9 @@ const loadRefundData = async (nomor: string) => {
     items.value = (dataDetails || []).map((item: RefundDetail) => ({
       ...item,
       id: Math.random(),
+      // [FIX 1] Centang hanya jika Header SUDAH Approved.
+      // Jika masih PROSES (Draft), biarkan unchecked agar Finance mencentang manual.
+      apv: header.value.isApproved,
     }));
 
     addNewRow();
@@ -249,26 +271,101 @@ const onTransactionSelected = (selectedTransaction: Transaction) => {
   addNewRow();
 };
 
-// Logika persetujuan per baris (Analogi clapvPropertiesEditValueChanged)
-const handleLineItemApproval = (item: RefundDetail) => {
-  // Logika clapvPropertiesEditValueChanged
-  if (item.apv) {
-    item.refund = item.nominal;
-  } else {
-    item.refund = 0;
+// [TAMBAH] Handler F3 (Pencarian Sales Order)
+const openSearchSo = (index: number) => {
+  if (header.value.isApproved || isApprover.value) return;
+  activeRowIndex.value = index;
+  isSoSearchVisible.value = true;
+};
+
+// [TAMBAH] Logika setelah SO dipilih
+const onSoSelected = async (selectedSo: SoSearchResult) => {
+  isSoSearchVisible.value = false;
+
+  // 1. Validasi awal duplikasi (Cek apakah SO ini sudah pernah dipilih sebelumnya secara global, opsional)
+  // const existingItem = items.value.find(item => item.ket && item.ket.includes(selectedSo.Nomor));
+
+  isLoading.value = true; // Tampilkan loading sebentar
+
+  try {
+    // 2. Panggil API Backend yang baru dibuat
+    // Pastikan path sesuai route backend Anda
+    const response = await api.get(`${API_BASE_PATH}/lookup/so-details/${selectedSo.Nomor}`);
+
+    const { header, dps } = response.data;
+
+    // Jika tidak ada DP yang bisa direfund
+    if (!dps || dps.length === 0) {
+      toast.warning(`SO ${selectedSo.Nomor} ditemukan, tetapi tidak ada DP/Uang Muka yang tersisa.`);
+      return;
+    }
+
+    // 3. Masukkan DP ke dalam Grid
+    // Kita hapus baris kosong aktif jika ada (baris tempat user menekan F3)
+    const currentItem = items.value[activeRowIndex.value];
+    let isFirstInsert = true;
+
+    for (const dp of dps) {
+      // Data yang akan dimasukkan
+      const rowData = {
+        nomor: dp.nomor, // Nomor Bukti DP (Misal: K01UM...)
+        tanggal: dp.tanggal,
+        kdcus: header.kdcus,
+        customer: header.customer,
+        nominal: Number(dp.nominal), // Sisa saldo DP
+        refund: 0, // Default refund 0 (user isi sendiri) atau bisa disamakan dp.nominal
+        apv: false,
+        ket: `Refund DP SO ${header.nomor} (${dp.jenis})`, // Keterangan otomatis
+        iddrec: `${authStore.user?.cabang || 'K01'}RF${Date.now() + Math.random()}`,
+        bank: '', norek: '', atasnama: ''
+      };
+
+      // Cek duplikasi per item DP agar tidak masuk 2x
+      const isDpExist = items.value.find(i => i.nomor === dp.nomor);
+      if (isDpExist) {
+        toast.info(`DP ${dp.nomor} sudah ada di list.`);
+        continue;
+      }
+
+      if (isFirstInsert && currentItem && !currentItem.nomor) {
+        // Jika baris aktif masih kosong, pakai baris itu
+        Object.assign(currentItem, { ...rowData, id: currentItem.id }); // Pertahankan ID lama reactivity
+        isFirstInsert = false;
+      } else {
+        // Jika ada lebih dari 1 DP, atau baris aktif sudah terisi, push baris baru
+        items.value.push({
+          ...rowData,
+          id: Date.now() + Math.random()
+        });
+      }
+    }
+
+    // Pastikan ada baris kosong baru di paling bawah untuk input selanjutnya
+    addNewRow();
+
+  } catch (error) {
+    console.error(error);
+    toast.error("Gagal mengambil detail DP dari SO.");
+  } finally {
+    isLoading.value = false;
   }
+};
+
+// Logika persetujuan per baris (Analogi clapvPropertiesEditValueChanged)
+const handleLineItemApproval = () => {
+  // Cukup panggil update header status saja
   updateHeaderApprovalStatus();
 };
 
 // Logika Cek Approval Header (Analogi cekapv)
 const updateHeaderApprovalStatus = () => {
-  // Logika cekapv
+  // [PENTING] Jika user BUKAN Finance (Devi dkk), STOP DI SINI.
+  // Jangan biarkan sistem otomatis mencentang Approved.
+  if (!isApprover.value) return;
+
+  // Logika bawah ini HANYA jalan di komputer DEVI/Finance
   const anyApproved = items.value.some(item => item.apv);
-  if (anyApproved) {
-    header.value.isApproved = true;
-  } else {
-    header.value.isApproved = false;
-  }
+  header.value.isApproved = anyApproved;
 };
 
 const removeRow = (id: number) => {
@@ -320,9 +417,19 @@ const executeSave = async () => {
   }
   isSaving.value = true;
   try {
+    const detailsToSend = items.value
+      .filter(item => item.nomor)
+      .map(item => ({
+        ...item,
+        // Jika User adalah Approver DAN item TIDAK dicentang,
+        // maka kirim refund = 0 (artinya ditolak/tidak diapprove baris ini)
+        // Jika dicentang, gunakan nominal asli (item.refund)
+        refund: isApprover.value ? (item.apv ? item.refund : 0) : item.refund
+      }));
+
     const payload = {
       header: header.value,
-      details: items.value.filter(item => item.nomor),
+      details: detailsToSend,
       isNew: !header.value.nomor,
       isApprover: isApprover.value,
     };
@@ -460,13 +567,14 @@ onMounted(async () => {
 
       <div class="right-column">
         <div class="desktop-form-section d-flex flex-column" style="flex-grow: 1;">
-          <div class="text-subtitle-1 font-weight-bold mb-2">Detail Transaksi (F1=Invoice, F2=Deposit)</div>
+          <div class="text-subtitle-1 font-weight-bold mb-2">Detail Transaksi (F1=Invoice, F2=Deposit, F3=Sales Order)
+          </div>
           <v-data-table :headers="tableHeaders" :items="items" :loading="isLoading" class="desktop-table fill-height"
             density="compact" fixed-header :items-per-page="-1">
             <template v-slot:[`item.nomor`]="{ item, index }">
               <v-text-field v-model="item.nomor" variant="underlined" density="compact" hide-details
-                placeholder="F1/F2..." @keydown.f1.prevent="openSearchInvoice(index)"
-                @keydown.f2.prevent="openSearchDeposit(index)"
+                placeholder="F1 (Inv) / F2 (Dep) / F3 (SO)..." @keydown.f1.prevent="openSearchInvoice(index)"
+                @keydown.f2.prevent="openSearchDeposit(index)" @keydown.f3.prevent="openSearchSo(index)"
                 :readonly="!!item.nomor || isApprover || header.isApproved || !canSave" />
             </template>
             <template v-slot:[`item.nominal`]="{ item }">
@@ -479,7 +587,7 @@ onMounted(async () => {
             </template>
             <template v-slot:[`item.apv`]="{ item }">
               <v-checkbox-btn v-model="item.apv" density="compact" hide-details
-                :disabled="!canApprove || header.isApproved || !item.nomor" @change="handleLineItemApproval(item)" />
+                :disabled="!canApprove || header.isApproved || !item.nomor" @change="handleLineItemApproval" />
             </template>
             <template v-slot:[`item.bank`]="{ item }">
               <v-text-field v-model="item.bank" variant="underlined" density="compact" hide-details
@@ -497,10 +605,10 @@ onMounted(async () => {
               <v-text-field v-model="item.ket" variant="underlined" density="compact" hide-details
                 :readonly="isApprover || header.isApproved || !canSave" />
             </template>
-            <template v-slot:[`item.actions`]="{ item, index }">
+            <template v-slot:[`item.actions`]="{ item }">
               <v-btn v-if="item.nomor && !isApprover && !header.isApproved" icon="mdi-delete" size="x-small"
                 variant="text" color="error" :disabled="!canSave"
-                @click="showConfirmation('Konfirmasi', 'Hapus baris ini?', () => removeRow(index))" />
+                @click="showConfirmation('Konfirmasi', 'Hapus baris ini?', () => removeRow(item.id))" />
             </template>
             <template #bottom>
               <v-btn v-if="!isApprover && !header.isApproved" size="small" @click="addNewRow" prepend-icon="mdi-plus"
@@ -514,6 +622,8 @@ onMounted(async () => {
     <TransactionSearchModal v-if="isTransactionSearchVisible" :searchType="searchType"
       :cabang="authStore.user?.cabang || 'K01'" @close="isTransactionSearchVisible = false"
       @selected="onTransactionSelected" />
+    <SoSearchModal v-if="isSoSearchVisible" :cabang="authStore.user?.cabang || 'K01'" source="mutasi-out"
+      @close="isSoSearchVisible = false" @selected="onSoSelected" />
 
     <v-dialog v-model="dialogConfirm.show" max-width="400px" persistent>
       <v-card>
@@ -587,13 +697,16 @@ onMounted(async () => {
 }
 
 .desktop-table :deep(thead tr th) {
-  background-color: #0D47A1 !important; /* Biru Tua */
-  color: #ffffff !important;            /* Teks Putih */
+  background-color: #0D47A1 !important;
+  /* Biru Tua */
+  color: #ffffff !important;
+  /* Teks Putih */
   font-weight: bold !important;
   text-transform: uppercase;
   font-size: 11px !important;
   height: 40px !important;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-  border-bottom: none !important; /* Supaya lebih rapi */
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  border-bottom: none !important;
+  /* Supaya lebih rapi */
 }
 </style>

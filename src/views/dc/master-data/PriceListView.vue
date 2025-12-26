@@ -96,6 +96,9 @@ const fetchMasterData = async () => {
   } catch (error) {
     const err = error as AxiosError<{ message?: string }>;
     toast.error(err.response?.data?.message || 'Gagal mengambil data.');
+  } finally {
+    // [FIX] Tambahkan ini agar loading berhenti
+    loading.value = false;
   }
 };
 

@@ -282,6 +282,7 @@ const initialHeaderState = {
 
   nomorPromo: '', // [BARU]
   namaPromo: '',  // [BARU]
+  nomorAuth: '',
 };
 
 const header = ref({ ...initialHeaderState });
@@ -725,6 +726,9 @@ const openDpAuthorization = () => {
     },
     (authResult) => {
       footer.value.pinTanpaDp = authResult.approver;
+      if (authResult.authNomor) {
+        header.value.nomorAuth = authResult.authNomor;
+      }
       header.value.statusSo = 'AKTIF';
       toast.success('Otorisasi SO Tanpa DP disetujui.');
     },
@@ -956,6 +960,7 @@ const executeSave = async () => {
         so_is_marketplace: header.value.isMarketplace ? 'Y' : 'N',
         so_mp_nomor_pesanan: header.value.mpNomorPesanan,
         so_mp_resi: header.value.mpResi,
+        nomorAuth: header.value.nomorAuth
       },
       footer: footer.value,
       details: items.value
@@ -1548,7 +1553,7 @@ const requestAuthorization = (
 };
 
 // Fungsi untuk menangani update dari Modal Diskon/Biaya
-const handleDiscountCostUpdate = (newData: typeof footer.value) => {
+const handleDiscountCostUpdate = (newData: typeof footer.value & { authNomor?: string }) => {
   // 1. Terapkan perubahan ke state footer
   footer.value.diskonPersen1 = newData.diskonPersen1;
   footer.value.diskonPersen2 = newData.diskonPersen2;
@@ -1558,6 +1563,10 @@ const handleDiscountCostUpdate = (newData: typeof footer.value) => {
   // 2. Simpan PIN jika ada (dikirim dari modal setelah sukses auth)
   if (newData.pinDiskon1) footer.value.pinDiskon1 = newData.pinDiskon1;
   if (newData.pinDiskon2) footer.value.pinDiskon2 = newData.pinDiskon2;
+
+  if (newData.authNomor) {
+    header.value.nomorAuth = newData.authNomor;
+  }
 
   // 3. Hitung ulang Grand Total
   calculateTotals();
@@ -1603,6 +1612,9 @@ const handleItemDiscountChange = (index: number) => {
       },
       (authResult) => {
         item.pin = authResult.approver; // Simpan Approver
+        if (authResult.authNomor) {
+          header.value.nomorAuth = authResult.authNomor;
+        }
         calculateTotals();
         toast.success('Diskon item disetujui.');
       },

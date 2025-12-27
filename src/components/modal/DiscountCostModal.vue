@@ -18,6 +18,7 @@ interface FooterData {
   diskonRp: number;
   pinDiskon1?: string;
   pinDiskon2?: string;
+  authNomor?: string;
 }
 
 // --- [BARU] Interface Auth Dialog ---
@@ -204,6 +205,9 @@ const handleDiscount1Change = async () => {
         info,
         (authResult) => {
           localFooter.value.pinDiskon1 = authResult.approver;
+          if (authResult.authNomor) {
+            localFooter.value.authNomor = authResult.authNomor;
+          }
           toast.success('Diskon disetujui.');
         },
         async () => {
@@ -246,6 +250,9 @@ const handleDiscount2Change = () => {
       info,
       (authResult) => {
         localFooter.value.pinDiskon2 = authResult.approver;
+        if (authResult.authNomor) {
+          localFooter.value.authNomor = authResult.authNomor;
+        }
         toast.success('Diskon 2 disetujui.');
       },
       async () => {
@@ -292,6 +299,9 @@ const onDiskonRpBlur = () => {
         localFooter.value.diskonPersen2 = 0;
 
         localFooter.value.pinDiskon1 = authResult.approver; // Pakai slot pin1
+        if (authResult.authNomor) {
+          localFooter.value.authNomor = authResult.authNomor;
+        }
         toast.success('Diskon Rp disetujui.');
       },
       async () => {

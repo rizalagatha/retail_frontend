@@ -52,6 +52,10 @@ interface PaymentLinkItem {
   tanggal: string;
   nominal: number;
 }
+interface ReturExportRow {
+  Tanggal?: string | Date;
+  [key: string]: unknown;
+}
 
 const router = useRouter();
 const toast = useToast();
@@ -279,23 +283,93 @@ const handlePrintSelection = (type: 'a4' | 'kasir') => {
   window.open(url, '_blank');
 };
 
+// Helper Format Tanggal
+const formatDateIndo = (dateString: string | Date) => {
+  if (!dateString) return '';
+  const date = new Date(dateString);
+  return new Intl.DateTimeFormat('id-ID', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric'
+  }).format(date);
+};
+
+// Fungsi Export Data
 const exportData = async (type: 'header' | 'detail') => {
   if (type === 'header') {
-    if (masterData.value.length === 0) return toast.warning('Tidak ada data header untuk diexport.');
-    const worksheet = XLSX.utils.json_to_sheet(masterData.value);
+    if (masterData.value.length === 0) {
+      toast.warning('Tidak ada data header untuk diekspor.');
+      return;
+    }
+
+    // Format Tanggal Header (gunakan interface MasterItem jika sudah ada)
+    const formattedHeader = masterData.value.map((item: MasterItem) => ({
+      ...item,
+      // Field 'tanggal' di interface MasterItem (lowercase)
+      tanggal: item.tanggal ? formatDateIndo(item.tanggal) : '',
+    }));
+
+    const worksheet = XLSX.utils.json_to_sheet(formattedHeader);
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, "Retur Jual Header");
     XLSX.writeFile(workbook, "Export_ReturJual_Header.xlsx");
+    toast.success('Header berhasil diekspor.');
+
   } else if (type === 'detail') {
     try {
-      const response = await api.get('/retur-jual/export-details', { params: filters });
-      if (response.data.length === 0) return toast.warning('Tidak ada data detail untuk diexport.');
-      const worksheet = XLSX.utils.json_to_sheet(response.data);
+      toast.info('Mengambil data detail...');
+      // Request ke Backend (Kirim filters!)
+      const response = await api.get<ReturExportRow[]>('/retur-jual/export-details', { params: filters });
+
+      if (response.data.length === 0) {
+        toast.warning('Tidak ada data detail.');
+        return;
+      }
+
+      // Format Tanggal Detail
+      const formattedDetail = response.data.map((row: ReturExportRow) => ({
+        ...row,
+        // Backend mengirim alias 'Tanggal' (Capital T) sesuai query AS
+        Tanggal: row.Tanggal ? formatDateIndo(row.Tanggal) : ''
+      }));
+
+      // Opsional: Custom Excel Layout
+      const title = "LAPORAN DETAIL RETUR JUAL";
+      const dateRange = `Periode : ${formatDateIndo(filters.startDate)} s/d ${formatDateIndo(filters.endDate)}`;
+      const tableHeaders = Object.keys(formattedDetail[0]);
+      const tableData = formattedDetail.map((row) => Object.values(row as Record<string, unknown>));
+
+      const excelData = [
+        [title],
+        [dateRange],
+        [],
+        tableHeaders,
+        ...tableData
+      ];
+
+      const worksheet = XLSX.utils.aoa_to_sheet(excelData);
+
+      // Merge Judul
+      const merge = [
+        { s: { r: 0, c: 0 }, e: { r: 0, c: tableHeaders.length - 1 } },
+        { s: { r: 1, c: 0 }, e: { r: 1, c: tableHeaders.length - 1 } },
+      ];
+      worksheet['!merges'] = merge;
+
+      // Auto Width
+      const colWidths = tableHeaders.map(header => ({ wch: header.length + 5 }));
+      worksheet['!cols'] = colWidths;
+
       const workbook = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(workbook, worksheet, "Retur Jual Detail");
       XLSX.writeFile(workbook, "Export_ReturJual_Detail.xlsx");
+      toast.success('Detail berhasil diekspor.');
+
     } catch (error) {
-      toast.error('Gagal mengekspor data detail.', error);
+      let message = 'Gagal mengekspor data detail.';
+      if (error instanceof Error) message = error.message;
+      // Cek Axios Error jika perlu
+      toast.error(message);
     }
   }
 };

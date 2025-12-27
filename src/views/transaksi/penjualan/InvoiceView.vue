@@ -9,8 +9,10 @@ import { format, parseISO } from 'date-fns';
 import PageLayout from '@/components/PageLayout.vue';
 import PrintOptionModal from '@/components/modal/PrintOptionModal.vue';
 import KasirPrintPreviewModal from "@/components/modal/KasirPrintPreviewModal.vue";
+import RekeningSearchModal from '@/components/lookup/RekeningSearchModal.vue';
 import * as XLSX from 'xlsx';
 import { formatRupiah } from "@/utils/formatRupiah";
+import type { AxiosError } from 'axios';
 
 interface InvoiceHeader {
   Nomor: string;
@@ -110,6 +112,26 @@ interface ColumnFilter {
   value?: string | number;
 }
 
+// Definisikan bentuk object Rekening sesuai data dari backend/modal
+interface Rekening {
+  kode: string;
+  nama: string;
+  rekening: string;
+}
+
+// Opsional: Definisikan tipe untuk Form agar lebih ketat
+interface PaymentForm {
+  metode: 'TUNAI' | 'TRANSFER';
+  bank: Rekening | null;
+  noRek: string;
+  alasan: string;
+}
+
+interface InvoiceExportRow {
+  Tanggal?: string | Date;
+  [key: string]: unknown;
+}
+
 type FilterValue = string | number;
 
 // --- Inisialisasi ---
@@ -142,6 +164,18 @@ const filters = reactive({
 });
 
 const isMounted = ref(false);
+
+const isChangePaymentVisible = ref(false);
+const isChangingPayment = ref(false);
+const isRekeningSearchVisible = ref(false); // State untuk modal rekening
+
+// Form Payment
+const formPayment = reactive<PaymentForm>({
+  metode: 'TUNAI',
+  bank: null, // Sekarang TS tahu ini boleh null atau Rekening
+  noRek: '',
+  alasan: ''
+});
 
 const filterOptions = ref([
   { title: 'Nomor Invoice', value: 'Nomor' },
@@ -497,6 +531,52 @@ const handleEdit = () => {
   router.push({ name: 'InvoiceEdit', params: { nomor } });
 };
 
+const openChangePaymentModal = () => {
+  // Reset Form
+  formPayment.metode = 'TUNAI';
+  formPayment.bank = null;
+  formPayment.noRek = '';
+  formPayment.alasan = '';
+
+  isChangePaymentVisible.value = true;
+};
+
+const onRekeningSelected = (item: Rekening) => {
+  formPayment.bank = item;
+  // Otomatis isi nomor rekening
+  formPayment.noRek = item.rekening;
+};
+
+const submitChangePayment = async () => {
+  if (!formPayment.alasan) return toast.warning("Mohon isi alasan perubahan.");
+
+  if (formPayment.metode === 'TRANSFER') {
+    if (!formPayment.bank) return toast.warning("Mohon pilih Bank.");
+  }
+
+  isChangingPayment.value = true;
+  try {
+    await api.post('/invoices/change-payment', {
+      nomor: selectedRow.value?.Nomor,
+      metodeBaru: formPayment.metode,
+      bank: formPayment.bank, // Kirim full object atau ambil kodenya di backend
+      noRek: formPayment.noRek,
+      alasan: formPayment.alasan
+    });
+
+    toast.success("Metode pembayaran berhasil diubah.");
+    isChangePaymentVisible.value = false;
+    fetchMasterData();
+  } catch (err) {
+    // Casting error ke tipe AxiosError agar properti response dikenali
+    const error = err as AxiosError<{ message?: string }>;
+
+    toast.error(error.response?.data?.message || "Gagal mengubah pembayaran.");
+} finally {
+    isChangingPayment.value = false;
+}
+};
+
 const printData = (type: 'invoice' | 'sj') => {
   if (!isSingleSelected.value) return;
 
@@ -592,23 +672,100 @@ const handleView = () => {
   });
 };
 
+// 1. Helper Format Tanggal
+const formatDateIndo = (dateString: string | Date) => {
+  if (!dateString) return '';
+  const date = new Date(dateString);
+  return new Intl.DateTimeFormat('id-ID', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric'
+  }).format(date);
+};
+
+// 2. Fungsi Export Data
 const exportData = async (type: 'header' | 'detail') => {
   if (type === 'header') {
-    if (masterData.value.length === 0) return toast.warning('Tidak ada data header.');
-    const worksheet = XLSX.utils.json_to_sheet(masterData.value);
+    if (masterData.value.length === 0) {
+      toast.warning('Tidak ada data header.');
+      return;
+    }
+
+    // Format Tanggal Header
+    // masterData menggunakan Interface InvoiceHeader (atau InvoiceItem)
+    const formattedHeader = masterData.value.map((item: InvoiceItem) => ({
+      ...item,
+      // Format 'Tanggal'
+      Tanggal: item.Tanggal ? formatDateIndo(item.Tanggal) : '',
+      // Format tanggal lain jika perlu, misal TglSO, Tempo
+      TglSO: item.TglSO ? formatDateIndo(item.TglSO) : '',
+      Tempo: item.Tempo ? formatDateIndo(item.Tempo) : '',
+    }));
+
+    const worksheet = XLSX.utils.json_to_sheet(formattedHeader);
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, "Invoice Header");
     XLSX.writeFile(workbook, "Export_Invoice_Header.xlsx");
+    toast.success('Header berhasil diekspor.');
+
   } else if (type === 'detail') {
     try {
-      const response = await api.get('/invoices/export-details', { params: filters });
-      if (response.data.length === 0) return toast.warning('Tidak ada data detail.');
-      const worksheet = XLSX.utils.json_to_sheet(response.data);
+      toast.info('Mengambil data detail...');
+      // Gunakan Generic Type pada api.get
+      const response = await api.get<InvoiceExportRow[]>('/invoices/export-details', { params: filters });
+
+      if (response.data.length === 0) {
+        toast.warning('Tidak ada data detail.');
+        return;
+      }
+
+      // Format Tanggal Detail
+      const formattedDetail = response.data.map((row: InvoiceExportRow) => ({
+        ...row,
+        // TypeScript valid karena InvoiceExportRow punya field Tanggal?
+        Tanggal: row.Tanggal ? formatDateIndo(row.Tanggal) : ''
+      }));
+
+      // Opsional: Gunakan Custom Header & Formatting seperti Penawaran (Lebih Rapi)
+      const title = "LAPORAN DETAIL INVOICE";
+      const dateRange = `Periode : ${formatDateIndo(filters.startDate)} s/d ${formatDateIndo(filters.endDate)}`;
+      const tableHeaders = Object.keys(formattedDetail[0]);
+
+      // Gunakan Record<string, unknown> untuk Object.values agar aman
+      const tableData = formattedDetail.map((row) => Object.values(row as Record<string, unknown>));
+
+      const excelData = [
+        [title],
+        [dateRange],
+        [],
+        tableHeaders,
+        ...tableData
+      ];
+
+      const worksheet = XLSX.utils.aoa_to_sheet(excelData);
+
+      // Merge Judul
+      const merge = [
+        { s: { r: 0, c: 0 }, e: { r: 0, c: tableHeaders.length - 1 } },
+        { s: { r: 1, c: 0 }, e: { r: 1, c: tableHeaders.length - 1 } },
+      ];
+      worksheet['!merges'] = merge;
+
+      // Auto Width
+      const colWidths = tableHeaders.map(header => ({ wch: header.length + 5 }));
+      worksheet['!cols'] = colWidths;
+
       const workbook = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(workbook, worksheet, "Invoice Detail");
       XLSX.writeFile(workbook, "Export_Invoice_Detail.xlsx");
+      toast.success('Detail berhasil diekspor.');
+
     } catch (error) {
-      toast.error('Gagal mengekspor data detail.', error);
+      // Type Guard untuk Error
+      let message = 'Gagal mengekspor data detail.';
+      if (error instanceof Error) message += ` ${error.message}`;
+      toast.error(message);
+      console.error(error);
     }
   }
 };
@@ -742,16 +899,33 @@ watch(filters, () => {
         @click="handleNew">
         Baru
       </v-btn>
-      <v-btn v-if="authStore.can(MENU_ID, 'edit') && !isLockedInvoice" size="small" prepend-icon="mdi-pencil"
-        :disabled="!isSingleSelected" @click="handleEdit">
-        Ubah
-      </v-btn>
+
+      <v-menu offset-y v-if="authStore.can(MENU_ID, 'edit') && !isLockedInvoice">
+        <template v-slot:activator="{ props }">
+          <v-btn v-bind="props" size="small" prepend-icon="mdi-pencil" :disabled="!isSingleSelected">
+            Ubah
+            <v-icon end icon="mdi-chevron-down"></v-icon>
+          </v-btn>
+        </template>
+        <v-list density="compact">
+          <v-list-item @click="handleEdit">
+            <template #prepend><v-icon size="small" icon="mdi-file-document-edit-outline" class="mr-2" /></template>
+            <v-list-item-title>Ubah Data Barang</v-list-item-title>
+          </v-list-item>
+
+          <v-list-item @click="openChangePaymentModal">
+            <template #prepend><v-icon size="small" icon="mdi-cash-sync" class="mr-2 text-purple" /></template>
+            <v-list-item-title class="text-purple">Ubah Pembayaran</v-list-item-title>
+          </v-list-item>
+        </v-list>
+      </v-menu>
 
       <!-- Jika invoice SUDAH locked → tombol Lihat -->
       <v-btn v-if="authStore.can(MENU_ID, 'view') && isLockedInvoice" size="small" prepend-icon="mdi-eye" color="grey"
         :disabled="!isSingleSelected" @click="handleView">
         Lihat
       </v-btn>
+
       <!-- <v-btn v-if="authStore.can(MENU_ID, 'delete')" size="small" color="error" :disabled="!isSingleSelected"
                 @click="handleDelete">Hapus</v-btn> -->
       <v-btn v-if="authStore.can(MENU_ID, 'view')" size="small" color="green" :disabled="!isSingleSelected"
@@ -1059,6 +1233,51 @@ watch(filters, () => {
         </v-card-actions>
       </v-card>
     </v-dialog>
+
+    <v-dialog v-model="isChangePaymentVisible" max-width="500px" persistent>
+      <v-card>
+        <v-card-title class="bg-purple-darken-1 text-white text-subtitle-1">
+          <v-icon start>mdi-cash-sync</v-icon> Ubah Metode Pembayaran
+        </v-card-title>
+
+        <v-card-text class="pt-4">
+          <v-alert type="warning" variant="tonal" density="compact" class="mb-4" border="start" icon="mdi-alert">
+            <div class="text-caption">
+              Aksi ini akan <b>mereset data setoran</b> lama dan membuat record baru.
+            </div>
+          </v-alert>
+
+          <v-select v-model="formPayment.metode" label="Metode Pembayaran Baru" :items="['TUNAI', 'TRANSFER']"
+            variant="outlined" density="compact" color="primary"></v-select>
+
+          <template v-if="formPayment.metode === 'TRANSFER'">
+            <v-text-field :model-value="formPayment.bank ? `${formPayment.bank.nama} - ${formPayment.bank.kode}` : ''"
+              label="Pilih Bank (Klik Disini/F1)" placeholder="Tekan F1 untuk cari..." variant="outlined"
+              density="compact" readonly append-inner-icon="mdi-magnify" @click="isRekeningSearchVisible = true"
+              @keydown.f1.prevent="isRekeningSearchVisible = true"
+              :rules="[v => !!formPayment.bank || 'Bank wajib dipilih']"></v-text-field>
+
+            <v-text-field v-model="formPayment.noRek" label="Keterangan / No. Rek" variant="outlined" density="compact"
+              placeholder="Contoh: 123xxx a.n Budi"></v-text-field>
+          </template>
+
+          <v-textarea v-model="formPayment.alasan" label="Alasan Perubahan (Wajib)" rows="2" variant="outlined"
+            density="compact" placeholder="Contoh: Salah input metode oleh sales"
+            :rules="[v => !!v || 'Alasan wajib diisi']"></v-textarea>
+        </v-card-text>
+
+        <v-card-actions>
+          <v-spacer></v-spacer>
+          <v-btn text @click="isChangePaymentVisible = false" :disabled="isChangingPayment">Batal</v-btn>
+          <v-btn color="primary" variant="flat" @click="submitChangePayment" :loading="isChangingPayment">
+            Simpan
+          </v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+
+    <RekeningSearchModal v-if="isRekeningSearchVisible" :cabang="authStore.user?.cabang || 'K01'"
+      @close="isRekeningSearchVisible = false" @selected="onRekeningSelected" />
 
   </PageLayout>
 </template>

@@ -8,12 +8,15 @@ import { AxiosError } from 'axios';
 import AppDataTable from '@/components/AppDataTable.vue';
 import { formatRupiah } from "@/utils/formatRupiah";
 
+// Update Interface sesuai kolom baru
 interface OtorisasiItem {
   nomor: string;
   transaksi: string;
   jenis: string;
   nominal: number;
-  otoritator: string;
+  approver: string;
+  requester: string;
+  keterangan: string; // Alasan masuk sini
   tanggal: string;
   barcode: string;
   uniqueId: string;
@@ -23,62 +26,101 @@ const toast = useToast();
 const isLoading = ref(false);
 const masterData = ref<OtorisasiItem[]>([]);
 
-// Filter tanggal
 const filters = reactive({
   startDate: format(new Date(), 'yyyy-MM-dd'),
   endDate: format(new Date(), 'yyyy-MM-dd'),
 });
 
-// Filter teks
 const selectedFilterField = ref('nomor');
 const filterSearchValue = ref('');
 
-// Pilihan filter kolom
+// Update Opsi Filter
 const filterOptions = [
   { title: 'Nomor', value: 'nomor' },
   { title: 'Transaksi', value: 'transaksi' },
   { title: 'Jenis', value: 'jenis' },
-  { title: 'Nominal', value: 'nominal' },
-  { title: 'Otoritator', value: 'otoritator' },
-  { title: 'Tanggal', value: 'tanggal' },
-  { title: 'Barcode', value: 'barcode' },
+  { title: 'Approver', value: 'approver' },
+  { title: 'Requester', value: 'requester' },
+  { title: 'Keterangan/Alasan', value: 'keterangan' },
 ];
 
-// Header tabel
+// Update Headers Tabel
 const headers = [
-  { title: 'Nomor Otorisasi', key: 'nomor', fixed: true, width: '150px' },
-  { title: 'Transaksi', key: 'transaksi', width: '180px' },
-  { title: 'Jenis', key: 'jenis', width: '120px' },
-  { title: 'Nominal', key: 'nominal', width: '120px' },
-  { title: 'Otoritator', key: 'otoritator', width: '150px' },
-  { title: 'Tanggal/Waktu', key: 'tanggal', width: '200px' },
-  { title: 'Barcode', key: 'barcode', width: '150px' },
+  { title: 'Nomor', key: 'nomor', fixed: true, width: '140px' },
+  { title: 'Tanggal', key: 'tanggal', width: '160px' },
+  { title: 'Transaksi', key: 'transaksi', width: '120px' },
+  { title: 'Jenis', key: 'jenis', width: '150px' },
+  { title: 'Nominal', key: 'nominal', align: 'end', width: '120px' },
+  { title: 'Req', key: 'requester', width: '100px' },
+  { title: 'Appr', key: 'approver', width: '100px' },
+
+  // INI YANG PENTING: DUA KOLOM TERPISAH
+  { title: 'Keterangan', key: 'keterangan', width: '250px' },
+  { title: 'Alasan', key: 'alasan', width: '200px' },
 ];
 
-// Ambil data dari backend
 const fetchMasterData = async () => {
   isLoading.value = true;
   masterData.value = [];
   try {
     const response = await api.get('/laporan-list-otorisasi/list-otorisasi', {
-      params: {
-        startDate: filters.startDate,
-        endDate: filters.endDate
-      },
+      params: { startDate: filters.startDate, endDate: filters.endDate },
     });
 
     const rows = (response.data?.data ?? response.data ?? []) as Record<string, unknown>[];
 
-    masterData.value = rows.map((item, idx) => ({
-      nomor: String(item.Nomor ?? item.nomor ?? ''),
-      transaksi: String(item.Transaksi ?? item.transaksi ?? ''),
-      jenis: String(item.Jenis ?? item.jenis ?? ''),
-      nominal: Number(item.Nominal ?? item.nominal ?? 0),
-      otoritator: String(item.Otoritator ?? item.otoritator ?? ''),
-      tanggal: String(item.Tanggal ?? item.tanggal ?? ''),
-      barcode: String(item.Barcode ?? item.barcode ?? ''),
-      uniqueId: `${item.Nomor ?? item.nomor ?? ''}-${idx}`,
-    }));
+    masterData.value = rows.map((item, idx) => {
+      // 1. Ambil mentahan dari database
+      // Contoh: "Cust: SRI\nDiskon: 325.000\n\nAlasan: PROMO DESEMBER"
+      const rawText = String(item.keterangan ?? item.raw_keterangan ?? '');
+
+      // 2. Tentukan Kata Kunci Pemisah
+      const keyword = 'Alasan:';
+
+      let ketClean = rawText;
+      let reasonClean = '-';
+
+      // 3. Logika Split Berdasarkan Kata Kunci
+      // Cari posisi di mana kata "Alasan:" dimulai
+      const index = rawText.indexOf(keyword);
+
+      if (index !== -1) {
+        // --- BAGIAN KETERANGAN (Sebelum kata "Alasan:") ---
+        // Ambil dari karakter 0 sampai index ditemukan
+        const ketPart = rawText.substring(0, index).trim();
+
+        // Opsional: Ganti Enter (\n) dengan Koma agar rapi di tabel
+        ketClean = ketPart.replace(/\n+/g, ', ').trim();
+        // Jika hasil akhirnya berakhiran koma, hapus komanya
+        if (ketClean.endsWith(',')) ketClean = ketClean.slice(0, -1);
+
+
+        // --- BAGIAN ALASAN (Setelah kata "Alasan:") ---
+        // Ambil dari index + panjang kata kunci sampai akhir
+        const reasonPart = rawText.substring(index + keyword.length).trim();
+        reasonClean = reasonPart.replace(/\n+/g, ' ').trim();
+      } else {
+        // Jika tidak ada kata "Alasan:", maka bersihkan enter saja
+        ketClean = rawText.replace(/\n+/g, ', ').trim();
+      }
+
+      return {
+        nomor: String(item.nomor ?? ''),
+        transaksi: String(item.transaksi ?? ''),
+        jenis: String(item.jenis ?? ''),
+        nominal: Number(item.nominal ?? 0),
+        approver: String(item.approver ?? '-'),
+        requester: String(item.requester ?? '-'),
+
+        // Masukkan hasil split
+        keterangan: ketClean,
+        alasan: reasonClean,
+
+        tanggal: String(item.tanggal ?? ''),
+        barcode: String(item.barcode ?? ''),
+        uniqueId: `${item.nomor}-${idx}`,
+      };
+    });
   } catch (err) {
     const error = err as AxiosError<{ message?: string }>;
     toast.error(error.response?.data?.message || 'Gagal memuat daftar otorisasi.');
@@ -87,7 +129,6 @@ const fetchMasterData = async () => {
   }
 };
 
-// Computed filtering
 const filteredData = computed(() => {
   const keyword = filterSearchValue.value.trim().toLowerCase();
   const field = selectedFilterField.value;
@@ -100,14 +141,12 @@ const filteredData = computed(() => {
   });
 });
 
-// Lifecycle
 onMounted(fetchMasterData);
 watch(filters, fetchMasterData, { deep: true });
-
 </script>
 
 <template>
-  <PageLayout title="Daftar Otorisasi" icon="mdi-shield-check-outline">
+  <PageLayout title="Laporan Daftar Otorisasi" icon="mdi-shield-account-outline">
     <template #header-actions>
       <v-btn size="small" prepend-icon="mdi-file-export" color="blue-grey" disabled>
         Export
@@ -115,62 +154,57 @@ watch(filters, fetchMasterData, { deep: true });
     </template>
 
     <div class="browse-content">
-
-      <!-- FILTER SECTION (standar theme) -->
       <div class="filter-section">
-        <v-label class="filter-label font-weight-bold">Periode Transaksi:</v-label>
-
+        <v-label class="filter-label font-weight-bold">Periode:</v-label>
         <v-text-field v-model="filters.startDate" type="date" density="compact" hide-details variant="outlined"
-          style="max-width: 160px;" class="ms-4" />
-
-        <v-label class="mx-2">s/d</v-label>
-
+          style="max-width: 150px;" class="ms-2" />
+        <span class="mx-2 align-self-center">-</span>
         <v-text-field v-model="filters.endDate" type="date" density="compact" hide-details variant="outlined"
-          style="max-width: 160px;" />
+          style="max-width: 150px;" />
 
-        <v-divider vertical class="mx-4"></v-divider>
+        <v-divider vertical class="mx-4 hidden-sm-and-down"></v-divider>
 
-        <!-- Filter text -->
-        <v-select v-model="selectedFilterField" :items="filterOptions" label="Filter Berdasarkan" density="compact"
-          hide-details variant="outlined" style="max-width: 200px;" />
+        <v-select v-model="selectedFilterField" :items="filterOptions" label="Filter Kolom" density="compact"
+          hide-details variant="outlined" style="max-width: 180px;" />
 
-        <v-text-field v-model="filterSearchValue" label="Cari..." density="compact" hide-details variant="outlined"
-          style="min-width: 250px;" clearable prepend-inner-icon="mdi-magnify" />
+        <v-text-field v-model="filterSearchValue" label="Cari data..." density="compact" hide-details variant="outlined"
+          style="min-width: 200px;" clearable prepend-inner-icon="mdi-magnify" class="ms-2" />
 
         <v-spacer></v-spacer>
-
         <v-btn @click="fetchMasterData" icon="mdi-refresh" variant="tonal" size="small" :loading="isLoading"
           color="primary" />
       </div>
 
-      <!-- TABEL (menggunakan fill-height-table standar theme) -->
       <div class="fill-height-table mt-2">
         <AppDataTable :headers="headers" :items="filteredData" :loading="isLoading" class="desktop-table elevation-1"
           density="compact" fixed-header :items-per-page="20" item-value="uniqueId">
 
-          <!-- Formatting kolom nominal -->
           <template #[`item.nominal`]="{ item }">
-            {{ formatRupiah(item.nominal) }}
+            <span :class="item.nominal > 0 ? 'text-blue-grey-darken-3 font-weight-medium' : 'text-grey'">
+              {{ formatRupiah(item.nominal) }}
+            </span>
           </template>
 
-          <!-- No Data -->
+          <template #[`item.approver`]="{ item }">
+            <v-chip size="x-small" color="success" variant="tonal" v-if="item.approver !== '-'">
+              <v-icon start icon="mdi-check-circle" size="small"></v-icon>
+              {{ item.approver }}
+            </v-chip>
+            <span v-else class="text-grey">-</span>
+          </template>
+
+          <template #[`item.requester`]="{ item }">
+             <span class="text-caption font-weight-bold">{{ item.requester }}</span>
+          </template>
+
           <template #no-data>
-            <div class="text-center py-4 text-grey">
-              Tidak ada data otorisasi dalam periode ini.
+            <div class="text-center py-6 text-medium-emphasis">
+              <v-icon icon="mdi-file-hidden" size="large" class="mb-2"></v-icon>
+              <div>Tidak ada data otorisasi pada periode ini.</div>
             </div>
-          </template>
-
-          <!-- Loading Skeleton -->
-          <template #loading>
-            <v-skeleton-loader type="table-row@10"></v-skeleton-loader>
           </template>
         </AppDataTable>
       </div>
-
     </div>
   </PageLayout>
 </template>
-
-<style scoped>
-/* Tidak perlu CSS tambahan — semuanya mengikuti desktop-theme.css */
-</style>

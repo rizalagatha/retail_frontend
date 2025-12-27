@@ -39,6 +39,10 @@ interface MutasiDetail {
   QtyOut: number;
   QtyIn: number;
 }
+interface MutasiExportRow {
+  Tanggal?: string | Date;
+  [key: string]: unknown;
+}
 
 // --- State ---
 const list = ref<MutasiHeader[]>([]);
@@ -163,17 +167,40 @@ const loadDetails = async (newlyExpandedItems: MutasiHeader[]) => {
   }
 };
 
+// Helper Format Tanggal
+const formatDateIndo = (dateString: string | Date) => {
+  if (!dateString) return '';
+  const date = new Date(dateString);
+  return new Intl.DateTimeFormat('id-ID', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric'
+  }).format(date);
+};
+
 const exportData = async (type: 'header' | 'detail') => {
   if (type === 'header') {
-    if (list.value.length === 0) return toast.warning('Tidak ada data header untuk diekspor.');
+    if (list.value.length === 0) {
+      toast.warning('Tidak ada data header untuk diekspor.');
+      return;
+    }
+
+    // Format Header (gunakan interface MutasiHeader)
+    const formattedHeader = list.value.map((item: MutasiHeader) => ({
+      ...item,
+      Tanggal: item.Tanggal ? formatDateIndo(item.Tanggal) : '',
+    }));
+
     try {
-      const worksheet = XLSX.utils.json_to_sheet(list.value);
+      const worksheet = XLSX.utils.json_to_sheet(formattedHeader);
       const workbook = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(workbook, worksheet, "Mutasi Out Header");
       XLSX.writeFile(workbook, "Export_Mutasi_Out_Header.xlsx");
+      toast.success('Data header berhasil diekspor.');
     } catch (error) {
       toast.error('Gagal membuat file Excel.', error);
     }
+
   } else if (type === 'detail') {
     try {
       toast.info('Mengambil data detail dari server...');
@@ -182,15 +209,58 @@ const exportData = async (type: 'header' | 'detail') => {
         endDate: endDate.value,
         cabang: selectedCabang.value
       };
-      const response = await api.get('/mutasi-out/export-details', { params: filters });
-      if (response.data.length === 0) return toast.warning('Tidak ada data detail untuk diekspor.');
 
-      const worksheet = XLSX.utils.json_to_sheet(response.data);
+      // Gunakan Generic Type pada API request
+      const response = await api.get<MutasiExportRow[]>('/mutasi-out-form/export-details', { params: filters });
+
+      if (response.data.length === 0) {
+        toast.warning('Tidak ada data detail untuk diekspor.');
+        return;
+      }
+
+      // Format Detail
+      const formattedDetail = response.data.map((row: MutasiExportRow) => ({
+        ...row,
+        Tanggal: row.Tanggal ? formatDateIndo(row.Tanggal) : '',
+      }));
+
+      // Opsional: Custom Layout
+      const title = "LAPORAN DETAIL MUTASI OUT";
+      const dateRange = `Periode : ${formatDateIndo(startDate.value)} s/d ${formatDateIndo(endDate.value)}`;
+      const tableHeaders = Object.keys(formattedDetail[0]);
+      const tableData = formattedDetail.map((row) => Object.values(row as Record<string, unknown>));
+
+      const excelData = [
+        [title],
+        [dateRange],
+        [],
+        tableHeaders,
+        ...tableData
+      ];
+
+      const worksheet = XLSX.utils.aoa_to_sheet(excelData);
+
+      // Merge Judul
+      const merge = [
+        { s: { r: 0, c: 0 }, e: { r: 0, c: tableHeaders.length - 1 } },
+        { s: { r: 1, c: 0 }, e: { r: 1, c: tableHeaders.length - 1 } },
+      ];
+      worksheet['!merges'] = merge;
+
+      // Auto Width
+      const colWidths = tableHeaders.map(header => ({ wch: header.length + 5 }));
+      worksheet['!cols'] = colWidths;
+
       const workbook = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(workbook, worksheet, "Mutasi Out Detail");
       XLSX.writeFile(workbook, "Export_Mutasi_Out_Detail.xlsx");
+      toast.success('Data detail berhasil diekspor.');
+
     } catch (error) {
-      toast.error('Gagal mengekspor data detail.', error);
+      // Error handling
+      let message = 'Gagal mengekspor data detail.';
+      if (error instanceof Error) message = error.message;
+      toast.error(message);
     }
   }
 };

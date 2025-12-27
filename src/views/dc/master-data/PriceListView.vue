@@ -7,11 +7,24 @@ import PageLayout from '@/components/PageLayout.vue';
 import type { AxiosError } from 'axios';
 
 // --- Tipe Data ---
+interface DataTableHeader {
+  title: string;
+  key: string;
+  width?: number;
+  fixed?: boolean;
+  align?: 'start' | 'center' | 'end';
+  minWidth?: string | number;
+  maxWidth?: string | number;
+  sortable?: boolean;
+}
+
 interface MasterItem {
   kode: string;
   nama: string;
   kategori: string;
+  [key: string]: unknown; // Index signature untuk filter dinamis
 }
+
 interface DetailItem {
   ukuran: string;
   barcode: string;
@@ -19,6 +32,7 @@ interface DetailItem {
   harga: number;
   laba: number;
 }
+
 interface VariantItem {
   ukuran: string;
   barcode: string;
@@ -27,29 +41,47 @@ interface VariantItem {
   laba?: number;
 }
 
+interface ColumnFilter {
+  type: 'multi' | 'custom';
+  values?: (string | number)[];
+  operator?: string;
+  value?: string | number;
+}
+
 // --- Inisialisasi & State ---
 const toast = useToast();
 const authStore = useAuthStore();
 const MENU_ID = '206';
 
+// State Data Utama
 const masterData = ref<MasterItem[]>([]);
 const details = ref<Record<string, DetailItem[]>>({});
 const loading = ref(true);
 const loadingDetails = ref(new Set<string>());
 const selected = ref<MasterItem[]>([]);
-const expanded = ref<MasterItem[]>([]);
+const expanded = ref<string[]>([]);
 
-// State untuk Modal Update
-const isUpdateModalVisible = ref(false);
-const isUpdating = ref(false);
-const itemToUpdate = ref<MasterItem | null>(null);
-const variantsToUpdate = ref<VariantItem[]>([]);
-const hppPercentage = ref({ Kaosan: 0, Rezso: 0 }); // Untuk menyimpan persentase HPP
-
+// State Filter Server-Side
+const search = ref('');
 const filters = reactive({
   kategori: 'All',
   hargaKosong: false,
 });
+
+// State Filter Client-Side & Resize
+const columnFilters = ref<Record<string, ColumnFilter>>({});
+const customFilterDialog = ref(false);
+const customFilter = reactive({ key: '', operator: '=', value: '' });
+const resizingColumn = ref<DataTableHeader | null>(null);
+const startX = ref(0);
+const startWidth = ref(0);
+
+// State Update Modal
+const isUpdateModalVisible = ref(false);
+const isUpdating = ref(false);
+const itemToUpdate = ref<MasterItem | null>(null);
+const variantsToUpdate = ref<VariantItem[]>([]);
+const hppPercentage = ref({ Kaosan: 0, Rezso: 0 });
 
 const dialogConfirm = reactive({
   show: false,
@@ -58,16 +90,13 @@ const dialogConfirm = reactive({
   onConfirm: () => { },
 });
 
-// --- Computed Properties ---
-const isSingleSelected = computed(() => selected.value.length === 1);
-const selectedRow = computed<MasterItem | null>(() => isSingleSelected.value ? selected.value[0] : null);
-
-// --- Konfigurasi Tabel ---
-const headers = [
-  { title: 'Kategori', key: 'kategori', width: '120px' },
-  { title: 'Kode', key: 'kode', width: '180px' },
-  { title: 'Nama Barang', key: 'nama' },
-];
+// --- Header Definisi (Resizable) ---
+const headers = ref<DataTableHeader[]>([
+  { title: '', key: 'data-table-expand', width: 50, fixed: true },
+  { title: 'Kategori', key: 'kategori', width: 120 },
+  { title: 'Kode', key: 'kode', width: 180 },
+  { title: 'Nama Barang', key: 'nama', width: 400 },
+]);
 
 const detailHeaders = [
   { title: 'Ukuran', key: 'ukuran' },
@@ -84,58 +113,189 @@ const updateModalHeaders = [
   { title: 'Barcode', key: 'barcode' },
 ];
 
+// --- Computed Properties ---
+const isSingleSelected = computed(() => selected.value.length === 1);
+const selectedRow = computed<MasterItem | null>(() => isSingleSelected.value ? selected.value[0] : null);
 
-// --- Methods ---
+// --- Logic Filter Client-Side (Sama dengan SJ) ---
+const filteredList = computed(() => {
+  let data = [...masterData.value];
+
+  for (const key in columnFilters.value) {
+    const f = columnFilters.value[key];
+
+    // MULTI FILTER
+    if (f.type === 'multi' && f.values) {
+      data = data.filter(row =>
+        f.values!.includes(row[key] as string | number)
+      );
+    }
+
+    // CUSTOM FILTER
+    if (f.type === 'custom' && f.value !== undefined) {
+      const target = String(f.value).toLowerCase();
+      data = data.filter(row => {
+        const v = row[key];
+        if (v === null || v === undefined) return false;
+        const s = String(v).toLowerCase();
+
+        switch (f.operator) {
+          case '=': return s === target;
+          case '!=': return s !== target;
+          case 'contains': return s.includes(target);
+          case 'starts': return s.startsWith(target);
+          case 'ends': return s.endsWith(target);
+          default: return true;
+        }
+      });
+    }
+  }
+  return data;
+});
+
+// --- Helper Methods Filter ---
+const uniqueValues = (key: string): Array<string | number> => {
+  return Array.from(
+    new Set(
+      masterData.value
+        .map(i => i[key] as string | number | null | undefined)
+        .filter((v): v is string | number => v !== null && v !== undefined && v !== '')
+    )
+  ).sort((a, b) => String(a).localeCompare(String(b)));
+};
+
+const filterType = (key: string) => columnFilters.value[key]?.type ?? '';
+const isFilterActive = (key: string) => Boolean(columnFilters.value[key]);
+const clearColumnFilter = (key: string) => { delete columnFilters.value[key]; };
+
+const toggleMultiSelectValue = (key: string, value: string | number) => {
+  const f = columnFilters.value[key];
+  if (!f || f.type !== 'multi') {
+    columnFilters.value[key] = { type: 'multi', values: [value] };
+    return;
+  }
+  const arr = f.values ?? [];
+  if (arr.includes(value)) {
+    f.values = arr.filter(v => v !== value);
+    if (f.values.length === 0) delete columnFilters.value[key];
+  } else {
+    f.values = [...arr, value];
+  }
+};
+
+const openCustomFilter = (key: string) => {
+  customFilter.key = key;
+  customFilter.operator = '=';
+  customFilter.value = '';
+  customFilterDialog.value = true;
+};
+
+const applyCustomFilter = () => {
+  columnFilters.value[customFilter.key] = {
+    type: 'custom',
+    operator: customFilter.operator,
+    value: customFilter.value
+  };
+  customFilterDialog.value = false;
+};
+
+const resetAllFilters = () => {
+  columnFilters.value = {};
+  search.value = '';
+  filters.kategori = 'All';
+  filters.hargaKosong = false;
+  fetchMasterData(); // Refresh data server side juga
+};
+
+// --- Logic Resize ---
+const onResizeStart = (e: MouseEvent, column: unknown) => {
+  e.preventDefault();
+  e.stopPropagation();
+
+  // Lakukan Type Assertion di sini:
+  // "Saya yakin variabel 'column' ini strukturnya sesuai dengan DataTableHeader"
+  const col = column as DataTableHeader;
+
+  resizingColumn.value = col;
+  startX.value = e.pageX;
+
+  // Gunakan variabel 'col' yang sudah di-cast
+  startWidth.value = (typeof col.width === 'number' ? col.width : 100);
+
+  document.addEventListener('mousemove', onResizeMove);
+  document.addEventListener('mouseup', onResizeEnd);
+  document.body.style.cursor = 'col-resize';
+};
+const onResizeMove = (e: MouseEvent) => {
+  if (!resizingColumn.value) return;
+  const diff = e.pageX - startX.value;
+  resizingColumn.value.width = Math.max(50, startWidth.value + diff);
+};
+const onResizeEnd = () => {
+  resizingColumn.value = null;
+  document.removeEventListener('mousemove', onResizeMove);
+  document.removeEventListener('mouseup', onResizeEnd);
+  document.body.style.cursor = '';
+};
+
+// --- Logic Selection ---
+const handleRowClick = (_event: Event, { item }: { item: MasterItem }) => {
+  selected.value = [item];
+};
+
+// --- API Methods ---
 const fetchMasterData = async () => {
   loading.value = true;
   selected.value = [];
   expanded.value = [];
   try {
-    const response = await api.get('/price-list', { params: filters });
+    const params = { ...filters, search: search.value };
+    const response = await api.get('/price-list', { params });
     masterData.value = response.data;
   } catch (error) {
     const err = error as AxiosError<{ message?: string }>;
     toast.error(err.response?.data?.message || 'Gagal mengambil data.');
   } finally {
-    // [FIX] Tambahkan ini agar loading berhenti
     loading.value = false;
   }
 };
 
-const loadDetails = async (newlyExpandedItems: MasterItem[]) => {
-  const itemToLoad = newlyExpandedItems.find(item => !details.value[item.kode] && !loadingDetails.value.has(item.kode));
-  if (!itemToLoad) return;
-  const kodeToLoad = itemToLoad.kode;
+// Cari fungsi loadDetails dan GANTI dengan ini:
+const loadDetails = async (newlyExpandedItems: (MasterItem | string)[]) => {
+  const lastItem = newlyExpandedItems[newlyExpandedItems.length - 1];
 
-  loadingDetails.value.add(kodeToLoad);
+  if (!lastItem) return;
+
+  // TypeScript sekarang tau lastItem bisa berupa object MasterItem atau string
+  const kode = typeof lastItem === 'object' ? lastItem.kode : lastItem;
+
+  if (details.value[kode] || loadingDetails.value.has(kode)) return;
+
+  loadingDetails.value.add(kode);
   try {
-    const response = await api.get(`/price-list/details/${kodeToLoad}`);
-    details.value[kodeToLoad] = response.data;
+    const response = await api.get(`/price-list/details/${kode}`);
+    details.value[kode] = response.data;
   } catch (error) {
-    toast.error(`Gagal memuat detail untuk ${kodeToLoad}`, error);
+    toast.error(`Gagal memuat detail untuk ${kode}`, error);
   } finally {
-    loadingDetails.value.delete(kodeToLoad);
+    loadingDetails.value.delete(kode);
   }
 };
 
-const openUpdateModal = async (item: MasterItem) => {
+// --- Logic Update Harga ---
+const openUpdateModal = async (item: MasterItem | null) => {
   if (!item) return;
   itemToUpdate.value = item;
 
-  // Cek apakah detail sudah ada di cache
   if (details.value[item.kode]) {
     variantsToUpdate.value = JSON.parse(JSON.stringify(details.value[item.kode]));
     isUpdateModalVisible.value = true;
   } else {
-    // Jika belum ada, fetch dari API terlebih dahulu
-    loading.value = true; // Tampilkan loading di tabel utama
+    loading.value = true;
     try {
       const response = await api.get(`/price-list/details/${item.kode}`);
-      // Simpan data ke cache untuk nanti
       details.value[item.kode] = response.data;
-      // Salin data ke state modal
       variantsToUpdate.value = JSON.parse(JSON.stringify(response.data));
-      // Buka modal setelah data siap
       isUpdateModalVisible.value = true;
     } catch (error) {
       toast.error(`Gagal memuat detail untuk ${item.kode}`, error);
@@ -168,8 +328,6 @@ const executeUpdate = async () => {
     };
     const response = await api.put('/price-list/update', payload);
     toast.success(response.data.message);
-
-    // Update data di grid browse
     details.value[itemToUpdate.value.kode] = JSON.parse(JSON.stringify(variantsToUpdate.value));
     isUpdateModalVisible.value = false;
   } catch (error) {
@@ -195,15 +353,23 @@ const showConfirmation = (title: string, text: string, onConfirm: () => void) =>
   dialogConfirm.show = true;
 };
 
-onMounted(async () => {
-  // Ambil persentase HPP dari backend jika belum ada
-  // Untuk saat ini, kita hardcode sesuai contoh Delphi
-  hppPercentage.value = { Kaosan: 70, Rezso: 60 }; // Asumsi dari lblHpp.Caption
-
-  await fetchMasterData();
+// --- Watchers & Hooks ---
+let searchTimer: number;
+watch(search, () => {
+  clearTimeout(searchTimer);
+  searchTimer = window.setTimeout(() => {
+    fetchMasterData();
+  }, 400);
 });
 
-watch(filters, fetchMasterData, { deep: true });
+watch(filters, () => {
+  fetchMasterData();
+}, { deep: true });
+
+onMounted(async () => {
+  hppPercentage.value = { Kaosan: 70, Rezso: 60 };
+  await fetchMasterData();
+});
 </script>
 
 <template>
@@ -213,36 +379,105 @@ watch(filters, fetchMasterData, { deep: true });
         @click="openUpdateModal(selectedRow)" :disabled="!isSingleSelected">
         Update Harga
       </v-btn>
-
     </template>
 
     <div class="browse-content">
       <div class="filter-section">
-        <v-radio-group v-model="filters.kategori" inline label="Kategori:" hide-details density="compact">
+
+        <v-text-field v-model="search" prepend-inner-icon="mdi-magnify" placeholder="Cari Kode atau Nama..."
+          variant="outlined" density="compact" hide-details clearable style="min-width: 250px; flex-grow: 1;" />
+
+        <v-divider vertical class="mx-2 hidden-sm-and-down" />
+
+        <v-radio-group v-model="filters.kategori" inline hide-details density="compact" class="me-2">
           <v-radio label="All" value="All"></v-radio>
           <v-radio label="Kaosan" value="Kaosan"></v-radio>
           <v-radio label="Rezso" value="Rezso"></v-radio>
         </v-radio-group>
-        <v-checkbox v-model="filters.hargaKosong" label="Tampilkan yg harga-nya kosong saja" hide-details
-          density="compact" class="ms-4" />
+
+        <v-checkbox v-model="filters.hargaKosong" label="Harga 0" hide-details density="compact" />
+
+        <v-btn class="reset-filter-btn ms-4" color="error" variant="tonal" icon rounded="sm" @click="resetAllFilters"
+          title="Reset Filter">
+          <v-icon size="20">mdi-filter-off</v-icon>
+        </v-btn>
+        <v-btn @click="fetchMasterData" icon="mdi-refresh" variant="text" size="small" class="ms-1" color="primary"
+          title="Refresh Data" />
       </div>
 
       <div class="table-container">
-        <v-data-table v-model="selected" :headers="headers" :items="masterData" :loading="loading" class="desktop-table header-browse-blue"
-          density="compact" fixed-header show-select single-select return-object show-expand item-value="kode"
-          @update:expanded="loadDetails">
+        <v-data-table v-model="selected" v-model:expanded="expanded" :headers="headers" :items="filteredList"
+          :loading="loading" item-value="kode" class="desktop-table header-browse-blue" density="compact" fixed-header
+          show-select single-select return-object show-expand @update:expanded="loadDetails"
+          @click:row="handleRowClick">
+          <template #headers="{ columns, isSorted, getSortIcon, toggleSort }">
+            <tr>
+              <template v-for="header in columns" :key="header.key">
+                <th v-if="['data-table-expand', 'data-table-select'].includes(header.key)"
+                  :style="{ width: header.width + 'px' }" class="resizable-header">
+                  <div class="header-content"><span>{{ header.title }}</span></div>
+                  <div class="resizer" @mousedown.stop="onResizeStart($event, header)" />
+                </th>
+
+                <th v-else :style="{ width: header.width + 'px' }" class="resizable-header" @click="toggleSort(header)">
+                  <div class="header-content">
+                    <span>{{ header.title }}</span>
+                    <v-icon v-if="isSorted(header)" size="14">{{ getSortIcon(header) }}</v-icon>
+
+                    <v-menu location="bottom start" :close-on-content-click="false">
+                      <template #activator="{ props }">
+                        <v-icon v-bind="props" size="16" class="ms-1" @click.stop
+                          :color="isFilterActive(header.key) ? 'blue' : ''"
+                          :icon="filterType(header.key) === 'custom' ? 'mdi-filter-cog' : filterType(header.key) === 'multi' ? 'mdi-filter-multiple' : 'mdi-filter-variant'" />
+                      </template>
+                      <v-list class="filter-menu" density="compact">
+                        <v-list-item @click="clearColumnFilter(header.key)">
+                          <v-list-item-title class="text-caption font-weight-bold text-error">(Clear
+                            Filter)</v-list-item-title>
+                        </v-list-item>
+                        <v-divider />
+                        <v-list-item v-for="val in uniqueValues(header.key)" :key="val"
+                          @click="toggleMultiSelectValue(header.key, val)">
+                          <template #prepend>
+                            <v-checkbox-btn :model-value="columnFilters[header.key]?.values?.includes(val)"
+                              density="compact" />
+                          </template>
+                          <v-list-item-title>{{ val }}</v-list-item-title>
+                        </v-list-item>
+                        <v-divider />
+                        <v-list-item @click="openCustomFilter(header.key)">
+                          <v-list-item-title class="text-caption text-primary">(Custom Filter...)</v-list-item-title>
+                        </v-list-item>
+                      </v-list>
+                    </v-menu>
+                  </div>
+                  <div class="resizer" @mousedown.stop="onResizeStart($event, header)" />
+                </th>
+              </template>
+            </tr>
+          </template>
+
+          <template #[`item.data-table-expand`]="{ internalItem, toggleExpand, isExpanded }">
+            <v-btn icon="mdi-chevron-down" :class="{ 'rotate-180': isExpanded(internalItem) }" size="x-small"
+              variant="text" @click.stop="toggleExpand(internalItem)" />
+          </template>
+
           <template #expanded-row="{ columns, item }">
             <tr>
-              <td :colspan="columns.length">
-                <div class="detail-container pa-2">
+              <td :colspan="columns.length" class="pa-0">
+                <div class="detail-container">
                   <div class="detail-table-wrapper">
-                    <div v-if="loadingDetails.has(item.kode)" class="text-center pa-4">Memuat
-                      detail...
+                    <div v-if="loadingDetails.has(item.kode)" class="state-container pa-4">
+                      <v-progress-circular indeterminate color="primary"></v-progress-circular>
+                      <div class="mt-2 text-caption">Memuat detail...</div>
                     </div>
-                    <v-data-table v-else :headers="detailHeaders" :items="details[item.kode]" density="compact"
-                      class="detail-table" :items-per-page="-1">
+
+                    <v-data-table v-else-if="details[item.kode]" :headers="detailHeaders" :items="details[item.kode]"
+                      density="compact" class="detail-table" :items-per-page="-1" hide-default-footer>
                       <template #bottom></template>
                     </v-data-table>
+
+                    <div v-else class="text-center text-caption py-2">Tidak ada detail.</div>
                   </div>
                 </div>
               </td>
@@ -297,5 +532,159 @@ watch(filters, fetchMasterData, { deep: true });
         </v-card-actions>
       </v-card>
     </v-dialog>
+
+    <v-dialog v-model="customFilterDialog" max-width="350px">
+      <v-card>
+        <v-card-title class="text-subtitle-1 font-weight-bold">Custom Filter</v-card-title>
+        <v-card-text>
+          <v-select v-model="customFilter.operator" :items="['=', '!=', 'contains', 'starts', 'ends']" density="compact"
+            hide-details class="mb-2" />
+          <v-text-field v-model="customFilter.value" density="compact" hide-details autofocus placeholder="Value..." />
+        </v-card-text>
+        <v-card-actions>
+          <v-spacer />
+          <v-btn text @click="customFilterDialog = false">Batal</v-btn>
+          <v-btn color="primary" @click="applyCustomFilter">Terapkan</v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
   </PageLayout>
 </template>
+
+<style scoped>
+/* Layout Full Height */
+.browse-content {
+  display: flex;
+  flex-direction: column;
+  height: calc(100vh - 64px - 32px);
+  overflow: hidden;
+}
+
+.filter-section {
+  flex-shrink: 0;
+  padding: 8px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background-color: rgb(var(--v-theme-surface));
+  border-bottom: 1px solid rgba(var(--v-theme-on-surface), 0.12);
+}
+
+.table-container {
+  flex-grow: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* Table Style */
+.desktop-table {
+  display: flex;
+  flex-direction: column;
+  max-height: 100%;
+}
+
+.desktop-table :deep(.v-table__wrapper) {
+  flex-grow: 1;
+  height: 100% !important;
+}
+
+.desktop-table :deep(table) {
+  height: auto !important;
+  overflow-y: auto;
+}
+
+/* Header Resize */
+.resizable-header {
+  position: relative;
+  background-color: #e3f2fd !important;
+  color: #0d47a1 !important;
+  font-weight: 700 !important;
+  text-transform: uppercase;
+  font-size: 11px !important;
+  height: 40px !important;
+  border-bottom: 2px solid #1976d2 !important;
+  padding: 0 8px !important;
+  user-select: none;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  cursor: pointer;
+}
+
+.header-content {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  height: 100%;
+}
+
+.resizer {
+  position: absolute;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  width: 5px;
+  cursor: col-resize;
+  z-index: 10;
+}
+
+.resizer:hover,
+.resizable-header:hover .resizer {
+  border-right: 2px solid #1565c0;
+}
+
+/* Detail Sticky */
+.detail-container {
+  position: sticky;
+  left: 0;
+  background-color: rgb(var(--v-theme-surface));
+  border-bottom: 1px solid rgba(var(--v-theme-on-surface), 0.12);
+  padding: 16px;
+  width: 100%;
+  box-sizing: border-box;
+  display: flex;
+  justify-content: flex-start;
+}
+
+.detail-table-wrapper {
+  width: 100%;
+  max-width: 900px;
+  background-color: rgb(var(--v-theme-surface));
+  border: 1px solid rgba(var(--v-theme-on-surface), 0.12);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.detail-table :deep(thead tr th) {
+  background-color: rgba(var(--v-theme-on-surface), 0.04) !important;
+  color: rgb(var(--v-theme-on-surface)) !important;
+  font-size: 11px !important;
+  height: 32px !important;
+}
+
+.state-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.filter-menu {
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.reset-filter-btn {
+  width: 40px;
+  height: 40px;
+  border-radius: 6px !important;
+  background-color: rgba(211, 47, 47, 0.15) !important;
+}
+
+.reset-filter-btn:hover {
+  background-color: rgba(211, 47, 47, 0.25) !important;
+}
+</style>

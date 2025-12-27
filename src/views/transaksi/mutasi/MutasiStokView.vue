@@ -47,6 +47,12 @@ interface MasterItem {
   [key: string]: unknown;
 }
 
+// --- Interface Data Export (Strict Type) ---
+interface MutasiStokExportRow {
+  Tanggal?: string | Date;
+  [key: string]: unknown;
+}
+
 const router = useRouter();
 const toast = useToast();
 const authStore = useAuthStore();
@@ -205,27 +211,101 @@ const printData = () => {
   window.open(url, '_blank');
 };
 
+// --- Helper Format Tanggal ---
+const formatDateIndo = (dateString: string | Date) => {
+  if (!dateString) return '';
+  const date = new Date(dateString);
+  return new Intl.DateTimeFormat('id-ID', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric'
+  }).format(date);
+};
+
+// --- Fungsi Export Data ---
 const exportData = async (type: 'header' | 'detail') => {
   if (type === 'header') {
-    if (masterData.value.length === 0) return toast.warning('Tidak ada data header untuk diekspor.');
+    if (masterData.value.length === 0) {
+      toast.warning('Tidak ada data header untuk diekspor.');
+      return;
+    }
+
     try {
-      toast.info('Membuat file Excel...');
-      const worksheet = XLSX.utils.json_to_sheet(masterData.value);
+      toast.info('Membuat file Excel Header...');
+      // Format Header Data
+      const formattedHeader = masterData.value.map((item: MutasiStokHeader) => ({
+        ...item,
+        Tanggal: item.Tanggal ? formatDateIndo(item.Tanggal) : '',
+      }));
+
+      const worksheet = XLSX.utils.json_to_sheet(formattedHeader);
       const workbook = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(workbook, worksheet, "Mutasi Stok Header");
       XLSX.writeFile(workbook, "Export_Mutasi_Stok_Header.xlsx");
-    } catch (error) { toast.error('Gagal membuat file Excel.', error); }
+      toast.success('Header berhasil diekspor.');
+    } catch (error) {
+      toast.error('Gagal membuat file Excel.', error);
+    }
+
   } else if (type === 'detail') {
     try {
       toast.info('Mengambil data detail dari server...');
-      const response = await api.get('/mutasi-stok/export-details', { params: filters });
-      if (response.data.length === 0) return toast.warning('Tidak ada data detail untuk diekspor.');
 
-      const worksheet = XLSX.utils.json_to_sheet(response.data);
+      // [FIX] URL API HARUS SESUAI ROUTE BACKEND
+      // Jika route backend ada di mutasiStokFormRoutes.js, gunakan prefix yang sesuai
+      // Kemungkinan besar: '/mutasi-stok-form/export-details'
+      const response = await api.get<MutasiStokExportRow[]>('/mutasi-stok-form/export-details', { params: filters });
+
+      if (response.data.length === 0) {
+        toast.warning('Tidak ada data detail untuk diekspor.');
+        return;
+      }
+
+      // Format Detail Data
+      const formattedDetail = response.data.map((row: MutasiStokExportRow) => ({
+        ...row,
+        Tanggal: row.Tanggal ? formatDateIndo(row.Tanggal) : '',
+      }));
+
+      // Setup Layout Excel
+      const title = "LAPORAN DETAIL MUTASI STOK";
+      const dateRange = `Periode : ${formatDateIndo(filters.startDate)} s/d ${formatDateIndo(filters.endDate)}`;
+      const tableHeaders = Object.keys(formattedDetail[0]);
+      const tableData = formattedDetail.map((row) => Object.values(row as Record<string, unknown>));
+
+      const excelData = [
+        [title],
+        [dateRange],
+        [],
+        tableHeaders,
+        ...tableData
+      ];
+
+      const worksheet = XLSX.utils.aoa_to_sheet(excelData);
+
+      // Merge Judul
+      const merge = [
+        { s: { r: 0, c: 0 }, e: { r: 0, c: tableHeaders.length - 1 } },
+        { s: { r: 1, c: 0 }, e: { r: 1, c: tableHeaders.length - 1 } },
+      ];
+      worksheet['!merges'] = merge;
+
+      // Auto Width
+      const colWidths = tableHeaders.map(header => ({ wch: header.length + 5 }));
+      worksheet['!cols'] = colWidths;
+
       const workbook = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(workbook, worksheet, "Mutasi Stok Detail");
       XLSX.writeFile(workbook, "Export_Mutasi_Stok_Detail.xlsx");
-    } catch (error) { toast.error('Gagal mengekspor data detail.', error); }
+      toast.success('Detail berhasil diekspor.');
+
+    } catch (error) {
+      // Error handling
+      let message = 'Gagal mengekspor data detail.';
+      if (error instanceof Error) message = error.message;
+      // Handle Axios error structure if needed
+      toast.error(message);
+    }
   }
 };
 

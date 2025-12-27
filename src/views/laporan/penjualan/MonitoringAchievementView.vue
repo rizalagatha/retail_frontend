@@ -11,6 +11,19 @@ import AppDataTable from '@/components/AppDataTable.vue';
 import { formatCurrency } from "@/utils/numberUtils";
 import { AppConfig } from "@/config/appConfig";
 
+interface DataTableHeader {
+  title: string;
+  key: string;
+  width?: string | number;
+  minWidth?: string | number;
+  align?: 'start' | 'center' | 'end';
+  sortable?: boolean;
+  fixed?: boolean;
+
+  // [FIX] Tambahkan 2 baris ini agar property custom dikenali
+  cellClass?: string;
+  headerProps?: Record<string, unknown>;
+}
 interface DailyItem {
   kode_cabang: string;
   nama_cabang: string;
@@ -21,6 +34,12 @@ interface DailyItem {
   target_bulanan: number;
   retur_jual: number;
   ach: number;
+  so_open_today: number;
+  so_open_30days: number;
+  so_open_accum: number;
+  piutang_today: number;
+  piutang_30days: number;
+  piutang_accum: number;
 }
 interface WeeklyItem {
   kode_cabang: string;
@@ -74,6 +93,8 @@ interface DailySummary {
   target_bulanan: number;
   ach: number;
   nominal: number;
+  open_so: number;      // [BARU]
+  sisa_piutang: number; // [BARU]
 }
 interface MonthlySummary {
   nominal: number;
@@ -101,6 +122,10 @@ const dailyData = ref<DailyItem[]>([]);
 const weeklyData = ref<WeeklyItem[]>([]);
 const monthlyData = ref<MonthlyItem[]>([]);
 const ytdData = ref<YtdItem[]>([]);
+
+// --- State untuk Toggle Kolom ---
+const expandSO = ref(false);      // Toggle kolom SO
+const expandPiutang = ref(false); // Toggle kolom Piutang
 
 // --- State Baru untuk Input Target ---
 const showTargetDialog = ref(false);
@@ -133,16 +158,59 @@ const rupiah = (v: number) => formatCurrency(v || 0, AppConfig.roundingPolicy);
 
 // Headers dinamis berdasarkan tab
 // --- Definisi Headers untuk Setiap Tab ---
-const headersDaily = [
-  { title: 'No', key: 'no', sortable: false, width: '50px' }, { title: 'Kode Cabang', key: 'kode_cabang' },
-  { title: 'Nama Cabang', key: 'nama_cabang', minWidth: '150px' }, { title: 'Hari', key: 'hari' },
-  { title: 'Tanggal', key: 'tanggal' },
-  { title: 'Omset (Harian)', key: 'omset' }, // Ganti judul
-  { title: 'Retur Jual', key: 'retur_jual' },
-  { title: 'Total Omset (Kumulatif)', key: 'total_omset' }, // Ganti judul
-  { title: 'Target Bulanan', key: 'target_bulanan' },
-  { title: 'Ach(%)', key: 'ach' }, // Ini sudah kumulatif (benar)
-];
+const headersDaily = computed<DataTableHeader[]>(() => {
+  const h: DataTableHeader[] = [
+    { title: 'No', key: 'no', sortable: false, width: '50px' },
+    { title: 'Kode Cabang', key: 'kode_cabang' },
+    { title: 'Nama Cabang', key: 'nama_cabang', minWidth: '150px' },
+    { title: 'Hari', key: 'hari' },
+    { title: 'Tanggal', key: 'tanggal' },
+    { title: 'Omset', key: 'omset' },
+    { title: 'Retur', key: 'retur_jual' },
+    { title: 'Tot. Omset', key: 'total_omset' },
+  ];
+
+  // Group Open SO
+  h.push({
+    title: 'Open SO (Hari Ini)',
+    key: 'so_open_today',
+    // Sekarang ini valid karena sudah ada di Interface
+    cellClass: 'bg-orange-lighten-5 text-orange-darken-4 font-weight-bold',
+    headerProps: { class: 'cursor-pointer' },
+    sortable: false
+  });
+
+  if (expandSO.value) {
+    h.push(
+      { title: 'SO (30 Hari)', key: 'so_open_30days', cellClass: 'bg-orange-lighten-5', sortable: false },
+      { title: 'SO (Akumulasi)', key: 'so_open_accum', cellClass: 'bg-orange-lighten-5 font-weight-black', sortable: false }
+    );
+  }
+
+  // Group Piutang
+  h.push({
+    title: 'Sisa Piutang (Hari Ini)',
+    key: 'piutang_today',
+    cellClass: 'bg-red-lighten-5 text-red-darken-4 font-weight-bold',
+    headerProps: { class: 'cursor-pointer' },
+    sortable: false
+  });
+
+  if (expandPiutang.value) {
+    h.push(
+      { title: 'Piutang (30 Hari)', key: 'piutang_30days', cellClass: 'bg-red-lighten-5', sortable: false },
+      { title: 'Piutang (Akumulasi)', key: 'piutang_accum', cellClass: 'bg-red-lighten-5 font-weight-black', sortable: false }
+    );
+  }
+
+  // Kolom Akhir
+  h.push(
+    { title: 'Target', key: 'target_bulanan' },
+    { title: 'Ach(%)', key: 'ach' }
+  );
+
+  return h;
+});
 // const headersWeeklyGroup = [
 //   { title: 'No', rowspan: 2, key: 'no' }, { title: 'Kode Cabang', rowspan: 2, key: 'kode_cabang' }, { title: 'Nama Cabang', rowspan: 2, key: 'nama_cabang' },
 //   { title: 'Minggu 1', colspan: 3, align: 'center' }, { title: 'Minggu 2', colspan: 3, align: 'center' },
@@ -184,20 +252,39 @@ const totalSummary = computed<DailySummary>(() =>
 );
 
 const dailyTotalSummary = computed(() => {
-  if (!dailyData.value.length) {
-    return { omset: 0, retur_jual: 0, total_omset: 0, target_bulanan: 0, ach: 0 };
-  }
+  if (!dailyData.value.length) return {};
 
-  const last = dailyData.value[dailyData.value.length - 1];
+  // Ambil baris data terakhir (Tanggal paling baru)
+  // Karena array sudah disort by tanggal ASC dari backend
+  const lastRow = dailyData.value[dailyData.value.length - 1];
 
-  const bulanTarget = last.target_bulanan || 0;
+  // Helper sum (Untuk data Flow/Pergerakan Harian)
+  const sum = (key: keyof DailyItem) => dailyData.value.reduce((s, i) => s + (Number(i[key]) || 0), 0);
 
   return {
-    omset: dailyData.value.reduce((s, i) => s + (i.omset || 0), 0),
-    retur_jual: dailyData.value.reduce((s, i) => s + (i.retur_jual || 0), 0),
-    total_omset: last.total_omset,
-    target_bulanan: bulanTarget,
-    ach: last.target_bulanan > 0 ? (last.total_omset / last.target_bulanan * 100) : 0,
+    // === TIPE FLOW (BOLEH DIJUMLAH) ===
+    omset: sum('omset'),
+    retur_jual: sum('retur_jual'),
+
+    // Total Omset Kumulatif di footer adalah angka terakhir dari baris terakhir
+    total_omset: lastRow.total_omset,
+
+    // === TIPE KHUSUS (HARI INI) ===
+    // Ini boleh dijumlah karena logicnya "Invoice yang lahir hari itu"
+    so_open_today: sum('so_open_today'),
+    piutang_today: sum('piutang_today'),
+
+    // === TIPE SNAPSHOT (JANGAN DIJUMLAH!) ===
+    // Ambil nilai dari baris terakhir saja.
+    // Ini mencerminkan "Posisi Saldo Per Hari Ini"
+    so_open_30days: lastRow.so_open_30days,
+    so_open_accum: lastRow.so_open_accum,
+
+    piutang_30days: lastRow.piutang_30days,
+    piutang_accum: lastRow.piutang_accum,
+
+    target_bulanan: lastRow.target_bulanan,
+    ach: lastRow.target_bulanan > 0 ? (lastRow.total_omset / lastRow.target_bulanan * 100) : 0,
   };
 });
 
@@ -654,20 +741,36 @@ watch([filters, activeTab], fetchData, { deep: true });
           <!-- Tab Daily -->
           <v-window-item value="daily">
             <AppDataTable :headers="headersDaily" :items="dailyData" :loading="isLoading"
-              class="desktop-table header-browse-blue" density="compact" height="500" fixed-header :items-per-page="-1">
-              <template v-slot:[`item.no`]="{ index }">
-                {{ index + 1 }}
+              class="desktop-table header-browse-blue" density="compact" height="550" fixed-header :items-per-page="-1">
+              <template v-slot:[`header.so_open_today`]="{ column }">
+                <div class="d-flex align-center justify-end cursor-pointer" @click.stop="expandSO = !expandSO"
+                  title="Klik untuk lihat detail">
+                  <v-icon size="small" :icon="expandSO ? 'mdi-chevron-left' : 'mdi-chevron-right'"
+                    class="mr-1 text-orange-darken-4"></v-icon>
+                  <span class="text-orange-darken-4">{{ column.title }}</span>
+                </div>
               </template>
+
+              <template v-slot:[`header.piutang_today`]="{ column }">
+                <div class="d-flex align-center justify-end cursor-pointer" @click.stop="expandPiutang = !expandPiutang"
+                  title="Klik untuk lihat detail">
+                  <v-icon size="small" :icon="expandPiutang ? 'mdi-chevron-left' : 'mdi-chevron-right'"
+                    class="mr-1 text-red-darken-4"></v-icon>
+                  <span class="text-red-darken-4">{{ column.title }}</span>
+                </div>
+              </template>
+
+              <template v-slot:[`item.no`]="{ index }">{{ index + 1 }}</template>
               <template v-slot:[`item.tanggal`]="{ item }">
-                {{ format(new Date(item.tanggal), 'dd-MM-yyyy') }}
+                <span class="font-weight-medium">{{ format(new Date(item.tanggal), 'dd-MM-yyyy') }}</span>
               </template>
-              <template v-slot:[`item.retur_jual`]="{ item }">
-                <td class="text-end">{{ rupiah(item.retur_jual || 0) }}</td>
+
+              <template v-for="key in ['omset', 'retur_jual', 'total_omset', 'target_bulanan',
+                'so_open_today', 'so_open_30days', 'so_open_accum',
+                'piutang_today', 'piutang_30days', 'piutang_accum']" v-slot:[`item.${key}`]="{ item }">
+                {{ rupiah(item[key]) }}
               </template>
-              <template v-for="col in ['omset', 'total_omset', 'target_bulanan']" :key="col"
-                v-slot:[`item.${col}`]="{ item }">
-                <td class="text-end">{{ rupiah(item[col] || 0) }}</td>
-              </template>
+
               <template v-slot:[`item.ach`]="{ item }">
                 <td class="text-end">
                   <v-chip size="small" :color="item.ach < 100
@@ -680,17 +783,33 @@ watch([filters, activeTab], fetchData, { deep: true });
                   </v-chip>
                 </td>
               </template>
+
               <template v-slot:[`body.append`]>
-                <tr class="bg-grey-lighten-3 font-weight-bold total-row-sticky">
-                  <td colspan="5" class="text-start">GRAND TOTAL :</td>
-                  <td class="text-start">{{ rupiah(totalSummary.omset) }}</td>
-                  <td class="text-start">{{ rupiah(totalSummary.retur_jual) }}</td>
-                  <td class="text-start">{{ rupiah(totalSummary.total_omset) }}</td>
-                  <td class="text-start">{{ rupiah(totalSummary.target_bulanan) }}</td>
-                  <td class="text-start">{{ totalSummary.ach.toFixed(2) }}%</td>
+                <tr class="bg-grey-lighten-3 font-weight-bold total-row-sticky text-caption">
+                  <td colspan="5" class="text-start pl-4">GRAND TOTAL :</td>
+
+                  <td class="text-end">{{ rupiah(dailyTotalSummary.omset) }}</td>
+                  <td class="text-end">{{ rupiah(dailyTotalSummary.retur_jual) }}</td>
+                  <td class="text-end">{{ rupiah(dailyTotalSummary.total_omset) }}</td>
+
+                  <td class="text-end bg-orange-lighten-5 text-orange-darken-4">{{
+                    rupiah(dailyTotalSummary.so_open_today) }}</td>
+                  <td v-if="expandSO" class="text-end bg-orange-lighten-5">{{ rupiah(dailyTotalSummary.so_open_30days)
+                    }}</td>
+                  <td v-if="expandSO" class="text-end bg-orange-lighten-5">{{ rupiah(dailyTotalSummary.so_open_accum) }}
+                  </td>
+
+                  <td class="text-end bg-red-lighten-5 text-red-darken-4">{{ rupiah(dailyTotalSummary.piutang_today) }}
+                  </td>
+                  <td v-if="expandPiutang" class="text-end bg-red-lighten-5">{{ rupiah(dailyTotalSummary.piutang_30days)
+                    }}</td>
+                  <td v-if="expandPiutang" class="text-end bg-red-lighten-5">{{ rupiah(dailyTotalSummary.piutang_accum)
+                    }}</td>
+
+                  <td class="text-end">{{ rupiah(dailyTotalSummary.target_bulanan) }}</td>
+                  <td class="text-end">{{ (dailyTotalSummary.ach || 0).toFixed(2) }}%</td>
                 </tr>
               </template>
-              <template #bottom></template>
             </AppDataTable>
           </v-window-item>
 

@@ -49,6 +49,24 @@ interface ExpandedItem {
   Nomor: string;
 }
 
+interface RefundExportHeader {
+  Nomor: string;
+  Tanggal?: string | Date;
+  User: string;
+  Status: string;
+  ApprovedBy?: string;
+  TglApprove?: string | Date;
+  Closing?: string;
+  [key: string]: unknown;
+}
+
+interface RefundExportDetail {
+  'Nomor Refund': string;
+  'Tanggal Refund'?: string | Date;
+  'No Transaksi': string;
+  [key: string]: unknown;
+}
+
 const router = useRouter();
 const toast = useToast();
 const authStore = useAuthStore();
@@ -259,30 +277,131 @@ const handleDelete = async () => {
   }
 };
 
+const formatDateIndo = (dateString: string | Date | null | undefined) => {
+  if (!dateString) return '';
+  const date = new Date(dateString);
+  if (isNaN(date.getTime())) return '';
+  return new Intl.DateTimeFormat('id-ID', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric'
+  }).format(date);
+};
+
+// Helper Auto Width
+const getAutoColumnWidth = (data: Record<string, unknown>[]) => {
+  if (data.length === 0) return [];
+  return Object.keys(data[0]).map((key) => ({
+    wch: Math.max(key.length + 5, 15)
+  }));
+};
+
+// --- 2. Fungsi Export Data ---
 const exportData = async (type: 'header' | 'detail') => {
   const fileName = type === 'header' ? 'Export_Refund_Header.xlsx' : 'Export_Refund_Detail.xlsx';
-  try {
-    if (type === 'header') {
-      if (masterData.value.length === 0) return toast.warning('Tidak ada data header.');
-      const worksheet = XLSX.utils.json_to_sheet(masterData.value);
+
+  // === EXPORT HEADER ===
+  if (type === 'header') {
+    try {
+      loading.value = true;
+      toast.info('Mengambil data header dari server...');
+
+      const response = await api.get<RefundExportHeader[]>('/refund/export-headers', {
+        params: filters
+      });
+
+      if (response.data.length === 0) {
+        toast.warning('Tidak ada data header.');
+        return;
+      }
+
+      toast.info('Membuat file Excel Header...');
+
+      // Mapping Format Data
+      const formattedHeader = response.data.map((item) => ({
+        ...item,
+        Tanggal: item.Tanggal ? formatDateIndo(item.Tanggal) : '',
+        TglApprove: item.TglApprove ? formatDateIndo(item.TglApprove) : '',
+      }));
+
+      const worksheet = XLSX.utils.json_to_sheet(formattedHeader);
+
+      // Auto Width
+      worksheet['!cols'] = getAutoColumnWidth(formattedHeader);
+
       const workbook = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(workbook, worksheet, "Header");
       XLSX.writeFile(workbook, fileName);
-    } else {
+
+      toast.success('Header berhasil diekspor.');
+    } catch (error) {
+      const err = error as AxiosError<{ message: string }>;
+      toast.error(err.response?.data?.message || 'Gagal mengekspor data.');
+    } finally {
+      loading.value = false;
+    }
+
+    // === EXPORT DETAIL ===
+  } else {
+    try {
       loading.value = true;
-      const response = await api.get('/refund/export-details', { params: filters });
-      if (response.data.length === 0) return toast.warning('Tidak ada data detail.');
-      const worksheet = XLSX.utils.json_to_sheet(response.data);
+      toast.info('Mengambil data detail dari server...');
+
+      const response = await api.get<RefundExportDetail[]>('/refund/export-details', {
+        params: filters
+      });
+
+      if (response.data.length === 0) {
+        toast.warning('Tidak ada data detail.');
+        return;
+      }
+
+      toast.info('Membuat file Excel Detail...');
+
+      // Format Tanggal
+      const formattedDetail = response.data.map((row) => ({
+        ...row,
+        'Tanggal Refund': row['Tanggal Refund'] ? formatDateIndo(row['Tanggal Refund']) : '',
+      }));
+
+      // Layout Excel
+      const title = "LAPORAN DETAIL REFUND SALDO";
+      const dateRange = `Periode : ${formatDateIndo(filters.startDate)} s/d ${formatDateIndo(filters.endDate)}`;
+      const tableHeaders = Object.keys(formattedDetail[0]);
+
+      const tableData = formattedDetail.map((row) => Object.values(row as Record<string, unknown>));
+
+      const excelData = [
+        [title],
+        [dateRange],
+        [],
+        tableHeaders,
+        ...tableData
+      ];
+
+      const worksheet = XLSX.utils.aoa_to_sheet(excelData);
+
+      // Merge Judul
+      const merge = [
+        { s: { r: 0, c: 0 }, e: { r: 0, c: tableHeaders.length - 1 } },
+        { s: { r: 1, c: 0 }, e: { r: 1, c: tableHeaders.length - 1 } },
+      ];
+      worksheet['!merges'] = merge;
+
+      // Auto Width
+      worksheet['!cols'] = tableHeaders.map(header => ({ wch: Math.max(header.length + 5, 15) }));
+
       const workbook = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(workbook, worksheet, "Detail");
       XLSX.writeFile(workbook, fileName);
+
+      toast.success('Detail berhasil diekspor.');
+    } catch (error) {
+      const err = error as AxiosError<{ message: string }>;
+      toast.error(err.response?.data?.message || 'Gagal mengekspor data.');
+    } finally {
+      loading.value = false;
     }
-    toast.success(`Data berhasil diekspor.`);
-  } catch (error) {
-    const err = error as AxiosError<{ message: string }>;
-    toast.error(err.response?.data?.message || 'Gagal mengekspor data.');
-  } finally {
-    loading.value = false;
   }
 };
 

@@ -39,6 +39,25 @@ interface FskDetail {
   [key: string]: unknown;
 }
 
+// Interface Data Header dari API
+interface FskExportHeader {
+  Nomor: string;
+  TglSetor?: string | Date;
+  TglVerifikasi?: string | Date;
+  DibuatOleh?: string;
+  DiverifikasiOleh?: string;
+  Closing?: string;
+  [key: string]: unknown;
+}
+
+// Interface Data Detail dari API
+interface FskExportDetail {
+  'Nomor FSK': string;
+  'Tanggal Setor'?: string | Date;
+  'Tanggal Verifikasi'?: string | Date;
+  [key: string]: unknown;
+}
+
 const router = useRouter();
 const toast = useToast();
 const authStore = useAuthStore();
@@ -195,23 +214,129 @@ const printData = () => {
   window.open(url, '_blank');
 };
 
+// Helper Format Tanggal
+const formatDateIndo = (dateString: string | Date | null | undefined) => {
+  if (!dateString) return '';
+  const date = new Date(dateString);
+  if (isNaN(date.getTime())) return '';
+  return new Intl.DateTimeFormat('id-ID', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric'
+  }).format(date);
+};
+
+// Helper Auto Width (wscols)
+const getAutoColumnWidth = (data: Record<string, unknown>[]) => {
+  if (data.length === 0) return [];
+  return Object.keys(data[0]).map((key) => ({
+    // Lebar minimal 15, atau menyesuaikan panjang judul kolom
+    wch: Math.max(key.length + 5, 15)
+  }));
+};
+
+// --- 2. Fungsi Export Data ---
 const exportData = async (type: 'header' | 'detail') => {
+
+  // === EXPORT HEADER (Dari Server) ===
   if (type === 'header') {
-    if (masterData.value.length === 0) return toast.warning('Tidak ada data header.');
-    const worksheet = XLSX.utils.json_to_sheet(masterData.value);
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, "FSK Header");
-    XLSX.writeFile(workbook, "Export_FSK_Header.xlsx");
+    try {
+      toast.info('Mengambil data header dari server...');
+
+      const response = await api.get<FskExportHeader[]>('/fsk/export-headers', {
+        params: filters
+      });
+
+      if (response.data.length === 0) {
+        toast.warning('Tidak ada data header untuk diekspor.');
+        return;
+      }
+
+      toast.info('Membuat file Excel Header...');
+
+      // Mapping Format Data
+      const formattedHeader = response.data.map((item) => ({
+        'Nomor': item.Nomor,
+        'Tgl Setor': item.TglSetor ? formatDateIndo(item.TglSetor) : '',
+        'Tgl Verifikasi': item.TglVerifikasi ? formatDateIndo(item.TglVerifikasi) : '',
+        'Dibuat Oleh': item.DibuatOleh,
+        'Diverifikasi Oleh': item.DiverifikasiOleh,
+        'Closing': item.Closing
+      }));
+
+      const worksheet = XLSX.utils.json_to_sheet(formattedHeader);
+
+      // [FITUR] Auto Width Columns
+      worksheet['!cols'] = getAutoColumnWidth(formattedHeader);
+
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, "FSK Header");
+      XLSX.writeFile(workbook, "Export_FSK_Header.xlsx");
+      toast.success('File Header berhasil dibuat.');
+
+    } catch (error) {
+      toast.error('Gagal mengekspor data header.', error);
+    }
+
+    // === EXPORT DETAIL ===
   } else if (type === 'detail') {
     try {
-      const response = await api.get('/fsk/export-details', { params: filters });
-      if (response.data.length === 0) return toast.warning('Tidak ada data detail.');
-      const worksheet = XLSX.utils.json_to_sheet(response.data);
+      toast.info('Mengambil data detail dari server...');
+
+      const response = await api.get<FskExportDetail[]>('/fsk/export-details', {
+        params: filters
+      });
+
+      if (response.data.length === 0) {
+        toast.warning('Tidak ada data detail untuk diekspor.');
+        return;
+      }
+
+      toast.info('Membuat file Excel Detail...');
+
+      // Mapping Format Data
+      const formattedDetail = response.data.map((row) => ({
+        ...row,
+        'Tanggal Setor': row['Tanggal Setor'] ? formatDateIndo(row['Tanggal Setor']) : '',
+        'Tanggal Verifikasi': row['Tanggal Verifikasi'] ? formatDateIndo(row['Tanggal Verifikasi']) : '',
+      }));
+
+      // Setup Layout Excel
+      const title = "LAPORAN DETAIL FORM SETORAN KASIR (FSK)";
+      const dateRange = `Periode : ${formatDateIndo(filters.startDate)} s/d ${formatDateIndo(filters.endDate)}`;
+      const tableHeaders = Object.keys(formattedDetail[0]);
+
+      const tableData = formattedDetail.map((row) => Object.values(row as Record<string, unknown>));
+
+      const excelData = [
+        [title],
+        [dateRange],
+        [],
+        tableHeaders,
+        ...tableData
+      ];
+
+      const worksheet = XLSX.utils.aoa_to_sheet(excelData);
+
+      // Merge Judul
+      const merge = [
+        { s: { r: 0, c: 0 }, e: { r: 0, c: tableHeaders.length - 1 } },
+        { s: { r: 1, c: 0 }, e: { r: 1, c: tableHeaders.length - 1 } },
+      ];
+      worksheet['!merges'] = merge;
+
+      // [FITUR] Auto Width Columns
+      worksheet['!cols'] = tableHeaders.map(header => ({ wch: Math.max(header.length + 5, 15) }));
+
       const workbook = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(workbook, worksheet, "FSK Detail");
       XLSX.writeFile(workbook, "Export_FSK_Detail.xlsx");
-    } catch {
-      toast.error('Gagal mengekspor data detail.');
+      toast.success('File Detail berhasil dibuat.');
+
+    } catch (error) {
+      let message = 'Gagal mengekspor data detail.';
+      if (error instanceof Error) message = error.message;
+      toast.error(message);
     }
   }
 };

@@ -242,6 +242,9 @@ const calculateTotals = () => {
 };
 
 const save = () => {
+  if (!header.keterangan || header.keterangan.trim() === '') {
+    return toast.error('Keterangan wajib diisi.');
+  }
   // --- VALIDASI DARI DELPHI ---
   if (!isEditMode.value && new Date(header.tanggal) < new Date(format(new Date(), 'yyyy-MM-dd'))) {
     return toast.error('Tanggal tidak boleh mundur dari hari ini.');
@@ -592,8 +595,10 @@ watch([() => footer.diskonRp, () => footer.diskonPersen1, () => footer.diskonPer
                 :model-value="header.customer ? `${header.customer.kota} / ${header.customer.telp}` : ''" readonly
                 filled hide-details density="compact" /></v-col>
 
-            <v-col cols="12"><v-textarea label="Keterangan" v-model="header.keterangan" rows="3" variant="outlined"
-                hide-details density="compact" /></v-col>
+            <v-col cols="12">
+              <v-textarea label="Keterangan *" v-model="header.keterangan" rows="3" variant="outlined"
+                hide-details="auto" density="compact" :rules="[v => !!v || 'Keterangan wajib diisi']" />
+            </v-col>
           </v-row>
         </div>
       </div>

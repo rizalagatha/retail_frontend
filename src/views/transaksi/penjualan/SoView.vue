@@ -54,6 +54,11 @@ interface ColumnFilter {
   value?: string | number;
 }
 
+interface SoExportRow {
+  Tanggal?: string | Date;
+  [key: string]: unknown;
+}
+
 const toast = useToast();
 const authStore = useAuthStore();
 const router = useRouter();
@@ -437,33 +442,103 @@ const printData = () => {
   window.open(url, '_blank');
 };
 
-const exportData = async (type: 'header' | 'detail') => {
+// 1. Helper Format Tanggal Indonesia
+const formatDateIndo = (dateString: string | Date) => {
+  if (!dateString) return '';
+  const date = new Date(dateString);
+  return new Intl.DateTimeFormat('id-ID', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric'
+  }).format(date);
+};
+
+// 2. Export Header (Update)
+const exportHeaderData = () => {
+  if (list.value.length === 0) {
+    toast.warning('Tidak ada data header untuk diekspor.');
+    return;
+  }
+
+  // Format tanggal pada data Header sebelum masuk Excel
+  const formattedData = list.value.map((item: SoHeader) => ({
+    ...item,
+    // TypeScript sekarang tahu 'item' punya properti 'Tanggal'
+    Tanggal: item.Tanggal ? formatDateIndo(item.Tanggal) : '',
+  }));
+
+  toast.info('Membuat file Excel Header...');
+  const worksheet = XLSX.utils.json_to_sheet(formattedData);
+  const workbook = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(workbook, worksheet, "SO Header");
+  XLSX.writeFile(workbook, "Export_SO_Header.xlsx");
+  toast.success('File Header berhasil dibuat.');
+};
+
+// 3. Export Detail (Update)
+const exportDetailData = async () => {
   const exportFilters = {
     startDate: filters.startDate,
     endDate: filters.endDate,
     cabang: filters.cabang,
   };
+
+  toast.info('Mengambil data detail dari server...');
   try {
-    if (type === 'header') {
-      if (list.value.length === 0) return toast.warning('Tidak ada data header untuk diekspor.');
-      toast.info('Membuat file Excel Header...');
-      const worksheet = XLSX.utils.json_to_sheet(list.value);
-      const workbook = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(workbook, worksheet, "SO Header");
-      XLSX.writeFile(workbook, "Export_SO_Header.xlsx");
-      toast.success('File Header berhasil dibuat.');
-    } else if (type === 'detail') {
-      toast.info('Mengambil data detail dari server...');
-      const response = await api.get('/so/export-details', { params: exportFilters });
-      if (response.data.length === 0) return toast.warning('Tidak ada data detail untuk diekspor.');
-      toast.info('Membuat file Excel Detail...');
-      const worksheet = XLSX.utils.json_to_sheet(response.data);
-      const workbook = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(workbook, worksheet, "SO Detail");
-      XLSX.writeFile(workbook, "Export_SO_Detail.xlsx");
-      toast.success('File Detail berhasil dibuat.');
+    // Pastikan type return axios sesuai
+    const response = await api.get<SoExportRow[]>('/so/export-details', { params: exportFilters });
+
+    // Perbaikan Date Format pada Data Detail
+    const dataToExport = response.data.map((row: SoExportRow) => ({
+      ...row,
+      // TypeScript sekarang valid, karena SoExportRow mendefinisikan Tanggal?
+      Tanggal: row.Tanggal ? formatDateIndo(row.Tanggal) : ''
+    }));
+
+    if (dataToExport.length === 0) {
+      toast.warning('Tidak ada data detail untuk diekspor.');
+      return;
     }
-  } catch {
+
+    toast.info('Membuat file Excel Detail...');
+
+    // Opsi A: Simple JSON to Sheet (Header otomatis dari Key Object)
+    // const worksheet = XLSX.utils.json_to_sheet(dataToExport);
+
+    // Opsi B: Custom Header seperti Penawaran (Lebih Rapi)
+    const title = "LAPORAN DETAIL SURAT PESANAN";
+    const dateRange = `Periode : ${formatDateIndo(filters.startDate)} s/d ${formatDateIndo(filters.endDate)}`;
+    const tableHeaders = Object.keys(dataToExport[0]);
+    const tableData = dataToExport.map((row) => Object.values(row as Record<string, unknown>));
+
+    const excelData = [
+      [title],
+      [dateRange],
+      [],
+      tableHeaders,
+      ...tableData
+    ];
+
+    const worksheet = XLSX.utils.aoa_to_sheet(excelData);
+
+    // Merge Judul
+    const merge = [
+      { s: { r: 0, c: 0 }, e: { r: 0, c: tableHeaders.length - 1 } },
+      { s: { r: 1, c: 0 }, e: { r: 1, c: tableHeaders.length - 1 } },
+    ];
+    worksheet['!merges'] = merge;
+
+    // Auto Width
+    const colWidths = tableHeaders.map(header => ({ wch: header.length + 5 }));
+    worksheet['!cols'] = colWidths;
+
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "SO Detail");
+    XLSX.writeFile(workbook, "Export_SO_Detail.xlsx");
+    toast.success('File Detail berhasil dibuat.');
+
+  } catch (error) {
+    console.error(error);
     toast.error('Gagal mengekspor data.');
   }
 };
@@ -502,15 +577,25 @@ watch(filters, () => {
         @click="router.push(`/transaksi/penjualan/surat-pesanan/ubah/${selected[0].Nomor}`)">Ubah</v-btn>
       <v-btn v-if="authStore.can(MENU_ID, 'view')" size="small" color="green" :disabled="!isSingleSelected"
         prepend-icon="mdi-printer" @click="printData">Cetak</v-btn>
-      <v-menu offset-y>
+      <v-menu offset-y v-if="authStore.can(MENU_ID, 'view')">
         <template v-slot:activator="{ props }">
-          <v-btn size="small" color="teal" prepend-icon="mdi-file-excel" v-bind="props">Export</v-btn>
+          <v-btn color="teal" size="small" prepend-icon="mdi-file-excel" v-bind="props">
+            Export Data
+          </v-btn>
         </template>
+
         <v-list density="compact">
-          <v-list-item @click="exportData('header')">
+          <v-list-item @click="exportHeaderData" value="header">
+            <template v-slot:prepend>
+              <v-icon icon="mdi-table-headers-eye" size="small" class="mr-2"></v-icon>
+            </template>
             <v-list-item-title>Export Header</v-list-item-title>
           </v-list-item>
-          <v-list-item @click="exportData('detail')">
+
+          <v-list-item @click="exportDetailData" value="detail">
+            <template v-slot:prepend>
+              <v-icon icon="mdi-file-document-multiple-outline" size="small" class="mr-2"></v-icon>
+            </template>
             <v-list-item-title>Export Detail</v-list-item-title>
           </v-list-item>
         </v-list>

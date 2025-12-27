@@ -44,6 +44,18 @@ interface DetailItem {
   ukuran?: string;
   jumlah?: number;
 }
+interface MutasiTerimaExportRow {
+  nomor_kirim: string;
+  tanggal_kirim?: string | Date;
+  nomor_terima?: string;
+  tanggal_terima?: string | Date;
+  dari_store?: string;
+  kode_barang: string;
+  nama_barang: string;
+  ukuran?: string;
+  jumlah?: number;
+  [key: string]: unknown;
+}
 
 // --- Inisialisasi ---
 const router = useRouter();
@@ -235,6 +247,20 @@ const onMasterProductSelected = (product: { kode: string; nama: string; }) => {
   }
 };
 
+// --- Helper Format Tanggal ---
+const formatDateIndo = (dateString: string | Date | null | undefined) => {
+  if (!dateString) return '';
+  const date = new Date(dateString);
+  // Validasi date valid
+  if (isNaN(date.getTime())) return '';
+  return new Intl.DateTimeFormat('id-ID', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric'
+  }).format(date);
+};
+
+// --- Fungsi Export Data ---
 const exportData = async (type: 'header' | 'detail') => {
   if (type === 'header') {
     if (list.value.length === 0) {
@@ -244,30 +270,34 @@ const exportData = async (type: 'header' | 'detail') => {
 
     try {
       toast.info('Menyiapkan file Excel Header...');
-      const dataToExport = list.value.map(item => ({
+
+      // Mapping Data Header dengan Interface MasterItem
+      const formattedHeader = list.value.map((item: MasterItem) => ({
         'Nomor Kirim': item.nomor,
-        'Tanggal Kirim': item.tanggal ? format(parseISO(item.tanggal), 'dd-MM-yyyy') : '',
+        'Tanggal Kirim': formatDateIndo(item.tanggal),
         'Nomor Terima': item.nomorTerima,
-        'Tanggal Terima': item.tglTerima ? format(parseISO(item.tglTerima), 'dd-MM-yyyy') : '',
+        'Tanggal Terima': formatDateIndo(item.tglTerima),
         'Dari Store': item.dariStore,
         'Keterangan': item.keterangan,
+        'User': item.usr,
         'Closing': item.closing,
       }));
 
-      const worksheet = XLSX.utils.json_to_sheet(dataToExport);
+      const worksheet = XLSX.utils.json_to_sheet(formattedHeader);
       const workbook = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(workbook, worksheet, "Mutasi Terima Header");
       XLSX.writeFile(workbook, "Export_Mutasi_Terima_Header.xlsx");
       toast.success('File Header berhasil diekspor.');
     } catch (error) {
-      toast.error('Gagal mengekspor data header.');
-      console.error("Export Header error:", error);
+      toast.error('Gagal mengekspor data header.', error);
     }
 
   } else if (type === 'detail') {
-    toast.info('Mengambil data detail dari server...');
     try {
-      const response = await api.get('/mutasi-terima/export-details', {
+      toast.info('Mengambil data detail dari server...');
+
+      // Request API dengan Generic Type
+      const response = await api.get<MutasiTerimaExportRow[]>('/mutasi-terima/export-details', {
         params: filters
       });
 
@@ -279,11 +309,13 @@ const exportData = async (type: 'header' | 'detail') => {
       }
 
       toast.info('Membuat file Excel Detail...');
-      const dataToExport = detailData.map((item: DetailItem) => ({
+
+      // Mapping Data Detail (Rename Key & Format Date)
+      const formattedDetail = detailData.map((item) => ({
         'Nomor Kirim': item.nomor_kirim,
-        'Tanggal Kirim': item.tanggal_kirim ? format(parseISO(item.tanggal_kirim), 'dd-MM-yyyy') : '',
-        'Nomor Terima': item.nomor_terima,
-        'Tanggal Terima': item.tanggal_terima ? format(parseISO(item.tanggal_terima), 'dd-MM-yyyy') : '',
+        'Tanggal Kirim': formatDateIndo(item.tanggal_kirim),
+        'Nomor Terima': item.nomor_terima || '-',
+        'Tanggal Terima': formatDateIndo(item.tanggal_terima),
         'Dari Store': item.dari_store,
         'Kode Barang': item.kode_barang,
         'Nama Barang': item.nama_barang,
@@ -291,15 +323,44 @@ const exportData = async (type: 'header' | 'detail') => {
         'Jumlah': item.jumlah,
       }));
 
-      const worksheet = XLSX.utils.json_to_sheet(dataToExport);
+      // Setup Layout Excel
+      const title = "LAPORAN DETAIL MUTASI TERIMA";
+      const dateRange = `Periode : ${formatDateIndo(filters.startDate)} s/d ${formatDateIndo(filters.endDate)}`;
+      const tableHeaders = Object.keys(formattedDetail[0]);
+
+      // Convert ke Array of Values
+      const tableData = formattedDetail.map((row) => Object.values(row as Record<string, unknown>));
+
+      const excelData = [
+        [title],
+        [dateRange],
+        [],
+        tableHeaders,
+        ...tableData
+      ];
+
+      const worksheet = XLSX.utils.aoa_to_sheet(excelData);
+
+      // Merge Judul
+      const merge = [
+        { s: { r: 0, c: 0 }, e: { r: 0, c: tableHeaders.length - 1 } },
+        { s: { r: 1, c: 0 }, e: { r: 1, c: tableHeaders.length - 1 } },
+      ];
+      worksheet['!merges'] = merge;
+
+      // Auto Width
+      const colWidths = tableHeaders.map(header => ({ wch: header.length + 5 }));
+      worksheet['!cols'] = colWidths;
+
       const workbook = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(workbook, worksheet, "Mutasi Terima Detail");
       XLSX.writeFile(workbook, "Export_Mutasi_Terima_Detail.xlsx");
       toast.success('File Detail berhasil diekspor.');
 
     } catch (error) {
-      toast.error('Gagal mengekspor data detail.');
-      console.error("Export Detail error:", error);
+      let message = 'Gagal mengekspor data detail.';
+      if (error instanceof Error) message = error.message;
+      toast.error(message);
     }
   }
 };

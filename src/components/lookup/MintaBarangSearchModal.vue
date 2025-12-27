@@ -7,6 +7,15 @@ import type { AxiosError } from 'axios';
 const toast = useToast();
 
 // Tipe Data
+interface DataTableHeader {
+  title: string;
+  key: string;
+  width?: string | number;
+  minWidth?: string | number;
+  align?: 'start' | 'center' | 'end'; // <--- Tipe Union ini PENTING
+  sortable?: boolean;
+}
+
 interface Product {
   uniqueId: string | number;
   kode: string;
@@ -19,7 +28,7 @@ interface Product {
 interface LoadItemsOptions {
   page?: number;
   itemsPerPage?: number;
-  sortBy?: string[]; // atau { key: string; order: 'asc' | 'desc' }[] kalau pakai Vuetify v-data-table
+  sortBy?: string[];
 }
 interface Props {
   source: string;
@@ -41,25 +50,37 @@ const options = ref({ page: 1, itemsPerPage: 10 });
 const selected = ref<Product[]>([]);
 
 // --- 1. Buat Headers Dinamis ---
-const headers = computed(() => {
+const headers = computed((): DataTableHeader[] => { // <--- Berikan return type eksplisit
   if (props.source === 'qc-grid1-f1' || props.source === 'qc-grid2-f2' || props.source === 'mutasi-kirim') {
-    // Tampilan F1 dari TfrmQC.cxGrdMasterEditKeyDown
     return [
       { title: 'Kode', key: 'kode', width: '150px' },
       { title: 'Barcode', key: 'barcode', width: '150px' },
       { title: 'Nama Barang', key: 'nama', minWidth: '300px' },
       { title: 'Ukuran', key: 'ukuran', width: '100px' },
-      { title: 'Stok', key: 'stok', width: '100px' },
+      { title: 'Stok', key: 'stok', width: '100px', align: 'end' },
     ];
   }
-  // Default (ambil-barang, po-barang, dll)
-  return [
+
+  // 3. Definisikan defaultHeaders dengan tipe eksplisit DataTableHeader[]
+  const defaultHeaders: DataTableHeader[] = [
     { title: 'Kode', key: 'kode', width: '180px' },
     { title: 'Barcode', key: 'barcode', width: '150px' },
-    { title: 'Nama Barang', key: 'nama' },
+    { title: 'Nama Barang', key: 'nama' }, // Note: width optional
     { title: 'Ukuran', key: 'ukuran', width: '100px' },
     { title: 'Kategori', key: 'kategori', width: '120px' },
   ];
+
+  if (props.source === 'minta-barang') {
+    // Sekarang ini valid karena Interface mengizinkan 'align'
+    defaultHeaders.push({
+      title: 'Stok',
+      key: 'stok',
+      width: '100px',
+      align: 'end'
+    });
+  }
+
+  return defaultHeaders;
 });
 
 // Methods
@@ -72,15 +93,13 @@ const loadItems = async ({ page, itemsPerPage, sortBy }: LoadItemsOptions = {}) 
 
     // --- LOGIKA PEMILIHAN ENDPOINT ---
     if (props.source === 'qc-grid1-f1' || props.source === 'mutasi-kirim') {
-      // Untuk QC Grid 1 dan Mutasi Kirim, ambil semua data dari endpoint masing-masing
       apiUrl = props.source === 'qc-grid1-f1'
         ? '/qc-ke-garmen-form/barang-lookup/all'
-        : '/mutasi-kirim-form/lookup/products'; // <-- Endpoint baru
+        : '/mutasi-kirim-form/lookup/products';
       isClientSideFilter = true;
     } else if (props.source === 'qc-grid2-f2') {
       apiUrl = '/qc-ke-garmen-form/barang-lookup/varian';
       params.kodeBarang = props.filterKode;
-      console.log('🛰️ Call varian API dengan kodeBarang:', params.kodeBarang);
       isClientSideFilter = true;
     } else {
       // Logika paginasi server-side yang sudah ada
@@ -130,13 +149,11 @@ const loadItems = async ({ page, itemsPerPage, sortBy }: LoadItemsOptions = {}) 
 };
 
 const selectAndClose = (item: Product) => {
-  // Untuk mode single-select (F1)
   emit('products-selected', [item]);
   emit('close');
 };
 
 const submitSelection = () => {
-  // Untuk mode multi-select (F2)
   if (selected.value.length > 0) {
     emit('products-selected', selected.value);
     emit('close');
@@ -159,7 +176,6 @@ watch(search, () => {
   clearTimeout(searchTimeout);
   searchTimeout = setTimeout(() => {
     options.value.page = 1;
-    // Hanya panggil loadItems jika BUKAN qc-grid1-f1 (karena itu client-side filter)
     if (props.source !== 'qc-grid1-f1' && props.source !== 'mutasi-kirim' && props.source !== 'qc-grid2-f2') {
       loadItems(options.value);
     }
@@ -214,6 +230,7 @@ onMounted(() => {
             </tr>
           </template>
         </v-data-table>
+
         <v-data-table-server v-else v-model="selected" v-model:page="options.page"
           v-model:items-per-page="options.itemsPerPage" :headers="headers" :items="items" :items-length="totalItems"
           :loading="loading" :show-select="multi" return-object item-value="uniqueId" @update:options="loadItems" hover
@@ -229,6 +246,13 @@ onMounted(() => {
               <td>{{ item.nama }}</td>
               <td>{{ item.ukuran }}</td>
               <td>{{ item.kategori }}</td>
+
+              <td v-if="props.source === 'minta-barang'" class="text-end">
+                <span :class="(item.stok || 0) <= 0 ? 'text-red' : ''">
+                  {{ (item.stok || 0).toLocaleString('id-ID') }}
+                </span>
+              </td>
+
             </tr>
           </template>
         </v-data-table-server>

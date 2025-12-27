@@ -53,6 +53,23 @@ interface ColumnFilter {
   value?: string | number;
 }
 
+interface BarangExportHeader {
+  Kode: string;
+  'Nama Barang': string;
+  Kategori: string;
+  DateCreate?: string | Date;
+  Otomatis: string;
+  AdaStok: string;
+  Status: string;
+  [key: string]: unknown;
+}
+
+interface BarangExportDetail {
+  'Kode Barang': string;
+  'Nama Barang': string;
+  [key: string]: unknown;
+}
+
 // --- Inisialisasi ---
 const router = useRouter();
 const toast = useToast();
@@ -295,23 +312,100 @@ const getRowTextColor = (item: MasterItem) => {
   return '';
 };
 
+// Helper Format Tanggal
+const formatDateIndo = (dateString: string | Date | null | undefined) => {
+  if (!dateString) return '';
+  const date = new Date(dateString);
+  if (isNaN(date.getTime())) return '';
+  return new Intl.DateTimeFormat('id-ID', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric'
+  }).format(date);
+};
+
+// Helper Auto Width Columns
+const getAutoColumnWidth = (data: Record<string, unknown>[]) => {
+  if (data.length === 0) return [];
+  return Object.keys(data[0]).map((key) => ({
+    wch: Math.max(key.length + 5, 15)
+  }));
+};
+
+// --- 2. Fungsi Export Data ---
 const exportData = async (type: 'header' | 'detail') => {
+  const fileName = type === 'header' ? 'Export_BarangDC_Header.xlsx' : 'Export_BarangDC_Detail.xlsx';
+
+  // === EXPORT HEADER ===
   if (type === 'header') {
-    if (masterData.value.length === 0) return toast.warning('Tidak ada data header.');
-    const worksheet = XLSX.utils.json_to_sheet(masterData.value);
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, "Barang DC Header");
-    XLSX.writeFile(workbook, "Export_BarangDC_Header.xlsx");
+    try {
+      toast.info('Mengambil data header dari server...');
+
+      const response = await api.get<BarangExportHeader[]>('/barang-dc/export-headers', {
+        params: filters
+      });
+
+      if (response.data.length === 0) {
+        toast.warning('Tidak ada data header.');
+        return;
+      }
+
+      toast.info('Membuat file Excel Header...');
+
+      // Mapping & Formatting
+      const formattedHeader = response.data.map((item) => ({
+        ...item,
+        // Format Tanggal
+        DateCreate: item.DateCreate ? formatDateIndo(item.DateCreate) : '',
+      }));
+
+      const worksheet = XLSX.utils.json_to_sheet(formattedHeader);
+
+      // Auto Width
+      worksheet['!cols'] = getAutoColumnWidth(formattedHeader);
+
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, "Barang DC Header");
+      XLSX.writeFile(workbook, fileName);
+
+      toast.success('Header berhasil diekspor.');
+    } catch (error) {
+      toast.error('Gagal mengekspor data header.', error);
+    }
+
+    // === EXPORT DETAIL ===
   } else if (type === 'detail') {
     try {
-      const response = await api.get('/barang-dc/export-details', { params: filters });
-      if (response.data.length === 0) return toast.warning('Tidak ada data detail.');
+      toast.info('Mengambil data detail dari server...');
+
+      const response = await api.get<BarangExportDetail[]>('/barang-dc/export-details', {
+        params: filters
+      });
+
+      if (response.data.length === 0) {
+        toast.warning('Tidak ada data detail.');
+        return;
+      }
+
+      toast.info('Membuat file Excel Detail...');
+
+      // Karena detail ini tidak ada kolom tanggal (berdasarkan query service),
+      // kita langsung pakai datanya, tapi tetap bisa kita map jika mau memastikan format number.
+      // Namun query SQL sudah rapi, jadi langsung saja.
+
       const worksheet = XLSX.utils.json_to_sheet(response.data);
+
+      // Auto Width
+      worksheet['!cols'] = getAutoColumnWidth(response.data);
+
       const workbook = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(workbook, worksheet, "Barang DC Detail");
-      XLSX.writeFile(workbook, "Export_BarangDC_Detail.xlsx");
+      XLSX.writeFile(workbook, fileName);
+
+      toast.success('Detail berhasil diekspor.');
     } catch (error) {
-      toast.error('Gagal mengekspor data detail.', error);
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      toast.error('Gagal mengekspor data detail: ' + message);
     }
   }
 };

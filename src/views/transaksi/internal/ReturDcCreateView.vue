@@ -273,6 +273,9 @@ const save = () => {
     toast.error('Anda tidak memiliki izin untuk menyimpan data ini.');
     return;
   }
+  if (!header.keterangan || header.keterangan.trim() === '') {
+    return toast.error('Keterangan wajib diisi.');
+  }
   // --- VALIDASI DARI DELPHI ---
   if (!isEditMode.value && new Date(header.tanggal) < new Date(format(new Date(), 'yyyy-MM-dd'))) {
     return toast.error('Tanggal tidak boleh mundur dari hari ini.');
@@ -433,8 +436,10 @@ onMounted(async () => {
                 hide-details density="compact" /></v-col>
             <v-col cols="12"><v-text-field label="Nama Gudang DC" v-model="header.gudangDc.nama" readonly filled
                 hide-details density="compact" /></v-col>
-            <v-col cols="12"><v-textarea label="Keterangan" v-model="header.keterangan" rows="3" variant="outlined"
-                hide-details density="compact" /></v-col>
+            <v-col cols="12">
+              <v-textarea label="Keterangan *" v-model="header.keterangan" rows="3" variant="outlined"
+                hide-details="auto" density="compact" :rules="[v => !!v || 'Keterangan wajib diisi']" />
+            </v-col>
             <!-- <v-col cols="12">
                             <v-btn block color="info" @click="handleLoadFromStock" prepend-icon="mdi-download"
                                 :loading="isLoading">

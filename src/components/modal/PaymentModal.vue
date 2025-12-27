@@ -518,35 +518,30 @@ const executeSave = async () => {
       jenis: 'UMUM'
     };
 
-    // [BARU] Inject data karyawan ke payment payload jika mode potong gaji
+    // [LOGIKA DATA KARYAWAN]
     if (paymentTab.value === 'karyawan') {
       paymentPayload.jenis = 'POTONG_GAJI';
-      paymentPayload.nikKaryawan = karyawan.nik?.kar_nik || '';
+
+      // Pastikan NIK dan Nama terisi
+      if (!karyawan.nik || !karyawan.nama) {
+        throw new Error("Data Karyawan belum lengkap.");
+      }
+
+      // Ambil NIK (handle jika object autocomplete atau string)
+      const nikFixed = typeof karyawan.nik === 'object' ? karyawan.nik.kar_nik : karyawan.nik;
+
+      paymentPayload.nikKaryawan = nikFixed;
       paymentPayload.namaKaryawan = karyawan.nama;
 
-      // [FIX 2] Reset nilai dengan struktur objek LENGKAP
-      // Jangan hanya { nominal: 0 }, tapi sertakan field wajib lainnya (meski kosong)
-
+      // Reset nominal pembayaran lain agar nol
       paymentPayload.tunai = 0;
-
-      // Fix Transfer: sertakan akun dan tanggal (default string kosong/tanggal hari ini)
+      paymentPayload.voucher = { nominal: 0, nomor: '' };
       paymentPayload.transfer = {
         nominal: 0,
         akun: { kode: '', nama: '', rekening: '' },
         tanggal: payment.transfer.tanggal
       };
-
-      // Fix Voucher: sertakan nomor
-      paymentPayload.voucher = {
-        nominal: 0,
-        nomor: ''
-      };
-
-      // Fix Retur: sertakan nomor
-      paymentPayload.retur = {
-        nominal: 0,
-        nomor: ''
-      };
+      paymentPayload.retur = { nominal: 0, nomor: '' };
 
     } else {
       paymentPayload.jenis = 'UMUM';
@@ -1013,7 +1008,7 @@ watch(kembali, (newVal) => {
               <div class="text-subtitle-2 font-weight-bold mb-2">
                 Metode Pembayaran:
                 <span class="text-primary">{{ paymentTab === 'karyawan' ? 'Potong Gaji Karyawan' : 'Umum (Tunai/TF)'
-                }}</span>
+                  }}</span>
               </div>
 
               <v-alert v-if="paymentTab === 'karyawan'" color="info" variant="tonal" icon="mdi-account-tie" class="mb-4"
@@ -1154,15 +1149,9 @@ watch(kembali, (newVal) => {
 
     <RekeningSearchModal v-if="dialogs.rekeningSearch" :cabang="invoiceHeader.gudang.kode"
       @close="dialogs.rekeningSearch = false" @selected="onRekeningSelected" />
-    <AuthorizationModal
-      v-if="authDialog.show"
-      :title="authDialog.title"
-      :jenis="authDialog.jenis"
-      :nominal="authDialog.nominal"
-      :transaksi="authDialog.transaksi"
-      @close="handleAuthClose"
-      @success="handleAuthSuccess"
-    />
+    <AuthorizationModal v-if="authDialog.show" :title="authDialog.title" :jenis="authDialog.jenis"
+      :nominal="authDialog.nominal" :transaksi="authDialog.transaksi" @close="handleAuthClose"
+      @success="handleAuthSuccess" />
     <PrintOptionModal v-if="isPrintOptionVisible" :options="['a4', 'kasir', 'wa']" @close="onPrintModalClose"
       @select="handlePrintSelection" />
     <ReturJualSearchModal v-if="dialogs.returJualSearch" :customer-kode="invoiceHeader.customer.kode"
@@ -1247,7 +1236,7 @@ watch(kembali, (newVal) => {
               <div class="summary-item grand-total"><span>Grand Total </span><span>{{
                 formatRupiah(printKasirData.header.summary.grandTotal) }}</span></div>
               <div class="summary-item"><span>Bayar </span><span>{{ formatRupiah(printKasirData.header.summary.bayar)
-              }}</span></div>
+                  }}</span></div>
               <div class="summary-item" v-if="printKasirData.header.summary.pundiAmal">
                 <span>Pundi Amal </span>
                 <span>{{ formatRupiah(printKasirData.header.summary.pundiAmal) }}</span>

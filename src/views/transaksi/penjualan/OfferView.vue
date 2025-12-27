@@ -30,11 +30,13 @@ interface OfferDetail {
   harga: number;
   diskon: number;
   total: number;
+  Tanggal?: string | Date;
   [key: string]: unknown; // Optional, jika ada field lain yang tidak pasti
 }
 
 interface OfferItem {
   nomor: string;
+  Tanggal?: string | Date;
   [key: string]: unknown; // opsional, kalau ada field lain
 }
 
@@ -476,30 +478,60 @@ const submitCloseOffer = async () => {
   }
 };
 
+// Tambahkan helper ini di methods
+const formatDateIndo = (dateString: string | Date) => {
+  if (!dateString) return '';
+  const date = new Date(dateString);
+  // Menggunakan 'id-ID' untuk output "27 Desember 2025"
+  return new Intl.DateTimeFormat('id-ID', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric'
+  }).format(date);
+};
+
+// --- Update fungsi exportHeaderData ---
 const exportHeaderData = () => {
   if (offerList.value.length === 0) {
     toast.warning('Tidak ada data header untuk diekspor.');
     return;
   }
-  const worksheet = XLSX.utils.json_to_sheet(offerList.value);
+
+  // Mapping data untuk memformat tanggal sebelum masuk Excel
+  const formattedData = offerList.value.map((item: OfferItem) => ({
+    ...item,
+    // Pastikan key 'Tanggal' atau 'pen_tanggal' sesuai dengan field di object offerList Anda
+    // Contoh jika fieldnya bernama 'Tanggal':
+    Tanggal: item.Tanggal ? formatDateIndo(item.Tanggal) : '',
+    // Jika ada field tanggal lain, format juga disini
+  }));
+
+  const worksheet = XLSX.utils.json_to_sheet(formattedData);
   const workbook = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(workbook, worksheet, "Penawaran Header");
   XLSX.writeFile(workbook, "DaftarPenawaran_Header.xlsx");
   toast.success('Data header berhasil diekspor.');
 };
 
+// --- Update fungsi exportDetailData ---
 const exportDetailData = async () => {
   toast.info('Menyiapkan data detail untuk diekspor...');
   try {
     const cabang = authStore.user?.cabang || '';
     const response = await api.get<OfferDetail[]>('/offers/export-details', {
       params: {
-        startDate: filters.startDate, // <-- Ubah ini
-        endDate: filters.endDate,   // <-- Ubah ini
+        startDate: filters.startDate,
+        endDate: filters.endDate,
         cabang
       }
     });
-    const dataToExport = response.data;
+
+    // Format tanggal pada data yang diterima dari backend
+    const dataToExport = response.data.map((row: OfferDetail) => ({
+      ...row,
+      // Sesuai query backend Anda, nama kolomnya adalah 'Tanggal'
+      Tanggal: row.Tanggal ? formatDateIndo(row.Tanggal) : ''
+    }));
 
     if (dataToExport.length === 0) {
       toast.warning('Tidak ada data detail untuk diekspor pada periode ini.');
@@ -508,36 +540,37 @@ const exportDetailData = async () => {
 
     // 1. Siapkan Judul dan Header
     const title = "FORM PENAWARAN";
-    const dateRange = `Periode : ${format(new Date(filters.startDate), 'dd/MM/yyyy')} s/d ${format(new Date(filters.endDate), 'dd/MM/yyyy')}`;
+    // Format tanggal untuk judul range (menggunakan helper yang sama biar konsisten)
+    const dateRange = `Periode : ${formatDateIndo(filters.startDate)} s/d ${formatDateIndo(filters.endDate)}`;
     const tableHeaders = Object.keys(dataToExport[0]);
 
     // 2. Ubah data JSON menjadi array of arrays
-    const tableData = dataToExport.map((row: OfferDetail) => Object.values(row));
+    const tableData = dataToExport.map((row) => Object.values(row));
 
     // 3. Gabungkan semua bagian menjadi satu array besar
     const excelData = [
       [title],
       [dateRange],
-      [], // Baris kosong sebagai spasi
+      [], // Baris kosong
       tableHeaders,
       ...tableData
     ];
 
-    // 4. Buat worksheet menggunakan aoa_to_sheet
+    // 4. Buat worksheet
     const ws = XLSX.utils.aoa_to_sheet(excelData);
 
     // 5. Atur penggabungan sel (merge)
     const merge = [
-      { s: { r: 0, c: 0 }, e: { r: 0, c: tableHeaders.length - 1 } }, // Judul
-      { s: { r: 1, c: 0 }, e: { r: 1, c: tableHeaders.length - 1 } }, // Rentang tanggal
+      { s: { r: 0, c: 0 }, e: { r: 0, c: tableHeaders.length - 1 } },
+      { s: { r: 1, c: 0 }, e: { r: 1, c: tableHeaders.length - 1 } },
     ];
     ws['!merges'] = merge;
 
-    // (Opsional) Atur lebar kolom agar lebih rapi
+    // Atur lebar kolom
     const colWidths = tableHeaders.map(header => ({ wch: header.length + 5 }));
     ws['!cols'] = colWidths;
 
-    // 6. Buat workbook dan unduh file
+    // 6. Buat workbook dan unduh
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, ws, "Detail Penawaran");
 
@@ -647,10 +680,29 @@ watch(columnFilters, (val) => {
         :disabled="selected.length !== 1">
         Cetak
       </v-btn>
-      <v-btn v-if="authStore.can(MENU_ID, 'view')" size="small" prepend-icon="mdi-file-excel"
-        @click="exportHeaderData">Export Header</v-btn>
-      <v-btn v-if="authStore.can(MENU_ID, 'view')" size="small" prepend-icon="mdi-file-download-outline"
-        @click="exportDetailData">Export Detail</v-btn>
+      <v-menu offset-y v-if="authStore.can(MENU_ID, 'view')">
+        <template v-slot:activator="{ props }">
+          <v-btn color="teal" size="small" prepend-icon="mdi-file-excel" v-bind="props">
+            Export Data
+          </v-btn>
+        </template>
+
+        <v-list density="compact">
+          <v-list-item @click="exportHeaderData" value="header">
+            <template v-slot:prepend>
+              <v-icon icon="mdi-table-headers-eye" size="small" class="mr-2"></v-icon>
+            </template>
+            <v-list-item-title>Export Header</v-list-item-title>
+          </v-list-item>
+
+          <v-list-item @click="exportDetailData" value="detail">
+            <template v-slot:prepend>
+              <v-icon icon="mdi-file-document-multiple-outline" size="small" class="mr-2"></v-icon>
+            </template>
+            <v-list-item-title>Export Detail</v-list-item-title>
+          </v-list-item>
+        </v-list>
+      </v-menu>
       <v-btn v-if="authStore.can(MENU_ID, 'edit')" size="small" :disabled="!canBeClosed" color="blue"
         prepend-icon="mdi-lock-outline" @click="openCloseDialog">Close Penawaran</v-btn>
     </template>

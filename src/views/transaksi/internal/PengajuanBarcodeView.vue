@@ -38,6 +38,10 @@ interface DetailItem {
   harga: number;
   barcodeBaru?: string;
 }
+interface PengajuanExportRow {
+  Tanggal?: string | Date;
+  [key: string]: unknown;
+}
 
 const router = useRouter();
 const toast = useToast();
@@ -199,24 +203,113 @@ const handleDelete = () => {
   );
 };
 
+// Helper Format Tanggal Indonesia
+const formatDateIndo = (dateString: string | Date | null | undefined) => {
+  if (!dateString) return '';
+  const date = new Date(dateString);
+  if (isNaN(date.getTime())) return '';
+  return new Intl.DateTimeFormat('id-ID', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric'
+  }).format(date);
+};
+
+// --- 2. Fungsi Export Data ---
 const exportData = async (type: 'header' | 'detail') => {
+
+  // === EXPORT HEADER ===
   if (type === 'header') {
-    if (masterData.value.length === 0) return toast.warning('Tidak ada data header.');
-    const worksheet = XLSX.utils.json_to_sheet(masterData.value);
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, "Pengajuan Barcode Header");
-    XLSX.writeFile(workbook, "Export_PengajuanBarcode_Header.xlsx");
+    // Casting masterData.value ke Interface MasterItem
+    const currentList = masterData.value as MasterItem[];
+
+    if (currentList.length === 0) {
+      toast.warning('Tidak ada data header untuk diekspor.');
+      return;
+    }
+
+    try {
+      toast.info('Membuat file Excel Header...');
+
+      // Mapping Header dengan Format Tanggal
+      const formattedHeader = currentList.map((item) => ({
+        ...item,
+        tanggal: item.tanggal ? formatDateIndo(item.tanggal) : '',
+        tglApproval: item.tglApproval ? formatDateIndo(item.tglApproval) : '',
+      }));
+
+      const worksheet = XLSX.utils.json_to_sheet(formattedHeader);
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, "Pengajuan Barcode Header");
+      XLSX.writeFile(workbook, "Export_PengajuanBarcode_Header.xlsx");
+      toast.success('File Header berhasil dibuat.');
+    } catch (error) {
+      toast.error('Gagal membuat file Excel.', error);
+    }
+
+    // === EXPORT DETAIL ===
   } else if (type === 'detail') {
     try {
-      const response = await api.get('/pengajuan-barcode/export-details', { params: filters });
-      if (response.data.length === 0) return toast.warning('Tidak ada data detail.');
+      toast.info('Mengambil data detail dari server...');
 
-      const worksheet = XLSX.utils.json_to_sheet(response.data);
+      // Request API dengan Generic Type
+      const response = await api.get<PengajuanExportRow[]>('/pengajuan-barcode/export-details', {
+        params: filters
+      });
+
+      const details = response.data;
+
+      if (details.length === 0) {
+        toast.warning('Tidak ada data detail untuk diekspor pada filter ini.');
+        return;
+      }
+
+      toast.info('Membuat file Excel Detail...');
+
+      // Mapping Detail dengan Format Tanggal
+      const formattedDetail = details.map((row) => ({
+        ...row,
+        Tanggal: row.Tanggal ? formatDateIndo(row.Tanggal) : ''
+      }));
+
+      // Setup Layout Excel (Judul, Periode, Tabel)
+      const title = "LAPORAN DETAIL PENGAJUAN BARCODE";
+      const dateRange = `Periode : ${formatDateIndo(filters.startDate)} s/d ${formatDateIndo(filters.endDate)}`;
+      const tableHeaders = Object.keys(formattedDetail[0]);
+
+      // Konversi ke Array Values (Type Safe)
+      const tableData = formattedDetail.map((row) => Object.values(row as Record<string, unknown>));
+
+      const excelData = [
+        [title],
+        [dateRange],
+        [],
+        tableHeaders,
+        ...tableData
+      ];
+
+      const worksheet = XLSX.utils.aoa_to_sheet(excelData);
+
+      // Merge Judul
+      const merge = [
+        { s: { r: 0, c: 0 }, e: { r: 0, c: tableHeaders.length - 1 } },
+        { s: { r: 1, c: 0 }, e: { r: 1, c: tableHeaders.length - 1 } },
+      ];
+      worksheet['!merges'] = merge;
+
+      // Auto Width
+      const colWidths = tableHeaders.map(header => ({ wch: header.length + 5 }));
+      worksheet['!cols'] = colWidths;
+
       const workbook = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(workbook, worksheet, "Pengajuan Barcode Detail");
       XLSX.writeFile(workbook, "Export_PengajuanBarcode_Detail.xlsx");
+      toast.success('File Detail berhasil dibuat.');
+
     } catch (error) {
-      toast.error('Gagal mengekspor data detail.', error);
+      let message = 'Gagal mengekspor data detail.';
+      if (error instanceof Error) message = error.message;
+      toast.error(message);
     }
   }
 };

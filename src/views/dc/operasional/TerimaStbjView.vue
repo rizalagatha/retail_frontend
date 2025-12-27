@@ -50,6 +50,14 @@ interface ColumnFilter {
   value?: string | number;
 }
 
+interface TerimaStbjExportDetail {
+  'Nomor STBJ': string;
+  'Tgl Kirim'?: string | Date;
+  'Tgl Terima'?: string | Date;
+  'Nama Barang': string;
+  [key: string]: unknown;
+}
+
 // --- Inisialisasi & State ---
 const router = useRouter();
 const toast = useToast();
@@ -345,24 +353,124 @@ const getRowTextColor = (item: MasterItem) => {
 //   return '';
 // };
 
+// Helper Format Tanggal
+const formatDateIndo = (dateString: string | Date | null | undefined) => {
+  if (!dateString) return '';
+  const date = new Date(dateString);
+  if (isNaN(date.getTime())) return '';
+  return new Intl.DateTimeFormat('id-ID', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric'
+  }).format(date);
+};
+
+// Helper Auto Width Columns (wscols)
+const getAutoColumnWidth = (data: Record<string, unknown>[]) => {
+  if (data.length === 0) return [];
+  return Object.keys(data[0]).map((key) => ({
+    wch: Math.max(key.length + 5, 15)
+  }));
+};
+
+// --- 2. Fungsi Export Data ---
 const exportData = async (type: 'header' | 'detail') => {
+  const fileName = type === 'header' ? 'Export_Terima_STBJ_Header.xlsx' : 'Export_Terima_STBJ_Detail.xlsx';
+
+  // === EXPORT HEADER (Dari Frontend masterData) ===
   if (type === 'header') {
-    if (masterData.value.length === 0) return toast.warning('Tidak ada data header untuk diexport.');
-    const worksheet = XLSX.utils.json_to_sheet(masterData.value);
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, "Terima STBJ Header");
-    XLSX.writeFile(workbook, "Export_Terima_STBJ_Header.xlsx");
+    if (masterData.value.length === 0) {
+      toast.warning('Tidak ada data header untuk diekspor.');
+      return;
+    }
+
+    try {
+      toast.info('Membuat file Excel Header...');
+
+      // Mapping & Formatting Tanggal
+      // Kita casting masterData.value ke tipe MasterItem[] dulu agar aman
+      const sourceData = masterData.value as MasterItem[];
+
+      const formattedHeader = sourceData.map((item) => ({
+        ...item,
+        // Format semua field tanggal yang ada
+        tanggal: item.tanggal ? formatDateIndo(item.tanggal) : '',
+        tglTerima: item.tglTerima ? formatDateIndo(item.tglTerima) : '',
+        tglTolak: item.tglTolak ? formatDateIndo(item.tglTolak) : '',
+      }));
+
+      const worksheet = XLSX.utils.json_to_sheet(formattedHeader);
+
+      // [FITUR] Auto Width Columns
+      worksheet['!cols'] = getAutoColumnWidth(formattedHeader);
+
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, "Terima STBJ Header");
+      XLSX.writeFile(workbook, fileName);
+
+      toast.success('Header berhasil diekspor.');
+    } catch (error) {
+      toast.error('Gagal mengekspor data header.', error);
+    }
+
+    // === EXPORT DETAIL (Dari Backend) ===
   } else if (type === 'detail') {
     try {
-      const response = await api.get('/terima-stbj/export-details', { params: filters });
-      if (response.data.length === 0) return toast.warning('Tidak ada data detail untuk diexport pada filter ini.');
+      toast.info('Mengambil data detail dari server...');
 
-      const worksheet = XLSX.utils.json_to_sheet(response.data);
+      const response = await api.get<TerimaStbjExportDetail[]>('/terima-stbj/export-details', {
+        params: filters
+      });
+
+      if (response.data.length === 0) {
+        toast.warning('Tidak ada data detail.');
+        return;
+      }
+
+      toast.info('Membuat file Excel Detail...');
+
+      // Mapping & Formatting Tanggal Detail
+      const formattedDetail = response.data.map((row) => ({
+        ...row,
+        'Tgl Kirim': row['Tgl Kirim'] ? formatDateIndo(row['Tgl Kirim']) : '',
+        'Tgl Terima': row['Tgl Terima'] ? formatDateIndo(row['Tgl Terima']) : '',
+      }));
+
+      // Layout Excel (Judul & Periode)
+      const title = "LAPORAN DETAIL TERIMA STBJ";
+      const dateRange = `Periode : ${formatDateIndo(filters.startDate)} s/d ${formatDateIndo(filters.endDate)}`;
+      const tableHeaders = Object.keys(formattedDetail[0]);
+
+      const tableData = formattedDetail.map((row) => Object.values(row as Record<string, unknown>));
+
+      const excelData = [
+        [title],
+        [dateRange],
+        [],
+        tableHeaders,
+        ...tableData
+      ];
+
+      const worksheet = XLSX.utils.aoa_to_sheet(excelData);
+
+      // Merge Judul
+      const merge = [
+        { s: { r: 0, c: 0 }, e: { r: 0, c: tableHeaders.length - 1 } },
+        { s: { r: 1, c: 0 }, e: { r: 1, c: tableHeaders.length - 1 } },
+      ];
+      worksheet['!merges'] = merge;
+
+      // [FITUR] Auto Width Columns
+      worksheet['!cols'] = tableHeaders.map(header => ({ wch: Math.max(header.length + 5, 15) }));
+
       const workbook = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(workbook, worksheet, "Terima STBJ Detail");
-      XLSX.writeFile(workbook, "Export_Terima_STBJ_Detail.xlsx");
+      XLSX.writeFile(workbook, fileName);
+
+      toast.success('Detail berhasil diekspor.');
     } catch (error) {
-      toast.error('Gagal mengekspor data detail.', error);
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      toast.error('Gagal mengekspor data detail: ' + message);
     }
   }
 };

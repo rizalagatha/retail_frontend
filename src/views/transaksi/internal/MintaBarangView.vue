@@ -37,6 +37,7 @@ interface MintaBarangHeader {
   Otomatis?: 'Y' | 'N';
   Created?: string;
   Closing?: 'Y' | 'N';
+  [key: string]: unknown;
 }
 
 interface MintaBarangDetail {
@@ -48,6 +49,11 @@ interface MintaBarangDetail {
   StokMaximal?: number;
   Jumlah?: number;
   SJ?: number;
+}
+
+interface MintaBarangExportDetail {
+  Tanggal?: string | Date;
+  [key: string]: unknown;
 }
 
 // --- State ---
@@ -226,25 +232,111 @@ const executeDelete = async () => {
 
 const handleNew = () => router.push({ name: 'MintaBarangCreate' });
 
+// --- 2. Helper Format Tanggal ---
+const formatDateIndo = (dateString: string | Date | null | undefined) => {
+  if (!dateString) return '';
+  const date = new Date(dateString);
+  if (isNaN(date.getTime())) return ''; // Validasi date object
+  return new Intl.DateTimeFormat('id-ID', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric'
+  }).format(date);
+};
+
+// --- 3. Fungsi Export Data ---
 const exportData = async (type: 'header' | 'detail') => {
+
+  // === EXPORT HEADER (Dari Frontend State) ===
   if (type === 'header') {
-    if (list.value.length === 0) return toast.warning('Tidak ada data header untuk diekspor.');
-    const worksheet = XLSX.utils.json_to_sheet(list.value);
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, "Minta Barang Header");
-    XLSX.writeFile(workbook, "Export_MintaBarang_Header.xlsx");
-    toast.success('File Header berhasil dibuat.');
+    // Casting list.value ke tipe MintaBarangHeader[]
+    const currentList = list.value as MintaBarangHeader[];
+
+    if (currentList.length === 0) {
+      toast.warning('Tidak ada data header untuk diekspor.');
+      return;
+    }
+
+    try {
+      toast.info('Membuat file Excel Header...');
+
+      // Mapping data untuk format tanggal
+      const formattedHeader = currentList.map((item) => ({
+        ...item,
+        Tanggal: item.Tanggal ? formatDateIndo(item.Tanggal) : '',
+        // Format tanggal lain jika perlu (misal TerimaSJ, Created)
+        TerimaSJ: item.TerimaSJ ? formatDateIndo(item.TerimaSJ) : '',
+        Created: item.Created ? formatDateIndo(item.Created) : '',
+      }));
+
+      const worksheet = XLSX.utils.json_to_sheet(formattedHeader);
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, "Minta Barang Header");
+      XLSX.writeFile(workbook, "Export_MintaBarang_Header.xlsx");
+      toast.success('File Header berhasil dibuat.');
+    } catch (error) {
+      toast.error('Gagal membuat file Excel.', error);
+    }
+
+    // === EXPORT DETAIL (Dari Backend API) ===
   } else if (type === 'detail') {
     try {
-      const response = await api.get('/minta-barang/export-details', { params: filters });
-      if (response.data.length === 0) return toast.warning('Tidak ada data detail untuk diekspor.');
-      const worksheet = XLSX.utils.json_to_sheet(response.data);
+      toast.info('Mengambil data detail dari server...');
+
+      // Request API dengan Generic Type
+      const response = await api.get<MintaBarangExportDetail[]>('/minta-barang/export-details', {
+        params: filters
+      });
+
+      if (response.data.length === 0) {
+        toast.warning('Tidak ada data detail untuk diekspor.');
+        return;
+      }
+
+      // Format Tanggal pada data Detail
+      const formattedDetail = response.data.map((row) => ({
+        ...row,
+        Tanggal: row.Tanggal ? formatDateIndo(row.Tanggal) : ''
+      }));
+
+      // Setup Layout Excel
+      const title = "LAPORAN DETAIL MINTA BARANG KE DC";
+      const dateRange = `Periode : ${formatDateIndo(filters.startDate)} s/d ${formatDateIndo(filters.endDate)}`;
+      const tableHeaders = Object.keys(formattedDetail[0]);
+
+      // Konversi ke array of values dengan type assertion aman
+      const tableData = formattedDetail.map((row) => Object.values(row as Record<string, unknown>));
+
+      const excelData = [
+        [title],
+        [dateRange],
+        [],
+        tableHeaders,
+        ...tableData
+      ];
+
+      const worksheet = XLSX.utils.aoa_to_sheet(excelData);
+
+      // Merge Judul
+      const merge = [
+        { s: { r: 0, c: 0 }, e: { r: 0, c: tableHeaders.length - 1 } },
+        { s: { r: 1, c: 0 }, e: { r: 1, c: tableHeaders.length - 1 } },
+      ];
+      worksheet['!merges'] = merge;
+
+      // Auto Width
+      const colWidths = tableHeaders.map(header => ({ wch: header.length + 5 }));
+      worksheet['!cols'] = colWidths;
+
       const workbook = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(workbook, worksheet, "Minta Barang Detail");
       XLSX.writeFile(workbook, "Export_MintaBarang_Detail.xlsx");
       toast.success('File Detail berhasil dibuat.');
+
     } catch (error) {
-      toast.error('Gagal mengekspor data.', error);
+      let message = 'Gagal mengekspor data detail.';
+      if (error instanceof Error) message = error.message;
+      toast.error(message);
     }
   }
 };

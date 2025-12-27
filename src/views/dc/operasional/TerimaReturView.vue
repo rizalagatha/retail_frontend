@@ -10,6 +10,7 @@ import MasterProductSearchModal from '@/components/lookup/MasterProductSearchMod
 import AppDataTable from '@/components/AppDataTable.vue';
 import { isAxiosError } from 'axios';
 import type { AxiosError } from 'axios';
+import * as XLSX from 'xlsx';
 
 // --- Tipe Data ---
 interface DataTableHeader {
@@ -51,6 +52,14 @@ interface ColumnFilter {
   values?: (string | number)[];
   operator?: string;
   value?: string | number;
+}
+
+interface TerimaReturExportDetail {
+  'Nomor Kirim': string;
+  'Tgl Kirim'?: string | Date;
+  'Tgl Terima'?: string | Date;
+  'Nama Barang': string;
+  [key: string]: unknown;
 }
 
 // --- Inisialisasi & State ---
@@ -321,8 +330,123 @@ const handleBatalTerima = () => {
   );
 };
 
+// Helper Format Tanggal Indonesia
+const formatDateIndo = (dateString: string | Date | null | undefined) => {
+  if (!dateString) return '';
+  const date = new Date(dateString);
+  if (isNaN(date.getTime())) return '';
+  return new Intl.DateTimeFormat('id-ID', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric'
+  }).format(date);
+};
+
+// Helper Auto Width Columns
+const getAutoColumnWidth = (data: Record<string, unknown>[]) => {
+  if (data.length === 0) return [];
+  return Object.keys(data[0]).map((key) => ({
+    wch: Math.max(key.length + 5, 15)
+  }));
+};
+
+// --- 2. Fungsi Export Data ---
 const exportData = async (type: 'header' | 'detail') => {
-  toast.info(`Fungsi export ${type} untuk penerimaan retur belum dibuat.`);
+  const fileName = type === 'header' ? 'Export_Terima_Retur_Header.xlsx' : 'Export_Terima_Retur_Detail.xlsx';
+
+  // === EXPORT HEADER ===
+  if (type === 'header') {
+    if (masterData.value.length === 0) {
+      toast.warning('Tidak ada data header untuk diekspor.');
+      return;
+    }
+
+    try {
+      toast.info('Membuat file Excel Header...');
+
+      // Casting & Formatting
+      const sourceData = masterData.value as MasterItem[];
+
+      const formattedHeader = sourceData.map((item) => ({
+        ...item,
+        tanggal: item.tanggal ? formatDateIndo(item.tanggal) : '',
+        tglTerima: item.tglTerima ? formatDateIndo(item.tglTerima) : '',
+      }));
+
+      const worksheet = XLSX.utils.json_to_sheet(formattedHeader);
+
+      // Auto Width
+      worksheet['!cols'] = getAutoColumnWidth(formattedHeader);
+
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, "Terima Retur Header");
+      XLSX.writeFile(workbook, fileName);
+
+      toast.success('Header berhasil diekspor.');
+    } catch (error) {
+      toast.error('Gagal membuat file Excel.', error);
+    }
+
+    // === EXPORT DETAIL ===
+  } else if (type === 'detail') {
+    try {
+      toast.info('Mengambil data detail dari server...');
+
+      const response = await api.get<TerimaReturExportDetail[]>('/terima-retur/export-details', {
+        params: filters
+      });
+
+      if (response.data.length === 0) {
+        toast.warning('Tidak ada data detail untuk diekspor.');
+        return;
+      }
+
+      toast.info('Membuat file Excel Detail...');
+
+      // Formatting
+      const formattedDetail = response.data.map((row) => ({
+        ...row,
+        'Tgl Kirim': row['Tgl Kirim'] ? formatDateIndo(row['Tgl Kirim']) : '',
+        'Tgl Terima': row['Tgl Terima'] ? formatDateIndo(row['Tgl Terima']) : '',
+      }));
+
+      // Layout Excel
+      const title = "LAPORAN DETAIL TERIMA RETUR BARANG";
+      const dateRange = `Periode : ${formatDateIndo(filters.startDate)} s/d ${formatDateIndo(filters.endDate)}`;
+      const tableHeaders = Object.keys(formattedDetail[0]);
+
+      const tableData = formattedDetail.map((row) => Object.values(row as Record<string, unknown>));
+
+      const excelData = [
+        [title],
+        [dateRange],
+        [],
+        tableHeaders,
+        ...tableData
+      ];
+
+      const worksheet = XLSX.utils.aoa_to_sheet(excelData);
+
+      // Merge Judul
+      const merge = [
+        { s: { r: 0, c: 0 }, e: { r: 0, c: tableHeaders.length - 1 } },
+        { s: { r: 1, c: 0 }, e: { r: 1, c: tableHeaders.length - 1 } },
+      ];
+      worksheet['!merges'] = merge;
+
+      // Auto Width
+      worksheet['!cols'] = tableHeaders.map(header => ({ wch: Math.max(header.length + 5, 15) }));
+
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, "Terima Retur Detail");
+      XLSX.writeFile(workbook, fileName);
+
+      toast.success('Detail berhasil diekspor.');
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      toast.error('Gagal mengekspor data detail: ' + message);
+    }
+  }
 };
 
 const openMasterProductSearch = () => {

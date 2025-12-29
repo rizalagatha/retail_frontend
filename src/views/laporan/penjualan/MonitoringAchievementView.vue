@@ -788,26 +788,26 @@ watch([filters, activeTab], fetchData, { deep: true });
                 <tr class="bg-grey-lighten-3 font-weight-bold total-row-sticky text-caption">
                   <td colspan="5" class="text-start pl-4">GRAND TOTAL :</td>
 
-                  <td class="text-end">{{ rupiah(dailyTotalSummary.omset) }}</td>
-                  <td class="text-end">{{ rupiah(dailyTotalSummary.retur_jual) }}</td>
-                  <td class="text-end">{{ rupiah(dailyTotalSummary.total_omset) }}</td>
+                  <td class="text-start">{{ rupiah(dailyTotalSummary.omset) }}</td>
+                  <td class="text-start">{{ rupiah(dailyTotalSummary.retur_jual) }}</td>
+                  <td class="text-start">{{ rupiah(dailyTotalSummary.total_omset) }}</td>
 
-                  <td class="text-end bg-orange-lighten-5 text-orange-darken-4">{{
+                  <td class="text-start bg-orange-lighten-5 text-orange-darken-4">{{
                     rupiah(dailyTotalSummary.so_open_today) }}</td>
-                  <td v-if="expandSO" class="text-end bg-orange-lighten-5">{{ rupiah(dailyTotalSummary.so_open_30days)
+                  <td v-if="expandSO" class="text-start bg-orange-lighten-5">{{ rupiah(dailyTotalSummary.so_open_30days)
                     }}</td>
-                  <td v-if="expandSO" class="text-end bg-orange-lighten-5">{{ rupiah(dailyTotalSummary.so_open_accum) }}
+                  <td v-if="expandSO" class="text-start bg-orange-lighten-5">{{ rupiah(dailyTotalSummary.so_open_accum) }}
                   </td>
 
-                  <td class="text-end bg-red-lighten-5 text-red-darken-4">{{ rupiah(dailyTotalSummary.piutang_today) }}
+                  <td class="text-start bg-red-lighten-5 text-red-darken-4">{{ rupiah(dailyTotalSummary.piutang_today) }}
                   </td>
-                  <td v-if="expandPiutang" class="text-end bg-red-lighten-5">{{ rupiah(dailyTotalSummary.piutang_30days)
+                  <td v-if="expandPiutang" class="text-start bg-red-lighten-5">{{ rupiah(dailyTotalSummary.piutang_30days)
                     }}</td>
-                  <td v-if="expandPiutang" class="text-end bg-red-lighten-5">{{ rupiah(dailyTotalSummary.piutang_accum)
+                  <td v-if="expandPiutang" class="text-start bg-red-lighten-5">{{ rupiah(dailyTotalSummary.piutang_accum)
                     }}</td>
 
-                  <td class="text-end">{{ rupiah(dailyTotalSummary.target_bulanan) }}</td>
-                  <td class="text-end">{{ (dailyTotalSummary.ach || 0).toFixed(2) }}%</td>
+                  <td class="text-start">{{ rupiah(dailyTotalSummary.target_bulanan) }}</td>
+                  <td class="text-start">{{ (dailyTotalSummary.ach || 0).toFixed(2) }}%</td>
                 </tr>
               </template>
             </AppDataTable>

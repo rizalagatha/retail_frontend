@@ -5,7 +5,7 @@ import { useRoute } from 'vue-router';
 import { useToast } from 'vue-toastification';
 import { useAuthStore } from '@/stores/authStore';
 import api from '@/services/api';
-import { format, parseISO } from 'date-fns';
+import { format, parseISO, isValid } from 'date-fns';
 import PageLayout from '@/components/PageLayout.vue';
 import PrintOptionModal from '@/components/modal/PrintOptionModal.vue';
 import KasirPrintPreviewModal from "@/components/modal/KasirPrintPreviewModal.vue";
@@ -127,9 +127,21 @@ interface PaymentForm {
   alasan: string;
 }
 
+interface ExportHeaderItem {
+  Tanggal?: string | number | Date;
+  'Tgl SO'?: string | number | Date;
+  'Jatuh Tempo'?: string | number | Date;
+  [key: string]: unknown; // Mengizinkan properti dinamis lainnya
+}
+
 interface InvoiceExportRow {
   Tanggal?: string | Date;
   [key: string]: unknown;
+}
+
+interface CabangOption {
+  kode: string;
+  nama: string;
 }
 
 type FilterValue = string | number;
@@ -148,7 +160,7 @@ const loading = ref(true);
 const loadingDetails = ref(new Set<string>());
 const selected = ref<InvoiceHeader[]>([]);
 const expanded = ref<string[]>([]);
-const cabangList = ref([]);
+const cabangList = ref<CabangOption[]>([]);
 const isKasirPreviewVisible = ref(false);
 const selectedInvoice = ref<string | null>(null);
 const resizingColumn = ref<DataTableHeader | null>(null);
@@ -156,10 +168,15 @@ const startX = ref(0);
 const startWidth = ref(0);
 const isLockedInvoice = ref(false);
 
+const totalItems = ref(0);
+const itemsPerPage = ref(50); // Default 50 per halaman
+const page = ref(1);
+
 const filters = reactive({
   startDate: format(new Date(), 'yyyy-MM-dd'),
   endDate: format(new Date(), 'yyyy-MM-dd'),
-  cabang: authStore.user?.cabang === 'KDC' ? 'K01' : authStore.user?.cabang || '',
+  // Jika KDC, default ke 'ALL'. Jika Cabang, default ke kodenya sendiri.
+  cabang: authStore.user?.cabang === 'KDC' ? 'ALL' : authStore.user?.cabang || '',
   status: null as string | null,
 });
 
@@ -267,60 +284,60 @@ const totalBiayaKirim = computed(() => {
   }, 0);
 });
 
-const filteredMasterData = computed(() => {
-  let data = [...masterData.value];
+// const filteredMasterData = computed(() => {
+//   let data = [...masterData.value];
 
-  // 1) EXCEL-STYLE FILTERS (multi & custom)
-  for (const key in columnFilters.value) {
-    const filter = columnFilters.value[key];
+//   // 1) EXCEL-STYLE FILTERS (multi & custom)
+//   for (const key in columnFilters.value) {
+//     const filter = columnFilters.value[key];
 
-    // MULTI-SELECT
-    if (filter.type === 'multi' && filter.values) {
-      data = data.filter(row =>
-        filter.values!.includes(row[key] as string | number)
-      );
-      continue;
-    }
+//     // MULTI-SELECT
+//     if (filter.type === 'multi' && filter.values) {
+//       data = data.filter(row =>
+//         filter.values!.includes(row[key] as string | number)
+//       );
+//       continue;
+//     }
 
-    // CUSTOM FILTER
-    if (filter.type === 'custom' && filter.operator) {
-      const cmp = String(filter.value).toLowerCase();
+//     // CUSTOM FILTER
+//     if (filter.type === 'custom' && filter.operator) {
+//       const cmp = String(filter.value).toLowerCase();
 
-      data = data.filter(row => {
-        const v = row[key];
-        if (v == null) return false;
+//       data = data.filter(row => {
+//         const v = row[key];
+//         if (v == null) return false;
 
-        const val = String(v).toLowerCase();
+//         const val = String(v).toLowerCase();
 
-        switch (filter.operator) {
-          case '=': return val === cmp;
-          case '!=': return val !== cmp;
-          case '>': return Number(val) > Number(cmp);
-          case '>=': return Number(val) >= Number(cmp);
-          case '<': return Number(val) < Number(cmp);
-          case '<=': return Number(val) <= Number(cmp);
-          case 'contains': return val.includes(cmp);
-          case 'starts': return val.startsWith(cmp);
-          case 'ends': return val.endsWith(cmp);
-        }
-      });
-    }
-  }
+//         switch (filter.operator) {
+//           case '=': return val === cmp;
+//           case '!=': return val !== cmp;
+//           case '>': return Number(val) > Number(cmp);
+//           case '>=': return Number(val) >= Number(cmp);
+//           case '<': return Number(val) < Number(cmp);
+//           case '<=': return Number(val) <= Number(cmp);
+//           case 'contains': return val.includes(cmp);
+//           case 'starts': return val.startsWith(cmp);
+//           case 'ends': return val.endsWith(cmp);
+//         }
+//       });
+//     }
+//   }
 
-  // 2) GLOBAL SEARCH (dipindah ke paling akhir)
-  if (filterSearchValue.value) {
-    const key = selectedFilterField.value;
-    const term = filterSearchValue.value.toLowerCase();
+//   // 2) GLOBAL SEARCH (dipindah ke paling akhir)
+//   if (filterSearchValue.value) {
+//     const key = selectedFilterField.value;
+//     const term = filterSearchValue.value.toLowerCase();
 
-    data = data.filter(row =>
-      String(row[key] ?? '')
-        .toLowerCase()
-        .includes(term)
-    );
-  }
+//     data = data.filter(row =>
+//       String(row[key] ?? '')
+//         .toLowerCase()
+//         .includes(term)
+//     );
+//   }
 
-  return data;
-});
+//   return data;
+// });
 
 // --- Konfigurasi Tabel ---
 const headers = computed<DataTableHeader[]>(() => {
@@ -328,6 +345,8 @@ const headers = computed<DataTableHeader[]>(() => {
     { title: '', key: 'data-table-expand', width: 50, fixed: true },
     { title: 'Nomor', key: 'Nomor', width: 180, fixed: true },
     { title: 'Tanggal', key: 'Tanggal', width: 120 },
+    { title: 'Kd Cus', key: 'Kdcus', width: 120 },
+    { title: 'Customer', key: 'Nama', width: 250 },
   ];
   if (isUserKon.value) {
     list.push(
@@ -356,8 +375,6 @@ const headers = computed<DataTableHeader[]>(() => {
     { title: 'Bayar', key: 'Bayar', width: 150 },
     { title: 'Sisa Piutang', key: 'SisaPiutang', width: 150 },
     { title: 'Rp Retur', key: 'RpRetur', width: 120 },
-    { title: 'Kd Cus', key: 'Kdcus', width: 120 },
-    { title: 'Customer', key: 'Nama', width: 250 },
     { title: 'Alamat', key: 'Alamat', width: 700 },
     { title: 'Kota', key: 'Kota', width: 150 },
     { title: 'Telepon', key: 'Telp', width: 150 },
@@ -399,6 +416,64 @@ const detailHeaders = [
 ] as const;
 
 // --- Methods ---
+const safeFormatDate = (dateVal: string | number | Date | null | undefined, pattern: string): string => {
+
+  // 1. Filter Input Kosong / Null / Undefined
+  if (!dateVal) return '-';
+
+  // 2. Filter String Kosong atau "0000-00-00" (SQL Default)
+  if (typeof dateVal === 'string') {
+    const trimmed = dateVal.trim();
+    if (trimmed === '' ||
+      trimmed === '0000-00-00' ||
+      trimmed === '0000-00-00 00:00:00' ||
+      trimmed === '-') {
+      return '-';
+    }
+
+    // 3. [BYPASS] Jika format sudah dd/MM/yyyy
+    if (/^\d{1,2}\/\d{1,2}\/\d{4}/.test(trimmed)) {
+      return trimmed;
+    }
+  }
+
+  try {
+    let dateObj: Date | undefined;
+
+    // 4. Parsing
+    if (typeof dateVal === 'string') {
+      // Coba parsing standar ISO
+      dateObj = parseISO(dateVal);
+
+      // Jika invalid & ada spasi, coba format SQL
+      if (!isValid(dateObj) && dateVal.includes(' ')) {
+        dateObj = parseISO(dateVal.replace(' ', 'T'));
+      }
+
+      // Fallback ke native Date
+      if (!isValid(dateObj)) {
+        dateObj = new Date(dateVal);
+      }
+    } else if (dateVal instanceof Date) {
+      dateObj = dateVal;
+    } else if (typeof dateVal === 'number') {
+      // Handle timestamp number
+      dateObj = new Date(dateVal);
+    }
+
+    // 5. Final Valid Check
+    if (!dateObj || !isValid(dateObj)) {
+      // console.warn("Tanggal Invalid diabaikan:", dateVal);
+      return '-';
+    }
+
+    return format(dateObj, pattern);
+  } catch (e) {
+    console.error("Error formatting date:", e);
+    return '-';
+  }
+};
+
 const handleRowClick = async (event: Event, { item }: { item: InvoiceHeader }) => {
   selected.value = [item];
 
@@ -444,26 +519,84 @@ const onResizeEnd = () => {
 
 const fetchCabangList = async () => {
   try {
-    const response = await api.get('/invoices/lookup/cabang');
+    const response = await api.get<CabangOption[]>('/invoices/lookup/cabang');
     cabangList.value = response.data;
-  } catch (error) { toast.error('Gagal memuat daftar cabang.', error); }
+
+    // [FIX] Cek manual: Jika user KDC dan backend belum kirim 'ALL'
+    if (authStore.user?.cabang === 'KDC') {
+      // Tipe 'c' sekarang eksplisit
+      const hasAll = cabangList.value.some((c: CabangOption) => c.kode === 'ALL');
+
+      if (!hasAll) {
+        cabangList.value.unshift({ kode: 'ALL', nama: 'Semua Cabang' });
+      }
+    }
+  } catch (error) {
+    // Error di catch block defaultnya unknown, aman untuk toast
+    toast.error('Gagal memuat daftar cabang.');
+    console.error(error);
+  }
 };
+// Tambahkan Watcher untuk Pencarian
+// Gunakan timeout (debounce) agar tidak request setiap ketik 1 huruf
+let searchTimeout: ReturnType<typeof setTimeout>;
 
-const fetchMasterData = async () => {
+watch(filterSearchValue, () => {
+  clearTimeout(searchTimeout);
+
+  // Tunggu 800ms setelah user berhenti mengetik
+  searchTimeout = setTimeout(() => {
+    page.value = 1;
+    fetchMasterData();
+  }, 800);
+});
+
+// Update fetchMasterData agar mengirim columnFilters ke backend
+const fetchMasterData = async (options?: { page: number, itemsPerPage: number }) => {
   loading.value = true;
-  try {
-    const response = await api.get<InvoiceHeader[]>('/invoices', { params: filters });
 
-    masterData.value = response.data.map(h => ({
+  if (options) {
+    page.value = options.page;
+    itemsPerPage.value = options.itemsPerPage;
+  }
+
+  try {
+    // Siapkan parameter filter kolom (JSON String)
+    // Backend akan memparsing ini
+    const columnFiltersJson = JSON.stringify(columnFilters.value);
+
+    const response = await api.get('/invoices', {
+      params: {
+        ...filters,
+        page: page.value,
+        limit: itemsPerPage.value,
+
+        // 1. Global Search
+        search: filterSearchValue.value,
+
+        // 2. [BARU] Custom Column Filters
+        columnFilters: columnFiltersJson
+      }
+    });
+
+    const { data, total } = response.data;
+
+    // Mapping Data...
+    masterData.value = data.map((h: InvoiceHeader) => ({
       ...h,
       Nama: h.Customer || h.Nama,
+      // Gunakan Number() untuk memastikan tipe data aman untuk kalkulasi
       Nominal: Number(h.Nominal) || 0,
       Piutang: Number(h.Piutang) || 0,
-      SisaPiutang: Number(h.SisaPiutang) || 0,   // <-- PENTING! JANGAN HITUNG ULANG
-      Bayar: Number(h.Bayar) || 0,               // pastikan aman
+      SisaPiutang: Number(h.SisaPiutang) || 0,
+      Bayar: Number(h.Bayar) || 0,
       Dp: Number(h.Dp) || 0,
       BiayaPlatform: Number(h.BiayaPlatform) || 0,
+      Closing: h.Closing,
+      Minus: h.Minus
     }));
+
+    totalItems.value = total;
 
   } catch (error) {
     toast.error('Gagal mengambil data.', error);
@@ -572,9 +705,9 @@ const submitChangePayment = async () => {
     const error = err as AxiosError<{ message?: string }>;
 
     toast.error(error.response?.data?.message || "Gagal mengubah pembayaran.");
-} finally {
+  } finally {
     isChangingPayment.value = false;
-}
+  }
 };
 
 const printData = (type: 'invoice' | 'sj') => {
@@ -673,9 +806,24 @@ const handleView = () => {
 };
 
 // 1. Helper Format Tanggal
-const formatDateIndo = (dateString: string | Date) => {
-  if (!dateString) return '';
-  const date = new Date(dateString);
+// Ganti fungsi formatDateIndo dengan versi aman ini:
+const formatDateIndo = (dateVal: string | number | Date | null | undefined): string => {
+  if (!dateVal) return '';
+
+  let date = new Date(dateVal);
+
+  // [FIX] Handle format DD/MM/YYYY manual
+  if (isNaN(date.getTime()) && typeof dateVal === 'string') {
+    const parts = dateVal.split('/');
+    if (parts.length === 3) {
+      // Ubah DD/MM/YYYY -> YYYY-MM-DD
+      date = new Date(`${parts[2]}-${parts[1]}-${parts[0]}`);
+    }
+  }
+
+  // Jika masih invalid, kembalikan string aslinya
+  if (isNaN(date.getTime())) return String(dateVal);
+
   return new Intl.DateTimeFormat('id-ID', {
     day: 'numeric',
     month: 'long',
@@ -685,34 +833,60 @@ const formatDateIndo = (dateString: string | Date) => {
 
 // 2. Fungsi Export Data
 const exportData = async (type: 'header' | 'detail') => {
+  const exportParams = {
+    ...filters, // startDate, endDate, cabang, status
+    search: filterSearchValue.value,
+    columnFilters: JSON.stringify(columnFilters.value)
+  };
+
   if (type === 'header') {
-    if (masterData.value.length === 0) {
-      toast.warning('Tidak ada data header.');
-      return;
+    try {
+      toast.info('Sedang mendownload Header...');
+
+      // [FIX] Panggil API Backend khusus Export Header
+      // Pastikan backend sudah memiliki route '/invoices/export-header'
+      const response = await api.get('/invoices/export-header', {
+        params: exportParams
+      });
+
+      if (response.data.length === 0) {
+        toast.warning('Tidak ada data header untuk diekspor.');
+        return;
+      }
+
+      // Format tanggal di frontend (Optional, jika backend sudah kirim YYYY-MM-DD)
+      const formattedHeader = (response.data as ExportHeaderItem[]).map((item: ExportHeaderItem) => ({
+        ...item,
+        // Gunakan formatDateIndo yang sudah diperbaiki
+        // TypeScript sekarang tahu properti ini mungkin ada atau undefined
+        Tanggal: item.Tanggal ? formatDateIndo(item.Tanggal) : '',
+        'Tgl SO': item['Tgl SO'] ? formatDateIndo(item['Tgl SO']) : '',
+        'Jatuh Tempo': item['Jatuh Tempo'] ? formatDateIndo(item['Jatuh Tempo']) : '',
+      }));
+
+      const worksheet = XLSX.utils.json_to_sheet(formattedHeader);
+
+      // Auto Width Column (Biar rapi)
+      const wscols = Object.keys(formattedHeader[0]).map(() => ({ wch: 20 }));
+      worksheet['!cols'] = wscols;
+
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, "Invoice Header");
+      XLSX.writeFile(workbook, "Export_Invoice_Header.xlsx");
+
+      toast.success('Header berhasil diekspor.');
+    } catch (error) {
+      console.error(error);
+      toast.error('Gagal export header.');
     }
-
-    // Format Tanggal Header
-    // masterData menggunakan Interface InvoiceHeader (atau InvoiceItem)
-    const formattedHeader = masterData.value.map((item: InvoiceItem) => ({
-      ...item,
-      // Format 'Tanggal'
-      Tanggal: item.Tanggal ? formatDateIndo(item.Tanggal) : '',
-      // Format tanggal lain jika perlu, misal TglSO, Tempo
-      TglSO: item.TglSO ? formatDateIndo(item.TglSO) : '',
-      Tempo: item.Tempo ? formatDateIndo(item.Tempo) : '',
-    }));
-
-    const worksheet = XLSX.utils.json_to_sheet(formattedHeader);
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, "Invoice Header");
-    XLSX.writeFile(workbook, "Export_Invoice_Header.xlsx");
-    toast.success('Header berhasil diekspor.');
 
   } else if (type === 'detail') {
     try {
       toast.info('Mengambil data detail...');
       // Gunakan Generic Type pada api.get
-      const response = await api.get<InvoiceExportRow[]>('/invoices/export-details', { params: filters });
+      const response = await api.get<InvoiceExportRow[]>('/invoices/export-details', {
+        params: exportParams
+      });
 
       if (response.data.length === 0) {
         toast.warning('Tidak ada data detail.');
@@ -879,7 +1053,12 @@ onMounted(async () => { // Jadikan async
 });
 
 watch(columnFilters, (val) => {
+  // Simpan ke local storage
   localStorage.setItem(LS_FILTER_KEY, JSON.stringify(val));
+
+  // Reset halaman dan fetch data baru dari server
+  page.value = 1;
+  fetchMasterData();
 }, { deep: true });
 
 watch(filters, () => {
@@ -985,9 +1164,10 @@ watch(filters, () => {
       </div>
 
       <div class="table-container">
-        <AppDataTable v-model="selected" v-model:expanded="expanded" :headers="headers" :items="filteredMasterData"
-          :loading="loading" item-value="Nomor" density="compact" class="desktop-table header-browse-blue" fixed-header
-          show-select return-object @update:expanded="loadDetails" @click:row="handleRowClick"
+        <AppDataTable v-model="selected" v-model:expanded="expanded" :headers="headers" :items="masterData"
+          :loading="loading" :server="true" :items-length="totalItems" @update:options="fetchMasterData"
+          item-value="Nomor" density="compact" class="desktop-table header-browse-blue" fixed-header show-select
+          return-object @update:expanded="loadDetails" @click:row="handleRowClick"
           :item-props="(item) => ({ class: getRowClass(item) })">
           <template #headers="{ columns, isSorted, getSortIcon, toggleSort }">
             <tr>
@@ -1089,26 +1269,63 @@ watch(filters, () => {
             #[`item.${header.key}`]="{ item }">
             <td>
               <template v-if="['Created', 'LastPayment', 'TglTransfer', 'DateModified'].includes(header.key)">
-                {{ item[header.key] ? format(parseISO(String(item[header.key])), 'dd/MM/yyyy HH:mm:ss') : '' }}
+                {{ safeFormatDate(item[header.key], 'dd/MM/yyyy HH:mm:ss') }}
               </template>
-              <template v-else-if="['Tanggal', 'TglSO', 'TglSJ'].includes(header.key)">
-                {{ item[header.key] ? format(parseISO(String(item[header.key])), 'dd/MM/yyyy') : '' }}
+
+              <template v-else-if="['Tanggal', 'TglSO', 'TglSJ', 'Tempo'].includes(header.key)">
+                {{ safeFormatDate(item[header.key], 'dd/MM/yyyy') }}
               </template>
+
               <template
                 v-else-if="['BiayaPlatform', 'Dis%', 'Diskon', 'Dp', 'Biayakirim', 'Nominal', 'Piutang', 'Bayar', 'SisaPiutang', 'RpVoucher', 'RpTransfer', 'RpRetur', 'RpTunai'].includes(header.key)">
                 {{ formatRupiah(Number(item[header.key])) }}
               </template>
+
               <template v-else-if="header.key === 'Marketplace'">
                 <v-chip v-if="item.Marketplace" color="orange-darken-1" size="x-small" label>
                   {{ item.Marketplace }}
                 </v-chip>
               </template>
+
               <template v-else-if="header.key === 'Posting'">
                 <v-chip size="x-small" :color="item.Posting === 'SUDAH' ? 'green' : 'grey'">{{ item.Posting }}</v-chip>
               </template>
+
               <template v-else-if="header.key === 'Closing'">
-                <v-chip v-if="item.Closing === 'Y'" size="x-small" color="success">YA</v-chip>
+                <div class="d-flex justify-center">
+                  <v-chip v-if="item.Closing === 'Y'" size="x-small" color="success" variant="flat">YA</v-chip>
+                  <v-chip v-else-if="item.Closing === 'N'" size="x-small" color="grey-lighten-1"
+                    variant="flat">TIDAK</v-chip>
+                  <span v-else>-</span>
+                </div>
               </template>
+
+              <template v-else-if="header.key === 'Minus'">
+                <div class="d-flex justify-center">
+                  <v-tooltip location="top" text="Stok Minus!">
+                    <template v-slot:activator="{ props }">
+                      <v-icon v-bind="props" v-if="item.Minus === 'Y'" color="error"
+                        size="small">mdi-alert-circle</v-icon>
+                    </template>
+                  </v-tooltip>
+
+                  <v-icon v-if="item.Minus === 'N'" color="success" size="small"
+                    title="Stok Aman">mdi-check-circle-outline</v-icon>
+                </div>
+              </template>
+
+              <template v-else-if="header.key === 'Prn'">
+                <div class="d-flex justify-center">
+                  <v-icon v-if="item.Prn == 1 || item.Prn === 'Y'" color="blue" size="small"
+                    title="Sudah Cetak">mdi-printer-check</v-icon>
+
+                  <v-icon v-else-if="item.Prn == 0 || item.Prn === 'N'" color="grey-lighten-2" size="small"
+                    title="Belum Cetak">mdi-printer-off</v-icon>
+
+                  <span v-else class="text-grey text-caption">-</span>
+                </div>
+              </template>
+
               <template v-else>
                 {{ item[header.key] }}
               </template>

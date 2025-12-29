@@ -2,6 +2,7 @@
 import { ref, onUnmounted, computed } from 'vue';
 import api from '@/services/api';
 import { useAuthStore } from '@/stores/authStore';
+import { AxiosError } from 'axios';
 
 const authStore = useAuthStore();
 
@@ -13,6 +14,7 @@ const props = defineProps<{
   transaksi?: string;
   barcode?: string;
   keterangan?: string; // [1] Ini Info dari Parent (JANGAN DIUBAH)
+  cabang?: string;
 }>();
 
 const emit = defineEmits(['close', 'success']);
@@ -29,7 +31,20 @@ const isSending = ref(false);
 const pollingInterval = ref<ReturnType<typeof setInterval> | null>(null);
 
 // --- Computed ---
-const formattedNominal = computed(() => {
+const targetRole = computed(() => {
+  return props.cabang ? `Pihak Toko ${props.cabang}` : 'Manager';
+});
+
+const isQtyType = computed(() => props.jenis === 'AMBIL_BARANG');
+
+const labelNilai = computed(() => isQtyType.value ? 'Total Qty' : 'Nominal');
+
+const formattedNilai = computed(() => {
+  if (isQtyType.value) {
+    // Format Angka Biasa + " Pcs"
+    return (props.nominal || 0).toString() + ' Pcs';
+  }
+  // Format Rupiah
   return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR' }).format(props.nominal || 0);
 });
 
@@ -59,6 +74,7 @@ const sendRequest = async () => {
       cabang: authStore.user.cabang,
       user: authStore.user.kode,
       barcode: props.barcode,
+      target_cabang: props.cabang
     };
 
     const response = await api.post('/auth-pin/request', payload);
@@ -69,14 +85,16 @@ const sendRequest = async () => {
       startPolling();
     }
   } catch (err) {
-    const error = err as any;
+    // 2. Ubah casting 'any' menjadi AxiosError dengan tipe data response yang diharapkan
+    const error = err as AxiosError<{ message: string }>;
+
+    // Sekarang TypeScript tahu bahwa 'response', 'data', dan 'message' itu valid
     errorMessage.value = error.response?.data?.message || 'Gagal mengirim permintaan.';
   } finally {
     isSending.value = false;
   }
 };
 
-// ... (Kode Polling, stopPolling, handleCancel SAMA SEPERTI SEBELUMNYA) ...
 const startPolling = () => {
   pollingInterval.value = setInterval(async () => {
     try {
@@ -88,7 +106,7 @@ const startPolling = () => {
         emit('success', { authNomor: authNomor.value, approver: data.approver });
       } else if (data.status === 'REJECTED') {
         stopPolling();
-        errorMessage.value = 'Permintaan ditolak oleh Manager.';
+        errorMessage.value = `Permintaan ditolak oleh ${targetRole.value}.`;
         step.value = 'input';
       }
     } catch (error) {
@@ -123,7 +141,7 @@ defineExpose({ setFailed });
   <v-dialog :model-value="true" persistent max-width="400px">
     <v-card>
       <v-card-title class="bg-primary text-white text-subtitle-1">
-        {{ title || 'Otorisasi Manager' }}
+        {{ title || `Otorisasi ${targetRole}` }}
       </v-card-title>
 
       <v-card-text class="pt-4">
@@ -131,7 +149,9 @@ defineExpose({ setFailed });
           <div class="mb-4">
             <div class="d-flex justify-space-between text-caption text-grey-darken-1">
               <span>Jenis: <strong>{{ jenis }}</strong></span>
-              <span v-if="nominal">Nominal: <strong>{{ formattedNominal }}</strong></span>
+              <span v-if="nominal">
+                {{ labelNilai }}: <strong>{{ formattedNilai }}</strong>
+              </span>
             </div>
 
             <div v-if="props.keterangan" class="mt-2 pa-2 bg-grey-lighten-4 rounded text-caption">
@@ -153,9 +173,12 @@ defineExpose({ setFailed });
           <v-progress-circular indeterminate color="primary" size="64" class="mb-4"></v-progress-circular>
           <h3 class="text-h6 font-weight-bold">Menunggu Persetujuan...</h3>
           <p class="text-body-2 text-grey">
-            Mohon tunggu, permintaan sedang dikirim ke aplikasi Manager.
+            Mohon tunggu, permintaan sedang dikirim ke
+            <strong>{{ targetRole }}</strong>.
             <br>
-            <strong>ID Request: {{ authNomor }}</strong>
+            <span class="text-caption mt-2 d-block">
+              ID Request: {{ authNomor }}
+            </span>
           </p>
         </div>
       </v-card-text>

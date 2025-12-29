@@ -8,6 +8,9 @@ import PageLayout from '@/components/PageLayout.vue';
 import * as XLSX from 'xlsx';
 import type { AxiosError } from 'axios';
 import AppDataTable from '@/components/AppDataTable.vue';
+import { formatRupiah } from "@/utils/formatRupiah";
+import { applyRoundingPolicy } from "@/utils/numberUtils";
+import { AppConfig } from "@/config/appConfig";
 
 // --- Inisialisasi & State ---
 interface SalesVsTargetItem {
@@ -123,17 +126,25 @@ const totalSummary = computed<TotalSummary>(() => {
     };
   }
 
+  // Helper: Bulatkan angka sesuai konfigurasi global (ROUND_1, ROUND_50, dll)
+  const rnd = (val: number) => applyRoundingPolicy(val, AppConfig.roundingPolicy);
+
+  // Hitung total dari data raw, lalu bulatkan hasilnya
   const totals = {
-    qty_bulan_ini: items.value.reduce((sum, item) => sum + (Number(item.qty_bulan_ini) || 0), 0),
-    nominal_bulan_ini: items.value.reduce((sum, item) => sum + (Number(item.nominal_bulan_ini) || 0), 0),
-    target_bulan_ini: items.value.reduce((sum, item) => sum + (Number(item.target_bulan_ini) || 0), 0),
-    qty_bulan_lalu: items.value.reduce((sum, item) => sum + (Number(item.qty_bulan_lalu) || 0), 0),
-    nominal_bulan_lalu: items.value.reduce((sum, item) => sum + (Number(item.nominal_bulan_lalu) || 0), 0),
-    realisasi_kumulatif: items.value.reduce((sum, item) => sum + (Number(item.realisasi_kumulatif) || 0), 0),
-    target_kumulatif: items.value.reduce((sum, item) => sum + (Number(item.target_kumulatif) || 0), 0),
-    realisasi_bulan_ini_thn_lalu: items.value.reduce((sum, item) => sum + (Number(item.realisasi_bulan_ini_thn_lalu) || 0), 0),
+    qty_bulan_ini: rnd(items.value.reduce((sum, item) => sum + (Number(item.qty_bulan_ini) || 0), 0)),
+    nominal_bulan_ini: rnd(items.value.reduce((sum, item) => sum + (Number(item.nominal_bulan_ini) || 0), 0)),
+    target_bulan_ini: rnd(items.value.reduce((sum, item) => sum + (Number(item.target_bulan_ini) || 0), 0)),
+
+    qty_bulan_lalu: rnd(items.value.reduce((sum, item) => sum + (Number(item.qty_bulan_lalu) || 0), 0)),
+    nominal_bulan_lalu: rnd(items.value.reduce((sum, item) => sum + (Number(item.nominal_bulan_lalu) || 0), 0)),
+
+    realisasi_kumulatif: rnd(items.value.reduce((sum, item) => sum + (Number(item.realisasi_kumulatif) || 0), 0)),
+    target_kumulatif: rnd(items.value.reduce((sum, item) => sum + (Number(item.target_kumulatif) || 0), 0)),
+
+    realisasi_bulan_ini_thn_lalu: rnd(items.value.reduce((sum, item) => sum + (Number(item.realisasi_bulan_ini_thn_lalu) || 0), 0)),
+
     realisasi_akhir_tahun: 0,
-    target_akhir_tahun: items.value.reduce((sum, item) => sum + (Number(item.target_akhir_tahun) || 0), 0),
+    target_akhir_tahun: rnd(items.value.reduce((sum, item) => sum + (Number(item.target_akhir_tahun) || 0), 0)),
   };
 
   return {
@@ -301,25 +312,29 @@ watch(filters, () => {
               <td class="text-center border-cell">{{ item.bulan }}</td>
               <td class="border-cell">{{ item.kode_cabang }}</td>
               <td class="border-cell">{{ item.nama_cabang }}</td>
-              <td class="text-end border-cell">{{ (item.qty_bulan_ini || 0).toLocaleString('id-ID') }}</td>
-              <td class="text-end border-cell">{{ (item.nominal_bulan_ini || 0).toLocaleString('id-ID') }}</td>
-              <td class="text-end border-cell">{{ (item.target_bulan_ini || 0).toLocaleString('id-ID') }}</td>
+
+              <td class="text-end border-cell">{{ formatRupiah(item.qty_bulan_ini) }}</td>
+              <td class="text-end border-cell">{{ formatRupiah(item.nominal_bulan_ini) }}</td>
+              <td class="text-end border-cell">{{ formatRupiah(item.target_bulan_ini) }}</td>
               <td class="text-end border-cell">{{ item.target_bulan_ini > 0 ? ((item.nominal_bulan_ini /
                 item.target_bulan_ini) * 100).toFixed(2) : 0 }}%</td>
-              <td class="text-end border-cell">{{ (item.qty_bulan_lalu || 0).toLocaleString('id-ID') }}</td>
-              <td class="text-end border-cell">{{ (item.nominal_bulan_lalu || 0).toLocaleString('id-ID') }}</td>
+
+              <td class="text-end border-cell">{{ formatRupiah(item.qty_bulan_lalu) }}</td>
+              <td class="text-end border-cell">{{ formatRupiah(item.nominal_bulan_lalu) }}</td>
               <td class="text-end border-cell">{{ item.nominal_bulan_lalu > 0 ? (((item.nominal_bulan_ini -
                 item.nominal_bulan_lalu) / item.nominal_bulan_lalu) * 100).toFixed(2) : 0 }}%</td>
-              <td class="text-end border-cell">{{ (item.realisasi_kumulatif || 0).toLocaleString('id-ID') }}</td>
-              <td class="text-end border-cell">{{ (item.target_kumulatif || 0).toLocaleString('id-ID') }}</td>
+
+              <td class="text-end border-cell">{{ formatRupiah(item.realisasi_kumulatif) }}</td>
+              <td class="text-end border-cell">{{ formatRupiah(item.target_kumulatif) }}</td>
               <td class="text-end border-cell">{{ item.target_kumulatif > 0 ? ((item.realisasi_kumulatif /
                 item.target_kumulatif) * 100).toFixed(2) : 0 }}%</td>
-              <td class="text-end border-cell">{{ (item.realisasi_bulan_ini_thn_lalu || 0).toLocaleString('id-ID') }}
-              </td>
+
+              <td class="text-end border-cell">{{ formatRupiah(item.realisasi_bulan_ini_thn_lalu) }}</td>
               <td class="text-end border-cell">{{ item.realisasi_bulan_ini_thn_lalu > 0 ? (((item.nominal_bulan_ini -
                 item.realisasi_bulan_ini_thn_lalu) / item.realisasi_bulan_ini_thn_lalu) * 100).toFixed(2) : 0 }}%</td>
-              <td class="text-end border-cell">{{ (item.realisasi_akhir_tahun || 0).toLocaleString('id-ID') }}</td>
-              <td class="text-end border-cell">{{ (item.target_akhir_tahun || 0).toLocaleString('id-ID') }}</td>
+
+              <td class="text-end border-cell">{{ formatRupiah(item.realisasi_akhir_tahun) }}</td>
+              <td class="text-end border-cell">{{ formatRupiah(item.target_akhir_tahun) }}</td>
               <td class="text-end border-cell">{{ item.target_akhir_tahun > 0 ? ((item.realisasi_kumulatif /
                 item.target_akhir_tahun) * 100).toFixed(2) : 0 }}%</td>
             </tr>
@@ -328,21 +343,25 @@ watch(filters, () => {
           <template #tfoot>
             <tr class="bg-grey-lighten-3 font-weight-bold">
               <td colspan="5" class="text-end border-cell">GRAND TOTAL :</td>
-              <td class="text-end border-cell">{{ totalSummary.qty_bulan_ini?.toLocaleString('id-ID') }}</td>
-              <td class="text-end border-cell">{{ totalSummary.nominal_bulan_ini?.toLocaleString('id-ID') }}</td>
-              <td class="text-end border-cell">{{ totalSummary.target_bulan_ini?.toLocaleString('id-ID') }}</td>
+
+              <td class="text-end border-cell">{{ formatRupiah(totalSummary.qty_bulan_ini) }}</td>
+              <td class="text-end border-cell">{{ formatRupiah(totalSummary.nominal_bulan_ini) }}</td>
+              <td class="text-end border-cell">{{ formatRupiah(totalSummary.target_bulan_ini) }}</td>
               <td class="text-end border-cell">{{ totalSummary.persen_target_bulan_ini?.toFixed(2) }}%</td>
-              <td class="text-end border-cell">{{ totalSummary.qty_bulan_lalu?.toLocaleString('id-ID') }}</td>
-              <td class="text-end border-cell">{{ totalSummary.nominal_bulan_lalu?.toLocaleString('id-ID') }}</td>
+
+              <td class="text-end border-cell">{{ formatRupiah(totalSummary.qty_bulan_lalu) }}</td>
+              <td class="text-end border-cell">{{ formatRupiah(totalSummary.nominal_bulan_lalu) }}</td>
               <td class="text-end border-cell">{{ totalSummary.persen_bulan_lalu?.toFixed(2) }}%</td>
-              <td class="text-end border-cell">{{ totalSummary.realisasi_kumulatif?.toLocaleString('id-ID') }}</td>
-              <td class="text-end border-cell">{{ totalSummary.target_kumulatif?.toLocaleString('id-ID') }}</td>
+
+              <td class="text-end border-cell">{{ formatRupiah(totalSummary.realisasi_kumulatif) }}</td>
+              <td class="text-end border-cell">{{ formatRupiah(totalSummary.target_kumulatif) }}</td>
               <td class="text-end border-cell">{{ totalSummary.persen_target_kumulatif?.toFixed(2) }}%</td>
-              <td class="text-end border-cell">{{ totalSummary.realisasi_bulan_ini_thn_lalu?.toLocaleString('id-ID') }}
-              </td>
+
+              <td class="text-end border-cell">{{ formatRupiah(totalSummary.realisasi_bulan_ini_thn_lalu) }}</td>
               <td class="text-end border-cell">{{ totalSummary.persen_thn_lalu?.toFixed(2) }}%</td>
-              <td class="text-end border-cell">{{ totalSummary.realisasi_akhir_tahun?.toLocaleString('id-ID') }}</td>
-              <td class="text-end border-cell">{{ totalSummary.target_akhir_tahun?.toLocaleString('id-ID') }}</td>
+
+              <td class="text-end border-cell">{{ formatRupiah(totalSummary.realisasi_akhir_tahun) }}</td>
+              <td class="text-end border-cell">{{ formatRupiah(totalSummary.target_akhir_tahun) }}</td>
               <td class="text-end border-cell">{{ totalSummary.persen_target_akhir_tahun?.toFixed(2) }}%</td>
             </tr>
           </template>

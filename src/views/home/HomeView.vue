@@ -277,6 +277,9 @@ const targetChartData = computed(() => ({
   ]
 }));
 
+// [TAMBAHAN] Helper Computed
+const isWarehouseUser = computed(() => authStore.user?.isWarehouseUser === true);
+
 const fr = (val: number) => formatRupiah(val);
 
 const targetChartOptions = ref<ChartOptions<'bar' | 'line'>>({
@@ -767,6 +770,42 @@ const getAchColor = (ach: number) => {
 };
 
 const fetchFrequentMenus = async () => {
+  if (isWarehouseUser.value) {
+    frequentMenus.value = [
+      {
+        title: 'Packing List',
+        icon: 'mdi-format-list-checks', // Icon checklist
+        to: '/gudang-dc/operasional/packing-list',
+        color: 'indigo'
+      },
+      {
+        title: 'Terima STBJ',
+        icon: 'mdi-package-variant-closed-plus', // Icon tambah stok/terima barang
+        to: '/gudang-dc/operasional/terima-stbj',
+        color: 'teal'
+      },
+      {
+        title: 'Surat Jalan Store',
+        icon: 'mdi-truck-delivery-outline', // Icon pengiriman
+        to: '/gudang-dc/operasional/surat-jalan-store',
+        color: 'blue'
+      },
+      {
+        title: 'Ambil Barang',
+        icon: 'mdi-dolly', // Icon alat angkut barang
+        to: '/gudang-dc/operasional/ambil-barang',
+        color: 'orange'
+      },
+      {
+        title: 'Terima Retur',
+        icon: 'mdi-keyboard-return', // Icon panah kembali/retur
+        to: '/gudang-dc/operasional/terima-rb',
+        color: 'deep-orange'
+      },
+    ];
+    isLoadingFrequent.value = false;
+    return;
+  }
   isLoadingFrequent.value = true;
   try {
     const response = await api.get('/activity/frequent-menus');
@@ -819,44 +858,61 @@ let pollingInterval: number;
 
 const startPolling = () => {
   pollingInterval = window.setInterval(() => {
-    fetchTodayStats(true);
-    fetchPendingActions(true);
+
+    // Common (Stok)
     fetchTotalStock(true);
     fetchLowStockData(true);
-    fetchSalesTargetSummary(true);
-    fetchRecentTransactions(true);
-    fetchSalesChartData(true);
-    fetchTopProducts(true);
     fetchStagnantStockSummary(true);
     if (authStore.user?.cabang === 'KDC') {
-      fetchBranchPerformance(true);
+      fetchStockBreakdown(); // Penting buat orang gudang DC
+    }
+
+    // Penjualan (SKIP jika Warehouse User)
+    if (!isWarehouseUser.value) {
+      fetchTodayStats(true);
+      fetchPendingActions(true);
+      fetchSalesTargetSummary(true);
+      fetchRecentTransactions(true);
+      fetchSalesChartData(true);
+      fetchTopProducts(true);
+      if (authStore.user?.cabang === 'KDC') {
+        fetchBranchPerformance(true);
+        fetchItemSalesTrend();
+      }
     }
   }, 10000);
 };
 
 onMounted(() => {
   if (authStore.isAuthenticated) {
-    fetchActivePromos();
+    // Common
+    fetchActivePromos(); // Promo tetap ditampilkan (info umum)
     fetchFrequentMenus();
-    fetchTodayStats();
-    fetchDashboardStats();
+    fetchTotalStock();
     fetchLowStockData();
-    fetchSalesChartData();
-    fetchCabangOptions();
-    fetchRecentTransactions();
-    fetchPendingActions();
-    fetchTopProducts();
-    fetchSalesTargetSummary();
     fetchStagnantStockSummary();
     if (authStore.user?.cabang === 'KDC') {
-      fetchBranchPerformance();
       fetchStockBreakdown();
-      fetchItemSalesTrend();
     }
-    fetchTotalPiutang();
-    fetchPiutangBreakdown();
-    fetchPiutangByInvoice();
-    fetchTotalStock();
+
+    // Penjualan (SKIP jika Warehouse User)
+    if (!isWarehouseUser.value) {
+      fetchTodayStats();
+      fetchDashboardStats();
+      fetchSalesChartData();
+      fetchCabangOptions();
+      fetchRecentTransactions();
+      fetchPendingActions();
+      fetchTopProducts();
+      fetchSalesTargetSummary();
+      fetchTotalPiutang();
+      fetchPiutangBreakdown();
+      fetchPiutangByInvoice();
+      if (authStore.user?.cabang === 'KDC') {
+        fetchBranchPerformance();
+        fetchItemSalesTrend();
+      }
+    }
     startPolling();
   }
   intervalId = window.setInterval(() => {
@@ -980,7 +1036,7 @@ onUnmounted(() => {
         </v-row>
 
         <v-row class="mb-6" justify="center">
-          <v-col cols="12" sm="6" md="auto">
+          <v-col v-if="!isWarehouseUser" cols="12" sm="6" md="auto">
             <v-card class="stat-card fill-height" color="success" variant="tonal">
               <v-card-text class="text-center position-relative">
                 <div v-if="trendIndicators.sales === 'up'" class="trend-badge up">
@@ -1003,7 +1059,7 @@ onUnmounted(() => {
             </v-card>
           </v-col>
 
-          <v-col cols="12" sm="6" md="auto">
+          <v-col v-if="!isWarehouseUser" cols="12" sm="6" md="auto">
             <v-card class="stat-card fill-height" color="info" variant="tonal">
               <v-card-text class="text-center">
                 <v-icon size="40" class="mb-2">mdi-receipt</v-icon>
@@ -1016,7 +1072,7 @@ onUnmounted(() => {
             </v-card>
           </v-col>
 
-          <v-col cols="12" sm="6" md="auto">
+          <v-col cols="12" sm="6" :md="isWarehouseUser ? 4 : 'auto'">
             <v-card class="stat-card fill-height" color="warning" variant="tonal">
               <v-card-text class="text-center">
                 <v-icon size="40" class="mb-2">mdi-alert-circle</v-icon>
@@ -1029,7 +1085,7 @@ onUnmounted(() => {
             </v-card>
           </v-col>
 
-          <v-col cols="12" sm="6" md="auto">
+          <v-col cols="12" sm="6" :md="isWarehouseUser ? 4 : 'auto'">
             <v-card class="stat-card fill-height" color="primary" variant="tonal">
               <v-card-text class="text-center">
                 <v-icon size="40" class="mb-2">mdi-package-variant-closed</v-icon>
@@ -1060,7 +1116,7 @@ onUnmounted(() => {
             </v-card>
           </v-col>
 
-          <v-col cols="12" sm="6" md="auto">
+          <v-col v-if="authStore.user?.cabang === 'KDC'" cols="12" sm="6" :md="isWarehouseUser ? 4 : 'auto'">
             <v-menu v-if="authStore.user?.cabang === 'KDC'" open-on-hover location="bottom center" origin="top center"
               transition="scale-transition" :close-on-content-click="false">
               <template v-slot:activator="{ props }">
@@ -1102,9 +1158,8 @@ onUnmounted(() => {
             </v-menu>
           </v-col>
 
-          <v-col cols="12" sm="6" md="auto">
-            <v-menu v-if="authStore.user?.cabang === 'KDC' || authStore.user?.cabang !== 'KDC'" open-on-hover
-              location="bottom center" origin="top center" transition="scale-transition"
+          <v-col v-if="!isWarehouseUser" cols="12" sm="6" md="auto">
+            <v-menu open-on-hover location="bottom center" origin="top center" transition="scale-transition"
               :close-on-content-click="false">
               <template v-slot:activator="{ props }">
                 <v-card v-bind="props" class="stat-card fill-height" color="orange" variant="tonal"
@@ -1119,7 +1174,6 @@ onUnmounted(() => {
                   </v-card-text>
                 </v-card>
               </template>
-
               <v-card max-width="380" elevation="8">
                 <v-list-item class="bg-orange-lighten-4 text-orange-darken-4">
                   <v-list-item-title class="font-weight-bold">
@@ -1135,7 +1189,7 @@ onUnmounted(() => {
                     <v-list-item v-for="item in piutangBreakdown" :key="item.cabang_kode">
                       <v-list-item-title class="text-caption">{{ item.cabang_nama }}</v-list-item-title>
                       <template #append><span class="text-caption font-weight-bold">{{ formatRupiah(item.sisa_piutang)
-                          }}</span></template>
+                      }}</span></template>
                     </v-list-item>
                   </v-list>
                   <v-list v-else-if="authStore.user?.cabang !== 'KDC' && piutangByInvoice.length > 0" density="compact">
@@ -1160,7 +1214,7 @@ onUnmounted(() => {
           </v-col>
         </v-row>
 
-        <v-row class="mb-4">
+        <v-row v-if="!isWarehouseUser" class="mb-4">
           <v-col cols="12" lg="8">
             <v-card elevation="2" class="rounded-lg bg-surface">
               <v-card-title class="py-3 px-4 border-b">
@@ -1245,7 +1299,7 @@ onUnmounted(() => {
                         ditindaklanjuti</v-list-item-subtitle>
                       <template #append>
                         <v-chip color="info" size="large" variant="flat" class="font-weight-bold">{{ item.count
-                          }}</v-chip>
+                        }}</v-chip>
                       </template>
                     </v-list-item>
                     <v-divider v-if="index < pendingActions.length - 1" class="my-1"></v-divider>
@@ -1257,7 +1311,7 @@ onUnmounted(() => {
         </v-row>
 
         <v-row>
-          <v-col cols="12" lg="6">
+          <v-col cols="12" :lg="isWarehouseUser ? 12 : 6">
             <v-card class="mb-4 bg-surface" elevation="2">
               <v-card-title class="d-flex align-center bg-blue-grey-lighten-5 text-blue-grey-darken-3">
                 <v-icon class="mr-2" color="primary">mdi-history</v-icon><span class="text-h6">Sering Diakses</span>
@@ -1288,7 +1342,7 @@ onUnmounted(() => {
               </v-card-text>
             </v-card>
 
-            <v-card elevation="2" class="mb-4 bg-surface" hover>
+            <v-card v-if="!isWarehouseUser" elevation="2" class="mb-4 bg-surface" hover>
               <v-card-title class="d-flex align-center bg-blue-lighten-5 text-blue-darken-3">
                 <v-icon class="mr-2" color="primary">mdi-target</v-icon><span class="text-h6">Pencapaian Target</span>
               </v-card-title>
@@ -1333,7 +1387,8 @@ onUnmounted(() => {
               </v-card-text>
             </v-card>
 
-            <v-card elevation="2" class="mb-4 bg-surface">
+            <v-card v-if="!isWarehouseUser && authStore.user?.cabang === 'KDC'" elevation="2"
+              class="mb-4 rounded-lg d-flex flex-column bg-surface">
               <v-card-title
                 class="d-flex flex-column flex-sm-row align-start align-sm-center bg-red-lighten-5 py-2 gap-2 pr-2 text-red-darken-4">
                 <div class="d-flex align-center flex-grow-1">
@@ -1378,7 +1433,7 @@ onUnmounted(() => {
                       <v-list-item-subtitle class="d-flex align-center text-caption text-medium-emphasis">
                         <span class="mr-2">{{ item.kode }}</span>
                         <span v-if="item.barcode"><v-icon size="x-small" start>mdi-barcode</v-icon>{{ item.barcode
-                          }}</span>
+                        }}</span>
                       </v-list-item-subtitle>
                       <template #append>
                         <v-chip color="red" size="x-small" variant="flat" class="font-weight-bold">
@@ -1391,7 +1446,7 @@ onUnmounted(() => {
               </v-card-text>
             </v-card>
 
-            <v-card class="mb-4 bg-surface" elevation="2">
+            <v-card v-if="!isWarehouseUser" class="mb-4 bg-surface" elevation="2">
               <v-card-title class="d-flex align-center justify-space-between bg-green-lighten-5 text-green-darken-4">
                 <div class="d-flex align-center">
                   <v-icon class="mr-2" color="success">mdi-point-of-sale</v-icon><span class="text-h6">Penjualan
@@ -1434,7 +1489,7 @@ onUnmounted(() => {
               </v-card-text>
             </v-card>
 
-            <v-card v-if="authStore.user?.cabang === 'KDC'" elevation="2"
+            <v-card v-if="!isWarehouseUser && authStore.user?.cabang === 'KDC'" elevation="2"
               class="mb-4 rounded-lg d-flex flex-column bg-surface">
               <v-card-title class="d-flex align-center bg-blue-lighten-5 py-3 text-blue-darken-3">
                 <v-icon class="mr-2" color="primary">mdi-chart-box-outline</v-icon>
@@ -1467,7 +1522,8 @@ onUnmounted(() => {
             </v-card>
           </v-col>
 
-          <v-col cols="12" lg="6">
+          <v-col cols="12" :lg="isWarehouseUser ? 12 : 6">
+
             <v-card elevation="2" class="mb-4 bg-surface">
               <v-card-title class="d-flex align-center bg-orange-lighten-5 text-orange-darken-4">
                 <v-icon class="mr-2" color="warning">mdi-alert-circle</v-icon>
@@ -1543,7 +1599,7 @@ onUnmounted(() => {
               </v-card-text>
             </v-card>
 
-            <v-card elevation="2" class="mb-4 bg-surface">
+            <v-card v-if="!isWarehouseUser" elevation="2" class="mb-4 bg-surface">
               <v-card-title class="d-flex align-center bg-amber-lighten-5 py-2 pr-2 text-amber-darken-4">
                 <div class="d-flex align-center flex-grow-1">
                   <v-icon class="mr-2" color="amber-darken-2">mdi-star-circle-outline</v-icon>
@@ -1642,7 +1698,8 @@ onUnmounted(() => {
               </v-card-text>
             </v-card>
 
-            <v-card v-if="authStore.user?.cabang === 'KDC'" elevation="2" class="mb-4 rounded-lg bg-surface">
+            <v-card v-if="!isWarehouseUser && authStore.user?.cabang === 'KDC'" elevation="2"
+              class="mb-4 rounded-lg bg-surface">
               <v-card-title class="d-flex align-center bg-teal-lighten-5 py-3 text-teal-darken-4">
                 <v-icon class="mr-2" color="teal">mdi-chart-pie</v-icon>
                 <span class="text-subtitle-1 font-weight-bold">Kontribusi Omset Cabang</span>

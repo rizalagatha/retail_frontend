@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, reactive, onMounted, computed } from 'vue';
+import { ref, reactive, onMounted, computed, nextTick } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useToast } from 'vue-toastification';
 import { useAuthStore } from '@/stores/authStore';
@@ -48,6 +48,7 @@ interface AuthDialogState {
   transaksi?: string;
   barcode?: string;
   keterangan?: string;
+  cabang?: string;
   onSuccess: (data: { authNomor: string; approver: string }) => void;
   onCancel: () => void;
 }
@@ -77,6 +78,12 @@ const activeRowIndex = ref(0);
 const isMultiSelectProduct = ref(false);
 const isClosed = ref(false);
 
+const audioSuccess = new Audio('/audio/beep_success.mp3');
+const audioError = new Audio('/audio/beep_error.mp3');
+
+const barcodeInputRef = ref<HTMLInputElement | null>(null);
+const isScanning = ref(false); // State khusus untuk loading scan
+
 // --- State Modal ---
 const isLookupVisible = ref(false);
 const isGudangLookupVisible = ref(false);
@@ -98,6 +105,7 @@ const authDialog = reactive<AuthDialogState>({
   transaksi: '',
   barcode: '',
   keterangan: '',
+  cabang: '',
   onSuccess: () => { },
   onCancel: () => { },
 });
@@ -125,7 +133,8 @@ const requestAuthorization = (
   extraData: {
     transaksi?: string,
     barcode?: string,
-    keteranganLengkap?: string
+    keteranganLengkap?: string,
+    cabang?: string
   } | null,
   onSuccess: (data: { authNomor: string; approver: string }) => void,
   onCancel: () => void
@@ -138,10 +147,12 @@ const requestAuthorization = (
     authDialog.transaksi = extraData.transaksi || '';
     authDialog.barcode = extraData.barcode || '';
     authDialog.keterangan = extraData.keteranganLengkap || '';
+    authDialog.cabang = extraData.cabang || '';
   } else {
     authDialog.transaksi = '';
     authDialog.barcode = '';
     authDialog.keterangan = '';
+    authDialog.cabang = '';
   }
 
   // Wrapper agar modal tertutup sebelum callback dijalankan
@@ -210,15 +221,30 @@ const loadDataForEdit = async (id: string) => {
 const handleBarcodeScan = async () => {
   const barcode = scannedBarcode.value;
   if (!barcode) return;
+  // 1. Kunci input agar tidak ada scan ganda saat loading
+  isScanning.value = true;
   try {
     const response = await api.get('/ambil-barang-form/lookup/product-by-barcode', {
       params: { barcode, gudang: formHeader.value.gudangKode }
     });
     processProductSelection(response.data);
+    audioSuccess.play().catch(() => { });
+    toast.success(`OK: ${response.data.nama}`, { timeout: 1500 });
     scannedBarcode.value = '';
   } catch (error) {
+    audioError.play().catch(() => { });
     const err = error as AxiosError<{ message?: string }>;
     toast.error(err.response?.data?.message || "Produk tidak ditemukan");
+    nextTick(() => {
+      barcodeInputRef.value?.select();
+    });
+  } finally {
+    isScanning.value = false;
+
+    // [PENTING] Kembalikan fokus ke input box secara paksa
+    nextTick(() => {
+      barcodeInputRef.value?.focus();
+    });
   }
 };
 
@@ -245,6 +271,18 @@ const handleBarcodeEnter = async (index: number) => {
       currentItem.jumlah = 1;
     }
     addNewRow();
+
+    nextTick(() => {
+      // Kita perlu cara untuk akses ref input di dalam v-for
+      // Ini agak tricky di Vuetify data-table, opsi termudah:
+      // Biarkan user lanjut scan via Scanner Utama di atas (Recommended)
+
+      // Jika user mau tetap di tabel:
+      const inputs = document.querySelectorAll('.desktop-table input');
+      if (inputs[inputs.length - 1]) {
+        (inputs[inputs.length - 1] as HTMLElement).focus();
+      }
+    });
   } catch (error) {
     const err = error as AxiosError<{ message?: string }>;
     toast.error(err.response?.data?.message || "Produk tidak ditemukan");
@@ -370,8 +408,12 @@ const handleSave = () => {
 
   showConfirmation('Konfirmasi Simpan', 'Apakah Anda yakin ingin menyimpan data ini?', () => {
 
-    // Susun info lengkap untuk HP Manager
+    // Susun info lengkap untuk HP User Store
     const infoLengkap = `Peminta: ${formHeader.value.peminta}\nGudang: ${formHeader.value.gudangNama}\nTotal Qty: ${totalJumlah.value}`;
+
+    // Tentukan User Tujuan Otorisasi (Store Tujuan)
+    // Di form ini: formHeader.value.storeKode (misal: 'K01')
+    const targetBranch = formHeader.value.storeKode;
 
     requestAuthorization(
       'Otorisasi Ambil Barang',
@@ -379,7 +421,9 @@ const handleSave = () => {
       totalJumlah.value, // Nominal = Total Qty (karena ambil barang biasanya internal/non-rupiah)
       {
         transaksi: formHeader.value.nomor || 'DRAFT',
-        keteranganLengkap: infoLengkap
+        keteranganLengkap: infoLengkap,
+        // [PENTING] Tambahkan parameter cabang tujuan agar notifikasi masuk ke user cabang tersebut
+        cabang: targetBranch
       },
       (authResult) => {
         // Sukses -> Lanjut Simpan
@@ -490,9 +534,10 @@ onMounted(() => {
 
       <div class="right-column">
         <div class="scanner-wrapper">
-          <v-text-field v-model="scannedBarcode" label="Scan Barcode di Sini..."
-            placeholder="Input barcode lalu tekan Enter" variant="outlined" density="compact"
-            prepend-inner-icon="mdi-barcode-scan" hide-details clearable @keydown.enter.prevent="handleBarcodeScan" />
+          <v-text-field ref="barcodeInputRef" v-model="scannedBarcode" label="Scan Barcode di Sini..."
+            placeholder="Siap scan..." variant="outlined" density="compact" prepend-inner-icon="mdi-barcode-scan"
+            hide-details clearable :loading="isScanning" :disabled="isScanning"
+            @keydown.enter.prevent="handleBarcodeScan" autofocus />
         </div>
 
         <div class="table-container" style="height: 400px;">
@@ -549,7 +594,7 @@ onMounted(() => {
 
     <AuthorizationModal v-if="authDialog.show" :title="authDialog.title" :jenis="authDialog.jenis"
       :nominal="authDialog.nominal" :transaksi="authDialog.transaksi" :barcode="authDialog.barcode"
-      :keterangan="authDialog.keterangan" @success="authDialog.onSuccess"
+      :keterangan="authDialog.keterangan" :cabang="authDialog.cabang" @success="authDialog.onSuccess"
       @close="() => { authDialog.show = false; authDialog.onCancel(); }" />
   </PageLayout>
 </template>

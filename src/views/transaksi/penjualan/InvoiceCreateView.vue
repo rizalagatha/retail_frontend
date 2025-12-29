@@ -333,6 +333,14 @@ const promoNotification = ref(''); // Teks untuk running text/alert
 const potentialPromoDiscount = ref(0); // Menyimpan nominal potensi diskon
 const isGrandOpeningPromo = ref(false);
 
+// --- [BARU] Setup Audio & Refs ---
+const audioSuccess = new Audio('/audio/beep_success.mp3');
+const audioError = new Audio('/audio/beep_error.mp3');
+
+// Ref untuk input barcode agar bisa auto-focus
+const barcodeInputRef = ref<HTMLInputElement | null>(null);
+const isScanning = ref(false); // State untuk loading scan
+
 // --- Konfigurasi Tabel ---
 const tableHeaders = [
   { title: 'Kode Barang', key: 'kode', width: '120px' },
@@ -1028,6 +1036,8 @@ const onProductsSelected = (selectedProducts: ProductInput[]) => {
 
   addNewRow();
   calculateTotals();
+
+  audioSuccess.play().catch(() => { });
 };
 
 const onUnpaidDpSelected = (dp: DownPayment) => {
@@ -1643,6 +1653,7 @@ const checkStokMinus = (): Promise<boolean> => {
 };
 
 const onSaveSuccess = () => {
+  audioSuccess.play().catch(() => { });
   markAsSaved();
   // Dipanggil dari PaymentModal setelah save berhasil
   router.push({ name: 'Invoice' }); // Kembali ke halaman browse
@@ -1655,50 +1666,60 @@ const updateMemberInfo = (customer: Customer | null) => {
 };
 
 const handleBarcodeScan = async () => {
+  // 1. Cek Promo 005 (Scan non-aktif)
   if (header.nomorPromo === 'PRO-2025-005') {
-    return toast.error('Scan barcode non-aktif saat promo ini. Silakan gunakan F1/F2 (klik kolom Kode) untuk mencari barang promo.');
+    audioError.play().catch(() => { }); // Bunyi Error
+    return toast.error('Scan barcode non-aktif saat promo ini. Gunakan F1/F2.');
   }
 
+  // 2. Cek Customer
   if (!header.customer.kode) {
+    audioError.play().catch(() => { });
     return toast.error('Pilih customer terlebih dahulu sebelum scan!');
   }
+
   const barcode = scannedBarcode.value;
   if (!barcode) return;
 
-  const existingItem = items.value.find(item => item.barcode === barcode && item.kode);
-  if (existingItem) {
-    existingItem.jumlah += 1;
-    toast.info(`Jumlah untuk ${existingItem.nama} ditambah menjadi ${existingItem.jumlah}`);
-    scannedBarcode.value = '';
-    return;
-  }
+  // 3. Kunci Input
+  isScanning.value = true;
 
   try {
+    // A. Cek apakah barang sudah ada di list (Increment Qty)
+    const existingItem = items.value.find(item => item.barcode === barcode && item.kode);
+
+    if (existingItem) {
+      existingItem.jumlah += 1;
+
+      // Feedback Sukses
+      audioSuccess.play().catch(() => { });
+      toast.info(`+1 ${existingItem.nama}`);
+
+      scannedBarcode.value = '';
+      return; // Selesai, masuk finally
+    }
+
+    // B. Jika belum ada, Cari ke API
     const response = await api.get(`/invoice-form/by-barcode/${barcode}`, {
       params: { gudang: header.gudang.kode }
     });
-    const product = response.data;
-    const emptyRowIndex = items.value.findIndex(item => !item.kode);
 
+    const product = response.data;
+
+    // --- Logic penentuan harga (Copy dari kode lama Anda) ---
+    const emptyRowIndex = items.value.findIndex(item => !item.kode);
     const currentLevel = String(header.customer.level_kode || '1').trim();
     let basePrice = Number(product.harga || 0);
 
-    if (currentLevel === '5') {
-      basePrice = Number(product.harga3 || 0);
-    }
-    else if (currentLevel === '2' && Number(product.harga2) > 0) {
-      basePrice = Number(product.harga2);
-    }
-    else if (currentLevel === '3' && Number(product.harga3) > 0) {
-      basePrice = Number(product.harga3);
-    }
-    else if (currentLevel === '4' && Number(product.harga4) > 0) {
-      basePrice = Number(product.harga4);
-    }
+    if (currentLevel === '5') basePrice = Number(product.harga3 || 0);
+    else if (currentLevel === '2' && Number(product.harga2) > 0) basePrice = Number(product.harga2);
+    else if (currentLevel === '3' && Number(product.harga3) > 0) basePrice = Number(product.harga3);
+    else if (currentLevel === '4' && Number(product.harga4) > 0) basePrice = Number(product.harga4);
 
     const isPromoActive = header.nomorPromo === 'PRO-2025-005';
     const finalPrice = isPromoActive ? 33333 : basePrice;
     const isEditable = !isPromoActive;
+    // --------------------------------------------------------
 
     const newItem = {
       id: Date.now(),
@@ -1723,15 +1744,36 @@ const handleBarcodeScan = async () => {
     } else {
       items.value.push(newItem);
     }
+
     addNewRow();
+
+    // Feedback Sukses
+    audioSuccess.play().catch(() => { });
+    toast.success(`OK: ${product.nama}`);
+    scannedBarcode.value = '';
+
   } catch (error: unknown) {
+    // Feedback Error
+    audioError.play().catch(() => { });
+
     if (axios.isAxiosError(error) && error.response) {
       toast.error(error.response.data?.message || `Barcode ${barcode} tidak valid.`);
     } else {
       toast.error(`Barcode ${barcode} tidak valid.`);
     }
+
+    // Select text agar user bisa langsung ganti tanpa hapus manual
+    nextTick(() => {
+      barcodeInputRef.value?.select();
+    });
+
   } finally {
-    scannedBarcode.value = '';
+    isScanning.value = false;
+
+    // [PENTING] Kembalikan fokus ke input scanner
+    nextTick(() => {
+      barcodeInputRef.value?.focus();
+    });
   }
 };
 
@@ -2356,9 +2398,10 @@ watch(() => header.isMarketplace, async (isOnline) => {
       <div class="right-column">
         <div class="top-right-header">
           <div v-if="!header.nomorSo" class="scanner-wrapper">
-            <v-text-field v-model="scannedBarcode" label="Scan Barcode di Sini..."
-              placeholder="Input barcode lalu tekan Enter" variant="outlined" density="compact"
-              prepend-inner-icon="mdi-barcode-scan" hide-details clearable @keydown.enter.prevent="handleBarcodeScan" />
+            <v-text-field ref="barcodeInputRef" v-model="scannedBarcode" label="Scan Barcode di Sini..."
+              placeholder="Siap scan..." variant="outlined" density="compact" prepend-inner-icon="mdi-barcode-scan"
+              hide-details clearable :loading="isScanning" :disabled="isScanning"
+              @keydown.enter.prevent="handleBarcodeScan" autofocus />
           </div>
 
           <div class="logo-container">

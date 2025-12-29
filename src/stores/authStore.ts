@@ -12,6 +12,7 @@ interface User {
   canApproveCorrection?: boolean;
   canApprovePrice?: boolean;
   canApproveRefund?: boolean;
+  isWarehouseUser?: boolean;
 }
 
 interface Permission {

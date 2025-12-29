@@ -158,6 +158,8 @@ const headers = computed<DataTableHeader[]>(() => {
     { title: 'Nomor', key: 'Nomor', width: 180, fixed: true },
     { title: 'Tanggal', key: 'Tanggal', width: 120 },
     { title: 'Dateline', key: 'Dateline', width: 120 },
+    { title: 'Kd Customer', key: 'kdcus', width: 120 },
+    { title: 'Nama Customer', key: 'Nama', width: 250 },
   ];
   if (isUserKon.value) {
     // [FIX] Add new columns here
@@ -182,8 +184,6 @@ const headers = computed<DataTableHeader[]>(() => {
     { title: 'User Modified', key: 'UserModified', width: 140 },
     { title: 'Date Modified', key: 'DateModified', width: 140 },
     { title: 'Status Kirim', key: 'StatusKirim', width: 150 },
-    { title: 'Kd Customer', key: 'kdcus', width: 120 },
-    { title: 'Nama Customer', key: 'Nama', width: 250 },
     { title: 'Alamat', key: 'Alamat', width: 600 },
     { title: 'Kota', key: 'Kota', width: 150 },
     { title: 'Level', key: 'Level', width: 150 },

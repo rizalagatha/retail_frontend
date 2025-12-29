@@ -2009,7 +2009,6 @@ const applyPromoToItems = async (promoNomor: string) => {
 };
 
 // [BARU] Cek Kelayakan Promo Real-time (Untuk Notifikasi)
-// [BARU] Cek Kelayakan Promo Real-time (Untuk Notifikasi)
 const checkRealtimePromoEligibility = () => {
   // Reset notification
   promoNotification.value = '';
@@ -2095,6 +2094,31 @@ const checkRealtimePromoEligibility = () => {
     promoNotification.value = message;
     potentialPromoDiscount.value = discount;
   }
+};
+
+// [BARU] Handler untuk menambah DP dari pencarian di DpListModal
+const handleAddDp = (newDp: { nomor: string, jenis: string, nominal: number }) => {
+  // 1. Cek Duplikasi
+  if (dpItems.value.some(dp => dp.nomor === newDp.nomor)) {
+    toast.warning('DP/Setoran ini sudah ditambahkan.');
+    return;
+  }
+
+  // 2. Tambahkan ke state dpItems
+  dpItems.value.push({
+    nomor: newDp.nomor,
+    jenis: newDp.jenis,
+    nominal: newDp.nominal,
+    posting: 'BELUM', // Default status
+    fsk: ''           // Default kosong
+  });
+
+  // 3. Hitung Ulang Total & Update UI
+  calculateTotals();
+  toast.success('DP berhasil ditambahkan.');
+
+  // (Opsional) Trigger unsaved changes
+  uiStore.setUnsavedChanges(true);
 };
 
 const getCategoryColor = (kategori: string | undefined) => {
@@ -2418,9 +2442,7 @@ const stopAndOpenPriceProposal = (index: number) => {
               </template>
               <template #[`item.kategori`]="{ item }">
                 <div v-if="!item.isCustomOrder && item.kode">
-                  <v-chip size="x-small"
-                    :color="getCategoryColor(item.kategori)"
-                    variant="flat"
+                  <v-chip size="x-small" :color="getCategoryColor(item.kategori)" variant="flat"
                     class="font-weight-bold text-white">
                     {{ item.kategori || 'REG' }}
                   </v-chip>
@@ -2617,8 +2639,8 @@ const stopAndOpenPriceProposal = (index: number) => {
     <DiscountCostModal v-if="isDiscountCostModalVisible" :footer-data="footer" :total-so="totalDiscountable"
       :customer="header.customer" :gudang-kode="header.gudang.kode" :ppn-persen="header.ppnPersen"
       @close="isDiscountCostModalVisible = false" @update="handleDiscountCostUpdate" />
-    <DpListModal v-if="isDpListModalVisible" :dp-items="dpItems" @close="isDpListModalVisible = false"
-      @remove-dp="removeDpRow($event)" />
+    <DpListModal v-if="isDpListModalVisible" :dp-items="dpItems" :customer-kode="header.customer?.kode || ''"
+      @close="isDpListModalVisible = false" @remove-dp="removeDpRow($event)" @add-dp="handleAddDp" />
     <JenisOrderModal v-if="dialogs.jenisOrder" :model-value="dialogs.jenisOrder" :penawaran-details="penawaranDetails"
       :penawaran-barang-list="penawaranBarangList" @close="dialogs.jenisOrder = false" @saved="handleJenisOrderSaved" />
     <PromoSearchModal v-if="dialogs.promoSearch" :tanggal="header.tanggal" @close="dialogs.promoSearch = false"

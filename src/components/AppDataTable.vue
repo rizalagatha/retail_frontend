@@ -5,49 +5,84 @@ import emptyDataAnimation from '@/assets/empty-state.json';
 import { VDataTable, VDataTableServer } from 'vuetify/components/VDataTable';
 
 const props = defineProps({
-  server: { type: Boolean, default: false },
+  server: { type: Boolean, default: false }, // Mode server aktif?
   items: { type: Array, default: () => [] },
   itemsPerPageOptions: { type: Array, default: () => [10, 25, 50, 100] },
-  search: { type: String, default: '' }
+  search: { type: String, default: '' },
+
+  // [BARU] Total data keseluruhan di database (misal: 5000)
+  itemsLength: { type: Number, default: 0 }
 });
 
-const tableComponent = computed(() => props.server ? VDataTableServer : VDataTable);
-const page = ref(1);
-const itemsPerPage = ref(10);
+// Emit event ke parent saat user ganti halaman/limit
+const emit = defineEmits(['update:options', 'update:page', 'update:itemsPerPage']);
 
+const tableComponent = computed(() => props.server ? VDataTableServer : VDataTable);
+
+const page = ref(1);
+const itemsPerPage = ref(50); // Default
+
+// --- Filter Client Side (Hanya jalan jika BUKAN server side) ---
 const filteredItems = computed(() => {
+  if (props.server) return props.items;
+
   if (!props.items) return [];
   if (!props.search) return props.items;
+
   const searchLower = props.search.toLowerCase();
+
+  // [FIX] Ganti 'any' dengan 'Record<string, unknown>'
+  // Artinya: item adalah object dengan key string dan value apa saja
   return props.items.filter((item: Record<string, unknown>) => {
-    return Object.values(item).some(val => String(val).toLowerCase().includes(searchLower));
+    return Object.values(item).some(val => {
+      // Pastikan val tidak null/undefined sebelum di-string-kan agar aman
+      return val && String(val).toLowerCase().includes(searchLower);
+    });
   });
 });
 
+// --- Pagination Items ---
 const paginatedItems = computed(() => {
-  if (props.server) return props.items;
+  if (props.server) return props.items; // Kalau server, jangan slice lagi
   const start = (page.value - 1) * itemsPerPage.value;
   return filteredItems.value.slice(start, start + itemsPerPage.value);
 });
 
-const pageCount = computed(() => props.server ? 0 : Math.ceil(filteredItems.value.length / itemsPerPage.value));
+// --- Hitung Total Halaman ---
+const pageCount = computed(() => {
+  // Jika server, hitung dari itemsLength. Jika client, hitung dari array length.
+  const total = props.server ? props.itemsLength : filteredItems.value.length;
+  if (total === 0) return 0;
+  return Math.ceil(total / itemsPerPage.value);
+});
 
+// --- Teks Pagination (1-50 of 5000) ---
 const paginationText = computed(() => {
-  const total = filteredItems.value.length;
+  const total = props.server ? props.itemsLength : filteredItems.value.length;
   if (total === 0) return '0-0 of 0';
+
   const start = (page.value - 1) * itemsPerPage.value + 1;
   const end = Math.min(page.value * itemsPerPage.value, total);
+
   return `${start}-${end} of ${total}`;
 });
 
-watch(() => props.search, () => { page.value = 1; });
-watch(itemsPerPage, () => { page.value = 1; });
+// --- Watchers: Beritahu Parent jika user ganti halaman ---
+watch([page, itemsPerPage], () => {
+  // Ini yang akan memicu fetch data baru di InvoiceBrowse
+  emit('update:options', { page: page.value, itemsPerPage: itemsPerPage.value });
+});
+
+// Reset page ke 1 jika search berubah (Khusus Client Side)
+watch(() => props.search, () => {
+  if (!props.server) page.value = 1;
+});
 </script>
 
 <template>
   <div class="app-data-table-wrapper">
     <component :is="tableComponent" v-bind="{ ...$attrs, items: paginatedItems }" hide-default-footer
-      :items-per-page="-1" class="bg-surface">
+      :items-per-page="itemsPerPage" :items-length="server ? itemsLength : undefined" class="bg-surface">
       <template #no-data>
         <slot v-if="$slots['no-data']" name="no-data"></slot>
         <div v-else class="empty-data-wrapper">
@@ -59,12 +94,13 @@ watch(itemsPerPage, () => { page.value = 1; });
           <p class="text-body-3 text-disabled mt-2">Coba ubah filter atau tanggal pencarian Anda.</p>
         </div>
       </template>
+
       <template v-for="(_, name) in $slots" v-slot:[name]="scope">
         <slot v-if="name !== 'no-data'" :name="name" v-bind="scope" />
       </template>
     </component>
 
-    <div v-if="!server && items && items.length > 0" class="custom-pagination-footer">
+    <div v-if="server || (items && items.length > 0)" class="custom-pagination-footer">
       <div class="items-per-page">
         <span class="text-caption text-medium-emphasis">Items per page:</span>
         <v-select v-model="itemsPerPage" :items="itemsPerPageOptions" density="compact" variant="outlined" hide-details

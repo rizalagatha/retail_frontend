@@ -82,7 +82,11 @@ const headers = computed<DataTableHeader[]>(() => [
 const fetchCabang = async () => {
   try {
     const response = await api.get('/audit-logs/cabang');
-    cabangOptions.value = ['ALL', ...response.data];
+
+    cabangOptions.value = [
+      { kode: 'ALL', nama: 'Semua Cabang' },
+      ...response.data
+    ];
   } catch (error) {
     console.error("Gagal load cabang", error);
   }
@@ -208,8 +212,8 @@ watch(() => filters.page, fetchData); // Fetch saat pagination berubah
         <v-text-field type="date" v-model="filters.endDate" label="Sampai" density="compact" hide-details
           variant="outlined" style="max-width: 170px" />
 
-        <v-select v-model="filters.cabang" :items="cabangOptions" label="Cabang" density="compact" hide-details
-          variant="outlined" style="max-width: 140px" />
+        <v-select v-model="filters.cabang" :items="cabangOptions" item-title="nama" item-value="kode" label="Cabang"
+          density="compact" variant="outlined" hide-details />
 
         <v-select v-model="filters.module" :items="moduleOptions" label="Modul" density="compact" hide-details
           variant="outlined" style="max-width: 160px" />
@@ -294,7 +298,7 @@ watch(() => filters.page, fetchData); // Fetch saat pagination berubah
                 </div>
                 <div class="d-flex mb-1">
                   <strong style="width: 80px;">Browser:</strong>
-                  <span class="text-caption text-grey-darken-2 text-truncate" :title="selectedLog.user_agent">
+                  <span class="ua-text">
                     {{ selectedLog.user_agent }}
                   </span>
                 </div>
@@ -400,5 +404,61 @@ watch(() => filters.page, fetchData); // Fetch saat pagination berubah
   justify-content: center;
   opacity: 0.6;
   font-style: italic;
+}
+
+/* Seluruh dialog detail audit */
+.v-dialog .v-card {
+  font-size: 11px !important;
+}
+
+.v-dialog strong {
+  font-size: 11px !important;
+}
+
+.v-dialog .data-box {
+  font-size: 11px !important;
+}
+
+.ua-text {
+  font-size: 11px;
+  color: #555;
+  white-space: normal !important;
+  word-break: break-word;
+  line-height: 1.2;
+}
+
+.v-card-text {
+  padding: 12px !important;
+}
+
+.bg-grey-lighten-4 {
+  font-size: 11px;
+}
+
+.v-card-title {
+  font-size: 12px !important;
+  min-height: 34px;
+  padding: 6px 10px !important;
+}
+
+.data-box {
+  padding: 10px !important;
+  height: 380px !important;
+  font-size: 11px !important;
+}
+
+.data-viewer {
+  font-size: 11px !important;
+}
+
+.nested-label,
+.data-label,
+.data-value {
+  font-size: 11px !important;
+}
+
+h4 {
+  font-size: 12px;
+  font-weight: 600;
 }
 </style>

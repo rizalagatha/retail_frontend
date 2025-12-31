@@ -2425,7 +2425,7 @@ watch(() => header.isMarketplace, async (isOnline) => {
                 <div v-if="!item.isCustomOrder && item.kode">
                   <v-chip size="x-small" :color="getCategoryColor(item.kategori)" variant="flat"
                     class="font-weight-bold text-white">
-                    {{ item.kategori || 'REG' }}
+                    {{ item.kategori || 'TANPA KATEGORI' }}
                   </v-chip>
                 </div>
               </template>

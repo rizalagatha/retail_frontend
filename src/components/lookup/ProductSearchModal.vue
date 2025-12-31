@@ -16,6 +16,12 @@ interface ProductVariant {
   kategori?: string;
 }
 
+type ProductItem = {
+  barcode: string | number;
+  ukuran?: string | null;
+};
+
+
 // --- Props & Emits ---
 const props = defineProps({
   category: { type: String, required: true },
@@ -77,7 +83,43 @@ const loadItems = async (opts: { page: number, itemsPerPage: number }) => {
       },
     });
     if (currentRequestId === requestId.value) {
-      items.value = (response.data.items || []);
+      const list = (response.data.items || []).slice();
+
+      // --- SORTING ---
+      items.value = list.sort((a: ProductItem, b: ProductItem): number => {
+        // 1) sort barcode numeric jika bisa
+        const ab = Number(a.barcode);
+        const bb = Number(b.barcode);
+
+        if (!isNaN(ab) && !isNaN(bb)) {
+          if (ab !== bb) return ab - bb;
+        } else {
+          // fallback string compare
+          const cmp = String(a.barcode).localeCompare(String(b.barcode));
+          if (cmp !== 0) return cmp;
+        }
+
+        // 2) jika barcode sama → urut ukuran bisnis
+        const order = [
+          'XS', 'S', 'M', 'L', 'XL',
+          '2XL', 'XXL', '3XL', '4XL', '5XL',
+          'OVERSIZE', 'ALL SIZE'
+        ];
+
+        const aa = String(a.ukuran ?? '').toUpperCase();
+        const bb2 = String(b.ukuran ?? '').toUpperCase();
+
+        const ia = order.indexOf(aa);
+        const ib = order.indexOf(bb2);
+
+        if (ia !== -1 && ib !== -1) return ia - ib;
+        if (ia !== -1) return -1;
+        if (ib !== -1) return 1;
+
+        // 3) fallback alfabet
+        return aa.localeCompare(bb2);
+      });
+
       totalItems.value = response.data.total || 0;
     }
     totalItems.value = response.data.total || 0;
@@ -193,7 +235,7 @@ watch(search, () => {
           <template #[`item.kategori`]="{ item }">
             <v-chip size="x-small" :color="getCategoryColor(item.kategori)" variant="flat"
               class="font-weight-bold text-white">
-              {{ item.kategori || 'REG' }}
+              {{ item.kategori || 'TANPA KATEGORI' }}
             </v-chip>
           </template>
           <template #[`item.harga`]="{ item }">
@@ -215,7 +257,7 @@ watch(search, () => {
               <td>
                 <v-chip size="x-small" :color="getCategoryColor(item.kategori)" variant="flat"
                   class="font-weight-bold text-white">
-                  {{ item.kategori || 'REG' }}
+                  {{ item.kategori || 'TANPA KATEGORI' }}
                 </v-chip>
               </td>
               <td>{{ item.ukuran }}</td>

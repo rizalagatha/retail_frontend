@@ -92,6 +92,7 @@ interface PaymentState {
   };
   retur: { nomor: string; nominal: number };
   pundiAmal: number;
+  pinBelumLunas?: string;
 }
 
 // Interface untuk Payload (Extend dari State + Field Tambahan)
@@ -131,6 +132,7 @@ const payment = reactive({
   transfer: { nominal: null as number | null, akun: { kode: '', nama: '', rekening: '' }, tanggal: new Date().toISOString().substring(0, 10) },
   retur: { nomor: '', nominal: 0 },
   pundiAmal: 0,
+  pinBelumLunas: ''
 });
 
 // [BARU] State untuk Potong Gaji
@@ -385,9 +387,12 @@ const handleFinalSave = async () => {
     return toast.error('Akun bank untuk transfer harus diisi.');
   }
 
-  // Cek apakah kurang bayar (Belum Lunas / Piutang)
-  if (totalBayar.value < props.totals.sisaPiutang) {
-    const sisaTagihan = props.totals.sisaPiutang - totalBayar.value;
+  // BANDINGKAN TOTAL BAYAR DENGAN GRAND TOTAL INVOICE
+  const totalTagihanFinal = props.totals.grandTotal;
+  const totalBayarSekarang = totalBayar.value; // DP + Tunai + TF + dll
+
+  if (totalBayarSekarang < totalTagihanFinal) {
+    const sisaTagihan = totalTagihanFinal - totalBayarSekarang;
 
     requestAuthorization(
       'Otorisasi Invoice Belum Lunas',
@@ -395,12 +400,15 @@ const handleFinalSave = async () => {
       sisaTagihan,    // Nominal kekurangan
       (authResult) => {
         // Simpan nama approver sebagai bukti
+        payment.pinBelumLunas = authResult.approver;
         temporaryPin.value = authResult.approver;
         executeSave();
       },
       () => toast.info('Penyimpanan dibatalkan.')
     );
   } else {
+    payment.pinBelumLunas = '';
+    temporaryPin.value = '';
     await executeSave();
   }
 };

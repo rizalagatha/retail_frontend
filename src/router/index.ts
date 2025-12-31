@@ -130,6 +130,7 @@ import LaporanStokView from "@/views/laporan/stok/LaporanStokView.vue";
 import LaporanMutasiStokView from "@/views/laporan/stok/LaporanMutasiStokView.vue";
 import LaporanKartuStokView from "@/views/laporan/stok/LaporanKartuStokView.vue";
 import LaporanListOtorisasiView from "@/views/laporan/lain-lain/LaporanListOtorisasiView.vue";
+import AuditLogView from "@/views/admin/AuditLogView.vue";
 import LaporanInvoiceView from "@/views/laporan/penjualan/LaporanInvoiceView.vue";
 import LaporanSalesVsTargetView from "@/views/laporan/penjualan/LaporanSalesVsTargetView.vue";
 import PotonganView from "@/views/piutang/PotonganView.vue";
@@ -1706,6 +1707,16 @@ const routes = [
       title: "Laporan List Otorisasi",
       requiresAuth: true,
       menuId: "502",
+    },
+  },
+  {
+    path: "/laporan/lain-lain/audit-log",
+    name: "AuditLog",
+    component: AuditLogView,
+    meta: {
+      title: "Audit Trail Log",
+      requiresAuth: true,
+      menuId: "602", // Sesuai permintaan
     },
   },
   {

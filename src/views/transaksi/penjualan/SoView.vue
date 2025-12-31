@@ -59,6 +59,11 @@ interface SoExportRow {
   [key: string]: unknown;
 }
 
+interface CabangOption {
+  kode: string;
+  nama: string;
+}
+
 const toast = useToast();
 const authStore = useAuthStore();
 const router = useRouter();
@@ -73,12 +78,13 @@ const selected = ref<SoHeader[]>([]);
 const expanded = ref<string[]>([]);
 const loadingDetails = ref<Set<string>>(new Set());
 const isMounted = ref(false);
-const cabangList = ref([]);
+const cabangList = ref<CabangOption[]>([]);
 const filters = reactive({
   startDate: format(new Date(), 'yyyy-MM-dd'),
   endDate: format(new Date(), 'yyyy-MM-dd'),
-  cabang: authStore.user?.cabang || '',
-  status: null as string | null,
+  // Logic: Jika KDC ? Default ALL : Default Cabang User
+  cabang: authStore.user?.cabang === 'KDC' ? 'ALL' : (authStore.user?.cabang || ''),
+  status: null as string | null, // Biarkan null agar defaultnya tampil semua status
 });
 
 const isCloseDialogVisible = ref(false);
@@ -333,6 +339,16 @@ const fetchCabangList = async () => {
   try {
     const response = await api.get('/so/lookup/cabang');
     cabangList.value = response.data;
+
+    // Tambahkan opsi 'Semua Cabang' jika user KDC
+    if (authStore.user?.cabang === 'KDC') {
+      // [FIX] Hapus '(c: any)'. TypeScript otomatis tahu 'c' adalah CabangOption
+      const hasAll = cabangList.value.some((c) => c.kode === 'ALL');
+
+      if (!hasAll) {
+        cabangList.value.unshift({ kode: 'ALL', nama: 'Semua Cabang' });
+      }
+    }
   } catch {
     toast.error('Gagal memuat daftar cabang.');
   }
@@ -481,6 +497,8 @@ const exportDetailData = async () => {
     startDate: filters.startDate,
     endDate: filters.endDate,
     cabang: filters.cabang,
+    status: filters.status, // Kirim status (misal: 'open')
+    search: filterSearchValue.value // Kirim search global jika perlu
   };
 
   toast.info('Mengambil data detail dari server...');

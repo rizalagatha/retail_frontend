@@ -184,30 +184,30 @@ const addNewRow = () => {
 };
 
 // Logika Load Data (Analogi loaddataall)
+// 1. Logika saat data dimuat (SAMA PERSIS DELPHI loaddataall)
 const loadRefundData = async (nomor: string) => {
   isLoading.value = true;
   isDataLoading.value = true;
   try {
-    // [FIX] Ubah 'axios.get' menjadi 'api.get'
-    // 'api' akan otomatis mengarahkan ke port Backend yang benar (misal 3000)
     const response = await api.get(`${API_BASE_PATH}/${nomor}`);
-
     const { header: dataHeader, details: dataDetails } = response.data;
 
     if (!dataHeader) throw new Error('Data header tidak ditemukan');
 
     Object.assign(header.value, dataHeader);
 
-    // Pastikan mapping detail aman (handle jika null/undefined)
     items.value = (dataDetails || []).map((item: RefundDetail) => ({
       ...item,
       id: Math.random(),
-      // [FIX 1] Centang hanya jika Header SUDAH Approved.
-      // Jika masih PROSES (Draft), biarkan unchecked agar Finance mencentang manual.
-      apv: header.value.isApproved,
+      // [LOGIC DELPHI] Jika refund > 0 maka APV True
+      apv: (item.refund > 0),
     }));
 
     addNewRow();
+
+    // Panggil ini agar status Header sinkron dengan detail yang baru dimuat
+    updateHeaderApprovalStatus();
+
     toast.success(`Data refund ${nomor} berhasil dimuat.`);
   } catch (error: unknown) {
     let msg = 'Gagal memuat data.';
@@ -351,20 +351,31 @@ const onSoSelected = async (selectedSo: SoSearchResult) => {
   }
 };
 
-// Logika persetujuan per baris (Analogi clapvPropertiesEditValueChanged)
-const handleLineItemApproval = () => {
-  // Cukup panggil update header status saja
+// 2. Logika saat Centang APV diklik (SAMA PERSIS DELPHI clapvPropertiesEditValueChanged)
+const handleLineItemApproval = (item: RefundDetail) => {
+  // Hanya Approver yang bisa mengubah nilai refund otomatis
+  if (!isApprover.value) return;
+
+  if (item.apv) {
+    // Jika dicentang -> Isi Refund dengan Nominal Penuh (Sisa Saldo)
+    item.refund = item.nominal;
+  } else {
+    // Jika diuncheck -> Nol-kan Refund
+    item.refund = 0;
+  }
+
+  // Cek ulang status header
   updateHeaderApprovalStatus();
 };
 
-// Logika Cek Approval Header (Analogi cekapv)
+// 3. Logika Update Header (SAMA PERSIS DELPHI cekapv)
 const updateHeaderApprovalStatus = () => {
-  // [PENTING] Jika user BUKAN Finance (Devi dkk), STOP DI SINI.
-  // Jangan biarkan sistem otomatis mencentang Approved.
   if (!isApprover.value) return;
 
-  // Logika bawah ini HANYA jalan di komputer DEVI/Finance
-  const anyApproved = items.value.some(item => item.apv);
+  // Cek apakah ada setidaknya satu item yang dicentang (APV = True)
+  const anyApproved = items.value.some(item => item.apv === true);
+
+  // Update checkbox Header 'Approve'
   header.value.isApproved = anyApproved;
 };
 
@@ -587,7 +598,8 @@ onMounted(async () => {
             </template>
             <template v-slot:[`item.apv`]="{ item }">
               <v-checkbox-btn v-model="item.apv" density="compact" hide-details
-                :disabled="!canApprove || header.isApproved || !item.nomor" @change="handleLineItemApproval" />
+                :disabled="!canApprove || header.isApproved || !item.nomor"
+                @change="() => handleLineItemApproval(item)" />
             </template>
             <template v-slot:[`item.bank`]="{ item }">
               <v-text-field v-model="item.bank" variant="underlined" density="compact" hide-details

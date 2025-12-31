@@ -241,7 +241,8 @@ const menuItems = [
         icon: 'mdi-dots-horizontal',
         items: [
           { title: 'List Otorisasi', to: '/laporan/lain-lain/list-otorisasi', icon: 'mdi-card-text-outline' },
-          { title: 'Saldo Kasir', to: '/laporan/lain-lain/saldo-kasir', icon: 'mdi-cash-register' }
+          { title: 'Saldo Kasir', to: '/laporan/lain-lain/saldo-kasir', icon: 'mdi-cash-register' },
+          { title: 'Audit Log', to: '/laporan/lain-lain/audit-log', icon: 'mdi-history' }
         ]
       }
     ]

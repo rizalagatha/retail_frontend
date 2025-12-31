@@ -658,11 +658,11 @@ const handleNew = () => {
   router.push({ name: 'InvoiceCreate' });
 }
 
-const handleEdit = () => {
-  if (!isSingleSelected.value) return;
-  const nomor = selected.value[0].Nomor;
-  router.push({ name: 'InvoiceEdit', params: { nomor } });
-};
+// const handleEdit = () => {
+//   if (!isSingleSelected.value) return;
+//   const nomor = selected.value[0].Nomor;
+//   router.push({ name: 'InvoiceEdit', params: { nomor } });
+// };
 
 const openChangePaymentModal = () => {
   // Reset Form
@@ -1087,10 +1087,10 @@ watch(filters, () => {
           </v-btn>
         </template>
         <v-list density="compact">
-          <v-list-item @click="handleEdit">
+          <!-- <v-list-item @click="handleEdit">
             <template #prepend><v-icon size="small" icon="mdi-file-document-edit-outline" class="mr-2" /></template>
             <v-list-item-title>Ubah Data Barang</v-list-item-title>
-          </v-list-item>
+          </v-list-item> -->
 
           <v-list-item @click="openChangePaymentModal">
             <template #prepend><v-icon size="small" icon="mdi-cash-sync" class="mr-2 text-purple" /></template>

@@ -17,6 +17,7 @@ interface PrintData {
   sd_kain: string;
   sd_finishing: string;
   sd_datekerja: string;
+  dateline: string;
   sd_workshop: string;
   gdg_nama: string;
   sd_desain: string;
@@ -134,7 +135,7 @@ onMounted(() => {
             <div class="label">Finishing</div>
             <div class="value">: {{ printData.sd_finishing }}</div>
             <div class="label">Date Line</div>
-            <div class="value">: {{ format(new Date(printData.sd_datekerja), 'dd/MM/yyyy') }}</div>
+            <div class="value">:{{ format(new Date(printData.dateline), 'dd/MM/yyyy') }}</div>
             <div class="label">Workshop</div>
             <div class="value">: {{ printData.sd_workshop }} - {{ printData.gdg_nama }}</div>
             <div class="label">Desainer</div>

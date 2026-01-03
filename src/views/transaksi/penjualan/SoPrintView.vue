@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { ref, onMounted, nextTick, watch } from 'vue';
+import { ref, onMounted, nextTick, watch, computed } from 'vue';
 import { useRoute } from 'vue-router';
 import api from '@/services/api';
 import { format, parseISO } from 'date-fns';
 import Logo from '@/assets/logo.png';
+import LogoRezso from '@/assets/rezso.jpg';
 import InstagramLogo from '@/assets/instagram.jpg'; // Import logo Instagram
 import { formatRupiah } from "@/utils/formatRupiah";
 import QRCode from "qrcode";
@@ -54,10 +55,16 @@ interface PrintData {
 const route = useRoute();
 const printData = ref<PrintData | null>(null);
 const isLoading = ref(true);
-const appLogo = Logo;
 const instagramLogo = InstagramLogo; // Definisikan untuk digunakan di template
 const qrCodeData = ref<string | null>(null);
 
+const dynamicLogo = computed(() => {
+  // Cek jika data sudah ada dan nomor SO dimulai dengan K04
+  if (printData.value?.header?.so_nomor?.startsWith('K04')) {
+    return LogoRezso;
+  }
+  return Logo; // Default ke logo Kaosan
+});
 
 const fetchPrintData = async (nomor: string) => {
   isLoading.value = true;
@@ -117,7 +124,7 @@ onMounted(() => {
         </div>
 
         <!-- Logo kanan -->
-        <img :src="appLogo" alt="Logo Perusahaan" class="company-logo-right">
+        <img :src="dynamicLogo" alt="Logo Perusahaan" class="company-logo-right">
       </div>
       <div class="document-title">Surat Pesanan</div>
       <div class="header-details">
@@ -214,7 +221,7 @@ onMounted(() => {
         </div>
         <em>*Apabila dalam waktu 30 hari setelah pemberitahuan bahwa barang telah selesai tidak dilakukan
           pengambilan, maka uang muka (DP) dianggap hangus dan barang sepenuhnya menjadi hak milik
-          Kaosan.</em>
+          kami.</em>
       </div>
     </div>
   </div>

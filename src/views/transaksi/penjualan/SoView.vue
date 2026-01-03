@@ -420,23 +420,51 @@ const submitClose = async () => {
 };
 
 const getRowTextColor = (item: SoHeader) => {
-  // 1️⃣ SO DTF tapi sudah 0 → jadi normal hitam
+
+  const toNumber = (v: unknown): number => {
+    if (typeof v === 'number' && !isNaN(v)) return v;
+
+    if (typeof v === 'string') {
+      const cleaned = v.replaceAll('.', '').replaceAll(',', '.');
+      const parsed = Number(cleaned);
+      return isNaN(parsed) ? 0 : parsed;
+    }
+
+    return 0;
+  };
+
+  const nominal = toNumber(item.Nominal);
+  const dp = toNumber(item.Dp);
+
+  // 1️⃣ PRIORITAS UTAMA — Lunas tapi belum invoice sama sekali
+  if (
+    item.Aktif === 'Y' &&
+    dp >= nominal &&
+    Number(item.QtyInv || 0) === 0 &&
+    item.Status !== 'DICLOSE'
+  ) {
+    return 'text-magenta font-weight-bold';
+  }
+
+  // 2️⃣ SO DTF tapi sudah 0 → normal
   if (item.DipakaiDTF === 'Y' && item.Belum === 0)
     return '';
 
-  // 2️⃣ SO DTF yang belum habis
+  // 3️⃣ SO DTF belum habis
   if (item.DipakaiDTF === 'Y')
     return 'text-brown-darken-2 font-weight-bold';
 
-  // 3️⃣ Pasif
+  // 4️⃣ Pasif
   if (item.Aktif === 'N')
     return 'text-grey';
 
+  // 5️⃣ Status standar
   switch (item.Status) {
     case 'OPEN': return 'text-red font-weight-bold';
-    case 'PROSES': return item.StatusKirim === 'SEBAGIAN'
-      ? 'text-purple font-weight-bold'
-      : 'text-blue font-weight-bold';
+    case 'PROSES':
+      return item.StatusKirim === 'SEBAGIAN'
+        ? 'text-purple font-weight-bold'
+        : 'text-blue font-weight-bold';
     case 'JADI': return 'text-green-darken-2 font-weight-bold';
     case 'CLOSE': return '';
     case 'DICLOSE': return 'text-grey';
@@ -629,39 +657,54 @@ watch(filters, () => {
     </div>
 
     <div v-else class="browse-content">
-      <div class="filter-section">
-        <span class="filter-label">Periode:</span>
-        <v-text-field v-model="filters.startDate" type="date" density="compact" hide-details variant="outlined" />
-        <span class="mx-2">s/d</span>
-        <v-text-field v-model="filters.endDate" type="date" density="compact" hide-details variant="outlined" />
-        <span class="filter-label ms-4">Cabang:</span>
-        <v-select v-model="filters.cabang" :items="cabangList" item-title="nama" item-value="kode" density="compact"
-          hide-details variant="outlined" />
-
-        <v-divider vertical class="mx-2"></v-divider>
-        <div class="d-flex align-center ga-2">
-          <v-select v-model="selectedFilterField" :items="filterOptions" label="Filter Berdasarkan" density="compact"
-            hide-details variant="outlined" style="max-width: 180px;" />
-          <v-text-field v-model="filterSearchValue" label="Cari..." density="compact" hide-details variant="outlined"
-            style="min-width: 250px;" clearable prepend-inner-icon="mdi-magnify" />
+      <div class="filter-section px-2">
+        <div class="d-flex align-center ga-1" style="flex-wrap: nowrap;">
+          <v-text-field v-model="filters.startDate" type="date" label="Dari" density="compact" hide-details
+            variant="outlined" style="max-width: 130px;" />
+          <v-text-field v-model="filters.endDate" type="date" label="S/D" density="compact" hide-details
+            variant="outlined" style="max-width: 130px;" />
+          <v-select v-model="filters.cabang" :items="cabangList" item-title="nama" item-value="kode" label="Cabang"
+            density="compact" hide-details variant="outlined" style="max-width: 150px;" />
         </div>
-        <v-chip v-if="filters.status" class="ms-4" color="primary" variant="tonal" closable
-          @click:close="filters.status = null">
-          Status: {{ filters.status === 'open' ? 'Open' : filters.status }}
-        </v-chip>
-        <v-btn color="error" variant="tonal" prepend-icon="mdi-filter-off" class="btn-detail reset-filter-btn ms-2"
-          @click="resetAllFilters">
-          Reset Filter
-        </v-btn>
+
+        <v-divider vertical class="mx-1" />
+
+        <div class="d-flex align-center ga-1">
+          <v-select v-model="selectedFilterField" :items="filterOptions" density="compact" hide-details
+            variant="outlined" style="max-width: 140px;" />
+          <v-text-field v-model="filterSearchValue" label="Cari..." density="compact" hide-details variant="outlined"
+            style="max-width: 180px;" clearable prepend-inner-icon="mdi-magnify" />
+        </div>
+
+        <v-btn color="error" variant="tonal" size="small" icon="mdi-filter-off" class="ms-1" title="Reset Filter"
+          @click="resetAllFilters" />
 
         <v-spacer />
-        <div class="legend-group">
-          <div class="legend-item"><v-icon color="red" size="small">mdi-circle-medium</v-icon>Open</div>
-          <div class="legend-item"><v-icon color="blue" size="small">mdi-circle-medium</v-icon>Proses</div>
-          <div class="legend-item"><v-icon color="purple" size="small">mdi-circle-medium</v-icon>Kirim Sebagian</div>
-          <div class="legend-item"><v-icon color="green-darken-2" size="small">mdi-circle-medium</v-icon>Jadi</div>
-          <div class="legend-item"><v-icon color="grey" size="small">mdi-circle-medium</v-icon>Pasif</div>
+
+        <div class="legend-group d-flex align-center ga-1" style="font-size: 10px;">
+          <div class="legend-item legend-open">
+            <v-icon size="14">mdi-circle</v-icon> Open
+          </div>
+          <div class="legend-item legend-proc">
+            <v-icon size="14">mdi-circle</v-icon> Proc
+          </div>
+          <div class="legend-item legend-part">
+            <v-icon size="14">mdi-circle</v-icon> Part
+          </div>
+          <div class="legend-item legend-lunas">
+            <v-icon size="14">mdi-circle</v-icon> Lunas
+          </div>
+          <div class="legend-item legend-jadi">
+            <v-icon size="14">mdi-circle</v-icon> Jadi
+          </div>
+          <div class="legend-item legend-dtf">
+            <v-icon size="14">mdi-circle</v-icon> DTF
+          </div>
+          <div class="legend-item legend-grey">
+            <v-icon size="14">mdi-circle</v-icon> Pasif / Di-Close
+          </div>
         </div>
+
         <v-btn @click="fetchData" icon="mdi-refresh" variant="text" size="small" />
       </div>
 
@@ -1037,10 +1080,54 @@ watch(filters, () => {
   font-size: 11px;
 }
 
+.legend-item :deep(.v-icon) {
+  opacity: 1 !important;
+}
+
+.legend-open :deep(.v-icon) {
+  color: #D32F2F !important;
+}
+
+.legend-proc :deep(.v-icon) {
+  color: #1976D2 !important;
+}
+
+.legend-part :deep(.v-icon) {
+  color: #7B1FA2 !important;
+}
+
+.legend-lunas :deep(.v-icon) {
+  color: #C51162 !important;
+}
+
+.legend-jadi :deep(.v-icon) {
+  color: #2E7D32 !important;
+}
+
+.legend-dtf :deep(.v-icon) {
+  color: #5D4037 !important;
+}
+
+:deep(td.text-magenta),
+:deep(td.text-magenta *) {
+  color: #C51162 !important;
+  /* magenta cerah */
+  font-weight: 700 !important;
+}
+
+:deep(td.text-brown-darken-2),
+:deep(td.text-brown-darken-2 *) {
+  color: #5D4037 !important;
+  font-weight: 700 !important;
+}
+
 .legend-item {
   display: flex;
   align-items: center;
-  gap: 2px;
+  gap: 4px;
+  font-weight: 600;
+  color: #444;
+  /* Pastikan teks legenda terbaca */
 }
 
 .filter-section .btn-detail {

@@ -332,6 +332,7 @@ const activePromosList = ref<ActivePromo[]>([]); // Menyimpan daftar promo dari 
 const promoNotification = ref(''); // Teks untuk running text/alert
 const potentialPromoDiscount = ref(0); // Menyimpan nominal potensi diskon
 const isGrandOpeningPromo = ref(false);
+const isPromoMinimized = ref(false);
 
 // --- [BARU] Setup Audio & Refs ---
 const audioSuccess = new Audio('/audio/beep_success.mp3');
@@ -404,6 +405,19 @@ const addNewRow = () => {
 };
 
 const onDiskonSaved = (data: { diskonPersen1: number, diskonPersen2: number, diskonRp: number, biayaKirim: number, biayaPlatform: number, mode?: string }) => {
+
+  if (header.gudang.kode === 'K04') {
+    header.diskonPersen1 = data.diskonPersen1;
+    header.diskonPersen2 = data.diskonPersen2;
+    header.diskonRp = data.diskonRp;
+    header.biayaKirim = data.biayaKirim;
+    header.mpBiayaPlatform = data.biayaPlatform;
+
+    calculateTotals();
+    toast.success('Diskon & Biaya K04 berhasil diterapkan.');
+    return;
+  }
+
   // 1. Tentukan nilai target untuk Diskon (Sama seperti sebelumnya)
   const isPercentMode = data.mode !== 'rp' && (data.diskonPersen1 > 0 || data.diskonPersen2 > 0);
 
@@ -441,6 +455,11 @@ const onDiskonSaved = (data: { diskonPersen1: number, diskonPersen2: number, dis
 
   // 3. Logika Percabangan Otorisasi
   if (isDiscountChanged) {
+    // Jika cabang adalah K04, lewati otorisasi
+    if (header.gudang.kode === 'K04') {
+      applyChanges();
+      return;
+    }
     // Hitung estimasi nominal
     let nominalAuth = 0;
     if (newDiskonRp > 0) {
@@ -485,6 +504,15 @@ const handleItemDiscountChange = (item: Item) => {
 
     // Hanya minta otorisasi jika nilai berubah
     if (currentRp !== originalRp || currentPersen !== originalPersen) {
+
+      // Bypass jika K04
+      if (header.gudang.kode === 'K04') {
+        item.originalDiskonRp = item.diskonRp;
+        item.originalDiskonPersen = item.diskonPersen;
+        item.total = computeLineTotal(item);
+        calculateTotals();
+        return;
+      }
 
       // 1. Hitung Nominal Auth
       let diskonPerUnit = 0;
@@ -1313,50 +1341,50 @@ const checkRealtimePromoEligibility = () => {
   let message = '';
   let discount = 0;
 
-  // --- 1. LOGIKA KHUSUS GRAND OPENING (K11) ---
-  if (header.gudang.kode === 'K11') {
-    // Hitung total gross semua barang (kecuali jasa/ongkir jika ada filter khusus)
-    const totalGross = validItems.reduce((sum, item) => {
-      // Exclude item SO DTF / Pengajuan harga dari diskon otomatis jika diperlukan
-      if (item.noSoDtf || item.noPengajuanHarga) return sum;
-      return sum + ((item.harga || 0) * (item.jumlah || 0));
-    }, 0);
+  // // --- 1. LOGIKA KHUSUS GRAND OPENING (K11) ---
+  // if (header.gudang.kode === 'K11') {
+  //   // Hitung total gross semua barang (kecuali jasa/ongkir jika ada filter khusus)
+  //   const totalGross = validItems.reduce((sum, item) => {
+  //     // Exclude item SO DTF / Pengajuan harga dari diskon otomatis jika diperlukan
+  //     if (item.noSoDtf || item.noPengajuanHarga) return sum;
+  //     return sum + ((item.harga || 0) * (item.jumlah || 0));
+  //   }, 0);
 
-    if (totalGross > 0) {
-      discount = totalGross * 0.10; // 10% All Item
-      message = `🎊 GRAND OPENING SPECIAL! Diskon 10% All Item Otomatis! (Hemat ${formatRupiah(discount)})`;
-      isGrandOpeningPromo.value = true; // Aktifkan style khusus
-    }
-  }
+  //   if (totalGross > 0) {
+  //     discount = totalGross * 0.10; // 10% All Item
+  //     message = `🎊 GRAND OPENING SPECIAL! Diskon 10% All Item Otomatis! (Hemat ${formatRupiah(discount)})`;
+  //     isGrandOpeningPromo.value = true; // Aktifkan style khusus
+  //   }
+  // }
 
   // --- 2. LOGIKA REGULER (Cabang Lain) ---
-  else {
-    const promo008 = activePromosList.value.find(p => p.pro_nomor === 'PRO-2025-008');
-    const promo010 = activePromosList.value.find(p => p.pro_nomor === 'PRO-2025-010');
+  // else {
+  const promo008 = activePromosList.value.find(p => p.pro_nomor === 'PRO-2025-008');
+  const promo010 = activePromosList.value.find(p => p.pro_nomor === 'PRO-2025-010');
 
-    // Hitung Total Reguler & Belanja
-    const totalReguler = validItems.reduce((sum, item) => {
-      if (item.kategori === 'REGULER' && !item.nama?.toUpperCase().includes('JERSEY')) {
-        return sum + (item.total || 0);
-      }
-      return sum;
-    }, 0);
-
-    const totalBelanja = validItems.reduce((sum, item) => {
-      if (!item.noSoDtf && !item.noPengajuanHarga) return sum + (item.total || 0);
-      return sum;
-    }, 0);
-
-    // Cek Prioritas Promo Reguler
-    if (promo010 && totalReguler >= 250000) {
-      const kelipatan = Math.floor(totalReguler / 250000);
-      discount = 25000 * kelipatan;
-      message = `🎉 SELAMAT! Transaksi ini berhak mendapatkan Potongan Kelipatan Rp ${formatRupiah(discount)}!`;
-    } else if (promo008 && totalBelanja >= promo008.pro_totalrp) {
-      discount = promo008.pro_disrp * Math.floor(totalBelanja / promo008.pro_totalrp);
-      message = `✨ DISKON BULANAN AKTIF: Anda berhak mendapatkan potongan Rp ${formatRupiah(discount)}`;
+  // Hitung Total Reguler & Belanja
+  const totalReguler = validItems.reduce((sum, item) => {
+    if (item.kategori === 'REGULER' && !item.nama?.toUpperCase().includes('JERSEY')) {
+      return sum + (item.total || 0);
     }
+    return sum;
+  }, 0);
+
+  const totalBelanja = validItems.reduce((sum, item) => {
+    if (!item.noSoDtf && !item.noPengajuanHarga) return sum + (item.total || 0);
+    return sum;
+  }, 0);
+
+  // Cek Prioritas Promo Reguler
+  if (promo010 && totalReguler >= 250000) {
+    const kelipatan = Math.floor(totalReguler / 250000);
+    discount = 25000 * kelipatan;
+    message = `🎉 SELAMAT! Transaksi ini berhak mendapatkan Potongan Kelipatan Rp ${formatRupiah(discount)}!`;
+  } else if (promo008 && totalBelanja >= promo008.pro_totalrp) {
+    discount = promo008.pro_disrp * Math.floor(totalBelanja / promo008.pro_totalrp);
+    message = `✨ DISKON BULANAN AKTIF: Anda berhak mendapatkan potongan Rp ${formatRupiah(discount)}`;
   }
+  // }
 
   // Update State UI
   if (message) {
@@ -1681,12 +1709,15 @@ const handleBarcodeScan = async () => {
   const barcode = scannedBarcode.value;
   if (!barcode) return;
 
-  // 3. Kunci Input
+  // [TAMBAHAN] Bersihkan barcode dari angka nol di depan untuk pencarian lokal di array 'items'
+  const cleanedBarcode = barcode.replace(/^0+/, '');
   isScanning.value = true;
 
   try {
     // A. Cek apakah barang sudah ada di list (Increment Qty)
-    const existingItem = items.value.find(item => item.barcode === barcode && item.kode);
+    const existingItem = items.value.find(item =>
+      item.kode && (item.barcode === barcode || item.barcode === cleanedBarcode)
+    );
 
     if (existingItem) {
       existingItem.jumlah += 1;
@@ -1818,6 +1849,7 @@ const generateIdRec = (cabang: string) => {
 };
 
 const resetForm = async () => {
+  isPromoMinimized.value = false;
   // Reset state ke awal
   Object.assign(header, initialHeaderState);
 
@@ -2492,7 +2524,11 @@ watch(() => header.isMarketplace, async (isOnline) => {
         <div class="footer-actions-section">
           <v-slide-y-transition>
             <div v-if="promoNotification" class="promo-card-wrapper mb-4">
-              <div class="promo-card" :class="{ 'grand-opening-style': isGrandOpeningPromo }">
+
+              <div v-if="!isPromoMinimized" class="promo-card" :class="{ 'grand-opening-style': isGrandOpeningPromo }">
+                <v-btn icon="mdi-chevron-up" variant="text" size="x-small" color="white"
+                  style="position: absolute; right: 8px; top: 8px; z-index: 10;"
+                  @click="isPromoMinimized = true"></v-btn>
 
                 <div class="card-texture"></div>
                 <div class="card-shine"></div>
@@ -2504,7 +2540,6 @@ watch(() => header.isMarketplace, async (isOnline) => {
                         color="white" />
                     </div>
                   </div>
-
                   <div class="text-container">
                     <div class="promo-label">
                       <v-icon icon="mdi-star-four-points" size="10" class="mr-1" color="yellow-lighten-3" />
@@ -2512,15 +2547,22 @@ watch(() => header.isMarketplace, async (isOnline) => {
                     </div>
                     <div class="promo-message">{{ promoNotification }}</div>
                   </div>
-
                   <div class="action-container">
-                    <div class="status-chip">
-                      <span class="pulse-dot"></span>
-                      Auto-Applied
-                    </div>
+                    <div class="status-chip"><span class="pulse-dot"></span>Auto-Applied</div>
                   </div>
                 </div>
               </div>
+
+              <div v-else class="promo-minimized-bar" :class="{ 'grand-opening-style': isGrandOpeningPromo }"
+                @click="isPromoMinimized = false">
+                <v-icon icon="mdi-ticket-percent" size="16" class="mr-2" />
+                <span class="minimized-text">Promo Aktif: {{ potentialPromoDiscount > 0 ? 'Hemat ' +
+                  formatRupiah(potentialPromoDiscount) : 'Cek Detail' }}</span>
+                <v-spacer />
+                <span class="text-caption mr-2">(Klik untuk Detail)</span>
+                <v-icon icon="mdi-chevron-down" size="16" />
+              </div>
+
             </div>
           </v-slide-y-transition>
           <v-row align="center">
@@ -2547,7 +2589,7 @@ watch(() => header.isMarketplace, async (isOnline) => {
       </div>
     </div>
 
-    <CustomerSearchModal v-if="dialogs.customerSearch" :gudang="header.gudang.kode"
+    <CustomerSearchModal v-if="dialogs.customerSearch" :gudang="header.gudang.kode" source="invoice"
       @close="dialogs.customerSearch = false" @customer-selected="onCustomerSelected" />
     <CustomerForm v-if="dialogs.customerForm" @close="dialogs.customerForm = false"
       @customer-saved="onNewCustomerSaved" />
@@ -2852,7 +2894,8 @@ watch(() => header.isMarketplace, async (isOnline) => {
   z-index: 5;
   display: flex;
   align-items: center;
-  padding: 16px 24px;
+  padding: 16px 32px 16px 24px;
+  /* Tambah padding kanan agar tidak tertabrak tombol */
   gap: 16px;
   color: white;
 }
@@ -2902,6 +2945,37 @@ watch(() => header.isMarketplace, async (isOnline) => {
   line-height: 1.3;
   color: #ffffff;
   text-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.promo-minimized-bar {
+  display: flex;
+  align-items: center;
+  padding: 6px 16px;
+  border-radius: 8px;
+  background: linear-gradient(135deg, #1A2980 0%, #26D0CE 100%);
+  color: white;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+  box-shadow: 0 4px 10px rgba(38, 208, 206, 0.3);
+  transition: transform 0.2s ease;
+}
+
+.promo-minimized-bar:hover {
+  transform: translateY(-2px);
+  filter: brightness(1.1);
+}
+
+.minimized-text {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Override warna untuk bar jika itu promo grand opening */
+.promo-minimized-bar.grand-opening-style {
+  background: linear-gradient(135deg, #FF512F 0%, #DD2476 100%) !important;
+  box-shadow: 0 4px 10px rgba(221, 36, 118, 0.4) !important;
 }
 
 /* --- ACTION / BADGE Styles --- */

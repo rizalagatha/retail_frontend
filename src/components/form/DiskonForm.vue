@@ -44,23 +44,21 @@ const estimasiDiskonPersen = computed(() => {
   return Math.round(disc1 + disc2);
 });
 
-// Tentukan nilai final diskon Rp yang akan disimpan
-const finalDiskonRp = computed(() => {
-  // Jika user isi Persen, abaikan input Rp manual
-  if (formData.diskonPersen1 > 0 || formData.diskonPersen2 > 0) {
-    return estimasiDiskonPersen.value;
-  }
-  return inputDiskonRp.value;
-});
+// // Tentukan nilai final diskon Rp yang akan disimpan
+// const finalDiskonRp = computed(() => {
+//   // Jika user isi Persen, abaikan input Rp manual
+//   if (formData.diskonPersen1 > 0 || formData.diskonPersen2 > 0) {
+//     return estimasiDiskonPersen.value;
+//   }
+//   return inputDiskonRp.value;
+// });
 
 const save = () => {
   emit('save', {
-    diskonPersen1: formData.mode === 'persen' ? formData.diskonPersen1 : 0,
-    diskonPersen2: formData.mode === 'persen' ? formData.diskonPersen2 : 0,
-    diskonRp: finalDiskonRp.value,
+    diskonPersen1: formData.diskonPersen1, // Kirim apa adanya
+    diskonPersen2: formData.diskonPersen2,
+    diskonRp: inputDiskonRp.value,         // Kirim nilai Rp manual
     mode: formData.mode,
-
-    // [UPDATE] Kirim nilai dari ref input
     biayaKirim: inputBiayaKirim.value,
     biayaPlatform: inputBiayaPlatform.value,
   });
@@ -97,7 +95,6 @@ const save = () => {
           :model-value="focusState.diskonRp ? inputDiskonRp : formatRupiah(inputDiskonRp)"
           @update:model-value="inputDiskonRp = Number(String($event).replace(/[^0-9]/g, '')) || 0"
           @focus="focusState.diskonRp = true" @blur="focusState.diskonRp = false"
-          :disabled="formData.diskonPersen1 > 0 || formData.diskonPersen2 > 0"
           :hint="formData.diskonPersen1 > 0 || formData.diskonPersen2 > 0 ? `Otomatis: Rp ${formatRupiah(estimasiDiskonPersen)}` : ''"
           persistent-hint variant="outlined" density="compact" class="mb-4" />
 

@@ -4,6 +4,7 @@ import { useRoute } from 'vue-router';
 import api from '@/services/api';
 import { format, parseISO } from 'date-fns';
 import Logo from '@/assets/logo.png';
+import LogoReszo from '@/assets/rezso.jpg';
 import { formatRupiah } from "@/utils/formatRupiah";
 
 interface PrintDetail1 {
@@ -40,7 +41,12 @@ interface PrintData {
 const route = useRoute();
 const printData = ref<PrintData | null>(null);
 const isLoading = ref(true);
-const appLogo = Logo;
+const dynamicLogo = computed(() => {
+  if (printData.value?.header?.fsk_nomor?.startsWith('K04')) {
+    return LogoReszo;
+  }
+  return Logo;
+});
 
 // --- COMPUTED PROPERTIES UNTUK TOTAL ---
 const totalNominalRincian = computed(() => {
@@ -89,7 +95,7 @@ onMounted(() => {
     <div v-if="isLoading" class="text-center">Memuat data...</div>
     <div v-if="printData" class="page">
       <div class="header">
-        <img :src="appLogo" alt="Logo" class="logo" />
+        <img :src="dynamicLogo" alt="Logo" class="logo" />
         <div class="company-info">
           <strong>{{ printData.header.perush_nama }}</strong>
           <div>{{ printData.header.perush_alamat }}</div>

@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { ref, onMounted, nextTick, watch } from 'vue';
+import { ref, onMounted, nextTick, watch, computed } from 'vue';
 import { useRoute } from 'vue-router';
 import api from '@/services/api';
 import { format } from 'date-fns';
 import Logo from '@/assets/logo.png';
+import LogoReszo from '@/assets/rezso.jpg';
 
 // --- Tipe Data & State ---
 interface ParetoItem {
@@ -26,7 +27,14 @@ const headerInfo = ref({
   kategori: '',
 });
 const isLoading = ref(true);
-const appLogo = Logo;
+const dynamicLogo = computed(() => {
+  const cabang = route.query.cabang as string;
+  // Jika cabang adalah K04 (Kediri/Reszo)
+  if (cabang === 'K04') {
+    return LogoReszo;
+  }
+  return Logo;
+});
 
 // --- Methods ---
 const fetchPrintData = async () => {
@@ -81,7 +89,7 @@ onMounted(fetchPrintData);
           </div>
         </div>
         <div class="header-right">
-          <img :src="appLogo" alt="Company Logo" class="company-logo" />
+          <img :src="dynamicLogo" alt="Company Logo" class="company-logo" />
         </div>
       </div>
 

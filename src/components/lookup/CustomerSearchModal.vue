@@ -14,10 +14,8 @@ interface Customer {
 
 // --- Props & Emits ---
 const props = defineProps({
-  gudang: {
-    type: String,
-    required: true,
-  }
+  gudang: { type: String, required: true },
+  source: { type: String, default: '' } // Tambahkan ini
 });
 const emit = defineEmits(['close', 'customer-selected']);
 
@@ -48,6 +46,8 @@ const loadItems = async ({ page, itemsPerPage }: { page: number, itemsPerPage: n
         gudang: props.gudang,
         page: page,
         itemsPerPage: itemsPerPage,
+        // Kirim flag jika dipanggil dari Invoice
+        isInvoice: props.source === 'invoice' ? 1 : 0
       },
     });
 

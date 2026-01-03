@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { ref, watch, nextTick } from "vue";
+import { ref, watch, nextTick, computed } from "vue";
 import api from "@/services/api";
 
 import Logo from "@/assets/logo.png";
+import LogoReszo from "@/assets/rezso.jpg";
 import InstagramLogo from "@/assets/instagram.jpg";
 import FacebookLogo from "@/assets/facebook.jpg";
 import { formatRupiah } from "@/utils/formatRupiah";
@@ -65,6 +66,14 @@ const emit = defineEmits(["update:modelValue"]);
 const printData = ref<PrintData | null>(null);
 const isLoading = ref(false);
 const maxPundi = 500;
+const dynamicLogo = computed(() => {
+  // Cek apakah data sudah dimuat dan apakah gudang adalah K04
+  if (printData.value?.header?.inv_nomor?.startsWith('K04') ||
+    printData.value?.header?.perush_nama?.toUpperCase().includes('RESZO')) {
+    return LogoReszo;
+  }
+  return Logo;
+});
 
 // ===================================================================
 // CSS STRUK (100% sama dengan InvoicePrintKasirView)
@@ -333,7 +342,7 @@ const hitungPundiAmal = (details: PrintDetail[]) => {
           <div class="receipt">
             <!-- Header -->
             <div class="header text-center">
-              <img :src="Logo" class="logo" />
+              <img :src="dynamicLogo" class="logo" />
               <strong>{{ printData.header.perush_nama }}</strong>
               <div>{{ printData.header.perush_alamat }}</div>
               <div>{{ printData.header.perush_telp }}</div>
@@ -434,7 +443,7 @@ const hitungPundiAmal = (details: PrintDetail[]) => {
               </div>
 
               <div class="donation-text">
-                Dengan membeli produk kaosan ini, Kaosan telah menyisihkan/peduli dengan sesama yg membutuhkan
+                Dengan membeli produk ini, kami telah menyisihkan/peduli dengan sesama yg membutuhkan
                 sebesar {{ formatRupiah(hitungPundiAmal(printData.details)) }}
               </div>
 

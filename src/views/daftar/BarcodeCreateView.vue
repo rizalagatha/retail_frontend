@@ -404,16 +404,14 @@ const generateBarcodesInIframe = (iframe: HTMLIFrameElement) => {
       if (barcodeValue) {
         try {
           JsBarcode(svgElement as SVGElement, barcodeValue, {
-            format: "CODE128C",
+            format: "CODE128", // Gunakan 128 standar agar lebih kompatibel
             lineColor: "#000",
-            width: 1.2,
-            height: 18,
+            width: 2,          // Angka bulat wajib untuk anti-blur
+            height: 25,        // Tinggi cukup agar scanner mudah baca
             displayValue: false,
-            margin: 1,
+            margin: 0,
           });
-        } catch (e) {
-          console.error("JsBarcode error:", e);
-        }
+        } catch (e) { console.error(e); }
       }
     });
   }

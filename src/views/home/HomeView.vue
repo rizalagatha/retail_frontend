@@ -703,25 +703,38 @@ const fetchStockBreakdown = async () => {
 const fetchActivePromos = async () => {
   isLoadingPromo.value = true;
   try {
-    const response = await api.get('/invoice-form/lookup/active-promos', { params: { tanggal: format(new Date(), 'yyyy-MM-dd'), cabang: authStore.user?.cabang } });
+    const response = await api.get('/invoice-form/lookup/active-promos', {
+      params: {
+        tanggal: format(new Date(), 'yyyy-MM-dd'),
+        cabang: authStore.user?.cabang
+      }
+    });
+
     const promos = (response.data || []) as ActivePromo[];
     let promoMessages: string[] = [];
-    if (authStore.user?.cabang === 'K11') {
-      promoMessages.push(`🎊 GRAND OPENING KEDIRI: Nikmati DISKON 10% ALL ITEM tanpa syarat minimal belanja! Berlaku untuk semua produk Kaosan. Serbu sekarang! 🎊`);
-    } else {
-      const promoReguler = promos.find(p => p.pro_nomor === 'PRO-2025-010' || p.pro_judul.toUpperCase().includes('REGULER'));
-      if (promoReguler) {
-        promoMessages.push(`🔥 PROMO REGULER: Potongan Rp 25.000 tiap kelipatan Rp 250.000 (Khusus Kaos Polos/Reguler, Non-Jersey). Buruan Serbu!`);
-      } else if (promos.length > 0) {
-        promoMessages = promos.map(p => `✨ ${p.pro_judul}`);
-      }
+
+    // [REVISI] Cabang K11 sekarang menggunakan promo reguler, nonaktifkan pesan Grand Opening
+    const promoReguler = promos.find(p =>
+      p.pro_nomor === 'PRO-2025-010' ||
+      p.pro_judul.toUpperCase().includes('REGULER')
+    );
+
+    if (promoReguler) {
+      promoMessages.push(`🔥 PROMO BULANAN: Potongan Rp 25.000 tiap kelipatan Rp 250.000 (Khusus Kaos Polos/Reguler, Non-Jersey). Buruan Serbu!`);
+    } else if (promos.length > 0) {
+      // Jika ada promo lain yang aktif di Januari
+      promoMessages = promos.map(p => `✨ ${p.pro_judul}`);
     }
+
+    // Pesan default jika tidak ada promo spesifik yang ditemukan
     if (promoMessages.length === 0) {
-      promoMessages.push('Selamat Datang di Kaosan Retail Management System');
+      promoMessages.push('Selamat Datang di Kaosan Retail Management System • Cek koleksi terbaru kami sekarang!');
     }
+
     promoText.value = promoMessages.join(' • ');
   } catch (error) {
     console.error("Gagal memuat promo:", error);
+    promoText.value = 'Selamat Datang di Kaosan Retail Management System';
   } finally {
     isLoadingPromo.value = false;
   }

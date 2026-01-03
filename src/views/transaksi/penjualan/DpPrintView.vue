@@ -4,6 +4,7 @@ import { useRoute } from 'vue-router';
 import api from '@/services/api';
 import { format, parseISO } from 'date-fns';
 import Logo from '@/assets/logo.png';
+import LogoReszo from '@/assets/rezso.jpg';
 
 interface PrintHeader {
   sh_jenis: number;
@@ -39,7 +40,12 @@ interface PrintData {
 const route = useRoute();
 const printData = ref<PrintData | null>(null);
 const isLoading = ref(true);
-const appLogo = Logo;
+const dynamicLogo = computed(() => {
+  if (printData.value?.header?.sh_nomor?.startsWith('K04')) {
+    return LogoReszo;
+  }
+  return Logo;
+});
 
 // Computed property untuk menentukan judul dokumen secara dinamis
 const documentTitle = computed(() => {
@@ -100,7 +106,7 @@ onMounted(() => {
     <div v-if="printData && printData.header" class="page">
       <div class="receipt-copy" v-for="copy in 2" :key="copy">
         <div class="company-header">
-          <img :src="appLogo" alt="Logo" class="company-logo">
+          <img :src="dynamicLogo" alt="Logo" class="company-logo">
           <div class="company-info">
             <div class="company-name">{{ printData.header.perush_nama }}</div>
             <div>{{ printData.header.perush_alamat }}</div>

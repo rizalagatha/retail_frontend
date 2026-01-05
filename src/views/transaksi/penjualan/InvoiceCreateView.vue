@@ -212,7 +212,7 @@ const isUserMarketplaceEligible = computed(() => {
 
 // Update isUserKon jika masih digunakan di tempat lain,
 // tapi untuk UI Toggle kita gunakan isUserMarketplaceEligible
-const isUserKon = computed(() => authStore.user?.cabang === 'KON');
+// const isUserKon = computed(() => authStore.user?.cabang === 'KON');
 
 const isLoading = ref(true);
 
@@ -1579,36 +1579,43 @@ const handleProceedToPayment = async () => {
 
 // [BARU] Function Simpan Khusus Marketplace
 const executeSaveMarketplace = async () => {
-  // Kita buat payload pembayaran "Palsu" tapi Valid
-  // Bayar 0, Sisanya masuk Piutang
-  const dummyPayment = {
-    tunai: 0,
-    transfer: { nominal: 0 },
-    voucher: { nominal: 0 },
-    retur: { nominal: 0 },
-    // Penting: Tandai ini pelunasan kredit/piutang di backend
-    status: 'PIUTANG'
-  };
+  // 1. Pastikan IDREC sudah ada (Idempotency Key)
+  if (!header.idrec) {
+    header.idrec = generateIdRec(header.gudang.kode || 'K01');
+  }
+
+  // 2. Validasi Customer & Sales Counter
+  if (!header.customer.kode) return toast.error("Customer belum dipilih.");
+  if (!header.salesCounter) return toast.error("Sales Counter belum dipilih.");
 
   const payload = {
     header: header,
     items: items.value.filter(i => i.kode),
-    footer: totals, // berisi total belanja
-    payment: dummyPayment, // Kirim payment 0
+    totals: totals,
+    payment: {
+      tunai: 0,
+      transfer: { nominal: 0, bank: null },
+      voucher: { nominal: 0, nomor: '' },
+      retur: { nominal: 0, nomor: '' },
+      piutang: totals.grandTotal,
+      status: 'PIUTANG',
+      // [HOTFIX] Kirim penanda agar backend melewati validasi PIN
+      pinBelumLunas: 'SYSTEM_MARKETPLACE'
+    },
     dps: linkedDps.value,
     isNew: !isEditMode.value,
-    totals: totals,
+    pins: authPins
   };
 
-  isSaving.value = true; // Use existing isSaving ref if available or create one locally/globally
-  // Panggil API Save
+  isSaving.value = true;
   try {
     const response = await api.post('/invoice-form/save', payload);
     toast.success(response.data.message);
     onSaveSuccess();
   } catch (error) {
-    console.error(error);
-    toast.error('Gagal menyimpan transaksi marketplace.');
+    const err = error as AxiosError<{ message: string }>;
+    console.error("Detail Error:", err.response?.data);
+    toast.error(err.response?.data?.message || 'Gagal menyimpan.');
   } finally {
     isSaving.value = false;
   }

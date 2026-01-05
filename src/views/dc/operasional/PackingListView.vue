@@ -352,72 +352,65 @@ const handlePrint = () => {
 };
 
 // --- Fungsi Ambil Data Lengkap untuk Cetak QR ---
-const handlePrintLabel = async () => {
+const handlePrintLabel = async (orientation: 'landscape' | 'portrait') => {
   if (!selectedRow.value) return;
 
   isPrintingLabel.value = true;
   try {
     const nomor = selectedRow.value.Nomor;
     const response = await api.get(`/packing-list/${nomor}`);
-
-    // Gunakan interface PackingListDetail untuk keamanan tipe data
     const items = response.data as PackingListDetail[];
 
-    // 1. Hitung total keseluruhan Qty (it bertipe PackingListDetail)
-    const totalQty = items.reduce((sum: number, it: PackingListDetail) => sum + Number(it.Jumlah), 0);
+    // 1. Hitung total Qty dari seluruh baris detail
+    const totalQty = items.reduce((sum, it) => sum + Number(it.Jumlah), 0);
 
-    // 2. Grouping berdasarkan Nama Barang untuk ringkasan isi
+    // 2. Grouping berdasarkan Nama Barang
     const grouped = new Map<string, number>();
-    items.forEach((it: PackingListDetail) => {
+    items.forEach((it) => {
       const currentQty = grouped.get(it.Nama) || 0;
       grouped.set(it.Nama, currentQty + Number(it.Jumlah));
     });
 
     const distinctItems = Array.from(grouped, ([name, qty]) => ({ name, qty }));
 
-    // --- FIX: Definisikan namaBarangUtama di sini ---
-    // Jika hanya ada 1 jenis barang, ambil namanya. Jika lebih, beri label "MIXED"
+    // 3. Tentukan Nama Utama (Jika 1 barang pakai namanya, jika banyak pakai MIXED)
     const namaBarangUtama = distinctItems.length === 1
       ? distinctItems[0].name
       : "CAMPURAN / MIXED ITEMS";
 
-    // 3. Buat rincian isi (contentHtml) berbentuk tabel mini
-    let contentHtml = `<table style="width:100%; border-collapse:collapse; font-size:7pt; line-height:1.1">`;
-    distinctItems.slice(0, 6).forEach(item => {
+    // 4. Buat Tabel Ringkasan (MAKSIMAL 7 ITEM)
+    let contentHtml = `<table style="width:100%; border-collapse:collapse; font-size:6.5pt; line-height:1">`;
+    distinctItems.slice(0, 7).forEach(item => {
       contentHtml += `
         <tr>
-          <td style="text-align:left; padding-bottom:2px; border-bottom:0.1pt solid #eee">
-            ${item.name.substring(0, 40)}${item.name.length > 40 ? '..' : ''}
+          <td style="text-align:left; padding-bottom:1px; border-bottom:0.1pt solid #eee; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:150px;">
+            ${item.name}
           </td>
           <td style="text-align:right; font-weight:bold; width:35px">${item.qty}</td>
         </tr>`;
     });
 
-    if (distinctItems.length > 6) {
-      contentHtml += `<tr><td colspan="2" style="text-align:center; font-style:italic; font-size:6pt; padding-top:2px">... & ${distinctItems.length - 6} item lainnya</td></tr>`;
+    if (distinctItems.length > 7) {
+      contentHtml += `<tr><td colspan="2" style="text-align:center; font-style:italic; font-size:5.5pt">... & ${distinctItems.length - 7} item lainnya</td></tr>`;
     }
     contentHtml += `</table>`;
 
-    // 4. Rincian Ukuran (Footer)
-    let footerText = items.slice(0, 12).map((it: PackingListDetail) => `${it.Ukuran}=${Math.floor(it.Jumlah)}`).join(', ');
-    if (items.length > 12) footerText = "DAPAT DILIHAT PADA SURAT JALAN";
+    // 5. Rincian Ukuran (Footer)
+    let footerText = items.slice(0, 10).map((it) => `${it.Ukuran}=${Math.floor(it.Jumlah)}`).join(', ');
+    if (items.length > 10) footerText = "RINCIAN LENGKAP ADA PADA SURAT JALAN";
 
-    // Definisikan objek sesuai interface PrintLabelData yang telah dibuat
     const dataToPrint: PrintLabelData = {
-      nomorPL: selectedRow.value.Nomor,
+      nomorPL: selectedRow.value.Nomor || '-',
       nomorMinta: selectedRow.value.NoMinta || '-',
       tujuan: selectedRow.value.Nama_Store || '-',
       totalQty: totalQty,
       contentHtml: contentHtml,
       detailUkuran: footerText,
-      namaBarang: namaBarangUtama // Sekarang variabel ini sudah tersedia
+      namaBarang: namaBarangUtama
     };
 
-    // Update state ref untuk preview (jika masih digunakan di template)
-    printData.value = dataToPrint;
-
-    // Jalankan fungsi cetak bersih via Iframe
-    triggerLabelPrint(dataToPrint);
+    // Panggil fungsi cetak dengan orientasi terpilih
+    triggerLabelPrint(dataToPrint, orientation);
 
   } catch (error) {
     toast.error("Gagal mengambil data detail packing.");
@@ -427,7 +420,7 @@ const handlePrintLabel = async () => {
   }
 };
 
-const triggerLabelPrint = async (data: PrintLabelData) => {
+const triggerLabelPrint = async (data: PrintLabelData, orientation: 'landscape' | 'portrait') => {
   const printWindow = document.createElement('iframe');
   printWindow.style.position = 'fixed';
   printWindow.style.top = '-9999px';
@@ -436,40 +429,36 @@ const triggerLabelPrint = async (data: PrintLabelData) => {
   const doc = printWindow.contentWindow?.document;
   if (!doc) return;
 
-  // Generate QR
-  const qrDataUrl = await QRCode.toDataURL(data.nomorPL, { margin: 1, width: 200 });
+  // Generate QR (250px cukup untuk kualitas cetak thermal)
+  const qrDataUrl = await QRCode.toDataURL(data.nomorPL, { margin: 1, width: 250 });
+
+  const paperWidth = orientation === 'landscape' ? '70mm' : '50mm';
+  const paperHeight = orientation === 'landscape' ? '50mm' : '70mm';
 
   const style = `
     <style>
-      /* PAKSA UKURAN & PORTRAIT AGAR TIDAK KEROTATE */
       @page {
-        size: 70mm 50mm; /* Gunakan mm agar lebih presisi untuk printer thermal */
+        size: ${paperWidth} ${paperHeight} ${orientation};
         margin: 0;
       }
-
       body {
-        margin: 0;
-        padding: 0;
-        width: 70mm;
-        height: 50mm;
+        margin: 0; padding: 0;
+        width: ${paperWidth}; height: ${paperHeight};
         font-family: 'Arial Narrow', Arial, sans-serif;
-        background: white;
+        background: white; overflow: hidden;
       }
-
       .label-container {
-        width: 70mm;
-        height: 50mm;
-        padding: 1mm;
+        width: ${paperWidth}; height: ${paperHeight};
+        /* Padding kiri 5mm agar QR tidak mepet kiri kertas */
+        padding: 1.5mm 4mm 1.5mm 5mm;
         box-sizing: border-box;
-        display: flex;
-        flex-direction: column;
+        display: flex; flex-direction: column;
         page-break-after: always;
-        overflow: hidden;
       }
-
       .box {
         border: 1.2pt solid black;
         height: 100%;
+        width: 100%;
         display: flex;
         flex-direction: column;
         box-sizing: border-box;
@@ -477,47 +466,39 @@ const triggerLabelPrint = async (data: PrintLabelData) => {
 
       .header-row {
         display: flex;
-        border-bottom: 1pt solid black;
+        border-bottom: 1.2pt solid black;
         padding: 2px;
-        gap: 5px;
-        align-items: flex-start;
+        gap: 6px;
+        align-items: center; /* QR dan Teks sejajar tengah secara vertikal */
       }
 
-      .qr-area { width: 62px; height: 62px; flex-shrink: 0; }
+      .qr-area { width: 65px; height: 65px; flex-shrink: 0; }
       .qr-area img { width: 100%; height: 100%; }
 
-      .info-area {
-        font-size: 7pt;
-        line-height: 1.1;
-        font-weight: bold;
-        flex-grow: 1;
-      }
+      /* AREA INFORMASI (DIKECILKAN AGAR PROPORSIONAL) */
+      .info-area { line-height: 1.2; font-weight: 700; flex-grow: 1; color: black; overflow: hidden; }
 
-      .body-area {
-        flex-grow: 1;
-        padding: 2px;
-        display: flex;
-        flex-direction: column;
-        justify-content: center;
-        overflow: hidden;
-      }
+      /* No PL: 10.5pt (Cukup besar tapi tidak meluap) */
+      .pl-no { font-size: 10.5pt; border-bottom: 0.8pt solid black; margin-bottom: 2px; white-space: nowrap; }
+
+      /* Detail MT, TO, QTY: 9pt (Standar label logistik) */
+      .mt-no, .to-store { font-size: 9pt; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+      .total-qty { font-size: 9pt; margin-top: 1px; font-weight: 800; }
+
+      .body-area { flex-grow: 1; padding: 2px; display: flex; flex-direction: column; justify-content: start; overflow: hidden; }
 
       .footer-summary {
-        font-size: 6.5pt;
-        font-weight: bold;
-        border-top: 1pt solid black;
-        padding: 1px 2px;
-        text-align: center;
-        background: #f0f0f0;
+        font-size: 6.5pt; font-weight: bold; border-top: 1pt solid black;
+        padding: 1px 2px; text-align: center; background: #f0f0f0;
+        white-space: nowrap; overflow: hidden;
       }
 
-      table { width: 100%; border-collapse: collapse; font-size: 6.5pt; }
-      td { padding: 0 2px; line-height: 1; }
+      table { width: 100%; border-collapse: collapse; font-size: 7.2pt; table-layout: fixed; }
+      td { padding: 1px 2px; line-height: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     </style>
   `;
 
   let htmlContent = '';
-  // Loop 2x untuk mencetak 2 label per pemicu (sesuai roll printer Anda)
   for (let i = 0; i < 2; i++) {
     htmlContent += `
       <div class="label-container">
@@ -525,15 +506,13 @@ const triggerLabelPrint = async (data: PrintLabelData) => {
           <div class="header-row">
             <div class="qr-area"><img src="${qrDataUrl}" /></div>
             <div class="info-area">
-              <div style="font-size: 8pt; border-bottom: 0.5pt solid black; margin-bottom: 2px;">${data.nomorPL}</div>
-              <div>MT: ${data.nomorMinta}</div>
-              <div>TO: ${data.tujuan}</div>
-              <div style="margin-top:2px; font-size: 8pt">TOTAL QTY: ${data.totalQty}</div>
+              <div class="pl-no">${data.nomorPL}</div>
+              <div class="mt-no">MT: ${data.nomorMinta}</div>
+              <div class="to-store">TO: ${data.tujuan}</div>
+              <div class="total-qty">TOTAL QTY: ${data.totalQty}</div>
             </div>
           </div>
-          <div class="body-area">
-            ${data.contentHtml}
-          </div>
+          <div class="body-area">${data.contentHtml}</div>
           <div class="footer-summary">${data.detailUkuran}</div>
         </div>
       </div>
@@ -543,12 +522,11 @@ const triggerLabelPrint = async (data: PrintLabelData) => {
   doc.write('<html><head>' + style + '</head><body>' + htmlContent + '</body></html>');
   doc.close();
 
-  // Tunggu gambar QR ter-render sebelum buka dialog print
+  // Tunggu sejenak agar iframe siap
   setTimeout(() => {
     printWindow.contentWindow?.focus();
     printWindow.contentWindow?.print();
-    // Beri waktu lebih lama sebelum menghapus iframe agar tidak membatalkan proses print di background
-    setTimeout(() => document.body.removeChild(printWindow), 2000);
+    setTimeout(() => document.body.removeChild(printWindow), 2500);
   }, 500);
 };
 
@@ -652,9 +630,11 @@ watch(() => filters.kodeBarang, (newVal) => { if (!newVal) filters.namaBarang = 
             <template #prepend><v-icon size="small">mdi-file-document-outline</v-icon></template>
             <v-list-item-title>Cetak SJ (A4)</v-list-item-title>
           </v-list-item>
-          <v-list-item @click="handlePrintLabel" :loading="isPrintingLabel">
-            <template #prepend><v-icon size="small" color="purple">mdi-qrcode</v-icon></template>
-            <v-list-item-title class="text-purple font-weight-bold">Cetak QR Label (7x5)</v-list-item-title>
+
+          <v-divider />
+          <v-list-item @click="handlePrintLabel('landscape')" :loading="isPrintingLabel">
+            <template #prepend><v-icon size="small" color="purple">mdi-file-image-outline</v-icon></template>
+            <v-list-item-title>Label QR</v-list-item-title>
           </v-list-item>
         </v-list>
       </v-menu>

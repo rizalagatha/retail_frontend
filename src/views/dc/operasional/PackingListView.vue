@@ -436,41 +436,88 @@ const triggerLabelPrint = async (data: PrintLabelData) => {
   const doc = printWindow.contentWindow?.document;
   if (!doc) return;
 
+  // Generate QR
   const qrDataUrl = await QRCode.toDataURL(data.nomorPL, { margin: 1, width: 200 });
 
   const style = `
     <style>
-      @page { size: 7cm 5cm; margin: 0; }
-      body { margin: 0; padding: 0; font-family: 'Arial Narrow', Arial, sans-serif; background: white; }
-      .label-container { width: 7cm; height: 5cm; padding: 1.5mm; box-sizing: border-box; display: flex; flex-direction: column; page-break-after: always; }
-      .box { border: 1.2pt solid black; height: 100%; display: flex; flex-direction: column; overflow: hidden; }
+      /* PAKSA UKURAN & PORTRAIT AGAR TIDAK KEROTATE */
+      @page {
+        size: 70mm 50mm; /* Gunakan mm agar lebih presisi untuk printer thermal */
+        margin: 0;
+      }
 
-      /* Header: QR + Info Utama */
-      .header-row { display: flex; border-bottom: 1pt solid black; padding: 2px; gap: 6px; align-items: center; background: #f9f9f9; }
-      .qr-area { width: 60px; height: 60px; flex-shrink: 0; }
+      body {
+        margin: 0;
+        padding: 0;
+        width: 70mm;
+        height: 50mm;
+        font-family: 'Arial Narrow', Arial, sans-serif;
+        background: white;
+      }
+
+      .label-container {
+        width: 70mm;
+        height: 50mm;
+        padding: 1mm;
+        box-sizing: border-box;
+        display: flex;
+        flex-direction: column;
+        page-break-after: always;
+        overflow: hidden;
+      }
+
+      .box {
+        border: 1.2pt solid black;
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+        box-sizing: border-box;
+      }
+
+      .header-row {
+        display: flex;
+        border-bottom: 1pt solid black;
+        padding: 2px;
+        gap: 5px;
+        align-items: flex-start;
+      }
+
+      .qr-area { width: 62px; height: 62px; flex-shrink: 0; }
       .qr-area img { width: 100%; height: 100%; }
-      .info-area { font-size: 7.5pt; line-height: 1.1; font-weight: bold; flex-grow: 1; color: black; }
 
-      /* Body: Daftar Barang */
-      .body-area { flex-grow: 1; padding: 3px; overflow: hidden; display: flex; flex-direction: column; }
-      .body-title { font-size: 7pt; font-weight: bold; text-decoration: underline; margin-bottom: 2px; text-align: center; }
-
-      /* Footer: Ringkasan Ukuran */
-      .footer-summary {
+      .info-area {
         font-size: 7pt;
+        line-height: 1.1;
+        font-weight: bold;
+        flex-grow: 1;
+      }
+
+      .body-area {
+        flex-grow: 1;
+        padding: 2px;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        overflow: hidden;
+      }
+
+      .footer-summary {
+        font-size: 6.5pt;
         font-weight: bold;
         border-top: 1pt solid black;
-        padding: 2px;
+        padding: 1px 2px;
         text-align: center;
-        background: #eee;
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
+        background: #f0f0f0;
       }
+
+      table { width: 100%; border-collapse: collapse; font-size: 6.5pt; }
+      td { padding: 0 2px; line-height: 1; }
     </style>
   `;
 
   let htmlContent = '';
+  // Loop 2x untuk mencetak 2 label per pemicu (sesuai roll printer Anda)
   for (let i = 0; i < 2; i++) {
     htmlContent += `
       <div class="label-container">
@@ -478,14 +525,13 @@ const triggerLabelPrint = async (data: PrintLabelData) => {
           <div class="header-row">
             <div class="qr-area"><img src="${qrDataUrl}" /></div>
             <div class="info-area">
-              <div style="font-size: 8.5pt">${data.nomorPL}</div>
+              <div style="font-size: 8pt; border-bottom: 0.5pt solid black; margin-bottom: 2px;">${data.nomorPL}</div>
               <div>MT: ${data.nomorMinta}</div>
               <div>TO: ${data.tujuan}</div>
-              <div style="margin-top:2px; font-size: 9pt">TOTAL QTY: ${data.totalQty}</div>
+              <div style="margin-top:2px; font-size: 8pt">TOTAL QTY: ${data.totalQty}</div>
             </div>
           </div>
           <div class="body-area">
-            <div class="body-title">RINGKASAN ISI BARANG</div>
             ${data.contentHtml}
           </div>
           <div class="footer-summary">${data.detailUkuran}</div>
@@ -497,10 +543,12 @@ const triggerLabelPrint = async (data: PrintLabelData) => {
   doc.write('<html><head>' + style + '</head><body>' + htmlContent + '</body></html>');
   doc.close();
 
+  // Tunggu gambar QR ter-render sebelum buka dialog print
   setTimeout(() => {
     printWindow.contentWindow?.focus();
     printWindow.contentWindow?.print();
-    setTimeout(() => document.body.removeChild(printWindow), 1500);
+    // Beri waktu lebih lama sebelum menghapus iframe agar tidak membatalkan proses print di background
+    setTimeout(() => document.body.removeChild(printWindow), 2000);
   }, 500);
 };
 

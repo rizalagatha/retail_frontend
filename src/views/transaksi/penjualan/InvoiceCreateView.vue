@@ -204,6 +204,14 @@ const isViewMode = computed(() => route.query.mode === "view");
 const isReadonly = computed(() => {
   return isLockedFsk.value || isViewMode.value;
 });
+// [REVISI] Izinkan toggle Marketplace untuk KON dan K05
+const isUserMarketplaceEligible = computed(() => {
+  const cabang = authStore.user?.cabang || '';
+  return cabang === 'KON' || cabang === 'K05';
+});
+
+// Update isUserKon jika masih digunakan di tempat lain,
+// tapi untuk UI Toggle kita gunakan isUserMarketplaceEligible
 const isUserKon = computed(() => authStore.user?.cabang === 'KON');
 
 const isLoading = ref(true);
@@ -1923,8 +1931,17 @@ const getQtyClass = (item: Item) => {
 };
 
 const isHargaEditable = (item: Item) => {
-  // Bisa diedit hanya kalau row ini memang ditandai editable
-  return item._isHargaEditable === true;
+  // Jika cabang bukan K05 atau KON, gunakan aturan default lama (true) atau false sesuai kebijakan
+  if (!isUserMarketplaceEligible.value) {
+    return item._isHargaEditable === true;
+  }
+
+  // Jika user K05/KON: Harga HANYA editable jika switch isMarketplace bernilai TRUE
+  if (header.isMarketplace) {
+    return true;
+  }
+
+  return false;
 };
 
 const loadDataForEdit = async (nomor: string) => {
@@ -2232,7 +2249,7 @@ watch(
 );
 
 onMounted(() => {
-  if (authStore.user?.cabang === 'KON') {
+  if (isUserMarketplaceEligible.value) {
     header.isMarketplace = true;
   }
 
@@ -2287,48 +2304,37 @@ watch(() => header.isMarketplace, async (isOnline) => {
     <div class="form-grid-container">
       <div class="left-column">
         <div class="desktop-form-section header-section">
-          <v-row dense class="mb-2 align-center" v-if="isUserKon">
+          <v-row dense class="mb-2 align-center" v-if="isUserMarketplaceEligible">
             <v-col cols="12">
-              <v-sheet class="d-flex align-center px-3 py-1 rounded bg-orange-lighten-5 border border-orange-lighten-2"
-                elevation="0">
-                <v-switch v-model="header.isMarketplace" color="orange-darken-3" density="compact" hide-details inset
-                  class="font-weight-bold mr-2">
-                  <template #label>
-                    <span class="text-orange-darken-4 font-weight-medium">Mode Transaksi Online / Marketplace</span>
-                  </template>
-                </v-switch>
-                <v-icon v-if="header.isMarketplace" color="orange-darken-3" class="ml-auto">mdi-store-check</v-icon>
+              <v-sheet class="pa-2 rounded bg-orange-lighten-5 border border-orange-lighten-2" elevation="0">
+                <div class="d-flex align-center mb-2">
+                  <v-switch v-model="header.isMarketplace" color="orange-darken-3" density="compact" hide-details inset
+                    label="Mode Marketplace" class="font-weight-bold" :readonly="isReadonly"></v-switch>
+                  <v-spacer></v-spacer>
+                  <v-icon v-if="header.isMarketplace" color="orange-darken-3">mdi-store-check</v-icon>
+                </div>
+
+                <v-expand-transition>
+                  <div v-if="header.isMarketplace">
+                    <v-row dense>
+                      <v-col cols="4">
+                        <v-combobox v-model="header.mpNama" :items="marketplaceList" label="Platform" variant="outlined"
+                          density="compact" hide-details bg-color="white" :readonly="isReadonly"></v-combobox>
+                      </v-col>
+                      <v-col cols="4">
+                        <v-text-field v-model="header.mpNomorPesanan" label="No. Pesanan" variant="outlined"
+                          density="compact" hide-details bg-color="white" :readonly="isReadonly"></v-text-field>
+                      </v-col>
+                      <v-col cols="4">
+                        <v-text-field v-model="header.mpResi" label="No. Resi" variant="outlined" density="compact"
+                          hide-details bg-color="white" :readonly="isReadonly"></v-text-field>
+                      </v-col>
+                    </v-row>
+                  </div>
+                </v-expand-transition>
               </v-sheet>
             </v-col>
           </v-row>
-
-          <v-expand-transition>
-            <div v-if="header.isMarketplace" class="mb-3">
-              <v-sheet class="pa-3 rounded bg-white border border-dashed border-orange-lighten-2 elevation-0">
-                <v-row dense>
-                  <v-col cols="12" md="4">
-                    <v-combobox label="Marketplace" v-model="header.mpNama" :items="marketplaceList"
-                      prepend-inner-icon="mdi-store" variant="outlined" density="compact" bg-color="grey-lighten-5"
-                      hide-details placeholder="Pilih Marketplace" :readonly="isReadonly"
-                      class="required-field marketplace-combo"></v-combobox>
-                  </v-col>
-
-                  <v-col cols="12" md="4">
-                    <v-text-field label="No. Pesanan / Order ID" v-model="header.mpNomorPesanan"
-                      prepend-inner-icon="mdi-clipboard-text-outline" variant="outlined" density="compact"
-                      bg-color="grey-lighten-5" hide-details placeholder="Contoh: 230801ABC..."
-                      :readonly="isReadonly"></v-text-field>
-                  </v-col>
-
-                  <v-col cols="12" md="4">
-                    <v-text-field label="No. Resi (AWB)" v-model="header.mpResi" prepend-inner-icon="mdi-barcode-scan"
-                      variant="outlined" density="compact" bg-color="grey-lighten-5" hide-details
-                      placeholder="Scan atau Ketik Resi" :readonly="isReadonly"></v-text-field>
-                  </v-col>
-                </v-row>
-              </v-sheet>
-            </div>
-          </v-expand-transition>
           <v-row dense>
             <v-col cols="6">
               <v-text-field label="No. Invoice" v-model="header.nomor" readonly density="compact" filled hide-details />
@@ -3037,6 +3043,23 @@ watch(() => header.isMarketplace, async (isOnline) => {
 
 .marketplace-combo :deep(.v-label) {
   font-size: 13px !important;
+}
+
+/* Styling khusus agar Marketplace lebih compact */
+.bg-orange-lighten-5 :deep(.v-label) {
+  font-size: 11px !important;
+  font-weight: bold;
+}
+
+.bg-orange-lighten-5 :deep(.v-field__input) {
+  font-size: 11px !important;
+  padding-top: 4px !important;
+  padding-bottom: 4px !important;
+}
+
+/* Mematikan margin default switch agar rapat */
+:deep(.v-selection-control) {
+  min-height: 30px !important;
 }
 
 /* Style untuk list item dropdown (saat dibuka) */

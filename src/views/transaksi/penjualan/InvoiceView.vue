@@ -186,6 +186,8 @@ const isChangePaymentVisible = ref(false);
 const isChangingPayment = ref(false);
 const isRekeningSearchVisible = ref(false); // State untuk modal rekening
 
+const showMarketplaceColumns = ref(true);
+
 // Form Payment
 const formPayment = reactive<PaymentForm>({
   metode: 'TUNAI',
@@ -222,6 +224,7 @@ const customFilter = reactive({
 
 const LS_FILTER_KEY = "invoice_table_filters";
 
+
 // LOAD FILTER DARI LOCAL STORAGE
 const savedFilter = localStorage.getItem(LS_FILTER_KEY);
 if (savedFilter) {
@@ -232,7 +235,9 @@ if (savedFilter) {
 
 const noFilterColumns = ['data-table-select', 'data-table-expand'];
 
-const isUserKon = computed(() => authStore.user?.cabang === 'KON');
+const hasMarketplaceData = computed(() => {
+  return masterData.value.some(item => item.Marketplace && item.Marketplace !== '');
+});
 const isSingleSelected = computed(() => selected.value.length === 1);
 const selectedRow = computed<InvoiceItem | null>(() =>
   isSingleSelected.value ? selected.value[0] as InvoiceItem : null
@@ -348,11 +353,15 @@ const headers = computed<DataTableHeader[]>(() => {
     { title: 'Kd Cus', key: 'Kdcus', width: 120 },
     { title: 'Customer', key: 'Nama', width: 250 },
   ];
-  if (isUserKon.value) {
+
+  // Syarat tampil: (KON atau K05) DAN toggle aktif
+  const isEligibleBranch = authStore.user?.cabang === 'KON' || authStore.user?.cabang === 'K05';
+
+  if (isEligibleBranch && hasMarketplaceData.value) {
     list.push(
       { title: 'Marketplace', key: 'Marketplace', width: 120 },
-      { title: 'No. Pesanan', key: 'NoPesanan', width: 150 },
-      { title: 'No. Resi', key: 'NoResi', width: 150 }
+      { title: 'No. Pesanan', key: 'NoPesanan', width: 180 },
+      { title: 'No. Resi', key: 'NoResi', width: 180 }
     );
   }
   list.push(
@@ -364,7 +373,7 @@ const headers = computed<DataTableHeader[]>(() => {
     { title: 'Last Payment', key: 'LastPayment', width: 120 },
     { title: 'Diskon', key: 'Diskon', width: 120 },
   );
-  if (isUserKon.value) {
+  if (isEligibleBranch && hasMarketplaceData.value) {
     list.push({ title: 'Biaya Platform', key: 'BiayaPlatform', width: 120 });
   }
   list.push(
@@ -1265,7 +1274,7 @@ watch(filters, () => {
               variant="text" @click.stop="toggleExpand(internalItem)" />
           </template>
 
-          <template v-for="header in headers.filter(h => h.key !== 'data-table-expand')" :key="header.key"
+          <template v-for="header in (headers || []).filter(h => h.key !== 'data-table-expand')" :key="header.key"
             #[`item.${header.key}`]="{ item }">
             <td>
               <template v-if="['Created', 'LastPayment', 'TglTransfer', 'DateModified'].includes(header.key)">
@@ -1364,7 +1373,7 @@ watch(filters, () => {
 
               <td class="select-column-spacer"></td>
 
-              <template v-for="header in headers" :key="header.key">
+              <template v-for="header in (headers || [])" :key="header.key">
 
                 <td v-if="header.key === 'data-table-expand'" style="width: 50px"></td>
 

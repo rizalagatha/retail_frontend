@@ -29,6 +29,27 @@ export default defineConfig({
     },
   },
 
+  build: {
+    rollupOptions: {
+      output: {
+        // Fungsi untuk memecah file index menjadi potongan kecil (chunks)
+        manualChunks(id) {
+          if (id.includes('node_modules')) {
+            // Pisahkan library besar ke file tersendiri
+            if (id.includes('vuetify')) return 'vendor-vuetify';
+            if (id.includes('lottie-web')) return 'vendor-lottie';
+            if (id.includes('html2canvas')) return 'vendor-canvas';
+            if (id.includes('date-fns')) return 'vendor-date';
+            // Gabungkan library kecil lainnya menjadi satu file vendor
+            return 'vendor-core';
+          }
+        },
+      },
+    },
+    // Naikkan limit peringatan karena Vuetify memang cukup besar
+    chunkSizeWarningLimit: 1000,
+  },
+
   define: {
     __APP_VERSION__: JSON.stringify(pkg.version), // ⬅ INJECT VERSION KE FRONTEND
   },

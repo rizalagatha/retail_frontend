@@ -335,7 +335,7 @@ const hitungPundiAmal = (details: PrintDetail[]) => {
         <v-btn icon="mdi-close" @click="emit('update:modelValue', false)" />
       </v-card-title>
 
-      <v-card-text style="max-height: 75vh; overflow-y: auto;">
+      <v-card-text style="display:flex; justify-content:center">
         <div v-if="isLoading" class="text-center">Memuat...</div>
 
         <div v-else-if="printData" id="kasir-preview-area">
@@ -494,17 +494,58 @@ const hitungPundiAmal = (details: PrintDetail[]) => {
    RECEIPT AREA — ALWAYS PRINT MODE
    =============================== */
 #kasir-preview-area {
-  background-color: #ffffff;
-  color: #000000;
+  width: 58mm;
+  background: white;
+  padding: 0;
+  margin: 0 auto;
 }
 
-.receipt {
-  background-color: #ffffff;
-  color: #000000;
-  padding: 12px;
+#kasir-preview-area .receipt {
+  width: 58mm;
+  padding: 3mm 5mm;
+  font-family: 'Roboto Mono', monospace;
+  font-size: 9pt;
+  color: #000;
 }
 
-.receipt * {
-  color: #000000 !important;
+#kasir-preview-area .info,
+#kasir-preview-area .items,
+#kasir-preview-area .summary,
+#kasir-preview-area .footer {
+  border-top: 1px dashed #000;
+  padding-top: 5px;
+  margin-top: 5px;
+}
+
+/* Samakan dengan versi cetak */
+#kasir-preview-area .summary-item,
+#kasir-preview-area .item-details {
+  display: flex;
+  justify-content: space-between;
+}
+
+#kasir-preview-area .logo {
+  max-width: 12mm;
+  display: block;
+  margin: 0 auto 5px;
+}
+
+#kasir-preview-area .text-center {
+  text-align: center;
+}
+
+#kasir-preview-area .bank-info {
+  border-bottom: 1px dashed #000;
+  padding-bottom: 5px;
+  margin-top: 5px;
+}
+
+#kasir-preview-area * {
+  color: #000 !important;
+}
+
+#kasir-preview-area .summary-item span:last-child {
+  text-align: right;
+  white-space: nowrap;
 }
 </style>

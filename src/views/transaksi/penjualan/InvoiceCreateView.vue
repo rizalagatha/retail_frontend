@@ -21,6 +21,7 @@ import LinkedDpModal from '@/components/modal/LinkedDpModal.vue';
 import AuthorizationModal from '@/components/modal/AuthorizationModal.vue';
 // import SoDtfSearchModal from '@/components/lookup/SoDtfSearchModal.vue';
 import PromoBonusModal from '@/components/modal/PromoBonusModal.vue';
+import SjSearchModalForInvoice from '@/components/lookup/SjSearchModalForInvoice.vue';
 import type { AxiosError } from 'axios';
 import axios from 'axios';
 import LogoKaosan from '@/assets/logo.png';
@@ -85,10 +86,11 @@ interface Customer {
 }
 interface Member {
   hp: string;
+  nik?: string; // Tambahkan nik (opsional)
   nama: string;
   alamat: string;
   gender: string;
-  usia: number;
+  usia: string;   // Ubah ke string agar sesuai dengan MemberForm
   referensi: string;
 }
 interface ProductInput {
@@ -181,6 +183,20 @@ interface SoItem {
   isCustomOrder?: boolean;
 }
 
+interface SjApiItem {
+  kode: string;
+  nama: string;
+  ukuran: string;
+  kategori: string;
+  stok?: number | string;
+  sjd_jumlah?: number | string;
+  harga_so?: number | string;
+  brgd_harga?: number | string;
+  disc?: number | string;
+  diskon?: number | string;
+  barcode?: string;
+}
+
 // --- Inisialisasi ---
 const router = useRouter();
 const route = useRoute();
@@ -208,6 +224,16 @@ const isReadonly = computed(() => {
 const isUserMarketplaceEligible = computed(() => {
   const cabang = authStore.user?.cabang || '';
   return cabang === 'KON' || cabang === 'K05';
+});
+
+const isKpr = computed(() => authStore.user?.cabang === 'KPR');
+
+const referenceLabel = computed(() => isKpr.value ? 'No. Surat Jalan' : 'No. Pesanan (SO)');
+
+const referenceDateLabel = computed(() => isKpr.value ? 'Tgl. SJ' : 'Tgl. SO');
+
+const memberLabel = computed(() => {
+  return header.customer.kode === 'K-00079' ? 'Data Karyawan' : 'Info Member';
 });
 
 // Update isUserKon jika masih digunakan di tempat lain,
@@ -248,6 +274,7 @@ const initialHeaderState = {
   nomorPromo: '',
   namaPromo: '',
   memberHp: '',
+  memberNik: '',
   memberNama: '',
   memberAlamat: '',
   memberGender: '',
@@ -283,6 +310,7 @@ const totals = reactive({
 const dialogs = reactive({
   customerSearch: false,
   soSearch: false,
+  sjSearch: false,
   productSearch: false,
   payment: false,
   unpaidDpSearch: false,
@@ -751,6 +779,10 @@ const onCustomerSelected = async (cust: Customer | null) => {
 };
 
 const applyDefaultDiscount = () => {
+  if (isKpr.value) {
+    header.diskonPersen1 = 15;
+    return;
+  }
   // [BARU] 1. Pengecekan Customer RETAIL / RETAILER
   // Pastikan ambil nama customer dengan aman (optional chaining)
   const custNama = header.customer?.nama?.toUpperCase() || '';
@@ -803,16 +835,26 @@ const onNewCustomerSaved = (customer: Customer) => {
   dialogs.customerForm = false;
 };
 
-const onMemberSaved = (member: Member) => {
-  header.memberHp = member.hp;
-  header.memberNama = member.nama;
-  header.memberAlamat = member.alamat;
-  header.memberGender = member.gender;
-  header.memberUsia = member.usia?.toString() ?? '';
-  header.memberReferensi = member.referensi;
+const onMemberSaved = (data: Member) => {
+  // TypeScript sekarang tahu bahwa 'data' memiliki struktur sesuai interface Member
+
+  // 1. Simpan NIK jika customer adalah Karyawan Kencana Print
+  if (header.customer.kode === 'K-00079') {
+    header.memberNik = data.nik || '';
+  } else {
+    header.memberNik = '';
+  }
+
+  // 2. Mapping data member reguler secara aman
+  header.memberHp = data.hp;
+  header.memberNama = data.nama;
+  header.memberAlamat = data.alamat;
+  header.memberGender = data.gender;
+  header.memberUsia = data.usia;
+  header.memberReferensi = data.referensi;
 
   dialogs.memberForm = false;
-  toast.info('Data member telah diperbarui di form.');
+  toast.info('Data member/karyawan berhasil diperbarui.');
 };
 
 const onPromoSelected = (promo: { nomor: string, namaPromo: string }) => {
@@ -1008,6 +1050,97 @@ const onSoSelected = async (so: { Nomor: string }) => {
   }
 };
 
+const onSjSelected = async (sj: { NoSJ: string }) => {
+  dialogs.sjSearch = false;
+  if (!sj.NoSJ) return;
+
+  isLoading.value = true;
+  try {
+    // Memanggil endpoint detail SJ dengan parameter cabang user
+    const response = await api.get(`/invoice-form/lookup/sj-details/${sj.NoSJ}`, {
+      params: {
+        cabang: authStore.user?.cabang,
+        currentInv: header.nomor || '' // Kirim nomor invoice aktif agar tidak mengurangi stok sendiri
+      }
+    });
+
+    // Destructuring data dengan fallback untuk mencegah error undefined
+    const sjHeader = response.data.header || {};
+    const sjItems = response.data.items || [];
+    const dps = response.data.dps || [];
+
+    // Validasi: SJ harus sudah diterima di sistem KPR
+    if (!sjHeader.sj_noterima || sjHeader.sj_noterima === '') {
+      toast.error('SJ tersebut belum diterima. Silakan proses penerimaan SJ terlebih dahulu.');
+      isLoading.value = false;
+      return;
+    }
+
+    // Reset items sebelum mengisi data baru dari SJ
+    items.value = [];
+
+    // Map Header (Mengikuti standar logic Delphi untuk KPR)
+    Object.assign(header, {
+      nomorSo: sjHeader.sj_nomor,
+      tanggalSo: sjHeader.sj_tanggal ? format(parseISO(sjHeader.sj_tanggal), 'yyyy-MM-dd') : "",
+      customer: {
+        kode: sjHeader.mt_cus,
+        nama: sjHeader.customer,
+        alamat: sjHeader.alamat,
+        kota: sjHeader.kota,
+        telp: sjHeader.telp,
+        level: `${sjHeader.nlevel || ''} - ${sjHeader.clevel || ''}`
+      },
+      top: sjHeader.top || 0,
+      ppnPersen: sjHeader.ppn || 0,
+      // Jika tarik SJ tanpa SO asli, diskon otomatis diatur ke 15%
+      diskonPersen1: sjHeader.noso ? sjHeader.so_disc1 : 15,
+      diskonRp: sjHeader.so_disc || 0,
+      salesCounter: sjHeader.sc || authStore.user?.kode
+    });
+
+    // Map Items dari detail SJ ke grid Invoice
+    items.value = sjItems.map((item: SjApiItem, index: number): Item => ({
+      id: Date.now() + index,
+      kode: item.kode,
+      nama: item.nama,
+      ukuran: item.ukuran,
+      kategori: item.kategori || '',
+      stok: Number(item.stok || 0),
+      qtyso: Number(item.sjd_jumlah || 0),
+      jumlah: Number(item.sjd_jumlah || 0),
+      harga: Number(item.harga_so || item.brgd_harga || 0),
+      diskonPersen: Number(item.disc || 0),
+      diskonRp: Number(item.diskon || 0),
+      total: 0,
+      barcode: item.barcode || '',
+      terhitungPromo: false, // Inisialisasi properti wajib dari interface Item
+      _isHargaEditable: true, // Inisialisasi properti wajib
+      fromBackend: true,
+    }));
+
+    // [FIX] Memastikan linkedDps selalu berupa array untuk fungsi .reduce()
+    linkedDps.value = Array.isArray(dps) ? dps : [];
+    isSoLoaded.value = true;
+
+    applyDefaultDiscount();
+
+    await nextTick();
+    calculateTotals();
+
+    // --- [OTOMATISASI] Sinkronkan info member/poin berdasarkan customer SJ ---
+    updateMemberInfo(header.customer);
+
+  } catch (error: unknown) {
+    // Menggunakan AxiosError untuk menangkap pesan error dari backend secara aman
+    const err = error as AxiosError<{ message?: string }>;
+    console.error("Gagal load SJ:", err);
+    toast.error(err.response?.data?.message || "Gagal memuat data SJ.");
+  } finally {
+    isLoading.value = false;
+  }
+};
+
 const onProductsSelected = (selectedProducts: ProductInput[]) => {
   dialogs.productSearch = false;
   if (!selectedProducts || selectedProducts.length === 0) return;
@@ -1157,12 +1290,19 @@ const calculateTotals = () => {
   if (header.nomorSo) {
     totals.subTotal = netItemTotal; // Set Subtotal Bersih
     totals.totalDiskonItem = totalDiskonItem;
-    totals.totalDiskonFaktur = Number(header.diskonRp || 0);
+    if (isKpr.value) {
+      const diskon1Amount = (header.diskonPersen1 / 100) * netItemTotal;
+      const diskon2Amount = (header.diskonPersen2 / 100) * (netItemTotal - diskon1Amount);
+      totals.totalDiskonFaktur = Math.round(diskon1Amount + diskon2Amount + Number(header.diskonRp || 0));
+    } else {
+      // Logic reguler untuk store non-KPR
+      totals.totalDiskonFaktur = Number(header.diskonRp || 0);
+    }
 
     const afterAllDiscount = afterItemDiscount - totals.totalDiskonFaktur;
 
     const totalPpn = afterAllDiscount * (header.ppnPersen / 100);
-    const totalDp = linkedDps.value.reduce(
+    const totalDp = (linkedDps.value || []).reduce(
       (sum, dp) => sum + (dp.nominal || 0),
       0
     );
@@ -1407,6 +1547,10 @@ const handleProceedToPayment = async () => {
   if (!header.customer.kode) return toast.error("Customer harus diisi.");
   if (!header.customer.level) return toast.error("Level customer belum di-setting.");
   if (validItems.length === 0) return toast.error("Detail barang harus diisi.");
+  if (header.customer.kode === 'K-00079' && !header.memberNik) {
+    dialogs.memberForm = true; // Langsung buka formnya
+    return toast.error("Customer Kencana Print wajib mengisi data NIK Karyawan!");
+  }
 
   for (const item of validItems) {
     const kodeUp = item.kode?.toUpperCase() || '';
@@ -1651,7 +1795,9 @@ const checkStokMinus = (): Promise<boolean> => {
       const itemNames = itemsMinus.map(i => `${i.nama} (${i.ukuran})`).join(', ');
 
       // Tentukan jenis stok untuk pesan konfirmasi agar user paham
-      const jenisStok = header.nomorSo ? 'Pesanan' : 'Fisik';
+      const jenisStok = (isKpr.value || header.gudang.kode === 'KDC' || !header.nomorSo)
+        ? 'Fisik'
+        : 'Pesanan';
 
       showConfirmation(
         'Konfirmasi Stok Minus',
@@ -2359,27 +2505,29 @@ watch(() => header.isMarketplace, async (isOnline) => {
                 :readonly="isReadonly" />
             </v-col>
             <v-col cols="6">
-              <v-text-field label="No. Pesanan (SO)" v-model="header.nomorSo" :readonly="isReadonly"
+              <v-text-field :label="referenceLabel" v-model="header.nomorSo" :readonly="isReadonly"
                 :prepend-inner-icon="isReadonly ? '' : 'mdi-magnify'" density="compact" hide-details clearable
-                :clear-icon="isReadonly ? '' : 'mdi-close'" @click="!isReadonly && (dialogs.soSearch = true)"
+                :clear-icon="isReadonly ? '' : 'mdi-close'"
+                @click="!isReadonly && (isKpr ? (dialogs.sjSearch = true) : (dialogs.soSearch = true))"
                 @click:clear.prevent="!isReadonly && handleClearSo()" />
             </v-col>
             <v-col cols="6">
-              <v-text-field label="Tgl. SO"
-                :model-value="header.tanggalSo ? format(parseISO(header.tanggalSo), 'dd-MM-yy') : ''"
-                :readonly="isReadonly" filled density="compact" hide-details />
+              <v-text-field :label="referenceDateLabel"
+                :model-value="header.tanggalSo ? format(parseISO(header.tanggalSo), 'dd-MM-yyyy') : ''" readonly
+                variant="filled" density="compact" hide-details />
             </v-col>
             <v-col cols="4">
               <v-text-field label=" Kode Customer" :model-value="header.customer.kode" density="compact"
-                :readonly="isSoLoaded" @click="(!isReadonly && !isSoLoaded) && (dialogs.customerSearch = true)"
+                :readonly="isReadonly" @click="!isReadonly && (dialogs.customerSearch = true)"
                 prepend-inner-icon="mdi-magnify" hide-details />
             </v-col>
             <v-col cols="8">
               <v-text-field label="Nama Customer" :model-value="header.customer.nama" :readonly="isReadonly"
                 density="compact" hide-details>
                 <template #append-inner>
-                  <v-btn icon="mdi-account-plus" size="x-small" variant="tonal" :disabled="isReadonly"
-                    @click.stop="!isReadonly && (dialogs.customerForm = true)" title="Buat Customer Baru">
+                  <v-btn icon="mdi-account-plus" size="x-small" variant="tonal" :disabled="isReadonly || isKpr"
+                    @click.stop="!isReadonly && (dialogs.customerForm = true)"
+                    :title="isKpr ? 'Cabang KPR tidak diizinkan membuat customer baru' : 'Buat Customer Baru'">
                   </v-btn>
                 </template>
               </v-text-field>
@@ -2426,14 +2574,15 @@ watch(() => header.isMarketplace, async (isOnline) => {
                 hide-details :readonly="isReadonly" />
             </v-col>
           </v-row>
-          <v-input label="Info Member" :append-inner-icon="isReadonly ? '' : 'mdi-pencil'" hide-details
-            class="custom-input-button" :class="{ 'disabled-input': isReadonly }"
+          <v-input :label="memberLabel" :append-inner-icon="isReadonly ? '' : 'mdi-pencil'" hide-details
+            class="custom-input-button"
+            :class="{ 'disabled-input': isReadonly, 'border-error': header.customer.kode === 'K-00079' && !header.memberNik }"
             @click="!isReadonly && (dialogs.memberForm = true)">
-            <div v-if="header.memberHp || header.memberNama" class="input-content">
-              <strong>{{ header.memberHp }}</strong> - {{ header.memberNama }}
+            <div v-if="header.memberNik || header.memberHp" class="input-content">
+              <strong>{{ header.memberNik || header.memberHp }}</strong> - {{ header.memberNama }}
             </div>
-            <div v-else class="input-placeholder">
-              Klik untuk tambah/ubah member...
+            <div v-else class="input-placeholder text-error font-weight-bold">
+              {{ header.customer.kode === 'K-00079' ? 'WAJIB ISI DATA KARYAWAN!' : 'Klik untuk isi info member...' }}
             </div>
           </v-input>
         </div>
@@ -2617,7 +2766,8 @@ watch(() => header.isMarketplace, async (isOnline) => {
       :auth-pins="authPins" :linked-dps="linkedDps" @close="dialogs.payment = false" @save-success="onSaveSuccess" />
     <PromoSearchModal v-if="dialogs.promoSearch" :tanggal="header.tanggal" @close="dialogs.promoSearch = false"
       @selected="onPromoSelected" />
-    <MemberForm v-if="dialogs.memberForm" :initial-hp="memberHpToSearch" @close="dialogs.memberForm = false"
+    <MemberForm v-if="dialogs.memberForm" :initial-hp="memberHpToSearch"
+      :is-karyawan-mode="header.customer.kode === 'K-00079'" @close="dialogs.memberForm = false"
       @member-saved="onMemberSaved" />
     <DiskonForm v-if="dialogs.diskonForm" :sub-total="totals.subTotal" :diskon-persen1="header.diskonPersen1"
       :diskon-persen2="header.diskonPersen2" :diskon-rp="header.diskonRp" :biaya-kirim="header.biayaKirim"
@@ -2632,6 +2782,8 @@ watch(() => header.isMarketplace, async (isOnline) => {
       @close="dialogs.soDtfSearch = false" @selected="onSoDtfSelected" /> -->
     <PromoBonusModal v-if="dialogs.promoBonus" :promo-nomor="activePromoForBonus.nomor"
       @close="dialogs.promoBonus = false" @selected="handleBonusSelection" />
+    <SjSearchModalForInvoice v-if="dialogs.sjSearch" :cabang="header.gudang.kode" @close="dialogs.sjSearch = false"
+      @sj-selected="onSjSelected" />
 
     <v-dialog v-model="dialogConfirm.show" max-width="400px" persistent>
       <v-card>

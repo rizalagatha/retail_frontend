@@ -1174,7 +1174,7 @@ watch(kembali, (newVal) => {
         <v-btn icon="mdi-close" @click="closeKasirPreview" />
       </v-toolbar>
 
-      <v-card-text class="pa-4 bg-grey-lighten-3">
+      <v-card-text class="pa-4">
         <div id="kasir-print-area">
           <div v-if="printKasirData" class="receipt">
             <div class="header text-center">
@@ -1358,5 +1358,87 @@ watch(kembali, (newVal) => {
 .summary-item:nth-child(3) span:last-child {
   color: #2e7d32;
   /* Hijau untuk netto */
+}
+
+/* ===============================
+   KASIR PREVIEW — SAMA DENGAN CETAK
+   =============================== */
+
+#kasir-print-area {
+  display: flex;
+  justify-content: center;
+  background-color: #ffffff;
+  padding: 0;
+}
+
+#kasir-print-area .receipt {
+  width: 58mm;
+  padding: 3mm 5mm;
+  font-family: 'Roboto Mono', monospace;
+  font-size: 9pt;
+  color: #000000;
+  background: white;
+}
+
+#kasir-print-area .text-center {
+  text-align: center;
+}
+
+#kasir-print-area .logo {
+  max-width: 12mm;
+  display: block;
+  margin: 0 auto 5px;
+}
+
+#kasir-print-area .info,
+#kasir-print-area .items,
+#kasir-print-area .summary,
+#kasir-print-area .footer {
+  border-top: 1px dashed #000;
+  padding-top: 5px;
+  margin-top: 5px;
+}
+
+#kasir-print-area .item-details,
+#kasir-print-area .summary-item {
+  display: flex;
+  justify-content: space-between;
+}
+
+#kasir-print-area .grand-total {
+  font-weight: bold;
+}
+
+#kasir-print-area * {
+  color: #000 !important;
+}
+
+#kasir-print-area .donation-text {
+  margin-top: 6px;
+  margin-bottom: 6px;
+  padding: 4px 0;
+  text-align: center;
+  font-size: 8pt;
+  font-weight: bold;
+  border-top: 1px dashed black;
+  border-bottom: 1px dashed black;
+}
+
+#kasir-print-area .social-media {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+#kasir-print-area .social-item img {
+  height: 8px;
+}
+
+#kasir-print-area .amount-right {
+  text-align: right;
+  white-space: nowrap;
+  min-width: 28mm;
+  display: inline-block;
 }
 </style>

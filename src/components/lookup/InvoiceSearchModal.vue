@@ -23,6 +23,16 @@ interface PotonganPiutangInvoice {
   sisaPiutang: number;
 }
 
+interface BiayaKirimLookupInvoice {
+  Nomor: string;
+  Tanggal: string;
+  Nominal: number;
+  KdCus: string;
+  Customer: string;
+  Alamat: string;
+  Sisa?: number;
+}
+
 interface Props {
   source: string;
   customerKode?: string;
@@ -30,7 +40,7 @@ interface Props {
 }
 
 // Union Type
-type Invoice = ReturJualInvoice | PotonganPiutangInvoice;
+type Invoice = ReturJualInvoice | PotonganPiutangInvoice | BiayaKirimLookupInvoice;
 
 const props = defineProps<Props>();
 const emit = defineEmits(['close', 'invoice-selected']);
@@ -51,6 +61,15 @@ const headers = computed<DataTableHeader[]>(() => {
       { title: 'Nominal', key: 'nominalInvoice', align: 'end', width: '120px' },
       { title: 'Terbayar', key: 'terbayarPiutang', align: 'end', width: '120px' },
       { title: 'Sisa Piutang', key: 'sisaPiutang', align: 'end', width: '120px' },
+    ];
+  }
+  if (props.source === 'biaya-kirim') {
+    return [
+      { title: 'Nomor Invoice', key: 'Nomor', width: '180px' },
+      { title: 'Tanggal', key: 'Tanggal', width: '120px' },
+      { title: 'Customer', key: 'Customer', width: '200px' },
+      { title: 'Nominal', key: 'Nominal', align: 'end', width: '120px' },
+      { title: 'Alamat', key: 'Alamat' },
     ];
   }
   // Default (retur-jual)
@@ -76,53 +95,38 @@ const formatNum = (num: number) => {
   return (num || 0).toLocaleString('id-ID');
 };
 
-// [SOLUSI TANPA ANY]
-// Fungsi-fungsi ini menerima 'Invoice' (Union Type) dan mengecek properti secara aman
-// sebelum mengaksesnya.
-
-// 1. Getter untuk Retur Jual
-const getTanggalRetur = (item: Invoice) => {
-  // Cek apakah properti 'tanggal' ada di item
-  if ('tanggal' in item) {
-    return formatDateStr(item.tanggal);
-  }
-  return '';
+// Fungsi helper untuk mengambil nilai dari objek secara aman tanpa 'any'
+const getRawValue = (item: Invoice, key: string): unknown => {
+  // Sesuai instruksi error: konversi ke 'unknown' dulu, baru ke Record
+  const record = (item as unknown) as Record<string, unknown>;
+  return record[key];
 };
 
-// 2. Getter untuk Potongan Piutang
-const getTanggalInvoice = (item: Invoice) => {
-  if ('tanggalInvoice' in item) {
-    return formatDateStr(item.tanggalInvoice);
-  }
-  return '';
+const resolveDate = (item: Invoice): string => {
+  // Mencari salah satu key tanggal yang mungkin ada
+  const rawDate =
+    getRawValue(item, 'Tanggal') ??
+    getRawValue(item, 'tanggal') ??
+    getRawValue(item, 'tanggalInvoice') ??
+    getRawValue(item, 'jatuhTempo');
+
+  return typeof rawDate === 'string' ? formatDateStr(rawDate) : '-';
 };
 
-const getJatuhTempo = (item: Invoice) => {
-  if ('jatuhTempo' in item) {
-    return formatDateStr(item.jatuhTempo);
-  }
-  return '';
+const resolveNominal = (item: Invoice): string => {
+  const rawNominal =
+    getRawValue(item, 'Nominal') ??
+    getRawValue(item, 'nominalInvoice');
+
+  return typeof rawNominal === 'number' ? formatNum(rawNominal) : '0';
 };
 
-const getNominal = (item: Invoice) => {
-  if ('nominalInvoice' in item) {
-    return formatNum(item.nominalInvoice);
-  }
-  return '0';
-};
+const resolveSisa = (item: Invoice): string => {
+  const rawSisa =
+    getRawValue(item, 'Sisa') ??
+    getRawValue(item, 'sisaPiutang');
 
-const getTerbayar = (item: Invoice) => {
-  if ('terbayarPiutang' in item) {
-    return formatNum(item.terbayarPiutang);
-  }
-  return '0';
-};
-
-const getSisa = (item: Invoice) => {
-  if ('sisaPiutang' in item) {
-    return formatNum(item.sisaPiutang);
-  }
-  return '0';
+  return typeof rawSisa === 'number' ? formatNum(rawSisa) : '0';
 };
 
 // --- Logic Load Data ---
@@ -138,6 +142,10 @@ const loadItems = async () => {
       params.gudangKode = props.gudangKode;
     } else if (props.source === 'retur-jual') {
       apiUrl = '/retur-jual-form/lookup/invoices';
+    } else if (props.source === 'biaya-kirim') {
+      // PERBAIKAN: Kirim customerKode agar pencarian spesifik
+      apiUrl = '/biaya-kirim-form/lookup/invoice';
+      params.customerKode = props.customerKode;
     } else {
       toast.error('Sumber data invoice tidak valid.');
       return;
@@ -147,8 +155,7 @@ const loadItems = async () => {
     items.value = response.data;
   } catch (err) {
     const error = err as AxiosError<{ message?: string }>;
-    const message = error.response?.data?.message || 'Gagal memuat daftar invoice.';
-    toast.error(message);
+    toast.error(error.response?.data?.message || 'Gagal memuat daftar.');
   } finally {
     loading.value = false;
   }
@@ -159,8 +166,13 @@ const filteredItems = computed(() => {
   const lower = search.value.toLowerCase();
 
   return items.value.filter((item) => {
-    // Type Guard manual untuk filter
-    if ('invoice' in item) {
+    // PERBAIKAN: Menangani pencarian untuk Biaya Kirim (key Nomor & Customer)
+    if ('Nomor' in item) {
+      return (
+        item.Nomor.toLowerCase().includes(lower) ||
+        item.Customer.toLowerCase().includes(lower)
+      );
+    } else if ('invoice' in item) {
       return item.invoice.toLowerCase().includes(lower);
     } else if ('nomor' in item) {
       return (
@@ -182,9 +194,9 @@ onMounted(loadItems);
 
 <template>
   <v-dialog :model-value="true" @update:modelValue="$emit('close')" max-width="900px" persistent>
-    <v-card class="d-flex flex-column" style="height: 70vh;">
+    <v-card class="d-flex flex-column modal-style-delphi" style="height: 70vh;">
       <v-toolbar color="primary" density="compact">
-        <v-toolbar-title class="text-subtitle-1">Bantuan - Pilih Invoice</v-toolbar-title>
+        <v-toolbar-title class="text-subtitle-2">Bantuan - Pilih Invoice</v-toolbar-title>
         <v-spacer></v-spacer>
         <v-btn icon="mdi-close" @click="$emit('close')" variant="text" size="small"></v-btn>
       </v-toolbar>
@@ -192,33 +204,40 @@ onMounted(loadItems);
       <v-card-text class="pa-4 d-flex flex-column flex-grow-1">
         <v-text-field v-model="search" label="Cari berdasarkan Nomor, Tanggal, atau Customer..."
           prepend-inner-icon="mdi-magnify" variant="outlined" density="compact" clearable hide-details autofocus
-          class="mb-4 flex-shrink-0">
-        </v-text-field>
+          class="mb-4 flex-shrink-0 search-input-compact" />
 
         <v-data-table :headers="headers" :items="filteredItems" :loading="loading" hover density="compact" fixed-header
-          class="flex-grow-1" @click:row="handleRowClick">
+          class="flex-grow-1 table-font-11" @click:row="handleRowClick">
+          <template #[`item.Tanggal`]="{ item }">
+            {{ resolveDate(item) }}
+          </template>
+
           <template #[`item.tanggal`]="{ item }">
-            {{ getTanggalRetur(item) }}
+            {{ resolveDate(item) }}
           </template>
 
           <template #[`item.tanggalInvoice`]="{ item }">
-            {{ getTanggalInvoice(item) }}
+            {{ resolveDate(item) }}
           </template>
 
           <template #[`item.jatuhTempo`]="{ item }">
-            {{ getJatuhTempo(item) }}
+            {{ resolveDate(item) }}
           </template>
 
           <template #[`item.nominalInvoice`]="{ item }">
-            {{ getNominal(item) }}
+            {{ resolveNominal(item) }}
           </template>
 
-          <template #[`item.terbayarPiutang`]="{ item }">
-            {{ getTerbayar(item) }}
+          <template #[`item.Nominal`]="{ item }">
+            {{ resolveNominal(item) }}
+          </template>
+
+          <template #[`item.Sisa`]="{ item }">
+            {{ resolveSisa(item) }}
           </template>
 
           <template #[`item.sisaPiutang`]="{ item }">
-            {{ getSisa(item) }}
+            {{ resolveSisa(item) }}
           </template>
 
           <template #no-data>
@@ -229,3 +248,32 @@ onMounted(loadItems);
     </v-card>
   </v-dialog>
 </template>
+
+<style scoped>
+/* Konsistensi Font 11px untuk menyerupai Grid Delphi */
+.table-font-11 :deep(table) {
+  font-size: 11px !important;
+}
+
+.table-font-11 :deep(th) {
+  font-size: 11px !important;
+  font-weight: bold !important;
+  background-color: #f5f5f5 !important;
+  color: #333 !important;
+}
+
+.table-font-11 :deep(td) {
+  height: 30px !important;
+  /* Baris lebih padat */
+  white-space: nowrap;
+}
+
+.search-input-compact :deep(input),
+.search-input-compact :deep(label) {
+  font-size: 12px !important;
+}
+
+.modal-style-delphi {
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+</style>

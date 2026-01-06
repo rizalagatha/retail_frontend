@@ -258,6 +258,12 @@ const applyCustomFilter = () => {
 const resetAllFilters = () => {
   columnFilters.value = {};
   localStorage.removeItem(LS_FILTER_KEY);
+  filterSearchValue.value = '';
+
+  // Tambahkan ini agar URL kembali bersih
+  if (route.query.status || route.query.startDate) {
+    router.replace({ query: {} });
+  }
 };
 
 const noFilterColumns = ['data-table-select', 'data-table-expand'];
@@ -320,6 +326,11 @@ const canBeClosed = computed(() => {
 
 const filteredOffers = computed(() => {
   let data = [...offerList.value];
+
+  if (route.query.status === 'open') {
+    // Open = Belum ada No. SO dan Belum ada Alasan Closing
+    data = data.filter(r => !r.noSO && !r.alasan);
+  }
 
   // 1) FILTER HEADER (MULTI & CUSTOM)
   for (const key in columnFilters.value) {

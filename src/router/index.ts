@@ -63,7 +63,8 @@ const SoDtfStokView = () => import("@/views/transaksi/penjualan/dtf/SoDtfStokVie
 const SoDtfStokCreateView = () => import("@/views/transaksi/penjualan/dtf/SoDtfStokCreateView.vue");
 const SoDtfStokPrintView = () => import("@/views/transaksi/penjualan/dtf/SoDtfStokPrintView.vue");
 const LhkSoDtfStokView = () => import("@/views/transaksi/penjualan/dtf/LhkSoDtfStokView.vue");
-const LhkSoDtfStokCreateView = () => import("@/views/transaksi/penjualan/dtf/LhkSoDtfStokCreateView.vue");
+const LhkSoDtfStokCreateView = () =>
+  import("@/views/transaksi/penjualan/dtf/LhkSoDtfStokCreateView.vue");
 
 // --- MUTASI & INTERNAL ---
 const MutasiOutView = () => import("@/views/transaksi/mutasi/MutasiOutView.vue");
@@ -98,7 +99,8 @@ const LaporanStokView = () => import("@/views/laporan/stok/LaporanStokView.vue")
 const LaporanMutasiStokView = () => import("@/views/laporan/stok/LaporanMutasiStokView.vue");
 const LaporanKartuStokView = () => import("@/views/laporan/stok/LaporanKartuStokView.vue");
 const LaporanInvoiceView = () => import("@/views/laporan/penjualan/LaporanInvoiceView.vue");
-const LaporanSalesVsTargetView = () => import("@/views/laporan/penjualan/LaporanSalesVsTargetView.vue");
+const LaporanSalesVsTargetView = () =>
+  import("@/views/laporan/penjualan/LaporanSalesVsTargetView.vue");
 const LaporanStokPivotView = () => import("@/views/laporan/analisa/LaporanStokPivotView.vue");
 const LaporanStokGrafikView = () => import("@/views/laporan/analisa/LaporanStokGrafikView.vue");
 const AuditLogView = () => import("@/views/admin/AuditLogView.vue");
@@ -117,12 +119,15 @@ const HitungStokCreateView = () => import("@/views/transaksi/stok-opname/HitungS
 
 // --- PENJUALAN & HARGA ---
 const PriceProposalView = () => import("@/views/transaksi/penjualan/PriceProposalView.vue");
-const PriceProposalCreateView = () => import("@/views/transaksi/penjualan/PriceProposalCreateView.vue");
+const PriceProposalCreateView = () =>
+  import("@/views/transaksi/penjualan/PriceProposalCreateView.vue");
 const SettingHargaView = () => import("@/views/transaksi/penjualan/SettingHargaView.vue");
 const PelunasanInvoiceView = () => import("@/views/transaksi/penjualan/PelunasanInvoiceView.vue");
-const PelunasanInvoiceCreateView = () => import("@/views/transaksi/penjualan/PelunasanInvoiceCreateView.vue");
+const PelunasanInvoiceCreateView = () =>
+  import("@/views/transaksi/penjualan/PelunasanInvoiceCreateView.vue");
 const PesananOnlineView = () => import("@/views/transaksi/penjualan/PesananOnlineView.vue");
-const PesananOnlineCreateView = () => import("@/views/transaksi/penjualan/PesananOnlineCreateView.vue");
+const PesananOnlineCreateView = () =>
+  import("@/views/transaksi/penjualan/PesananOnlineCreateView.vue");
 
 // --- INTERNAL & STOK ---
 const BufferStokView = () => import("@/views/transaksi/internal/BufferStokView.vue");
@@ -133,23 +138,29 @@ const ReturDcView = () => import("@/views/transaksi/internal/ReturDcView.vue");
 const ReturDcCreateView = () => import("@/views/transaksi/internal/ReturDcCreateView.vue");
 const ReturDcPrintView = () => import("@/views/transaksi/internal/ReturDcPrintView.vue");
 const PengajuanBarcodeView = () => import("@/views/transaksi/internal/PengajuanBarcodeView.vue");
-const PengajuanBarcodeCreateView = () => import("@/views/transaksi/internal/PengajuanBarcodeCreateView.vue");
-const PengajuanBarcodePrintView = () => import("@/views/transaksi/internal/PengajuanBarcodePrintView.vue");
+const PengajuanBarcodeCreateView = () =>
+  import("@/views/transaksi/internal/PengajuanBarcodeCreateView.vue");
+const PengajuanBarcodePrintView = () =>
+  import("@/views/transaksi/internal/PengajuanBarcodePrintView.vue");
 const CetakBarcodeBaruView = () => import("@/views/transaksi/penjualan/CetakBarcodeBaruView.vue");
 const KlerekView = () => import("@/views/transaksi/internal/KlerekView.vue");
 
 // --- MUTASI STORE ---
 const MutasiStoreKirimView = () => import("@/views/transaksi/mutasi/MutasiStoreKirimView.vue");
-const MutasiStoreKirimCreateView = () => import("@/views/transaksi/mutasi/MutasiStoreKirimCreateView.vue");
-const MutasiStoreKirimPrintView = () => import("@/views/transaksi/mutasi/MutasiStoreKirimPrintView.vue");
+const MutasiStoreKirimCreateView = () =>
+  import("@/views/transaksi/mutasi/MutasiStoreKirimCreateView.vue");
+const MutasiStoreKirimPrintView = () =>
+  import("@/views/transaksi/mutasi/MutasiStoreKirimPrintView.vue");
 const MutasiStoreTerimaView = () => import("@/views/transaksi/mutasi/MutasiStoreTerimaView.vue");
-const MutasiStoreTerimaCreateView = () => import("@/views/transaksi/mutasi/MutasiStoreTerimaCreateView.vue");
+const MutasiStoreTerimaCreateView = () =>
+  import("@/views/transaksi/mutasi/MutasiStoreTerimaCreateView.vue");
 
 // --- RETUR JUAL ---
 const ReturJualView = () => import("@/views/transaksi/penjualan/ReturJualView.vue");
 const ReturJualCreateView = () => import("@/views/transaksi/penjualan/ReturJualCreateView.vue");
 const ReturJualPrintView = () => import("@/views/transaksi/penjualan/ReturJualPrintView.vue");
-const ReturJualPrintKasirView = () => import("@/views/transaksi/penjualan/ReturJualPrintKasirView.vue");
+const ReturJualPrintKasirView = () =>
+  import("@/views/transaksi/penjualan/ReturJualPrintKasirView.vue");
 
 // --- DC & PRODUKSI ---
 const QckeGarmenView = () => import("@/views/dc/operasional/QckeGarmenView.vue");
@@ -173,15 +184,23 @@ const TerimaRepairCreateView = () => import("@/views/dc/operasional/TerimaRepair
 const AmbilBarangView = () => import("@/views/dc/operasional/AmbilBarangView.vue");
 const AmbilBarangCreateView = () => import("@/views/dc/operasional/AmbilBarangCreateView.vue");
 const MutasiAntarGudangView = () => import("@/views/dc/operasional/MutasiAntarGudangView.vue");
-const MutasiAntarGudangCreateView = () => import("@/views/dc/operasional/MutasiAntarGudangCreateView.vue");
-const MutasiAntarGudangPrintView = () => import("@/views/dc/operasional/MutasiAntarGudangPrintView.vue");
-const PengajuanProduksiView = () => import("@/views/dc/produksi-supplier/PengajuanProduksiView.vue");
-const PengajuanProduksiCreateView = () => import("@/views/dc/produksi-supplier/PengajuanProduksiCreateView.vue");
-const PengajuanProduksiPrintView = () => import("@/views/dc/produksi-supplier/PengajuanProduksiPrintView.vue");
-const ApprovePengajuanProduksiView = () => import("@/views/dc/produksi-supplier/ApprovePengajuanProduksiView.vue");
-const ApprovePengajuanProduksiCreateView = () => import("@/views/dc/produksi-supplier/ApprovePengajuanProduksiCreateView.vue");
+const MutasiAntarGudangCreateView = () =>
+  import("@/views/dc/operasional/MutasiAntarGudangCreateView.vue");
+const MutasiAntarGudangPrintView = () =>
+  import("@/views/dc/operasional/MutasiAntarGudangPrintView.vue");
+const PengajuanProduksiView = () =>
+  import("@/views/dc/produksi-supplier/PengajuanProduksiView.vue");
+const PengajuanProduksiCreateView = () =>
+  import("@/views/dc/produksi-supplier/PengajuanProduksiCreateView.vue");
+const PengajuanProduksiPrintView = () =>
+  import("@/views/dc/produksi-supplier/PengajuanProduksiPrintView.vue");
+const ApprovePengajuanProduksiView = () =>
+  import("@/views/dc/produksi-supplier/ApprovePengajuanProduksiView.vue");
+const ApprovePengajuanProduksiCreateView = () =>
+  import("@/views/dc/produksi-supplier/ApprovePengajuanProduksiCreateView.vue");
 const BarangExternalView = () => import("@/views/dc/master-data/BarangExternalView.vue");
-const BarangExternalCreateView = () => import("@/views/dc/master-data/BarangExternalCreateView.vue");
+const BarangExternalCreateView = () =>
+  import("@/views/dc/master-data/BarangExternalCreateView.vue");
 const PoKaosanView = () => import("@/views/dc/produksi-supplier/PoKaosanView.vue");
 const PoKaosanCreateView = () => import("@/views/dc/produksi-supplier/PoKaosanCreateView.vue");
 const PoKaosanPrintView = () => import("@/views/dc/produksi-supplier/PoKaosanPrintView.vue");
@@ -190,28 +209,39 @@ const BpbKaosanCreateView = () => import("@/views/dc/produksi-supplier/BpbKaosan
 const BpbKaosanPrintView = () => import("@/views/dc/produksi-supplier/BpbKaosanPrintView.vue");
 
 // --- LAPORAN & SO ---
-const LaporanListOtorisasiView = () => import("@/views/laporan/lain-lain/LaporanListOtorisasiView.vue");
+const LaporanListOtorisasiView = () =>
+  import("@/views/laporan/lain-lain/LaporanListOtorisasiView.vue");
 const LaporanStokStagnanView = () => import("@/views/laporan/stok/LaporanStokStagnanView.vue");
 const LaporanDeadStokView = () => import("@/views/laporan/stok/LaporanDeadStokView.vue");
 const LaporanSaldoKasirView = () => import("@/views/laporan/lain-lain/LaporanSaldoKasirView.vue");
-const LaporanPenjualanPivotView = () => import("@/views/laporan/analisa/LaporanPenjualanPivotView.vue");
-const LaporanPenjualanGrafikView = () => import("@/views/laporan/analisa/LaporanPenjualanGrafikView.vue");
-const MonitoringAchievementView = () => import("@/views/laporan/penjualan/MonitoringAchievementView.vue");
+const LaporanPenjualanPivotView = () =>
+  import("@/views/laporan/analisa/LaporanPenjualanPivotView.vue");
+const LaporanPenjualanGrafikView = () =>
+  import("@/views/laporan/analisa/LaporanPenjualanGrafikView.vue");
+const MonitoringAchievementView = () =>
+  import("@/views/laporan/penjualan/MonitoringAchievementView.vue");
 const LaporanHppKosongView = () => import("@/views/transaksi/stok-opname/LaporanHppKosongView.vue");
 const LaporanStokMinusView = () => import("@/views/laporan/stok/LaporanStokMinusView.vue");
 const ParetoView = () => import("@/views/laporan/penjualan/ParetoView.vue");
 const ParetoPrintView = () => import("@/views/laporan/penjualan/ParetoPrintView.vue");
 
 // --- STOK OPNAME ---
-const StokOpnameSettingTanggalView = () => import("@/views/transaksi/stok-opname/StokOpnameSettingTanggalView.vue");
+const StokOpnameSettingTanggalView = () =>
+  import("@/views/transaksi/stok-opname/StokOpnameSettingTanggalView.vue");
 const HitungStokLokasiView = () => import("@/views/transaksi/stok-opname/HitungStokLokasiView.vue");
 const CekSelisihView = () => import("@/views/transaksi/stok-opname/CekSelisihView.vue");
 const ProsesStokOpnameView = () => import("@/views/transaksi/stok-opname/ProsesStokOpnameView.vue");
-const ProsesStokOpnameCreateView = () => import("@/views/transaksi/stok-opname/ProsesStokOpnameCreateView.vue");
+const ProsesStokOpnameCreateView = () =>
+  import("@/views/transaksi/stok-opname/ProsesStokOpnameCreateView.vue");
 
 // --- PRINT KHUSUS ---
 const KuponPrintView = () => import("@/views/transaksi/penjualan/KuponPrintView.vue");
 const VoucherPrintView = () => import("@/views/transaksi/penjualan/VoucherPrintView.vue");
+
+// --- PRIORITAS ---
+const BiayaKirimView = () => import("@/views/transaksi/penjualan/BiayaKirimView.vue");
+const BiayaKirimCreateView = () => import("@/views/transaksi/penjualan/BiayaKirimCreateView.vue");
+const BiayaKirimPrintView = () => import("@/views/transaksi/penjualan/BiayaKirimPrintView.vue");
 
 const routes = [
   {
@@ -1268,6 +1298,46 @@ const routes = [
     path: "/transaksi/penjualan/invoice/print-sj/:nomor",
     name: "CetakInvoiceAsSJ",
     component: InvoiceAsSjPrintView,
+    meta: {
+      requiresAuth: true,
+      printLayout: true,
+      layout: "PrintLayout",
+    },
+  },
+  {
+    path: "/transaksi/penjualan/biaya-kirim",
+    name: "biaya-kirim-browse",
+    component: BiayaKirimView,
+    meta: {
+      requiresAuth: true,
+      menuId: "49",
+      title: "Browse Biaya Kirim",
+    },
+  },
+  {
+    path: "/transaksi/penjualan/biaya-kirim/baru",
+    name: "biaya-kirim-create",
+    component: BiayaKirimCreateView,
+    meta: {
+      requiresAuth: true,
+      menuId: "49",
+      title: "Input Biaya Kirim",
+    },
+  },
+  {
+    path: "/transaksi/penjualan/biaya-kirim/edit/:nomor",
+    name: "biaya-kirim-edit",
+    component: BiayaKirimCreateView,
+    meta: {
+      requiresAuth: true,
+      menuId: "49",
+      title: "Edit Biaya Kirim",
+    },
+  },
+  {
+    path: '/transaksi/penjualan/biaya-kirim/print/:nomor',
+    name: 'Cetak Biaya Kirim',
+    component: BiayaKirimPrintView,
     meta: {
       requiresAuth: true,
       printLayout: true,

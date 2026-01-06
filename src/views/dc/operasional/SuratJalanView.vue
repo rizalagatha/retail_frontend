@@ -36,6 +36,8 @@ interface SuratJalanHeader {
   Closing: 'Y' | 'N';
   Keterangan: string;
   Usr: string;
+  NoInvoice: string;
+  TotalQty: number;
   [key: string]: unknown;
 }
 
@@ -120,21 +122,41 @@ const startWidth = ref(0);
 const isSingleSelected = computed(() => selected.value.length === 1);
 const selectedRow = computed(() => isSingleSelected.value ? selected.value[0] : null);
 
+// --- Logic Kolom No Invoice (KDC & KPR) ---
+const showInvoiceColumn = computed(() => {
+  const cb = authStore.user?.cabang;
+  return cb === 'KDC' || cb === 'KPR';
+});
+
 // --- Header Definisi (Resizable) ---
-const masterHeaders = ref<DataTableHeader[]>([
-  { title: '', key: 'data-table-expand', width: 50, fixed: true },
-  { title: 'Nomor', key: 'Nomor', width: 160, fixed: true },
-  { title: 'Tanggal', key: 'Tanggal', width: 110 },
-  { title: 'Store', key: 'Store', width: 80 },
-  { title: 'Nama Store', key: 'Nama_Store', width: 200 },
-  { title: 'No. Minta', key: 'NoMinta', width: 150 },
-  { title: 'No. Terima', key: 'NomorTerima', width: 150 },
-  { title: 'Tgl Terima', key: 'TglTerima', width: 110 },
-  { title: 'No. STBJ', key: 'NoSTBJ', width: 150 },
-  { title: 'Keterangan', key: 'Keterangan', width: 300 },
-  { title: 'User', key: 'Usr', width: 100 },
-  { title: 'Closing', key: 'Closing', width: 80, align: 'center' },
-]);
+const masterHeaders = computed<DataTableHeader[]>(() => {
+  const baseHeaders: DataTableHeader[] = [
+    { title: '', key: 'data-table-expand', width: 50, fixed: true },
+    { title: 'Nomor', key: 'Nomor', width: 160, fixed: true },
+    { title: 'Tanggal', key: 'Tanggal', width: 110 },
+    { title: 'Store', key: 'Store', width: 80 },
+    { title: 'Nama Store', key: 'Nama_Store', width: 200 },
+  ];
+
+  // Tambahkan No. Invoice HANYA untuk KDC atau KPR
+  if (showInvoiceColumn.value) {
+    baseHeaders.push({ title: 'No. Invoice', key: 'NoInvoice', width: 150 });
+  }
+
+  // Lanjutkan sisa kolom
+  baseHeaders.push(
+    { title: 'No. Minta', key: 'NoMinta', width: 150 },
+    { title: 'No. Terima', key: 'NomorTerima', width: 150 },
+    { title: 'Tgl Terima', key: 'TglTerima', width: 110 },
+    { title: 'No. STBJ', key: 'NoSTBJ', width: 150 },
+    { title: 'Total Qty', key: 'TotalQty', width: 100, align: 'end' },
+    { title: 'Keterangan', key: 'Keterangan', width: 300 },
+    { title: 'User', key: 'Usr', width: 100 },
+    { title: 'Closing', key: 'Closing', width: 80, align: 'center' },
+  );
+
+  return baseHeaders;
+});
 
 const detailHeaders = [
   { title: 'Kode', key: 'Kode', width: '150px' },
@@ -694,6 +716,10 @@ watch(() => filters.kodeBarang, (newVal) => {
 
           <template #[`item.NoSTBJ`]="{ item }">
             <span :class="item.NoSTBJ && 'text-blue font-weight-bold'">{{ item.NoSTBJ }}</span>
+          </template>
+
+          <template #[`item.NoInvoice`]="{ item }">
+            <span class="font-weight-medium text-blue-darken-2">{{ item.NoInvoice || '-' }}</span>
           </template>
 
           <template #[`item.Closing`]="{ item }">

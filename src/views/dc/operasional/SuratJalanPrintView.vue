@@ -72,65 +72,63 @@ onMounted(() => {
     <div v-if="isLoading" class="text-center">Memuat data...</div>
     <div v-if="printData" class="page">
       <!-- Loop untuk membuat dua copy surat jalan -->
-      <div v-for="n in 2" :key="n" class="surat-jalan-instance">
-        <div class="header">
-          <img :src="appLogo" alt="Logo" class="logo" />
-          <div class="company-info">
-            <strong>{{ printData.header.perush_nama }}</strong>
-            <div>{{ printData.header.perush_alamat }}</div>
-            <div>{{ printData.header.perush_telp }}</div>
-          </div>
+      <div class="header">
+        <img :src="appLogo" alt="Logo" class="logo" />
+        <div class="company-info">
+          <strong>{{ printData.header.perush_nama }}</strong>
+          <div>{{ printData.header.perush_alamat }}</div>
+          <div>{{ printData.header.perush_telp }}</div>
         </div>
+      </div>
 
-        <div class="title">SURAT JALAN</div>
+      <div class="title">SURAT JALAN</div>
 
-        <div class="info-grid">
-          <div><span class="label">Nomor</span>: {{ printData.header.sj_nomor }}</div>
-          <div><span class="label">No. Permintaan</span>: {{ printData.header.sj_mt_nomor }}</div>
-          <div><span class="label">Tanggal</span>: {{ format(parseISO(printData.header.sj_tanggal),
-            'dd-MM-yyyy') }}</div>
-          <div><span class="label">Ke Store</span>: {{ printData.header.store }}</div>
-          <div class="keterangan"><span class="label">Keterangan</span>: {{ printData.header.sj_ket }}</div>
+      <div class="info-grid">
+        <div><span class="label">Nomor</span>: {{ printData.header.sj_nomor }}</div>
+        <div><span class="label">No. Permintaan</span>: {{ printData.header.sj_mt_nomor }}</div>
+        <div><span class="label">Tanggal</span>: {{ format(parseISO(printData.header.sj_tanggal),
+          'dd-MM-yyyy') }}</div>
+        <div><span class="label">Ke Store</span>: {{ printData.header.store }}</div>
+        <div class="keterangan"><span class="label">Keterangan</span>: {{ printData.header.sj_ket }}</div>
+      </div>
+
+      <div class="items-table">
+        <table>
+          <thead>
+            <tr>
+              <th class="no">NO</th>
+              <th class="kode">KODE</th>
+              <th class="nama">NAMA BARANG</th>
+              <th class="ukuran">UKURAN</th>
+              <th class="jumlah">JUMLAH</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="(item, index) in printData.details" :key="index">
+              <td class="no">{{ index + 1 }}</td>
+              <td class="kode">{{ item.sjd_kode }}</td>
+              <td class="nama">{{ item.nama_barang }}</td>
+              <td class="ukuran">{{ item.sjd_ukuran }}</td>
+              <td class="jumlah">{{ item.sjd_jumlah }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="footer">
+        <div class="created-date">
+          Created: {{ format(parseISO(printData.header.date_create), 'dd-MM-yyyy HH:mm') }}
         </div>
-
-        <div class="items-table">
-          <table>
-            <thead>
-              <tr>
-                <th class="no">NO</th>
-                <th class="kode">KODE</th>
-                <th class="nama">NAMA BARANG</th>
-                <th class="ukuran">UKURAN</th>
-                <th class="jumlah">JUMLAH</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr v-for="(item, index) in printData.details" :key="index">
-                <td class="no">{{ index + 1 }}</td>
-                <td class="kode">{{ item.sjd_kode }}</td>
-                <td class="nama">{{ item.nama_barang }}</td>
-                <td class="ukuran">{{ item.sjd_ukuran }}</td>
-                <td class="jumlah">{{ item.sjd_jumlah }}</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-
         <div class="footer">
-          <div class="created-date">
-            Created: {{ format(parseISO(printData.header.date_create), 'dd-MM-yyyy HH:mm') }}
+          <div class="signatures">
+            <div>Dibuat Oleh,</div>
+            <div>Pengirim,</div>
+            <div>Diterima Oleh,</div>
           </div>
-          <div class="footer">
-            <div class="signatures">
-              <div>Dibuat Oleh,</div>
-              <div>Pengirim,</div>
-              <div>Diterima Oleh,</div>
-            </div>
-            <div class="names">
-              <div>( {{ printData.header.user_create }} )</div>
-              <div>( .................... )</div>
-              <div>( .................... )</div>
-            </div>
+          <div class="names">
+            <div>( {{ printData.header.user_create }} )</div>
+            <div>( .................... )</div>
+            <div>( .................... )</div>
           </div>
         </div>
       </div>
@@ -171,18 +169,16 @@ body {
   box-sizing: border-box;
 }
 
-.surat-jalan-instance:first-child {
-  margin-bottom: 10mm;
-  /* Memberi jarak 1cm antara dua salinan */
-}
-
 /* Header */
 .header {
   display: flex;
   flex-direction: row;
-  justify-content: flex-start; /* ✅ Pastikan rata kiri */
-  align-items: flex-start; /* ✅ Ubah dari center ke flex-start */
-  gap: 15px; /* ✅ Gunakan gap untuk jarak */
+  justify-content: flex-start;
+  /* ✅ Pastikan rata kiri */
+  align-items: flex-start;
+  /* ✅ Ubah dari center ke flex-start */
+  gap: 15px;
+  /* ✅ Gunakan gap untuk jarak */
   margin-bottom: 8px;
   width: 100%;
 }
@@ -190,8 +186,10 @@ body {
 .logo {
   height: 40px;
   width: auto;
-  margin: 0; /* ✅ Hapus margin-right, gunakan gap di parent */
-  flex-shrink: 0; /* ✅ Cegah logo menyusut */
+  margin: 0;
+  /* ✅ Hapus margin-right, gunakan gap di parent */
+  flex-shrink: 0;
+  /* ✅ Cegah logo menyusut */
 }
 
 .company-info {
@@ -200,7 +198,8 @@ body {
   text-align: left;
   font-size: 9pt;
   line-height: 1.4;
-  flex: 1; /* ✅ Ambil sisa ruang */
+  flex: 1;
+  /* ✅ Ambil sisa ruang */
 }
 
 /* Judul */

@@ -11,6 +11,7 @@ import PageLayout from '@/components/PageLayout.vue';
 import CustomerSearchModal from '@/components/lookup/CustomerSearchModal.vue';
 import RekeningSearchModal from '@/components/lookup/RekeningSearchModal.vue';
 import UnpaidInvoiceSearchModal from '@/components/lookup/UnpaidInvoiceSearchModal.vue';
+import InvoiceSearchModal from '@/components/lookup/InvoiceSearchModal.vue';
 import SoSearchModal from '@/components/lookup/SoSearchModal.vue';
 import { AxiosError } from 'axios';
 import { formatRupiah } from "@/utils/formatRupiah";
@@ -85,6 +86,17 @@ interface InvoiceItem {
   sisa: number;
 }
 
+interface BiayaKirimLookupInvoice {
+  Nomor: string;
+  Tanggal: string;
+  Nominal: number;
+  Bayar: number;
+  Sisa: number;
+  KdCus: string;
+  Customer: string;
+  Alamat: string;
+}
+
 // --- Inisialisasi ---
 const router = useRouter();
 const route = useRoute();
@@ -149,6 +161,7 @@ const dialog = reactive({
 const activeRowIndex = ref(0);
 const dialogConfirm = reactive({ show: false, title: '', text: '', onConfirm: () => { } });
 const isPosted = ref(false);
+const dialogBk = ref(false);
 
 const tableHeaders = [
   { title: 'No. Invoice', key: 'invoice', width: '150px' },
@@ -408,6 +421,37 @@ const clearSo = () => {
   addNewRow();
 
   toast.info("Nomor SO dibersihkan.");
+};
+
+const openBkSearch = (index: number) => {
+  if (!header.customer.kode) return toast.error('Pilih customer terlebih dahulu.');
+  activeRowIndex.value = index;
+  dialogBk.value = true;
+};
+
+const onBkSelected = (bk: BiayaKirimLookupInvoice) => {
+  dialogBk.value = false;
+
+  // Validasi duplikasi menggunakan properti yang sudah pasti ada (Nomor)
+  const isDuplicate = items.value.some(item => item.invoice === bk.Nomor);
+  if (isDuplicate) return toast.warning('Biaya Kirim tersebut sudah ada dalam daftar.');
+
+  const targetItem = items.value[activeRowIndex.value];
+  if (targetItem) {
+    // Mapping data secara aman tanpa type casting 'any'
+    Object.assign(targetItem, {
+      invoice: bk.Nomor,
+      tanggal: bk.Tanggal,
+      nominal: bk.Nominal,
+      terbayar: bk.Bayar,
+      sisa: bk.Sisa,
+      bayar: 0,
+      tglBayar: format(new Date(), 'yyyy-MM-dd')
+    });
+  }
+
+  // Tambahkan baris kosong baru di bawahnya agar kasir bisa input invoice lain
+  addNewRow();
 };
 
 // --- WATCHERS (UNSAVED CHANGES) ---
@@ -701,8 +745,8 @@ watch(() => header.nominal, calculateTotals);
             class="desktop-table fill-height-table" fixed-header :items-per-page="-1">
             <template #[`item.invoice`]="{ item, index }">
               <v-text-field v-model="item.invoice" variant="underlined" density="compact" hide-details
-                @keydown.f1.prevent="() => { if (!lockSoMode) openUnpaidInvoiceSearch(index); }" :readonly="lockSoMode"
-                placeholder="F1..." />
+                @keydown.f1.prevent="openUnpaidInvoiceSearch(index)" @keydown.f2.prevent="openBkSearch(index)"
+                :readonly="lockSoMode" placeholder="F1 (Inv) / F2 (BK)..." />
             </template>
             <template #[`item.tanggal`]="{ value }">
               {{ value ? format(parseISO(value), 'dd-MM-yyyy') : '' }}
@@ -755,6 +799,9 @@ watch(() => header.nominal, calculateTotals);
       @close="dialog.invoiceSearch = false" @invoice-selected="onUnpaidInvoiceSelected" />
     <SoSearchModal v-if="isSoSearchVisible" :cabang="authStore.user?.cabang || ''" source="setoran-bayar"
       :customer="header.customer.kode" @close="isSoSearchVisible = false" @selected="onSoSelected" />
+    <InvoiceSearchModal v-if="dialogBk" source="biaya-kirim" :customer-kode="header.customer.kode"
+      @close="dialogBk = false" @invoice-selected="onBkSelected" />
+
     <v-dialog v-model="dialogConfirm.show" max-width="400px" persistent>
       <v-card>
         <v-card-title class="text-h6 font-weight-bold">{{ dialogConfirm.title }}</v-card-title>

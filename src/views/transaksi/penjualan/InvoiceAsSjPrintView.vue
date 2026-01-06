@@ -69,8 +69,7 @@ onMounted(async () => {
   <div class="print-container">
     <div v-if="isLoading" class="text-center">Memuat data...</div>
     <div v-if="printData" class="page">
-      <div v-for="copy in 2" :key="copy" class="surat-jalan-instance">
-        <!-- HEADER -->
+      <div class="surat-jalan-instance">
         <div class="header">
           <img :src="appLogo" alt="Logo" class="logo" />
           <div class="company-info">
@@ -80,19 +79,17 @@ onMounted(async () => {
           </div>
         </div>
 
-        <!-- TITLE -->
         <div class="title">SURAT JALAN</div>
 
-        <!-- INFO GRID -->
         <div class="info-grid">
           <div><span class="label">Nomor</span>: {{ printData.header.nomor_sj }}</div>
           <div><span class="label">No. SO</span>: {{ printData.header.nomor_so || '-' }}</div>
-          <div><span class="label">Tanggal</span>: {{ printData.header.tanggal ? format(parseISO(printData.header.tanggal), 'dd-MM-yyyy') : '-' }}</div>
+          <div><span class="label">Tanggal</span>: {{ printData.header.tanggal ?
+            format(parseISO(printData.header.tanggal), 'dd-MM-yyyy') : '-' }}</div>
           <div><span class="label">Ke Customer</span>: {{ printData.header.customer_nama || '-' }}</div>
           <div class="keterangan"><span class="label">Keterangan</span>: {{ printData.header.keterangan || '-' }}</div>
         </div>
 
-        <!-- TABLE ITEMS -->
         <div class="items-table">
           <table>
             <thead>
@@ -119,7 +116,6 @@ onMounted(async () => {
           </table>
         </div>
 
-        <!-- FOOTER -->
         <div class="footer">
           <div class="signatures">
             <div>Dibuat Oleh,</div>
@@ -166,10 +162,6 @@ body {
   border: 1px solid #ccc;
   padding: 8mm;
   box-sizing: border-box;
-}
-
-.surat-jalan-instance:first-child {
-  margin-bottom: 10mm;
 }
 
 .header {

@@ -111,7 +111,8 @@ const menuItems = [
           { title: 'Proforma Invoice', to: '/transaksi/penjualan/proforma', icon: 'mdi-receipt-text-outline' },
           { title: 'Invoice', to: '/transaksi/penjualan/invoice', icon: 'mdi-receipt' },
           { title: 'Pelunasan Invoice', to: '/transaksi/penjualan/pelunasan-invoice', icon: 'mdi-hand-coin' },
-          { title: 'Retur Jual', to: '/transaksi/penjualan/retur-jual', icon: 'mdi-keyboard-return' }
+          { title: 'Retur Jual', to: '/transaksi/penjualan/retur-jual', icon: 'mdi-keyboard-return' },
+          { title: 'Biaya Kirim', to: '/transaksi/penjualan/biaya-kirim', icon: 'mdi-truck-delivery' }
         ]
       },
       {

@@ -65,6 +65,7 @@ const headers: DataTableHeader[] = [
   { title: 'Kota', key: 'kota', width: '120px' },
   { title: 'Telp', key: 'telp', width: '120px' },
   { title: 'Kontak', key: 'namaKontak', width: '150px' },
+  { title: 'Level', key: 'level', width: '150px' },
   { title: 'TOP', key: 'top', align: 'end', width: '80px' },
   { title: 'Status', key: 'status', width: '100px' },
   { title: 'Actions', key: 'actions', sortable: false, width: '100px' }
@@ -191,8 +192,8 @@ const printData = () => {
   const doc = new jsPDF();
   doc.text("Daftar Customer", 14, 16);
   autoTable(doc, {
-    head: [['Kode', 'Nama', 'Alamat', 'Kota', 'Status']],
-    body: customers.value.map(c => [c.kode, c.nama, c.alamat, c.kota, c.status]),
+    head: [['Kode', 'Nama', 'Level', 'Alamat', 'Status']], // Tambahkan 'Level'
+    body: customers.value.map(c => [c.kode, c.nama, c.level, c.alamat, c.status]), // Tambahkan c.level
     startY: 20,
   });
 
@@ -210,6 +211,7 @@ const exportData = () => {
   const worksheet = XLSX.utils.json_to_sheet(customers.value.map(c => ({
     Kode: c.kode,
     Nama: c.nama,
+    Level: c.level,
     Alamat: c.alamat,
     Kota: c.kota,
     Telepon: c.telp,
@@ -299,7 +301,10 @@ onMounted(() => {
           {{ item.top }} hari
         </template>
         <template #[`item.level`]="{ item }">
-          <span class="text-caption">{{ item.level }}</span>
+          <v-chip size="x-small" color="primary" variant="outlined" v-if="item.level">
+            {{ item.level }}
+          </v-chip>
+          <span v-else class="text-caption text-grey">Belum diatur</span>
         </template>
         <template #[`item.actions`]="{ item }">
           <v-icon v-if="authStore.can(MENU_ID, 'edit')" size="small" class="me-2" @click="openEditDialog(item)">

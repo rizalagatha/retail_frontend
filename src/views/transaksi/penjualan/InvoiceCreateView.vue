@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, reactive, onMounted, computed, watch, nextTick } from 'vue';
+import { ref, reactive, onMounted, onUnmounted, computed, watch, nextTick } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useToast } from 'vue-toastification';
 import { useAuthStore } from '@/stores/authStore';
@@ -374,6 +374,7 @@ const promoNotification = ref(''); // Teks untuk running text/alert
 const potentialPromoDiscount = ref(0); // Menyimpan nominal potensi diskon
 const isGrandOpeningPromo = ref(false);
 const isPromoMinimized = ref(false);
+const isLookupOnly = ref(false);
 
 // --- [BARU] Setup Audio & Refs ---
 const audioSuccess = new Audio('/audio/beep_success.mp3');
@@ -721,17 +722,26 @@ const handleClose = () => {
   );
 };
 
-const openProductSearch = (index: number, isMulti: boolean) => {
-  // Tambahkan validasi cabang di sini
-  if (!canSearchManual.value) {
-    return toast.error('Pencarian barang manual (F1/F2) dinonaktifkan untuk cabang Anda. Silakan gunakan Scan Barcode.');
-  }
+const openLookup = () => {
+  if (!header.customer.kode) return toast.error('Pilih customer terlebih dahulu.');
 
+  activeRowIndex.value = items.value.length - 1;
+  isMultiSelectProduct.value = true;
+
+  // LOGIKA: Jika BUKAN K01/KPR, maka hanya untuk lihat stok
+  isLookupOnly.value = !canSearchManual.value;
+  dialogs.productSearch = true;
+};
+
+const openProductSearch = (index: number, isMulti: boolean) => {
   if (!header.customer.kode) return toast.error('Pilih customer terlebih dahulu.');
   if (header.nomorSo) return toast.info('Tidak bisa menambah item manual jika sudah terhubung ke SO.');
 
   activeRowIndex.value = index;
   isMultiSelectProduct.value = isMulti;
+
+  // LOGIKA: Sama seperti di atas, tentukan apakah bisa input atau cuma lihat
+  isLookupOnly.value = !canSearchManual.value;
   dialogs.productSearch = true;
 };
 
@@ -1153,6 +1163,16 @@ const onSjSelected = async (sj: { NoSJ: string }) => {
 
 const onProductsSelected = (selectedProducts: ProductInput[]) => {
   dialogs.productSearch = false;
+  // Jika flag isLookupOnly aktif, tampilkan pesan dan BERHENTI (jangan masukkan ke tabel)
+  if (isLookupOnly.value) {
+    isLookupOnly.value = false; // reset flag
+    toast.info('Mode Lihat Stok: Data tidak dimasukkan ke tabel. Gunakan Scan Barcode untuk transaksi.');
+
+    nextTick(() => {
+      barcodeInputRef.value?.focus();
+    });
+    return;
+  }
   if (!selectedProducts || selectedProducts.length === 0) return;
 
   const isPromoActive = header.nomorPromo === 'PRO-2025-005';
@@ -2435,6 +2455,18 @@ onMounted(() => {
   fetchActivePromos();
 });
 
+onMounted(() => {
+  const handleGlobalKeyDown = (e: KeyboardEvent) => {
+    if (e.key === 'F1') {
+      e.preventDefault();
+      openLookup();
+    }
+  };
+  window.addEventListener('keydown', handleGlobalKeyDown);
+  // Bersihkan listener saat komponen di-unmount
+  onUnmounted(() => window.removeEventListener('keydown', handleGlobalKeyDown));
+});
+
 // Watcher untuk Toggle Marketplace
 watch(() => header.isMarketplace, async (isOnline) => {
   if (isOnline) {
@@ -2601,11 +2633,14 @@ watch(() => header.isMarketplace, async (isOnline) => {
 
       <div class="right-column">
         <div class="top-right-header">
-          <div v-if="!header.nomorSo" class="scanner-wrapper">
+          <div v-if="!header.nomorSo" class="scanner-wrapper d-flex ga-2 align-center">
             <v-text-field ref="barcodeInputRef" v-model="scannedBarcode" label="Scan Barcode di Sini..."
-              placeholder="Siap scan..." variant="outlined" density="compact" prepend-inner-icon="mdi-barcode-scan"
-              hide-details clearable :loading="isScanning" :disabled="isScanning"
+              placeholder="Siap scan satu per satu..." variant="outlined" density="compact"
+              prepend-inner-icon="mdi-barcode-scan" hide-details clearable :loading="isScanning" :disabled="isScanning"
               @keydown.enter.prevent="handleBarcodeScan" autofocus />
+
+            <v-btn icon="mdi-magnify" color="secondary" variant="tonal" density="compact" title="Cek Stok & Harga (F1)"
+              @click="openLookup" />
           </div>
 
           <div class="logo-container">
@@ -2618,11 +2653,10 @@ watch(() => header.isMarketplace, async (isOnline) => {
             <v-data-table :headers="tableHeaders" :items="items" class="desktop-table header-browse-blue"
               :items-per-page="-1" fixed-header height="calc(100vh - 420px)">
               <template v-slot:[`item.kode`]="{ item, index }">
-                <v-text-field v-model="item.kode" variant="underlined" density="compact" hide-details
-                  :placeholder="canSearchManual ? 'F1/F2...' : 'Scan Barcode...'"
-                  :readonly="isReadonly || !!header.nomorSo || !!item.noSoDtf || !canSearchManual"
-                  :class="{ 'field-disabled': !!header.nomorSo || !!item.noSoDtf || !canSearchManual }"
-                  @keydown.f1.prevent="canSearchManual && !header.nomorSo && !item.noSoDtf && openProductSearch(index, false)"
+                <v-text-field v-model="item.kode" variant="underlined" density="compact" hide-details readonly
+                  :placeholder="canSearchManual ? 'F1/F2 = Cari' : 'F1 = Cek Stok'"
+                  :class="{ 'field-disabled': !!header.nomorSo || !!item.noSoDtf }"
+                  @keydown.f1.prevent="!header.nomorSo && !item.noSoDtf && openProductSearch(index, false)"
                   @keydown.f2.prevent="canSearchManual && !header.nomorSo && !item.noSoDtf && openProductSearch(index, true)" />
               </template>
 

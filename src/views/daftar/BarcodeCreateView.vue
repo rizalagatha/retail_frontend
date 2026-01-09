@@ -92,67 +92,72 @@ const tableHeaders = [
 const printStylesXP360B = `
   @page {
     size: 68mm 15mm landscape;
-    margin: 0;
-  }
-  #print-area {
-    transform: translateX(6mm);
+    margin: 0 !important;
   }
   html, body {
     margin: 0; padding: 0;
-    width: 68mm; height: auto;
+    width: 68mm;
+    height: auto !important; /* AWAS: Jangan di-fix 15mm agar label berikutnya muncul */
     overflow: visible !important;
-    font-family: Arial, sans-serif;
+    background-color: #fff;
+    -webkit-print-color-adjust: exact;
   }
   .label-pair-container {
     display: flex;
-    justify-content: space-between;
-    align-items: center;
     width: 68mm;
-    height: 15mm;
-    padding: 0;
-    margin: 0;
+    height: 15mm; /* Tinggi per satu baris sticker (2 kolom) */
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 1.5mm;
     box-sizing: border-box;
-    page-break-after: always !important;
+    page-break-after: always !important; /* Memaksa ganti baris sticker */
   }
-  .label-pair-container:last-child { page-break-after: avoid; }
   .barcode-label {
-    width: 33mm;
-    height: 15mm;
+    width: 30.5mm;
+    height: 14mm;
     display: flex;
     flex-direction: column;
-    justify-content: center;
-    align-items: center;
-    text-align: center;
+    justify-content: flex-start;
+    align-items: flex-start; /* Ratakan konten ke kiri */
+    text-align: left;        /* Ratakan teks ke kiri */
     overflow: hidden;
+    padding: 0.5mm 0 0 0.5mm;  /* Padding kiri agar teks tidak nempel pinggir */
     box-sizing: border-box;
-    padding: 0.5mm 1mm;
-    margin: 0;
-    font-size: 5px;
-    line-height: 1.1;
   }
-  .item-info {
-    white-space: nowrap;
+  .item-name {
+    font-size: 5pt; /* Font kecil agar muat banyak */
+    font-weight: bold;
+    font-family: 'Arial Narrow', Arial, sans-serif;
+    line-height: 1;
+    width: 100%;
+    margin-bottom: 0.1mm;
+
+    /* LOGIKA MAKSIMAL 2 BARIS */
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    white-space: normal;
     overflow: hidden;
     text-overflow: ellipsis;
-    max-width: 100%;
-    margin: 0;
   }
-  .item-name { font-weight: bold; }
-  .item-size { font-weight: normal; }
+  .item-size {
+    font-size: 4.5pt;
+    font-family: Arial;
+    margin-bottom: 0.1mm;
+  }
   .barcode-svg {
-    width: 28mm;
-    height: 7mm;
-    margin: 0.3mm 0;
-    display: block;
+    width: 27mm !important;
+    height: 5.5mm !important; /* Tinggi barcode dijaga agar teks bawah muat */
+    margin: 0.1mm 0;
+    margin-left: -0.8mm; /* Geser sedikit agar batang barcode mepet kiri */
   }
   .label-footer {
     display: flex;
     justify-content: space-between;
-    width: 90%;
-    font-size: 5px;
-  }
-  @media print {
-    .barcode-label { border: none; }
+    width: 98%;
+    font-size: 4.8pt;
+    font-family: Arial, sans-serif;
+    font-weight: bold;
   }
 `;
 
@@ -403,11 +408,11 @@ const generateBarcodesInIframe = (iframe: HTMLIFrameElement) => {
       const barcodeValue = svgElement.getAttribute('data-barcode-value');
       if (barcodeValue) {
         try {
-          JsBarcode(svgElement as SVGElement, barcodeValue, {
-            format: "CODE128", // Gunakan 128 standar agar lebih kompatibel
+          window.JsBarcode(svgElement as SVGElement, barcodeValue, {
+            format: "CODE128",
             lineColor: "#000",
-            width: 2,          // Angka bulat wajib untuk anti-blur
-            height: 25,        // Tinggi cukup agar scanner mudah baca
+            width: 1,      // Garis barcode tipis namun tajam
+            height: 20,    // Sesuaikan tinggi agar scanner mudah baca
             displayValue: false,
             margin: 0,
           });
@@ -756,55 +761,33 @@ onMounted(() => {
 <style>
 /* Preview container */
 #print-area {
-  background-color: #333;
-  /* Background area preview abu gelap */
-  padding: 16px;
+  background-color: #525659;
+  padding: 10px;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 10px;
-  box-sizing: border-box;
-  overflow-y: auto;
-  max-height: 400px;
-  border: 1px solid #555;
+  gap: 8px;
 }
 
-/* Setiap baris label (2 kolom) - WAJIB PUTIH */
 .label-pair-container {
-  width: 148mm;
-  height: 32mm;
-  background-color: #ffffff !important;
-  /* [FIX] Paksa putih mutlak */
-  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.5);
-  border-radius: 2px;
-  display: flex;
-  justify-content: space-between;
-  align-items: stretch;
-  box-sizing: border-box;
-  flex-shrink: 0;
-  padding: 0;
-  margin: 0;
-  color: #000000 !important;
-  /* [FIX] Paksa teks hitam mutlak */
+  width: 68mm !important;
+  /* Pastikan preview tidak melebar ke 148mm */
+  height: 15mm !important;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2) !important;
+  margin-bottom: 10px !important;
 }
 
-/* Label individual */
 .barcode-label {
-  width: 74mm;
-  height: 32mm;
+  width: 32mm;
+  height: 15mm;
   display: flex;
   flex-direction: column;
-  justify-content: center;
-  align-items: center;
-  text-align: center;
-  font-family: Arial, sans-serif;
-  padding: 2mm;
+  align-items: flex-start !important;
+  /* Preview kiri */
+  text-align: left !important;
+  /* Preview kiri */
+  padding: 1mm 0 0 1.5mm !important;
   box-sizing: border-box;
-  overflow: hidden;
-  color: #000000 !important;
-  /* [FIX] Teks hitam */
-  background-color: #ffffff !important;
-  /* [FIX] Background putih */
 }
 
 /* Info teks */
@@ -820,10 +803,17 @@ onMounted(() => {
 }
 
 .item-name {
-  font-weight: bold;
-  font-size: 11px;
-  margin-bottom: 1mm;
-  color: #000000 !important;
+  font-size: 6pt !important;
+  font-family: 'Arial Narrow', sans-serif !important;
+  line-height: 1.1 !important;
+
+  /* Samakan logika 2 baris di pratinjau */
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  white-space: normal;
+  overflow: hidden;
 }
 
 .item-size {
@@ -920,11 +910,15 @@ onMounted(() => {
     color: black !important;
   }
 
-  .item-name {
-    font-size: 5px !important;
-    margin: 0 !important;
-    color: black !important;
-  }
+    .item-name {
+      font-size: 7pt;
+      white-space: nowrap;
+      /* Jika Nama terlalu panjang, ia akan tetap di satu baris tapi terpotong halus */
+      overflow: hidden;
+      text-overflow: clip;
+      /* Alternatif: gunakan font condensed */
+      font-family: 'Arial Narrow', sans-serif;
+    }
 
   .item-size {
     font-size: 4px !important;

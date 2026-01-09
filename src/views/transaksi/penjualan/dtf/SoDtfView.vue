@@ -398,25 +398,25 @@ const submitCloseSo = async () => {
   }
 };
 
-const showDeleteConfirmation = () => {
-  if (!isSingleSelected.value) return;
-  const item = selected.value[0];
-  if (item.NoSO) {
-    toast.warning('Sudah dibuat SO, tidak bisa dihapus.');
-    return;
-  }
-  if (item.NoINV) {
-    toast.warning('Sudah dibuat Invoice, tidak bisa dihapus.');
-    return;
-  }
-  if (item.Close === 'Y') {
-    toast.warning('Transaksi sudah ditutup, tidak bisa dihapus.');
-    return;
-  }
-  itemToDelete.value = item;
-  confirmDialogText.value = `Anda yakin ingin menghapus SO DTF Nomor: ${item.Nomor}?`;
-  isConfirmDialogVisible.value = true;
-};
+// const showDeleteConfirmation = () => {
+//   if (!isSingleSelected.value) return;
+//   const item = selected.value[0];
+//   if (item.NoSO) {
+//     toast.warning('Sudah dibuat SO, tidak bisa dihapus.');
+//     return;
+//   }
+//   if (item.NoINV) {
+//     toast.warning('Sudah dibuat Invoice, tidak bisa dihapus.');
+//     return;
+//   }
+//   if (item.Close === 'Y') {
+//     toast.warning('Transaksi sudah ditutup, tidak bisa dihapus.');
+//     return;
+//   }
+//   itemToDelete.value = item;
+//   confirmDialogText.value = `Anda yakin ingin menghapus SO DTF Nomor: ${item.Nomor}?`;
+//   isConfirmDialogVisible.value = true;
+// };
 
 const executeDelete = async () => {
   if (!itemToDelete.value) return;
@@ -527,8 +527,8 @@ watch(filters, () => {
         @click="$router.push('/transaksi/penjualan/dtf/so-dtf/new')">Baru</v-btn>
       <v-btn v-if="authStore.can(MENU_ID, 'edit')" size="small" :disabled="!isSingleSelected" prepend-icon="mdi-pencil"
         @click="$router.push(`/transaksi/penjualan/dtf/so-dtf/ubah/${selected[0].Nomor}`)">Ubah</v-btn>
-      <v-btn v-if="authStore.can(MENU_ID, 'delete')" size="small" color="error" :disabled="!isSingleSelected"
-        prepend-icon="mdi-delete" @click="showDeleteConfirmation">Hapus</v-btn>
+      <!-- <v-btn v-if="authStore.can(MENU_ID, 'delete')" size="small" color="error" :disabled="!isSingleSelected"
+        prepend-icon="mdi-delete" @click="showDeleteConfirmation">Hapus</v-btn> -->
       <v-btn v-if="authStore.can(MENU_ID, 'view')" size="small" :disabled="!isSingleSelected" @click="printData"
         color="green" prepend-icon="mdi-printer">Cetak</v-btn>
       <v-menu offset-y>

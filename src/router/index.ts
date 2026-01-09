@@ -144,6 +144,13 @@ const PengajuanBarcodePrintView = () =>
   import("@/views/transaksi/internal/PengajuanBarcodePrintView.vue");
 const CetakBarcodeBaruView = () => import("@/views/transaksi/penjualan/CetakBarcodeBaruView.vue");
 const KlerekView = () => import("@/views/transaksi/internal/KlerekView.vue");
+const PeminjamanBarangView = () => import("@/views/transaksi/internal/PeminjamanBarangView.vue");
+const PeminjamanBarangCreateView = () =>
+  import("@/views/transaksi/internal/PeminjamanBarangCreateView.vue");
+const PeminjamanBarangPrintView = () =>
+  import("@/views/transaksi/internal/PeminjamanBarangPrintView.vue");
+const PeminjamanBarangReturnView = () =>
+  import("@/views/transaksi/internal/PeminjamanBarangReturnView.vue");
 
 // --- MUTASI STORE ---
 const MutasiStoreKirimView = () => import("@/views/transaksi/mutasi/MutasiStoreKirimView.vue");
@@ -779,6 +786,53 @@ const routes = [
     },
   },
   {
+    path: "/transaksi/internal/peminjaman-barang",
+    name: "PeminjamanBarang",
+    component: PeminjamanBarangView,
+    meta: {
+      title: "Peminjaman Barang",
+      requiresAuth: true,
+      menuId: "56",
+    },
+  },
+  {
+    path: "/transaksi/internal/peminjaman-barang/create",
+    name: "PeminjamanBarangCreate",
+    component: PeminjamanBarangCreateView,
+    meta: {
+      title: "Buat Peminjaman Barang",
+      requiresAuth: true,
+      menuId: "56",
+    },
+  },
+  {
+    path: "/transaksi/internal/peminjaman-barang/edit/:id",
+    name: "PeminjamanBarangEdit",
+    component: PeminjamanBarangCreateView,
+    meta: {
+      title: "Ubah Peminjaman Barang",
+      requiresAuth: true,
+      menuId: "56",
+    },
+  },
+  {
+    path: "/transaksi/internal/peminjaman-barang/print/:nomor",
+    name: "PeminjamanBarangPrint",
+    component: PeminjamanBarangPrintView,
+    meta: {
+      title: "Cetak Peminjaman Barang",
+      printLayout: true,
+      requiresAuth: true,
+      layout: "PrintLayout",
+    },
+  },
+  {
+    path: "/peminjaman-barang/return/:nomor",
+    name: "PeminjamanBarangReturn",
+    component: PeminjamanBarangReturnView,
+    meta: { requiresAuth: true, menuId: "56" },
+  },
+  {
     path: "/transaksi/mutasi/out-produksi",
     name: "frmBrowMutasiOut",
     component: MutasiOutView,
@@ -1335,8 +1389,8 @@ const routes = [
     },
   },
   {
-    path: '/transaksi/penjualan/biaya-kirim/print/:nomor',
-    name: 'Cetak Biaya Kirim',
+    path: "/transaksi/penjualan/biaya-kirim/print/:nomor",
+    name: "Cetak Biaya Kirim",
     component: BiayaKirimPrintView,
     meta: {
       requiresAuth: true,

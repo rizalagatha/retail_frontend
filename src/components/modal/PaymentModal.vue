@@ -92,6 +92,7 @@ interface PaymentState {
   };
   retur: { nomor: string; nominal: number };
   pundiAmal: number;
+  diskonPembulatan: number;
   pinBelumLunas?: string;
 }
 
@@ -132,6 +133,7 @@ const payment = reactive({
   transfer: { nominal: null as number | null, akun: { kode: '', nama: '', rekening: '' }, tanggal: new Date().toISOString().substring(0, 10) },
   retur: { nomor: '', nominal: 0 },
   pundiAmal: 0,
+  diskonPembulatan: 0,
   pinBelumLunas: ''
 });
 
@@ -389,7 +391,7 @@ const handleFinalSave = async () => {
 
   // BANDINGKAN TOTAL BAYAR DENGAN GRAND TOTAL INVOICE
   const totalTagihanFinal = props.totals.grandTotal;
-  const totalBayarSekarang = totalBayar.value; // DP + Tunai + TF + dll
+  const totalBayarSekarang = totalBayar.value + Number(payment.diskonPembulatan || 0);
 
   if (totalBayarSekarang < totalTagihanFinal) {
     const sisaTagihan = totalTagihanFinal - totalBayarSekarang;
@@ -934,9 +936,19 @@ const effectiveSisaPiutang = computed(() => {
 });
 
 const sisaPiutangDisplay = computed(() => {
-  const baseSisa = effectiveSisaPiutang.value;
-  // Kurangi dengan nominal retur, pastikan tidak minus
-  return Math.max(baseSisa - (payment.retur.nominal || 0), 0);
+  const baseSisa = effectiveSisaPiutang.value; // Ini adalah (Grand Total - DP)
+
+  // Ambil semua nilai pembayaran yang sedang diinput di modal ini
+  const tunai = Number(payment.tunai || 0);
+  const transfer = Number(payment.transfer.nominal || 0);
+  const voucher = Number(payment.voucher.nominal || 0);
+  const retur = Number(payment.retur.nominal || 0);
+  const pembulatan = Number(payment.diskonPembulatan || 0);
+
+  // Sisa Piutang Akhir = Sisa awal dikurangi SEMUA metode bayar + pembulatan
+  const totalBayarSekarang = tunai + transfer + voucher + retur + pembulatan;
+
+  return Math.max(baseSisa - totalBayarSekarang, 0);
 });
 
 watch(kembali, (newVal) => {
@@ -987,6 +999,17 @@ watch(kembali, (newVal) => {
               <div class="d-flex justify-space-between font-weight-bold text-h6 text-primary">
                 <span>Sisa Piutang:</span>
                 <span>{{ formatRupiah(sisaPiutangDisplay) }}</span>
+              </div>
+
+              <v-divider class="my-3" />
+              <div class="pa-2 rounded" style="background-color: #fff4f4; border: 1px dashed #ffcdd2;">
+                <div class="text-caption font-weight-bold text-red-darken-4 mb-1">
+                  DISKON PEMBULATAN (MAX 500)
+                </div>
+                <v-text-field v-model.number="payment.diskonPembulatan" type="number" variant="outlined"
+                  density="compact" hide-details prefix="Rp" class="text-red-darken-4"
+                  @input="payment.diskonPembulatan = Math.min(payment.diskonPembulatan || 0, 500)" />
+                <div class="text-error" style="font-size: 9px;">*Gunakan jika uang customer kurang sedikit</div>
               </div>
             </div>
 

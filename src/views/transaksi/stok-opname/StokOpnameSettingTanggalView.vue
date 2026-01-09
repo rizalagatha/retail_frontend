@@ -25,8 +25,12 @@ const isLoading = ref(true);
 const dialogSetting = reactive({
   show: false,
   tanggal: format(new Date(), 'yyyy-MM-dd'),
+  cabangTarget: '', // [BARU]
 });
 const dialogConfirm = reactive({ show: false, title: '', text: '', onConfirm: () => { } });
+
+const cabangList = ref([]);
+const isKdc = computed(() => authStore.user?.cabang === 'KDC');
 
 // --- Computed Properties ---
 const isSingleSelected = computed(() => selected.value.length === 1);
@@ -40,6 +44,10 @@ const headers = [
 ] as const;
 
 // --- Methods ---
+const handleRowClick = (_: any, { item }: { item: StokOpnameDate }) => {
+  selected.value = [item];
+};
+
 const fetchData = async () => {
   isLoading.value = true;
   selected.value = [];
@@ -54,7 +62,12 @@ const fetchData = async () => {
   }
 };
 
-const openSettingDialog = () => {
+const openSettingDialog = async () => {
+  if (isKdc.value) {
+    const res = await api.get('/so/lookup/cabang'); // Gunakan API lookup cabang yang sudah ada
+    cabangList.value = res.data;
+  }
+  dialogSetting.cabangTarget = authStore.user?.cabang || '';
   dialogSetting.tanggal = format(new Date(), 'yyyy-MM-dd');
   dialogSetting.show = true;
 };
@@ -63,7 +76,10 @@ const handleSetTanggal = async () => {
   isLoading.value = true;
   dialogSetting.show = false;
   try {
-    const response = await api.post('/stok-opname/setting-tanggal', { tanggal: dialogSetting.tanggal });
+    const response = await api.post('/stok-opname/setting-tanggal', {
+      tanggal: dialogSetting.tanggal,
+      cabangTarget: dialogSetting.cabangTarget // [BARU] Kirim ke backend
+    });
     toast.success(response.data.message);
     fetchData();
   } catch (error) {
@@ -83,11 +99,19 @@ const openDeleteDialog = () => {
 };
 
 const handleDelete = async () => {
+  if (!selectedRow.value) return; // Pastikan ada baris yang dipilih
+
   isLoading.value = true;
   try {
-    const response = await api.delete(`/stok-opname/setting-tanggal/${selectedRow.value!.tanggal}`);
+    // Kirim nomor cabang sebagai query parameter agar dibaca oleh backend
+    const response = await api.delete(`/stok-opname/setting-tanggal/${selectedRow.value.tanggal}`, {
+      params: {
+        cabang: selectedRow.value.cabang // Ambil kode cabang dari baris tabel
+      }
+    });
+
     toast.success(response.data.message);
-    fetchData();
+    fetchData(); // Muat ulang tabel
   } catch (error) {
     const err = error as AxiosError<{ message?: string }>;
     toast.error(err.response?.data?.message || 'Gagal menghapus tanggal.');
@@ -111,8 +135,9 @@ onMounted(fetchData);
     <div class="browse-content">
       <div class="table-container">
         <AppDataTable v-model="selected" :headers="headers" :items="items" :loading="isLoading"
-          class="desktop-table header-browse-blue" density="compact" fixed-header item-value="tanggal" return-object
-          single-select>
+          class="desktop-table header-browse-blue" density="compact" fixed-header
+          :item-value="(item) => `${item.cabang}-${item.tanggal}`" return-object single-select
+          @click:row="handleRowClick">
           <template #[`item.tanggal`]="{ item }">
             {{ format(parseISO(item.tanggal), 'dd MMMM yyyy') }}
           </template>
@@ -126,17 +151,20 @@ onMounted(fetchData);
     </div>
 
     <!-- Dialog untuk Setting Tanggal -->
-    <v-dialog v-model="dialogSetting.show" max-width="400px" persistent>
+    <v-dialog v-model="dialogSetting.show" max-width="450px" persistent>
       <v-card>
-        <v-card-title>Setting Tanggal Stok Opname</v-card-title>
-        <v-card-text>
-          <v-text-field v-model="dialogSetting.tanggal" type="date" label="Tanggal" variant="outlined" density="compact"
-            autofocus />
+        <v-card-title class="pa-4 bg-primary text-white">Setting Tanggal Stok Opname</v-card-title>
+        <v-card-text class="pt-4">
+          <v-select v-if="isKdc" v-model="dialogSetting.cabangTarget" :items="cabangList" item-title="nama"
+            item-value="kode" label="Pilih Cabang" variant="outlined" density="compact" class="mb-4" />
+          <v-text-field v-model="dialogSetting.tanggal" type="date" label="Tanggal SO" variant="outlined"
+            density="compact" />
         </v-card-text>
-        <v-card-actions>
+        <v-divider />
+        <v-card-actions class="pa-3">
           <v-spacer />
-          <v-btn text @click="dialogSetting.show = false">Batal</v-btn>
-          <v-btn color="primary" @click="handleSetTanggal">OK</v-btn>
+          <v-btn variant="text" @click="dialogSetting.show = false">Batal</v-btn>
+          <v-btn color="primary" variant="flat" @click="handleSetTanggal" :loading="isLoading">Simpan</v-btn>
         </v-card-actions>
       </v-card>
     </v-dialog>

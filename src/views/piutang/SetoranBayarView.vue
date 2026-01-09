@@ -206,12 +206,12 @@ const loadDetails = async (newlyExpandedItems: SetoranHeader[]) => {
   }
 };
 
-const showDeleteConfirmation = () => {
-  if (!selectedRow.value) return;
-  // Validasi tambahan jika perlu (misal status closing)
-  confirmDialogText.value = `Yakin ingin menghapus Setoran ${selectedRow.value.Nomor}?`;
-  isConfirmDialogVisible.value = true;
-};
+// const showDeleteConfirmation = () => {
+//   if (!selectedRow.value) return;
+//   // Validasi tambahan jika perlu (misal status closing)
+//   confirmDialogText.value = `Yakin ingin menghapus Setoran ${selectedRow.value.Nomor}?`;
+//   isConfirmDialogVisible.value = true;
+// };
 
 const executeDelete = async () => {
   if (!selectedRow.value) return;
@@ -406,10 +406,10 @@ watch(
         @click="router.push({ name: 'SetoranBayarEdit', params: { nomor: selected[0].Nomor } })">
         Ubah
       </v-btn>
-      <v-btn size="small" color="error" prepend-icon="mdi-delete" :loading="deleteLoading" :disabled="!isSingleSelected"
+      <!-- <v-btn size="small" color="error" prepend-icon="mdi-delete" :loading="deleteLoading" :disabled="!isSingleSelected"
         @click="showDeleteConfirmation">
         Hapus
-      </v-btn>
+      </v-btn> -->
       <v-btn v-if="authStore.can(MENU_ID, 'view')" size="small" color="green" :disabled="!isSingleSelected"
         @click="printData" prepend-icon="mdi-printer">
         Cetak

@@ -186,8 +186,6 @@ const isChangePaymentVisible = ref(false);
 const isChangingPayment = ref(false);
 const isRekeningSearchVisible = ref(false); // State untuk modal rekening
 
-const showMarketplaceColumns = ref(true);
-
 // Form Payment
 const formPayment = reactive<PaymentForm>({
   metode: 'TUNAI',

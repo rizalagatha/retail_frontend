@@ -125,7 +125,8 @@ const menuItems = [
           { title: 'Retur Barang ke DC', to: '/transaksi/internal/retur-dc', icon: 'mdi-undo-variant' },
           { title: 'Koreksi Stok', to: '/transaksi/internal/koreksi-stok', icon: 'mdi-pencil-outline' },
           { title: 'Pengajuan Barcode Baru', to: '/transaksi/internal/pengajuan-barcode', icon: 'mdi-barcode' },
-          { title: 'Klerek', to: '/transaksi/internal/klerek', icon: 'mdi-clipboard-check-outline' }
+          { title: 'Peminjaman Barang', to: '/transaksi/internal/peminjaman-barang', icon: 'mdi-hand-back-right-outline' },
+          { title: 'Klerek', to: '/transaksi/internal/klerek', icon: 'mdi-clipboard-check-outline' },
         ]
       },
       {

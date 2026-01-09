@@ -83,12 +83,18 @@ const loadData = async (nomorSj: string) => {
     header.gudangAsal = { kode: data.header.gudang_asal_kode, nama: data.header.gudang_asal_nama };
     header.keterangan = data.header.keterangan;
 
+    const isK01 = authStore.user?.cabang === 'K01';
+
     // Isi grid
     items.value = data.items.map((item: Item): ItemWithExtra => ({
       ...item,
       id: Date.now() + Math.random(),
-      jumlahTerima: 0,
+      jumlahTerima: isK01 ? item.jumlahKirim : 0,
     }));
+
+    if (isK01) {
+      toast.info('Jumlah terima otomatis disamakan dengan jumlah kirim untuk cabang K01.');
+    }
 
   } catch {
     toast.error('Gagal memuat data SJ untuk diterima.');

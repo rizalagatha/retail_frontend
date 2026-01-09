@@ -16,6 +16,8 @@ interface StokMinusItem {
   nama: string;
   ukuran: string;
   stok: number;
+  cabang_nama: string;
+  referensi: string; // [TAMBAHAN]
 }
 interface Cabang {
   kode: string;
@@ -40,6 +42,7 @@ const grandTotalStok = computed(() => {
 
 const tableHeaders = [
   { title: 'Cabang', key: 'cabang_nama', width: '120px' },
+  { title: 'Referensi (Inv/SJ)', key: 'referensi', width: '180px' },
   { title: 'Kode', key: 'kode', width: '120px' },
   { title: 'Barcode', key: 'barcode', width: '120px' },
   { title: 'Kategori', key: 'kategori', width: '100px' },
@@ -80,6 +83,8 @@ const exportData = () => {
 
   // (Opsional) Ubah nama kolom agar lebih rapi di Excel
   const dataToExport = items.value.map(item => ({
+    "Cabang": item.cabang_nama,
+    "Referensi (Inv/SJ)": item.referensi, // [TAMBAHAN]
     "Kode Barang": item.kode,
     "Barcode": item.barcode,
     "Kategori": item.kategori,

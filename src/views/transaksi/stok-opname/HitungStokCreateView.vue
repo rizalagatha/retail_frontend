@@ -26,6 +26,29 @@ const MENU_ID = '23';
 const isLoading = ref(false);
 const scannedItems = ref<ScannedItem[]>([]);
 
+// --- Tambahkan Audio Objects dengan path yang benar ---
+// Di Vite/Vue, file di /public diakses langsung dari root '/'
+const audioSuccess = new Audio('/audio/beep_success.mp3');
+const audioError = new Audio('/audio/beep_error.mp3');
+
+// Pastikan volume penuh
+audioSuccess.volume = 1.0;
+audioError.volume = 1.0;
+
+const playSuccess = () => {
+  audioSuccess.currentTime = 0;
+  audioSuccess.play().catch(e => {
+    console.error("Gagal memutar suara sukses. Browser mungkin memblokir audio:", e);
+  });
+};
+
+const playError = () => {
+  audioError.currentTime = 0;
+  audioError.play().catch(e => {
+    console.error("Gagal memutar suara error. Browser mungkin memblokir audio:", e);
+  });
+};
+
 const form = reactive({
   lokasi: '',
   barcode: '',
@@ -49,46 +72,70 @@ const focusBarcodeField = () => {
   document.getElementById('barcode-field')?.focus();
 };
 
+// Fungsi untuk memancing suara agar diizinkan oleh browser
+const unlockAudio = () => {
+  // Putar suara kosong atau durasi sangat singkat untuk 'pancingan'
+  audioSuccess.play().then(() => {
+    audioSuccess.pause();
+    audioSuccess.currentTime = 0;
+  }).catch(() => { });
+
+  // Lepas event listener setelah sekali klik
+  document.removeEventListener('click', unlockAudio);
+};
+
+onMounted(() => {
+  // Tambahkan listener klik global untuk mengaktifkan audio
+  document.addEventListener('click', unlockAudio);
+
+  nextTick(() => {
+    document.getElementById('lokasi-field')?.focus();
+  });
+});
+
 const handleScan = async () => {
   if (!form.lokasi) {
+    playError();
     toast.error('Silahkan isi Lokasi terlebih dahulu.');
     document.getElementById('lokasi-field')?.focus();
     return;
   }
-  if (!form.barcode) {
-    return; // Jangan lakukan apa-apa jika barcode kosong
-  }
+  if (!form.barcode) return;
 
   try {
-    // 1. Ambil detail produk berdasarkan barcode
+    // 1. Ambil detail produk
     const productResponse = await api.get(`/hitung-stok-form/product-by-barcode/${form.barcode}`);
     const product = productResponse.data;
 
-    // Tampilkan info produk di form
     form.kodeBarang = product.brg_kode;
     form.namaBarang = product.nama;
     form.ukuran = product.brgd_ukuran;
 
-    // 2. Kirim data scan ke backend untuk diproses (INSERT/UPDATE)
+    // 2. Kirim data scan
     await api.post('/hitung-stok-form/process-scan', {
       lokasi: form.lokasi,
       barcode: form.barcode,
       product: product
     });
 
-    // 3. Muat ulang daftar item yang sudah di-scan untuk lokasi ini
+    // 3. Feedback Suara Sukses
+    playSuccess();
+
+    // 4. Refresh data
     await fetchScannedItems();
 
-    // 4. Reset dan fokus kembali ke input barcode
     form.barcode = '';
     nextTick(() => {
       document.getElementById('barcode-field')?.focus();
     });
 
   } catch (error) {
+    playError(); // Feedback Suara Error
     const err = error as AxiosError<{ message?: string }>;
     toast.error(err.response?.data?.message || 'Gagal memproses scan.');
     form.barcode = '';
+    // Focus kembali agar bisa scan ulang
+    nextTick(() => document.getElementById('barcode-field')?.focus());
   }
 };
 

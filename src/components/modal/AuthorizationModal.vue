@@ -32,10 +32,14 @@ const pollingInterval = ref<ReturnType<typeof setInterval> | null>(null);
 
 // --- Computed ---
 const targetRole = computed(() => {
+  // Jika jenisnya peminjaman, arahkan ke Supervisor
+  if (props.jenis === 'PEMINJAMAN_BARANG') return 'Supervisor (ESTU)';
   return props.cabang ? `Pihak Toko ${props.cabang}` : 'Manager';
 });
 
-const isQtyType = computed(() => props.jenis === 'AMBIL_BARANG');
+const isQtyType = computed(() =>
+  props.jenis === 'AMBIL_BARANG' || props.jenis === 'PEMINJAMAN_BARANG'
+);
 
 const labelNilai = computed(() => isQtyType.value ? 'Total Qty' : 'Nominal');
 

@@ -66,8 +66,8 @@ const loadingDetails = ref(new Set<string>());
 const selected = ref<MutasiStokHeader[]>([]);
 const expanded = ref<string[]>([]);
 const cabangList = ref([]);
-const dialogDelete = ref(false);
-const isDeleting = ref(false);
+// const dialogDelete = ref(false);
+// const isDeleting = ref(false);
 
 const filters = reactive({
   startDate: format(subDays(new Date(), 7), 'yyyy-MM-dd'),
@@ -176,30 +176,30 @@ const loadDetails = async (newlyExpandedItems: MasterItem[]) => {
   }
 };
 
-const handleDelete = () => {
-  if (!selectedRow.value) return;
-  dialogDelete.value = true;
-};
+// const handleDelete = () => {
+//   if (!selectedRow.value) return;
+//   dialogDelete.value = true;
+// };
 
-const executeDelete = () => {
-  if (!selectedRow.value) return;
+// const executeDelete = () => {
+//   if (!selectedRow.value) return;
 
-  isDeleting.value = true;
-  api.delete(`/mutasi-stok/${selectedRow.value.Nomor}`)
-    .then(response => {
-      toast.success(response.data.message);
-      fetchMasterData();
-      selected.value = [];
-    })
-    .catch(error => {
-      const msg = (error as { response?: { data?: { message?: string } } })?.response?.data?.message;
-      toast.error(msg || 'Gagal menghapus data.');
-    })
-    .finally(() => {
-      isDeleting.value = false;
-      dialogDelete.value = false;
-    });
-};
+//   isDeleting.value = true;
+//   api.delete(`/mutasi-stok/${selectedRow.value.Nomor}`)
+//     .then(response => {
+//       toast.success(response.data.message);
+//       fetchMasterData();
+//       selected.value = [];
+//     })
+//     .catch(error => {
+//       const msg = (error as { response?: { data?: { message?: string } } })?.response?.data?.message;
+//       toast.error(msg || 'Gagal menghapus data.');
+//     })
+//     .finally(() => {
+//       isDeleting.value = false;
+//       dialogDelete.value = false;
+//     });
+// };
 
 const printData = () => {
   if (!isSingleSelected.value) return;
@@ -324,8 +324,8 @@ watch(filters, fetchMasterData, { deep: true });
         @click="router.push({ name: 'MutasiStokCreate' })">Baru</v-btn>
       <v-btn v-if="authStore.can(MENU_ID, 'edit')" size="small" prepend-icon="mdi-pencil" :disabled="!isSingleSelected"
         @click="router.push({ name: 'MutasiStokEdit', params: { nomor: selectedRow?.Nomor } })">Ubah</v-btn>
-      <v-btn v-if="authStore.can(MENU_ID, 'delete')" size="small" prepend-icon="mdi-delete" color="error"
-        :disabled="!isSingleSelected" @click="handleDelete">Hapus</v-btn>
+      <!-- <v-btn v-if="authStore.can(MENU_ID, 'delete')" size="small" prepend-icon="mdi-delete" color="error"
+        :disabled="!isSingleSelected" @click="handleDelete">Hapus</v-btn> -->
       <v-btn v-if="authStore.can(MENU_ID, 'view')" size="small" color="green" :disabled="!isSingleSelected"
         prepend-icon="mdi-printer" @click="printData">
         Cetak
@@ -427,7 +427,7 @@ watch(filters, fetchMasterData, { deep: true });
       </div>
     </div>
 
-    <v-dialog v-model="dialogDelete" max-width="400px" persistent>
+    <!-- <v-dialog v-model="dialogDelete" max-width="400px" persistent>
       <v-card>
         <v-card-title class="text-h6 font-weight-bold">Konfirmasi Hapus</v-card-title>
         <v-card-text>
@@ -443,7 +443,7 @@ watch(filters, fetchMasterData, { deep: true });
           </v-btn>
         </v-card-actions>
       </v-card>
-    </v-dialog>
+    </v-dialog> -->
   </PageLayout>
 </template>
 

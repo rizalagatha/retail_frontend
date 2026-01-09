@@ -188,19 +188,19 @@ const loadDetails = async (newlyExpandedItems: FskMaster[]) => {
   }
 };
 
-const handleDelete = () => {
-  if (!selectedRow.value) return;
-  if (confirm(`Yakin ingin menghapus FSK nomor ${selectedRow.value.Nomor}?`)) {
-    api.delete(`/fsk/${selectedRow.value.Nomor}`)
-      .then(response => {
-        toast.success(response.data.message);
-        fetchMasterData();
-      })
-      .catch(error => {
-        toast.error(error.response?.data?.message || 'Gagal menghapus data.');
-      });
-  }
-};
+// const handleDelete = () => {
+//   if (!selectedRow.value) return;
+//   if (confirm(`Yakin ingin menghapus FSK nomor ${selectedRow.value.Nomor}?`)) {
+//     api.delete(`/fsk/${selectedRow.value.Nomor}`)
+//       .then(response => {
+//         toast.success(response.data.message);
+//         fetchMasterData();
+//       })
+//       .catch(error => {
+//         toast.error(error.response?.data?.message || 'Gagal menghapus data.');
+//       });
+//   }
+// };
 
 const getRowTextColor = (item: FskMaster) => {
   if (!item.Verified) return 'text-red font-weight-bold';
@@ -358,10 +358,10 @@ watch(filters, fetchMasterData, { deep: true });
         @click="router.push({ name: 'FskEdit', params: { nomor: selectedRow?.Nomor } })">
         Ubah
       </v-btn>
-      <v-btn v-if="authStore.can(MENU_ID, 'delete')" size="small" prepend-icon="mdi-delete" color="error"
+      <!-- <v-btn v-if="authStore.can(MENU_ID, 'delete')" size="small" prepend-icon="mdi-delete" color="error"
         :disabled="!canBeModified" @click="handleDelete">
         Hapus
-      </v-btn>
+      </v-btn> -->
       <v-btn v-if="authStore.can(MENU_ID, 'view')" size="small" color="green" :disabled="!isSingleSelected"
         @click="printData" prepend-icon="mdi-printer">
         Cetak

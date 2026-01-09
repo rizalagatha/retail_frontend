@@ -60,9 +60,10 @@ const loadItems = async (opts: { page: number, itemsPerPage: number }) => {
     // Tentukan endpoint berdasarkan source
     let apiUrl = '/barcode-form/search-products'; // Endpoint default
 
-    if (props.source === 'invoice-cash') {
+    if (props.source === 'peminjaman') {
+      apiUrl = '/peminjaman-barang-form/lookup/products';
+    } else if (props.source === 'invoice-cash') {
       apiUrl = '/invoice-form/lookup/products';
-
     } else if (props.source === 'mutasi-kirim') {
       apiUrl = '/mutasi-kirim/lookup/products';
     } else if (props.source === 'minta-barang') {

@@ -99,7 +99,7 @@ const summaryHeaders = [
 const allocationHeaders = [
   { title: 'SPK', key: 'spk', width: '100px' },
   { title: 'Kode Barang', key: 'kode', width: '100px' },
-  { title: 'Nama Barang', key: 'nama' }, // <-- Biarkan tanpa lebar agar fleksibel
+  { title: 'Nama Barang', key: 'nama', minWidth: '350px' }, // <-- Biarkan tanpa lebar agar fleksibel
   { title: 'Ukuran', key: 'ukuran', width: '40px' },
   { title: 'Jumlah', key: 'jumlah', align: 'end', width: '40px' },
   { title: 'KDC', key: 'kdc', align: 'end', width: '40px' },
@@ -356,6 +356,37 @@ watch(allocationItems, (newItems) => {
 </template>
 
 <style scoped>
+.desktop-table :deep(td) {
+  font-size: 11px !important;
+  white-space: nowrap;
+  /* ✅ Memaksa semua kolom 1 baris */
+  overflow: hidden;
+  text-overflow: ellipsis;
+  /* Tambahkan titik-titik jika terlalu panjang */
+}
+
+/* Khusus kolom Nama Barang agar tetap terlihat jelas */
+.desktop-table :deep(.text-start) {
+  white-space: nowrap !important;
+}
+
+/* Mengatur input field di dalam tabel agar lebih ramping */
+.desktop-table :deep(.v-field__input) {
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+  min-height: 24px !important;
+  font-size: 11px !important;
+}
+
+.form-grid-container {
+  display: grid;
+  grid-template-columns: 400px 1fr;
+  /* Lebarkan sedikit kolom kiri */
+  gap: 16px;
+  padding: 12px;
+  height: calc(100vh - 100px);
+}
+
 .form-grid-container {
   display: grid;
   /* Kolom kiri 35%, kolom kanan 65% */
@@ -396,13 +427,16 @@ watch(allocationItems, (newItems) => {
 }
 
 .desktop-table :deep(thead tr th) {
-  background-color: #0D47A1 !important; /* Biru Tua */
-  color: #ffffff !important;            /* Teks Putih */
+  background-color: #0D47A1 !important;
+  /* Biru Tua */
+  color: #ffffff !important;
+  /* Teks Putih */
   font-weight: bold !important;
   text-transform: uppercase;
   font-size: 11px !important;
   height: 40px !important;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-  border-bottom: none !important; /* Supaya lebih rapi */
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  border-bottom: none !important;
+  /* Supaya lebih rapi */
 }
 </style>

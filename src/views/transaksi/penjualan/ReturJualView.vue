@@ -107,14 +107,14 @@ const canEdit = computed(() => {
   return totalTerpakai === 0 && isNotClosing;
 });
 
-const canDelete = computed(() => {
-  if (!isSingleSelected.value || !selectedRow.value) return false;
+// const canDelete = computed(() => {
+//   if (!isSingleSelected.value || !selectedRow.value) return false;
 
-  const totalTerpakai = Number(selectedRow.value.diBayarkan) || 0;
-  const isNotClosing = selectedRow.value.closing !== 'Y';
+//   const totalTerpakai = Number(selectedRow.value.diBayarkan) || 0;
+//   const isNotClosing = selectedRow.value.closing !== 'Y';
 
-  return totalTerpakai === 0 && isNotClosing;
-});
+//   return totalTerpakai === 0 && isNotClosing;
+// });
 
 // --- Header Definisi (Resize) ---
 const headers = ref<DataTableHeader[]>([
@@ -227,12 +227,12 @@ const loadDetails = async (newlyExpandedItems: MasterItem[]) => {
   }
 };
 
-const showConfirmation = (title: string, text: string, onConfirm: () => void) => {
-  dialogConfirm.title = title;
-  dialogConfirm.text = text;
-  dialogConfirm.onConfirm = onConfirm;
-  dialogConfirm.show = true;
-};
+// const showConfirmation = (title: string, text: string, onConfirm: () => void) => {
+//   dialogConfirm.title = title;
+//   dialogConfirm.text = text;
+//   dialogConfirm.onConfirm = onConfirm;
+//   dialogConfirm.show = true;
+// };
 
 const handleNew = () => router.push({ name: 'ReturJualCreate' });
 const handleEdit = () => {
@@ -240,24 +240,24 @@ const handleEdit = () => {
   router.push({ name: 'ReturJualEdit', params: { nomor: selectedRow.value.nomor } });
 };
 
-const handleDelete = () => {
-  if (!canDelete.value || !selectedRow.value) return;
-  showConfirmation(
-    'Konfirmasi Hapus',
-    `Yakin ingin menghapus Retur Jual ${selectedRow.value.nomor}?`,
-    async () => {
-      try {
-        if (!selectedRow.value) return;
-        const response = await api.delete(`/retur-jual/${selectedRow.value.nomor}`);
-        toast.success(response.data.message);
-        fetchMasterData();
-      } catch (error) {
-        const err = error as AxiosError<{ message?: string }>;
-        toast.error(err.response?.data?.message || "Gagal menghapus data.");
-      }
-    }
-  );
-};
+// const handleDelete = () => {
+//   if (!canDelete.value || !selectedRow.value) return;
+//   showConfirmation(
+//     'Konfirmasi Hapus',
+//     `Yakin ingin menghapus Retur Jual ${selectedRow.value.nomor}?`,
+//     async () => {
+//       try {
+//         if (!selectedRow.value) return;
+//         const response = await api.delete(`/retur-jual/${selectedRow.value.nomor}`);
+//         toast.success(response.data.message);
+//         fetchMasterData();
+//       } catch (error) {
+//         const err = error as AxiosError<{ message?: string }>;
+//         toast.error(err.response?.data?.message || "Gagal menghapus data.");
+//       }
+//     }
+//   );
+// };
 
 const handlePrint = () => {
   if (!isSingleSelected.value) return;
@@ -389,8 +389,8 @@ watch(filters, fetchMasterData, { deep: true });
         @click="handleNew">Baru</v-btn>
       <v-btn v-if="authStore.can(MENU_ID, 'edit')" size="small" prepend-icon="mdi-pencil" @click="handleEdit"
         :disabled="!canEdit">Ubah</v-btn>
-      <v-btn v-if="authStore.can(MENU_ID, 'delete')" size="small" prepend-icon="mdi-delete" color="error"
-        @click="handleDelete" :disabled="!canDelete">Hapus</v-btn>
+      <!-- <v-btn v-if="authStore.can(MENU_ID, 'delete')" size="small" prepend-icon="mdi-delete" color="error"
+        @click="handleDelete" :disabled="!canDelete">Hapus</v-btn> -->
       <v-btn v-if="authStore.can(MENU_ID, 'view')" size="small" color="green" :disabled="!isSingleSelected"
         prepend-icon="mdi-printer" @click="handlePrint">
         Cetak

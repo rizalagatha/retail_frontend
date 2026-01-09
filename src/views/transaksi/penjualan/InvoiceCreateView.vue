@@ -228,6 +228,11 @@ const isUserMarketplaceEligible = computed(() => {
 
 const isKpr = computed(() => authStore.user?.cabang === 'KPR');
 
+const canSearchManual = computed(() => {
+  const cabang = authStore.user?.cabang || '';
+  return ['KPR', 'K01'].includes(cabang);
+});
+
 const referenceLabel = computed(() => isKpr.value ? 'No. Surat Jalan' : 'No. Pesanan (SO)');
 
 const referenceDateLabel = computed(() => isKpr.value ? 'Tgl. SJ' : 'Tgl. SO');
@@ -717,6 +722,11 @@ const handleClose = () => {
 };
 
 const openProductSearch = (index: number, isMulti: boolean) => {
+  // Tambahkan validasi cabang di sini
+  if (!canSearchManual.value) {
+    return toast.error('Pencarian barang manual (F1/F2) dinonaktifkan untuk cabang Anda. Silakan gunakan Scan Barcode.');
+  }
+
   if (!header.customer.kode) return toast.error('Pilih customer terlebih dahulu.');
   if (header.nomorSo) return toast.info('Tidak bisa menambah item manual jika sudah terhubung ke SO.');
 
@@ -2609,10 +2619,11 @@ watch(() => header.isMarketplace, async (isOnline) => {
               :items-per-page="-1" fixed-header height="calc(100vh - 420px)">
               <template v-slot:[`item.kode`]="{ item, index }">
                 <v-text-field v-model="item.kode" variant="underlined" density="compact" hide-details
-                  placeholder="F1/F2..." :readonly="isReadonly || !!header.nomorSo || !!item.noSoDtf"
-                  :class="{ 'field-disabled': !!header.nomorSo || !!item.noSoDtf }"
-                  @keydown.f1.prevent="!header.nomorSo && !item.noSoDtf && openProductSearch(index, false)"
-                  @keydown.f2.prevent="!header.nomorSo && !item.noSoDtf && openProductSearch(index, true)" />
+                  :placeholder="canSearchManual ? 'F1/F2...' : 'Scan Barcode...'"
+                  :readonly="isReadonly || !!header.nomorSo || !!item.noSoDtf || !canSearchManual"
+                  :class="{ 'field-disabled': !!header.nomorSo || !!item.noSoDtf || !canSearchManual }"
+                  @keydown.f1.prevent="canSearchManual && !header.nomorSo && !item.noSoDtf && openProductSearch(index, false)"
+                  @keydown.f2.prevent="canSearchManual && !header.nomorSo && !item.noSoDtf && openProductSearch(index, true)" />
               </template>
 
               <template #[`item.kategori`]="{ item }">

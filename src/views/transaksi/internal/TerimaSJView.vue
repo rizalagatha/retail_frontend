@@ -131,6 +131,33 @@ const handleRowClick = (_event: Event, { item }: { item: SjHeader }) => {
 
 const isSingleSelected = computed(() => selected.value.length === 1);
 const selectedRow = computed(() => isSingleSelected.value ? selected.value[0] : null);
+const isK01 = computed(() => authStore.user?.cabang === 'K01');
+
+const terimaDisabledReason = computed(() => {
+  if (!isK01.value) {
+    return 'Penerimaan SJ cabang selain K01 wajib melalui Aplikasi Kaosan Mobile.';
+  }
+  if (!isSingleSelected.value) {
+    return 'Pilih tepat satu SJ terlebih dahulu.';
+  }
+  if (selectedRow.value?.NomorTerima) {
+    return 'SJ ini sudah diterima.';
+  }
+  return '';
+});
+
+const batalDisabledReason = computed(() => {
+  if (!isK01.value) {
+    return 'Fitur ini hanya tersedia untuk K01.';
+  }
+  if (!isSingleSelected.value) {
+    return 'Pilih tepat satu SJ terlebih dahulu.';
+  }
+  if (!selectedRow.value?.NomorTerima) {
+    return 'SJ belum diterima.';
+  }
+  return '';
+});
 
 
 // --- Methods ---
@@ -356,15 +383,34 @@ watch(filters, fetchMasterData, { deep: true });
 <template>
   <PageLayout title="Terima SJ dari DC" icon="mdi-package-down">
     <template #header-actions>
-      <v-btn size="small" color="primary" prepend-icon="mdi-check"
-        :disabled="!isSingleSelected || !!selectedRow?.NomorTerima" @click="handleTerima">
-        Terima
-      </v-btn>
-      <v-btn size="small" color="error" prepend-icon="mdi-undo"
-        :disabled="!isSingleSelected || !selectedRow?.NomorTerima" @click="handleBatalTerima">
-        Batal Terima
-      </v-btn>
+      <v-tooltip location="bottom" :disabled="!terimaDisabledReason">
+        <template #activator="{ props }">
+          <span v-bind="props">
+            <v-btn size="small" color="primary" prepend-icon="mdi-check" :disabled="!!terimaDisabledReason"
+              @click="handleTerima">
+              Terima
+            </v-btn>
+          </span>
+        </template>
 
+        <span style="font-size:12px">
+          {{ terimaDisabledReason }}
+        </span>
+      </v-tooltip>
+      <v-tooltip location="bottom" :disabled="!batalDisabledReason">
+        <template #activator="{ props }">
+          <span v-bind="props">
+            <v-btn size="small" color="error" prepend-icon="mdi-undo" :disabled="!!batalDisabledReason"
+              @click="handleBatalTerima">
+              Batal Terima
+            </v-btn>
+          </span>
+        </template>
+
+        <span style="font-size:12px">
+          {{ batalDisabledReason }}
+        </span>
+      </v-tooltip>
       <v-menu offset-y>
         <template v-slot:activator="{ props }">
           <v-btn size="small" color="teal" prepend-icon="mdi-file-excel" v-bind="props">
@@ -383,6 +429,7 @@ watch(filters, fetchMasterData, { deep: true });
     </template>
 
     <div class="browse-content">
+
       <div class="filter-section">
         <span class="filter-label">Tanggal SJ:</span>
         <v-text-field v-model="filters.startDate" type="date" density="compact" hide-details variant="outlined"
@@ -651,7 +698,6 @@ watch(filters, fetchMasterData, { deep: true });
   border-radius: 4px;
   overflow: hidden;
 }
-
 
 /* Pewarnaan Baris */
 :deep(td.text-red) {

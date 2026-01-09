@@ -722,6 +722,13 @@ const calculatePrices = async () => {
 
   // Menentukan harga berdasarkan Jenis Order (mirip blok if/else if di Delphi)
   switch (jenisOrder) {
+    case 'SB': // Sablon Plastisol (Minimal 20 Pcs)
+      detailsTitik.value.forEach(t => {
+        if (t.sizeCetak === 'A3') hargaSatuan += 35000;
+        else if (t.sizeCetak === 'A4') hargaSatuan += 20000;
+        else if (t.sizeCetak === 'A5') hargaSatuan += 10000;
+      });
+      break;
     case 'SD': // Sablon
       hargaPerCm = form.value.customerLevel === 'KORPORASI' ? 15 : 25;
       hargaSatuan = totalHargaDtf.value / totalJumlahKaos.value;

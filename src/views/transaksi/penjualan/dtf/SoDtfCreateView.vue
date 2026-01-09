@@ -135,7 +135,7 @@ const totalTitik = computed(() => {
 });
 
 const isHargaReadonly = computed(() => {
-  const autoCalcTypes = ['SB','SD', 'DP', 'TG', 'BR'];
+  const autoCalcTypes = ['SD', 'DP', 'TG', 'BR'];
   return autoCalcTypes.includes(form.value.jenisOrderKode);
 });
 
@@ -722,10 +722,6 @@ const calculatePrices = async () => {
 
   // Menentukan harga berdasarkan Jenis Order (mirip blok if/else if di Delphi)
   switch (jenisOrder) {
-    case 'SB': // DTF Premium
-      hargaPerCm = 35;
-      hargaSatuan = totalLuas * hargaPerCm;
-      break;
     case 'SD': // Sablon
       hargaPerCm = form.value.customerLevel === 'KORPORASI' ? 15 : 25;
       hargaSatuan = totalHargaDtf.value / totalJumlahKaos.value;

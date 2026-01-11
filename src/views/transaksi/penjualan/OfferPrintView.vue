@@ -50,21 +50,38 @@ const igLogo = InstagramLogo;
 const qrCodeData = ref<string | null>(null);
 
 // Fungsi untuk mengubah angka menjadi teks terbilang
-function terbilang(n: number) {
-  if (n === null || n === undefined || n === 0) return "Nol";
-  if (n < 0) return "minus " + terbilang(-n);
+// 1. Tambahkan Math.floor untuk menangani angka desimal
+function terbilang(n: number): string {
+  // Pastikan angka bulat, karena array 'ang' hanya punya indeks angka bulat
+  n = Math.floor(n);
+
+  if (n === 0) return ""; // Untuk rekursi, biarkan kosong jika nol
+  if (n < 0) return "minus " + terbilang(Math.abs(n));
+
   const ang = ["", "satu", "dua", "tiga", "empat", "lima", "enam", "tujuh", "delapan", "sembilan", "sepuluh", "sebelas"];
+
   if (n < 12) return ang[n];
   if (n < 20) return terbilang(n - 10) + " belas";
-  if (n < 100) return terbilang(Math.floor(n / 10)) + " puluh " + terbilang(n % 10).trim();
+  if (n < 100) {
+    const hasil = terbilang(Math.floor(n / 10)) + " puluh " + terbilang(n % 10);
+    return hasil.trim();
+  }
   if (n < 200) return "seratus " + terbilang(n - 100);
   if (n < 1000) return terbilang(Math.floor(n / 100)) + " ratus " + terbilang(n % 100);
   if (n < 2000) return "seribu " + terbilang(n - 1000);
   if (n < 1000000) return terbilang(Math.floor(n / 1000)) + " ribu " + terbilang(n % 1000);
   if (n < 1000000000) return terbilang(Math.floor(n / 1000000)) + " juta " + terbilang(n % 1000000);
+
   return "angka terlalu besar";
 }
-const capitalize = (s: string) => (s ? s.charAt(0).toUpperCase() + s.slice(1).toLowerCase().replace(/\s+/g, ' ') : '').trim();
+
+// 2. Perbaiki capitalize agar menangani nilai kosong dengan lebih aman
+const capitalize = (s: string) => {
+  if (!s) return "Nol"; // Jika grand_total 0 atau string kosong
+  const cleaned = s.replace(/\s+/g, ' ').trim();
+  if (!cleaned) return "Nol";
+  return (cleaned.charAt(0).toUpperCase() + cleaned.slice(1).toLowerCase()).trim();
+};
 
 const fetchPrintData = async (nomor: string) => {
   isLoading.value = true;

@@ -728,8 +728,15 @@ const openLookup = () => {
   activeRowIndex.value = items.value.length - 1;
   isMultiSelectProduct.value = true;
 
-  // LOGIKA: Jika BUKAN K01/KPR, maka hanya untuk lihat stok
-  isLookupOnly.value = !canSearchManual.value;
+  // LOGIKA PENGECEALIAN:
+  // Jika promo 100rb dapat 3 aktif, paksa isLookupOnly = false agar bisa ADD ke tabel
+  if (header.nomorPromo === 'PRO-2025-005') {
+    isLookupOnly.value = false;
+  } else {
+    // Aturan standar: Jika bukan K01/KPR, maka hanya untuk lihat stok
+    isLookupOnly.value = !canSearchManual.value;
+  }
+
   dialogs.productSearch = true;
 };
 
@@ -740,8 +747,14 @@ const openProductSearch = (index: number, isMulti: boolean) => {
   activeRowIndex.value = index;
   isMultiSelectProduct.value = isMulti;
 
-  // LOGIKA: Sama seperti di atas, tentukan apakah bisa input atau cuma lihat
-  isLookupOnly.value = !canSearchManual.value;
+  // LOGIKA PENGECEALIAN:
+  // Sama dengan di atas, izinkan input jika promo PRO-2025-005 aktif
+  if (header.nomorPromo === 'PRO-2025-005') {
+    isLookupOnly.value = false;
+  } else {
+    isLookupOnly.value = !canSearchManual.value;
+  }
+
   dialogs.productSearch = true;
 };
 

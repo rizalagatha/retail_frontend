@@ -164,10 +164,10 @@ const onInvoiceSelected = async (invoice: { nomor: string, tanggal: string }) =>
   const hariSejakInvoice = differenceInCalendarDays(new Date(), parseISO(invoice.tanggal));
 
   // [BARU] Cek apakah user berasal dari cabang K09
-  const isK11 = authStore.user?.cabang === 'K11';
+  const isK10 = authStore.user?.cabang === 'K10';
 
   // [UBAH] Tambahkan kondisi !isK11
-  if (hariSejakInvoice > 1 && !isK11) {
+  if (hariSejakInvoice > 1 && !isK10) {
     toast.error(`Invoice ${invoice.nomor} sudah lebih dari 1 hari dan tidak bisa diretur.`);
     dialog.invoiceSearch = false;
     return;

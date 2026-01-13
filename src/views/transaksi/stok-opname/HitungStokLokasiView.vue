@@ -57,7 +57,7 @@ const headers = ref<DataTableHeader[]>([
   { title: 'Nama Barang', key: 'Nama', width: 300 },
   { title: 'Ukuran', key: 'Ukuran', width: 100 },
   { title: 'Lokasi', key: 'Lokasi', width: 150 },
-  { title: 'Jumlah', key: 'Jumlah', align: 'end', width: 100 },
+  { title: 'Jumlah', key: 'Jumlah', width: 100 },
 ]);
 
 const totalJumlah = computed(() => {
@@ -204,8 +204,8 @@ watch(filters, (newVal, oldVal) => {
           </template>
 
           <template #[`body.append`]>
-            <tr class="bg-grey-lighten-4 font-weight-bold sticky-footer-row">
-              <td :colspan="headers.length - 1" class="text-end pe-4">TOTAL :</td>
+            <tr class="sticky-footer-row font-weight-bold">
+              <td colspan="7" class="text-end pe-4">TOTAL :</td>
               <td class="text-end">{{ totalJumlah.toLocaleString('id-ID') }}</td>
             </tr>
           </template>
@@ -327,13 +327,21 @@ watch(filters, (newVal, oldVal) => {
 
 /* --- Sticky Footer Row --- */
 .sticky-footer-row td {
-  position: sticky;
-  bottom: 0;
-  z-index: 5;
+  position: sticky !important;
+  bottom: 0 !important;
+  z-index: 10 !important;
+  /* Harus lebih tinggi dari z-index kolom 'fixed' jika ada */
 
-  background-color: rgb(var(--v-theme-surface));
-  color: rgb(var(--v-theme-on-surface));
+  /* Gunakan warna solid agar data yang discroll ke bawah tidak terlihat "nembus" */
+  background-color: #eeeeee !important;
+  color: rgb(var(--v-theme-on-surface)) !important;
 
-  border-top: 2px solid rgba(var(--v-theme-on-surface), 0.12);
+  border-top: 2px solid rgba(var(--v-theme-on-surface), 0.12) !important;
+  height: 40px !important;
+}
+
+/* Pastikan kolom terakhir (Nilai Total) sejajar dengan kolom Jumlah */
+.sticky-footer-row td:last-child {
+  border-left: 1px solid rgba(var(--v-theme-on-surface), 0.05) !important;
 }
 </style>

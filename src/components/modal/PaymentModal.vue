@@ -119,6 +119,8 @@ const props = defineProps({
   totals: { type: Object, required: true },
   authPins: { type: Object, required: true },
   linkedDps: { type: Array as PropType<LinkedDp[]>, required: false },
+  customerLimit: { type: Number, default: 0 }, // Prop baru
+  customerDebt: { type: Number, default: 0 },  // Prop baru
 });
 
 const emit = defineEmits(['close', 'save-success']);
@@ -238,6 +240,14 @@ const isOverLimit = computed(() => {
   return totalAfterTransaction > LIMIT_KARYAWAN;
 });
 
+// Computed untuk mengecek status limit piutang
+const isPiutangOverLimit = computed(() => {
+  if (props.customerLimit <= 0) return false;
+  // Total yang akan ditagihkan (Hutang lama + Grand Total Invoice sekarang)
+  const totalEstimation = props.customerDebt + props.totals.grandTotal;
+  return totalEstimation > props.customerLimit;
+});
+
 // --- Methods ---
 // const printStylesKasir = `
 //   @page {
@@ -355,8 +365,26 @@ const onReturSelected = (retur: { Nomor: string, Sisa: number }) => {
 
 // [UPDATE] Handle Final Save
 const handleFinalSave = async () => {
+  // [BARU] 1. VALIDASI LIMIT PIUTANG DISTRIBUTOR
+  if (isPiutangOverLimit.value) {
+    const totalTagihan = props.customerDebt + props.totals.grandTotal;
+    const info = `Limit: ${formatRupiah(props.customerLimit)}\nTotal Piutang: ${formatRupiah(totalTagihan)}`;
 
-  // 1. JIKA MODE POTONG GAJI
+    requestAuthorization(
+      'Otorisasi Melebihi Limit Piutang',
+      'LIMIT_PIUTANG',
+      props.totals.grandTotal, // Nominal transaksi yang diajukan
+      (authResult) => {
+        // Jika Approved: Simpan PIN dan lanjut simpan data
+        temporaryPin.value = authResult.approver;
+        executeSave();
+      },
+      () => toast.info('Transaksi dibatalkan karena melebihi limit.')
+    );
+    return; // Berhenti di sini, menunggu hasil otorisasi
+  }
+
+  // 2. JIKA MODE POTONG GAJI
   if (paymentTab.value === 'karyawan') {
     if (!karyawan.nik || !karyawan.isValid) {
       return toast.error('Silakan input dan validasi NIK karyawan terlebih dahulu.');
@@ -384,7 +412,7 @@ const handleFinalSave = async () => {
     return;
   }
 
-  // 2. JIKA MODE UMUM (Logic Lama)
+  // 3. JIKA MODE UMUM
   if (payment.transfer.nominal > 0 && !payment.transfer.akun.kode) {
     return toast.error('Akun bank untuk transfer harus diisi.');
   }
@@ -1010,6 +1038,38 @@ watch(kembali, (newVal) => {
                   density="compact" hide-details prefix="Rp" class="text-red-darken-4"
                   @input="payment.diskonPembulatan = Math.min(payment.diskonPembulatan || 0, 500)" />
                 <div class="text-error" style="font-size: 9px;">*Gunakan jika uang customer kurang sedikit</div>
+              </div>
+            </div>
+
+            <div v-if="customerLimit > 0" class="pa-3 rounded mt-4"
+              :class="isPiutangOverLimit ? 'bg-red-lighten-5 border-error' : 'bg-green-lighten-5 border-success'"
+              style="border: 1px solid;">
+              <div class="text-caption font-weight-bold d-flex justify-space-between mb-2">
+                <span :class="isPiutangOverLimit ? 'text-red' : 'text-green'">STATUS LIMIT PIUTANG</span>
+                <v-icon size="small" :color="isPiutangOverLimit ? 'error' : 'success'">
+                  {{ isPiutangOverLimit ? 'mdi-alert-octagon' : 'mdi-check-decagram' }}
+                </v-icon>
+              </div>
+
+              <div class="d-flex justify-space-between text-caption">
+                <span>Limit Maksimal:</span>
+                <strong>{{ formatRupiah(customerLimit) }}</strong>
+              </div>
+              <div class="d-flex justify-space-between text-caption">
+                <span>Hutang Berjalan:</span>
+                <strong>{{ formatRupiah(customerDebt) }}</strong>
+              </div>
+              <div class="d-flex justify-space-between text-caption mt-1 pt-1 border-top">
+                <span>Belanja Sekarang:</span>
+                <strong>{{ formatRupiah(totals.grandTotal) }}</strong>
+              </div>
+
+              <v-divider class="my-2" />
+
+              <div class="d-flex justify-space-between font-weight-bold"
+                :class="isPiutangOverLimit ? 'text-error' : 'text-success'">
+                <span>{{ isPiutangOverLimit ? 'Over Limit:' : 'Sisa Limit:' }}</span>
+                <span>{{ formatRupiah(Math.abs(customerLimit - customerDebt - totals.grandTotal)) }}</span>
               </div>
             </div>
 

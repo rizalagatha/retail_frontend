@@ -375,6 +375,8 @@ const potentialPromoDiscount = ref(0); // Menyimpan nominal potensi diskon
 const isGrandOpeningPromo = ref(false);
 const isPromoMinimized = ref(false);
 const isLookupOnly = ref(false);
+const customerDebt = ref(0);
+const customerLimit = ref(0);
 
 // --- [BARU] Setup Audio & Refs ---
 const audioSuccess = new Audio('/audio/beep_success.mp3');
@@ -786,6 +788,18 @@ const onCustomerSelected = async (cust: Customer | null) => {
       level: levelText,
     };
 
+    // Ambil limit dari data customer (sudah dikirim backend)
+    customerLimit.value = (cust as any).limitTrans || 0;
+
+    // AMBIL SISA PIUTANG BERJALAN DARI BACKEND
+    try {
+      const response = await api.get(`/invoice-form/lookup/customer-debt/${cust.kode}`);
+      customerDebt.value = response.data.totalDebt || 0;
+    } catch (error) {
+      console.error("Gagal mengambil data hutang customer", error);
+      customerDebt.value = 0;
+    }
+
     // PERBAIKAN: Panggil fungsi update member setelah customer dipilih
     updateMemberInfo(header.customer);
 
@@ -800,6 +814,8 @@ const onCustomerSelected = async (cust: Customer | null) => {
   } else {
     // Kosongkan field jika tidak ada customer
     header.customer = { kode: '', nama: '', alamat: '', kota: '', telp: '', level: '' };
+    customerDebt.value = 0;
+    customerLimit.value = 0;
     updateMemberInfo(null);
   }
 
@@ -2821,7 +2837,8 @@ watch(() => header.isMarketplace, async (isOnline) => {
     <UnpaidDpSearchModal v-if="dialogs.unpaidDpSearch" :customer-kode="header.customer.kode"
       @close="dialogs.unpaidDpSearch = false" @selected="onUnpaidDpSelected" />
     <PaymentModal v-if="dialogs.payment" :invoice-header="header" :invoice-items="items" :totals="totals"
-      :auth-pins="authPins" :linked-dps="linkedDps" @close="dialogs.payment = false" @save-success="onSaveSuccess" />
+      :auth-pins="authPins" :linked-dps="linkedDps" :customer-limit="customerLimit" :customer-debt="customerDebt"
+      @close="dialogs.payment = false" @save-success="onSaveSuccess" />
     <PromoSearchModal v-if="dialogs.promoSearch" :tanggal="header.tanggal" @close="dialogs.promoSearch = false"
       @selected="onPromoSelected" />
     <MemberForm v-if="dialogs.memberForm" :initial-hp="memberHpToSearch"

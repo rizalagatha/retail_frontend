@@ -10,6 +10,7 @@ interface Customer {
   kota: string;
   level_kode: number;
   level_nama: string;
+  limitTrans: number;
 }
 
 // --- Props & Emits ---
@@ -32,9 +33,10 @@ const headers = [
   { title: 'No HP', key: 'telp', sortable: false, width: '120px' },
   { title: 'Level Kode', key: 'level_kode', sortable: false, width: '100px' },
   { title: 'Level', key: 'level_nama', sortable: false },
+  { title: 'Limit Piutang', key: 'limitTrans', sortable: false, align: 'end' },
   { title: 'Alamat', key: 'alamat', sortable: false },
   { title: 'Kota', key: 'kota', sortable: false },
-];
+] as const;
 
 // --- Methods ---
 const loadItems = async ({ page, itemsPerPage }: { page: number, itemsPerPage: number }) => {
@@ -108,6 +110,9 @@ watch(search, () => {
               <td>{{ item.telp }}</td>
               <td>{{ item.level_kode }}</td>
               <td>{{ item.level_nama }}</td>
+              <td class="text-end text-blue font-weight-bold">
+                {{ new Intl.NumberFormat('id-ID').format(item.limitTrans || 0) }}
+              </td>
               <td>{{ item.alamat }}</td>
               <td>{{ item.kota }}</td>
             </tr>

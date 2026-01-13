@@ -17,6 +17,7 @@ const defaultItem = {
   top: 0,
   status: 'AKTIF',
   level: null,
+  limitTrans: 0,
   npwp: '',
   namaNpwp: '',
   alamatNpwp: '',
@@ -103,6 +104,9 @@ onMounted(async () => {
               </v-radio-group>
             </v-col>
             <v-col cols="12" md="6">
+              <v-text-field v-model.number="editedItem.limitTrans" label="Limit Transaksi" type="number"
+                variant="outlined" density="compact" hide-details class="mb-2"
+                prepend-inner-icon="mdi-cash-lock"></v-text-field>
               <v-text-field v-model="editedItem.npwp" label="NPWP" variant="outlined" density="compact" hide-details
                 class="mb-2"></v-text-field>
               <v-text-field v-model="editedItem.namaNpwp" label="Nama NPWP" variant="outlined" density="compact"

@@ -103,7 +103,7 @@ const fetchCustomers = async () => {
 
 const openNewDialog = async () => {
   isNew.value = true;
-  editedItem.value = { kode: '', status: 'AKTIF', top: 0 };
+  editedItem.value = { kode: '', status: 'AKTIF', top: 0, limitTrans: 0 };
   levelHistory.value = [];
   dialog.value = true;
 
@@ -215,6 +215,7 @@ const exportData = () => {
     Kode: c.kode,
     Nama: c.nama,
     Level: c.level,
+    'Limit Transaksi': c.limitTrans,
     Alamat: c.alamat,
     Kota: c.kota,
     Telepon: c.telp,
@@ -310,7 +311,7 @@ onMounted(() => {
           <span v-else class="text-caption text-grey">Belum diatur</span>
         </template>
         <template #[`item.limitTrans`]="{ item }">
-          {{ new Intl.NumberFormat('id-ID').format(item.limit || 0) }}
+          Rp {{ new Intl.NumberFormat('id-ID').format(item.limitTrans || 0) }}
         </template>
         <template #[`item.actions`]="{ item }">
           <v-icon v-if="authStore.can(MENU_ID, 'edit')" size="small" class="me-2" @click="openEditDialog(item)">
@@ -359,6 +360,8 @@ onMounted(() => {
                 </v-radio-group>
               </v-col>
               <v-col cols="12" md="6">
+                <v-text-field v-model="editedItem.limitTrans" label="Limit Transaksi" type="number" variant="outlined"
+                  density="compact" hide-details class="mb-2" prepend-inner-icon="mdi-cash-lock"></v-text-field>
                 <v-text-field v-model="editedItem.npwp" label="NPWP" variant="outlined" density="compact" hide-details
                   class="mb-2"></v-text-field>
                 <v-text-field v-model="editedItem.namaNpwp" label="Nama NPWP" variant="outlined" density="compact"

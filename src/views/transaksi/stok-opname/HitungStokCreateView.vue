@@ -65,6 +65,7 @@ const headers = [
   { title: 'Ukuran', key: 'ukuran', width: '100px' },
   { title: 'Jumlah', key: 'jumlah', align: 'end', width: '100px' },
   { title: 'Lokasi (Qty)', key: 'lokasi' },
+  { title: 'Actions', key: 'actions', sortable: false, width: '80px', align: 'center' },
 ] as const;
 
 // --- Methods ---
@@ -139,6 +140,7 @@ const handleScan = async () => {
   }
 };
 
+
 const fetchScannedItems = async () => {
   if (!form.lokasi) {
     scannedItems.value = [];
@@ -157,6 +159,49 @@ const fetchScannedItems = async () => {
     isLoading.value = false;
   }
 
+};
+
+const updateQty = async (item: ScannedItem, delta: number) => {
+  // Cegah jumlah menjadi minus di sisi frontend
+  if (item.jumlah + delta < 0) return;
+
+  try {
+    await api.post('/hitung-stok-form/update-qty', {
+      lokasi: form.lokasi,
+      barcode: item.barcode,
+      delta: delta // Mengirim +1 atau -1
+    });
+
+    playSuccess();
+    // Refresh daftar item untuk mendapatkan total terbaru
+    await fetchScannedItems();
+  } catch (error) {
+    playError();
+    const err = error as AxiosError<{ message?: string }>;
+    toast.error(err.response?.data?.message || 'Gagal memperbarui jumlah.');
+  }
+};
+
+const deleteRow = async (item: ScannedItem) => {
+  // Tambahkan konfirmasi agar tidak tidak sengaja terhapus
+  if (!confirm(`Hapus seluruh scan untuk barang: ${item.nama}?`)) return;
+
+  try {
+    await api.delete('/hitung-stok-form/delete-item', {
+      params: {
+        lokasi: form.lokasi,
+        barcode: item.barcode
+      }
+    });
+
+    playSuccess();
+    toast.success('Item berhasil dihapus dari daftar scan.');
+    await fetchScannedItems();
+  } catch (error) {
+    playError();
+    const err = error as AxiosError<{ message?: string }>;
+    toast.error(err.response?.data?.message || 'Gagal menghapus item.');
+  }
 };
 
 onMounted(() => {
@@ -193,6 +238,23 @@ onMounted(() => {
             density="compact" fixed-header :items-per-page="-1">
             <template #[`item.no`]="{ index }">
               {{ index + 1 }}
+            </template>
+            <template #[`item.jumlah`]="{ item }">
+              <div class="d-flex align-center justify-end">
+                <v-btn icon="mdi-minus" size="x-small" variant="tonal" color="error" class="mr-2"
+                  :disabled="item.jumlah <= 0" @click="updateQty(item, -1)"></v-btn>
+
+                <span class="font-weight-bold" style="min-width: 30px; text-align: center;">
+                  {{ item.jumlah }}
+                </span>
+
+                <v-btn icon="mdi-plus" size="x-small" variant="tonal" color="success" class="ml-2"
+                  @click="updateQty(item, 1)"></v-btn>
+              </div>
+            </template>
+
+            <template #[`item.actions`]="{ item }">
+              <v-btn icon="mdi-delete" size="x-small" variant="text" color="error" @click="deleteRow(item)"></v-btn>
             </template>
             <template #bottom></template>
           </v-data-table>

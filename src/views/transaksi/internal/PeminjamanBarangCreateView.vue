@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, reactive, onMounted, computed, nextTick } from 'vue';
+import { ref, reactive, onMounted, computed, nextTick, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useToast } from 'vue-toastification';
 import { useAuthStore } from '@/stores/authStore';
@@ -8,6 +8,7 @@ import { format, addDays } from 'date-fns';
 import PageLayout from '@/components/PageLayout.vue';
 import ProductSearchModal from '@/components/lookup/ProductSearchModal.vue';
 import AuthorizationModal from '@/components/modal/AuthorizationModal.vue';
+import PenawaranSearchModal from '@/components/lookup/PenawaranSearchModal.vue';
 import { AxiosError } from "axios";
 
 // --- Tipe Data ---
@@ -19,6 +20,7 @@ interface FormHeader {
   cabang: string;
   pic: string;
   keterangan: string;
+  penawaran?: string;
 }
 interface DetailItem {
   id: number;
@@ -51,6 +53,26 @@ interface LookupProduct {
   stok: number;
   kategori?: string;
 }
+
+// Interface untuk item detail yang datang dari API Penawaran
+interface PenawaranDetailApi {
+  kode: string;
+  nama: string;
+  ukuran: string;
+  stok: number;
+  jumlah: number;
+  barcode?: string;
+}
+
+// Interface untuk struktur lengkap response API
+// interface PenawaranFullResponse {
+//   header: {
+//     pen_nomor: string;
+//     pen_ket: string;
+//     [key: string]: unknown; // Untuk field lain yang mungkin ada tapi belum didefinisikan
+//   };
+//   details: PenawaranDetailApi[];
+// }
 
 // --- Inisialisasi & State ---
 const route = useRoute();
@@ -99,6 +121,7 @@ const activeRowIndex = ref(0);
 const isScanning = ref(false);
 const isLookupVisible = ref(false);
 const barcodeInputRef = ref<HTMLInputElement | null>(null);
+const isPenawaranLookupVisible = ref(false);
 
 const audioSuccess = new Audio('/audio/beep_success.mp3');
 const audioError = new Audio('/audio/beep_error.mp3');
@@ -198,6 +221,53 @@ const onProductsSelected = (selectedProducts: LookupProduct[]) => {
   audioSuccess.play().catch(() => { });
 };
 
+const openPenawaranSearch = () => {
+  if (!formHeader.value.cabang) {
+    toast.error('Cabang/Gudang belum terdeteksi.');
+    return;
+  }
+  isPenawaranLookupVisible.value = true;
+};
+
+const onPenawaranSelected = async (penawaran: { nomor: string }) => {
+  isPenawaranLookupVisible.value = false;
+  toast.info(`Memuat detail dari Penawaran ${penawaran.nomor}...`);
+
+  try {
+    // Mengambil detail penawaran (menggunakan endpoint yang sama dengan SO)
+    const response = await api.get(`/so-form/lookup/penawaran-details/${penawaran.nomor}`, {
+      params: { cabang: formHeader.value.cabang } // Kirim cabang ke backend
+    });
+    const { header: penHeader, details: penDetails } = response.data;
+
+    // Mapping ke Header Peminjaman
+    formHeader.value.penawaran = penHeader.pen_nomor;
+    formHeader.value.keterangan = penHeader.pen_ket;
+
+    // Mapping ke Tabel Items Peminjaman
+    // Kita bersihkan dulu item yang kosong
+    items.value = penDetails.map((d: PenawaranDetailApi) => ({
+      id: Date.now() + Math.random(),
+      kode: d.kode,
+      barcode: d.barcode || '',
+      nama: d.nama,
+      ukuran: d.ukuran || '',
+      stok: d.stok || 0,
+      jumlah: d.jumlah || 0,
+    }));
+
+    addNewRow(); // Tambah baris kosong di akhir
+    toast.success(`Detail Penawaran ${penawaran.nomor} berhasil dimuat.`);
+  } catch (error: unknown) {
+    // Menangani error dengan tipe unknown/AxiosError
+    const axiosError = error as AxiosError<{ message: string }>;
+    const errorMessage = axiosError.response?.data?.message || 'Gagal memuat detail penawaran.';
+
+    toast.error(errorMessage);
+    console.error(error);
+  }
+};
+
 /**
  * Memproses satu produk hasil scan barcode
  */
@@ -262,18 +332,59 @@ const requestAuthorization = (
   authDialog.show = true;
 };
 
+const checkStokMinus = (): Promise<boolean> => {
+  return new Promise((resolve) => {
+    // Cari item yang jumlah pinjamnya > stok fisik
+    const itemsMinus = items.value.filter(item => {
+      if (!item.kode) return false;
+      return Number(item.jumlah || 0) > Number(item.stok || 0);
+    });
+
+    if (itemsMinus.length > 0) {
+      const itemNames = itemsMinus.map(i => `${i.nama} (${i.ukuran})`).join(', ');
+
+      showConfirmation(
+        '⚠️ Konfirmasi Stok Minus',
+        `Barang berikut memiliki stok terbatas:\n\n(${itemNames}).\n\nStok akan menjadi MINUS jika dilanjutkan. Yakin tetap ingin meminjam?`,
+        () => {
+          // Jika user klik "Ya, Lanjutkan"
+          resolve(true);
+        }
+      );
+
+      // Listener jika user menutup dialog atau klik "Batal"
+      const unwatch = watch(() => dialogConfirm.show, (isOpen) => {
+        if (!isOpen) {
+          unwatch();
+          // Jika dialog tertutup tapi onConfirm belum dipanggil, resolve false
+          setTimeout(() => {
+            if (!dialogConfirm.show) resolve(false);
+          }, 100);
+        }
+      });
+    } else {
+      resolve(true); // Stok cukup semua
+    }
+  });
+};
+
 // --- Update fungsi Handle Simpan ---
-const handleSaveRequest = () => {
+const handleSaveRequest = async () => {
   if (!formHeader.value.pic) return toast.error('Nama peminjam (PIC) wajib diisi.');
+
   const validItems = items.value.filter(i => i.kode && i.jumlah > 0);
   if (validItems.length === 0) return toast.error('Minimal 1 barang harus diinput.');
 
+  // --- 1. Validasi Stok Minus (Sama seperti Invoice) ---
+  const stokOk = await checkStokMinus();
+  if (!stokOk) return; // Berhenti jika user membatalkan di warning stok minus
+
+  // --- 2. Jika Stok OK atau User Setuju Minus, Lanjut Konfirmasi Simpan ---
   showConfirmation(
     'Konfirmasi Simpan',
     'Apakah Anda yakin data yang diinput sudah benar dan ingin mengirim permintaan otorisasi?',
     () => {
-      // Jalankan fungsi otorisasi yang sudah ada sebelumnya
-      handleSave();
+      handleSave(); // Menuju proses otorisasi PIN
     }
   );
 };
@@ -398,6 +509,10 @@ onMounted(() => {
         <div class="desktop-form-section header-section">
           <v-text-field label="Nomor Dokumen" v-model="formHeader.nomor" readonly variant="filled" density="compact"
             hide-details />
+          <v-text-field label="Referensi Penawaran" v-model="formHeader.penawaran" readonly variant="outlined"
+            density="compact" hide-details append-inner-icon="mdi-magnify" clearable
+            placeholder="Klik untuk cari penawaran..." @click="openPenawaranSearch"
+            @click:clear="formHeader.penawaran = ''" />
           <v-text-field label="Tanggal Pinjam" v-model="formHeader.tanggal" type="date" density="compact"
             variant="outlined" hide-details />
           <v-text-field label="Deadline (14 Hari)" v-model="formHeader.deadline" readonly variant="filled"
@@ -458,6 +573,9 @@ onMounted(() => {
 
     <ProductSearchModal v-if="isLookupVisible" :gudang="formHeader.cabang" category="ALL" source="peminjaman"
       @close="isLookupVisible = false" @products-selected="onProductsSelected" />
+
+    <PenawaranSearchModal v-if="isPenawaranLookupVisible" :cabang="formHeader.cabang"
+      @close="isPenawaranLookupVisible = false" @selected="onPenawaranSelected" />
 
     <AuthorizationModal v-if="authDialog.show" :title="authDialog.title" :jenis="authDialog.jenis"
       :nominal="authDialog.nominal" :transaksi="authDialog.transaksi" :barcode="authDialog.barcode"

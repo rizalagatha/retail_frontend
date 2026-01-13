@@ -252,7 +252,8 @@ onMounted(fetchMasterData);
                 <div class="detail-container d-flex justify-start">
                   <div class="detail-table-wrapper">
                     <v-data-table v-if="details[item.nomor]" class="detail-table" :headers="detailHeaders"
-                      :items="details[item.nomor]" density="compact" hide-default-footer>
+                      :items="details[item.nomor]" density="compact" hide-default-footer fixed-header height="320"
+                      :items-per-page="-1">
                       <template #[`item.jumlah`]="{ value }">
                         <div class="text-end font-weight-bold">{{ value }}</div>
                       </template>
@@ -323,14 +324,11 @@ onMounted(fetchMasterData);
 }
 
 .detail-table-wrapper {
-  /* Berikan lebar maksimal agar tidak memenuhi layar dan terlihat rata kanan */
   width: 100%;
   max-width: 900px;
   border: 1px solid rgba(0, 0, 0, 0.12);
   border-radius: 4px;
-  overflow: hidden;
   background: white;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
 }
 
 .detail-table :deep(thead tr th) {

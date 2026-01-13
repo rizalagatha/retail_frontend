@@ -93,6 +93,7 @@ const detailHeaders = [
   { title: 'Nama Barang', key: 'Nama', width: '300px' },
   { title: 'Ukuran', key: 'Ukuran', width: '100px' },
   { title: 'Jumlah', key: 'Jumlah', align: 'end', width: '100px' },
+  { title: 'Jumlah Terima', key: 'JumlahTerima', align: 'end', width: '120px' },
 ] as const;
 
 // --- Logic Resize Column ---
@@ -147,14 +148,15 @@ const terimaDisabledReason = computed(() => {
 });
 
 const batalDisabledReason = computed(() => {
-  if (!isK01.value) {
-    return 'Fitur ini hanya tersedia untuk K01.';
-  }
+  // Pengecekan isK01 dihapus agar semua cabang bisa akses
   if (!isSingleSelected.value) {
     return 'Pilih tepat satu SJ terlebih dahulu.';
   }
   if (!selectedRow.value?.NomorTerima) {
     return 'SJ belum diterima.';
+  }
+  if (selectedRow.value?.Closing === 'Y') {
+    return 'Penerimaan sudah closing.';
   }
   return '';
 });
@@ -507,10 +509,19 @@ watch(filters, fetchMasterData, { deep: true });
               <td :colspan="columns.length" class="pa-0">
                 <div class="detail-container">
                   <div class="detail-table-wrapper">
-                    <div v-if="loadingDetails.has(item.Nomor)" class="text-center pa-4 text-caption">Memuat detail...
+                    <div v-if="loadingDetails.has(item.Nomor)" class="text-center pa-4 text-caption">
+                      Memuat detail...
                     </div>
                     <v-data-table v-else :headers="detailHeaders" :items="details[item.Nomor]" density="compact"
                       class="detail-table" :items-per-page="-1" hide-default-footer>
+                      <template #[`item.Jumlah`]="{ value }">
+                        {{ Number(value).toLocaleString() }}
+                      </template>
+                      <template #[`item.JumlahTerima`]="{ value }">
+                        <span :class="Number(value) > 0 ? 'text-green-darken-2 font-weight-bold' : ''">
+                          {{ Number(value).toLocaleString() }}
+                        </span>
+                      </template>
                       <template #bottom></template>
                     </v-data-table>
                   </div>

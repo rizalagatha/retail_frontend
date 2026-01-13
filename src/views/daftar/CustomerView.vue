@@ -24,6 +24,8 @@ interface Customer {
   telp: string;
   namaKontak: string;
   status: 'AKTIF' | 'PASIF';
+  franchise?: 'Y' | 'N';
+  limitTrans: number;
   tglLahir: string | null;
   top: number;
   level: string;
@@ -66,6 +68,7 @@ const headers: DataTableHeader[] = [
   { title: 'Telp', key: 'telp', width: '120px' },
   { title: 'Kontak', key: 'namaKontak', width: '150px' },
   { title: 'Level', key: 'level', width: '150px' },
+  { title: 'Limit', key: 'limitTrans', align: 'end', width: '120px' },
   { title: 'TOP', key: 'top', align: 'end', width: '80px' },
   { title: 'Status', key: 'status', width: '100px' },
   { title: 'Actions', key: 'actions', sortable: false, width: '100px' }
@@ -305,6 +308,9 @@ onMounted(() => {
             {{ item.level }}
           </v-chip>
           <span v-else class="text-caption text-grey">Belum diatur</span>
+        </template>
+        <template #[`item.limitTrans`]="{ item }">
+          {{ new Intl.NumberFormat('id-ID').format(item.limit || 0) }}
         </template>
         <template #[`item.actions`]="{ item }">
           <v-icon v-if="authStore.can(MENU_ID, 'edit')" size="small" class="me-2" @click="openEditDialog(item)">

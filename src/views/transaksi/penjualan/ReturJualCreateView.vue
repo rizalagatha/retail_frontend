@@ -163,11 +163,14 @@ const tableHeaders = [
 const onInvoiceSelected = async (invoice: { nomor: string, tanggal: string }) => {
   const hariSejakInvoice = differenceInCalendarDays(new Date(), parseISO(invoice.tanggal));
 
-  // Cek jika selisih hari lebih dari 1
-  if (hariSejakInvoice > 1) {
+  // [BARU] Cek apakah user berasal dari cabang K09
+  const isK09 = authStore.user?.cabang === 'K09';
+
+  // [UBAH] Tambahkan kondisi !isK09
+  if (hariSejakInvoice > 1 && !isK09) {
     toast.error(`Invoice ${invoice.nomor} sudah lebih dari 1 hari dan tidak bisa diretur.`);
     dialog.invoiceSearch = false;
-    return; // Hentikan proses
+    return;
   }
 
   isLoading.value = true;

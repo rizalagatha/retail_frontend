@@ -333,36 +333,45 @@ const openProductSearch = (index: number, isMulti: boolean) => {
 };
 
 const onProductsSelected = (selectedProducts: Product[]) => {
-  isProductSearchVisible.value = false; // Tutup modal
+  isProductSearchVisible.value = false;
   if (!selectedProducts || selectedProducts.length === 0) return;
 
+  // 1. Perbaikan Filter Duplikasi
+  // Jangan hanya cek barcode, cek kombinasi Kode + Ukuran karena Jasa barcodenya kosong
   const newProducts = selectedProducts
-    .filter(product => !items.value.some(item => item.barcode === product.barcode))
+    .filter(product => {
+      return !items.value.some(item =>
+        (item.barcode && product.barcode && item.barcode === product.barcode) ||
+        (item.kode === product.kode && item.ukuran === product.ukuran)
+      );
+    })
     .map(product => ({
       id: Date.now() + Math.random(),
       kode: product.kode,
       nama: product.nama,
-      ukuran: product.ukuran,
-      stok: product.stok,
-      harga: product.harga,
-      isHargaReadonly: product.harga > 0,
+      ukuran: product.ukuran || '-', // [FIX] Fallback '-' jika jasa tidak punya ukuran
+      stok: product.stok || 0,
+      harga: product.harga || 0,
+      isHargaReadonly: (product.harga || 0) > 0,
       jumlah: 1,
       diskonPersen: 0,
       diskonRp: 0,
-      total: product.harga,
-      barcode: product.barcode,
-      // noSoDtf: '',
+      total: product.harga || 0,
+      // [FIX] Gunakan kode sebagai fallback jika barcode kosong agar identitas unik
+      barcode: product.barcode || product.kode,
       noPengajuanHarga: '',
       pin: ''
     }));
 
   if (newProducts.length === 0) {
-    toast.info("Semua produk yang dipilih sudah ada di dalam daftar.");
+    toast.info("Barang sudah ada di dalam daftar.");
     return;
   }
 
+  // 2. Timpa baris kosong yang sedang aktif (tempat user tekan F1/F2)
   items.value.splice(activeRowIndex.value, 1, ...newProducts);
 
+  // 3. Pastikan ada baris kosong baru dan hitung ulang total
   addNewRow();
   calculateTotals();
 };

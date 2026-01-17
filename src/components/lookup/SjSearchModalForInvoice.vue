@@ -27,7 +27,6 @@ const items = ref<Sj[]>([]);
 const totalItems = ref(0);
 const loading = ref(true);
 const search = ref('');
-const options = ref({ page: 1, itemsPerPage: 15 });
 
 // Definisi Header sesuai request & referensi Delphi
 const headers = [
@@ -41,31 +40,42 @@ const headers = [
   { title: 'Kota', key: 'Kota' },
 ];
 
-const loadItems = async ({ page, itemsPerPage }: { page: number, itemsPerPage: number }) => {
+const options = ref({ page: 1, itemsPerPage: 15, sortBy: [] });
+
+const itemsPerPageOptions = [
+  { value: 15, title: '15' },
+  { value: 30, title: '30' },
+  { value: 50, title: '50' },
+  { value: -1, title: 'Semua' }, // Nilai -1 digunakan untuk "All"
+];
+
+const loadItems = async (optionsEvent?: any) => {
   loading.value = true;
+
+  // Gunakan nilai dari event table, jika tidak ada gunakan state internal
+  const { page, itemsPerPage } = optionsEvent || options.value;
+
   try {
     const response = await api.get('/invoice-form/lookup/sj-list', {
       params: {
         cabang: props.cabang,
         term: search.value,
-        page,
-        itemsPerPage,
+        page: page,
+        itemsPerPage: itemsPerPage, // Kirim -1 jika user pilih "Semua"
       },
     });
 
-    // Sesuaikan dengan struktur response backend (items & total)
-    if (response.data && Array.isArray(response.data.items)) {
+    // Pastikan menerima format { items, total } dari backend baru
+    if (response.data && response.data.items) {
       items.value = response.data.items;
       totalItems.value = response.data.total;
     } else {
-      // Fallback jika backend mengembalikan array langsung
+      // Fallback jika backend belum diupdate
       items.value = Array.isArray(response.data) ? response.data : [];
       totalItems.value = items.value.length;
     }
-  } catch {
-    toast.error("Gagal memuat data Surat Jalan (SJ).");
-    items.value = [];
-    totalItems.value = 0;
+  } catch (error) {
+    toast.error("Gagal memuat data Surat Jalan.", error);
   } finally {
     loading.value = false;
   }
@@ -80,8 +90,10 @@ let searchTimeout: ReturnType<typeof setTimeout>;
 watch(search, () => {
   clearTimeout(searchTimeout);
   searchTimeout = setTimeout(() => {
+    // Cukup reset ke page 1, v-data-table-server akan otomatis trigger loadItems
+    // karena options.page berubah secara reaktif
     options.value.page = 1;
-    loadItems(options.value);
+    loadItems();
   }, 500);
 });
 
@@ -105,8 +117,9 @@ onMounted(() => {
           hide-details autofocus></v-text-field>
 
         <v-data-table-server v-model:page="options.page" v-model:items-per-page="options.itemsPerPage"
-          :headers="headers" :items="items" :items-length="totalItems" :loading="loading" @update:options="loadItems"
-          hover class="desktop-table flex-grow-1" density="compact" fixed-header>
+          :items-per-page-options="itemsPerPageOptions" :headers="headers" :items="items" :items-length="totalItems"
+          :loading="loading" @update:options="loadItems" hover class="desktop-table flex-grow-1" density="compact"
+          fixed-header>
           <template #item="{ item }">
             <tr @click="selectItem(item)" style="cursor: pointer;">
               <td class="font-weight-bold">{{ item.NoSJ }}</td>

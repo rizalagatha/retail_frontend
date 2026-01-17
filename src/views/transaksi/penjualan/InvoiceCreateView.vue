@@ -1,31 +1,31 @@
 <script setup lang="ts">
-import { ref, reactive, onMounted, onUnmounted, computed, watch, nextTick } from 'vue';
-import { useRoute, useRouter } from 'vue-router';
-import { useToast } from 'vue-toastification';
-import { useAuthStore } from '@/stores/authStore';
-import { useUiStore } from '@/stores/uiStore';
-import { useUnsavedChanges } from '@/composables/useUnsavedChanges';
-import api from '@/services/api';
-import { format, parseISO, addDays } from 'date-fns';
-import PageLayout from '@/components/PageLayout.vue';
-import CustomerSearchModal from '@/components/lookup/CustomerSearchModal.vue';
-import SoSearchModalForInvoice from '@/components/lookup/SoSearchModalForInvoice.vue';
-import ProductSearchModal from '@/components/lookup/ProductSearchModal.vue';
-import PaymentModal from '@/components/modal/PaymentModal.vue';
-import UnpaidDpSearchModal from '@/components/lookup/UnpaidDpSearchModal.vue';
-import CustomerForm from '@/components/form/CustomerForm.vue';
-import PromoSearchModal from '@/components/lookup/PromoSearchModal.vue';
-import MemberForm from '@/components/form/MemberForm.vue';
-import DiskonForm from '@/components/form/DiskonForm.vue';
-import LinkedDpModal from '@/components/modal/LinkedDpModal.vue';
-import AuthorizationModal from '@/components/modal/AuthorizationModal.vue';
-// import SoDtfSearchModal from '@/components/lookup/SoDtfSearchModal.vue';
-import PromoBonusModal from '@/components/modal/PromoBonusModal.vue';
-import SjSearchModalForInvoice from '@/components/lookup/SjSearchModalForInvoice.vue';
-import type { AxiosError } from 'axios';
-import axios from 'axios';
-import LogoKaosan from '@/assets/logo.png';
-import LogoRezso from '@/assets/rezso.jpg';
+import { ref, reactive, onMounted, onUnmounted, computed, watch, nextTick } from "vue";
+import { useRoute, useRouter } from "vue-router";
+import { useToast } from "vue-toastification";
+import { useAuthStore } from "@/stores/authStore";
+import { useUiStore } from "@/stores/uiStore";
+import { useUnsavedChanges } from "@/composables/useUnsavedChanges";
+import api from "@/services/api";
+import { format, parseISO, addDays } from "date-fns";
+import PageLayout from "@/components/PageLayout.vue";
+import CustomerSearchModal from "@/components/lookup/CustomerSearchModal.vue";
+import SoSearchModalForInvoice from "@/components/lookup/SoSearchModalForInvoice.vue";
+import ProductSearchModal from "@/components/lookup/ProductSearchModal.vue";
+import PaymentModal from "@/components/modal/PaymentModal.vue";
+import UnpaidDpSearchModal from "@/components/lookup/UnpaidDpSearchModal.vue";
+import CustomerForm from "@/components/form/CustomerForm.vue";
+import PromoSearchModal from "@/components/lookup/PromoSearchModal.vue";
+import MemberForm from "@/components/form/MemberForm.vue";
+import DiskonForm from "@/components/form/DiskonForm.vue";
+import LinkedDpModal from "@/components/modal/LinkedDpModal.vue";
+import AuthorizationModal from "@/components/modal/AuthorizationModal.vue";
+import SoDtfSearchModal from "@/components/lookup/SoDtfSearchModal.vue";
+import PromoBonusModal from "@/components/modal/PromoBonusModal.vue";
+import SjSearchModalForInvoice from "@/components/lookup/SjSearchModalForInvoice.vue";
+import type { AxiosError } from "axios";
+import axios from "axios";
+import LogoKaosan from "@/assets/logo.png";
+import LogoRezso from "@/assets/rezso.jpg";
 import { formatRupiah } from "@/utils/formatRupiah";
 
 // --- Tipe Data ---
@@ -34,8 +34,8 @@ interface Item {
   kode?: string;
   nama?: string;
   ukuran?: string;
-  stok?: number;         // Stok Fisik (Showroom)
-  stokPesanan?: number;  // Stok Pesanan (SO) [BARU]
+  stok?: number; // Stok Fisik (Showroom)
+  stokPesanan?: number; // Stok Pesanan (SO) [BARU]
   qtyso?: number;
   jumlah: number;
   harga?: number;
@@ -83,6 +83,7 @@ interface Customer {
   level?: string;
   level_kode?: string;
   level_nama?: string;
+  limitTrans?: number;
 }
 interface Member {
   hp: string;
@@ -90,7 +91,7 @@ interface Member {
   nama: string;
   alamat: string;
   gender: string;
-  usia: string;   // Ubah ke string agar sesuai dengan MemberForm
+  usia: string; // Ubah ke string agar sesuai dengan MemberForm
   referensi: string;
 }
 interface ProductInput {
@@ -98,7 +99,7 @@ interface ProductInput {
   nama: string;
   ukuran: string;
   stok: number;
-  stokFisik?: number;   // [BARU]
+  stokFisik?: number; // [BARU]
   stokPesanan?: number; // [BARU]
   harga: number;
   barcode: string;
@@ -154,7 +155,7 @@ interface ActivePromo {
   pro_totalrp: number; // Minimal belanja
   pro_disrp: number; // Diskon Rp
   pro_diskon: number; // <-- TAMBAHKAN INI (untuk diskon 10%)
-  pro_lipat: 'Y' | 'N';
+  pro_lipat: "Y" | "N";
 }
 
 interface SoItem {
@@ -163,8 +164,8 @@ interface SoItem {
   ukuran_dtf?: string;
   custom_json?: string;
   ukuran_asli?: string;
-  stokFisik?: number;         // Stok Fisik (Showroom)
-  stokPesanan?: number;  // Stok Pesanan (SO) [BARU]
+  stokFisik?: number; // Stok Fisik (Showroom)
+  stokPesanan?: number; // Stok Pesanan (SO) [BARU]
   qtyso?: number;
   harga?: number;
   diskonPersen?: number;
@@ -204,14 +205,14 @@ const toast = useToast();
 const authStore = useAuthStore();
 const uiStore = useUiStore();
 const { markAsSaved } = useUnsavedChanges();
-const MENU_ID = '27';
+const MENU_ID = "27";
 
 // --- State ---
 const isEditMode = computed(() => !!route.params.nomor);
-const pageTitle = computed(() => isEditMode.value ? 'Ubah Invoice' : 'Buat Invoice');
-const requiredPermission = computed(() => isEditMode.value ? 'edit' : 'insert');
+const pageTitle = computed(() => (isEditMode.value ? "Ubah Invoice" : "Buat Invoice"));
+const requiredPermission = computed(() => (isEditMode.value ? "edit" : "insert"));
 const dynamicLogo = computed(() => {
-  if (authStore.user?.cabang === 'K04') {
+  if (authStore.user?.cabang === "K04") {
     return LogoRezso;
   }
   return LogoKaosan;
@@ -222,23 +223,23 @@ const isReadonly = computed(() => {
 });
 // [REVISI] Izinkan toggle Marketplace untuk KON dan K05
 const isUserMarketplaceEligible = computed(() => {
-  const cabang = authStore.user?.cabang || '';
-  return cabang === 'KON' || cabang === 'K05';
+  const cabang = authStore.user?.cabang || "";
+  return cabang === "KON" || cabang === "K05";
 });
 
-const isKpr = computed(() => authStore.user?.cabang === 'KPR');
+const isKpr = computed(() => authStore.user?.cabang === "KPR");
 
 const canSearchManual = computed(() => {
-  const cabang = authStore.user?.cabang || '';
-  return ['KPR', 'K01'].includes(cabang);
+  const cabang = authStore.user?.cabang || "";
+  return ["KPR", "K01"].includes(cabang);
 });
 
-const referenceLabel = computed(() => isKpr.value ? 'No. Surat Jalan' : 'No. Pesanan (SO)');
+const referenceLabel = computed(() => (isKpr.value ? "No. Surat Jalan" : "No. Pesanan (SO)"));
 
-const referenceDateLabel = computed(() => isKpr.value ? 'Tgl. SJ' : 'Tgl. SO');
+const referenceDateLabel = computed(() => (isKpr.value ? "Tgl. SJ" : "Tgl. SO"));
 
 const memberLabel = computed(() => {
-  return header.customer.kode === 'K-00079' ? 'Data Karyawan' : 'Info Member';
+  return header.customer.kode === "K-00079" ? "Data Karyawan" : "Info Member";
 });
 
 // Update isUserKon jika masih digunakan di tempat lain,
@@ -248,54 +249,54 @@ const memberLabel = computed(() => {
 const isLoading = ref(true);
 
 const initialHeaderState = {
-  nomor: '',
-  idrec: '',
-  tanggal: format(new Date(), 'yyyy-MM-dd'),
-  gudang: { kode: authStore.user?.cabang || '', nama: authStore.user?.cabangNama || '' },
+  nomor: "",
+  idrec: "",
+  tanggal: format(new Date(), "yyyy-MM-dd"),
+  gudang: { kode: authStore.user?.cabang || "", nama: authStore.user?.cabangNama || "" },
   customer: {
-    kode: '',
-    nama: '',
-    alamat: '',
-    kota: '',
-    telp: '',
-    level: '',
+    kode: "",
+    nama: "",
+    alamat: "",
+    kota: "",
+    telp: "",
+    level: "",
     level_kode: null,
     level_nama: null,
   } as Customer,
-  nomorSo: '',
-  tanggalSo: '',
-  jenisOrderKode: '',
-  jenisOrderNama: '',
-  namaDtf: '',
+  nomorSo: "",
+  tanggalSo: "",
+  jenisOrderKode: "",
+  jenisOrderNama: "",
+  namaDtf: "",
   top: 0,
-  tanggalTempo: '',
-  salesCounter: authStore.user?.kode || '',
-  keterangan: '',
+  tanggalTempo: "",
+  salesCounter: authStore.user?.kode || "",
+  keterangan: "",
   diskonPersen1: 0,
   diskonPersen2: 0,
   diskonRp: 0,
   biayaKirim: 0,
   ppnPersen: 0,
-  nomorPromo: '',
-  namaPromo: '',
-  memberHp: '',
-  memberNik: '',
-  memberNama: '',
-  memberAlamat: '',
-  memberGender: '',
-  memberUsia: '',
-  memberReferensi: '',
+  nomorPromo: "",
+  namaPromo: "",
+  memberHp: "",
+  memberNik: "",
+  memberNama: "",
+  memberAlamat: "",
+  memberGender: "",
+  memberUsia: "",
+  memberReferensi: "",
 
   // --- FIELD BARU MARKETPLACE ---
   isMarketplace: false,
-  mpNama: 'SHOPEE',
-  mpNomorPesanan: '',
-  mpResi: '',
+  mpNama: "SHOPEE",
+  mpNomorPesanan: "",
+  mpResi: "",
   mpBiayaPlatform: 0,
 };
 
 // [BARU] Daftar Marketplace
-const marketplaceList = ['SHOPEE', 'TIKTOK SHOP'];
+const marketplaceList = ["SHOPEE", "TIKTOK SHOP"];
 const isSaving = ref(false);
 
 const header = reactive({ ...initialHeaderState });
@@ -324,18 +325,18 @@ const dialogs = reactive({
   memberForm: false,
   diskonForm: false,
   linkedDp: false,
-  // soDtfSearch: false,
-  promoBonus: false
+  soDtfSearch: false,
+  promoBonus: false,
 });
 
 const authDialog = reactive<AuthDialogState>({
   show: false,
-  title: '',
-  jenis: '',
+  title: "",
+  jenis: "",
   nominal: 0,
-  transaksi: '',
-  barcode: '',
-  keterangan: '',
+  transaksi: "",
+  barcode: "",
+  keterangan: "",
   onSuccess: () => { },
   onCancel: () => { },
 });
@@ -343,19 +344,19 @@ const authDialog = reactive<AuthDialogState>({
 const activeItemForAuth = ref<Item | null>(null);
 const originalDiscount = reactive({
   faktur: { persen1: 0, rp: 0, persen2: 0, biayaKirim: 0 },
-  item: { persen: 0, rp: 0 }
+  item: { persen: 0, rp: 0 },
 });
 
 const authPins = reactive({
-  pinDiskon1: '',
-  pinDiskon2: '',
+  pinDiskon1: "",
+  pinDiskon2: "",
   pinItem: {} as Record<string, string>, // Untuk menyimpan pin per item
 });
 
 const dialogConfirm = reactive({
   show: false,
-  title: '',
-  text: '',
+  title: "",
+  text: "",
   onConfirm: () => { },
 });
 
@@ -363,14 +364,14 @@ const activeRowIndex = ref(0);
 const isMultiSelectProduct = ref(false);
 const salesCounters = ref([]);
 const isSoLoaded = ref(false);
-const memberHpToSearch = ref('');
-const scannedBarcode = ref('');
+const memberHpToSearch = ref("");
+const scannedBarcode = ref("");
 const customerDiscountRule = ref(null);
-const activePromoForBonus = ref({ nomor: '', qty: 0 });
+const activePromoForBonus = ref({ nomor: "", qty: 0 });
 const focusedRowId = ref<number | string>(-1);
 const isLockedFsk = ref(false);
 const activePromosList = ref<ActivePromo[]>([]); // Menyimpan daftar promo dari DB
-const promoNotification = ref(''); // Teks untuk running text/alert
+const promoNotification = ref(""); // Teks untuk running text/alert
 const potentialPromoDiscount = ref(0); // Menyimpan nominal potensi diskon
 const isGrandOpeningPromo = ref(false);
 const isPromoMinimized = ref(false);
@@ -379,8 +380,8 @@ const customerDebt = ref(0);
 const customerLimit = ref(0);
 
 // --- [BARU] Setup Audio & Refs ---
-const audioSuccess = new Audio('/audio/beep_success.mp3');
-const audioError = new Audio('/audio/beep_error.mp3');
+const audioSuccess = new Audio("/audio/beep_success.mp3");
+const audioError = new Audio("/audio/beep_error.mp3");
 
 // Ref untuk input barcode agar bisa auto-focus
 const barcodeInputRef = ref<HTMLInputElement | null>(null);
@@ -388,22 +389,22 @@ const isScanning = ref(false); // State untuk loading scan
 
 // --- Konfigurasi Tabel ---
 const tableHeaders = [
-  { title: 'Kode Barang', key: 'kode', width: '120px' },
-  { title: 'Nama Barang', key: 'nama', minWidth: '250px' }, // ubah ke minWidth
-  { title: 'Kategori', key: 'kategori', width: '90px' },
-  { title: 'Ukuran', key: 'ukuran', width: '50px' },
-  { title: 'Stok Fisik', key: 'stok', align: 'end', width: '80px' },
-  { title: 'Stok Pesan', key: 'stokPesanan', align: 'end', width: '80px' },
-  { title: 'Qty SO', key: 'qtyso', align: 'end', width: '60px' },
-  { title: 'Jumlah', key: 'jumlah', align: 'end', width: '70px' },
-  { title: 'Harga', key: 'harga', align: 'end', width: '80px' },
-  { title: 'Disc %', key: 'diskonPersen', align: 'end', width: '70px' },
-  { title: 'Diskon Rp', key: 'diskonRp', align: 'end', width: '80px' },
-  { title: 'Total', key: 'total', align: 'end', width: '90px' },
-  { title: 'Barcode', key: 'barcode', width: '90px' },
-  { title: 'SO DTF', key: 'noSoDtf', width: '120px' },
-  { title: 'Promo', key: 'terhitungPromo', align: 'center', width: '70px' },
-  { title: 'Actions', key: 'actions', sortable: false, width: '50px' },
+  { title: "Kode Barang", key: "kode", width: "120px" },
+  { title: "Nama Barang", key: "nama", minWidth: "250px" }, // ubah ke minWidth
+  { title: "Kategori", key: "kategori", width: "90px" },
+  { title: "Ukuran", key: "ukuran", width: "50px" },
+  { title: "Stok Fisik", key: "stok", align: "end", width: "80px" },
+  { title: "Stok Pesan", key: "stokPesanan", align: "end", width: "80px" },
+  { title: "Qty SO", key: "qtyso", align: "end", width: "60px" },
+  { title: "Jumlah", key: "jumlah", align: "end", width: "70px" },
+  { title: "Harga", key: "harga", align: "end", width: "80px" },
+  { title: "Disc %", key: "diskonPersen", align: "end", width: "70px" },
+  { title: "Diskon Rp", key: "diskonRp", align: "end", width: "80px" },
+  { title: "Total", key: "total", align: "end", width: "90px" },
+  { title: "Barcode", key: "barcode", width: "90px" },
+  { title: "SO DTF", key: "noSoDtf", width: "120px" },
+  { title: "Promo", key: "terhitungPromo", align: "center", width: "70px" },
+  { title: "Actions", key: "actions", sortable: false, width: "50px" },
 ] as const;
 // const linkedDpsHeaders = [
 //     { title: 'Nomor Setoran', key: 'nomor' },
@@ -425,9 +426,9 @@ const addNewRow = () => {
   if (!lastItem || lastItem.kode) {
     const newItem: Item = {
       id: Date.now(),
-      kode: '',          // tambahkan properti wajib
-      nama: '',
-      ukuran: '',
+      kode: "", // tambahkan properti wajib
+      nama: "",
+      ukuran: "",
       stok: 0,
       qtyso: 0,
       jumlah: 0,
@@ -435,10 +436,10 @@ const addNewRow = () => {
       diskonPersen: 0,
       diskonRp: 0,
       total: 0,
-      barcode: '',
+      barcode: "",
       hpp: 0,
-      noSoDtf: '',
-      kategori: '',
+      noSoDtf: "",
+      kategori: "",
       terhitungPromo: false,
       _isHargaEditable: true,
       isCustomOrder: false,
@@ -448,9 +449,15 @@ const addNewRow = () => {
   }
 };
 
-const onDiskonSaved = (data: { diskonPersen1: number, diskonPersen2: number, diskonRp: number, biayaKirim: number, biayaPlatform: number, mode?: string }) => {
-
-  if (header.gudang.kode === 'K04') {
+const onDiskonSaved = (data: {
+  diskonPersen1: number;
+  diskonPersen2: number;
+  diskonRp: number;
+  biayaKirim: number;
+  biayaPlatform: number;
+  mode?: string;
+}) => {
+  if (header.gudang.kode === "K04") {
     header.diskonPersen1 = data.diskonPersen1;
     header.diskonPersen2 = data.diskonPersen2;
     header.diskonRp = data.diskonRp;
@@ -458,12 +465,12 @@ const onDiskonSaved = (data: { diskonPersen1: number, diskonPersen2: number, dis
     header.mpBiayaPlatform = data.biayaPlatform;
 
     calculateTotals();
-    toast.success('Diskon & Biaya K04 berhasil diterapkan.');
+    toast.success("Diskon & Biaya K04 berhasil diterapkan.");
     return;
   }
 
   // 1. Tentukan nilai target untuk Diskon (Sama seperti sebelumnya)
-  const isPercentMode = data.mode !== 'rp' && (data.diskonPersen1 > 0 || data.diskonPersen2 > 0);
+  const isPercentMode = data.mode !== "rp" && (data.diskonPersen1 > 0 || data.diskonPersen2 > 0);
 
   const newDiskonPersen1 = isPercentMode ? data.diskonPersen1 : 0;
   const newDiskonPersen2 = isPercentMode ? data.diskonPersen2 : 0;
@@ -476,7 +483,7 @@ const onDiskonSaved = (data: { diskonPersen1: number, diskonPersen2: number, dis
     newDiskonRp !== header.diskonRp;
 
   // Fungsi Helper: Terapkan perubahan ke state Header
-  const applyChanges = (authData?: { authNomor: string, approver: string }) => {
+  const applyChanges = (authData?: { authNomor: string; approver: string }) => {
     header.diskonPersen1 = newDiskonPersen1;
     header.diskonPersen2 = newDiskonPersen2;
     header.diskonRp = newDiskonRp;
@@ -494,13 +501,13 @@ const onDiskonSaved = (data: { diskonPersen1: number, diskonPersen2: number, dis
 
     // Hitung ulang total
     calculateTotals();
-    toast.success('Data biaya & diskon diperbarui.');
+    toast.success("Data biaya & diskon diperbarui.");
   };
 
   // 3. Logika Percabangan Otorisasi
   if (isDiscountChanged) {
     // Jika cabang adalah K04, lewati otorisasi
-    if (header.gudang.kode === 'K04') {
+    if (header.gudang.kode === "K04") {
       applyChanges();
       return;
     }
@@ -509,31 +516,32 @@ const onDiskonSaved = (data: { diskonPersen1: number, diskonPersen2: number, dis
     if (newDiskonRp > 0) {
       nominalAuth = newDiskonRp;
     } else {
-      const subTotalNet = (items.value.reduce((sum, i) => sum + (i.total || 0), 0)) - totals.totalDiskonItem;
+      const subTotalNet =
+        items.value.reduce((sum, i) => sum + (i.total || 0), 0) - totals.totalDiskonItem;
       nominalAuth = (subTotalNet * newDiskonPersen1) / 100;
     }
 
     // Susun Info Lengkap
-    const custName = header.customer.nama || 'Umum';
-    const infoDiskon = `Cust: ${custName}\nDiskon Faktur: ${isPercentMode ? newDiskonPersen1 + '%' : 'Rp ' + formatRupiah(newDiskonRp)}`;
+    const custName = header.customer.nama || "Umum";
+    const infoDiskon = `Cust: ${custName}\nDiskon Faktur: ${isPercentMode ? newDiskonPersen1 + "%" : "Rp " + formatRupiah(newDiskonRp)
+      }`;
 
     requestAuthorization(
-      'Otorisasi Diskon Faktur',
-      'DISKON_FAKTUR',
+      "Otorisasi Diskon Faktur",
+      "DISKON_FAKTUR",
       nominalAuth,
       {
-        transaksi: header.nomor ? header.nomor : 'DRAFT INVOICE',
+        transaksi: header.nomor ? header.nomor : "DRAFT INVOICE",
         keteranganLengkap: infoDiskon, // <-- Kirim info ini
-        barcode: ''
+        barcode: "",
       },
       (authResult) => {
         applyChanges(authResult);
       },
       () => {
-        toast.info('Perubahan diskon faktur dibatalkan.');
+        toast.info("Perubahan diskon faktur dibatalkan.");
       }
     );
-
   } else {
     applyChanges();
   }
@@ -548,9 +556,8 @@ const handleItemDiscountChange = (item: Item) => {
 
     // Hanya minta otorisasi jika nilai berubah
     if (currentRp !== originalRp || currentPersen !== originalPersen) {
-
       // Bypass jika K04
-      if (header.gudang.kode === 'K04') {
+      if (header.gudang.kode === "K04") {
         item.originalDiskonRp = item.diskonRp;
         item.originalDiskonPersen = item.diskonPersen;
         item.total = computeLineTotal(item);
@@ -571,8 +578,8 @@ const handleItemDiscountChange = (item: Item) => {
       activeItemForAuth.value = item;
 
       // 3. Susun Info Lengkap (Agar muncul di HP)
-      const custName = header.customer.nama || 'Umum';
-      const itemName = item.nama || 'Unknown Item';
+      const custName = header.customer.nama || "Umum";
+      const itemName = item.nama || "Unknown Item";
 
       // Format: "Cust: ABC\nItem: Kaos Polos"
       const infoLengkap = `Cust: ${custName}\nItem: ${itemName}`;
@@ -580,12 +587,12 @@ const handleItemDiscountChange = (item: Item) => {
       // 4. Request Auth
       requestAuthorization(
         `Otorisasi Diskon Item`,
-        'DISKON_ITEM',
+        "DISKON_ITEM",
         totalNominalAuth,
         {
           barcode: item.barcode,
-          transaksi: header.nomor ? header.nomor : 'DRAFT INVOICE',
-          keteranganLengkap: infoLengkap   // <-- Kirim info ini
+          transaksi: header.nomor ? header.nomor : "DRAFT INVOICE",
+          keteranganLengkap: infoLengkap, // <-- Kirim info ini
         },
         (authResult) => {
           // --- SUKSES (APPROVED) ---
@@ -601,7 +608,7 @@ const handleItemDiscountChange = (item: Item) => {
             currentItem.total = computeLineTotal(currentItem);
           }
 
-          toast.success('Otorisasi diskon item disetujui.');
+          toast.success("Otorisasi diskon item disetujui.");
           calculateTotals();
           activeItemForAuth.value = null;
         },
@@ -613,7 +620,7 @@ const handleItemDiscountChange = (item: Item) => {
             activeItemForAuth.value.diskonPersen = originalDiscount.item.persen;
             activeItemForAuth.value.total = computeLineTotal(activeItemForAuth.value);
           }
-          toast.info('Perubahan diskon dibatalkan.');
+          toast.info("Perubahan diskon dibatalkan.");
           calculateTotals();
           activeItemForAuth.value = null;
         }
@@ -636,9 +643,9 @@ const requestAuthorization = (
   jenis: string,
   nominal: number,
   extraData: {
-    transaksi?: string,
-    barcode?: string,
-    keteranganLengkap?: string
+    transaksi?: string;
+    barcode?: string;
+    keteranganLengkap?: string;
   } | null,
   onSuccess: (data: { authNomor: string; approver: string }) => void,
   onCancel: () => void
@@ -648,14 +655,14 @@ const requestAuthorization = (
   authDialog.nominal = nominal;
 
   if (extraData) {
-    authDialog.transaksi = extraData.transaksi || '';
-    authDialog.barcode = extraData.barcode || '';
+    authDialog.transaksi = extraData.transaksi || "";
+    authDialog.barcode = extraData.barcode || "";
     // Mapping keteranganLengkap ke state keterangan dialog
-    authDialog.keterangan = extraData.keteranganLengkap || '';
+    authDialog.keterangan = extraData.keteranganLengkap || "";
   } else {
-    authDialog.transaksi = '';
-    authDialog.barcode = '';
-    authDialog.keterangan = '';
+    authDialog.transaksi = "";
+    authDialog.barcode = "";
+    authDialog.keterangan = "";
   }
 
   // [FIX] Wrapper untuk menutup modal sebelum menjalankan callback sukses
@@ -671,15 +678,15 @@ const requestAuthorization = (
 
 const fetchSalesCounters = async () => {
   try {
-    const response = await api.get('/invoice-form/lookup/sales-counters');
+    const response = await api.get("/invoice-form/lookup/sales-counters");
     salesCounters.value = response.data;
   } catch (error) {
-    toast.error('Gagal memuat daftar Sales Counter.', error);
+    toast.error("Gagal memuat daftar Sales Counter.", error);
   }
 };
 
 const removeRow = (itemToDelete: Item) => {
-  items.value = items.value.filter(item => item.id !== itemToDelete.id);
+  items.value = items.value.filter((item) => item.id !== itemToDelete.id);
   if (items.value.length === 0) {
     addNewRow();
   }
@@ -689,7 +696,7 @@ const removeRow = (itemToDelete: Item) => {
 const removeSoDtfItems = (itemWithSoDtf: Item) => {
   const soDtfNumber = itemWithSoDtf.noSoDtf;
   if (!soDtfNumber) return;
-  items.value = items.value.filter(item => item.noSoDtf !== soDtfNumber);
+  items.value = items.value.filter((item) => item.noSoDtf !== soDtfNumber);
   if (items.value.length === 0) {
     addNewRow();
   }
@@ -698,13 +705,13 @@ const removeSoDtfItems = (itemWithSoDtf: Item) => {
 const handleDeleteItem = (item: Item) => {
   if (item.noSoDtf) {
     showConfirmation(
-      'Konfirmasi Hapus SO DTF',
+      "Konfirmasi Hapus SO DTF",
       `Anda yakin ingin menghapus semua item dari SO DTF No: ${item.noSoDtf}?`,
       () => removeSoDtfItems(item)
     );
   } else if (item.kode) {
     showConfirmation(
-      'Konfirmasi Hapus Item',
+      "Konfirmasi Hapus Item",
       `Anda yakin ingin menghapus item: ${item.nama}?`,
       () => removeRow(item)
     );
@@ -715,8 +722,8 @@ const handleClose = () => {
   // Tombol Tutup memicu konfirmasi manual,
   // Jika user klik Ya, paksa reset status agar guard global tidak mencegat lagi
   showConfirmation(
-    'Tutup Form',
-    'Data yang belum disimpan akan hilang. Yakin ingin menutup form?',
+    "Tutup Form",
+    "Data yang belum disimpan akan hilang. Yakin ingin menutup form?",
     () => {
       markAsSaved(); // Reset status
       router.back();
@@ -725,14 +732,14 @@ const handleClose = () => {
 };
 
 const openLookup = () => {
-  if (!header.customer.kode) return toast.error('Pilih customer terlebih dahulu.');
+  if (!header.customer.kode) return toast.error("Pilih customer terlebih dahulu.");
 
   activeRowIndex.value = items.value.length - 1;
   isMultiSelectProduct.value = true;
 
   // LOGIKA PENGECEALIAN:
   // Jika promo 100rb dapat 3 aktif, paksa isLookupOnly = false agar bisa ADD ke tabel
-  if (header.nomorPromo === 'PRO-2025-005') {
+  if (header.nomorPromo === "PRO-2025-005") {
     isLookupOnly.value = false;
   } else {
     // Aturan standar: Jika bukan K01/KPR, maka hanya untuk lihat stok
@@ -743,15 +750,16 @@ const openLookup = () => {
 };
 
 const openProductSearch = (index: number, isMulti: boolean) => {
-  if (!header.customer.kode) return toast.error('Pilih customer terlebih dahulu.');
-  if (header.nomorSo) return toast.info('Tidak bisa menambah item manual jika sudah terhubung ke SO.');
+  if (!header.customer.kode) return toast.error("Pilih customer terlebih dahulu.");
+  if (header.nomorSo)
+    return toast.info("Tidak bisa menambah item manual jika sudah terhubung ke SO.");
 
   activeRowIndex.value = index;
   isMultiSelectProduct.value = isMulti;
 
   // LOGIKA PENGECEALIAN:
   // Sama dengan di atas, izinkan input jika promo PRO-2025-005 aktif
-  if (header.nomorPromo === 'PRO-2025-005') {
+  if (header.nomorPromo === "PRO-2025-005") {
     isLookupOnly.value = false;
   } else {
     isLookupOnly.value = !canSearchManual.value;
@@ -760,24 +768,26 @@ const openProductSearch = (index: number, isMulti: boolean) => {
   dialogs.productSearch = true;
 };
 
-// const openSoDtfSearch = (item: Item, index: number) => {
-//   // Cek semua kondisi di sini
-//   if (header.nomorSo || item.kode) {
-//     return; // Hentikan aksi jika sudah readonly
-//   }
-//   if (!header.customer.kode) {
-//     return toast.error("Pilih customer terlebih dahulu.");
-//   }
+const openSoDtfSearch = (item: Item, index: number) => {
+  // 1. Validasi Cabang KPR
+  if (!isKpr.value) return;
 
-//   // Jika semua kondisi terpenuhi, buka modal
-//   activeRowIndex.value = index;
-//   dialogs.soDtfSearch = true;
-// };
+  // 2. Validasi Customer wajib ada
+  if (!header.customer.kode) {
+    return toast.error("Pilih customer terlebih dahulu.");
+  }
+
+  // [PENTING] Untuk KPR, kita abaikan pengecekan !!header.nomorSo
+  // karena nomor tersebut adalah nomor SJ yang memang menjadi dasar transaksi mereka.
+
+  activeRowIndex.value = index;
+  dialogs.soDtfSearch = true;
+};
 
 const onCustomerSelected = async (cust: Customer | null) => {
   if (cust) {
     // PERBAIKAN: Gabungkan level_kode dan level_nama secara manual
-    const levelText = cust.level_kode ? `${cust.level_kode} - ${cust.level_nama}` : '';
+    const levelText = cust.level_kode ? `${cust.level_kode} - ${cust.level_nama}` : "";
 
     header.customer = {
       kode: cust.kode,
@@ -789,12 +799,15 @@ const onCustomerSelected = async (cust: Customer | null) => {
     };
 
     // Ambil limit dari data customer (sudah dikirim backend)
-    customerLimit.value = (cust as any).limitTrans || 0;
+    customerLimit.value = cust.limitTrans || 0;
 
     // AMBIL SISA PIUTANG BERJALAN DARI BACKEND
     try {
       const response = await api.get(`/invoice-form/lookup/customer-debt/${cust.kode}`);
       customerDebt.value = response.data.totalDebt || 0;
+
+      // Jika ternyata limitTrans di search kosong tapi di debt-lookup ada, bisa di-assign di sini
+      if (response.data.limitTrans) customerLimit.value = response.data.limitTrans;
     } catch (error) {
       console.error("Gagal mengambil data hutang customer", error);
       customerDebt.value = 0;
@@ -813,16 +826,16 @@ const onCustomerSelected = async (cust: Customer | null) => {
     }
   } else {
     // Kosongkan field jika tidak ada customer
-    header.customer = { kode: '', nama: '', alamat: '', kota: '', telp: '', level: '' };
+    header.customer = { kode: "", nama: "", alamat: "", kota: "", telp: "", level: "" };
     customerDebt.value = 0;
     customerLimit.value = 0;
     updateMemberInfo(null);
   }
 
-  if (customerDiscountRule.value && items.value.some(i => i.kode)) {
+  if (customerDiscountRule.value && items.value.some((i) => i.kode)) {
     await nextTick();
-    applyDefaultDiscount();  // pasang diskon default reseller
-    calculateTotals();        // hitung ulang total
+    applyDefaultDiscount(); // pasang diskon default reseller
+    calculateTotals(); // hitung ulang total
   }
   dialogs.customerSearch = false;
 };
@@ -834,10 +847,10 @@ const applyDefaultDiscount = () => {
   }
   // [BARU] 1. Pengecekan Customer RETAIL / RETAILER
   // Pastikan ambil nama customer dengan aman (optional chaining)
-  const custNama = header.customer?.nama?.toUpperCase() || '';
+  const custNama = header.customer?.nama?.toUpperCase() || "";
 
   // Jika customer RETAIL, paksa diskon 0 dan STOP.
-  if (custNama.includes('RETAIL')) {
+  if (custNama.includes("RETAIL")) {
     header.diskonPersen1 = 0;
     return;
   }
@@ -862,9 +875,7 @@ const applyDefaultDiscount = () => {
 
 const onNewCustomerSaved = (customer: Customer) => {
   // bentuk tampilan (UI)
-  const levelText = customer.level_kode
-    ? `${customer.level_kode} - ${customer.level_nama}`
-    : '';
+  const levelText = customer.level_kode ? `${customer.level_kode} - ${customer.level_nama}` : "";
 
   header.customer = {
     kode: customer.kode,
@@ -885,17 +896,19 @@ const onNewCustomerSaved = (customer: Customer) => {
 };
 
 const onMemberSaved = (data: Member) => {
-  // TypeScript sekarang tahu bahwa 'data' memiliki struktur sesuai interface Member
+  // 1. Cek apakah customer adalah Karyawan Kencana Print
+  const isKaryawanPrint = header.customer.kode === "K-00079";
 
-  // 1. Simpan NIK jika customer adalah Karyawan Kencana Print
-  if (header.customer.kode === 'K-00079') {
-    header.memberNik = data.nik || '';
+  if (isKaryawanPrint) {
+    header.memberNik = data.nik || "";
+    // [FIX] Simpan NIK ke dalam memberHp agar terpetakan ke inv_mem_hp di database
+    header.memberHp = data.nik || "";
   } else {
-    header.memberNik = '';
+    header.memberNik = "";
+    header.memberHp = data.hp; // Untuk customer reguler, tetap simpan No. HP
   }
 
-  // 2. Mapping data member reguler secara aman
-  header.memberHp = data.hp;
+  // 2. Mapping data member lainnya tetap sama
   header.memberNama = data.nama;
   header.memberAlamat = data.alamat;
   header.memberGender = data.gender;
@@ -903,16 +916,18 @@ const onMemberSaved = (data: Member) => {
   header.memberReferensi = data.referensi;
 
   dialogs.memberForm = false;
-  toast.info('Data member/karyawan berhasil diperbarui.');
+  toast.info(
+    isKaryawanPrint ? "Data karyawan berhasil diperbarui." : "Data member berhasil diperbarui."
+  );
 };
 
-const onPromoSelected = (promo: { nomor: string, namaPromo: string }) => {
+const onPromoSelected = (promo: { nomor: string; namaPromo: string }) => {
   // Cek apakah promo berubah dan item sudah ada
-  if (promo.nomor === 'PRO-2025-005' && items.value.some(i => i.kode)) {
+  if (promo.nomor === "PRO-2025-005" && items.value.some((i) => i.kode)) {
     // Tampilkan konfirmasi
     showConfirmation(
-      'Terapkan Promo?',
-      'Menerapkan promo ini akan menghapus semua barang di keranjang. Lanjutkan?',
+      "Terapkan Promo?",
+      "Menerapkan promo ini akan menghapus semua barang di keranjang. Lanjutkan?",
       () => {
         // User klik "Ya"
         header.nomorPromo = promo.nomor;
@@ -934,14 +949,17 @@ const onPromoSelected = (promo: { nomor: string, namaPromo: string }) => {
     };
 
     // Jika user menutup/membatalkan dialog
-    const unwatch = watch(() => dialogConfirm.show, (newValue) => {
-      if (!newValue && dialogConfirm.onConfirm) { // Cek jika 'onConfirm' masih ada
-        // 'onConfirm' belum dijalankan, artinya user klik Batal/Tutup
-        unwatch();
-        // Jangan set promo jika dibatalkan
+    const unwatch = watch(
+      () => dialogConfirm.show,
+      (newValue) => {
+        if (!newValue && dialogConfirm.onConfirm) {
+          // Cek jika 'onConfirm' masih ada
+          // 'onConfirm' belum dijalankan, artinya user klik Batal/Tutup
+          unwatch();
+          // Jangan set promo jika dibatalkan
+        }
       }
-    });
-
+    );
   } else {
     // Jika grid kosong atau promo lain, langsung set
     header.nomorPromo = promo.nomor;
@@ -961,7 +979,9 @@ function resolveUkuran(item: SoItem): string {
       if (Array.isArray(parsed.ukuranKaos) && parsed.ukuranKaos.length > 0) {
         return parsed.ukuranKaos[0].ukuran || "";
       }
-    } catch { /* ignored */ }
+    } catch {
+      /* ignored */
+    }
   }
 
   // 3. fallback
@@ -969,7 +989,7 @@ function resolveUkuran(item: SoItem): string {
 }
 
 const onSoSelected = async (so: { Nomor: string }) => {
-  console.log('onSoSelected called with:', so);
+  console.log("onSoSelected called with:", so);
 
   dialogs.soSearch = false;
   if (!so.Nomor) return;
@@ -977,18 +997,21 @@ const onSoSelected = async (so: { Nomor: string }) => {
   if (header.nomorSo && header.nomorSo !== so.Nomor) {
     const confirmed = await new Promise((resolve) => {
       showConfirmation(
-        'Ganti SO?',
+        "Ganti SO?",
         `Mengganti SO dari ${header.nomorSo} ke ${so.Nomor} akan menghapus semua item. Lanjutkan?`,
         () => resolve(true)
       );
 
       // Watch untuk deteksi jika user klik Batal
-      const unwatch = watch(() => dialogConfirm.show, (newValue) => {
-        if (!newValue) {
-          unwatch();
-          resolve(false);
+      const unwatch = watch(
+        () => dialogConfirm.show,
+        (newValue) => {
+          if (!newValue) {
+            unwatch();
+            resolve(false);
+          }
         }
-      });
+      );
 
       dialogConfirm.onConfirm = () => {
         resolve(true);
@@ -1001,10 +1024,10 @@ const onSoSelected = async (so: { Nomor: string }) => {
 
   isLoading.value = true;
   try {
-    console.log('Fetching SO details for:', so.Nomor);
+    console.log("Fetching SO details for:", so.Nomor);
 
     const response = await api.get(`/invoice-form/lookup/so-details/${so.Nomor}`);
-    console.log('SO details response:', response.data);
+    console.log("SO details response:", response.data);
 
     const { header: soHeader, items: soItems, dps } = response.data;
 
@@ -1019,16 +1042,19 @@ const onSoSelected = async (so: { Nomor: string }) => {
 
     // *** Perbaikan bagian jenis order ***
     header.jenisOrderKode = soHeader.jenisOrderKode || "";
-    header.jenisOrderNama = soHeader.jenisOrderNama || "";  // <-- TAMBAHKAN INI
+    header.jenisOrderNama = soHeader.jenisOrderNama || ""; // <-- TAMBAHKAN INI
     header.namaDtf = soHeader.namaDtf || "";
 
     // [FIX] Gunakan soHeader, bukan headerRows[0]
     // Pastikan backend mengirim field ini di object 'header'
-    header.mpNomorPesanan = soHeader.mpNomorPesanan || soHeader.so_mp_nomor_pesanan || '';
-    header.mpResi = soHeader.mpResi || soHeader.so_mp_resi || '';
+    header.mpNomorPesanan = soHeader.mpNomorPesanan || soHeader.so_mp_nomor_pesanan || "";
+    header.mpResi = soHeader.mpResi || soHeader.so_mp_resi || "";
 
     // Cek flag marketplace. Backend mungkin mengirim boolean atau string 'Y'
-    header.isMarketplace = soHeader.isMarketplace === true || soHeader.isMarketplace === 'Y' || soHeader.so_is_marketplace === 'Y';
+    header.isMarketplace =
+      soHeader.isMarketplace === true ||
+      soHeader.isMarketplace === "Y" ||
+      soHeader.so_is_marketplace === "Y";
 
     // --- Tanggal SO ---
     if (soHeader.tanggal) {
@@ -1046,8 +1072,8 @@ const onSoSelected = async (so: { Nomor: string }) => {
       header.tanggalTempo = "";
     }
 
-    memberHpToSearch.value = soHeader.customer.telp || '';
-    header.memberHp = soHeader.customer.telp || '';
+    memberHpToSearch.value = soHeader.customer.telp || "";
+    header.memberHp = soHeader.customer.telp || "";
 
     // Map items dengan memastikan semua field yang diperlukan ada
     items.value = soItems.map((item: SoItem, index: number) => {
@@ -1057,8 +1083,8 @@ const onSoSelected = async (so: { Nomor: string }) => {
         id: Date.now() + index,
         kode: item.kode ?? "",
         nama: item.nama ?? "",
-        ukuran: ukuranFinal,                 // 🔥 FIX UTAMA
-        stok: Number(item.stokFisik || 0),       // Masuk ke kolom Stok Fisik
+        ukuran: ukuranFinal, // 🔥 FIX UTAMA
+        stok: Number(item.stokFisik || 0), // Masuk ke kolom Stok Fisik
         stokPesanan: Number(item.stokPesanan || 0), // Masuk ke kolom Stok Pesan
         qtyso: item.qtyso ?? 0,
         jumlah: item.qtyso ?? 0,
@@ -1081,20 +1107,18 @@ const onSoSelected = async (so: { Nomor: string }) => {
       };
     });
 
-    console.log('Mapped items:', items.value);
+    console.log("Mapped items:", items.value);
 
     linkedDps.value = dps;
     isSoLoaded.value = true;
 
     // Force reactivity update
     await nextTick();
-
   } catch (error) {
     const axiosError = error as AxiosError<{ message: string }>;
-    console.error('Error loading SO details:', axiosError);
+    console.error("Error loading SO details:", axiosError);
     toast.error(axiosError.response?.data?.message || "Gagal memuat data SO.");
-  }
-  finally {
+  } finally {
     isLoading.value = false;
   }
 };
@@ -1109,8 +1133,8 @@ const onSjSelected = async (sj: { NoSJ: string }) => {
     const response = await api.get(`/invoice-form/lookup/sj-details/${sj.NoSJ}`, {
       params: {
         cabang: authStore.user?.cabang,
-        currentInv: header.nomor || '' // Kirim nomor invoice aktif agar tidak mengurangi stok sendiri
-      }
+        currentInv: header.nomor || "", // Kirim nomor invoice aktif agar tidak mengurangi stok sendiri
+      },
     });
 
     // Destructuring data dengan fallback untuk mencegah error undefined
@@ -1119,8 +1143,8 @@ const onSjSelected = async (sj: { NoSJ: string }) => {
     const dps = response.data.dps || [];
 
     // Validasi: SJ harus sudah diterima di sistem KPR
-    if (!sjHeader.sj_noterima || sjHeader.sj_noterima === '') {
-      toast.error('SJ tersebut belum diterima. Silakan proses penerimaan SJ terlebih dahulu.');
+    if (!sjHeader.sj_noterima || sjHeader.sj_noterima === "") {
+      toast.error("SJ tersebut belum diterima. Silakan proses penerimaan SJ terlebih dahulu.");
       isLoading.value = false;
       return;
     }
@@ -1131,42 +1155,44 @@ const onSjSelected = async (sj: { NoSJ: string }) => {
     // Map Header (Mengikuti standar logic Delphi untuk KPR)
     Object.assign(header, {
       nomorSo: sjHeader.sj_nomor,
-      tanggalSo: sjHeader.sj_tanggal ? format(parseISO(sjHeader.sj_tanggal), 'yyyy-MM-dd') : "",
+      tanggalSo: sjHeader.sj_tanggal ? format(parseISO(sjHeader.sj_tanggal), "yyyy-MM-dd") : "",
       customer: {
         kode: sjHeader.mt_cus,
         nama: sjHeader.customer,
         alamat: sjHeader.alamat,
         kota: sjHeader.kota,
         telp: sjHeader.telp,
-        level: `${sjHeader.nlevel || ''} - ${sjHeader.clevel || ''}`
+        level: `${sjHeader.nlevel || ""} - ${sjHeader.clevel || ""}`,
       },
       top: sjHeader.top || 0,
       ppnPersen: sjHeader.ppn || 0,
       // Jika tarik SJ tanpa SO asli, diskon otomatis diatur ke 15%
       diskonPersen1: sjHeader.noso ? sjHeader.so_disc1 : 15,
       diskonRp: sjHeader.so_disc || 0,
-      salesCounter: sjHeader.sc || authStore.user?.kode
+      salesCounter: sjHeader.sc || authStore.user?.kode,
     });
 
     // Map Items dari detail SJ ke grid Invoice
-    items.value = sjItems.map((item: SjApiItem, index: number): Item => ({
-      id: Date.now() + index,
-      kode: item.kode,
-      nama: item.nama,
-      ukuran: item.ukuran,
-      kategori: item.kategori || '',
-      stok: Number(item.stok || 0),
-      qtyso: Number(item.sjd_jumlah || 0),
-      jumlah: Number(item.sjd_jumlah || 0),
-      harga: Number(item.harga_so || item.brgd_harga || 0),
-      diskonPersen: Number(item.disc || 0),
-      diskonRp: Number(item.diskon || 0),
-      total: 0,
-      barcode: item.barcode || '',
-      terhitungPromo: false, // Inisialisasi properti wajib dari interface Item
-      _isHargaEditable: true, // Inisialisasi properti wajib
-      fromBackend: true,
-    }));
+    items.value = sjItems.map(
+      (item: SjApiItem, index: number): Item => ({
+        id: Date.now() + index,
+        kode: item.kode,
+        nama: item.nama,
+        ukuran: item.ukuran,
+        kategori: item.kategori || "",
+        stok: Number(item.stok || 0),
+        qtyso: Number(item.sjd_jumlah || 0),
+        jumlah: Number(item.sjd_jumlah || 0),
+        harga: Number(item.harga_so || item.brgd_harga || 0),
+        diskonPersen: Number(item.disc || 0),
+        diskonRp: Number(item.diskon || 0),
+        total: 0,
+        barcode: item.barcode || "",
+        terhitungPromo: false, // Inisialisasi properti wajib dari interface Item
+        _isHargaEditable: true, // Inisialisasi properti wajib
+        fromBackend: true,
+      })
+    );
 
     // [FIX] Memastikan linkedDps selalu berupa array untuk fungsi .reduce()
     linkedDps.value = Array.isArray(dps) ? dps : [];
@@ -1179,7 +1205,6 @@ const onSjSelected = async (sj: { NoSJ: string }) => {
 
     // --- [OTOMATISASI] Sinkronkan info member/poin berdasarkan customer SJ ---
     updateMemberInfo(header.customer);
-
   } catch (error: unknown) {
     // Menggunakan AxiosError untuk menangkap pesan error dari backend secara aman
     const err = error as AxiosError<{ message?: string }>;
@@ -1195,7 +1220,9 @@ const onProductsSelected = (selectedProducts: ProductInput[]) => {
   // Jika flag isLookupOnly aktif, tampilkan pesan dan BERHENTI (jangan masukkan ke tabel)
   if (isLookupOnly.value) {
     isLookupOnly.value = false; // reset flag
-    toast.info('Mode Lihat Stok: Data tidak dimasukkan ke tabel. Gunakan Scan Barcode untuk transaksi.');
+    toast.info(
+      "Mode Lihat Stok: Data tidak dimasukkan ke tabel. Gunakan Scan Barcode untuk transaksi."
+    );
 
     nextTick(() => {
       barcodeInputRef.value?.focus();
@@ -1204,18 +1231,18 @@ const onProductsSelected = (selectedProducts: ProductInput[]) => {
   }
   if (!selectedProducts || selectedProducts.length === 0) return;
 
-  const isPromoActive = header.nomorPromo === 'PRO-2025-005';
+  const isPromoActive = header.nomorPromo === "PRO-2025-005";
   const promoPrice = 33333;
 
   // Ambil Level Customer (String)
-  const currentLevel = String(header.customer.level_kode || '1').trim();
+  const currentLevel = String(header.customer.level_kode || "1").trim();
 
-  const newItems: Item[] = selectedProducts.map(product => {
+  const newItems: Item[] = selectedProducts.map((product) => {
     // Default: Selalu gunakan 'harga' (yang isinya brgd_harga atau 33333)
     let basePrice = Number(product.harga || 0);
 
     // PENGECUALIAN KHUSUS LEVEL 5
-    if (currentLevel === '5') {
+    if (currentLevel === "5") {
       // Pakai harga3
       // Jika harga3 kosong (0), tetap pakai 0 (agar user sadar harus input manual)
       // Jangan fallback ke harga retail!
@@ -1234,7 +1261,7 @@ const onProductsSelected = (selectedProducts: ProductInput[]) => {
       kode: product.kode,
       nama: product.nama,
       ukuran: product.ukuran,
-      stok: Number(product.stokFisik || 0),       // Stok Fisik
+      stok: Number(product.stokFisik || 0), // Stok Fisik
       stokPesanan: Number(product.stokPesanan || 0), // Stok Pesanan
 
       harga: finalPrice,
@@ -1246,13 +1273,13 @@ const onProductsSelected = (selectedProducts: ProductInput[]) => {
 
       barcode: product.barcode,
       qtyso: 0,
-      noSoDtf: '',
-      kategori: product.kategori || '',
+      noSoDtf: "",
+      kategori: product.kategori || "",
 
       terhitungPromo: isPromoActive,
       _isHargaEditable: isEditable,
 
-      hpp: 0
+      hpp: 0,
     };
   });
 
@@ -1271,53 +1298,54 @@ const onProductsSelected = (selectedProducts: ProductInput[]) => {
 const onUnpaidDpSelected = (dp: DownPayment) => {
   dialogs.unpaidDpSearch = false;
 
-  if (!linkedDps.value.some(d => d.nomor === dp.nomor)) {
+  if (!linkedDps.value.some((d) => d.nomor === dp.nomor)) {
     linkedDps.value.push(dp);
   } else {
-    toast.warning('DP tersebut sudah ditambahkan.');
+    toast.warning("DP tersebut sudah ditambahkan.");
   }
 };
 
-// const onSoDtfSelected = async (soDtf: SoDtf) => {
-//   dialogs.soDtfSearch = false;
-//   if (!soDtf.nomor) return;
+const onSoDtfSelected = async (soDtf: { nomor: string }) => {
+  dialogs.soDtfSearch = false;
+  if (!soDtf.nomor) return;
 
-//   try {
-//     const response = await api.get<SoDtfItem[]>(`/invoice-form/lookup/so-dtf-details/${soDtf.nomor}`);
-//     const soDtfItems = response.data;
+  try {
+    const response = await api.get(`/invoice-form/lookup/so-dtf-details/${soDtf.nomor}`);
+    const soDtfItems = response.data;
 
-//     if (soDtfItems.length === 0) {
-//       return toast.warning('SO DTF ini tidak memiliki detail item.');
-//     }
+    if (soDtfItems.length === 0) {
+      return toast.warning("SO DTF ini tidak memiliki detail item.");
+    }
 
-//     const newItems = soDtfItems.map(item => ({
-//       id: Date.now() + Math.random(),
-//       kode: item.kode,
-//       nama: item.nama,
-//       ukuran: item.ukuran,
-//       jumlah: item.jumlah,
-//       harga: item.harga,
-//       stok: 0,
-//       qtyso: 0,
-//       diskonPersen: 0,
-//       diskonRp: 0,
-//       total: item.jumlah * item.harga,
-//       noSoDtf: item.kode,
-//       terhitungPromo: false,
-//       _isHargaEditable: true,
-//     }));
+    const newItems = soDtfItems.map((item) => ({
+      id: Date.now() + Math.random(),
+      kode: item.kode,
+      nama: item.nama,
+      ukuran: item.ukuran,
+      jumlah: item.jumlah,
+      harga: item.harga,
+      stok: item.stok || 0,
+      qtyso: item.jumlah,
+      diskonPersen: 0,
+      diskonRp: 0,
+      total: item.jumlah * item.harga,
+      noSoDtf: soDtf.nomor, // Mencatat nomor referensi SO DTF
+      terhitungPromo: false,
+      _isHargaEditable: true,
+      kategori: "SO-DTF",
+      fromBackend: true,
+    }));
 
-//     items.value.splice(activeRowIndex.value, 1, ...newItems);
-//     addNewRow();
-//   } catch (error: unknown) {
-//     // safe handling untuk unknown
-//     if (axios.isAxiosError(error)) {
-//       toast.error(error.response?.data?.message || 'Gagal memuat detail SO DTF.');
-//     } else {
-//       toast.error('Gagal memuat detail SO DTF.');
-//     }
-//   }
-// };
+    // Masukkan ke grid (menggantikan baris kosong yang aktif)
+    items.value.splice(activeRowIndex.value, 1, ...newItems);
+    addNewRow();
+    calculateTotals();
+    toast.success(`SO DTF ${soDtf.nomor} berhasil dimuat.`);
+  } catch (error) {
+    console.error(error);
+    toast.error("Gagal memuat detail SO DTF.");
+  }
+};
 
 const calculateTotals = () => {
   // ---------------------------------------------------------------------
@@ -1325,7 +1353,7 @@ const calculateTotals = () => {
   // Agar support Diskon Persen maupun Rupiah dengan akurat
   // ---------------------------------------------------------------------
   let grossSubTotal = 0; // Total Kotor (Harga x Jumlah)
-  let netItemTotal = 0;  // Total Bersih (item.total)
+  let netItemTotal = 0; // Total Bersih (item.total)
 
   // Loop sekali untuk update total per baris & akumulasi
   items.value.forEach((item) => {
@@ -1352,7 +1380,9 @@ const calculateTotals = () => {
     if (isKpr.value) {
       const diskon1Amount = (header.diskonPersen1 / 100) * netItemTotal;
       const diskon2Amount = (header.diskonPersen2 / 100) * (netItemTotal - diskon1Amount);
-      totals.totalDiskonFaktur = Math.round(diskon1Amount + diskon2Amount + Number(header.diskonRp || 0));
+      totals.totalDiskonFaktur = Math.round(
+        diskon1Amount + diskon2Amount + Number(header.diskonRp || 0)
+      );
     } else {
       // Logic reguler untuk store non-KPR
       totals.totalDiskonFaktur = Number(header.diskonRp || 0);
@@ -1361,13 +1391,11 @@ const calculateTotals = () => {
     const afterAllDiscount = afterItemDiscount - totals.totalDiskonFaktur;
 
     const totalPpn = afterAllDiscount * (header.ppnPersen / 100);
-    const totalDp = (linkedDps.value || []).reduce(
-      (sum, dp) => sum + (dp.nominal || 0),
-      0
-    );
+    const totalDp = (linkedDps.value || []).reduce((sum, dp) => sum + (dp.nominal || 0), 0);
 
     totals.totalPpn = totalPpn;
-    totals.grandTotal = afterAllDiscount + totalPpn + (header.biayaKirim || 0) - (header.mpBiayaPlatform || 0);
+    totals.grandTotal =
+      afterAllDiscount + totalPpn + (header.biayaKirim || 0) - (header.mpBiayaPlatform || 0);
     totals.totalDp = totalDp;
     totals.sisaPiutang = Math.max(0, totals.grandTotal - totalDp);
 
@@ -1391,9 +1419,7 @@ const calculateTotals = () => {
   // ---------------------------------------------------------------------
   // 5. TOTAL DISKON FAKTUR (gabungan)
   // ---------------------------------------------------------------------
-  const diskonFaktur = Math.round(
-    diskonManual + diskon1Amount + diskon2Amount
-  );
+  const diskonFaktur = Math.round(diskonManual + diskon1Amount + diskon2Amount);
 
   // ---------------------------------------------------------------------
   // 6. NETTO SETELAH SEMUA DISKON
@@ -1408,10 +1434,7 @@ const calculateTotals = () => {
   // ---------------------------------------------------------------------
   // 8. DP
   // ---------------------------------------------------------------------
-  const totalDp = linkedDps.value.reduce(
-    (sum, dp) => sum + (dp.nominal || 0),
-    0
-  );
+  const totalDp = linkedDps.value.reduce((sum, dp) => sum + (dp.nominal || 0), 0);
 
   // ---------------------------------------------------------------------
   // 9. UPDATE TOTALS
@@ -1426,7 +1449,10 @@ const calculateTotals = () => {
   totals.nettoSetelahDiskon = nettoSetelahDiskon;
   totals.totalPpn = totalPpn;
 
-  totals.grandTotal = Math.max(0, nettoSetelahDiskon + totalPpn + (header.biayaKirim || 0) - (header.mpBiayaPlatform || 0));
+  totals.grandTotal = Math.max(
+    0,
+    nettoSetelahDiskon + totalPpn + (header.biayaKirim || 0) - (header.mpBiayaPlatform || 0)
+  );
 
   totals.totalDp = totalDp;
   totals.sisaPiutang = Math.max(0, totals.grandTotal - totalDp);
@@ -1461,13 +1487,13 @@ const applyPromoToItems = async (promoNomor: string) => {
     const { data } = await api.get(`/invoice-form/lookup/promo-items/${promoNomor}`);
     const promoItems = data || [];
 
-    items.value.forEach(item => {
+    items.value.forEach((item) => {
       if (item.terhitungPromo === true) return;
-      const match = promoItems.find(p => p.kode === item.kode && p.ukuran === item.ukuran);
+      const match = promoItems.find((p) => p.kode === item.kode && p.ukuran === item.ukuran);
       if (match) {
         const harga = item.harga || 0;
         const diskonPersen = match.discPersen || 0;
-        const diskonRp = match.discRp || (harga * diskonPersen / 100);
+        const diskonRp = match.discRp || (harga * diskonPersen) / 100;
 
         // Diskon berlaku untuk semua qty
         item.diskonPersen = diskonPersen;
@@ -1484,7 +1510,7 @@ const applyPromoToItems = async (promoNomor: string) => {
 
     calculateTotals();
   } catch (err) {
-    console.error('Gagal menerapkan promo:', err);
+    console.error("Gagal menerapkan promo:", err);
   }
 };
 
@@ -1522,8 +1548,8 @@ const computeLineTotal = (item) => {
 // Pindahkan logic fetch promo dari handleProceedToPayment ke sini agar datanya standby
 const fetchActivePromos = async () => {
   try {
-    const response = await api.get('/invoice-form/lookup/active-promos', {
-      params: { tanggal: header.tanggal, cabang: header.gudang.kode }
+    const response = await api.get("/invoice-form/lookup/active-promos", {
+      params: { tanggal: header.tanggal, cabang: header.gudang.kode },
     });
     activePromosList.value = (response.data ?? []) as ActivePromo[];
   } catch (error) {
@@ -1535,17 +1561,17 @@ const fetchActivePromos = async () => {
 // Fungsi ini hanya menghitung potensi, TIDAK mengubah header.diskonRp secara langsung
 const checkRealtimePromoEligibility = () => {
   // Reset
-  promoNotification.value = '';
+  promoNotification.value = "";
   potentialPromoDiscount.value = 0;
   isGrandOpeningPromo.value = false; // Reset flag style
 
   // Jika sudah ada promo manual yang dipilih (F1), jangan timpa
-  if (header.nomorPromo && header.nomorPromo !== '') return;
+  if (header.nomorPromo && header.nomorPromo !== "") return;
 
-  const validItems = items.value.filter(i => i.kode);
+  const validItems = items.value.filter((i) => i.kode);
   if (validItems.length === 0) return;
 
-  let message = '';
+  let message = "";
   let discount = 0;
 
   // // --- 1. LOGIKA KHUSUS GRAND OPENING (K11) ---
@@ -1566,12 +1592,12 @@ const checkRealtimePromoEligibility = () => {
 
   // --- 2. LOGIKA REGULER (Cabang Lain) ---
   // else {
-  const promo008 = activePromosList.value.find(p => p.pro_nomor === 'PRO-2025-008');
-  const promo010 = activePromosList.value.find(p => p.pro_nomor === 'PRO-2025-010');
+  const promo008 = activePromosList.value.find((p) => p.pro_nomor === "PRO-2025-008");
+  const promo010 = activePromosList.value.find((p) => p.pro_nomor === "PRO-2025-010");
 
   // Hitung Total Reguler & Belanja
   const totalReguler = validItems.reduce((sum, item) => {
-    if (item.kategori === 'REGULER' && !item.nama?.toUpperCase().includes('JERSEY')) {
+    if (item.kategori === "REGULER" && !item.nama?.toUpperCase().includes("JERSEY")) {
       return sum + (item.total || 0);
     }
     return sum;
@@ -1586,10 +1612,14 @@ const checkRealtimePromoEligibility = () => {
   if (promo010 && totalReguler >= 250000) {
     const kelipatan = Math.floor(totalReguler / 250000);
     discount = 25000 * kelipatan;
-    message = `🎉 SELAMAT! Transaksi ini berhak mendapatkan Potongan Kelipatan Rp ${formatRupiah(discount)}!`;
+    message = `🎉 SELAMAT! Transaksi ini berhak mendapatkan Potongan Kelipatan Rp ${formatRupiah(
+      discount
+    )}!`;
   } else if (promo008 && totalBelanja >= promo008.pro_totalrp) {
     discount = promo008.pro_disrp * Math.floor(totalBelanja / promo008.pro_totalrp);
-    message = `✨ DISKON BULANAN AKTIF: Anda berhak mendapatkan potongan Rp ${formatRupiah(discount)}`;
+    message = `✨ DISKON BULANAN AKTIF: Anda berhak mendapatkan potongan Rp ${formatRupiah(
+      discount
+    )}`;
   }
   // }
 
@@ -1602,27 +1632,29 @@ const checkRealtimePromoEligibility = () => {
 
 const handleProceedToPayment = async () => {
   // --- 1) Validasi dasar ---
-  const validItems = items.value.filter(i => i.kode);
+  const validItems = items.value.filter((i) => i.kode);
   if (!header.customer.kode) return toast.error("Customer harus diisi.");
   if (!header.customer.level) return toast.error("Level customer belum di-setting.");
   if (validItems.length === 0) return toast.error("Detail barang harus diisi.");
-  if (header.customer.kode === 'K-00079' && !header.memberNik) {
+  if (header.customer.kode === "K-00079" && !header.memberNik) {
     dialogs.memberForm = true; // Langsung buka formnya
     return toast.error("Customer Kencana Print wajib mengisi data NIK Karyawan!");
   }
 
   for (const item of validItems) {
-    const kodeUp = item.kode?.toUpperCase() || '';
+    const kodeUp = item.kode?.toUpperCase() || "";
     const isNonStock = kodeUp.startsWith("JASA") || kodeUp.includes("FILE");
     if ((item.harga || 0) === 0 && !item.promo && !header.isMarketplace && !isNonStock) {
       return toast.error(`Harga untuk ${item.nama} harus diisi.`);
     } else if ((item.harga || 0) === 0 && !item.promo && header.isMarketplace) {
-      return toast.error(`Harga untuk ${item.nama} masih 0. Silakan input harga marketplace manual.`);
+      return toast.error(
+        `Harga untuk ${item.nama} masih 0. Silakan input harga marketplace manual.`
+      );
     }
   }
 
   const totalQty = validItems.reduce((sum, item) => sum + (item.jumlah || 0), 0);
-  if (totalQty <= 0) return toast.error('Qty Invoice kosong semua.');
+  if (totalQty <= 0) return toast.error("Qty Invoice kosong semua.");
 
   // --- 2) Validasi stok minus ---
   const stokOk = await checkStokMinus();
@@ -1633,11 +1665,11 @@ const handleProceedToPayment = async () => {
   // ============================================================
   // Jika promo Grand Opening sedang terpilih, jalankan ulang perhitungan
   // untuk menangkap item baru yang ditambahkan setelah batal bayar.
-  if (header.nomorPromo === 'PRO-2025-004') {
+  if (header.nomorPromo === "PRO-2025-004") {
     // Panggil fungsi existing yang mengambil aturan valid dari backend
     // Fungsi ini akan mengecek item yang belum 'terhitungPromo'
     // dan menerapkan diskon (2000 utk Jersey, 10% utk lainnya, dll)
-    await applyPromoToItems('PRO-2025-004');
+    await applyPromoToItems("PRO-2025-004");
 
     // Pastikan total terupdate di UI sebelum modal muncul
     calculateTotals();
@@ -1645,28 +1677,28 @@ const handleProceedToPayment = async () => {
   // ============================================================
 
   // --- 3) Validasi promo spesifik (beli 3 = 100rb) ---
-  if (header.nomorPromo === 'PRO-2025-005' && totalQty < 3) {
-    return toast.error('Qty minimal 3 pcs untuk promo ini.');
+  if (header.nomorPromo === "PRO-2025-005" && totalQty < 3) {
+    return toast.error("Qty minimal 3 pcs untuk promo ini.");
   }
 
   // --- 4) Cek promo aktif & terapkan ---
   try {
-    const promoResponse = await api.get('/invoice-form/lookup/active-promos', {
-      params: { tanggal: header.tanggal, cabang: header.gudang.kode }
+    const promoResponse = await api.get("/invoice-form/lookup/active-promos", {
+      params: { tanggal: header.tanggal, cabang: header.gudang.kode },
     });
 
     const activePromos = (promoResponse.data ?? []) as ActivePromo[];
 
-    const promo004 = activePromos.find(p => p.pro_nomor === 'PRO-2025-004');
-    const promo008 = activePromos.find(p => p.pro_nomor === 'PRO-2025-008');
-    const promo010 = activePromos.find(p => p.pro_nomor === 'PRO-2025-010');
+    const promo004 = activePromos.find((p) => p.pro_nomor === "PRO-2025-004");
+    const promo008 = activePromos.find((p) => p.pro_nomor === "PRO-2025-008");
+    const promo010 = activePromos.find((p) => p.pro_nomor === "PRO-2025-010");
 
     let promoToApply: ActivePromo | null = null;
     let promoDiskon = 0;
 
     // Hitung total belanja REGULER saja
     const totalReguler = items.value.reduce((sum, item) => {
-      if (item.kategori === 'REGULER' && !item.nama.toUpperCase().includes('JERSEY')) {
+      if (item.kategori === "REGULER" && !item.nama.toUpperCase().includes("JERSEY")) {
         return sum + (item.total || 0);
       }
       return sum;
@@ -1703,9 +1735,15 @@ const handleProceedToPayment = async () => {
             () => resolve(true)
           );
 
-          const unwatch = watch(() => dialogConfirm.show, (open) => {
-            if (!open) { unwatch(); resolve(false); }
-          });
+          const unwatch = watch(
+            () => dialogConfirm.show,
+            (open) => {
+              if (!open) {
+                unwatch();
+                resolve(false);
+              }
+            }
+          );
 
           dialogConfirm.onConfirm = () => {
             resolve(true);
@@ -1726,13 +1764,21 @@ const handleProceedToPayment = async () => {
       const promoConfirmed = await new Promise<boolean>((resolve) => {
         showConfirmation(
           `Dapat ${promoToApply!.pro_judul}`,
-          `Anda mendapatkan diskon promo ${formatRupiah(promoDiskon)}. Gunakan promo ini? (Diskon faktur lain akan direset)`,
+          `Anda mendapatkan diskon promo ${formatRupiah(
+            promoDiskon
+          )}. Gunakan promo ini? (Diskon faktur lain akan direset)`,
           () => resolve(true)
         );
 
-        const unwatch = watch(() => dialogConfirm.show, (open) => {
-          if (!open) { unwatch(); resolve(false); }
-        });
+        const unwatch = watch(
+          () => dialogConfirm.show,
+          (open) => {
+            if (!open) {
+              unwatch();
+              resolve(false);
+            }
+          }
+        );
 
         dialogConfirm.onConfirm = () => {
           resolve(true);
@@ -1751,11 +1797,11 @@ const handleProceedToPayment = async () => {
     }
   } catch (error) {
     console.error("❌ Gagal memeriksa promo otomatis:", error);
-    toast.error('Gagal memeriksa promo otomatis.');
+    toast.error("Gagal memeriksa promo otomatis.");
   }
 
   // --- 5) Promo tebus murah (bonus) ---
-  if (header.nomorPromo === 'PRO-2025-002') {
+  if (header.nomorPromo === "PRO-2025-002") {
     activePromoForBonus.value = { nomor: header.nomorPromo, qty: 1 };
     dialogs.promoBonus = true;
     return;
@@ -1766,14 +1812,22 @@ const handleProceedToPayment = async () => {
     // FLOW MARKETPLACE (KON)
     // Tidak perlu bayar tunai sekarang. Langsung konfirmasi simpan.
     showConfirmation(
-      'Simpan Transaksi Marketplace?',
-      `Total Tagihan: ${formatRupiah(totals.grandTotal)}\n\nTransaksi ini akan dicatat sebagai PIUTANG ke ${header.mpNama}. Lanjutkan?`,
+      "Simpan Transaksi Marketplace?",
+      `Total Tagihan: ${formatRupiah(
+        totals.grandTotal
+      )}\n\nTransaksi ini akan dicatat sebagai PIUTANG ke ${header.mpNama}. Lanjutkan?`,
       () => executeSaveMarketplace() // Function baru khusus MP
     );
   } else {
-    const proceedToPayment = () => { dialogs.payment = true; };
+    const proceedToPayment = () => {
+      dialogs.payment = true;
+    };
     if (!header.memberHp) {
-      showConfirmation('Konfirmasi Member', 'No. HP Member kosong. Yakin akan melanjutkan?', proceedToPayment);
+      showConfirmation(
+        "Konfirmasi Member",
+        "No. HP Member kosong. Yakin akan melanjutkan?",
+        proceedToPayment
+      );
     } else {
       proceedToPayment();
     }
@@ -1784,7 +1838,7 @@ const handleProceedToPayment = async () => {
 const executeSaveMarketplace = async () => {
   // 1. Pastikan IDREC sudah ada (Idempotency Key)
   if (!header.idrec) {
-    header.idrec = generateIdRec(header.gudang.kode || 'K01');
+    header.idrec = generateIdRec(header.gudang.kode || "K01");
   }
 
   // 2. Validasi Customer & Sales Counter
@@ -1793,32 +1847,32 @@ const executeSaveMarketplace = async () => {
 
   const payload = {
     header: header,
-    items: items.value.filter(i => i.kode),
+    items: items.value.filter((i) => i.kode),
     totals: totals,
     payment: {
       tunai: 0,
       transfer: { nominal: 0, bank: null },
-      voucher: { nominal: 0, nomor: '' },
-      retur: { nominal: 0, nomor: '' },
+      voucher: { nominal: 0, nomor: "" },
+      retur: { nominal: 0, nomor: "" },
       piutang: totals.grandTotal,
-      status: 'PIUTANG',
+      status: "PIUTANG",
       // [HOTFIX] Kirim penanda agar backend melewati validasi PIN
-      pinBelumLunas: 'SYSTEM_MARKETPLACE'
+      pinBelumLunas: "SYSTEM_MARKETPLACE",
     },
     dps: linkedDps.value,
     isNew: !isEditMode.value,
-    pins: authPins
+    pins: authPins,
   };
 
   isSaving.value = true;
   try {
-    const response = await api.post('/invoice-form/save', payload);
+    const response = await api.post("/invoice-form/save", payload);
     toast.success(response.data.message);
     onSaveSuccess();
   } catch (error) {
     const err = error as AxiosError<{ message: string }>;
     console.error("Detail Error:", err.response?.data);
-    toast.error(err.response?.data?.message || 'Gagal menyimpan.');
+    toast.error(err.response?.data?.message || "Gagal menyimpan.");
   } finally {
     isSaving.value = false;
   }
@@ -1826,66 +1880,68 @@ const executeSaveMarketplace = async () => {
 
 const checkStokMinus = (): Promise<boolean> => {
   return new Promise((resolve) => {
-    const validItems = items.value.filter(i => i.kode);
+    const validItems = items.value.filter((i) => i.kode);
 
-    const itemsMinus = validItems.filter(item => {
-      const kodeUp = item.kode?.toUpperCase() || '';
+    const itemsMinus = validItems.filter((item) => {
+      const kodeUp = item.kode?.toUpperCase() || "";
 
       // 1. Cek Pengecualian (JASA, FILE, SO-DTF tidak cek stok)
       const isNonStock = kodeUp.startsWith("JASA") || kodeUp.includes("FILE");
 
-      if (isNonStock || item.kategori === 'SO-DTF' || item.noSoDtf) {
+      if (isNonStock || item.kategori === "SO-DTF" || item.noSoDtf) {
         return false;
       }
 
       // 2. Logika Validasi Stok Berdasarkan Konteks
       const qty = item.jumlah || 0;
 
-      if (header.nomorSo) {
-        // Konteks SO: Cek terhadap Stok Pesanan
+      if (header.nomorSo && !isKpr.value) {
+        // Konteks SO Non-KPR: Cek terhadap Stok Pesanan
         return qty > (item.stokPesanan || 0);
       } else {
-        // Konteks Langsung: Cek terhadap Stok Fisik
+        // Konteks Langsung atau KPR: Cek terhadap Stok Fisik
         return qty > (item.stok || 0);
       }
     });
 
     if (itemsMinus.length > 0) {
-      const itemNames = itemsMinus.map(i => `${i.nama} (${i.ukuran})`).join(', ');
+      const itemNames = itemsMinus.map((i) => `${i.nama} (${i.ukuran})`).join(", ");
 
       // Tentukan jenis stok untuk pesan konfirmasi agar user paham
-      const jenisStok = (isKpr.value || header.gudang.kode === 'KDC' || !header.nomorSo)
-        ? 'Fisik'
-        : 'Pesanan';
+      const jenisStok =
+        isKpr.value || header.gudang.kode === "KDC" || !header.nomorSo ? "Fisik" : "Pesanan";
 
       showConfirmation(
-        'Konfirmasi Stok Minus',
+        "Konfirmasi Stok Minus",
         `Stok ${jenisStok} untuk item (${itemNames}) akan minus. Yakin akan melanjutkan?`,
         () => resolve(true)
       );
 
       // Watcher untuk tombol Batal/Tutup Dialog
-      const unwatch = watch(() => dialogConfirm.show, (newValue) => {
-        if (!newValue) {
-          unwatch();
-          // Jika onConfirm masih ada (belum dijalankan), berarti user klik batal/tutup
-          if (dialogConfirm.onConfirm) {
-            // do nothing or handle cancel specifics
-          } else {
-            // Dialog confirm sudah tereksekusi (resolve true), kalau belum berarti batal
-            resolve(false);
-          }
+      const unwatch = watch(
+        () => dialogConfirm.show,
+        (newValue) => {
+          if (!newValue) {
+            unwatch();
+            // Jika onConfirm masih ada (belum dijalankan), berarti user klik batal/tutup
+            if (dialogConfirm.onConfirm) {
+              // do nothing or handle cancel specifics
+            } else {
+              // Dialog confirm sudah tereksekusi (resolve true), kalau belum berarti batal
+              resolve(false);
+            }
 
-          // Fallback aman: jika user menutup dialog tanpa klik "Ya", kita anggap batal
-          // (Logic watcher Anda sebelumnya agak kompleks, ini penyederhanaan yang aman)
-          // Namun kita ikuti pola yang sudah ada:
-          if (!dialogConfirm.onConfirm) {
-            // Jika onConfirm sudah null, berarti sudah diklik Ya
-          } else {
-            resolve(false);
+            // Fallback aman: jika user menutup dialog tanpa klik "Ya", kita anggap batal
+            // (Logic watcher Anda sebelumnya agak kompleks, ini penyederhanaan yang aman)
+            // Namun kita ikuti pola yang sudah ada:
+            if (!dialogConfirm.onConfirm) {
+              // Jika onConfirm sudah null, berarti sudah diklik Ya
+            } else {
+              resolve(false);
+            }
           }
         }
-      });
+      );
 
       // Wrap onConfirm lama agar watcher bisa bersih
       const originalOnConfirm = dialogConfirm.onConfirm;
@@ -1893,7 +1949,6 @@ const checkStokMinus = (): Promise<boolean> => {
         originalOnConfirm(); // Panggil resolve(true) yang dipassing showConfirmation
         unwatch();
       };
-
     } else {
       resolve(true);
     }
@@ -1904,39 +1959,39 @@ const onSaveSuccess = () => {
   audioSuccess.play().catch(() => { });
   markAsSaved();
   // Dipanggil dari PaymentModal setelah save berhasil
-  router.push({ name: 'Invoice' }); // Kembali ke halaman browse
+  router.push({ name: "Invoice" }); // Kembali ke halaman browse
 };
 
 const updateMemberInfo = (customer: Customer | null) => {
-  const phone = customer?.telp || '';
+  const phone = customer?.telp || "";
   header.memberHp = phone;
   memberHpToSearch.value = phone;
 };
 
 const handleBarcodeScan = async () => {
   // 1. Cek Promo 005 (Scan non-aktif)
-  if (header.nomorPromo === 'PRO-2025-005') {
+  if (header.nomorPromo === "PRO-2025-005") {
     audioError.play().catch(() => { }); // Bunyi Error
-    return toast.error('Scan barcode non-aktif saat promo ini. Gunakan F1/F2.');
+    return toast.error("Scan barcode non-aktif saat promo ini. Gunakan F1/F2.");
   }
 
   // 2. Cek Customer
   if (!header.customer.kode) {
     audioError.play().catch(() => { });
-    return toast.error('Pilih customer terlebih dahulu sebelum scan!');
+    return toast.error("Pilih customer terlebih dahulu sebelum scan!");
   }
 
   const barcode = scannedBarcode.value;
   if (!barcode) return;
 
   // [TAMBAHAN] Bersihkan barcode dari angka nol di depan untuk pencarian lokal di array 'items'
-  const cleanedBarcode = barcode.replace(/^0+/, '');
+  const cleanedBarcode = barcode.replace(/^0+/, "");
   isScanning.value = true;
 
   try {
     // A. Cek apakah barang sudah ada di list (Increment Qty)
-    const existingItem = items.value.find(item =>
-      item.kode && (item.barcode === barcode || item.barcode === cleanedBarcode)
+    const existingItem = items.value.find(
+      (item) => item.kode && (item.barcode === barcode || item.barcode === cleanedBarcode)
     );
 
     if (existingItem) {
@@ -1946,28 +2001,28 @@ const handleBarcodeScan = async () => {
       audioSuccess.play().catch(() => { });
       toast.info(`+1 ${existingItem.nama}`);
 
-      scannedBarcode.value = '';
+      scannedBarcode.value = "";
       return; // Selesai, masuk finally
     }
 
     // B. Jika belum ada, Cari ke API
     const response = await api.get(`/invoice-form/by-barcode/${barcode}`, {
-      params: { gudang: header.gudang.kode }
+      params: { gudang: header.gudang.kode },
     });
 
     const product = response.data;
 
     // --- Logic penentuan harga (Copy dari kode lama Anda) ---
-    const emptyRowIndex = items.value.findIndex(item => !item.kode);
-    const currentLevel = String(header.customer.level_kode || '1').trim();
+    const emptyRowIndex = items.value.findIndex((item) => !item.kode);
+    const currentLevel = String(header.customer.level_kode || "1").trim();
     let basePrice = Number(product.harga || 0);
 
-    if (currentLevel === '5') basePrice = Number(product.harga3 || 0);
-    else if (currentLevel === '2' && Number(product.harga2) > 0) basePrice = Number(product.harga2);
-    else if (currentLevel === '3' && Number(product.harga3) > 0) basePrice = Number(product.harga3);
-    else if (currentLevel === '4' && Number(product.harga4) > 0) basePrice = Number(product.harga4);
+    if (currentLevel === "5") basePrice = Number(product.harga3 || 0);
+    else if (currentLevel === "2" && Number(product.harga2) > 0) basePrice = Number(product.harga2);
+    else if (currentLevel === "3" && Number(product.harga3) > 0) basePrice = Number(product.harga3);
+    else if (currentLevel === "4" && Number(product.harga4) > 0) basePrice = Number(product.harga4);
 
-    const isPromoActive = header.nomorPromo === 'PRO-2025-005';
+    const isPromoActive = header.nomorPromo === "PRO-2025-005";
     const finalPrice = isPromoActive ? 33333 : basePrice;
     const isEditable = !isPromoActive;
     // --------------------------------------------------------
@@ -1985,7 +2040,7 @@ const handleBarcodeScan = async () => {
       total: finalPrice,
       barcode: product.barcode,
       qtyso: 0,
-      kategori: product.kategori || '',
+      kategori: product.kategori || "",
       terhitungPromo: isPromoActive,
       _isHargaEditable: isEditable,
     };
@@ -2001,8 +2056,7 @@ const handleBarcodeScan = async () => {
     // Feedback Sukses
     audioSuccess.play().catch(() => { });
     toast.success(`OK: ${product.nama}`);
-    scannedBarcode.value = '';
-
+    scannedBarcode.value = "";
   } catch (error: unknown) {
     // Feedback Error
     audioError.play().catch(() => { });
@@ -2017,7 +2071,6 @@ const handleBarcodeScan = async () => {
     nextTick(() => {
       barcodeInputRef.value?.select();
     });
-
   } finally {
     isScanning.value = false;
 
@@ -2040,12 +2093,12 @@ const handleJumlahChange = async (item: Item) => {
 
   // Cek ke backend apakah ada promo untuk item ini
   try {
-    const response = await api.get('/invoice-form/lookup/applicable-item-promo', {
+    const response = await api.get("/invoice-form/lookup/applicable-item-promo", {
       params: {
         kode: item.kode,
         ukuran: item.ukuran,
         tanggal: header.tanggal,
-      }
+      },
     });
 
     const promo = response.data;
@@ -2064,7 +2117,9 @@ const handleJumlahChange = async (item: Item) => {
 // Tambahkan di helper function atau di dalam component
 const generateIdRec = (cabang: string) => {
   const timestamp = format(new Date(), "yyyyMMddHHmmssSSS");
-  const random = Math.floor(Math.random() * 1000).toString().padStart(3, '0');
+  const random = Math.floor(Math.random() * 1000)
+    .toString()
+    .padStart(3, "0");
   return `${cabang}INV${timestamp}${random}`;
 };
 
@@ -2076,11 +2131,11 @@ const resetForm = async () => {
   // [BARU] GENERATE IDREC DI SINI (Idempotency Key)
   // ID ini dibuat saat form kosong. Jika user klik simpan berkali-kali karena lag,
   // ID yang dikirim ke backend TETAP SAMA, sehingga backend bisa mendeteksi duplikat.
-  const userCabang = authStore.user?.cabang || 'K01';
+  const userCabang = authStore.user?.cabang || "K01";
   header.idrec = generateIdRec(userCabang);
 
   // Logic existing Anda
-  if (authStore.user?.cabang === 'KON') {
+  if (authStore.user?.cabang === "KON") {
     header.isMarketplace = true;
   }
 
@@ -2095,16 +2150,16 @@ const resetForm = async () => {
     const authStore = useAuthStore(); // (Opsional: authStore sudah ada di scope atas, tapi tidak apa-apa)
     const cabang = authStore.userCabang;
 
-    console.log('User cabang from store:', cabang);
+    console.log("User cabang from store:", cabang);
 
-    if (!cabang || cabang === '-') {
-      console.log('No cabang available');
+    if (!cabang || cabang === "-") {
+      console.log("No cabang available");
       onCustomerSelected(null);
       return;
     }
 
     const response = await api.get(`/invoice-form/lookup/default-customer?cabang=${cabang}`);
-    console.log('Default customer response:', response.data);
+    console.log("Default customer response:", response.data);
 
     if (response.data) {
       onCustomerSelected(response.data);
@@ -2112,34 +2167,32 @@ const resetForm = async () => {
       onCustomerSelected(null);
     }
   } catch (error) {
-    console.error('Error fetching default customer:', error);
+    console.error("Error fetching default customer:", error);
     onCustomerSelected(null);
   }
 };
 
 const getQtyClass = (item: Item) => {
-  const kodeUp = item.kode?.toUpperCase() || '';
+  const kodeUp = item.kode?.toUpperCase() || "";
 
-  // [FIX] Pengecualian Global:
-  // JASA, FILE, dan SO-DTF (item yg punya noSoDtf) TIDAK PERLU warnai merah
   const isNonStock =
     kodeUp.startsWith("JASA") ||
     kodeUp.includes("FILE") ||
-    !!item.noSoDtf ||              // <--- Tambahan Penting
-    item.kategori === 'SO-DTF';    // <--- Tambahan Penting
+    !!item.noSoDtf ||
+    item.kategori === "SO-DTF";
 
-  if (isNonStock) return '';
+  if (isNonStock) return "";
 
-  // [FIX] Warna merah sesuai konteks
-  if (header.nomorSo) {
-    // Konteks SO: Cek Stok Pesanan
-    if ((item.stokPesanan || 0) < (item.jumlah || 0)) return 'text-red font-weight-bold';
+  // [PERBAIKAN LOGIKA]
+  // Jika ada nomorSo DAN bukan KPR, cek stok pesanan.
+  // Jika KPR, atau tidak ada nomorSo, cek stok fisik.
+  if (header.nomorSo && !isKpr.value) {
+    if ((item.stokPesanan || 0) < (item.jumlah || 0)) return "text-red font-weight-bold";
   } else {
-    // Konteks Fisik: Cek Stok Fisik
-    if ((item.stok || 0) < (item.jumlah || 0)) return 'text-red font-weight-bold';
+    if ((item.stok || 0) < (item.jumlah || 0)) return "text-red font-weight-bold";
   }
 
-  return '';
+  return "";
 };
 
 const isHargaEditable = (item: Item) => {
@@ -2173,7 +2226,7 @@ const loadDataForEdit = async (nomor: string) => {
        HEADER
        ======================= */
     header.nomor = h.inv_nomor;
-    header.tanggal = format(parseISO(h.inv_tanggal), 'yyyy-MM-dd');
+    header.tanggal = format(parseISO(h.inv_tanggal), "yyyy-MM-dd");
 
     header.customer = {
       kode: h.inv_cus_kode,
@@ -2181,11 +2234,11 @@ const loadDataForEdit = async (nomor: string) => {
       alamat: h.cus_alamat,
       kota: h.cus_kota,
       telp: h.cus_telp,
-      level: h.xLevel
+      level: h.xLevel,
     };
 
-    header.nomorSo = h.inv_nomor_so || '';
-    header.tanggalSo = h.so_tanggal ? format(parseISO(h.so_tanggal), 'yyyy-MM-dd') : '';
+    header.nomorSo = h.inv_nomor_so || "";
+    header.tanggalSo = h.so_tanggal ? format(parseISO(h.so_tanggal), "yyyy-MM-dd") : "";
     header.top = h.inv_top;
     header.salesCounter = h.inv_sc;
     header.keterangan = h.inv_ket;
@@ -2197,31 +2250,29 @@ const loadDataForEdit = async (nomor: string) => {
 
     header.ppnPersen = Number(h.inv_ppn) || 0;
 
-    header.memberHp = h.inv_mem_hp || '';
-    header.memberNama = h.inv_mem_nama || '';
-    header.memberAlamat = h.inv_mem_alamat || '';
-    header.memberGender = h.inv_mem_gender || '';
-    header.memberUsia = h.inv_mem_usia || '';
-    header.memberReferensi = h.inv_mem_referensi || '';
+    header.memberHp = h.inv_mem_hp || "";
+    header.memberNama = h.inv_mem_nama || "";
+    header.memberAlamat = h.inv_mem_alamat || "";
+    header.memberGender = h.inv_mem_gender || "";
+    header.memberUsia = h.inv_mem_usia || "";
+    header.memberReferensi = h.inv_mem_referensi || "";
 
     try {
-      const r = await api.get(
-        `/invoice-form/lookup/discount-rule/${header.customer.kode}`
-      );
+      const r = await api.get(`/invoice-form/lookup/discount-rule/${header.customer.kode}`);
       customerDiscountRule.value = r.data;
     } catch {
       customerDiscountRule.value = null;
     }
 
-    header.nomorPromo = h.inv_pro_nomor || ''; // [PENTING] Set nomor promo dari backend
-    header.namaPromo = h.namaPromo || '';      // [PENTING] Set nama promo
+    header.nomorPromo = h.inv_pro_nomor || ""; // [PENTING] Set nomor promo dari backend
+    header.namaPromo = h.namaPromo || ""; // [PENTING] Set nama promo
 
     // [BARU] Mapping Data Marketplace
     // Backend mengirim: inv_is_marketplace ('Y'/'N'), inv_mp_nama, dst.
-    header.isMarketplace = h.inv_is_marketplace === 'Y';
-    header.mpNama = h.inv_mp_nama || 'SHOPEE';
-    header.mpNomorPesanan = h.inv_mp_nomor_pesanan || '';
-    header.mpResi = h.inv_mp_resi || '';
+    header.isMarketplace = h.inv_is_marketplace === "Y";
+    header.mpNama = h.inv_mp_nama || "SHOPEE";
+    header.mpNomorPesanan = h.inv_mp_nomor_pesanan || "";
+    header.mpResi = h.inv_mp_resi || "";
     header.mpBiayaPlatform = Number(h.inv_mp_biaya_platform || 0);
 
     /* =======================
@@ -2252,11 +2303,11 @@ const loadDataForEdit = async (nomor: string) => {
         total: it.total, // Gunakan total dari backend agar akurat
 
         barcode: it.barcode || "",
-        stok: it.stok || 0,        // Fisik
+        stok: it.stok || 0, // Fisik
         stokPesanan: it.stokSO || 0, // Pesanan
         qtyso: it.qtySO || 0,
 
-        kategori: it.kategori || '', // [FIX] Map kategori dari backend ('REGULER', etc)
+        kategori: it.kategori || "", // [FIX] Map kategori dari backend ('REGULER', etc)
 
         originalDiskonRp: diskRp,
         originalDiskonPersen: diskPersen,
@@ -2285,7 +2336,6 @@ const loadDataForEdit = async (nomor: string) => {
 
     await nextTick();
     markAsSaved();
-
   } catch (error) {
     const msg = axios.isAxiosError(error)
       ? error.response?.data?.message
@@ -2299,18 +2349,19 @@ const loadDataForEdit = async (nomor: string) => {
 
 const handleClearSo = () => {
   showConfirmation(
-    'Hapus SO?',
-    'Menghapus SO akan mengosongkan semua item di keranjang. Lanjutkan?',
-    async () => { // UBAH: Tambahkan async
+    "Hapus SO?",
+    "Menghapus SO akan mengosongkan semua item di keranjang. Lanjutkan?",
+    async () => {
+      // UBAH: Tambahkan async
       // Reset semua data terkait SO
-      header.nomorSo = '';
-      header.tanggalSo = '';
+      header.nomorSo = "";
+      header.tanggalSo = "";
       header.diskonPersen1 = 0;
       header.diskonPersen2 = 0;
       header.diskonRp = 0;
       header.biayaKirim = 0;
-      header.nomorPromo = '';
-      header.namaPromo = '';
+      header.nomorPromo = "";
+      header.namaPromo = "";
 
       // Kosongkan items dan linked DPs
       items.value = [];
@@ -2324,24 +2375,24 @@ const handleClearSo = () => {
       try {
         const cabang = authStore.user?.cabang;
 
-        if (cabang && cabang !== '-') {
+        if (cabang && cabang !== "-") {
           const response = await api.get(`/invoice-form/lookup/default-customer?cabang=${cabang}`);
 
           if (response.data) {
             onCustomerSelected(response.data);
-            toast.success('SO berhasil dihapus. Customer direset ke default toko.');
+            toast.success("SO berhasil dihapus. Customer direset ke default toko.");
           } else {
             onCustomerSelected(null);
-            toast.success('SO berhasil dihapus. Silakan pilih customer.');
+            toast.success("SO berhasil dihapus. Silakan pilih customer.");
           }
         } else {
           onCustomerSelected(null);
-          toast.success('SO berhasil dihapus. Silakan pilih customer.');
+          toast.success("SO berhasil dihapus. Silakan pilih customer.");
         }
       } catch (error) {
-        console.error('Error fetching default customer:', error);
+        console.error("Error fetching default customer:", error);
         onCustomerSelected(null);
-        toast.success('SO berhasil dihapus. Silakan pilih customer.');
+        toast.success("SO berhasil dihapus. Silakan pilih customer.");
       }
     }
   );
@@ -2367,13 +2418,13 @@ const saveHeaderOnly = async () => {
       mpNama: header.mpNama,
       mpNomorPesanan: header.mpNomorPesanan,
       mpResi: header.mpResi,
-      mpBiayaPlatform: header.mpBiayaPlatform
+      mpBiayaPlatform: header.mpBiayaPlatform,
     };
 
     await api.put(`/invoice-form/update-header/${header.nomor}`, payload);
 
     toast.success("Header invoice berhasil diperbarui.");
-    router.push({ name: 'Invoice', params: { nomor: header.nomor } });
+    router.push({ name: "Invoice", params: { nomor: header.nomor } });
   } catch (error) {
     console.error(error);
     toast.error("Gagal menyimpan header invoice.");
@@ -2381,32 +2432,36 @@ const saveHeaderOnly = async () => {
 };
 
 const getCategoryColor = (kategori: string | undefined) => {
-  const k = (kategori || '').toUpperCase();
+  const k = (kategori || "").toUpperCase();
   switch (k) {
-    case 'SESIONAL':
-      return 'orange-darken-2';
-    case 'PESANAN':
-      return 'blue-darken-2';
-    case 'REGULER':
-      return 'green-darken-2';
+    case "SESIONAL":
+      return "orange-darken-2";
+    case "PESANAN":
+      return "blue-darken-2";
+    case "REGULER":
+      return "green-darken-2";
     default:
-      return 'grey-lighten-1';
+      return "grey-lighten-1";
   }
 };
 
 // Hitung tanggal tempo otomatis
-watch(header, () => {
-  if (header.top > 0 && header.tanggal) {
-    header.tanggalTempo = format(addDays(new Date(header.tanggal), header.top), 'yyyy-MM-dd');
-  }
-}, { deep: true });
+watch(
+  header,
+  () => {
+    if (header.top > 0 && header.tanggal) {
+      header.tanggalTempo = format(addDays(new Date(header.tanggal), header.top), "yyyy-MM-dd");
+    }
+  },
+  { deep: true }
+);
 
 // Recalculate saat item berubah (harga, diskon, qty, promo, dsb)
 watch(
   items,
   async (newItems) => {
     // Recalculate total hanya untuk item yang BUKAN promo
-    newItems.forEach(item => {
+    newItems.forEach((item) => {
       if (!item.terhitungPromo) {
         item.total = computeLineTotal(item);
       }
@@ -2429,9 +2484,7 @@ watch(
 // Jika ada DP tambahan dihubungkan
 watch(linkedDps, calculateTotals, { deep: true });
 
-const grandQty = computed(() =>
-  items.value.reduce((sum, it) => sum + (Number(it.jumlah) || 0), 0)
-);
+const grandQty = computed(() => items.value.reduce((sum, it) => sum + (Number(it.jumlah) || 0), 0));
 
 // --- WATCHERS (UNSAVED CHANGES) ---
 watch(
@@ -2442,10 +2495,10 @@ watch(
 
     // Cek apakah form "kotor"
     // 1. Header: Customer dipilih
-    const hasHeader = (header.customer.kode !== '');
+    const hasHeader = header.customer.kode !== "";
 
     // 2. Items: Ada item valid (kode terisi)
-    const hasItems = items.value.some(i => i.kode);
+    const hasItems = items.value.some((i) => i.kode);
 
     // 3. DP: Ada DP terhubung
     const hasDp = linkedDps.value.length > 0;
@@ -2468,8 +2521,10 @@ onMounted(() => {
   markAsSaved();
 
   if (!authStore.can(MENU_ID, requiredPermission.value)) {
-    toast.error(`Anda tidak memiliki izin untuk ${isEditMode.value ? 'mengubah' : 'membuat'} data Invoice.`);
-    router.push({ name: 'Invoice' }); // Arahkan kembali ke halaman browse
+    toast.error(
+      `Anda tidak memiliki izin untuk ${isEditMode.value ? "mengubah" : "membuat"} data Invoice.`
+    );
+    router.push({ name: "Invoice" }); // Arahkan kembali ke halaman browse
     return;
   }
 
@@ -2486,24 +2541,32 @@ onMounted(() => {
 
 onMounted(() => {
   const handleGlobalKeyDown = (e: KeyboardEvent) => {
-    if (e.key === 'F1') {
+    if (e.key === "F1") {
+      // Jika target pencet tombol adalah sebuah INPUT, jangan jalankan pencarian produk global
+      const target = e.target as HTMLElement;
+      if (target.tagName === "INPUT" || target.contentEditable === "true") {
+        return;
+      }
+
       e.preventDefault();
       openLookup();
     }
   };
-  window.addEventListener('keydown', handleGlobalKeyDown);
-  // Bersihkan listener saat komponen di-unmount
-  onUnmounted(() => window.removeEventListener('keydown', handleGlobalKeyDown));
+  window.addEventListener("keydown", handleGlobalKeyDown);
+  onUnmounted(() => window.removeEventListener("keydown", handleGlobalKeyDown));
 });
 
 // Watcher untuk Toggle Marketplace
-watch(() => header.isMarketplace, async (isOnline) => {
-  if (isOnline) {
-    // Logic jika mode online aktif (misal otomatis set customer Shopee)
-  } else {
-    // Jika dimatikan, mungkin reset customer atau biarkan user memilih
+watch(
+  () => header.isMarketplace,
+  async (isOnline) => {
+    if (isOnline) {
+      // Logic jika mode online aktif (misal otomatis set customer Shopee)
+    } else {
+      // Jika dimatikan, mungkin reset customer atau biarkan user memilih
+    }
   }
-});
+);
 </script>
 
 <template>
@@ -2516,13 +2579,12 @@ watch(() => header.isMarketplace, async (isOnline) => {
         @click="saveHeaderOnly">
         Simpan Header
       </v-btn>
-      <v-btn v-if="!isEditMode" size="small" prepend-icon="mdi-cancel"
-        @click="showConfirmation('Batalkan Isian', 'Batalkan dan kosongkan semua isian?', resetForm)">
+      <v-btn v-if="!isEditMode" size="small" prepend-icon="mdi-cancel" @click="
+        showConfirmation('Batalkan Isian', 'Batalkan dan kosongkan semua isian?', resetForm)
+        ">
         Batal
       </v-btn>
-      <v-btn size="small" prepend-icon="mdi-close" @click=handleClose>
-        Tutup
-      </v-btn>
+      <v-btn size="small" prepend-icon="mdi-close" @click="handleClose"> Tutup </v-btn>
     </template>
 
     <div class="form-grid-container">
@@ -2578,14 +2640,13 @@ watch(() => header.isMarketplace, async (isOnline) => {
             <v-col cols="6">
               <v-text-field :label="referenceLabel" v-model="header.nomorSo" :readonly="isReadonly"
                 :prepend-inner-icon="isReadonly ? '' : 'mdi-magnify'" density="compact" hide-details clearable
-                :clear-icon="isReadonly ? '' : 'mdi-close'"
-                @click="!isReadonly && (isKpr ? (dialogs.sjSearch = true) : (dialogs.soSearch = true))"
-                @click:clear.prevent="!isReadonly && handleClearSo()" />
+                :clear-icon="isReadonly ? '' : 'mdi-close'" @click="
+                  !isReadonly && (isKpr ? (dialogs.sjSearch = true) : (dialogs.soSearch = true))
+                  " @click:clear.prevent="!isReadonly && handleClearSo()" />
             </v-col>
             <v-col cols="6">
-              <v-text-field :label="referenceDateLabel"
-                :model-value="header.tanggalSo ? format(parseISO(header.tanggalSo), 'dd-MM-yyyy') : ''" readonly
-                variant="filled" density="compact" hide-details />
+              <v-text-field :label="referenceDateLabel" :model-value="header.tanggalSo ? format(parseISO(header.tanggalSo), 'dd-MM-yyyy') : ''
+                " readonly variant="filled" density="compact" hide-details />
             </v-col>
             <v-col cols="4">
               <v-text-field label=" Kode Customer" :model-value="header.customer.kode" density="compact"
@@ -2597,8 +2658,10 @@ watch(() => header.isMarketplace, async (isOnline) => {
                 density="compact" hide-details>
                 <template #append-inner>
                   <v-btn icon="mdi-account-plus" size="x-small" variant="tonal" :disabled="isReadonly || isKpr"
-                    @click.stop="!isReadonly && (dialogs.customerForm = true)"
-                    :title="isKpr ? 'Cabang KPR tidak diizinkan membuat customer baru' : 'Buat Customer Baru'">
+                    @click.stop="!isReadonly && (dialogs.customerForm = true)" :title="isKpr
+                        ? 'Cabang KPR tidak diizinkan membuat customer baru'
+                        : 'Buat Customer Baru'
+                      ">
                   </v-btn>
                 </template>
               </v-text-field>
@@ -2646,18 +2709,22 @@ watch(() => header.isMarketplace, async (isOnline) => {
             </v-col>
           </v-row>
           <v-input :label="memberLabel" :append-inner-icon="isReadonly ? '' : 'mdi-pencil'" hide-details
-            class="custom-input-button"
-            :class="{ 'disabled-input': isReadonly, 'border-error': header.customer.kode === 'K-00079' && !header.memberNik }"
-            @click="!isReadonly && (dialogs.memberForm = true)">
+            class="custom-input-button" :class="{
+              'disabled-input': isReadonly,
+              'border-error': header.customer.kode === 'K-00079' && !header.memberNik,
+            }" @click="!isReadonly && (dialogs.memberForm = true)">
             <div v-if="header.memberNik || header.memberHp" class="input-content">
               <strong>{{ header.memberNik || header.memberHp }}</strong> - {{ header.memberNama }}
             </div>
             <div v-else class="input-placeholder text-error font-weight-bold">
-              {{ header.customer.kode === 'K-00079' ? 'WAJIB ISI DATA KARYAWAN!' : 'Klik untuk isi info member...' }}
+              {{
+                header.customer.kode === "K-00079"
+                  ? "WAJIB ISI DATA KARYAWAN!"
+                  : "Klik untuk isi info member..."
+              }}
             </div>
           </v-input>
         </div>
-
       </div>
 
       <div class="right-column">
@@ -2684,16 +2751,21 @@ watch(() => header.isMarketplace, async (isOnline) => {
               <template v-slot:[`item.kode`]="{ item, index }">
                 <v-text-field v-model="item.kode" variant="underlined" density="compact" hide-details readonly
                   :placeholder="canSearchManual ? 'F1/F2 = Cari' : 'F1 = Cek Stok'"
-                  :class="{ 'field-disabled': !!header.nomorSo || !!item.noSoDtf }"
-                  @keydown.f1.prevent="!header.nomorSo && !item.noSoDtf && openProductSearch(index, false)"
-                  @keydown.f2.prevent="canSearchManual && !header.nomorSo && !item.noSoDtf && openProductSearch(index, true)" />
+                  :class="{ 'field-disabled': !!header.nomorSo || !!item.noSoDtf }" @keydown.f1.stop.prevent="
+                    !header.nomorSo && !item.noSoDtf && openProductSearch(index, false)
+                    " @keydown.f2.stop.prevent="
+                    canSearchManual &&
+                    !header.nomorSo &&
+                    !item.noSoDtf &&
+                    openProductSearch(index, true)
+                    " />
               </template>
 
               <template #[`item.kategori`]="{ item }">
                 <div v-if="!item.isCustomOrder && item.kode">
                   <v-chip size="x-small" :color="getCategoryColor(item.kategori)" variant="flat"
                     class="font-weight-bold text-white">
-                    {{ item.kategori || 'TANPA KATEGORI' }}
+                    {{ item.kategori || "TANPA KATEGORI" }}
                   </v-chip>
                 </div>
               </template>
@@ -2705,11 +2777,10 @@ watch(() => header.isMarketplace, async (isOnline) => {
               </template>
 
               <template v-slot:[`item.harga`]="{ item }">
-                <v-text-field :model-value="focusedRowId === item.id
-                  ? item.harga
-                  : formatRupiah(item.harga || 0)"
-                  @update:model-value="item.harga = Number(String($event).replace(/[^0-9]/g, '')) || 0"
-                  @focus="focusedRowId = item.id" @blur="focusedRowId = -1" type="text" min="0" variant="underlined"
+                <v-text-field :model-value="focusedRowId === item.id ? item.harga : formatRupiah(item.harga || 0)
+                  " @update:model-value="
+                    item.harga = Number(String($event).replace(/[^0-9]/g, '')) || 0
+                    " @focus="focusedRowId = item.id" @blur="focusedRowId = -1" type="text" min="0" variant="underlined"
                   density="compact" hide-details class="text-right" :readonly="isReadonly || !isHargaEditable(item)"
                   placeholder="0"></v-text-field>
               </template>
@@ -2732,10 +2803,11 @@ watch(() => header.isMarketplace, async (isOnline) => {
                 </div>
               </template>
 
-              <template v-slot:[`item.noSoDtf`]="{ item }">
-                <v-text-field v-model="item.noSoDtf" variant="underlined" density="compact" hide-details
-                  :readonly="!!header.nomorSo || !!item.kode"
-                  :class="{ 'field-disabled': !!header.nomorSo || !!item.kode }" filled />
+              <template v-slot:[`item.noSoDtf`]="{ item, index }">
+                <v-text-field v-model="item.noSoDtf" variant="underlined" density="compact" hide-details readonly
+                  class="cursor-pointer" :placeholder="isKpr ? 'Klik cari SO DTF' : ''"
+                  :class="{ 'field-disabled': !isKpr && !!header.nomorSo }" filled
+                  @click="openSoDtfSearch(item, index)" />
               </template>
 
               <template v-slot:[`item.actions`]="{ item }">
@@ -2760,10 +2832,9 @@ watch(() => header.isMarketplace, async (isOnline) => {
         <div class="footer-actions-section">
           <v-slide-y-transition>
             <div v-if="promoNotification" class="promo-card-wrapper mb-4">
-
               <div v-if="!isPromoMinimized" class="promo-card" :class="{ 'grand-opening-style': isGrandOpeningPromo }">
                 <v-btn icon="mdi-chevron-up" variant="text" size="x-small" color="white"
-                  style="position: absolute; right: 8px; top: 8px; z-index: 10;"
+                  style="position: absolute; right: 8px; top: 8px; z-index: 10"
                   @click="isPromoMinimized = true"></v-btn>
 
                 <div class="card-texture"></div>
@@ -2772,14 +2843,14 @@ watch(() => header.isMarketplace, async (isOnline) => {
                 <div class="card-content">
                   <div class="icon-container">
                     <div class="icon-circle pulse-animation">
-                      <v-icon :icon="isGrandOpeningPromo ? 'mdi-party-popper' : 'mdi-ticket-percent-outline'" size="24"
-                        color="white" />
+                      <v-icon :icon="isGrandOpeningPromo ? 'mdi-party-popper' : 'mdi-ticket-percent-outline'
+                        " size="24" color="white" />
                     </div>
                   </div>
                   <div class="text-container">
                     <div class="promo-label">
                       <v-icon icon="mdi-star-four-points" size="10" class="mr-1" color="yellow-lighten-3" />
-                      {{ isGrandOpeningPromo ? 'SPECIAL OFFER' : 'YAYY!! DAPET DISKON!!!' }}
+                      {{ isGrandOpeningPromo ? "SPECIAL OFFER" : "YAYY!! DAPET DISKON!!!" }}
                     </div>
                     <div class="promo-message">{{ promoNotification }}</div>
                   </div>
@@ -2792,13 +2863,16 @@ watch(() => header.isMarketplace, async (isOnline) => {
               <div v-else class="promo-minimized-bar" :class="{ 'grand-opening-style': isGrandOpeningPromo }"
                 @click="isPromoMinimized = false">
                 <v-icon icon="mdi-ticket-percent" size="16" class="mr-2" />
-                <span class="minimized-text">Promo Aktif: {{ potentialPromoDiscount > 0 ? 'Hemat ' +
-                  formatRupiah(potentialPromoDiscount) : 'Cek Detail' }}</span>
+                <span class="minimized-text">Promo Aktif:
+                  {{
+                    potentialPromoDiscount > 0
+                      ? "Hemat " + formatRupiah(potentialPromoDiscount)
+                      : "Cek Detail"
+                  }}</span>
                 <v-spacer />
                 <span class="text-caption mr-2">(Klik untuk Detail)</span>
                 <v-icon icon="mdi-chevron-down" size="16" />
               </div>
-
             </div>
           </v-slide-y-transition>
           <v-row align="center">
@@ -2851,10 +2925,14 @@ watch(() => header.isMarketplace, async (isOnline) => {
     <LinkedDpModal v-if="dialogs.linkedDp" :dps="linkedDps" @close="dialogs.linkedDp = false" />
     <AuthorizationModal v-if="authDialog.show" :title="authDialog.title" :jenis="authDialog.jenis"
       :nominal="authDialog.nominal" :transaksi="authDialog.transaksi" :barcode="authDialog.barcode"
-      :keterangan="authDialog.keterangan" @success="authDialog.onSuccess"
-      @close="() => { authDialog.show = false; authDialog.onCancel(); }" />
-    <!-- <SoDtfSearchModal v-if="dialogs.soDtfSearch" :customer-kode="header.customer.kode" :cabang="header.gudang.kode"
-      @close="dialogs.soDtfSearch = false" @selected="onSoDtfSelected" /> -->
+      :keterangan="authDialog.keterangan" @success="authDialog.onSuccess" @close="
+        () => {
+          authDialog.show = false;
+          authDialog.onCancel();
+        }
+      " />
+    <SoDtfSearchModal v-if="dialogs.soDtfSearch" :customer-kode="header.customer.kode" :cabang="header.gudang.kode"
+      @close="dialogs.soDtfSearch = false" @selected="onSoDtfSelected" />
     <PromoBonusModal v-if="dialogs.promoBonus" :promo-nomor="activePromoForBonus.nomor"
       @close="dialogs.promoBonus = false" @selected="handleBonusSelection" />
     <SjSearchModalForInvoice v-if="dialogs.sjSearch" :cabang="header.gudang.kode" @close="dialogs.sjSearch = false"
@@ -2867,7 +2945,10 @@ watch(() => header.isMarketplace, async (isOnline) => {
         <v-card-actions>
           <v-spacer></v-spacer>
           <v-btn text @click="dialogConfirm.show = false">Batal</v-btn>
-          <v-btn color="primary" variant="tonal" @click="dialogConfirm.onConfirm(); dialogConfirm.show = false;">
+          <v-btn color="primary" variant="tonal" @click="
+            dialogConfirm.onConfirm();
+          dialogConfirm.show = false;
+          ">
             Ya, Lanjutkan
           </v-btn>
         </v-card-actions>
@@ -3088,7 +3169,7 @@ watch(() => header.isMarketplace, async (isOnline) => {
   /* --- OPSI WARNA GRADASI (Pilih salah satu) --- */
 
   /* Opsi 1: Royal Mystic (Biru Tua ke Ungu) - KESAN MEWAH & PROFESIONAL */
-  background: linear-gradient(135deg, #1A2980 0%, #26D0CE 100%);
+  background: linear-gradient(135deg, #1a2980 0%, #26d0ce 100%);
 
   /* Opsi 2: Sunset Vibes (Orange ke Pink) - KESAN HOT PROMO */
   /* background: linear-gradient(135deg, #FF512F 0%, #DD2476 100%); */
@@ -3104,14 +3185,14 @@ watch(() => header.isMarketplace, async (isOnline) => {
 
 /* Style Khusus Grand Opening (Emas ke Merah Maroon - Kesan Meriah) */
 .promo-card.grand-opening-style {
-  background: linear-gradient(135deg, #FF512F 0%, #DD2476 100%) !important;
+  background: linear-gradient(135deg, #ff512f 0%, #dd2476 100%) !important;
   box-shadow: 0 10px 25px -5px rgba(221, 36, 118, 0.5) !important;
   border: 1px solid rgba(255, 215, 0, 0.3) !important;
   /* Border agak keemasan */
 }
 
 .grand-opening-style .promo-label {
-  color: #FFD700 !important;
+  color: #ffd700 !important;
   /* Teks label jadi emas */
 }
 
@@ -3192,7 +3273,7 @@ watch(() => header.isMarketplace, async (isOnline) => {
   align-items: center;
   padding: 6px 16px;
   border-radius: 8px;
-  background: linear-gradient(135deg, #1A2980 0%, #26D0CE 100%);
+  background: linear-gradient(135deg, #1a2980 0%, #26d0ce 100%);
   color: white;
   cursor: pointer;
   font-size: 12px;
@@ -3214,7 +3295,7 @@ watch(() => header.isMarketplace, async (isOnline) => {
 
 /* Override warna untuk bar jika itu promo grand opening */
 .promo-minimized-bar.grand-opening-style {
-  background: linear-gradient(135deg, #FF512F 0%, #DD2476 100%) !important;
+  background: linear-gradient(135deg, #ff512f 0%, #dd2476 100%) !important;
   box-shadow: 0 4px 10px rgba(221, 36, 118, 0.4) !important;
 }
 
@@ -3238,10 +3319,10 @@ watch(() => header.isMarketplace, async (isOnline) => {
 .pulse-dot {
   width: 8px;
   height: 8px;
-  background-color: #00E676;
+  background-color: #00e676;
   /* Hijau terang */
   border-radius: 50%;
-  box-shadow: 0 0 8px #00E676;
+  box-shadow: 0 0 8px #00e676;
   animation: blink 1.5s infinite;
 }
 

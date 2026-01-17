@@ -109,6 +109,7 @@ interface AuthDialogState {
   jenis: string;
   nominal: number;
   transaksi: string; // Tambahkan ini agar modal tahu ID transaksinya
+  keterangan: string;
   onSuccess: ((data: { authNomor: string, approver: string }) => void) | null;
   onCancel: (() => void) | null;
 }
@@ -186,6 +187,7 @@ const authDialog = reactive<AuthDialogState>({
   jenis: '',
   nominal: 0,
   transaksi: '', // Init kosong
+  keterangan: '',
   onSuccess: null,
   onCancel: null
 });
@@ -320,14 +322,17 @@ const requestAuthorization = (
   title: string,
   jenis: string,
   nominal: number,
-  onSuccess: (data: { authNomor: string, approver: string }) => void,
-  onCancel: () => void
+  extraData: { transaksi?: string, keteranganLengkap?: string } | null, // Argumen ke-4
+  onSuccess: (data: { authNomor: string, approver: string }) => void,   // Argumen ke-5
+  onCancel: () => void                                                 // Argumen ke-6
 ) => {
   authDialog.title = title;
   authDialog.jenis = jenis;
   authDialog.nominal = nominal;
-  // Gunakan IDREC atau NOMOR Invoice sebagai referensi transaksi
-  authDialog.transaksi = props.invoiceHeader.nomor || 'NEW_TRX';
+
+  // Ambil data dari extraData jika ada
+  authDialog.transaksi = extraData?.transaksi || props.invoiceHeader.nomor || 'NEW_TRX';
+  authDialog.keterangan = extraData?.keteranganLengkap || ''; // Mapping ke state keterangan
 
   authDialog.onSuccess = onSuccess;
   authDialog.onCancel = onCancel;
@@ -373,15 +378,16 @@ const handleFinalSave = async () => {
     requestAuthorization(
       'Otorisasi Melebihi Limit Piutang',
       'LIMIT_PIUTANG',
-      props.totals.grandTotal, // Nominal transaksi yang diajukan
+      props.totals.grandTotal,
+      // Tambahkan objek keterangan di sini agar 'info' terpakai
+      { keteranganLengkap: info },
       (authResult) => {
-        // Jika Approved: Simpan PIN dan lanjut simpan data
         temporaryPin.value = authResult.approver;
         executeSave();
       },
       () => toast.info('Transaksi dibatalkan karena melebihi limit.')
     );
-    return; // Berhenti di sini, menunggu hasil otorisasi
+    return;
   }
 
   // 2. JIKA MODE POTONG GAJI
@@ -397,6 +403,9 @@ const handleFinalSave = async () => {
         'Otorisasi Limit Karyawan',
         'LIMIT_KARYAWAN', // Jenis
         props.totals.grandTotal, // Nominal transaksi yang mau diajukan
+        {
+          keteranganLengkap: `Karyawan: ${karyawan.nama}\nNIK: ${karyawan.nik?.kar_nik}\nLimit Terpakai: ${formatRupiah(karyawan.terpakai)}`
+        },
         (authResult) => { // Callback Sukses (Approved)
           // Simpan nama approver ke temporaryPin agar tersimpan di backend
           temporaryPin.value = authResult.approver;
@@ -428,6 +437,9 @@ const handleFinalSave = async () => {
       'Otorisasi Invoice Belum Lunas',
       'PIUTANG',      // Jenis
       sisaTagihan,    // Nominal kekurangan
+      {
+        keteranganLengkap: `Piutang (Belum Lunas)\nSisa Tagihan: ${formatRupiah(sisaTagihan)}`
+      },
       (authResult) => {
         // Simpan nama approver sebagai bukti
         payment.pinBelumLunas = authResult.approver;
@@ -1241,8 +1253,8 @@ watch(kembali, (newVal) => {
     <RekeningSearchModal v-if="dialogs.rekeningSearch" :cabang="invoiceHeader.gudang.kode"
       @close="dialogs.rekeningSearch = false" @selected="onRekeningSelected" />
     <AuthorizationModal v-if="authDialog.show" :title="authDialog.title" :jenis="authDialog.jenis"
-      :nominal="authDialog.nominal" :transaksi="authDialog.transaksi" @close="handleAuthClose"
-      @success="handleAuthSuccess" />
+      :nominal="authDialog.nominal" :transaksi="authDialog.transaksi" :keterangan="authDialog.keterangan"
+      @close="handleAuthClose" @success="handleAuthSuccess" />
     <PrintOptionModal v-if="isPrintOptionVisible" :options="['a4', 'kasir', 'wa']" @close="onPrintModalClose"
       @select="handlePrintSelection" />
     <ReturJualSearchModal v-if="dialogs.returJualSearch" :customer-kode="invoiceHeader.customer.kode"

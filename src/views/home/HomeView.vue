@@ -740,16 +740,20 @@ const fetchActivePromos = async () => {
   }
 };
 
-const fetchItemSalesTrend = async () => {
+const fetchItemSalesTrend = async (isBackground = false) => {
   if (authStore.user?.cabang !== 'KDC') return;
-  isLoadingItemTrend.value = true;
+
+  // Hanya tampilkan loading jika bukan update di background
+  if (!isBackground) isLoadingItemTrend.value = true;
+
   try {
     const response = await api.get('/dashboard/item-sales-trend');
     itemTrendData.value = response.data;
   } catch (error) {
     console.error('Gagal memuat trend barang:', error);
   } finally {
-    isLoadingItemTrend.value = false;
+    // Hanya matikan loading jika bukan update di background
+    if (!isBackground) isLoadingItemTrend.value = false;
   }
 };
 
@@ -1010,7 +1014,7 @@ const startPolling = () => {
       fetchTopProducts(true);
       if (authStore.user?.cabang === 'KDC') {
         fetchBranchPerformance(true);
-        fetchItemSalesTrend();
+        fetchItemSalesTrend(true);
       }
     }
   }, 10000);

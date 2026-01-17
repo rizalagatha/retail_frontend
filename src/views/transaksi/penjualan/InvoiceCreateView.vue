@@ -1329,18 +1329,30 @@ const onSoDtfSelected = async (soDtf: { nomor: string }) => {
       diskonPersen: 0,
       diskonRp: 0,
       total: item.jumlah * item.harga,
-      noSoDtf: soDtf.nomor, // Mencatat nomor referensi SO DTF
+      noSoDtf: soDtf.nomor,
       terhitungPromo: false,
       _isHargaEditable: true,
       kategori: "SO-DTF",
       fromBackend: true,
     }));
 
-    // Masukkan ke grid (menggantikan baris kosong yang aktif)
-    items.value.splice(activeRowIndex.value, 1, ...newItems);
-    addNewRow();
-    calculateTotals();
-    toast.success(`SO DTF ${soDtf.nomor} berhasil dimuat.`);
+    // [PERBAIKAN LOGIKA]
+    // Cek apakah baris tempat kursor berada sekarang kosong (tidak ada kode)
+    const currentRow = items.value[activeRowIndex.value];
+
+    if (currentRow && !currentRow.kode) {
+      // Jika baris kosong, ganti baris kosong tersebut dengan item DTF (splice 1)
+      items.value.splice(activeRowIndex.value, 1, ...newItems);
+    } else {
+      // Jika baris sudah ada isinya (Barang dari SJ),
+      // masukan item DTF ke posisi setelahnya tanpa menghapus (splice 0)
+      // Atau bisa langsung dipush ke paling bawah:
+      items.value.push(...newItems);
+    }
+
+    addNewRow(); // Tambah baris kosong baru di akhir
+    calculateTotals(); // Hitung ulang grand total
+    toast.success(`Berhasil menambahkan ${newItems.length} item dari SO DTF.`);
   } catch (error) {
     console.error(error);
     toast.error("Gagal memuat detail SO DTF.");

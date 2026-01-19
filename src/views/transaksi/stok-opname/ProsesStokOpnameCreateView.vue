@@ -1,12 +1,12 @@
 <script setup lang="ts">
-import { ref, reactive, onMounted, computed, nextTick } from 'vue';
-import { useRoute, useRouter } from 'vue-router';
-import { useToast } from 'vue-toastification';
-import { useAuthStore } from '@/stores/authStore';
-import api from '@/services/api';
-import PageLayout from '@/components/PageLayout.vue';
-import GudangSearchModal from '@/components/lookup/GudangSearchModal.vue';
-import type { AxiosError } from 'axios';
+import { ref, reactive, onMounted, computed, nextTick, watch } from "vue";
+import { useRoute, useRouter } from "vue-router";
+import { useToast } from "vue-toastification";
+import { useAuthStore } from "@/stores/authStore";
+import api from "@/services/api";
+import PageLayout from "@/components/PageLayout.vue";
+import GudangSearchModal from "@/components/lookup/GudangSearchModal.vue";
+import type { AxiosError } from "axios";
 
 // --- Interface ---
 interface StokOpnameItem {
@@ -21,6 +21,7 @@ interface StokOpnameItem {
   Total: number;
   Lokasi: string;
   Barcode: string;
+  lokasi: string;
 }
 
 // --- Inisialisasi & State ---
@@ -28,49 +29,64 @@ const route = useRoute();
 const router = useRouter();
 const toast = useToast();
 const authStore = useAuthStore();
-const MENU_ID = '24';
+const MENU_ID = "24";
 
 const isEditMode = ref(false);
 const isLoading = ref(true);
 const isGudangLookupVisible = ref(false);
-const dialogConfirm = reactive({ show: false, title: '', text: '', onConfirm: () => { } });
+const dialogConfirm = reactive({ show: false, title: "", text: "", onConfirm: () => { } });
+
+const page = ref(1);
+const itemsPerPage = ref(50);
 
 const formHeader = reactive({
-  nomor: '',
-  tanggal: '',
-  gudang: authStore.user?.cabang || '',
-  gudangNama: authStore.user?.cabangNama || '',
-  keterangan: 'STOK OPNAME',
+  nomor: "",
+  tanggal: "",
+  gudang: authStore.user?.cabang || "",
+  gudangNama: authStore.user?.cabangNama || "",
+  keterangan: "STOK OPNAME",
 });
 
 const items = ref<StokOpnameItem[]>([]);
 
 const headers = [
-  { title: 'No.', key: 'no', sortable: false, width: '50px' },
-  { title: 'Kode', key: 'Kode', width: '150px' },
-  { title: 'Nama Barang', key: 'Nama', minWidth: '300px' },
-  { title: 'Ukuran', key: 'Ukuran', width: '100px' },
-  { title: 'Stok Awal', key: 'Stok', align: 'end' },
-  { title: 'Jumlah Fisik', key: 'Jumlah', align: 'end' },
-  { title: 'Selisih', key: 'Selisih', align: 'end' },
-  { title: 'HPP', key: 'hpp', align: 'end' },
-  { title: 'Total', key: 'Total', align: 'end' },
-  { title: 'Lokasi', key: 'Lokasi' },
+  { title: "No.", key: "no", sortable: false, width: "50px" },
+  { title: "Kode", key: "Kode", width: "150px" },
+  { title: "Nama Barang", key: "Nama", minWidth: "300px" },
+  { title: "Ukuran", key: "Ukuran", width: "100px" },
+  { title: "Stok Awal", key: "Stok", align: "end" },
+  { title: "Jumlah Fisik", key: "Jumlah", align: "end" },
+  { title: "Selisih", key: "Selisih", align: "end" },
+  { title: "HPP", key: "hpp", align: "end" },
+  { title: "Total", key: "Total", align: "end" },
+  { title: "Lokasi", key: "lokasi", align: "start", width: "200px" },
 ] as const;
 
 const totalKoreksi = computed(() => {
-  return items.value.reduce((sum, item) => sum + ((Number(item.Selisih) || 0) * (Number(item.hpp) || 0)), 0);
+  return items.value.reduce(
+    (sum, item) => sum + (Number(item.Selisih) || 0) * (Number(item.hpp) || 0),
+    0
+  );
 });
-const isReadOnly = computed(() => route.query.readonly === 'true');
+const isReadOnly = computed(() => route.query.readonly === "true");
 
 // --- Methods ---
 
 const addNewRow = () => {
-  if (!items.value.some(item => !item.Kode)) {
+  if (!items.value.some((item) => !item.Kode)) {
     items.value.push({
       id: Date.now(),
-      Kode: '', Nama: '', Ukuran: '', Stok: 0, Jumlah: 0,
-      Selisih: 0, hpp: 0, Total: 0, Lokasi: '', Barcode: '',
+      Kode: "",
+      Nama: "",
+      Ukuran: "",
+      Stok: 0,
+      Jumlah: 0,
+      Selisih: 0,
+      hpp: 0,
+      Total: 0,
+      Lokasi: "",
+      Barcode: "",
+      lokasi: "",
     });
   }
 };
@@ -81,12 +97,12 @@ const handleItemAdd = async (index: number) => {
   if (!barcode) return;
 
   // Cek duplikat di frontend
-  const isDuplicate = items.value.some((existingItem, i) =>
-    existingItem.Barcode === barcode && i !== index
+  const isDuplicate = items.value.some(
+    (existingItem, i) => existingItem.Barcode === barcode && i !== index
   );
   if (isDuplicate) {
     toast.error(`Barcode ${barcode} sudah ada di dalam daftar.`);
-    item.Kode = ''; // Kosongkan kembali input
+    item.Kode = ""; // Kosongkan kembali input
     return;
   }
 
@@ -96,7 +112,7 @@ const handleItemAdd = async (index: number) => {
       params: {
         cabang: formHeader.gudang,
         tanggalSop: formHeader.tanggal,
-      }
+      },
     });
 
     // Isi baris saat ini dengan data dari API
@@ -106,7 +122,7 @@ const handleItemAdd = async (index: number) => {
       ...productData,
       Jumlah: 0,
       Selisih: 0 - productData.Stok,
-      Total: (0 - productData.Stok) * productData.hpp
+      Total: (0 - productData.Stok) * productData.hpp,
     };
 
     addNewRow(); // Tambah baris kosong baru di bawahnya
@@ -116,75 +132,84 @@ const handleItemAdd = async (index: number) => {
       const inputJumlah = document.getElementById(`jumlah-${item.id}`);
       inputJumlah?.focus();
     });
-
   } catch (error) {
     const err = error as AxiosError<{ message?: string }>;
-    toast.error(err.response?.data?.message || 'Gagal memuat data barang.');
-    item.Kode = ''; // Kosongkan input jika barcode tidak ditemukan
+    toast.error(err.response?.data?.message || "Gagal memuat data barang.");
+    item.Kode = ""; // Kosongkan input jika barcode tidak ditemukan
   } finally {
     isLoading.value = false;
   }
 };
 
 const loadInitialData = async () => {
+  if (authStore.user?.cabang === "KDC" && formHeader.gudang === "KDC") {
+    isLoading.value = false;
+    return;
+  }
+
   isLoading.value = true;
   try {
-    const response = await api.get('/proses-stok-opname-form/initial-data');
+    const response = await api.get("/proses-stok-opname-form/initial-data", {
+      params: { cabang: formHeader.gudang },
+    });
+
     formHeader.tanggal = response.data.tanggal;
-    items.value = response.data.items.map(item => ({
+    items.value = response.data.items.map((item: StokOpnameItem) => ({
       ...item,
-      Total: (Number(item.Selisih) || 0) * (Number(item.hpp) || 0)
+      id: Math.random(),
+      Total: (Number(item.Selisih) || 0) * (Number(item.hpp) || 0),
     }));
-  } catch (error) {
+    page.value = 1;
+  } catch (error: unknown) {
+    // Gunakan unknown, bukan any
     const err = error as AxiosError<{ message?: string }>;
-    toast.error(err.response?.data?.message || 'Gagal memuat data awal.');
-    // Jika gagal (misal tanggal belum di-setting), kembali ke halaman browse
-    router.back();
+    toast.error(err.response?.data?.message || "Gagal memuat data awal.");
   } finally {
     isLoading.value = false;
   }
-
 };
 
 const handleSave = () => {
   // --- VALIDASI DARI btnSimpanClick DELPHI ---
   if (!formHeader.keterangan.trim()) {
-    toast.error('Keterangan harus diisi.');
+    toast.error("Keterangan harus diisi.");
     return;
   }
-  if (items.value.length === 0 || !items.value.some(item => item.Kode)) {
-    toast.error('Detail barang harus diisi.');
+  if (items.value.length === 0 || !items.value.some((item) => item.Kode)) {
+    toast.error("Detail barang harus diisi.");
     return;
   }
-  const itemWithZeroHpp = items.value.find(item => item.Kode && (!item.hpp || item.hpp === 0));
+  const itemWithZeroHpp = items.value.find((item) => item.Kode && (!item.hpp || item.hpp === 0));
   if (itemWithZeroHpp) {
-    toast.error(`HPP untuk barang ${itemWithZeroHpp.Nama} (${itemWithZeroHpp.Ukuran}) harus diisi.`);
+    toast.error(
+      `HPP untuk barang ${itemWithZeroHpp.Nama} (${itemWithZeroHpp.Ukuran}) harus diisi.`
+    );
     return;
   }
   // --- AKHIR VALIDASI ---
 
-  dialogConfirm.title = 'Konfirmasi Simpan';
-  dialogConfirm.text = 'Apakah Anda yakin ingin menyimpan data Stok Opname ini?';
+  dialogConfirm.title = "Konfirmasi Simpan";
+  dialogConfirm.text = "Apakah Anda yakin ingin menyimpan data Stok Opname ini?";
   dialogConfirm.onConfirm = async () => {
     isLoading.value = true;
     try {
       const payload = {
         header: formHeader,
-        items: items.value.filter(item => item.Kode), // Kirim hanya baris yang berisi data
+        items: items.value.filter((item) => item.Kode), // Kirim hanya baris yang berisi data
       };
 
       let response;
       if (isEditMode.value) {
         response = await api.put(`/proses-stok-opname-form/${route.params.nomor}`, payload);
       } else {
-        response = await api.post('/proses-stok-opname-form', payload);
+        response = await api.post("/proses-stok-opname-form", payload);
       }
 
       toast.success(response.data.message);
-      router.push({ name: 'ProsesStokOpname' }); // Kembali ke halaman browse
+      router.push({ name: "ProsesStokOpname" }); // Kembali ke halaman browse
     } catch (error) {
       const err = error as AxiosError<{ message?: string }>;
-      toast.error(err.response?.data?.message || 'Gagal menyimpan data.');
+      toast.error(err.response?.data?.message || "Gagal menyimpan data.");
     } finally {
       isLoading.value = false;
     }
@@ -206,13 +231,13 @@ const loadDataForEdit = async (id: string) => {
     // (Isi gudangNama jika perlu)
 
     // Isi tabel detail
-    items.value = sopItems.map(item => ({
+    items.value = sopItems.map((item) => ({
       ...item,
-      Total: (Number(item.Selisih) || 0) * (Number(item.hpp) || 0)
+      Total: (Number(item.Selisih) || 0) * (Number(item.hpp) || 0),
     }));
   } catch (error) {
     const err = error as AxiosError<{ message?: string }>;
-    toast.error(err.response?.data?.message || 'Gagal memuat data.');
+    toast.error(err.response?.data?.message || "Gagal memuat data.");
     router.back();
   } finally {
     isLoading.value = false;
@@ -220,13 +245,14 @@ const loadDataForEdit = async (id: string) => {
 };
 
 const handleHitungStok = () => {
-  dialogConfirm.title = 'Konfirmasi Hitung Ulang';
-  dialogConfirm.text = 'Operasi ini akan menghapus semua data di tabel dan menggantinya dengan hasil perhitungan ulang. Lanjutkan?';
+  dialogConfirm.title = "Konfirmasi Hitung Ulang";
+  dialogConfirm.text =
+    "Operasi ini akan menghapus semua data di tabel dan menggantinya dengan hasil perhitungan ulang. Lanjutkan?";
   dialogConfirm.onConfirm = loadInitialData; // Panggil ulang fungsi yang sudah ada
   dialogConfirm.show = true;
 };
 
-const onGudangSelected = (gudang: { kode: string, nama: string }) => {
+const onGudangSelected = (gudang: { kode: string; nama: string }) => {
   formHeader.gudang = gudang.kode;
   formHeader.gudangNama = gudang.nama;
   isGudangLookupVisible.value = false;
@@ -234,34 +260,35 @@ const onGudangSelected = (gudang: { kode: string, nama: string }) => {
 
 const validateGudangKode = async () => {
   if (!formHeader.gudang) {
-    formHeader.gudangNama = '';
+    formHeader.gudangNama = "";
     return;
   }
   try {
     const response = await api.get(`/warehouses/${formHeader.gudang}`);
     formHeader.gudangNama = response.data.nama;
   } catch (error) {
-    formHeader.gudangNama = '';
-    toast.error('Kode Gudang tidak ditemukan.', error);
+    formHeader.gudangNama = "";
+    toast.error("Kode Gudang tidak ditemukan.", error);
   }
 };
 
 const handleFromDatabase = () => {
-  dialogConfirm.title = 'Muat dari Database';
-  dialogConfirm.text = 'Operasi ini akan menghapus semua data di tabel dan menggantinya dengan data dari staging. Lanjutkan?';
+  dialogConfirm.title = "Muat dari Database";
+  dialogConfirm.text =
+    "Operasi ini akan menghapus semua data di tabel dan menggantinya dengan data dari staging. Lanjutkan?";
   dialogConfirm.onConfirm = async () => {
     isLoading.value = true;
     try {
-      const response = await api.get('/proses-stok-opname-form/from-database');
+      const response = await api.get("/proses-stok-opname-form/from-database");
       // Ganti data di grid dengan hasil dari API
-      items.value = response.data.items.map(item => ({
+      items.value = response.data.items.map((item) => ({
         ...item,
         id: Math.random(), // Beri ID unik untuk v-for
       }));
-      toast.success('Data berhasil dimuat dari database.');
+      toast.success("Data berhasil dimuat dari database.");
     } catch (error) {
       const axiosError = error as AxiosError<{ message: string }>;
-      toast.error(axiosError.response?.data?.message || 'Gagal memuat data.');
+      toast.error(axiosError.response?.data?.message || "Gagal memuat data.");
     } finally {
       isLoading.value = false;
     }
@@ -269,14 +296,28 @@ const handleFromDatabase = () => {
   dialogConfirm.show = true;
 };
 
+// Pantau perubahan gudang: jika Admin ganti cabang, data langsung refresh
+watch(
+  () => formHeader.gudang,
+  (newVal) => {
+    if (newVal && !isEditMode.value) {
+      loadInitialData();
+    }
+  }
+);
+
 onMounted(() => {
   const id = route.params.nomor as string;
   if (id) {
     isEditMode.value = true;
-    loadDataForEdit(id);
+    loadDataForEdit(id); // Memanggil fungsi agar tidak "assigned but never used"
   } else {
-    loadInitialData();
-    addNewRow(); // Tambahkan baris kosong awal
+    if (authStore.user?.cabang !== "KDC") {
+      loadInitialData();
+    } else {
+      isLoading.value = false;
+    }
+    addNewRow();
   }
 });
 </script>
@@ -325,10 +366,10 @@ onMounted(() => {
 
       <div class="right-column">
         <div class="table-container">
-          <v-data-table :headers="headers" :items="items" :loading="isLoading" class="desktop-table fill-height"
-            density="compact" fixed-header :items-per-page="-1">
+          <v-data-table v-model:page="page" :items-per-page="itemsPerPage" :headers="headers" :items="items"
+            :loading="isLoading" class="desktop-table fill-height" density="compact" fixed-header>
             <template v-slot:[`item.no`]="{ index }">
-              {{ index + 1 }}
+              {{ (page - 1) * itemsPerPage + index + 1 }}
             </template>
 
             <template v-slot:[`item.Kode`]="{ item, index }">
@@ -338,34 +379,34 @@ onMounted(() => {
 
             <template v-slot:[`item.Jumlah`]="{ item }">
               <v-text-field :id="`jumlah-${item.id}`" v-model.number="item.Jumlah" type="number" variant="underlined"
-                density="compact" hide-details class="text-right" @update:modelValue="(val) => {
-                  const jumlah = Number(val) || 0;
-                  const stok = Number(item.Stok) || 0;
-                  const hpp = Number(item.hpp) || 0;
+                density="compact" hide-details class="text-right" @update:modelValue="
+                  (val) => {
+                    const jumlah = Number(val) || 0;
+                    const stok = Number(item.Stok) || 0;
+                    const hpp = Number(item.hpp) || 0;
 
-                  item.Selisih = jumlah - stok;
-                  item.Total = item.Selisih * hpp;
-                }" />
+                    item.Selisih = jumlah - stok;
+                    item.Total = item.Selisih * hpp;
+                  }
+                " />
             </template>
 
             <template v-for="col in ['Stok', 'Selisih', 'hpp', 'Total']" #[`item.${col}`]="{ item }">
-              {{ (item[col] || 0).toLocaleString('id-ID') }}
+              {{ (item[col] || 0).toLocaleString("id-ID") }}
             </template>
-
-            <template #bottom></template>
           </v-data-table>
         </div>
         <div class="desktop-form-section d-flex align-center">
           <v-spacer />
           <span class="font-weight-bold me-4">Total Koreksi:</span>
           <v-text-field :model-value="totalKoreksi.toLocaleString('id-ID')" readonly filled density="compact"
-            hide-details class="text-right font-weight-bold" style="max-width: 250px;" />
+            hide-details class="text-right font-weight-bold" style="max-width: 250px" />
         </div>
       </div>
     </div>
 
-    <GudangSearchModal v-if="isGudangLookupVisible" :user-cabang="authStore.user?.cabang || ''" :only-dc="true"
-      @close="isGudangLookupVisible = false" @gudang-selected="onGudangSelected" />
+    <GudangSearchModal v-if="isGudangLookupVisible" :user-cabang="authStore.user?.cabang || ''" :only-dc="false"
+      source="stok-opname" @close="isGudangLookupVisible = false" @gudang-selected="onGudangSelected" />
 
     <v-dialog v-model="dialogConfirm.show" max-width="400px" persistent>
       <v-card>
@@ -376,8 +417,12 @@ onMounted(() => {
         <v-card-actions>
           <v-spacer />
           <v-btn text @click="dialogConfirm.show = false">Batal</v-btn>
-          <v-btn color="primary" variant="tonal"
-            @click="() => { dialogConfirm.onConfirm(); dialogConfirm.show = false; }">Ya, Lanjutkan</v-btn>
+          <v-btn color="primary" variant="tonal" @click="
+            () => {
+              dialogConfirm.onConfirm();
+              dialogConfirm.show = false;
+            }
+          ">Ya, Lanjutkan</v-btn>
         </v-card-actions>
       </v-card>
     </v-dialog>

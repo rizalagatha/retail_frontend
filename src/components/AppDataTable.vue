@@ -1,23 +1,23 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue';
-import LottieVuePlayer from 'vue-lottie-player';
-import emptyDataAnimation from '@/assets/empty-state.json';
-import { VDataTable, VDataTableServer } from 'vuetify/components/VDataTable';
+import { computed, ref, watch } from "vue";
+import LottieVuePlayer from "vue-lottie-player";
+import emptyDataAnimation from "@/assets/empty-state.json";
+import { VDataTable, VDataTableServer } from "vuetify/components/VDataTable";
 
 const props = defineProps({
   server: { type: Boolean, default: false }, // Mode server aktif?
   items: { type: Array, default: () => [] },
   itemsPerPageOptions: { type: Array, default: () => [10, 25, 50, 100] },
-  search: { type: String, default: '' },
+  search: { type: String, default: "" },
 
   // [BARU] Total data keseluruhan di database (misal: 5000)
-  itemsLength: { type: Number, default: 0 }
+  itemsLength: { type: Number, default: 0 },
 });
 
 // Emit event ke parent saat user ganti halaman/limit
-const emit = defineEmits(['update:options', 'update:page', 'update:itemsPerPage']);
+const emit = defineEmits(["update:options", "update:page", "update:itemsPerPage"]);
 
-const tableComponent = computed(() => props.server ? VDataTableServer : VDataTable);
+const tableComponent = computed(() => (props.server ? VDataTableServer : VDataTable));
 
 const page = ref(1);
 const itemsPerPage = ref(50); // Default
@@ -34,7 +34,7 @@ const filteredItems = computed(() => {
   // [FIX] Ganti 'any' dengan 'Record<string, unknown>'
   // Artinya: item adalah object dengan key string dan value apa saja
   return props.items.filter((item: Record<string, unknown>) => {
-    return Object.values(item).some(val => {
+    return Object.values(item).some((val) => {
       // Pastikan val tidak null/undefined sebelum di-string-kan agar aman
       return val && String(val).toLowerCase().includes(searchLower);
     });
@@ -59,7 +59,7 @@ const pageCount = computed(() => {
 // --- Teks Pagination (1-50 of 5000) ---
 const paginationText = computed(() => {
   const total = props.server ? props.itemsLength : filteredItems.value.length;
-  if (total === 0) return '0-0 of 0';
+  if (total === 0) return "0-0 of 0";
 
   const start = (page.value - 1) * itemsPerPage.value + 1;
   const end = Math.min(page.value * itemsPerPage.value, total);
@@ -70,13 +70,16 @@ const paginationText = computed(() => {
 // --- Watchers: Beritahu Parent jika user ganti halaman ---
 watch([page, itemsPerPage], () => {
   // Ini yang akan memicu fetch data baru di InvoiceBrowse
-  emit('update:options', { page: page.value, itemsPerPage: itemsPerPage.value });
+  emit("update:options", { page: page.value, itemsPerPage: itemsPerPage.value });
 });
 
 // Reset page ke 1 jika search berubah (Khusus Client Side)
-watch(() => props.search, () => {
-  if (!props.server) page.value = 1;
-});
+watch(
+  () => props.search,
+  () => {
+    if (!props.server) page.value = 1;
+  }
+);
 </script>
 
 <template>
@@ -91,7 +94,9 @@ watch(() => props.search, () => {
               :autoplay="true" />
           </div>
           <h4 class="text-h7 text-medium-emphasis">Tidak Ada Data Ditemukan</h4>
-          <p class="text-body-3 text-disabled mt-2">Coba ubah filter atau tanggal pencarian Anda.</p>
+          <p class="text-body-3 text-disabled mt-2">
+            Coba ubah filter atau tanggal pencarian Anda.
+          </p>
         </div>
       </template>
 

@@ -1,11 +1,11 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue';
-import api from '@/services/api';
-import { useToast } from 'vue-toastification';
-import RekeningSearchModal from '../lookup/RekeningSearchModal.vue';
-import { useAuthStore } from '@/stores/authStore';
-import { format, parseISO } from 'date-fns';
-import Logo from '@/assets/logo.png';
+import { ref, computed, nextTick } from "vue";
+import api from "@/services/api";
+import { useToast } from "vue-toastification";
+import RekeningSearchModal from "../lookup/RekeningSearchModal.vue";
+import { useAuthStore } from "@/stores/authStore";
+import { format, parseISO } from "date-fns";
+import Logo from "@/assets/logo.png";
 import { formatRupiah } from "@/utils/formatRupiah";
 
 interface Rekening {
@@ -52,12 +52,16 @@ const kekuranganDp = computed(() => {
 });
 
 const documentTitle = computed(() => {
-  if (!printHeaderData.value) return '';
+  if (!printHeaderData.value) return "";
   switch (printHeaderData.value.sh_jenis) {
-    case 0: return 'CASH RECEIPT';
-    case 1: return 'TRANSFER RECEIPT';
-    case 2: return 'GIRO RECEIPT';
-    default: return 'TANDA TERIMA PEMBAYARAN';
+    case 0:
+      return "CASH RECEIPT";
+    case 1:
+      return "TRANSFER RECEIPT";
+    case 2:
+      return "GIRO RECEIPT";
+    default:
+      return "TANDA TERIMA PEMBAYARAN";
   }
 });
 
@@ -66,26 +70,26 @@ const props = defineProps({
   minimalDp: { type: Number, default: 0 },
   existingDp: { type: Number, default: 0 },
   existingDpNomor: { type: String, default: "" },
-  nomorSo: { type: String, required: true }
+  nomorSo: { type: String, required: true },
 });
-const emit = defineEmits(['close', 'dp-saved']);
+const emit = defineEmits(["close", "dp-saved"]);
 
 const dpData = ref({
   tanggal: new Date().toISOString().substring(0, 10),
-  jenis: 'TUNAI',
+  jenis: "TUNAI",
   nominal: 0,
-  keterangan: 'DP',
+  keterangan: "DP",
   bankData: {
-    akun: '',
-    namaBank: '',
-    norek: '',
+    akun: "",
+    namaBank: "",
+    norek: "",
     tglTransfer: new Date().toISOString().substring(0, 10),
   },
   giroData: {
-    noGiro: '',
+    noGiro: "",
     tglGiro: new Date().toISOString().substring(0, 10),
     tglJatuhTempo: new Date().toISOString().substring(0, 10),
-  }
+  },
 });
 const isSaving = ref(false);
 const isRekeningSearchVisible = ref(false);
@@ -94,16 +98,17 @@ const isPrintPreviewVisible = ref(false); // Mengontrol dialog preview
 const isPrinting = ref(false); // Loading untuk mengambil data cetak
 const printHeaderData = ref<PrintHeader | null>(null); // Menyimpan data cetak
 const newDpFromSave = ref<NewDpItem | null>(null); // Menyimpan data newDp untuk di-emit nanti
+const isPrintingNow = ref(false);
 
 const save = async () => {
   if ((dpData.value.nominal || 0) === 0 && props.existingDpNomor) {
     try {
-      const res = await api.post('/so-form/delete-dp', {
-        nomor: props.existingDpNomor
+      const res = await api.post("/so-form/delete-dp", {
+        nomor: props.existingDpNomor,
       });
       toast.success(res.data.message || "DP berhasil dihapus.");
 
-      emit("dp-saved", null);  // kasih tahu parent untuk refresh list DP
+      emit("dp-saved", null); // kasih tahu parent untuk refresh list DP
       emit("close");
       return; // STOP — jangan lanjut ke proses simpan DP baru
     } catch (err) {
@@ -119,13 +124,13 @@ const save = async () => {
     );
   }
   if ((dpData.value.nominal || 0) <= 0) {
-    return toast.error('Nominal harus diisi.');
+    return toast.error("Nominal harus diisi.");
   }
-  if (dpData.value.jenis === 'TRANSFER' && !dpData.value.bankData.akun) {
-    return toast.error('Akun Bank harus dipilih.');
+  if (dpData.value.jenis === "TRANSFER" && !dpData.value.bankData.akun) {
+    return toast.error("Akun Bank harus dipilih.");
   }
-  if (dpData.value.jenis === 'GIRO' && !dpData.value.giroData.noGiro) {
-    return toast.error('No. Giro harus diisi.');
+  if (dpData.value.jenis === "GIRO" && !dpData.value.giroData.noGiro) {
+    return toast.error("No. Giro harus diisi.");
   }
   // --- Akhir Validasi ---
 
@@ -133,7 +138,7 @@ const save = async () => {
   try {
     // 1. Simpan DP
     const payload = { ...dpData.value, customerKode: props.customerKode, nomorSo: props.nomorSo };
-    const saveResponse = await api.post('/so-form/save-dp', payload);
+    const saveResponse = await api.post("/so-form/save-dp", payload);
     toast.success(saveResponse.data.message);
 
     const newDp = saveResponse.data.newDp;
@@ -159,7 +164,6 @@ const save = async () => {
     // 4. Tampilkan dialog pratinjau cetak
     isPrinting.value = false;
     isPrintPreviewVisible.value = true;
-
   } catch (error: unknown) {
     if (error && typeof error === "object" && "response" in error) {
       const err = error as { response?: { data?: { message?: string } } };
@@ -183,16 +187,24 @@ const onNominalBlur = () => {
 };
 
 const handlePrint = () => {
-  // Memanggil print preview browser
-  window.print();
+  isPrintingNow.value = true;
+
+  nextTick(() => {
+    window.print();
+
+    // Reset setelah print
+    setTimeout(() => {
+      isPrintingNow.value = false;
+    }, 500);
+  });
 };
 
 const closePrintPreview = () => {
   isPrintPreviewVisible.value = false;
 
   // SEKARANG baru kita emit dan tutup modal utama
-  emit('dp-saved', newDpFromSave.value);
-  emit('close');
+  emit("dp-saved", newDpFromSave.value);
+  emit("close");
 
   // Reset state
   printHeaderData.value = null;
@@ -221,9 +233,9 @@ const onRekeningSelected = (rekening: Rekening) => {
               variant="outlined" density="compact" /></v-col>
           <v-col cols="12">
             <v-text-field label="Nominal"
-              :model-value="isNominalFocused ? dpData.nominal : formatRupiah(dpData.nominal || 0)"
-              @update:model-value="dpData.nominal = Number(String($event).replace(/[^0-9]/g, '')) || 0"
-              @focus="onNominalFocus" @blur="onNominalBlur" type="text" variant="outlined" density="compact"
+              :model-value="isNominalFocused ? dpData.nominal : formatRupiah(dpData.nominal || 0)" @update:model-value="
+                dpData.nominal = Number(String($event).replace(/[^0-9]/g, '')) || 0
+                " @focus="onNominalFocus" @blur="onNominalBlur" type="text" variant="outlined" density="compact"
               class="text-end" />
           </v-col>
           <v-col cols="12"><v-text-field label="Keterangan" v-model="dpData.keterangan" variant="outlined"
@@ -249,17 +261,19 @@ const onRekeningSelected = (rekening: Rekening) => {
           </v-col>
           <v-card-text class="pa-4">
             <v-alert density="compact" variant="tonal" class="mb-4">
-              <div class="d-flex justify-space-between"><span>Minimal DP Total:</span> <strong>{{
-                formatRupiah(minimalDp) }}</strong></div>
-              <div class="d-flex justify-space-between"><span>Sudah Dibayar:</span> <strong>{{
-                formatRupiah(existingDp) }}</strong></div>
+              <div class="d-flex justify-space-between">
+                <span>Minimal DP Total:</span> <strong>{{ formatRupiah(minimalDp) }}</strong>
+              </div>
+              <div class="d-flex justify-space-between">
+                <span>Sudah Dibayar:</span> <strong>{{ formatRupiah(existingDp) }}</strong>
+              </div>
               <v-divider class="my-1" />
-              <div class="d-flex justify-space-between font-weight-bold"><span>Kekurangan:</span>
+              <div class="d-flex justify-space-between font-weight-bold">
+                <span>Kekurangan:</span>
                 <strong>{{ formatRupiah(kekuranganDp) }}</strong>
               </div>
             </v-alert>
-            <v-row dense>
-            </v-row>
+            <v-row dense> </v-row>
           </v-card-text>
         </v-row>
       </v-card-text>
@@ -268,7 +282,7 @@ const onRekeningSelected = (rekening: Rekening) => {
         <v-btn size="small" @click="$emit('close')">Batal</v-btn>
         <v-btn size="small" color="primary" @click="save" :loading="isSaving || isPrinting"
           :disabled="isPrinting || isSaving">
-          {{ isPrinting ? 'Memuat Pratinjau...' : 'Simpan' }}
+          {{ isPrinting ? "Memuat Pratinjau..." : "Simpan" }}
         </v-btn>
       </v-card-actions>
     </v-card>
@@ -284,46 +298,42 @@ const onRekeningSelected = (rekening: Rekening) => {
       </v-toolbar>
 
       <v-card-text class="pa-0 grey-lighten-4 print-preview-area">
-
         <div class="print-container">
-          <div v-if="printHeaderData" class="page">
-
-            <div class="receipt-copy" v-for="copy in 2" :key="copy">
+          <template v-if="printHeaderData">
+            <div v-for="copy in 2" :key="copy" class="page" :class="{ 'copy-section': copy === 2 }">
               <div class="company-header">
-                <img :src="appLogo" alt="Logo" class="company-logo">
+                <img :src="appLogo" alt="Logo" class="company-logo" />
                 <div class="company-info">
                   <div class="company-name">{{ printHeaderData.perush_nama }}</div>
                   <div>{{ printHeaderData.perush_alamat }}</div>
                   <div>Wa: {{ printHeaderData.perush_telp }}</div>
                 </div>
               </div>
+
               <div class="document-title">{{ documentTitle }}</div>
+
               <div class="details-container">
                 <div class="details-grid">
                   <div class="label">Nomor Dokumen</div>
                   <div class="value">: {{ printHeaderData.sh_nomor }}</div>
                   <div class="label">Tanggal Dokumen</div>
-                  <div class="value">: {{ format(parseISO(printHeaderData.sh_tanggal), 'dd-MM-yyyy') }}</div>
+                  <div class="value">
+                    : {{ format(parseISO(printHeaderData.sh_tanggal), "dd-MM-yyyy") }}
+                  </div>
                   <div class="label">Nama Customer</div>
                   <div class="value">: {{ printHeaderData.cus_nama }}</div>
                   <div class="label">Alamat</div>
-                  <div class="value address-value">: {{ printHeaderData.cus_alamat }}, {{ printHeaderData.cus_kota }}
+                  <div class="value address-value">
+                    : {{ printHeaderData.cus_alamat }}, {{ printHeaderData.cus_kota }}
                   </div>
                   <div class="label">No. Kontak</div>
                   <div class="value">: {{ printHeaderData.cus_telp }}</div>
-                  <div class="label">Nominal yang Diterima</div>
+                  <div class="label">Nominal Diterima</div>
                   <div class="value">: Rp {{ formatRupiah(printHeaderData.sh_nominal) }}</div>
                   <div class="label">Terbilang</div>
-                  <div class="value terbilang-value">: <em>{{ printHeaderData.terbilang }}</em></div>
-                </div>
-                <div v-if="printHeaderData.sh_jenis === 1" class="details-grid-right">
-                  <div class="label">Akun</div>
-                  <div class="value">: {{ printHeaderData.rek_nama }}</div>
-                  <div class="label">No. Rekening</div>
-                  <div class="value">: {{ printHeaderData.sh_norek }}</div>
-                  <div class="label">Tgl. Transfer</div>
-                  <div class="value">: {{ printHeaderData.sh_tgltransfer ?
-                    format(parseISO(printHeaderData.sh_tgltransfer), 'dd-MM-yyyy') : '' }}</div>
+                  <div class="value terbilang-value">
+                    : <em>{{ printHeaderData.terbilang }}</em>
+                  </div>
                 </div>
               </div>
 
@@ -338,11 +348,17 @@ const onRekeningSelected = (rekening: Rekening) => {
               </div>
 
               <div class="signatures">
-                <div class="signature-box">Yang Menyerahkan,<br><br><br>(____________________)</div>
-                <div class="signature-box">Penerima,<br><br><br>(____________________)</div>
+                <div class="signature-box">
+                  Yang Menyerahkan,<br /><br /><br />(____________________)
+                </div>
+                <div class="signature-box">Penerima,<br /><br /><br />(____________________)</div>
+              </div>
+
+              <div class="copy-label">
+                {{ copy === 1 ? "LEMBAR CUSTOMER" : "LEMBAR ARSIP KASIR" }}
               </div>
             </div>
-          </div>
+          </template>
         </div>
       </v-card-text>
     </v-card>
@@ -385,15 +401,15 @@ const onRekeningSelected = (rekening: Rekening) => {
 .print-dialog .print-preview-area {
   display: flex;
   justify-content: center;
-  padding-top: 20px;
-  padding-bottom: 20px;
+  background-color: #525659;
+  padding: 20px 0;
   overflow-y: auto;
 }
 
 /* --- STYLE BARU UNTUK KETERANGAN (PENGGANTI DETAIL) --- */
 .summary-no-details {
-  border: 1px solid #333;
-  margin-top: 15px;
+  border: 1px solid #000;
+  margin-top: 10px;
 }
 
 .keterangan-header {
@@ -410,53 +426,71 @@ const onRekeningSelected = (rekening: Rekening) => {
   background-color: #f2f2f2;
 }
 
-
 /* ########################################## */
 /* ### STYLE DIBAWAH INI DISALIN DARI DPPRINTVIEW.VUE ### */
 /* ########################################## */
 
 .page {
-  font-family: 'Arial', sans-serif;
-  font-size: 10pt;
+  width: 210mm;
+  height: 140mm;
+  /* BUFFER KEAMANAN: Jangan pakai 148.5mm, terlalu pas */
+  padding: 8mm 12mm;
   background: white;
-  padding: 1.5cm;
-  /* Padding kertas A4 */
-  margin: 0;
-  width: 21cm;
-  /* Lebar A4 */
-  min-height: 29.7cm;
-  /* Tinggi A4 */
-  box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
-  page-break-inside: avoid;
+  box-sizing: border-box;
+  position: relative;
+  font-family: Arial, sans-serif;
+  font-size: 9pt;
+  border-bottom: 1px dashed #ccc;
+  /* Garis bantu potong di layar */
+}
+
+.page:last-child {
+  border-bottom: none;
+}
+
+.copy-space {
+  margin-top: 10mm;
+  /* Jarak antar kuitansi saat preview di layar */
+}
+
+.copy-label {
+  position: absolute;
+  bottom: 5mm;
+  right: 12mm;
+  font-size: 7pt;
+  color: #777;
+  font-style: italic;
 }
 
 /* --- STYLE BARU UNTUK 2 SALINAN --- */
 .receipt-copy {
-  border-bottom: 2px dashed #ccc;
-  padding-bottom: 1cm;
-  margin-bottom: 1cm;
-  page-break-after: auto;
-  /* Pastikan salinan kedua di halaman baru jika tidak muat */
+  border-bottom: 1px dashed #333;
+  /* Garis potong lebih tipis */
+  padding-bottom: 0.4cm;
+  margin-bottom: 0.4cm;
+  page-break-inside: avoid;
 }
 
 .receipt-copy:last-child {
   border-bottom: none;
   margin-bottom: 0;
-  page-break-after: auto;
+  padding-bottom: 0;
+}
+
+/* Pastikan logo tidak terlalu besar */
+.company-logo {
+  height: 30px;
+  /* Sedikit dikecilkan */
+  object-fit: contain;
 }
 
 /* --- AKHIR STYLE 2 SALINAN --- */
-
 
 .company-header {
   display: flex;
   align-items: center;
   gap: 15px;
   margin-bottom: 10px;
-}
-
-.company-logo {
-  height: 40px;
 }
 
 .company-name {
@@ -470,12 +504,12 @@ const onRekeningSelected = (rekening: Rekening) => {
 
 .document-title {
   text-align: center;
-  font-size: 14pt;
+  font-size: 13pt;
   font-weight: bold;
-  margin: 10px 0;
-  border-top: 1px solid #333;
-  border-bottom: 1px solid #333;
-  padding: 5px 0;
+  margin: 5px 0;
+  border-top: 1px solid #000;
+  border-bottom: 1px solid #000;
+  padding: 3px 0;
 }
 
 .details-container {
@@ -515,16 +549,15 @@ const onRekeningSelected = (rekening: Rekening) => {
 .signatures {
   display: flex;
   justify-content: space-around;
-  margin-top: 40px;
-  /* Beri jarak lebih untuk TTD */
+  margin-top: 10px;
+  /* Jarak ke TTD dipersempit */
 }
 
 .signature-box {
   width: 40%;
   text-align: center;
-  padding-top: 10px;
-  height: 80px;
-  /* Tinggi area TTD */
+  height: 50px;
+  /* Area TTD diperkecil */
 }
 
 /* ### ATURAN PRINT GLOBAL (INI PENTING) ### */
@@ -535,47 +568,49 @@ const onRekeningSelected = (rekening: Rekening) => {
 <style>
 @media print {
 
-  /* Sembunyikan SEMUA elemen di body */
+  /* 1. Sembunyikan SEMUA elemen di layar */
   body * {
     visibility: hidden !important;
   }
 
-  /* Tampilkan HANYA kontainer cetak dan isinya */
+  /* 2. Tampilkan HANYA kontainer cetak dan isinya */
   .print-container,
   .print-container * {
     visibility: visible !important;
   }
 
-  /* Posisikan kontainer cetak menutupi seluruh halaman */
+  /* 3. Paksa kontainer cetak ke posisi paling atas */
   .print-container {
     position: absolute !important;
     left: 0 !important;
     top: 0 !important;
-    width: 100% !important;
+    width: 210mm !important;
     margin: 0 !important;
     padding: 0 !important;
   }
 
-  /* Hilangkan bayangan dan margin dari 'page' */
+  @page {
+    size: A4 portrait;
+    margin: 0;
+    /* Hilangkan margin browser agar tidak geser */
+  }
+
   .page {
     box-shadow: none !important;
-    margin: 0 !important;
-    padding: 1cm !important;
-    /* Beri margin cetak di sini */
     border: none !important;
-    width: 100% !important;
-    min-height: auto !important;
-    page-break-inside: avoid;
+    margin: 0 !important;
+    padding: 10mm !important;
+    height: 148.5mm !important;
+    /* Paksa pas setengah kertas A4 */
+    page-break-after: avoid !important;
+    page-break-inside: avoid !important;
+    display: block !important;
+    border-bottom: 1px dashed #000 !important;
+    /* Garis potong saat diprint */
   }
 
-  /* Sembunyikan toolbar dialog cetak */
-  .print-toolbar {
-    display: none !important;
-  }
-
-  /* Atur agar salinan kedua tidak terpotong */
-  .receipt-copy {
-    page-break-inside: avoid;
+  .page:last-child {
+    border-bottom: none !important;
   }
 }
 </style>

@@ -148,6 +148,7 @@ const menuItems = [
           { title: 'Setting Tanggal', to: '/transaksi/stok-opname/setting-tanggal', icon: 'mdi-calendar-edit-outline' },
           { title: 'Input Hitung Stok', to: '/transaksi/stok-opname/hitung-stok', icon: 'mdi-clipboard-edit-outline' },
           { title: 'Hitung Stok per Lokasi', to: '/transaksi/stok-opname/hitung-per-lokasi', icon: 'mdi-map-marker-multiple-outline' },
+          { title: 'Hitung Stok per Operator', to: '/transaksi/stok-opname/hitung-per-operator', icon: 'mdi-account-details-outline' },
           { title: 'Cek Selisih', to: '/transaksi/stok-opname/cek-selisih', icon: 'mdi-scale-balance' },
           { title: 'Proses', to: '/transaksi/stok-opname/proses', icon: 'mdi-progress-check' },
         ],

@@ -114,6 +114,7 @@ const { markAsSaved } = useUnsavedChanges();
 const MENU_ID = '37';
 
 const isEditMode = computed(() => !!route.params.nomor);
+const isKpr = computed(() => authStore.user?.cabang === 'KPR');
 const pageTitle = computed(() => isEditMode.value ? 'Ubah Minta Barang ke DC' : 'Buat Minta Barang ke DC');
 const grandTotalQty = computed(() => {
   return items.value.reduce((sum, item) => sum + (Number(item.jumlah) || 0), 0);
@@ -320,29 +321,39 @@ const loadDataForEdit = async (nomor: string) => {
 };
 
 const save = () => {
+  // 1. Cek Izin Akses
   if (!authStore.can(MENU_ID, isEditMode.value ? 'edit' : 'insert')) {
     toast.error('Anda tidak memiliki izin untuk menyimpan data ini.');
     return;
   }
 
+  // 2. [FIXED] Validasi Wajib Customer khusus KPR
+  // Kita cek formHeader.value.customer?.kode karena variabel Anda bernama formHeader
+  if (isKpr.value && !formHeader.value.customer?.kode) {
+    toast.error("Customer wajib diisi untuk cabang KPR.");
+    return;
+  }
+
+  // 3. Validasi Detail Barang
   const validItems = items.value.filter(item => item.kode);
   if (validItems.length === 0) {
     toast.error('Detail barang harus diisi minimal 1 baris.');
     return;
   }
+
   const totalQty = validItems.reduce((sum, item) => sum + (item.jumlah || 0), 0);
   if (totalQty === 0) {
     toast.error('Jumlah minta masih kosong semua.');
     return;
   }
 
-  // [LOGIKA BARU] Validasi Batas Maksimal 120
-  if (totalQty > 120) {
+  // 4. Validasi Batas Maksimal (Hanya untuk non-KPR)
+  if (!isKpr.value && totalQty > 120) {
     toast.error(`Total permintaan melebihi batas 120 pcs. (Total saat ini: ${totalQty})`);
     return;
   }
 
-  // Jika semua validasi lolos, tampilkan dialog konfirmasi
+  // 5. Konfirmasi Simpan
   showConfirmation(executeSave, "Anda yakin ingin menyimpan data Minta Barang ini?");
 };
 
@@ -377,6 +388,12 @@ const handleBarcodeScan = async () => {
 
   // [LOGIKA BARU] Cek apakah menambah 1 pcs akan melebihi batas 120
   if (grandTotalQty.value >= 120) {
+    toast.error('Batas maksimal 120 pcs per permintaan telah tercapai.');
+    scannedBarcode.value = '';
+    return;
+  }
+
+  if (!isKpr.value && grandTotalQty.value >= 120) {
     toast.error('Batas maksimal 120 pcs per permintaan telah tercapai.');
     scannedBarcode.value = '';
     return;
@@ -515,8 +532,9 @@ onMounted(() => {
                 density="compact" hide-details :class="{ 'field-disabled': isEditMode }" />
             </v-col>
             <v-col cols="12">
-              <v-text-field label="Customer" :model-value="formHeader.customer?.kode" readonly
-                @click="openCustomerSearch" density="compact" hide-details
+              <v-text-field :label="isKpr ? 'Customer * (Wajib)' : 'Customer'" :model-value="formHeader.customer?.kode"
+                readonly @click="openCustomerSearch" density="compact" hide-details
+                :placeholder="isKpr ? 'Klik untuk memilih Customer wajib...' : 'Klik untuk mencari...'"
                 :class="{ 'field-disabled': !!formHeader.soNomor }" />
             </v-col>
             <v-col cols="12">
@@ -569,14 +587,11 @@ onMounted(() => {
               <div class="d-flex align-center justify-space-between pa-2 border-top">
                 <div class="text-subtitle-2 ml-2">
                   Total Qty:
-                  <span :class="grandTotalQty > 120 ? 'text-error font-weight-bold' : 'text-primary font-weight-bold'">
-                    {{ grandTotalQty }} / 120
+                  <span
+                    :class="(!isKpr && grandTotalQty > 120) ? 'text-error font-weight-bold' : 'text-primary font-weight-bold'">
+                    {{ grandTotalQty }} / {{ isKpr ? 'Unlimited' : '120' }}
                   </span>
                 </div>
-
-                <v-btn size="small" @click="addNewRow" prepend-icon="mdi-plus" variant="text" color="primary">
-                  Tambah Baris
-                </v-btn>
               </div>
             </template>
           </v-data-table>

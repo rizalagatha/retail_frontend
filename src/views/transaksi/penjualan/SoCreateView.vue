@@ -1306,6 +1306,7 @@ const onProductsSelected = (selectedProducts: SoItemApi[]) => {
 
 const onSoDtfSelected = async (soDtf: { nomor: string }) => {
   isSoDtfSearchVisible.value = false;
+  // Hapus baris kosong tempat F1 ditekan
   items.value.splice(activeRowIndex.value, 1);
 
   try {
@@ -1314,14 +1315,20 @@ const onSoDtfSelected = async (soDtf: { nomor: string }) => {
     );
     const soDtfDetails = response.data;
 
-    soDtfDetails.forEach((detail) => {
+    soDtfDetails.forEach((detail, index) => {
+      // PERBAIKAN: Tambahkan pengecekan detail.nama
+      // Agar jika ukuran sama (L) tapi barang beda (Hitam vs Putih), tidak dianggap duplikat
       const isDuplicate = items.value.some(
-        (item) => item.noSoDtf === detail.sd_nomor && item.ukuran === detail.ukuran
+        (item) =>
+          item.noSoDtf === detail.sd_nomor &&
+          item.nama === detail.nama && // <--- Tambahkan Baris Ini
+          item.ukuran === detail.ukuran
       );
 
       if (!isDuplicate) {
         items.value.push({
-          id: Date.now() + Math.random(),
+          // Tambahkan index agar ID benar-benar unik jika diproses sangat cepat
+          id: Date.now() + index + Math.random(),
           kode: detail.sd_nomor,
           nama: detail.nama,
           ukuran: detail.ukuran,

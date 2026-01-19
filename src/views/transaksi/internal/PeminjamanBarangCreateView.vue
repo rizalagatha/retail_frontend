@@ -1,14 +1,14 @@
 <script setup lang="ts">
-import { ref, reactive, onMounted, computed, nextTick, watch } from 'vue';
-import { useRoute, useRouter } from 'vue-router';
-import { useToast } from 'vue-toastification';
-import { useAuthStore } from '@/stores/authStore';
-import api from '@/services/api';
-import { format, addDays } from 'date-fns';
-import PageLayout from '@/components/PageLayout.vue';
-import ProductSearchModal from '@/components/lookup/ProductSearchModal.vue';
-import AuthorizationModal from '@/components/modal/AuthorizationModal.vue';
-import PenawaranSearchModal from '@/components/lookup/PenawaranSearchModal.vue';
+import { ref, reactive, onMounted, computed, nextTick, watch } from "vue";
+import { useRoute, useRouter } from "vue-router";
+import { useToast } from "vue-toastification";
+import { useAuthStore } from "@/stores/authStore";
+import api from "@/services/api";
+import { format, addDays } from "date-fns";
+import PageLayout from "@/components/PageLayout.vue";
+import ProductSearchModal from "@/components/lookup/ProductSearchModal.vue";
+import AuthorizationModal from "@/components/modal/AuthorizationModal.vue";
+import PenawaranSearchModal from "@/components/lookup/PenawaranSearchModal.vue";
 import { AxiosError } from "axios";
 
 // --- Tipe Data ---
@@ -79,72 +79,80 @@ const route = useRoute();
 const router = useRouter();
 const toast = useToast();
 const authStore = useAuthStore();
-const MENU_ID = '56';
+const MENU_ID = "56";
 
 const isEditMode = ref(false);
 const loading = ref(true);
 const formHeader = ref<FormHeader>({
-  idrec: '',
+  idrec: "",
   nomor: null,
-  tanggal: format(new Date(), 'yyyy-MM-dd'),
-  deadline: format(addDays(new Date(), 14), 'yyyy-MM-dd'),
-  cabang: authStore.user?.cabang || '',
-  pic: '',
-  keterangan: '',
+  tanggal: format(new Date(), "yyyy-MM-dd"),
+  deadline: format(addDays(new Date(), 14), "yyyy-MM-dd"),
+  cabang: authStore.user?.cabang || "",
+  pic: "",
+  keterangan: "",
 });
 const authDialog = reactive<AuthDialogState>({
   show: false,
-  title: '',
-  jenis: '',
+  title: "",
+  jenis: "",
   nominal: 0,
-  transaksi: '',
-  barcode: '',
-  keterangan: '',
-  cabang: '',
+  transaksi: "",
+  barcode: "",
+  keterangan: "",
+  cabang: "",
   onSuccess: () => { },
   onCancel: () => { },
 });
 const dialogConfirm = reactive({
   show: false,
-  title: '',
-  text: '',
+  title: "",
+  text: "",
   onConfirm: () => { },
 });
 const dialogPrint = reactive({
   show: false,
-  nomor: '',
+  nomor: "",
 });
 
 const items = ref<DetailItem[]>([]);
-const scannedBarcode = ref('');
+const scannedBarcode = ref("");
 const activeRowIndex = ref(0);
 const isScanning = ref(false);
 const isLookupVisible = ref(false);
 const barcodeInputRef = ref<HTMLInputElement | null>(null);
 const isPenawaranLookupVisible = ref(false);
 
-const audioSuccess = new Audio('/audio/beep_success.mp3');
-const audioError = new Audio('/audio/beep_error.mp3');
+const audioSuccess = new Audio("/audio/beep_success.mp3");
+const audioError = new Audio("/audio/beep_error.mp3");
 
 // --- Computed ---
-const pageTitle = computed(() => isEditMode.value ? 'Ubah Peminjaman Barang' : 'Buat Peminjaman Barang');
+const pageTitle = computed(() =>
+  isEditMode.value ? "Ubah Peminjaman Barang" : "Buat Peminjaman Barang"
+);
 const totalJumlah = computed(() => items.value.reduce((sum, item) => sum + (item.jumlah || 0), 0));
 
 const headers = [
-  { title: 'No.', key: 'no', sortable: false, width: '50px' },
-  { title: 'Kode Barang', key: 'kode', sortable: false, width: '180px' },
-  { title: 'Nama Barang', key: 'nama', sortable: false },
-  { title: 'Ukuran', key: 'ukuran', sortable: false, width: '80px', align: 'center' },
-  { title: 'Stok', key: 'stok', sortable: false, align: 'end', width: '90px' },
-  { title: 'Jumlah', key: 'jumlah', sortable: false, align: 'end', width: '110px' },
-  { title: 'Actions', key: 'actions', sortable: false, width: '60px', align: 'center' }
+  { title: "No.", key: "no", sortable: false, width: "50px" },
+  { title: "Kode Barang", key: "kode", sortable: false, width: "180px" },
+  { title: "Nama Barang", key: "nama", sortable: false },
+  { title: "Ukuran", key: "ukuran", sortable: false, width: "80px", align: "center" },
+  { title: "Stok", key: "stok", sortable: false, align: "end", width: "90px" },
+  { title: "Jumlah", key: "jumlah", sortable: false, align: "end", width: "110px" },
+  { title: "Actions", key: "actions", sortable: false, width: "60px", align: "center" },
 ] as const;
 
 // --- Methods ---
 const addNewRow = () => {
-  if (!items.value.some(item => !item.kode)) {
+  if (!items.value.some((item) => !item.kode)) {
     items.value.push({
-      id: Date.now(), kode: '', barcode: '', nama: '', ukuran: '', stok: 0, jumlah: 0,
+      id: Date.now(),
+      kode: "",
+      barcode: "",
+      nama: "",
+      ukuran: "",
+      stok: 0,
+      jumlah: 0,
     });
   }
 };
@@ -166,12 +174,12 @@ const handleBarcodeScan = async () => {
   if (!scannedBarcode.value) return;
   isScanning.value = true;
   try {
-    const response = await api.get('/peminjaman-barang-form/lookup/product-by-barcode', {
-      params: { barcode: scannedBarcode.value, cabang: formHeader.value.cabang }
+    const response = await api.get("/peminjaman-barang-form/lookup/product-by-barcode", {
+      params: { barcode: scannedBarcode.value, cabang: formHeader.value.cabang },
     });
     processProductSelection(response.data);
     audioSuccess.play().catch(() => { });
-    scannedBarcode.value = '';
+    scannedBarcode.value = "";
     toast.success(`Ditambah: ${response.data.nama}`, { timeout: 1500 });
   } catch (error) {
     audioError.play().catch(() => { });
@@ -199,7 +207,7 @@ const onProductsSelected = (selectedProducts: LookupProduct[]) => {
   isLookupVisible.value = false;
   if (!selectedProducts || selectedProducts.length === 0) return;
 
-  const newItems: DetailItem[] = selectedProducts.map(product => ({
+  const newItems: DetailItem[] = selectedProducts.map((product) => ({
     id: Date.now() + Math.random(),
     kode: product.kode,
     barcode: product.barcode,
@@ -223,7 +231,7 @@ const onProductsSelected = (selectedProducts: LookupProduct[]) => {
 
 const openPenawaranSearch = () => {
   if (!formHeader.value.cabang) {
-    toast.error('Cabang/Gudang belum terdeteksi.');
+    toast.error("Cabang/Gudang belum terdeteksi.");
     return;
   }
   isPenawaranLookupVisible.value = true;
@@ -236,7 +244,7 @@ const onPenawaranSelected = async (penawaran: { nomor: string }) => {
   try {
     // Mengambil detail penawaran (menggunakan endpoint yang sama dengan SO)
     const response = await api.get(`/so-form/lookup/penawaran-details/${penawaran.nomor}`, {
-      params: { cabang: formHeader.value.cabang } // Kirim cabang ke backend
+      params: { cabang: formHeader.value.cabang }, // Kirim cabang ke backend
     });
     const { header: penHeader, details: penDetails } = response.data;
 
@@ -249,9 +257,9 @@ const onPenawaranSelected = async (penawaran: { nomor: string }) => {
     items.value = penDetails.map((d: PenawaranDetailApi) => ({
       id: Date.now() + Math.random(),
       kode: d.kode,
-      barcode: d.barcode || '',
+      barcode: d.barcode || "",
       nama: d.nama,
-      ukuran: d.ukuran || '',
+      ukuran: d.ukuran || "",
       stok: d.stok || 0,
       jumlah: d.jumlah || 0,
     }));
@@ -261,7 +269,7 @@ const onPenawaranSelected = async (penawaran: { nomor: string }) => {
   } catch (error: unknown) {
     // Menangani error dengan tipe unknown/AxiosError
     const axiosError = error as AxiosError<{ message: string }>;
-    const errorMessage = axiosError.response?.data?.message || 'Gagal memuat detail penawaran.';
+    const errorMessage = axiosError.response?.data?.message || "Gagal memuat detail penawaran.";
 
     toast.error(errorMessage);
     console.error(error);
@@ -272,16 +280,16 @@ const onPenawaranSelected = async (penawaran: { nomor: string }) => {
  * Memproses satu produk hasil scan barcode
  */
 const processProductSelection = (product: LookupProduct) => {
-  const existing = items.value.find(i => i.kode === product.kode && i.ukuran === product.ukuran);
+  const existing = items.value.find((i) => i.kode === product.kode && i.ukuran === product.ukuran);
 
   if (existing) {
     existing.jumlah += 1;
   } else {
-    const emptyIdx = items.value.findIndex(item => !item.kode);
+    const emptyIdx = items.value.findIndex((item) => !item.kode);
     const newItem: DetailItem = {
       ...product,
       id: Date.now(),
-      jumlah: 1
+      jumlah: 1,
     };
 
     if (emptyIdx !== -1) {
@@ -298,10 +306,10 @@ const requestAuthorization = (
   jenis: string,
   nominal: number,
   extraData: {
-    transaksi?: string,
-    barcode?: string,
-    keteranganLengkap?: string,
-    cabang?: string
+    transaksi?: string;
+    barcode?: string;
+    keteranganLengkap?: string;
+    cabang?: string;
   } | null,
   onSuccess: (data: { authNomor: string; approver: string }) => void,
   onCancel: () => void
@@ -311,15 +319,15 @@ const requestAuthorization = (
   authDialog.nominal = nominal;
 
   if (extraData) {
-    authDialog.transaksi = extraData.transaksi || '';
-    authDialog.barcode = extraData.barcode || '';
-    authDialog.keterangan = extraData.keteranganLengkap || '';
-    authDialog.cabang = extraData.cabang || '';
+    authDialog.transaksi = extraData.transaksi || "";
+    authDialog.barcode = extraData.barcode || "";
+    authDialog.keterangan = extraData.keteranganLengkap || "";
+    authDialog.cabang = extraData.cabang || "";
   } else {
-    authDialog.transaksi = '';
-    authDialog.barcode = '';
-    authDialog.keterangan = '';
-    authDialog.cabang = '';
+    authDialog.transaksi = "";
+    authDialog.barcode = "";
+    authDialog.keterangan = "";
+    authDialog.cabang = "";
   }
 
   // Wrapper agar modal tertutup sebelum callback dijalankan
@@ -335,16 +343,16 @@ const requestAuthorization = (
 const checkStokMinus = (): Promise<boolean> => {
   return new Promise((resolve) => {
     // Cari item yang jumlah pinjamnya > stok fisik
-    const itemsMinus = items.value.filter(item => {
+    const itemsMinus = items.value.filter((item) => {
       if (!item.kode) return false;
       return Number(item.jumlah || 0) > Number(item.stok || 0);
     });
 
     if (itemsMinus.length > 0) {
-      const itemNames = itemsMinus.map(i => `${i.nama} (${i.ukuran})`).join(', ');
+      const itemNames = itemsMinus.map((i) => `${i.nama} (${i.ukuran})`).join(", ");
 
       showConfirmation(
-        '⚠️ Konfirmasi Stok Minus',
+        "⚠️ Konfirmasi Stok Minus",
         `Barang berikut memiliki stok terbatas:\n\n(${itemNames}).\n\nStok akan menjadi MINUS jika dilanjutkan. Yakin tetap ingin meminjam?`,
         () => {
           // Jika user klik "Ya, Lanjutkan"
@@ -353,15 +361,18 @@ const checkStokMinus = (): Promise<boolean> => {
       );
 
       // Listener jika user menutup dialog atau klik "Batal"
-      const unwatch = watch(() => dialogConfirm.show, (isOpen) => {
-        if (!isOpen) {
-          unwatch();
-          // Jika dialog tertutup tapi onConfirm belum dipanggil, resolve false
-          setTimeout(() => {
-            if (!dialogConfirm.show) resolve(false);
-          }, 100);
+      const unwatch = watch(
+        () => dialogConfirm.show,
+        (isOpen) => {
+          if (!isOpen) {
+            unwatch();
+            // Jika dialog tertutup tapi onConfirm belum dipanggil, resolve false
+            setTimeout(() => {
+              if (!dialogConfirm.show) resolve(false);
+            }, 100);
+          }
         }
-      });
+      );
     } else {
       resolve(true); // Stok cukup semua
     }
@@ -370,10 +381,10 @@ const checkStokMinus = (): Promise<boolean> => {
 
 // --- Update fungsi Handle Simpan ---
 const handleSaveRequest = async () => {
-  if (!formHeader.value.pic) return toast.error('Nama peminjam (PIC) wajib diisi.');
+  if (!formHeader.value.pic) return toast.error("Nama peminjam (PIC) wajib diisi.");
 
-  const validItems = items.value.filter(i => i.kode && i.jumlah > 0);
-  if (validItems.length === 0) return toast.error('Minimal 1 barang harus diinput.');
+  const validItems = items.value.filter((i) => i.kode && i.jumlah > 0);
+  if (validItems.length === 0) return toast.error("Minimal 1 barang harus diinput.");
 
   // --- 1. Validasi Stok Minus (Sama seperti Invoice) ---
   const stokOk = await checkStokMinus();
@@ -381,8 +392,8 @@ const handleSaveRequest = async () => {
 
   // --- 2. Jika Stok OK atau User Setuju Minus, Lanjut Konfirmasi Simpan ---
   showConfirmation(
-    'Konfirmasi Simpan',
-    'Apakah Anda yakin data yang diinput sudah benar dan ingin mengirim permintaan otorisasi?',
+    "Konfirmasi Simpan",
+    "Apakah Anda yakin data yang diinput sudah benar dan ingin mengirim permintaan otorisasi?",
     () => {
       handleSave(); // Menuju proses otorisasi PIN
     }
@@ -391,12 +402,12 @@ const handleSaveRequest = async () => {
 
 const handleTutup = () => {
   // Cek jika sudah ada item yang diinput
-  const hasData = items.value.some(i => i.kode) || formHeader.value.pic;
+  const hasData = items.value.some((i) => i.kode) || formHeader.value.pic;
 
   if (hasData) {
     showConfirmation(
-      'Batalkan Input?',
-      'Ada data yang belum disimpan. Yakin ingin keluar dari halaman ini?',
+      "Batalkan Input?",
+      "Ada data yang belum disimpan. Yakin ingin keluar dari halaman ini?",
       () => router.back()
     );
   } else {
@@ -405,54 +416,61 @@ const handleTutup = () => {
 };
 
 const handleSave = () => {
-  if (!formHeader.value.pic) return toast.error('Nama peminjam (PIC) wajib diisi.');
-  const validItems = items.value.filter(i => i.kode && i.jumlah > 0);
-  if (validItems.length === 0) return toast.error('Minimal 1 barang harus diinput.');
+  if (!formHeader.value.pic) return toast.error("Nama peminjam (PIC) wajib diisi.");
+  const validItems = items.value.filter((i) => i.kode && i.jumlah > 0);
+  if (validItems.length === 0) return toast.error("Minimal 1 barang harus diinput.");
+
+  if (authStore.user?.cabang === "KDC") {
+    // Kita kirim penanda bahwa ini adalah ACC otomatis dari sistem/user KDC
+    const approverName = `AUTO_KDC_${authStore.user.nama || "SYSTEM"}`;
+    executeSave(approverName);
+    return;
+  }
 
   // Susun info lengkap untuk Supervisor
-  const infoLengkap = `Mohon persetujuan peminjaman barang:\n` +
+  const infoLengkap =
+    `Mohon persetujuan peminjaman barang:\n` +
     `PIC: ${formHeader.value.pic}\n` +
     `Keperluan: ${formHeader.value.keterangan}\n` +
     `Total: ${totalJumlah.value} Pcs`;
 
   requestAuthorization(
-    'Otorisasi Peminjaman', // Judul Modal
-    'PEMINJAMAN_BARANG',           // Jenis Transaksi
-    totalJumlah.value,             // Nominal diisi dengan Qty barang
+    "Otorisasi Peminjaman", // Judul Modal
+    "PEMINJAMAN_BARANG", // Jenis Transaksi
+    totalJumlah.value, // Nominal diisi dengan Qty barang
     {
-      transaksi: formHeader.value.nomor || 'DRAFT',
+      transaksi: formHeader.value.nomor || "DRAFT",
       keteranganLengkap: infoLengkap,
-      cabang: 'KDC'
+      cabang: "KDC",
     },
     (authResult) => {
       // Jika Approved, jalankan fungsi simpan permanen
       executeSave(authResult.approver);
     },
     () => {
-      toast.info('Simpan dibatalkan.');
+      toast.info("Simpan dibatalkan.");
     }
   );
 };
 
-const executeSave = async (approverName: string = '') => {
+const executeSave = async (approverName: string = "") => {
   try {
     const payload = {
       header: formHeader.value,
-      items: items.value.filter(item => item.kode && item.jumlah > 0),
+      items: items.value.filter((item) => item.kode && item.jumlah > 0),
       approver: approverName,
-      user: authStore.user
+      user: authStore.user,
     };
 
     const response = isEditMode.value
       ? await api.put(`/peminjaman-barang-form/${route.params.id}`, payload)
-      : await api.post('/peminjaman-barang-form', payload);
+      : await api.post("/peminjaman-barang-form", payload);
 
     toast.success(response.data.message);
 
     // Tampilkan Dialog Cetak
     dialogPrint.nomor = response.data.nomor;
     dialogPrint.show = true;
-
   } catch (error) {
     const err = error as AxiosError<{ message?: string }>;
     toast.error(err.response?.data?.message || "Gagal menyimpan data.");
@@ -464,13 +482,13 @@ const handlePrintAction = (confirm: boolean) => {
   if (confirm) {
     // Buka tab baru untuk cetak
     const routeData = router.resolve({
-      name: 'PeminjamanBarangPrint',
-      params: { nomor: dialogPrint.nomor }
+      name: "PeminjamanBarangPrint",
+      params: { nomor: dialogPrint.nomor },
     });
-    window.open(routeData.href, '_blank');
+    window.open(routeData.href, "_blank");
   }
   // Kembali ke halaman browse setelah aksi cetak (Ya/Tidak)
-  router.push({ name: 'PeminjamanBarang' });
+  router.push({ name: "PeminjamanBarang" });
 };
 
 /**
@@ -481,9 +499,9 @@ const getQtyClass = (item: DetailItem): string => {
   const qtyInput = Number(item.jumlah || 0);
 
   if (qtyInput > stokTersedia) {
-    return 'text-red font-weight-bold'; // Warna merah jika meminjam melebihi stok fisik
+    return "text-red font-weight-bold"; // Warna merah jika meminjam melebihi stok fisik
   }
-  return '';
+  return "";
 };
 
 onMounted(() => {
@@ -579,8 +597,12 @@ onMounted(() => {
 
     <AuthorizationModal v-if="authDialog.show" :title="authDialog.title" :jenis="authDialog.jenis"
       :nominal="authDialog.nominal" :transaksi="authDialog.transaksi" :barcode="authDialog.barcode"
-      :keterangan="authDialog.keterangan" :cabang="authDialog.cabang" @success="authDialog.onSuccess"
-      @close="() => { authDialog.show = false; authDialog.onCancel(); }" />
+      :keterangan="authDialog.keterangan" :cabang="authDialog.cabang" @success="authDialog.onSuccess" @close="
+        () => {
+          authDialog.show = false;
+          authDialog.onCancel();
+        }
+      " />
 
     <v-dialog v-model="dialogConfirm.show" max-width="450px" persistent>
       <v-card>
@@ -595,8 +617,10 @@ onMounted(() => {
         <v-card-actions class="pa-3">
           <v-spacer></v-spacer>
           <v-btn variant="text" @click="dialogConfirm.show = false">Batal</v-btn>
-          <v-btn color="primary" variant="flat" @click="dialogConfirm.onConfirm(); dialogConfirm.show = false;"
-            class="px-6">
+          <v-btn color="primary" variant="flat" @click="
+            dialogConfirm.onConfirm();
+          dialogConfirm.show = false;
+          " class="px-6">
             Ya, Lanjutkan
           </v-btn>
         </v-card-actions>
@@ -607,7 +631,7 @@ onMounted(() => {
       <v-card>
         <v-card-title class="text-h6 bg-blue text-white">Simpan Berhasil</v-card-title>
         <v-card-text class="pa-5">
-          Data peminjaman <strong>{{ dialogPrint.nomor }}</strong> telah disimpan.<br><br>
+          Data peminjaman <strong>{{ dialogPrint.nomor }}</strong> telah disimpan.<br /><br />
           Apakah Anda ingin mencetak Form Peminjaman sekarang?
         </v-card-text>
         <v-divider></v-divider>
@@ -665,10 +689,10 @@ onMounted(() => {
 }
 
 .scanner-wrapper {
-  background-color: #E3F2FD;
+  background-color: #e3f2fd;
   padding: 8px;
   border-radius: 8px;
-  border: 1px solid #BBDEFB;
+  border: 1px solid #bbdefb;
 }
 
 .table-container {
@@ -680,7 +704,7 @@ onMounted(() => {
 
 /* Header Tabel Biru Tua identik dengan Ambil Barang */
 .desktop-table :deep(thead tr th) {
-  background-color: #0D47A1 !important;
+  background-color: #0d47a1 !important;
   color: #ffffff !important;
   font-weight: bold !important;
   text-transform: uppercase;
@@ -688,6 +712,6 @@ onMounted(() => {
 }
 
 .text-primary {
-  color: #0D47A1 !important;
+  color: #0d47a1 !important;
 }
 </style>

@@ -4,7 +4,7 @@ import { useRouter } from 'vue-router';
 import { useToast } from 'vue-toastification';
 import { useAuthStore } from '@/stores/authStore';
 import api from '@/services/api';
-import { format, subDays, parseISO } from 'date-fns';
+import { format, subDays, parseISO, isSameDay } from 'date-fns';
 import PageLayout from '@/components/PageLayout.vue';
 import * as XLSX from 'xlsx';
 import AppDataTable from '@/components/AppDataTable.vue';
@@ -85,6 +85,20 @@ const canBeModified = computed(() => {
   if (!isSingleSelected.value) return false;
   const item = selected.value[0];
   return !item.Verified;
+});
+const hasTodayFsk = computed(() => {
+  const today = new Date();
+  return masterData.value.some(item => {
+    const tglSetor = parseISO(item.TglSetor);
+    // Cek jika tanggal sama dan milik cabang user sendiri (bukan hasil intip cabang lain jika KDC)
+    return isSameDay(tglSetor, today) && item.Nomor.startsWith(authStore.user?.cabang || '');
+  });
+});
+
+const newButtonDisabledReason = computed(() => {
+  if (hasTodayFsk.value) return 'FSK hari ini sudah dibuat. SC hanya diperbolehkan membuat 1 FSK per hari.';
+  if (!authStore.can(MENU_ID, 'insert')) return 'Anda tidak memiliki izin.';
+  return '';
 });
 
 // --- Header Definisi (Ref & Width Angka) ---
@@ -352,8 +366,15 @@ watch(filters, fetchMasterData, { deep: true });
 <template>
   <PageLayout title="Browse Form Setoran Kasir" icon="mdi-cash-register">
     <template #header-actions>
-      <v-btn v-if="authStore.can(MENU_ID, 'insert')" size="small" prepend-icon="mdi-plus" color="primary"
-        @click="router.push({ name: 'FskCreate' })">Baru</v-btn>
+      <v-tooltip location="bottom" :disabled="!hasTodayFsk">
+        <template #activator="{ props }">
+          <span v-bind="props">
+            <v-btn size="small" prepend-icon="mdi-plus" color="primary" :disabled="!!newButtonDisabledReason"
+              @click="router.push({ name: 'FskCreate' })">Baru</v-btn>
+          </span>
+        </template>
+        <span>{{ newButtonDisabledReason }}</span>
+      </v-tooltip>
       <v-btn v-if="authStore.can(MENU_ID, 'edit')" size="small" prepend-icon="mdi-pencil" :disabled="!canBeModified"
         @click="router.push({ name: 'FskEdit', params: { nomor: selectedRow?.Nomor } })">
         Ubah
@@ -384,6 +405,12 @@ watch(filters, fetchMasterData, { deep: true });
     </template>
 
     <div class="browse-content">
+      <v-alert type="info" variant="tonal" density="compact" icon="mdi-information" class="ma-2 text-caption"
+        border="start">
+        <strong>Perhatian:</strong> Pembuatan FSK merupakan tanda <strong>Closing (Tutup Kasir)</strong> untuk hari ini.
+        SC disarankan untuk membuat FSK hanya saat operasional toko benar-benar sudah selesai.
+        Sistem membatasi pembuatan maksimal <strong>1 FSK per hari</strong>.
+      </v-alert>
       <div class="filter-section">
         <v-label class="filter-label">Periode:</v-label>
         <v-text-field v-model="filters.startDate" type="date" density="compact" hide-details variant="outlined"

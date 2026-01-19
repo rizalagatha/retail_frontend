@@ -236,6 +236,8 @@ const ParetoPrintView = () => import("@/views/laporan/penjualan/ParetoPrintView.
 const StokOpnameSettingTanggalView = () =>
   import("@/views/transaksi/stok-opname/StokOpnameSettingTanggalView.vue");
 const HitungStokLokasiView = () => import("@/views/transaksi/stok-opname/HitungStokLokasiView.vue");
+const HitungStokOperatorView = () =>
+  import("@/views/transaksi/stok-opname/HitungStokOperatorView.vue");
 const CekSelisihView = () => import("@/views/transaksi/stok-opname/CekSelisihView.vue");
 const ProsesStokOpnameView = () => import("@/views/transaksi/stok-opname/ProsesStokOpnameView.vue");
 const ProsesStokOpnameCreateView = () =>
@@ -1965,6 +1967,16 @@ const routes = [
       title: "Browse Hitung Stok per Lokasi",
       requiresAuth: true,
       menuId: "20",
+    },
+  },
+  {
+    path: "/transaksi/stok-opname/hitung-per-operator",
+    name: "HitungStokOperator",
+    component: HitungStokOperatorView,
+    meta: {
+      title: "Browse Hitung Stok per Operator",
+      requiresAuth: true,
+      menuId: "19", // Sesuai permintaan
     },
   },
   {

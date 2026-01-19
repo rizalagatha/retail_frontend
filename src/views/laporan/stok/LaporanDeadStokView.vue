@@ -18,6 +18,7 @@ interface DeadStockItem {
   'Nama Barang': string;
   Ukuran: string;
   Stok: number;
+  AvgSales: number;
   'Last Terima STBJ/Tanggal': string | null;
   'No STBJ/SJ': string;
   'Umur (Hari)': number;
@@ -35,10 +36,19 @@ const cabangOptions = ref([]);
 
 const filters = reactive({
   cabang: authStore.user?.cabang === 'KDC' ? 'ALL' : authStore.user?.cabang || '',
-  minUmur: 90, // Default 90 hari
+  minUmur: 90,
+  avgPeriod: 12, // Default 1 tahun
 });
 
-const headers = [
+// Opsi untuk filter periode
+const periodOptions = [
+  { title: '1 Kuartal (3 Bln)', value: 3 },
+  { title: '2 Kuartal (6 Bln)', value: 6 },
+  { title: '3 Kuartal (9 Bln)', value: 9 },
+  { title: 'Tahunan (12 Bln)', value: 12 },
+];
+
+const headers = computed(() => [
   { title: 'No', key: 'no' },
   { title: 'Kode Cabang', key: 'cabang' },
   { title: 'Nama Cabang', key: 'Nama Cabang' },
@@ -48,12 +58,14 @@ const headers = [
   { title: 'Nama Barang', key: 'Nama Barang' },
   { title: 'Ukuran', key: 'Ukuran' },
   { title: 'Stok', key: 'Stok' },
+  // Judul kolom sekarang mengikuti nilai filter avgPeriod
+  { title: `Avg Sale (${filters.avgPeriod} Bln)`, key: 'AvgSales' },
   { title: 'Last Terima Tanggal', key: 'Last Terima STBJ/Tanggal' },
   { title: 'No STBJ/SJ', key: 'No STBJ/SJ' },
   { title: 'Umur (Hari)', key: 'Umur (Hari)' },
   { title: 'Umur (Bulan)', key: 'Umur (Bulan)' },
   { title: 'Umur (Tahun)', key: 'Umur (Tahun)' },
-];
+]);
 
 // --- Kalkulasi Total ---
 const totalStok = computed(() => {
@@ -101,6 +113,19 @@ const fetchCabangOptions = async () => {
   }
 };
 
+// Fungsi pewarnaan baris berdasarkan logika Average Sales
+const getRowTextColor = (item: DeadStockItem) => {
+  // Jika penjualan 0 (Mati total) dan stok masih ada
+  if (Number(item.AvgSales) === 0 && Number(item.Stok) > 0) {
+    return 'text-red font-weight-bold';
+  }
+  // Jika penjualan sangat lambat (misal < 0.5 per bulan)
+  if (Number(item.AvgSales) > 0 && Number(item.AvgSales) < 0.5) {
+    return 'text-orange';
+  }
+  return '';
+};
+
 const exportData = () => {
   if (items.value.length === 0) return toast.warning('Tidak ada data untuk diekspor.');
   const worksheet = XLSX.utils.json_to_sheet(items.value);
@@ -133,6 +158,9 @@ watch(filters, fetchData, { deep: true });
         <v-text-field v-model.number="filters.minUmur" label="Umur Barang (Hari) >=" type="number" density="compact"
           hide-details variant="outlined" style="max-width: 200px;" />
 
+        <v-select v-model="filters.avgPeriod" :items="periodOptions" label="Periode Rata-rata" density="compact"
+          hide-details variant="outlined" style="max-width: 200px;" prepend-inner-icon="mdi-chart-line" />
+
         <v-spacer />
 
         <v-btn @click="fetchData" icon="mdi-refresh" variant="text" size="small" :loading="isLoading" />
@@ -158,7 +186,7 @@ watch(filters, fetchData, { deep: true });
                 <td :colspan="headers.length" class="text-center py-4">Tidak ada data</td>
               </tr>
               <template v-else>
-                <tr v-for="(item, index) in items" :key="index">
+                <tr v-for="(item, index) in items" :key="index" :class="getRowTextColor(item)">
                   <td class="text-center">{{ index + 1 }}</td>
                   <td>{{ item.cabang }}</td>
                   <td>{{ item['Nama Cabang'] }}</td>
@@ -168,6 +196,9 @@ watch(filters, fetchData, { deep: true });
                   <td class="nama-barang">{{ item['Nama Barang'] }}</td>
                   <td class="text-center">{{ item.Ukuran }}</td>
                   <td class="text-end">{{ (item.Stok || 0).toLocaleString('id-ID') }}</td>
+                  <td class="text-end" :class="item.AvgSales > 0 ? 'text-primary' : 'text-grey'">
+                    {{ Number(item.AvgSales || 0).toFixed(1) }}
+                  </td>
                   <td class="text-center">
                     {{ item['Last Terima STBJ/Tanggal'] ? format(new Date(item['Last Terima STBJ/Tanggal']),
                       'dd/MM/yyyy') : '' }}
@@ -183,7 +214,7 @@ watch(filters, fetchData, { deep: true });
               <tr class="font-weight-bold">
                 <td colspan="8" class="text-end">GRAND TOTAL :</td>
                 <td class="text-end">{{ totalStok.toLocaleString('id-ID') }}</td>
-                <td colspan="4"></td>
+                <td colspan="5"></td>
               </tr>
             </tfoot>
           </table>
@@ -320,4 +351,13 @@ watch(filters, fetchData, { deep: true });
   background: rgba(var(--v-theme-on-surface), 0.5);
 }
 
+/* Pewarnaan Baris */
+:deep(.text-red) {
+  color: rgb(var(--v-theme-error)) !important;
+}
+
+.text-orange {
+  color: #FB8C00 !important;
+  /* Warna Orange untuk peringatan sedang */
+}
 </style>

@@ -1,19 +1,19 @@
 <script setup lang="ts">
-import { ref, onMounted, computed, watch, reactive } from 'vue';
-import { useRouter } from 'vue-router';
-import api from '@/services/api';
-import PageLayout from '@/components/PageLayout.vue';
-import { useToast } from 'vue-toastification';
-import { useAuthStore } from '@/stores/authStore';
-import { format, subDays, parseISO } from 'date-fns';
-import * as XLSX from 'xlsx';
-import { AxiosError } from 'axios';
-import AppDataTable from '@/components/AppDataTable.vue';
+import { ref, onMounted, computed, watch, reactive } from "vue";
+import { useRouter } from "vue-router";
+import api from "@/services/api";
+import PageLayout from "@/components/PageLayout.vue";
+import { useToast } from "vue-toastification";
+import { useAuthStore } from "@/stores/authStore";
+import { format, subDays, parseISO } from "date-fns";
+import * as XLSX from "xlsx";
+import { AxiosError } from "axios";
+import AppDataTable from "@/components/AppDataTable.vue";
 
 const toast = useToast();
 const authStore = useAuthStore();
 const router = useRouter();
-const MENU_ID = '37';
+const MENU_ID = "37";
 
 // --- Interface Header (Wajib untuk Resize) ---
 interface DataTableHeader {
@@ -21,7 +21,7 @@ interface DataTableHeader {
   key: string;
   width?: number;
   fixed?: boolean;
-  align?: 'start' | 'center' | 'end';
+  align?: "start" | "center" | "end";
   minWidth?: string | number;
   maxWidth?: string | number;
   sortable?: boolean;
@@ -31,12 +31,13 @@ interface MintaBarangHeader {
   Nomor: string;
   Tanggal: string;
   NoSO?: string;
+  NoPL?: string;
   NoSJ?: string;
   TerimaSJ?: string;
   Keterangan?: string;
-  Otomatis?: 'Y' | 'N';
+  Otomatis?: "Y" | "N";
   Created?: string;
-  Closing?: 'Y' | 'N';
+  Closing?: "Y" | "N";
   [key: string]: unknown;
 }
 
@@ -61,10 +62,10 @@ const list = ref<MintaBarangHeader[]>([]);
 const details = ref<{ [nomor: string]: MintaBarangDetail[] }>({});
 const isLoading = ref(true);
 const filters = reactive({
-  startDate: format(subDays(new Date(), 30), 'yyyy-MM-dd'),
-  endDate: format(new Date(), 'yyyy-MM-dd'),
-  cabang: authStore.user?.cabang === 'KDC' ? 'ALL' : authStore.user?.cabang || '',
-  jenisPermintaan: 'semua', // 'semua', 'manual', 'otomatis'
+  startDate: format(subDays(new Date(), 30), "yyyy-MM-dd"),
+  endDate: format(new Date(), "yyyy-MM-dd"),
+  cabang: authStore.user?.cabang === "KDC" ? "ALL" : authStore.user?.cabang || "",
+  jenisPermintaan: "semua", // 'semua', 'manual', 'otomatis'
 });
 
 const cabangList = ref([]);
@@ -74,38 +75,43 @@ const loadingDetails = ref(new Set<string>());
 
 const isConfirmDeleteVisible = ref(false);
 const itemToDelete = ref<MintaBarangHeader | null>(null);
-const confirmDialogText = ref('');
+const confirmDialogText = ref("");
 
 // --- Computed ---
-const hasViewPermission = computed(() => authStore.can(MENU_ID, 'view'));
-const canInsert = computed(() => authStore.can(MENU_ID, 'insert') && authStore.user?.cabang !== 'KDC');
-const canEdit = computed(() => authStore.can(MENU_ID, 'edit'));
-const canDelete = computed(() => authStore.can(MENU_ID, 'delete') && authStore.user?.cabang !== 'KDC');
+const hasViewPermission = computed(() => authStore.can(MENU_ID, "view"));
+const canInsert = computed(
+  () => authStore.can(MENU_ID, "insert") && authStore.user?.cabang !== "KDC"
+);
+const canEdit = computed(() => authStore.can(MENU_ID, "edit"));
+const canDelete = computed(
+  () => authStore.can(MENU_ID, "delete") && authStore.user?.cabang !== "KDC"
+);
 const isSingleSelected = computed(() => selected.value.length === 1);
 
 // --- Header Definisi (Ref & Width Angka) ---
 const headers = ref<DataTableHeader[]>([
-  { title: '', key: 'data-table-expand', width: 50, fixed: true },
-  { title: 'Nomor', key: 'Nomor', width: 180, fixed: true },
-  { title: 'Tanggal', key: 'Tanggal', width: 110 },
-  { title: 'No. SO', key: 'NoSO', width: 180 },
-  { title: 'No. SJ', key: 'NoSJ', width: 180 },
-  { title: 'Terima SJ', key: 'TerimaSJ', width: 110 },
-  { title: 'Keterangan', key: 'Keterangan', width: 300 },
-  { title: 'Otomatis', key: 'Otomatis', align: 'center', width: 100 },
-  { title: 'User', key: 'Created', width: 120 },
-  { title: 'Closing', key: 'Closing', align: 'center', width: 80 },
+  { title: "", key: "data-table-expand", width: 50, fixed: true },
+  { title: "Nomor", key: "Nomor", width: 180, fixed: true },
+  { title: "Tanggal", key: "Tanggal", width: 110 },
+  { title: "No. PL", key: "NoPL", width: 180 },
+  { title: "No. SO", key: "NoSO", width: 180 },
+  { title: "No. SJ", key: "NoSJ", width: 180 },
+  { title: "Terima SJ", key: "TerimaSJ", width: 110 },
+  { title: "Keterangan", key: "Keterangan", width: 300 },
+  { title: "Otomatis", key: "Otomatis", align: "center", width: 100 },
+  { title: "User", key: "Created", width: 120 },
+  { title: "Closing", key: "Closing", align: "center", width: 80 },
 ]);
 
 const detailHeaders = [
-  { title: 'Kode', key: 'Kode', width: '150px' },
-  { title: 'Barcode', key: 'Barcode', width: '120px' },
-  { title: 'Nama Barang', key: 'Nama', width: '250px' },
-  { title: 'Ukuran', key: 'Ukuran', width: '80px' },
-  { title: 'Stok Minimal', key: 'StokMinimal', align: 'end', width: '100px' },
-  { title: 'Stok Maximal', key: 'StokMaximal', align: 'end', width: '100px' },
-  { title: 'Jumlah', key: 'Jumlah', align: 'end', width: '100px' },
-  { title: 'SJ', key: 'SJ', align: 'end', width: '100px' },
+  { title: "Kode", key: "Kode", width: "150px" },
+  { title: "Barcode", key: "Barcode", width: "120px" },
+  { title: "Nama Barang", key: "Nama", width: "250px" },
+  { title: "Ukuran", key: "Ukuran", width: "80px" },
+  { title: "Stok Minimal", key: "StokMinimal", align: "end", width: "100px" },
+  { title: "Stok Maximal", key: "StokMaximal", align: "end", width: "100px" },
+  { title: "Jumlah", key: "Jumlah", align: "end", width: "100px" },
+  { title: "SJ", key: "SJ", align: "end", width: "100px" },
 ] as const;
 
 // --- Logic Resize Column ---
@@ -118,10 +124,10 @@ const onResizeStart = (e: MouseEvent, column: DataTableHeader) => {
   e.stopPropagation();
   resizingColumn.value = column;
   startX.value = e.pageX;
-  startWidth.value = (typeof column.width === 'number' ? column.width : 100);
-  document.addEventListener('mousemove', onResizeMove);
-  document.addEventListener('mouseup', onResizeEnd);
-  document.body.style.cursor = 'col-resize';
+  startWidth.value = typeof column.width === "number" ? column.width : 100;
+  document.addEventListener("mousemove", onResizeMove);
+  document.addEventListener("mouseup", onResizeEnd);
+  document.body.style.cursor = "col-resize";
 };
 
 const onResizeMove = (e: MouseEvent) => {
@@ -132,9 +138,9 @@ const onResizeMove = (e: MouseEvent) => {
 
 const onResizeEnd = () => {
   resizingColumn.value = null;
-  document.removeEventListener('mousemove', onResizeMove);
-  document.removeEventListener('mouseup', onResizeEnd);
-  document.body.style.cursor = '';
+  document.removeEventListener("mousemove", onResizeMove);
+  document.removeEventListener("mouseup", onResizeEnd);
+  document.body.style.cursor = "";
 };
 
 // --- Logic Selected Row ---
@@ -145,32 +151,36 @@ const handleRowClick = (_event: Event, { item }: { item: MintaBarangHeader }) =>
 // --- Methods ---
 const fetchCabangList = async () => {
   try {
-    const response = await api.get('/minta-barang/lookup/cabang');
+    const response = await api.get("/minta-barang/lookup/cabang");
     cabangList.value = response.data;
-  } catch (error) { toast.error('Gagal memuat daftar cabang.', error); }
+  } catch (error) {
+    toast.error("Gagal memuat daftar cabang.", error);
+  }
 };
 
 const fetchData = async () => {
   isLoading.value = true;
   try {
-    const response = await api.get('/minta-barang', {
+    const response = await api.get("/minta-barang", {
       params: {
         startDate: filters.startDate,
         endDate: filters.endDate,
         cabang: filters.cabang,
         jenisPermintaan: filters.jenisPermintaan,
-      }
+      },
     });
     list.value = response.data;
   } catch (error) {
-    toast.error('Gagal memuat data.', error);
+    toast.error("Gagal memuat data.", error);
   } finally {
     isLoading.value = false;
   }
 };
 
 const loadDetails = async (newlyExpandedItems: MintaBarangHeader[]) => {
-  const itemToLoad = newlyExpandedItems.find(item => !details.value[item.Nomor] && !loadingDetails.value.has(item.Nomor));
+  const itemToLoad = newlyExpandedItems.find(
+    (item) => !details.value[item.Nomor] && !loadingDetails.value.has(item.Nomor)
+  );
   if (!itemToLoad) return;
 
   const nomorToLoad = itemToLoad.Nomor;
@@ -181,33 +191,49 @@ const loadDetails = async (newlyExpandedItems: MintaBarangHeader[]) => {
     details.value[nomorToLoad] = response.data;
   } catch {
     toast.error(`Gagal memuat detail untuk ${nomorToLoad}`);
-    expanded.value = expanded.value.filter(nomor => nomor !== nomorToLoad);
+    expanded.value = expanded.value.filter((nomor) => nomor !== nomorToLoad);
   } finally {
     loadingDetails.value.delete(nomorToLoad);
   }
 };
 
 const getRowTextColor = (item: MintaBarangHeader) => {
-  if (!item.NoSJ) return 'text-red font-weight-bold';
-  if (item.NoSJ && !item.TerimaSJ) return 'text-blue font-weight-bold';
-  return '';
+  // 1. Jika sudah diterima (TerimaSJ terisi) -> HITAM (Tanpa class)
+  if (item.TerimaSJ && item.TerimaSJ !== "") return "";
+
+  // 2. Jika sudah ada NoSJ (Data Lama/Langsung) ATAU NoPL (Data Baru)
+  // tapi belum diterima -> BIRU (Dalam Proses)
+  if ((item.NoSJ && item.NoSJ !== "") || (item.NoPL && item.NoPL !== "")) {
+    return "text-blue font-weight-bold";
+  }
+
+  // 3. Jika benar-benar belum diproses sama sekali (PL & SJ kosong) -> MERAH
+  return "text-red font-weight-bold";
 };
 
 const editItem = () => {
   if (!isSingleSelected.value) return;
   const item = selected.value[0];
-  if (item.Otomatis === 'Y') { return toast.warning('Permintaan Otomatis tidak bisa diubah.'); }
-  if (item.NoSJ) { return toast.warning('Sudah dibuatkan SJ, tidak bisa diubah.'); }
-  if (item.Closing === 'Y') { return toast.warning('Transaksi sudah Closing, tidak bisa diubah.'); }
+  if (item.Otomatis === "Y") return toast.warning("Permintaan Otomatis tidak bisa diubah.");
+
+  // Proteksi: Jika sudah masuk PL atau sudah jadi SJ, jangan boleh ubah
+  if (item.NoPL || item.NoSJ) {
+    return toast.warning("Sudah diproses ke Packing List/SJ, tidak bisa diubah.");
+  }
+
+  if (item.Closing === "Y") return toast.warning("Transaksi sudah Closing, tidak bisa diubah.");
   router.push(`/transaksi/internal/minta-barang/ubah/${item.Nomor}`);
 };
 
 const showDeleteConfirmation = () => {
   if (!isSingleSelected.value) return;
   const item = selected.value[0];
-  if (item.Otomatis === 'Y') { return toast.warning('Permintaan Otomatis tidak bisa dihapus.'); }
-  if (item.NoSJ) { return toast.warning('Sudah dibuatkan SJ, tidak bisa dihapus.'); }
-  if (item.Closing === 'Y') { return toast.warning('Transaksi sudah Closing, tidak bisa dihapus.'); }
+  if (item.Otomatis === "Y") return toast.warning("Permintaan Otomatis tidak bisa dihapus.");
+
+  // [GANTI] Proteksi menggunakan NoPL
+  if (item.NoPL) return toast.warning("Sudah diproses ke Packing List/SJ, tidak bisa dihapus.");
+
+  if (item.Closing === "Y") return toast.warning("Transaksi sudah Closing, tidak bisa dihapus.");
 
   itemToDelete.value = item;
   confirmDialogText.value = `Anda yakin ingin menghapus data Nomor: ${item.Nomor}?`;
@@ -223,97 +249,92 @@ const executeDelete = async () => {
     selected.value = [];
   } catch (error) {
     const axiosError = error as AxiosError<{ message: string }>;
-    toast.error(axiosError.response?.data?.message || 'Gagal menghapus data.');
+    toast.error(axiosError.response?.data?.message || "Gagal menghapus data.");
   } finally {
     isConfirmDeleteVisible.value = false;
     itemToDelete.value = null;
   }
 };
 
-const handleNew = () => router.push({ name: 'MintaBarangCreate' });
+const handleNew = () => router.push({ name: "MintaBarangCreate" });
 
 // --- 2. Helper Format Tanggal ---
 const formatDateIndo = (dateString: string | Date | null | undefined) => {
-  if (!dateString) return '';
+  if (!dateString) return "";
   const date = new Date(dateString);
-  if (isNaN(date.getTime())) return ''; // Validasi date object
-  return new Intl.DateTimeFormat('id-ID', {
-    day: 'numeric',
-    month: 'long',
-    year: 'numeric'
+  if (isNaN(date.getTime())) return ""; // Validasi date object
+  return new Intl.DateTimeFormat("id-ID", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
   }).format(date);
 };
 
 // --- 3. Fungsi Export Data ---
-const exportData = async (type: 'header' | 'detail') => {
-
+const exportData = async (type: "header" | "detail") => {
   // === EXPORT HEADER (Dari Frontend State) ===
-  if (type === 'header') {
+  if (type === "header") {
     // Casting list.value ke tipe MintaBarangHeader[]
     const currentList = list.value as MintaBarangHeader[];
 
     if (currentList.length === 0) {
-      toast.warning('Tidak ada data header untuk diekspor.');
+      toast.warning("Tidak ada data header untuk diekspor.");
       return;
     }
 
     try {
-      toast.info('Membuat file Excel Header...');
+      toast.info("Membuat file Excel Header...");
 
       // Mapping data untuk format tanggal
       const formattedHeader = currentList.map((item) => ({
         ...item,
-        Tanggal: item.Tanggal ? formatDateIndo(item.Tanggal) : '',
+        Tanggal: item.Tanggal ? formatDateIndo(item.Tanggal) : "",
         // Format tanggal lain jika perlu (misal TerimaSJ, Created)
-        TerimaSJ: item.TerimaSJ ? formatDateIndo(item.TerimaSJ) : '',
-        Created: item.Created ? formatDateIndo(item.Created) : '',
+        TerimaSJ: item.TerimaSJ ? formatDateIndo(item.TerimaSJ) : "",
+        Created: item.Created ? formatDateIndo(item.Created) : "",
       }));
 
       const worksheet = XLSX.utils.json_to_sheet(formattedHeader);
       const workbook = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(workbook, worksheet, "Minta Barang Header");
       XLSX.writeFile(workbook, "Export_MintaBarang_Header.xlsx");
-      toast.success('File Header berhasil dibuat.');
+      toast.success("File Header berhasil dibuat.");
     } catch (error) {
-      toast.error('Gagal membuat file Excel.', error);
+      toast.error("Gagal membuat file Excel.", error);
     }
 
     // === EXPORT DETAIL (Dari Backend API) ===
-  } else if (type === 'detail') {
+  } else if (type === "detail") {
     try {
-      toast.info('Mengambil data detail dari server...');
+      toast.info("Mengambil data detail dari server...");
 
       // Request API dengan Generic Type
-      const response = await api.get<MintaBarangExportDetail[]>('/minta-barang/export-details', {
-        params: filters
+      const response = await api.get<MintaBarangExportDetail[]>("/minta-barang/export-details", {
+        params: filters,
       });
 
       if (response.data.length === 0) {
-        toast.warning('Tidak ada data detail untuk diekspor.');
+        toast.warning("Tidak ada data detail untuk diekspor.");
         return;
       }
 
       // Format Tanggal pada data Detail
       const formattedDetail = response.data.map((row) => ({
         ...row,
-        Tanggal: row.Tanggal ? formatDateIndo(row.Tanggal) : ''
+        Tanggal: row.Tanggal ? formatDateIndo(row.Tanggal) : "",
       }));
 
       // Setup Layout Excel
       const title = "LAPORAN DETAIL MINTA BARANG KE DC";
-      const dateRange = `Periode : ${formatDateIndo(filters.startDate)} s/d ${formatDateIndo(filters.endDate)}`;
+      const dateRange = `Periode : ${formatDateIndo(filters.startDate)} s/d ${formatDateIndo(
+        filters.endDate
+      )}`;
       const tableHeaders = Object.keys(formattedDetail[0]);
 
       // Konversi ke array of values dengan type assertion aman
       const tableData = formattedDetail.map((row) => Object.values(row as Record<string, unknown>));
 
-      const excelData = [
-        [title],
-        [dateRange],
-        [],
-        tableHeaders,
-        ...tableData
-      ];
+      const excelData = [[title], [dateRange], [], tableHeaders, ...tableData];
 
       const worksheet = XLSX.utils.aoa_to_sheet(excelData);
 
@@ -322,19 +343,18 @@ const exportData = async (type: 'header' | 'detail') => {
         { s: { r: 0, c: 0 }, e: { r: 0, c: tableHeaders.length - 1 } },
         { s: { r: 1, c: 0 }, e: { r: 1, c: tableHeaders.length - 1 } },
       ];
-      worksheet['!merges'] = merge;
+      worksheet["!merges"] = merge;
 
       // Auto Width
-      const colWidths = tableHeaders.map(header => ({ wch: header.length + 5 }));
-      worksheet['!cols'] = colWidths;
+      const colWidths = tableHeaders.map((header) => ({ wch: header.length + 5 }));
+      worksheet["!cols"] = colWidths;
 
       const workbook = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(workbook, worksheet, "Minta Barang Detail");
       XLSX.writeFile(workbook, "Export_MintaBarang_Detail.xlsx");
-      toast.success('File Detail berhasil dibuat.');
-
+      toast.success("File Detail berhasil dibuat.");
     } catch (error) {
-      let message = 'Gagal mengekspor data detail.';
+      let message = "Gagal mengekspor data detail.";
       if (error instanceof Error) message = error.message;
       toast.error(message);
     }
@@ -393,10 +413,14 @@ watch(filters, () => fetchData(), { deep: true });
         </v-radio-group>
         <v-spacer />
         <div class="legend-group">
-          <div class="legend-item"><v-icon color="red" size="small">mdi-circle-medium</v-icon> Belum Dibuatkan SJ
+          <div class="legend-item">
+            <v-icon class="text-red" size="small">mdi-circle-medium</v-icon>
+            Belum Dibuatkan Packing List / SJ
           </div>
-          <div class="legend-item"><v-icon color="blue" size="small">mdi-circle-medium</v-icon> Sudah SJ, Belum
-            Diterima</div>
+          <div class="legend-item">
+            <v-icon class="text-blue" size="small">mdi-circle-medium</v-icon>
+            Dalam Proses (PL/SJ/Kirim)
+          </div>
         </div>
         <v-btn @click="fetchData" icon="mdi-refresh" variant="text" size="small" title="Terapkan Filter" />
       </div>
@@ -408,11 +432,14 @@ watch(filters, () => fetchData(), { deep: true });
           <template #headers="{ columns, isSorted, getSortIcon, toggleSort }">
             <tr>
               <template v-for="header in columns" :key="header.key">
-                <th
-                  :style="{ width: header.width + 'px', minWidth: header.width + 'px', maxWidth: header.width + 'px' }"
-                  class="resizable-header"
-                  :class="{ 'text-center': header.align === 'center', 'text-end': header.align === 'end' }"
-                  @click="toggleSort(header)">
+                <th :style="{
+                  width: header.width + 'px',
+                  minWidth: header.width + 'px',
+                  maxWidth: header.width + 'px',
+                }" class="resizable-header" :class="{
+                    'text-center': header.align === 'center',
+                    'text-end': header.align === 'end',
+                  }" @click="toggleSort(header)">
                   <div class="header-content">
                     <span>{{ header.title }}</span>
                     <v-icon v-if="isSorted(header)" size="small" class="ms-1">
@@ -430,15 +457,15 @@ watch(filters, () => fetchData(), { deep: true });
               variant="text" @click.stop="toggleExpand(internalItem)" />
           </template>
 
-          <template v-for="header in headers.filter(h => h.key !== 'data-table-expand')"
+          <template v-for="header in headers.filter((h) => h.key !== 'data-table-expand')"
             #[`item.${header.key}`]="{ item }" :key="header.key">
             <td :class="getRowTextColor(item)">
               <template v-if="header.key === 'Tanggal'">
-                {{ format(parseISO(item.Tanggal), 'dd/MM/yyyy') }}
+                {{ format(parseISO(item.Tanggal), "dd/MM/yyyy") }}
               </template>
               <template v-else-if="header.key === 'Otomatis'">
                 <v-chip size="x-small" :color="item.Otomatis === 'Y' ? 'cyan' : 'purple'" label>
-                  {{ item.Otomatis === 'Y' ? 'Otomatis' : 'Manual' }}
+                  {{ item.Otomatis === "Y" ? "Otomatis" : "Manual" }}
                 </v-chip>
               </template>
               <template v-else>
@@ -452,7 +479,8 @@ watch(filters, () => fetchData(), { deep: true });
               <td :colspan="columns.length" class="pa-0">
                 <div class="detail-container">
                   <div class="detail-table-wrapper">
-                    <div v-if="loadingDetails.has(item.Nomor)" class="text-center pa-4 text-caption">Memuat detail...
+                    <div v-if="loadingDetails.has(item.Nomor)" class="text-center pa-4 text-caption">
+                      Memuat detail...
                     </div>
                     <v-data-table v-else-if="details[item.Nomor] && details[item.Nomor].length" :headers="detailHeaders"
                       :items="details[item.Nomor]" item-value="Kode" density="compact" class="detail-table"

@@ -68,6 +68,8 @@ const dialogConfirm = reactive({
   onConfirm: () => { },
 });
 
+const isAlreadyExists = ref(false);
+
 // --- Konfigurasi Tabel ---
 const tableHeaders1 = [
   { title: 'Jenis Setoran', key: 'jenis' },
@@ -90,6 +92,8 @@ const tableHeaders2 = [
 const loadData = async () => {
   isLoading.value = true;
   isDataLoaded.value = false;
+  isAlreadyExists.value = false; // Reset status setiap load
+
   try {
     let response;
     if (isEditMode.value) {
@@ -103,6 +107,7 @@ const loadData = async () => {
       header.tglVerifikasi = data.header.verifiedDate ? format(parseISO(data.header.verifiedDate), 'dd-MM-yyyy') : '';
       isVerified.value = !!data.header.verifiedBy;
     } else {
+      // Form Baru
       response = await api.get('/fsk-form/load-initial', { params: { tanggal: header.tanggal } });
     }
 
@@ -111,6 +116,7 @@ const loadData = async () => {
       ...d,
       nominalv: d.nominalv ?? d.nominal ?? 0,
     })) as Detail2[];
+
     isDataLoaded.value = true;
     markAsSaved();
 
@@ -120,7 +126,12 @@ const loadData = async () => {
 
   } catch (error: unknown) {
     if (isAxiosError(error)) {
-      toast.error(error.response?.data?.message || 'Gagal memuat data.');
+      const message = error.response?.data?.message || '';
+      // CEK APAKAH ERROR KARENA SUDAH ADA FSK (Logika dari Backend yang kita buat tadi)
+      if (message.includes('sudah membuat FSK')) {
+        isAlreadyExists.value = true;
+      }
+      toast.error(message || 'Gagal memuat data.');
     } else {
       toast.error('Gagal memuat data.');
     }
@@ -192,6 +203,12 @@ watch(
   { deep: true }
 );
 
+watch(() => header.tanggal, () => {
+  if (!isEditMode.value) {
+    loadData();
+  }
+});
+
 onMounted(() => {
   markAsSaved();
 
@@ -212,12 +229,23 @@ onMounted(() => {
   <PageLayout title="Form Setoran Kasir" desktop-mode icon="mdi-cash-multiple">
     <template #header-actions>
       <v-btn size="small" color="primary" @click="handleSave" :loading="isSaving"
-        :disabled="!isDataLoaded || isVerified || !authStore.can(MENU_ID, requiredPermission)"
+        :disabled="!isDataLoaded || isVerified || isAlreadyExists || !authStore.can(MENU_ID, requiredPermission)"
         prepend-icon="mdi-content-save">
         Simpan
       </v-btn>
       <v-btn size="small" @click="handleClose" prepend-icon="mdi-close">Tutup</v-btn>
     </template>
+
+    <v-alert type="warning" variant="tonal" density="compact" icon="mdi-alert-octagon"
+      class="mb-4 text-caption mx-4 mt-2" border="start">
+      <strong>PERHATIAN (CLOSING TOKO):</strong> Pembuatan FSK hanya diperbolehkan
+      <strong>1 kali per hari</strong>. Simpan FSK saat operasional toko benar-benar sudah berakhir.
+      Pastikan semua Invoice, SO, dan DP hari ini sudah diinput sebelum menyimpan form ini.
+    </v-alert>
+
+    <v-alert v-if="isAlreadyExists" type="error" variant="flat" density="compact" class="mb-4 mx-4">
+      Sistem mendeteksi FSK untuk tanggal ini sudah pernah dibuat. Anda tidak dapat membuat FSK ganda.
+    </v-alert>
 
     <div class="form-grid-container">
       <div class="left-column">

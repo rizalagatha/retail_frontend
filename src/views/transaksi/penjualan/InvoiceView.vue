@@ -1,18 +1,18 @@
 <script setup lang="ts">
-import { ref, reactive, onMounted, computed, watch } from 'vue';
-import { useRouter } from 'vue-router';
-import { useRoute } from 'vue-router';
-import { useToast } from 'vue-toastification';
-import { useAuthStore } from '@/stores/authStore';
-import api from '@/services/api';
-import { format, parseISO, isValid } from 'date-fns';
-import PageLayout from '@/components/PageLayout.vue';
-import PrintOptionModal from '@/components/modal/PrintOptionModal.vue';
+import { ref, reactive, onMounted, computed, watch } from "vue";
+import { useRouter } from "vue-router";
+import { useRoute } from "vue-router";
+import { useToast } from "vue-toastification";
+import { useAuthStore } from "@/stores/authStore";
+import api from "@/services/api";
+import { format, parseISO, isValid } from "date-fns";
+import PageLayout from "@/components/PageLayout.vue";
+import PrintOptionModal from "@/components/modal/PrintOptionModal.vue";
 import KasirPrintPreviewModal from "@/components/modal/KasirPrintPreviewModal.vue";
-import RekeningSearchModal from '@/components/lookup/RekeningSearchModal.vue';
-import * as XLSX from 'xlsx';
+import RekeningSearchModal from "@/components/lookup/RekeningSearchModal.vue";
+import * as XLSX from "xlsx";
 import { formatRupiah } from "@/utils/formatRupiah";
-import type { AxiosError } from 'axios';
+import type { AxiosError } from "axios";
 
 interface InvoiceHeader {
   Nomor: string;
@@ -69,10 +69,10 @@ interface InvoiceDetail {
   Ukuran?: string;
   Jumlah: number;
   Harga: number;
-  'Dis%'?: number;
+  "Dis%"?: number;
   Total: number;
-  HargaAsli?: number;       // harga sebelum diskon (per pcs)
-  DiskonAktif?: number;     // nilai diskon aktif per pcs
+  HargaAsli?: number; // harga sebelum diskon (per pcs)
+  DiskonAktif?: number; // nilai diskon aktif per pcs
 }
 
 interface InvoiceItem {
@@ -100,14 +100,14 @@ interface DataTableHeader {
   key: string;
   width?: number;
   fixed?: boolean;
-  align?: 'start' | 'center' | 'end';
+  align?: "start" | "center" | "end";
   minWidth?: string | number;
   maxWidth?: string | number;
   sortable?: boolean;
 }
 interface ColumnFilter {
-  type: 'simple' | 'multi' | 'custom';
-  values?: (string | number)[];   // untuk multi-select
+  type: "simple" | "multi" | "custom";
+  values?: (string | number)[]; // untuk multi-select
   operator?: string;
   value?: string | number;
 }
@@ -121,7 +121,7 @@ interface Rekening {
 
 // Opsional: Definisikan tipe untuk Form agar lebih ketat
 interface PaymentForm {
-  metode: 'TUNAI' | 'TRANSFER';
+  metode: "TUNAI" | "TRANSFER";
   bank: Rekening | null;
   noRek: string;
   alasan: string;
@@ -129,8 +129,8 @@ interface PaymentForm {
 
 interface ExportHeaderItem {
   Tanggal?: string | number | Date;
-  'Tgl SO'?: string | number | Date;
-  'Jatuh Tempo'?: string | number | Date;
+  "Tgl SO"?: string | number | Date;
+  "Jatuh Tempo"?: string | number | Date;
   [key: string]: unknown; // Mengizinkan properti dinamis lainnya
 }
 
@@ -151,7 +151,7 @@ const router = useRouter();
 const route = useRoute();
 const toast = useToast();
 const authStore = useAuthStore();
-const MENU_ID = '27';
+const MENU_ID = "27";
 
 // --- State ---
 const masterData = ref<InvoiceHeader[]>([]);
@@ -173,10 +173,10 @@ const itemsPerPage = ref(50); // Default 50 per halaman
 const page = ref(1);
 
 const filters = reactive({
-  startDate: format(new Date(), 'yyyy-MM-dd'),
-  endDate: format(new Date(), 'yyyy-MM-dd'),
+  startDate: format(new Date(), "yyyy-MM-dd"),
+  endDate: format(new Date(), "yyyy-MM-dd"),
   // Jika KDC, default ke 'ALL'. Jika Cabang, default ke kodenya sendiri.
-  cabang: authStore.user?.cabang === 'KDC' ? 'ALL' : authStore.user?.cabang || '',
+  cabang: authStore.user?.cabang === "KDC" ? "ALL" : authStore.user?.cabang || "",
   status: null as string | null,
 });
 
@@ -188,40 +188,39 @@ const isRekeningSearchVisible = ref(false); // State untuk modal rekening
 
 // Form Payment
 const formPayment = reactive<PaymentForm>({
-  metode: 'TUNAI',
+  metode: "TUNAI",
   bank: null, // Sekarang TS tahu ini boleh null atau Rekening
-  noRek: '',
-  alasan: ''
+  noRek: "",
+  alasan: "",
 });
 
 const filterOptions = ref([
-  { title: 'Nomor Invoice', value: 'Nomor' },
-  { title: 'Customer', value: 'Nama' },
-  { title: 'Kd Customer', value: 'Kdcus' },
-  { title: 'Alamat', value: 'Alamat' },
-  { title: 'Kota', value: 'Kota' },
-  { title: 'Nomor SO', value: 'NomorSO' },
-  { title: 'Sales', value: 'SC' },
-  { title: 'HP', value: 'Hp' },
+  { title: "Nomor Invoice", value: "Nomor" },
+  { title: "Customer", value: "Nama" },
+  { title: "Kd Customer", value: "Kdcus" },
+  { title: "Alamat", value: "Alamat" },
+  { title: "Kota", value: "Kota" },
+  { title: "Nomor SO", value: "NomorSO" },
+  { title: "Sales", value: "SC" },
+  { title: "HP", value: "Hp" },
 ]);
 
 // DEFAULT → Nama customer
-const selectedFilterField = ref('Nama');
+const selectedFilterField = ref("Nama");
 
 // input pencarian
-const filterSearchValue = ref('');
+const filterSearchValue = ref("");
 
 const columnFilters = ref<Record<string, ColumnFilter>>({});
 
 const customFilterDialog = ref(false);
 const customFilter = reactive({
-  key: '',
-  operator: '=',
-  value: ''
+  key: "",
+  operator: "=",
+  value: "",
 });
 
 const LS_FILTER_KEY = "invoice_table_filters";
-
 
 // LOAD FILTER DARI LOCAL STORAGE
 const savedFilter = localStorage.getItem(LS_FILTER_KEY);
@@ -231,14 +230,14 @@ if (savedFilter) {
   } catch { }
 }
 
-const noFilterColumns = ['data-table-select', 'data-table-expand'];
+const noFilterColumns = ["data-table-select", "data-table-expand"];
 
 const hasMarketplaceData = computed(() => {
-  return masterData.value.some(item => item.Marketplace && item.Marketplace !== '');
+  return masterData.value.some((item) => item.Marketplace && item.Marketplace !== "");
 });
 const isSingleSelected = computed(() => selected.value.length === 1);
 const selectedRow = computed<InvoiceItem | null>(() =>
-  isSingleSelected.value ? selected.value[0] as InvoiceItem : null
+  isSingleSelected.value ? (selected.value[0] as InvoiceItem) : null
 );
 const isPrintOptionVisible = ref(false);
 
@@ -345,97 +344,101 @@ const totalBiayaKirim = computed(() => {
 // --- Konfigurasi Tabel ---
 const headers = computed<DataTableHeader[]>(() => {
   const list: DataTableHeader[] = [
-    { title: '', key: 'data-table-expand', width: 50, fixed: true },
-    { title: 'Nomor', key: 'Nomor', width: 180, fixed: true },
-    { title: 'Tanggal', key: 'Tanggal', width: 120 },
-    { title: 'Kd Cus', key: 'Kdcus', width: 120 },
-    { title: 'Customer', key: 'Nama', width: 250 },
+    { title: "", key: "data-table-expand", width: 50, fixed: true },
+    { title: "Nomor", key: "Nomor", width: 180, fixed: true },
+    { title: "Tanggal", key: "Tanggal", width: 120 },
+    { title: "Kd Cus", key: "Kdcus", width: 120 },
+    { title: "Customer", key: "Nama", width: 250 },
   ];
 
   // Syarat tampil: (KON atau K05) DAN toggle aktif
-  const isEligibleBranch = authStore.user?.cabang === 'KON' || authStore.user?.cabang === 'K05';
+  const isEligibleBranch = authStore.user?.cabang === "KON" || authStore.user?.cabang === "K05";
 
   if (isEligibleBranch && hasMarketplaceData.value) {
     list.push(
-      { title: 'Marketplace', key: 'Marketplace', width: 120 },
-      { title: 'No. Pesanan', key: 'NoPesanan', width: 180 },
-      { title: 'No. Resi', key: 'NoResi', width: 180 }
+      { title: "Marketplace", key: "Marketplace", width: 120 },
+      { title: "No. Pesanan", key: "NoPesanan", width: 180 },
+      { title: "No. Resi", key: "NoResi", width: 180 }
     );
   }
   list.push(
-    { title: 'Posting', key: 'Posting', width: 100 },
-    { title: 'No. SO', key: 'NomorSO', width: 180 },
-    { title: 'Tgl SO', key: 'TglSO', width: 120 },
-    { title: 'TOP', key: 'Top', width: 70 },
-    { title: 'Jatuh Tempo', key: 'Tempo', width: 120 },
-    { title: 'Last Payment', key: 'LastPayment', width: 120 },
-    { title: 'Diskon', key: 'Diskon', width: 120 },
+    { title: "Posting", key: "Posting", width: 100 },
+    { title: "No. SO", key: "NomorSO", width: 180 },
+    { title: "Tgl SO", key: "TglSO", width: 120 },
+    { title: "TOP", key: "Top", width: 70 },
+    { title: "Jatuh Tempo", key: "Tempo", width: 120 },
+    { title: "Last Payment", key: "LastPayment", width: 120 },
+    { title: "Diskon", key: "Diskon", width: 120 }
   );
   if (isEligibleBranch && hasMarketplaceData.value) {
-    list.push({ title: 'Biaya Platform', key: 'BiayaPlatform', width: 120 });
+    list.push({ title: "Biaya Platform", key: "BiayaPlatform", width: 120 });
   }
   list.push(
-    { title: 'DP', key: 'Dp', width: 120 },
-    { title: 'Biaya Kirim', key: 'Biayakirim', width: 120 },
-    { title: 'Nominal', key: 'Nominal', width: 150 },
-    { title: 'Piutang', key: 'Piutang', width: 150 },
-    { title: 'Bayar', key: 'Bayar', width: 150 },
-    { title: 'Sisa Piutang', key: 'SisaPiutang', width: 150 },
-    { title: 'Rp Retur', key: 'RpRetur', width: 120 },
-    { title: 'Alamat', key: 'Alamat', width: 700 },
-    { title: 'Kota', key: 'Kota', width: 150 },
-    { title: 'Telepon', key: 'Telp', width: 150 },
-    { title: 'Level', key: 'Level', width: 150 },
-    { title: 'HP', key: 'Hp', width: 150 },
-    { title: 'Nama Member', key: 'Member', width: 250 },
-    { title: 'Keterangan', key: 'Keterangan', width: 250 },
-    { title: 'Rp Tunai', key: 'RpTunai', width: 120 },
-    { title: 'No Voucher', key: 'NoVoucher', width: 150 },
-    { title: 'Rp Voucher', key: 'RpVoucher', width: 120 },
-    { title: 'Rp Transfer', key: 'RpTransfer', width: 120 },
-    { title: 'No Setoran', key: 'NoSetoran', width: 180 },
-    { title: 'Tgl Transfer', key: 'TglTransfer', width: 120 },
-    { title: 'Akun', key: 'Akun', width: 120 },
-    { title: 'No Rekening', key: 'NoRekening', width: 150 },
-    { title: 'No Retur', key: 'NoRetur', width: 180 },
-    { title: 'SC', key: 'SC', width: 150 },
-    { title: 'Created', key: 'Created', width: 180 },
-    { title: 'User Modified', key: 'UserModified', width: 150 },
-    { title: 'Date Modified', key: 'DateModified', width: 180 },
-    { title: 'Minus', key: 'Minus', width: 80, align: 'center' },
-    { title: 'Prn', key: 'Prn', align: 'center' },
-    { title: 'Puas', key: 'Puas', align: 'center' },
-    { title: 'Closing', key: 'Closing', align: 'center' },
+    { title: "DP", key: "Dp", width: 120 },
+    { title: "Biaya Kirim", key: "Biayakirim", width: 120 },
+    { title: "Nominal", key: "Nominal", width: 150 },
+    { title: "Piutang", key: "Piutang", width: 150 },
+    { title: "Bayar", key: "Bayar", width: 150 },
+    { title: "Sisa Piutang", key: "SisaPiutang", width: 150 },
+    { title: "Rp Retur", key: "RpRetur", width: 120 },
+    { title: "Alamat", key: "Alamat", width: 700 },
+    { title: "Kota", key: "Kota", width: 150 },
+    { title: "Telepon", key: "Telp", width: 150 },
+    { title: "Level", key: "Level", width: 150 },
+    { title: "HP", key: "Hp", width: 150 },
+    { title: "Nama Member", key: "Member", width: 250 },
+    { title: "Keterangan", key: "Keterangan", width: 250 },
+    { title: "Rp Tunai", key: "RpTunai", width: 120 },
+    { title: "No Voucher", key: "NoVoucher", width: 150 },
+    { title: "Rp Voucher", key: "RpVoucher", width: 120 },
+    { title: "Rp Transfer", key: "RpTransfer", width: 120 },
+    { title: "No Setoran", key: "NoSetoran", width: 180 },
+    { title: "Tgl Transfer", key: "TglTransfer", width: 120 },
+    { title: "Akun", key: "Akun", width: 120 },
+    { title: "No Rekening", key: "NoRekening", width: 150 },
+    { title: "No Retur", key: "NoRetur", width: 180 },
+    { title: "SC", key: "SC", width: 150 },
+    { title: "Created", key: "Created", width: 180 },
+    { title: "User Modified", key: "UserModified", width: 150 },
+    { title: "Date Modified", key: "DateModified", width: 180 },
+    { title: "Minus", key: "Minus", width: 80, align: "center" },
+    { title: "Prn", key: "Prn", align: "center" },
+    { title: "Puas", key: "Puas", align: "center" },
+    { title: "Closing", key: "Closing", align: "center" }
   );
 
   return list;
 });
 
 const detailHeaders = [
-  { title: 'Kode', key: 'Kode' },
-  { title: 'Barcode', key: 'Barcode' },
-  { title: 'Nama Barang', key: 'Nama', width: '300px' },
-  { title: 'Ukuran', key: 'Ukuran' },
-  { title: 'Jumlah', key: 'Jumlah', align: 'end' },
-  { title: 'Harga', key: 'Harga', align: 'end' },
-  { title: 'Dis %', key: 'Dis%', align: 'end' },
-  { title: 'Total', key: 'Total', align: 'end' },
+  { title: "Kode", key: "Kode" },
+  { title: "Barcode", key: "Barcode" },
+  { title: "Nama Barang", key: "Nama", width: "300px" },
+  { title: "Ukuran", key: "Ukuran" },
+  { title: "Jumlah", key: "Jumlah", align: "end" },
+  { title: "Harga", key: "Harga", align: "end" },
+  { title: "Dis %", key: "Dis%", align: "end" },
+  { title: "Total", key: "Total", align: "end" },
 ] as const;
 
 // --- Methods ---
-const safeFormatDate = (dateVal: string | number | Date | null | undefined, pattern: string): string => {
-
+const safeFormatDate = (
+  dateVal: string | number | Date | null | undefined,
+  pattern: string
+): string => {
   // 1. Filter Input Kosong / Null / Undefined
-  if (!dateVal) return '-';
+  if (!dateVal) return "-";
 
   // 2. Filter String Kosong atau "0000-00-00" (SQL Default)
-  if (typeof dateVal === 'string') {
+  if (typeof dateVal === "string") {
     const trimmed = dateVal.trim();
-    if (trimmed === '' ||
-      trimmed === '0000-00-00' ||
-      trimmed === '0000-00-00 00:00:00' ||
-      trimmed === '-') {
-      return '-';
+    if (
+      trimmed === "" ||
+      trimmed === "0000-00-00" ||
+      trimmed === "0000-00-00 00:00:00" ||
+      trimmed === "-"
+    ) {
+      return "-";
     }
 
     // 3. [BYPASS] Jika format sudah dd/MM/yyyy
@@ -448,13 +451,13 @@ const safeFormatDate = (dateVal: string | number | Date | null | undefined, patt
     let dateObj: Date | undefined;
 
     // 4. Parsing
-    if (typeof dateVal === 'string') {
+    if (typeof dateVal === "string") {
       // Coba parsing standar ISO
       dateObj = parseISO(dateVal);
 
       // Jika invalid & ada spasi, coba format SQL
-      if (!isValid(dateObj) && dateVal.includes(' ')) {
-        dateObj = parseISO(dateVal.replace(' ', 'T'));
+      if (!isValid(dateObj) && dateVal.includes(" ")) {
+        dateObj = parseISO(dateVal.replace(" ", "T"));
       }
 
       // Fallback ke native Date
@@ -463,7 +466,7 @@ const safeFormatDate = (dateVal: string | number | Date | null | undefined, patt
       }
     } else if (dateVal instanceof Date) {
       dateObj = dateVal;
-    } else if (typeof dateVal === 'number') {
+    } else if (typeof dateVal === "number") {
       // Handle timestamp number
       dateObj = new Date(dateVal);
     }
@@ -471,13 +474,13 @@ const safeFormatDate = (dateVal: string | number | Date | null | undefined, patt
     // 5. Final Valid Check
     if (!dateObj || !isValid(dateObj)) {
       // console.warn("Tanggal Invalid diabaikan:", dateVal);
-      return '-';
+      return "-";
     }
 
     return format(dateObj, pattern);
   } catch (e) {
     console.error("Error formatting date:", e);
-    return '-';
+    return "-";
   }
 };
 
@@ -503,9 +506,9 @@ const onResizeStart = (e: MouseEvent, column: DataTableHeader) => {
   startWidth.value = column.width || 100; // Default width jika belum ada
 
   // Pasang event listener global
-  document.addEventListener('mousemove', onResizeMove);
-  document.addEventListener('mouseup', onResizeEnd);
-  document.body.style.cursor = 'col-resize'; // Ubah kursor body
+  document.addEventListener("mousemove", onResizeMove);
+  document.addEventListener("mouseup", onResizeEnd);
+  document.body.style.cursor = "col-resize"; // Ubah kursor body
 };
 
 const onResizeMove = (e: MouseEvent) => {
@@ -519,28 +522,28 @@ const onResizeMove = (e: MouseEvent) => {
 
 const onResizeEnd = () => {
   resizingColumn.value = null;
-  document.removeEventListener('mousemove', onResizeMove);
-  document.removeEventListener('mouseup', onResizeEnd);
-  document.body.style.cursor = ''; // Reset kursor
+  document.removeEventListener("mousemove", onResizeMove);
+  document.removeEventListener("mouseup", onResizeEnd);
+  document.body.style.cursor = ""; // Reset kursor
 };
 
 const fetchCabangList = async () => {
   try {
-    const response = await api.get<CabangOption[]>('/invoices/lookup/cabang');
+    const response = await api.get<CabangOption[]>("/invoices/lookup/cabang");
     cabangList.value = response.data;
 
     // [FIX] Cek manual: Jika user KDC dan backend belum kirim 'ALL'
-    if (authStore.user?.cabang === 'KDC') {
+    if (authStore.user?.cabang === "KDC") {
       // Tipe 'c' sekarang eksplisit
-      const hasAll = cabangList.value.some((c: CabangOption) => c.kode === 'ALL');
+      const hasAll = cabangList.value.some((c: CabangOption) => c.kode === "ALL");
 
       if (!hasAll) {
-        cabangList.value.unshift({ kode: 'ALL', nama: 'Semua Cabang' });
+        cabangList.value.unshift({ kode: "ALL", nama: "Semua Cabang" });
       }
     }
   } catch (error) {
     // Error di catch block defaultnya unknown, aman untuk toast
-    toast.error('Gagal memuat daftar cabang.');
+    toast.error("Gagal memuat daftar cabang.");
     console.error(error);
   }
 };
@@ -559,7 +562,7 @@ watch(filterSearchValue, () => {
 });
 
 // Update fetchMasterData agar mengirim columnFilters ke backend
-const fetchMasterData = async (options?: { page: number, itemsPerPage: number }) => {
+const fetchMasterData = async (options?: { page: number; itemsPerPage: number }) => {
   loading.value = true;
 
   if (options) {
@@ -572,7 +575,7 @@ const fetchMasterData = async (options?: { page: number, itemsPerPage: number })
     // Backend akan memparsing ini
     const columnFiltersJson = JSON.stringify(columnFilters.value);
 
-    const response = await api.get('/invoices', {
+    const response = await api.get("/invoices", {
       params: {
         ...filters,
         page: page.value,
@@ -582,8 +585,8 @@ const fetchMasterData = async (options?: { page: number, itemsPerPage: number })
         search: filterSearchValue.value,
 
         // 2. [BARU] Custom Column Filters
-        columnFilters: columnFiltersJson
-      }
+        columnFilters: columnFiltersJson,
+      },
     });
 
     const { data, total } = response.data;
@@ -600,21 +603,20 @@ const fetchMasterData = async (options?: { page: number, itemsPerPage: number })
       Dp: Number(h.Dp) || 0,
       BiayaPlatform: Number(h.BiayaPlatform) || 0,
       Closing: h.Closing,
-      Minus: h.Minus
+      Minus: h.Minus,
     }));
 
     totalItems.value = total;
-
   } catch (error) {
-    toast.error('Gagal mengambil data.', error);
+    toast.error("Gagal mengambil data.", error);
   } finally {
     loading.value = false;
   }
 };
 
 const loadDetails = async (newlyExpandedItems: InvoiceItem[]) => {
-  const itemToLoad = newlyExpandedItems.find(item =>
-    !details.value[item.Nomor] && !loadingDetails.value.has(item.Nomor)
+  const itemToLoad = newlyExpandedItems.find(
+    (item) => !details.value[item.Nomor] && !loadingDetails.value.has(item.Nomor)
   );
   if (!itemToLoad) return;
 
@@ -650,20 +652,20 @@ const loadDetails = async (newlyExpandedItems: InvoiceItem[]) => {
 const getRowClass = (item: InvoiceItem) => {
   // Kondisi 1: Sisa Piutang
   if (item.SisaPiutang > 0) {
-    return 'row-sisa-piutang';
+    return "row-sisa-piutang";
   }
 
   // Kondisi 2: Stok Minus (Akan berfungsi setelah Anda update backend)
-  if (item.Minus === 'Y') {
-    return 'row-stok-minus';
+  if (item.Minus === "Y") {
+    return "row-stok-minus";
   }
 
-  return ''; // Default
+  return ""; // Default
 };
 
 const handleNew = () => {
-  router.push({ name: 'InvoiceCreate' });
-}
+  router.push({ name: "InvoiceCreate" });
+};
 
 // const handleEdit = () => {
 //   if (!isSingleSelected.value) return;
@@ -673,10 +675,10 @@ const handleNew = () => {
 
 const openChangePaymentModal = () => {
   // Reset Form
-  formPayment.metode = 'TUNAI';
+  formPayment.metode = "TUNAI";
   formPayment.bank = null;
-  formPayment.noRek = '';
-  formPayment.alasan = '';
+  formPayment.noRek = "";
+  formPayment.alasan = "";
 
   isChangePaymentVisible.value = true;
 };
@@ -690,18 +692,18 @@ const onRekeningSelected = (item: Rekening) => {
 const submitChangePayment = async () => {
   if (!formPayment.alasan) return toast.warning("Mohon isi alasan perubahan.");
 
-  if (formPayment.metode === 'TRANSFER') {
+  if (formPayment.metode === "TRANSFER") {
     if (!formPayment.bank) return toast.warning("Mohon pilih Bank.");
   }
 
   isChangingPayment.value = true;
   try {
-    await api.post('/invoices/change-payment', {
+    await api.post("/invoices/change-payment", {
       nomor: selectedRow.value?.Nomor,
       metodeBaru: formPayment.metode,
       bank: formPayment.bank, // Kirim full object atau ambil kodenya di backend
       noRek: formPayment.noRek,
-      alasan: formPayment.alasan
+      alasan: formPayment.alasan,
     });
 
     toast.success("Metode pembayaran berhasil diubah.");
@@ -717,24 +719,24 @@ const submitChangePayment = async () => {
   }
 };
 
-const printData = (type: 'invoice' | 'sj') => {
+const printData = (type: "invoice" | "sj") => {
   if (!isSingleSelected.value) return;
 
   const item = selected.value[0];
-  let routeName = '';
+  let routeName = "";
 
-  if (type === 'invoice') {
-    routeName = 'InvoicePrint'; // Nama route untuk cetak Invoice A4
-  } else if (type === 'sj') {
-    routeName = 'CetakInvoiceAsSJ';
+  if (type === "invoice") {
+    routeName = "InvoicePrint"; // Nama route untuk cetak Invoice A4
+  } else if (type === "sj") {
+    routeName = "CetakInvoiceAsSJ";
   }
 
   const url = router.resolve({
     name: routeName,
-    params: { nomor: item.Nomor }
+    params: { nomor: item.Nomor },
   }).href;
 
-  window.open(url, '_blank');
+  window.open(url, "_blank");
 };
 
 const openPrintOptions = () => {
@@ -743,15 +745,15 @@ const openPrintOptions = () => {
 };
 
 const formatHpToWa = (hp: string) => {
-  if (!hp) return '';
-  let sanitizedHp = hp.replace(/[^0-9]/g, ''); // Hapus semua selain angka
-  if (sanitizedHp.startsWith('0')) {
-    sanitizedHp = '62' + sanitizedHp.substring(1); // Ganti 0 di depan dengan 62
+  if (!hp) return "";
+  let sanitizedHp = hp.replace(/[^0-9]/g, ""); // Hapus semua selain angka
+  if (sanitizedHp.startsWith("0")) {
+    sanitizedHp = "62" + sanitizedHp.substring(1); // Ganti 0 di depan dengan 62
   }
   return sanitizedHp;
 };
 
-const handlePrintSelection = async (type: 'a4' | 'kasir' | 'wa') => {
+const handlePrintSelection = async (type: "a4" | "kasir" | "wa") => {
   const nomor = selectedRow.value?.Nomor;
   const item = selectedRow.value;
 
@@ -763,7 +765,7 @@ const handlePrintSelection = async (type: 'a4' | 'kasir' | 'wa') => {
   // ===============================
   // PRINT KASIR (PAKAI MODAL PREVIEW)
   // ===============================
-  if (type === 'kasir') {
+  if (type === "kasir") {
     selectedInvoice.value = nomor;
     isKasirPreviewVisible.value = true;
     return;
@@ -772,31 +774,31 @@ const handlePrintSelection = async (type: 'a4' | 'kasir' | 'wa') => {
   // ===============================
   // PRINT A4 (MASIH TAB BARU)
   // ===============================
-  if (type === 'a4') {
-    const url = router.resolve({ name: 'InvoicePrint', params: { nomor } }).href;
-    window.open(url, '_blank');
+  if (type === "a4") {
+    const url = router.resolve({ name: "InvoicePrint", params: { nomor } }).href;
+    window.open(url, "_blank");
     return;
   }
 
   // ===============================
   // WHATSAPP
   // ===============================
-  if (type === 'wa') {
+  if (type === "wa") {
     const memberHp = item.Hp;
     if (!memberHp) {
-      return toast.error('No. HP Member tidak ada, tidak bisa kirim via WA.');
+      return toast.error("No. HP Member tidak ada, tidak bisa kirim via WA.");
     }
 
     try {
       toast.info(`Mengirim struk ke ${memberHp}...`);
-      const response = await api.post('/whatsapp/send-receipt', {
+      const response = await api.post("/whatsapp/send-receipt", {
         nomor,
-        hp: formatHpToWa(memberHp)
+        hp: formatHpToWa(memberHp),
       });
       toast.success(response.data.message);
     } catch (error: unknown) {
       if (error instanceof Error) toast.error(error.message);
-      else toast.error('Gagal mengirim struk via WhatsApp.');
+      else toast.error("Gagal mengirim struk via WhatsApp.");
     }
   }
 };
@@ -806,22 +808,22 @@ const handleView = () => {
   const nomor = selected.value[0].Nomor;
 
   router.push({
-    name: 'InvoiceEdit',
+    name: "InvoiceEdit",
     params: { nomor },
-    query: { mode: 'view' }    // kirim flag ke halaman edit
+    query: { mode: "view" }, // kirim flag ke halaman edit
   });
 };
 
 // 1. Helper Format Tanggal
 // Ganti fungsi formatDateIndo dengan versi aman ini:
 const formatDateIndo = (dateVal: string | number | Date | null | undefined): string => {
-  if (!dateVal) return '';
+  if (!dateVal) return "";
 
   let date = new Date(dateVal);
 
   // [FIX] Handle format DD/MM/YYYY manual
-  if (isNaN(date.getTime()) && typeof dateVal === 'string') {
-    const parts = dateVal.split('/');
+  if (isNaN(date.getTime()) && typeof dateVal === "string") {
+    const parts = dateVal.split("/");
     if (parts.length === 3) {
       // Ubah DD/MM/YYYY -> YYYY-MM-DD
       date = new Date(`${parts[2]}-${parts[1]}-${parts[0]}`);
@@ -831,72 +833,73 @@ const formatDateIndo = (dateVal: string | number | Date | null | undefined): str
   // Jika masih invalid, kembalikan string aslinya
   if (isNaN(date.getTime())) return String(dateVal);
 
-  return new Intl.DateTimeFormat('id-ID', {
-    day: 'numeric',
-    month: 'long',
-    year: 'numeric'
+  return new Intl.DateTimeFormat("id-ID", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
   }).format(date);
 };
 
 // 2. Fungsi Export Data
-const exportData = async (type: 'header' | 'detail') => {
+const exportData = async (type: "header" | "detail") => {
   const exportParams = {
     ...filters, // startDate, endDate, cabang, status
     search: filterSearchValue.value,
-    columnFilters: JSON.stringify(columnFilters.value)
+    columnFilters: JSON.stringify(columnFilters.value),
   };
 
-  if (type === 'header') {
+  if (type === "header") {
     try {
-      toast.info('Sedang mendownload Header...');
+      toast.info("Sedang mendownload Header...");
 
       // [FIX] Panggil API Backend khusus Export Header
       // Pastikan backend sudah memiliki route '/invoices/export-header'
-      const response = await api.get('/invoices/export-header', {
-        params: exportParams
+      const response = await api.get("/invoices/export-header", {
+        params: exportParams,
       });
 
       if (response.data.length === 0) {
-        toast.warning('Tidak ada data header untuk diekspor.');
+        toast.warning("Tidak ada data header untuk diekspor.");
         return;
       }
 
       // Format tanggal di frontend (Optional, jika backend sudah kirim YYYY-MM-DD)
-      const formattedHeader = (response.data as ExportHeaderItem[]).map((item: ExportHeaderItem) => ({
-        ...item,
-        // Gunakan formatDateIndo yang sudah diperbaiki
-        // TypeScript sekarang tahu properti ini mungkin ada atau undefined
-        Tanggal: item.Tanggal ? formatDateIndo(item.Tanggal) : '',
-        'Tgl SO': item['Tgl SO'] ? formatDateIndo(item['Tgl SO']) : '',
-        'Jatuh Tempo': item['Jatuh Tempo'] ? formatDateIndo(item['Jatuh Tempo']) : '',
-      }));
+      const formattedHeader = (response.data as ExportHeaderItem[]).map(
+        (item: ExportHeaderItem) => ({
+          ...item,
+          // Gunakan formatDateIndo yang sudah diperbaiki
+          // TypeScript sekarang tahu properti ini mungkin ada atau undefined
+          Tanggal: item.Tanggal ? formatDateIndo(item.Tanggal) : "",
+          "Tgl SO": item["Tgl SO"] ? formatDateIndo(item["Tgl SO"]) : "",
+          "Jatuh Tempo": item["Jatuh Tempo"] ? formatDateIndo(item["Jatuh Tempo"]) : "",
+        })
+      );
 
       const worksheet = XLSX.utils.json_to_sheet(formattedHeader);
 
       // Auto Width Column (Biar rapi)
       const wscols = Object.keys(formattedHeader[0]).map(() => ({ wch: 20 }));
-      worksheet['!cols'] = wscols;
+      worksheet["!cols"] = wscols;
 
       const workbook = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(workbook, worksheet, "Invoice Header");
       XLSX.writeFile(workbook, "Export_Invoice_Header.xlsx");
 
-      toast.success('Header berhasil diekspor.');
+      toast.success("Header berhasil diekspor.");
     } catch (error) {
       console.error(error);
-      toast.error('Gagal export header.');
+      toast.error("Gagal export header.");
     }
-
-  } else if (type === 'detail') {
+  } else if (type === "detail") {
     try {
-      toast.info('Mengambil data detail...');
+      toast.info("Mengambil data detail...");
       // Gunakan Generic Type pada api.get
-      const response = await api.get<InvoiceExportRow[]>('/invoices/export-details', {
-        params: exportParams
+      const response = await api.get<InvoiceExportRow[]>("/invoices/export-details", {
+        params: exportParams,
       });
 
       if (response.data.length === 0) {
-        toast.warning('Tidak ada data detail.');
+        toast.warning("Tidak ada data detail.");
         return;
       }
 
@@ -904,24 +907,20 @@ const exportData = async (type: 'header' | 'detail') => {
       const formattedDetail = response.data.map((row: InvoiceExportRow) => ({
         ...row,
         // TypeScript valid karena InvoiceExportRow punya field Tanggal?
-        Tanggal: row.Tanggal ? formatDateIndo(row.Tanggal) : ''
+        Tanggal: row.Tanggal ? formatDateIndo(row.Tanggal) : "",
       }));
 
       // Opsional: Gunakan Custom Header & Formatting seperti Penawaran (Lebih Rapi)
       const title = "LAPORAN DETAIL INVOICE";
-      const dateRange = `Periode : ${formatDateIndo(filters.startDate)} s/d ${formatDateIndo(filters.endDate)}`;
+      const dateRange = `Periode : ${formatDateIndo(filters.startDate)} s/d ${formatDateIndo(
+        filters.endDate
+      )}`;
       const tableHeaders = Object.keys(formattedDetail[0]);
 
       // Gunakan Record<string, unknown> untuk Object.values agar aman
       const tableData = formattedDetail.map((row) => Object.values(row as Record<string, unknown>));
 
-      const excelData = [
-        [title],
-        [dateRange],
-        [],
-        tableHeaders,
-        ...tableData
-      ];
+      const excelData = [[title], [dateRange], [], tableHeaders, ...tableData];
 
       const worksheet = XLSX.utils.aoa_to_sheet(excelData);
 
@@ -930,20 +929,19 @@ const exportData = async (type: 'header' | 'detail') => {
         { s: { r: 0, c: 0 }, e: { r: 0, c: tableHeaders.length - 1 } },
         { s: { r: 1, c: 0 }, e: { r: 1, c: tableHeaders.length - 1 } },
       ];
-      worksheet['!merges'] = merge;
+      worksheet["!merges"] = merge;
 
       // Auto Width
-      const colWidths = tableHeaders.map(header => ({ wch: header.length + 5 }));
-      worksheet['!cols'] = colWidths;
+      const colWidths = tableHeaders.map((header) => ({ wch: header.length + 5 }));
+      worksheet["!cols"] = colWidths;
 
       const workbook = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(workbook, worksheet, "Invoice Detail");
       XLSX.writeFile(workbook, "Export_Invoice_Detail.xlsx");
-      toast.success('Detail berhasil diekspor.');
-
+      toast.success("Detail berhasil diekspor.");
     } catch (error) {
       // Type Guard untuk Error
-      let message = 'Gagal mengekspor data detail.';
+      let message = "Gagal mengekspor data detail.";
       if (error instanceof Error) message += ` ${error.message}`;
       toast.error(message);
       console.error(error);
@@ -953,29 +951,23 @@ const exportData = async (type: 'header' | 'detail') => {
 
 const openCustomFilter = (key: string) => {
   customFilter.key = key;
-  customFilter.operator = '=';
-  customFilter.value = '';
+  customFilter.operator = "=";
+  customFilter.value = "";
   customFilterDialog.value = true;
 };
 
 const applyCustomFilter = () => {
   columnFilters.value[customFilter.key] = {
-    type: 'custom',
+    type: "custom",
     operator: customFilter.operator,
-    value: customFilter.value
+    value: customFilter.value,
   };
   customFilterDialog.value = false;
 };
 
 const uniqueValues = (key: string) => {
   const set = new Set(
-    masterData.value
-      .map(r => r[key])
-      .filter(v =>
-        v !== null &&
-        v !== undefined &&
-        v !== ''
-      )
+    masterData.value.map((r) => r[key]).filter((v) => v !== null && v !== undefined && v !== "")
   );
   return Array.from(set).sort();
 };
@@ -985,11 +977,11 @@ const isFilterActive = (key: string) => {
 };
 
 const filterType = (key: string): string => {
-  if (!columnFilters.value[key]) return '';
+  if (!columnFilters.value[key]) return "";
   const f = columnFilters.value[key];
-  if (f.type === 'multi') return 'multi';
-  if (f.type === 'custom') return 'custom';
-  return 'simple';
+  if (f.type === "multi") return "multi";
+  if (f.type === "custom") return "custom";
+  return "simple";
 };
 
 const clearColumnFilter = (key: string) => {
@@ -999,15 +991,15 @@ const clearColumnFilter = (key: string) => {
 const toggleMultiSelectValue = (key: string, value: FilterValue) => {
   const f = columnFilters.value[key];
 
-  if (!f || f.type !== 'multi') {
-    columnFilters.value[key] = { type: 'multi', values: [value] };
+  if (!f || f.type !== "multi") {
+    columnFilters.value[key] = { type: "multi", values: [value] };
     return;
   }
 
   const arr = f.values || [];
 
   if (arr.includes(value)) {
-    f.values = arr.filter(v => v !== value);
+    f.values = arr.filter((v) => v !== value);
     if (f.values.length === 0) delete columnFilters.value[key];
   } else {
     f.values = [...arr, value];
@@ -1021,11 +1013,11 @@ const resetAllFilters = () => {
 
 const formatFilterValue = (key: string, val: string | number | undefined | null): string => {
   // Kolom tanggal → format dd/MM/yyyy
-  if (['tanggal', 'tempo', 'dateModified'].includes(key)) {
-    if (!val) return '-';
-    if (typeof val === 'string' || typeof val === 'number') {
+  if (["tanggal", "tempo", "dateModified"].includes(key)) {
+    if (!val) return "-";
+    if (typeof val === "string" || typeof val === "number") {
       try {
-        return format(new Date(val), 'dd/MM/yyyy');
+        return format(new Date(val), "dd/MM/yyyy");
       } catch {
         return String(val);
       }
@@ -1033,10 +1025,11 @@ const formatFilterValue = (key: string, val: string | number | undefined | null)
   }
 
   // Default fallback
-  return String(val ?? '-');
+  return String(val ?? "-");
 };
 
-onMounted(async () => { // Jadikan async
+onMounted(async () => {
+  // Jadikan async
   const queryStartDate = route.query.startDate as string;
   const queryEndDate = route.query.endDate as string;
   const queryStatus = route.query.status as string;
@@ -1045,7 +1038,8 @@ onMounted(async () => { // Jadikan async
     filters.startDate = queryStartDate;
     filters.endDate = queryEndDate;
   }
-  if (queryStatus) { // <-- TAMBAHKAN INI
+  if (queryStatus) {
+    // <-- TAMBAHKAN INI
     filters.status = queryStatus;
   }
 
@@ -1059,23 +1053,31 @@ onMounted(async () => { // Jadikan async
   isMounted.value = true; // <-- PINDAHKAN KE AKHIR
 });
 
-watch(columnFilters, (val) => {
-  // Simpan ke local storage
-  localStorage.setItem(LS_FILTER_KEY, JSON.stringify(val));
+watch(
+  columnFilters,
+  (val) => {
+    // Simpan ke local storage
+    localStorage.setItem(LS_FILTER_KEY, JSON.stringify(val));
 
-  // Reset halaman dan fetch data baru dari server
-  page.value = 1;
-  fetchMasterData();
-}, { deep: true });
+    // Reset halaman dan fetch data baru dari server
+    page.value = 1;
+    fetchMasterData();
+  },
+  { deep: true }
+);
 
-watch(filters, () => {
-  if (!isMounted.value) return;
+watch(
+  filters,
+  () => {
+    if (!isMounted.value) return;
 
-  // Jika user sedang search → JANGAN fetch
-  if (filterSearchValue.value) return;
+    // Jika user sedang search → JANGAN fetch
+    if (filterSearchValue.value) return;
 
-  fetchMasterData();
-}, { deep: true });
+    fetchMasterData();
+  },
+  { deep: true }
+);
 </script>
 
 <template>
@@ -1146,14 +1148,14 @@ watch(filters, () => {
         <v-label class="mx-2">s/d</v-label>
         <v-text-field v-model="filters.endDate" type="date" density="compact" hide-details variant="outlined" />
         <v-select label="Cabang" v-model="filters.cabang" :items="cabangList" item-title="nama" item-value="kode"
-          density="compact" hide-details variant="outlined" class="ms-4" style="max-width: 200px;" />
+          density="compact" hide-details variant="outlined" class="ms-4" style="max-width: 200px" />
         <v-chip v-if="filters.status" class="ms-4" color="primary" variant="tonal" closable
           @click:close="filters.status = null">
-          Filter Aktif: {{ filters.status === 'sisa_piutang' ? 'Sisa Piutang' : filters.status }}
+          Filter Aktif: {{ filters.status === "sisa_piutang" ? "Sisa Piutang" : filters.status }}
         </v-chip>
         <div class="d-flex align-center ga-2 ms-4">
           <v-select v-model="selectedFilterField" :items="filterOptions" label="Filter Berdasarkan" density="compact"
-            hide-details variant="outlined" style="max-width: 200px;" />
+            hide-details variant="outlined" style="max-width: 200px" />
 
           <v-text-field v-model="filterSearchValue" label="Cari..." density="compact" hide-details variant="outlined"
             clearable prepend-inner-icon="mdi-magnify" class="search-field" />
@@ -1164,8 +1166,8 @@ watch(filters, () => {
         </v-btn>
         <v-spacer />
         <div class="d-flex align-center ga-2 text-caption">
-          <v-icon color="yellow-darken-3" icon="mdi-square-rounded" size="small"></v-icon> Stok Minus
-          <v-icon color="red" icon="mdi-square-rounded" size="small"></v-icon> Belum Lunas
+          <v-icon color="yellow-darken-3" icon="mdi-square-rounded" size="small"></v-icon> Stok
+          Minus <v-icon color="red" icon="mdi-square-rounded" size="small"></v-icon> Belum Lunas
         </div>
         <v-btn @click="fetchMasterData" icon="mdi-refresh" variant="text" size="small" />
       </div>
@@ -1179,13 +1181,12 @@ watch(filters, () => {
           <template #headers="{ columns, isSorted, getSortIcon, toggleSort }">
             <tr>
               <template v-for="header in columns" :key="header.key">
-
                 <!-- HEADER TANPA FILTER (select & expand) -->
                 <th v-if="noFilterColumns.includes(header.key)" :style="{
                   width: (header.width || 100) + 'px',
                   minWidth: (header.width || 100) + 'px',
                   maxWidth: (header.width || 100) + 'px',
-                  boxSizing: 'border-box'
+                  boxSizing: 'border-box',
                 }" class="resizable-header">
                   <div class="header-content">
                     <span>{{ header.title }}</span>
@@ -1198,12 +1199,12 @@ watch(filters, () => {
                   width: (header.width || 100) + 'px',
                   minWidth: (header.width || 100) + 'px',
                   maxWidth: (header.width || 100) + 'px',
-                  boxSizing: 'border-box'
-                }" class="resizable-header"
-                  :class="{ 'text-center': header.align === 'center', 'text-end': header.align === 'end' }"
-                  @click="toggleSort(header)">
+                  boxSizing: 'border-box',
+                }" class="resizable-header" :class="{
+                    'text-center': header.align === 'center',
+                    'text-end': header.align === 'end',
+                  }" @click="toggleSort(header)">
                   <div class="header-content">
-
                     <!-- Judul kolom -->
                     <span>{{ header.title }}</span>
 
@@ -1217,14 +1218,14 @@ watch(filters, () => {
                       <template #activator="{ props }">
                         <v-icon size="16" v-bind="props" @click.stop :color="isFilterActive(header.key) ? 'blue' : ''"
                           :icon="filterType(header.key) === 'custom'
-                            ? 'mdi-filter-cog'
-                            : filterType(header.key) === 'multi'
-                              ? 'mdi-filter-multiple'
-                              : 'mdi-filter-variant'" class="ms-1" />
+                              ? 'mdi-filter-cog'
+                              : filterType(header.key) === 'multi'
+                                ? 'mdi-filter-multiple'
+                                : 'mdi-filter-variant'
+                            " class="ms-1" />
                       </template>
 
                       <v-list class="filter-menu" style="min-width: 200px">
-
                         <!-- SELECT ALL -->
                         <v-list-item @click.stop="clearColumnFilter(header.key)">
                           <v-list-item-title>(Select All)</v-list-item-title>
@@ -1237,8 +1238,8 @@ watch(filters, () => {
                           @click.stop="toggleMultiSelectValue(header.key, value)">
                           <template #prepend>
                             <v-checkbox :model-value="columnFilters[header.key]?.type === 'multi' &&
-                              columnFilters[header.key]?.values?.includes(value)" density="compact"
-                              @click.stop="toggleMultiSelectValue(header.key, value)" />
+                              columnFilters[header.key]?.values?.includes(value)
+                              " density="compact" @click.stop="toggleMultiSelectValue(header.key, value)" />
                           </template>
 
                           <v-list-item-title>
@@ -1256,13 +1257,11 @@ watch(filters, () => {
                         </v-list-item>
                       </v-list>
                     </v-menu>
-
                   </div>
 
                   <!-- RESIZER -->
                   <div class="resizer" @mousedown.stop="onResizeStart($event, header)" @click.stop></div>
                 </th>
-
               </template>
             </tr>
           </template>
@@ -1272,19 +1271,36 @@ watch(filters, () => {
               variant="text" @click.stop="toggleExpand(internalItem)" />
           </template>
 
-          <template v-for="header in (headers || []).filter(h => h.key !== 'data-table-expand')" :key="header.key"
+          <template v-for="header in (headers || []).filter((h) => h.key !== 'data-table-expand')" :key="header.key"
             #[`item.${header.key}`]="{ item }">
             <td>
-              <template v-if="['Created', 'LastPayment', 'TglTransfer', 'DateModified'].includes(header.key)">
-                {{ safeFormatDate(item[header.key], 'dd/MM/yyyy HH:mm:ss') }}
+              <template v-if="
+                ['Created', 'LastPayment', 'TglTransfer', 'DateModified'].includes(header.key)
+              ">
+                {{ safeFormatDate(item[header.key], "dd/MM/yyyy HH:mm:ss") }}
               </template>
 
               <template v-else-if="['Tanggal', 'TglSO', 'TglSJ', 'Tempo'].includes(header.key)">
-                {{ safeFormatDate(item[header.key], 'dd/MM/yyyy') }}
+                {{ safeFormatDate(item[header.key], "dd/MM/yyyy") }}
               </template>
 
-              <template
-                v-else-if="['BiayaPlatform', 'Dis%', 'Diskon', 'Dp', 'Biayakirim', 'Nominal', 'Piutang', 'Bayar', 'SisaPiutang', 'RpVoucher', 'RpTransfer', 'RpRetur', 'RpTunai'].includes(header.key)">
+              <template v-else-if="
+                [
+                  'BiayaPlatform',
+                  'Dis%',
+                  'Diskon',
+                  'Dp',
+                  'Biayakirim',
+                  'Nominal',
+                  'Piutang',
+                  'Bayar',
+                  'SisaPiutang',
+                  'RpVoucher',
+                  'RpTransfer',
+                  'RpRetur',
+                  'RpTunai',
+                ].includes(header.key)
+              ">
                 {{ formatRupiah(Number(item[header.key])) }}
               </template>
 
@@ -1295,7 +1311,9 @@ watch(filters, () => {
               </template>
 
               <template v-else-if="header.key === 'Posting'">
-                <v-chip size="x-small" :color="item.Posting === 'SUDAH' ? 'green' : 'grey'">{{ item.Posting }}</v-chip>
+                <v-chip size="x-small" :color="item.Posting === 'SUDAH' ? 'green' : 'grey'">{{
+                  item.Posting
+                  }}</v-chip>
               </template>
 
               <template v-else-if="header.key === 'Closing'">
@@ -1343,23 +1361,30 @@ watch(filters, () => {
             <tr>
               <td :colspan="columns.length" class="pa-0">
                 <div class="detail-container">
-                  <div class="detail-table-wrapper">
-                    <v-data-table :headers="detailHeaders" :items="details[item.Nomor]" density="compact"
-                      class="detail-table" hide-default-footer>
-                      <template #[`item.Harga`]="{ item }">
+                  <div class="detail-table-wrapper shadow-sm">
+                    <v-data-table :headers="detailHeaders" :items="details[item.Nomor] || []" density="compact"
+                      class="detail-table" hide-default-footer :items-per-page="-1">
+                      <template #[`item.Harga`]="{ item: detailItem }">
                         <div class="harga-cell">
-                          <template v-if="item.HargaAsli > item.Harga">
-                            <div class="text-grey text-decoration-line-through">{{ formatRupiah(item.HargaAsli) }}</div>
-                            <div>{{ formatRupiah(item.Harga) }}</div>
+                          <template v-if="detailItem.HargaAsli && detailItem.HargaAsli > detailItem.Harga">
+                            <div class="text-grey text-decoration-line-through" style="font-size: 9px">
+                              {{ formatRupiah(detailItem.HargaAsli) }}
+                            </div>
+                            <div class="font-weight-bold">{{ formatRupiah(detailItem.Harga) }}</div>
                           </template>
                           <template v-else>
-                            <div>{{ formatRupiah(item.Harga) }}</div>
+                            <div>{{ formatRupiah(detailItem.Harga) }}</div>
                           </template>
                         </div>
                       </template>
+
                       <template #[`item.Total`]="{ value }">
-                        {{ formatRupiah(value) }}
+                        <div class="text-end font-weight-bold">
+                          {{ formatRupiah(value) }}
+                        </div>
                       </template>
+
+                      <template #bottom></template>
                     </v-data-table>
                   </div>
                 </div>
@@ -1368,11 +1393,9 @@ watch(filters, () => {
           </template>
           <template #[`body.append`]>
             <tr class="sticky-footer bg-grey-lighten-4 font-weight-bold text-caption">
-
               <td class="select-column-spacer"></td>
 
-              <template v-for="header in (headers || [])" :key="header.key">
-
+              <template v-for="header in headers || []" :key="header.key">
                 <td v-if="header.key === 'data-table-expand'" style="width: 50px"></td>
 
                 <td v-else class="px-2 py-2 border-top" :class="`text-${header.align || 'start'}`">
@@ -1430,9 +1453,7 @@ watch(filters, () => {
 
     <v-dialog v-model="customFilterDialog" max-width="350px">
       <v-card>
-        <v-card-title class="text-h6">
-          Custom Filter — {{ customFilter.key }}
-        </v-card-title>
+        <v-card-title class="text-h6"> Custom Filter — {{ customFilter.key }} </v-card-title>
 
         <v-card-text>
           <v-select v-model="customFilter.operator" :items="[
@@ -1444,7 +1465,7 @@ watch(filters, () => {
             { title: ' ≤ (lebih kecil sama)', value: '<=' },
             { title: ' contains', value: 'contains' },
             { title: ' starts with', value: 'starts' },
-            { title: ' ends with', value: 'ends' }
+            { title: ' ends with', value: 'ends' },
           ]" label="Operator" density="compact" />
 
           <v-text-field v-model="customFilter.value" label="Value" density="compact" autofocus />
@@ -1475,11 +1496,11 @@ watch(filters, () => {
             variant="outlined" density="compact" color="primary"></v-select>
 
           <template v-if="formPayment.metode === 'TRANSFER'">
-            <v-text-field :model-value="formPayment.bank ? `${formPayment.bank.nama} - ${formPayment.bank.kode}` : ''"
-              label="Pilih Bank (Klik Disini/F1)" placeholder="Tekan F1 untuk cari..." variant="outlined"
+            <v-text-field :model-value="formPayment.bank ? `${formPayment.bank.nama} - ${formPayment.bank.kode}` : ''
+              " label="Pilih Bank (Klik Disini/F1)" placeholder="Tekan F1 untuk cari..." variant="outlined"
               density="compact" readonly append-inner-icon="mdi-magnify" @click="isRekeningSearchVisible = true"
               @keydown.f1.prevent="isRekeningSearchVisible = true"
-              :rules="[v => !!formPayment.bank || 'Bank wajib dipilih']"></v-text-field>
+              :rules="[(v) => !!formPayment.bank || 'Bank wajib dipilih']"></v-text-field>
 
             <v-text-field v-model="formPayment.noRek" label="Keterangan / No. Rek" variant="outlined" density="compact"
               placeholder="Contoh: 123xxx a.n Budi"></v-text-field>
@@ -1487,7 +1508,7 @@ watch(filters, () => {
 
           <v-textarea v-model="formPayment.alasan" label="Alasan Perubahan (Wajib)" rows="2" variant="outlined"
             density="compact" placeholder="Contoh: Salah input metode oleh sales"
-            :rules="[v => !!v || 'Alasan wajib diisi']"></v-textarea>
+            :rules="[(v) => !!v || 'Alasan wajib diisi']"></v-textarea>
         </v-card-text>
 
         <v-card-actions>
@@ -1502,7 +1523,6 @@ watch(filters, () => {
 
     <RekeningSearchModal v-if="isRekeningSearchVisible" :cabang="authStore.user?.cabang || 'K01'"
       @close="isRekeningSearchVisible = false" @selected="onRekeningSelected" />
-
   </PageLayout>
 </template>
 
@@ -1586,31 +1606,53 @@ watch(filters, () => {
 }
 
 .detail-container {
+  position: sticky;
+  left: 0;
+  z-index: 2;
   display: flex;
   justify-content: flex-start;
+  align-items: flex-start;
   padding: 16px 16px 16px 64px;
-  width: 100%;
-
-  background-color: rgb(var(--v-theme-surface));
-  border-bottom: 1px solid rgba(var(--v-theme-on-surface), 0.12);
+  /* Padding sejajar setelah checkbox */
+  width: calc(100vw - 110px);
+  /* Batasi lebar agar tidak melebar ke kanan master */
+  background-color: #f8f9fa;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.12);
+  box-sizing: border-box;
 }
 
 /* Styling header tabel detail agar beda dikit (opsional) */
 .detail-table :deep(thead tr th) {
-  background-color: rgba(var(--v-theme-on-surface), 0.06) !important;
-  color: rgb(var(--v-theme-on-surface)) !important;
-  font-size: 10px !important;
+  background-color: #f1f8ff !important;
+  color: #0d47a1 !important;
+  font-weight: 700 !important;
   height: 32px !important;
+  font-size: 11px !important;
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  text-transform: uppercase;
 }
 
 .detail-table-wrapper {
   width: 100%;
   max-width: 900px;
-
-  background-color: rgb(var(--v-theme-surface));
-  border: 1px solid rgba(var(--v-theme-on-surface), 0.12);
+  background-color: white;
+  border: 1px solid rgba(0, 0, 0, 0.12);
   border-radius: 4px;
-  overflow: hidden;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+
+  /* --- FIX SCROLL INTERNAL --- */
+  max-height: 350px;
+  /* Batasi tinggi detail agar tidak mentok layar */
+  overflow-y: auto;
+  /* Aktifkan scrollbar vertikal ke-3 */
+  overflow-x: hidden;
+}
+
+.detail-table :deep(tbody tr td) {
+  height: 32px !important;
+  font-size: 11px !important;
 }
 
 .resizable-header {

@@ -75,18 +75,30 @@ const dialogConfirm = reactive({
 });
 
 // --- Header Definisi (Ref & Width Angka) ---
-const headers = ref<DataTableHeader[]>([
-  { title: '', key: 'data-table-expand', width: 50, fixed: true },
-  { title: 'Nomor SJ', key: 'Nomor', width: 180, fixed: true },
-  { title: 'Tanggal SJ', key: 'Tanggal', width: 120 },
-  { title: 'Nomor Minta', key: 'NomorMinta', width: 180 },
-  { title: 'Nomor Terima', key: 'NomorTerima', width: 180 },
-  { title: 'Tgl Terima', key: 'TglTerima', width: 120 },
-  { title: 'Store', key: 'Store', width: 100 },
-  { title: 'Nama Store', key: 'Nama_Store', width: 200 },
-  { title: 'Keterangan', key: 'Keterangan', width: 300 },
-  { title: 'Closing', key: 'Closing', align: 'center', width: 100 },
-]);
+const headers = computed<DataTableHeader[]>(() => {
+  const baseHeaders: DataTableHeader[] = [
+    { title: '', key: 'data-table-expand', width: 50, fixed: true },
+    { title: 'Nomor SJ', key: 'Nomor', width: 180, fixed: true },
+    { title: 'Tanggal SJ', key: 'Tanggal', width: 120 },
+    { title: 'Nomor Minta', key: 'NomorMinta', width: 180 },
+  ];
+
+  // Tambahkan No. Invoice HANYA jika KDC atau KPR
+  if (showInvoiceColumn.value) {
+    baseHeaders.push({ title: 'No. Invoice', key: 'NoInvoice', width: 160 });
+  }
+
+  baseHeaders.push(
+    { title: 'Nomor Terima', key: 'NomorTerima', width: 180 },
+    { title: 'Tgl Terima', key: 'TglTerima', width: 120 },
+    { title: 'Store', key: 'Store', width: 100 },
+    { title: 'Nama Store', key: 'Nama_Store', width: 200 },
+    { title: 'Keterangan', key: 'Keterangan', width: 300 },
+    { title: 'Closing', key: 'Closing', align: 'center', width: 100 },
+  );
+
+  return baseHeaders;
+});
 
 const detailHeaders = [
   { title: 'Kode', key: 'Kode', width: '150px' },
@@ -133,10 +145,12 @@ const handleRowClick = (_event: Event, { item }: { item: SjHeader }) => {
 const isSingleSelected = computed(() => selected.value.length === 1);
 const selectedRow = computed(() => isSingleSelected.value ? selected.value[0] : null);
 const isK01 = computed(() => authStore.user?.cabang === 'K01');
+const isKpr = computed(() => authStore.user?.cabang === 'KPR');
 
 const terimaDisabledReason = computed(() => {
-  if (!isK01.value) {
-    return 'Penerimaan SJ cabang selain K01 wajib melalui Aplikasi Kaosan Mobile.';
+  // Izinkan K01 atau KPR untuk melakukan penerimaan di Web
+  if (!isK01.value && !isKpr.value) {
+    return 'Penerimaan SJ cabang selain K01 & KPR wajib melalui Aplikasi Kaosan Mobile.';
   }
   if (!isSingleSelected.value) {
     return 'Pilih tepat satu SJ terlebih dahulu.';
@@ -145,6 +159,11 @@ const terimaDisabledReason = computed(() => {
     return 'SJ ini sudah diterima.';
   }
   return '';
+});
+
+const showInvoiceColumn = computed(() => {
+  const cb = authStore.user?.cabang;
+  return cb === 'KDC' || cb === 'KPR';
 });
 
 const batalDisabledReason = computed(() => {
@@ -463,6 +482,14 @@ watch(filters, fetchMasterData, { deep: true });
         <AppDataTable v-model="selected" v-model:expanded="expanded" :headers="headers" :items="masterData"
           :loading="loading" item-value="Nomor" density="compact" class="desktop-table header-browse-blue" fixed-header
           show-select return-object show-expand @update:expanded="loadDetails" @click:row="handleRowClick">
+          <template #[`item.NoInvoice`]="{ item }">
+            <span class="font-weight-bold text-blue-darken-2">
+              {{ item.NoInvoice || '-' }}
+            </span>
+          </template>
+
+          <template #[`item.Nomor`]="{ item }">
+          </template>
           <template #headers="{ columns, isSorted, getSortIcon, toggleSort }">
             <tr>
               <template v-for="header in columns" :key="header.key">
@@ -480,6 +507,7 @@ watch(filters, fetchMasterData, { deep: true });
                   <div class="resizer" @mousedown.stop="onResizeStart($event, header)" @click.stop></div>
                 </th>
               </template>
+
             </tr>
           </template>
 

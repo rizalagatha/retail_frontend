@@ -1,11 +1,11 @@
 <script setup lang="ts">
-import { ref, reactive, onMounted, computed } from 'vue';
-import { useRoute, useRouter } from 'vue-router';
-import { useToast } from 'vue-toastification';
-import { useAuthStore } from '@/stores/authStore';
-import api from '@/services/api';
-import { format } from 'date-fns';
-import PageLayout from '@/components/PageLayout.vue';
+import { ref, reactive, onMounted, computed } from "vue";
+import { useRoute, useRouter } from "vue-router";
+import { useToast } from "vue-toastification";
+import { useAuthStore } from "@/stores/authStore";
+import api from "@/services/api";
+import { format } from "date-fns";
+import PageLayout from "@/components/PageLayout.vue";
 import type { DataTableHeader } from "vuetify";
 
 // --- Tipe Data ---
@@ -28,46 +28,47 @@ const route = useRoute();
 const router = useRouter();
 const toast = useToast();
 const authStore = useAuthStore();
-const MENU_ID = '31';
+const MENU_ID = "31";
 
 // --- State ---
 const isEditMode = computed(() => !!route.params.nomor);
 // const pageTitle = computed(() =>
 //     isEditMode.value ? 'Ubah Penerimaan Surat Jalan' : 'Form Terima Surat Jalan'
 // );
-const requiredPermission = computed(() =>
-  isEditMode.value ? 'edit' : 'insert'
-);
+const requiredPermission = computed(() => (isEditMode.value ? "edit" : "insert"));
 
 const isLoading = ref(true);
 const isSaving = ref(false);
-const scannedBarcode = ref('');
+const scannedBarcode = ref("");
 
 const header = reactive({
-  nomor: '', // No Terima (akan digenerate backend)
-  tanggalTerima: format(new Date(), 'yyyy-MM-dd'),
-  gudangTerima: { kode: authStore.user?.cabang || '', nama: '' },
-  nomorSj: '',
-  tanggalSj: '',
-  nomorMinta: '',
-  gudangAsal: { kode: '', nama: '' },
-  keterangan: '',
+  nomor: "", // No Terima (akan digenerate backend)
+  tanggalTerima: format(new Date(), "yyyy-MM-dd"),
+  gudangTerima: { kode: authStore.user?.cabang || "", nama: "" },
+  nomorSj: "",
+  tanggalSj: "",
+  nomorMinta: "",
+  gudangAsal: { kode: "", nama: "" },
+  keterangan: "",
 });
 
 const items = ref<Item[]>([]);
 
 const dialogConfirm = reactive({
-  show: false, title: '', text: '', onConfirm: () => { },
+  show: false,
+  title: "",
+  text: "",
+  onConfirm: () => { },
 });
 
 // --- Konfigurasi Tabel ---
 const tableHeaders: DataTableHeader[] = [
-  { title: 'Kode Barang', key: 'kode' },
-  { title: 'Nama Barang', key: 'nama' },
-  { title: 'Ukuran', key: 'ukuran' },
-  { title: 'Jumlah Kirim', key: 'jumlahKirim', align: 'end' },
-  { title: 'Jumlah Terima', key: 'jumlahTerima', align: 'end', width: '150px' },
-  { title: 'Barcode', key: 'barcode' },
+  { title: "Kode Barang", key: "kode" },
+  { title: "Nama Barang", key: "nama" },
+  { title: "Ukuran", key: "ukuran" },
+  { title: "Jumlah Kirim", key: "jumlahKirim", align: "end" },
+  { title: "Jumlah Terima", key: "jumlahTerima", align: "end", width: "150px" },
+  { title: "Barcode", key: "barcode" },
 ];
 
 // --- Methods ---
@@ -83,21 +84,25 @@ const loadData = async (nomorSj: string) => {
     header.gudangAsal = { kode: data.header.gudang_asal_kode, nama: data.header.gudang_asal_nama };
     header.keterangan = data.header.keterangan;
 
-    const isK01 = authStore.user?.cabang === 'K01';
+    const userCabang = authStore.user?.cabang || "";
+    const isAutoTerima = ["K01", "KPR"].includes(userCabang);
 
     // Isi grid
-    items.value = data.items.map((item: Item): ItemWithExtra => ({
-      ...item,
-      id: Date.now() + Math.random(),
-      jumlahTerima: isK01 ? item.jumlahKirim : 0,
-    }));
+    items.value = data.items.map(
+      (item: Item): ItemWithExtra => ({
+        ...item,
+        id: Date.now() + Math.random(),
+        jumlahTerima: isAutoTerima ? item.jumlahKirim : 0, // Jika K01 atau KPR, isi otomatis
+      })
+    );
 
-    if (isK01) {
-      toast.info('Jumlah terima otomatis disamakan dengan jumlah kirim untuk cabang K01.');
+    if (isAutoTerima) {
+      toast.info(
+        `Jumlah terima otomatis disamakan dengan jumlah kirim untuk cabang ${userCabang}.`
+      );
     }
-
   } catch {
-    toast.error('Gagal memuat data SJ untuk diterima.');
+    toast.error("Gagal memuat data SJ untuk diterima.");
     router.back();
   } finally {
     isLoading.value = false;
@@ -108,7 +113,7 @@ const handleBarcodeScan = () => {
   const barcode = scannedBarcode.value;
   if (!barcode) return;
 
-  const itemToUpdate = items.value.find(item => item.barcode === barcode);
+  const itemToUpdate = items.value.find((item) => item.barcode === barcode);
 
   if (itemToUpdate) {
     if (itemToUpdate.jumlahTerima < itemToUpdate.jumlahKirim) {
@@ -119,7 +124,7 @@ const handleBarcodeScan = () => {
   } else {
     toast.error(`Barcode ${barcode} tidak ditemukan dalam Surat Jalan ini.`);
   }
-  scannedBarcode.value = ''; // Selalu kosongkan input
+  scannedBarcode.value = ""; // Selalu kosongkan input
 };
 
 const showConfirmation = (title: string, text: string, onConfirm: () => void) => {
@@ -133,15 +138,15 @@ const executeSave = async () => {
   isSaving.value = true;
   try {
     const payload = { header, items: items.value };
-    const response = await api.post('/terima-sj-form/save', payload);
+    const response = await api.post("/terima-sj-form/save", payload);
     toast.success(response.data.message);
-    router.push({ name: 'TerimaSj' });
+    router.push({ name: "TerimaSj" });
   } catch (error: unknown) {
-    if (typeof error === 'object' && error !== null && 'response' in error) {
+    if (typeof error === "object" && error !== null && "response" in error) {
       const err = error as { response?: { data?: { message?: string } } };
-      toast.error(err.response?.data?.message || 'Gagal menyimpan data.');
+      toast.error(err.response?.data?.message || "Gagal menyimpan data.");
     } else {
-      toast.error('Gagal menyimpan data.');
+      toast.error("Gagal menyimpan data.");
     }
   } finally {
     isSaving.value = false;
@@ -150,20 +155,26 @@ const executeSave = async () => {
 
 const handleSave = () => {
   // Validasi
-  if (items.value.length === 0) return toast.error('Tidak ada item untuk diterima.');
-  showConfirmation('Konfirmasi Simpan', 'Apakah Anda yakin ingin menyimpan penerimaan SJ ini?', executeSave);
+  if (items.value.length === 0) return toast.error("Tidak ada item untuk diterima.");
+  showConfirmation(
+    "Konfirmasi Simpan",
+    "Apakah Anda yakin ingin menyimpan penerimaan SJ ini?",
+    executeSave
+  );
 };
 
 const handleClose = () => {
-  showConfirmation('Konfirmasi Tutup', 'Tutup form dan kembali ke halaman browse?', () => router.push({ name: 'TerimaSj' }));
+  showConfirmation("Konfirmasi Tutup", "Tutup form dan kembali ke halaman browse?", () =>
+    router.push({ name: "TerimaSj" })
+  );
 };
 
 onMounted(() => {
   if (!authStore.can(MENU_ID, requiredPermission.value)) {
     toast.error(
-      `Anda tidak memiliki izin untuk ${isEditMode.value ? 'mengubah' : 'membuat'} data Terima SJ.`
+      `Anda tidak memiliki izin untuk ${isEditMode.value ? "mengubah" : "membuat"} data Terima SJ.`
     );
-    router.push({ name: 'TerimaSj' });
+    router.push({ name: "TerimaSj" });
     return;
   }
 
@@ -171,7 +182,7 @@ onMounted(() => {
   if (nomorSj) {
     loadData(nomorSj);
   } else {
-    toast.error('Nomor SJ tidak valid.');
+    toast.error("Nomor SJ tidak valid.");
     router.back();
   }
 });
@@ -238,8 +249,10 @@ onMounted(() => {
         <v-card-actions>
           <v-spacer></v-spacer>
           <v-btn text @click="dialogConfirm.show = false">Tidak</v-btn>
-          <v-btn color="primary" variant="tonal" @click="dialogConfirm.onConfirm(); dialogConfirm.show = false">Ya,
-            Lanjutkan</v-btn>
+          <v-btn color="primary" variant="tonal" @click="
+            dialogConfirm.onConfirm();
+          dialogConfirm.show = false;
+          ">Ya, Lanjutkan</v-btn>
         </v-card-actions>
       </v-card>
     </v-dialog>

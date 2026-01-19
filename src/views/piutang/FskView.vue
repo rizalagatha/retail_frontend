@@ -1,13 +1,13 @@
 <script setup lang="ts">
-import { ref, reactive, onMounted, computed, watch } from 'vue';
-import { useRouter } from 'vue-router';
-import { useToast } from 'vue-toastification';
-import { useAuthStore } from '@/stores/authStore';
-import api from '@/services/api';
-import { format, subDays, parseISO, isSameDay } from 'date-fns';
-import PageLayout from '@/components/PageLayout.vue';
-import * as XLSX from 'xlsx';
-import AppDataTable from '@/components/AppDataTable.vue';
+import { ref, reactive, onMounted, computed, watch } from "vue";
+import { useRouter } from "vue-router";
+import { useToast } from "vue-toastification";
+import { useAuthStore } from "@/stores/authStore";
+import api from "@/services/api";
+import { format, subDays, parseISO, isSameDay } from "date-fns";
+import PageLayout from "@/components/PageLayout.vue";
+import * as XLSX from "xlsx";
+import AppDataTable from "@/components/AppDataTable.vue";
 import { formatRupiah } from "@/utils/formatRupiah";
 
 // Interface Header (Resize)
@@ -16,7 +16,7 @@ interface DataTableHeader {
   key: string;
   width?: number;
   fixed?: boolean;
-  align?: 'start' | 'center' | 'end';
+  align?: "start" | "center" | "end";
   minWidth?: string | number;
   maxWidth?: string | number;
   sortable?: boolean;
@@ -52,16 +52,16 @@ interface FskExportHeader {
 
 // Interface Data Detail dari API
 interface FskExportDetail {
-  'Nomor FSK': string;
-  'Tanggal Setor'?: string | Date;
-  'Tanggal Verifikasi'?: string | Date;
+  "Nomor FSK": string;
+  "Tanggal Setor"?: string | Date;
+  "Tanggal Verifikasi"?: string | Date;
   [key: string]: unknown;
 }
 
 const router = useRouter();
 const toast = useToast();
 const authStore = useAuthStore();
-const MENU_ID = '54';
+const MENU_ID = "54";
 
 // --- State ---
 const masterData = ref<FskMaster[]>([]);
@@ -73,14 +73,14 @@ const expanded = ref<string[]>([]);
 const cabangList = ref([]);
 
 const filters = reactive({
-  startDate: format(subDays(new Date(), 7), 'yyyy-MM-dd'),
-  endDate: format(new Date(), 'yyyy-MM-dd'),
-  cabang: authStore.user?.cabang || '',
+  startDate: format(subDays(new Date(), 7), "yyyy-MM-dd"),
+  endDate: format(new Date(), "yyyy-MM-dd"),
+  cabang: authStore.user?.cabang || "",
 });
 
 // --- Computed ---
 const isSingleSelected = computed(() => selected.value.length === 1);
-const selectedRow = computed(() => isSingleSelected.value ? selected.value[0] : null);
+const selectedRow = computed(() => (isSingleSelected.value ? selected.value[0] : null));
 const canBeModified = computed(() => {
   if (!isSingleSelected.value) return false;
   const item = selected.value[0];
@@ -88,34 +88,35 @@ const canBeModified = computed(() => {
 });
 const hasTodayFsk = computed(() => {
   const today = new Date();
-  return masterData.value.some(item => {
+  return masterData.value.some((item) => {
     const tglSetor = parseISO(item.TglSetor);
     // Cek jika tanggal sama dan milik cabang user sendiri (bukan hasil intip cabang lain jika KDC)
-    return isSameDay(tglSetor, today) && item.Nomor.startsWith(authStore.user?.cabang || '');
+    return isSameDay(tglSetor, today) && item.Nomor.startsWith(authStore.user?.cabang || "");
   });
 });
 
 const newButtonDisabledReason = computed(() => {
-  if (hasTodayFsk.value) return 'FSK hari ini sudah dibuat. SC hanya diperbolehkan membuat 1 FSK per hari.';
-  if (!authStore.can(MENU_ID, 'insert')) return 'Anda tidak memiliki izin.';
-  return '';
+  if (hasTodayFsk.value)
+    return "FSK hari ini sudah dibuat. SC hanya diperbolehkan membuat 1 FSK per hari.";
+  if (!authStore.can(MENU_ID, "insert")) return "Anda tidak memiliki izin.";
+  return "";
 });
 
 // --- Header Definisi (Ref & Width Angka) ---
 const headers = ref<DataTableHeader[]>([
-  { title: '', key: 'data-table-expand', width: 50, fixed: true },
-  { title: 'Nomor', key: 'Nomor', width: 200, fixed: true },
-  { title: 'Tgl Setor', key: 'TglSetor', width: 150 },
-  { title: 'Tgl Verifikasi', key: 'TglVerifikasi', width: 150 },
-  { title: 'Dibuat Oleh', key: 'Created', width: 150 },
-  { title: 'Diverifikasi Oleh', key: 'Verified', width: 150 },
-  { title: 'Closing', key: 'Closing', align: 'center', width: 100 },
+  { title: "", key: "data-table-expand", width: 50, fixed: true },
+  { title: "Nomor", key: "Nomor", width: 200, fixed: true },
+  { title: "Tgl Setor", key: "TglSetor", width: 150 },
+  { title: "Tgl Verifikasi", key: "TglVerifikasi", width: 150 },
+  { title: "Dibuat Oleh", key: "Created", width: 150 },
+  { title: "Diverifikasi Oleh", key: "Verified", width: 150 },
+  { title: "Closing", key: "Closing", align: "center", width: 100 },
 ]);
 
 const detailHeaders = [
-  { title: 'Jenis', key: 'Jenis', width: '200px' },
-  { title: 'Nominal Setor', key: 'NominalSetor', align: 'end', width: '150px' },
-  { title: 'Nominal Verifikasi', key: 'NominalVerifikasi', align: 'end', width: '150px' },
+  { title: "Jenis", key: "Jenis", width: "200px" },
+  { title: "Nominal Setor", key: "NominalSetor", align: "end", width: "150px" },
+  { title: "Nominal Verifikasi", key: "NominalVerifikasi", align: "end", width: "150px" },
 ] as const;
 
 // --- Logic Resize Column ---
@@ -128,10 +129,10 @@ const onResizeStart = (e: MouseEvent, column: DataTableHeader) => {
   e.stopPropagation();
   resizingColumn.value = column;
   startX.value = e.pageX;
-  startWidth.value = (typeof column.width === 'number' ? column.width : 100);
-  document.addEventListener('mousemove', onResizeMove);
-  document.addEventListener('mouseup', onResizeEnd);
-  document.body.style.cursor = 'col-resize';
+  startWidth.value = typeof column.width === "number" ? column.width : 100;
+  document.addEventListener("mousemove", onResizeMove);
+  document.addEventListener("mouseup", onResizeEnd);
+  document.body.style.cursor = "col-resize";
 };
 
 const onResizeMove = (e: MouseEvent) => {
@@ -142,9 +143,9 @@ const onResizeMove = (e: MouseEvent) => {
 
 const onResizeEnd = () => {
   resizingColumn.value = null;
-  document.removeEventListener('mousemove', onResizeMove);
-  document.removeEventListener('mouseup', onResizeEnd);
-  document.body.style.cursor = '';
+  document.removeEventListener("mousemove", onResizeMove);
+  document.removeEventListener("mouseup", onResizeEnd);
+  document.body.style.cursor = "";
 };
 
 // --- Logic Selected Row ---
@@ -155,9 +156,11 @@ const handleRowClick = (_event: Event, { item }: { item: FskMaster }) => {
 // --- Methods ---
 const fetchCabangList = async () => {
   try {
-    const response = await api.get('/fsk/lookup/cabang');
+    const response = await api.get("/fsk/lookup/cabang");
     cabangList.value = response.data;
-  } catch { toast.error('Gagal memuat daftar cabang.'); }
+  } catch {
+    toast.error("Gagal memuat daftar cabang.");
+  }
 };
 
 const fetchMasterData = async () => {
@@ -165,16 +168,16 @@ const fetchMasterData = async () => {
   selected.value = [];
   expanded.value = [];
   try {
-    const response = await api.get('/fsk', { params: filters });
+    const response = await api.get("/fsk", { params: filters });
     masterData.value = response.data;
   } catch (error: unknown) {
     if (error instanceof Error) {
-      toast.error(error.message || 'Gagal mengambil data.');
-    } else if (typeof error === 'object' && error !== null && 'response' in error) {
+      toast.error(error.message || "Gagal mengambil data.");
+    } else if (typeof error === "object" && error !== null && "response" in error) {
       const axiosError = error as { response?: { data?: { message?: string } } };
-      toast.error(axiosError.response?.data?.message || 'Gagal mengambil data.');
+      toast.error(axiosError.response?.data?.message || "Gagal mengambil data.");
     } else {
-      toast.error('Gagal mengambil data.');
+      toast.error("Gagal mengambil data.");
     }
   } finally {
     loading.value = false;
@@ -183,7 +186,7 @@ const fetchMasterData = async () => {
 
 const loadDetails = async (newlyExpandedItems: FskMaster[]) => {
   const itemToLoad = newlyExpandedItems.find(
-    item => !details.value[item.Nomor] && !loadingDetails.value.has(item.Nomor)
+    (item) => !details.value[item.Nomor] && !loadingDetails.value.has(item.Nomor)
   );
   if (!itemToLoad) return;
 
@@ -217,26 +220,26 @@ const loadDetails = async (newlyExpandedItems: FskMaster[]) => {
 // };
 
 const getRowTextColor = (item: FskMaster) => {
-  if (!item.Verified) return 'text-red font-weight-bold';
-  return '';
+  if (!item.Verified) return "text-red font-weight-bold";
+  return "";
 };
 
 const printData = () => {
   if (!isSingleSelected.value) return;
   const nomor = selected.value[0].Nomor;
-  const url = router.resolve({ name: 'FskPrint', params: { nomor } }).href;
-  window.open(url, '_blank');
+  const url = router.resolve({ name: "FskPrint", params: { nomor } }).href;
+  window.open(url, "_blank");
 };
 
 // Helper Format Tanggal
 const formatDateIndo = (dateString: string | Date | null | undefined) => {
-  if (!dateString) return '';
+  if (!dateString) return "";
   const date = new Date(dateString);
-  if (isNaN(date.getTime())) return '';
-  return new Intl.DateTimeFormat('id-ID', {
-    day: 'numeric',
-    month: 'long',
-    year: 'numeric'
+  if (isNaN(date.getTime())) return "";
+  return new Intl.DateTimeFormat("id-ID", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
   }).format(date);
 };
 
@@ -245,90 +248,86 @@ const getAutoColumnWidth = (data: Record<string, unknown>[]) => {
   if (data.length === 0) return [];
   return Object.keys(data[0]).map((key) => ({
     // Lebar minimal 15, atau menyesuaikan panjang judul kolom
-    wch: Math.max(key.length + 5, 15)
+    wch: Math.max(key.length + 5, 15),
   }));
 };
 
 // --- 2. Fungsi Export Data ---
-const exportData = async (type: 'header' | 'detail') => {
-
+const exportData = async (type: "header" | "detail") => {
   // === EXPORT HEADER (Dari Server) ===
-  if (type === 'header') {
+  if (type === "header") {
     try {
-      toast.info('Mengambil data header dari server...');
+      toast.info("Mengambil data header dari server...");
 
-      const response = await api.get<FskExportHeader[]>('/fsk/export-headers', {
-        params: filters
+      const response = await api.get<FskExportHeader[]>("/fsk/export-headers", {
+        params: filters,
       });
 
       if (response.data.length === 0) {
-        toast.warning('Tidak ada data header untuk diekspor.');
+        toast.warning("Tidak ada data header untuk diekspor.");
         return;
       }
 
-      toast.info('Membuat file Excel Header...');
+      toast.info("Membuat file Excel Header...");
 
       // Mapping Format Data
       const formattedHeader = response.data.map((item) => ({
-        'Nomor': item.Nomor,
-        'Tgl Setor': item.TglSetor ? formatDateIndo(item.TglSetor) : '',
-        'Tgl Verifikasi': item.TglVerifikasi ? formatDateIndo(item.TglVerifikasi) : '',
-        'Dibuat Oleh': item.DibuatOleh,
-        'Diverifikasi Oleh': item.DiverifikasiOleh,
-        'Closing': item.Closing
+        Nomor: item.Nomor,
+        "Tgl Setor": item.TglSetor ? formatDateIndo(item.TglSetor) : "",
+        "Tgl Verifikasi": item.TglVerifikasi ? formatDateIndo(item.TglVerifikasi) : "",
+        "Dibuat Oleh": item.DibuatOleh,
+        "Diverifikasi Oleh": item.DiverifikasiOleh,
+        Closing: item.Closing,
       }));
 
       const worksheet = XLSX.utils.json_to_sheet(formattedHeader);
 
       // [FITUR] Auto Width Columns
-      worksheet['!cols'] = getAutoColumnWidth(formattedHeader);
+      worksheet["!cols"] = getAutoColumnWidth(formattedHeader);
 
       const workbook = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(workbook, worksheet, "FSK Header");
       XLSX.writeFile(workbook, "Export_FSK_Header.xlsx");
-      toast.success('File Header berhasil dibuat.');
-
+      toast.success("File Header berhasil dibuat.");
     } catch (error) {
-      toast.error('Gagal mengekspor data header.', error);
+      toast.error("Gagal mengekspor data header.", error);
     }
 
     // === EXPORT DETAIL ===
-  } else if (type === 'detail') {
+  } else if (type === "detail") {
     try {
-      toast.info('Mengambil data detail dari server...');
+      toast.info("Mengambil data detail dari server...");
 
-      const response = await api.get<FskExportDetail[]>('/fsk/export-details', {
-        params: filters
+      const response = await api.get<FskExportDetail[]>("/fsk/export-details", {
+        params: filters,
       });
 
       if (response.data.length === 0) {
-        toast.warning('Tidak ada data detail untuk diekspor.');
+        toast.warning("Tidak ada data detail untuk diekspor.");
         return;
       }
 
-      toast.info('Membuat file Excel Detail...');
+      toast.info("Membuat file Excel Detail...");
 
       // Mapping Format Data
       const formattedDetail = response.data.map((row) => ({
         ...row,
-        'Tanggal Setor': row['Tanggal Setor'] ? formatDateIndo(row['Tanggal Setor']) : '',
-        'Tanggal Verifikasi': row['Tanggal Verifikasi'] ? formatDateIndo(row['Tanggal Verifikasi']) : '',
+        "Tanggal Setor": row["Tanggal Setor"] ? formatDateIndo(row["Tanggal Setor"]) : "",
+        "Tanggal Verifikasi": row["Tanggal Verifikasi"]
+          ? formatDateIndo(row["Tanggal Verifikasi"])
+          : "",
       }));
 
       // Setup Layout Excel
       const title = "LAPORAN DETAIL FORM SETORAN KASIR (FSK)";
-      const dateRange = `Periode : ${formatDateIndo(filters.startDate)} s/d ${formatDateIndo(filters.endDate)}`;
+      const dateRange = `Periode : ${formatDateIndo(filters.startDate)} s/d ${formatDateIndo(
+        filters.endDate
+      )}`;
       const tableHeaders = Object.keys(formattedDetail[0]);
 
       const tableData = formattedDetail.map((row) => Object.values(row as Record<string, unknown>));
 
-      const excelData = [
-        [title],
-        [dateRange],
-        [],
-        tableHeaders,
-        ...tableData
-      ];
+      const excelData = [[title], [dateRange], [], tableHeaders, ...tableData];
 
       const worksheet = XLSX.utils.aoa_to_sheet(excelData);
 
@@ -337,18 +336,17 @@ const exportData = async (type: 'header' | 'detail') => {
         { s: { r: 0, c: 0 }, e: { r: 0, c: tableHeaders.length - 1 } },
         { s: { r: 1, c: 0 }, e: { r: 1, c: tableHeaders.length - 1 } },
       ];
-      worksheet['!merges'] = merge;
+      worksheet["!merges"] = merge;
 
       // [FITUR] Auto Width Columns
-      worksheet['!cols'] = tableHeaders.map(header => ({ wch: Math.max(header.length + 5, 15) }));
+      worksheet["!cols"] = tableHeaders.map((header) => ({ wch: Math.max(header.length + 5, 15) }));
 
       const workbook = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(workbook, worksheet, "FSK Detail");
       XLSX.writeFile(workbook, "Export_FSK_Detail.xlsx");
-      toast.success('File Detail berhasil dibuat.');
-
+      toast.success("File Detail berhasil dibuat.");
     } catch (error) {
-      let message = 'Gagal mengekspor data detail.';
+      let message = "Gagal mengekspor data detail.";
       if (error instanceof Error) message = error.message;
       toast.error(message);
     }
@@ -405,21 +403,22 @@ watch(filters, fetchMasterData, { deep: true });
     </template>
 
     <div class="browse-content">
-      <v-alert type="info" variant="tonal" density="compact" icon="mdi-information" class="ma-2 text-caption"
-        border="start">
-        <strong>Perhatian:</strong> Pembuatan FSK merupakan tanda <strong>Closing (Tutup Kasir)</strong> untuk hari ini.
-        SC disarankan untuk membuat FSK hanya saat operasional toko benar-benar sudah selesai.
-        Sistem membatasi pembuatan maksimal <strong>1 FSK per hari</strong>.
+      <v-alert type="info" variant="tonal" density="compact" icon="mdi-information"
+        class="mx-3 mt-2 mb-1 custom-alert-fsk" border="start">
+        <div class="alert-content-small">
+          <strong>Perhatian:</strong> Pembuatan FSK adalah tanda <strong>Closing</strong>. Maksimal
+          <strong>1 FSK per hari</strong>. Gunakan saat operasional benar-benar selesai.
+        </div>
       </v-alert>
       <div class="filter-section">
         <v-label class="filter-label">Periode:</v-label>
         <v-text-field v-model="filters.startDate" type="date" density="compact" hide-details variant="outlined"
-          style="max-width: 150px;" />
+          style="max-width: 150px" />
         <v-label class="mx-2">s/d</v-label>
         <v-text-field v-model="filters.endDate" type="date" density="compact" hide-details variant="outlined"
-          style="max-width: 150px;" />
+          style="max-width: 150px" />
         <v-select label="Cabang" v-model="filters.cabang" :items="cabangList" item-title="nama" item-value="kode"
-          density="compact" hide-details variant="outlined" class="ms-4" style="max-width: 200px;" />
+          density="compact" hide-details variant="outlined" class="ms-4" style="max-width: 200px" />
         <v-spacer />
         <div class="d-flex align-center ga-2 text-caption">
           <v-icon color="red" icon="mdi-square-rounded" size="small"></v-icon> Belum Diverifikasi
@@ -434,11 +433,14 @@ watch(filters, fetchMasterData, { deep: true });
           <template #headers="{ columns, isSorted, getSortIcon, toggleSort }">
             <tr>
               <template v-for="header in columns" :key="header.key">
-                <th
-                  :style="{ width: header.width + 'px', minWidth: header.width + 'px', maxWidth: header.width + 'px' }"
-                  class="resizable-header"
-                  :class="{ 'text-center': header.align === 'center', 'text-end': header.align === 'end' }"
-                  @click="toggleSort(header)">
+                <th :style="{
+                  width: header.width + 'px',
+                  minWidth: header.width + 'px',
+                  maxWidth: header.width + 'px',
+                }" class="resizable-header" :class="{
+                    'text-center': header.align === 'center',
+                    'text-end': header.align === 'end',
+                  }" @click="toggleSort(header)">
                   <div class="header-content">
                     <span>{{ header.title }}</span>
                     <v-icon v-if="isSorted(header)" size="small" class="ms-1">
@@ -456,11 +458,13 @@ watch(filters, fetchMasterData, { deep: true });
               variant="text" @click.stop="toggleExpand(internalItem)" />
           </template>
 
-          <template v-for="header in headers.filter(h => h.key !== 'data-table-expand')"
+          <template v-for="header in headers.filter((h) => h.key !== 'data-table-expand')"
             #[`item.${header.key}`]="{ item }" :key="header.key">
             <td :class="getRowTextColor(item)">
               <template v-if="['TglSetor', 'TglVerifikasi'].includes(header.key)">
-                {{ item[header.key] ? format(parseISO(item[header.key] as string), 'dd/MM/yyyy') : '' }}
+                {{
+                  item[header.key] ? format(parseISO(item[header.key] as string), "dd/MM/yyyy") : ""
+                }}
               </template>
               <template v-else-if="header.key === 'Closing'">
                 <v-chip v-if="item.Closing === 'Y'" size="x-small" color="success">YA</v-chip>
@@ -476,7 +480,8 @@ watch(filters, fetchMasterData, { deep: true });
               <td :colspan="columns.length" class="pa-0">
                 <div class="detail-container">
                   <div class="detail-table-wrapper">
-                    <div v-if="loadingDetails.has(item.Nomor)" class="text-center pa-4 text-caption">Memuat detail...
+                    <div v-if="loadingDetails.has(item.Nomor)" class="text-center pa-4 text-caption">
+                      Memuat detail...
                     </div>
                     <v-data-table v-else :headers="detailHeaders" :items="details[item.Nomor]" density="compact"
                       class="detail-table" :items-per-page="-1" hide-default-footer>
@@ -508,10 +513,10 @@ watch(filters, fetchMasterData, { deep: true });
 
 .filter-section {
   flex-shrink: 0;
-  padding: 8px;
+  padding: 4px 8px !important;
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 8px;
 
   background-color: rgb(var(--v-theme-surface));
   border-bottom: 1px solid rgba(var(--v-theme-on-surface), 0.12);
@@ -646,5 +651,29 @@ watch(filters, fetchMasterData, { deep: true });
 
 .desktop-table :deep(td) {
   color: rgb(var(--v-theme-on-surface));
+}
+
+.custom-alert-fsk {
+  min-height: unset !important;
+  padding: 2px 8px !important;
+  border-radius: 8px;
+
+  /* optional: biar lebih tipis secara visual */
+  box-shadow: none !important;
+}
+
+.custom-alert-fsk :deep(.v-alert__prepend) {
+  margin-inline-end: 6px !important;
+  align-self: center;
+}
+
+.custom-alert-fsk :deep(.v-icon) {
+  font-size: 16px !important;
+}
+
+.alert-content-small {
+  font-size: 10px !important;
+  line-height: 1.15 !important;
+  padding: 0 !important;
 }
 </style>

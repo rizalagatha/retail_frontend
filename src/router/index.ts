@@ -235,6 +235,7 @@ const ParetoPrintView = () => import("@/views/laporan/penjualan/ParetoPrintView.
 // --- STOK OPNAME ---
 const StokOpnameSettingTanggalView = () =>
   import("@/views/transaksi/stok-opname/StokOpnameSettingTanggalView.vue");
+const LokasiOpnameView = () => import("@/views/transaksi/stok-opname/LokasiOpnameView.vue");
 const HitungStokLokasiView = () => import("@/views/transaksi/stok-opname/HitungStokLokasiView.vue");
 const HitungStokOperatorView = () =>
   import("@/views/transaksi/stok-opname/HitungStokOperatorView.vue");
@@ -1937,6 +1938,16 @@ const routes = [
       title: "Setting Tanggal Stok Opname",
       requiresAuth: true,
       menuId: "21",
+    },
+  },
+  {
+    path: "/transaksi/stok-opname/lokasi-opname",
+    name: "LokasiOpname",
+    component: LokasiOpnameView,
+    meta: {
+      title: "Master Lokasi Opname",
+      requiresAuth: true,
+      menuId: "18",
     },
   },
   {

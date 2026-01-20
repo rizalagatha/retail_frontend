@@ -1,0 +1,299 @@
+<script setup lang="ts">
+import { ref, reactive, onMounted, computed, watch } from "vue";
+import { useToast } from "vue-toastification";
+import { useAuthStore } from "@/stores/authStore";
+import api from "@/services/api";
+import PageLayout from "@/components/PageLayout.vue";
+import AppDataTable from "@/components/AppDataTable.vue";
+import LocationGeneratorModal from "@/components/modal/LocationGeneratorModal.vue";
+import LokasiOpnamePrintModal from "@/components/modal/LokasiOpnamePrintModal.vue";
+import { format, parseISO } from "date-fns";
+import type { AxiosError } from "axios";
+
+interface LokasiOpname {
+  lo_idrec: string;
+  lo_cab: string;
+  lo_lokasi: string;
+  lo_jenis_nama: string | null;
+  user_create: string;
+  date_create: string;
+  cab_nama?: string;
+}
+
+const toast = useToast();
+const authStore = useAuthStore();
+const MENU_ID = "18";
+
+const items = ref<LokasiOpname[]>([]);
+const isLoading = ref(true);
+const selected = ref<LokasiOpname[]>([]);
+const isGeneratorVisible = ref(false);
+const cabangOptions = ref([]);
+const isDeleteDialogOpen = ref(false);
+const itemToDelete = ref<string | null>(null);
+const isPrintModalVisible = ref(false);
+const masterOptions = ref([]);
+
+const filters = reactive({
+  cabang: authStore.user?.cabang === "KDC" ? "ALL" : authStore.user?.cabang || "",
+  jenis: "ALL", // <-- Tambahkan filter jenis default 'ALL'
+});
+
+const headers = [
+  { title: "Cabang", key: "lo_cab", width: 100 },
+  { title: "Kode Lokasi", key: "lo_lokasi", width: 150 },
+  { title: "Jenis Lokasi", key: "lo_jenis_nama", width: 180 },
+  { title: "Dibuat Oleh", key: "user_create", width: 150 },
+  { title: "Waktu Input", key: "date_create", width: 200 },
+  { title: "Aksi", key: "actions", width: 80, align: "center", sortable: false },
+];
+
+const isAuthorizedForGenerator = computed(() => {
+  const user = authStore.user;
+
+  // Izinkan jika user adalah RIO dari KDC
+  // ATAU jika user adalah ADMINISTRATOR (untuk kebutuhan setup awal/debugging)
+  return (user?.cabang === "KDC" && user?.kode === "RIO") || user?.kode === "ADMIN";
+});
+
+const fetchMasterOptions = async () => {
+  try {
+    const response = await api.get("/lokasi-opname/master");
+    // Tambahkan opsi 'SEMUA JENIS' di awal array
+    masterOptions.value = [{ jenis: "SEMUA JENIS", kode: "ALL" }, ...response.data];
+  } catch {
+    toast.error("Gagal memuat filter jenis lokasi.");
+  }
+};
+
+const fetchData = async () => {
+  isLoading.value = true;
+  try {
+    const response = await api.get("/lokasi-opname", { params: filters });
+    items.value = response.data;
+  } catch (error: unknown) {
+    // Ganti any jadi unknown
+    const axiosError = error as AxiosError<{ message?: string }>;
+    toast.error(axiosError.response?.data?.message || "Gagal memuat data.");
+  } finally {
+    isLoading.value = false;
+  }
+};
+
+const fetchCabangOptions = async () => {
+  try {
+    const response = await api.get("/hitung-stok/cabang-options");
+    cabangOptions.value = response.data;
+  } catch {
+    toast.error("Gagal memuat pilihan cabang.");
+  }
+};
+
+const handleBulkGenerate = async (data: { locations: string[]; jenisNama: string }) => {
+  isLoading.value = true;
+  try {
+    const payload = {
+      cabang: filters.cabang,
+      locations: data.locations, // Ambil array lokasinya
+      jenisNama: data.jenisNama, // Ambil nama jenisnya (misal: "Kardus Sementara")
+    };
+
+    const response = await api.post("/lokasi-opname/generate", payload);
+
+    toast.success(response.data.message);
+    isGeneratorVisible.value = false;
+    fetchData(); // Refresh list
+  } catch (error: unknown) {
+    // Ganti any jadi unknown
+    const axiosError = error as AxiosError<{ message?: string }>;
+    toast.error(axiosError.response?.data?.message || "Gagal generate lokasi.");
+  } finally {
+    isLoading.value = false;
+  }
+};
+
+const promptDelete = (id: string) => {
+  itemToDelete.value = id;
+  isDeleteDialogOpen.value = true;
+};
+
+const handleDeleteConfirm = async () => {
+  if (!itemToDelete.value) return;
+
+  isLoading.value = true;
+  try {
+    const response = await api.delete(`/lokasi-opname/${itemToDelete.value}`);
+    toast.success(response.data.message || "Lokasi berhasil dihapus.");
+    fetchData(); // Refresh tabel
+  } catch (error: unknown) {
+    // Ganti any jadi unknown
+    const axiosError = error as AxiosError<{ message?: string }>;
+    toast.error(axiosError.response?.data?.message || "Gagal menghapus lokasi.");
+  } finally {
+    isDeleteDialogOpen.value = false;
+    itemToDelete.value = null;
+    isLoading.value = false;
+  }
+};
+
+const handleOpenPrint = () => {
+  if (selected.value.length === 0) {
+    toast.warning("Pilih lokasi yang akan dicetak.");
+    return;
+  }
+  isPrintModalVisible.value = true;
+};
+
+onMounted(() => {
+  fetchCabangOptions();
+  fetchMasterOptions();
+  fetchData();
+});
+
+watch(
+  filters,
+  () => {
+    // Reset seleksi saat filter berubah agar tidak terjadi salah cetak data lama
+    selected.value = [];
+    fetchData();
+  },
+  { deep: true }
+);
+</script>
+
+<template>
+  <PageLayout title="Master Lokasi Opname" :menu-id="MENU_ID" icon="mdi-map-marker-plus-outline">
+    <template #header-actions>
+      <v-btn v-if="isAuthorizedForGenerator" size="small" color="primary" prepend-icon="mdi-plus-box-multiple"
+        @click="isGeneratorVisible = true" :disabled="filters.cabang === 'ALL'">
+        Generate Lokasi
+      </v-btn>
+      <v-btn size="small" color="green-darken-1" prepend-icon="mdi-printer" :disabled="selected.length === 0"
+        @click="handleOpenPrint">
+        Cetak Label ({{ selected.length }})
+      </v-btn>
+    </template>
+
+    <div class="browse-content">
+      <div class="filter-section py-2 px-4 d-flex align-center ga-4 border-bottom">
+        <v-select v-model="filters.cabang" :items="cabangOptions" item-title="nama" item-value="kode"
+          label="Pilih Cabang" density="compact" hide-details variant="outlined" style="max-width: 250px" />
+        <v-alert v-if="filters.cabang === 'ALL'" type="warning" density="compact" variant="tonal"
+          class="text-caption py-1">
+          Pilih cabang spesifik untuk mengaktifkan generator.
+        </v-alert>
+        <v-select v-model="filters.jenis" :items="masterOptions" item-title="jenis" item-value="jenis"
+          label="Jenis Lokasi" density="compact" hide-details variant="outlined" style="max-width: 200px" />
+        <v-spacer />
+        <v-btn icon="mdi-refresh" variant="text" size="small" @click="fetchData" :loading="isLoading" />
+      </div>
+
+      <div class="table-container">
+        <AppDataTable v-model="selected" :headers="headers" :items="items" :loading="isLoading" item-value="lo_idrec"
+          density="compact" class="desktop-table header-browse-blue" height="100%" fixed-header show-select
+          return-object>
+          <template #[`item.date_create`]="{ value }">
+            {{ value ? format(parseISO(value), "dd/MM/yyyy HH:mm") : "-" }}
+          </template>
+
+          <template #[`item.actions`]="{ item }">
+            <v-btn v-if="authStore.can(MENU_ID, 'delete')" icon="mdi-delete-outline" size="x-small" variant="text"
+              color="error" @click="promptDelete(item.lo_idrec)" />
+          </template>
+        </AppDataTable>
+      </div>
+    </div>
+
+    <LocationGeneratorModal v-if="isGeneratorVisible" :cabang="filters.cabang" @close="isGeneratorVisible = false"
+      @generate="handleBulkGenerate" />
+    <LokasiOpnamePrintModal v-if="isPrintModalVisible" :items="selected" @close="isPrintModalVisible = false" />
+
+    <v-dialog v-model="isDeleteDialogOpen" max-width="400px" persistent>
+      <v-card>
+        <v-card-title class="text-h6 font-weight-bold d-flex align-center">
+          <v-icon color="error" class="me-2">mdi-alert-circle</v-icon>
+          Konfirmasi Hapus
+        </v-card-title>
+
+        <v-card-text class="pa-4 text-body-1">
+          Apakah Anda yakin ingin menghapus lokasi ini dari daftar opname? Tindakan ini tidak dapat
+          dibatalkan.
+        </v-card-text>
+
+        <v-divider />
+
+        <v-card-actions class="pa-3">
+          <v-spacer />
+          <v-btn text size="small" color="grey-darken-1" @click="isDeleteDialogOpen = false">
+            Batal
+          </v-btn>
+          <v-btn color="error" variant="flat" size="small" :loading="isLoading" @click="handleDeleteConfirm">
+            Ya, Hapus Lokasi
+          </v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+  </PageLayout>
+</template>
+
+<style scoped>
+/* 1. Layout Utama: Menghilangkan scrollbar browser halaman */
+.browse-content {
+  display: flex;
+  flex-direction: column;
+  height: calc(100vh - 120px);
+  /* Batasi tinggi sesuai sisa layar */
+  overflow: hidden;
+}
+
+.filter-section {
+  flex-shrink: 0;
+  padding: 8px 16px;
+  background-color: rgb(var(--v-theme-surface));
+  border-bottom: 1px solid rgba(var(--v-theme-on-surface), 0.12);
+}
+
+/* 2. Container Tabel: Memaksa pagination tetap di dasar container */
+.table-container {
+  flex-grow: 1;
+  min-height: 0;
+  /* Penting untuk Flexbox agar tabel bisa mengecil */
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  margin: 0;
+  background: white;
+}
+
+/* 3. Pengaturan Tabel Master (Scrollbar Vertikal & Horizontal) */
+.desktop-table {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.desktop-table :deep(.v-table__wrapper) {
+  flex-grow: 1;
+  height: 100% !important;
+  overflow-y: auto !important;
+  /* Scroll Vertikal Master */
+  overflow-x: auto !important;
+  /* Scroll Horizontal Master */
+}
+
+/* Memaksa isi tabel melebar ke samping agar scrollbar horizontal muncul jika kolom banyak */
+.desktop-table :deep(table) {
+  width: max-content;
+  min-width: 100%;
+}
+
+/* Header Tabel Warna Biru Tua (Konsisten dengan Browse lainnya) */
+.desktop-table :deep(thead tr th) {
+  background-color: #0d47a1 !important;
+  color: #ffffff !important;
+  font-weight: bold !important;
+  text-transform: uppercase;
+  font-size: 11px !important;
+  height: 40px !important;
+}
+</style>

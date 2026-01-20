@@ -1,48 +1,50 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from 'vue';
-import { useRouter } from 'vue-router';
-import { useAuthStore } from '@/stores/authStore';
-import logo from '@/assets/logo.png';
-import { usePasswordDialog } from '@/composables/usePasswordDialog';
-import { useWhatsAppDialog } from '@/composables/useWhatsappDialog';
-import { useBufferStockDialog } from '@/composables/useBufferStockDialog';
-import { useSettingsProcessDialog } from '@/composables/useSettingsProcessDialog';
-import { useManualProgramDialog } from '@/composables/useManualProgramDialog';
+import { ref, computed, onMounted, onUnmounted } from "vue";
+import { useRouter } from "vue-router";
+import { useAuthStore } from "@/stores/authStore";
+import logo from "@/assets/logo.png";
+import { usePasswordDialog } from "@/composables/usePasswordDialog";
+import { useWhatsAppDialog } from "@/composables/useWhatsappDialog";
+import { useBufferStockDialog } from "@/composables/useBufferStockDialog";
+import { useSettingsProcessDialog } from "@/composables/useSettingsProcessDialog";
+import { useManualProgramDialog } from "@/composables/useManualProgramDialog";
 
 interface NavItem {
-  title: string
-  to?: string
-  icon?: string
-  divider?: boolean
-  subItems?: NavItem[]
+  title: string;
+  to?: string;
+  icon?: string;
+  divider?: boolean;
+  subItems?: NavItem[];
   onClick?: () => void;
 }
 
 // Stores and composables
-const authStore = useAuthStore()
-const router = useRouter()
+const authStore = useAuthStore();
+const router = useRouter();
 const logoSrc = logo as string;
 
 // Component state
-const scrolled = ref(false)
-const daftarMenu = ref(false)
-const transaksiMenu = ref(false)
-const piutangMenu = ref(false)
-const gudangMenu = ref(false)
-const laporanMenu = ref(false)
-const fileMenu = ref(false)
-const userMenu = ref(false)
+const scrolled = ref(false);
+const daftarMenu = ref(false);
+const transaksiMenu = ref(false);
+const piutangMenu = ref(false);
+const gudangMenu = ref(false);
+const laporanMenu = ref(false);
+const fileMenu = ref(false);
+const userMenu = ref(false);
 
 // Computed properties
-const appBarElevation = computed(() => scrolled.value ? 2 : 0)
+const appBarElevation = computed(() => (scrolled.value ? 2 : 0));
 // [FIX DARK MODE] Hapus class manual, gunakan props color dinamis di template
-const isScrolled = computed(() => scrolled.value)
+const isScrolled = computed(() => scrolled.value);
 
 // Access control helper
 const hasAccess = (routeNameOrPath?: string) => {
   if (!routeNameOrPath) return true;
   const authStore = useAuthStore();
-  const route = router.getRoutes().find(r => r.name === routeNameOrPath || r.path === routeNameOrPath);
+  const route = router
+    .getRoutes()
+    .find((r) => r.name === routeNameOrPath || r.path === routeNameOrPath);
   if (!route) return false;
   if (!route.meta.requiresAuth) return true;
   if (!authStore.isAuthenticated) return false;
@@ -60,241 +62,433 @@ const { openManualDialog } = useManualProgramDialog();
 // (DATA MENU TETAP SAMA SEPERTI KODE ASLI ANDA, SAYA TIDAK UBAH ISINYA)
 const menuItems = [
   {
-    title: 'Daftar',
-    icon: 'mdi-clipboard-list-outline',
+    title: "Daftar",
+    icon: "mdi-clipboard-list-outline",
     model: daftarMenu,
     items: [
-      { title: 'Customer', to: '/daftar/customers', icon: 'mdi-account-outline' },
-      { title: 'Member', to: '/daftar/members', icon: 'mdi-card-account-details-star-outline' },
-      { title: 'Supplier', to: '/daftar/suppliers', icon: 'mdi-truck-outline' },
-      { title: 'Sales Counter', to: '/daftar/sales-counters', icon: 'mdi-counter' },
-      { title: 'Cetak Barcode', to: '/daftar/cetak-barcode', icon: 'mdi-barcode' }
-    ]
+      { title: "Customer", to: "/daftar/customers", icon: "mdi-account-outline" },
+      { title: "Member", to: "/daftar/members", icon: "mdi-card-account-details-star-outline" },
+      { title: "Supplier", to: "/daftar/suppliers", icon: "mdi-truck-outline" },
+      { title: "Sales Counter", to: "/daftar/sales-counters", icon: "mdi-counter" },
+      { title: "Cetak Barcode", to: "/daftar/cetak-barcode", icon: "mdi-barcode" },
+    ],
   },
   {
-    title: 'Transaksi',
-    icon: 'mdi-cash-register',
+    title: "Transaksi",
+    icon: "mdi-cash-register",
     model: transaksiMenu,
     isLarge: true,
     sections: [
       {
-        title: 'Penjualan',
-        icon: 'mdi-cart-outline',
+        title: "Penjualan",
+        icon: "mdi-cart-outline",
         items: [
-          { title: 'Penawaran', to: '/transaksi/penjualan/penawaran', icon: 'mdi-handshake-outline' },
           {
-            title: 'Pengajuan Harga',
-            icon: 'mdi-currency-usd',
-            subItems: [
-              { title: 'Pengajuan', to: '/transaksi/penjualan/pengajuan/pengajuan-harga', icon: 'mdi-file-document-plus-outline' },
-              { title: 'Setting Harga', to: '/transaksi/penjualan/pengajuan/setting-harga', icon: 'mdi-tune-variant' }
-            ]
+            title: "Penawaran",
+            to: "/transaksi/penjualan/penawaran",
+            icon: "mdi-handshake-outline",
           },
           {
-            title: 'DTF Pesanan',
-            icon: 'mdi-printer',
+            title: "Pengajuan Harga",
+            icon: "mdi-currency-usd",
             subItems: [
-              { title: 'SO DTF Pesanan', to: '/transaksi/penjualan/dtf/so-dtf', icon: 'mdi-clipboard-list-outline' },
-              { title: 'LHK SO DTF', to: '/transaksi/penjualan/dtf/lhk-so-dtf', icon: 'mdi-file-chart-outline' },
-              { title: 'Dasbor DTF', to: '/transaksi/penjualan/dtf/dasbor-dtf', icon: 'mdi-view-dashboard-outline' }
-            ]
+              {
+                title: "Pengajuan",
+                to: "/transaksi/penjualan/pengajuan/pengajuan-harga",
+                icon: "mdi-file-document-plus-outline",
+              },
+              {
+                title: "Setting Harga",
+                to: "/transaksi/penjualan/pengajuan/setting-harga",
+                icon: "mdi-tune-variant",
+              },
+            ],
           },
           {
-            title: 'DTF Stok',
-            icon: 'mdi-package-variant',
+            title: "DTF Pesanan",
+            icon: "mdi-printer",
             subItems: [
-              { title: 'SO DTF Stok', to: '/transaksi/penjualan/dtf/so-dtf-stok', icon: 'mdi-package-variant' },
-              { title: 'LHK SO DTF Stok', to: '/transaksi/penjualan/dtf/lhk-so-dtf-stok', icon: 'mdi-chart-box-outline' }
-            ]
+              {
+                title: "SO DTF Pesanan",
+                to: "/transaksi/penjualan/dtf/so-dtf",
+                icon: "mdi-clipboard-list-outline",
+              },
+              {
+                title: "LHK SO DTF",
+                to: "/transaksi/penjualan/dtf/lhk-so-dtf",
+                icon: "mdi-file-chart-outline",
+              },
+              {
+                title: "Dasbor DTF",
+                to: "/transaksi/penjualan/dtf/dasbor-dtf",
+                icon: "mdi-view-dashboard-outline",
+              },
+            ],
           },
-          { title: 'Surat Pesanan', to: '/transaksi/penjualan/surat-pesanan', icon: 'mdi-file-document-edit-outline' },
-          { title: 'Proforma Invoice', to: '/transaksi/penjualan/proforma', icon: 'mdi-receipt-text-outline' },
-          { title: 'Invoice', to: '/transaksi/penjualan/invoice', icon: 'mdi-receipt' },
-          { title: 'Pelunasan Invoice', to: '/transaksi/penjualan/pelunasan-invoice', icon: 'mdi-hand-coin' },
-          { title: 'Retur Jual', to: '/transaksi/penjualan/retur-jual', icon: 'mdi-keyboard-return' },
-          { title: 'Biaya Kirim', to: '/transaksi/penjualan/biaya-kirim', icon: 'mdi-truck-delivery' }
-        ]
-      },
-      {
-        title: 'Internal',
-        icon: 'mdi-office-building-outline',
-        items: [
-          { title: 'Buffer Stok', to: '/transaksi/internal/buffer-stok', icon: 'mdi-database-outline' },
-          { title: 'Minta Barang ke DC', to: '/transaksi/internal/minta-barang', icon: 'mdi-arrow-up-bold-circle-outline' },
-          { title: 'Terima SJ dari DC', to: '/transaksi/internal/terima-sj', icon: 'mdi-arrow-down-bold-circle-outline' },
-          { title: 'Retur Barang ke DC', to: '/transaksi/internal/retur-dc', icon: 'mdi-undo-variant' },
-          { title: 'Koreksi Stok', to: '/transaksi/internal/koreksi-stok', icon: 'mdi-pencil-outline' },
-          { title: 'Pengajuan Barcode Baru', to: '/transaksi/internal/pengajuan-barcode', icon: 'mdi-barcode' },
-          { title: 'Peminjaman Barang', to: '/transaksi/internal/peminjaman-barang', icon: 'mdi-hand-back-right-outline' },
-          { title: 'Klerek', to: '/transaksi/internal/klerek', icon: 'mdi-clipboard-check-outline' },
-        ]
-      },
-      {
-        title: 'Mutasi',
-        icon: 'mdi-swap-horizontal',
-        items: [
-          { title: 'Mutasi Out ke Produksi', to: '/transaksi/mutasi/out-produksi', icon: 'mdi-export' },
-          { title: 'Mutasi In dari Produksi', to: '/transaksi/mutasi/in-produksi', icon: 'mdi-import' },
-          { title: 'Mutasi Stok', to: '/transaksi/mutasi/stok', icon: 'mdi-swap-vertical' },
-          { title: 'Mutasi Antar Store (Kirim)', to: '/transaksi/mutasi/store-kirim', icon: 'mdi-send' },
-          { title: 'Mutasi Antar Store (Terima)', to: '/transaksi/mutasi/store-terima', icon: 'mdi-inbox-arrow-down' }
-        ]
-      },
-      {
-        title: 'Stok Opname',
-        icon: 'mdi-clipboard-list-outline',
-        items: [
-          { title: 'List HPP Kosong Ada Stok', to: '/transaksi/stok-opname/hpp-kosong', icon: 'mdi-currency-usd-off' },
-          { title: 'Setting Tanggal', to: '/transaksi/stok-opname/setting-tanggal', icon: 'mdi-calendar-edit-outline' },
-          { title: 'Input Hitung Stok', to: '/transaksi/stok-opname/hitung-stok', icon: 'mdi-clipboard-edit-outline' },
-          { title: 'Hitung Stok per Lokasi', to: '/transaksi/stok-opname/hitung-per-lokasi', icon: 'mdi-map-marker-multiple-outline' },
-          { title: 'Hitung Stok per Operator', to: '/transaksi/stok-opname/hitung-per-operator', icon: 'mdi-account-details-outline' },
-          { title: 'Cek Selisih', to: '/transaksi/stok-opname/cek-selisih', icon: 'mdi-scale-balance' },
-          { title: 'Proses', to: '/transaksi/stok-opname/proses', icon: 'mdi-progress-check' },
+          {
+            title: "DTF Stok",
+            icon: "mdi-package-variant",
+            subItems: [
+              {
+                title: "SO DTF Stok",
+                to: "/transaksi/penjualan/dtf/so-dtf-stok",
+                icon: "mdi-package-variant",
+              },
+              {
+                title: "LHK SO DTF Stok",
+                to: "/transaksi/penjualan/dtf/lhk-so-dtf-stok",
+                icon: "mdi-chart-box-outline",
+              },
+            ],
+          },
+          {
+            title: "Surat Pesanan",
+            to: "/transaksi/penjualan/surat-pesanan",
+            icon: "mdi-file-document-edit-outline",
+          },
+          {
+            title: "Proforma Invoice",
+            to: "/transaksi/penjualan/proforma",
+            icon: "mdi-receipt-text-outline",
+          },
+          { title: "Invoice", to: "/transaksi/penjualan/invoice", icon: "mdi-receipt" },
+          {
+            title: "Pelunasan Invoice",
+            to: "/transaksi/penjualan/pelunasan-invoice",
+            icon: "mdi-hand-coin",
+          },
+          {
+            title: "Retur Jual",
+            to: "/transaksi/penjualan/retur-jual",
+            icon: "mdi-keyboard-return",
+          },
+          {
+            title: "Biaya Kirim",
+            to: "/transaksi/penjualan/biaya-kirim",
+            icon: "mdi-truck-delivery",
+          },
         ],
-      }
-    ]
+      },
+      {
+        title: "Internal",
+        icon: "mdi-office-building-outline",
+        items: [
+          {
+            title: "Buffer Stok",
+            to: "/transaksi/internal/buffer-stok",
+            icon: "mdi-database-outline",
+          },
+          {
+            title: "Minta Barang ke DC",
+            to: "/transaksi/internal/minta-barang",
+            icon: "mdi-arrow-up-bold-circle-outline",
+          },
+          {
+            title: "Terima SJ dari DC",
+            to: "/transaksi/internal/terima-sj",
+            icon: "mdi-arrow-down-bold-circle-outline",
+          },
+          {
+            title: "Retur Barang ke DC",
+            to: "/transaksi/internal/retur-dc",
+            icon: "mdi-undo-variant",
+          },
+          {
+            title: "Koreksi Stok",
+            to: "/transaksi/internal/koreksi-stok",
+            icon: "mdi-pencil-outline",
+          },
+          {
+            title: "Pengajuan Barcode Baru",
+            to: "/transaksi/internal/pengajuan-barcode",
+            icon: "mdi-barcode",
+          },
+          {
+            title: "Peminjaman Barang",
+            to: "/transaksi/internal/peminjaman-barang",
+            icon: "mdi-hand-back-right-outline",
+          },
+          {
+            title: "Klerek",
+            to: "/transaksi/internal/klerek",
+            icon: "mdi-clipboard-check-outline",
+          },
+        ],
+      },
+      {
+        title: "Mutasi",
+        icon: "mdi-swap-horizontal",
+        items: [
+          {
+            title: "Mutasi Out ke Produksi",
+            to: "/transaksi/mutasi/out-produksi",
+            icon: "mdi-export",
+          },
+          {
+            title: "Mutasi In dari Produksi",
+            to: "/transaksi/mutasi/in-produksi",
+            icon: "mdi-import",
+          },
+          { title: "Mutasi Stok", to: "/transaksi/mutasi/stok", icon: "mdi-swap-vertical" },
+          {
+            title: "Mutasi Antar Store (Kirim)",
+            to: "/transaksi/mutasi/store-kirim",
+            icon: "mdi-send",
+          },
+          {
+            title: "Mutasi Antar Store (Terima)",
+            to: "/transaksi/mutasi/store-terima",
+            icon: "mdi-inbox-arrow-down",
+          },
+        ],
+      },
+      {
+        title: "Stok Opname",
+        icon: "mdi-clipboard-list-outline",
+        items: [
+          {
+            title: "List HPP Kosong Ada Stok",
+            to: "/transaksi/stok-opname/hpp-kosong",
+            icon: "mdi-currency-usd-off",
+          },
+          {
+            title: "Setting Tanggal",
+            to: "/transaksi/stok-opname/setting-tanggal",
+            icon: "mdi-calendar-edit-outline",
+          },
+          {
+            title: "Master Lokasi Opname",
+            to: "/transaksi/stok-opname/lokasi-opname",
+            icon: "mdi-map-marker-plus-outline",
+          },
+          {
+            title: "Input Hitung Stok",
+            to: "/transaksi/stok-opname/hitung-stok",
+            icon: "mdi-clipboard-edit-outline",
+          },
+          {
+            title: "Hitung Stok per Lokasi",
+            to: "/transaksi/stok-opname/hitung-per-lokasi",
+            icon: "mdi-map-marker-multiple-outline",
+          },
+          {
+            title: "Hitung Stok per Operator",
+            to: "/transaksi/stok-opname/hitung-per-operator",
+            icon: "mdi-account-details-outline",
+          },
+          {
+            title: "Cek Selisih",
+            to: "/transaksi/stok-opname/cek-selisih",
+            icon: "mdi-scale-balance",
+          },
+          { title: "Proses", to: "/transaksi/stok-opname/proses", icon: "mdi-progress-check" },
+        ],
+      },
+    ],
   },
   {
-    title: 'Piutang',
-    icon: 'mdi-credit-card-outline',
+    title: "Piutang",
+    icon: "mdi-credit-card-outline",
     model: piutangMenu,
     items: [
-      { title: 'Setoran Pembayaran', to: '/piutang/setoran-pembayaran', icon: 'mdi-bank-transfer' },
-      { title: 'Form Setoran Kasir', to: '/piutang/fsk', icon: 'mdi-cash-multiple' },
-      { title: 'Kartu Piutang', to: '/piutang/kartu-piutang', icon: 'mdi-credit-card-outline' },
+      { title: "Setoran Pembayaran", to: "/piutang/setoran-pembayaran", icon: "mdi-bank-transfer" },
+      { title: "Form Setoran Kasir", to: "/piutang/fsk", icon: "mdi-cash-multiple" },
+      { title: "Kartu Piutang", to: "/piutang/kartu-piutang", icon: "mdi-credit-card-outline" },
       { divider: true },
-      { title: 'Potongan', to: '/piutang/potongan', icon: 'mdi-tag-minus-outline' },
-      { title: 'Refund', to: '/piutang/refund', icon: 'mdi-cash-refund' }
-    ]
+      { title: "Potongan", to: "/piutang/potongan", icon: "mdi-tag-minus-outline" },
+      { title: "Refund", to: "/piutang/refund", icon: "mdi-cash-refund" },
+    ],
   },
   {
-    title: 'Gudang DC',
-    icon: 'mdi-warehouse',
+    title: "Gudang DC",
+    icon: "mdi-warehouse",
     model: gudangMenu,
     isLarge: true,
     sections: [
       {
-        title: 'Master Data',
-        icon: 'mdi-database-outline',
+        title: "Master Data",
+        icon: "mdi-database-outline",
         items: [
-          { title: 'Jenis Kain', to: '/gudang-dc/master-data/jenis-kain', icon: 'mdi-texture' },
-          { title: 'Warna Kain', to: '/gudang-dc/master-data/warna-kain', icon: 'mdi-palette-outline' },
-          { title: 'Lengan', to: '/gudang-dc/master-data/lengan', icon: 'mdi-tshirt-crew-outline' },
-          { title: 'Barang', to: '/gudang-dc/master-data/barang-dc', icon: 'mdi-package-variant-closed' },
-          { title: 'Price List', to: '/gudang-dc/master-data/price-list', icon: 'mdi-receipt-text-outline' },
-          { title: 'Promo', to: '/gudang-dc/master-data/promo', icon: 'mdi-percent-outline' },
-          { title: 'Master Barang External', to: '/gudang-dc/master-data/barang-external', icon: 'mdi-link-variant' }
-        ]
+          { title: "Jenis Kain", to: "/gudang-dc/master-data/jenis-kain", icon: "mdi-texture" },
+          {
+            title: "Warna Kain",
+            to: "/gudang-dc/master-data/warna-kain",
+            icon: "mdi-palette-outline",
+          },
+          { title: "Lengan", to: "/gudang-dc/master-data/lengan", icon: "mdi-tshirt-crew-outline" },
+          {
+            title: "Barang",
+            to: "/gudang-dc/master-data/barang-dc",
+            icon: "mdi-package-variant-closed",
+          },
+          {
+            title: "Price List",
+            to: "/gudang-dc/master-data/price-list",
+            icon: "mdi-receipt-text-outline",
+          },
+          { title: "Promo", to: "/gudang-dc/master-data/promo", icon: "mdi-percent-outline" },
+          {
+            title: "Master Barang External",
+            to: "/gudang-dc/master-data/barang-external",
+            icon: "mdi-link-variant",
+          },
+        ],
       },
       {
-        title: 'Operasional Gudang',
-        icon: 'mdi-forklift',
+        title: "Operasional Gudang",
+        icon: "mdi-forklift",
         items: [
-          { title: 'Terima STBJ', to: '/gudang-dc/operasional/terima-stbj', icon: 'mdi-inbox-arrow-down' },
-          { title: 'Terima dari Gudang Repair', to: '/gudang-dc/operasional/terima-repair', icon: 'mdi-tools' },
-          { title: 'Packing List / Pra-SJ', to: '/gudang-dc/operasional/packing-list', icon: 'mdi-package-variant-closed' },
-          { title: 'Surat Jalan ke Store', to: '/gudang-dc/operasional/surat-jalan-store', icon: 'mdi-truck-delivery-outline' },
-          { title: 'Pengambilan Barang', to: '/gudang-dc/operasional/ambil-barang', icon: 'mdi-package-up' },
-          { title: 'Terima Retur dari Store', to: '/gudang-dc/operasional/terima-rb', icon: 'mdi-package-down' },
-          { title: 'QC ke Garmen', to: '/gudang-dc/operasional/qc-garmen', icon: 'mdi-quality-high' },
-          { title: 'Mutasi Stok Antar Gudang', to: '/gudang-dc/operasional/mutasi-antar-gudang', icon: 'mdi-swap-horizontal-circle-outline' }
-        ]
+          {
+            title: "Terima STBJ",
+            to: "/gudang-dc/operasional/terima-stbj",
+            icon: "mdi-inbox-arrow-down",
+          },
+          {
+            title: "Terima dari Gudang Repair",
+            to: "/gudang-dc/operasional/terima-repair",
+            icon: "mdi-tools",
+          },
+          {
+            title: "Packing List / Pra-SJ",
+            to: "/gudang-dc/operasional/packing-list",
+            icon: "mdi-package-variant-closed",
+          },
+          {
+            title: "Surat Jalan ke Store",
+            to: "/gudang-dc/operasional/surat-jalan-store",
+            icon: "mdi-truck-delivery-outline",
+          },
+          {
+            title: "Pengambilan Barang",
+            to: "/gudang-dc/operasional/ambil-barang",
+            icon: "mdi-package-up",
+          },
+          {
+            title: "Terima Retur dari Store",
+            to: "/gudang-dc/operasional/terima-rb",
+            icon: "mdi-package-down",
+          },
+          {
+            title: "QC ke Garmen",
+            to: "/gudang-dc/operasional/qc-garmen",
+            icon: "mdi-quality-high",
+          },
+          {
+            title: "Mutasi Stok Antar Gudang",
+            to: "/gudang-dc/operasional/mutasi-antar-gudang",
+            icon: "mdi-swap-horizontal-circle-outline",
+          },
+        ],
       },
-    ]
+    ],
   },
   {
-    title: 'Laporan',
-    icon: 'mdi-chart-box-outline',
+    title: "Laporan",
+    icon: "mdi-chart-box-outline",
     model: laporanMenu,
     isLarge: true,
     sections: [
       {
-        title: 'Stok',
-        icon: 'mdi-archive-outline',
+        title: "Stok",
+        icon: "mdi-archive-outline",
         items: [
-          { title: 'Laporan Stok', to: '/laporan/stok/real-time', icon: 'mdi-package-variant' },
-          { title: 'Stok Minus', to: '/laporan/stok/stok-minus', icon: 'mdi-trending-down' },
-          { title: 'Mutasi Stok', to: '/laporan/stok/mutasi-stok', icon: 'mdi-swap-horizontal' },
-          { title: 'Kartu Stok', to: '/laporan/stok/kartu-stok', icon: 'mdi-card-text-outline' },
-          { title: 'Stok Stagnan', to: '/laporan/stok/stagnan', icon: 'mdi-clock-outline' },
-          { title: 'Dead Stok', to: '/laporan/stok/dead-stok', icon: 'mdi-alert-circle-outline' }
-        ]
+          { title: "Laporan Stok", to: "/laporan/stok/real-time", icon: "mdi-package-variant" },
+          { title: "Stok Minus", to: "/laporan/stok/stok-minus", icon: "mdi-trending-down" },
+          { title: "Mutasi Stok", to: "/laporan/stok/mutasi-stok", icon: "mdi-swap-horizontal" },
+          { title: "Kartu Stok", to: "/laporan/stok/kartu-stok", icon: "mdi-card-text-outline" },
+          { title: "Stok Stagnan", to: "/laporan/stok/stagnan", icon: "mdi-clock-outline" },
+          { title: "Dead Stok", to: "/laporan/stok/dead-stok", icon: "mdi-alert-circle-outline" },
+        ],
       },
       {
-        title: 'Penjualan',
-        icon: 'mdi-trending-up',
+        title: "Penjualan",
+        icon: "mdi-trending-up",
         items: [
-          { title: 'Laporan Invoice', to: '/laporan/penjualan/invoice', icon: 'mdi-receipt' },
-          { title: 'Pareto Barang', to: '/laporan/penjualan/pareto', icon: 'mdi-chart-bar' },
-          { title: 'Sales vs Target', to: '/laporan/penjualan/sales-vs-target', icon: 'mdi-target' },
-          { title: 'Target Achievement', to: '/laporan/penjualan/monitoring-achievement', icon: 'mdi-trophy-outline' }
-        ]
+          { title: "Laporan Invoice", to: "/laporan/penjualan/invoice", icon: "mdi-receipt" },
+          { title: "Pareto Barang", to: "/laporan/penjualan/pareto", icon: "mdi-chart-bar" },
+          {
+            title: "Sales vs Target",
+            to: "/laporan/penjualan/sales-vs-target",
+            icon: "mdi-target",
+          },
+          {
+            title: "Target Achievement",
+            to: "/laporan/penjualan/monitoring-achievement",
+            icon: "mdi-trophy-outline",
+          },
+        ],
       },
       {
-        title: 'Analisa',
-        icon: 'mdi-chart-timeline-variant',
+        title: "Analisa",
+        icon: "mdi-chart-timeline-variant",
         items: [
-          { title: 'Penjualan Pivot', to: '/laporan/analisa/with-pivot', icon: 'mdi-table-pivot' },
-          { title: 'Stok Pivot', to: '/laporan/analisa/stok-pivot', icon: 'mdi-table-large' }
-        ]
+          { title: "Penjualan Pivot", to: "/laporan/analisa/with-pivot", icon: "mdi-table-pivot" },
+          { title: "Stok Pivot", to: "/laporan/analisa/stok-pivot", icon: "mdi-table-large" },
+        ],
       },
       {
-        title: 'Lain-lain',
-        icon: 'mdi-dots-horizontal',
+        title: "Lain-lain",
+        icon: "mdi-dots-horizontal",
         items: [
-          { title: 'List Otorisasi', to: '/laporan/lain-lain/list-otorisasi', icon: 'mdi-card-text-outline' },
-          { title: 'Saldo Kasir', to: '/laporan/lain-lain/saldo-kasir', icon: 'mdi-cash-register' },
-          { title: 'Audit Log', to: '/laporan/lain-lain/audit-log', icon: 'mdi-history' }
-        ]
-      }
-    ]
+          {
+            title: "List Otorisasi",
+            to: "/laporan/lain-lain/list-otorisasi",
+            icon: "mdi-card-text-outline",
+          },
+          { title: "Saldo Kasir", to: "/laporan/lain-lain/saldo-kasir", icon: "mdi-cash-register" },
+          { title: "Audit Log", to: "/laporan/lain-lain/audit-log", icon: "mdi-history" },
+        ],
+      },
+    ],
   },
   {
-    title: 'Tools',
-    icon: 'mdi-wrench-outline',
+    title: "Tools",
+    icon: "mdi-wrench-outline",
     model: fileMenu,
     items: [
-      { title: 'Manual Program', icon: 'mdi-book-open-outline', onClick: () => openManualDialog() },
-      { title: 'Update Buffer Stok', icon: 'mdi-database-sync', onClick: () => openBufferStockDialog() },
-      { title: 'Setting', icon: 'mdi-cog-outline', onClick: () => openSettingsProcessDialog() },
+      { title: "Manual Program", icon: "mdi-book-open-outline", onClick: () => openManualDialog() },
+      {
+        title: "Update Buffer Stok",
+        icon: "mdi-database-sync",
+        onClick: () => openBufferStockDialog(),
+      },
+      { title: "Setting", icon: "mdi-cog-outline", onClick: () => openSettingsProcessDialog() },
       { divider: true },
-      { title: 'User', to: '/file/users', icon: 'mdi-account-group-outline' }
-    ]
-  }
-]
+      { title: "User", to: "/file/users", icon: "mdi-account-group-outline" },
+    ],
+  },
+];
 
 // Menu control methods
 const closeMenus = () => {
-  menuItems.forEach(menu => {
+  menuItems.forEach((menu) => {
     if (menu.model && menu.model.value) {
-      menu.model.value = false
+      menu.model.value = false;
     }
-  })
-}
+  });
+};
 
 const handleLogout = () => {
-  authStore.logout()
-  router.push('/login')
-}
+  authStore.logout();
+  router.push("/login");
+};
 
 const handleScroll = () => {
-  scrolled.value = window.scrollY > 10
-}
+  scrolled.value = window.scrollY > 10;
+};
 
 onMounted(() => {
-  window.addEventListener('scroll', handleScroll)
-})
+  window.addEventListener("scroll", handleScroll);
+});
 
 onUnmounted(() => {
-  window.removeEventListener('scroll', handleScroll)
-})
+  window.removeEventListener("scroll", handleScroll);
+});
 </script>
 
 <template>
   <v-app-bar flat height="64" :elevation="appBarElevation" fixed
     :class="['desktop-navbar', { 'navbar-scrolled': isScrolled }]">
-
     <RouterLink to="/" class="logo-section">
       <v-avatar size="32" class="logo-avatar">
         <v-img :src="logoSrc" alt="Kaosan Logo" cover />
@@ -309,12 +503,10 @@ onUnmounted(() => {
 
     <nav class="main-navigation">
       <template v-for="menu in menuItems" :key="menu.title">
-
         <v-menu v-if="!menu.isLarge && (!('to' in menu) || hasAccess(menu.to as string))" v-model="menu.model.value"
           offset-y :close-on-content-click="false"
           :max-width="menu.title === 'Transaksi' ? 1200 : menu.title === 'Gudang DC' ? 1200 : 1000"
           transition="fade-transition" class="nav-menu" location="bottom center" origin="top center">
-
           <template #activator="{ props }">
             <v-btn variant="text" v-bind="props" :prepend-icon="menu.icon" class="nav-button" size="default">
               {{ menu.title }}
@@ -323,7 +515,7 @@ onUnmounted(() => {
 
           <v-card class="nav-dropdown" elevation="8">
             <v-list class="nav-list" density="comfortable">
-              <template v-for="(item, index) in menu.items.filter(i => !i.to || hasAccess(i.to))" :key="index">
+              <template v-for="(item, index) in menu.items.filter((i) => !i.to || hasAccess(i.to))" :key="index">
                 <v-divider v-if="item.divider" class="nav-divider" />
 
                 <v-list-group v-else-if="'subItems' in item" :value="item.title" class="nav-list-group">
@@ -342,7 +534,7 @@ onUnmounted(() => {
                           <v-list-item-title>{{ subItem.title }}</v-list-item-title>
                         </v-list-item>
                       </template>
-                      <v-list-item v-for="subSubItem in subItem.subItems.filter(ssi => hasAccess(ssi.to))"
+                      <v-list-item v-for="subSubItem in subItem.subItems.filter((ssi) => hasAccess(ssi.to))"
                         :key="subSubItem.title" :to="subSubItem.to" :prepend-icon="subSubItem.icon"
                         class="nav-list-item deep-nested" @click="closeMenus">
                         <v-list-item-title>{{ subSubItem.title }}</v-list-item-title>
@@ -356,8 +548,12 @@ onUnmounted(() => {
                   </template>
                 </v-list-group>
 
-                <v-list-item v-else :to="item.to" :prepend-icon="item.icon" class="nav-list-item"
-                  @click="() => { if (item.onClick) item.onClick(); closeMenus(); }">
+                <v-list-item v-else :to="item.to" :prepend-icon="item.icon" class="nav-list-item" @click="
+                  () => {
+                    if (item.onClick) item.onClick();
+                    closeMenus();
+                  }
+                ">
                   <v-list-item-title>{{ item.title }}</v-list-item-title>
                 </v-list-item>
               </template>
@@ -368,7 +564,6 @@ onUnmounted(() => {
         <v-menu v-else-if="menu.isLarge" v-model="menu.model.value" offset-y
           :max-width="menu.title === 'Gudang DC' ? 1200 : 1000" transition="fade-transition"
           :close-on-content-click="false" class="nav-menu large">
-
           <template #activator="{ props }">
             <v-btn variant="text" v-bind="props" :prepend-icon="menu.icon" class="nav-button" size="default">
               {{ menu.title }}
@@ -386,13 +581,14 @@ onUnmounted(() => {
                   </div>
 
                   <v-list density="compact" class="section-list">
-                    <template v-for="item in section.items.filter(i => !i.to || hasAccess(i.to))" :key="item.title">
+                    <template v-for="item in section.items.filter((i) => !i.to || hasAccess(i.to))" :key="item.title">
                       <v-list-group v-if="item.subItems" :value="item.title" class="section-list-group">
                         <template #activator="{ props }">
                           <v-list-item v-bind="props" :prepend-icon="item.icon" :title="item.title"
                             class="section-list-item" />
                         </template>
-                        <template v-for="subItem in item.subItems.filter(si => hasAccess(si.to))" :key="subItem.title">
+                        <template v-for="subItem in item.subItems.filter((si) => hasAccess(si.to))"
+                          :key="subItem.title">
                           <v-list-group v-if="'subItems' in subItem && Array.isArray((subItem as any).subItems)"
                             :value="subItem.title" class="section-list-group nested">
                             <template #activator="{ props }">
@@ -448,8 +644,12 @@ onUnmounted(() => {
                 <span class="user-profile-initial">{{ authStore.userInitial }}</span>
               </v-avatar>
             </template>
-            <v-list-item-title class="user-profile-name">{{ authStore.userName }}</v-list-item-title>
-            <v-list-item-subtitle class="user-profile-branch">{{ authStore.userCabang }}</v-list-item-subtitle>
+            <v-list-item-title class="user-profile-name">{{
+              authStore.userName
+              }}</v-list-item-title>
+            <v-list-item-subtitle class="user-profile-branch">{{
+              authStore.userCabang
+              }}</v-list-item-subtitle>
           </v-list-item>
 
           <v-divider class="user-divider" />

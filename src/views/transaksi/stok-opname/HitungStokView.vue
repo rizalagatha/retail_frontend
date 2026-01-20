@@ -1,13 +1,13 @@
 <script setup lang="ts">
-import { ref, reactive, onMounted, watch } from 'vue';
-import { useRouter } from 'vue-router';
-import { useToast } from 'vue-toastification';
-import { useAuthStore } from '@/stores/authStore';
-import api from '@/services/api';
-import { format } from 'date-fns';
-import PageLayout from '@/components/PageLayout.vue';
-import type { AxiosError } from 'axios';
-import AppDataTable from '@/components/AppDataTable.vue';
+import { ref, reactive, onMounted, watch } from "vue";
+import { useRouter } from "vue-router";
+import { useToast } from "vue-toastification";
+import { useAuthStore } from "@/stores/authStore";
+import api from "@/services/api";
+import { format } from "date-fns";
+import PageLayout from "@/components/PageLayout.vue";
+import type { AxiosError } from "axios";
+import AppDataTable from "@/components/AppDataTable.vue";
 
 // --- Interface ---
 interface DataTableHeader {
@@ -15,7 +15,7 @@ interface DataTableHeader {
   key: string;
   width?: number;
   fixed?: boolean;
-  align?: 'start' | 'center' | 'end';
+  align?: "start" | "center" | "end";
   minWidth?: string | number;
   maxWidth?: string | number;
   sortable?: boolean;
@@ -35,33 +35,32 @@ interface HitungStokItem {
 const router = useRouter();
 const toast = useToast();
 const authStore = useAuthStore();
-const MENU_ID = '23';
+const MENU_ID = "23";
 
 const items = ref<HitungStokItem[]>([]);
 const isLoading = ref(true);
 const cabangOptions = ref<{ kode: string; nama: string }[]>([]);
 const selected = ref<HitungStokItem[]>([]);
 
-
 // State untuk debounce pencarian
 const fetchTimeout = ref<number | undefined>(undefined);
 
 const filters = reactive({
-  startDate: format(new Date(), 'yyyy-MM-dd'),
-  endDate: format(new Date(), 'yyyy-MM-dd'),
-  cabang: authStore.user?.cabang || '',
-  search: '', // <-- TAMBAHKAN INI
+  startDate: format(new Date(), "yyyy-MM-dd"),
+  endDate: format(new Date(), "yyyy-MM-dd"),
+  cabang: authStore.user?.cabang || "",
+  search: "", // <-- TAMBAHKAN INI
 });
 
 // --- Header Definisi (Resize) ---
 const headers = ref<DataTableHeader[]>([
-  { title: 'Cabang', key: 'Cab', width: 100, fixed: true },
-  { title: 'Kode', key: 'Kode', width: 150 },
-  { title: 'Barcode', key: 'Barcode', width: 150 },
-  { title: 'Nama Barang', key: 'Nama', width: 300 },
-  { title: 'Ukuran', key: 'Ukuran', width: 100 },
-  { title: 'Fisik', key: 'Fisik', align: 'end', width: 100 },
-  { title: 'Lokasi (Qty)', key: 'Lokasi', width: 250 },
+  { title: "Cabang", key: "Cab", width: 100, fixed: true },
+  { title: "Kode", key: "Kode", width: 150 },
+  { title: "Barcode", key: "Barcode", width: 150 },
+  { title: "Nama Barang", key: "Nama", width: 300 },
+  { title: "Ukuran", key: "Ukuran", width: 100 },
+  { title: "Fisik", key: "Fisik", align: "end", width: 100 },
+  { title: "Lokasi (Qty)", key: "Lokasi", width: 250 },
 ]);
 
 // --- Logic Resize Column ---
@@ -74,10 +73,10 @@ const onResizeStart = (e: MouseEvent, column: DataTableHeader) => {
   e.stopPropagation();
   resizingColumn.value = column;
   startX.value = e.pageX;
-  startWidth.value = (typeof column.width === 'number' ? column.width : 100);
-  document.addEventListener('mousemove', onResizeMove);
-  document.addEventListener('mouseup', onResizeEnd);
-  document.body.style.cursor = 'col-resize';
+  startWidth.value = typeof column.width === "number" ? column.width : 100;
+  document.addEventListener("mousemove", onResizeMove);
+  document.addEventListener("mouseup", onResizeEnd);
+  document.body.style.cursor = "col-resize";
 };
 
 const onResizeMove = (e: MouseEvent) => {
@@ -88,9 +87,9 @@ const onResizeMove = (e: MouseEvent) => {
 
 const onResizeEnd = () => {
   resizingColumn.value = null;
-  document.removeEventListener('mousemove', onResizeMove);
-  document.removeEventListener('mouseup', onResizeEnd);
-  document.body.style.cursor = '';
+  document.removeEventListener("mousemove", onResizeMove);
+  document.removeEventListener("mouseup", onResizeEnd);
+  document.body.style.cursor = "";
 };
 
 // --- Logic Selected Row ---
@@ -102,11 +101,11 @@ const handleRowClick = (_event: Event, { item }: { item: HitungStokItem }) => {
 const fetchData = async () => {
   isLoading.value = true;
   try {
-    const response = await api.get('/hitung-stok', { params: filters });
+    const response = await api.get("/hitung-stok", { params: filters });
     items.value = response.data;
   } catch (error) {
     const err = error as AxiosError<{ message?: string }>;
-    toast.error(err.response?.data?.message || 'Gagal memuat data.');
+    toast.error(err.response?.data?.message || "Gagal memuat data.");
   } finally {
     isLoading.value = false;
   }
@@ -114,15 +113,15 @@ const fetchData = async () => {
 
 const fetchCabangOptions = async () => {
   try {
-    const response = await api.get('/hitung-stok/cabang-options');
+    const response = await api.get("/hitung-stok/cabang-options");
     cabangOptions.value = response.data;
   } catch (error) {
-    toast.error('Gagal memuat pilihan cabang.', error);
+    toast.error("Gagal memuat pilihan cabang.", error);
   }
 };
 
 const handleScan = () => {
-  router.push({ name: 'HitungStokForm' });
+  router.push({ name: "HitungStokForm" });
 };
 
 onMounted(() => {
@@ -131,18 +130,22 @@ onMounted(() => {
 });
 
 // Watcher dengan Debounce untuk Search
-watch(filters, (newVal, oldVal) => {
-  // Jika hanya search yang berubah, gunakan debounce
-  if (newVal.search !== oldVal.search) {
-    if (fetchTimeout.value) clearTimeout(fetchTimeout.value);
-    fetchTimeout.value = window.setTimeout(() => {
+watch(
+  filters,
+  (newVal, oldVal) => {
+    // Jika hanya search yang berubah, gunakan debounce
+    if (newVal.search !== oldVal.search) {
+      if (fetchTimeout.value) clearTimeout(fetchTimeout.value);
+      fetchTimeout.value = window.setTimeout(() => {
+        fetchData();
+      }, 500); // Delay 500ms
+    } else {
+      // Jika cabang/tanggal berubah, fetch langsung
       fetchData();
-    }, 500); // Delay 500ms
-  } else {
-    // Jika cabang/tanggal berubah, fetch langsung
-    fetchData();
-  }
-}, { deep: true });
+    }
+  },
+  { deep: true }
+);
 </script>
 
 <template>
@@ -155,16 +158,16 @@ watch(filters, (newVal, oldVal) => {
     <div class="browse-content">
       <div class="filter-section">
         <v-text-field v-model="filters.startDate" type="date" density="compact" hide-details variant="outlined"
-          style="max-width: 140px;" />
+          style="max-width: 140px" />
         <v-label class="mx-2">s/d</v-label>
         <v-text-field v-model="filters.endDate" type="date" density="compact" hide-details variant="outlined"
-          style="max-width: 140px;" />
+          style="max-width: 140px" />
         <v-select v-model="filters.cabang" :items="cabangOptions" item-title="nama" item-value="kode" label="Cabang"
-          density="compact" hide-details variant="outlined" class="ms-4" style="max-width: 180px;"
+          density="compact" hide-details variant="outlined" class="ms-4" style="max-width: 180px"
           :readonly="authStore.user?.cabang !== 'KDC'" />
 
         <v-text-field v-model="filters.search" label="Cari Nama/Kode/Barcode..." density="compact" hide-details
-          variant="outlined" class="ms-4" style="min-width: 250px;" prepend-inner-icon="mdi-magnify" clearable />
+          variant="outlined" class="ms-4" style="min-width: 250px" prepend-inner-icon="mdi-magnify" clearable />
 
         <v-spacer />
         <v-btn @click="fetchData" icon="mdi-refresh" variant="text" size="small" :loading="isLoading" />
@@ -177,11 +180,14 @@ watch(filters, (newVal, oldVal) => {
           <template #headers="{ columns, isSorted, getSortIcon, toggleSort }">
             <tr>
               <template v-for="header in columns" :key="header.key">
-                <th
-                  :style="{ width: header.width + 'px', minWidth: header.width + 'px', maxWidth: header.width + 'px' }"
-                  class="resizable-header"
-                  :class="{ 'text-center': header.align === 'center', 'text-end': header.align === 'end' }"
-                  @click="toggleSort(header)">
+                <th :style="{
+                  width: header.width + 'px',
+                  minWidth: header.width + 'px',
+                  maxWidth: header.width + 'px',
+                }" class="resizable-header" :class="{
+                    'text-center': header.align === 'center',
+                    'text-end': header.align === 'end',
+                  }" @click="toggleSort(header)">
                   <div class="header-content">
                     <span>{{ header.title }}</span>
                     <v-icon v-if="isSorted(header)" size="small" class="ms-1">

@@ -1,18 +1,18 @@
 <script setup lang="ts">
-import { ref, reactive, onMounted, computed, watch, nextTick } from 'vue';
-import { useRoute, useRouter } from 'vue-router';
-import { useToast } from 'vue-toastification';
-import { useAuthStore } from '@/stores/authStore';
-import { useUiStore } from '@/stores/uiStore';
-import { useUnsavedChanges } from '@/composables/useUnsavedChanges';
-import api from '@/services/api';
-import { format, parseISO, differenceInCalendarDays } from 'date-fns';
-import PageLayout from '@/components/PageLayout.vue';
-import InvoiceSearchModal from '@/components/lookup/InvoiceSearchModal.vue';
-import MintaBarangSearchModal from '@/components/lookup/MintaBarangSearchModal.vue';
-import GudangSearchModal from '@/components/lookup/GudangSearchModal.vue';
-import PrintOptionModal from '@/components/modal/PrintOptionModal.vue';
-import type { AxiosError } from 'axios';
+import { ref, reactive, onMounted, computed, watch, nextTick } from "vue";
+import { useRoute, useRouter } from "vue-router";
+import { useToast } from "vue-toastification";
+import { useAuthStore } from "@/stores/authStore";
+import { useUiStore } from "@/stores/uiStore";
+import { useUnsavedChanges } from "@/composables/useUnsavedChanges";
+import api from "@/services/api";
+import { format, parseISO, differenceInCalendarDays } from "date-fns";
+import PageLayout from "@/components/PageLayout.vue";
+import InvoiceSearchModal from "@/components/lookup/InvoiceSearchModal.vue";
+import MintaBarangSearchModal from "@/components/lookup/MintaBarangSearchModal.vue";
+import GudangSearchModal from "@/components/lookup/GudangSearchModal.vue";
+import PrintOptionModal from "@/components/modal/PrintOptionModal.vue";
+import type { AxiosError } from "axios";
 import { formatRupiah } from "@/utils/formatRupiah";
 
 // --- Tipe Data ---
@@ -23,7 +23,7 @@ interface Header {
   cabangNama: string;
   invoice: string;
   customer: Customer | null;
-  jenis: 'Y' | 'N'; // Y: Salah Qty, N: Tukar Barang
+  jenis: "Y" | "N" | "O"; // Y: Pengembalian, N: Tukar Barang, O: Retur Online
   keterangan: string;
   ppnPersen: number;
 }
@@ -99,23 +99,23 @@ const toast = useToast();
 const authStore = useAuthStore();
 const uiStore = useUiStore();
 const { markAsSaved } = useUnsavedChanges();
-const MENU_ID = '29';
+const MENU_ID = "29";
 const isEditMode = computed(() => !!route.params.nomor);
-const pageTitle = computed(() => isEditMode.value ? 'Ubah Retur Jual' : 'Buat Retur Jual');
+const pageTitle = computed(() => (isEditMode.value ? "Ubah Retur Jual" : "Buat Retur Jual"));
 
 // [PERBAIKAN] Definisi Initial State
 const initialHeaderState: Header = {
-  nomor: '',
-  tanggal: format(new Date(), 'yyyy-MM-dd'),
-  cabangKode: authStore.user?.cabang || '',
-  cabangNama: authStore.user?.cabangNama || '',
-  invoice: '',
+  nomor: "",
+  tanggal: format(new Date(), "yyyy-MM-dd"),
+  cabangKode: authStore.user?.cabang || "",
+  cabangNama: authStore.user?.cabangNama || "",
+  invoice: "",
   customer: null,
 
   // [UBAH DI SINI] Default jadi 'N' (Tukar Barang) agar aman buat SC
-  jenis: 'N',
+  jenis: "N",
 
-  keterangan: '',
+  keterangan: "",
   ppnPersen: 0,
 };
 
@@ -136,8 +136,8 @@ const items = ref<Item[]>([]);
 const isLoading = ref(true);
 const isSaving = ref(false);
 const dialog = reactive({ invoiceSearch: false });
-const dialogConfirm = reactive({ show: false, title: '', text: '', onConfirm: () => { } });
-const scannedBarcode = ref('');
+const dialogConfirm = reactive({ show: false, title: "", text: "", onConfirm: () => { } });
+const scannedBarcode = ref("");
 const isProductSearchVisible = ref(false);
 const isMultiSelectProduct = ref(false);
 const activeRowIndex = ref(0);
@@ -146,28 +146,26 @@ const isPrintOptionVisible = ref(false);
 const savedDocumentNumber = ref<string | null>(null);
 
 const tableHeaders = [
-  { title: 'Kode', key: 'kode', width: '100px' },
-  { title: 'Nama Barang', key: 'nama' },
-  { title: 'Ukuran', key: 'ukuran', width: '60px' },
-  { title: 'Qty Inv', key: 'qtyInv', align: 'end', width: '60px' },
-  { title: 'Qty Retur', key: 'jumlah', align: 'end', width: '60px' },
-  { title: 'Harga', key: 'harga', align: 'end', width: '70px' },
-  { title: 'Diskon %', key: 'disc', align: 'end', width: '60px' },
-  { title: 'Diskon Rp', key: 'diskon', align: 'end', width: '70px' },
-  { title: 'Total', key: 'total', align: 'end', width: '70px' },
-  { title: 'Barcode', key: 'barcode', width: '90px' },
-  { title: 'Sudah Retur', key: 'sudah', align: 'end', width: '60px' },
+  { title: "Kode", key: "kode", width: "100px" },
+  { title: "Nama Barang", key: "nama" },
+  { title: "Ukuran", key: "ukuran", width: "60px" },
+  { title: "Qty Inv", key: "qtyInv", align: "end", width: "60px" },
+  { title: "Qty Retur", key: "jumlah", align: "end", width: "60px" },
+  { title: "Harga", key: "harga", align: "end", width: "70px" },
+  { title: "Diskon %", key: "disc", align: "end", width: "60px" },
+  { title: "Diskon Rp", key: "diskon", align: "end", width: "70px" },
+  { title: "Total", key: "total", align: "end", width: "70px" },
+  { title: "Barcode", key: "barcode", width: "90px" },
+  { title: "Sudah Retur", key: "sudah", align: "end", width: "60px" },
 ] as const;
 
 // --- Methods ---
-const onInvoiceSelected = async (invoice: { nomor: string, tanggal: string }) => {
+const onInvoiceSelected = async (invoice: { nomor: string; tanggal: string }) => {
   const hariSejakInvoice = differenceInCalendarDays(new Date(), parseISO(invoice.tanggal));
+  const isKON = authStore.user?.cabang === "KON";
 
-  // [BARU] Cek apakah user berasal dari cabang K09
-  const isK09 = authStore.user?.cabang === 'K09';
-
-  // [UBAH] Tambahkan kondisi !isK11
-  if (hariSejakInvoice > 1 && !isK09) {
+  // Jika bukan KON dan invoice lebih dari 1 hari, maka blokir
+  if (!isKON && hariSejakInvoice > 1) {
     toast.error(`Invoice ${invoice.nomor} sudah lebih dari 1 hari dan tidak bisa diretur.`);
     dialog.invoiceSearch = false;
     return;
@@ -186,12 +184,14 @@ const onInvoiceSelected = async (invoice: { nomor: string, tanggal: string }) =>
     footer.diskonPersen1 = invHeader.diskonPersen1;
     footer.diskonPersen2 = invHeader.diskonPersen2;
 
-    items.value = invItems.map((item: InvoiceItem): ReturItem => ({
-      ...item,
-      id: Date.now() + Math.random(),
-      jumlah: 0,
-      total: 0,
-    }));
+    items.value = invItems.map(
+      (item: InvoiceItem): ReturItem => ({
+        ...item,
+        id: Date.now() + Math.random(),
+        jumlah: 0,
+        total: 0,
+      })
+    );
 
     calculateTotals();
 
@@ -199,7 +199,7 @@ const onInvoiceSelected = async (invoice: { nomor: string, tanggal: string }) =>
     markAsSaved();
   } catch (error) {
     const err = error as AxiosError<{ message?: string }>;
-    toast.error(err.response?.data?.message || 'Gagal memuat data invoice.');
+    toast.error(err.response?.data?.message || "Gagal memuat data invoice.");
   } finally {
     isLoading.value = false;
   }
@@ -208,7 +208,7 @@ const onInvoiceSelected = async (invoice: { nomor: string, tanggal: string }) =>
 const calculateTotals = () => {
   // 1. Hitung Subtotal dari semua item
   let subTotal = 0;
-  items.value.forEach(item => {
+  items.value.forEach((item) => {
     // Pastikan jumlah, harga, dan diskon adalah angka
     const jumlah = Number(item.jumlah) || 0;
     const harga = Number(item.harga) || 0;
@@ -245,23 +245,27 @@ const calculateTotals = () => {
 };
 
 const save = () => {
-  if (!header.keterangan || header.keterangan.trim() === '') {
-    return toast.error('Keterangan wajib diisi.');
+  if (!header.keterangan || header.keterangan.trim() === "") {
+    return toast.error("Keterangan wajib diisi.");
   }
   // --- VALIDASI DARI DELPHI ---
-  if (!isEditMode.value && new Date(header.tanggal) < new Date(format(new Date(), 'yyyy-MM-dd'))) {
-    return toast.error('Tanggal tidak boleh mundur dari hari ini.');
+  if (!isEditMode.value && new Date(header.tanggal) < new Date(format(new Date(), "yyyy-MM-dd"))) {
+    return toast.error("Tanggal tidak boleh mundur dari hari ini.");
   }
   if (!header.customer) {
-    return toast.error('Customer harus diisi.');
+    return toast.error("Customer harus diisi.");
   }
-  const validItems = items.value.filter(i => i.kode && (i.jumlah || 0) > 0);
+  const validItems = items.value.filter((i) => i.kode && (i.jumlah || 0) > 0);
   if (validItems.length === 0) {
-    return toast.error('Detail barang retur harus diisi minimal 1 baris.');
+    return toast.error("Detail barang retur harus diisi minimal 1 baris.");
   }
   // --- AKHIR VALIDASI ---
 
-  showConfirmation('Konfirmasi Simpan', 'Anda yakin ingin menyimpan data Retur Jual ini?', executeSave);
+  showConfirmation(
+    "Konfirmasi Simpan",
+    "Anda yakin ingin menyimpan data Retur Jual ini?",
+    executeSave
+  );
 };
 
 const executeSave = async () => {
@@ -269,11 +273,11 @@ const executeSave = async () => {
   const payload = {
     header,
     footer,
-    items: items.value.filter(i => i.kode && (i.jumlah || 0) > 0),
-    isNew: !isEditMode.value
+    items: items.value.filter((i) => i.kode && (i.jumlah || 0) > 0),
+    isNew: !isEditMode.value,
   };
   try {
-    const response = await api.post('/retur-jual-form/save', payload);
+    const response = await api.post("/retur-jual-form/save", payload);
     toast.success(response.data.message);
 
     markAsSaved();
@@ -282,10 +286,9 @@ const executeSave = async () => {
     savedDocumentNumber.value = response.data.nomor;
     // Buka modal pilihan cetak, BUKAN langsung halaman cetak
     isPrintOptionVisible.value = true;
-
   } catch (error) {
     const err = error as AxiosError<{ message?: string }>;
-    toast.error(err.response?.data?.message || 'Gagal menyimpan data.');
+    toast.error(err.response?.data?.message || "Gagal menyimpan data.");
   } finally {
     isSaving.value = false;
   }
@@ -297,7 +300,7 @@ const showConfirmation = (title: string, text: string, onConfirm: () => void) =>
   dialogConfirm.onConfirm = onConfirm;
   dialogConfirm.show = true;
 };
-const closeForm = () => router.push({ name: 'ReturJual' });
+const closeForm = () => router.push({ name: "ReturJual" });
 const resetForm = () => {
   // Reset Header
   Object.assign(header, initialHeaderState);
@@ -309,24 +312,38 @@ const resetForm = () => {
 
   // Reset status unsaved
   markAsSaved();
-  toast.info('Form telah dibersihkan.');
+  toast.info("Form telah dibersihkan.");
 };
 const handleCancel = () => {
   showConfirmation(
-    'Konfirmasi Batal',
-    'Batalkan dan kosongkan semua isian?',
+    "Konfirmasi Batal",
+    "Batalkan dan kosongkan semua isian?",
     resetForm // Panggil fungsi resetForm saat dikonfirmasi
   );
 };
-const handleClose = () => showConfirmation('Konfirmasi Tutup', 'Tutup form? Perubahan yang belum disimpan akan hilang.', closeForm);
+const handleClose = () =>
+  showConfirmation(
+    "Konfirmasi Tutup",
+    "Tutup form? Perubahan yang belum disimpan akan hilang.",
+    closeForm
+  );
 
 const addNewRow = () => {
   const lastItem = items.value[items.value.length - 1];
   if (!lastItem || lastItem.kode) {
     items.value.push({
-      id: Date.now(), kode: '', nama: '', ukuran: '', qtyInv: 0,
-      jumlah: 0, harga: 0, disc: 0, diskon: 0, total: 0,
-      barcode: '', sudah: 0
+      id: Date.now(),
+      kode: "",
+      nama: "",
+      ukuran: "",
+      qtyInv: 0,
+      jumlah: 0,
+      harga: 0,
+      disc: 0,
+      diskon: 0,
+      total: 0,
+      barcode: "",
+      sudah: 0,
     });
   }
 };
@@ -336,17 +353,17 @@ const handleBarcodeScan = async () => {
   if (!barcode) return;
 
   // Cek jika item sudah ada di grid
-  const existingItem = items.value.find(item => item.barcode === barcode && item.kode);
+  const existingItem = items.value.find((item) => item.barcode === barcode && item.kode);
   if (existingItem) {
     const newQty = (existingItem.jumlah || 0) + 1;
     // Validasi jumlah retur tidak melebihi qty invoice
-    if (header.invoice && newQty > (existingItem.qtyInv - existingItem.sudah)) {
-      toast.error('Jumlah retur melebihi jumlah yang dapat diretur dari invoice.');
+    if (header.invoice && newQty > existingItem.qtyInv - existingItem.sudah) {
+      toast.error("Jumlah retur melebihi jumlah yang dapat diretur dari invoice.");
     } else {
       existingItem.jumlah = newQty;
       toast.info(`Jumlah retur untuk ${existingItem.nama} ditambah.`);
     }
-    scannedBarcode.value = '';
+    scannedBarcode.value = "";
     return;
   }
 
@@ -354,7 +371,7 @@ const handleBarcodeScan = async () => {
   try {
     const response = await api.get(`/retur-jual-form/lookup/by-barcode/${barcode}`);
     const product = response.data;
-    const emptyRowIndex = items.value.findIndex(item => !item.kode);
+    const emptyRowIndex = items.value.findIndex((item) => !item.kode);
 
     if (emptyRowIndex !== -1) {
       items.value.splice(emptyRowIndex, 1, {
@@ -379,7 +396,7 @@ const handleBarcodeScan = async () => {
     const err = error as AxiosError<{ message?: string }>;
     toast.error(err.response?.data?.message || `Barcode ${barcode} tidak valid.`);
   } finally {
-    scannedBarcode.value = '';
+    scannedBarcode.value = "";
   }
 };
 
@@ -419,33 +436,36 @@ const onProductsSelected = (selectedProducts: Product[]) => {
 
 const openGudangSearch = () => {
   // Hanya user KDC yang bisa mengubah cabang
-  if (authStore.user?.cabang === 'KDC') {
+  if (authStore.user?.cabang === "KDC") {
     isGudangSearchVisible.value = true;
   }
 };
 
-const onGudangSelected = (gudang: { kode: string, nama: string }) => {
+const onGudangSelected = (gudang: { kode: string; nama: string }) => {
   header.cabangKode = gudang.kode;
   header.cabangNama = gudang.nama;
   isGudangSearchVisible.value = false;
 };
 
-const handlePrintSelection = (type: 'a4' | 'kasir') => {
+const handlePrintSelection = (type: "a4" | "kasir") => {
   isPrintOptionVisible.value = false;
   if (!savedDocumentNumber.value) return;
 
-  const routeName = type === 'a4' ? 'ReturJualPrint' : 'ReturJualPrintKasir';
-  const url = router.resolve({ name: routeName, params: { nomor: savedDocumentNumber.value } }).href;
-  window.open(url, '_blank');
+  const routeName = type === "a4" ? "ReturJualPrint" : "ReturJualPrintKasir";
+  const url = router.resolve({
+    name: routeName,
+    params: { nomor: savedDocumentNumber.value },
+  }).href;
+  window.open(url, "_blank");
 
   // Setelah tab cetak terbuka, arahkan halaman utama kembali ke browse
-  router.push({ name: 'ReturJual' });
+  router.push({ name: "ReturJual" });
 };
 
 const onPrintModalClose = () => {
   isPrintOptionVisible.value = false;
   // Jika user menutup modal tanpa memilih, tetap arahkan ke halaman browse
-  router.push({ name: 'ReturJual' });
+  router.push({ name: "ReturJual" });
 };
 
 const loadDataForEdit = async (nomor: string) => {
@@ -457,7 +477,7 @@ const loadDataForEdit = async (nomor: string) => {
     // Isi Header
     Object.assign(header, returHeader);
     // Format tanggal agar input type="date" bisa membacanya (YYYY-MM-DD)
-    header.tanggal = format(parseISO(returHeader.tanggal), 'yyyy-MM-dd');
+    header.tanggal = format(parseISO(returHeader.tanggal), "yyyy-MM-dd");
 
     // Isi Footer
     footer.diskonRp = Number(returHeader.diskonRp) || 0;
@@ -487,9 +507,8 @@ const loadDataForEdit = async (nomor: string) => {
 
     await nextTick();
     markAsSaved();
-
   } catch (error) {
-    toast.error(error.response?.data?.message || 'Gagal memuat data Retur Jual.');
+    toast.error(error.response?.data?.message || "Gagal memuat data Retur Jual.");
     router.back();
   } finally {
     isLoading.value = false;
@@ -497,7 +516,7 @@ const loadDataForEdit = async (nomor: string) => {
 };
 
 const removeRow = (id: number) => {
-  const index = items.value.findIndex(i => i.id === id);
+  const index = items.value.findIndex((i) => i.id === id);
   if (index !== -1) items.value.splice(index, 1);
 };
 
@@ -510,11 +529,13 @@ watch(
 
     // Cek apakah form "kotor"
     // 1. Header: Invoice dipilih atau Keterangan diisi
-    const hasHeader = (header.invoice !== '') || (header.keterangan.trim() !== '');
+    const hasHeader = header.invoice !== "" || header.keterangan.trim() !== "";
 
     // 2. Items: Ada item yang jumlah returnya > 0 (user mulai input retur)
     //    ATAU ada item baru ditambahkan manual (kode terisi)
-    const hasItems = items.value.some(i => (i.jumlah || 0) > 0 || (i.kode !== '' && i.qtyInv === 0));
+    const hasItems = items.value.some(
+      (i) => (i.jumlah || 0) > 0 || (i.kode !== "" && i.qtyInv === 0)
+    );
 
     if (hasHeader || hasItems) {
       uiStore.setUnsavedChanges(true);
@@ -528,8 +549,10 @@ watch(
 onMounted(() => {
   markAsSaved();
 
-  if (!authStore.can(MENU_ID, isEditMode.value ? 'edit' : 'insert')) {
-    toast.error(`Anda tidak memiliki izin untuk ${isEditMode.value ? 'mengubah' : 'membuat'} data ini.`);
+  if (!authStore.can(MENU_ID, isEditMode.value ? "edit" : "insert")) {
+    toast.error(
+      `Anda tidak memiliki izin untuk ${isEditMode.value ? "mengubah" : "membuat"} data ini.`
+    );
     router.back();
     return;
   }
@@ -544,8 +567,15 @@ onMounted(() => {
   }
 });
 watch(items, calculateTotals, { deep: true });
-watch([() => footer.diskonRp, () => footer.diskonPersen1, () => footer.diskonPersen2, () => header.ppnPersen], calculateTotals);
-
+watch(
+  [
+    () => footer.diskonRp,
+    () => footer.diskonPersen1,
+    () => footer.diskonPersen2,
+    () => header.ppnPersen,
+  ],
+  calculateTotals
+);
 </script>
 
 <template>
@@ -579,9 +609,11 @@ watch([() => footer.diskonRp, () => footer.diskonPersen1, () => footer.diskonPer
             <v-col cols="6"><v-text-field label="Tanggal" v-model="header.tanggal" type="date" variant="outlined"
                 hide-details density="compact" /></v-col>
             <v-col cols="12">
-              <v-radio-group v-model="header.jenis" inline label="Jenis Retur" hide-details>
-                <v-radio label="Salah Qty" value="Y"></v-radio>
+              <v-radio-group v-model="header.jenis" inline label="Jenis Retur" hide-details
+                :key="authStore.user?.cabang">
+                <v-radio label="Pengembalian" value="Y"></v-radio>
                 <v-radio label="Tukar Barang" value="N"></v-radio>
+                <v-radio v-if="authStore.user?.cabang === 'KON'" label="Retur Online (Ke DC)" value="O"></v-radio>
               </v-radio-group>
             </v-col>
             <v-col cols="12">
@@ -589,18 +621,17 @@ watch([() => footer.diskonRp, () => footer.diskonPersen1, () => footer.diskonPer
                 prepend-inner-icon="mdi-magnify" readonly variant="outlined" hide-details density="compact" />
             </v-col>
 
-            <v-col cols="12"><v-text-field label="Customer"
-                :model-value="header.customer ? `${header.customer.kode} - ${header.customer.nama}` : ''" readonly
-                filled hide-details density="compact" /></v-col>
+            <v-col cols="12"><v-text-field label="Customer" :model-value="header.customer ? `${header.customer.kode} - ${header.customer.nama}` : ''
+              " readonly filled hide-details density="compact" /></v-col>
             <v-col cols="12"><v-text-field label="Alamat" :model-value="header.customer?.alamat" readonly filled
                 hide-details density="compact" /></v-col>
-            <v-col cols="12"><v-text-field label="Kota / Telp"
-                :model-value="header.customer ? `${header.customer.kota} / ${header.customer.telp}` : ''" readonly
-                filled hide-details density="compact" /></v-col>
+            <v-col cols="12"><v-text-field label="Kota / Telp" :model-value="header.customer ? `${header.customer.kota} / ${header.customer.telp}` : ''
+              " readonly filled hide-details density="compact" /></v-col>
 
             <v-col cols="12">
               <v-textarea label="Keterangan *" v-model="header.keterangan" rows="3" variant="outlined"
-                hide-details="auto" density="compact" :rules="[v => !!v || 'Keterangan wajib diisi']" />
+                :class="{ 'bg-orange-lighten-5': header.jenis === 'O' }" hide-details="auto" density="compact"
+                :rules="[(v) => !!v || 'Keterangan wajib diisi']" />
             </v-col>
           </v-row>
         </div>
@@ -621,7 +652,7 @@ watch([() => footer.diskonRp, () => footer.diskonPersen1, () => footer.diskonPer
           <template #[`item.jumlah`]="{ item }">
             <v-text-field v-model.number="item.jumlah" type="number" variant="underlined" class="text-end"
               density="compact" hide-details
-              :rules="[v => v <= (item.qtyInv - item.sudah) || `Maks: ${item.qtyInv - item.sudah}`]" min="0" />
+              :rules="[(v) => v <= item.qtyInv - item.sudah || `Maks: ${item.qtyInv - item.sudah}`]" min="0" />
           </template>
 
           <template #[`item.harga`]="{ item }">
@@ -687,8 +718,10 @@ watch([() => footer.diskonRp, () => footer.diskonPersen1, () => footer.diskonPer
         <v-card-actions>
           <v-spacer></v-spacer>
           <v-btn text @click="dialogConfirm.show = false">Tidak</v-btn>
-          <v-btn color="primary" variant="tonal" @click="dialogConfirm.onConfirm(); dialogConfirm.show = false;">Ya,
-            Lanjutkan</v-btn>
+          <v-btn color="primary" variant="tonal" @click="
+            dialogConfirm.onConfirm();
+          dialogConfirm.show = false;
+          ">Ya, Lanjutkan</v-btn>
         </v-card-actions>
       </v-card>
     </v-dialog>
@@ -697,7 +730,7 @@ watch([() => footer.diskonRp, () => footer.diskonPersen1, () => footer.diskonPer
 
 <style scoped>
 .desktop-table :deep(thead tr th) {
-  background-color: #0D47A1 !important;
+  background-color: #0d47a1 !important;
   /* Biru Tua */
   color: #ffffff !important;
   /* Teks Putih */

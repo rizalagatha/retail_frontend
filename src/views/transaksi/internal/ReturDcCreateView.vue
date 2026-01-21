@@ -1,22 +1,23 @@
 <script setup lang="ts">
-import { ref, reactive, onMounted, computed, nextTick, watch } from 'vue';
-import { useRoute, useRouter } from 'vue-router';
-import { useToast } from 'vue-toastification';
-import { useAuthStore } from '@/stores/authStore';
-import { useUiStore } from '@/stores/uiStore';
-import { useUnsavedChanges } from '@/composables/useUnsavedChanges';
-import api from '@/services/api';
-import { format, parseISO } from 'date-fns';
-import PageLayout from '@/components/PageLayout.vue';
-import GudangSearchModal from '@/components/lookup/GudangSearchModal.vue';
-import MintaBarangSearchModal from '@/components/lookup/MintaBarangSearchModal.vue';
-import axios, { AxiosError } from 'axios';
+import { ref, reactive, onMounted, computed, nextTick, watch } from "vue";
+import { useRoute, useRouter } from "vue-router";
+import { useToast } from "vue-toastification";
+import { useAuthStore } from "@/stores/authStore";
+import { useUiStore } from "@/stores/uiStore";
+import { useUnsavedChanges } from "@/composables/useUnsavedChanges";
+import api from "@/services/api";
+import { format, parseISO } from "date-fns";
+import PageLayout from "@/components/PageLayout.vue";
+import GudangSearchModal from "@/components/lookup/GudangSearchModal.vue";
+import MintaBarangSearchModal from "@/components/lookup/MintaBarangSearchModal.vue";
+import ReturJualOnlineSearchModal from "@/components/lookup/ReturJualOnlineSearchModal.vue";
+import axios, { AxiosError } from "axios";
 
 // --- Tipe Data ---
 interface Header {
   nomor: string;
   tanggal: string;
-  gudangDc: { kode: string, nama: string };
+  gudangDc: { kode: string; nama: string };
   keterangan: string;
 }
 interface Item {
@@ -50,6 +51,24 @@ interface ProductDetail {
   // tambahkan properti lain sesuai response API
 }
 
+// Interface untuk parameter 'retur' dari modal pencarian
+interface ReturJualLookup {
+  Nomor: string;
+  Tanggal: string;
+  Invoice: string;
+  Qty: number;
+}
+
+// Interface untuk data item yang diterima dari API load-from-rj
+interface ItemFromRJ {
+  kode: string;
+  barcode: string;
+  nama: string;
+  ukuran: string;
+  jumlah: number;
+  stok: number;
+}
+
 // --- Inisialisasi & State ---
 const router = useRouter();
 const route = useRoute();
@@ -57,44 +76,48 @@ const toast = useToast();
 const authStore = useAuthStore();
 const uiStore = useUiStore();
 const { markAsSaved } = useUnsavedChanges();
-const MENU_ID = '32';
+const MENU_ID = "32";
 const isEditMode = ref(false);
-const pageTitle = computed(() => isEditMode.value ? 'Ubah Retur Barang ke DC' : 'Buat Retur Barang ke DC');
-const canView = computed(() => authStore.can(MENU_ID, 'view'));
-const canInsert = computed(() => authStore.can(MENU_ID, 'insert'));
-const canEdit = computed(() => authStore.can(MENU_ID, 'edit'));
+const pageTitle = computed(() =>
+  isEditMode.value ? "Ubah Retur Barang ke DC" : "Buat Retur Barang ke DC"
+);
+const canView = computed(() => authStore.can(MENU_ID, "view"));
+const canInsert = computed(() => authStore.can(MENU_ID, "insert"));
+const canEdit = computed(() => authStore.can(MENU_ID, "edit"));
 // Izin simpan bergantung pada mode (insert/edit)
-const canSave = computed(() => isEditMode.value ? canEdit.value : canInsert.value);
+const canSave = computed(() => (isEditMode.value ? canEdit.value : canInsert.value));
+const isKON = computed(() => authStore.user?.cabang === "KON");
+const dialogRJ = ref(false);
 
 const header = reactive<Header>({
-  nomor: '',
-  tanggal: format(new Date(), 'yyyy-MM-dd'),
-  gudangDc: { kode: 'KDC', nama: 'PUSAT' },
-  keterangan: '',
+  nomor: "",
+  tanggal: format(new Date(), "yyyy-MM-dd"),
+  gudangDc: { kode: "KDC", nama: "PUSAT" },
+  keterangan: "",
 });
 const items = ref<Item[]>([]);
 const isLoading = ref(true);
 const isSaving = ref(false);
-const scannedBarcode = ref('');
+const scannedBarcode = ref("");
 const dialog = reactive({ gudangSearch: false, productSearch: false });
 const isMultiSelectProduct = ref(false);
 const activeRowIndex = ref(0);
 
 const dialogConfirm = reactive({
   show: false,
-  title: '',
-  text: '',
+  title: "",
+  text: "",
   onConfirm: () => { },
 });
 
 const tableHeaders = [
-  { title: 'Kode Barang', key: 'kode', width: '100px' },
-  { title: 'Nama Barang', key: 'nama' },
-  { title: 'Ukuran', key: 'ukuran', width: '60px' },
-  { title: 'Stok', key: 'stok', align: 'end', width: '60px' },
-  { title: 'Jumlah', key: 'jumlah', align: 'end', width: '60px' },
-  { title: 'Barcode', key: 'barcode', width: '100px' },
-  { title: 'Actions', key: 'actions', sortable: false, width: '50px' },
+  { title: "Kode Barang", key: "kode", width: "100px" },
+  { title: "Nama Barang", key: "nama" },
+  { title: "Ukuran", key: "ukuran", width: "60px" },
+  { title: "Stok", key: "stok", align: "end", width: "60px" },
+  { title: "Jumlah", key: "jumlah", align: "end", width: "60px" },
+  { title: "Barcode", key: "barcode", width: "100px" },
+  { title: "Actions", key: "actions", sortable: false, width: "50px" },
 ] as const;
 
 // --- Methods ---
@@ -103,26 +126,25 @@ const addNewRow = () => {
   if (!lastItem || lastItem.kode) {
     items.value.push({
       id: Date.now(),
-      kode: '',
-      nama: '',
-      ukuran: '',
+      kode: "",
+      nama: "",
+      ukuran: "",
       stok: 0,
       jumlah: 0,
       harga: 0,
       hargaDtf: 0,
-      jenis: '',
-      ket: '',
+      jenis: "",
+      ket: "",
       diskon: 0,
       hargabaru: 0,
-      kodebaru: '',
-      barcode: ''
+      kodebaru: "",
+      barcode: "",
     });
   }
 };
 
-
 const removeRow = (id: number) => {
-  items.value = items.value.filter(item => item.id !== id);
+  items.value = items.value.filter((item) => item.id !== id);
   if (items.value.length === 0) addNewRow();
 };
 
@@ -136,26 +158,26 @@ const showConfirmation = (title: string, text: string, onConfirm: () => void) =>
 const resetForm = () => {
   // Logic reset manual
   Object.assign(header, {
-    nomor: '',
-    tanggal: format(new Date(), 'yyyy-MM-dd'),
-    gudangDc: { kode: 'KDC', nama: 'PUSAT' },
-    keterangan: ''
+    nomor: "",
+    tanggal: format(new Date(), "yyyy-MM-dd"),
+    gudangDc: { kode: "KDC", nama: "PUSAT" },
+    keterangan: "",
   });
   items.value = [];
   addNewRow();
 
   // [BARU] Reset status unsaved
   markAsSaved();
-  toast.info('Form telah dibersihkan.');
+  toast.info("Form telah dibersihkan.");
 };
 
-const closeForm = () => router.push({ name: 'ReturDc' });
+const closeForm = () => router.push({ name: "ReturDc" });
 const handleCancel = () => {
-  showConfirmation('Konfirmasi Batal', 'Batalkan semua perubahan dan kosongkan form?', resetForm);
+  showConfirmation("Konfirmasi Batal", "Batalkan semua perubahan dan kosongkan form?", resetForm);
 };
-const handleClose = () => showConfirmation('Konfirmasi Tutup', 'Tutup form?', closeForm);
+const handleClose = () => showConfirmation("Konfirmasi Tutup", "Tutup form?", closeForm);
 
-const onGudangSelected = (gudang: { kode: string, nama: string }) => {
+const onGudangSelected = (gudang: { kode: string; nama: string }) => {
   header.gudangDc = gudang;
   dialog.gudangSearch = false;
 };
@@ -187,22 +209,25 @@ const onGudangSelected = (gudang: { kode: string, nama: string }) => {
 const handleBarcodeScan = async () => {
   const barcode = scannedBarcode.value;
   if (!barcode) return;
-  const existingItem = items.value.find(item => item.barcode === barcode && item.kode);
+  const existingItem = items.value.find((item) => item.barcode === barcode && item.kode);
   if (existingItem) {
     existingItem.jumlah = (existingItem.jumlah || 0) + 1;
     toast.info(`Jumlah untuk ${existingItem.nama} ditambah.`);
-    scannedBarcode.value = '';
+    scannedBarcode.value = "";
     return;
   }
   try {
-    const response = await api.get(`/retur-dc-form/lookup/by-barcode/${barcode}`, { params: { gudang: authStore.user?.cabang } });
+    const response = await api.get(`/retur-dc-form/lookup/by-barcode/${barcode}`, {
+      params: { gudang: authStore.user?.cabang },
+    });
     const product = response.data;
-    const emptyRowIndex = items.value.findIndex(item => !item.kode);
+    const emptyRowIndex = items.value.findIndex((item) => !item.kode);
     if (emptyRowIndex !== -1) {
       items.value.splice(emptyRowIndex, 1, { ...product, id: Date.now(), jumlah: 1 });
       addNewRow();
     }
-  } catch (error: unknown) { // <-- 2. Catch as 'unknown'
+  } catch (error: unknown) {
+    // <-- 2. Catch as 'unknown'
     // --- 3. Refactored Error Handling ---
     let errorMessage = `Barcode ${barcode} tidak valid atau terjadi kesalahan.`; // Default message
     if (axios.isAxiosError(error)) {
@@ -219,7 +244,7 @@ const handleBarcodeScan = async () => {
     toast.error(errorMessage);
     // ------------------------------------
   } finally {
-    scannedBarcode.value = '';
+    scannedBarcode.value = "";
   }
 };
 
@@ -233,73 +258,109 @@ const onProductsSelected = async (selectedProducts: ProductSelected[]) => {
   dialog.productSearch = false;
 
   const productsToAdd = selectedProducts.filter(
-    p => !items.value.some(item => item.kode === p.kode && item.ukuran === p.ukuran)
+    (p) => !items.value.some((item) => item.kode === p.kode && item.ukuran === p.ukuran)
   );
 
   if (productsToAdd.length === 0 && selectedProducts.length > 0)
-    return toast.info('Semua produk sudah ada di daftar.');
+    return toast.info("Semua produk sudah ada di daftar.");
 
   try {
-    const detailPromises = productsToAdd.map(p =>
-      api.get<ProductDetail>('/retur-dc-form/lookup/product-details', {
+    const detailPromises = productsToAdd.map((p) =>
+      api.get<ProductDetail>("/retur-dc-form/lookup/product-details", {
         params: { kode: p.kode, ukuran: p.ukuran, gudang: authStore.user?.cabang },
       })
     );
 
     const responses = await Promise.all(detailPromises);
 
-    const newItems = responses.map(res => ({
+    const newItems = responses.map((res) => ({
       ...res.data,
       id: Date.now() + Math.random(),
       jumlah: 1,
       hargaDtf: res.data.harga || 0,
-      jenis: '',
-      ket: '',
+      jenis: "",
+      ket: "",
       diskon: 0,
       hargabaru: 0,
-      kodebaru: ''
+      kodebaru: "",
     }));
 
     items.value.splice(activeRowIndex.value, 1, ...newItems);
     addNewRow();
   } catch (error: unknown) {
-    toast.error('Gagal memuat detail produk.');
+    toast.error("Gagal memuat detail produk.");
     console.error(error);
+  }
+};
+
+const onRJSelected = async (retur: ReturJualLookup) => {
+  dialogRJ.value = false;
+  isLoading.value = true;
+  try {
+    // Memberikan tipe data pada response API
+    const response = await api.get<ItemFromRJ[]>(`/retur-dc-form/load-from-rj/${retur.Nomor}`);
+
+    header.keterangan = `RETUR DARI ONLINE: ${retur.Nomor}`;
+
+    // Mapping data ke grid items dengan tipe yang aman
+    items.value = response.data.map(
+      (item: ItemFromRJ): Item => ({
+        ...item,
+        id: Date.now() + Math.random(),
+        // Inisialisasi field tambahan yang dibutuhkan oleh interface Item
+        harga: 0,
+        hargaDtf: 0,
+        jenis: "",
+        ket: "",
+        diskon: 0,
+        hargabaru: 0,
+        kodebaru: "",
+      })
+    );
+
+    addNewRow();
+    toast.success(`Berhasil memuat ${response.data.length} item dari Retur ${retur.Nomor}`);
+  } catch (error) {
+    // Menangani error logging tanpa 'any'
+    const errorMessage = error instanceof Error ? error.message : "Terjadi kesalahan sistem";
+    toast.error(`Gagal memuat barang: ${errorMessage}`);
+  } finally {
+    isLoading.value = false;
   }
 };
 
 const save = () => {
   if (!canSave.value) {
-    toast.error('Anda tidak memiliki izin untuk menyimpan data ini.');
+    toast.error("Anda tidak memiliki izin untuk menyimpan data ini.");
     return;
   }
-  if (!header.keterangan || header.keterangan.trim() === '') {
-    return toast.error('Keterangan wajib diisi.');
+  if (!header.keterangan || header.keterangan.trim() === "") {
+    return toast.error("Keterangan wajib diisi.");
   }
   // --- VALIDASI DARI DELPHI ---
-  if (!isEditMode.value && new Date(header.tanggal) < new Date(format(new Date(), 'yyyy-MM-dd'))) {
-    return toast.error('Tanggal tidak boleh mundur dari hari ini.');
+  if (!isEditMode.value && new Date(header.tanggal) < new Date(format(new Date(), "yyyy-MM-dd"))) {
+    return toast.error("Tanggal tidak boleh mundur dari hari ini.");
   }
-  const validItems = items.value.filter(i => i.kode);
+  const validItems = items.value.filter((i) => i.kode);
   if (validItems.length === 0) {
-    return toast.error('Detail barang harus diisi.');
+    return toast.error("Detail barang harus diisi.");
   }
-  if (validItems.some(i => (i.jumlah || 0) <= 0)) {
-    return toast.error('Jumlah retur harus diisi dan lebih dari 0.');
+  if (validItems.some((i) => (i.jumlah || 0) <= 0)) {
+    return toast.error("Jumlah retur harus diisi dan lebih dari 0.");
   }
-  if (validItems.some(i => (i.jumlah || 0) > i.stok)) {
-    return toast.error('Ada jumlah retur yang melebihi stok yang tersedia.');
+  if (validItems.some((i) => (i.jumlah || 0) > i.stok)) {
+    return toast.error("Ada jumlah retur yang melebihi stok yang tersedia.");
   }
   // --- AKHIR VALIDASI ---
 
-  showConfirmation('Konfirmasi Simpan', 'Anda yakin ingin menyimpan data ini?', executeSave);
+  showConfirmation("Konfirmasi Simpan", "Anda yakin ingin menyimpan data ini?", executeSave);
 };
 
 const executeSave = async () => {
   if (isSaving.value) return;
 
   if (!canSave.value) {
-    toast.error('Anda tidak memiliki izin untuk menyimpan data ini.');
+    toast.error("Anda tidak memiliki izin untuk menyimpan data ini.");
     isSaving.value = false; // Pastikan loading dihentikan
     return;
   }
@@ -307,11 +368,11 @@ const executeSave = async () => {
   isSaving.value = true;
   const payload = {
     header,
-    items: items.value.filter(i => i.kode && (i.jumlah || 0) > 0),
+    items: items.value.filter((i) => i.kode && (i.jumlah || 0) > 0),
     isNew: !isEditMode.value,
   };
   try {
-    const response = await api.post('/retur-dc-form/save', payload);
+    const response = await api.post("/retur-dc-form/save", payload);
     toast.success(response.data.message);
 
     markAsSaved();
@@ -319,19 +380,19 @@ const executeSave = async () => {
     // --- ALUR CETAK OTOMATIS ---
     const nomorDokumen = response.data.nomor;
     if (nomorDokumen) {
-      const url = router.resolve({ name: 'ReturDcPrint', params: { nomor: nomorDokumen } }).href;
-      window.open(url, '_blank');
+      const url = router.resolve({ name: "ReturDcPrint", params: { nomor: nomorDokumen } }).href;
+      window.open(url, "_blank");
     }
     // --- AKHIR ALUR CETAK ---
 
-    router.push({ name: 'ReturDc' }); // Arahkan kembali ke browse
+    router.push({ name: "ReturDc" }); // Arahkan kembali ke browse
   } catch (error: unknown) {
     if (error instanceof Error) {
       // Cek apakah error dari Axios
       const axiosError = error as AxiosError<{ message: string }>;
-      toast.error(axiosError.response?.data?.message || error.message || 'Gagal menyimpan data.');
+      toast.error(axiosError.response?.data?.message || error.message || "Gagal menyimpan data.");
     } else {
-      toast.error('Gagal menyimpan data.');
+      toast.error("Gagal menyimpan data.");
     }
   } finally {
     isSaving.value = false;
@@ -342,7 +403,7 @@ const loadDataForEdit = async (nomor: string) => {
   try {
     const response = await api.get(`/retur-dc-form/${nomor}`);
     Object.assign(header, response.data.header);
-    header.tanggal = format(parseISO(header.tanggal), 'yyyy-MM-dd');
+    header.tanggal = format(parseISO(header.tanggal), "yyyy-MM-dd");
     items.value = response.data.items.map((item: Item) => ({
       ...item,
       id: Date.now() + Math.random(), // tambahkan id unik
@@ -353,10 +414,10 @@ const loadDataForEdit = async (nomor: string) => {
   } catch (error: unknown) {
     if (error instanceof Error) {
       const axiosError = error as AxiosError<{ message?: string }>;
-      const message = axiosError.response?.data?.message || error.message || 'Gagal memuat data.';
+      const message = axiosError.response?.data?.message || error.message || "Gagal memuat data.";
       toast.error(message);
     } else {
-      toast.error('Gagal memuat data.');
+      toast.error("Gagal memuat data.");
     }
     router.back();
   }
@@ -371,10 +432,10 @@ watch(
 
     // Cek apakah form "kotor"
     // 1. Header: Keterangan diisi
-    const hasHeader = header.keterangan.trim() !== '';
+    const hasHeader = header.keterangan.trim() !== "";
 
     // 2. Items: Ada minimal 1 baris yang valid (kode terisi)
-    const hasItems = items.value.some(i => i.kode !== '');
+    const hasItems = items.value.some((i) => i.kode !== "");
 
     if (hasHeader || hasItems) {
       uiStore.setUnsavedChanges(true);
@@ -392,7 +453,7 @@ onMounted(async () => {
   // --- TAMBAHKAN PENGECEKAN AWAL ---
   if (!canView.value) {
     isLoading.value = false; // Hentikan loading
-    toast.error('Anda tidak memiliki izin untuk mengakses halaman ini.');
+    toast.error("Anda tidak memiliki izin untuk mengakses halaman ini.");
     // Opsional: Redirect atau tampilkan pesan akses ditolak di template
     // router.replace({ name: 'Forbidden' });
     return; // Hentikan eksekusi onMounted
@@ -438,7 +499,7 @@ onMounted(async () => {
                 hide-details density="compact" /></v-col>
             <v-col cols="12">
               <v-textarea label="Keterangan *" v-model="header.keterangan" rows="3" variant="outlined"
-                hide-details="auto" density="compact" :rules="[v => !!v || 'Keterangan wajib diisi']" />
+                hide-details="auto" density="compact" :rules="[(v) => !!v || 'Keterangan wajib diisi']" />
             </v-col>
             <!-- <v-col cols="12">
                             <v-btn block color="info" @click="handleLoadFromStock" prepend-icon="mdi-download"
@@ -446,6 +507,12 @@ onMounted(async () => {
                                 Load from Stok
                             </v-btn>
                         </v-col> -->
+            <v-col cols="12" v-if="isKON">
+              <v-btn block color="orange-darken-3" @click="dialogRJ = true" prepend-icon="mdi-magnify-plus"
+                :loading="isLoading">
+                Ambil dari Retur Online (KON)
+              </v-btn>
+            </v-col>
           </v-row>
         </div>
       </div>
@@ -464,15 +531,16 @@ onMounted(async () => {
             </template>
             <template #[`item.jumlah`]="{ item }">
               <v-text-field v-model.number="item.jumlah" type="number" variant="underlined" density="compact"
-                hide-details class="text-center" :rules="[v => v <= item.stok || 'Max stok']" min="0" />
+                hide-details class="text-center" :rules="[(v) => v <= item.stok || 'Max stok']" min="0" />
             </template>
             <template #[`item.actions`]="{ item }">
               <v-btn v-if="item.kode" icon="mdi-delete" size="x-small" variant="text" color="error"
                 @click="removeRow(item.id)" />
             </template>
             <template #bottom>
-              <div class="pa-2 text-right"><v-btn size="small" @click="addNewRow" prepend-icon="mdi-plus">Tambah
-                  Baris</v-btn></div>
+              <div class="pa-2 text-right">
+                <v-btn size="small" @click="addNewRow" prepend-icon="mdi-plus">Tambah Baris</v-btn>
+              </div>
             </template>
           </v-data-table>
         </div>
@@ -484,6 +552,7 @@ onMounted(async () => {
     <MintaBarangSearchModal v-if="dialog.productSearch" :gudang="authStore.user?.cabang || ''"
       :multi="isMultiSelectProduct" source="koreksi-stok" @close="dialog.productSearch = false"
       @products-selected="onProductsSelected" />
+    <ReturJualOnlineSearchModal v-if="dialogRJ" @close="dialogRJ = false" @selected="onRJSelected" />
 
     <v-dialog v-model="dialogConfirm.show" max-width="400px" persistent>
       <v-card>
@@ -492,8 +561,10 @@ onMounted(async () => {
         <v-card-actions>
           <v-spacer></v-spacer>
           <v-btn text @click="dialogConfirm.show = false">Tidak</v-btn>
-          <v-btn color="primary" variant="tonal" @click="dialogConfirm.onConfirm(); dialogConfirm.show = false;">Ya,
-            Lanjutkan</v-btn>
+          <v-btn color="primary" variant="tonal" @click="
+            dialogConfirm.onConfirm();
+          dialogConfirm.show = false;
+          ">Ya, Lanjutkan</v-btn>
         </v-card-actions>
       </v-card>
     </v-dialog>
@@ -502,7 +573,7 @@ onMounted(async () => {
 
 <style scoped>
 .desktop-table :deep(thead tr th) {
-  background-color: #0D47A1 !important;
+  background-color: #0d47a1 !important;
   /* Biru Tua */
   color: #ffffff !important;
   /* Teks Putih */

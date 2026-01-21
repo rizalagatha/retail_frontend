@@ -1,16 +1,16 @@
 <script setup lang="ts">
-import { ref, reactive, onMounted, watch, computed } from 'vue';
-import { useRouter } from 'vue-router';
-import { useToast } from 'vue-toastification';
-import { useAuthStore } from '@/stores/authStore';
-import api from '@/services/api';
-import { format, subDays, parseISO } from 'date-fns';
-import PageLayout from '@/components/PageLayout.vue';
-import MasterProductSearchModal from '@/components/lookup/MasterProductSearchModal.vue';
-import * as XLSX from 'xlsx';
+import { ref, reactive, onMounted, watch, computed } from "vue";
+import { useRouter } from "vue-router";
+import { useToast } from "vue-toastification";
+import { useAuthStore } from "@/stores/authStore";
+import api from "@/services/api";
+import { format, subDays, parseISO } from "date-fns";
+import PageLayout from "@/components/PageLayout.vue";
+import MasterProductSearchModal from "@/components/lookup/MasterProductSearchModal.vue";
+import * as XLSX from "xlsx";
 import axios from "axios";
-import type { AxiosError } from 'axios';
-import AppDataTable from '@/components/AppDataTable.vue';
+import type { AxiosError } from "axios";
+import AppDataTable from "@/components/AppDataTable.vue";
 
 // --- Interface Header (Resize) ---
 interface DataTableHeader {
@@ -18,7 +18,7 @@ interface DataTableHeader {
   key: string;
   width?: number;
   fixed?: boolean;
-  align?: 'start' | 'center' | 'end';
+  align?: "start" | "center" | "end";
   minWidth?: string | number;
   maxWidth?: string | number;
   sortable?: boolean;
@@ -39,8 +39,8 @@ interface ErrorResponse {
 
 // Interface untuk data Detail dari API (sesuai alias di Query SQL)
 interface SjExportDetailRow {
-  'Tanggal SJ'?: string | Date;
-  'Tanggal Terima'?: string | Date;
+  "Tanggal SJ"?: string | Date;
+  "Tanggal Terima"?: string | Date;
   [key: string]: unknown;
 }
 
@@ -60,52 +60,52 @@ const cabangList = ref([]);
 const isMasterProductSearchVisible = ref(false);
 
 const filters = reactive({
-  startDate: format(subDays(new Date(), 7), 'yyyy-MM-dd'),
-  endDate: format(new Date(), 'yyyy-MM-dd'),
-  cabang: authStore.user?.cabang || '',
-  kodeBarang: '',
-  namaBarang: '',
+  startDate: format(subDays(new Date(), 7), "yyyy-MM-dd"),
+  endDate: format(new Date(), "yyyy-MM-dd"),
+  cabang: authStore.user?.cabang || "",
+  kodeBarang: "",
+  namaBarang: "",
 });
 
 const dialogConfirm = reactive({
   show: false,
-  title: '',
-  text: '',
+  title: "",
+  text: "",
   onConfirm: () => { },
 });
 
 // --- Header Definisi (Ref & Width Angka) ---
 const headers = computed<DataTableHeader[]>(() => {
   const baseHeaders: DataTableHeader[] = [
-    { title: '', key: 'data-table-expand', width: 50, fixed: true },
-    { title: 'Nomor SJ', key: 'Nomor', width: 180, fixed: true },
-    { title: 'Tanggal SJ', key: 'Tanggal', width: 120 },
-    { title: 'Nomor Minta', key: 'NomorMinta', width: 180 },
+    { title: "", key: "data-table-expand", width: 50, fixed: true },
+    { title: "Nomor SJ", key: "Nomor", width: 180, fixed: true },
+    { title: "Tanggal SJ", key: "Tanggal", width: 120 },
+    { title: "Nomor Minta", key: "NomorMinta", width: 180 },
   ];
 
   // Tambahkan No. Invoice HANYA jika KDC atau KPR
   if (showInvoiceColumn.value) {
-    baseHeaders.push({ title: 'No. Invoice', key: 'NoInvoice', width: 160 });
+    baseHeaders.push({ title: "No. Invoice", key: "NoInvoice", width: 160 });
   }
 
   baseHeaders.push(
-    { title: 'Nomor Terima', key: 'NomorTerima', width: 180 },
-    { title: 'Tgl Terima', key: 'TglTerima', width: 120 },
-    { title: 'Store', key: 'Store', width: 100 },
-    { title: 'Nama Store', key: 'Nama_Store', width: 200 },
-    { title: 'Keterangan', key: 'Keterangan', width: 300 },
-    { title: 'Closing', key: 'Closing', align: 'center', width: 100 },
+    { title: "Nomor Terima", key: "NomorTerima", width: 180 },
+    { title: "Tgl Terima", key: "TglTerima", width: 120 },
+    { title: "Store", key: "Store", width: 100 },
+    { title: "Nama Store", key: "Nama_Store", width: 200 },
+    { title: "Keterangan", key: "Keterangan", width: 300 },
+    { title: "Closing", key: "Closing", align: "center", width: 100 }
   );
 
   return baseHeaders;
 });
 
 const detailHeaders = [
-  { title: 'Kode', key: 'Kode', width: '150px' },
-  { title: 'Nama Barang', key: 'Nama', width: '300px' },
-  { title: 'Ukuran', key: 'Ukuran', width: '100px' },
-  { title: 'Jumlah', key: 'Jumlah', align: 'end', width: '100px' },
-  { title: 'Jumlah Terima', key: 'JumlahTerima', align: 'end', width: '120px' },
+  { title: "Kode", key: "Kode", width: "150px" },
+  { title: "Nama Barang", key: "Nama", width: "300px" },
+  { title: "Ukuran", key: "Ukuran", width: "100px" },
+  { title: "Jumlah", key: "Jumlah", align: "end", width: "100px" },
+  { title: "Jumlah Terima", key: "JumlahTerima", align: "end", width: "120px" },
 ] as const;
 
 // --- Logic Resize Column ---
@@ -118,10 +118,10 @@ const onResizeStart = (e: MouseEvent, column: DataTableHeader) => {
   e.stopPropagation();
   resizingColumn.value = column;
   startX.value = e.pageX;
-  startWidth.value = (typeof column.width === 'number' ? column.width : 100);
-  document.addEventListener('mousemove', onResizeMove);
-  document.addEventListener('mouseup', onResizeEnd);
-  document.body.style.cursor = 'col-resize';
+  startWidth.value = typeof column.width === "number" ? column.width : 100;
+  document.addEventListener("mousemove", onResizeMove);
+  document.addEventListener("mouseup", onResizeEnd);
+  document.body.style.cursor = "col-resize";
 };
 
 const onResizeMove = (e: MouseEvent) => {
@@ -132,9 +132,9 @@ const onResizeMove = (e: MouseEvent) => {
 
 const onResizeEnd = () => {
   resizingColumn.value = null;
-  document.removeEventListener('mousemove', onResizeMove);
-  document.removeEventListener('mouseup', onResizeEnd);
-  document.body.style.cursor = '';
+  document.removeEventListener("mousemove", onResizeMove);
+  document.removeEventListener("mouseup", onResizeEnd);
+  document.body.style.cursor = "";
 };
 
 // --- Logic Selected Row ---
@@ -143,58 +143,61 @@ const handleRowClick = (_event: Event, { item }: { item: SjHeader }) => {
 };
 
 const isSingleSelected = computed(() => selected.value.length === 1);
-const selectedRow = computed(() => isSingleSelected.value ? selected.value[0] : null);
-const isK01 = computed(() => authStore.user?.cabang === 'K01');
-const isKpr = computed(() => authStore.user?.cabang === 'KPR');
+const selectedRow = computed(() => (isSingleSelected.value ? selected.value[0] : null));
+const isK01 = computed(() => authStore.user?.cabang === "K01");
+const isKpr = computed(() => authStore.user?.cabang === "KPR");
+const isKon = computed(() => authStore.user?.cabang === "KON");
 
 const terimaDisabledReason = computed(() => {
-  // Izinkan K01 atau KPR untuk melakukan penerimaan di Web
-  if (!isK01.value && !isKpr.value) {
-    return 'Penerimaan SJ cabang selain K01 & KPR wajib melalui Aplikasi Kaosan Mobile.';
+  // Tambahkan isKon ke dalam pengecekan izin akses web
+  if (!isK01.value && !isKpr.value && !isKon.value) {
+    return "Penerimaan SJ cabang selain K01, KPR, & KON wajib melalui Aplikasi Kaosan Mobile.";
   }
+
   if (!isSingleSelected.value) {
-    return 'Pilih tepat satu SJ terlebih dahulu.';
+    return "Pilih tepat satu SJ terlebih dahulu.";
   }
+
   if (selectedRow.value?.NomorTerima) {
-    return 'SJ ini sudah diterima.';
+    return "SJ ini sudah diterima.";
   }
-  return '';
+
+  return "";
 });
 
 const showInvoiceColumn = computed(() => {
   const cb = authStore.user?.cabang;
-  return cb === 'KDC' || cb === 'KPR';
+  return cb === "KDC" || cb === "KPR";
 });
 
 const batalDisabledReason = computed(() => {
   // Pengecekan isK01 dihapus agar semua cabang bisa akses
   if (!isSingleSelected.value) {
-    return 'Pilih tepat satu SJ terlebih dahulu.';
+    return "Pilih tepat satu SJ terlebih dahulu.";
   }
   if (!selectedRow.value?.NomorTerima) {
-    return 'SJ belum diterima.';
+    return "SJ belum diterima.";
   }
-  if (selectedRow.value?.Closing === 'Y') {
-    return 'Penerimaan sudah closing.';
+  if (selectedRow.value?.Closing === "Y") {
+    return "Penerimaan sudah closing.";
   }
-  return '';
+  return "";
 });
-
 
 // --- Methods ---
 const fetchCabangList = async () => {
   try {
-    const response = await api.get('/terima-sj/lookup/cabang');
+    const response = await api.get("/terima-sj/lookup/cabang");
     cabangList.value = response.data;
   } catch {
-    toast.error('Gagal memuat daftar cabang.');
+    toast.error("Gagal memuat daftar cabang.");
   }
 };
 
 const fetchMasterData = async () => {
   loading.value = true;
   try {
-    const response = await api.get('/terima-sj', { params: filters });
+    const response = await api.get("/terima-sj", { params: filters });
     masterData.value = response.data;
     selected.value = [];
     expanded.value = [];
@@ -211,7 +214,9 @@ const fetchMasterData = async () => {
 };
 
 const loadDetails = async (newlyExpandedItems: SjHeader[]) => {
-  const itemToLoad = newlyExpandedItems.find(item => !details.value[item.Nomor] && !loadingDetails.value.has(item.Nomor));
+  const itemToLoad = newlyExpandedItems.find(
+    (item) => !details.value[item.Nomor] && !loadingDetails.value.has(item.Nomor)
+  );
   if (!itemToLoad) return;
 
   loadingDetails.value.add(itemToLoad.Nomor);
@@ -220,7 +225,7 @@ const loadDetails = async (newlyExpandedItems: SjHeader[]) => {
     details.value[itemToLoad.Nomor] = response.data;
   } catch {
     toast.error(`Gagal memuat detail untuk ${itemToLoad.Nomor}`);
-    expanded.value = expanded.value.filter(nomor => nomor !== itemToLoad.Nomor);
+    expanded.value = expanded.value.filter((nomor) => nomor !== itemToLoad.Nomor);
   } finally {
     loadingDetails.value.delete(itemToLoad.Nomor);
   }
@@ -228,7 +233,7 @@ const loadDetails = async (newlyExpandedItems: SjHeader[]) => {
 
 const handleTerima = () => {
   if (!selectedRow.value) return;
-  router.push({ name: 'TerimaSjCreate', params: { nomor: selectedRow.value.Nomor } });
+  router.push({ name: "TerimaSjCreate", params: { nomor: selectedRow.value.Nomor } });
 };
 
 const showConfirmation = (title: string, text: string, onConfirm: () => void) => {
@@ -242,7 +247,7 @@ const handleBatalTerima = () => {
   if (!selectedRow.value) return;
 
   showConfirmation(
-    'Konfirmasi Pembatalan',
+    "Konfirmasi Pembatalan",
     `Yakin ingin membatalkan penerimaan untuk SJ ${selectedRow.value.Nomor}?`,
     async () => {
       try {
@@ -250,118 +255,113 @@ const handleBatalTerima = () => {
           header: {
             nomorSj: selectedRow.value.Nomor,
             nomorMinta: selectedRow.value.NomorMinta,
-            tanggalTerima: format(new Date(), 'yyyy-MM-dd'),
+            tanggalTerima: format(new Date(), "yyyy-MM-dd"),
           },
-          items: [] // <= semua item 0 = batal penerimaan
+          items: [], // <= semua item 0 = batal penerimaan
         };
 
-        const response = await api.post('/terima-sj-form/save', payload);
+        const response = await api.post("/terima-sj-form/save", payload);
         toast.success(response.data.message);
         fetchMasterData();
       } catch (err: unknown) {
         const error = err as AxiosError<{ message: string }>;
-        toast.error(error.response?.data?.message || 'Gagal membatalkan penerimaan.');
+        toast.error(error.response?.data?.message || "Gagal membatalkan penerimaan.");
       }
     }
   );
 };
 
-const onProductSelected = (product: { kode: string, nama: string }) => {
+const onProductSelected = (product: { kode: string; nama: string }) => {
   filters.kodeBarang = product.kode;
   filters.namaBarang = product.nama;
   isMasterProductSearchVisible.value = false;
 };
 
 const getRowTextColor = (item: SjHeader) => {
-  if (!item.NomorTerima) return 'text-red font-weight-bold';
-  return '';
+  if (!item.NomorTerima) return "text-red font-weight-bold";
+  return "";
 };
 
 // --- 2. Helper Format Tanggal ---
 const formatDateIndo = (dateString: string | Date | null | undefined) => {
-  if (!dateString) return '';
+  if (!dateString) return "";
   const date = new Date(dateString);
-  if (isNaN(date.getTime())) return '';
-  return new Intl.DateTimeFormat('id-ID', {
-    day: 'numeric',
-    month: 'long',
-    year: 'numeric'
+  if (isNaN(date.getTime())) return "";
+  return new Intl.DateTimeFormat("id-ID", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
   }).format(date);
 };
 
 // --- 3. Fungsi Export Data ---
-const exportData = async (type: 'header' | 'detail') => {
-
+const exportData = async (type: "header" | "detail") => {
   // === EXPORT HEADER (Dari Frontend State) ===
-  if (type === 'header') {
+  if (type === "header") {
     // Casting masterData.value ke tipe yang benar
     const currentList = masterData.value as SjHeader[];
 
     if (currentList.length === 0) {
-      toast.warning('Tidak ada data header untuk diekspor.');
+      toast.warning("Tidak ada data header untuk diekspor.");
       return;
     }
 
     try {
-      toast.info('Membuat file Excel Header...');
+      toast.info("Membuat file Excel Header...");
 
       // Mapping data untuk format tanggal
       const formattedHeader = currentList.map((item) => ({
         ...item,
-        Tanggal: item.Tanggal ? formatDateIndo(item.Tanggal) : '',
-        TglTerima: item.TglTerima ? formatDateIndo(item.TglTerima) : '',
+        Tanggal: item.Tanggal ? formatDateIndo(item.Tanggal) : "",
+        TglTerima: item.TglTerima ? formatDateIndo(item.TglTerima) : "",
       }));
 
       const worksheet = XLSX.utils.json_to_sheet(formattedHeader);
       const workbook = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(workbook, worksheet, "Terima SJ Header");
       XLSX.writeFile(workbook, "Export_Terima_SJ_Header.xlsx");
-      toast.success('File Header berhasil dibuat.');
+      toast.success("File Header berhasil dibuat.");
     } catch (error) {
-      toast.error('Gagal membuat file Excel.', error);
+      toast.error("Gagal membuat file Excel.", error);
     }
 
     // === EXPORT DETAIL (Dari Backend API) ===
-  } else if (type === 'detail') {
+  } else if (type === "detail") {
     try {
-      toast.info('Mengambil data detail dari server...');
+      toast.info("Mengambil data detail dari server...");
 
       // Request API dengan Generic Type
-      const response = await api.get<SjExportDetailRow[]>('/terima-sj/export-details', {
-        params: filters
+      const response = await api.get<SjExportDetailRow[]>("/terima-sj/export-details", {
+        params: filters,
       });
 
       const details = response.data;
 
       if (details.length === 0) {
-        toast.warning('Tidak ada data detail untuk diekspor pada filter ini.');
+        toast.warning("Tidak ada data detail untuk diekspor pada filter ini.");
         return;
       }
 
-      toast.info('Membuat file Excel Detail...');
+      toast.info("Membuat file Excel Detail...");
 
       // Format Tanggal pada data Detail
       const formattedDetail = details.map((row) => ({
         ...row,
-        'Tanggal SJ': row['Tanggal SJ'] ? formatDateIndo(row['Tanggal SJ']) : '',
-        'Tanggal Terima': row['Tanggal Terima'] ? formatDateIndo(row['Tanggal Terima']) : '',
+        "Tanggal SJ": row["Tanggal SJ"] ? formatDateIndo(row["Tanggal SJ"]) : "",
+        "Tanggal Terima": row["Tanggal Terima"] ? formatDateIndo(row["Tanggal Terima"]) : "",
       }));
 
       // Setup Layout Excel
       const title = "LAPORAN DETAIL TERIMA SURAT JALAN (SJ)";
-      const dateRange = `Periode : ${formatDateIndo(filters.startDate)} s/d ${formatDateIndo(filters.endDate)}`;
+      const dateRange = `Periode : ${formatDateIndo(filters.startDate)} s/d ${formatDateIndo(
+        filters.endDate
+      )}`;
       const tableHeaders = Object.keys(formattedDetail[0]);
 
       // Konversi ke array values dengan type assertion aman
       const tableData = formattedDetail.map((row) => Object.values(row as Record<string, unknown>));
 
-      const excelData = [
-        [title],
-        [dateRange],
-        [],
-        tableHeaders,
-        ...tableData
-      ];
+      const excelData = [[title], [dateRange], [], tableHeaders, ...tableData];
 
       const worksheet = XLSX.utils.aoa_to_sheet(excelData);
 
@@ -370,19 +370,18 @@ const exportData = async (type: 'header' | 'detail') => {
         { s: { r: 0, c: 0 }, e: { r: 0, c: tableHeaders.length - 1 } },
         { s: { r: 1, c: 0 }, e: { r: 1, c: tableHeaders.length - 1 } },
       ];
-      worksheet['!merges'] = merge;
+      worksheet["!merges"] = merge;
 
       // Auto Width
-      const colWidths = tableHeaders.map(header => ({ wch: header.length + 5 }));
-      worksheet['!cols'] = colWidths;
+      const colWidths = tableHeaders.map((header) => ({ wch: header.length + 5 }));
+      worksheet["!cols"] = colWidths;
 
       const workbook = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(workbook, worksheet, "Terima SJ Detail");
       XLSX.writeFile(workbook, "Export_Terima_SJ_Detail.xlsx");
-      toast.success('File Detail berhasil dibuat.');
-
+      toast.success("File Detail berhasil dibuat.");
     } catch (error) {
-      let message = 'Gagal mengekspor data detail.';
+      let message = "Gagal mengekspor data detail.";
       if (error instanceof Error) message = error.message;
       toast.error(message);
     }
@@ -414,7 +413,7 @@ watch(filters, fetchMasterData, { deep: true });
           </span>
         </template>
 
-        <span style="font-size:12px">
+        <span style="font-size: 12px">
           {{ terimaDisabledReason }}
         </span>
       </v-tooltip>
@@ -428,7 +427,7 @@ watch(filters, fetchMasterData, { deep: true });
           </span>
         </template>
 
-        <span style="font-size:12px">
+        <span style="font-size: 12px">
           {{ batalDisabledReason }}
         </span>
       </v-tooltip>
@@ -450,26 +449,25 @@ watch(filters, fetchMasterData, { deep: true });
     </template>
 
     <div class="browse-content">
-
       <div class="filter-section">
         <span class="filter-label">Tanggal SJ:</span>
         <v-text-field v-model="filters.startDate" type="date" density="compact" hide-details variant="outlined"
-          style="max-width: 140px;" />
+          style="max-width: 140px" />
         <span class="mx-2">s/d</span>
         <v-text-field v-model="filters.endDate" type="date" density="compact" hide-details variant="outlined"
-          style="max-width: 140px;" />
+          style="max-width: 140px" />
         <v-select v-model="filters.cabang" :items="cabangList" item-title="nama" item-value="kode" density="compact"
-          hide-details variant="outlined" class="ms-4" style="max-width: 200px;" label="Cabang" />
+          hide-details variant="outlined" class="ms-4" style="max-width: 200px" label="Cabang" />
 
         <v-text-field v-model="filters.kodeBarang" placeholder="Kode Barang (F1)" density="compact" hide-details
-          clearable variant="outlined" style="max-width: 150px;" class="ms-4" @click="openMasterProductSearch"
+          clearable variant="outlined" style="max-width: 150px" class="ms-4" @click="openMasterProductSearch"
           @keydown.f1.prevent="openMasterProductSearch">
           <template #append-inner>
             <v-icon @click="openMasterProductSearch">mdi-magnify</v-icon>
           </template>
         </v-text-field>
         <v-text-field v-model="filters.namaBarang" placeholder="Nama Barang" density="compact" hide-details readonly
-          variant="outlined" style="max-width: 250px;" />
+          variant="outlined" style="max-width: 250px" />
 
         <v-spacer></v-spacer>
         <div class="d-flex align-center ga-2 text-caption">
@@ -484,20 +482,20 @@ watch(filters, fetchMasterData, { deep: true });
           show-select return-object show-expand @update:expanded="loadDetails" @click:row="handleRowClick">
           <template #[`item.NoInvoice`]="{ item }">
             <span class="font-weight-bold text-blue-darken-2">
-              {{ item.NoInvoice || '-' }}
+              {{ item.NoInvoice || "-" }}
             </span>
-          </template>
-
-          <template #[`item.Nomor`]="{ item }">
           </template>
           <template #headers="{ columns, isSorted, getSortIcon, toggleSort }">
             <tr>
               <template v-for="header in columns" :key="header.key">
-                <th
-                  :style="{ width: header.width + 'px', minWidth: header.width + 'px', maxWidth: header.width + 'px' }"
-                  class="resizable-header"
-                  :class="{ 'text-center': header.align === 'center', 'text-end': header.align === 'end' }"
-                  @click="toggleSort(header)">
+                <th :style="{
+                  width: header.width + 'px',
+                  minWidth: header.width + 'px',
+                  maxWidth: header.width + 'px',
+                }" class="resizable-header" :class="{
+                    'text-center': header.align === 'center',
+                    'text-end': header.align === 'end',
+                  }" @click="toggleSort(header)">
                   <div class="header-content">
                     <span>{{ header.title }}</span>
                     <v-icon v-if="isSorted(header)" size="small" class="ms-1">
@@ -507,7 +505,6 @@ watch(filters, fetchMasterData, { deep: true });
                   <div class="resizer" @mousedown.stop="onResizeStart($event, header)" @click.stop></div>
                 </th>
               </template>
-
             </tr>
           </template>
 
@@ -516,11 +513,13 @@ watch(filters, fetchMasterData, { deep: true });
               variant="text" @click.stop="toggleExpand(internalItem)" />
           </template>
 
-          <template v-for="header in headers.filter(h => h.key !== 'data-table-expand')"
+          <template v-for="header in headers.filter((h) => h.key !== 'data-table-expand')"
             #[`item.${header.key}`]="{ item }" :key="header.key">
             <td :class="getRowTextColor(item)">
               <template v-if="['Tanggal', 'TglTerima'].includes(header.key)">
-                {{ item[header.key] ? format(parseISO(item[header.key] as string), 'dd/MM/yyyy') : '' }}
+                {{
+                  item[header.key] ? format(parseISO(item[header.key] as string), "dd/MM/yyyy") : ""
+                }}
               </template>
               <template v-else-if="header.key === 'Closing'">
                 <v-chip v-if="item.Closing === 'Y'" size="x-small" color="green" variant="tonal">YA</v-chip>
@@ -568,15 +567,16 @@ watch(filters, fetchMasterData, { deep: true });
         <v-card-actions>
           <v-spacer></v-spacer>
           <v-btn text @click="dialogConfirm.show = false">Batal</v-btn>
-          <v-btn color="primary" variant="tonal" @click="dialogConfirm.onConfirm(); dialogConfirm.show = false;">Ya,
-            Lanjutkan</v-btn>
+          <v-btn color="primary" variant="tonal" @click="
+            dialogConfirm.onConfirm();
+          dialogConfirm.show = false;
+          ">Ya, Lanjutkan</v-btn>
         </v-card-actions>
       </v-card>
     </v-dialog>
 
     <MasterProductSearchModal v-if="isMasterProductSearchVisible" :gudang="filters.cabang"
       @close="isMasterProductSearchVisible = false" @product-selected="onProductSelected" />
-
   </PageLayout>
 </template>
 

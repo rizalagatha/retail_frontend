@@ -1,17 +1,17 @@
 <script setup lang="ts">
-import { ref, reactive, onMounted, computed, watch } from 'vue';
-import { useRouter } from 'vue-router';
-import { useToast } from 'vue-toastification';
-import { useAuthStore } from '@/stores/authStore';
-import api from '@/services/api';
-import { format, subDays, parseISO } from 'date-fns';
-import PageLayout from '@/components/PageLayout.vue';
-import PrintOptionModal from '@/components/modal/PrintOptionModal.vue';
-import ReturJualKasirPrintPreviewModal from '@/components/modal/ReturJualKasirPrintPreviewModal.vue';
-import * as XLSX from 'xlsx';
+import { ref, reactive, onMounted, computed, watch } from "vue";
+import { useRouter } from "vue-router";
+import { useToast } from "vue-toastification";
+import { useAuthStore } from "@/stores/authStore";
+import api from "@/services/api";
+import { format, subDays, parseISO } from "date-fns";
+import PageLayout from "@/components/PageLayout.vue";
+import PrintOptionModal from "@/components/modal/PrintOptionModal.vue";
+import ReturJualKasirPrintPreviewModal from "@/components/modal/ReturJualKasirPrintPreviewModal.vue";
+import * as XLSX from "xlsx";
 import type { AxiosError } from "axios";
 import { formatRupiah } from "@/utils/formatRupiah";
-import AppDataTable from '@/components/AppDataTable.vue';
+import AppDataTable from "@/components/AppDataTable.vue";
 
 // Interface Header (Resize)
 interface DataTableHeader {
@@ -19,7 +19,7 @@ interface DataTableHeader {
   key: string;
   width?: number;
   fixed?: boolean;
-  align?: 'start' | 'center' | 'end';
+  align?: "start" | "center" | "end";
   minWidth?: string | number;
   maxWidth?: string | number;
   sortable?: boolean;
@@ -35,7 +35,7 @@ interface MasterItem {
   jenis: string;
   keterangan: string;
   nama: string;
-  closing: 'Y' | 'N';
+  closing: "Y" | "N";
 }
 interface DetailItem {
   kode: string;
@@ -60,7 +60,7 @@ interface ReturExportRow {
 const router = useRouter();
 const toast = useToast();
 const authStore = useAuthStore();
-const MENU_ID = '29';
+const MENU_ID = "29";
 
 // --- State ---
 const masterData = ref<MasterItem[]>([]);
@@ -77,20 +77,22 @@ const selectedRetur = ref<string | null>(null);
 
 const dialogConfirm = reactive({
   show: false,
-  title: '',
-  text: '',
+  title: "",
+  text: "",
   onConfirm: () => { },
 });
 
 const filters = reactive({
-  startDate: format(subDays(new Date(), 30), 'yyyy-MM-dd'),
-  endDate: format(new Date(), 'yyyy-MM-dd'),
-  cabang: authStore.user?.cabang || '',
+  startDate: format(subDays(new Date(), 30), "yyyy-MM-dd"),
+  endDate: format(new Date(), "yyyy-MM-dd"),
+  cabang: authStore.user?.cabang || "",
 });
 
 // --- Computed ---
 const isSingleSelected = computed(() => selected.value.length === 1);
-const selectedRow = computed<MasterItem | null>(() => isSingleSelected.value ? selected.value[0] : null);
+const selectedRow = computed<MasterItem | null>(() =>
+  isSingleSelected.value ? selected.value[0] : null
+);
 
 const canEdit = computed(() => {
   // 1. Harus ada 1 baris terpilih
@@ -101,7 +103,7 @@ const canEdit = computed(() => {
   const totalTerpakai = Number(selectedRow.value.diBayarkan) || 0;
 
   // 3. Cek status closing
-  const isNotClosing = selectedRow.value.closing !== 'Y';
+  const isNotClosing = selectedRow.value.closing !== "Y";
 
   // LOGIC: Bisa edit HANYA JIKA belum terpakai sama sekali (0) DAN belum closing
   return totalTerpakai === 0 && isNotClosing;
@@ -118,34 +120,34 @@ const canEdit = computed(() => {
 
 // --- Header Definisi (Resize) ---
 const headers = ref<DataTableHeader[]>([
-  { title: '', key: 'data-table-expand', width: 50, fixed: true },
-  { title: 'Nomor', key: 'nomor', width: 180, fixed: true },
-  { title: 'Tanggal', key: 'tanggal', width: 120 },
-  { title: 'Nominal', key: 'nominal', align: 'end', width: 120 },
-  { title: 'Dibayarkan', key: 'diBayarkan', align: 'end', width: 120 },
-  { title: 'Sisa', key: 'sisa', align: 'end', width: 120 },
-  { title: 'No. Invoice', key: 'invoice', width: 180 },
-  { title: 'Jenis', key: 'jenis', width: 100 },
-  { title: 'Customer', key: 'nama', width: 250 },
-  { title: 'Keterangan', key: 'keterangan', width: 250 },
-  { title: 'Closing', key: 'closing', align: 'center', width: 80 },
+  { title: "", key: "data-table-expand", width: 50, fixed: true },
+  { title: "Nomor", key: "nomor", width: 180, fixed: true },
+  { title: "Tanggal", key: "tanggal", width: 120 },
+  { title: "Nominal", key: "nominal", align: "end", width: 120 },
+  { title: "Dibayarkan", key: "diBayarkan", align: "end", width: 120 },
+  { title: "Sisa", key: "sisa", align: "end", width: 120 },
+  { title: "No. Invoice", key: "invoice", width: 180 },
+  { title: "Jenis", key: "jenis", width: 100 },
+  { title: "Customer", key: "nama", width: 250 },
+  { title: "Keterangan", key: "keterangan", width: 250 },
+  { title: "Closing", key: "closing", align: "center", width: 80 },
 ]);
 
 const detailHeaders = [
-  { title: 'Kode', key: 'kode' },
-  { title: 'Nama Barang', key: 'nama' },
-  { title: 'Ukuran', key: 'rjd_ukuran' },
-  { title: 'Jumlah', key: 'jumlah', align: 'end' },
-  { title: 'Harga', key: 'harga', align: 'end' },
-  { title: 'Disc %', key: 'discPersen', align: 'end' },
-  { title: 'Diskon Rp', key: 'diskon', align: 'end' },
-  { title: 'Total', key: 'total', align: 'end' },
+  { title: "Kode", key: "kode" },
+  { title: "Nama Barang", key: "nama" },
+  { title: "Ukuran", key: "rjd_ukuran" },
+  { title: "Jumlah", key: "jumlah", align: "end" },
+  { title: "Harga", key: "harga", align: "end" },
+  { title: "Disc %", key: "discPersen", align: "end" },
+  { title: "Diskon Rp", key: "diskon", align: "end" },
+  { title: "Total", key: "total", align: "end" },
 ] as const;
 
 const paymentLinkHeaders = [
-  { title: 'Invoice', key: 'invoice' },
-  { title: 'Tanggal Bayar', key: 'tanggal' },
-  { title: 'Nominal', key: 'nominal', align: 'end' },
+  { title: "Invoice", key: "invoice" },
+  { title: "Tanggal Bayar", key: "tanggal" },
+  { title: "Nominal", key: "nominal", align: "end" },
 ] as const;
 
 // --- Logic Resize Column ---
@@ -158,10 +160,10 @@ const onResizeStart = (e: MouseEvent, column: DataTableHeader) => {
   e.stopPropagation();
   resizingColumn.value = column;
   startX.value = e.pageX;
-  startWidth.value = (typeof column.width === 'number' ? column.width : 100);
-  document.addEventListener('mousemove', onResizeMove);
-  document.addEventListener('mouseup', onResizeEnd);
-  document.body.style.cursor = 'col-resize';
+  startWidth.value = typeof column.width === "number" ? column.width : 100;
+  document.addEventListener("mousemove", onResizeMove);
+  document.addEventListener("mouseup", onResizeEnd);
+  document.body.style.cursor = "col-resize";
 };
 
 const onResizeMove = (e: MouseEvent) => {
@@ -172,9 +174,9 @@ const onResizeMove = (e: MouseEvent) => {
 
 const onResizeEnd = () => {
   resizingColumn.value = null;
-  document.removeEventListener('mousemove', onResizeMove);
-  document.removeEventListener('mouseup', onResizeEnd);
-  document.body.style.cursor = '';
+  document.removeEventListener("mousemove", onResizeMove);
+  document.removeEventListener("mouseup", onResizeEnd);
+  document.body.style.cursor = "";
 };
 
 // --- Logic Selected Row ---
@@ -185,10 +187,10 @@ const handleRowClick = (_event: Event, { item }: { item: MasterItem }) => {
 // --- Methods ---
 const fetchCabangList = async () => {
   try {
-    const response = await api.get('/retur-jual/lookup/cabang');
+    const response = await api.get("/retur-jual/lookup/cabang");
     cabangList.value = response.data;
   } catch (error) {
-    toast.error('Gagal memuat daftar cabang.', error);
+    toast.error("Gagal memuat daftar cabang.", error);
   }
 };
 
@@ -197,7 +199,7 @@ const fetchMasterData = async () => {
   selected.value = [];
   expanded.value = [];
   try {
-    const response = await api.get('/retur-jual', { params: filters });
+    const response = await api.get("/retur-jual", { params: filters });
     masterData.value = response.data;
   } catch (error) {
     const err = error as AxiosError<{ message?: string }>;
@@ -234,10 +236,10 @@ const loadDetails = async (newlyExpandedItems: MasterItem[]) => {
 //   dialogConfirm.show = true;
 // };
 
-const handleNew = () => router.push({ name: 'ReturJualCreate' });
+const handleNew = () => router.push({ name: "ReturJualCreate" });
 const handleEdit = () => {
   if (!canEdit.value || !selectedRow.value) return;
-  router.push({ name: 'ReturJualEdit', params: { nomor: selectedRow.value.nomor } });
+  router.push({ name: "ReturJualEdit", params: { nomor: selectedRow.value.nomor } });
 };
 
 // const handleDelete = () => {
@@ -265,40 +267,40 @@ const handlePrint = () => {
   isPrintOptionVisible.value = true;
 };
 
-const handlePrintSelection = (type: 'a4' | 'kasir') => {
+const handlePrintSelection = (type: "a4" | "kasir") => {
   if (!selectedRow.value) return;
   isPrintOptionVisible.value = false;
 
-  if (type === 'kasir') {
-    isKasirPreviewVisible.value = true;  // buka modal kasir
+  if (type === "kasir") {
+    isKasirPreviewVisible.value = true; // buka modal kasir
     return;
   }
 
   // cetak a4
   const url = router.resolve({
-    name: 'ReturJualPrint',
-    params: { nomor: selectedRow.value.nomor }
+    name: "ReturJualPrint",
+    params: { nomor: selectedRow.value.nomor },
   }).href;
 
-  window.open(url, '_blank');
+  window.open(url, "_blank");
 };
 
 // Helper Format Tanggal
 const formatDateIndo = (dateString: string | Date) => {
-  if (!dateString) return '';
+  if (!dateString) return "";
   const date = new Date(dateString);
-  return new Intl.DateTimeFormat('id-ID', {
-    day: 'numeric',
-    month: 'long',
-    year: 'numeric'
+  return new Intl.DateTimeFormat("id-ID", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
   }).format(date);
 };
 
 // Fungsi Export Data
-const exportData = async (type: 'header' | 'detail') => {
-  if (type === 'header') {
+const exportData = async (type: "header" | "detail") => {
+  if (type === "header") {
     if (masterData.value.length === 0) {
-      toast.warning('Tidak ada data header untuk diekspor.');
+      toast.warning("Tidak ada data header untuk diekspor.");
       return;
     }
 
@@ -306,23 +308,24 @@ const exportData = async (type: 'header' | 'detail') => {
     const formattedHeader = masterData.value.map((item: MasterItem) => ({
       ...item,
       // Field 'tanggal' di interface MasterItem (lowercase)
-      tanggal: item.tanggal ? formatDateIndo(item.tanggal) : '',
+      tanggal: item.tanggal ? formatDateIndo(item.tanggal) : "",
     }));
 
     const worksheet = XLSX.utils.json_to_sheet(formattedHeader);
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, "Retur Jual Header");
     XLSX.writeFile(workbook, "Export_ReturJual_Header.xlsx");
-    toast.success('Header berhasil diekspor.');
-
-  } else if (type === 'detail') {
+    toast.success("Header berhasil diekspor.");
+  } else if (type === "detail") {
     try {
-      toast.info('Mengambil data detail...');
+      toast.info("Mengambil data detail...");
       // Request ke Backend (Kirim filters!)
-      const response = await api.get<ReturExportRow[]>('/retur-jual/export-details', { params: filters });
+      const response = await api.get<ReturExportRow[]>("/retur-jual/export-details", {
+        params: filters,
+      });
 
       if (response.data.length === 0) {
-        toast.warning('Tidak ada data detail.');
+        toast.warning("Tidak ada data detail.");
         return;
       }
 
@@ -330,22 +333,18 @@ const exportData = async (type: 'header' | 'detail') => {
       const formattedDetail = response.data.map((row: ReturExportRow) => ({
         ...row,
         // Backend mengirim alias 'Tanggal' (Capital T) sesuai query AS
-        Tanggal: row.Tanggal ? formatDateIndo(row.Tanggal) : ''
+        Tanggal: row.Tanggal ? formatDateIndo(row.Tanggal) : "",
       }));
 
       // Opsional: Custom Excel Layout
       const title = "LAPORAN DETAIL RETUR JUAL";
-      const dateRange = `Periode : ${formatDateIndo(filters.startDate)} s/d ${formatDateIndo(filters.endDate)}`;
+      const dateRange = `Periode : ${formatDateIndo(filters.startDate)} s/d ${formatDateIndo(
+        filters.endDate
+      )}`;
       const tableHeaders = Object.keys(formattedDetail[0]);
       const tableData = formattedDetail.map((row) => Object.values(row as Record<string, unknown>));
 
-      const excelData = [
-        [title],
-        [dateRange],
-        [],
-        tableHeaders,
-        ...tableData
-      ];
+      const excelData = [[title], [dateRange], [], tableHeaders, ...tableData];
 
       const worksheet = XLSX.utils.aoa_to_sheet(excelData);
 
@@ -354,19 +353,18 @@ const exportData = async (type: 'header' | 'detail') => {
         { s: { r: 0, c: 0 }, e: { r: 0, c: tableHeaders.length - 1 } },
         { s: { r: 1, c: 0 }, e: { r: 1, c: tableHeaders.length - 1 } },
       ];
-      worksheet['!merges'] = merge;
+      worksheet["!merges"] = merge;
 
       // Auto Width
-      const colWidths = tableHeaders.map(header => ({ wch: header.length + 5 }));
-      worksheet['!cols'] = colWidths;
+      const colWidths = tableHeaders.map((header) => ({ wch: header.length + 5 }));
+      worksheet["!cols"] = colWidths;
 
       const workbook = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(workbook, worksheet, "Retur Jual Detail");
       XLSX.writeFile(workbook, "Export_ReturJual_Detail.xlsx");
-      toast.success('Detail berhasil diekspor.');
-
+      toast.success("Detail berhasil diekspor.");
     } catch (error) {
-      let message = 'Gagal mengekspor data detail.';
+      let message = "Gagal mengekspor data detail.";
       if (error instanceof Error) message = error.message;
       // Cek Axios Error jika perlu
       toast.error(message);
@@ -414,12 +412,12 @@ watch(filters, fetchMasterData, { deep: true });
       <div class="filter-section">
         <span class="filter-label">Periode:</span>
         <v-text-field v-model="filters.startDate" type="date" density="compact" hide-details variant="outlined"
-          style="max-width: 180px;" />
+          style="max-width: 180px" />
         <span class="mx-2">s/d</span>
         <v-text-field v-model="filters.endDate" type="date" density="compact" hide-details variant="outlined"
-          style="max-width: 180px;" />
+          style="max-width: 180px" />
         <v-select label="Cabang" v-model="filters.cabang" :items="cabangList" item-title="nama" item-value="kode"
-          density="compact" hide-details variant="outlined" class="ms-4" style="max-width: 200px;" />
+          density="compact" hide-details variant="outlined" class="ms-4" style="max-width: 200px" />
       </div>
 
       <div class="table-container">
@@ -429,11 +427,14 @@ watch(filters, fetchMasterData, { deep: true });
           <template #headers="{ columns, isSorted, getSortIcon, toggleSort }">
             <tr>
               <template v-for="header in columns" :key="header.key">
-                <th
-                  :style="{ width: header.width + 'px', minWidth: header.width + 'px', maxWidth: header.width + 'px' }"
-                  class="resizable-header"
-                  :class="{ 'text-center': header.align === 'center', 'text-end': header.align === 'end' }"
-                  @click="toggleSort(header)">
+                <th :style="{
+                  width: header.width + 'px',
+                  minWidth: header.width + 'px',
+                  maxWidth: header.width + 'px',
+                }" class="resizable-header" :class="{
+                    'text-center': header.align === 'center',
+                    'text-end': header.align === 'end',
+                  }" @click="toggleSort(header)">
                   <div class="header-content">
                     <span>{{ header.title }}</span>
                     <v-icon v-if="isSorted(header)" size="small" class="ms-1">
@@ -451,15 +452,22 @@ watch(filters, fetchMasterData, { deep: true });
               variant="text" @click.stop="toggleExpand(internalItem)" />
           </template>
 
-          <template v-for="header in headers.filter(h => h.key !== 'data-table-expand')"
+          <template v-for="header in headers.filter((h) => h.key !== 'data-table-expand')"
             #[`item.${header.key}`]="{ item }" :key="header.key">
             <td>
               <template v-if="header.key === 'tanggal'">
-                {{ format(parseISO(item.tanggal as string), 'dd/MM/yyyy') }}
+                {{ format(parseISO(item.tanggal as string), "dd/MM/yyyy") }}
+              </template>
+              <template v-else-if="header.key === 'jenis'">
+                <v-chip :color="item.jenis === 'RETUR ONLINE' ? 'orange-darken-4' : 'primary'" size="x-small"
+                  variant="flat" class="font-weight-bold">
+                  {{ item.jenis }}
+                </v-chip>
               </template>
               <template v-else-if="['nominal', 'diBayarkan', 'sisa'].includes(header.key)">
                 {{ formatRupiah(Number(item[header.key])) }}
               </template>
+
               <template v-else>
                 {{ item[header.key] }}
               </template>
@@ -471,7 +479,9 @@ watch(filters, fetchMasterData, { deep: true });
               <td :colspan="columns.length" class="pa-0">
                 <div class="detail-container">
                   <div class="detail-wrapper w-100">
-                    <div v-if="loadingDetails.has(item.nomor)" class="text-center pa-4">Memuat detail...</div>
+                    <div v-if="loadingDetails.has(item.nomor)" class="text-center pa-4">
+                      Memuat detail...
+                    </div>
                     <div v-else>
                       <div class="text-subtitle-2 font-weight-bold mb-2">Detail Barang Retur</div>
                       <div class="detail-table-wrapper mb-4">
@@ -487,7 +497,7 @@ watch(filters, fetchMasterData, { deep: true });
                           <v-data-table :headers="paymentLinkHeaders" :items="paymentLinks[item.nomor]"
                             density="compact" class="detail-table" :items-per-page="-1" hide-default-footer>
                             <template #[`item.tanggal`]="{ item: linkItem }">
-                              {{ format(parseISO(linkItem.tanggal), 'dd/MM/yyyy') }}
+                              {{ format(parseISO(linkItem.tanggal), "dd/MM/yyyy") }}
                             </template>
                             <template #[`item.nominal`]="{ item: linkItem }">
                               {{ formatRupiah(Number(linkItem.nominal)) }}
@@ -518,8 +528,10 @@ watch(filters, fetchMasterData, { deep: true });
         <v-card-actions>
           <v-spacer></v-spacer>
           <v-btn text @click="dialogConfirm.show = false">Batal</v-btn>
-          <v-btn color="primary" variant="tonal" @click="dialogConfirm.onConfirm(); dialogConfirm.show = false;">Ya,
-            Lanjutkan</v-btn>
+          <v-btn color="primary" variant="tonal" @click="
+            dialogConfirm.onConfirm();
+          dialogConfirm.show = false;
+          ">Ya, Lanjutkan</v-btn>
         </v-card-actions>
       </v-card>
     </v-dialog>

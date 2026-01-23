@@ -155,16 +155,23 @@ const cleanCityName = (rawName: string) => {
 
 const fetchPrayerTimes = async () => {
   try {
-    // --- LOGIKA PENENTUAN KOTA ---
+    const cabang = authStore.user?.cabang || "";
+    const cabangNama = authStore.user?.cabangNama || "";
 
-    // 1. Khusus KDC -> Set Boyolali (Biar gak nyasar ke Amerika)
-    if (authStore.user?.cabang === "KDC") {
+    // --- LOGIKA PENENTUAN KOTA BERDASARKAN CABANG ---
+
+    // 1. Khusus K04 dan K05 -> Gunakan waktu Surabaya
+    if (["K04", "K05"].includes(cabang)) {
+      city.value = "Surabaya";
+    }
+    // 2. Selain cabang store (misal KDC atau DC lainnya) -> Set Boyolali
+    // Kita cek jika kode cabang bukan pola 'K' diikuti angka (K01, K02, dst) atau spesifik KDC
+    else if (cabang === "KDC" || !/^K\d+/.test(cabang)) {
       city.value = "Boyolali";
     }
-    // 2. Cabang Lain -> Ambil dari nama cabang di database
+    // 3. Cabang Store lainnya (K01, K07, dll) -> Ambil dari nama cabang di database
     else {
-      const rawCabang = authStore.user?.cabangNama || "";
-      city.value = cleanCityName(rawCabang);
+      city.value = cleanCityName(cabangNama);
     }
 
     // API Aladhan (Method 20 = Kemenag RI)
@@ -502,8 +509,8 @@ onUnmounted(() => {
                 :class="{ 'bg-teal-lighten-5': name === nextPrayerName }" style="min-height: 28px">
                 <div class="d-flex justify-space-between w-100 text-caption">
                   <span :class="name === nextPrayerName
-                      ? 'font-weight-bold text-teal-darken-3'
-                      : 'text-medium-emphasis'
+                    ? 'font-weight-bold text-teal-darken-3'
+                    : 'text-medium-emphasis'
                     ">
                     {{ name }}
                   </span>
@@ -645,7 +652,7 @@ onUnmounted(() => {
                   </template>
                   <v-list-item-title class="text-caption text-medium-emphasis">{{
                     item.desc
-                    }}</v-list-item-title>
+                  }}</v-list-item-title>
                 </v-list-item>
               </v-list>
             </v-card-text>

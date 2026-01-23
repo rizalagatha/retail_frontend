@@ -27,6 +27,7 @@ interface DataTableHeader {
 interface PackingListHeader {
   Nomor: string;
   Tanggal: string;
+  Cabang_Asal: string;
   Store: string;
   Nama_Store: string;
   NoMinta: string;
@@ -108,6 +109,7 @@ const startWidth = ref(0);
 const masterHeaders = ref<DataTableHeader[]>([
   { title: '', key: 'data-table-expand', width: 50, fixed: true },
   { title: 'No. Packing List', key: 'Nomor', width: 160, fixed: true },
+  { title: 'Asal', key: 'Cabang_Asal', width: 80 },
   { title: 'Tanggal', key: 'Tanggal', width: 110 },
   { title: 'Store', key: 'Store', width: 80 },
   { title: 'Nama Store', key: 'Nama_Store', width: 200 },

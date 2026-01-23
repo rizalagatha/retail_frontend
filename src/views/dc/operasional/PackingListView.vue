@@ -77,7 +77,8 @@ const MENU_ID = '224';
 const filters = reactive({
   startDate: format(subDays(new Date(), 7), 'yyyy-MM-dd'),
   endDate: format(new Date(), 'yyyy-MM-dd'),
-  cabang: authStore.user?.cabang === 'KDC' ? 'ALL' : authStore.user?.cabang || '',
+  // Tambahkan 'KBS' dalam pengecekan
+  cabang: ['KDC', 'KBS'].includes(authStore.user?.cabang || '') ? 'ALL' : authStore.user?.cabang || '',
   kodeBarang: '',
   namaBarang: '',
 });
@@ -283,8 +284,8 @@ const fetchCabangList = async () => {
     const response = await api.get('/packing-list/lookup/cabang');
     const list = response.data;
 
-    // [BARU] Jika user KDC, tambahkan opsi ALL di paling atas
-    if (authStore.user?.cabang === 'KDC') {
+    // Tambahkan 'KBS' agar mendapatkan opsi 'Semua Cabang'
+    if (['KDC', 'KBS'].includes(authStore.user?.cabang || '')) {
       list.unshift({ kode: 'ALL', nama: 'Semua Cabang' });
     }
 

@@ -235,6 +235,28 @@ interface AuthDialogState {
   onCancel: () => void;
 }
 
+// Tambahkan interface ini di bagian atas bersama interface lainnya
+interface CustomerLookupResult {
+  kode?: string;
+  cus_kode?: string;
+  nama?: string;
+  cus_nama?: string;
+  alamat?: string;
+  cus_alamat?: string;
+  kota?: string;
+  cus_kota?: string;
+  telp?: string;
+  cus_telp?: string;
+  level_kode?: string;
+  cus_level?: string;
+  level_nama?: string;
+  cus_level_nama?: string;
+  top?: number;
+  cus_top?: number;
+  franchise?: "Y" | "N";
+  cus_franchise?: "Y" | "N";
+}
+
 // --- State ---
 const isEditMode = computed(() => !!route.params.nomor);
 const pageTitle = computed(() =>
@@ -700,8 +722,10 @@ const calculateTotals = async () => {
     // 3. Tentukan Status SO (PASIF/AKTIF)
     const isLevel8 = header.value.levelKode?.toString().startsWith("8");
 
-    // Syarat Aktif: Level 8 (Prioritas) ATAU DP Cukup ATAU Ada Otorisasi Tanpa DP
-    if (isLevel8 || totalDp >= footer.value.minimalDp || footer.value.pinTanpaDp) {
+    const isFranchise = header.value.customer?.franchise === "Y";
+
+    // Syarat Aktif: Level 8 ATAU Franchise ATAU DP Cukup ATAU Ada Otorisasi
+    if (isLevel8 || isFranchise || totalDp >= footer.value.minimalDp || footer.value.pinTanpaDp) {
       header.value.statusSo = "AKTIF";
     } else {
       header.value.statusSo = "PASIF";
@@ -1092,42 +1116,59 @@ const onGudangSelected = (gudang: { kode: string; nama: string }) => {
   isGudangSearchVisible.value = false;
 };
 
-const onCustomerSelected = async (customer: Customer) => {
+const onCustomerSelected = async (rawCustomer: CustomerLookupResult) => {
   isCustomerSearchVisible.value = false;
-  if (!customer || !customer.kode) return;
 
-  // 1. Cek Level Customer
-  if (!customer.level_kode) {
+  // 1. Normalisasi Data (Mapping dari modal ke interface Customer)
+  const levelKode = rawCustomer.level_kode || rawCustomer.cus_level || "";
+  const isFranchise = rawCustomer.franchise === "Y" || rawCustomer.cus_franchise === "Y";
+
+  // 2. Validasi Dasar
+  if (!rawCustomer.kode && !rawCustomer.cus_kode) return;
+  if (!levelKode) {
     toast.error("Level Customer tersebut belum di-setting.");
-    header.value.customer = null; // Kosongkan customer
+    header.value.customer = null;
     return;
   }
 
-  // 2. Cek Customer Prioritas (Franchise)
+  // 3. Validasi Customer Prioritas (KPR)
   const gudang = header.value.gudang.kode;
-  if (gudang === "KPR" && customer.franchise !== "Y") {
+  if (gudang === "KPR" && !isFranchise) {
     toast.error("Customer bukan Customer Prioritas.");
     header.value.customer = null;
     return;
   }
-  if (gudang !== "KPR" && customer.franchise === "Y") {
+  if (gudang !== "KPR" && isFranchise) {
     toast.error("Customer Prioritas hanya bisa transaksi di Store KPR.");
     header.value.customer = null;
     return;
   }
 
-  // Jika semua validasi lolos, isi data header
-  header.value.customer = customer;
-  header.value.levelKode = customer.level_kode; // utk backend
-  header.value.levelNama = customer.level_nama; // utk tampilan
-  header.value.top = customer.top;
-  header.value.alamat = customer.alamat;
-  header.value.kota = customer.kota;
-  header.value.telp = customer.telp;
+  // 4. Mapping ke Interface Customer secara Lengkap
+  // Ini akan menghilangkan error "missing properties"
+  const mappedCustomer: Customer = {
+    kode: rawCustomer.kode || rawCustomer.cus_kode || "",
+    nama: rawCustomer.nama || rawCustomer.cus_nama || "",
+    alamat: rawCustomer.alamat || rawCustomer.cus_alamat || "",
+    kota: rawCustomer.kota || rawCustomer.cus_kota || "",
+    telp: rawCustomer.telp || rawCustomer.cus_telp || "",
+    level_kode: levelKode,
+    level_nama: rawCustomer.level_nama || rawCustomer.cus_level_nama || "",
+    top: Number(rawCustomer.top || rawCustomer.cus_top || 0),
+    franchise: isFranchise ? "Y" : "N",
+  };
+
+  header.value.customer = mappedCustomer;
+  header.value.levelKode = mappedCustomer.level_kode;
+  header.value.levelNama = mappedCustomer.level_nama;
+  header.value.top = mappedCustomer.top;
+  header.value.alamat = mappedCustomer.alamat;
+  header.value.kota = mappedCustomer.kota;
+  header.value.telp = mappedCustomer.telp;
 
   await applyDefaultDiscount();
   calculateTotals();
-  toast.success(`Customer ${customer.nama} berhasil dipilih.`);
+  toast.success(`Customer ${mappedCustomer.nama} berhasil dipilih.`);
 };
 
 const onSalesCounterSelected = (salesCounter: { kode: string; nama: string }) => {
@@ -1161,11 +1202,13 @@ const onPenawaranSelected = async (penawaran: { nomor: string }) => {
       return;
     }
     const gudang = header.value.gudang.kode;
-    if (gudang === "KPR" && customer.franchise !== "Y") {
+    const isFranchise = customer.franchise === "Y" || customer.cus_franchise === "Y";
+
+    if (gudang === "KPR" && !isFranchise) {
       toast.error(`Customer '${customer.nama}' bukan Customer Prioritas.`);
       return;
     }
-    if (gudang !== "KPR" && customer.franchise === "Y") {
+    if (gudang !== "KPR" && isFranchise) {
       toast.error(`Customer Prioritas '${customer.nama}' hanya bisa transaksi di Store KPR.`);
       return;
     }

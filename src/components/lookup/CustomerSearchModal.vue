@@ -1,55 +1,57 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue';
-import api from '@/services/api';
+import { ref, watch } from "vue";
+import api from "@/services/api";
 
 interface Customer {
   kode: string;
   nama: string;
-  telp: number;
+  telp: string; // Ubah ke string karena no telp bisa diawali 0
   alamat: string;
   kota: string;
-  level_kode: number;
+  level_kode: string; // Sesuaikan tipe data dengan database (biasanya string)
   level_nama: string;
   limitTrans: number;
+  top: number; // [TAMBAHAN] Agar TOP terbawa ke SO
+  franchise: "Y" | "N"; // [PENTING] Properti untuk validasi prioritas
 }
 
 // --- Props & Emits ---
 const props = defineProps({
   gudang: { type: String, required: true },
-  source: { type: String, default: '' } // Tambahkan ini
+  source: { type: String, default: "" }, // Tambahkan ini
 });
-const emit = defineEmits(['close', 'customer-selected']);
+const emit = defineEmits(["close", "customer-selected"]);
 
 // --- State ---
 const items = ref<Customer[]>([]);
 const totalItems = ref(0);
 const loading = ref(true);
-const search = ref('');
+const search = ref("");
 const options = ref({ page: 1, itemsPerPage: 10 });
 
 const headers = [
-  { title: 'Kode', key: 'kode', sortable: false },
-  { title: 'Nama Customer', key: 'nama', sortable: false, width: '30%' },
-  { title: 'No HP', key: 'telp', sortable: false, width: '120px' },
-  { title: 'Level Kode', key: 'level_kode', sortable: false, width: '100px' },
-  { title: 'Level', key: 'level_nama', sortable: false },
-  { title: 'Limit Piutang', key: 'limitTrans', sortable: false, align: 'end' },
-  { title: 'Alamat', key: 'alamat', sortable: false },
-  { title: 'Kota', key: 'kota', sortable: false },
+  { title: "Kode", key: "kode", sortable: false },
+  { title: "Nama Customer", key: "nama", sortable: false, width: "30%" },
+  { title: "No HP", key: "telp", sortable: false, width: "120px" },
+  { title: "Level Kode", key: "level_kode", sortable: false, width: "100px" },
+  { title: "Level", key: "level_nama", sortable: false },
+  { title: "Limit Piutang", key: "limitTrans", sortable: false, align: "end" },
+  { title: "Alamat", key: "alamat", sortable: false },
+  { title: "Kota", key: "kota", sortable: false },
 ] as const;
 
 // --- Methods ---
-const loadItems = async ({ page, itemsPerPage }: { page: number, itemsPerPage: number }) => {
+const loadItems = async ({ page, itemsPerPage }: { page: number; itemsPerPage: number }) => {
   loading.value = true;
   try {
-    const response = await api.get('/offer-form/search-customers', {
+    const response = await api.get("/offer-form/search-customers", {
       params: {
         term: search.value,
         gudang: props.gudang,
         page: page,
         itemsPerPage: itemsPerPage,
         // Kirim flag jika dipanggil dari Invoice
-        isInvoice: props.source === 'invoice' ? 1 : 0
+        isInvoice: props.source === "invoice" ? 1 : 0,
       },
     });
 
@@ -71,8 +73,9 @@ const loadItems = async ({ page, itemsPerPage }: { page: number, itemsPerPage: n
 
 const selectCustomer = (item: Customer) => {
   if (item && item.kode) {
-    emit('customer-selected', item);
-    emit('close');
+    // Pastikan seluruh objek 'item' yang berisi 'franchise' dikirim ke parent
+    emit("customer-selected", item);
+    emit("close");
   }
 };
 
@@ -89,7 +92,7 @@ watch(search, () => {
 
 <template>
   <v-dialog :model-value="true" @update:model-value="$emit('close')" max-width="1200px" persistent>
-    <v-card class="dialog-card d-flex flex-column" style="height: 80vh;">
+    <v-card class="dialog-card d-flex flex-column" style="height: 80vh">
       <v-toolbar color="primary" density="compact">
         <v-toolbar-title class="text-subtitle-1">Bantuan - Pilih Customer</v-toolbar-title>
         <v-spacer></v-spacer>
@@ -104,14 +107,14 @@ watch(search, () => {
           :headers="headers" :items="items" :items-length="totalItems" :loading="loading" @update:options="loadItems"
           hover class="desktop-table flex-grow-1" density="compact" fixed-header>
           <template #item="{ item }">
-            <tr @click="selectCustomer(item)" style="cursor: pointer;">
+            <tr @click="selectCustomer(item)" style="cursor: pointer">
               <td>{{ item.kode }}</td>
               <td>{{ item.nama }}</td>
               <td>{{ item.telp }}</td>
               <td>{{ item.level_kode }}</td>
               <td>{{ item.level_nama }}</td>
               <td class="text-end text-blue font-weight-bold">
-                {{ new Intl.NumberFormat('id-ID').format(item.limitTrans || 0) }}
+                {{ new Intl.NumberFormat("id-ID").format(item.limitTrans || 0) }}
               </td>
               <td>{{ item.alamat }}</td>
               <td>{{ item.kota }}</td>

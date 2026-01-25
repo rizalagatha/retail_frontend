@@ -1892,18 +1892,18 @@ const handleJenisOrderSaved = (data: JenisOrderSaved) => {
   toast.success("Jenis Order Custom berhasil ditambahkan ke daftar item.");
 };
 
-// const loadJenisOrder = async () => {
-//   loadingJenisOrder.value = true;
-//   try {
-//     const { data } = await api.get("/so-form/lookup/jenis-order");
-//     console.log("📦 Jenis Order:", data);
-//     jenisOrderList.value = data;
-//   } catch (err) {
-//     console.error("❌ Gagal load jenis order:", err);
-//   } finally {
-//     loadingJenisOrder.value = false;
-//   }
-// };
+const loadJenisOrder = async () => {
+  loadingJenisOrder.value = true;
+  try {
+    const { data } = await api.get("/so-form/lookup/jenis-order");
+    console.log("📦 Jenis Order:", data);
+    jenisOrderList.value = data;
+  } catch (err) {
+    console.error("❌ Gagal load jenis order:", err);
+  } finally {
+    loadingJenisOrder.value = false;
+  }
+};
 
 const openJenisOrderModal = () => {
   // 🔹 Validasi 1: Pastikan customer dipilih

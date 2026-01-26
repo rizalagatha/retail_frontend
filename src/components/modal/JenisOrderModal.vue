@@ -352,21 +352,35 @@ const calculatePrices = async () => {
   let hargaSatuan = 0;
 
   switch (jenis) {
+    case "SB": // [TAMBAHAN] Sablon Plastisol (Sesuai logic SoDtfCreateView)
+      hargaPerCm = 0; // SB menggunakan harga tetap per ukuran, bukan per cm2
+      form.value.titikCetak.forEach(t => {
+        if (t.sizeCetak === 'A3') hargaSatuan += 35000;
+        else if (t.sizeCetak === 'A4') hargaSatuan += 20000;
+        else if (t.sizeCetak === 'A5') hargaSatuan += 10000;
+        // Jika Custom atau lainnya, logic hargaSatuan tetap 0 atau bisa ditambah sesuai kebutuhan
+      });
+      break;
+
     case "SD": // Sablon DTF
       hargaPerCm = 25;
       hargaSatuan = totalLuas * hargaPerCm;
       break;
+
     case "DP": // DTF Premium
       hargaPerCm = 35;
       hargaSatuan = totalLuas * hargaPerCm;
       break;
+
     case "BR": // Bordir
       hargaPerCm = 100;
       hargaSatuan = totalLuas * hargaPerCm;
       break;
+
     case "TG": // DTG
       hargaSatuan = await getHargaDTG();
       break;
+
     default:
       hargaPerCm = 0;
       hargaSatuan = 0;
@@ -378,7 +392,7 @@ const calculatePrices = async () => {
 
   // update harga di setiap ukuran kaos
   form.value.ukuranKaos.forEach((row) => {
-    if (row.ukuran && row.jumlah > 0) {
+    if (row.ukuran && (row.jumlah ?? 0) > 0) {
       row.harga = hargaSatuan;
     } else {
       row.harga = 0;
@@ -387,7 +401,7 @@ const calculatePrices = async () => {
 
   // hitung total harga keseluruhan
   const totalHarga = form.value.ukuranKaos.reduce(
-    (sum, row) => sum + (row.jumlah * row.harga),
+    (sum, row) => sum + ((row.jumlah || 0) * row.harga),
     0
   );
 

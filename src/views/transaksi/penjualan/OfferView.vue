@@ -164,14 +164,14 @@ const tableHeaders = ref<DataTableHeader[]>([
 ]);
 
 const detailHeaders = [
-  { title: 'Kode', key: 'kode' },
-  { title: 'Barcode', key: 'barcode' },
-  { title: 'Nama Barang', key: 'Nama' },
-  { title: 'Ukuran', key: 'ukuran' },
-  { title: 'Qty', key: 'qty', align: 'end' },
-  { title: 'Harga', key: 'harga', align: 'end' },
-  { title: 'Diskon', key: 'diskon', align: 'end' },
-  { title: 'Total', key: 'total', align: 'end' },
+  { title: 'KODE', key: 'kode', width: '150px' },
+  { title: 'BARCODE', key: 'barcode', width: '120px' },
+  { title: 'NAMA BARANG', key: 'Nama', width: '400px' }, // Header Nama diperlebar
+  { title: 'UKURAN', key: 'ukuran', width: '100px', align: 'center' },
+  { title: 'QTY', key: 'qty', align: 'center', width: '80px' },
+  { title: 'HARGA', key: 'harga', align: 'end', width: '120px' },
+  { title: 'DISKON', key: 'diskon', align: 'end', width: '100px' },
+  { title: 'TOTAL', key: 'total', align: 'end', width: '130px' },
 ] as const;
 
 // --- Filter ----
@@ -864,13 +864,18 @@ watch(columnFilters, (val) => {
             #[`item.${header.key}`]="{ item }" :key="header.key">
 
             <td :class="getRowTextColor(item)">
-
               <template v-if="header.key === 'tanggal' || header.key === 'tempo'">
                 {{ item[header.key] ? format(new Date(item[header.key]), 'dd/MM/yyyy') : '-' }}
               </template>
+
               <template v-else-if="header.key === 'nominal'">
                 {{ formatRupiah(item.nominal) }}
               </template>
+
+              <template v-else-if="header.key === 'diskon'">
+                {{ formatRupiah(item.diskon) }}
+              </template>
+
               <template v-else-if="header.key === 'status'">
                 <v-chip :color="getStatusChip(item).color" variant="tonal" size="x-small">
                   {{ getStatusChip(item).text }}
@@ -893,23 +898,26 @@ watch(columnFilters, (val) => {
             <tr>
               <td :colspan="columns.length" class="pa-0">
                 <div class="detail-container">
-                  <div class="detail-table-wrapper">
-                    <div v-if="loadingDetails.has(item.nomor)" class="text-center py-2">
-                      <v-progress-circular indeterminate size="20" class="mr-2"></v-progress-circular>
-                      <span class="text-caption">Memuat detail...</span>
+                  <div class="detail-table-wrapper elevation-1">
+                    <div v-if="loadingDetails.has(item.nomor)" class="text-center py-4">
+                      <v-progress-circular indeterminate color="primary" />
                     </div>
-                    <v-data-table v-else-if="details[item.nomor] && details[item.nomor].length > 0"
-                      :headers="detailHeaders" :items="details[item.nomor]" density="compact" hide-default-footer
-                      :items-per-page="-1" class="detail-table">
-                      <template #[`item.harga`]="{ item: detailItem }">
-                        {{ formatRupiah(detailItem.harga) }}
+
+                    <v-data-table v-else-if="details[item.nomor]?.length" :headers="detailHeaders"
+                      :items="details[item.nomor]" density="compact" hide-default-footer class="detail-table">
+                      <template #[`item.Nama`]="{ value, item: detailItem }">
+                        <span :class="detailItem.kode === 'CUSTOM' ? 'font-weight-bold text-primary' : ''">
+                          {{ value }}
+                        </span>
                       </template>
-                      <template #[`item.diskon`]="{ item: detailItem }">
-                        {{ formatRupiah(detailItem.diskon) }}
+
+                      <template #[`item.ukuran`]="{ value }">
+                        <span class="text-uppercase">{{ value || '-' }}</span>
                       </template>
-                      <template #[`item.total`]="{ item: detailItem }">
-                        {{ formatRupiah(detailItem.total) }}
-                      </template>
+
+                      <template #[`item.harga`]="{ value }">{{ formatRupiah(value) }}</template>
+                      <template #[`item.diskon`]="{ value }">{{ formatRupiah(value) }}</template>
+                      <template #[`item.total`]="{ value }">{{ formatRupiah(value) }}</template>
                     </v-data-table>
                   </div>
                 </div>
@@ -1068,18 +1076,18 @@ watch(columnFilters, (val) => {
 .resizable-header {
   position: relative;
   background-color: var(--table-head-bg) !important;
-    color: var(--table-head-text) !important;
+  color: var(--table-head-text) !important;
   font-weight: 700 !important;
-    text-transform: uppercase;
-    font-size: 11px !important;
-    height: 40px !important;
-    border-bottom: 1px solid rgba(var(--v-border-color), var(--v-border-opacity)) !important;
-    padding: 0 8px !important;
-    user-select: none;
-    overflow: hidden;
-    white-space: nowrap;
-    text-overflow: ellipsis;
-  }
+  text-transform: uppercase;
+  font-size: 11px !important;
+  height: 40px !important;
+  border-bottom: 1px solid rgba(var(--v-border-color), var(--v-border-opacity)) !important;
+  padding: 0 8px !important;
+  user-select: none;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
 
 .header-content {
   display: flex;
@@ -1119,9 +1127,11 @@ watch(columnFilters, (val) => {
   display: flex;
   justify-content: flex-start;
   align-items: flex-start;
+  /* Mengikuti warna background tema */
   background-color: rgb(var(--v-theme-background));
   padding: 16px 16px 16px 64px;
-  border-bottom: 1px solid #e0e0e0;
+  /* Gunakan border berbasis tema agar tidak terlalu kontras di dark mode */
+  border-bottom: 1px solid rgba(var(--v-border-color), var(--v-border-opacity));
   width: fit-content;
   min-width: 100%;
   box-sizing: border-box;
@@ -1130,17 +1140,28 @@ watch(columnFilters, (val) => {
 .detail-table-wrapper {
   width: 100%;
   max-width: 900px;
-  border: 1px solid #ddd;
+  /* Gunakan border berbasis tema */
+  border: 1px solid rgba(var(--v-border-color), var(--v-border-opacity));
   border-radius: 4px;
   overflow: hidden;
   background-color: rgb(var(--v-theme-surface));
 }
 
 .detail-table :deep(thead tr th) {
+  /* Gunakan surface-variant untuk background header detail */
   background-color: rgb(var(--v-theme-surface-variant)) !important;
-  color: #424242 !important;
+  /* [PERBAIKAN] Gunakan variabel on-surface-variant agar warna teks adaptif (terang di dark mode) */
+  color: rgb(var(--v-theme-on-surface-variant)) !important;
   font-size: 10px !important;
+  font-weight: bold !important;
   height: 32px !important;
+  text-transform: uppercase;
+}
+
+/* Tambahkan ini agar border antar sel di detail table terlihat di dark mode */
+.detail-table :deep(td),
+.detail-table :deep(th) {
+  border-bottom: 1px solid rgba(var(--v-border-color), 0.1) !important;
 }
 
 .filter-section .btn-detail {

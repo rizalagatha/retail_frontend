@@ -293,6 +293,9 @@ const initialHeaderState = {
   mpNomorPesanan: "",
   mpResi: "",
   mpBiayaPlatform: 0,
+  dateline: null as string | null,
+  isOverdue: false,
+  overdueNote: "",
 };
 
 // [BARU] Daftar Marketplace
@@ -1037,8 +1040,18 @@ const onSoSelected = async (so: { Nomor: string }) => {
     // --- Assign header dari SO ---
     Object.assign(header, {
       ...soHeader,
-      tanggal: format(new Date(), "yyyy-MM-dd"), // tanggal invoice hari ini
+      tanggal: format(new Date(), "yyyy-MM-dd"),
+      // Pastikan field baru masuk ke state reactive
+      dateline: soHeader.dateline || null,
+      isOverdue: !!soHeader.isOverdue,
+      overdueNote: soHeader.overdueNote || "",
     });
+
+    header.dateline = soHeader.dateline || null;
+
+    if (soHeader.isOverdue) {
+      toast.warning(soHeader.overdueNote || "Peringatan: SO ini sudah melewati batas waktu (Dateline)!");
+    }
 
     // *** Perbaikan bagian jenis order ***
     header.jenisOrderKode = soHeader.jenisOrderKode || "";
@@ -2671,8 +2684,8 @@ watch(
                 <template #append-inner>
                   <v-btn icon="mdi-account-plus" size="x-small" variant="tonal" :disabled="isReadonly || isKpr"
                     @click.stop="!isReadonly && (dialogs.customerForm = true)" :title="isKpr
-                        ? 'Cabang KPR tidak diizinkan membuat customer baru'
-                        : 'Buat Customer Baru'
+                      ? 'Cabang KPR tidak diizinkan membuat customer baru'
+                      : 'Buat Customer Baru'
                       ">
                   </v-btn>
                 </template>
@@ -2766,11 +2779,11 @@ watch(
                   :class="{ 'field-disabled': !!header.nomorSo || !!item.noSoDtf }" @keydown.f1.stop.prevent="
                     !header.nomorSo && !item.noSoDtf && openProductSearch(index, false)
                     " @keydown.f2.stop.prevent="
-                    canSearchManual &&
-                    !header.nomorSo &&
-                    !item.noSoDtf &&
-                    openProductSearch(index, true)
-                    " />
+                      canSearchManual &&
+                      !header.nomorSo &&
+                      !item.noSoDtf &&
+                      openProductSearch(index, true)
+                      " />
               </template>
 
               <template #[`item.kategori`]="{ item }">
@@ -2792,9 +2805,9 @@ watch(
                 <v-text-field :model-value="focusedRowId === item.id ? item.harga : formatRupiah(item.harga || 0)
                   " @update:model-value="
                     item.harga = Number(String($event).replace(/[^0-9]/g, '')) || 0
-                    " @focus="focusedRowId = item.id" @blur="focusedRowId = -1" type="text" min="0" variant="underlined"
-                  density="compact" hide-details class="text-right" :readonly="isReadonly || !isHargaEditable(item)"
-                  placeholder="0"></v-text-field>
+                    " @focus="focusedRowId = item.id" @blur="focusedRowId = -1" type="text" min="0"
+                  variant="underlined" density="compact" hide-details class="text-right"
+                  :readonly="isReadonly || !isHargaEditable(item)" placeholder="0"></v-text-field>
               </template>
 
               <template v-slot:[`item.diskonPersen`]="{ item }">

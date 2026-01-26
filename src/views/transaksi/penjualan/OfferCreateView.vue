@@ -8,6 +8,10 @@ import ProductSearchModal from '@/components/lookup/ProductSearchModal.vue';
 import AuthorizationModal from '@/components/modal/AuthorizationModal.vue';
 // import SoDtfSearchModal from '@/components/lookup/SoDtfSearchModal.vue';
 import PriceProposalSearchModal from '@/components/lookup/PriceProposalSearchModal.vue';
+import DpInputModal from "@/components/modal/DpInputModal.vue";
+import DpListModal from "@/components/modal/DpListModal.vue";
+import DiscountCostModal from "@/components/modal/DiscountCostModal.vue";
+import JenisOrderModal from "@/components/modal/JenisOrderModal.vue";
 import { useToast } from 'vue-toastification';
 import { useAuthStore } from '@/stores/authStore';
 import { useUiStore } from '@/stores/uiStore';
@@ -42,7 +46,49 @@ interface OfferItem {
   // noSoDtf: string;
   noPengajuanHarga: string;
   pin: string;
+  isCustomOrder?: boolean;
+  sod_custom?: string; // 'Y' atau 'N'
+  sod_custom_nama?: string;
+  sod_custom_data?: string; // String JSON untuk rincian teknis
 }
+
+interface OfferHeader {
+  nomor: string;
+  tanggal: string;
+  gudang: Gudang;
+  customer: Customer | null;
+  customerKode: string;
+  top: number;
+  tempo: string;
+  ppnPersen: number;
+  keterangan: string;
+
+  // === TAMBAHKAN INI ===
+  jenisOrderKode?: string;
+  jenisOrderNama?: string;
+  namaDtf?: string;
+}
+
+interface ApiOfferItem {
+  kode: string | null;
+  nama: string | null;
+  ukuran: string | null;
+  stok: number | null;
+  jumlah: number | null;
+  harga: number | null;
+  diskonPersen: number | null;
+  diskonRp: number | null;
+  total: number | null;
+  barcode: string | null;
+  noPengajuanHarga: string | null;
+  pin: string | null;
+
+  // field custom dari backend
+  pend_custom?: string | null;
+  pend_custom_nama?: string | null;
+  pend_custom_data?: string | null;
+}
+
 
 interface Customer {
   kode: string;
@@ -95,8 +141,41 @@ interface AuthDialogState {
   onCancel: () => void;
 }
 
+interface DpItem {
+  nomor: string;
+  jenis: string;
+  nominal: number;
+  posting: string; // Tambahkan ini
+  fsk: string;     // Tambahkan ini
+}
+
+interface JenisOrderSaved {
+  namaOrder: string;
+  jenisOrder: string;
+  namaBarang: string;
+  kodeBarang: string;
+  totalJumlah: number;
+  totalHarga: number;
+
+  // Gunakan penamaan generik untuk data teknis
+  customData: {
+    ukuranKaos: { ukuran: string; jumlah: number; harga: number }[];
+    titikCetak: { keterangan: string; sizeCetak: string; panjang: number; lebar: number }[];
+    hargaPerCm: number;
+  };
+}
+
+interface DiscountCostUpdateData {
+  diskonPersen1: number;
+  diskonPersen2: number;
+  diskonRp: number;
+  biayaKirim: number;
+  pinDiskon1?: string;
+  pinDiskon2?: string;
+}
+
 // --- State ---
-const header = ref({
+const header = ref<OfferHeader>({
   nomor: '',
   tanggal: format(new Date(), 'yyyy-MM-dd'),
   gudang: { kode: authStore.user?.cabang || '', nama: 'Gudang Utama' } as Gudang,
@@ -106,6 +185,10 @@ const header = ref({
   tempo: format(new Date(), 'yyyy-MM-dd'),
   ppnPersen: 0,
   keterangan: '',
+
+  jenisOrderKode: '',
+  jenisOrderNama: '',
+  namaDtf: '',
 });
 
 const items = ref<OfferItem[]>([]);
@@ -121,6 +204,9 @@ const footer = ref({
   grandTotal: 0,
   pinDiskon1: '',
   pinDiskon2: '',
+  totalDp: 0,
+  belumDibayar: 0,
+  subtotalKaos: 0,
 });
 
 const authDialog = reactive<AuthDialogState>({
@@ -133,6 +219,11 @@ const authDialog = reactive<AuthDialogState>({
   keterangan: '',
   onSuccess: () => { },
   onCancel: () => { },
+});
+
+const dialogs = reactive({
+  jenisOrder: false,
+  // ... state lainnya
 });
 
 const isCustomerSearchVisible = ref(false);
@@ -153,6 +244,10 @@ const printConfirmNomor = ref('');
 const scannedBarcode = ref('');
 const isAuthPending = ref(false); // [BARU] Penanda sedang menunggu auth
 const previousDiskonRp = ref(0);  // [BARU] Untuk menyimpan nilai sebelum edit
+const dpItems = ref<DpItem[]>([]);
+const isDpInputVisible = ref(false);
+const isDpListModalVisible = ref(false);
+const isDiscountCostModalVisible = ref(false);
 
 footer.value.diskonRpInput = footer.value.diskonRp;
 
@@ -163,6 +258,27 @@ const requiredPermission = computed(() => isEditMode.value ? 'edit' : 'insert');
 const totalQty = computed(() =>
   items.value.reduce((sum, item) => sum + (Number(item.jumlah) || 0), 0)
 );
+
+const penawaranDetails = computed(() => {
+  const detailMap = new Map<string, { kodeBarang: string; namaBarang: string; ukuran?: string }>();
+  items.value.forEach((it) => {
+    if (it.kode && it.nama) {
+      const key = `${it.kode}|${it.ukuran || ""}`;
+      if (!detailMap.has(key)) {
+        detailMap.set(key, { kodeBarang: it.kode, namaBarang: it.nama, ukuran: it.ukuran || "" });
+      }
+    }
+  });
+  return Array.from(detailMap.values());
+});
+
+const penawaranBarangList = computed(() => {
+  const map = new Map<string, string>();
+  items.value.forEach((it) => {
+    if (it.kode && it.nama && !map.has(it.kode)) { map.set(it.kode, it.nama); }
+  });
+  return Array.from(map.entries()).map(([kodeBarang, namaBarang]) => ({ kodeBarang, namaBarang }));
+});
 
 const tableHeaders: TableHeader[] = [
   { title: 'Kode', key: 'kode', width: '300px' },
@@ -226,35 +342,56 @@ const loadCustomerDetails = async () => {
 const loadOfferData = async (nomor: string) => {
   try {
     const response = await api.get(`/offer-form/edit-details/${nomor}`);
-    const { headerData, itemsData, footerData } = response.data;
+    const { headerData, itemsData, dpItemsData, footerData } = response.data;
 
     // Isi semua state dengan data yang diterima dari server
-    header.value = headerData;
-    items.value = itemsData.map((item: Partial<OfferItem>): OfferItem => ({
-      id: item.id || Date.now(),
-      kode: item.kode || '',
-      nama: item.nama || '',
-      ukuran: item.ukuran || '',
-      stok: item.stok || 0,
-      jumlah: item.jumlah || 0,
-      harga: item.harga || 0,
-      isHargaReadonly: (item.harga || 0) > 0,
-      diskonPersen: item.diskonPersen || 0,
-      diskonRp: item.diskonRp || 0,
-      total: item.total || 0,
-      barcode: item.barcode || '',
-      noPengajuanHarga: item.noPengajuanHarga || '',
-      pin: item.pin || ''
-    }));
-    footer.value = footerData;
+    header.value = {
+      ...header.value,
+      ...headerData
+    };
+    items.value = itemsData.map((item: ApiOfferItem): OfferItem => {
+      const isCustom = item.pend_custom === 'Y' || item.kode === 'CUSTOM';
+      return {
+        id: Date.now() + Math.random(),
+        kode: item.kode || '',
+        nama: item.nama || '',
+        ukuran: item.ukuran || '',
+        stok: item.stok || 0,
+        jumlah: item.jumlah || 0,
+        harga: item.harga || 0,
+        isHargaReadonly: (item.harga || 0) > 0,
+        diskonPersen: item.diskonPersen || 0,
+        diskonRp: item.diskonRp || 0,
+        total: item.total || 0,
+        barcode: item.barcode || '',
+        noPengajuanHarga: item.noPengajuanHarga || '',
+        pin: item.pin || '',
+        // Properti tambahan untuk custom
+        isCustomOrder: isCustom,
+        sod_custom: item.pend_custom,
+        sod_custom_nama: item.pend_custom_nama,
+        sod_custom_data: item.pend_custom_data // Ini berisi rincian teknis JSON
+      };
+    });
 
-    toast.success(`Data untuk penawaran ${nomor} berhasil dimuat.`);
+    // 3. Map DP Items
+    dpItems.value = dpItemsData || [];
+
+    // 4. Map Footer
+    footer.value = {
+      ...footer.value,
+      ...footerData,
+      diskonRpInput: footerData.diskonRp
+    };
+
+    toast.success(`Data penawaran ${nomor} berhasil dimuat.`);
 
     await nextTick();
+    calculateTotals(); // Hitung ulang untuk memastikan sisa bayar sinkron
     markAsSaved();
   } catch (error) {
     toast.error('Gagal memuat data penawaran.', error);
-    router.push('/transaksi/penjualan/penawaran'); // Kembali ke daftar jika gagal
+    router.push('/transaksi/penjualan/penawaran');
   }
 };
 
@@ -376,46 +513,71 @@ const onProductsSelected = (selectedProducts: Product[]) => {
   calculateTotals();
 };
 
+const isDiscountableItem = (item: OfferItem) => {
+  // Logic: Jasa dan Custom Order tidak boleh kena diskon faktur (%)
+  const isJasa =
+    item.kode?.toUpperCase().startsWith("JASA") ||
+    item.kode?.toUpperCase().startsWith("JS") ||
+    item.nama?.toLowerCase().includes("jasa");
+
+  return !isJasa && !item.isCustomOrder && item.kode !== 'CUSTOM';
+};
+
 const calculateTotals = () => {
   let subtotal = 0;
+  let subtotalDiscountable = 0; // Khusus barang kaos (reguler)
+
+  // 1. Kalkulasi Item-per-Item
   items.value.forEach(item => {
     const price = Number(item.harga) || 0;
     const qty = Number(item.jumlah) || 0;
     let discountRp = Number(item.diskonRp) || 0;
     const discountPersen = Number(item.diskonPersen) || 0;
 
-    // Prioritaskan diskon persen jika diisi
+    // Prioritaskan diskon persen per item
     if (discountPersen > 0) {
       discountRp = (discountPersen / 100) * price;
-      item.diskonRp = discountRp; // Update diskon Rp
+      item.diskonRp = discountRp;
     }
 
     item.total = qty * (price - discountRp);
     subtotal += item.total;
+
+    // Filter: Hanya barang reguler/kaos yang masuk basis diskon faktur
+    // Pastikan fungsi isDiscountableItem sudah didefinisikan
+    if (isDiscountableItem(item)) {
+      subtotalDiscountable += item.total;
+    }
   });
 
+  // Simpan subtotal kaos agar DiscountCostModal bisa membacanya
+  footer.value.subtotalKaos = subtotalDiscountable;
   footer.value.total = subtotal;
 
+  // 2. Kalkulasi Diskon Faktur
   const isManualOverride = isFooterDiskonRpFocused.value || isAuthPending.value;
 
   if ((footer.value.diskonPersen1 > 0 || footer.value.diskonPersen2 > 0) && !isManualOverride) {
-    const discount1 = (footer.value.diskonPersen1 / 100) * subtotal;
-    const afterDiscount1 = subtotal - discount1;
+    // Hitung diskon bertingkat dari subtotal barang kaos
+    const discount1 = (footer.value.diskonPersen1 / 100) * subtotalDiscountable;
+    const afterDiscount1 = subtotalDiscountable - discount1;
     const discount2 = (footer.value.diskonPersen2 / 100) * afterDiscount1;
 
     footer.value.diskonRp = discount1 + discount2;
     footer.value.diskonRpInput = footer.value.diskonRp;
   } else {
-    // Jika Manual Mode, gunakan angka dari input user
-    const manualRp = Number(footer.value.diskonRpInput) || 0;
-    footer.value.diskonRp = manualRp;
-    // Jangan timpa footer.value.diskonRpInput
+    footer.value.diskonRp = Number(footer.value.diskonRpInput) || 0;
   }
 
+  // 3. Kalkulasi Netto & Grand Total (Nilai Transaksi)
   const netto = subtotal - footer.value.diskonRp;
   footer.value.netto = netto;
   footer.value.ppnRp = (header.value.ppnPersen / 100) * netto;
   footer.value.grandTotal = netto + footer.value.ppnRp + (Number(footer.value.biayaKirim) || 0);
+
+  // 4. Kalkulasi Pembayaran & Sisa Bayar
+  footer.value.totalDp = dpItems.value.reduce((sum, dp) => sum + (Number(dp.nominal) || 0), 0);
+  footer.value.belumDibayar = footer.value.grandTotal - footer.value.totalDp;
 };
 
 const addNewRow = () => {
@@ -482,7 +644,14 @@ const save = async () => {
     const payload = {
       header: header.value,
       footer: footer.value,
-      details: validItems,
+      details: items.value
+        .filter(item => item.kode)
+        .map(item => ({
+          ...item,
+          sod_custom: item.isCustomOrder ? "Y" : "N",
+          // Jika item custom, pastikan sod_custom_data sudah di-stringify
+        })),
+      dps: dpItems.value,
       user: authStore.user,
       isNew: !isEditMode.value,
     };
@@ -568,6 +737,10 @@ const resetForm = () => {
     tempo: format(new Date(), 'yyyy-MM-dd'),
     ppnPersen: 0,
     keterangan: '',
+
+    jenisOrderKode: '',
+    jenisOrderNama: '',
+    namaDtf: '',
   };
   items.value = [];
   addNewRow();
@@ -609,113 +782,113 @@ const requestAuthorization = (
   authDialog.show = true;
 };
 
-const handleDiscountChange = async () => {
-  if (!header.value.customer || !header.value.customer.level) {
-    calculateTotals();
-    return;
-  }
+// const handleDiscountChange = async () => {
+//   if (!header.value.customer || !header.value.customer.level) {
+//     calculateTotals();
+//     return;
+//   }
 
-  // Simpan nilai input saat ini untuk jaga-jaga kalau batal
-  const enteredDiscount = footer.value.diskonPersen1;
+//   // Simpan nilai input saat ini untuk jaga-jaga kalau batal
+//   const enteredDiscount = footer.value.diskonPersen1;
 
-  try {
-    // 1. Cek Diskon Standar ke Backend
-    const response = await api.get('/offer-form/get-default-discount', {
-      params: {
-        level: header.value.customer.level,
-        total: footer.value.total,
-        gudang: header.value.gudang.kode,
-      }
-    });
-    const defaultDiscountValue = response.data.discount;
+//   try {
+//     // 1. Cek Diskon Standar ke Backend
+//     const response = await api.get('/offer-form/get-default-discount', {
+//       params: {
+//         level: header.value.customer.level,
+//         total: footer.value.total,
+//         gudang: header.value.gudang.kode,
+//       }
+//     });
+//     const defaultDiscountValue = response.data.discount;
 
-    // 2. Jika beda dan > 0, minta Otorisasi
-    if (enteredDiscount !== defaultDiscountValue && enteredDiscount > 0) {
+//     // 2. Jika beda dan > 0, minta Otorisasi
+//     if (enteredDiscount !== defaultDiscountValue && enteredDiscount > 0) {
 
-      // Hitung nominal estimasi diskon
-      const estimasiNominal = (footer.value.total * enteredDiscount) / 100;
-      const info = `Cust: ${header.value.customer.nama}\nDiskon Std: ${defaultDiscountValue}%\nPengajuan: ${enteredDiscount}%`;
+//       // Hitung nominal estimasi diskon
+//       const estimasiNominal = (footer.value.total * enteredDiscount) / 100;
+//       const info = `Cust: ${header.value.customer.nama}\nDiskon Std: ${defaultDiscountValue}%\nPengajuan: ${enteredDiscount}%`;
 
-      requestAuthorization(
-        'Otorisasi Diskon Faktur (%)',
-        'DISKON_FAKTUR',
-        estimasiNominal,
-        {
-          transaksi: header.value.nomor || 'DRAFT PENAWARAN',
-          keteranganLengkap: info
-        },
-        (authResult) => {
-          // Sukses
-          footer.value.pinDiskon1 = authResult.approver; // Simpan Nama Approver
-          calculateTotals();
-          toast.success('Diskon disetujui.');
-        },
-        () => {
-          // Batal: Kembalikan ke default
-          footer.value.diskonPersen1 = defaultDiscountValue;
-          calculateTotals();
-          toast.info('Perubahan diskon dibatalkan.');
-        }
-      );
+//       requestAuthorization(
+//         'Otorisasi Diskon Faktur (%)',
+//         'DISKON_FAKTUR',
+//         estimasiNominal,
+//         {
+//           transaksi: header.value.nomor || 'DRAFT PENAWARAN',
+//           keteranganLengkap: info
+//         },
+//         (authResult) => {
+//           // Sukses
+//           footer.value.pinDiskon1 = authResult.approver; // Simpan Nama Approver
+//           calculateTotals();
+//           toast.success('Diskon disetujui.');
+//         },
+//         () => {
+//           // Batal: Kembalikan ke default
+//           footer.value.diskonPersen1 = defaultDiscountValue;
+//           calculateTotals();
+//           toast.info('Perubahan diskon dibatalkan.');
+//         }
+//       );
 
-    } else {
-      calculateTotals();
-    }
-  } catch (error) {
-    toast.error('Gagal memvalidasi diskon standar.', error);
-    calculateTotals();
-  }
-};
+//     } else {
+//       calculateTotals();
+//     }
+//   } catch (error) {
+//     toast.error('Gagal memvalidasi diskon standar.', error);
+//     calculateTotals();
+//   }
+// };
 
-const onDiskonRpBlur = () => {
-  const newValue = Number(footer.value.diskonRpInput) || 0;
+// const onDiskonRpBlur = () => {
+//   const newValue = Number(footer.value.diskonRpInput) || 0;
 
-  // Cek apakah ada perubahan dari nilai SEBELUM edit
-  if (newValue === previousDiskonRp.value) {
-    return;
-  }
+//   // Cek apakah ada perubahan dari nilai SEBELUM edit
+//   if (newValue === previousDiskonRp.value) {
+//     return;
+//   }
 
-  // [SET FLAG] Supaya calculateTotals tidak mereset nilai saat modal muncul
-  isAuthPending.value = true;
+//   // [SET FLAG] Supaya calculateTotals tidak mereset nilai saat modal muncul
+//   isAuthPending.value = true;
 
-  const info = `Cust: ${header.value.customer?.nama || ''}\nDiskon Rupiah: ${formatRupiah(newValue)}`;
+//   const info = `Cust: ${header.value.customer?.nama || ''}\nDiskon Rupiah: ${formatRupiah(newValue)}`;
 
-  requestAuthorization(
-    'Otorisasi Diskon Rupiah',
-    'DISKON_FAKTUR',
-    newValue,
-    {
-      transaksi: header.value.nomor || 'DRAFT PENAWARAN',
-      keteranganLengkap: info
-    },
-    (authResult) => {
-      // SUKSES
-      // 1. Nol-kan persen karena sekarang pakai Rupiah
-      footer.value.diskonPersen1 = 0;
-      footer.value.diskonPersen2 = 0;
+//   requestAuthorization(
+//     'Otorisasi Diskon Rupiah',
+//     'DISKON_FAKTUR',
+//     newValue,
+//     {
+//       transaksi: header.value.nomor || 'DRAFT PENAWARAN',
+//       keteranganLengkap: info
+//     },
+//     (authResult) => {
+//       // SUKSES
+//       // 1. Nol-kan persen karena sekarang pakai Rupiah
+//       footer.value.diskonPersen1 = 0;
+//       footer.value.diskonPersen2 = 0;
 
-      footer.value.pinDiskon1 = authResult.approver;
+//       footer.value.pinDiskon1 = authResult.approver;
 
-      // 2. Matikan flag pending
-      isAuthPending.value = false;
+//       // 2. Matikan flag pending
+//       isAuthPending.value = false;
 
-      calculateTotals();
-      toast.success('Diskon Rp disetujui.');
-    },
-    () => {
-      // BATAL / TOLAK
-      // 1. Kembalikan ke nilai lama
-      footer.value.diskonRp = previousDiskonRp.value;
-      footer.value.diskonRpInput = previousDiskonRp.value;
+//       calculateTotals();
+//       toast.success('Diskon Rp disetujui.');
+//     },
+//     () => {
+//       // BATAL / TOLAK
+//       // 1. Kembalikan ke nilai lama
+//       footer.value.diskonRp = previousDiskonRp.value;
+//       footer.value.diskonRpInput = previousDiskonRp.value;
 
-      // 2. Matikan flag pending
-      isAuthPending.value = false;
+//       // 2. Matikan flag pending
+//       isAuthPending.value = false;
 
-      calculateTotals();
-      toast.info('Perubahan diskon dibatalkan.');
-    }
-  );
-};
+//       calculateTotals();
+//       toast.info('Perubahan diskon dibatalkan.');
+//     }
+//   );
+// };
 
 const handleItemDiscountChange = (index: number) => {
   const item = items.value[index];
@@ -763,41 +936,41 @@ const handleItemDiscountChange = (index: number) => {
   }
 };
 
-const handleDiscount2Change = () => {
-  const disc2 = footer.value.diskonPersen2;
+// const handleDiscount2Change = () => {
+//   const disc2 = footer.value.diskonPersen2;
 
-  // Jika Diskon 1 ada isinya, dan user mengisi Diskon 2 > 0
-  if (footer.value.diskonPersen1 > 0 && disc2 > 0) {
+//   // Jika Diskon 1 ada isinya, dan user mengisi Diskon 2 > 0
+//   if (footer.value.diskonPersen1 > 0 && disc2 > 0) {
 
-    // Estimasi nominal (dari sisa setelah disc 1)
-    const afterDisc1 = footer.value.total - ((footer.value.total * footer.value.diskonPersen1) / 100);
-    const estimasiNominal = (afterDisc1 * disc2) / 100;
+//     // Estimasi nominal (dari sisa setelah disc 1)
+//     const afterDisc1 = footer.value.total - ((footer.value.total * footer.value.diskonPersen1) / 100);
+//     const estimasiNominal = (afterDisc1 * disc2) / 100;
 
-    const info = `Cust: ${header.value.customer?.nama || ''}\nPenambahan Diskon ke-2: ${disc2}%`;
+//     const info = `Cust: ${header.value.customer?.nama || ''}\nPenambahan Diskon ke-2: ${disc2}%`;
 
-    requestAuthorization(
-      'Otorisasi Diskon Bertingkat',
-      'DISKON_FAKTUR',
-      estimasiNominal,
-      {
-        transaksi: header.value.nomor || 'DRAFT PENAWARAN',
-        keteranganLengkap: info
-      },
-      (authResult) => {
-        footer.value.pinDiskon2 = authResult.approver;
-        calculateTotals();
-        toast.success('Diskon ke-2 disetujui.');
-      },
-      () => {
-        footer.value.diskonPersen2 = 0; // Reset ke 0 jika batal
-        calculateTotals();
-        toast.info('Diskon ke-2 dibatalkan.');
-      }
-    );
-  } else {
-    calculateTotals();
-  }
-};
+//     requestAuthorization(
+//       'Otorisasi Diskon Bertingkat',
+//       'DISKON_FAKTUR',
+//       estimasiNominal,
+//       {
+//         transaksi: header.value.nomor || 'DRAFT PENAWARAN',
+//         keteranganLengkap: info
+//       },
+//       (authResult) => {
+//         footer.value.pinDiskon2 = authResult.approver;
+//         calculateTotals();
+//         toast.success('Diskon ke-2 disetujui.');
+//       },
+//       () => {
+//         footer.value.diskonPersen2 = 0; // Reset ke 0 jika batal
+//         calculateTotals();
+//         toast.info('Diskon ke-2 dibatalkan.');
+//       }
+//     );
+//   } else {
+//     calculateTotals();
+//   }
+// };
 // const openSoDtfSearch = (index: number) => {
 //   if (!header.value.customer) {
 //     toast.error('Pilih Customer terlebih dahulu.');
@@ -944,9 +1117,9 @@ const applyDefaultDiscount = async () => {
 
     // Hanya update jika nilai berbeda (untuk mencegah loop render berlebih)
     if (footer.value.diskonPersen1 !== serverDiscount) {
-        footer.value.diskonPersen1 = serverDiscount;
-        // Hitung ulang total setelah diskon berubah
-        calculateTotals();
+      footer.value.diskonPersen1 = serverDiscount;
+      // Hitung ulang total setelah diskon berubah
+      calculateTotals();
     }
 
   } catch (error) {
@@ -1027,6 +1200,88 @@ const handleBarcodeScan = async () => {
   } finally {
     scannedBarcode.value = ''; // selalu kosongkan input
   }
+};
+
+const openJenisOrderModal = () => {
+  if (!header.value.customer) return toast.error("Pilih customer terlebih dahulu.");
+  const hasItems = items.value.some((it) => it.kode && it.nama);
+  if (!hasItems) return toast.error("Isi detail barang terlebih dahulu.");
+  dialogs.jenisOrder = true;
+};
+
+const handleJenisOrderSaved = (data: JenisOrderSaved) => {
+  // 1. Simpan info kategori ke Header agar masuk ke pen_jenis_order_kode dkk
+  header.value.jenisOrderKode = data.jenisOrder;
+  header.value.jenisOrderNama = data.jenisOrder; // Sesuaikan jika ada nama khusus
+  header.value.namaDtf = data.namaOrder;
+
+  // 2. Masukkan ke items seperti biasa
+  const qty = data.totalJumlah || 0;
+  const totalHarga = data.totalHarga || 0;
+  const hargaPerPcs = qty > 0 ? Math.round(totalHarga / qty) : 0;
+
+  items.value.push({
+    id: Date.now() + Math.random(),
+    kode: "CUSTOM",
+    nama: data.namaOrder, // Ini akan masuk ke pend_custom_nama
+    ukuran: "",
+    stok: 0,
+    jumlah: qty,
+    harga: hargaPerPcs,
+    isHargaReadonly: true,
+    diskonPersen: 0,
+    diskonRp: 0,
+    total: totalHarga,
+    barcode: "",
+    noPengajuanHarga: "",
+    pin: "",
+    isCustomOrder: true,
+    sod_custom_data: JSON.stringify(data.customData) // Ini masuk ke pend_custom_data
+  });
+
+  calculateTotals();
+};
+
+const openDpInput = () => {
+  if (!header.value.customer) return toast.error("Customer harus dipilih.");
+  isDpInputVisible.value = true;
+};
+
+const onDpSaved = (newDp: { nomor: string; jenis: string; nominal: number }) => {
+  dpItems.value.push({
+    ...newDp,
+    posting: 'BELUM', // Berikan nilai default
+    fsk: ''          // Berikan nilai default
+  });
+  calculateTotals();
+};
+
+const handleAddDp = (newDp: { nomor: string; jenis: string; nominal: number }) => {
+  if (dpItems.value.some(dp => dp.nomor === newDp.nomor)) return toast.warning("DP sudah ada.");
+  dpItems.value.push({
+    ...newDp,
+    posting: 'BELUM',
+    fsk: ''
+  });
+  calculateTotals();
+};
+
+const removeDpRow = (itemToRemove: DpItem) => {
+  dpItems.value = dpItems.value.filter(item => item.nomor !== itemToRemove.nomor);
+  calculateTotals();
+};
+
+const handleDiscountCostUpdate = (newData: DiscountCostUpdateData) => {
+  footer.value.diskonPersen1 = newData.diskonPersen1;
+  footer.value.diskonPersen2 = newData.diskonPersen2;
+  footer.value.diskonRp = newData.diskonRp;
+  footer.value.diskonRpInput = newData.diskonRp;
+  footer.value.biayaKirim = newData.biayaKirim;
+
+  if (newData.pinDiskon1) footer.value.pinDiskon1 = newData.pinDiskon1;
+  if (newData.pinDiskon2) footer.value.pinDiskon2 = newData.pinDiskon2;
+
+  calculateTotals();
 };
 
 // Gunakan debounce (opsional tapi disarankan) agar tidak nembak API setiap ngetik angka
@@ -1120,6 +1375,11 @@ onMounted(() => {
 <template>
   <PageLayout :title="pageTitle" desktop-mode icon="mdi-file-document-edit-outline">
     <template #header-actions>
+      <v-btn color="secondary" size="small" prepend-icon="mdi-tshirt-crew-outline" :disabled="!header.customer"
+        @click="openJenisOrderModal">
+        Input Jenis Order
+      </v-btn>
+      <v-spacer></v-spacer>
       <v-btn size="small" color="primary" prepend-icon="mdi-content-save"
         @click="showConfirmation(save, 'Anda yakin ingin menyimpan data penawaran ini?')" :loading="isSaving">
         Simpan
@@ -1167,43 +1427,69 @@ onMounted(() => {
                 density="compact" hide-details></v-text-field></v-col>
           </v-row>
         </div>
-        <div class="desktop-form-section footer-section">
-          <v-row dense class="mb-2">
-            <!-- <v-col cols="3">
-              <v-text-field label="PPN %" v-model.number="header.ppnPersen" type="number" variant="outlined"
-                density="compact" hide-details class="summary-field">
-              </v-text-field>
-            </v-col> -->
-            <v-col cols="6">
-              <v-text-field label="Biaya Kirim" v-model.number="footer.biayaKirim" type="number" variant="outlined"
-                density="compact" hide-details class="summary-field text-right">
-              </v-text-field>
+        <div class="desktop-form-section footer-summary-section">
+          <v-row dense align="center" no-gutters>
+            <v-col cols="auto" class="d-flex ga-2 align-center">
+
+              <v-tooltip text="Input DP (Uang Muka)" location="top">
+                <template #activator="{ props }">
+                  <v-btn v-bind="props" icon="mdi-cash-plus" color="teal" size="small" variant="flat"
+                    @click="openDpInput" />
+                </template>
+              </v-tooltip>
+
+              <v-tooltip text="Atur Diskon & Biaya Faktur" location="top">
+                <template #activator="{ props }">
+                  <v-btn v-bind="props" icon="mdi-sale" color="blue-darken-2" size="small" variant="outlined"
+                    @click="isDiscountCostModalVisible = true" />
+                </template>
+              </v-tooltip>
+
+              <v-tooltip text="Lihat Rincian DP Terlampir" location="top">
+                <template #activator="{ props }">
+                  <v-btn v-bind="props" icon="mdi-format-list-bulleted" color="teal" size="small" variant="outlined"
+                    @click="isDpListModalVisible = true" />
+                </template>
+              </v-tooltip>
+
             </v-col>
-            <v-col cols="3">
-              <v-text-field label="Disc%1" v-model.number="footer.diskonPersen1" type="number" variant="outlined"
-                density="compact" hide-details @blur="handleDiscountChange">
-              </v-text-field>
-            </v-col>
-            <v-col cols="3">
-              <v-text-field label="Disc%2" v-model.number="footer.diskonPersen2" type="number" variant="outlined"
-                density="compact" hide-details @blur="handleDiscount2Change">
-              </v-text-field>
+
+            <v-spacer></v-spacer>
+
+            <v-col cols="12" md="6" lg="5">
+              <v-list density="compact" class="pa-0 bg-transparent">
+                <v-list-item v-if="footer.diskonRp > 0" class="px-0 min-h-0">
+                  <v-list-item-title class="text-caption text-error font-weight-bold">Total Diskon</v-list-item-title>
+                  <template #append>
+                    <span class="text-caption text-error font-weight-bold">- {{ formatRupiah(footer.diskonRp) }}</span>
+                  </template>
+                </v-list-item>
+
+                <v-list-item class="px-0 min-h-0">
+                  <v-list-item-title class="text-caption">Grand Total</v-list-item-title>
+                  <template #append>
+                    <span class="text-subtitle-1 font-weight-bold">{{ formatRupiah(footer.grandTotal) }}</span>
+                  </template>
+                </v-list-item>
+
+                <v-list-item v-if="footer.totalDp > 0" class="px-0 min-h-0">
+                  <v-list-item-title class="text-caption text-teal font-weight-bold">Uang Muka
+                    (DP)</v-list-item-title>
+                  <template #append>
+                    <span class="text-caption text-teal font-weight-bold">- {{ formatRupiah(footer.totalDp) }}</span>
+                  </template>
+                </v-list-item>
+
+                <v-list-item class="px-0 border-t mt-1 pt-1">
+                  <v-list-item-title class="text-subtitle-2 font-weight-bold">Sisa Bayar</v-list-item-title>
+                  <template #append>
+                    <span class="text-h6 font-weight-black text-primary">{{ formatRupiah(footer.belumDibayar)
+                      }}</span>
+                  </template>
+                </v-list-item>
+              </v-list>
             </v-col>
           </v-row>
-          <v-divider class="my-2"></v-divider>
-          <v-text-field label="Diskon Rp" :model-value="isFooterDiskonRpFocused
-            ? footer.diskonRpInput
-            : formatRupiah(footer.diskonRpInput)"
-            @update:model-value="footer.diskonRpInput = Number(String($event).replace(/[^0-9]/g, '')) || 0"
-            @focus="isFooterDiskonRpFocused = true" @blur="isFooterDiskonRpFocused = false; onDiskonRpBlur()"
-            placeholder="0" type="text" variant="outlined" density="compact" hide-details
-            class="summary-field text-right font-weight-black text-subtitle-1" />
-
-          <v-text-field label="Total" :model-value="formatRupiah(footer.total)" readonly variant="filled"
-            density="compact" hide-details class="summary-field text-right font-weight-bold" />
-
-          <v-text-field label="Grand Total" :model-value="formatRupiah(footer.grandTotal)" readonly variant="filled"
-            density="compact" hide-details class="summary-field text-right font-weight-bold" />
         </div>
       </div>
 
@@ -1324,6 +1610,20 @@ onMounted(() => {
       :customerKode="header.customer?.kode" @close="isPriceProposalSearchVisible = false"
       @selected="onPriceProposalSelected" />
 
+    <DpInputModal v-if="isDpInputVisible" :customerKode="header.customer?.kode || ''"
+      :nomor-so="header.nomor || 'DRAFT'" :minimal-dp="0" :existing-dp="footer.diskonRp"
+      @close="isDpInputVisible = false" @dp-saved="onDpSaved" />
+
+    <DpListModal v-if="isDpListModalVisible" :dp-items="dpItems" :customer-kode="header.customer?.kode || ''"
+      @close="isDpListModalVisible = false" @remove-dp="removeDpRow" @add-dp="handleAddDp" />
+
+    <DiscountCostModal v-if="isDiscountCostModalVisible" source="OFFER" :footer-data="footer"
+      :total-so="footer.subtotalKaos" :customer="header.customer" :gudang-kode="header.gudang.kode"
+      :ppn-persen="header.ppnPersen" @close="isDiscountCostModalVisible = false" @update="handleDiscountCostUpdate" />
+
+    <JenisOrderModal v-if="dialogs.jenisOrder" :model-value="dialogs.jenisOrder" :penawaran-details="penawaranDetails"
+      :penawaran-barang-list="penawaranBarangList" @close="dialogs.jenisOrder = false" @saved="handleJenisOrderSaved" />
+
     <v-dialog v-model="isConfirmDialogVisible" max-width="400px" persistent>
       <v-card>
         <v-card-title class="text-h6 font-weight-bold">
@@ -1375,38 +1675,51 @@ onMounted(() => {
 .right-column.desktop-form-section {
   display: flex;
   flex-direction: column;
-  height: 100%; /* Penting */
-  overflow: hidden; /* Penting */
+  height: 100%;
+  /* Penting */
+  overflow: hidden;
+  /* Penting */
 }
 
 /* Tabel harus mengisi sisa ruang dan tidak scroll body-nya sendiri */
 .desktop-table {
   flex-grow: 1;
-  height: 100%; /* Paksa full height */
+  height: 100%;
+  /* Paksa full height */
   display: flex;
   flex-direction: column;
-  overflow: hidden; /* Prevent double scroll */
+  overflow: hidden;
+  /* Prevent double scroll */
 }
 
 /* Wrapper dalam Vuetify adalah yang harus di-scroll */
 .desktop-table :deep(.v-table__wrapper) {
-  height: 100% !important; /* Paksa tinggi penuh */
-  overflow-y: auto !important; /* Scroll ada di sini */
-  position: relative; /* Penting untuk sticky */
+  height: 100% !important;
+  /* Paksa tinggi penuh */
+  overflow-y: auto !important;
+  /* Scroll ada di sini */
+  position: relative;
+  /* Penting untuk sticky */
 }
 
 /* --- 2. PERBAIKAN TOTAL QTY (STICKY BOTTOM) --- */
 .qty-footer-row {
-  position: sticky !important; /* Paksa sticky */
-  bottom: 0 !important; /* Tempel di bawah wrapper */
-  z-index: 5; /* Di atas baris data */
+  position: sticky !important;
+  /* Paksa sticky */
+  bottom: 0 !important;
+  /* Tempel di bawah wrapper */
+  z-index: 5;
+  /* Di atas baris data */
 }
 
 /* Background row total harus solid agar baris di bawahnya tidak tembus saat di-scroll */
 .qty-footer-row td {
-  background-color: rgb(var(--v-theme-surface)) !important; /* Ikut tema (Putih/Hitam) */
-  border-top: 3px solid #0D47A1 !important; /* Border pemisah tebal biru */
-  color: #0D47A1 !important; /* Teks Biru */
+  background-color: rgb(var(--v-theme-surface)) !important;
+  /* Ikut tema (Putih/Hitam) */
+  border-top: 3px solid #0D47A1 !important;
+  /* Border pemisah tebal biru */
+  color: #0D47A1 !important;
+  /* Teks Biru */
   font-weight: 900;
   font-size: 14px;
   padding: 0 16px;
@@ -1415,15 +1728,18 @@ onMounted(() => {
 
 /* --- 3. PERBAIKAN HEADER (TETAP BIRU) --- */
 .desktop-table :deep(thead tr th) {
-  background-color: #0D47A1 !important; /* [FIX] Paksa Biru Tua */
-  color: #ffffff !important; /* [FIX] Teks Putih */
+  background-color: #0D47A1 !important;
+  /* [FIX] Paksa Biru Tua */
+  color: #ffffff !important;
+  /* [FIX] Teks Putih */
   font-weight: bold !important;
   text-transform: uppercase;
   font-size: 11px !important;
   height: 40px !important;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
   border-bottom: none !important;
-  z-index: 6; /* Header di atas footer */
+  z-index: 6;
+  /* Header di atas footer */
 }
 
 /* --- Lain-lain (Tetap Pertahankan) --- */
@@ -1436,7 +1752,8 @@ onMounted(() => {
   background-color: transparent;
 }
 
-.left-column, .right-column {
+.left-column,
+.right-column {
   display: flex;
   flex-direction: column;
   gap: 12px;
@@ -1469,19 +1786,19 @@ onMounted(() => {
 /* Fix Input Transparan di Header */
 .header-section :deep(.v-field),
 .footer-section :deep(.v-field) {
-    background-color: transparent !important;
-    box-shadow: none !important;
+  background-color: transparent !important;
+  box-shadow: none !important;
 }
 
 .header-section :deep(input),
 .footer-section :deep(input) {
-    color: rgb(var(--v-theme-on-surface)) !important;
-    opacity: 1 !important;
+  color: rgb(var(--v-theme-on-surface)) !important;
+  opacity: 1 !important;
 }
 
 .header-section :deep(.v-label),
 .footer-section :deep(.v-label) {
-    color: rgba(var(--v-theme-on-surface), 0.7) !important;
+  color: rgba(var(--v-theme-on-surface), 0.7) !important;
 }
 
 /* Summary Field */
@@ -1513,13 +1830,38 @@ onMounted(() => {
   appearance: textfield;
   color: rgb(var(--v-theme-on-surface));
 }
+
 .v-data-table :deep(input) {
-    color: rgb(var(--v-theme-on-surface)) !important;
+  color: rgb(var(--v-theme-on-surface)) !important;
 }
 
-/* Tombol Tambah Baris */
-.pa-2.border-t {
-    background-color: rgb(var(--v-theme-surface)) !important;
-    border-color: rgba(var(--v-border-color), var(--v-border-opacity)) !important;
+.footer-summary-section {
+  padding: 10px 16px;
+  border: 1px solid rgba(var(--v-theme-warning), 0.3);
+  border-radius: 8px;
+  background-color: rgba(var(--v-theme-warning), 0.05) !important;
+  min-height: 80px;
+  /* Jaga tinggi agar konsisten */
+  display: flex;
+  align-items: center;
+}
+
+/* Jarak antar tombol ikon */
+.ga-2 {
+  gap: 12px !important;
+}
+
+.min-h-0 {
+  min-height: 26px !important;
+}
+
+.border-t {
+  border-top: 1px solid rgba(var(--v-theme-on-surface), 0.12) !important;
+}
+
+/* Memperbaiki posisi v-row di footer */
+.footer-summary-section .v-row {
+  width: 100%;
+  margin: 0;
 }
 </style>

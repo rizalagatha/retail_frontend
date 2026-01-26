@@ -57,10 +57,12 @@ interface JenisOrderSaved {
   totalJumlah: number;
   totalHarga: number;
 
-  // tambahan untuk custom order
-  ukuranKaos?: { ukuran: string; jumlah: number; harga: number }[];
-  titikCetak?: { keterangan: string; sizeCetak: string; panjang: number; lebar: number }[];
-  hargaPerCm?: number;
+  // Gunakan penamaan generik untuk data teknis
+  customData: {
+    ukuranKaos: UkuranRow[];
+    titikCetak: TitikRow[];
+    hargaPerCm: number;
+  };
 }
 
 const toast = useToast();
@@ -278,15 +280,11 @@ const save = () => {
   }
 
   // Validasi tambahan: pastikan ada titik cetak dan ukuran
-  const hasUkuran = form.value.ukuranKaos.some(u => u.ukuran && u.jumlah > 0);
-  const hasTitik = form.value.titikCetak.some(t => t.keterangan && t.sizeCetak);
+  const filteredUkuran = form.value.ukuranKaos.filter(u => u.ukuran && (u.jumlah ?? 0) > 0);
+  const filteredTitik = form.value.titikCetak.filter(t => t.keterangan && t.sizeCetak);
 
-  if (!hasUkuran) {
+  if (filteredUkuran.length === 0) {
     toast.error('Minimal satu ukuran kaos harus diisi.');
-    return;
-  }
-  if (!hasTitik) {
-    toast.error('Minimal satu titik bordir/cetak harus diisi.');
     return;
   }
 
@@ -299,10 +297,12 @@ const save = () => {
     totalJumlah: form.value.totalJumlah,
     totalHarga: form.value.totalHarga,
 
-    // tambahan data lengkap untuk custom order:
-    ukuranKaos: form.value.ukuranKaos.filter(u => u.ukuran && u.jumlah > 0),
-    titikCetak: form.value.titikCetak.filter(t => t.keterangan && t.sizeCetak),
-    hargaPerCm: form.value.hargaPerCm,
+    // Satukan data teknis dalam satu object 'customData'
+    customData: {
+      ukuranKaos: filteredUkuran, // TypeScript otomatis mengenali ini sebagai UkuranRow[]
+      titikCetak: filteredTitik,  // TypeScript otomatis mengenali ini sebagai TitikRow[]
+      hargaPerCm: form.value.hargaPerCm,
+    }
   };
 
   console.log('[JenisOrderModal] saving payload lengkap:', payload);

@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { ref, onMounted, watch, nextTick } from 'vue';
+import { ref, onMounted, watch, nextTick, computed } from 'vue';
 import { useRouter } from 'vue-router';
+import { useRoute } from 'vue-router';
 import api from '@/services/api';
 import PageLayout from '@/components/PageLayout.vue';
 import { useToast } from 'vue-toastification';
@@ -19,12 +20,13 @@ const fr = (v: number) => formatRupiah(v);
 (window as Window & { JsBarcode: typeof JsBarcode }).JsBarcode = JsBarcode;
 
 // --- Store & Composables ---
+const route = useRoute();
 const router = useRouter();
 const toast = useToast();
 const authStore = useAuthStore();
 const uiStore = useUiStore();
 const { markAsSaved } = useUnsavedChanges();
-const MENU_ID = '35';
+const MENU_ID = '11';
 
 // --- Interface ---
 interface BarcodeItem {
@@ -75,6 +77,8 @@ const isPrinting = ref(false);
 const isPrintPreviewVisible = ref(false);
 const printPreviewData = ref<PrintLabelItem[]>([]);
 const isAfterSave = ref(false);
+
+const isEditMode = computed(() => !!route.params.nomor);
 
 // --- Konfigurasi Tabel ---
 const tableHeaders = [
@@ -260,34 +264,27 @@ const resetForm = () => {
 const save = async () => {
   isSaving.value = true;
   const validItems = items.value.filter(item => item.kode && (item.jumlah || 0) > 0);
+
   if (validItems.length === 0) {
-    toast.error('Tidak ada item yang valid untuk disimpan.');
+    toast.error('Tidak ada item yang valid.');
     isSaving.value = false;
     return;
   }
+
   try {
     const payload = {
       header: { nomor: nomor.value, tanggal: tanggal.value },
       details: validItems,
       user: { kode: authStore.user?.kode },
-      isNew: true
+      isNew: !isEditMode.value // Kirim false jika dalam mode EDIT
     };
 
     await api.post('/barcode-form/save', payload);
     toast.success(`Data barcode ${nomor.value} berhasil disimpan.`);
-    isAfterSave.value = true;
-    markAsSaved();
-
-    const printOptions = {
-      showPrice: showPriceOnLabel.value,
-      printerType: selectedPrinter.value,
-    };
-    const dataToPrint = preparePrintData(validItems, printOptions, nomor.value, format(new Date(tanggal.value), 'dd/MM/yy'));
-    handlePrint(dataToPrint);
-
+    router.push('/daftar/cetak-barcode'); // Kembali ke list setelah simpan sukses
   } catch (error) {
-    const err = error as AxiosError<{ message: string }>;
-    toast.error(err.response?.data?.message || 'Gagal menyimpan data.');
+    console.error(error);
+    toast.error('Gagal menyimpan data.');
   } finally {
     isSaving.value = false;
   }
@@ -452,6 +449,20 @@ const closePreview = () => {
   isAfterSave.value = false;
 };
 
+const loadDataForEdit = async (docNomor: string) => {
+  try {
+    const response = await api.get(`/barcodes/${docNomor}`);
+    items.value = response.data.map((d: any) => ({
+      ...d,
+      id: Date.now() + Math.random() // Beri ID unik untuk grid
+    }));
+    addNewRow();
+  } catch (error) {
+    toast.error("Gagal memuat data edit.", error);
+    router.push('/daftar/cetak-barcode');
+  }
+};
+
 watch(printPreviewData, (newVal) => {
   if (isPrintPreviewVisible.value && newVal.length > 0) {
     setTimeout(() => generateBarcodesInPreview(), 100);
@@ -475,8 +486,15 @@ onMounted(() => {
     router.back();
     return;
   }
-  getNextNumber();
-  addNewRow();
+
+  // LOGIKA: Jika Edit Mode, ambil data dari API. Jika Baru, ambil nomor otomatis
+  if (isEditMode.value) {
+    nomor.value = route.params.nomor as string;
+    loadDataForEdit(nomor.value);
+  } else {
+    getNextNumber();
+    addNewRow();
+  }
 });
 </script>
 
@@ -622,7 +640,7 @@ onMounted(() => {
                   <span>{{ printPreviewData[(i - 1) * 2 + 1].tgl }}</span>
                   <span>{{ printPreviewData[(i - 1) * 2 + 1].ukuran }}</span>
                   <span v-if="printPreviewData[(i - 1) * 2 + 1].charga">{{ printPreviewData[(i - 1) * 2 + 1].charga
-                    }}</span>
+                  }}</span>
                 </div>
               </div>
               <div v-else class="barcode-label"></div>
@@ -910,15 +928,15 @@ onMounted(() => {
     color: black !important;
   }
 
-    .item-name {
-      font-size: 7pt;
-      white-space: nowrap;
-      /* Jika Nama terlalu panjang, ia akan tetap di satu baris tapi terpotong halus */
-      overflow: hidden;
-      text-overflow: clip;
-      /* Alternatif: gunakan font condensed */
-      font-family: 'Arial Narrow', sans-serif;
-    }
+  .item-name {
+    font-size: 7pt;
+    white-space: nowrap;
+    /* Jika Nama terlalu panjang, ia akan tetap di satu baris tapi terpotong halus */
+    overflow: hidden;
+    text-overflow: clip;
+    /* Alternatif: gunakan font condensed */
+    font-family: 'Arial Narrow', sans-serif;
+  }
 
   .item-size {
     font-size: 4px !important;

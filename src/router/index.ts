@@ -473,6 +473,15 @@ const routes = [
     },
   },
   {
+    path: "/daftar/cetak-barcode/edit/:nomor",
+    name: "Ubah Barcode",
+    component: BarcodeCreateView, // Menggunakan komponen yang sama dengan form Baru
+    meta: {
+      title: "Ubah Barcode",
+      requiresAuth: true,
+    },
+  },
+  {
     path: "/daftar/cetak-barcode/new", // Rute untuk form baru
     name: "Buat Barcode",
     component: BarcodeCreateView,

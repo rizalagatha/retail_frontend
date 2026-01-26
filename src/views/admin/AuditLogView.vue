@@ -58,10 +58,13 @@ const filters = reactive({
   module: 'ALL',
   user: '',
   action: 'ALL',
-  cabang: 'ALL', // Tambah filter cabang
+  cabang: 'ALL',
+  isAnomaly: false, // <-- Tambah ini
   page: 1,
   itemsPerPage: 15
 });
+
+const isDetailLoading = ref(false);
 
 const actionOptions = ref<string[]>([]);
 
@@ -132,9 +135,21 @@ const fetchData = async () => {
   }
 };
 
-const openDetail = (item: AuditLogItem) => {
-  selectedLog.value = item;
+const openDetail = async (item: AuditLogItem) => {
   showDetailModal.value = true;
+  isDetailLoading.value = true;
+  selectedLog.value = item; // Isi data sementara dari baris tabel
+
+  try {
+    // Ambil data lengkap (termasuk JSON values) dari backend
+    const response = await api.get(`/audit-logs/${item.id}`);
+    selectedLog.value = response.data;
+  } catch (error) {
+    toast.error("Gagal memuat detail log.", error);
+    showDetailModal.value = false;
+  } finally {
+    isDetailLoading.value = false;
+  }
 };
 
 // Helper Format Tanggal
@@ -159,7 +174,11 @@ const parseJson = (jsonStr: string | null) => {
 
 // Helper Warna Badge Action (Update agar support dynamic action, beri warna default)
 const getActionColor = (action: string) => {
-  switch (action?.toUpperCase()) {
+
+  const act = action?.toUpperCase() || '';
+  if (act.startsWith('ANOMALY_')) return 'error'; // Semua anomali berwarna merah terang
+
+  switch (act) {
     case 'CREATE': return 'success';
     case 'UPDATE': return 'warning';
     case 'DELETE': return 'error';
@@ -169,6 +188,10 @@ const getActionColor = (action: string) => {
     case 'REQUEST_EDIT': return 'purple'; // Biar beda
     default: return 'secondary'; // Warna default untuk action tak dikenal
   }
+};
+
+const getRowClass = (item: AuditLogItem) => {
+  return item.action.startsWith('ANOMALY_') ? 'bg-red-lighten-5' : '';
 };
 
 const onUpdateOptions = (opts: { page: number; itemsPerPage: number }) => {
@@ -215,6 +238,9 @@ watch(() => filters.page, fetchData); // Fetch saat pagination berubah
         <v-select v-model="filters.cabang" :items="cabangOptions" item-title="nama" item-value="kode" label="Cabang"
           density="compact" variant="outlined" hide-details />
 
+        <v-switch v-model="filters.isAnomaly" label="Hanya Anomali" color="error" density="compact" hide-details
+          inset></v-switch>
+
         <v-select v-model="filters.module" :items="moduleOptions" label="Modul" density="compact" hide-details
           variant="outlined" style="max-width: 160px" />
 
@@ -233,7 +259,7 @@ watch(() => filters.page, fetchData); // Fetch saat pagination berubah
 
 
       <div class="table-container elevation-1 rounded bg-white">
-        <AppDataTable :server="true" :headers="headers" :items="logs" :loading="isLoading"
+        <AppDataTable :server="true" :headers="headers" :items="logs" :row-class="getRowClass" :loading="isLoading"
           class="desktop-table header-browse-blue" density="compact" fixed-header height="600px"
           :items-length="totalItems" @update:options="onUpdateOptions">
           <template v-slot:[`item.log_date`]="{ item }">
@@ -268,88 +294,61 @@ watch(() => filters.page, fetchData); // Fetch saat pagination berubah
     <v-dialog v-model="showDetailModal" max-width="1000px" scrollable>
       <v-card v-if="selectedLog">
         <v-card-title class="bg-grey-lighten-3 d-flex justify-space-between align-center">
-          <span class="text-subtitle-1 font-weight-bold">Detail Log #{{ selectedLog.id }}</span>
+          <span class="text-subtitle-1 font-weight-bold">
+            <v-icon v-if="selectedLog.action.startsWith('ANOMALY_')" color="error"
+              class="mr-2">mdi-alert-decagram</v-icon>
+            Detail Log #{{ selectedLog.id }}
+          </span>
           <v-btn icon="mdi-close" variant="text" size="small" @click="showDetailModal = false"></v-btn>
         </v-card-title>
 
         <v-divider></v-divider>
 
-        <v-card-text class="pa-4" style="max-height: 75vh;">
-          <div class="bg-grey-lighten-4 pa-3 rounded mb-4 border">
-            <v-row dense>
+        <v-card-text class="pa-4 position-relative" style="max-height: 75vh;">
+          <v-overlay v-model="isDetailLoading" contained class="align-center justify-center">
+            <v-progress-circular indeterminate color="primary"></v-progress-circular>
+          </v-overlay>
+
+          <div v-if="!isDetailLoading">
+            <div class="bg-grey-lighten-4 pa-3 rounded mb-4 border">
+              <v-row dense>
+              </v-row>
+            </div>
+
+            <v-row>
               <v-col cols="12" md="6">
-                <div class="d-flex mb-1">
-                  <strong style="width: 80px;">User:</strong>
-                  <span class="text-primary font-weight-bold">{{ selectedLog.user_id }}</span>
+                <div class="d-flex align-center mb-2">
+                  <v-icon color="error" size="small" class="mr-2">mdi-minus-circle-outline</v-icon>
+                  <h4 class="text-error mb-0">Data Lama (Before)</h4>
                 </div>
-                <div class="d-flex mb-1">
-                  <strong style="width: 80px;">Waktu:</strong>
-                  <span>{{ formatDate(selectedLog.log_date) }}</span>
-                </div>
-                <div class="d-flex">
-                  <strong style="width: 80px;">Modul:</strong>
-                  <span>{{ selectedLog.module }}</span>
+                <div class="data-box bg-red-lighten-5 border-red">
+                  <div v-if="selectedLog.old_values">
+                    <DataViewer :data="parseJson(selectedLog.old_values)" />
+                  </div>
+                  <div v-else class="empty-state text-error">
+                    <v-icon icon="mdi-cancel" class="mb-2"></v-icon>
+                    <div>Tidak ada data lama (Aksi Create/Login/Anomali)</div>
+                  </div>
                 </div>
               </v-col>
+
               <v-col cols="12" md="6">
-                <div class="d-flex mb-1">
-                  <strong style="width: 80px;">IP:</strong>
-                  <span class="text-grey-darken-2">{{ selectedLog.ip_address }}</span>
+                <div class="d-flex align-center mb-2">
+                  <v-icon color="success" size="small" class="mr-2">mdi-plus-circle-outline</v-icon>
+                  <h4 class="text-success mb-0">Data Baru (After)</h4>
                 </div>
-                <div class="d-flex mb-1">
-                  <strong style="width: 80px;">Browser:</strong>
-                  <span class="ua-text">
-                    {{ selectedLog.user_agent }}
-                  </span>
-                </div>
-                <div class="d-flex">
-                  <strong style="width: 80px;">Target:</strong>
-                  <span class="font-weight-medium">{{ selectedLog.target_id }}</span>
+                <div class="data-box bg-green-lighten-5 border-green">
+                  <div v-if="selectedLog.new_values">
+                    <DataViewer :data="parseJson(selectedLog.new_values)" />
+                  </div>
+                  <div v-else class="empty-state text-success">
+                    <v-icon icon="mdi-cancel" class="mb-2"></v-icon>
+                    <div>Tidak ada data baru (Aksi Delete)</div>
+                  </div>
                 </div>
               </v-col>
             </v-row>
-            <v-divider class="my-2"></v-divider>
-            <div class="pa-2 bg-blue-lighten-5 rounded border border-blue-lighten-3 text-blue-darken-3">
-              <strong>Catatan:</strong> {{ selectedLog.note }}
-            </div>
           </div>
-
-          <v-row>
-            <v-col cols="12" md="6">
-              <div class="d-flex align-center mb-2">
-                <v-icon color="error" size="small" class="mr-2">mdi-minus-circle-outline</v-icon>
-                <h4 class="text-error mb-0">Data Lama (Before)</h4>
-              </div>
-
-              <div class="data-box bg-red-lighten-5 border-red">
-                <div v-if="selectedLog.old_values">
-                  <DataViewer :data="parseJson(selectedLog.old_values)" />
-                </div>
-                <div v-else class="empty-state text-error">
-                  <v-icon icon="mdi-cancel" class="mb-2"></v-icon>
-                  <div>Tidak ada data lama (Aksi Create/Login)</div>
-                </div>
-              </div>
-            </v-col>
-
-            <v-col cols="12" md="6">
-              <div class="d-flex align-center mb-2">
-                <v-icon color="success" size="small" class="mr-2">mdi-plus-circle-outline</v-icon>
-                <h4 class="text-success mb-0">Data Baru (After)</h4>
-              </div>
-
-              <div class="data-box bg-green-lighten-5 border-green">
-                <div v-if="selectedLog.new_values">
-                  <DataViewer :data="parseJson(selectedLog.new_values)" />
-                </div>
-                <div v-else class="empty-state text-success">
-                  <v-icon icon="mdi-cancel" class="mb-2"></v-icon>
-                  <div>Tidak ada data baru (Aksi Delete)</div>
-                </div>
-              </div>
-            </v-col>
-          </v-row>
-
         </v-card-text>
       </v-card>
     </v-dialog>

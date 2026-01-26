@@ -26,6 +26,9 @@ interface PrintHeader {
   biaya_kirim: number;
   grand_total: number;
   pen_ket?: string;
+  total_dp: number;
+  belum_dibayar: number;
+  pen_jenis_order_nama?: string;
 }
 
 interface PrintDetail {
@@ -37,9 +40,16 @@ interface PrintDetail {
   total: number;
 }
 
+interface DpDetail {
+  nomor: string;
+  jenis: string;
+  nominal: number;
+}
+
 interface PrintData {
   header: PrintHeader;
   details: PrintDetail[];
+  dps: DpDetail[]; // Tambahkan array DP
 }
 
 const route = useRoute();
@@ -205,17 +215,26 @@ onMounted(() => {
                 <td>Diskon</td>
                 <td>{{ formatRupiah(printData.header.diskon) }}</td>
               </tr>
-              <tr>
+              <tr v-if="printData.header.ppn > 0">
                 <td>PPN</td>
                 <td>{{ formatRupiah(printData.header.ppn) }}</td>
               </tr>
-              <tr>
+              <tr v-if="printData.header.biaya_kirim > 0">
                 <td>Biaya Kirim</td>
                 <td>{{ formatRupiah(printData.header.biaya_kirim) }}</td>
               </tr>
               <tr class="grand-total">
                 <td>Grand Total</td>
                 <td>{{ formatRupiah(printData.header.grand_total) }}</td>
+              </tr>
+
+              <tr v-if="printData.header.total_dp > 0">
+                <td class="text-teal font-weight-bold">Uang Muka (DP)</td>
+                <td class="text-teal font-weight-bold">{{ formatRupiah(printData.header.total_dp) }}</td>
+              </tr>
+              <tr v-if="printData.header.total_dp > 0" class="balance-due">
+                <td>Sisa Bayar</td>
+                <td>{{ formatRupiah(printData.header.belum_dibayar) }}</td>
               </tr>
             </tbody>
           </table>
@@ -232,6 +251,14 @@ onMounted(() => {
       </div>
       <div v-if="printData.header.gdg_transferbank || printData.header.gdg_akun" class="bank-info">
         <strong>* Transfer Bank: {{ printData.header.gdg_transferbank }} {{ printData.header.gdg_akun }}</strong>
+      </div>
+      <div v-if="printData.dps?.length > 0" class="dp-details-list">
+        <strong>Rincian Pembayaran Uang Muka:</strong>
+        <ul>
+          <li v-for="dp in (printData.dps || [])" :key="dp.nomor">
+            {{ dp.nomor }} ({{ dp.jenis }}) : {{ formatRupiah(dp.nominal) }}
+          </li>
+        </ul>
       </div>
       <div class="note-section">
         Note: {{ printData.header.pen_ket }}
@@ -485,5 +512,46 @@ onMounted(() => {
 .print-container * {
   color: #000 !important;
   background: #fff !important;
+}
+
+.text-teal {
+  color: #00796b !important;
+}
+
+.balance-due td {
+  background-color: #f9f9f9;
+  border-top: 2px solid #333;
+  font-weight: bold;
+  font-size: 11pt;
+}
+
+.dp-details-list {
+  margin-top: 15px;
+  font-size: 8.5pt;
+  border-top: 1px dashed #ccc;
+  padding-top: 5px;
+}
+
+.dp-details-list ul {
+  margin: 5px 0;
+  padding-left: 15px;
+  list-style-type: square;
+}
+
+.items-table td.nama {
+  text-transform: uppercase;
+  /* Nama barang custom biasanya butuh penekanan */
+}
+
+.dp-details-list {
+  margin-top: 15px;
+  font-size: 8.5pt;
+  border-top: 1px dashed #ccc;
+  padding-top: 5px;
+}
+
+.dp-details-list ul {
+  margin: 5px 0;
+  padding-left: 20px;
 }
 </style>

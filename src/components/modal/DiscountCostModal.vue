@@ -54,6 +54,15 @@ const props = defineProps({
   gudangKode: {
     type: String,
     required: true
+  },
+  source: {
+    type: String,
+    default: 'SO' // Bisa 'SO' atau 'OFFER'
+  },
+  // Tambahkan nomor dokumen jika sudah ada (untuk audit otorisasi)
+  docNo: {
+    type: String,
+    default: ''
   }
 });
 
@@ -121,6 +130,16 @@ const displayDiskonRp = computed(() => {
     : formatRupiah(diskonRpInput.value);
 });
 
+// Jalur API dinamis berdasarkan sumber [cite: 2025-09-03]
+const apiBasePath = computed(() => props.source === 'OFFER' ? '/offer-form' : '/so-form');
+const discountLookupEndpoint = computed(() => props.source === 'OFFER' ? '/get-default-discount' : '/lookup/default-discount');
+
+// Helper untuk label transaksi pada modal otorisasi
+const transaksiLabel = computed(() => {
+  const type = props.source === 'OFFER' ? 'PENAWARAN' : 'SO';
+  return props.docNo ? `${type} ${props.docNo}` : `DRAFT ${type}`;
+});
+
 // --- Helper Functions ---
 const backupCurrentState = () => {
   previousState.value = JSON.parse(JSON.stringify(localFooter.value));
@@ -153,7 +172,7 @@ const requestAuthorization = (
   authDialog.jenis = jenis;
   authDialog.nominal = nominal;
 
-  authDialog.transaksi = 'DRAFT SO'; // Bisa diisi nomor SO jika ada, tapi di modal biasanya draft
+  authDialog.transaksi = transaksiLabel.value; // Bisa diisi nomor SO jika ada, tapi di modal biasanya draft
   authDialog.barcode = '';
   authDialog.keterangan = keteranganInfo;
 
@@ -182,7 +201,7 @@ const handleDiscount1Change = async () => {
 
   try {
     // Cek Default Diskon dari Backend
-    const response = await api.get('/so-form/lookup/default-discount', {
+    const response = await api.get(`${apiBasePath.value}${discountLookupEndpoint.value}`, {
       params: {
         level: props.customer.level_kode,
         total: props.totalSo,
@@ -377,7 +396,7 @@ const handleFocusDiscount = () => {
         <v-divider class="my-4"></v-divider>
 
         <v-list density="compact" class="summary-list">
-          <v-list-item title="Total SO (Bruto)">
+          <v-list-item :title="props.source === 'OFFER' ? 'Total Penawaran (Bruto)' : 'Total SO (Bruto)'">
             <template #append>{{ formatRupiah(props.totalSo) }}</template>
           </v-list-item>
           <v-list-item title="Diskon Faktur">

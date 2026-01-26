@@ -163,17 +163,37 @@ interface Item {
   sod_custom_data?: string;
 }
 
-interface PenawaranDetail {
-  kode: string;
-  jumlah: number;
-  harga: number;
-  diskonPersen?: number;
-  diskonRp?: number;
-  total?: number;
-  noSoDtf?: string;
-  noPengajuanHarga?: string;
-  [key: string]: unknown;
+// 2. Gunakan PenawaranDetail yang sebelumnya "unused" untuk mapping detail dari API
+interface PenawaranDetailApi {
+  pend_kode: string;
+  nama_barang: string;
+  pend_ukuran: string;
+  pend_jumlah: number;
+  pend_harga: number;
+  pend_disc: number;
+  pend_diskon: number;
+  pend_custom: 'Y' | 'N';
+  pend_custom_data?: string | null;
+  stok?: number;
+  kategori?: string;
+  barcode?: string;
+  pend_sd_nomor?: string;
+  pend_ph_nomor?: string;
 }
+
+interface SourceItem {
+  kode: string;
+  nama: string;
+  ukuran: string;
+  jumlah: number;
+}
+
+interface CustomTechData {
+  ukuranKaos?: { ukuran: string; jumlah: number; harga: number }[];
+  titikCetak?: { keterangan: string; sizeCetak: string; panjang: number; lebar: number }[];
+  sourceItems?: SourceItem[];
+}
+
 
 interface SoDtfDetail {
   sd_nomor: string;
@@ -255,6 +275,14 @@ interface CustomerLookupResult {
   cus_top?: number;
   franchise?: "Y" | "N";
   cus_franchise?: "Y" | "N";
+}
+
+interface DpApiResult {
+  nomor: string;
+  jenis: string;
+  nominal: number;
+  posting?: string;
+  fsk?: string;
 }
 
 // --- State ---
@@ -387,10 +415,19 @@ const activePromoForBonus = ref({ nomor: "", qty: 0 });
 //   titik: 0,
 // });
 
-const parseDate = (str: string) => {
-  // aman: tidak di-convert ke timezone
-  const [y, m, d] = str.split("-");
-  return new Date(Number(y), Number(m) - 1, Number(d), 12);
+const parseDate = (val: string | Date | null | undefined): Date => {
+  if (!val) return new Date();
+  if (val instanceof Date) return val;
+
+  const datePart = val.split("T")[0];
+  const [y, m, d] = datePart.split("-");
+
+  if (y && m && d) {
+    return new Date(Number(y), Number(m) - 1, Number(d), 12);
+  }
+
+  const fallback = new Date(val);
+  return isValid(fallback) ? fallback : new Date();
 };
 
 const mainTableHeaders = [
@@ -1181,79 +1218,132 @@ const onSalesCounterSelected = (salesCounter: { kode: string; nama: string }) =>
 const onPenawaranSelected = async (penawaran: { nomor: string }) => {
   isPenawaranSearchVisible.value = false;
   toast.info(`Memuat detail dari Penawaran ${penawaran.nomor}...`);
+
   try {
-    // 1. Panggil API (yang sudah kita modif di backend)
-    // API lama: /so-form/lookup/penawaran-details/
-    // API baru di service Anda: /so-form/lookup/penawaran-details/ (Sama, bagus)
-    const response = await api.get(`/so-form/lookup/penawaran-details/${penawaran.nomor}`);
+    // 1. Ambil data dari backend dengan parameter cabang untuk kalkulasi stok real-time
+    const response = await api.get(`/so-form/lookup/penawaran-details/${penawaran.nomor}`, {
+      params: { cabang: header.value.gudang.kode }
+    });
 
-    // 2. Destructure data baru dari backend
-    const { header: penawaranHeader, details: penawaranDetails, customer } = response.data;
+    const { header: penHeader, pen_tanggal, details: penDetails, customer, dps } = response.data;
 
-    // 3. Validasi customer yang didapat
+    // 2. Validasi Keberadaan Data
     if (!customer || !customer.kode) {
       toast.error("Gagal memuat data customer dari penawaran tersebut.");
       return;
     }
 
-    // 4. Jalankan validasi customer (dari fungsi onCustomerSelected)
+    // 3. Validasi Level & Hak Akses Gudang (KPR/Franchise)
     if (!customer.level_kode) {
       toast.error(`Level Customer '${customer.nama}' belum di-setting.`);
       return;
     }
-    const gudang = header.value.gudang.kode;
-    const isFranchise = customer.franchise === "Y" || customer.cus_franchise === "Y";
 
-    if (gudang === "KPR" && !isFranchise) {
-      toast.error(`Customer '${customer.nama}' bukan Customer Prioritas.`);
+    const currentGudang = header.value.gudang.kode;
+    const isFranchise = customer.franchise === "Y";
+
+    if (currentGudang === "KPR" && !isFranchise) {
+      toast.error(`Customer '${customer.nama}' bukan Customer Prioritas (KPR).`);
       return;
     }
-    if (gudang !== "KPR" && isFranchise) {
-      toast.error(`Customer Prioritas '${customer.nama}' hanya bisa transaksi di Store KPR.`);
+    if (currentGudang !== "KPR" && isFranchise) {
+      toast.error(`Customer Prioritas '${customer.nama}' hanya bisa dilayani di Store KPR.`);
       return;
     }
 
-    // 5. Jika lolos validasi, isi SEMUA data
-    header.value.penawaran = penawaranHeader.pen_nomor;
-    // --- Isi Data Customer ---
+    header.value.tanggal = pen_tanggal;
+
+    // 5. Isi State Header
+    header.value.penawaran = penHeader.pen_nomor;
     header.value.customer = customer;
-    header.value.levelKode = customer.level_kode;
-    header.value.levelNama = customer.level_nama;
+    header.value.levelKode = customer.level_kode || "";
+    header.value.levelNama = customer.level_nama || "";
     header.value.alamat = customer.alamat;
     header.value.kota = customer.kota;
     header.value.telp = customer.telp;
-    header.value.top = customer.top; // Ambil TOP dari data customer
+    header.value.top = customer.top;
+    header.value.keterangan = penHeader.pen_ket;
+    header.value.ppnPersen = Number(penHeader.pen_ppn) || 0;
 
-    // --- Isi Data Penawaran ---
-    // (Opsional: Anda bisa pilih mau pakai TOP customer atau TOP penawaran)
-    // header.value.top = penawaranHeader.pen_top; // Ambil TOP dari Penawaran
-    header.value.keterangan = penawaranHeader.pen_ket;
-    header.value.ppnPersen = penawaranHeader.pen_ppn;
+    // 6. Isi State Footer (Diskon & Biaya Kirim)
+    footer.value.biayaKirim = Number(penHeader.pen_bkrm) || 0;
+    footer.value.diskonRp = Number(penHeader.pen_disc) || 0;
+    footer.value.diskonPersen1 = Number(penHeader.pen_disc1) || 0;
+    footer.value.diskonPersen2 = Number(penHeader.pen_disc2) || 0;
 
-    footer.value.biayaKirim = penawaranHeader.pen_bkrm;
-    footer.value.diskonRp = penawaranHeader.pen_disc;
-    footer.value.diskonPersen1 = penawaranHeader.pen_disc1;
-    footer.value.diskonPersen2 = penawaranHeader.pen_disc2;
-
-    // --- Isi Data Item ---
-    // (Pastikan 'stok' juga dikirim oleh backend di 'detailRows' jika diperlukan)
-    items.value = penawaranDetails.map((d: PenawaranDetail) => ({
-      ...d,
-      id: Date.now() + Math.random(),
-      stok: d.stok || 0, // Pastikan stok ada
+    // 7. Pemetaan Rincian DP (Down Payment)
+    dpItems.value = (dps as DpApiResult[] || []).map((dp) => ({
+      ...dp,
+      posting: dp.posting || "BELUM",
+      fsk: dp.fsk || ""
     }));
 
-    addNewRow(); // Tambah baris kosong
-    calculateTotals(); // Hitung ulang semua
+    // 8. Pemetaan Item Detail (Termasuk Logika Custom Order)
+    items.value = (penDetails as PenawaranDetailApi[]).map((d) => {
+      let parsedJson: CustomTechData = {};
+      const isCustom = d.pend_custom === 'Y';
 
-    toast.success(`Customer ${customer.nama} dan detail Penawaran berhasil dimuat.`);
+      // Parse data teknis jika barang custom
+      if (isCustom && d.pend_custom_data) {
+        try {
+          parsedJson = typeof d.pend_custom_data === 'string'
+            ? JSON.parse(d.pend_custom_data)
+            : d.pend_custom_data;
+        } catch (e) {
+          console.error("Gagal parse data teknis custom:", e);
+        }
+      }
+
+      // Gabungkan daftar ukuran unik untuk tampilan grid
+      const ringkasanUkuran = d.pend_ukuran ||
+        (parsedJson.ukuranKaos
+          ? [...new Set(parsedJson.ukuranKaos.map((u) => u.ukuran))].join(', ')
+          : '');
+
+      return {
+        id: Date.now() + Math.random(),
+        kode: d.pend_kode,
+        nama: d.nama_barang, // Membawa nama asli atau nama custom dtf dari backend
+        kategori: d.kategori || (isCustom ? 'PESANAN' : 'REGULER'),
+        ukuran: ringkasanUkuran,
+        stok: Number(d.stok) || 0,
+        jumlah: Number(d.pend_jumlah) || 0,
+        harga: Number(d.pend_harga) || 0,
+        diskonPersen: Number(d.pend_disc) || 0,
+        diskonRp: Number(d.pend_diskon) || 0,
+        total: Number(d.pend_jumlah) * (Number(d.pend_harga) - Number(d.pend_diskon)),
+        barcode: d.barcode || "",
+        noSoDtf: d.pend_sd_nomor || "",
+        noPengajuanHarga: d.pend_ph_nomor || "",
+        pin: "",
+
+        // Flagging Data Custom untuk integrity saat Save SO
+        isCustomOrder: isCustom,
+        sod_custom: d.pend_custom,
+        sod_custom_nama: isCustom ? d.nama_barang : null,
+        sod_custom_data: typeof d.pend_custom_data === 'object'
+          ? JSON.stringify(d.pend_custom_data)
+          : d.pend_custom_data,
+
+        // Data rincian untuk kebutuhan modal JenisOrder (jika di-edit di layar SO)
+        ukuranKaos: parsedJson.ukuranKaos || [],
+        titikCetak: parsedJson.titikCetak || [],
+        sourceItems: parsedJson.sourceItems || []
+      };
+    });
+
+    // 9. Finalisasi Tampilan Grid
+    addNewRow(); // Tambahkan baris kosong di akhir grid
+    await nextTick(); // Tunggu Vue merender ulang DOM
+    calculateTotals(); // Hitung ulang total, sisa bayar, dan status AKTIF/PASIF
+
+    toast.success(`Data Penawaran ${penawaran.nomor} berhasil dimuat.`);
   } catch (error: unknown) {
+    console.error("Error onPenawaranSelected:", error);
     if (axios.isAxiosError(error)) {
-      toast.error(
-        `Gagal memuat detail Penawaran: ${error.response?.data?.message || error.message}`
-      );
+      toast.error(`Gagal memuat detail Penawaran: ${error.response?.data?.message || error.message}`);
     } else {
-      toast.error("Gagal memuat detail Penawaran.");
+      toast.error("Terjadi kesalahan sistem saat memuat data penawaran.");
     }
   }
 };
@@ -2176,12 +2266,13 @@ watch(
 watch(
   [() => header.value.tanggal, () => header.value.top],
   ([newTanggal, newTop]) => {
+    // parseDate sekarang sudah aman menangani string maupun object
     const date = parseDate(newTanggal);
     if (isValid(date)) {
-      header.value.tempo = format(addDays(date, newTop || 0), "yyyy-MM-dd");
+      header.value.tempo = format(addDays(date, Number(newTop) || 0), "yyyy-MM-dd");
     }
   },
-  { immediate: true } // immediate: true agar langsung dihitung saat form dimuat
+  { immediate: true }
 );
 
 watch(

@@ -40,9 +40,10 @@ const isLoading = ref(true);
 const startDate = ref(format(new Date(), 'yyyy-MM-dd'));
 const endDate = ref(format(new Date(), 'yyyy-MM-dd'));
 const expanded = ref<string[]>([]);
-const selected = ref<string | null>(null);
+const selected = ref<BarcodeHeader[]>([]);
+const showDeleteDialog = ref(false);
 
-const isSingleSelected = computed(() => selected.value?.length === 1);
+const isSingleSelected = computed(() => selected.value.length === 1);
 const hasViewPermission = computed(() => authStore.can(MENU_ID, 'view'));
 
 const detailHeaders = [
@@ -104,6 +105,30 @@ const loadDetails = async (newlyExpandedItems: BarcodeHeader[]) => {
   }
 };
 
+const goToEditPage = () => {
+  if (isSingleSelected.value) {
+    const item = selected.value[0];
+    router.push(`/daftar/cetak-barcode/edit/${item.nomor}`);
+  }
+};
+
+const openDeleteConfirm = () => {
+  if (isSingleSelected.value) showDeleteDialog.value = true;
+};
+
+const confirmDelete = async () => {
+  const item = selected.value[0];
+  showDeleteDialog.value = false;
+  try {
+    await api.delete(`/barcode-form/delete/${item.nomor}`);
+    toast.success("Data berhasil dihapus");
+    fetchData();
+    selected.value = [];
+  } catch (error) {
+    toast.error("Gagal menghapus data.", error);
+  }
+};
+
 const goToCreatePage = () => {
   router.push('/daftar/cetak-barcode/new');
 };
@@ -128,8 +153,13 @@ onMounted(() => {
       <v-btn v-if="authStore.can(MENU_ID, 'insert')" size="small" color="primary" @click="goToCreatePage"
         prepend-icon="mdi-plus">Baru</v-btn>
 
-      <v-btn size="small" prepend-icon="mdi-pencil" :disabled="!isSingleSelected">Ubah</v-btn>
-      <v-btn size="small" prepend-icon="mdi-delete" color="error" :disabled="!isSingleSelected">Hapus</v-btn>
+      <v-btn v-if="authStore.can(MENU_ID, 'edit')" size="small" prepend-icon="mdi-pencil" :disabled="!isSingleSelected"
+        @click="goToEditPage">Ubah</v-btn>
+
+      <v-btn v-if="authStore.can(MENU_ID, 'delete')" size="small" prepend-icon="mdi-delete" color="error"
+        :disabled="!isSingleSelected" @click="openDeleteConfirm">
+        Hapus
+      </v-btn>
     </template>
 
     <div v-if="!hasViewPermission" class="state-container">
@@ -151,8 +181,8 @@ onMounted(() => {
 
       <div class="table-wrapper">
         <AppDataTable v-model="selected" v-model:expanded="expanded" :headers="tableHeaders" :items="headers"
-          :loading="isLoading" item-value="nomor" density="compact" class="desktop-table header-browse-blue" fixed-header show-select
-          select-strategy="single" return-object show-expand @update:expanded="loadDetails">
+          :loading="isLoading" item-value="nomor" density="compact" class="desktop-table header-browse-blue"
+          fixed-header show-select select-strategy="single" return-object show-expand @update:expanded="loadDetails">
           <template #[`item.tanggal`]="{ item }">
             {{ format(new Date(item.tanggal), 'dd/MM/yyyy') }}
           </template>
@@ -182,6 +212,25 @@ onMounted(() => {
         </AppDataTable>
       </div>
     </div>
+
+    <v-dialog v-model="showDeleteDialog" max-width="400">
+      <v-card rounded="lg">
+        <v-card-title class="d-flex align-center">
+          <v-icon color="error" class="mr-2">mdi-alert-circle</v-icon> Konfirmasi Hapus
+        </v-card-title>
+        <v-card-text>
+          Apakah Anda yakin ingin menghapus data barcode <strong>{{ selected[0]?.nomor }}</strong>? Tindakan ini tidak
+          dapat
+          dibatalkan.
+        </v-card-text>
+        <v-card-actions>
+          <v-spacer></v-spacer>
+          <v-btn variant="text" @click="showDeleteDialog = false">Batal</v-btn>
+          <v-btn color="error" variant="flat" @click="confirmDelete">Ya, Hapus</v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+
   </PageLayout>
 </template>
 

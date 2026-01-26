@@ -71,6 +71,7 @@ const props = defineProps({
   existingDp: { type: Number, default: 0 },
   existingDpNomor: { type: String, default: "" },
   nomorSo: { type: String, required: true },
+  source: { type: String, default: 'SO' },
 });
 const emit = defineEmits(["close", "dp-saved"]);
 
@@ -101,6 +102,8 @@ const newDpFromSave = ref<NewDpItem | null>(null); // Menyimpan data newDp untuk
 const isPrintingNow = ref(false);
 
 const save = async () => {
+  const apiBasePath = props.source === 'OFFER' ? '/offer-form' : '/so-form';
+
   if ((dpData.value.nominal || 0) === 0 && props.existingDpNomor) {
     try {
       const res = await api.post("/so-form/delete-dp", {
@@ -138,7 +141,7 @@ const save = async () => {
   try {
     // 1. Simpan DP
     const payload = { ...dpData.value, customerKode: props.customerKode, nomorSo: props.nomorSo };
-    const saveResponse = await api.post("/so-form/save-dp", payload);
+    const saveResponse = await api.post(`${apiBasePath}/save-dp`, payload);
     toast.success(saveResponse.data.message);
 
     const newDp = saveResponse.data.newDp;
@@ -158,7 +161,7 @@ const save = async () => {
     isPrinting.value = true; // Tampilkan loading 'Memuat Pratinjau...'
 
     // 3. Panggil API data cetak
-    const printResponse = await api.get(`/so-form/print-data/dp/${newDp.nomor}`);
+    const printResponse = await api.get(`${apiBasePath}/print-data/dp/${newDp.nomor}`);
     printHeaderData.value = printResponse.data;
 
     // 4. Tampilkan dialog pratinjau cetak

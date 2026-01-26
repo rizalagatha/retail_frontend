@@ -30,6 +30,10 @@ const isBranchDialogVisible = ref(false);
 const branchList = ref<Branch[]>([]);
 const tempToken = ref('');
 const selectedCabang = ref<string | null>(null);
+const isChangePasswordVisible = ref(false);
+const newPassword = ref('');
+const confirmPassword = ref('');
+const showNewPassword = ref(false);
 
 // [BARU] Load Tema Tersimpan saat Halaman Dibuka
 onMounted(() => {
@@ -54,12 +58,27 @@ const handleLogin = async () => {
   }
   isLoading.value = true;
   try {
-    const response = await api.post('/auth/login', { kodeUser: kodeUser.value, password: password.value });
+    const response = await api.post('/auth/login', {
+      kodeUser: kodeUser.value,
+      password: password.value
+    });
+
+    // CASE 1: Password Expired (3 Bulan)
+    if (response.data.requiresPasswordChange) {
+      tempToken.value = response.data.tempToken;
+      isChangePasswordVisible.value = true;
+      toast.warning(response.data.message);
+      return;
+    }
+
+    // CASE 2: Membutuhkan Pilih Cabang
     if (response.data.requiresBranchSelection) {
       branchList.value = response.data.branches;
       tempToken.value = response.data.tempToken;
       isBranchDialogVisible.value = true;
-    } else {
+    }
+    // CASE 3: Login Normal Berhasil
+    else {
       authStore.setLoginData(response.data.data);
       toast.success('Login berhasil!');
       router.push('/');
@@ -67,6 +86,37 @@ const handleLogin = async () => {
   } catch (err) {
     const error = err as AxiosError<{ message: string }>;
     toast.error(error.response?.data?.message || 'Terjadi kesalahan saat login.');
+  } finally {
+    isLoading.value = false;
+  }
+};
+
+const handleChangePassword = async () => {
+  // Validasi Sederhana
+  if (newPassword.value.length < 4) {
+    return toast.error('Password minimal 4 karakter.');
+  }
+  if (newPassword.value !== confirmPassword.value) {
+    return toast.error('Konfirmasi password tidak cocok.');
+  }
+
+  isLoading.value = true;
+  try {
+    await api.post('/auth/change-expired-password', {
+      tempToken: tempToken.value,
+      newPassword: newPassword.value
+    });
+
+    toast.success('Password berhasil diperbarui! Silakan login kembali.');
+
+    // Reset Form & Tutup Dialog
+    isChangePasswordVisible.value = false;
+    newPassword.value = '';
+    confirmPassword.value = '';
+    password.value = ''; // Kosongkan password lama agar user input password baru
+  } catch (err) {
+    const error = err as AxiosError<{ message: string }>;
+    toast.error(error.response?.data?.message || 'Gagal memperbarui password.');
   } finally {
     isLoading.value = false;
   }
@@ -208,6 +258,50 @@ const handleBranchSelect = async () => {
             :disabled="!selectedCabang">
             Lanjut
           </v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+
+    <v-dialog v-model="isChangePasswordVisible" persistent max-width="450px">
+      <v-card class="rounded-lg elevation-12 pa-4">
+        <v-card-title class="text-h5 font-weight-bold text-error d-flex align-center">
+          <v-icon start color="error">mdi-shield-alert</v-icon>
+          Keamanan Akun
+        </v-card-title>
+
+        <v-card-text>
+          <p class="mb-6 text-body-1">
+            Password Anda sudah digunakan lebih dari <strong>3 bulan</strong>. Demi keamanan, Anda diwajibkan membuat
+            password baru.
+          </p>
+
+          <v-form @submit.prevent="handleChangePassword">
+            <div class="mb-4">
+              <label class="text-caption font-weight-bold mb-1 d-block text-uppercase ls-1">Password Baru</label>
+              <v-text-field v-model="newPassword" :type="showNewPassword ? 'text' : 'password'"
+                placeholder="Masukkan Password Baru" variant="outlined" density="comfortable"
+                prepend-inner-icon="mdi-lock-plus-outline"
+                :append-inner-icon="showNewPassword ? 'mdi-eye-outline' : 'mdi-eye-off-outline'"
+                @click:append-inner="showNewPassword = !showNewPassword" hide-details></v-text-field>
+            </div>
+
+            <div class="mb-6">
+              <label class="text-caption font-weight-bold mb-1 d-block text-uppercase ls-1">Konfirmasi Password
+                Baru</label>
+              <v-text-field v-model="confirmPassword" type="password" placeholder="Ulangi Password Baru"
+                variant="outlined" density="comfortable" prepend-inner-icon="mdi-lock-check-outline"
+                hide-details></v-text-field>
+            </div>
+
+            <v-btn type="submit" block color="primary" size="large" class="font-weight-bold" :loading="isLoading"
+              :disabled="!newPassword || newPassword !== confirmPassword">
+              Perbarui & Login Kembali
+            </v-btn>
+          </v-form>
+        </v-card-text>
+
+        <v-card-actions class="justify-center">
+          <v-btn variant="text" color="grey" @click="isChangePasswordVisible = false">Batal</v-btn>
         </v-card-actions>
       </v-card>
     </v-dialog>

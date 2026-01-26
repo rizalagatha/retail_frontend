@@ -4,6 +4,7 @@ import { useAuthStore } from '@/stores/authStore';
 import { useRouter } from 'vue-router';
 // [GSAP] Import Library
 import { gsap } from 'gsap';
+import * as XLSX from 'xlsx';
 
 import logoUrl from '@/assets/logo.png';
 import bannerImage from '@/assets/banner-image.jpg';
@@ -556,6 +557,35 @@ const fetchStokKosong = async (isBackground = false) => {
     console.error("Gagal memuat stok kosong:", error);
   } finally {
     if (!isBackground) isLoadingStokKosong.value = false;
+  }
+};
+
+const exportStokKosong = () => {
+  if (stokKosongList.value.length === 0) {
+    toast.warning("Tidak ada data untuk diekspor.");
+    return;
+  }
+
+  try {
+    const dataToExport = stokKosongList.value.map(item => ({
+      'Kode Barang': item.kode,
+      'Barcode': item.barcode || '-',
+      'Nama Barang': item.nama_barang,
+      'Ukuran': item.ukuran,
+      'Stok': item.stok_akhir
+    }));
+
+    const worksheet = XLSX.utils.json_to_sheet(dataToExport);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Stok Kosong Reguler");
+
+    const fileName = `Stok_Kosong_Reguler_${stokKosongCabang.value || authStore.user?.cabang}_${format(new Date(), 'yyyyMMdd')}.xlsx`;
+    XLSX.writeFile(workbook, fileName);
+
+    toast.success("Data stok kosong berhasil diekspor.");
+  } catch (error) {
+    toast.error("Gagal mengekspor data.");
+    console.error(error);
   }
 };
 
@@ -1603,6 +1633,17 @@ onUnmounted(() => {
                   <v-icon class="mr-2" color="red">mdi-close-octagon-outline</v-icon><span class="text-h6">Stok
                     Kosong</span>
                 </div>
+                <v-chip v-if="stokKosongList.length > 0" size="x-small" color="red-darken-4"
+                  class="ms-2 font-weight-black" variant="flat">
+                  {{ stokKosongList.length }} Item
+                </v-chip>
+
+                <v-btn v-if="stokKosongList.length > 0" size="x-small" color="success" variant="text" class="ms-1" icon
+                  @click="exportStokKosong">
+                  <v-icon size="18">mdi-file-excel</v-icon>
+
+                  <v-tooltip activator="parent" location="top">Export ke Excel</v-tooltip>
+                </v-btn>
                 <div class="d-flex align-center gap-2 w-100 w-sm-auto" style="max-width: 400px;">
                   <div v-if="authStore.user?.cabang === 'KDC'" style="width: 140px;">
                     <v-select v-model="stokKosongCabang" :items="cabangList" item-title="nama" item-value="kode"

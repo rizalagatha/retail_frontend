@@ -7,7 +7,7 @@ import PageLayout from '@/components/PageLayout.vue';
 import { useToast } from 'vue-toastification';
 import { useAuthStore } from '@/stores/authStore';
 import { format } from 'date-fns';
-import type { AxiosError } from 'axios';
+import axios from 'axios';
 import JsBarcode from 'jsbarcode';
 import ProductSearchModal from '@/components/lookup/ProductSearchModal.vue';
 import { formatRupiah } from "@/utils/formatRupiah";
@@ -56,6 +56,14 @@ interface PrintLabelItem {
   charga: string;
   nourut: number;
   layoutType: 'XP-360B' | '360B';
+}
+interface BarcodeApiData {
+  kode: string;
+  barcode: string;
+  nama: string;
+  ukuran: string;
+  harga: number;
+  jumlah: number;
 }
 
 // --- State Header & Form ---
@@ -276,12 +284,29 @@ const save = async () => {
       header: { nomor: nomor.value, tanggal: tanggal.value },
       details: validItems,
       user: { kode: authStore.user?.kode },
-      isNew: !isEditMode.value // Kirim false jika dalam mode EDIT
+      isNew: !isEditMode.value
     };
 
+    // 1. Simpan ke Database
     await api.post('/barcode-form/save', payload);
+
+    // 2. Tandai sebagai sudah tersimpan agar dialog "Unsaved Changes" tidak muncul
+    isAfterSave.value = true;
+    markAsSaved();
+
     toast.success(`Data barcode ${nomor.value} berhasil disimpan.`);
-    router.push('/daftar/cetak-barcode'); // Kembali ke list setelah simpan sukses
+
+    // 3. Siapkan data untuk pratinjau cetak
+    const printOptions = {
+      showPrice: showPriceOnLabel.value,
+      printerType: selectedPrinter.value,
+    };
+    const dataToPrint = preparePrintData(validItems, printOptions, nomor.value, tanggal.value);
+
+    // 4. Buka Modal Pratinjau
+    handlePrint(dataToPrint);
+
+    // CATATAN: router.push dipindahkan ke fungsi closePreview
   } catch (error) {
     console.error(error);
     toast.error('Gagal menyimpan data.');
@@ -444,6 +469,8 @@ const generateBarcodesInPreview = async () => {
 const closePreview = () => {
   isPrintPreviewVisible.value = false;
   if (isAfterSave.value) {
+    // Pastikan UI Store juga tahu bahwa data sudah bersih
+    uiStore.setUnsavedChanges(false);
     router.push('/daftar/cetak-barcode');
   }
   isAfterSave.value = false;
@@ -451,14 +478,30 @@ const closePreview = () => {
 
 const loadDataForEdit = async (docNomor: string) => {
   try {
-    const response = await api.get(`/barcodes/${docNomor}`);
-    items.value = response.data.map((d: any) => ({
+    // 1. Tentukan tipe data kembalian pada api.get
+    const response = await api.get<BarcodeApiData[]>(`/barcodes/${docNomor}`);
+
+    // 2. Map data menggunakan interface BarcodeApiData untuk mengganti 'any'
+    items.value = response.data.map((d: BarcodeApiData) => ({
       ...d,
-      id: Date.now() + Math.random() // Beri ID unik untuk grid
+      id: Date.now() + Math.random() // Tetap beri ID unik untuk kebutuhan grid frontend
     }));
+
     addNewRow();
-  } catch (error) {
-    toast.error("Gagal memuat data edit.", error);
+
+    // 3. Pastikan status "Unsaved Changes" direset setelah loading data selesai
+    await nextTick();
+    markAsSaved();
+
+  } catch (error: unknown) {
+    // 4. Gunakan AxiosError untuk menangani pesan error dari server
+    if (axios.isAxiosError(error)) {
+      const serverMessage = error.response?.data?.message || "Gagal memuat data edit.";
+      toast.error(serverMessage);
+    } else {
+      toast.error("Terjadi kesalahan sistem saat memuat data.");
+    }
+
     router.push('/daftar/cetak-barcode');
   }
 };
@@ -640,7 +683,7 @@ onMounted(() => {
                   <span>{{ printPreviewData[(i - 1) * 2 + 1].tgl }}</span>
                   <span>{{ printPreviewData[(i - 1) * 2 + 1].ukuran }}</span>
                   <span v-if="printPreviewData[(i - 1) * 2 + 1].charga">{{ printPreviewData[(i - 1) * 2 + 1].charga
-                  }}</span>
+                    }}</span>
                 </div>
               </div>
               <div v-else class="barcode-label"></div>

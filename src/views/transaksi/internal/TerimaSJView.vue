@@ -147,11 +147,12 @@ const selectedRow = computed(() => (isSingleSelected.value ? selected.value[0] :
 const isK01 = computed(() => authStore.user?.cabang === "K01");
 const isKpr = computed(() => authStore.user?.cabang === "KPR");
 const isKon = computed(() => authStore.user?.cabang === "KON");
+const isKdb = computed(() => authStore.user?.cabang === "KDB");
 
 const terimaDisabledReason = computed(() => {
   // Tambahkan isKon ke dalam pengecekan izin akses web
-  if (!isK01.value && !isKpr.value && !isKon.value) {
-    return "Penerimaan SJ cabang selain K01, KPR, & KON wajib melalui Aplikasi Kaosan Mobile.";
+  if (!isK01.value && !isKpr.value && !isKon.value && !isKdb.value) {
+    return "Penerimaan SJ cabang selain K01, KPR, KON, & KDB wajib melalui Aplikasi Kaosan Mobile.";
   }
 
   if (!isSingleSelected.value) {
@@ -493,9 +494,9 @@ watch(filters, fetchMasterData, { deep: true });
                   minWidth: header.width + 'px',
                   maxWidth: header.width + 'px',
                 }" class="resizable-header" :class="{
-                    'text-center': header.align === 'center',
-                    'text-end': header.align === 'end',
-                  }" @click="toggleSort(header)">
+                  'text-center': header.align === 'center',
+                  'text-end': header.align === 'end',
+                }" @click="toggleSort(header)">
                   <div class="header-content">
                     <span>{{ header.title }}</span>
                     <v-icon v-if="isSorted(header)" size="small" class="ms-1">

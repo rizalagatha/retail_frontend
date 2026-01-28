@@ -414,6 +414,15 @@ const activePromoForBonus = ref({ nomor: "", qty: 0 });
 //   ukuran: 0,
 //   titik: 0,
 // });
+// --- State Konfirmasi Promo ---
+const isPromoConfirmVisible = ref(false);
+const pendingPromoData = reactive({
+  nomor: "",
+  nama: "",
+  diskon: 0
+});
+// Flag agar dialog tidak muncul berulang kali untuk promo yang sama
+const lastSuggestedPromo = ref("");
 
 const parseDate = (val: string | Date | null | undefined): Date => {
   if (!val) return new Date();
@@ -2148,13 +2157,7 @@ const handleBonusSelection = (bonusItem: BonusItemSelection) => {
 const checkRealtimePromoEligibility = async (): Promise<boolean> => {
   const autoPromoIds = ["PRO-2025-008", "PRO-2025-010"];
 
-  // Jika user sudah memilih promo manual selain otomatis, jangan interupsi
-  if (header.value.nomorPromo && !autoPromoIds.includes(header.value.nomorPromo)) return false;
-
-  const validItems = items.value.filter((i) => i.kode);
-  if (validItems.length === 0) return false;
-
-  // Filter Barang Reguler (Excl: Jersey, Sesional, Jasa, Custom)
+  // Logic filter item reguler (Tetap sama seperti sebelumnya)
   const isExcludedItem = (item: SoItem) => {
     const namaUp = item.nama?.toUpperCase() || "";
     const kodeUp = item.kode?.toUpperCase() || "";
@@ -2162,50 +2165,75 @@ const checkRealtimePromoEligibility = async (): Promise<boolean> => {
       namaUp.includes("DESAIN") || item.isCustomOrder || !!item.noSoDtf;
   };
 
+  const validItems = items.value.filter((i) => i.kode);
   const totalReguler = validItems.reduce((sum, item) => {
-    const isJersey = item.nama?.toUpperCase().includes("JERSEY");
-    if (!isJersey && !isExcludedItem(item) && item.kategori !== "SESIONAL") {
+    if (!item.nama?.toUpperCase().includes("JERSEY") && !isExcludedItem(item) && item.kategori !== "SESIONAL") {
       return sum + (item.total || 0);
     }
     return sum;
   }, 0);
 
-  // Cari Aturan Promo dari List
-  const promo010 = activePromosList.value.find((p) => p.pro_nomor === "PRO-2025-010"); // Kelipatan 250rb
-  const promo008 = activePromosList.value.find((p) => p.pro_nomor === "PRO-2025-008"); // Bulanan
+  const promo010 = activePromosList.value.find((p) => p.pro_nomor === "PRO-2025-010");
+  const promo008 = activePromosList.value.find((p) => p.pro_nomor === "PRO-2025-008");
 
-  let appliedDiscount = 0;
-  let appliedPromo: ActivePromo | null = null;
+  let discount = 0;
+  let promoToApply: ActivePromo | null = null;
 
-  // Cek Promo Kelipatan 250rb (Diskon 25rb)
   if (promo010 && totalReguler >= 250000) {
     const kelipatan = Math.floor(totalReguler / 250000);
-    appliedDiscount = 25000 * kelipatan;
-    appliedPromo = promo010;
-  }
-  // Cek Promo Bulanan jika promo kelipatan tidak terpenuhi
-  else if (promo008 && totalReguler >= promo008.pro_totalrp) {
-    appliedDiscount = promo008.pro_disrp * Math.floor(totalReguler / promo008.pro_totalrp);
-    appliedPromo = promo008;
+    discount = 25000 * kelipatan;
+    promoToApply = promo010;
+  } else if (promo008 && totalReguler >= promo008.pro_totalrp) {
+    discount = promo008.pro_disrp * Math.floor(totalReguler / promo008.pro_totalrp);
+    promoToApply = promo008;
   }
 
-  if (appliedPromo && appliedDiscount > 0) {
-    header.value.nomorPromo = appliedPromo.pro_nomor;
-    header.value.namaPromo = appliedPromo.pro_judul;
-    footer.value.diskonRp = appliedDiscount;
-    footer.value.diskonPersen1 = 0; // Matikan diskon member
-    footer.value.diskonPersen2 = 0;
-    promoNotification.value = `🎉 Promo ${appliedPromo.pro_judul} Rp ${formatRupiah(appliedDiscount)} Terpasang!`;
-    return true;
+  // --- LOGIKA KONFIRMASI ---
+  if (promoToApply && discount > 0) {
+    // Jika promo yang ditemukan berbeda dengan yang sedang aktif/disarankan sebelumnya
+    if (header.value.nomorPromo !== promoToApply.pro_nomor && lastSuggestedPromo.value !== promoToApply.pro_nomor) {
+      pendingPromoData.nomor = promoToApply.pro_nomor;
+      pendingPromoData.nama = promoToApply.pro_judul;
+      pendingPromoData.diskon = discount;
+
+      isPromoConfirmVisible.value = true; // Munculkan Dialog
+      lastSuggestedPromo.value = promoToApply.pro_nomor;
+    }
+    return !!header.value.nomorPromo; // Return true jika sudah ter-apply
   } else {
-    // Bersihkan jika tidak memenuhi syarat lagi
+    // Reset jika syarat tidak terpenuhi lagi
     if (autoPromoIds.includes(header.value.nomorPromo)) {
       header.value.nomorPromo = "";
       header.value.namaPromo = "";
-      promoNotification.value = "";
+      footer.value.diskonRp = 0;
+      lastSuggestedPromo.value = "";
     }
     return false;
   }
+};
+
+const usePromoDiscount = () => {
+  header.value.nomorPromo = pendingPromoData.nomor;
+  header.value.namaPromo = pendingPromoData.nama;
+  footer.value.diskonRp = pendingPromoData.diskon;
+
+  // Matikan diskon member jika pilih promo
+  footer.value.diskonPersen1 = 0;
+  footer.value.diskonPersen2 = 0;
+
+  isPromoConfirmVisible.value = false;
+  calculateTotals();
+  toast.success(`Promo ${pendingPromoData.nama} berhasil diterapkan.`);
+};
+
+const useMemberDiscount = () => {
+  // Tetap kosongkan promo agar logic calculateTotals menggunakan diskon member
+  header.value.nomorPromo = "";
+  header.value.namaPromo = "";
+
+  isPromoConfirmVisible.value = false;
+  calculateTotals(); // Akan menghitung default-discount member kembali
+  toast.info("Menggunakan diskon member standar.");
 };
 
 // [BARU] Handler untuk menambah DP dari pencarian di DpListModal
@@ -2766,6 +2794,35 @@ const stopAndOpenPriceProposal = (index: number) => {
       @selected="onPromoSelected" />
     <PromoBonusModal v-if="dialogs.promoBonus" :promo-nomor="activePromoForBonus.nomor"
       @close="dialogs.promoBonus = false" @selected="handleBonusSelection" />
+
+    <v-dialog v-model="isPromoConfirmVisible" max-width="450px" persistent>
+      <v-card class="rounded-lg">
+        <v-card-title class="bg-primary text-white text-h6 pa-4">
+          <v-icon start color="white">mdi-ticket-percent</v-icon>
+          Pilih Jenis Diskon
+        </v-card-title>
+        <v-card-text class="pa-5">
+          <p class="mb-4">Sistem mendeteksi transaksi ini berhak mendapatkan promo:</p>
+          <v-alert type="info" variant="tonal" border="start" density="compact" class="mb-4">
+            <strong>{{ pendingPromoData.nama }}</strong><br>
+            Potongan: <strong>{{ formatRupiah(pendingPromoData.diskon) }}</strong>
+          </v-alert>
+          <p class="text-caption text-medium-emphasis">
+            Catatan: Memilih Promo akan menonaktifkan Diskon Member (Reseller) secara otomatis.
+          </p>
+        </v-card-text>
+        <v-divider></v-divider>
+        <v-card-actions class="pa-4">
+          <v-btn variant="outlined" color="primary" @click="useMemberDiscount">
+            Tetap Diskon Member
+          </v-btn>
+          <v-spacer></v-spacer>
+          <v-btn color="primary" variant="flat" @click="usePromoDiscount">
+            Gunakan Promo
+          </v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
 
     <v-dialog v-model="isConfirmDialogVisible" max-width="400px" persistent>
       <v-card>

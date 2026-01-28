@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, computed, watch, reactive } from 'vue';
+import { ref, onMounted, computed, reactive } from 'vue';
 import api from '@/services/api';
 import PageLayout from '@/components/PageLayout.vue';
 import TransactionSearchModal from '@/components/lookup/TransactionSearchModal.vue';
@@ -58,6 +58,21 @@ interface SoSearchResult {
   KdCus: string;
   Customer: string;
   // field lain dari backend: Alamat, Kota, qtyso, qtyinv
+}
+
+interface RefundApiDetail {
+  nomor: string;
+  tanggal: string;
+  kdcus: string;
+  customer: string;
+  nominal: number;
+  refund: number;
+  apv: boolean | number | string; // Fleksibel untuk berbagai format DB
+  ket: string;
+  iddrec: string;
+  bank: string;
+  norek: string;
+  atasnama: string;
 }
 
 // --- State (Disesuaikan dari Form Delphi) ---
@@ -192,21 +207,16 @@ const loadRefundData = async (nomor: string) => {
     const response = await api.get(`${API_BASE_PATH}/${nomor}`);
     const { header: dataHeader, details: dataDetails } = response.data;
 
-    if (!dataHeader) throw new Error('Data header tidak ditemukan');
-
     Object.assign(header.value, dataHeader);
 
-    items.value = (dataDetails || []).map((item: RefundDetail) => ({
+    items.value = (dataDetails || []).map((item: RefundApiDetail) => ({
       ...item,
       id: Math.random(),
-      // [LOGIC DELPHI] Jika refund > 0 maka APV True
-      apv: (item.refund > 0),
+      // Lakukan normalisasi tipe data di sini
+      apv: item.apv === true || item.apv === 1 || item.apv === 'Y',
     }));
 
     addNewRow();
-
-    // Panggil ini agar status Header sinkron dengan detail yang baru dimuat
-    updateHeaderApprovalStatus();
 
     toast.success(`Data refund ${nomor} berhasil dimuat.`);
   } catch (error: unknown) {
@@ -353,19 +363,15 @@ const onSoSelected = async (selectedSo: SoSearchResult) => {
 
 // 2. Logika saat Centang APV diklik (SAMA PERSIS DELPHI clapvPropertiesEditValueChanged)
 const handleLineItemApproval = (item: RefundDetail) => {
-  // Hanya Approver yang bisa mengubah nilai refund otomatis
   if (!isApprover.value) return;
 
-  if (item.apv) {
-    // Jika dicentang -> Isi Refund dengan Nominal Penuh (Sisa Saldo)
-    item.refund = item.nominal;
-  } else {
-    // Jika diuncheck -> Nol-kan Refund
-    item.refund = 0;
+  // Jika uncheck, bersihkan semua input Finance di baris tersebut
+  if (!item.apv) {
+    item.refund = 0; // Lock kembali ke 0 jika batal APV
+    item.bank = '';
+    item.norek = '';
+    item.atasnama = '';
   }
-
-  // Cek ulang status header
-  updateHeaderApprovalStatus();
 };
 
 // 3. Logika Update Header (SAMA PERSIS DELPHI cekapv)
@@ -389,35 +395,22 @@ const removeRow = (id: number) => {
 
 // Logika Simpan (Analogi simpandata dan btnSimpanClick)
 const simpanData = () => {
-  if (!canSave.value) {
-    toast.error('Anda tidak memiliki izin untuk menyimpan data ini.');
-    return;
-  }
-  // Validasi dari btnSimpanClick
+  if (!canSave.value) return toast.error('Izin ditolak.');
+
   const validItems = items.value.filter(item => item.nomor);
-  if (validItems.length === 0) {
-    toast.error('Detail transaksi harus diisi minimal 1 baris.');
-    return;
-  }
+  if (validItems.length === 0) return toast.error('Minimal 1 baris terisi.');
 
   if (isApprover.value) {
-    // Validasi Approver
     for (const item of validItems) {
-      if (item.apv && item.refund <= 0) return toast.error(`Refund untuk ${item.nomor} harus > 0.`);
-      if (item.apv && item.refund > item.nominal) return toast.error(`Refund ${item.nomor} melebihi saldo.`);
-      if (item.apv && (!item.bank || !item.norek || !item.atasnama)) return toast.error(`Detail Bank ${item.nomor} wajib diisi.`);
-    }
-    if (header.value.isApproved && !validItems.some(i => i.apv)) {
-      showConfirmation(
-        'Konfirmasi Simpan',
-        'Tidak ada item yang diapprove. Yakin akan dilanjutkan?',
-        executeSave
-      );
-      return;
+      // Jika baris di-APV, maka nominal, bank, dan norek wajib diisi manual
+      if (item.apv) {
+        if (item.refund <= 0) return toast.error(`Nominal refund untuk ${item.nomor} belum diisi.`);
+        if (!item.bank || !item.norek) return toast.error(`Data rekening untuk ${item.nomor} tidak lengkap.`);
+      }
     }
   }
 
-  showConfirmation('Konfirmasi Simpan', 'Yakin ingin simpan?', executeSave);
+  showConfirmation('Konfirmasi Simpan', 'Simpan data pengajuan?', executeSave);
 };
 
 // Metode Konfirmasi dan Pembatalan (Analogi MessageDlg)
@@ -495,8 +488,8 @@ const handleTutup = () => {
   });
 };
 
-// --- Watchers & Lifecycle ---
-watch(items, updateHeaderApprovalStatus, { deep: true }); // Update header APV jika ada perubahan detail
+// // --- Watchers & Lifecycle ---
+// watch(items, updateHeaderApprovalStatus, { deep: true }); // Update header APV jika ada perubahan detail
 
 onMounted(async () => {
   // --- PENGECEKAN AWAL OTORISASI ---
@@ -593,17 +586,18 @@ onMounted(async () => {
             </template>
             <template v-slot:[`item.refund`]="{ item }">
               <v-text-field v-model.number="item.refund" type="number" variant="underlined" density="compact"
-                hide-details class="text-end" :readonly="header.isApproved || (isApprover && !item.apv)"
+                hide-details class="text-end" placeholder="0" :readonly="!isApprover || !item.apv || header.isApproved"
                 :max="item.nominal" min="0" />
             </template>
             <template v-slot:[`item.apv`]="{ item }">
               <v-checkbox-btn v-model="item.apv" density="compact" hide-details
-                :disabled="!canApprove || header.isApproved || !item.nomor"
+                :disabled="!isApprover || header.isApproved || !item.nomor"
                 @change="() => handleLineItemApproval(item)" />
             </template>
+
             <template v-slot:[`item.bank`]="{ item }">
               <v-text-field v-model="item.bank" variant="underlined" density="compact" hide-details
-                :disabled="!canApprove || !item.apv" />
+                :disabled="!isApprover || !item.apv || header.isApproved" />
             </template>
             <template v-slot:[`item.norek`]="{ item }">
               <v-text-field v-model="item.norek" variant="underlined" density="compact" hide-details

@@ -406,7 +406,7 @@ const rowsPerPage = ref(10);
 // [BARU] State untuk Promo
 const activePromosList = ref<ActivePromo[]>([]);
 const promoNotification = ref("");
-const potentialPromoDiscount = ref(0);
+// const potentialPromoDiscount = ref(0);
 const isGrandOpeningPromo = ref(false);
 const activePromoForBonus = ref({ nomor: "", qty: 0 });
 // const formJenisOrder = reactive({
@@ -694,6 +694,22 @@ const calculateTotals = async () => {
   // Simpan ke State
   footer.value.totalSo = totalSoBruto;
   totalDiscountable.value = newTotalDiscountable;
+
+  // Fungsi ini sekarang akan mengisi footer.diskonRp jika layak
+  const isPromoApplied = await checkRealtimePromoEligibility();
+
+  // 3. Kalkulasi Diskon Level/Manual (Hanya jika TIDAK ada promo)
+  if (!isPromoApplied) {
+    const diskonPersen1 = footer.value.diskonPersen1 || 0;
+    const diskonPersen2 = footer.value.diskonPersen2 || 0;
+
+    // Jika tidak ada promo, hitung berdasarkan persentase member
+    const diskon1Rp = (diskonPersen1 / 100) * newTotalDiscountable;
+    const afterDiscount1 = newTotalDiscountable - diskon1Rp;
+    const diskon2Rp = (diskonPersen2 / 100) * afterDiscount1;
+
+    footer.value.diskonRp = diskon1Rp + diskon2Rp;
+  }
 
   // Hitung Total DP yang sudah masuk
   const totalDp = dpItems.value.reduce((sum, dp) => sum + (dp.nominal || 0), 0);
@@ -2129,82 +2145,66 @@ const handleBonusSelection = (bonusItem: BonusItemSelection) => {
 // };
 
 // [BARU] Cek Kelayakan Promo Real-time (Untuk Notifikasi)
-const checkRealtimePromoEligibility = () => {
-  // Reset notification
-  promoNotification.value = "";
-  potentialPromoDiscount.value = 0;
-  isGrandOpeningPromo.value = false;
+const checkRealtimePromoEligibility = async (): Promise<boolean> => {
+  const autoPromoIds = ["PRO-2025-008", "PRO-2025-010"];
 
-  // Jika sudah pilih promo manual (F1), skip auto check
-  if (header.value.nomorPromo && header.value.nomorPromo !== "") return;
+  // Jika user sudah memilih promo manual selain otomatis, jangan interupsi
+  if (header.value.nomorPromo && !autoPromoIds.includes(header.value.nomorPromo)) return false;
 
   const validItems = items.value.filter((i) => i.kode);
-  if (validItems.length === 0) return;
+  if (validItems.length === 0) return false;
 
-  let message = "";
-  let discount = 0;
-
-  // ==========================================
-  // 🔥 HELPER LOGIKA EXCLUDE (SAMA DENGAN SAVE)
-  // ==========================================
+  // Filter Barang Reguler (Excl: Jersey, Sesional, Jasa, Custom)
   const isExcludedItem = (item: SoItem) => {
     const namaUp = item.nama?.toUpperCase() || "";
     const kodeUp = item.kode?.toUpperCase() || "";
-
-    // Cek Jasa/Desain
-    const isJasaOrDesign =
-      item.isJasa ||
-      kodeUp.startsWith("JS") ||
-      kodeUp.startsWith("JASA") ||
-      namaUp.includes("JASA") ||
-      namaUp.includes("DESAIN") ||
-      namaUp.includes("FILE");
-    // Cek Custom/DTF/Pengajuan
-    const isCustomOrDtf = item.isCustomOrder || !!item.noSoDtf || !!item.noPengajuanHarga;
-
-    return isJasaOrDesign || isCustomOrDtf;
+    return item.isJasa || kodeUp.startsWith("JS") || kodeUp.startsWith("JASA") ||
+      namaUp.includes("DESAIN") || item.isCustomOrder || !!item.noSoDtf;
   };
 
-  // LOGIKA REGULER (Logika Grand Opening K11 dihapus dari sini)
-  const promo008 = activePromosList.value.find((p) => p.pro_nomor === "PRO-2025-008");
-  const promo010 = activePromosList.value.find((p) => p.pro_nomor === "PRO-2025-010");
-
-  // Hitung Total Reguler (Excl Jersey & Custom/Jasa)
   const totalReguler = validItems.reduce((sum, item) => {
-    const isJersey = item.nama && item.nama.toUpperCase().includes("JERSEY");
-    const isSesional = item.kategori === "SESIONAL";
-
-    // Syarat Promo Kelipatan: Bukan Jersey, Bukan Jasa/Custom, BUKAN SESIONAL
-    if (!isJersey && !isExcludedItem(item) && !isSesional) {
+    const isJersey = item.nama?.toUpperCase().includes("JERSEY");
+    if (!isJersey && !isExcludedItem(item) && item.kategori !== "SESIONAL") {
       return sum + (item.total || 0);
     }
     return sum;
   }, 0);
 
-  // Hitung Total Belanja (Excl Custom/Jasa)
-  const totalBelanja = validItems.reduce((sum, item) => {
-    if (!isExcludedItem(item)) {
-      return sum + (item.total || 0);
-    }
-    return sum;
-  }, 0);
+  // Cari Aturan Promo dari List
+  const promo010 = activePromosList.value.find((p) => p.pro_nomor === "PRO-2025-010"); // Kelipatan 250rb
+  const promo008 = activePromosList.value.find((p) => p.pro_nomor === "PRO-2025-008"); // Bulanan
 
+  let appliedDiscount = 0;
+  let appliedPromo: ActivePromo | null = null;
+
+  // Cek Promo Kelipatan 250rb (Diskon 25rb)
   if (promo010 && totalReguler >= 250000) {
     const kelipatan = Math.floor(totalReguler / 250000);
-    discount = 25000 * kelipatan;
-    message = `🎉 SELAMAT! Transaksi ini berhak mendapatkan Potongan Kelipatan Rp ${formatRupiah(
-      discount
-    )}!`;
-  } else if (promo008 && totalBelanja >= promo008.pro_totalrp) {
-    discount = promo008.pro_disrp * Math.floor(totalBelanja / promo008.pro_totalrp);
-    message = `✨ DISKON BULANAN AKTIF: Anda berhak mendapatkan potongan Rp ${formatRupiah(
-      discount
-    )}`;
+    appliedDiscount = 25000 * kelipatan;
+    appliedPromo = promo010;
+  }
+  // Cek Promo Bulanan jika promo kelipatan tidak terpenuhi
+  else if (promo008 && totalReguler >= promo008.pro_totalrp) {
+    appliedDiscount = promo008.pro_disrp * Math.floor(totalReguler / promo008.pro_totalrp);
+    appliedPromo = promo008;
   }
 
-  if (message) {
-    promoNotification.value = message;
-    potentialPromoDiscount.value = discount;
+  if (appliedPromo && appliedDiscount > 0) {
+    header.value.nomorPromo = appliedPromo.pro_nomor;
+    header.value.namaPromo = appliedPromo.pro_judul;
+    footer.value.diskonRp = appliedDiscount;
+    footer.value.diskonPersen1 = 0; // Matikan diskon member
+    footer.value.diskonPersen2 = 0;
+    promoNotification.value = `🎉 Promo ${appliedPromo.pro_judul} Rp ${formatRupiah(appliedDiscount)} Terpasang!`;
+    return true;
+  } else {
+    // Bersihkan jika tidak memenuhi syarat lagi
+    if (autoPromoIds.includes(header.value.nomorPromo)) {
+      header.value.nomorPromo = "";
+      header.value.namaPromo = "";
+      promoNotification.value = "";
+    }
+    return false;
   }
 };
 

@@ -76,7 +76,7 @@ const props = defineProps({
 const emit = defineEmits(["close", "dp-saved"]);
 
 const dpData = ref({
-  tanggal: new Date().toISOString().substring(0, 10),
+  tanggal: format(new Date(), "yyyy-MM-dd"),
   jenis: "TUNAI",
   nominal: 0,
   keterangan: "DP",
@@ -84,12 +84,12 @@ const dpData = ref({
     akun: "",
     namaBank: "",
     norek: "",
-    tglTransfer: new Date().toISOString().substring(0, 10),
+    tglTransfer: format(new Date(), "yyyy-MM-dd"),
   },
   giroData: {
     noGiro: "",
-    tglGiro: new Date().toISOString().substring(0, 10),
-    tglJatuhTempo: new Date().toISOString().substring(0, 10),
+    tglGiro: format(new Date(), "yyyy-MM-dd"),
+    tglJatuhTempo: format(new Date(), "yyyy-MM-dd"),
   },
 });
 const isSaving = ref(false);

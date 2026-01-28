@@ -159,7 +159,7 @@ watch(filters, fetchData, { deep: true });
 
       <div class="table-container">
         <AppDataTable :headers="headers" :items="items" :loading="loading" density="compact"
-          class="desktop-table header-browse-blue" fixed-header :items-per-page="25" height="100%">
+          class="desktop-table header-browse-blue" fixed-header :items-per-page="25">
           <template #[`item.no`]="{ index }">{{ index + 1 }}</template>
           <template #[`item.tanggal`]="{ item }">{{
             format(parseISO(item.tanggal), "dd-MM-yyyy")
@@ -214,10 +214,25 @@ watch(filters, fetchData, { deep: true });
 }
 
 .table-container {
-  /* Beri ruang agar footer tabel tetap terlihat di viewport */
-  height: calc(100vh - 200px);
+  flex-grow: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
   overflow: hidden;
-  /* Biarkan AppDataTable yang melakukan scroll internal */
+}
+
+.desktop-table {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.desktop-table :deep(.v-table__wrapper) {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto !important;
+  overflow-x: auto !important;
 }
 
 /* --- TAMBAHKAN STYLE INI --- */

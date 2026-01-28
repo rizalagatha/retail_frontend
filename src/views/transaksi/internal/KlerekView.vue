@@ -159,7 +159,7 @@ watch(filters, fetchData, { deep: true });
 
       <div class="table-container">
         <AppDataTable :headers="headers" :items="items" :loading="loading" density="compact"
-          class="desktop-table header-browse-blue" fixed-header :items-per-page="-1">
+          class="desktop-table header-browse-blue" fixed-header :items-per-page="25" height="100%">
           <template #[`item.no`]="{ index }">{{ index + 1 }}</template>
           <template #[`item.tanggal`]="{ item }">{{
             format(parseISO(item.tanggal), "dd-MM-yyyy")
@@ -214,8 +214,10 @@ watch(filters, fetchData, { deep: true });
 }
 
 .table-container {
-  height: calc(100vh - 180px);
-  overflow-y: auto;
+  /* Beri ruang agar footer tabel tetap terlihat di viewport */
+  height: calc(100vh - 200px);
+  overflow: hidden;
+  /* Biarkan AppDataTable yang melakukan scroll internal */
 }
 
 /* --- TAMBAHKAN STYLE INI --- */
@@ -223,10 +225,7 @@ watch(filters, fetchData, { deep: true });
   position: sticky;
   bottom: 0;
   z-index: 2;
-  /* Pastikan di atas konten yang di-scroll */
-  /* Warna latar belakang harus sama dengan bg-grey-lighten-3 */
-  background-color: #eeeeee;
+  background-color: #eeeeee !important;
   border-top: 1px solid #ccc;
-  /* Garis pemisah */
 }
 </style>

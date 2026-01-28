@@ -925,77 +925,77 @@ const save = async () => {
     }
   }
 
-  // --- 2. Integrasi Logika Promo Otomatis ---
-  if (!header.value.nomorPromo) {
-    try {
-      // Cari promo yang sedang aktif (Promo PRO-2025-004 dihapus)
-      const promo008 = activePromosList.value.find((p) => p.pro_nomor === "PRO-2025-008"); // Bulanan
-      const promo010 = activePromosList.value.find((p) => p.pro_nomor === "PRO-2025-010"); // Kelipatan
+  // // --- 2. Integrasi Logika Promo Otomatis ---
+  // if (!header.value.nomorPromo) {
+  //   try {
+  //     // Cari promo yang sedang aktif (Promo PRO-2025-004 dihapus)
+  //     const promo008 = activePromosList.value.find((p) => p.pro_nomor === "PRO-2025-008"); // Bulanan
+  //     const promo010 = activePromosList.value.find((p) => p.pro_nomor === "PRO-2025-010"); // Kelipatan
 
-      let promoToApply: ActivePromo | null = null;
-      let promoDiskon = 0;
+  //     let promoToApply: ActivePromo | null = null;
+  //     let promoDiskon = 0;
 
-      const isExcludedItem = (item: SoItem) => {
-        const namaUp = item.nama?.toUpperCase() || "";
-        const kodeUp = item.kode?.toUpperCase() || "";
-        const isJasaOrDesign =
-          item.isJasa ||
-          kodeUp.startsWith("JS") ||
-          kodeUp.startsWith("JASA") ||
-          namaUp.includes("JASA") ||
-          namaUp.includes("DESAIN") ||
-          namaUp.includes("FILE");
-        const isCustomOrDtf = item.isCustomOrder || !!item.noSoDtf || !!item.noPengajuanHarga;
-        return isJasaOrDesign || isCustomOrDtf;
-      };
+  //     const isExcludedItem = (item: SoItem) => {
+  //       const namaUp = item.nama?.toUpperCase() || "";
+  //       const kodeUp = item.kode?.toUpperCase() || "";
+  //       const isJasaOrDesign =
+  //         item.isJasa ||
+  //         kodeUp.startsWith("JS") ||
+  //         kodeUp.startsWith("JASA") ||
+  //         namaUp.includes("JASA") ||
+  //         namaUp.includes("DESAIN") ||
+  //         namaUp.includes("FILE");
+  //       const isCustomOrDtf = item.isCustomOrder || !!item.noSoDtf || !!item.noPengajuanHarga;
+  //       return isJasaOrDesign || isCustomOrDtf;
+  //     };
 
-      const totalReguler = validItems.reduce((sum, item) => {
-        if (!item.nama?.toUpperCase().includes("JERSEY") && !isExcludedItem(item)) {
-          return sum + (item.total || 0);
-        }
-        return sum;
-      }, 0);
+  //     const totalReguler = validItems.reduce((sum, item) => {
+  //       if (!item.nama?.toUpperCase().includes("JERSEY") && !isExcludedItem(item)) {
+  //         return sum + (item.total || 0);
+  //       }
+  //       return sum;
+  //     }, 0);
 
-      const totalBelanja = validItems.reduce((sum, item) => {
-        if (!isExcludedItem(item)) return sum + (item.total || 0);
-        return sum;
-      }, 0);
+  //     const totalBelanja = validItems.reduce((sum, item) => {
+  //       if (!isExcludedItem(item)) return sum + (item.total || 0);
+  //       return sum;
+  //     }, 0);
 
-      // Cek Kelayakan Promo Header (Diskon Faktur)
-      if (promo010 && totalReguler >= 250000) {
-        const kelipatan = Math.floor(totalReguler / 250000);
-        promoDiskon = 25000 * kelipatan;
-        promoToApply = promo010;
-      } else if (promo008 && totalBelanja >= promo008.pro_totalrp) {
-        promoDiskon = promo008.pro_disrp * Math.floor(totalBelanja / promo008.pro_totalrp);
-        promoToApply = promo008;
-      }
+  //     // Cek Kelayakan Promo Header (Diskon Faktur)
+  //     if (promo010 && totalReguler >= 250000) {
+  //       const kelipatan = Math.floor(totalReguler / 250000);
+  //       promoDiskon = 25000 * kelipatan;
+  //       promoToApply = promo010;
+  //     } else if (promo008 && totalBelanja >= promo008.pro_totalrp) {
+  //       promoDiskon = promo008.pro_disrp * Math.floor(totalBelanja / promo008.pro_totalrp);
+  //       promoToApply = promo008;
+  //     }
 
-      // PROMO HEADER (Potongan Harga Faktur) diterapkan jika syarat terpenuhi
-      if (promoToApply) {
-        if (
-          footer.value.diskonRp === 0 &&
-          footer.value.diskonPersen1 === 0 &&
-          footer.value.diskonPersen2 === 0
-        ) {
-          footer.value.diskonRp = promoDiskon;
-          header.value.nomorPromo = promoToApply.pro_nomor;
-          header.value.namaPromo = promoToApply.pro_judul;
-          await calculateTotals();
-          toast.success(`Promo ${promoToApply.pro_judul} diterapkan otomatis!`);
-        }
-      }
-    } catch (error) {
-      console.error("Gagal mengecek promo otomatis:", error);
-    }
-  }
+  //     // PROMO HEADER (Potongan Harga Faktur) diterapkan jika syarat terpenuhi
+  //     if (promoToApply) {
+  //       if (
+  //         footer.value.diskonRp === 0 &&
+  //         footer.value.diskonPersen1 === 0 &&
+  //         footer.value.diskonPersen2 === 0
+  //       ) {
+  //         footer.value.diskonRp = promoDiskon;
+  //         header.value.nomorPromo = promoToApply.pro_nomor;
+  //         header.value.namaPromo = promoToApply.pro_judul;
+  //         await calculateTotals();
+  //         toast.success(`Promo ${promoToApply.pro_judul} diterapkan otomatis!`);
+  //       }
+  //     }
+  //   } catch (error) {
+  //     console.error("Gagal mengecek promo otomatis:", error);
+  //   }
+  // }
 
-  // --- 3. Cek Promo Tebus Murah (Bonus Item) ---
-  if (header.value.nomorPromo === "PRO-2025-002") {
-    activePromoForBonus.value = { nomor: header.value.nomorPromo, qty: 1 };
-    dialogs.promoBonus = true;
-    return;
-  }
+  // // --- 3. Cek Promo Tebus Murah (Bonus Item) ---
+  // if (header.value.nomorPromo === "PRO-2025-002") {
+  //   activePromoForBonus.value = { nomor: header.value.nomorPromo, qty: 1 };
+  //   dialogs.promoBonus = true;
+  //   return;
+  // }
 
   // --- 4. Validasi DP ---
   if (footer.value.totalDp < footer.value.minimalDp && header.value.statusSo === "PASIF") {
@@ -2227,12 +2227,19 @@ const usePromoDiscount = () => {
 };
 
 const useMemberDiscount = () => {
-  // Tetap kosongkan promo agar logic calculateTotals menggunakan diskon member
+  // 1. Bersihkan promo agar logic default-discount bisa berjalan
   header.value.nomorPromo = "";
   header.value.namaPromo = "";
+  footer.value.diskonRp = 0;
 
   isPromoConfirmVisible.value = false;
-  calculateTotals(); // Akan menghitung default-discount member kembali
+
+  // 2. Panggil hitung diskon member (tiering) secara manual [cite: 2025-09-06]
+  applyDefaultDiscount();
+
+  // 3. Hitung ulang total untuk sinkronisasi footer
+  calculateTotals();
+
   toast.info("Menggunakan diskon member standar.");
 };
 

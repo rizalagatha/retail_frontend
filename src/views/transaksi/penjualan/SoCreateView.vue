@@ -1003,10 +1003,12 @@ const save = async () => {
   }
 
   // --- VALIDASI TANGGAL HARI INI ---
-  const today = format(new Date(), "yyyy-MM-dd");
-  if (header.value.tanggal !== today) {
-    toast.error(`Tanggal transaksi harus hari ini (${today}).`);
-    return;
+  if (!isEditMode.value) { // Hanya cek jika buat SO BARU
+    const today = format(new Date(), "yyyy-MM-dd");
+    if (header.value.tanggal !== today) {
+      toast.error(`Tanggal transaksi harus hari ini (${today}).`);
+      return;
+    }
   }
   // ----------------------------------------------
 
@@ -1582,11 +1584,10 @@ const applyDefaultDiscount = async () => {
   if (header.value.penawaran) return;
 
   if (header.value.nomorPromo) {
-    footer.value.diskonPersen1 = 0; // Paksa reset diskon member
-    return; // Stop, jangan lanjut ke logic level
+    footer.value.diskonPersen1 = 0;
+    return;
   }
-  if (!header.value.customer) return;
-  if (!header.value.levelKode) return;
+  if (!header.value.customer || !header.value.levelKode) return;
 
   try {
     const response = await api.get("/so-form/lookup/default-discount", {
@@ -1602,14 +1603,18 @@ const applyDefaultDiscount = async () => {
 
     const defaultDisc = Number(response.data.discount ?? 0);
 
-    // Jangan set diskon jika user sudah ubah manual
-    if (footer.value.diskonPersen1 && footer.value.diskonPersen1 !== 0) return;
+    // --- PERBAIKAN DI SINI ---
+    // HAPUS baris: if (footer.value.diskonPersen1 && footer.value.diskonPersen1 !== 0) return;
 
-    // Jika total 0, tidak hitung diskon
-    if (totalDiscountable.value <= 0) return;
+    // Jika total 0 atau di bawah threshold terendah, pastikan diskon reset ke 0
+    if (totalDiscountable.value <= 0) {
+      footer.value.diskonPersen1 = 0;
+      return;
+    }
 
-    // SET diskon dari backend
+    // Selalu timpa dengan nilai terbaru dari backend (Misal: dari 5 ke 10)
     footer.value.diskonPersen1 = defaultDisc;
+
   } catch (err) {
     console.error("Gagal ambil diskon default:", err);
   }

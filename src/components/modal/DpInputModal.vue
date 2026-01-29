@@ -103,9 +103,11 @@ const isPrintingNow = ref(false);
 
 const save = async () => {
   // --- VALIDASI TANGGAL HARI INI ---
-  const today = format(new Date(), "yyyy-MM-dd");
-  if (dpData.value.tanggal !== today) {
-    return toast.error(`Tanggal DP harus hari ini (${today}).`);
+  if (!props.existingDpNomor) {
+    const today = format(new Date(), "yyyy-MM-dd");
+    if (dpData.value.tanggal !== today) {
+      return toast.error(`Tanggal DP harus hari ini (${today}).`);
+    }
   }
   // ----------------------------------------------
 

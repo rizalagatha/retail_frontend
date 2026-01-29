@@ -361,6 +361,12 @@ const handleSave = () => {
   // Validasi frontend sebelum konfirmasi
   if (!header.gudang.kode) return toast.error('Gudang harus diisi.');
   if (!header.store.kode) return toast.error('Store tujuan harus diisi.');
+  // --- VALIDASI TANGGAL HARI INI ---
+  const today = format(new Date(), 'yyyy-MM-dd');
+  if (header.tanggal !== today) {
+    return toast.error(`Tanggal Surat Jalan harus hari ini (${today}).`);
+  }
+  // ----------------------------------------------
   const validItems = items.value.filter(i => i.kode && i.jumlah > 0);
   if (validItems.length === 0) return toast.error('Detail barang harus diisi.');
 
@@ -461,7 +467,7 @@ onMounted(async () => {
             </v-col>
             <v-col cols="12">
               <v-text-field label="Tanggal" v-model="header.tanggal" type="date" variant="outlined" density="compact"
-                hide-details />
+                hide-details :min="format(new Date(), 'yyyy-MM-dd')" :max="format(new Date(), 'yyyy-MM-dd')" />
             </v-col>
             <v-col cols="12">
               <v-text-field label="Gudang" v-model="header.gudang.kode" readonly @click="dialog.gudangSearch = true"

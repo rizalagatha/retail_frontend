@@ -1002,6 +1002,14 @@ const save = async () => {
     toast.warning("DP di bawah Minimal DP. SO ini akan berstatus PASIF.");
   }
 
+  // --- VALIDASI TANGGAL HARI INI ---
+  const today = format(new Date(), "yyyy-MM-dd");
+  if (header.value.tanggal !== today) {
+    toast.error(`Tanggal transaksi harus hari ini (${today}).`);
+    return;
+  }
+  // ----------------------------------------------
+
   // --- 5. Konfirmasi Akhir ---
   showConfirmation(executeSave, "Anda yakin ingin menyimpan Surat Pesanan ini?");
 };
@@ -2480,7 +2488,8 @@ const stopAndOpenPriceProposal = (index: number) => {
             <v-col cols="6"><v-text-field label="Nomor" v-model="header.nomor" readonly filled density="compact"
                 hide-details /></v-col>
             <v-col cols="6"><v-text-field label="Tanggal" v-model="header.tanggal" type="date" variant="outlined"
-                density="compact" hide-details /></v-col>
+                density="compact" hide-details :min="format(new Date(), 'yyyy-MM-dd')"
+                :max="format(new Date(), 'yyyy-MM-dd')" /></v-col>
             <v-col cols="6">
               <v-text-field label="Customer" :disabled="!!header.penawaran" :model-value="header.customer ? `${header.customer.kode} - ${header.customer.nama}` : ''
                 " readonly @click="isCustomerSearchVisible = true" variant="outlined" density="compact" hide-details

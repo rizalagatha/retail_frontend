@@ -135,7 +135,7 @@ const hasViewPermission = computed(() => authStore.can(MENU_ID, 'view'));
 const filters = reactive({
   startDate: format(new Date(), 'yyyy-MM-dd'),
   endDate: format(new Date(), 'yyyy-MM-dd'),
-  cabang: authStore.user?.cabang || '',
+  cabang: authStore.user?.cabang === 'KDC' ? 'ALL' : (authStore.user?.cabang || ''),
 });
 
 const tableHeaders = ref<DataTableHeader[]>([
@@ -387,11 +387,18 @@ const handleRowClick = (_event: Event, { item }: { item: OfferHeader }) => {
 
 const fetchBranches = async () => {
   try {
-    // Perbaikan: Panggil endpoint yang benar
     const response = await api.get('/warehouses/list', {
       params: { userCabang: authStore.user?.cabang }
     });
-    branchList.value = response.data;
+
+    let data = response.data;
+
+    // Tambahkan opsi 'ALL' jika user adalah KDC
+    if (authStore.user?.cabang === 'KDC') {
+      data = [{ kode: 'ALL', nama: 'ALL STORE' }, ...data];
+    }
+
+    branchList.value = data;
   } catch (error) {
     toast.error('Gagal memuat daftar cabang.', error);
   }
@@ -627,25 +634,29 @@ const getStatusChip = (item: OfferHeader) => {
   return { text: 'Open', color: 'grey' };
 };
 
-onMounted(async () => { // <-- Jadikan async
+onMounted(async () => {
   if (hasViewPermission.value) {
-    // 1. Baca query parameter dari URL
+    // 1. Baca query parameter dari URL (jika ada)
     const queryStartDate = route.query.startDate as string;
     const queryEndDate = route.query.endDate as string;
 
-    // 2. Jika ada, timpa filter default (Asumsi 'filters' ada)
     if (queryStartDate && queryEndDate) {
       filters.startDate = queryStartDate;
       filters.endDate = queryEndDate;
     }
 
-    // 3. Panggil fungsi load awal Anda
+    // 2. Muat daftar cabang
     await fetchBranches();
-    await fetchData(); // Panggil fetchData SEKALI dengan filter yang benar
 
-    // 4. Aktifkan watcher HANYA SETELAH load awal selesai
+    // 3. Pastikan default terpilih dengan benar
+    if (authStore.user?.cabang === 'KDC' && !route.query.cabang) {
+      filters.cabang = 'ALL';
+    }
+
+    // 4. Ambil data
+    await fetchData();
+
     isMounted.value = true;
-
   } else {
     isLoading.value = false;
     toast.error("Anda tidak memiliki izin untuk melihat halaman ini.");

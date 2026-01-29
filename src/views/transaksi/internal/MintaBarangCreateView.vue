@@ -327,6 +327,14 @@ const save = () => {
     return;
   }
 
+  // --- VALIDASI TANGGAL HARI INI ---
+  const today = format(new Date(), 'yyyy-MM-dd');
+  if (formHeader.value.tanggal !== today) {
+    toast.error(`Tanggal transaksi harus hari ini (${today}).`);
+    return;
+  }
+  // ----------------------------------------------
+
   // 2. [FIXED] Validasi Wajib Customer khusus KPR
   // Kita cek formHeader.value.customer?.kode karena variabel Anda bernama formHeader
   if (isKpr.value && !formHeader.value.customer?.kode) {
@@ -525,7 +533,7 @@ onMounted(() => {
             </v-col>
             <v-col cols="12">
               <v-text-field label="Tanggal" v-model="formHeader.tanggal" type="date" density="compact" hide-details
-                variant="outlined" />
+                variant="outlined" :min="format(new Date(), 'yyyy-MM-dd')" :max="format(new Date(), 'yyyy-MM-dd')" />
             </v-col>
             <v-col cols="12">
               <v-text-field label="No. Pesanan" v-model="formHeader.soNomor" readonly @click="isSoSearchVisible = true"

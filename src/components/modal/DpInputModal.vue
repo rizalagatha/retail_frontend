@@ -102,6 +102,13 @@ const newDpFromSave = ref<NewDpItem | null>(null); // Menyimpan data newDp untuk
 const isPrintingNow = ref(false);
 
 const save = async () => {
+  // --- VALIDASI TANGGAL HARI INI ---
+  const today = format(new Date(), "yyyy-MM-dd");
+  if (dpData.value.tanggal !== today) {
+    return toast.error(`Tanggal DP harus hari ini (${today}).`);
+  }
+  // ----------------------------------------------
+
   const apiBasePath = props.source === 'OFFER' ? '/offer-form' : '/so-form';
 
   if ((dpData.value.nominal || 0) === 0 && props.existingDpNomor) {
@@ -231,7 +238,8 @@ const onRekeningSelected = (rekening: Rekening) => {
       <v-card-text class="pa-4">
         <v-row dense>
           <v-col cols="12"><v-text-field label="Tanggal" v-model="dpData.tanggal" type="date" variant="outlined"
-              density="compact" /></v-col>
+              density="compact" :min="format(new Date(), 'yyyy-MM-dd')"
+              :max="format(new Date(), 'yyyy-MM-dd')" /></v-col>
           <v-col cols="12"><v-select label="Jenis" v-model="dpData.jenis" :items="['TUNAI', 'TRANSFER', 'GIRO']"
               variant="outlined" density="compact" /></v-col>
           <v-col cols="12">

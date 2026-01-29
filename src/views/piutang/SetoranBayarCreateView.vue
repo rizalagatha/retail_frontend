@@ -292,6 +292,13 @@ const handleSave = () => {
   if (!header.nominal || header.nominal <= 0) return toast.error('Nominal setoran harus diisi.');
   if (header.sisa < 0) return toast.error('Sisa setoran tidak boleh minus. Periksa kembali alokasi pembayaran.');
 
+  // --- VALIDASI TANGGAL HARI INI ---
+  const today = format(new Date(), 'yyyy-MM-dd');
+  if (header.tanggal !== today) {
+    return toast.error(`Tanggal Setoran harus hari ini (${today}).`);
+  }
+  // ---------------------------------
+
   showConfirmation('Konfirmasi Simpan', 'Apakah Anda yakin ingin menyimpan data ini?', executeSave);
 };
 
@@ -597,7 +604,7 @@ watch(() => header.nominal, calculateTotals);
             </v-col>
             <v-col cols="12">
               <v-text-field label="Tanggal" v-model="header.tanggal" type="date" variant="outlined" density="compact"
-                hide-details />
+                hide-details :min="format(new Date(), 'yyyy-MM-dd')" :max="format(new Date(), 'yyyy-MM-dd')" />
             </v-col>
             <v-col cols="12">
               <v-text-field label="Customer" v-model="header.customer.nama" readonly :disabled="lockSoMode"

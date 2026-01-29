@@ -2184,40 +2184,48 @@ const checkRealtimePromoEligibility = async (): Promise<boolean> => {
   const promo010 = activePromosList.value.find((p) => p.pro_nomor === "PRO-2025-010");
   const promo008 = activePromosList.value.find((p) => p.pro_nomor === "PRO-2025-008");
 
-  let discount = 0;
-  let promoToApply: ActivePromo | null = null;
+  let currentCalculatedDiscount = 0;
+  let promoCandidate: ActivePromo | null = null;
 
+  // Hitung potensi diskon berdasarkan kelipatan terbaru
   if (promo010 && totalReguler >= 250000) {
     const kelipatan = Math.floor(totalReguler / 250000);
-    discount = 25000 * kelipatan;
-    promoToApply = promo010;
+    currentCalculatedDiscount = 25000 * kelipatan;
+    promoCandidate = promo010;
   } else if (promo008 && totalReguler >= promo008.pro_totalrp) {
-    discount = promo008.pro_disrp * Math.floor(totalReguler / promo008.pro_totalrp);
-    promoToApply = promo008;
+    currentCalculatedDiscount = promo008.pro_disrp * Math.floor(totalReguler / promo008.pro_totalrp);
+    promoCandidate = promo008;
   }
 
-  // --- LOGIKA KONFIRMASI ---
-  if (promoToApply && discount > 0) {
-    // Jika promo yang ditemukan berbeda dengan yang sedang aktif/disarankan sebelumnya
-    if (header.value.nomorPromo !== promoToApply.pro_nomor && lastSuggestedPromo.value !== promoToApply.pro_nomor) {
-      pendingPromoData.nomor = promoToApply.pro_nomor;
-      pendingPromoData.nama = promoToApply.pro_judul;
-      pendingPromoData.diskon = discount;
-
-      isPromoConfirmVisible.value = true; // Munculkan Dialog
-      lastSuggestedPromo.value = promoToApply.pro_nomor;
-    }
-    return !!header.value.nomorPromo; // Return true jika sudah ter-apply
-  } else {
-    // Reset jika syarat tidak terpenuhi lagi
-    if (autoPromoIds.includes(header.value.nomorPromo)) {
+  // --- LOGIKA UPDATE OTOMATIS (Jika Promo Sudah Terpasang) ---
+  if (header.value.nomorPromo && autoPromoIds.includes(header.value.nomorPromo)) {
+    // Jika syarat masih terpenuhi, update nominal diskon secara real-time
+    if (promoCandidate && header.value.nomorPromo === promoCandidate.pro_nomor) {
+      footer.value.diskonRp = currentCalculatedDiscount;
+    } else {
+      // Jika syarat tidak terpenuhi lagi (barang dikurangi), hapus promo
       header.value.nomorPromo = "";
       header.value.namaPromo = "";
       footer.value.diskonRp = 0;
       lastSuggestedPromo.value = "";
     }
-    return false;
+    return true;
   }
+
+  // --- LOGIKA KONFIRMASI (Untuk Promo Baru) ---
+  if (promoCandidate && currentCalculatedDiscount > 0) {
+    if (lastSuggestedPromo.value !== promoCandidate.pro_nomor) {
+      pendingPromoData.nomor = promoCandidate.pro_nomor;
+      pendingPromoData.nama = promoCandidate.pro_judul;
+      pendingPromoData.diskon = currentCalculatedDiscount;
+
+      isPromoConfirmVisible.value = true;
+      lastSuggestedPromo.value = promoCandidate.pro_nomor;
+    }
+    return false; // Belum diterapkan (menunggu konfirmasi user)
+  }
+
+  return false;
 };
 
 const usePromoDiscount = () => {

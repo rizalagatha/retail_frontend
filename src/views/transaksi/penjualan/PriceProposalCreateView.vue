@@ -31,6 +31,7 @@ interface SizeItem {
   totalHarga: number;
   kodeBarang: string;
   namaBarang: string;
+  isManualPrice?: boolean;
 }
 interface Customer {
   kode: string;
@@ -202,6 +203,7 @@ const onTshirtTypeSelected = async (type: { jenisKaos: string }) => {
         ukuran: item.ukuran,
         qty: null,
         hargaPcs: item.hargaPcs,
+        isManualPrice: item.hargaPcs === 0,
         totalHarga: 0,
         hargaKaos: 0,
         kodeBarang: '',
@@ -577,6 +579,7 @@ const loadOfferData = async (nomor: string) => {
         if (itemToUpdate) {
           itemToUpdate.qty = savedItem.phs_jumlah;
           itemToUpdate.hargaPcs = savedItem.phs_harga;
+          itemToUpdate.isManualPrice = savedItem.phs_harga === 0;
           itemToUpdate.kodeBarang = savedItem.phs_kode;
           itemToUpdate.namaBarang = savedItem.nama_barang || '';
           itemToUpdate.hargaKaos = savedItem.phs_harga; // harga dasar
@@ -800,6 +803,12 @@ onMounted(() => {
 
                   <template #[`item.hargaKaos`]="{ item }">
                     {{ formatRupiah(item.hargaKaos || 0) }}
+                  </template>
+
+                  <template #[`item.hargaPcs`]="{ item }">
+                    <v-text-field v-model.number="item.hargaPcs" type="number" variant="underlined" density="compact"
+                      hide-details class="text-end" :readonly="item.hargaPcs > 0 && !item.isManualPrice"
+                      :placeholder="formatRupiah(0)" @update:model-value="calculateTotals"></v-text-field>
                   </template>
 
                   <template #[`item.kodeBarang`]="{ item }">

@@ -2500,9 +2500,11 @@ const stopAndOpenPriceProposal = (index: number) => {
             </v-col>
             <v-col cols="6"><v-text-field label="Nomor" v-model="header.nomor" readonly filled density="compact"
                 hide-details /></v-col>
-            <v-col cols="6"><v-text-field label="Tanggal" v-model="header.tanggal" type="date" variant="outlined"
-                density="compact" hide-details :min="format(new Date(), 'yyyy-MM-dd')"
-                :max="format(new Date(), 'yyyy-MM-dd')" /></v-col>
+            <v-col cols="6">
+              <v-text-field label="Tanggal" v-model="header.tanggal" type="date" variant="outlined" density="compact"
+                hide-details :readonly="isEditMode" :min="!isEditMode ? format(new Date(), 'yyyy-MM-dd') : undefined"
+                :max="!isEditMode ? format(new Date(), 'yyyy-MM-dd') : undefined" />
+            </v-col>
             <v-col cols="6">
               <v-text-field label="Customer" :disabled="!!header.penawaran" :model-value="header.customer ? `${header.customer.kode} - ${header.customer.nama}` : ''
                 " readonly @click="isCustomerSearchVisible = true" variant="outlined" density="compact" hide-details

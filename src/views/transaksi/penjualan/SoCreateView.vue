@@ -303,6 +303,7 @@ const statusDpText = computed(() => {
 const requiredPermission = computed(() => (isEditMode.value ? "edit" : "insert"));
 const isLoading = ref(true);
 const isSaving = ref(false);
+const isInitialLoad = ref(false);
 const isSavingDisabled = ref(false);
 const scannedBarcode = ref("");
 
@@ -537,6 +538,7 @@ const isUserKon = computed(() => authStore.user?.cabang === "KON");
 // --- Methods ---
 const loadDataForEdit = async (nomor: string) => {
   isLoading.value = true;
+  isInitialLoad.value = true;
   try {
     const response = await api.get(`/so-form/${nomor}`);
     const { headerData, itemsData, dpItemsData, footerData } = response.data;
@@ -619,7 +621,7 @@ const loadDataForEdit = async (nomor: string) => {
     }
 
     toast.success(`Data untuk SO ${nomor} berhasil dimuat.`);
-
+    isInitialLoad.value = false;
     markAsSaved();
   } catch (error) {
     const err = error as AxiosError<{ message: string }>;
@@ -1589,6 +1591,10 @@ const applyDefaultDiscount = async () => {
   }
   if (!header.value.customer || !header.value.levelKode) return;
 
+  if (isEditMode.value && isInitialLoad.value) {
+    return;
+  }
+
   try {
     const response = await api.get("/so-form/lookup/default-discount", {
       params: {
@@ -2168,6 +2174,10 @@ const handleBonusSelection = (bonusItem: BonusItemSelection) => {
 
 // [BARU] Cek Kelayakan Promo Real-time (Untuk Notifikasi)
 const checkRealtimePromoEligibility = async (): Promise<boolean> => {
+  if (isEditMode.value && isInitialLoad.value) {
+    return !!header.value.nomorPromo;
+  }
+
   const autoPromoIds = ["PRO-2025-008", "PRO-2025-010"];
 
   // Logic filter item reguler (Tetap sama seperti sebelumnya)

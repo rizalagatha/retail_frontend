@@ -621,7 +621,10 @@ const loadDataForEdit = async (nomor: string) => {
     }
 
     toast.success(`Data untuk SO ${nomor} berhasil dimuat.`);
-    isInitialLoad.value = false;
+    await nextTick();
+    await calculateTotals(); // [2] Gunakan 'await' agar hitungan pertama selesai
+
+    isInitialLoad.value = false; // [3] Buka kembali kunci setelah load selesai
     markAsSaved();
   } catch (error) {
     const err = error as AxiosError<{ message: string }>;
@@ -714,12 +717,18 @@ const calculateTotals = async () => {
     const diskonPersen1 = footer.value.diskonPersen1 || 0;
     const diskonPersen2 = footer.value.diskonPersen2 || 0;
 
-    // Jika tidak ada promo, hitung berdasarkan persentase member
-    const diskon1Rp = (diskonPersen1 / 100) * newTotalDiscountable;
-    const afterDiscount1 = newTotalDiscountable - diskon1Rp;
-    const diskon2Rp = (diskonPersen2 / 100) * afterDiscount1;
+    // --- PERBAIKAN: PROTEKSI DISKON MANUAL ---
+    // Jika persen 1 & 2 kosong, tapi diskonRp ada isinya (hasil otorisasi), JANGAN ditimpa
+    if (diskonPersen1 === 0 && diskonPersen2 === 0 && footer.value.diskonRp > 0) {
+      // Biarkan diskonRp tetap sesuai nilai database/manual
+    } else {
+      // Jika ada persentase, baru jalankan rumus hitung otomatis
+      const diskon1Rp = (diskonPersen1 / 100) * newTotalDiscountable;
+      const afterDiscount1 = newTotalDiscountable - diskon1Rp;
+      const diskon2Rp = (diskonPersen2 / 100) * afterDiscount1;
 
-    footer.value.diskonRp = diskon1Rp + diskon2Rp;
+      footer.value.diskonRp = diskon1Rp + diskon2Rp;
+    }
   }
 
   // Hitung Total DP yang sudah masuk
@@ -1595,6 +1604,10 @@ const applyDefaultDiscount = async () => {
     return;
   }
 
+  if (footer.value.diskonRp > 0 && footer.value.diskonPersen1 === 0) {
+    return; // Berhenti jika SO sudah punya nominal diskon (hasil otorisasi)
+  }
+
   try {
     const response = await api.get("/so-form/lookup/default-discount", {
       params: {
@@ -2214,6 +2227,9 @@ const checkRealtimePromoEligibility = async (): Promise<boolean> => {
 
   // --- LOGIKA UPDATE OTOMATIS (Jika Promo Sudah Terpasang) ---
   if (header.value.nomorPromo && autoPromoIds.includes(header.value.nomorPromo)) {
+    if (isInitialLoad.value) {
+      return true;
+    }
     // Jika syarat masih terpenuhi, update nominal diskon secara real-time
     if (promoCandidate && header.value.nomorPromo === promoCandidate.pro_nomor) {
       footer.value.diskonRp = currentCalculatedDiscount;

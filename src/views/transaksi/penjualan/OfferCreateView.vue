@@ -389,7 +389,9 @@ const loadOfferData = async (nomor: string) => {
 
     await nextTick();
     calculateTotals(); // Hitung ulang untuk memastikan sisa bayar sinkron
-    isInitialLoad.value = false; // [2] Buka kembali kunci setelah stabil
+    setTimeout(() => {
+      isInitialLoad.value = false;
+    }, 1000);
     markAsSaved()
   } catch (error) {
     toast.error('Gagal memuat data penawaran.', error);
@@ -527,16 +529,14 @@ const isDiscountableItem = (item: OfferItem) => {
 
 const calculateTotals = () => {
   let subtotal = 0;
-  let subtotalDiscountable = 0; // Khusus barang kaos (reguler)
+  let subtotalDiscountable = 0;
 
-  // 1. Kalkulasi Item-per-Item
   items.value.forEach(item => {
     const price = Number(item.harga) || 0;
     const qty = Number(item.jumlah) || 0;
     let discountRp = Number(item.diskonRp) || 0;
     const discountPersen = Number(item.diskonPersen) || 0;
 
-    // Prioritaskan diskon persen per item
     if (discountPersen > 0) {
       discountRp = (discountPersen / 100) * price;
       item.diskonRp = discountRp;
@@ -545,22 +545,26 @@ const calculateTotals = () => {
     item.total = qty * (price - discountRp);
     subtotal += item.total;
 
-    // Filter: Hanya barang reguler/kaos yang masuk basis diskon faktur
-    // Pastikan fungsi isDiscountableItem sudah didefinisikan
+    // Filter: Jenis Order (CUSTOM) tidak masuk basis diskon
     if (isDiscountableItem(item)) {
       subtotalDiscountable += item.total;
     }
   });
 
-  // Simpan subtotal kaos agar DiscountCostModal bisa membacanya
   footer.value.subtotalKaos = subtotalDiscountable;
   footer.value.total = subtotal;
 
-  // 2. Kalkulasi Diskon Faktur
+  // --- PERBAIKAN LOGIKA DISKON FAKTUR ---
   const isManualOverride = isFooterDiskonRpFocused.value || isAuthPending.value;
 
-  if ((footer.value.diskonPersen1 > 0 || footer.value.diskonPersen2 > 0) && !isManualOverride) {
-    // Hitung diskon bertingkat dari subtotal barang kaos
+  // KUNCI: Jangan hitung ulang dari persen jika:
+  // 1. Sedang Initial Load (ambil murni dari DB pen_disc)
+  // 2. Sedang Manual Override (sedang diedit user)
+  if (isInitialLoad.value || isManualOverride) {
+    footer.value.diskonRp = Number(footer.value.diskonRpInput) || 0;
+  }
+  else if (footer.value.diskonPersen1 > 0 || footer.value.diskonPersen2 > 0) {
+    // Hanya hitung otomatis jika memang tidak ada nominal manual yang terkunci
     const discount1 = (footer.value.diskonPersen1 / 100) * subtotalDiscountable;
     const afterDiscount1 = subtotalDiscountable - discount1;
     const discount2 = (footer.value.diskonPersen2 / 100) * afterDiscount1;
@@ -570,14 +574,12 @@ const calculateTotals = () => {
   } else {
     footer.value.diskonRp = Number(footer.value.diskonRpInput) || 0;
   }
+  // ------------------------------------------------
 
-  // 3. Kalkulasi Netto & Grand Total (Nilai Transaksi)
   const netto = subtotal - footer.value.diskonRp;
   footer.value.netto = netto;
   footer.value.ppnRp = (header.value.ppnPersen / 100) * netto;
   footer.value.grandTotal = netto + footer.value.ppnRp + (Number(footer.value.biayaKirim) || 0);
-
-  // 4. Kalkulasi Pembayaran & Sisa Bayar
   footer.value.totalDp = dpItems.value.reduce((sum, dp) => sum + (Number(dp.nominal) || 0), 0);
   footer.value.belumDibayar = footer.value.grandTotal - footer.value.totalDp;
 };
@@ -1100,7 +1102,8 @@ const applyDefaultDiscount = async () => {
 
   // Jika diskon nominal sudah ada (> 0) dan diskon persen kosong,
   // artinya ini hasil otorisasi/input manual. Jangan ditimpa.
-  if (footer.value.diskonRp > 0 && footer.value.diskonPersen1 === 0) {
+  if ((footer.value.diskonRp > 0 && footer.value.diskonPersen1 === 0) || footer.value.pinDiskon1) {
+    // console.log("Sistem mendeteksi diskon manual, membatalkan auto-discount level.");
     return;
   }
   // -----------------------------------------------------------
@@ -1496,7 +1499,7 @@ onMounted(() => {
                   <v-list-item-title class="text-subtitle-2 font-weight-bold">Sisa Bayar</v-list-item-title>
                   <template #append>
                     <span class="text-h6 font-weight-black text-primary">{{ formatRupiah(footer.belumDibayar)
-                      }}</span>
+                    }}</span>
                   </template>
                 </v-list-item>
               </v-list>

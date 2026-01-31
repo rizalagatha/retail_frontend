@@ -713,16 +713,18 @@ const calculateTotals = async () => {
   const isPromoApplied = await checkRealtimePromoEligibility();
 
   // 3. Kalkulasi Diskon Level/Manual (Hanya jika TIDAK ada promo)
+  // 3. KALKULASI DISKON FAKTUR (Hanya jika tidak ada promo)
   if (!isPromoApplied) {
     const diskonPersen1 = footer.value.diskonPersen1 || 0;
     const diskonPersen2 = footer.value.diskonPersen2 || 0;
 
-    // --- PERBAIKAN: PROTEKSI DISKON MANUAL ---
-    // Jika persen 1 & 2 kosong, tapi diskonRp ada isinya (hasil otorisasi), JANGAN ditimpa
-    if (diskonPersen1 === 0 && diskonPersen2 === 0 && footer.value.diskonRp > 0) {
+    // --- PROTEKSI DISKON MANUAL / DATABASE ---
+    // Jangan hitung ulang jika:
+    // a. Sedang Initial Load (ambil murni dari DB)
+    // b. Ada nominal Rp (hasil otorisasi) tapi persennya 0
+    if (isInitialLoad.value || header.value.penawaran || (footer.value.diskonRp > 0 && diskonPersen1 === 0)) {
       // Biarkan diskonRp tetap sesuai nilai database/manual
     } else {
-      // Jika ada persentase, baru jalankan rumus hitung otomatis
       const diskon1Rp = (diskonPersen1 / 100) * newTotalDiscountable;
       const afterDiscount1 = newTotalDiscountable - diskon1Rp;
       const diskon2Rp = (diskonPersen2 / 100) * afterDiscount1;
@@ -1263,6 +1265,7 @@ const onSalesCounterSelected = (salesCounter: { kode: string; nama: string }) =>
 
 const onPenawaranSelected = async (penawaran: { nomor: string }) => {
   isPenawaranSearchVisible.value = false;
+  isInitialLoad.value = true;
   toast.info(`Memuat detail dari Penawaran ${penawaran.nomor}...`);
 
   try {
@@ -1382,6 +1385,7 @@ const onPenawaranSelected = async (penawaran: { nomor: string }) => {
     addNewRow(); // Tambahkan baris kosong di akhir grid
     await nextTick(); // Tunggu Vue merender ulang DOM
     calculateTotals(); // Hitung ulang total, sisa bayar, dan status AKTIF/PASIF
+    isInitialLoad.value = false;
 
     toast.success(`Data Penawaran ${penawaran.nomor} berhasil dimuat.`);
   } catch (error: unknown) {
@@ -2187,6 +2191,10 @@ const handleBonusSelection = (bonusItem: BonusItemSelection) => {
 
 // [BARU] Cek Kelayakan Promo Real-time (Untuk Notifikasi)
 const checkRealtimePromoEligibility = async (): Promise<boolean> => {
+  // --- [BARU] PROTEKSI PENAWARAN: Jangan tampilkan dialog promo jika ini dari Penawaran ---
+  if (header.value.penawaran) {
+    return false; // Skip pencarian promo agar diskon asli penawaran tidak terganggu
+  }
   // --- PROTEKSI 1: Jika ada PIN Otorisasi, JANGAN PERNAH overwrite nilai ---
   if (footer.value.pinDiskon1 || footer.value.pinDiskon2) {
     return true;
@@ -2279,17 +2287,20 @@ const usePromoDiscount = () => {
 };
 
 const useMemberDiscount = () => {
-  // 1. Bersihkan promo agar logic default-discount bisa berjalan
   header.value.nomorPromo = "";
   header.value.namaPromo = "";
+
+  // --- PERBAIKAN: Reset nominal agar tidak memblokir pencarian diskon member ---
   footer.value.diskonRp = 0;
+  footer.value.pinDiskon1 = undefined;
+  // --------------------------------------------------------------------------------------
 
   isPromoConfirmVisible.value = false;
 
-  // 2. Panggil hitung diskon member (tiering) secara manual [cite: 2025-09-06]
+  // Panggil hitung diskon member (tiering) secara manual
   applyDefaultDiscount();
 
-  // 3. Hitung ulang total untuk sinkronisasi footer
+  // Hitung ulang total untuk sinkronisasi footer
   calculateTotals();
 
   toast.info("Menggunakan diskon member standar.");

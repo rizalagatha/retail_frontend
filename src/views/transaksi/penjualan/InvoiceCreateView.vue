@@ -844,6 +844,12 @@ const onCustomerSelected = async (cust: Customer | null) => {
 };
 
 const applyDefaultDiscount = () => {
+  if (authStore.user?.cabang === "KDC") {
+    header.diskonPersen1 = 0;
+    header.diskonRp = 0;
+    return;
+  }
+
   if (isKpr.value) {
     header.diskonPersen1 = 15;
     return;
@@ -1585,6 +1591,11 @@ const fetchActivePromos = async () => {
 // --- Method Baru: Cek Promo Real-time ---
 // Fungsi ini hanya menghitung potensi, TIDAK mengubah header.diskonRp secara langsung
 const checkRealtimePromoEligibility = () => {
+  if (authStore.user?.cabang === "KDC") {
+    promoNotification.value = "";
+    potentialPromoDiscount.value = 0;
+    return;
+  }
   // Reset
   promoNotification.value = "";
   potentialPromoDiscount.value = 0;
@@ -2116,6 +2127,8 @@ const handleBarcodeScan = async () => {
 const handleJumlahChange = async (item: Item) => {
   if (item.terhitungPromo) return;
 
+  if (authStore.user?.cabang === "KDC") return;
+
   // Cek ke backend apakah ada promo untuk item ini
   try {
     const response = await api.get("/invoice-form/lookup/applicable-item-promo", {
@@ -2221,17 +2234,20 @@ const getQtyClass = (item: Item) => {
 };
 
 const isHargaEditable = (item: Item) => {
-  // Jika cabang bukan K05 atau KON, gunakan aturan default lama (true) atau false sesuai kebijakan
-  if (!isUserMarketplaceEligible.value) {
-    return item._isHargaEditable === true;
-  }
+  const cabang = authStore.user?.cabang || "";
 
-  // Jika user K05/KON: Harga HANYA editable jika switch isMarketplace bernilai TRUE
-  if (header.isMarketplace) {
+  // 1. Cabang KDC: Selalu bisa edit harga (Invoice Reguler)
+  if (cabang === "KDC") {
     return true;
   }
 
-  return false;
+  // 2. Cabang KON & K05: Tetap mengikuti aturan Marketplace
+  if (cabang === "KON" || cabang === "K05") {
+    return header.isMarketplace === true;
+  }
+
+  // 3. Cabang Lainnya: Mengikuti aturan default master barang
+  return item._isHargaEditable === true;
 };
 
 const loadDataForEdit = async (nomor: string) => {

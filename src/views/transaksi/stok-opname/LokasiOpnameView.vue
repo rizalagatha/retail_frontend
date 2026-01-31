@@ -70,9 +70,20 @@ const fetchData = async () => {
   isLoading.value = true;
   try {
     const response = await api.get("/lokasi-opname", { params: filters });
-    items.value = response.data;
+
+    // --- PERBAIKAN SORTING DI SINI ---
+    // Gunakan numeric: true agar BX2 muncul sebelum BX10
+    const sortedData = response.data.sort((a: LokasiOpname, b: LokasiOpname) => {
+      return a.lo_lokasi.localeCompare(b.lo_lokasi, undefined, {
+        numeric: true,
+        sensitivity: 'base'
+      });
+    });
+
+    items.value = sortedData;
+    // ---------------------------------
+
   } catch (error: unknown) {
-    // Ganti any jadi unknown
     const axiosError = error as AxiosError<{ message?: string }>;
     toast.error(axiosError.response?.data?.message || "Gagal memuat data.");
   } finally {

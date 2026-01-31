@@ -2187,6 +2187,11 @@ const handleBonusSelection = (bonusItem: BonusItemSelection) => {
 
 // [BARU] Cek Kelayakan Promo Real-time (Untuk Notifikasi)
 const checkRealtimePromoEligibility = async (): Promise<boolean> => {
+  // --- PROTEKSI 1: Jika ada PIN Otorisasi, JANGAN PERNAH overwrite nilai ---
+  if (footer.value.pinDiskon1 || footer.value.pinDiskon2) {
+    return true;
+  }
+
   if (isEditMode.value && isInitialLoad.value) {
     return !!header.value.nomorPromo;
   }
@@ -2227,14 +2232,14 @@ const checkRealtimePromoEligibility = async (): Promise<boolean> => {
 
   // --- LOGIKA UPDATE OTOMATIS (Jika Promo Sudah Terpasang) ---
   if (header.value.nomorPromo && autoPromoIds.includes(header.value.nomorPromo)) {
-    if (isInitialLoad.value) {
-      return true;
-    }
-    // Jika syarat masih terpenuhi, update nominal diskon secara real-time
+
+    // --- PROTEKSI 2: Cek lagi di sini untuk memastikan nilai manual terjaga ---
+    if (footer.value.pinDiskon1) return true;
+
     if (promoCandidate && header.value.nomorPromo === promoCandidate.pro_nomor) {
       footer.value.diskonRp = currentCalculatedDiscount;
     } else {
-      // Jika syarat tidak terpenuhi lagi (barang dikurangi), hapus promo
+      // Hapus promo jika syarat tidak terpenuhi lagi
       header.value.nomorPromo = "";
       header.value.namaPromo = "";
       footer.value.diskonRp = 0;

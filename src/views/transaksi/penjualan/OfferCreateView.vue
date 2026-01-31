@@ -248,6 +248,7 @@ const dpItems = ref<DpItem[]>([]);
 const isDpInputVisible = ref(false);
 const isDpListModalVisible = ref(false);
 const isDiscountCostModalVisible = ref(false);
+const isInitialLoad = ref(false);
 
 footer.value.diskonRpInput = footer.value.diskonRp;
 
@@ -388,7 +389,8 @@ const loadOfferData = async (nomor: string) => {
 
     await nextTick();
     calculateTotals(); // Hitung ulang untuk memastikan sisa bayar sinkron
-    markAsSaved();
+    isInitialLoad.value = false; // [2] Buka kembali kunci setelah stabil
+    markAsSaved()
   } catch (error) {
     toast.error('Gagal memuat data penawaran.', error);
     router.push('/transaksi/penjualan/penawaran');
@@ -1093,6 +1095,15 @@ const closeForm = () => {
 };
 
 const applyDefaultDiscount = async () => {
+  // --- PERBAIKAN: PROTEKSI DISKON MANUAL/DATABASE ---
+  if (isInitialLoad.value) return;
+
+  // Jika diskon nominal sudah ada (> 0) dan diskon persen kosong,
+  // artinya ini hasil otorisasi/input manual. Jangan ditimpa.
+  if (footer.value.diskonRp > 0 && footer.value.diskonPersen1 === 0) {
+    return;
+  }
+  // -----------------------------------------------------------
   // Validasi: Pastikan data pendukung ada
   if (!header.value.customer || !header.value.customer.level) {
     footer.value.diskonPersen1 = 0;
@@ -1288,6 +1299,7 @@ const handleDiscountCostUpdate = (newData: DiscountCostUpdateData) => {
 let debounceTimer: ReturnType<typeof setTimeout>;
 
 watch(() => footer.value.total, () => {
+  if (isInitialLoad.value) return;
   // 1. Jika sedang manual override (menunggu auth atau sudah ada PIN), JANGAN update otomatis
   if (footer.value.pinDiskon1 || isAuthPending.value) {
     return;

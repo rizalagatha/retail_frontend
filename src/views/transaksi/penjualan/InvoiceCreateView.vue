@@ -1626,74 +1626,61 @@ const checkRealtimePromoEligibility = () => {
   //   }
   // }
 
-  // --- 2. LOGIKA PROMO FEBRUARI 2026 (PRO-2026-001) ---
+  // 1. Ambil Data Promo dari List
   const promo2026 = activePromosList.value.find((p) => p.pro_nomor === "PRO-2026-001");
+  const promo008 = activePromosList.value.find((p) => p.pro_nomor === "PRO-2025-008");
+  const promo010 = activePromosList.value.find((p) => p.pro_nomor === "PRO-2025-010");
 
-  // Filter Produk: Reguler + Jersey + Sablon DTF
+  // 2. Hitung Total Belanja Berdasarkan Kategori Eligible
   const totalEligibleFeb = validItems.reduce((sum, item) => {
-    const isReguler = item.kategori === "REGULER";
-    const isJersey = item.nama?.toUpperCase().includes("JERSEY");
-    const isDtf = !!item.noSoDtf;
-
-    if (isReguler || isJersey || isDtf) {
+    if (isItemPromoEligible(item)) {
       return sum + (item.total || 0);
     }
     return sum;
   }, 0);
 
-  if (promo2026) {
+  // --- LOGIKA UTAMA: PRIORITAS PROMO FEBRUARI 2026 ---
+  if (promo2026 && totalEligibleFeb >= 100000) {
     if (totalEligibleFeb >= 200000) {
-      // KONDISI A: Sudah dapet kelipatan
       const kelipatan = Math.floor(totalEligibleFeb / 200000);
       discount = 20000 * kelipatan;
       message = `🎉 PROMO FEBRUARI! Anda berhak Potongan Kelipatan Rp ${formatRupiah(discount)}!`;
     }
     else if (totalEligibleFeb >= 150000) {
-      // KONDISI B: Sudah dapet flat 15rb
       discount = 15000;
       const toNextLevel = 200000 - totalEligibleFeb;
-      message = `✨ PROMO FEBRUARI: Dapat potongan Rp 15.000! (Tambah Rp ${formatRupiah(toNextLevel)} lagi untuk diskon Rp 20.000)`;
+      message = `✨ PROMO FEBRUARI: Dapat potongan Rp 15.000! (Tambah Rp ${formatRupiah(toNextLevel)} lagi untuk diskon kelipatan)`;
     }
-    else if (totalEligibleFeb >= 100000) {
-      // KONDISI C: UPSELLING (Biar Card Tidak Hilang)
+    else {
+      // Upselling 100rb - 150rb
       const shortage = 150000 - totalEligibleFeb;
       message = `💡 Tambah belanja Rp ${formatRupiah(shortage)} lagi untuk dapat DISKON Rp 15.000!`;
-      discount = 0; // Belum dapet diskon riil
+      discount = 0;
     }
   }
+  // --- FALLBACK: JIKA PROMO FEBRUARI TIDAK TERPENUHI, CEK PROMO DESEMBER ---
+  else {
+    const totalRegulerDec = validItems.reduce((sum, item) => {
+      if (item.kategori === "REGULER" && !item.nama?.toUpperCase().includes("JERSEY")) {
+        return sum + (item.total || 0);
+      }
+      return sum;
+    }, 0);
 
-  // --- [TETAP PERTAHANKAN] 3. LOGIKA DESEMBER 2025 (Fallback jika promo 2026 tidak aktif) ---
-  // else {
-  const promo008 = activePromosList.value.find((p) => p.pro_nomor === "PRO-2025-008");
-  const promo010 = activePromosList.value.find((p) => p.pro_nomor === "PRO-2025-010");
+    const totalBelanjaDec = validItems.reduce((sum, item) => {
+      if (!item.noSoDtf && !item.noPengajuanHarga) return sum + (item.total || 0);
+      return sum;
+    }, 0);
 
-  // Hitung Total Reguler & Belanja
-  const totalReguler = validItems.reduce((sum, item) => {
-    if (item.kategori === "REGULER" && !item.nama?.toUpperCase().includes("JERSEY")) {
-      return sum + (item.total || 0);
+    if (promo010 && totalRegulerDec >= 250000) {
+      const kelipatan = Math.floor(totalRegulerDec / 250000);
+      discount = 25000 * kelipatan;
+      message = `🎉 SELAMAT! Transaksi ini berhak mendapatkan Potongan Kelipatan Rp ${formatRupiah(discount)}!`;
+    } else if (promo008 && totalBelanjaDec >= promo008.pro_totalrp) {
+      discount = promo008.pro_disrp * Math.floor(totalBelanjaDec / promo008.pro_totalrp);
+      message = `✨ DISKON BULANAN AKTIF: Anda berhak mendapatkan potongan Rp ${formatRupiah(discount)}`;
     }
-    return sum;
-  }, 0);
-
-  const totalBelanja = validItems.reduce((sum, item) => {
-    if (!item.noSoDtf && !item.noPengajuanHarga) return sum + (item.total || 0);
-    return sum;
-  }, 0);
-
-  // Cek Prioritas Promo Reguler
-  if (promo010 && totalReguler >= 250000) {
-    const kelipatan = Math.floor(totalReguler / 250000);
-    discount = 25000 * kelipatan;
-    message = `🎉 SELAMAT! Transaksi ini berhak mendapatkan Potongan Kelipatan Rp ${formatRupiah(
-      discount
-    )}!`;
-  } else if (promo008 && totalBelanja >= promo008.pro_totalrp) {
-    discount = promo008.pro_disrp * Math.floor(totalBelanja / promo008.pro_totalrp);
-    message = `✨ DISKON BULANAN AKTIF: Anda berhak mendapatkan potongan Rp ${formatRupiah(
-      discount
-    )}`;
   }
-  // }
 
   // Update State UI
   if (message) {

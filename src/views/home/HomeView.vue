@@ -741,22 +741,30 @@ const fetchActivePromos = async () => {
     });
 
     const promos = (response.data || []) as ActivePromo[];
-    let promoMessages: string[] = [];
+    const promoMessages: string[] = [];
 
-    // [REVISI] Cabang K11 sekarang menggunakan promo reguler, nonaktifkan pesan Grand Opening
-    const promoReguler = promos.find(p =>
-      p.pro_nomor === 'PRO-2025-010' ||
-      p.pro_judul.toUpperCase().includes('REGULER')
-    );
+    // --- 1. PRIORITAS: PROMO FEBRUARI 2026 (PRO-2026-001) ---
+    const promoFeb = promos.find(p => p.pro_nomor === 'PRO-2026-001');
 
-    if (promoReguler) {
-      promoMessages.push(`🔥 PROMO BULANAN: Potongan Rp 25.000 tiap kelipatan Rp 250.000 (Khusus Kaos Polos/Reguler, Non-Jersey). Buruan Serbu!`);
-    } else if (promos.length > 0) {
-      // Jika ada promo lain yang aktif di Januari
-      promoMessages = promos.map(p => `✨ ${p.pro_judul}`);
+    if (promoFeb) {
+      promoMessages.push(
+        `🎉 PROMO FEBRUARI: Potongan Rp 15.000 (Min. Belanja 150rb) • Potongan Rp 20.000 tiap kelipatan Rp 200.000! (Berlaku All Reguler, Jersey & Sablon DTF)`
+      );
     }
 
-    // Pesan default jika tidak ada promo spesifik yang ditemukan
+    // --- 2. FALLBACK: PROMO DESEMBER/JANUARI (Jika Promo Februari tidak ada) ---
+    else {
+      const promoReguler = promos.find(p =>
+        p.pro_nomor === 'PRO-2025-010' ||
+        p.pro_judul.toUpperCase().includes('REGULER')
+      );
+
+      if (promoReguler) {
+        promoMessages.push(`🔥 PROMO BULANAN: Potongan Rp 25.000 tiap kelipatan Rp 250.000 (Khusus Kaos Polos/Reguler, Non-Jersey).`);
+      }
+    }
+
+    // Pesan default jika tidak ada promo aktif
     if (promoMessages.length === 0) {
       promoMessages.push('Selamat Datang di Kaosan Retail Management System • Cek koleksi terbaru kami sekarang!');
     }
@@ -1366,7 +1374,7 @@ onUnmounted(() => {
                   <v-list v-else density="compact" class="py-0">
                     <v-list-item v-for="item in stockBreakdown" :key="item.kode_cabang" density="compact">
                       <v-list-item-title class="text-caption">{{ item.nama_cabang || item.kode_cabang
-                        }}</v-list-item-title>
+                      }}</v-list-item-title>
                       <template #append><span class="text-caption font-weight-bold">{{
                         item.totalStock.toLocaleString('id-ID')
                           }}</span></template>
@@ -1430,7 +1438,7 @@ onUnmounted(() => {
                     <v-list-item v-for="item in piutangBreakdown" :key="item.cabang_kode" density="compact">
                       <v-list-item-title class="text-caption">{{ item.cabang_nama }}</v-list-item-title>
                       <template #append><span class="text-caption font-weight-bold">{{ formatRupiah(item.sisa_piutang)
-                          }}</span></template>
+                      }}</span></template>
                     </v-list-item>
                   </v-list>
 
@@ -1537,7 +1545,7 @@ onUnmounted(() => {
                         ditindaklanjuti</v-list-item-subtitle>
                       <template #append>
                         <v-chip color="info" size="large" variant="flat" class="font-weight-bold">{{ item.count
-                          }}</v-chip>
+                        }}</v-chip>
                       </template>
                     </v-list-item>
                     <v-divider v-if="index < pendingActions.length - 1" class="my-1"></v-divider>
@@ -1682,7 +1690,7 @@ onUnmounted(() => {
                       <v-list-item-subtitle class="d-flex align-center text-caption text-medium-emphasis">
                         <span class="mr-2">{{ item.kode }}</span>
                         <span v-if="item.barcode"><v-icon size="x-small" start>mdi-barcode</v-icon>{{ item.barcode
-                          }}</span>
+                        }}</span>
                       </v-list-item-subtitle>
                       <template #append>
                         <v-chip color="red" size="x-small" variant="flat" class="font-weight-bold">
@@ -2014,7 +2022,7 @@ onUnmounted(() => {
                 <v-chip size="x-small" color="grey-lighten-3" class="mr-2 font-weight-bold text-grey-darken-3">{{
                   item.kode }}</v-chip>
                 <v-chip size="x-small" color="blue-lighten-5" class="font-weight-bold text-blue-darken-3">{{ item.ukuran
-                  }}</v-chip>
+                }}</v-chip>
               </div>
             </div>
           </template>

@@ -403,6 +403,7 @@ const jenisOrderList = ref([]);
 const loadingJenisOrder = ref(false);
 const page = ref(1);
 const rowsPerPage = ref(10);
+const potentialPromoDiscount = ref(0);
 
 // [BARU] State untuk Promo
 const activePromosList = ref<ActivePromo[]>([]);
@@ -936,6 +937,39 @@ const save = async () => {
       toast.error(`Harga untuk barang '${item.nama}' harus diisi.`);
       return;
     }
+  }
+
+  // --- 2. Integrasi Logika Promo PRO-2026-001 (Februari) ---
+  if (header.value.nomorPromo === "PRO-2026-001") {
+    // Hitung akumulasi barang eligible: Reguler, Jersey, dan Sablon DTF
+    const totalEligibleFeb = validItems.reduce((sum, item) => {
+      const isReguler = item.kategori === "REGULER";
+      const isJersey = item.nama?.toUpperCase().includes("JERSEY");
+      const isDtf = !!item.noSoDtf;
+
+      if (isReguler || isJersey || isDtf) {
+        return sum + (item.total || 0);
+      }
+      return sum;
+    }, 0);
+
+    // Update nominal diskon riil berdasarkan target belanja
+    if (totalEligibleFeb >= 200000) {
+      // Potongan 20rb tiap kelipatan 200rb
+      footer.value.diskonRp = Math.floor(totalEligibleFeb / 200000) * 20000;
+    } else if (totalEligibleFeb >= 150000) {
+      // Potongan flat 15rb untuk range 150rb - < 200rb
+      footer.value.diskonRp = 15000;
+    } else {
+      // Jika ternyata total belanja turun di bawah syarat setelah diedit
+      footer.value.diskonRp = 0;
+      header.value.nomorPromo = "";
+      header.value.namaPromo = "";
+      toast.warning("Syarat minimal belanja promo tidak terpenuhi. Promo dilepas.");
+    }
+
+    // Hitung ulang Grand Total setelah penyesuaian diskon promo
+    calculateTotals();
   }
 
   // // --- 2. Integrasi Logika Promo Otomatis ---
@@ -2097,6 +2131,14 @@ const fetchActivePromos = async () => {
   }
 };
 
+const isItemPromoEligible = (item: SoItem) => {
+  const isReguler = item.kategori === "REGULER";
+  const isJersey = item.nama?.toUpperCase().includes("JERSEY");
+  const isDtf = !!item.noSoDtf; // Produk dengan nomor SO DTF masuk kriteria
+
+  return isReguler || isJersey || isDtf;
+};
+
 // [BARU] Handle Promo Terpilih dari Modal F1
 const onPromoSelected = (promo: { nomor: string; namaPromo: string }) => {
   // Jika promo barang (beli 3 100rb), reset grid
@@ -2191,74 +2233,114 @@ const handleBonusSelection = (bonusItem: BonusItemSelection) => {
 
 // [BARU] Cek Kelayakan Promo Real-time (Untuk Notifikasi)
 const checkRealtimePromoEligibility = async (): Promise<boolean> => {
-  // --- [BARU] PROTEKSI PENAWARAN: Jangan tampilkan dialog promo jika ini dari Penawaran ---
-  if (header.value.penawaran) {
-    return false; // Skip pencarian promo agar diskon asli penawaran tidak terganggu
+  // --- PROTEKSI AWAL ---
+  // 1. Jangan tampilkan dialog promo jika ini dari Penawaran atau cabang KDC
+  if (header.value.penawaran || authStore.user?.cabang === "KDC") {
+    promoNotification.value = "";
+    potentialPromoDiscount.value = 0;
+    return false;
   }
-  // --- PROTEKSI 1: Jika ada PIN Otorisasi, JANGAN PERNAH overwrite nilai ---
+
+  // 2. Proteksi PIN Otorisasi: Jangan pernah timpa nilai jika sudah ada otorisasi manual
   if (footer.value.pinDiskon1 || footer.value.pinDiskon2) {
     return true;
   }
 
+  // 3. Penanganan Mode Edit saat awal pemuatan data
   if (isEditMode.value && isInitialLoad.value) {
     return !!header.value.nomorPromo;
   }
 
-  const autoPromoIds = ["PRO-2025-008", "PRO-2025-010"];
-
-  // Logic filter item reguler (Tetap sama seperti sebelumnya)
-  const isExcludedItem = (item: SoItem) => {
-    const namaUp = item.nama?.toUpperCase() || "";
-    const kodeUp = item.kode?.toUpperCase() || "";
-    return item.isJasa || kodeUp.startsWith("JS") || kodeUp.startsWith("JASA") ||
-      namaUp.includes("DESAIN") || item.isCustomOrder || !!item.noSoDtf;
-  };
+  // Reset Notifikasi & State Promo
+  promoNotification.value = "";
+  potentialPromoDiscount.value = 0;
+  isGrandOpeningPromo.value = false;
 
   const validItems = items.value.filter((i) => i.kode);
-  const totalReguler = validItems.reduce((sum, item) => {
-    if (!item.nama?.toUpperCase().includes("JERSEY") && !isExcludedItem(item) && item.kategori !== "SESIONAL") {
-      return sum + (item.total || 0);
-    }
-    return sum;
-  }, 0);
+  if (validItems.length === 0) return false;
 
-  const promo010 = activePromosList.value.find((p) => p.pro_nomor === "PRO-2025-010");
-  const promo008 = activePromosList.value.find((p) => p.pro_nomor === "PRO-2025-008");
-
+  // Variabel penampung hasil hitungan
   let currentCalculatedDiscount = 0;
+  let message = "";
   let promoCandidate: ActivePromo | null = null;
 
-  // Hitung potensi diskon berdasarkan kelipatan terbaru
-  if (promo010 && totalReguler >= 250000) {
-    const kelipatan = Math.floor(totalReguler / 250000);
-    currentCalculatedDiscount = 25000 * kelipatan;
-    promoCandidate = promo010;
-  } else if (promo008 && totalReguler >= promo008.pro_totalrp) {
-    currentCalculatedDiscount = promo008.pro_disrp * Math.floor(totalReguler / promo008.pro_totalrp);
-    promoCandidate = promo008;
-  }
+  // --- [PRIORITAS 1] LOGIKA PROMO FEBRUARI 2026 (PRO-2026-001) ---
+  const totalEligibleFeb = validItems.reduce((sum, item) => {
+    return isItemPromoEligible(item) ? sum + (item.total || 0) : sum;
+  }, 0);
 
-  // --- LOGIKA UPDATE OTOMATIS (Jika Promo Sudah Terpasang) ---
-  if (header.value.nomorPromo && autoPromoIds.includes(header.value.nomorPromo)) {
+  const promo2026 = activePromosList.value.find((p) => p.pro_nomor === "PRO-2026-001");
 
-    // --- PROTEKSI 2: Cek lagi di sini untuk memastikan nilai manual terjaga ---
-    if (footer.value.pinDiskon1) return true;
-
-    if (promoCandidate && header.value.nomorPromo === promoCandidate.pro_nomor) {
-      footer.value.diskonRp = currentCalculatedDiscount;
-    } else {
-      // Hapus promo jika syarat tidak terpenuhi lagi
-      header.value.nomorPromo = "";
-      header.value.namaPromo = "";
-      footer.value.diskonRp = 0;
-      lastSuggestedPromo.value = "";
+  if (promo2026) {
+    if (totalEligibleFeb >= 200000) {
+      // Kondisi Kelipatan 20rb per 200rb
+      const kelipatan = Math.floor(totalEligibleFeb / 200000);
+      currentCalculatedDiscount = 20000 * kelipatan;
+      message = `🎉 PROMO FEBRUARI! Anda berhak Potongan Kelipatan Rp ${formatRupiah(currentCalculatedDiscount)}!`;
+      promoCandidate = promo2026;
     }
-    return true;
+    else if (totalEligibleFeb >= 150000) {
+      // Kondisi Flat 15rb
+      currentCalculatedDiscount = 15000;
+      const toNextLevel = 200000 - totalEligibleFeb;
+      message = `✨ PROMO FEBRUARI: Dapat potongan Rp 15.000! (Tambah Rp ${formatRupiah(toNextLevel)} lagi untuk diskon kelipatan)`;
+      promoCandidate = promo2026;
+    }
+    else if (totalEligibleFeb >= 100000) {
+      // UPSELLING: Biar kartu tidak hilang saat belanja di atas 100rb
+      const shortage = 150000 - totalEligibleFeb;
+      message = `💡 Tambah belanja Rp ${formatRupiah(shortage)} lagi untuk dapat DISKON Rp 15.000! (Reguler/Jersey/DTF)`;
+      currentCalculatedDiscount = 0;
+    }
   }
 
-  // --- LOGIKA KONFIRMASI (Untuk Promo Baru) ---
-  if (promoCandidate && currentCalculatedDiscount > 0) {
-    if (lastSuggestedPromo.value !== promoCandidate.pro_nomor) {
+  // --- [PRIORITAS 2] FALLBACK KE PROMO DESEMBER 2025 (Jika Februari belum dapet diskon riil) ---
+  if (currentCalculatedDiscount === 0 && !message.includes("💡")) {
+    const promo010 = activePromosList.value.find((p) => p.pro_nomor === "PRO-2025-010");
+    const promo008 = activePromosList.value.find((p) => p.pro_nomor === "PRO-2025-008");
+
+    // Hitung total reguler lama (Exclude Jersey & DTF sesuai kriteria lama)
+    const totalRegulerDec = validItems.reduce((sum, item) => {
+      if (item.kategori === "REGULER" && !item.nama?.toUpperCase().includes("JERSEY") && !item.noSoDtf) {
+        return sum + (item.total || 0);
+      }
+      return sum;
+    }, 0);
+
+    if (promo010 && totalRegulerDec >= 250000) {
+      const kelipatan = Math.floor(totalRegulerDec / 250000);
+      currentCalculatedDiscount = 25000 * kelipatan;
+      message = `🎉 SELAMAT! Transaksi ini berhak Potongan Kelipatan Rp ${formatRupiah(currentCalculatedDiscount)}!`;
+      promoCandidate = promo010;
+    } else if (promo008 && totalRegulerDec >= promo008.pro_totalrp) {
+      currentCalculatedDiscount = promo008.pro_disrp * Math.floor(totalRegulerDec / promo008.pro_totalrp);
+      message = `✨ DISKON BULANAN: Anda berhak potongan Rp ${formatRupiah(currentCalculatedDiscount)}`;
+      promoCandidate = promo008;
+    }
+  }
+
+  // --- FINALISASI UPDATE UI & DIALOG ---
+  if (message) {
+    promoNotification.value = message;
+    potentialPromoDiscount.value = currentCalculatedDiscount;
+
+    // 1. Jika promo sudah terpasang (Auto-Update nominal jika belanja bertambah/berkurang)
+    const autoPromoIds = ["PRO-2025-008", "PRO-2025-010", "PRO-2026-001"];
+    if (header.value.nomorPromo && autoPromoIds.includes(header.value.nomorPromo)) {
+      if (promoCandidate && header.value.nomorPromo === promoCandidate.pro_nomor) {
+        footer.value.diskonRp = currentCalculatedDiscount;
+      } else if (currentCalculatedDiscount === 0) {
+        // Hapus promo jika syarat minimal belanja tidak terpenuhi lagi (setelah dikurangi barang)
+        header.value.nomorPromo = "";
+        header.value.namaPromo = "";
+        footer.value.diskonRp = 0;
+        lastSuggestedPromo.value = "";
+      }
+      return true;
+    }
+
+    // 2. Jika diskon riil tersedia (>0) dan belum diterapkan, munculkan Dialog Konfirmasi
+    if (currentCalculatedDiscount > 0 && promoCandidate && lastSuggestedPromo.value !== promoCandidate.pro_nomor) {
       pendingPromoData.nomor = promoCandidate.pro_nomor;
       pendingPromoData.nama = promoCandidate.pro_judul;
       pendingPromoData.diskon = currentCalculatedDiscount;
@@ -2266,7 +2348,7 @@ const checkRealtimePromoEligibility = async (): Promise<boolean> => {
       isPromoConfirmVisible.value = true;
       lastSuggestedPromo.value = promoCandidate.pro_nomor;
     }
-    return false; // Belum diterapkan (menunggu konfirmasi user)
+    return true;
   }
 
   return false;

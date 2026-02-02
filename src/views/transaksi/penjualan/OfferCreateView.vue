@@ -174,6 +174,15 @@ interface DiscountCostUpdateData {
   pinDiskon2?: string;
 }
 
+interface ActivePromo {
+  pro_nomor: string;
+  pro_judul: string;
+  pro_totalrp: number;
+  pro_disrp: number;
+  pro_diskon: number;
+  pro_lipat: 'Y' | 'N';
+}
+
 // --- State ---
 const header = ref<OfferHeader>({
   nomor: '',
@@ -249,6 +258,19 @@ const isDpInputVisible = ref(false);
 const isDpListModalVisible = ref(false);
 const isDiscountCostModalVisible = ref(false);
 const isInitialLoad = ref(false);
+// --- State Promo [BARU] ---
+const activePromosList = ref<ActivePromo[]>([]);
+const promoNotification = ref("");
+const potentialPromoDiscount = ref(0);
+const lastSuggestedPromo = ref("");
+const isGrandOpeningPromo = ref(false); // Digunakan untuk binding class di template
+
+const isPromoConfirmVisible = ref(false);
+const pendingPromoData = reactive({
+  nomor: "",
+  nama: "",
+  diskon: 0
+});
 
 footer.value.diskonRpInput = footer.value.diskonRp;
 
@@ -527,6 +549,96 @@ const isDiscountableItem = (item: OfferItem) => {
   return !isJasa && !item.isCustomOrder && item.kode !== 'CUSTOM';
 };
 
+const isItemPromoEligible = (item: OfferItem) => {
+  // Anggap barang CUSTOM di Penawaran adalah Sablon DTF
+  const isReguler = !item.kode?.toUpperCase().startsWith("JASA") && !item.isCustomOrder;
+  const isJersey = item.nama?.toUpperCase().includes("JERSEY");
+  const isDtf = item.isCustomOrder || item.kode === 'CUSTOM';
+
+  return isReguler || isJersey || isDtf;
+};
+
+const checkRealtimePromoEligibility = () => {
+  if (authStore.user?.cabang === "KDC" || footer.value.pinDiskon1) return;
+
+  promoNotification.value = "";
+  potentialPromoDiscount.value = 0;
+  isGrandOpeningPromo.value = false; // Menggunakan variabel yang dideklarasikan
+
+  const validItems = items.value.filter((i) => i.kode);
+  if (validItems.length === 0) {
+    lastSuggestedPromo.value = ""; // Reset penjaga jika keranjang kosong
+    return;
+  }
+
+  // 1. Hitung total belanja barang eligible (Reguler, Jersey, DTF)
+  const totalEligible = validItems.reduce((sum, item) => {
+    return isItemPromoEligible(item) ? sum + (item.total || 0) : sum;
+  }, 0);
+
+  const promoFeb = activePromosList.value.find((p) => p.pro_nomor === "PRO-2026-001");
+
+  if (promoFeb) {
+    let disc = 0;
+    let msg = "";
+
+    // 2. Logika Hitung Tiering (Kelipatan 200rb didahulukan)
+    if (totalEligible >= 200000) {
+      disc = Math.floor(totalEligible / 200000) * 20000;
+      msg = `🎉 PROMO FEBRUARI! Anda berhak Potongan Kelipatan Rp ${formatRupiah(disc)}!`;
+    }
+    else if (totalEligible >= 150000) {
+      disc = 15000;
+      const toNext = 200000 - totalEligible;
+      msg = `✨ PROMO FEBRUARI: Dapat potongan Rp 15.000! (Kurang Rp ${formatRupiah(toNext)} lagi untuk kelipatan)`;
+    }
+    else if (totalEligible >= 100000) {
+      const shortage = 150000 - totalEligible;
+      msg = `💡 Tambah belanja Rp ${formatRupiah(shortage)} lagi untuk dapat DISKON Rp 15.000!`;
+    }
+
+    if (msg) {
+      promoNotification.value = msg;
+      potentialPromoDiscount.value = disc;
+
+      // === [PENTING] PERBARUI DATA PENAMPUNG SETIAP ADA PERUBAHAN ===
+      pendingPromoData.nomor = promoFeb.pro_nomor;
+      pendingPromoData.nama = promoFeb.pro_judul;
+      pendingPromoData.diskon = disc;
+
+      // 3. LOGIKA AUTO-UPDATE (SINKRON DENGAN SO)
+      // Jika diskon sudah pernah diterapkan (diskonRp > 0), maka update nominalnya otomatis mengikuti qty
+      if (footer.value.diskonRp > 0 && !isFooterDiskonRpFocused.value && !isAuthPending.value) {
+        footer.value.diskonRp = disc;
+        footer.value.diskonRpInput = disc;
+        footer.value.diskonPersen1 = 0; // Pastikan persen mati
+      }
+
+      // 4. LOGIKA DIALOG KONFIRMASI (Hanya jika belum ada diskon terpasang)
+      else if (disc > 0 && footer.value.diskonRp === 0 && lastSuggestedPromo.value !== promoFeb.pro_nomor) {
+        isPromoConfirmVisible.value = true;
+        lastSuggestedPromo.value = promoFeb.pro_nomor;
+      }
+    }
+  }
+};
+
+const applyPromoDiscount = () => {
+  // Ambil nominal terbaru dari hitungan terakhir
+  footer.value.diskonRp = pendingPromoData.diskon;
+  footer.value.diskonRpInput = pendingPromoData.diskon;
+
+  // Matikan diskon persen member agar nominal promo yang menang
+  footer.value.diskonPersen1 = 0;
+  footer.value.diskonPersen2 = 0;
+
+  isPromoConfirmVisible.value = false;
+
+  // Hitung ulang keseluruhan total
+  calculateTotals();
+  toast.success(`Promo ${pendingPromoData.nama} berhasil diterapkan.`);
+};
+
 const calculateTotals = () => {
   let subtotal = 0;
   let subtotalDiscountable = 0;
@@ -553,6 +665,8 @@ const calculateTotals = () => {
 
   footer.value.subtotalKaos = subtotalDiscountable;
   footer.value.total = subtotal;
+
+  checkRealtimePromoEligibility();
 
   // --- PERBAIKAN LOGIKA DISKON FAKTUR ---
   const isManualOverride = isFooterDiskonRpFocused.value || isAuthPending.value;
@@ -1368,13 +1482,22 @@ watch(
   { deep: true }
 );
 
-onMounted(() => {
+onMounted(async () => {
   markAsSaved();
   // Pengecekan otorisasi sebelum memuat apa pun
   if (!authStore.can(MENU_ID, requiredPermission.value)) {
     toast.error(`Anda tidak memiliki izin untuk ${requiredPermission.value === 'insert' ? 'membuat' : 'mengubah'} data penawaran.`);
     router.push('/transaksi/penjualan/penawaran');
     return;
+  }
+
+  try {
+    const response = await api.get("/invoice-form/lookup/active-promos", {
+      params: { tanggal: header.value.tanggal, cabang: header.value.gudang.kode },
+    });
+    activePromosList.value = response.data || [];
+  } catch (e) {
+    console.error("Gagal load promo", e);
   }
 
   if (isEditMode.value) {
@@ -1499,7 +1622,7 @@ onMounted(() => {
                   <v-list-item-title class="text-subtitle-2 font-weight-bold">Sisa Bayar</v-list-item-title>
                   <template #append>
                     <span class="text-h6 font-weight-black text-primary">{{ formatRupiah(footer.belumDibayar)
-                    }}</span>
+                      }}</span>
                   </template>
                 </v-list-item>
               </v-list>
@@ -1515,6 +1638,33 @@ onMounted(() => {
             prepend-inner-icon="mdi-barcode-scan" hide-details clearable @keydown.enter.prevent="handleBarcodeScan">
           </v-text-field>
         </div>
+        <v-slide-y-transition>
+          <div v-if="promoNotification" class="promo-card-wrapper mb-4 mt-2">
+            <div :class="['promo-card', { 'grand-opening-style': isGrandOpeningPromo }]">
+              <div class="card-texture"></div>
+              <div class="card-shine"></div>
+              <div class="card-content">
+                <div class="icon-container">
+                  <div class="icon-circle pulse-animation">
+                    <v-icon icon="mdi-ticket-percent-outline" size="24" color="white" />
+                  </div>
+                </div>
+                <div class="text-container">
+                  <div class="promo-label">PENAWARAN PROMO TERSEDIA</div>
+                  <div class="promo-message">{{ promoNotification }}</div>
+                </div>
+
+                <div v-if="potentialPromoDiscount > 0 && footer.diskonRp < potentialPromoDiscount"
+                  class="action-container">
+                  <v-btn color="white" variant="flat" size="small" class="text-primary font-weight-bold"
+                    @click="applyPromoDiscount">
+                    GUNAKAN PROMO
+                  </v-btn>
+                </div>
+              </div>
+            </div>
+          </div>
+        </v-slide-y-transition>
         <v-data-table :headers="tableHeaders" :items="items" density="compact"
           class="desktop-table vertically-aligned-table" fixed-header :items-per-page="-1">
           <template #[`item.kode`]="{ item, index }">
@@ -1677,6 +1827,21 @@ onMounted(() => {
           <v-btn color="primary" variant="tonal" @click="handlePrintConfirm">
             Ya, Cetak
           </v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+
+    <v-dialog v-model="isPromoConfirmVisible" max-width="400">
+      <v-card>
+        <v-card-title>Gunakan Promo?</v-card-title>
+        <v-card-text>
+          Item Anda berhak mendapatkan diskon <b>{{ pendingPromoData.nama }}</b>
+          sebesar <b>{{ formatRupiah(pendingPromoData.diskon) }}</b>.
+        </v-card-text>
+        <v-card-actions>
+          <v-btn-spacer />
+          <v-btn color="grey" @click="isPromoConfirmVisible = false">Nanti saja</v-btn>
+          <v-btn color="primary" @click="applyPromoDiscount">Terapkan</v-btn>
         </v-card-actions>
       </v-card>
     </v-dialog>
@@ -1878,5 +2043,115 @@ onMounted(() => {
 .footer-summary-section .v-row {
   width: 100%;
   margin: 0;
+}
+
+/* --- Premium Promo Card Styles --- */
+.promo-card-wrapper {
+  perspective: 1000px;
+}
+
+.promo-card {
+  position: relative;
+  border-radius: 12px;
+  overflow: hidden;
+  background: linear-gradient(135deg, #1a2980 0%, #26d0ce 100%);
+  box-shadow: 0 8px 25px -5px rgba(38, 208, 206, 0.4);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  transition: all 0.3s ease;
+}
+
+.card-texture {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-image: radial-gradient(rgba(255, 255, 255, 0.15) 1px, transparent 1px);
+  background-size: 10px 10px;
+  opacity: 0.5;
+  z-index: 1;
+}
+
+.card-content {
+  position: relative;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  padding: 10px 18px;
+  gap: 14px;
+  color: white;
+}
+
+.icon-circle {
+  width: 42px;
+  height: 42px;
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  backdrop-filter: blur(4px);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+}
+
+.pulse-animation {
+  animation: softPulse 2s infinite;
+}
+
+.promo-label {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 1.2px;
+  font-weight: 800;
+  opacity: 0.85;
+}
+
+.promo-message {
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+@keyframes softPulse {
+  0% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 rgba(255, 255, 255, 0.4);
+  }
+
+  70% {
+    transform: scale(1.05);
+    box-shadow: 0 0 0 10px rgba(255, 255, 255, 0);
+  }
+
+  100% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 rgba(255, 255, 255, 0);
+  }
+}
+
+.card-shine {
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 50%;
+  height: 100%;
+  background: linear-gradient(to right, transparent 0%, rgba(255, 255, 255, 0.2) 50%, transparent 100%);
+  transform: skewX(-25deg);
+  z-index: 2;
+  animation: shineMove 4s infinite ease-in-out;
+}
+
+@keyframes shineMove {
+  0% {
+    left: -100%;
+  }
+
+  20% {
+    left: 200%;
+  }
+
+  100% {
+    left: 200%;
+  }
 }
 </style>

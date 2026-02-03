@@ -9,6 +9,7 @@ import LocationGeneratorModal from "@/components/modal/LocationGeneratorModal.vu
 import LokasiOpnamePrintModal from "@/components/modal/LokasiOpnamePrintModal.vue";
 import { format, parseISO } from "date-fns";
 import type { AxiosError } from "axios";
+import * as XLSX from 'xlsx';
 
 interface LokasiOpname {
   lo_idrec: string;
@@ -18,6 +19,7 @@ interface LokasiOpname {
   user_create: string;
   date_create: string;
   cab_nama?: string;
+  total_hitung: number;
 }
 
 const toast = useToast();
@@ -43,6 +45,7 @@ const headers = [
   { title: "Cabang", key: "lo_cab", width: 100 },
   { title: "Kode Lokasi", key: "lo_lokasi", width: 150 },
   { title: "Jenis Lokasi", key: "lo_jenis_nama", width: 180 },
+  { title: "Qty Terhitung", key: "total_hitung", width: 130, align: "end" },
   { title: "Dibuat Oleh", key: "user_create", width: 150 },
   { title: "Waktu Input", key: "date_create", width: 200 },
   { title: "Aksi", key: "actions", width: 80, align: "center", sortable: false },
@@ -155,6 +158,31 @@ const handleOpenPrint = () => {
   isPrintModalVisible.value = true;
 };
 
+const exportToExcel = () => {
+  if (items.value.length === 0) return toast.warning('Tidak ada data untuk diekspor.');
+
+  // Mapping data agar header di Excel lebih rapi
+  const dataToExport = items.value.map(item => ({
+    'Cabang': item.lo_cab,
+    'Kode Lokasi': item.lo_lokasi,
+    'Jenis Lokasi': item.lo_jenis_nama || '-',
+    'Qty Terhitung': item.total_hitung,
+    'Dibuat Oleh': item.user_create,
+    'Waktu Input': item.date_create ? format(parseISO(item.date_create), "dd/MM/yyyy HH:mm") : "-"
+  }));
+
+  const worksheet = XLSX.utils.json_to_sheet(dataToExport);
+  const workbook = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(workbook, worksheet, "Master Lokasi Opname");
+  XLSX.writeFile(workbook, `Master_Lokasi_Opname_${filters.cabang}.xlsx`);
+  toast.success('Data berhasil diekspor ke Excel.');
+};
+
+const printToPDF = () => {
+  if (items.value.length === 0) return toast.warning('Tidak ada data untuk dicetak.');
+  window.print(); // Memicu dialog cetak/save as PDF browser
+};
+
 onMounted(() => {
   fetchCabangOptions();
   fetchMasterOptions();
@@ -183,6 +211,12 @@ watch(
         @click="handleOpenPrint">
         Cetak Label ({{ selected.length }})
       </v-btn>
+      <v-btn size="small" color="teal" prepend-icon="mdi-file-excel" @click="exportToExcel">
+        Export Excel
+      </v-btn>
+      <v-btn size="small" color="deep-orange-darken-1" prepend-icon="mdi-file-pdf-box" @click="printToPDF">
+        Cetak PDF
+      </v-btn>
     </template>
 
     <div class="browse-content">
@@ -205,6 +239,13 @@ watch(
           return-object>
           <template #[`item.date_create`]="{ value }">
             {{ value ? format(parseISO(value), "dd/MM/yyyy HH:mm") : "-" }}
+          </template>
+
+          <template #[`item.total_hitung`]="{ value }">
+            <v-chip :color="value > 0 ? 'success' : 'grey-lighten-1'" size="x-small" class="font-weight-bold"
+              variant="flat">
+              {{ value.toLocaleString('id-ID') }}
+            </v-chip>
           </template>
 
           <template #[`item.actions`]="{ item }">
@@ -306,5 +347,46 @@ watch(
   text-transform: uppercase;
   font-size: 11px !important;
   height: 40px !important;
+}
+
+@media print {
+
+  /* Sembunyikan semua elemen kecuali tabel */
+  :deep(.v-navigation-drawer),
+  :deep(.v-app-bar),
+  .filter-section,
+  .header-actions,
+  :deep(.v-pagination),
+  :deep(.v-table__footer),
+  .v-btn {
+    display: none !important;
+  }
+
+  .table-container {
+    height: auto !important;
+    overflow: visible !important;
+  }
+
+  .browse-content {
+    height: auto !important;
+    padding: 0 !important;
+  }
+
+  .desktop-table {
+    border: 1px solid #000;
+  }
+
+  /* Paksa tabel mencetak border */
+  :deep(table) {
+    width: 100% !important;
+    border-collapse: collapse !important;
+  }
+
+  :deep(th),
+  :deep(td) {
+    border: 1px solid #ddd !important;
+    padding: 8px !important;
+    color: black !important;
+  }
 }
 </style>

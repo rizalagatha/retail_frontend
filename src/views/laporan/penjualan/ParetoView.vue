@@ -48,6 +48,7 @@ const filters = reactive({
   cabang: authStore.user?.cabang === 'KDC' ? 'ALL' : authStore.user?.cabang || '',
   kategori: 'ALL',
   search: '',
+  limit: 50, // [UBAH INI] Menambahkan default limit, misal 50
 });
 
 const columnFilters = ref<Record<string, ColumnFilter>>({});
@@ -281,8 +282,8 @@ watch(filters, fetchData, { deep: true });
           hide-details variant="outlined" class="ms-4" style="max-width: 180px;" />
         <v-select v-model="filters.cabang" :items="cabangOptions" item-title="nama" item-value="kode" label="Gudang"
           density="compact" hide-details variant="outlined" class="ms-4" style="max-width: 180px;" />
-        <v-text-field label="Item" type="number" density="compact" hide-details variant="outlined" class="ms-4"
-          style="max-width: 120px;" />
+        <v-text-field label="Item" v-model.number="filters.limit" type="number" density="compact" hide-details
+          variant="outlined" class="ms-4" style="max-width: 120px;" />
         <v-text-field v-model="filters.search" placeholder="Cari Barang..." prepend-inner-icon="mdi-magnify"
           density="compact" hide-details variant="outlined" class="ms-4" style="max-width: 250px;" clearable />
         <v-spacer />

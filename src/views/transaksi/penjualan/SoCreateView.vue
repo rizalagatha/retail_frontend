@@ -637,17 +637,16 @@ const loadDataForEdit = async (nomor: string) => {
 };
 
 const isDiscountableItem = (item: SoItem) => {
-  // barang yang tidak boleh kena diskon:
-  // 1. Jasa           → kode/nama mengandung jasa
-  // 2. Custom Order   → isCustomOrder = true
-  // 3. SO DTF         → ada noSoDtf
-  const isJasa =
+  // Hanya kecualikan JASA murni (Ongkir, Desain, File)
+  const isJasaMurni =
     item.kode?.toUpperCase().startsWith("JASA") ||
     item.kode?.toUpperCase().startsWith("JS") ||
     item.nama?.toLowerCase().includes("jasa") ||
+    item.nama?.toLowerCase().includes("ongkir") ||
     item.nama?.toLowerCase().includes("desain");
 
-  return !isJasa && !item.isCustomOrder && !item.noSoDtf;
+  // Custom Order dan SO DTF SEKARANG diizinkan untuk dihitung diskonnya
+  return !isJasaMurni;
 };
 
 const applyMarketplaceMode = () => {
@@ -941,13 +940,9 @@ const save = async () => {
 
   // --- 2. Integrasi Logika Promo PRO-2026-001 (Februari) ---
   if (header.value.nomorPromo === "PRO-2026-001") {
-    // Hitung akumulasi barang eligible: Reguler, Jersey, dan Sablon DTF
     const totalEligibleFeb = validItems.reduce((sum, item) => {
-      const isReguler = item.kategori === "REGULER";
-      const isJersey = item.nama?.toUpperCase().includes("JERSEY");
-      const isDtf = !!item.noSoDtf;
-
-      if (isReguler || isJersey || isDtf) {
+      // Gunakan fungsi helper yang sudah kita perbaiki di atas
+      if (isItemPromoEligible(item)) {
         return sum + (item.total || 0);
       }
       return sum;
@@ -2132,9 +2127,13 @@ const fetchActivePromos = async () => {
 };
 
 const isItemPromoEligible = (item: SoItem) => {
-  const isReguler = item.kategori === "REGULER";
-  const isJersey = item.nama?.toUpperCase().includes("JERSEY");
-  const isDtf = !!item.noSoDtf; // Produk dengan nomor SO DTF masuk kriteria
+  const nameUp = item.nama?.toUpperCase() || "";
+  const kategoriUp = item.kategori?.toUpperCase() || "";
+
+  const isReguler = kategoriUp === "REGULER";
+  const isJersey = nameUp.includes("JERSEY");
+  // [FIX] Tambahkan isCustomOrder agar Jenis Order Sablon ikut terhitung
+  const isDtf = !!item.noSoDtf || item.isCustomOrder || nameUp.includes("DTF");
 
   return isReguler || isJersey || isDtf;
 };

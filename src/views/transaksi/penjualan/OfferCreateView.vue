@@ -540,22 +540,26 @@ const onProductsSelected = (selectedProducts: Product[]) => {
 };
 
 const isDiscountableItem = (item: OfferItem) => {
-  // Logic: Jasa dan Custom Order tidak boleh kena diskon faktur (%)
-  const isJasa =
+  // Hanya kecualikan JASA murni (Ongkir, File, Desain).
+  // Custom/DTF HARUS masuk agar bisa dihitung dalam basis diskon faktur.
+  const isJasaMurni =
     item.kode?.toUpperCase().startsWith("JASA") ||
     item.kode?.toUpperCase().startsWith("JS") ||
-    item.nama?.toLowerCase().includes("jasa");
+    item.nama?.toLowerCase().includes("jasa") ||
+    item.nama?.toLowerCase().includes("ongkir");
 
-  return !isJasa && !item.isCustomOrder && item.kode !== 'CUSTOM';
+  return !isJasaMurni;
 };
 
 const isItemPromoEligible = (item: OfferItem) => {
-  // Anggap barang CUSTOM di Penawaran adalah Sablon DTF
-  const isReguler = !item.kode?.toUpperCase().startsWith("JASA") && !item.isCustomOrder;
-  const isJersey = item.nama?.toUpperCase().includes("JERSEY");
-  const isDtf = item.isCustomOrder || item.kode === 'CUSTOM';
+  const nameUp = item.nama?.toUpperCase() || "";
+  const kodeUp = item.kode?.toUpperCase() || "";
 
-  return isReguler || isJersey || isDtf;
+  // Barang Custom (DTF/Sablon) dan barang reguler (Jersey/Kaos)
+  const isCustomOrDtf = item.isCustomOrder || item.kode === 'CUSTOM' || nameUp.includes("DTF") || nameUp.includes("SABLON");
+  const isReguler = !kodeUp.startsWith("JASA") && !kodeUp.startsWith("JS");
+
+  return isCustomOrDtf || isReguler;
 };
 
 const checkRealtimePromoEligibility = () => {

@@ -49,11 +49,11 @@ interface SuratJalanDetail {
   [key: string]: unknown;
 }
 
-interface Product {
-  kode: string;
-  nama: string;
-  [key: string]: unknown;
-}
+// interface Product {
+//   kode: string;
+//   nama: string;
+//   [key: string]: unknown;
+// }
 
 interface ColumnFilter {
   type: 'multi' | 'custom';

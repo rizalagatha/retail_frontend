@@ -42,6 +42,10 @@ interface PengajuanExportRow {
   Tanggal?: string | Date;
   [key: string]: unknown;
 }
+interface DetailData {
+  items: DetailItem[];
+  stickers: DetailItem[]; // Interface DetailItem bisa digunakan kembali
+}
 
 const router = useRouter();
 const toast = useToast();
@@ -50,7 +54,7 @@ const MENU_ID = '33';
 
 // --- State ---
 const masterData = ref<MasterItem[]>([]);
-const details = ref<Record<string, DetailItem[]>>({});
+const details = ref<Record<string, DetailData>>({});
 const loading = ref(true);
 const loadingDetails = ref(new Set<string>());
 const selected = ref<MasterItem[]>([]);
@@ -444,16 +448,19 @@ watch(filters, fetchMasterData, { deep: true });
           <template #expanded-row="{ columns, item }">
             <tr>
               <td :colspan="columns.length" class="pa-0">
-                <div class="detail-container">
+                <div class="detail-container d-flex flex-column ga-4">
                   <div class="detail-table-wrapper">
-                    <div v-if="loadingDetails.has(item.nomor)" class="text-center pa-4 text-caption">
-                      Memuat detail...
-                    </div>
-                    <v-data-table v-else :headers="detailHeaders" :items="details[item.nomor]" density="compact"
-                      class="detail-table" :items-per-page="-1" hide-default-footer>
-                      <template #bottom></template>
-                    </v-data-table>
+                    <div class="text-caption font-weight-bold pa-2 bg-grey-lighten-4">ITEM KAOS</div>
+                    <v-data-table :headers="detailHeaders" :items="details[item.nomor]?.items" density="compact"
+                      class="detail-table" :items-per-page="-1" hide-default-footer />
                   </div>
+
+                  <div v-if="details[item.nomor]?.stickers?.length > 0" class="detail-table-wrapper">
+                    <div class="text-caption font-weight-bold pa-2 bg-amber-lighten-5 text-brown">STIKER TAMBAHAN</div>
+                    <v-data-table :headers="detailHeaders" :items="details[item.nomor]?.stickers" density="compact"
+                      class="detail-table" :items-per-page="-1" hide-default-footer />
+                  </div>
+
                 </div>
               </td>
             </tr>

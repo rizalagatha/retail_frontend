@@ -38,6 +38,8 @@ interface PrintHeader {
   gdg_akun: string;
   gdg_transferbank: string;
   terbilang: string;
+  inv_dp: number;      // <--- TAMBAHKAN BARIS INI
+  inv_kembali: number;
   summary: PrintHeaderSummary;
 }
 
@@ -185,8 +187,10 @@ onMounted(() => {
           }}</span></div>
           <div class="summary-item"><span>Biaya Kirim :</span><span>{{
             formatRupiah(printData.header.summary.biayaKirim) }}</span></div>
-          <div class="summary-item"><span>DP :</span><span>{{ formatRupiah(printData.header.summary.dp)
-          }}</span></div>
+          <div class="summary-item">
+            <span>DP :</span>
+            <span>{{ formatRupiah(printData.header.inv_dp) }}</span>
+          </div>
           <div class="summary-item grand-total"><span>Grand Total :</span><span>{{
             formatRupiah(printData.header.summary.grandTotal) }}</span></div>
           <div class="summary-item"><span>Bayar :</span><span>{{ formatRupiah(printData.header.summary.bayar)

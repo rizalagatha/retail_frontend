@@ -35,10 +35,12 @@ const isDeleteDialogOpen = ref(false);
 const itemToDelete = ref<string | null>(null);
 const isPrintModalVisible = ref(false);
 const masterOptions = ref([]);
+const soDateOptions = ref<{ st_tanggal: string }[]>([]);
 
 const filters = reactive({
   cabang: authStore.user?.cabang === "KDC" ? "ALL" : authStore.user?.cabang || "",
-  jenis: "ALL", // <-- Tambahkan filter jenis default 'ALL'
+  jenis: "ALL",
+  tanggal: "ALL", // Filter tanggal default
 });
 
 const headers = [
@@ -58,6 +60,26 @@ const isAuthorizedForGenerator = computed(() => {
   // ATAU jika user adalah ADMINISTRATOR (untuk kebutuhan setup awal/debugging)
   return (user?.cabang === "KDC" && user?.kode === "RIO") || user?.kode === "ADMIN";
 });
+
+const fetchSoDates = async () => {
+  try {
+    const response = await api.get("/lokasi-opname/so-dates", {
+      params: { cabang: filters.cabang }
+    });
+
+    // Mapping data agar memiliki label yang sudah diformat
+    soDateOptions.value = response.data.map((d: any) => ({
+      st_tanggal: d.st_tanggal, // Nilai asli untuk dikirim ke API
+      formattedLabel: format(parseISO(d.st_tanggal), "dd/MM/yyyy") // Label untuk tampilan
+    }));
+
+    if (soDateOptions.value.length > 0 && filters.tanggal === 'ALL') {
+      filters.tanggal = soDateOptions.value[0].st_tanggal;
+    }
+  } catch {
+    soDateOptions.value = [];
+  }
+};
 
 const fetchMasterOptions = async () => {
   try {
@@ -183,9 +205,15 @@ const printToPDF = () => {
   window.print(); // Memicu dialog cetak/save as PDF browser
 };
 
+watch(() => filters.cabang, () => {
+  filters.tanggal = "ALL";
+  fetchSoDates();
+});
+
 onMounted(() => {
   fetchCabangOptions();
   fetchMasterOptions();
+  fetchSoDates();
   fetchData();
 });
 
@@ -229,6 +257,13 @@ watch(
         </v-alert>
         <v-select v-model="filters.jenis" :items="masterOptions" item-title="jenis" item-value="jenis"
           label="Jenis Lokasi" density="compact" hide-details variant="outlined" style="max-width: 200px" />
+        <v-select v-model="filters.tanggal" :items="soDateOptions" item-title="formattedLabel" item-value="st_tanggal"
+          label="Tanggal SO" density="compact" hide-details variant="outlined" style="max-width: 180px">
+          <template #prepend-item>
+            <v-list-item title="SEMUA TANGGAL" value="ALL" @click="filters.tanggal = 'ALL'" />
+            <v-divider class="mb-2" />
+          </template>
+        </v-select>
         <v-spacer />
         <v-btn icon="mdi-refresh" variant="text" size="small" @click="fetchData" :loading="isLoading" />
       </div>

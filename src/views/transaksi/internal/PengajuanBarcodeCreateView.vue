@@ -83,6 +83,14 @@ interface StickerResponse {
   pcs_jumlah: number;
   harga: number;
 }
+interface StickerLookupResult {
+  kode: string;    // Ini adalah kode stiker (misal: ST-001)
+  barcode: string;
+  nama: string;
+  ukuran: string;
+  stok: number;
+  harga: number;
+}
 
 // --- Inisialisasi & State ---
 const router = useRouter();
@@ -211,19 +219,25 @@ const addNewRow = () => {
 };
 
 const addNewStickerRow = () => {
-  // Tombol ini hanya akan aktif jika ada kaos yang dipilih
   const parentKode = selectedKaosItem.value[0]?.kode;
   if (!parentKode) {
     toast.error('Pilih satu baris item kaos di tabel atas terlebih dahulu.');
     return;
   }
 
-  const lastStickerForParent = stickers.value.filter(s => s.kode === parentKode).pop();
-  if (!lastStickerForParent || lastStickerForParent.kodes) {
+  // Hanya tambah baris jika baris terakhir sudah diisi
+  const lastSticker = stickers.value[stickers.value.length - 1];
+  if (!lastSticker || lastSticker.kodes) {
     stickers.value.push({
       id: Date.now() + Math.random(),
-      kode: parentKode, // Set kode induk
-      kodes: '', nama: '', ukuran: '', stok: 0, jumlah: 1, harga: 0, barcode: ''
+      kode: parentKode, // Mengunci ke kaos induk yang dipilih
+      kodes: '',
+      nama: '',
+      ukuran: '',
+      stok: 0,
+      jumlah: 1,
+      harga: 0,
+      barcode: ''
     });
   }
 };
@@ -544,38 +558,39 @@ const openStickerSearch = (index: number) => {
   dialogs.stickerSearch = true;
 };
 
-const onStickersSelected = (selectedSticker: StickerItem | null) => {
+const onStickersSelected = (selectedSticker: StickerLookupResult) => {
   dialogs.stickerSearch = false;
   if (!selectedSticker) return;
 
-  // 1. Dapatkan item kaos induk yang sedang aktif dari tabel atas
   const parentItem = selectedKaosItem.value[0];
   if (!parentItem || !parentItem.kode) {
     return toast.error('Kesalahan: Tidak ada item kaos induk yang dipilih.');
   }
 
-  // 2. Cek duplikasi stiker untuk item kaos yang sama
+  // Ambil kode stiker dari properti 'kode' milik modal
+  const stickerKodeBaru = selectedSticker.kode;
+
   const isDuplicate = stickers.value.some(
     (s: StickerItem) =>
-      s.kodes === selectedSticker.kodes &&
+      s.kodes === stickerKodeBaru &&
       s.ukuran === selectedSticker.ukuran &&
       s.kode === parentItem.kode
   );
+
   if (isDuplicate) {
     return toast.error('Stiker ini sudah ditambahkan untuk item kaos tersebut.');
   }
 
-  // 3. Ambil baris stiker kosong yang akan diisi
   const targetItem = stickers.value[activeRowIndex.value];
 
-  // 4. Isi semua data dengan benar
+  // TypeScript sekarang menjamin properti di bawah ini ada dan tipenya benar
   targetItem.kode = parentItem.kode;
-  targetItem.kodes = selectedSticker.kodes;
+  targetItem.kodes = stickerKodeBaru;
   targetItem.nama = selectedSticker.nama;
   targetItem.barcode = selectedSticker.barcode;
   targetItem.ukuran = selectedSticker.ukuran;
-  targetItem.stok = selectedSticker.stok;
-  targetItem.harga = selectedSticker.harga;
+  targetItem.stok = Number(selectedSticker.stok || 0);
+  targetItem.harga = Number(selectedSticker.harga || 0);
   targetItem.jumlah = 1;
 };
 

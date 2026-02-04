@@ -6,7 +6,7 @@ import { useToast } from 'vue-toastification';
 import { useAuthStore } from '@/stores/authStore';
 import { format, subDays } from 'date-fns';
 import PageLayout from '@/components/PageLayout.vue';
-import ProductSearchModal from '@/components/lookup/ProductSearchModal.vue';
+import MasterProductSearchModal from '@/components/lookup/MasterProductSearchModal.vue';
 import * as XLSX from 'xlsx';
 import { AxiosError } from 'axios';
 import AppDataTable from '@/components/AppDataTable.vue';
@@ -428,11 +428,9 @@ const submitPengajuan = async () => {
   }
 };
 
-const onProductSelected = (products: Product[]) => {
-  if (products.length > 0) {
-    filters.kodeBarang = products[0].kode;
-    filters.namaBarang = products[0].nama;
-  }
+const onMasterProductSelected = (product: { kode: string; nama: string }) => {
+  filters.kodeBarang = product.kode;
+  filters.namaBarang = product.nama;
   dialog.searchProduct = false;
 };
 
@@ -760,9 +758,8 @@ watch(() => filters.kodeBarang, (newVal) => {
       </div>
     </div>
 
-    <ProductSearchModal v-if="dialog.searchProduct" category="ALL" :source="'surat-jalan'"
-      :gudang="authStore.user?.cabang || ''" @close="dialog.searchProduct = false"
-      @products-selected="onProductSelected" />
+    <MasterProductSearchModal v-if="dialog.searchProduct" @close="dialog.searchProduct = false"
+      @product-selected="onMasterProductSelected" />
 
     <v-dialog v-model="dialog.confirm" max-width="400px" persistent>
       <v-card>

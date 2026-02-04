@@ -427,14 +427,16 @@ const loadDataForEdit = async (nomor: string) => {
     isApproved.value = !!data.header.approved;
 
     items.value = data.items.map((item: BackendItem) => ({
-      ...item, // Sebarkan semua properti yang namanya sama (kode, nama, dll)
-
-      // Properti khusus frontend
-      id: Date.now() + Math.random(),
+      ...item,
+      id: Math.random(),
       hargaDtf: 0,
       fileObject: null,
-
-      // Petakan properti backend ke properti frontend
+      // [FIX] Pastikan stok dan nilai angka lainnya adalah Number
+      stok: Number(item.stok || 0),
+      jumlah: Number(item.jumlah || 0),
+      harga: Number(item.harga || 0),
+      diskon: Number(item.diskon || 0),
+      hargabaru: Number(item.hargabaru || 0),
       imageUrl: item.pcd_gambar_url || null,
     }));
 

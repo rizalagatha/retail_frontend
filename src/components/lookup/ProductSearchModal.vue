@@ -72,6 +72,8 @@ const loadItems = async (opts: { page: number, itemsPerPage: number }) => {
       apiUrl = '/invoice-form/lookup/products';
     } else if (props.source === 'penawaran') {
       apiUrl = '/invoice-form/lookup/products';
+    } else if (props.source === 'surat-jalan') {
+      apiUrl = '/invoice-form/lookup/products';
     }
 
     const response = await api.get(apiUrl, {

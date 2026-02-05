@@ -6,7 +6,7 @@ import { useAuthStore } from "@/stores/authStore";
 import { useUiStore } from "@/stores/uiStore";
 import { useUnsavedChanges } from "@/composables/useUnsavedChanges";
 import api from "@/services/api";
-import { format, parseISO } from "date-fns";
+import { format } from "date-fns";
 import PageLayout from "@/components/PageLayout.vue";
 import GudangSearchModal from "@/components/lookup/GudangSearchModal.vue";
 import MintaBarangSearchModal from "@/components/lookup/MintaBarangSearchModal.vue";
@@ -69,6 +69,17 @@ interface ItemFromRJ {
   stok: number;
 }
 
+interface BackendReturItem {
+  kode: string;
+  barcode: string;
+  nama: string;
+  ukuran: string;
+  stok: number | string;
+  jumlah: number | string;
+  harga?: number | string;
+  // Tambahkan field lain jika ada dari backend
+}
+
 // --- Inisialisasi & State ---
 const router = useRouter();
 const route = useRoute();
@@ -77,7 +88,7 @@ const authStore = useAuthStore();
 const uiStore = useUiStore();
 const { markAsSaved } = useUnsavedChanges();
 const MENU_ID = "32";
-const isEditMode = ref(false);
+const isEditMode = computed(() => !!route.params.nomor);
 const pageTitle = computed(() =>
   isEditMode.value ? "Ubah Retur Barang ke DC" : "Buat Retur Barang ke DC"
 );
@@ -400,13 +411,27 @@ const executeSave = async () => {
 };
 
 const loadDataForEdit = async (nomor: string) => {
+  isLoading.value = true;
   try {
     const response = await api.get(`/retur-dc-form/${nomor}`);
+    // Update Header
     Object.assign(header, response.data.header);
-    header.tanggal = format(parseISO(header.tanggal), "yyyy-MM-dd");
-    items.value = response.data.items.map((item: Item) => ({
+    header.tanggal = format(new Date(response.data.header.tanggal), "yyyy-MM-dd");
+
+    // Update Items dengan normalisasi tipe data
+    items.value = response.data.items.map((item: BackendReturItem) => ({
       ...item,
-      id: Date.now() + Math.random(), // tambahkan id unik
+      id: Math.random(), // ID Unik tetap dibuat di frontend
+      stok: Number(item.stok || 0),
+      jumlah: Number(item.jumlah || 0),
+      harga: Number(item.harga || 0),
+      // Pastikan field lain yang diwajibkan oleh interface 'Item' diinisialisasi jika tidak ada dari backend
+      hargaDtf: 0,
+      jenis: "",
+      ket: "",
+      diskon: 0,
+      hargabaru: 0,
+      kodebaru: "",
     }));
 
     await nextTick();
@@ -450,28 +475,22 @@ watch(
 onMounted(async () => {
   markAsSaved();
 
-  // --- TAMBAHKAN PENGECEKAN AWAL ---
   if (!canView.value) {
-    isLoading.value = false; // Hentikan loading
+    isLoading.value = false;
     toast.error("Anda tidak memiliki izin untuk mengakses halaman ini.");
-    // Opsional: Redirect atau tampilkan pesan akses ditolak di template
-    // router.replace({ name: 'Forbidden' });
-    return; // Hentikan eksekusi onMounted
+    return;
   }
-  // ------------------------------------
 
-  // --- Perubahan: Set isLoading di sini ---
   isLoading.value = true;
-  // ------------------------------------
-
   const nomor = route.params.nomor as string;
+
+  // Sekarang pengecekan ini akan berhasil karena isEditMode reaktif
   if (isEditMode.value && nomor) {
     await loadDataForEdit(nomor);
-  } else {
-    // Form baru, pastikan isEditMode false
-    isEditMode.value = false; // Tambahkan ini untuk kejelasan
   }
-  addNewRow(); // Tambah baris kosong di akhir (untuk baru atau edit)
+
+  // Baris kosong hanya ditambahkan jika diperlukan
+  addNewRow();
   isLoading.value = false;
 });
 </script>

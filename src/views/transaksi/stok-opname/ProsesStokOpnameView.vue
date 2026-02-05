@@ -19,6 +19,8 @@ interface SopHeader {
   selisih_qty: number
   nominal: number;
   keterangan: string;
+  value_sistem: number; //
+  value_fisik: number;  //
 }
 
 interface SopDetail {
@@ -32,6 +34,8 @@ interface SopDetail {
   Hpp: number;
   Nominal: number;
   Lokasi: string;
+  ValueSistem: number; //
+  ValueFisik: number;  //
 }
 
 interface DetailSummary {
@@ -39,6 +43,8 @@ interface DetailSummary {
   Jumlah: number;
   Selisih: number;
   Nominal: number;
+  ValueSistem: number; // <--- TAMBAHKAN INI
+  ValueFisik: number;  // <--- TAMBAHKAN INI
 }
 
 interface DataTableHeader {
@@ -113,6 +119,8 @@ const headers = ref<DataTableHeader[]>([
   { title: '', key: 'data-table-expand', width: 50, fixed: true },
   { title: 'Nomor', key: 'nomor', width: 180, fixed: true },
   { title: 'Tanggal', key: 'tanggal', width: 120 },
+  { title: 'Value Sistem', key: 'value_sistem', align: 'end', width: 140 }, // [BARU]
+  { title: 'Value Fisik', key: 'value_fisik', align: 'end', width: 140 },   // [BARU]
   { title: 'Selisih Qty', key: 'selisih_qty', align: 'end', width: 120 },
   { title: 'Nominal Selisih', key: 'nominal', align: 'end', width: 150 },
   { title: 'Keterangan', key: 'keterangan', width: 300 },
@@ -125,7 +133,9 @@ const detailHeaders = [
   { title: 'Nama Barang', key: 'Nama' },
   { title: 'Ukuran', key: 'Ukuran' },
   { title: 'Stok Sistem', key: 'Stok', align: 'end' },
+  { title: 'Val. Sistem', key: 'ValueSistem', align: 'end' }, // [BARU]
   { title: 'Jumlah Fisik', key: 'Jumlah', align: 'end' },
+  { title: 'Val. Fisik', key: 'ValueFisik', align: 'end' },   // [BARU]
   { title: 'Selisih', key: 'Selisih', align: 'end' },
   { title: 'HPP', key: 'Hpp', align: 'end' },
   { title: 'Nominal', key: 'Nominal', align: 'end' },
@@ -324,6 +334,7 @@ const formatDateIndo = (dateString: string | Date | null | undefined) => {
 
 // --- 2. Fungsi Export Data ---
 const exportData = async (type: 'header' | 'detail') => {
+  const dateStr = format(new Date(), 'yyyyMMdd_HHmm');
 
   // === EXPORT HEADER ===
   if (type === 'header') {
@@ -345,7 +356,7 @@ const exportData = async (type: 'header' | 'detail') => {
       const worksheet = XLSX.utils.json_to_sheet(formattedHeader);
       const workbook = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(workbook, worksheet, "Proses Stok Opname");
-      XLSX.writeFile(workbook, "Export_ProsesSOP_Header.xlsx");
+      XLSX.writeFile(workbook, `Export_SOP_Header_${dateStr}.xlsx`); //
       toast.success('File Header berhasil dibuat.');
     } catch (error) {
       toast.error('Gagal membuat file Excel.', error);
@@ -408,7 +419,7 @@ const exportData = async (type: 'header' | 'detail') => {
 
       const workbook = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(workbook, worksheet, "Detail Proses SOP");
-      XLSX.writeFile(workbook, "Export_ProsesSOP_Detail.xlsx");
+      XLSX.writeFile(workbook, `Export_SOP_Detail_${dateStr}.xlsx`); //
       toast.success('File Detail berhasil dibuat.');
 
     } catch (error) {
@@ -425,7 +436,9 @@ const makeDetailSummary = (nomor: string): DetailSummary => {
   const currentDetails = details.value[nomor] || [];
   return {
     Stok: currentDetails.reduce((sum, item) => sum + Number(item.Stok || 0), 0),
+    ValueSistem: currentDetails.reduce((sum, item) => sum + Number(item.ValueSistem || 0), 0), //
     Jumlah: currentDetails.reduce((sum, item) => sum + Number(item.Jumlah || 0), 0),
+    ValueFisik: currentDetails.reduce((sum, item) => sum + Number(item.ValueFisik || 0), 0),   //
     Selisih: currentDetails.reduce((sum, item) => sum + Number(item.Selisih || 0), 0),
     Nominal: currentDetails.reduce((sum, item) => sum + Number(item.Nominal || 0), 0),
   };
@@ -535,6 +548,18 @@ onBeforeUnmount(() => {
             {{ item.tanggal ? format(parseISO(item.tanggal), 'dd/MM/yyyy') : '-' }}
           </template>
 
+          <template #[`item.value_sistem`]="{ item }">
+            <span class="font-weight-medium">
+              {{ (item.value_sistem || 0).toLocaleString('id-ID') }}
+            </span>
+          </template>
+
+          <template #[`item.value_fisik`]="{ item }">
+            <span class="font-weight-medium">
+              {{ (item.value_fisik || 0).toLocaleString('id-ID') }}
+            </span>
+          </template>
+
           <template #[`item.selisih_qty`]="{ item }">
             <span :class="(item.selisih_qty || 0) < 0 ? 'text-red font-weight-bold' : 'text-green font-weight-bold'">
               {{ (item.selisih_qty || 0).toLocaleString('id-ID') }}
@@ -565,6 +590,10 @@ onBeforeUnmount(() => {
                       hide-default-footer :items-per-page="-1" class="detail-table">
                       <template #[`item.Stok`]="{ item: d }">{{ (d.Stok || 0).toLocaleString('id-ID') }}</template>
                       <template #[`item.Jumlah`]="{ item: d }">{{ (d.Jumlah || 0).toLocaleString('id-ID') }}</template>
+                      <template #[`item.ValueSistem`]="{ item: d }">{{ (d.ValueSistem || 0).toLocaleString('id-ID')
+                        }}</template>
+                      <template #[`item.ValueFisik`]="{ item: d }">{{ (d.ValueFisik || 0).toLocaleString('id-ID')
+                        }}</template>
                       <template #[`item.Selisih`]="{ item: d }">
                         <span :class="(d.Selisih || 0) < 0 ? 'text-red' : (d.Selisih || 0) > 0 ? 'text-green' : ''">
                           {{ (d.Selisih || 0).toLocaleString('id-ID') }}

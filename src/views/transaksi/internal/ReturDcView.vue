@@ -258,7 +258,7 @@ const exportData = async (type: 'header' | 'detail') => {
       toast.error('Gagal membuat file Excel.', error);
     }
 
-  // === EXPORT DETAIL ===
+    // === EXPORT DETAIL ===
   } else if (type === 'detail') {
     try {
       toast.info('Mengambil data detail dari server...');

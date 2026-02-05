@@ -22,6 +22,8 @@ interface StokOpnameItem {
   Lokasi: string;
   Barcode: string;
   lokasi: string;
+  valueSistem: number; //
+  valueFisik: number;
 }
 
 // --- Inisialisasi & State ---
@@ -55,7 +57,9 @@ const headers = [
   { title: "Nama Barang", key: "Nama", minWidth: "300px" },
   { title: "Ukuran", key: "Ukuran", width: "100px" },
   { title: "Stok Awal", key: "Stok", align: "end" },
+  { title: "Value Sistem", key: "valueSistem", align: "end" }, // Kolom Baru
   { title: "Jumlah Fisik", key: "Jumlah", align: "end" },
+  { title: "Value Fisik", key: "valueFisik", align: "end" },
   { title: "Selisih", key: "Selisih", align: "end" },
   { title: "HPP", key: "hpp", align: "end" },
   { title: "Total", key: "Total", align: "end" },
@@ -87,6 +91,9 @@ const addNewRow = () => {
       Lokasi: "",
       Barcode: "",
       lokasi: "",
+      // [FIX] Tambahkan inisialisasi nilai 0 untuk properti baru
+      valueSistem: 0,
+      valueFisik: 0,
     });
   }
 };
@@ -378,20 +385,20 @@ onMounted(() => {
             </template>
 
             <template v-slot:[`item.Jumlah`]="{ item }">
-              <v-text-field :id="`jumlah-${item.id}`" v-model.number="item.Jumlah" type="number" variant="underlined"
-                density="compact" hide-details class="text-right" @update:modelValue="
-                  (val) => {
-                    const jumlah = Number(val) || 0;
-                    const stok = Number(item.Stok) || 0;
-                    const hpp = Number(item.hpp) || 0;
+              <v-text-field v-model.number="item.Jumlah" type="number" variant="underlined" density="compact"
+                hide-details class="text-right" @update:modelValue="(val) => {
+                  const jumlah = Number(val) || 0;
+                  const stok = Number(item.Stok) || 0;
+                  const hpp = Number(item.hpp) || 0;
 
-                    item.Selisih = jumlah - stok;
-                    item.Total = item.Selisih * hpp;
-                  }
-                " />
+                  item.Selisih = jumlah - stok;
+                  item.valueFisik = jumlah * hpp; // Update Value Fisik real-time
+                  item.Total = item.Selisih * hpp;
+                }" />
             </template>
 
-            <template v-for="col in ['Stok', 'Selisih', 'hpp', 'Total']" #[`item.${col}`]="{ item }">
+            <template v-for="col in ['Stok', 'Selisih', 'hpp', 'Total', 'valueSistem', 'valueFisik']"
+              #[`item.${col}`]="{ item }">
               {{ (item[col] || 0).toLocaleString("id-ID") }}
             </template>
           </v-data-table>

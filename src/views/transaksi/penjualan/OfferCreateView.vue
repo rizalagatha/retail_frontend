@@ -67,6 +67,7 @@ interface OfferHeader {
   jenisOrderKode?: string;
   jenisOrderNama?: string;
   namaDtf?: string;
+  nomorPromo?: string;
 }
 
 interface ApiOfferItem {
@@ -198,6 +199,7 @@ const header = ref<OfferHeader>({
   jenisOrderKode: '',
   jenisOrderNama: '',
   namaDtf: '',
+  nomorPromo: '',
 });
 
 const items = ref<OfferItem[]>([]);
@@ -610,21 +612,32 @@ const checkRealtimePromoEligibility = () => {
       pendingPromoData.nama = promoFeb.pro_judul;
       pendingPromoData.diskon = disc;
 
-      // 3. LOGIKA AUTO-UPDATE (SINKRON DENGAN SO)
-      // Jika diskon sudah pernah diterapkan (diskonRp > 0), maka update nominalnya otomatis mengikuti qty
-      if (footer.value.diskonRp > 0 && !isFooterDiskonRpFocused.value && !isAuthPending.value) {
+      // === [PERBAIKAN] LOGIKA AUTO-UPDATE (SINKRON DENGAN SO) ===
+      // Hanya timpa diskonRp secara otomatis JIKA user sudah setuju pakai promo ini
+      if (header.value.nomorPromo === promoFeb.pro_nomor && !isFooterDiskonRpFocused.value) {
         footer.value.diskonRp = disc;
         footer.value.diskonRpInput = disc;
-        footer.value.diskonPersen1 = 0; // Pastikan persen mati
+        footer.value.diskonPersen1 = 0;
       }
-
-      // 4. LOGIKA DIALOG KONFIRMASI (Hanya jika belum ada diskon terpasang)
-      else if (disc > 0 && footer.value.diskonRp === 0 && lastSuggestedPromo.value !== promoFeb.pro_nomor) {
+      // Jika belum terpilih (header.nomorPromo kosong) dan belum pernah disugestikan
+      else if (disc > 0 && !header.value.nomorPromo && lastSuggestedPromo.value !== promoFeb.pro_nomor) {
         isPromoConfirmVisible.value = true;
         lastSuggestedPromo.value = promoFeb.pro_nomor;
       }
     }
   }
+};
+
+const useMemberDiscount = () => {
+  header.value.nomorPromo = ""; // [PENTING] Kosongkan agar auto-update berhenti
+  footer.value.diskonRp = 0;
+  footer.value.diskonRpInput = 0;
+
+  isPromoConfirmVisible.value = false;
+
+  // Panggil hitung diskon member standar
+  applyDefaultDiscount();
+  toast.info("Menggunakan diskon member standar.");
 };
 
 const applyPromoDiscount = () => {
@@ -1626,7 +1639,7 @@ onMounted(async () => {
                   <v-list-item-title class="text-subtitle-2 font-weight-bold">Sisa Bayar</v-list-item-title>
                   <template #append>
                     <span class="text-h6 font-weight-black text-primary">{{ formatRupiah(footer.belumDibayar)
-                      }}</span>
+                    }}</span>
                   </template>
                 </v-list-item>
               </v-list>
@@ -1843,9 +1856,9 @@ onMounted(async () => {
           sebesar <b>{{ formatRupiah(pendingPromoData.diskon) }}</b>.
         </v-card-text>
         <v-card-actions>
-          <v-btn-spacer />
-          <v-btn color="grey" @click="isPromoConfirmVisible = false">Nanti saja</v-btn>
-          <v-btn color="primary" @click="applyPromoDiscount">Terapkan</v-btn>
+          <v-spacer />
+          <v-btn color="grey" @click="useMemberDiscount">Tetap Diskon Member</v-btn>
+          <v-btn color="primary" @click="applyPromoDiscount">Terapkan Promo</v-btn>
         </v-card-actions>
       </v-card>
     </v-dialog>

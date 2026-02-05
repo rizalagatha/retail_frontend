@@ -518,27 +518,25 @@ const onDiskonSaved = (data: {
       return;
     }
     // Hitung estimasi nominal
-    let nominalAuth = 0;
-    if (newDiskonRp > 0) {
-      nominalAuth = newDiskonRp;
-    } else {
-      const subTotalNet =
-        items.value.reduce((sum, i) => sum + (i.total || 0), 0) - totals.totalDiskonItem;
-      nominalAuth = (subTotalNet * newDiskonPersen1) / 100;
-    }
+    // [FIX] Hitung Nominal Auth dengan sistem Tiered (D1 -> D2)
+    const base = totals.subTotal;
+    const d1 = (newDiskonPersen1 / 100) * base;
+    const d2 = (newDiskonPersen2 / 100) * (base - d1); // P2 dihitung dari sisa setelah P1
+    const nominalAuth = Math.round(d1 + d2 + newDiskonRp);
 
-    // Susun Info Lengkap
-    const custName = header.customer.nama || "Umum";
-    const infoDiskon = `Cust: ${custName}\nDiskon Faktur: ${isPercentMode ? newDiskonPersen1 + "%" : "Rp " + formatRupiah(newDiskonRp)
-      }`;
+    // Susun Info Lengkap untuk HP Manajer
+    const infoDiskon = `Cust: ${header.customer.nama || "Umum"}\n` +
+      `P1 (Member): ${newDiskonPersen1}%\n` +
+      `P2 (Maps): ${newDiskonPersen2}%\n` +
+      `Rp: ${formatRupiah(newDiskonRp)}`;
 
     requestAuthorization(
       "Otorisasi Diskon Faktur",
       "DISKON_FAKTUR",
       nominalAuth,
       {
-        transaksi: header.nomor ? header.nomor : "DRAFT INVOICE",
-        keteranganLengkap: infoDiskon, // <-- Kirim info ini
+        transaksi: header.nomor || "DRAFT INVOICE",
+        keteranganLengkap: infoDiskon,
         barcode: "",
       },
       (authResult) => {
@@ -549,6 +547,7 @@ const onDiskonSaved = (data: {
       }
     );
   } else {
+    // Jika hanya ongkir/biaya platform yang berubah
     applyChanges();
   }
 };
@@ -1419,15 +1418,22 @@ const calculateTotals = () => {
   if (header.nomorSo) {
     totals.subTotal = netItemTotal; // Set Subtotal Bersih
     totals.totalDiskonItem = totalDiskonItem;
+
+    // [BARU] Hitung P1 & P2 untuk jalur SO agar Diskon Maps (P2) tetap terhitung
+    const basisSO = netItemTotal;
+    const d1AmountSO = (header.diskonPersen1 / 100) * basisSO;
+    const d2AmountSO = (header.diskonPersen2 / 100) * (basisSO - d1AmountSO);
+
     if (isKpr.value) {
-      const diskon1Amount = (header.diskonPersen1 / 100) * netItemTotal;
-      const diskon2Amount = (header.diskonPersen2 / 100) * (netItemTotal - diskon1Amount);
       totals.totalDiskonFaktur = Math.round(
-        diskon1Amount + diskon2Amount + Number(header.diskonRp || 0)
+        d1AmountSO + d2AmountSO + Number(header.diskonRp || 0)
       );
     } else {
-      // Logic reguler untuk store non-KPR
-      totals.totalDiskonFaktur = Number(header.diskonRp || 0);
+      // [REVISI] Jalur Non-KPR sekarang juga menghitung Persen 1 & 2 secara bertingkat
+      // Ini agar Diskon Maps Review (P2) tetap masuk hitungan meskipun ada nomor SO
+      totals.totalDiskonFaktur = Math.round(
+        d1AmountSO + d2AmountSO + Number(header.diskonRp || 0)
+      );
     }
 
     const afterAllDiscount = afterItemDiscount - totals.totalDiskonFaktur;
@@ -1866,7 +1872,7 @@ const handleProceedToPayment = async () => {
 
       if (promoConfirmed) {
         header.diskonPersen1 = 0;
-        header.diskonPersen2 = 0;
+        // header.diskonPersen2 = 0;
         header.diskonRp = promoDiskon;
         header.nomorPromo = promoToApply.pro_nomor;
         header.namaPromo = promoToApply.pro_judul;

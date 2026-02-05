@@ -509,8 +509,11 @@ const onDiskonSaved = (data: {
 
   // 3. Logika Percabangan Otorisasi
   if (isDiscountChanged) {
-    // Jika cabang adalah K04, lewati otorisasi
-    if (header.gudang.kode === "K04") {
+    // Cek apakah menghapus diskon (0)
+    const isClearingDiscount = newDiskonPersen1 === 0 && newDiskonPersen2 === 0 && newDiskonRp === 0;
+
+    // [FIX] Jika cabang K04 ATAU sedang menghapus diskon, langsung terapkan
+    if (header.gudang.kode === "K04" || isClearingDiscount) {
       applyChanges();
       return;
     }
@@ -559,10 +562,13 @@ const handleItemDiscountChange = (item: Item) => {
 
     // Hanya minta otorisasi jika nilai berubah
     if (currentRp !== originalRp || currentPersen !== originalPersen) {
-      // Bypass jika K04
-      if (header.gudang.kode === "K04") {
-        item.originalDiskonRp = item.diskonRp;
-        item.originalDiskonPersen = item.diskonPersen;
+      // [BARU] Deteksi jika user menghapus diskon item
+      const isClearingItemDiscount = currentRp === 0 && currentPersen === 0;
+
+      // [FIX] Skip otorisasi jika nilai jadi 0 atau cabang K04
+      if (isClearingItemDiscount || header.gudang.kode === "K04") {
+        item.originalDiskonRp = 0;
+        item.originalDiskonPersen = 0;
         item.total = computeLineTotal(item);
         calculateTotals();
         return;
@@ -847,6 +853,11 @@ const applyDefaultDiscount = () => {
   if (authStore.user?.cabang === "KDC") {
     header.diskonPersen1 = 0;
     header.diskonRp = 0;
+    return;
+  }
+
+  if (header.nomorPromo) {
+    header.diskonPersen1 = 0;
     return;
   }
 

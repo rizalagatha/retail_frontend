@@ -7,7 +7,7 @@ import { useToast } from 'vue-toastification';
 import { useAuthStore } from '@/stores/authStore';
 import { useUiStore } from '@/stores/uiStore';
 import { useUnsavedChanges } from '@/composables/useUnsavedChanges';
-import { format } from 'date-fns';
+import { format, parseISO } from 'date-fns';
 import SoSearchModal from '@/components/lookup/SoSearchModal.vue';
 import CustomerSearchModal from '@/components/lookup/CustomerSearchModal.vue';
 import MintaBarangSearchModal from '@/components/lookup/MintaBarangSearchModal.vue';
@@ -298,7 +298,7 @@ const loadDataForEdit = async (nomor: string) => {
     formHeader.value = {
       ...formHeader.value,
       ...header,
-      tanggal: format(new Date(header.tanggal), 'yyyy-MM-dd'),
+      tanggal: format(parseISO(header.tanggal), 'yyyy-MM-dd'),
     };
 
     // Isi grid
@@ -327,13 +327,14 @@ const save = () => {
     return;
   }
 
-  // --- VALIDASI TANGGAL HARI INI ---
-  const today = format(new Date(), 'yyyy-MM-dd');
-  if (formHeader.value.tanggal !== today) {
-    toast.error(`Tanggal transaksi harus hari ini (${today}).`);
-    return;
+  // [FIX] Hanya cek tanggal hari ini jika buat BARU
+  if (!isEditMode.value) {
+    const today = format(new Date(), 'yyyy-MM-dd');
+    if (formHeader.value.tanggal !== today) {
+      toast.error(`Tanggal transaksi harus hari ini (${today}).`);
+      return;
+    }
   }
-  // ----------------------------------------------
 
   // 2. [FIXED] Validasi Wajib Customer khusus KPR
   // Kita cek formHeader.value.customer?.kode karena variabel Anda bernama formHeader
@@ -533,7 +534,9 @@ onMounted(() => {
             </v-col>
             <v-col cols="12">
               <v-text-field label="Tanggal" v-model="formHeader.tanggal" type="date" density="compact" hide-details
-                variant="outlined" :min="format(new Date(), 'yyyy-MM-dd')" :max="format(new Date(), 'yyyy-MM-dd')" />
+                variant="outlined" :readonly="isEditMode"
+                :min="!isEditMode ? format(new Date(), 'yyyy-MM-dd') : undefined"
+                :max="!isEditMode ? format(new Date(), 'yyyy-MM-dd') : undefined" />
             </v-col>
             <v-col cols="12">
               <v-text-field label="No. Pesanan" v-model="formHeader.soNomor" readonly @click="isSoSearchVisible = true"

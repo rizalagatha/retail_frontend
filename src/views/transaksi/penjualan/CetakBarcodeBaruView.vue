@@ -17,8 +17,13 @@ const isLoading = ref(true);
 const itemsToPrint = ref<BarcodeItem[]>([]);
 
 const barcodeSheets = computed(() => {
+  // [FIX] Pastikan itemsToPrint adalah array sebelum di-proses
+  if (!Array.isArray(itemsToPrint.value)) {
+    return [];
+  }
+
   const expandedItems = itemsToPrint.value.flatMap(item =>
-    Array.from({ length: item.jumlah }, () => ({
+    Array.from({ length: item.jumlah || 0 }, () => ({
       barcode: item.barcode,
       nama: item.nama,
       ukuran: item.ukuran,
@@ -37,9 +42,14 @@ const fetchPrintData = async (nomor: string) => {
   isLoading.value = true;
   try {
     const response = await api.get(`/pengajuan-barcode-form/print-a4/${nomor}`);
-    itemsToPrint.value = response.data;
+
+    // [FIX] Tangani jika data terbungkus dalam properti 'data' lagi (response.data.data)
+    const rawData = response.data;
+    itemsToPrint.value = Array.isArray(rawData) ? rawData : (rawData.data || []);
+
     document.title = `Cetak Barcode - ${nomor}`;
-  } catch {
+  } catch (err) {
+    console.error("Gagal load:", err);
     alert("Gagal memuat data barcode.");
   } finally {
     isLoading.value = false;
@@ -48,22 +58,37 @@ const fetchPrintData = async (nomor: string) => {
 
 watch(isLoading, (val) => {
   if (!val) {
-    nextTick(() => {
-      // Generate semua barcode
+    nextTick(async () => {
+      // Pastikan data sudah masuk ke DOM
+      await new Promise(resolve => setTimeout(resolve, 100));
+
       barcodeSheets.value.forEach((sheet, sheetIndex) => {
         sheet.forEach((item, itemIndex) => {
-          const elementId = `#barcode-${sheetIndex}-${itemIndex}`;
-          const svgElement = document.querySelector(elementId);
-          if (svgElement && item) {
-            JsBarcode(svgElement, item.barcode, {
-              format: "CODE128C", width: 1.2, height: 18,
-              displayValue: true, fontSize: 7, margin: 1
-            });
+          const elementId = `barcode-${sheetIndex}-${itemIndex}`;
+          const canvas = document.getElementById(elementId);
+
+          if (canvas && item.barcode) {
+            try {
+              JsBarcode(canvas, item.barcode, {
+                format: "CODE128", // [FIX] Gunakan CODE128 agar lebih fleksibel
+                width: 1.2,
+                height: 35, // Tinggi sedikit ditambah agar mudah di-scan
+                displayValue: true,
+                fontSize: 10,
+                margin: 0,
+                background: "#ffffff"
+              });
+            } catch (err) {
+              console.error(`Gagal render barcode ${item.barcode}:`, err);
+            }
           }
         });
       });
-      // Tunggu sebentar agar barcode ter-render, lalu print
-      setTimeout(() => window.print(), 500);
+
+      // Beri jeda lebih lama sedikit agar printer label sempat memproses
+      setTimeout(() => {
+        window.print();
+      }, 800);
     });
   }
 });
@@ -82,7 +107,10 @@ onMounted(() => {
         <div v-for="(item, itemIndex) in sheet" :key="itemIndex" class="barcode-container">
           <template v-if="item">
             <div class="item-name">{{ item.nama }}</div>
-            <div class="item-size">{{ item.ukuran }}</div>
+            <div class="item-info">
+              <span class="item-size">UK: {{ item.ukuran }}</span>
+              <span class="item-price">Rp {{ item.harga.toLocaleString('id-ID') }}</span>
+            </div>
             <svg :id="`barcode-${sheetIndex}-${itemIndex}`"></svg>
           </template>
         </div>
@@ -92,84 +120,55 @@ onMounted(() => {
 </template>
 
 <style scoped>
-@page {
-  size: 68mm 15mm;
-  margin: 0;
-}
+@media print {
+  @page {
+    size: 68mm 15mm;
+    margin: 0;
+  }
 
-body,
-html {
-  margin: 0;
-  padding: 0;
-  width: 68mm;
-  height: 15mm;
-  overflow: hidden;
+  body {
+    margin: 0;
+  }
 }
 
 .label-sheet {
-  width: 100%;
-  height: 100%;
+  width: 68mm;
+  height: 15mm;
   display: flex !important;
-  justify-content: space-between !important;
+  flex-direction: row;
+  justify-content: space-around;
   align-items: center;
   page-break-after: always;
+  overflow: hidden;
 }
 
 .barcode-container {
-  box-sizing: border-box;
   width: 33mm;
-  /* Lebar pasti untuk satu label */
-  height: 15mm;
-  /* Tinggi pasti untuk satu label */
+  height: 14mm;
   display: flex !important;
   flex-direction: column;
-  justify-content: center !important;
-  align-items: center !important;
-  padding: 0.5mm 1mm;
+  justify-content: center;
+  align-items: center;
   text-align: center;
-  overflow: hidden;
-}
-
-.item-name,
-.item-size {
-  font-family: Arial, sans-serif;
-  font-size: 5px;
-  line-height: 1.1;
-  margin: 0;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: 100%;
 }
 
 .item-name {
+  font-size: 7px;
   font-weight: bold;
+  white-space: nowrap;
+  max-width: 30mm;
+  overflow: hidden;
 }
 
-.item-size {
-  font-weight: normal;
+.item-info {
+  font-size: 6px;
+  display: flex;
+  gap: 4px;
 }
 
+/* Memastikan SVG tidak terpotong */
 .barcode-container svg {
-  max-width: 100%;
-  height: auto;
-  display: block;
-  margin-top: 0.5mm;
-}
-
-.loading-text {
-  font-family: Arial, sans-serif;
-  text-align: center;
-  padding: 20px;
-}
-
-/* ============================= */
-/* FORCE LIGHT MODE FOR PRINT VIEW */
-/* ============================= */
-
-.print-container,
-.print-container * {
-  color: #000 !important;
-  background: #fff !important;
+  width: 100%;
+  max-height: 10mm;
 }
 </style>

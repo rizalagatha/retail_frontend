@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, reactive, onMounted, computed, watch } from 'vue';
+import { ref, reactive, onMounted, computed, watch, nextTick } from 'vue';
 import { useRouter } from 'vue-router';
 import { useToast } from 'vue-toastification';
 import { useAuthStore } from '@/stores/authStore';
@@ -7,8 +7,14 @@ import api from '@/services/api';
 import { format, subDays, parseISO } from 'date-fns';
 import PageLayout from '@/components/PageLayout.vue';
 import * as XLSX from 'xlsx';
-import type { AxiosError } from 'axios';
+import axios, { AxiosError } from 'axios';
 import AppDataTable from '@/components/AppDataTable.vue';
+import JsBarcode from 'jsbarcode';
+
+if (typeof window !== 'undefined') {
+  // Menggabungkan tipe Window asli dengan properti JsBarcode
+  (window as Window & { JsBarcode: typeof JsBarcode }).JsBarcode = JsBarcode;
+}
 
 // Interface Header (Wajib untuk Resize)
 interface DataTableHeader {
@@ -46,6 +52,13 @@ interface DetailData {
   items: DetailItem[];
   stickers: DetailItem[]; // Interface DetailItem bisa digunakan kembali
 }
+interface BarcodeItem {
+  barcode: string;
+  nama: string;
+  ukuran: string;
+  harga: number;
+  jumlah: number;
+}
 
 const router = useRouter();
 const toast = useToast();
@@ -60,6 +73,9 @@ const loadingDetails = ref(new Set<string>());
 const selected = ref<MasterItem[]>([]);
 const expanded = ref<string[]>([]);
 const cabangList = ref<{ kode: string, nama: string }[]>([]);
+const isPrintDialogVisible = ref(false);
+const isPrintLoading = ref(false);
+const itemsToPrint = ref<BarcodeItem[]>([]);
 
 const dialogConfirm = reactive({
   show: false,
@@ -330,17 +346,164 @@ const handleCetakA4 = () => {
   window.open(url, '_blank');
 };
 
-const handleCetakBarcode = () => {
-  if (!canPrintBarcode.value || !selectedRow.value) return;
-  const url = router.resolve({
-    name: 'CetakBarcodeBaru',
-    params: { nomor: selectedRow.value.nomor }
-  }).href;
-  window.open(url, '_blank');
-};
-
 const getRowTextColor = (item: MasterItem): string => {
   return !item.approved ? 'text-red font-weight-bold' : '';
+};
+
+// --- 1. Style Identik dengan Create View ---
+const printStylesXP360B = `
+  @page { size: 68mm 15mm landscape; margin: 0 !important; }
+  html, body { margin: 0; padding: 0; width: 68mm; background-color: #fff; }
+  .label-pair-container {
+    display: flex; width: 68mm; height: 15mm;
+    align-items: center; justify-content: space-between;
+    padding: 0 1.5mm; box-sizing: border-box;
+    page-break-after: always !important;
+  }
+  .barcode-label {
+    width: 30.5mm; height: 14mm;
+    display: flex; flex-direction: column;
+    justify-content: flex-start; align-items: flex-start;
+    text-align: left; overflow: hidden;
+    padding: 0.5mm 0 0 0.5mm; box-sizing: border-box;
+  }
+  .item-name {
+    font-size: 5.2pt; font-weight: bold; font-family: 'Arial Narrow', sans-serif;
+    line-height: 1.1; width: 100%; height: 2.2em;
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+    white-space: normal; overflow: hidden; color: #000;
+  }
+  .item-size { font-size: 4.8pt; font-family: Arial; color: #000; margin-bottom: 0.1mm; }
+  .barcode-svg { width: 27mm !important; height: 5.5mm !important; margin-left: -0.8mm; }
+  .label-footer {
+    display: flex; justify-content: space-between; width: 98%;
+    font-size: 4.5pt; font-family: Arial, sans-serif; font-weight: bold; color: #000;
+  }
+`;
+
+// --- 2. Render Barcode Iframe (Murni untuk Printer) ---
+const generateBarcodesInIframe = (iframe: HTMLIFrameElement) => {
+  const frameDoc = iframe.contentWindow?.document;
+  if (frameDoc && window.JsBarcode) {
+    const svgs = frameDoc.querySelectorAll('.barcode-svg');
+    svgs.forEach((svgElement) => {
+      const barcodeValue = svgElement.getAttribute('data-barcode-value');
+      if (barcodeValue) {
+        try {
+          window.JsBarcode(svgElement as SVGElement, barcodeValue, {
+            format: "CODE128",
+            width: 1,      // [KUNCI] Batang barcode tipis agar tidak menyatu
+            height: 20,     // Tinggi yang pas untuk area 15mm
+            displayValue: false,
+            margin: 0,
+          });
+        } catch (e) { console.error(e); }
+      }
+    });
+  }
+};
+
+const barcodeSheets = computed(() => {
+  if (!Array.isArray(itemsToPrint.value)) return [];
+
+  const expandedItems = itemsToPrint.value.flatMap(item =>
+    Array.from({ length: item.jumlah || 0 }, () => ({
+      barcode: item.barcode,
+      nama: item.nama,
+      ukuran: item.ukuran,
+      harga: item.harga,
+    }))
+  );
+
+  const sheets = [];
+  for (let i = 0; i < expandedItems.length; i += 2) {
+    sheets.push(expandedItems.slice(i, i + 2));
+  }
+  return sheets;
+});
+
+// --- Methods Cetak ---
+const handleCetakBarcode = async () => {
+  if (!canPrintBarcode.value || !selectedRow.value) return;
+
+  isPrintLoading.value = true;
+  isPrintDialogVisible.value = true;
+  itemsToPrint.value = []; // Reset data lama
+
+  try {
+    // [FIX] Menggunakan endpoint print-barcode untuk mengambil data dtl2
+    const response = await api.get(`/pengajuan-barcode-form/print-barcode/${selectedRow.value.nomor}`);
+
+    const rawData = response.data;
+    itemsToPrint.value = Array.isArray(rawData) ? rawData : (rawData.data || []);
+
+    if (itemsToPrint.value.length === 0) {
+      toast.warning("Data barcode kosong atau belum di-approve.");
+      isPrintDialogVisible.value = false;
+      return;
+    }
+
+    // Tunggu DOM Dialog render elemen SVG
+    await nextTick();
+    renderBarcodes();
+  } catch (err: unknown) {
+    let msg = "Gagal memuat data barcode.";
+    if (axios.isAxiosError(err)) {
+      msg = err.response?.data?.message || msg;
+    }
+    toast.error(msg);
+    isPrintDialogVisible.value = false;
+  } finally {
+    isPrintLoading.value = false;
+  }
+};
+
+// --- 3. Render Barcode Dialog (Untuk Pratinjau di Layar) ---
+const renderBarcodes = () => {
+  barcodeSheets.value.forEach((sheet, sheetIndex) => {
+    sheet.forEach((item, itemIndex) => {
+      const elementId = `barcode-dialog-${sheetIndex}-${itemIndex}`;
+      const canvas = document.getElementById(elementId);
+      if (canvas && item.barcode) {
+        JsBarcode(canvas, item.barcode, {
+          format: "CODE128",
+          width: 1.1,      // Sedikit lebih lebar untuk layar monitor agar jelas
+          height: 25,
+          displayValue: false,
+          margin: 0,
+        });
+      }
+    });
+  });
+};
+
+// --- 3. Update Fungsi triggerPrint ---
+const triggerPrint = () => {
+  const printContent = document.getElementById('print-area-barcode');
+  if (printContent) {
+    const printFrame = document.createElement('iframe');
+    printFrame.style.position = 'fixed';
+    printFrame.style.visibility = 'hidden';
+    document.body.appendChild(printFrame);
+
+    const frameDoc = printFrame.contentWindow?.document;
+    if (frameDoc) {
+      frameDoc.open();
+      frameDoc.write(`
+        <html>
+          <head><style>${printStylesXP360B}</style></head>
+          <body>${printContent.innerHTML}</body>
+        </html>
+      `);
+      frameDoc.close();
+      generateBarcodesInIframe(printFrame);
+      setTimeout(() => {
+        printFrame.contentWindow?.focus();
+        printFrame.contentWindow?.print();
+        setTimeout(() => { document.body.removeChild(printFrame); }, 1000);
+      }, 500);
+    }
+  }
 };
 
 onMounted(async () => {
@@ -478,6 +641,54 @@ watch(filters, fetchMasterData, { deep: true });
           <v-btn text @click="dialogConfirm.show = false">Batal</v-btn>
           <v-btn color="primary" variant="tonal" @click="dialogConfirm.onConfirm(); dialogConfirm.show = false;">Ya,
             Lanjutkan</v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+
+    <v-dialog v-model="isPrintDialogVisible" max-width="800px" scrollable>
+      <v-card>
+        <v-toolbar color="success" density="compact">
+          <v-toolbar-title class="text-subtitle-1">Pratinjau Cetak Barcode Baru</v-toolbar-title>
+          <v-spacer />
+          <v-btn icon="mdi-close" @click="isPrintDialogVisible = false" variant="text"></v-btn>
+        </v-toolbar>
+
+        <v-card-text class="pa-4 bg-grey-lighten-4">
+          <div v-if="isPrintLoading" class="text-center py-10">
+            <v-progress-circular indeterminate color="primary"></v-progress-circular>
+            <div class="mt-2 text-caption">Mengambil data Approval...</div>
+          </div>
+
+          <div id="print-area-barcode">
+            <div v-for="(sheet, sheetIndex) in barcodeSheets" :key="sheetIndex" class="label-pair-container">
+              <div v-for="(item, itemIndex) in sheet" :key="itemIndex" class="barcode-label">
+
+                <div class="item-name">{{ item.nama }}</div>
+                <div class="item-size">{{ item.ukuran }}</div>
+
+                <svg class="barcode-svg" :id="`barcode-dialog-${sheetIndex}-${itemIndex}`"
+                  :data-barcode-value="item.barcode"></svg>
+
+                <div class="label-footer">
+                  <span>{{ item.barcode }}</span>
+                  <span>{{ format(new Date(), 'dd/MM/yy') }}</span>
+                  <span class="font-weight-bold">Rp {{ item.harga.toLocaleString('id-ID') }}</span>
+                </div>
+
+              </div>
+              <div v-if="sheet.length === 1" class="barcode-label" style="visibility: hidden;"></div>
+            </div>
+          </div>
+        </v-card-text>
+
+        <v-divider />
+        <v-card-actions class="pa-3">
+          <v-spacer />
+          <v-btn variant="text" @click="isPrintDialogVisible = false">Tutup</v-btn>
+          <v-btn color="success" prepend-icon="mdi-printer" variant="flat"
+            :disabled="isPrintLoading || itemsToPrint.length === 0" @click="triggerPrint">
+            Cetak Ke Printer Label
+          </v-btn>
         </v-card-actions>
       </v-card>
     </v-dialog>
@@ -630,5 +841,91 @@ watch(filters, fetchMasterData, { deep: true });
 /* Pewarnaan Baris */
 :deep(td.text-red) {
   color: rgb(var(--v-theme-error)) !important;
+}
+
+.barcode-container-main {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+.label-row-sheet {
+  background: white;
+  border: 1px dashed #bbb;
+  width: 68mm;
+  height: 15mm;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0 1.5mm;
+  box-sizing: border-box;
+}
+
+.label-item-box {
+  width: 31mm;
+  height: 14mm;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: flex-start;
+  text-align: left;
+  overflow: hidden;
+  padding-top: 0.5mm;
+}
+
+/* Menggunakan Arial Narrow agar identik dengan BarcodeCreateView */
+.label-item-name {
+  font-family: 'Arial Narrow', sans-serif;
+  font-size: 6pt;
+  font-weight: 700;
+  white-space: nowrap;
+  width: 100%;
+  overflow: hidden;
+  color: #000;
+}
+
+.label-item-info {
+  font-family: Arial, sans-serif;
+  font-size: 5pt;
+  display: flex;
+  gap: 6px;
+  margin-bottom: 0.2mm;
+  color: #000;
+}
+
+.label-item-box svg {
+  width: 28mm !important;
+  height: 8mm !important;
+  /* Gunakan !important untuk memaksa driver printer */
+  margin: 0;
+  display: block;
+}
+</style>
+
+<style>
+/* Preview di dalam Modal Dialog */
+#print-area-barcode {
+  background-color: #525659;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+.label-pair-container {
+  background: white;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+  /* Sifat box shadow ini akan otomatis hilang saat di-iframe-kan untuk print */
+}
+
+/* Memastikan elemen SVG bersih saat pratinjau */
+.barcode-svg rect {
+  fill: #fff !important;
+}
+
+.barcode-svg path {
+  stroke: #000 !important;
 }
 </style>

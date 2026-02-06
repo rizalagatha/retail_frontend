@@ -315,6 +315,32 @@ const handleCancel = () => {
 };
 const handleClose = () => showConfirmation('Konfirmasi Tutup', 'Tutup form?', closeForm);
 
+const handleDiskonChange = (item: Item) => {
+  if (!item.kode) return;
+
+  const baseHarga = Number(item.hargaDtf) || 0;
+  const diskonPersen = Number(item.diskon) || 0;
+
+  if (diskonPersen > 0) {
+    // Hitung harga baru otomatis
+    item.hargabaru = Math.round(baseHarga - (diskonPersen / 100 * baseHarga));
+
+    // Otomatis centang Approved jika user memiliki hak akses
+    if (canApprove.value) {
+      isApproved.value = true;
+    }
+  } else {
+    item.hargabaru = 0;
+  }
+};
+
+const handleHargaBaruChange = (item: Item) => {
+  if (!item.kode || !item.hargabaru) return;
+  // Reset diskon jika user input nominal manual
+  item.diskon = 0;
+  if (canApprove.value) isApproved.value = true;
+};
+
 const save = () => {
   if (!canSave.value) {
     toast.error('Anda tidak memiliki izin untuk menyimpan data ini.');
@@ -715,11 +741,11 @@ onMounted(async () => {
               </template>
               <template v-slot:[`item.diskon`]="{ item }">
                 <v-text-field v-model.number="item.diskon" type="number" variant="underlined" class="text-end"
-                  :readonly="!canApprove || isApproved" />
+                  @update:model-value="handleDiskonChange(item)" :readonly="!canApprove" />
               </template>
               <template v-slot:[`item.hargabaru`]="{ item }">
                 <v-text-field v-model.number="item.hargabaru" type="number" variant="underlined" class="text-end"
-                  :readonly="!canApprove || isApproved" />
+                  @update:model-value="handleHargaBaruChange(item)" :readonly="!canApprove" />
               </template>
               <template v-slot:[`item.actions`]="{ item }">
                 <v-btn v-if="item.kode" icon="mdi-delete" size="x-small" variant="text" color="error"

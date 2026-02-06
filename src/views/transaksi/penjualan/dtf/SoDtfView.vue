@@ -47,6 +47,10 @@ interface ColumnFilter {
   operator?: string;
   value?: string | number;
 }
+interface BranchOption {
+  kode: string;
+  nama: string;
+}
 
 const toast = useToast();
 const authStore = useAuthStore();
@@ -63,7 +67,7 @@ const expanded = ref<SoDtfHeader[]>([]);
 const loadingDetails = ref<Set<string>>(new Set());
 const fetchTimeout = ref<number | undefined>(undefined);
 const isMounted = ref(false);
-const cabangList = ref([]);
+const cabangList = ref<BranchOption[]>([]);
 
 const filters = reactive({
   filterDateType: 'dtf',
@@ -315,8 +319,22 @@ const fetchCabangList = async () => {
     const response = await api.get('/warehouses/so-dtf-branches', {
       params: { userCabang: authStore.user?.cabang }
     });
-    if (authStore.user?.cabang === 'KDC') {
-      cabangList.value = [{ kode: 'ALL', nama: 'SEMUA CABANG' }, ...response.data];
+
+    const userCabang = authStore.user?.cabang || '';
+
+    if (userCabang === 'K06') {
+      // [FIX] Menggunakan tipe data BranchOption sebagai pengganti 'any'
+      const filteredBranches = response.data.filter((c: BranchOption) => c.kode !== 'K06');
+
+      cabangList.value = [
+        { kode: 'ALL', nama: 'SEMUA CABANG LUAR' },
+        ...filteredBranches
+      ];
+    } else if (userCabang === 'KDC') {
+      cabangList.value = [
+        { kode: 'ALL', nama: 'SEMUA CABANG' },
+        ...response.data
+      ];
     } else {
       cabangList.value = response.data;
     }
@@ -358,6 +376,13 @@ const loadDetails = async (newlyExpandedItems: SoDtfHeader[]) => {
 };
 
 const getRowTextColor = (item: SoDtfHeader) => {
+  const isOwner = item.Nomor.startsWith(authStore.user?.cabang || '');
+
+  // Jika ini barang titipan workshop dari cabang lain
+  if (!isOwner && authStore.user?.cabang === 'K06') {
+    return 'text-deep-orange-darken-4 font-weight-bold';
+  }
+
   if (!item.NoSO && !item.NoINV) return 'text-red font-weight-bold';
   if (item.NoSO && !item.NoINV) return 'text-blue font-weight-bold';
   return '';

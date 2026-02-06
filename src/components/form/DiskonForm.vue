@@ -55,9 +55,9 @@ const estimasiDiskonPersen = computed(() => {
 
 const save = () => {
   emit('save', {
-    diskonPersen1: formData.diskonPersen1, // Kirim apa adanya
+    diskonPersen1: formData.diskonPersen1,
     diskonPersen2: formData.diskonPersen2,
-    diskonRp: inputDiskonRp.value,         // Kirim nilai Rp manual
+    diskonRp: inputDiskonRp.value, // Kirim nilai nominal murni (Promo/Manual)
     mode: formData.mode,
     biayaKirim: inputBiayaKirim.value,
     biayaPlatform: inputBiayaPlatform.value,
@@ -95,8 +95,8 @@ const save = () => {
           :model-value="focusState.diskonRp ? inputDiskonRp : formatRupiah(inputDiskonRp)"
           @update:model-value="inputDiskonRp = Number(String($event).replace(/[^0-9]/g, '')) || 0"
           @focus="focusState.diskonRp = true" @blur="focusState.diskonRp = false"
-          :hint="formData.diskonPersen1 > 0 || formData.diskonPersen2 > 0 ? `Otomatis: Rp ${formatRupiah(estimasiDiskonPersen)}` : ''"
-          persistent-hint variant="outlined" density="compact" class="mb-4" />
+          :hint="formData.diskonPersen1 > 0 || formData.diskonPersen2 > 0 ? `Total Potongan %: Rp ${formatRupiah(estimasiDiskonPersen)}` : ''"
+          persistent-hint variant="outlined" density="compact" hide-details="auto" class="mb-4" />
 
         <v-divider class="my-4"></v-divider>
 

@@ -2491,4 +2491,20 @@ router.afterEach((to) => {
   }
 });
 
+// [TAMBAHKAN DI SINI] --- AUTO RELOAD ON CHUNK ERROR ---
+// Menangani error MIME type "text/html" saat ada update aplikasi
+router.onError((error, to) => {
+  const errors = [
+    "Failed to fetch dynamically imported module",
+    "Importing a module script failed",
+    "Expected a JavaScript-or-Wasm module script",
+  ];
+
+  if (errors.some((msg) => error.message.includes(msg))) {
+    // Paksa browser memuat ulang halaman ke tujuan yang dimaksud
+    // Ini akan mengambil peta file (manifest) yang paling baru dari server
+    window.location.href = to.fullPath;
+  }
+});
+
 export default router;

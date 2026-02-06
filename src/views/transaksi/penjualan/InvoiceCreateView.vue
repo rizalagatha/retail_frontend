@@ -472,14 +472,13 @@ const onDiskonSaved = (data: {
     return;
   }
 
-  // 1. Tentukan nilai target untuk Diskon (Sama seperti sebelumnya)
-  const isPercentMode = data.mode !== "rp" && (data.diskonPersen1 > 0 || data.diskonPersen2 > 0);
+  // [FIX] Tentukan prioritas berdasarkan mode yang dipilih di modal
+  const isPercentMode = data.mode === 'persen';
 
-  const newDiskonPersen1 = isPercentMode ? data.diskonPersen1 : 0;
-  const newDiskonPersen2 = isPercentMode ? data.diskonPersen2 : 0;
+  const newDiskonPersen1 = isPercentMode ? Number(data.diskonPersen1 || 0) : 0;
+  const newDiskonPersen2 = isPercentMode ? Number(data.diskonPersen2 || 0) : 0;
   const newDiskonRp = isPercentMode ? 0 : Number(data.diskonRp || 0);
 
-  // 2. Deteksi Perubahan (Sama seperti sebelumnya)
   const isDiscountChanged =
     newDiskonPersen1 !== header.diskonPersen1 ||
     newDiskonPersen2 !== header.diskonPersen2 ||
@@ -510,18 +509,16 @@ const onDiskonSaved = (data: {
   // 3. Logika Percabangan Otorisasi
   if (isDiscountChanged) {
     // Cek apakah menghapus diskon (0)
-    const isClearingDiscount = newDiskonPersen1 === 0 && newDiskonPersen2 === 0 && newDiskonRp === 0;
-
-    // [FIX] Jika cabang K04 ATAU sedang menghapus diskon, langsung terapkan
-    if (header.gudang.kode === "K04" || isClearingDiscount) {
+    const isClearing = newDiskonPersen1 === 0 && newDiskonPersen2 === 0 && newDiskonRp === 0;
+    if (isClearing) {
       applyChanges();
       return;
     }
-    // Hitung estimasi nominal
-    // [FIX] Hitung Nominal Auth dengan sistem Tiered (D1 -> D2)
+
+    // Hitung nominal total untuk pengajuan otorisasi
     const base = totals.subTotal;
     const d1 = (newDiskonPersen1 / 100) * base;
-    const d2 = (newDiskonPersen2 / 100) * (base - d1); // P2 dihitung dari sisa setelah P1
+    const d2 = (newDiskonPersen2 / 100) * (base - d1);
     const nominalAuth = Math.round(d1 + d2 + newDiskonRp);
 
     // Susun Info Lengkap untuk HP Manajer
@@ -855,7 +852,10 @@ const applyDefaultDiscount = () => {
     return;
   }
 
-  if (header.nomorPromo) {
+  // 2. [KUNCI PERBAIKAN]
+  // Jika sudah ada Promo Bulanan (nomorPromo) ATAU user sudah input Diskon Rp manual (> 0),
+  // maka diskon member (P1) HARUS 0. Jangan biarkan watcher mengisinya lagi.
+  if (header.nomorPromo || header.diskonRp > 0) {
     header.diskonPersen1 = 0;
     return;
   }

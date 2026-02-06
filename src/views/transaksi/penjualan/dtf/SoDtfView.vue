@@ -323,12 +323,10 @@ const fetchCabangList = async () => {
     const userCabang = authStore.user?.cabang || '';
 
     if (userCabang === 'K06') {
-      // [FIX] Menggunakan tipe data BranchOption sebagai pengganti 'any'
-      const filteredBranches = response.data.filter((c: BranchOption) => c.kode !== 'K06');
-
+      // [FIX] Jangan di-filter keluar, biarkan response.data utuh agar K06 tetap ada
       cabangList.value = [
-        { kode: 'ALL', nama: 'SEMUA CABANG LUAR' },
-        ...filteredBranches
+        { kode: 'ALL', nama: 'SEMUA CABANG LUAR' }, // Default: Filter eksternal
+        ...response.data
       ];
     } else if (userCabang === 'KDC') {
       cabangList.value = [

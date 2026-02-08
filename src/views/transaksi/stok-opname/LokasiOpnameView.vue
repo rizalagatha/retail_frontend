@@ -20,6 +20,18 @@ interface LokasiOpname {
   date_create: string;
   cab_nama?: string;
   total_hitung: number;
+  operator_hitung: string;
+}
+
+// Interface untuk data mentah dari API
+interface RawSoDate {
+  st_tanggal: string;
+}
+
+// Interface untuk opsi yang digunakan di v-select
+interface SoDateOption {
+  st_tanggal: string;
+  formattedLabel: string;
 }
 
 const toast = useToast();
@@ -35,7 +47,7 @@ const isDeleteDialogOpen = ref(false);
 const itemToDelete = ref<string | null>(null);
 const isPrintModalVisible = ref(false);
 const masterOptions = ref([]);
-const soDateOptions = ref<{ st_tanggal: string }[]>([]);
+const soDateOptions = ref<SoDateOption[]>([]);
 
 const filters = reactive({
   cabang: authStore.user?.cabang === "KDC" ? "ALL" : authStore.user?.cabang || "",
@@ -48,6 +60,7 @@ const headers = [
   { title: "Kode Lokasi", key: "lo_lokasi", width: 150 },
   { title: "Jenis Lokasi", key: "lo_jenis_nama", width: 180 },
   { title: "Qty Terhitung", key: "total_hitung", width: 130, align: "end" },
+  { title: "Operator Hitung", key: "operator_hitung", width: 180 },
   { title: "Dibuat Oleh", key: "user_create", width: 150 },
   { title: "Waktu Input", key: "date_create", width: 200 },
   { title: "Aksi", key: "actions", width: 80, align: "center", sortable: false },
@@ -67,10 +80,12 @@ const fetchSoDates = async () => {
       params: { cabang: filters.cabang }
     });
 
-    // Mapping data agar memiliki label yang sudah diformat
-    soDateOptions.value = response.data.map((d: any) => ({
-      st_tanggal: d.st_tanggal, // Nilai asli untuk dikirim ke API
-      formattedLabel: format(parseISO(d.st_tanggal), "dd/MM/yyyy") // Label untuk tampilan
+    // Gunakan interface RawSoDate sebagai pengganti any
+    const rawData = response.data as RawSoDate[];
+
+    soDateOptions.value = rawData.map((d: RawSoDate): SoDateOption => ({
+      st_tanggal: d.st_tanggal,
+      formattedLabel: format(parseISO(d.st_tanggal), "dd/MM/yyyy")
     }));
 
     if (soDateOptions.value.length > 0 && filters.tanggal === 'ALL') {
@@ -189,6 +204,7 @@ const exportToExcel = () => {
     'Kode Lokasi': item.lo_lokasi,
     'Jenis Lokasi': item.lo_jenis_nama || '-',
     'Qty Terhitung': item.total_hitung,
+    'Operator Hitung': item.operator_hitung,
     'Dibuat Oleh': item.user_create,
     'Waktu Input': item.date_create ? format(parseISO(item.date_create), "dd/MM/yyyy HH:mm") : "-"
   }));

@@ -591,28 +591,38 @@ onBeforeUnmount(() => {
                       <template #[`item.Stok`]="{ item: d }">{{ (d.Stok || 0).toLocaleString('id-ID') }}</template>
                       <template #[`item.Jumlah`]="{ item: d }">{{ (d.Jumlah || 0).toLocaleString('id-ID') }}</template>
                       <template #[`item.ValueSistem`]="{ item: d }">{{ (d.ValueSistem || 0).toLocaleString('id-ID')
-                        }}</template>
+                      }}</template>
                       <template #[`item.ValueFisik`]="{ item: d }">{{ (d.ValueFisik || 0).toLocaleString('id-ID')
-                        }}</template>
+                      }}</template>
                       <template #[`item.Selisih`]="{ item: d }">
                         <span :class="(d.Selisih || 0) < 0 ? 'text-red' : (d.Selisih || 0) > 0 ? 'text-green' : ''">
                           {{ (d.Selisih || 0).toLocaleString('id-ID') }}
                         </span>
                       </template>
                       <template #[`item.Hpp`]="{ item: d }">{{ new Intl.NumberFormat('id-ID').format(d.Hpp || 0)
-                        }}</template>
+                      }}</template>
                       <template #[`item.Nominal`]="{ item: d }">{{ new Intl.NumberFormat('id-ID').format(d.Nominal || 0)
-                        }}</template>
+                      }}</template>
 
                       <template #[`body.append`]>
             <tr class="bg-grey-lighten-4 font-weight-bold">
-              <td colspan="3" class="text-end">TOTAL :</td>
+              <td colspan="4" class="text-end">TOTAL :</td>
+
               <td class="text-end">{{ (makeDetailSummary(item.nomor).Stok || 0).toLocaleString('id-ID') }}</td>
+
+              <td class="text-end">{{ (makeDetailSummary(item.nomor).ValueSistem || 0).toLocaleString('id-ID') }}</td>
+
               <td class="text-end">{{ (makeDetailSummary(item.nomor).Jumlah || 0).toLocaleString('id-ID') }}</td>
+
+              <td class="text-end">{{ (makeDetailSummary(item.nomor).ValueFisik || 0).toLocaleString('id-ID') }}</td>
+
               <td class="text-end">{{ (makeDetailSummary(item.nomor).Selisih || 0).toLocaleString('id-ID') }}</td>
+
               <td></td>
+
               <td class="text-end">{{ new Intl.NumberFormat('id-ID').format(makeDetailSummary(item.nomor).Nominal || 0)
-                }}</td>
+              }}</td>
+
               <td></td>
             </tr>
           </template>

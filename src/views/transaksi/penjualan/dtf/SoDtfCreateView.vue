@@ -139,6 +139,10 @@ const isHargaReadonly = computed(() => {
   return autoCalcTypes.includes(form.value.jenisOrderKode);
 });
 
+const bordirMultiplier = computed(() => {
+  return totalJumlahKaos.value >= 20 ? 100 : 200;
+});
+
 // === Perhitungan Luas Bordir ===
 const totalLuasBordir = computed(() => {
   if (form.value.jenisOrderKode !== 'BR') return 0;
@@ -147,9 +151,27 @@ const totalLuasBordir = computed(() => {
   }, 0);
 });
 
+// === Perhitungan Luas & Harga Bordir ===
 const totalHargaBordir = computed(() => {
   if (form.value.jenisOrderKode !== 'BR') return 0;
-  return totalLuasBordir.value * 100 * totalJumlahKaos.value;
+
+  const qtyKaos = totalJumlahKaos.value;
+  if (qtyKaos <= 0) return 0;
+
+  const mult = bordirMultiplier.value; // Ambil 100 atau 200
+
+  const totalHargaJasaPerKaos = detailsTitik.value.reduce((sum, t) => {
+    if (t.panjang && t.lebar) {
+      const luas = Number(t.panjang) * Number(t.lebar);
+      const hargaKalkulasi = luas * mult;
+
+      // Aturan Minimum: Rp 5.000 per titik lokasi bordir
+      return sum + Math.max(hargaKalkulasi, 5000);
+    }
+    return sum;
+  }, 0);
+
+  return totalHargaJasaPerKaos * qtyKaos;
 });
 
 // === Perhitungan Luas DTF ===
@@ -440,6 +462,23 @@ const save = async () => {
     if (!item.lebar || item.lebar <= 0) {
       toast.error(`Lebar untuk '${item.keterangan}' harus lebih dari 0.`);
       return;
+    }
+
+    if (form.value.jenisOrderKode === 'BR') {
+      for (const item of detailsTitik.value) {
+        if (item.keterangan) {
+          const luas = (item.panjang || 0) * (item.lebar || 0);
+          if (luas > 0 && luas < 25) {
+            // Hanya peringatan, karena sistem sudah otomatis meng-up ke 25 cm2 di hitungan
+            toast.info(`Titik '${item.keterangan}' di bawah 5x5cm, akan dikenakan tarif minimal Rp 5.000.`);
+          }
+        }
+      }
+
+      if (totalJumlahKaos.value < 1) {
+        toast.error("Minimal order adalah 1 pcs.");
+        return;
+      }
     }
   }
 
@@ -737,9 +776,9 @@ const calculatePrices = async () => {
       hargaPerCm = 35;
       hargaSatuan = totalLuas * hargaPerCm;
       break;
-    case 'BR': // Bordir
-      hargaPerCm = 100;
-      hargaSatuan = totalHargaBordir.value / totalJumlahKaos.value;
+    case 'BR': // BORDIR
+      hargaPerCm = bordirMultiplier.value; // Dinamis: 100 atau 200
+      hargaSatuan = totalJumlahKaos.value > 0 ? (totalHargaBordir.value / totalJumlahKaos.value) : 0;
       break;
     case 'TG': // DTG
       hargaPerCm = 0;
@@ -1151,16 +1190,15 @@ onMounted(() => {
                       Perhitungan Bordir
                     </v-alert>
 
-                    <v-text-field label="Luas Bordir /Cm²" :model-value="totalLuasBordir" readonly variant="filled"
-                      density="compact" hide-details class="mb-2" />
+                    <v-text-field label="Luas Bordir /Cm² (Per Titik)" :model-value="totalLuasBordir" readonly
+                      variant="filled" density="compact" hide-details class="mb-2" />
 
-                    <v-text-field label="Biaya /Cm²" model-value="100" readonly variant="filled" density="compact"
-                      hide-details class="mb-2" />
+                    <v-text-field label="Biaya /Cm²" :model-value="bordirMultiplier" readonly variant="filled"
+                      density="compact" hide-details class="mb-2" />
 
                     <v-text-field label="Total Harga Bordir" :model-value="totalHargaBordir" readonly variant="filled"
                       density="compact" hide-details />
                   </v-col>
-
                   <!-- DTF -->
                   <v-col cols="12" v-if="form.jenisOrderKode === 'SD'">
                     <v-alert density="compact" variant="tonal" type="info" class="mb-2">

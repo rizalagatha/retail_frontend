@@ -372,9 +372,23 @@ const calculatePrices = async () => {
       hargaSatuan = totalLuas * hargaPerCm;
       break;
 
-    case "BR": // Bordir
-      hargaPerCm = 100;
-      hargaSatuan = totalLuas * hargaPerCm;
+    case "BR": // [FIX] Logika Bordir Baru
+      // 1. Tentukan multiplier: >= 20 pcs = 100, < 20 pcs = 200
+      hargaPerCm = totalJumlahKaos >= 20 ? 100 : 200;
+
+      // 2. Hitung harga per kaos (akumulasi tiap titik dengan minimum 5000 per titik)
+      let totalHargaJasaPerKaos = 0;
+      form.value.titikCetak.forEach(t => {
+        if (t.panjang && t.lebar) {
+          const luas = Number(t.panjang) * Number(t.lebar);
+          const hargaKalkulasi = luas * hargaPerCm;
+
+          // Aturan Minimum: Rp 5.000 per titik lokasi bordir
+          totalHargaJasaPerKaos += Math.max(hargaKalkulasi, 5000);
+        }
+      });
+
+      hargaSatuan = totalHargaJasaPerKaos;
       break;
 
     case "TG": // DTG
@@ -387,10 +401,10 @@ const calculatePrices = async () => {
       break;
   }
 
-  // simpan harga/cm²
+  // Simpan harga/cm² ke form agar tampil di footer modal
   form.value.hargaPerCm = hargaPerCm;
 
-  // update harga di setiap ukuran kaos
+  // Update harga di setiap baris ukuran kaos
   form.value.ukuranKaos.forEach((row) => {
     if (row.ukuran && (row.jumlah ?? 0) > 0) {
       row.harga = hargaSatuan;
@@ -399,13 +413,8 @@ const calculatePrices = async () => {
     }
   });
 
-  // hitung total harga keseluruhan
-  const totalHarga = form.value.ukuranKaos.reduce(
-    (sum, row) => sum + ((row.jumlah || 0) * row.harga),
-    0
-  );
-
-  form.value.totalHarga = totalHarga;
+  // Hitung total harga keseluruhan (Harga Satuan * Total Jumlah)
+  form.value.totalHarga = totalJumlahKaos * hargaSatuan;
 };
 
 const getUkuranSodtfDetail = async (jenisOrder: string, ukuran: string) => {

@@ -43,11 +43,11 @@ const MENU_ID = '49'; // Digunakan untuk cek izin akses
 const list = ref<BiayaKirimItem[]>([]);
 const details = ref<Record<string, DetailBayar[]>>({});
 const isLoading = ref(true);
-const selected = ref<BiayaKirimItem[]>([]);
 const expanded = ref<string[]>([]);
 const loadingDetails = ref(new Set<string>());
 const isMounted = ref(false);
 const cabangList = ref([]);
+const selectedRow = ref<BiayaKirimItem | null>(null);
 
 // --- Pagination State ---
 const serverItemsLength = ref(0);
@@ -86,6 +86,24 @@ const detailHeaders: DataTableHeader[] = [
 ];
 
 // --- Methods ---
+// --- Fungsi handle klik baris ---
+const handleRowClick = (_event: MouseEvent, { item }: { item: BiayaKirimItem }) => {
+  // Jika baris yang sama diklik lagi, hapus seleksi (toggle)
+  if (selectedRow.value?.Nomor === item.Nomor) {
+    selectedRow.value = null;
+  } else {
+    selectedRow.value = item;
+  }
+};
+
+// --- Fungsi pendukung untuk styling baris yang terpilih ---
+const rowProps = (data: { item: BiayaKirimItem }) => {
+  if (selectedRow.value && data.item.Nomor === selectedRow.value.Nomor) {
+    return { class: 'bg-blue-lighten-4 selected-row-active' };
+  }
+  return {};
+};
+
 const fetchData = async () => {
   isLoading.value = true;
   try {
@@ -154,10 +172,13 @@ watch(filters, () => {
     <template #header-actions>
       <v-btn v-if="canCreate" size="small" color="primary" prepend-icon="mdi-plus"
         to="/transaksi/penjualan/biaya-kirim/baru">Baru</v-btn>
-      <v-btn v-if="canEdit" size="small" :disabled="selected.length !== 1" prepend-icon="mdi-pencil"
-        @click="router.push(`/transaksi/penjualan/biaya-kirim/edit/${selected[0].Nomor}`)">Ubah</v-btn>
-      <v-btn v-if="canDelete" size="small" color="error" :disabled="selected.length !== 1"
-        prepend-icon="mdi-delete">Hapus</v-btn>
+      <v-btn v-if="canEdit" size="small" :disabled="!selectedRow" prepend-icon="mdi-pencil"
+        @click="router.push(`/transaksi/penjualan/biaya-kirim/edit/${selectedRow?.Nomor}`)">
+        Ubah
+      </v-btn>
+      <v-btn v-if="canDelete" size="small" color="error" :disabled="!selectedRow" prepend-icon="mdi-delete">
+        Hapus
+      </v-btn>
     </template>
 
     <div class="browse-content">
@@ -174,11 +195,11 @@ watch(filters, () => {
       </div>
 
       <div class="table-container">
-        <v-data-table-server v-model="selected" v-model:expanded="expanded" v-model:page="options.page"
+        <v-data-table-server v-model:expanded="expanded" v-model:page="options.page"
           v-model:items-per-page="options.itemsPerPage" :headers="headers" :items="list"
           :items-length="serverItemsLength" :loading="isLoading" item-value="Nomor" density="compact"
-          class="desktop-table header-browse-blue custom-grid-11" fixed-header show-select show-expand
-          @update:expanded="loadDetails">
+          class="desktop-table header-browse-blue custom-grid-11" fixed-header show-expand :row-props="rowProps"
+          @click:row="handleRowClick" @update:expanded="loadDetails">
           <template #[`item.Tanggal`]="{ item }">
             {{ format(parseISO(item.Tanggal), 'dd/MM/yyyy') }}
           </template>
@@ -245,5 +266,16 @@ watch(filters, () => {
 .table-container {
   flex-grow: 1;
   overflow: hidden;
+}
+
+/* Membuat baris terlihat bisa diklik */
+:deep(.v-data-table__tr) {
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+/* Style tambahan saat baris aktif */
+:deep(.selected-row-active) {
+  font-weight: bold;
 }
 </style>

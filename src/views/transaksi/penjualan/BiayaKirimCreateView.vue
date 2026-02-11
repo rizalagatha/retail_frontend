@@ -115,9 +115,38 @@ const closeAll = () => {
 };
 
 onMounted(async () => {
-  if (!isNew.value) {
-    const res = await api.get(`/biaya-kirim-form/${route.params.nomor}`);
-    Object.assign(form, { ...res.data, nominal_inv: res.data.nominal, biaya: res.data.bk_nominal, nomor: res.data.bk_nomor });
+  const nomorDariUrl = route.params.nomor;
+
+  // Hanya jalankan jika bukan mode "Baru" dan parameter nomor tersedia
+  if (!isNew.value && nomorDariUrl && nomorDariUrl !== 'undefined') {
+    isLoading.value = true;
+    try {
+      const res = await api.get(`/biaya-kirim-form/${nomorDariUrl}`);
+      const d = res.data;
+
+      if (d) {
+        // Mapping manual untuk memastikan data masuk ke property reactive yang benar
+        form.nomor = d.bk_nomor;
+        form.tanggal = d.bk_tanggal ? format(parseISO(d.bk_tanggal), 'yyyy-MM-dd') : '';
+        form.inv_nomor = d.bk_inv_nomor;
+        form.inv_tanggal = d.inv_tanggal ? format(parseISO(d.inv_tanggal), 'dd/MM/yyyy') : '';
+        form.nominal_inv = d.nominal_inv || 0;
+        form.cust_kode = d.cus_kode;
+        form.cust_nama = d.cus_nama;
+        form.cust_alamat = d.cus_alamat;
+        form.cust_kota = d.cus_kota;
+        form.cust_telp = d.cus_telp;
+        form.biaya = d.bk_nominal;
+        form.keterangan = d.bk_ket;
+      } else {
+        toast.error("Data tidak ditemukan di database.");
+      }
+    } catch (e) {
+      toast.error("Gagal memuat data: " + e);
+      console.error(e);
+    } finally {
+      isLoading.value = false;
+    }
   }
 });
 </script>

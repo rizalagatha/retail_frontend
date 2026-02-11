@@ -136,7 +136,7 @@ const tableHeaders = [
   { title: 'No.', key: 'no', width: '50px', sortable: false },
   { title: 'PO/SO DTF', key: 'kode', width: '125px' },
   { title: 'Nama DTF', key: 'nama', width: '400px' },
-  { title: 'Jumlah', key: 'jumlah', width: '80px', align: 'center' as const },
+  { title: 'Jumlah Kaos', key: 'jumlah', width: '80px', align: 'center' as const },
   { title: 'Reject', key: 'reject', width: '80px', align: 'center' as const },
   { title: 'Depan', key: 'depan', width: '80px', align: 'center' as const },
   { title: 'Belakang', key: 'belakang', width: '80px', align: 'center' as const },
@@ -490,7 +490,7 @@ onMounted(() => {
         <div v-if="isShowMeasurement || (formHeader.jenisOrder?.nama || '').toUpperCase().includes('BORDIR')"
           class="desktop-form-section">
           <div class="text-subtitle-2 font-weight-bold mb-2">
-            {{ isShowMeasurement ? 'Audit Pemakaian Bahan' : 'Audit Produksi Bordir' }}
+            {{ isShowMeasurement ? 'Perhitungan Pemakaian Bahan' : 'Perhitungan Produksi Bordir' }}
           </div>
 
           <v-list density="compact" class="pa-0">

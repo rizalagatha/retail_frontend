@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, computed, watch, nextTick } from 'vue';
+import { ref, reactive, onMounted, computed, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import api from '@/services/api';
 import PageLayout from '@/components/PageLayout.vue';
@@ -9,33 +9,51 @@ import { useUiStore } from '@/stores/uiStore';
 import { useUnsavedChanges } from '@/composables/useUnsavedChanges';
 import { format } from 'date-fns';
 import SoPoSearchModal from '@/components/lookup/SoPoSearchModal.vue';
-import type { AxiosError } from 'axios';
+import axios from 'axios';
 
 interface LhkItem {
   id: number;
   kode: string;
   nama: string;
-  depan: number | null;
-  belakang: number | null;
-  lengan: number | null;
-  variasi: number | null;
-  saku: number | null;
-  panjang: number | null;
-  buangan: number | null;
+  depan: number;
+  belakang: number;
+  lengan: number;
+  variasi: number;
+  saku: number;
+  jumlah: number;
+  jumlahSistem: number;
+  panjang: number;
+  buangan: number;
+  luasSistem: number; // Dari SO Sistem
+  luasRiil: number;
+  reject: number;
   ket: string;
 }
 
 interface LhkApiResponseItem {
+  lhk_nomor: string;
+  tanggal: string;
   kode: string;
   nama: string;
+  cab: string;
   depan: number | null;
   belakang: number | null;
   lengan: number | null;
   variasi: number | null;
   saku: number | null;
+  jumlah: number | null;
+  jumlahSistem: number | null;
   panjang: number | null;
   buangan: number | null;
-  ket: string;
+  luas_sistem: number | null;
+  reject: number;
+  keterangan: string;
+}
+
+// Tambahkan interface JenisOrder
+interface JenisOrder {
+  kode: string;
+  nama: string;
 }
 
 const router = useRouter();
@@ -51,6 +69,7 @@ const selectedCabang = ref(authStore.user?.cabang || '');
 const items = ref<LhkItem[]>([]);
 const isLoading = ref(false);
 const isSaving = ref(false);
+const jenisOrderOptions = ref<JenisOrder[]>([]);
 
 const isSoSearchVisible = ref(false); // Untuk F1
 const isPoSearchVisible = ref(false); // Untuk F2
@@ -59,65 +78,162 @@ const activeRowIndex = ref(0);
 const isConfirmDialogVisible = ref(false);
 const confirmText = ref('');
 const pendingAction = ref<(() => void) | null>(null);
-const spkSearch = ref('');
 
-const pageTitle = computed(() => `Form LHK SO DTF`);
+const isSpkSearchVisible = ref(false);
+
+const isEditMode = computed(() => !!route.query.nomorLhk);
+const formHeader = reactive({
+  lhkNomor: '',
+  panjang: 0,
+  buangan: 0,
+  tanggal: format(new Date(), 'yyyy-MM-dd'),
+  cabang: authStore.user?.cabang || '',
+  jenisOrder: null as JenisOrder | null, // Tambahkan ini
+});
+
+const pageTitle = computed(() => isEditMode.value ? `Ubah LHK Jasa` : `Buat LHK Jasa`);
 const canView = computed(() => authStore.can(MENU_ID, 'view'));
 const canEdit = computed(() => authStore.can(MENU_ID, 'edit'));
 const canSave = computed(() => authStore.can(MENU_ID, 'insert'));
+const totalLuasSistem = computed(() => items.value.reduce((sum, i) => sum + (i.luasSistem || 0), 0));
+// Rumus: Luas Sistem / 60 (Lebar Bahan)
+const panjangSistemEstimasi = computed(() => {
+  if (totalLuasSistem.value === 0) return 0;
+  return Number((totalLuasSistem.value / 60).toFixed(2));
+});
+const totalLuasRiil = computed(() => {
+  const p = Number(formHeader.panjang) || 0;
+  const b = Number(formHeader.buangan) || 0;
+  // Rumus: (Panjang + Buangan) * 60 cm lebar bahan
+  return Math.round((p + b) * 60);
+});
+const selisihLuas = computed(() => totalLuasRiil.value - totalLuasSistem.value);
+const isShowMeasurement = computed(() => {
+  if (!formHeader.jenisOrder) return false; // Sembunyikan jika belum pilih jenis
+
+  const namaOrder = formHeader.jenisOrder.nama.toUpperCase();
+  // Muncul HANYA jika mengandung kata 'DTF'
+  return namaOrder.includes('SABLON DTF') || namaOrder.includes('DTF PREMIUM');
+});
+
+const totalJumlahKaosSummary = computed(() => {
+  return items.value.reduce((sum, item) => sum + (Number(item.jumlahSistem) || 0), 0);
+});
+
+// Fetch Jenis Order saat Mount
+onMounted(async () => {
+  const res = await api.get('/lhk-so-dtf-form/jenis-order');
+  jenisOrderOptions.value = res.data;
+
+  // Default ke Sablon DTF jika ada
+  const dtf = jenisOrderOptions.value.find(j => j.nama.includes('DTF'));
+  if (dtf) formHeader.jenisOrder = dtf;
+
+  loadLhkData();
+});
 
 const tableHeaders = [
-  { title: 'No.', key: 'no', sortable: false, width: '40px' },
-  { title: 'PO/SO DTF', key: 'kode', sortable: false, width: '180px' },
-  { title: 'Nama DTF', key: 'nama', sortable: false, width: '250px' },
-  { title: 'Depan', key: 'depan', sortable: false, width: '90px' },
-  { title: 'Belakang', key: 'belakang', sortable: false, width: '90px' },
-  { title: 'Lengan', key: 'lengan', sortable: false, width: '90px' },
-  { title: 'Variasi', key: 'variasi', sortable: false, width: '90px' },
-  { title: 'Saku', key: 'saku', sortable: false, width: '90px' },
-  { title: 'Panjang (Mtr)', key: 'panjang', sortable: false, width: '110px' },
-  { title: 'Buangan (Mtr)', key: 'buangan', sortable: false, width: '110px' },
-  { title: 'Keterangan', key: 'ket', sortable: false, width: '200px' },
-  { title: 'Actions', key: 'actions', sortable: false, width: '50px' },
+  { title: 'No.', key: 'no', width: '50px', sortable: false },
+  { title: 'PO/SO DTF', key: 'kode', width: '125px' },
+  { title: 'Nama DTF', key: 'nama', width: '400px' },
+  { title: 'Jumlah', key: 'jumlah', width: '80px', align: 'center' as const },
+  { title: 'Reject', key: 'reject', width: '80px', align: 'center' as const },
+  { title: 'Depan', key: 'depan', width: '80px', align: 'center' as const },
+  { title: 'Belakang', key: 'belakang', width: '80px', align: 'center' as const },
+  { title: 'Lengan', key: 'lengan', width: '80px', align: 'center' as const },
+  { title: 'Variasi', key: 'variasi', width: '80px', align: 'center' as const },
+  { title: 'Saku', key: 'saku', width: '80px', align: 'center' as const },
+  { title: 'Keterangan', key: 'ket' },
+  { title: 'Actions', key: 'actions', width: '50px' },
 ];
 
 const loadLhkData = async () => {
+  // [FIX] Hanya panggil data jika ada parameter nomorLhk (Mode Edit)
+  if (!route.query.nomorLhk) {
+    items.value = [];
+    addNewRowIfNeeded();
+    return;
+  }
+
+  // [FIX] Reset header jika tidak ada nomorLhk (Mode Baru / Klik Batal)
+  if (!route.query.nomorLhk) {
+    items.value = [];
+    formHeader.panjang = 0; // Reset ke 0
+    formHeader.buangan = 0; // Reset ke 0
+    formHeader.lhkNomor = '';
+    addNewRowIfNeeded();
+    return;
+  }
+
   isLoading.value = true;
   try {
-    const response = await api.get<LhkApiResponseItem[]>(
-      `/lhk-so-dtf-form/${selectedTanggal.value}/${selectedCabang.value}`
-    );
-    items.value = response.data.map((item, index) => ({
-      ...item,
-      id: Date.now() + index, // id untuk key v-for
-      // pastikan semua properti sesuai LhkItem
-      depan: item.depan ?? 0,
-      belakang: item.belakang ?? 0,
-      lengan: item.lengan ?? 0,
-      variasi: item.variasi ?? 0,
-      saku: item.saku ?? 0,
-      panjang: item.panjang ?? 0,
-      buangan: item.buangan ?? 0,
-      ket: item.ket ?? ''
-    }));
-  } catch (error: unknown) {
-    toast.error('Gagal memuat data LHK.');
-    console.error(error);
-    items.value = [];
+    const response = await api.get<LhkApiResponseItem[]>(`/lhk-so-dtf-form/detail/${route.query.nomorLhk}`);
+    const data = response.data;
+
+    if (data.length > 0) {
+      formHeader.lhkNomor = data[0].lhk_nomor;
+      formHeader.panjang = data[0].panjang;
+      formHeader.buangan = data[0].buangan;
+      formHeader.tanggal = format(new Date(data[0].tanggal), 'yyyy-MM-dd');
+      formHeader.cabang = data[0].cab;
+
+      items.value = data.map((item, index): LhkItem => ({
+        id: Date.now() + index,
+        kode: item.kode,
+        nama: item.nama,
+
+        depan: item.depan ?? 0,
+        belakang: item.belakang ?? 0,
+        lengan: item.lengan ?? 0,
+        variasi: item.variasi ?? 0,
+        saku: item.saku ?? 0,
+
+        jumlah: item.jumlah ?? 0,
+        jumlahSistem: item.jumlahSistem ?? 0,
+        reject: item.reject ?? 0,
+
+        panjang: item.panjang ?? 0,
+        buangan: item.buangan ?? 0,
+
+        luasSistem: item.luas_sistem || 0,
+        luasRiil: 0,
+        ket: item.keterangan || ''
+      }));
+    }
+  } catch (error) {
+    toast.error('Gagal memuat data LHK.', error);
   } finally {
-    addNewRowIfNeeded();
+    // addNewRowIfNeeded();
     isLoading.value = false;
-    await nextTick();
     markAsSaved();
   }
 };
 
 const addNewRowIfNeeded = () => {
+  if (isEditMode.value) return;
+
+  const isBordir = (formHeader.jenisOrder?.nama || '').toUpperCase().includes('BORDIR');
   const lastItem = items.value[items.value.length - 1];
+
+  // Jika Bordir dan sudah ada item yang memiliki kode, berhenti di sini (jangan tambah baris)
+  if (isBordir && items.value.some(item => item.kode !== '')) {
+    return;
+  }
+
   if (!lastItem || lastItem.kode) {
     items.value.push({
-      id: Date.now(), kode: '', nama: '', depan: 0, belakang: 0, lengan: 0,
-      variasi: 0, saku: 0, panjang: 0, buangan: 0, ket: ''
+      id: Date.now(),
+      kode: '',
+      nama: '',
+      jumlah: 0,
+      jumlahSistem: 0,
+      reject: 0,
+      panjang: 0,
+      buangan: 0,
+      luasSistem: 0,
+      luasRiil: 0,
+      ket: '',
+      depan: 0, belakang: 0, lengan: 0, variasi: 0, saku: 0 // Pastikan semua field inisialisasi
     });
   }
 };
@@ -137,51 +253,109 @@ const openPoSearchModal = (index: number) => {
   isPoSearchVisible.value = true;
 };
 
-
-const onSoPoSelected = (selectedItem: { kode: string, nama: string }) => {
-  const isDuplicate = items.value.some(item => item.kode === selectedItem.kode && item.id !== items.value[activeRowIndex.value].id);
-  if (isDuplicate) {
-    toast.error(`Nomor ${selectedItem.kode} sudah ada di dalam daftar.`);
-    return;
-  }
-  items.value[activeRowIndex.value].kode = selectedItem.kode;
-  items.value[activeRowIndex.value].nama = selectedItem.nama;
-  addNewRowIfNeeded();
-  isSoSearchVisible.value = false; // Tutup modal SO
-  isPoSearchVisible.value = false; // Tutup modal PO
+// 2. Fungsi untuk membuka modal SPK
+const openSpkSearchModal = (index: number) => {
+  activeRowIndex.value = index;
+  isSpkSearchVisible.value = true;
 };
+
+const onSoPoSelected = async (selectedItem: { kode: string, nama: string }) => {
+  const activeItem = items.value[activeRowIndex.value];
+  if (items.value.some(i => i.kode === selectedItem.kode && i.id !== activeItem.id)) {
+    return toast.error(`Nomor ${selectedItem.kode} sudah ada.`);
+  }
+
+  try {
+    const res = await api.get(`/lhk-so-dtf-form/specs/${selectedItem.kode}`);
+    activeItem.kode = selectedItem.kode;
+    activeItem.nama = selectedItem.nama;
+    activeItem.luasSistem = res.data.totalLuasSistem || 0;
+    activeItem.jumlahSistem = res.data.totalKaos || 0;
+    activeItem.jumlah = 0;
+
+    // Hanya panggil penambahan baris jika BUKAN Bordir
+    const isBordir = (formHeader.jenisOrder?.nama || '').toUpperCase().includes('BORDIR');
+    if (!isBordir) {
+      addNewRowIfNeeded();
+    }
+
+    isSoSearchVisible.value = false;
+    isPoSearchVisible.value = false;
+  } catch (error) {
+    toast.error("Gagal mengambil spesifikasi SO.", error);
+  }
+};
+
+watch(() => formHeader.jenisOrder, (newVal) => {
+  // 1. Reset inputan meteran (Panjang & Buangan) menjadi 0
+  formHeader.panjang = 0;
+  formHeader.buangan = 0;
+
+  // 2. Kosongkan seluruh isi tabel
+  // Hal ini penting untuk menjaga integritas data agar nomor SO DTF
+  // tidak tercampur ke dalam laporan Bordir atau sebaliknya.
+  items.value = [];
+
+  // 3. Inisialisasi ulang baris kosong
+  // Fungsi addNewRowIfNeeded akan otomatis mendeteksi jenis pekerjaan baru
+  // dan memberikan 1 baris kosong yang sesuai (termasuk limitasi untuk Bordir).
+  addNewRowIfNeeded();
+
+  if (newVal) {
+    toast.info(`Mode input diubah ke: ${newVal.nama}`);
+  }
+});
+
+// --- Watcher untuk Hitung Luas Riil (60 * P * B) ---
+watch(items, (newItems) => {
+  newItems.forEach(item => {
+    if (item.panjang > 0 && item.buangan > 0) {
+      // Rumus: 60 (Lebar Bahan) * Panjang * Buangan
+      item.luasRiil = Math.round(60 * item.panjang * item.buangan);
+    } else {
+      item.luasRiil = 0;
+    }
+  });
+}, { deep: true });
 
 const save = async () => {
   isSaving.value = true;
   try {
     const validItems = items.value.filter(item => item.kode && item.nama);
-    if (validItems.length === 0) {
-      toast.warning('Tidak ada data valid untuk disimpan.');
+
+    // Validasi input global di header
+    if (isShowMeasurement.value && formHeader.panjang <= 0) {
+      toast.error("Panjang minimal harus diisi untuk Sablon DTF!");
+      isSaving.value = false; // Reset loading state jika gagal validasi
       return;
     }
+
+    if (validItems.length === 0) {
+      toast.error("Minimal harus mengisi satu SO/PO!");
+      isSaving.value = false;
+      return;
+    }
+
     await api.post('/lhk-so-dtf-form', {
-      tanggal: selectedTanggal.value,
-      cabang: selectedCabang.value,
+      tanggal: formHeader.tanggal, // [FIX 3] Gunakan data dari formHeader
+      cabang: formHeader.cabang,   // [FIX 3] Gunakan data dari formHeader
+      jenisOrder: formHeader.jenisOrder,
+      panjang: isShowMeasurement.value ? formHeader.panjang : 0,
+      buangan: isShowMeasurement.value ? formHeader.buangan : 0,
+      isEdit: isEditMode.value,
+      lhkNomor: formHeader.lhkNomor,
       items: validItems
     });
+
     toast.success('Data LHK berhasil disimpan.');
     markAsSaved();
     router.push('/transaksi/penjualan/dtf/lhk-so-dtf');
-  } catch (error: unknown) {
-    let message = 'Gagal menyimpan data.';
-
-    if (error instanceof Error) {
-      // error JS standar
-      message = error.message;
-    } else if (typeof error === 'object' && error !== null) {
-      // Cek jika error objek dan mungkin AxiosError
-      const axiosError = error as AxiosError<{ message: string }>;
-      if (axiosError.response?.data?.message) {
-        message = axiosError.response.data.message;
-      }
+  } catch (error) {
+    let msg = 'Gagal menyimpan data.';
+    if (axios.isAxiosError(error)) {
+      msg = error.response?.data?.message || msg;
     }
-
-    toast.error(message);
+    toast.error(msg);
   } finally {
     isSaving.value = false;
   }
@@ -277,76 +451,136 @@ onMounted(() => {
 
     <div class="form-grid-container">
       <div class="left-column">
-        <div class="desktop-form-section header-section">
+        <div class="desktop-form-section header-section mb-3">
+          <div class="text-subtitle-2 font-weight-bold mb-3">Informasi LHK</div>
           <v-row dense>
             <v-col cols="12">
-              <v-text-field label="Store" :model-value="selectedCabang" density="compact" hide-details
-                variant="outlined" readonly filled />
+              <v-text-field label="Nomor LHK" v-model="formHeader.lhkNomor" density="compact" hide-details
+                variant="filled" readonly placeholder="(Otomatis)" />
             </v-col>
             <v-col cols="12">
-              <v-text-field label="Tanggal" v-model="selectedTanggal" type="date" density="compact" hide-details
+              <v-text-field label="Store" v-model="formHeader.cabang" density="compact" hide-details variant="outlined"
+                readonly filled />
+            </v-col>
+            <v-col cols="12">
+              <v-text-field label="Tanggal" v-model="formHeader.tanggal" type="date" density="compact" hide-details
                 variant="outlined" />
             </v-col>
             <v-col cols="12">
-              <v-text-field label="Cari SPK..." v-model="spkSearch" density="compact" hide-details variant="outlined"
-                prepend-inner-icon="mdi-magnify" clearable />
+              <v-select v-model="formHeader.jenisOrder" :items="jenisOrderOptions" item-title="nama" return-object
+                label="Jenis Pekerjaan" density="compact" variant="outlined" hide-details />
             </v-col>
           </v-row>
+        </div>
+
+        <div v-if="isShowMeasurement" class="desktop-form-section mb-3 bg-blue-lighten-5">
+          <div class="text-subtitle-2 font-weight-bold mb-2">Ukuran Cetak Riil</div>
+          <v-row dense>
+            <v-col cols="6">
+              <v-text-field v-model.number="formHeader.panjang" label="Panjang" type="number" variant="outlined"
+                density="compact" hide-details class="custom-suffix" suffix="cm" />
+            </v-col>
+            <v-col cols="6">
+              <v-text-field v-model.number="formHeader.buangan" label="Buangan" type="number" variant="outlined"
+                density="compact" hide-details class="custom-suffix" suffix="cm" />
+            </v-col>
+          </v-row>
+        </div>
+
+        <div v-if="isShowMeasurement || (formHeader.jenisOrder?.nama || '').toUpperCase().includes('BORDIR')"
+          class="desktop-form-section">
+          <div class="text-subtitle-2 font-weight-bold mb-2">
+            {{ isShowMeasurement ? 'Audit Pemakaian Bahan' : 'Audit Produksi Bordir' }}
+          </div>
+
+          <v-list density="compact" class="pa-0">
+            <v-list-item class="px-0">
+              <v-list-item-title class="text-caption">Total Qty (Sistem)</v-list-item-title>
+              <template #append>
+                <span class="font-weight-bold text-deep-orange">
+                  {{ totalJumlahKaosSummary.toLocaleString() }} Pcs
+                </span>
+              </template>
+            </v-list-item>
+
+            <template v-if="isShowMeasurement">
+              <v-list-item class="px-0">
+                <v-list-item-title class="text-caption">Total Luas Riil</v-list-item-title>
+                <template #append>
+                  <span class="font-weight-bold text-blue">{{ totalLuasRiil.toLocaleString() }} cm²</span>
+                </template>
+              </v-list-item>
+
+              <v-list-item class="px-0">
+                <v-list-item-title class="text-caption">Total Luas Sistem</v-list-item-title>
+                <template #append>
+                  <span class="font-weight-bold">{{ totalLuasSistem.toLocaleString() }} cm²</span>
+                </template>
+              </v-list-item>
+
+              <v-list-item class="px-0 min-h-30 bg-grey-lighten-5 rounded mt-1">
+                <template #title>
+                  <span class="text-caption font-weight-bold">Estimasi Panjang (Sistem)</span>
+                </template>
+                <template #append>
+                  <span class="font-weight-black">{{ panjangSistemEstimasi.toLocaleString() }} cm</span>
+                </template>
+              </v-list-item>
+
+              <v-divider class="my-2"></v-divider>
+
+              <v-list-item class="px-0">
+                <v-list-item-title class="font-weight-bold">Selisih (±)</v-list-item-title>
+                <template #append>
+                  <span class="font-weight-black" :class="selisihLuas > 0 ? 'text-error' : 'text-success'">
+                    {{ selisihLuas.toLocaleString() }} cm²
+                  </span>
+                </template>
+              </v-list-item>
+            </template>
+          </v-list>
         </div>
       </div>
 
       <div class="right-column">
         <div class="desktop-form-section d-flex flex-column fill-height">
-          <v-data-table :headers="tableHeaders" :items="items" :loading="isLoading" :search="spkSearch"
-            density="compact" class="desktop-table fill-height-table" fixed-header :items-per-page="-1">
+          <v-data-table :headers="tableHeaders" :items="items" :loading="isLoading" density="compact"
+            class="desktop-table" fixed-header :items-per-page="-1">
             <template #[`item.no`]="{ index }">
               <div class="cell-text">{{ index + 1 }}</div>
             </template>
+
             <template #[`item.kode`]="{ item, index }">
-              <v-text-field v-model="item.kode" variant="underlined" density="compact" hide-details
-                placeholder="F1: SO, F2: PO" @keydown.f1.prevent="openSoSearchModal(index)"
-                @keydown.f2.prevent="openPoSearchModal(index)">
-              </v-text-field>
+              <v-text-field v-model="item.kode" :readonly="isEditMode" :variant="isEditMode ? 'filled' : 'underlined'"
+                density="compact" hide-details :placeholder="isEditMode ? '' : 'F1:SO, F2:PO, F3:SPK'"
+                @keydown.f1.prevent="!isEditMode && openSoSearchModal(index)"
+                @keydown.f2.prevent="!isEditMode && openPoSearchModal(index)"
+                @keydown.f3.prevent="!isEditMode && openSpkSearchModal(index)" />
             </template>
-            <template #[`item.nama`]="{ item }">
-              <div class="nama-dtf-cell" :title="item.nama">
-                {{ item.nama }}
-              </div>
+
+            <template #[`item.jumlah`]="{ item }">
+              <v-text-field v-model.number="item.jumlah" type="number" variant="underlined" density="compact"
+                hide-details class="text-center tiny-input font-weight-bold" />
             </template>
-            <template #[`item.depan`]="{ item }">
-              <v-text-field v-model.number="item.depan" type="number" min="0" variant="underlined" density="compact"
-                hide-details class="text-end" />
+
+            <template #[`item.reject`]="{ item }">
+              <v-text-field v-model.number="item.reject" type="number" variant="underlined" density="compact"
+                hide-details class="text-center tiny-input text-error font-weight-bold" />
             </template>
-            <template #[`item.belakang`]="{ item }">
-              <v-text-field v-model.number="item.belakang" type="number" min="0" variant="underlined" density="compact"
-                hide-details class="text-end" />
+
+            <template v-for="col in ['depan', 'belakang', 'lengan', 'variasi', 'saku']" :key="col"
+              #[`item.${col}`]="{ item }">
+              <v-text-field v-model.number="item[col]" type="number" variant="underlined" density="compact" hide-details
+                class="text-center tiny-input" />
             </template>
-            <template #[`item.lengan`]="{ item }">
-              <v-text-field v-model.number="item.lengan" type="number" min="0" variant="underlined" density="compact"
-                hide-details class="text-end" />
-            </template>
-            <template #[`item.variasi`]="{ item }">
-              <v-text-field v-model.number="item.variasi" type="number" min="0" variant="underlined" density="compact"
-                hide-details class="text-end" />
-            </template>
-            <template #[`item.saku`]="{ item }">
-              <v-text-field v-model.number="item.saku" type="number" min="0" variant="underlined" density="compact"
-                hide-details class="text-end" />
-            </template>
-            <template #[`item.panjang`]="{ item }">
-              <v-text-field v-model.number="item.panjang" type="number" min="0" variant="underlined" density="compact"
-                hide-details class="text-end" />
-            </template>
-            <template #[`item.buangan`]="{ item }">
-              <v-text-field v-model.number="item.buangan" type="number" min="0" variant="underlined" density="compact"
-                hide-details class="text-end" />
-            </template>
+
             <template #[`item.ket`]="{ item }">
               <v-text-field v-model="item.ket" variant="underlined" density="compact" hide-details />
             </template>
+
             <template #[`item.actions`]="{ item }">
-              <v-btn icon="mdi-delete" size="x-small" variant="text" color="error" @click="removeRow(item.id)"
-                v-if="items.length > 1" />
+              <v-btn v-if="!isEditMode && items.length > 1" icon="mdi-delete" size="x-small" variant="text"
+                color="error" @click="removeRow(item.id)" />
             </template>
             <template #bottom></template>
           </v-data-table>
@@ -366,10 +600,13 @@ onMounted(() => {
       </v-card>
     </v-dialog>
 
-    <SoPoSearchModal v-if="isSoSearchVisible" :cabang="selectedCabang" tipe="SO" @close="isSoSearchVisible = false"
-      @selected="onSoPoSelected" />
+    <SoPoSearchModal v-if="isSoSearchVisible" :cabang="selectedCabang" tipe="SO" :prefix="formHeader.jenisOrder?.kode"
+      @close="isSoSearchVisible = false" @selected="onSoPoSelected" />
 
     <SoPoSearchModal v-if="isPoSearchVisible" :cabang="selectedCabang" tipe="PO" @close="isPoSearchVisible = false"
+      @selected="onSoPoSelected" />
+
+    <SoPoSearchModal v-if="isSpkSearchVisible" :cabang="selectedCabang" tipe="SPK" @close="isSpkSearchVisible = false"
       @selected="onSoPoSelected" />
   </PageLayout>
 </template>
@@ -384,13 +621,83 @@ onMounted(() => {
   text-align: right;
 }
 
+/* Mengecilkan teks "cm" pada input */
+:deep(.custom-suffix .v-field__suffix) {
+  font-size: 9px !important;
+  opacity: 0.6;
+  padding-left: 2px;
+  text-transform: lowercase;
+}
+
+/* Mengatur input angka agar lebih compact */
+.tiny-input :deep(input) {
+  padding: 4px 0 !important;
+  font-size: 11px !important;
+  text-align: center;
+}
+
+.custom-suffix :deep(input) {
+  font-size: 12px !important;
+}
+
+.text-caption {
+  font-size: 11px !important;
+}
+
 .nama-dtf-cell {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  padding: 0 8px;
-  height: 28px;
-  line-height: 28px;
-  font-size: 12px;
+  max-width: 200px;
+  font-size: 11px;
+}
+
+/* Merapatkan jarak antar kolom v-data-table */
+:deep(.v-data-table__td) {
+  padding: 0 4px !important;
+}
+
+.form-grid-container {
+  display: grid;
+  grid-template-columns: 320px 1fr;
+  /* Lebar kolom kiri tetap */
+  gap: 16px;
+  height: calc(100vh - 120px);
+}
+
+/* Styling Khusus Suffix cm agar tidak besar */
+:deep(.custom-suffix .v-field__suffix) {
+  font-size: 10px !important;
+  font-weight: normal;
+  opacity: 0.7;
+}
+
+.tiny-input :deep(input) {
+  padding: 4px 0 !important;
+  font-size: 12px !important;
+  text-align: center;
+}
+
+.desktop-table :deep(thead tr th) {
+  font-size: 11px !important;
+  white-space: nowrap;
+}
+
+.bg-blue-lighten-5 {
+  background-color: #e3f2fd !important;
+  border: 1px solid #bbdefb;
+}
+
+.text-blue {
+  color: #1976d2;
+}
+
+:deep(.v-data-table__td:nth-child(3)) {
+  font-size: 11px;
+  line-height: 1.2;
+  white-space: normal !important;
+  /* Mengizinkan teks pindah baris */
+  word-break: break-word;
+  padding: 8px 4px !important;
 }
 </style>

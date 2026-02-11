@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { ref, watch, onMounted } from 'vue';
+import { ref, watch, onMounted, onUnmounted, computed } from 'vue';
 import api from '@/services/api';
-import { format } from 'date-fns';
+import { format, isValid, parseISO } from 'date-fns';
 
 interface SoPoItem {
   kode: string;
@@ -13,9 +13,21 @@ interface SoPoItem {
 
 const props = defineProps({
   cabang: { type: String, required: true },
-  tipe: { type: String, default: 'ALL' }
+  tipe: { type: String, default: 'ALL' },
+  prefix: { type: String, default: '' }
 });
 const emit = defineEmits(['close', 'selected']);
+
+const dialogTitle = computed(() => {
+  if (props.tipe === 'SPK') return 'Bantuan - Pilih SPK Produksi (Jeron)';
+  if (props.tipe === 'PO') return 'Bantuan - Pilih PO DTF';
+  return 'Bantuan - Pilih SO DTF';
+});
+
+const formatDate = (dateStr: string) => {
+  const date = parseISO(dateStr);
+  return isValid(date) ? format(date, 'dd/MM/yyyy') : '-';
+};
 
 const items = ref<SoPoItem[]>([]);
 const loading = ref(true);
@@ -40,17 +52,18 @@ const loadItems = async () => {
         term: search.value,
         cabang: props.cabang,
         tipe: props.tipe,
+        // [TAMBAHKAN INI] Kirim prefix ke backend
+        prefix: props.prefix,
         page: page.value,
         limit: itemsPerPage,
       },
     });
 
-    // Response structure: { data, total, page, limit, totalPages }
     const result = response.data;
     items.value = result.data || [];
     totalItems.value = result.total || 0;
   } catch (error) {
-    console.error("Gagal memuat data SO/PO:", error.response?.data || error.message);
+    console.error("Gagal memuat data SO/PO:", error);
   } finally {
     loading.value = false;
   }
@@ -72,6 +85,7 @@ watch(search, () => {
 
 watch(page, () => loadItems());
 
+onUnmounted(() => clearTimeout(searchTimeout));
 onMounted(loadItems);
 </script>
 
@@ -79,7 +93,7 @@ onMounted(loadItems);
   <v-dialog :model-value="true" @update:model-value="$emit('close')" max-width="1200px" persistent>
     <v-card class="dialog-card d-flex flex-column" style="height: 80vh;">
       <v-toolbar color="primary" density="compact">
-        <v-toolbar-title class="text-subtitle-1">Bantuan - Pilih SO / PO DTF</v-toolbar-title>
+        <v-toolbar-title class="text-subtitle-1">{{ dialogTitle }}</v-toolbar-title>
         <v-spacer></v-spacer>
         <v-btn icon="mdi-close" @click="$emit('close')" variant="text" size="small"></v-btn>
       </v-toolbar>
@@ -94,16 +108,22 @@ onMounted(loadItems);
           :server-items-length="totalItems">
           <template #item="{ item }">
             <tr @click="selectItem(item)" style="cursor: pointer;">
-              <td>{{ item.kode }}</td>
+              <td class="font-weight-bold text-primary">{{ item.kode }}</td>
               <td>{{ item.nama }}</td>
               <td class="text-end">{{ item.jumlah }}</td>
-              <td>{{ format(new Date(item.tanggal), 'dd/MM/yyyy') }}</td>
-              <td>{{ item.tipe }}</td>
+              <td>{{ formatDate(item.tanggal) }}</td>
+              <td>
+                <v-chip size="x-small" :color="item.tipe.includes('SPK') ? 'orange' : 'blue'">
+                  {{ item.tipe }}
+                </v-chip>
+              </td>
             </tr>
           </template>
 
           <template #bottom>
-            <v-pagination v-model="page" :length="Math.ceil(totalItems / itemsPerPage)" total-visible="7" />
+            <div class="pa-2 border-t">
+              <v-pagination v-model="page" :length="Math.ceil(totalItems / itemsPerPage)" total-visible="7" />
+            </div>
           </template>
         </v-data-table>
       </v-card-text>

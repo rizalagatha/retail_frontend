@@ -253,16 +253,18 @@ onMounted(() => {
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%) rotate(-45deg);
-  font-size: 72px;
-  color: gray;
-  /* abu-abu */
+  font-size: 80px;
+  /* Sedikit diperbesar */
+  color: #cccccc !important;
+  /* Gunakan abu-abu terang */
   font-weight: bold;
   pointer-events: none;
   user-select: none;
   white-space: nowrap;
-  z-index: -1;
-  opacity: 0.1;
-  /* lebih stabil di print preview */
+  /* UBAH INI: Dari -1 menjadi 9999 */
+  z-index: 9999;
+  opacity: 0.15;
+  /* Sedikit dinaikkan agar terlihat */
 }
 
 /* Header Perusahaan */
@@ -480,12 +482,11 @@ onMounted(() => {
 /* Media query untuk print */
 @media print {
   .watermark {
-    color: #999 !important;
-    /* abu-abu */
-    opacity: 0.1 !important;
-    /* transparan */
+    color: #cccccc !important;
+    opacity: 0.15 !important;
+    display: block !important;
+    /* Pastikan tidak tersembunyi */
     -webkit-print-color-adjust: exact;
-    /* biar Chrome/Edge ikutin warna */
     print-color-adjust: exact;
   }
 
@@ -518,8 +519,13 @@ onMounted(() => {
 /* ============================= */
 
 .print-container,
-.print-container * {
+.print-container *:not(.watermark) {
   color: #000 !important;
   background: #fff !important;
+}
+
+/* Pastikan watermark tetap transparan latar belakangnya */
+.watermark {
+  background: transparent !important;
 }
 </style>

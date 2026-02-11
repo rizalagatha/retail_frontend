@@ -45,32 +45,38 @@ const selected = ref<SelisihItem[]>([]);
 const fetchTimeout = ref<number | undefined>(undefined);
 
 const filters = reactive({
-  startDate: format(new Date(), 'yyyy-MM-dd'), // Hanya tampilan
-  endDate: format(new Date(), 'yyyy-MM-dd'),   // Hanya tampilan
+  startDate: format(new Date(), 'yyyy-MM-dd'),
+  endDate: format(new Date(), 'yyyy-MM-dd'),
   cabang: authStore.user?.cabang || '',
   search: '',
 });
 
-// --- Header Definisi (Resize) ---
+// --- Header Definisi (Lebar disesuaikan untuk 11px) ---
 const headers = ref<DataTableHeader[]>([
-  { title: 'Kode', key: 'Kode', width: 150, fixed: true },
-  { title: 'Barcode', key: 'Barcode', width: 150 },
-  { title: 'Nama Barang', key: 'Nama', width: 300, fixed: true },
-  { title: 'Ukuran', key: 'Ukuran', width: 100 },
-  { title: 'Stok Sistem', key: 'Stok', width: 120 },
-  { title: 'Stok Fisik', key: 'Hitung', width: 120 },
-  { title: 'Selisih', key: 'Selisih', width: 120 },
+  { title: 'Kode', key: 'Kode', width: 120, fixed: true },
+  { title: 'Barcode', key: 'Barcode', width: 120 },
+  { title: 'Nama Barang', key: 'Nama', width: 350, fixed: true },
+  { title: 'Ukuran', key: 'Ukuran', width: 80 },
+  { title: 'Stok Sistem', key: 'Stok', width: 110, align: 'end' },
+  { title: 'Stok Fisik', key: 'Hitung', width: 110, align: 'end' },
+  { title: 'Selisih', key: 'Selisih', width: 110, align: 'end' },
   { title: 'Lokasi (Qty)', key: 'Lokasi', width: 250 },
-  { title: 'Inv Stlh SO', key: 'Invoice', width: 120 },
+  { title: 'Inv Stlh SO', key: 'Invoice', width: 110, align: 'end' },
 ]);
 
-const totalSummary = computed(() => {
-  return {
-    Stok: items.value.reduce((sum, item) => sum + (Number(item.Stok) || 0), 0),
-    Hitung: items.value.reduce((sum, item) => sum + (Number(item.Hitung) || 0), 0),
-    Selisih: items.value.reduce((sum, item) => sum + (Number(item.Selisih) || 0), 0),
-  };
+// --- Total Summary Logic ---
+const getSummary = (data: SelisihItem[]) => ({
+  Stok: data.reduce((sum, item) => sum + (Number(item.Stok) || 0), 0),
+  Hitung: data.reduce((sum, item) => sum + (Number(item.Hitung) || 0), 0),
+  Selisih: data.reduce((sum, item) => sum + (Number(item.Selisih) || 0), 0),
 });
+
+const totalUtama = computed(() => getSummary(utamaItems.value));
+const totalSticker = computed(() => getSummary(stickerItems.value));
+
+// --- Computed Data Terpisah ---
+const utamaItems = computed(() => items.value.filter(i => i.Nama !== 'STICKER DTF' && i.Nama !== 'STICKER DTF PREMIUM'));
+const stickerItems = computed(() => items.value.filter(i => i.Nama === 'STICKER DTF' || i.Nama === 'STICKER DTF PREMIUM'));
 
 // --- Logic Resize Column ---
 const resizingColumn = ref<DataTableHeader | null>(null);
@@ -78,14 +84,12 @@ const startX = ref(0);
 const startWidth = ref(0);
 
 const onResizeStart = (e: MouseEvent, column: DataTableHeader) => {
-  e.preventDefault();
-  e.stopPropagation();
+  e.preventDefault(); e.stopPropagation();
   resizingColumn.value = column;
   startX.value = e.pageX;
   startWidth.value = (typeof column.width === 'number' ? column.width : 100);
   document.addEventListener('mousemove', onResizeMove);
   document.addEventListener('mouseup', onResizeEnd);
-  document.body.style.cursor = 'col-resize';
 };
 
 const onResizeMove = (e: MouseEvent) => {
@@ -98,7 +102,6 @@ const onResizeEnd = () => {
   resizingColumn.value = null;
   document.removeEventListener('mousemove', onResizeMove);
   document.removeEventListener('mouseup', onResizeEnd);
-  document.body.style.cursor = '';
 };
 
 const handleRowClick = (_event: Event, { item }: { item: SelisihItem }) => {
@@ -129,19 +132,14 @@ const fetchCabangOptions = async () => {
 };
 
 const exportToExcel = () => {
-  if (items.value.length === 0) {
-    return toast.warning('Tidak ada data untuk diekspor.');
-  }
+  if (items.value.length === 0) return toast.warning('Tidak ada data.');
   const worksheet = XLSX.utils.json_to_sheet(items.value);
   const workbook = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(workbook, worksheet, "Cek Selisih Stok Opname");
+  XLSX.utils.book_append_sheet(workbook, worksheet, "Cek Selisih SO");
   XLSX.writeFile(workbook, `CekSelisihSO_${filters.cabang}.xlsx`);
-  toast.success('Data berhasil diekspor.');
 };
 
-const getRowClass = (item: SelisihItem) => {
-  return item.Selisih !== 0 ? 'bg-red-lighten-5 text-red font-weight-bold' : '';
-};
+const getRowClass = (item: SelisihItem) => item.Selisih !== 0 ? 'bg-red-lighten-5 text-red font-weight-bold' : '';
 
 onMounted(() => {
   fetchCabangOptions();
@@ -174,142 +172,113 @@ watch(filters, (newVal, oldVal) => {
         <v-select v-model="filters.cabang" :items="cabangOptions" item-title="nama" item-value="kode" label="Cabang"
           density="compact" hide-details variant="outlined" class="ms-4" style="max-width: 200px;"
           :readonly="authStore.user?.cabang !== 'KDC'" />
-
         <v-text-field v-model="filters.search" label="Cari Nama/Kode/Barcode..." density="compact" hide-details
           variant="outlined" class="ms-4" style="min-width: 250px;" prepend-inner-icon="mdi-magnify" clearable />
-
         <v-spacer />
         <v-btn @click="fetchData" icon="mdi-refresh" variant="text" size="small" :loading="isLoading" />
       </div>
 
-      <div class="table-container">
-        <AppDataTable v-model="selected" :headers="headers" :items="items" :loading="isLoading" item-value="Barcode"
-          density="compact" class="desktop-table header-browse-blue" fixed-header show-select return-object
-          @click:row="handleRowClick" :item-props="(item) => ({ class: getRowClass(item) })">
-          <template #headers="{ columns, isSorted, getSortIcon, toggleSort }">
-            <tr>
-              <template v-for="header in columns" :key="header.key">
-                <th
-                  :style="{ width: header.width + 'px', minWidth: header.width + 'px', maxWidth: header.width + 'px' }"
-                  class="resizable-header"
+      <div class="table-container scrollable-content pa-4">
+        <div class="table-section mb-8">
+          <div class="category-header bg-primary-lighten-5 text-primary">
+            <v-icon size="small" class="me-2">mdi-package-variant</v-icon> BARANG UTAMA
+          </div>
+          <AppDataTable :headers="headers" :items="utamaItems" show-select item-value="Barcode" density="compact"
+            class="custom-11px-table border rounded" :item-props="(item) => ({ class: getRowClass(item) })"
+            @click:row="handleRowClick">
+            <template #headers="{ columns, isSorted, getSortIcon, toggleSort }">
+              <tr>
+                <th v-for="header in columns" :key="header.key"
+                  :style="{ width: header.width + 'px', minWidth: header.width + 'px' }" class="resizable-header"
                   :class="{ 'text-center': header.align === 'center', 'text-end': header.align === 'end' }"
-                  @click="toggleSort(header)">
+                  @click="header.key !== 'data-table-select' ? toggleSort(header) : null">
                   <div class="header-content">
                     <span>{{ header.title }}</span>
-                    <v-icon v-if="isSorted(header)" size="small" class="ms-1">
-                      {{ getSortIcon(header) }}
-                    </v-icon>
+                    <v-icon v-if="header.key !== 'data-table-select' && isSorted(header)" size="14" class="ms-1">{{
+                      getSortIcon(header) }}</v-icon>
                   </div>
-                  <div class="resizer" @mousedown.stop="onResizeStart($event, header)" @click.stop></div>
+                  <div v-if="header.key !== 'data-table-select'" class="resizer"
+                    @mousedown.stop="onResizeStart($event, header)"></div>
                 </th>
-              </template>
-            </tr>
-          </template>
+              </tr>
+            </template>
+            <template v-for="header in headers" #[`item.${header.key}`]="{ item }">
+              <template v-if="['Stok', 'Hitung', 'Selisih', 'Invoice'].includes(header.key)">{{
+                (Number(item[header.key]) || 0).toLocaleString('id-ID') }}</template>
+              <template v-else>{{ item[header.key] }}</template>
+            </template>
+            <template #[`body.append`]>
+              <tr class="bg-blue-lighten-5 font-weight-bold sticky-footer-row">
+                <td :colspan="5" class="text-end pe-4">TOTAL UTAMA :</td>
+                <td class="text-end">{{ totalUtama.Stok.toLocaleString('id-ID') }}</td>
+                <td class="text-end">{{ totalUtama.Hitung.toLocaleString('id-ID') }}</td>
+                <td class="text-end text-error">{{ totalUtama.Selisih.toLocaleString('id-ID') }}</td>
+                <td colspan="2"></td>
+              </tr>
+            </template>
+          </AppDataTable>
+        </div>
 
-          <template v-for="header in headers" #[`item.${header.key}`]="{ item }" :key="header.key">
-            <td>
-              <template v-if="['Stok', 'Hitung', 'Selisih', 'Invoice'].includes(header.key)">
-                {{ (Number(item[header.key]) || 0).toLocaleString('id-ID') }}
-              </template>
-              <template v-else>
-                {{ item[header.key] }}
-              </template>
-            </td>
-          </template>
-
-          <template #[`body.append`]>
-            <tr class="bg-grey-lighten-4 font-weight-bold sticky-footer-row">
-              <td :colspan="5" class="text-end pe-4">TOTAL :</td>
-              <td class="text-end">{{ totalSummary.Stok.toLocaleString('id-ID') }}</td>
-              <td class="text-end">{{ totalSummary.Hitung.toLocaleString('id-ID') }}</td>
-              <td class="text-end">{{ totalSummary.Selisih.toLocaleString('id-ID') }}</td>
-              <td colspan="2"></td>
-            </tr>
-          </template>
-
-          <template #bottom></template>
-        </AppDataTable>
+        <div class="table-section">
+          <div class="category-header bg-teal-lighten-5 text-teal">
+            <v-icon size="small" class="me-2">mdi-sticker-circle-outline</v-icon> STICKER DTF
+          </div>
+          <AppDataTable :headers="headers" :items="stickerItems" show-select item-value="Barcode" density="compact"
+            class="custom-11px-table border rounded" :item-props="(item) => ({ class: getRowClass(item) })"
+            @click:row="handleRowClick">
+            <template #headers="{ columns, isSorted, getSortIcon, toggleSort }">
+              <tr>
+                <th v-for="header in columns" :key="header.key"
+                  :style="{ width: header.width + 'px', minWidth: header.width + 'px' }" class="resizable-header"
+                  :class="{ 'text-center': header.align === 'center', 'text-end': header.align === 'end' }"
+                  @click="header.key !== 'data-table-select' ? toggleSort(header) : null">
+                  <div class="header-content">
+                    <span>{{ header.title }}</span>
+                    <v-icon v-if="header.key !== 'data-table-select' && isSorted(header)" size="14" class="ms-1">{{
+                      getSortIcon(header) }}</v-icon>
+                  </div>
+                  <div v-if="header.key !== 'data-table-select'" class="resizer"
+                    @mousedown.stop="onResizeStart($event, header)"></div>
+                </th>
+              </tr>
+            </template>
+            <template v-for="header in headers" #[`item.${header.key}`]="{ item }">
+              <template v-if="['Stok', 'Hitung', 'Selisih', 'Invoice'].includes(header.key)">{{
+                (Number(item[header.key]) || 0).toLocaleString('id-ID') }}</template>
+              <template v-else>{{ item[header.key] }}</template>
+            </template>
+            <template #[`body.append`]>
+              <tr class="bg-teal-lighten-5 font-weight-bold sticky-footer-row">
+                <td :colspan="5" class="text-end pe-4">TOTAL STICKER :</td>
+                <td class="text-end">{{ totalSticker.Stok.toLocaleString('id-ID') }}</td>
+                <td class="text-end">{{ totalSticker.Hitung.toLocaleString('id-ID') }}</td>
+                <td class="text-end text-error">{{ totalSticker.Selisih.toLocaleString('id-ID') }}</td>
+                <td colspan="2"></td>
+              </tr>
+            </template>
+          </AppDataTable>
+        </div>
       </div>
     </div>
   </PageLayout>
 </template>
 
 <style scoped>
-/* --- Layout Full Height --- */
-.browse-content {
-  display: flex;
-  flex-direction: column;
-  height: calc(100vh - 64px - 32px);
-  overflow: hidden;
-}
-
-.filter-section {
-  flex-shrink: 0;
-  padding: 8px;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-
-  background-color: rgb(var(--v-theme-surface));
-  border-bottom: 1px solid rgba(var(--v-theme-on-surface), 0.12);
-}
-
-.filter-section :deep(.v-field),
-.filter-section :deep(.v-field--variant-outlined),
-.filter-section :deep(.v-field--variant-filled) {
-  background-color: rgb(var(--v-theme-surface)) !important;
-}
-
-.filter-section:deep(.v-field--variant-filled .v-field__overlay) {
-  background-color: rgb(var(--v-theme-surface)) !important;
-}
-
-.table-container {
-  flex-grow: 1;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-}
-
-/* --- Tabel Style --- */
-.desktop-table {
-  height: 100%;
-  display: flex;
-  flex-direction: column;
-}
-
-.desktop-table :deep(.v-table__wrapper) {
-  flex-grow: 1;
-  height: 100% !important;
-  overflow-x: auto !important;
-  overflow-y: auto !important;
-}
-
-.desktop-table :deep(table) {
-  width: max-content;
-  min-width: 100%;
-}
-
-/* --- Header Resize --- */
-.resizable-header {
-  position: relative;
-
-  background-color: rgb(var(--v-theme-primary)) !important;
-  color: rgb(var(--v-theme-on-primary)) !important;
-
-  font-weight: 700 !important;
-  text-transform: uppercase;
+/* Pengaturan Font 11px untuk isi tabel */
+.custom-11px-table :deep(td),
+.custom-11px-table :deep(th),
+.sticky-footer-row td {
   font-size: 11px !important;
-  height: 40px !important;
+  height: 32px !important;
+}
 
-  border-bottom: 2px solid rgb(var(--v-theme-primary)) !important;
-  padding: 0 8px !important;
-
-  user-select: none;
-  overflow: hidden;
+/* Header Biru Konsisten */
+.resizable-header {
+  background-color: rgb(var(--v-theme-primary)) !important;
+  color: white !important;
+  font-weight: 700;
+  text-transform: uppercase;
   white-space: nowrap;
-  text-overflow: ellipsis;
 }
 
 .header-content {
@@ -317,14 +286,6 @@ watch(filters, (newVal, oldVal) => {
   align-items: center;
   width: 100%;
   height: 100%;
-}
-
-.resizable-header.text-center .header-content {
-  justify-content: center;
-}
-
-.resizable-header.text-end .header-content {
-  justify-content: flex-end;
 }
 
 .resizer {
@@ -337,33 +298,79 @@ watch(filters, (newVal, oldVal) => {
   z-index: 10;
 }
 
-.resizer:hover,
-.resizable-header:hover .resizer {
+.resizer:hover {
   border-right: 2px solid rgba(var(--v-theme-on-primary), 0.6);
 }
 
-/* --- Sticky Footer Row --- */
+/* Layout & Category Style */
+.category-header {
+  padding: 8px 12px;
+  font-weight: 700;
+  font-size: 12px;
+  border-left: 4px solid currentColor;
+  display: flex;
+  align-items: center;
+  margin-bottom: 2px;
+}
+
+.browse-content {
+  display: flex;
+  flex-direction: column;
+  height: calc(100vh - 100px);
+  /* sesuaikan header */
+  overflow: hidden;
+  /* PENTING */
+}
+
+.filter-section {
+  flex-shrink: 0;
+  padding: 8px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background-color: white;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.12);
+}
+
+.table-container {
+  flex-grow: 1;
+  overflow-y: auto;
+  background-color: #f5f5f5;
+  padding-bottom: 50px;
+  /* Ruang agar footer/pagination tidak mepet */
+}
+
+.table-section {
+  background: white;
+  margin-bottom: 24px;
+}
+
+/* Sticky Footer Alignment */
 .sticky-footer-row td {
   position: sticky;
   bottom: 0;
   z-index: 5;
-
-  background-color: rgb(var(--v-theme-surface));
-  color: rgb(var(--v-theme-on-surface));
-
-  border-top: 2px solid rgba(var(--v-theme-on-surface), 0.12);
+  background-color: inherit !important;
+  border-top: 2px solid rgba(0, 0, 0, 0.12) !important;
 }
 
-/* Pewarnaan Baris Selisih */
+.text-error {
+  color: #d32f2f !important;
+}
+
+.bg-blue-lighten-5 {
+  background-color: #E3F2FD !important;
+}
+
+.bg-teal-lighten-5 {
+  background-color: #E0F2F1 !important;
+}
+
 :deep(.bg-red-lighten-5) {
-  background-color: rgba(var(--v-theme-error), 0.15) !important;
+  background-color: #FFEBEE !important;
 }
 
 :deep(.text-red) {
-  color: rgb(var(--v-theme-error)) !important;
-}
-
-.desktop-table :deep(td) {
-  color: rgb(var(--v-theme-on-surface));
+  color: #D32F2F !important;
 }
 </style>

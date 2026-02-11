@@ -11,6 +11,7 @@ import { formatRupiah } from "@/utils/formatRupiah";
 // Update Interface sesuai kolom baru
 interface OtorisasiItem {
   nomor: string;
+  transaksiRiil: string;
   transaksi: string;
   jenis: string;
   nominal: number;
@@ -60,6 +61,7 @@ const filterOptions = [
 const headers = [
   { title: "", key: "data-table-expand", width: "40px" },
   { title: "Nomor Otorisasi", key: "nomor", fixed: true, width: "180px" },
+  { title: "No. Transaksi Riil", key: "transaksiRiil", width: "180px" },
   { title: "Tanggal", key: "tanggal", width: "160px" },
   { title: "Jenis", key: "jenis", width: "130px" },
   { title: "Nominal", key: "nominal", align: "end" as const, width: "130px" },
@@ -128,6 +130,7 @@ const fetchMasterData = async () => {
       return {
         nomor: String(item.nomor ?? ""),
         transaksi: String(item.transaksi ?? ""),
+        transaksiRiil: String(item.transaksi_riil ?? "-"),
         jenis: String(item.jenis ?? ""),
         nominal: Number(item.nominal ?? 0),
         approver: String(item.approver ?? "-"),
@@ -231,6 +234,12 @@ watch(filters, fetchMasterData, { deep: true });
         <AppDataTable v-model:expanded="expanded" :headers="headers" :items="filteredData" item-value="nomor"
           return-object show-expand @update:expanded="loadDetails" :item-class="getRowTextColor"
           class="desktop-table header-browse-blue">
+          <template #[`item.transaksiRiil`]="{ value }">
+            <span :class="value !== '-' ? 'text-primary font-weight-bold' : 'text-grey'">
+              {{ value }}
+            </span>
+          </template>
+
           <template #[`item.nominal`]="{ value }">
             {{ formatRupiah(value) }}
           </template>

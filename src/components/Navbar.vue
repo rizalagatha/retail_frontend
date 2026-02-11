@@ -114,7 +114,7 @@ const menuItems = [
                 icon: "mdi-clipboard-list-outline",
               },
               {
-                title: "LHK SO DTF",
+                title: "LHK Jasa",
                 to: "/transaksi/penjualan/dtf/lhk-so-dtf",
                 icon: "mdi-file-chart-outline",
               },
@@ -646,10 +646,10 @@ onUnmounted(() => {
             </template>
             <v-list-item-title class="user-profile-name">{{
               authStore.userName
-              }}</v-list-item-title>
+            }}</v-list-item-title>
             <v-list-item-subtitle class="user-profile-branch">{{
               authStore.userCabang
-              }}</v-list-item-subtitle>
+            }}</v-list-item-subtitle>
           </v-list-item>
 
           <v-divider class="user-divider" />

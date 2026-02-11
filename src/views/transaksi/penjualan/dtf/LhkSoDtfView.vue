@@ -4,16 +4,16 @@ import api from '@/services/api';
 import PageLayout from '@/components/PageLayout.vue';
 import { useToast } from 'vue-toastification';
 import { useAuthStore } from '@/stores/authStore';
-import { format, parseISO } from 'date-fns';
+import { format, parseISO, subDays } from 'date-fns';
 import { useRouter } from 'vue-router';
-import { AxiosError } from 'axios';
+import axios from 'axios';
 import AppDataTable from '@/components/AppDataTable.vue';
 
 // Interface Header (Wajib untuk Resize)
 interface DataTableHeader {
   title: string;
   key: string;
-  width?: number;
+  width?: number | string;
   fixed?: boolean;
   align?: 'start' | 'center' | 'end';
   minWidth?: string | number;
@@ -21,12 +21,33 @@ interface DataTableHeader {
   sortable?: boolean;
 }
 
-interface LhkItem {
+interface LhkHeader {
+  NomorLhk: string;
   Tanggal: string;
-  Cab: string;     // kalau backend kirim Cab
-  cab: string;     // kalau backend kirim cab
-  SoDtf: string;
+  NamaCabang: string;
+  jo_kode: string;          // Kode (SD/BR)
+  NamaJenisOrder: string;   // Nama (SABLON DTF/BORDIR)
+  PanjangMtr: number;
+  BuanganMtr: number;
+  LuasRiil: number;
+  TotalLuasSistem: number;
+  Selisih: number;
+  Ratio: number;            // Pastikan ini ada
+  TotalJumlahSistem: number; //
+  TotalJumlahRiil: number;   //
+  TotalReject: number;       //
   [key: string]: unknown;
+}
+
+interface LhkDetail {
+  SoDtf: string;
+  NamaDtf: string;
+  depan: number;
+  belakang: number;
+  lengan: number;
+  variasi: number;
+  saku: number;
+  Keterangan: string;
 }
 
 const toast = useToast();
@@ -35,32 +56,59 @@ const router = useRouter();
 const MENU_ID = '41';
 
 // --- State ---
-const lhkList = ref<LhkItem[]>([]);
+const list = ref<LhkHeader[]>([]);
+const details = ref<{ [key: string]: LhkDetail[] }>({});
+const expanded = ref<string[]>([]);
+const loadingDetails = ref<Set<string>>(new Set());
 const isLoading = ref(true);
-const startDate = ref(format(new Date(), 'yyyy-MM-dd'));
+const startDate = ref(format(subDays(new Date(), 7), 'yyyy-MM-dd'));
 const endDate = ref(format(new Date(), 'yyyy-MM-dd'));
 const cabangList = ref<{ kode: string, nama: string }[]>([]);
 const selectedCabang = ref(authStore.user?.cabang || '');
-const selected = ref<LhkItem[]>([]);
+const selected = ref<LhkHeader[]>([]);
 
 const isConfirmDialogVisible = ref(false);
-const itemToDelete = ref<LhkItem | null>(null);
+const itemToDelete = ref<LhkHeader | null>(null);
 
-// --- Header Definisi (Ref & Width Angka) ---
-const headers = ref<DataTableHeader[]>([
-  { title: 'Tanggal', key: 'Tanggal', width: 120 },
-  { title: 'Cabang', key: 'cab', width: 100 },
-  { title: 'No. SO DTF', key: 'SoDtf', width: 180 },
-  { title: 'Nama DTF', key: 'NamaDTF', width: 250 },
-  { title: 'Depan', key: 'depan', width: 100 },
-  { title: 'Belakang', key: 'belakang', width: 100 },
-  { title: 'Lengan', key: 'lengan', width: 100 },
-  { title: 'Variasi', key: 'variasi', width: 100 },
-  { title: 'Saku', key: 'saku', width: 100 },
-  { title: 'Panjang (Mtr)', key: 'PanjangMtr', width: 120 },
-  { title: 'Buangan (Mtr)', key: 'BuanganMtr', width: 120 },
-  { title: 'Keterangan', key: 'Keterangan', width: 300 },
-]);
+// --- Header Utama (LHK) ---
+const headers = computed<DataTableHeader[]>(() => {
+  const base: DataTableHeader[] = [
+    { title: '', key: 'data-table-expand', width: 50, fixed: true },
+    { title: 'NOMOR LHK', key: 'NomorLhk', width: 220, fixed: true },
+    { title: 'TANGGAL', key: 'Tanggal', width: 120 },
+    // Kolom Baru: JENIS ORDER
+    { title: 'JENIS ORDER', key: 'NamaJenisOrder', width: 150 },
+    { title: 'STORE', key: 'NamaCabang', width: 150 },
+    // KOLOM BARU
+    { title: 'SISTEM (PCS)', key: 'TotalJumlahSistem', width: 100, align: 'center' },
+    { title: 'RIIL (PCS)', key: 'TotalJumlahRiil', width: 100, align: 'center' },
+    { title: 'REJECT', key: 'TotalReject', width: 80, align: 'center' },
+
+    { title: 'PEMAKAIAN (CM)', key: 'PanjangMtr', width: 120, align: 'end' as const },
+    { title: 'BUANGAN (CM)', key: 'BuanganMtr', width: 120, align: 'end' as const },
+    { title: 'RIIL (CM²)', key: 'LuasRiil', width: 110, align: 'end' as const },
+    { title: 'SISTEM (CM²)', key: 'TotalLuasSistem', width: 110, align: 'end' as const },
+    { title: '± SELISIH', key: 'Selisih', width: 100, align: 'end' as const },
+  ];
+
+  if (authStore.user?.cabang === 'KDC') {
+    base.push({ title: 'RATIO (%)', key: 'Ratio', width: 100, align: 'end' as const });
+  }
+
+  return base;
+});
+
+// --- Header Detail (SO DTF) ---
+const detailHeaders: DataTableHeader[] = [
+  { title: 'No. SO DTF', key: 'SoDtf', width: '160px', align: 'start' as const },
+  { title: 'Nama DTF', key: 'NamaDtf', width: '250px', align: 'start' as const },
+  { title: 'Depan', key: 'depan', width: '70px', align: 'start' as const },
+  { title: 'Belakang', key: 'belakang', width: '70px', align: 'start' as const },
+  { title: 'Lengan', key: 'lengan', width: '70px', align: 'start' as const },
+  { title: 'Variasi', key: 'variasi', width: '70px', align: 'start' as const },
+  { title: 'Saku', key: 'saku', width: '70px', align: 'start' as const },
+  { title: 'Keterangan', key: 'Keterangan', align: 'start' as const },
+];
 
 // --- Logic Resize Column ---
 const resizingColumn = ref<DataTableHeader | null>(null);
@@ -92,9 +140,11 @@ const onResizeEnd = () => {
 };
 
 // --- Logic Selected Row ---
-const handleRowClick = (_event: Event, { item }: { item: LhkItem }) => {
+const handleRowClick = (_event: Event, { item }: { item: LhkHeader }) => {
   selected.value = [item];
 };
+
+const getItemId = (item: LhkHeader) => item.NomorLhk;
 
 // --- Computed ---
 const hasViewPermission = computed(() => authStore.can(MENU_ID, 'view'));
@@ -108,18 +158,23 @@ const canEditOrDelete = computed(() => {
 });
 
 const footerProps = { 'items-per-page-options': [10, 25, 50, -1] };
-const getItemId = (item: LhkItem) => `${item.Tanggal}-${item.SoDtf}-${item.Cab}`;
 
 // --- Methods ---
 const fetchCabangList = async () => {
   try {
-    const response = await api.get('/lhk-so-dtf/cabang-list');
-    cabangList.value = response.data;
+    const res = await api.get('/lhk-so-dtf/cabang-list');
+    cabangList.value = res.data;
+
+    // [FITUR KDC] Tambahkan filter ALL
     if (authStore.user?.cabang === 'KDC') {
-      selectedCabang.value = 'KDC';
+      const hasAll = cabangList.value.some(c => c.kode === 'ALL');
+      if (!hasAll) {
+        cabangList.value.unshift({ kode: 'ALL', nama: 'SEMUA STORE' });
+      }
+      selectedCabang.value = 'ALL';
     }
-  } catch (error) {
-    toast.error('Gagal memuat daftar cabang.', error);
+  } catch (err) {
+    toast.error('Gagal memuat daftar cabang.', err);
   }
 };
 
@@ -127,18 +182,29 @@ const fetchData = async () => {
   if (!startDate.value || !endDate.value || !selectedCabang.value) return;
   isLoading.value = true;
   try {
-    const response = await api.get('/lhk-so-dtf', {
-      params: {
-        startDate: startDate.value,
-        endDate: endDate.value,
-        cabang: selectedCabang.value,
-      }
+    const res = await api.get('/lhk-so-dtf', {
+      params: { startDate: startDate.value, endDate: endDate.value, cabang: selectedCabang.value }
     });
-    lhkList.value = response.data;
-  } catch (error) {
-    toast.error('Gagal memuat data LHK SO DTF.', error);
+    list.value = res.data;
+  } catch (_err) {
+    toast.error('Gagal memuat data LHK.', _err);
   } finally {
     isLoading.value = false;
+  }
+};
+
+const loadDetails = async (newlyExpanded: LhkHeader[]) => {
+  const item = newlyExpanded.find(i => !details.value[i.NomorLhk] && !loadingDetails.value.has(i.NomorLhk));
+  if (!item) return;
+
+  loadingDetails.value.add(item.NomorLhk);
+  try {
+    const res = await api.get(`/lhk-so-dtf/detail-list/${item.NomorLhk}`);
+    details.value[item.NomorLhk] = res.data;
+  } catch (_err) {
+    toast.error(`Gagal memuat rincian untuk ${item.NomorLhk}`, _err);
+  } finally {
+    loadingDetails.value.delete(item.NomorLhk);
   }
 };
 
@@ -151,37 +217,25 @@ const showDeleteConfirmation = () => {
 const deleteItem = async () => {
   if (!itemToDelete.value) return;
   try {
-    await api.delete('/lhk-so-dtf', {
-      params: {
-        Tanggal: format(parseISO(itemToDelete.value.Tanggal), 'yyyy-MM-dd'),
-        SoDtf: itemToDelete.value.SoDtf,
-        Cab: itemToDelete.value.cab
-      }
-    });
+    // Menggunakan path parameter /:nomorLhk
+    await api.delete(`/lhk-so-dtf/${itemToDelete.value.NomorLhk}`);
     toast.success('Data LHK berhasil dihapus.');
     fetchData();
     selected.value = [];
   } catch (err) {
-    if (err instanceof AxiosError) {
-      toast.error(err.response?.data?.message || 'Gagal menghapus data.');
-    } else {
-      toast.error('Gagal menghapus data.');
-    }
+    let msg = 'Gagal menghapus data.';
+    if (axios.isAxiosError(err)) msg = err.response?.data?.message || msg;
+    toast.error(msg);
   } finally {
     isConfirmDialogVisible.value = false;
-    itemToDelete.value = null;
   }
 };
 
 const handleEdit = () => {
-  if (!canEditOrDelete.value) return;
-  const selectedItem = selected.value[0];
+  if (selected.value.length !== 1) return;
   router.push({
     path: '/transaksi/penjualan/dtf/lhk-so-dtf/edit',
-    query: {
-      tanggal: format(parseISO(selectedItem.Tanggal), 'yyyy-MM-dd'),
-      cabang: selectedItem.cab
-    }
+    query: { nomorLhk: selected.value[0].NomorLhk }
   });
 };
 
@@ -196,7 +250,7 @@ watch([startDate, endDate, selectedCabang], fetchData);
 </script>
 
 <template>
-  <PageLayout title="LHK SO DTF" desktop-mode icon="mdi-clipboard-text-clock">
+  <PageLayout title="LHK Jasa" desktop-mode icon="mdi-clipboard-text-clock">
     <template #header-actions>
       <v-btn v-if="authStore.can(MENU_ID, 'insert')" size="small" color="primary" prepend-icon="mdi-plus"
         @click="router.push('/transaksi/penjualan/dtf/lhk-so-dtf/edit')">Baru</v-btn>
@@ -231,38 +285,81 @@ watch([startDate, endDate, selectedCabang], fetchData);
       </div>
 
       <div class="table-container">
-        <AppDataTable v-model="selected" :headers="headers" :items="lhkList" :loading="isLoading"
-          :item-value="getItemId" :footer-props="footerProps" density="compact" class="desktop-table header-browse-blue"
-          fixed-header show-select return-object @click:row="handleRowClick">
+        <AppDataTable v-model="selected" v-model:expanded="expanded" :headers="headers" :items="list"
+          :loading="isLoading" :item-value="getItemId" :footer-props="footerProps" density="compact"
+          class="desktop-table header-browse-blue" fixed-header show-select return-object show-expand
+          @update:expanded="loadDetails" @click:row="handleRowClick">
           <template #headers="{ columns, isSorted, getSortIcon, toggleSort }">
             <tr>
               <template v-for="header in columns" :key="header.key">
                 <th
-                  :style="{ width: header.width + 'px', minWidth: header.width + 'px', maxWidth: header.width + 'px' }"
+                  :style="{ width: header.width + (typeof header.width === 'number' ? 'px' : ''), minWidth: header.width + (typeof header.width === 'number' ? 'px' : '') }"
                   class="resizable-header"
                   :class="{ 'text-center': header.align === 'center', 'text-end': header.align === 'end' }"
                   @click="toggleSort(header)">
                   <div class="header-content">
                     <span>{{ header.title }}</span>
-                    <v-icon v-if="isSorted(header)" size="small" class="ms-1">
-                      {{ getSortIcon(header) }}
-                    </v-icon>
+                    <v-icon v-if="isSorted(header)" size="small" class="ms-1">{{ getSortIcon(header) }}</v-icon>
                   </div>
-                  <div class="resizer" @mousedown.stop="onResizeStart($event, header)" @click.stop></div>
+                  <div class="resizer" @mousedown.stop="onResizeStart($event, header)"></div>
                 </th>
               </template>
             </tr>
           </template>
 
-          <template v-for="header in headers" #[`item.${header.key}`]="{ item }" :key="header.key">
-            <td>
-              <template v-if="header.key === 'Tanggal'">
-                {{ format(new Date(item.Tanggal), 'dd/MM/yyyy') }}
-              </template>
-              <template v-else>
-                {{ item[header.key] }}
-              </template>
-            </td>
+          <template #[`item.Tanggal`]="{ item }">
+            {{ format(parseISO(item.Tanggal), 'dd/MM/yyyy') }}
+          </template>
+          <template #[`item.TotalJumlahSistem`]="{ item }">
+            <span class="font-weight-bold text-grey">{{ item.TotalJumlahSistem.toLocaleString() }}</span>
+          </template>
+
+          <template #[`item.TotalJumlahRiil`]="{ item }">
+            <span class="font-weight-bold text-blue">{{ item.TotalJumlahRiil.toLocaleString() }}</span>
+          </template>
+
+          <template #[`item.TotalReject`]="{ item }">
+            <v-chip v-if="item.TotalReject > 0" size="x-small" color="error" variant="flat" class="font-weight-bold">
+              {{ item.TotalReject.toLocaleString() }}
+            </v-chip>
+            <span v-else class="text-grey-lighten-1">-</span>
+          </template>
+          <template #[`item.LuasRiil`]="{ item }">{{ Number(item.LuasRiil).toLocaleString() }}</template>
+          <template #[`item.TotalLuasSistem`]="{ item }">{{ Number(item.TotalLuasSistem).toLocaleString() }}</template>
+          <template #[`item.Selisih`]="{ item }">
+            <span :class="item.Selisih > 0 ? 'text-error font-weight-bold' : 'text-success font-weight-bold'">
+              {{ item.Selisih.toLocaleString() }}
+            </span>
+          </template>
+
+          <template #[`item.NamaJenisOrder`]="{ item }">
+            <v-chip size="x-small" :color="item.jo_kode === 'BR' ? 'teal' : 'primary'" variant="tonal"
+              class="font-weight-bold">
+              {{ item.NamaJenisOrder }}
+            </v-chip>
+          </template>
+
+          <template #[`item.Ratio`]="{ item }">
+            <span class="font-weight-bold"
+              :class="item.LuasRiil > item.TotalLuasSistem ? 'text-error' : 'text-success'">
+              {{ item.LuasRiil > 0 ? ((item.TotalLuasSistem / item.LuasRiil) * 100).toFixed(1) : '0' }}%
+            </span>
+          </template>
+
+          <template #expanded-row="{ columns, item }">
+            <tr>
+              <td :colspan="columns.length" class="pa-0">
+                <div class="detail-outer-wrapper">
+                  <div class="detail-sticky-content">
+                    <div class="detail-table-wrapper">
+                      <div v-if="loadingDetails.has(item.NomorLhk)" class="pa-4 text-center">Memuat pekerjaan...</div>
+                      <v-data-table v-else :headers="detailHeaders" :items="details[item.NomorLhk]" density="compact"
+                        class="detail-table" hide-default-footer />
+                    </div>
+                  </div>
+                </div>
+              </td>
+            </tr>
           </template>
         </AppDataTable>
       </div>
@@ -397,5 +494,75 @@ watch([startDate, endDate, selectedCabang], fetchData);
 
 .filter-section :deep(.v-field--variant-filled .v-field__overlay) {
   background-color: rgb(var(--v-theme-surface)) !important;
+}
+
+/* Menangani teks detail yang panjang */
+.so-list-container {
+  max-width: 340px;
+  line-height: 1.2;
+  padding: 4px 0;
+}
+
+.truncate-2 {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  font-size: 10px !important;
+}
+
+.text-tiny {
+  font-size: 10px;
+}
+
+/* Warna baris terpilih */
+:deep(.v-data-table__selected) {
+  background-color: #e3f2fd !important;
+}
+
+/* [FIX] Tata Letak Rata Kiri & Sticky (seperti SoView) */
+.detail-outer-wrapper {
+  background-color: #f8f9fa;
+  width: 100%;
+  padding: 12px 0;
+  border-bottom: 1px solid #eee;
+}
+
+.detail-sticky-content {
+  position: sticky;
+  left: 0;
+  /* Membuat konten detail tidak ikut bergeser ke kanan */
+  padding-left: 50px;
+  /* Sejajar dengan kolom pertama data (setelah panah) */
+  width: fit-content;
+}
+
+.detail-table-wrapper {
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  background: white;
+  overflow: hidden;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+.detail-table {
+  font-size: 11px !important;
+}
+
+.detail-table :deep(th),
+.detail-table :deep(td) {
+  text-align: left !important;
+  font-size: 11px !important;
+  padding: 0 12px !important;
+  height: 32px !important;
+}
+
+.text-error {
+  color: #d32f2f !important;
+}
+
+.text-success {
+  color: #2e7d32 !important;
 }
 </style>

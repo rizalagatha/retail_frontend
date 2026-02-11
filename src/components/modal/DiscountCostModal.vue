@@ -107,17 +107,23 @@ watch(
 
 // --- Computed Properties ---
 const diskonRp = computed(() => {
-  // 1. Jika ada input manual Rp, gunakan itu
-  if (diskonRpInput.value > 0) {
-    return diskonRpInput.value;
-  }
+  const totalBruto = Number(props.totalSo) || 0;
+  const nominalManual = Number(diskonRpInput.value) || 0; // Jalur Promo/Manual
 
-  // 2. Jika tidak, hitung dari persentase
-  const diskon1 = (localFooter.value.diskonPersen1 / 100) * props.totalSo;
-  const afterDiscount1 = props.totalSo - diskon1;
-  const diskon2 = (localFooter.value.diskonPersen2 / 100) * afterDiscount1;
+  // Hitung dari persentase (pastikan Number casting)
+  const p1 = Number(localFooter.value.diskonPersen1) || 0;
+  const p2 = Number(localFooter.value.diskonPersen2) || 0;
 
-  return diskon1 + diskon2;
+  // Logika Akumulasi:
+  // 1. Diskon 1 dari total bruto
+  const disc1 = (p1 / 100) * totalBruto;
+
+  // 2. Diskon 2 (MAPS) dihitung dari sisa setelah (Nominal Promo + Diskon 1)
+  const remaining = totalBruto - nominalManual - disc1;
+  const disc2 = (p2 / 100) * remaining;
+
+  // Total diskon adalah gabungan ketiganya
+  return Math.round(nominalManual + disc1 + disc2);
 });
 
 const netto = computed(() => props.totalSo - diskonRp.value);
@@ -191,16 +197,16 @@ const requestAuthorization = (
 const handleDiscount1Change = async () => {
   if (isRestoring.value) return;
 
-  // Reset Rp jika persen diubah
+  // [PENGAMAN] Pastikan casting ke Number
+  const enteredDiscount = Number(localFooter.value.diskonPersen1) || 0;
+
+  // Reset Rp jika persen diubah (memutus jalur nominal agar promo lepas)
   diskonRpInput.value = 0;
 
   if (!props.customer || !props.customer.level_kode) return;
-
-  const enteredDiscount = localFooter.value.diskonPersen1;
   if (enteredDiscount === 0) return;
 
   try {
-    // Cek Default Diskon dari Backend
     const response = await api.get(`${apiBasePath.value}${discountLookupEndpoint.value}`, {
       params: {
         level: props.customer.level_kode,
@@ -208,14 +214,15 @@ const handleDiscount1Change = async () => {
         gudang: props.gudangKode,
       }
     });
-    const defaultDiscountValue = response.data.discount;
 
-    // Jika beda dengan standar, minta otorisasi
-    if (enteredDiscount !== defaultDiscountValue && enteredDiscount > 0) {
+    const defaultDiscountValue = Number(response.data.discount || 0);
+
+    // MINTA OTORISASI jika input user > standar member
+    if (enteredDiscount > defaultDiscountValue) {
       backupCurrentState();
 
       const estimasiNominal = (props.totalSo * enteredDiscount) / 100;
-      const info = `Cust: ${props.customer.nama || 'Umum'}\nDiskon Std: ${defaultDiscountValue}%\nPengajuan: ${enteredDiscount}%`;
+      const info = `Otorisasi Diskon: Std ${defaultDiscountValue}% -> Pengajuan ${enteredDiscount}%`;
 
       requestAuthorization(
         'Otorisasi Diskon Faktur (%)',
@@ -227,16 +234,16 @@ const handleDiscount1Change = async () => {
           if (authResult.authNomor) {
             localFooter.value.authNomor = authResult.authNomor;
           }
-          toast.success('Diskon disetujui.');
+          toast.success('Diskon member disetujui.');
         },
         async () => {
+          // Jika batal, kembalikan ke angka semula (logic restore Anda)
           await restorePreviousState();
           toast.info('Perubahan diskon dibatalkan.');
         }
       );
     }
   } catch (error) {
-    // Jika gagal cek (misal offline), kembalikan
     await restorePreviousState();
     toast.error('Gagal memvalidasi diskon standar.', error);
   }

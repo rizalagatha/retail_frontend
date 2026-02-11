@@ -609,7 +609,7 @@ const routes = [
     name: "frmBrowDTF",
     component: LhkSoDtfView,
     meta: {
-      title: "LHK SO DTF",
+      title: "LHK Jasa",
       requiresAuth: true,
       menuId: "41",
     },
@@ -619,7 +619,7 @@ const routes = [
     name: "LhkSoDtfCreate",
     component: LhkSoDtfCreateView,
     meta: {
-      title: "Form LHK SO DTF",
+      title: "Form LHK Jasa",
       requiresAuth: true,
       menuId: "41",
     },

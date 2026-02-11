@@ -421,6 +421,25 @@ const submitCloseSo = async () => {
   }
 };
 
+const handleEdit = () => {
+  if (!isSingleSelected.value) return;
+
+  const selectedItem = selected.value[0];
+
+  // [BARU] Validasi agar SO yang sudah masuk LHK tidak bisa diedit
+  if (Number(selectedItem.LHK) > 0) {
+    toast.error(`SO DTF ${selectedItem.Nomor} sudah memiliki data LHK. Tidak bisa diedit.`);
+    return;
+  }
+
+  // Jika lolos validasi, arahkan ke halaman ubah
+  const isReadOnly = selectedItem.NoINV !== ""; // Contoh logic readonly jika sudah invoice
+  router.push({
+    path: `/transaksi/penjualan/dtf/so-dtf/ubah/${selectedItem.Nomor}`,
+    query: { readonly: isReadOnly ? 'true' : 'false' }
+  });
+};
+
 // const showDeleteConfirmation = () => {
 //   if (!isSingleSelected.value) return;
 //   const item = selected.value[0];
@@ -548,8 +567,10 @@ watch(filters, () => {
     <template #header-actions>
       <v-btn v-if="authStore.can(MENU_ID, 'insert')" size="small" color="primary" prepend-icon="mdi-plus"
         @click="$router.push('/transaksi/penjualan/dtf/so-dtf/new')">Baru</v-btn>
-      <v-btn v-if="authStore.can(MENU_ID, 'edit')" size="small" :disabled="!isSingleSelected" prepend-icon="mdi-pencil"
-        @click="$router.push(`/transaksi/penjualan/dtf/so-dtf/ubah/${selected[0].Nomor}`)">Ubah</v-btn>
+      <v-btn v-if="authStore.can(MENU_ID, 'edit')" size="small" prepend-icon="mdi-pencil"
+        :disabled="!isSingleSelected || Number(selected[0]?.LHK) > 0" @click="handleEdit">
+        Ubah
+      </v-btn>
       <!-- <v-btn v-if="authStore.can(MENU_ID, 'delete')" size="small" color="error" :disabled="!isSingleSelected"
         prepend-icon="mdi-delete" @click="showDeleteConfirmation">Hapus</v-btn> -->
       <v-btn v-if="authStore.can(MENU_ID, 'view')" size="small" :disabled="!isSingleSelected" @click="printData"

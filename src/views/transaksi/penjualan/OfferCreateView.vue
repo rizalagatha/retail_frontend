@@ -12,6 +12,7 @@ import DpInputModal from "@/components/modal/DpInputModal.vue";
 import DpListModal from "@/components/modal/DpListModal.vue";
 import DiscountCostModal from "@/components/modal/DiscountCostModal.vue";
 import JenisOrderModal from "@/components/modal/JenisOrderModal.vue";
+import CustomerForm from "@/components/form/CustomerForm.vue";
 import { useToast } from 'vue-toastification';
 import { useAuthStore } from '@/stores/authStore';
 import { useUiStore } from '@/stores/uiStore';
@@ -260,6 +261,7 @@ const isDpInputVisible = ref(false);
 const isDpListModalVisible = ref(false);
 const isDiscountCostModalVisible = ref(false);
 const isInitialLoad = ref(false);
+const isNewCustomerFormVisible = ref(false);
 // --- State Promo [BARU] ---
 const activePromosList = ref<ActivePromo[]>([]);
 const promoNotification = ref("");
@@ -362,6 +364,12 @@ const loadCustomerDetails = async () => {
     header.value.customer = null;
     header.value.top = 0;
   }
+};
+
+const onNewCustomerSaved = (newCustomer: Customer) => {
+  // Panggil onCustomerSelected yang sudah ada untuk memuat detail lengkapnya
+  onCustomerSelected(newCustomer);
+  isNewCustomerFormVisible.value = false;
 };
 
 const loadOfferData = async (nomor: string) => {
@@ -1429,6 +1437,42 @@ const handleDiscountCostUpdate = (newData: DiscountCostUpdateData) => {
   calculateTotals();
 };
 
+const saveAndConvertToSo = async () => {
+  // Gunakan logika validasi yang sama dengan fungsi save()
+  if (!header.value.customer) return toast.error('Customer harus dipilih.');
+
+  showConfirmation(async () => {
+    isSaving.value = true;
+    try {
+      const payload = {
+        header: header.value,
+        footer: footer.value,
+        details: items.value.filter(item => item.kode),
+        dps: dpItems.value,
+        user: authStore.user,
+        isNew: !isEditMode.value,
+      };
+
+      const response = await api.post('/offer-form/save', payload);
+      const savedNomor = response.data.nomor;
+
+      toast.success("Penawaran berhasil disimpan. Mengalihkan ke Surat Pesanan...");
+      markAsSaved();
+
+      // Alihkan ke rute SO dengan parameter query 'ref'
+      router.push({
+        name: 'SuratPesananCreate',
+        query: { refPenawaran: savedNomor }
+      });
+
+    } catch (error) {
+      toast.error("Gagal memproses data.", error);
+    } finally {
+      isSaving.value = false;
+    }
+  }, "Simpan penawaran dan buat Surat Pesanan (SO)?");
+};
+
 // Gunakan debounce (opsional tapi disarankan) agar tidak nembak API setiap ngetik angka
 let debounceTimer: ReturnType<typeof setTimeout>;
 
@@ -1539,6 +1583,10 @@ onMounted(async () => {
         @click="showConfirmation(save, 'Anda yakin ingin menyimpan data penawaran ini?')" :loading="isSaving">
         Simpan
       </v-btn>
+      <v-btn color="success" size="small" prepend-icon="mdi-swap-horizontal" :loading="isSaving"
+        @click="saveAndConvertToSo">
+        Simpan & Jadikan SO
+      </v-btn>
       <v-btn v-if="!isEditMode" size="small" prepend-icon="mdi-cancel"
         @click="showConfirmation(resetForm, 'Batalkan dan kosongkan semua isian?')">
         Batal
@@ -1563,10 +1611,17 @@ onMounted(async () => {
             <!-- <v-col cols="12"><v-text-field label="Gudang" :model-value="header.gudang.kode" readonly
                                 @click="openGudangSearch" variant="outlined" density="compact" hide-details
                                 append-inner-icon="mdi-magnify"></v-text-field></v-col> -->
-            <v-col cols="12"><v-text-field label="Customer"
+            <v-col cols="12">
+              <v-text-field label="Customer"
                 :model-value="header.customer ? `${header.customer.kode} - ${header.customer.nama}` : ''" readonly
                 @click="openCustomerSearch" variant="outlined" density="compact" hide-details
-                append-inner-icon="mdi-magnify"></v-text-field></v-col>
+                append-inner-icon="mdi-magnify">
+                <template #prepend-inner>
+                  <v-btn icon="mdi-account-plus" size="x-small" variant="tonal" color="primary" class="me-2"
+                    @click.stop="isNewCustomerFormVisible = true" title="Buat Customer Baru"></v-btn>
+                </template>
+              </v-text-field>
+            </v-col>
             <v-col cols="12"><v-text-field label="Alamat" :model-value="header.customer?.alamat" readonly
                 variant="filled" density="compact" hide-details></v-text-field></v-col>
             <v-col cols="6"><v-text-field label="Kota / Telp"
@@ -1805,6 +1860,9 @@ onMounted(async () => {
 
     <JenisOrderModal v-if="dialogs.jenisOrder" :model-value="dialogs.jenisOrder" :penawaran-details="penawaranDetails"
       :penawaran-barang-list="penawaranBarangList" @close="dialogs.jenisOrder = false" @saved="handleJenisOrderSaved" />
+
+    <CustomerForm v-if="isNewCustomerFormVisible" @close="isNewCustomerFormVisible = false"
+      @customer-saved="onNewCustomerSaved" />
 
     <v-dialog v-model="isConfirmDialogVisible" max-width="400px" persistent>
       <v-card>

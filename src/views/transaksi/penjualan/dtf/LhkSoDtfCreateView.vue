@@ -542,10 +542,6 @@ onMounted(() => {
                 </v-list-item>
               </template>
             </template>
-
-            <div v-else-if="isShowMeasurement" class="text-caption text-grey-darken-1 mt-2 font-italic">
-              * Detail perhitungan luasan hanya dapat dilihat oleh admin pusat.
-            </div>
           </v-list>
         </div>
       </div>

@@ -120,6 +120,8 @@ const totalJumlahKaosSummary = computed(() => {
   return items.value.reduce((sum, item) => sum + (Number(item.jumlahSistem) || 0), 0);
 });
 
+const isKdcUser = computed(() => authStore.user?.cabang === 'KDC');
+
 // Fetch Jenis Order saat Mount
 onMounted(async () => {
   const res = await api.get('/lhk-so-dtf-form/jenis-order');
@@ -136,7 +138,7 @@ const tableHeaders = [
   { title: 'No.', key: 'no', width: '50px', sortable: false },
   { title: 'PO/SO DTF', key: 'kode', width: '125px' },
   { title: 'Nama DTF', key: 'nama', width: '400px' },
-  { title: 'Jumlah Kaos', key: 'jumlah', width: '80px', align: 'center' as const },
+  { title: 'Jumlah Kaos (pcs)', key: 'jumlah', width: '80px', align: 'center' as const },
   { title: 'Reject', key: 'reject', width: '80px', align: 'center' as const },
   { title: 'Depan', key: 'depan', width: '80px', align: 'center' as const },
   { title: 'Belakang', key: 'belakang', width: '80px', align: 'center' as const },
@@ -503,41 +505,47 @@ onMounted(() => {
               </template>
             </v-list-item>
 
-            <template v-if="isShowMeasurement">
-              <v-list-item class="px-0">
-                <v-list-item-title class="text-caption">Total Luas Riil</v-list-item-title>
-                <template #append>
-                  <span class="font-weight-bold text-blue">{{ totalLuasRiil.toLocaleString() }} cm²</span>
-                </template>
-              </v-list-item>
+            <template v-if="isKdcUser">
+              <template v-if="isShowMeasurement">
+                <v-list-item class="px-0">
+                  <v-list-item-title class="text-caption">Total Luas Riil</v-list-item-title>
+                  <template #append>
+                    <span class="font-weight-bold text-blue">{{ totalLuasRiil.toLocaleString() }} cm²</span>
+                  </template>
+                </v-list-item>
 
-              <v-list-item class="px-0">
-                <v-list-item-title class="text-caption">Total Luas Sistem</v-list-item-title>
-                <template #append>
-                  <span class="font-weight-bold">{{ totalLuasSistem.toLocaleString() }} cm²</span>
-                </template>
-              </v-list-item>
+                <v-list-item class="px-0">
+                  <v-list-item-title class="text-caption">Total Luas Sistem</v-list-item-title>
+                  <template #append>
+                    <span class="font-weight-bold">{{ totalLuasSistem.toLocaleString() }} cm²</span>
+                  </template>
+                </v-list-item>
 
-              <v-list-item class="px-0 min-h-30 bg-grey-lighten-5 rounded mt-1">
-                <template #title>
-                  <span class="text-caption font-weight-bold">Estimasi Panjang (Sistem)</span>
-                </template>
-                <template #append>
-                  <span class="font-weight-black">{{ panjangSistemEstimasi.toLocaleString() }} cm</span>
-                </template>
-              </v-list-item>
+                <v-list-item class="px-0 min-h-30 bg-grey-lighten-5 rounded mt-1">
+                  <template #title>
+                    <span class="text-caption font-weight-bold">Estimasi Panjang (Sistem)</span>
+                  </template>
+                  <template #append>
+                    <span class="font-weight-black">{{ panjangSistemEstimasi.toLocaleString() }} cm</span>
+                  </template>
+                </v-list-item>
 
-              <v-divider class="my-2"></v-divider>
+                <v-divider class="my-2"></v-divider>
 
-              <v-list-item class="px-0">
-                <v-list-item-title class="font-weight-bold">Selisih (±)</v-list-item-title>
-                <template #append>
-                  <span class="font-weight-black" :class="selisihLuas > 0 ? 'text-error' : 'text-success'">
-                    {{ selisihLuas.toLocaleString() }} cm²
-                  </span>
-                </template>
-              </v-list-item>
+                <v-list-item class="px-0">
+                  <v-list-item-title class="font-weight-bold">Selisih (±)</v-list-item-title>
+                  <template #append>
+                    <span class="font-weight-black" :class="selisihLuas > 0 ? 'text-error' : 'text-success'">
+                      {{ selisihLuas.toLocaleString() }} cm²
+                    </span>
+                  </template>
+                </v-list-item>
+              </template>
             </template>
+
+            <div v-else-if="isShowMeasurement" class="text-caption text-grey-darken-1 mt-2 font-italic">
+              * Detail perhitungan luasan hanya dapat dilihat oleh admin pusat.
+            </div>
           </v-list>
         </div>
       </div>

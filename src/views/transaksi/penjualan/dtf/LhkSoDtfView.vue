@@ -25,6 +25,7 @@ interface LhkHeader {
   NomorLhk: string;
   Tanggal: string;
   NamaCabang: string;
+  cab: string;
   jo_kode: string;          // Kode (SD/BR)
   NamaJenisOrder: string;   // Nama (SABLON DTF/BORDIR)
   PanjangMtr: number;
@@ -151,9 +152,11 @@ const hasViewPermission = computed(() => authStore.can(MENU_ID, 'view'));
 const isSingleSelected = computed(() => selected.value.length === 1);
 const canEditOrDelete = computed(() => {
   if (!isSingleSelected.value) return false;
-  const userCabang = authStore.user?.cabang;
+  const userCabang = authStore.user?.cabang; // Misal: 'K01'
+  // Baris ini butuh properti 'cab' ada di data yang diambil dari API
   const recordCabang = selected.value[0].cab;
   if (userCabang === 'KDC') return true;
+  // Jika recordCabang undefined, maka 'K01' === undefined hasilnya false
   return userCabang === recordCabang;
 });
 

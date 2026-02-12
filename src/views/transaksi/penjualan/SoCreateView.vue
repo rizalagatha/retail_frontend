@@ -1786,22 +1786,29 @@ const requestAuthorization = (
 const handleDiscountCostUpdate = (newData: typeof footer.value & { authNomor?: string }) => {
   // 1. Terapkan perubahan ke state footer
   footer.value.diskonPersen1 = newData.diskonPersen1;
-  footer.value.diskonPersen2 = newData.diskonPersen2;
-  footer.value.diskonRp = newData.diskonRp;
+  footer.value.diskonPersen2 = newData.diskonPersen2; // Simpan nilai MAPS 5%
   footer.value.biayaKirim = newData.biayaKirim;
 
-  if (newData.pinDiskon1 || newData.pinDiskon2 || (newData.diskonPersen1 > 0)) {
-    header.value.nomorPromo = "";
-    header.value.namaPromo = "";
-    lastSuggestedPromo.value = "MANUAL_AUTH"; // Jangan tawarkan promo lagi setelah ini
+  // KUNCI: Ambil nilai diskonRp hasil kalkulasi gabungan dari modal
+  // Modal sudah menghitung: (Nominal Dasar + Persen 1 + Persen 2)
+  if (newData.diskonRp > 0) {
+    footer.value.diskonRp = newData.diskonRp;
   }
 
-  // 3. Simpan PIN
+  // 2. Logika Pemutusan Jalur Promo
+  // Hanya hapus identitas promo jika terjadi otorisasi manual pada Diskon 1 (Member Utama)
+  if (newData.pinDiskon1 || (newData.diskonPersen1 > 0 && !header.value.nomorPromo)) {
+    header.value.nomorPromo = "";
+    header.value.namaPromo = "";
+    lastSuggestedPromo.value = "MANUAL_AUTH"; // Kunci agar tidak tawarkan promo otomatis lagi
+  }
+
+  // 3. Simpan PIN & Nomor Otorisasi
   if (newData.pinDiskon1) footer.value.pinDiskon1 = newData.pinDiskon1;
   if (newData.pinDiskon2) footer.value.pinDiskon2 = newData.pinDiskon2;
   if (newData.authNomor) header.value.nomorAuth = newData.authNomor;
 
-  // 3. Hitung ulang Grand Total
+  // 4. Hitung ulang Grand Total secara menyeluruh
   calculateTotals();
 
   toast.success("Diskon dan biaya berhasil diperbarui.");

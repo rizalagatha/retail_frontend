@@ -250,13 +250,19 @@ const handleDiscount1Change = async () => {
 };
 
 // 2. Diskon Persen 2
+// --- Di dalam DiscountCostModal.vue ---
+
 const handleDiscount2Change = () => {
   if (isRestoring.value) return;
 
-  diskonRpInput.value = 0; // Reset Rp
+  // Hapus baris diskonRpInput.value = 0 jika Anda ingin mempertahankan nominal promo
+  // saat mengisi diskon MAPS.
 
-  if (localFooter.value.diskonPersen1 <= 0 && localFooter.value.diskonPersen2 > 0) {
-    toast.error('Diskon % 1 harus diisi dulu.');
+  const hasBaseDiscount = Number(localFooter.value.diskonPersen1) > 0 || Number(diskonRpInput.value) > 0;
+
+  // [FIX] Izinkan pengisian Diskon 2 jika sudah ada Diskon Dasar (Persen atau Nominal)
+  if (!hasBaseDiscount && localFooter.value.diskonPersen2 > 0) {
+    toast.warning('Diskon Dasar (Member atau Promo) belum terisi.');
     localFooter.value.diskonPersen2 = 0;
     return;
   }
@@ -264,22 +270,25 @@ const handleDiscount2Change = () => {
   if (localFooter.value.diskonPersen2 > 0) {
     backupCurrentState();
 
-    // Estimasi nominal (dari sisa setelah disc 1)
-    const afterDisc1 = props.totalSo - ((props.totalSo * localFooter.value.diskonPersen1) / 100);
-    const estimasiNominal = (afterDisc1 * localFooter.value.diskonPersen2) / 100;
-    const info = `Cust: ${props.customer?.nama || ''}\nPenambahan Diskon ke-2: ${localFooter.value.diskonPersen2}%`;
+    // Hitung estimasi nominal tambahan untuk modal otorisasi
+    // Sisa = Total - (Potongan Nominal Dasar + Potongan Persen 1)
+    const baseCut = Number(diskonRpInput.value) + ((props.totalSo * localFooter.value.diskonPersen1) / 100);
+    const afterBase = props.totalSo - baseCut;
+    const estimasiNominalMaps = (afterBase * localFooter.value.diskonPersen2) / 100;
+
+    const info = `Cust: ${props.customer?.nama || ''}\nPengajuan Diskon MAPS (2): ${localFooter.value.diskonPersen2}%`;
 
     requestAuthorization(
-      'Otorisasi Diskon Bertingkat',
+      'Otorisasi Diskon MAPS (Bertingkat)',
       'DISKON_FAKTUR',
-      estimasiNominal,
+      estimasiNominalMaps,
       info,
       (authResult) => {
         localFooter.value.pinDiskon2 = authResult.approver;
         if (authResult.authNomor) {
           localFooter.value.authNomor = authResult.authNomor;
         }
-        toast.success('Diskon 2 disetujui.');
+        toast.success('Diskon MAPS disetujui.');
       },
       async () => {
         await restorePreviousState();

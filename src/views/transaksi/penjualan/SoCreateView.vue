@@ -723,30 +723,35 @@ const calculateTotals = async () => {
   }
 
   // ========================================================================
-  // [KUNCI PERBAIKAN] 2. Penentuan Jalur Diskon & Akumulasi MAPS
+  // [KUNCI PERBAIKAN] 2. Penentuan Jalur Diskon & Proteksi Penawaran
   // ========================================================================
   let baseNominalDiscount = 0;
+  const isFromOffer = !!header.value.penawaran; // Deteksi sumber data
 
   if (isPromoApplied && header.value.nomorPromo) {
-    // JALUR PROMO: Ambil nominal dari hasil fungsi promo yang di-set di checkRealtimePromoEligibility
+    // JALUR PROMO: Ambil nominal dari hasil fungsi promo
     baseNominalDiscount = footer.value.diskonRp;
-    footer.value.diskonPersen1 = 0; // Member utama kalah oleh promo
-    // JANGAN nolkan diskonPersen2 di sini agar MAPS 5% tetap bisa dihitung
+    footer.value.diskonPersen1 = 0;
   } else {
-    // JALUR MEMBER STANDAR
+    // JALUR MEMBER STANDAR / PENAWARAN
     const diskonP1 = Number(footer.value.diskonPersen1) || 0;
-    baseNominalDiscount = (diskonP1 / 100) * newTotalDiscountable;
+
+    // [FIX] Jika data dari Penawaran dan ada nominal diskon (40rb), gunakan itu sebagai basis
+    if (isFromOffer && footer.value.diskonRp > 0 && diskonP1 === 0) {
+      baseNominalDiscount = footer.value.diskonRp;
+    } else {
+      // Jalur hitung otomatis member (Tiering)
+      baseNominalDiscount = (diskonP1 / 100) * newTotalDiscountable;
+    }
   }
 
   // HITUNG DISKON 2 (MAPS) SECARA AKUMULATIF
-  // Dihitung dari sisa harga setelah dipotong Diskon Base (Promo atau Member 1)
   const diskonP2 = Number(footer.value.diskonPersen2) || 0;
   const remainingAfterBase = newTotalDiscountable - baseNominalDiscount;
   const mapsDiscountRp = (diskonP2 / 100) * remainingAfterBase;
 
-  // Set nilai akhir diskon faktur (Gabungan Base + MAPS)
+  // Set nilai akhir (Basis Penawaran/Promo/Member + MAPS)
   footer.value.diskonRp = Math.round(baseNominalDiscount + mapsDiscountRp);
-  // ========================================================================
 
   // Hitung Total DP yang sudah masuk
   const totalDp = dpItems.value.reduce((sum, dp) => sum + (dp.nominal || 0), 0);

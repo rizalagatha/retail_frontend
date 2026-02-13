@@ -726,25 +726,24 @@ const calculateTotals = async () => {
   // [KUNCI PERBAIKAN] 2. Penentuan Jalur Diskon & Proteksi Penawaran
   // ========================================================================
   let baseNominalDiscount = 0;
-  const isFromOffer = !!header.value.penawaran; // Deteksi sumber data
+  const isFromOffer = !!header.value.penawaran; // Sekarang variabel ini KITA GUNAKAN
 
   if (isPromoApplied && header.value.nomorPromo) {
-    // JALUR PROMO: Ambil nominal dari hasil fungsi promo
+    // JALUR PROMO
     baseNominalDiscount = footer.value.diskonRp;
     footer.value.diskonPersen1 = 0;
-  } else {
-    // JALUR MEMBER STANDAR / PENAWARAN
-    const diskonP1 = Number(footer.value.diskonPersen1) || 0;
-
-    // [FIX] Jika data dari Penawaran dan ada nominal diskon (40rb), gunakan itu sebagai basis
-    if (isFromOffer && footer.value.diskonRp > 0 && diskonP1 === 0) {
-      baseNominalDiscount = footer.value.diskonRp;
-    } else {
-      // Jalur hitung otomatis member (Tiering)
-      baseNominalDiscount = (diskonP1 / 100) * newTotalDiscountable;
-    }
   }
-
+  else if (isFromOffer || (footer.value.diskonRp > 0 && footer.value.diskonPersen1 === 0)) {
+    // JALUR PENAWARAN atau DISKON MANUAL Rp (Hasil Load Edit)
+    // Jika ditarik dari Penawaran, 'isFromOffer' akan bernilai TRUE, sehingga masuk ke sini.
+    // Jika sedang Edit data lama (seperti kasus 40rb tadi), bagian kanan (diskonRp > 0) akan bernilai TRUE.
+    baseNominalDiscount = footer.value.diskonRp;
+  }
+  else {
+    // JALUR MEMBER STANDAR (Kalkulasi otomatis dari % ke Rp)
+    const diskonP1 = Number(footer.value.diskonPersen1) || 0;
+    baseNominalDiscount = (diskonP1 / 100) * newTotalDiscountable;
+  }
   // HITUNG DISKON 2 (MAPS) SECARA AKUMULATIF
   const diskonP2 = Number(footer.value.diskonPersen2) || 0;
   const remainingAfterBase = newTotalDiscountable - baseNominalDiscount;
@@ -1659,8 +1658,8 @@ const applyDefaultDiscount = async () => {
     return;
   }
 
-  if (footer.value.diskonRp > 0 && footer.value.diskonPersen1 === 0) {
-    return; // Berhenti jika SO sudah punya nominal diskon (hasil otorisasi)
+  if (footer.value.diskonRp > 0 && (footer.value.diskonPersen1 === 0 || !footer.value.pinDiskon1)) {
+    return;
   }
 
   try {

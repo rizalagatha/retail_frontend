@@ -1395,6 +1395,7 @@ const calculateTotals = () => {
   // ---------------------------------------------------------------------
   let grossSubTotal = 0; // Total Kotor (Harga x Jumlah)
   let netItemTotal = 0; // Total Bersih (item.total)
+  let eligibleSubTotal = 0;
 
   // Loop sekali untuk update total per baris & akumulasi
   items.value.forEach((item) => {
@@ -1404,6 +1405,11 @@ const calculateTotals = () => {
     // b. Akumulasi
     grossSubTotal += (item.jumlah || 0) * (item.harga || 0);
     netItemTotal += item.total;
+
+    // Pengecualian diskon hanya untuk item yang memiliki nomor pengajuan harga
+    if (!item.noPengajuanHarga) {
+      eligibleSubTotal += item.total;
+    }
   });
 
   // Total Diskon Item adalah selisih Kotor - Bersih
@@ -1412,6 +1418,8 @@ const calculateTotals = () => {
   // Base calculation untuk tahap selanjutnya (Netto Item)
   const afterItemDiscount = netItemTotal;
 
+  const basisDiskon = eligibleSubTotal;
+
   // ---------------------------------------------------------------------
   // FIX: JIKA INVOICE BERASAL DARI SO → DISKON FAKTUR TIDAK BOLEH DIHITUNG ULANG
   // ---------------------------------------------------------------------
@@ -1419,10 +1427,9 @@ const calculateTotals = () => {
     totals.subTotal = netItemTotal; // Set Subtotal Bersih
     totals.totalDiskonItem = totalDiskonItem;
 
-    // [BARU] Hitung P1 & P2 untuk jalur SO agar Diskon Maps (P2) tetap terhitung
-    const basisSO = netItemTotal;
-    const d1AmountSO = (header.diskonPersen1 / 100) * basisSO;
-    const d2AmountSO = (header.diskonPersen2 / 100) * (basisSO - d1AmountSO);
+    // Hitung P1 & P2 berdasarkan basisDiskon (bukan netItemTotal)
+    const d1AmountSO = (header.diskonPersen1 / 100) * basisDiskon;
+    const d2AmountSO = (header.diskonPersen2 / 100) * (basisDiskon - d1AmountSO);
 
     if (isKpr.value) {
       totals.totalDiskonFaktur = Math.round(
@@ -1454,8 +1461,8 @@ const calculateTotals = () => {
   // 3. DISKON FAKTUR (PERSEN)
   // ---------------------------------------------------------------------
   // Diskon persen diambil dari afterItemDiscount (Nilai bersih item)
-  const diskon1Amount = (header.diskonPersen1 / 100) * afterItemDiscount;
-  const afterDiscount1 = afterItemDiscount - diskon1Amount;
+  const diskon1Amount = (header.diskonPersen1 / 100) * basisDiskon;
+  const afterDiscount1 = basisDiskon - diskon1Amount;
 
   const diskon2Amount = (header.diskonPersen2 / 100) * afterDiscount1;
 
@@ -2537,9 +2544,13 @@ const getCategoryColor = (kategori: string | undefined) => {
 const isItemPromoEligible = (item: Item) => {
   const isReguler = item.kategori === "REGULER";
   const isJersey = item.nama?.toUpperCase().includes("JERSEY");
-  const isDtf = !!item.noSoDtf; // Produk dengan nomor SO DTF
+  const isDtf = !!item.noSoDtf;
 
-  return isReguler || isJersey || isDtf;
+  // [PERBAIKAN] Syarat tambahan: Wajib tidak memiliki No. Pengajuan Harga
+  const isBukanPengajuan = !item.noPengajuanHarga;
+
+  // Hanya barang reguler/jersey/dtf yang BUKAN dari pengajuan harga yang eligible
+  return (isReguler || isJersey || isDtf) && isBukanPengajuan;
 };
 
 // Hitung tanggal tempo otomatis

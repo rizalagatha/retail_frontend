@@ -20,6 +20,7 @@ interface DeadStockItem {
   'Nama Barang': string;
   Ukuran: string;
   Stok: number;
+  RealSales: number;
   AvgSales: number;
   'Last Terima STBJ/Tanggal': string | null;
   'No STBJ/SJ': string;
@@ -63,6 +64,7 @@ const headers = computed(() => [
   { title: 'Ukuran', key: 'Ukuran' },
   { title: 'Stok', key: 'Stok' },
   // Judul kolom sekarang mengikuti nilai filter avgPeriod
+  { title: `Riil Terjual (${filters.avgPeriod} Bln)`, key: 'RealSales' },
   { title: `Avg Sale (${filters.avgPeriod} Bln)`, key: 'AvgSales' },
   { title: 'Last Terima Tanggal', key: 'Last Terima STBJ/Tanggal' },
   { title: 'No STBJ/SJ', key: 'No STBJ/SJ' },
@@ -202,6 +204,9 @@ watch(filters, fetchData, { deep: true });
                   <td class="nama-barang">{{ item['Nama Barang'] }}</td>
                   <td class="text-center">{{ item.Ukuran }}</td>
                   <td class="text-end">{{ (item.Stok || 0).toLocaleString('id-ID') }}</td>
+                  <td class="text-end font-weight-bold" :class="item.RealSales > 0 ? 'text-blue' : 'text-grey'">
+                    {{ (item.RealSales || 0).toLocaleString('id-ID') }}
+                  </td>
                   <td class="text-end" :class="item.AvgSales > 0 ? 'text-primary' : 'text-grey'">
                     {{ Number(item.AvgSales || 0).toFixed(1) }}
                   </td>
@@ -220,7 +225,7 @@ watch(filters, fetchData, { deep: true });
               <tr class="font-weight-bold">
                 <td colspan="10" class="text-end">GRAND TOTAL :</td>
                 <td class="text-end">{{ totalStok.toLocaleString('id-ID') }}</td>
-                <td colspan="5"></td>
+                <td colspan="6"></td>
               </tr>
             </tfoot>
           </table>

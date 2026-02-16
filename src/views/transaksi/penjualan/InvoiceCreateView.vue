@@ -1125,6 +1125,7 @@ const onSoSelected = async (so: { Nomor: string }) => {
         hpp: item.hpp ?? 0,
         kategori: item.kategori ?? "",
         noSoDtf: item.noSoDtf ?? "",
+        noPengajuanHarga: item.noPengajuanHarga ?? "",
         terhitungPromo: item.terhitungPromo ?? false,
         _isHargaEditable: item._isHargaEditable ?? true,
         promo: item.promo ?? "",

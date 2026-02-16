@@ -175,6 +175,7 @@ interface SoItem {
   hpp?: number;
   kategori?: string;
   noSoDtf?: string;
+  noPengajuanHarga?: string;
   terhitungPromo?: boolean;
   _isHargaEditable?: boolean;
   promo?: string;

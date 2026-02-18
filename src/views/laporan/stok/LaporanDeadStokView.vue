@@ -18,6 +18,7 @@ interface DeadStockItem {
   'Jenis Kain': string;      // 👈 Tambahkan ini
   Warna: string;
   'Kode Barang': string;
+  Barcode: string;
   'Nama Barang': string;
   Ukuran: string;
   Stok: number;
@@ -62,6 +63,7 @@ const headers = computed(() => [
   { title: 'Jenis Kain', key: 'Jenis Kain' },           // 👈 Tambahkan ini
   { title: 'Warna', key: 'Warna' },
   { title: 'Kode Barang', key: 'Kode Barang' },
+  { title: 'Barcode', key: 'Barcode' },
   { title: 'Nama Barang', key: 'Nama Barang' },
   { title: 'Ukuran', key: 'Ukuran' },
   { title: 'Stok', key: 'Stok' },
@@ -204,6 +206,7 @@ watch(filters, fetchData, { deep: true });
                   <td>{{ item['Jenis Kain'] }}</td>
                   <td>{{ item.Warna }}</td>
                   <td>{{ item['Kode Barang'] }}</td>
+                  <td>{{ item.Barcode }}</td>
                   <td class="nama-barang">{{ item['Nama Barang'] }}</td>
                   <td class="text-center">{{ item.Ukuran }}</td>
                   <td class="text-end">{{ (item.Stok || 0).toLocaleString('id-ID') }}</td>
@@ -226,7 +229,7 @@ watch(filters, fetchData, { deep: true });
             </tbody>
             <tfoot class="sticky-footer">
               <tr class="font-weight-bold">
-                <td colspan="11" class="text-end">GRAND TOTAL :</td>
+                <td colspan="12" class="text-end">GRAND TOTAL :</td>
                 <td class="text-end">{{ totalStok.toLocaleString('id-ID') }}</td>
                 <td colspan="6"></td>
               </tr>

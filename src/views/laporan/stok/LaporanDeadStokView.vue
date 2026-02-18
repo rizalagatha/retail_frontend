@@ -82,6 +82,21 @@ const totalStok = computed(() => {
   return items.value.reduce((sum, item) => sum + (Number(item.Stok) || 0), 0);
 });
 
+const formatDateSafe = (dateStr: string | null) => {
+  if (!dateStr || dateStr === '0000-00-00' || dateStr === '0000-00-00T00:00:00.000Z') {
+    return '-'; // Tampilkan strip jika tidak ada tanggal
+  }
+
+  const dateObj = new Date(dateStr);
+
+  // Cek apakah objek tanggal valid
+  if (isNaN(dateObj.getTime())) {
+    return '-';
+  }
+
+  return format(dateObj, 'dd/MM/yyyy');
+};
+
 // --- Methods ---
 const fetchData = async () => {
   // --- TAMBAHKAN VALIDASI INI ---
@@ -125,6 +140,10 @@ const fetchCabangOptions = async () => {
 
 // Fungsi pewarnaan baris berdasarkan logika Average Sales
 const getRowTextColor = (item: DeadStockItem) => {
+  if (!item['Last Terima STBJ/Tanggal'] || item['Last Terima STBJ/Tanggal'] === '0000-00-00') {
+    return 'text-blue-darken-2 font-italic';
+  }
+
   // Jika penjualan 0 (Mati total) dan stok masih ada
   if (Number(item.AvgSales) === 0 && Number(item.Stok) > 0) {
     return 'text-red font-weight-bold';
@@ -217,8 +236,7 @@ watch(filters, fetchData, { deep: true });
                     {{ Number(item.AvgSales || 0).toFixed(1) }}
                   </td>
                   <td class="text-center">
-                    {{ item['Last Terima STBJ/Tanggal'] ? format(new Date(item['Last Terima STBJ/Tanggal']),
-                      'dd/MM/yyyy') : '' }}
+                    {{ formatDateSafe(item['Last Terima STBJ/Tanggal']) }}
                   </td>
                   <td>{{ item['No STBJ/SJ'] }}</td>
                   <td class="text-end">{{ item['Umur (Hari)'] }}</td>

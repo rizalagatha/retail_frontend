@@ -107,7 +107,7 @@ const fetchData = async () => {
       const allKeys = Object.keys(firstItem);
 
       // 2. Filter key yang BUKAN kolom statis
-      const staticKeys = ['KODE', 'NAMA', 'TOTAL', 'Buffer', 'KTGPRODUK', 'KTGBARANG'];
+      const staticKeys = ['KODE', 'KATEGORI', 'NAMA', 'TOTAL', 'Buffer', 'KTGPRODUK', 'KTGBARANG'];
       const dynamicKeys = allKeys.filter(k => !staticKeys.includes(k));
 
       // 3. Urutkan kolom ukuran agar rapi
@@ -115,6 +115,7 @@ const fetchData = async () => {
 
       // 4. Susun Ulang Headers
       headers.value = [
+        { title: 'Kategori', key: 'KATEGORI', width: 120 },
         { title: 'Kode', key: 'KODE', fixed: true, width: 150 },
         { title: 'Nama Barang', key: 'NAMA', fixed: true, width: 300 },
 

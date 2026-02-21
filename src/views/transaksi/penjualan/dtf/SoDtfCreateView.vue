@@ -807,7 +807,7 @@ const openSoSearch = () => {
   isSoSearchVisible.value = true;
 };
 
-const onSoSelected = async (selected) => {
+const onSoSelected = async (selected, targetLineId = null) => {
   try {
     const nomorSo =
       selected.nomor ||
@@ -866,11 +866,26 @@ const onSoSelected = async (selected) => {
     // ============================================
     // 6. DETAIL CUSTOM SAJA (LOGIC ASLI)
     // ============================================
-    const customItems = soData.items.filter(x => x.isCustomOrder);
+    // --- 2. FILTERING DETAIL ITEM ---
+    // Cari item custom yang spesifik berdasarkan targetLineId
+    let customItems = soData.items.filter(x => x.isCustomOrder);
+
+    if (targetLineId) {
+      // Filter agar hanya mengambil baris yang kita klik tadi di halaman SO
+      // Catatan: Pastikan backend mengirimkan field 'id' atau 'sod_idrec' yang sinkron
+      customItems = customItems.filter(x => String(x.id) === String(targetLineId));
+    }
+
+    // Jika setelah difilter item tidak ditemukan (mungkin SO belum disave ulang)
+    if (customItems.length === 0) {
+      toast.warning("Baris item custom tidak ditemukan. Memuat semua item custom.");
+      customItems = soData.items.filter(x => x.isCustomOrder);
+    }
 
     // ---- Grid Ukuran ----
     detailsUkuran.value = [];
     customItems.forEach((item, idx) => {
+      form.value.namaDtf = item.sod_custom_nama || item.nama;
       item.ukuranKaos.forEach((u, i2) => {
         detailsUkuran.value.push({
           id: Date.now() + idx + i2,
@@ -973,7 +988,7 @@ watch(
   { deep: true }
 );
 
-onMounted(() => {
+onMounted(async () => {
   markAsSaved();
 
   if (!authStore.can(MENU_ID, requiredPermission.value)) {
@@ -981,13 +996,25 @@ onMounted(() => {
     router.back();
     return;
   }
+
   const nomor = route.params.nomor as string;
+  // 1. Tangkap parameter refSo dari URL
+  const refSo = route.query.refSo as string;
+  const lineId = route.query.lineId as string;
+
   if (nomor) {
     fetchDataForEdit(nomor);
+  } else if (refSo) {
+    isLoading.value = true;
+    // Kirim lineId ke fungsi penarik data
+    await onSoSelected({ nomor: refSo }, lineId);
+    isLoading.value = false;
   } else {
+    // Mode Create Baru kosong
     resetForm();
     isLoading.value = false;
   }
+
   fetchUkuranKaosList();
 });
 

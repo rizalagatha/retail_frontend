@@ -357,7 +357,7 @@ watch([startDate, endDate, selectedCabang], fetchData);
                     <div class="detail-table-wrapper">
                       <div v-if="loadingDetails.has(item.NomorLhk)" class="pa-4 text-center">Memuat pekerjaan...</div>
                       <v-data-table v-else :headers="detailHeaders" :items="details[item.NomorLhk]" density="compact"
-                        class="detail-table" hide-default-footer />
+                        class="detail-table" :items-per-page="-1" hide-default-footer />
                     </div>
                   </div>
                 </div>
@@ -545,7 +545,10 @@ watch([startDate, endDate, selectedCabang], fetchData);
   border: 1px solid #ddd;
   border-radius: 4px;
   background: white;
-  overflow: hidden;
+  overflow-y: auto;
+  /* Aktifkan scroll vertikal */
+  max-height: 400px;
+  /* Batas tinggi, sesuaikan dengan kenyamanan */
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
 }
 

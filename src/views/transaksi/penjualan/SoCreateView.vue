@@ -68,7 +68,7 @@ interface SoItem {
   terhitungPromo?: boolean;
 
   scannedQty: number; // Jumlah yang benar-benar sudah discan/fisik siap
-  isReady: boolean;   // Flag jika scannedQty == jumlah (order)
+  isReady: boolean; // Flag jika scannedQty == jumlah (order)
 
   mutatedQty?: number; // Saldo yang sudah dimutasi
   isMutated?: boolean; // Flag pengunci UI
@@ -82,7 +82,7 @@ interface SoAdjustmentLog {
   nama: string;
   qty: number;
   // Gunakan Union Type agar validasi tipe datanya kuat
-  type: 'SCAN' | 'MANUAL_ADD' | 'MANUAL_REMOVE' | 'DELETE_ROW' | 'DELETE_ITEM';
+  type: "SCAN" | "MANUAL_ADD" | "MANUAL_REMOVE" | "DELETE_ROW" | "DELETE_ITEM";
   user: string;
   reason: string;
 }
@@ -191,7 +191,7 @@ interface PenawaranDetailApi {
   pend_harga: number;
   pend_disc: number;
   pend_diskon: number;
-  pend_custom: 'Y' | 'N';
+  pend_custom: "Y" | "N";
   pend_custom_data?: string | null;
   stok?: number;
   kategori?: string;
@@ -212,7 +212,6 @@ interface CustomTechData {
   titikCetak?: { keterangan: string; sizeCetak: string; panjang: number; lebar: number }[];
   sourceItems?: SourceItem[];
 }
-
 
 interface SoDtfDetail {
   sd_nomor: string;
@@ -310,8 +309,8 @@ const pageTitle = computed(() =>
   header.value.isMarketplace
     ? "Pesanan Marketplace"
     : isEditMode.value
-      ? "Ubah Surat Pesanan"
-      : "Buat Surat Pesanan"
+    ? "Ubah Surat Pesanan"
+    : "Buat Surat Pesanan"
 );
 const statusDpText = computed(() => {
   if (footer.value.totalDp >= footer.value.minimalDp || footer.value.pinTanpaDp) {
@@ -321,20 +320,20 @@ const statusDpText = computed(() => {
 });
 const requiredPermission = computed(() => (isEditMode.value ? "edit" : "insert"));
 const allVerified = computed(() => {
-  const validItems = items.value.filter(i => i.kode && !i.isJasa);
+  const validItems = items.value.filter((i) => i.kode && !i.isJasa);
   if (validItems.length === 0) return false;
-  return validItems.every(item => (item.scannedQty || 0) >= (item.jumlah || 0));
+  return validItems.every((item) => (item.scannedQty || 0) >= (item.jumlah || 0));
 });
 const hasReadyItems = computed(() => {
-  return items.value.some(item => (item.scannedQty || 0) > 0);
+  return items.value.some((item) => (item.scannedQty || 0) > 0);
 });
 const allMutated = computed(() => {
-  const validItems = items.value.filter(i => i.kode && !i.isJasa);
+  const validItems = items.value.filter((i) => i.kode && !i.isJasa);
   if (validItems.length === 0) return false;
 
-  return validItems.every(item => {
+  return validItems.every((item) => {
     // 1. Tentukan apakah ini barang Produksi/Custom
-    const isProductionItem = item.kode === 'CUSTOM' || !!item.noSoDtf;
+    const isProductionItem = item.kode === "CUSTOM" || !!item.noSoDtf;
 
     if (isProductionItem) {
       // Barang Produksi/Custom tidak perlu mutasi fisik showroom, cukup cek Ready
@@ -414,8 +413,8 @@ const authDialog = reactive<AuthDialogState>({
   transaksi: "",
   barcode: "",
   keterangan: "",
-  onSuccess: () => { },
-  onCancel: () => { },
+  onSuccess: () => {},
+  onCancel: () => {},
 });
 
 // State untuk modals & dialogs
@@ -466,12 +465,12 @@ const isPromoConfirmVisible = ref(false);
 const pendingPromoData = reactive({
   nomor: "",
   nama: "",
-  diskon: 0
+  diskon: 0,
 });
 // Flag agar dialog tidak muncul berulang kali untuk promo yang sama
 const lastSuggestedPromo = ref("");
 const isAdjustmentLogVisible = ref(false);
-const nextActionAfterSave = ref<'PRINT' | 'INVOICE'>('PRINT');
+const nextActionAfterSave = ref<"PRINT" | "INVOICE">("PRINT");
 const isPromoFilterDisabled = ref(false);
 
 const parseDate = (val: string | Date | null | undefined): Date => {
@@ -516,13 +515,13 @@ const mainTableHeaders = [
 // ] as const;
 
 const adjustmentHeaders = [
-  { title: 'Waktu', key: 'timestamp', width: '180px' },
-  { title: 'Kode', key: 'kode', width: '150px' },
-  { title: 'Nama Barang', key: 'nama' },
-  { title: 'Qty', key: 'qty', align: 'end', width: '80px' },
-  { title: 'Tipe', key: 'type', width: '130px' },
-  { title: 'User', key: 'user', width: '120px' },
-  { title: 'Keterangan', key: 'reason' },
+  { title: "Waktu", key: "timestamp", width: "180px" },
+  { title: "Kode", key: "kode", width: "150px" },
+  { title: "Nama Barang", key: "nama" },
+  { title: "Qty", key: "qty", align: "end", width: "80px" },
+  { title: "Tipe", key: "type", width: "130px" },
+  { title: "User", key: "user", width: "120px" },
+  { title: "Keterangan", key: "reason" },
 ] as const;
 
 // --- Computed Properties ---
@@ -813,14 +812,12 @@ const calculateTotals = async () => {
     // JALUR PROMO
     baseNominalDiscount = footer.value.diskonRp;
     footer.value.diskonPersen1 = 0;
-  }
-  else if (isFromOffer || (footer.value.diskonRp > 0 && footer.value.diskonPersen1 === 0)) {
+  } else if (isFromOffer || (footer.value.diskonRp > 0 && footer.value.diskonPersen1 === 0)) {
     // JALUR PENAWARAN atau DISKON MANUAL Rp (Hasil Load Edit)
     // Jika ditarik dari Penawaran, 'isFromOffer' akan bernilai TRUE, sehingga masuk ke sini.
     // Jika sedang Edit data lama (seperti kasus 40rb tadi), bagian kanan (diskonRp > 0) akan bernilai TRUE.
     baseNominalDiscount = footer.value.diskonRp;
-  }
-  else {
+  } else {
     // JALUR MEMBER STANDAR (Kalkulasi otomatis dari % ke Rp)
     const diskonP1 = Number(footer.value.diskonPersen1) || 0;
     baseNominalDiscount = (diskonP1 / 100) * newTotalDiscountable;
@@ -969,7 +966,7 @@ const openProductSearch = (index: number, isMulti: boolean, ignorePromo = false)
   isPromoFilterDisabled.value = ignorePromo;
 
   console.log("DEBUG SEARCH: ignorePromo =", ignorePromo);
-  console.log("DEBUG SEARCH: promo terpilih =", ignorePromo ? '' : header.value.nomorPromo);
+  console.log("DEBUG SEARCH: promo terpilih =", ignorePromo ? "" : header.value.nomorPromo);
 
   isProductSearchVisible.value = true;
 };
@@ -994,8 +991,8 @@ const openPriceProposalSearch = (index: number) => {
 
 // [UBAH] Tambahkan 'async' pada definisi fungsi
 const save = async () => {
-  if (nextActionAfterSave.value !== 'INVOICE') {
-    nextActionAfterSave.value = 'PRINT';
+  if (nextActionAfterSave.value !== "INVOICE") {
+    nextActionAfterSave.value = "PRINT";
   }
 
   // --- 1. Validasi Dasar ---
@@ -1140,7 +1137,8 @@ const save = async () => {
   }
 
   // --- VALIDASI TANGGAL HARI INI ---
-  if (!isEditMode.value) { // Hanya cek jika buat SO BARU
+  if (!isEditMode.value) {
+    // Hanya cek jika buat SO BARU
     const today = format(new Date(), "yyyy-MM-dd");
     if (header.value.tanggal !== today) {
       toast.error(`Tanggal transaksi harus hari ini (${today}).`);
@@ -1160,7 +1158,7 @@ const saveAndConvertToInvoice = () => {
     return;
   }
 
-  nextActionAfterSave.value = 'INVOICE';
+  nextActionAfterSave.value = "INVOICE";
   save();
 };
 
@@ -1196,10 +1194,10 @@ const executeSave = async () => {
           sod_custom_nama: item.isCustomOrder ? item.nama : null,
           sod_custom_data: item.isCustomOrder
             ? JSON.stringify({
-              ukuranKaos: item.ukuranKaos || [],
-              titikCetak: item.titikCetak || [],
-              sourceItems: item.sourceItems || [],
-            })
+                ukuranKaos: item.ukuranKaos || [],
+                titikCetak: item.titikCetak || [],
+                sourceItems: item.sourceItems || [],
+              })
             : null,
 
           // opsional tapi aman dipertahankan
@@ -1220,11 +1218,11 @@ const executeSave = async () => {
     markAsSaved();
     const soNomor = response.data.nomor;
     if (soNomor) {
-      if (nextActionAfterSave.value === 'INVOICE') {
+      if (nextActionAfterSave.value === "INVOICE") {
         // --- JALUR OTOMATIS KE INVOICE ---
         router.push({
           path: "/transaksi/penjualan/invoice/new",
-          query: { refSo: soNomor }
+          query: { refSo: soNomor },
         });
       } else {
         // --- JALUR STANDAR (CETAK) ---
@@ -1237,7 +1235,7 @@ const executeSave = async () => {
     toast.error(axiosError.response?.data?.message || "Gagal menyimpan data.");
   } finally {
     isSaving.value = false;
-    nextActionAfterSave.value = 'PRINT';
+    nextActionAfterSave.value = "PRINT";
   }
 };
 
@@ -1299,7 +1297,7 @@ const addNewRow = () => {
       noPengajuanHarga: "",
       pin: "",
       scannedQty: 0, // Inisialisasi ke 0
-      isReady: false
+      isReady: false,
     });
   }
 };
@@ -1332,7 +1330,7 @@ const removeRow = (id: number) => {
 
   showConfirmation(() => {
     // Catat log penghapusan sebelum di-filter keluar
-    addAdjustmentLog(item.kode, -item.jumlah!, 'DELETE_ITEM', 'Penghapusan baris oleh SC');
+    addAdjustmentLog(item.kode, -item.jumlah!, "DELETE_ITEM", "Penghapusan baris oleh SC");
 
     items.value = items.value.filter((i) => i.id !== id);
     calculateTotals();
@@ -1342,10 +1340,10 @@ const removeRow = (id: number) => {
 const addAdjustmentLog = (
   kode: string,
   qty: number,
-  type: SoAdjustmentLog['type'], // Mengambil tipe dari interface (menghindari 'any')
+  type: SoAdjustmentLog["type"], // Mengambil tipe dari interface (menghindari 'any')
   ket: string
 ) => {
-  const item = items.value.find(i => i.kode === kode);
+  const item = items.value.find((i) => i.kode === kode);
 
   // Sekarang TypeScript tidak akan protes karena properti sudah cocok dengan interface
   adjustmentLogs.value.push({
@@ -1356,7 +1354,7 @@ const addAdjustmentLog = (
     qty: qty,
     type: type, // Tidak perlu 'as any' lagi
     user: authStore.user?.nama || "Unknown",
-    reason: ket
+    reason: ket,
   });
 };
 
@@ -1435,7 +1433,7 @@ const onPenawaranSelected = async (penawaran: { nomor: string }) => {
   try {
     // 1. Ambil data dari backend dengan parameter cabang untuk kalkulasi stok real-time
     const response = await api.get(`/so-form/lookup/penawaran-details/${penawaran.nomor}`, {
-      params: { cabang: header.value.gudang.kode }
+      params: { cabang: header.value.gudang.kode },
     });
 
     const { header: penHeader, pen_tanggal, details: penDetails, customer, dps } = response.data;
@@ -1504,39 +1502,41 @@ const onPenawaranSelected = async (penawaran: { nomor: string }) => {
     footer.value.diskonPersen2 = Number(penHeader.pen_disc2) || 0;
 
     // 7. Pemetaan Rincian DP (Down Payment)
-    dpItems.value = (dps as DpApiResult[] || []).map((dp) => ({
+    dpItems.value = ((dps as DpApiResult[]) || []).map((dp) => ({
       ...dp,
       posting: dp.posting || "BELUM",
-      fsk: dp.fsk || ""
+      fsk: dp.fsk || "",
     }));
 
     // 8. Pemetaan Item Detail (Termasuk Logika Custom Order)
     items.value = (penDetails as PenawaranDetailApi[]).map((d) => {
       let parsedJson: CustomTechData = {};
-      const isCustom = d.pend_custom === 'Y';
+      const isCustom = d.pend_custom === "Y";
 
       // Parse data teknis jika barang custom
       if (isCustom && d.pend_custom_data) {
         try {
-          parsedJson = typeof d.pend_custom_data === 'string'
-            ? JSON.parse(d.pend_custom_data)
-            : d.pend_custom_data;
+          parsedJson =
+            typeof d.pend_custom_data === "string"
+              ? JSON.parse(d.pend_custom_data)
+              : d.pend_custom_data;
         } catch (e) {
           console.error("Gagal parse data teknis custom:", e);
         }
       }
 
       // Gabungkan daftar ukuran unik untuk tampilan grid
-      const ringkasanUkuran = d.pend_ukuran ||
+      const ringkasanUkuran =
+        d.pend_ukuran ||
         (parsedJson.ukuranKaos
-          ? [...new Set(parsedJson.ukuranKaos.map((u) => u.ukuran))].join(', ')
-          : '');
+          ? [...new Set(parsedJson.ukuranKaos.map((u) => u.ukuran))].join(", ")
+          : "");
 
       return {
         id: Date.now() + Math.random(),
         kode: d.pend_kode,
         nama: d.nama_barang, // Membawa nama asli atau nama custom dtf dari backend
-        kategori: d.kategori || (isCustom ? 'PESANAN' : 'REGULER'),
+        kategori: d.kategori || (isCustom ? "PESANAN" : "REGULER"),
         ukuran: ringkasanUkuran,
         stok: Number(d.stok) || 0,
         jumlah: Number(d.pend_jumlah) || 0,
@@ -1555,14 +1555,15 @@ const onPenawaranSelected = async (penawaran: { nomor: string }) => {
         isCustomOrder: isCustom,
         sod_custom: d.pend_custom,
         sod_custom_nama: isCustom ? d.nama_barang : null,
-        sod_custom_data: typeof d.pend_custom_data === 'object'
-          ? JSON.stringify(d.pend_custom_data)
-          : d.pend_custom_data,
+        sod_custom_data:
+          typeof d.pend_custom_data === "object"
+            ? JSON.stringify(d.pend_custom_data)
+            : d.pend_custom_data,
 
         // Data rincian untuk kebutuhan modal JenisOrder (jika di-edit di layar SO)
         ukuranKaos: parsedJson.ukuranKaos || [],
         titikCetak: parsedJson.titikCetak || [],
-        sourceItems: parsedJson.sourceItems || []
+        sourceItems: parsedJson.sourceItems || [],
       };
     });
 
@@ -1576,7 +1577,9 @@ const onPenawaranSelected = async (penawaran: { nomor: string }) => {
   } catch (error: unknown) {
     console.error("Error onPenawaranSelected:", error);
     if (axios.isAxiosError(error)) {
-      toast.error(`Gagal memuat detail Penawaran: ${error.response?.data?.message || error.message}`);
+      toast.error(
+        `Gagal memuat detail Penawaran: ${error.response?.data?.message || error.message}`
+      );
     } else {
       toast.error("Terjadi kesalahan sistem saat memuat data penawaran.");
     }
@@ -1665,7 +1668,7 @@ const onProductsSelected = (selectedProducts: SoItemApi[]) => {
         barcode: product.barcode,
         noSoDtf: "",
         noPengajuanHarga: "",
-        scannedQty: isJasa ? (product.jumlah || 1) : 0, // Jasa otomatis Ready
+        scannedQty: isJasa ? product.jumlah || 1 : 0, // Jasa otomatis Ready
         isReady: isJasa,
         pin: "",
       });
@@ -1830,7 +1833,6 @@ const applyDefaultDiscount = async () => {
 
     // Selalu timpa dengan nilai terbaru dari backend (Misal: dari 5 ke 10)
     footer.value.diskonPersen1 = defaultDisc;
-
   } catch (err) {
     console.error("Gagal ambil diskon default:", err);
   }
@@ -1962,7 +1964,9 @@ const handleItemDiscountChange = (index: number) => {
   // [BARU] Proteksi Input Manual
   if (item.noPengajuanHarga) {
     if (item.diskonPersen > 0 || item.diskonRp > 0) {
-      toast.warning("Item dengan No. Pengajuan Harga tidak diperbolehkan mendapat diskon tambahan.");
+      toast.warning(
+        "Item dengan No. Pengajuan Harga tidak diperbolehkan mendapat diskon tambahan."
+      );
       item.diskonPersen = 0;
       item.diskonRp = 0;
     }
@@ -1991,8 +1995,9 @@ const handleItemDiscountChange = (index: number) => {
       nominalAuth = (((item.harga || 0) * currentPersen) / 100) * (item.jumlah || 1);
     }
 
-    const info = `Cust: ${header.value.customer?.nama || "Umum"}\nItem: ${item.nama}\nDiskon: ${currentPersen > 0 ? currentPersen + "%" : formatRupiah(currentRp)
-      }`;
+    const info = `Cust: ${header.value.customer?.nama || "Umum"}\nItem: ${item.nama}\nDiskon: ${
+      currentPersen > 0 ? currentPersen + "%" : formatRupiah(currentRp)
+    }`;
 
     requestAuthorization(
       "Otorisasi Diskon Item",
@@ -2161,7 +2166,7 @@ const handleBarcodeScanVerify = async () => {
   const barcode = scannedBarcode.value;
   if (!barcode) return;
 
-  const item = items.value.find(i => i.barcode === barcode && i.kode);
+  const item = items.value.find((i) => i.barcode === barcode && i.kode);
 
   if (!item) {
     toast.error("Barang tidak ditemukan dalam daftar Order!");
@@ -2184,7 +2189,7 @@ const handleBarcodeScanVerify = async () => {
     // Update status ready
     item.isReady = item.scannedQty >= target;
 
-    addAdjustmentLog(item.kode, 1, 'SCAN', 'Verifikasi fisik barang');
+    addAdjustmentLog(item.kode, 1, "SCAN", "Verifikasi fisik barang");
     toast.success(`${item.nama} terverifikasi (${item.scannedQty}/${target})`);
   } else {
     toast.warning("Qty Ready sudah memenuhi atau melebihi jumlah Order.");
@@ -2202,29 +2207,29 @@ const goToMutasiPesanan = () => {
 
   // Resolve URL ke halaman Mutasi dengan query param
   const routeData = router.resolve({
-    name: 'MutasiStokCreate', // Sesuaikan dengan nama route di router/index.ts
+    name: "MutasiStokCreate", // Sesuaikan dengan nama route di router/index.ts
     query: {
       refSo: header.value.nomor,
-      autoLoad: 'true'
-    }
+      autoLoad: "true",
+    },
   });
 
-  window.open(routeData.href, '_blank');
+  window.open(routeData.href, "_blank");
 };
 
 const goToBatalMutasi = () => {
   if (!header.value.nomor) return;
 
   const routeData = router.resolve({
-    name: 'MutasiStokCreate', // Sesuaikan dengan nama route Mutasi Anda
+    name: "MutasiStokCreate", // Sesuaikan dengan nama route Mutasi Anda
     query: {
       refSo: header.value.nomor,
-      jenis: 'PS',      // Langsung set jenis Pesanan ke Showroom
-      autoLoad: 'true'  // Perintahkan halaman mutasi untuk langsung cari data
-    }
+      jenis: "PS", // Langsung set jenis Pesanan ke Showroom
+      autoLoad: "true", // Perintahkan halaman mutasi untuk langsung cari data
+    },
   });
 
-  window.open(routeData.href, '_blank');
+  window.open(routeData.href, "_blank");
 };
 
 // const saveJenisOrder = async () => {
@@ -2375,7 +2380,7 @@ const openSoDtfInNewTab = (item: SoItem) => {
     query: {
       refSo: header.value.nomor,
       // 👈 TAMBAHKAN INI: Kirim ID unik baris (misal: timestamp id dari frontend)
-      lineId: item.id
+      lineId: item.id,
     },
   }).href;
   window.open(url, "_blank");
@@ -2512,7 +2517,11 @@ const checkRealtimePromoEligibility = async (): Promise<boolean> => {
   }
 
   // 2. Proteksi PIN Otorisasi: Jangan pernah timpa nilai jika sudah ada otorisasi manual
-  if (footer.value.pinDiskon1 || footer.value.pinDiskon2 || lastSuggestedPromo.value === "MANUAL_AUTH") {
+  if (
+    footer.value.pinDiskon1 ||
+    footer.value.pinDiskon2 ||
+    lastSuggestedPromo.value === "MANUAL_AUTH"
+  ) {
     promoNotification.value = "";
     return false;
   }
@@ -2547,20 +2556,24 @@ const checkRealtimePromoEligibility = async (): Promise<boolean> => {
       // Kondisi Kelipatan 20rb per 200rb
       const kelipatan = Math.floor(totalEligibleFeb / 200000);
       currentCalculatedDiscount = 20000 * kelipatan;
-      message = `🎉 PROMO FEBRUARI! Anda berhak Potongan Kelipatan Rp ${formatRupiah(currentCalculatedDiscount)}!`;
+      message = `🎉 PROMO FEBRUARI! Anda berhak Potongan Kelipatan Rp ${formatRupiah(
+        currentCalculatedDiscount
+      )}!`;
       promoCandidate = promo2026;
-    }
-    else if (totalEligibleFeb >= 150000) {
+    } else if (totalEligibleFeb >= 150000) {
       // Kondisi Flat 15rb
       currentCalculatedDiscount = 15000;
       const toNextLevel = 200000 - totalEligibleFeb;
-      message = `✨ PROMO FEBRUARI: Dapat potongan Rp 15.000! (Tambah Rp ${formatRupiah(toNextLevel)} lagi untuk diskon kelipatan)`;
+      message = `✨ PROMO FEBRUARI: Dapat potongan Rp 15.000! (Tambah Rp ${formatRupiah(
+        toNextLevel
+      )} lagi untuk diskon kelipatan)`;
       promoCandidate = promo2026;
-    }
-    else if (totalEligibleFeb >= 100000) {
+    } else if (totalEligibleFeb >= 100000) {
       // UPSELLING: Biar kartu tidak hilang saat belanja di atas 100rb
       const shortage = 150000 - totalEligibleFeb;
-      message = `💡 Tambah belanja Rp ${formatRupiah(shortage)} lagi untuk dapat DISKON Rp 15.000! (Reguler/Jersey/DTF)`;
+      message = `💡 Tambah belanja Rp ${formatRupiah(
+        shortage
+      )} lagi untuk dapat DISKON Rp 15.000! (Reguler/Jersey/DTF)`;
       currentCalculatedDiscount = 0;
     }
   }
@@ -2572,7 +2585,11 @@ const checkRealtimePromoEligibility = async (): Promise<boolean> => {
 
     // Hitung total reguler lama (Exclude Jersey & DTF sesuai kriteria lama)
     const totalRegulerDec = validItems.reduce((sum, item) => {
-      if (item.kategori === "REGULER" && !item.nama?.toUpperCase().includes("JERSEY") && !item.noSoDtf) {
+      if (
+        item.kategori === "REGULER" &&
+        !item.nama?.toUpperCase().includes("JERSEY") &&
+        !item.noSoDtf
+      ) {
         return sum + (item.total || 0);
       }
       return sum;
@@ -2581,11 +2598,16 @@ const checkRealtimePromoEligibility = async (): Promise<boolean> => {
     if (promo010 && totalRegulerDec >= 250000) {
       const kelipatan = Math.floor(totalRegulerDec / 250000);
       currentCalculatedDiscount = 25000 * kelipatan;
-      message = `🎉 SELAMAT! Transaksi ini berhak Potongan Kelipatan Rp ${formatRupiah(currentCalculatedDiscount)}!`;
+      message = `🎉 SELAMAT! Transaksi ini berhak Potongan Kelipatan Rp ${formatRupiah(
+        currentCalculatedDiscount
+      )}!`;
       promoCandidate = promo010;
     } else if (promo008 && totalRegulerDec >= promo008.pro_totalrp) {
-      currentCalculatedDiscount = promo008.pro_disrp * Math.floor(totalRegulerDec / promo008.pro_totalrp);
-      message = `✨ DISKON BULANAN: Anda berhak potongan Rp ${formatRupiah(currentCalculatedDiscount)}`;
+      currentCalculatedDiscount =
+        promo008.pro_disrp * Math.floor(totalRegulerDec / promo008.pro_totalrp);
+      message = `✨ DISKON BULANAN: Anda berhak potongan Rp ${formatRupiah(
+        currentCalculatedDiscount
+      )}`;
       promoCandidate = promo008;
     }
   }
@@ -2605,10 +2627,12 @@ const checkRealtimePromoEligibility = async (): Promise<boolean> => {
     }
 
     // 2. Jika diskon riil tersedia (>0) dan belum diterapkan, munculkan Dialog Konfirmasi
-    if (currentCalculatedDiscount > 0 && promoCandidate &&
+    if (
+      currentCalculatedDiscount > 0 &&
+      promoCandidate &&
       lastSuggestedPromo.value !== promoCandidate.pro_nomor &&
-      lastSuggestedPromo.value !== "MANUAL_AUTH") {
-
+      lastSuggestedPromo.value !== "MANUAL_AUTH"
+    ) {
       pendingPromoData.nomor = promoCandidate.pro_nomor;
       pendingPromoData.nama = promoCandidate.pro_judul;
       pendingPromoData.diskon = currentCalculatedDiscount;
@@ -2616,7 +2640,11 @@ const checkRealtimePromoEligibility = async (): Promise<boolean> => {
     }
   }
 
-  if (header.value.nomorPromo && promoCandidate && header.value.nomorPromo === promoCandidate.pro_nomor) {
+  if (
+    header.value.nomorPromo &&
+    promoCandidate &&
+    header.value.nomorPromo === promoCandidate.pro_nomor
+  ) {
     footer.value.diskonRp = currentCalculatedDiscount;
     return true;
   }
@@ -2696,11 +2724,11 @@ const getCategoryColor = (kategori: string | undefined) => {
 };
 
 const autoReadyJasa = () => {
-  items.value.forEach(item => {
+  items.value.forEach((item) => {
     const kodeUp = item.kode?.toUpperCase() || "";
     const namaUp = item.nama?.toUpperCase() || "";
 
-    // Kriteria Jasa/Ongkir
+    // 1. Deteksi apakah ini item Jasa/Ongkir
     const isJasaMurni =
       item.isJasa ||
       kodeUp.startsWith("JASA") ||
@@ -2708,17 +2736,25 @@ const autoReadyJasa = () => {
       namaUp.includes("JASA") ||
       namaUp.includes("ONGKIR");
 
-    // [BARU] Kriteria Custom & SO DTF
+    if (isJasaMurni && item.kode) {
+      // [PENTING] Set flag isJasa agar diabaikan filter allMutated
+      item.isJasa = true;
+
+      const targetQty = Number(item.jumlah || 0);
+      if (item.scannedQty !== targetQty) {
+        item.scannedQty = targetQty;
+        item.isReady = true;
+      }
+    }
+
+    // 2. Kriteria Custom & SO DTF tetap sama
     const isSpecialOrder =
-      item.kode === 'CUSTOM' ||
+      item.kode === "CUSTOM" ||
       item.isCustomOrder === true ||
       (!!item.noSoDtf && item.noSoDtf !== "");
 
-    // Jika masuk kriteria, paksa Qty Ready sama dengan Qty Order
-    if ((isJasaMurni || isSpecialOrder) && item.kode) {
+    if (isSpecialOrder && item.kode) {
       const targetQty = Number(item.jumlah || 0);
-
-      // Hanya update jika nilainya berbeda untuk menghindari loop watcher tak terbatas
       if (item.scannedQty !== targetQty) {
         item.scannedQty = targetQty;
         item.isReady = true;
@@ -2729,12 +2765,18 @@ const autoReadyJasa = () => {
 
 const getTypeColor = (type: string) => {
   switch (type) {
-    case 'SCAN': return 'success';
-    case 'DELETE_ROW': return 'error';
-    case 'DELETE_ITEM': return 'error';
-    case 'MANUAL_ADD': return 'info';
-    case 'MANUAL_REMOVE': return 'warning';
-    default: return 'grey';
+    case "SCAN":
+      return "success";
+    case "DELETE_ROW":
+      return "error";
+    case "DELETE_ITEM":
+      return "error";
+    case "MANUAL_ADD":
+      return "info";
+    case "MANUAL_REMOVE":
+      return "warning";
+    default:
+      return "grey";
   }
 };
 
@@ -2760,7 +2802,7 @@ const decrementReady = (item: SoItem) => {
   item.isReady = item.scannedQty >= (item.jumlah || 0);
 
   // Catat ke log koreksi agar terpantau manager
-  addAdjustmentLog(item.kode, -1, 'MANUAL_REMOVE', 'Pengurangan qty scan manual oleh SC');
+  addAdjustmentLog(item.kode, -1, "MANUAL_REMOVE", "Pengurangan qty scan manual oleh SC");
 
   toast.info(`Verifikasi ${item.nama} dikurangi menjadi ${item.scannedQty}`);
 };
@@ -2874,12 +2916,12 @@ onMounted(async () => {
 });
 
 onMounted(() => {
-  window.addEventListener('focus', refreshOnFocus);
+  window.addEventListener("focus", refreshOnFocus);
   window.addEventListener("keydown", handleGlobalShortcuts);
 });
 
 onUnmounted(() => {
-  window.removeEventListener('focus', refreshOnFocus);
+  window.removeEventListener("focus", refreshOnFocus);
 
   window.removeEventListener("keydown", handleGlobalShortcuts);
 });
@@ -2918,26 +2960,50 @@ const stopAndOpenPriceProposal = (index: number) => {
 <template>
   <PageLayout :title="pageTitle" desktop-mode icon="mdi-file-document-edit-outline">
     <template #header-actions>
-      <v-btn color="secondary" size="small" prepend-icon="mdi-tshirt-crew-outline"
-        :disabled="!header.customer && !header.penawaran" @click="openJenisOrderModal">
+      <v-btn
+        color="secondary"
+        size="small"
+        prepend-icon="mdi-tshirt-crew-outline"
+        :disabled="!header.customer && !header.penawaran"
+        @click="openJenisOrderModal"
+      >
         Input Jenis Order
       </v-btn>
       <v-spacer></v-spacer>
-      <v-btn size="small" color="primary" prepend-icon="mdi-content-save" @click="save" :loading="isSaving"
-        :disabled="isSaving || isSavingDisabled">
+      <v-btn
+        size="small"
+        color="primary"
+        prepend-icon="mdi-content-save"
+        @click="save"
+        :loading="isSaving"
+        :disabled="isSaving || isSavingDisabled"
+      >
         Simpan
       </v-btn>
-      <v-btn size="small" color="success" prepend-icon="mdi-receipt-text-plus" @click="saveAndConvertToInvoice"
-        :loading="isSaving" :disabled="isSaving || isSavingDisabled || !allMutated">
+      <v-btn
+        size="small"
+        color="success"
+        prepend-icon="mdi-receipt-text-plus"
+        @click="saveAndConvertToInvoice"
+        :loading="isSaving"
+        :disabled="isSaving || isSavingDisabled || !allMutated"
+      >
         Jadikan Invoice
       </v-btn>
-      <v-btn size="small" prepend-icon="mdi-cancel"
-        @click="showConfirmation(resetForm, 'Batalkan perubahan dan kosongkan form?')">
+      <v-btn
+        size="small"
+        prepend-icon="mdi-cancel"
+        @click="showConfirmation(resetForm, 'Batalkan perubahan dan kosongkan form?')"
+      >
         Batal
       </v-btn>
-      <v-btn size="small" prepend-icon="mdi-close" @click="
-        showConfirmation(closeForm, 'Tutup form? Perubahan yang belum disimpan akan hilang.')
-        ">
+      <v-btn
+        size="small"
+        prepend-icon="mdi-close"
+        @click="
+          showConfirmation(closeForm, 'Tutup form? Perubahan yang belum disimpan akan hilang.')
+        "
+      >
         Tutup
       </v-btn>
     </template>
@@ -2948,105 +3014,263 @@ const stopAndOpenPriceProposal = (index: number) => {
         <div class="desktop-form-section header-section">
           <template v-if="header.isMarketplace">
             <div class="bg-orange-lighten-5 pa-2 mb-3 rounded border border-dashed border-orange">
-              <div class="text-subtitle-2 font-weight-bold text-orange-darken-4 mb-2 d-flex align-center">
+              <div
+                class="text-subtitle-2 font-weight-bold text-orange-darken-4 mb-2 d-flex align-center"
+              >
                 <v-icon size="small" class="mr-1">mdi-store</v-icon>
                 MODE PESANAN MARKETPLACE
               </div>
               <v-row dense>
                 <v-col cols="6">
-                  <v-text-field label="Nomor Pesanan Marketplace" v-model="header.mpNomorPesanan" variant="outlined"
-                    density="compact" prepend-inner-icon="mdi-clipboard-text" hide-details bg-color="white"
-                    placeholder="Paste No. Pesanan" />
+                  <v-text-field
+                    label="Nomor Pesanan Marketplace"
+                    v-model="header.mpNomorPesanan"
+                    variant="outlined"
+                    density="compact"
+                    prepend-inner-icon="mdi-clipboard-text"
+                    hide-details
+                    bg-color="white"
+                    placeholder="Paste No. Pesanan"
+                  />
                 </v-col>
                 <v-col cols="6">
-                  <v-text-field label="Nomor Resi (AWB)" v-model="header.mpResi" variant="outlined" density="compact"
-                    prepend-inner-icon="mdi-barcode" hide-details bg-color="white" placeholder="Scan Resi" />
+                  <v-text-field
+                    label="Nomor Resi (AWB)"
+                    v-model="header.mpResi"
+                    variant="outlined"
+                    density="compact"
+                    prepend-inner-icon="mdi-barcode"
+                    hide-details
+                    bg-color="white"
+                    placeholder="Scan Resi"
+                  />
                 </v-col>
               </v-row>
             </div>
           </template>
           <v-row dense>
             <v-col cols="5">
-              <v-text-field label="Gudang" :disabled="!!header.penawaran" :model-value="header.gudang.kode" readonly
-                @click="openGudangSearch" :class="{ 'field-disabled': isEditMode }" variant="outlined" density="compact"
-                hide-details append-inner-icon="mdi-magnify" />
+              <v-text-field
+                label="Gudang"
+                :disabled="!!header.penawaran"
+                :model-value="header.gudang.kode"
+                readonly
+                @click="openGudangSearch"
+                :class="{ 'field-disabled': isEditMode }"
+                variant="outlined"
+                density="compact"
+                hide-details
+                append-inner-icon="mdi-magnify"
+              />
             </v-col>
             <v-col cols="7">
-              <v-text-field :model-value="header.gudang.nama" readonly filled density="compact" hide-details />
+              <v-text-field
+                :model-value="header.gudang.nama"
+                readonly
+                filled
+                density="compact"
+                hide-details
+              />
             </v-col>
-            <v-col cols="6"><v-text-field label="Nomor" v-model="header.nomor" readonly filled density="compact"
-                hide-details /></v-col>
+            <v-col cols="6"
+              ><v-text-field
+                label="Nomor"
+                v-model="header.nomor"
+                readonly
+                filled
+                density="compact"
+                hide-details
+            /></v-col>
             <v-col cols="6">
-              <v-text-field label="Tanggal" v-model="header.tanggal" type="date" variant="outlined" density="compact"
-                hide-details :readonly="isEditMode" :min="!isEditMode ? format(new Date(), 'yyyy-MM-dd') : undefined"
-                :max="!isEditMode ? format(new Date(), 'yyyy-MM-dd') : undefined" />
+              <v-text-field
+                label="Tanggal"
+                v-model="header.tanggal"
+                type="date"
+                variant="outlined"
+                density="compact"
+                hide-details
+                :readonly="isEditMode"
+                :min="!isEditMode ? format(new Date(), 'yyyy-MM-dd') : undefined"
+                :max="!isEditMode ? format(new Date(), 'yyyy-MM-dd') : undefined"
+              />
             </v-col>
             <v-col cols="6">
-              <v-text-field label="Customer" :disabled="!!header.penawaran" :model-value="header.customer ? `${header.customer.kode} - ${header.customer.nama}` : ''
-                " readonly @click="isCustomerSearchVisible = true" variant="outlined" density="compact" hide-details
-                append-inner-icon="mdi-magnify">
+              <v-text-field
+                label="Customer"
+                :disabled="!!header.penawaran"
+                :model-value="
+                  header.customer ? `${header.customer.kode} - ${header.customer.nama}` : ''
+                "
+                readonly
+                @click="isCustomerSearchVisible = true"
+                variant="outlined"
+                density="compact"
+                hide-details
+                append-inner-icon="mdi-magnify"
+              >
                 <template #prepend-inner>
-                  <v-btn :disabled="!!header.penawaran" icon="mdi-account-plus" size="x-small" variant="tonal"
-                    class="me-2" @click.stop="isNewCustomerFormVisible = true" title="Buat Customer Baru"></v-btn>
+                  <v-btn
+                    :disabled="!!header.penawaran"
+                    icon="mdi-account-plus"
+                    size="x-small"
+                    variant="tonal"
+                    class="me-2"
+                    @click.stop="isNewCustomerFormVisible = true"
+                    title="Buat Customer Baru"
+                  ></v-btn>
                 </template>
               </v-text-field>
             </v-col>
-            <v-col cols="6"><v-text-field label="Dateline" v-model="header.dateline" type="date" variant="outlined"
-                density="compact" hide-details /></v-col>
+            <v-col cols="6"
+              ><v-text-field
+                label="Dateline"
+                v-model="header.dateline"
+                type="date"
+                variant="outlined"
+                density="compact"
+                hide-details
+            /></v-col>
             <v-col cols="12">
-              <v-text-field label="Alamat" :model-value="header.customer?.alamat" readonly filled density="compact"
-                hide-details />
+              <v-text-field
+                label="Alamat"
+                :model-value="header.customer?.alamat"
+                readonly
+                filled
+                density="compact"
+                hide-details
+              />
             </v-col>
             <v-col cols="6">
-              <v-text-field label="Kota / Telp" :model-value="header.customer ? `${header.customer.kota} / ${header.customer.telp}` : ''
-                " readonly filled density="compact" hide-details />
+              <v-text-field
+                label="Kota / Telp"
+                :model-value="
+                  header.customer ? `${header.customer.kota} / ${header.customer.telp}` : ''
+                "
+                readonly
+                filled
+                density="compact"
+                hide-details
+              />
             </v-col>
             <v-col cols="6">
-              <v-text-field label="Level" v-model="header.levelNama" readonly filled density="compact" hide-details />
+              <v-text-field
+                label="Level"
+                v-model="header.levelNama"
+                readonly
+                filled
+                density="compact"
+                hide-details
+              />
             </v-col>
             <v-col cols="6" v-if="!header.isMarketplace">
-              <v-text-field label="No. Penawaran" v-model="header.penawaran" readonly @click="openPenawaranSearch"
-                variant="outlined" density="compact" hide-details append-inner-icon="mdi-magnify" clearable
-                @click:clear="header.penawaran = ''" />
+              <v-text-field
+                label="No. Penawaran"
+                v-model="header.penawaran"
+                readonly
+                @click="openPenawaranSearch"
+                variant="outlined"
+                density="compact"
+                hide-details
+                append-inner-icon="mdi-magnify"
+                clearable
+                @click:clear="header.penawaran = ''"
+              />
             </v-col>
             <v-col cols="6">
-              <v-text-field label="Sales Counter" v-model="header.salesCounter" readonly @click="openSalesCounterSearch"
-                variant="outlined" density="compact" hide-details append-inner-icon="mdi-magnify" />
+              <v-text-field
+                label="Sales Counter"
+                v-model="header.salesCounter"
+                readonly
+                @click="openSalesCounterSearch"
+                variant="outlined"
+                density="compact"
+                hide-details
+                append-inner-icon="mdi-magnify"
+              />
             </v-col>
             <v-col cols="2">
-              <v-text-field label="TOP" v-model.number="header.top" type="number" variant="outlined" density="compact"
-                hide-details class="text-end" />
+              <v-text-field
+                label="TOP"
+                v-model.number="header.top"
+                type="number"
+                variant="outlined"
+                density="compact"
+                hide-details
+                class="text-end"
+              />
             </v-col>
             <v-col cols="6">
-              <v-text-field label="Tempo/Tgl" v-model="header.tempo" type="date" readonly filled density="compact"
-                hide-details />
+              <v-text-field
+                label="Tempo/Tgl"
+                v-model="header.tempo"
+                type="date"
+                readonly
+                filled
+                density="compact"
+                hide-details
+              />
             </v-col>
             <v-col cols="4">
-              <v-text-field label="PPN %" v-model.number="header.ppnPersen" type="number" variant="outlined"
-                density="compact" hide-details class="text-end" />
+              <v-text-field
+                label="PPN %"
+                v-model.number="header.ppnPersen"
+                type="number"
+                variant="outlined"
+                density="compact"
+                hide-details
+                class="text-end"
+              />
             </v-col>
-            <v-col cols="12"><v-text-field label="Keterangan" v-model="header.keterangan" variant="outlined"
-                density="compact" hide-details /></v-col>
+            <v-col cols="12"
+              ><v-text-field
+                label="Keterangan"
+                v-model="header.keterangan"
+                variant="outlined"
+                density="compact"
+                hide-details
+            /></v-col>
             <v-col cols="4" v-if="!header.isMarketplace">
-              <v-text-field label="Promo" v-model="header.nomorPromo" @click="dialogs.promoSearch = true"
-                prepend-inner-icon="mdi-ticket-percent" density="compact" hide-details placeholder="F1..." readonly />
+              <v-text-field
+                label="Promo"
+                v-model="header.nomorPromo"
+                @click="dialogs.promoSearch = true"
+                prepend-inner-icon="mdi-ticket-percent"
+                density="compact"
+                hide-details
+                placeholder="F1..."
+                readonly
+              />
             </v-col>
             <v-col cols="8" v-if="!header.isMarketplace">
-              <v-text-field label="Nama Promo" v-model="header.namaPromo" density="compact" readonly filled
-                hide-details />
+              <v-text-field
+                label="Nama Promo"
+                v-model="header.namaPromo"
+                density="compact"
+                readonly
+                filled
+                hide-details
+              />
             </v-col>
           </v-row>
         </div>
         <div class="desktop-form-section status-section" v-if="!header.isMarketplace">
-          <v-alert density="compact" variant="tonal" :color="header.statusSo === 'AKTIF' ? 'success' : 'error'"
-            class="mb-2 d-flex align-center">
+          <v-alert
+            density="compact"
+            variant="tonal"
+            :color="header.statusSo === 'AKTIF' ? 'success' : 'error'"
+            class="mb-2 d-flex align-center"
+          >
             Status SO: <strong>{{ header.statusSo }}</strong>
             <v-spacer />
             <div class="text-caption text-center">{{ minimalDpText }}</div>
             <v-tooltip location="bottom">
               <template #activator="{ props }">
-                <v-icon v-bind="props" :color="footer.totalDp >= footer.minimalDp || footer.pinTanpaDp ? 'success' : 'warning'
-                  ">
+                <v-icon
+                  v-bind="props"
+                  :color="
+                    footer.totalDp >= footer.minimalDp || footer.pinTanpaDp ? 'success' : 'warning'
+                  "
+                >
                   {{
                     footer.totalDp >= footer.minimalDp || footer.pinTanpaDp
                       ? "mdi-check-circle"
@@ -3065,20 +3289,35 @@ const stopAndOpenPriceProposal = (index: number) => {
         <div class="desktop-form-section scanner-section mb-2">
           <v-row dense align="center">
             <v-col cols="12" md="6">
-              <v-text-field v-model="scannedBarcode" label="Scan Verifikasi Barang (Wajib)"
-                placeholder="Arahkan scanner ke barcode..." variant="outlined" density="compact"
-                prepend-inner-icon="mdi-barcode-scan" hide-details @keydown.enter.prevent="handleBarcodeScanVerify"
-                :color="allVerified ? 'success' : 'primary'" />
+              <v-text-field
+                v-model="scannedBarcode"
+                label="Scan Verifikasi Barang (Wajib)"
+                placeholder="Arahkan scanner ke barcode..."
+                variant="outlined"
+                density="compact"
+                prepend-inner-icon="mdi-barcode-scan"
+                hide-details
+                @keydown.enter.prevent="handleBarcodeScanVerify"
+                :color="allVerified ? 'success' : 'primary'"
+              />
             </v-col>
 
             <v-col cols="12" md="6" class="d-flex ga-2 justify-end">
-              <v-btn color="deep-orange-darken-2" @click="goToMutasiPesanan"
-                :disabled="!header.nomor || !hasReadyItems">
+              <v-btn
+                color="deep-orange-darken-2"
+                @click="goToMutasiPesanan"
+                :disabled="!header.nomor || !hasReadyItems"
+              >
                 Mutasikan ke Stok Pesanan
               </v-btn>
 
-              <v-btn color="blue-grey" variant="outlined" size="small" prepend-icon="mdi-history"
-                @click="isAdjustmentLogVisible = true">
+              <v-btn
+                color="blue-grey"
+                variant="outlined"
+                size="small"
+                prepend-icon="mdi-history"
+                @click="isAdjustmentLogVisible = true"
+              >
                 Log
               </v-btn>
             </v-col>
@@ -3087,91 +3326,194 @@ const stopAndOpenPriceProposal = (index: number) => {
         <!-- Wrapper untuk bagian yang bisa scroll -->
         <div class="scrollable-content">
           <div class="desktop-form-section main-grid-section">
-            <v-alert v-if="items.some(i => i.isMutated)" type="info" variant="tonal" density="compact"
-              class="text-caption flex-grow-1 ma-0" prepend-icon="mdi-information-outline">
-              Item bertanda <v-icon size="small">mdi-lock-open-variant</v-icon> terkunci karena sudah mutasi.
+            <v-alert
+              v-if="items.some((i) => i.isMutated)"
+              type="info"
+              variant="tonal"
+              density="compact"
+              class="text-caption flex-grow-1 ma-0"
+              prepend-icon="mdi-information-outline"
+            >
+              Item bertanda <v-icon size="small">mdi-lock-open-variant</v-icon> terkunci karena
+              sudah mutasi.
             </v-alert>
-            <v-data-table :headers="mainTableHeaders" :items="items" :page="page" :items-per-page="rowsPerPage"
-              :item-key="'id'" class="desktop-table vertically-aligned-table" fixed-header
-              :item-class="(item) => item.isMutated ? 'row-locked' : (item.isCustomOrder ? 'custom-row' : '')">
+            <v-data-table
+              :headers="mainTableHeaders"
+              :items="items"
+              :page="page"
+              :items-per-page="rowsPerPage"
+              :item-key="'id'"
+              class="desktop-table vertically-aligned-table"
+              fixed-header
+              :item-class="
+                (item) => (item.isMutated ? 'row-locked' : item.isCustomOrder ? 'custom-row' : '')
+              "
+            >
               <template #[`item.kode`]="{ item, index }">
                 <div class="d-flex align-center">
-                  <v-icon v-if="item.isCustomOrder" color="blue" size="18" class="me-2"
-                    title="Item Custom (Jenis Order)">
+                  <v-icon
+                    v-if="item.isCustomOrder"
+                    color="blue"
+                    size="18"
+                    class="me-2"
+                    title="Item Custom (Jenis Order)"
+                  >
                     mdi-tshirt-crew-outline
                   </v-icon>
 
-                  <v-text-field v-model="item.kode" @focus="activeRowIndex = index" @click="activeRowIndex = index"
-                    variant="underlined" density="compact" hide-details placeholder="F1/F2..."
+                  <v-text-field
+                    v-model="item.kode"
+                    @focus="activeRowIndex = index"
+                    @click="activeRowIndex = index"
+                    variant="underlined"
+                    density="compact"
+                    hide-details
+                    placeholder="F1/F2..."
                     :disabled="item.isCustomOrder"
                     @keydown.f1.prevent="!item.isCustomOrder && openProductSearch(index, false)"
-                    @keydown.f2.prevent="!item.isCustomOrder && openProductSearch(index, true)" />
+                    @keydown.f2.prevent="!item.isCustomOrder && openProductSearch(index, true)"
+                  />
                 </div>
               </template>
               <template #[`item.nama`]="{ item }">
                 <div class="product-name-cell">{{ item.nama }}</div>
               </template>
               <template #[`item.barcode`]="{ item }">
-                <v-text-field v-model="item.barcode" variant="underlined" density="compact" hide-details readonly
-                  class="text-caption grey--text" placeholder="-" />
+                <v-text-field
+                  v-model="item.barcode"
+                  variant="underlined"
+                  density="compact"
+                  hide-details
+                  readonly
+                  class="text-caption grey--text"
+                  placeholder="-"
+                />
               </template>
               <template #[`item.kategori`]="{ item }">
                 <div v-if="!item.isCustomOrder && item.kode">
-                  <v-chip size="x-small" :color="getCategoryColor(item.kategori)" variant="flat"
-                    class="font-weight-bold text-white">
+                  <v-chip
+                    size="x-small"
+                    :color="getCategoryColor(item.kategori)"
+                    variant="flat"
+                    class="font-weight-bold text-white"
+                  >
                     {{ item.kategori || "TANPA KATEGORI" }}
                   </v-chip>
                 </div>
               </template>
               <template #[`item.jumlah`]="{ item }">
-                <v-text-field v-model.number="item.jumlah" type="number" variant="underlined" density="compact"
-                  hide-details class="text-end font-weight-bold" :disabled="item.isMutated"
-                  :hint="item.isMutated ? 'Sudah dimutasi' : ''" @update:model-value="calculateTotals" />
+                <v-text-field
+                  v-model.number="item.jumlah"
+                  type="number"
+                  variant="underlined"
+                  density="compact"
+                  hide-details
+                  class="text-end font-weight-bold"
+                  :disabled="item.isMutated"
+                  :hint="item.isMutated ? 'Sudah dimutasi' : ''"
+                  @update:model-value="calculateTotals"
+                />
               </template>
 
               <template #[`item.scannedQty`]="{ item }">
                 <div class="d-flex align-center justify-end ga-2">
                   <v-btn
-                    v-if="!item.isMutated && !item.isJasa && !item.isCustomOrder && !item.noSoDtf && item.scannedQty > 0"
-                    icon="mdi-minus-circle-outline" size="x-small" variant="text" color="error"
-                    @click="decrementReady(item)" title="Kurangi verifikasi" />
+                    v-if="
+                      !item.isMutated &&
+                      !item.isJasa &&
+                      !item.isCustomOrder &&
+                      !item.noSoDtf &&
+                      item.scannedQty > 0
+                    "
+                    icon="mdi-minus-circle-outline"
+                    size="x-small"
+                    variant="text"
+                    color="error"
+                    @click="decrementReady(item)"
+                    title="Kurangi verifikasi"
+                  />
 
-                  <v-chip v-if="item.isMutated" size="small" color="success" variant="flat" class="font-weight-black">
+                  <v-chip
+                    v-if="item.isMutated"
+                    size="small"
+                    color="success"
+                    variant="flat"
+                    class="font-weight-black"
+                  >
                     <v-icon start size="14">mdi-lock-check</v-icon>
                     {{ item.scannedQty || 0 }} Ready
                   </v-chip>
 
-                  <v-chip v-else-if="item.kode === 'CUSTOM' || item.noSoDtf || item.isJasa" size="small"
-                    color="blue-darken-2" variant="flat" class="font-weight-black">
+                  <v-chip
+                    v-else-if="item.kode === 'CUSTOM' || item.noSoDtf || item.isJasa"
+                    size="small"
+                    color="blue-darken-2"
+                    variant="flat"
+                    class="font-weight-black"
+                  >
                     <v-icon start size="14">mdi-cog-sync</v-icon>
                     {{ item.scannedQty || 0 }} Auto
                   </v-chip>
 
-                  <v-chip v-else size="small" :color="item.scannedQty >= item.jumlah ? 'success' : 'orange-darken-3'"
-                    variant="flat" class="font-weight-black">
+                  <v-chip
+                    v-else
+                    size="small"
+                    :color="item.scannedQty >= item.jumlah ? 'success' : 'orange-darken-3'"
+                    variant="flat"
+                    class="font-weight-black"
+                  >
                     <v-icon start size="14">mdi-barcode-scan</v-icon>
                     {{ item.scannedQty || 0 }} Ready
                   </v-chip>
                 </div>
               </template>
               <template #[`item.harga`]="{ item }">
-                <v-text-field v-model.number="item.harga" type="number" variant="underlined" density="compact"
-                  hide-details class="text-end" :disabled="item.isMutated || !item.kode"
-                  :readonly="!!item.noSoDtf || !!item.noPengajuanHarga" @update:model-value="calculateTotals" />
+                <v-text-field
+                  v-model.number="item.harga"
+                  type="number"
+                  variant="underlined"
+                  density="compact"
+                  hide-details
+                  class="text-end"
+                  :disabled="item.isMutated || !item.kode"
+                  :readonly="!!item.noSoDtf || !!item.noPengajuanHarga"
+                  @update:model-value="calculateTotals"
+                />
               </template>
               <template #[`item.diskonPersen`]="{ item, index }">
-                <v-text-field v-model.number="item.diskonPersen" type="number" variant="underlined" density="compact"
-                  hide-details class="text-end" @blur="handleItemDiscountChange(index)" />
+                <v-text-field
+                  v-model.number="item.diskonPersen"
+                  type="number"
+                  variant="underlined"
+                  density="compact"
+                  hide-details
+                  class="text-end"
+                  @blur="handleItemDiscountChange(index)"
+                />
               </template>
               <template #[`item.diskonRp`]="{ item }">
-                <v-text-field :value="focusedRowId === item.id ? item.diskonRp : formatRupiah(item.diskonRp || 0)
-                  " @input="
+                <v-text-field
+                  :value="
+                    focusedRowId === item.id ? item.diskonRp : formatRupiah(item.diskonRp || 0)
+                  "
+                  @input="
                     item.diskonRp = Number(String($event.target.value).replace(/[^0-9]/g, '')) || 0
-                    " @focus="focusedRowId = item.id" @blur="
-                      focusedRowId = -1;
+                  "
+                  @focus="focusedRowId = item.id"
+                  @blur="
+                    focusedRowId = -1;
                     handleItemDiscountChange(items.indexOf(item));
-                    " placeholder="0" type="text" variant="underlined" density="compact" hide-details single-line
-                  class="text-end" :disabled="!item.kode" :readonly="item.diskonPersen > 0"></v-text-field>
+                  "
+                  placeholder="0"
+                  type="text"
+                  variant="underlined"
+                  density="compact"
+                  hide-details
+                  single-line
+                  class="text-end"
+                  :disabled="!item.kode"
+                  :readonly="item.diskonPersen > 0"
+                ></v-text-field>
               </template>
               <template #[`item.total`]="{ item }">
                 <div class="text-end text-body-2 font-weight-bold">
@@ -3181,30 +3523,65 @@ const stopAndOpenPriceProposal = (index: number) => {
               <template #[`item.noSoDtf`]="{ item, index }">
                 <v-row dense align="center" no-gutters>
                   <v-col>
-                    <v-text-field class="so-dtf-field" v-model="item.noSoDtf" variant="underlined" density="compact"
-                      hide-details placeholder="F1..." @mousedown.stop @click.stop
-                      @keydown.f1.stop.prevent="stopAndOpenSoDtf(index)" />
+                    <v-text-field
+                      class="so-dtf-field"
+                      v-model="item.noSoDtf"
+                      variant="underlined"
+                      density="compact"
+                      hide-details
+                      placeholder="F1..."
+                      @mousedown.stop
+                      @click.stop
+                      @keydown.f1.stop.prevent="stopAndOpenSoDtf(index)"
+                    />
                   </v-col>
 
                   <!-- Tombol untuk grid jasa custom -->
                   <v-col cols="auto" v-if="item.isCustomOrder">
-                    <v-btn icon="mdi-plus-circle" size="x-small" variant="text"
-                      :color="item.noSoDtf ? 'grey-lighten-1' : 'primary'" @click="openSoDtfInNewTab(item)"
-                      :disabled="!!item.noSoDtf" :title="item.noSoDtf ? 'SO DTF sudah dibuat' : 'Buat SO DTF Baru'" />
+                    <v-btn
+                      icon="mdi-plus-circle"
+                      size="x-small"
+                      variant="text"
+                      :color="item.noSoDtf ? 'grey-lighten-1' : 'primary'"
+                      @click="openSoDtfInNewTab(item)"
+                      :disabled="!!item.noSoDtf"
+                      :title="item.noSoDtf ? 'SO DTF sudah dibuat' : 'Buat SO DTF Baru'"
+                    />
                   </v-col>
                 </v-row>
               </template>
               <template #[`item.noPengajuanHarga`]="{ item, index }">
-                <v-text-field class="pengajuan-field" v-model="item.noPengajuanHarga" variant="underlined"
-                  density="compact" hide-details placeholder="F1..." @mousedown.stop @click.stop
-                  @keydown.f1.stop.prevent="stopAndOpenPriceProposal(index)">
+                <v-text-field
+                  class="pengajuan-field"
+                  v-model="item.noPengajuanHarga"
+                  variant="underlined"
+                  density="compact"
+                  hide-details
+                  placeholder="F1..."
+                  @mousedown.stop
+                  @click.stop
+                  @keydown.f1.stop.prevent="stopAndOpenPriceProposal(index)"
+                >
                 </v-text-field>
               </template>
               <template #[`item.actions`]="{ item }">
-                <v-btn v-if="item.kode && !item.isMutated" icon="mdi-delete" size="x-small" variant="text" color="error"
-                  @click="removeRow(item.id)" />
-                <v-btn v-else-if="item.isMutated" icon="mdi-lock-open-variant" size="x-small" variant="tonal"
-                  color="orange-darken-2" title="Buka Kunci (Mutasi PS)" @click="goToBatalMutasi" />
+                <v-btn
+                  v-if="item.kode && !item.isMutated"
+                  icon="mdi-delete"
+                  size="x-small"
+                  variant="text"
+                  color="error"
+                  @click="removeRow(item.id)"
+                />
+                <v-btn
+                  v-else-if="item.isMutated"
+                  icon="mdi-lock-open-variant"
+                  size="x-small"
+                  variant="tonal"
+                  color="orange-darken-2"
+                  title="Buka Kunci (Mutasi PS)"
+                  @click="goToBatalMutasi"
+                />
               </template>
             </v-data-table>
             <v-slide-y-transition>
@@ -3215,13 +3592,23 @@ const stopAndOpenPriceProposal = (index: number) => {
                   <div class="card-content">
                     <div class="icon-container">
                       <div class="icon-circle pulse-animation">
-                        <v-icon :icon="isGrandOpeningPromo ? 'mdi-party-popper' : 'mdi-ticket-percent-outline'
-                          " size="24" color="white" />
+                        <v-icon
+                          :icon="
+                            isGrandOpeningPromo ? 'mdi-party-popper' : 'mdi-ticket-percent-outline'
+                          "
+                          size="24"
+                          color="white"
+                        />
                       </div>
                     </div>
                     <div class="text-container">
                       <div class="promo-label">
-                        <v-icon icon="mdi-star-four-points" size="10" class="mr-1" color="yellow-lighten-3" />
+                        <v-icon
+                          icon="mdi-star-four-points"
+                          size="10"
+                          class="mr-1"
+                          color="yellow-lighten-3"
+                        />
                         {{ isGrandOpeningPromo ? "SPECIAL OFFER" : "YAYY!! DAPET DISKON!!!" }}
                       </div>
                       <div class="promo-message">{{ promoNotification }}</div>
@@ -3248,29 +3635,49 @@ const stopAndOpenPriceProposal = (index: number) => {
               <v-col cols="12" md="7" lg="6" xl="6">
                 <v-row dense>
                   <v-col cols="6">
-                    <v-btn v-if="!header.isMarketplace" block color="teal" @click="openDpInput"
-                      prepend-icon="mdi-cash-plus">
+                    <v-btn
+                      v-if="!header.isMarketplace"
+                      block
+                      color="teal"
+                      @click="openDpInput"
+                      prepend-icon="mdi-cash-plus"
+                    >
                       Input DP (Uang Muka)
                     </v-btn>
                   </v-col>
 
                   <v-col cols="6">
-                    <v-btn color="blue-darken-2" variant="outlined" block prepend-icon="mdi-sale"
-                      @click="isDiscountCostModalVisible = true">
+                    <v-btn
+                      color="blue-darken-2"
+                      variant="outlined"
+                      block
+                      prepend-icon="mdi-sale"
+                      @click="isDiscountCostModalVisible = true"
+                    >
                       Atur Diskon & Biaya
                     </v-btn>
                   </v-col>
 
                   <v-col cols="6">
-                    <v-btn v-if="header.statusSo === 'PASIF'" block color="orange" @click="openDpAuthorization"
-                      prepend-icon="mdi-key-variant">
+                    <v-btn
+                      v-if="header.statusSo === 'PASIF'"
+                      block
+                      color="orange"
+                      @click="openDpAuthorization"
+                      prepend-icon="mdi-key-variant"
+                    >
                       Minta Otorisasi
                     </v-btn>
                   </v-col>
 
                   <v-col cols="6">
-                    <v-btn color="teal" variant="outlined" block prepend-icon="mdi-format-list-bulleted"
-                      @click="isDpListModalVisible = true">
+                    <v-btn
+                      color="teal"
+                      variant="outlined"
+                      block
+                      prepend-icon="mdi-format-list-bulleted"
+                      @click="isDpListModalVisible = true"
+                    >
                       Lihat Rincian DP
                     </v-btn>
                   </v-col>
@@ -3284,7 +3691,9 @@ const stopAndOpenPriceProposal = (index: number) => {
                     <v-list-item v-if="footer.diskonRp > 0" class="summary-discount">
                       <v-list-item-title class="text-error">Diskon Faktur</v-list-item-title>
                       <template #append>
-                        <span class="text-body-1 text-error">- {{ formatRupiah(footer.diskonRp) }}</span>
+                        <span class="text-body-1 text-error"
+                          >- {{ formatRupiah(footer.diskonRp) }}</span
+                        >
                       </template>
                     </v-list-item>
 
@@ -3300,8 +3709,10 @@ const stopAndOpenPriceProposal = (index: number) => {
                     <v-list-item class="summary-total summary-belum-bayar">
                       <v-list-item-title class="font-weight-bold">Belum Dibayar</v-list-item-title>
                       <template #append>
-                        <span class="text-h6 font-weight-black"
-                          :class="footer.belumDibayar > 0 ? 'text-error' : 'text-success'">
+                        <span
+                          class="text-h6 font-weight-black"
+                          :class="footer.belumDibayar > 0 ? 'text-error' : 'text-success'"
+                        >
                           {{ formatRupiah(footer.belumDibayar) }}
                         </span>
                       </template>
@@ -3315,47 +3726,123 @@ const stopAndOpenPriceProposal = (index: number) => {
       </div>
     </div>
 
-    <GudangSearchModal v-if="isGudangSearchVisible" :user-cabang="authStore.user?.cabang || ''"
-      @close="isGudangSearchVisible = false" @gudang-selected="onGudangSelected" />
-    <CustomerSearchModal v-if="isCustomerSearchVisible" :gudang="header.gudang.kode"
-      @close="isCustomerSearchVisible = false" @customer-selected="onCustomerSelected" />
-    <SalesCounterSearchModal v-if="isSalesCounterSearchVisible" @close="isSalesCounterSearchVisible = false"
-      @sales-counter-selected="onSalesCounterSelected" />
-    <PenawaranSearchModal v-if="isPenawaranSearchVisible" :cabang="header.gudang.kode"
-      @close="isPenawaranSearchVisible = false" @selected="onPenawaranSelected" />
-    <ProductSearchModal v-if="isProductSearchVisible" :key="isPromoFilterDisabled ? 'all-items' : 'promo-items'"
-      :gudang="header.gudang.kode" category="ALL" :multi="isMultiSelectProduct" source="surat-pesanan"
-      :promo-nomor="isPromoFilterDisabled ? '' : header.nomorPromo" @close="isProductSearchVisible = false"
-      @products-selected="onProductsSelected" />
-    <AuthorizationModal v-if="authDialog.show" :title="authDialog.title" :jenis="authDialog.jenis"
-      :nominal="authDialog.nominal" :transaksi="authDialog.transaksi" :barcode="authDialog.barcode"
-      :keterangan="authDialog.keterangan" @success="authDialog.onSuccess" @close="
+    <GudangSearchModal
+      v-if="isGudangSearchVisible"
+      :user-cabang="authStore.user?.cabang || ''"
+      @close="isGudangSearchVisible = false"
+      @gudang-selected="onGudangSelected"
+    />
+    <CustomerSearchModal
+      v-if="isCustomerSearchVisible"
+      :gudang="header.gudang.kode"
+      @close="isCustomerSearchVisible = false"
+      @customer-selected="onCustomerSelected"
+    />
+    <SalesCounterSearchModal
+      v-if="isSalesCounterSearchVisible"
+      @close="isSalesCounterSearchVisible = false"
+      @sales-counter-selected="onSalesCounterSelected"
+    />
+    <PenawaranSearchModal
+      v-if="isPenawaranSearchVisible"
+      :cabang="header.gudang.kode"
+      @close="isPenawaranSearchVisible = false"
+      @selected="onPenawaranSelected"
+    />
+    <ProductSearchModal
+      v-if="isProductSearchVisible"
+      :key="isPromoFilterDisabled ? 'all-items' : 'promo-items'"
+      :gudang="header.gudang.kode"
+      category="ALL"
+      :multi="isMultiSelectProduct"
+      source="surat-pesanan"
+      :promo-nomor="isPromoFilterDisabled ? '' : header.nomorPromo"
+      @close="isProductSearchVisible = false"
+      @products-selected="onProductsSelected"
+    />
+    <AuthorizationModal
+      v-if="authDialog.show"
+      :title="authDialog.title"
+      :jenis="authDialog.jenis"
+      :nominal="authDialog.nominal"
+      :transaksi="authDialog.transaksi"
+      :barcode="authDialog.barcode"
+      :keterangan="authDialog.keterangan"
+      @success="authDialog.onSuccess"
+      @close="
         () => {
           authDialog.show = false;
           authDialog.onCancel();
         }
-      " />
-    <SoDtfSearchModal v-if="isSoDtfSearchVisible" :cabang="header.gudang.kode" :customerKode="header.customer?.kode"
-      @close="isSoDtfSearchVisible = false" @selected="onSoDtfSelected" />
-    <PriceProposalSearchModal v-if="isPriceProposalSearchVisible" :cabang="header.gudang.kode"
-      :customerKode="header.customer?.kode" @close="isPriceProposalSearchVisible = false"
-      @selected="onPriceProposalSelected" />
-    <DpInputModal v-if="isDpInputVisible" :customerKode="header.customer?.kode" :minimal-dp="footer.minimalDp"
-      :existing-dp="footer.totalDp" :existing-dp-nomor="existingDpNomor" :nomor-so="header.nomor"
-      @close="isDpInputVisible = false" @dp-saved="onDpSaved" />
-    <CustomerForm v-if="isNewCustomerFormVisible" @close="isNewCustomerFormVisible = false"
-      @customer-saved="onNewCustomerSaved" />
-    <DiscountCostModal v-if="isDiscountCostModalVisible" :footer-data="footer" :total-so="totalDiscountable"
-      :customer="header.customer" :gudang-kode="header.gudang.kode" :ppn-persen="header.ppnPersen"
-      @close="isDiscountCostModalVisible = false" @update="handleDiscountCostUpdate" />
-    <DpListModal v-if="isDpListModalVisible" :dp-items="dpItems" :customer-kode="header.customer?.kode || ''"
-      @close="isDpListModalVisible = false" @remove-dp="removeDpRow($event)" @add-dp="handleAddDp" />
-    <JenisOrderModal v-if="dialogs.jenisOrder" :model-value="dialogs.jenisOrder" :penawaran-details="penawaranDetails"
-      :penawaran-barang-list="penawaranBarangList" @close="dialogs.jenisOrder = false" @saved="handleJenisOrderSaved" />
-    <PromoSearchModal v-if="dialogs.promoSearch" :tanggal="header.tanggal" @close="dialogs.promoSearch = false"
-      @selected="onPromoSelected" />
-    <PromoBonusModal v-if="dialogs.promoBonus" :promo-nomor="activePromoForBonus.nomor"
-      @close="dialogs.promoBonus = false" @selected="handleBonusSelection" />
+      "
+    />
+    <SoDtfSearchModal
+      v-if="isSoDtfSearchVisible"
+      :cabang="header.gudang.kode"
+      :customerKode="header.customer?.kode"
+      @close="isSoDtfSearchVisible = false"
+      @selected="onSoDtfSelected"
+    />
+    <PriceProposalSearchModal
+      v-if="isPriceProposalSearchVisible"
+      :cabang="header.gudang.kode"
+      :customerKode="header.customer?.kode"
+      @close="isPriceProposalSearchVisible = false"
+      @selected="onPriceProposalSelected"
+    />
+    <DpInputModal
+      v-if="isDpInputVisible"
+      :customerKode="header.customer?.kode"
+      :minimal-dp="footer.minimalDp"
+      :existing-dp="footer.totalDp"
+      :existing-dp-nomor="existingDpNomor"
+      :nomor-so="header.nomor"
+      @close="isDpInputVisible = false"
+      @dp-saved="onDpSaved"
+    />
+    <CustomerForm
+      v-if="isNewCustomerFormVisible"
+      @close="isNewCustomerFormVisible = false"
+      @customer-saved="onNewCustomerSaved"
+    />
+    <DiscountCostModal
+      v-if="isDiscountCostModalVisible"
+      :footer-data="footer"
+      :total-so="totalDiscountable"
+      :customer="header.customer"
+      :gudang-kode="header.gudang.kode"
+      :ppn-persen="header.ppnPersen"
+      @close="isDiscountCostModalVisible = false"
+      @update="handleDiscountCostUpdate"
+    />
+    <DpListModal
+      v-if="isDpListModalVisible"
+      :dp-items="dpItems"
+      :customer-kode="header.customer?.kode || ''"
+      @close="isDpListModalVisible = false"
+      @remove-dp="removeDpRow($event)"
+      @add-dp="handleAddDp"
+    />
+    <JenisOrderModal
+      v-if="dialogs.jenisOrder"
+      :model-value="dialogs.jenisOrder"
+      :penawaran-details="penawaranDetails"
+      :penawaran-barang-list="penawaranBarangList"
+      @close="dialogs.jenisOrder = false"
+      @saved="handleJenisOrderSaved"
+    />
+    <PromoSearchModal
+      v-if="dialogs.promoSearch"
+      :tanggal="header.tanggal"
+      @close="dialogs.promoSearch = false"
+      @selected="onPromoSelected"
+    />
+    <PromoBonusModal
+      v-if="dialogs.promoBonus"
+      :promo-nomor="activePromoForBonus.nomor"
+      @close="dialogs.promoBonus = false"
+      @selected="handleBonusSelection"
+    />
 
     <v-dialog v-model="isPromoConfirmVisible" max-width="450px" persistent>
       <v-card class="rounded-lg">
@@ -3366,7 +3853,8 @@ const stopAndOpenPriceProposal = (index: number) => {
         <v-card-text class="pa-5">
           <p class="mb-4">Sistem mendeteksi transaksi ini berhak mendapatkan promo:</p>
           <v-alert type="info" variant="tonal" border="start" density="compact" class="mb-4">
-            <strong>{{ pendingPromoData.nama }}</strong><br>
+            <strong>{{ pendingPromoData.nama }}</strong
+            ><br />
             Potongan: <strong>{{ formatRupiah(pendingPromoData.diskon) }}</strong>
           </v-alert>
           <p class="text-caption text-medium-emphasis">
@@ -3379,9 +3867,7 @@ const stopAndOpenPriceProposal = (index: number) => {
             Tetap Diskon Member
           </v-btn>
           <v-spacer></v-spacer>
-          <v-btn color="primary" variant="flat" @click="usePromoDiscount">
-            Gunakan Promo
-          </v-btn>
+          <v-btn color="primary" variant="flat" @click="usePromoDiscount"> Gunakan Promo </v-btn>
         </v-card-actions>
       </v-card>
     </v-dialog>
@@ -3424,16 +3910,31 @@ const stopAndOpenPriceProposal = (index: number) => {
         </v-toolbar>
 
         <v-card-text class="pa-0">
-          <v-data-table :headers="adjustmentHeaders" :items="adjustmentLogs" density="compact" class="elevation-0"
-            no-data-text="Belum ada aktivitas verifikasi fisik." :items-per-page="10">
+          <v-data-table
+            :headers="adjustmentHeaders"
+            :items="adjustmentLogs"
+            density="compact"
+            class="elevation-0"
+            no-data-text="Belum ada aktivitas verifikasi fisik."
+            :items-per-page="10"
+          >
             <template #[`item.qty`]="{ item }">
-              <span :class="item.qty > 0 ? 'text-success font-weight-bold' : 'text-error font-weight-bold'">
-                {{ item.qty > 0 ? '+' : '' }}{{ item.qty }}
+              <span
+                :class="
+                  item.qty > 0 ? 'text-success font-weight-bold' : 'text-error font-weight-bold'
+                "
+              >
+                {{ item.qty > 0 ? "+" : "" }}{{ item.qty }}
               </span>
             </template>
 
             <template #[`item.type`]="{ item }">
-              <v-chip size="x-small" :color="getTypeColor(item.type)" variant="flat" class="font-weight-bold">
+              <v-chip
+                size="x-small"
+                :color="getTypeColor(item.type)"
+                variant="flat"
+                class="font-weight-bold"
+              >
                 {{ item.type }}
               </v-chip>
             </template>
@@ -3444,7 +3945,9 @@ const stopAndOpenPriceProposal = (index: number) => {
 
         <v-card-actions>
           <v-spacer></v-spacer>
-          <v-btn color="grey-darken-1" variant="text" @click="isAdjustmentLogVisible = false">Tutup</v-btn>
+          <v-btn color="grey-darken-1" variant="text" @click="isAdjustmentLogVisible = false"
+            >Tutup</v-btn
+          >
         </v-card-actions>
       </v-card>
     </v-dialog>
@@ -3863,10 +4366,12 @@ const stopAndOpenPriceProposal = (index: number) => {
   left: -100%;
   width: 50%;
   height: 100%;
-  background: linear-gradient(to right,
-      transparent 0%,
-      rgba(255, 255, 255, 0.2) 50%,
-      transparent 100%);
+  background: linear-gradient(
+    to right,
+    transparent 0%,
+    rgba(255, 255, 255, 0.2) 50%,
+    transparent 100%
+  );
   transform: skewX(-25deg);
   z-index: 2;
   animation: shineMove 4s infinite ease-in-out;
@@ -3950,7 +4455,6 @@ const stopAndOpenPriceProposal = (index: number) => {
 }
 
 @keyframes blink {
-
   0%,
   100% {
     opacity: 1;

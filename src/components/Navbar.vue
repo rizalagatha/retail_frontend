@@ -8,14 +8,26 @@ import { useWhatsAppDialog } from "@/composables/useWhatsappDialog";
 import { useBufferStockDialog } from "@/composables/useBufferStockDialog";
 import { useSettingsProcessDialog } from "@/composables/useSettingsProcessDialog";
 import { useManualProgramDialog } from "@/composables/useManualProgramDialog";
+import { useMemoInternalDialog } from "@/composables/useMemoInternalDialog";
+
+interface NavSection {
+  title: string;
+  icon: string;
+  items: NavItem[];
+}
 
 interface NavItem {
-  title: string;
-  to?: string;
+  title?: string;       // UBAH INI: Tambahkan '?' agar opsional
   icon?: string;
-  divider?: boolean;
-  subItems?: NavItem[];
+  to?: string;
+  divider?: boolean;    // Dibutuhkan untuk objek { divider: true }
   onClick?: () => void;
+  badgeKey?: string;
+  items?: NavItem[];
+  subItems?: NavItem[];
+  isLarge?: boolean;
+  sections?: NavSection[];
+  model?: { value: boolean };
 }
 
 // Stores and composables
@@ -37,6 +49,39 @@ const userMenu = ref(false);
 const appBarElevation = computed(() => (scrolled.value ? 2 : 0));
 // [FIX DARK MODE] Hapus class manual, gunakan props color dinamis di template
 const isScrolled = computed(() => scrolled.value);
+const hasTransaksiNotif = computed(() => {
+  const n = authStore.notifications;
+  return n.sj > 0 || n.mutasi > 0 || n.retur > 0 || n.pinjam > 0;
+});
+
+const hasToolsNotif = computed(() => authStore.notifications.memo > 0);
+
+// Tambahkan di dalam <script setup>
+const userRoleConfig = computed(() => {
+  const user = authStore.user;
+  const cabang = authStore.userCabang?.toUpperCase() || '';
+  const name = authStore.userName?.toUpperCase() || '';
+
+  // 1. Administrator (Prioritas 1 - Merah)
+  if (name.includes('ADMIN')) {
+    return { icon: 'mdi-shield-account', color: 'red-darken-2' };
+  }
+
+  // 2. [FIX] Warehouse User (Prioritas 2 - Oranye)
+  // ADIN & LUTFI akan selalu jadi Warehouse meski login di KDC
+  if (user?.isWarehouseUser) {
+    return { icon: 'mdi-warehouse', color: 'orange-darken-3' };
+  }
+
+  // 3. KDC / Pusat (Prioritas 3 - Indigo)
+  // Staff office KDC lainnya (Finance, Admin Office)
+  if (cabang === 'KDC') {
+    return { icon: 'mdi-office-building', color: 'indigo-darken-2' };
+  }
+
+  // 4. Store (Default - Teal)
+  return { icon: 'mdi-store', color: 'teal-darken-1' };
+});
 
 // Access control helper
 const hasAccess = (routeNameOrPath?: string) => {
@@ -57,10 +102,11 @@ const { openWhatsAppDialog } = useWhatsAppDialog();
 const { openBufferStockDialog } = useBufferStockDialog();
 const { openSettingsProcessDialog } = useSettingsProcessDialog();
 const { openManualDialog } = useManualProgramDialog();
+const { openMemoDialog } = useMemoInternalDialog();
 
 // Menu configuration
 // (DATA MENU TETAP SAMA SEPERTI KODE ASLI ANDA, SAYA TIDAK UBAH ISINYA)
-const menuItems = [
+const menuItems: NavItem[] = [
   {
     title: "Daftar",
     icon: "mdi-clipboard-list-outline",
@@ -187,11 +233,13 @@ const menuItems = [
             title: "Terima SJ dari DC",
             to: "/transaksi/internal/terima-sj",
             icon: "mdi-arrow-down-bold-circle-outline",
+            badgeKey: "sj",
           },
           {
             title: "Retur Barang ke DC",
             to: "/transaksi/internal/retur-dc",
             icon: "mdi-undo-variant",
+            badgeKey: "retur",
           },
           {
             title: "Koreksi Stok",
@@ -207,6 +255,7 @@ const menuItems = [
             title: "Peminjaman Barang",
             to: "/transaksi/internal/peminjaman-barang",
             icon: "mdi-hand-back-right-outline",
+            badgeKey: "pinjam",
           },
           {
             title: "Klerek",
@@ -239,6 +288,7 @@ const menuItems = [
             title: "Mutasi Antar Store (Terima)",
             to: "/transaksi/mutasi/store-terima",
             icon: "mdi-inbox-arrow-down",
+            badgeKey: "mutasi",
           },
         ],
       },
@@ -447,6 +497,7 @@ const menuItems = [
     model: fileMenu,
     items: [
       { title: "Manual Program", icon: "mdi-book-open-outline", onClick: () => openManualDialog() },
+      { title: "Memo Internal", icon: "mdi-bulletin-board", onClick: () => handleOpenMemo(), badgeKey: "memo" },
       {
         title: "Update Buffer Stok",
         icon: "mdi-database-sync",
@@ -475,6 +526,17 @@ const handleLogout = () => {
 
 const handleScroll = () => {
   scrolled.value = window.scrollY > 10;
+};
+
+const handleOpenMemo = () => {
+  openMemoDialog();
+
+  // Simpan waktu sekarang sebagai tanda sudah dibaca
+  const now = new Date().toISOString();
+  localStorage.setItem("last_memo_open_at", now);
+
+  // Langsung hilangkan badge di UI secara instan
+  authStore.notifications.memo = 0;
 };
 
 onMounted(() => {
@@ -508,9 +570,13 @@ onUnmounted(() => {
           :max-width="menu.title === 'Transaksi' ? 1200 : menu.title === 'Gudang DC' ? 1200 : 1000"
           transition="fade-transition" class="nav-menu" location="bottom center" origin="top center">
           <template #activator="{ props }">
-            <v-btn variant="text" v-bind="props" :prepend-icon="menu.icon" class="nav-button" size="default">
-              {{ menu.title }}
-            </v-btn>
+            <v-badge color="error" dot
+              :model-value="(menu.title === 'Transaksi' && hasTransaksiNotif) || (menu.title === 'Tools' && hasToolsNotif)"
+              offset-x="10" offset-y="10">
+              <v-btn variant="text" v-bind="props" :prepend-icon="menu.icon" class="nav-button">
+                {{ menu.title }}
+              </v-btn>
+            </v-badge>
           </template>
 
           <v-card class="nav-dropdown" elevation="8">
@@ -548,12 +614,15 @@ onUnmounted(() => {
                   </template>
                 </v-list-group>
 
-                <v-list-item v-else :to="item.to" :prepend-icon="item.icon" class="nav-list-item" @click="
-                  () => {
-                    if (item.onClick) item.onClick();
-                    closeMenus();
-                  }
-                ">
+                <v-list-item v-else :to="item.to" @click="() => { if (item.onClick) item.onClick(); closeMenus(); }">
+                  <template #prepend>
+                    <v-badge
+                      v-if="item.badgeKey && authStore.notifications[item.badgeKey as keyof typeof authStore.notifications] > 0"
+                      color="error" dot floating>
+                      <v-icon>{{ item.icon }}</v-icon>
+                    </v-badge>
+                    <v-icon v-else>{{ item.icon }}</v-icon>
+                  </template>
                   <v-list-item-title>{{ item.title }}</v-list-item-title>
                 </v-list-item>
               </template>
@@ -565,9 +634,13 @@ onUnmounted(() => {
           :max-width="menu.title === 'Gudang DC' ? 1200 : 1000" transition="fade-transition"
           :close-on-content-click="false" class="nav-menu large">
           <template #activator="{ props }">
-            <v-btn variant="text" v-bind="props" :prepend-icon="menu.icon" class="nav-button" size="default">
-              {{ menu.title }}
-            </v-btn>
+            <v-badge color="error" dot
+              :model-value="(menu.title === 'Transaksi' && hasTransaksiNotif) || (menu.title === 'Tools' && hasToolsNotif)"
+              offset-x="10" offset-y="10">
+              <v-btn variant="text" v-bind="props" :prepend-icon="menu.icon" class="nav-button">
+                {{ menu.title }}
+              </v-btn>
+            </v-badge>
           </template>
 
           <v-card class="large-nav-dropdown" elevation="8">
@@ -609,8 +682,17 @@ onUnmounted(() => {
                           </v-list-item>
                         </template>
                       </v-list-group>
-                      <v-list-item v-else :to="item.to" :prepend-icon="item.icon" class="section-list-item"
-                        @click="closeMenus">
+                      <v-list-item v-else :to="item.to" class="section-list-item" @click="closeMenus">
+                        <template #prepend>
+                          <v-badge
+                            v-if="item.badgeKey && authStore.notifications[item.badgeKey as keyof typeof authStore.notifications] > 0"
+                            color="error"
+                            :content="authStore.notifications[item.badgeKey as keyof typeof authStore.notifications]"
+                            overlap>
+                            <v-icon>{{ item.icon }}</v-icon>
+                          </v-badge>
+                          <v-icon v-else>{{ item.icon }}</v-icon>
+                        </template>
                         <v-list-item-title>{{ item.title }}</v-list-item-title>
                       </v-list-item>
                     </template>
@@ -628,8 +710,8 @@ onUnmounted(() => {
     <v-menu v-model="userMenu" offset-y transition="fade-transition" class="user-menu">
       <template #activator="{ props }">
         <v-btn variant="text" v-bind="props" class="user-button">
-          <v-avatar color="primary" size="28" class="user-avatar">
-            <span class="user-initial">{{ authStore.userInitial }}</span>
+          <v-avatar :color="userRoleConfig.color" size="28" class="user-avatar">
+            <v-icon :icon="userRoleConfig.icon" size="18" color="white" />
           </v-avatar>
           <span class="user-name">{{ authStore.userName }}</span>
           <v-icon icon="mdi-chevron-down" size="16" class="user-chevron" />
@@ -640,16 +722,16 @@ onUnmounted(() => {
         <v-list class="user-list">
           <v-list-item class="user-profile-item bg-primary-lighten-5">
             <template #prepend>
-              <v-avatar color="primary" size="32">
-                <span class="user-profile-initial">{{ authStore.userInitial }}</span>
+              <v-avatar :color="userRoleConfig.color" size="32">
+                <v-icon :icon="userRoleConfig.icon" size="20" color="white" />
               </v-avatar>
             </template>
             <v-list-item-title class="user-profile-name">{{
               authStore.userName
-            }}</v-list-item-title>
+              }}</v-list-item-title>
             <v-list-item-subtitle class="user-profile-branch">{{
               authStore.userCabang
-            }}</v-list-item-subtitle>
+              }}</v-list-item-subtitle>
           </v-list-item>
 
           <v-divider class="user-divider" />

@@ -231,12 +231,25 @@ const onTshirtTypeSelected = async (type: { jenisKaos: string }) => {
 };
 
 const save = () => {
-  // Validasi dasar
+  // 1. Validasi Header
   if (!header.value.customerKode) return toast.error('Customer harus diisi.');
   if (!header.value.jenisKaos) return toast.error('Jenis Kaos harus diisi.');
-  const totalQty = sizeItems.value.reduce((sum, item) => sum + (item.qty || 0), 0);
-  if (totalQty === 0) return toast.error('Jumlah order belum diisi.');
 
+  // 2. Cek apakah ada qty yang diisi
+  const totalQty = sizeItems.value.reduce((sum, item) => sum + (item.qty || 0), 0);
+  if (totalQty === 0) return toast.error('Jumlah order (Qty) belum diisi.');
+
+  // 3. [MANDATORY] Validasi Pemilihan Warna Barang (Kode/Nama Barang)
+  // Filter baris yang memiliki qty > 0, lalu cek apakah kodeBarang sudah terisi
+  const incompleteItems = sizeItems.value.filter(item => (item.qty || 0) > 0 && !item.kodeBarang);
+
+  if (incompleteItems.length > 0) {
+    // Ambil daftar ukuran yang belum dipilih warnanya untuk pesan error yang informatif
+    const missingSizes = incompleteItems.map(i => i.size).join(', ');
+    return toast.error(`Silakan pilih warna barang (klik icon cari atau Tekan F1) untuk ukuran: ${missingSizes}`);
+  }
+
+  // Jika semua lolos, tampilkan dialog konfirmasi simpan
   isSaveConfirmVisible.value = true;
 };
 
@@ -642,13 +655,25 @@ const closeForm = () => {
 
 watch(() => header.value.isApproved, (isNowApproved) => {
   if (!authStore.user?.canApprovePrice) {
-    toast.error("Anda tidak memiliki hak untuk melakukan approval.");
-    header.value.isApproved = false;  // reset
+    // [FIX] Hanya munculkan toast jika user mencoba mencentang baru
+    // (saat isApproved true tapi data approval di header masih kosong)
+    if (isNowApproved && !header.value.approval) {
+      toast.error("Anda tidak memiliki hak untuk melakukan approval.");
+      header.value.isApproved = false; // Reset centang
+    }
+
+    // Jika data dari database memang sudah Approved, biarkan tetap tercentang
+    // tanpa memunculkan error toast
     return;
   }
 
+  // Logika untuk user yang MEMILIKI hak approval
   if (isNowApproved) {
-    header.value.approval = authStore.user?.kode || 'UNKNOWN';
+    // Hanya isi nama approver jika sebelumnya masih kosong
+    // (agar tidak menimpa nama approver asli saat load data edit)
+    if (!header.value.approval) {
+      header.value.approval = authStore.user?.kode || 'UNKNOWN';
+    }
   } else {
     header.value.approval = '';
   }
@@ -813,10 +838,8 @@ onMounted(() => {
 
                   <template #[`item.kodeBarang`]="{ item }">
                     <v-text-field v-model="item.kodeBarang" variant="underlined" dense hide-details placeholder="F1..."
+                      :class="{ 'bg-red-lighten-5': (item.qty > 0 && !item.kodeBarang) }"
                       @keydown.f1.prevent="openProductSearch(sizeItems.indexOf(item))">
-                      <template #append-inner>
-                        <v-icon size="small" @click="openProductSearch(sizeItems.indexOf(item))">mdi-magnify</v-icon>
-                      </template>
                     </v-text-field>
                   </template>
 

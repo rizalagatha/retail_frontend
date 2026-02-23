@@ -13,6 +13,8 @@ import { useWhatsAppDialog } from "@/composables/useWhatsappDialog";
 import { useBufferStockDialog } from "@/composables/useBufferStockDialog"; // Contoh
 import { useSettingsProcessDialog } from "@/composables/useSettingsProcessDialog";
 import { useManualProgramDialog } from "@/composables/useManualProgramDialog"; // Contoh
+import { useMemoInternalDialog } from "@/composables/useMemoInternalDialog";
+const { showMemoDialog, openMemoDialog } = useMemoInternalDialog();
 import GlobalUnsavedChangesDialog from "@/components/dialog/GlobalUnsavedChangesDialog.vue";
 
 // Import komponen dialog (lazy load jika memungkinkan untuk performa lebih baik)
@@ -30,6 +32,9 @@ const SettingsProcessDialog = defineAsyncComponent(
 );
 const ManualProgramDialog = defineAsyncComponent(
   () => import("@/components/dialog/ManualProgramDialog.vue")
+);
+const MemoInternalDialog = defineAsyncComponent(
+  () => import("@/components/dialog/MemoInternalDialog.vue")
 );
 const FaqModal = defineAsyncComponent(() => import("@/components/modal/FaqModal.vue"));
 
@@ -54,12 +59,34 @@ const isChangelogLoading = ref(false);
 const showFaq = ref(false);
 
 // State Notifikasi
-const notificationList = ref<
-  { title: string; count: number; to: string; icon: string; color: string }[]
->([]);
-const totalNotifications = computed(() =>
-  notificationList.value.reduce((acc, item) => acc + item.count, 0)
-);
+const notificationList = computed(() => {
+  const n = authStore.notifications;
+  const list = [];
+
+  if (n.sj > 0) {
+    list.push({ title: "Terima SJ dari DC", count: n.sj, to: "/transaksi/internal/terima-sj", icon: "mdi-truck-delivery", color: "red" });
+  }
+  if (n.mutasi > 0) {
+    list.push({ title: "Terima Mutasi Toko", count: n.mutasi, to: "/transaksi/mutasi/store-terima", icon: "mdi-transfer-down", color: "purple" });
+  }
+  if (n.retur > 0) {
+    list.push({ title: "Retur ke DC (Pending)", count: n.retur, to: "/transaksi/internal/retur-dc", icon: "mdi-keyboard-return", color: "orange" });
+  }
+  if (n.pinjam > 0) {
+    list.push({ title: "Peminjaman Overdue", count: n.pinjam, to: "/transaksi/internal/peminjaman-barang", icon: "mdi-clock-alert", color: "brown" });
+  }
+  // Notifikasi Memo akan langsung hilang dari lonceng jika n.memo = 0
+  if (n.memo > 0) {
+    list.push({ title: "Memo Internal Baru", count: n.memo, to: "#", icon: "mdi-bulletin-board", color: "blue", isMemo: true });
+  }
+
+  return list;
+});
+const totalNotifications = computed(() => {
+  const n = authStore.notifications;
+  // Menjumlahkan semua angka notifikasi yang ada
+  return n.sj + n.mutasi + n.retur + n.pinjam + n.memo;
+});
 const isNotificationMenuOpen = ref(false);
 
 // Dapatkan state visibilitas dari composables/store
@@ -324,61 +351,35 @@ const openChangelog = async () => {
   }
 };
 
+const handleOpenMemo = () => {
+  openMemoDialog();
+  const now = new Date().toISOString();
+  localStorage.setItem("last_memo_open_at", now);
+  authStore.notifications.memo = 0; // Hapus titik merah secara reaktif
+};
+
 // Function Fetch Notifikasi (Ringan)
 const fetchNotifications = async () => {
   if (!authStore.isAuthenticated) return;
 
   try {
-    const list = [];
-
-    // Fetch Notifikasi Stok
     const stockRes = await api.get("/dashboard/stock-alerts");
     const stockData = stockRes.data;
 
-    if (stockData.sj_pending > 0) {
-      list.push({
-        title: "Terima SJ dari DC",
-        count: stockData.sj_pending,
-        to: "/transaksi/internal/terima-sj",
-        icon: "mdi-truck-delivery",
-        color: "red",
-      });
-    }
+    // Cek Lock Memo (Berdasarkan localStorage)
+    const lastSeen = localStorage.getItem("last_memo_open_at") || "1970-01-01";
+    const hasNewMemo = stockData.latest_memo_date && new Date(stockData.latest_memo_date) > new Date(lastSeen);
 
-    if (stockData.mutasi_pending > 0) {
-      list.push({
-        title: "Terima Mutasi Toko",
-        count: stockData.mutasi_pending,
-        to: "/transaksi/mutasi/store-terima",
-        icon: "mdi-transfer-down",
-        color: "purple",
-      });
-    }
+    // Cukup update state global di authStore
+    authStore.notifications = {
+      sj: stockData.sj_pending || 0,
+      mutasi: stockData.mutasi_pending || 0,
+      retur: stockData.retur_dc_pending || 0,
+      pinjam: stockData.pinjam_overdue || 0,
+      memo: hasNewMemo ? (stockData.new_memo_count || 0) : 0
+    };
 
-    // [BARU] Notifikasi Retur DC Belum Diterima
-    // Ini memberi tahu store bahwa barang retur mereka masih "menggantung" (belum sampai/diterima DC)
-    if (stockData.retur_dc_pending > 0) {
-      list.push({
-        title: "Retur ke DC (Pending)",
-        count: stockData.retur_dc_pending,
-        to: "/transaksi/internal/retur-dc", // Arahkan ke list retur dc untuk monitoring
-        icon: "mdi-keyboard-return",
-        color: "orange",
-      });
-    }
-
-    // [BARU] Notifikasi Peminjaman Overdue
-    if (stockData.pinjam_overdue > 0) {
-      list.push({
-        title: "Peminjaman Overdue",
-        count: stockData.pinjam_overdue,
-        to: "/transaksi/internal/peminjaman-barang", // Arahkan ke monitoring pinjam
-        icon: "mdi-clock-alert",
-        color: "brown", // Warna cokelat/gelap untuk tanda peringatan waktu
-      });
-    }
-
-    notificationList.value = list;
+    // Tidak perlu lagi memanipulasi notificationList.value di sini
   } catch (error) {
     console.error("Gagal cek notifikasi", error);
   }
@@ -557,7 +558,7 @@ onUnmounted(() => {
 
         <v-divider vertical class="mx-1"></v-divider>
 
-        <v-menu v-model="isNotificationMenuOpen" :close-on-content-click="true" location="top end" offset="10">
+        <v-menu v-model="isNotificationMenuOpen" :close-on-content-click="false" location="top end" offset="10">
           <template v-slot:activator="{ props }">
             <v-btn v-bind="props" icon variant="text" size="small" density="compact" class="mr-1">
               <v-badge :content="totalNotifications" :model-value="totalNotifications > 0" color="error" size="x-small"
@@ -586,7 +587,10 @@ onUnmounted(() => {
             <v-card-text class="pa-0">
               <v-list density="compact" lines="one" class="py-0" v-if="notificationList.length > 0">
                 <template v-for="(notif, i) in notificationList" :key="i">
-                  <v-list-item :to="notif.to" @click="isNotificationMenuOpen = false" active-color="primary">
+                  <v-list-item :to="notif.isMemo ? undefined : notif.to" @click="() => {
+                    if (notif.isMemo) handleOpenMemo();
+                    isNotificationMenuOpen = false;
+                  }" active-color="primary">
                     <template v-slot:prepend>
                       <v-avatar :color="notif.color" variant="tonal" size="24" class="mr-2">
                         <v-icon size="14">{{ notif.icon }}</v-icon>
@@ -652,7 +656,7 @@ onUnmounted(() => {
                   </template>
                   <v-list-item-title class="text-caption text-medium-emphasis">{{
                     item.desc
-                  }}</v-list-item-title>
+                    }}</v-list-item-title>
                 </v-list-item>
               </v-list>
             </v-card-text>
@@ -824,6 +828,8 @@ onUnmounted(() => {
     <SettingsProcessDialog v-if="isSettingsProcessDialogOpen" @close="closeSettingsProcessDialog" />
 
     <ManualProgramDialog v-if="showManualDialog" @close="closeManualDialog" />
+
+    <MemoInternalDialog v-if="showMemoDialog" @close="showMemoDialog = false" />
 
     <GlobalUnsavedChangesDialog />
 

@@ -2647,6 +2647,12 @@ onMounted(() => {
   }
   isLoading.value = false;
   fetchActivePromos();
+
+  const refSo = route.query.refSo as string;
+  if (refSo) {
+    console.log("Auto-loading SO from query:", refSo);
+    onSoSelected({ Nomor: refSo }); // Memicu fungsi tarik data SO otomatis
+  }
 });
 
 onMounted(() => {
@@ -2677,6 +2683,13 @@ watch(
     }
   }
 );
+
+watch(() => header.customer.kode, (newVal) => {
+  if (newVal) {
+    // Berikan default awal di UI agar user tidak kaget
+    header.top = (authStore.user?.cabang === 'KPR') ? 30 : 14;
+  }
+});
 </script>
 
 <template>
@@ -2792,11 +2805,11 @@ watch(
               <v-text-field label="Level" v-model="header.customer.level" readonly filled density="compact"
                 hide-details />
             </v-col>
-            <v-col cols="2">
+            <v-col cols="3">
               <v-text-field label="TOP" v-model.number="header.top" type="number" min="0" density="compact"
                 variant="outlined" hide-details :readonly="isReadonly" />
             </v-col>
-            <v-col cols="4">
+            <v-col cols="3">
               <v-text-field label="Tgl. Jatuh Tempo" v-model="header.tanggalTempo" type="date" density="compact"
                 readonly filled hide-details />
             </v-col>

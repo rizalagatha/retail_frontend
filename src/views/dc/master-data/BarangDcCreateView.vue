@@ -407,9 +407,15 @@ const updateAllActiveBuffers = async () => {
 const generateBarcode = (variant: VarianItem) => {
   if (!header.bcdId) return '';
 
-  const yearYY = new Date().getFullYear().toString().substring(2);
+  const yearYY = new Date().getFullYear().toString().substring(2); // "26"
+
+  // ID Barcode di-pad 4 digit (Contoh: 61 -> 0061)
   const bcdIdPadded = header.bcdId.toString().padStart(4, "0");
-  const kodeUkuran = variant.no; // 2 digit
+
+  // UKURAN WAJIB di-pad 2 digit (Contoh: 2 -> 02)
+  // Ini yang bikin beda sama Desktop tadi
+  const kodeUkuran = variant.no.toString().padStart(2, "0");
+
   return `${yearYY}${bcdIdPadded}${kodeUkuran}`;
 };
 
@@ -569,8 +575,8 @@ watch(
       <div class="right-column">
         <div class="text-subtitle-1 font-weight-bold">Varian Ukuran</div>
         <div class="desktop-form-section varian-section">
-          <v-data-table :headers="varianHeaders" :items="varianItems" class="desktop-table header-browse-blue" density="compact"
-            fixed-header :items-per-page="-1">
+          <v-data-table :headers="varianHeaders" :items="varianItems" class="desktop-table header-browse-blue"
+            density="compact" fixed-header :items-per-page="-1">
             <template #[`item.aktif`]="{ item }">
               <v-checkbox-btn v-model="item.aktif" hide-details density="compact"
                 @update:model-value="handleAktifChange(item)" />
@@ -608,8 +614,8 @@ watch(
 
         <div class="text-subtitle-1 font-weight-bold mt-4">History Perubahan Harga Jual</div>
         <div class="desktop-form-section history-section">
-          <v-data-table :headers="historyHeaders" :items="historyHarga" class="desktop-table header-browse-blue" density="compact"
-            fixed-header :items-per-page="-1">
+          <v-data-table :headers="historyHeaders" :items="historyHarga" class="desktop-table header-browse-blue"
+            density="compact" fixed-header :items-per-page="-1">
             <template #bottom></template>
           </v-data-table>
         </div>
@@ -787,13 +793,16 @@ watch(
 }
 
 .desktop-table :deep(thead tr th) {
-  background-color: #0D47A1 !important; /* Biru Tua */
-  color: #ffffff !important;            /* Teks Putih */
+  background-color: #0D47A1 !important;
+  /* Biru Tua */
+  color: #ffffff !important;
+  /* Teks Putih */
   font-weight: bold !important;
   text-transform: uppercase;
   font-size: 11px !important;
   height: 40px !important;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-  border-bottom: none !important; /* Supaya lebih rapi */
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  border-bottom: none !important;
+  /* Supaya lebih rapi */
 }
 </style>

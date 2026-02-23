@@ -66,6 +66,25 @@ interface SoItem {
   sod_custom_data?: string;
 
   terhitungPromo?: boolean;
+
+  scannedQty: number; // Jumlah yang benar-benar sudah discan/fisik siap
+  isReady: boolean;   // Flag jika scannedQty == jumlah (order)
+
+  mutatedQty?: number; // Saldo yang sudah dimutasi
+  isMutated?: boolean; // Flag pengunci UI
+}
+
+// Interface baru untuk Record Adjustment
+interface SoAdjustmentLog {
+  id: string;
+  timestamp: string;
+  kode: string;
+  nama: string;
+  qty: number;
+  // Gunakan Union Type agar validasi tipe datanya kuat
+  type: 'SCAN' | 'MANUAL_ADD' | 'MANUAL_REMOVE' | 'DELETE_ROW' | 'DELETE_ITEM';
+  user: string;
+  reason: string;
 }
 
 // // Interface untuk data item promo dari backend
@@ -301,11 +320,37 @@ const statusDpText = computed(() => {
   return "DP Belum Cukup";
 });
 const requiredPermission = computed(() => (isEditMode.value ? "edit" : "insert"));
+const allVerified = computed(() => {
+  const validItems = items.value.filter(i => i.kode && !i.isJasa);
+  if (validItems.length === 0) return false;
+  return validItems.every(item => (item.scannedQty || 0) >= (item.jumlah || 0));
+});
+const hasReadyItems = computed(() => {
+  return items.value.some(item => (item.scannedQty || 0) > 0);
+});
+const allMutated = computed(() => {
+  const validItems = items.value.filter(i => i.kode && !i.isJasa);
+  if (validItems.length === 0) return false;
+
+  return validItems.every(item => {
+    // 1. Tentukan apakah ini barang Produksi/Custom
+    const isProductionItem = item.kode === 'CUSTOM' || !!item.noSoDtf;
+
+    if (isProductionItem) {
+      // Barang Produksi/Custom tidak perlu mutasi fisik showroom, cukup cek Ready
+      return item.isReady === true;
+    }
+
+    // 2. Barang Reguler (Stok) wajib sudah dimutasikan (Status Gembok)
+    return item.isMutated === true;
+  });
+});
 const isLoading = ref(true);
 const isSaving = ref(false);
 const isInitialLoad = ref(false);
 const isSavingDisabled = ref(false);
 const scannedBarcode = ref("");
+const adjustmentLogs = ref<SoAdjustmentLog[]>([]);
 
 const initialHeaderState = {
   nomor: "",
@@ -425,6 +470,9 @@ const pendingPromoData = reactive({
 });
 // Flag agar dialog tidak muncul berulang kali untuk promo yang sama
 const lastSuggestedPromo = ref("");
+const isAdjustmentLogVisible = ref(false);
+const nextActionAfterSave = ref<'PRINT' | 'INVOICE'>('PRINT');
+const isPromoFilterDisabled = ref(false);
 
 const parseDate = (val: string | Date | null | undefined): Date => {
   if (!val) return new Date();
@@ -442,19 +490,21 @@ const parseDate = (val: string | Date | null | undefined): Date => {
 };
 
 const mainTableHeaders = [
-  { title: "Kode", key: "kode", width: "180px" },
-  { title: "Nama Barang", key: "nama", width: "250px" },
-  { title: "Ktg", key: "kategori", width: "90px" },
-  { title: "Ukuran", key: "ukuran", width: "90px" },
-  { title: "Stok", key: "stok", align: "end", width: "80px" },
-  { title: "Jumlah", key: "jumlah", width: "100px" },
-  { title: "Harga", key: "harga", width: "120px" },
-  { title: "Diskon %", key: "diskonPersen", width: "100px" },
-  { title: "Diskon Rp", key: "diskonRp", width: "120px" },
-  { title: "Total", key: "total", align: "end", width: "140px" },
-  { title: "No. SO DTF", key: "noSoDtf", width: "180px" },
-  { title: "No. Pengajuan", key: "noPengajuanHarga", width: "180px" },
-  { title: "Actions", key: "actions", sortable: false, width: "50px" },
+  { title: "KODE", key: "kode", width: "120px" },
+  { title: "NAMA BARANG", key: "nama" }, // Tanpa width agar fleksibel memenuhi baris
+  { title: "KTG", key: "kategori", width: "60px" },
+  { title: "UKURAN", key: "ukuran", width: "50px" },
+  { title: "BARCODE", key: "barcode", width: "100px" },
+  { title: "STOK", key: "stok", align: "end", width: "50px" },
+  { title: "ORDER", key: "jumlah", align: "end", width: "70px" },
+  { title: "READY", key: "scannedQty", align: "end", width: "100px" },
+  { title: "HARGA", key: "harga", width: "100px" },
+  { title: "DISC%", key: "diskonPersen", width: "60px" },
+  { title: "DISC RP", key: "diskonRp", width: "90px" },
+  { title: "TOTAL", key: "total", align: "end", width: "110px" },
+  { title: "SO DTF", key: "noSoDtf", width: "120px" },
+  { title: "PENGAJUAN", key: "noPengajuanHarga", width: "120px" },
+  { title: "ACT", key: "actions", sortable: false, width: "40px" },
 ] as const;
 
 // const dpTableHeaders = [
@@ -464,6 +514,16 @@ const mainTableHeaders = [
 //   { title: 'Posting', key: 'posting' },
 //   { title: 'Actions', key: 'actions', sortable: false, width: '50px' },
 // ] as const;
+
+const adjustmentHeaders = [
+  { title: 'Waktu', key: 'timestamp', width: '180px' },
+  { title: 'Kode', key: 'kode', width: '150px' },
+  { title: 'Nama Barang', key: 'nama' },
+  { title: 'Qty', key: 'qty', align: 'end', width: '80px' },
+  { title: 'Tipe', key: 'type', width: '130px' },
+  { title: 'User', key: 'user', width: '120px' },
+  { title: 'Keterangan', key: 'reason' },
+] as const;
 
 // --- Computed Properties ---
 const minimalDpText = computed(() => {
@@ -537,8 +597,8 @@ const isUserKon = computed(() => authStore.user?.cabang === "KON");
 // }
 
 // --- Methods ---
-const loadDataForEdit = async (nomor: string) => {
-  isLoading.value = true;
+const loadDataForEdit = async (nomor: string, silent = false) => {
+  isLoading.value = !silent;
   isInitialLoad.value = true;
   try {
     const response = await api.get(`/so-form/${nomor}`);
@@ -580,9 +640,17 @@ const loadDataForEdit = async (nomor: string) => {
         }
       }
 
+      const qtyOrder = Number(item.jumlah || 0);
+      const qtyReady = Number(item.sod_scanned || 0);
+      const mutated = Number(item.mutatedQty || 0);
+
       return {
         ...item,
         id: Date.now() + index + Math.random(),
+        scannedQty: qtyReady, // 👈 Masukkan nilai dari DB
+        mutatedQty: mutated,
+        isMutated: mutated > 0, // 👈 Kunci jika saldo mutasi > 0
+        isReady: qtyReady >= qtyOrder && qtyOrder > 0,
         isCustomOrder: item.sod_custom === "Y",
         ukuranKaos: parsed.ukuranKaos || [],
         titikCetak: parsed.titikCetak || [],
@@ -621,7 +689,9 @@ const loadDataForEdit = async (nomor: string) => {
       throw new Error(`calculateTotals failed: ${calcError.message}`);
     }
 
-    toast.success(`Data untuk SO ${nomor} berhasil dimuat.`);
+    if (!silent) {
+      toast.success(`Data untuk SO ${nomor} berhasil dimuat.`);
+    }
     await nextTick();
     await calculateTotals(); // [2] Gunakan 'await' agar hitungan pertama selesai
 
@@ -637,7 +707,7 @@ const loadDataForEdit = async (nomor: string) => {
 };
 
 const isDiscountableItem = (item: SoItem) => {
-  // Hanya kecualikan JASA murni (Ongkir, Desain, File)
+  // 1. Cek Pengecualian JASA murni
   const isJasaMurni =
     item.kode?.toUpperCase().startsWith("JASA") ||
     item.kode?.toUpperCase().startsWith("JS") ||
@@ -645,8 +715,11 @@ const isDiscountableItem = (item: SoItem) => {
     item.nama?.toLowerCase().includes("ongkir") ||
     item.nama?.toLowerCase().includes("desain");
 
-  // Custom Order dan SO DTF SEKARANG diizinkan untuk dihitung diskonnya
-  return !isJasaMurni;
+  // 2. [TAMBAHAN] Cek Pengajuan Harga
+  // Jika item memiliki No. Pengajuan Harga, maka TIDAK BOLEH kena diskon faktur
+  const isPengajuanHarga = !!item.noPengajuanHarga;
+
+  return !isJasaMurni && !isPengajuanHarga;
 };
 
 const applyMarketplaceMode = () => {
@@ -674,6 +747,8 @@ watch(
 );
 
 const calculateTotals = async () => {
+  autoReadyJasa();
+
   // ---------------------------------------------------------
   // 1. INISIALISASI & KALKULASI ITEM (Jalankan untuk SEMUA mode)
   // ---------------------------------------------------------
@@ -685,6 +760,12 @@ const calculateTotals = async () => {
   items.value.forEach((item) => {
     const qty = Number(item.jumlah) || 0;
     const harga = Number(item.harga) || 0;
+
+    // [BARU] Proteksi Item Pengajuan Harga: Paksa diskon item jadi 0
+    if (item.noPengajuanHarga) {
+      item.diskonPersen = 0;
+      item.diskonRp = 0;
+    }
 
     // Logika diskon per item
     if (item.diskonPersen > 0) {
@@ -875,13 +956,21 @@ const openPenawaranSearch = () => {
   isPenawaranSearchVisible.value = true;
 };
 
-const openProductSearch = (index: number, isMulti: boolean) => {
+const openProductSearch = (index: number, isMulti: boolean, ignorePromo = false) => {
   if (!header.value.customer) {
     toast.error("Pilih Customer terlebih dahulu.");
     return;
   }
+
   activeRowIndex.value = index;
-  isMultiSelectProduct.value = isMulti; // Set mode multi atau single
+  isMultiSelectProduct.value = isMulti;
+
+  // LOGIC: Paksa set flag ignore promo
+  isPromoFilterDisabled.value = ignorePromo;
+
+  console.log("DEBUG SEARCH: ignorePromo =", ignorePromo);
+  console.log("DEBUG SEARCH: promo terpilih =", ignorePromo ? '' : header.value.nomorPromo);
+
   isProductSearchVisible.value = true;
 };
 
@@ -905,6 +994,10 @@ const openPriceProposalSearch = (index: number) => {
 
 // [UBAH] Tambahkan 'async' pada definisi fungsi
 const save = async () => {
+  if (nextActionAfterSave.value !== 'INVOICE') {
+    nextActionAfterSave.value = 'PRINT';
+  }
+
   // --- 1. Validasi Dasar ---
   if (!authStore.can(MENU_ID, requiredPermission.value)) {
     toast.error("Anda tidak memiliki izin untuk menyimpan data ini.");
@@ -1060,6 +1153,17 @@ const save = async () => {
   showConfirmation(executeSave, "Anda yakin ingin menyimpan Surat Pesanan ini?");
 };
 
+const saveAndConvertToInvoice = () => {
+  // Validasi Kelayakan Invoice
+  if (!allMutated.value) {
+    toast.error("Gagal: Masih ada barang yang belum Ready atau belum dimutasikan ke Stok Pesanan.");
+    return;
+  }
+
+  nextActionAfterSave.value = 'INVOICE';
+  save();
+};
+
 const executeSave = async () => {
   isSaving.value = true;
   try {
@@ -1080,6 +1184,9 @@ const executeSave = async () => {
           nama: item.nama,
           ukuran: item.ukuran,
           jumlah: item.jumlah,
+
+          sod_scanned: Number(item.scannedQty || 0),
+
           harga: item.harga,
           total: item.total,
 
@@ -1113,23 +1220,24 @@ const executeSave = async () => {
     markAsSaved();
     const soNomor = response.data.nomor;
     if (soNomor) {
-      // 2. Simpan nomor untuk dialog
-      printConfirmNomor.value = soNomor;
-      // 3. Buka dialog konfirmasi cetak
-      isPrintConfirmVisible.value = true;
-
-      // (Kita tidak lagi router.push di sini)
-      // router.push('/transaksi/penjualan/surat-pesanan');
-    } else {
-      // 4. Fallback jika 'nomor' tidak ditemukan di respons
-      toast.error("Gagal mendapatkan nomor SO untuk dicetak. Mengarahkan ke daftar.");
-      router.push("/transaksi/penjualan/surat-pesanan");
+      if (nextActionAfterSave.value === 'INVOICE') {
+        // --- JALUR OTOMATIS KE INVOICE ---
+        router.push({
+          path: "/transaksi/penjualan/invoice/new",
+          query: { refSo: soNomor }
+        });
+      } else {
+        // --- JALUR STANDAR (CETAK) ---
+        printConfirmNomor.value = soNomor;
+        isPrintConfirmVisible.value = true;
+      }
     }
   } catch (error: unknown) {
     const axiosError = error as AxiosError<{ message: string }>;
     toast.error(axiosError.response?.data?.message || "Gagal menyimpan data.");
   } finally {
     isSaving.value = false;
+    nextActionAfterSave.value = 'PRINT';
   }
 };
 
@@ -1173,7 +1281,6 @@ const showConfirmation = (action: () => void, text: string) => {
 };
 
 const addNewRow = () => {
-  // Cek agar tidak menambah baris kosong jika sudah ada
   const lastItem = items.value[items.value.length - 1];
   if (!lastItem || lastItem.kode) {
     items.value.push({
@@ -1191,6 +1298,8 @@ const addNewRow = () => {
       noSoDtf: "",
       noPengajuanHarga: "",
       pin: "",
+      scannedQty: 0, // Inisialisasi ke 0
+      isReady: false
     });
   }
 };
@@ -1219,12 +1328,36 @@ const resetForm = () => {
 
 const removeRow = (id: number) => {
   const item = items.value.find((i) => i.id === id);
-  if (item?.isCustomOrder && item.noSoDtf) {
-    toast.warning("Item custom ini sudah punya No. SO DTF dan tidak bisa dihapus.");
-    return;
-  }
-  items.value = items.value.filter((item) => item.id !== id);
-  calculateTotals();
+  if (!item) return;
+
+  showConfirmation(() => {
+    // Catat log penghapusan sebelum di-filter keluar
+    addAdjustmentLog(item.kode, -item.jumlah!, 'DELETE_ITEM', 'Penghapusan baris oleh SC');
+
+    items.value = items.value.filter((i) => i.id !== id);
+    calculateTotals();
+  }, `Hapus item ${item.nama}?`);
+};
+
+const addAdjustmentLog = (
+  kode: string,
+  qty: number,
+  type: SoAdjustmentLog['type'], // Mengambil tipe dari interface (menghindari 'any')
+  ket: string
+) => {
+  const item = items.value.find(i => i.kode === kode);
+
+  // Sekarang TypeScript tidak akan protes karena properti sudah cocok dengan interface
+  adjustmentLogs.value.push({
+    id: `ADJ-${Date.now()}`,
+    timestamp: format(new Date(), "yyyy-MM-dd HH:mm:ss"),
+    kode: kode,
+    nama: item?.nama || "Unknown",
+    qty: qty,
+    type: type, // Tidak perlu 'as any' lagi
+    user: authStore.user?.nama || "Unknown",
+    reason: ket
+  });
 };
 
 const onGudangSelected = (gudang: { kode: string; nama: string }) => {
@@ -1414,6 +1547,8 @@ const onPenawaranSelected = async (penawaran: { nomor: string }) => {
         barcode: d.barcode || "",
         noSoDtf: d.pend_sd_nomor || "",
         noPengajuanHarga: d.pend_ph_nomor || "",
+        scannedQty: 0, // 👈 Inisialisasi wajib
+        isReady: false, // 👈 Inisialisasi wajib
         pin: "",
 
         // Flagging Data Custom untuk integrity saat Save SO
@@ -1495,6 +1630,8 @@ const onProductsSelected = (selectedProducts: SoItemApi[]) => {
         noSoDtf: "",
         noPengajuanHarga: "",
         pin: "",
+        scannedQty: 0, // 👈 TAMBAHKAN INI
+        isReady: false, // 👈 TAMBAHKAN INI
         isCustomOrder: false,
         isJasa: true,
       });
@@ -1528,6 +1665,8 @@ const onProductsSelected = (selectedProducts: SoItemApi[]) => {
         barcode: product.barcode,
         noSoDtf: "",
         noPengajuanHarga: "",
+        scannedQty: isJasa ? (product.jumlah || 1) : 0, // Jasa otomatis Ready
+        isReady: isJasa,
         pin: "",
       });
     }
@@ -1575,6 +1714,8 @@ const onSoDtfSelected = async (soDtf: { nomor: string }) => {
           barcode: "",
           noPengajuanHarga: "",
           pin: "",
+          scannedQty: 0, // 👈 TAMBAHKAN INI
+          isReady: false, // 👈 TAMBAHKAN INI
         });
       }
     });
@@ -1626,6 +1767,8 @@ const onPriceProposalSelected = async (proposal: { nomor: string }) => {
         barcode: detail.barcode,
         noPengajuanHarga: headerData.ph_nomor,
         noSoDtf: "",
+        scannedQty: 0, // 👈 TAMBAHKAN INI
+        isReady: false, // 👈 TAMBAHKAN INI
         pin: "",
       });
     });
@@ -1816,6 +1959,17 @@ const handleDiscountCostUpdate = (newData: typeof footer.value & { authNomor?: s
 const handleItemDiscountChange = (index: number) => {
   const item = items.value[index];
 
+  // [BARU] Proteksi Input Manual
+  if (item.noPengajuanHarga) {
+    if (item.diskonPersen > 0 || item.diskonRp > 0) {
+      toast.warning("Item dengan No. Pengajuan Harga tidak diperbolehkan mendapat diskon tambahan.");
+      item.diskonPersen = 0;
+      item.diskonRp = 0;
+    }
+    calculateTotals();
+    return;
+  }
+
   // Exclude jasa/custom/dtf (Sama seperti logika lama)
   if (!isDiscountableItem(item)) {
     item.diskonPersen = 0;
@@ -1920,85 +2074,157 @@ const onNewCustomerSaved = (newCustomer: Customer) => {
   onCustomerSelected(newCustomer);
 };
 
-const handleBarcodeScan = async () => {
-  if (!header.value.customer?.kode) {
-    // Ganti 'header.value.customer?.kode' jika perlu
-    toast.error("Pilih customer terlebih dahulu sebelum scan barcode!");
-    return; // Hentikan fungsi jika customer belum dipilih
-  }
+// const handleBarcodeScan = async () => {
+//   if (!header.value.customer?.kode) {
+//     // Ganti 'header.value.customer?.kode' jika perlu
+//     toast.error("Pilih customer terlebih dahulu sebelum scan barcode!");
+//     return; // Hentikan fungsi jika customer belum dipilih
+//   }
+//   const barcode = scannedBarcode.value;
+//   if (!barcode) return;
+
+//   // --- LOGIKA 1: Jika barang sudah ada di grid, tambah jumlahnya ---
+//   const existingItem = items.value.find((item) => item.barcode === barcode && item.kode);
+//   if (existingItem) {
+//     existingItem.jumlah += 1;
+//     // Panggil fungsi untuk hitung ulang total jika ada
+//     // calculateTotals();
+//     toast.info(`Jumlah untuk ${existingItem.nama} ditambah menjadi ${existingItem.jumlah}`);
+//     scannedBarcode.value = ""; // Kosongkan input untuk scan berikutnya
+//     return;
+//   }
+
+//   // --- LOGIKA 2: Jika barang belum ada, cari via API dan tambahkan baris baru ---
+//   try {
+//     // Panggil API baru yang kita buat
+//     const response = await api.get(`/so-form/by-barcode/${barcode}`, {
+//       params: { gudang: header.value.gudang.kode }, // Sesuaikan dengan cara Anda menyimpan kode gudang
+//     });
+
+//     const product = response.data;
+
+//     let initHarga = Number(product.harga);
+//     if (header.value.isMarketplace) {
+//       initHarga = Number(product.harga3 || 0);
+//     }
+
+//     // Cari baris kosong pertama untuk diganti
+//     const emptyRowIndex = items.value.findIndex((item) => !item.kode);
+
+//     if (emptyRowIndex !== -1) {
+//       // Ganti baris kosong dengan data produk baru
+//       items.value.splice(emptyRowIndex, 1, {
+//         id: Date.now(),
+//         kode: product.kode as string,
+//         nama: product.nama as string,
+//         ukuran: product.ukuran as string,
+//         kategori: product.kategori as string,
+//         stok: Number(product.stok),
+//         harga: initHarga,
+//         jumlah: 1, // Default jumlah 1
+//         diskonPersen: 0,
+//         diskonRp: 0,
+//         total: initHarga * 1,
+//         barcode: product.barcode as string,
+//         noSoDtf: "", // default kosong
+//         noPengajuanHarga: "", // default kosong
+//         scannedQty: 0, // 👈 TAMBAHKAN INI
+//         isReady: false, // 👈 TAMBAHKAN INI
+//         pin: "", // default kosong
+//       });
+//       addNewRow(); // Tambah baris kosong baru di akhir
+//     } else {
+//       // Jika tidak ada baris kosong (seharusnya tidak terjadi jika addNewRow dipakai)
+//       // Anda bisa tambahkan logika push di sini
+//       toast.error("Tidak ada baris kosong untuk menambahkan item baru.");
+//     }
+
+//     // Panggil fungsi untuk hitung ulang total jika ada
+//     // calculateTotals();
+//   } catch (err: unknown) {
+//     if (axios.isAxiosError(err)) {
+//       // Error berasal dari Axios
+//       toast.error(err.response?.data?.message || `Barcode ${barcode} tidak valid.`);
+//     } else if (err instanceof Error) {
+//       // Error JS biasa
+//       toast.error(err.message);
+//     } else {
+//       // Error tak dikenal
+//       toast.error(`Barcode ${barcode} tidak valid.`);
+//     }
+//   } finally {
+//     scannedBarcode.value = "";
+//   }
+// };
+
+const handleBarcodeScanVerify = async () => {
   const barcode = scannedBarcode.value;
   if (!barcode) return;
 
-  // --- LOGIKA 1: Jika barang sudah ada di grid, tambah jumlahnya ---
-  const existingItem = items.value.find((item) => item.barcode === barcode && item.kode);
-  if (existingItem) {
-    existingItem.jumlah += 1;
-    // Panggil fungsi untuk hitung ulang total jika ada
-    // calculateTotals();
-    toast.info(`Jumlah untuk ${existingItem.nama} ditambah menjadi ${existingItem.jumlah}`);
-    scannedBarcode.value = ""; // Kosongkan input untuk scan berikutnya
+  const item = items.value.find(i => i.barcode === barcode && i.kode);
+
+  if (!item) {
+    toast.error("Barang tidak ditemukan dalam daftar Order!");
+    scannedBarcode.value = "";
     return;
   }
 
-  // --- LOGIKA 2: Jika barang belum ada, cari via API dan tambahkan baris baru ---
-  try {
-    // Panggil API baru yang kita buat
-    const response = await api.get(`/so-form/by-barcode/${barcode}`, {
-      params: { gudang: header.value.gudang.kode }, // Sesuaikan dengan cara Anda menyimpan kode gudang
-    });
+  // Gunakan casting Number agar tidak NaN saat dijumlahkan
+  const target = Number(item.jumlah || 0);
+  const current = Number(item.scannedQty || 0);
 
-    const product = response.data;
-
-    let initHarga = Number(product.harga);
-    if (header.value.isMarketplace) {
-      initHarga = Number(product.harga3 || 0);
-    }
-
-    // Cari baris kosong pertama untuk diganti
-    const emptyRowIndex = items.value.findIndex((item) => !item.kode);
-
-    if (emptyRowIndex !== -1) {
-      // Ganti baris kosong dengan data produk baru
-      items.value.splice(emptyRowIndex, 1, {
-        id: Date.now(),
-        kode: product.kode as string,
-        nama: product.nama as string,
-        ukuran: product.ukuran as string,
-        kategori: product.kategori as string,
-        stok: Number(product.stok),
-        harga: initHarga,
-        jumlah: 1, // Default jumlah 1
-        diskonPersen: 0,
-        diskonRp: 0,
-        total: initHarga * 1,
-        barcode: product.barcode as string,
-        noSoDtf: "", // default kosong
-        noPengajuanHarga: "", // default kosong
-        pin: "", // default kosong
-      });
-      addNewRow(); // Tambah baris kosong baru di akhir
-    } else {
-      // Jika tidak ada baris kosong (seharusnya tidak terjadi jika addNewRow dipakai)
-      // Anda bisa tambahkan logika push di sini
-      toast.error("Tidak ada baris kosong untuk menambahkan item baru.");
-    }
-
-    // Panggil fungsi untuk hitung ulang total jika ada
-    // calculateTotals();
-  } catch (err: unknown) {
-    if (axios.isAxiosError(err)) {
-      // Error berasal dari Axios
-      toast.error(err.response?.data?.message || `Barcode ${barcode} tidak valid.`);
-    } else if (err instanceof Error) {
-      // Error JS biasa
-      toast.error(err.message);
-    } else {
-      // Error tak dikenal
-      toast.error(`Barcode ${barcode} tidak valid.`);
-    }
-  } finally {
+  if (target === 0) {
+    toast.error(`Isi Qty Order untuk ${item.nama} terlebih dahulu.`);
     scannedBarcode.value = "";
+    return;
   }
+
+  if (current < target) {
+    item.scannedQty = current + 1;
+    // Update status ready
+    item.isReady = item.scannedQty >= target;
+
+    addAdjustmentLog(item.kode, 1, 'SCAN', 'Verifikasi fisik barang');
+    toast.success(`${item.nama} terverifikasi (${item.scannedQty}/${target})`);
+  } else {
+    toast.warning("Qty Ready sudah memenuhi atau melebihi jumlah Order.");
+  }
+
+  scannedBarcode.value = "";
+};
+
+// Fungsi navigasi ke Mutasi Stok
+const goToMutasiPesanan = () => {
+  if (!header.value.nomor) {
+    toast.error("Simpan SO terlebih dahulu untuk mendapatkan nomor referensi mutasi.");
+    return;
+  }
+
+  // Resolve URL ke halaman Mutasi dengan query param
+  const routeData = router.resolve({
+    name: 'MutasiStokCreate', // Sesuaikan dengan nama route di router/index.ts
+    query: {
+      refSo: header.value.nomor,
+      autoLoad: 'true'
+    }
+  });
+
+  window.open(routeData.href, '_blank');
+};
+
+const goToBatalMutasi = () => {
+  if (!header.value.nomor) return;
+
+  const routeData = router.resolve({
+    name: 'MutasiStokCreate', // Sesuaikan dengan nama route Mutasi Anda
+    query: {
+      refSo: header.value.nomor,
+      jenis: 'PS',      // Langsung set jenis Pesanan ke Showroom
+      autoLoad: 'true'  // Perintahkan halaman mutasi untuk langsung cari data
+    }
+  });
+
+  window.open(routeData.href, '_blank');
 };
 
 // const saveJenisOrder = async () => {
@@ -2082,6 +2308,8 @@ const handleJenisOrderSaved = (data: JenisOrderSaved) => {
     noSoDtf: "",
     noPengajuanHarga: "",
     pin: "",
+    scannedQty: 0, // 👈 Fix Error: scannedQty missing
+    isReady: false, // 👈 Fix Error: isReady missing
     isCustomOrder: true,
     sod_custom: "Y",
     sod_custom_nama: data.namaOrder,
@@ -2137,11 +2365,20 @@ const openJenisOrderModal = () => {
 };
 
 const openSoDtfInNewTab = (item: SoItem) => {
+  if (!header.value.nomor) {
+    toast.error("Simpan SO terlebih dahulu untuk mendapatkan nomor referensi.");
+    return;
+  }
+
   const url = router.resolve({
     path: "/transaksi/penjualan/dtf/so-dtf/new",
-    query: { ref: item.kode || "" },
+    query: {
+      refSo: header.value.nomor,
+      // 👈 TAMBAHKAN INI: Kirim ID unik baris (misal: timestamp id dari frontend)
+      lineId: item.id
+    },
   }).href;
-  window.open(url, "_blank"); // buka tab baru
+  window.open(url, "_blank");
 };
 
 // [BARU] Fetch Data Promo Aktif saat Mounted
@@ -2216,6 +2453,9 @@ const handleBonusSelection = (bonusItem: BonusItemSelection) => {
     noSoDtf: "",
     noPengajuanHarga: "",
     pin: "",
+
+    scannedQty: 0, // 👈 Fix Error: scannedQty missing
+    isReady: false, // 👈 Fix Error: isReady missing
 
     // Flagging
     isCustomOrder: false,
@@ -2455,6 +2695,76 @@ const getCategoryColor = (kategori: string | undefined) => {
   }
 };
 
+const autoReadyJasa = () => {
+  items.value.forEach(item => {
+    const kodeUp = item.kode?.toUpperCase() || "";
+    const namaUp = item.nama?.toUpperCase() || "";
+
+    // Kriteria Jasa/Ongkir
+    const isJasaMurni =
+      item.isJasa ||
+      kodeUp.startsWith("JASA") ||
+      kodeUp.startsWith("JS") ||
+      namaUp.includes("JASA") ||
+      namaUp.includes("ONGKIR");
+
+    // [BARU] Kriteria Custom & SO DTF
+    const isSpecialOrder =
+      item.kode === 'CUSTOM' ||
+      item.isCustomOrder === true ||
+      (!!item.noSoDtf && item.noSoDtf !== "");
+
+    // Jika masuk kriteria, paksa Qty Ready sama dengan Qty Order
+    if ((isJasaMurni || isSpecialOrder) && item.kode) {
+      const targetQty = Number(item.jumlah || 0);
+
+      // Hanya update jika nilainya berbeda untuk menghindari loop watcher tak terbatas
+      if (item.scannedQty !== targetQty) {
+        item.scannedQty = targetQty;
+        item.isReady = true;
+      }
+    }
+  });
+};
+
+const getTypeColor = (type: string) => {
+  switch (type) {
+    case 'SCAN': return 'success';
+    case 'DELETE_ROW': return 'error';
+    case 'DELETE_ITEM': return 'error';
+    case 'MANUAL_ADD': return 'info';
+    case 'MANUAL_REMOVE': return 'warning';
+    default: return 'grey';
+  }
+};
+
+const refreshOnFocus = () => {
+  if (isEditMode.value && header.value.nomor && !isLoading.value) {
+    console.log("Tab focused: Silent refreshing mutation status for", header.value.nomor);
+    loadDataForEdit(header.value.nomor, true); // 👈 silent = true
+  }
+};
+
+const decrementReady = (item: SoItem) => {
+  // Jangan kurangi jika qty sudah 0
+  if (item.scannedQty <= 0) return;
+
+  // Proteksi: Barang Jasa/Custom/DTF tidak bisa dikurangi manual karena statusnya "Auto Ready"
+  if (item.isJasa || item.isCustomOrder || !!item.noSoDtf) {
+    toast.warning("Qty barang Jasa/Custom otomatis mengikuti Qty Order.");
+    return;
+  }
+
+  // Kurangi qty
+  item.scannedQty -= 1;
+  item.isReady = item.scannedQty >= (item.jumlah || 0);
+
+  // Catat ke log koreksi agar terpantau manager
+  addAdjustmentLog(item.kode, -1, 'MANUAL_REMOVE', 'Pengurangan qty scan manual oleh SC');
+
+  toast.info(`Verifikasi ${item.nama} dikurangi menjadi ${item.scannedQty}`);
+};
+
 watch(
   // Daftar semua state yang akan memicu kalkulasi ulang
   [
@@ -2564,29 +2874,33 @@ onMounted(async () => {
 });
 
 onMounted(() => {
+  window.addEventListener('focus', refreshOnFocus);
   window.addEventListener("keydown", handleGlobalShortcuts);
 });
 
 onUnmounted(() => {
+  window.removeEventListener('focus', refreshOnFocus);
+
   window.removeEventListener("keydown", handleGlobalShortcuts);
 });
 const blockedSelectors = [".so-dtf-field", ".pengajuan-field"];
 const handleGlobalShortcuts = (e: KeyboardEvent) => {
   const target = e.target as HTMLElement;
-
-  // Jika fokus di input SO DTF atau Pengajuan Harga → blok F1 global
-  if (blockedSelectors.some((sel) => target.closest(sel))) {
-    return;
-  }
+  if (blockedSelectors.some((sel) => target.closest(sel))) return;
 
   if (e.code === "F1") {
     e.preventDefault();
-    openProductSearch(activeRowIndex.value, false);
+    openProductSearch(activeRowIndex.value, false, false); // F1 = Pake Promo
   }
-
   if (e.code === "F2") {
     e.preventDefault();
-    openProductSearch(activeRowIndex.value, true);
+    openProductSearch(activeRowIndex.value, true, false); // F2 = Multi Pake Promo
+  }
+  if (e.code === "F3") {
+    e.preventDefault();
+    // F3 = Buka SEMUA barang (Abaikan Promo)
+    openProductSearch(activeRowIndex.value, true, true);
+    toast.info("Mencari seluruh master barang (Filter Promo Dimatikan)");
   }
 };
 
@@ -2612,6 +2926,10 @@ const stopAndOpenPriceProposal = (index: number) => {
       <v-btn size="small" color="primary" prepend-icon="mdi-content-save" @click="save" :loading="isSaving"
         :disabled="isSaving || isSavingDisabled">
         Simpan
+      </v-btn>
+      <v-btn size="small" color="success" prepend-icon="mdi-receipt-text-plus" @click="saveAndConvertToInvoice"
+        :loading="isSaving" :disabled="isSaving || isSavingDisabled || !allMutated">
+        Jadikan Invoice
       </v-btn>
       <v-btn size="small" prepend-icon="mdi-cancel"
         @click="showConfirmation(resetForm, 'Batalkan perubahan dan kosongkan form?')">
@@ -2744,18 +3062,38 @@ const stopAndOpenPriceProposal = (index: number) => {
 
       <!-- Kolom Kanan -->
       <div class="right-column">
-        <div class="scanner-wrapper">
-          <v-text-field v-model="scannedBarcode" label="Scan Barcode di Sini..."
-            placeholder="Input barcode lalu tekan Enter" variant="outlined" density="compact"
-            prepend-inner-icon="mdi-barcode-scan" hide-details clearable @keydown.enter.prevent="handleBarcodeScan">
-          </v-text-field>
+        <div class="desktop-form-section scanner-section mb-2">
+          <v-row dense align="center">
+            <v-col cols="12" md="6">
+              <v-text-field v-model="scannedBarcode" label="Scan Verifikasi Barang (Wajib)"
+                placeholder="Arahkan scanner ke barcode..." variant="outlined" density="compact"
+                prepend-inner-icon="mdi-barcode-scan" hide-details @keydown.enter.prevent="handleBarcodeScanVerify"
+                :color="allVerified ? 'success' : 'primary'" />
+            </v-col>
+
+            <v-col cols="12" md="6" class="d-flex ga-2 justify-end">
+              <v-btn color="deep-orange-darken-2" @click="goToMutasiPesanan"
+                :disabled="!header.nomor || !hasReadyItems">
+                Mutasikan ke Stok Pesanan
+              </v-btn>
+
+              <v-btn color="blue-grey" variant="outlined" size="small" prepend-icon="mdi-history"
+                @click="isAdjustmentLogVisible = true">
+                Log
+              </v-btn>
+            </v-col>
+          </v-row>
         </div>
         <!-- Wrapper untuk bagian yang bisa scroll -->
         <div class="scrollable-content">
           <div class="desktop-form-section main-grid-section">
+            <v-alert v-if="items.some(i => i.isMutated)" type="info" variant="tonal" density="compact"
+              class="text-caption flex-grow-1 ma-0" prepend-icon="mdi-information-outline">
+              Item bertanda <v-icon size="small">mdi-lock-open-variant</v-icon> terkunci karena sudah mutasi.
+            </v-alert>
             <v-data-table :headers="mainTableHeaders" :items="items" :page="page" :items-per-page="rowsPerPage"
               :item-key="'id'" class="desktop-table vertically-aligned-table" fixed-header
-              :item-class="(item) => (item.isCustomOrder ? 'custom-row' : '')">
+              :item-class="(item) => item.isMutated ? 'row-locked' : (item.isCustomOrder ? 'custom-row' : '')">
               <template #[`item.kode`]="{ item, index }">
                 <div class="d-flex align-center">
                   <v-icon v-if="item.isCustomOrder" color="blue" size="18" class="me-2"
@@ -2773,6 +3111,10 @@ const stopAndOpenPriceProposal = (index: number) => {
               <template #[`item.nama`]="{ item }">
                 <div class="product-name-cell">{{ item.nama }}</div>
               </template>
+              <template #[`item.barcode`]="{ item }">
+                <v-text-field v-model="item.barcode" variant="underlined" density="compact" hide-details readonly
+                  class="text-caption grey--text" placeholder="-" />
+              </template>
               <template #[`item.kategori`]="{ item }">
                 <div v-if="!item.isCustomOrder && item.kode">
                   <v-chip size="x-small" :color="getCategoryColor(item.kategori)" variant="flat"
@@ -2783,11 +3125,38 @@ const stopAndOpenPriceProposal = (index: number) => {
               </template>
               <template #[`item.jumlah`]="{ item }">
                 <v-text-field v-model.number="item.jumlah" type="number" variant="underlined" density="compact"
-                  hide-details class="text-end" :disabled="!item.kode" />
+                  hide-details class="text-end font-weight-bold" :disabled="item.isMutated"
+                  :hint="item.isMutated ? 'Sudah dimutasi' : ''" @update:model-value="calculateTotals" />
+              </template>
+
+              <template #[`item.scannedQty`]="{ item }">
+                <div class="d-flex align-center justify-end ga-2">
+                  <v-btn
+                    v-if="!item.isMutated && !item.isJasa && !item.isCustomOrder && !item.noSoDtf && item.scannedQty > 0"
+                    icon="mdi-minus-circle-outline" size="x-small" variant="text" color="error"
+                    @click="decrementReady(item)" title="Kurangi verifikasi" />
+
+                  <v-chip v-if="item.isMutated" size="small" color="success" variant="flat" class="font-weight-black">
+                    <v-icon start size="14">mdi-lock-check</v-icon>
+                    {{ item.scannedQty || 0 }} Ready
+                  </v-chip>
+
+                  <v-chip v-else-if="item.kode === 'CUSTOM' || item.noSoDtf || item.isJasa" size="small"
+                    color="blue-darken-2" variant="flat" class="font-weight-black">
+                    <v-icon start size="14">mdi-cog-sync</v-icon>
+                    {{ item.scannedQty || 0 }} Auto
+                  </v-chip>
+
+                  <v-chip v-else size="small" :color="item.scannedQty >= item.jumlah ? 'success' : 'orange-darken-3'"
+                    variant="flat" class="font-weight-black">
+                    <v-icon start size="14">mdi-barcode-scan</v-icon>
+                    {{ item.scannedQty || 0 }} Ready
+                  </v-chip>
+                </div>
               </template>
               <template #[`item.harga`]="{ item }">
                 <v-text-field v-model.number="item.harga" type="number" variant="underlined" density="compact"
-                  hide-details class="text-end" placeholder="0" :disabled="!item.kode"
+                  hide-details class="text-end" :disabled="item.isMutated || !item.kode"
                   :readonly="!!item.noSoDtf || !!item.noPengajuanHarga" @update:model-value="calculateTotals" />
               </template>
               <template #[`item.diskonPersen`]="{ item, index }">
@@ -2819,8 +3188,9 @@ const stopAndOpenPriceProposal = (index: number) => {
 
                   <!-- Tombol untuk grid jasa custom -->
                   <v-col cols="auto" v-if="item.isCustomOrder">
-                    <v-btn icon="mdi-plus-circle" size="x-small" color="primary" variant="text"
-                      @click="openSoDtfInNewTab(item)" title="Buat SO DTF Baru" />
+                    <v-btn icon="mdi-plus-circle" size="x-small" variant="text"
+                      :color="item.noSoDtf ? 'grey-lighten-1' : 'primary'" @click="openSoDtfInNewTab(item)"
+                      :disabled="!!item.noSoDtf" :title="item.noSoDtf ? 'SO DTF sudah dibuat' : 'Buat SO DTF Baru'" />
                   </v-col>
                 </v-row>
               </template>
@@ -2831,8 +3201,10 @@ const stopAndOpenPriceProposal = (index: number) => {
                 </v-text-field>
               </template>
               <template #[`item.actions`]="{ item }">
-                <v-btn v-if="item.kode" icon="mdi-delete" size="x-small" variant="text" color="error"
-                  @click="removeRow(item.id)" title="Hapus baris" />
+                <v-btn v-if="item.kode && !item.isMutated" icon="mdi-delete" size="x-small" variant="text" color="error"
+                  @click="removeRow(item.id)" />
+                <v-btn v-else-if="item.isMutated" icon="mdi-lock-open-variant" size="x-small" variant="tonal"
+                  color="orange-darken-2" title="Buka Kunci (Mutasi PS)" @click="goToBatalMutasi" />
               </template>
             </v-data-table>
             <v-slide-y-transition>
@@ -2951,9 +3323,10 @@ const stopAndOpenPriceProposal = (index: number) => {
       @sales-counter-selected="onSalesCounterSelected" />
     <PenawaranSearchModal v-if="isPenawaranSearchVisible" :cabang="header.gudang.kode"
       @close="isPenawaranSearchVisible = false" @selected="onPenawaranSelected" />
-    <ProductSearchModal v-if="isProductSearchVisible" :gudang="header.gudang.kode" category="ALL"
-      :multi="isMultiSelectProduct" source="surat-pesanan" :promo-nomor="header.nomorPromo"
-      @close="isProductSearchVisible = false" @products-selected="onProductsSelected" />
+    <ProductSearchModal v-if="isProductSearchVisible" :key="isPromoFilterDisabled ? 'all-items' : 'promo-items'"
+      :gudang="header.gudang.kode" category="ALL" :multi="isMultiSelectProduct" source="surat-pesanan"
+      :promo-nomor="isPromoFilterDisabled ? '' : header.nomorPromo" @close="isProductSearchVisible = false"
+      @products-selected="onProductsSelected" />
     <AuthorizationModal v-if="authDialog.show" :title="authDialog.title" :jenis="authDialog.jenis"
       :nominal="authDialog.nominal" :transaksi="authDialog.transaksi" :barcode="authDialog.barcode"
       :keterangan="authDialog.keterangan" @success="authDialog.onSuccess" @close="
@@ -3038,6 +3411,40 @@ const stopAndOpenPriceProposal = (index: number) => {
             Tidak, Kembali
           </v-btn>
           <v-btn color="primary" variant="tonal" @click="handlePrintConfirm"> Ya, Cetak </v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+
+    <v-dialog v-model="isAdjustmentLogVisible" max-width="1000px">
+      <v-card>
+        <v-toolbar color="blue-grey-darken-3" density="compact" dark>
+          <v-toolbar-title>Log Verifikasi & Koreksi Barang</v-toolbar-title>
+          <v-spacer></v-spacer>
+          <v-btn icon="mdi-close" @click="isAdjustmentLogVisible = false"></v-btn>
+        </v-toolbar>
+
+        <v-card-text class="pa-0">
+          <v-data-table :headers="adjustmentHeaders" :items="adjustmentLogs" density="compact" class="elevation-0"
+            no-data-text="Belum ada aktivitas verifikasi fisik." :items-per-page="10">
+            <template #[`item.qty`]="{ item }">
+              <span :class="item.qty > 0 ? 'text-success font-weight-bold' : 'text-error font-weight-bold'">
+                {{ item.qty > 0 ? '+' : '' }}{{ item.qty }}
+              </span>
+            </template>
+
+            <template #[`item.type`]="{ item }">
+              <v-chip size="x-small" :color="getTypeColor(item.type)" variant="flat" class="font-weight-bold">
+                {{ item.type }}
+              </v-chip>
+            </template>
+          </v-data-table>
+        </v-card-text>
+
+        <v-divider></v-divider>
+
+        <v-card-actions>
+          <v-spacer></v-spacer>
+          <v-btn color="grey-darken-1" variant="text" @click="isAdjustmentLogVisible = false">Tutup</v-btn>
         </v-card-actions>
       </v-card>
     </v-dialog>
@@ -3129,14 +3536,41 @@ const stopAndOpenPriceProposal = (index: number) => {
   vertical-align: middle !important;
 }
 
+/* Merapatkan padding antar kolom */
+.desktop-table :deep(thead tr th),
+.desktop-table :deep(tbody tr td) {
+  padding: 0 4px !important;
+  /* Jarak antar kolom hanya 4px */
+  height: 36px !important;
+  /* Memperpendek tinggi baris agar lebih compact */
+}
+
+/* Memastikan input field di dalam tabel tidak memiliki margin bawah yang mengganggu */
+.desktop-table :deep(.v-text-field .v-input__details) {
+  display: none !important;
+}
+
 .product-name-cell {
-  white-space: nowrap;
-  /* tetap satu baris */
-  line-height: 1.4;
-  padding-top: 4px;
-  padding-bottom: 4px;
+  white-space: nowrap !important;
+  /* Mencegah teks turun ke baris 2 */
+  overflow: hidden;
+  text-overflow: ellipsis;
+  /* Beri titik-titik jika layar benar-benar sempit */
+  font-weight: 500;
+  display: block;
   min-width: 250px;
-  /* minimum width untuk kolom nama */
+  /* Beri ruang minimal agar tetap terbaca */
+}
+
+/* Hilangkan margin input agar tidak mendorong tinggi baris */
+.desktop-table :deep(.v-text-field .v-field__input) {
+  padding: 0 2px !important;
+  min-height: 28px !important;
+}
+
+/* Pastikan header tabel teksnya tidak wrap juga */
+.desktop-table :deep(thead th) {
+  white-space: nowrap !important;
 }
 
 :deep(.custom-row) {
@@ -3436,6 +3870,44 @@ const stopAndOpenPriceProposal = (index: number) => {
   transform: skewX(-25deg);
   z-index: 2;
   animation: shineMove 4s infinite ease-in-out;
+  pointer-events: none;
+}
+
+.flex-none {
+  flex: none !important;
+}
+
+.flex-grow-1 {
+  flex-grow: 1 !important;
+}
+
+/* Pastikan scanner section tidak tertutup saat tabel penuh data */
+.scanner-section {
+  z-index: 10;
+  background: rgb(var(--v-theme-surface));
+  border-bottom: 1px solid rgba(var(--v-border-color), 0.1);
+}
+
+.verify-scanner-field :deep(input) {
+  font-weight: bold;
+  letter-spacing: 1px;
+}
+
+:deep(.row-locked) {
+  background-color: #f5f5f5 !important;
+  color: #9e9e9e !important;
+  font-style: italic;
+  /* JANGAN gunakan pointer-events: none di sini jika ingin tombol bisa diklik,
+     atau gunakan solusi di bawah ini: */
+}
+
+/* Kunci utama: Aktifkan kembali klik hanya untuk kolom terakhir (Actions) */
+:deep(.row-locked td:last-child) {
+  pointer-events: auto !important;
+}
+
+/* Matikan klik untuk kolom selain Actions agar Qty/Harga tetap tidak bisa diubah */
+:deep(.row-locked td:not(:last-child)) {
   pointer-events: none;
 }
 

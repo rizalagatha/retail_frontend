@@ -107,19 +107,24 @@ const fetchData = async () => {
       const allKeys = Object.keys(firstItem);
 
       // 2. Filter key yang BUKAN kolom statis
-      const staticKeys = ['KODE', 'KATEGORI', 'NAMA', 'TOTAL', 'Buffer', 'KTGPRODUK', 'KTGBARANG'];
+      // 'PL' harus masuk staticKeys agar tidak dianggap sebagai ukuran baju (pivot)
+      const staticKeys = ['KODE', 'KATEGORI', 'NAMA', 'TOTAL', 'PL', 'TOTAL2', 'Buffer', 'KTGPRODUK', 'KTGBARANG'];
       const dynamicKeys = allKeys.filter(k => !staticKeys.includes(k));
 
       // 3. Urutkan kolom ukuran agar rapi
       dynamicKeys.sort(sortSizes);
 
-      // 4. Susun Ulang Headers
-      headers.value = [
+      // --- LOGIKA PEMBATASAN KOLOM QTY PL ---
+      const isUserKDC = authStore.user?.cabang === 'KDC';
+      const isViewingKDC = filters.gudang === 'KDC';
+
+      // 4. Susun Ulang Headers secara Bertahap (Incremental)
+      const newHeaders: DataTableHeader[] = [
         { title: 'Kategori', key: 'KATEGORI', width: 120 },
         { title: 'Kode', key: 'KODE', fixed: true, width: 150 },
         { title: 'Nama Barang', key: 'NAMA', fixed: true, width: 300 },
 
-        // Masukkan kolom dinamis di tengah
+        // Masukkan kolom ukuran dinamis (S, M, L, dll)
         ...dynamicKeys.map(key => ({
           title: key,
           key: key,
@@ -127,8 +132,30 @@ const fetchData = async () => {
         })),
 
         { title: 'Total', key: 'TOTAL', width: 100, class: 'font-weight-bold bg-grey-lighten-4' },
-        { title: 'Buffer', key: 'Buffer', width: 100 },
       ];
+
+      // [FIX] Sisipkan kolom PL tepat setelah TOTAL hanya jika syarat terpenuhi
+      if (isUserKDC && isViewingKDC) {
+        newHeaders.push({
+          title: 'Qty PL',
+          key: 'PL',
+          width: 90,
+          class: 'text-orange-darken-4 font-weight-bold bg-orange-lighten-5'
+        });
+        newHeaders.push({
+          title: 'Tersedia',
+          key: 'TOTAL2',
+          width: 130,
+          class: 'text-green-darken-4 font-weight-bold bg-green-lighten-5'
+        });
+      }
+
+      // Tambahkan kolom penutup
+      newHeaders.push({ title: 'Buffer', key: 'Buffer', width: 100 });
+
+      // Terapkan ke state headers
+      headers.value = newHeaders;
+
     } else {
       // Fallback jika data kosong
       headers.value = [
@@ -138,8 +165,9 @@ const fetchData = async () => {
       ];
     }
 
-  } catch {
+  } catch (error) {
     toast.error('Gagal memuat data stok.');
+    console.error(error);
   } finally {
     isLoading.value = false;
   }
@@ -302,7 +330,10 @@ onMounted(() => {
 
           <template v-for="header in headers" #[`item.${header.key}`]="{ item }" :key="header.key">
             <td :class="getRowTextColor(item)">
-              {{ item[header.key] }}
+              {{ (header.key === 'PL' || header.key === 'TOTAL2')
+                ? Math.round(Number(item[header.key]))
+                : item[header.key]
+              }}
             </td>
           </template>
         </AppDataTable>

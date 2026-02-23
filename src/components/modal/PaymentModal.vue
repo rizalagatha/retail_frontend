@@ -90,6 +90,11 @@ interface PaymentState {
     akun: { kode: string; nama: string; rekening: string };
     tanggal: string;
   };
+  qris: {
+    nominal: number | null;
+    akun: { kode: string; nama: string; rekening: string };
+    tanggal: string;
+  };
   retur: { nomor: string; nominal: number };
   pundiAmal: number;
   diskonPembulatan: number;
@@ -133,7 +138,17 @@ const router = useRouter();
 const payment = reactive({
   tunai: 0,
   voucher: { nomor: '', nominal: 0 },
-  transfer: { nominal: null as number | null, akun: { kode: '', nama: '', rekening: '' }, tanggal: new Date().toISOString().substring(0, 10) },
+  transfer: {
+    nominal: null as number | null,
+    akun: { kode: '', nama: '', rekening: '' },
+    tanggal: new Date().toISOString().substring(0, 10)
+  },
+  // Init QRIS
+  qris: {
+    nominal: null as number | null,
+    akun: { kode: '', nama: '', rekening: '' },
+    tanggal: new Date().toISOString().substring(0, 10)
+  },
   retur: { nomor: '', nominal: 0 },
   pundiAmal: 0,
   diskonPembulatan: 0,
@@ -201,6 +216,8 @@ const isTransferFocused = ref(false);
 const isKasirPreviewVisible = ref(false);
 const printKasirData = ref<PrintKasirData | null>(null);
 const isPrintingKasir = ref(false);
+const isQrisFocused = ref(false);
+const rekeningSearchCaller = ref<'transfer' | 'qris'>('transfer');
 
 import Logo from '@/assets/logo.png';
 import InstagramLogo from '@/assets/instagram.jpg';
@@ -222,6 +239,7 @@ const totalBayar = computed(() => {
     (payment.tunai || 0) +
     (payment.voucher.nominal || 0) +
     (payment.transfer.nominal ?? 0) +
+    (payment.qris.nominal ?? 0) + // Tambahkan QRIS ke total
     (payment.retur.nominal || 0);
 });
 
@@ -355,8 +373,22 @@ const handleAuthClose = () => {
   authDialog.show = false;
 };
 
+const openTransferSearch = () => {
+  rekeningSearchCaller.value = 'transfer';
+  dialogs.rekeningSearch = true;
+};
+
+const openQrisSearch = () => {
+  rekeningSearchCaller.value = 'qris';
+  dialogs.rekeningSearch = true;
+};
+
 const onRekeningSelected = (rekening: BankAccount) => {
-  payment.transfer.akun = rekening;
+  if (rekeningSearchCaller.value === 'transfer') {
+    payment.transfer.akun = rekening;
+  } else {
+    payment.qris.akun = rekening;
+  }
   dialogs.rekeningSearch = false;
 };
 
@@ -591,6 +623,7 @@ const executeSave = async () => {
         akun: { kode: '', nama: '', rekening: '' },
         tanggal: payment.transfer.tanggal
       };
+      paymentPayload.qris = { nominal: 0, akun: { kode: '', nama: '', rekening: '' }, tanggal: payment.qris.tanggal };
       paymentPayload.retur = { nominal: 0, nomor: '' };
 
     } else {
@@ -600,10 +633,12 @@ const executeSave = async () => {
       delete paymentPayload.namaKaryawan;
     }
 
+    const totalNonTunai = Number(paymentPayload.transfer?.nominal || 0) + Number(paymentPayload.qris?.nominal || 0);
+
     const kembalianBeforePundi = Math.max(totalBayar.value - props.totals.grandTotal, 0);
 
     const tunaiAfterChange = Math.max(
-      Number(payment.tunai || 0) - kembalianBeforePundi,
+      Number(paymentPayload.tunai || 0) - kembalianBeforePundi,
       0
     );
 
@@ -626,6 +661,11 @@ const executeSave = async () => {
         tunai: Number(paymentPayload.tunai || 0),
         tunaiAfterChange,
         transfer: { ...paymentPayload.transfer, nominal: Number(paymentPayload.transfer.nominal || 0) },
+        qris: {
+          ...paymentPayload.qris,
+          nominal: Number(paymentPayload.qris.nominal || 0)
+        },
+        inv_rpcard: totalNonTunai,
         voucher: { ...paymentPayload.voucher, nominal: Number(paymentPayload.voucher.nominal || 0) },
         retur: { ...paymentPayload.retur, nominal: Number(paymentPayload.retur.nominal || 0) },
 
@@ -981,18 +1021,26 @@ const sisaPiutangDisplay = computed(() => {
   // Ambil semua nilai pembayaran yang sedang diinput di modal ini
   const tunai = Number(payment.tunai || 0);
   const transfer = Number(payment.transfer.nominal || 0);
+  const qris = Number(payment.qris.nominal || 0); // [BARU]
   const voucher = Number(payment.voucher.nominal || 0);
   const retur = Number(payment.retur.nominal || 0);
   const pembulatan = Number(payment.diskonPembulatan || 0);
 
   // Sisa Piutang Akhir = Sisa awal dikurangi SEMUA metode bayar + pembulatan
-  const totalBayarSekarang = tunai + transfer + voucher + retur + pembulatan;
+  const totalBayarSekarang = tunai + transfer + qris + voucher + retur + pembulatan;
 
   return Math.max(baseSisa - totalBayarSekarang, 0);
 });
 
 watch(kembali, (newVal) => {
   payment.pundiAmal = calculatePundiAmal(newVal);
+});
+
+watch(() => payment.qris.nominal, (newVal) => {
+  if (newVal && newVal > 0 && !payment.qris.akun.kode) {
+    payment.qris.nominal = 0; // Paksa nol jika belum pilih rekening
+    toast.warning("Silakan pilih Akun Rekening QRIS terlebih dahulu!");
+  }
 });
 </script>
 
@@ -1153,13 +1201,30 @@ watch(kembali, (newVal) => {
                       <span class="input-prefix">Rp</span>
                     </template>
                   </v-text-field>
-                  <v-text-field label="Akun Bank"
+                  <v-text-field label="Akun Bank (TF)"
                     :model-value="`${payment.transfer.akun.kode || ''} - ${payment.transfer.akun.nama || ''}`" readonly
-                    @click="dialogs.rekeningSearch = true" prepend-inner-icon="mdi-magnify" variant="outlined"
-                    density="compact" hide-details />
+                    @click="openTransferSearch" prepend-inner-icon="mdi-magnify" variant="outlined" density="compact"
+                    hide-details />
                   <v-text-field label="Tgl. Transfer" v-model="payment.transfer.tanggal" type="date" variant="outlined"
                     density="compact" hide-details />
                   <v-divider class="my-3" />
+                  <v-text-field label="QRIS / E-Wallet"
+                    :model-value="isQrisFocused ? (payment.qris.nominal === null ? '' : payment.qris.nominal) : formatRupiah(payment.qris.nominal ?? 0)"
+                    @update:model-value="payment.qris.nominal = $event === '' ? null : Number(String($event).replace(/[^0-9]/g, ''))"
+                    @focus="isQrisFocused = true" @blur="isQrisFocused = false" variant="outlined" density="compact"
+                    hide-details class="text-end" :readonly="!payment.qris.akun.kode"
+                    :hint="!payment.qris.akun.kode ? 'Pilih Akun QRIS dulu!' : ''" persistent-hint>
+                    <template #prepend-inner>
+                      <v-icon v-if="!payment.qris.akun.kode" color="error" size="small">mdi-lock</v-icon>
+                      <span class="input-prefix" v-else>Rp</span>
+                    </template>
+                  </v-text-field>
+
+                  <v-text-field label="Akun QRIS"
+                    :model-value="payment.qris.akun.kode ? `${payment.qris.akun.kode} - ${payment.qris.akun.nama}` : ''"
+                    placeholder="Klik untuk pilih rekening QRIS..." readonly @click="openQrisSearch"
+                    prepend-inner-icon="mdi-qrcode-scan" variant="outlined" density="compact" class="mt-1"
+                    :error="!payment.qris.akun.kode && (payment.qris.nominal || 0) > 0" />
                   <v-row dense>
                     <v-col cols="6"><v-text-field label="No. Retur" v-model="payment.retur.nomor" variant="outlined"
                         density="compact" hide-details readonly @click="dialogs.returJualSearch = true"

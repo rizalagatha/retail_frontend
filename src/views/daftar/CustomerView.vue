@@ -52,6 +52,20 @@ interface LevelHistory {
   level: string;
 }
 
+interface SortItem {
+  key: string;
+  order: 'asc' | 'desc';
+}
+
+interface TableOptions {
+  page: number;
+  itemsPerPage: number;
+  sortBy: SortItem[];
+  // groupBy sekarang menggunakan struktur yang benar
+  groupBy: SortItem[];
+  search: string;
+}
+
 // --- State ---
 const customers = ref<Customer[]>([]);
 const search = ref("");
@@ -131,7 +145,7 @@ const canEdit = computed(() => selected.value.length === 1);
 const dialogTitle = computed(() => (isNew.value ? "Customer Baru" : "Ubah Customer"));
 
 // --- Methods ---
-const fetchCustomers = async (tableOptions?: any) => {
+const fetchCustomers = async (tableOptions?: Partial<TableOptions>) => {
   isLoading.value = true;
   selected.value = [];
 
@@ -148,11 +162,13 @@ const fetchCustomers = async (tableOptions?: any) => {
       },
     });
 
-    // Sinkronisasi dengan format { items, total } dari backend
     customers.value = response.data.items;
-    totalItems.value = response.data.total; // Menampilkan "of 1101"
-  } catch (error) {
-    toast.error("Gagal memuat data customer.", error);
+    totalItems.value = response.data.total;
+  } catch (error: unknown) {
+    // Casting error agar aman
+    const err = error as Error;
+    toast.error("Gagal memuat data customer.");
+    console.error(err.message);
   } finally {
     isLoading.value = false;
   }
@@ -317,11 +333,13 @@ const exportData = () => {
 
 const getItemKey = (item: Customer) => `${item.kode}-${item.level}`;
 
-let searchTimeout: any;
+let searchTimeout: ReturnType<typeof setTimeout> | undefined;
+
 watch(search, () => {
-  clearTimeout(searchTimeout);
+  if (searchTimeout) clearTimeout(searchTimeout);
+
   searchTimeout = setTimeout(() => {
-    options.value.page = 1; // Kembali ke hal 1 setiap kali mengetik
+    options.value.page = 1;
     fetchCustomers();
   }, 500);
 });
@@ -367,7 +385,7 @@ onMounted(() => {
 
       <!-- Table Section -->
       <div class="table-container">
-        <AppDataTable server :items-length="totalItems" v-model:page="options.page"
+        <AppDataTable server :items-length="totalItems" :item-key="getItemKey" v-model:page="options.page"
           v-model:items-per-page="options.itemsPerPage" :items-per-page-options="itemsPerPageOptions" :headers="headers"
           :items="customers" :loading="isLoading" @update:options="fetchCustomers" :item-class="getRowTextColor"
           item-value="kode" density="compact" class="desktop-table header-browse-blue" fixed-header show-select

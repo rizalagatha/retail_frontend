@@ -27,10 +27,12 @@ interface RefundHeader {
   Nomor: string;
   Tanggal: string;
   User: string;
-  Status: 'PROSES' | 'APPROVE' | '';
+  // Tambahkan 'BATAL' di sini agar perbandingan menjadi valid
+  Status: 'PROSES' | 'APPROVE' | 'BATAL' | '';
   Approved: string | null;
   TglApvove: string | null;
   Closing: string | null;
+  AlasanBatal: string | null;
 }
 
 interface RefundDetail {
@@ -79,6 +81,9 @@ const loadingDetails = ref(new Set<string>());
 const selected = ref<RefundHeader[]>([]);
 const expanded = ref<string[]>([]);
 const cabangList = ref([]);
+const isCancelDialogOpen = ref(false);
+const cancelReason = ref('');
+const isCancelling = ref(false);
 const dialogConfirm = reactive({
   show: false,
   title: '',
@@ -100,17 +105,47 @@ const isApprover = computed(() => authStore.user?.cabang === 'KDC');
 
 const canNew = computed(() => !isApprover.value);
 const canEdit = computed(() => {
-  if (!isSingleSelected.value) return false;
+  if (!isSingleSelected.value || !selectedRow.value) return false;
+
+  // 1. Block jika status sudah 'BATAL'
+  if (selectedRow.value.Status === 'BATAL') return false;
+
+  // 2. Logika hak akses cabang/pusat
   if (!isApprover.value) {
-    return !selectedRow.value?.Approved && selectedRow.value?.Closing !== 'Y';
+    // Cabang hanya bisa edit jika belum diapprove dan belum closing
+    return !selectedRow.value.Approved && selectedRow.value.Closing !== 'Y';
   }
+
+  // Approver (KDC) bisa edit selama bukan 'BATAL'
   return true;
 });
 const canDelete = computed(() => {
   if (!isSingleSelected.value || isApprover.value) return false;
   return !selectedRow.value?.Approved && selectedRow.value?.Closing !== 'Y';
 });
-const canCetak = computed(() => isSingleSelected.value);
+const canCetak = computed(() => {
+  // Tombol cetak aktif jika ada data dipilih DAN status bukan 'BATAL'
+  return isSingleSelected.value && selectedRow.value?.Status !== 'BATAL';
+});
+const canCancel = computed(() => {
+  // 1. Wajib pilih baris dulu
+  if (!selectedRow.value) return false;
+
+  // 2. Hanya Approver (KDC) yang memiliki hak akses tombol ini
+  if (!isApprover.value) return false;
+
+  const status = selectedRow.value.Status || '';
+
+  // 3. Definisikan kondisi pemblokiran
+  const isAlreadyCancelled = status === 'BATAL'; // Sudah batal
+  const isInitialState = status.trim() === '';   // Masih merah (tahap 1)
+
+  // 4. Tombol hanya aktif jika:
+  // - Belum Closing ('N')
+  // - BUKAN status BATAL
+  // - BUKAN status Kosong (Merah)
+  return selectedRow.value.Closing !== 'Y' && !isAlreadyCancelled && !isInitialState;
+});
 
 // --- Formatter ---
 const formatTanggal = (dateString: string | undefined | null) => {
@@ -129,6 +164,7 @@ const headers = ref<DataTableHeader[]>([
   { title: 'Approved', key: 'Approved', width: 100 },
   { title: 'Tgl Approve', key: 'TglApprove', width: 120 },
   { title: 'Closing', key: 'Closing', width: 120 },
+  { title: 'Alasan Batal/Reset', key: 'AlasanBatal', width: 250 },
 ]);
 
 const detailHeaders = computed<DataTableHeader[]>(() => {
@@ -236,8 +272,16 @@ const loadDetails = async (newlyExpandedItems: ExpandedItem[]) => {
 };
 
 const getRowTextColor = (item: RefundHeader) => {
+  // 1. Jika Batal -> Abu-abu saja
+  if (item.Status === 'BATAL') return 'text-grey';
+
+  // 2. Jika Kosong -> Merah (Tahap 1: Belum diproses)
+  if (!item.Status || item.Status.trim() === '') return 'text-red font-weight-bold';
+
+  // 3. Jika Proses -> Biru (Tahap 2: Sudah verifikasi nominal/bank)
   if (item.Status === 'PROSES') return 'text-blue font-weight-bold';
-  if (!item.Status) return 'text-red font-weight-bold';
+
+  // 4. Hitam/Default untuk APPROVE (Tahap 3: Cair)
   return '';
 };
 
@@ -274,6 +318,31 @@ const handleDelete = async () => {
   } catch (error) {
     const err = error as AxiosError<{ message: string }>;
     toast.error(err.response?.data?.message || 'Gagal menghapus data.');
+  }
+};
+
+const handleCancelRefund = async () => {
+  if (!cancelReason.value || cancelReason.value.length < 5) {
+    return toast.error('Alasan pembatalan minimal 5 karakter.');
+  }
+
+  isCancelling.value = true;
+  try {
+    const response = await api.put(`/refund/cancel/${selectedRow.value?.Nomor}`, {
+      reason: cancelReason.value
+    });
+
+    toast.success(response.data.message);
+    isCancelDialogOpen.value = false;
+    cancelReason.value = '';
+    fetchMasterData();
+  } catch (err: unknown) { // Ganti 'any' dengan 'unknown'
+    // Lakukan casting agar bisa mengakses response data secara aman
+    const error = err as AxiosError<{ message?: string }>;
+    const msg = error.response?.data?.message || 'Gagal membatalkan refund.';
+    toast.error(msg);
+  } finally {
+    isCancelling.value = false;
   }
 };
 
@@ -434,6 +503,10 @@ watch(filters, fetchMasterData, { deep: true });
         @click="handleNew">Baru</v-btn>
       <v-btn v-if="authStore.can(MENU_ID, 'edit')" size="small" prepend-icon="mdi-pencil" :disabled="!canEdit"
         @click="handleEdit">Ubah</v-btn>
+      <v-btn v-if="authStore.can(MENU_ID, 'edit')" size="small" color="warning" prepend-icon="mdi-cancel"
+        :disabled="!canCancel" @click="isCancelDialogOpen = true">
+        Batalkan Refund
+      </v-btn>
       <v-btn v-if="authStore.can(MENU_ID, 'delete') && canDelete" size="small" color="error" prepend-icon="mdi-delete"
         :disabled="!canDelete" @click="openDeleteDialog">Hapus</v-btn>
       <v-btn v-if="authStore.can(MENU_ID, 'view')" size="small" color="green" prepend-icon="mdi-printer"
@@ -466,9 +539,15 @@ watch(filters, fetchMasterData, { deep: true });
           density="compact" hide-details variant="outlined" class="ms-4" style="max-width: 200px;"
           :readonly="!isApprover" />
         <v-spacer />
-        <div class="d-flex align-center ga-2 text-caption">
-          <v-icon color="red" icon="mdi-square-rounded" size="small"></v-icon> Belum diproses
-          <v-icon color="blue" icon="mdi-square-rounded" size="small" class="ms-2"></v-icon> Sedang diproses
+        <div class="d-flex align-center ga-2 text-caption font-weight-bold">
+          <v-icon color="red" icon="mdi-square-rounded" size="small"></v-icon>
+          <span class="text-red">Belum diproses</span>
+
+          <v-icon color="blue" icon="mdi-square-rounded" size="small" class="ms-2"></v-icon>
+          <span class="text-blue">Sedang diproses</span>
+
+          <v-icon color="grey" icon="mdi-square-rounded" size="small" class="ms-2"></v-icon>
+          <span class="text-grey">Dibatalkan</span>
         </div>
         <v-btn @click="fetchMasterData" icon="mdi-refresh" variant="text" size="small" :loading="loading" />
       </div>
@@ -506,17 +585,23 @@ watch(filters, fetchMasterData, { deep: true });
           <template v-for="header in headers.filter(h => h.key !== 'data-table-expand')"
             #[`item.${header.key}`]="{ item }" :key="header.key">
             <td :class="getRowTextColor(item)">
+
               <template v-if="header.key === 'Tanggal' || header.key === 'TglApprove'">
                 {{ formatTanggal(item[header.key] as string) }}
               </template>
+
               <template v-else-if="header.key === 'Status'">
-                <v-chip :color="item.Status === 'APPROVE' ? 'success' : 'blue'" size="x-small">
+                <v-chip :color="item.Status === 'BATAL' ? 'grey' : item.Status === 'APPROVE' ? 'success' : 'blue'"
+                  size="x-small" variant="flat" class="font-weight-bold">
+                  <v-icon v-if="item.Status === 'BATAL'" start icon="mdi-cancel" size="12"></v-icon>
                   {{ item.Status || 'PROSES' }}
                 </v-chip>
               </template>
+
               <template v-else>
                 {{ item[header.key] }}
               </template>
+
             </td>
           </template>
 
@@ -553,6 +638,33 @@ watch(filters, fetchMasterData, { deep: true });
           <v-spacer></v-spacer>
           <v-btn color="grey-darken-1" variant="text" @click="dialogConfirm.onCancel">Tidak</v-btn>
           <v-btn color="primary" variant="tonal" @click="dialogConfirm.onConfirm">Ya, Lanjutkan</v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+
+    <v-dialog v-model="isCancelDialogOpen" max-width="500px" persistent>
+      <v-card>
+        <v-toolbar color="warning" density="compact">
+          <v-toolbar-title class="text-subtitle-1">Alasan Pembatalan Refund</v-toolbar-title>
+          <v-spacer />
+          <v-btn icon="mdi-close" @click="isCancelDialogOpen = false" />
+        </v-toolbar>
+
+        <v-card-text class="pa-4">
+          <div class="mb-3">Membatalkan pengajuan: <strong>{{ selectedRow?.Nomor }}</strong></div>
+          <v-textarea v-model="cancelReason" label="Tulis alasan pembatalan di sini..." variant="outlined" rows="3"
+            hide-details auto-focus></v-textarea>
+        </v-card-text>
+
+        <v-divider />
+
+        <v-card-actions class="pa-3">
+          <v-spacer />
+          <v-btn variant="text" @click="isCancelDialogOpen = false">Tutup</v-btn>
+          <v-btn color="error" variant="flat" @click="handleCancelRefund" :loading="isCancelling"
+            prepend-icon="mdi-check-circle">
+            Konfirmasi Batal
+          </v-btn>
         </v-card-actions>
       </v-card>
     </v-dialog>

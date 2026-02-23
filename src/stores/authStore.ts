@@ -31,6 +31,14 @@ interface LoginResponse {
   permissions: Permission[];
 }
 
+interface Notifications {
+  sj: number;
+  mutasi: number;
+  retur: number;
+  pinjam: number;
+  memo: number;
+}
+
 // 'useAuthStore' adalah nama hook yang akan kita gunakan di komponen
 export const useAuthStore = defineStore("auth", () => {
   const router = useRouter();
@@ -68,6 +76,15 @@ export const useAuthStore = defineStore("auth", () => {
       // Jika token tidak valid, anggap expired
       return true;
     }
+  });
+
+  // 2. Tambahkan State Notifikasi Baru
+  const notifications = ref<Notifications>({
+    sj: 0,
+    mutasi: 0,
+    retur: 0,
+    pinjam: 0,
+    memo: 0,
   });
 
   const isOnline = ref(navigator.onLine);
@@ -176,6 +193,7 @@ export const useAuthStore = defineStore("auth", () => {
     userCabang,
     userCabangNama,
     isTokenExpired,
+    notifications,
     setLoginData,
     logout,
     checkAuthStatus,

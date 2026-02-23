@@ -245,18 +245,31 @@ watch(
   { deep: true }
 );
 
+// Perbaikan logika auto-load di MutasiStokCreate.vue
 onMounted(() => {
   markAsSaved();
 
   if (!authStore.can(MENU_ID, requiredPermission.value)) {
-    toast.error(`Anda tidak memiliki izin untuk ${isEditMode.value ? 'mengubah' : 'membuat'} data Mutasi Stok.`);
-    router.push({ name: 'MutasiStok' }); // Arahkan kembali ke halaman browse
+    toast.error(`Anda tidak memiliki izin.`);
+    router.push({ name: 'MutasiStok' });
     return;
   }
+
+  // --- LOGIKA AUTO-LOAD YANG DIPERBAIKI ---
+  const refSo = route.query.refSo as string;
+  const refJenis = route.query.jenis as string; // 👈 Ambil jenis dari URL
+
+  if (refSo) {
+    header.nomorSo = refSo;
+    // Jika ada jenis di URL (PS), pakai itu. Jika tidak, default 'SP'
+    header.jenisMutasi = refJenis || 'SP';
+    loadDataFromSo(refSo);
+  }
+
   const nomor = route.params.nomor as string;
   if (isEditMode.value && nomor) {
     loadDataForEdit(nomor);
-  } else {
+  } else if (!refSo) {
     isLoading.value = false;
   }
 });

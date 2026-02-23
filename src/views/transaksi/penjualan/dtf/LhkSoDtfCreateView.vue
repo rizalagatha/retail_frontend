@@ -36,6 +36,7 @@ interface LhkApiResponseItem {
   kode: string;
   nama: string;
   cab: string;
+  jo_kode: string;
   depan: number | null;
   belakang: number | null;
   lengan: number | null;
@@ -124,14 +125,14 @@ const isKdcUser = computed(() => authStore.user?.cabang === 'KDC');
 
 // Fetch Jenis Order saat Mount
 onMounted(async () => {
+  markAsSaved();
+
+  // 1. Ambil list jenis order dulu sampai selesai
   const res = await api.get('/lhk-so-dtf-form/jenis-order');
   jenisOrderOptions.value = res.data;
 
-  // Default ke Sablon DTF jika ada
-  const dtf = jenisOrderOptions.value.find(j => j.nama.includes('DTF'));
-  if (dtf) formHeader.jenisOrder = dtf;
-
-  loadLhkData();
+  // 2. Baru load data LHK agar sinkronisasi matchedJo bekerja
+  await loadLhkData();
 });
 
 const tableHeaders = [
@@ -173,6 +174,11 @@ const loadLhkData = async () => {
     const data = response.data;
 
     if (data.length > 0) {
+      const savedJoKode = data[0].jo_kode;
+      const matchedJo = jenisOrderOptions.value.find(j => j.kode === savedJoKode);
+      if (matchedJo) {
+        formHeader.jenisOrder = matchedJo;
+      }
       formHeader.lhkNomor = data[0].lhk_nomor;
       formHeader.panjang = data[0].panjang;
       formHeader.buangan = data[0].buangan;
@@ -288,19 +294,14 @@ const onSoPoSelected = async (selectedItem: { kode: string, nama: string }) => {
   }
 };
 
-watch(() => formHeader.jenisOrder, (newVal) => {
-  // 1. Reset inputan meteran (Panjang & Buangan) menjadi 0
+watch(() => formHeader.jenisOrder, (newVal, oldVal) => {
+  // [FIX] Jika sedang loading atau nilai lama masih kosong (inisialisasi), jangan hapus grid
+  if (isLoading.value || !oldVal) return;
+
+  // Jika benar-benar diganti manual oleh user
   formHeader.panjang = 0;
   formHeader.buangan = 0;
-
-  // 2. Kosongkan seluruh isi tabel
-  // Hal ini penting untuk menjaga integritas data agar nomor SO DTF
-  // tidak tercampur ke dalam laporan Bordir atau sebaliknya.
   items.value = [];
-
-  // 3. Inisialisasi ulang baris kosong
-  // Fungsi addNewRowIfNeeded akan otomatis mendeteksi jenis pekerjaan baru
-  // dan memberikan 1 baris kosong yang sesuai (termasuk limitasi untuk Bordir).
   addNewRowIfNeeded();
 
   if (newVal) {

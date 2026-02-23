@@ -5,6 +5,8 @@ import { useAuthStore } from '@/stores/authStore';
 import api from '@/services/api';
 import PageLayout from '@/components/PageLayout.vue';
 import type { AxiosError } from 'axios';
+import * as XLSX from 'xlsx';
+import { format } from 'date-fns';
 
 // --- Tipe Data ---
 interface DataTableHeader {
@@ -60,6 +62,7 @@ const loading = ref(true);
 const loadingDetails = ref(new Set<string>());
 const selected = ref<MasterItem[]>([]);
 const expanded = ref<string[]>([]);
+const isExporting = ref(false);
 
 // State Filter Server-Side
 const search = ref('');
@@ -353,6 +356,53 @@ const showConfirmation = (title: string, text: string, onConfirm: () => void) =>
   dialogConfirm.show = true;
 };
 
+const handleExport = async () => {
+  isExporting.value = true;
+  toast.info('Menyiapkan data excel...');
+
+  try {
+    // 1. Ambil data gabungan dari server dengan filter yang sedang aktif
+    const params = { ...filters, search: search.value };
+    const response = await api.get('/price-list/export', { params });
+    const data = response.data;
+
+    if (data.length === 0) {
+      toast.warning('Tidak ada data untuk diekspor.');
+      return;
+    }
+
+    // 2. Buat worksheet dari JSON
+    const worksheet = XLSX.utils.json_to_sheet(data);
+
+    // 3. Atur lebar kolom agar rapi
+    const wscols = [
+      { wch: 15 }, // Kode
+      { wch: 10 }, // Kategori
+      { wch: 40 }, // Nama Barang
+      { wch: 8 },  // Ukuran
+      { wch: 15 }, // Barcode
+      { wch: 12 }, // HPP
+      { wch: 12 }, // Harga Jual
+      { wch: 12 }, // Laba
+    ];
+    worksheet['!cols'] = wscols;
+
+    // 4. Buat workbook dan simpan file
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "PriceList");
+
+    const fileName = `PriceList_${format(new Date(), 'yyyyMMdd_HHmmss')}.xlsx`;
+    XLSX.writeFile(workbook, fileName);
+
+    toast.success('Excel berhasil didownload.');
+  } catch (error) {
+    console.error(error);
+    toast.error('Gagal mengekspor data ke excel.');
+  } finally {
+    isExporting.value = false;
+  }
+};
+
 // --- Watchers & Hooks ---
 let searchTimer: number;
 watch(search, () => {
@@ -375,6 +425,10 @@ onMounted(async () => {
 <template>
   <PageLayout title="Price List" icon="mdi-tag-multiple-outline">
     <template #header-actions>
+      <v-btn size="small" color="teal" variant="flat" prepend-icon="mdi-file-excel" class="me-2" @click="handleExport"
+        :loading="isExporting">
+        Export Excel
+      </v-btn>
       <v-btn v-if="authStore.can(MENU_ID, 'edit')" size="small" color="primary" prepend-icon="mdi-cash-edit"
         @click="openUpdateModal(selectedRow)" :disabled="!isSingleSelected">
         Update Harga

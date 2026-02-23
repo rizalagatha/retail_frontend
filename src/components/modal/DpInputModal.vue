@@ -53,15 +53,17 @@ const kekuranganDp = computed(() => {
 
 const documentTitle = computed(() => {
   if (!printHeaderData.value) return "";
+
+  // Jika jenis 1 tapi ada kata QRIS di keterangan, tampilkan QRIS RECEIPT
+  if (printHeaderData.value.sh_jenis === 1 && printHeaderData.value.sh_ket.includes('QRIS')) {
+    return "QRIS RECEIPT";
+  }
+
   switch (printHeaderData.value.sh_jenis) {
-    case 0:
-      return "CASH RECEIPT";
-    case 1:
-      return "TRANSFER RECEIPT";
-    case 2:
-      return "GIRO RECEIPT";
-    default:
-      return "TANDA TERIMA PEMBAYARAN";
+    case 0: return "CASH RECEIPT";
+    case 1: return "TRANSFER RECEIPT";
+    case 2: return "GIRO RECEIPT";
+    default: return "TANDA TERIMA PEMBAYARAN";
   }
 });
 
@@ -100,6 +102,7 @@ const isPrinting = ref(false); // Loading untuk mengambil data cetak
 const printHeaderData = ref<PrintHeader | null>(null); // Menyimpan data cetak
 const newDpFromSave = ref<NewDpItem | null>(null); // Menyimpan data newDp untuk di-emit nanti
 const isPrintingNow = ref(false);
+const isReadonly = false;
 
 const save = async () => {
   // --- VALIDASI TANGGAL HARI INI ---
@@ -138,8 +141,8 @@ const save = async () => {
   if ((dpData.value.nominal || 0) <= 0) {
     return toast.error("Nominal harus diisi.");
   }
-  if (dpData.value.jenis === "TRANSFER" && !dpData.value.bankData.akun) {
-    return toast.error("Akun Bank harus dipilih.");
+  if ((dpData.value.jenis === "TRANSFER" || dpData.value.jenis === "QRIS") && !dpData.value.bankData.akun) {
+    return toast.error("Akun Bank/QRIS harus dipilih.");
   }
   if (dpData.value.jenis === "GIRO" && !dpData.value.giroData.noGiro) {
     return toast.error("No. Giro harus diisi.");
@@ -242,8 +245,10 @@ const onRekeningSelected = (rekening: Rekening) => {
           <v-col cols="12"><v-text-field label="Tanggal" v-model="dpData.tanggal" type="date" variant="outlined"
               density="compact" :min="format(new Date(), 'yyyy-MM-dd')"
               :max="format(new Date(), 'yyyy-MM-dd')" /></v-col>
-          <v-col cols="12"><v-select label="Jenis" v-model="dpData.jenis" :items="['TUNAI', 'TRANSFER', 'GIRO']"
-              variant="outlined" density="compact" /></v-col>
+          <v-col cols="12">
+            <v-select label="Jenis" v-model="dpData.jenis" :items="['TUNAI', 'TRANSFER', 'QRIS', 'GIRO']"
+              variant="outlined" density="compact" />
+          </v-col>
           <v-col cols="12">
             <v-text-field label="Nominal"
               :model-value="isNominalFocused ? dpData.nominal : formatRupiah(dpData.nominal || 0)" @update:model-value="
@@ -254,10 +259,11 @@ const onRekeningSelected = (rekening: Rekening) => {
           <v-col cols="12"><v-text-field label="Keterangan" v-model="dpData.keterangan" variant="outlined"
               density="compact" /></v-col>
 
-          <v-col v-if="dpData.jenis === 'TRANSFER'" cols="12">
+          <v-col v-if="dpData.jenis === 'TRANSFER' || dpData.jenis === 'QRIS'" cols="12">
             <v-divider class="my-2" />
-            <v-text-field label="Akun Bank" v-model="dpData.bankData.akun" variant="outlined" density="compact"
-              @click="isRekeningSearchVisible = true" readonly append-inner-icon="mdi-magnify" />
+            <v-text-field :label="dpData.jenis === 'QRIS' ? 'Akun Penampung QRIS' : 'Akun Bank'"
+              v-model="dpData.bankData.akun" variant="outlined" density="compact"
+              @click="isRekeningSearchVisible = true" readonly :append-inner-icon="isReadonly ? '' : 'mdi-magnify'" />
             <v-text-field label="Nama Bank" v-model="dpData.bankData.namaBank" density="compact" readonly filled />
             <v-text-field label="No. Rekening" v-model="dpData.bankData.norek" density="compact" readonly filled />
             <v-text-field label="Tgl. Transfer" v-model="dpData.bankData.tglTransfer" type="date" variant="outlined"

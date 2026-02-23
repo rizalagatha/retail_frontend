@@ -123,9 +123,9 @@ const headers = ref<DataTableHeader[]>([
   { title: "", key: "data-table-expand", width: 50, fixed: true },
   { title: "Nomor", key: "nomor", width: 180, fixed: true },
   { title: "Tanggal", key: "tanggal", width: 120 },
-  { title: "Nominal", key: "nominal", align: "end", width: 120 },
-  { title: "Dibayarkan", key: "diBayarkan", align: "end", width: 120 },
-  { title: "Sisa", key: "sisa", align: "end", width: 120 },
+  { title: "Nominal", key: "nominal", width: 120 },
+  { title: "Dibayarkan", key: "diBayarkan", width: 120 },
+  { title: "Sisa", key: "sisa", width: 120 },
   { title: "No. Invoice", key: "invoice", width: 180 },
   { title: "Jenis", key: "jenis", width: 100 },
   { title: "Customer", key: "nama", width: 250 },
@@ -432,9 +432,9 @@ watch(filters, fetchMasterData, { deep: true });
                   minWidth: header.width + 'px',
                   maxWidth: header.width + 'px',
                 }" class="resizable-header" :class="{
-                    'text-center': header.align === 'center',
-                    'text-end': header.align === 'end',
-                  }" @click="toggleSort(header)">
+                  'text-center': header.align === 'center',
+                  'text-end': header.align === 'end',
+                }" @click="toggleSort(header)">
                   <div class="header-content">
                     <span>{{ header.title }}</span>
                     <v-icon v-if="isSorted(header)" size="small" class="ms-1">

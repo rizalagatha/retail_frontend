@@ -163,12 +163,13 @@ const tableHeaders = [
 const onInvoiceSelected = async (invoice: { nomor: string; tanggal: string }) => {
   const hariSejakInvoice = differenceInCalendarDays(new Date(), parseISO(invoice.tanggal));
   const isKON = authStore.user?.cabang === "KON";
+  const isKPR = authStore.user?.cabang === "KPR";
 
   // Flag pembukaan akses sementara untuk K10
   const isTemporaryOpenK10 = authStore.user?.cabang === "K10" && new Date() < new Date("2026-01-31");
 
   // Jika bukan KON, bukan K10 (temporary), dan invoice > 1 hari, maka blokir
-  if (!isKON && !isTemporaryOpenK10 && hariSejakInvoice > 1) {
+  if (!isKON && !isKPR && !isTemporaryOpenK10 && hariSejakInvoice > 1) {
     toast.error(`Invoice ${invoice.nomor} sudah lebih dari 1 hari dan tidak bisa diretur.`);
     dialog.invoiceSearch = false;
     return;

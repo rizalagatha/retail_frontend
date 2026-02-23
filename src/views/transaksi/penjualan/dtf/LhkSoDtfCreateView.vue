@@ -207,6 +207,8 @@ const loadLhkData = async () => {
         luasRiil: 0,
         ket: item.keterangan || ''
       }));
+
+      addNewRowIfNeeded();
     }
   } catch (error) {
     toast.error('Gagal memuat data LHK.', error);
@@ -218,7 +220,6 @@ const loadLhkData = async () => {
 };
 
 const addNewRowIfNeeded = () => {
-  if (isEditMode.value) return;
 
   const isBordir = (formHeader.jenisOrder?.nama || '').toUpperCase().includes('BORDIR');
   const lastItem = items.value[items.value.length - 1];
@@ -230,7 +231,7 @@ const addNewRowIfNeeded = () => {
 
   if (!lastItem || lastItem.kode) {
     items.value.push({
-      id: Date.now(),
+      id: Date.now() + Math.random(),
       kode: '',
       nama: '',
       jumlah: 0,
@@ -556,11 +557,10 @@ onMounted(() => {
             </template>
 
             <template #[`item.kode`]="{ item, index }">
-              <v-text-field v-model="item.kode" :readonly="isEditMode" :variant="isEditMode ? 'filled' : 'underlined'"
-                density="compact" hide-details :placeholder="isEditMode ? '' : 'F1:SO, F2:PO, F3:SPK'"
-                @keydown.f1.prevent="!isEditMode && openSoSearchModal(index)"
-                @keydown.f2.prevent="!isEditMode && openPoSearchModal(index)"
-                @keydown.f3.prevent="!isEditMode && openSpkSearchModal(index)" />
+              <v-text-field v-model="item.kode" :readonly="item.kode !== ''"
+                :variant="item.kode !== '' ? 'filled' : 'underlined'" density="compact" hide-details
+                placeholder="F1:SO, F2:PO, F3:SPK" @keydown.f1.prevent="openSoSearchModal(index)"
+                @keydown.f2.prevent="openPoSearchModal(index)" @keydown.f3.prevent="openSpkSearchModal(index)" />
             </template>
 
             <template #[`item.jumlah`]="{ item }">

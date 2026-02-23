@@ -322,27 +322,45 @@ watch(items, (newItems) => {
   });
 }, { deep: true });
 
+/**
+ * 1. Pintu Utama: Melakukan validasi input dan memicu dialog konfirmasi.
+ */
 const save = async () => {
+  const validItems = items.value.filter(item => item.kode && item.nama);
+
+  // --- VALIDASI DASAR ---
+  if (validItems.length === 0) {
+    toast.error("Minimal harus mengisi satu SO/PO!");
+    return;
+  }
+
+  if (isShowMeasurement.value && formHeader.panjang <= 0) {
+    toast.error("Panjang minimal harus diisi untuk Sablon DTF!");
+    return;
+  }
+
+  // --- VALIDASI SATUAN CM (LOGIC GUARD) ---
+  // Jika panjang di bawah 10cm, kemungkinan besar operator input dalam satuan Meter.
+  if (isShowMeasurement.value && formHeader.panjang > 0 && formHeader.panjang < 10) {
+    showConfirmation(() => {
+      executeSave(validItems);
+    }, `Peringatan: Anda menginput panjang ${formHeader.panjang} cm. Apakah Anda yakin angka ini sudah dalam satuan CENTIMETER (bukan meter)?`);
+    return;
+  }
+
+  // Konfirmasi simpan standar jika angka wajar
+  showConfirmation(() => executeSave(validItems), "Anda yakin ingin menyimpan data LHK ini?");
+};
+
+/**
+ * 2. Eksekutor: Melakukan proses pengiriman data ke API setelah dikonfirmasi.
+ */
+const executeSave = async (validItems: LhkItem[]) => {
   isSaving.value = true;
   try {
-    const validItems = items.value.filter(item => item.kode && item.nama);
-
-    // Validasi input global di header
-    if (isShowMeasurement.value && formHeader.panjang <= 0) {
-      toast.error("Panjang minimal harus diisi untuk Sablon DTF!");
-      isSaving.value = false; // Reset loading state jika gagal validasi
-      return;
-    }
-
-    if (validItems.length === 0) {
-      toast.error("Minimal harus mengisi satu SO/PO!");
-      isSaving.value = false;
-      return;
-    }
-
     await api.post('/lhk-so-dtf-form', {
-      tanggal: formHeader.tanggal, // [FIX 3] Gunakan data dari formHeader
-      cabang: formHeader.cabang,   // [FIX 3] Gunakan data dari formHeader
+      tanggal: formHeader.tanggal,
+      cabang: formHeader.cabang,
       jenisOrder: formHeader.jenisOrder,
       panjang: isShowMeasurement.value ? formHeader.panjang : 0,
       buangan: isShowMeasurement.value ? formHeader.buangan : 0,
@@ -432,8 +450,7 @@ onMounted(() => {
 <template>
   <PageLayout :title="pageTitle" desktop-mode icon="mdi-clipboard-edit-outline">
     <template #header-actions>
-      <v-btn v-if="canSave" size="small" color="primary"
-        @click="showConfirmation(save, 'Anda yakin ingin menyimpan data LHK ini?')" :loading="isSaving"
+      <v-btn v-if="canSave" size="small" color="primary" @click="save" :loading="isSaving"
         prepend-icon="mdi-content-save">
         Simpan
       </v-btn>
@@ -478,15 +495,16 @@ onMounted(() => {
         </div>
 
         <div v-if="isShowMeasurement" class="desktop-form-section mb-3 bg-blue-lighten-5">
-          <div class="text-subtitle-2 font-weight-bold mb-2">Ukuran Cetak Riil</div>
+          <div class="text-subtitle-2 font-weight-bold mb-2">Ukuran Cetak Riil (WAJIB CM)</div>
           <v-row dense>
             <v-col cols="6">
-              <v-text-field v-model.number="formHeader.panjang" label="Panjang" type="number" variant="outlined"
-                density="compact" hide-details class="custom-suffix" suffix="cm" />
+              <v-text-field v-model.number="formHeader.panjang" label="Panjang (cm)" type="number" variant="outlined"
+                density="compact" hide-details class="custom-suffix" suffix="cm" color="primary" placeholder="Cth: 150"
+                hint="Jika 1.5 meter, tulis 150" persistent-hint />
             </v-col>
             <v-col cols="6">
-              <v-text-field v-model.number="formHeader.buangan" label="Buangan" type="number" variant="outlined"
-                density="compact" hide-details class="custom-suffix" suffix="cm" />
+              <v-text-field v-model.number="formHeader.buangan" label="Buangan (cm)" type="number" variant="outlined"
+                density="compact" hide-details class="custom-suffix" suffix="cm" placeholder="Cth: 10" />
             </v-col>
           </v-row>
         </div>

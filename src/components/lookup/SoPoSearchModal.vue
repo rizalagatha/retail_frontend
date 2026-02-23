@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { ref, watch, onMounted, onUnmounted, computed } from 'vue';
-import api from '@/services/api';
-import { format, isValid, parseISO } from 'date-fns';
+import { ref, watch, onMounted, onUnmounted, computed } from "vue";
+import api from "@/services/api";
+import { format, isValid, parseISO } from "date-fns";
 
 interface SoPoItem {
   kode: string;
@@ -13,41 +13,41 @@ interface SoPoItem {
 
 const props = defineProps({
   cabang: { type: String, required: true },
-  tipe: { type: String, default: 'ALL' },
-  prefix: { type: String, default: '' }
+  tipe: { type: String, default: "ALL" },
+  prefix: { type: String, default: "" },
 });
-const emit = defineEmits(['close', 'selected']);
+const emit = defineEmits(["close", "selected"]);
 
 const dialogTitle = computed(() => {
-  if (props.tipe === 'SPK') return 'Bantuan - Pilih SPK Produksi (Jeron)';
-  if (props.tipe === 'PO') return 'Bantuan - Pilih PO DTF';
-  return 'Bantuan - Pilih SO DTF';
+  if (props.tipe === "SPK") return "Bantuan - Pilih SPK Produksi (Jeron)";
+  if (props.tipe === "PO") return "Bantuan - Pilih PO DTF";
+  return "Bantuan - Pilih SO DTF";
 });
 
 const formatDate = (dateStr: string) => {
   const date = parseISO(dateStr);
-  return isValid(date) ? format(date, 'dd/MM/yyyy') : '-';
+  return isValid(date) ? format(date, "dd/MM/yyyy") : "-";
 };
 
 const items = ref<SoPoItem[]>([]);
 const loading = ref(true);
-const search = ref('');
+const search = ref("");
 const page = ref(1);
 const itemsPerPage = 50;
 const totalItems = ref(0);
 
 const headers = [
-  { title: 'Nomor', key: 'kode', sortable: false, width: '200px' },
-  { title: 'Nama', key: 'nama', sortable: false, width: '40%' },
-  { title: 'Jumlah', key: 'jumlah', sortable: false, align: 'end' as const },
-  { title: 'Tanggal', key: 'tanggal', sortable: false },
-  { title: 'Tipe', key: 'tipe', sortable: false },
+  { title: "Nomor", key: "kode", sortable: false, width: "200px" },
+  { title: "Nama", key: "nama", sortable: false, width: "40%" },
+  { title: "Jumlah", key: "jumlah", sortable: false, align: "end" as const },
+  { title: "Tanggal", key: "tanggal", sortable: false },
+  { title: "Tipe", key: "tipe", sortable: false },
 ];
 
 const loadItems = async () => {
   loading.value = true;
   try {
-    const response = await api.get('/lhk-so-dtf-form/search/so-po', {
+    const response = await api.get("/lhk-so-dtf-form/search/so-po", {
       params: {
         term: search.value,
         cabang: props.cabang,
@@ -70,8 +70,8 @@ const loadItems = async () => {
 };
 
 const selectItem = (item: SoPoItem) => {
-  emit('selected', item);
-  emit('close');
+  emit("selected", item);
+  emit("close");
 };
 
 let searchTimeout: number;
@@ -91,7 +91,7 @@ onMounted(loadItems);
 
 <template>
   <v-dialog :model-value="true" @update:model-value="$emit('close')" max-width="1200px" persistent>
-    <v-card class="dialog-card d-flex flex-column" style="height: 80vh;">
+    <v-card class="dialog-card d-flex flex-column" style="height: 80vh">
       <v-toolbar color="primary" density="compact">
         <v-toolbar-title class="text-subtitle-1">{{ dialogTitle }}</v-toolbar-title>
         <v-spacer></v-spacer>
@@ -99,15 +99,33 @@ onMounted(loadItems);
       </v-toolbar>
 
       <v-card-text class="pa-4 d-flex flex-column flex-grow-1">
-        <v-text-field v-model="search" label="Cari berdasarkan Nomor atau Nama..." prepend-inner-icon="mdi-magnify"
-          variant="outlined" density="compact" clearable class="mb-4 flex-shrink-0" hide-details
-          autofocus></v-text-field>
+        <v-text-field
+          v-model="search"
+          label="Cari berdasarkan Nomor atau Nama..."
+          prepend-inner-icon="mdi-magnify"
+          variant="outlined"
+          density="compact"
+          clearable
+          class="mb-4 flex-shrink-0"
+          hide-details
+          autofocus
+        ></v-text-field>
 
-        <v-data-table :headers="headers" :items="items" :loading="loading" hover class="desktop-table flex-grow-1"
-          density="compact" fixed-header :items-per-page="itemsPerPage" :page="page" :hide-default-footer="true"
-          :server-items-length="totalItems">
+        <v-data-table
+          :headers="headers"
+          :items="items"
+          :loading="loading"
+          hover
+          class="desktop-table flex-grow-1"
+          density="compact"
+          fixed-header
+          :items-per-page="itemsPerPage"
+          :page="page"
+          :hide-default-footer="true"
+          :server-items-length="totalItems"
+        >
           <template #item="{ item }">
-            <tr @click="selectItem(item)" style="cursor: pointer;">
+            <tr @click="selectItem(item)" style="cursor: pointer">
               <td class="font-weight-bold text-primary">{{ item.kode }}</td>
               <td>{{ item.nama }}</td>
               <td class="text-end">{{ item.jumlah }}</td>
@@ -122,7 +140,11 @@ onMounted(loadItems);
 
           <template #bottom>
             <div class="pa-2 border-t">
-              <v-pagination v-model="page" :length="Math.ceil(totalItems / itemsPerPage)" total-visible="7" />
+              <v-pagination
+                v-model="page"
+                :length="Math.ceil(totalItems / itemsPerPage)"
+                total-visible="7"
+              />
             </div>
           </template>
         </v-data-table>

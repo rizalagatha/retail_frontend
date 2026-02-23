@@ -28,6 +28,7 @@ import DiscountCostModal from "@/components/modal/DiscountCostModal.vue";
 import JenisOrderModal from "@/components/modal/JenisOrderModal.vue";
 import PromoSearchModal from "@/components/lookup/PromoSearchModal.vue"; // [BARU]
 import PromoBonusModal from "@/components/modal/PromoBonusModal.vue"; // [BARU]
+// import SpkDialog from "@/components/dialog/SpkDialog.vue";
 
 const router = useRouter();
 const route = useRoute();
@@ -72,6 +73,7 @@ interface SoItem {
 
   mutatedQty?: number; // Saldo yang sudah dimutasi
   isMutated?: boolean; // Flag pengunci UI
+  isLhk?: boolean;
 }
 
 // Interface baru untuk Record Adjustment
@@ -309,8 +311,8 @@ const pageTitle = computed(() =>
   header.value.isMarketplace
     ? "Pesanan Marketplace"
     : isEditMode.value
-    ? "Ubah Surat Pesanan"
-    : "Buat Surat Pesanan"
+      ? "Ubah Surat Pesanan"
+      : "Buat Surat Pesanan"
 );
 const statusDpText = computed(() => {
   if (footer.value.totalDp >= footer.value.minimalDp || footer.value.pinTanpaDp) {
@@ -350,6 +352,7 @@ const isInitialLoad = ref(false);
 const isSavingDisabled = ref(false);
 const scannedBarcode = ref("");
 const adjustmentLogs = ref<SoAdjustmentLog[]>([]);
+// const isSpkDialogVisible = ref(false);
 
 const initialHeaderState = {
   nomor: "",
@@ -413,8 +416,8 @@ const authDialog = reactive<AuthDialogState>({
   transaksi: "",
   barcode: "",
   keterangan: "",
-  onSuccess: () => {},
-  onCancel: () => {},
+  onSuccess: () => { },
+  onCancel: () => { },
 });
 
 // State untuk modals & dialogs
@@ -588,6 +591,10 @@ const grandQty = computed(() => items.value.reduce((sum, i) => sum + (Number(i.j
 const grandTotal = computed(() => footer.value.totalSo || 0);
 
 const isUserKon = computed(() => authStore.user?.cabang === "KON");
+
+const hasUnfinishedDtf = computed(() => {
+  return items.value.some(item => !!item.noSoDtf && item.isLhk === false);
+});
 
 // --- Functions ---
 // function toDateInputValue(dateStr: string) {
@@ -1194,10 +1201,10 @@ const executeSave = async () => {
           sod_custom_nama: item.isCustomOrder ? item.nama : null,
           sod_custom_data: item.isCustomOrder
             ? JSON.stringify({
-                ukuranKaos: item.ukuranKaos || [],
-                titikCetak: item.titikCetak || [],
-                sourceItems: item.sourceItems || [],
-              })
+              ukuranKaos: item.ukuranKaos || [],
+              titikCetak: item.titikCetak || [],
+              sourceItems: item.sourceItems || [],
+            })
             : null,
 
           // opsional tapi aman dipertahankan
@@ -1357,6 +1364,17 @@ const addAdjustmentLog = (
     reason: ket,
   });
 };
+
+// const handleSaveSpk = async (spkPayload: any) => {
+//   try {
+//     // Logic kirim ke backend SPK
+//     const response = await api.post("/so-form/generate-spk", spkPayload);
+//     toast.success("SPK Berhasil dibuat dan terhubung dengan SO ini.");
+//     isSpkDialogVisible.value = false;
+//   } catch (error: any) {
+//     toast.error(error.response?.data?.message || "Gagal membuat SPK.");
+//   }
+// };
 
 const onGudangSelected = (gudang: { kode: string; nama: string }) => {
   header.value.gudang = gudang;
@@ -1679,7 +1697,7 @@ const onProductsSelected = (selectedProducts: SoItemApi[]) => {
   calculateTotals();
 };
 
-const onSoDtfSelected = async (soDtf: { nomor: string }) => {
+const onSoDtfSelected = async (soDtf: { nomor: string; isLhk?: number | boolean }) => {
   isSoDtfSearchVisible.value = false;
   // Hapus baris kosong tempat F1 ditekan
   items.value.splice(activeRowIndex.value, 1);
@@ -1711,6 +1729,7 @@ const onSoDtfSelected = async (soDtf: { nomor: string }) => {
           harga: detail.harga,
           total: detail.total,
           noSoDtf: detail.sd_nomor,
+          isLhk: !!soDtf.isLhk,
           stok: 0,
           diskonPersen: 0,
           diskonRp: 0,
@@ -1995,9 +2014,8 @@ const handleItemDiscountChange = (index: number) => {
       nominalAuth = (((item.harga || 0) * currentPersen) / 100) * (item.jumlah || 1);
     }
 
-    const info = `Cust: ${header.value.customer?.nama || "Umum"}\nItem: ${item.nama}\nDiskon: ${
-      currentPersen > 0 ? currentPersen + "%" : formatRupiah(currentRp)
-    }`;
+    const info = `Cust: ${header.value.customer?.nama || "Umum"}\nItem: ${item.nama}\nDiskon: ${currentPersen > 0 ? currentPersen + "%" : formatRupiah(currentRp)
+      }`;
 
     requestAuthorization(
       "Otorisasi Diskon Item",
@@ -2960,50 +2978,33 @@ const stopAndOpenPriceProposal = (index: number) => {
 <template>
   <PageLayout :title="pageTitle" desktop-mode icon="mdi-file-document-edit-outline">
     <template #header-actions>
-      <v-btn
-        color="secondary"
-        size="small"
-        prepend-icon="mdi-tshirt-crew-outline"
-        :disabled="!header.customer && !header.penawaran"
-        @click="openJenisOrderModal"
-      >
+      <!-- <v-btn color="indigo-darken-2" size="small" prepend-icon="mdi-hammer-wrench"
+        :disabled="!header.nomor || !header.customer" @click="isSpkDialogVisible = true">
+        Buat SPK Produksi
+      </v-btn> -->
+      <v-btn color="secondary" size="small" prepend-icon="mdi-tshirt-crew-outline"
+        :disabled="!header.customer && !header.penawaran" @click="openJenisOrderModal">
         Input Jenis Order
       </v-btn>
       <v-spacer></v-spacer>
-      <v-btn
-        size="small"
-        color="primary"
-        prepend-icon="mdi-content-save"
-        @click="save"
-        :loading="isSaving"
-        :disabled="isSaving || isSavingDisabled"
-      >
+      <v-btn size="small" color="primary" prepend-icon="mdi-content-save" @click="save" :loading="isSaving"
+        :disabled="isSaving || isSavingDisabled">
         Simpan
       </v-btn>
-      <v-btn
-        size="small"
-        color="success"
-        prepend-icon="mdi-receipt-text-plus"
-        @click="saveAndConvertToInvoice"
-        :loading="isSaving"
-        :disabled="isSaving || isSavingDisabled || !allMutated"
-      >
+      <v-btn size="small" color="success" prepend-icon="mdi-receipt-text-plus" @click="saveAndConvertToInvoice"
+        :loading="isSaving" :disabled="isSaving || isSavingDisabled || !allMutated || hasUnfinishedDtf">
         Jadikan Invoice
       </v-btn>
-      <v-btn
-        size="small"
-        prepend-icon="mdi-cancel"
-        @click="showConfirmation(resetForm, 'Batalkan perubahan dan kosongkan form?')"
-      >
+      <div v-if="hasUnfinishedDtf" class="text-caption text-error mt-1">
+        * Ada item SO DTF yang belum selesai dikerjakan (LHK).
+      </div>
+      <v-btn size="small" prepend-icon="mdi-cancel"
+        @click="showConfirmation(resetForm, 'Batalkan perubahan dan kosongkan form?')">
         Batal
       </v-btn>
-      <v-btn
-        size="small"
-        prepend-icon="mdi-close"
-        @click="
-          showConfirmation(closeForm, 'Tutup form? Perubahan yang belum disimpan akan hilang.')
-        "
-      >
+      <v-btn size="small" prepend-icon="mdi-close" @click="
+        showConfirmation(closeForm, 'Tutup form? Perubahan yang belum disimpan akan hilang.')
+        ">
         Tutup
       </v-btn>
     </template>
@@ -3014,263 +3015,105 @@ const stopAndOpenPriceProposal = (index: number) => {
         <div class="desktop-form-section header-section">
           <template v-if="header.isMarketplace">
             <div class="bg-orange-lighten-5 pa-2 mb-3 rounded border border-dashed border-orange">
-              <div
-                class="text-subtitle-2 font-weight-bold text-orange-darken-4 mb-2 d-flex align-center"
-              >
+              <div class="text-subtitle-2 font-weight-bold text-orange-darken-4 mb-2 d-flex align-center">
                 <v-icon size="small" class="mr-1">mdi-store</v-icon>
                 MODE PESANAN MARKETPLACE
               </div>
               <v-row dense>
                 <v-col cols="6">
-                  <v-text-field
-                    label="Nomor Pesanan Marketplace"
-                    v-model="header.mpNomorPesanan"
-                    variant="outlined"
-                    density="compact"
-                    prepend-inner-icon="mdi-clipboard-text"
-                    hide-details
-                    bg-color="white"
-                    placeholder="Paste No. Pesanan"
-                  />
+                  <v-text-field label="Nomor Pesanan Marketplace" v-model="header.mpNomorPesanan" variant="outlined"
+                    density="compact" prepend-inner-icon="mdi-clipboard-text" hide-details bg-color="white"
+                    placeholder="Paste No. Pesanan" />
                 </v-col>
                 <v-col cols="6">
-                  <v-text-field
-                    label="Nomor Resi (AWB)"
-                    v-model="header.mpResi"
-                    variant="outlined"
-                    density="compact"
-                    prepend-inner-icon="mdi-barcode"
-                    hide-details
-                    bg-color="white"
-                    placeholder="Scan Resi"
-                  />
+                  <v-text-field label="Nomor Resi (AWB)" v-model="header.mpResi" variant="outlined" density="compact"
+                    prepend-inner-icon="mdi-barcode" hide-details bg-color="white" placeholder="Scan Resi" />
                 </v-col>
               </v-row>
             </div>
           </template>
           <v-row dense>
             <v-col cols="5">
-              <v-text-field
-                label="Gudang"
-                :disabled="!!header.penawaran"
-                :model-value="header.gudang.kode"
-                readonly
-                @click="openGudangSearch"
-                :class="{ 'field-disabled': isEditMode }"
-                variant="outlined"
-                density="compact"
-                hide-details
-                append-inner-icon="mdi-magnify"
-              />
+              <v-text-field label="Gudang" :disabled="!!header.penawaran" :model-value="header.gudang.kode" readonly
+                @click="openGudangSearch" :class="{ 'field-disabled': isEditMode }" variant="outlined" density="compact"
+                hide-details append-inner-icon="mdi-magnify" />
             </v-col>
             <v-col cols="7">
-              <v-text-field
-                :model-value="header.gudang.nama"
-                readonly
-                filled
-                density="compact"
-                hide-details
-              />
+              <v-text-field :model-value="header.gudang.nama" readonly filled density="compact" hide-details />
             </v-col>
-            <v-col cols="6"
-              ><v-text-field
-                label="Nomor"
-                v-model="header.nomor"
-                readonly
-                filled
-                density="compact"
-                hide-details
-            /></v-col>
+            <v-col cols="6"><v-text-field label="Nomor" v-model="header.nomor" readonly filled density="compact"
+                hide-details /></v-col>
             <v-col cols="6">
-              <v-text-field
-                label="Tanggal"
-                v-model="header.tanggal"
-                type="date"
-                variant="outlined"
-                density="compact"
-                hide-details
-                :readonly="isEditMode"
-                :min="!isEditMode ? format(new Date(), 'yyyy-MM-dd') : undefined"
-                :max="!isEditMode ? format(new Date(), 'yyyy-MM-dd') : undefined"
-              />
+              <v-text-field label="Tanggal" v-model="header.tanggal" type="date" variant="outlined" density="compact"
+                hide-details :readonly="isEditMode" :min="!isEditMode ? format(new Date(), 'yyyy-MM-dd') : undefined"
+                :max="!isEditMode ? format(new Date(), 'yyyy-MM-dd') : undefined" />
             </v-col>
             <v-col cols="6">
-              <v-text-field
-                label="Customer"
-                :disabled="!!header.penawaran"
-                :model-value="
-                  header.customer ? `${header.customer.kode} - ${header.customer.nama}` : ''
-                "
-                readonly
-                @click="isCustomerSearchVisible = true"
-                variant="outlined"
-                density="compact"
-                hide-details
-                append-inner-icon="mdi-magnify"
-              >
+              <v-text-field label="Customer" :disabled="!!header.penawaran" :model-value="header.customer ? `${header.customer.kode} - ${header.customer.nama}` : ''
+                " readonly @click="isCustomerSearchVisible = true" variant="outlined" density="compact" hide-details
+                append-inner-icon="mdi-magnify">
                 <template #prepend-inner>
-                  <v-btn
-                    :disabled="!!header.penawaran"
-                    icon="mdi-account-plus"
-                    size="x-small"
-                    variant="tonal"
-                    class="me-2"
-                    @click.stop="isNewCustomerFormVisible = true"
-                    title="Buat Customer Baru"
-                  ></v-btn>
+                  <v-btn :disabled="!!header.penawaran" icon="mdi-account-plus" size="x-small" variant="tonal"
+                    class="me-2" @click.stop="isNewCustomerFormVisible = true" title="Buat Customer Baru"></v-btn>
                 </template>
               </v-text-field>
             </v-col>
-            <v-col cols="6"
-              ><v-text-field
-                label="Dateline"
-                v-model="header.dateline"
-                type="date"
-                variant="outlined"
-                density="compact"
-                hide-details
-            /></v-col>
+            <v-col cols="6"><v-text-field label="Dateline" v-model="header.dateline" type="date" variant="outlined"
+                density="compact" hide-details /></v-col>
             <v-col cols="12">
-              <v-text-field
-                label="Alamat"
-                :model-value="header.customer?.alamat"
-                readonly
-                filled
-                density="compact"
-                hide-details
-              />
+              <v-text-field label="Alamat" :model-value="header.customer?.alamat" readonly filled density="compact"
+                hide-details />
             </v-col>
             <v-col cols="6">
-              <v-text-field
-                label="Kota / Telp"
-                :model-value="
-                  header.customer ? `${header.customer.kota} / ${header.customer.telp}` : ''
-                "
-                readonly
-                filled
-                density="compact"
-                hide-details
-              />
+              <v-text-field label="Kota / Telp" :model-value="header.customer ? `${header.customer.kota} / ${header.customer.telp}` : ''
+                " readonly filled density="compact" hide-details />
             </v-col>
             <v-col cols="6">
-              <v-text-field
-                label="Level"
-                v-model="header.levelNama"
-                readonly
-                filled
-                density="compact"
-                hide-details
-              />
+              <v-text-field label="Level" v-model="header.levelNama" readonly filled density="compact" hide-details />
             </v-col>
             <v-col cols="6" v-if="!header.isMarketplace">
-              <v-text-field
-                label="No. Penawaran"
-                v-model="header.penawaran"
-                readonly
-                @click="openPenawaranSearch"
-                variant="outlined"
-                density="compact"
-                hide-details
-                append-inner-icon="mdi-magnify"
-                clearable
-                @click:clear="header.penawaran = ''"
-              />
+              <v-text-field label="No. Penawaran" v-model="header.penawaran" readonly @click="openPenawaranSearch"
+                variant="outlined" density="compact" hide-details append-inner-icon="mdi-magnify" clearable
+                @click:clear="header.penawaran = ''" />
             </v-col>
             <v-col cols="6">
-              <v-text-field
-                label="Sales Counter"
-                v-model="header.salesCounter"
-                readonly
-                @click="openSalesCounterSearch"
-                variant="outlined"
-                density="compact"
-                hide-details
-                append-inner-icon="mdi-magnify"
-              />
+              <v-text-field label="Sales Counter" v-model="header.salesCounter" readonly @click="openSalesCounterSearch"
+                variant="outlined" density="compact" hide-details append-inner-icon="mdi-magnify" />
             </v-col>
             <v-col cols="2">
-              <v-text-field
-                label="TOP"
-                v-model.number="header.top"
-                type="number"
-                variant="outlined"
-                density="compact"
-                hide-details
-                class="text-end"
-              />
+              <v-text-field label="TOP" v-model.number="header.top" type="number" variant="outlined" density="compact"
+                hide-details class="text-end" />
             </v-col>
             <v-col cols="6">
-              <v-text-field
-                label="Tempo/Tgl"
-                v-model="header.tempo"
-                type="date"
-                readonly
-                filled
-                density="compact"
-                hide-details
-              />
+              <v-text-field label="Tempo/Tgl" v-model="header.tempo" type="date" readonly filled density="compact"
+                hide-details />
             </v-col>
             <v-col cols="4">
-              <v-text-field
-                label="PPN %"
-                v-model.number="header.ppnPersen"
-                type="number"
-                variant="outlined"
-                density="compact"
-                hide-details
-                class="text-end"
-              />
+              <v-text-field label="PPN %" v-model.number="header.ppnPersen" type="number" variant="outlined"
+                density="compact" hide-details class="text-end" />
             </v-col>
-            <v-col cols="12"
-              ><v-text-field
-                label="Keterangan"
-                v-model="header.keterangan"
-                variant="outlined"
-                density="compact"
-                hide-details
-            /></v-col>
+            <v-col cols="12"><v-text-field label="Keterangan" v-model="header.keterangan" variant="outlined"
+                density="compact" hide-details /></v-col>
             <v-col cols="4" v-if="!header.isMarketplace">
-              <v-text-field
-                label="Promo"
-                v-model="header.nomorPromo"
-                @click="dialogs.promoSearch = true"
-                prepend-inner-icon="mdi-ticket-percent"
-                density="compact"
-                hide-details
-                placeholder="F1..."
-                readonly
-              />
+              <v-text-field label="Promo" v-model="header.nomorPromo" @click="dialogs.promoSearch = true"
+                prepend-inner-icon="mdi-ticket-percent" density="compact" hide-details placeholder="F1..." readonly />
             </v-col>
             <v-col cols="8" v-if="!header.isMarketplace">
-              <v-text-field
-                label="Nama Promo"
-                v-model="header.namaPromo"
-                density="compact"
-                readonly
-                filled
-                hide-details
-              />
+              <v-text-field label="Nama Promo" v-model="header.namaPromo" density="compact" readonly filled
+                hide-details />
             </v-col>
           </v-row>
         </div>
         <div class="desktop-form-section status-section" v-if="!header.isMarketplace">
-          <v-alert
-            density="compact"
-            variant="tonal"
-            :color="header.statusSo === 'AKTIF' ? 'success' : 'error'"
-            class="mb-2 d-flex align-center"
-          >
+          <v-alert density="compact" variant="tonal" :color="header.statusSo === 'AKTIF' ? 'success' : 'error'"
+            class="mb-2 d-flex align-center">
             Status SO: <strong>{{ header.statusSo }}</strong>
             <v-spacer />
             <div class="text-caption text-center">{{ minimalDpText }}</div>
             <v-tooltip location="bottom">
               <template #activator="{ props }">
-                <v-icon
-                  v-bind="props"
-                  :color="
-                    footer.totalDp >= footer.minimalDp || footer.pinTanpaDp ? 'success' : 'warning'
-                  "
-                >
+                <v-icon v-bind="props" :color="footer.totalDp >= footer.minimalDp || footer.pinTanpaDp ? 'success' : 'warning'
+                  ">
                   {{
                     footer.totalDp >= footer.minimalDp || footer.pinTanpaDp
                       ? "mdi-check-circle"
@@ -3289,35 +3132,20 @@ const stopAndOpenPriceProposal = (index: number) => {
         <div class="desktop-form-section scanner-section mb-2">
           <v-row dense align="center">
             <v-col cols="12" md="6">
-              <v-text-field
-                v-model="scannedBarcode"
-                label="Scan Verifikasi Barang (Wajib)"
-                placeholder="Arahkan scanner ke barcode..."
-                variant="outlined"
-                density="compact"
-                prepend-inner-icon="mdi-barcode-scan"
-                hide-details
-                @keydown.enter.prevent="handleBarcodeScanVerify"
-                :color="allVerified ? 'success' : 'primary'"
-              />
+              <v-text-field v-model="scannedBarcode" label="Scan Verifikasi Barang (Wajib)"
+                placeholder="Arahkan scanner ke barcode..." variant="outlined" density="compact"
+                prepend-inner-icon="mdi-barcode-scan" hide-details @keydown.enter.prevent="handleBarcodeScanVerify"
+                :color="allVerified ? 'success' : 'primary'" />
             </v-col>
 
             <v-col cols="12" md="6" class="d-flex ga-2 justify-end">
-              <v-btn
-                color="deep-orange-darken-2"
-                @click="goToMutasiPesanan"
-                :disabled="!header.nomor || !hasReadyItems"
-              >
+              <v-btn color="deep-orange-darken-2" @click="goToMutasiPesanan"
+                :disabled="!header.nomor || !hasReadyItems">
                 Mutasikan ke Stok Pesanan
               </v-btn>
 
-              <v-btn
-                color="blue-grey"
-                variant="outlined"
-                size="small"
-                prepend-icon="mdi-history"
-                @click="isAdjustmentLogVisible = true"
-              >
+              <v-btn color="blue-grey" variant="outlined" size="small" prepend-icon="mdi-history"
+                @click="isAdjustmentLogVisible = true">
                 Log
               </v-btn>
             </v-col>
@@ -3326,194 +3154,96 @@ const stopAndOpenPriceProposal = (index: number) => {
         <!-- Wrapper untuk bagian yang bisa scroll -->
         <div class="scrollable-content">
           <div class="desktop-form-section main-grid-section">
-            <v-alert
-              v-if="items.some((i) => i.isMutated)"
-              type="info"
-              variant="tonal"
-              density="compact"
-              class="text-caption flex-grow-1 ma-0"
-              prepend-icon="mdi-information-outline"
-            >
+            <v-alert v-if="items.some((i) => i.isMutated)" type="info" variant="tonal" density="compact"
+              class="text-caption flex-grow-1 ma-0" prepend-icon="mdi-information-outline">
               Item bertanda <v-icon size="small">mdi-lock-open-variant</v-icon> terkunci karena
               sudah mutasi.
             </v-alert>
-            <v-data-table
-              :headers="mainTableHeaders"
-              :items="items"
-              :page="page"
-              :items-per-page="rowsPerPage"
-              :item-key="'id'"
-              class="desktop-table vertically-aligned-table"
-              fixed-header
-              :item-class="
-                (item) => (item.isMutated ? 'row-locked' : item.isCustomOrder ? 'custom-row' : '')
-              "
-            >
+            <v-data-table :headers="mainTableHeaders" :items="items" :page="page" :items-per-page="rowsPerPage"
+              :item-key="'id'" class="desktop-table vertically-aligned-table" fixed-header :item-class="(item) => (item.isMutated ? 'row-locked' : item.isCustomOrder ? 'custom-row' : '')
+                ">
               <template #[`item.kode`]="{ item, index }">
                 <div class="d-flex align-center">
-                  <v-icon
-                    v-if="item.isCustomOrder"
-                    color="blue"
-                    size="18"
-                    class="me-2"
-                    title="Item Custom (Jenis Order)"
-                  >
+                  <v-icon v-if="item.isCustomOrder" color="blue" size="18" class="me-2"
+                    title="Item Custom (Jenis Order)">
                     mdi-tshirt-crew-outline
                   </v-icon>
 
-                  <v-text-field
-                    v-model="item.kode"
-                    @focus="activeRowIndex = index"
-                    @click="activeRowIndex = index"
-                    variant="underlined"
-                    density="compact"
-                    hide-details
-                    placeholder="F1/F2..."
+                  <v-text-field v-model="item.kode" @focus="activeRowIndex = index" @click="activeRowIndex = index"
+                    variant="underlined" density="compact" hide-details placeholder="F1/F2..."
                     :disabled="item.isCustomOrder"
                     @keydown.f1.prevent="!item.isCustomOrder && openProductSearch(index, false)"
-                    @keydown.f2.prevent="!item.isCustomOrder && openProductSearch(index, true)"
-                  />
+                    @keydown.f2.prevent="!item.isCustomOrder && openProductSearch(index, true)" />
                 </div>
               </template>
               <template #[`item.nama`]="{ item }">
                 <div class="product-name-cell">{{ item.nama }}</div>
               </template>
               <template #[`item.barcode`]="{ item }">
-                <v-text-field
-                  v-model="item.barcode"
-                  variant="underlined"
-                  density="compact"
-                  hide-details
-                  readonly
-                  class="text-caption grey--text"
-                  placeholder="-"
-                />
+                <v-text-field v-model="item.barcode" variant="underlined" density="compact" hide-details readonly
+                  class="text-caption grey--text" placeholder="-" />
               </template>
               <template #[`item.kategori`]="{ item }">
                 <div v-if="!item.isCustomOrder && item.kode">
-                  <v-chip
-                    size="x-small"
-                    :color="getCategoryColor(item.kategori)"
-                    variant="flat"
-                    class="font-weight-bold text-white"
-                  >
+                  <v-chip size="x-small" :color="getCategoryColor(item.kategori)" variant="flat"
+                    class="font-weight-bold text-white">
                     {{ item.kategori || "TANPA KATEGORI" }}
                   </v-chip>
                 </div>
               </template>
               <template #[`item.jumlah`]="{ item }">
-                <v-text-field
-                  v-model.number="item.jumlah"
-                  type="number"
-                  variant="underlined"
-                  density="compact"
-                  hide-details
-                  class="text-end font-weight-bold"
-                  :disabled="item.isMutated"
-                  :hint="item.isMutated ? 'Sudah dimutasi' : ''"
-                  @update:model-value="calculateTotals"
-                />
+                <v-text-field v-model.number="item.jumlah" type="number" variant="underlined" density="compact"
+                  hide-details class="text-end font-weight-bold" :disabled="item.isMutated"
+                  :hint="item.isMutated ? 'Sudah dimutasi' : ''" @update:model-value="calculateTotals" />
               </template>
 
               <template #[`item.scannedQty`]="{ item }">
                 <div class="d-flex align-center justify-end ga-2">
-                  <v-btn
-                    v-if="
-                      !item.isMutated &&
-                      !item.isJasa &&
-                      !item.isCustomOrder &&
-                      !item.noSoDtf &&
-                      item.scannedQty > 0
-                    "
-                    icon="mdi-minus-circle-outline"
-                    size="x-small"
-                    variant="text"
-                    color="error"
-                    @click="decrementReady(item)"
-                    title="Kurangi verifikasi"
-                  />
+                  <v-btn v-if="
+                    !item.isMutated &&
+                    !item.isJasa &&
+                    !item.isCustomOrder &&
+                    !item.noSoDtf &&
+                    item.scannedQty > 0
+                  " icon="mdi-minus-circle-outline" size="x-small" variant="text" color="error"
+                    @click="decrementReady(item)" title="Kurangi verifikasi" />
 
-                  <v-chip
-                    v-if="item.isMutated"
-                    size="small"
-                    color="success"
-                    variant="flat"
-                    class="font-weight-black"
-                  >
+                  <v-chip v-if="item.isMutated" size="small" color="success" variant="flat" class="font-weight-black">
                     <v-icon start size="14">mdi-lock-check</v-icon>
                     {{ item.scannedQty || 0 }} Ready
                   </v-chip>
 
-                  <v-chip
-                    v-else-if="item.kode === 'CUSTOM' || item.noSoDtf || item.isJasa"
-                    size="small"
-                    color="blue-darken-2"
-                    variant="flat"
-                    class="font-weight-black"
-                  >
+                  <v-chip v-else-if="item.kode === 'CUSTOM' || item.noSoDtf || item.isJasa" size="small"
+                    color="blue-darken-2" variant="flat" class="font-weight-black">
                     <v-icon start size="14">mdi-cog-sync</v-icon>
                     {{ item.scannedQty || 0 }} Auto
                   </v-chip>
 
-                  <v-chip
-                    v-else
-                    size="small"
-                    :color="item.scannedQty >= item.jumlah ? 'success' : 'orange-darken-3'"
-                    variant="flat"
-                    class="font-weight-black"
-                  >
+                  <v-chip v-else size="small" :color="item.scannedQty >= item.jumlah ? 'success' : 'orange-darken-3'"
+                    variant="flat" class="font-weight-black">
                     <v-icon start size="14">mdi-barcode-scan</v-icon>
                     {{ item.scannedQty || 0 }} Ready
                   </v-chip>
                 </div>
               </template>
               <template #[`item.harga`]="{ item }">
-                <v-text-field
-                  v-model.number="item.harga"
-                  type="number"
-                  variant="underlined"
-                  density="compact"
-                  hide-details
-                  class="text-end"
-                  :disabled="item.isMutated || !item.kode"
-                  :readonly="!!item.noSoDtf || !!item.noPengajuanHarga"
-                  @update:model-value="calculateTotals"
-                />
+                <v-text-field v-model.number="item.harga" type="number" variant="underlined" density="compact"
+                  hide-details class="text-end" :disabled="item.isMutated || !item.kode"
+                  :readonly="!!item.noSoDtf || !!item.noPengajuanHarga" @update:model-value="calculateTotals" />
               </template>
               <template #[`item.diskonPersen`]="{ item, index }">
-                <v-text-field
-                  v-model.number="item.diskonPersen"
-                  type="number"
-                  variant="underlined"
-                  density="compact"
-                  hide-details
-                  class="text-end"
-                  @blur="handleItemDiscountChange(index)"
-                />
+                <v-text-field v-model.number="item.diskonPersen" type="number" variant="underlined" density="compact"
+                  hide-details class="text-end" @blur="handleItemDiscountChange(index)" />
               </template>
               <template #[`item.diskonRp`]="{ item }">
-                <v-text-field
-                  :value="
-                    focusedRowId === item.id ? item.diskonRp : formatRupiah(item.diskonRp || 0)
-                  "
-                  @input="
+                <v-text-field :value="focusedRowId === item.id ? item.diskonRp : formatRupiah(item.diskonRp || 0)
+                  " @input="
                     item.diskonRp = Number(String($event.target.value).replace(/[^0-9]/g, '')) || 0
-                  "
-                  @focus="focusedRowId = item.id"
-                  @blur="
-                    focusedRowId = -1;
+                    " @focus="focusedRowId = item.id" @blur="
+                      focusedRowId = -1;
                     handleItemDiscountChange(items.indexOf(item));
-                  "
-                  placeholder="0"
-                  type="text"
-                  variant="underlined"
-                  density="compact"
-                  hide-details
-                  single-line
-                  class="text-end"
-                  :disabled="!item.kode"
-                  :readonly="item.diskonPersen > 0"
-                ></v-text-field>
+                    " placeholder="0" type="text" variant="underlined" density="compact" hide-details single-line
+                  class="text-end" :disabled="!item.kode" :readonly="item.diskonPersen > 0"></v-text-field>
               </template>
               <template #[`item.total`]="{ item }">
                 <div class="text-end text-body-2 font-weight-bold">
@@ -3523,65 +3253,30 @@ const stopAndOpenPriceProposal = (index: number) => {
               <template #[`item.noSoDtf`]="{ item, index }">
                 <v-row dense align="center" no-gutters>
                   <v-col>
-                    <v-text-field
-                      class="so-dtf-field"
-                      v-model="item.noSoDtf"
-                      variant="underlined"
-                      density="compact"
-                      hide-details
-                      placeholder="F1..."
-                      @mousedown.stop
-                      @click.stop
-                      @keydown.f1.stop.prevent="stopAndOpenSoDtf(index)"
-                    />
+                    <v-text-field class="so-dtf-field" v-model="item.noSoDtf" variant="underlined" density="compact"
+                      hide-details placeholder="F1..." @mousedown.stop @click.stop
+                      @keydown.f1.stop.prevent="stopAndOpenSoDtf(index)" />
                   </v-col>
 
                   <!-- Tombol untuk grid jasa custom -->
                   <v-col cols="auto" v-if="item.isCustomOrder">
-                    <v-btn
-                      icon="mdi-plus-circle"
-                      size="x-small"
-                      variant="text"
-                      :color="item.noSoDtf ? 'grey-lighten-1' : 'primary'"
-                      @click="openSoDtfInNewTab(item)"
-                      :disabled="!!item.noSoDtf"
-                      :title="item.noSoDtf ? 'SO DTF sudah dibuat' : 'Buat SO DTF Baru'"
-                    />
+                    <v-btn icon="mdi-plus-circle" size="x-small" variant="text"
+                      :color="item.noSoDtf ? 'grey-lighten-1' : 'primary'" @click="openSoDtfInNewTab(item)"
+                      :disabled="!!item.noSoDtf" :title="item.noSoDtf ? 'SO DTF sudah dibuat' : 'Buat SO DTF Baru'" />
                   </v-col>
                 </v-row>
               </template>
               <template #[`item.noPengajuanHarga`]="{ item, index }">
-                <v-text-field
-                  class="pengajuan-field"
-                  v-model="item.noPengajuanHarga"
-                  variant="underlined"
-                  density="compact"
-                  hide-details
-                  placeholder="F1..."
-                  @mousedown.stop
-                  @click.stop
-                  @keydown.f1.stop.prevent="stopAndOpenPriceProposal(index)"
-                >
+                <v-text-field class="pengajuan-field" v-model="item.noPengajuanHarga" variant="underlined"
+                  density="compact" hide-details placeholder="F1..." @mousedown.stop @click.stop
+                  @keydown.f1.stop.prevent="stopAndOpenPriceProposal(index)">
                 </v-text-field>
               </template>
               <template #[`item.actions`]="{ item }">
-                <v-btn
-                  v-if="item.kode && !item.isMutated"
-                  icon="mdi-delete"
-                  size="x-small"
-                  variant="text"
-                  color="error"
-                  @click="removeRow(item.id)"
-                />
-                <v-btn
-                  v-else-if="item.isMutated"
-                  icon="mdi-lock-open-variant"
-                  size="x-small"
-                  variant="tonal"
-                  color="orange-darken-2"
-                  title="Buka Kunci (Mutasi PS)"
-                  @click="goToBatalMutasi"
-                />
+                <v-btn v-if="item.kode && !item.isMutated" icon="mdi-delete" size="x-small" variant="text" color="error"
+                  @click="removeRow(item.id)" />
+                <v-btn v-else-if="item.isMutated" icon="mdi-lock-open-variant" size="x-small" variant="tonal"
+                  color="orange-darken-2" title="Buka Kunci (Mutasi PS)" @click="goToBatalMutasi" />
               </template>
             </v-data-table>
             <v-slide-y-transition>
@@ -3592,23 +3287,13 @@ const stopAndOpenPriceProposal = (index: number) => {
                   <div class="card-content">
                     <div class="icon-container">
                       <div class="icon-circle pulse-animation">
-                        <v-icon
-                          :icon="
-                            isGrandOpeningPromo ? 'mdi-party-popper' : 'mdi-ticket-percent-outline'
-                          "
-                          size="24"
-                          color="white"
-                        />
+                        <v-icon :icon="isGrandOpeningPromo ? 'mdi-party-popper' : 'mdi-ticket-percent-outline'
+                          " size="24" color="white" />
                       </div>
                     </div>
                     <div class="text-container">
                       <div class="promo-label">
-                        <v-icon
-                          icon="mdi-star-four-points"
-                          size="10"
-                          class="mr-1"
-                          color="yellow-lighten-3"
-                        />
+                        <v-icon icon="mdi-star-four-points" size="10" class="mr-1" color="yellow-lighten-3" />
                         {{ isGrandOpeningPromo ? "SPECIAL OFFER" : "YAYY!! DAPET DISKON!!!" }}
                       </div>
                       <div class="promo-message">{{ promoNotification }}</div>
@@ -3635,49 +3320,29 @@ const stopAndOpenPriceProposal = (index: number) => {
               <v-col cols="12" md="7" lg="6" xl="6">
                 <v-row dense>
                   <v-col cols="6">
-                    <v-btn
-                      v-if="!header.isMarketplace"
-                      block
-                      color="teal"
-                      @click="openDpInput"
-                      prepend-icon="mdi-cash-plus"
-                    >
+                    <v-btn v-if="!header.isMarketplace" block color="teal" @click="openDpInput"
+                      prepend-icon="mdi-cash-plus">
                       Input DP (Uang Muka)
                     </v-btn>
                   </v-col>
 
                   <v-col cols="6">
-                    <v-btn
-                      color="blue-darken-2"
-                      variant="outlined"
-                      block
-                      prepend-icon="mdi-sale"
-                      @click="isDiscountCostModalVisible = true"
-                    >
+                    <v-btn color="blue-darken-2" variant="outlined" block prepend-icon="mdi-sale"
+                      @click="isDiscountCostModalVisible = true">
                       Atur Diskon & Biaya
                     </v-btn>
                   </v-col>
 
                   <v-col cols="6">
-                    <v-btn
-                      v-if="header.statusSo === 'PASIF'"
-                      block
-                      color="orange"
-                      @click="openDpAuthorization"
-                      prepend-icon="mdi-key-variant"
-                    >
+                    <v-btn v-if="header.statusSo === 'PASIF'" block color="orange" @click="openDpAuthorization"
+                      prepend-icon="mdi-key-variant">
                       Minta Otorisasi
                     </v-btn>
                   </v-col>
 
                   <v-col cols="6">
-                    <v-btn
-                      color="teal"
-                      variant="outlined"
-                      block
-                      prepend-icon="mdi-format-list-bulleted"
-                      @click="isDpListModalVisible = true"
-                    >
+                    <v-btn color="teal" variant="outlined" block prepend-icon="mdi-format-list-bulleted"
+                      @click="isDpListModalVisible = true">
                       Lihat Rincian DP
                     </v-btn>
                   </v-col>
@@ -3691,9 +3356,7 @@ const stopAndOpenPriceProposal = (index: number) => {
                     <v-list-item v-if="footer.diskonRp > 0" class="summary-discount">
                       <v-list-item-title class="text-error">Diskon Faktur</v-list-item-title>
                       <template #append>
-                        <span class="text-body-1 text-error"
-                          >- {{ formatRupiah(footer.diskonRp) }}</span
-                        >
+                        <span class="text-body-1 text-error">- {{ formatRupiah(footer.diskonRp) }}</span>
                       </template>
                     </v-list-item>
 
@@ -3709,10 +3372,8 @@ const stopAndOpenPriceProposal = (index: number) => {
                     <v-list-item class="summary-total summary-belum-bayar">
                       <v-list-item-title class="font-weight-bold">Belum Dibayar</v-list-item-title>
                       <template #append>
-                        <span
-                          class="text-h6 font-weight-black"
-                          :class="footer.belumDibayar > 0 ? 'text-error' : 'text-success'"
-                        >
+                        <span class="text-h6 font-weight-black"
+                          :class="footer.belumDibayar > 0 ? 'text-error' : 'text-success'">
                           {{ formatRupiah(footer.belumDibayar) }}
                         </span>
                       </template>
@@ -3726,123 +3387,52 @@ const stopAndOpenPriceProposal = (index: number) => {
       </div>
     </div>
 
-    <GudangSearchModal
-      v-if="isGudangSearchVisible"
-      :user-cabang="authStore.user?.cabang || ''"
-      @close="isGudangSearchVisible = false"
-      @gudang-selected="onGudangSelected"
-    />
-    <CustomerSearchModal
-      v-if="isCustomerSearchVisible"
-      :gudang="header.gudang.kode"
-      @close="isCustomerSearchVisible = false"
-      @customer-selected="onCustomerSelected"
-    />
-    <SalesCounterSearchModal
-      v-if="isSalesCounterSearchVisible"
-      @close="isSalesCounterSearchVisible = false"
-      @sales-counter-selected="onSalesCounterSelected"
-    />
-    <PenawaranSearchModal
-      v-if="isPenawaranSearchVisible"
-      :cabang="header.gudang.kode"
-      @close="isPenawaranSearchVisible = false"
-      @selected="onPenawaranSelected"
-    />
-    <ProductSearchModal
-      v-if="isProductSearchVisible"
-      :key="isPromoFilterDisabled ? 'all-items' : 'promo-items'"
-      :gudang="header.gudang.kode"
-      category="ALL"
-      :multi="isMultiSelectProduct"
-      source="surat-pesanan"
-      :promo-nomor="isPromoFilterDisabled ? '' : header.nomorPromo"
-      @close="isProductSearchVisible = false"
-      @products-selected="onProductsSelected"
-    />
-    <AuthorizationModal
-      v-if="authDialog.show"
-      :title="authDialog.title"
-      :jenis="authDialog.jenis"
-      :nominal="authDialog.nominal"
-      :transaksi="authDialog.transaksi"
-      :barcode="authDialog.barcode"
-      :keterangan="authDialog.keterangan"
-      @success="authDialog.onSuccess"
-      @close="
+    <GudangSearchModal v-if="isGudangSearchVisible" :user-cabang="authStore.user?.cabang || ''"
+      @close="isGudangSearchVisible = false" @gudang-selected="onGudangSelected" />
+    <CustomerSearchModal v-if="isCustomerSearchVisible" :gudang="header.gudang.kode"
+      @close="isCustomerSearchVisible = false" @customer-selected="onCustomerSelected" />
+    <SalesCounterSearchModal v-if="isSalesCounterSearchVisible" @close="isSalesCounterSearchVisible = false"
+      @sales-counter-selected="onSalesCounterSelected" />
+    <PenawaranSearchModal v-if="isPenawaranSearchVisible" :cabang="header.gudang.kode"
+      @close="isPenawaranSearchVisible = false" @selected="onPenawaranSelected" />
+    <ProductSearchModal v-if="isProductSearchVisible" :key="isPromoFilterDisabled ? 'all-items' : 'promo-items'"
+      :gudang="header.gudang.kode" category="ALL" :multi="isMultiSelectProduct" source="surat-pesanan"
+      :promo-nomor="isPromoFilterDisabled ? '' : header.nomorPromo" @close="isProductSearchVisible = false"
+      @products-selected="onProductsSelected" />
+    <AuthorizationModal v-if="authDialog.show" :title="authDialog.title" :jenis="authDialog.jenis"
+      :nominal="authDialog.nominal" :transaksi="authDialog.transaksi" :barcode="authDialog.barcode"
+      :keterangan="authDialog.keterangan" @success="authDialog.onSuccess" @close="
         () => {
           authDialog.show = false;
           authDialog.onCancel();
         }
-      "
-    />
-    <SoDtfSearchModal
-      v-if="isSoDtfSearchVisible"
-      :cabang="header.gudang.kode"
-      :customerKode="header.customer?.kode"
-      @close="isSoDtfSearchVisible = false"
-      @selected="onSoDtfSelected"
-    />
-    <PriceProposalSearchModal
-      v-if="isPriceProposalSearchVisible"
-      :cabang="header.gudang.kode"
-      :customerKode="header.customer?.kode"
-      @close="isPriceProposalSearchVisible = false"
-      @selected="onPriceProposalSelected"
-    />
-    <DpInputModal
-      v-if="isDpInputVisible"
-      :customerKode="header.customer?.kode"
-      :minimal-dp="footer.minimalDp"
-      :existing-dp="footer.totalDp"
-      :existing-dp-nomor="existingDpNomor"
-      :nomor-so="header.nomor"
-      @close="isDpInputVisible = false"
-      @dp-saved="onDpSaved"
-    />
-    <CustomerForm
-      v-if="isNewCustomerFormVisible"
-      @close="isNewCustomerFormVisible = false"
-      @customer-saved="onNewCustomerSaved"
-    />
-    <DiscountCostModal
-      v-if="isDiscountCostModalVisible"
-      :footer-data="footer"
-      :total-so="totalDiscountable"
-      :customer="header.customer"
-      :gudang-kode="header.gudang.kode"
-      :ppn-persen="header.ppnPersen"
-      @close="isDiscountCostModalVisible = false"
-      @update="handleDiscountCostUpdate"
-    />
-    <DpListModal
-      v-if="isDpListModalVisible"
-      :dp-items="dpItems"
-      :customer-kode="header.customer?.kode || ''"
-      @close="isDpListModalVisible = false"
-      @remove-dp="removeDpRow($event)"
-      @add-dp="handleAddDp"
-    />
-    <JenisOrderModal
-      v-if="dialogs.jenisOrder"
-      :model-value="dialogs.jenisOrder"
-      :penawaran-details="penawaranDetails"
-      :penawaran-barang-list="penawaranBarangList"
-      @close="dialogs.jenisOrder = false"
-      @saved="handleJenisOrderSaved"
-    />
-    <PromoSearchModal
-      v-if="dialogs.promoSearch"
-      :tanggal="header.tanggal"
-      @close="dialogs.promoSearch = false"
-      @selected="onPromoSelected"
-    />
-    <PromoBonusModal
-      v-if="dialogs.promoBonus"
-      :promo-nomor="activePromoForBonus.nomor"
-      @close="dialogs.promoBonus = false"
-      @selected="handleBonusSelection"
-    />
+      " />
+    <SoDtfSearchModal v-if="isSoDtfSearchVisible" :cabang="header.gudang.kode" :customerKode="header.customer?.kode"
+      @close="isSoDtfSearchVisible = false" @selected="onSoDtfSelected" />
+    <PriceProposalSearchModal v-if="isPriceProposalSearchVisible" :cabang="header.gudang.kode"
+      :customerKode="header.customer?.kode" @close="isPriceProposalSearchVisible = false"
+      @selected="onPriceProposalSelected" />
+    <DpInputModal v-if="isDpInputVisible" :customerKode="header.customer?.kode" :minimal-dp="footer.minimalDp"
+      :existing-dp="footer.totalDp" :existing-dp-nomor="existingDpNomor" :nomor-so="header.nomor"
+      @close="isDpInputVisible = false" @dp-saved="onDpSaved" />
+    <CustomerForm v-if="isNewCustomerFormVisible" @close="isNewCustomerFormVisible = false"
+      @customer-saved="onNewCustomerSaved" />
+    <DiscountCostModal v-if="isDiscountCostModalVisible" :footer-data="footer" :total-so="totalDiscountable"
+      :customer="header.customer" :gudang-kode="header.gudang.kode" :ppn-persen="header.ppnPersen"
+      @close="isDiscountCostModalVisible = false" @update="handleDiscountCostUpdate" />
+    <DpListModal v-if="isDpListModalVisible" :dp-items="dpItems" :customer-kode="header.customer?.kode || ''"
+      @close="isDpListModalVisible = false" @remove-dp="removeDpRow($event)" @add-dp="handleAddDp" />
+    <JenisOrderModal v-if="dialogs.jenisOrder" :model-value="dialogs.jenisOrder" :penawaran-details="penawaranDetails"
+      :penawaran-barang-list="penawaranBarangList" @close="dialogs.jenisOrder = false" @saved="handleJenisOrderSaved" />
+    <PromoSearchModal v-if="dialogs.promoSearch" :tanggal="header.tanggal" @close="dialogs.promoSearch = false"
+      @selected="onPromoSelected" />
+    <PromoBonusModal v-if="dialogs.promoBonus" :promo-nomor="activePromoForBonus.nomor"
+      @close="dialogs.promoBonus = false" @selected="handleBonusSelection" />
+    <!-- <SpkDialog v-model="isSpkDialogVisible" :ref-so="header.nomor" :initial-data="{
+      customerNama: header.customer?.nama || '',
+      customerKode: header.customer?.kode || '',
+      namaDtf: header.namaDtf
+    }" @saved="handleSaveSpk" /> -->
 
     <v-dialog v-model="isPromoConfirmVisible" max-width="450px" persistent>
       <v-card class="rounded-lg">
@@ -3853,8 +3443,7 @@ const stopAndOpenPriceProposal = (index: number) => {
         <v-card-text class="pa-5">
           <p class="mb-4">Sistem mendeteksi transaksi ini berhak mendapatkan promo:</p>
           <v-alert type="info" variant="tonal" border="start" density="compact" class="mb-4">
-            <strong>{{ pendingPromoData.nama }}</strong
-            ><br />
+            <strong>{{ pendingPromoData.nama }}</strong><br />
             Potongan: <strong>{{ formatRupiah(pendingPromoData.diskon) }}</strong>
           </v-alert>
           <p class="text-caption text-medium-emphasis">
@@ -3910,31 +3499,17 @@ const stopAndOpenPriceProposal = (index: number) => {
         </v-toolbar>
 
         <v-card-text class="pa-0">
-          <v-data-table
-            :headers="adjustmentHeaders"
-            :items="adjustmentLogs"
-            density="compact"
-            class="elevation-0"
-            no-data-text="Belum ada aktivitas verifikasi fisik."
-            :items-per-page="10"
-          >
+          <v-data-table :headers="adjustmentHeaders" :items="adjustmentLogs" density="compact" class="elevation-0"
+            no-data-text="Belum ada aktivitas verifikasi fisik." :items-per-page="10">
             <template #[`item.qty`]="{ item }">
-              <span
-                :class="
-                  item.qty > 0 ? 'text-success font-weight-bold' : 'text-error font-weight-bold'
-                "
-              >
+              <span :class="item.qty > 0 ? 'text-success font-weight-bold' : 'text-error font-weight-bold'
+                ">
                 {{ item.qty > 0 ? "+" : "" }}{{ item.qty }}
               </span>
             </template>
 
             <template #[`item.type`]="{ item }">
-              <v-chip
-                size="x-small"
-                :color="getTypeColor(item.type)"
-                variant="flat"
-                class="font-weight-bold"
-              >
+              <v-chip size="x-small" :color="getTypeColor(item.type)" variant="flat" class="font-weight-bold">
                 {{ item.type }}
               </v-chip>
             </template>
@@ -3945,9 +3520,7 @@ const stopAndOpenPriceProposal = (index: number) => {
 
         <v-card-actions>
           <v-spacer></v-spacer>
-          <v-btn color="grey-darken-1" variant="text" @click="isAdjustmentLogVisible = false"
-            >Tutup</v-btn
-          >
+          <v-btn color="grey-darken-1" variant="text" @click="isAdjustmentLogVisible = false">Tutup</v-btn>
         </v-card-actions>
       </v-card>
     </v-dialog>
@@ -4366,12 +3939,10 @@ const stopAndOpenPriceProposal = (index: number) => {
   left: -100%;
   width: 50%;
   height: 100%;
-  background: linear-gradient(
-    to right,
-    transparent 0%,
-    rgba(255, 255, 255, 0.2) 50%,
-    transparent 100%
-  );
+  background: linear-gradient(to right,
+      transparent 0%,
+      rgba(255, 255, 255, 0.2) 50%,
+      transparent 100%);
   transform: skewX(-25deg);
   z-index: 2;
   animation: shineMove 4s infinite ease-in-out;
@@ -4455,6 +4026,7 @@ const stopAndOpenPriceProposal = (index: number) => {
 }
 
 @keyframes blink {
+
   0%,
   100% {
     opacity: 1;

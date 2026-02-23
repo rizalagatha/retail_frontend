@@ -8,6 +8,7 @@ interface SoDtfItem {
   tanggal: string;
   namaDtf: string;
   keterangan: string;
+  isLhk: number;
 }
 
 const props = defineProps({
@@ -24,6 +25,7 @@ const headers = [
   { title: 'Nomor', key: 'nomor', sortable: false, width: '200px' },
   { title: 'Tanggal', key: 'tanggal', sortable: false, width: '120px' },
   { title: 'Nama DTF', key: 'namaDtf', sortable: false, width: '40%' },
+  { title: 'Status LHK', key: 'isLhk', width: '120px' },
   { title: 'Keterangan', key: 'keterangan', sortable: false },
 ];
 
@@ -79,6 +81,11 @@ onMounted(loadItems);
               <td>{{ item.nomor }}</td>
               <td>{{ format(new Date(item.tanggal), 'dd/MM/yyyy') }}</td>
               <td>{{ item.namaDtf }}</td>
+              <td>
+                <v-chip size="x-small" :color="item.isLhk ? 'success' : 'warning'">
+                  {{ item.isLhk ? 'SUDAH LHK' : 'BELUM LHK' }}
+                </v-chip>
+              </td>
               <td>{{ item.keterangan }}</td>
             </tr>
           </template>

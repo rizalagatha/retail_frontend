@@ -94,6 +94,7 @@ const hasTodayFsk = computed(() => {
     return isSameDay(tglSetor, today) && item.Nomor.startsWith(authStore.user?.cabang || "");
   });
 });
+const isKdcUser = computed(() => authStore.user?.cabang === "KDC");
 
 const newButtonDisabledReason = computed(() => {
   if (hasTodayFsk.value)
@@ -222,6 +223,17 @@ const loadDetails = async (newlyExpandedItems: FskMaster[]) => {
 const getRowTextColor = (item: FskMaster) => {
   if (!item.Verified) return "text-red font-weight-bold";
   return "";
+};
+
+const handleEdit = () => {
+  if (!selectedRow.value) return;
+
+  router.push({
+    name: "FskEdit",
+    params: { nomor: selectedRow.value.Nomor },
+    // Kirim query parameter sebagai penanda read-only
+    query: { readonly: isKdcUser.value ? "true" : "false" },
+  });
 };
 
 const printData = () => {
@@ -367,22 +379,39 @@ watch(filters, fetchMasterData, { deep: true });
       <v-tooltip location="bottom" :disabled="!hasTodayFsk">
         <template #activator="{ props }">
           <span v-bind="props">
-            <v-btn size="small" prepend-icon="mdi-plus" color="primary" :disabled="!!newButtonDisabledReason"
-              @click="router.push({ name: 'FskCreate' })">Baru</v-btn>
+            <v-btn
+              size="small"
+              prepend-icon="mdi-plus"
+              color="primary"
+              :disabled="!!newButtonDisabledReason"
+              @click="router.push({ name: 'FskCreate' })"
+              >Baru</v-btn
+            >
           </span>
         </template>
         <span>{{ newButtonDisabledReason }}</span>
       </v-tooltip>
-      <v-btn v-if="authStore.can(MENU_ID, 'edit')" size="small" prepend-icon="mdi-pencil" :disabled="!canBeModified"
-        @click="router.push({ name: 'FskEdit', params: { nomor: selectedRow?.Nomor } })">
-        Ubah
+      <v-btn
+        v-if="authStore.can(MENU_ID, 'edit') || isKdcUser"
+        size="small"
+        prepend-icon="mdi-pencil"
+        :disabled="!isSingleSelected || (!canBeModified && !isKdcUser)"
+        @click="handleEdit"
+      >
+        {{ isKdcUser ? "Lihat Detail" : "Ubah" }}
       </v-btn>
       <!-- <v-btn v-if="authStore.can(MENU_ID, 'delete')" size="small" prepend-icon="mdi-delete" color="error"
         :disabled="!canBeModified" @click="handleDelete">
         Hapus
       </v-btn> -->
-      <v-btn v-if="authStore.can(MENU_ID, 'view')" size="small" color="green" :disabled="!isSingleSelected"
-        @click="printData" prepend-icon="mdi-printer">
+      <v-btn
+        v-if="authStore.can(MENU_ID, 'view')"
+        size="small"
+        color="green"
+        :disabled="!isSingleSelected"
+        @click="printData"
+        prepend-icon="mdi-printer"
+      >
         Cetak
       </v-btn>
       <v-menu offset-y>
@@ -403,8 +432,14 @@ watch(filters, fetchMasterData, { deep: true });
     </template>
 
     <div class="browse-content">
-      <v-alert type="info" variant="tonal" density="compact" icon="mdi-information"
-        class="mx-3 mt-2 mb-1 custom-alert-fsk" border="start">
+      <v-alert
+        type="info"
+        variant="tonal"
+        density="compact"
+        icon="mdi-information"
+        class="mx-3 mt-2 mb-1 custom-alert-fsk"
+        border="start"
+      >
         <div class="alert-content-small">
           <strong>Perhatian:</strong> Pembuatan FSK adalah tanda <strong>Closing</strong>. Maksimal
           <strong>1 FSK per hari</strong>. Gunakan saat operasional benar-benar selesai.
@@ -412,13 +447,35 @@ watch(filters, fetchMasterData, { deep: true });
       </v-alert>
       <div class="filter-section">
         <v-label class="filter-label">Periode:</v-label>
-        <v-text-field v-model="filters.startDate" type="date" density="compact" hide-details variant="outlined"
-          style="max-width: 150px" />
+        <v-text-field
+          v-model="filters.startDate"
+          type="date"
+          density="compact"
+          hide-details
+          variant="outlined"
+          style="max-width: 150px"
+        />
         <v-label class="mx-2">s/d</v-label>
-        <v-text-field v-model="filters.endDate" type="date" density="compact" hide-details variant="outlined"
-          style="max-width: 150px" />
-        <v-select label="Cabang" v-model="filters.cabang" :items="cabangList" item-title="nama" item-value="kode"
-          density="compact" hide-details variant="outlined" class="ms-4" style="max-width: 200px" />
+        <v-text-field
+          v-model="filters.endDate"
+          type="date"
+          density="compact"
+          hide-details
+          variant="outlined"
+          style="max-width: 150px"
+        />
+        <v-select
+          label="Cabang"
+          v-model="filters.cabang"
+          :items="cabangList"
+          item-title="nama"
+          item-value="kode"
+          density="compact"
+          hide-details
+          variant="outlined"
+          class="ms-4"
+          style="max-width: 200px"
+        />
         <v-spacer />
         <div class="d-flex align-center ga-2 text-caption">
           <v-icon color="red" icon="mdi-square-rounded" size="small"></v-icon> Belum Diverifikasi
@@ -427,39 +484,69 @@ watch(filters, fetchMasterData, { deep: true });
       </div>
 
       <div class="table-container">
-        <AppDataTable v-model="selected" v-model:expanded="expanded" :headers="headers" :items="masterData"
-          :loading="loading" item-value="Nomor" density="compact" class="desktop-table header-browse-blue" fixed-header
-          show-select return-object show-expand @update:expanded="loadDetails" @click:row="handleRowClick">
+        <AppDataTable
+          v-model="selected"
+          v-model:expanded="expanded"
+          :headers="headers"
+          :items="masterData"
+          :loading="loading"
+          item-value="Nomor"
+          density="compact"
+          class="desktop-table header-browse-blue"
+          fixed-header
+          show-select
+          return-object
+          show-expand
+          @update:expanded="loadDetails"
+          @click:row="handleRowClick"
+        >
           <template #headers="{ columns, isSorted, getSortIcon, toggleSort }">
             <tr>
               <template v-for="header in columns" :key="header.key">
-                <th :style="{
-                  width: header.width + 'px',
-                  minWidth: header.width + 'px',
-                  maxWidth: header.width + 'px',
-                }" class="resizable-header" :class="{
+                <th
+                  :style="{
+                    width: header.width + 'px',
+                    minWidth: header.width + 'px',
+                    maxWidth: header.width + 'px',
+                  }"
+                  class="resizable-header"
+                  :class="{
                     'text-center': header.align === 'center',
                     'text-end': header.align === 'end',
-                  }" @click="toggleSort(header)">
+                  }"
+                  @click="toggleSort(header)"
+                >
                   <div class="header-content">
                     <span>{{ header.title }}</span>
                     <v-icon v-if="isSorted(header)" size="small" class="ms-1">
                       {{ getSortIcon(header) }}
                     </v-icon>
                   </div>
-                  <div class="resizer" @mousedown.stop="onResizeStart($event, header)" @click.stop></div>
+                  <div
+                    class="resizer"
+                    @mousedown.stop="onResizeStart($event, header)"
+                    @click.stop
+                  ></div>
                 </th>
               </template>
             </tr>
           </template>
 
           <template #[`item.data-table-expand`]="{ internalItem, toggleExpand, isExpanded }">
-            <v-btn icon="mdi-chevron-down" :class="{ 'rotate-180': isExpanded(internalItem) }" size="x-small"
-              variant="text" @click.stop="toggleExpand(internalItem)" />
+            <v-btn
+              icon="mdi-chevron-down"
+              :class="{ 'rotate-180': isExpanded(internalItem) }"
+              size="x-small"
+              variant="text"
+              @click.stop="toggleExpand(internalItem)"
+            />
           </template>
 
-          <template v-for="header in headers.filter((h) => h.key !== 'data-table-expand')"
-            #[`item.${header.key}`]="{ item }" :key="header.key">
+          <template
+            v-for="header in headers.filter((h) => h.key !== 'data-table-expand')"
+            #[`item.${header.key}`]="{ item }"
+            :key="header.key"
+          >
             <td :class="getRowTextColor(item)">
               <template v-if="['TglSetor', 'TglVerifikasi'].includes(header.key)">
                 {{
@@ -480,13 +567,25 @@ watch(filters, fetchMasterData, { deep: true });
               <td :colspan="columns.length" class="pa-0">
                 <div class="detail-container">
                   <div class="detail-table-wrapper">
-                    <div v-if="loadingDetails.has(item.Nomor)" class="text-center pa-4 text-caption">
+                    <div
+                      v-if="loadingDetails.has(item.Nomor)"
+                      class="text-center pa-4 text-caption"
+                    >
                       Memuat detail...
                     </div>
-                    <v-data-table v-else :headers="detailHeaders" :items="details[item.Nomor]" density="compact"
-                      class="detail-table" :items-per-page="-1" hide-default-footer>
-                      <template v-for="headerKey in ['NominalSetor', 'NominalVerifikasi']"
-                        #[`item.${headerKey}`]="{ value }">
+                    <v-data-table
+                      v-else
+                      :headers="detailHeaders"
+                      :items="details[item.Nomor]"
+                      density="compact"
+                      class="detail-table"
+                      :items-per-page="-1"
+                      hide-default-footer
+                    >
+                      <template
+                        v-for="headerKey in ['NominalSetor', 'NominalVerifikasi']"
+                        #[`item.${headerKey}`]="{ value }"
+                      >
                         {{ formatRupiah(value) }}
                       </template>
                       <template #bottom></template>

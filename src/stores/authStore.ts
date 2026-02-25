@@ -156,15 +156,14 @@ export const useAuthStore = defineStore("auth", () => {
   }
 
   function can(menuId: string, action: "view" | "insert" | "edit" | "delete"): boolean {
-    // Konversi menuId (string) ke number sebelum membandingkan
     const idAsNumber = parseInt(menuId, 10);
 
-    // Cari permission berdasarkan id (number)
-    const permission = permissions.value.find((p) => p.id === idAsNumber);
+    // Gunakan filter untuk mengambil semua kecocokan, lalu some untuk cek izin
+    const hasPermission = permissions.value
+      .filter((p) => p.id === idAsNumber)
+      .some((p) => p[action]);
 
-    // Jika permission ditemukan, kembalikan nilai boolean dari action yang diminta
-    // Jika tidak, kembalikan false
-    return permission ? permission[action] : false;
+    return hasPermission;
   }
 
   function handleSessionExpired() {

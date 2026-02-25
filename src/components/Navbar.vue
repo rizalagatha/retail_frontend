@@ -17,10 +17,10 @@ interface NavSection {
 }
 
 interface NavItem {
-  title?: string;       // UBAH INI: Tambahkan '?' agar opsional
+  title?: string; // UBAH INI: Tambahkan '?' agar opsional
   icon?: string;
   to?: string;
-  divider?: boolean;    // Dibutuhkan untuk objek { divider: true }
+  divider?: boolean; // Dibutuhkan untuk objek { divider: true }
   onClick?: () => void;
   badgeKey?: string;
   items?: NavItem[];
@@ -55,32 +55,36 @@ const hasTransaksiNotif = computed(() => {
 });
 
 const hasToolsNotif = computed(() => authStore.notifications.memo > 0);
+const hasGudangNotif = computed(() => {
+  // Hanya munculkan badge di menu 'Gudang DC' jika user di cabang KDC dan ada retur pending
+  return authStore.userCabang === "KDC" && authStore.notifications.retur > 0;
+});
 
 // Tambahkan di dalam <script setup>
 const userRoleConfig = computed(() => {
   const user = authStore.user;
-  const cabang = authStore.userCabang?.toUpperCase() || '';
-  const name = authStore.userName?.toUpperCase() || '';
+  const cabang = authStore.userCabang?.toUpperCase() || "";
+  const name = authStore.userName?.toUpperCase() || "";
 
   // 1. Administrator (Prioritas 1 - Merah)
-  if (name.includes('ADMIN')) {
-    return { icon: 'mdi-shield-account', color: 'red-darken-2' };
+  if (name.includes("ADMIN")) {
+    return { icon: "mdi-shield-account", color: "red-darken-2" };
   }
 
   // 2. [FIX] Warehouse User (Prioritas 2 - Oranye)
   // ADIN & LUTFI akan selalu jadi Warehouse meski login di KDC
   if (user?.isWarehouseUser) {
-    return { icon: 'mdi-warehouse', color: 'orange-darken-3' };
+    return { icon: "mdi-warehouse", color: "orange-darken-3" };
   }
 
   // 3. KDC / Pusat (Prioritas 3 - Indigo)
   // Staff office KDC lainnya (Finance, Admin Office)
-  if (cabang === 'KDC') {
-    return { icon: 'mdi-office-building', color: 'indigo-darken-2' };
+  if (cabang === "KDC") {
+    return { icon: "mdi-office-building", color: "indigo-darken-2" };
   }
 
   // 4. Store (Default - Teal)
-  return { icon: 'mdi-store', color: 'teal-darken-1' };
+  return { icon: "mdi-store", color: "teal-darken-1" };
 });
 
 // Access control helper
@@ -417,6 +421,7 @@ const menuItems: NavItem[] = [
             title: "Terima Retur dari Store",
             to: "/gudang-dc/operasional/terima-rb",
             icon: "mdi-package-down",
+            badgeKey: "retur",
           },
           {
             title: "QC ke Garmen",
@@ -497,7 +502,12 @@ const menuItems: NavItem[] = [
     model: fileMenu,
     items: [
       { title: "Manual Program", icon: "mdi-book-open-outline", onClick: () => openManualDialog() },
-      { title: "Memo Internal", icon: "mdi-bulletin-board", onClick: () => handleOpenMemo(), badgeKey: "memo" },
+      {
+        title: "Memo Internal",
+        icon: "mdi-bulletin-board",
+        onClick: () => handleOpenMemo(),
+        badgeKey: "memo",
+      },
       {
         title: "Update Buffer Stok",
         icon: "mdi-database-sync",
@@ -549,8 +559,13 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <v-app-bar flat height="64" :elevation="appBarElevation" fixed
-    :class="['desktop-navbar', { 'navbar-scrolled': isScrolled }]">
+  <v-app-bar
+    flat
+    height="64"
+    :elevation="appBarElevation"
+    fixed
+    :class="['desktop-navbar', { 'navbar-scrolled': isScrolled }]"
+  >
     <RouterLink to="/" class="logo-section">
       <v-avatar size="32" class="logo-avatar">
         <v-img :src="logoSrc" alt="Kaosan Logo" cover />
@@ -565,14 +580,29 @@ onUnmounted(() => {
 
     <nav class="main-navigation">
       <template v-for="menu in menuItems" :key="menu.title">
-        <v-menu v-if="!menu.isLarge && (!('to' in menu) || hasAccess(menu.to as string))" v-model="menu.model.value"
-          offset-y :close-on-content-click="false"
+        <v-menu
+          v-if="!menu.isLarge && (!('to' in menu) || hasAccess(menu.to as string))"
+          v-model="menu.model.value"
+          offset-y
+          :close-on-content-click="false"
           :max-width="menu.title === 'Transaksi' ? 1200 : menu.title === 'Gudang DC' ? 1200 : 1000"
-          transition="fade-transition" class="nav-menu" location="bottom center" origin="top center">
+          transition="fade-transition"
+          class="nav-menu"
+          location="bottom center"
+          origin="top center"
+        >
           <template #activator="{ props }">
-            <v-badge color="error" dot
-              :model-value="(menu.title === 'Transaksi' && hasTransaksiNotif) || (menu.title === 'Tools' && hasToolsNotif)"
-              offset-x="10" offset-y="10">
+            <v-badge
+              color="error"
+              dot
+              :model-value="
+                (menu.title === 'Transaksi' && hasTransaksiNotif) ||
+                (menu.title === 'Tools' && hasToolsNotif) ||
+                (menu.title === 'Gudang DC' && hasGudangNotif) // [TAMBAHKAN INI]
+              "
+              offset-x="10"
+              offset-y="10"
+            >
               <v-btn variant="text" v-bind="props" :prepend-icon="menu.icon" class="nav-button">
                 {{ menu.title }}
               </v-btn>
@@ -581,10 +611,17 @@ onUnmounted(() => {
 
           <v-card class="nav-dropdown" elevation="8">
             <v-list class="nav-list" density="comfortable">
-              <template v-for="(item, index) in menu.items.filter((i) => !i.to || hasAccess(i.to))" :key="index">
+              <template
+                v-for="(item, index) in menu.items.filter((i) => !i.to || hasAccess(i.to))"
+                :key="index"
+              >
                 <v-divider v-if="item.divider" class="nav-divider" />
 
-                <v-list-group v-else-if="'subItems' in item" :value="item.title" class="nav-list-group">
+                <v-list-group
+                  v-else-if="'subItems' in item"
+                  :value="item.title"
+                  class="nav-list-group"
+                >
                   <template #activator="{ props }">
                     <v-list-item v-bind="props" :prepend-icon="item.icon" class="nav-list-item">
                       <v-list-item-title>{{ item.title }}</v-list-item-title>
@@ -593,32 +630,63 @@ onUnmounted(() => {
 
                   <template
                     v-for="subItem in ((item.subItems as NavItem[] | undefined) ?? []).filter(si => hasAccess(si.to))"
-                    :key="subItem.title">
-                    <v-list-group v-if="subItem.subItems" :value="subItem.title" class="nav-list-group nested">
+                    :key="subItem.title"
+                  >
+                    <v-list-group
+                      v-if="subItem.subItems"
+                      :value="subItem.title"
+                      class="nav-list-group nested"
+                    >
                       <template #activator="{ props }">
-                        <v-list-item v-bind="props" :prepend-icon="subItem.icon" class="nav-list-item nested">
+                        <v-list-item
+                          v-bind="props"
+                          :prepend-icon="subItem.icon"
+                          class="nav-list-item nested"
+                        >
                           <v-list-item-title>{{ subItem.title }}</v-list-item-title>
                         </v-list-item>
                       </template>
-                      <v-list-item v-for="subSubItem in subItem.subItems.filter((ssi) => hasAccess(ssi.to))"
-                        :key="subSubItem.title" :to="subSubItem.to" :prepend-icon="subSubItem.icon"
-                        class="nav-list-item deep-nested" @click="closeMenus">
+                      <v-list-item
+                        v-for="subSubItem in subItem.subItems.filter((ssi) => hasAccess(ssi.to))"
+                        :key="subSubItem.title"
+                        :to="subSubItem.to"
+                        :prepend-icon="subSubItem.icon"
+                        class="nav-list-item deep-nested"
+                        @click="closeMenus"
+                      >
                         <v-list-item-title>{{ subSubItem.title }}</v-list-item-title>
                       </v-list-item>
                     </v-list-group>
 
-                    <v-list-item v-else :to="subItem.to" :prepend-icon="subItem.icon" class="nav-list-item sub"
-                      @click="closeMenus">
+                    <v-list-item
+                      v-else
+                      :to="subItem.to"
+                      :prepend-icon="subItem.icon"
+                      class="nav-list-item sub"
+                      @click="closeMenus"
+                    >
                       <v-list-item-title>{{ subItem.title }}</v-list-item-title>
                     </v-list-item>
                   </template>
                 </v-list-group>
 
-                <v-list-item v-else :to="item.to" @click="() => { if (item.onClick) item.onClick(); closeMenus(); }">
+                <v-list-item
+                  v-else
+                  :to="item.to"
+                  @click="
+                    () => {
+                      if (item.onClick) item.onClick();
+                      closeMenus();
+                    }
+                  "
+                >
                   <template #prepend>
                     <v-badge
                       v-if="item.badgeKey && authStore.notifications[item.badgeKey as keyof typeof authStore.notifications] > 0"
-                      color="error" dot floating>
+                      color="error"
+                      dot
+                      floating
+                    >
                       <v-icon>{{ item.icon }}</v-icon>
                     </v-badge>
                     <v-icon v-else>{{ item.icon }}</v-icon>
@@ -630,13 +698,27 @@ onUnmounted(() => {
           </v-card>
         </v-menu>
 
-        <v-menu v-else-if="menu.isLarge" v-model="menu.model.value" offset-y
-          :max-width="menu.title === 'Gudang DC' ? 1200 : 1000" transition="fade-transition"
-          :close-on-content-click="false" class="nav-menu large">
+        <v-menu
+          v-else-if="menu.isLarge"
+          v-model="menu.model.value"
+          offset-y
+          :max-width="menu.title === 'Gudang DC' ? 1200 : 1000"
+          transition="fade-transition"
+          :close-on-content-click="false"
+          class="nav-menu large"
+        >
           <template #activator="{ props }">
-            <v-badge color="error" dot
-              :model-value="(menu.title === 'Transaksi' && hasTransaksiNotif) || (menu.title === 'Tools' && hasToolsNotif)"
-              offset-x="10" offset-y="10">
+            <v-badge
+              color="error"
+              dot
+              :model-value="
+                (menu.title === 'Transaksi' && hasTransaksiNotif) ||
+                (menu.title === 'Tools' && hasToolsNotif) ||
+                (menu.title === 'Gudang DC' && hasGudangNotif)
+              "
+              offset-x="10"
+              offset-y="10"
+            >
               <v-btn variant="text" v-bind="props" :prepend-icon="menu.icon" class="nav-button">
                 {{ menu.title }}
               </v-btn>
@@ -646,49 +728,88 @@ onUnmounted(() => {
           <v-card class="large-nav-dropdown" elevation="8">
             <v-container fluid class="pa-4">
               <v-row>
-                <v-col v-for="section in menu.sections" :key="section.title" :cols="12 / menu.sections.length"
-                  class="section-col">
+                <v-col
+                  v-for="section in menu.sections"
+                  :key="section.title"
+                  :cols="12 / menu.sections.length"
+                  class="section-col"
+                >
                   <div class="section-header bg-primary-lighten-5">
                     <v-icon :icon="section.icon" size="18" class="section-icon text-primary" />
                     <h4 class="section-title text-primary">{{ section.title }}</h4>
                   </div>
 
                   <v-list density="compact" class="section-list">
-                    <template v-for="item in section.items.filter((i) => !i.to || hasAccess(i.to))" :key="item.title">
-                      <v-list-group v-if="item.subItems" :value="item.title" class="section-list-group">
+                    <template
+                      v-for="item in section.items.filter((i) => !i.to || hasAccess(i.to))"
+                      :key="item.title"
+                    >
+                      <v-list-group
+                        v-if="item.subItems"
+                        :value="item.title"
+                        class="section-list-group"
+                      >
                         <template #activator="{ props }">
-                          <v-list-item v-bind="props" :prepend-icon="item.icon" :title="item.title"
-                            class="section-list-item" />
+                          <v-list-item
+                            v-bind="props"
+                            :prepend-icon="item.icon"
+                            :title="item.title"
+                            class="section-list-item"
+                          />
                         </template>
-                        <template v-for="subItem in item.subItems.filter((si) => hasAccess(si.to))"
-                          :key="subItem.title">
-                          <v-list-group v-if="'subItems' in subItem && Array.isArray((subItem as any).subItems)"
-                            :value="subItem.title" class="section-list-group nested">
+                        <template
+                          v-for="subItem in item.subItems.filter((si) => hasAccess(si.to))"
+                          :key="subItem.title"
+                        >
+                          <v-list-group
+                            v-if="'subItems' in subItem && Array.isArray((subItem as any).subItems)"
+                            :value="subItem.title"
+                            class="section-list-group nested"
+                          >
                             <template #activator="{ props }">
-                              <v-list-item v-bind="props" :prepend-icon="subItem.icon" class="section-list-item nested">
+                              <v-list-item
+                                v-bind="props"
+                                :prepend-icon="subItem.icon"
+                                class="section-list-item nested"
+                              >
                                 <v-list-item-title>{{ subItem.title }}</v-list-item-title>
                               </v-list-item>
                             </template>
                             <v-list-item
                               v-for="subSubItem in ((subItem.subItems as NavItem[] | undefined) ?? []).filter(ssi => hasAccess(ssi.to))"
-                              :key="subSubItem.title" :to="subSubItem.to" :prepend-icon="subSubItem.icon"
-                              class="section-list-item deep-nested" @click="closeMenus">
+                              :key="subSubItem.title"
+                              :to="subSubItem.to"
+                              :prepend-icon="subSubItem.icon"
+                              class="section-list-item deep-nested"
+                              @click="closeMenus"
+                            >
                               <v-list-item-title>{{ subSubItem.title }}</v-list-item-title>
                             </v-list-item>
                           </v-list-group>
-                          <v-list-item v-else :to="subItem.to" :prepend-icon="subItem.icon"
-                            class="section-list-item sub" @click="closeMenus">
+                          <v-list-item
+                            v-else
+                            :to="subItem.to"
+                            :prepend-icon="subItem.icon"
+                            class="section-list-item sub"
+                            @click="closeMenus"
+                          >
                             <v-list-item-title>{{ subItem.title }}</v-list-item-title>
                           </v-list-item>
                         </template>
                       </v-list-group>
-                      <v-list-item v-else :to="item.to" class="section-list-item" @click="closeMenus">
+                      <v-list-item
+                        v-else
+                        :to="item.to"
+                        class="section-list-item"
+                        @click="closeMenus"
+                      >
                         <template #prepend>
                           <v-badge
                             v-if="item.badgeKey && authStore.notifications[item.badgeKey as keyof typeof authStore.notifications] > 0"
                             color="error"
                             :content="authStore.notifications[item.badgeKey as keyof typeof authStore.notifications]"
-                            overlap>
+                            overlap
+                          >
                             <v-icon>{{ item.icon }}</v-icon>
                           </v-badge>
                           <v-icon v-else>{{ item.icon }}</v-icon>
@@ -728,25 +849,37 @@ onUnmounted(() => {
             </template>
             <v-list-item-title class="user-profile-name">{{
               authStore.userName
-              }}</v-list-item-title>
+            }}</v-list-item-title>
             <v-list-item-subtitle class="user-profile-branch">{{
               authStore.userCabang
-              }}</v-list-item-subtitle>
+            }}</v-list-item-subtitle>
           </v-list-item>
 
           <v-divider class="user-divider" />
 
-          <v-list-item @click="openWhatsAppDialog" prepend-icon="mdi-whatsapp" class="user-menu-item">
+          <v-list-item
+            @click="openWhatsAppDialog"
+            prepend-icon="mdi-whatsapp"
+            class="user-menu-item"
+          >
             <v-list-item-title>Tautkan WhatsApp</v-list-item-title>
           </v-list-item>
 
-          <v-list-item @click="openPasswordDialog" prepend-icon="mdi-lock-outline" class="user-menu-item">
+          <v-list-item
+            @click="openPasswordDialog"
+            prepend-icon="mdi-lock-outline"
+            class="user-menu-item"
+          >
             <v-list-item-title>Ganti Password</v-list-item-title>
           </v-list-item>
 
           <v-divider class="user-divider" />
 
-          <v-list-item @click="handleLogout" prepend-icon="mdi-logout" class="user-menu-item logout">
+          <v-list-item
+            @click="handleLogout"
+            prepend-icon="mdi-logout"
+            class="user-menu-item logout"
+          >
             <v-list-item-title>Logout</v-list-item-title>
           </v-list-item>
         </v-list>

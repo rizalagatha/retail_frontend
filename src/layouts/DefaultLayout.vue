@@ -61,31 +61,69 @@ const showFaq = ref(false);
 // State Notifikasi
 const notificationList = computed(() => {
   const n = authStore.notifications;
+  const isKDC = authStore.userCabang === "KDC";
   const list = [];
 
   if (n.sj > 0) {
-    list.push({ title: "Terima SJ dari DC", count: n.sj, to: "/transaksi/internal/terima-sj", icon: "mdi-truck-delivery", color: "red" });
+    list.push({
+      title: "Terima SJ dari DC",
+      count: n.sj,
+      to: "/transaksi/internal/terima-sj",
+      icon: "mdi-truck-delivery",
+      color: "red",
+    });
   }
   if (n.mutasi > 0) {
-    list.push({ title: "Terima Mutasi Toko", count: n.mutasi, to: "/transaksi/mutasi/store-terima", icon: "mdi-transfer-down", color: "purple" });
+    list.push({
+      title: "Terima Mutasi Toko",
+      count: n.mutasi,
+      to: "/transaksi/mutasi/store-terima",
+      icon: "mdi-transfer-down",
+      color: "purple",
+    });
   }
   if (n.retur > 0) {
-    list.push({ title: "Retur ke DC (Pending)", count: n.retur, to: "/transaksi/internal/retur-dc", icon: "mdi-keyboard-return", color: "orange" });
+    list.push({
+      title: isKDC ? "Terima Retur dari Toko" : "Retur ke DC (Pending)", // [FIX] Teks Dinamis
+      count: n.retur,
+      to: isKDC ? "/gudang-dc/operasional/terima-rb" : "/transaksi/internal/retur-dc", // [FIX] Link Dinamis
+      icon: isKDC ? "mdi-package-down" : "mdi-keyboard-return",
+      color: "orange",
+    });
   }
   if (n.pinjam > 0) {
-    list.push({ title: "Peminjaman Overdue", count: n.pinjam, to: "/transaksi/internal/peminjaman-barang", icon: "mdi-clock-alert", color: "brown" });
+    list.push({
+      title: "Peminjaman Overdue",
+      count: n.pinjam,
+      to: "/transaksi/internal/peminjaman-barang",
+      icon: "mdi-clock-alert",
+      color: "brown",
+    });
   }
   // Notifikasi Memo akan langsung hilang dari lonceng jika n.memo = 0
   if (n.memo > 0) {
-    list.push({ title: "Memo Internal Baru", count: n.memo, to: "#", icon: "mdi-bulletin-board", color: "blue", isMemo: true });
+    list.push({
+      title: "Memo Internal Baru",
+      count: n.memo,
+      to: "#",
+      icon: "mdi-bulletin-board",
+      color: "blue",
+      isMemo: true,
+    });
   }
 
   return list;
 });
 const totalNotifications = computed(() => {
   const n = authStore.notifications;
-  // Menjumlahkan semua angka notifikasi yang ada
-  return n.sj + n.mutasi + n.retur + n.pinjam + n.memo;
+  // Tambahkan pengaman || 0 agar tidak terjadi NaN
+  return (
+    (Number(n.sj) || 0) +
+    (Number(n.mutasi) || 0) +
+    (Number(n.retur) || 0) +
+    (Number(n.pinjam) || 0) +
+    (Number(n.memo) || 0)
+  );
 });
 const isNotificationMenuOpen = ref(false);
 
@@ -361,25 +399,22 @@ const handleOpenMemo = () => {
 // Function Fetch Notifikasi (Ringan)
 const fetchNotifications = async () => {
   if (!authStore.isAuthenticated) return;
-
   try {
     const stockRes = await api.get("/dashboard/stock-alerts");
     const stockData = stockRes.data;
 
-    // Cek Lock Memo (Berdasarkan localStorage)
     const lastSeen = localStorage.getItem("last_memo_open_at") || "1970-01-01";
-    const hasNewMemo = stockData.latest_memo_date && new Date(stockData.latest_memo_date) > new Date(lastSeen);
+    const hasNewMemo =
+      stockData.latest_memo_date && new Date(stockData.latest_memo_date) > new Date(lastSeen);
 
-    // Cukup update state global di authStore
+    // Pastikan property name (retur_pending) match dengan backend
     authStore.notifications = {
-      sj: stockData.sj_pending || 0,
-      mutasi: stockData.mutasi_pending || 0,
-      retur: stockData.retur_dc_pending || 0,
-      pinjam: stockData.pinjam_overdue || 0,
-      memo: hasNewMemo ? (stockData.new_memo_count || 0) : 0
+      sj: Number(stockData.sj_pending) || 0,
+      mutasi: Number(stockData.mutasi_pending) || 0,
+      retur: Number(stockData.retur_pending) || 0, // Sesuaikan dengan key backend
+      pinjam: Number(stockData.pinjam_overdue) || 0,
+      memo: hasNewMemo ? Number(stockData.new_memo_count) || 0 : 0,
     };
-
-    // Tidak perlu lagi memanipulasi notificationList.value di sini
   } catch (error) {
     console.error("Gagal cek notifikasi", error);
   }
@@ -435,8 +470,12 @@ onUnmounted(() => {
       <router-view />
     </v-main>
 
-    <v-footer v-if="authStore.isAuthenticated" app class="pa-0 px-4 py-1 border-top bg-surface"
-      style="font-size: 11px; height: 40px">
+    <v-footer
+      v-if="authStore.isAuthenticated"
+      app
+      class="pa-0 px-4 py-1 border-top bg-surface"
+      style="font-size: 11px; height: 40px"
+    >
       <div class="d-flex align-center ga-3" style="min-width: 200px">
         <div class="d-flex align-center cursor-pointer text-medium-emphasis" title="User Aktif">
           <v-icon size="14" class="mr-1">mdi-account-circle</v-icon>
@@ -446,8 +485,11 @@ onUnmounted(() => {
 
         <v-divider vertical class="my-1"></v-divider>
 
-        <div class="d-flex align-center cursor-pointer" @click="checkPing"
-          :title="authStore.isOnline ? `Respon Server: ${latency}ms` : 'Koneksi Terputus'">
+        <div
+          class="d-flex align-center cursor-pointer"
+          @click="checkPing"
+          :title="authStore.isOnline ? `Respon Server: ${latency}ms` : 'Koneksi Terputus'"
+        >
           <template v-if="authStore.isOnline && latency !== null">
             <v-icon size="8" class="mr-1" :color="latencyColor">mdi-circle</v-icon>
             <span class="text-caption text-disabled">{{ latency }} ms</span>
@@ -458,23 +500,36 @@ onUnmounted(() => {
           </template>
         </div>
 
-        <div class="d-flex align-center ga-1 text-caption font-weight-bold" style="font-size: 9px; user-select: none">
+        <div
+          class="d-flex align-center ga-1 text-caption font-weight-bold"
+          style="font-size: 9px; user-select: none"
+        >
           <span :class="capsLockOn ? 'text-primary' : 'text-disabled opacity-30'">CAPS</span>
           <span :class="numLockOn ? 'text-primary' : 'text-disabled opacity-30'">NUM</span>
         </div>
 
         <v-tooltip text="Bantuan / FAQ" location="top">
           <template v-slot:activator="{ props }">
-            <v-btn v-bind="props" icon variant="text" size="small" density="compact" color="teal"
-              @click="showFaq = true">
+            <v-btn
+              v-bind="props"
+              icon
+              variant="text"
+              size="small"
+              density="compact"
+              color="teal"
+              @click="showFaq = true"
+            >
               <v-icon size="18">mdi-comment-question-outline</v-icon>
             </v-btn>
           </template>
         </v-tooltip>
 
         <v-slide-x-transition>
-          <div v-if="uiStore.hasUnsavedChanges" class="d-flex align-center ml-4 text-warning"
-            title="Ada perubahan yang belum disimpan">
+          <div
+            v-if="uiStore.hasUnsavedChanges"
+            class="d-flex align-center ml-4 text-warning"
+            title="Ada perubahan yang belum disimpan"
+          >
             <v-icon size="14" class="mr-1 blink-animation">mdi-content-save-alert-outline</v-icon>
             <span class="font-weight-bold text-caption">Belum Disimpan</span>
           </div>
@@ -486,8 +541,11 @@ onUnmounted(() => {
       <div v-if="nextPrayerName" class="d-none d-md-flex align-center justify-center">
         <v-menu open-on-hover location="top center">
           <template v-slot:activator="{ props }">
-            <div v-bind="props" class="d-flex align-center px-3 py-1 rounded border cursor-help bg-surface"
-              style="height: 24px">
+            <div
+              v-bind="props"
+              class="d-flex align-center px-3 py-1 rounded border cursor-help bg-surface"
+              style="height: 24px"
+            >
               <v-icon size="12" color="teal" class="mr-2">mdi-mosque</v-icon>
               <span class="text-caption font-weight-medium text-medium-emphasis mr-1">
                 {{ nextPrayerName }}
@@ -502,21 +560,32 @@ onUnmounted(() => {
           </template>
 
           <v-card width="200" class="rounded-lg shadow-sm">
-            <v-card-title class="text-caption font-weight-bold bg-teal-lighten-5 py-2 px-3 text-teal-darken-2">
+            <v-card-title
+              class="text-caption font-weight-bold bg-teal-lighten-5 py-2 px-3 text-teal-darken-2"
+            >
               Jadwal Sholat {{ city }}
             </v-card-title>
             <v-list density="compact" class="py-0">
-              <v-list-item v-for="(time, name) in fullSchedule" :key="name"
-                :class="{ 'bg-teal-lighten-5': name === nextPrayerName }" style="min-height: 28px">
+              <v-list-item
+                v-for="(time, name) in fullSchedule"
+                :key="name"
+                :class="{ 'bg-teal-lighten-5': name === nextPrayerName }"
+                style="min-height: 28px"
+              >
                 <div class="d-flex justify-space-between w-100 text-caption">
-                  <span :class="name === nextPrayerName
-                    ? 'font-weight-bold text-teal-darken-3'
-                    : 'text-medium-emphasis'
-                    ">
+                  <span
+                    :class="
+                      name === nextPrayerName
+                        ? 'font-weight-bold text-teal-darken-3'
+                        : 'text-medium-emphasis'
+                    "
+                  >
                     {{ name }}
                   </span>
-                  <span class="font-weight-bold"
-                    :class="name === nextPrayerName ? 'text-teal-darken-3' : 'text-medium-emphasis'">
+                  <span
+                    class="font-weight-bold"
+                    :class="name === nextPrayerName ? 'text-teal-darken-3' : 'text-medium-emphasis'"
+                  >
                     {{ time }}
                   </span>
                 </div>
@@ -531,7 +600,15 @@ onUnmounted(() => {
       <div class="d-flex align-center ga-2" style="min-width: 200px; justify-content: flex-end">
         <v-tooltip text="Transaksi" location="top">
           <template v-slot:activator="{ props }">
-            <v-btn v-bind="props" to="/transaksi" icon variant="text" size="x-small" density="compact" color="grey">
+            <v-btn
+              v-bind="props"
+              to="/transaksi"
+              icon
+              variant="text"
+              size="x-small"
+              density="compact"
+              color="grey"
+            >
               <v-icon size="16">mdi-cash-register</v-icon>
             </v-btn>
           </template>
@@ -539,7 +616,15 @@ onUnmounted(() => {
 
         <v-tooltip text="Laporan" location="top">
           <template v-slot:activator="{ props }">
-            <v-btn v-bind="props" to="/laporan" icon variant="text" size="x-small" density="compact" color="grey">
+            <v-btn
+              v-bind="props"
+              to="/laporan"
+              icon
+              variant="text"
+              size="x-small"
+              density="compact"
+              color="grey"
+            >
               <v-icon size="16">mdi-chart-bar</v-icon>
             </v-btn>
           </template>
@@ -547,8 +632,15 @@ onUnmounted(() => {
 
         <v-tooltip :text="uiStore.isDark ? 'Ganti ke Terang' : 'Ganti ke Gelap'" location="top">
           <template v-slot:activator="{ props }">
-            <v-btn v-bind="props" icon variant="text" size="x-small" density="compact" @click="toggleTheme"
-              :color="uiStore.isDark ? 'yellow-darken-2' : 'blue-grey-darken-1'">
+            <v-btn
+              v-bind="props"
+              icon
+              variant="text"
+              size="x-small"
+              density="compact"
+              @click="toggleTheme"
+              :color="uiStore.isDark ? 'yellow-darken-2' : 'blue-grey-darken-1'"
+            >
               <v-icon size="16">
                 {{ uiStore.isDark ? "mdi-weather-sunny" : "mdi-weather-night" }}
               </v-icon>
@@ -558,13 +650,26 @@ onUnmounted(() => {
 
         <v-divider vertical class="mx-1"></v-divider>
 
-        <v-menu v-model="isNotificationMenuOpen" :close-on-content-click="false" location="top end" offset="10">
+        <v-menu
+          v-model="isNotificationMenuOpen"
+          :close-on-content-click="false"
+          location="top end"
+          offset="10"
+        >
           <template v-slot:activator="{ props }">
             <v-btn v-bind="props" icon variant="text" size="small" density="compact" class="mr-1">
-              <v-badge :content="totalNotifications" :model-value="totalNotifications > 0" color="error" size="x-small"
-                floating>
-                <v-icon size="18" :color="totalNotifications > 0 ? 'orange-darken-4' : 'grey'"
-                  :class="{ 'bell-ring': totalNotifications > 0 }">
+              <v-badge
+                :content="totalNotifications"
+                :model-value="totalNotifications > 0"
+                color="error"
+                size="x-small"
+                floating
+              >
+                <v-icon
+                  size="18"
+                  :color="totalNotifications > 0 ? 'orange-darken-4' : 'grey'"
+                  :class="{ 'bell-ring': totalNotifications > 0 }"
+                >
                   {{ totalNotifications > 0 ? "mdi-bell-ring" : "mdi-bell-outline" }}
                 </v-icon>
               </v-badge>
@@ -573,13 +678,19 @@ onUnmounted(() => {
 
           <v-card width="300" class="rounded-lg shadow-lg">
             <v-card-title
-              class="text-caption font-weight-bold py-2 px-3 d-flex align-center justify-space-between bg-grey-lighten-4 text-grey-darken-3">
+              class="text-caption font-weight-bold py-2 px-3 d-flex align-center justify-space-between bg-grey-lighten-4 text-grey-darken-3"
+            >
               <div class="d-flex align-center">
                 <v-icon size="small" start color="orange-darken-4">mdi-bell-ring</v-icon>
                 Pemberitahuan
               </div>
-              <v-chip v-if="totalNotifications > 0" size="x-small" color="error" variant="flat"
-                class="font-weight-bold">
+              <v-chip
+                v-if="totalNotifications > 0"
+                size="x-small"
+                color="error"
+                variant="flat"
+                class="font-weight-bold"
+              >
                 {{ totalNotifications }} Pending
               </v-chip>
             </v-card-title>
@@ -587,10 +698,16 @@ onUnmounted(() => {
             <v-card-text class="pa-0">
               <v-list density="compact" lines="one" class="py-0" v-if="notificationList.length > 0">
                 <template v-for="(notif, i) in notificationList" :key="i">
-                  <v-list-item :to="notif.isMemo ? undefined : notif.to" @click="() => {
-                    if (notif.isMemo) handleOpenMemo();
-                    isNotificationMenuOpen = false;
-                  }" active-color="primary">
+                  <v-list-item
+                    :to="notif.isMemo ? undefined : notif.to"
+                    @click="
+                      () => {
+                        if (notif.isMemo) handleOpenMemo();
+                        isNotificationMenuOpen = false;
+                      }
+                    "
+                    active-color="primary"
+                  >
                     <template v-slot:prepend>
                       <v-avatar :color="notif.color" variant="tonal" size="24" class="mr-2">
                         <v-icon size="14">{{ notif.icon }}</v-icon>
@@ -600,7 +717,12 @@ onUnmounted(() => {
                       {{ notif.title }}
                     </v-list-item-title>
                     <template v-slot:append>
-                      <v-badge inline :content="notif.count" color="grey-darken-3" class="font-weight-bold"></v-badge>
+                      <v-badge
+                        inline
+                        :content="notif.count"
+                        color="grey-darken-3"
+                        class="font-weight-bold"
+                      ></v-badge>
                     </template>
                   </v-list-item>
                   <v-divider v-if="i < notificationList.length - 1"></v-divider>
@@ -615,7 +737,12 @@ onUnmounted(() => {
           </v-card>
         </v-menu>
 
-        <v-menu open-on-hover location="top end" :close-on-content-click="false" transition="slide-y-transition">
+        <v-menu
+          open-on-hover
+          location="top end"
+          :close-on-content-click="false"
+          transition="slide-y-transition"
+        >
           <template v-slot:activator="{ props }">
             <v-btn v-bind="props" icon variant="text" size="small" density="compact" color="indigo">
               <v-icon size="18">mdi-help-circle-outline</v-icon>
@@ -624,48 +751,80 @@ onUnmounted(() => {
 
           <v-card width="320" class="rounded-lg shadow-lg">
             <v-card-title
-              class="text-caption font-weight-bold bg-grey-lighten-4 py-2 px-3 d-flex align-center text-grey-darken-3">
+              class="text-caption font-weight-bold bg-grey-lighten-4 py-2 px-3 d-flex align-center text-grey-darken-3"
+            >
               <v-icon size="small" start color="indigo">mdi-keyboard-outline</v-icon>
               Daftar Shortcut
             </v-card-title>
 
             <v-card-text class="pa-0">
               <v-list density="compact" lines="one" class="py-0">
-                <v-list-subheader class="font-weight-bold text-indigo py-0" style="font-size: 10px; height: 32px">
+                <v-list-subheader
+                  class="font-weight-bold text-indigo py-0"
+                  style="font-size: 10px; height: 32px"
+                >
                   APLIKASI
                 </v-list-subheader>
                 <v-list-item v-for="(item, i) in appShortcuts" :key="i" class="min-height-32">
                   <template v-slot:prepend>
-                    <v-chip size="x-small" label color="grey-darken-3" variant="flat" class="font-weight-bold px-2"
-                      style="min-width: 45px; justify-content: center">
+                    <v-chip
+                      size="x-small"
+                      label
+                      color="grey-darken-3"
+                      variant="flat"
+                      class="font-weight-bold px-2"
+                      style="min-width: 45px; justify-content: center"
+                    >
                       {{ item.key }}
                     </v-chip>
                   </template>
                   <v-list-item-title class="text-caption ml-2">{{ item.desc }}</v-list-item-title>
                 </v-list-item>
                 <v-divider class="my-1"></v-divider>
-                <v-list-subheader class="font-weight-bold text-medium-emphasis py-0"
-                  style="font-size: 10px; height: 32px">
+                <v-list-subheader
+                  class="font-weight-bold text-medium-emphasis py-0"
+                  style="font-size: 10px; height: 32px"
+                >
                   BROWSER / UMUM
                 </v-list-subheader>
-                <v-list-item v-for="(item, i) in browserShortcuts" :key="'b' + i" class="min-height-32">
+                <v-list-item
+                  v-for="(item, i) in browserShortcuts"
+                  :key="'b' + i"
+                  class="min-height-32"
+                >
                   <template v-slot:prepend>
-                    <div class="text-caption font-weight-bold text-medium-emphasis" style="min-width: 80px">
+                    <div
+                      class="text-caption font-weight-bold text-medium-emphasis"
+                      style="min-width: 80px"
+                    >
                       {{ item.key }}
                     </div>
                   </template>
                   <v-list-item-title class="text-caption text-medium-emphasis">{{
                     item.desc
-                    }}</v-list-item-title>
+                  }}</v-list-item-title>
                 </v-list-item>
               </v-list>
             </v-card-text>
           </v-card>
         </v-menu>
 
-        <v-menu v-model="showCalculator" :close-on-content-click="false" location="top end" offset="10">
+        <v-menu
+          v-model="showCalculator"
+          :close-on-content-click="false"
+          location="top end"
+          offset="10"
+        >
           <template v-slot:activator="{ props }">
-            <v-btn v-bind="props" icon variant="text" size="small" density="compact" color="brown" title="Kalkulator">
+            <v-btn
+              v-bind="props"
+              icon
+              variant="text"
+              size="small"
+              density="compact"
+              color="brown"
+              title="Kalkulator"
+            >
               <v-icon size="18">mdi-calculator</v-icon>
             </v-btn>
           </template>
@@ -680,39 +839,80 @@ onUnmounted(() => {
 
             <v-card-text class="pa-1">
               <v-row dense no-gutters>
-                <v-col cols="3" v-for="btn in [
-                  'C',
-                  '/',
-                  '*',
-                  'BS',
-                  '7',
-                  '8',
-                  '9',
-                  '-',
-                  '4',
-                  '5',
-                  '6',
-                  '+',
-                  '1',
-                  '2',
-                  '3',
-                  '=',
-                  '0',
-                  '00',
-                  '.',
-                  '',
-                ]" :key="btn">
-                  <v-btn v-if="btn === '='" block variant="flat" color="blue-darken-1" height="40" class="rounded-0"
-                    @click="calculateResult">=</v-btn>
-                  <v-btn v-else-if="btn === 'C'" block variant="text" color="red" height="40" class="rounded-0"
-                    @click="clearCalc">C</v-btn>
-                  <v-btn v-else-if="btn === 'BS'" block variant="text" color="orange" height="40" class="rounded-0"
-                    @click="deleteCalc">
+                <v-col
+                  cols="3"
+                  v-for="btn in [
+                    'C',
+                    '/',
+                    '*',
+                    'BS',
+                    '7',
+                    '8',
+                    '9',
+                    '-',
+                    '4',
+                    '5',
+                    '6',
+                    '+',
+                    '1',
+                    '2',
+                    '3',
+                    '=',
+                    '0',
+                    '00',
+                    '.',
+                    '',
+                  ]"
+                  :key="btn"
+                >
+                  <v-btn
+                    v-if="btn === '='"
+                    block
+                    variant="flat"
+                    color="blue-darken-1"
+                    height="40"
+                    class="rounded-0"
+                    @click="calculateResult"
+                    >=</v-btn
+                  >
+                  <v-btn
+                    v-else-if="btn === 'C'"
+                    block
+                    variant="text"
+                    color="red"
+                    height="40"
+                    class="rounded-0"
+                    @click="clearCalc"
+                    >C</v-btn
+                  >
+                  <v-btn
+                    v-else-if="btn === 'BS'"
+                    block
+                    variant="text"
+                    color="orange"
+                    height="40"
+                    class="rounded-0"
+                    @click="deleteCalc"
+                  >
                     <v-icon>mdi-backspace-outline</v-icon>
                   </v-btn>
-                  <v-btn v-else-if="btn === ''" block variant="text" disabled height="40" class="rounded-0"></v-btn>
-                  <v-btn v-else block variant="text" height="40" class="rounded-0 font-weight-bold"
-                    :color="['/', '*', '-', '+'].includes(btn) ? 'blue' : 'grey-darken-3'" @click="appendCalc(btn)">
+                  <v-btn
+                    v-else-if="btn === ''"
+                    block
+                    variant="text"
+                    disabled
+                    height="40"
+                    class="rounded-0"
+                  ></v-btn>
+                  <v-btn
+                    v-else
+                    block
+                    variant="text"
+                    height="40"
+                    class="rounded-0 font-weight-bold"
+                    :color="['/', '*', '-', '+'].includes(btn) ? 'blue' : 'grey-darken-3'"
+                    @click="appendCalc(btn)"
+                  >
                     {{ btn }}
                   </v-btn>
                 </v-col>
@@ -725,22 +925,39 @@ onUnmounted(() => {
 
         <v-tooltip text="Lapor Masalah" location="top">
           <template v-slot:activator="{ props }">
-            <v-btn v-bind="props" icon variant="text" size="small" density="compact" color="green"
-              href="https://wa.me/6282242748378?text=Halo%20IT,%20saya%20nemu%20error%20di..." target="_blank">
+            <v-btn
+              v-bind="props"
+              icon
+              variant="text"
+              size="small"
+              density="compact"
+              color="green"
+              href="https://wa.me/6282242748378?text=Halo%20IT,%20saya%20nemu%20error%20di..."
+              target="_blank"
+            >
               <v-icon size="16">mdi-whatsapp</v-icon>
             </v-btn>
           </template>
         </v-tooltip>
 
-        <span class="text-caption text-disabled ml-1 version-tag cursor-pointer" @click="openChangelog"
-          title="Klik untuk melihat riwayat pembaruan">
+        <span
+          class="text-caption text-disabled ml-1 version-tag cursor-pointer"
+          @click="openChangelog"
+          title="Klik untuk melihat riwayat pembaruan"
+        >
           v{{ currentVersion }}
         </span>
       </div>
     </v-footer>
 
-    <v-snackbar v-model="isUpdateAvailable" color="indigo-darken-3" location="bottom center" :timeout="-1" vertical
-      class="mb-8">
+    <v-snackbar
+      v-model="isUpdateAvailable"
+      color="indigo-darken-3"
+      location="bottom center"
+      :timeout="-1"
+      vertical
+      class="mb-8"
+    >
       <div class="text-subtitle-1 font-weight-bold pb-1">
         <v-icon start icon="mdi-cloud-download-outline" />
         Update Tersedia!
@@ -751,7 +968,12 @@ onUnmounted(() => {
 
       <template v-slot:actions>
         <v-btn color="white" variant="text" @click="isUpdateAvailable = false"> Nanti Saja </v-btn>
-        <v-btn color="yellow-accent-4" variant="flat" class="font-weight-bold text-black" @click="handleUpdateClick">
+        <v-btn
+          color="yellow-accent-4"
+          variant="flat"
+          class="font-weight-bold text-black"
+          @click="handleUpdateClick"
+        >
           Update Sekarang
         </v-btn>
       </template>
@@ -759,8 +981,10 @@ onUnmounted(() => {
 
     <v-dialog v-model="isUpdateConfirmDialogVisible" max-width="500" persistent>
       <v-card class="rounded-lg">
-        <v-card-title class="text-h6 font-weight-bold d-flex align-center py-3 text-white"
-          :class="uiStore.hasUnsavedChanges ? 'bg-red-darken-1' : 'bg-primary'">
+        <v-card-title
+          class="text-h6 font-weight-bold d-flex align-center py-3 text-white"
+          :class="uiStore.hasUnsavedChanges ? 'bg-red-darken-1' : 'bg-primary'"
+        >
           <v-icon start class="mr-2">
             {{ uiStore.hasUnsavedChanges ? "mdi-alert-octagon-outline" : "mdi-rocket-launch" }}
           </v-icon>
@@ -768,8 +992,14 @@ onUnmounted(() => {
         </v-card-title>
 
         <v-card-text class="pt-4 text-body-1">
-          <v-alert v-if="uiStore.hasUnsavedChanges" type="error" variant="tonal" icon="mdi-alert" class="mb-4"
-            border="start">
+          <v-alert
+            v-if="uiStore.hasUnsavedChanges"
+            type="error"
+            variant="tonal"
+            icon="mdi-alert"
+            class="mb-4"
+            border="start"
+          >
             <strong>Data Belum Disimpan!</strong><br />
             Anda sedang mengisi form. Jika update sekarang,
             <span class="text-decoration-underline">semua input akan hilang</span>.
@@ -793,7 +1023,11 @@ onUnmounted(() => {
                 <template v-else>
                   <div class="font-weight-bold">{{ change.title }}</div>
                   <ul class="pl-4 mt-1" style="list-style-type: circle">
-                    <li v-for="(subItem, j) in change.items" :key="j" class="mb-0 text-caption text-grey-darken-2">
+                    <li
+                      v-for="(subItem, j) in change.items"
+                      :key="j"
+                      class="mb-0 text-caption text-grey-darken-2"
+                    >
                       {{ subItem }}
                     </li>
                   </ul>
@@ -812,8 +1046,13 @@ onUnmounted(() => {
             {{ uiStore.hasUnsavedChanges ? "Batal (Simpan Dulu)" : "Nanti Saja" }}
           </v-btn>
 
-          <v-btn :color="uiStore.hasUnsavedChanges ? 'red' : 'primary'" variant="flat" @click="performReload"
-            :prepend-icon="uiStore.hasUnsavedChanges ? 'mdi-delete-restore' : 'mdi-update'" class="px-4">
+          <v-btn
+            :color="uiStore.hasUnsavedChanges ? 'red' : 'primary'"
+            variant="flat"
+            @click="performReload"
+            :prepend-icon="uiStore.hasUnsavedChanges ? 'mdi-delete-restore' : 'mdi-update'"
+            class="px-4"
+          >
             {{ uiStore.hasUnsavedChanges ? "Hapus Data & Update" : "Update Sekarang" }}
           </v-btn>
         </v-card-actions>
@@ -888,7 +1127,6 @@ onUnmounted(() => {
 }
 
 @keyframes blink-soft {
-
   0%,
   100% {
     opacity: 1;

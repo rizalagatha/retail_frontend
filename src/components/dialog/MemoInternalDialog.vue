@@ -93,19 +93,14 @@ const handleUpload = async () => {
 const viewPdf = (url: string) => {
   console.log("[DEBUG FRONTEND] Membuka PDF via URL:", url);
 
-  // Deteksi jika URL salah format
   if (!url || url.includes('undefined')) {
     toast.error("URL Memo tidak valid.");
     return;
   }
 
-  // Ambil base URL dari instance axios API Anda
-  // Kita hilangkan '/api' di akhir jika baseURL Anda berformat http://domain.com/api
-  const apiBaseUrl = api.defaults.baseURL || import.meta.env.VITE_API_BASE_URL || '';
-  const backendHost = apiBaseUrl.replace(/\/api\/?$/, '');
-
-  // Hasilnya misal: http://localhost:8000/memos/memo-123.pdf
-  selectedPdfUrl.value = `${backendHost}${url}`;
+  // Tembak langsung ke IP dan Port Backend
+  const backendUrl = "http://103.94.238.252:8000";
+  selectedPdfUrl.value = `${backendUrl}${url}`;
 };
 
 onMounted(fetchMemos);

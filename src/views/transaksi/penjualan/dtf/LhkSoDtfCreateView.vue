@@ -1,15 +1,15 @@
 <script setup lang="ts">
-import { ref, reactive, onMounted, computed, watch } from 'vue';
-import { useRoute, useRouter } from 'vue-router';
-import api from '@/services/api';
-import PageLayout from '@/components/PageLayout.vue';
-import { useToast } from 'vue-toastification';
-import { useAuthStore } from '@/stores/authStore';
-import { useUiStore } from '@/stores/uiStore';
-import { useUnsavedChanges } from '@/composables/useUnsavedChanges';
-import { format } from 'date-fns';
-import SoPoSearchModal from '@/components/lookup/SoPoSearchModal.vue';
-import axios from 'axios';
+import { ref, reactive, onMounted, computed, watch } from "vue";
+import { useRoute, useRouter } from "vue-router";
+import api from "@/services/api";
+import PageLayout from "@/components/PageLayout.vue";
+import { useToast } from "vue-toastification";
+import { useAuthStore } from "@/stores/authStore";
+import { useUiStore } from "@/stores/uiStore";
+import { useUnsavedChanges } from "@/composables/useUnsavedChanges";
+import { format } from "date-fns";
+import SoPoSearchModal from "@/components/lookup/SoPoSearchModal.vue";
+import axios from "axios";
 
 interface LhkItem {
   id: number;
@@ -63,10 +63,10 @@ const toast = useToast();
 const authStore = useAuthStore();
 const uiStore = useUiStore();
 const { markAsSaved } = useUnsavedChanges();
-const MENU_ID = '41';
+const MENU_ID = "41";
 
-const selectedTanggal = ref(format(new Date(), 'yyyy-MM-dd'));
-const selectedCabang = ref(authStore.user?.cabang || '');
+const selectedTanggal = ref(format(new Date(), "yyyy-MM-dd"));
+const selectedCabang = ref(authStore.user?.cabang || "");
 const items = ref<LhkItem[]>([]);
 const isLoading = ref(false);
 const isSaving = ref(false);
@@ -77,26 +77,28 @@ const isPoSearchVisible = ref(false); // Untuk F2
 const activeRowIndex = ref(0);
 
 const isConfirmDialogVisible = ref(false);
-const confirmText = ref('');
+const confirmText = ref("");
 const pendingAction = ref<(() => void) | null>(null);
 
 const isSpkSearchVisible = ref(false);
 
 const isEditMode = computed(() => !!route.query.nomorLhk);
 const formHeader = reactive({
-  lhkNomor: '',
+  lhkNomor: "",
   panjang: 0,
   buangan: 0,
-  tanggal: format(new Date(), 'yyyy-MM-dd'),
-  cabang: authStore.user?.cabang || '',
+  tanggal: format(new Date(), "yyyy-MM-dd"),
+  cabang: authStore.user?.cabang || "",
   jenisOrder: null as JenisOrder | null, // Tambahkan ini
 });
 
-const pageTitle = computed(() => isEditMode.value ? `Ubah LHK Jasa` : `Buat LHK Jasa`);
-const canView = computed(() => authStore.can(MENU_ID, 'view'));
-const canEdit = computed(() => authStore.can(MENU_ID, 'edit'));
-const canSave = computed(() => authStore.can(MENU_ID, 'insert'));
-const totalLuasSistem = computed(() => items.value.reduce((sum, i) => sum + (i.luasSistem || 0), 0));
+const pageTitle = computed(() => (isEditMode.value ? `Ubah LHK Jasa` : `Buat LHK Jasa`));
+const canView = computed(() => authStore.can(MENU_ID, "view"));
+const canEdit = computed(() => authStore.can(MENU_ID, "edit"));
+const canSave = computed(() => authStore.can(MENU_ID, "insert"));
+const totalLuasSistem = computed(() =>
+  items.value.reduce((sum, i) => sum + (i.luasSistem || 0), 0)
+);
 // Rumus: Luas Sistem / 60 (Lebar Bahan)
 const panjangSistemEstimasi = computed(() => {
   if (totalLuasSistem.value === 0) return 0;
@@ -114,21 +116,21 @@ const isShowMeasurement = computed(() => {
 
   const namaOrder = formHeader.jenisOrder.nama.toUpperCase();
   // Muncul HANYA jika mengandung kata 'DTF'
-  return namaOrder.includes('SABLON DTF') || namaOrder.includes('DTF PREMIUM');
+  return namaOrder.includes("SABLON DTF") || namaOrder.includes("DTF PREMIUM");
 });
 
 const totalJumlahKaosSummary = computed(() => {
   return items.value.reduce((sum, item) => sum + (Number(item.jumlahSistem) || 0), 0);
 });
 
-const isKdcUser = computed(() => authStore.user?.cabang === 'KDC');
+const isKdcUser = computed(() => authStore.user?.cabang === "KDC");
 
 // Fetch Jenis Order saat Mount
 onMounted(async () => {
   markAsSaved();
 
   // 1. Ambil list jenis order dulu sampai selesai
-  const res = await api.get('/lhk-so-dtf-form/jenis-order');
+  const res = await api.get("/lhk-so-dtf-form/jenis-order");
   jenisOrderOptions.value = res.data;
 
   // 2. Baru load data LHK agar sinkronisasi matchedJo bekerja
@@ -136,18 +138,18 @@ onMounted(async () => {
 });
 
 const tableHeaders = [
-  { title: 'No.', key: 'no', width: '50px', sortable: false },
-  { title: 'PO/SO DTF', key: 'kode', width: '125px' },
-  { title: 'Nama DTF', key: 'nama', width: '400px' },
-  { title: 'Jumlah Kaos (pcs)', key: 'jumlah', width: '80px', align: 'center' as const },
-  { title: 'Reject', key: 'reject', width: '80px', align: 'center' as const },
-  { title: 'Depan', key: 'depan', width: '80px', align: 'center' as const },
-  { title: 'Belakang', key: 'belakang', width: '80px', align: 'center' as const },
-  { title: 'Lengan', key: 'lengan', width: '80px', align: 'center' as const },
-  { title: 'Variasi', key: 'variasi', width: '80px', align: 'center' as const },
-  { title: 'Saku', key: 'saku', width: '80px', align: 'center' as const },
-  { title: 'Keterangan', key: 'ket' },
-  { title: 'Actions', key: 'actions', width: '50px' },
+  { title: "No.", key: "no", width: "50px", sortable: false },
+  { title: "PO/SO DTF", key: "kode", width: "125px" },
+  { title: "Nama DTF", key: "nama", width: "400px" },
+  { title: "Jumlah Kaos (pcs)", key: "jumlah", width: "80px", align: "center" as const },
+  { title: "Reject", key: "reject", width: "80px", align: "center" as const },
+  { title: "Depan", key: "depan", width: "80px", align: "center" as const },
+  { title: "Belakang", key: "belakang", width: "80px", align: "center" as const },
+  { title: "Lengan", key: "lengan", width: "80px", align: "center" as const },
+  { title: "Variasi", key: "variasi", width: "80px", align: "center" as const },
+  { title: "Saku", key: "saku", width: "80px", align: "center" as const },
+  { title: "Keterangan", key: "ket" },
+  { title: "Actions", key: "actions", width: "50px" },
 ];
 
 const loadLhkData = async () => {
@@ -163,55 +165,59 @@ const loadLhkData = async () => {
     items.value = [];
     formHeader.panjang = 0; // Reset ke 0
     formHeader.buangan = 0; // Reset ke 0
-    formHeader.lhkNomor = '';
+    formHeader.lhkNomor = "";
     addNewRowIfNeeded();
     return;
   }
 
   isLoading.value = true;
   try {
-    const response = await api.get<LhkApiResponseItem[]>(`/lhk-so-dtf-form/detail/${route.query.nomorLhk}`);
+    const response = await api.get<LhkApiResponseItem[]>(
+      `/lhk-so-dtf-form/detail/${route.query.nomorLhk}`
+    );
     const data = response.data;
 
     if (data.length > 0) {
       const savedJoKode = data[0].jo_kode;
-      const matchedJo = jenisOrderOptions.value.find(j => j.kode === savedJoKode);
+      const matchedJo = jenisOrderOptions.value.find((j) => j.kode === savedJoKode);
       if (matchedJo) {
         formHeader.jenisOrder = matchedJo;
       }
       formHeader.lhkNomor = data[0].lhk_nomor;
       formHeader.panjang = data[0].panjang;
       formHeader.buangan = data[0].buangan;
-      formHeader.tanggal = format(new Date(data[0].tanggal), 'yyyy-MM-dd');
+      formHeader.tanggal = format(new Date(data[0].tanggal), "yyyy-MM-dd");
       formHeader.cabang = data[0].cab;
 
-      items.value = data.map((item, index): LhkItem => ({
-        id: Date.now() + index,
-        kode: item.kode,
-        nama: item.nama,
+      items.value = data.map(
+        (item, index): LhkItem => ({
+          id: Date.now() + index,
+          kode: item.kode,
+          nama: item.nama,
 
-        depan: item.depan ?? 0,
-        belakang: item.belakang ?? 0,
-        lengan: item.lengan ?? 0,
-        variasi: item.variasi ?? 0,
-        saku: item.saku ?? 0,
+          depan: item.depan ?? 0,
+          belakang: item.belakang ?? 0,
+          lengan: item.lengan ?? 0,
+          variasi: item.variasi ?? 0,
+          saku: item.saku ?? 0,
 
-        jumlah: item.jumlah ?? 0,
-        jumlahSistem: item.jumlahSistem ?? 0,
-        reject: item.reject ?? 0,
+          jumlah: item.jumlah ?? 0,
+          jumlahSistem: item.jumlahSistem ?? 0,
+          reject: item.reject ?? 0,
 
-        panjang: item.panjang ?? 0,
-        buangan: item.buangan ?? 0,
+          panjang: item.panjang ?? 0,
+          buangan: item.buangan ?? 0,
 
-        luasSistem: item.luas_sistem || 0,
-        luasRiil: 0,
-        ket: item.keterangan || ''
-      }));
+          luasSistem: item.luas_sistem || 0,
+          luasRiil: 0,
+          ket: item.keterangan || "",
+        })
+      );
 
       addNewRowIfNeeded();
     }
   } catch (error) {
-    toast.error('Gagal memuat data LHK.', error);
+    toast.error("Gagal memuat data LHK.", error);
   } finally {
     // addNewRowIfNeeded();
     isLoading.value = false;
@@ -220,20 +226,19 @@ const loadLhkData = async () => {
 };
 
 const addNewRowIfNeeded = () => {
-
-  const isBordir = (formHeader.jenisOrder?.nama || '').toUpperCase().includes('BORDIR');
+  const isBordir = (formHeader.jenisOrder?.nama || "").toUpperCase().includes("BORDIR");
   const lastItem = items.value[items.value.length - 1];
 
   // Jika Bordir dan sudah ada item yang memiliki kode, berhenti di sini (jangan tambah baris)
-  if (isBordir && items.value.some(item => item.kode !== '')) {
+  if (isBordir && items.value.some((item) => item.kode !== "")) {
     return;
   }
 
   if (!lastItem || lastItem.kode) {
     items.value.push({
       id: Date.now() + Math.random(),
-      kode: '',
-      nama: '',
+      kode: "",
+      nama: "",
       jumlah: 0,
       jumlahSistem: 0,
       reject: 0,
@@ -241,14 +246,18 @@ const addNewRowIfNeeded = () => {
       buangan: 0,
       luasSistem: 0,
       luasRiil: 0,
-      ket: '',
-      depan: 0, belakang: 0, lengan: 0, variasi: 0, saku: 0 // Pastikan semua field inisialisasi
+      ket: "",
+      depan: 0,
+      belakang: 0,
+      lengan: 0,
+      variasi: 0,
+      saku: 0, // Pastikan semua field inisialisasi
     });
   }
 };
 
 const removeRow = (id: number) => {
-  items.value = items.value.filter(item => item.id !== id);
+  items.value = items.value.filter((item) => item.id !== id);
   addNewRowIfNeeded();
 };
 
@@ -268,9 +277,9 @@ const openSpkSearchModal = (index: number) => {
   isSpkSearchVisible.value = true;
 };
 
-const onSoPoSelected = async (selectedItem: { kode: string, nama: string }) => {
+const onSoPoSelected = async (selectedItem: { kode: string; nama: string }) => {
   const activeItem = items.value[activeRowIndex.value];
-  if (items.value.some(i => i.kode === selectedItem.kode && i.id !== activeItem.id)) {
+  if (items.value.some((i) => i.kode === selectedItem.kode && i.id !== activeItem.id)) {
     return toast.error(`Nomor ${selectedItem.kode} sudah ada.`);
   }
 
@@ -283,7 +292,7 @@ const onSoPoSelected = async (selectedItem: { kode: string, nama: string }) => {
     activeItem.jumlah = 0;
 
     // Hanya panggil penambahan baris jika BUKAN Bordir
-    const isBordir = (formHeader.jenisOrder?.nama || '').toUpperCase().includes('BORDIR');
+    const isBordir = (formHeader.jenisOrder?.nama || "").toUpperCase().includes("BORDIR");
     if (!isBordir) {
       addNewRowIfNeeded();
     }
@@ -295,38 +304,45 @@ const onSoPoSelected = async (selectedItem: { kode: string, nama: string }) => {
   }
 };
 
-watch(() => formHeader.jenisOrder, (newVal, oldVal) => {
-  // [FIX] Jika sedang loading atau nilai lama masih kosong (inisialisasi), jangan hapus grid
-  if (isLoading.value || !oldVal) return;
+watch(
+  () => formHeader.jenisOrder,
+  (newVal, oldVal) => {
+    // [FIX] Jika sedang loading atau nilai lama masih kosong (inisialisasi), jangan hapus grid
+    if (isLoading.value || !oldVal) return;
 
-  // Jika benar-benar diganti manual oleh user
-  formHeader.panjang = 0;
-  formHeader.buangan = 0;
-  items.value = [];
-  addNewRowIfNeeded();
+    // Jika benar-benar diganti manual oleh user
+    formHeader.panjang = 0;
+    formHeader.buangan = 0;
+    items.value = [];
+    addNewRowIfNeeded();
 
-  if (newVal) {
-    toast.info(`Mode input diubah ke: ${newVal.nama}`);
+    if (newVal) {
+      toast.info(`Mode input diubah ke: ${newVal.nama}`);
+    }
   }
-});
+);
 
 // --- Watcher untuk Hitung Luas Riil (60 * P * B) ---
-watch(items, (newItems) => {
-  newItems.forEach(item => {
-    if (item.panjang > 0 && item.buangan > 0) {
-      // Rumus: 60 (Lebar Bahan) * Panjang * Buangan
-      item.luasRiil = Math.round(60 * item.panjang * item.buangan);
-    } else {
-      item.luasRiil = 0;
-    }
-  });
-}, { deep: true });
+watch(
+  items,
+  (newItems) => {
+    newItems.forEach((item) => {
+      if (item.panjang > 0 && item.buangan > 0) {
+        // Rumus: 60 (Lebar Bahan) * Panjang * Buangan
+        item.luasRiil = Math.round(60 * item.panjang * item.buangan);
+      } else {
+        item.luasRiil = 0;
+      }
+    });
+  },
+  { deep: true }
+);
 
 /**
  * 1. Pintu Utama: Melakukan validasi input dan memicu dialog konfirmasi.
  */
 const save = async () => {
-  const validItems = items.value.filter(item => item.kode && item.nama);
+  const validItems = items.value.filter((item) => item.kode && item.nama);
 
   // --- VALIDASI DASAR ---
   if (validItems.length === 0) {
@@ -358,7 +374,7 @@ const save = async () => {
 const executeSave = async (validItems: LhkItem[]) => {
   isSaving.value = true;
   try {
-    await api.post('/lhk-so-dtf-form', {
+    await api.post("/lhk-so-dtf-form", {
       tanggal: formHeader.tanggal,
       cabang: formHeader.cabang,
       jenisOrder: formHeader.jenisOrder,
@@ -366,14 +382,14 @@ const executeSave = async (validItems: LhkItem[]) => {
       buangan: isShowMeasurement.value ? formHeader.buangan : 0,
       isEdit: isEditMode.value,
       lhkNomor: formHeader.lhkNomor,
-      items: validItems
+      items: validItems,
     });
 
-    toast.success('Data LHK berhasil disimpan.');
+    toast.success("Data LHK berhasil disimpan.");
     markAsSaved();
-    router.push('/transaksi/penjualan/dtf/lhk-so-dtf');
+    router.push("/transaksi/penjualan/dtf/lhk-so-dtf");
   } catch (error) {
-    let msg = 'Gagal menyimpan data.';
+    let msg = "Gagal menyimpan data.";
     if (axios.isAxiosError(error)) {
       msg = error.response?.data?.message || msg;
     }
@@ -404,7 +420,7 @@ const closeConfirmDialog = () => {
 // Buat fungsi baru untuk navigasi Tutup agar bisa dipanggil
 const closeForm = () => {
   markAsSaved();
-  router.push('/transaksi/penjualan/dtf/lhk-so-dtf');
+  router.push("/transaksi/penjualan/dtf/lhk-so-dtf");
 };
 
 // --- WATCHERS (UNSAVED CHANGES) ---
@@ -417,7 +433,7 @@ watch(
 
     // Cek apakah ada data yang "bermakna" (kode terisi)
     // atau ada perubahan nilai pada baris yang sudah ada
-    const hasData = newItems.some(item => item.kode !== '');
+    const hasData = newItems.some((item) => item.kode !== "");
 
     if (hasData) {
       uiStore.setUnsavedChanges(true);
@@ -450,17 +466,31 @@ onMounted(() => {
 <template>
   <PageLayout :title="pageTitle" desktop-mode icon="mdi-clipboard-edit-outline">
     <template #header-actions>
-      <v-btn v-if="canSave" size="small" color="primary" @click="save" :loading="isSaving"
-        prepend-icon="mdi-content-save">
+      <v-btn
+        v-if="canSave"
+        size="small"
+        color="primary"
+        @click="save"
+        :loading="isSaving"
+        prepend-icon="mdi-content-save"
+      >
         Simpan
       </v-btn>
-      <v-btn v-if="canEdit" size="small"
+      <v-btn
+        v-if="canEdit"
+        size="small"
         @click="showConfirmation(loadLhkData, 'Batalkan perubahan dan muat ulang data asli?')"
-        prepend-icon="mdi-refresh">
+        prepend-icon="mdi-refresh"
+      >
         Batal
       </v-btn>
-      <v-btn size="small" @click="showConfirmation(closeForm, 'Tutup form? Perubahan yang belum disimpan akan hilang.')"
-        prepend-icon="mdi-close">
+      <v-btn
+        size="small"
+        @click="
+          showConfirmation(closeForm, 'Tutup form? Perubahan yang belum disimpan akan hilang.')
+        "
+        prepend-icon="mdi-close"
+      >
         Tutup
       </v-btn>
     </template>
@@ -476,20 +506,48 @@ onMounted(() => {
           <div class="text-subtitle-2 font-weight-bold mb-3">Informasi LHK</div>
           <v-row dense>
             <v-col cols="12">
-              <v-text-field label="Nomor LHK" v-model="formHeader.lhkNomor" density="compact" hide-details
-                variant="filled" readonly placeholder="(Otomatis)" />
+              <v-text-field
+                label="Nomor LHK"
+                v-model="formHeader.lhkNomor"
+                density="compact"
+                hide-details
+                variant="filled"
+                readonly
+                placeholder="(Otomatis)"
+              />
             </v-col>
             <v-col cols="12">
-              <v-text-field label="Store" v-model="formHeader.cabang" density="compact" hide-details variant="outlined"
-                readonly filled />
+              <v-text-field
+                label="Store"
+                v-model="formHeader.cabang"
+                density="compact"
+                hide-details
+                variant="outlined"
+                readonly
+                filled
+              />
             </v-col>
             <v-col cols="12">
-              <v-text-field label="Tanggal" v-model="formHeader.tanggal" type="date" density="compact" hide-details
-                variant="outlined" />
+              <v-text-field
+                label="Tanggal"
+                v-model="formHeader.tanggal"
+                type="date"
+                density="compact"
+                hide-details
+                variant="outlined"
+              />
             </v-col>
             <v-col cols="12">
-              <v-select v-model="formHeader.jenisOrder" :items="jenisOrderOptions" item-title="nama" return-object
-                label="Jenis Pekerjaan" density="compact" variant="outlined" hide-details />
+              <v-select
+                v-model="formHeader.jenisOrder"
+                :items="jenisOrderOptions"
+                item-title="nama"
+                return-object
+                label="Jenis Pekerjaan"
+                density="compact"
+                variant="outlined"
+                hide-details
+              />
             </v-col>
           </v-row>
         </div>
@@ -498,21 +556,46 @@ onMounted(() => {
           <div class="text-subtitle-2 font-weight-bold mb-2">Ukuran Cetak Riil (WAJIB CM)</div>
           <v-row dense>
             <v-col cols="6">
-              <v-text-field v-model.number="formHeader.panjang" label="Panjang (cm)" type="number" variant="outlined"
-                density="compact" hide-details class="custom-suffix" suffix="cm" color="primary" placeholder="Cth: 150"
-                hint="Jika 1.5 meter, tulis 150" persistent-hint />
+              <v-text-field
+                v-model.number="formHeader.panjang"
+                label="Panjang (cm)"
+                type="number"
+                variant="outlined"
+                density="compact"
+                hide-details
+                class="custom-suffix"
+                suffix="cm"
+                color="primary"
+                placeholder="Cth: 150"
+                hint="Jika 1.5 meter, tulis 150"
+                persistent-hint
+              />
             </v-col>
             <v-col cols="6">
-              <v-text-field v-model.number="formHeader.buangan" label="Buangan (cm)" type="number" variant="outlined"
-                density="compact" hide-details class="custom-suffix" suffix="cm" placeholder="Cth: 10" />
+              <v-text-field
+                v-model.number="formHeader.buangan"
+                label="Buangan (cm)"
+                type="number"
+                variant="outlined"
+                density="compact"
+                hide-details
+                class="custom-suffix"
+                suffix="cm"
+                placeholder="Cth: 10"
+              />
             </v-col>
           </v-row>
         </div>
 
-        <div v-if="isShowMeasurement || (formHeader.jenisOrder?.nama || '').toUpperCase().includes('BORDIR')"
-          class="desktop-form-section">
+        <div
+          v-if="
+            isShowMeasurement ||
+            (formHeader.jenisOrder?.nama || '').toUpperCase().includes('BORDIR')
+          "
+          class="desktop-form-section"
+        >
           <div class="text-subtitle-2 font-weight-bold mb-2">
-            {{ isShowMeasurement ? 'Perhitungan Pemakaian Bahan' : 'Perhitungan Produksi Bordir' }}
+            {{ isShowMeasurement ? "Perhitungan Pemakaian Bahan" : "Perhitungan Produksi Bordir" }}
           </div>
 
           <v-list density="compact" class="pa-0">
@@ -530,7 +613,9 @@ onMounted(() => {
                 <v-list-item class="px-0">
                   <v-list-item-title class="text-caption">Total Luas Riil</v-list-item-title>
                   <template #append>
-                    <span class="font-weight-bold text-blue">{{ totalLuasRiil.toLocaleString() }} cm²</span>
+                    <span class="font-weight-bold text-blue"
+                      >{{ totalLuasRiil.toLocaleString() }} cm²</span
+                    >
                   </template>
                 </v-list-item>
 
@@ -546,7 +631,9 @@ onMounted(() => {
                     <span class="text-caption font-weight-bold">Estimasi Panjang (Sistem)</span>
                   </template>
                   <template #append>
-                    <span class="font-weight-black">{{ panjangSistemEstimasi.toLocaleString() }} cm</span>
+                    <span class="font-weight-black"
+                      >{{ panjangSistemEstimasi.toLocaleString() }} cm</span
+                    >
                   </template>
                 </v-list-item>
 
@@ -555,7 +642,10 @@ onMounted(() => {
                 <v-list-item class="px-0">
                   <v-list-item-title class="font-weight-bold">Selisih (±)</v-list-item-title>
                   <template #append>
-                    <span class="font-weight-black" :class="selisihLuas > 0 ? 'text-error' : 'text-success'">
+                    <span
+                      class="font-weight-black"
+                      :class="selisihLuas > 0 ? 'text-error' : 'text-success'"
+                    >
                       {{ selisihLuas.toLocaleString() }} cm²
                     </span>
                   </template>
@@ -568,42 +658,88 @@ onMounted(() => {
 
       <div class="right-column">
         <div class="desktop-form-section d-flex flex-column fill-height">
-          <v-data-table :headers="tableHeaders" :items="items" :loading="isLoading" density="compact"
-            class="desktop-table" fixed-header :items-per-page="-1">
+          <v-data-table
+            :headers="tableHeaders"
+            :items="items"
+            :loading="isLoading"
+            density="compact"
+            class="desktop-table"
+            fixed-header
+            :items-per-page="-1"
+          >
             <template #[`item.no`]="{ index }">
               <div class="cell-text">{{ index + 1 }}</div>
             </template>
 
             <template #[`item.kode`]="{ item, index }">
-              <v-text-field v-model="item.kode" :readonly="item.kode !== ''"
-                :variant="item.kode !== '' ? 'filled' : 'underlined'" density="compact" hide-details
-                placeholder="F1:SO, F2:PO, F3:SPK" @keydown.f1.prevent="openSoSearchModal(index)"
-                @keydown.f2.prevent="openPoSearchModal(index)" @keydown.f3.prevent="openSpkSearchModal(index)" />
+              <v-text-field
+                v-model="item.kode"
+                :readonly="item.kode !== ''"
+                :variant="item.kode !== '' ? 'filled' : 'underlined'"
+                density="compact"
+                hide-details
+                placeholder="F1:SO, F2:PO, F3:SPK"
+                @keydown.f1.prevent="openSoSearchModal(index)"
+                @keydown.f2.prevent="openPoSearchModal(index)"
+                @keydown.f3.prevent="openSpkSearchModal(index)"
+              />
             </template>
 
             <template #[`item.jumlah`]="{ item }">
-              <v-text-field v-model.number="item.jumlah" type="number" variant="underlined" density="compact"
-                hide-details class="text-center tiny-input font-weight-bold" />
+              <v-text-field
+                v-model.number="item.jumlah"
+                type="number"
+                variant="underlined"
+                density="compact"
+                hide-details
+                class="text-center tiny-input font-weight-bold"
+              />
             </template>
 
             <template #[`item.reject`]="{ item }">
-              <v-text-field v-model.number="item.reject" type="number" variant="underlined" density="compact"
-                hide-details class="text-center tiny-input text-error font-weight-bold" />
+              <v-text-field
+                v-model.number="item.reject"
+                type="number"
+                variant="underlined"
+                density="compact"
+                hide-details
+                class="text-center tiny-input text-error font-weight-bold"
+              />
             </template>
 
-            <template v-for="col in ['depan', 'belakang', 'lengan', 'variasi', 'saku']" :key="col"
-              #[`item.${col}`]="{ item }">
-              <v-text-field v-model.number="item[col]" type="number" variant="underlined" density="compact" hide-details
-                class="text-center tiny-input" />
+            <template
+              v-for="col in ['depan', 'belakang', 'lengan', 'variasi', 'saku']"
+              :key="col"
+              #[`item.${col}`]="{ item }"
+            >
+              <v-text-field
+                v-model.number="item[col]"
+                type="number"
+                variant="underlined"
+                density="compact"
+                hide-details
+                class="text-center tiny-input"
+              />
             </template>
 
             <template #[`item.ket`]="{ item }">
-              <v-text-field v-model="item.ket" variant="underlined" density="compact" hide-details />
+              <v-text-field
+                v-model="item.ket"
+                variant="underlined"
+                density="compact"
+                hide-details
+              />
             </template>
 
             <template #[`item.actions`]="{ item }">
-              <v-btn v-if="!isEditMode && items.length > 1" icon="mdi-delete" size="x-small" variant="text"
-                color="error" @click="removeRow(item.id)" />
+              <v-btn
+                v-if="!isEditMode && items.length > 1"
+                icon="mdi-delete"
+                size="x-small"
+                variant="text"
+                color="error"
+                @click="removeRow(item.id)"
+              />
             </template>
             <template #bottom></template>
           </v-data-table>
@@ -623,14 +759,30 @@ onMounted(() => {
       </v-card>
     </v-dialog>
 
-    <SoPoSearchModal v-if="isSoSearchVisible" :cabang="selectedCabang" tipe="SO" :prefix="formHeader.jenisOrder?.kode"
-      @close="isSoSearchVisible = false" @selected="onSoPoSelected" />
+    <SoPoSearchModal
+      v-if="isSoSearchVisible"
+      :cabang="selectedCabang"
+      tipe="SO"
+      :prefix="formHeader.jenisOrder?.kode"
+      @close="isSoSearchVisible = false"
+      @selected="onSoPoSelected"
+    />
 
-    <SoPoSearchModal v-if="isPoSearchVisible" :cabang="selectedCabang" tipe="PO" @close="isPoSearchVisible = false"
-      @selected="onSoPoSelected" />
+    <SoPoSearchModal
+      v-if="isPoSearchVisible"
+      :cabang="selectedCabang"
+      tipe="PO"
+      @close="isPoSearchVisible = false"
+      @selected="onSoPoSelected"
+    />
 
-    <SoPoSearchModal v-if="isSpkSearchVisible" :cabang="selectedCabang" tipe="SPK" @close="isSpkSearchVisible = false"
-      @selected="onSoPoSelected" />
+    <SoPoSearchModal
+      v-if="isSpkSearchVisible"
+      :cabang="selectedCabang"
+      tipe="SPK"
+      @close="isSpkSearchVisible = false"
+      @selected="onSoPoSelected"
+    />
   </PageLayout>
 </template>
 

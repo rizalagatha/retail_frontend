@@ -1,13 +1,13 @@
 <script setup lang="ts">
-import { ref, onMounted, computed, watch } from 'vue';
-import api from '@/services/api';
-import PageLayout from '@/components/PageLayout.vue';
-import { useToast } from 'vue-toastification';
-import { useAuthStore } from '@/stores/authStore';
-import { format, parseISO, subDays } from 'date-fns';
-import { useRouter } from 'vue-router';
-import axios from 'axios';
-import AppDataTable from '@/components/AppDataTable.vue';
+import { ref, onMounted, computed, watch } from "vue";
+import api from "@/services/api";
+import PageLayout from "@/components/PageLayout.vue";
+import { useToast } from "vue-toastification";
+import { useAuthStore } from "@/stores/authStore";
+import { format, parseISO, subDays } from "date-fns";
+import { useRouter } from "vue-router";
+import axios from "axios";
+import AppDataTable from "@/components/AppDataTable.vue";
 
 // Interface Header (Wajib untuk Resize)
 interface DataTableHeader {
@@ -15,7 +15,7 @@ interface DataTableHeader {
   key: string;
   width?: number | string;
   fixed?: boolean;
-  align?: 'start' | 'center' | 'end';
+  align?: "start" | "center" | "end";
   minWidth?: string | number;
   maxWidth?: string | number;
   sortable?: boolean;
@@ -25,18 +25,19 @@ interface LhkHeader {
   NomorLhk: string;
   Tanggal: string;
   NamaCabang: string;
+  user_create: string;
   cab: string;
-  jo_kode: string;          // Kode (SD/BR)
-  NamaJenisOrder: string;   // Nama (SABLON DTF/BORDIR)
+  jo_kode: string; // Kode (SD/BR)
+  NamaJenisOrder: string; // Nama (SABLON DTF/BORDIR)
   PanjangMtr: number;
   BuanganMtr: number;
   LuasRiil: number;
   TotalLuasSistem: number;
   Selisih: number;
-  Ratio: number;            // Pastikan ini ada
+  Ratio: number; // Pastikan ini ada
   TotalJumlahSistem: number; //
-  TotalJumlahRiil: number;   //
-  TotalReject: number;       //
+  TotalJumlahRiil: number; //
+  TotalReject: number; //
   [key: string]: unknown;
 }
 
@@ -54,7 +55,7 @@ interface LhkDetail {
 const toast = useToast();
 const authStore = useAuthStore();
 const router = useRouter();
-const MENU_ID = '41';
+const MENU_ID = "41";
 
 // --- State ---
 const list = ref<LhkHeader[]>([]);
@@ -62,10 +63,10 @@ const details = ref<{ [key: string]: LhkDetail[] }>({});
 const expanded = ref<string[]>([]);
 const loadingDetails = ref<Set<string>>(new Set());
 const isLoading = ref(true);
-const startDate = ref(format(subDays(new Date(), 7), 'yyyy-MM-dd'));
-const endDate = ref(format(new Date(), 'yyyy-MM-dd'));
-const cabangList = ref<{ kode: string, nama: string }[]>([]);
-const selectedCabang = ref(authStore.user?.cabang || '');
+const startDate = ref(format(subDays(new Date(), 7), "yyyy-MM-dd"));
+const endDate = ref(format(new Date(), "yyyy-MM-dd"));
+const cabangList = ref<{ kode: string; nama: string }[]>([]);
+const selectedCabang = ref(authStore.user?.cabang || "");
 const selected = ref<LhkHeader[]>([]);
 
 const isConfirmDialogVisible = ref(false);
@@ -74,26 +75,27 @@ const itemToDelete = ref<LhkHeader | null>(null);
 // --- Header Utama (LHK) ---
 const headers = computed<DataTableHeader[]>(() => {
   const base: DataTableHeader[] = [
-    { title: '', key: 'data-table-expand', width: 50, fixed: true },
-    { title: 'NOMOR LHK', key: 'NomorLhk', width: 220, fixed: true },
-    { title: 'TANGGAL', key: 'Tanggal', width: 120 },
+    { title: "", key: "data-table-expand", width: 50, fixed: true },
+    { title: "NOMOR LHK", key: "NomorLhk", width: 220, fixed: true },
+    { title: "TANGGAL", key: "Tanggal", width: 120 },
     // Kolom Baru: JENIS ORDER
-    { title: 'JENIS ORDER', key: 'NamaJenisOrder', width: 150 },
-    { title: 'STORE', key: 'NamaCabang', width: 150 },
+    { title: "JENIS ORDER", key: "NamaJenisOrder", width: 150 },
+    { title: "STORE", key: "NamaCabang", width: 150 },
+    { title: "USER", key: "user_create", width: 100 },
     // KOLOM BARU
-    { title: 'SISTEM (PCS)', key: 'TotalJumlahSistem', width: 100, align: 'center' },
-    { title: 'RIIL (PCS)', key: 'TotalJumlahRiil', width: 100, align: 'center' },
-    { title: 'REJECT', key: 'TotalReject', width: 80, align: 'center' },
+    { title: "SISTEM (PCS)", key: "TotalJumlahSistem", width: 100, align: "center" },
+    { title: "RIIL (PCS)", key: "TotalJumlahRiil", width: 100, align: "center" },
+    { title: "REJECT", key: "TotalReject", width: 80, align: "center" },
 
-    { title: 'PEMAKAIAN (CM)', key: 'PanjangMtr', width: 120, align: 'end' as const },
-    { title: 'BUANGAN (CM)', key: 'BuanganMtr', width: 120, align: 'end' as const },
-    { title: 'RIIL (CM²)', key: 'LuasRiil', width: 110, align: 'end' as const },
-    { title: 'SISTEM (CM²)', key: 'TotalLuasSistem', width: 110, align: 'end' as const },
-    { title: '± SELISIH', key: 'Selisih', width: 100, align: 'end' as const },
+    { title: "PEMAKAIAN (CM)", key: "PanjangMtr", width: 120, align: "end" as const },
+    { title: "BUANGAN (CM)", key: "BuanganMtr", width: 120, align: "end" as const },
+    { title: "RIIL (CM²)", key: "LuasRiil", width: 110, align: "end" as const },
+    { title: "SISTEM (CM²)", key: "TotalLuasSistem", width: 110, align: "end" as const },
+    { title: "± SELISIH", key: "Selisih", width: 100, align: "end" as const },
   ];
 
-  if (authStore.user?.cabang === 'KDC') {
-    base.push({ title: 'RATIO (%)', key: 'Ratio', width: 100, align: 'end' as const });
+  if (authStore.user?.cabang === "KDC") {
+    base.push({ title: "RATIO (%)", key: "Ratio", width: 100, align: "end" as const });
   }
 
   return base;
@@ -101,14 +103,14 @@ const headers = computed<DataTableHeader[]>(() => {
 
 // --- Header Detail (SO DTF) ---
 const detailHeaders: DataTableHeader[] = [
-  { title: 'No. SO DTF', key: 'SoDtf', width: '160px', align: 'start' as const },
-  { title: 'Nama DTF', key: 'NamaDtf', width: '250px', align: 'start' as const },
-  { title: 'Depan', key: 'depan', width: '70px', align: 'start' as const },
-  { title: 'Belakang', key: 'belakang', width: '70px', align: 'start' as const },
-  { title: 'Lengan', key: 'lengan', width: '70px', align: 'start' as const },
-  { title: 'Variasi', key: 'variasi', width: '70px', align: 'start' as const },
-  { title: 'Saku', key: 'saku', width: '70px', align: 'start' as const },
-  { title: 'Keterangan', key: 'Keterangan', align: 'start' as const },
+  { title: "No. SO DTF", key: "SoDtf", width: "160px", align: "start" as const },
+  { title: "Nama DTF", key: "NamaDtf", width: "250px", align: "start" as const },
+  { title: "Depan", key: "depan", width: "70px", align: "start" as const },
+  { title: "Belakang", key: "belakang", width: "70px", align: "start" as const },
+  { title: "Lengan", key: "lengan", width: "70px", align: "start" as const },
+  { title: "Variasi", key: "variasi", width: "70px", align: "start" as const },
+  { title: "Saku", key: "saku", width: "70px", align: "start" as const },
+  { title: "Keterangan", key: "Keterangan", align: "start" as const },
 ];
 
 // --- Logic Resize Column ---
@@ -121,10 +123,10 @@ const onResizeStart = (e: MouseEvent, column: DataTableHeader) => {
   e.stopPropagation();
   resizingColumn.value = column;
   startX.value = e.pageX;
-  startWidth.value = (typeof column.width === 'number' ? column.width : 100);
-  document.addEventListener('mousemove', onResizeMove);
-  document.addEventListener('mouseup', onResizeEnd);
-  document.body.style.cursor = 'col-resize';
+  startWidth.value = typeof column.width === "number" ? column.width : 100;
+  document.addEventListener("mousemove", onResizeMove);
+  document.addEventListener("mouseup", onResizeEnd);
+  document.body.style.cursor = "col-resize";
 };
 
 const onResizeMove = (e: MouseEvent) => {
@@ -135,9 +137,9 @@ const onResizeMove = (e: MouseEvent) => {
 
 const onResizeEnd = () => {
   resizingColumn.value = null;
-  document.removeEventListener('mousemove', onResizeMove);
-  document.removeEventListener('mouseup', onResizeEnd);
-  document.body.style.cursor = '';
+  document.removeEventListener("mousemove", onResizeMove);
+  document.removeEventListener("mouseup", onResizeEnd);
+  document.body.style.cursor = "";
 };
 
 // --- Logic Selected Row ---
@@ -148,36 +150,36 @@ const handleRowClick = (_event: Event, { item }: { item: LhkHeader }) => {
 const getItemId = (item: LhkHeader) => item.NomorLhk;
 
 // --- Computed ---
-const hasViewPermission = computed(() => authStore.can(MENU_ID, 'view'));
+const hasViewPermission = computed(() => authStore.can(MENU_ID, "view"));
 const isSingleSelected = computed(() => selected.value.length === 1);
 const canEditOrDelete = computed(() => {
   if (!isSingleSelected.value) return false;
   const userCabang = authStore.user?.cabang; // Misal: 'K01'
   // Baris ini butuh properti 'cab' ada di data yang diambil dari API
   const recordCabang = selected.value[0].cab;
-  if (userCabang === 'KDC') return true;
+  if (userCabang === "KDC") return true;
   // Jika recordCabang undefined, maka 'K01' === undefined hasilnya false
   return userCabang === recordCabang;
 });
 
-const footerProps = { 'items-per-page-options': [10, 25, 50, -1] };
+const footerProps = { "items-per-page-options": [10, 25, 50, -1] };
 
 // --- Methods ---
 const fetchCabangList = async () => {
   try {
-    const res = await api.get('/lhk-so-dtf/cabang-list');
+    const res = await api.get("/lhk-so-dtf/cabang-list");
     cabangList.value = res.data;
 
     // [FITUR KDC] Tambahkan filter ALL
-    if (authStore.user?.cabang === 'KDC') {
-      const hasAll = cabangList.value.some(c => c.kode === 'ALL');
+    if (authStore.user?.cabang === "KDC") {
+      const hasAll = cabangList.value.some((c) => c.kode === "ALL");
       if (!hasAll) {
-        cabangList.value.unshift({ kode: 'ALL', nama: 'SEMUA STORE' });
+        cabangList.value.unshift({ kode: "ALL", nama: "SEMUA STORE" });
       }
-      selectedCabang.value = 'ALL';
+      selectedCabang.value = "ALL";
     }
   } catch (err) {
-    toast.error('Gagal memuat daftar cabang.', err);
+    toast.error("Gagal memuat daftar cabang.", err);
   }
 };
 
@@ -185,19 +187,21 @@ const fetchData = async () => {
   if (!startDate.value || !endDate.value || !selectedCabang.value) return;
   isLoading.value = true;
   try {
-    const res = await api.get('/lhk-so-dtf', {
-      params: { startDate: startDate.value, endDate: endDate.value, cabang: selectedCabang.value }
+    const res = await api.get("/lhk-so-dtf", {
+      params: { startDate: startDate.value, endDate: endDate.value, cabang: selectedCabang.value },
     });
     list.value = res.data;
   } catch (_err) {
-    toast.error('Gagal memuat data LHK.', _err);
+    toast.error("Gagal memuat data LHK.", _err);
   } finally {
     isLoading.value = false;
   }
 };
 
 const loadDetails = async (newlyExpanded: LhkHeader[]) => {
-  const item = newlyExpanded.find(i => !details.value[i.NomorLhk] && !loadingDetails.value.has(i.NomorLhk));
+  const item = newlyExpanded.find(
+    (i) => !details.value[i.NomorLhk] && !loadingDetails.value.has(i.NomorLhk)
+  );
   if (!item) return;
 
   loadingDetails.value.add(item.NomorLhk);
@@ -222,11 +226,11 @@ const deleteItem = async () => {
   try {
     // Menggunakan path parameter /:nomorLhk
     await api.delete(`/lhk-so-dtf/${itemToDelete.value.NomorLhk}`);
-    toast.success('Data LHK berhasil dihapus.');
+    toast.success("Data LHK berhasil dihapus.");
     fetchData();
     selected.value = [];
   } catch (err) {
-    let msg = 'Gagal menghapus data.';
+    let msg = "Gagal menghapus data.";
     if (axios.isAxiosError(err)) msg = err.response?.data?.message || msg;
     toast.error(msg);
   } finally {
@@ -237,8 +241,8 @@ const deleteItem = async () => {
 const handleEdit = () => {
   if (selected.value.length !== 1) return;
   router.push({
-    path: '/transaksi/penjualan/dtf/lhk-so-dtf/edit',
-    query: { nomorLhk: selected.value[0].NomorLhk }
+    path: "/transaksi/penjualan/dtf/lhk-so-dtf/edit",
+    query: { nomorLhk: selected.value[0].NomorLhk },
   });
 };
 
@@ -255,14 +259,31 @@ watch([startDate, endDate, selectedCabang], fetchData);
 <template>
   <PageLayout title="LHK Jasa" desktop-mode icon="mdi-clipboard-text-clock">
     <template #header-actions>
-      <v-btn v-if="authStore.can(MENU_ID, 'insert')" size="small" color="primary" prepend-icon="mdi-plus"
-        @click="router.push('/transaksi/penjualan/dtf/lhk-so-dtf/edit')">Baru</v-btn>
-      <v-btn v-if="authStore.can(MENU_ID, 'edit')" size="small" :disabled="!canEditOrDelete" prepend-icon="mdi-pencil"
-        @click="handleEdit">
+      <v-btn
+        v-if="authStore.can(MENU_ID, 'insert')"
+        size="small"
+        color="primary"
+        prepend-icon="mdi-plus"
+        @click="router.push('/transaksi/penjualan/dtf/lhk-so-dtf/edit')"
+        >Baru</v-btn
+      >
+      <v-btn
+        v-if="authStore.can(MENU_ID, 'edit')"
+        size="small"
+        :disabled="!canEditOrDelete"
+        prepend-icon="mdi-pencil"
+        @click="handleEdit"
+      >
         Ubah
       </v-btn>
-      <v-btn v-if="authStore.can(MENU_ID, 'delete')" size="small" color="error" :disabled="!canEditOrDelete"
-        prepend-icon="mdi-delete" @click="showDeleteConfirmation">
+      <v-btn
+        v-if="authStore.can(MENU_ID, 'delete')"
+        size="small"
+        color="error"
+        :disabled="!canEditOrDelete"
+        prepend-icon="mdi-delete"
+        @click="showDeleteConfirmation"
+      >
         Hapus
       </v-btn>
     </template>
@@ -275,34 +296,82 @@ watch([startDate, endDate, selectedCabang], fetchData);
     <div v-else class="browse-content">
       <div class="filter-section">
         <span class="filter-label">Periode:</span>
-        <v-text-field v-model="startDate" type="date" density="compact" hide-details variant="outlined"
-          style="min-width: 140px;" />
+        <v-text-field
+          v-model="startDate"
+          type="date"
+          density="compact"
+          hide-details
+          variant="outlined"
+          style="min-width: 140px"
+        />
         <span class="mx-2">s/d</span>
-        <v-text-field v-model="endDate" type="date" density="compact" hide-details variant="outlined"
-          style="min-width: 140px;" />
+        <v-text-field
+          v-model="endDate"
+          type="date"
+          density="compact"
+          hide-details
+          variant="outlined"
+          style="min-width: 140px"
+        />
         <span class="filter-label ms-4">Store:</span>
-        <v-select v-model="selectedCabang" :items="cabangList" item-title="nama" item-value="kode" density="compact"
-          hide-details variant="outlined" style="max-width: 180px;" />
+        <v-select
+          v-model="selectedCabang"
+          :items="cabangList"
+          item-title="nama"
+          item-value="kode"
+          density="compact"
+          hide-details
+          variant="outlined"
+          style="max-width: 180px"
+        />
         <v-spacer />
-        <v-btn @click="fetchData" icon="mdi-refresh" variant="text" size="small" title="Muat Ulang Data" />
+        <v-btn
+          @click="fetchData"
+          icon="mdi-refresh"
+          variant="text"
+          size="small"
+          title="Muat Ulang Data"
+        />
       </div>
 
       <div class="table-container">
-        <AppDataTable v-model="selected" v-model:expanded="expanded" :headers="headers" :items="list"
-          :loading="isLoading" :item-value="getItemId" :footer-props="footerProps" density="compact"
-          class="desktop-table header-browse-blue" fixed-header show-select return-object show-expand
-          @update:expanded="loadDetails" @click:row="handleRowClick">
+        <AppDataTable
+          v-model="selected"
+          v-model:expanded="expanded"
+          :headers="headers"
+          :items="list"
+          :loading="isLoading"
+          :item-value="getItemId"
+          :footer-props="footerProps"
+          density="compact"
+          class="desktop-table header-browse-blue"
+          fixed-header
+          show-select
+          return-object
+          show-expand
+          @update:expanded="loadDetails"
+          @click:row="handleRowClick"
+        >
           <template #headers="{ columns, isSorted, getSortIcon, toggleSort }">
             <tr>
               <template v-for="header in columns" :key="header.key">
                 <th
-                  :style="{ width: header.width + (typeof header.width === 'number' ? 'px' : ''), minWidth: header.width + (typeof header.width === 'number' ? 'px' : '') }"
+                  :style="{
+                    width: header.width + (typeof header.width === 'number' ? 'px' : ''),
+                    minWidth: header.width + (typeof header.width === 'number' ? 'px' : ''),
+                  }"
                   class="resizable-header"
-                  :class="{ 'text-center': header.align === 'center', 'text-end': header.align === 'end' }"
-                  @click="toggleSort(header)">
+                  :class="{
+                    'text-center': header.align === 'center',
+                    'text-end': header.align === 'end',
+                  }"
+                  @click="toggleSort(header)"
+                >
                   <div class="header-content">
                     <span>{{ header.title }}</span>
-                    <v-icon v-if="isSorted(header)" size="small" class="ms-1">{{ getSortIcon(header) }}</v-icon>
+                    <v-icon v-if="isSorted(header)" size="small" class="ms-1">{{
+                      getSortIcon(header)
+                    }}</v-icon>
                   </div>
                   <div class="resizer" @mousedown.stop="onResizeStart($event, header)"></div>
                 </th>
@@ -311,41 +380,67 @@ watch([startDate, endDate, selectedCabang], fetchData);
           </template>
 
           <template #[`item.Tanggal`]="{ item }">
-            {{ format(parseISO(item.Tanggal), 'dd/MM/yyyy') }}
+            {{ format(parseISO(item.Tanggal), "dd/MM/yyyy") }}
           </template>
           <template #[`item.TotalJumlahSistem`]="{ item }">
-            <span class="font-weight-bold text-grey">{{ item.TotalJumlahSistem.toLocaleString() }}</span>
+            <span class="font-weight-bold text-grey">{{
+              item.TotalJumlahSistem.toLocaleString()
+            }}</span>
           </template>
 
           <template #[`item.TotalJumlahRiil`]="{ item }">
-            <span class="font-weight-bold text-blue">{{ item.TotalJumlahRiil.toLocaleString() }}</span>
+            <span class="font-weight-bold text-blue">{{
+              item.TotalJumlahRiil.toLocaleString()
+            }}</span>
           </template>
 
           <template #[`item.TotalReject`]="{ item }">
-            <v-chip v-if="item.TotalReject > 0" size="x-small" color="error" variant="flat" class="font-weight-bold">
+            <v-chip
+              v-if="item.TotalReject > 0"
+              size="x-small"
+              color="error"
+              variant="flat"
+              class="font-weight-bold"
+            >
               {{ item.TotalReject.toLocaleString() }}
             </v-chip>
             <span v-else class="text-grey-lighten-1">-</span>
           </template>
-          <template #[`item.LuasRiil`]="{ item }">{{ Number(item.LuasRiil).toLocaleString() }}</template>
-          <template #[`item.TotalLuasSistem`]="{ item }">{{ Number(item.TotalLuasSistem).toLocaleString() }}</template>
+          <template #[`item.LuasRiil`]="{ item }">{{
+            Number(item.LuasRiil).toLocaleString()
+          }}</template>
+          <template #[`item.TotalLuasSistem`]="{ item }">{{
+            Number(item.TotalLuasSistem).toLocaleString()
+          }}</template>
           <template #[`item.Selisih`]="{ item }">
-            <span :class="item.Selisih > 0 ? 'text-error font-weight-bold' : 'text-success font-weight-bold'">
+            <span
+              :class="
+                item.Selisih > 0 ? 'text-error font-weight-bold' : 'text-success font-weight-bold'
+              "
+            >
               {{ item.Selisih.toLocaleString() }}
             </span>
           </template>
 
           <template #[`item.NamaJenisOrder`]="{ item }">
-            <v-chip size="x-small" :color="item.jo_kode === 'BR' ? 'teal' : 'primary'" variant="tonal"
-              class="font-weight-bold">
+            <v-chip
+              size="x-small"
+              :color="item.jo_kode === 'BR' ? 'teal' : 'primary'"
+              variant="tonal"
+              class="font-weight-bold"
+            >
               {{ item.NamaJenisOrder }}
             </v-chip>
           </template>
 
           <template #[`item.Ratio`]="{ item }">
-            <span class="font-weight-bold"
-              :class="item.LuasRiil > item.TotalLuasSistem ? 'text-error' : 'text-success'">
-              {{ item.LuasRiil > 0 ? ((item.TotalLuasSistem / item.LuasRiil) * 100).toFixed(1) : '0' }}%
+            <span
+              class="font-weight-bold"
+              :class="item.LuasRiil > item.TotalLuasSistem ? 'text-error' : 'text-success'"
+            >
+              {{
+                item.LuasRiil > 0 ? ((item.TotalLuasSistem / item.LuasRiil) * 100).toFixed(1) : "0"
+              }}%
             </span>
           </template>
 
@@ -355,9 +450,18 @@ watch([startDate, endDate, selectedCabang], fetchData);
                 <div class="detail-outer-wrapper">
                   <div class="detail-sticky-content">
                     <div class="detail-table-wrapper">
-                      <div v-if="loadingDetails.has(item.NomorLhk)" class="pa-4 text-center">Memuat pekerjaan...</div>
-                      <v-data-table v-else :headers="detailHeaders" :items="details[item.NomorLhk]" density="compact"
-                        class="detail-table" :items-per-page="-1" hide-default-footer />
+                      <div v-if="loadingDetails.has(item.NomorLhk)" class="pa-4 text-center">
+                        Memuat pekerjaan...
+                      </div>
+                      <v-data-table
+                        v-else
+                        :headers="detailHeaders"
+                        :items="details[item.NomorLhk]"
+                        density="compact"
+                        class="detail-table"
+                        :items-per-page="-1"
+                        hide-default-footer
+                      />
                     </div>
                   </div>
                 </div>
@@ -372,12 +476,18 @@ watch([startDate, endDate, selectedCabang], fetchData);
       <v-card>
         <v-card-title class="text-h6 font-weight-bold">Konfirmasi Hapus</v-card-title>
         <v-card-text>
-          Anda yakin ingin menghapus data LHK untuk SO: <strong>{{ itemToDelete?.SoDtf }}</strong>
-          pada tanggal <strong>{{ itemToDelete ? format(new Date(itemToDelete.Tanggal), 'dd/MM/yyyy') : '' }}</strong>?
+          Anda yakin ingin menghapus data LHK untuk SO:
+          <strong>{{ itemToDelete?.SoDtf }}</strong> pada tanggal
+          <strong>{{
+            itemToDelete ? format(new Date(itemToDelete.Tanggal), "dd/MM/yyyy") : ""
+          }}</strong
+          >?
         </v-card-text>
         <v-card-actions>
           <v-spacer></v-spacer>
-          <v-btn color="grey-darken-1" variant="text" @click="isConfirmDialogVisible = false">Batal</v-btn>
+          <v-btn color="grey-darken-1" variant="text" @click="isConfirmDialogVisible = false"
+            >Batal</v-btn
+          >
           <v-btn color="error" variant="tonal" @click="deleteItem">Ya, Hapus</v-btn>
         </v-card-actions>
       </v-card>

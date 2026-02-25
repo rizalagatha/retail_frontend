@@ -98,9 +98,11 @@ const viewPdf = (url: string) => {
     return;
   }
 
-  // Tembak langsung ke IP dan Port Backend
-  const backendUrl = "http://103.94.238.252:8000";
-  selectedPdfUrl.value = `${backendUrl}${url}`;
+  // Gunakan origin dari browser saat ini (menghasilkan https://103.94.238.252)
+  const baseUrl = window.location.origin;
+
+  // Hasil akhirnya: https://103.94.238.252/memos/memo-xxx.pdf
+  selectedPdfUrl.value = `${baseUrl}${url}`;
 };
 
 onMounted(fetchMemos);

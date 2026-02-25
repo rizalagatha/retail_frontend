@@ -99,7 +99,13 @@ const viewPdf = (url: string) => {
     return;
   }
 
-  selectedPdfUrl.value = url;
+  // Ambil base URL dari instance axios API Anda
+  // Kita hilangkan '/api' di akhir jika baseURL Anda berformat http://domain.com/api
+  const apiBaseUrl = api.defaults.baseURL || import.meta.env.VITE_API_BASE_URL || '';
+  const backendHost = apiBaseUrl.replace(/\/api\/?$/, '');
+
+  // Hasilnya misal: http://localhost:8000/memos/memo-123.pdf
+  selectedPdfUrl.value = `${backendHost}${url}`;
 };
 
 onMounted(fetchMemos);

@@ -257,8 +257,18 @@ const addNewRowIfNeeded = () => {
 };
 
 const removeRow = (id: number) => {
+  // Filter item yang tidak sesuai ID
   items.value = items.value.filter((item) => item.id !== id);
-  addNewRowIfNeeded();
+
+  // Jika setelah dihapus jadi kosong, tambahkan baris baru otomatis
+  if (items.value.length === 0) {
+    addNewRowIfNeeded();
+  }
+
+  // Set status ada perubahan jika dalam mode edit
+  if (isEditMode.value) {
+    uiStore.setUnsavedChanges(true);
+  }
 };
 
 const openSoSearchModal = (index: number) => {
@@ -466,31 +476,18 @@ onMounted(() => {
 <template>
   <PageLayout :title="pageTitle" desktop-mode icon="mdi-clipboard-edit-outline">
     <template #header-actions>
-      <v-btn
-        v-if="canSave"
-        size="small"
-        color="primary"
-        @click="save"
-        :loading="isSaving"
-        prepend-icon="mdi-content-save"
-      >
+      <v-btn v-if="canSave" size="small" color="primary" @click="save" :loading="isSaving"
+        prepend-icon="mdi-content-save">
         Simpan
       </v-btn>
-      <v-btn
-        v-if="canEdit"
-        size="small"
+      <v-btn v-if="canEdit" size="small"
         @click="showConfirmation(loadLhkData, 'Batalkan perubahan dan muat ulang data asli?')"
-        prepend-icon="mdi-refresh"
-      >
+        prepend-icon="mdi-refresh">
         Batal
       </v-btn>
-      <v-btn
-        size="small"
-        @click="
-          showConfirmation(closeForm, 'Tutup form? Perubahan yang belum disimpan akan hilang.')
-        "
-        prepend-icon="mdi-close"
-      >
+      <v-btn size="small" @click="
+        showConfirmation(closeForm, 'Tutup form? Perubahan yang belum disimpan akan hilang.')
+        " prepend-icon="mdi-close">
         Tutup
       </v-btn>
     </template>
@@ -506,48 +503,20 @@ onMounted(() => {
           <div class="text-subtitle-2 font-weight-bold mb-3">Informasi LHK</div>
           <v-row dense>
             <v-col cols="12">
-              <v-text-field
-                label="Nomor LHK"
-                v-model="formHeader.lhkNomor"
-                density="compact"
-                hide-details
-                variant="filled"
-                readonly
-                placeholder="(Otomatis)"
-              />
+              <v-text-field label="Nomor LHK" v-model="formHeader.lhkNomor" density="compact" hide-details
+                variant="filled" readonly placeholder="(Otomatis)" />
             </v-col>
             <v-col cols="12">
-              <v-text-field
-                label="Store"
-                v-model="formHeader.cabang"
-                density="compact"
-                hide-details
-                variant="outlined"
-                readonly
-                filled
-              />
+              <v-text-field label="Store" v-model="formHeader.cabang" density="compact" hide-details variant="outlined"
+                readonly filled />
             </v-col>
             <v-col cols="12">
-              <v-text-field
-                label="Tanggal"
-                v-model="formHeader.tanggal"
-                type="date"
-                density="compact"
-                hide-details
-                variant="outlined"
-              />
+              <v-text-field label="Tanggal" v-model="formHeader.tanggal" type="date" density="compact" hide-details
+                variant="outlined" />
             </v-col>
             <v-col cols="12">
-              <v-select
-                v-model="formHeader.jenisOrder"
-                :items="jenisOrderOptions"
-                item-title="nama"
-                return-object
-                label="Jenis Pekerjaan"
-                density="compact"
-                variant="outlined"
-                hide-details
-              />
+              <v-select v-model="formHeader.jenisOrder" :items="jenisOrderOptions" item-title="nama" return-object
+                label="Jenis Pekerjaan" density="compact" variant="outlined" hide-details />
             </v-col>
           </v-row>
         </div>
@@ -556,44 +525,21 @@ onMounted(() => {
           <div class="text-subtitle-2 font-weight-bold mb-2">Ukuran Cetak Riil (WAJIB CM)</div>
           <v-row dense>
             <v-col cols="6">
-              <v-text-field
-                v-model.number="formHeader.panjang"
-                label="Panjang (cm)"
-                type="number"
-                variant="outlined"
-                density="compact"
-                hide-details
-                class="custom-suffix"
-                suffix="cm"
-                color="primary"
-                placeholder="Cth: 150"
-                hint="Jika 1.5 meter, tulis 150"
-                persistent-hint
-              />
+              <v-text-field v-model.number="formHeader.panjang" label="Panjang (cm)" type="number" variant="outlined"
+                density="compact" hide-details class="custom-suffix" suffix="cm" color="primary" placeholder="Cth: 150"
+                hint="Jika 1.5 meter, tulis 150" persistent-hint />
             </v-col>
             <v-col cols="6">
-              <v-text-field
-                v-model.number="formHeader.buangan"
-                label="Buangan (cm)"
-                type="number"
-                variant="outlined"
-                density="compact"
-                hide-details
-                class="custom-suffix"
-                suffix="cm"
-                placeholder="Cth: 10"
-              />
+              <v-text-field v-model.number="formHeader.buangan" label="Buangan (cm)" type="number" variant="outlined"
+                density="compact" hide-details class="custom-suffix" suffix="cm" placeholder="Cth: 10" />
             </v-col>
           </v-row>
         </div>
 
-        <div
-          v-if="
-            isShowMeasurement ||
-            (formHeader.jenisOrder?.nama || '').toUpperCase().includes('BORDIR')
-          "
-          class="desktop-form-section"
-        >
+        <div v-if="
+          isShowMeasurement ||
+          (formHeader.jenisOrder?.nama || '').toUpperCase().includes('BORDIR')
+        " class="desktop-form-section">
           <div class="text-subtitle-2 font-weight-bold mb-2">
             {{ isShowMeasurement ? "Perhitungan Pemakaian Bahan" : "Perhitungan Produksi Bordir" }}
           </div>
@@ -613,9 +559,7 @@ onMounted(() => {
                 <v-list-item class="px-0">
                   <v-list-item-title class="text-caption">Total Luas Riil</v-list-item-title>
                   <template #append>
-                    <span class="font-weight-bold text-blue"
-                      >{{ totalLuasRiil.toLocaleString() }} cm²</span
-                    >
+                    <span class="font-weight-bold text-blue">{{ totalLuasRiil.toLocaleString() }} cm²</span>
                   </template>
                 </v-list-item>
 
@@ -631,9 +575,7 @@ onMounted(() => {
                     <span class="text-caption font-weight-bold">Estimasi Panjang (Sistem)</span>
                   </template>
                   <template #append>
-                    <span class="font-weight-black"
-                      >{{ panjangSistemEstimasi.toLocaleString() }} cm</span
-                    >
+                    <span class="font-weight-black">{{ panjangSistemEstimasi.toLocaleString() }} cm</span>
                   </template>
                 </v-list-item>
 
@@ -642,10 +584,7 @@ onMounted(() => {
                 <v-list-item class="px-0">
                   <v-list-item-title class="font-weight-bold">Selisih (±)</v-list-item-title>
                   <template #append>
-                    <span
-                      class="font-weight-black"
-                      :class="selisihLuas > 0 ? 'text-error' : 'text-success'"
-                    >
+                    <span class="font-weight-black" :class="selisihLuas > 0 ? 'text-error' : 'text-success'">
                       {{ selisihLuas.toLocaleString() }} cm²
                     </span>
                   </template>
@@ -658,88 +597,42 @@ onMounted(() => {
 
       <div class="right-column">
         <div class="desktop-form-section d-flex flex-column fill-height">
-          <v-data-table
-            :headers="tableHeaders"
-            :items="items"
-            :loading="isLoading"
-            density="compact"
-            class="desktop-table"
-            fixed-header
-            :items-per-page="-1"
-          >
+          <v-data-table :headers="tableHeaders" :items="items" :loading="isLoading" density="compact"
+            class="desktop-table" fixed-header :items-per-page="-1">
             <template #[`item.no`]="{ index }">
               <div class="cell-text">{{ index + 1 }}</div>
             </template>
 
             <template #[`item.kode`]="{ item, index }">
-              <v-text-field
-                v-model="item.kode"
-                :readonly="item.kode !== ''"
-                :variant="item.kode !== '' ? 'filled' : 'underlined'"
-                density="compact"
-                hide-details
-                placeholder="F1:SO, F2:PO, F3:SPK"
-                @keydown.f1.prevent="openSoSearchModal(index)"
-                @keydown.f2.prevent="openPoSearchModal(index)"
-                @keydown.f3.prevent="openSpkSearchModal(index)"
-              />
+              <v-text-field v-model="item.kode" :readonly="item.kode !== ''"
+                :variant="item.kode !== '' ? 'filled' : 'underlined'" density="compact" hide-details
+                placeholder="F1:SO, F2:PO, F3:SPK" @keydown.f1.prevent="openSoSearchModal(index)"
+                @keydown.f2.prevent="openPoSearchModal(index)" @keydown.f3.prevent="openSpkSearchModal(index)" />
             </template>
 
             <template #[`item.jumlah`]="{ item }">
-              <v-text-field
-                v-model.number="item.jumlah"
-                type="number"
-                variant="underlined"
-                density="compact"
-                hide-details
-                class="text-center tiny-input font-weight-bold"
-              />
+              <v-text-field v-model.number="item.jumlah" type="number" variant="underlined" density="compact"
+                hide-details class="text-center tiny-input font-weight-bold" />
             </template>
 
             <template #[`item.reject`]="{ item }">
-              <v-text-field
-                v-model.number="item.reject"
-                type="number"
-                variant="underlined"
-                density="compact"
-                hide-details
-                class="text-center tiny-input text-error font-weight-bold"
-              />
+              <v-text-field v-model.number="item.reject" type="number" variant="underlined" density="compact"
+                hide-details class="text-center tiny-input text-error font-weight-bold" />
             </template>
 
-            <template
-              v-for="col in ['depan', 'belakang', 'lengan', 'variasi', 'saku']"
-              :key="col"
-              #[`item.${col}`]="{ item }"
-            >
-              <v-text-field
-                v-model.number="item[col]"
-                type="number"
-                variant="underlined"
-                density="compact"
-                hide-details
-                class="text-center tiny-input"
-              />
+            <template v-for="col in ['depan', 'belakang', 'lengan', 'variasi', 'saku']" :key="col"
+              #[`item.${col}`]="{ item }">
+              <v-text-field v-model.number="item[col]" type="number" variant="underlined" density="compact" hide-details
+                class="text-center tiny-input" />
             </template>
 
             <template #[`item.ket`]="{ item }">
-              <v-text-field
-                v-model="item.ket"
-                variant="underlined"
-                density="compact"
-                hide-details
-              />
+              <v-text-field v-model="item.ket" variant="underlined" density="compact" hide-details />
             </template>
 
             <template #[`item.actions`]="{ item }">
-              <v-btn
-                v-if="!isEditMode && items.length > 1"
-                icon="mdi-delete"
-                size="x-small"
-                variant="text"
-                color="error"
-                @click="removeRow(item.id)"
-              />
+              <v-btn icon="mdi-delete" size="x-small" variant="text" color="error"
+                @click="item.kode ? showConfirmation(() => removeRow(item.id), 'Hapus baris ini dari daftar?') : removeRow(item.id)" />
             </template>
             <template #bottom></template>
           </v-data-table>
@@ -759,30 +652,14 @@ onMounted(() => {
       </v-card>
     </v-dialog>
 
-    <SoPoSearchModal
-      v-if="isSoSearchVisible"
-      :cabang="selectedCabang"
-      tipe="SO"
-      :prefix="formHeader.jenisOrder?.kode"
-      @close="isSoSearchVisible = false"
-      @selected="onSoPoSelected"
-    />
+    <SoPoSearchModal v-if="isSoSearchVisible" :cabang="selectedCabang" tipe="SO" :prefix="formHeader.jenisOrder?.kode"
+      @close="isSoSearchVisible = false" @selected="onSoPoSelected" />
 
-    <SoPoSearchModal
-      v-if="isPoSearchVisible"
-      :cabang="selectedCabang"
-      tipe="PO"
-      @close="isPoSearchVisible = false"
-      @selected="onSoPoSelected"
-    />
+    <SoPoSearchModal v-if="isPoSearchVisible" :cabang="selectedCabang" tipe="PO" @close="isPoSearchVisible = false"
+      @selected="onSoPoSelected" />
 
-    <SoPoSearchModal
-      v-if="isSpkSearchVisible"
-      :cabang="selectedCabang"
-      tipe="SPK"
-      @close="isSpkSearchVisible = false"
-      @selected="onSoPoSelected"
-    />
+    <SoPoSearchModal v-if="isSpkSearchVisible" :cabang="selectedCabang" tipe="SPK" @close="isSpkSearchVisible = false"
+      @selected="onSoPoSelected" />
   </PageLayout>
 </template>
 

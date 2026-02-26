@@ -24,6 +24,8 @@ const MENU_ID = '38';
 
 // --- Interfaces ---
 interface SizeItem {
+  id?: number;       // <--- Tambahkan ini
+  ukuran?: string;   // <--- Tambahkan ini
   size: string;
   qty: number | null;
   hargaPcs: number;
@@ -49,11 +51,6 @@ interface AdditionalCostItem {
   harga: number;
 }
 
-interface SizeItem {
-  ukuran: string;
-  hargaPcs: number;
-}
-
 interface CostsDetail {
   cm: number;
   min: number;
@@ -76,6 +73,7 @@ interface AdditionalCostResponse {
 
 // --- State ---
 const activeTab = ref('pengajuan');
+const isLoadingData = ref(false);
 const header = ref({
   nomor: '',
   tanggal: new Date().toISOString().substr(0, 10),
@@ -518,6 +516,7 @@ const applyDtfCost = () => {
 };
 
 const loadOfferData = async (nomor: string) => {
+  isLoadingData.value = true;
   try {
     const response = await api.get(`/price-proposal-form/${nomor}`);
     const data = response.data;
@@ -628,6 +627,8 @@ const loadOfferData = async (nomor: string) => {
     toast.error('Gagal memuat data pengajuan untuk diedit.');
     console.error("Load Offer Error:", error);
     router.push('/transaksi/penjualan/pengajuan/pengajuan-harga');
+  } finally {
+    isLoadingData.value = false; // <--- Tambahkan di sini
   }
 };
 
@@ -710,6 +711,56 @@ watch(
   },
   { deep: true }
 );
+
+// Watcher untuk merespon perubahan mode Stok / Custom
+watch(() => header.value.ketersediaan, async (newVal) => {
+  // Jangan jalankan jika jenis kaos belum dipilih atau sedang memuat data edit
+  if (!header.value.jenisKaos || isLoadingData.value) return;
+
+  try {
+    const response = await api.get<TshirtTypeResponse>('/price-proposal-form/tshirt-type-details', {
+      params: {
+        jenisKaos: header.value.jenisKaos,
+        custom: newVal === 'Custom' ? 'Y' : 'N'
+      }
+    });
+
+    const data = response.data;
+    if (data && Array.isArray(data.sizes)) {
+      // Perbarui harga, tapi pertahankan Qty, Kode Barang, dan Nama Barang yang sudah diisi
+      sizeItems.value = data.sizes.map((item) => {
+        const existing = sizeItems.value.find(i => i.size === item.ukuran);
+        return {
+          id: existing?.id || (Date.now() + Math.random()),
+          size: item.ukuran,
+          ukuran: item.ukuran,
+          qty: existing?.qty || null, // Pertahankan Qty sebelumnya
+          hargaPcs: item.hargaPcs,
+          isManualPrice: item.hargaPcs === 0,
+          totalHarga: 0,
+          hargaKaos: 0,
+          kodeBarang: existing?.kodeBarang || '', // Pertahankan warna
+          namaBarang: existing?.namaBarang || ''  // Pertahankan warna
+        };
+      });
+
+      // Perbarui standar biaya Bordir & DTF jika ada
+      const costs = data.costs;
+      if (costs) {
+        biayaPerCmBordir.value = costs.bordir?.cm || 0;
+        bordirMinCharge.value = costs.bordir?.min || 0;
+        biayaPerCmDtf.value = costs.dtf?.cm || 0;
+        dtfMinCharge.value = costs.dtf?.min || 0;
+      }
+
+      calculateTotals();
+      toast.success(`Harga otomatis disesuaikan untuk mode ${newVal}.`);
+    }
+  } catch (error) {
+    toast.error("Gagal menyesuaikan harga.");
+    console.error("Error updating ketersediaan prices:", error);
+  }
+});
 
 onMounted(() => {
   markAsSaved();

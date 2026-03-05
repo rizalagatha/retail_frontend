@@ -70,6 +70,8 @@ interface SoItem {
 
   scannedQty: number; // Jumlah yang benar-benar sudah discan/fisik siap
   isReady: boolean; // Flag jika scannedQty == jumlah (order)
+  promo?: string;                 // <--- TAMBAHKAN INI
+  _isHargaEditable?: boolean;     // <--- TAMBAHKAN INI
 
   mutatedQty?: number; // Saldo yang sudah dimutasi
   isMutated?: boolean; // Flag pengunci UI
@@ -996,6 +998,86 @@ const openPriceProposalSearch = (index: number) => {
   isPriceProposalSearchVisible.value = true;
 };
 
+const applyMarchBonusSticker = async () => {
+  const STICKER_BARCODE = "25014783";
+  const THRESHOLD_STICKER = 600000;
+
+  const totalEligibleValue = items.value.reduce((sum, item) => {
+    return isItemPromoEligible(item) && item.barcode !== STICKER_BARCODE ? sum + (item.total || 0) : sum;
+  }, 0);
+
+  const totalKaosQty = items.value.reduce((sum, item) => {
+    return isItemPromoEligible(item) && item.barcode !== STICKER_BARCODE
+      ? sum + (Number(item.jumlah) || 0)
+      : sum;
+  }, 0);
+
+  const multiplier = Math.floor(totalEligibleValue / THRESHOLD_STICKER);
+  const targetBonusQty = totalKaosQty * multiplier;
+
+  const existingIdx = items.value.findIndex(i => i.barcode === STICKER_BARCODE);
+
+  if (multiplier > 0 && totalKaosQty > 0) {
+    try {
+      // Panggil API untuk mendapatkan Data Barang (Stok & Nama) dari Cabang
+      const response = await api.get(`/so-form/by-barcode/${STICKER_BARCODE}`, {
+        params: { gudang: header.value.gudang.kode },
+      });
+      const product = response.data;
+      const stokFisikToko = Number(product.stok || 0);
+
+      // Update atau Tambah Item ke Grid
+      if (existingIdx !== -1) {
+        items.value[existingIdx].jumlah = targetBonusQty;
+        items.value[existingIdx].scannedQty = targetBonusQty; // Auto Ready
+        items.value[existingIdx].isReady = true;
+        items.value[existingIdx].stok = stokFisikToko;
+      } else {
+        const newItem: SoItem = {
+          id: Date.now() + 999,
+          kode: product.kode,
+          nama: `${product.nama} (FREE MARET)`,
+          ukuran: product.ukuran,
+          jumlah: targetBonusQty,
+          harga: 0,
+          diskonRp: 0,
+          diskonPersen: 0,
+          total: 0,
+          barcode: STICKER_BARCODE,
+          stok: stokFisikToko,
+          kategori: product.kategori || "BONUS",
+          terhitungPromo: true,
+          _isHargaEditable: false,
+          scannedQty: targetBonusQty, // Anggap bonus langsung ready agar SO tidak nyangkut
+          isReady: true,
+          noSoDtf: "",
+          noPengajuanHarga: "",
+          pin: "",
+        };
+
+        const emptyIdx = items.value.findIndex(i => !i.kode);
+        if (emptyIdx !== -1) {
+          items.value.splice(emptyIdx, 0, newItem);
+        } else {
+          items.value.push(newItem);
+        }
+      }
+    } catch (error) {
+      console.error("Gagal menarik data Master Sticker:", error);
+      toast.error("Barcode Sticker 25014783 tidak ditemukan di master barang.");
+      if (existingIdx !== -1) items.value.splice(existingIdx, 1);
+    }
+  } else {
+    // Hapus jika tidak memenuhi syarat belanja
+    if (existingIdx !== -1) {
+      items.value.splice(existingIdx, 1);
+    }
+  }
+
+  await nextTick();
+  // Call calculateTotals in parent function to avoid infinite loops if it's watched
+};
+
 // [UBAH] Tambahkan 'async' pada definisi fungsi
 const save = async () => {
   if (nextActionAfterSave.value !== "INVOICE") {
@@ -1037,113 +1119,136 @@ const save = async () => {
     }
   }
 
-  // --- 2. Integrasi Logika Promo PRO-2026-001 (Februari) ---
-  if (header.value.nomorPromo === "PRO-2026-001") {
-    const totalEligibleFeb = validItems.reduce((sum, item) => {
-      // Gunakan fungsi helper yang sudah kita perbaiki di atas
-      if (isItemPromoEligible(item)) {
-        return sum + (item.total || 0);
-      }
-      return sum;
-    }, 0);
+  // --- 2. Injeksi Bonus Sticker (PROMO MARET) ---
+  // Eksekusi penambahan fisik sticker sebelum menghitung kelayakan promo diskon rupiah
+  await applyMarchBonusSticker();
+  calculateTotals();
 
-    // Update nominal diskon riil berdasarkan target belanja
-    if (totalEligibleFeb >= 200000) {
-      // Potongan 20rb tiap kelipatan 200rb
-      footer.value.diskonRp = Math.floor(totalEligibleFeb / 200000) * 20000;
-    } else if (totalEligibleFeb >= 150000) {
-      // Potongan flat 15rb untuk range 150rb - < 200rb
-      footer.value.diskonRp = 15000;
-    } else {
-      // Jika ternyata total belanja turun di bawah syarat setelah diedit
+  // --- 3. Validasi Promo Spesifik (Beli 3 = 100rb) ---
+  const totalQty = validItems.reduce((sum, item) => sum + (item.jumlah || 0), 0);
+  if (header.value.nomorPromo === "PRO-2025-005" && totalQty < 3) {
+    return toast.error("Qty minimal 3 pcs untuk promo ini.");
+  }
+
+  // --- 4. Cek Promo Aktif & Terapkan Otomatis ---
+  try {
+    const promoResponse = await api.get("/invoice-form/lookup/active-promos", {
+      params: { tanggal: header.value.tanggal, cabang: header.value.gudang.kode },
+    });
+
+    const activePromos = (promoResponse.data ?? []) as ActivePromo[];
+
+    const promo2026 = activePromos.find((p) => p.pro_nomor === "PRO-2026-001");
+    const promo008 = activePromos.find((p) => p.pro_nomor === "PRO-2025-008");
+    const promo010 = activePromos.find((p) => p.pro_nomor === "PRO-2025-010");
+
+    let promoToApply: ActivePromo | null = null;
+    let promoDiskon = 0;
+
+    // --- PRIORITAS 1: PROMO MARET (PRO-2026-001) ---
+    // Murni Kelipatan 200rb
+    if (promo2026) {
+      const totalEligibleFeb = items.value.reduce((sum, item) => {
+        // Syarat: Reguler OR Jersey OR Sablon DTF (noSoDtf)
+        const isReguler = item.kategori === "REGULER";
+        const isJersey = item.nama?.toUpperCase().includes("JERSEY");
+        const isDtf = !!item.noSoDtf;
+
+        // Kecualikan item sticker itu sendiri dari hitungan dasar diskon
+        if ((isReguler || isJersey || isDtf) && item.barcode !== "25014783") {
+          return sum + (item.total || 0);
+        }
+        return sum;
+      }, 0);
+
+      if (totalEligibleFeb >= 200000) {
+        const kelipatanUang = Math.floor(totalEligibleFeb / 200000);
+        promoDiskon = 20000 * kelipatanUang;
+        promoToApply = promo2026;
+      }
+    }
+
+    // --- PRIORITAS 2: PROMO LAMA (Jika Promo Maret tidak terpenuhi) ---
+    if (!promoToApply) {
+      const isExcludedItem = (item: SoItem) => {
+        const namaUp = item.nama?.toUpperCase() || "";
+        const kodeUp = item.kode?.toUpperCase() || "";
+        const isJasaOrDesign =
+          item.isJasa ||
+          kodeUp.startsWith("JS") ||
+          kodeUp.startsWith("JASA") ||
+          namaUp.includes("JASA") ||
+          namaUp.includes("DESAIN") ||
+          namaUp.includes("FILE");
+        const isCustomOrDtf = item.isCustomOrder || !!item.noSoDtf || !!item.noPengajuanHarga;
+        return isJasaOrDesign || isCustomOrDtf;
+      };
+
+      const totalRegulerDec = validItems.reduce((sum, item) => {
+        if (!item.nama?.toUpperCase().includes("JERSEY") && !isExcludedItem(item)) {
+          return sum + (item.total || 0);
+        }
+        return sum;
+      }, 0);
+
+      const totalBelanjaDec = validItems.reduce((sum, item) => {
+        if (!isExcludedItem(item)) return sum + (item.total || 0);
+        return sum;
+      }, 0);
+
+      // Cek Kelayakan Promo Header (Diskon Faktur)
+      if (promo010 && totalRegulerDec >= 250000) {
+        const kelipatan = Math.floor(totalRegulerDec / 250000);
+        promoDiskon = 25000 * kelipatan;
+        promoToApply = promo010;
+      } else if (promo008 && totalBelanjaDec >= promo008.pro_totalrp) {
+        promoDiskon = promo008.pro_disrp * Math.floor(totalBelanjaDec / promo008.pro_totalrp);
+        promoToApply = promo008;
+      }
+    }
+
+    // --- PENERAPAN PROMO HEADER OTOMATIS ---
+    if (promoToApply) {
+      // Jika belum ada promo yang terpasang, pasang otomatis
+      if (!header.value.nomorPromo && footer.value.diskonRp === 0 && footer.value.diskonPersen1 === 0 && footer.value.diskonPersen2 === 0) {
+        footer.value.diskonRp = promoDiskon;
+        header.value.nomorPromo = promoToApply.pro_nomor;
+        header.value.namaPromo = promoToApply.pro_judul;
+        calculateTotals();
+        toast.success(`Promo ${promoToApply.pro_judul} diterapkan otomatis!`);
+      }
+      // Jika promo yang sama sudah terpasang, update nominalnya secara dinamis
+      else if (header.value.nomorPromo === promoToApply.pro_nomor) {
+        footer.value.diskonRp = promoDiskon;
+        calculateTotals();
+      }
+    }
+    // Jika sebelumnya pakai promo PRO-2026-001 tapi qty dikurangi sehingga tidak memenuhi syarat, lepas promonya
+    else if (header.value.nomorPromo === "PRO-2026-001") {
       footer.value.diskonRp = 0;
       header.value.nomorPromo = "";
       header.value.namaPromo = "";
+      calculateTotals();
       toast.warning("Syarat minimal belanja promo tidak terpenuhi. Promo dilepas.");
     }
 
-    // Hitung ulang Grand Total setelah penyesuaian diskon promo
-    calculateTotals();
+  } catch (error) {
+    console.error("Gagal mengecek promo otomatis:", error);
   }
 
-  // // --- 2. Integrasi Logika Promo Otomatis ---
-  // if (!header.value.nomorPromo) {
-  //   try {
-  //     // Cari promo yang sedang aktif (Promo PRO-2025-004 dihapus)
-  //     const promo008 = activePromosList.value.find((p) => p.pro_nomor === "PRO-2025-008"); // Bulanan
-  //     const promo010 = activePromosList.value.find((p) => p.pro_nomor === "PRO-2025-010"); // Kelipatan
+  // --- 5. Cek Promo Tebus Murah (Bonus Item) ---
+  if (header.value.nomorPromo === "PRO-2025-002") {
+    activePromoForBonus.value = { nomor: header.value.nomorPromo, qty: 1 };
+    dialogs.promoBonus = true;
+    return;
+  }
 
-  //     let promoToApply: ActivePromo | null = null;
-  //     let promoDiskon = 0;
-
-  //     const isExcludedItem = (item: SoItem) => {
-  //       const namaUp = item.nama?.toUpperCase() || "";
-  //       const kodeUp = item.kode?.toUpperCase() || "";
-  //       const isJasaOrDesign =
-  //         item.isJasa ||
-  //         kodeUp.startsWith("JS") ||
-  //         kodeUp.startsWith("JASA") ||
-  //         namaUp.includes("JASA") ||
-  //         namaUp.includes("DESAIN") ||
-  //         namaUp.includes("FILE");
-  //       const isCustomOrDtf = item.isCustomOrder || !!item.noSoDtf || !!item.noPengajuanHarga;
-  //       return isJasaOrDesign || isCustomOrDtf;
-  //     };
-
-  //     const totalReguler = validItems.reduce((sum, item) => {
-  //       if (!item.nama?.toUpperCase().includes("JERSEY") && !isExcludedItem(item)) {
-  //         return sum + (item.total || 0);
-  //       }
-  //       return sum;
-  //     }, 0);
-
-  //     const totalBelanja = validItems.reduce((sum, item) => {
-  //       if (!isExcludedItem(item)) return sum + (item.total || 0);
-  //       return sum;
-  //     }, 0);
-
-  //     // Cek Kelayakan Promo Header (Diskon Faktur)
-  //     if (promo010 && totalReguler >= 250000) {
-  //       const kelipatan = Math.floor(totalReguler / 250000);
-  //       promoDiskon = 25000 * kelipatan;
-  //       promoToApply = promo010;
-  //     } else if (promo008 && totalBelanja >= promo008.pro_totalrp) {
-  //       promoDiskon = promo008.pro_disrp * Math.floor(totalBelanja / promo008.pro_totalrp);
-  //       promoToApply = promo008;
-  //     }
-
-  //     // PROMO HEADER (Potongan Harga Faktur) diterapkan jika syarat terpenuhi
-  //     if (promoToApply) {
-  //       if (
-  //         footer.value.diskonRp === 0 &&
-  //         footer.value.diskonPersen1 === 0 &&
-  //         footer.value.diskonPersen2 === 0
-  //       ) {
-  //         footer.value.diskonRp = promoDiskon;
-  //         header.value.nomorPromo = promoToApply.pro_nomor;
-  //         header.value.namaPromo = promoToApply.pro_judul;
-  //         await calculateTotals();
-  //         toast.success(`Promo ${promoToApply.pro_judul} diterapkan otomatis!`);
-  //       }
-  //     }
-  //   } catch (error) {
-  //     console.error("Gagal mengecek promo otomatis:", error);
-  //   }
-  // }
-
-  // // --- 3. Cek Promo Tebus Murah (Bonus Item) ---
-  // if (header.value.nomorPromo === "PRO-2025-002") {
-  //   activePromoForBonus.value = { nomor: header.value.nomorPromo, qty: 1 };
-  //   dialogs.promoBonus = true;
-  //   return;
-  // }
-
-  // --- 4. Validasi DP ---
+  // --- 6. Validasi DP ---
   if (footer.value.totalDp < footer.value.minimalDp && header.value.statusSo === "PASIF") {
     toast.warning("DP di bawah Minimal DP. SO ini akan berstatus PASIF.");
   }
 
-  // --- VALIDASI TANGGAL HARI INI ---
+  // --- 7. VALIDASI TANGGAL HARI INI ---
   if (!isEditMode.value) {
     // Hanya cek jika buat SO BARU
     const today = format(new Date(), "yyyy-MM-dd");
@@ -1152,9 +1257,8 @@ const save = async () => {
       return;
     }
   }
-  // ----------------------------------------------
 
-  // --- 5. Konfirmasi Akhir ---
+  // --- 8. Konfirmasi Akhir (Simpan) ---
   showConfirmation(executeSave, "Anda yakin ingin menyimpan Surat Pesanan ini?");
 };
 
@@ -2564,35 +2668,33 @@ const checkRealtimePromoEligibility = async (): Promise<boolean> => {
 
   // --- [PRIORITAS 1] LOGIKA PROMO FEBRUARI 2026 (PRO-2026-001) ---
   const totalEligibleFeb = validItems.reduce((sum, item) => {
-    return isItemPromoEligible(item) ? sum + (item.total || 0) : sum;
+    // Abaikan sticker bonus dari hitungan base
+    return isItemPromoEligible(item) && item.barcode !== '25014783'
+      ? sum + (item.total || 0)
+      : sum;
   }, 0);
 
   const promo2026 = activePromosList.value.find((p) => p.pro_nomor === "PRO-2026-001");
 
-  if (promo2026) {
-    if (totalEligibleFeb >= 200000) {
-      // Kondisi Kelipatan 20rb per 200rb
-      const kelipatan = Math.floor(totalEligibleFeb / 200000);
-      currentCalculatedDiscount = 20000 * kelipatan;
-      message = `🎉 PROMO FEBRUARI! Anda berhak Potongan Kelipatan Rp ${formatRupiah(
-        currentCalculatedDiscount
-      )}!`;
-      promoCandidate = promo2026;
-    } else if (totalEligibleFeb >= 150000) {
-      // Kondisi Flat 15rb
-      currentCalculatedDiscount = 15000;
-      const toNextLevel = 200000 - totalEligibleFeb;
-      message = `✨ PROMO FEBRUARI: Dapat potongan Rp 15.000! (Tambah Rp ${formatRupiah(
-        toNextLevel
-      )} lagi untuk diskon kelipatan)`;
-      promoCandidate = promo2026;
-    } else if (totalEligibleFeb >= 100000) {
-      // UPSELLING: Biar kartu tidak hilang saat belanja di atas 100rb
-      const shortage = 150000 - totalEligibleFeb;
-      message = `💡 Tambah belanja Rp ${formatRupiah(
-        shortage
-      )} lagi untuk dapat DISKON Rp 15.000! (Reguler/Jersey/DTF)`;
-      currentCalculatedDiscount = 0;
+  if (promo2026 && totalEligibleFeb >= 200000) {
+    // Kelipatan 200rb
+    const kelipatan = Math.floor(totalEligibleFeb / 200000);
+    currentCalculatedDiscount = 20000 * kelipatan;
+    message = `🎉 PROMO MARET! Anda berhak Potongan Rp ${formatRupiah(currentCalculatedDiscount)}!`;
+    promoCandidate = promo2026;
+
+    // Logika Bonus Sticker >= 600rb
+    if (totalEligibleFeb >= 600000) {
+      const kelipatanSticker = Math.floor(totalEligibleFeb / 600000);
+      const totalKaosQty = validItems.reduce((sum, item) => {
+        return isItemPromoEligible(item) && item.barcode !== '25014783'
+          ? sum + (item.jumlah || 0)
+          : sum;
+      }, 0);
+      const bonusQty = totalKaosQty * kelipatanSticker;
+      if (bonusQty > 0) {
+        message += ` + 🎁 FREE ${bonusQty} pcs Sticker DTF A6!`;
+      }
     }
   }
 

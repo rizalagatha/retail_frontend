@@ -1113,6 +1113,7 @@ const save = async () => {
       toast.error(`Jumlah untuk barang '${item.nama}' harus diisi dan lebih dari 0.`);
       return;
     }
+    const isStickerBonus = item.barcode === '25014783' || item.kode === '2500053';
     if ((item.harga === null || item.harga < 0) && !item.terhitungPromo) {
       toast.error(`Harga untuk barang '${item.nama}' harus diisi.`);
       return;

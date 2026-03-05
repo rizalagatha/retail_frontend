@@ -1804,12 +1804,17 @@ const handleProceedToPayment = async () => {
   for (const item of validItems) {
     const kodeUp = item.kode?.toUpperCase() || "";
     const isNonStock = kodeUp.startsWith("JASA") || kodeUp.includes("FILE");
-    if ((item.harga || 0) === 0 && !item.promo && !header.isMarketplace && !isNonStock) {
-      return toast.error(`Harga untuk ${item.nama} harus diisi.`);
-    } else if ((item.harga || 0) === 0 && !item.promo && header.isMarketplace) {
-      return toast.error(
-        `Harga untuk ${item.nama} masih 0. Silakan input harga marketplace manual.`
-      );
+    const isStickerBonus = item.barcode === '25014783' || item.kode === '2500053';
+
+    // [FIX] Bypas error harga untuk Sticker Promo
+    if (!isStickerBonus) {
+      if ((item.harga === null || item.harga === undefined || item.harga < 0) && !item.promo && !header.isMarketplace && !isNonStock) {
+        return toast.error(`Harga untuk ${item.nama} harus diisi.`);
+      } else if ((item.harga === null || item.harga === undefined || item.harga < 0) && !item.promo && header.isMarketplace) {
+        return toast.error(
+          `Harga untuk ${item.nama} masih 0. Silakan input harga marketplace manual.`
+        );
+      }
     }
   }
 

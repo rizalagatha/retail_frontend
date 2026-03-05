@@ -998,46 +998,86 @@ const openPriceProposalSearch = (index: number) => {
   isPriceProposalSearchVisible.value = true;
 };
 
+let isApplyingBonus = false;
+
 const applyMarchBonusSticker = async () => {
-  const STICKER_BARCODE = "25014783";
-  const THRESHOLD_STICKER = 600000;
+  // 2. Cegah fungsi berjalan bersamaan (Mencegah Loop/Duplikat 3x)
+  if (isApplyingBonus) return;
+  isApplyingBonus = true;
 
-  const totalEligibleValue = items.value.reduce((sum, item) => {
-    return isItemPromoEligible(item) && item.barcode !== STICKER_BARCODE ? sum + (item.total || 0) : sum;
-  }, 0);
+  try {
+    const STICKER_BARCODE = "25014783";
+    const STICKER_KODE = "2500053"; // Fallback kode
+    const THRESHOLD_STICKER = 600000;
 
-  const totalKaosQty = items.value.reduce((sum, item) => {
-    return isItemPromoEligible(item) && item.barcode !== STICKER_BARCODE
-      ? sum + (Number(item.jumlah) || 0)
-      : sum;
-  }, 0);
+    const totalEligibleValue = items.value.reduce((sum, item) => {
+      const isSticker = item.barcode === STICKER_BARCODE || item.kode === STICKER_KODE;
+      return isItemPromoEligible(item) && !isSticker ? sum + (item.total || 0) : sum;
+    }, 0);
 
-  const multiplier = Math.floor(totalEligibleValue / THRESHOLD_STICKER);
-  const targetBonusQty = totalKaosQty * multiplier;
+    const totalKaosQty = items.value.reduce((sum, item) => {
+      const isSticker = item.barcode === STICKER_BARCODE || item.kode === STICKER_KODE;
+      return isItemPromoEligible(item) && !isSticker
+        ? sum + (Number(item.jumlah) || 0)
+        : sum;
+    }, 0);
 
-  const existingIdx = items.value.findIndex(i => i.barcode === STICKER_BARCODE);
+    const multiplier = Math.floor(totalEligibleValue / THRESHOLD_STICKER);
+    const targetBonusQty = totalKaosQty * multiplier;
 
-  if (multiplier > 0 && totalKaosQty > 0) {
-    try {
-      // Panggil API untuk mendapatkan Data Barang (Stok & Nama) dari Cabang
-      const response = await api.get(`/so-form/by-barcode/${STICKER_BARCODE}`, {
-        params: { gudang: header.value.gudang.kode },
-      });
-      const product = response.data;
-      const stokFisikToko = Number(product.stok || 0);
+    // 3. SAPU BERSIH DUPLIKAT (Jika efek render loop sebelumnya terjadi)
+    const stickerIndexes = items.value
+      .map((item, idx) => (item.barcode === STICKER_BARCODE || item.kode === STICKER_KODE) ? idx : -1)
+      .filter(idx => idx !== -1);
 
-      // Update atau Tambah Item ke Grid
+    if (stickerIndexes.length > 1) {
+      for (let i = stickerIndexes.length - 1; i > 0; i--) {
+        items.value.splice(stickerIndexes[i], 1);
+      }
+    }
+
+    let existingIdx = items.value.findIndex(i => i.barcode === STICKER_BARCODE || i.kode === STICKER_KODE);
+
+    // 4. Hentikan jika QTY sudah benar (Mencegah Infinite Loop Vue)
+    if (existingIdx !== -1 && items.value[existingIdx].jumlah === targetBonusQty && targetBonusQty > 0) {
+      return;
+    }
+
+    if (multiplier > 0 && totalKaosQty > 0) {
+      let stokFisikToko = 0;
+      let prodKode = STICKER_KODE;
+      let prodNama = "STICKER DTF A6";
+      let prodUkuran = "A6";
+
+      try {
+        const response = await api.get(`/so-form/by-barcode/${STICKER_BARCODE}`, {
+          params: { gudang: header.value.gudang.kode },
+        });
+        const product = response.data;
+        stokFisikToko = Number(product.stok || 0);
+        prodKode = product.kode;
+        prodNama = product.nama;
+        prodUkuran = product.ukuran;
+      } catch (error) {
+        console.warn("Gagal menarik data Master Sticker, fallback digunakan.", error);
+      }
+
+      // Cari ulang index untuk memastikan tidak ada race condition dari API
+      existingIdx = items.value.findIndex(i => i.barcode === STICKER_BARCODE || i.kode === STICKER_KODE);
+
       if (existingIdx !== -1) {
         items.value[existingIdx].jumlah = targetBonusQty;
-        items.value[existingIdx].scannedQty = targetBonusQty; // Auto Ready
+        items.value[existingIdx].scannedQty = targetBonusQty; // Set Auto Ready di SO
         items.value[existingIdx].isReady = true;
+        items.value[existingIdx].total = 0;
+        items.value[existingIdx].harga = 0;
         items.value[existingIdx].stok = stokFisikToko;
       } else {
         const newItem: SoItem = {
           id: Date.now() + 999,
-          kode: product.kode,
-          nama: `${product.nama} (FREE MARET)`,
-          ukuran: product.ukuran,
+          kode: prodKode,
+          nama: `${prodNama} (FREE MARET)`,
+          ukuran: prodUkuran,
           jumlah: targetBonusQty,
           harga: 0,
           diskonRp: 0,
@@ -1045,14 +1085,15 @@ const applyMarchBonusSticker = async () => {
           total: 0,
           barcode: STICKER_BARCODE,
           stok: stokFisikToko,
-          kategori: product.kategori || "BONUS",
-          terhitungPromo: true,
-          _isHargaEditable: false,
-          scannedQty: targetBonusQty, // Anggap bonus langsung ready agar SO tidak nyangkut
-          isReady: true,
-          noSoDtf: "",
           noPengajuanHarga: "",
           pin: "",
+          noSoDtf: "",
+          scannedQty: targetBonusQty, // Langsung Ready agar convert SO berhasil
+          isReady: true,
+          kategori: "BONUS",
+          terhitungPromo: true,
+          _isHargaEditable: false,
+          promo: "PRO-2026-001"
         };
 
         const emptyIdx = items.value.findIndex(i => !i.kode);
@@ -1062,20 +1103,15 @@ const applyMarchBonusSticker = async () => {
           items.value.push(newItem);
         }
       }
-    } catch (error) {
-      console.error("Gagal menarik data Master Sticker:", error);
-      toast.error("Barcode Sticker 25014783 tidak ditemukan di master barang.");
-      if (existingIdx !== -1) items.value.splice(existingIdx, 1);
+    } else {
+      if (existingIdx !== -1) {
+        items.value.splice(existingIdx, 1);
+      }
     }
-  } else {
-    // Hapus jika tidak memenuhi syarat belanja
-    if (existingIdx !== -1) {
-      items.value.splice(existingIdx, 1);
-    }
+  } finally {
+    // Buka kembali kuncinya
+    isApplyingBonus = false;
   }
-
-  await nextTick();
-  // Call calculateTotals in parent function to avoid infinite loops if it's watched
 };
 
 // [UBAH] Tambahkan 'async' pada definisi fungsi
@@ -1124,8 +1160,10 @@ const save = async () => {
 
   // --- 2. Injeksi Bonus Sticker (PROMO MARET) ---
   // Eksekusi penambahan fisik sticker sebelum menghitung kelayakan promo diskon rupiah
-  await applyMarchBonusSticker();
-  calculateTotals();
+  if (header.value.nomorPromo === "PRO-2026-001") {
+    await applyMarchBonusSticker();
+    calculateTotals();
+  }
 
   // --- 3. Validasi Promo Spesifik (Beli 3 = 100rb) ---
   const totalQty = validItems.reduce((sum, item) => sum + (item.jumlah || 0), 0);
@@ -2775,7 +2813,7 @@ const checkRealtimePromoEligibility = async (): Promise<boolean> => {
   return false;
 };
 
-const usePromoDiscount = () => {
+const usePromoDiscount = async () => {
   header.value.nomorPromo = pendingPromoData.nomor;
   header.value.namaPromo = pendingPromoData.nama;
   footer.value.diskonRp = pendingPromoData.diskon;
@@ -2785,6 +2823,12 @@ const usePromoDiscount = () => {
   footer.value.diskonPersen2 = 0;
 
   isPromoConfirmVisible.value = false;
+
+  // JIKA PROMO MARET, INJEK STICKER SEKARANG JUGA
+  if (header.value.nomorPromo === "PRO-2026-001") {
+    await applyMarchBonusSticker();
+  }
+
   calculateTotals();
   toast.success(`Promo ${pendingPromoData.nama} berhasil diterapkan.`);
 };

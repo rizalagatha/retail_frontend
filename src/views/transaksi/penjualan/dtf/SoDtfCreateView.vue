@@ -133,6 +133,10 @@ const isJenisKainSearchVisible = ref(false);
 const isWorkshopSearchVisible = ref(false);
 const isSoSearchVisible = ref(false);
 const sizeCetakList = ref(["A3", "A4", "A5", "Logo", "Custom"]);
+// --- State Promo A6 SO DTF ---
+const isPromoA6DialogVisible = ref(false);
+// Gunakan 3 status agar sistem tidak nanya berulang kali jika user sudah pilih "Tidak"
+const promoA6Status = ref<"PENDING" | "ACCEPTED" | "REJECTED">("PENDING");
 
 // --- Computed Properties for Totals ---
 const totalJumlahKaos = computed(() => {
@@ -326,6 +330,19 @@ const fetchDataForEdit = async (nomor: string) => {
       harga: d.harga,
     }));
 
+    // --- RE-INITIALIZE PROMO STATUS ---
+    const isSD = data.header.jenisOrderKode === "SD";
+    const hasA6 = data.detailsTitik.some((t: DetailTitik) => t.sizeCetak === "A6" || t.sizeCetak === "Logo");
+    const hasZeroPrice = data.detailsUkuran.some((u: DetailUkuran) => u.harga === 0);
+
+    if (isSD && hasA6 && hasZeroPrice) {
+      promoA6Status.value = "ACCEPTED";
+    } else if (isSD && hasA6 && !hasZeroPrice) {
+      promoA6Status.value = "REJECTED";
+    } else {
+      promoA6Status.value = "PENDING";
+    }
+
     toast.success(`Data untuk ${nomor} berhasil dimuat.`);
 
     await nextTick();
@@ -494,10 +511,27 @@ const save = async () => {
     return;
   }
 
+  // --- CEK VALIDASI HARGA DAN JUMLAH ---
+  const isPromoA6 = form.value.jenisOrderKode === "SD" && promoA6Status.value === "ACCEPTED";
+
   for (const item of validDetailsUkuran) {
     if (!item.jumlah || item.jumlah <= 0) {
       toast.error(`Jumlah untuk ukuran '${item.ukuran}' harus lebih dari 0.`);
       return;
+    }
+
+    if (!isPromoA6) {
+      // Validasi normal, harga 0 DIBLOKIR
+      if (!item.harga || item.harga <= 0) {
+        toast.error(`Harga untuk ukuran '${item.ukuran}' harus diisi (lebih dari 0).`);
+        return;
+      }
+    } else {
+      // Validasi Promo A6: Harga BOLEH 0, yang penting tidak minus/null
+      if (item.harga === null || item.harga === undefined || item.harga < 0) {
+        toast.error(`Harga untuk ukuran '${item.ukuran}' tidak valid.`);
+        return;
+      }
     }
   }
 
@@ -732,6 +766,16 @@ const onSizeCetakChange = async (item: DetailTitik, index: number) => {
     return;
   }
 
+  // --- LOGIKA POPUP PROMO A6 ---
+  const isSD = form.value.jenisOrderKode === "SD";
+  const sizeUp = item.sizeCetak.toUpperCase();
+  if (isSD && (sizeUp === "A6" || sizeUp === "LOGO")) {
+    // Hanya tanya jika statusnya masih PENDING
+    if (promoA6Status.value === "PENDING") {
+      isPromoA6DialogVisible.value = true;
+    }
+  }
+
   // Untuk selain Custom, ambil dari API dan set readonly
   try {
     const response = await api.get("/so-dtf-form/lookup/ukuran-sodtf-detail", {
@@ -841,9 +885,25 @@ const calculatePrices = async () => {
         else if (t.sizeCetak === "A5") hargaSatuan += 10000;
       });
       break;
-    case "SD": // Sablon
+    case "SD": // Sablon DTF
       hargaPerCm = form.value.customerLevel === "KORPORASI" ? 15 : 25;
-      hargaSatuan = totalHargaDtf.value / totalJumlahKaos.value;
+
+      const validTitik = detailsTitik.value.filter(t => t.keterangan);
+      const hasA6OrLogo = validTitik.some((t) => {
+        const size = (t.sizeCetak || "").toUpperCase();
+        return size === "A6" || size === "LOGO";
+      });
+
+      // Auto-reset status jika user menghapus baris A6 dari tabel
+      if (!hasA6OrLogo) {
+        promoA6Status.value = "PENDING";
+      }
+
+      if (hasA6OrLogo && promoA6Status.value === "ACCEPTED") {
+        hargaSatuan = 0; // PENGGRATISAN
+      } else {
+        hargaSatuan = totalJumlahKaos.value > 0 ? totalHargaDtf.value / totalJumlahKaos.value : 0;
+      }
       break;
     case "DP": // DTF Premium
       hargaPerCm = 35;
@@ -997,6 +1057,19 @@ const onSoSelected = async (selected, targetLineId = null) => {
 //     URL.revokeObjectURL(imagePreview.value);
 //   }
 // };
+
+const acceptPromoA6 = () => {
+  promoA6Status.value = "ACCEPTED";
+  isPromoA6DialogVisible.value = false;
+  calculatePrices();
+  toast.success("Promo Maret diterapkan! Harga Sablon DTF A6 menjadi Rp 0.");
+};
+
+const rejectPromoA6 = () => {
+  promoA6Status.value = "REJECTED";
+  isPromoA6DialogVisible.value = false;
+  calculatePrices();
+};
 
 watch(
   () => [form.value.tglPengerjaan, form.value.jenisOrderKode],
@@ -1471,6 +1544,25 @@ onMounted(async () => {
             Tidak, Kembali
           </v-btn>
           <v-btn color="primary" variant="tonal" @click="handlePrintConfirm"> Ya, Cetak </v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+
+    <v-dialog v-model="isPromoA6DialogVisible" max-width="450px" persistent>
+      <v-card class="rounded-lg">
+        <v-card-title class="bg-primary text-white text-h6 pa-4">
+          <v-icon start color="white">mdi-ticket-percent</v-icon>
+          Gunakan Promo Maret?
+        </v-card-title>
+        <v-card-text class="pa-5">
+          Sistem mendeteksi Anda memilih ukuran cetak <b>A6</b>.<br><br>
+          Apakah pesanan DTF ini termasuk dalam <b>Bonus Promo Maret</b> (Harga Sablon Rp 0)?
+        </v-card-text>
+        <v-divider></v-divider>
+        <v-card-actions class="pa-4">
+          <v-btn color="grey-darken-1" variant="outlined" @click="rejectPromoA6">Tidak, Harga Normal</v-btn>
+          <v-spacer></v-spacer>
+          <v-btn color="primary" variant="flat" @click="acceptPromoA6">Ya, Gratiskan (Rp 0)</v-btn>
         </v-card-actions>
       </v-card>
     </v-dialog>

@@ -355,6 +355,7 @@ const isSavingDisabled = ref(false);
 const scannedBarcode = ref("");
 const adjustmentLogs = ref<SoAdjustmentLog[]>([]);
 // const isSpkDialogVisible = ref(false);
+const isStickerBonusRejected = ref(false);
 
 const initialHeaderState = {
   nomor: "",
@@ -596,6 +597,11 @@ const isUserKon = computed(() => authStore.user?.cabang === "KON");
 
 const hasUnfinishedDtf = computed(() => {
   return items.value.some(item => !!item.noSoDtf && item.isLhk === false);
+});
+
+const isExemptFromLhkRule = computed(() => {
+  const cabang = authStore.user?.cabang || "";
+  return ["K01", "K03"].includes(cabang);
 });
 
 // --- Functions ---
@@ -1000,24 +1006,24 @@ const openPriceProposalSearch = (index: number) => {
 
 let isApplyingBonus = false;
 
-const applyMarchBonusSticker = async () => {
-  // 2. Cegah fungsi berjalan bersamaan (Mencegah Loop/Duplikat 3x)
+const applyMarchBonusSticker = async (forceInject = false) => {
   if (isApplyingBonus) return;
   isApplyingBonus = true;
 
   try {
     const STICKER_BARCODE = "25014783";
-    const STICKER_KODE = "2500053"; // Fallback kode
+    const STICKER_KODE = "2500053";
     const THRESHOLD_STICKER = 600000;
 
+    const isSticker = (i: SoItem) => String(i.barcode) === STICKER_BARCODE || String(i.kode) === STICKER_KODE;
+
     const totalEligibleValue = items.value.reduce((sum, item) => {
-      const isSticker = item.barcode === STICKER_BARCODE || item.kode === STICKER_KODE;
-      return isItemPromoEligible(item) && !isSticker ? sum + (item.total || 0) : sum;
+      return isItemPromoEligible(item) && !isSticker(item) ? sum + (item.total || 0) : sum;
     }, 0);
 
     const totalKaosQty = items.value.reduce((sum, item) => {
-      const isSticker = item.barcode === STICKER_BARCODE || item.kode === STICKER_KODE;
-      return isItemPromoEligible(item) && !isSticker
+      const isCustomDtf = item.isCustomOrder || !!item.noSoDtf;
+      return isItemPromoEligible(item) && !isSticker(item) && !isCustomDtf
         ? sum + (Number(item.jumlah) || 0)
         : sum;
     }, 0);
@@ -1025,25 +1031,26 @@ const applyMarchBonusSticker = async () => {
     const multiplier = Math.floor(totalEligibleValue / THRESHOLD_STICKER);
     const targetBonusQty = totalKaosQty * multiplier;
 
-    // 3. SAPU BERSIH DUPLIKAT (Jika efek render loop sebelumnya terjadi)
-    const stickerIndexes = items.value
-      .map((item, idx) => (item.barcode === STICKER_BARCODE || item.kode === STICKER_KODE) ? idx : -1)
-      .filter(idx => idx !== -1);
+    let existingIdx = items.value.findIndex(i => isSticker(i));
 
-    if (stickerIndexes.length > 1) {
-      for (let i = stickerIndexes.length - 1; i > 0; i--) {
-        items.value.splice(stickerIndexes[i], 1);
-      }
+    // Jika user sudah menolak stiker, dan bukan instruksi paksa (forceInject) dari tombol "Terapkan Promo"
+    if (isStickerBonusRejected.value && !forceInject) {
+      // Jika ternyata masih ada sisa stiker nyangkut, bersihkan
+      if (existingIdx !== -1) items.value.splice(existingIdx, 1);
+      return;
     }
 
-    let existingIdx = items.value.findIndex(i => i.barcode === STICKER_BARCODE || i.kode === STICKER_KODE);
-
-    // 4. Hentikan jika QTY sudah benar (Mencegah Infinite Loop Vue)
+    // Jika QTY sudah benar, hentikan
     if (existingIdx !== -1 && items.value[existingIdx].jumlah === targetBonusQty && targetBonusQty > 0) {
       return;
     }
 
     if (multiplier > 0 && totalKaosQty > 0) {
+      // JIKA INI HANYA CHECKING (belum diklik promo) DAN ITEM BELUM ADA, JANGAN LANGSUNG INJEKSI
+      if (!forceInject && existingIdx === -1 && header.value.nomorPromo !== "PRO-2026-001") {
+        return;
+      }
+
       let stokFisikToko = 0;
       let prodKode = STICKER_KODE;
       let prodNama = "STICKER DTF A6";
@@ -1053,26 +1060,25 @@ const applyMarchBonusSticker = async () => {
         const response = await api.get(`/so-form/by-barcode/${STICKER_BARCODE}`, {
           params: { gudang: header.value.gudang.kode },
         });
-        const product = response.data;
-        stokFisikToko = Number(product.stok || 0);
-        prodKode = product.kode;
-        prodNama = product.nama;
-        prodUkuran = product.ukuran;
+        stokFisikToko = Number(response.data.stok || 0);
+        prodKode = response.data.kode;
+        prodNama = response.data.nama;
+        prodUkuran = response.data.ukuran;
       } catch (error) {
-        console.warn("Gagal menarik data Master Sticker, fallback digunakan.", error);
+        console.warn("Gagal narik data stiker, pakai fallback.", error);
       }
 
-      // Cari ulang index untuk memastikan tidak ada race condition dari API
-      existingIdx = items.value.findIndex(i => i.barcode === STICKER_BARCODE || i.kode === STICKER_KODE);
+      existingIdx = items.value.findIndex(i => isSticker(i));
 
       if (existingIdx !== -1) {
         items.value[existingIdx].jumlah = targetBonusQty;
-        items.value[existingIdx].scannedQty = targetBonusQty; // Set Auto Ready di SO
+        items.value[existingIdx].scannedQty = targetBonusQty;
         items.value[existingIdx].isReady = true;
         items.value[existingIdx].total = 0;
         items.value[existingIdx].harga = 0;
         items.value[existingIdx].stok = stokFisikToko;
       } else {
+        // Karena ada forceInject, kita berani push ke tabel
         const newItem: SoItem = {
           id: Date.now() + 999,
           kode: prodKode,
@@ -1080,6 +1086,7 @@ const applyMarchBonusSticker = async () => {
           ukuran: prodUkuran,
           jumlah: targetBonusQty,
           harga: 0,
+          _isHargaEditable: false,
           diskonRp: 0,
           diskonPersen: 0,
           total: 0,
@@ -1088,11 +1095,10 @@ const applyMarchBonusSticker = async () => {
           noPengajuanHarga: "",
           pin: "",
           noSoDtf: "",
-          scannedQty: targetBonusQty, // Langsung Ready agar convert SO berhasil
+          scannedQty: targetBonusQty,
           isReady: true,
           kategori: "BONUS",
           terhitungPromo: true,
-          _isHargaEditable: false,
           promo: "PRO-2026-001"
         };
 
@@ -1102,6 +1108,7 @@ const applyMarchBonusSticker = async () => {
         } else {
           items.value.push(newItem);
         }
+        isStickerBonusRejected.value = false; // Reset penolakan karena sudah terpasang
       }
     } else {
       if (existingIdx !== -1) {
@@ -1109,7 +1116,6 @@ const applyMarchBonusSticker = async () => {
       }
     }
   } finally {
-    // Buka kembali kuncinya
     isApplyingBonus = false;
   }
 };
@@ -1480,11 +1486,21 @@ const removeRow = (id: number) => {
   const item = items.value.find((i) => i.id === id);
   if (!item) return;
 
+  // Cek apakah item yang mau dihapus adalah stiker bonus?
+  const isSticker = String(item.barcode) === '25014783' || String(item.kode) === '2500053';
+
   showConfirmation(() => {
     // Catat log penghapusan sebelum di-filter keluar
     addAdjustmentLog(item.kode, -item.jumlah!, "DELETE_ITEM", "Penghapusan baris oleh SC");
 
     items.value = items.value.filter((i) => i.id !== id);
+
+    // JIKA STIKER DIHAPUS MANUAL, SET PENOLAKAN AGAR TIDAK MUNCUL LAGI
+    if (isSticker) {
+      isStickerBonusRejected.value = true;
+      toast.info("Bonus Stiker dihapus secara manual.");
+    }
+
     calculateTotals();
   }, `Hapus item ${item.nama}?`);
 };
@@ -2727,11 +2743,17 @@ const checkRealtimePromoEligibility = async (): Promise<boolean> => {
     // Logika Bonus Sticker >= 600rb
     if (totalEligibleFeb >= 600000) {
       const kelipatanSticker = Math.floor(totalEligibleFeb / 600000);
+
+      // [FIX] Hitung total kaos, abaikan custom/DTF
       const totalKaosQty = validItems.reduce((sum, item) => {
-        return isItemPromoEligible(item) && item.barcode !== '25014783'
-          ? sum + (item.jumlah || 0)
+        const isSticker = item.barcode === '25014783' || item.kode === '2500053';
+        const isCustomDtf = item.isCustomOrder || !!item.noSoDtf;
+
+        return isItemPromoEligible(item) && !isSticker && !isCustomDtf
+          ? sum + (Number(item.jumlah) || 0)
           : sum;
       }, 0);
+
       const bonusQty = totalKaosQty * kelipatanSticker;
       if (bonusQty > 0) {
         message += ` + 🎁 FREE ${bonusQty} pcs Sticker DTF A6!`;
@@ -2783,6 +2805,9 @@ const checkRealtimePromoEligibility = async (): Promise<boolean> => {
     if (header.value.nomorPromo && autoPromoIds.includes(header.value.nomorPromo)) {
       if (promoCandidate && header.value.nomorPromo === promoCandidate.pro_nomor) {
         footer.value.diskonRp = currentCalculatedDiscount;
+        if (!isStickerBonusRejected.value) {
+          applyMarchBonusSticker(false);
+        }
         return true; // Terpasang riil
       }
     }
@@ -2818,15 +2843,15 @@ const usePromoDiscount = async () => {
   header.value.namaPromo = pendingPromoData.nama;
   footer.value.diskonRp = pendingPromoData.diskon;
 
-  // Matikan diskon member jika pilih promo
   footer.value.diskonPersen1 = 0;
   footer.value.diskonPersen2 = 0;
 
   isPromoConfirmVisible.value = false;
+  isStickerBonusRejected.value = false; // Buka status blokir
 
-  // JIKA PROMO MARET, INJEK STICKER SEKARANG JUGA
+  // JIKA PROMO MARET, INJEK STICKER SEKARANG JUGA SECARA PAKSA (forceInject = true)
   if (header.value.nomorPromo === "PRO-2026-001") {
-    await applyMarchBonusSticker();
+    await applyMarchBonusSticker(true);
   }
 
   calculateTotals();
@@ -2834,23 +2859,30 @@ const usePromoDiscount = async () => {
 };
 
 const useMemberDiscount = () => {
-  // Tandai promo yang ditolak agar tidak muncul lagi
   const rejectedId = pendingPromoData.nomor || header.value.nomorPromo;
 
   header.value.nomorPromo = "";
   header.value.namaPromo = "";
   footer.value.diskonRp = 0;
 
-  // [KUNCI] Set ke ID promo tersebut agar fungsi eligibility mengabaikannya
   lastSuggestedPromo.value = rejectedId || "MANUAL_AUTH";
-
   isPromoConfirmVisible.value = false;
+
+  // Catat bahwa user MENOLAK stiker (mencegah stiker disusupkan kembali)
+  isStickerBonusRejected.value = true;
+
+  // Hapus stiker jika sebelumnya sempat nangkring di keranjang
+  const STICKER_BARCODE = "25014783";
+  const STICKER_KODE = "2500053";
+  const existingIdx = items.value.findIndex(i => i.barcode === STICKER_BARCODE || i.kode === STICKER_KODE);
+  if (existingIdx !== -1) {
+    items.value.splice(existingIdx, 1);
+  }
 
   applyDefaultDiscount();
   calculateTotals();
   toast.info("Promo dilepas, kembali ke diskon member.");
 };
-
 // [BARU] Handler untuk menambah DP dari pencarian di DpListModal
 const handleAddDp = (newDp: { nomor: string; jenis: string; nominal: number }) => {
   // 1. Cek Duplikasi
@@ -3141,11 +3173,17 @@ const stopAndOpenPriceProposal = (index: number) => {
         Simpan
       </v-btn>
       <v-btn size="small" color="success" prepend-icon="mdi-receipt-text-plus" @click="saveAndConvertToInvoice"
-        :loading="isSaving" :disabled="isSaving || isSavingDisabled || !allMutated || hasUnfinishedDtf">
+        :loading="isSaving"
+        :disabled="isSaving || isSavingDisabled || !allMutated || (hasUnfinishedDtf && !isExemptFromLhkRule)">
         Jadikan Invoice
       </v-btn>
-      <div v-if="hasUnfinishedDtf" class="text-caption text-error mt-1">
+
+      <div v-if="hasUnfinishedDtf && !isExemptFromLhkRule" class="text-caption text-error mt-1 font-weight-bold">
         * Ada item SO DTF yang belum selesai dikerjakan (LHK).
+      </div>
+
+      <div v-else-if="hasUnfinishedDtf && isExemptFromLhkRule" class="text-caption text-warning mt-1 font-weight-bold">
+        * Peringatan: Ada SO DTF belum LHK (Akses khusus K01/K03 diizinkan).
       </div>
       <v-btn size="small" prepend-icon="mdi-cancel"
         @click="showConfirmation(resetForm, 'Batalkan perubahan dan kosongkan form?')">

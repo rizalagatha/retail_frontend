@@ -121,7 +121,7 @@ interface Rekening {
 
 // Opsional: Definisikan tipe untuk Form agar lebih ketat
 interface PaymentForm {
-  metode: "TUNAI" | "TRANSFER";
+  metode: "TUNAI" | "TRANSFER" | "QRIS"; // <-- Tambah QRIS
   bank: Rekening | null;
   noRek: string;
   alasan: string;
@@ -692,8 +692,8 @@ const onRekeningSelected = (item: Rekening) => {
 const submitChangePayment = async () => {
   if (!formPayment.alasan) return toast.warning("Mohon isi alasan perubahan.");
 
-  if (formPayment.metode === "TRANSFER") {
-    if (!formPayment.bank) return toast.warning("Mohon pilih Bank.");
+  if (formPayment.metode === "TRANSFER" || formPayment.metode === "QRIS") {
+    if (!formPayment.bank) return toast.warning(`Mohon pilih Bank / Akun untuk ${formPayment.metode}.`);
   }
 
   isChangingPayment.value = true;
@@ -1201,9 +1201,9 @@ watch(
                   maxWidth: (header.width || 100) + 'px',
                   boxSizing: 'border-box',
                 }" class="resizable-header" :class="{
-                    'text-center': header.align === 'center',
-                    'text-end': header.align === 'end',
-                  }" @click="toggleSort(header)">
+                  'text-center': header.align === 'center',
+                  'text-end': header.align === 'end',
+                }" @click="toggleSort(header)">
                   <div class="header-content">
                     <!-- Judul kolom -->
                     <span>{{ header.title }}</span>
@@ -1218,10 +1218,10 @@ watch(
                       <template #activator="{ props }">
                         <v-icon size="16" v-bind="props" @click.stop :color="isFilterActive(header.key) ? 'blue' : ''"
                           :icon="filterType(header.key) === 'custom'
-                              ? 'mdi-filter-cog'
-                              : filterType(header.key) === 'multi'
-                                ? 'mdi-filter-multiple'
-                                : 'mdi-filter-variant'
+                            ? 'mdi-filter-cog'
+                            : filterType(header.key) === 'multi'
+                              ? 'mdi-filter-multiple'
+                              : 'mdi-filter-variant'
                             " class="ms-1" />
                       </template>
 
@@ -1492,15 +1492,15 @@ watch(
             </div>
           </v-alert>
 
-          <v-select v-model="formPayment.metode" label="Metode Pembayaran Baru" :items="['TUNAI', 'TRANSFER']"
+          <v-select v-model="formPayment.metode" label="Metode Pembayaran Baru" :items="['TUNAI', 'TRANSFER', 'QRIS']"
             variant="outlined" density="compact" color="primary"></v-select>
 
-          <template v-if="formPayment.metode === 'TRANSFER'">
+          <template v-if="formPayment.metode === 'TRANSFER' || formPayment.metode === 'QRIS'">
             <v-text-field :model-value="formPayment.bank ? `${formPayment.bank.nama} - ${formPayment.bank.kode}` : ''
-              " label="Pilih Bank (Klik Disini/F1)" placeholder="Tekan F1 untuk cari..." variant="outlined"
+              " label="Pilih Bank / Akun QRIS (Klik Disini/F1)" placeholder="Tekan F1 untuk cari..." variant="outlined"
               density="compact" readonly append-inner-icon="mdi-magnify" @click="isRekeningSearchVisible = true"
               @keydown.f1.prevent="isRekeningSearchVisible = true"
-              :rules="[(v) => !!formPayment.bank || 'Bank wajib dipilih']"></v-text-field>
+              :rules="[(v) => !!formPayment.bank || 'Bank/Akun wajib dipilih']"></v-text-field>
 
             <v-text-field v-model="formPayment.noRek" label="Keterangan / No. Rek" variant="outlined" density="compact"
               placeholder="Contoh: 123xxx a.n Budi"></v-text-field>

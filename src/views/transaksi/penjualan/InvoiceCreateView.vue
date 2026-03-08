@@ -1664,8 +1664,7 @@ const checkRealtimePromoEligibility = () => {
 
   // 2. Hitung Total Belanja Berdasarkan Kategori Eligible
   const totalEligible = validItems.reduce((sum, item) => {
-    const isCustomDtf = item.isCustomOrder || !!item.noSoDtf;
-    return isItemPromoEligible(item) && !isStickerPromoToko(item) && !isCustomDtf
+    return isItemPromoEligible(item) && !isStickerPromoToko(item)
       ? sum + (item.total || 0)
       : sum;
   }, 0);
@@ -1754,8 +1753,7 @@ const applyMarchBonusSticker = async (forceInject = false) => {
 
     // Hitung Uang Belanja (abaikan stiker & custom/dtf)
     const totalEligibleValue = items.value.reduce((sum, item) => {
-      const isCustomDtf = item.isCustomOrder || !!item.noSoDtf;
-      return isItemPromoEligible(item) && !isStickerPromoToko(item) && !isCustomDtf
+      return isItemPromoEligible(item) && !isStickerPromoToko(item)
         ? sum + (item.total || 0)
         : sum;
     }, 0);
@@ -1947,15 +1945,15 @@ const handleProceedToPayment = async () => {
         const totalEligibleFeb = items.value.reduce((sum, item) => {
           const isReguler = item.kategori === "REGULER";
           const isDtf = !!item.noSoDtf;
+          const isCustomDtf = item.isCustomOrder || !!item.noSoDtf;
+
           const isStickerPromoToko =
             (String(item.barcode) === '25014783' || String(item.kode) === '2500053') &&
             String(item.ukuran).toUpperCase() === 'A6' &&
-            (item.harga === 0 || item.terhitungPromo);
+            (item.harga === 0 || item.terhitungPromo || item.promo === "PRO-2026-001");
 
-          const isCustomDtf = item.isCustomOrder || !!item.noSoDtf;
-
-          // Kecualikan item sticker itu sendiri dari hitungan base diskon
-          if ((isReguler || isDtf) && !isStickerPromoToko && !isCustomDtf) {
+          // Nilai DTF masuk hitungan Uang
+          if ((isReguler || isDtf || isCustomDtf) && !isStickerPromoToko) {
             return sum + (item.total || 0);
           }
           return sum;

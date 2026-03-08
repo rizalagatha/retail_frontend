@@ -1024,8 +1024,7 @@ const applyMarchBonusSticker = async (forceInject = false) => {
 
     // Hitung Total Nilai Belanja (mengabaikan semua jenis stiker toko & DTF)
     const totalEligibleValue = items.value.reduce((sum, item) => {
-      const isCustomDtf = item.isCustomOrder || !!item.noSoDtf;
-      return isItemPromoEligible(item) && !isStickerGeneric(item) && !isCustomDtf
+      return isItemPromoEligible(item) && !isStickerGeneric(item)
         ? sum + (item.total || 0)
         : sum;
     }, 0);
@@ -2764,8 +2763,7 @@ const checkRealtimePromoEligibility = async (): Promise<boolean> => {
 
   // --- [PRIORITAS 1] LOGIKA PROMO FEBRUARI 2026 (PRO-2026-001) ---
   const totalEligibleFeb = validItems.reduce((sum, item) => {
-    const isCustomDtf = item.isCustomOrder || !!item.noSoDtf;
-    return isItemPromoEligible(item) && !isStickerGeneric(item) && !isCustomDtf
+    return isItemPromoEligible(item) && !isStickerGeneric(item)
       ? sum + (item.total || 0)
       : sum;
   }, 0);

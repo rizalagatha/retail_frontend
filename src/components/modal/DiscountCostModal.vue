@@ -351,7 +351,16 @@ const onDiskonRpBlur = () => {
 };
 
 // --- Actions ---
-const saveAndClose = () => {
+const saveAndClose = async () => {
+  // [FIX BUG 2] Tahan proses simpan selama 300ms untuk memastikan
+  // event @blur (validasi diskon ke backend) selesai diproses.
+  await new Promise(resolve => setTimeout(resolve, 300));
+
+  // Jika validasi ternyata memunculkan modal otorisasi PIN, STOP proses simpan!
+  if (authDialog.show) {
+    return;
+  }
+
   isSaving.value = true;
 
   // Finalisasi nilai sebelum dikirim

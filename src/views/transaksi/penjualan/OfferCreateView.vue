@@ -1637,6 +1637,7 @@ const handleBarcodeScan = async () => {
         id: Date.now(),
         kode: product.kode,
         nama: product.nama,
+        kategori: product.kategori || '',
         ukuran: product.ukuran,
         stok: product.stok,
         harga: product.harga,
@@ -2069,7 +2070,7 @@ onMounted(async () => {
                   <v-list-item-title class="text-subtitle-2 font-weight-bold">Sisa Bayar</v-list-item-title>
                   <template #append>
                     <span class="text-h6 font-weight-black text-primary">{{ formatRupiah(footer.belumDibayar)
-                    }}</span>
+                      }}</span>
                   </template>
                 </v-list-item>
               </v-list>

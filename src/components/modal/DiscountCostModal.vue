@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, watch, reactive } from 'vue';
+import { ref, computed, watch, reactive, nextTick } from 'vue';
 import { useToast } from 'vue-toastification';
 import api from '@/services/api';
 import AuthorizationModal from '@/components/modal/AuthorizationModal.vue';
@@ -75,6 +75,8 @@ const diskonRpInput = ref(props.footerData.diskonRp || 0); // State untuk input 
 const isDiskonRpInputFocused = ref(false);
 const previousDiskonRp = ref(0);
 const isSaving = ref(false);
+const isCheckingAuth = ref(false);
+const pendingAuthCheck = ref(false);
 
 // --- [BARU] State Auth Dialog ---
 const authDialog = reactive<AuthDialogState>({
@@ -161,6 +163,8 @@ const restorePreviousState = async () => {
   // Khusus Rp, kembalikan input juga
   diskonRpInput.value = prev.diskonRp || 0;
 
+  await nextTick();
+
   isRestoring.value = false;
   previousState.value = null;
 };
@@ -197,55 +201,70 @@ const requestAuthorization = (
 const handleDiscount1Change = async () => {
   if (isRestoring.value) return;
 
-  // [PENGAMAN] Pastikan casting ke Number
   const enteredDiscount = Number(localFooter.value.diskonPersen1) || 0;
-
-  // Reset Rp jika persen diubah (memutus jalur nominal agar promo lepas)
-  diskonRpInput.value = 0;
+  // Ambil angka diskon lama sebelum diubah
+  const oldDiscount = previousState.value ? Number(previousState.value.diskonPersen1) : 0;
 
   if (!props.customer || !props.customer.level_kode) return;
-  if (enteredDiscount === 0) return;
+
+  // Jika nilainya tidak berubah sama sekali, jangan lakukan apa-apa
+  if (enteredDiscount === oldDiscount) return;
+
+  // Jika diubah, pastikan input nominal Rupiah direset ke 0
+  diskonRpInput.value = 0;
+
+  if (enteredDiscount === 0) {
+    localFooter.value.pinDiskon1 = undefined; // Bersihkan otorisasi jika jadi 0
+    return;
+  }
+
+  if (!props.customer || !props.customer.level_kode) {
+    toast.error("Data Level Customer tidak terbaca! Tidak bisa merubah diskon.");
+    localFooter.value.diskonPersen1 = 0;
+    await restorePreviousState();
+    return;
+  }
+
+  // [KUNCI PROSES SIMPAN] Tahan tombol Terapkan
+  isCheckingAuth.value = true;
+  pendingAuthCheck.value = true;
 
   try {
+    // Kita tetap panggil API hanya untuk menampilkan info Standar vs Pengajuan di Modal Otorisasi
     const response = await api.get(`${apiBasePath.value}${discountLookupEndpoint.value}`, {
-      params: {
-        level: props.customer.level_kode,
-        total: props.totalSo,
-        gudang: props.gudangKode,
-      }
+      params: { level: props.customer.level_kode, total: props.totalSo, gudang: props.gudangKode }
     });
-
     const defaultDiscountValue = Number(response.data.discount || 0);
 
-    // MINTA OTORISASI jika input user > standar member
-    if (enteredDiscount !== defaultDiscountValue) {
-      backupCurrentState();
+    backupCurrentState();
 
-      const estimasiNominal = (props.totalSo * enteredDiscount) / 100;
-      const info = `Otorisasi Diskon: Std ${defaultDiscountValue}% -> Pengajuan ${enteredDiscount}%`;
+    // Hapus PIN lama agar tidak ada celah bypass
+    localFooter.value.pinDiskon1 = undefined;
 
-      requestAuthorization(
-        'Otorisasi Diskon Faktur (%)',
-        'DISKON_FAKTUR',
-        estimasiNominal,
-        info,
-        (authResult) => {
-          localFooter.value.pinDiskon1 = authResult.approver;
-          if (authResult.authNomor) {
-            localFooter.value.authNomor = authResult.authNomor;
-          }
-          toast.success('Diskon member disetujui.');
-        },
-        async () => {
-          // Jika batal, kembalikan ke angka semula (logic restore Anda)
-          await restorePreviousState();
-          toast.info('Perubahan diskon dibatalkan.');
-        }
-      );
-    }
+    const estimasiNominal = (props.totalSo * enteredDiscount) / 100;
+    const info = `Otorisasi Diskon: Std ${defaultDiscountValue}% -> Pengajuan ${enteredDiscount}%`;
+
+    // [FIX] KARENA ADA PERUBAHAN ANGKA, LANGSUNG PAKSA MINTA OTORISASI
+    requestAuthorization(
+      'Otorisasi Diskon Faktur (%)', 'DISKON_FAKTUR', estimasiNominal, info,
+      (authResult) => {
+        localFooter.value.pinDiskon1 = authResult.approver;
+        if (authResult.authNomor) localFooter.value.authNomor = authResult.authNomor;
+        toast.success('Diskon member disetujui.');
+        pendingAuthCheck.value = false; // Lepas kunci
+      },
+      async () => {
+        await restorePreviousState();
+        toast.info('Perubahan diskon dibatalkan.');
+        pendingAuthCheck.value = false; // Lepas kunci
+      }
+    );
   } catch (error) {
     await restorePreviousState();
-    toast.error('Gagal memvalidasi diskon standar.', error);
+    toast.error('Gagal memvalidasi diskon.', error);
+    pendingAuthCheck.value = false;
+  } finally {
+    isCheckingAuth.value = false; // BUKA KUNCI CEK API
   }
 };
 
@@ -255,46 +274,47 @@ const handleDiscount1Change = async () => {
 const handleDiscount2Change = () => {
   if (isRestoring.value) return;
 
-  // Hapus baris diskonRpInput.value = 0 jika Anda ingin mempertahankan nominal promo
-  // saat mengisi diskon MAPS.
+  const enteredDiscount2 = Number(localFooter.value.diskonPersen2) || 0;
+  const oldDiscount2 = previousState.value ? Number(previousState.value.diskonPersen2) : 0;
+
+  // Jika nilainya tidak berubah sama sekali, abaikan
+  if (enteredDiscount2 === oldDiscount2) return;
 
   const hasBaseDiscount = Number(localFooter.value.diskonPersen1) > 0 || Number(diskonRpInput.value) > 0;
 
-  // [FIX] Izinkan pengisian Diskon 2 jika sudah ada Diskon Dasar (Persen atau Nominal)
-  if (!hasBaseDiscount && localFooter.value.diskonPersen2 > 0) {
+  if (!hasBaseDiscount && enteredDiscount2 > 0) {
     toast.warning('Diskon Dasar (Member atau Promo) belum terisi.');
     localFooter.value.diskonPersen2 = 0;
     return;
   }
 
-  if (localFooter.value.diskonPersen2 > 0) {
+  if (enteredDiscount2 > 0) {
     backupCurrentState();
+    localFooter.value.pinDiskon2 = undefined; // Hapus PIN lama
+    pendingAuthCheck.value = true; // Kunci Form
 
-    // Hitung estimasi nominal tambahan untuk modal otorisasi
-    // Sisa = Total - (Potongan Nominal Dasar + Potongan Persen 1)
     const baseCut = Number(diskonRpInput.value) + ((props.totalSo * localFooter.value.diskonPersen1) / 100);
     const afterBase = props.totalSo - baseCut;
-    const estimasiNominalMaps = (afterBase * localFooter.value.diskonPersen2) / 100;
-
-    const info = `Cust: ${props.customer?.nama || ''}\nPengajuan Diskon MAPS (2): ${localFooter.value.diskonPersen2}%`;
+    const estimasiNominalMaps = (afterBase * enteredDiscount2) / 100;
+    const info = `Cust: ${props.customer?.nama || ''}\nPengajuan Diskon MAPS (2): ${enteredDiscount2}%`;
 
     requestAuthorization(
-      'Otorisasi Diskon MAPS (Bertingkat)',
-      'DISKON_FAKTUR',
-      estimasiNominalMaps,
-      info,
+      'Otorisasi Diskon MAPS (Bertingkat)', 'DISKON_FAKTUR', estimasiNominalMaps, info,
       (authResult) => {
         localFooter.value.pinDiskon2 = authResult.approver;
-        if (authResult.authNomor) {
-          localFooter.value.authNomor = authResult.authNomor;
-        }
+        if (authResult.authNomor) localFooter.value.authNomor = authResult.authNomor;
         toast.success('Diskon MAPS disetujui.');
+        pendingAuthCheck.value = false;
       },
       async () => {
         await restorePreviousState();
         toast.info('Perubahan diskon dibatalkan.');
+        pendingAuthCheck.value = false;
       }
     );
+  } else {
+    // Jika dihapus jadi 0
+    localFooter.value.pinDiskon2 = undefined;
   }
 };
 
@@ -321,6 +341,7 @@ const onDiskonRpBlur = () => {
 
   // Jika nilai berubah & > 0, minta otorisasi
   if (newValue !== oldValue && newValue > 0) {
+    pendingAuthCheck.value = true;
     const info = `Cust: ${props.customer?.nama || ''}\nDiskon Rupiah: ${formatRupiah(newValue)}`;
 
     requestAuthorization(
@@ -338,10 +359,12 @@ const onDiskonRpBlur = () => {
           localFooter.value.authNomor = authResult.authNomor;
         }
         toast.success('Diskon Rp disetujui.');
+        pendingAuthCheck.value = false;
       },
       async () => {
         await restorePreviousState();
         toast.info('Perubahan diskon dibatalkan.');
+        pendingAuthCheck.value = false;
       }
     );
   } else if (newValue === 0 && oldValue > 0) {
@@ -352,21 +375,28 @@ const onDiskonRpBlur = () => {
 
 // --- Actions ---
 const saveAndClose = async () => {
-  // [FIX BUG 2] Tahan proses simpan selama 300ms untuk memastikan
-  // event @blur (validasi diskon ke backend) selesai diproses.
-  await new Promise(resolve => setTimeout(resolve, 300));
+  // [ANTI-BYPASS MUTLAK] Paksa kursor lepas dari input teks.
+  // Ini akan langsung memicu event @blur detik itu juga dan mengaktifkan kunci auth.
+  if (document.activeElement instanceof HTMLElement) {
+    document.activeElement.blur();
+  }
 
-  // Jika validasi ternyata memunculkan modal otorisasi PIN, STOP proses simpan!
+  // Beri jeda sistem untuk menarik nafas dan mengeksekusi request backend
+  await new Promise(resolve => setTimeout(resolve, 200));
+
   if (authDialog.show) {
+    toast.warning("Selesaikan otorisasi diskon terlebih dahulu!");
+    return;
+  }
+
+  if (isCheckingAuth.value || pendingAuthCheck.value) {
+    toast.warning("Sistem sedang memvalidasi diskon. Mohon tunggu...");
     return;
   }
 
   isSaving.value = true;
-
-  // Finalisasi nilai sebelum dikirim
   localFooter.value.diskonRp = diskonRp.value;
 
-  // Jika pakai Rp, pastikan persen 0 di data final
   if (diskonRpInput.value > 0) {
     localFooter.value.diskonPersen1 = 0;
     localFooter.value.diskonPersen2 = 0;

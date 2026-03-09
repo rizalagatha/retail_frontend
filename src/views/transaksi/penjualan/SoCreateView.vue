@@ -629,6 +629,11 @@ const loadDataForEdit = async (nomor: string, silent = false) => {
       dateline: headerData.dateline.substring(0, 10),
     };
 
+    if (header.value.customer) {
+      header.value.customer.level_kode = headerData.levelKode || "";
+      header.value.customer.level_nama = headerData.levelNama || "";
+    }
+
     if (headerData.so_is_marketplace === "Y") {
       header.value.isMarketplace = true;
       header.value.penawaran = "";
@@ -657,9 +662,12 @@ const loadDataForEdit = async (nomor: string, silent = false) => {
       const qtyOrder = Number(item.jumlah || 0);
       const qtyReady = Number(item.sod_scanned || 0);
       const mutated = Number(item.mutatedQty || 0);
+      const isCustomOrder = item.sod_custom === "Y";
+      const finalNama = isCustomOrder ? (item.sod_custom_nama || item.nama) : item.nama;
 
       return {
         ...item,
+        nama: finalNama,
         id: Date.now() + index + Math.random(),
         scannedQty: qtyReady, // 👈 Masukkan nilai dari DB
         mutatedQty: mutated,

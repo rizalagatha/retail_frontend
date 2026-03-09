@@ -218,7 +218,7 @@ const handleDiscount1Change = async () => {
     const defaultDiscountValue = Number(response.data.discount || 0);
 
     // MINTA OTORISASI jika input user > standar member
-    if (enteredDiscount > defaultDiscountValue) {
+    if (enteredDiscount !== defaultDiscountValue) {
       backupCurrentState();
 
       const estimasiNominal = (props.totalSo * enteredDiscount) / 100;

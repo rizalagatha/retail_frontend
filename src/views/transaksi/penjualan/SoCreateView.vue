@@ -1238,14 +1238,10 @@ const save = async () => {
     // Murni Kelipatan 200rb
     if (promo2026) {
       const totalEligibleFeb = items.value.reduce((sum, item) => {
-        // Syarat: Reguler OR Jersey OR Sablon DTF (noSoDtf)
-        const isReguler = item.kategori === "REGULER";
         const isStickerGeneric = String(item.barcode) === '25014783' || String(item.kode) === '2500053';
-        const isDtf = !!item.noSoDtf;
-        const isCustomDtf = item.isCustomOrder || !!item.noSoDtf;
 
-        // Kecualikan item sticker itu sendiri dari hitungan dasar diskon
-        if ((isReguler || isDtf) && !isStickerGeneric && !isCustomDtf) {
+        // [FIX] Nilai DTF/Custom ikut dihitung
+        if (isItemPromoEligible(item) && !isStickerGeneric) {
           return sum + (item.total || 0);
         }
         return sum;

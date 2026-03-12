@@ -590,7 +590,9 @@ const checkRealtimePromoEligibility = () => {
   potentialPromoDiscount.value = 0;
   isGrandOpeningPromo.value = false;
 
-  if (header.value.nomorPromo && header.value.nomorPromo !== "") return;
+
+  // ----
+  // if (header.value.nomorPromo && header.value.nomorPromo !== "") return;
 
   const validItems = items.value.filter((i) => i.kode);
   if (validItems.length === 0) {
@@ -608,12 +610,10 @@ const checkRealtimePromoEligibility = () => {
   const isStickerPromoToko = (i: OfferItem) =>
     (String(i.barcode) === '25014783' || String(i.kode) === '2500053') &&
     String(i.ukuran).toUpperCase() === 'A6' &&
-    (i.harga === 0 || i.terhitungPromo);
+    (Number(i.harga) === 0 || i.terhitungPromo || i.promo === "PRO-2026-001");
 
   // 1. Hitung Total Belanja (Nilai DTF MASUK, Stiker Toko TIDAK)
   const totalEligible = validItems.reduce((sum, item) => {
-    // Karena syarat nilai uang tidak seketat syarat jumlah stiker,
-    // kita izinkan semua reguler dan custom/dtf untuk masuk nilai belanja
     const isCustomDtf = item.isCustomOrder || !!item.noSoDtf;
     const isReguler = item.kategori?.toUpperCase() === "REGULER";
 
@@ -694,17 +694,26 @@ const checkRealtimePromoEligibility = () => {
     }
 
     // LOGIKA AUTO-UPDATE NOMINAL (JIKA SUDAH TERPILIH)
-    if (header.value.nomorPromo === pendingPromoData.nomor && !isFooterDiskonRpFocused.value) {
-      footer.value.diskonRp = discount;
-      footer.value.diskonRpInput = discount;
-      footer.value.diskonPersen1 = 0;
-
-      applyMarchBonusSticker(false);
+    if (header.value.nomorPromo === pendingPromoData.nomor) {
+      if (!isFooterDiskonRpFocused.value) {
+        footer.value.diskonRp = discount;
+        footer.value.diskonRpInput = discount;
+        footer.value.diskonPersen1 = 0;
+      }
+      applyMarchBonusSticker(false); // Update QTY Stiker Real-time
     }
     // MUNCULKAN DIALOG PROMO JIKA BELUM TERPILIH
     else if (discount > 0 && !header.value.nomorPromo && lastSuggestedPromo.value !== pendingPromoData.nomor) {
       isPromoConfirmVisible.value = true;
       lastSuggestedPromo.value = pendingPromoData.nomor;
+    }
+  } else {
+    // Jika tidak memenuhi syarat tapi sebelumnya terpasang, RESET
+    if (header.value.nomorPromo === "PRO-2026-001") {
+      header.value.nomorPromo = "";
+      footer.value.diskonRp = 0;
+      footer.value.diskonRpInput = 0;
+      applyMarchBonusSticker(false);
     }
   }
 };
@@ -863,7 +872,7 @@ const applyMarchBonusSticker = async (forceInject = false) => {
     const isStickerPromoToko = (i: OfferItem) =>
       (String(i.barcode) === STICKER_BARCODE || String(i.kode) === STICKER_KODE) &&
       String(i.ukuran).toUpperCase() === 'A6' &&
-      (i.harga === 0 || i.terhitungPromo || i.promo === "PRO-2026-001");
+      (Number(i.harga) === 0 || i.terhitungPromo || i.promo === "PRO-2026-001");
 
     // Hitung Uang Belanja (Hitung DTF/Custom juga, ABAIKAN Stiker Toko)
     const totalEligibleValue = items.value.reduce((sum, item) => {
@@ -1050,9 +1059,12 @@ const save = async () => {
       }, 0);
 
       if (totalEligibleFeb >= 200000) {
-        const kelipatanUang = Math.floor(totalEligibleFeb / 200000);
-        promoDiskon = 20000 * kelipatanUang;
-        promoToApply = promo2026;
+        if (header.value.nomorPromo === "PRO-2026-001" || !header.value.nomorPromo) {
+          footer.value.diskonRp = Math.floor(totalEligibleFeb / 200000) * 20000;
+          header.value.nomorPromo = promo2026.pro_nomor;
+          header.value.namaPromo = promo2026.pro_judul;
+          footer.value.diskonRpInput = footer.value.diskonRp;
+        }
       }
     }
 
@@ -1106,7 +1118,7 @@ const save = async () => {
   }
 
   // INJEKSI BONUS STICKER MARET (Jika tidak ditolak)
-  if (header.value.nomorPromo === "PRO-2026-001" && !isStickerBonusRejected.value) {
+  if (header.value.nomorPromo === "PRO-2026-001") {
     await applyMarchBonusSticker(true);
     calculateTotals();
   }
@@ -1797,11 +1809,11 @@ const saveAndConvertToSo = async () => {
       }, 0);
 
       if (totalEligibleFeb >= 200000) {
-        if (!header.value.nomorPromo && footer.value.diskonRp === 0 && footer.value.diskonPersen1 === 0) {
+        if (header.value.nomorPromo === "PRO-2026-001" || !header.value.nomorPromo) {
           footer.value.diskonRp = Math.floor(totalEligibleFeb / 200000) * 20000;
           header.value.nomorPromo = promo2026.pro_nomor;
           header.value.namaPromo = promo2026.pro_judul;
-          calculateTotals();
+          footer.value.diskonRpInput = footer.value.diskonRp;
         }
       }
     }

@@ -682,39 +682,46 @@ const checkRealtimePromoEligibility = () => {
   }
 
   // Update State UI
-  if (message) {
+  if (message && discount > 0) { // Tambahkan validasi discount > 0
     promoNotification.value = message;
     potentialPromoDiscount.value = discount;
 
-    // === PERBARUI DATA PENAMPUNG SETIAP ADA PERUBAHAN ===
     if (promo2026 && totalEligible >= 200000) {
       pendingPromoData.nomor = promo2026.pro_nomor;
       pendingPromoData.nama = promo2026.pro_judul;
       pendingPromoData.diskon = discount;
     }
 
-    // LOGIKA AUTO-UPDATE NOMINAL (JIKA SUDAH TERPILIH)
     if (header.value.nomorPromo === pendingPromoData.nomor) {
       if (!isFooterDiskonRpFocused.value) {
         footer.value.diskonRp = discount;
         footer.value.diskonRpInput = discount;
         footer.value.diskonPersen1 = 0;
       }
-      applyMarchBonusSticker(false); // Update QTY Stiker Real-time
+      applyMarchBonusSticker(false);
     }
-    // MUNCULKAN DIALOG PROMO JIKA BELUM TERPILIH
-    else if (discount > 0 && !header.value.nomorPromo && lastSuggestedPromo.value !== pendingPromoData.nomor) {
+    else if (!header.value.nomorPromo && lastSuggestedPromo.value !== pendingPromoData.nomor) {
       isPromoConfirmVisible.value = true;
       lastSuggestedPromo.value = pendingPromoData.nomor;
     }
   } else {
-    // Jika tidak memenuhi syarat tapi sebelumnya terpasang, RESET
-    if (header.value.nomorPromo === "PRO-2026-001") {
+    if (header.value.nomorPromo !== "") {
       header.value.nomorPromo = "";
-      footer.value.diskonRp = 0;
-      footer.value.diskonRpInput = 0;
-      applyMarchBonusSticker(false);
+      header.value.namaPromo = "";
+
+      // Hanya reset jika diskon tersebut berasal dari promo (bukan input manual user)
+      if (!footer.value.pinDiskon1) {
+        footer.value.diskonRp = 0;
+        footer.value.diskonRpInput = 0;
+      }
+
+      applyMarchBonusSticker(false); // Hapus bonus stiker jika ada
+      calculateTotals(); // Hitung ulang netto & grand total
     }
+
+    // Reset data penampung agar tidak muncul dialog berulang
+    pendingPromoData.nomor = "";
+    pendingPromoData.diskon = 0;
   }
 };
 

@@ -21,6 +21,8 @@ interface PeminjamanItem {
   userCreate: string;
   sisaHari?: number;
   noKembali?: string;
+  tanggalKembali?: string; // <-- TAMBAHAN BARU
+  lamaPinjam?: number;     // <-- TAMBAHAN BARU
 }
 
 interface DetailItem {
@@ -78,6 +80,8 @@ const headers = ref([
   { title: "Tanggal Pinjam", key: "tanggal", width: 120 },
   { title: "Deadline", key: "deadline", width: 120 },
   { title: "Sisa Hari", key: "sisaHari", width: 100, align: "center" },
+  { title: "Tgl Kembali", key: "tanggalKembali", width: 120 },       // <-- TAMBAHAN BARU
+  { title: "Lama Pinjam", key: "lamaPinjam", width: 100, align: "center" }, // <-- TAMBAHAN BARU
   { title: "Status ACC", key: "statusEdit", align: "center", width: 120 },
   { title: "Sudah Kembali", key: "statusKembali", align: "center", width: 120 },
 ]);
@@ -110,9 +114,23 @@ const fetchMasterData = async () => {
 
     // Hitung aging sisa hari (Deadline - Hari Ini)
     masterData.value = response.data.map((item: PeminjamanItem) => {
+      const tglPinjam = parseISO(item.tanggal);
       const deadline = parseISO(item.deadline);
       const sisa = differenceInDays(deadline, new Date());
-      return { ...item, sisaHari: sisa };
+      let durasi = 0;
+      if (item.tanggalKembali) {
+        // Jika sudah dikembalikan, hitung jarak pinjam ke tgl kembali
+        durasi = differenceInDays(parseISO(item.tanggalKembali), tglPinjam);
+      } else {
+        // Jika belum kembali, hitung jarak pinjam ke hari ini
+        durasi = differenceInDays(new Date(), tglPinjam);
+      }
+
+      return {
+        ...item,
+        sisaHari: sisa,
+        lamaPinjam: durasi < 0 ? 0 : durasi // Pastikan tidak minus jika hari yg sama
+      };
     });
   } catch (error) {
     const err = error as AxiosError<{ message: string }>;
@@ -278,6 +296,19 @@ onMounted(() => {
                 item.statusKembali === "Y" ? "mdi-checkbox-marked" : "mdi-checkbox-blank-outline"
               }}
             </v-icon>
+          </template>
+
+          <template #[`item.tanggalKembali`]="{ item }">
+            <span v-if="item.tanggalKembali">
+              {{ format(parseISO(item.tanggalKembali), "dd/MM/yyyy") }}
+            </span>
+            <span v-else class="text-grey-lighten-1">-</span>
+          </template>
+
+          <template #[`item.lamaPinjam`]="{ item }">
+            <v-chip size="x-small" :color="item.statusKembali === 'Y' ? 'green-darken-2' : 'blue-grey'">
+              {{ item.lamaPinjam }} Hari
+            </v-chip>
           </template>
 
           <template #expanded-row="{ columns, item }">

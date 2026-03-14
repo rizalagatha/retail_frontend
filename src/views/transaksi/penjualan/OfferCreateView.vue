@@ -630,7 +630,6 @@ const checkRealtimePromoEligibility = () => {
     message = `🎉 Potongan Rp ${formatRupiah(discount)} (Kelipatan ${kelipatanUang}x)`;
 
     if (totalEligible >= 600000) {
-      const kelipatanSticker = Math.floor(totalEligible / 600000);
 
       // Kaos Reguler Saja
       const totalKaosQty = validItems.reduce((sum, item) => {
@@ -639,7 +638,7 @@ const checkRealtimePromoEligibility = () => {
           : sum;
       }, 0);
 
-      const baseBonusQty = totalKaosQty * kelipatanSticker;
+      const baseBonusQty = totalKaosQty;
 
       // Custom Stiker A6
       const customStickerQty = validItems.reduce((sum, item) => {
@@ -869,101 +868,105 @@ const removeRow = (index: number) => {
 
 const applyMarchBonusSticker = async (forceInject = false) => {
   if (isApplyingBonus) return;
+
+  // [PERBAIKAN 1]: Hentikan jika user sudah hapus stiker manual (kecuali saat tekan 'Gunakan Promo')
+  if (isStickerBonusRejected.value && !forceInject) {
+    return;
+  }
+
   isApplyingBonus = true;
 
   try {
     const STICKER_BARCODE = "25014783";
-    const STICKER_KODE = "2500053"; // Fallback kode
+    const STICKER_KODE = "2500053";
     const THRESHOLD_STICKER = 600000;
 
     const isStickerPromoToko = (i: OfferItem) =>
       (String(i.barcode) === STICKER_BARCODE || String(i.kode) === STICKER_KODE) &&
-      String(i.ukuran).toUpperCase() === 'A6' &&
-      (Number(i.harga) === 0 || i.terhitungPromo || i.promo === "PRO-2026-001");
+      (Number(i.harga) === 0 || i.promo === "PRO-2026-001");
 
-    // Hitung Uang Belanja (Hitung DTF/Custom juga, ABAIKAN Stiker Toko)
+    // Hitung Uang Belanja (Abaikan stiker toko)
     const totalEligibleValue = items.value.reduce((sum, item) => {
       const isCustomDtf = item.isCustomOrder || !!item.noSoDtf;
       const isReguler = item.kategori?.toUpperCase() === "REGULER";
-
       return (isReguler || isCustomDtf) && !isStickerPromoToko(item)
         ? sum + (item.total || 0)
         : sum;
     }, 0);
 
-    // Hitung Qty Kaos Reguler Saja (ABAIKAN stiker & custom/dtf)
+    // Hitung Qty Kaos Reguler Saja
     const totalKaosQty = items.value.reduce((sum, item) => {
       return isItemPromoEligible(item) && !isStickerPromoToko(item)
         ? sum + (Number(item.jumlah) || 0)
         : sum;
     }, 0);
 
-    const multiplier = Math.floor(totalEligibleValue / THRESHOLD_STICKER);
-    const baseBonusQty = totalKaosQty * multiplier;
+    // [PERBAIKAN 2]: JANGAN dikalikan multiplier kelipatan. Jika tembus 600rb, qty stiker = qty kaos reguler.
+    const baseBonusQty = totalEligibleValue >= THRESHOLD_STICKER ? totalKaosQty : 0;
 
-    // --- HITUNG STIKER CUSTOM A6 DARI DTF (Cegah Dobel) ---
     const customStickerQty = items.value.reduce((sum, item) => {
       const isCustomDtf = item.isCustomOrder || !!item.noSoDtf;
-      const isA6 = String(item.ukuran).toUpperCase() === 'A6' || String(item.nama).toUpperCase().includes('A6') || String(item.nama).toUpperCase().includes('STICKER');
+      const isA6 = String(item.ukuran).toUpperCase() === 'A6' || String(item.nama).toUpperCase().includes('A6');
       return isCustomDtf && isA6 ? sum + (Number(item.jumlah) || 0) : sum;
     }, 0);
 
-    // Sisa kuota stiker gratis dari toko
     const targetBonusQty = Math.max(0, baseBonusQty - customStickerQty);
 
-    // --- SAPU BERSIH DUPLIKAT STIKER PROMO TOKO SAJA ---
-    const stickerIndexes = items.value
-      .map((item, idx) => isStickerPromoToko(item) ? idx : -1)
-      .filter(idx => idx !== -1);
+    // --- PEMBERSIHAN DUPLIKAT SECARA TUNTAS ---
+    const stickerIndexes: number[] = [];
+    items.value.forEach((item, idx) => {
+      if (isStickerPromoToko(item)) stickerIndexes.push(idx);
+    });
 
+    // Jika jatah habis ATAU user reject stiker, hapus SEMUA stiker promo yang tersisa
+    if (targetBonusQty === 0 || (isStickerBonusRejected.value && !forceInject)) {
+      for (let i = stickerIndexes.length - 1; i >= 0; i--) {
+        items.value.splice(stickerIndexes[i], 1);
+      }
+      return;
+    }
+
+    // Jika ada stiker dobel gara-gara reaktivitas, sisakan satu saja (index pertama), hapus sisanya
     if (stickerIndexes.length > 1) {
       for (let i = stickerIndexes.length - 1; i > 0; i--) {
         items.value.splice(stickerIndexes[i], 1);
       }
     }
 
-    let existingIdx = items.value.findIndex(i => isStickerPromoToko(i));
+    // Cari ulang index stiker (karena mungkin susunannya sudah bergeser)
+    const existingIdx = items.value.findIndex(i => isStickerPromoToko(i));
 
-    // Jika Jatah Stiker Toko Habis, bersihkan & hentikan!
-    if (targetBonusQty === 0) {
-      if (existingIdx !== -1) {
-        items.value.splice(existingIdx, 1);
-      }
-      return;
-    }
-
+    // Jika Qty sudah sama persis, hentikan proses untuk mencegah render loop
     if (existingIdx !== -1 && items.value[existingIdx].jumlah === targetBonusQty) {
       return;
     }
 
+    // --- INJEKSI / UPDATE KEDALAM KERANJANG ---
     if (targetBonusQty > 0) {
       if (!forceInject && existingIdx === -1 && header.value.nomorPromo !== "PRO-2026-001") {
         return;
       }
 
-      let stokFisikToko = 0;
-      let prodKode = STICKER_KODE;
-      let prodNama = "STICKER DTF A6";
-
-      try {
-        const response = await api.get(`/offer-form/by-barcode/${STICKER_BARCODE}`, {
-          params: { gudang: header.value.gudang.kode },
-        });
-        stokFisikToko = Number(response.data.stok || 0);
-        prodKode = response.data.kode;
-        prodNama = response.data.nama;
-      } catch (error) {
-        console.warn("Gagal narik data stiker, pakai fallback.", error);
-      }
-
-      existingIdx = items.value.findIndex(i => isStickerPromoToko(i));
-
       if (existingIdx !== -1) {
         items.value[existingIdx].jumlah = targetBonusQty;
         items.value[existingIdx].total = 0;
         items.value[existingIdx].harga = 0;
-        items.value[existingIdx].stok = stokFisikToko;
       } else {
+        let stokFisikToko = 0;
+        let prodKode = STICKER_KODE;
+        let prodNama = "STICKER DTF A6";
+
+        try {
+          const response = await api.get(`/offer-form/by-barcode/${STICKER_BARCODE}`, {
+            params: { gudang: header.value.gudang.kode },
+          });
+          stokFisikToko = Number(response.data.stok || 0);
+          prodKode = response.data.kode;
+          prodNama = response.data.nama;
+        } catch (error) {
+          console.warn("Gagal narik data stiker, pakai fallback.", error);
+        }
+
         const newItem: OfferItem = {
           id: Date.now() + 999,
           kode: prodKode,

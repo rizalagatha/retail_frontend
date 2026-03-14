@@ -1016,6 +1016,12 @@ let isApplyingBonus = false;
 
 const applyMarchBonusSticker = async (forceInject = false) => {
   if (isApplyingBonus) return;
+
+  // [PERBAIKAN 1]: Hentikan jika user sudah menolak stiker (kecuali dipaksa via tombol Promo)
+  if (isStickerBonusRejected.value && !forceInject) {
+    return;
+  }
+
   isApplyingBonus = true;
 
   try {
@@ -1028,9 +1034,9 @@ const applyMarchBonusSticker = async (forceInject = false) => {
     const isStickerPromoToko = (i: SoItem) =>
       isStickerGeneric(i) &&
       String(i.ukuran).toUpperCase() === 'A6' &&
-      (i.harga === 0 || i.terhitungPromo || i.promo === "PRO-2026-001");
+      (Number(i.harga) === 0 || i.terhitungPromo || i.promo === "PRO-2026-001");
 
-    // Hitung Total Nilai Belanja (mengabaikan semua jenis stiker toko & DTF)
+    // Hitung Total Nilai Belanja (mengabaikan semua jenis stiker toko)
     const totalEligibleValue = items.value.reduce((sum, item) => {
       return isItemPromoEligible(item) && !isStickerGeneric(item)
         ? sum + (item.total || 0)
@@ -1045,10 +1051,10 @@ const applyMarchBonusSticker = async (forceInject = false) => {
         : sum;
     }, 0);
 
-    const multiplier = Math.floor(totalEligibleValue / THRESHOLD_STICKER);
-    const baseBonusQty = totalKaosQty * multiplier;
+    // [PERBAIKAN 2]: JANGAN pakai multiplier! Jika tembus 600rb, qty stiker = qty kaos reguler
+    const baseBonusQty = totalEligibleValue >= THRESHOLD_STICKER ? totalKaosQty : 0;
 
-    // --- HITUNG STIKER CUSTOM A6 DARI SO DTF (Mencegah Dobel) ---
+    // Hitung stiker custom A6 dari DTF (Mencegah Dobel)
     const customStickerQty = items.value.reduce((sum, item) => {
       const isCustomDtf = item.isCustomOrder || !!item.noSoDtf;
       const isA6 = String(item.ukuran).toUpperCase() === 'A6' || String(item.nama).toUpperCase().includes('A6') || String(item.nama).toUpperCase().includes('STICKER');
@@ -1059,71 +1065,65 @@ const applyMarchBonusSticker = async (forceInject = false) => {
     const targetBonusQty = Math.max(0, baseBonusQty - customStickerQty);
 
     // --- SAPU BERSIH DUPLIKAT HANYA UNTUK STIKER PROMO A6 ---
-    const stickerIndexes = items.value
-      .map((item, idx) => isStickerPromoToko(item) ? idx : -1)
-      .filter(idx => idx !== -1);
+    const stickerIndexes: number[] = [];
+    items.value.forEach((item, idx) => {
+      if (isStickerPromoToko(item)) stickerIndexes.push(idx);
+    });
 
+    // Jika jatah habis ATAU user reject stiker, hapus SEMUA
+    if (targetBonusQty === 0 || (isStickerBonusRejected.value && !forceInject)) {
+      for (let i = stickerIndexes.length - 1; i >= 0; i--) {
+        items.value.splice(stickerIndexes[i], 1);
+      }
+      return;
+    }
+
+    // Jika ada duplikat gara-gara reaktivitas Vue, sisakan satu saja
     if (stickerIndexes.length > 1) {
       for (let i = stickerIndexes.length - 1; i > 0; i--) {
         items.value.splice(stickerIndexes[i], 1);
       }
     }
 
-    let existingIdx = items.value.findIndex(i => isStickerPromoToko(i));
+    // Cari ulang index stiker
+    const existingIdx = items.value.findIndex(i => isStickerPromoToko(i));
 
-    // Jika user sudah menolak stiker, dan bukan instruksi paksa (forceInject) dari tombol "Terapkan Promo"
-    if (isStickerBonusRejected.value && !forceInject) {
-      // Jika ternyata masih ada sisa stiker nyangkut, bersihkan
-      if (existingIdx !== -1) items.value.splice(existingIdx, 1);
-      return;
-    }
-
-    // Jika jatah habis, hapus stiker promo (A4 dan A5 aman!)
-    if (targetBonusQty === 0) {
-      if (existingIdx !== -1) items.value.splice(existingIdx, 1);
-      return;
-    }
-
-    // Jika QTY sudah benar, hentikan
+    // Jika QTY sudah benar, hentikan proses loop
     if (existingIdx !== -1 && items.value[existingIdx].jumlah === targetBonusQty) {
       return;
     }
 
+    // --- UPDATE ATAU INSERT ITEM STIKER ---
     if (targetBonusQty > 0) {
-      // JANGAN INJEKSI OTOMATIS KECUALI DARI TOMBOL "Gunakan Promo"
       if (!forceInject && existingIdx === -1 && header.value.nomorPromo !== "PRO-2026-001") {
         return;
       }
 
-      let stokFisikToko = 0;
-      let prodKode = STICKER_KODE;
-      let prodNama = "STICKER DTF A6";
-      let prodUkuran = "A6";
-
-      try {
-        const response = await api.get(`/so-form/by-barcode/${STICKER_BARCODE}`, {
-          params: { gudang: header.value.gudang.kode },
-        });
-        const product = response.data;
-        stokFisikToko = Number(product.stok || 0);
-        prodKode = product.kode;
-        prodNama = product.nama;
-        prodUkuran = product.ukuran;
-      } catch (error) {
-        console.warn("Gagal narik data stiker, pakai fallback.", error);
-      }
-
-      existingIdx = items.value.findIndex(i => isStickerPromoToko(i));
-
       if (existingIdx !== -1) {
         items.value[existingIdx].jumlah = targetBonusQty;
-        items.value[existingIdx].scannedQty = targetBonusQty;
-        items.value[existingIdx].isReady = true;
+        items.value[existingIdx].scannedQty = targetBonusQty; // SO butuh ini
+        items.value[existingIdx].isReady = true;               // SO butuh ini
         items.value[existingIdx].total = 0;
         items.value[existingIdx].harga = 0;
-        items.value[existingIdx].stok = stokFisikToko;
       } else {
-        // Karena ada forceInject, kita berani push ke tabel
+        let stokFisikToko = 0;
+        let prodKode = STICKER_KODE;
+        let prodNama = "STICKER DTF A6";
+        let prodUkuran = "A6";
+
+        try {
+          const response = await api.get(`/so-form/by-barcode/${STICKER_BARCODE}`, {
+            params: { gudang: header.value.gudang.kode },
+          });
+          const product = response.data;
+          stokFisikToko = Number(product.stok || 0);
+          prodKode = product.kode;
+          prodNama = product.nama;
+          prodUkuran = product.ukuran;
+        } catch (error) {
+          console.warn("Gagal narik data stiker, pakai fallback.", error);
+        }
+
         const newItem: SoItem = {
           id: Date.now() + 999,
           kode: prodKode,
@@ -1140,8 +1140,8 @@ const applyMarchBonusSticker = async (forceInject = false) => {
           noPengajuanHarga: "",
           pin: "",
           noSoDtf: "",
-          scannedQty: targetBonusQty,
-          isReady: true,
+          scannedQty: targetBonusQty, // Langsung ready
+          isReady: true,              // Langsung ready
           kategori: "BONUS",
           terhitungPromo: true,
           promo: "PRO-2026-001"
@@ -1153,11 +1153,7 @@ const applyMarchBonusSticker = async (forceInject = false) => {
         } else {
           items.value.push(newItem);
         }
-        isStickerBonusRejected.value = false; // Reset penolakan karena sudah terpasang
-      }
-    } else {
-      if (existingIdx !== -1) {
-        items.value.splice(existingIdx, 1);
+        isStickerBonusRejected.value = false; // Reset penolakan karena terpasang
       }
     }
   } finally {
@@ -2781,7 +2777,6 @@ const checkRealtimePromoEligibility = async (): Promise<boolean> => {
     promoCandidate = promo2026;
 
     if (totalEligibleFeb >= 600000 && !isStickerBonusRejected.value) {
-      const kelipatanSticker = Math.floor(totalEligibleFeb / 600000);
 
       const totalKaosQty = validItems.reduce((sum, item) => {
         const isCustomDtf = item.isCustomOrder || !!item.noSoDtf;
@@ -2790,7 +2785,7 @@ const checkRealtimePromoEligibility = async (): Promise<boolean> => {
           : sum;
       }, 0);
 
-      const baseBonusQty = totalKaosQty * kelipatanSticker;
+      const baseBonusQty = totalKaosQty;
 
       const customStickerQty = validItems.reduce((sum, item) => {
         const isCustomDtf = item.isCustomOrder || !!item.noSoDtf;

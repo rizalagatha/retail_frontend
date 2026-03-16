@@ -1678,14 +1678,17 @@ const checkRealtimePromoEligibility = () => {
     if (totalEligible >= 600000) {
       const kelipatanSticker = Math.floor(totalEligible / 600000);
 
-      const totalKaosQty = validItems.reduce((sum, item) => {
-        const isCustomDtf = item.isCustomOrder || !!item.noSoDtf;
-        return isItemPromoEligible(item) && !isStickerPromoToko(item) && !isCustomDtf
+      const totalKaosRegulerQty = validItems.reduce((sum, item) => {
+        const isReguler = item.kategori?.toUpperCase() === "REGULER";
+        const isBukanPesananAtauSesional = !["PESANAN", "SESIONAL"].includes(item.kategori?.toUpperCase() || "");
+        const isBukanCustomAtauDtf = !item.isCustomOrder && !item.noSoDtf;
+
+        return (isReguler && isBukanPesananAtauSesional && isBukanCustomAtauDtf && !isStickerPromoToko(item))
           ? sum + (Number(item.jumlah) || 0)
           : sum;
       }, 0);
 
-      const baseBonusQty = totalKaosQty * kelipatanSticker;
+      const baseBonusQty = totalKaosRegulerQty * kelipatanSticker;
 
       const customStickerQty = validItems.reduce((sum, item) => {
         const isCustomDtf = item.isCustomOrder || !!item.noSoDtf;
@@ -1745,6 +1748,7 @@ const applyMarchBonusSticker = async (forceInject = false) => {
     const STICKER_BARCODE = "25014783";
     const STICKER_KODE = "2500053";
     const THRESHOLD_STICKER = 600000;
+    const PROMO_ID = "PRO-2026-001";
 
     const isStickerPromoToko = (i: Item) =>
       (String(i.barcode) === STICKER_BARCODE || String(i.kode) === STICKER_KODE) &&
@@ -1759,15 +1763,18 @@ const applyMarchBonusSticker = async (forceInject = false) => {
     }, 0);
 
     // Hitung Qty Kaos Reguler (HANYA KAOS, abaikan stiker & custom/dtf)
-    const totalKaosQty = items.value.reduce((sum, item) => {
-      const isCustomDtf = item.isCustomOrder || !!item.noSoDtf;
-      return isItemPromoEligible(item) && !isStickerPromoToko(item) && !isCustomDtf
+    const totalKaosRegulerQty = items.value.reduce((sum, item) => {
+      const isReguler = item.kategori?.toUpperCase() === "REGULER";
+      const isBukanPesananAtauSesional = !["PESANAN", "SESIONAL"].includes(item.kategori?.toUpperCase() || "");
+      const isBukanCustomAtauDtf = !item.isCustomOrder && !item.noSoDtf;
+
+      return (isReguler && isBukanPesananAtauSesional && isBukanCustomAtauDtf && !isStickerPromoToko(item))
         ? sum + (Number(item.jumlah) || 0)
         : sum;
     }, 0);
 
     const multiplier = Math.floor(totalEligibleValue / THRESHOLD_STICKER);
-    const baseBonusQty = totalKaosQty * multiplier;
+    const baseBonusQty = totalKaosRegulerQty * multiplier;
 
     // --- [KUNCI PERBAIKAN] HITUNG STIKER CUSTOM YANG SUDAH ADA ---
     const customStickerQty = items.value.reduce((sum, item) => {
@@ -1782,64 +1789,52 @@ const applyMarchBonusSticker = async (forceInject = false) => {
     const targetBonusQty = Math.max(0, baseBonusQty - customStickerQty);
 
     // --- SAPU BERSIH DUPLIKAT STIKER TOKO ---
-    const stickerIndexes = items.value
-      .map((item, idx) => isStickerPromoToko(item) ? idx : -1)
-      .filter(idx => idx !== -1);
+    const stickerIndexes: number[] = [];
+    items.value.forEach((item, idx) => {
+      if (isStickerPromoToko(item)) stickerIndexes.push(idx);
+    });
 
-    if (stickerIndexes.length > 1) {
-      for (let i = stickerIndexes.length - 1; i > 0; i--) {
+    // Jika jatah habis ATAU ditemukan lebih dari 1 baris stiker (duplikat), hapus semuanya dulu
+    // agar kita bisa melakukan "Fresh Re-insert"
+    if (targetBonusQty === 0 || stickerIndexes.length > 1 || (forceInject && stickerIndexes.length > 0)) {
+      // Hapus dari index terbesar agar tidak merusak urutan array saat splice
+      for (let i = stickerIndexes.length - 1; i >= 0; i--) {
         items.value.splice(stickerIndexes[i], 1);
       }
-    }
-
-    let existingIdx = items.value.findIndex(i => isStickerPromoToko(i));
-
-    // JIKA JATAH STIKER TOKO HABIS (0), BERSIHKAN LALU HENTIKAN!
-    if (targetBonusQty === 0) {
-      if (existingIdx !== -1) {
-        items.value.splice(existingIdx, 1);
-      }
-      return;
-    }
-
-    // Jika QTY stiker toko sudah benar, hentikan
-    if (existingIdx !== -1 && items.value[existingIdx].jumlah === targetBonusQty) {
-      return;
+      // Update ulang index setelah dihapus
+      stickerIndexes.length = 0;
     }
 
     // Jika masih ada sisa jatah, baru masukkan stiker toko
     if (targetBonusQty > 0) {
-      if (!forceInject && existingIdx === -1 && header.nomorPromo !== "PRO-2026-001") {
+      // Cek apakah promo sudah diaktifkan (via tombol atau memang sudah ada barisnya)
+      if (!forceInject && header.nomorPromo !== PROMO_ID && stickerIndexes.length === 0) {
         return;
       }
 
-      let stokFisikToko = 0;
-      let prodKode = STICKER_KODE;
-      let prodNama = "STICKER DTF A6";
-
-      try {
-        const response = await api.get(`/invoice-form/by-barcode/${STICKER_BARCODE}`, {
-          params: { gudang: header.gudang.kode },
-        });
-        stokFisikToko = Number(response.data.stok || 0);
-        prodKode = response.data.kode;
-        prodNama = response.data.nama;
-      } catch (error) {
-        console.warn("Gagal narik data stiker, pakai fallback.", error);
-      }
-
-      existingIdx = items.value.findIndex(i => isStickerPromoToko(i));
+      // Cari lagi indexnya setelah cleanup di atas
+      const existingIdx = items.value.findIndex(i => isStickerPromoToko(i));
 
       if (existingIdx !== -1) {
-        items.value[existingIdx].jumlah = targetBonusQty;
-        items.value[existingIdx].total = 0;
-        items.value[existingIdx].harga = 0;
-        items.value[existingIdx].stok = stokFisikToko;
+        // Jika baris sudah ada, pastikan QTY sinkron
+        if (items.value[existingIdx].jumlah !== targetBonusQty) {
+          items.value[existingIdx].jumlah = targetBonusQty;
+          items.value[existingIdx].total = 0;
+        }
       } else {
+        // Jika belum ada, suntik baris baru
+        let stokFisikToko = 0;
+        try {
+          const response = await api.get(`/invoice-form/by-barcode/${STICKER_BARCODE}`, {
+            params: { gudang: header.gudang.kode },
+          });
+          stokFisikToko = Number(response.data.stok || 0);
+        } catch (e) { console.warn("Fallback stok stiker", e); }
+
         const newItem: Item = {
-          id: Date.now() + 999,
-          kode: prodKode,
-          nama: `${prodNama} (FREE MARET)`,
+          id: 9992026, // Gunakan ID tetap khusus stiker promo agar tidak re-generate
+          kode: STICKER_KODE,
+          nama: "STICKER DTF A6 (FREE MARET)",
           ukuran: "A6",
           jumlah: targetBonusQty,
           harga: 0,
@@ -1849,12 +1844,11 @@ const applyMarchBonusSticker = async (forceInject = false) => {
           total: 0,
           barcode: STICKER_BARCODE,
           stok: stokFisikToko,
-          noPengajuanHarga: "",
-          kategori: "BONUS",
           terhitungPromo: true,
-          promo: "PRO-2026-001"
+          promo: PROMO_ID
         };
 
+        // Masukkan di baris sebelum baris kosong terakhir
         const emptyIdx = items.value.findIndex(i => !i.kode);
         if (emptyIdx !== -1) {
           items.value.splice(emptyIdx, 0, newItem);

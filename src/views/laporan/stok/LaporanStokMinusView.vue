@@ -179,6 +179,7 @@ const fetchData = async () => {
 };
 
 const loadDetails = async (newlyExpanded: StokMinusItem[]) => {
+  // Cari item yang baru saja dibuka dan belum ada di cache 'details'
   const item = newlyExpanded.find((i) => i && !details.value[i.KODE]);
   if (!item) return;
 
@@ -187,11 +188,10 @@ const loadDetails = async (newlyExpanded: StokMinusItem[]) => {
     const response = await api.get<DetailItem[]>(`/laporan-stok-minus/details`, {
       params: {
         kode: item.KODE,
-        cabang: filters.cabang,
-        tanggal: filters.tanggal,
+        cabang: filters.cabang, // Menggunakan filter cabang terbaru
+        tanggal: filters.tanggal, // Menggunakan filter tanggal terbaru
       },
     });
-    // Simpan hasil ke state details
     details.value[item.KODE] = response.data;
   } catch (error) {
     toast.error("Gagal memuat detail transaksi.", error);
@@ -231,7 +231,14 @@ onMounted(() => {
   fetchData();
 });
 
-watch(filters, fetchData, { deep: true });
+watch(filters, () => {
+  // Kosongkan cache detail dan daftar baris yang sedang terbuka
+  details.value = {};
+  expanded.value = [];
+
+  // Panggil data master yang baru
+  fetchData();
+}, { deep: true });
 </script>
 
 <template>

@@ -458,9 +458,9 @@ watch(filters, fetchMasterData, { deep: true });
                 <v-chip v-if="item.closing === 'Y'" size="x-small" color="success">YA</v-chip>
               </template>
               <template v-else-if="header.key === 'cabang'">
-                <v-chip size="x-small" variant="flat" color="blue-grey-lighten-4" class="font-weight-bold">
+                <div class="text-caption font-weight-bold text-primary">
                   {{ item.cabang }}
-                </v-chip>
+                </div>
               </template>
               <template v-else>
                 {{ item[header.key] }}

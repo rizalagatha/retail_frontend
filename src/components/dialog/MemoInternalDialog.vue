@@ -93,13 +93,16 @@ const handleUpload = async () => {
 const viewPdf = (url: string) => {
   console.log("[DEBUG FRONTEND] Membuka PDF via URL:", url);
 
-  // Deteksi jika URL salah format
   if (!url || url.includes('undefined')) {
     toast.error("URL Memo tidak valid.");
     return;
   }
 
-  selectedPdfUrl.value = url;
+  // Gunakan origin dari browser saat ini (menghasilkan https://103.94.238.252)
+  const baseUrl = window.location.origin;
+
+  // Hasil akhirnya: https://103.94.238.252/memos/memo-xxx.pdf
+  selectedPdfUrl.value = `${baseUrl}${url}`;
 };
 
 onMounted(fetchMemos);

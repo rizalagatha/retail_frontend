@@ -21,7 +21,7 @@ interface Header {
   nomor: string;
   tanggal: string;
   customer: { kode: string; nama: string; alamat: string; kota: string; telp: string };
-  jenisSetor: 'TUNAI' | 'TRANSFER' | 'GIRO';
+  jenisSetor: 'TUNAI' | 'TRANSFER' | 'GIRO' | 'QRIS';
   nominal: number;
   terbayar: number;
   sisa: number;
@@ -628,13 +628,13 @@ watch(() => header.nominal, calculateTotals);
               <v-radio-group v-model="header.jenisSetor" inline label="Jenis Setor" density="compact" hide-details>
                 <v-radio label="Tunai" value="TUNAI"></v-radio>
                 <v-radio label="Transfer" value="TRANSFER"></v-radio>
-                <v-radio label="Giro" value="GIRO"></v-radio>
+                <v-radio label="QRIS" value="QRIS"></v-radio> <v-radio label="Giro" value="GIRO"></v-radio>
               </v-radio-group>
             </v-col>
 
             <!-- Panel Transfer -->
             <v-expand-transition>
-              <div v-if="header.jenisSetor === 'TRANSFER'" class="w-100">
+              <div v-if="header.jenisSetor === 'TRANSFER' || header.jenisSetor === 'QRIS'" class="w-100">
                 <v-row dense>
                   <v-col cols="6">
                     <v-text-field label="No. Akun" v-model="header.akun.kode" readonly @click="openRekeningSearch"
@@ -645,11 +645,11 @@ watch(() => header.nominal, calculateTotals);
                       hide-details />
                   </v-col>
                   <v-col cols="12">
-                    <v-text-field label="Nama Bank" v-model="header.akun.nama" readonly filled density="compact"
-                      hide-details />
+                    <v-text-field label="Nama Bank / E-Wallet" v-model="header.akun.nama" readonly filled
+                      density="compact" hide-details />
                   </v-col>
                   <v-col cols="12">
-                    <v-text-field label="Tgl. Transfer" v-model="header.tanggalTransfer" type="date" variant="outlined"
+                    <v-text-field label="Tgl. Transaksi" v-model="header.tanggalTransfer" type="date" variant="outlined"
                       density="compact" hide-details />
                   </v-col>
                 </v-row>

@@ -5,6 +5,7 @@ import api from "@/services/api";
 import PageLayout from "@/components/PageLayout.vue";
 import { useToast } from "vue-toastification";
 import { useAuthStore } from "@/stores/authStore";
+import { useUiStore } from "@/stores/uiStore";
 import { useUnsavedChanges } from "@/composables/useUnsavedChanges";
 import { format } from "date-fns";
 import SoPoSearchModal from "@/components/lookup/SoPoSearchModal.vue";
@@ -94,6 +95,7 @@ const router = useRouter();
 const route = useRoute();
 const toast = useToast();
 const authStore = useAuthStore();
+const uiStore = useUiStore();
 const { markAsSaved } = useUnsavedChanges();
 
 const items = ref<LhkItem[]>([]);
@@ -119,6 +121,8 @@ const formHeader = reactive({
   cabang: authStore.user?.cabang || "",
   jenisOrder: null as JenisOrder | null,
 });
+
+const isEditMode = computed(() => !!route.query.nomorLhk);
 
 const pageTitle = computed(() => (route.query.nomorLhk ? `Ubah LHK Jasa` : `Buat LHK Jasa`));
 
@@ -1009,8 +1013,18 @@ const calculateRowTotal = (item: LhkItem) => {
 };
 
 const removeRow = (id: number) => {
+  // Filter item yang tidak sesuai ID
   items.value = items.value.filter((item) => item.id !== id);
-  addNewRowIfNeeded();
+
+  // Jika setelah dihapus jadi kosong, tambahkan baris baru otomatis
+  if (items.value.length === 0) {
+    addNewRowIfNeeded();
+  }
+
+  // Set status ada perubahan jika dalam mode edit
+  if (isEditMode.value) {
+    uiStore.setUnsavedChanges(true);
+  }
 };
 
 // --- Konfirmasi Simpan ---

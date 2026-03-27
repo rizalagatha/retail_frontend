@@ -86,6 +86,7 @@ const accButtonColor = computed(() => selectedRow.value?.diAccOleh ? 'orange' : 
 const headers = ref<DataTableHeader[]>([
   { title: '', key: 'data-table-expand', width: 50, fixed: true },
   { title: 'Nomor', key: 'nomor', width: 180, fixed: true },
+  { title: 'Cabang', key: 'cabang', width: 100 }, // <-- Tambahkan ini
   { title: 'Tanggal', key: 'tanggal', width: 120 },
   { title: 'Keterangan', key: 'keterangan', width: 300 },
   { title: 'DiAcc Oleh', key: 'diAccOleh', width: 150 },
@@ -419,22 +420,9 @@ watch(filters, fetchMasterData, { deep: true });
       </div>
 
       <div class="table-container">
-        <AppDataTable
-          v-model="selected"
-          v-model:expanded="expanded"
-          :headers="headers"
-          :items="masterData"
-          :loading="loading"
-          item-value="nomor"
-          density="compact"
-          class="desktop-table header-browse-blue"
-          fixed-header
-          show-select
-          return-object
-          show-expand
-          @update:expanded="loadDetails"
-          @click:row="handleRowClick"
-        >
+        <AppDataTable v-model="selected" v-model:expanded="expanded" :headers="headers" :items="masterData"
+          :loading="loading" item-value="nomor" density="compact" class="desktop-table header-browse-blue" fixed-header
+          show-select return-object show-expand @update:expanded="loadDetails" @click:row="handleRowClick">
           <template #headers="{ columns, isSorted, getSortIcon, toggleSort }">
             <tr>
               <template v-for="header in columns" :key="header.key">
@@ -442,8 +430,7 @@ watch(filters, fetchMasterData, { deep: true });
                   :style="{ width: header.width + 'px', minWidth: header.width + 'px', maxWidth: header.width + 'px' }"
                   class="resizable-header"
                   :class="{ 'text-center': header.align === 'center', 'text-end': header.align === 'end' }"
-                  @click="toggleSort(header)"
-                >
+                  @click="toggleSort(header)">
                   <div class="header-content">
                     <span>{{ header.title }}</span>
                     <v-icon v-if="isSorted(header)" size="small" class="ms-1">
@@ -470,6 +457,11 @@ watch(filters, fetchMasterData, { deep: true });
               <template v-else-if="header.key === 'closing'">
                 <v-chip v-if="item.closing === 'Y'" size="x-small" color="success">YA</v-chip>
               </template>
+              <template v-else-if="header.key === 'cabang'">
+                <div class="text-caption font-weight-bold text-primary">
+                  {{ item.cabang }}
+                </div>
+              </template>
               <template v-else>
                 {{ item[header.key] }}
               </template>
@@ -484,15 +476,8 @@ watch(filters, fetchMasterData, { deep: true });
                     <div v-if="loadingDetails.has(item.nomor)" class="text-center pa-4 text-caption">
                       Memuat detail...
                     </div>
-                    <v-data-table
-                      v-else
-                      :headers="detailHeaders"
-                      :items="details[item.nomor]"
-                      density="compact"
-                      class="detail-table"
-                      :items-per-page="-1"
-                      hide-default-footer
-                    >
+                    <v-data-table v-else :headers="detailHeaders" :items="details[item.nomor]" density="compact"
+                      class="detail-table" :items-per-page="-1" hide-default-footer>
                       <template #bottom></template>
                     </v-data-table>
                   </div>
@@ -606,8 +591,13 @@ watch(filters, fetchMasterData, { deep: true });
   height: 100%;
 }
 
-.resizable-header.text-center .header-content { justify-content: center; }
-.resizable-header.text-end .header-content { justify-content: flex-end; }
+.resizable-header.text-center .header-content {
+  justify-content: center;
+}
+
+.resizable-header.text-end .header-content {
+  justify-content: flex-end;
+}
 
 .resizer {
   position: absolute;

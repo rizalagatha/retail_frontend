@@ -122,7 +122,7 @@ interface Rekening {
 
 // Opsional: Definisikan tipe untuk Form agar lebih ketat
 interface PaymentForm {
-  metode: "TUNAI" | "TRANSFER";
+  metode: "TUNAI" | "TRANSFER" | "QRIS"; // <-- Tambah QRIS
   bank: Rekening | null;
   noRek: string;
   alasan: string;
@@ -694,8 +694,9 @@ const onRekeningSelected = (item: Rekening) => {
 const submitChangePayment = async () => {
   if (!formPayment.alasan) return toast.warning("Mohon isi alasan perubahan.");
 
-  if (formPayment.metode === "TRANSFER") {
-    if (!formPayment.bank) return toast.warning("Mohon pilih Bank.");
+  if (formPayment.metode === "TRANSFER" || formPayment.metode === "QRIS") {
+    if (!formPayment.bank)
+      return toast.warning(`Mohon pilih Bank / Akun untuk ${formPayment.metode}.`);
   }
 
   isChangingPayment.value = true;

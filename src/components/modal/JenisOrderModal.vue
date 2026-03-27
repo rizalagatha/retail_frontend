@@ -33,8 +33,8 @@ interface UkuranRow {
 interface TitikRow {
   keterangan: string;
   sizeCetak: string;
-  panjang: number | null;
-  lebar: number | null;
+  panjang: number | string | null; // <-- Ubah di sini
+  lebar: number | string | null;   // <-- Ubah di sini
 }
 
 interface JenisOrderForm {
@@ -281,7 +281,13 @@ const save = () => {
 
   // Validasi tambahan: pastikan ada titik cetak dan ukuran
   const filteredUkuran = form.value.ukuranKaos.filter(u => u.ukuran && (u.jumlah ?? 0) > 0);
-  const filteredTitik = form.value.titikCetak.filter(t => t.keterangan && t.sizeCetak);
+  const filteredTitik = form.value.titikCetak
+    .filter(t => t.keterangan && t.sizeCetak)
+    .map(t => ({
+      ...t,
+      panjang: Number(t.panjang) || 0,
+      lebar: Number(t.lebar) || 0
+    }));
 
   if (filteredUkuran.length === 0) {
     toast.error('Minimal satu ukuran kaos harus diisi.');
@@ -344,7 +350,7 @@ const calculatePrices = async () => {
 
   const jenis = form.value.jenisOrder;
   const totalLuas = form.value.titikCetak.reduce(
-    (sum, item) => sum + ((item.panjang || 0) * (item.lebar || 0)),
+    (sum, item) => sum + (Number(item.panjang || 0) * Number(item.lebar || 0)),
     0
   );
 
@@ -457,13 +463,26 @@ const onUkuranChanged = (row: UkuranRow, val: string) => {
   }
 };
 
-const formatAngka = (val: unknown): number | null => {
+// Khusus untuk input Jumlah (Hanya Angka Bulat, mereturn number | null)
+const formatAngkaBulat = (val: unknown): number | null => {
   if (val === null || val === undefined || val === "") return null;
   const cleaned = String(val).replace(/\D/g, "");
   return cleaned === "" ? null : Number(cleaned);
 };
 
-const finalizeAngka = <T extends Record<string, number | null | string>>(
+// Khusus untuk input Panjang & Lebar (Bisa Desimal, mereturn number | string | null)
+const formatAngkaDesimal = (val: unknown): number | string | null => {
+  if (val === null || val === undefined || val === "") return null;
+  let cleaned = String(val).replace(/[^0-9.,]/g, "");
+  cleaned = cleaned.replace(/,/g, "."); // Ubah koma jadi titik
+
+  // Jika masih mengetik koma (misal "10."), kembalikan string-nya dulu
+  if (cleaned.endsWith(".")) return cleaned;
+
+  return cleaned === "" ? null : Number(cleaned);
+};
+
+const finalizeAngka = <T extends Record<string, unknown>>(
   row: T,
   key: keyof T
 ) => {
@@ -472,7 +491,8 @@ const finalizeAngka = <T extends Record<string, number | null | string>>(
   if (v === null || v === "") {
     row[key] = 0 as T[keyof T];
   } else {
-    row[key] = Number(v) as T[keyof T];
+    // Pastikan nilai akhir diparsing jadi number desimal yang valid
+    row[key] = Number(String(v).replace(/,/g, '.')) as T[keyof T];
   }
 };
 
@@ -561,7 +581,8 @@ watch(
                 </v-col>
                 <v-col cols="4">
                   <v-text-field v-model="row.jumlah" type="text" placeholder="0" density="compact" variant="outlined"
-                    hide-details class="text-xs text-end" @input="row.jumlah = formatAngka($event.target.value)" @blur="
+                    hide-details class="text-xs text-end" @input="row.jumlah = formatAngkaBulat($event.target.value)"
+                    @blur="
                       finalizeAngka(row, 'jumlah');
                     addUkuranRowIfNeeded(i);
                     " />
@@ -602,13 +623,15 @@ watch(
                   <v-text-field v-model="row.panjang" type="text" placeholder="0" density="compact" variant="outlined"
                     hide-details class="text-xs text-end"
                     :readonly="row.sizeCetak && row.sizeCetak.toLowerCase() !== 'custom'"
-                    @input="row.panjang = formatAngka($event.target.value)" @blur="finalizeAngka(row, 'panjang')" />
+                    @input="row.panjang = formatAngkaDesimal($event.target.value)"
+                    @blur="finalizeAngka(row, 'panjang')" />
                 </v-col>
+
                 <v-col cols="2">
                   <v-text-field v-model="row.lebar" type="text" placeholder="0" density="compact" variant="outlined"
                     hide-details class="text-xs text-end"
                     :readonly="row.sizeCetak && row.sizeCetak.toLowerCase() !== 'custom'"
-                    @input="row.lebar = formatAngka($event.target.value)" @blur="finalizeAngka(row, 'lebar')" />
+                    @input="row.lebar = formatAngkaDesimal($event.target.value)" @blur="finalizeAngka(row, 'lebar')" />
                 </v-col>
                 <v-col cols="2" class="text-center">
                   <v-btn icon="mdi-delete-outline" size="x-small" variant="text" color="error"

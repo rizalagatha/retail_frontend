@@ -136,7 +136,7 @@ const items = ref<Item[]>([]);
 const isLoading = ref(true);
 const isSaving = ref(false);
 const dialog = reactive({ invoiceSearch: false });
-const dialogConfirm = reactive({ show: false, title: "", text: "", onConfirm: () => {} });
+const dialogConfirm = reactive({ show: false, title: "", text: "", onConfirm: () => { } });
 const scannedBarcode = ref("");
 const isProductSearchVisible = ref(false);
 const isMultiSelectProduct = ref(false);
@@ -166,7 +166,7 @@ const onInvoiceSelected = async (invoice: { nomor: string; tanggal: string }) =>
   const isKPR = authStore.user?.cabang === "KPR";
 
   // Flag pembukaan akses sementara untuk K10
-  const isTemporaryOpen = authStore.user?.cabang === "K01" && new Date() < new Date("2026-02-25");
+  const isTemporaryOpen = authStore.user?.cabang === "K05" && new Date() < new Date("2026-03-10");
 
   // Jika bukan KON, bukan K10 (temporary), dan invoice > 1 hari, maka blokir
   if (!isKON && !isKPR && !isTemporaryOpen && hariSejakInvoice > 1) {
@@ -585,14 +585,8 @@ watch(
 <template>
   <PageLayout :title="pageTitle" desktop-mode icon="mdi-keyboard-return">
     <template #header-actions>
-      <v-btn
-        size="small"
-        color="primary"
-        prepend-icon="mdi-content-save"
-        @click="save"
-        :loading="isSaving"
-        >Simpan</v-btn
-      >
+      <v-btn size="small" color="primary" prepend-icon="mdi-content-save" @click="save"
+        :loading="isSaving">Simpan</v-btn>
       <v-btn size="small" prepend-icon="mdi-refresh" @click="handleCancel">Batal</v-btn>
       <v-btn size="small" prepend-icon="mdi-close" @click="handleClose">Tutup</v-btn>
     </template>
@@ -601,16 +595,10 @@ watch(
         <div class="desktop-form-section header-section">
           <v-row dense>
             <v-col cols="6">
-              <v-text-field
-                label="Cabang"
-                v-model="header.cabangKode"
-                readonly
+              <v-text-field label="Cabang" v-model="header.cabangKode" readonly
                 :filled="authStore.user?.cabang !== 'KDC'"
-                :variant="authStore.user?.cabang === 'KDC' ? 'outlined' : 'filled'"
-                @click="openGudangSearch"
-                density="compact"
-                hide-details
-              >
+                :variant="authStore.user?.cabang === 'KDC' ? 'outlined' : 'filled'" @click="openGudangSearch"
+                density="compact" hide-details>
                 <template #append-inner>
                   <v-icon v-if="authStore.user?.cabang === 'KDC'" @click="openGudangSearch">
                     mdi-magnify
@@ -618,202 +606,77 @@ watch(
                 </template>
               </v-text-field>
             </v-col>
-            <v-col cols="6"
-              ><v-text-field
-                v-model="header.cabangNama"
-                readonly
-                filled
-                hide-details
-                density="compact"
-            /></v-col>
-            <v-col cols="6"
-              ><v-text-field
-                label="No. Retur"
-                v-model="header.nomor"
-                readonly
-                filled
-                hide-details
-                density="compact"
-            /></v-col>
-            <v-col cols="6"
-              ><v-text-field
-                label="Tanggal"
-                v-model="header.tanggal"
-                type="date"
-                variant="outlined"
-                hide-details
-                density="compact"
-            /></v-col>
+            <v-col cols="6"><v-text-field v-model="header.cabangNama" readonly filled hide-details
+                density="compact" /></v-col>
+            <v-col cols="6"><v-text-field label="No. Retur" v-model="header.nomor" readonly filled hide-details
+                density="compact" /></v-col>
+            <v-col cols="6"><v-text-field label="Tanggal" v-model="header.tanggal" type="date" variant="outlined"
+                hide-details density="compact" /></v-col>
             <v-col cols="12">
-              <v-radio-group
-                v-model="header.jenis"
-                inline
-                label="Jenis Retur"
-                hide-details
-                :key="authStore.user?.cabang"
-              >
+              <v-radio-group v-model="header.jenis" inline label="Jenis Retur" hide-details
+                :key="authStore.user?.cabang">
                 <v-radio label="Pengembalian" value="Y"></v-radio>
                 <v-radio label="Tukar Barang" value="N"></v-radio>
-                <v-radio
-                  v-if="authStore.user?.cabang === 'KON'"
-                  label="Retur Online (Ke DC)"
-                  value="O"
-                ></v-radio>
+                <v-radio v-if="authStore.user?.cabang === 'KON'" label="Retur Online (Ke DC)" value="O"></v-radio>
               </v-radio-group>
             </v-col>
             <v-col cols="12">
-              <v-text-field
-                label="No. Invoice"
-                v-model="header.invoice"
-                @click="dialog.invoiceSearch = true"
-                prepend-inner-icon="mdi-magnify"
-                readonly
-                variant="outlined"
-                hide-details
-                density="compact"
-              />
+              <v-text-field label="No. Invoice" v-model="header.invoice" @click="dialog.invoiceSearch = true"
+                prepend-inner-icon="mdi-magnify" readonly variant="outlined" hide-details density="compact" />
             </v-col>
 
-            <v-col cols="12"
-              ><v-text-field
-                label="Customer"
-                :model-value="
-                  header.customer ? `${header.customer.kode} - ${header.customer.nama}` : ''
-                "
-                readonly
-                filled
-                hide-details
-                density="compact"
-            /></v-col>
-            <v-col cols="12"
-              ><v-text-field
-                label="Alamat"
-                :model-value="header.customer?.alamat"
-                readonly
-                filled
-                hide-details
-                density="compact"
-            /></v-col>
-            <v-col cols="12"
-              ><v-text-field
-                label="Kota / Telp"
-                :model-value="
-                  header.customer ? `${header.customer.kota} / ${header.customer.telp}` : ''
-                "
-                readonly
-                filled
-                hide-details
-                density="compact"
-            /></v-col>
+            <v-col cols="12"><v-text-field label="Customer" :model-value="header.customer ? `${header.customer.kode} - ${header.customer.nama}` : ''
+              " readonly filled hide-details density="compact" /></v-col>
+            <v-col cols="12"><v-text-field label="Alamat" :model-value="header.customer?.alamat" readonly filled
+                hide-details density="compact" /></v-col>
+            <v-col cols="12"><v-text-field label="Kota / Telp" :model-value="header.customer ? `${header.customer.kota} / ${header.customer.telp}` : ''
+              " readonly filled hide-details density="compact" /></v-col>
 
             <v-col cols="12">
-              <v-textarea
-                label="Keterangan *"
-                v-model="header.keterangan"
-                rows="3"
-                variant="outlined"
-                :class="{ 'bg-orange-lighten-5': header.jenis === 'O' }"
-                hide-details="auto"
-                density="compact"
-                :rules="[(v) => !!v || 'Keterangan wajib diisi']"
-              />
+              <v-textarea label="Keterangan *" v-model="header.keterangan" rows="3" variant="outlined"
+                :class="{ 'bg-orange-lighten-5': header.jenis === 'O' }" hide-details="auto" density="compact"
+                :rules="[(v) => !!v || 'Keterangan wajib diisi']" />
             </v-col>
           </v-row>
         </div>
       </div>
       <div class="right-column">
         <div class="scanner-wrapper mb-4">
-          <v-text-field
-            v-model="scannedBarcode"
-            label="Scan Barcode di Sini..."
-            variant="outlined"
-            density="compact"
-            prepend-inner-icon="mdi-barcode-scan"
-            hide-details
-            clearable
-            @keydown.enter.prevent="handleBarcodeScan"
-          />
+          <v-text-field v-model="scannedBarcode" label="Scan Barcode di Sini..." variant="outlined" density="compact"
+            prepend-inner-icon="mdi-barcode-scan" hide-details clearable @keydown.enter.prevent="handleBarcodeScan" />
         </div>
-        <v-data-table
-          :headers="tableHeaders"
-          :items="items"
-          class="desktop-table fill-height-table"
-          hide-details
-          density="compact"
-          fixed-header
-          :items-per-page="-1"
-        >
+        <v-data-table :headers="tableHeaders" :items="items" class="desktop-table fill-height-table" hide-details
+          density="compact" fixed-header :items-per-page="-1">
           <template #[`item.kode`]="{ item, index }">
-            <v-text-field
-              v-model="item.kode"
-              variant="underlined"
-              density="compact"
-              hide-details
-              placeholder="F1/F2..."
-              @keydown.f1.prevent="openProductSearch(index, false)"
-              @keydown.f2.prevent="openProductSearch(index, true)"
-              :readonly="!!header.invoice"
-            />
+            <v-text-field v-model="item.kode" variant="underlined" density="compact" hide-details placeholder="F1/F2..."
+              @keydown.f1.prevent="openProductSearch(index, false)" @keydown.f2.prevent="openProductSearch(index, true)"
+              :readonly="!!header.invoice" />
           </template>
 
           <template #[`item.jumlah`]="{ item }">
-            <v-text-field
-              v-model.number="item.jumlah"
-              type="number"
-              variant="underlined"
-              class="text-end"
-              density="compact"
-              hide-details
-              :rules="[(v) => v <= item.qtyInv - item.sudah || `Maks: ${item.qtyInv - item.sudah}`]"
-              min="0"
-            />
+            <v-text-field v-model.number="item.jumlah" type="number" variant="underlined" class="text-end"
+              density="compact" hide-details
+              :rules="[(v) => v <= item.qtyInv - item.sudah || `Maks: ${item.qtyInv - item.sudah}`]" min="0" />
           </template>
 
           <template #[`item.harga`]="{ item }">
-            <v-text-field
-              v-model.number="item.harga"
-              type="number"
-              variant="underlined"
-              class="text-end"
-              density="compact"
-              hide-details
-              readonly
-            />
+            <v-text-field v-model.number="item.harga" type="number" variant="underlined" class="text-end"
+              density="compact" hide-details readonly />
           </template>
 
           <template #[`item.disc`]="{ item }">
-            <v-text-field
-              v-model.number="item.disc"
-              type="number"
-              variant="underlined"
-              class="text-end"
-              density="compact"
-              hide-details
-              readonly
-            />
+            <v-text-field v-model.number="item.disc" type="number" variant="underlined" class="text-end"
+              density="compact" hide-details readonly />
           </template>
 
           <template #[`item.diskon`]="{ item }">
-            <v-text-field
-              v-model.number="item.diskon"
-              type="number"
-              variant="underlined"
-              class="text-end"
-              density="compact"
-              hide-details
-              readonly
-            />
+            <v-text-field v-model.number="item.diskon" type="number" variant="underlined" class="text-end"
+              density="compact" hide-details readonly />
           </template>
 
           <template #[`item.actions`]="{ item }">
-            <v-btn
-              v-if="item.kode"
-              icon="mdi-delete"
-              size="x-small"
-              variant="text"
-              color="error"
-              @click="removeRow(item.id)"
-            />
+            <v-btn v-if="item.kode" icon="mdi-delete" size="x-small" variant="text" color="error"
+              @click="removeRow(item.id)" />
           </template>
 
           <template #bottom>
@@ -824,99 +687,33 @@ watch(
         </v-data-table>
         <div class="footer-section pa-4">
           <v-row dense>
-            <v-col cols="4"
-              ><v-text-field
-                label="Total"
-                :model-value="formatRupiah(footer.subTotal)"
-                readonly
-                filled
-                class="text-end"
-                hide-details
-                density="compact"
-            /></v-col>
-            <v-col cols="4"
-              ><v-text-field
-                label="Diskon Rp"
-                v-model.number="footer.diskonRp"
-                type="number"
-                variant="outlined"
-                class="text-end"
-                hide-details
-                density="compact"
-            /></v-col>
-            <v-col cols="4"
-              ><v-text-field
-                label="PPN"
-                :model-value="formatRupiah(footer.ppnRp)"
-                readonly
-                filled
-                class="text-end"
-                hide-details
-                density="compact"
-            /></v-col>
+            <v-col cols="4"><v-text-field label="Total" :model-value="formatRupiah(footer.subTotal)" readonly filled
+                class="text-end" hide-details density="compact" /></v-col>
+            <v-col cols="4"><v-text-field label="Diskon Rp" v-model.number="footer.diskonRp" type="number"
+                variant="outlined" class="text-end" hide-details density="compact" /></v-col>
+            <v-col cols="4"><v-text-field label="PPN" :model-value="formatRupiah(footer.ppnRp)" readonly filled
+                class="text-end" hide-details density="compact" /></v-col>
             <v-col cols="4"></v-col>
-            <v-col cols="4"
-              ><v-text-field
-                label="Diskon % 1"
-                v-model.number="footer.diskonPersen1"
-                type="number"
-                variant="outlined"
-                class="text-end"
-                hide-details
-                density="compact"
-            /></v-col>
-            <v-col cols="4"
-              ><v-text-field
-                label="Grand Total"
-                :model-value="formatRupiah(footer.grandTotal)"
-                readonly
-                filled
-                class="text-end font-weight-bold"
-                hide-details
-                density="compact"
-            /></v-col>
+            <v-col cols="4"><v-text-field label="Diskon % 1" v-model.number="footer.diskonPersen1" type="number"
+                variant="outlined" class="text-end" hide-details density="compact" /></v-col>
+            <v-col cols="4"><v-text-field label="Grand Total" :model-value="formatRupiah(footer.grandTotal)" readonly
+                filled class="text-end font-weight-bold" hide-details density="compact" /></v-col>
             <v-col cols="4"></v-col>
-            <v-col cols="4"
-              ><v-text-field
-                label="Diskon % 2"
-                v-model.number="footer.diskonPersen2"
-                type="number"
-                variant="outlined"
-                class="text-end"
-                hide-details
-                density="compact"
-            /></v-col>
+            <v-col cols="4"><v-text-field label="Diskon % 2" v-model.number="footer.diskonPersen2" type="number"
+                variant="outlined" class="text-end" hide-details density="compact" /></v-col>
           </v-row>
         </div>
       </div>
     </div>
 
-    <InvoiceSearchModal
-      v-if="dialog.invoiceSearch"
-      source="retur-jual"
-      @close="dialog.invoiceSearch = false"
-      @invoice-selected="onInvoiceSelected"
-    />
-    <GudangSearchModal
-      v-if="isGudangSearchVisible"
-      :user-cabang="authStore.user?.cabang || ''"
-      @close="isGudangSearchVisible = false"
-      @gudang-selected="onGudangSelected"
-    />
-    <MintaBarangSearchModal
-      v-if="isProductSearchVisible"
-      :gudang="header.cabangKode"
-      :multi="isMultiSelectProduct"
-      source="retur-jual"
-      @close="isProductSearchVisible = false"
-      @products-selected="onProductsSelected"
-    />
-    <PrintOptionModal
-      v-if="isPrintOptionVisible"
-      :options="['a4', 'kasir']"
-      @close="onPrintModalClose"
-      @select="handlePrintSelection"
-    />
+    <InvoiceSearchModal v-if="dialog.invoiceSearch" source="retur-jual" @close="dialog.invoiceSearch = false"
+      @invoice-selected="onInvoiceSelected" />
+    <GudangSearchModal v-if="isGudangSearchVisible" :user-cabang="authStore.user?.cabang || ''"
+      @close="isGudangSearchVisible = false" @gudang-selected="onGudangSelected" />
+    <MintaBarangSearchModal v-if="isProductSearchVisible" :gudang="header.cabangKode" :multi="isMultiSelectProduct"
+      source="retur-jual" @close="isProductSearchVisible = false" @products-selected="onProductsSelected" />
+    <PrintOptionModal v-if="isPrintOptionVisible" :options="['a4', 'kasir']" @close="onPrintModalClose"
+      @select="handlePrintSelection" />
 
     <v-dialog v-model="dialogConfirm.show" max-width="400px" persistent>
       <v-card>
@@ -925,15 +722,10 @@ watch(
         <v-card-actions>
           <v-spacer></v-spacer>
           <v-btn text @click="dialogConfirm.show = false">Tidak</v-btn>
-          <v-btn
-            color="primary"
-            variant="tonal"
-            @click="
-              dialogConfirm.onConfirm();
-              dialogConfirm.show = false;
-            "
-            >Ya, Lanjutkan</v-btn
-          >
+          <v-btn color="primary" variant="tonal" @click="
+            dialogConfirm.onConfirm();
+          dialogConfirm.show = false;
+          ">Ya, Lanjutkan</v-btn>
         </v-card-actions>
       </v-card>
     </v-dialog>

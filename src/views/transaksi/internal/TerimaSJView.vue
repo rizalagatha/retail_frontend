@@ -71,7 +71,7 @@ const dialogConfirm = reactive({
   show: false,
   title: "",
   text: "",
-  onConfirm: () => {},
+  onConfirm: () => { },
 });
 
 // --- Header Definisi (Ref & Width Angka) ---
@@ -150,11 +150,13 @@ const isK01 = computed(() => authStore.user?.cabang === "K01");
 const isKpr = computed(() => authStore.user?.cabang === "KPR");
 const isKon = computed(() => authStore.user?.cabang === "KON");
 const isKdb = computed(() => authStore.user?.cabang === "KDB");
+const isAdmin = computed(() => authStore.user?.kode?.toLowerCase() === "admin");
+const isKbl = computed(() => authStore.user?.cabang === "KBL");
 
 const terimaDisabledReason = computed(() => {
-  // Tambahkan isKon ke dalam pengecekan izin akses web
-  if (!isK01.value && !isKpr.value && !isKon.value && !isKdb.value) {
-    return "Penerimaan SJ cabang selain K01, KPR, KON, & KDB wajib melalui Aplikasi Kaosan Mobile.";
+  // Izinkan jika user adalah admin ATAU cabang K01/KPR/KON/KDB
+  if (!isAdmin.value && !isK01.value && !isKpr.value && !isKon.value && !isKdb.value && !isKbl.value) {
+    return "Penerimaan SJ cabang selain K01, KPR, KON, KBL & KDB wajib melalui Aplikasi Kaosan Mobile.";
   }
 
   if (!isSingleSelected.value) {
@@ -409,13 +411,8 @@ watch(filters, fetchMasterData, { deep: true });
       <v-tooltip location="bottom" :disabled="!terimaDisabledReason">
         <template #activator="{ props }">
           <span v-bind="props">
-            <v-btn
-              size="small"
-              color="primary"
-              prepend-icon="mdi-check"
-              :disabled="!!terimaDisabledReason"
-              @click="handleTerima"
-            >
+            <v-btn size="small" color="primary" prepend-icon="mdi-check" :disabled="!!terimaDisabledReason"
+              @click="handleTerima">
               Terima
             </v-btn>
           </span>
@@ -428,13 +425,8 @@ watch(filters, fetchMasterData, { deep: true });
       <v-tooltip location="bottom" :disabled="!batalDisabledReason">
         <template #activator="{ props }">
           <span v-bind="props">
-            <v-btn
-              size="small"
-              color="error"
-              prepend-icon="mdi-undo"
-              :disabled="!!batalDisabledReason"
-              @click="handleBatalTerima"
-            >
+            <v-btn size="small" color="error" prepend-icon="mdi-undo" :disabled="!!batalDisabledReason"
+              @click="handleBatalTerima">
               Batal Terima
             </v-btn>
           </span>
@@ -464,61 +456,23 @@ watch(filters, fetchMasterData, { deep: true });
     <div class="browse-content">
       <div class="filter-section">
         <span class="filter-label">Tanggal SJ:</span>
-        <v-text-field
-          v-model="filters.startDate"
-          type="date"
-          density="compact"
-          hide-details
-          variant="outlined"
-          style="max-width: 140px"
-        />
+        <v-text-field v-model="filters.startDate" type="date" density="compact" hide-details variant="outlined"
+          style="max-width: 140px" />
         <span class="mx-2">s/d</span>
-        <v-text-field
-          v-model="filters.endDate"
-          type="date"
-          density="compact"
-          hide-details
-          variant="outlined"
-          style="max-width: 140px"
-        />
-        <v-select
-          v-model="filters.cabang"
-          :items="cabangList"
-          item-title="nama"
-          item-value="kode"
-          density="compact"
-          hide-details
-          variant="outlined"
-          class="ms-4"
-          style="max-width: 200px"
-          label="Cabang"
-        />
+        <v-text-field v-model="filters.endDate" type="date" density="compact" hide-details variant="outlined"
+          style="max-width: 140px" />
+        <v-select v-model="filters.cabang" :items="cabangList" item-title="nama" item-value="kode" density="compact"
+          hide-details variant="outlined" class="ms-4" style="max-width: 200px" label="Cabang" />
 
-        <v-text-field
-          v-model="filters.kodeBarang"
-          placeholder="Kode Barang (F1)"
-          density="compact"
-          hide-details
-          clearable
-          variant="outlined"
-          style="max-width: 150px"
-          class="ms-4"
-          @click="openMasterProductSearch"
-          @keydown.f1.prevent="openMasterProductSearch"
-        >
+        <v-text-field v-model="filters.kodeBarang" placeholder="Kode Barang (F1)" density="compact" hide-details
+          clearable variant="outlined" style="max-width: 150px" class="ms-4" @click="openMasterProductSearch"
+          @keydown.f1.prevent="openMasterProductSearch">
           <template #append-inner>
             <v-icon @click="openMasterProductSearch">mdi-magnify</v-icon>
           </template>
         </v-text-field>
-        <v-text-field
-          v-model="filters.namaBarang"
-          placeholder="Nama Barang"
-          density="compact"
-          hide-details
-          readonly
-          variant="outlined"
-          style="max-width: 250px"
-        />
+        <v-text-field v-model="filters.namaBarang" placeholder="Nama Barang" density="compact" hide-details readonly
+          variant="outlined" style="max-width: 250px" />
 
         <v-spacer></v-spacer>
         <div class="d-flex align-center ga-2 text-caption">
@@ -528,22 +482,9 @@ watch(filters, fetchMasterData, { deep: true });
       </div>
 
       <div class="table-container">
-        <AppDataTable
-          v-model="selected"
-          v-model:expanded="expanded"
-          :headers="headers"
-          :items="masterData"
-          :loading="loading"
-          item-value="Nomor"
-          density="compact"
-          class="desktop-table header-browse-blue"
-          fixed-header
-          show-select
-          return-object
-          show-expand
-          @update:expanded="loadDetails"
-          @click:row="handleRowClick"
-        >
+        <AppDataTable v-model="selected" v-model:expanded="expanded" :headers="headers" :items="masterData"
+          :loading="loading" item-value="Nomor" density="compact" class="desktop-table header-browse-blue" fixed-header
+          show-select return-object show-expand @update:expanded="loadDetails" @click:row="handleRowClick">
           <template #[`item.NoInvoice`]="{ item }">
             <span class="font-weight-bold text-blue-darken-2">
               {{ item.NoInvoice || "-" }}
@@ -551,19 +492,12 @@ watch(filters, fetchMasterData, { deep: true });
           </template>
 
           <template #[`item.StatusDeadline`]="{ item }">
-            <v-chip
-              v-if="!item.NomorTerima"
-              size="x-small"
-              :color="
-                item.StatusDeadline === 'EKSEKUSI'
-                  ? 'red'
-                  : item.StatusDeadline === 'TERLAMBAT'
-                  ? 'orange'
-                  : 'grey-lighten-1'
-              "
-              variant="flat"
-              class="font-weight-bold"
-            >
+            <v-chip v-if="!item.NomorTerima" size="x-small" :color="item.StatusDeadline === 'EKSEKUSI'
+              ? 'red'
+              : item.StatusDeadline === 'TERLAMBAT'
+                ? 'orange'
+                : 'grey-lighten-1'
+              " variant="flat" class="font-weight-bold">
               {{ item.StatusDeadline }}
             </v-chip>
             <v-icon v-else color="success" size="small">mdi-check-circle</v-icon>
@@ -572,50 +506,33 @@ watch(filters, fetchMasterData, { deep: true });
           <template #headers="{ columns, isSorted, getSortIcon, toggleSort }">
             <tr>
               <template v-for="header in columns" :key="header.key">
-                <th
-                  :style="{
-                    width: header.width + 'px',
-                    minWidth: header.width + 'px',
-                    maxWidth: header.width + 'px',
-                  }"
-                  class="resizable-header"
-                  :class="{
-                    'text-center': header.align === 'center',
-                    'text-end': header.align === 'end',
-                  }"
-                  @click="toggleSort(header)"
-                >
+                <th :style="{
+                  width: header.width + 'px',
+                  minWidth: header.width + 'px',
+                  maxWidth: header.width + 'px',
+                }" class="resizable-header" :class="{
+                  'text-center': header.align === 'center',
+                  'text-end': header.align === 'end',
+                }" @click="toggleSort(header)">
                   <div class="header-content">
                     <span>{{ header.title }}</span>
                     <v-icon v-if="isSorted(header)" size="small" class="ms-1">
                       {{ getSortIcon(header) }}
                     </v-icon>
                   </div>
-                  <div
-                    class="resizer"
-                    @mousedown.stop="onResizeStart($event, header)"
-                    @click.stop
-                  ></div>
+                  <div class="resizer" @mousedown.stop="onResizeStart($event, header)" @click.stop></div>
                 </th>
               </template>
             </tr>
           </template>
 
           <template #[`item.data-table-expand`]="{ internalItem, toggleExpand, isExpanded }">
-            <v-btn
-              icon="mdi-chevron-down"
-              :class="{ 'rotate-180': isExpanded(internalItem) }"
-              size="x-small"
-              variant="text"
-              @click.stop="toggleExpand(internalItem)"
-            />
+            <v-btn icon="mdi-chevron-down" :class="{ 'rotate-180': isExpanded(internalItem) }" size="x-small"
+              variant="text" @click.stop="toggleExpand(internalItem)" />
           </template>
 
-          <template
-            v-for="header in headers.filter((h) => h.key !== 'data-table-expand')"
-            #[`item.${header.key}`]="{ item }"
-            :key="header.key"
-          >
+          <template v-for="header in headers.filter((h) => h.key !== 'data-table-expand')"
+            #[`item.${header.key}`]="{ item }" :key="header.key">
             <td :class="getRowTextColor(item)">
               <template v-if="['Tanggal', 'TglTerima'].includes(header.key)">
                 {{
@@ -623,9 +540,7 @@ watch(filters, fetchMasterData, { deep: true });
                 }}
               </template>
               <template v-else-if="header.key === 'Closing'">
-                <v-chip v-if="item.Closing === 'Y'" size="x-small" color="green" variant="tonal"
-                  >YA</v-chip
-                >
+                <v-chip v-if="item.Closing === 'Y'" size="x-small" color="green" variant="tonal">YA</v-chip>
                 <v-chip v-else size="x-small" color="grey" variant="tonal">TIDAK</v-chip>
               </template>
               <template v-else>
@@ -639,28 +554,16 @@ watch(filters, fetchMasterData, { deep: true });
               <td :colspan="columns.length" class="pa-0">
                 <div class="detail-container">
                   <div class="detail-table-wrapper">
-                    <div
-                      v-if="loadingDetails.has(item.Nomor)"
-                      class="text-center pa-4 text-caption"
-                    >
+                    <div v-if="loadingDetails.has(item.Nomor)" class="text-center pa-4 text-caption">
                       Memuat detail...
                     </div>
-                    <v-data-table
-                      v-else
-                      :headers="detailHeaders"
-                      :items="details[item.Nomor]"
-                      density="compact"
-                      class="detail-table"
-                      :items-per-page="-1"
-                      hide-default-footer
-                    >
+                    <v-data-table v-else :headers="detailHeaders" :items="details[item.Nomor]" density="compact"
+                      class="detail-table" :items-per-page="-1" hide-default-footer>
                       <template #[`item.Jumlah`]="{ value }">
                         {{ Number(value).toLocaleString() }}
                       </template>
                       <template #[`item.JumlahTerima`]="{ value }">
-                        <span
-                          :class="Number(value) > 0 ? 'text-green-darken-2 font-weight-bold' : ''"
-                        >
+                        <span :class="Number(value) > 0 ? 'text-green-darken-2 font-weight-bold' : ''">
                           {{ Number(value).toLocaleString() }}
                         </span>
                       </template>
@@ -682,25 +585,16 @@ watch(filters, fetchMasterData, { deep: true });
         <v-card-actions>
           <v-spacer></v-spacer>
           <v-btn text @click="dialogConfirm.show = false">Batal</v-btn>
-          <v-btn
-            color="primary"
-            variant="tonal"
-            @click="
-              dialogConfirm.onConfirm();
-              dialogConfirm.show = false;
-            "
-            >Ya, Lanjutkan</v-btn
-          >
+          <v-btn color="primary" variant="tonal" @click="
+            dialogConfirm.onConfirm();
+          dialogConfirm.show = false;
+          ">Ya, Lanjutkan</v-btn>
         </v-card-actions>
       </v-card>
     </v-dialog>
 
-    <MasterProductSearchModal
-      v-if="isMasterProductSearchVisible"
-      :gudang="filters.cabang"
-      @close="isMasterProductSearchVisible = false"
-      @product-selected="onProductSelected"
-    />
+    <MasterProductSearchModal v-if="isMasterProductSearchVisible" :gudang="filters.cabang"
+      @close="isMasterProductSearchVisible = false" @product-selected="onProductSelected" />
   </PageLayout>
 </template>
 

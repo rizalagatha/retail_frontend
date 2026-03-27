@@ -85,7 +85,7 @@ const loadData = async (nomorSj: string) => {
     header.keterangan = data.header.keterangan;
 
     const userCabang = authStore.user?.cabang || "";
-    const isAutoTerima = ["K01", "KPR"].includes(userCabang);
+    const isAutoTerima = ["K01", "KPR", "KBL"].includes(userCabang);
 
     // Isi grid
     items.value = data.items.map(

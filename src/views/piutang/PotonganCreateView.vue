@@ -5,12 +5,11 @@ import { useAuthStore } from '@/stores/authStore';
 import { format, parseISO } from 'date-fns';
 import PageLayout from '@/components/PageLayout.vue';
 import CustomerSearchModal from '@/components/lookup/CustomerSearchModal.vue';
-import AuthorizationModal from '@/components/modal/AuthorizationModal.vue';
+import GudangSearchModal from '@/components/lookup/GudangSearchModal.vue';
 import InvoiceSearchModal from '@/components/lookup/InvoiceSearchModal.vue';
 import { useToast } from 'vue-toastification';
 import type { AxiosError } from 'axios';
 import api from '@/services/api';
-import { formatRupiah } from "@/utils/formatRupiah";
 
 // --- Type Definitions ---
 interface Customer {
@@ -71,19 +70,6 @@ interface SelectedInvoice {
   sisaPiutang: number;
 }
 
-// --- [BARU] Interface Auth Dialog ---
-interface AuthDialogState {
-  show: boolean;
-  title: string;
-  jenis: string;
-  nominal: number;
-  transaksi?: string;
-  barcode?: string;
-  keterangan?: string;
-  onSuccess: (data: { authNomor: string; approver: string }) => void;
-  onCancel: () => void;
-}
-
 const toast = useToast();
 const router = useRouter();
 const route = useRoute();
@@ -93,22 +79,6 @@ const MENU_ID = '53';
 const isEditMode = ref(false);
 const isLoading = ref(true);
 const isSaving = ref(false);
-const xdis = ref(0);
-// --- [BARU] State Auth Dialog ---
-const authDialog = reactive<AuthDialogState>({
-  show: false,
-  title: '',
-  jenis: '',
-  nominal: 0,
-  transaksi: '',
-  barcode: '',
-  keterangan: '',
-  onSuccess: () => { },
-  onCancel: () => { },
-});
-
-// Penanda item yang sedang diotorisasi
-const activeAuthItem = ref<PotonganDetail | null>(null);
 
 const header = reactive<PotonganHeader>({
   nomor: '',
@@ -134,6 +104,7 @@ const items = ref<PotonganDetail[]>([]);
 const dialogs = reactive({
   customerSearch: false,
   invoiceSearch: false,
+  gudangSearch: false,
 });
 
 // Computed properties
@@ -158,43 +129,6 @@ const tableHeaders = [
   { title: 'Lunas?', key: 'lunasi', align: 'center', sortable: false, width: '80px' },
   { title: 'Aksi', key: 'actions', sortable: false, width: '60px' },
 ] as const;
-
-// --- [BARU] Helper Request Authorization ---
-const requestAuthorization = (
-  title: string,
-  jenis: string,
-  nominal: number,
-  extraData: {
-    transaksi?: string,
-    barcode?: string,
-    keteranganLengkap?: string
-  } | null,
-  onSuccess: (data: { authNomor: string; approver: string }) => void,
-  onCancel: () => void
-) => {
-  authDialog.title = title;
-  authDialog.jenis = jenis;
-  authDialog.nominal = nominal;
-
-  if (extraData) {
-    authDialog.transaksi = extraData.transaksi || '';
-    authDialog.barcode = extraData.barcode || '';
-    authDialog.keterangan = extraData.keteranganLengkap || '';
-  } else {
-    authDialog.transaksi = '';
-    authDialog.barcode = '';
-    authDialog.keterangan = '';
-  }
-
-  // Wrapper agar modal tertutup sebelum callback
-  authDialog.onSuccess = (data) => {
-    authDialog.show = false;
-    onSuccess(data);
-  };
-
-  authDialog.onCancel = onCancel;
-  authDialog.show = true;
-};
 
 // Utility functions and event handlers
 const calculateTotals = () => {
@@ -289,6 +223,28 @@ const onCustomerSelected = async (cust: Customer | null) => {
   }
 };
 
+const handleGudangSearch = () => {
+  if (isHeaderDisabled.value) {
+    toast.warning('Tidak dapat mengubah cabang jika sudah ada invoice terpilih.');
+    return;
+  }
+  dialogs.gudangSearch = true;
+};
+
+const onGudangSelected = (gudang: Gudang) => {
+  dialogs.gudangSearch = false;
+  if (gudang && gudang.kode !== header.gudang.kode) {
+    header.gudang = gudang;
+
+    // Reset customer dan items karena pindah cabang
+    header.customer = { kode: '', nama: '', alamat: '', kota: '', telp: '', level: '' };
+    items.value = [];
+    addNewRow();
+    calculateTotals();
+    toast.success(`Cabang diubah ke ${gudang.nama}. Customer direset.`);
+  }
+};
+
 const handleNominalExit = () => {
   calculateTotals();
 };
@@ -340,55 +296,29 @@ const handleBayarChange = (item: PotonganDetail) => {
     return;
   }
 
+  // 1. Hitung total bayar dari baris LAIN (selain baris yang sedang diedit)
+  const terbayarLain = items.value.reduce((sum, i) => {
+    return i.id !== item.id ? sum + (Number(i.bayar) || 0) : sum;
+  }, 0);
+
+  // 2. Hitung jatah potongan yang benar-benar tersisa untuk baris ini
+  const jatahTersisa = header.nominalPotongan - terbayarLain;
+
+  // 3. Validasi & Koreksi Otomatis
   if (item.bayar > item.sisaPiutang) {
     toast.error('Pembayaran melebihi sisa piutang.');
-    item.bayar = item.sisaPiutang;
-  } else if (item.bayar > header.sisaPotongan + (xdis.value || 0) && !isEditMode.value) {
-    toast.error('Pembayaran melebihi sisa nominal potongan.');
-    item.bayar = header.nominalPotongan - header.totalTerbayar;
+    // Ambil nilai terkecil antara sisa piutang atau jatah tersisa
+    item.bayar = Math.min(item.sisaPiutang, jatahTersisa > 0 ? jatahTersisa : 0);
+  } else if (item.bayar > jatahTersisa && !isEditMode.value) {
+    toast.error('Pembayaran melebihi sisa nominal potongan yang tersedia.');
+    item.bayar = jatahTersisa > 0 ? jatahTersisa : 0;
   }
 
+  // 4. Proteksi Anti-Minus Mutlak
+  if (item.bayar < 0) item.bayar = 0;
+
+  // 5. Kalkulasi Total Akhir
   calculateTotals();
-
-  // Logika: Minta otorisasi jika Gudang BUKAN KDC dan ada nominal bayar
-  if (header.gudang.kode !== 'KDC' && item.bayar > 0) {
-    xdis.value = item.bayar;
-
-    // Simpan context
-    activeAuthItem.value = item;
-
-    // Susun Info untuk Manager
-    const infoLengkap = `Cust: ${header.customer.nama}\nInv: ${item.invoice}\nPotongan: ${formatRupiah(item.bayar)}`;
-
-    requestAuthorization(
-      'Otorisasi Potongan Piutang',
-      'POTONGAN_PIUTANG', // Jenis Transaksi Baru
-      item.bayar,
-      {
-        transaksi: header.nomor || 'DRAFT',
-        keteranganLengkap: infoLengkap
-      },
-      (authResult) => {
-        // SUKSES
-        if (activeAuthItem.value) {
-          activeAuthItem.value.pin = authResult.approver; // Simpan PIN/Approver
-        }
-        toast.success('Potongan disetujui.');
-        xdis.value = 0;
-        activeAuthItem.value = null;
-      },
-      () => {
-        // BATAL
-        if (activeAuthItem.value) {
-          activeAuthItem.value.bayar = 0;
-        }
-        calculateTotals();
-        xdis.value = 0;
-        activeAuthItem.value = null;
-        toast.info('Potongan dibatalkan.');
-      }
-    );
-  }
 };
 
 const handleLunasiChange = (item: PotonganDetail) => {
@@ -398,9 +328,14 @@ const handleLunasiChange = (item: PotonganDetail) => {
   }
 
   if (item.lunasi) {
-    const currentSisaPotongan = header.sisaPotongan + (item.bayar || 0);
-    if (item.sisaPiutang > currentSisaPotongan) {
-      item.bayar = currentSisaPotongan;
+    // Hitung jatah yang tersedia tanpa menghitung baris ini
+    const terbayarLain = items.value.reduce((sum, i) => {
+      return i.id !== item.id ? sum + (Number(i.bayar) || 0) : sum;
+    }, 0);
+    const jatahTersisa = header.nominalPotongan - terbayarLain;
+
+    if (item.sisaPiutang > jatahTersisa) {
+      item.bayar = jatahTersisa > 0 ? jatahTersisa : 0;
     } else {
       item.bayar = item.sisaPiutang;
     }
@@ -408,11 +343,11 @@ const handleLunasiChange = (item: PotonganDetail) => {
     item.bayar = 0;
   }
 
-  if (item.bayar > 0) {
-    handleBayarChange(item);
-  } else {
-    calculateTotals();
-  }
+  // Proteksi Anti-Minus
+  if (item.bayar < 0) item.bayar = 0;
+
+  // Kalkulasi Total Akhir
+  calculateTotals();
 };
 
 const handleDeleteItem = (itemToDelete: PotonganDetail) => {
@@ -459,7 +394,10 @@ const executeSave = async () => {
       : await api.post('/potongan-form', payload);
 
     toast.success(response.data.message);
-    resetForm(); // Panggil reset internal
+
+    // --- [PERBAIKAN] Arahkan kembali ke halaman browse ---
+    router.push('/piutang/potongan');
+
   } catch (err) {
     const error = err as AxiosError<{ message: string }>;
     const errorMessage = error.response?.data?.message || 'Gagal Simpan. Lakukan Rollback.';
@@ -554,8 +492,10 @@ onMounted(async () => {
         <div class="desktop-form-section header-section">
           <v-row dense class="hide-details">
             <v-col cols="6">
-              <v-text-field label="Kode Cabang" v-model="header.gudang.kode" density="compact" readonly
-                variant="filled" />
+              <v-text-field label="Kode Cabang" v-model="header.gudang.kode" density="compact"
+                :readonly="isHeaderDisabled || !canSave" @click="!isHeaderDisabled && handleGudangSearch()"
+                @keydown.f1.prevent="!isHeaderDisabled && handleGudangSearch()" prepend-inner-icon="mdi-magnify"
+                placeholder="F1 atau Klik..." variant="outlined" />
             </v-col>
             <v-col cols="6">
               <v-text-field label="Tanggal" v-model="header.tanggal" type="date" density="compact"
@@ -688,12 +628,10 @@ onMounted(async () => {
       </div>
     </div>
 
+    <GudangSearchModal v-if="dialogs.gudangSearch" :user-cabang="authStore.user?.cabang || ''"
+      @close="dialogs.gudangSearch = false" @gudang-selected="onGudangSelected" />
     <CustomerSearchModal v-if="dialogs.customerSearch" :gudang="header.gudang.kode"
       @close="dialogs.customerSearch = false" @customer-selected="onCustomerSelected" />
-    <AuthorizationModal v-if="authDialog.show" :title="authDialog.title" :jenis="authDialog.jenis"
-      :nominal="authDialog.nominal" :transaksi="authDialog.transaksi" :barcode="authDialog.barcode"
-      :keterangan="authDialog.keterangan" @success="authDialog.onSuccess"
-      @close="() => { authDialog.show = false; authDialog.onCancel(); }" />
     <InvoiceSearchModal v-if="dialogs.invoiceSearch" source="potongan-piutang" :customer-kode="header.customer.kode"
       :gudang-kode="header.gudang.kode" @close="dialogs.invoiceSearch = false" @invoice-selected="onInvoiceSelected" />
 
@@ -791,13 +729,16 @@ onMounted(async () => {
 
 /* ------------------------ */
 .desktop-table :deep(thead tr th) {
-  background-color: #0D47A1 !important; /* Biru Tua */
-  color: #ffffff !important;            /* Teks Putih */
+  background-color: #0D47A1 !important;
+  /* Biru Tua */
+  color: #ffffff !important;
+  /* Teks Putih */
   font-weight: bold !important;
   text-transform: uppercase;
   font-size: 11px !important;
   height: 40px !important;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-  border-bottom: none !important; /* Supaya lebih rapi */
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  border-bottom: none !important;
+  /* Supaya lebih rapi */
 }
 </style>

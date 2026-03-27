@@ -1,15 +1,15 @@
 <script setup lang="ts">
-import { ref, reactive, onMounted, computed, watch } from 'vue';
-import { useRouter } from 'vue-router';
-import { useToast } from 'vue-toastification';
-import { useAuthStore } from '@/stores/authStore';
-import api from '@/services/api';
-import { format, subDays, parseISO } from 'date-fns';
-import PageLayout from '@/components/PageLayout.vue';
-import * as XLSX from 'xlsx';
-import type { AxiosError } from 'axios';
-import axios from 'axios';
-import AppDataTable from '@/components/AppDataTable.vue';
+import { ref, reactive, onMounted, computed, watch } from "vue";
+import { useRouter, onBeforeRouteLeave } from "vue-router";
+import { useToast } from "vue-toastification";
+import { useAuthStore } from "@/stores/authStore";
+import api from "@/services/api";
+import { format, subDays, parseISO } from "date-fns";
+import PageLayout from "@/components/PageLayout.vue";
+import * as XLSX from "xlsx";
+import type { AxiosError } from "axios";
+import axios from "axios";
+import AppDataTable from "@/components/AppDataTable.vue";
 import { formatRupiah } from "@/utils/formatRupiah";
 
 // Interface Header (Resize)
@@ -18,7 +18,7 @@ interface DataTableHeader {
   key: string;
   width?: number;
   fixed?: boolean;
-  align?: 'start' | 'center' | 'end';
+  align?: "start" | "center" | "end";
   minWidth?: string | number;
   maxWidth?: string | number;
   sortable?: boolean;
@@ -44,16 +44,16 @@ interface SetoranDetail {
 }
 
 interface SetoranExportRow {
-  'Tanggal Setoran'?: string | Date;
-  'Tgl Bayar'?: string | Date;
-  'Tgl Invoice'?: string | Date;
+  "Tanggal Setoran"?: string | Date;
+  "Tgl Bayar"?: string | Date;
+  "Tgl Invoice"?: string | Date;
   [key: string]: unknown;
 }
 
 const router = useRouter();
 const toast = useToast();
 const authStore = useAuthStore();
-const MENU_ID = '51';
+const MENU_ID = "51";
 
 // --- State ---
 const masterData = ref<SetoranHeader[]>([]);
@@ -64,68 +64,71 @@ const selected = ref<SetoranHeader[]>([]);
 const expanded = ref<string[]>([]);
 const cabangList = ref([]);
 const deleteLoading = ref(false);
-const search = ref('');
+const search = ref("");
 let searchTimeout: ReturnType<typeof setTimeout>;
 
+const SESSION_STATE_KEY = "setoran_bayar_browse_state";
+
 const filters = reactive({
-  startDate: format(subDays(new Date(), 7), 'yyyy-MM-dd'),
-  endDate: format(new Date(), 'yyyy-MM-dd'),
-  cabang: authStore.user?.cabang || '',
-  search: '',
+  startDate: format(subDays(new Date(), 7), "yyyy-MM-dd"),
+  endDate: format(new Date(), "yyyy-MM-dd"),
+  cabang: authStore.user?.cabang || "",
+  search: "",
 });
 
 const isConfirmDialogVisible = ref(false);
-const confirmDialogText = ref('');
+const confirmDialogText = ref("");
+const isMounted = ref(false);
 
 // --- Computed ---
 const isSingleSelected = computed(() => selected.value.length === 1);
-const selectedRow = computed(() => isSingleSelected.value ? selected.value[0] : null);
+const selectedRow = computed(() => (isSingleSelected.value ? selected.value[0] : null));
 const canBeEdited = computed(() => {
   if (selected.value.length !== 1) return false;
   const item = selected.value[0];
-  return item.Otomatis !== 'YA';
+  return item.Otomatis !== "YA";
 });
 
 // --- Header Definisi (Ref & Width Angka) ---
 const headers = ref<DataTableHeader[]>([
-  { title: '', key: 'data-table-expand', width: 50, fixed: true },
-  { title: 'Nomor', key: 'Nomor', width: 180, fixed: true },
-  { title: 'Tanggal', key: 'Tanggal', width: 120 },
-  { title: 'Jenis Bayar', key: 'JenisBayar', width: 120 },
-  { title: 'Nominal', key: 'Nominal', align: 'end', width: 150 },
-  { title: 'Dibayarkan', key: 'diBayarkan', align: 'end', width: 150 },
-  { title: 'Sisa', key: 'Sisa', align: 'end', width: 150 },
-  { title: 'Posting', key: 'Posting', align: 'center', width: 100 },
-  { title: 'No SO', key: 'NoSO', width: 180 },
-  { title: 'Kd Cus', key: 'KdCus', width: 120 },
-  { title: 'Customer', key: 'Customer', width: 250 },
-  { title: 'Alamat', key: 'Alamat', width: 350 },
-  { title: 'Kota', key: 'Kota', width: 150 },
-  { title: 'Telepon', key: 'Telepon', width: 150 },
-  { title: 'Akun', key: 'Akun', width: 120 },
-  { title: 'No Rekening', key: 'NoRekening', width: 150 },
-  { title: 'Nama Bank', key: 'NamaBank', width: 250 },
-  { title: 'Tgl Transfer', key: 'TglTransfer', width: 120 },
-  { title: 'No Giro', key: 'NoGiro', width: 150 },
-  { title: 'Tgl Giro', key: 'TglGiro', width: 120 },
-  { title: 'Jatuh Tempo', key: 'TglJatuhTempo', width: 120 },
-  { title: 'Keterangan', key: 'Keterangan', width: 300 },
-  { title: 'Otomatis', key: 'Otomatis', align: 'center', width: 100 },
-  { title: 'Closing', key: 'Closing', align: 'center', width: 100 },
-  { title: 'User Create', key: 'UserCreate', width: 150 },
-  { title: 'Date Create', key: 'DateCreate', width: 150 },
-  { title: 'User Modified', key: 'UserModified', width: 150 },
-  { title: 'Date Modified', key: 'DateModified', width: 150 },
+  { title: "", key: "data-table-expand", width: 50, fixed: true },
+  { title: "Nomor", key: "Nomor", width: 180, fixed: true },
+  { title: "Tanggal", key: "Tanggal", width: 120 },
+  { title: "Jenis Bayar", key: "JenisBayar", width: 120 },
+  { title: "Nominal", key: "Nominal", align: "end", width: 150 },
+  { title: "Dibayarkan", key: "diBayarkan", align: "end", width: 150 },
+  { title: "Sisa", key: "Sisa", align: "end", width: 150 },
+  { title: "Posting", key: "Posting", align: "center", width: 100 },
+  { title: "No SO", key: "NoSO", width: 180 },
+  { title: "Kd Cus", key: "KdCus", width: 120 },
+  { title: "Customer", key: "Customer", width: 250 },
+  { title: "Alamat", key: "Alamat", width: 350 },
+  { title: "Kota", key: "Kota", width: 150 },
+  { title: "Telepon", key: "Telepon", width: 150 },
+  { title: "Akun", key: "Akun", width: 120 },
+  { title: "No Rekening", key: "NoRekening", width: 150 },
+  { title: "Nama Bank", key: "NamaBank", width: 250 },
+  { title: "Tgl Transfer", key: "TglTransfer", width: 120 },
+  { title: "No Giro", key: "NoGiro", width: 150 },
+  { title: "Tgl Giro", key: "TglGiro", width: 120 },
+  { title: "Jatuh Tempo", key: "TglJatuhTempo", width: 120 },
+  { title: "Keterangan", key: "Keterangan", width: 300 },
+  { title: "Otomatis", key: "Otomatis", align: "center", width: 100 },
+  { title: "Closing", key: "Closing", align: "center", width: 100 },
+  { title: "User Create", key: "UserCreate", width: 150 },
+  { title: "Date Create", key: "DateCreate", width: 150 },
+  { title: "User Modified", key: "UserModified", width: 150 },
+  { title: "Date Modified", key: "DateModified", width: 150 },
 ]);
 
 const detailHeaders = [
-  { title: 'Tgl Bayar', key: 'TglBayar', width: '120px' },
-  { title: 'Invoice', key: 'Invoice', width: '180px' },
-  { title: 'Tgl Invoice', key: 'TglInvoice', width: '120px' },
-  { title: 'Jatuh Tempo', key: 'JatuhTempo', width: '120px' },
-  { title: 'Nominal', key: 'Nominal', align: 'end', width: 150 },
-  { title: 'Bayar', key: 'Bayar', align: 'end', width: 150 },
-  { title: 'Keterangan', key: 'Keterangan', width: 200 },
+  { title: "Tgl Bayar", key: "TglBayar", width: "120px" },
+  { title: "Invoice", key: "Invoice", width: "180px" },
+  { title: "Tgl Invoice", key: "TglInvoice", width: "120px" },
+  { title: "Jatuh Tempo", key: "JatuhTempo", width: "120px" },
+  { title: "Nominal", key: "Nominal", align: "end", width: 150 },
+  { title: "Bayar", key: "Bayar", align: "end", width: 150 },
+  { title: "Keterangan", key: "Keterangan", width: 200 },
 ] as const;
 
 // --- Logic Resize Column ---
@@ -138,10 +141,10 @@ const onResizeStart = (e: MouseEvent, column: DataTableHeader) => {
   e.stopPropagation();
   resizingColumn.value = column;
   startX.value = e.pageX;
-  startWidth.value = (typeof column.width === 'number' ? column.width : 100);
-  document.addEventListener('mousemove', onResizeMove);
-  document.addEventListener('mouseup', onResizeEnd);
-  document.body.style.cursor = 'col-resize';
+  startWidth.value = typeof column.width === "number" ? column.width : 100;
+  document.addEventListener("mousemove", onResizeMove);
+  document.addEventListener("mouseup", onResizeEnd);
+  document.body.style.cursor = "col-resize";
 };
 
 const onResizeMove = (e: MouseEvent) => {
@@ -152,9 +155,9 @@ const onResizeMove = (e: MouseEvent) => {
 
 const onResizeEnd = () => {
   resizingColumn.value = null;
-  document.removeEventListener('mousemove', onResizeMove);
-  document.removeEventListener('mouseup', onResizeEnd);
-  document.body.style.cursor = '';
+  document.removeEventListener("mousemove", onResizeMove);
+  document.removeEventListener("mouseup", onResizeEnd);
+  document.body.style.cursor = "";
 };
 
 // --- Logic Selected Row ---
@@ -163,30 +166,45 @@ const handleRowClick = (_event: Event, { item }: { item: SetoranHeader }) => {
 };
 
 // --- Methods ---
+// --- Fungsi Menyimpan State ke Session Storage ---
+const saveStateToSession = () => {
+  const stateToSave = {
+    startDate: filters.startDate,
+    endDate: filters.endDate,
+    cabang: filters.cabang,
+    search: search.value, // Simpan teks dari field search lokal
+  };
+  sessionStorage.setItem(SESSION_STATE_KEY, JSON.stringify(stateToSave));
+};
+
 const fetchCabangList = async () => {
   try {
-    const response = await api.get('/setoran-bayar/lookup/cabang');
+    const response = await api.get("/setoran-bayar/lookup/cabang");
     cabangList.value = response.data;
-  } catch (error) { toast.error('Gagal memuat daftar cabang.', error); }
+  } catch (error) {
+    toast.error("Gagal memuat daftar cabang.", error);
+  }
 };
 
 const fetchMasterData = async () => {
   loading.value = true;
   try {
-    const response = await api.get('/setoran-bayar', { params: filters });
+    const response = await api.get("/setoran-bayar", { params: filters });
     masterData.value = response.data;
     selected.value = [];
     expanded.value = [];
   } catch (error) {
     const axiosError = error as AxiosError<{ message: string }>;
-    toast.error(axiosError.response?.data?.message || 'Gagal mengambil data.');
+    toast.error(axiosError.response?.data?.message || "Gagal mengambil data.");
   } finally {
     loading.value = false;
   }
 };
 
 const loadDetails = async (newlyExpandedItems: SetoranHeader[]) => {
-  const itemToLoad = newlyExpandedItems.find(item => !details.value[item.Nomor] && !loadingDetails.value.has(item.Nomor));
+  const itemToLoad = newlyExpandedItems.find(
+    (item) => !details.value[item.Nomor] && !loadingDetails.value.has(item.Nomor)
+  );
   if (!itemToLoad) return;
 
   const nomorToLoad = itemToLoad.Nomor;
@@ -196,11 +214,13 @@ const loadDetails = async (newlyExpandedItems: SetoranHeader[]) => {
     details.value[nomorToLoad] = response.data;
   } catch (err: unknown) {
     if (axios.isAxiosError(err)) {
-      toast.error(`Gagal memuat detail untuk ${nomorToLoad}: ${err.response?.data?.message || err.message}`);
+      toast.error(
+        `Gagal memuat detail untuk ${nomorToLoad}: ${err.response?.data?.message || err.message}`
+      );
     } else {
       toast.error(`Gagal memuat detail untuk ${nomorToLoad}`);
     }
-    expanded.value = expanded.value.filter(k => k !== nomorToLoad);
+    expanded.value = expanded.value.filter((k) => k !== nomorToLoad);
   } finally {
     loadingDetails.value.delete(nomorToLoad);
   }
@@ -236,40 +256,39 @@ const closeConfirmDialog = () => {
 
 // Helper Format Tanggal Indonesia
 const formatDateIndo = (dateString: string | Date | null | undefined) => {
-  if (!dateString) return '';
+  if (!dateString) return "";
   const date = new Date(dateString);
-  if (isNaN(date.getTime())) return '';
-  return new Intl.DateTimeFormat('id-ID', {
-    day: 'numeric',
-    month: 'long',
-    year: 'numeric'
+  if (isNaN(date.getTime())) return "";
+  return new Intl.DateTimeFormat("id-ID", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
   }).format(date);
 };
 
 // --- 2. Fungsi Export Data ---
-const exportData = async (type: 'header' | 'detail') => {
-
+const exportData = async (type: "header" | "detail") => {
   // === EXPORT HEADER ===
-  if (type === 'header') {
+  if (type === "header") {
     // Casting masterData.value ke Interface SetoranHeader
     const currentList = masterData.value as SetoranHeader[];
 
     if (currentList.length === 0) {
-      toast.warning('Tidak ada data header untuk diekspor.');
+      toast.warning("Tidak ada data header untuk diekspor.");
       return;
     }
 
     try {
-      toast.info('Membuat file Excel Header...');
+      toast.info("Membuat file Excel Header...");
 
       // Mapping Header dengan Format Tanggal
       // (Asumsi di masterData ada field 'tanggal')
       const formattedHeader = masterData.value.map((item: SetoranHeader) => ({
-        'Nomor': item.Nomor,
+        Nomor: item.Nomor,
         // Format Tanggal di sini
-        'Tanggal': item.Tanggal ? formatDateIndo(item.Tanggal) : '',
-        'Otomatis': item.Otomatis,
-        'Sisa': item.Sisa,
+        Tanggal: item.Tanggal ? formatDateIndo(item.Tanggal) : "",
+        Otomatis: item.Otomatis,
+        Sisa: item.Sisa,
         // Tambahkan field lain jika ada, misal User atau Keterangan
         // 'Keterangan': item.Keterangan || ''
       }));
@@ -278,59 +297,55 @@ const exportData = async (type: 'header' | 'detail') => {
 
       // Opsional: Auto width kolom agar rapi
       const wscols = Object.keys(formattedHeader[0]).map(() => ({ wch: 20 }));
-      worksheet['!cols'] = wscols;
+      worksheet["!cols"] = wscols;
 
       const workbook = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(workbook, worksheet, "Setoran Header");
       XLSX.writeFile(workbook, "Export_Setoran_Header.xlsx");
 
-      toast.success('File Header berhasil dibuat.');
+      toast.success("File Header berhasil dibuat.");
     } catch (error) {
-      toast.error('Gagal membuat file Excel.', error);
+      toast.error("Gagal membuat file Excel.", error);
     }
 
     // === EXPORT DETAIL ===
-  } else if (type === 'detail') {
+  } else if (type === "detail") {
     try {
-      toast.info('Mengambil data detail dari server...');
+      toast.info("Mengambil data detail dari server...");
 
       // Request API dengan Generic Type
-      const response = await api.get<SetoranExportRow[]>('/setoran-bayar/export-details', {
-        params: filters
+      const response = await api.get<SetoranExportRow[]>("/setoran-bayar/export-details", {
+        params: filters,
       });
 
       const details = response.data;
 
       if (details.length === 0) {
-        toast.warning('Tidak ada data detail untuk diekspor pada filter ini.');
+        toast.warning("Tidak ada data detail untuk diekspor pada filter ini.");
         return;
       }
 
-      toast.info('Membuat file Excel Detail...');
+      toast.info("Membuat file Excel Detail...");
 
       // Mapping Detail dengan Format Tanggal
       const formattedDetail = details.map((row) => ({
         ...row,
-        'Tanggal Setoran': row['Tanggal Setoran'] ? formatDateIndo(row['Tanggal Setoran']) : '',
-        'Tgl Bayar': row['Tgl Bayar'] ? formatDateIndo(row['Tgl Bayar']) : '',
-        'Tgl Invoice': row['Tgl Invoice'] ? formatDateIndo(row['Tgl Invoice']) : '',
+        "Tanggal Setoran": row["Tanggal Setoran"] ? formatDateIndo(row["Tanggal Setoran"]) : "",
+        "Tgl Bayar": row["Tgl Bayar"] ? formatDateIndo(row["Tgl Bayar"]) : "",
+        "Tgl Invoice": row["Tgl Invoice"] ? formatDateIndo(row["Tgl Invoice"]) : "",
       }));
 
       // Setup Layout Excel
       const title = "LAPORAN DETAIL SETORAN PEMBAYARAN";
-      const dateRange = `Periode : ${formatDateIndo(filters.startDate)} s/d ${formatDateIndo(filters.endDate)}`;
+      const dateRange = `Periode : ${formatDateIndo(filters.startDate)} s/d ${formatDateIndo(
+        filters.endDate
+      )}`;
       const tableHeaders = Object.keys(formattedDetail[0]);
 
       // Konversi ke Array Values (Type Safe)
       const tableData = formattedDetail.map((row) => Object.values(row as Record<string, unknown>));
 
-      const excelData = [
-        [title],
-        [dateRange],
-        [],
-        tableHeaders,
-        ...tableData
-      ];
+      const excelData = [[title], [dateRange], [], tableHeaders, ...tableData];
 
       const worksheet = XLSX.utils.aoa_to_sheet(excelData);
 
@@ -339,19 +354,18 @@ const exportData = async (type: 'header' | 'detail') => {
         { s: { r: 0, c: 0 }, e: { r: 0, c: tableHeaders.length - 1 } },
         { s: { r: 1, c: 0 }, e: { r: 1, c: tableHeaders.length - 1 } },
       ];
-      worksheet['!merges'] = merge;
+      worksheet["!merges"] = merge;
 
       // Auto Width
-      const colWidths = tableHeaders.map(header => ({ wch: header.length + 5 }));
-      worksheet['!cols'] = colWidths;
+      const colWidths = tableHeaders.map((header) => ({ wch: header.length + 5 }));
+      worksheet["!cols"] = colWidths;
 
       const workbook = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(workbook, worksheet, "Setoran Detail");
       XLSX.writeFile(workbook, "Export_Setoran_Detail.xlsx");
-      toast.success('File Detail berhasil dibuat.');
-
+      toast.success("File Detail berhasil dibuat.");
     } catch (error) {
-      let message = 'Gagal mengekspor data detail.';
+      let message = "Gagal mengekspor data detail.";
       if (error instanceof Error) message = error.message;
       toast.error(message);
     }
@@ -359,9 +373,9 @@ const exportData = async (type: 'header' | 'detail') => {
 };
 
 const getRowTextColor = (item: SetoranHeader) => {
-  if (item.Sisa !== 0) return 'text-red font-weight-bold';
-  if (item.Otomatis === 'YA') return 'text-blue font-weight-bold';
-  return '';
+  if (item.Sisa !== 0) return "text-red font-weight-bold";
+  if (item.Otomatis === "YA") return "text-blue font-weight-bold";
+  return "";
 };
 
 const printData = () => {
@@ -374,16 +388,47 @@ const printData = () => {
   window.open(url, "_blank");
 };
 
-onMounted(() => {
-  fetchCabangList();
-  fetchMasterData();
+onMounted(async () => {
+  // 1. Coba baca state pencarian dari Session Storage terlebih dahulu
+  const savedState = sessionStorage.getItem(SESSION_STATE_KEY);
+
+  if (savedState) {
+    try {
+      const parsedState = JSON.parse(savedState);
+
+      // Kembalikan nilai filter dari session
+      if (parsedState.startDate) filters.startDate = parsedState.startDate;
+      if (parsedState.endDate) filters.endDate = parsedState.endDate;
+      if (parsedState.cabang) filters.cabang = parsedState.cabang;
+
+      // Kembalikan teks pencarian
+      if (parsedState.search) {
+        search.value = parsedState.search;
+        filters.search = parsedState.search; // Sinkronisasi ke backend request
+      }
+    } catch (e) {
+      console.error("Gagal membaca state filter dari sessionStorage", e);
+    }
+  }
+
+  // 2. Ambil daftar cabang
+  await fetchCabangList();
+
+  // 3. Ambil data
+  await fetchMasterData();
+
+  isMounted.value = true;
 });
 
 // Debounce Search
 watch(search, (newVal) => {
+  if (!isMounted.value) return;
+
+  saveStateToSession(); // Simpan saat ketikan berubah
+
   clearTimeout(searchTimeout);
   searchTimeout = setTimeout(() => {
-    filters.search = newVal; // Gunakan newVal agar parameter 'val' terpakai
+    filters.search = newVal; // Update filter payload backend
     fetchMasterData();
   }, 500); // Jeda 500ms
 });
@@ -392,26 +437,59 @@ watch(search, (newVal) => {
 watch(
   () => [filters.startDate, filters.endDate, filters.cabang],
   () => {
+    if (!isMounted.value) return;
+
+    saveStateToSession(); // Simpan saat filter drop/date berubah
     fetchMasterData();
   }
 );
+
+// Deteksi saat user meninggalkan halaman ini
+onBeforeRouteLeave((to, from, next) => {
+  // Sesuaikan string di bawah dengan URL modul form tambah/ubah Anda
+  const isRelatedPage = to.path.includes("/setoran-pembayaran");
+
+  if (!isRelatedPage) {
+    // Jika pergi ke menu lain (misal: /dashboard), bersihkan memori!
+    sessionStorage.removeItem(SESSION_STATE_KEY);
+  }
+
+  next(); // Lanjutkan perpindahan halaman
+});
 </script>
 
 <template>
   <PageLayout title="Browse Setoran Pembayaran" icon="mdi-cash-multiple">
     <template #header-actions>
-      <v-btn v-if="authStore.can(MENU_ID, 'insert')" size="small" prepend-icon="mdi-plus" color="primary"
-        @click="router.push({ name: 'SetoranBayarCreate' })">Baru</v-btn>
-      <v-btn v-if="authStore.can(MENU_ID, 'edit')" size="small" :disabled="!canBeEdited" prepend-icon="mdi-pencil"
-        @click="router.push({ name: 'SetoranBayarEdit', params: { nomor: selected[0].Nomor } })">
+      <v-btn
+        v-if="authStore.can(MENU_ID, 'insert')"
+        size="small"
+        prepend-icon="mdi-plus"
+        color="primary"
+        @click="router.push({ name: 'SetoranBayarCreate' })"
+        >Baru</v-btn
+      >
+      <v-btn
+        v-if="authStore.can(MENU_ID, 'edit')"
+        size="small"
+        :disabled="!canBeEdited"
+        prepend-icon="mdi-pencil"
+        @click="router.push({ name: 'SetoranBayarEdit', params: { nomor: selected[0].Nomor } })"
+      >
         Ubah
       </v-btn>
       <!-- <v-btn size="small" color="error" prepend-icon="mdi-delete" :loading="deleteLoading" :disabled="!isSingleSelected"
         @click="showDeleteConfirmation">
         Hapus
       </v-btn> -->
-      <v-btn v-if="authStore.can(MENU_ID, 'view')" size="small" color="green" :disabled="!isSingleSelected"
-        @click="printData" prepend-icon="mdi-printer">
+      <v-btn
+        v-if="authStore.can(MENU_ID, 'view')"
+        size="small"
+        color="green"
+        :disabled="!isSingleSelected"
+        @click="printData"
+        prepend-icon="mdi-printer"
+      >
         Cetak
       </v-btn>
       <v-menu offset-y>
@@ -434,15 +512,45 @@ watch(
     <div class="browse-content">
       <div class="filter-section">
         <v-label class="filter-label">Periode:</v-label>
-        <v-text-field v-model="filters.startDate" type="date" density="compact" hide-details variant="outlined"
-          style="max-width: 140px;" />
+        <v-text-field
+          v-model="filters.startDate"
+          type="date"
+          density="compact"
+          hide-details
+          variant="outlined"
+          style="max-width: 140px"
+        />
         <v-label class="mx-2">s/d</v-label>
-        <v-text-field v-model="filters.endDate" type="date" density="compact" hide-details variant="outlined"
-          style="max-width: 140px;" />
-        <v-select label="Cabang" v-model="filters.cabang" :items="cabangList" item-title="nama" item-value="kode"
-          density="compact" hide-details variant="outlined" class="ms-4" style="max-width: 200px;" />
-        <v-text-field v-model="search" label="Cari nomor, customer..." density="compact" hide-details variant="outlined"
-          clearable style="min-width: 250px;" prepend-inner-icon="mdi-magnify" />
+        <v-text-field
+          v-model="filters.endDate"
+          type="date"
+          density="compact"
+          hide-details
+          variant="outlined"
+          style="max-width: 140px"
+        />
+        <v-select
+          label="Cabang"
+          v-model="filters.cabang"
+          :items="cabangList"
+          item-title="nama"
+          item-value="kode"
+          density="compact"
+          hide-details
+          variant="outlined"
+          class="ms-4"
+          style="max-width: 200px"
+        />
+        <v-text-field
+          v-model="search"
+          label="Cari nomor, customer..."
+          density="compact"
+          hide-details
+          variant="outlined"
+          clearable
+          style="min-width: 250px"
+          prepend-inner-icon="mdi-magnify"
+        />
         <v-spacer />
         <div class="d-flex align-center ga-2 text-caption">
           <v-icon color="blue" icon="mdi-square-rounded" size="small"></v-icon> Otomatis
@@ -452,55 +560,111 @@ watch(
       </div>
 
       <div class="table-container">
-        <AppDataTable v-model="selected" v-model:expanded="expanded" :headers="headers" :items="masterData"
-          :loading="loading" item-value="Nomor" density="compact" class="desktop-table header-browse-blue" fixed-header
-          show-select return-object show-expand @update:expanded="loadDetails" @click:row="handleRowClick">
+        <AppDataTable
+          v-model="selected"
+          v-model:expanded="expanded"
+          :headers="headers"
+          :items="masterData"
+          :loading="loading"
+          item-value="Nomor"
+          density="compact"
+          class="desktop-table header-browse-blue"
+          fixed-header
+          show-select
+          return-object
+          show-expand
+          @update:expanded="loadDetails"
+          @click:row="handleRowClick"
+        >
           <template #headers="{ columns, isSorted, getSortIcon, toggleSort }">
             <tr>
               <template v-for="header in columns" :key="header.key">
                 <th
-                  :style="{ width: header.width + 'px', minWidth: header.width + 'px', maxWidth: header.width + 'px' }"
+                  :style="{
+                    width: header.width + 'px',
+                    minWidth: header.width + 'px',
+                    maxWidth: header.width + 'px',
+                  }"
                   class="resizable-header"
-                  :class="{ 'text-center': header.align === 'center', 'text-end': header.align === 'end' }"
-                  @click="toggleSort(header)">
+                  :class="{
+                    'text-center': header.align === 'center',
+                    'text-end': header.align === 'end',
+                  }"
+                  @click="toggleSort(header)"
+                >
                   <div class="header-content">
                     <span>{{ header.title }}</span>
                     <v-icon v-if="isSorted(header)" size="small" class="ms-1">
                       {{ getSortIcon(header) }}
                     </v-icon>
                   </div>
-                  <div class="resizer" @mousedown.stop="onResizeStart($event, header)" @click.stop></div>
+                  <div
+                    class="resizer"
+                    @mousedown.stop="onResizeStart($event, header)"
+                    @click.stop
+                  ></div>
                 </th>
               </template>
             </tr>
           </template>
 
           <template #[`item.data-table-expand`]="{ internalItem, toggleExpand, isExpanded }">
-            <v-btn icon="mdi-chevron-down" :class="{ 'rotate-180': isExpanded(internalItem) }" size="x-small"
-              variant="text" @click.stop="toggleExpand(internalItem)" />
+            <v-btn
+              icon="mdi-chevron-down"
+              :class="{ 'rotate-180': isExpanded(internalItem) }"
+              size="x-small"
+              variant="text"
+              @click.stop="toggleExpand(internalItem)"
+            />
           </template>
 
-          <template v-for="header in headers.filter(h => h.key !== 'data-table-expand')"
-            #[`item.${header.key}`]="{ item }" :key="header.key">
+          <template
+            v-for="header in headers.filter((h) => h.key !== 'data-table-expand')"
+            #[`item.${header.key}`]="{ item }"
+            :key="header.key"
+          >
             <td :class="getRowTextColor(item)">
               <template v-if="['DateCreate', 'DateModified'].includes(header.key)">
-                {{ item[header.key] ? format(parseISO(item[header.key] as string), 'dd/MM/yyyy HH:mm:ss') : '-' }}
+                {{
+                  item[header.key]
+                    ? format(parseISO(item[header.key] as string), "dd/MM/yyyy HH:mm:ss")
+                    : "-"
+                }}
               </template>
               <template
-                v-else-if="['Tanggal', 'TglTerima', 'TglTransfer', 'TglGiro', 'TglJatuhTempo'].includes(header.key)">
-                {{ item[header.key] ? format(parseISO(item[header.key] as string), 'dd/MM/yyyy') : '-' }}
+                v-else-if="
+                  ['Tanggal', 'TglTerima', 'TglTransfer', 'TglGiro', 'TglJatuhTempo'].includes(
+                    header.key
+                  )
+                "
+              >
+                {{
+                  item[header.key]
+                    ? format(parseISO(item[header.key] as string), "dd/MM/yyyy")
+                    : "-"
+                }}
               </template>
               <template v-else-if="['Nominal', 'diBayarkan', 'Sisa'].includes(header.key)">
                 {{ formatRupiah(item[header.key] as number) }}
               </template>
               <template v-else-if="header.key === 'Posting'">
-                <v-chip size="x-small" :color="item.Posting === 'SUDAH' ? 'green' : 'grey'">{{ item.Posting }}</v-chip>
+                <v-chip size="x-small" :color="item.Posting === 'SUDAH' ? 'green' : 'grey'">{{
+                  item.Posting
+                }}</v-chip>
               </template>
               <template v-else-if="header.key === 'Otomatis'">
-                <v-chip v-if="item.Otomatis === 'YA'" size="x-small" color="blue-darken-2" variant="tonal">YA</v-chip>
+                <v-chip
+                  v-if="item.Otomatis === 'YA'"
+                  size="x-small"
+                  color="blue-darken-2"
+                  variant="tonal"
+                  >YA</v-chip
+                >
               </template>
               <template v-else-if="header.key === 'Closing'">
-                <v-chip v-if="item.Closing === 'Y'" size="x-small" color="success" variant="tonal">YA</v-chip>
+                <v-chip v-if="item.Closing === 'Y'" size="x-small" color="success" variant="tonal"
+                  >YA</v-chip
+                >
               </template>
               <template v-else>
                 {{ item[header.key] }}
@@ -513,15 +677,26 @@ watch(
               <td :colspan="columns.length" class="pa-0">
                 <div class="detail-container">
                   <div class="detail-table-wrapper">
-                    <div v-if="loadingDetails.has(item.Nomor)" class="text-center pa-4 text-caption">Memuat detail...
+                    <div
+                      v-if="loadingDetails.has(item.Nomor)"
+                      class="text-center pa-4 text-caption"
+                    >
+                      Memuat detail...
                     </div>
-                    <v-data-table v-else :headers="detailHeaders" :items="details[item.Nomor]" density="compact"
-                      class="detail-table" :items-per-page="-1" hide-default-footer>
+                    <v-data-table
+                      v-else
+                      :headers="detailHeaders"
+                      :items="details[item.Nomor]"
+                      density="compact"
+                      class="detail-table"
+                      :items-per-page="-1"
+                      hide-default-footer
+                    >
                       <template #[`item.TglBayar`]="{ value }">
-                        {{ value ? format(parseISO(value as string), 'dd/MM/yyyy') : '' }}
+                        {{ value ? format(parseISO(value as string), "dd/MM/yyyy") : "" }}
                       </template>
                       <template #[`item.TglInvoice`]="{ value }">
-                        {{ value ? format(parseISO(value as string), 'dd/MM/yyyy') : '' }}
+                        {{ value ? format(parseISO(value as string), "dd/MM/yyyy") : "" }}
                       </template>
                       <template #[`item.Nominal`]="{ value }">
                         {{ formatRupiah(value as number) }}
@@ -547,7 +722,9 @@ watch(
         <v-card-actions>
           <v-spacer></v-spacer>
           <v-btn text @click="closeConfirmDialog">Batal</v-btn>
-          <v-btn color="error" variant="tonal" @click="executeDelete" :loading="deleteLoading">Ya, Hapus</v-btn>
+          <v-btn color="error" variant="tonal" @click="executeDelete" :loading="deleteLoading"
+            >Ya, Hapus</v-btn
+          >
         </v-card-actions>
       </v-card>
     </v-dialog>

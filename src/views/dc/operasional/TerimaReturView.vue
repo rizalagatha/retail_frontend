@@ -35,6 +35,8 @@ interface MasterItem {
   keterangan: string;
   statusPengajuan: "WAIT" | "ACC" | "TOLAK" | "";
   closing: "Y" | "N";
+  isReject: "Y" | "N" | null; // [TAMBAHKAN INI]
+  rejectReason: string | null; // [TAMBAHKAN INI]
   [key: string]: unknown;
 }
 
@@ -84,6 +86,9 @@ const filters = reactive({
 });
 const searchItemName = ref("");
 const isMasterProductSearchVisible = ref(false);
+const isRejectDialogVisible = ref(false);
+const rejectReason = ref("");
+const isSubmittingReject = ref(false);
 
 // --- State Filter & Resize ---
 const columnFilters = ref<Record<string, ColumnFilter>>({});
@@ -100,6 +105,9 @@ const headers = ref<DataTableHeader[]>([
   { title: "Status", key: "StatusDeadline", width: 130, align: "center" },
   { title: "Tgl Kirim", key: "tanggal", width: 110 },
   { title: "Nomor Terima", key: "nomorTerima", width: 160 },
+  { title: "Nomor Tolak", key: "nomorTolak", width: 160 }, // KOLOM BARU
+  { title: "Status Tolak", key: "isReject", width: 120, align: "center" },
+  { title: "Alasan Tolak", key: "rejectReason", width: 250 },
   { title: "Tgl Terima", key: "tglTerima", width: 110 },
   { title: "Dari Store", key: "namaStore", width: 200 },
   { title: "No Koreksi", key: "noKoreksi", width: 160 },
@@ -127,6 +135,13 @@ const canTerima = computed(() => isSingleSelected.value && !selectedRow.value?.n
 const canBatalTerima = computed(
   () =>
     isSingleSelected.value && !!selectedRow.value?.nomorTerima && selectedRow.value?.closing !== "Y"
+);
+
+const canTolak = computed(
+  () =>
+    isSingleSelected.value &&
+    !selectedRow.value?.nomorTerima &&
+    selectedRow.value?.statusPengajuan !== "TOLAK"
 );
 
 // --- Logic Filter Client-Side ---
@@ -495,6 +510,40 @@ const getRowTextColor = (item: MasterItem) => {
   return !item.nomorTerima ? "text-red font-weight-medium" : "";
 };
 
+const openRejectDialog = () => {
+  if (!selectedRow.value) return;
+  rejectReason.value = "";
+  isRejectDialogVisible.value = true;
+};
+
+const submitReject = async () => {
+  if (!rejectReason.value.trim()) {
+    toast.error("Alasan penolakan wajib diisi.");
+    return;
+  }
+
+  isSubmittingReject.value = true;
+  try {
+    const payload = {
+      nomorKirim: selectedRow.value?.nomor,
+      alasan: rejectReason.value,
+    };
+
+    // Asumsi endpoint baru di backend
+    const response = await api.post("/terima-retur/reject", payload);
+
+    toast.success(response.data.message);
+    isRejectDialogVisible.value = false;
+    fetchMasterData(); // Refresh list
+  } catch (error: unknown) {
+    if (isAxiosError(error)) {
+      toast.error(error.response?.data?.message || "Gagal menolak retur.");
+    }
+  } finally {
+    isSubmittingReject.value = false;
+  }
+};
+
 onMounted(fetchMasterData);
 watch(filters, fetchMasterData, { deep: true });
 </script>
@@ -520,6 +569,16 @@ watch(filters, fetchMasterData, { deep: true });
         :disabled="!canBatalTerima"
         >Batal Terima</v-btn
       >
+      <v-btn
+        v-if="authStore.can(MENU_ID, 'edit')"
+        size="small"
+        prepend-icon="mdi-close-circle"
+        color="warning"
+        @click="openRejectDialog"
+        :disabled="!canTolak"
+      >
+        Tolak Retur
+      </v-btn>
       <v-menu offset-y>
         <template v-slot:activator="{ props }">
           <v-btn size="small" color="teal" prepend-icon="mdi-file-excel" v-bind="props"
@@ -741,6 +800,33 @@ watch(filters, fetchMasterData, { deep: true });
             <span :class="getRowTextColor(item)">{{ item.nomor }}</span>
           </template>
 
+          <template #[`item.nomorTolak`]="{ item }">
+            <span v-if="item.nomorTolak" class="text-error font-weight-bold">
+              {{ item.nomorTolak }}
+            </span>
+            <span v-else class="text-disabled">-</span>
+          </template>
+
+          <template #[`item.isReject`]="{ item }">
+            <v-chip
+              v-if="item.isReject === 'Y'"
+              size="x-small"
+              color="error"
+              variant="flat"
+              class="font-weight-bold"
+            >
+              DITOLAK
+            </v-chip>
+            <span v-else class="text-disabled">-</span>
+          </template>
+
+          <template #[`item.rejectReason`]="{ item }">
+            <span v-if="item.isReject === 'Y'" class="text-error text-caption font-italic">
+              {{ item.rejectReason }}
+            </span>
+            <span v-else>-</span>
+          </template>
+
           <template #[`item.tanggal`]="{ item }">
             {{ format(parseISO(item.tanggal as string), "dd/MM/yyyy") }}
           </template>
@@ -847,6 +933,36 @@ watch(filters, fetchMasterData, { deep: true });
           <v-spacer />
           <v-btn text @click="customFilterDialog = false">Batal</v-btn>
           <v-btn color="primary" @click="applyCustomFilter">Terapkan</v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+
+    <v-dialog v-model="isRejectDialogVisible" max-width="500px" persistent>
+      <v-card>
+        <v-card-title class="text-h6 font-weight-bold bg-warning text-white">
+          Konfirmasi Penolakan Retur
+        </v-card-title>
+        <v-card-text class="pt-4">
+          <div class="mb-2">
+            Anda akan menolak kiriman retur: <strong>{{ selectedRow?.nomor }}</strong>
+          </div>
+          <v-textarea
+            v-model="rejectReason"
+            label="Alasan Penolakan"
+            placeholder="Masukkan alasan mengapa retur ini ditolak..."
+            variant="outlined"
+            density="compact"
+            rows="3"
+            auto-focus
+            hide-details
+          ></v-textarea>
+        </v-card-text>
+        <v-card-actions>
+          <v-spacer></v-spacer>
+          <v-btn variant="text" @click="isRejectDialogVisible = false">Batal</v-btn>
+          <v-btn color="error" variant="flat" @click="submitReject" :loading="isSubmittingReject">
+            Konfirmasi Tolak
+          </v-btn>
         </v-card-actions>
       </v-card>
     </v-dialog>

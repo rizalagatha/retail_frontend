@@ -59,6 +59,7 @@ const SoDtfPrintView = () => import("@/views/transaksi/penjualan/dtf/SoDtfPrintV
 const LhkSoDtfView = () => import("@/views/transaksi/penjualan/dtf/LhkSoDtfView.vue");
 const LhkSoDtfCreateView = () => import("@/views/transaksi/penjualan/dtf/LhkSoDtfCreateView.vue");
 const DasborDtfView = () => import("@/views/transaksi/penjualan/dtf/DasborDtfView.vue");
+const DasborBordirView = () => import("@/views/transaksi/penjualan/dtf/DasborBordirView.vue");
 const SoDtfStokView = () => import("@/views/transaksi/penjualan/dtf/SoDtfStokView.vue");
 const SoDtfStokCreateView = () => import("@/views/transaksi/penjualan/dtf/SoDtfStokCreateView.vue");
 const SoDtfStokPrintView = () => import("@/views/transaksi/penjualan/dtf/SoDtfStokPrintView.vue");
@@ -93,6 +94,9 @@ const PotonganCreateView = () => import("@/views/piutang/PotonganCreateView.vue"
 const RefundView = () => import("@/views/piutang/RefundView.vue");
 const RefundCreateView = () => import("@/views/piutang/RefundCreateView.vue");
 const RefundPrintView = () => import("@/views/piutang/RefundPrintView.vue");
+const KlaimPettyCashView = () => import("@/views/piutang/KlaimPettyCashView.vue");
+const KlaimPettyCashProsesView = () => import("@/views/piutang/KlaimPettyCashProsesView.vue");
+const KlaimPettyCashPrintView = () => import("@/views/piutang/KlaimPettyCashPrintView.vue");
 
 // --- LAPORAN ---
 const LaporanStokView = () => import("@/views/laporan/stok/LaporanStokView.vue");
@@ -151,6 +155,10 @@ const PeminjamanBarangPrintView = () =>
   import("@/views/transaksi/internal/PeminjamanBarangPrintView.vue");
 const PeminjamanBarangReturnView = () =>
   import("@/views/transaksi/internal/PeminjamanBarangReturnView.vue");
+const PettyCashView = () => import("@/views/transaksi/internal/PettyCashView.vue");
+const PettyCashCreateView = () => import("@/views/transaksi/internal/PettyCashCreateView.vue");
+const PettyCashPengajuanView = () =>
+  import("@/views/transaksi/internal/PettyCashPengajuanView.vue");
 
 // --- MUTASI STORE ---
 const MutasiStoreKirimView = () => import("@/views/transaksi/mutasi/MutasiStoreKirimView.vue");
@@ -218,6 +226,7 @@ const BpbKaosanPrintView = () => import("@/views/dc/produksi-supplier/BpbKaosanP
 // --- LAPORAN & SO ---
 const LaporanListOtorisasiView = () =>
   import("@/views/laporan/lain-lain/LaporanListOtorisasiView.vue");
+const LaporanPettyCashView = () => import("@/views/laporan/lain-lain/PettyCashReportView.vue");
 const LaporanStokStagnanView = () => import("@/views/laporan/stok/LaporanStokStagnanView.vue");
 const LaporanDeadStokView = () => import("@/views/laporan/stok/LaporanDeadStokView.vue");
 const LaporanSaldoKasirView = () => import("@/views/laporan/lain-lain/LaporanSaldoKasirView.vue");
@@ -635,6 +644,16 @@ const routes = [
     },
   },
   {
+    path: "/transaksi/penjualan/dtf/dasbor-bordir",
+    name: "dasborBordir",
+    component: DasborBordirView,
+    meta: {
+      title: "Dasbor Bordir",
+      requiresAuth: true,
+      menuId: "57",
+    },
+  },
+  {
     path: "/transaksi/penjualan/dtf/so-dtf-stok",
     name: "SoDtfStok",
     component: SoDtfStokView,
@@ -843,6 +862,42 @@ const routes = [
     name: "PeminjamanBarangReturn",
     component: PeminjamanBarangReturnView,
     meta: { requiresAuth: true, menuId: "56" },
+  },
+  {
+    path: "/transaksi/internal/petty-cash",
+    name: "Petty Cash Store",
+    component: PettyCashView,
+    meta: { requiresAuth: true, menuId: "58" },
+  },
+  {
+    path: "/transaksi/internal/petty-cash/create",
+    name: "PettyCashCreate",
+    component: PettyCashCreateView,
+    meta: {
+      title: "Input Petty Cash",
+      requiresAuth: true,
+      menuId: "58", // Samakan menuId dengan halaman browse
+    },
+  },
+  {
+    path: "/transaksi/internal/petty-cash/edit/:nomor",
+    name: "PettyCashEdit",
+    component: PettyCashCreateView,
+    meta: {
+      title: "Ubah Petty Cash",
+      requiresAuth: true,
+      menuId: "58",
+    },
+  },
+  {
+    path: "/petty-cash/pengajuan",
+    name: "PettyCashPengajuan",
+    component: PettyCashPengajuanView,
+    meta: {
+      title: "Pengajuan Klaim PC",
+      requiresAuth: true,
+      menuId: "58", // Samakan dengan menu Store
+    },
   },
   {
     path: "/transaksi/mutasi/out-produksi",
@@ -1286,6 +1341,37 @@ const routes = [
       title: "Cetak Pengajuan Refund",
       requiresAuth: true,
       menuId: "55",
+      layout: "PrintLayout",
+    },
+  },
+  {
+    path: "/piutang/klaim-petty-cash",
+    name: "KlaimPettyCash",
+    component: KlaimPettyCashView,
+    meta: {
+      title: "Klaim Petty Cash",
+      requiresAuth: true,
+      menuId: "59",
+    },
+  },
+  {
+    path: "/piutang/klaim-petty-cash/proses/:nomor",
+    name: "KlaimPettyCashProses",
+    component: KlaimPettyCashProsesView,
+    meta: {
+      title: "Verifikasi Klaim Petty Cash",
+      requiresAuth: true,
+      menuId: "59",
+    },
+  },
+  {
+    path: "/piutang/klaim-petty-cash/print/:nomor",
+    name: "KlaimPettyCashPrint",
+    component: KlaimPettyCashPrintView,
+    meta: {
+      title: "Cetak Klaim Petty Cash",
+      requiresAuth: true,
+      printLayout: true,
       layout: "PrintLayout",
     },
   },
@@ -2100,6 +2186,16 @@ const routes = [
       title: "Laporan Saldo Kasir",
       requiresAuth: true,
       menuId: "601",
+    },
+  },
+  {
+    path: "/laporan/lain-lain/petty-cash",
+    name: "LaporanPettyCash",
+    component: LaporanPettyCashView,
+    meta: {
+      title: "Laporan Mutasi Petty Cash",
+      requiresAuth: true,
+      menuId: "603",
     },
   },
   {

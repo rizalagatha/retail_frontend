@@ -1,25 +1,25 @@
 <script setup lang="ts">
-import { ref, onMounted, watch, computed } from 'vue';
-import api from '@/services/api';
-import PageLayout from '@/components/PageLayout.vue';
-import { useToast } from 'vue-toastification';
-import { useAuthStore } from '@/stores/authStore';
-import { format } from 'date-fns';
-import { useRouter, useRoute } from 'vue-router';
-import AppDataTable from '@/components/AppDataTable.vue';
+import { ref, onMounted, watch, computed } from "vue";
+import api from "@/services/api";
+import PageLayout from "@/components/PageLayout.vue";
+import { useToast } from "vue-toastification";
+import { useAuthStore } from "@/stores/authStore";
+import { format } from "date-fns";
+import { useRouter, useRoute, onBeforeRouteLeave } from "vue-router";
+import AppDataTable from "@/components/AppDataTable.vue";
 
 const toast = useToast();
 const authStore = useAuthStore();
 const router = useRouter();
 const route = useRoute();
-const MENU_ID = '38';
+const MENU_ID = "38";
 
 interface DataTableHeader {
   title: string;
   key: string;
   width?: number;
   fixed?: boolean;
-  align?: 'start' | 'center' | 'end';
+  align?: "start" | "center" | "end";
   minWidth?: string | number;
   maxWidth?: string | number;
   sortable?: boolean;
@@ -40,37 +40,39 @@ interface PriceProposal {
 // --- State ---
 const proposals = ref<PriceProposal[]>([]);
 const isLoading = ref(true);
-const startDate = ref(format(new Date(), 'yyyy-MM-dd'));
-const endDate = ref(format(new Date(), 'yyyy-MM-dd'));
-const selectedCabang = ref(authStore.user?.cabang === 'KDC' ? 'ALL' : authStore.user?.cabang || '');
+const startDate = ref(format(new Date(), "yyyy-MM-dd"));
+const endDate = ref(format(new Date(), "yyyy-MM-dd"));
+const selectedCabang = ref(authStore.user?.cabang === "KDC" ? "ALL" : authStore.user?.cabang || "");
 const belumApproval = ref(false);
 const cabangList = ref([]);
 const selected = ref<PriceProposal[]>([]);
 const filterOptions = ref([
-  { title: 'Nomor', value: 'nomor' },
-  { title: 'Customer', value: 'customer' },
-  { title: 'Jenis Kaos', value: 'jenisKaos' },
-  { title: 'Keterangan', value: 'keterangan' },
-  { title: 'Approval', value: 'approval' },
-  { title: 'Cabang', value: 'cabang' },
-  { title: 'User', value: 'created' },
+  { title: "Nomor", value: "nomor" },
+  { title: "Customer", value: "customer" },
+  { title: "Jenis Kaos", value: "jenisKaos" },
+  { title: "Keterangan", value: "keterangan" },
+  { title: "Approval", value: "approval" },
+  { title: "Cabang", value: "cabang" },
+  { title: "User", value: "created" },
 ]);
-const selectedFilterField = ref('nomor'); // Filter default
-const filterSearchValue = ref('');
+const selectedFilterField = ref("nomor"); // Filter default
+const filterSearchValue = ref("");
 
 const hasViewPermission = ref(false);
 const dialogDelete = ref(false);
 const itemToDelete = ref<PriceProposal | null>(null);
 
+const SESSION_STATE_KEY = "price_proposal_browse_state";
+
 const tableHeaders = ref<DataTableHeader[]>([
-  { title: 'Nomor', key: 'nomor', width: 150, fixed: true },
-  { title: 'Tanggal', key: 'tanggal', width: 120 },
-  { title: 'Customer', key: 'customer', width: 250 },
-  { title: 'Jenis Kaos', key: 'jenisKaos', width: 200 },
-  { title: 'Keterangan', key: 'keterangan', width: 300 },
-  { title: 'Approval', key: 'approval', width: 120 },
-  { title: 'Cabang', key: 'cabang', width: 120 },
-  { title: 'User', key: 'created', width: 120 },
+  { title: "Nomor", key: "nomor", width: 150, fixed: true },
+  { title: "Tanggal", key: "tanggal", width: 120 },
+  { title: "Customer", key: "customer", width: 250 },
+  { title: "Jenis Kaos", key: "jenisKaos", width: 200 },
+  { title: "Keterangan", key: "keterangan", width: 300 },
+  { title: "Approval", key: "approval", width: 120 },
+  { title: "Cabang", key: "cabang", width: 120 },
+  { title: "User", key: "created", width: 120 },
 ]);
 
 // --- Logic Resize Column ---
@@ -83,11 +85,11 @@ const onResizeStart = (e: MouseEvent, column: DataTableHeader) => {
   e.stopPropagation();
   resizingColumn.value = column;
   startX.value = e.pageX;
-  startWidth.value = (typeof column.width === 'number' ? column.width : 100);
+  startWidth.value = typeof column.width === "number" ? column.width : 100;
 
-  document.addEventListener('mousemove', onResizeMove);
-  document.addEventListener('mouseup', onResizeEnd);
-  document.body.style.cursor = 'col-resize';
+  document.addEventListener("mousemove", onResizeMove);
+  document.addEventListener("mouseup", onResizeEnd);
+  document.body.style.cursor = "col-resize";
 };
 
 const onResizeMove = (e: MouseEvent) => {
@@ -98,9 +100,9 @@ const onResizeMove = (e: MouseEvent) => {
 
 const onResizeEnd = () => {
   resizingColumn.value = null;
-  document.removeEventListener('mousemove', onResizeMove);
-  document.removeEventListener('mouseup', onResizeEnd);
-  document.body.style.cursor = '';
+  document.removeEventListener("mousemove", onResizeMove);
+  document.removeEventListener("mouseup", onResizeEnd);
+  document.body.style.cursor = "";
 };
 
 // --- Logic Selected Row ---
@@ -113,7 +115,7 @@ const filteredProposals = computed(() => {
   if (!filterSearchValue.value) {
     return proposals.value;
   }
-  return proposals.value.filter(item => {
+  return proposals.value.filter((item) => {
     const itemValue = item[selectedFilterField.value];
     if (itemValue) {
       return itemValue.toString().toLowerCase().includes(filterSearchValue.value.toLowerCase());
@@ -126,18 +128,30 @@ const filteredProposals = computed(() => {
 const fetchCabangList = async () => {
   try {
     // Asumsi API ini ada untuk mengambil daftar cabang
-    const response = await api.get('/offers/branch-options', {
-      params: { userCabang: authStore.user?.cabang }
+    const response = await api.get("/offers/branch-options", {
+      params: { userCabang: authStore.user?.cabang },
     });
     // Tambahkan opsi "ALL" jika user adalah KDC
-    if (authStore.user?.cabang === 'KDC') {
-      cabangList.value = [{ kode: 'ALL', nama: 'SEMUA CABANG' }, ...response.data];
+    if (authStore.user?.cabang === "KDC") {
+      cabangList.value = [{ kode: "ALL", nama: "SEMUA CABANG" }, ...response.data];
     } else {
       cabangList.value = response.data;
     }
   } catch {
-    toast.error('Gagal memuat daftar cabang.');
+    toast.error("Gagal memuat daftar cabang.");
   }
+};
+
+const saveStateToSession = () => {
+  const stateToSave = {
+    startDate: startDate.value,
+    endDate: endDate.value,
+    selectedCabang: selectedCabang.value,
+    belumApproval: belumApproval.value,
+    selectedFilterField: selectedFilterField.value,
+    filterSearchValue: filterSearchValue.value,
+  };
+  sessionStorage.setItem(SESSION_STATE_KEY, JSON.stringify(stateToSave));
 };
 
 const fetchData = async () => {
@@ -146,17 +160,17 @@ const fetchData = async () => {
   }
   isLoading.value = true;
   try {
-    const response = await api.get('/price-proposals', {
+    const response = await api.get("/price-proposals", {
       params: {
         startDate: startDate.value,
         endDate: endDate.value,
         cabang: selectedCabang.value,
         belumApproval: belumApproval.value,
-      }
+      },
     });
     proposals.value = response.data;
   } catch {
-    toast.error('Gagal memuat data pengajuan harga.');
+    toast.error("Gagal memuat data pengajuan harga.");
   } finally {
     isLoading.value = false;
   }
@@ -176,7 +190,7 @@ const deleteProposal = async (item: PriceProposal) => {
     fetchData();
     selected.value = [];
   } catch {
-    toast.error('Gagal menghapus pengajuan harga.');
+    toast.error("Gagal menghapus pengajuan harga.");
   }
 };
 
@@ -197,61 +211,125 @@ const deleteConfirmed = () => {
 const getRowTextColor = (item: PriceProposal) => {
   // Warnai merah jika kolom 'approval' kosong (belum di-approve)
   if (!item.approval) {
-    return 'text-red font-weight-bold';
+    return "text-red font-weight-bold";
   }
-  return ''; // Warna default
+  return ""; // Warna default
 };
 
-onMounted(() => {
-  // Pastikan authStore sudah siap sebelum cek izin
-  if (!authStore.isAuthenticated) {
-    // Handle jika belum login/reload page
-    return;
-  }
+onMounted(async () => {
+  if (!authStore.isAuthenticated) return;
 
-  // Cek hak view
-  if (authStore.can(MENU_ID, 'view')) {
+  if (authStore.can(MENU_ID, "view")) {
     hasViewPermission.value = true;
 
-    // Logic untuk menangkap parameter dari Dashboard
-    const queryStartDate = route.query.startDate as string;
-    const queryEndDate = route.query.endDate as string;
-    const queryStatus = route.query.status as string;
+    // 1. Coba baca state pencarian dari Session Storage terlebih dahulu
+    const savedState = sessionStorage.getItem(SESSION_STATE_KEY);
 
-    if (queryStartDate && queryEndDate) {
-      startDate.value = queryStartDate;
-      endDate.value = queryEndDate;
-    }
+    if (savedState) {
+      try {
+        const parsedState = JSON.parse(savedState);
 
-    if (queryStatus === 'pending') {
-      belumApproval.value = true;
+        // Kembalikan nilai filter dari session
+        startDate.value = parsedState.startDate;
+        endDate.value = parsedState.endDate;
+        selectedCabang.value = parsedState.selectedCabang;
+        belumApproval.value = parsedState.belumApproval;
+
+        // Kembalikan nilai pencarian teks
+        if (parsedState.selectedFilterField)
+          selectedFilterField.value = parsedState.selectedFilterField;
+        if (parsedState.filterSearchValue) filterSearchValue.value = parsedState.filterSearchValue;
+      } catch (e) {
+        console.error("Gagal membaca state filter dari sessionStorage", e);
+      }
     } else {
-      // Default behavior
-      belumApproval.value = true;
+      // 2. Jika tidak ada di memory (baru buka pertama kali)
+
+      // Set default cabang
+      selectedCabang.value =
+        authStore.user?.cabang === "KDC" ? "ALL" : authStore.user?.cabang || "";
+      belumApproval.value = true; // Default bawaan halaman ini
+
+      // Timpa dengan Query URL (jika dialihkan dari Dashboard)
+      const queryStartDate = route.query.startDate as string;
+      const queryEndDate = route.query.endDate as string;
+      const queryStatus = route.query.status as string;
+
+      if (queryStartDate && queryEndDate) {
+        startDate.value = queryStartDate;
+        endDate.value = queryEndDate;
+      }
+
+      // Jika dari dashboard klik 'pending', pastikan checkbox tercentang
+      if (queryStatus === "pending") {
+        belumApproval.value = true;
+      }
     }
 
-    fetchData();
-    fetchCabangList();
+    // 3. Fetch data berurutan
+    await fetchCabangList();
+    await fetchData();
   } else {
     isLoading.value = false;
     toast.error("Anda tidak memiliki izin untuk melihat halaman ini.");
   }
 });
 
+// --- Watcher Gabungan ---
+// Pantau semua variabel yang bisa memicu fetch ulang ke backend
 watch([selectedCabang, belumApproval, startDate, endDate], () => {
+  saveStateToSession();
   if (hasViewPermission.value) fetchData();
+});
+
+// Pantau variabel pencarian frontend agar saat user mengetik, state-nya juga tersimpan
+watch([filterSearchValue, selectedFilterField], () => {
+  saveStateToSession();
+});
+
+// Deteksi saat user meninggalkan halaman ini
+onBeforeRouteLeave((to, from, next) => {
+  // Cek apakah halaman tujuan MASIH berhubungan dengan modul Pengajuan Harga.
+  // Asumsi path untuk form ubah/baru mengandung string "pengajuan-harga"
+  const isRelatedPage = to.path.includes("/pengajuan-harga");
+
+  if (!isRelatedPage) {
+    // Jika pergi ke menu lain (misal: ke dashboard atau invoice), bersihkan memori filter!
+    sessionStorage.removeItem(SESSION_STATE_KEY);
+  }
+
+  next(); // Lanjutkan perpindahan halaman
 });
 </script>
 
 <template>
   <PageLayout title="Pengajuan Harga" desktop-mode icon="mdi-cash-plus">
     <template #header-actions>
-      <v-btn v-if="authStore.can(MENU_ID, 'insert')" size="small" color="primary" prepend-icon="mdi-plus"
-        @click="router.push('/transaksi/penjualan/pengajuan/pengajuan-harga/new')">Baru</v-btn>
-      <v-btn v-if="authStore.can(MENU_ID, 'edit')" size="small" :disabled="!isSingleSelected" prepend-icon="mdi-pencil"
-        @click="editProposal">Ubah</v-btn>
-      <v-btn v-if="authStore.can(MENU_ID, 'delete')" size="small" color="error" :disabled="!isSingleSelected"
-        prepend-icon="mdi-delete" @click="confirmDelete">Hapus</v-btn>
+      <v-btn
+        v-if="authStore.can(MENU_ID, 'insert')"
+        size="small"
+        color="primary"
+        prepend-icon="mdi-plus"
+        @click="router.push('/transaksi/penjualan/pengajuan/pengajuan-harga/new')"
+        >Baru</v-btn
+      >
+      <v-btn
+        v-if="authStore.can(MENU_ID, 'edit')"
+        size="small"
+        :disabled="!isSingleSelected"
+        prepend-icon="mdi-pencil"
+        @click="editProposal"
+        >Ubah</v-btn
+      >
+      <v-btn
+        v-if="authStore.can(MENU_ID, 'delete')"
+        size="small"
+        color="error"
+        :disabled="!isSingleSelected"
+        prepend-icon="mdi-delete"
+        @click="confirmDelete"
+        >Hapus</v-btn
+      >
     </template>
 
     <div v-if="!hasViewPermission" class="state-container">
@@ -264,26 +342,66 @@ watch([selectedCabang, belumApproval, startDate, endDate], () => {
       <div class="filter-section">
         <div class="d-flex align-center ga-2">
           <span class="filter-label">Periode:</span>
-          <v-text-field v-model="startDate" type="date" density="compact" hide-details variant="outlined"
-            style="min-width: 140px;"></v-text-field>
+          <v-text-field
+            v-model="startDate"
+            type="date"
+            density="compact"
+            hide-details
+            variant="outlined"
+            style="min-width: 140px"
+          ></v-text-field>
           <span>s/d</span>
-          <v-text-field v-model="endDate" type="date" density="compact" hide-details variant="outlined"
-            style="min-width: 140px;"></v-text-field>
+          <v-text-field
+            v-model="endDate"
+            type="date"
+            density="compact"
+            hide-details
+            variant="outlined"
+            style="min-width: 140px"
+          ></v-text-field>
         </div>
-        <div class="d-flex align-center ga-2" style="min-width: 220px;">
+        <div class="d-flex align-center ga-2" style="min-width: 220px">
           <span class="filter-label">Cabang:</span>
-          <v-select v-model="selectedCabang" :items="cabangList" item-title="nama" item-value="kode" density="compact"
-            hide-details variant="outlined" style="max-width: 180px;"
-            :menu-props="{ class: 'compact-select-list' }"></v-select>
+          <v-select
+            v-model="selectedCabang"
+            :items="cabangList"
+            item-title="nama"
+            item-value="kode"
+            density="compact"
+            hide-details
+            variant="outlined"
+            style="max-width: 180px"
+            :menu-props="{ class: 'compact-select-list' }"
+          ></v-select>
         </div>
-        <v-checkbox v-model="belumApproval" label="Belum Approve" hide-details density="compact"></v-checkbox>
+        <v-checkbox
+          v-model="belumApproval"
+          label="Belum Approve"
+          hide-details
+          density="compact"
+        ></v-checkbox>
         <v-spacer></v-spacer>
         <v-divider vertical class="mx-2"></v-divider>
         <div class="d-flex align-center ga-2">
-          <v-select v-model="selectedFilterField" :items="filterOptions" label="Filter Berdasarkan" density="compact"
-            hide-details variant="outlined" style="max-width: 180px;"></v-select>
-          <v-text-field v-model="filterSearchValue" label="Cari..." density="compact" hide-details variant="outlined"
-            style="min-width: 250px;" clearable prepend-inner-icon="mdi-magnify"></v-text-field>
+          <v-select
+            v-model="selectedFilterField"
+            :items="filterOptions"
+            label="Filter Berdasarkan"
+            density="compact"
+            hide-details
+            variant="outlined"
+            style="max-width: 180px"
+          ></v-select>
+          <v-text-field
+            v-model="filterSearchValue"
+            label="Cari..."
+            density="compact"
+            hide-details
+            variant="outlined"
+            style="min-width: 250px"
+            clearable
+            prepend-inner-icon="mdi-magnify"
+          ></v-text-field>
         </div>
         <v-spacer></v-spacer>
         <div class="d-flex align-center ga-2 text-caption">
@@ -294,37 +412,63 @@ watch([selectedCabang, belumApproval, startDate, endDate], () => {
 
       <!-- Table Section -->
       <div class="table-container">
-        <AppDataTable v-model="selected" :headers="tableHeaders" :items="filteredProposals" :loading="isLoading"
-          item-value="nomor" density="compact" class="desktop-table header-browse-blue" fixed-header show-select
-          return-object @click:row="handleRowClick">
+        <AppDataTable
+          v-model="selected"
+          :headers="tableHeaders"
+          :items="filteredProposals"
+          :loading="isLoading"
+          item-value="nomor"
+          density="compact"
+          class="desktop-table header-browse-blue"
+          fixed-header
+          show-select
+          return-object
+          @click:row="handleRowClick"
+        >
           <template #headers="{ columns, isSorted, getSortIcon, toggleSort }">
             <tr>
               <template v-for="header in columns" :key="header.key">
                 <th
-                  :style="{ width: header.width + 'px', minWidth: header.width + 'px', maxWidth: header.width + 'px' }"
+                  :style="{
+                    width: header.width + 'px',
+                    minWidth: header.width + 'px',
+                    maxWidth: header.width + 'px',
+                  }"
                   class="resizable-header"
-                  :class="{ 'text-center': header.align === 'center', 'text-end': header.align === 'end' }"
-                  @click="toggleSort(header)">
+                  :class="{
+                    'text-center': header.align === 'center',
+                    'text-end': header.align === 'end',
+                  }"
+                  @click="toggleSort(header)"
+                >
                   <div class="header-content">
                     <span>{{ header.title }}</span>
                     <v-icon v-if="isSorted(header)" size="small" class="ms-1">
                       {{ getSortIcon(header) }}
                     </v-icon>
                   </div>
-                  <div class="resizer" @mousedown.stop="onResizeStart($event, header)" @click.stop></div>
+                  <div
+                    class="resizer"
+                    @mousedown.stop="onResizeStart($event, header)"
+                    @click.stop
+                  ></div>
                 </th>
               </template>
             </tr>
           </template>
 
-          <template v-for="header in tableHeaders" #[`item.${header.key}`]="{ item }" :key="header.key">
+          <template
+            v-for="header in tableHeaders"
+            #[`item.${header.key}`]="{ item }"
+            :key="header.key"
+          >
             <td :class="getRowTextColor(item)">
               <template v-if="header.key === 'tanggal'">
-                {{ format(new Date(item.tanggal), 'dd/MM/yyyy') }}
+                {{ format(new Date(item.tanggal), "dd/MM/yyyy") }}
               </template>
               <template v-else-if="header.key === 'approval'">
                 <v-chip :color="item.approval ? 'success' : 'grey'" variant="tonal" size="x-small">
-                  {{ item.approval || 'Belum' }}
+                  {{ item.approval || "Belum" }}
                 </v-chip>
               </template>
               <template v-else>
@@ -339,8 +483,11 @@ watch([selectedCabang, belumApproval, startDate, endDate], () => {
     <v-dialog v-model="dialogDelete" max-width="500px">
       <v-card>
         <v-card-title class="text-h5">Konfirmasi Hapus</v-card-title>
-        <v-card-text>Apakah Anda yakin ingin menghapus pengajuan harga nomor <strong>{{ itemToDelete?.nomor
-        }}</strong>?</v-card-text>
+        <v-card-text
+          >Apakah Anda yakin ingin menghapus pengajuan harga nomor
+          <strong>{{ itemToDelete?.nomor }}</strong
+          >?</v-card-text
+        >
         <v-card-actions>
           <v-spacer></v-spacer>
           <v-btn variant="text" @click="dialogDelete = false">Batal</v-btn>

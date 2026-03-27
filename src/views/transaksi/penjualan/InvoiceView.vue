@@ -2,6 +2,7 @@
 import { ref, reactive, onMounted, computed, watch } from "vue";
 import { useRouter } from "vue-router";
 import { useRoute } from "vue-router";
+import { onBeforeRouteLeave } from "vue-router";
 import { useToast } from "vue-toastification";
 import { useAuthStore } from "@/stores/authStore";
 import api from "@/services/api";
@@ -221,13 +222,14 @@ const customFilter = reactive({
 });
 
 const LS_FILTER_KEY = "invoice_table_filters";
+const SESSION_STATE_KEY = "invoice_browse_state";
 
 // LOAD FILTER DARI LOCAL STORAGE
 const savedFilter = localStorage.getItem(LS_FILTER_KEY);
 if (savedFilter) {
   try {
     columnFilters.value = JSON.parse(savedFilter);
-  } catch { }
+  } catch {}
 }
 
 const noFilterColumns = ["data-table-select", "data-table-expand"];
@@ -1009,6 +1011,16 @@ const toggleMultiSelectValue = (key: string, value: FilterValue) => {
 const resetAllFilters = () => {
   columnFilters.value = {};
   localStorage.removeItem(LS_FILTER_KEY);
+
+  // Bersihkan teks pencarian
+  filterSearchValue.value = "";
+
+  // Bersihkan session storage khusus invoice
+  sessionStorage.removeItem(SESSION_STATE_KEY);
+
+  // Fetch ulang data bersih
+  page.value = 1;
+  fetchMasterData();
 };
 
 const formatFilterValue = (key: string, val: string | number | undefined | null): string => {
@@ -1029,37 +1041,62 @@ const formatFilterValue = (key: string, val: string | number | undefined | null)
 };
 
 onMounted(async () => {
-  // Jadikan async
-  const queryStartDate = route.query.startDate as string;
-  const queryEndDate = route.query.endDate as string;
-  const queryStatus = route.query.status as string;
+  // 1. Coba baca state pencarian dari Session Storage terlebih dahulu
+  const savedState = sessionStorage.getItem(SESSION_STATE_KEY);
 
-  if (queryStartDate && queryEndDate) {
-    filters.startDate = queryStartDate;
-    filters.endDate = queryEndDate;
-  }
-  if (queryStatus) {
-    // <-- TAMBAHKAN INI
-    filters.status = queryStatus;
+  if (savedState) {
+    try {
+      const parsedState = JSON.parse(savedState);
+
+      // Timpa filters dengan data dari memory browser
+      if (parsedState.filters) {
+        Object.assign(filters, parsedState.filters);
+      }
+
+      // Kembalikan juga kolom pencarian dan teks pencariannya
+      if (parsedState.selectedFilterField) {
+        selectedFilterField.value = parsedState.selectedFilterField;
+      }
+      if (parsedState.filterSearchValue) {
+        filterSearchValue.value = parsedState.filterSearchValue;
+      }
+    } catch (e) {
+      console.error("Gagal membaca state filter dari sessionStorage", e);
+    }
+  } else {
+    // 2. Jika tidak ada di memory (baru buka pertama kali), gunakan Query URL (kode asli Anda)
+    const queryStartDate = route.query.startDate as string;
+    const queryEndDate = route.query.endDate as string;
+    const queryStatus = route.query.status as string;
+
+    if (queryStartDate && queryEndDate) {
+      filters.startDate = queryStartDate;
+      filters.endDate = queryEndDate;
+    }
+    if (queryStatus) {
+      filters.status = queryStatus;
+    }
   }
 
-  // Tunggu cabang dan data master selesai diambil
-  // dengan filter yang sudah benar (dari URL).
   await fetchCabangList();
-  await fetchMasterData(); // <-- Panggil SEKALI di sini
+  await fetchMasterData();
 
-  // Setelah semua pemuatan awal selesai,
-  // baru aktifkan 'watch' untuk perubahan di masa depan.
-  isMounted.value = true; // <-- PINDAHKAN KE AKHIR
+  isMounted.value = true;
 });
+
+const saveStateToSession = () => {
+  const stateToSave = {
+    filters: filters,
+    selectedFilterField: selectedFilterField.value,
+    filterSearchValue: filterSearchValue.value,
+  };
+  sessionStorage.setItem(SESSION_STATE_KEY, JSON.stringify(stateToSave));
+};
 
 watch(
   columnFilters,
   (val) => {
-    // Simpan ke local storage
     localStorage.setItem(LS_FILTER_KEY, JSON.stringify(val));
-
-    // Reset halaman dan fetch data baru dari server
     page.value = 1;
     fetchMasterData();
   },
@@ -1069,28 +1106,64 @@ watch(
 watch(
   filters,
   () => {
-    if (!isMounted.value) return;
+    saveStateToSession(); // Simpan setiap kali filter tanggal/cabang berubah
 
-    // Jika user sedang search → JANGAN fetch
+    if (!isMounted.value) return;
     if (filterSearchValue.value) return;
 
+    page.value = 1; // Reset halaman ke 1 saat filter berubah
     fetchMasterData();
   },
   { deep: true }
 );
+
+watch([filterSearchValue, selectedFilterField], () => {
+  saveStateToSession(); // Simpan setiap kali teks pencarian berubah
+
+  clearTimeout(searchTimeout);
+  searchTimeout = setTimeout(() => {
+    if (!isMounted.value) return;
+    page.value = 1;
+    fetchMasterData();
+  }, 800);
+});
+
+onBeforeRouteLeave((to, from, next) => {
+  // Cek apakah halaman tujuan MASIH berhubungan dengan modul Invoice.
+  // Sesuaikan string '/invoice' di bawah dengan URL modul form tambah/ubah Anda.
+  // Contoh: '/transaksi/penjualan/invoice/new' maka stringnya adalah '/invoice'.
+  const isRelatedPage = to.path.includes("/invoice");
+
+  if (!isRelatedPage) {
+    // Jika pergi ke menu lain (misal: /dashboard atau /surat-pesanan), bersihkan memori!
+    sessionStorage.removeItem(SESSION_STATE_KEY);
+  }
+
+  next(); // Lanjutkan perpindahan halaman
+});
 </script>
 
 <template>
   <PageLayout title="Invoice" icon="mdi-receipt-text">
     <template #header-actions>
-      <v-btn v-if="authStore.can(MENU_ID, 'insert')" size="small" prepend-icon="mdi-plus" color="primary"
-        @click="handleNew">
+      <v-btn
+        v-if="authStore.can(MENU_ID, 'insert')"
+        size="small"
+        prepend-icon="mdi-plus"
+        color="primary"
+        @click="handleNew"
+      >
         Baru
       </v-btn>
 
       <v-menu offset-y v-if="authStore.can(MENU_ID, 'edit') && !isLockedInvoice">
         <template v-slot:activator="{ props }">
-          <v-btn v-bind="props" size="small" prepend-icon="mdi-pencil" :disabled="!isSingleSelected">
+          <v-btn
+            v-bind="props"
+            size="small"
+            prepend-icon="mdi-pencil"
+            :disabled="!isSingleSelected"
+          >
             Ubah
             <v-icon end icon="mdi-chevron-down"></v-icon>
           </v-btn>
@@ -1102,26 +1175,46 @@ watch(
           </v-list-item> -->
 
           <v-list-item @click="openChangePaymentModal">
-            <template #prepend><v-icon size="small" icon="mdi-cash-sync" class="mr-2 text-purple" /></template>
+            <template #prepend
+              ><v-icon size="small" icon="mdi-cash-sync" class="mr-2 text-purple"
+            /></template>
             <v-list-item-title class="text-purple">Ubah Pembayaran</v-list-item-title>
           </v-list-item>
         </v-list>
       </v-menu>
 
       <!-- Jika invoice SUDAH locked → tombol Lihat -->
-      <v-btn v-if="authStore.can(MENU_ID, 'view') && isLockedInvoice" size="small" prepend-icon="mdi-eye" color="grey"
-        :disabled="!isSingleSelected" @click="handleView">
+      <v-btn
+        v-if="authStore.can(MENU_ID, 'view') && isLockedInvoice"
+        size="small"
+        prepend-icon="mdi-eye"
+        color="grey"
+        :disabled="!isSingleSelected"
+        @click="handleView"
+      >
         Lihat
       </v-btn>
 
       <!-- <v-btn v-if="authStore.can(MENU_ID, 'delete')" size="small" color="error" :disabled="!isSingleSelected"
                 @click="handleDelete">Hapus</v-btn> -->
-      <v-btn v-if="authStore.can(MENU_ID, 'view')" size="small" color="green" :disabled="!isSingleSelected"
-        prepend-icon="mdi-printer" @click="openPrintOptions">
+      <v-btn
+        v-if="authStore.can(MENU_ID, 'view')"
+        size="small"
+        color="green"
+        :disabled="!isSingleSelected"
+        prepend-icon="mdi-printer"
+        @click="openPrintOptions"
+      >
         Cetak
       </v-btn>
-      <v-btn v-if="authStore.can(MENU_ID, 'view')" size="small" color="cyan" :disabled="!isSingleSelected"
-        prepend-icon="mdi-truck-delivery-outline" @click="printData('sj')">
+      <v-btn
+        v-if="authStore.can(MENU_ID, 'view')"
+        size="small"
+        color="cyan"
+        :disabled="!isSingleSelected"
+        prepend-icon="mdi-truck-delivery-outline"
+        @click="printData('sj')"
+      >
         Cetak SJ
       </v-btn>
       <v-menu offset-y>
@@ -1144,24 +1237,72 @@ watch(
     <div class="browse-content">
       <div class="filter-section">
         <v-label class="filter-label">Periode:</v-label>
-        <v-text-field v-model="filters.startDate" type="date" density="compact" hide-details variant="outlined" />
+        <v-text-field
+          v-model="filters.startDate"
+          type="date"
+          density="compact"
+          hide-details
+          variant="outlined"
+        />
         <v-label class="mx-2">s/d</v-label>
-        <v-text-field v-model="filters.endDate" type="date" density="compact" hide-details variant="outlined" />
-        <v-select label="Cabang" v-model="filters.cabang" :items="cabangList" item-title="nama" item-value="kode"
-          density="compact" hide-details variant="outlined" class="ms-4" style="max-width: 200px" />
-        <v-chip v-if="filters.status" class="ms-4" color="primary" variant="tonal" closable
-          @click:close="filters.status = null">
+        <v-text-field
+          v-model="filters.endDate"
+          type="date"
+          density="compact"
+          hide-details
+          variant="outlined"
+        />
+        <v-select
+          label="Cabang"
+          v-model="filters.cabang"
+          :items="cabangList"
+          item-title="nama"
+          item-value="kode"
+          density="compact"
+          hide-details
+          variant="outlined"
+          class="ms-4"
+          style="max-width: 200px"
+        />
+        <v-chip
+          v-if="filters.status"
+          class="ms-4"
+          color="primary"
+          variant="tonal"
+          closable
+          @click:close="filters.status = null"
+        >
           Filter Aktif: {{ filters.status === "sisa_piutang" ? "Sisa Piutang" : filters.status }}
         </v-chip>
         <div class="d-flex align-center ga-2 ms-4">
-          <v-select v-model="selectedFilterField" :items="filterOptions" label="Filter Berdasarkan" density="compact"
-            hide-details variant="outlined" style="max-width: 200px" />
+          <v-select
+            v-model="selectedFilterField"
+            :items="filterOptions"
+            label="Filter Berdasarkan"
+            density="compact"
+            hide-details
+            variant="outlined"
+            style="max-width: 200px"
+          />
 
-          <v-text-field v-model="filterSearchValue" label="Cari..." density="compact" hide-details variant="outlined"
-            clearable prepend-inner-icon="mdi-magnify" class="search-field" />
+          <v-text-field
+            v-model="filterSearchValue"
+            label="Cari..."
+            density="compact"
+            hide-details
+            variant="outlined"
+            clearable
+            prepend-inner-icon="mdi-magnify"
+            class="search-field"
+          />
         </div>
-        <v-btn color="error" variant="tonal" prepend-icon="mdi-filter-off" class="btn-detail reset-filter-btn ms-2"
-          @click="resetAllFilters">
+        <v-btn
+          color="error"
+          variant="tonal"
+          prepend-icon="mdi-filter-off"
+          class="btn-detail reset-filter-btn ms-2"
+          @click="resetAllFilters"
+        >
           Reset Filter
         </v-btn>
         <v-spacer />
@@ -1173,21 +1314,39 @@ watch(
       </div>
 
       <div class="table-container">
-        <AppDataTable v-model="selected" v-model:expanded="expanded" :headers="headers" :items="masterData"
-          :loading="loading" :server="true" :items-length="totalItems" @update:options="fetchMasterData"
-          item-value="Nomor" density="compact" class="desktop-table header-browse-blue" fixed-header show-select
-          return-object @update:expanded="loadDetails" @click:row="handleRowClick"
-          :item-props="(item) => ({ class: getRowClass(item) })">
+        <AppDataTable
+          v-model="selected"
+          v-model:expanded="expanded"
+          :headers="headers"
+          :items="masterData"
+          :loading="loading"
+          :server="true"
+          :items-length="totalItems"
+          @update:options="fetchMasterData"
+          item-value="Nomor"
+          density="compact"
+          class="desktop-table header-browse-blue"
+          fixed-header
+          show-select
+          return-object
+          @update:expanded="loadDetails"
+          @click:row="handleRowClick"
+          :item-props="(item) => ({ class: getRowClass(item) })"
+        >
           <template #headers="{ columns, isSorted, getSortIcon, toggleSort }">
             <tr>
               <template v-for="header in columns" :key="header.key">
                 <!-- HEADER TANPA FILTER (select & expand) -->
-                <th v-if="noFilterColumns.includes(header.key)" :style="{
-                  width: (header.width || 100) + 'px',
-                  minWidth: (header.width || 100) + 'px',
-                  maxWidth: (header.width || 100) + 'px',
-                  boxSizing: 'border-box',
-                }" class="resizable-header">
+                <th
+                  v-if="noFilterColumns.includes(header.key)"
+                  :style="{
+                    width: (header.width || 100) + 'px',
+                    minWidth: (header.width || 100) + 'px',
+                    maxWidth: (header.width || 100) + 'px',
+                    boxSizing: 'border-box',
+                  }"
+                  class="resizable-header"
+                >
                   <div class="header-content">
                     <span>{{ header.title }}</span>
                   </div>
@@ -1195,15 +1354,21 @@ watch(
                 </th>
 
                 <!-- HEADER NORMAL + EXCEL STYLE FILTER -->
-                <th v-else :style="{
-                  width: (header.width || 100) + 'px',
-                  minWidth: (header.width || 100) + 'px',
-                  maxWidth: (header.width || 100) + 'px',
-                  boxSizing: 'border-box',
-                }" class="resizable-header" :class="{
+                <th
+                  v-else
+                  :style="{
+                    width: (header.width || 100) + 'px',
+                    minWidth: (header.width || 100) + 'px',
+                    maxWidth: (header.width || 100) + 'px',
+                    boxSizing: 'border-box',
+                  }"
+                  class="resizable-header"
+                  :class="{
                     'text-center': header.align === 'center',
                     'text-end': header.align === 'end',
-                  }" @click="toggleSort(header)">
+                  }"
+                  @click="toggleSort(header)"
+                >
                   <div class="header-content">
                     <!-- Judul kolom -->
                     <span>{{ header.title }}</span>
@@ -1216,13 +1381,20 @@ watch(
                     <!-- FILTER ICON -->
                     <v-menu location="bottom start">
                       <template #activator="{ props }">
-                        <v-icon size="16" v-bind="props" @click.stop :color="isFilterActive(header.key) ? 'blue' : ''"
-                          :icon="filterType(header.key) === 'custom'
+                        <v-icon
+                          size="16"
+                          v-bind="props"
+                          @click.stop
+                          :color="isFilterActive(header.key) ? 'blue' : ''"
+                          :icon="
+                            filterType(header.key) === 'custom'
                               ? 'mdi-filter-cog'
                               : filterType(header.key) === 'multi'
-                                ? 'mdi-filter-multiple'
-                                : 'mdi-filter-variant'
-                            " class="ms-1" />
+                              ? 'mdi-filter-multiple'
+                              : 'mdi-filter-variant'
+                          "
+                          class="ms-1"
+                        />
                       </template>
 
                       <v-list class="filter-menu" style="min-width: 200px">
@@ -1234,12 +1406,20 @@ watch(
                         <v-divider />
 
                         <!-- MULTI-SELECT VALUES -->
-                        <v-list-item v-for="value in uniqueValues(header.key)" :key="value"
-                          @click.stop="toggleMultiSelectValue(header.key, value)">
+                        <v-list-item
+                          v-for="value in uniqueValues(header.key)"
+                          :key="value"
+                          @click.stop="toggleMultiSelectValue(header.key, value)"
+                        >
                           <template #prepend>
-                            <v-checkbox :model-value="columnFilters[header.key]?.type === 'multi' &&
-                              columnFilters[header.key]?.values?.includes(value)
-                              " density="compact" @click.stop="toggleMultiSelectValue(header.key, value)" />
+                            <v-checkbox
+                              :model-value="
+                                columnFilters[header.key]?.type === 'multi' &&
+                                columnFilters[header.key]?.values?.includes(value)
+                              "
+                              density="compact"
+                              @click.stop="toggleMultiSelectValue(header.key, value)"
+                            />
                           </template>
 
                           <v-list-item-title>
@@ -1260,23 +1440,37 @@ watch(
                   </div>
 
                   <!-- RESIZER -->
-                  <div class="resizer" @mousedown.stop="onResizeStart($event, header)" @click.stop></div>
+                  <div
+                    class="resizer"
+                    @mousedown.stop="onResizeStart($event, header)"
+                    @click.stop
+                  ></div>
                 </th>
               </template>
             </tr>
           </template>
 
           <template #[`item.data-table-expand`]="{ internalItem, toggleExpand, isExpanded }">
-            <v-btn icon="mdi-chevron-down" :class="{ 'rotate-180': isExpanded(internalItem) }" size="x-small"
-              variant="text" @click.stop="toggleExpand(internalItem)" />
+            <v-btn
+              icon="mdi-chevron-down"
+              :class="{ 'rotate-180': isExpanded(internalItem) }"
+              size="x-small"
+              variant="text"
+              @click.stop="toggleExpand(internalItem)"
+            />
           </template>
 
-          <template v-for="header in (headers || []).filter((h) => h.key !== 'data-table-expand')" :key="header.key"
-            #[`item.${header.key}`]="{ item }">
+          <template
+            v-for="header in (headers || []).filter((h) => h.key !== 'data-table-expand')"
+            :key="header.key"
+            #[`item.${header.key}`]="{ item }"
+          >
             <td>
-              <template v-if="
-                ['Created', 'LastPayment', 'TglTransfer', 'DateModified'].includes(header.key)
-              ">
+              <template
+                v-if="
+                  ['Created', 'LastPayment', 'TglTransfer', 'DateModified'].includes(header.key)
+                "
+              >
                 {{ safeFormatDate(item[header.key], "dd/MM/yyyy HH:mm:ss") }}
               </template>
 
@@ -1284,23 +1478,25 @@ watch(
                 {{ safeFormatDate(item[header.key], "dd/MM/yyyy") }}
               </template>
 
-              <template v-else-if="
-                [
-                  'BiayaPlatform',
-                  'Dis%',
-                  'Diskon',
-                  'Dp',
-                  'Biayakirim',
-                  'Nominal',
-                  'Piutang',
-                  'Bayar',
-                  'SisaPiutang',
-                  'RpVoucher',
-                  'RpTransfer',
-                  'RpRetur',
-                  'RpTunai',
-                ].includes(header.key)
-              ">
+              <template
+                v-else-if="
+                  [
+                    'BiayaPlatform',
+                    'Dis%',
+                    'Diskon',
+                    'Dp',
+                    'Biayakirim',
+                    'Nominal',
+                    'Piutang',
+                    'Bayar',
+                    'SisaPiutang',
+                    'RpVoucher',
+                    'RpTransfer',
+                    'RpRetur',
+                    'RpTunai',
+                  ].includes(header.key)
+                "
+              >
                 {{ formatRupiah(Number(item[header.key])) }}
               </template>
 
@@ -1313,14 +1509,21 @@ watch(
               <template v-else-if="header.key === 'Posting'">
                 <v-chip size="x-small" :color="item.Posting === 'SUDAH' ? 'green' : 'grey'">{{
                   item.Posting
-                  }}</v-chip>
+                }}</v-chip>
               </template>
 
               <template v-else-if="header.key === 'Closing'">
                 <div class="d-flex justify-center">
-                  <v-chip v-if="item.Closing === 'Y'" size="x-small" color="success" variant="flat">YA</v-chip>
-                  <v-chip v-else-if="item.Closing === 'N'" size="x-small" color="grey-lighten-1"
-                    variant="flat">TIDAK</v-chip>
+                  <v-chip v-if="item.Closing === 'Y'" size="x-small" color="success" variant="flat"
+                    >YA</v-chip
+                  >
+                  <v-chip
+                    v-else-if="item.Closing === 'N'"
+                    size="x-small"
+                    color="grey-lighten-1"
+                    variant="flat"
+                    >TIDAK</v-chip
+                  >
                   <span v-else>-</span>
                 </div>
               </template>
@@ -1329,23 +1532,35 @@ watch(
                 <div class="d-flex justify-center">
                   <v-tooltip location="top" text="Stok Minus!">
                     <template v-slot:activator="{ props }">
-                      <v-icon v-bind="props" v-if="item.Minus === 'Y'" color="error"
-                        size="small">mdi-alert-circle</v-icon>
+                      <v-icon v-bind="props" v-if="item.Minus === 'Y'" color="error" size="small"
+                        >mdi-alert-circle</v-icon
+                      >
                     </template>
                   </v-tooltip>
 
-                  <v-icon v-if="item.Minus === 'N'" color="success" size="small"
-                    title="Stok Aman">mdi-check-circle-outline</v-icon>
+                  <v-icon v-if="item.Minus === 'N'" color="success" size="small" title="Stok Aman"
+                    >mdi-check-circle-outline</v-icon
+                  >
                 </div>
               </template>
 
               <template v-else-if="header.key === 'Prn'">
                 <div class="d-flex justify-center">
-                  <v-icon v-if="item.Prn == 1 || item.Prn === 'Y'" color="blue" size="small"
-                    title="Sudah Cetak">mdi-printer-check</v-icon>
+                  <v-icon
+                    v-if="item.Prn == 1 || item.Prn === 'Y'"
+                    color="blue"
+                    size="small"
+                    title="Sudah Cetak"
+                    >mdi-printer-check</v-icon
+                  >
 
-                  <v-icon v-else-if="item.Prn == 0 || item.Prn === 'N'" color="grey-lighten-2" size="small"
-                    title="Belum Cetak">mdi-printer-off</v-icon>
+                  <v-icon
+                    v-else-if="item.Prn == 0 || item.Prn === 'N'"
+                    color="grey-lighten-2"
+                    size="small"
+                    title="Belum Cetak"
+                    >mdi-printer-off</v-icon
+                  >
 
                   <span v-else class="text-grey text-caption">-</span>
                 </div>
@@ -1362,12 +1577,23 @@ watch(
               <td :colspan="columns.length" class="pa-0">
                 <div class="detail-container">
                   <div class="detail-table-wrapper shadow-sm">
-                    <v-data-table :headers="detailHeaders" :items="details[item.Nomor] || []" density="compact"
-                      class="detail-table" hide-default-footer :items-per-page="-1">
+                    <v-data-table
+                      :headers="detailHeaders"
+                      :items="details[item.Nomor] || []"
+                      density="compact"
+                      class="detail-table"
+                      hide-default-footer
+                      :items-per-page="-1"
+                    >
                       <template #[`item.Harga`]="{ item: detailItem }">
                         <div class="harga-cell">
-                          <template v-if="detailItem.HargaAsli && detailItem.HargaAsli > detailItem.Harga">
-                            <div class="text-grey text-decoration-line-through" style="font-size: 9px">
+                          <template
+                            v-if="detailItem.HargaAsli && detailItem.HargaAsli > detailItem.Harga"
+                          >
+                            <div
+                              class="text-grey text-decoration-line-through"
+                              style="font-size: 9px"
+                            >
                               {{ formatRupiah(detailItem.HargaAsli) }}
                             </div>
                             <div class="font-weight-bold">{{ formatRupiah(detailItem.Harga) }}</div>
@@ -1399,41 +1625,66 @@ watch(
                 <td v-if="header.key === 'data-table-expand'" style="width: 50px"></td>
 
                 <td v-else class="px-2 py-2 border-top" :class="`text-${header.align || 'start'}`">
-                  <span v-if="header.key === 'Nomor'" class="text-grey-darken-3 text-body-2 font-weight-black pl-2">
+                  <span
+                    v-if="header.key === 'Nomor'"
+                    class="text-grey-darken-3 text-body-2 font-weight-black pl-2"
+                  >
                     GRAND TOTAL :
                   </span>
 
-                  <span v-else-if="header.key === 'Diskon'"
-                    class="text-blue-grey-darken-2 text-body-2 font-weight-black">
+                  <span
+                    v-else-if="header.key === 'Diskon'"
+                    class="text-blue-grey-darken-2 text-body-2 font-weight-black"
+                  >
                     {{ formatRupiah(totalDiskon) }}
                   </span>
 
-                  <span v-else-if="header.key === 'Dp'" class="text-cyan-darken-2 text-body-2 font-weight-black">
+                  <span
+                    v-else-if="header.key === 'Dp'"
+                    class="text-cyan-darken-2 text-body-2 font-weight-black"
+                  >
                     {{ formatRupiah(totalDp) }}
                   </span>
 
-                  <span v-else-if="header.key === 'Biayakirim'"
-                    class="text-teal-darken-3 text-body-2 font-weight-black">
+                  <span
+                    v-else-if="header.key === 'Biayakirim'"
+                    class="text-teal-darken-3 text-body-2 font-weight-black"
+                  >
                     {{ formatRupiah(totalBiayaKirim) }}
                   </span>
 
-                  <span v-else-if="header.key === 'Nominal'" class="text-primary text-body-2 font-weight-black">
+                  <span
+                    v-else-if="header.key === 'Nominal'"
+                    class="text-primary text-body-2 font-weight-black"
+                  >
                     {{ formatRupiah(totalNominal) }}
                   </span>
 
-                  <span v-else-if="header.key === 'Piutang'" class="text-orange-darken-2 text-body-2 font-weight-black">
+                  <span
+                    v-else-if="header.key === 'Piutang'"
+                    class="text-orange-darken-2 text-body-2 font-weight-black"
+                  >
                     {{ formatRupiah(totalPiutang) }}
                   </span>
 
-                  <span v-else-if="header.key === 'Bayar'" class="text-success text-body-2 font-weight-black">
+                  <span
+                    v-else-if="header.key === 'Bayar'"
+                    class="text-success text-body-2 font-weight-black"
+                  >
                     {{ formatRupiah(totalBayar) }}
                   </span>
 
-                  <span v-else-if="header.key === 'SisaPiutang'" class="text-red text-body-2 font-weight-black">
+                  <span
+                    v-else-if="header.key === 'SisaPiutang'"
+                    class="text-red text-body-2 font-weight-black"
+                  >
                     {{ formatRupiah(totalSisaPiutang) }}
                   </span>
 
-                  <span v-else-if="header.key === 'RpRetur'" class="text-brown-darken-1 text-body-2 font-weight-black">
+                  <span
+                    v-else-if="header.key === 'RpRetur'"
+                    class="text-brown-darken-1 text-body-2 font-weight-black"
+                  >
                     {{ formatRupiah(totalRpRetur) }}
                   </span>
 
@@ -1446,27 +1697,39 @@ watch(
       </div>
     </div>
 
-    <PrintOptionModal v-if="isPrintOptionVisible" :options="['a4', 'kasir', 'wa']" @close="isPrintOptionVisible = false"
-      @select="handlePrintSelection" />
-    <KasirPrintPreviewModal v-model="isKasirPreviewVisible" :nomorInvoice="selectedInvoice"
-      @close="isKasirPreviewVisible = false" />
+    <PrintOptionModal
+      v-if="isPrintOptionVisible"
+      :options="['a4', 'kasir', 'wa']"
+      @close="isPrintOptionVisible = false"
+      @select="handlePrintSelection"
+    />
+    <KasirPrintPreviewModal
+      v-model="isKasirPreviewVisible"
+      :nomorInvoice="selectedInvoice"
+      @close="isKasirPreviewVisible = false"
+    />
 
     <v-dialog v-model="customFilterDialog" max-width="350px">
       <v-card>
         <v-card-title class="text-h6"> Custom Filter — {{ customFilter.key }} </v-card-title>
 
         <v-card-text>
-          <v-select v-model="customFilter.operator" :items="[
-            { title: ' = (sama dengan)', value: '=' },
-            { title: ' ≠ (tidak sama)', value: '!=' },
-            { title: ' > (lebih besar)', value: '>' },
-            { title: ' ≥ (lebih besar sama)', value: '>=' },
-            { title: ' < (lebih kecil)', value: '<' },
-            { title: ' ≤ (lebih kecil sama)', value: '<=' },
-            { title: ' contains', value: 'contains' },
-            { title: ' starts with', value: 'starts' },
-            { title: ' ends with', value: 'ends' },
-          ]" label="Operator" density="compact" />
+          <v-select
+            v-model="customFilter.operator"
+            :items="[
+              { title: ' = (sama dengan)', value: '=' },
+              { title: ' ≠ (tidak sama)', value: '!=' },
+              { title: ' > (lebih besar)', value: '>' },
+              { title: ' ≥ (lebih besar sama)', value: '>=' },
+              { title: ' < (lebih kecil)', value: '<' },
+              { title: ' ≤ (lebih kecil sama)', value: '<=' },
+              { title: ' contains', value: 'contains' },
+              { title: ' starts with', value: 'starts' },
+              { title: ' ends with', value: 'ends' },
+            ]"
+            label="Operator"
+            density="compact"
+          />
 
           <v-text-field v-model="customFilter.value" label="Value" density="compact" autofocus />
         </v-card-text>
@@ -1486,43 +1749,87 @@ watch(
         </v-card-title>
 
         <v-card-text class="pt-4">
-          <v-alert type="warning" variant="tonal" density="compact" class="mb-4" border="start" icon="mdi-alert">
+          <v-alert
+            type="warning"
+            variant="tonal"
+            density="compact"
+            class="mb-4"
+            border="start"
+            icon="mdi-alert"
+          >
             <div class="text-caption">
               Aksi ini akan <b>mereset data setoran</b> lama dan membuat record baru.
             </div>
           </v-alert>
 
-          <v-select v-model="formPayment.metode" label="Metode Pembayaran Baru" :items="['TUNAI', 'TRANSFER']"
-            variant="outlined" density="compact" color="primary"></v-select>
+          <v-select
+            v-model="formPayment.metode"
+            label="Metode Pembayaran Baru"
+            :items="['TUNAI', 'TRANSFER']"
+            variant="outlined"
+            density="compact"
+            color="primary"
+          ></v-select>
 
           <template v-if="formPayment.metode === 'TRANSFER'">
-            <v-text-field :model-value="formPayment.bank ? `${formPayment.bank.nama} - ${formPayment.bank.kode}` : ''
-              " label="Pilih Bank (Klik Disini/F1)" placeholder="Tekan F1 untuk cari..." variant="outlined"
-              density="compact" readonly append-inner-icon="mdi-magnify" @click="isRekeningSearchVisible = true"
+            <v-text-field
+              :model-value="
+                formPayment.bank ? `${formPayment.bank.nama} - ${formPayment.bank.kode}` : ''
+              "
+              label="Pilih Bank (Klik Disini/F1)"
+              placeholder="Tekan F1 untuk cari..."
+              variant="outlined"
+              density="compact"
+              readonly
+              append-inner-icon="mdi-magnify"
+              @click="isRekeningSearchVisible = true"
               @keydown.f1.prevent="isRekeningSearchVisible = true"
-              :rules="[(v) => !!formPayment.bank || 'Bank wajib dipilih']"></v-text-field>
+              :rules="[(v) => !!formPayment.bank || 'Bank wajib dipilih']"
+            ></v-text-field>
 
-            <v-text-field v-model="formPayment.noRek" label="Keterangan / No. Rek" variant="outlined" density="compact"
-              placeholder="Contoh: 123xxx a.n Budi"></v-text-field>
+            <v-text-field
+              v-model="formPayment.noRek"
+              label="Keterangan / No. Rek"
+              variant="outlined"
+              density="compact"
+              placeholder="Contoh: 123xxx a.n Budi"
+            ></v-text-field>
           </template>
 
-          <v-textarea v-model="formPayment.alasan" label="Alasan Perubahan (Wajib)" rows="2" variant="outlined"
-            density="compact" placeholder="Contoh: Salah input metode oleh sales"
-            :rules="[(v) => !!v || 'Alasan wajib diisi']"></v-textarea>
+          <v-textarea
+            v-model="formPayment.alasan"
+            label="Alasan Perubahan (Wajib)"
+            rows="2"
+            variant="outlined"
+            density="compact"
+            placeholder="Contoh: Salah input metode oleh sales"
+            :rules="[(v) => !!v || 'Alasan wajib diisi']"
+          ></v-textarea>
         </v-card-text>
 
         <v-card-actions>
           <v-spacer></v-spacer>
-          <v-btn text @click="isChangePaymentVisible = false" :disabled="isChangingPayment">Batal</v-btn>
-          <v-btn color="primary" variant="flat" @click="submitChangePayment" :loading="isChangingPayment">
+          <v-btn text @click="isChangePaymentVisible = false" :disabled="isChangingPayment"
+            >Batal</v-btn
+          >
+          <v-btn
+            color="primary"
+            variant="flat"
+            @click="submitChangePayment"
+            :loading="isChangingPayment"
+          >
             Simpan
           </v-btn>
         </v-card-actions>
       </v-card>
     </v-dialog>
 
-    <RekeningSearchModal v-if="isRekeningSearchVisible" :cabang="authStore.user?.cabang || 'K01'"
-      @close="isRekeningSearchVisible = false" @selected="onRekeningSelected" />
+    <RekeningSearchModal
+      v-if="isRekeningSearchVisible"
+      :cabang="authStore.user?.cabang || 'K01'"
+      @close="isRekeningSearchVisible = false"
+      @selected="onRekeningSelected"
+    />
   </PageLayout>
 </template>
 

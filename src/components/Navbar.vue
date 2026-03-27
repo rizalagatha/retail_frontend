@@ -173,6 +173,11 @@ const menuItems: NavItem[] = [
                 to: "/transaksi/penjualan/dtf/dasbor-dtf",
                 icon: "mdi-view-dashboard-outline",
               },
+              {
+                title: "Dasbor Bordir",
+                to: "/transaksi/penjualan/dtf/dasbor-bordir",
+                icon: "mdi-tshirt-crew-outline",
+              },
             ],
           },
           {
@@ -260,6 +265,11 @@ const menuItems: NavItem[] = [
             to: "/transaksi/internal/peminjaman-barang",
             icon: "mdi-hand-back-right-outline",
             badgeKey: "pinjam",
+          },
+          {
+            title: "Petty Cash Store",
+            to: "/transaksi/internal/petty-cash",
+            icon: "mdi-wallet-outline",
           },
           {
             title: "Klerek",
@@ -351,6 +361,13 @@ const menuItems: NavItem[] = [
       { divider: true },
       { title: "Potongan", to: "/piutang/potongan", icon: "mdi-tag-minus-outline" },
       { title: "Refund", to: "/piutang/refund", icon: "mdi-cash-refund" },
+      { divider: true },
+      // --- TAMBAHAN MENU BARU FINANCE ---
+      {
+        title: "Klaim Petty Cash",
+        to: "/piutang/klaim-petty-cash",
+        icon: "mdi-cash-check",
+      },
     ],
   },
   {
@@ -491,6 +508,11 @@ const menuItems: NavItem[] = [
             icon: "mdi-card-text-outline",
           },
           { title: "Saldo Kasir", to: "/laporan/lain-lain/saldo-kasir", icon: "mdi-cash-register" },
+          {
+            title: "Petty Cash",
+            to: "/laporan/lain-lain/petty-cash",
+            icon: "mdi-book-open-variant",
+          },
           { title: "Audit Log", to: "/laporan/lain-lain/audit-log", icon: "mdi-history" },
         ],
       },

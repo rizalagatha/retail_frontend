@@ -5,7 +5,7 @@ import PageLayout from "@/components/PageLayout.vue";
 import { useToast } from "vue-toastification";
 import { useAuthStore } from "@/stores/authStore";
 import { format, parseISO, subDays } from "date-fns";
-import { useRouter } from "vue-router";
+import { useRouter, onBeforeRouteLeave } from "vue-router";
 import axios from "axios";
 import AppDataTable from "@/components/AppDataTable.vue";
 
@@ -44,12 +44,11 @@ interface LhkHeader {
 interface LhkDetail {
   SoDtf: string;
   NamaDtf: string;
-  depan: number;
-  belakang: number;
-  lengan: number;
-  variasi: number;
-  saku: number;
-  Keterangan: string;
+  Titik: number; // Kolom baru
+  JumlahRiil: number; // Jumlah Kaos
+  TotalTitik: number; // Kolom baru
+  Reject: number;
+  LuasSistem: number;
 }
 
 const toast = useToast();
@@ -68,9 +67,14 @@ const endDate = ref(format(new Date(), "yyyy-MM-dd"));
 const cabangList = ref<{ kode: string; nama: string }[]>([]);
 const selectedCabang = ref(authStore.user?.cabang || "");
 const selected = ref<LhkHeader[]>([]);
+const jenisOrderList = ref<{ kode: string; nama: string }[]>([]);
+const selectedJenisOrder = ref("ALL");
 
 const isConfirmDialogVisible = ref(false);
 const itemToDelete = ref<LhkHeader | null>(null);
+
+// Key untuk Session Storage
+const SESSION_STATE_KEY = "lhk_browse_state";
 
 // --- Header Utama (LHK) ---
 const headers = computed<DataTableHeader[]>(() => {
@@ -103,14 +107,13 @@ const headers = computed<DataTableHeader[]>(() => {
 
 // --- Header Detail (SO DTF) ---
 const detailHeaders: DataTableHeader[] = [
-  { title: "No. SO DTF", key: "SoDtf", width: "160px", align: "start" as const },
-  { title: "Nama DTF", key: "NamaDtf", width: "250px", align: "start" as const },
-  { title: "Depan", key: "depan", width: "70px", align: "start" as const },
-  { title: "Belakang", key: "belakang", width: "70px", align: "start" as const },
-  { title: "Lengan", key: "lengan", width: "70px", align: "start" as const },
-  { title: "Variasi", key: "variasi", width: "70px", align: "start" as const },
-  { title: "Saku", key: "saku", width: "70px", align: "start" as const },
-  { title: "Keterangan", key: "Keterangan", align: "start" as const },
+  { title: "No. SO DTF", key: "SoDtf", width: "160px" },
+  { title: "Nama DTF", key: "NamaDtf", width: "250px" },
+  { title: "Jml Titik", key: "Titik", width: "100px", align: "center" },
+  { title: "Jml Kaos", key: "JumlahRiil", width: "100px", align: "center" },
+  { title: "Total Titik", key: "TotalTitik", width: "100px", align: "center" },
+  { title: "Reject", key: "Reject", width: "80px", align: "center" },
+  { title: "Sistem (cm²)", key: "LuasSistem", width: "120px", align: "end" },
 ];
 
 // --- Logic Resize Column ---
@@ -165,6 +168,18 @@ const canEditOrDelete = computed(() => {
 const footerProps = { "items-per-page-options": [10, 25, 50, -1] };
 
 // --- Methods ---
+
+// --- Fungsi Menyimpan State ke Session Storage ---
+const saveStateToSession = () => {
+  const stateToSave = {
+    startDate: startDate.value,
+    endDate: endDate.value,
+    selectedCabang: selectedCabang.value,
+    selectedJenisOrder: selectedJenisOrder.value, // [BARU] Simpan ke memory
+  };
+  sessionStorage.setItem(SESSION_STATE_KEY, JSON.stringify(stateToSave));
+};
+
 const fetchCabangList = async () => {
   try {
     const res = await api.get("/lhk-so-dtf/cabang-list");
@@ -183,12 +198,31 @@ const fetchCabangList = async () => {
   }
 };
 
+// [BARU] Mengambil daftar jenis order dari backend
+const fetchJenisOrderList = async () => {
+  try {
+    const res = await api.get("/lhk-so-dtf/jenis-order"); // Sesuaikan dengan endpoint API Anda
+    jenisOrderList.value = [
+      { kode: "ALL", nama: "SEMUA JENIS" }, // Opsi default
+      ...res.data,
+    ];
+  } catch (err) {
+    toast.error("Gagal memuat daftar jenis order.", err);
+  }
+};
+
 const fetchData = async () => {
-  if (!startDate.value || !endDate.value || !selectedCabang.value) return;
+  if (!startDate.value || !endDate.value || !selectedCabang.value || !selectedJenisOrder.value)
+    return;
   isLoading.value = true;
   try {
     const res = await api.get("/lhk-so-dtf", {
-      params: { startDate: startDate.value, endDate: endDate.value, cabang: selectedCabang.value },
+      params: {
+        startDate: startDate.value,
+        endDate: endDate.value,
+        cabang: selectedCabang.value,
+        jenisOrder: selectedJenisOrder.value, // [BARU] Kirim ke backend
+      },
     });
     list.value = res.data;
   } catch (_err) {
@@ -246,14 +280,57 @@ const handleEdit = () => {
   });
 };
 
-onMounted(() => {
+onMounted(async () => {
   if (hasViewPermission.value) {
-    fetchCabangList();
+    const savedState = sessionStorage.getItem(SESSION_STATE_KEY);
+
+    if (savedState) {
+      try {
+        const parsedState = JSON.parse(savedState);
+        if (parsedState.startDate) startDate.value = parsedState.startDate;
+        if (parsedState.endDate) endDate.value = parsedState.endDate;
+        if (parsedState.selectedCabang) selectedCabang.value = parsedState.selectedCabang;
+        if (parsedState.selectedJenisOrder)
+          selectedJenisOrder.value = parsedState.selectedJenisOrder; // [BARU]
+      } catch (e) {
+        console.error("Gagal membaca state filter dari sessionStorage", e);
+      }
+    } else {
+      selectedCabang.value =
+        authStore.user?.cabang === "KDC" ? "ALL" : authStore.user?.cabang || "";
+      selectedJenisOrder.value = "ALL"; // [BARU] Set default
+
+      // ... (kode query URL biarkan sama) ...
+    }
+
+    // 3. Fetch data referensi dan data tabel berurutan
+    await fetchCabangList();
+    await fetchJenisOrderList(); // [BARU] Panggil API jenis order
+    await fetchData();
+  }
+});
+
+// [BARU] Tambahkan selectedJenisOrder ke dalam watch
+watch([startDate, endDate, selectedCabang, selectedJenisOrder], () => {
+  if (hasViewPermission.value) {
+    saveStateToSession();
     fetchData();
   }
 });
 
-watch([startDate, endDate, selectedCabang], fetchData);
+// Deteksi saat user meninggalkan halaman ini
+onBeforeRouteLeave((to, from, next) => {
+  // Cek apakah halaman tujuan MASIH berhubungan dengan modul LHK
+  // Misal masuk ke halaman: /transaksi/penjualan/dtf/lhk-so-dtf/edit
+  const isRelatedPage = to.path.includes("/lhk-so-dtf");
+
+  if (!isRelatedPage) {
+    // Jika pergi ke menu lain (misal: /dashboard atau /so-dtf), bersihkan memori filter LHK!
+    sessionStorage.removeItem(SESSION_STATE_KEY);
+  }
+
+  next(); // Lanjutkan perpindahan halaman
+});
 </script>
 
 <template>
@@ -317,6 +394,17 @@ watch([startDate, endDate, selectedCabang], fetchData);
         <v-select
           v-model="selectedCabang"
           :items="cabangList"
+          item-title="nama"
+          item-value="kode"
+          density="compact"
+          hide-details
+          variant="outlined"
+          style="max-width: 180px"
+        />
+        <span class="filter-label ms-4">Jenis:</span>
+        <v-select
+          v-model="selectedJenisOrder"
+          :items="jenisOrderList"
           item-title="nama"
           item-value="kode"
           density="compact"
@@ -680,5 +768,13 @@ watch([startDate, endDate, selectedCabang], fetchData);
 
 .text-success {
   color: #2e7d32 !important;
+}
+
+.text-deep-orange {
+  color: #ff5722 !important;
+}
+
+.text-blue {
+  color: #1976d2 !important;
 }
 </style>

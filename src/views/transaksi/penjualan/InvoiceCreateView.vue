@@ -187,13 +187,16 @@ interface SoItem {
 
 interface SjApiItem {
   kode: string;
-  nama: string;
+  nama?: string;
+  nama_barang?: string; // [FIX] Tambahan dari backend
   ukuran: string;
   kategori: string;
   stok?: number | string;
   sjd_jumlah?: number | string;
+  jumlah?: number | string; // [FIX] Tambahan dari backend
   harga_so?: number | string;
   brgd_harga?: number | string;
+  harga?: number | string; // [FIX] Tambahan dari backend
   disc?: number | string;
   diskon?: number | string;
   barcode?: string;
@@ -341,8 +344,8 @@ const authDialog = reactive<AuthDialogState>({
   transaksi: "",
   barcode: "",
   keterangan: "",
-  onSuccess: () => { },
-  onCancel: () => { },
+  onSuccess: () => {},
+  onCancel: () => {},
 });
 
 const activeItemForAuth = ref<Item | null>(null);
@@ -361,7 +364,7 @@ const dialogConfirm = reactive({
   show: false,
   title: "",
   text: "",
-  onConfirm: () => { },
+  onConfirm: () => {},
 });
 
 const activeRowIndex = ref(0);
@@ -474,7 +477,7 @@ const onDiskonSaved = (data: {
   }
 
   // [FIX] Tentukan prioritas berdasarkan mode yang dipilih di modal
-  const isPercentMode = data.mode === 'persen';
+  const isPercentMode = data.mode === "persen";
 
   const newDiskonPersen1 = isPercentMode ? Number(data.diskonPersen1 || 0) : 0;
   const newDiskonPersen2 = isPercentMode ? Number(data.diskonPersen2 || 0) : 0;
@@ -523,7 +526,8 @@ const onDiskonSaved = (data: {
     const nominalAuth = Math.round(d1 + d2 + newDiskonRp);
 
     // Susun Info Lengkap untuk HP Manajer
-    const infoDiskon = `Cust: ${header.customer.nama || "Umum"}\n` +
+    const infoDiskon =
+      `Cust: ${header.customer.nama || "Umum"}\n` +
       `P1 (Member): ${newDiskonPersen1}%\n` +
       `P2 (Maps): ${newDiskonPersen2}%\n` +
       `Rp: ${formatRupiah(newDiskonRp)}`;
@@ -1067,7 +1071,9 @@ const onSoSelected = async (so: { Nomor: string }) => {
     header.dateline = soHeader.dateline || null;
 
     if (soHeader.isOverdue) {
-      toast.warning(soHeader.overdueNote || "Peringatan: SO ini sudah melewati batas waktu (Dateline)!");
+      toast.warning(
+        soHeader.overdueNote || "Peringatan: SO ini sudah melewati batas waktu (Dateline)!"
+      );
     }
 
     // *** Perbaikan bagian jenis order ***
@@ -1208,23 +1214,30 @@ const onSjSelected = async (sj: { NoSJ: string }) => {
       (item: SjApiItem, index: number): Item => ({
         id: Date.now() + index,
         kode: item.kode,
-        nama: item.nama,
+
+        // [FIX] Sesuaikan dengan alias baru dari backend
+        nama: item.nama_barang || item.nama || "",
         ukuran: item.ukuran,
         kategori: item.kategori || "",
         stok: Number(item.stok || 0),
-        qtyso: Number(item.sjd_jumlah || 0),
-        jumlah: Number(item.sjd_jumlah || 0),
-        harga: Number(item.harga_so || item.brgd_harga || 0),
+
+        // [FIX] Ambil dari item.jumlah
+        qtyso: Number(item.jumlah || item.sjd_jumlah || 0),
+        jumlah: Number(item.jumlah || item.sjd_jumlah || 0),
+
+        // [FIX] Ambil dari item.harga
+        harga: Number(item.harga || item.harga_so || item.brgd_harga || 0),
+
         diskonPersen: Number(item.disc || 0),
         diskonRp: Number(item.diskon || 0),
         total: 0,
         barcode: item.barcode || "",
-        terhitungPromo: false, // Inisialisasi properti wajib dari interface Item
-        _isHargaEditable: true, // Inisialisasi properti wajib
+        terhitungPromo: false,
+        _isHargaEditable: true,
         fromBackend: true,
       })
     );
-
+    
     // [FIX] Memastikan linkedDps selalu berupa array untuk fungsi .reduce()
     linkedDps.value = Array.isArray(dps) ? dps : [];
     isSoLoaded.value = true;
@@ -1323,7 +1336,7 @@ const onProductsSelected = (selectedProducts: ProductInput[]) => {
   addNewRow();
   calculateTotals();
 
-  audioSuccess.play().catch(() => { });
+  audioSuccess.play().catch(() => {});
 };
 
 const onUnpaidDpSelected = (dp: DownPayment) => {
@@ -1434,15 +1447,11 @@ const calculateTotals = () => {
     const d2AmountSO = (header.diskonPersen2 / 100) * (basisDiskon - d1AmountSO);
 
     if (isKpr.value) {
-      totals.totalDiskonFaktur = Math.round(
-        d1AmountSO + d2AmountSO + Number(header.diskonRp || 0)
-      );
+      totals.totalDiskonFaktur = Math.round(d1AmountSO + d2AmountSO + Number(header.diskonRp || 0));
     } else {
       // [REVISI] Jalur Non-KPR sekarang juga menghitung Persen 1 & 2 secara bertingkat
       // Ini agar Diskon Maps Review (P2) tetap masuk hitungan meskipun ada nomor SO
-      totals.totalDiskonFaktur = Math.round(
-        d1AmountSO + d2AmountSO + Number(header.diskonRp || 0)
-      );
+      totals.totalDiskonFaktur = Math.round(d1AmountSO + d2AmountSO + Number(header.diskonRp || 0));
     }
 
     const afterAllDiscount = afterItemDiscount - totals.totalDiskonFaktur;
@@ -1671,13 +1680,13 @@ const checkRealtimePromoEligibility = () => {
       const kelipatan = Math.floor(totalEligibleFeb / 200000);
       discount = 20000 * kelipatan;
       message = `🎉 PROMO FEBRUARI! Anda berhak Potongan Kelipatan Rp ${formatRupiah(discount)}!`;
-    }
-    else if (totalEligibleFeb >= 150000) {
+    } else if (totalEligibleFeb >= 150000) {
       discount = 15000;
       const toNextLevel = 200000 - totalEligibleFeb;
-      message = `✨ PROMO FEBRUARI: Dapat potongan Rp 15.000! (Tambah Rp ${formatRupiah(toNextLevel)} lagi untuk diskon kelipatan)`;
-    }
-    else {
+      message = `✨ PROMO FEBRUARI: Dapat potongan Rp 15.000! (Tambah Rp ${formatRupiah(
+        toNextLevel
+      )} lagi untuk diskon kelipatan)`;
+    } else {
       // Upselling 100rb - 150rb
       const shortage = 150000 - totalEligibleFeb;
       message = `💡 Tambah belanja Rp ${formatRupiah(shortage)} lagi untuk dapat DISKON Rp 15.000!`;
@@ -1701,10 +1710,14 @@ const checkRealtimePromoEligibility = () => {
     if (promo010 && totalRegulerDec >= 250000) {
       const kelipatan = Math.floor(totalRegulerDec / 250000);
       discount = 25000 * kelipatan;
-      message = `🎉 SELAMAT! Transaksi ini berhak mendapatkan Potongan Kelipatan Rp ${formatRupiah(discount)}!`;
+      message = `🎉 SELAMAT! Transaksi ini berhak mendapatkan Potongan Kelipatan Rp ${formatRupiah(
+        discount
+      )}!`;
     } else if (promo008 && totalBelanjaDec >= promo008.pro_totalrp) {
       discount = promo008.pro_disrp * Math.floor(totalBelanjaDec / promo008.pro_totalrp);
-      message = `✨ DISKON BULANAN AKTIF: Anda berhak mendapatkan potongan Rp ${formatRupiah(discount)}`;
+      message = `✨ DISKON BULANAN AKTIF: Anda berhak mendapatkan potongan Rp ${formatRupiah(
+        discount
+      )}`;
     }
   }
 
@@ -1855,7 +1868,7 @@ const handleProceedToPayment = async () => {
 
           dialogConfirm.onConfirm = () => {
             resolve(true);
-            dialogConfirm.onConfirm = () => { };
+            dialogConfirm.onConfirm = () => {};
             unwatch();
           };
         });
@@ -1872,11 +1885,24 @@ const handleProceedToPayment = async () => {
       const promoConfirmed = await new Promise<boolean>((resolve) => {
         showConfirmation(
           `Dapat ${promoToApply!.pro_judul}`,
-          `Anda mendapatkan diskon promo ${formatRupiah(promoDiskon)}. Gunakan promo ini? (Diskon member lain akan direset)`,
+          `Anda mendapatkan diskon promo ${formatRupiah(
+            promoDiskon
+          )}. Gunakan promo ini? (Diskon member lain akan direset)`,
           () => resolve(true)
         );
-        const unwatch = watch(() => dialogConfirm.show, (v) => { if (!v) { unwatch(); resolve(false); } });
-        dialogConfirm.onConfirm = () => { resolve(true); unwatch(); };
+        const unwatch = watch(
+          () => dialogConfirm.show,
+          (v) => {
+            if (!v) {
+              unwatch();
+              resolve(false);
+            }
+          }
+        );
+        dialogConfirm.onConfirm = () => {
+          resolve(true);
+          unwatch();
+        };
       });
 
       if (promoConfirmed) {
@@ -2049,7 +2075,7 @@ const checkStokMinus = (): Promise<boolean> => {
 };
 
 const onSaveSuccess = () => {
-  audioSuccess.play().catch(() => { });
+  audioSuccess.play().catch(() => {});
   markAsSaved();
   // Dipanggil dari PaymentModal setelah save berhasil
   router.push({ name: "Invoice" }); // Kembali ke halaman browse
@@ -2064,13 +2090,13 @@ const updateMemberInfo = (customer: Customer | null) => {
 const handleBarcodeScan = async () => {
   // 1. Cek Promo 005 (Scan non-aktif)
   if (header.nomorPromo === "PRO-2025-005") {
-    audioError.play().catch(() => { }); // Bunyi Error
+    audioError.play().catch(() => {}); // Bunyi Error
     return toast.error("Scan barcode non-aktif saat promo ini. Gunakan F1/F2.");
   }
 
   // 2. Cek Customer
   if (!header.customer.kode) {
-    audioError.play().catch(() => { });
+    audioError.play().catch(() => {});
     return toast.error("Pilih customer terlebih dahulu sebelum scan!");
   }
 
@@ -2091,7 +2117,7 @@ const handleBarcodeScan = async () => {
       existingItem.jumlah += 1;
 
       // Feedback Sukses
-      audioSuccess.play().catch(() => { });
+      audioSuccess.play().catch(() => {});
       toast.info(`+1 ${existingItem.nama}`);
 
       scannedBarcode.value = "";
@@ -2147,12 +2173,12 @@ const handleBarcodeScan = async () => {
     addNewRow();
 
     // Feedback Sukses
-    audioSuccess.play().catch(() => { });
+    audioSuccess.play().catch(() => {});
     toast.success(`OK: ${product.nama}`);
     scannedBarcode.value = "";
   } catch (error: unknown) {
     // Feedback Error
-    audioError.play().catch(() => { });
+    audioError.play().catch(() => {});
 
     if (axios.isAxiosError(error) && error.response) {
       toast.error(error.response.data?.message || `Barcode ${barcode} tidak valid.`);
@@ -2684,12 +2710,15 @@ watch(
   }
 );
 
-watch(() => header.customer.kode, (newVal) => {
-  if (newVal) {
-    // Berikan default awal di UI agar user tidak kaget
-    header.top = (authStore.user?.cabang === 'KPR') ? 30 : 14;
+watch(
+  () => header.customer.kode,
+  (newVal) => {
+    if (newVal) {
+      // Berikan default awal di UI agar user tidak kaget
+      header.top = authStore.user?.cabang === "KPR" ? 30 : 14;
+    }
   }
-});
+);
 </script>
 
 <template>
@@ -2698,13 +2727,24 @@ watch(() => header.customer.kode, (newVal) => {
       Invoice ini sudah masuk Form Setoran Kasir (FSK). Perubahan tidak diperbolehkan.
     </v-alert>
     <template #header-actions>
-      <v-btn v-if="isEditMode" color="primary" size="small" prepend-icon="mdi-content-save" :disabled="isLockedFsk"
-        @click="saveHeaderOnly">
+      <v-btn
+        v-if="isEditMode"
+        color="primary"
+        size="small"
+        prepend-icon="mdi-content-save"
+        :disabled="isLockedFsk"
+        @click="saveHeaderOnly"
+      >
         Simpan Header
       </v-btn>
-      <v-btn v-if="!isEditMode" size="small" prepend-icon="mdi-cancel" @click="
-        showConfirmation('Batalkan Isian', 'Batalkan dan kosongkan semua isian?', resetForm)
-        ">
+      <v-btn
+        v-if="!isEditMode"
+        size="small"
+        prepend-icon="mdi-cancel"
+        @click="
+          showConfirmation('Batalkan Isian', 'Batalkan dan kosongkan semua isian?', resetForm)
+        "
+      >
         Batal
       </v-btn>
       <v-btn size="small" prepend-icon="mdi-close" @click="handleClose"> Tutup </v-btn>
@@ -2715,28 +2755,63 @@ watch(() => header.customer.kode, (newVal) => {
         <div class="desktop-form-section header-section">
           <v-row dense class="mb-2 align-center" v-if="isUserMarketplaceEligible">
             <v-col cols="12">
-              <v-sheet class="pa-2 rounded bg-orange-lighten-5 border border-orange-lighten-2" elevation="0">
+              <v-sheet
+                class="pa-2 rounded bg-orange-lighten-5 border border-orange-lighten-2"
+                elevation="0"
+              >
                 <div class="d-flex align-center mb-2">
-                  <v-switch v-model="header.isMarketplace" color="orange-darken-3" density="compact" hide-details inset
-                    label="Mode Marketplace" class="font-weight-bold" :readonly="isReadonly"></v-switch>
+                  <v-switch
+                    v-model="header.isMarketplace"
+                    color="orange-darken-3"
+                    density="compact"
+                    hide-details
+                    inset
+                    label="Mode Marketplace"
+                    class="font-weight-bold"
+                    :readonly="isReadonly"
+                  ></v-switch>
                   <v-spacer></v-spacer>
-                  <v-icon v-if="header.isMarketplace" color="orange-darken-3">mdi-store-check</v-icon>
+                  <v-icon v-if="header.isMarketplace" color="orange-darken-3"
+                    >mdi-store-check</v-icon
+                  >
                 </div>
 
                 <v-expand-transition>
                   <div v-if="header.isMarketplace">
                     <v-row dense>
                       <v-col cols="4">
-                        <v-combobox v-model="header.mpNama" :items="marketplaceList" label="Platform" variant="outlined"
-                          density="compact" hide-details bg-color="white" :readonly="isReadonly"></v-combobox>
+                        <v-combobox
+                          v-model="header.mpNama"
+                          :items="marketplaceList"
+                          label="Platform"
+                          variant="outlined"
+                          density="compact"
+                          hide-details
+                          bg-color="white"
+                          :readonly="isReadonly"
+                        ></v-combobox>
                       </v-col>
                       <v-col cols="4">
-                        <v-text-field v-model="header.mpNomorPesanan" label="No. Pesanan" variant="outlined"
-                          density="compact" hide-details bg-color="white" :readonly="isReadonly"></v-text-field>
+                        <v-text-field
+                          v-model="header.mpNomorPesanan"
+                          label="No. Pesanan"
+                          variant="outlined"
+                          density="compact"
+                          hide-details
+                          bg-color="white"
+                          :readonly="isReadonly"
+                        ></v-text-field>
                       </v-col>
                       <v-col cols="4">
-                        <v-text-field v-model="header.mpResi" label="No. Resi" variant="outlined" density="compact"
-                          hide-details bg-color="white" :readonly="isReadonly"></v-text-field>
+                        <v-text-field
+                          v-model="header.mpResi"
+                          label="No. Resi"
+                          variant="outlined"
+                          density="compact"
+                          hide-details
+                          bg-color="white"
+                          :readonly="isReadonly"
+                        ></v-text-field>
                       </v-col>
                     </v-row>
                   </div>
@@ -2746,96 +2821,228 @@ watch(() => header.customer.kode, (newVal) => {
           </v-row>
           <v-row dense>
             <v-col cols="6">
-              <v-text-field label="No. Invoice" v-model="header.nomor" readonly density="compact" filled hide-details />
+              <v-text-field
+                label="No. Invoice"
+                v-model="header.nomor"
+                readonly
+                density="compact"
+                filled
+                hide-details
+              />
             </v-col>
             <v-col cols="6">
-              <v-text-field label="Tanggal" v-model="header.tanggal" type="date" variant="filled" density="compact"
-                hide-details :readonly="isReadonly" />
+              <v-text-field
+                label="Tanggal"
+                v-model="header.tanggal"
+                type="date"
+                variant="filled"
+                density="compact"
+                hide-details
+                :readonly="isReadonly"
+              />
             </v-col>
             <v-col cols="4">
-              <v-text-field label="Kode Cabang" :model-value="header.gudang.kode" density="compact" filled hide-details
-                :readonly="isReadonly" />
+              <v-text-field
+                label="Kode Cabang"
+                :model-value="header.gudang.kode"
+                density="compact"
+                filled
+                hide-details
+                :readonly="isReadonly"
+              />
             </v-col>
             <v-col cols="8">
-              <v-text-field label="Nama Cabang" :model-value="header.gudang.nama" density="compact" filled hide-details
-                :readonly="isReadonly" />
+              <v-text-field
+                label="Nama Cabang"
+                :model-value="header.gudang.nama"
+                density="compact"
+                filled
+                hide-details
+                :readonly="isReadonly"
+              />
             </v-col>
             <v-col cols="6">
-              <v-text-field :label="referenceLabel" v-model="header.nomorSo" :readonly="isReadonly"
-                :prepend-inner-icon="isReadonly ? '' : 'mdi-magnify'" density="compact" hide-details clearable
-                :clear-icon="isReadonly ? '' : 'mdi-close'" @click="
+              <v-text-field
+                :label="referenceLabel"
+                v-model="header.nomorSo"
+                :readonly="isReadonly"
+                :prepend-inner-icon="isReadonly ? '' : 'mdi-magnify'"
+                density="compact"
+                hide-details
+                clearable
+                :clear-icon="isReadonly ? '' : 'mdi-close'"
+                @click="
                   !isReadonly && (isKpr ? (dialogs.sjSearch = true) : (dialogs.soSearch = true))
-                  " @click:clear.prevent="!isReadonly && handleClearSo()" />
+                "
+                @click:clear.prevent="!isReadonly && handleClearSo()"
+              />
             </v-col>
             <v-col cols="6">
-              <v-text-field :label="referenceDateLabel" :model-value="header.tanggalSo ? format(parseISO(header.tanggalSo), 'dd-MM-yyyy') : ''
-                " readonly variant="filled" density="compact" hide-details />
+              <v-text-field
+                :label="referenceDateLabel"
+                :model-value="
+                  header.tanggalSo ? format(parseISO(header.tanggalSo), 'dd-MM-yyyy') : ''
+                "
+                readonly
+                variant="filled"
+                density="compact"
+                hide-details
+              />
             </v-col>
             <v-col cols="4">
-              <v-text-field label=" Kode Customer" :model-value="header.customer.kode" density="compact"
-                :readonly="isReadonly" @click="!isReadonly && (dialogs.customerSearch = true)"
-                prepend-inner-icon="mdi-magnify" hide-details />
+              <v-text-field
+                label=" Kode Customer"
+                :model-value="header.customer.kode"
+                density="compact"
+                :readonly="isReadonly"
+                @click="!isReadonly && (dialogs.customerSearch = true)"
+                prepend-inner-icon="mdi-magnify"
+                hide-details
+              />
             </v-col>
             <v-col cols="8">
-              <v-text-field label="Nama Customer" :model-value="header.customer.nama" :readonly="isReadonly"
-                density="compact" hide-details>
+              <v-text-field
+                label="Nama Customer"
+                :model-value="header.customer.nama"
+                :readonly="isReadonly"
+                density="compact"
+                hide-details
+              >
                 <template #append-inner>
-                  <v-btn icon="mdi-account-plus" size="x-small" variant="tonal" :disabled="isReadonly || isKpr"
-                    @click.stop="!isReadonly && (dialogs.customerForm = true)" :title="isKpr
-                      ? 'Cabang KPR tidak diizinkan membuat customer baru'
-                      : 'Buat Customer Baru'
-                      ">
+                  <v-btn
+                    icon="mdi-account-plus"
+                    size="x-small"
+                    variant="tonal"
+                    :disabled="isReadonly || isKpr"
+                    @click.stop="!isReadonly && (dialogs.customerForm = true)"
+                    :title="
+                      isKpr
+                        ? 'Cabang KPR tidak diizinkan membuat customer baru'
+                        : 'Buat Customer Baru'
+                    "
+                  >
                   </v-btn>
                 </template>
               </v-text-field>
             </v-col>
             <v-col cols="12">
-              <v-text-field label="Alamat" v-model="header.customer.alamat" readonly filled density="compact"
-                hide-details />
+              <v-text-field
+                label="Alamat"
+                v-model="header.customer.alamat"
+                readonly
+                filled
+                density="compact"
+                hide-details
+              />
             </v-col>
             <v-col cols="6">
-              <v-text-field label="Kota" v-model="header.customer.kota" readonly filled density="compact"
-                hide-details />
+              <v-text-field
+                label="Kota"
+                v-model="header.customer.kota"
+                readonly
+                filled
+                density="compact"
+                hide-details
+              />
             </v-col>
             <v-col cols="6">
-              <v-text-field label="Telepon" v-model="header.customer.telp" readonly filled density="compact"
-                hide-details />
+              <v-text-field
+                label="Telepon"
+                v-model="header.customer.telp"
+                readonly
+                filled
+                density="compact"
+                hide-details
+              />
             </v-col>
             <v-col cols="6">
-              <v-text-field label="Level" v-model="header.customer.level" readonly filled density="compact"
-                hide-details />
+              <v-text-field
+                label="Level"
+                v-model="header.customer.level"
+                readonly
+                filled
+                density="compact"
+                hide-details
+              />
             </v-col>
             <v-col cols="3">
-              <v-text-field label="TOP" v-model.number="header.top" type="number" min="0" density="compact"
-                variant="outlined" hide-details :readonly="isReadonly" />
+              <v-text-field
+                label="TOP"
+                v-model.number="header.top"
+                type="number"
+                min="0"
+                density="compact"
+                variant="outlined"
+                hide-details
+                :readonly="isReadonly"
+              />
             </v-col>
             <v-col cols="3">
-              <v-text-field label="Tgl. Jatuh Tempo" v-model="header.tanggalTempo" type="date" density="compact"
-                readonly filled hide-details />
+              <v-text-field
+                label="Tgl. Jatuh Tempo"
+                v-model="header.tanggalTempo"
+                type="date"
+                density="compact"
+                readonly
+                filled
+                hide-details
+              />
             </v-col>
             <v-col cols="12">
-              <v-select label="Sales Counter" v-model="header.salesCounter" :items="salesCounters" variant="outlined"
-                density="compact" hide-details :readonly="isReadonly" />
+              <v-select
+                label="Sales Counter"
+                v-model="header.salesCounter"
+                :items="salesCounters"
+                variant="outlined"
+                density="compact"
+                hide-details
+                :readonly="isReadonly"
+              />
             </v-col>
             <v-col cols="4">
-              <v-text-field label="Promo" v-model="header.nomorPromo"
-                @click="!isReadonly && (dialogs.promoSearch = true)" prepend-inner-icon="mdi-magnify" density="compact"
-                hide-details placeholder="F1 atau klik..." :readonly="isReadonly" />
+              <v-text-field
+                label="Promo"
+                v-model="header.nomorPromo"
+                @click="!isReadonly && (dialogs.promoSearch = true)"
+                prepend-inner-icon="mdi-magnify"
+                density="compact"
+                hide-details
+                placeholder="F1 atau klik..."
+                :readonly="isReadonly"
+              />
             </v-col>
             <v-col cols="8">
-              <v-text-field label="Nama Promo" v-model="header.namaPromo" density="compact" :readonly="isReadonly"
-                filled hide-details />
+              <v-text-field
+                label="Nama Promo"
+                v-model="header.namaPromo"
+                density="compact"
+                :readonly="isReadonly"
+                filled
+                hide-details
+              />
             </v-col>
             <v-col cols="12">
-              <v-text-field label="Keterangan" v-model="header.keterangan" density="compact" variant="outlined"
-                hide-details :readonly="isReadonly" />
+              <v-text-field
+                label="Keterangan"
+                v-model="header.keterangan"
+                density="compact"
+                variant="outlined"
+                hide-details
+                :readonly="isReadonly"
+              />
             </v-col>
           </v-row>
-          <v-input :label="memberLabel" :append-inner-icon="isReadonly ? '' : 'mdi-pencil'" hide-details
-            class="custom-input-button" :class="{
+          <v-input
+            :label="memberLabel"
+            :append-inner-icon="isReadonly ? '' : 'mdi-pencil'"
+            hide-details
+            class="custom-input-button"
+            :class="{
               'disabled-input': isReadonly,
               'border-error': header.customer.kode === 'K-00079' && !header.memberNik,
-            }" @click="!isReadonly && (dialogs.memberForm = true)">
+            }"
+            @click="!isReadonly && (dialogs.memberForm = true)"
+          >
             <div v-if="header.memberNik || header.memberHp" class="input-content">
               <strong>{{ header.memberNik || header.memberHp }}</strong> - {{ header.memberNama }}
             </div>
@@ -2853,13 +3060,30 @@ watch(() => header.customer.kode, (newVal) => {
       <div class="right-column">
         <div class="top-right-header">
           <div v-if="!header.nomorSo" class="scanner-wrapper d-flex ga-2 align-center">
-            <v-text-field ref="barcodeInputRef" v-model="scannedBarcode" label="Scan Barcode di Sini..."
-              placeholder="Siap scan satu per satu..." variant="outlined" density="compact"
-              prepend-inner-icon="mdi-barcode-scan" hide-details clearable :loading="isScanning" :disabled="isScanning"
-              @keydown.enter.prevent="handleBarcodeScan" autofocus />
+            <v-text-field
+              ref="barcodeInputRef"
+              v-model="scannedBarcode"
+              label="Scan Barcode di Sini..."
+              placeholder="Siap scan satu per satu..."
+              variant="outlined"
+              density="compact"
+              prepend-inner-icon="mdi-barcode-scan"
+              hide-details
+              clearable
+              :loading="isScanning"
+              :disabled="isScanning"
+              @keydown.enter.prevent="handleBarcodeScan"
+              autofocus
+            />
 
-            <v-btn icon="mdi-magnify" color="secondary" variant="tonal" density="compact" title="Cek Stok & Harga (F1)"
-              @click="openLookup" />
+            <v-btn
+              icon="mdi-magnify"
+              color="secondary"
+              variant="tonal"
+              density="compact"
+              title="Cek Stok & Harga (F1)"
+              @click="openLookup"
+            />
           </div>
 
           <div class="logo-container">
@@ -2869,55 +3093,112 @@ watch(() => header.customer.kode, (newVal) => {
 
         <div class="scrollable-table-wrapper">
           <div class="desktop-form-section table-section">
-            <v-data-table :headers="tableHeaders" :items="items" class="desktop-table header-browse-blue"
-              :items-per-page="-1" fixed-header height="calc(100vh - 420px)">
+            <v-data-table
+              :headers="tableHeaders"
+              :items="items"
+              class="desktop-table header-browse-blue"
+              :items-per-page="-1"
+              fixed-header
+              height="calc(100vh - 420px)"
+            >
               <template v-slot:[`item.kode`]="{ item, index }">
-                <v-text-field v-model="item.kode" variant="underlined" density="compact" hide-details readonly
+                <v-text-field
+                  v-model="item.kode"
+                  variant="underlined"
+                  density="compact"
+                  hide-details
+                  readonly
                   :placeholder="canSearchManual ? 'F1/F2 = Cari' : 'F1 = Cek Stok'"
-                  :class="{ 'field-disabled': !!header.nomorSo || !!item.noSoDtf }" @keydown.f1.stop.prevent="
+                  :class="{ 'field-disabled': !!header.nomorSo || !!item.noSoDtf }"
+                  @keydown.f1.stop.prevent="
                     !header.nomorSo && !item.noSoDtf && openProductSearch(index, false)
-                    " @keydown.f2.stop.prevent="
-                      canSearchManual &&
+                  "
+                  @keydown.f2.stop.prevent="
+                    canSearchManual &&
                       !header.nomorSo &&
                       !item.noSoDtf &&
                       openProductSearch(index, true)
-                      " />
+                  "
+                />
               </template>
 
               <template #[`item.kategori`]="{ item }">
                 <div v-if="!item.isCustomOrder && item.kode">
-                  <v-chip size="x-small" :color="getCategoryColor(item.kategori)" variant="flat"
-                    class="font-weight-bold text-white">
+                  <v-chip
+                    size="x-small"
+                    :color="getCategoryColor(item.kategori)"
+                    variant="flat"
+                    class="font-weight-bold text-white"
+                  >
                     {{ item.kategori || "TANPA KATEGORI" }}
                   </v-chip>
                 </div>
               </template>
 
               <template v-slot:[`item.jumlah`]="{ item }">
-                <v-text-field v-model.number="item.jumlah" :readonly="isReadonly" type="number" min="0"
-                  variant="underlined" density="compact" hide-details class="text-right" :class="getQtyClass(item)"
-                  @blur="handleJumlahChange(item)" />
+                <v-text-field
+                  v-model.number="item.jumlah"
+                  :readonly="isReadonly"
+                  type="number"
+                  min="0"
+                  variant="underlined"
+                  density="compact"
+                  hide-details
+                  class="text-right"
+                  :class="getQtyClass(item)"
+                  @blur="handleJumlahChange(item)"
+                />
               </template>
 
               <template v-slot:[`item.harga`]="{ item }">
-                <v-text-field :model-value="focusedRowId === item.id ? item.harga : formatRupiah(item.harga || 0)
-                  " @update:model-value="
+                <v-text-field
+                  :model-value="
+                    focusedRowId === item.id ? item.harga : formatRupiah(item.harga || 0)
+                  "
+                  @update:model-value="
                     item.harga = Number(String($event).replace(/[^0-9]/g, '')) || 0
-                    " @focus="focusedRowId = item.id" @blur="focusedRowId = -1" type="text" min="0"
-                  variant="underlined" density="compact" hide-details class="text-right"
-                  :readonly="isReadonly || !isHargaEditable(item)" placeholder="0"></v-text-field>
+                  "
+                  @focus="focusedRowId = item.id"
+                  @blur="focusedRowId = -1"
+                  type="text"
+                  min="0"
+                  variant="underlined"
+                  density="compact"
+                  hide-details
+                  class="text-right"
+                  :readonly="isReadonly || !isHargaEditable(item)"
+                  placeholder="0"
+                ></v-text-field>
               </template>
 
               <template v-slot:[`item.diskonPersen`]="{ item }">
-                <v-text-field v-model.number="item.diskonPersen" :readonly="isReadonly" type="number" min="0"
-                  variant="underlined" density="compact" hide-details class="text-right"
-                  @blur="handleItemDiscountChange(item)" @focus="onItemDiscountFocus(item)" />
+                <v-text-field
+                  v-model.number="item.diskonPersen"
+                  :readonly="isReadonly"
+                  type="number"
+                  min="0"
+                  variant="underlined"
+                  density="compact"
+                  hide-details
+                  class="text-right"
+                  @blur="handleItemDiscountChange(item)"
+                  @focus="onItemDiscountFocus(item)"
+                />
               </template>
 
               <template v-slot:[`item.diskonRp`]="{ item }">
-                <v-text-field v-model.number="item.diskonRp" type="number" min="0" variant="underlined"
-                  density="compact" hide-details class="text-right" :readonly="isReadonly"
-                  @blur="handleItemDiscountChange(item)" @focus="onItemDiscountFocus(item)" />
+                <v-text-field
+                  v-model.number="item.diskonRp"
+                  type="number"
+                  min="0"
+                  variant="underlined"
+                  density="compact"
+                  hide-details
+                  class="text-right"
+                  :readonly="isReadonly"
+                  @blur="handleItemDiscountChange(item)"
+                  @focus="onItemDiscountFocus(item)"
+                />
               </template>
 
               <template v-slot:[`item.total`]="{ item }">
@@ -2927,16 +3208,29 @@ watch(() => header.customer.kode, (newVal) => {
               </template>
 
               <template v-slot:[`item.noSoDtf`]="{ item, index }">
-                <v-text-field v-model="item.noSoDtf" variant="underlined" density="compact" hide-details readonly
-                  class="cursor-pointer" :placeholder="isKpr ? 'Klik cari SO DTF' : ''"
-                  :class="{ 'field-disabled': !isKpr && !!header.nomorSo }" filled
-                  @click="openSoDtfSearch(item, index)" />
+                <v-text-field
+                  v-model="item.noSoDtf"
+                  variant="underlined"
+                  density="compact"
+                  hide-details
+                  readonly
+                  class="cursor-pointer"
+                  :placeholder="isKpr ? 'Klik cari SO DTF' : ''"
+                  :class="{ 'field-disabled': !isKpr && !!header.nomorSo }"
+                  filled
+                  @click="openSoDtfSearch(item, index)"
+                />
               </template>
 
               <template v-slot:[`item.terhitungPromo`]="{ item }">
                 <div v-if="item.kode" class="text-center">
-                  <v-chip v-if="isItemPromoEligible(item)" size="x-small" color="success" variant="flat"
-                    class="font-weight-bold">
+                  <v-chip
+                    v-if="isItemPromoEligible(item)"
+                    size="x-small"
+                    color="success"
+                    variant="flat"
+                    class="font-weight-bold"
+                  >
                     ELIGIBLE
                     <v-tooltip activator="parent" location="top">
                       Produk ini berkontribusi dalam perhitungan Promo Februari
@@ -2947,9 +3241,16 @@ watch(() => header.customer.kode, (newVal) => {
               </template>
 
               <template v-slot:[`item.actions`]="{ item }">
-                <v-btn v-if="item.kode" icon="mdi-delete" :disabled="isReadonly" variant="text" color="error"
-                  size="x-small" @click="handleDeleteItem(item)"
-                  :title="item.noSoDtf ? 'Hapus Semua Item SO DTF Ini' : 'Hapus Item Ini'">
+                <v-btn
+                  v-if="item.kode"
+                  icon="mdi-delete"
+                  :disabled="isReadonly"
+                  variant="text"
+                  color="error"
+                  size="x-small"
+                  @click="handleDeleteItem(item)"
+                  :title="item.noSoDtf ? 'Hapus Semua Item SO DTF Ini' : 'Hapus Item Ini'"
+                >
                 </v-btn>
               </template>
             </v-data-table>
@@ -2968,10 +3269,19 @@ watch(() => header.customer.kode, (newVal) => {
         <div class="footer-actions-section">
           <v-slide-y-transition>
             <div v-if="promoNotification" class="promo-card-wrapper mb-4">
-              <div v-if="!isPromoMinimized" class="promo-card" :class="{ 'grand-opening-style': isGrandOpeningPromo }">
-                <v-btn icon="mdi-chevron-up" variant="text" size="x-small" color="white"
+              <div
+                v-if="!isPromoMinimized"
+                class="promo-card"
+                :class="{ 'grand-opening-style': isGrandOpeningPromo }"
+              >
+                <v-btn
+                  icon="mdi-chevron-up"
+                  variant="text"
+                  size="x-small"
+                  color="white"
                   style="position: absolute; right: 8px; top: 8px; z-index: 10"
-                  @click="isPromoMinimized = true"></v-btn>
+                  @click="isPromoMinimized = true"
+                ></v-btn>
 
                 <div class="card-texture"></div>
                 <div class="card-shine"></div>
@@ -2979,13 +3289,23 @@ watch(() => header.customer.kode, (newVal) => {
                 <div class="card-content">
                   <div class="icon-container">
                     <div class="icon-circle pulse-animation">
-                      <v-icon :icon="isGrandOpeningPromo ? 'mdi-party-popper' : 'mdi-ticket-percent-outline'
-                        " size="24" color="white" />
+                      <v-icon
+                        :icon="
+                          isGrandOpeningPromo ? 'mdi-party-popper' : 'mdi-ticket-percent-outline'
+                        "
+                        size="24"
+                        color="white"
+                      />
                     </div>
                   </div>
                   <div class="text-container">
                     <div class="promo-label">
-                      <v-icon icon="mdi-star-four-points" size="10" class="mr-1" color="yellow-lighten-3" />
+                      <v-icon
+                        icon="mdi-star-four-points"
+                        size="10"
+                        class="mr-1"
+                        color="yellow-lighten-3"
+                      />
                       {{ isGrandOpeningPromo ? "SPECIAL OFFER" : "YAYY!! DAPET DISKON!!!" }}
                     </div>
                     <div class="promo-message">{{ promoNotification }}</div>
@@ -2996,15 +3316,21 @@ watch(() => header.customer.kode, (newVal) => {
                 </div>
               </div>
 
-              <div v-else class="promo-minimized-bar" :class="{ 'grand-opening-style': isGrandOpeningPromo }"
-                @click="isPromoMinimized = false">
+              <div
+                v-else
+                class="promo-minimized-bar"
+                :class="{ 'grand-opening-style': isGrandOpeningPromo }"
+                @click="isPromoMinimized = false"
+              >
                 <v-icon icon="mdi-ticket-percent" size="16" class="mr-2" />
-                <span class="minimized-text">Promo Aktif:
+                <span class="minimized-text"
+                  >Promo Aktif:
                   {{
                     potentialPromoDiscount > 0
                       ? "Hemat " + formatRupiah(potentialPromoDiscount)
                       : "Cek Detail"
-                  }}</span>
+                  }}</span
+                >
                 <v-spacer />
                 <span class="text-caption mr-2">(Klik untuk Detail)</span>
                 <v-icon icon="mdi-chevron-down" size="16" />
@@ -3013,11 +3339,20 @@ watch(() => header.customer.kode, (newVal) => {
           </v-slide-y-transition>
           <v-row align="center">
             <v-col cols="auto" class="d-flex ga-2">
-              <v-btn size="small" prepend-icon="mdi-cash-multiple" @click="dialogs.linkedDp = true"
-                :disabled="isReadonly || !header.customer.kode">
+              <v-btn
+                size="small"
+                prepend-icon="mdi-cash-multiple"
+                @click="dialogs.linkedDp = true"
+                :disabled="isReadonly || !header.customer.kode"
+              >
                 Lihat DP
               </v-btn>
-              <v-btn size="small" prepend-icon="mdi-sale" @click="dialogs.diskonForm = true" :disabled="isReadonly">
+              <v-btn
+                size="small"
+                prepend-icon="mdi-sale"
+                @click="dialogs.diskonForm = true"
+                :disabled="isReadonly"
+              >
                 Input Diskon/Biaya
               </v-btn>
             </v-col>
@@ -3025,8 +3360,13 @@ watch(() => header.customer.kode, (newVal) => {
             <v-spacer></v-spacer>
 
             <v-col cols="auto">
-              <v-btn color="primary" size="large" prepend-icon="mdi-credit-card-check" @click="handleProceedToPayment"
-                :disabled="isReadonly || !authStore.can(MENU_ID, requiredPermission)">
+              <v-btn
+                color="primary"
+                size="large"
+                prepend-icon="mdi-credit-card-check"
+                @click="handleProceedToPayment"
+                :disabled="isReadonly || !authStore.can(MENU_ID, requiredPermission)"
+              >
                 Lanjutkan ke Pembayaran
               </v-btn>
             </v-col>
@@ -3035,44 +3375,114 @@ watch(() => header.customer.kode, (newVal) => {
       </div>
     </div>
 
-    <CustomerSearchModal v-if="dialogs.customerSearch" :gudang="header.gudang.kode" source="invoice"
-      @close="dialogs.customerSearch = false" @customer-selected="onCustomerSelected" />
-    <CustomerForm v-if="dialogs.customerForm" @close="dialogs.customerForm = false"
-      @customer-saved="onNewCustomerSaved" />
-    <SoSearchModalForInvoice v-if="dialogs.soSearch" :cabang="header.gudang.kode" @close="dialogs.soSearch = false"
-      @so-selected="onSoSelected" mode="invoice" />
-    <ProductSearchModal v-if="dialogs.productSearch" :gudang="header.gudang.kode" category="ALL"
-      :multi="isMultiSelectProduct" source="invoice-cash" :promo-nomor="header.nomorPromo"
-      @close="dialogs.productSearch = false" @products-selected="onProductsSelected" />
-    <UnpaidDpSearchModal v-if="dialogs.unpaidDpSearch" :customer-kode="header.customer.kode"
-      @close="dialogs.unpaidDpSearch = false" @selected="onUnpaidDpSelected" />
-    <PaymentModal v-if="dialogs.payment" :invoice-header="header" :invoice-items="items" :totals="totals"
-      :auth-pins="authPins" :linked-dps="linkedDps" :customer-limit="customerLimit" :customer-debt="customerDebt"
-      @close="dialogs.payment = false" @save-success="onSaveSuccess" />
-    <PromoSearchModal v-if="dialogs.promoSearch" :tanggal="header.tanggal" @close="dialogs.promoSearch = false"
-      @selected="onPromoSelected" />
-    <MemberForm v-if="dialogs.memberForm" :initial-hp="memberHpToSearch"
-      :is-karyawan-mode="header.customer.kode === 'K-00079'" @close="dialogs.memberForm = false"
-      @member-saved="onMemberSaved" />
-    <DiskonForm v-if="dialogs.diskonForm" :sub-total="totals.subTotal" :diskon-persen1="header.diskonPersen1"
-      :diskon-persen2="header.diskonPersen2" :diskon-rp="header.diskonRp" :biaya-kirim="header.biayaKirim"
-      :biaya-platform="header.mpBiayaPlatform" :is-marketplace="header.isMarketplace"
-      @close="dialogs.diskonForm = false" @save="onDiskonSaved" />
+    <CustomerSearchModal
+      v-if="dialogs.customerSearch"
+      :gudang="header.gudang.kode"
+      source="invoice"
+      @close="dialogs.customerSearch = false"
+      @customer-selected="onCustomerSelected"
+    />
+    <CustomerForm
+      v-if="dialogs.customerForm"
+      @close="dialogs.customerForm = false"
+      @customer-saved="onNewCustomerSaved"
+    />
+    <SoSearchModalForInvoice
+      v-if="dialogs.soSearch"
+      :cabang="header.gudang.kode"
+      @close="dialogs.soSearch = false"
+      @so-selected="onSoSelected"
+      mode="invoice"
+    />
+    <ProductSearchModal
+      v-if="dialogs.productSearch"
+      :gudang="header.gudang.kode"
+      category="ALL"
+      :multi="isMultiSelectProduct"
+      source="invoice-cash"
+      :promo-nomor="header.nomorPromo"
+      @close="dialogs.productSearch = false"
+      @products-selected="onProductsSelected"
+    />
+    <UnpaidDpSearchModal
+      v-if="dialogs.unpaidDpSearch"
+      :customer-kode="header.customer.kode"
+      @close="dialogs.unpaidDpSearch = false"
+      @selected="onUnpaidDpSelected"
+    />
+    <PaymentModal
+      v-if="dialogs.payment"
+      :invoice-header="header"
+      :invoice-items="items"
+      :totals="totals"
+      :auth-pins="authPins"
+      :linked-dps="linkedDps"
+      :customer-limit="customerLimit"
+      :customer-debt="customerDebt"
+      @close="dialogs.payment = false"
+      @save-success="onSaveSuccess"
+    />
+    <PromoSearchModal
+      v-if="dialogs.promoSearch"
+      :tanggal="header.tanggal"
+      @close="dialogs.promoSearch = false"
+      @selected="onPromoSelected"
+    />
+    <MemberForm
+      v-if="dialogs.memberForm"
+      :initial-hp="memberHpToSearch"
+      :is-karyawan-mode="header.customer.kode === 'K-00079'"
+      @close="dialogs.memberForm = false"
+      @member-saved="onMemberSaved"
+    />
+    <DiskonForm
+      v-if="dialogs.diskonForm"
+      :sub-total="totals.subTotal"
+      :diskon-persen1="header.diskonPersen1"
+      :diskon-persen2="header.diskonPersen2"
+      :diskon-rp="header.diskonRp"
+      :biaya-kirim="header.biayaKirim"
+      :biaya-platform="header.mpBiayaPlatform"
+      :is-marketplace="header.isMarketplace"
+      @close="dialogs.diskonForm = false"
+      @save="onDiskonSaved"
+    />
     <LinkedDpModal v-if="dialogs.linkedDp" :dps="linkedDps" @close="dialogs.linkedDp = false" />
-    <AuthorizationModal v-if="authDialog.show" :title="authDialog.title" :jenis="authDialog.jenis"
-      :nominal="authDialog.nominal" :transaksi="authDialog.transaksi" :barcode="authDialog.barcode"
-      :keterangan="authDialog.keterangan" @success="authDialog.onSuccess" @close="
+    <AuthorizationModal
+      v-if="authDialog.show"
+      :title="authDialog.title"
+      :jenis="authDialog.jenis"
+      :nominal="authDialog.nominal"
+      :transaksi="authDialog.transaksi"
+      :barcode="authDialog.barcode"
+      :keterangan="authDialog.keterangan"
+      @success="authDialog.onSuccess"
+      @close="
         () => {
           authDialog.show = false;
           authDialog.onCancel();
         }
-      " />
-    <SoDtfSearchModal v-if="dialogs.soDtfSearch" :customer-kode="header.customer.kode" :cabang="header.gudang.kode"
-      @close="dialogs.soDtfSearch = false" @selected="onSoDtfSelected" />
-    <PromoBonusModal v-if="dialogs.promoBonus" :promo-nomor="activePromoForBonus.nomor"
-      @close="dialogs.promoBonus = false" @selected="handleBonusSelection" />
-    <SjSearchModalForInvoice v-if="dialogs.sjSearch" :cabang="header.gudang.kode" @close="dialogs.sjSearch = false"
-      @sj-selected="onSjSelected" />
+      "
+    />
+    <SoDtfSearchModal
+      v-if="dialogs.soDtfSearch"
+      :customer-kode="header.customer.kode"
+      :cabang="header.gudang.kode"
+      @close="dialogs.soDtfSearch = false"
+      @selected="onSoDtfSelected"
+    />
+    <PromoBonusModal
+      v-if="dialogs.promoBonus"
+      :promo-nomor="activePromoForBonus.nomor"
+      @close="dialogs.promoBonus = false"
+      @selected="handleBonusSelection"
+    />
+    <SjSearchModalForInvoice
+      v-if="dialogs.sjSearch"
+      :cabang="header.gudang.kode"
+      @close="dialogs.sjSearch = false"
+      @sj-selected="onSjSelected"
+    />
 
     <v-dialog v-model="dialogConfirm.show" max-width="400px" persistent>
       <v-card>
@@ -3081,10 +3491,14 @@ watch(() => header.customer.kode, (newVal) => {
         <v-card-actions>
           <v-spacer></v-spacer>
           <v-btn text @click="dialogConfirm.show = false">Batal</v-btn>
-          <v-btn color="primary" variant="tonal" @click="
-            dialogConfirm.onConfirm();
-          dialogConfirm.show = false;
-          ">
+          <v-btn
+            color="primary"
+            variant="tonal"
+            @click="
+              dialogConfirm.onConfirm();
+              dialogConfirm.show = false;
+            "
+          >
             Ya, Lanjutkan
           </v-btn>
         </v-card-actions>
@@ -3230,9 +3644,11 @@ watch(() => header.customer.kode, (newVal) => {
 
 .table-summary-footer {
   /* Surface + gradient theme-aware */
-  background: linear-gradient(135deg,
-      rgba(var(--v-theme-surface), 0.98) 0%,
-      rgba(var(--v-theme-primary), 0.06) 100%);
+  background: linear-gradient(
+    135deg,
+    rgba(var(--v-theme-surface), 0.98) 0%,
+    rgba(var(--v-theme-primary), 0.06) 100%
+  );
 
   border-top: 1px solid rgba(var(--v-theme-on-surface), 0.12);
   padding: 12px 18px;
@@ -3471,10 +3887,12 @@ watch(() => header.customer.kode, (newVal) => {
   left: -100%;
   width: 50%;
   height: 100%;
-  background: linear-gradient(to right,
-      transparent 0%,
-      rgba(255, 255, 255, 0.2) 50%,
-      transparent 100%);
+  background: linear-gradient(
+    to right,
+    transparent 0%,
+    rgba(255, 255, 255, 0.2) 50%,
+    transparent 100%
+  );
   transform: skewX(-25deg);
   z-index: 2;
   animation: shineMove 4s infinite ease-in-out;
@@ -3557,7 +3975,6 @@ watch(() => header.customer.kode, (newVal) => {
 }
 
 @keyframes blink {
-
   0%,
   100% {
     opacity: 1;

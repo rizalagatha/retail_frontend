@@ -1,13 +1,12 @@
 <script setup lang="ts">
-import { ref, onMounted, computed, watch, reactive } from 'vue';
-import api from '@/services/api';
-import PageLayout from '@/components/PageLayout.vue';
-import { useToast } from 'vue-toastification';
-import { useAuthStore } from '@/stores/authStore';
-import { useRouter } from 'vue-router';
-import { useRoute } from 'vue-router';
-import { format } from 'date-fns';
-import * as XLSX from 'xlsx';
+import { ref, onMounted, computed, watch, reactive } from "vue";
+import api from "@/services/api";
+import PageLayout from "@/components/PageLayout.vue";
+import { useToast } from "vue-toastification";
+import { useAuthStore } from "@/stores/authStore";
+import { useRouter, useRoute, onBeforeRouteLeave } from "vue-router";
+import { format } from "date-fns";
+import * as XLSX from "xlsx";
 import { formatRupiah } from "@/utils/formatRupiah";
 
 interface DataTableHeader {
@@ -15,7 +14,7 @@ interface DataTableHeader {
   key: string;
   width?: number;
   fixed?: boolean;
-  align?: 'start' | 'center' | 'end';
+  align?: "start" | "center" | "end";
   minWidth?: string | number;
   maxWidth?: string | number;
   sortable?: boolean;
@@ -44,7 +43,7 @@ const toast = useToast();
 const authStore = useAuthStore();
 const router = useRouter();
 const route = useRoute();
-const MENU_ID = '42';
+const MENU_ID = "42";
 
 interface OfferHeader {
   nomor: string;
@@ -53,7 +52,7 @@ interface OfferHeader {
   top: number;
   tempo: string;
   ppn: number;
-  'disc%': number;
+  "disc%": number;
   diskon: number;
   nominal: number;
   kdcus: string;
@@ -88,7 +87,7 @@ interface Branch {
 }
 
 interface ColumnFilter {
-  type: 'multi' | 'custom';
+  type: "multi" | "custom";
   values?: (string | number)[];
   operator?: string;
   value?: string | number;
@@ -97,29 +96,29 @@ interface ColumnFilter {
 // --- State ---
 const offerList = ref<OfferHeader[]>([]);
 const filterOptions = ref([
-  { title: 'Nomor', value: 'nomor' },
-  { title: 'Tanggal', value: 'tanggal' },
-  { title: 'No. SO', value: 'noSO' },
-  { title: 'TOP', value: 'top' },
-  { title: 'Tgl Tempo', value: 'tempo' },
-  { title: 'PPN', value: 'ppn' },
-  { title: 'Disc %', value: 'disc%' },
-  { title: 'Diskon', value: 'diskon' },
-  { title: 'Nominal', value: 'nominal' },
-  { title: 'Kode Customer', value: 'kdcus' },
-  { title: 'Nama Customer', value: 'nama' },
-  { title: 'Alamat', value: 'alamat' },
-  { title: 'Kota', value: 'kota' },
-  { title: 'Telepon', value: 'telp' },
-  { title: 'Level', value: 'level' },
-  { title: 'Keterangan', value: 'keterangan' },
-  { title: 'Alasan Close', value: 'alasan' },
-  { title: 'User', value: 'created' },
-  { title: 'Status', value: 'status' },
+  { title: "Nomor", value: "nomor" },
+  { title: "Tanggal", value: "tanggal" },
+  { title: "No. SO", value: "noSO" },
+  { title: "TOP", value: "top" },
+  { title: "Tgl Tempo", value: "tempo" },
+  { title: "PPN", value: "ppn" },
+  { title: "Disc %", value: "disc%" },
+  { title: "Diskon", value: "diskon" },
+  { title: "Nominal", value: "nominal" },
+  { title: "Kode Customer", value: "kdcus" },
+  { title: "Nama Customer", value: "nama" },
+  { title: "Alamat", value: "alamat" },
+  { title: "Kota", value: "kota" },
+  { title: "Telepon", value: "telp" },
+  { title: "Level", value: "level" },
+  { title: "Keterangan", value: "keterangan" },
+  { title: "Alasan Close", value: "alasan" },
+  { title: "User", value: "created" },
+  { title: "Status", value: "status" },
 ]);
 const isMounted = ref(false);
-const selectedFilterField = ref('nomor'); // Filter default
-const filterSearchValue = ref('');
+const selectedFilterField = ref("nomor"); // Filter default
+const filterSearchValue = ref("");
 const details = ref<{ [key: string]: OfferDetail[] }>({});
 const isLoading = ref(true);
 const expanded = ref<OfferHeader[]>([]);
@@ -127,51 +126,51 @@ const selected = ref<OfferHeader[]>([]);
 const loadingDetails = ref<Set<string>>(new Set());
 const branchList = ref<Branch[]>([]);
 const isCloseDialogVisible = ref(false);
-const closeReason = ref('');
+const closeReason = ref("");
 const isClosing = ref(false);
 
-const hasViewPermission = computed(() => authStore.can(MENU_ID, 'view'));
+const hasViewPermission = computed(() => authStore.can(MENU_ID, "view"));
 
 const filters = reactive({
-  startDate: format(new Date(), 'yyyy-MM-dd'),
-  endDate: format(new Date(), 'yyyy-MM-dd'),
-  cabang: authStore.user?.cabang === 'KDC' ? 'ALL' : (authStore.user?.cabang || ''),
+  startDate: format(new Date(), "yyyy-MM-dd"),
+  endDate: format(new Date(), "yyyy-MM-dd"),
+  cabang: authStore.user?.cabang === "KDC" ? "ALL" : authStore.user?.cabang || "",
 });
 
 const tableHeaders = ref<DataTableHeader[]>([
-  { title: '', key: 'data-table-expand', width: 50, fixed: true },
-  { title: 'Nomor', key: 'nomor', width: 150, fixed: true },
-  { title: 'Tanggal', key: 'tanggal', width: 100 },
-  { title: 'Kode Customer', key: 'kdcus', width: 120 },
-  { title: 'Nama Customer', key: 'nama', width: 250 },
-  { title: 'No. SO', key: 'noSO', width: 150 },
-  { title: 'TOP', key: 'top', align: 'center', width: 70 },
-  { title: 'Tgl Tempo', key: 'tempo', width: 100 },
-  { title: 'PPN', key: 'ppn', align: 'end', width: 100 },
-  { title: 'Disc %', key: 'disc%', align: 'end', width: 80 },
-  { title: 'Diskon', key: 'diskon', align: 'end', width: 100 },
-  { title: 'Nominal', key: 'nominal', align: 'end', width: 120 },
-  { title: 'Alamat', key: 'alamat', width: 350 },
-  { title: 'Kota', key: 'kota', width: 150 },
-  { title: 'Telepon', key: 'telp', width: 120 },
-  { title: 'Level', key: 'level', width: 150 },
-  { title: 'Keterangan', key: 'keterangan', width: 250 },
-  { title: 'Alasan Close', key: 'alasan', width: 250 },
-  { title: 'User', key: 'created', width: 120 },
-  { title: 'User Modified', key: 'userModified', width: 150 },
-  { title: 'Date Modified', key: 'dateModified', width: 160 },
-  { title: 'Status', key: 'status', align: 'center', width: 120 },
+  { title: "", key: "data-table-expand", width: 50, fixed: true },
+  { title: "Nomor", key: "nomor", width: 150, fixed: true },
+  { title: "Tanggal", key: "tanggal", width: 100 },
+  { title: "Kode Customer", key: "kdcus", width: 120 },
+  { title: "Nama Customer", key: "nama", width: 250 },
+  { title: "No. SO", key: "noSO", width: 150 },
+  { title: "TOP", key: "top", align: "center", width: 70 },
+  { title: "Tgl Tempo", key: "tempo", width: 100 },
+  { title: "PPN", key: "ppn", align: "end", width: 100 },
+  { title: "Disc %", key: "disc%", align: "end", width: 80 },
+  { title: "Diskon", key: "diskon", align: "end", width: 100 },
+  { title: "Nominal", key: "nominal", align: "end", width: 120 },
+  { title: "Alamat", key: "alamat", width: 350 },
+  { title: "Kota", key: "kota", width: 150 },
+  { title: "Telepon", key: "telp", width: 120 },
+  { title: "Level", key: "level", width: 150 },
+  { title: "Keterangan", key: "keterangan", width: 250 },
+  { title: "Alasan Close", key: "alasan", width: 250 },
+  { title: "User", key: "created", width: 120 },
+  { title: "User Modified", key: "userModified", width: 150 },
+  { title: "Date Modified", key: "dateModified", width: 160 },
+  { title: "Status", key: "status", align: "center", width: 120 },
 ]);
 
 const detailHeaders = [
-  { title: 'KODE', key: 'kode', width: '150px' },
-  { title: 'BARCODE', key: 'barcode', width: '120px' },
-  { title: 'NAMA BARANG', key: 'Nama', width: '400px' }, // Header Nama diperlebar
-  { title: 'UKURAN', key: 'ukuran', width: '100px', align: 'center' },
-  { title: 'QTY', key: 'qty', align: 'center', width: '80px' },
-  { title: 'HARGA', key: 'harga', align: 'end', width: '120px' },
-  { title: 'DISKON', key: 'diskon', align: 'end', width: '100px' },
-  { title: 'TOTAL', key: 'total', align: 'end', width: '130px' },
+  { title: "KODE", key: "kode", width: "150px" },
+  { title: "BARCODE", key: "barcode", width: "120px" },
+  { title: "NAMA BARANG", key: "Nama", width: "400px" }, // Header Nama diperlebar
+  { title: "UKURAN", key: "ukuran", width: "100px", align: "center" },
+  { title: "QTY", key: "qty", align: "center", width: "80px" },
+  { title: "HARGA", key: "harga", align: "end", width: "120px" },
+  { title: "DISKON", key: "diskon", align: "end", width: "100px" },
+  { title: "TOTAL", key: "total", align: "end", width: "130px" },
 ] as const;
 
 // --- Filter ----
@@ -180,26 +179,27 @@ const columnFilters = ref<Record<string, ColumnFilter>>({});
 // Custom filter dialog
 const customFilterDialog = ref(false);
 const customFilter = reactive({
-  key: '',
-  operator: '=',
-  value: ''
+  key: "",
+  operator: "=",
+  value: "",
 });
 
 // LocalStorage key
 const LS_FILTER_KEY = "offer_table_filters";
 
+const SESSION_STATE_KEY = "offer_browse_state";
+
 // load existing filter
 const saved = localStorage.getItem(LS_FILTER_KEY);
 if (saved) {
-  try { columnFilters.value = JSON.parse(saved); }
-  catch { }
+  try {
+    columnFilters.value = JSON.parse(saved);
+  } catch {}
 }
 
 const uniqueValues = (key: string) => {
   const set = new Set(
-    offerList.value
-      .map(r => r[key])
-      .filter(v => v !== null && v !== undefined && v !== '')
+    offerList.value.map((r) => r[key]).filter((v) => v !== null && v !== undefined && v !== "")
   );
   return Array.from(set).sort();
 };
@@ -210,10 +210,10 @@ const isFilterActive = (key: string) => {
 
 const filterType = (key: string) => {
   const f = columnFilters.value[key];
-  if (!f) return '';
-  if (f.type === 'custom') return 'custom';
-  if (f.type === 'multi') return 'multi';
-  return '';
+  if (!f) return "";
+  if (f.type === "custom") return "custom";
+  if (f.type === "multi") return "multi";
+  return "";
 };
 
 const clearColumnFilter = (key: string) => {
@@ -224,14 +224,14 @@ const clearColumnFilter = (key: string) => {
 const toggleMultiSelectValue = (key: string, value: string | number) => {
   const f = columnFilters.value[key];
 
-  if (!f || f.type !== 'multi') {
-    columnFilters.value[key] = { type: 'multi', values: [value] };
+  if (!f || f.type !== "multi") {
+    columnFilters.value[key] = { type: "multi", values: [value] };
     return;
   }
   const arr = f.values || [];
 
   if (arr.includes(value)) {
-    f.values = arr.filter(v => v !== value);
+    f.values = arr.filter((v) => v !== value);
     if (f.values.length === 0) delete columnFilters.value[key];
   } else {
     f.values = [...arr, value];
@@ -241,16 +241,16 @@ const toggleMultiSelectValue = (key: string, value: string | number) => {
 // CUSTOM FILTER
 const openCustomFilter = (key: string) => {
   customFilter.key = key;
-  customFilter.operator = '=';
-  customFilter.value = '';
+  customFilter.operator = "=";
+  customFilter.value = "";
   customFilterDialog.value = true;
 };
 
 const applyCustomFilter = () => {
   columnFilters.value[customFilter.key] = {
-    type: 'custom',
+    type: "custom",
     operator: customFilter.operator,
-    value: customFilter.value
+    value: customFilter.value,
   };
   customFilterDialog.value = false;
 };
@@ -258,23 +258,33 @@ const applyCustomFilter = () => {
 const resetAllFilters = () => {
   columnFilters.value = {};
   localStorage.removeItem(LS_FILTER_KEY);
-  filterSearchValue.value = '';
+
+  // Bersihkan teks pencarian
+  filterSearchValue.value = "";
+
+  // Bersihkan session storage khusus offer
+  sessionStorage.removeItem(SESSION_STATE_KEY);
 
   // Tambahkan ini agar URL kembali bersih
   if (route.query.status || route.query.startDate) {
     router.replace({ query: {} });
   }
+
+  // Reload data
+  if (isMounted.value && hasViewPermission.value) {
+    fetchData();
+  }
 };
 
-const noFilterColumns = ['data-table-select', 'data-table-expand'];
+const noFilterColumns = ["data-table-select", "data-table-expand"];
 
 const formatFilterValue = (key: string, val: string | number | undefined | null): string => {
   // Kolom tanggal → format dd/MM/yyyy
-  if (['tanggal', 'tempo', 'dateModified'].includes(key)) {
-    if (!val) return '-';
-    if (typeof val === 'string' || typeof val === 'number') {
+  if (["tanggal", "tempo", "dateModified"].includes(key)) {
+    if (!val) return "-";
+    if (typeof val === "string" || typeof val === "number") {
       try {
-        return format(new Date(val), 'dd/MM/yyyy');
+        return format(new Date(val), "dd/MM/yyyy");
       } catch {
         return String(val);
       }
@@ -282,7 +292,7 @@ const formatFilterValue = (key: string, val: string | number | undefined | null)
   }
 
   // Default fallback
-  return String(val ?? '-');
+  return String(val ?? "-");
 };
 
 // --- Resize Logic ---
@@ -296,11 +306,11 @@ const onResizeStart = (e: MouseEvent, column: DataTableHeader) => {
 
   resizingColumn.value = column;
   startX.value = e.pageX;
-  startWidth.value = (typeof column.width === 'number' ? column.width : 100);
+  startWidth.value = typeof column.width === "number" ? column.width : 100;
 
-  document.addEventListener('mousemove', onResizeMove);
-  document.addEventListener('mouseup', onResizeEnd);
-  document.body.style.cursor = 'col-resize';
+  document.addEventListener("mousemove", onResizeMove);
+  document.addEventListener("mouseup", onResizeEnd);
+  document.body.style.cursor = "col-resize";
 };
 
 const onResizeMove = (e: MouseEvent) => {
@@ -311,9 +321,9 @@ const onResizeMove = (e: MouseEvent) => {
 
 const onResizeEnd = () => {
   resizingColumn.value = null;
-  document.removeEventListener('mousemove', onResizeMove);
-  document.removeEventListener('mouseup', onResizeEnd);
-  document.body.style.cursor = '';
+  document.removeEventListener("mousemove", onResizeMove);
+  document.removeEventListener("mouseup", onResizeEnd);
+  document.body.style.cursor = "";
 };
 
 const isSingleSelected = computed(() => selected.value.length === 1);
@@ -327,39 +337,48 @@ const canBeClosed = computed(() => {
 const filteredOffers = computed(() => {
   let data = [...offerList.value];
 
-  if (route.query.status === 'open') {
+  if (route.query.status === "open") {
     // Open = Belum ada No. SO dan Belum ada Alasan Closing
-    data = data.filter(r => !r.noSO && !r.alasan);
+    data = data.filter((r) => !r.noSO && !r.alasan);
   }
 
   // 1) FILTER HEADER (MULTI & CUSTOM)
   for (const key in columnFilters.value) {
     const f = columnFilters.value[key];
 
-    if (f.type === 'multi' && f.values) {
-      data = data.filter(r => f.values!.includes(r[key] as string | number));
+    if (f.type === "multi" && f.values) {
+      data = data.filter((r) => f.values!.includes(r[key] as string | number));
       continue;
     }
 
-    if (f.type === 'custom' && f.operator) {
+    if (f.type === "custom" && f.operator) {
       const cmp = String(f.value).toLowerCase();
 
-      data = data.filter(row => {
+      data = data.filter((row) => {
         const v = row[key];
         if (v == null) return false;
 
         const val = String(v).toLowerCase();
 
         switch (f.operator) {
-          case '=': return val === cmp;
-          case '!=': return val !== cmp;
-          case '>': return Number(val) > Number(cmp);
-          case '>=': return Number(val) >= Number(cmp);
-          case '<': return Number(val) < Number(cmp);
-          case '<=': return Number(val) <= Number(cmp);
-          case 'contains': return val.includes(cmp);
-          case 'starts': return val.startsWith(cmp);
-          case 'ends': return val.endsWith(cmp);
+          case "=":
+            return val === cmp;
+          case "!=":
+            return val !== cmp;
+          case ">":
+            return Number(val) > Number(cmp);
+          case ">=":
+            return Number(val) >= Number(cmp);
+          case "<":
+            return Number(val) < Number(cmp);
+          case "<=":
+            return Number(val) <= Number(cmp);
+          case "contains":
+            return val.includes(cmp);
+          case "starts":
+            return val.startsWith(cmp);
+          case "ends":
+            return val.endsWith(cmp);
         }
       });
     }
@@ -370,8 +389,8 @@ const filteredOffers = computed(() => {
     const key = selectedFilterField.value;
     const term = filterSearchValue.value.toLowerCase();
 
-    data = data.filter(r =>
-      String(r[key] ?? '')
+    data = data.filter((r) =>
+      String(r[key] ?? "")
         .toLowerCase()
         .includes(term)
     );
@@ -387,38 +406,38 @@ const handleRowClick = (_event: Event, { item }: { item: OfferHeader }) => {
 
 const fetchBranches = async () => {
   try {
-    const response = await api.get('/warehouses/list', {
-      params: { userCabang: authStore.user?.cabang }
+    const response = await api.get("/warehouses/list", {
+      params: { userCabang: authStore.user?.cabang },
     });
 
     let data = response.data;
 
     // Tambahkan opsi 'ALL' jika user adalah KDC
-    if (authStore.user?.cabang === 'KDC') {
-      data = [{ kode: 'ALL', nama: 'ALL STORE' }, ...data];
+    if (authStore.user?.cabang === "KDC") {
+      data = [{ kode: "ALL", nama: "ALL STORE" }, ...data];
     }
 
     branchList.value = data;
   } catch (error) {
-    toast.error('Gagal memuat daftar cabang.', error);
+    toast.error("Gagal memuat daftar cabang.", error);
   }
 };
 
 const fetchData = async () => {
   isLoading.value = true;
   try {
-    const response = await api.get('/offers', {
+    const response = await api.get("/offers", {
       params: {
         // --- UBAH BAGIAN INI ---
         startDate: filters.startDate,
         endDate: filters.endDate,
-        cabang: filters.cabang
+        cabang: filters.cabang,
         // -----------------------
-      }
+      },
     });
     offerList.value = response.data;
   } catch (error) {
-    toast.error('Gagal memuat data penawaran.', error);
+    toast.error("Gagal memuat data penawaran.", error);
   } finally {
     isLoading.value = false;
   }
@@ -426,14 +445,11 @@ const fetchData = async () => {
 
 // Method yang diperbaiki untuk load details
 const loadDetails = async (expandedItems: OfferHeader[]) => {
-
   // Extract nomor dari expanded items
-  const expandedNomors = expandedItems.map(item => item.nomor);
+  const expandedNomors = expandedItems.map((item) => item.nomor);
 
   // Cari item yang baru di-expand (belum punya detail)
   for (const nomor of expandedNomors) {
-
-
     if (!details.value[nomor] && !loadingDetails.value.has(nomor)) {
       loadingDetails.value.add(nomor);
 
@@ -444,14 +460,14 @@ const loadDetails = async (expandedItems: OfferHeader[]) => {
         // Update details dengan spread operator untuk trigger reactivity
         details.value = {
           ...details.value,
-          [nomor]: response.data
+          [nomor]: response.data,
         };
       } catch (error) {
         console.error(`Error loading detail for ${nomor}:`, error);
         toast.error(`Gagal memuat detail untuk nomor ${nomor}`);
         // Remove dari expanded jika gagal load
-        expanded.value = expanded.value.filter(item =>
-          typeof item === 'string' ? item !== nomor : item.nomor !== nomor
+        expanded.value = expanded.value.filter((item) =>
+          typeof item === "string" ? item !== nomor : item.nomor !== nomor
         );
       } finally {
         loadingDetails.value.delete(nomor);
@@ -469,28 +485,28 @@ const editOffer = () => {
 
 const openCloseDialog = () => {
   if (!canBeClosed.value) return; // Validasi tambahan
-  closeReason.value = selected.value[0].alasan || ''; // Isi dengan alasan yang ada jika ada
+  closeReason.value = selected.value[0].alasan || ""; // Isi dengan alasan yang ada jika ada
   isCloseDialogVisible.value = true;
 };
 
 const submitCloseOffer = async () => {
   if (!closeReason.value) {
-    toast.error('Alasan harus diisi.');
+    toast.error("Alasan harus diisi.");
     return;
   }
   isClosing.value = true;
   try {
     const nomor = selected.value[0].nomor;
-    await api.post('/offers/close', {
+    await api.post("/offers/close", {
       nomor,
       alasan: closeReason.value,
     });
-    toast.success('Penawaran berhasil ditutup.');
+    toast.success("Penawaran berhasil ditutup.");
     isCloseDialogVisible.value = false;
     fetchData(); // Muat ulang data untuk melihat status baru
     selected.value = []; // Kosongkan seleksi
   } catch (error) {
-    toast.error('Gagal menutup penawaran.', error);
+    toast.error("Gagal menutup penawaran.", error);
   } finally {
     isClosing.value = false;
   }
@@ -498,20 +514,20 @@ const submitCloseOffer = async () => {
 
 // Tambahkan helper ini di methods
 const formatDateIndo = (dateString: string | Date) => {
-  if (!dateString) return '';
+  if (!dateString) return "";
   const date = new Date(dateString);
   // Menggunakan 'id-ID' untuk output "27 Desember 2025"
-  return new Intl.DateTimeFormat('id-ID', {
-    day: 'numeric',
-    month: 'long',
-    year: 'numeric'
+  return new Intl.DateTimeFormat("id-ID", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
   }).format(date);
 };
 
 // --- Update fungsi exportHeaderData ---
 const exportHeaderData = () => {
   if (offerList.value.length === 0) {
-    toast.warning('Tidak ada data header untuk diekspor.');
+    toast.warning("Tidak ada data header untuk diekspor.");
     return;
   }
 
@@ -520,7 +536,7 @@ const exportHeaderData = () => {
     ...item,
     // Pastikan key 'Tanggal' atau 'pen_tanggal' sesuai dengan field di object offerList Anda
     // Contoh jika fieldnya bernama 'Tanggal':
-    Tanggal: item.Tanggal ? formatDateIndo(item.Tanggal) : '',
+    Tanggal: item.Tanggal ? formatDateIndo(item.Tanggal) : "",
     // Jika ada field tanggal lain, format juga disini
   }));
 
@@ -528,38 +544,40 @@ const exportHeaderData = () => {
   const workbook = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(workbook, worksheet, "Penawaran Header");
   XLSX.writeFile(workbook, "DaftarPenawaran_Header.xlsx");
-  toast.success('Data header berhasil diekspor.');
+  toast.success("Data header berhasil diekspor.");
 };
 
 // --- Update fungsi exportDetailData ---
 const exportDetailData = async () => {
-  toast.info('Menyiapkan data detail untuk diekspor...');
+  toast.info("Menyiapkan data detail untuk diekspor...");
   try {
-    const cabang = authStore.user?.cabang || '';
-    const response = await api.get<OfferDetail[]>('/offers/export-details', {
+    const cabang = authStore.user?.cabang || "";
+    const response = await api.get<OfferDetail[]>("/offers/export-details", {
       params: {
         startDate: filters.startDate,
         endDate: filters.endDate,
-        cabang
-      }
+        cabang,
+      },
     });
 
     // Format tanggal pada data yang diterima dari backend
     const dataToExport = response.data.map((row: OfferDetail) => ({
       ...row,
       // Sesuai query backend Anda, nama kolomnya adalah 'Tanggal'
-      Tanggal: row.Tanggal ? formatDateIndo(row.Tanggal) : ''
+      Tanggal: row.Tanggal ? formatDateIndo(row.Tanggal) : "",
     }));
 
     if (dataToExport.length === 0) {
-      toast.warning('Tidak ada data detail untuk diekspor pada periode ini.');
+      toast.warning("Tidak ada data detail untuk diekspor pada periode ini.");
       return;
     }
 
     // 1. Siapkan Judul dan Header
     const title = "FORM PENAWARAN";
     // Format tanggal untuk judul range (menggunakan helper yang sama biar konsisten)
-    const dateRange = `Periode : ${formatDateIndo(filters.startDate)} s/d ${formatDateIndo(filters.endDate)}`;
+    const dateRange = `Periode : ${formatDateIndo(filters.startDate)} s/d ${formatDateIndo(
+      filters.endDate
+    )}`;
     const tableHeaders = Object.keys(dataToExport[0]);
 
     // 2. Ubah data JSON menjadi array of arrays
@@ -571,7 +589,7 @@ const exportDetailData = async () => {
       [dateRange],
       [], // Baris kosong
       tableHeaders,
-      ...tableData
+      ...tableData,
     ];
 
     // 4. Buat worksheet
@@ -582,78 +600,110 @@ const exportDetailData = async () => {
       { s: { r: 0, c: 0 }, e: { r: 0, c: tableHeaders.length - 1 } },
       { s: { r: 1, c: 0 }, e: { r: 1, c: tableHeaders.length - 1 } },
     ];
-    ws['!merges'] = merge;
+    ws["!merges"] = merge;
 
     // Atur lebar kolom
-    const colWidths = tableHeaders.map(header => ({ wch: header.length + 5 }));
-    ws['!cols'] = colWidths;
+    const colWidths = tableHeaders.map((header) => ({ wch: header.length + 5 }));
+    ws["!cols"] = colWidths;
 
     // 6. Buat workbook dan unduh
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, ws, "Detail Penawaran");
 
     XLSX.writeFile(workbook, "DetailPenawaran.xlsx");
-    toast.success('Data detail berhasil diekspor.');
-
+    toast.success("Data detail berhasil diekspor.");
   } catch (error) {
-    toast.error('Gagal mengekspor data detail.', error);
+    toast.error("Gagal mengekspor data detail.", error);
     console.error("Export detail error:", error);
   }
 };
 
 const printData = (item: OfferItem) => {
   if (!item || !item.nomor) {
-    toast.error('Silakan pilih satu data untuk dicetak.');
+    toast.error("Silakan pilih satu data untuk dicetak.");
     return;
   }
 
   const url = router.resolve({
-    name: 'Cetak Penawaran',
-    params: { nomor: item.nomor }
+    name: "Cetak Penawaran",
+    params: { nomor: item.nomor },
   }).href;
 
-  window.open(url, '_blank');
+  window.open(url, "_blank");
 };
 
 const getRowTextColor = (item: OfferHeader) => {
   // Merah jika belum jadi SO dan belum ditutup (status Open)
   if (!item.noSO && !item.alasan) {
-    return 'text-red font-weight-bold';
+    return "text-red font-weight-bold";
   }
   // Biru jika tidak jadi SO (ditutup dengan alasan)
   if (!item.noSO && item.alasan) {
-    return 'text-blue font-weight-bold';
+    return "text-blue font-weight-bold";
   }
   // Warna default untuk yang sudah jadi SO atau status lain
-  return '';
+  return "";
 };
 
 const getStatusChip = (item: OfferHeader) => {
-  if (item.noSO) return { text: 'Sudah Jadi SO', color: 'success' };
-  if (item.alasan) return { text: 'Closed', color: 'blue-grey' };
-  return { text: 'Open', color: 'grey' };
+  if (item.noSO) return { text: "Sudah Jadi SO", color: "success" };
+  if (item.alasan) return { text: "Closed", color: "blue-grey" };
+  return { text: "Open", color: "grey" };
+};
+
+const saveStateToSession = () => {
+  const stateToSave = {
+    filters: filters,
+    selectedFilterField: selectedFilterField.value,
+    filterSearchValue: filterSearchValue.value,
+  };
+  sessionStorage.setItem(SESSION_STATE_KEY, JSON.stringify(stateToSave));
 };
 
 onMounted(async () => {
   if (hasViewPermission.value) {
-    // 1. Baca query parameter dari URL (jika ada)
-    const queryStartDate = route.query.startDate as string;
-    const queryEndDate = route.query.endDate as string;
+    // 1. Coba baca state pencarian dari Session Storage terlebih dahulu
+    const savedState = sessionStorage.getItem(SESSION_STATE_KEY);
 
-    if (queryStartDate && queryEndDate) {
-      filters.startDate = queryStartDate;
-      filters.endDate = queryEndDate;
+    if (savedState) {
+      try {
+        const parsedState = JSON.parse(savedState);
+
+        // Timpa filters dengan data dari memory browser
+        if (parsedState.filters) {
+          Object.assign(filters, parsedState.filters);
+        }
+
+        // Kembalikan juga kolom pencarian dan teks pencariannya
+        if (parsedState.selectedFilterField) {
+          selectedFilterField.value = parsedState.selectedFilterField;
+        }
+        if (parsedState.filterSearchValue) {
+          filterSearchValue.value = parsedState.filterSearchValue;
+        }
+      } catch (e) {
+        console.error("Gagal membaca state filter dari sessionStorage", e);
+      }
+    } else {
+      // 2. Jika tidak ada di memory (baru buka pertama kali), gunakan Query URL
+      const queryStartDate = route.query.startDate as string;
+      const queryEndDate = route.query.endDate as string;
+
+      if (queryStartDate && queryEndDate) {
+        filters.startDate = queryStartDate;
+        filters.endDate = queryEndDate;
+      }
     }
 
-    // 2. Muat daftar cabang
+    // 3. Muat daftar cabang
     await fetchBranches();
 
-    // 3. Pastikan default terpilih dengan benar
-    if (authStore.user?.cabang === 'KDC' && !route.query.cabang) {
-      filters.cabang = 'ALL';
+    // 4. Pastikan default terpilih dengan benar (Hanya jika bukan dari session storage)
+    if (!savedState && authStore.user?.cabang === "KDC" && !route.query.cabang) {
+      filters.cabang = "ALL";
     }
 
-    // 4. Ambil data
+    // 5. Ambil data
     await fetchData();
 
     isMounted.value = true;
@@ -664,42 +714,96 @@ onMounted(async () => {
 });
 
 // Watcher untuk expanded items sebagai backup
-watch(expanded, (newExpanded) => {
-  if (newExpanded.length > 0) {
-    loadDetails(newExpanded);
-  }
-}, { deep: true });
+watch(
+  expanded,
+  (newExpanded) => {
+    if (newExpanded.length > 0) {
+      loadDetails(newExpanded);
+    }
+  },
+  { deep: true }
+);
 
-watch(() => filters.cabang, () => {
-  // Hanya panggil fetchData jika halaman SUDAH dimuat
-  if (isMounted.value && hasViewPermission.value) {
-    fetchData();
-  }
-});
+watch(
+  filters,
+  () => {
+    saveStateToSession(); // Simpan setiap kali filter tanggal/cabang berubah
+
+    if (isMounted.value && hasViewPermission.value) {
+      // Karena pencarian global dilakukan di frontend via computed 'filteredOffers',
+      // memanggil fetchData() di sini akan mengambil ulang data dari backend
+      // sesuai tanggal dan cabang yang baru dipilih.
+      fetchData();
+    }
+  },
+  { deep: true }
+);
 
 // PS: Anda mungkin juga ingin menambahkan watch untuk tanggal jika diperlukan
-watch(() => [filters.startDate, filters.endDate], () => {
-  if (isMounted.value && hasViewPermission.value) {
-    fetchData();
+watch(
+  () => [filters.startDate, filters.endDate],
+  () => {
+    if (isMounted.value && hasViewPermission.value) {
+      fetchData();
+    }
   }
+);
+
+watch(
+  columnFilters,
+  (val) => {
+    localStorage.setItem(LS_FILTER_KEY, JSON.stringify(val));
+  },
+  { deep: true }
+);
+
+watch([filterSearchValue, selectedFilterField], () => {
+  saveStateToSession(); // Simpan setiap kali teks pencarian berubah
+  // Tidak perlu panggil fetchData() karena pencarian dilakukan di frontend (computed)
 });
 
-watch(columnFilters, (val) => {
-  localStorage.setItem(LS_FILTER_KEY, JSON.stringify(val));
-}, { deep: true });
+onBeforeRouteLeave((to, from, next) => {
+  // Cek apakah halaman tujuan MASIH berhubungan dengan modul Penawaran.
+  // Asumsi path modul penawaran Anda mengandung "/penawaran" (misal: /transaksi/penjualan/penawaran/ubah/xxx)
+  const isRelatedPage = to.path.includes("/penawaran");
+
+  if (!isRelatedPage) {
+    // Jika pergi ke menu lain (misal: /dashboard atau /surat-pesanan), bersihkan memori!
+    sessionStorage.removeItem(SESSION_STATE_KEY);
+  }
+
+  next(); // Lanjutkan perpindahan halaman
+});
 </script>
 
 <template>
   <PageLayout title="Penawaran">
     <template #header-actions>
-      <v-btn v-if="authStore.can(MENU_ID, 'insert')" size="small" color="primary" prepend-icon="mdi-plus"
-        @click="router.push('/transaksi/penjualan/penawaran/new')">Baru</v-btn>
-      <v-btn v-if="authStore.can(MENU_ID, 'edit')" size="small" :disabled="!isSingleSelected" prepend-icon="mdi-pencil"
-        @click="editOffer">Ubah</v-btn>
+      <v-btn
+        v-if="authStore.can(MENU_ID, 'insert')"
+        size="small"
+        color="primary"
+        prepend-icon="mdi-plus"
+        @click="router.push('/transaksi/penjualan/penawaran/new')"
+        >Baru</v-btn
+      >
+      <v-btn
+        v-if="authStore.can(MENU_ID, 'edit')"
+        size="small"
+        :disabled="!isSingleSelected"
+        prepend-icon="mdi-pencil"
+        @click="editOffer"
+        >Ubah</v-btn
+      >
       <!-- <v-btn v-if="authStore.can(MENU_ID, 'delete')" size="small" color="error" :disabled="!isSingleSelected"
         prepend-icon="mdi-delete" @click="confirmDelete">Hapus</v-btn> -->
-      <v-btn size="small" color="green" prepend-icon="mdi-printer" @click="printData(selected[0])"
-        :disabled="selected.length !== 1">
+      <v-btn
+        size="small"
+        color="green"
+        prepend-icon="mdi-printer"
+        @click="printData(selected[0])"
+        :disabled="selected.length !== 1"
+      >
         Cetak
       </v-btn>
       <v-menu offset-y v-if="authStore.can(MENU_ID, 'view')">
@@ -725,8 +829,15 @@ watch(columnFilters, (val) => {
           </v-list-item>
         </v-list>
       </v-menu>
-      <v-btn v-if="authStore.can(MENU_ID, 'edit')" size="small" :disabled="!canBeClosed" color="blue"
-        prepend-icon="mdi-lock-outline" @click="openCloseDialog">Close Penawaran</v-btn>
+      <v-btn
+        v-if="authStore.can(MENU_ID, 'edit')"
+        size="small"
+        :disabled="!canBeClosed"
+        color="blue"
+        prepend-icon="mdi-lock-outline"
+        @click="openCloseDialog"
+        >Close Penawaran</v-btn
+      >
     </template>
 
     <div v-if="!hasViewPermission" class="text-center pa-8 text-grey">
@@ -740,27 +851,67 @@ watch(columnFilters, (val) => {
       <div class="filter-section">
         <div class="d-flex align-center ga-2">
           <span class="filter-label">Periode:</span>
-          <v-text-field v-model="filters.startDate" type="date" density="compact" hide-details variant="outlined"
-            style="min-width: 130px;"></v-text-field>
+          <v-text-field
+            v-model="filters.startDate"
+            type="date"
+            density="compact"
+            hide-details
+            variant="outlined"
+            style="min-width: 130px"
+          ></v-text-field>
           <span>s/d</span>
-          <v-text-field v-model="filters.endDate" type="date" density="compact" hide-details variant="outlined"
-            style="min-width: 130px;"></v-text-field>
+          <v-text-field
+            v-model="filters.endDate"
+            type="date"
+            density="compact"
+            hide-details
+            variant="outlined"
+            style="min-width: 130px"
+          ></v-text-field>
         </div>
-        <div class="d-flex align-center ga-2" style="min-width: 220px;">
+        <div class="d-flex align-center ga-2" style="min-width: 220px">
           <span class="filter-label">Cabang:</span>
-          <v-select v-model="filters.cabang" :items="branchList" item-title="nama" item-value="kode" density="compact"
-            hide-details variant="outlined" style="max-width: 180px;"
-            :menu-props="{ class: 'compact-select-list' }"></v-select>
+          <v-select
+            v-model="filters.cabang"
+            :items="branchList"
+            item-title="nama"
+            item-value="kode"
+            density="compact"
+            hide-details
+            variant="outlined"
+            style="max-width: 180px"
+            :menu-props="{ class: 'compact-select-list' }"
+          ></v-select>
         </div>
         <v-divider vertical class="mx-2"></v-divider>
         <div class="d-flex align-center ga-2">
-          <v-select v-model="selectedFilterField" :items="filterOptions" label="Filter Berdasarkan" density="compact"
-            hide-details variant="outlined" style="max-width: 180px;"></v-select>
-          <v-text-field v-model="filterSearchValue" label="Cari..." density="compact" hide-details variant="outlined"
-            style="min-width: 250px;" clearable prepend-inner-icon="mdi-magnify"></v-text-field>
+          <v-select
+            v-model="selectedFilterField"
+            :items="filterOptions"
+            label="Filter Berdasarkan"
+            density="compact"
+            hide-details
+            variant="outlined"
+            style="max-width: 180px"
+          ></v-select>
+          <v-text-field
+            v-model="filterSearchValue"
+            label="Cari..."
+            density="compact"
+            hide-details
+            variant="outlined"
+            style="min-width: 250px"
+            clearable
+            prepend-inner-icon="mdi-magnify"
+          ></v-text-field>
         </div>
-        <v-btn color="error" variant="tonal" prepend-icon="mdi-filter-off" class="btn-detail reset-filter-btn ms-2"
-          @click="resetAllFilters">
+        <v-btn
+          color="error"
+          variant="tonal"
+          prepend-icon="mdi-filter-off"
+          class="btn-detail reset-filter-btn ms-2"
+          @click="resetAllFilters"
+        >
           Reset Filter
         </v-btn>
         <v-spacer></v-spacer>
@@ -773,21 +924,34 @@ watch(columnFilters, (val) => {
 
       <!-- Table Section -->
       <div class="table-container">
-        <AppDataTable v-model="selected" :headers="tableHeaders" :items="filteredOffers" :loading="isLoading"
-          item-value="nomor" density="compact" class="desktop-table header-browse-blue" fixed-header show-select
-          return-object @update:expanded="loadDetails" @click:row="handleRowClick"
-          :item-props="(item) => ({ class: getRowTextColor(item) })">
-
+        <AppDataTable
+          v-model="selected"
+          :headers="tableHeaders"
+          :items="filteredOffers"
+          :loading="isLoading"
+          item-value="nomor"
+          density="compact"
+          class="desktop-table header-browse-blue"
+          fixed-header
+          show-select
+          return-object
+          @update:expanded="loadDetails"
+          @click:row="handleRowClick"
+          :item-props="(item) => ({ class: getRowTextColor(item) })"
+        >
           <template #headers="{ columns, isSorted, getSortIcon, toggleSort }">
             <tr>
               <template v-for="header in columns" :key="header.key">
-
                 <!-- HEADER TANPA FILTER -->
-                <th v-if="noFilterColumns.includes(header.key)" :style="{
-                  width: header.width + 'px',
-                  minWidth: header.width + 'px',
-                  maxWidth: header.width + 'px'
-                }" class="resizable-header">
+                <th
+                  v-if="noFilterColumns.includes(header.key)"
+                  :style="{
+                    width: header.width + 'px',
+                    minWidth: header.width + 'px',
+                    maxWidth: header.width + 'px',
+                  }"
+                  class="resizable-header"
+                >
                   <div class="header-content">
                     <span>{{ header.title }}</span>
                   </div>
@@ -795,15 +959,21 @@ watch(columnFilters, (val) => {
                 </th>
 
                 <!-- HEADER DENGAN FILTER -->
-                <th v-else :style="{
-                  width: header.width + 'px',
-                  minWidth: header.width + 'px',
-                  maxWidth: header.width + 'px'
-                }" class="resizable-header"
-                  :class="{ 'text-center': header.align === 'center', 'text-end': header.align === 'end' }"
-                  @click="toggleSort(header)">
+                <th
+                  v-else
+                  :style="{
+                    width: header.width + 'px',
+                    minWidth: header.width + 'px',
+                    maxWidth: header.width + 'px',
+                  }"
+                  class="resizable-header"
+                  :class="{
+                    'text-center': header.align === 'center',
+                    'text-end': header.align === 'end',
+                  }"
+                  @click="toggleSort(header)"
+                >
                   <div class="header-content">
-
                     <!-- TITLE -->
                     <span>{{ header.title }}</span>
 
@@ -815,17 +985,23 @@ watch(columnFilters, (val) => {
                     <!-- FILTER ICON -->
                     <v-menu location="bottom start">
                       <template #activator="{ props }">
-                        <v-icon size="16" v-bind="props" @click.stop :color="isFilterActive(header.key) ? 'blue' : ''"
-                          :icon="filterType(header.key) === 'custom'
-                            ? 'mdi-filter-cog'
-                            : filterType(header.key) === 'multi'
+                        <v-icon
+                          size="16"
+                          v-bind="props"
+                          @click.stop
+                          :color="isFilterActive(header.key) ? 'blue' : ''"
+                          :icon="
+                            filterType(header.key) === 'custom'
+                              ? 'mdi-filter-cog'
+                              : filterType(header.key) === 'multi'
                               ? 'mdi-filter-multiple'
                               : 'mdi-filter-variant'
-                            " class="ms-1" />
+                          "
+                          class="ms-1"
+                        />
                       </template>
 
                       <v-list class="filter-menu">
-
                         <v-list-item @click.stop="clearColumnFilter(header.key)">
                           <v-list-item-title>(Select All)</v-list-item-title>
                         </v-list-item>
@@ -833,12 +1009,20 @@ watch(columnFilters, (val) => {
                         <v-divider />
 
                         <!-- MULTI SELECT -->
-                        <v-list-item v-for="value in uniqueValues(header.key)" :key="value"
-                          @click.stop="toggleMultiSelectValue(header.key, value)">
+                        <v-list-item
+                          v-for="value in uniqueValues(header.key)"
+                          :key="value"
+                          @click.stop="toggleMultiSelectValue(header.key, value)"
+                        >
                           <template #prepend>
-                            <v-checkbox density="compact" :model-value="columnFilters[header.key]?.type === 'multi'
-                              && columnFilters[header.key]?.values?.includes(value)
-                              " @click.stop="toggleMultiSelectValue(header.key, value)" />
+                            <v-checkbox
+                              density="compact"
+                              :model-value="
+                                columnFilters[header.key]?.type === 'multi' &&
+                                columnFilters[header.key]?.values?.includes(value)
+                              "
+                              @click.stop="toggleMultiSelectValue(header.key, value)"
+                            />
                           </template>
                           <v-list-item-title>
                             {{ formatFilterValue(header.key, value) }}
@@ -853,30 +1037,34 @@ watch(columnFilters, (val) => {
                             (Custom Filter…)
                           </v-list-item-title>
                         </v-list-item>
-
                       </v-list>
                     </v-menu>
-
                   </div>
 
                   <div class="resizer" @mousedown.stop="onResizeStart($event, header)"></div>
                 </th>
-
               </template>
             </tr>
           </template>
 
           <template #[`item.data-table-expand`]="{ internalItem, toggleExpand, isExpanded }">
-            <v-btn icon="mdi-chevron-down" :class="{ 'rotate-180': isExpanded(internalItem) }" size="x-small"
-              variant="text" @click.stop="toggleExpand(internalItem)" />
+            <v-btn
+              icon="mdi-chevron-down"
+              :class="{ 'rotate-180': isExpanded(internalItem) }"
+              size="x-small"
+              variant="text"
+              @click.stop="toggleExpand(internalItem)"
+            />
           </template>
 
-          <template v-for="header in tableHeaders.filter(h => h.key !== 'data-table-expand')"
-            #[`item.${header.key}`]="{ item }" :key="header.key">
-
+          <template
+            v-for="header in tableHeaders.filter((h) => h.key !== 'data-table-expand')"
+            #[`item.${header.key}`]="{ item }"
+            :key="header.key"
+          >
             <td :class="getRowTextColor(item)">
               <template v-if="header.key === 'tanggal' || header.key === 'tempo'">
-                {{ item[header.key] ? format(new Date(item[header.key]), 'dd/MM/yyyy') : '-' }}
+                {{ item[header.key] ? format(new Date(item[header.key]), "dd/MM/yyyy") : "-" }}
               </template>
 
               <template v-else-if="header.key === 'nominal'">
@@ -893,11 +1081,15 @@ watch(columnFilters, (val) => {
                 </v-chip>
               </template>
               <template v-else-if="header.key === 'dateModified'">
-                {{ item.dateModified ? format(new Date(item.dateModified), 'dd/MM/yyyy HH:mm:ss') : '-' }}
+                {{
+                  item.dateModified
+                    ? format(new Date(item.dateModified), "dd/MM/yyyy HH:mm:ss")
+                    : "-"
+                }}
               </template>
 
               <template v-else-if="header.key === 'userModified'">
-                {{ item.userModified || '-' }}
+                {{ item.userModified || "-" }}
               </template>
               <template v-else>
                 {{ item[header.key] }}
@@ -914,16 +1106,26 @@ watch(columnFilters, (val) => {
                       <v-progress-circular indeterminate color="primary" />
                     </div>
 
-                    <v-data-table v-else-if="details[item.nomor]?.length" :headers="detailHeaders"
-                      :items="details[item.nomor]" density="compact" hide-default-footer class="detail-table">
+                    <v-data-table
+                      v-else-if="details[item.nomor]?.length"
+                      :headers="detailHeaders"
+                      :items="details[item.nomor]"
+                      density="compact"
+                      hide-default-footer
+                      class="detail-table"
+                    >
                       <template #[`item.Nama`]="{ value, item: detailItem }">
-                        <span :class="detailItem.kode === 'CUSTOM' ? 'font-weight-bold text-primary' : ''">
+                        <span
+                          :class="
+                            detailItem.kode === 'CUSTOM' ? 'font-weight-bold text-primary' : ''
+                          "
+                        >
                           {{ value }}
                         </span>
                       </template>
 
                       <template #[`item.ukuran`]="{ value }">
-                        <span class="text-uppercase">{{ value || '-' }}</span>
+                        <span class="text-uppercase">{{ value || "-" }}</span>
                       </template>
 
                       <template #[`item.harga`]="{ value }">{{ formatRupiah(value) }}</template>
@@ -945,8 +1147,14 @@ watch(columnFilters, (val) => {
           <span class="text-h5">Isi Alasan Close Penawaran</span>
         </v-card-title>
         <v-card-text>
-          <v-textarea v-model="closeReason" label="Alasan" rows="3" variant="outlined" autofocus
-            :rules="[v => !!v || 'Alasan tidak boleh kosong']"></v-textarea>
+          <v-textarea
+            v-model="closeReason"
+            label="Alasan"
+            rows="3"
+            variant="outlined"
+            autofocus
+            :rules="[(v) => !!v || 'Alasan tidak boleh kosong']"
+          ></v-textarea>
         </v-card-text>
         <v-card-actions>
           <v-spacer></v-spacer>
@@ -958,22 +1166,25 @@ watch(columnFilters, (val) => {
 
     <v-dialog v-model="customFilterDialog" max-width="350px">
       <v-card>
-        <v-card-title class="text-h6">
-          Custom Filter — {{ customFilter.key }}
-        </v-card-title>
+        <v-card-title class="text-h6"> Custom Filter — {{ customFilter.key }} </v-card-title>
 
         <v-card-text>
-          <v-select v-model="customFilter.operator" :items="[
-            { title: '= sama dengan', value: '=' },
-            { title: '≠ tidak sama', value: '!=' },
-            { title: '> lebih besar', value: '>' },
-            { title: '≥ lebih besar sama', value: '>=' },
-            { title: '< lebih kecil', value: '<' },
-            { title: '≤ lebih kecil sama', value: '<=' },
-            { title: 'contains', value: 'contains' },
-            { title: 'starts with', value: 'starts' },
-            { title: 'ends with', value: 'ends' }
-          ]" label="Operator" density="compact" />
+          <v-select
+            v-model="customFilter.operator"
+            :items="[
+              { title: '= sama dengan', value: '=' },
+              { title: '≠ tidak sama', value: '!=' },
+              { title: '> lebih besar', value: '>' },
+              { title: '≥ lebih besar sama', value: '>=' },
+              { title: '< lebih kecil', value: '<' },
+              { title: '≤ lebih kecil sama', value: '<=' },
+              { title: 'contains', value: 'contains' },
+              { title: 'starts with', value: 'starts' },
+              { title: 'ends with', value: 'ends' },
+            ]"
+            label="Operator"
+            density="compact"
+          />
 
           <v-text-field v-model="customFilter.value" label="Value" density="compact" autofocus />
         </v-card-text>

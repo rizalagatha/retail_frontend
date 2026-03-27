@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import { ref, onUnmounted, computed } from 'vue';
-import api from '@/services/api';
-import { useAuthStore } from '@/stores/authStore';
-import { AxiosError } from 'axios';
+import { ref, onUnmounted, computed } from "vue";
+import api from "@/services/api";
+import { useAuthStore } from "@/stores/authStore";
+import { AxiosError } from "axios";
 
 const authStore = useAuthStore();
 
@@ -17,39 +17,43 @@ const props = defineProps<{
   cabang?: string;
 }>();
 
-const emit = defineEmits(['close', 'success']);
+const emit = defineEmits(["close", "success"]);
 
 // --- State ---
-const step = ref<'input' | 'waiting'>('input');
+const step = ref<"input" | "waiting">("input");
 
 // [2] UBAH NAMA VARIABEL INI (dari 'keterangan' jadi 'alasan')
-const alasan = ref(''); // Ini input manual user
+const alasan = ref(""); // Ini input manual user
 
-const authNomor = ref('');
-const errorMessage = ref('');
+const authNomor = ref("");
+const errorMessage = ref("");
 const isSending = ref(false);
 const pollingInterval = ref<ReturnType<typeof setInterval> | null>(null);
 
 // --- Computed ---
 const targetRole = computed(() => {
-  // Jika jenisnya peminjaman, arahkan ke Supervisor
-  if (props.jenis === 'PEMINJAMAN_BARANG') return 'Supervisor (ESTU)';
-  return props.cabang ? `Pihak Toko ${props.cabang}` : 'Manager';
+  // Jika jenisnya peminjaman ATAU klaim petty cash, arahkan ke Supervisor ESTU
+  if (props.jenis === "PEMINJAMAN_BARANG" || props.jenis === "KLAIM_PETTYCASH") {
+    return "Supervisor (ESTU)";
+  }
+  return props.cabang ? `Pihak Toko ${props.cabang}` : "Manager";
 });
 
-const isQtyType = computed(() =>
-  props.jenis === 'AMBIL_BARANG' || props.jenis === 'PEMINJAMAN_BARANG'
+const isQtyType = computed(
+  () => props.jenis === "AMBIL_BARANG" || props.jenis === "PEMINJAMAN_BARANG"
 );
 
-const labelNilai = computed(() => isQtyType.value ? 'Total Qty' : 'Nominal');
+const labelNilai = computed(() => (isQtyType.value ? "Total Qty" : "Nominal"));
 
 const formattedNilai = computed(() => {
   if (isQtyType.value) {
     // Format Angka Biasa + " Pcs"
-    return (props.nominal || 0).toString() + ' Pcs';
+    return (props.nominal || 0).toString() + " Pcs";
   }
   // Format Rupiah
-  return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR' }).format(props.nominal || 0);
+  return new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR" }).format(
+    props.nominal || 0
+  );
 });
 
 // --- Methods ---
@@ -57,12 +61,12 @@ const formattedNilai = computed(() => {
 const sendRequest = async () => {
   // [3] Gunakan 'alasan.value' untuk pengecekan
   if (!alasan.value.trim()) {
-    errorMessage.value = 'Keterangan/Alasan wajib diisi.';
+    errorMessage.value = "Keterangan/Alasan wajib diisi.";
     return;
   }
 
   isSending.value = true;
-  errorMessage.value = '';
+  errorMessage.value = "";
 
   try {
     // [4] Gabungkan Info Barang (Props) + Alasan User (State)
@@ -78,14 +82,14 @@ const sendRequest = async () => {
       cabang: authStore.user.cabang,
       user: authStore.user.kode,
       barcode: props.barcode,
-      target_cabang: props.cabang
+      target_cabang: props.cabang,
     };
 
-    const response = await api.post('/auth-pin/request', payload);
+    const response = await api.post("/auth-pin/request", payload);
 
     if (response.data.success) {
       authNomor.value = response.data.authNomor;
-      step.value = 'waiting';
+      step.value = "waiting";
       startPolling();
     }
   } catch (err) {
@@ -93,7 +97,7 @@ const sendRequest = async () => {
     const error = err as AxiosError<{ message: string }>;
 
     // Sekarang TypeScript tahu bahwa 'response', 'data', dan 'message' itu valid
-    errorMessage.value = error.response?.data?.message || 'Gagal mengirim permintaan.';
+    errorMessage.value = error.response?.data?.message || "Gagal mengirim permintaan.";
   } finally {
     isSending.value = false;
   }
@@ -105,13 +109,13 @@ const startPolling = () => {
       const response = await api.get(`/auth-pin/status/${authNomor.value}`);
       const data = response.data;
 
-      if (data.status === 'APPROVED') {
+      if (data.status === "APPROVED") {
         stopPolling();
-        emit('success', { authNomor: authNomor.value, approver: data.approver });
-      } else if (data.status === 'REJECTED') {
+        emit("success", { authNomor: authNomor.value, approver: data.approver });
+      } else if (data.status === "REJECTED") {
         stopPolling();
         errorMessage.value = `Permintaan ditolak oleh ${targetRole.value}.`;
-        step.value = 'input';
+        step.value = "input";
       }
     } catch (error) {
       console.error("Gagal mengecek status otorisasi:", error);
@@ -128,7 +132,7 @@ const stopPolling = () => {
 
 const handleCancel = () => {
   stopPolling();
-  emit('close');
+  emit("close");
 };
 
 onUnmounted(() => {
@@ -152,37 +156,46 @@ defineExpose({ setFailed });
         <div v-if="step === 'input'">
           <div class="mb-4">
             <div class="d-flex justify-space-between text-caption text-grey-darken-1">
-              <span>Jenis: <strong>{{ jenis }}</strong></span>
+              <span
+                >Jenis: <strong>{{ jenis }}</strong></span
+              >
               <span v-if="nominal">
                 {{ labelNilai }}: <strong>{{ formattedNilai }}</strong>
               </span>
             </div>
 
             <div v-if="props.keterangan" class="mt-2 pa-2 bg-grey-lighten-4 rounded text-caption">
-               <div style="white-space: pre-wrap;">{{ props.keterangan }}</div>
+              <div style="white-space: pre-wrap">{{ props.keterangan }}</div>
             </div>
           </div>
 
           <v-textarea
             v-model="alasan"
             label="Keterangan / Alasan"
-            variant="outlined" rows="3" auto-grow
+            variant="outlined"
+            rows="3"
+            auto-grow
             placeholder="Contoh: Barang display, reject minor, dll..."
             :error-messages="errorMessage"
-            autofocus>
+            autofocus
+          >
           </v-textarea>
         </div>
 
         <div v-else class="text-center py-6">
-          <v-progress-circular indeterminate color="primary" size="64" class="mb-4"></v-progress-circular>
+          <v-progress-circular
+            indeterminate
+            color="primary"
+            size="64"
+            class="mb-4"
+          ></v-progress-circular>
           <h3 class="text-h6 font-weight-bold">Menunggu Persetujuan...</h3>
           <p class="text-body-2 text-grey">
             Mohon tunggu, permintaan sedang dikirim ke
-            <strong>{{ targetRole }}</strong>.
-            <br>
-            <span class="text-caption mt-2 d-block">
-              ID Request: {{ authNomor }}
-            </span>
+            <strong>{{ targetRole }}</strong
+            >.
+            <br />
+            <span class="text-caption mt-2 d-block"> ID Request: {{ authNomor }} </span>
           </p>
         </div>
       </v-card-text>
@@ -190,9 +203,15 @@ defineExpose({ setFailed });
       <v-card-actions class="px-4 pb-4">
         <v-spacer></v-spacer>
         <v-btn variant="text" color="grey-darken-1" @click="handleCancel">
-          {{ step === 'waiting' ? 'Batalkan' : 'Tutup' }}
+          {{ step === "waiting" ? "Batalkan" : "Tutup" }}
         </v-btn>
-        <v-btn v-if="step === 'input'" color="primary" variant="flat" :loading="isSending" @click="sendRequest">
+        <v-btn
+          v-if="step === 'input'"
+          color="primary"
+          variant="flat"
+          :loading="isSending"
+          @click="sendRequest"
+        >
           Kirim Permintaan
         </v-btn>
       </v-card-actions>

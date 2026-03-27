@@ -153,6 +153,17 @@ interface CashflowItem {
   total_verified: number;
 }
 
+interface BordirSchedule {
+  so_nomor: string;
+  tanggal_so: string;
+  customer: string;
+  jumlah_kaos: number; // <-- TAMBAHKAN INI
+  tgl_pengerjaan: string | null;
+  deadline: string | null;
+  status: "Antri" | "Ready" | "Pending";
+  alasan_pending: string | null;
+}
+
 const authStore = useAuthStore();
 const router = useRouter();
 const toast = useToast();
@@ -292,6 +303,31 @@ const shipmentSchedules = ref<ShipmentSchedule[]>([]);
 const isLoadingSchedules = ref(true);
 const isAddScheduleDialog = ref(false);
 const trendCabang = ref("ALL");
+
+// --- STATE BORDIR ---
+const bordirSchedules = ref<BordirSchedule[]>([]);
+const isLoadingBordir = ref(true);
+const isEditBordirDialog = ref(false);
+// [BARU] Filter Tanggal khusus untuk Card Bordir (Default 7 hari terakhir)
+const bordirFilter = reactive({
+  startDate: format(subDays(new Date(), 7), "yyyy-MM-dd"),
+  endDate: format(new Date(), "yyyy-MM-dd"),
+});
+const bordirForm = reactive({
+  so_nomor: "",
+  tgl_pengerjaan: "",
+  deadline: "",
+  status: "Antri" as "Antri" | "Ready" | "Pending",
+  alasan_pending: "",
+});
+
+// --- COMPUTED HAK AKSES BORDIR ---
+const canEditBordir = computed(() => {
+  const u = authStore.user;
+  if (!u) return false;
+  // Boleh edit JIKA dia orang K06 ATAU orang KDC yang ID-nya ANTA
+  return u.cabang === "K06" || (u.cabang === "KDC" && u.kode === "ANTA");
+});
 
 const scheduleForm = reactive({
   tanggal_kirim: format(new Date(), "yyyy-MM-dd"),
@@ -935,6 +971,51 @@ const updateStatus = async (id: number, newStatus: string) => {
   }
 };
 
+// --- FUNGSI BORDIR ---
+const fetchBordirSchedules = async (isBackground = false) => {
+  if (!isBackground) isLoadingBordir.value = true;
+  try {
+    const response = await api.get("/dashboard/bordir-schedules", {
+      params: bordirFilter, // <-- Kirim filter tanggal ke backend
+    });
+    bordirSchedules.value = response.data;
+  } catch (err) {
+    console.error("Gagal load jadwal bordir", err);
+  } finally {
+    if (!isBackground) isLoadingBordir.value = false;
+  }
+};
+
+watch(
+  () => bordirFilter,
+  () => {
+    fetchBordirSchedules();
+  },
+  { deep: true }
+);
+
+const openEditBordir = (item: BordirSchedule) => {
+  bordirForm.so_nomor = item.so_nomor;
+  bordirForm.tgl_pengerjaan = item.tgl_pengerjaan
+    ? format(new Date(item.tgl_pengerjaan), "yyyy-MM-dd")
+    : "";
+  bordirForm.deadline = item.deadline ? format(new Date(item.deadline), "yyyy-MM-dd") : "";
+  bordirForm.status = item.status || "Antri";
+  bordirForm.alasan_pending = item.alasan_pending || "";
+  isEditBordirDialog.value = true;
+};
+
+const saveBordirSchedule = async () => {
+  try {
+    await api.post("/dashboard/bordir-schedules", bordirForm);
+    toast.success("Jadwal antrian bordir berhasil diupdate!");
+    isEditBordirDialog.value = false;
+    fetchBordirSchedules(true);
+  } catch (err) {
+    toast.error("Gagal update jadwal bordir", err);
+  }
+};
+
 const fetchTopProducts = async (isBackground = false) => {
   if (!isBackground) isLoadingTopProducts.value = true;
   try {
@@ -1436,6 +1517,7 @@ const startPolling = () => {
     fetchLowStockData(true);
     fetchStagnantStockSummary(true);
     fetchShipmentSchedules(true);
+    fetchBordirSchedules(true);
 
     if (authStore.user?.cabang === "KDC") {
       fetchStockBreakdown(); // Penting buat orang gudang DC
@@ -1471,6 +1553,7 @@ onMounted(() => {
     fetchMasterJadwalRutin();
     fetchCashflowSummary();
     fetchUserBranchInfo();
+    fetchBordirSchedules();
 
     if (authStore.user?.cabang === "KDC") {
       fetchStockBreakdown();
@@ -2303,6 +2386,118 @@ onUnmounted(() => {
           <!-- END KOLOM KANAN -->
         </v-row>
         <!-- END ROW UTAMA -->
+
+        <v-row class="mb-4">
+          <v-col cols="12">
+            <v-card elevation="2" class="rounded-lg bg-surface">
+              <v-card-title
+                class="d-flex flex-wrap align-center bg-deep-purple-lighten-5 py-3 text-deep-purple-darken-4 gap-2"
+              >
+                <v-icon class="mr-2" color="deep-purple">mdi-tshirt-crew</v-icon>
+                <span class="text-subtitle-1 font-weight-bold">Monitoring Antrian Bordir</span>
+                <v-spacer></v-spacer>
+
+                <div
+                  class="d-flex align-center border rounded px-2 bg-white"
+                  style="height: 32px; border-color: #d1c4e9 !important"
+                >
+                  <input
+                    type="date"
+                    v-model="bordirFilter.startDate"
+                    class="date-native-input text-caption text-deep-purple-darken-4 font-weight-bold"
+                  />
+                  <span class="mx-1 text-caption text-medium-emphasis">s/d</span>
+                  <input
+                    type="date"
+                    v-model="bordirFilter.endDate"
+                    class="date-native-input text-caption text-deep-purple-darken-4 font-weight-bold"
+                  />
+                </div>
+
+                <v-chip size="small" color="deep-purple" variant="flat" class="ml-1">
+                  {{ bordirSchedules.length }} Antrian
+                </v-chip>
+              </v-card-title>
+              <v-card-text class="pa-0">
+                <div v-if="isLoadingBordir" class="text-center pa-4">
+                  <v-progress-circular indeterminate color="deep-purple" size="24" />
+                </div>
+                <v-table v-else density="compact" class="schedule-table" hover>
+                  <thead>
+                    <tr class="bg-grey-lighten-4">
+                      <th class="font-weight-bold">SO BORDIR</th>
+                      <th class="font-weight-bold">TGL SO</th>
+                      <th class="font-weight-bold">CUSTOMER</th>
+                      <th class="text-center font-weight-bold">JML KAOS</th>
+                      <th class="text-center font-weight-bold">Mulai Pengerjaan</th>
+                      <th class="text-center font-weight-bold">Deadline</th>
+                      <th class="text-center font-weight-bold">STATUS</th>
+                      <th class="font-weight-bold">ALASAN PENDING</th>
+                      <th v-if="canEditBordir" class="text-center font-weight-bold" width="60">
+                        AKSI
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr v-for="item in bordirSchedules" :key="item.so_nomor">
+                      <td class="font-weight-bold text-deep-purple-darken-2">
+                        {{ item.so_nomor }}
+                      </td>
+                      <td class="text-caption">
+                        {{ format(new Date(item.tanggal_so), "dd/MM/yyyy") }}
+                      </td>
+                      <td class="text-caption font-weight-medium">{{ item.customer }}</td>
+                      <td class="text-center font-weight-bold">{{ item.jumlah_kaos }} pcs</td>
+                      <td class="text-center text-caption">
+                        {{
+                          item.tgl_pengerjaan
+                            ? format(new Date(item.tgl_pengerjaan), "dd/MM/yyyy")
+                            : "-"
+                        }}
+                      </td>
+                      <td
+                        class="text-center text-caption font-weight-bold"
+                        :class="item.deadline ? 'text-error' : ''"
+                      >
+                        {{ item.deadline ? format(new Date(item.deadline), "dd/MM/yyyy") : "-" }}
+                      </td>
+                      <td class="text-center">
+                        <v-chip
+                          size="x-small"
+                          :color="getStatusColor(item.status)"
+                          variant="flat"
+                          class="font-weight-bold"
+                        >
+                          {{ item.status }}
+                        </v-chip>
+                      </td>
+                      <td class="text-caption text-error font-italic">
+                        {{ item.alasan_pending || "-" }}
+                      </td>
+                      <td v-if="canEditBordir" class="text-center">
+                        <v-btn
+                          icon="mdi-pencil"
+                          variant="text"
+                          size="x-small"
+                          color="primary"
+                          @click="openEditBordir(item)"
+                        ></v-btn>
+                      </td>
+                    </tr>
+                    <tr v-if="bordirSchedules.length === 0">
+                      <td
+                        :colspan="canEditBordir ? 9 : 8"
+                        class="text-center text-caption text-grey py-4"
+                      >
+                        Belum ada antrian bordir terbaru.
+                      </td>
+                    </tr>
+                  </tbody>
+                </v-table>
+              </v-card-text>
+            </v-card>
+          </v-col>
+        </v-row>
 
         <!-- ROW BAWAH: Sering Diakses, Target, Stok, dll. -->
         <v-row class="mb-4">
@@ -3412,6 +3607,73 @@ onUnmounted(() => {
         <v-btn variant="text" @click="isAddScheduleDialog = false">Batal</v-btn>
         <v-btn color="indigo" variant="flat" @click="saveSchedule" class="px-6"
           >Simpan Jadwal</v-btn
+        >
+      </v-card-actions>
+    </v-card>
+  </v-dialog>
+
+  <v-dialog v-model="isEditBordirDialog" max-width="500">
+    <v-card class="rounded-xl pa-2">
+      <v-card-title class="d-flex align-center">
+        <v-icon start color="deep-purple">mdi-pencil-box-outline</v-icon> Update Antrian Bordir
+      </v-card-title>
+      <v-card-text>
+        <v-row dense>
+          <v-col cols="12">
+            <v-text-field
+              v-model="bordirForm.so_nomor"
+              label="Nomor SO Bordir"
+              variant="outlined"
+              density="compact"
+              readonly
+              bg-color="grey-lighten-4"
+            />
+          </v-col>
+          <v-col cols="6">
+            <v-text-field
+              v-model="bordirForm.tgl_pengerjaan"
+              type="date"
+              label="Mulai Dikerjakan"
+              variant="outlined"
+              density="compact"
+            />
+          </v-col>
+          <v-col cols="6">
+            <v-text-field
+              v-model="bordirForm.deadline"
+              type="date"
+              label="Deadline Selesai"
+              variant="outlined"
+              density="compact"
+            />
+          </v-col>
+          <v-col cols="12">
+            <v-select
+              v-model="bordirForm.status"
+              :items="['Antri', 'Pending']"
+              label="Status Pengerjaan"
+              variant="outlined"
+              density="compact"
+            />
+          </v-col>
+          <v-col cols="12" v-if="bordirForm.status === 'Pending'">
+            <v-textarea
+              v-model="bordirForm.alasan_pending"
+              label="Alasan Pending"
+              rows="2"
+              variant="outlined"
+              density="compact"
+              hide-details
+              color="error"
+            />
+          </v-col>
+        </v-row>
+      </v-card-text>
+      <v-card-actions>
+        <v-spacer />
+        <v-btn variant="text" @click="isEditBordirDialog = false">Batal</v-btn>
+        <v-btn color="deep-purple" variant="flat" @click="saveBordirSchedule" class="px-6"
+          >Simpan Update</v-btn
         >
       </v-card-actions>
     </v-card>

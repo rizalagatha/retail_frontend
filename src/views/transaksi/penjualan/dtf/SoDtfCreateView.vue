@@ -332,7 +332,9 @@ const fetchDataForEdit = async (nomor: string) => {
 
     // --- RE-INITIALIZE PROMO STATUS ---
     const isSD = data.header.jenisOrderKode === "SD";
-    const hasA6 = data.detailsTitik.some((t: DetailTitik) => t.sizeCetak === "A6" || t.sizeCetak === "Logo");
+    const hasA6 = data.detailsTitik.some(
+      (t: DetailTitik) => t.sizeCetak === "A6" || t.sizeCetak === "Logo"
+    );
     const hasZeroPrice = data.detailsUkuran.some((u: DetailUkuran) => u.harga === 0);
 
     if (isSD && hasA6 && hasZeroPrice) {
@@ -480,6 +482,11 @@ const save = async () => {
   }
   if (!form.value.jenisOrderKode) {
     toast.error("Jenis Order harus diisi.");
+    return;
+  }
+
+  if (!form.value.soNomor) {
+    toast.error("Nomor Surat Pesanan (SO) wajib diisi. Silakan cari terlebih dahulu.");
     return;
   }
 
@@ -888,7 +895,7 @@ const calculatePrices = async () => {
     case "SD": // Sablon DTF
       hargaPerCm = form.value.customerLevel === "KORPORASI" ? 15 : 25;
 
-      const validTitik = detailsTitik.value.filter(t => t.keterangan);
+      const validTitik = detailsTitik.value.filter((t) => t.keterangan);
       const hasA6OrLogo = validTitik.some((t) => {
         const size = (t.sizeCetak || "").toUpperCase();
         return size === "A6" || size === "LOGO";
@@ -1136,7 +1143,8 @@ onMounted(async () => {
 
   if (!authStore.can(MENU_ID, requiredPermission.value)) {
     toast.error(
-      `Anda tidak memiliki izin untuk ${requiredPermission.value === "insert" ? "membuat" : "mengubah"
+      `Anda tidak memiliki izin untuk ${
+        requiredPermission.value === "insert" ? "membuat" : "mengubah"
       } data.`
     );
     router.back();
@@ -1168,19 +1176,34 @@ onMounted(async () => {
 <template>
   <PageLayout :title="pageTitle" desktop-mode icon="mdi-printer-3d-nozzle">
     <template #header-actions>
-      <v-btn size="small" color="primary" @click="save" :loading="isSaving"
-        prepend-icon="mdi-content-save">Simpan</v-btn>
-      <v-btn v-if="!isEditMode" size="small" @click="
-        showConfirmation(resetForm, 'Anda yakin ingin membatalkan? Semua isian akan dikosongkan.')
-        " prepend-icon="mdi-refresh">
+      <v-btn
+        size="small"
+        color="primary"
+        @click="save"
+        :loading="isSaving"
+        prepend-icon="mdi-content-save"
+        >Simpan</v-btn
+      >
+      <v-btn
+        v-if="!isEditMode"
+        size="small"
+        @click="
+          showConfirmation(resetForm, 'Anda yakin ingin membatalkan? Semua isian akan dikosongkan.')
+        "
+        prepend-icon="mdi-refresh"
+      >
         Batal
       </v-btn>
-      <v-btn size="small" @click="
-        showConfirmation(
-          cancel,
-          'Anda yakin ingin menutup form? Perubahan yang belum disimpan akan hilang.'
-        )
-        " prepend-icon="mdi-close">
+      <v-btn
+        size="small"
+        @click="
+          showConfirmation(
+            cancel,
+            'Anda yakin ingin menutup form? Perubahan yang belum disimpan akan hilang.'
+          )
+        "
+        prepend-icon="mdi-close"
+      >
         Tutup
       </v-btn>
     </template>
@@ -1190,53 +1213,182 @@ onMounted(async () => {
       <div class="left-column">
         <div class="desktop-form-section header-section">
           <v-row dense>
-            <v-col cols="6"><v-text-field label="Nomor" :model-value="form.nomor || '<Otomatis>'" readonly
-                variant="filled" density="compact" hide-details /></v-col>
-            <v-col cols="6"><v-text-field label="Tanggal" v-model="form.tanggal" type="date" variant="outlined"
-                density="compact" hide-details /></v-col>
-            <v-col cols="6"><v-text-field label="Tgl Pengerjaan" v-model="form.tglPengerjaan" type="date"
-                variant="outlined" density="compact" hide-details /></v-col>
+            <v-col cols="6"
+              ><v-text-field
+                label="Nomor"
+                :model-value="form.nomor || '<Otomatis>'"
+                readonly
+                variant="filled"
+                density="compact"
+                hide-details
+            /></v-col>
+            <v-col cols="6"
+              ><v-text-field
+                label="Tanggal"
+                v-model="form.tanggal"
+                type="date"
+                variant="outlined"
+                density="compact"
+                hide-details
+            /></v-col>
+            <v-col cols="6"
+              ><v-text-field
+                label="Tgl Pengerjaan"
+                v-model="form.tglPengerjaan"
+                type="date"
+                variant="outlined"
+                density="compact"
+                hide-details
+            /></v-col>
             <v-col cols="6">
-              <v-text-field label="Dateline Customer (Wajib)" v-model="form.datelineCustomer" type="date"
-                variant="outlined" density="compact" hide-details placeholder="Pilih tanggal" :max="maxDatelineDate" />
+              <v-text-field
+                label="Dateline Customer (Wajib)"
+                v-model="form.datelineCustomer"
+                type="date"
+                variant="outlined"
+                density="compact"
+                hide-details
+                placeholder="Pilih tanggal"
+                :max="maxDatelineDate"
+              />
             </v-col>
             <v-col cols="6">
-              <v-text-field label="Ambil dari Surat Pesanan (SO)" readonly prepend-inner-icon="mdi-magnify"
-                placeholder="Klik untuk mencari..." v-model="form.soNomor" variant="outlined" density="compact"
-                hide-details @click="openSoSearch" />
+              <v-text-field
+                label="Ambil dari Surat Pesanan (SO)"
+                readonly
+                prepend-inner-icon="mdi-magnify"
+                placeholder="Klik untuk mencari..."
+                v-model="form.soNomor"
+                variant="outlined"
+                density="compact"
+                hide-details
+                @click="openSoSearch"
+              />
             </v-col>
-            <v-col cols="6"><v-text-field label="Sales"
-                :model-value="form.salesKode ? `${form.salesKode} - ${form.salesNama}` : ''" readonly
-                @click="openSalesSearch" @keydown.f1.prevent="openSalesSearch" variant="outlined" density="compact"
-                hide-details append-inner-icon="mdi-magnify" placeholder="F1 atau klik..." /></v-col>
-            <v-col cols="12"><v-text-field label="Customer" :model-value="form.customerKode ? `${form.customerKode} - ${form.customerNama}` : ''
-              " readonly @click="openCustomerSearch" variant="outlined" density="compact" hide-details
-                append-inner-icon="mdi-magnify" placeholder="Klik untuk mencari..." /></v-col>
-            <v-col cols="6"><v-text-field label="Level" :model-value="form.customerLevel" readonly filled
-                variant="outlined" density="compact" hide-details /></v-col>
-            <v-col cols="6"><v-text-field label="Sisa Kuota" :model-value="sisaKuota" readonly filled variant="outlined"
-                density="compact" hide-details /></v-col>
+            <v-col cols="6"
+              ><v-text-field
+                label="Sales"
+                :model-value="form.salesKode ? `${form.salesKode} - ${form.salesNama}` : ''"
+                readonly
+                @click="openSalesSearch"
+                @keydown.f1.prevent="openSalesSearch"
+                variant="outlined"
+                density="compact"
+                hide-details
+                append-inner-icon="mdi-magnify"
+                placeholder="F1 atau klik..."
+            /></v-col>
+            <v-col cols="12"
+              ><v-text-field
+                label="Customer"
+                :model-value="
+                  form.customerKode ? `${form.customerKode} - ${form.customerNama}` : ''
+                "
+                readonly
+                @click="openCustomerSearch"
+                variant="outlined"
+                density="compact"
+                hide-details
+                append-inner-icon="mdi-magnify"
+                placeholder="Klik untuk mencari..."
+            /></v-col>
+            <v-col cols="6"
+              ><v-text-field
+                label="Level"
+                :model-value="form.customerLevel"
+                readonly
+                filled
+                variant="outlined"
+                density="compact"
+                hide-details
+            /></v-col>
+            <v-col cols="6"
+              ><v-text-field
+                label="Sisa Kuota"
+                :model-value="sisaKuota"
+                readonly
+                filled
+                variant="outlined"
+                density="compact"
+                hide-details
+            /></v-col>
             <v-col cols="8">
-              <v-text-field label="Jenis Order" :model-value="form.jenisOrderKode ? `${form.jenisOrderKode} - ${form.jenisOrderNama}` : ''
-                " readonly @click="openJenisOrderSearch()" @keydown.f1.prevent="openJenisOrderSearch()"
-                variant="outlined" density="compact" hide-details append-inner-icon="mdi-magnify"
-                placeholder="F1 atau klik untuk mencari..." />
+              <v-text-field
+                label="Jenis Order"
+                :model-value="
+                  form.jenisOrderKode ? `${form.jenisOrderKode} - ${form.jenisOrderNama}` : ''
+                "
+                readonly
+                @click="openJenisOrderSearch()"
+                @keydown.f1.prevent="openJenisOrderSearch()"
+                variant="outlined"
+                density="compact"
+                hide-details
+                append-inner-icon="mdi-magnify"
+                placeholder="F1 atau klik untuk mencari..."
+              />
             </v-col>
-            <v-col cols="4"><v-text-field label="Harga/cm2" :model-value="form.hargaPerCm" readonly filled
-                variant="outlined" density="compact" hide-details /></v-col>
-            <v-col cols="12"><v-text-field label="Nama DTF" v-model="form.namaDtf" variant="outlined" density="compact"
-                hide-details /></v-col>
-            <v-col cols="12"><v-text-field label="Kain" :model-value="form.kain" @click="openJenisKainSearch"
-                @keydown.f1.prevent="openJenisKainSearch" variant="outlined" density="compact" hide-details
-                append-inner-icon="mdi-magnify" placeholder="F1 atau klik..." /></v-col>
-            <v-col cols="12"><v-text-field label="Finishing" v-model="form.finishing" variant="outlined"
-                density="compact" hide-details /></v-col>
-            <v-col cols="12"><v-text-field label="Bag. Desain" v-model="form.desain" variant="outlined"
-                density="compact" hide-details /></v-col>
-            <v-col cols="12"><v-text-field label="Workshop" :model-value="form.workshopKode ? `${form.workshopKode} - ${form.workshopNama}` : ''
-              " @click="openWorkshopSearch" @keydown.f1.prevent="openWorkshopSearch" variant="outlined"
-                density="compact" hide-details append-inner-icon="mdi-magnify" placeholder="F1 atau klik..."
-                readonly /></v-col>
+            <v-col cols="4"
+              ><v-text-field
+                label="Harga/cm2"
+                :model-value="form.hargaPerCm"
+                readonly
+                filled
+                variant="outlined"
+                density="compact"
+                hide-details
+            /></v-col>
+            <v-col cols="12"
+              ><v-text-field
+                label="Nama DTF"
+                v-model="form.namaDtf"
+                variant="outlined"
+                density="compact"
+                hide-details
+            /></v-col>
+            <v-col cols="12"
+              ><v-text-field
+                label="Kain"
+                :model-value="form.kain"
+                @click="openJenisKainSearch"
+                @keydown.f1.prevent="openJenisKainSearch"
+                variant="outlined"
+                density="compact"
+                hide-details
+                append-inner-icon="mdi-magnify"
+                placeholder="F1 atau klik..."
+            /></v-col>
+            <v-col cols="12"
+              ><v-text-field
+                label="Finishing"
+                v-model="form.finishing"
+                variant="outlined"
+                density="compact"
+                hide-details
+            /></v-col>
+            <v-col cols="12"
+              ><v-text-field
+                label="Bag. Desain"
+                v-model="form.desain"
+                variant="outlined"
+                density="compact"
+                hide-details
+            /></v-col>
+            <v-col cols="12"
+              ><v-text-field
+                label="Workshop"
+                :model-value="
+                  form.workshopKode ? `${form.workshopKode} - ${form.workshopNama}` : ''
+                "
+                @click="openWorkshopSearch"
+                @keydown.f1.prevent="openWorkshopSearch"
+                variant="outlined"
+                density="compact"
+                hide-details
+                append-inner-icon="mdi-magnify"
+                placeholder="F1 atau klik..."
+                readonly
+            /></v-col>
           </v-row>
         </div>
       </div>
@@ -1254,11 +1406,25 @@ onMounted(async () => {
                 <v-spacer />
 
                 <!-- TOMBOL TAMBAH UKURAN -->
-                <v-btn icon="mdi-plus" size="x-small" variant="tonal" color="primary" class="me-2"
-                  @click="addDetailUkuran" title="Tambah Ukuran Kaos"></v-btn>
+                <v-btn
+                  icon="mdi-plus"
+                  size="x-small"
+                  variant="tonal"
+                  color="primary"
+                  class="me-2"
+                  @click="addDetailUkuran"
+                  title="Tambah Ukuran Kaos"
+                ></v-btn>
 
-                <v-text-field label="Total Jumlah" :model-value="totalJumlahKaos" readonly filled density="compact"
-                  hide-details style="max-width: 120px" />
+                <v-text-field
+                  label="Total Jumlah"
+                  :model-value="totalJumlahKaos"
+                  readonly
+                  filled
+                  density="compact"
+                  hide-details
+                  style="max-width: 120px"
+                />
               </div>
               <v-table density="compact" class="desktop-table header-browse-blue">
                 <thead>
@@ -1275,24 +1441,54 @@ onMounted(async () => {
                   <tr v-for="(item, index) in detailsUkuran" :key="item.id">
                     <td class="pt-2 text-center">{{ index + 1 }}</td>
                     <td>
-                      <v-text-field v-model="item.namaBarang" variant="underlined" density="compact" hide-details />
+                      <v-text-field
+                        v-model="item.namaBarang"
+                        variant="underlined"
+                        density="compact"
+                        hide-details
+                      />
                     </td>
                     <td>
-                      <v-combobox v-model="item.ukuran" :items="ukuranKaosList"
-                        @change="!isEditMode && addDetailUkuran()" variant="underlined" density="compact"
-                        hide-details />
+                      <v-combobox
+                        v-model="item.ukuran"
+                        :items="ukuranKaosList"
+                        @change="!isEditMode && addDetailUkuran()"
+                        variant="underlined"
+                        density="compact"
+                        hide-details
+                      />
                     </td>
                     <td>
-                      <v-text-field v-model.number="item.jumlah" type="number" variant="underlined" density="compact"
-                        hide-details class="text-end" min="0" />
+                      <v-text-field
+                        v-model.number="item.jumlah"
+                        type="number"
+                        variant="underlined"
+                        density="compact"
+                        hide-details
+                        class="text-end"
+                        min="0"
+                      />
                     </td>
                     <td>
-                      <v-text-field v-model.number="item.harga" type="number" variant="underlined" density="compact"
-                        hide-details class="text-end" :readonly="isHargaReadonly" />
+                      <v-text-field
+                        v-model.number="item.harga"
+                        type="number"
+                        variant="underlined"
+                        density="compact"
+                        hide-details
+                        class="text-end"
+                        :readonly="isHargaReadonly"
+                      />
                     </td>
                     <td>
-                      <v-btn v-if="index < detailsUkuran.length - 1" icon="mdi-delete" size="x-small" variant="text"
-                        color="error" @click="removeDetailUkuran(item.id)" />
+                      <v-btn
+                        v-if="index < detailsUkuran.length - 1"
+                        icon="mdi-delete"
+                        size="x-small"
+                        variant="text"
+                        color="error"
+                        @click="removeDetailUkuran(item.id)"
+                      />
                     </td>
                   </tr>
                 </tbody>
@@ -1307,11 +1503,25 @@ onMounted(async () => {
                 <v-spacer />
 
                 <!-- TOMBOL TAMBAH TITIK CETAK -->
-                <v-btn icon="mdi-plus" size="x-small" variant="tonal" color="primary" class="me-2"
-                  @click="addDetailTitik" title="Tambah Titik Cetak"></v-btn>
+                <v-btn
+                  icon="mdi-plus"
+                  size="x-small"
+                  variant="tonal"
+                  color="primary"
+                  class="me-2"
+                  @click="addDetailTitik"
+                  title="Tambah Titik Cetak"
+                ></v-btn>
 
-                <v-text-field label="Total Titik" :model-value="totalTitik" readonly filled density="compact"
-                  hide-details style="max-width: 120px" />
+                <v-text-field
+                  label="Total Titik"
+                  :model-value="totalTitik"
+                  readonly
+                  filled
+                  density="compact"
+                  hide-details
+                  style="max-width: 120px"
+                />
               </div>
               <v-table density="compact" class="desktop-table header-browse-blue">
                 <thead>
@@ -1328,33 +1538,66 @@ onMounted(async () => {
                   <tr v-for="(item, index) in detailsTitik" :key="item.id">
                     <td class="pt-2 text-center">{{ index + 1 }}</td>
                     <td>
-                      <v-text-field v-model="item.keterangan" @change="!isEditMode && addDetailTitik()"
-                        variant="underlined" density="compact" hide-details />
+                      <v-text-field
+                        v-model="item.keterangan"
+                        @change="!isEditMode && addDetailTitik()"
+                        variant="underlined"
+                        density="compact"
+                        hide-details
+                      />
                     </td>
                     <td>
-                      <v-combobox v-model="item.sizeCetak" :items="sizeCetakList"
-                        @update:model-value="() => onSizeCetakChange(item, index)" variant="underlined"
-                        density="compact" hide-details />
+                      <v-combobox
+                        v-model="item.sizeCetak"
+                        :items="sizeCetakList"
+                        @update:model-value="() => onSizeCetakChange(item, index)"
+                        variant="underlined"
+                        density="compact"
+                        hide-details
+                      />
                     </td>
                     <td>
-                      <v-text-field v-model.number="item.panjang" type="number" variant="underlined" density="compact"
-                        hide-details class="text-end" :readonly="isPanjangLebarReadonly(item)"
-                        :class="{ 'field-readonly': isPanjangLebarReadonly(item) }" />
+                      <v-text-field
+                        v-model.number="item.panjang"
+                        type="number"
+                        variant="underlined"
+                        density="compact"
+                        hide-details
+                        class="text-end"
+                        :readonly="isPanjangLebarReadonly(item)"
+                        :class="{ 'field-readonly': isPanjangLebarReadonly(item) }"
+                      />
                     </td>
                     <td>
-                      <v-text-field v-model.number="item.lebar" type="number" variant="underlined" density="compact"
-                        hide-details class="text-end" :readonly="isPanjangLebarReadonly(item)"
-                        :class="{ 'field-readonly': isPanjangLebarReadonly(item) }" />
+                      <v-text-field
+                        v-model.number="item.lebar"
+                        type="number"
+                        variant="underlined"
+                        density="compact"
+                        hide-details
+                        class="text-end"
+                        :readonly="isPanjangLebarReadonly(item)"
+                        :class="{ 'field-readonly': isPanjangLebarReadonly(item) }"
+                      />
                     </td>
                     <td>
-                      <v-btn v-if="index < detailsTitik.length - 1" icon="mdi-delete" size="x-small" variant="text"
-                        color="error" @click="removeDetailTitik(item.id)" />
+                      <v-btn
+                        v-if="index < detailsTitik.length - 1"
+                        icon="mdi-delete"
+                        size="x-small"
+                        variant="text"
+                        color="error"
+                        @click="removeDetailTitik(item.id)"
+                      />
                     </td>
                   </tr>
                 </tbody>
               </v-table>
             </div>
-            <div class="desktop-form-section mt-4" v-if="['BR', 'SD'].includes(form.jenisOrderKode)">
+            <div
+              class="desktop-form-section mt-4"
+              v-if="['BR', 'SD'].includes(form.jenisOrderKode)"
+            >
               <div class="perhitungan-box">
                 <v-row dense>
                   <!-- Bordir -->
@@ -1363,14 +1606,34 @@ onMounted(async () => {
                       Perhitungan Bordir
                     </v-alert>
 
-                    <v-text-field label="Luas Bordir /Cm² (Per Titik)" :model-value="totalLuasBordir" readonly
-                      variant="filled" density="compact" hide-details class="mb-2" />
+                    <v-text-field
+                      label="Luas Bordir /Cm² (Per Titik)"
+                      :model-value="totalLuasBordir"
+                      readonly
+                      variant="filled"
+                      density="compact"
+                      hide-details
+                      class="mb-2"
+                    />
 
-                    <v-text-field label="Biaya /Cm²" :model-value="bordirMultiplier" readonly variant="filled"
-                      density="compact" hide-details class="mb-2" />
+                    <v-text-field
+                      label="Biaya /Cm²"
+                      :model-value="bordirMultiplier"
+                      readonly
+                      variant="filled"
+                      density="compact"
+                      hide-details
+                      class="mb-2"
+                    />
 
-                    <v-text-field label="Total Harga Bordir" :model-value="totalHargaBordir" readonly variant="filled"
-                      density="compact" hide-details />
+                    <v-text-field
+                      label="Total Harga Bordir"
+                      :model-value="totalHargaBordir"
+                      readonly
+                      variant="filled"
+                      density="compact"
+                      hide-details
+                    />
                   </v-col>
                   <!-- DTF -->
                   <v-col cols="12" v-if="form.jenisOrderKode === 'SD'">
@@ -1378,14 +1641,34 @@ onMounted(async () => {
                       Perhitungan DTF
                     </v-alert>
 
-                    <v-text-field label="Luas DTF /Cm²" :model-value="totalLuasDtf" readonly variant="filled"
-                      density="compact" hide-details class="mb-2" />
+                    <v-text-field
+                      label="Luas DTF /Cm²"
+                      :model-value="totalLuasDtf"
+                      readonly
+                      variant="filled"
+                      density="compact"
+                      hide-details
+                      class="mb-2"
+                    />
 
-                    <v-text-field label="Biaya /Cm²" :model-value="form.customerLevel === 'KORPORASI' ? 15 : 25"
-                      readonly variant="filled" density="compact" hide-details class="mb-2" />
+                    <v-text-field
+                      label="Biaya /Cm²"
+                      :model-value="form.customerLevel === 'KORPORASI' ? 15 : 25"
+                      readonly
+                      variant="filled"
+                      density="compact"
+                      hide-details
+                      class="mb-2"
+                    />
 
-                    <v-text-field label="Total Harga DTF" :model-value="totalHargaDtf" readonly variant="filled"
-                      density="compact" hide-details />
+                    <v-text-field
+                      label="Total Harga DTF"
+                      :model-value="totalHargaDtf"
+                      readonly
+                      variant="filled"
+                      density="compact"
+                      hide-details
+                    />
                   </v-col>
                 </v-row>
               </div>
@@ -1398,22 +1681,48 @@ onMounted(async () => {
               <div class="image-upload-section">
                 <!-- File Input -->
                 <div class="d-flex align-center ga-2 mb-3">
-                  <v-file-input v-model="imageFile" label="Upload Gambar (Max 1MB)" variant="outlined" density="compact"
-                    prepend-icon="mdi-camera" hide-details clearable accept="image/jpeg,image/png,image/jpg,image/gif"
-                    :loading="isImageUploading" :disabled="isImageUploading"
-                    @update:model-value="handleFileSelection" />
-                  <v-btn @click="clearImage" :disabled="!imagePreview || isImageUploading" icon="mdi-delete"
-                    size="small" variant="tonal" color="error" title="Hapus Gambar" />
+                  <v-file-input
+                    v-model="imageFile"
+                    label="Upload Gambar (Max 1MB)"
+                    variant="outlined"
+                    density="compact"
+                    prepend-icon="mdi-camera"
+                    hide-details
+                    clearable
+                    accept="image/jpeg,image/png,image/jpg,image/gif"
+                    :loading="isImageUploading"
+                    :disabled="isImageUploading"
+                    @update:model-value="handleFileSelection"
+                  />
+                  <v-btn
+                    @click="clearImage"
+                    :disabled="!imagePreview || isImageUploading"
+                    icon="mdi-delete"
+                    size="small"
+                    variant="tonal"
+                    color="error"
+                    title="Hapus Gambar"
+                  />
                 </div>
 
                 <!-- Image Preview -->
                 <div class="image-preview-container">
                   <div v-if="imagePreview" class="position-relative">
-                    <v-img :src="imagePreview" height="200" aspect-ratio="16/9" cover
+                    <v-img
+                      :src="imagePreview"
+                      height="200"
+                      aspect-ratio="16/9"
+                      cover
                       class="border rounded elevation-1 cursor-pointer"
-                      @click="imagePreview ? (isImageFullscreenVisible = true) : null" title="Klik untuk memperbesar">
-                      <v-overlay v-if="isImageUploading" contained persistent
-                        class="d-flex align-center justify-center">
+                      @click="imagePreview ? (isImageFullscreenVisible = true) : null"
+                      title="Klik untuk memperbesar"
+                    >
+                      <v-overlay
+                        v-if="isImageUploading"
+                        contained
+                        persistent
+                        class="d-flex align-center justify-center"
+                      >
                         <div class="text-center text-white">
                           <v-progress-circular indeterminate color="primary" size="40" />
                           <div class="mt-2">Mengunggah...</div>
@@ -1427,7 +1736,12 @@ onMounted(async () => {
                         <v-icon start size="small">mdi-clock-outline</v-icon>
                         Belum tersimpan
                       </v-chip>
-                      <v-chip v-else-if="form.imageUrl && imagePreview" size="small" color="success" variant="tonal">
+                      <v-chip
+                        v-else-if="form.imageUrl && imagePreview"
+                        size="small"
+                        color="success"
+                        variant="tonal"
+                      >
                         <v-icon start size="small">mdi-check</v-icon>
                         Tersimpan di server
                       </v-chip>
@@ -1435,8 +1749,11 @@ onMounted(async () => {
                   </div>
 
                   <!-- Placeholder -->
-                  <div v-else class="border rounded d-flex align-center justify-center bg-grey-lighten-4"
-                    style="height: 200px">
+                  <div
+                    v-else
+                    class="border rounded d-flex align-center justify-center bg-grey-lighten-4"
+                    style="height: 200px"
+                  >
                     <div class="text-center text-grey">
                       <v-icon size="48" class="mb-2">mdi-image-outline</v-icon>
                       <div class="text-caption">Tidak ada gambar</div>
@@ -1455,8 +1772,14 @@ onMounted(async () => {
 
             <!-- Keterangan di bawah gambar -->
             <div class="desktop-form-section">
-              <v-textarea label="Keterangan" v-model="form.keterangan" rows="6" variant="outlined" density="compact"
-                hide-details />
+              <v-textarea
+                label="Keterangan"
+                v-model="form.keterangan"
+                rows="6"
+                variant="outlined"
+                density="compact"
+                hide-details
+              />
             </div>
           </v-col>
         </v-row>
@@ -1465,18 +1788,39 @@ onMounted(async () => {
     <v-skeleton-loader v-else type="article, actions"></v-skeleton-loader>
 
     <!-- Modals -->
-    <CustomerSearchModal v-if="isCustomerSearchVisible" :gudang="form.workshopKode"
-      @close="isCustomerSearchVisible = false" @customer-selected="onCustomerSelected" />
-    <SalesSearchModal v-if="isSalesSearchVisible" @close="isSalesSearchVisible = false"
-      @sales-selected="onSalesSelected" />
-    <JenisOrderSearchModal v-if="isJenisOrderSearchVisible" @close="isJenisOrderSearchVisible = false"
-      @jenis-order-selected="onJenisOrderSelected" />
-    <JenisKainSearchModal v-if="isJenisKainSearchVisible" @close="isJenisKainSearchVisible = false"
-      @jenis-kain-selected="onJenisKainSelected" />
-    <WorkshopSearchModal v-if="isWorkshopSearchVisible" @close="isWorkshopSearchVisible = false"
-      @workshop-selected="onWorkshopSelected" />
-    <SoSearchModalForInvoice v-if="isSoSearchVisible" :cabang="authStore.user.cabang" @close="isSoSearchVisible = false"
-      @so-selected="onSoSelected" mode="dtf" />
+    <CustomerSearchModal
+      v-if="isCustomerSearchVisible"
+      :gudang="form.workshopKode"
+      @close="isCustomerSearchVisible = false"
+      @customer-selected="onCustomerSelected"
+    />
+    <SalesSearchModal
+      v-if="isSalesSearchVisible"
+      @close="isSalesSearchVisible = false"
+      @sales-selected="onSalesSelected"
+    />
+    <JenisOrderSearchModal
+      v-if="isJenisOrderSearchVisible"
+      @close="isJenisOrderSearchVisible = false"
+      @jenis-order-selected="onJenisOrderSelected"
+    />
+    <JenisKainSearchModal
+      v-if="isJenisKainSearchVisible"
+      @close="isJenisKainSearchVisible = false"
+      @jenis-kain-selected="onJenisKainSelected"
+    />
+    <WorkshopSearchModal
+      v-if="isWorkshopSearchVisible"
+      @close="isWorkshopSearchVisible = false"
+      @workshop-selected="onWorkshopSelected"
+    />
+    <SoSearchModalForInvoice
+      v-if="isSoSearchVisible"
+      :cabang="authStore.user.cabang"
+      @close="isSoSearchVisible = false"
+      @so-selected="onSoSelected"
+      mode="dtf"
+    />
 
     <!-- Fullscreen Image Modal -->
     <v-dialog v-model="isImageFullscreenVisible" max-width="90vw">
@@ -1492,7 +1836,13 @@ onMounted(async () => {
 
         <v-card-text class="pa-4 bg-grey-lighten-4">
           <div class="d-flex justify-center align-center" style="min-height: 60vh">
-            <v-img :src="imagePreview" max-height="80vh" max-width="100%" contain class="rounded elevation-2" />
+            <v-img
+              :src="imagePreview"
+              max-height="80vh"
+              max-width="100%"
+              contain
+              class="rounded elevation-2"
+            />
           </div>
         </v-card-text>
 
@@ -1507,7 +1857,12 @@ onMounted(async () => {
               Tersimpan di server
             </v-chip>
           </div>
-          <v-btn color="primary" @click="isImageFullscreenVisible = false" prepend-icon="mdi-close" variant="tonal">
+          <v-btn
+            color="primary"
+            @click="isImageFullscreenVisible = false"
+            prepend-icon="mdi-close"
+            variant="tonal"
+          >
             Tutup
           </v-btn>
         </v-card-actions>
@@ -1555,12 +1910,14 @@ onMounted(async () => {
           Gunakan Promo Maret?
         </v-card-title>
         <v-card-text class="pa-5">
-          Sistem mendeteksi Anda memilih ukuran cetak <b>A6</b>.<br><br>
+          Sistem mendeteksi Anda memilih ukuran cetak <b>A6</b>.<br /><br />
           Apakah pesanan DTF ini termasuk dalam <b>Bonus Promo Maret</b> (Harga Sablon Rp 0)?
         </v-card-text>
         <v-divider></v-divider>
         <v-card-actions class="pa-4">
-          <v-btn color="grey-darken-1" variant="outlined" @click="rejectPromoA6">Tidak, Harga Normal</v-btn>
+          <v-btn color="grey-darken-1" variant="outlined" @click="rejectPromoA6"
+            >Tidak, Harga Normal</v-btn
+          >
           <v-spacer></v-spacer>
           <v-btn color="primary" variant="flat" @click="acceptPromoA6">Ya, Gratiskan (Rp 0)</v-btn>
         </v-card-actions>

@@ -1227,110 +1227,110 @@ const save = async () => {
   }
 
   // --- 4. Cek Promo Aktif & Terapkan Otomatis ---
-  try {
-    const promoResponse = await api.get("/invoice-form/lookup/active-promos", {
-      params: { tanggal: header.value.tanggal, cabang: header.value.gudang.kode },
-    });
+  if (isEditMode.value && header.value.nomorPromo) {
+    // [PERBAIKAN] Jika mode edit dan sudah ada promo bawaan,
+    // biarkan diskon tersebut seperti apa adanya.
+    // Jangan panggil API atau melepas promo secara otomatis.
+  } else {
+    try {
+      const promoResponse = await api.get("/invoice-form/lookup/active-promos", {
+        params: { tanggal: header.value.tanggal, cabang: header.value.gudang.kode },
+      });
 
-    const activePromos = (promoResponse.data ?? []) as ActivePromo[];
+      const activePromos = (promoResponse.data ?? []) as ActivePromo[];
 
-    const promoApril = activePromos.find((p) => p.pro_nomor === "PRO-2026-002");
-    const promo2026 = activePromos.find((p) => p.pro_nomor === "PRO-2026-001");
-    const promo008 = activePromos.find((p) => p.pro_nomor === "PRO-2025-008");
-    const promo010 = activePromos.find((p) => p.pro_nomor === "PRO-2025-010");
+      const promoApril = activePromos.find((p) => p.pro_nomor === "PRO-2026-002");
+      const promo2026 = activePromos.find((p) => p.pro_nomor === "PRO-2026-001");
+      const promo008 = activePromos.find((p) => p.pro_nomor === "PRO-2025-008");
+      const promo010 = activePromos.find((p) => p.pro_nomor === "PRO-2025-010");
 
-    let promoToApply: ActivePromo | null = null;
-    let promoDiskon = 0;
+      let promoToApply: ActivePromo | null = null;
+      let promoDiskon = 0;
 
-    // --- [PERBAIKAN] HITUNG NILAI ELIGIBLE PROMO DI SINI ---
-    const isExcludedItem = (item: SoItem) => {
-      const namaUp = item.nama?.toUpperCase() || "";
-      const kodeUp = item.kode?.toUpperCase() || "";
-      const isJasaOrDesign =
-        item.isJasa ||
-        kodeUp.startsWith("JS") ||
-        kodeUp.startsWith("JASA") ||
-        namaUp.includes("JASA") ||
-        namaUp.includes("DESAIN") ||
-        namaUp.includes("FILE");
-      const isCustomOrDtf = item.isCustomOrder || !!item.noSoDtf || !!item.noPengajuanHarga;
-      return isJasaOrDesign || isCustomOrDtf;
-    };
+      const isExcludedItem = (item: SoItem) => {
+        const namaUp = item.nama?.toUpperCase() || "";
+        const kodeUp = item.kode?.toUpperCase() || "";
+        const isJasaOrDesign =
+          item.isJasa ||
+          kodeUp.startsWith("JS") ||
+          kodeUp.startsWith("JASA") ||
+          namaUp.includes("JASA") ||
+          namaUp.includes("DESAIN") ||
+          namaUp.includes("FILE");
+        const isCustomOrDtf = item.isCustomOrder || !!item.noSoDtf || !!item.noPengajuanHarga;
+        return isJasaOrDesign || isCustomOrDtf;
+      };
 
-    // Hitung total belanja reguler (di luar Jasa, Custom, DTF)
-    const totalBelanjaDec = validItems.reduce((sum, item) => {
-      if (!isExcludedItem(item)) return sum + (item.total || 0);
-      return sum;
-    }, 0);
+      const totalBelanjaDec = validItems.reduce((sum, item) => {
+        if (!isExcludedItem(item)) return sum + (item.total || 0);
+        return sum;
+      }, 0);
 
-    // Hitung total khusus (di luar Jasa, Custom, DTF, dan JERSEY)
-    const totalRegulerDec = validItems.reduce((sum, item) => {
-      if (!item.nama?.toUpperCase().includes("JERSEY") && !isExcludedItem(item)) {
-        return sum + (item.total || 0);
+      const totalRegulerDec = validItems.reduce((sum, item) => {
+        if (!item.nama?.toUpperCase().includes("JERSEY") && !isExcludedItem(item)) {
+          return sum + (item.total || 0);
+        }
+        return sum;
+      }, 0);
+
+      const totalEligibleValue = totalRegulerDec;
+
+      // --- PRIORITAS 1: PROMO APRIL ---
+      if (promoApril && totalEligibleValue >= 250000) {
+        const kelipatanUang = Math.floor(totalEligibleValue / 250000);
+        promoDiskon = 12500 * kelipatanUang;
+        promoToApply = promoApril;
       }
-      return sum;
-    }, 0);
-
-    // Untuk Promo Maret & April (PRO-2026-001 & PRO-2026-002)
-    // Syaratnya: Semua item reguler KECUALI Jersey, Jasa, Custom, DTF.
-    const totalEligibleValue = totalRegulerDec;
-
-    // --- PRIORITAS 1: PROMO APRIL (PRO-2026-002) ---
-    if (promoApril && totalEligibleValue >= 250000) {
-      const kelipatanUang = Math.floor(totalEligibleValue / 250000);
-      promoDiskon = 12500 * kelipatanUang;
-      promoToApply = promoApril;
-    }
-    // --- PRIORITAS 2: PROMO MARET (PRO-2026-001) ---
-    else if (promo2026 && totalEligibleValue >= 200000) {
-      const kelipatanUang = Math.floor(totalEligibleValue / 200000);
-      promoDiskon = 20000 * kelipatanUang;
-      promoToApply = promo2026;
-    }
-    // --- PRIORITAS 3: PROMO LAMA ---
-    else if (!promoToApply) {
-      if (promo010 && totalRegulerDec >= 250000) {
-        const kelipatan = Math.floor(totalRegulerDec / 250000);
-        promoDiskon = 25000 * kelipatan;
-        promoToApply = promo010;
-      } else if (promo008 && totalBelanjaDec >= promo008.pro_totalrp) {
-        promoDiskon = promo008.pro_disrp * Math.floor(totalBelanjaDec / promo008.pro_totalrp);
-        promoToApply = promo008;
+      // --- PRIORITAS 2: PROMO MARET ---
+      else if (promo2026 && totalEligibleValue >= 200000) {
+        const kelipatanUang = Math.floor(totalEligibleValue / 200000);
+        promoDiskon = 20000 * kelipatanUang;
+        promoToApply = promo2026;
       }
-    }
+      // --- PRIORITAS 3: PROMO LAMA ---
+      else if (!promoToApply) {
+        if (promo010 && totalRegulerDec >= 250000) {
+          const kelipatan = Math.floor(totalRegulerDec / 250000);
+          promoDiskon = 25000 * kelipatan;
+          promoToApply = promo010;
+        } else if (promo008 && totalBelanjaDec >= promo008.pro_totalrp) {
+          promoDiskon = promo008.pro_disrp * Math.floor(totalBelanjaDec / promo008.pro_totalrp);
+          promoToApply = promo008;
+        }
+      }
 
-    // --- PENERAPAN PROMO HEADER OTOMATIS ---
-    if (promoToApply) {
-      if (
-        !header.value.nomorPromo &&
-        footer.value.diskonRp === 0 &&
-        footer.value.diskonPersen1 === 0 &&
-        footer.value.diskonPersen2 === 0
+      // --- PENERAPAN PROMO HEADER OTOMATIS ---
+      if (promoToApply) {
+        if (
+          !header.value.nomorPromo &&
+          footer.value.diskonRp === 0 &&
+          footer.value.diskonPersen1 === 0 &&
+          footer.value.diskonPersen2 === 0
+        ) {
+          footer.value.diskonRp = promoDiskon;
+          header.value.nomorPromo = promoToApply.pro_nomor;
+          header.value.namaPromo = promoToApply.pro_judul;
+          calculateTotals();
+          toast.success(`Promo ${promoToApply.pro_judul} diterapkan otomatis!`);
+        } else if (header.value.nomorPromo === promoToApply.pro_nomor) {
+          footer.value.diskonRp = promoDiskon;
+          calculateTotals();
+        }
+      } else if (
+        header.value.nomorPromo === "PRO-2026-001" ||
+        header.value.nomorPromo === "PRO-2026-002"
       ) {
-        footer.value.diskonRp = promoDiskon;
-        header.value.nomorPromo = promoToApply.pro_nomor;
-        header.value.namaPromo = promoToApply.pro_judul;
+        footer.value.diskonRp = 0;
+        header.value.nomorPromo = "";
+        header.value.namaPromo = "";
         calculateTotals();
-        toast.success(`Promo ${promoToApply.pro_judul} diterapkan otomatis!`);
-      } else if (header.value.nomorPromo === promoToApply.pro_nomor) {
-        footer.value.diskonRp = promoDiskon;
-        calculateTotals();
+        toast.warning("Syarat minimal belanja promo tidak terpenuhi. Promo dilepas.");
       }
-    } else if (
-      header.value.nomorPromo === "PRO-2026-001" ||
-      header.value.nomorPromo === "PRO-2026-002"
-    ) {
-      // Jika qty dikurangi dan syarat tidak terpenuhi, lepas promonya
-      footer.value.diskonRp = 0;
-      header.value.nomorPromo = "";
-      header.value.namaPromo = "";
-      calculateTotals();
-      toast.warning("Syarat minimal belanja promo tidak terpenuhi. Promo dilepas.");
+    } catch (error) {
+      console.error("Gagal mengecek promo otomatis:", error);
     }
-  } catch (error) {
-    console.error("Gagal mengecek promo otomatis:", error);
   }
-
+  
   // --- 5. Cek Promo Tebus Murah (Bonus Item) ---
   if (header.value.nomorPromo === "PRO-2025-002") {
     activePromoForBonus.value = { nomor: header.value.nomorPromo, qty: 1 };
@@ -2748,6 +2748,12 @@ const checkRealtimePromoEligibility = async (): Promise<boolean> => {
   ) {
     promoNotification.value = "";
     return false;
+  }
+
+  if (isEditMode.value && header.value.nomorPromo) {
+    promoNotification.value = "";
+    potentialPromoDiscount.value = 0;
+    return true;
   }
 
   if (isEditMode.value && isInitialLoad.value) {

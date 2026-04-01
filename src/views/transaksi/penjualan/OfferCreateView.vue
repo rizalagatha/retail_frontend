@@ -2190,7 +2190,7 @@ onMounted(async () => {
   <PageLayout :title="pageTitle" desktop-mode icon="mdi-file-document-edit-outline">
     <template #header-actions>
       <v-btn
-        color="secondary"
+        color="cyan-darken-2"
         size="small"
         prepend-icon="mdi-tshirt-crew-outline"
         :disabled="!header.customer"

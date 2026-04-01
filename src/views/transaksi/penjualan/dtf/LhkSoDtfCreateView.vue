@@ -14,6 +14,7 @@ import SoPoSearchModal from "@/components/lookup/SoPoSearchModal.vue";
 interface RawSpec {
   w: number;
   h: number;
+  qty?: number; // <--- Tambahkan baris ini
 }
 
 interface SavedSpec {
@@ -143,6 +144,24 @@ let lastDragEvent: MouseEvent | null = null;
 let activeTargetCanvas: HTMLCanvasElement | null = null;
 
 const CM_TO_PX = 10;
+
+// --- State Konfirmasi Global ---
+const dialogConfirm = reactive({
+  show: false,
+  title: "Konfirmasi",
+  text: "",
+  onConfirm: () => {},
+});
+
+const showConfirmation = (onConfirm: () => void, text: string) => {
+  dialogConfirm.text = text;
+  dialogConfirm.onConfirm = onConfirm;
+  dialogConfirm.show = true;
+};
+
+const closeConfirmDialog = () => {
+  dialogConfirm.show = false;
+};
 
 // --- Fungsi Penanganan Upload (VERSI LOCAL PREVIEW - ANTI GAGAL) ---
 const handleSpecFileUpload = async (
@@ -622,8 +641,8 @@ const handleDoubleClick = (e: MouseEvent, targetCanvas: HTMLCanvasElement | null
   }
 };
 
-// --- Auto Arrange Algorithm ---
 // --- Auto Arrange Algorithm (Smart Append Version) ---
+// --- Auto Arrange Algorithm (Skyline / Tetris Packing Version) ---
 const runAutoArrange = () => {
   const validItems = items.value.filter((i) => i.kode && i.jumlah > 0);
   if (validItems.length === 0 || !formHeader.jenisOrder) {
@@ -642,14 +661,11 @@ const runAutoArrange = () => {
 
   validItems.forEach((item) => {
     item.specs.forEach((s, sIndex) => {
-      // Gunakan label unik (contoh: 0064-1, 0064-2)
       const label = `${item.kode.split(".").pop()}-${sIndex + 1}`;
-
       targetSpecs[label] = {
         w: s.w + padding,
         h: s.h + padding,
         qty: Number(s.qtyTotal),
-        // [PENTING] Ambil dan simpan referensi objek gambar asli dari spesifikasi
         imageObj: s.uploadedImageObj,
       };
     });
@@ -663,38 +679,33 @@ const runAutoArrange = () => {
     const label = box.label;
     if (!currentCounts[label]) currentCounts[label] = 0;
 
-    // Jika kotak ini masih dibutuhkan (kuotanya belum berlebih), pertahankan posisinya
     if (targetSpecs[label] && currentCounts[label] < targetSpecs[label].qty) {
-      // [PENTING] Pastikan gambar lama tetap nempel (jika misalnya diupload belakangan)
       if (!box.imageObj && targetSpecs[label].imageObj) {
         box.imageObj = targetSpecs[label].imageObj;
       }
-
       preservedLayout.push(box);
       currentCounts[label]++;
     }
   });
 
-  // 3. Kumpulkan kekurangan kotak yang belum ada di kanvas (Yang baru ditambahkan)
+  // 3. Kumpulkan kekurangan kotak
   const newBoxes: { w: number; h: number; label: string; imageObj?: HTMLImageElement | null }[] =
     [];
 
   for (const [label, spec] of Object.entries(targetSpecs)) {
     const existingCount = currentCounts[label] || 0;
-    const shortage = spec.qty - existingCount; // Cari selisih kekurangannya
+    const shortage = spec.qty - existingCount;
 
     for (let i = 0; i < shortage; i++) {
       newBoxes.push({
-        w: spec.w, // Ini sudah termasuk padding dari targetSpecs
-        h: spec.h, // Ini sudah termasuk padding dari targetSpecs
+        w: spec.w,
+        h: spec.h,
         label: label,
-        // [PENTING] Oper operasikan objek gambarnya ke kotak baru!
         imageObj: spec.imageObj,
       });
     }
   }
 
-  // Jika tidak ada tambahan desain baru, berarti operator hanya mengurangi jumlah.
   if (newBoxes.length === 0) {
     layoutPreview.value = preservedLayout;
     recalculateCanvasHeight();
@@ -703,54 +714,102 @@ const runAutoArrange = () => {
     return;
   }
 
-  // 4. Mulai Menyusun Item Baru (Agar rapi di bawah yang sudah ada)
-  newBoxes.sort((a, b) => b.h - a.h); // Urutkan yang baru dari yang paling tinggi
+  // =========================================================================
+  // --- [ALGORITMA BARU: TETRIS / SKYLINE PACKING] ---
+  // =========================================================================
 
-  // Cari titik Y paling bawah dari layout lama
-  let startY = 0;
+  // Mengurutkan kotak baru berdasarkan tingginya (tinggi ke pendek)
+  // Ini kunci agar packing lebih rapat dan menyerupai balok bangunan.
+  newBoxes.sort((a, b) => {
+    if (b.h !== a.h) return b.h - a.h;
+    return b.w - a.w;
+  });
+
+  const minX = MARGIN_CM; // Margin Kiri (2 cm)
+  const maxX = rollWidth - MARGIN_CM; // Margin Kanan
+  const step = 0.1; // Resolusi Peta (0.1 cm = 1 mm) presisi sangat tinggi
+
+  // Buat array yang bertindak sebagai sensor kedalaman (Skyline)
+  const skylineLength = Math.round(rollWidth / step) + 1;
+  const skyline = new Array(skylineLength).fill(0);
+
+  const startIdx = Math.round(minX / step);
+  const endIdx = Math.round(maxX / step);
+
+  // Jika ada layout lama (di-lock), gambarkan ke "peta skyline" agar gambar baru
+  // bisa mengenali mana area yang kosong di samping-samping gambar lama.
   if (preservedLayout.length > 0) {
-    startY = Math.max(...preservedLayout.map((b) => b.y + (b.isRotated ? b.w : b.h)));
+    preservedLayout.forEach((box) => {
+      const bx = box.x;
+      const by = box.y;
+      const bw = box.isRotated ? box.h : box.w;
+      const bh = box.isRotated ? box.w : box.h;
+
+      const boxStartIdx = Math.max(startIdx, Math.round(bx / step));
+      // Pastikan ada jarak aman (padding) di samping dan bawah kotak lama
+      const boxEndIdx = Math.min(endIdx, Math.round((bx + bw + padding) / step));
+
+      for (let i = boxStartIdx; i <= boxEndIdx; i++) {
+        if (by + bh + padding > skyline[i]) {
+          skyline[i] = by + bh + padding;
+        }
+      }
+    });
   }
 
-  let currX = MARGIN_CM;
-  let currY = startY;
-  let shelfH = 0;
-
-  // Lanjutkan ID agar tidak bentrok
   let maxId = preservedLayout.length > 0 ? Math.max(...preservedLayout.map((b) => b.id)) : -1;
   const addedLayout: PreviewBox[] = [];
 
   newBoxes.forEach((box) => {
-    // Jika posisi X + Lebar desain menabrak margin kanan, turun ke baris baru
-    if (currX + box.w > rollWidth - MARGIN_CM) {
-      currY += shelfH;
-      currX = MARGIN_CM; // Kembali ke margin kiri (2 cm)
-      shelfH = 0;
+    maxId++;
+    const bw = box.w; // Lebar (plus padding)
+    const bh = box.h; // Tinggi (plus padding)
+
+    let bestX = minX;
+    let bestY = Infinity;
+
+    const boxWidthSteps = Math.round(bw / step);
+
+    // Lempar kotak dari atas, cari "Lembah" terendah yang lebarnya cukup
+    for (let x = startIdx; x <= endIdx - boxWidthSteps; x++) {
+      let currentMaxY = 0;
+      for (let w = 0; w < boxWidthSteps; w++) {
+        if (skyline[x + w] > currentMaxY) {
+          currentMaxY = skyline[x + w];
+        }
+      }
+
+      // Jika area ini lebih rendah (kosong) daripada sebelumnya, pilih!
+      if (currentMaxY < bestY) {
+        bestY = currentMaxY;
+        bestX = x * step;
+      }
     }
 
-    maxId++;
+    // Tanamkan kotak di posisi paling dalam (ter-Tetris)
     addedLayout.push({
       id: maxId,
-      x: currX,
-      y: currY,
-      w: box.w - padding, // Kurangi padding untuk lebar murni gambar
-      h: box.h - padding, // Kurangi padding untuk tinggi murni gambar
+      x: bestX,
+      y: bestY,
+      w: box.w - padding, // Kembalikan tanpa ukuran padding
+      h: box.h - padding,
       label: box.label,
       isRotated: false,
-      // [PENTING] Pastikan gambar menempel di properti kotak kanvas final
       imageObj: box.imageObj,
     });
 
-    currX += box.w;
-    shelfH = Math.max(shelfH, box.h);
+    // Update peta sensor skyline dengan ketinggian kotak yang baru menempati area tersebut
+    const placeStartIdx = Math.round(bestX / step);
+    for (let w = 0; w < boxWidthSteps; w++) {
+      skyline[placeStartIdx + w] = bestY + bh;
+    }
   });
 
-  // 5. Gabungkan desain lama yang dipertahankan dengan desain baru
   layoutPreview.value = [...preservedLayout, ...addedLayout];
 
   recalculateCanvasHeight();
   isLayoutLoading.value = false;
-  toast.success(`Layout ditambahkan (${newBoxes.length} item baru).`);
+  toast.success(`Layout ditambahkan dengan efisiensi maksimal.`);
 };
 
 // --- Zoom Controls ---
@@ -979,15 +1038,17 @@ const onSoPoSelected = async (selectedItem: { kode: string; nama: string; sudah_
     // Ambil nilai dari API
     const jmlKaosSistem = res.data.totalKaos || 0;
     const jmlTitikSistem = res.data.specs ? res.data.specs.length : 0;
-    const rawSpecs: any[] = res.data.specs || [];
+    const rawSpecs: RawSpec[] = res.data.specs || [];
 
     // [PERBAIKAN] Mapping format spesifikasi baru (Hargai qty bawaan dari stok)
-    const mappedSpecs: SpecDetail[] = rawSpecs.map((s: any) => ({
+    const mappedSpecs: SpecDetail[] = rawSpecs.map((s: RawSpec) => ({
       w: s.w,
       h: s.h,
       luas: s.w * s.h,
-      qtySistem: s.qty || jmlKaosSistem, // Prioritaskan qty dari backend jika SO Stok
+      qtySistem: s.qty || jmlKaosSistem,
       qtyTotal: s.qty || jmlKaosSistem,
+      uploadedImageObj: null,
+      isUploading: false,
     }));
 
     Object.assign(activeItem, {
@@ -1016,18 +1077,20 @@ const onSoPoSelected = async (selectedItem: { kode: string; nama: string; sudah_
   }
 };
 
-const calculateRowTotal = (item: any) => {
+const calculateRowTotal = (item: LhkItem) => {
   if (item.specs && item.specs.length > 0) {
-    item.specs.forEach((s: any) => {
-      // [PERBAIKAN] Jangan gunakan jumlah (Kaos OK) sebagai acuan.
-      // Gunakan jumlahSistem (Jumlah Order) sebagai acuan target layout & total titik!
+    item.specs.forEach((s: SpecDetail) => {
+      // Gunakan SpecDetail
       if (!item.isStok) {
         s.qtySistem = Number(item.jumlahSistem) || 0;
         s.qtyTotal = s.qtySistem;
       }
     });
-    item.totalTitik = item.specs.reduce((sum: number, s: any) => sum + s.qtyTotal, 0);
-    item.luasSistem = item.specs.reduce((sum: number, s: any) => sum + s.luas * s.qtyTotal, 0);
+    item.totalTitik = item.specs.reduce((sum: number, s: SpecDetail) => sum + s.qtyTotal, 0);
+    item.luasSistem = item.specs.reduce(
+      (sum: number, s: SpecDetail) => sum + s.luas * s.qtyTotal,
+      0
+    );
   } else {
     item.totalTitik = 0;
     item.luasSistem = 0;
@@ -1035,20 +1098,12 @@ const calculateRowTotal = (item: any) => {
 };
 
 // [BARU] Fungsi untuk menghapus titik cetak spesifik (Berguna saat Reprint)
-const removeSpec = (item: any, specIndex: number) => {
+const removeSpec = (item: LhkItem, specIndex: number) => {
   showConfirmation(() => {
-    // 1. Hapus spec dari array
     item.specs.splice(specIndex, 1);
-
-    // 2. Update jumlah titik
     item.jumlahTitik = item.specs.length;
-
-    // 3. Kalkulasi ulang total titik dan luas
     calculateRowTotal(item);
-
     toast.info(`Titik ke-${specIndex + 1} berhasil dihapus dari daftar.`);
-
-    // 4. Beri tahu Vue ada perubahan
     uiStore.setUnsavedChanges(true);
     closeConfirmDialog();
   }, "Hapus titik cetak ini dari daftar? (Gunakan ini jika hanya sebagian gambar yang di-reprint)");
@@ -1546,7 +1601,6 @@ const tableHeaders = [
                         <th class="text-caption font-weight-bold text-end">Luas 1 Pcs</th>
                         <th class="text-caption font-weight-bold text-center">Total Cetak</th>
                         <th class="text-caption font-weight-bold text-center">Desain</th>
-
                         <th v-if="item.isReprint" class="text-caption font-weight-bold text-center">
                           Aksi
                         </th>
@@ -1560,7 +1614,26 @@ const tableHeaders = [
                         <td class="text-caption text-center font-weight-bold text-deep-orange">
                           {{ spec.qtyTotal }}
                         </td>
-                        <td class="text-center"></td>
+
+                        <td class="text-center">
+                          <div class="d-flex align-center justify-center">
+                            <v-btn
+                              :icon="spec.uploadedImageObj ? 'mdi-image-check' : 'mdi-upload'"
+                              :color="spec.uploadedImageObj ? 'success' : 'grey'"
+                              size="x-small"
+                              variant="tonal"
+                              :loading="spec.isUploading"
+                              @click="triggerFileInput(`${item.id}-${i}`)"
+                            ></v-btn>
+                            <input
+                              :id="`file-upload-${item.id}-${i}`"
+                              type="file"
+                              accept="image/png, image/jpeg"
+                              style="display: none"
+                              @change="(e) => handleSpecFileUpload(e, item, spec, i)"
+                            />
+                          </div>
+                        </td>
 
                         <td v-if="item.isReprint" class="text-center">
                           <v-btn
@@ -1673,6 +1746,20 @@ const tableHeaders = [
             >Tidak</v-btn
           >
           <v-btn color="error" variant="tonal" @click="executeClose">Ya, Keluar</v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+
+    <v-dialog v-model="dialogConfirm.show" max-width="400px" persistent>
+      <v-card>
+        <v-card-title class="text-h6 font-weight-bold">{{ dialogConfirm.title }}</v-card-title>
+        <v-card-text>{{ dialogConfirm.text }}</v-card-text>
+        <v-card-actions>
+          <v-spacer></v-spacer>
+          <v-btn color="grey-darken-1" variant="text" @click="closeConfirmDialog">Batal</v-btn>
+          <v-btn color="primary" variant="tonal" @click="dialogConfirm.onConfirm()"
+            >Ya, Lanjutkan</v-btn
+          >
         </v-card-actions>
       </v-card>
     </v-dialog>

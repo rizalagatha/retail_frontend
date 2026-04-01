@@ -79,7 +79,7 @@ const dialogConfirm = reactive({
   show: false,
   title: "",
   text: "",
-  onConfirm: () => { },
+  onConfirm: () => {},
 });
 
 const filters = reactive({
@@ -127,6 +127,7 @@ const headers = ref<DataTableHeader[]>([
   { title: "Dibayarkan", key: "diBayarkan", width: 120 },
   { title: "Sisa", key: "sisa", width: 120 },
   { title: "No. Invoice", key: "invoice", width: 180 },
+  { title: "Link Pembayaran", key: "linkPiutang", width: 180 }, // <--- TAMBAHKAN INI DISINI
   { title: "Jenis", key: "jenis", width: 100 },
   { title: "Customer", key: "nama", width: 250 },
   { title: "Keterangan", key: "keterangan", width: 250 },
@@ -383,19 +384,39 @@ watch(filters, fetchMasterData, { deep: true });
 <template>
   <PageLayout title="Browse Retur Jual" icon="mdi-keyboard-return">
     <template #header-actions>
-      <v-btn v-if="authStore.can(MENU_ID, 'insert')" size="small" color="primary" prepend-icon="mdi-plus"
-        @click="handleNew">Baru</v-btn>
-      <v-btn v-if="authStore.can(MENU_ID, 'edit')" size="small" prepend-icon="mdi-pencil" @click="handleEdit"
-        :disabled="!canEdit">Ubah</v-btn>
+      <v-btn
+        v-if="authStore.can(MENU_ID, 'insert')"
+        size="small"
+        color="primary"
+        prepend-icon="mdi-plus"
+        @click="handleNew"
+        >Baru</v-btn
+      >
+      <v-btn
+        v-if="authStore.can(MENU_ID, 'edit')"
+        size="small"
+        prepend-icon="mdi-pencil"
+        @click="handleEdit"
+        :disabled="!canEdit"
+        >Ubah</v-btn
+      >
       <!-- <v-btn v-if="authStore.can(MENU_ID, 'delete')" size="small" prepend-icon="mdi-delete" color="error"
         @click="handleDelete" :disabled="!canDelete">Hapus</v-btn> -->
-      <v-btn v-if="authStore.can(MENU_ID, 'view')" size="small" color="green" :disabled="!isSingleSelected"
-        prepend-icon="mdi-printer" @click="handlePrint">
+      <v-btn
+        v-if="authStore.can(MENU_ID, 'view')"
+        size="small"
+        color="green"
+        :disabled="!isSingleSelected"
+        prepend-icon="mdi-printer"
+        @click="handlePrint"
+      >
         Cetak
       </v-btn>
       <v-menu offset-y>
         <template v-slot:activator="{ props }">
-          <v-btn size="small" color="teal" prepend-icon="mdi-file-excel" v-bind="props">Export</v-btn>
+          <v-btn size="small" color="teal" prepend-icon="mdi-file-excel" v-bind="props"
+            >Export</v-btn
+          >
         </template>
         <v-list density="compact">
           <v-list-item @click="exportData('header')">
@@ -411,61 +432,124 @@ watch(filters, fetchMasterData, { deep: true });
     <div class="browse-content">
       <div class="filter-section">
         <span class="filter-label">Periode:</span>
-        <v-text-field v-model="filters.startDate" type="date" density="compact" hide-details variant="outlined"
-          style="max-width: 180px" />
+        <v-text-field
+          v-model="filters.startDate"
+          type="date"
+          density="compact"
+          hide-details
+          variant="outlined"
+          style="max-width: 180px"
+        />
         <span class="mx-2">s/d</span>
-        <v-text-field v-model="filters.endDate" type="date" density="compact" hide-details variant="outlined"
-          style="max-width: 180px" />
-        <v-select label="Cabang" v-model="filters.cabang" :items="cabangList" item-title="nama" item-value="kode"
-          density="compact" hide-details variant="outlined" class="ms-4" style="max-width: 200px" />
+        <v-text-field
+          v-model="filters.endDate"
+          type="date"
+          density="compact"
+          hide-details
+          variant="outlined"
+          style="max-width: 180px"
+        />
+        <v-select
+          label="Cabang"
+          v-model="filters.cabang"
+          :items="cabangList"
+          item-title="nama"
+          item-value="kode"
+          density="compact"
+          hide-details
+          variant="outlined"
+          class="ms-4"
+          style="max-width: 200px"
+        />
       </div>
 
       <div class="table-container">
-        <AppDataTable v-model="selected" v-model:expanded="expanded" :headers="headers" :items="masterData"
-          :loading="loading" item-value="nomor" density="compact" class="desktop-table header-browse-blue" fixed-header
-          show-select show-expand return-object @update:expanded="loadDetails" @click:row="handleRowClick">
+        <AppDataTable
+          v-model="selected"
+          v-model:expanded="expanded"
+          :headers="headers"
+          :items="masterData"
+          :loading="loading"
+          item-value="nomor"
+          density="compact"
+          class="desktop-table header-browse-blue"
+          fixed-header
+          show-select
+          show-expand
+          return-object
+          @update:expanded="loadDetails"
+          @click:row="handleRowClick"
+        >
           <template #headers="{ columns, isSorted, getSortIcon, toggleSort }">
             <tr>
               <template v-for="header in columns" :key="header.key">
-                <th :style="{
-                  width: header.width + 'px',
-                  minWidth: header.width + 'px',
-                  maxWidth: header.width + 'px',
-                }" class="resizable-header" :class="{
-                  'text-center': header.align === 'center',
-                  'text-end': header.align === 'end',
-                }" @click="toggleSort(header)">
+                <th
+                  :style="{
+                    width: header.width + 'px',
+                    minWidth: header.width + 'px',
+                    maxWidth: header.width + 'px',
+                  }"
+                  class="resizable-header"
+                  :class="{
+                    'text-center': header.align === 'center',
+                    'text-end': header.align === 'end',
+                  }"
+                  @click="toggleSort(header)"
+                >
                   <div class="header-content">
                     <span>{{ header.title }}</span>
                     <v-icon v-if="isSorted(header)" size="small" class="ms-1">
                       {{ getSortIcon(header) }}
                     </v-icon>
                   </div>
-                  <div class="resizer" @mousedown.stop="onResizeStart($event, header)" @click.stop></div>
+                  <div
+                    class="resizer"
+                    @mousedown.stop="onResizeStart($event, header)"
+                    @click.stop
+                  ></div>
                 </th>
               </template>
             </tr>
           </template>
 
           <template #[`item.data-table-expand`]="{ internalItem, toggleExpand, isExpanded }">
-            <v-btn icon="mdi-chevron-down" :class="{ 'rotate-180': isExpanded(internalItem) }" size="x-small"
-              variant="text" @click.stop="toggleExpand(internalItem)" />
+            <v-btn
+              icon="mdi-chevron-down"
+              :class="{ 'rotate-180': isExpanded(internalItem) }"
+              size="x-small"
+              variant="text"
+              @click.stop="toggleExpand(internalItem)"
+            />
           </template>
 
-          <template v-for="header in headers.filter((h) => h.key !== 'data-table-expand')"
-            #[`item.${header.key}`]="{ item }" :key="header.key">
+          <template
+            v-for="header in headers.filter((h) => h.key !== 'data-table-expand')"
+            #[`item.${header.key}`]="{ item }"
+            :key="header.key"
+          >
             <td>
               <template v-if="header.key === 'tanggal'">
                 {{ format(parseISO(item.tanggal as string), "dd/MM/yyyy") }}
               </template>
               <template v-else-if="header.key === 'jenis'">
-                <v-chip :color="item.jenis === 'RETUR ONLINE' ? 'orange-darken-4' : 'primary'" size="x-small"
-                  variant="flat" class="font-weight-bold">
+                <v-chip
+                  :color="item.jenis === 'RETUR ONLINE' ? 'orange-darken-4' : 'primary'"
+                  size="x-small"
+                  variant="flat"
+                  class="font-weight-bold"
+                >
                   {{ item.jenis }}
                 </v-chip>
               </template>
               <template v-else-if="['nominal', 'diBayarkan', 'sisa'].includes(header.key)">
                 {{ formatRupiah(Number(item[header.key])) }}
+              </template>
+
+              <template v-else-if="header.key === 'linkPiutang'">
+                <span v-if="item.linkPiutang" class="font-weight-bold text-primary">{{
+                  item.linkPiutang
+                }}</span>
+                <span v-else class="text-grey">-</span>
               </template>
 
               <template v-else>
@@ -485,8 +569,14 @@ watch(filters, fetchMasterData, { deep: true });
                     <div v-else>
                       <div class="text-subtitle-2 font-weight-bold mb-2">Detail Barang Retur</div>
                       <div class="detail-table-wrapper mb-4">
-                        <v-data-table :headers="detailHeaders" :items="details[item.nomor]" density="compact"
-                          class="detail-table" :items-per-page="-1" hide-default-footer>
+                        <v-data-table
+                          :headers="detailHeaders"
+                          :items="details[item.nomor]"
+                          density="compact"
+                          class="detail-table"
+                          :items-per-page="-1"
+                          hide-default-footer
+                        >
                           <template #bottom></template>
                         </v-data-table>
                       </div>
@@ -494,8 +584,14 @@ watch(filters, fetchMasterData, { deep: true });
                       <div v-if="paymentLinks[item.nomor] && paymentLinks[item.nomor].length > 0">
                         <div class="text-subtitle-2 font-weight-bold mb-2">Link Pembayaran</div>
                         <div class="detail-table-wrapper">
-                          <v-data-table :headers="paymentLinkHeaders" :items="paymentLinks[item.nomor]"
-                            density="compact" class="detail-table" :items-per-page="-1" hide-default-footer>
+                          <v-data-table
+                            :headers="paymentLinkHeaders"
+                            :items="paymentLinks[item.nomor]"
+                            density="compact"
+                            class="detail-table"
+                            :items-per-page="-1"
+                            hide-default-footer
+                          >
                             <template #[`item.tanggal`]="{ item: linkItem }">
                               {{ format(parseISO(linkItem.tanggal), "dd/MM/yyyy") }}
                             </template>
@@ -516,10 +612,17 @@ watch(filters, fetchMasterData, { deep: true });
       </div>
     </div>
 
-    <PrintOptionModal v-if="isPrintOptionVisible" :options="['a4', 'kasir']" @close="isPrintOptionVisible = false"
-      @select="handlePrintSelection" />
-    <ReturJualKasirPrintPreviewModal v-model="isKasirPreviewVisible" :nomorRetur="selectedRetur"
-      @close="isKasirPreviewVisible = false" />
+    <PrintOptionModal
+      v-if="isPrintOptionVisible"
+      :options="['a4', 'kasir']"
+      @close="isPrintOptionVisible = false"
+      @select="handlePrintSelection"
+    />
+    <ReturJualKasirPrintPreviewModal
+      v-model="isKasirPreviewVisible"
+      :nomorRetur="selectedRetur"
+      @close="isKasirPreviewVisible = false"
+    />
 
     <v-dialog v-model="dialogConfirm.show" max-width="400px" persistent>
       <v-card>
@@ -528,10 +631,15 @@ watch(filters, fetchMasterData, { deep: true });
         <v-card-actions>
           <v-spacer></v-spacer>
           <v-btn text @click="dialogConfirm.show = false">Batal</v-btn>
-          <v-btn color="primary" variant="tonal" @click="
-            dialogConfirm.onConfirm();
-          dialogConfirm.show = false;
-          ">Ya, Lanjutkan</v-btn>
+          <v-btn
+            color="primary"
+            variant="tonal"
+            @click="
+              dialogConfirm.onConfirm();
+              dialogConfirm.show = false;
+            "
+            >Ya, Lanjutkan</v-btn
+          >
         </v-card-actions>
       </v-card>
     </v-dialog>

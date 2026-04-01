@@ -531,14 +531,20 @@ const exportHeaderData = () => {
     return;
   }
 
-  // Mapping data untuk memformat tanggal sebelum masuk Excel
-  const formattedData = offerList.value.map((item: OfferItem) => ({
-    ...item,
-    // Pastikan key 'Tanggal' atau 'pen_tanggal' sesuai dengan field di object offerList Anda
-    // Contoh jika fieldnya bernama 'Tanggal':
-    Tanggal: item.Tanggal ? formatDateIndo(item.Tanggal) : "",
-    // Jika ada field tanggal lain, format juga disini
-  }));
+  // Mapping data untuk memformat tanggal dan menyuntikkan Status sebelum masuk Excel
+  const formattedData = offerList.value.map((item: OfferHeader) => {
+    // [BARU] Tentukan status persis seperti di tampilan tabel UI
+    let currentStatus = "Open";
+    if (item.noSO) currentStatus = "Sudah Jadi SO";
+    else if (item.alasan) currentStatus = "Closed";
+
+    return {
+      ...item,
+      // Pastikan status dimasukkan ke dalam objek hasil map
+      Status: currentStatus,
+      Tanggal: item.tanggal ? formatDateIndo(item.tanggal) : "",
+    };
+  });
 
   const worksheet = XLSX.utils.json_to_sheet(formattedData);
   const workbook = XLSX.utils.book_new();

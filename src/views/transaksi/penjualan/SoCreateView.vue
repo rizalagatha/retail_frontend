@@ -1330,7 +1330,7 @@ const save = async () => {
       console.error("Gagal mengecek promo otomatis:", error);
     }
   }
-  
+
   // --- 5. Cek Promo Tebus Murah (Bonus Item) ---
   if (header.value.nomorPromo === "PRO-2025-002") {
     activePromoForBonus.value = { nomor: header.value.nomorPromo, qty: 1 };
@@ -3241,7 +3241,7 @@ const stopAndOpenPriceProposal = (index: number) => {
         Buat SPK Produksi
       </v-btn> -->
       <v-btn
-        color="secondary"
+        color="cyan-darken-2"
         size="small"
         prepend-icon="mdi-tshirt-crew-outline"
         :disabled="!header.customer && !header.penawaran"

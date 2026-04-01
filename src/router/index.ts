@@ -177,6 +177,13 @@ const ReturJualPrintView = () => import("@/views/transaksi/penjualan/ReturJualPr
 const ReturJualPrintKasirView = () =>
   import("@/views/transaksi/penjualan/ReturJualPrintKasirView.vue");
 
+// --- KOMPLAIN CUSTOMER ---
+const KomplainCustomerView = () => import("@/views/transaksi/penjualan/KomplainCustomerView.vue");
+const KomplainCustomerCreateView = () =>
+  import("@/views/transaksi/penjualan/KomplainCustomerCreateView.vue");
+const KomplainCustomerPrintView = () =>
+  import("@/views/transaksi/penjualan/KomplainCustomerPrintView.vue");
+
 // --- DC & PRODUKSI ---
 const QckeGarmenView = () => import("@/views/dc/operasional/QckeGarmenView.vue");
 const QckeGarmenCreateView = () => import("@/views/dc/operasional/QckeGarmenCreateView.vue");
@@ -222,6 +229,11 @@ const PoKaosanPrintView = () => import("@/views/dc/produksi-supplier/PoKaosanPri
 const BpbKaosanView = () => import("@/views/dc/produksi-supplier/BpbKaosanView.vue");
 const BpbKaosanCreateView = () => import("@/views/dc/produksi-supplier/BpbKaosanCreateView.vue");
 const BpbKaosanPrintView = () => import("@/views/dc/produksi-supplier/BpbKaosanPrintView.vue");
+const MintaAccesoriesView = () => import("@/views/dc/operasional/MintaAccesoriesView.vue");
+const MintaAccesoriesCreateView = () =>
+  import("@/views/dc/operasional/MintaAccesoriesCreateView.vue");
+const MintaAccesoriesPrintView = () =>
+  import("@/views/dc/operasional/MintaAccesoriesPrintView.vue");
 
 // --- LAPORAN & SO ---
 const LaporanListOtorisasiView = () =>
@@ -1663,6 +1675,48 @@ const routes = [
     },
   },
   {
+    path: "/transaksi/penjualan/komplain-customer",
+    name: "KomplainCustomer",
+    component: KomplainCustomerView,
+    meta: {
+      title: "Komplain Customer",
+      requiresAuth: true,
+      menuId: "60",
+    },
+  },
+  {
+    path: "/transaksi/penjualan/komplain-customer/new",
+    name: "KomplainCustomerCreate",
+    component: KomplainCustomerCreateView,
+    meta: {
+      title: "Buat Komplain Baru",
+      requiresAuth: true,
+      menuId: "60",
+    },
+  },
+  {
+    path: "/transaksi/penjualan/komplain-customer/edit/:nomor",
+    name: "KomplainCustomerEdit",
+    component: KomplainCustomerCreateView, // Menggunakan komponen form yang sama
+    meta: {
+      title: "Detail / Ubah Komplain",
+      requiresAuth: true,
+      menuId: "60",
+    },
+  },
+  {
+    path: "/transaksi/penjualan/komplain-customer/print/:nomor",
+    name: "KomplainCustomerPrint",
+    component: KomplainCustomerPrintView,
+    meta: {
+      title: "Cetak Bukti Komplain",
+      requiresAuth: true,
+      menuId: "60",
+      printLayout: true, // Bypass layout utama
+      layout: "PrintLayout", // Gunakan layout kosongan
+    },
+  },
+  {
     path: "/transaksi/internal/retur-dc",
     name: "ReturDc",
     component: ReturDcView,
@@ -2237,6 +2291,49 @@ const routes = [
       requiresAuth: true,
       menuId: "216",
       layout: "PrintLayout",
+    },
+  },
+  {
+    path: "/gudang-dc/operasional/minta-accesories",
+    name: "MintaAccesories",
+    component: MintaAccesoriesView,
+    meta: {
+      title: "Permintaan Accesories (Kebutuhan Kaosan)",
+      requiresAuth: true,
+      menuId: "225",
+    },
+  },
+  // ... (taruh di bawah route MintaAccesories Browse yang sebelumnya dibuat)
+  {
+    path: "/gudang-dc/operasional/minta-accesories/new",
+    name: "MintaAccesoriesCreate",
+    component: MintaAccesoriesCreateView,
+    meta: {
+      title: "Buat Permintaan Kebutuhan",
+      requiresAuth: true,
+      menuId: "225",
+    },
+  },
+  {
+    path: "/gudang-dc/operasional/minta-accesories/ubah/:nomor",
+    name: "MintaAccesoriesEdit",
+    component: MintaAccesoriesCreateView,
+    meta: {
+      title: "Ubah Permintaan Kebutuhan",
+      requiresAuth: true,
+      menuId: "225",
+    },
+  },
+  {
+    path: "/gudang-dc/operasional/minta-accesories/print/:nomor",
+    name: "MintaAccesoriesPrint",
+    component: MintaAccesoriesPrintView,
+    meta: {
+      title: "Cetak Permintaan Accesories",
+      requiresAuth: true,
+      menuId: "225",
+      layout: "PrintLayout",
+      printLayout: true,
     },
   },
   {

@@ -166,7 +166,7 @@ const onInvoiceSelected = async (invoice: { nomor: string; tanggal: string }) =>
   const isKPR = authStore.user?.cabang === "KPR";
 
   // Flag pembukaan akses sementara untuk K10
-  const isTemporaryOpen = authStore.user?.cabang === "K05" && new Date() < new Date("2026-03-10");
+  const isTemporaryOpen = authStore.user?.cabang === "K01" && new Date() < new Date("2026-03-31");
 
   // Jika bukan KON, bukan K10 (temporary), dan invoice > 1 hari, maka blokir
   if (!isKON && !isKPR && !isTemporaryOpen && hariSejakInvoice > 1) {

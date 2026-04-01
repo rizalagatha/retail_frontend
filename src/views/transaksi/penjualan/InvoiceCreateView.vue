@@ -188,15 +188,17 @@ interface SoItem {
 interface SjApiItem {
   kode: string;
   nama?: string;
-  nama_barang?: string; // [FIX] Tambahan dari backend
+  nama_barang?: string;
   ukuran: string;
   kategori: string;
   stok?: number | string;
   sjd_jumlah?: number | string;
-  jumlah?: number | string; // [FIX] Tambahan dari backend
+  jumlah?: number | string;
   harga_so?: number | string;
   brgd_harga?: number | string;
-  harga?: number | string; // [FIX] Tambahan dari backend
+  harga?: number | string;
+  hpp?: number | string; // <--- TAMBAHKAN INI
+  brgd_hpp?: number | string; // <--- TAMBAHKAN INI JUGA (untuk fallback)
   disc?: number | string;
   diskon?: number | string;
   barcode?: string;
@@ -305,6 +307,7 @@ const initialHeaderState = {
 // [BARU] Daftar Marketplace
 const marketplaceList = ["SHOPEE", "TIKTOK SHOP"];
 const isSaving = ref(false);
+const isLeftColumnVisible = ref(true);
 
 const header = reactive({ ...initialHeaderState });
 const items = ref<Item[]>([]);
@@ -866,7 +869,7 @@ const applyDefaultDiscount = () => {
   }
 
   if (isKpr.value) {
-    header.diskonPersen1 = 15;
+    header.diskonPersen1 = 0;
     return;
   }
   // [BARU] 1. Pengecekan Customer RETAIL / RETAILER
@@ -1227,6 +1230,7 @@ const onSjSelected = async (sj: { NoSJ: string }) => {
 
         // [FIX] Ambil dari item.harga
         harga: Number(item.harga || item.harga_so || item.brgd_harga || 0),
+        hpp: Number(item.hpp || item.brgd_hpp || 0),
 
         diskonPersen: Number(item.disc || 0),
         diskonRp: Number(item.diskon || 0),
@@ -1662,6 +1666,7 @@ const checkRealtimePromoEligibility = () => {
   // }
 
   // 1. Ambil Data Promo dari List
+  const promoApril = activePromosList.value.find((p) => p.pro_nomor === "PRO-2026-002");
   const promo2026 = activePromosList.value.find((p) => p.pro_nomor === "PRO-2026-001");
   const promo008 = activePromosList.value.find((p) => p.pro_nomor === "PRO-2025-008");
   const promo010 = activePromosList.value.find((p) => p.pro_nomor === "PRO-2025-010");
@@ -1676,8 +1681,14 @@ const checkRealtimePromoEligibility = () => {
     return isItemPromoEligible(item) && !isStickerPromoToko(item) ? sum + (item.total || 0) : sum;
   }, 0);
 
-  // --- LOGIKA UTAMA: PRIORITAS PROMO FEBRUARI 2026 ---
-  if (promo2026 && totalEligible >= 200000) {
+  // --- PRIORITAS 1: PROMO APRIL 2026 ---
+  if (promoApril && totalEligible >= 250000) {
+    const kelipatanUang = Math.floor(totalEligible / 250000);
+    discount = 12500 * kelipatanUang;
+    message = `🎉 Potongan Promo April Rp ${formatRupiah(discount)} (Kelipatan ${kelipatanUang}x)`;
+  }
+  // --- PRIORITAS 2: PROMO MARET 2026 ---
+  else if (promo2026 && totalEligible >= 200000) {
     const kelipatanUang = Math.floor(totalEligible / 200000);
     discount = 20000 * kelipatanUang;
     message = `🎉 Potongan Rp ${formatRupiah(discount)} (Kelipatan ${kelipatanUang}x)`;
@@ -1719,7 +1730,7 @@ const checkRealtimePromoEligibility = () => {
       }
     }
   }
-  // --- FALLBACK: JIKA PROMO FEBRUARI TIDAK TERPENUHI, CEK PROMO DESEMBER ---
+  // --- FALLBACK: PROMO LAMA ---
   else {
     const totalRegulerDec = validItems.reduce((sum, item) => {
       if (item.kategori === "REGULER" && !item.nama?.toUpperCase().includes("JERSEY")) {
@@ -1962,6 +1973,7 @@ const handleProceedToPayment = async () => {
 
       const activePromos = (promoResponse.data ?? []) as ActivePromo[];
 
+      const promoApril = activePromos.find((p) => p.pro_nomor === "PRO-2026-002");
       const promo2026 = activePromos.find((p) => p.pro_nomor === "PRO-2026-001");
       const promo004 = activePromos.find((p) => p.pro_nomor === "PRO-2025-004");
       const promo008 = activePromos.find((p) => p.pro_nomor === "PRO-2025-008");
@@ -1970,34 +1982,38 @@ const handleProceedToPayment = async () => {
       let promoToApply: ActivePromo | null = null;
       let promoDiskon = 0;
 
-      // --- PRIORITAS 1: PROMO FEBRUARI 2026 (PRO-2026-001) ---
-      if (promo2026) {
-        const totalEligibleFeb = items.value.reduce((sum, item) => {
-          const isReguler = item.kategori === "REGULER";
-          const isDtf = !!item.noSoDtf;
-          const isCustomDtf = item.isCustomOrder || !!item.noSoDtf;
+      // --- Perhitungan Total Belanja Eligible (Dapat digunakan bersama) ---
+      const totalEligibleValue = items.value.reduce((sum, item) => {
+        const isReguler = item.kategori === "REGULER";
+        const isDtf = !!item.noSoDtf;
+        const isCustomDtf = item.isCustomOrder || !!item.noSoDtf;
 
-          const isStickerPromoToko =
-            (String(item.barcode) === "25014783" || String(item.kode) === "2500053") &&
-            String(item.ukuran).toUpperCase() === "A6" &&
-            (item.harga === 0 || item.terhitungPromo || item.promo === "PRO-2026-001");
+        const isStickerPromoToko =
+          (String(item.barcode) === "25014783" || String(item.kode) === "2500053") &&
+          String(item.ukuran).toUpperCase() === "A6" &&
+          (item.harga === 0 || item.terhitungPromo || item.promo === "PRO-2026-001");
 
-          // Nilai DTF masuk hitungan Uang
-          if ((isReguler || isDtf || isCustomDtf) && !isStickerPromoToko) {
-            return sum + (item.total || 0);
-          }
-          return sum;
-        }, 0);
-
-        if (totalEligibleFeb >= 200000) {
-          const kelipatanUang = Math.floor(totalEligibleFeb / 200000);
-          promoDiskon = 20000 * kelipatanUang;
-          promoToApply = promo2026;
+        // Nilai DTF dan Reguler masuk perhitungan (kecuali barang promo stiker)
+        if ((isReguler || isDtf || isCustomDtf) && !isStickerPromoToko) {
+          return sum + (item.total || 0);
         }
-      }
+        return sum;
+      }, 0);
 
-      // --- PRIORITAS 2: PROMO LAMA ---
-      if (!promoToApply) {
+      // --- PRIORITAS 1: PROMO APRIL 2026 (PRO-2026-002) ---
+      if (promoApril && totalEligibleValue >= 250000) {
+        const kelipatanUang = Math.floor(totalEligibleValue / 250000);
+        promoDiskon = 12500 * kelipatanUang;
+        promoToApply = promoApril;
+      }
+      // --- PRIORITAS 2: PROMO MARET 2026 (PRO-2026-001) ---
+      else if (promo2026 && totalEligibleValue >= 200000) {
+        const kelipatanUang = Math.floor(totalEligibleValue / 200000);
+        promoDiskon = 20000 * kelipatanUang;
+        promoToApply = promo2026;
+      }
+      // --- PRIORITAS 3: PROMO LAMA ---
+      else {
         const totalRegulerDec = items.value.reduce((sum, item) => {
           if (item.kategori === "REGULER" && !item.nama.toUpperCase().includes("JERSEY")) {
             return sum + (item.total || 0);
@@ -2019,10 +2035,8 @@ const handleProceedToPayment = async () => {
         }
       }
 
-      // Jika promo item-based (004) aktif, kita tetap apply juga—tapi tidak menimpa diskon faktur
-      // Kalau kamu ingin 004 diprioritaskan di atas 008/009, pindahkan blok ini ke atas.
+      // Promo item-based (004) dipertahankan
       if (promo004) {
-        // Kalau belum ada promo F1 dipilih, tawarkan untuk apply item-based
         if (!header.nomorPromo) {
           const promoConfirmed = await new Promise<boolean>((resolve) => {
             showConfirmation(
@@ -2055,7 +2069,7 @@ const handleProceedToPayment = async () => {
         }
       }
 
-      // --- KONFIRMASI PROMO HEADER (2026 / 010 / 008) ---
+      // --- KONFIRMASI PROMO HEADER ---
       if (promoToApply && !header.nomorPromo) {
         const promoConfirmed = await new Promise<boolean>((resolve) => {
           showConfirmation(
@@ -2086,9 +2100,11 @@ const handleProceedToPayment = async () => {
           header.nomorPromo = promoToApply.pro_nomor;
           header.namaPromo = promoToApply.pro_judul;
 
+          // Injeksi stiker hanya dieksekusi jika yang terpilih adalah Promo Maret
           if (header.nomorPromo === "PRO-2026-001") {
             await applyMarchBonusSticker(true);
           }
+
           calculateTotals();
         }
       }
@@ -2746,11 +2762,25 @@ const getCategoryColor = (kategori: string | undefined) => {
 };
 
 const isItemPromoEligible = (item: Item) => {
+  // 1. [BARU] Cek apakah ada promo bulanan/utama yang sedang aktif di cabang ini
+  // Daftar ID Promo yang memicu label ELIGIBLE (Maret, April, dsb)
+  const autoPromoIds = ["PRO-2025-008", "PRO-2025-010", "PRO-2026-001", "PRO-2026-002"];
+
+  // Cek ke dalam data API yang sudah ditarik saat form dimuat
+  const hasActiveMonthlyPromo = activePromosList.value.some((p) =>
+    autoPromoIds.includes(p.pro_nomor)
+  );
+
+  // Jika cabang ini (misal KPR) tidak memiliki satupun promo di atas yang aktif,
+  // langsung gugurkan status eligible-nya.
+  if (!hasActiveMonthlyPromo) return false;
+
+  // 2. Cek Kriteria Barang
   const isReguler = item.kategori === "REGULER";
   const isJersey = item.nama?.toUpperCase().includes("JERSEY");
   const isDtf = !!item.noSoDtf;
 
-  // [PERBAIKAN] Syarat tambahan: Wajib tidak memiliki No. Pengajuan Harga
+  // Syarat tambahan: Wajib tidak memiliki No. Pengajuan Harga
   const isBukanPengajuan = !item.noPengajuanHarga;
 
   // Hanya barang reguler/jersey/dtf yang BUKAN dari pengajuan harga yang eligible
@@ -2904,6 +2934,15 @@ watch(
     </v-alert>
     <template #header-actions>
       <v-btn
+        size="small"
+        :color="isLeftColumnVisible ? 'blue-grey' : 'primary'"
+        :variant="isLeftColumnVisible ? 'tonal' : 'flat'"
+        :prepend-icon="isLeftColumnVisible ? 'mdi-eye-off-outline' : 'mdi-eye-outline'"
+        @click="isLeftColumnVisible = !isLeftColumnVisible"
+      >
+        {{ isLeftColumnVisible ? "Sembunyikan Header" : "Tampilkan Header" }}
+      </v-btn>
+      <v-btn
         v-if="isEditMode"
         color="primary"
         size="small"
@@ -2926,7 +2965,7 @@ watch(
       <v-btn size="small" prepend-icon="mdi-close" @click="handleClose"> Tutup </v-btn>
     </template>
 
-    <div class="form-grid-container">
+    <div class="form-grid-container" :class="{ 'hide-left': !isLeftColumnVisible }">
       <div class="left-column">
         <div class="desktop-form-section header-section">
           <v-row dense class="mb-2 align-center" v-if="isUserMarketplaceEligible">
@@ -3409,7 +3448,7 @@ watch(
                   >
                     ELIGIBLE
                     <v-tooltip activator="parent" location="top">
-                      Produk ini berkontribusi dalam perhitungan Promo Februari
+                      Produk ini berkontribusi dalam perhitungan Promo April
                     </v-tooltip>
                   </v-chip>
                   <v-icon v-else color="grey-lighten-2" size="small">mdi-minus</v-icon>
@@ -4052,6 +4091,33 @@ watch(
   border-radius: 50%;
   box-shadow: 0 0 8px #00e676;
   animation: blink 1.5s infinite;
+}
+
+.form-grid-container {
+  display: grid;
+  grid-template-columns: 380px 1fr;
+  gap: 16px;
+  height: calc(100vh - 120px);
+  transition: grid-template-columns 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.form-grid-container.hide-left {
+  grid-template-columns: 0px 1fr;
+}
+
+.left-column {
+  overflow: hidden;
+  transition: opacity 0.25s ease, visibility 0.25s ease, transform 0.35s ease;
+  transform-origin: left center;
+}
+
+.form-grid-container.hide-left .left-column {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  width: 0;
+  padding: 0;
+  transform: translateX(-20px);
 }
 
 /* --- ANIMATIONS --- */

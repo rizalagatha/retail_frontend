@@ -1,15 +1,15 @@
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue';
-import api from '@/services/api';
-import PageLayout from '@/components/PageLayout.vue';
-import UserSearchModal from '@/components/lookup/UserSearchModal.vue';
-import { useToast } from 'vue-toastification';
-import { useAuthStore } from '@/stores/authStore';
+import { ref, onMounted, computed } from "vue";
+import api from "@/services/api";
+import PageLayout from "@/components/PageLayout.vue";
+import UserSearchModal from "@/components/lookup/UserSearchModal.vue";
+import { useToast } from "vue-toastification";
+import { useAuthStore } from "@/stores/authStore";
 import axios, { AxiosError } from "axios";
 
 const toast = useToast();
 const authStore = useAuthStore();
-const MENU_ID = '1';
+const MENU_ID = "1";
 
 // --- Interfaces ---
 interface Permission {
@@ -35,30 +35,32 @@ interface ErrorResponse {
 
 // --- State ---
 const isNewUser = ref(true);
-const kode = ref('');
-const nama = ref('');
-const password = ref('');
-const cabang = ref('');
+const kode = ref("");
+const nama = ref("");
+const password = ref("");
+const cabang = ref("");
 const permissions = ref<Permission[]>([]);
 const branches = ref<Branch[]>([]);
 const checkAll = ref(false);
 const isLoading = ref(false);
 const isHelpModalVisible = ref(false);
-const hasViewPermission = computed(() => authStore.can(MENU_ID, 'view'));
+const hasViewPermission = computed(() => authStore.can(MENU_ID, "view"));
 
 // --- Methods ---
 const fetchInitialMenus = async () => {
   try {
     const response = await api.get<MenuResponse[]>("/users/menus");
-    permissions.value = response.data.map((menu): Permission => ({
-      id: menu.men_id,
-      nama: menu.men_nama,
-      keterangan: menu.men_keterangan,
-      view: false,
-      insert: false,
-      edit: false,
-      delete: false,
-    }));
+    permissions.value = response.data.map(
+      (menu): Permission => ({
+        id: menu.men_id,
+        nama: menu.men_nama,
+        keterangan: menu.men_keterangan,
+        view: false,
+        insert: false,
+        edit: false,
+        delete: false,
+      })
+    );
   } catch {
     toast.error("Gagal memuat daftar menu.");
   }
@@ -70,7 +72,7 @@ const fetchBranches = async () => {
     branches.value = response.data;
     if (branches.value.length > 0 && !cabang.value) {
       // Set cabang default HANYA jika mode KDC, jika tidak biarkan kosong
-      if (authStore.user?.cabang === 'KDC') {
+      if (authStore.user?.cabang === "KDC") {
         cabang.value = branches.value[0].gdg_kode;
       } else {
         // Jika bukan KDC, paksakan ke cabang user
@@ -99,18 +101,21 @@ const handleKodeSearch = async () => {
     const response = await api.get(`/users/${kode.value}/${cabang.value}`);
     const data = response.data;
 
-    if (data) { // Pastikan data tidak null
+    if (data) {
+      // Pastikan data tidak null
       isNewUser.value = false;
       nama.value = data.user.user_nama;
       permissions.value = data.permissions;
-      password.value = ''; // Kosongkan password saat load
+      password.value = ""; // Kosongkan password saat load
       toast.info(`Mode Edit: Menampilkan data untuk user ${kode.value}.`);
     } else {
       // Backend mengembalikan 200 OK tapi data null (user tidak ditemukan)
       isNewUser.value = true;
       nama.value = "";
       await fetchInitialMenus();
-      toast.info(`Kode user ${kode.value} di cabang ${cabang.value} tidak ditemukan. Silakan isi data baru.`);
+      toast.info(
+        `Kode user ${kode.value} di cabang ${cabang.value} tidak ditemukan. Silakan isi data baru.`
+      );
     }
   } catch (error: unknown) {
     const err = error as AxiosError<ErrorResponse>;
@@ -118,7 +123,9 @@ const handleKodeSearch = async () => {
       isNewUser.value = true;
       nama.value = "";
       await fetchInitialMenus();
-      toast.info(`Kode user ${kode.value} di cabang ${cabang.value} tidak ditemukan. Silakan isi data baru.`);
+      toast.info(
+        `Kode user ${kode.value} di cabang ${cabang.value} tidak ditemukan. Silakan isi data baru.`
+      );
     } else {
       toast.error(err.response?.data?.message || "Terjadi kesalahan saat mencari data user.");
     }
@@ -129,15 +136,15 @@ const handleKodeSearch = async () => {
 
 const saveUser = async () => {
   if (!kode.value || !nama.value || !cabang.value) {
-    toast.error('Kode, Nama, dan Cabang tidak boleh kosong.');
+    toast.error("Kode, Nama, dan Cabang tidak boleh kosong.");
     return;
   }
   if (isNewUser.value && !password.value) {
-    toast.error('Password wajib diisi untuk user baru.');
+    toast.error("Password wajib diisi untuk user baru.");
     return;
   }
 
-  const requiredPermission = isNewUser.value ? 'insert' : 'edit';
+  const requiredPermission = isNewUser.value ? "insert" : "edit";
   if (!authStore.can(MENU_ID, requiredPermission)) {
     toast.error(`Anda tidak memiliki izin untuk ${requiredPermission} data user.`);
     return;
@@ -169,14 +176,14 @@ const saveUser = async () => {
 };
 const resetForm = () => {
   isNewUser.value = true;
-  kode.value = '';
-  nama.value = '';
-  password.value = '';
+  kode.value = "";
+  nama.value = "";
+  password.value = "";
   checkAll.value = false;
 
   // Reset cabang ke default (sesuai onMounted)
   if (branches.value.length > 0) {
-    if (authStore.user?.cabang === 'KDC') {
+    if (authStore.user?.cabang === "KDC") {
       cabang.value = branches.value[0].gdg_kode;
     } else {
       cabang.value = authStore.user.cabang;
@@ -189,20 +196,22 @@ const resetForm = () => {
   // kodeFieldRef.value?.focus();
 };
 const toggleCheckAll = () => {
-  permissions.value.forEach(p => {
+  permissions.value.forEach((p) => {
     p.view = checkAll.value;
     p.insert = checkAll.value;
     p.edit = checkAll.value;
     p.delete = checkAll.value;
   });
 };
-const handleUserSelected = (user: { kode: string, cabang: string }) => {
+const handleUserSelected = (user: { kode: string; kode_cabang: string; nama_cabang: string }) => {
   kode.value = user.kode;
-  cabang.value = user.cabang;
+  cabang.value = user.kode_cabang; // [FIX] Simpan kodenya (misal: "KDC"), BUKAN namanya ("DC PUSAT")!
   isHelpModalVisible.value = false;
   handleKodeSearch();
 };
-const openHelpModal = () => { isHelpModalVisible.value = true; };
+const openHelpModal = () => {
+  isHelpModalVisible.value = true;
+};
 
 onMounted(() => {
   if (hasViewPermission.value) {
@@ -218,8 +227,14 @@ onMounted(() => {
   <PageLayout title="Master User" icon="mdi-account-group" desktop-mode :loading="isLoading">
     <template #header-actions>
       <v-btn v-if="authStore.can(MENU_ID, 'insert')" size="small" @click="resetForm">Baru</v-btn>
-      <v-btn v-if="authStore.can(MENU_ID, 'insert') || authStore.can(MENU_ID, 'edit')" size="small" color="primary"
-        @click="saveUser" :loading="isLoading">Simpan</v-btn>
+      <v-btn
+        v-if="authStore.can(MENU_ID, 'insert') || authStore.can(MENU_ID, 'edit')"
+        size="small"
+        color="primary"
+        @click="saveUser"
+        :loading="isLoading"
+        >Simpan</v-btn
+      >
     </template>
 
     <div v-if="!hasViewPermission" class="state-container">
@@ -232,26 +247,56 @@ onMounted(() => {
       <div class="desktop-form-section">
         <v-row dense>
           <v-col cols="12" sm="6" md="3">
-            <v-text-field v-model="kode" label="Kode" placeholder="Ketik atau F1..." variant="outlined"
-              density="compact" hide-details @keydown.enter.prevent="handleKodeSearch" @blur="handleKodeSearch"
-              @keydown.f1.prevent="openHelpModal" :disabled="!isNewUser">
-              <template #append-inner><v-icon size="small" @click="openHelpModal"
-                  icon="mdi-magnify"></v-icon></template>
+            <v-text-field
+              v-model="kode"
+              label="Kode"
+              placeholder="Ketik atau F1..."
+              variant="outlined"
+              density="compact"
+              hide-details
+              @keydown.enter.prevent="handleKodeSearch"
+              @blur="handleKodeSearch"
+              @keydown.f1.prevent="openHelpModal"
+              :disabled="!isNewUser"
+            >
+              <template #append-inner
+                ><v-icon size="small" @click="openHelpModal" icon="mdi-magnify"></v-icon
+              ></template>
             </v-text-field>
           </v-col>
           <v-col cols="12" sm="6" md="3">
-            <v-text-field v-model="nama" label="Nama" variant="outlined" density="compact" hide-details></v-text-field>
+            <v-text-field
+              v-model="nama"
+              label="Nama"
+              variant="outlined"
+              density="compact"
+              hide-details
+            ></v-text-field>
           </v-col>
           <v-col cols="12" sm="6" md="3">
-            <v-text-field v-model="password" label="Password" type="password"
-              :placeholder="isNewUser ? 'Wajib diisi' : 'Isi untuk ganti'" variant="outlined" density="compact"
-              hide-details></v-text-field>
+            <v-text-field
+              v-model="password"
+              label="Password"
+              type="password"
+              :placeholder="isNewUser ? 'Wajib diisi' : 'Isi untuk ganti'"
+              variant="outlined"
+              density="compact"
+              hide-details
+            ></v-text-field>
           </v-col>
           <v-col cols="12" sm="6" md="3">
-            <v-select v-model="cabang" :items="branches" item-title="gdg_kode" item-value="gdg_kode" label="Cabang"
-              variant="outlined" density="compact" hide-details
+            <v-select
+              v-model="cabang"
+              :items="branches"
+              item-title="gdg_kode"
+              item-value="gdg_kode"
+              label="Cabang"
+              variant="outlined"
+              density="compact"
+              hide-details
               :disabled="!isNewUser || authStore.user?.cabang !== 'KDC'"
-              @update:modelValue="handleKodeSearch"></v-select>
+              @update:modelValue="handleKodeSearch"
+            ></v-select>
           </v-col>
         </v-row>
       </div>
@@ -260,33 +305,71 @@ onMounted(() => {
       <div class="desktop-form-section flex-grow-1 d-flex flex-column">
         <div class="d-flex justify-space-between align-center mb-2">
           <h3 class="section-title">Hak Akses Menu</h3>
-          <v-checkbox v-model="checkAll" label="Cek Semua" @update:model-value="toggleCheckAll" hide-details
-            density="compact" color="primary"></v-checkbox>
+          <v-checkbox
+            v-model="checkAll"
+            label="Cek Semua"
+            @update:model-value="toggleCheckAll"
+            hide-details
+            density="compact"
+            color="primary"
+          ></v-checkbox>
         </div>
-        <v-data-table :items="permissions" :headers="[
-          { title: 'Id', key: 'id', sortable: false, width: '60px' },
-          { title: 'Nama Menu', key: 'nama', sortable: false },
-          { title: 'View', key: 'view', sortable: false, align: 'center', width: '70px' },
-          { title: 'Insert', key: 'insert', sortable: false, align: 'center', width: '70px' },
-          { title: 'Update', key: 'edit', sortable: false, align: 'center', width: '70px' },
-          { title: 'Delete', key: 'delete', sortable: false, align: 'center', width: '70px' }
-        ]" :loading="isLoading && permissions.length === 0" density="compact" class="desktop-table flex-grow-1"
-          fixed-header height="100%" :items-per-page="-1">
+        <v-data-table
+          :items="permissions"
+          :headers="[
+            { title: 'Id', key: 'id', sortable: false, width: '60px' },
+            { title: 'Nama Menu', key: 'nama', sortable: false },
+            { title: 'View', key: 'view', sortable: false, align: 'center', width: '70px' },
+            { title: 'Insert', key: 'insert', sortable: false, align: 'center', width: '70px' },
+            { title: 'Update', key: 'edit', sortable: false, align: 'center', width: '70px' },
+            { title: 'Delete', key: 'delete', sortable: false, align: 'center', width: '70px' },
+          ]"
+          :loading="isLoading && permissions.length === 0"
+          density="compact"
+          class="desktop-table flex-grow-1"
+          fixed-header
+          height="100%"
+          :items-per-page="-1"
+        >
           <template v-slot:[`item.view`]="{ item }">
-            <div class="d-flex justify-center"><v-checkbox-btn v-model="item.view" hide-details density="compact"
-                color="primary"></v-checkbox-btn></div>
+            <div class="d-flex justify-center">
+              <v-checkbox-btn
+                v-model="item.view"
+                hide-details
+                density="compact"
+                color="primary"
+              ></v-checkbox-btn>
+            </div>
           </template>
           <template v-slot:[`item.insert`]="{ item }">
-            <div class="d-flex justify-center"><v-checkbox-btn v-model="item.insert" hide-details density="compact"
-                color="success"></v-checkbox-btn></div>
+            <div class="d-flex justify-center">
+              <v-checkbox-btn
+                v-model="item.insert"
+                hide-details
+                density="compact"
+                color="success"
+              ></v-checkbox-btn>
+            </div>
           </template>
           <template v-slot:[`item.edit`]="{ item }">
-            <div class="d-flex justify-center"><v-checkbox-btn v-model="item.edit" hide-details density="compact"
-                color="warning"></v-checkbox-btn></div>
+            <div class="d-flex justify-center">
+              <v-checkbox-btn
+                v-model="item.edit"
+                hide-details
+                density="compact"
+                color="warning"
+              ></v-checkbox-btn>
+            </div>
           </template>
           <template v-slot:[`item.delete`]="{ item }">
-            <div class="d-flex justify-center"><v-checkbox-btn v-model="item.delete" hide-details density="compact"
-                color="error"></v-checkbox-btn></div>
+            <div class="d-flex justify-center">
+              <v-checkbox-btn
+                v-model="item.delete"
+                hide-details
+                density="compact"
+                color="error"
+              ></v-checkbox-btn>
+            </div>
           </template>
         </v-data-table>
       </div>
@@ -295,14 +378,18 @@ onMounted(() => {
     <template #footer>
       <div class="d-flex justify-space-between align-center w-100">
         <v-chip size="small" :color="isNewUser ? 'success' : 'primary'" variant="flat">
-          <v-icon start size="x-small">{{ isNewUser ? 'mdi-plus' : 'mdi-pencil' }}</v-icon>
-          {{ isNewUser ? 'Mode Tambah Baru' : 'Mode Edit' }}
+          <v-icon start size="x-small">{{ isNewUser ? "mdi-plus" : "mdi-pencil" }}</v-icon>
+          {{ isNewUser ? "Mode Tambah Baru" : "Mode Edit" }}
         </v-chip>
         <span v-if="!isNewUser" class="text-caption">Current User: {{ kode }}</span>
       </div>
     </template>
 
-    <UserSearchModal v-if="isHelpModalVisible" fetch-url="/users" @close="isHelpModalVisible = false"
-      @user-selected="handleUserSelected" />
+    <UserSearchModal
+      v-if="isHelpModalVisible"
+      fetch-url="/users"
+      @close="isHelpModalVisible = false"
+      @user-selected="handleUserSelected"
+    />
   </PageLayout>
 </template>

@@ -63,7 +63,8 @@ const headers = computed<DataTableHeader[]>(() => {
       { title: "Sisa Piutang", key: "sisaPiutang", align: "end", width: "120px" },
     ];
   }
-  if (props.source === "biaya-kirim") {
+  if (props.source === "biaya-kirim" || props.source === "komplain") {
+    // [FIX] Gabung dengan biaya kirim karena fieldnya sama
     return [
       { title: "Nomor Invoice", key: "Nomor", width: "180px" },
       { title: "Tanggal", key: "Tanggal", width: "120px" },
@@ -142,6 +143,9 @@ const loadItems = async () => {
       // PERBAIKAN: Kirim customerKode agar pencarian spesifik
       apiUrl = "/biaya-kirim-form/lookup/invoice";
       params.customerKode = props.customerKode;
+    } else if (props.source === "komplain") {
+      // [FIX] Tambahkan endpoint komplain
+      apiUrl = "/komplain-form/lookup/invoice";
     } else {
       toast.error("Sumber data invoice tidak valid.");
       return;
@@ -163,7 +167,7 @@ const filteredItems = computed(() => {
 
   return items.value.filter((item) => {
     // 1. Kasus: Biaya Kirim (Menggunakan 'Nomor' dan 'Customer')
-    if ("Nomor" in item) {
+    if ("Nomor" in item && (props.source === "biaya-kirim" || props.source === "komplain")) {
       const nomor = (item.Nomor || "").toLowerCase();
       const customer = (item.Customer || "").toLowerCase();
       return nomor.includes(lower) || customer.includes(lower);

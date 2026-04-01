@@ -366,6 +366,7 @@ const fetchData = async () => {
   isLoading.value = true;
   try {
     const response = await api.get("/so-dtf", { params: filters });
+    // Langsung tampung data dari API apa adanya
     soDtfList.value = response.data;
   } catch {
     toast.error("Gagal memuat data SO DTF.");
@@ -501,30 +502,70 @@ const executeDelete = async () => {
 
 const exportData = async (type: "header" | "detail") => {
   try {
+    const targetData = filteredSoDtfList.value;
+
+    if (targetData.length === 0) {
+      toast.warning("Tidak ada data untuk diekspor (Tabel kosong).");
+      return;
+    }
+
     if (type === "header") {
-      if (selected.value.length === 0) {
-        toast.warning("Silakan centang data header yang ingin diekspor.");
-        return;
-      }
-      const worksheet = XLSX.utils.json_to_sheet(selected.value);
+      const dataToExport = targetData.map((item) => {
+        // [PERBAIKAN] Gunakan formatDate bawaan komponen yang kebal error
+        return {
+          Nomor: item.Nomor,
+          "Status Transaksi": item.status,
+          "Kd. Customer": item.KdCus,
+          "Nama Customer": item.Customer,
+          Tanggal: formatDate(item.Tanggal as string),
+          "Tgl Pengerjaan": formatDate(item.TglPengerjaan as string),
+          "Dateline Cust": formatDate(item.DatelineCus as string),
+          "Nama DTF": item.NamaDTF,
+          Jml: item.Jumlah,
+          Titik: item.Titik,
+          "Total Titik": item.TotalTitik,
+          LHK: item.LHK,
+          "No. SO": item.NoSO,
+          "No. Invoice": item.NoINV,
+          Sales: item.Sales,
+          "Bag. Desain": item.BagDesain,
+          Kain: item.Kain,
+          Finishing: item.Finishing,
+          Workshop: item.Workshop,
+          Keterangan: item.Keterangan,
+          "Alasan Close": item.AlasanClose,
+          User: item.Created,
+          "Status Close": item.Close === "Y" ? "Closed" : "Open",
+        };
+      });
+
+      const worksheet = XLSX.utils.json_to_sheet(dataToExport);
       const workbook = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(workbook, worksheet, "SO DTF Header");
-      XLSX.writeFile(workbook, "Export_SO_DTF_Header_Terpilih.xlsx");
-      toast.success("File Header berhasil dibuat.");
+      XLSX.writeFile(workbook, "Export_SO_DTF_Header.xlsx");
+      toast.success("File Header berhasil diekspor.");
     } else {
-      const response = await api.get("/so-dtf/export-detail", { params: filters });
+      const daftarNomor = targetData.map((item) => item.Nomor);
+
+      toast.info("Sedang menyiapkan data detail...");
+
+      const response = await api.post("/so-dtf/export-detail", { nomors: daftarNomor });
+
       if (!response.data || response.data.length === 0) {
-        toast.warning("Tidak ada data detail ditemukan untuk filter yang dipilih.");
+        toast.warning("Tidak ada data detail ditemukan.");
         return;
       }
+
       const worksheet = XLSX.utils.json_to_sheet(response.data);
       const workbook = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(workbook, worksheet, "SO DTF Detail");
-      XLSX.writeFile(workbook, "Export_SO_DTF_Detail_Filter.xlsx");
-      toast.success("File Detail berhasil dibuat.");
+      XLSX.writeFile(workbook, "Export_SO_DTF_Detail.xlsx");
+      toast.success("File Detail berhasil diekspor.");
     }
   } catch (error) {
-    toast.error("Gagal mengekspor data.", error);
+    // [PERBAIKAN] Munculkan error di console agar mudah dilacak jika terjadi masalah lagi
+    console.error("Error Export Data:", error);
+    toast.error("Gagal mengekspor data. Cek console log.");
   }
 };
 
@@ -996,13 +1037,25 @@ onBeforeRouteLeave((to, from, next) => {
                 {{ formatDate(item[header.key]) }}
               </template>
               <template v-else-if="header.key === 'status'">
-                <v-chip v-if="item.AlasanClose" color="blue-grey" variant="tonal" size="x-small"
+                <v-chip
+                  v-if="item.status === 'Closed'"
+                  color="blue-grey"
+                  variant="tonal"
+                  size="x-small"
                   >Closed</v-chip
                 >
-                <v-chip v-else-if="item.NoINV" color="success" variant="tonal" size="x-small"
+                <v-chip
+                  v-else-if="item.status === 'Sudah INV'"
+                  color="success"
+                  variant="tonal"
+                  size="x-small"
                   >Sudah INV</v-chip
                 >
-                <v-chip v-else-if="item.NoSO" color="info" variant="tonal" size="x-small"
+                <v-chip
+                  v-else-if="item.status === 'Sudah SO'"
+                  color="info"
+                  variant="tonal"
+                  size="x-small"
                   >Sudah SO</v-chip
                 >
                 <v-chip v-else color="grey" variant="tonal" size="x-small">Open</v-chip>

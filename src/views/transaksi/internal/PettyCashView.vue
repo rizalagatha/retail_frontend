@@ -15,15 +15,23 @@ interface PettyCashItem {
   idrec: string;
   nomor_utama: string;
   pck_nomor?: string;
+  pck_pth_nomor?: string;
+  pck_bbk_finance?: string;
   bkm_nomor?: string;
-  tanggal: string;
+  tanggal: string; // Biasanya selalu ada
+  date_submitted?: string;
+  date_acc?: string;
+  date_approved?: string;
+  date_transfer?: string;
+  date_received?: string;
   cabang: string;
   namaCabang: string;
   modal: number;
   terpakai: number;
   receive_nominal?: number;
   saldo: number;
-  status: "DRAFT" | "SUBMITTED" | "APPROVED" | "REJECTED";
+  // Tambahkan ACC, ON_TRANSFER, dan RECEIVED
+  status: "DRAFT" | "SUBMITTED" | "ACC" | "APPROVED" | "REJECTED" | "ON_TRANSFER" | "RECEIVED";
   keterangan: string;
   userCreate: string;
   jumlah_nota: number;
@@ -64,8 +72,26 @@ const dialogReceive = reactive({
   pck_nomor: "",
   tanggal: format(new Date(), "yyyy-MM-dd"), // Default hari ini
   nominal: 0,
+  bbk_finance: "",
   isProcessing: false,
 });
+
+// --- STATE UNTUK TRACKING DIALOG ---
+const dialogTracking = reactive({
+  show: false,
+  item: null as PettyCashItem | null,
+});
+
+// Pemetaan urutan status untuk menentukan progress timeline
+const statusOrder: Record<string, number> = {
+  DRAFT: 0,
+  REJECTED: 0, // Rejected kita anggap kembali ke awal/nol
+  SUBMITTED: 1,
+  ACC: 2,
+  APPROVED: 3,
+  ON_TRANSFER: 4,
+  RECEIVED: 5,
+};
 
 // --- STATE UNTUK EXPAND DETAIL ---
 const expanded = ref<string[]>([]);
@@ -93,6 +119,58 @@ const headers = ref([
   { title: "Status", key: "status", align: "center", width: 130 },
   { title: "User", key: "userCreate", width: 100 },
 ]);
+
+// Definisi langkah-langkah timeline
+const trackingSteps = [
+  {
+    status: "DRAFT",
+    title: "Draft",
+    desc: "Dibuat oleh Toko",
+    icon: "mdi-file-document-edit",
+    color: "grey",
+  },
+  {
+    status: "SUBMITTED",
+    title: "Submitted",
+    desc: "Menunggu ACC Supervisor",
+    icon: "mdi-send-clock",
+    color: "info",
+  },
+  {
+    status: "ACC",
+    title: "ACC Supervisor",
+    desc: "Disetujui SPV, Menunggu Finance",
+    icon: "mdi-account-check",
+    color: "teal",
+  },
+  {
+    status: "APPROVED",
+    title: "Approved Finance",
+    desc: "Klaim Valid, Menunggu Transfer",
+    icon: "mdi-check-decagram",
+    color: "primary",
+  },
+  {
+    status: "ON_TRANSFER",
+    title: "On Transfer",
+    desc: "Dana sedang diproses/ditransfer",
+    icon: "mdi-bank-transfer",
+    color: "warning",
+  },
+  {
+    status: "RECEIVED",
+    title: "Received",
+    desc: "Dana telah diterima Toko",
+    icon: "mdi-cash-multiple",
+    color: "success",
+  },
+];
+
+const openTracking = () => {
+  if (selected.value.length !== 1) return;
+  dialogTracking.item = selected.value[0];
+  dialogTracking.show = true;
+};
 
 // --- Methods ---
 const fetchCabangList = async () => {
@@ -272,13 +350,14 @@ const openReceiveDialog = () => {
   if (selected.value.length !== 1) return;
   const item = selected.value[0];
 
-  if (item.status !== "APPROVED" || !item.pck_nomor) {
-    return toast.warning("Hanya dokumen yang berstatus APPROVED yang bisa diterima.");
+  if (item.status !== "ON_TRANSFER" || !item.pck_nomor) {
+    return toast.warning("Hanya dokumen yang berstatus ON TRANSFER yang bisa diterima.");
   }
 
   dialogReceive.pck_nomor = item.pck_nomor;
   dialogReceive.tanggal = format(new Date(), "yyyy-MM-dd");
-  dialogReceive.nominal = 0; // Store isi manual
+  dialogReceive.nominal = 0;
+  dialogReceive.bbk_finance = ""; // <--- RESET
   dialogReceive.show = true;
 };
 
@@ -293,6 +372,7 @@ const processReceive = async () => {
     const payload = {
       tanggal: dialogReceive.tanggal,
       nominal: dialogReceive.nominal,
+      bbk_finance: dialogReceive.bbk_finance, // <--- TAMBAHKAN KE PAYLOAD
     };
 
     const response = await api.put(`/petty-cash/receive-klaim/${dialogReceive.pck_nomor}`, payload);
@@ -300,13 +380,62 @@ const processReceive = async () => {
     toast.success(response.data.message);
     dialogReceive.show = false;
     selected.value = [];
-    fetchMasterData(); // Refresh tabel
+    fetchMasterData();
   } catch (error: unknown) {
     const err = error as { response?: { data?: { message?: string } } };
     toast.error(err.response?.data?.message || "Gagal memproses penerimaan dana.");
   } finally {
     dialogReceive.isProcessing = false;
   }
+};
+
+const getStatusColor = (status: string) => {
+  switch (status) {
+    case "RECEIVED":
+      return "success"; // Hijau
+    case "ON_TRANSFER":
+      return "warning"; // Oren/Kuning
+    case "APPROVED":
+      return "primary"; // Biru
+    case "ACC":
+      return "teal"; // Hijau tosca
+    case "SUBMITTED":
+      return "info"; // Biru muda
+    case "REJECTED":
+      return "error"; // Merah
+    default:
+      return "grey-darken-1"; // DRAFT (Abu-abu)
+  }
+};
+
+const getStepDate = (status: string, item: PettyCashItem | null) => {
+  if (!item) return null;
+
+  let dateString: string | null | undefined = null;
+
+  switch (status) {
+    case "DRAFT":
+      dateString = item.tanggal; // Tarik dari tanggal nota PC
+      break;
+    case "SUBMITTED":
+      dateString = item.date_submitted || item.tanggal;
+      break;
+    case "ACC":
+      // Jika di-submit lgsg ACC oleh SPV, pakai date_submitted sbg fallback
+      dateString = item.date_acc || item.date_submitted;
+      break;
+    case "APPROVED":
+      dateString = item.date_approved;
+      break;
+    case "ON_TRANSFER":
+      dateString = item.date_transfer;
+      break;
+    case "RECEIVED":
+      dateString = item.date_received;
+      break;
+  }
+
+  return dateString ? format(new Date(dateString), "dd MMM yyyy, HH:mm") : null;
 };
 
 onMounted(() => {
@@ -360,10 +489,21 @@ onMounted(() => {
         size="small"
         color="success"
         prepend-icon="mdi-cash-check"
-        :disabled="selected.length !== 1 || selected[0].status !== 'APPROVED'"
+        :disabled="selected.length !== 1 || selected[0].status !== 'ON_TRANSFER'"
         @click="openReceiveDialog"
       >
         Terima Dana
+      </v-btn>
+
+      <v-btn
+        v-if="authStore.can(MENU_ID, 'view')"
+        size="small"
+        color="purple-darken-2"
+        prepend-icon="mdi-map-marker-path"
+        :disabled="selected.length !== 1"
+        @click="openTracking"
+      >
+        Lacak Proses
       </v-btn>
 
       <v-btn
@@ -480,19 +620,23 @@ onMounted(() => {
             <v-chip
               size="x-small"
               variant="flat"
-              class="font-weight-bold"
-              :color="
-                item.status === 'APPROVED'
-                  ? 'success'
-                  : item.status === 'SUBMITTED'
-                  ? 'info'
-                  : item.status === 'REJECTED'
-                  ? 'error'
-                  : 'grey-darken-1'
-              "
+              class="font-weight-bold text-uppercase"
+              :color="getStatusColor(item.status)"
             >
-              {{ item.status }}
+              {{ item.status.replace("_", " ") }}
             </v-chip>
+
+            <div
+              v-if="item.pck_pth_nomor && item.status === 'ON_TRANSFER'"
+              class="text-orange-darken-3 mt-1 d-flex flex-column align-center justify-center font-weight-bold"
+              style="font-size: 10px !important; line-height: 1.2"
+            >
+              <div style="font-size: 8px" class="text-grey-darken-1">Ref Transfer:</div>
+              <div class="d-flex align-center">
+                <v-icon size="x-small" class="mr-1">mdi-bank-transfer</v-icon>
+                {{ item.pck_pth_nomor }}
+              </div>
+            </div>
 
             <div
               v-if="item.bkm_nomor && item.status === 'RECEIVED'"
@@ -678,6 +822,17 @@ onMounted(() => {
           />
 
           <v-text-field
+            v-model="dialogReceive.bbk_finance"
+            label="No. Bukti Bank Keluar (BBK) Finance"
+            variant="outlined"
+            density="compact"
+            class="mb-3"
+            placeholder="Contoh: P01-BBK.2026.12345"
+            hint="Lihat dari bukti transfer Finance"
+            persistent-hint
+          />
+
+          <v-text-field
             v-model.number="dialogReceive.nominal"
             type="number"
             label="Nominal Asli Diterima (Rp)"
@@ -705,6 +860,135 @@ onMounted(() => {
             >Terima & Selesai</v-btn
           >
         </v-card-actions>
+      </v-card>
+    </v-dialog>
+
+    <v-dialog
+      v-model="dialogTracking.show"
+      max-width="1100px"
+      transition="dialog-bottom-transition"
+    >
+      <v-card class="rounded-xl overflow-hidden shadow-lg">
+        <v-toolbar color="purple-darken-2" density="compact" class="px-2">
+          <v-icon start class="mr-2">mdi-map-marker-path</v-icon>
+          <v-toolbar-title class="text-subtitle-1 font-weight-bold">
+            Tracking Pengajuan Klaim
+          </v-toolbar-title>
+          <v-spacer></v-spacer>
+          <v-btn icon="mdi-close" variant="text" @click="dialogTracking.show = false"></v-btn>
+        </v-toolbar>
+
+        <v-card-text class="pa-6 bg-grey-lighten-4">
+          <div v-if="dialogTracking.item" class="mb-8 text-center tracking-header">
+            <div class="text-h5 font-weight-black text-primary mb-1">
+              {{ dialogTracking.item.pck_nomor || dialogTracking.item.nomor_utama }}
+            </div>
+            <div class="text-body-2 text-grey-darken-2">
+              Total Klaim:
+              <span class="font-weight-bold text-black">{{
+                formatRupiah(dialogTracking.item.terpakai)
+              }}</span>
+            </div>
+
+            <v-alert
+              v-if="dialogTracking.item.status === 'REJECTED'"
+              type="error"
+              variant="tonal"
+              density="compact"
+              class="mt-4 text-left text-caption mx-auto"
+              style="max-width: 600px"
+              icon="mdi-alert-circle"
+            >
+              <b>Ditolak / Butuh Revisi:</b><br />
+              {{ dialogTracking.item.keterangan }}
+            </v-alert>
+          </div>
+
+          <div class="timeline-horizontal-wrapper pb-4">
+            <v-timeline
+              direction="horizontal"
+              line-thickness="3"
+              align="start"
+              side="end"
+              line-color="grey-lighten-2"
+            >
+              <v-timeline-item
+                v-for="(step, index) in trackingSteps"
+                :key="index"
+                :dot-color="
+                  statusOrder[dialogTracking.item?.status || 'DRAFT'] >= statusOrder[step.status]
+                    ? step.color
+                    : 'grey-lighten-2'
+                "
+                :icon="step.icon"
+                :icon-color="
+                  statusOrder[dialogTracking.item?.status || 'DRAFT'] >= statusOrder[step.status]
+                    ? 'white'
+                    : 'grey'
+                "
+                fill-dot
+                size="large"
+                class="tracking-item-anim"
+                :style="{ animationDelay: `${index * 0.15}s` }"
+              >
+                <div class="centered-timeline-text mt-3">
+                  <div
+                    class="font-weight-bold text-subtitle-2 mb-1"
+                    :class="
+                      statusOrder[dialogTracking.item?.status || 'DRAFT'] >=
+                      statusOrder[step.status]
+                        ? `text-${step.color}`
+                        : 'text-grey-lighten-1'
+                    "
+                  >
+                    {{ step.title }}
+                  </div>
+
+                  <div
+                    class="text-caption text-grey-darken-1 mb-2"
+                    style="line-height: 1.2; min-height: 28px"
+                  >
+                    {{ step.desc }}
+                  </div>
+
+                  <div
+                    v-if="
+                      statusOrder[dialogTracking.item?.status || 'DRAFT'] >=
+                        statusOrder[step.status] && getStepDate(step.status, dialogTracking.item)
+                    "
+                    class="text-caption font-weight-medium bg-white rounded-pill px-2 py-1 border d-inline-block date-badge"
+                    style="font-size: 9px !important"
+                  >
+                    {{ getStepDate(step.status, dialogTracking.item) }}
+                  </div>
+
+                  <div
+                    v-if="
+                      step.status === 'ON_TRANSFER' &&
+                      dialogTracking.item?.status === 'ON_TRANSFER' &&
+                      dialogTracking.item?.pck_pth_nomor
+                    "
+                    class="text-caption text-warning font-weight-bold mt-2 w-100"
+                  >
+                    <v-icon size="x-small">mdi-bank-transfer</v-icon>
+                    {{ dialogTracking.item.pck_pth_nomor }}
+                  </div>
+                  <div
+                    v-if="
+                      step.status === 'RECEIVED' &&
+                      dialogTracking.item?.status === 'RECEIVED' &&
+                      dialogTracking.item?.bkm_nomor
+                    "
+                    class="text-caption text-success font-weight-bold mt-2 w-100"
+                  >
+                    <v-icon size="x-small">mdi-check-decagram</v-icon>
+                    {{ dialogTracking.item.bkm_nomor }}
+                  </div>
+                </div>
+              </v-timeline-item>
+            </v-timeline>
+          </div>
+        </v-card-text>
       </v-card>
     </v-dialog>
   </PageLayout>
@@ -791,5 +1075,122 @@ onMounted(() => {
 }
 .detail-table tbody tr:hover {
   background-color: #fafafa;
+}
+
+/* === TRACKING DIALOG === */
+.tracking-header {
+  animation: fadeInDown 0.5s ease-out forwards;
+}
+
+.tracking-item-anim {
+  opacity: 0;
+  animation: fadeInUp 0.6s forwards cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+.timeline-horizontal-wrapper {
+  width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+  padding: 8px 32px 16px;
+}
+.timeline-horizontal-wrapper::-webkit-scrollbar {
+  display: none;
+}
+
+/* Override Vuetify timeline horizontal */
+.timeline-horizontal-wrapper :deep(.v-timeline--horizontal) {
+  justify-content: center;
+  min-width: unset !important;
+  width: 100%;
+}
+
+.timeline-horizontal-wrapper :deep(.v-timeline-item) {
+  flex: 1 1 0;
+  min-width: 0;
+  max-width: none;
+}
+
+.timeline-horizontal-wrapper :deep(.v-timeline-item__body) {
+  width: 100% !important;
+  overflow: visible !important;
+  padding-inline-start: 0 !important;
+  display: flex;
+  justify-content: center;
+}
+
+.timeline-horizontal-wrapper :deep(.v-timeline-divider) {
+  justify-content: center;
+}
+.timeline-horizontal-wrapper :deep(.v-timeline-divider__dot) {
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+.timeline-horizontal-wrapper :deep(.v-timeline-divider__dot:hover) {
+  transform: scale(1.15);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.18);
+}
+
+/* Glow animasi pada dot aktif */
+.timeline-horizontal-wrapper :deep(.v-timeline-divider__dot--has-color) {
+  animation: pulseGlow 2s infinite ease-in-out;
+}
+
+.centered-timeline-text {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  width: 100%;
+  padding: 0 6px;
+  box-sizing: border-box;
+}
+
+/* Animasi date badge muncul */
+.centered-timeline-text .date-badge {
+  animation: popIn 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+}
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fadeInDown {
+  from {
+    opacity: 0;
+    transform: translateY(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes pulseGlow {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(99, 102, 241, 0.3);
+  }
+  50% {
+    box-shadow: 0 0 0 8px rgba(99, 102, 241, 0);
+  }
+}
+
+@keyframes popIn {
+  from {
+    opacity: 0;
+    transform: scale(0.7);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
 }
 </style>

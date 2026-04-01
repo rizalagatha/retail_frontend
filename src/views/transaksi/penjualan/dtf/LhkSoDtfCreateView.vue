@@ -800,6 +800,12 @@ const addNewRowIfNeeded = () => {
 const loadLhkData = async () => {
   if (!route.query.nomorLhk) {
     items.value = [];
+    layoutPreview.value = [];
+    calculatedPanjangSistem.value = 0;
+    zoomScale.value = 0.4;
+    formHeader.panjang = 0;
+    formHeader.buangan = 0;
+    formHeader.jenisOrder = null;
     addNewRowIfNeeded();
     return;
   }
@@ -1016,8 +1022,12 @@ const removeRow = (id: number) => {
   // Filter item yang tidak sesuai ID
   items.value = items.value.filter((item) => item.id !== id);
 
-  // Jika setelah dihapus jadi kosong, tambahkan baris baru otomatis
+  // Jika setelah dihapus jadi kosong, tambahkan baris baru otomatis & bersihkan kanvas
   if (items.value.length === 0) {
+    layoutPreview.value = []; // [PERBAIKAN] Bersihkan kanvas
+    calculatedPanjangSistem.value = 0;
+    formHeader.panjang = 0;
+
     addNewRowIfNeeded();
   }
 
@@ -1062,6 +1072,16 @@ const confirmCancel = () => {
 const executeCancel = () => {
   isCancelDialogVisible.value = false;
   loadLhkData(); // Fungsi loadLhkData bawaan Anda (mereset ke data awal)
+
+  // [PERBAIKAN] Kembalikan scroll canvas ke paling atas setelah dibatalkan
+  nextTick(() => {
+    const viewports = document.querySelectorAll(".canvas-viewport");
+    viewports.forEach((vp) => {
+      (vp as HTMLElement).scrollTop = 0;
+      (vp as HTMLElement).scrollLeft = 0;
+    });
+    toast.info("Perubahan dibatalkan. Layout dikembalikan ke semula.");
+  });
 };
 
 // --- Konfirmasi Tutup ---

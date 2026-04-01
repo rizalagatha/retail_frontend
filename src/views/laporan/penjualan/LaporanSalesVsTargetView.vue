@@ -242,11 +242,179 @@ const exportToExcel = () => {
     toast.error("Anda tidak memiliki izin untuk mengekspor data.");
     return;
   }
-  if (items.value.length === 0) return toast.warning("Tidak ada data untuk diekspor.");
-  const worksheet = XLSX.utils.json_to_sheet(items.value);
+  if (items.value.length === 0) {
+    return toast.warning("Tidak ada data untuk diekspor.");
+  }
+
+  // --- 1. SIAPKAN HEADER MULTI-LEVEL ---
+  const headerRow1: (string | number)[] = [
+    "No",
+    "Tahun",
+    "Bulan",
+    "Kode Cabang",
+    "Nama Cabang",
+    "Bulan Ini",
+    "",
+    "",
+    "", // 4 Kolom
+    "Bulan Lalu",
+    "",
+    "", // 3 Kolom
+    "Kum. s.d Bulan Ini",
+    "",
+    "", // 3 Kolom
+    "Bulan Ini Tahun Lalu",
+    "", // 2 Kolom
+    "s.d Akhir Tahun",
+    "",
+    "", // 3 Kolom
+  ];
+
+  const headerRow2: (string | number)[] = [
+    "",
+    "",
+    "",
+    "",
+    "", // Lewati 5 kolom pertama karena di-merge dengan atasnya
+    "Qty",
+    "Nominal",
+    "Target",
+    "%",
+    "Qty",
+    "Nominal",
+    "%",
+    "Realisasi",
+    "Target",
+    "%",
+    "Realisasi",
+    "%",
+    "Realisasi",
+    "Target",
+    "%",
+  ];
+
+  // [PERBAIKAN] Gunakan Union Type (string | number) bukan 'any'
+  const excelData: (string | number)[][] = [headerRow1, headerRow2];
+
+  // --- 2. SIAPKAN DATA BARIS DEMI BARIS ---
+  items.value.forEach((item, index) => {
+    excelData.push([
+      index + 1,
+      item.tahun,
+      item.bulan,
+      item.kode_cabang,
+      item.nama_cabang,
+
+      // Bulan Ini
+      item.qty_bulan_ini,
+      item.nominal_bulan_ini,
+      item.target_bulan_ini,
+      item.target_bulan_ini > 0 ? (item.nominal_bulan_ini / item.target_bulan_ini) * 100 : 0,
+
+      // Bulan Lalu
+      item.qty_bulan_lalu,
+      item.nominal_bulan_lalu,
+      item.nominal_bulan_lalu > 0 ? (item.nominal_bulan_ini / item.nominal_bulan_lalu) * 100 : 0,
+
+      // Kumulatif
+      item.realisasi_kumulatif,
+      item.target_kumulatif,
+      item.target_kumulatif > 0 ? (item.realisasi_kumulatif / item.target_kumulatif) * 100 : 0,
+
+      // Tahun Lalu
+      item.realisasi_bulan_ini_thn_lalu,
+      item.realisasi_bulan_ini_thn_lalu > 0
+        ? (item.nominal_bulan_ini / item.realisasi_bulan_ini_thn_lalu) * 100
+        : 0,
+
+      // Akhir Tahun
+      item.realisasi_akhir_tahun,
+      item.target_akhir_tahun,
+      item.target_akhir_tahun > 0 ? (item.realisasi_kumulatif / item.target_akhir_tahun) * 100 : 0,
+    ]);
+  });
+
+  // --- 3. SIAPKAN BARIS GRAND TOTAL ---
+  const tSum = totalSummary.value;
+  excelData.push([
+    "GRAND TOTAL :",
+    "",
+    "",
+    "",
+    "", // Posisi merge dari A sampai E
+    tSum.qty_bulan_ini,
+    tSum.nominal_bulan_ini,
+    tSum.target_bulan_ini,
+    tSum.persen_target_bulan_ini,
+    tSum.qty_bulan_lalu,
+    tSum.nominal_bulan_lalu,
+    tSum.persen_bulan_lalu,
+    tSum.realisasi_kumulatif,
+    tSum.target_kumulatif,
+    tSum.persen_target_kumulatif,
+    tSum.realisasi_bulan_ini_thn_lalu,
+    tSum.persen_thn_lalu,
+    tSum.realisasi_akhir_tahun,
+    tSum.target_akhir_tahun,
+    tSum.persen_target_akhir_tahun,
+  ]);
+
+  // --- 4. RAKIT SHEET & ATUR MERGE/GABUNGAN SEL ---
+  const worksheet = XLSX.utils.aoa_to_sheet(excelData);
+
+  // Konfigurasi Merge Cells
+  worksheet["!merges"] = [
+    // Gabung vertikal (kolom A-E) baris 1 dan 2
+    { s: { r: 0, c: 0 }, e: { r: 1, c: 0 } }, // No
+    { s: { r: 0, c: 1 }, e: { r: 1, c: 1 } }, // Tahun
+    { s: { r: 0, c: 2 }, e: { r: 1, c: 2 } }, // Bulan
+    { s: { r: 0, c: 3 }, e: { r: 1, c: 3 } }, // Kode Cabang
+    { s: { r: 0, c: 4 }, e: { r: 1, c: 4 } }, // Nama Cabang
+
+    // Gabung horisontal grup
+    { s: { r: 0, c: 5 }, e: { r: 0, c: 8 } }, // Bulan Ini
+    { s: { r: 0, c: 9 }, e: { r: 0, c: 11 } }, // Bulan Lalu
+    { s: { r: 0, c: 12 }, e: { r: 0, c: 14 } }, // Kumulatif
+    { s: { r: 0, c: 15 }, e: { r: 0, c: 16 } }, // Tahun Lalu
+    { s: { r: 0, c: 17 }, e: { r: 0, c: 19 } }, // Akhir Tahun
+
+    // Gabung horisontal Grand Total (Baris terakhir, kolom A-E)
+    { s: { r: excelData.length - 1, c: 0 }, e: { r: excelData.length - 1, c: 4 } },
+  ];
+
+  // Atur lebar kolom
+  worksheet["!cols"] = [
+    { wch: 5 },
+    { wch: 8 },
+    { wch: 8 },
+    { wch: 15 },
+    { wch: 25 },
+    { wch: 10 },
+    { wch: 15 },
+    { wch: 15 },
+    { wch: 8 },
+    { wch: 10 },
+    { wch: 15 },
+    { wch: 8 },
+    { wch: 15 },
+    { wch: 15 },
+    { wch: 8 },
+    { wch: 15 },
+    { wch: 8 },
+    { wch: 15 },
+    { wch: 15 },
+    { wch: 8 },
+  ];
+
+  // --- 5. EKSEKUSI PENYIMPANAN ---
   const workbook = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(workbook, worksheet, "Sales VS Target");
-  XLSX.writeFile(workbook, `Laporan_SalesVsTarget_${filters.tahun}-${filters.bulan}.xlsx`);
+
+  XLSX.writeFile(
+    workbook,
+    `Laporan_SalesVsTarget_${filters.tahun}-${String(filters.bulan).padStart(2, "0")}.xlsx`
+  );
+
   toast.success("Data berhasil diekspor.");
 };
 

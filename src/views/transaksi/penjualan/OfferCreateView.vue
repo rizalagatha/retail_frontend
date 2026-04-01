@@ -55,6 +55,8 @@ interface OfferItem {
   terhitungPromo?: boolean; // [FIX] Tambahkan ini
   promo?: string; // [FIX] Tambahkan ini
   _isHargaEditable?: boolean; // [FIX] Digunakan saat inject stiker
+  originalDiskonRp?: number;
+  originalDiskonPersen?: number;
 }
 
 interface OfferHeader {
@@ -1160,22 +1162,36 @@ const save = async () => {
     if (promoToApply) {
       const autoPromoIds = ["PRO-2025-008", "PRO-2025-010", "PRO-2026-001", "PRO-2026-002"];
 
-      // Jika belum ada promo ATAU sedang menggunakan auto-promo lama, timpa dengan promo baru
-      if (!header.value.nomorPromo || autoPromoIds.includes(header.value.nomorPromo)) {
-        footer.value.diskonRp = promoDiskon;
-        footer.value.diskonRpInput = promoDiskon; // Set input helper di penawaran
-        header.value.nomorPromo = promoToApply.pro_nomor;
-        header.value.namaPromo = promoToApply.pro_judul;
+      // [KUNCI PERBAIKAN] Cek apakah user sengaja memakai diskon member atau sudah menolak promo ini
+      const isUserRejectedPromo =
+        lastSuggestedPromo.value === promoToApply.pro_nomor ||
+        lastSuggestedPromo.value === "MANUAL_AUTH";
+      const isUsingMemberDiscount =
+        footer.value.diskonPersen1 > 0 ||
+        footer.value.diskonPersen2 > 0 ||
+        !!footer.value.pinDiskon1;
 
-        // Bersihkan stiker dari grid jika pindah ke promo selain Maret
-        if (promoToApply.pro_nomor !== "PRO-2026-001") {
-          const idx = items.value.findIndex(
-            (i) => String(i.kode) === "2500053" || String(i.barcode) === "25014783"
-          );
-          if (idx !== -1) items.value.splice(idx, 1);
+      // HANYA timpa jika user tidak menolak dan tidak sedang pakai diskon member
+      if (!isUserRejectedPromo && !isUsingMemberDiscount) {
+        if (!header.value.nomorPromo || autoPromoIds.includes(header.value.nomorPromo)) {
+          footer.value.diskonPersen1 = 0;
+          footer.value.diskonPersen2 = 0;
+
+          footer.value.diskonRp = promoDiskon;
+          footer.value.diskonRpInput = promoDiskon;
+          header.value.nomorPromo = promoToApply.pro_nomor;
+          header.value.namaPromo = promoToApply.pro_judul;
+
+          // Bersihkan stiker dari grid jika pindah ke promo selain Maret
+          if (promoToApply.pro_nomor !== "PRO-2026-001") {
+            const idx = items.value.findIndex(
+              (i) => String(i.kode) === "2500053" || String(i.barcode) === "25014783"
+            );
+            if (idx !== -1) items.value.splice(idx, 1);
+          }
+
+          calculateTotals();
         }
-
-        calculateTotals();
       }
     } else if (
       header.value.nomorPromo === "PRO-2026-001" ||
@@ -1440,50 +1456,65 @@ const requestAuthorization = (
 // };
 
 const handleItemDiscountChange = (index: number) => {
-  const item = items.value[index];
+  nextTick(() => {
+    const item = items.value[index];
+    const originalRp = item.originalDiskonRp || 0;
+    const originalPersen = item.originalDiskonPersen || 0;
 
-  // Simpan nilai awal (sebelum diedit user, idealnya punya originalDiskon, tapi di sini kita pakai asumsi reset ke 0 jika batal, atau Anda bisa tambahkan properti 'originalDiskon' di interface Item seperti di Invoice)
-  const currentPersen = item.diskonPersen || 0;
-  const currentRp = item.diskonRp || 0;
-
-  if (currentPersen > 0 || currentRp > 0) {
-    // Hitung nominal diskon item ini
-    let nominalAuth = 0;
-    if (currentRp > 0) {
-      nominalAuth = currentRp * item.jumlah;
-    } else {
-      nominalAuth = ((item.harga * currentPersen) / 100) * item.jumlah;
+    // === [PERBAIKAN] Sinkronisasi Satu Arah ===
+    if (item.diskonPersen !== originalPersen) {
+      item.diskonRp = 0;
+    } else if (item.diskonRp !== originalRp) {
+      item.diskonPersen = 0;
     }
 
-    const info = `Cust: ${header.value.customer?.nama || "Umum"}\nItem: ${item.nama}\nDiskon: ${
-      currentPersen > 0 ? currentPersen + "%" : formatRupiah(currentRp)
-    }`;
+    const currentPersen = item.diskonPersen || 0;
+    const currentRp = item.diskonRp || 0;
 
-    requestAuthorization(
-      "Otorisasi Diskon Item",
-      "DISKON_ITEM",
-      nominalAuth,
-      {
-        transaksi: header.value.nomor || "DRAFT PENAWARAN",
-        barcode: item.barcode,
-        keteranganLengkap: info,
-      },
-      (authResult) => {
-        item.pin = authResult.approver; // Simpan Approver di item
-        calculateTotals();
-        toast.success("Diskon item disetujui.");
-      },
-      () => {
-        // Batal: Reset ke 0
-        item.diskonPersen = 0;
-        item.diskonRp = 0;
-        calculateTotals();
-        toast.info("Diskon item dibatalkan.");
+    if (currentPersen > 0 || currentRp > 0) {
+      // Hitung nominal diskon item ini
+      let nominalAuth = 0;
+      if (currentRp > 0) {
+        nominalAuth = currentRp * item.jumlah;
+      } else {
+        nominalAuth = ((item.harga * currentPersen) / 100) * item.jumlah;
       }
-    );
-  } else {
-    calculateTotals();
-  }
+
+      const info = `Cust: ${header.value.customer?.nama || "Umum"}\nItem: ${item.nama}\nDiskon: ${
+        currentPersen > 0 ? currentPersen + "%" : formatRupiah(currentRp)
+      }`;
+
+      requestAuthorization(
+        "Otorisasi Diskon Item",
+        "DISKON_ITEM",
+        nominalAuth,
+        {
+          transaksi: header.value.nomor || "DRAFT PENAWARAN",
+          barcode: item.barcode,
+          keteranganLengkap: info,
+        },
+        (authResult) => {
+          item.pin = authResult.approver;
+          item.originalDiskonRp = currentRp; // Update original state
+          item.originalDiskonPersen = currentPersen; // Update original state
+          calculateTotals();
+          toast.success("Diskon item disetujui.");
+        },
+        () => {
+          // Batal: Kembalikan ke nilai original
+          item.diskonPersen = originalPersen;
+          item.diskonRp = originalRp;
+          calculateTotals();
+          toast.info("Diskon item dibatalkan.");
+        }
+      );
+    } else {
+      // User sengaja mengosongkan nilai (menghapus diskon)
+      item.originalDiskonRp = 0;
+      item.originalDiskonPersen = 0;
+      calculateTotals();
+    }
+  });
 };
 
 // const handleDiscount2Change = () => {
@@ -1659,13 +1690,23 @@ const applyDefaultDiscount = async () => {
 
   // Jika diskon nominal sudah ada (> 0) dan diskon persen kosong,
   // artinya ini hasil otorisasi/input manual. Jangan ditimpa.
-  if ((footer.value.diskonRp > 0 && footer.value.diskonPersen1 === 0) || footer.value.pinDiskon1) {
-    // console.log("Sistem mendeteksi diskon manual, membatalkan auto-discount level.");
+  if (
+    (footer.value.diskonRp > 0 && footer.value.diskonPersen1 === 0) ||
+    footer.value.pinDiskon1 ||
+    header.value.nomorPromo
+  ) {
+    footer.value.diskonPersen1 = 0; // Pastikan persen member mati
     return;
   }
   // -----------------------------------------------------------
   // Validasi: Pastikan data pendukung ada
   if (!header.value.customer || !header.value.customer.level) {
+    footer.value.diskonPersen1 = 0;
+    return;
+  }
+
+  const custNama = header.value.customer?.nama?.toUpperCase() || "";
+  if (custNama.includes("RETAIL")) {
     footer.value.diskonPersen1 = 0;
     return;
   }
@@ -1957,7 +1998,11 @@ const saveAndConvertToSo = async () => {
     if (promoToApply) {
       const autoPromoIds = ["PRO-2025-008", "PRO-2025-010", "PRO-2026-001", "PRO-2026-002"];
 
+      // Jika belum ada promo ATAU sedang menggunakan auto-promo lama, timpa dengan promo baru
       if (!header.value.nomorPromo || autoPromoIds.includes(header.value.nomorPromo)) {
+        footer.value.diskonPersen1 = 0; // [FIX] Wajib tambahkan ini agar diskon member hilang
+        footer.value.diskonPersen2 = 0; // [FIX] Wajib tambahkan ini agar diskon member hilang
+
         footer.value.diskonRp = promoDiskon;
         footer.value.diskonRpInput = promoDiskon;
         header.value.nomorPromo = promoToApply.pro_nomor;

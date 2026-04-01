@@ -9,6 +9,7 @@ interface SoPoItem {
   jumlah: number;
   tanggal: string;
   tipe: string;
+  sudah_lhk?: number; // [BARU] Flag dari backend: 1 = Sudah, 0 = Belum
 }
 
 const props = defineProps({
@@ -36,12 +37,14 @@ const page = ref(1);
 const itemsPerPage = 50;
 const totalItems = ref(0);
 
+// [PERBAIKAN] Tambahkan Header Status LHK
 const headers = [
-  { title: "Nomor", key: "kode", sortable: false, width: "200px" },
-  { title: "Nama", key: "nama", sortable: false, width: "40%" },
+  { title: "Nomor", key: "kode", sortable: false, width: "180px" },
+  { title: "Nama", key: "nama", sortable: false, width: "35%" },
   { title: "Jumlah", key: "jumlah", sortable: false, align: "end" as const },
   { title: "Tanggal", key: "tanggal", sortable: false },
   { title: "Tipe", key: "tipe", sortable: false },
+  { title: "Status LHK", key: "sudah_lhk", sortable: false, align: "center" as const },
 ];
 
 const loadItems = async () => {
@@ -52,7 +55,6 @@ const loadItems = async () => {
         term: search.value,
         cabang: props.cabang,
         tipe: props.tipe,
-        // [TAMBAHKAN INI] Kirim prefix ke backend
         prefix: props.prefix,
         page: page.value,
         limit: itemsPerPage,
@@ -128,11 +130,28 @@ onMounted(loadItems);
             <tr @click="selectItem(item)" style="cursor: pointer">
               <td class="font-weight-bold text-primary">{{ item.kode }}</td>
               <td>{{ item.nama }}</td>
-              <td class="text-end">{{ item.jumlah }}</td>
+              <td class="text-end font-weight-bold">{{ item.jumlah }}</td>
               <td>{{ formatDate(item.tanggal) }}</td>
               <td>
-                <v-chip size="x-small" :color="item.tipe.includes('SPK') ? 'orange' : 'blue'">
+                <v-chip
+                  size="x-small"
+                  :color="item.tipe.includes('SPK') ? 'orange' : 'blue'"
+                  variant="flat"
+                >
                   {{ item.tipe }}
+                </v-chip>
+              </td>
+              <td class="text-center">
+                <v-chip
+                  size="x-small"
+                  :color="item.sudah_lhk === 1 ? 'success' : 'grey-darken-1'"
+                  :variant="item.sudah_lhk === 1 ? 'flat' : 'outlined'"
+                  class="font-weight-bold"
+                >
+                  <v-icon start size="12">{{
+                    item.sudah_lhk === 1 ? "mdi-check-circle" : "mdi-clock-outline"
+                  }}</v-icon>
+                  {{ item.sudah_lhk === 1 ? "SUDAH LHK" : "BELUM" }}
                 </v-chip>
               </td>
             </tr>
@@ -165,6 +184,6 @@ onMounted(loadItems);
 .desktop-table :deep(td),
 .desktop-table :deep(th) {
   padding: 0 8px !important;
-  height: 28px !important;
+  height: 32px !important; /* Sedikit dilonggarkan agar chip tidak terpotong */
 }
 </style>

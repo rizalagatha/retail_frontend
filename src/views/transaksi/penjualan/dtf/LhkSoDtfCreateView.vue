@@ -51,6 +51,8 @@ interface LhkItem {
   luasRiil: number;
   reject: number;
   specs: SpecDetail[]; // <--- Ubah tipe array specs menjadi SpecDetail
+  isStok?: boolean;
+  isReprint?: boolean;
 }
 
 interface LhkApiResponseItem {
@@ -792,6 +794,8 @@ const addNewRowIfNeeded = () => {
       luasRiil: 0,
       reject: 0,
       specs: [],
+      isStok: false,
+      isReprint: false,
     });
   }
 };
@@ -851,9 +855,10 @@ const loadLhkData = async () => {
       const baseURL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
       const cleanedBase = baseURL.replace(/\/api\/?$/, "");
 
-      for (const item of items.value) {
+      // [PERBAIKAN 1] Gunakan Promise.all agar menunggu data ukuran selesai ditarik semua
+      const specPromises = items.value.map((item) => {
         if (item.kode) {
-          api.get(`/lhk-so-dtf-form/specs/${item.kode}`).then((res) => {
+          return api.get(`/lhk-so-dtf-form/specs/${item.kode}`).then((res) => {
             const rawSpecs = res.data.specs || [];
 
             // Map specs
@@ -872,10 +877,8 @@ const loadLhkData = async () => {
             item.jumlahTitik = item.specs.length;
             calculateRowTotal(item);
 
-            // [BARU] Loop per titik untuk meload gambar
             item.specs.forEach((spec, sIndex) => {
               const specKode = `${item.kode}-${sIndex + 1}`;
-              // Ganti titik jadi underscore (Format dari backend -> K06_SD_2511_0064-1.jpg)
               const sanitizedKode = specKode.replace(/\./g, "_");
 
               const img = new Image();
@@ -899,13 +902,19 @@ const loadLhkData = async () => {
             });
           });
         }
-      }
+        return Promise.resolve();
+      });
+
+      // 🔥 WAJIB TUNGGU SEMUA SPEK SELESAI DIMUAT
+      await Promise.all(specPromises);
 
       // --- 4. Bongkar Layout JSON (Koordinat Canvas) ---
-      // Kita asumsikan JSON disimpan di kolom 'keterangan' (alias 'ket') baris pertama
-      if (data[0].keterangan) {
+      // [PERBAIKAN 2] Cari baris yang benar-benar punya teks JSON "layout"
+      const rowWithJson = data.find((d) => d.keterangan && d.keterangan.includes('"layout"'));
+
+      if (rowWithJson) {
         try {
-          const parsedData = JSON.parse(data[0].keterangan);
+          const parsedData = JSON.parse(rowWithJson.keterangan);
 
           // 1. Pulihkan Layout Canvas
           const savedLayout = parsedData.layout || [];
@@ -918,27 +927,27 @@ const loadLhkData = async () => {
               h: box.h,
               label: box.label,
               isRotated: box.isRotated,
-              imageObj: null,
+              imageObj: null, // ImageObj akan disuntik dari img.onload di atas
             }));
             const maxHeight = layoutPreview.value.reduce((max: number, box: PreviewBox) => {
               return Math.max(max, box.y + (box.isRotated ? box.w : box.h));
             }, 0);
             calculatedPanjangSistem.value = Math.ceil(maxHeight);
+
+            // Pancing gambar ulang sesaat setelah layout siap
+            setTimeout(() => drawCanvas(canvasRef.value), 100);
           }
 
           // 2. Pulihkan Cadangan dari SpecsData
-          // Beri tahu TypeScript bahwa savedSpecs adalah array dari SavedSpec
           const savedSpecs: SavedSpec[] = parsedData.specsData || [];
 
           if (savedSpecs.length > 0) {
             items.value.forEach((item) => {
-              // Hapus 'any', gunakan tipe 'SavedSpec'
               const matchedSpec = savedSpecs.find((s: SavedSpec) => s.kode === item.kode);
 
               if (matchedSpec && item.specs.length > 0) {
                 item.specs.forEach((s, index) => {
                   if (matchedSpec.specs[index]) {
-                    // Cukup pulihkan qtyTotal saja
                     s.qtyTotal = matchedSpec.specs[index].qtyTotal || s.qtySistem;
                   }
                 });
@@ -962,7 +971,7 @@ const loadLhkData = async () => {
   }
 };
 
-const onSoPoSelected = async (selectedItem: { kode: string; nama: string }) => {
+const onSoPoSelected = async (selectedItem: { kode: string; nama: string; sudah_lhk?: number }) => {
   const activeItem = items.value[activeRowIndex.value];
   try {
     const res = await api.get(`/lhk-so-dtf-form/specs/${selectedItem.kode}`);
@@ -970,30 +979,33 @@ const onSoPoSelected = async (selectedItem: { kode: string; nama: string }) => {
     // Ambil nilai dari API
     const jmlKaosSistem = res.data.totalKaos || 0;
     const jmlTitikSistem = res.data.specs ? res.data.specs.length : 0;
+    const rawSpecs: any[] = res.data.specs || [];
 
-    const rawSpecs: RawSpec[] = res.data.specs || [];
-
-    // Mapping format spesifikasi baru
-    const mappedSpecs: SpecDetail[] = rawSpecs.map((s: RawSpec) => ({
+    // [PERBAIKAN] Mapping format spesifikasi baru (Hargai qty bawaan dari stok)
+    const mappedSpecs: SpecDetail[] = rawSpecs.map((s: any) => ({
       w: s.w,
       h: s.h,
       luas: s.w * s.h,
-      qtySistem: jmlKaosSistem,
-      qtyCadangan: 0,
-      qtyTotal: jmlKaosSistem,
+      qtySistem: s.qty || jmlKaosSistem, // Prioritaskan qty dari backend jika SO Stok
+      qtyTotal: s.qty || jmlKaosSistem,
     }));
 
     Object.assign(activeItem, {
       kode: selectedItem.kode,
       nama: selectedItem.nama,
-      // INI YANG PENTING: Simpan nilai asli sistem ke jumlahSistem
-      jumlahSistem: jmlKaosSistem,
-      jumlah: jmlKaosSistem, // Nilai riil (bisa diubah operator)
-      jumlahTitik: jmlTitikSistem,
+      jumlahSistem: jmlKaosSistem, // Ini nilai asli order (tetap dipertahankan)
+
+      // [PERBAIKAN] Defaultkan Kaos OK menjadi 0
+      jumlah: 0,
+
+      jumlahTitik: res.data.isStok ? mappedSpecs.length : jmlTitikSistem,
       totalTitik: res.data.totalTitikSistem || jmlKaosSistem * jmlTitikSistem,
       luasSistem: res.data.totalLuasSistem || 0,
       specs: mappedSpecs,
+      isStok: res.data.isStok || false,
+      isReprint: selectedItem.sudah_lhk === 1,
     });
+
     calculateRowTotal(activeItem);
     addNewRowIfNeeded();
     isSoSearchVisible.value = false;
@@ -1004,18 +1016,42 @@ const onSoPoSelected = async (selectedItem: { kode: string; nama: string }) => {
   }
 };
 
-const calculateRowTotal = (item: LhkItem) => {
+const calculateRowTotal = (item: any) => {
   if (item.specs && item.specs.length > 0) {
-    item.specs.forEach((s) => {
-      s.qtySistem = Number(item.jumlah) || 0;
-      s.qtyTotal = s.qtySistem; // Nilai total langsung mengikuti jumlah, tidak perlu ditambah cadangan
+    item.specs.forEach((s: any) => {
+      // [PERBAIKAN] Jangan gunakan jumlah (Kaos OK) sebagai acuan.
+      // Gunakan jumlahSistem (Jumlah Order) sebagai acuan target layout & total titik!
+      if (!item.isStok) {
+        s.qtySistem = Number(item.jumlahSistem) || 0;
+        s.qtyTotal = s.qtySistem;
+      }
     });
-    item.totalTitik = item.specs.reduce((sum, s) => sum + s.qtyTotal, 0);
-    item.luasSistem = item.specs.reduce((sum, s) => sum + s.luas * s.qtyTotal, 0);
+    item.totalTitik = item.specs.reduce((sum: number, s: any) => sum + s.qtyTotal, 0);
+    item.luasSistem = item.specs.reduce((sum: number, s: any) => sum + s.luas * s.qtyTotal, 0);
   } else {
     item.totalTitik = 0;
     item.luasSistem = 0;
   }
+};
+
+// [BARU] Fungsi untuk menghapus titik cetak spesifik (Berguna saat Reprint)
+const removeSpec = (item: any, specIndex: number) => {
+  showConfirmation(() => {
+    // 1. Hapus spec dari array
+    item.specs.splice(specIndex, 1);
+
+    // 2. Update jumlah titik
+    item.jumlahTitik = item.specs.length;
+
+    // 3. Kalkulasi ulang total titik dan luas
+    calculateRowTotal(item);
+
+    toast.info(`Titik ke-${specIndex + 1} berhasil dihapus dari daftar.`);
+
+    // 4. Beri tahu Vue ada perubahan
+    uiStore.setUnsavedChanges(true);
+    closeConfirmDialog();
+  }, "Hapus titik cetak ini dari daftar? (Gunakan ini jika hanya sebagian gambar yang di-reprint)");
 };
 
 const removeRow = (id: number) => {
@@ -1147,7 +1183,7 @@ const totalLuasSistemVal = computed(() =>
   items.value.reduce((sum, i) => sum + (i.luasSistem || 0), 0)
 );
 const totalJumlahKaosSummaryVal = computed(() =>
-  items.value.reduce((sum, item) => sum + (Number(item.jumlah) || 0), 0)
+  items.value.reduce((sum, item) => sum + (item.isStok ? 0 : Number(item.jumlah) || 0), 0)
 );
 const luasEstimasiLayoutVal = computed(() => {
   const lebar = formHeader.cabang === "K02" ? 30 : 60;
@@ -1171,13 +1207,17 @@ const activePrefix = computed(() => {
 });
 
 const tableHeaders = [
-  { title: "", key: "data-table-expand", width: "40px", sortable: false }, // KOLOM EXPAND
+  { title: "", key: "data-table-expand", width: "40px", sortable: false },
   { title: "No.", key: "no", width: "50px", sortable: false },
   { title: "PO/SO DTF", key: "kode", width: "125px" },
   { title: "Nama DTF", key: "nama", width: "250px" },
   { title: "Jml Titik", key: "titik", width: "80px", align: "center" as const },
   { title: "Total Titik", key: "totalTitik", width: "90px", align: "center" as const },
-  { title: "Jumlah Kaos OK", key: "jumlah", width: "90px", align: "center" as const },
+
+  // [BARU] Kolom untuk menampilkan Jumlah asli dari SO DTF
+  { title: "Jumlah Order", key: "jumlahSistem", width: "95px", align: "center" as const },
+
+  { title: "Jumlah Kaos OK", key: "jumlah", width: "95px", align: "center" as const },
   { title: "Jumlah Kaos Reject", key: "reject", width: "80px", align: "center" as const },
   { title: "Actions", key: "actions", width: "50px" },
 ];
@@ -1428,8 +1468,35 @@ const tableHeaders = [
               />
             </template>
 
-            <template #[`item.jumlah`]="{ item }">
+            <template #[`item.jumlahSistem`]="{ item }">
+              <div v-if="item.isStok" class="text-center font-weight-bold text-grey">-</div>
+
               <v-text-field
+                v-else-if="item.isReprint"
+                v-model.number="item.jumlahSistem"
+                type="number"
+                variant="underlined"
+                density="compact"
+                hide-details
+                class="text-center font-weight-bold text-blue-darken-2"
+                @update:model-value="calculateRowTotal(item)"
+                title="Edit target karena ini Reprint"
+              />
+
+              <div
+                v-else
+                class="text-center font-weight-bold text-blue-darken-2"
+                style="font-size: 13px"
+                title="LHK Pertama (Tidak bisa diubah)"
+              >
+                {{ item.jumlahSistem || 0 }} Pcs
+              </div>
+            </template>
+
+            <template #[`item.jumlah`]="{ item }">
+              <div v-if="item.isStok" class="text-center font-weight-bold text-grey">-</div>
+              <v-text-field
+                v-else
                 v-model.number="item.jumlah"
                 type="number"
                 variant="underlined"
@@ -1441,7 +1508,9 @@ const tableHeaders = [
             </template>
 
             <template #[`item.reject`]="{ item }">
+              <div v-if="item.isStok" class="text-center font-weight-bold text-grey">-</div>
               <v-text-field
+                v-else
                 v-model.number="item.reject"
                 type="number"
                 variant="underlined"
@@ -1477,6 +1546,10 @@ const tableHeaders = [
                         <th class="text-caption font-weight-bold text-end">Luas 1 Pcs</th>
                         <th class="text-caption font-weight-bold text-center">Total Cetak</th>
                         <th class="text-caption font-weight-bold text-center">Desain</th>
+
+                        <th v-if="item.isReprint" class="text-caption font-weight-bold text-center">
+                          Aksi
+                        </th>
                       </tr>
                     </thead>
                     <tbody>
@@ -1487,24 +1560,17 @@ const tableHeaders = [
                         <td class="text-caption text-center font-weight-bold text-deep-orange">
                           {{ spec.qtyTotal }}
                         </td>
-                        <td class="text-center">
-                          <div class="d-flex align-center justify-center">
-                            <v-btn
-                              :icon="spec.uploadedImageObj ? 'mdi-image-check' : 'mdi-upload'"
-                              :color="spec.uploadedImageObj ? 'success' : 'grey'"
-                              size="x-small"
-                              variant="tonal"
-                              :loading="spec.isUploading"
-                              @click="triggerFileInput(`${item.id}-${i}`)"
-                            ></v-btn>
-                            <input
-                              :id="`file-upload-${item.id}-${i}`"
-                              type="file"
-                              accept="image/png, image/jpeg"
-                              style="display: none"
-                              @change="(e) => handleSpecFileUpload(e, item, spec, i)"
-                            />
-                          </div>
+                        <td class="text-center"></td>
+
+                        <td v-if="item.isReprint" class="text-center">
+                          <v-btn
+                            icon="mdi-delete"
+                            color="error"
+                            size="x-small"
+                            variant="text"
+                            title="Hapus Titik Ini"
+                            @click="removeSpec(item, i)"
+                          ></v-btn>
                         </td>
                       </tr>
                     </tbody>

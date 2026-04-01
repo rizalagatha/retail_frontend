@@ -561,15 +561,24 @@ const handleItemDiscountChange = (item: Item) => {
   nextTick(() => {
     const originalRp = item.originalDiskonRp || 0;
     const originalPersen = item.originalDiskonPersen || 0;
+
+    // === [PERBAIKAN] Sinkronisasi Satu Arah ===
+    // 1. Jika User mengedit Persen dan nilainya berubah, pastikan Rp jadi 0
+    if (item.diskonPersen !== originalPersen) {
+      item.diskonRp = 0;
+    }
+    // 2. Sebaliknya, Jika User mengedit Rupiah dan nilainya berubah, pastikan Persen jadi 0
+    else if (item.diskonRp !== originalRp) {
+      item.diskonPersen = 0;
+    }
+
     const currentRp = item.diskonRp || 0;
     const currentPersen = item.diskonPersen || 0;
 
-    // Hanya minta otorisasi jika nilai berubah
+    // Hanya minta otorisasi jika nilai berubah dari original
     if (currentRp !== originalRp || currentPersen !== originalPersen) {
-      // [BARU] Deteksi jika user menghapus diskon item
       const isClearingItemDiscount = currentRp === 0 && currentPersen === 0;
 
-      // [FIX] Skip otorisasi jika nilai jadi 0 atau cabang K04
       if (isClearingItemDiscount || header.gudang.kode === "K04") {
         item.originalDiskonRp = 0;
         item.originalDiskonPersen = 0;
@@ -578,7 +587,7 @@ const handleItemDiscountChange = (item: Item) => {
         return;
       }
 
-      // 1. Hitung Nominal Auth
+      // Hitung Nominal Auth (Sesuai per item x qty)
       let diskonPerUnit = 0;
       if (currentRp > 0) {
         diskonPerUnit = currentRp;
@@ -587,17 +596,11 @@ const handleItemDiscountChange = (item: Item) => {
       }
       const totalNominalAuth = diskonPerUnit * (item.jumlah || 1);
 
-      // 2. Set Context (untuk restore jika batal)
       activeItemForAuth.value = item;
-
-      // 3. Susun Info Lengkap (Agar muncul di HP)
       const custName = header.customer.nama || "Umum";
       const itemName = item.nama || "Unknown Item";
-
-      // Format: "Cust: ABC\nItem: Kaos Polos"
       const infoLengkap = `Cust: ${custName}\nItem: ${itemName}`;
 
-      // 4. Request Auth
       requestAuthorization(
         `Otorisasi Diskon Item`,
         "DISKON_ITEM",
@@ -605,30 +608,25 @@ const handleItemDiscountChange = (item: Item) => {
         {
           barcode: item.barcode,
           transaksi: header.nomor ? header.nomor : "DRAFT INVOICE",
-          keteranganLengkap: infoLengkap, // <-- Kirim info ini
+          keteranganLengkap: infoLengkap,
         },
         (authResult) => {
-          // --- SUKSES (APPROVED) ---
+          // --- SUKSES ---
           if (activeItemForAuth.value) {
             const currentItem = activeItemForAuth.value;
-
-            // Update nilai original agar tidak minta auth lagi jika tidak diubah
+            // [FIX] Update original dengan nilai yg baru diedit
             currentItem.originalDiskonRp = currentItem.diskonRp;
             currentItem.originalDiskonPersen = currentItem.diskonPersen;
-            currentItem.lastPin = authResult.approver; // Simpan nama approver
-
-            // Hitung ulang total baris
+            currentItem.lastPin = authResult.approver;
             currentItem.total = computeLineTotal(currentItem);
           }
-
           toast.success("Otorisasi diskon item disetujui.");
           calculateTotals();
           activeItemForAuth.value = null;
         },
         () => {
-          // --- BATAL / DITOLAK ---
+          // --- BATAL ---
           if (activeItemForAuth.value) {
-            // Kembalikan ke nilai lama
             activeItemForAuth.value.diskonRp = originalDiscount.item.rp;
             activeItemForAuth.value.diskonPersen = originalDiscount.item.persen;
             activeItemForAuth.value.total = computeLineTotal(activeItemForAuth.value);
@@ -639,7 +637,6 @@ const handleItemDiscountChange = (item: Item) => {
         }
       );
     } else {
-      // Jika tidak berubah, tetap hitung total untuk keamanan
       item.total = computeLineTotal(item);
       calculateTotals();
     }

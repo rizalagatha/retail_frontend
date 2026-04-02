@@ -815,11 +815,12 @@ const calculateTotals = async () => {
 
   // [PENTING] 1. Cek kelayakan promo (hanya jika TIDAK ada otorisasi member manual)
   const hasMemberAuth = !!(footer.value.pinDiskon1 || footer.value.pinDiskon2);
+  const isManuallyRejected = lastSuggestedPromo.value === "MANUAL_AUTH";
   let isPromoApplied = false;
 
-  if (!hasMemberAuth) {
+  if (!hasMemberAuth && !isManuallyRejected) {
     isPromoApplied = await checkRealtimePromoEligibility();
-  } else {
+  } else if (hasMemberAuth) {
     // Jika ada otorisasi member, paksa hapus identitas promo agar tidak tersimpan ke DB
     header.value.nomorPromo = "";
     header.value.namaPromo = "";

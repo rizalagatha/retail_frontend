@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import { ref, onMounted, nextTick, watch } from 'vue';
-import { useRoute } from 'vue-router';
-import api from '@/services/api';
-import { format, parseISO } from 'date-fns';
-import Logo from '@/assets/logo.png';
+import { ref, onMounted, nextTick, watch } from "vue";
+import { useRoute } from "vue-router";
+import api from "@/services/api";
+import { format, parseISO } from "date-fns";
+import Logo from "@/assets/logo.png";
 import QRCode from "qrcode";
 
 interface PrintHeader {
@@ -42,19 +42,20 @@ const fetchPrintData = async (nomor: string) => {
   isLoading.value = true;
   try {
     const response = await api.get(`/mutasi-in-form/print/${nomor}`);
-    printData.value = response.data;
+    const data = response.data as PrintData; // [PERBAIKAN] Simpan ke variabel lokal
 
-    if (printData.value.header?.mi_nomor) {
-      // Generate QR code langsung setelah data masuk
-      qrCodeData.value = await QRCode.toDataURL(printData.value.header.mi_nomor, {
+    printData.value = data;
+
+    // Gunakan variabel 'data' untuk pengecekan, bukan printData.value lagi
+    if (data.header?.mi_nomor) {
+      qrCodeData.value = await QRCode.toDataURL(data.header.mi_nomor, {
         width: 90,
-        margin: 1
+        margin: 1,
       });
 
-      document.title = printData.value.header.mi_nomor;
+      document.title = data.header.mi_nomor;
     }
-
-  } catch (error) {
+  } catch (error: unknown) {
     alert("Gagal memuat data untuk dicetak.");
     console.error("Error fetching print data:", error);
   } finally {
@@ -102,11 +103,17 @@ onMounted(() => {
       <div class="info-grid">
         <div><span class="label">Nomor</span>: {{ printData.header.mi_nomor }}</div>
         <div><span class="label">No. SO</span>: {{ printData.header.mi_so_nomor }}</div>
-        <div><span class="label">Tanggal</span>: {{ format(parseISO(printData.header.mi_tanggal), 'dd-MM-yyyy')
-          }}</div>
-        <div><span class="label">Dari</span>: {{ printData.header.dari_cabang_kode }} - {{
-          printData.header.dari_cabang_nama }}</div>
-        <div class="keterangan"><span class="label">Keterangan</span>: {{ printData.header.mi_ket }}</div>
+        <div>
+          <span class="label">Tanggal</span>:
+          {{ format(parseISO(printData.header.mi_tanggal), "dd-MM-yyyy") }}
+        </div>
+        <div>
+          <span class="label">Dari</span>: {{ printData.header.dari_cabang_kode }} -
+          {{ printData.header.dari_cabang_nama }}
+        </div>
+        <div class="keterangan">
+          <span class="label">Keterangan</span>: {{ printData.header.mi_ket }}
+        </div>
       </div>
 
       <div class="items-table">
@@ -132,9 +139,7 @@ onMounted(() => {
         </table>
       </div>
 
-      <div class="created-date">
-        Created: {{ printData.header.created }}
-      </div>
+      <div class="created-date">Created: {{ printData.header.created }}</div>
 
       <div class="footer">
         <div class="signatures">
@@ -155,7 +160,7 @@ onMounted(() => {
 <style scoped>
 /* (Salin style dari MutasiOutPrintView.vue) */
 .print-container {
-  font-family: 'Segoe UI', Tahoma, sans-serif;
+  font-family: "Segoe UI", Tahoma, sans-serif;
   font-size: 9pt;
 }
 
@@ -297,7 +302,7 @@ onMounted(() => {
   text-align: center;
 }
 
-.signatures>div {
+.signatures > div {
   width: 30%;
 }
 
@@ -308,7 +313,7 @@ onMounted(() => {
   margin-top: 45px;
 }
 
-.names>div {
+.names > div {
   width: 30%;
 }
 

@@ -71,12 +71,11 @@ const fetchBranches = async () => {
     const response = await api.get(`/users/branches`);
     branches.value = response.data;
     if (branches.value.length > 0 && !cabang.value) {
-      // Set cabang default HANYA jika mode KDC, jika tidak biarkan kosong
       if (authStore.user?.cabang === "KDC") {
         cabang.value = branches.value[0].gdg_kode;
       } else {
-        // Jika bukan KDC, paksakan ke cabang user
-        cabang.value = authStore.user.cabang;
+        // [PERBAIKAN] Gunakan optional chaining dan fallback string kosong
+        cabang.value = authStore.user?.cabang || "";
       }
     }
   } catch (error) {
@@ -181,19 +180,16 @@ const resetForm = () => {
   password.value = "";
   checkAll.value = false;
 
-  // Reset cabang ke default (sesuai onMounted)
   if (branches.value.length > 0) {
     if (authStore.user?.cabang === "KDC") {
       cabang.value = branches.value[0].gdg_kode;
     } else {
-      cabang.value = authStore.user.cabang;
+      // [PERBAIKAN] Gunakan optional chaining dan fallback
+      cabang.value = authStore.user?.cabang || "";
     }
   }
 
-  fetchInitialMenus(); // Load ulang menu kosong (sesuai 'LoadMenu' Delphi)
-
-  // TODO: Fokus ke field 'kode' (memerlukan ref di template)
-  // kodeFieldRef.value?.focus();
+  fetchInitialMenus();
 };
 const toggleCheckAll = () => {
   permissions.value.forEach((p) => {

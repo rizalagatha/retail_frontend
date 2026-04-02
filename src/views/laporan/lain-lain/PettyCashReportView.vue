@@ -6,6 +6,7 @@ import { format } from "date-fns";
 import PageLayout from "@/components/PageLayout.vue";
 import * as XLSX from "xlsx";
 import { useToast } from "vue-toastification";
+import axios from "axios";
 
 // --- INTERFACES UNTUK MENGHILANGKAN ERROR 'ANY' ---
 interface MutasiItem {
@@ -115,22 +116,29 @@ const openPreview = async (nomorBukti: string) => {
   preview.files = [];
 
   try {
-    // Kita "daur ulang" API form yang sudah Anda buat sebelumnya
     const response = await api.get(`/petty-cash-form/${nomorBukti}`);
     const details = response.data.details || [];
 
     let allFiles: string[] = [];
     details.forEach((d: DetailNota) => {
       if (d.pcd_file) {
-        // Pisahkan nama file jika ada lebih dari 1 (dipisah koma)
         const fileArray = d.pcd_file.split(",").map((f: string) => f.trim());
         allFiles = [...allFiles, ...fileArray];
       }
     });
 
     preview.files = allFiles;
-  } catch (error) {
-    toast.error("Gagal memuat detail nota fisik.", error);
+  } catch (error: unknown) {
+    // [PERBAIKAN] Gunakan tipe unknown
+    let msg = "Gagal memuat detail nota fisik.";
+
+    // Gunakan axios.isAxiosError untuk mengekstrak pesan asli dari backend
+    if (axios.isAxiosError(error)) {
+      msg = error.response?.data?.message || msg;
+    }
+
+    // [PERBAIKAN] Cuma kirim satu parameter string
+    toast.error(msg);
     preview.show = false;
   } finally {
     preview.loading = false;

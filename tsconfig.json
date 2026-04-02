@@ -2,16 +2,27 @@
   "include": ["src/**/*.ts", "src/**/*.vue", "env.d.ts"],
   "compilerOptions": {
     "target": "ESNext",
-    "module": "ESNext", // atau salah satu dari: es2020, es2022, esnext, node16, node18, nodenext
-    "moduleResolution": "Node",
+    "module": "ESNext",
+    /* [PERBAIKAN 1] Ganti 'Node' jadi 'Bundler' */
+    /* Ini cara modern untuk proyek Vite agar linter tidak protes 'Node10' */
+    "moduleResolution": "bundler",
+
+    /* [PERBAIKAN 2] Hapus 'baseUrl' dan sesuaikan 'paths' */
+    /* TypeScript modern lebih suka path langsung tanpa bantuan baseUrl */
+    "paths": {
+      "@/*": ["./src/*"]
+    },
+
     "resolveJsonModule": true,
     "esModuleInterop": true,
     "allowSyntheticDefaultImports": true,
     "lib": ["ESNext", "DOM"],
     "types": ["vite/client"],
-    "baseUrl": ".",
-    "paths": {
-      "@/*": ["src/*"]
-    }
+
+    /* Tambahan agar lebih aman di Vue/Vite */
+    "skipLibCheck": true,
+    "strict": true,
+    "isolatedModules": true,
+    "noEmit": true
   }
 }

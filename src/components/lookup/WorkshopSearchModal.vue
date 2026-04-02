@@ -40,10 +40,11 @@ const selectWorkshop = (item: Workshop) => {
   }
 };
 
-let searchTimeout: number;
+let searchTimeout: number | undefined; // Tambahkan | undefined
 watch(search, () => {
   clearTimeout(searchTimeout);
-  searchTimeout = setTimeout(() => {
+  searchTimeout = window.setTimeout(() => {
+    // Tambahkan window.
     loadItems();
   }, 500);
 });

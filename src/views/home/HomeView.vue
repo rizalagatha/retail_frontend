@@ -5,6 +5,7 @@ import { useRouter } from "vue-router";
 // [GSAP] Import Library
 import { gsap } from "gsap";
 import * as XLSX from "xlsx";
+import axios from "axios";
 
 import logoUrl from "@/assets/logo.png";
 import bannerImage from "@/assets/banner-image.jpg";
@@ -164,6 +165,66 @@ interface BordirSchedule {
   alasan_pending: string | null;
 }
 
+interface BranchPerformance {
+  kode_cabang: string;
+  nama_cabang: string;
+  nominal: number;
+  target: number;
+  ach: number;
+}
+
+interface ParetoItem {
+  rank: number;
+  kode: string;
+  nama: string;
+  ukuran: string;
+  stok: number;
+  target: number;
+  status: string;
+  color: string;
+  buffer_per_toko?: number;
+  branches?: ParetoBranch[]; // [PERBAIKAN] Tidak lagi any[]
+}
+
+interface StokKosongItem {
+  kode: string;
+  barcode?: string;
+  nama_barang: string;
+  ukuran: string;
+  stok_akhir: number;
+}
+
+interface ParetoBranch {
+  nama: string;
+  status: string;
+  stok: number;
+}
+
+interface PiutangInvoice {
+  invoice: string;
+  tanggal: string;
+  sisa_piutang: number;
+}
+
+interface RecentTransaction {
+  id: string;
+  customer: string;
+  time: string;
+  amount: number;
+}
+
+interface TopProduct {
+  KODE: string;
+  NAMA: string;
+  UKURAN: string;
+  TOTAL: number;
+}
+
+interface CabangItem {
+  kode: string;
+  nama: string;
+}
+
 const authStore = useAuthStore();
 const router = useRouter();
 const toast = useToast();
@@ -242,7 +303,7 @@ const isLoadingStats = ref(true);
 const isLoadingPiutang = ref(true);
 const isLoadingPiutangBreakdown = ref(true);
 const piutangBreakdown = ref<PiutangBreakdown[]>([]);
-const piutangByInvoice = ref([]);
+const piutangByInvoice = ref<PiutangInvoice[]>([]);
 const isLoadingPiutangInvoice = ref(false);
 const frequentMenus = ref<FrequentMenu[]>([]);
 const isLoadingFrequent = ref(true);
@@ -251,25 +312,26 @@ const chartGroupBy = ref<"day" | "week" | "month">("day");
 const chartFilters = reactive({
   startDate: format(subDays(new Date(), 6), "yyyy-MM-dd"),
   endDate: format(new Date(), "yyyy-MM-dd"),
+  // [PERBAIKAN] Pastikan fallback-nya string kosong ""
   cabang: authStore.user?.cabang === "KDC" ? "ALL" : authStore.user?.cabang || "",
 });
-const cabangList = ref([]);
+const cabangList = ref<CabangItem[]>([]);
 const chartData = ref<ChartData<"bar" | "line">>({
   labels: [],
   datasets: [], // Inisialisasi kosong saja, tidak perlu dummy object yang bikin strict
 });
 const isLoadingChart = ref(true);
-const recentTransactions = ref([]);
+const recentTransactions = ref<RecentTransaction[]>([]);
 const isLoadingTransactions = ref(true);
 const lowStockProducts = ref<LowStockProduct[]>([]);
 const isLoadingLowStock = ref(true);
 const pendingActions = ref<PendingAction[]>([]);
 const isLoadingActions = ref(true);
-const topProducts = ref([]);
+const topProducts = ref<TopProduct[]>([]);
 const isLoadingTopProducts = ref(true);
 const topProductsCabang = ref("ALL");
 const isLoadingSalesTarget = ref(true);
-const branchPerformances = ref([]);
+const branchPerformances = ref<BranchPerformance[]>([]);
 const isLoadingPerformance = ref(false);
 const isLoadingStagnantStock = ref(true);
 const stockBreakdown = ref<{ kode_cabang: string; nama_cabang: string; totalStock: number }[]>([]);
@@ -280,8 +342,8 @@ const isLoadingPromo = ref(false);
 const itemTrendData = ref<ItemTrend[]>([]);
 const isLoadingItemTrend = ref(false);
 const searchStokKosong = ref("");
-const stokKosongCabang = ref("");
-const stokKosongList = ref([]);
+const stokKosongCabang = ref<string>("");
+const stokKosongList = ref<StokKosongItem[]>([]);
 const isLoadingStokKosong = ref(false);
 const paretoStats = ref({
   score: 0,
@@ -294,7 +356,7 @@ const paretoStats = ref({
 const isLoadingPareto = ref(false);
 // State untuk Dialog Detail
 const showParetoDetail = ref(false);
-const paretoItems = ref([]);
+const paretoItems = ref<ParetoItem[]>([]);
 const isLoadingParetoDetail = ref(false);
 const searchPareto = ref("");
 const filterPareto = ref("ALL"); // ALL, KRITIS, AMAN, OVER
@@ -458,7 +520,8 @@ const targetPercentage = computed(() => {
 
 const isOverTarget = computed(() => targetPercentage.value > 100);
 
-const getProgressColor = (percentage) => {
+const getProgressColor = (percentage: number) => {
+  // [PERBAIKAN]
   if (percentage >= 100) return "#4CAF50";
   if (percentage >= 75) return "#2196F3";
   if (percentage >= 50) return "#FF9800";
@@ -641,8 +704,11 @@ const fetchDashboardStats = async (isBackground = false) => {
     const response = await api.get("/dashboard/total-stok");
     stats.value.totalStok = Number(response.data.totalStok || 0);
     stats.value.stokPerCabang = response.data.perCabang || [];
-  } catch (error) {
-    toast.error("Gagal memuat total stok.", error);
+  } catch (error: unknown) {
+    // [PERBAIKAN]
+    let msg = "Gagal memuat total stok.";
+    if (axios.isAxiosError(error)) msg = error.response?.data?.message || msg;
+    toast.error(msg); // Cuma string yang dikirim
   } finally {
     if (!isBackground) isLoadingStats.value = false;
   }
@@ -824,8 +890,10 @@ const exportTrendPenjualan = async () => {
     const namaFile = `Trend_Sales_${trendCabang.value}_${format(new Date(), "yyyyMMdd")}.xlsx`;
     XLSX.writeFile(workbook, namaFile);
     toast.success("Export berhasil!");
-  } catch (error) {
-    toast.error("Gagal export data", error);
+  } catch (error: unknown) {
+    let msg = "Gagal export data";
+    if (axios.isAxiosError(error)) msg = error.response?.data?.message || msg;
+    toast.error(msg);
   }
 };
 
@@ -838,8 +906,10 @@ const fetchCabangOptions = async () => {
   try {
     const response = await api.get("/dashboard/cabang-options");
     cabangList.value = response.data;
-  } catch (error) {
-    toast.error("Gagal memuat pilihan cabang.", error);
+  } catch (error: unknown) {
+    let msg = "Gagal memuat pilihan cabang.";
+    if (axios.isAxiosError(error)) msg = error.response?.data?.message || msg;
+    toast.error(msg);
   }
 };
 
@@ -1011,8 +1081,10 @@ const saveBordirSchedule = async () => {
     toast.success("Jadwal antrian bordir berhasil diupdate!");
     isEditBordirDialog.value = false;
     fetchBordirSchedules(true);
-  } catch (err) {
-    toast.error("Gagal update jadwal bordir", err);
+  } catch (error: unknown) {
+    let msg = "Gagal update jadwal bordir";
+    if (axios.isAxiosError(error)) msg = error.response?.data?.message || msg;
+    toast.error(msg);
   }
 };
 
@@ -1051,8 +1123,10 @@ const fetchPiutangBreakdown = async () => {
   try {
     const response = await api.get("/dashboard/piutang-per-cabang");
     piutangBreakdown.value = response.data;
-  } catch (error) {
-    toast.error("Gagal memuat breakdown piutang.", error);
+  } catch (error: unknown) {
+    let msg = "Gagal memuat breakdown piutang.";
+    if (axios.isAxiosError(error)) msg = error.response?.data?.message || msg;
+    toast.error(msg);
   } finally {
     isLoadingPiutangBreakdown.value = false;
   }
@@ -1221,8 +1295,10 @@ const fetchSalesChartData = async (isBackground = false) => {
         },
       ] as ChartDataset<"bar" | "line">[],
     };
-  } catch (error) {
-    toast.error("Gagal memuat data grafik penjualan.", error);
+  } catch (error: unknown) {
+    let msg = "Gagal memuat data grafik penjualan.";
+    if (axios.isAxiosError(error)) msg = error.response?.data?.message || msg;
+    toast.error(msg);
   } finally {
     if (!isBackground) isLoadingChart.value = false;
   }
@@ -1279,7 +1355,8 @@ const openParetoDetail = async () => {
   isLoadingParetoDetail.value = true;
   try {
     const response = await api.get("/dashboard/pareto-details", {
-      params: { gudang: authStore.user.cabang === "KDC" ? "KDC" : authStore.user.cabang },
+      // [PERBAIKAN] Gunakan ?. dan || ""
+      params: { gudang: authStore.user?.cabang === "KDC" ? "KDC" : authStore.user?.cabang || "" },
     });
     paretoItems.value = response.data;
   } catch (e) {
@@ -2311,7 +2388,7 @@ onUnmounted(() => {
                               <v-list-item
                                 v-for="st in ['Antri', 'Packing', 'Kirim', 'Selesai']"
                                 :key="st"
-                                @click="updateStatus(item.activeShipment.id, st as any)"
+                                @click="updateStatus(item.activeShipment!.id!, st as any)"
                               >
                                 <v-list-item-title>{{ st }}</v-list-item-title>
                               </v-list-item>

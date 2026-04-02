@@ -1,22 +1,22 @@
 <script setup lang="ts">
-import { ref } from 'vue';
-import { useRouter } from 'vue-router';
-import PageLayout from '@/components/PageLayout.vue';
+import { ref } from "vue";
+import { useRouter } from "vue-router";
+import PageLayout from "@/components/PageLayout.vue";
 
 const router = useRouter();
 
 const mainMenus = ref([
   {
-    title: 'Master Data',
-    description: 'Kelola data master jenis kain, warna, barang, price list, dan promo.',
-    icon: 'mdi-database-outline',
-    path: '/gudang-dc/master-data',
+    title: "Master Data",
+    description: "Kelola data master jenis kain, warna, barang, price list, dan promo.",
+    icon: "mdi-database-outline",
+    path: "/gudang-dc/master-data",
   },
   {
-    title: 'Operasional Gudang',
-    description: 'Transaksi gudang DC: terima STBJ, surat jalan, pengambilan, retur, dan mutasi.',
-    icon: 'mdi-forklift',
-    path: '/gudang-dc/operasional',
+    title: "Operasional Gudang",
+    description: "Transaksi gudang DC: terima STBJ, surat jalan, pengambilan, retur, dan mutasi.",
+    icon: "mdi-forklift",
+    path: "/gudang-dc/operasional",
   },
 ]);
 </script>
@@ -26,7 +26,12 @@ const mainMenus = ref([
     <div class="pa-4">
       <v-row justify="center">
         <v-col v-for="item in mainMenus" :key="item.path" cols="12" sm="6" md="5">
-          <v-card class="d-flex flex-column fill-height" hover elevation="2" @click="router.push(item.path)">
+          <v-card
+            class="d-flex flex-column fill-height"
+            hover
+            elevation="2"
+            @click="router.push(item.path)"
+          >
             <v-card-title class="d-flex align-center">
               <v-icon :icon="item.icon" class="mr-3" color="primary" size="32"></v-icon>
               <span class="text-h6 font-weight-bold">{{ item.title }}</span>

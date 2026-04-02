@@ -9,6 +9,7 @@ import PageLayout from "@/components/PageLayout.vue";
 import * as XLSX from "xlsx";
 import AppDataTable from "@/components/AppDataTable.vue";
 import { formatRupiah } from "@/utils/formatRupiah";
+import axios from "axios";
 
 // Interface Header (Resize)
 interface DataTableHeader {
@@ -58,6 +59,11 @@ interface FskExportDetail {
   [key: string]: unknown;
 }
 
+interface CabangOption {
+  kode: string;
+  nama: string;
+}
+
 const router = useRouter();
 const toast = useToast();
 const authStore = useAuthStore();
@@ -70,11 +76,12 @@ const loading = ref(true);
 const loadingDetails = ref(new Set<string>());
 const selected = ref<FskMaster[]>([]);
 const expanded = ref<string[]>([]);
-const cabangList = ref([]);
+const cabangList = ref<CabangOption[]>([]);
 
 const filters = reactive({
   startDate: format(subDays(new Date(), 7), "yyyy-MM-dd"),
   endDate: format(new Date(), "yyyy-MM-dd"),
+  // [PERBAIKAN] Tambahkan fallback string kosong
   cabang: authStore.user?.cabang || "",
 });
 
@@ -301,8 +308,13 @@ const exportData = async (type: "header" | "detail") => {
       XLSX.utils.book_append_sheet(workbook, worksheet, "FSK Header");
       XLSX.writeFile(workbook, "Export_FSK_Header.xlsx");
       toast.success("File Header berhasil dibuat.");
-    } catch (error) {
-      toast.error("Gagal mengekspor data header.", error);
+    } catch (error: unknown) {
+      // [PERBAIKAN] Tambahkan unknown
+      let msg = "Gagal mengekspor data header.";
+      if (axios.isAxiosError(error)) msg = error.response?.data?.message || msg;
+      else if (error instanceof Error) msg = error.message;
+
+      toast.error(msg); // [PERBAIKAN] Cuma kirim string
     }
 
     // === EXPORT DETAIL ===

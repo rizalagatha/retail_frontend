@@ -7,6 +7,7 @@ import { format, parseISO, subDays } from "date-fns";
 import PageLayout from "@/components/PageLayout.vue";
 import { formatRupiah } from "@/utils/formatRupiah";
 import AuthorizationModal from "@/components/modal/AuthorizationModal.vue";
+import axios from "axios";
 
 interface DraftPettyCash {
   nomor: string;
@@ -49,13 +50,20 @@ const totalKlaim = computed(() => {
 const fetchDrafts = async () => {
   loading.value = true;
   try {
-    // --- UBAH: Kirim params filter ---
     const response = await api.get("/petty-cash/drafts-klaim", {
       params: filters,
     });
     draftItems.value = response.data;
-  } catch (error) {
-    toast.error("Gagal menarik data nota draft.", error);
+  } catch (error: unknown) {
+    // [PERBAIKAN] Gunakan unknown
+    let msg = "Gagal menarik data nota draft.";
+
+    // Ambil pesan asli dari backend kalau ada
+    if (axios.isAxiosError(error)) {
+      msg = error.response?.data?.message || msg;
+    }
+
+    toast.error(msg); // [PERBAIKAN] Cuma kirim string
   } finally {
     loading.value = false;
   }

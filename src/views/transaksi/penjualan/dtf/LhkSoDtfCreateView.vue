@@ -9,6 +9,7 @@ import { useUiStore } from "@/stores/uiStore";
 import { useUnsavedChanges } from "@/composables/useUnsavedChanges";
 import { format } from "date-fns";
 import SoPoSearchModal from "@/components/lookup/SoPoSearchModal.vue";
+import axios from "axios";
 
 // --- Interfaces ---
 interface RawSpec {
@@ -209,8 +210,11 @@ const handleSpecFileUpload = async (
       headers: { "Content-Type": "multipart/form-data" },
     });
     if (res.data.success) console.log(`Gambar ${specKode} diamankan.`);
-  } catch (error) {
-    toast.error("Gagal menyimpan gambar ke server.", error);
+  } catch (error: unknown) {
+    // [PERBAIKAN] Tambahkan unknown
+    let msg = "Gagal menyimpan gambar ke server.";
+    if (axios.isAxiosError(error)) msg = error.response?.data?.message || msg;
+    toast.error(msg); // [PERBAIKAN] Cukup kirim string
   } finally {
     spec.isUploading = false;
     target.value = "";
@@ -665,7 +669,8 @@ const runAutoArrange = () => {
         w: s.w + padding,
         h: s.h + padding,
         qty: Number(s.qtyTotal),
-        imageObj: s.uploadedImageObj,
+        // [PERBAIKAN] Tambahkan fallback || null agar tidak undefined
+        imageObj: s.uploadedImageObj || null,
       };
     });
   });
@@ -1084,8 +1089,11 @@ const onSoPoSelected = async (selectedItem: { kode: string; nama: string; sudah_
     isSoSearchVisible.value = false;
     isPoSearchVisible.value = false;
     isSpkSearchVisible.value = false;
-  } catch (err) {
-    toast.error("Gagal load spek.", err);
+  } catch (err: unknown) {
+    // [PERBAIKAN]
+    let msg = "Gagal load spek.";
+    if (axios.isAxiosError(err)) msg = err.response?.data?.message || msg;
+    toast.error(msg);
   }
 };
 

@@ -6,6 +6,7 @@ import api from "@/services/api";
 import { format, parseISO } from "date-fns";
 import PageLayout from "@/components/PageLayout.vue";
 import { formatRupiah } from "@/utils/formatRupiah";
+import axios from "axios";
 
 interface KlaimHeader {
   pck_nomor: string;
@@ -53,12 +54,14 @@ const dialogRejectItem = reactive({
 
 const fetchKlaimData = async () => {
   try {
-    // [UPDATE] Memanggil endpoint baru untuk data PCK
     const response = await api.get(`/petty-cash/klaim-finance/proses/${route.params.nomor}`);
     header.value = response.data.header;
     details.value = response.data.details;
-  } catch (error) {
-    toast.error("Gagal memuat data pengajuan.", error);
+  } catch (error: unknown) {
+    // [PERBAIKAN]
+    let msg = "Gagal memuat data pengajuan.";
+    if (axios.isAxiosError(error)) msg = error.response?.data?.message || msg;
+    toast.error(msg);
     router.back();
   } finally {
     loading.value = false;
@@ -93,7 +96,7 @@ const handleApprove = () => {
       toast.success("Pengajuan berhasil di-Approve.");
 
       dialogConfirm.show = false;
-      dialogPrint.nomor = header.value.pck_nomor;
+      dialogPrint.nomor = header.value.pck_nomor || "";
       dialogPrint.show = true;
     } catch (error: unknown) {
       const err = error as { response?: { data?: { message?: string } } };
@@ -172,7 +175,7 @@ onMounted(() => {
 
               <div class="text-caption text-grey">Tanggal Pengajuan</div>
               <div class="font-weight-medium mb-3">
-                {{ format(parseISO(header.pck_tanggal), "dd MMMM yyyy") }}
+                {{ header.pck_tanggal ? format(parseISO(header.pck_tanggal), "dd MMMM yyyy") : "" }}
               </div>
 
               <div class="text-caption text-grey">Cabang / Store</div>
@@ -182,7 +185,7 @@ onMounted(() => {
 
               <div class="text-caption text-grey">Total Klaim Diajukan</div>
               <div class="text-h5 font-weight-black text-error mb-3">
-                {{ formatRupiah(header.pck_total) }}
+                {{ formatRupiah(header.pck_total || 0) }}
               </div>
 
               <div class="text-caption text-grey">Keterangan Store</div>
@@ -328,7 +331,7 @@ onMounted(() => {
         >
         <v-card-text class="pa-5"
           >Yakin ingin menyetujui pengajuan ini dan mencairkan dana sebesar
-          <b>{{ formatRupiah(header.pck_total) }}</b
+          <b>{{ formatRupiah(header.pck_total || 0) }}</b
           >?</v-card-text
         >
         <v-card-actions class="pa-3">

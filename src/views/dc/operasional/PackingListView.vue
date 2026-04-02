@@ -11,6 +11,7 @@ import AppDataTable from "@/components/AppDataTable.vue";
 import * as XLSX from "xlsx";
 import { AxiosError } from "axios";
 import QRCode from "qrcode";
+import axios from "axios";
 
 // --- Tipe Data ---
 interface DataTableHeader {
@@ -47,6 +48,11 @@ interface PackingListDetail {
 }
 
 interface Product {
+  kode: string;
+  nama: string;
+}
+
+interface Branch {
   kode: string;
   nama: string;
 }
@@ -90,7 +96,7 @@ const loading = ref(false);
 const masterData = ref<PackingListHeader[]>([]);
 const selected = ref<PackingListHeader[]>([]);
 const expanded = ref<string[]>([]);
-const cabangList = ref([]);
+const cabangList = ref<Branch[]>([]);
 const loadingDetails = ref(new Set<string>());
 const details = ref<Record<string, PackingListDetail[]>>({});
 const dialog = reactive({ searchProduct: false, confirm: false });
@@ -287,8 +293,9 @@ const fetchMasterData = async () => {
     const response = await api.get("/packing-list", { params: filters });
     masterData.value = response.data;
   } catch (error: unknown) {
-    const err = error as AxiosError<{ message?: string }>;
-    toast.error(err.response?.data?.message || "Gagal mengambil data.");
+    let msg = "Gagal mengambil data.";
+    if (axios.isAxiosError(error)) msg = error.response?.data?.message || msg;
+    toast.error(msg);
   } finally {
     loading.value = false;
   }
@@ -297,15 +304,14 @@ const fetchMasterData = async () => {
 const fetchCabangList = async () => {
   try {
     const response = await api.get("/packing-list/lookup/cabang");
-    const list = response.data;
+    const list = response.data as Branch[];
 
-    // Tambahkan 'KBS' agar mendapatkan opsi 'Semua Cabang'
     if (["KDC", "KBS"].includes(authStore.user?.cabang || "")) {
       list.unshift({ kode: "ALL", nama: "Semua Cabang" });
     }
-
     cabangList.value = list;
   } catch {
+    // [PERBAIKAN] Hilangkan '(error: unknown)'
     toast.error("Gagal memuat daftar cabang.");
   }
 };
@@ -622,12 +628,13 @@ onMounted(async () => {
   }
 });
 
-let debounceTimer: number;
+let debounceTimer: number | undefined;
 watch(
   filters,
   () => {
     clearTimeout(debounceTimer);
-    debounceTimer = setTimeout(() => {
+    // [PERBAIKAN] Tambahkan window. agar tipe datanya terjamin 'number'
+    debounceTimer = window.setTimeout(() => {
       fetchMasterData();
     }, 500);
   },

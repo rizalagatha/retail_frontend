@@ -76,10 +76,11 @@ const selectItem = (item: SoPoItem) => {
   emit("close");
 };
 
-let searchTimeout: number;
+let searchTimeout: number | undefined; // Tambahkan | undefined
 watch(search, () => {
   clearTimeout(searchTimeout);
-  searchTimeout = setTimeout(() => {
+  searchTimeout = window.setTimeout(() => {
+    // Tambahkan window.
     page.value = 1; // reset ke halaman pertama saat search
     loadItems();
   }, 500);

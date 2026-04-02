@@ -193,8 +193,10 @@ const fetchCabangList = async () => {
       }
       selectedCabang.value = "ALL";
     }
-  } catch (err) {
-    toast.error("Gagal memuat daftar cabang.", err);
+  } catch (err: unknown) {
+    let msg = "Gagal memuat daftar cabang.";
+    if (axios.isAxiosError(err)) msg = err.response?.data?.message || msg;
+    toast.error(msg); // [FIX] Cuma kirim string
   }
 };
 
@@ -206,8 +208,10 @@ const fetchJenisOrderList = async () => {
       { kode: "ALL", nama: "SEMUA JENIS" }, // Opsi default
       ...res.data,
     ];
-  } catch (err) {
-    toast.error("Gagal memuat daftar jenis order.", err);
+  } catch (err: unknown) {
+    let msg = "Gagal memuat daftar jenis order.";
+    if (axios.isAxiosError(err)) msg = err.response?.data?.message || msg;
+    toast.error(msg); // [FIX] Cuma kirim string
   }
 };
 
@@ -225,8 +229,10 @@ const fetchData = async () => {
       },
     });
     list.value = res.data;
-  } catch (_err) {
-    toast.error("Gagal memuat data LHK.", _err);
+  } catch (err: unknown) {
+    let msg = "Gagal memuat data LHK.";
+    if (axios.isAxiosError(err)) msg = err.response?.data?.message || msg;
+    toast.error(msg);
   } finally {
     isLoading.value = false;
   }
@@ -242,8 +248,10 @@ const loadDetails = async (newlyExpanded: LhkHeader[]) => {
   try {
     const res = await api.get(`/lhk-so-dtf/detail-list/${item.NomorLhk}`);
     details.value[item.NomorLhk] = res.data;
-  } catch (_err) {
-    toast.error(`Gagal memuat rincian untuk ${item.NomorLhk}`, _err);
+  } catch (err: unknown) {
+    let msg = `Gagal memuat rincian untuk ${item.NomorLhk}`;
+    if (axios.isAxiosError(err)) msg = err.response?.data?.message || msg;
+    toast.error(msg);
   } finally {
     loadingDetails.value.delete(item.NomorLhk);
   }

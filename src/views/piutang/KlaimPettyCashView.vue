@@ -8,6 +8,7 @@ import { format, subDays, parseISO } from "date-fns";
 import PageLayout from "@/components/PageLayout.vue";
 import AppDataTable from "@/components/AppDataTable.vue";
 import { formatRupiah } from "@/utils/formatRupiah";
+import axios from "axios";
 
 // --- INTERFACES ---
 interface KlaimItem {
@@ -121,11 +122,15 @@ const fetchMasterData = async () => {
   selected.value = [];
   expanded.value = [];
   try {
-    // API BARU UNTUK FINANCE
     const response = await api.get("/petty-cash/klaim-finance", { params: filters });
     masterData.value = response.data;
-  } catch (error) {
-    toast.error("Gagal mengambil data Klaim Petty Cash.", error);
+  } catch (error: unknown) {
+    // [PERBAIKAN]
+    let msg = "Gagal mengambil data Klaim Petty Cash.";
+    if (axios.isAxiosError(error)) {
+      msg = error.response?.data?.message || msg;
+    }
+    toast.error(msg); // Kirim string saja ke sini
   } finally {
     loading.value = false;
   }
@@ -140,11 +145,15 @@ const loadDetails = async (newlyExpandedItems: KlaimItem[]) => {
   const pckNomor = itemToLoad.nomor;
   loadingDetails.value.add(pckNomor);
   try {
-    // API BARU UNTUK MENGAMBIL RINCIAN SEMUA NOTA DI DALAM PENGAJUAN
     const response = await api.get(`/petty-cash/klaim-finance/detail/${pckNomor}`);
     details.value[pckNomor] = response.data;
-  } catch (error) {
-    toast.error(`Gagal memuat detail nota.`, error);
+  } catch (error: unknown) {
+    // [PERBAIKAN]
+    let msg = "Gagal memuat detail nota.";
+    if (axios.isAxiosError(error)) {
+      msg = error.response?.data?.message || msg;
+    }
+    toast.error(msg);
   } finally {
     loadingDetails.value.delete(pckNomor);
   }

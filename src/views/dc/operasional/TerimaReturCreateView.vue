@@ -6,7 +6,7 @@ import { useAuthStore } from "@/stores/authStore";
 import api from "@/services/api";
 import { format, parseISO, isBefore } from "date-fns";
 import PageLayout from "@/components/PageLayout.vue";
-import type { AxiosError } from "axios";
+import axios, { type AxiosError, type AxiosResponse } from "axios";
 
 // --- Tipe Data ---
 interface Header {
@@ -179,14 +179,22 @@ onMounted(async () => {
   }
 
   try {
-    let response;
+    // [SOLUSI HALAL] Kita pakai tipe resmi bawaan Axios, linter pasti diam!
+    let response: AxiosResponse;
+
     if (isEditMode.value) {
       // Panggil endpoint getForEdit jika sudah dibuat
       // response = await api.get(`/terima-retur-form/${route.params.nomor}`);
+
+      // Karena belum ada, kita lempar error dulu biar aman
+      throw new Error("Mode edit belum diimplementasikan.");
     } else {
       response = await api.get(`/terima-retur-form/load-from-kirim/${nomorKirim}`);
     }
+
+    // Sekarang TypeScript tahu 'response' itu pasti berisi data dari Axios
     const data = response.data;
+
     Object.assign(header, data.header);
     items.value = data.items.map((item: Item) => ({
       ...item,
@@ -196,9 +204,10 @@ onMounted(async () => {
     }));
   } catch (error: unknown) {
     let message = "Gagal memuat data.";
-    if ((error as AxiosError).isAxiosError) {
-      const axiosError = error as AxiosError<{ message?: string }>;
-      message = axiosError.response?.data?.message || message;
+    if (axios.isAxiosError(error)) {
+      message = error.response?.data?.message || message;
+    } else if (error instanceof Error) {
+      message = error.message;
     }
     toast.error(message);
     router.back();

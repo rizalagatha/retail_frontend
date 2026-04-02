@@ -173,8 +173,17 @@ const loadData = async (nomor: string) => {
 
     addNewRow();
     markAsSaved();
-  } catch (error) {
-    toast.error("Gagal memuat data permintaan.", error);
+  } catch (error: unknown) {
+    // [PERBAIKAN 1] Beri tipe unknown
+    // [PERBAIKAN 2] Ekstrak pesan secara aman seperti pada executeSave
+    let errorMessage = "Gagal memuat data permintaan.";
+    if (axios.isAxiosError(error)) {
+      errorMessage = error.response?.data?.message || errorMessage;
+    } else if (error instanceof Error) {
+      errorMessage = error.message;
+    }
+
+    toast.error(errorMessage); // [PERBAIKAN 3] Masukkan string saja
     router.back();
   } finally {
     isLoading.value = false;

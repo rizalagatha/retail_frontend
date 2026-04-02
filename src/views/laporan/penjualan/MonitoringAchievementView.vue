@@ -6,7 +6,7 @@ import api from "@/services/api";
 import { format } from "date-fns";
 import PageLayout from "@/components/PageLayout.vue";
 import * as XLSX from "xlsx";
-import { AxiosError } from "axios";
+import axios, { type AxiosError } from "axios";
 import AppDataTable from "@/components/AppDataTable.vue";
 import { formatCurrency } from "@/utils/numberUtils";
 import { AppConfig } from "@/config/appConfig";
@@ -57,6 +57,7 @@ interface WeeklyItem {
   target_w5: number;
   total_nominal: number;
   total_target: number;
+  [key: string]: unknown;
   // ACH bisa dihitung, jadi opsional
 }
 interface MonthlyItem {
@@ -96,6 +97,7 @@ type WeeklyTotals = {
   ach_w4: number;
   ach_w5: number;
   total_ach: number;
+  [key: string]: unknown;
 };
 interface DailySummary {
   omset: number;
@@ -128,6 +130,10 @@ interface TargetWeek {
   start_date: string;
   end_date: string;
 }
+interface ExistingTarget {
+  minggu: number;
+  nominal: number;
+}
 
 const toast = useToast();
 const authStore = useAuthStore();
@@ -135,7 +141,7 @@ const MENU_ID = "705";
 
 const activeTab = ref("daily");
 const isLoading = ref(false);
-const cabangOptions = ref([]);
+const cabangOptions = ref<{ kode: string; nama: string }[]>([]);
 
 const dailyData = ref<DailyItem[]>([]);
 const weeklyData = ref<WeeklyItem[]>([]);
@@ -157,7 +163,7 @@ const currentYear = new Date().getFullYear();
 const filters = reactive({
   tahun: currentYear,
   bulan: new Date().getMonth() + 1,
-  cabang: authStore.user?.cabang === "KDC" ? "ALL" : authStore.user?.cabang,
+  cabang: (authStore.user?.cabang === "KDC" ? "ALL" : authStore.user?.cabang || "") as string,
 });
 // Form Target
 const targetForm = reactive({
@@ -302,7 +308,22 @@ const totalSummary = computed<DailySummary>(
 );
 
 const dailyTotalSummary = computed(() => {
-  if (!dailyData.value.length) return {};
+  if (!dailyData.value.length) {
+    return {
+      omset: 0,
+      retur_jual: 0,
+      biaya_platform: 0,
+      total_omset: 0,
+      so_open_today: 0,
+      piutang_today: 0,
+      so_open_30days: 0,
+      so_open_accum: 0,
+      piutang_30days: 0,
+      piutang_accum: 0,
+      target_bulanan: 0,
+      ach: 0,
+    };
+  }
 
   const lastRow = dailyData.value[dailyData.value.length - 1];
   const sum = (key: keyof DailyItem) =>
@@ -333,77 +354,62 @@ const dailyTotalSummary = computed(() => {
 });
 
 const weeklyTotalSummary = computed<WeeklyTotals>(() => {
+  const defaultTotals: WeeklyTotals = {
+    nominal_w1: 0,
+    target_w1: 0,
+    ach_w1: 0,
+    nominal_w2: 0,
+    target_w2: 0,
+    ach_w2: 0,
+    nominal_w3: 0,
+    target_w3: 0,
+    ach_w3: 0,
+    nominal_w4: 0,
+    target_w4: 0,
+    ach_w4: 0,
+    nominal_w5: 0,
+    target_w5: 0,
+    ach_w5: 0,
+    total_nominal: 0,
+    total_target: 0,
+    total_ach: 0,
+  };
+
   if (!weeklyData.value || weeklyData.value.length === 0) {
-    return {
-      nominal_w1: 0,
-      target_w1: 0,
-      nominal_w2: 0,
-      target_w2: 0,
-      nominal_w3: 0,
-      target_w3: 0,
-      nominal_w4: 0,
-      target_w4: 0,
-      nominal_w5: 0,
-      target_w5: 0,
-      total_nominal: 0,
-      total_target: 0,
-      ach_w1: 0,
-      ach_w2: 0,
-      ach_w3: 0,
-      ach_w4: 0,
-      ach_w5: 0,
-      total_ach: 0,
-    };
+    return defaultTotals;
   }
 
   const totals = weeklyData.value.reduce<WeeklyTotals>(
     (acc, item) => {
-      for (let i = 1; i <= 5; i++) {
-        // [PERBAIKAN] Deklarasikan kunci secara eksplisit untuk menenangkan TypeScript
-        const nomKey = `nominal_w${i}` as keyof WeeklyTotals;
-        const targetKey = `target_w${i}` as keyof WeeklyTotals;
+      // Tulis manual 5 minggu. Terlihat panjang, tapi ini yang paling disukai TypeScript!
+      acc.nominal_w1 += Number(item.nominal_w1 || 0);
+      acc.target_w1 += Number(item.target_w1 || 0);
 
-        const itemNomKey = `nominal_w${i}` as keyof WeeklyItem;
-        const itemTargetKey = `target_w${i}` as keyof WeeklyItem;
+      acc.nominal_w2 += Number(item.nominal_w2 || 0);
+      acc.target_w2 += Number(item.target_w2 || 0);
 
-        acc[nomKey] += Number(item[itemNomKey] || 0);
-        acc[targetKey] += Number(item[itemTargetKey] || 0);
-      }
+      acc.nominal_w3 += Number(item.nominal_w3 || 0);
+      acc.target_w3 += Number(item.target_w3 || 0);
+
+      acc.nominal_w4 += Number(item.nominal_w4 || 0);
+      acc.target_w4 += Number(item.target_w4 || 0);
+
+      acc.nominal_w5 += Number(item.nominal_w5 || 0);
+      acc.target_w5 += Number(item.target_w5 || 0);
+
       acc.total_nominal += Number(item.total_nominal || 0);
       acc.total_target += Number(item.total_target || 0);
       return acc;
     },
-    {
-      nominal_w1: 0,
-      target_w1: 0,
-      nominal_w2: 0,
-      target_w2: 0,
-      nominal_w3: 0,
-      target_w3: 0,
-      nominal_w4: 0,
-      target_w4: 0,
-      nominal_w5: 0,
-      target_w5: 0,
-      total_nominal: 0,
-      total_target: 0,
-      ach_w1: 0,
-      ach_w2: 0,
-      ach_w3: 0,
-      ach_w4: 0,
-      ach_w5: 0,
-      total_ach: 0,
-    }
+    { ...defaultTotals }
   );
 
-  // Hitung Ach(%) tiap minggu
-  for (let i = 1; i <= 5; i++) {
-    // [PERBAIKAN] Deklarasikan kunci secara eksplisit
-    const achKey = `ach_w${i}` as keyof WeeklyTotals;
-    const nomKey = `nominal_w${i}` as keyof WeeklyTotals;
-    const targetKey = `target_w${i}` as keyof WeeklyTotals;
-
-    totals[achKey] = totals[targetKey] > 0 ? (totals[nomKey] / totals[targetKey]) * 100 : 0;
-  }
+  // Hitung ACH manual
+  totals.ach_w1 = totals.target_w1 > 0 ? (totals.nominal_w1 / totals.target_w1) * 100 : 0;
+  totals.ach_w2 = totals.target_w2 > 0 ? (totals.nominal_w2 / totals.target_w2) * 100 : 0;
+  totals.ach_w3 = totals.target_w3 > 0 ? (totals.nominal_w3 / totals.target_w3) * 100 : 0;
+  totals.ach_w4 = totals.target_w4 > 0 ? (totals.nominal_w4 / totals.target_w4) * 100 : 0;
+  totals.ach_w5 = totals.target_w5 > 0 ? (totals.nominal_w5 / totals.target_w5) * 100 : 0;
 
   totals.total_ach =
     totals.total_target > 0 ? (totals.total_nominal / totals.total_target) * 100 : 0;
@@ -442,6 +448,52 @@ const ytdTotalSummary = computed<YtdSummary>(() => {
     ach: totals.target > 0 ? (totals.nominal / totals.target) * 100 : 0,
   } as YtdSummary;
 });
+
+// Fungsi bantuan murni tanpa dynamic key
+const getWeekNominal = (item: WeeklyItem, week: number): number => {
+  if (week === 1) return Number(item.nominal_w1 || 0);
+  if (week === 2) return Number(item.nominal_w2 || 0);
+  if (week === 3) return Number(item.nominal_w3 || 0);
+  if (week === 4) return Number(item.nominal_w4 || 0);
+  if (week === 5) return Number(item.nominal_w5 || 0);
+  return 0;
+};
+
+const getWeekTarget = (item: WeeklyItem, week: number): number => {
+  if (week === 1) return Number(item.target_w1 || 0);
+  if (week === 2) return Number(item.target_w2 || 0);
+  if (week === 3) return Number(item.target_w3 || 0);
+  if (week === 4) return Number(item.target_w4 || 0);
+  if (week === 5) return Number(item.target_w5 || 0);
+  return 0;
+};
+
+const getSummaryNominal = (week: number): number => {
+  if (week === 1) return Number(weeklyTotalSummary.value.nominal_w1 || 0);
+  if (week === 2) return Number(weeklyTotalSummary.value.nominal_w2 || 0);
+  if (week === 3) return Number(weeklyTotalSummary.value.nominal_w3 || 0);
+  if (week === 4) return Number(weeklyTotalSummary.value.nominal_w4 || 0);
+  if (week === 5) return Number(weeklyTotalSummary.value.nominal_w5 || 0);
+  return 0;
+};
+
+const getSummaryTarget = (week: number): number => {
+  if (week === 1) return Number(weeklyTotalSummary.value.target_w1 || 0);
+  if (week === 2) return Number(weeklyTotalSummary.value.target_w2 || 0);
+  if (week === 3) return Number(weeklyTotalSummary.value.target_w3 || 0);
+  if (week === 4) return Number(weeklyTotalSummary.value.target_w4 || 0);
+  if (week === 5) return Number(weeklyTotalSummary.value.target_w5 || 0);
+  return 0;
+};
+
+const getSummaryAch = (week: number): number => {
+  if (week === 1) return Number(weeklyTotalSummary.value.ach_w1 || 0);
+  if (week === 2) return Number(weeklyTotalSummary.value.ach_w2 || 0);
+  if (week === 3) return Number(weeklyTotalSummary.value.ach_w3 || 0);
+  if (week === 4) return Number(weeklyTotalSummary.value.ach_w4 || 0);
+  if (week === 5) return Number(weeklyTotalSummary.value.ach_w5 || 0);
+  return 0;
+};
 
 // Computed Check Hak Akses (KDC & ADMIN)
 const canInputTarget = computed(() => {
@@ -482,8 +534,11 @@ const fetchCabangOptions = async () => {
   try {
     const response = await api.get("/monitoring-achievement/cabang-options");
     cabangOptions.value = response.data;
-  } catch (error) {
-    toast.error("Gagal memuat filter cabang.", error);
+  } catch (error: unknown) {
+    // [PERBAIKAN] Tambahkan unknown
+    let msg = "Gagal memuat filter cabang.";
+    if (axios.isAxiosError(error)) msg = error.response?.data?.message || msg;
+    toast.error(msg); // [PERBAIKAN] Cuma kirim string
   }
 };
 
@@ -875,17 +930,17 @@ const fetchExistingTarget = async () => {
       },
     });
 
-    const existingData = response.data; // Contoh isi: [{ minggu: 1, nominal: 5000000 }, ...]
+    // [PERBAIKAN] Cast tipe datanya
+    const existingData = response.data as ExistingTarget[];
 
     if (existingData && existingData.length > 0) {
-      // Jika data ditemukan, tembakkan angkanya ke dalam inputan form
       targetForm.weeks.forEach((w) => {
-        const found = existingData.find((d: any) => d.minggu === w.minggu);
+        // [PERBAIKAN] Tidak perlu ': any' lagi karena TS sudah tahu d itu ExistingTarget
+        const found = existingData.find((d) => d.minggu === w.minggu);
         w.nominal = found ? Number(found.nominal) : 0;
       });
       toast.info("Data target ditemukan. Menampilkan data tersimpan.");
     } else {
-      // Jika belum pernah diinput, pastikan angkanya 0
       targetForm.weeks.forEach((w) => (w.nominal = 0));
     }
   } catch (error) {
@@ -908,7 +963,8 @@ watch(activeTab, (newTab) => {
   } else if (newTab === "daily" || newTab === "ytd") {
     // Untuk daily dan ytd, kembalikan ke default user
     if (authStore.user?.cabang !== "KDC") {
-      filters.cabang = authStore.user?.cabang;
+      // [PERBAIKAN] Tambahkan fallback || "" agar TS yakin ini pasti string
+      filters.cabang = authStore.user?.cabang || "";
     }
   }
 
@@ -1166,26 +1222,26 @@ watch([filters, activeTab], fetchData, { deep: true });
                       <td>{{ item.kode_cabang }}</td>
                       <td>{{ item.nama_cabang }}</td>
                       <template v-for="w in 5" :key="w">
-                        <td class="text-end">{{ rupiah(item[`nominal_w${w}`]) }}</td>
-                        <td class="text-end">{{ rupiah(item[`target_w${w}`]) }}</td>
+                        <td class="text-end">{{ rupiah(getWeekNominal(item, w)) }}</td>
+                        <td class="text-end">{{ rupiah(getWeekTarget(item, w)) }}</td>
                         <td class="text-center">
                           <v-chip
                             size="x-small"
                             :color="
                               (() => {
-                                const val =
-                                  item[`target_w${w}`] > 0
-                                    ? (item[`nominal_w${w}`] / item[`target_w${w}`]) * 100
-                                    : 0;
+                                const t = getWeekTarget(item, w);
+                                const n = getWeekNominal(item, w);
+                                const val = t > 0 ? (n / t) * 100 : 0;
                                 return val < 100 ? 'error' : val < 200 ? 'success' : 'primary';
                               })()
                             "
                           >
                             {{
-                              (item[`target_w${w}`] > 0
-                                ? (item[`nominal_w${w}`] / item[`target_w${w}`]) * 100
-                                : 0
-                              ).toFixed(2)
+                              (() => {
+                                const t = getWeekTarget(item, w);
+                                const n = getWeekNominal(item, w);
+                                return t > 0 ? ((n / t) * 100).toFixed(2) : "0.00";
+                              })()
                             }}%
                           </v-chip>
                         </td>
@@ -1218,11 +1274,9 @@ watch([filters, activeTab], fetchData, { deep: true });
                   <tr class="total-row-sticky">
                     <td colspan="3" class="text-end">GRAND TOTAL :</td>
                     <template v-for="w in 5" :key="w">
-                      <td class="text-end">{{ rupiah(weeklyTotalSummary[`nominal_w${w}`]) }}</td>
-                      <td class="text-end">{{ rupiah(weeklyTotalSummary[`target_w${w}`]) }}</td>
-                      <td class="text-center">
-                        {{ (weeklyTotalSummary[`ach_w${w}`] || 0).toFixed(2) }}%
-                      </td>
+                      <td class="text-end">{{ rupiah(getSummaryNominal(w)) }}</td>
+                      <td class="text-end">{{ rupiah(getSummaryTarget(w)) }}</td>
+                      <td class="text-center">{{ getSummaryAch(w).toFixed(2) }}%</td>
                     </template>
                     <td class="text-end">{{ rupiah(weeklyTotalSummary.total_nominal) }}</td>
                     <td class="text-end">{{ rupiah(weeklyTotalSummary.total_target) }}</td>

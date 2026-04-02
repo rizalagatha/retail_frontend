@@ -9,6 +9,7 @@ import PageLayout from "@/components/PageLayout.vue";
 import AppDataTable from "@/components/AppDataTable.vue";
 import type { AxiosError } from "axios";
 import { formatRupiah } from "@/utils/formatRupiah";
+import axios from "axios";
 
 // --- Interfaces ---
 interface PettyCashItem {
@@ -209,29 +210,31 @@ const loadDetails = async (newlyExpandedItems: PettyCashItem[]) => {
   loadingDetails.value.add(kunciLoad);
 
   try {
-    // Jika item adalah Pengajuan (KPC), pakai API rincian klaim
     if (itemToLoad.pck_nomor) {
-      // Asumsi API ini memanggil "getDetailKlaimFinance" dari backend
-      const response = await api.get(`/petty-cash-form/klaim-detail/${itemToLoad.pck_nomor}`);
-      // Sesuaikan mapping data dengan struktur tabel detail Anda
+      // [PERBAIKAN] Tambahkan <PettyCashDetail[]> setelah api.get
+      const response = await api.get<PettyCashDetail[]>(
+        `/petty-cash-form/klaim-detail/${itemToLoad.pck_nomor}`
+      );
+
       details.value[kunciLoad] = response.data.map((d) => ({
+        pcd_idrec: d.pcd_idrec,
         pcd_tanggal: d.pcd_tanggal,
         pcd_pcv: d.pcd_pcv,
-        pc_nomor: d.pc_nomor, // <-- Tambahkan properti ini
-        pcd_kategori: d.pcd_kategori, // <-- Kembalikan jadi murni kategori saja
+        pc_nomor: d.pc_nomor,
+        pcd_kategori: d.pcd_kategori,
         pcd_keterangan: d.pcd_keterangan,
         pcd_nominal: d.pcd_nominal,
         pcd_file: d.pcd_file,
       }));
     } else {
-      // Jika item masih DRAFT (PC biasa), pakai API detail nota biasa
+      // [PERBAIKAN] Tambahkan casting atau generic di sini juga jika perlu
       const response = await api.get(`/petty-cash-form/${kunciLoad}`);
       details.value[kunciLoad] = response.data.details;
     }
-  } catch (error) {
-    toast.error(`Gagal memuat detail nota untuk ${kunciLoad}`, error);
-  } finally {
-    loadingDetails.value.delete(kunciLoad);
+  } catch (error: unknown) {
+    let msg = `Gagal memuat detail nota untuk ${kunciLoad}`;
+    if (axios.isAxiosError(error)) msg = error.response?.data?.message || msg;
+    toast.error(msg); // [PERBAIKAN] Cuma kirim string
   }
 };
 
@@ -262,8 +265,10 @@ const handleDelete = () => {
       await api.delete(`/petty-cash/${item.nomor_utama}`);
       toast.success("Petty Cash berhasil dihapus.");
       fetchMasterData();
-    } catch (error) {
-      toast.error("Gagal menghapus data.", error);
+    } catch (error: unknown) {
+      let msg = "Gagal menghapus data.";
+      if (axios.isAxiosError(error)) msg = error.response?.data?.message || msg;
+      toast.error(msg); // [PERBAIKAN]
     }
   };
   dialogConfirm.show = true;

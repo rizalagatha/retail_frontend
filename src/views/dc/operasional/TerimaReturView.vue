@@ -319,8 +319,11 @@ const loadDetails = async (newlyExpandedItems: MasterItem[]) => {
   try {
     const response = await api.get(`/terima-retur/details/${nomorToLoad}`);
     details.value[nomorToLoad] = response.data;
-  } catch (error) {
-    toast.error(`Gagal memuat detail untuk ${nomorToLoad}`, error);
+  } catch (error: unknown) {
+    // [PERBAIKAN] Tambahkan unknown
+    let msg = `Gagal memuat detail untuk ${nomorToLoad}`;
+    if (isAxiosError(error)) msg = error.response?.data?.message || msg;
+    toast.error(msg); // Cuma lempar string
   } finally {
     loadingDetails.value.delete(nomorToLoad);
   }
@@ -418,8 +421,10 @@ const exportData = async (type: "header" | "detail") => {
       XLSX.writeFile(workbook, fileName);
 
       toast.success("Header berhasil diekspor.");
-    } catch (error) {
-      toast.error("Gagal membuat file Excel.", error);
+    } catch (error: unknown) {
+      // [PERBAIKAN]
+      toast.error("Gagal membuat file Excel."); // Jangan masukkan 'error' ke sini
+      console.error(error); // Biar linternya diam karena error dianggap "terpakai"
     }
 
     // === EXPORT DETAIL ===

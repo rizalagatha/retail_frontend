@@ -8,6 +8,7 @@ import PageLayout from "@/components/PageLayout.vue";
 import type { AxiosError } from "axios";
 import api from "@/services/api";
 import { formatRupiah } from "@/utils/formatRupiah";
+import axios from "axios";
 
 const router = useRouter();
 const route = useRoute();
@@ -353,8 +354,16 @@ const loadData = async (nomor: string) => {
     });
 
     calculateTotals();
-  } catch (error) {
-    toast.error("Gagal memuat data laporan.", error);
+  } catch (error: unknown) {
+    // [PERBAIKAN] Gunakan unknown
+    let msg = "Gagal memuat data laporan.";
+
+    // Ekstrak pesan dari backend jika ada
+    if (axios.isAxiosError(error)) {
+      msg = error.response?.data?.message || msg;
+    }
+
+    toast.error(msg); // [PERBAIKAN] Hapus parameter kedua 'error'
     router.push("/transaksi/internal/petty-cash");
   } finally {
     isLoading.value = false;

@@ -1,13 +1,14 @@
 <script setup lang="ts">
-import { ref, reactive, onMounted, computed, watch } from 'vue';
-import { useRoute, useRouter } from 'vue-router';
-import { useToast } from 'vue-toastification';
-import { useAuthStore } from '@/stores/authStore';
-import api from '@/services/api';
-import { format, parseISO } from 'date-fns';
-import PageLayout from '@/components/PageLayout.vue';
-import MintaBarangSearchModal from '@/components/lookup/MintaBarangSearchModal.vue';
-import type { AxiosError } from 'axios';
+import { ref, reactive, onMounted, computed, watch } from "vue";
+import { useRoute, useRouter } from "vue-router";
+import { useToast } from "vue-toastification";
+import { useAuthStore } from "@/stores/authStore";
+import api from "@/services/api";
+import { format, parseISO } from "date-fns";
+import PageLayout from "@/components/PageLayout.vue";
+import MintaBarangSearchModal from "@/components/lookup/MintaBarangSearchModal.vue";
+import type { AxiosError } from "axios";
+import axios from "axios";
 
 // --- Tipe Data ---
 interface Header {
@@ -20,14 +21,14 @@ interface Header {
   totalQty: number;
   diskonRp: number;
   diskonPersen: number;
-  kelipatan: 'Y' | 'N';
-  generate: 'N' | 'K' | 'V'; // N:None, K:Kupon, V:Voucher
-  jenisKupon: '' | 'BELANJA' | 'UNDIAN';
-  cetakKupon: 'Y' | 'N';
+  kelipatan: "Y" | "N";
+  generate: "N" | "K" | "V"; // N:None, K:Kupon, V:Voucher
+  jenisKupon: "" | "BELANJA" | "UNDIAN";
+  cetakKupon: "Y" | "N";
   rpVoucher: number;
   keterangan: string;
   note: string;
-  f1: 'Y' | 'N';
+  f1: "Y" | "N";
 }
 interface BonusItem {
   id: number;
@@ -61,16 +62,30 @@ const router = useRouter();
 const route = useRoute();
 const toast = useToast();
 const authStore = useAuthStore();
-const MENU_ID = '205';
+const MENU_ID = "205";
 
 const isEditMode = computed(() => !!route.params.nomor);
-const pageTitle = computed(() => isEditMode.value ? 'Ubah Promo' : 'Buat Promo');
-const tab = ref('promo');
+const pageTitle = computed(() => (isEditMode.value ? "Ubah Promo" : "Buat Promo"));
+const tab = ref("promo");
 
 const header = reactive<Header>({
-  nomor: '', judul: '', tanggal1: format(new Date(), 'yyyy-MM-dd'), tanggal2: format(new Date(), 'yyyy-MM-dd'),
-  jenis: 1, totalRp: 0, totalQty: 0, diskonRp: 0, diskonPersen: 0, kelipatan: 'N',
-  generate: 'N', jenisKupon: '', cetakKupon: 'N', rpVoucher: 0, keterangan: '', note: '', f1: 'N'
+  nomor: "",
+  judul: "",
+  tanggal1: format(new Date(), "yyyy-MM-dd"),
+  tanggal2: format(new Date(), "yyyy-MM-dd"),
+  jenis: 1,
+  totalRp: 0,
+  totalQty: 0,
+  diskonRp: 0,
+  diskonPersen: 0,
+  kelipatan: "N",
+  generate: "N",
+  jenisKupon: "",
+  cetakKupon: "N",
+  rpVoucher: 0,
+  keterangan: "",
+  note: "",
+  f1: "N",
 });
 const bonusItems = ref<BonusItem[]>([]);
 const cabangList = ref<CabangLevelItem[]>([]);
@@ -79,7 +94,7 @@ const isLoading = ref(true);
 const isSaving = ref(false);
 const isBonusSearchVisible = ref(false);
 const activeBonusRowIndex = ref(0);
-const dialogConfirm = reactive({ show: false, title: '', text: '', onConfirm: () => { } });
+const dialogConfirm = reactive({ show: false, title: "", text: "", onConfirm: () => {} });
 const applicableItems = ref<ApplicableItem[]>([]);
 const isApplicableSearchVisible = ref(false);
 const activeApplicableRowIndex = ref(0);
@@ -90,32 +105,40 @@ const applicableItemsDirty = ref(false);
 
 // --- Konfigurasi Tabel ---
 const bonusHeaders = [
-  { title: 'Kode Barang', key: 'kode', width: '250px' },
-  { title: 'Nama Barang', key: 'nama' },
-  { title: 'Ukuran', key: 'ukuran', width: '150px' },
-  { title: 'Qty', key: 'qty', width: '150px' },
-  { title: 'Actions', key: 'actions', sortable: false, width: '50px' },
+  { title: "Kode Barang", key: "kode", width: "250px" },
+  { title: "Nama Barang", key: "nama" },
+  { title: "Ukuran", key: "ukuran", width: "150px" },
+  { title: "Qty", key: "qty", width: "150px" },
+  { title: "Actions", key: "actions", sortable: false, width: "50px" },
 ];
-const cabangHeaders = [{ title: 'Cabang', key: 'cab' }, { title: 'Berlaku', key: 'berlaku', align: 'center' }] as const;
-const levelHeaders = [{ title: 'Kode', key: 'kode' }, { title: 'Level Customer', key: 'level' }, { title: 'Berlaku', key: 'berlaku', align: 'center' }] as const;
+const cabangHeaders = [
+  { title: "Cabang", key: "cab" },
+  { title: "Berlaku", key: "berlaku", align: "center" },
+] as const;
+const levelHeaders = [
+  { title: "Kode", key: "kode" },
+  { title: "Level Customer", key: "level" },
+  { title: "Berlaku", key: "berlaku", align: "center" },
+] as const;
 const applicableHeaders = [
-  { title: 'Kode Barang', key: 'kode', width: '120px' },
-  { title: 'Nama Barang', key: 'nama' },
-  { title: 'Ukuran', key: 'ukuran', width: '60px' },
-  { title: 'Qty', key: 'qty', width: '60px' },
-  { title: 'Harga', key: 'harga', width: '80px' },
-  { title: 'Disc %', key: 'disc', width: '60px' },
-  { title: 'Diskon Rp', key: 'diskon', width: '80px' },
-  { title: 'Actions', key: 'actions', sortable: false, width: '50px' },
+  { title: "Kode Barang", key: "kode", width: "120px" },
+  { title: "Nama Barang", key: "nama" },
+  { title: "Ukuran", key: "ukuran", width: "60px" },
+  { title: "Qty", key: "qty", width: "60px" },
+  { title: "Harga", key: "harga", width: "80px" },
+  { title: "Disc %", key: "disc", width: "60px" },
+  { title: "Diskon Rp", key: "diskon", width: "80px" },
+  { title: "Actions", key: "actions", sortable: false, width: "50px" },
 ];
 
 // --- Methods ---
 const addNewBonusRow = () => {
   const last = bonusItems.value[bonusItems.value.length - 1];
-  if (!last || last.kode) bonusItems.value.push({ id: Date.now(), kode: '', nama: '', ukuran: '', qty: 1 });
+  if (!last || last.kode)
+    bonusItems.value.push({ id: Date.now(), kode: "", nama: "", ukuran: "", qty: 1 });
 };
 const removeBonusRow = (id: number) => {
-  bonusItems.value = bonusItems.value.filter(i => i.id !== id);
+  bonusItems.value = bonusItems.value.filter((i) => i.id !== id);
   if (bonusItems.value.length === 0) addNewBonusRow();
 };
 const openBonusSearch = (index: number) => {
@@ -127,9 +150,9 @@ const onBonusSelected = (products: ProductItem[]) => {
   const selected = products[0];
   if (!selected) return;
   const isDuplicate = bonusItems.value.some(
-    b => b.kode === selected.kode && b.ukuran === selected.ukuran
+    (b) => b.kode === selected.kode && b.ukuran === selected.ukuran
   );
-  if (isDuplicate) return toast.warning('Barang bonus ini sudah ada di daftar.');
+  if (isDuplicate) return toast.warning("Barang bonus ini sudah ada di daftar.");
 
   const targetRow = bonusItems.value[activeBonusRowIndex.value];
   targetRow.kode = selected.kode;
@@ -144,46 +167,46 @@ const showConfirmation = (title: string, text: string, onConfirm: () => void) =>
   dialogConfirm.show = true;
 };
 const closeForm = () => {
-  router.push({ name: 'Promo' });
+  router.push({ name: "Promo" });
 };
 const resetForm = () => {
   // Logika untuk membersihkan form, bisa Anda kembangkan lebih lanjut
   router.go(0); // Cara sederhana untuk me-reload halaman
 };
 const handleCancel = () => {
-  showConfirmation('Konfirmasi Batal', 'Batalkan semua perubahan dan kosongkan form?', resetForm);
+  showConfirmation("Konfirmasi Batal", "Batalkan semua perubahan dan kosongkan form?", resetForm);
 };
 
 const save = () => {
-  const requiredPermission = isEditMode.value ? 'edit' : 'insert';
+  const requiredPermission = isEditMode.value ? "edit" : "insert";
   if (!authStore.can(MENU_ID, requiredPermission)) {
-    return toast.error('Anda tidak memiliki hak akses untuk menyimpan data ini.');
+    return toast.error("Anda tidak memiliki hak akses untuk menyimpan data ini.");
   }
 
   // --- VALIDASI DARI DELPHI (btnSimpanClick) ---
   if (new Date(header.tanggal1) > new Date(header.tanggal2)) {
-    return toast.error('Periode promo tidak valid.');
+    return toast.error("Periode promo tidak valid.");
   }
   if (!header.judul.trim()) {
-    return toast.error('Judul promo tidak boleh kosong.');
+    return toast.error("Judul promo tidak boleh kosong.");
   }
   if (header.jenis === 1 && (header.totalRp || 0) <= 0) {
-    return toast.error('Total Rp Belanja harus diisi jika jenis promo adalah Total Rp.');
+    return toast.error("Total Rp Belanja harus diisi jika jenis promo adalah Total Rp.");
   }
   if (header.jenis === 2 && (header.totalQty || 0) <= 0) {
-    return toast.error('Total Qty Belanja harus diisi jika jenis promo adalah Total Qty.');
+    return toast.error("Total Qty Belanja harus diisi jika jenis promo adalah Total Qty.");
   }
-  if (header.generate === 'K' && !header.jenisKupon) {
-    return toast.error('Silakan pilih jenis kupon (Undian atau Belanja).');
+  if (header.generate === "K" && !header.jenisKupon) {
+    return toast.error("Silakan pilih jenis kupon (Undian atau Belanja).");
   }
   // Otorisasi sederhana meniru 'ADMIN' di Delphi
-  if (authStore.user?.kode !== 'ADMIN') {
-    return toast.error('Anda tidak berhak menyimpan data promo.');
+  if (authStore.user?.kode !== "ADMIN") {
+    return toast.error("Anda tidak berhak menyimpan data promo.");
   }
   // --- AKHIR VALIDASI ---
 
   // Jika semua validasi lolos, panggil dialog konfirmasi
-  showConfirmation('Konfirmasi Simpan', 'Anda yakin ingin menyimpan data promo ini?', executeSave);
+  showConfirmation("Konfirmasi Simpan", "Anda yakin ingin menyimpan data promo ini?", executeSave);
 };
 
 const executeSave = async () => {
@@ -195,19 +218,19 @@ const executeSave = async () => {
     const payload = {
       header,
       applicableItems: shouldSendApplicableItems
-        ? applicableItems.value.filter(i => i.kode)
+        ? applicableItems.value.filter((i) => i.kode)
         : null,
-      bonusItems: bonusItems.value.filter(i => i.kode),
-      cabang: cabangList.value.filter(c => c.berlaku).map(c => c.cab),
-      level: levelList.value.filter(l => l.berlaku).map(l => l.kode),
-      isNew: !isEditMode.value
+      bonusItems: bonusItems.value.filter((i) => i.kode),
+      cabang: cabangList.value.filter((c) => c.berlaku).map((c) => c.cab),
+      level: levelList.value.filter((l) => l.berlaku).map((l) => l.kode),
+      isNew: !isEditMode.value,
     };
-    const response = await api.post('/promo-form/save', payload);
+    const response = await api.post("/promo-form/save", payload);
     toast.success(response.data.message);
-    router.push({ name: 'Promo' });
+    router.push({ name: "Promo" });
   } catch (error) {
     const err = error as AxiosError<{ message?: string }>;
-    toast.error(err.response?.data?.message || 'Gagal menyimpan data.');
+    toast.error(err.response?.data?.message || "Gagal menyimpan data.");
   } finally {
     isSaving.value = false;
   }
@@ -228,8 +251,8 @@ const loadDataForEdit = async (nomor: string) => {
     header.judul = data.header.pro_judul;
 
     // Konversi format tanggal dari server untuk input type="date"
-    header.tanggal1 = format(parseISO(data.header.pro_tanggal1), 'yyyy-MM-dd');
-    header.tanggal2 = format(parseISO(data.header.pro_tanggal2), 'yyyy-MM-dd');
+    header.tanggal1 = format(parseISO(data.header.pro_tanggal1), "yyyy-MM-dd");
+    header.tanggal2 = format(parseISO(data.header.pro_tanggal2), "yyyy-MM-dd");
 
     // Menyesuaikan nama field dari database ke state
     header.jenis = data.header.pro_jenis;
@@ -261,22 +284,20 @@ const loadDataForEdit = async (nomor: string) => {
     }));
 
     // --- ISI CHECKBOX DI TAB CABANG & LEVEL ---
-    cabangList.value.forEach(cabang => {
+    cabangList.value.forEach((cabang) => {
       if (data.cabangBerlaku.includes(cabang.cab)) {
         cabang.berlaku = true;
       }
     });
 
-    levelList.value.forEach(level => {
+    levelList.value.forEach((level) => {
       if (data.levelBerlaku.includes(level.kode)) {
         level.berlaku = true;
       }
     });
-
   } catch (error) {
     const axiosError = error as AxiosError<{ message?: string }>;
-    const message =
-      axiosError.response?.data?.message || 'Gagal memuat data promo.';
+    const message = axiosError.response?.data?.message || "Gagal memuat data promo.";
     toast.error(message);
     router.back();
   } finally {
@@ -290,7 +311,8 @@ const loadDataForEdit = async (nomor: string) => {
 };
 
 const addNewApplicableRow = (setDirty = true) => {
-  if (setDirty) { // <-- TAMBAHKAN IF INI
+  if (setDirty) {
+    // <-- TAMBAHKAN IF INI
     applicableItemsDirty.value = true;
   }
 
@@ -298,13 +320,19 @@ const addNewApplicableRow = (setDirty = true) => {
   if (!last || last.kode) {
     applicableItems.value.push({
       id: Date.now() + Math.random(),
-      kode: '', nama: '', ukuran: '', qty: 0, harga: 0, disc: 0, diskon: 0
+      kode: "",
+      nama: "",
+      ukuran: "",
+      qty: 0,
+      harga: 0,
+      disc: 0,
+      diskon: 0,
     });
   }
 };
 
 const removeApplicableRow = (id: number) => {
-  applicableItems.value = applicableItems.value.filter(i => i.id !== id);
+  applicableItems.value = applicableItems.value.filter((i) => i.id !== id);
   if (applicableItems.value.length === 0) addNewApplicableRow();
 };
 
@@ -313,8 +341,8 @@ const loadApplicableItems = async (nomor: string, page: number = 1) => {
     const response = await api.get(`/promo-form/${nomor}/applicable-items`, {
       params: {
         page,
-        itemsPerPage: applicableItemsPerPage.value
-      }
+        itemsPerPage: applicableItemsPerPage.value,
+      },
     });
 
     applicableItems.value = response.data.items.map((item: ApplicableItem) => ({
@@ -322,10 +350,9 @@ const loadApplicableItems = async (nomor: string, page: number = 1) => {
       id: Math.random(),
     }));
     applicableItemsTotal.value = response.data.total;
-
   } catch (error) {
-    console.error('Error loading applicable items:', error);
-    toast.error('Gagal memuat data barang pemicu promo.');
+    console.error("Error loading applicable items:", error);
+    toast.error("Gagal memuat data barang pemicu promo.");
   }
 };
 
@@ -341,9 +368,9 @@ const onApplicableSelected = (products: ApplicableItem[]) => {
   applicableItemsDirty.value = true;
 
   const isDuplicate = applicableItems.value.some(
-    item => item.kode === selected.kode && item.ukuran === selected.ukuran
+    (item) => item.kode === selected.kode && item.ukuran === selected.ukuran
   );
-  if (isDuplicate) return toast.warning('Barang ini sudah ada di daftar pemicu promo.');
+  if (isDuplicate) return toast.warning("Barang ini sudah ada di daftar pemicu promo.");
 
   const targetRow = applicableItems.value[activeApplicableRowIndex.value];
   targetRow.kode = selected.kode;
@@ -356,12 +383,12 @@ const onApplicableSelected = (products: ApplicableItem[]) => {
 
 const setApplicableDirty = () => {
   applicableItemsDirty.value = true;
-}
+};
 
 onMounted(async () => {
   isLoading.value = true;
   try {
-    const res = await api.get('/promo-form/initial-data');
+    const res = await api.get("/promo-form/initial-data");
     cabangList.value = res.data.cabang;
     levelList.value = res.data.level;
 
@@ -369,41 +396,64 @@ onMounted(async () => {
     if (isEditMode.value && nomor) {
       await loadDataForEdit(nomor);
     } else {
-      // --- UBAH BAGIAN INI ---
-      addNewApplicableRow(false); // Kirim 'false'
-      addNewBonusRow(); // (Asumsi ini juga diubah agar menerima 'setDirty = false')
+      addNewApplicableRow(false);
+      addNewBonusRow();
     }
-  } catch (err) {
-    toast.error('Gagal memuat data awal.', err);
+  } catch (err: unknown) {
+    // [PERBAIKAN]
+    let msg = "Gagal memuat data awal.";
+    if (axios.isAxiosError(err)) msg = err.response?.data?.message || msg;
+    else if (err instanceof Error) msg = err.message;
+    toast.error(msg);
   } finally {
     isLoading.value = false;
   }
 });
 
-watch(() => header.generate, (val) => {
-  if (val !== 'K') header.jenisKupon = '';
-});
+watch(
+  () => header.generate,
+  (val) => {
+    if (val !== "K") header.jenisKupon = "";
+  }
+);
 
 // Untuk mendeteksi perubahan manual di field (Qty, Harga, Disc)
-watch(applicableItems, () => {
-  // Hanya tandai 'dirty' jika kita tidak sedang loading data
-  if (!isLoading.value) {
-    applicableItemsDirty.value = true;
-  }
-}, { deep: true });
+watch(
+  applicableItems,
+  () => {
+    // Hanya tandai 'dirty' jika kita tidak sedang loading data
+    if (!isLoading.value) {
+      applicableItemsDirty.value = true;
+    }
+  },
+  { deep: true }
+);
 </script>
 
 <template>
   <PageLayout :title="pageTitle" desktop-mode icon="mdi-gift">
     <template #header-actions>
-      <v-btn size="small" color="primary" prepend-icon="mdi-content-save" @click="save" :loading="isSaving">
+      <v-btn
+        size="small"
+        color="primary"
+        prepend-icon="mdi-content-save"
+        @click="save"
+        :loading="isSaving"
+      >
         Simpan
       </v-btn>
-      <v-btn size="small" prepend-icon="mdi-refresh" @click="handleCancel">
-        Batal
-      </v-btn>
-      <v-btn size="small" prepend-icon="mdi-close"
-        @click="showConfirmation('Konfirmasi Tutup', 'Tutup form? Perubahan yang belum disimpan akan hilang.', closeForm)">
+      <v-btn size="small" prepend-icon="mdi-refresh" @click="handleCancel"> Batal </v-btn>
+      <v-btn
+        size="small"
+        prepend-icon="mdi-close"
+        @click="
+          showConfirmation(
+            'Konfirmasi Tutup',
+            'Tutup form? Perubahan yang belum disimpan akan hilang.',
+            closeForm
+          )
+        "
+      >
         Tutup
       </v-btn>
     </template>
@@ -420,27 +470,59 @@ watch(applicableItems, () => {
               <div class="text-subtitle-1 font-weight-bold mb-3">Data Promo</div>
               <v-row dense class="compact-form">
                 <v-col cols="12">
-                  <v-text-field label="Nomor Promo" variant="outlined" v-model="header.nomor" readonly filled
-                    hide-details density="compact" />
+                  <v-text-field
+                    label="Nomor Promo"
+                    variant="outlined"
+                    v-model="header.nomor"
+                    readonly
+                    filled
+                    hide-details
+                    density="compact"
+                  />
                 </v-col>
 
                 <v-col cols="12">
-                  <v-text-field label="Judul" v-model="header.judul" variant="outlined" hide-details
-                    density="compact" />
+                  <v-text-field
+                    label="Judul"
+                    v-model="header.judul"
+                    variant="outlined"
+                    hide-details
+                    density="compact"
+                  />
                 </v-col>
 
                 <v-col cols="6">
-                  <v-text-field label="Tanggal Mulai" v-model="header.tanggal1" type="date" variant="outlined"
-                    hide-details density="compact" style="padding-right: 2px;" />
+                  <v-text-field
+                    label="Tanggal Mulai"
+                    v-model="header.tanggal1"
+                    type="date"
+                    variant="outlined"
+                    hide-details
+                    density="compact"
+                    style="padding-right: 2px"
+                  />
                 </v-col>
 
                 <v-col cols="6">
-                  <v-text-field label="Tanggal Selesai" v-model="header.tanggal2" type="date" variant="outlined"
-                    hide-details density="compact" style="padding-left: 2px;" />
+                  <v-text-field
+                    label="Tanggal Selesai"
+                    v-model="header.tanggal2"
+                    type="date"
+                    variant="outlined"
+                    hide-details
+                    density="compact"
+                    style="padding-left: 2px"
+                  />
                 </v-col>
 
                 <v-col cols="12">
-                  <v-radio-group v-model="header.jenis" inline label="Jenis Promo" hide-details density="compact">
+                  <v-radio-group
+                    v-model="header.jenis"
+                    inline
+                    label="Jenis Promo"
+                    hide-details
+                    density="compact"
+                  >
                     <v-radio label="Total Rp" :value="1"></v-radio>
                     <v-radio label="Total Qty" :value="2"></v-radio>
                     <v-radio label="Lain-lain" :value="3"></v-radio>
@@ -449,30 +531,62 @@ watch(applicableItems, () => {
                 </v-col>
 
                 <v-col cols="6">
-                  <v-text-field label="Total Rp Belanja" v-model.number="header.totalRp" type="number"
-                    variant="outlined" :disabled="header.jenis !== 1" hide-details density="compact"
-                    style="padding-right: 2px;" />
+                  <v-text-field
+                    label="Total Rp Belanja"
+                    v-model.number="header.totalRp"
+                    type="number"
+                    variant="outlined"
+                    :disabled="header.jenis !== 1"
+                    hide-details
+                    density="compact"
+                    style="padding-right: 2px"
+                  />
                 </v-col>
 
                 <v-col cols="6">
-                  <v-text-field label="Total Qty Belanja" v-model.number="header.totalQty" type="number"
-                    variant="outlined" :disabled="header.jenis !== 2" hide-details density="compact"
-                    style="padding-left: 2px;" />
+                  <v-text-field
+                    label="Total Qty Belanja"
+                    v-model.number="header.totalQty"
+                    type="number"
+                    variant="outlined"
+                    :disabled="header.jenis !== 2"
+                    hide-details
+                    density="compact"
+                    style="padding-left: 2px"
+                  />
                 </v-col>
 
                 <v-col cols="12">
-                  <v-select label="Berlaku Kelipatan" v-model="header.kelipatan" :items="['Y', 'N']" variant="outlined"
-                    hide-details density="compact" />
+                  <v-select
+                    label="Berlaku Kelipatan"
+                    v-model="header.kelipatan"
+                    :items="['Y', 'N']"
+                    variant="outlined"
+                    hide-details
+                    density="compact"
+                  />
                 </v-col>
 
                 <v-col cols="12">
-                  <v-textarea label="Keterangan" v-model="header.keterangan" rows="3" variant="outlined" hide-details
-                    density="compact" />
+                  <v-textarea
+                    label="Keterangan"
+                    v-model="header.keterangan"
+                    rows="3"
+                    variant="outlined"
+                    hide-details
+                    density="compact"
+                  />
                 </v-col>
 
                 <v-col cols="12">
-                  <v-textarea label="Note (muncul di struk)" v-model="header.note" rows="3" variant="outlined"
-                    hide-details density="compact" />
+                  <v-textarea
+                    label="Note (muncul di struk)"
+                    v-model="header.note"
+                    rows="3"
+                    variant="outlined"
+                    hide-details
+                    density="compact"
+                  />
                 </v-col>
               </v-row>
             </div>
@@ -482,8 +596,14 @@ watch(applicableItems, () => {
             <div class="top-row">
               <div class="desktop-form-section fill-height">
                 <div class="text-subtitle-1 font-weight-bold mb-2">Cabang Berlaku</div>
-                <v-data-table :headers="cabangHeaders" :items="cabangList" class="desktop-table header-browse-blue" :items-per-page="-1"
-                  density="compact" fixed-header>
+                <v-data-table
+                  :headers="cabangHeaders"
+                  :items="cabangList"
+                  class="desktop-table header-browse-blue"
+                  :items-per-page="-1"
+                  density="compact"
+                  fixed-header
+                >
                   <template #[`item.berlaku`]="{ item }">
                     <v-checkbox-btn v-model="item.berlaku" hide-details />
                   </template>
@@ -492,8 +612,14 @@ watch(applicableItems, () => {
               </div>
               <div class="desktop-form-section fill-height">
                 <div class="text-subtitle-1 font-weight-bold mb-2">Level Berlaku</div>
-                <v-data-table :headers="levelHeaders" :items="levelList" class="desktop-table header-browse-blue" :items-per-page="-1"
-                  density="compact" fixed-header>
+                <v-data-table
+                  :headers="levelHeaders"
+                  :items="levelList"
+                  class="desktop-table header-browse-blue"
+                  :items-per-page="-1"
+                  density="compact"
+                  fixed-header
+                >
                   <template #[`item.berlaku`]="{ item }">
                     <v-checkbox-btn v-model="item.berlaku" hide-details />
                   </template>
@@ -506,34 +632,68 @@ watch(applicableItems, () => {
                 <div class="text-subtitle-1 font-weight-bold mb-3">Diskon / Bonus</div>
                 <v-row dense class="compact-form">
                   <v-col cols="6">
-                    <v-text-field label="Diskon Faktur Rp" v-model.number="header.diskonRp" type="number"
-                      variant="outlined" hide-details density="compact" />
+                    <v-text-field
+                      label="Diskon Faktur Rp"
+                      v-model.number="header.diskonRp"
+                      type="number"
+                      variant="outlined"
+                      hide-details
+                      density="compact"
+                    />
                   </v-col>
                   <v-col cols="6">
-                    <v-text-field label="Diskon Faktur %" v-model.number="header.diskonPersen" type="number"
-                      variant="outlined" hide-details density="compact" />
+                    <v-text-field
+                      label="Diskon Faktur %"
+                      v-model.number="header.diskonPersen"
+                      type="number"
+                      variant="outlined"
+                      hide-details
+                      density="compact"
+                    />
                   </v-col>
                 </v-row>
                 <v-divider class="my-4" />
 
-                <v-radio-group v-model="header.generate" label="Generate Otomatis" hide-details density="compact">
+                <v-radio-group
+                  v-model="header.generate"
+                  label="Generate Otomatis"
+                  hide-details
+                  density="compact"
+                >
                   <v-radio label="Tidak Ada" value="N" />
                   <v-radio label="Kupon" value="K" />
                   <v-radio label="Voucher" value="V" />
                 </v-radio-group>
 
                 <div v-if="header.generate === 'K'" class="pl-8 mt-2">
-                  <v-radio-group v-model="header.jenisKupon" label="Jenis Kupon" hide-details density="compact">
+                  <v-radio-group
+                    v-model="header.jenisKupon"
+                    label="Jenis Kupon"
+                    hide-details
+                    density="compact"
+                  >
                     <v-radio label="Kupon Undian" value="UNDIAN" />
                     <v-radio label="Kupon Belanja" value="BELANJA" />
                   </v-radio-group>
-                  <v-checkbox v-model="header.cetakKupon" true-value="Y" false-value="N" label="Cetak Kupon Otomatis"
-                    hide-details density="compact" />
+                  <v-checkbox
+                    v-model="header.cetakKupon"
+                    true-value="Y"
+                    false-value="N"
+                    label="Cetak Kupon Otomatis"
+                    hide-details
+                    density="compact"
+                  />
                 </div>
 
                 <div v-if="header.generate === 'V'" class="pl-8 mt-2">
-                  <v-text-field label="Nominal Voucher Pembayaran" v-model.number="header.rpVoucher" type="number"
-                    variant="outlined" hide-details density="compact" />
+                  <v-text-field
+                    label="Nominal Voucher Pembayaran"
+                    v-model.number="header.rpVoucher"
+                    type="number"
+                    variant="outlined"
+                    hide-details
+                    density="compact"
+                  />
                 </div>
               </div>
             </div>
@@ -543,61 +703,136 @@ watch(applicableItems, () => {
 
       <v-window-item value="barang-bonus">
         <div class="form-grid-container">
-          <div class="desktop-form-section d-flex flex-column" style="min-height: 400px;">
+          <div class="desktop-form-section d-flex flex-column" style="min-height: 400px">
             <div class="text-subtitle-1 font-weight-bold mb-2">
               Barang Pemicu Promo (Item yang harus dibeli)
             </div>
-            <v-data-table-server :headers="applicableHeaders" :items="applicableItems" class="desktop-table flex-grow-1"
-              v-model:page="applicableItemsPage" :items-per-page="applicableItemsPerPage"
-              :items-length="applicableItemsTotal" density="compact" fixed-header
+            <v-data-table-server
+              :headers="applicableHeaders"
+              :items="applicableItems"
+              class="desktop-table flex-grow-1"
+              v-model:page="applicableItemsPage"
+              :items-per-page="applicableItemsPerPage"
+              :items-length="applicableItemsTotal"
+              density="compact"
+              fixed-header
               @update:page="isEditMode && loadApplicableItems(header.nomor, $event)"
-              @update:items-per-page="applicableItemsPerPage = $event; isEditMode && loadApplicableItems(header.nomor, 1)">
+              @update:items-per-page="
+                applicableItemsPerPage = $event;
+                isEditMode && loadApplicableItems(header.nomor, 1);
+              "
+            >
               <template #[`item.kode`]="{ item, index }">
-                <v-text-field v-model="item.kode" variant="underlined" density="compact" hide-details
-                  placeholder="F1..." @keydown.f1.prevent="openApplicableSearch(index)" />
+                <v-text-field
+                  v-model="item.kode"
+                  variant="underlined"
+                  density="compact"
+                  hide-details
+                  placeholder="F1..."
+                  @keydown.f1.prevent="openApplicableSearch(index)"
+                />
               </template>
               <template #[`item.qty`]="{ item }">
-                <v-text-field v-model.number="item.qty" @change="setApplicableDirty" type="number" variant="underlined"
-                  density="compact" hide-details class="text-end" />
+                <v-text-field
+                  v-model.number="item.qty"
+                  @change="setApplicableDirty"
+                  type="number"
+                  variant="underlined"
+                  density="compact"
+                  hide-details
+                  class="text-end"
+                />
               </template>
               <template #[`item.harga`]="{ item }">
-                <v-text-field v-model.number="item.harga" @change="setApplicableDirty" type="number"
-                  variant="underlined" density="compact" hide-details class="text-end" />
+                <v-text-field
+                  v-model.number="item.harga"
+                  @change="setApplicableDirty"
+                  type="number"
+                  variant="underlined"
+                  density="compact"
+                  hide-details
+                  class="text-end"
+                />
               </template>
               <template #[`item.disc`]="{ item }">
-                <v-text-field v-model.number="item.disc" @change="setApplicableDirty" type="number" variant="underlined"
-                  density="compact" hide-details class="text-end" />
+                <v-text-field
+                  v-model.number="item.disc"
+                  @change="setApplicableDirty"
+                  type="number"
+                  variant="underlined"
+                  density="compact"
+                  hide-details
+                  class="text-end"
+                />
               </template>
               <template #[`item.diskon`]="{ item }">
-                <v-text-field v-model.number="item.diskon" @change="setApplicableDirty" type="number"
-                  variant="underlined" density="compact" hide-details class="text-end" />
+                <v-text-field
+                  v-model.number="item.diskon"
+                  @change="setApplicableDirty"
+                  type="number"
+                  variant="underlined"
+                  density="compact"
+                  hide-details
+                  class="text-end"
+                />
               </template>
               <template #[`item.actions`]="{ item }">
-                <v-btn v-if="item.kode" icon="mdi-delete" size="x-small" variant="text" color="error"
-                  @click="removeApplicableRow(item.id)" />
+                <v-btn
+                  v-if="item.kode"
+                  icon="mdi-delete"
+                  size="x-small"
+                  variant="text"
+                  color="error"
+                  @click="removeApplicableRow(item.id)"
+                />
               </template>
             </v-data-table-server>
           </div>
 
-          <div class="desktop-form-section d-flex flex-column" style="min-height: 400px;">
+          <div class="desktop-form-section d-flex flex-column" style="min-height: 400px">
             <div class="text-subtitle-1 font-weight-bold mb-2">Detail Barang Bonus</div>
-            <v-data-table :headers="bonusHeaders" :items="bonusItems" class="desktop-table flex-grow-1"
-              :items-per-page="-1" density="compact" fixed-header>
+            <v-data-table
+              :headers="bonusHeaders"
+              :items="bonusItems"
+              class="desktop-table flex-grow-1"
+              :items-per-page="-1"
+              density="compact"
+              fixed-header
+            >
               <template #[`item.kode`]="{ item, index }">
-                <v-text-field v-model="item.kode" variant="underlined" density="compact" hide-details
-                  placeholder="F1..." @keydown.f1.prevent="openBonusSearch(index)" />
+                <v-text-field
+                  v-model="item.kode"
+                  variant="underlined"
+                  density="compact"
+                  hide-details
+                  placeholder="F1..."
+                  @keydown.f1.prevent="openBonusSearch(index)"
+                />
               </template>
               <template #[`item.qty`]="{ item }">
-                <v-text-field v-model.number="item.qty" type="number" variant="underlined" class="text-end"
-                  density="compact" hide-details />
+                <v-text-field
+                  v-model.number="item.qty"
+                  type="number"
+                  variant="underlined"
+                  class="text-end"
+                  density="compact"
+                  hide-details
+                />
               </template>
               <template #[`item.actions`]="{ item }">
-                <v-btn v-if="item.kode" icon="mdi-delete" size="x-small" variant="text" color="error"
-                  @click="removeBonusRow(item.id)" />
+                <v-btn
+                  v-if="item.kode"
+                  icon="mdi-delete"
+                  size="x-small"
+                  variant="text"
+                  color="error"
+                  @click="removeBonusRow(item.id)"
+                />
               </template>
               <template #bottom>
-                <div class="pa-2 text-right"><v-btn size="small" @click="addNewBonusRow">Tambah
-                    Bonus</v-btn></div>
+                <div class="pa-2 text-right">
+                  <v-btn size="small" @click="addNewBonusRow">Tambah Bonus</v-btn>
+                </div>
               </template>
             </v-data-table>
           </div>
@@ -605,11 +840,20 @@ watch(applicableItems, () => {
       </v-window-item>
     </v-window>
 
-    <MintaBarangSearchModal v-if="isApplicableSearchVisible" source="promo-applicable"
-      :gudang="authStore.user?.cabang || ''" @close="isApplicableSearchVisible = false"
-      @products-selected="onApplicableSelected" />
-    <MintaBarangSearchModal v-if="isBonusSearchVisible" source="promo-bonus" :gudang="authStore.user?.cabang || ''"
-      @close="isBonusSearchVisible = false" @products-selected="onBonusSelected" />
+    <MintaBarangSearchModal
+      v-if="isApplicableSearchVisible"
+      source="promo-applicable"
+      :gudang="authStore.user?.cabang || ''"
+      @close="isApplicableSearchVisible = false"
+      @products-selected="onApplicableSelected"
+    />
+    <MintaBarangSearchModal
+      v-if="isBonusSearchVisible"
+      source="promo-bonus"
+      :gudang="authStore.user?.cabang || ''"
+      @close="isBonusSearchVisible = false"
+      @products-selected="onBonusSelected"
+    />
 
     <v-dialog v-model="dialogConfirm.show" max-width="400px" persistent>
       <v-card>
@@ -618,7 +862,14 @@ watch(applicableItems, () => {
         <v-card-actions>
           <v-spacer />
           <v-btn text @click="dialogConfirm.show = false">Tidak</v-btn>
-          <v-btn color="primary" variant="tonal" @click="dialogConfirm.onConfirm(); dialogConfirm.show = false;">
+          <v-btn
+            color="primary"
+            variant="tonal"
+            @click="
+              dialogConfirm.onConfirm();
+              dialogConfirm.show = false;
+            "
+          >
             Ya, Lanjutkan
           </v-btn>
         </v-card-actions>
@@ -792,13 +1043,13 @@ watch(applicableItems, () => {
 }
 
 .desktop-table :deep(thead tr th) {
-  background-color: #0D47A1 !important; /* Biru Tua */
-  color: #ffffff !important;            /* Teks Putih */
+  background-color: #0d47a1 !important; /* Biru Tua */
+  color: #ffffff !important; /* Teks Putih */
   font-weight: bold !important;
   text-transform: uppercase;
   font-size: 11px !important;
   height: 40px !important;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
   border-bottom: none !important; /* Supaya lebih rapi */
 }
 </style>

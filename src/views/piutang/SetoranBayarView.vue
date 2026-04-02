@@ -50,6 +50,11 @@ interface SetoranExportRow {
   [key: string]: unknown;
 }
 
+interface CabangItem {
+  kode: string;
+  nama: string;
+}
+
 const router = useRouter();
 const toast = useToast();
 const authStore = useAuthStore();
@@ -62,7 +67,7 @@ const loading = ref(true);
 const loadingDetails = ref(new Set<string>());
 const selected = ref<SetoranHeader[]>([]);
 const expanded = ref<string[]>([]);
-const cabangList = ref([]);
+const cabangList = ref<CabangItem[]>([]);
 const deleteLoading = ref(false);
 const search = ref("");
 let searchTimeout: ReturnType<typeof setTimeout>;
@@ -72,7 +77,8 @@ const SESSION_STATE_KEY = "setoran_bayar_browse_state";
 const filters = reactive({
   startDate: format(subDays(new Date(), 7), "yyyy-MM-dd"),
   endDate: format(new Date(), "yyyy-MM-dd"),
-  cabang: authStore.user?.cabang || "",
+  // [FIX] Gunakan type casting agar TS yakin ini string
+  cabang: (authStore.user?.cabang || "") as string,
   search: "",
 });
 
@@ -181,8 +187,11 @@ const fetchCabangList = async () => {
   try {
     const response = await api.get("/setoran-bayar/lookup/cabang");
     cabangList.value = response.data;
-  } catch (error) {
-    toast.error("Gagal memuat daftar cabang.", error);
+  } catch (error: unknown) {
+    // [FIX] Gunakan unknown
+    let msg = "Gagal memuat daftar cabang.";
+    if (axios.isAxiosError(error)) msg = error.response?.data?.message || msg;
+    toast.error(msg); // [FIX] Hanya kirim string
   }
 };
 
@@ -304,8 +313,9 @@ const exportData = async (type: "header" | "detail") => {
       XLSX.writeFile(workbook, "Export_Setoran_Header.xlsx");
 
       toast.success("File Header berhasil dibuat.");
-    } catch (error) {
-      toast.error("Gagal membuat file Excel.", error);
+    } catch (error: unknown) {
+      toast.error("Gagal membuat file Excel."); // [FIX] Hapus parameter kedua
+      console.error(error); // Tetap log ke console untuk debugging
     }
 
     // === EXPORT DETAIL ===

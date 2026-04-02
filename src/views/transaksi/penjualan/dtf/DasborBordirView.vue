@@ -246,7 +246,7 @@ watch([startDate, endDate, selectedCabang], fetchData);
           fixed-header
           show-expand
           @update:expanded="loadDetails"
-          :item-props="(item) => ({ class: getRowClass(item) })"
+          :item-props="(item: DasborItem) => ({ class: getRowClass(item) })"
         >
           <template #headers="{ columns }">
             <tr>

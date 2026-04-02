@@ -69,17 +69,20 @@ const getImageUrl = (fileName: string) => {
 const fetchPrintData = async (nomor: string) => {
   isLoading.value = true;
   try {
-    // Kita gunakan API yang sama dengan halaman Proses karena strukturnya sudah mewakili "Satu Batch"
     const response = await api.get(`/petty-cash/klaim-finance/proses/${nomor}`);
-    printData.value = response.data;
-    document.title = "KLAIM_" + printData.value.header.pck_nomor;
+    const data = response.data; // [PERBAIKAN] Simpan di variabel lokal dulu
 
-    qrCodeData.value = await QRCode.toDataURL(printData.value.header.pck_nomor, {
+    printData.value = data;
+    document.title = "KLAIM_" + data.header.pck_nomor; // Ambil dari data lokal
+
+    qrCodeData.value = await QRCode.toDataURL(data.header.pck_nomor, {
       width: 150,
       margin: 1,
     });
-  } catch {
+  } catch (error: unknown) {
+    // Sekalian diamankan
     alert("Gagal memuat data cetak.");
+    console.error(error);
   } finally {
     isLoading.value = false;
   }

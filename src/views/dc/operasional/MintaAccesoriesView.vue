@@ -404,8 +404,11 @@ const fetchBranches = async () => {
       data = [{ kode: "ALL", nama: "ALL STORE" }, ...data];
     }
     branchList.value = data;
-  } catch (error) {
-    toast.error("Gagal memuat daftar cabang.", error);
+  } catch (error: unknown) {
+    let msg = "Gagal memuat daftar cabang.";
+    if (axios.isAxiosError(error)) msg = error.response?.data?.message || msg;
+    else if (error instanceof Error) msg = error.message;
+    toast.error(msg);
   }
 };
 
@@ -420,8 +423,11 @@ const fetchData = async () => {
       },
     });
     dataList.value = response.data;
-  } catch (error) {
-    toast.error("Gagal memuat data permintaan.", error);
+  } catch (error: unknown) {
+    let msg = "Gagal memuat data permintaan.";
+    if (axios.isAxiosError(error)) msg = error.response?.data?.message || msg;
+    else if (error instanceof Error) msg = error.message;
+    toast.error(msg);
   } finally {
     isLoading.value = false;
   }
@@ -445,11 +451,11 @@ const loadDetails = async (expandedItems: AccesoriesHeader[]) => {
         if (response.data.realisasi && response.data.realisasi.length > 0) {
           selectedRealisasiMap.value[nomor] = response.data.realisasi[0].nomor;
         }
-      } catch (error) {
-        toast.error(`Gagal memuat detail untuk nomor ${nomor}`, error);
-        expanded.value = expanded.value.filter((item) =>
-          typeof item === "string" ? item !== nomor : item.nomor !== nomor
-        );
+      } catch (error: unknown) {
+        let msg = "Gagal memuat detail.";
+        if (axios.isAxiosError(error)) msg = error.response?.data?.message || msg;
+        else if (error instanceof Error) msg = error.message;
+        toast.error(msg);
       } finally {
         loadingDetails.value.delete(nomor);
       }
@@ -533,8 +539,11 @@ const handleCreate = async () => {
 
     // Jika tidak ada tunggakan, lanjut ke halaman create
     router.push("/gudang-dc/operasional/minta-accesories/new");
-  } catch (error) {
-    toast.error("Gagal mengecek status approve realisasi.", error);
+  } catch (error: unknown) {
+    let msg = "Gagal mengecek status approve realisasi";
+    if (axios.isAxiosError(error)) msg = error.response?.data?.message || msg;
+    else if (error instanceof Error) msg = error.message;
+    toast.error(msg);
   }
 };
 
@@ -552,8 +561,11 @@ const approveRealisasi = async (prominNomor: string, mintaNomor: string) => {
       }
 
       fetchData(); // Refresh master table
-    } catch (error) {
-      toast.error("Gagal melakukan approve.", error);
+    } catch (error: unknown) {
+      let msg = "Gagal melakukan approve.";
+      if (axios.isAxiosError(error)) msg = error.response?.data?.message || msg;
+      else if (error instanceof Error) msg = error.message;
+      toast.error(msg);
     }
   }, "Yakin ingin melakukan Approve (Penerimaan) untuk realisasi ini?");
 };
@@ -647,8 +659,11 @@ const exportDetailData = async () => {
 
     XLSX.writeFile(workbook, "Detail_MintaAccesories.xlsx");
     toast.success("Data detail berhasil diekspor.");
-  } catch (error) {
-    toast.error("Gagal mengekspor data detail.", error);
+  } catch (error: unknown) {
+    let msg = "Gagal mengekspor data detail.";
+    if (axios.isAxiosError(error)) msg = error.response?.data?.message || msg;
+    else if (error instanceof Error) msg = error.message;
+    toast.error(msg);
   }
 };
 
@@ -929,7 +944,7 @@ onBeforeRouteLeave((to, from, next) => {
           return-object
           @update:expanded="loadDetails"
           @click:row="handleRowClick"
-          :item-props="(item) => ({ class: getRowTextColor(item) })"
+          :item-props="(item: any) => ({ class: getRowTextColor(item as AccesoriesHeader) })"
         >
           <template #headers="{ columns, isSorted, getSortIcon, toggleSort }">
             <tr>
@@ -1137,18 +1152,12 @@ onBeforeRouteLeave((to, from, next) => {
                             hide-default-footer
                             class="detail-table"
                             hover
-                            @click:row="
-                              (_, { item: rowItem }) =>
-                                selectRealisasiRow(item.nomor, rowItem.nomor)
-                            "
-                            :item-props="
-                              (rowItem) => ({
-                                class:
-                                  selectedRealisasiMap[item.nomor] === rowItem.nomor
-                                    ? 'bg-blue-lighten-5 font-weight-bold'
-                                    : 'cursor-pointer',
-                              })
-                            "
+                            @click:row="(event: any, { item: rowItem }: any) => selectRealisasiRow(item.nomor, rowItem.nomor)"
+                            :item-props="(rowItem: any) => ({
+                              class: selectedRealisasiMap[item.nomor] === rowItem.nomor
+                                ? 'bg-blue-lighten-5 font-weight-bold'
+                                  : 'cursor-pointer',
+                          })"
                           >
                             <template #[`item.jumlah`]="{ value }">
                               <span class="text-red font-weight-bold">{{ value }}</span>

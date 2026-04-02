@@ -4,7 +4,7 @@ import { useRoute } from "vue-router";
 import api from "@/services/api";
 import { format, parseISO } from "date-fns";
 import { useToast } from "vue-toastification";
-
+import axios from "axios";
 import LogoKP from "@/assets/kp.jpg";
 
 interface PrintHeader {
@@ -38,8 +38,11 @@ const loadData = async () => {
     const response = await api.get(`/minta-accesories-form/${nomor}`);
     header.value = response.data.header;
     items.value = response.data.items;
-  } catch (error) {
-    toast.error("Gagal memuat data cetak.", error);
+  } catch (error: unknown) {
+    // [FIX]
+    let msg = "Gagal memuat data cetak.";
+    if (axios.isAxiosError(error)) msg = error.response?.data?.message || msg;
+    toast.error(msg);
   } finally {
     isLoading.value = false;
     nextTick(() => {
@@ -50,12 +53,14 @@ const loadData = async () => {
   }
 };
 
-const formatDate = (dateStr: string) => {
+// [FIX] Tambahkan | undefined pada parameter
+const formatDate = (dateStr: string | undefined) => {
   if (!dateStr) return "";
   return format(parseISO(dateStr), "dd MMM yyyy");
 };
 
-const formatNumber = (num: number) => {
+// [FIX] Tambahkan | undefined pada parameter
+const formatNumber = (num: number | undefined) => {
   return Number(num || 0).toLocaleString("id-ID", {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,

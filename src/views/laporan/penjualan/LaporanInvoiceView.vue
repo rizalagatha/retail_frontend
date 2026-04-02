@@ -6,7 +6,7 @@ import api from "@/services/api";
 import { format } from "date-fns";
 import PageLayout from "@/components/PageLayout.vue";
 import * as XLSX from "xlsx";
-import type { AxiosError } from "axios";
+import axios, { type AxiosError } from "axios";
 import AppDataTable from "@/components/AppDataTable.vue";
 import { formatRupiah } from "@/utils/formatRupiah";
 
@@ -39,6 +39,7 @@ interface MasterDataItem {
   PundiAmal?: number;
   Qty?: number;
   Tanggal?: string;
+  [key: string]: unknown; // [TAMBAHKAN BARIS INI]
 }
 
 // 3. Interface Detail (Tambahkan Index Signature)
@@ -206,15 +207,18 @@ const fetchCabangOptions = async () => {
   try {
     const response = await api.get<CabangOption[]>("/laporan-invoice/cabang/options");
 
-    // [FIX] Cukup gunakan response.data langsung karena Backend sudah handle 'ALL'
+    // Cukup gunakan response.data langsung karena Backend sudah handle 'ALL'
     cabangList.value = response.data;
 
     if (CABKAOS !== "KDC") {
       const userCabang = cabangList.value.find((c) => c.kode === CABKAOS);
       if (userCabang) filters.gudangNama = userCabang.nama;
     }
-  } catch (error) {
-    toast.error("Gagal memuat data cabang.", error);
+  } catch (error: unknown) {
+    // [PERBAIKAN]
+    let msg = "Gagal memuat data cabang.";
+    if (axios.isAxiosError(error)) msg = error.response?.data?.message || msg;
+    toast.error(msg); // Cuma lempar string
   }
 };
 
@@ -469,13 +473,15 @@ watch([filters, reportType], fetchMasterData, { deep: true });
                       hide-default-footer
                     >
                       <template #[`item.Nominal`]="{ item: dItem }">{{
-                        formatRupiah(dItem.Nominal)
+                        formatRupiah(dItem.Nominal || 0)
                       }}</template>
+
                       <template #[`item.Hpp`]="{ item: dItem }">{{
-                        formatRupiah(dItem.Hpp)
+                        formatRupiah(dItem.Hpp || 0)
                       }}</template>
+
                       <template #[`item.Laba`]="{ item: dItem }">{{
-                        formatRupiah(dItem.Laba)
+                        formatRupiah(dItem.Laba || 0)
                       }}</template>
                       <template #bottom></template>
                     </v-data-table>

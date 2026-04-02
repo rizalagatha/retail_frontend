@@ -910,7 +910,7 @@ const calculateTotals = async () => {
       header.value.statusSo = "PASIF";
     }
   }
-  checkRealtimePromoEligibility();
+  // checkRealtimePromoEligibility();
 };
 
 const openDpAuthorization = () => {
@@ -2025,6 +2025,10 @@ const applyDefaultDiscount = async () => {
     footer.value.diskonPersen1 = 0;
     return;
   }
+  if (footer.value.pinDiskon1) {
+    console.log("Discount locked by Authorization PIN. Skipping default update.");
+    return;
+  }
   if (!header.value.customer || !header.value.levelKode) return;
 
   if (isEditMode.value && isInitialLoad.value) {
@@ -2735,19 +2739,16 @@ const handleBonusSelection = (bonusItem: BonusItemSelection) => {
 
 // [BARU] Cek Kelayakan Promo Real-time (Untuk Notifikasi)
 const checkRealtimePromoEligibility = async (): Promise<boolean> => {
-  if (header.value.penawaran || authStore.user?.cabang === "KDC") {
-    promoNotification.value = "";
-    potentialPromoDiscount.value = 0;
-    return false;
-  }
-
   if (
-    footer.value.pinDiskon1 ||
-    footer.value.pinDiskon2 ||
+    header.value.penawaran ||
+    authStore.user?.cabang === "KDC" ||
+    footer.value.pinDiskon1 || // <-- PIN Diskon 1
+    footer.value.pinDiskon2 || // <-- PIN Diskon 2
     lastSuggestedPromo.value === "MANUAL_AUTH"
   ) {
     promoNotification.value = "";
-    return false;
+    potentialPromoDiscount.value = 0;
+    return false; // Berhenti total, jangan munculkan dialog
   }
 
   if (isEditMode.value && header.value.nomorPromo) {

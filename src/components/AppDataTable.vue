@@ -1,16 +1,18 @@
 <script setup lang="ts">
-import { computed, ref, watch } from "vue";
+import { computed, ref, watch, type PropType } from "vue";
 import LottieVuePlayer from "vue-lottie-player";
 import emptyDataAnimation from "@/assets/empty-state.json";
 import { VDataTable, VDataTableServer } from "vuetify/components/VDataTable";
 
 const props = defineProps({
-  server: { type: Boolean, default: false }, // Mode server aktif?
-  items: { type: Array, default: () => [] },
-  itemsPerPageOptions: { type: Array, default: () => [10, 25, 50, 100] },
+  server: { type: Boolean, default: false },
+  // [PERBAIKAN] Gunakan PropType untuk mendefinisikan array of objects
+  items: {
+    type: Array as PropType<Record<string, unknown>[]>,
+    default: () => [],
+  },
+  itemsPerPageOptions: { type: Array as PropType<number[]>, default: () => [10, 25, 50, 100] },
   search: { type: String, default: "" },
-
-  // [BARU] Total data keseluruhan di database (misal: 5000)
   itemsLength: { type: Number, default: 0 },
 });
 
@@ -24,19 +26,17 @@ const itemsPerPage = ref(50); // Default
 
 // --- Filter Client Side (Hanya jalan jika BUKAN server side) ---
 const filteredItems = computed(() => {
-  if (props.server) return props.items;
+  if (props.server) return props.items as Record<string, unknown>[];
 
   if (!props.items) return [];
-  if (!props.search) return props.items;
+  if (!props.search) return props.items as Record<string, unknown>[];
 
   const searchLower = props.search.toLowerCase();
 
-  // [FIX] Ganti 'any' dengan 'Record<string, unknown>'
-  // Artinya: item adalah object dengan key string dan value apa saja
-  return props.items.filter((item: Record<string, unknown>) => {
+  // Kita cast ke unknown[] dulu baru ke Record untuk memuaskan linter
+  return (props.items as Record<string, unknown>[]).filter((item) => {
     return Object.values(item).some((val) => {
-      // Pastikan val tidak null/undefined sebelum di-string-kan agar aman
-      return val && String(val).toLowerCase().includes(searchLower);
+      return val !== null && val !== undefined && String(val).toLowerCase().includes(searchLower);
     });
   });
 });
@@ -84,14 +84,25 @@ watch(
 
 <template>
   <div class="app-data-table-wrapper">
-    <component :is="tableComponent" v-bind="{ ...$attrs, items: paginatedItems }" hide-default-footer
-      :items-per-page="itemsPerPage" :items-length="server ? itemsLength : undefined" class="bg-surface">
+    <component
+      :is="tableComponent"
+      v-bind="{ ...$attrs, items: paginatedItems }"
+      hide-default-footer
+      :items-per-page="itemsPerPage"
+      :items-length="server ? itemsLength : undefined"
+      class="bg-surface"
+    >
       <template #no-data>
         <slot v-if="$slots['no-data']" name="no-data"></slot>
         <div v-else class="empty-data-wrapper">
           <div class="lottie-container">
-            <LottieVuePlayer :animation-data="emptyDataAnimation" :width="120" :height="120" :loop="true"
-              :autoplay="true" />
+            <LottieVuePlayer
+              :animation-data="emptyDataAnimation"
+              :width="120"
+              :height="120"
+              :loop="true"
+              :autoplay="true"
+            />
           </div>
           <h4 class="text-h7 text-medium-emphasis">Tidak Ada Data Ditemukan</h4>
           <p class="text-body-3 text-disabled mt-2">
@@ -108,11 +119,23 @@ watch(
     <div v-if="server || (items && items.length > 0)" class="custom-pagination-footer">
       <div class="items-per-page">
         <span class="text-caption text-medium-emphasis">Items per page:</span>
-        <v-select v-model="itemsPerPage" :items="itemsPerPageOptions" density="compact" variant="outlined" hide-details
-          class="items-per-page-select"></v-select>
+        <v-select
+          v-model="itemsPerPage"
+          :items="itemsPerPageOptions"
+          density="compact"
+          variant="outlined"
+          hide-details
+          class="items-per-page-select"
+        ></v-select>
       </div>
       <span class="pagination-text text-caption">{{ paginationText }}</span>
-      <v-pagination v-model="page" :length="pageCount" :total-visible="5" density="compact" size="small"></v-pagination>
+      <v-pagination
+        v-model="page"
+        :length="pageCount"
+        :total-visible="5"
+        density="compact"
+        size="small"
+      ></v-pagination>
     </div>
   </div>
 </template>

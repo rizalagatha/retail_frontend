@@ -1,20 +1,40 @@
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue';
-import { useRoute } from 'vue-router';
-import api from '@/services/api';
-import { format, parseISO } from 'date-fns';
-import PageLayout from '@/components/PageLayout.vue';
+import { ref, onMounted, computed } from "vue";
+import { useRoute } from "vue-router";
+import api from "@/services/api";
+import { format, parseISO } from "date-fns";
+import PageLayout from "@/components/PageLayout.vue";
 
 // 1. Impor semua komponen dan elemen chart yang dibutuhkan
-import { Bar, Line, Pie } from 'vue-chartjs';
+import { Bar, Line, Pie } from "vue-chartjs";
 import {
-  Chart as ChartJS, Title, Tooltip, Legend, BarElement, CategoryScale,
-  LinearScale, PointElement, LineElement, ArcElement, Filler
-} from 'chart.js';
-import type { ChartOptions } from 'chart.js';
+  Chart as ChartJS,
+  Title,
+  Tooltip,
+  Legend,
+  BarElement,
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  ArcElement,
+  Filler,
+} from "chart.js";
+import type { ChartOptions } from "chart.js";
 
 // 2. Registrasikan semua elemen
-ChartJS.register(Title, Tooltip, Legend, BarElement, CategoryScale, LinearScale, PointElement, LineElement, ArcElement, Filler);
+ChartJS.register(
+  Title,
+  Tooltip,
+  Legend,
+  BarElement,
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  ArcElement,
+  Filler
+);
 
 interface ChartRow {
   store: string;
@@ -27,23 +47,23 @@ const isLoading = ref(true);
 const chartRawData = ref<ChartRow[]>([]);
 
 // 3. State untuk tipe chart yang aktif
-const chartType = ref<'bar' | 'horizontalBar' | 'line' | 'area' | 'pie'>('bar');
+const chartType = ref<"bar" | "horizontalBar" | "line" | "area" | "pie">("bar");
 
 // 4. Buat Chart Options menjadi dinamis
-const chartOptions = computed<ChartOptions<'bar' | 'line' | 'pie'>>(() => {
-  const axis: 'x' | 'y' = chartType.value === 'horizontalBar' ? 'y' : 'x';
+const chartOptions = computed<ChartOptions<"bar" | "line" | "pie">>(() => {
+  const axis: "x" | "y" = chartType.value === "horizontalBar" ? "y" : "x";
 
   return {
     responsive: true,
     maintainAspectRatio: false,
     indexAxis: axis,
     plugins: {
-      legend: { position: 'top' as const },
-      title: { display: true, text: 'Perbandingan Penjualan per Bulan' }
+      legend: { position: "top" as const },
+      title: { display: true, text: "Perbandingan Penjualan per Bulan" },
     },
     elements: {
-      line: { fill: chartType.value === 'area' }
-    }
+      line: { fill: chartType.value === "area" },
+    },
   };
 });
 
@@ -52,17 +72,19 @@ const chartData = computed(() => {
   if (chartRawData.value.length === 0) return { labels: [], datasets: [] };
 
   // 1. Labels (Sumbu-X) sekarang adalah daftar toko/store unik.
-  const labels = [...new Set(chartRawData.value.map(d => d.store))];
+  const labels = [...new Set(chartRawData.value.map((d) => d.store))];
 
   // 2. Kelompokkan data per bulan.
-  const months = [...new Set(chartRawData.value.map(d => format(parseISO(d.bulan), 'MMMM yyyy')))];
-  const colors = ['#42A5F5', '#66BB6A', '#FFA726', '#EF5350', '#AB47BC'];
+  const months = [
+    ...new Set(chartRawData.value.map((d) => format(parseISO(d.bulan), "MMMM yyyy"))),
+  ];
+  const colors = ["#42A5F5", "#66BB6A", "#FFA726", "#EF5350", "#AB47BC"];
 
   // 3. Buat dataset terpisah untuk setiap bulan.
   const datasets = months.map((month, index) => {
-    const dataForMonth = labels.map(label => {
-      const found = chartRawData.value.find(d =>
-        d.store === label && format(parseISO(d.bulan), 'MMMM yyyy') === month
+    const dataForMonth = labels.map((label) => {
+      const found = chartRawData.value.find(
+        (d) => d.store === label && format(parseISO(d.bulan), "MMMM yyyy") === month
       );
       return found ? found.nominal : 0;
     });
@@ -78,19 +100,19 @@ const chartData = computed(() => {
 
 // 5. Computed property untuk memilih komponen chart secara dinamis
 const ChartComponent = computed(() => {
-  if (chartType.value === 'line' || chartType.value === 'area') return Line;
+  if (chartType.value === "line" || chartType.value === "area") return Line;
   // Pie chart tidak cocok untuk data perbandingan multi-bulan, jadi kita fallback ke Bar.
-  if (chartType.value === 'pie') return Pie;
+  if (chartType.value === "pie") return Pie;
   return Bar;
 });
 
 onMounted(async () => {
   isLoading.value = true;
   try {
-    const response = await api.get('/laporan-penjualan-pivot/chart-data', { params: route.query });
+    const response = await api.get("/laporan-penjualan-pivot/chart-data", { params: route.query });
     chartRawData.value = response.data;
   } catch {
-    alert('Gagal memuat data grafik. Pastikan filter tanggal valid.');
+    alert("Gagal memuat data grafik. Pastikan filter tanggal valid.");
   } finally {
     isLoading.value = false;
   }
@@ -113,8 +135,12 @@ onMounted(async () => {
             </v-tooltip>
             <v-tooltip text="Bar Diagram">
               <template v-slot:activator="{ props }">
-                <v-btn v-bind="props" icon="mdi-chart-bar-stacked" value="horizontalBar"
-                  style="transform: rotate(90deg);"></v-btn>
+                <v-btn
+                  v-bind="props"
+                  icon="mdi-chart-bar-stacked"
+                  value="horizontalBar"
+                  style="transform: rotate(90deg)"
+                ></v-btn>
               </template>
             </v-tooltip>
             <v-tooltip text="Line Diagram">
@@ -135,7 +161,7 @@ onMounted(async () => {
           </v-btn-toggle>
         </v-card>
 
-        <div style="position: relative; flex-grow: 1;">
+        <div style="position: relative; flex-grow: 1">
           <component :is="ChartComponent" :data="chartData" :options="chartOptions as any" />
         </div>
       </div>

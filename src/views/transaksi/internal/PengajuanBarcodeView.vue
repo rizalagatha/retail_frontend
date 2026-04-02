@@ -1,17 +1,17 @@
 <script setup lang="ts">
-import { ref, reactive, onMounted, computed, watch, nextTick } from 'vue';
-import { useRouter } from 'vue-router';
-import { useToast } from 'vue-toastification';
-import { useAuthStore } from '@/stores/authStore';
-import api from '@/services/api';
-import { format, subDays, parseISO } from 'date-fns';
-import PageLayout from '@/components/PageLayout.vue';
-import * as XLSX from 'xlsx';
-import axios, { AxiosError } from 'axios';
-import AppDataTable from '@/components/AppDataTable.vue';
-import JsBarcode from 'jsbarcode';
+import { ref, reactive, onMounted, computed, watch, nextTick } from "vue";
+import { useRouter } from "vue-router";
+import { useToast } from "vue-toastification";
+import { useAuthStore } from "@/stores/authStore";
+import api from "@/services/api";
+import { format, subDays, parseISO } from "date-fns";
+import PageLayout from "@/components/PageLayout.vue";
+import * as XLSX from "xlsx";
+import axios, { AxiosError } from "axios";
+import AppDataTable from "@/components/AppDataTable.vue";
+import JsBarcode from "jsbarcode";
 
-if (typeof window !== 'undefined') {
+if (typeof window !== "undefined") {
   // Menggabungkan tipe Window asli dengan properti JsBarcode
   (window as Window & { JsBarcode: typeof JsBarcode }).JsBarcode = JsBarcode;
 }
@@ -22,7 +22,7 @@ interface DataTableHeader {
   key: string;
   width?: number;
   fixed?: boolean;
-  align?: 'start' | 'center' | 'end';
+  align?: "start" | "center" | "end";
   minWidth?: string | number;
   maxWidth?: string | number;
   sortable?: boolean;
@@ -34,7 +34,7 @@ interface MasterItem {
   usr: string;
   approved: string | null;
   tglApproval: string | null;
-  closing: 'Y' | 'N';
+  closing: "Y" | "N";
 }
 interface DetailItem {
   kode: string;
@@ -63,7 +63,7 @@ interface BarcodeItem {
 const router = useRouter();
 const toast = useToast();
 const authStore = useAuthStore();
-const MENU_ID = '33';
+const MENU_ID = "33";
 
 // --- State ---
 const masterData = ref<MasterItem[]>([]);
@@ -72,50 +72,56 @@ const loading = ref(true);
 const loadingDetails = ref(new Set<string>());
 const selected = ref<MasterItem[]>([]);
 const expanded = ref<string[]>([]);
-const cabangList = ref<{ kode: string, nama: string }[]>([]);
+const cabangList = ref<{ kode: string; nama: string }[]>([]);
 const isPrintDialogVisible = ref(false);
 const isPrintLoading = ref(false);
 const itemsToPrint = ref<BarcodeItem[]>([]);
 
 const dialogConfirm = reactive({
   show: false,
-  title: '',
-  text: '',
-  onConfirm: () => { },
+  title: "",
+  text: "",
+  onConfirm: () => {},
 });
 
 const filters = reactive({
-  startDate: format(subDays(new Date(), 30), 'yyyy-MM-dd'),
-  endDate: format(new Date(), 'yyyy-MM-dd'),
-  cabang: authStore.user?.cabang || '',
+  startDate: format(subDays(new Date(), 30), "yyyy-MM-dd"),
+  endDate: format(new Date(), "yyyy-MM-dd"),
+  cabang: authStore.user?.cabang || "",
 });
 
 // --- Computed ---
 const isSingleSelected = computed(() => selected.value.length === 1);
-const selectedRow = computed<MasterItem | null>(() => isSingleSelected.value ? selected.value[0] : null);
+const selectedRow = computed<MasterItem | null>(() =>
+  isSingleSelected.value ? selected.value[0] : null
+);
 
-const canEdit = computed(() => isSingleSelected.value && !selectedRow.value?.approved && selectedRow.value?.closing !== 'Y');
-const canDelete = computed(() => isSingleSelected.value && !selectedRow.value?.approved && selectedRow.value?.closing !== 'Y');
+const canEdit = computed(
+  () => isSingleSelected.value && !selectedRow.value?.approved && selectedRow.value?.closing !== "Y"
+);
+const canDelete = computed(
+  () => isSingleSelected.value && !selectedRow.value?.approved && selectedRow.value?.closing !== "Y"
+);
 const canPrintBarcode = computed(() => isSingleSelected.value && !!selectedRow.value?.approved);
 
 // --- Header Definisi (Ref & Width Angka) ---
 const headers = ref<DataTableHeader[]>([
-  { title: '', key: 'data-table-expand', width: 50, fixed: true },
-  { title: 'Nomor', key: 'nomor', width: 180, fixed: true },
-  { title: 'Tanggal', key: 'tanggal', width: 120 },
-  { title: 'User', key: 'usr', width: 120 },
-  { title: 'Approved', key: 'approved', width: 120 },
-  { title: 'Tgl Approval', key: 'tglApproval', width: 120 },
-  { title: 'Closing', key: 'closing', align: 'center', width: 100 },
+  { title: "", key: "data-table-expand", width: 50, fixed: true },
+  { title: "Nomor", key: "nomor", width: 180, fixed: true },
+  { title: "Tanggal", key: "tanggal", width: 120 },
+  { title: "User", key: "usr", width: 120 },
+  { title: "Approved", key: "approved", width: 120 },
+  { title: "Tgl Approval", key: "tglApproval", width: 120 },
+  { title: "Closing", key: "closing", align: "center", width: 100 },
 ]);
 
 const detailHeaders = [
-  { title: 'Kode', key: 'kode', width: '150px' },
-  { title: 'Nama Barang', key: 'nama', width: '300px' },
-  { title: 'Ukuran', key: 'ukuran', width: '100px' },
-  { title: 'Jumlah', key: 'jumlah', align: 'end', width: '100px' },
-  { title: 'Harga', key: 'harga', align: 'end', width: '120px' },
-  { title: 'Barcode Baru', key: 'barcodeBaru', width: '150px' },
+  { title: "Kode", key: "kode", width: "150px" },
+  { title: "Nama Barang", key: "nama", width: "300px" },
+  { title: "Ukuran", key: "ukuran", width: "100px" },
+  { title: "Jumlah", key: "jumlah", align: "end", width: "100px" },
+  { title: "Harga", key: "harga", align: "end", width: "120px" },
+  { title: "Barcode Baru", key: "barcodeBaru", width: "150px" },
 ] as const;
 
 // --- Logic Resize Column ---
@@ -128,10 +134,10 @@ const onResizeStart = (e: MouseEvent, column: DataTableHeader) => {
   e.stopPropagation();
   resizingColumn.value = column;
   startX.value = e.pageX;
-  startWidth.value = (typeof column.width === 'number' ? column.width : 100);
-  document.addEventListener('mousemove', onResizeMove);
-  document.addEventListener('mouseup', onResizeEnd);
-  document.body.style.cursor = 'col-resize';
+  startWidth.value = typeof column.width === "number" ? column.width : 100;
+  document.addEventListener("mousemove", onResizeMove);
+  document.addEventListener("mouseup", onResizeEnd);
+  document.body.style.cursor = "col-resize";
 };
 
 const onResizeMove = (e: MouseEvent) => {
@@ -142,9 +148,9 @@ const onResizeMove = (e: MouseEvent) => {
 
 const onResizeEnd = () => {
   resizingColumn.value = null;
-  document.removeEventListener('mousemove', onResizeMove);
-  document.removeEventListener('mouseup', onResizeEnd);
-  document.body.style.cursor = '';
+  document.removeEventListener("mousemove", onResizeMove);
+  document.removeEventListener("mouseup", onResizeEnd);
+  document.body.style.cursor = "";
 };
 
 // --- Logic Selected Row ---
@@ -155,9 +161,14 @@ const handleRowClick = (_event: Event, { item }: { item: MasterItem }) => {
 // --- Methods ---
 const fetchCabangList = async () => {
   try {
-    const response = await api.get('/pengajuan-barcode/lookup/cabang');
+    const response = await api.get("/pengajuan-barcode/lookup/cabang");
     cabangList.value = response.data;
-  } catch (error) { toast.error('Gagal memuat daftar cabang.', error); }
+  } catch (error: unknown) {
+    // [PERBAIKAN]
+    let msg = "Gagal memuat daftar cabang.";
+    if (axios.isAxiosError(error)) msg = error.response?.data?.message || msg;
+    toast.error(msg);
+  }
 };
 
 const fetchMasterData = async () => {
@@ -165,18 +176,20 @@ const fetchMasterData = async () => {
   selected.value = [];
   expanded.value = [];
   try {
-    const response = await api.get('/pengajuan-barcode', { params: filters });
+    const response = await api.get("/pengajuan-barcode", { params: filters });
     masterData.value = response.data;
   } catch (err) {
     const error = err as AxiosError<{ message?: string }>;
-    toast.error(error.response?.data?.message || 'Gagal mengambil data.');
+    toast.error(error.response?.data?.message || "Gagal mengambil data.");
   } finally {
     loading.value = false;
   }
 };
 
 const loadDetails = async (newlyExpandedItems: MasterItem[]) => {
-  const itemToLoad = newlyExpandedItems.find(item => !details.value[item.nomor] && !loadingDetails.value.has(item.nomor));
+  const itemToLoad = newlyExpandedItems.find(
+    (item) => !details.value[item.nomor] && !loadingDetails.value.has(item.nomor)
+  );
   if (!itemToLoad) return;
   const nomorToLoad = itemToLoad.nomor;
 
@@ -184,9 +197,13 @@ const loadDetails = async (newlyExpandedItems: MasterItem[]) => {
   try {
     const response = await api.get(`/pengajuan-barcode/details/${nomorToLoad}`);
     details.value[nomorToLoad] = response.data;
-  } catch (error) {
-    toast.error(`Gagal memuat detail untuk ${nomorToLoad}`, error);
-    expanded.value = expanded.value.filter(nomor => nomor !== nomorToLoad);
+  } catch (error: unknown) {
+    // [PERBAIKAN]
+    let msg = `Gagal memuat detail untuk ${nomorToLoad}`;
+    if (axios.isAxiosError(error)) msg = error.response?.data?.message || msg;
+
+    toast.error(msg);
+    expanded.value = expanded.value.filter((nomor) => nomor !== nomorToLoad);
   } finally {
     loadingDetails.value.delete(nomorToLoad);
   }
@@ -199,16 +216,16 @@ const showConfirmation = (title: string, text: string, onConfirm: () => void) =>
   dialogConfirm.show = true;
 };
 
-const handleNew = () => router.push({ name: 'PengajuanBarcodeCreate' });
+const handleNew = () => router.push({ name: "PengajuanBarcodeCreate" });
 const handleEdit = () => {
   if (!canEdit.value) return;
-  router.push({ name: 'PengajuanBarcodeEdit', params: { nomor: selectedRow.value?.nomor } });
+  router.push({ name: "PengajuanBarcodeEdit", params: { nomor: selectedRow.value?.nomor } });
 };
 
 const handleDelete = () => {
   if (!canDelete.value) return;
   showConfirmation(
-    'Konfirmasi Hapus',
+    "Konfirmasi Hapus",
     `Yakin ingin menghapus dokumen ${selectedRow.value?.nomor}?`,
     async () => {
       try {
@@ -217,7 +234,7 @@ const handleDelete = () => {
         fetchMasterData();
       } catch (err) {
         const error = err as AxiosError<{ message?: string }>;
-        toast.error(error.response?.data?.message || 'Gagal menghapus data.');
+        toast.error(error.response?.data?.message || "Gagal menghapus data.");
       }
     }
   );
@@ -225,88 +242,85 @@ const handleDelete = () => {
 
 // Helper Format Tanggal Indonesia
 const formatDateIndo = (dateString: string | Date | null | undefined) => {
-  if (!dateString) return '';
+  if (!dateString) return "";
   const date = new Date(dateString);
-  if (isNaN(date.getTime())) return '';
-  return new Intl.DateTimeFormat('id-ID', {
-    day: 'numeric',
-    month: 'long',
-    year: 'numeric'
+  if (isNaN(date.getTime())) return "";
+  return new Intl.DateTimeFormat("id-ID", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
   }).format(date);
 };
 
 // --- 2. Fungsi Export Data ---
-const exportData = async (type: 'header' | 'detail') => {
-
+const exportData = async (type: "header" | "detail") => {
   // === EXPORT HEADER ===
-  if (type === 'header') {
+  if (type === "header") {
     // Casting masterData.value ke Interface MasterItem
     const currentList = masterData.value as MasterItem[];
 
     if (currentList.length === 0) {
-      toast.warning('Tidak ada data header untuk diekspor.');
+      toast.warning("Tidak ada data header untuk diekspor.");
       return;
     }
 
     try {
-      toast.info('Membuat file Excel Header...');
+      toast.info("Membuat file Excel Header...");
 
       // Mapping Header dengan Format Tanggal
       const formattedHeader = currentList.map((item) => ({
         ...item,
-        tanggal: item.tanggal ? formatDateIndo(item.tanggal) : '',
-        tglApproval: item.tglApproval ? formatDateIndo(item.tglApproval) : '',
+        tanggal: item.tanggal ? formatDateIndo(item.tanggal) : "",
+        tglApproval: item.tglApproval ? formatDateIndo(item.tglApproval) : "",
       }));
 
       const worksheet = XLSX.utils.json_to_sheet(formattedHeader);
       const workbook = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(workbook, worksheet, "Pengajuan Barcode Header");
       XLSX.writeFile(workbook, "Export_PengajuanBarcode_Header.xlsx");
-      toast.success('File Header berhasil dibuat.');
-    } catch (error) {
-      toast.error('Gagal membuat file Excel.', error);
+      toast.success("File Header berhasil dibuat.");
+    } catch (error: unknown) {
+      // [PERBAIKAN]
+      toast.error("Gagal membuat file Excel.");
+      console.error(error); // Tetap log ke console untuk debug
     }
 
     // === EXPORT DETAIL ===
-  } else if (type === 'detail') {
+  } else if (type === "detail") {
     try {
-      toast.info('Mengambil data detail dari server...');
+      toast.info("Mengambil data detail dari server...");
 
       // Request API dengan Generic Type
-      const response = await api.get<PengajuanExportRow[]>('/pengajuan-barcode/export-details', {
-        params: filters
+      const response = await api.get<PengajuanExportRow[]>("/pengajuan-barcode/export-details", {
+        params: filters,
       });
 
       const details = response.data;
 
       if (details.length === 0) {
-        toast.warning('Tidak ada data detail untuk diekspor pada filter ini.');
+        toast.warning("Tidak ada data detail untuk diekspor pada filter ini.");
         return;
       }
 
-      toast.info('Membuat file Excel Detail...');
+      toast.info("Membuat file Excel Detail...");
 
       // Mapping Detail dengan Format Tanggal
       const formattedDetail = details.map((row) => ({
         ...row,
-        Tanggal: row.Tanggal ? formatDateIndo(row.Tanggal) : ''
+        Tanggal: row.Tanggal ? formatDateIndo(row.Tanggal) : "",
       }));
 
       // Setup Layout Excel (Judul, Periode, Tabel)
       const title = "LAPORAN DETAIL PENGAJUAN BARCODE";
-      const dateRange = `Periode : ${formatDateIndo(filters.startDate)} s/d ${formatDateIndo(filters.endDate)}`;
+      const dateRange = `Periode : ${formatDateIndo(filters.startDate)} s/d ${formatDateIndo(
+        filters.endDate
+      )}`;
       const tableHeaders = Object.keys(formattedDetail[0]);
 
       // Konversi ke Array Values (Type Safe)
       const tableData = formattedDetail.map((row) => Object.values(row as Record<string, unknown>));
 
-      const excelData = [
-        [title],
-        [dateRange],
-        [],
-        tableHeaders,
-        ...tableData
-      ];
+      const excelData = [[title], [dateRange], [], tableHeaders, ...tableData];
 
       const worksheet = XLSX.utils.aoa_to_sheet(excelData);
 
@@ -315,19 +329,18 @@ const exportData = async (type: 'header' | 'detail') => {
         { s: { r: 0, c: 0 }, e: { r: 0, c: tableHeaders.length - 1 } },
         { s: { r: 1, c: 0 }, e: { r: 1, c: tableHeaders.length - 1 } },
       ];
-      worksheet['!merges'] = merge;
+      worksheet["!merges"] = merge;
 
       // Auto Width
-      const colWidths = tableHeaders.map(header => ({ wch: header.length + 5 }));
-      worksheet['!cols'] = colWidths;
+      const colWidths = tableHeaders.map((header) => ({ wch: header.length + 5 }));
+      worksheet["!cols"] = colWidths;
 
       const workbook = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(workbook, worksheet, "Pengajuan Barcode Detail");
       XLSX.writeFile(workbook, "Export_PengajuanBarcode_Detail.xlsx");
-      toast.success('File Detail berhasil dibuat.');
-
+      toast.success("File Detail berhasil dibuat.");
     } catch (error) {
-      let message = 'Gagal mengekspor data detail.';
+      let message = "Gagal mengekspor data detail.";
       if (error instanceof Error) message = error.message;
       toast.error(message);
     }
@@ -339,15 +352,15 @@ const handleCetakA4 = () => {
   if (!isSingleSelected.value || !selectedRow.value) return;
 
   const url = router.resolve({
-    name: 'CetakBarcodeBaruA4', // Sesuai route yang Anda berikan
-    params: { nomor: selectedRow.value.nomor }
+    name: "CetakBarcodeBaruA4", // Sesuai route yang Anda berikan
+    params: { nomor: selectedRow.value.nomor },
   }).href;
 
-  window.open(url, '_blank');
+  window.open(url, "_blank");
 };
 
 const getRowTextColor = (item: MasterItem): string => {
-  return !item.approved ? 'text-red font-weight-bold' : '';
+  return !item.approved ? "text-red font-weight-bold" : "";
 };
 
 // --- 1. Style Identik dengan Create View ---
@@ -385,19 +398,21 @@ const printStylesXP360B = `
 const generateBarcodesInIframe = (iframe: HTMLIFrameElement) => {
   const frameDoc = iframe.contentWindow?.document;
   if (frameDoc && window.JsBarcode) {
-    const svgs = frameDoc.querySelectorAll('.barcode-svg');
+    const svgs = frameDoc.querySelectorAll(".barcode-svg");
     svgs.forEach((svgElement) => {
-      const barcodeValue = svgElement.getAttribute('data-barcode-value');
+      const barcodeValue = svgElement.getAttribute("data-barcode-value");
       if (barcodeValue) {
         try {
           window.JsBarcode(svgElement as SVGElement, barcodeValue, {
             format: "CODE128",
-            width: 1,      // [KUNCI] Batang barcode tipis agar tidak menyatu
-            height: 20,     // Tinggi yang pas untuk area 15mm
+            width: 1, // [KUNCI] Batang barcode tipis agar tidak menyatu
+            height: 20, // Tinggi yang pas untuk area 15mm
             displayValue: false,
             margin: 0,
           });
-        } catch (e) { console.error(e); }
+        } catch (e) {
+          console.error(e);
+        }
       }
     });
   }
@@ -406,7 +421,7 @@ const generateBarcodesInIframe = (iframe: HTMLIFrameElement) => {
 const barcodeSheets = computed(() => {
   if (!Array.isArray(itemsToPrint.value)) return [];
 
-  const expandedItems = itemsToPrint.value.flatMap(item =>
+  const expandedItems = itemsToPrint.value.flatMap((item) =>
     Array.from({ length: item.jumlah || 0 }, () => ({
       barcode: item.barcode,
       nama: item.nama,
@@ -432,10 +447,12 @@ const handleCetakBarcode = async () => {
 
   try {
     // [FIX] Menggunakan endpoint print-barcode untuk mengambil data dtl2
-    const response = await api.get(`/pengajuan-barcode-form/print-barcode/${selectedRow.value.nomor}`);
+    const response = await api.get(
+      `/pengajuan-barcode-form/print-barcode/${selectedRow.value.nomor}`
+    );
 
     const rawData = response.data;
-    itemsToPrint.value = Array.isArray(rawData) ? rawData : (rawData.data || []);
+    itemsToPrint.value = Array.isArray(rawData) ? rawData : rawData.data || [];
 
     if (itemsToPrint.value.length === 0) {
       toast.warning("Data barcode kosong atau belum di-approve.");
@@ -467,7 +484,7 @@ const renderBarcodes = () => {
       if (canvas && item.barcode) {
         JsBarcode(canvas, item.barcode, {
           format: "CODE128",
-          width: 1.1,      // Sedikit lebih lebar untuk layar monitor agar jelas
+          width: 1.1, // Sedikit lebih lebar untuk layar monitor agar jelas
           height: 25,
           displayValue: false,
           margin: 0,
@@ -479,11 +496,11 @@ const renderBarcodes = () => {
 
 // --- 3. Update Fungsi triggerPrint ---
 const triggerPrint = () => {
-  const printContent = document.getElementById('print-area-barcode');
+  const printContent = document.getElementById("print-area-barcode");
   if (printContent) {
-    const printFrame = document.createElement('iframe');
-    printFrame.style.position = 'fixed';
-    printFrame.style.visibility = 'hidden';
+    const printFrame = document.createElement("iframe");
+    printFrame.style.position = "fixed";
+    printFrame.style.visibility = "hidden";
     document.body.appendChild(printFrame);
 
     const frameDoc = printFrame.contentWindow?.document;
@@ -500,7 +517,9 @@ const triggerPrint = () => {
       setTimeout(() => {
         printFrame.contentWindow?.focus();
         printFrame.contentWindow?.print();
-        setTimeout(() => { document.body.removeChild(printFrame); }, 1000);
+        setTimeout(() => {
+          document.body.removeChild(printFrame);
+        }, 1000);
       }, 500);
     }
   }
@@ -517,14 +536,39 @@ watch(filters, fetchMasterData, { deep: true });
 <template>
   <PageLayout title="Browse Pengajuan Barcode Baru" icon="mdi-barcode-scan">
     <template #header-actions>
-      <v-btn v-if="authStore.can(MENU_ID, 'insert')" size="small" prepend-icon="mdi-plus" color="primary"
-        @click="handleNew">Baru</v-btn>
-      <v-btn v-if="authStore.can(MENU_ID, 'edit')" size="small" prepend-icon="mdi-pencil" @click="handleEdit"
-        :disabled="!canEdit">Ubah</v-btn>
-      <v-btn v-if="authStore.can(MENU_ID, 'delete')" size="small" prepend-icon="mdi-delete" color="error"
-        @click="handleDelete" :disabled="!canDelete">Hapus</v-btn>
-      <v-btn v-if="authStore.can(MENU_ID, 'view')" size="small" prepend-icon="mdi-printer" color="primary"
-        @click="handleCetakA4" :disabled="!isSingleSelected">
+      <v-btn
+        v-if="authStore.can(MENU_ID, 'insert')"
+        size="small"
+        prepend-icon="mdi-plus"
+        color="primary"
+        @click="handleNew"
+        >Baru</v-btn
+      >
+      <v-btn
+        v-if="authStore.can(MENU_ID, 'edit')"
+        size="small"
+        prepend-icon="mdi-pencil"
+        @click="handleEdit"
+        :disabled="!canEdit"
+        >Ubah</v-btn
+      >
+      <v-btn
+        v-if="authStore.can(MENU_ID, 'delete')"
+        size="small"
+        prepend-icon="mdi-delete"
+        color="error"
+        @click="handleDelete"
+        :disabled="!canDelete"
+        >Hapus</v-btn
+      >
+      <v-btn
+        v-if="authStore.can(MENU_ID, 'view')"
+        size="small"
+        prepend-icon="mdi-printer"
+        color="primary"
+        @click="handleCetakA4"
+        :disabled="!isSingleSelected"
+      >
         Cetak Form (A4)
       </v-btn>
       <v-menu offset-y>
@@ -542,8 +586,14 @@ watch(filters, fetchMasterData, { deep: true });
           </v-list-item>
         </v-list>
       </v-menu>
-      <v-btn v-if="authStore.can(MENU_ID, 'insert')" size="small" prepend-icon="mdi-printer" color="success"
-        @click="handleCetakBarcode" :disabled="!canPrintBarcode">
+      <v-btn
+        v-if="authStore.can(MENU_ID, 'insert')"
+        size="small"
+        prepend-icon="mdi-printer"
+        color="success"
+        @click="handleCetakBarcode"
+        :disabled="!canPrintBarcode"
+      >
         Cetak Barcode Baru
       </v-btn>
     </template>
@@ -551,13 +601,35 @@ watch(filters, fetchMasterData, { deep: true });
     <div class="browse-content">
       <div class="filter-section">
         <v-label class="filter-label">Periode:</v-label>
-        <v-text-field v-model="filters.startDate" type="date" density="compact" hide-details variant="outlined"
-          style="max-width: 180px;" />
+        <v-text-field
+          v-model="filters.startDate"
+          type="date"
+          density="compact"
+          hide-details
+          variant="outlined"
+          style="max-width: 180px"
+        />
         <v-label class="mx-2">s/d</v-label>
-        <v-text-field v-model="filters.endDate" type="date" density="compact" hide-details variant="outlined"
-          style="max-width: 180px;" />
-        <v-select label="Cabang" v-model="filters.cabang" :items="cabangList" item-title="nama" item-value="kode"
-          density="compact" hide-details variant="outlined" class="ms-4" style="max-width: 200px;" />
+        <v-text-field
+          v-model="filters.endDate"
+          type="date"
+          density="compact"
+          hide-details
+          variant="outlined"
+          style="max-width: 180px"
+        />
+        <v-select
+          label="Cabang"
+          v-model="filters.cabang"
+          :items="cabangList"
+          item-title="nama"
+          item-value="kode"
+          density="compact"
+          hide-details
+          variant="outlined"
+          class="ms-4"
+          style="max-width: 200px"
+        />
         <v-spacer />
         <div class="d-flex align-center ga-2 text-caption">
           <v-icon color="red" icon="mdi-square-rounded" size="small"></v-icon> Belum di-Approve
@@ -565,39 +637,72 @@ watch(filters, fetchMasterData, { deep: true });
       </div>
 
       <div class="table-container">
-        <AppDataTable v-model="selected" v-model:expanded="expanded" :headers="headers" :items="masterData"
-          :loading="loading" item-value="nomor" density="compact" class="desktop-table header-browse-blue" fixed-header
-          show-select return-object show-expand @update:expanded="loadDetails" @click:row="handleRowClick">
+        <AppDataTable
+          v-model="selected"
+          v-model:expanded="expanded"
+          :headers="headers"
+          :items="masterData"
+          :loading="loading"
+          item-value="nomor"
+          density="compact"
+          class="desktop-table header-browse-blue"
+          fixed-header
+          show-select
+          return-object
+          show-expand
+          @update:expanded="loadDetails"
+          @click:row="handleRowClick"
+        >
           <template #headers="{ columns, isSorted, getSortIcon, toggleSort }">
             <tr>
               <template v-for="header in columns" :key="header.key">
                 <th
-                  :style="{ width: header.width + 'px', minWidth: header.width + 'px', maxWidth: header.width + 'px' }"
+                  :style="{
+                    width: header.width + 'px',
+                    minWidth: header.width + 'px',
+                    maxWidth: header.width + 'px',
+                  }"
                   class="resizable-header"
-                  :class="{ 'text-center': header.align === 'center', 'text-end': header.align === 'end' }"
-                  @click="toggleSort(header)">
+                  :class="{
+                    'text-center': header.align === 'center',
+                    'text-end': header.align === 'end',
+                  }"
+                  @click="toggleSort(header)"
+                >
                   <div class="header-content">
                     <span>{{ header.title }}</span>
                     <v-icon v-if="isSorted(header)" size="small" class="ms-1">
                       {{ getSortIcon(header) }}
                     </v-icon>
                   </div>
-                  <div class="resizer" @mousedown.stop="onResizeStart($event, header)" @click.stop></div>
+                  <div
+                    class="resizer"
+                    @mousedown.stop="onResizeStart($event, header)"
+                    @click.stop
+                  ></div>
                 </th>
               </template>
             </tr>
           </template>
 
           <template #[`item.data-table-expand`]="{ internalItem, toggleExpand, isExpanded }">
-            <v-btn icon="mdi-chevron-down" :class="{ 'rotate-180': isExpanded(internalItem) }" size="x-small"
-              variant="text" @click.stop="toggleExpand(internalItem)" />
+            <v-btn
+              icon="mdi-chevron-down"
+              :class="{ 'rotate-180': isExpanded(internalItem) }"
+              size="x-small"
+              variant="text"
+              @click.stop="toggleExpand(internalItem)"
+            />
           </template>
 
-          <template v-for="header in headers.filter(h => h.key !== 'data-table-expand')"
-            #[`item.${header.key}`]="{ item }" :key="header.key">
+          <template
+            v-for="header in headers.filter((h) => h.key !== 'data-table-expand')"
+            #[`item.${header.key}`]="{ item }"
+            :key="header.key"
+          >
             <td :class="getRowTextColor(item)">
               <template v-if="header.key === 'tanggal'">
-                {{ item.tanggal ? format(parseISO(item.tanggal), 'dd/MM/yyyy') : '' }}
+                {{ item.tanggal ? format(parseISO(item.tanggal), "dd/MM/yyyy") : "" }}
               </template>
               <template v-else-if="header.key === 'closing'">
                 <v-chip v-if="item.closing === 'Y'" size="x-small" color="success">YA</v-chip>
@@ -613,17 +718,35 @@ watch(filters, fetchMasterData, { deep: true });
               <td :colspan="columns.length" class="pa-0">
                 <div class="detail-container d-flex flex-column ga-4">
                   <div class="detail-table-wrapper">
-                    <div class="text-caption font-weight-bold pa-2 bg-grey-lighten-4">ITEM KAOS</div>
-                    <v-data-table :headers="detailHeaders" :items="details[item.nomor]?.items" density="compact"
-                      class="detail-table" :items-per-page="-1" hide-default-footer />
+                    <div class="text-caption font-weight-bold pa-2 bg-grey-lighten-4">
+                      ITEM KAOS
+                    </div>
+                    <v-data-table
+                      :headers="detailHeaders"
+                      :items="details[item.nomor]?.items"
+                      density="compact"
+                      class="detail-table"
+                      :items-per-page="-1"
+                      hide-default-footer
+                    />
                   </div>
 
-                  <div v-if="details[item.nomor]?.stickers?.length > 0" class="detail-table-wrapper">
-                    <div class="text-caption font-weight-bold pa-2 bg-amber-lighten-5 text-brown">STIKER TAMBAHAN</div>
-                    <v-data-table :headers="detailHeaders" :items="details[item.nomor]?.stickers" density="compact"
-                      class="detail-table" :items-per-page="-1" hide-default-footer />
+                  <div
+                    v-if="details[item.nomor]?.stickers?.length > 0"
+                    class="detail-table-wrapper"
+                  >
+                    <div class="text-caption font-weight-bold pa-2 bg-amber-lighten-5 text-brown">
+                      STIKER TAMBAHAN
+                    </div>
+                    <v-data-table
+                      :headers="detailHeaders"
+                      :items="details[item.nomor]?.stickers"
+                      density="compact"
+                      class="detail-table"
+                      :items-per-page="-1"
+                      hide-default-footer
+                    />
                   </div>
-
                 </div>
               </td>
             </tr>
@@ -639,8 +762,15 @@ watch(filters, fetchMasterData, { deep: true });
         <v-card-actions>
           <v-spacer></v-spacer>
           <v-btn text @click="dialogConfirm.show = false">Batal</v-btn>
-          <v-btn color="primary" variant="tonal" @click="dialogConfirm.onConfirm(); dialogConfirm.show = false;">Ya,
-            Lanjutkan</v-btn>
+          <v-btn
+            color="primary"
+            variant="tonal"
+            @click="
+              dialogConfirm.onConfirm();
+              dialogConfirm.show = false;
+            "
+            >Ya, Lanjutkan</v-btn
+          >
         </v-card-actions>
       </v-card>
     </v-dialog>
@@ -660,23 +790,28 @@ watch(filters, fetchMasterData, { deep: true });
           </div>
 
           <div id="print-area-barcode">
-            <div v-for="(sheet, sheetIndex) in barcodeSheets" :key="sheetIndex" class="label-pair-container">
+            <div
+              v-for="(sheet, sheetIndex) in barcodeSheets"
+              :key="sheetIndex"
+              class="label-pair-container"
+            >
               <div v-for="(item, itemIndex) in sheet" :key="itemIndex" class="barcode-label">
-
                 <div class="item-name">{{ item.nama }}</div>
                 <div class="item-size">{{ item.ukuran }}</div>
 
-                <svg class="barcode-svg" :id="`barcode-dialog-${sheetIndex}-${itemIndex}`"
-                  :data-barcode-value="item.barcode"></svg>
+                <svg
+                  class="barcode-svg"
+                  :id="`barcode-dialog-${sheetIndex}-${itemIndex}`"
+                  :data-barcode-value="item.barcode"
+                ></svg>
 
                 <div class="label-footer">
                   <span>{{ item.barcode }}</span>
-                  <span>{{ format(new Date(), 'dd/MM/yy') }}</span>
-                  <span class="font-weight-bold">Rp {{ item.harga.toLocaleString('id-ID') }}</span>
+                  <span>{{ format(new Date(), "dd/MM/yy") }}</span>
+                  <span class="font-weight-bold">Rp {{ item.harga.toLocaleString("id-ID") }}</span>
                 </div>
-
               </div>
-              <div v-if="sheet.length === 1" class="barcode-label" style="visibility: hidden;"></div>
+              <div v-if="sheet.length === 1" class="barcode-label" style="visibility: hidden"></div>
             </div>
           </div>
         </v-card-text>
@@ -685,8 +820,13 @@ watch(filters, fetchMasterData, { deep: true });
         <v-card-actions class="pa-3">
           <v-spacer />
           <v-btn variant="text" @click="isPrintDialogVisible = false">Tutup</v-btn>
-          <v-btn color="success" prepend-icon="mdi-printer" variant="flat"
-            :disabled="isPrintLoading || itemsToPrint.length === 0" @click="triggerPrint">
+          <v-btn
+            color="success"
+            prepend-icon="mdi-printer"
+            variant="flat"
+            :disabled="isPrintLoading || itemsToPrint.length === 0"
+            @click="triggerPrint"
+          >
             Cetak Ke Printer Label
           </v-btn>
         </v-card-actions>
@@ -772,7 +912,6 @@ watch(filters, fetchMasterData, { deep: true });
   white-space: nowrap;
   text-overflow: ellipsis;
 }
-
 
 .header-content {
   display: flex;
@@ -876,7 +1015,7 @@ watch(filters, fetchMasterData, { deep: true });
 
 /* Menggunakan Arial Narrow agar identik dengan BarcodeCreateView */
 .label-item-name {
-  font-family: 'Arial Narrow', sans-serif;
+  font-family: "Arial Narrow", sans-serif;
   font-size: 6pt;
   font-weight: 700;
   white-space: nowrap;

@@ -1,11 +1,12 @@
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue';
-import { useToast } from 'vue-toastification';
-import { useAuthStore } from '@/stores/authStore';
-import api from '@/services/api';
-import PageLayout from '@/components/PageLayout.vue';
-import MasterSimpleFormModal from '@/components/form/MasterSimpleFormModal.vue';
-import * as XLSX from 'xlsx';
+import { ref, onMounted, computed } from "vue";
+import { useToast } from "vue-toastification";
+import { useAuthStore } from "@/stores/authStore";
+import api from "@/services/api";
+import PageLayout from "@/components/PageLayout.vue";
+import MasterSimpleFormModal from "@/components/form/MasterSimpleFormModal.vue";
+import * as XLSX from "xlsx";
+import axios from "axios";
 
 // --- Tipe Data ---
 interface LenganItem {
@@ -15,7 +16,7 @@ interface LenganItem {
 // --- Inisialisasi & State ---
 const toast = useToast();
 const authStore = useAuthStore();
-const MENU_ID = '203';
+const MENU_ID = "203";
 
 const dataList = ref<LenganItem[]>([]);
 const loading = ref(true);
@@ -30,19 +31,25 @@ const selectedRow = computed<LenganItem | null>(() =>
 );
 
 // --- Konfigurasi Tabel ---
-const headers = [
-  { title: 'Lengan', key: 'Lengan' },
-];
+const headers = [{ title: "Lengan", key: "Lengan" }];
 
 // --- Methods ---
 const fetchData = async () => {
   loading.value = true;
   selected.value = [];
   try {
-    const response = await api.get<LenganItem[]>('/lengan');
+    const response = await api.get<LenganItem[]>("/lengan");
     dataList.value = response.data;
   } catch (error: unknown) {
-    toast.error('Gagal mengambil data.', error);
+    // [PERBAIKAN]
+    let errorMessage = "Gagal mengambil data.";
+    if (axios.isAxiosError(error)) {
+      errorMessage = error.response?.data?.message || errorMessage;
+    } else if (error instanceof Error) {
+      errorMessage = error.message;
+    }
+    // Lempar 1 parameter string saja
+    toast.error(errorMessage);
   } finally {
     loading.value = false;
   }
@@ -70,7 +77,7 @@ const confirmDelete = async () => {
     toast.success(response.data.message);
     fetchData();
   } catch {
-    toast.error('Gagal menghapus data.');
+    toast.error("Gagal menghapus data.");
   } finally {
     dialogConfirm.value = false;
     itemToDelete.value = null;
@@ -78,44 +85,83 @@ const confirmDelete = async () => {
 };
 
 const exportData = () => {
-  if (dataList.value.length === 0)
-    return toast.warning('Tidak ada data untuk diexport.');
+  if (dataList.value.length === 0) return toast.warning("Tidak ada data untuk diexport.");
   const worksheet = XLSX.utils.json_to_sheet(dataList.value);
   const workbook = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(workbook, worksheet, 'Lengan');
-  XLSX.writeFile(workbook, 'Export_Lengan.xlsx');
+  XLSX.utils.book_append_sheet(workbook, worksheet, "Lengan");
+  XLSX.writeFile(workbook, "Export_Lengan.xlsx");
+};
+
+const handleRowClick = (_event: Event, { item }: { item: LenganItem }) => {
+  selected.value = [item];
 };
 
 onMounted(fetchData);
 </script>
 
-
 <template>
   <PageLayout title="Browse Lengan" icon="mdi-tshirt-crew-outline">
     <template #header-actions>
-      <v-btn v-if="authStore.can(MENU_ID, 'insert')" size="small" prepend-icon="mdi-plus" color="primary"
-        @click="handleNew">Baru</v-btn>
-      <v-btn v-if="authStore.can(MENU_ID, 'delete')" size="small" prepend-icon="mdi-delete" color="error"
-        @click="handleDelete" :disabled="!isSingleSelected">Hapus</v-btn>
-      <v-btn size="small" color="teal" @click="exportData" prepend-icon="mdi-file-excel">Export</v-btn>
+      <v-btn
+        v-if="authStore.can(MENU_ID, 'insert')"
+        size="small"
+        prepend-icon="mdi-plus"
+        color="primary"
+        @click="handleNew"
+        >Baru</v-btn
+      >
+      <v-btn
+        v-if="authStore.can(MENU_ID, 'delete')"
+        size="small"
+        prepend-icon="mdi-delete"
+        color="error"
+        @click="handleDelete"
+        :disabled="!isSingleSelected"
+        >Hapus</v-btn
+      >
+      <v-btn size="small" color="teal" @click="exportData" prepend-icon="mdi-file-excel"
+        >Export</v-btn
+      >
     </template>
 
     <div class="browse-content">
       <div class="table-container">
-        <v-data-table v-model="selected" :headers="headers" :items="dataList" :loading="loading" item-value="Lengan"
-          density="compact" class="desktop-table header-browse-blue" fixed-header show-select return-object single-select>
+        <v-data-table
+          v-model="selected"
+          :headers="headers"
+          :items="dataList"
+          :loading="loading"
+          item-value="Lengan"
+          density="compact"
+          class="desktop-table header-browse-blue"
+          fixed-header
+          show-select
+          return-object
+          single-select
+          hover
+          @click:row="handleRowClick"
+        >
         </v-data-table>
       </div>
     </div>
 
-    <MasterSimpleFormModal v-if="isFormModalVisible" title="Tambah Lengan Baru" apiUrl="/lengan" label1="Lengan"
-      field1="Lengan" :show-field2="false" @close="isFormModalVisible = false" @saved="onDataSaved" />
+    <MasterSimpleFormModal
+      v-if="isFormModalVisible"
+      title="Tambah Lengan Baru"
+      apiUrl="/lengan"
+      label1="Lengan"
+      field1="Lengan"
+      :show-field2="false"
+      @close="isFormModalVisible = false"
+      @saved="onDataSaved"
+    />
 
     <v-dialog v-model="dialogConfirm" max-width="400px" persistent>
       <v-card>
         <v-card-title class="text-h6 font-weight-bold">Konfirmasi Hapus</v-card-title>
         <v-card-text>
-          Anda yakin ingin menghapus Lengan: <strong>{{ itemToDelete?.Lengan }}</strong>?
+          Anda yakin ingin menghapus Lengan: <strong>{{ itemToDelete?.Lengan }}</strong
+          >?
         </v-card-text>
         <v-card-actions>
           <v-spacer></v-spacer>

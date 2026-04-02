@@ -41,10 +41,12 @@ const selectJenisOrder = (item: JenisOrder) => {
   }
 };
 
-let searchTimeout: number;
+let searchTimeout: number | undefined;
+
 watch(search, () => {
   clearTimeout(searchTimeout);
-  searchTimeout = setTimeout(() => loadItems(), 500);
+  // Tambahkan window. di depan setTimeout
+  searchTimeout = window.setTimeout(() => loadItems(), 500);
 });
 
 onMounted(loadItems);

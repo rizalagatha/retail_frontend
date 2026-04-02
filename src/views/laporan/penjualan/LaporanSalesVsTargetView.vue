@@ -11,6 +11,7 @@ import AppDataTable from "@/components/AppDataTable.vue";
 import { formatRupiah } from "@/utils/formatRupiah";
 import { applyRoundingPolicy } from "@/utils/numberUtils";
 import { AppConfig } from "@/config/appConfig";
+import axios from "axios";
 
 // --- Inisialisasi & State ---
 interface SalesVsTargetItem {
@@ -232,8 +233,18 @@ const fetchCabangOptions = async () => {
       params: { startDate, endDate },
     });
     cabangOptions.value = response.data;
-  } catch (error) {
-    toast.error("Gagal memuat filter cabang dinamis.", error);
+  } catch (error: unknown) {
+    // [PERBAIKAN] Tambahkan unknown
+    let msg = "Gagal memuat filter cabang dinamis.";
+
+    // [PERBAIKAN] Ekstrak string pesan error-nya secara aman
+    if (axios.isAxiosError(error)) {
+      msg = error.response?.data?.message || msg;
+    } else if (error instanceof Error) {
+      msg = error.message;
+    }
+
+    toast.error(msg); // Cuma lempar string ke toast
   }
 };
 

@@ -47,16 +47,16 @@ interface FormHeader {
 interface DetailUkuran {
   id: number;
   ukuran: string;
-  jumlah: number | null;
-  harga: number | null;
-  namaBarang?: string;
+  jumlah: number; // Hapus | null
+  harga: number; // Hapus | null
+  namaBarang: string; // Hapus opsional ?
 }
 interface DetailTitik {
   id: number;
   keterangan: string;
   sizeCetak: string;
-  panjang: number | null;
-  lebar: number | null;
+  panjang: number; // Hapus | null
+  lebar: number; // Hapus | null
 }
 interface SoDtfPayload {
   header: FormHeader;
@@ -574,8 +574,12 @@ const save = async () => {
         savedNomor = response.data.sd_nomor || form.value.nomor;
         form.value.nomor = savedNomor; // Update UI
       } else {
-        delete payload.header.nomor;
-        const response = await api.post("/so-dtf-form", payload);
+        const { nomor, ...headerWithoutNomor } = payload.header;
+        const cleanPayload = {
+          ...payload,
+          header: headerWithoutNomor,
+        };
+        const response = await api.post("/so-dtf-form", cleanPayload);
         savedNomor = response.data.header.sd_nomor;
       }
 

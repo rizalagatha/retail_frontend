@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue';
-import api from '@/services/api';
-import { useToast } from 'vue-toastification';
+import { ref, onMounted, computed } from "vue";
+import api from "@/services/api";
+import { useToast } from "vue-toastification";
 import { formatRupiah } from "@/utils/formatRupiah";
+import axios from "axios";
 
 interface UnpaidDp {
   nomor: string;
@@ -11,26 +12,26 @@ interface UnpaidDp {
 }
 
 const props = defineProps({
-  customerKode: { type: String, required: true }
+  customerKode: { type: String, required: true },
 });
-const emit = defineEmits(['close', 'selected']);
+const emit = defineEmits(["close", "selected"]);
 const toast = useToast();
 
 const items = ref<UnpaidDp[]>([]);
 const loading = ref(true);
-const search = ref('');
+const search = ref("");
 
 const filteredItems = computed(() => {
   if (!search.value) return items.value;
-  return items.value.filter(item =>
+  return items.value.filter((item) =>
     item.nomor.toLowerCase().includes(search.value.toLowerCase())
   );
 });
 
 const headers = [
-  { title: 'Nomor Setoran', key: 'nomor' },
-  { title: 'Jenis', key: 'jenis' },
-  { title: 'Sisa Nominal', key: 'nominal', align: 'end' },
+  { title: "Nomor Setoran", key: "nomor" },
+  { title: "Jenis", key: "jenis" },
+  { title: "Sisa Nominal", key: "nominal", align: "end" },
 ] as const;
 
 const loadItems = async () => {
@@ -38,16 +39,28 @@ const loadItems = async () => {
   try {
     const response = await api.get(`/invoice-form/lookup/unpaid-dp/${props.customerKode}`);
     items.value = response.data;
-  } catch (error) {
-    toast.error("Gagal memuat data DP yang belum lunas.", error);
+  } catch (error: unknown) {
+    // <-- Ubah ke unknown
+    // Ekstrak pesan jadi string aman
+    let errorMessage = "Gagal memuat data DP yang belum lunas.";
+    if (axios.isAxiosError(error)) {
+      errorMessage = error.response?.data?.message || errorMessage;
+    } else if (error instanceof Error) {
+      errorMessage = error.message;
+    }
+    toast.error(errorMessage); // <-- Lempar 1 parameter saja
   } finally {
     loading.value = false;
   }
 };
 
 const selectItem = (item: UnpaidDp) => {
-  emit('selected', item);
-  emit('close');
+  emit("selected", item);
+  emit("close");
+};
+
+const handleRowClick = (event: Event, data: { item: UnpaidDp }) => {
+  selectItem(data.item);
 };
 
 onMounted(loadItems);
@@ -55,7 +68,7 @@ onMounted(loadItems);
 
 <template>
   <v-dialog :model-value="true" @update:modelValue="$emit('close')" max-width="800px" persistent>
-    <v-card class="d-flex flex-column" style="height: 70vh;">
+    <v-card class="d-flex flex-column" style="height: 70vh">
       <v-toolbar color="primary" density="compact">
         <v-toolbar-title class="text-subtitle-1">Bantuan - Pilih DP/Setoran</v-toolbar-title>
         <v-spacer></v-spacer>
@@ -63,14 +76,30 @@ onMounted(loadItems);
       </v-toolbar>
 
       <v-card-text class="pa-4 d-flex flex-column flex-grow-1">
-        <v-text-field v-model="search" label="Cari berdasarkan nomor setoran..." prepend-inner-icon="mdi-magnify"
-          variant="outlined" density="compact" clearable class="mb-4 flex-shrink-0" hide-details
-          autofocus></v-text-field>
+        <v-text-field
+          v-model="search"
+          label="Cari berdasarkan nomor setoran..."
+          prepend-inner-icon="mdi-magnify"
+          variant="outlined"
+          density="compact"
+          clearable
+          class="mb-4 flex-shrink-0"
+          hide-details
+          autofocus
+        ></v-text-field>
 
         <div class="table-container">
-          <v-data-table :headers="headers" :items="filteredItems" :loading="loading" density="compact"
-            class="desktop-table header-browse-blue" fixed-header hover :items-per-page="-1"
-            @click:row="(_, { item }) => selectItem(item)">
+          <v-data-table
+            :headers="headers"
+            :items="filteredItems"
+            :loading="loading"
+            density="compact"
+            class="desktop-table header-browse-blue"
+            fixed-header
+            hover
+            :items-per-page="-1"
+            @click:row="handleRowClick"
+          >
             <template #[`item.nominal`]="{ value }">
               {{ formatRupiah(value) }}
             </template>

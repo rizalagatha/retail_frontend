@@ -68,8 +68,10 @@ const isLoading = ref(false);
 const maxPundi = 500;
 const dynamicLogo = computed(() => {
   // Cek apakah data sudah dimuat dan apakah gudang adalah K04
-  if (printData.value?.header?.inv_nomor?.startsWith('K04') ||
-    printData.value?.header?.perush_nama?.toUpperCase().includes('RESZO')) {
+  if (
+    printData.value?.header?.inv_nomor?.startsWith("K04") ||
+    printData.value?.header?.perush_nama?.toUpperCase().includes("RESZO")
+  ) {
     return LogoReszo;
   }
   return Logo;
@@ -191,13 +193,10 @@ const fetchData = async () => {
         const qty = Number(d.invd_jumlah ?? 0);
 
         const hargaAsli = Number(
-          d.harga_asli ??
-          (d.harga_setelah_diskon ?? d.invd_harga) + (d.invd_diskon ?? 0)
+          d.harga_asli ?? (d.harga_setelah_diskon ?? d.invd_harga) + (d.invd_diskon ?? 0)
         );
 
-        const hargaSetelah = Number(
-          d.harga_setelah_diskon ?? d.invd_harga ?? hargaAsli
-        );
+        const hargaSetelah = Number(d.harga_setelah_diskon ?? d.invd_harga ?? hargaAsli);
 
         return {
           ...d,
@@ -227,14 +226,14 @@ const fetchData = async () => {
 
       s.subTotal = Number(s.subTotal ?? fallbackSubTotal);
       s.diskon = Number(s.diskon ?? fallbackDiskon);
-      s.netto = Number(s.netto ?? (s.subTotal - s.diskon));
+      s.netto = Number(s.netto ?? s.subTotal - s.diskon);
       s.biayaKirim = Number(s.biayaKirim ?? 0);
       s.dp = Number(s.dp ?? 0);
-      s.grandTotal = Number(s.grandTotal ?? (s.netto + s.biayaKirim));
+      s.grandTotal = Number(s.grandTotal ?? s.netto + s.biayaKirim);
       s.bayar = Number(s.bayar ?? 0);
       s.pundiAmal = Number(s.pundiAmal ?? 0);
 
-      s.kembali = Number(h.summary.inv_kembali ?? (s.bayar - s.grandTotal));
+      s.kembali = Number(h.summary.inv_kembali ?? s.bayar - s.grandTotal);
     }
   } catch {
     alert("Gagal memuat data struk.");
@@ -242,7 +241,6 @@ const fetchData = async () => {
     isLoading.value = false;
   }
 };
-
 
 // ===================================================================
 // FUNCTION CETAK — format 58mm melalui iframe (100% presisi)
@@ -263,6 +261,11 @@ const printReceipt = async () => {
 
   document.body.appendChild(iframe);
   const doc = iframe.contentDocument || iframe.contentWindow?.document;
+
+  if (!doc) {
+    console.error("Gagal mengakses dokumen Iframe.");
+    return;
+  }
 
   doc.open();
   doc.write(`
@@ -335,7 +338,7 @@ const hitungPundiAmal = (details: PrintDetail[]) => {
         <v-btn icon="mdi-close" @click="emit('update:modelValue', false)" />
       </v-card-title>
 
-      <v-card-text style="display:flex; justify-content:center">
+      <v-card-text style="display: flex; justify-content: center">
         <div v-if="isLoading" class="text-center">Memuat...</div>
 
         <div v-else-if="printData" id="kasir-preview-area">
@@ -356,49 +359,63 @@ const hitungPundiAmal = (details: PrintDetail[]) => {
 
             <!-- Items -->
             <div class="items">
-              <div v-for="item in printData.details" :key="item.invd_kode" class="item"
-                :class="{ 'item-discounted': item.invd_diskon > 0 }">
-                <div>{{ item.nama_barang }} ({{ item.invd_ukuran }})</div>
+              <div class="items">
+                <div
+                  v-for="item in printData.details"
+                  :key="item.invd_kode"
+                  class="item"
+                  :class="{ 'item-discounted': (item.invd_diskon || 0) > 0 }"
+                >
+                  <div>{{ item.nama_barang }} ({{ item.invd_ukuran }})</div>
 
-                <!-- Jika item DISKON -->
-                <template v-if="item.invd_diskon > 0">
-                  <div class="item-details discounted">
-                    <span class="line-through">
-                      {{ item.invd_jumlah }} x {{ formatRupiah(item.invd_harga + item.invd_diskon) }}
-                    </span>
-                    <span class="line-through">
-                      {{ formatRupiah((item.invd_harga + item.invd_diskon) * item.invd_jumlah) }}
-                    </span>
-                  </div>
+                  <template v-if="(item.invd_diskon || 0) > 0">
+                    <div class="item-details discounted">
+                      <span class="line-through">
+                        {{ item.invd_jumlah }} x
+                        {{ formatRupiah(item.invd_harga + (item.invd_diskon || 0)) }}
+                      </span>
+                      <span class="line-through">
+                        {{
+                          formatRupiah(
+                            (item.invd_harga + (item.invd_diskon || 0)) * item.invd_jumlah
+                          )
+                        }}
+                      </span>
+                    </div>
 
-                  <div class="item-details">
-                    <span>
-                      {{ item.invd_jumlah }} x {{ formatRupiah(item.invd_harga) }}
-                      <small class="discount-label">(Promo -{{ formatRupiah(item.invd_diskon) }}/pcs)</small>
-                    </span>
-                    <span>{{ formatRupiah(item.total) }}</span>
-                  </div>
-                </template>
+                    <div class="item-details">
+                      <span>
+                        {{ item.invd_jumlah }} x {{ formatRupiah(item.invd_harga) }}
+                        <small class="discount-label"
+                          >(Promo -{{ formatRupiah(item.invd_diskon || 0) }}/pcs)</small
+                        >
+                      </span>
+                      <span>{{ formatRupiah(item.total) }}</span>
+                    </div>
+                  </template>
 
-                <!-- Jika item TANPA DISKON -->
-                <template v-else>
-                  <div class="item-details">
-                    <span>{{ item.invd_jumlah }} x {{ formatRupiah(item.invd_harga) }}</span>
-                    <span>{{ formatRupiah(item.total) }}</span>
-                  </div>
-                </template>
+                  <template v-else>
+                    <div class="item-details">
+                      <span>{{ item.invd_jumlah }} x {{ formatRupiah(item.invd_harga) }}</span>
+                      <span>{{ formatRupiah(item.total) }}</span>
+                    </div>
+                  </template>
+                </div>
               </div>
             </div>
 
             <!-- Summary -->
             <div class="summary">
-
               <div class="summary-item">
                 <span>Total (Sebelum Diskon)</span>
                 <span>{{ formatRupiah(printData.header.summary.subTotal) }}</span>
               </div>
 
-              <div v-if="printData.header.summary.diskon > 0" class="summary-item" style="color:#c62828;">
+              <div
+                v-if="printData.header.summary.diskon > 0"
+                class="summary-item"
+                style="color: #c62828"
+              >
                 <span>Total Diskon</span>
                 <span>-{{ formatRupiah(printData.header.summary.diskon) }}</span>
               </div>
@@ -432,19 +449,21 @@ const hitungPundiAmal = (details: PrintDetail[]) => {
                 <span>Kembali</span>
                 <span>{{ formatRupiah(printData.header.summary.kembali) }}</span>
               </div>
-
             </div>
 
             <!-- Footer -->
             <div class="footer text-center">
-              <div v-if="printData.header.gdg_transferbank || printData.header.gdg_akun" class="bank-info">
-                Transfer: {{ printData.header.gdg_transferbank }}<br>
+              <div
+                v-if="printData.header.gdg_transferbank || printData.header.gdg_akun"
+                class="bank-info"
+              >
+                Transfer: {{ printData.header.gdg_transferbank }}<br />
                 {{ printData.header.gdg_akun }}
               </div>
 
               <div class="donation-text">
-                Dengan membeli produk ini, kami telah menyisihkan/peduli dengan sesama yg membutuhkan
-                sebesar {{ formatRupiah(hitungPundiAmal(printData.details)) }}
+                Dengan membeli produk ini, kami telah menyisihkan/peduli dengan sesama yg
+                membutuhkan sebesar {{ formatRupiah(hitungPundiAmal(printData.details)) }}
               </div>
 
               <div>BARANG YANG SUDAH DIBELI TIDAK BISA DIKEMBALIKAN</div>
@@ -476,7 +495,7 @@ const hitungPundiAmal = (details: PrintDetail[]) => {
 
 <style scoped>
 .receipt {
-  font-family: 'Roboto Mono', monospace;
+  font-family: "Roboto Mono", monospace;
 }
 
 .donation-text {
@@ -503,7 +522,7 @@ const hitungPundiAmal = (details: PrintDetail[]) => {
 #kasir-preview-area .receipt {
   width: 58mm;
   padding: 3mm 5mm;
-  font-family: 'Roboto Mono', monospace;
+  font-family: "Roboto Mono", monospace;
   font-size: 9pt;
   color: #000;
 }

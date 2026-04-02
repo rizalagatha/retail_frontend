@@ -121,6 +121,13 @@ interface YtdSummary {
 interface ExcelRow {
   [key: string]: string | number | undefined;
 }
+interface TargetWeek {
+  minggu: number;
+  nominal: number;
+  label: string;
+  start_date: string;
+  end_date: string;
+}
 
 const toast = useToast();
 const authStore = useAuthStore();
@@ -143,6 +150,9 @@ const expandPiutang = ref(false); // Toggle kolom Piutang
 const showTargetDialog = ref(false);
 const isSubmittingTarget = ref(false);
 
+// State loading khusus saat menarik data target
+const isFetchingTarget = ref(false);
+
 const currentYear = new Date().getFullYear();
 const filters = reactive({
   tahun: currentYear,
@@ -154,16 +164,8 @@ const targetForm = reactive({
   tahun: currentYear,
   bulan: new Date().getMonth() + 1,
   kode_gudang: "",
-
-  // [FIX] Ubah menjadi 4 Minggu Saja
-  weeks: [
-    { minggu: 1, nominal: 0, label: "Minggu 1 (Tgl 1 - 7)" },
-    { minggu: 2, nominal: 0, label: "Minggu 2 (Tgl 8 - 14)" },
-    { minggu: 3, nominal: 0, label: "Minggu 3 (Tgl 15 - 21)" },
-    { minggu: 4, nominal: 0, label: "Minggu 4 (Tgl 22 - Akhir)" },
-  ],
+  weeks: [] as TargetWeek[],
 });
-
 const yearOptions = [currentYear - 2, currentYear - 1, currentYear, currentYear + 1];
 const monthOptions = Array.from({ length: 12 }, (_, i) => ({
   value: i + 1,
@@ -332,7 +334,6 @@ const dailyTotalSummary = computed(() => {
 
 const weeklyTotalSummary = computed<WeeklyTotals>(() => {
   if (!weeklyData.value || weeklyData.value.length === 0) {
-    // kosongkan semua properti
     return {
       nominal_w1: 0,
       target_w1: 0,
@@ -358,8 +359,15 @@ const weeklyTotalSummary = computed<WeeklyTotals>(() => {
   const totals = weeklyData.value.reduce<WeeklyTotals>(
     (acc, item) => {
       for (let i = 1; i <= 5; i++) {
-        acc[`nominal_w${i}`] += Number(item[`nominal_w${i}`] || 0);
-        acc[`target_w${i}`] += Number(item[`target_w${i}`] || 0);
+        // [PERBAIKAN] Deklarasikan kunci secara eksplisit untuk menenangkan TypeScript
+        const nomKey = `nominal_w${i}` as keyof WeeklyTotals;
+        const targetKey = `target_w${i}` as keyof WeeklyTotals;
+
+        const itemNomKey = `nominal_w${i}` as keyof WeeklyItem;
+        const itemTargetKey = `target_w${i}` as keyof WeeklyItem;
+
+        acc[nomKey] += Number(item[itemNomKey] || 0);
+        acc[targetKey] += Number(item[itemTargetKey] || 0);
       }
       acc.total_nominal += Number(item.total_nominal || 0);
       acc.total_target += Number(item.total_target || 0);
@@ -389,9 +397,14 @@ const weeklyTotalSummary = computed<WeeklyTotals>(() => {
 
   // Hitung Ach(%) tiap minggu
   for (let i = 1; i <= 5; i++) {
-    totals[`ach_w${i}`] =
-      totals[`target_w${i}`] > 0 ? (totals[`nominal_w${i}`] / totals[`target_w${i}`]) * 100 : 0;
+    // [PERBAIKAN] Deklarasikan kunci secara eksplisit
+    const achKey = `ach_w${i}` as keyof WeeklyTotals;
+    const nomKey = `nominal_w${i}` as keyof WeeklyTotals;
+    const targetKey = `target_w${i}` as keyof WeeklyTotals;
+
+    totals[achKey] = totals[targetKey] > 0 ? (totals[nomKey] / totals[targetKey]) * 100 : 0;
   }
+
   totals.total_ach =
     totals.total_target > 0 ? (totals.total_nominal / totals.total_target) * 100 : 0;
 
@@ -430,11 +443,11 @@ const ytdTotalSummary = computed<YtdSummary>(() => {
   } as YtdSummary;
 });
 
-// Computed Check Hak Akses (KDC & HARIS)
+// Computed Check Hak Akses (KDC & ADMIN)
 const canInputTarget = computed(() => {
   const user = authStore.user;
   // Sesuaikan 'user.kode' dengan field ID User di database/store Anda
-  return user?.cabang === "KDC" && user?.kode === "HARIS";
+  return user?.cabang === "KDC" && user?.kode === "ADMIN";
 });
 
 // --- Methods ---
@@ -758,11 +771,10 @@ const exportData = () => {
 };
 
 const openTargetDialog = () => {
-  // Reset form saat buka
   targetForm.tahun = filters.tahun;
   targetForm.bulan = filters.bulan;
-  targetForm.kode_gudang = ""; // User harus pilih gudang dulu
-  targetForm.weeks.forEach((w) => (w.nominal = 0));
+  targetForm.kode_gudang = "";
+  targetForm.weeks = generateFourWeeks(filters.tahun, filters.bulan);
   showTargetDialog.value = true;
 };
 
@@ -781,6 +793,8 @@ const saveTarget = async () => {
       targets: targetForm.weeks.map((w) => ({
         minggu: w.minggu,
         nominal: w.nominal,
+        start_date: w.start_date, // <--- KIRIM TANGGAL ASLI
+        end_date: w.end_date, // <--- KIRIM TANGGAL ASLI
       })),
     };
 
@@ -809,6 +823,79 @@ const totalTargetInput = computed(() => {
   return targetForm.weeks.reduce((sum, item) => sum + (Number(item.nominal) || 0), 0);
 });
 
+// [PERBAIKAN] Fungsi Generate Tepat 4 Minggu
+const generateFourWeeks = (year: number, month: number) => {
+  // Ambil tanggal terakhir di bulan tersebut (28, 29, 30, atau 31)
+  const lastDay = new Date(year, month, 0).getDate();
+  const strMonth = String(month).padStart(2, "0");
+
+  return [
+    {
+      minggu: 1,
+      start_date: `${year}-${strMonth}-01`,
+      end_date: `${year}-${strMonth}-07`,
+      label: "Minggu 1 (Tgl 1 - 7)",
+      nominal: 0,
+    },
+    {
+      minggu: 2,
+      start_date: `${year}-${strMonth}-08`,
+      end_date: `${year}-${strMonth}-14`,
+      label: "Minggu 2 (Tgl 8 - 14)",
+      nominal: 0,
+    },
+    {
+      minggu: 3,
+      start_date: `${year}-${strMonth}-15`,
+      end_date: `${year}-${strMonth}-21`,
+      label: "Minggu 3 (Tgl 15 - 21)",
+      nominal: 0,
+    },
+    {
+      minggu: 4,
+      start_date: `${year}-${strMonth}-22`,
+      end_date: `${year}-${strMonth}-${String(lastDay).padStart(2, "0")}`,
+      label: `Minggu 4 (Tgl 22 - ${lastDay})`, // <--- Otomatis mengikuti akhir bulan
+      nominal: 0,
+    },
+  ];
+};
+
+// Fungsi untuk menyedot data target dari database
+const fetchExistingTarget = async () => {
+  if (!targetForm.kode_gudang) return;
+
+  isFetchingTarget.value = true;
+  try {
+    const response = await api.get("/monitoring-achievement/target-detail", {
+      params: {
+        tahun: targetForm.tahun,
+        bulan: targetForm.bulan,
+        cabang: targetForm.kode_gudang,
+      },
+    });
+
+    const existingData = response.data; // Contoh isi: [{ minggu: 1, nominal: 5000000 }, ...]
+
+    if (existingData && existingData.length > 0) {
+      // Jika data ditemukan, tembakkan angkanya ke dalam inputan form
+      targetForm.weeks.forEach((w) => {
+        const found = existingData.find((d: any) => d.minggu === w.minggu);
+        w.nominal = found ? Number(found.nominal) : 0;
+      });
+      toast.info("Data target ditemukan. Menampilkan data tersimpan.");
+    } else {
+      // Jika belum pernah diinput, pastikan angkanya 0
+      targetForm.weeks.forEach((w) => (w.nominal = 0));
+    }
+  } catch (error) {
+    console.error("Gagal menarik data target:", error);
+    toast.error("Gagal mengecek data target sebelumnya.");
+  } finally {
+    isFetchingTarget.value = false;
+  }
+};
+
 onMounted(() => {
   fetchCabangOptions();
   fetchData();
@@ -827,6 +914,26 @@ watch(activeTab, (newTab) => {
 
   // Fetch data akan otomatis terpanggil karena ada watch di [filters, activeTab]
 });
+
+// Watcher agar jika Tahun/Bulan di pop-up diubah, label dan tanggalnya otomatis update
+watch(
+  () => [targetForm.tahun, targetForm.bulan, targetForm.kode_gudang],
+  async ([newTahun, newBulan, newGudang], [oldTahun, oldBulan]) => {
+    // 1. Jika Tahun atau Bulan berubah, generate ulang kalendernya (Tgl 1-7, dst)
+    if (newTahun !== oldTahun || newBulan !== oldBulan) {
+      targetForm.weeks = generateFourWeeks(Number(newTahun), Number(newBulan));
+    }
+
+    // 2. Jika Gudang (Cabang) sudah dipilih, langsung sedot datanya
+    if (newGudang) {
+      await fetchExistingTarget();
+    } else {
+      // Jika gudang dikosongkan, reset nominal jadi 0
+      targetForm.weeks.forEach((w) => (w.nominal = 0));
+    }
+  }
+);
+
 watch([filters, activeTab], fetchData, { deep: true });
 </script>
 
@@ -1266,9 +1373,12 @@ watch([filters, activeTab], fetchData, { deep: true });
             </v-col>
             <v-col cols="7">
               <v-text-field
-                v-model.number="week.nominal"
+                :model-value="week.nominal ? week.nominal.toLocaleString('id-ID') : ''"
+                @update:model-value="
+                  (val) => (week.nominal = Number(String(val).replace(/[^0-9]/g, '')) || 0)
+                "
                 prefix="Rp"
-                type="number"
+                type="text"
                 density="compact"
                 variant="outlined"
                 hide-details

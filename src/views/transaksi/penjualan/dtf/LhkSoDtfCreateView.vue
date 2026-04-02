@@ -641,7 +641,6 @@ const handleDoubleClick = (e: MouseEvent, targetCanvas: HTMLCanvasElement | null
   }
 };
 
-// --- Auto Arrange Algorithm (Smart Append Version) ---
 // --- Auto Arrange Algorithm (Skyline / Tetris Packing Version) ---
 const runAutoArrange = () => {
   const validItems = items.value.filter((i) => i.kode && i.jumlah > 0);
@@ -1031,6 +1030,19 @@ const loadLhkData = async () => {
 };
 
 const onSoPoSelected = async (selectedItem: { kode: string; nama: string; sudah_lhk?: number }) => {
+  // === [BARU] CEK DUPLIKAT BARIS ===
+  // Pastikan nomor SO yang dipilih belum ada di baris lain
+  const isDuplicate = items.value.some(
+    (item, index) => item.kode === selectedItem.kode && index !== activeRowIndex.value
+  );
+  if (isDuplicate) {
+    isSoSearchVisible.value = false;
+    isPoSearchVisible.value = false;
+    isSpkSearchVisible.value = false;
+    return toast.warning(`Nomor ${selectedItem.kode} sudah ada di daftar. Tidak boleh dobel!`);
+  }
+  // =================================
+
   const activeItem = items.value[activeRowIndex.value];
   try {
     const res = await api.get(`/lhk-so-dtf-form/specs/${selectedItem.kode}`);

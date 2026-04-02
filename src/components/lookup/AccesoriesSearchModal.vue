@@ -2,6 +2,7 @@
 import { ref, watch, onMounted } from "vue";
 import api from "@/services/api";
 import { useToast } from "vue-toastification";
+import axios from "axios";
 
 interface AccesoriesItem {
   kode: string;
@@ -44,8 +45,20 @@ const loadItems = async () => {
       items.value = [];
       totalItems.value = 0;
     }
-  } catch (error) {
-    toast.error("Gagal memuat data barang kaosan.", error);
+  } catch (error: unknown) {
+    // [PERBAIKAN] Beri tipe unknown
+    // [PERBAIKAN] Ekstrak pesan error dengan aman
+    let errorMessage = "Gagal memuat data barang kaosan.";
+
+    if (axios.isAxiosError(error)) {
+      errorMessage = error.response?.data?.message || errorMessage;
+    } else if (error instanceof Error) {
+      errorMessage = error.message;
+    }
+
+    // [PERBAIKAN] Masukkan sebagai 1 parameter string utuh
+    toast.error(errorMessage);
+
     items.value = [];
     totalItems.value = 0;
   } finally {

@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue';
-import { useMemoInternalDialog } from '@/composables/useMemoInternalDialog';
-import { useAuthStore } from '@/stores/authStore';
-import api from '@/services/api';
-import { useToast } from 'vue-toastification';
+import { ref, onMounted, computed } from "vue";
+import { useMemoInternalDialog } from "@/composables/useMemoInternalDialog";
+import { useAuthStore } from "@/stores/authStore";
+import api from "@/services/api";
+import { useToast } from "vue-toastification";
+import axios from "axios";
 
 interface Memo {
   id: number;
@@ -17,7 +18,7 @@ const { showMemoDialog, closeMemoDialog } = useMemoInternalDialog();
 const authStore = useAuthStore();
 const toast = useToast();
 
-const tab = ref('list');
+const tab = ref("list");
 const isLoading = ref(false);
 const memos = ref<Memo[]>([]);
 const selectedPdfUrl = ref<string | null>(null);
@@ -27,10 +28,11 @@ const dialogWidth = ref(900);
 const dialogHeight = ref(750);
 const isResizing = ref(false);
 
-const startResize = () => { // Parameter 'e' dihapus karena tidak digunakan
+const startResize = () => {
+  // Parameter 'e' dihapus karena tidak digunakan
   isResizing.value = true;
-  window.addEventListener('mousemove', handleResize);
-  window.addEventListener('mouseup', stopResize);
+  window.addEventListener("mousemove", handleResize);
+  window.addEventListener("mouseup", stopResize);
 };
 
 const handleResize = (e: MouseEvent) => {
@@ -48,19 +50,19 @@ const handleResize = (e: MouseEvent) => {
 
 const stopResize = () => {
   isResizing.value = false;
-  window.removeEventListener('mousemove', handleResize);
-  window.removeEventListener('mouseup', stopResize);
+  window.removeEventListener("mousemove", handleResize);
+  window.removeEventListener("mouseup", stopResize);
 };
 
 // Form Upload
-const uploadData = ref({ title: '', file: null as File | null });
+const uploadData = ref({ title: "", file: null as File | null });
 
-const isKdc = computed(() => authStore.user?.cabang === 'KDC');
+const isKdc = computed(() => authStore.user?.cabang === "KDC");
 
 const fetchMemos = async () => {
   isLoading.value = true;
   try {
-    const res = await api.get('/memo-internal'); // Asumsi endpoint API
+    const res = await api.get("/memo-internal"); // Asumsi endpoint API
     memos.value = res.data;
   } catch (error) {
     console.error("Gagal load memo", error);
@@ -73,18 +75,28 @@ const handleUpload = async () => {
   if (!uploadData.value.file || !uploadData.value.title) return;
 
   const formData = new FormData();
-  formData.append('file', uploadData.value.file);
-  formData.append('title', uploadData.value.title);
+  formData.append("file", uploadData.value.file);
+  formData.append("title", uploadData.value.title);
 
   try {
     isLoading.value = true;
-    await api.post('/memo-internal/upload', formData);
+    await api.post("/memo-internal/upload", formData);
     toast.success("Memo berhasil diupload");
-    uploadData.value = { title: '', file: null };
-    tab.value = 'list';
+    uploadData.value = { title: "", file: null };
+    tab.value = "list";
     fetchMemos();
-  } catch (error) {
-    toast.error("Gagal upload memo", error);
+  } catch (error: unknown) {
+    // [PERBAIKAN] Ambil pesan errornya dan gabungkan jadi satu string
+    let errorMessage = "Gagal upload memo.";
+
+    if (axios.isAxiosError(error)) {
+      errorMessage = error.response?.data?.message || error.message || errorMessage;
+    } else if (error instanceof Error) {
+      errorMessage = error.message;
+    }
+
+    // Masukkan sebagai satu parameter string (tidak ada koma untuk parameter kedua)
+    toast.error(errorMessage);
   } finally {
     isLoading.value = false;
   }
@@ -93,7 +105,7 @@ const handleUpload = async () => {
 const viewPdf = (url: string) => {
   console.log("[DEBUG FRONTEND] Membuka PDF via URL:", url);
 
-  if (!url || url.includes('undefined')) {
+  if (!url || url.includes("undefined")) {
     toast.error("URL Memo tidak valid.");
     return;
   }
@@ -109,13 +121,24 @@ onMounted(fetchMemos);
 </script>
 
 <template>
-  <v-dialog v-model="showMemoDialog" :width="dialogWidth" :height="dialogHeight" scrollable persistent>
-    <v-card rounded="xl" :class="['resizable-card d-flex flex-column fill-height', { 'is-resizing': isResizing }]">
+  <v-dialog
+    v-model="showMemoDialog"
+    :width="dialogWidth"
+    :height="dialogHeight"
+    scrollable
+    persistent
+  >
+    <v-card
+      rounded="xl"
+      :class="['resizable-card d-flex flex-column fill-height', { 'is-resizing': isResizing }]"
+    >
       <v-toolbar color="primary" density="compact" class="flex-grow-0">
         <v-icon class="ms-4">mdi-bulletin-board</v-icon>
         <v-toolbar-title class="text-subtitle-1">Memo Internal Management</v-toolbar-title>
         <v-spacer></v-spacer>
-        <span class="text-caption opacity-70 me-4">{{ Math.round(dialogWidth) }}x{{ Math.round(dialogHeight) }}</span>
+        <span class="text-caption opacity-70 me-4"
+          >{{ Math.round(dialogWidth) }}x{{ Math.round(dialogHeight) }}</span
+        >
         <v-btn icon="mdi-close" variant="text" @click="closeMemoDialog" />
       </v-toolbar>
 
@@ -130,19 +153,35 @@ onMounted(fetchMemos);
             <v-row no-gutters class="fill-height">
               <v-col cols="4" class="border-e overflow-y-auto fill-height">
                 <v-list lines="two">
-                  <v-list-item v-for="memo in memos" :key="memo.id" @click="viewPdf(memo.url)"
-                    :active="selectedPdfUrl === memo.url" color="primary">
+                  <v-list-item
+                    v-for="memo in memos"
+                    :key="memo.id"
+                    @click="viewPdf(memo.url)"
+                    :active="selectedPdfUrl === memo.url"
+                    color="primary"
+                  >
                     <template #prepend>
                       <v-icon color="red">mdi-file-pdf-box</v-icon>
                     </template>
-                    <v-list-item-title class="font-weight-bold text-truncate">{{ memo.title }}</v-list-item-title>
+                    <v-list-item-title class="font-weight-bold text-truncate">{{
+                      memo.title
+                    }}</v-list-item-title>
                     <v-list-item-subtitle>{{ memo.date }}</v-list-item-subtitle>
                   </v-list-item>
                 </v-list>
               </v-col>
 
-              <v-col cols="8" class="bg-grey-darken-3 d-flex align-center justify-center fill-height relative">
-                <embed v-if="selectedPdfUrl" :src="selectedPdfUrl" type="application/pdf" width="100%" height="100%" />
+              <v-col
+                cols="8"
+                class="bg-grey-darken-3 d-flex align-center justify-center fill-height relative"
+              >
+                <embed
+                  v-if="selectedPdfUrl"
+                  :src="selectedPdfUrl"
+                  type="application/pdf"
+                  width="100%"
+                  height="100%"
+                />
                 <div v-else class="text-white text-center">
                   <v-icon size="64" class="mb-2 opacity-20">mdi-pdf-box</v-icon>
                   <p>Pilih memo untuk melihat isi dokumen</p>
@@ -153,11 +192,28 @@ onMounted(fetchMemos);
 
           <v-window-item value="upload" v-if="isKdc" class="pa-10">
             <v-form @submit.prevent="handleUpload">
-              <v-text-field v-model="uploadData.title" label="Judul Memo" variant="outlined"
-                prepend-inner-icon="mdi-format-title" class="mb-4" />
-              <v-file-input v-model="uploadData.file" label="Pilih File PDF" variant="outlined" accept="application/pdf"
-                prepend-inner-icon="mdi-file-upload" />
-              <v-btn color="primary" block size="large" type="submit" :loading="isLoading" class="mt-6">
+              <v-text-field
+                v-model="uploadData.title"
+                label="Judul Memo"
+                variant="outlined"
+                prepend-inner-icon="mdi-format-title"
+                class="mb-4"
+              />
+              <v-file-input
+                v-model="uploadData.file"
+                label="Pilih File PDF"
+                variant="outlined"
+                accept="application/pdf"
+                prepend-inner-icon="mdi-file-upload"
+              />
+              <v-btn
+                color="primary"
+                block
+                size="large"
+                type="submit"
+                :loading="isLoading"
+                class="mt-6"
+              >
                 Simpan & Publish Memo
               </v-btn>
             </v-form>

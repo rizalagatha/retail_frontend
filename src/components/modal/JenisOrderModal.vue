@@ -1,8 +1,10 @@
 <script setup lang="ts">
-import { ref, watch, onMounted, computed } from 'vue';
-import api from '@/services/api';
-import { useToast } from 'vue-toastification';
+import { ref, watch, onMounted, computed } from "vue";
+import api from "@/services/api";
+import { useToast } from "vue-toastification";
 import { formatRupiah } from "@/utils/formatRupiah";
+import axios from "axios";
+
 const fr = (v: number) => formatRupiah(v);
 
 /**
@@ -34,7 +36,7 @@ interface TitikRow {
   keterangan: string;
   sizeCetak: string;
   panjang: number | string | null; // <-- Ubah di sini
-  lebar: number | string | null;   // <-- Ubah di sini
+  lebar: number | string | null; // <-- Ubah di sini
 }
 
 interface JenisOrderForm {
@@ -79,9 +81,7 @@ const form = ref<JenisOrderForm>({
   totalHarga: 0,
 });
 
-const detailsTitik = ref([
-  { keterangan: "", sizeCetak: "", panjang: 0, lebar: 0 },
-]);
+const detailsTitik = ref([{ keterangan: "", sizeCetak: "", panjang: 0, lebar: 0 }]);
 
 const jenisOrderList = ref<{ kode: string; nama: string }[]>([]);
 const ukuranList = ref<string[]>([]);
@@ -90,7 +90,7 @@ const selectedPenawaran = ref<PenawaranItem | null>(null);
 
 const validUkuranList = computed(() => {
   if (!props.penawaranDetails || props.penawaranDetails.length === 0) {
-    console.warn('[JenisOrderModal] Tidak ada data ukuran dari penawaran!');
+    console.warn("[JenisOrderModal] Tidak ada data ukuran dari penawaran!");
     return [];
   }
 
@@ -103,14 +103,17 @@ const validUkuranList = computed(() => {
   });
 
   const hasil = Array.from(ukuranSet);
-  console.log('[JenisOrderModal] validUkuranList:', hasil);
+  console.log("[JenisOrderModal] validUkuranList:", hasil);
   return hasil;
 });
 
 const updateValidUkuranList = () => {
-  console.log('[JenisOrderModal] 🔄 updateValidUkuranList called dengan kodeBarang:', form.value.kodeBarang);
+  console.log(
+    "[JenisOrderModal] 🔄 updateValidUkuranList called dengan kodeBarang:",
+    form.value.kodeBarang
+  );
   if (!props.penawaranDetails || props.penawaranDetails.length === 0) {
-    console.warn('[JenisOrderModal] Tidak ada data ukuran dari penawaran!');
+    console.warn("[JenisOrderModal] Tidak ada data ukuran dari penawaran!");
     return;
   }
 
@@ -122,14 +125,14 @@ const updateValidUkuranList = () => {
   });
 
   const hasil = Array.from(ukuranSet);
-  console.log('[JenisOrderModal] ✅ hasil ukuranSet:', hasil);
+  console.log("[JenisOrderModal] ✅ hasil ukuranSet:", hasil);
   ukuranList.value = hasil;
 };
 
 const refreshSizeCetakList = async () => {
   if (!form.value.jenisOrder) return;
   try {
-    const res = await api.get('/so-dtf-form/lookup/size-cetak', {
+    const res = await api.get("/so-dtf-form/lookup/size-cetak", {
       params: { jenisOrder: form.value.jenisOrder },
     });
     sizeCetakList.value = [...res.data, "Custom"];
@@ -142,32 +145,31 @@ const refreshSizeCetakList = async () => {
 watch(
   () => props.penawaranDetails,
   (val) => {
-    console.log('[JenisOrderModal] props.penawaranDetails changed:', val);
+    console.log("[JenisOrderModal] props.penawaranDetails changed:", val);
     if (Array.isArray(val) && val.length > 0) {
       // ✅ Tidak perlu mapping ulang di sini
       // props.penawaranBarangList sudah dikirim dari parent
       selectedPenawaran.value = props.penawaranBarangList?.[0] || null;
-      form.value.namaBarang = selectedPenawaran.value?.namaBarang || '';
-      form.value.kodeBarang = selectedPenawaran.value?.kodeBarang || '';
-      console.log('[JenisOrderModal] received penawaranBarangList =', props.penawaranBarangList);
+      form.value.namaBarang = selectedPenawaran.value?.namaBarang || "";
+      form.value.kodeBarang = selectedPenawaran.value?.kodeBarang || "";
+      console.log("[JenisOrderModal] received penawaranBarangList =", props.penawaranBarangList);
     } else {
       selectedPenawaran.value = null;
-      form.value.namaBarang = '';
-      form.value.kodeBarang = '';
-      console.log('[JenisOrderModal] penawaranDetails empty or undefined');
+      form.value.namaBarang = "";
+      form.value.kodeBarang = "";
+      console.log("[JenisOrderModal] penawaranDetails empty or undefined");
     }
   },
   { immediate: true }
 );
 
-
 watch(
   () => props.modelValue,
   (open) => {
-    console.log('[JenisOrderModal] modelValue (open) =', open);
+    console.log("[JenisOrderModal] modelValue (open) =", open);
     if (open) {
-      console.log('[JenisOrderModal] current form:', JSON.parse(JSON.stringify(form.value)));
-      console.log('[JenisOrderModal] current penawaranBarangList:', props.penawaranBarangList);
+      console.log("[JenisOrderModal] current form:", JSON.parse(JSON.stringify(form.value)));
+      console.log("[JenisOrderModal] current penawaranBarangList:", props.penawaranBarangList);
     }
   },
   { immediate: false }
@@ -175,7 +177,7 @@ watch(
 
 /* when user selects from dropdown (selectedPenawaran is an object via return-object) */
 watch(selectedPenawaran, async (val) => {
-  console.log('[JenisOrderModal] 🧩 selectedPenawaran changed:', val);
+  console.log("[JenisOrderModal] 🧩 selectedPenawaran changed:", val);
 
   if (val && typeof val === "object" && val.kodeBarang) {
     form.value.namaBarang = val.namaBarang;
@@ -185,9 +187,9 @@ watch(selectedPenawaran, async (val) => {
     updateValidUkuranList();
     await refreshSizeCetakList();
   } else {
-    console.warn('[JenisOrderModal] selectedPenawaran kosong atau bukan object:', val);
-    form.value.namaBarang = '';
-    form.value.kodeBarang = '';
+    console.warn("[JenisOrderModal] selectedPenawaran kosong atau bukan object:", val);
+    form.value.namaBarang = "";
+    form.value.kodeBarang = "";
     ukuranList.value = [];
     sizeCetakList.value = [];
   }
@@ -206,7 +208,10 @@ const loading = ref(false);
 const addUkuranRowIfNeeded = (index: number) => {
   const row = form.value.ukuranKaos[index];
   const isLast = index === form.value.ukuranKaos.length - 1;
-  const isFilled = row.ukuran && row.jumlah > 0;
+
+  // [PERBAIKAN] Gunakan (row.jumlah || 0) agar aman dari null
+  const isFilled = row.ukuran && (row.jumlah || 0) > 0;
+
   if (isLast && isFilled) {
     form.value.ukuranKaos.push({ ukuran: "", jumlah: 0, harga: 0 });
   }
@@ -231,9 +236,10 @@ const removeTitikRow = (index: number) => {
 
 watch(
   [
-    () => form.value.jenisOrder, refreshSizeCetakList,
-    () => form.value.ukuranKaos.map(u => [u.ukuran, u.jumlah]),
-    () => form.value.titikCetak.map(t => [t.sizeCetak, t.panjang, t.lebar]),
+    () => form.value.jenisOrder,
+    refreshSizeCetakList,
+    () => form.value.ukuranKaos.map((u) => [u.ukuran, u.jumlah]),
+    () => form.value.titikCetak.map((t) => [t.sizeCetak, t.panjang, t.lebar]),
   ],
   () => calculatePrices(),
   { deep: true }
@@ -243,13 +249,20 @@ onMounted(async () => {
   try {
     loading.value = true;
     const [jenisRes, ukuranRes] = await Promise.all([
-      api.get('/so-form/lookup/jenis-order'),
-      api.get('/so-dtf-form/lookup/ukuran-kaos'),
+      api.get("/so-form/lookup/jenis-order"),
+      api.get("/so-dtf-form/lookup/ukuran-kaos"),
     ]);
     jenisOrderList.value = jenisRes.data;
     ukuranList.value = ukuranRes.data;
-  } catch (err) {
-    toast.error('Gagal memuat data.', err);
+  } catch (err: unknown) {
+    // [PERBAIKAN]
+    let errorMessage = "Gagal memuat data.";
+    if (axios.isAxiosError(err)) {
+      errorMessage = err.response?.data?.message || errorMessage;
+    } else if (err instanceof Error) {
+      errorMessage = err.message;
+    }
+    toast.error(errorMessage);
   } finally {
     loading.value = false;
   }
@@ -260,7 +273,7 @@ watch(
   async (val) => {
     if (!val) return;
     try {
-      const res = await api.get('/so-dtf-form/lookup/size-cetak', {
+      const res = await api.get("/so-dtf-form/lookup/size-cetak", {
         params: { jenisOrder: val },
       });
 
@@ -268,29 +281,29 @@ watch(
       sizeCetakList.value = [...res.data, "Custom"];
       console.log("[JenisOrderModal] sizeCetakList loaded:", sizeCetakList.value);
     } catch {
-      toast.error('Gagal memuat size cetak.');
+      toast.error("Gagal memuat size cetak.");
     }
   }
 );
 
 const save = () => {
   if (!form.value.jenisOrder || !form.value.namaOrder) {
-    toast.error('Isi semua data terlebih dahulu.');
+    toast.error("Isi semua data terlebih dahulu.");
     return;
   }
 
   // Validasi tambahan: pastikan ada titik cetak dan ukuran
-  const filteredUkuran = form.value.ukuranKaos.filter(u => u.ukuran && (u.jumlah ?? 0) > 0);
+  const filteredUkuran = form.value.ukuranKaos.filter((u) => u.ukuran && (u.jumlah ?? 0) > 0);
   const filteredTitik = form.value.titikCetak
-    .filter(t => t.keterangan && t.sizeCetak)
-    .map(t => ({
+    .filter((t) => t.keterangan && t.sizeCetak)
+    .map((t) => ({
       ...t,
       panjang: Number(t.panjang) || 0,
-      lebar: Number(t.lebar) || 0
+      lebar: Number(t.lebar) || 0,
     }));
 
   if (filteredUkuran.length === 0) {
-    toast.error('Minimal satu ukuran kaos harus diisi.');
+    toast.error("Minimal satu ukuran kaos harus diisi.");
     return;
   }
 
@@ -306,17 +319,16 @@ const save = () => {
     // Satukan data teknis dalam satu object 'customData'
     customData: {
       ukuranKaos: filteredUkuran, // TypeScript otomatis mengenali ini sebagai UkuranRow[]
-      titikCetak: filteredTitik,  // TypeScript otomatis mengenali ini sebagai TitikRow[]
+      titikCetak: filteredTitik, // TypeScript otomatis mengenali ini sebagai TitikRow[]
       hargaPerCm: form.value.hargaPerCm,
-    }
+    },
   };
 
-  console.log('[JenisOrderModal] saving payload lengkap:', payload);
+  console.log("[JenisOrderModal] saving payload lengkap:", payload);
 
-  emit('saved', payload); // kirim ke parent (SoCreateView)
-  emit('close');
+  emit("saved", payload); // kirim ke parent (SoCreateView)
+  emit("close");
 };
-
 
 /**
  * Hitung harga DTG (backend)
@@ -328,8 +340,15 @@ const getHargaDTG = async () => {
       totalJumlahKaos: form.value.totalJumlah,
     });
     return response.data.harga || 0;
-  } catch (error) {
-    toast.error("Gagal menghitung harga DTG.", error);
+  } catch (error: unknown) {
+    // [PERBAIKAN]
+    let errorMessage = "Gagal menghitung harga DTG.";
+    if (axios.isAxiosError(error)) {
+      errorMessage = error.response?.data?.message || errorMessage;
+    } else if (error instanceof Error) {
+      errorMessage = error.message;
+    }
+    toast.error(errorMessage);
     return 0;
   }
 };
@@ -350,7 +369,7 @@ const calculatePrices = async () => {
 
   const jenis = form.value.jenisOrder;
   const totalLuas = form.value.titikCetak.reduce(
-    (sum, item) => sum + (Number(item.panjang || 0) * Number(item.lebar || 0)),
+    (sum, item) => sum + Number(item.panjang || 0) * Number(item.lebar || 0),
     0
   );
 
@@ -360,10 +379,10 @@ const calculatePrices = async () => {
   switch (jenis) {
     case "SB": // [TAMBAHAN] Sablon Plastisol (Sesuai logic SoDtfCreateView)
       hargaPerCm = 0; // SB menggunakan harga tetap per ukuran, bukan per cm2
-      form.value.titikCetak.forEach(t => {
-        if (t.sizeCetak === 'A3') hargaSatuan += 35000;
-        else if (t.sizeCetak === 'A4') hargaSatuan += 20000;
-        else if (t.sizeCetak === 'A5') hargaSatuan += 10000;
+      form.value.titikCetak.forEach((t) => {
+        if (t.sizeCetak === "A3") hargaSatuan += 35000;
+        else if (t.sizeCetak === "A4") hargaSatuan += 20000;
+        else if (t.sizeCetak === "A5") hargaSatuan += 10000;
         // Jika Custom atau lainnya, logic hargaSatuan tetap 0 atau bisa ditambah sesuai kebutuhan
       });
       break;
@@ -384,7 +403,7 @@ const calculatePrices = async () => {
 
       // 2. Hitung harga per kaos (akumulasi tiap titik dengan minimum 5000 per titik)
       let totalHargaJasaPerKaos = 0;
-      form.value.titikCetak.forEach(t => {
+      form.value.titikCetak.forEach((t) => {
         if (t.panjang && t.lebar) {
           const luas = Number(t.panjang) * Number(t.lebar);
           const hargaKalkulasi = luas * hargaPerCm;
@@ -457,7 +476,7 @@ const handleSizeCetakChange = async (row: TitikRow) => {
 const onUkuranChanged = (row: UkuranRow, val: string) => {
   if (!validUkuranList.value.includes(val)) {
     toast.error(`Ukuran ${val} tidak ada pada penawaran ini.`);
-    row.ukuran = '';
+    row.ukuran = "";
   } else {
     row.ukuran = val;
   }
@@ -482,17 +501,14 @@ const formatAngkaDesimal = (val: unknown): number | string | null => {
   return cleaned === "" ? null : Number(cleaned);
 };
 
-const finalizeAngka = <T extends Record<string, unknown>>(
-  row: T,
-  key: keyof T
-) => {
+const finalizeAngka = <T extends Record<string, unknown>>(row: T, key: keyof T) => {
   const v = row[key];
 
   if (v === null || v === "") {
     row[key] = 0 as T[keyof T];
   } else {
     // Pastikan nilai akhir diparsing jadi number desimal yang valid
-    row[key] = Number(String(v).replace(/,/g, '.')) as T[keyof T];
+    row[key] = Number(String(v).replace(/,/g, ".")) as T[keyof T];
   }
 };
 
@@ -511,19 +527,23 @@ watch(
   (jenis) => {
     form.value.titikCetak.forEach((t) => {
       if (jenis === "SD" || jenis === "DP") {
-        t.sizeCetak = "Custom";     // default otomatis
+        t.sizeCetak = "Custom"; // default otomatis
       } else {
-        t.sizeCetak = "";           // yang lain kosong
+        t.sizeCetak = ""; // yang lain kosong
       }
     });
   },
   { immediate: true }
 );
-
 </script>
 
 <template>
-  <v-dialog :model-value="props.modelValue" @update:modelValue="emit('close')" max-width="1000px" persistent>
+  <v-dialog
+    :model-value="props.modelValue"
+    @update:modelValue="emit('close')"
+    max-width="1000px"
+    persistent
+  >
     <v-card class="jenis-order-dialog">
       <v-toolbar color="primary" density="compact">
         <v-toolbar-title class="text-subtitle-1">Input Jenis Order</v-toolbar-title>
@@ -535,27 +555,65 @@ watch(
         <!-- Header Fields -->
         <v-row dense>
           <v-col cols="6">
-            <v-select v-model="form.jenisOrder" :items="jenisOrderList" item-title="nama" item-value="kode"
-              label="Jenis Order" variant="outlined" density="compact" hide-details class="text-xs" />
+            <v-select
+              v-model="form.jenisOrder"
+              :items="jenisOrderList"
+              item-title="nama"
+              item-value="kode"
+              label="Jenis Order"
+              variant="outlined"
+              density="compact"
+              hide-details
+              class="text-xs"
+            />
           </v-col>
 
           <v-col cols="6">
-            <v-text-field v-model="form.namaOrder" label="Nama Order Custom" variant="outlined" density="compact"
-              hide-details class="text-xs" />
+            <v-text-field
+              v-model="form.namaOrder"
+              label="Nama Order Custom"
+              variant="outlined"
+              density="compact"
+              hide-details
+              class="text-xs"
+            />
           </v-col>
 
           <v-col cols="9">
-            <v-select v-if="props.penawaranBarangList?.length > 1" v-model="selectedPenawaran"
-              :items="props.penawaranBarangList" item-title="namaBarang" item-value="kodeBarang" label="Nama Barang"
-              variant="outlined" density="compact" hide-details clearable return-object />
-            <v-text-field v-else v-model="form.namaBarang" label="Nama Barang" variant="outlined" density="compact"
-              hide-details readonly />
+            <v-select
+              v-if="(props.penawaranBarangList?.length || 0) > 1"
+              v-model="selectedPenawaran"
+              :items="props.penawaranBarangList"
+              item-title="namaBarang"
+              item-value="kodeBarang"
+              label="Nama Barang"
+              variant="outlined"
+              density="compact"
+              hide-details
+              clearable
+              return-object
+            />
+            <v-text-field
+              v-else
+              v-model="form.namaBarang"
+              label="Nama Barang"
+              variant="outlined"
+              density="compact"
+              hide-details
+              readonly
+            />
             <div class="caption-note">Diambil otomatis dari grid Penawaran</div>
           </v-col>
 
           <v-col cols="3">
-            <v-text-field v-model="form.kodeBarang" label="Kode Barang" variant="outlined" density="compact"
-              hide-details readonly />
+            <v-text-field
+              v-model="form.kodeBarang"
+              label="Kode Barang"
+              variant="outlined"
+              density="compact"
+              hide-details
+              readonly
+            />
           </v-col>
         </v-row>
 
@@ -575,24 +633,44 @@ watch(
             <div v-for="(row, i) in form.ukuranKaos" :key="i" class="row-line">
               <v-row dense align="center">
                 <v-col cols="3">
-                  <v-select v-model="row.ukuran" :items="validUkuranList" label="Ukuran Kaos" variant="outlined"
-                    density="compact" hide-details="auto" :error="row.ukuran && !validUkuranList.includes(row.ukuran)"
-                    @update:model-value="(val) => onUkuranChanged(row, val)" />
+                  <v-select
+                    v-model="row.ukuran"
+                    :items="validUkuranList"
+                    label="Ukuran Kaos"
+                    variant="outlined"
+                    density="compact"
+                    hide-details="auto"
+                    :error="!!(row.ukuran && !validUkuranList.includes(row.ukuran))"
+                    @update:model-value="(val) => onUkuranChanged(row, val)"
+                  />
                 </v-col>
                 <v-col cols="4">
-                  <v-text-field v-model="row.jumlah" type="text" placeholder="0" density="compact" variant="outlined"
-                    hide-details class="text-xs text-end" @input="row.jumlah = formatAngkaBulat($event.target.value)"
+                  <v-text-field
+                    v-model="row.jumlah"
+                    type="text"
+                    placeholder="0"
+                    density="compact"
+                    variant="outlined"
+                    hide-details
+                    class="text-xs text-end"
+                    @input="row.jumlah = formatAngkaBulat($event.target.value)"
                     @blur="
                       finalizeAngka(row, 'jumlah');
-                    addUkuranRowIfNeeded(i);
-                    " />
+                      addUkuranRowIfNeeded(i);
+                    "
+                  />
                 </v-col>
                 <v-col cols="4" class="text-end">
                   {{ fr(row.harga || 0) }}
                 </v-col>
                 <v-col cols="1" class="text-center">
-                  <v-btn icon="mdi-delete-outline" size="x-small" variant="text" color="error"
-                    @click="removeUkuranRow(i)" />
+                  <v-btn
+                    icon="mdi-delete-outline"
+                    size="x-small"
+                    variant="text"
+                    color="error"
+                    @click="removeUkuranRow(i)"
+                  />
                 </v-col>
               </v-row>
             </div>
@@ -611,31 +689,63 @@ watch(
             <div v-for="(row, i) in form.titikCetak" :key="i" class="row-line">
               <v-row dense align="center">
                 <v-col cols="3">
-                  <v-text-field v-model="row.keterangan" density="compact" variant="outlined" hide-details
-                    @blur="() => addTitikRowIfNeeded(i)" />
+                  <v-text-field
+                    v-model="row.keterangan"
+                    density="compact"
+                    variant="outlined"
+                    hide-details
+                    @blur="() => addTitikRowIfNeeded(i)"
+                  />
                 </v-col>
                 <v-col cols="3">
-                  <v-select v-model="row.sizeCetak" :items="sizeCetakList" density="compact" hide-details
-                    variant="outlined" class="text-xs" @update:modelValue="() => handleSizeCetakChange(row)"
-                    @blur="() => addTitikRowIfNeeded(i)" />
+                  <v-select
+                    v-model="row.sizeCetak"
+                    :items="sizeCetakList"
+                    density="compact"
+                    hide-details
+                    variant="outlined"
+                    class="text-xs"
+                    @update:modelValue="() => handleSizeCetakChange(row)"
+                    @blur="() => addTitikRowIfNeeded(i)"
+                  />
                 </v-col>
                 <v-col cols="2">
-                  <v-text-field v-model="row.panjang" type="text" placeholder="0" density="compact" variant="outlined"
-                    hide-details class="text-xs text-end"
-                    :readonly="row.sizeCetak && row.sizeCetak.toLowerCase() !== 'custom'"
+                  <v-text-field
+                    v-model="row.panjang"
+                    type="text"
+                    placeholder="0"
+                    density="compact"
+                    variant="outlined"
+                    hide-details
+                    class="text-xs text-end"
+                    :readonly="!!(row.sizeCetak && row.sizeCetak.toLowerCase() !== 'custom')"
                     @input="row.panjang = formatAngkaDesimal($event.target.value)"
-                    @blur="finalizeAngka(row, 'panjang')" />
+                    @blur="finalizeAngka(row, 'panjang')"
+                  />
                 </v-col>
 
                 <v-col cols="2">
-                  <v-text-field v-model="row.lebar" type="text" placeholder="0" density="compact" variant="outlined"
-                    hide-details class="text-xs text-end"
-                    :readonly="row.sizeCetak && row.sizeCetak.toLowerCase() !== 'custom'"
-                    @input="row.lebar = formatAngkaDesimal($event.target.value)" @blur="finalizeAngka(row, 'lebar')" />
+                  <v-text-field
+                    v-model="row.lebar"
+                    type="text"
+                    placeholder="0"
+                    density="compact"
+                    variant="outlined"
+                    hide-details
+                    class="text-xs text-end"
+                    :readonly="!!(row.sizeCetak && row.sizeCetak.toLowerCase() !== 'custom')"
+                    @input="row.lebar = formatAngkaDesimal($event.target.value)"
+                    @blur="finalizeAngka(row, 'lebar')"
+                  />
                 </v-col>
                 <v-col cols="2" class="text-center">
-                  <v-btn icon="mdi-delete-outline" size="x-small" variant="text" color="error"
-                    @click="removeTitikRow(i)" />
+                  <v-btn
+                    icon="mdi-delete-outline"
+                    size="x-small"
+                    variant="text"
+                    color="error"
+                    @click="removeTitikRow(i)"
+                  />
                 </v-col>
               </v-row>
             </div>
@@ -646,16 +756,37 @@ watch(
 
         <v-row dense>
           <v-col cols="6">
-            <v-text-field label="Total Jumlah" :model-value="form.totalJumlah" readonly density="compact"
-              variant="outlined" hide-details class="text-xs" />
+            <v-text-field
+              label="Total Jumlah"
+              :model-value="form.totalJumlah"
+              readonly
+              density="compact"
+              variant="outlined"
+              hide-details
+              class="text-xs"
+            />
           </v-col>
           <v-col cols="6">
-            <v-text-field label="Total Harga" :model-value="fr(form.totalHarga)" readonly density="compact"
-              variant="outlined" hide-details class="text-xs" />
+            <v-text-field
+              label="Total Harga"
+              :model-value="fr(form.totalHarga)"
+              readonly
+              density="compact"
+              variant="outlined"
+              hide-details
+              class="text-xs"
+            />
           </v-col>
           <v-col cols="6">
-            <v-text-field label="Harga per cm²" :model-value="fr(form.hargaPerCm)" readonly density="compact"
-              variant="outlined" hide-details class="text-xs" />
+            <v-text-field
+              label="Harga per cm²"
+              :model-value="fr(form.hargaPerCm)"
+              readonly
+              density="compact"
+              variant="outlined"
+              hide-details
+              class="text-xs"
+            />
           </v-col>
         </v-row>
       </v-card-text>

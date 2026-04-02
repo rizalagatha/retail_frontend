@@ -1,13 +1,13 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
-import api from '@/services/api';
+import { ref, onMounted } from "vue";
+import api from "@/services/api";
 
 interface AdditionalCost {
   tambahan: string;
   harga: number;
 }
 
-const emit = defineEmits(['close', 'cost-selected']);
+const emit = defineEmits(["close", "cost-selected"]);
 
 const items = ref<AdditionalCost[]>([]);
 const loading = ref(true);
@@ -15,7 +15,7 @@ const loading = ref(true);
 const loadItems = async () => {
   loading.value = true;
   try {
-    const response = await api.get('/price-proposal-form/search-additional-costs');
+    const response = await api.get("/price-proposal-form/search-additional-costs");
     items.value = response.data;
   } catch (error) {
     console.error("Gagal memuat data biaya tambahan:", error);
@@ -25,7 +25,11 @@ const loadItems = async () => {
 };
 
 const selectCost = (item: AdditionalCost) => {
-  emit('cost-selected', item);
+  emit("cost-selected", item);
+};
+
+const handleRowClick = (event: Event, data: { item: AdditionalCost }) => {
+  selectCost(data.item);
 };
 
 onMounted(loadItems);
@@ -41,13 +45,16 @@ onMounted(loadItems);
       </v-toolbar>
       <v-card-text>
         <v-data-table
-          :headers="[{ title: 'Keterangan Tambahan', key: 'tambahan' }, { title: 'Harga', key: 'harga', align: 'end' }]"
+          :headers="[
+            { title: 'Keterangan Tambahan', key: 'tambahan' },
+            { title: 'Harga', key: 'harga', align: 'end' },
+          ]"
           :items="items"
           :loading="loading"
           density="compact"
           class="desktop-table header-browse-blue"
           hover
-          @click:row="(_, { item }) => selectCost(item)"
+          @click:row="handleRowClick"
         ></v-data-table>
       </v-card-text>
     </v-card>

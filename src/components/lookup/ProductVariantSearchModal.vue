@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue';
-import api from '@/services/api';
+import { ref, computed, onMounted } from "vue";
+import api from "@/services/api";
 
 interface Product {
   Kode: string;
@@ -8,7 +8,7 @@ interface Product {
 }
 
 const props = defineProps<{ jenisKaos: string }>();
-const emit = defineEmits(['close', 'product-selected']);
+const emit = defineEmits(["close", "product-selected"]);
 
 const items = ref<Product[]>([]);
 const loading = ref(true);
@@ -17,7 +17,7 @@ const search = ref("");
 const loadItems = async () => {
   loading.value = true;
   try {
-    const response = await api.get('/price-proposal-form/search-products-by-type', {
+    const response = await api.get("/price-proposal-form/search-products-by-type", {
       params: { jenisKaos: props.jenisKaos },
     });
     items.value = response.data;
@@ -29,7 +29,11 @@ const loadItems = async () => {
 };
 
 const selectProduct = (item: Product) => {
-  emit('product-selected', item);
+  emit("product-selected", item);
+};
+
+const handleRowClick = (event: Event, data: { item: Product }) => {
+  selectProduct(data.item);
 };
 
 // 🔍 Filter lokal
@@ -47,24 +51,35 @@ onMounted(loadItems);
   <v-dialog :model-value="true" @update:modelValue="emit('close')" max-width="850px">
     <v-card class="dialog-card">
       <v-toolbar color="primary" density="compact">
-        <v-toolbar-title class="text-subtitle-1">
-          Bantuan - Pilih Kode Barang
-        </v-toolbar-title>
+        <v-toolbar-title class="text-subtitle-1"> Bantuan - Pilih Kode Barang </v-toolbar-title>
         <v-spacer></v-spacer>
         <v-btn icon="mdi-close" @click="emit('close')" variant="text" size="small"></v-btn>
       </v-toolbar>
 
       <v-card-text>
-
         <!-- 🔍 SEARCH BAR -->
-        <v-text-field v-model="search" label="Cari Nama/Kode Barang..." density="compact" variant="outlined"
-          class="mb-2" clearable prepend-inner-icon="mdi-magnify" />
+        <v-text-field
+          v-model="search"
+          label="Cari Nama/Kode Barang..."
+          density="compact"
+          variant="outlined"
+          class="mb-2"
+          clearable
+          prepend-inner-icon="mdi-magnify"
+        />
 
-        <v-data-table :headers="[
-          { title: 'Kode', key: 'Kode' },
-          { title: 'Nama Barang', key: 'Nama' },
-        ]" :items="filteredItems" :loading="loading" density="compact" class="desktop-table header-browse-blue" hover
-          @click:row="(_, { item }) => selectProduct(item)"></v-data-table>
+        <v-data-table
+          :headers="[
+            { title: 'Kode', key: 'Kode' },
+            { title: 'Nama Barang', key: 'Nama' },
+          ]"
+          :items="filteredItems"
+          :loading="loading"
+          density="compact"
+          class="desktop-table header-browse-blue"
+          hover
+          @click:row="handleRowClick"
+        ></v-data-table>
       </v-card-text>
     </v-card>
   </v-dialog>

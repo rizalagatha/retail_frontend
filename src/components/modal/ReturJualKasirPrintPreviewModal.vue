@@ -65,9 +65,7 @@ const loadData = async () => {
   if (!props.nomorRetur) return;
   loading.value = true;
   try {
-    const res = await api.get<ReturJualPrintData>(
-      `/retur-jual-form/print/${props.nomorRetur}`
-    );
+    const res = await api.get<ReturJualPrintData>(`/retur-jual-form/print/${props.nomorRetur}`);
     data.value = res.data;
   } catch (e) {
     console.error(e);
@@ -147,6 +145,11 @@ const printNow = async () => {
 
   const doc = iframe.contentDocument || iframe.contentWindow?.document;
 
+  if (!doc) {
+    console.error("Gagal mengakses dokumen iframe.");
+    return;
+  }
+
   doc.open();
   doc.write(`
     <html>
@@ -161,27 +164,28 @@ const printNow = async () => {
   iframe.onload = () => {
     iframe.contentWindow?.focus();
     iframe.contentWindow?.print();
-    setTimeout(() => document.body.removeChild(iframe), 500);
+    setTimeout(() => {
+      if (document.body.contains(iframe)) {
+        document.body.removeChild(iframe);
+      }
+    }, 500);
   };
 };
 </script>
 
-
 <template>
   <v-dialog :model-value="modelValue" max-width="420px" persistent scrollable>
     <v-card>
-
       <v-card-title class="d-flex justify-space-between align-center">
         <span>Preview Struk Retur Kasir</span>
         <v-btn icon="mdi-close" @click="emit('update:modelValue', false)" />
       </v-card-title>
 
-      <v-card-text style="max-height: 75vh; overflow-y: auto;">
+      <v-card-text style="max-height: 75vh; overflow-y: auto">
         <div v-if="loading" class="text-center">Memuat...</div>
 
         <div v-else-if="data" id="retur-kasir-preview">
           <div class="receipt">
-
             <!-- HEADER -->
             <div class="text-center">
               <img :src="Logo" class="logo" />
@@ -232,7 +236,6 @@ const printNow = async () => {
               <div>** RETUR PENJUALAN **</div>
               <div>TERIMAKASIH ATAS KUNJUNGAN ANDA</div>
             </div>
-
           </div>
         </div>
       </v-card-text>
@@ -241,15 +244,13 @@ const printNow = async () => {
         <v-spacer />
         <v-btn color="primary" @click="printNow">Cetak</v-btn>
       </v-card-actions>
-
     </v-card>
   </v-dialog>
 </template>
 
-
 <style scoped>
 .receipt {
-  font-family: 'Roboto Mono', monospace;
+  font-family: "Roboto Mono", monospace;
   width: 58mm;
 }
 </style>

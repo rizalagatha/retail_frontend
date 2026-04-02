@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { ref, watch, onMounted } from 'vue';
-import api from '@/services/api';
-import { useToast } from 'vue-toastification';
-import { format, parseISO } from 'date-fns';
+import { ref, watch, onMounted } from "vue";
+import api from "@/services/api";
+import { useToast } from "vue-toastification";
+import { format, parseISO } from "date-fns";
+import axios from "axios";
 
 interface Sj {
   NoSJ: string;
@@ -16,74 +17,84 @@ interface Sj {
   Kota: string;
 }
 
+interface TableOptions {
+  page: number;
+  itemsPerPage: number;
+}
+
 const props = defineProps({
-  cabang: { type: String, required: true }
+  cabang: { type: String, required: true },
 });
 
-const emit = defineEmits(['close', 'sj-selected']);
+const emit = defineEmits(["close", "sj-selected"]);
 const toast = useToast();
 
 const items = ref<Sj[]>([]);
 const totalItems = ref(0);
 const loading = ref(true);
-const search = ref('');
+const search = ref("");
 
 // Definisi Header sesuai request & referensi Delphi
 const headers = [
-  { title: 'No. SJ', key: 'NoSJ' },
-  { title: 'Tanggal', key: 'TglSJ' },
-  { title: 'No. Terima SJ', key: 'NoTerimaSJ' },
-  { title: 'No. SO', key: 'NoSO' },
-  { title: 'Kd. Cus', key: 'KdCus' },
-  { title: 'Customer', key: 'Customer' },
-  { title: 'Alamat', key: 'Alamat' },
-  { title: 'Kota', key: 'Kota' },
+  { title: "No. SJ", key: "NoSJ" },
+  { title: "Tanggal", key: "TglSJ" },
+  { title: "No. Terima SJ", key: "NoTerimaSJ" },
+  { title: "No. SO", key: "NoSO" },
+  { title: "Kd. Cus", key: "KdCus" },
+  { title: "Customer", key: "Customer" },
+  { title: "Alamat", key: "Alamat" },
+  { title: "Kota", key: "Kota" },
 ];
 
 const options = ref({ page: 1, itemsPerPage: 15, sortBy: [] });
 
 const itemsPerPageOptions = [
-  { value: 15, title: '15' },
-  { value: 30, title: '30' },
-  { value: 50, title: '50' },
-  { value: -1, title: 'Semua' }, // Nilai -1 digunakan untuk "All"
+  { value: 15, title: "15" },
+  { value: 30, title: "30" },
+  { value: 50, title: "50" },
+  { value: -1, title: "Semua" }, // Nilai -1 digunakan untuk "All"
 ];
 
-const loadItems = async (optionsEvent?: any) => {
+const loadItems = async (optionsEvent?: TableOptions) => {
   loading.value = true;
 
-  // Gunakan nilai dari event table, jika tidak ada gunakan state internal
   const { page, itemsPerPage } = optionsEvent || options.value;
 
   try {
-    const response = await api.get('/invoice-form/lookup/sj-list', {
+    const response = await api.get("/invoice-form/lookup/sj-list", {
       params: {
         cabang: props.cabang,
         term: search.value,
         page: page,
-        itemsPerPage: itemsPerPage, // Kirim -1 jika user pilih "Semua"
+        itemsPerPage: itemsPerPage,
       },
     });
 
-    // Pastikan menerima format { items, total } dari backend baru
     if (response.data && response.data.items) {
       items.value = response.data.items;
       totalItems.value = response.data.total;
     } else {
-      // Fallback jika backend belum diupdate
       items.value = Array.isArray(response.data) ? response.data : [];
       totalItems.value = items.value.length;
     }
-  } catch (error) {
-    toast.error("Gagal memuat data Surat Jalan.", error);
+  } catch (error: unknown) {
+    // [PERBAIKAN 4] Gunakan unknown
+    // [PERBAIKAN 5] Ekstrak pesan error menjadi satu string yang aman
+    let errorMessage = "Gagal memuat data Surat Jalan.";
+    if (axios.isAxiosError(error)) {
+      errorMessage = error.response?.data?.message || errorMessage;
+    } else if (error instanceof Error) {
+      errorMessage = error.message;
+    }
+    toast.error(errorMessage);
   } finally {
     loading.value = false;
   }
 };
 
 const selectItem = (item: Sj) => {
-  emit('sj-selected', item);
-  emit('close');
+  emit("sj-selected", item);
+  emit("close");
 };
 
 let searchTimeout: ReturnType<typeof setTimeout>;
@@ -104,7 +115,7 @@ onMounted(() => {
 
 <template>
   <v-dialog :model-value="true" @update:model-value="$emit('close')" max-width="1200px" persistent>
-    <v-card class="d-flex flex-column" style="height: 80vh;">
+    <v-card class="d-flex flex-column" style="height: 80vh">
       <v-toolbar color="primary" density="compact">
         <v-toolbar-title class="text-subtitle-1">Bantuan - Pilih Surat Jalan (KPR)</v-toolbar-title>
         <v-spacer></v-spacer>
@@ -112,27 +123,49 @@ onMounted(() => {
       </v-toolbar>
 
       <v-card-text class="pa-4 d-flex flex-column flex-grow-1">
-        <v-text-field v-model="search" label="Cari berdasarkan nomor SJ, SO, atau nama customer..."
-          prepend-inner-icon="mdi-magnify" variant="outlined" density="compact" clearable class="mb-4 flex-shrink-0"
-          hide-details autofocus></v-text-field>
+        <v-text-field
+          v-model="search"
+          label="Cari berdasarkan nomor SJ, SO, atau nama customer..."
+          prepend-inner-icon="mdi-magnify"
+          variant="outlined"
+          density="compact"
+          clearable
+          class="mb-4 flex-shrink-0"
+          hide-details
+          autofocus
+        ></v-text-field>
 
-        <v-data-table-server v-model:page="options.page" v-model:items-per-page="options.itemsPerPage"
-          :items-per-page-options="itemsPerPageOptions" :headers="headers" :items="items" :items-length="totalItems"
-          :loading="loading" @update:options="loadItems" hover class="desktop-table flex-grow-1" density="compact"
-          fixed-header>
+        <v-data-table-server
+          v-model:page="options.page"
+          v-model:items-per-page="options.itemsPerPage"
+          :items-per-page-options="itemsPerPageOptions"
+          :headers="headers"
+          :items="items"
+          :items-length="totalItems"
+          :loading="loading"
+          @update:options="loadItems"
+          hover
+          class="desktop-table flex-grow-1"
+          density="compact"
+          fixed-header
+        >
           <template #item="{ item }">
-            <tr @click="selectItem(item)" style="cursor: pointer;">
+            <tr @click="selectItem(item)" style="cursor: pointer">
               <td class="font-weight-bold">{{ item.NoSJ }}</td>
-              <td>{{ item.TglSJ ? format(parseISO(item.TglSJ), 'dd/MM/yyyy') : '-' }}</td>
+              <td>{{ item.TglSJ ? format(parseISO(item.TglSJ), "dd/MM/yyyy") : "-" }}</td>
               <td>
-                <v-chip size="x-small" :color="item.NoTerimaSJ ? 'success' : 'error'" variant="flat">
-                  {{ item.NoTerimaSJ || 'BELUM TERIMA' }}
+                <v-chip
+                  size="x-small"
+                  :color="item.NoTerimaSJ ? 'success' : 'error'"
+                  variant="flat"
+                >
+                  {{ item.NoTerimaSJ || "BELUM TERIMA" }}
                 </v-chip>
               </td>
-              <td>{{ item.NoSO || '-' }}</td>
+              <td>{{ item.NoSO || "-" }}</td>
               <td>{{ item.KdCus }}</td>
               <td>{{ item.Customer }}</td>
-              <td class="text-truncate" style="max-width: 200px;">{{ item.Alamat }}</td>
+              <td class="text-truncate" style="max-width: 200px">{{ item.Alamat }}</td>
               <td>{{ item.Kota }}</td>
             </tr>
           </template>

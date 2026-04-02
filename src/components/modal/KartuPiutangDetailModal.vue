@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { ref, onMounted, watch } from 'vue';
-import api from '@/services/api';
-import { format, parseISO } from 'date-fns';
+import { ref, onMounted, watch } from "vue";
+import api from "@/services/api";
+import { format, parseISO } from "date-fns";
 
 interface Invoice {
   nomor: string;
@@ -34,24 +34,32 @@ const loadingInvoices = ref(true);
 const loadingPayments = ref(false);
 
 const invoiceHeaders = [
-  { title: 'No.', key: 'no' }, { title: 'Tanggal', key: 'tanggal' }, { title: 'Invoice', key: 'invoice' },
-  { title: 'Top', key: 'top' }, { title: 'Jatuh Tempo', key: 'jatuhTempo' },
-  { title: 'Nominal', key: 'nominal' },
-  { title: 'Terbayar', key: 'terbayar' },
-  { title: 'Sisa', key: 'sisa' },
+  { title: "No.", key: "no" },
+  { title: "Tanggal", key: "tanggal" },
+  { title: "Invoice", key: "invoice" },
+  { title: "Top", key: "top" },
+  { title: "Jatuh Tempo", key: "jatuhTempo" },
+  { title: "Nominal", key: "nominal" },
+  { title: "Terbayar", key: "terbayar" },
+  { title: "Sisa", key: "sisa" },
 ];
 const paymentHeaders = [
-  { title: 'No.', key: 'no' }, { title: 'Tanggal', key: 'tanggal' }, { title: 'Uraian', key: 'uraian' },
-  { title: 'Debet', key: 'debet' }, { title: 'Kredit', key: 'kredit' },
-  { title: 'Keterangan', key: 'keterangan' },
+  { title: "No.", key: "no" },
+  { title: "Tanggal", key: "tanggal" },
+  { title: "Uraian", key: "uraian" },
+  { title: "Debet", key: "debet" },
+  { title: "Kredit", key: "kredit" },
+  { title: "Keterangan", key: "keterangan" },
 ];
 
-const formatRupiah = (value: number) => new Intl.NumberFormat('id-ID').format(value || 0);
+const formatRupiah = (value: number) => new Intl.NumberFormat("id-ID").format(value || 0);
 
 const fetchInvoices = async () => {
   loadingInvoices.value = true;
   try {
-    const response = await api.get(`/kartu-piutang/invoices/${props.customerKode}`, { params: { cabang: props.cabang } });
+    const response = await api.get(`/kartu-piutang/invoices/${props.customerKode}`, {
+      params: { cabang: props.cabang },
+    });
     invoices.value = response.data;
   } finally {
     loadingInvoices.value = false;
@@ -82,25 +90,35 @@ watch(selectedInvoice, (newSelection) => {
 
 <template>
   <v-dialog :model-value="true" @update:modelValue="$emit('close')" max-width="1200px" persistent>
-    <v-card class="d-flex flex-column" style="height: 85vh;">
+    <v-card class="d-flex flex-column" style="height: 85vh">
       <v-toolbar color="primary" density="compact">
         <v-toolbar-title>Detail Kartu Piutang</v-toolbar-title>
         <v-spacer />
         <v-btn icon="mdi-close" @click="$emit('close')" />
       </v-toolbar>
-      <v-card-text class="d-flex flex-column" style="gap: 16px; overflow-y: auto;">
+      <v-card-text class="d-flex flex-column" style="gap: 16px; overflow-y: auto">
         <div class="table-wrapper">
           <div class="text-subtitle-1 font-weight-bold mb-2">Daftar Invoice</div>
-          <v-data-table v-model="selectedInvoice" :headers="invoiceHeaders" :items="invoices" :loading="loadingInvoices"
-            class="desktop-table header-browse-blue" density="compact" show-select single-select return-object item-value="nomor">
+          <v-data-table
+            v-model="selectedInvoice"
+            :headers="invoiceHeaders"
+            :items="invoices"
+            :loading="loadingInvoices"
+            class="desktop-table header-browse-blue"
+            density="compact"
+            show-select
+            single-select
+            return-object
+            item-value="nomor"
+          >
             <template #[`item.no`]="{ index }">
               {{ index + 1 }}
             </template>
             <template #[`item.tanggal`]="{ item }">
-              {{ format(parseISO(item.tanggal), 'dd/MM/yyyy') }}
+              {{ format(parseISO(item.tanggal), "dd/MM/yyyy") }}
             </template>
             <template #[`item.jatuhTempo`]="{ item }">
-              {{ format(parseISO(item.jatuhTempo), 'dd/MM/yyyy') }}
+              {{ format(parseISO(item.jatuhTempo), "dd/MM/yyyy") }}
             </template>
             <template #[`item.nominal`]="{ item }">
               {{ formatRupiah(item.nominal) }}
@@ -115,13 +133,18 @@ watch(selectedInvoice, (newSelection) => {
         </div>
         <div class="table-wrapper">
           <div class="text-subtitle-1 font-weight-bold mb-2">Detail Pembayaran</div>
-          <v-data-table :headers="paymentHeaders" :items="payments" :loading="loadingPayments" class="desktop-table header-browse-blue"
-            density="compact">
+          <v-data-table
+            :headers="paymentHeaders"
+            :items="payments"
+            :loading="loadingPayments"
+            class="desktop-table header-browse-blue"
+            density="compact"
+          >
             <template #[`item.no`]="{ index }">
               {{ index + 1 }}
             </template>
             <template #[`item.tanggal`]="{ item }">
-              {{ format(parseISO(item.tanggal), 'dd/MM/yyyy') }}
+              {{ format(parseISO(item.tanggal), "dd/MM/yyyy") }}
             </template>
             <template #[`item.debet`]="{ item }">
               {{ formatRupiah(item.debet) }}

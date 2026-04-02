@@ -12,22 +12,22 @@ const props = defineProps<{
   dps: DP[];
 }>();
 
-const emit = defineEmits(['close']);
+const emit = defineEmits(["close"]);
 
 const headers = [
-  { title: 'Nomor Setoran', key: 'nomor' },
-  { title: 'Tanggal', key: 'tanggal' },
-  { title: 'Jenis', key: 'jenis' },
-  { title: 'Nominal', key: 'nominal', align: 'end' },
+  { title: "Nomor Setoran", key: "nomor" },
+  { title: "Tanggal", key: "tanggal" },
+  { title: "Jenis", key: "jenis" },
+  { title: "Nominal", key: "nominal", align: "end" },
 ] as const;
 
 const formatTanggal = (tanggal?: string) => {
-  if (!tanggal) return '-';
+  if (!tanggal) return "-";
   const date = new Date(tanggal);
-  return new Intl.DateTimeFormat('id-ID', {
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric'
+  return new Intl.DateTimeFormat("id-ID", {
+    year: "numeric",
+    month: "long",
+    day: "numeric",
   }).format(date);
 };
 </script>
@@ -42,8 +42,14 @@ const formatTanggal = (tanggal?: string) => {
       </v-toolbar>
 
       <v-card-text class="pa-4">
-        <v-data-table :headers="headers" :items="props.dps" density="compact" class="desktop-table header-browse-blue" :items-per-page="-1"
-          hide-default-footer>
+        <v-data-table
+          :headers="headers"
+          :items="props.dps"
+          density="compact"
+          class="desktop-table header-browse-blue"
+          :items-per-page="-1"
+          hide-default-footer
+        >
           <template v-for="header in headers" #[`item.${header.key}`]="{ item }">
             <template v-if="header.key === 'nominal'">
               {{ formatRupiah(item[header.key]) }}

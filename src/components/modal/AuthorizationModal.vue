@@ -59,6 +59,12 @@ const formattedNilai = computed(() => {
 // --- Methods ---
 
 const sendRequest = async () => {
+  // [PERBAIKAN] Tambahkan pengecekan ini agar TypeScript tahu user TIDAK null
+  if (!authStore.user) {
+    errorMessage.value = "Sesi pengguna tidak ditemukan. Silakan login kembali.";
+    return;
+  }
+
   // [3] Gunakan 'alasan.value' untuk pengecekan
   if (!alasan.value.trim()) {
     errorMessage.value = "Keterangan/Alasan wajib diisi.";

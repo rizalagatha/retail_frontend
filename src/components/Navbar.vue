@@ -613,7 +613,7 @@ onUnmounted(() => {
     <nav class="main-navigation">
       <template v-for="menu in menuItems" :key="menu.title">
         <v-menu
-          v-if="!menu.isLarge && (!('to' in menu) || hasAccess(menu.to as string))"
+          v-if="menu.model && !menu.isLarge && (!('to' in menu) || hasAccess(menu.to as string))"
           v-model="menu.model.value"
           offset-y
           :close-on-content-click="false"
@@ -644,7 +644,7 @@ onUnmounted(() => {
           <v-card class="nav-dropdown" elevation="8">
             <v-list class="nav-list" density="comfortable">
               <template
-                v-for="(item, index) in menu.items.filter((i) => !i.to || hasAccess(i.to))"
+                v-for="(item, index) in (menu.items ?? []).filter((i) => !i.to || hasAccess(i.to))"
                 :key="index"
               >
                 <v-divider v-if="item.divider" class="nav-divider" />
@@ -731,7 +731,7 @@ onUnmounted(() => {
         </v-menu>
 
         <v-menu
-          v-else-if="menu.isLarge"
+          v-else-if="menu.model && menu.isLarge"
           v-model="menu.model.value"
           offset-y
           :max-width="menu.title === 'Gudang DC' ? 1200 : 1000"
@@ -761,9 +761,9 @@ onUnmounted(() => {
             <v-container fluid class="pa-4">
               <v-row>
                 <v-col
-                  v-for="section in menu.sections"
+                  v-for="section in menu.sections ?? []"
                   :key="section.title"
-                  :cols="12 / menu.sections.length"
+                  :cols="12 / (menu.sections?.length || 1)"
                   class="section-col"
                 >
                   <div class="section-header bg-primary-lighten-5">
@@ -790,7 +790,7 @@ onUnmounted(() => {
                           />
                         </template>
                         <template
-                          v-for="subItem in item.subItems.filter((si) => hasAccess(si.to))"
+                          v-for="subItem in (item.subItems ?? []).filter((si) => hasAccess(si.to))"
                           :key="subItem.title"
                         >
                           <v-list-group

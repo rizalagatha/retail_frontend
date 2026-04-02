@@ -3,12 +3,20 @@ import { ref, watch, onMounted } from "vue";
 import api from "@/services/api";
 import { format } from "date-fns";
 
+interface SoStokItem {
+  nomor: string;
+  tanggal: string;
+  nama: string;
+  qtySO: number;
+  qtyLhk: number;
+}
+
 const props = defineProps({
   cabang: { type: String, required: true },
 });
 const emit = defineEmits(["close", "selected"]);
 
-const items = ref([]);
+const items = ref<SoStokItem[]>([]);
 const loading = ref(true);
 const search = ref("");
 
@@ -34,7 +42,7 @@ const loadItems = async () => {
   }
 };
 
-const selectItem = (item) => {
+const selectItem = (item: SoStokItem) => {
   emit("selected", item);
   emit("close");
 };

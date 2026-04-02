@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import { ref, watch, onMounted } from 'vue';
-import api from '@/services/api';
-import { useToast } from 'vue-toastification';
-import { format, subMonths, addDays } from 'date-fns';
+import { ref, watch, onMounted } from "vue";
+import api from "@/services/api";
+import { useToast } from "vue-toastification";
+import { format, subMonths, addDays } from "date-fns";
 
 // 1. Definisi Interface
 interface PackingListItem {
@@ -20,8 +20,8 @@ const props = defineProps<{
 
 // 2. Update Emit agar Type-Safe
 const emit = defineEmits<{
-  (e: 'close'): void;
-  (e: 'selected', item: PackingListItem): void; // Menggunakan interface di sini
+  (e: "close"): void;
+  (e: "selected", item: PackingListItem): void; // Menggunakan interface di sini
 }>();
 
 const toast = useToast();
@@ -29,13 +29,13 @@ const toast = useToast();
 // 3. Gunakan Interface pada Ref
 const items = ref<PackingListItem[]>([]);
 const loading = ref(false);
-const search = ref('');
+const search = ref("");
 
 const headers = [
-  { title: 'No. Packing List', key: 'Nomor', width: '140px' },
-  { title: 'Tanggal', key: 'Tanggal', width: '90px' },
-  { title: 'Keterangan', key: 'Keterangan' },
-  { title: 'User', key: 'Usr', width: '100px' },
+  { title: "No. Packing List", key: "Nomor", width: "140px" },
+  { title: "Tanggal", key: "Tanggal", width: "90px" },
+  { title: "Keterangan", key: "Keterangan" },
+  { title: "User", key: "Usr", width: "100px" },
 ];
 
 const loadData = async () => {
@@ -43,25 +43,24 @@ const loadData = async () => {
 
   loading.value = true;
   try {
-    const startDate = format(subMonths(new Date(), 2), 'yyyy-MM-dd');
-    const endDate = format(addDays(new Date(), 1), 'yyyy-MM-dd');
+    const startDate = format(subMonths(new Date(), 2), "yyyy-MM-dd");
+    const endDate = format(addDays(new Date(), 1), "yyyy-MM-dd");
 
     // Gunakan Generic Type pada API call
-    const response = await api.get<PackingListItem[]>('/packing-list', {
+    const response = await api.get<PackingListItem[]>("/packing-list", {
       params: {
         startDate,
         endDate,
         cabang: props.storeKode,
-        status: 'O',
-        search: search.value
-      }
+        status: "O",
+        search: search.value,
+      },
     });
 
-    items.value = response.data.filter((i) => i.Status === 'O' || i.Status === 'OPEN');
-
+    items.value = response.data.filter((i) => i.Status === "O" || i.Status === "OPEN");
   } catch (error) {
     console.error(error);
-    toast.error('Gagal memuat data Packing List.');
+    toast.error("Gagal memuat data Packing List.");
   } finally {
     loading.value = false;
   }
@@ -70,13 +69,17 @@ const loadData = async () => {
 // 4. [FIX] Ganti 'any' dengan 'PackingListItem'
 const selectItem = (item: PackingListItem) => {
   if (!item) return;
-  emit('selected', item);
-  emit('close');
+  emit("selected", item);
+  emit("close");
+};
+
+const handleRowClick = (event: Event, row: { item: PackingListItem }) => {
+  selectItem(row.item);
 };
 
 const formatDate = (dateStr: string) => {
-  if (!dateStr) return '-';
-  return format(new Date(dateStr), 'dd-MM-yyyy');
+  if (!dateStr) return "-";
+  return format(new Date(dateStr), "dd-MM-yyyy");
 };
 
 watch(() => props.storeKode, loadData);
@@ -86,26 +89,44 @@ onMounted(loadData);
 <template>
   <v-dialog :model-value="true" @update:modelValue="$emit('close')" max-width="850px" persistent>
     <v-card>
-      <v-card-title class="bg-primary text-white py-2 px-4 d-flex align-center"
-        style="font-size: 14px; font-weight: 600;">
+      <v-card-title
+        class="bg-primary text-white py-2 px-4 d-flex align-center"
+        style="font-size: 14px; font-weight: 600"
+      >
         <span>Pilih Packing List (Pra-SJ) - Store {{ storeKode }}</span>
         <v-spacer></v-spacer>
         <v-btn icon="mdi-close" variant="text" density="compact" @click="$emit('close')"></v-btn>
       </v-card-title>
 
       <v-card-text class="pt-4 px-4 pb-2">
-        <v-text-field v-model="search" label="Cari Nomor PL..." placeholder="Ketik nomor lalu tekan Enter"
-          prepend-inner-icon="mdi-magnify" density="compact" variant="outlined" hide-details class="mb-3 custom-input"
-          @keydown.enter="loadData"></v-text-field>
+        <v-text-field
+          v-model="search"
+          label="Cari Nomor PL..."
+          placeholder="Ketik nomor lalu tekan Enter"
+          prepend-inner-icon="mdi-magnify"
+          density="compact"
+          variant="outlined"
+          hide-details
+          class="mb-3 custom-input"
+          @keydown.enter="loadData"
+        ></v-text-field>
 
         <div class="table-wrapper">
-          <v-data-table :headers="headers" :items="items" :loading="loading" density="compact" fixed-header
-            height="350px" class="custom-table" :items-per-page="10" hover
-            @click:row="(_e, row) => selectItem(row.item)">
+          <v-data-table
+            :headers="headers"
+            :items="items"
+            :loading="loading"
+            density="compact"
+            fixed-header
+            height="350px"
+            class="custom-table"
+            :items-per-page="10"
+            hover
+            @click:row="handleRowClick"
+          >
             <template #[`item.Tanggal`]="{ item }">
               {{ formatDate(item.Tanggal) }}
             </template>
-
           </v-data-table>
         </div>
       </v-card-text>

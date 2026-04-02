@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue';
-import api from '@/services/api';
-import { format, parseISO } from 'date-fns';
+import { ref, onMounted, computed } from "vue";
+import api from "@/services/api";
+import { format, parseISO } from "date-fns";
 
 interface PoItem {
   nomor: string;
@@ -11,26 +11,26 @@ interface PoItem {
   keterangan?: string;
 }
 
-const emit = defineEmits(['close', 'select']);
+const emit = defineEmits(["close", "select"]);
 
 const items = ref<PoItem[]>([]);
-const searchTerm = ref('');
+const searchTerm = ref("");
 const isLoading = ref(false);
 
 // Header berdasarkan query sqlbantuan TfrmBPBkaosan.FormKeyDown
 const headers = [
-  { title: 'No PO', key: 'nomor', width: '150px' },
-  { title: 'Tanggal', key: 'tanggal' },
-  { title: 'No Referensi', key: 'referensi', width: '150px' },
-  { title: 'Supplier', key: 'namaSupplier', minWidth: '200px' },
-  { title: 'Keterangan', key: 'keterangan' },
+  { title: "No PO", key: "nomor", width: "150px" },
+  { title: "Tanggal", key: "tanggal" },
+  { title: "No Referensi", key: "referensi", width: "150px" },
+  { title: "Supplier", key: "namaSupplier", minWidth: "200px" },
+  { title: "Keterangan", key: "keterangan" },
 ];
 
 const fetchPoList = async () => {
   isLoading.value = true;
   try {
     // Panggil endpoint yang sudah ada di poKaosanFormService
-    const response = await api.get('/bpb-kaosan-form/po-referensi');
+    const response = await api.get("/bpb-kaosan-form/po-referensi");
     items.value = response.data;
   } catch (error) {
     console.error("Gagal mengambil daftar PO:", error);
@@ -43,16 +43,17 @@ const filteredItems = computed(() => {
   if (!searchTerm.value) return items.value;
   const lower = searchTerm.value.toLowerCase();
   // Filter dari Delphi: 'Nomor,Referensi,Keterangan,Supplier'
-  return items.value.filter(item =>
-    item.nomor.toLowerCase().includes(lower) ||
-    (item.referensi && item.referensi.toLowerCase().includes(lower)) ||
-    (item.keterangan && item.keterangan.toLowerCase().includes(lower)) ||
-    (item.namaSupplier && item.namaSupplier.toLowerCase().includes(lower))
+  return items.value.filter(
+    (item) =>
+      item.nomor.toLowerCase().includes(lower) ||
+      (item.referensi && item.referensi.toLowerCase().includes(lower)) ||
+      (item.keterangan && item.keterangan.toLowerCase().includes(lower)) ||
+      (item.namaSupplier && item.namaSupplier.toLowerCase().includes(lower))
   );
 });
 
 const selectItem = (item: PoItem) => {
-  emit('select', item);
+  emit("select", item);
 };
 
 onMounted(fetchPoList);
@@ -60,23 +61,37 @@ onMounted(fetchPoList);
 
 <template>
   <v-dialog :model-value="true" @update:modelValue="emit('close')" max-width="900px" persistent>
-    <v-card class="dialog-card d-flex flex-column" style="height: 80vh;">
+    <v-card class="dialog-card d-flex flex-column" style="height: 80vh">
       <v-toolbar color="primary" density="compact">
         <v-toolbar-title class="text-subtitle-1">Bantuan - Pilih PO (F1)</v-toolbar-title>
         <v-spacer></v-spacer>
         <v-btn icon="mdi-close" @click="emit('close')" variant="text" size="small"></v-btn>
       </v-toolbar>
       <v-card-text class="pa-4 d-flex flex-column flex-grow-1">
-        <v-text-field v-model="searchTerm" label="Cari berdasarkan No PO, Referensi, Keterangan, atau Supplier..."
-          prepend-inner-icon="mdi-magnify" variant="outlined" density="compact" clearable class="mb-4 flex-shrink-0"
-          hide-details></v-text-field>
+        <v-text-field
+          v-model="searchTerm"
+          label="Cari berdasarkan No PO, Referensi, Keterangan, atau Supplier..."
+          prepend-inner-icon="mdi-magnify"
+          variant="outlined"
+          density="compact"
+          clearable
+          class="mb-4 flex-shrink-0"
+          hide-details
+        ></v-text-field>
 
-        <v-data-table :headers="headers" :items="filteredItems" :loading="isLoading" hover
-          class="desktop-table flex-grow-1" density="compact" fixed-header>
+        <v-data-table
+          :headers="headers"
+          :items="filteredItems"
+          :loading="isLoading"
+          hover
+          class="desktop-table flex-grow-1"
+          density="compact"
+          fixed-header
+        >
           <template #item="{ item }">
-            <tr @click="selectItem(item)" style="cursor: pointer;">
+            <tr @click="selectItem(item)" style="cursor: pointer">
               <td>{{ item.nomor }}</td>
-              <td>{{ format(parseISO(item.tanggal), 'dd-MM-yyyy') }}</td>
+              <td>{{ format(parseISO(item.tanggal), "dd-MM-yyyy") }}</td>
               <td>{{ item.referensi }}</td>
               <td>{{ item.namaSupplier }}</td>
               <td>{{ item.keterangan }}</td>

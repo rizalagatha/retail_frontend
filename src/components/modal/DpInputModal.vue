@@ -7,6 +7,7 @@ import { useAuthStore } from "@/stores/authStore";
 import { format, parseISO } from "date-fns";
 import Logo from "@/assets/logo.png";
 import { formatRupiah } from "@/utils/formatRupiah";
+import axios from "axios";
 
 interface Rekening {
   kode: string;
@@ -55,15 +56,19 @@ const documentTitle = computed(() => {
   if (!printHeaderData.value) return "";
 
   // Jika jenis 1 tapi ada kata QRIS di keterangan, tampilkan QRIS RECEIPT
-  if (printHeaderData.value.sh_jenis === 1 && printHeaderData.value.sh_ket.includes('QRIS')) {
+  if (printHeaderData.value.sh_jenis === 1 && printHeaderData.value.sh_ket.includes("QRIS")) {
     return "QRIS RECEIPT";
   }
 
   switch (printHeaderData.value.sh_jenis) {
-    case 0: return "CASH RECEIPT";
-    case 1: return "TRANSFER RECEIPT";
-    case 2: return "GIRO RECEIPT";
-    default: return "TANDA TERIMA PEMBAYARAN";
+    case 0:
+      return "CASH RECEIPT";
+    case 1:
+      return "TRANSFER RECEIPT";
+    case 2:
+      return "GIRO RECEIPT";
+    default:
+      return "TANDA TERIMA PEMBAYARAN";
   }
 });
 
@@ -73,14 +78,14 @@ const props = defineProps({
   existingDp: { type: Number, default: 0 },
   existingDpNomor: { type: String, default: "" },
   nomorSo: { type: String, required: true },
-  source: { type: String, default: 'SO' },
+  source: { type: String, default: "SO" },
 });
 const emit = defineEmits(["close", "dp-saved"]);
 
 const dpData = ref({
   tanggal: format(new Date(), "yyyy-MM-dd"),
   jenis: "TUNAI",
-  nominal: 0,
+  nominal: 0 as number | null,
   keterangan: "DP",
   bankData: {
     akun: "",
@@ -114,7 +119,7 @@ const save = async () => {
   }
   // ----------------------------------------------
 
-  const apiBasePath = props.source === 'OFFER' ? '/offer-form' : '/so-form';
+  const apiBasePath = props.source === "OFFER" ? "/offer-form" : "/so-form";
 
   if ((dpData.value.nominal || 0) === 0 && props.existingDpNomor) {
     try {
@@ -126,8 +131,15 @@ const save = async () => {
       emit("dp-saved", null); // kasih tahu parent untuk refresh list DP
       emit("close");
       return; // STOP — jangan lanjut ke proses simpan DP baru
-    } catch (err) {
-      toast.error("Gagal menghapus DP.", err);
+    } catch (err: unknown) {
+      // [PERBAIKAN] Ubah ke unknown
+      let errorMessage = "Gagal menghapus DP.";
+      if (axios.isAxiosError(err)) {
+        errorMessage = err.response?.data?.message || errorMessage;
+      } else if (err instanceof Error) {
+        errorMessage = err.message;
+      }
+      toast.error(errorMessage); // [PERBAIKAN] Lempar 1 parameter
       return;
     }
   }
@@ -141,7 +153,10 @@ const save = async () => {
   if ((dpData.value.nominal || 0) <= 0) {
     return toast.error("Nominal harus diisi.");
   }
-  if ((dpData.value.jenis === "TRANSFER" || dpData.value.jenis === "QRIS") && !dpData.value.bankData.akun) {
+  if (
+    (dpData.value.jenis === "TRANSFER" || dpData.value.jenis === "QRIS") &&
+    !dpData.value.bankData.akun
+  ) {
     return toast.error("Akun Bank/QRIS harus dipilih.");
   }
   if (dpData.value.jenis === "GIRO" && !dpData.value.giroData.noGiro) {
@@ -242,41 +257,106 @@ const onRekeningSelected = (rekening: Rekening) => {
       </v-toolbar>
       <v-card-text class="pa-4">
         <v-row dense>
-          <v-col cols="12"><v-text-field label="Tanggal" v-model="dpData.tanggal" type="date" variant="outlined"
-              density="compact" :min="format(new Date(), 'yyyy-MM-dd')"
-              :max="format(new Date(), 'yyyy-MM-dd')" /></v-col>
+          <v-col cols="12"
+            ><v-text-field
+              label="Tanggal"
+              v-model="dpData.tanggal"
+              type="date"
+              variant="outlined"
+              density="compact"
+              :min="format(new Date(), 'yyyy-MM-dd')"
+              :max="format(new Date(), 'yyyy-MM-dd')"
+          /></v-col>
           <v-col cols="12">
-            <v-select label="Jenis" v-model="dpData.jenis" :items="['TUNAI', 'TRANSFER', 'QRIS', 'GIRO']"
-              variant="outlined" density="compact" />
+            <v-select
+              label="Jenis"
+              v-model="dpData.jenis"
+              :items="['TUNAI', 'TRANSFER', 'QRIS', 'GIRO']"
+              variant="outlined"
+              density="compact"
+            />
           </v-col>
           <v-col cols="12">
-            <v-text-field label="Nominal"
-              :model-value="isNominalFocused ? dpData.nominal : formatRupiah(dpData.nominal || 0)" @update:model-value="
+            <v-text-field
+              label="Nominal"
+              :model-value="isNominalFocused ? dpData.nominal : formatRupiah(dpData.nominal || 0)"
+              @update:model-value="
                 dpData.nominal = Number(String($event).replace(/[^0-9]/g, '')) || 0
-                " @focus="onNominalFocus" @blur="onNominalBlur" type="text" variant="outlined" density="compact"
-              class="text-end" />
+              "
+              @focus="onNominalFocus"
+              @blur="onNominalBlur"
+              type="text"
+              variant="outlined"
+              density="compact"
+              class="text-end"
+            />
           </v-col>
-          <v-col cols="12"><v-text-field label="Keterangan" v-model="dpData.keterangan" variant="outlined"
-              density="compact" /></v-col>
+          <v-col cols="12"
+            ><v-text-field
+              label="Keterangan"
+              v-model="dpData.keterangan"
+              variant="outlined"
+              density="compact"
+          /></v-col>
 
           <v-col v-if="dpData.jenis === 'TRANSFER' || dpData.jenis === 'QRIS'" cols="12">
             <v-divider class="my-2" />
-            <v-text-field :label="dpData.jenis === 'QRIS' ? 'Akun Penampung QRIS' : 'Akun Bank'"
-              v-model="dpData.bankData.akun" variant="outlined" density="compact"
-              @click="isRekeningSearchVisible = true" readonly :append-inner-icon="isReadonly ? '' : 'mdi-magnify'" />
-            <v-text-field label="Nama Bank" v-model="dpData.bankData.namaBank" density="compact" readonly filled />
-            <v-text-field label="No. Rekening" v-model="dpData.bankData.norek" density="compact" readonly filled />
-            <v-text-field label="Tgl. Transfer" v-model="dpData.bankData.tglTransfer" type="date" variant="outlined"
-              density="compact" />
+            <v-text-field
+              :label="dpData.jenis === 'QRIS' ? 'Akun Penampung QRIS' : 'Akun Bank'"
+              v-model="dpData.bankData.akun"
+              variant="outlined"
+              density="compact"
+              @click="isRekeningSearchVisible = true"
+              readonly
+              :append-inner-icon="isReadonly ? '' : 'mdi-magnify'"
+            />
+            <v-text-field
+              label="Nama Bank"
+              v-model="dpData.bankData.namaBank"
+              density="compact"
+              readonly
+              filled
+            />
+            <v-text-field
+              label="No. Rekening"
+              v-model="dpData.bankData.norek"
+              density="compact"
+              readonly
+              filled
+            />
+            <v-text-field
+              label="Tgl. Transfer"
+              v-model="dpData.bankData.tglTransfer"
+              type="date"
+              variant="outlined"
+              density="compact"
+            />
           </v-col>
           <v-col v-if="dpData.jenis === 'GIRO'" cols="12">
             <v-divider class="my-2" />
             <p class="text-subtitle-2 mb-2">Detail Giro</p>
-            <v-text-field label="No. Giro" v-model="dpData.giroData.noGiro" variant="outlined" density="compact" />
-            <v-text-field label="Tgl. Giro" v-model="dpData.giroData.tglGiro" type="date" variant="outlined"
-              density="compact" class="mt-2" />
-            <v-text-field label="Tgl. Jatuh Tempo" v-model="dpData.giroData.tglJatuhTempo" type="date"
-              variant="outlined" density="compact" class="mt-2" />
+            <v-text-field
+              label="No. Giro"
+              v-model="dpData.giroData.noGiro"
+              variant="outlined"
+              density="compact"
+            />
+            <v-text-field
+              label="Tgl. Giro"
+              v-model="dpData.giroData.tglGiro"
+              type="date"
+              variant="outlined"
+              density="compact"
+              class="mt-2"
+            />
+            <v-text-field
+              label="Tgl. Jatuh Tempo"
+              v-model="dpData.giroData.tglJatuhTempo"
+              type="date"
+              variant="outlined"
+              density="compact"
+              class="mt-2"
+            />
           </v-col>
           <v-card-text class="pa-4">
             <v-alert density="compact" variant="tonal" class="mb-4">
@@ -299,8 +379,13 @@ const onRekeningSelected = (rekening: Rekening) => {
       <v-card-actions class="dialog-footer">
         <v-spacer />
         <v-btn size="small" @click="$emit('close')">Batal</v-btn>
-        <v-btn size="small" color="primary" @click="save" :loading="isSaving || isPrinting"
-          :disabled="isPrinting || isSaving">
+        <v-btn
+          size="small"
+          color="primary"
+          @click="save"
+          :loading="isSaving || isPrinting"
+          :disabled="isPrinting || isSaving"
+        >
           {{ isPrinting ? "Memuat Pratinjau..." : "Simpan" }}
         </v-btn>
       </v-card-actions>
@@ -382,8 +467,12 @@ const onRekeningSelected = (rekening: Rekening) => {
       </v-card-text>
     </v-card>
   </v-dialog>
-  <RekeningSearchModal v-if="isRekeningSearchVisible" :cabang="authStore.user?.cabang || ''"
-    @close="isRekeningSearchVisible = false" @selected="onRekeningSelected" />
+  <RekeningSearchModal
+    v-if="isRekeningSearchVisible"
+    :cabang="authStore.user?.cabang || ''"
+    @close="isRekeningSearchVisible = false"
+    @selected="onRekeningSelected"
+  />
 </template>
 
 <style scoped>
@@ -586,7 +675,6 @@ const onRekeningSelected = (rekening: Rekening) => {
 
 <style>
 @media print {
-
   /* 1. Sembunyikan SEMUA elemen di layar */
   body * {
     visibility: hidden !important;

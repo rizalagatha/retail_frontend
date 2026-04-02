@@ -1,13 +1,13 @@
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted, watch, PropType } from 'vue';
-import { useToast } from 'vue-toastification';
-import api from '@/services/api';
-import { useRouter } from 'vue-router';
-import RekeningSearchModal from '../lookup/RekeningSearchModal.vue';
-import AuthorizationModal from '@/components/modal/AuthorizationModal.vue';
-import PrintOptionModal from './PrintOptionModal.vue';
-import ReturJualSearchModal from '@/components/lookup/ReturJualSearchModal.vue';
-import type { AxiosError } from 'axios';
+import { ref, reactive, computed, onMounted, watch, PropType } from "vue";
+import { useToast } from "vue-toastification";
+import api from "@/services/api";
+import { useRouter } from "vue-router";
+import RekeningSearchModal from "../lookup/RekeningSearchModal.vue";
+import AuthorizationModal from "@/components/modal/AuthorizationModal.vue";
+import PrintOptionModal from "./PrintOptionModal.vue";
+import ReturJualSearchModal from "@/components/lookup/ReturJualSearchModal.vue";
+import type { AxiosError } from "axios";
 import { formatRupiah } from "@/utils/formatRupiah";
 
 interface BankAccount {
@@ -70,9 +70,9 @@ interface PrintKasirData {
 }
 
 interface LinkedDp {
-  nomor: string;     // WAJIB: nomor DP (sh_nomor)
-  nominal: number;   // sisa nominal
-  isNew?: boolean;   // optional, untuk DP baru
+  nomor: string; // WAJIB: nomor DP (sh_nomor)
+  nominal: number; // sisa nominal
+  isNew?: boolean; // optional, untuk DP baru
 }
 
 interface KaryawanSearchResult {
@@ -104,7 +104,7 @@ interface PaymentState {
 // Interface untuk Payload (Extend dari State + Field Tambahan)
 interface PaymentPayload extends PaymentState {
   jenis: string;
-  nikKaryawan?: string;  // Optional (?) agar bisa di-delete atau undefined
+  nikKaryawan?: string; // Optional (?) agar bisa di-delete atau undefined
   namaKaryawan?: string; // Optional (?)
 }
 
@@ -115,7 +115,7 @@ interface AuthDialogState {
   nominal: number;
   transaksi: string; // Tambahkan ini agar modal tahu ID transaksinya
   keterangan: string;
-  onSuccess: ((data: { authNomor: string, approver: string }) => void) | null;
+  onSuccess: ((data: { authNomor: string; approver: string }) => void) | null;
   onCancel: (() => void) | null;
 }
 
@@ -126,10 +126,10 @@ const props = defineProps({
   authPins: { type: Object, required: true },
   linkedDps: { type: Array as PropType<LinkedDp[]>, required: false },
   customerLimit: { type: Number, default: 0 }, // Prop baru
-  customerDebt: { type: Number, default: 0 },  // Prop baru
+  customerDebt: { type: Number, default: 0 }, // Prop baru
 });
 
-const emit = defineEmits(['close', 'save-success']);
+const emit = defineEmits(["close", "save-success"]);
 
 const toast = useToast();
 const router = useRouter();
@@ -137,55 +137,59 @@ const router = useRouter();
 // --- State ---
 const payment = reactive({
   tunai: 0,
-  voucher: { nomor: '', nominal: 0 },
+  voucher: { nomor: "", nominal: 0 },
   transfer: {
     nominal: null as number | null,
-    akun: { kode: '', nama: '', rekening: '' },
-    tanggal: new Date().toISOString().substring(0, 10)
+    akun: { kode: "", nama: "", rekening: "" },
+    tanggal: new Date().toISOString().substring(0, 10),
   },
   // Init QRIS
   qris: {
     nominal: null as number | null,
-    akun: { kode: '', nama: '', rekening: '' },
-    tanggal: new Date().toISOString().substring(0, 10)
+    akun: { kode: "", nama: "", rekening: "" },
+    tanggal: new Date().toISOString().substring(0, 10),
   },
-  retur: { nomor: '', nominal: 0 },
+  retur: { nomor: "", nominal: 0 },
   pundiAmal: 0,
   diskonPembulatan: 0,
-  pinBelumLunas: ''
+  pinBelumLunas: "",
 });
 
 // [BARU] State untuk Potong Gaji
-const KODE_CUSTOMER_TRIGGER = 'K-01126';
-const paymentTab = ref('umum'); // 'umum' | 'karyawan'
+const KODE_CUSTOMER_TRIGGER = "K-01126";
+const paymentTab = ref("umum"); // 'umum' | 'karyawan'
 // State untuk Pencarian Karyawan
 const karyawanList = ref<KaryawanSearchResult[]>([]);
 const isSearchingKaryawan = ref(false);
 const karyawan = reactive({
   nik: null as KaryawanSearchResult | null,
-  nama: '',
-  alamat: '',
+  nama: "",
+  alamat: "",
   limitTotal: 0,
   terpakai: 0,
   sisaLimit: 0,
   isValid: false,
   isLoading: false,
-  message: '',
+  message: "",
 });
 const LIMIT_KARYAWAN = 500000;
 
 onMounted(() => {
   if (props.invoiceHeader.customer.kode === KODE_CUSTOMER_TRIGGER) {
-    paymentTab.value = 'karyawan';
+    paymentTab.value = "karyawan";
   } else {
-    paymentTab.value = 'umum';
+    paymentTab.value = "umum";
   }
 });
 
-function debounce(fn, delay) {
-  let timeoutId;
-  return (...args) => {
-    clearTimeout(timeoutId);
+function debounce<Args extends unknown[]>(
+  fn: (...args: Args) => void | Promise<void>,
+  delay: number
+) {
+  let timeoutId: ReturnType<typeof setTimeout> | undefined;
+
+  return (...args: Args) => {
+    if (timeoutId) clearTimeout(timeoutId);
     timeoutId = setTimeout(() => fn(...args), delay);
   };
 }
@@ -198,18 +202,18 @@ const dialogs = reactive({
 
 const authDialog = reactive<AuthDialogState>({
   show: false,
-  title: '',
-  jenis: '',
+  title: "",
+  jenis: "",
   nominal: 0,
-  transaksi: '', // Init kosong
-  keterangan: '',
+  transaksi: "", // Init kosong
+  keterangan: "",
   onSuccess: null,
-  onCancel: null
+  onCancel: null,
 });
 
-const temporaryPin = ref('');
+const temporaryPin = ref("");
 const isPrintOptionVisible = ref(false);
-const savedInvoiceNumber = ref('');
+const savedInvoiceNumber = ref("");
 const isFromSO = !!props.invoiceHeader.nomorSo;
 const isTunaiFocused = ref(false);
 const isTransferFocused = ref(false);
@@ -217,15 +221,15 @@ const isKasirPreviewVisible = ref(false);
 const printKasirData = ref<PrintKasirData | null>(null);
 const isPrintingKasir = ref(false);
 const isQrisFocused = ref(false);
-const rekeningSearchCaller = ref<'transfer' | 'qris'>('transfer');
+const rekeningSearchCaller = ref<"transfer" | "qris">("transfer");
 
-import Logo from '@/assets/logo.png';
-import InstagramLogo from '@/assets/instagram.jpg';
-import FacebookLogo from '@/assets/facebook.jpg';
+import Logo from "@/assets/logo.png";
+import InstagramLogo from "@/assets/instagram.jpg";
+import FacebookLogo from "@/assets/facebook.jpg";
 const appLogo = Logo;
 const igLogo = InstagramLogo;
 const fbLogo = FacebookLogo;
-const dtPundi = new Date('2024-06-01');
+const dtPundi = new Date("2024-06-01");
 const maxPundi = 500;
 
 // --- Computed Properties for Real-time Calculation ---
@@ -235,12 +239,14 @@ const dpTotal = computed(() => {
 });
 
 const totalBayar = computed(() => {
-  return dpTotal.value +
+  return (
+    dpTotal.value +
     (payment.tunai || 0) +
     (payment.voucher.nominal || 0) +
     (payment.transfer.nominal ?? 0) +
     (payment.qris.nominal ?? 0) + // Tambahkan QRIS ke total
-    (payment.retur.nominal || 0);
+    (payment.retur.nominal || 0)
+  );
 });
 
 const kembali = computed(() => {
@@ -340,17 +346,17 @@ const requestAuthorization = (
   title: string,
   jenis: string,
   nominal: number,
-  extraData: { transaksi?: string, keteranganLengkap?: string } | null, // Argumen ke-4
-  onSuccess: (data: { authNomor: string, approver: string }) => void,   // Argumen ke-5
-  onCancel: () => void                                                 // Argumen ke-6
+  extraData: { transaksi?: string; keteranganLengkap?: string } | null, // Argumen ke-4
+  onSuccess: (data: { authNomor: string; approver: string }) => void, // Argumen ke-5
+  onCancel: () => void // Argumen ke-6
 ) => {
   authDialog.title = title;
   authDialog.jenis = jenis;
   authDialog.nominal = nominal;
 
   // Ambil data dari extraData jika ada
-  authDialog.transaksi = extraData?.transaksi || props.invoiceHeader.nomor || 'NEW_TRX';
-  authDialog.keterangan = extraData?.keteranganLengkap || ''; // Mapping ke state keterangan
+  authDialog.transaksi = extraData?.transaksi || props.invoiceHeader.nomor || "NEW_TRX";
+  authDialog.keterangan = extraData?.keteranganLengkap || ""; // Mapping ke state keterangan
 
   authDialog.onSuccess = onSuccess;
   authDialog.onCancel = onCancel;
@@ -358,7 +364,7 @@ const requestAuthorization = (
 };
 
 // --- Handler BARU ---
-const handleAuthSuccess = (data: { authNomor: string, approver: string }) => {
+const handleAuthSuccess = (data: { authNomor: string; approver: string }) => {
   toast.success(`Disetujui oleh ${data.approver}`);
   if (authDialog.onSuccess) {
     authDialog.onSuccess(data);
@@ -374,17 +380,17 @@ const handleAuthClose = () => {
 };
 
 const openTransferSearch = () => {
-  rekeningSearchCaller.value = 'transfer';
+  rekeningSearchCaller.value = "transfer";
   dialogs.rekeningSearch = true;
 };
 
 const openQrisSearch = () => {
-  rekeningSearchCaller.value = 'qris';
+  rekeningSearchCaller.value = "qris";
   dialogs.rekeningSearch = true;
 };
 
 const onRekeningSelected = (rekening: BankAccount) => {
-  if (rekeningSearchCaller.value === 'transfer') {
+  if (rekeningSearchCaller.value === "transfer") {
     payment.transfer.akun = rekening;
   } else {
     payment.qris.akun = rekening;
@@ -392,7 +398,7 @@ const onRekeningSelected = (rekening: BankAccount) => {
   dialogs.rekeningSearch = false;
 };
 
-const onReturSelected = (retur: { Nomor: string, Sisa: number }) => {
+const onReturSelected = (retur: { Nomor: string; Sisa: number }) => {
   payment.retur.nomor = retur.Nomor;
   // Logika Delphi: ambil nilai terkecil antara sisa retur dan sisa piutang
   const sisaPiutang = props.totals.sisaPiutang;
@@ -405,11 +411,13 @@ const handleFinalSave = async () => {
   // [BARU] 1. VALIDASI LIMIT PIUTANG DISTRIBUTOR
   if (isPiutangOverLimit.value) {
     const totalTagihan = props.customerDebt + props.totals.grandTotal;
-    const info = `Limit: ${formatRupiah(props.customerLimit)}\nTotal Piutang: ${formatRupiah(totalTagihan)}`;
+    const info = `Limit: ${formatRupiah(props.customerLimit)}\nTotal Piutang: ${formatRupiah(
+      totalTagihan
+    )}`;
 
     requestAuthorization(
-      'Otorisasi Melebihi Limit Piutang',
-      'LIMIT_PIUTANG',
+      "Otorisasi Melebihi Limit Piutang",
+      "LIMIT_PIUTANG",
       props.totals.grandTotal,
       // Tambahkan objek keterangan di sini agar 'info' terpakai
       { keteranganLengkap: info },
@@ -417,33 +425,35 @@ const handleFinalSave = async () => {
         temporaryPin.value = authResult.approver;
         executeSave();
       },
-      () => toast.info('Transaksi dibatalkan karena melebihi limit.')
+      () => toast.info("Transaksi dibatalkan karena melebihi limit.")
     );
     return;
   }
 
   // 2. JIKA MODE POTONG GAJI
-  if (paymentTab.value === 'karyawan') {
+  if (paymentTab.value === "karyawan") {
     if (!karyawan.nik || !karyawan.isValid) {
-      return toast.error('Silakan input dan validasi NIK karyawan terlebih dahulu.');
+      return toast.error("Silakan input dan validasi NIK karyawan terlebih dahulu.");
     }
 
     // Cek Otorisasi Limit
     if (isOverLimit.value) {
-
       requestAuthorization(
-        'Otorisasi Limit Karyawan',
-        'LIMIT_KARYAWAN', // Jenis
+        "Otorisasi Limit Karyawan",
+        "LIMIT_KARYAWAN", // Jenis
         props.totals.grandTotal, // Nominal transaksi yang mau diajukan
         {
-          keteranganLengkap: `Karyawan: ${karyawan.nama}\nNIK: ${karyawan.nik?.kar_nik}\nLimit Terpakai: ${formatRupiah(karyawan.terpakai)}`
+          keteranganLengkap: `Karyawan: ${karyawan.nama}\nNIK: ${
+            karyawan.nik?.kar_nik
+          }\nLimit Terpakai: ${formatRupiah(karyawan.terpakai)}`,
         },
-        (authResult) => { // Callback Sukses (Approved)
+        (authResult) => {
+          // Callback Sukses (Approved)
           // Simpan nama approver ke temporaryPin agar tersimpan di backend
           temporaryPin.value = authResult.approver;
           executeSave();
         },
-        () => toast.info('Transaksi dibatalkan.') // Callback Batal
+        () => toast.info("Transaksi dibatalkan.") // Callback Batal
       );
       return;
     }
@@ -454,8 +464,8 @@ const handleFinalSave = async () => {
   }
 
   // 3. JIKA MODE UMUM
-  if (payment.transfer.nominal > 0 && !payment.transfer.akun.kode) {
-    return toast.error('Akun bank untuk transfer harus diisi.');
+  if ((payment.transfer.nominal || 0) > 0 && !payment.transfer.akun.kode) {
+    return toast.error("Akun bank untuk transfer harus diisi.");
   }
 
   // BANDINGKAN TOTAL BAYAR DENGAN GRAND TOTAL INVOICE
@@ -466,11 +476,11 @@ const handleFinalSave = async () => {
     const sisaTagihan = totalTagihanFinal - totalBayarSekarang;
 
     requestAuthorization(
-      'Otorisasi Invoice Belum Lunas',
-      'PIUTANG',      // Jenis
-      sisaTagihan,    // Nominal kekurangan
+      "Otorisasi Invoice Belum Lunas",
+      "PIUTANG", // Jenis
+      sisaTagihan, // Nominal kekurangan
       {
-        keteranganLengkap: `Piutang (Belum Lunas)\nSisa Tagihan: ${formatRupiah(sisaTagihan)}`
+        keteranganLengkap: `Piutang (Belum Lunas)\nSisa Tagihan: ${formatRupiah(sisaTagihan)}`,
       },
       (authResult) => {
         // Simpan nama approver sebagai bukti
@@ -478,18 +488,20 @@ const handleFinalSave = async () => {
         temporaryPin.value = authResult.approver;
         executeSave();
       },
-      () => toast.info('Penyimpanan dibatalkan.')
+      () => toast.info("Penyimpanan dibatalkan.")
     );
   } else {
-    payment.pinBelumLunas = '';
-    temporaryPin.value = '';
+    payment.pinBelumLunas = "";
+    temporaryPin.value = "";
     await executeSave();
   }
 };
 
 // [BARU] Method Check Karyawan
 const checkKaryawan = async (nikParam?: string) => {
-  const nikString = nikParam || (karyawan.nik && typeof karyawan.nik === 'object' ? karyawan.nik.kar_nik : karyawan.nik);
+  const nikString =
+    nikParam ||
+    (karyawan.nik && typeof karyawan.nik === "object" ? karyawan.nik.kar_nik : karyawan.nik);
 
   if (!nikString) return;
 
@@ -500,12 +512,12 @@ const checkKaryawan = async (nikParam?: string) => {
     const res = response.data; // { found, active, data: { nik, nama, terpakaiBulanIni, ... } }
 
     if (!res.found) {
-      toast.error(res.message || 'Karyawan tidak ditemukan');
+      toast.error(res.message || "Karyawan tidak ditemukan");
       resetKaryawanData();
       return;
     }
     if (!res.active) {
-      toast.error('Status karyawan tidak aktif.');
+      toast.error("Status karyawan tidak aktif.");
       resetKaryawanData();
       return;
     }
@@ -520,10 +532,9 @@ const checkKaryawan = async (nikParam?: string) => {
 
       toast.success(`Data karyawan ditemukan: ${d.nama}`);
     }
-
   } catch (error) {
     console.error(error);
-    toast.error('Gagal mengecek data karyawan.');
+    toast.error("Gagal mengecek data karyawan.");
     resetKaryawanData();
   } finally {
     karyawan.isLoading = false;
@@ -532,20 +543,20 @@ const checkKaryawan = async (nikParam?: string) => {
 
 const resetKaryawanData = () => {
   karyawan.nik = null; // [UBAH INI] Reset ke null
-  karyawan.nama = '';
-  karyawan.alamat = '';
+  karyawan.nama = "";
+  karyawan.alamat = "";
   karyawan.limitTotal = 0;
   karyawan.terpakai = 0;
   karyawan.sisaLimit = 0;
   karyawan.isValid = false;
-  karyawan.message = '';
+  karyawan.message = "";
 };
 
 // [TAMBAHAN PENTING]
 // Pastikan saat modal dibuka atau tab berubah, datanya bersih.
 // Tambahkan watcher pada paymentTab.
 watch(paymentTab, (newTab) => {
-  if (newTab === 'karyawan') {
+  if (newTab === "karyawan") {
     // Jika masuk tab karyawan tapi belum ada data yang valid, reset inputan.
     if (!karyawan.isValid) {
       resetKaryawanData();
@@ -563,7 +574,7 @@ const onSearchKaryawan = debounce(async (v: string) => {
 
   isSearchingKaryawan.value = true;
   try {
-    const { data } = await api.get('/hrd/search', { params: { term: v } });
+    const { data } = await api.get("/hrd/search", { params: { term: v } });
     karyawanList.value = data;
   } catch (err) {
     console.error(err);
@@ -597,12 +608,12 @@ const executeSave = async () => {
     // agar bisa menambahkan properti 'jenis' dan 'nikKaryawan' tanpa error
     const paymentPayload: PaymentPayload = {
       ...payment,
-      jenis: 'UMUM'
+      jenis: "UMUM",
     };
 
     // [LOGIKA DATA KARYAWAN]
-    if (paymentTab.value === 'karyawan') {
-      paymentPayload.jenis = 'POTONG_GAJI';
+    if (paymentTab.value === "karyawan") {
+      paymentPayload.jenis = "POTONG_GAJI";
 
       // Pastikan NIK dan Nama terisi
       if (!karyawan.nik || !karyawan.nama) {
@@ -610,43 +621,44 @@ const executeSave = async () => {
       }
 
       // Ambil NIK (handle jika object autocomplete atau string)
-      const nikFixed = typeof karyawan.nik === 'object' ? karyawan.nik.kar_nik : karyawan.nik;
+      const nikFixed = typeof karyawan.nik === "object" ? karyawan.nik.kar_nik : karyawan.nik;
 
       paymentPayload.nikKaryawan = nikFixed;
       paymentPayload.namaKaryawan = karyawan.nama;
 
       // Reset nominal pembayaran lain agar nol
       paymentPayload.tunai = 0;
-      paymentPayload.voucher = { nominal: 0, nomor: '' };
+      paymentPayload.voucher = { nominal: 0, nomor: "" };
       paymentPayload.transfer = {
         nominal: 0,
-        akun: { kode: '', nama: '', rekening: '' },
-        tanggal: payment.transfer.tanggal
+        akun: { kode: "", nama: "", rekening: "" },
+        tanggal: payment.transfer.tanggal,
       };
-      paymentPayload.qris = { nominal: 0, akun: { kode: '', nama: '', rekening: '' }, tanggal: payment.qris.tanggal };
-      paymentPayload.retur = { nominal: 0, nomor: '' };
-
+      paymentPayload.qris = {
+        nominal: 0,
+        akun: { kode: "", nama: "", rekening: "" },
+        tanggal: payment.qris.tanggal,
+      };
+      paymentPayload.retur = { nominal: 0, nomor: "" };
     } else {
-      paymentPayload.jenis = 'UMUM';
+      paymentPayload.jenis = "UMUM";
       // Hapus nikKaryawan jika ada sisa (opsional, tapi bersih)
       delete paymentPayload.nikKaryawan;
       delete paymentPayload.namaKaryawan;
     }
 
-    const totalNonTunai = Number(paymentPayload.transfer?.nominal || 0) + Number(paymentPayload.qris?.nominal || 0);
+    const totalNonTunai =
+      Number(paymentPayload.transfer?.nominal || 0) + Number(paymentPayload.qris?.nominal || 0);
 
     const kembalianBeforePundi = Math.max(totalBayar.value - props.totals.grandTotal, 0);
 
-    const tunaiAfterChange = Math.max(
-      Number(paymentPayload.tunai || 0) - kembalianBeforePundi,
-      0
-    );
+    const tunaiAfterChange = Math.max(Number(paymentPayload.tunai || 0) - kembalianBeforePundi, 0);
 
     const cleanDps = (props.linkedDps || [])
       .filter((dp) => dp.nominal > 0)
       .map((dp) => ({
         nomor: dp.nomor,
-        nominal: Number(dp.nominal)
+        nominal: Number(dp.nominal),
       }));
 
     const payload = {
@@ -660,77 +672,84 @@ const executeSave = async () => {
         // Pastikan field numerik ter-convert dengan benar
         tunai: Number(paymentPayload.tunai || 0),
         tunaiAfterChange,
-        transfer: { ...paymentPayload.transfer, nominal: Number(paymentPayload.transfer.nominal || 0) },
+        transfer: {
+          ...paymentPayload.transfer,
+          nominal: Number(paymentPayload.transfer.nominal || 0),
+        },
         qris: {
           ...paymentPayload.qris,
-          nominal: Number(paymentPayload.qris.nominal || 0)
+          nominal: Number(paymentPayload.qris.nominal || 0),
         },
         inv_rpcard: totalNonTunai,
-        voucher: { ...paymentPayload.voucher, nominal: Number(paymentPayload.voucher.nominal || 0) },
+        voucher: {
+          ...paymentPayload.voucher,
+          nominal: Number(paymentPayload.voucher.nominal || 0),
+        },
         retur: { ...paymentPayload.retur, nominal: Number(paymentPayload.retur.nominal || 0) },
 
         bayarTotal: totalBayar.value,
         kembali: kembali.value,
-        pinBelumLunas: temporaryPin.value
+        pinBelumLunas: temporaryPin.value,
       },
       totals: {
         subTotal: props.totals.subTotal,
         totalDiskonItem: props.totals.totalDiskonItem || 0,
         totalDiskonFaktur: props.totals.totalDiskonFaktur || 0,
         totalDp: props.totals.totalDp || 0,
-        netto: props.totals.subTotal - (props.totals.totalDiskonItem || 0) - (props.totals.totalDiskonFaktur || 0),
+        netto:
+          props.totals.subTotal -
+          (props.totals.totalDiskonItem || 0) -
+          (props.totals.totalDiskonFaktur || 0),
         grandTotal: props.totals.grandTotal,
-        sisaPiutang: correctedSisaPiutang.value
+        sisaPiutang: correctedSisaPiutang.value,
       },
       pins: props.authPins,
       isNew: !props.invoiceHeader.nomor,
     };
 
-    const response = await api.post('/invoice-form/save', payload);
+    const response = await api.post("/invoice-form/save", payload);
     toast.success(response.data.message);
     savedInvoiceNumber.value = response.data.nomor;
 
     // Langsung buka print option setelah save
     if (isFromSO) {
       // Jika berasal dari SO → langsung cetak A4
-      handlePrintSelection('a4');
+      handlePrintSelection("a4");
     } else {
       // Jika bukan dari SO → tampilkan opsi print
       isPrintOptionVisible.value = true;
     }
-
   } catch (error: unknown) {
     const axiosError = error as AxiosError<{ message?: string }>;
-    toast.error(axiosError.response?.data?.message || 'Gagal menyimpan invoice.');
+    toast.error(axiosError.response?.data?.message || "Gagal menyimpan invoice.");
   } finally {
-    if (temporaryPin.value === '') {
+    if (temporaryPin.value === "") {
       // Indikator sederhana bahwa proses selesai (error/batal), buka kunci
       isSaving.value = false;
     }
   }
-}
+};
 
 const formatHpToWa = (hp: string) => {
-  if (!hp) return '';
-  let sanitizedHp = hp.replace(/[^0-9]/g, ''); // Hapus semua selain angka
-  if (sanitizedHp.startsWith('0')) {
-    sanitizedHp = '62' + sanitizedHp.substring(1); // Ganti 0 di depan dengan 62
+  if (!hp) return "";
+  let sanitizedHp = hp.replace(/[^0-9]/g, ""); // Hapus semua selain angka
+  if (sanitizedHp.startsWith("0")) {
+    sanitizedHp = "62" + sanitizedHp.substring(1); // Ganti 0 di depan dengan 62
   }
   return sanitizedHp;
 };
 
-const handlePrintSelection = async (type: 'a4' | 'kasir' | 'wa') => {
+const handlePrintSelection = async (type: "a4" | "kasir" | "wa") => {
   isPrintOptionVisible.value = false;
   const nomor = savedInvoiceNumber.value;
   if (!nomor) return;
 
-  if (type === 'a4') {
-    const routeName = 'InvoicePrint';
+  if (type === "a4") {
+    const routeName = "InvoicePrint";
     const url = router.resolve({ name: routeName, params: { nomor } }).href;
-    window.open(url, '_blank');
-    emit('save-success', savedInvoiceNumber.value);
-
-  } else if (type === 'kasir') {
+    window.open(url, "_blank");
+    emit("save-success", savedInvoiceNumber.value);
+  } else if (type === "kasir") {
     isPrintingKasir.value = true;
     try {
       const response = await api.get(`/invoice-form/print-kasir/${nomor}`);
@@ -742,9 +761,7 @@ const handlePrintSelection = async (type: 'a4' | 'kasir' | 'wa') => {
           (d: PrintKasirDetail): PrintKasirDetail => {
             const hargaSetelah = Number(d.harga_setelah_diskon ?? d.invd_harga ?? 0);
             const hargaAsli = Number(
-              d.harga_asli ??
-              d.invd_harga_asli ??
-              (d.invd_harga ?? 0) + (d.invd_diskon ?? 0)
+              d.harga_asli ?? d.invd_harga_asli ?? (d.invd_harga ?? 0) + (d.invd_diskon ?? 0)
             );
             const diskonRp = Number(d.invd_diskon ?? d.diskonRp ?? 0);
             const qty = Number(d.invd_jumlah ?? 0);
@@ -783,11 +800,13 @@ const handlePrintSelection = async (type: 'a4' | 'kasir' | 'wa') => {
 
         s.subTotal = Number(s.subTotal ?? fallbackSubTotal);
         s.diskon = Number(s.diskon ?? fallbackDiskon);
-        s.netto = Number(s.netto ?? (s.subTotal - s.diskon));
+        s.netto = Number(s.netto ?? s.subTotal - s.diskon);
         s.biayaKirim = Number(s.biayaKirim ?? 0);
-        s.grandTotal = Number(s.grandTotal ?? (s.netto + s.biayaKirim));
+        s.grandTotal = Number(s.grandTotal ?? s.netto + s.biayaKirim);
         s.bayar = Number(s.bayar ?? 0);
-        const rawKembali = Number(printKasirData.value.header.inv_kembali ?? (s.bayar - s.grandTotal));
+        const rawKembali = Number(
+          printKasirData.value.header.inv_kembali ?? s.bayar - s.grandTotal
+        );
         s.pundiAmal = Number(s.pundiAmal ?? 0);
 
         // KEMBALI SETELAH DONASI
@@ -800,24 +819,24 @@ const handlePrintSelection = async (type: 'a4' | 'kasir' | 'wa') => {
     } finally {
       isPrintingKasir.value = false;
     }
-  } else if (type === 'wa') {
+  } else if (type === "wa") {
     const memberHp = props.invoiceHeader.Hp || props.invoiceHeader.memberHp;
     if (!memberHp) {
-      emit('save-success', savedInvoiceNumber.value); // Tutup meski gagal
-      return toast.error('No. HP Member tidak ada, tidak bisa kirim via WA.');
+      emit("save-success", savedInvoiceNumber.value); // Tutup meski gagal
+      return toast.error("No. HP Member tidak ada, tidak bisa kirim via WA.");
     }
     try {
       toast.info(`Mengirim struk ke ${memberHp}...`);
-      const response = await api.post('/whatsapp/send-receipt', {
+      const response = await api.post("/whatsapp/send-receipt", {
         nomor,
-        hp: formatHpToWa(memberHp)
+        hp: formatHpToWa(memberHp),
       });
       toast.success(response.data.message);
     } catch (error: unknown) {
       const axiosError = error as AxiosError<{ message?: string }>;
-      toast.error(axiosError.response?.data?.message || 'Gagal mengirim struk via WhatsApp.');
+      toast.error(axiosError.response?.data?.message || "Gagal mengirim struk via WhatsApp.");
     }
-    emit('save-success', savedInvoiceNumber.value);
+    emit("save-success", savedInvoiceNumber.value);
   }
 };
 
@@ -828,7 +847,7 @@ const triggerBrowserPrint = () => {
 
   // Tunggu sebentar agar modal benar-benar tertutup
   setTimeout(() => {
-    const printContentEl = document.getElementById('kasir-print-area');
+    const printContentEl = document.getElementById("kasir-print-area");
     if (!printContentEl) {
       toast.error("Area cetak kasir tidak ditemukan.");
       return;
@@ -840,8 +859,8 @@ const triggerBrowserPrint = () => {
     const screenHeight = window.screen.availHeight;
 
     const printWindow = window.open(
-      '',
-      '_blank',
+      "",
+      "_blank",
       `width=${screenWidth},height=${screenHeight},left=0,top=0`
     );
     if (!printWindow) {
@@ -916,7 +935,7 @@ const triggerBrowserPrint = () => {
     printWindow.document.close();
 
     // Emit save-success setelah print dialog muncul
-    emit('save-success', savedInvoiceNumber.value);
+    emit("save-success", savedInvoiceNumber.value);
   }, 100);
 };
 
@@ -925,7 +944,7 @@ const closeKasirPreview = () => {
   isKasirPreviewVisible.value = false;
   printKasirData.value = null;
   // Emit save-success saat user tutup preview tanpa cetak
-  emit('save-success', savedInvoiceNumber.value);
+  emit("save-success", savedInvoiceNumber.value);
 };
 
 const onPrintModalClose = () => {
@@ -942,17 +961,17 @@ const validateVoucher = async () => {
   }
 
   try {
-    const response = await api.post('/invoice-form/validate-voucher', {
+    const response = await api.post("/invoice-form/validate-voucher", {
       voucherNo: voucherNo,
       invoiceNo: props.invoiceHeader.nomor, // Kirim nomor invoice saat ini
     });
     payment.voucher.nominal = response.data.nominal;
-    toast.success('Voucher valid.');
+    toast.success("Voucher valid.");
   } catch (error: unknown) {
     payment.voucher.nominal = 0;
 
     const axiosError = error as AxiosError<{ message?: string }>;
-    toast.error(axiosError.response?.data?.message || 'Gagal memvalidasi voucher.');
+    toast.error(axiosError.response?.data?.message || "Gagal memvalidasi voucher.");
   }
 };
 
@@ -988,7 +1007,7 @@ const hitungPundiAmal = (details: PrintKasirDetail[]) => {
 
 const correctedSubTotal = computed(() => {
   return (props.invoiceItems as InvoiceItem[])
-    .filter(i => i.kode)
+    .filter((i) => i.kode)
     .reduce((sum, item) => {
       const qty = Number(item.jumlah || 0);
       const hargaAsli = Number(item.harga || 0);
@@ -998,10 +1017,10 @@ const correctedSubTotal = computed(() => {
 
 const correctedGrandTotal = computed(() => {
   return (
-    correctedSubTotal.value
-    - (props.totals.totalDiskonItem || 0)
-    - (props.totals.totalDiskonFaktur || 0)
-    + Number(props.invoiceHeader.biayaKirim || 0)
+    correctedSubTotal.value -
+    (props.totals.totalDiskonItem || 0) -
+    (props.totals.totalDiskonFaktur || 0) +
+    Number(props.invoiceHeader.biayaKirim || 0)
   );
 });
 
@@ -1011,7 +1030,7 @@ const correctedSisaPiutang = computed(() => {
 
 const effectiveSisaPiutang = computed(() => {
   return isFromSO
-    ? props.totals.sisaPiutang   // gunakan backend (benar)
+    ? props.totals.sisaPiutang // gunakan backend (benar)
     : correctedSisaPiutang.value; // default existing logic
 });
 
@@ -1036,12 +1055,15 @@ watch(kembali, (newVal) => {
   payment.pundiAmal = calculatePundiAmal(newVal);
 });
 
-watch(() => payment.qris.nominal, (newVal) => {
-  if (newVal && newVal > 0 && !payment.qris.akun.kode) {
-    payment.qris.nominal = 0; // Paksa nol jika belum pilih rekening
-    toast.warning("Silakan pilih Akun Rekening QRIS terlebih dahulu!");
+watch(
+  () => payment.qris.nominal,
+  (newVal) => {
+    if (newVal && newVal > 0 && !payment.qris.akun.kode) {
+      payment.qris.nominal = 0; // Paksa nol jika belum pilih rekening
+      toast.warning("Silakan pilih Akun Rekening QRIS terlebih dahulu!");
+    }
   }
-});
+);
 </script>
 
 <template>
@@ -1090,24 +1112,45 @@ watch(() => payment.qris.nominal, (newVal) => {
               </div>
 
               <v-divider class="my-3" />
-              <div class="pa-2 rounded" style="background-color: #fff4f4; border: 1px dashed #ffcdd2;">
+              <div
+                class="pa-2 rounded"
+                style="background-color: #fff4f4; border: 1px dashed #ffcdd2"
+              >
                 <div class="text-caption font-weight-bold text-red-darken-4 mb-1">
                   DISKON PEMBULATAN (MAX 500)
                 </div>
-                <v-text-field v-model.number="payment.diskonPembulatan" type="number" variant="outlined"
-                  density="compact" hide-details prefix="Rp" class="text-red-darken-4"
-                  @input="payment.diskonPembulatan = Math.min(payment.diskonPembulatan || 0, 500)" />
-                <div class="text-error" style="font-size: 9px;">*Gunakan jika uang customer kurang sedikit</div>
+                <v-text-field
+                  v-model.number="payment.diskonPembulatan"
+                  type="number"
+                  variant="outlined"
+                  density="compact"
+                  hide-details
+                  prefix="Rp"
+                  class="text-red-darken-4"
+                  @input="payment.diskonPembulatan = Math.min(payment.diskonPembulatan || 0, 500)"
+                />
+                <div class="text-error" style="font-size: 9px">
+                  *Gunakan jika uang customer kurang sedikit
+                </div>
               </div>
             </div>
 
-            <div v-if="customerLimit > 0" class="pa-3 rounded mt-4"
-              :class="isPiutangOverLimit ? 'bg-red-lighten-5 border-error' : 'bg-green-lighten-5 border-success'"
-              style="border: 1px solid;">
+            <div
+              v-if="customerLimit > 0"
+              class="pa-3 rounded mt-4"
+              :class="
+                isPiutangOverLimit
+                  ? 'bg-red-lighten-5 border-error'
+                  : 'bg-green-lighten-5 border-success'
+              "
+              style="border: 1px solid"
+            >
               <div class="text-caption font-weight-bold d-flex justify-space-between mb-2">
-                <span :class="isPiutangOverLimit ? 'text-red' : 'text-green'">STATUS LIMIT PIUTANG</span>
+                <span :class="isPiutangOverLimit ? 'text-red' : 'text-green'"
+                  >STATUS LIMIT PIUTANG</span
+                >
                 <v-icon size="small" :color="isPiutangOverLimit ? 'error' : 'success'">
-                  {{ isPiutangOverLimit ? 'mdi-alert-octagon' : 'mdi-check-decagram' }}
+                  {{ isPiutangOverLimit ? "mdi-alert-octagon" : "mdi-check-decagram" }}
                 </v-icon>
               </div>
 
@@ -1126,14 +1169,18 @@ watch(() => payment.qris.nominal, (newVal) => {
 
               <v-divider class="my-2" />
 
-              <div class="d-flex justify-space-between font-weight-bold"
-                :class="isPiutangOverLimit ? 'text-error' : 'text-success'">
-                <span>{{ isPiutangOverLimit ? 'Over Limit:' : 'Sisa Limit:' }}</span>
-                <span>{{ formatRupiah(Math.abs(customerLimit - customerDebt - totals.grandTotal)) }}</span>
+              <div
+                class="d-flex justify-space-between font-weight-bold"
+                :class="isPiutangOverLimit ? 'text-error' : 'text-success'"
+              >
+                <span>{{ isPiutangOverLimit ? "Over Limit:" : "Sisa Limit:" }}</span>
+                <span>{{
+                  formatRupiah(Math.abs(customerLimit - customerDebt - totals.grandTotal))
+                }}</span>
               </div>
             </div>
 
-            <div class="desktop-form-section" style="background-color: #f7f9fc;">
+            <div class="desktop-form-section" style="background-color: #f7f9fc">
               <div class="d-flex justify-space-between">
                 <span class="text-subtitle-1">Total Bayar:</span>
                 <span class="text-subtitle-1 font-weight-bold">{{ formatRupiah(totalBayar) }}</span>
@@ -1158,32 +1205,67 @@ watch(() => payment.qris.nominal, (newVal) => {
             <div class="desktop-form-section">
               <div class="text-subtitle-2 font-weight-bold mb-2">
                 Metode Pembayaran:
-                <span class="text-primary">{{ paymentTab === 'karyawan' ? 'Potong Gaji Karyawan' : 'Umum (Tunai/TF)'
-                  }}</span>
+                <span class="text-primary">{{
+                  paymentTab === "karyawan" ? "Potong Gaji Karyawan" : "Umum (Tunai/TF)"
+                }}</span>
               </div>
 
-              <v-alert v-if="paymentTab === 'karyawan'" color="info" variant="tonal" icon="mdi-account-tie" class="mb-4"
-                density="compact">
+              <v-alert
+                v-if="paymentTab === 'karyawan'"
+                color="info"
+                variant="tonal"
+                icon="mdi-account-tie"
+                class="mb-4"
+                density="compact"
+              >
                 Mode Khusus: <strong>Potong Gaji Karyawan</strong>
               </v-alert>
               <v-window v-model="paymentTab" class="pt-2">
                 <v-window-item value="umum">
-                  <v-text-field label="Tunai" :model-value="isTunaiFocused
-                    ? (payment.tunai === 0 ? '' : payment.tunai)
-                    : formatRupiah(payment.tunai)
-                    " @update:model-value="payment.tunai = Number(String($event).replace(/[^0-9]/g, '')) || 0"
-                    @focus="isTunaiFocused = true" @blur="isTunaiFocused = false" type="text" variant="outlined"
-                    density="compact" hide-details class="text-end">
+                  <v-text-field
+                    label="Tunai"
+                    :model-value="
+                      isTunaiFocused
+                        ? payment.tunai === 0
+                          ? ''
+                          : payment.tunai
+                        : formatRupiah(payment.tunai)
+                    "
+                    @update:model-value="
+                      payment.tunai = Number(String($event).replace(/[^0-9]/g, '')) || 0
+                    "
+                    @focus="isTunaiFocused = true"
+                    @blur="isTunaiFocused = false"
+                    type="text"
+                    variant="outlined"
+                    density="compact"
+                    hide-details
+                    class="text-end"
+                  >
                     <template #prepend-inner>
                       <span class="input-prefix">Rp</span>
                     </template>
                   </v-text-field>
                   <v-row dense class="mt-2">
-                    <v-col cols="6"><v-text-field label="No. Voucher" v-model="payment.voucher.nomor" variant="outlined"
-                        density="compact" hide-details @blur="validateVoucher" /></v-col>
+                    <v-col cols="6"
+                      ><v-text-field
+                        label="No. Voucher"
+                        v-model="payment.voucher.nomor"
+                        variant="outlined"
+                        density="compact"
+                        hide-details
+                        @blur="validateVoucher"
+                    /></v-col>
                     <v-col cols="6">
-                      <v-text-field label="Nominal Voucher" v-model.number="payment.voucher.nominal" type="number"
-                        variant="outlined" min="0" density="compact" hide-details>
+                      <v-text-field
+                        label="Nominal Voucher"
+                        v-model.number="payment.voucher.nominal"
+                        type="number"
+                        variant="outlined"
+                        min="0"
+                        density="compact"
+                        hide-details
+                      >
                         <template #prepend-inner>
                           <span class="input-prefix">Rp</span>
                         </template>
@@ -1191,48 +1273,124 @@ watch(() => payment.qris.nominal, (newVal) => {
                     </v-col>
                   </v-row>
                   <v-divider class="my-3" />
-                  <v-text-field label="Transfer / Card" :model-value="isTransferFocused
-                    ? (payment.transfer.nominal === null ? '' : payment.transfer.nominal)
-                    : formatRupiah(payment.transfer.nominal ?? 0)" @update:model-value="
-                      payment.transfer.nominal = $event === '' ? null : Number(String($event).replace(/[^0-9]/g, ''))
-                      " @focus="isTransferFocused = true" @blur="isTransferFocused = false" type="text"
-                    variant="outlined" min="0" density="compact" hide-details class="text-end">
+                  <v-text-field
+                    label="Transfer / Card"
+                    :model-value="
+                      isTransferFocused
+                        ? payment.transfer.nominal === null
+                          ? ''
+                          : payment.transfer.nominal
+                        : formatRupiah(payment.transfer.nominal ?? 0)
+                    "
+                    @update:model-value="
+                      payment.transfer.nominal =
+                        $event === '' ? null : Number(String($event).replace(/[^0-9]/g, ''))
+                    "
+                    @focus="isTransferFocused = true"
+                    @blur="isTransferFocused = false"
+                    type="text"
+                    variant="outlined"
+                    min="0"
+                    density="compact"
+                    hide-details
+                    class="text-end"
+                  >
                     <template #prepend-inner>
                       <span class="input-prefix">Rp</span>
                     </template>
                   </v-text-field>
-                  <v-text-field label="Akun Bank (TF)"
-                    :model-value="`${payment.transfer.akun.kode || ''} - ${payment.transfer.akun.nama || ''}`" readonly
-                    @click="openTransferSearch" prepend-inner-icon="mdi-magnify" variant="outlined" density="compact"
-                    hide-details />
-                  <v-text-field label="Tgl. Transfer" v-model="payment.transfer.tanggal" type="date" variant="outlined"
-                    density="compact" hide-details />
+                  <v-text-field
+                    label="Akun Bank (TF)"
+                    :model-value="`${payment.transfer.akun.kode || ''} - ${
+                      payment.transfer.akun.nama || ''
+                    }`"
+                    readonly
+                    @click="openTransferSearch"
+                    prepend-inner-icon="mdi-magnify"
+                    variant="outlined"
+                    density="compact"
+                    hide-details
+                  />
+                  <v-text-field
+                    label="Tgl. Transfer"
+                    v-model="payment.transfer.tanggal"
+                    type="date"
+                    variant="outlined"
+                    density="compact"
+                    hide-details
+                  />
                   <v-divider class="my-3" />
-                  <v-text-field label="QRIS / E-Wallet"
-                    :model-value="isQrisFocused ? (payment.qris.nominal === null ? '' : payment.qris.nominal) : formatRupiah(payment.qris.nominal ?? 0)"
-                    @update:model-value="payment.qris.nominal = $event === '' ? null : Number(String($event).replace(/[^0-9]/g, ''))"
-                    @focus="isQrisFocused = true" @blur="isQrisFocused = false" variant="outlined" density="compact"
-                    hide-details class="text-end" :readonly="!payment.qris.akun.kode"
-                    :hint="!payment.qris.akun.kode ? 'Pilih Akun QRIS dulu!' : ''" persistent-hint>
+                  <v-text-field
+                    label="QRIS / E-Wallet"
+                    :model-value="
+                      isQrisFocused
+                        ? payment.qris.nominal === null
+                          ? ''
+                          : payment.qris.nominal
+                        : formatRupiah(payment.qris.nominal ?? 0)
+                    "
+                    @update:model-value="
+                      payment.qris.nominal =
+                        $event === '' ? null : Number(String($event).replace(/[^0-9]/g, ''))
+                    "
+                    @focus="isQrisFocused = true"
+                    @blur="isQrisFocused = false"
+                    variant="outlined"
+                    density="compact"
+                    hide-details
+                    class="text-end"
+                    :readonly="!payment.qris.akun.kode"
+                    :hint="!payment.qris.akun.kode ? 'Pilih Akun QRIS dulu!' : ''"
+                    persistent-hint
+                  >
                     <template #prepend-inner>
-                      <v-icon v-if="!payment.qris.akun.kode" color="error" size="small">mdi-lock</v-icon>
+                      <v-icon v-if="!payment.qris.akun.kode" color="error" size="small"
+                        >mdi-lock</v-icon
+                      >
                       <span class="input-prefix" v-else>Rp</span>
                     </template>
                   </v-text-field>
 
-                  <v-text-field label="Akun QRIS"
-                    :model-value="payment.qris.akun.kode ? `${payment.qris.akun.kode} - ${payment.qris.akun.nama}` : ''"
-                    placeholder="Klik untuk pilih rekening QRIS..." readonly @click="openQrisSearch"
-                    prepend-inner-icon="mdi-qrcode-scan" variant="outlined" density="compact" class="mt-1"
-                    :error="!payment.qris.akun.kode && (payment.qris.nominal || 0) > 0" />
+                  <v-text-field
+                    label="Akun QRIS"
+                    :model-value="
+                      payment.qris.akun.kode
+                        ? `${payment.qris.akun.kode} - ${payment.qris.akun.nama}`
+                        : ''
+                    "
+                    placeholder="Klik untuk pilih rekening QRIS..."
+                    readonly
+                    @click="openQrisSearch"
+                    prepend-inner-icon="mdi-qrcode-scan"
+                    variant="outlined"
+                    density="compact"
+                    class="mt-1"
+                    :error="!payment.qris.akun.kode && (payment.qris.nominal || 0) > 0"
+                  />
                   <v-row dense>
-                    <v-col cols="6"><v-text-field label="No. Retur" v-model="payment.retur.nomor" variant="outlined"
-                        density="compact" hide-details readonly @click="dialogs.returJualSearch = true"
+                    <v-col cols="6"
+                      ><v-text-field
+                        label="No. Retur"
+                        v-model="payment.retur.nomor"
+                        variant="outlined"
+                        density="compact"
+                        hide-details
+                        readonly
+                        @click="dialogs.returJualSearch = true"
                         @keydown.f1.prevent="dialogs.returJualSearch = true"
-                        prepend-inner-icon="mdi-magnify"></v-text-field>
+                        prepend-inner-icon="mdi-magnify"
+                      ></v-text-field>
                     </v-col>
-                    <v-col cols="6"><v-text-field label="Nominal Retur" v-model.number="payment.retur.nominal"
-                        type="number" min="0" variant="outlined" density="compact" hide-details>
+                    <v-col cols="6"
+                      ><v-text-field
+                        label="Nominal Retur"
+                        v-model.number="payment.retur.nominal"
+                        type="number"
+                        min="0"
+                        variant="outlined"
+                        density="compact"
+                        hide-details
+                      >
                         <template #prepend-inner>
                           <span class="input-prefix">Rp</span>
                         </template>
@@ -1243,13 +1401,29 @@ watch(() => payment.qris.nominal, (newVal) => {
                 <v-window-item value="karyawan">
                   <v-row dense>
                     <v-col cols="12">
-                      <v-autocomplete label="Cari Karyawan (Ketik Nama / NIK)" placeholder="Ketik minimal 3 karakter..."
-                        v-model="karyawan.nik" :items="karyawanList" :loading="isSearchingKaryawan"
-                        item-title="kar_nama" item-value="kar_nik" variant="outlined" density="compact"
-                        hide-details="auto" clearable no-filter return-object @update:search="onSearchKaryawan"
-                        @update:model-value="onSelectKaryawan">
+                      <v-autocomplete
+                        label="Cari Karyawan (Ketik Nama / NIK)"
+                        placeholder="Ketik minimal 3 karakter..."
+                        v-model="karyawan.nik"
+                        :items="karyawanList"
+                        :loading="isSearchingKaryawan"
+                        item-title="kar_nama"
+                        item-value="kar_nik"
+                        variant="outlined"
+                        density="compact"
+                        hide-details="auto"
+                        clearable
+                        no-filter
+                        return-object
+                        @update:search="onSearchKaryawan"
+                        @update:model-value="onSelectKaryawan"
+                      >
                         <template v-slot:item="{ props, item }">
-                          <v-list-item v-bind="props" :title="item.raw.kar_nama" :subtitle="item.raw.kar_nik">
+                          <v-list-item
+                            v-bind="props"
+                            :title="item.raw.kar_nama"
+                            :subtitle="item.raw.kar_nik"
+                          >
                             <template v-slot:prepend>
                               <v-icon icon="mdi-account-tie" color="primary"></v-icon>
                             </template>
@@ -1257,8 +1431,10 @@ watch(() => payment.qris.nominal, (newVal) => {
                         </template>
 
                         <template v-slot:selection="{ item }">
-                          <span class="text-body-2 text-high-emphasis text-truncate"
-                            style="width: 100%; max-width: 100%; display: block;">
+                          <span
+                            class="text-body-2 text-high-emphasis text-truncate"
+                            style="width: 100%; max-width: 100%; display: block"
+                          >
                             <strong>{{ item.raw.kar_nik }}</strong> - {{ item.raw.kar_nama }}
                           </span>
                         </template>
@@ -1288,10 +1464,14 @@ watch(() => payment.qris.nominal, (newVal) => {
 
                           <v-divider class="my-2"></v-divider>
 
-                          <div class="d-flex justify-space-between font-weight-bold"
-                            :class="isOverLimit ? 'text-red' : 'text-success'">
+                          <div
+                            class="d-flex justify-space-between font-weight-bold"
+                            :class="isOverLimit ? 'text-red' : 'text-success'"
+                          >
                             <span>Status Limit:</span>
-                            <span>{{ isOverLimit ? 'MELEBIHI LIMIT (Butuh Otorisasi)' : 'AMAN' }}</span>
+                            <span>{{
+                              isOverLimit ? "MELEBIHI LIMIT (Butuh Otorisasi)" : "AMAN"
+                            }}</span>
                           </div>
                         </v-card-text>
                       </v-card>
@@ -1308,22 +1488,48 @@ watch(() => payment.qris.nominal, (newVal) => {
       <v-card-actions class="pa-4">
         <v-spacer />
         <v-btn @click="$emit('close')" :disabled="isSaving">Batal</v-btn>
-        <v-btn color="primary" @click="handleFinalSave" :loading="isSaving" :disabled="isSaving"
-          prepend-icon="mdi-check-circle" size="large">
+        <v-btn
+          color="primary"
+          @click="handleFinalSave"
+          :loading="isSaving"
+          :disabled="isSaving"
+          prepend-icon="mdi-check-circle"
+          size="large"
+        >
           Simpan Pembayaran & Invoice
         </v-btn>
       </v-card-actions>
     </v-card>
 
-    <RekeningSearchModal v-if="dialogs.rekeningSearch" :cabang="invoiceHeader.gudang.kode"
-      @close="dialogs.rekeningSearch = false" @selected="onRekeningSelected" />
-    <AuthorizationModal v-if="authDialog.show" :title="authDialog.title" :jenis="authDialog.jenis"
-      :nominal="authDialog.nominal" :transaksi="authDialog.transaksi" :keterangan="authDialog.keterangan"
-      @close="handleAuthClose" @success="handleAuthSuccess" />
-    <PrintOptionModal v-if="isPrintOptionVisible" :options="['a4', 'kasir', 'wa']" @close="onPrintModalClose"
-      @select="handlePrintSelection" />
-    <ReturJualSearchModal v-if="dialogs.returJualSearch" :customer-kode="invoiceHeader.customer.kode"
-      :invoice-nomor="invoiceHeader.nomor" @close="dialogs.returJualSearch = false" @selected="onReturSelected" />
+    <RekeningSearchModal
+      v-if="dialogs.rekeningSearch"
+      :cabang="invoiceHeader.gudang.kode"
+      @close="dialogs.rekeningSearch = false"
+      @selected="onRekeningSelected"
+    />
+    <AuthorizationModal
+      v-if="authDialog.show"
+      :title="authDialog.title"
+      :jenis="authDialog.jenis"
+      :nominal="authDialog.nominal"
+      :transaksi="authDialog.transaksi"
+      :keterangan="authDialog.keterangan"
+      @close="handleAuthClose"
+      @success="handleAuthSuccess"
+    />
+    <PrintOptionModal
+      v-if="isPrintOptionVisible"
+      :options="['a4', 'kasir', 'wa']"
+      @close="onPrintModalClose"
+      @select="handlePrintSelection"
+    />
+    <ReturJualSearchModal
+      v-if="dialogs.returJualSearch"
+      :customer-kode="invoiceHeader.customer.kode"
+      :invoice-nomor="invoiceHeader.nomor"
+      @close="dialogs.returJualSearch = false"
+      @selected="onReturSelected"
+    />
   </v-dialog>
 
   <v-dialog v-model="isKasirPreviewVisible" max-width="400px" persistent>
@@ -1345,26 +1551,37 @@ watch(() => payment.qris.nominal, (newVal) => {
             </div>
             <div class="info">
               <div>NoBon: {{ printKasirData.header.inv_nomor }}</div>
-              <div>Tgl: {{ printKasirData.header.created }} {{ printKasirData.header.user_create }}</div>
+              <div>
+                Tgl: {{ printKasirData.header.created }} {{ printKasirData.header.user_create }}
+              </div>
             </div>
             <div class="items">
-              <div v-for="item in printKasirData?.details" :key="item.invd_kode" class="item"
-                :class="{ 'item-discounted': item.invd_diskon > 0 }">
+              <div
+                v-for="item in printKasirData?.details"
+                :key="item.invd_kode"
+                class="item"
+                :class="{ 'item-discounted': (item.invd_diskon || 0) > 0 }"
+              >
                 <div>{{ item.nama_barang }} ({{ item.invd_ukuran }})</div>
 
-                <template v-if="item.invd_diskon > 0">
+                <template v-if="(item.invd_diskon || 0) > 0">
                   <div class="item-details discounted">
                     <span class="line-through">
-                      {{ item.invd_jumlah }} x {{ formatRupiah(item.invd_harga + item.invd_diskon) }}
+                      {{ item.invd_jumlah }} x
+                      {{ formatRupiah(item.invd_harga + (item.invd_diskon || 0)) }}
                     </span>
                     <span class="line-through">
-                      {{ formatRupiah((item.invd_harga + item.invd_diskon) * item.invd_jumlah) }}
+                      {{
+                        formatRupiah((item.invd_harga + (item.invd_diskon || 0)) * item.invd_jumlah)
+                      }}
                     </span>
                   </div>
                   <div class="item-details">
                     <span>
                       {{ item.invd_jumlah }} x {{ formatRupiah(item.invd_harga) }}
-                      <small class="discount-label">(Promo -{{ formatRupiah(item.invd_diskon) }}/pcs)</small>
+                      <small class="discount-label"
+                        >(Promo -{{ formatRupiah(item.invd_diskon || 0) }}/pcs)</small
+                      >
                     </span>
                     <span>{{ formatRupiah(item.total) }}</span>
                   </div>
@@ -1381,42 +1598,45 @@ watch(() => payment.qris.nominal, (newVal) => {
             <div class="summary">
               <div class="summary-item">
                 <span>Total (Sebelum Diskon)</span>
-                <span>{{ formatRupiah(printKasirData.header.summary.subTotal) }}</span>
+                <span>{{ formatRupiah(printKasirData.header.summary.subTotal || 0) }}</span>
               </div>
 
-
-              <div v-if="printKasirData.header.summary.diskon > 0" class="summary-item">
+              <div v-if="(printKasirData.header.summary.diskon || 0) > 0" class="summary-item">
                 <span>Total Diskon</span>
-                <span>-{{ formatRupiah(printKasirData.header.summary.diskon) }}</span>
+                <span>-{{ formatRupiah(printKasirData.header.summary.diskon || 0) }}</span>
               </div>
-
 
               <div class="summary-item">
                 <span>Netto (Setelah Diskon)</span>
-                <span>{{ formatRupiah(printKasirData.header.summary.netto) }}</span>
+                <span>{{ formatRupiah(printKasirData.header.summary.netto || 0) }}</span>
               </div>
 
+              <div class="summary-item">
+                <span>Biaya Kirim </span
+                ><span>{{ formatRupiah(printKasirData.header.summary.biayaKirim || 0) }}</span>
+              </div>
 
-              <div class="summary-item"><span>Biaya Kirim </span><span>{{
-                formatRupiah(printKasirData.header.summary.biayaKirim) }}</span></div>
-
-
-              <div class="summary-item grand-total"><span>Grand Total </span><span>{{
-                formatRupiah(printKasirData.header.summary.grandTotal) }}</span></div>
-              <div class="summary-item"><span>Bayar </span><span>{{ formatRupiah(printKasirData.header.summary.bayar)
-                  }}</span></div>
+              <div class="summary-item grand-total">
+                <span>Grand Total </span
+                ><span>{{ formatRupiah(printKasirData.header.summary.grandTotal || 0) }}</span>
+              </div>
+              <div class="summary-item">
+                <span>Bayar </span
+                ><span>{{ formatRupiah(printKasirData.header.summary.bayar || 0) }}</span>
+              </div>
               <div class="summary-item" v-if="printKasirData.header.summary.pundiAmal">
                 <span>Pundi Amal </span>
-                <span>{{ formatRupiah(printKasirData.header.summary.pundiAmal) }}</span>
+                <span>{{ formatRupiah(printKasirData.header.summary.pundiAmal || 0) }}</span>
               </div>
-              <div class="summary-item"><span>Kembali </span><span>{{
-                formatRupiah(printKasirData.header.summary.kembali)
-                  }}</span></div>
+              <div class="summary-item">
+                <span>Kembali </span
+                ><span>{{ formatRupiah(printKasirData.header.summary.kembali || 0) }}</span>
+              </div>
             </div>
             <div class="footer text-center">
               <div class="donation-text">
-                Dengan membeli produk kaosan ini, Kaosan telah menyisihkan/peduli dengan sesama yg membutuhkan
-                sebesar Rp {{ formatRupiah(hitungPundiAmal(printKasirData.details)) }}
+                Dengan membeli produk kaosan ini, Kaosan telah menyisihkan/peduli dengan sesama yg
+                membutuhkan sebesar Rp {{ formatRupiah(hitungPundiAmal(printKasirData.details)) }}
               </div>
               <div>BARANG YANG SUDAH DIBELI TIDAK BISA DIKEMBALIKAN</div>
               <div>TERIMAKASIH ATAS KUNJUNGAN ANDA</div>
@@ -1534,7 +1754,7 @@ watch(() => payment.qris.nominal, (newVal) => {
 #kasir-print-area .receipt {
   width: 58mm;
   padding: 3mm 5mm;
-  font-family: 'Roboto Mono', monospace;
+  font-family: "Roboto Mono", monospace;
   font-size: 9pt;
   color: #000000;
   background: white;

@@ -1,27 +1,27 @@
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue';
-import api from '@/services/api';
+import { ref, onMounted, computed } from "vue";
+import api from "@/services/api";
 
 interface Supplier {
   kode: string;
   nama: string;
 }
 
-const emit = defineEmits(['close', 'supplier-selected']);
+const emit = defineEmits(["close", "supplier-selected"]);
 
 const suppliers = ref<Supplier[]>([]);
-const searchTerm = ref('');
+const searchTerm = ref("");
 const isLoading = ref(false);
 
 const headers = [
-  { title: 'Kode', key: 'kode', sortable: false },
-  { title: 'Nama', key: 'nama', sortable: false },
+  { title: "Kode", key: "kode", sortable: false },
+  { title: "Nama", key: "nama", sortable: false },
 ];
 
 const fetchAllSuppliers = async () => {
   isLoading.value = true;
   try {
-    const response = await api.get('/suppliers');
+    const response = await api.get("/suppliers");
     suppliers.value = response.data;
   } catch (error) {
     console.error("Gagal mengambil daftar supplier:", error);
@@ -35,27 +35,23 @@ const filteredSuppliers = computed(() => {
     return suppliers.value;
   }
   const lowerCaseSearch = searchTerm.value.toLowerCase();
-  return suppliers.value.filter(supplier => 
-    supplier.kode.toLowerCase().includes(lowerCaseSearch) ||
-    supplier.nama.toLowerCase().includes(lowerCaseSearch)
+  return suppliers.value.filter(
+    (supplier) =>
+      supplier.kode.toLowerCase().includes(lowerCaseSearch) ||
+      supplier.nama.toLowerCase().includes(lowerCaseSearch)
   );
 });
 
 const selectSupplier = (supplier: Supplier) => {
-  emit('supplier-selected', supplier);
+  emit("supplier-selected", supplier);
 };
 
 onMounted(fetchAllSuppliers);
 </script>
 
 <template>
-  <v-dialog
-    :model-value="true"
-    @update:modelValue="emit('close')"
-    max-width="900px"
-    persistent
-  >
-    <v-card class="dialog-card d-flex flex-column" style="height: 80vh;">
+  <v-dialog :model-value="true" @update:modelValue="emit('close')" max-width="900px" persistent>
+    <v-card class="dialog-card d-flex flex-column" style="height: 80vh">
       <v-toolbar color="primary" density="compact">
         <v-toolbar-title class="text-subtitle-1">Bantuan - Pilih Supplier</v-toolbar-title>
         <v-spacer></v-spacer>
@@ -84,7 +80,7 @@ onMounted(fetchAllSuppliers);
           fixed-header
         >
           <template #item="{ item }">
-            <tr @click="selectSupplier(item)" style="cursor: pointer;">
+            <tr @click="selectSupplier(item)" style="cursor: pointer">
               <td>{{ item.kode }}</td>
               <td>{{ item.nama }}</td>
             </tr>
@@ -100,13 +96,14 @@ onMounted(fetchAllSuppliers);
 
 <style scoped>
 .dialog-card {
-    font-size: 12px;
+  font-size: 12px;
 }
 .desktop-table {
-    font-size: 11px;
+  font-size: 11px;
 }
-.desktop-table :deep(td), .desktop-table :deep(th) {
-    padding: 0 8px !important;
-    height: 28px !important;
+.desktop-table :deep(td),
+.desktop-table :deep(th) {
+  padding: 0 8px !important;
+  height: 28px !important;
 }
 </style>

@@ -4,6 +4,7 @@ import { useToast } from "vue-toastification";
 import api from "@/services/api";
 import AuthorizationModal from "@/components/modal/AuthorizationModal.vue";
 import { formatRupiah } from "@/utils/formatRupiah";
+import axios from "axios";
 
 // --- Interfaces ---
 interface Customer {
@@ -278,9 +279,20 @@ const handleDiscount1Change = async () => {
         pendingAuthCheck.value = false; // Lepas kunci
       }
     );
-  } catch (error) {
+  } catch (error: unknown) {
+    // [PERBAIKAN 2] Beri tipe unknown
     await restorePreviousState();
-    toast.error("Gagal memvalidasi diskon.", error);
+
+    // [PERBAIKAN 3] Ekstrak pesannya menjadi satu string aman
+    let errorMessage = "Gagal memvalidasi diskon.";
+    if (axios.isAxiosError(error)) {
+      errorMessage = error.response?.data?.message || errorMessage;
+    } else if (error instanceof Error) {
+      errorMessage = error.message;
+    }
+
+    // [PERBAIKAN 4] Lempar 1 parameter string saja
+    toast.error(errorMessage);
     pendingAuthCheck.value = false;
   } finally {
     isCheckingAuth.value = false; // BUKA KUNCI CEK API

@@ -4,7 +4,7 @@ defineProps<{
   message: string;
 }>();
 
-const emit = defineEmits(['confirm', 'cancel']);
+const emit = defineEmits(["confirm", "cancel"]);
 </script>
 
 <template>
@@ -13,12 +13,8 @@ const emit = defineEmits(['confirm', 'cancel']);
       <v-card-title class="text-h6">{{ title }}</v-card-title>
       <v-card-text>{{ message }}</v-card-text>
       <v-card-actions class="justify-end">
-        <v-btn variant="text" color="secondary" @click="emit('cancel')">
-          Batal
-        </v-btn>
-        <v-btn color="error" @click="emit('confirm')">
-          Yakin
-        </v-btn>
+        <v-btn variant="text" color="secondary" @click="emit('cancel')"> Batal </v-btn>
+        <v-btn color="error" @click="emit('confirm')"> Yakin </v-btn>
       </v-card-actions>
     </v-card>
   </v-dialog>
@@ -26,6 +22,6 @@ const emit = defineEmits(['confirm', 'cancel']);
 
 <script lang="ts">
 // Gunakan composable state jika perlu trigger dialog dari luar
-import { ref } from 'vue';
+import { ref } from "vue";
 export const isOpen = ref(false);
 </script>

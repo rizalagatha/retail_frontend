@@ -1,27 +1,27 @@
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue';
-import api from '@/services/api';
+import { ref, onMounted, computed } from "vue";
+import api from "@/services/api";
 
 interface Member {
   hp: string;
   nama: string;
 }
 
-const emit = defineEmits(['close', 'member-selected']);
+const emit = defineEmits(["close", "member-selected"]);
 
 const members = ref<Member[]>([]);
-const searchTerm = ref('');
+const searchTerm = ref("");
 const isLoading = ref(false);
 
 const headers = [
-  { title: 'No. HP', key: 'hp', sortable: false },
-  { title: 'Nama', key: 'nama', sortable: false },
+  { title: "No. HP", key: "hp", sortable: false },
+  { title: "Nama", key: "nama", sortable: false },
 ];
 
 const fetchAllMembers = async () => {
   isLoading.value = true;
   try {
-    const response = await api.get('/members');
+    const response = await api.get("/members");
     members.value = response.data;
   } catch (error) {
     console.error("Gagal mengambil daftar member:", error);
@@ -35,27 +35,23 @@ const filteredMembers = computed(() => {
     return members.value;
   }
   const lowerCaseSearch = searchTerm.value.toLowerCase();
-  return members.value.filter(member => 
-    member.hp.toLowerCase().includes(lowerCaseSearch) ||
-    member.nama.toLowerCase().includes(lowerCaseSearch)
+  return members.value.filter(
+    (member) =>
+      member.hp.toLowerCase().includes(lowerCaseSearch) ||
+      member.nama.toLowerCase().includes(lowerCaseSearch)
   );
 });
 
 const selectMember = (member: Member) => {
-  emit('member-selected', member);
+  emit("member-selected", member);
 };
 
 onMounted(fetchAllMembers);
 </script>
 
 <template>
-  <v-dialog
-    :model-value="true"
-    @update:modelValue="emit('close')"
-    max-width="900px"
-    persistent
-  >
-    <v-card class="dialog-card d-flex flex-column" style="height: 80vh;">
+  <v-dialog :model-value="true" @update:modelValue="emit('close')" max-width="900px" persistent>
+    <v-card class="dialog-card d-flex flex-column" style="height: 80vh">
       <v-toolbar color="primary" density="compact">
         <v-toolbar-title class="text-subtitle-1">Bantuan - Pilih Member</v-toolbar-title>
         <v-spacer></v-spacer>
@@ -84,7 +80,7 @@ onMounted(fetchAllMembers);
           fixed-header
         >
           <template #item="{ item }">
-            <tr @click="selectMember(item)" style="cursor: pointer;">
+            <tr @click="selectMember(item)" style="cursor: pointer">
               <td>{{ item.hp }}</td>
               <td>{{ item.nama }}</td>
             </tr>
@@ -100,13 +96,14 @@ onMounted(fetchAllMembers);
 
 <style scoped>
 .dialog-card {
-    font-size: 12px;
+  font-size: 12px;
 }
 .desktop-table {
-    font-size: 11px;
+  font-size: 11px;
 }
-.desktop-table :deep(td), .desktop-table :deep(th) {
-    padding: 0 8px !important;
-    height: 28px !important;
+.desktop-table :deep(td),
+.desktop-table :deep(th) {
+  padding: 0 8px !important;
+  height: 28px !important;
 }
 </style>

@@ -17,6 +17,13 @@ import { useMemoInternalDialog } from "@/composables/useMemoInternalDialog";
 const { showMemoDialog, openMemoDialog } = useMemoInternalDialog();
 import GlobalUnsavedChangesDialog from "@/components/dialog/GlobalUnsavedChangesDialog.vue";
 
+interface Changelog {
+  version: string;
+  date: string;
+  type: string;
+  changes: (string | { title: string; items: string[] })[];
+}
+
 // Import komponen dialog (lazy load jika memungkinkan untuk performa lebih baik)
 const ChangePasswordDialog = defineAsyncComponent(
   () => import("@/components/dialog/ChangePasswordDialog.vue")
@@ -53,7 +60,7 @@ const latestChanges = ref<(string | { title: string; items: string[] })[]>([]);
 
 // State Baru
 const showChangelog = ref(false);
-const changelogList = ref([]); // Menampung data dari API
+const changelogList = ref<Changelog[]>([]);
 const isChangelogLoading = ref(false);
 
 const showFaq = ref(false);
@@ -382,7 +389,12 @@ const openChangelog = async () => {
     console.error("Gagal ambil changelog", error);
     // Fallback data jika error
     changelogList.value = [
-      { version: currentVersion, changes: ["Gagal memuat riwayat dari server."] },
+      {
+        version: currentVersion,
+        date: "-",
+        type: "minor",
+        changes: ["Gagal memuat riwayat dari server."],
+      },
     ];
   } finally {
     isChangelogLoading.value = false;

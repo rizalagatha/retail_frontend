@@ -6,6 +6,7 @@ import { useToast } from "vue-toastification";
 import { useAuthStore } from "@/stores/authStore"; // (1) Impor authStore
 import { format } from "date-fns";
 import AppDataTable from "@/components/AppDataTable.vue";
+import axios from "axios";
 
 // Impor library untuk PDF dan Excel
 import jsPDF from "jspdf";
@@ -39,11 +40,16 @@ interface Customer {
   limitTrans: number;
   tglLahir: string | null;
   top: number;
-  level: string;
-  npwp: string;
-  namaNpwp: string;
-  alamatNpwp: string;
-  kotaNpwp: string;
+  level: string | null; // Tambahkan | null
+  npwp: string | null; // Tambahkan | null
+  namaNpwp: string | null;
+  alamatNpwp: string | null;
+  kotaNpwp: string | null;
+}
+
+interface LevelItem {
+  kode: string;
+  nama: string;
 }
 
 interface LevelHistory {
@@ -54,7 +60,7 @@ interface LevelHistory {
 
 interface SortItem {
   key: string;
-  order: 'asc' | 'desc';
+  order: "asc" | "desc";
 }
 
 interface TableOptions {
@@ -77,7 +83,7 @@ const dialog = ref(false);
 const isNew = ref(true);
 const editedItem = ref<Partial<Customer>>({});
 const levelHistory = ref<LevelHistory[]>([]);
-const availableLevels = ref([]);
+const availableLevels = ref<LevelItem[]>([]);
 
 const options = ref({ page: 1, itemsPerPage: 50 });
 const totalItems = ref(0);
@@ -185,7 +191,13 @@ const getRowTextColor = (item: Customer) => {
 
 const openNewDialog = async () => {
   isNew.value = true;
-  editedItem.value = { kode: "", status: "AKTIF", top: 0, limitTrans: 0 };
+  editedItem.value = {
+    kode: "",
+    status: "AKTIF",
+    top: 0,
+    limitTrans: 0,
+    level: "", // Inisialisasi dengan string kosong, bukan null/undefined
+  };
   levelHistory.value = [];
   dialog.value = true;
 
@@ -217,13 +229,13 @@ const handleEditFromHeader = () => {
 };
 
 const normalizeNullableFields = () => {
-  const fields = ["npwp", "namaNpwp", "alamatNpwp", "kotaNpwp"];
+  const item = editedItem.value;
 
-  fields.forEach((f) => {
-    if (editedItem.value[f] === "" || editedItem.value[f] === undefined) {
-      editedItem.value[f] = null;
-    }
-  });
+  // Langsung tembak ke propertinya tanpa looping agar TypeScript tidak bingung soal Index Signature
+  if (item.npwp === "" || item.npwp === undefined) item.npwp = null;
+  if (item.namaNpwp === "" || item.namaNpwp === undefined) item.namaNpwp = null;
+  if (item.alamatNpwp === "" || item.alamatNpwp === undefined) item.alamatNpwp = null;
+  if (item.kotaNpwp === "" || item.kotaNpwp === undefined) item.kotaNpwp = null;
 };
 
 const saveCustomer = async () => {
@@ -242,8 +254,10 @@ const saveCustomer = async () => {
     fetchCustomers();
     dialog.value = false;
   } catch (error: unknown) {
-    const err = error as { response?: { data?: { message?: string } } };
-    toast.error(err.response?.data?.message || "Gagal menyimpan data customer.");
+    // [PERBAIKAN 4] Ekstrak pesan jadi string tunggal
+    let msg = "Gagal menyimpan data customer.";
+    if (axios.isAxiosError(error)) msg = error.response?.data?.message || msg;
+    toast.error(msg);
   } finally {
     isSaving.value = false;
   }
@@ -357,16 +371,38 @@ onMounted(() => {
 <template>
   <PageLayout title="Master Customer" desktop-mode icon="mdi-account-multiple">
     <template #header-actions>
-      <v-btn v-if="authStore.can(MENU_ID, 'insert')" size="small" color="primary" @click="openNewDialog"
-        prepend-icon="mdi-plus">Baru</v-btn>
-      <v-btn v-if="authStore.can(MENU_ID, 'edit')" size="small" :disabled="!canEdit" @click="handleEditFromHeader"
-        prepend-icon="mdi-pencil">Ubah</v-btn>
+      <v-btn
+        v-if="authStore.can(MENU_ID, 'insert')"
+        size="small"
+        color="primary"
+        @click="openNewDialog"
+        prepend-icon="mdi-plus"
+        >Baru</v-btn
+      >
+      <v-btn
+        v-if="authStore.can(MENU_ID, 'edit')"
+        size="small"
+        :disabled="!canEdit"
+        @click="handleEditFromHeader"
+        prepend-icon="mdi-pencil"
+        >Ubah</v-btn
+      >
       <!-- <v-btn v-if="authStore.can(MENU_ID, 'delete')" size="small" color="error" :disabled="!canDelete" @click="handleDeleteFromHeader"
         prepend-icon="mdi-delete">Hapus</v-btn> -->
-      <v-btn v-if="authStore.can(MENU_ID, 'view')" size="small" @click="printData"
-        prepend-icon="mdi-printer">Cetak</v-btn>
-      <v-btn v-if="authStore.can(MENU_ID, 'view')" size="small" @click="exportData"
-        prepend-icon="mdi-file-excel">Export</v-btn>
+      <v-btn
+        v-if="authStore.can(MENU_ID, 'view')"
+        size="small"
+        @click="printData"
+        prepend-icon="mdi-printer"
+        >Cetak</v-btn
+      >
+      <v-btn
+        v-if="authStore.can(MENU_ID, 'view')"
+        size="small"
+        @click="exportData"
+        prepend-icon="mdi-file-excel"
+        >Export</v-btn
+      >
     </template>
 
     <div v-if="!hasViewPermission" class="state-container">
@@ -377,27 +413,55 @@ onMounted(() => {
     <div v-else class="browse-content">
       <!-- Filter Section -->
       <div class="filter-section">
-        <v-text-field v-model="search" density="compact" label="Cari Customer..." prepend-inner-icon="mdi-magnify"
-          variant="outlined" hide-details single-line></v-text-field>
+        <v-text-field
+          v-model="search"
+          density="compact"
+          label="Cari Customer..."
+          prepend-inner-icon="mdi-magnify"
+          variant="outlined"
+          hide-details
+          single-line
+        ></v-text-field>
         <v-spacer></v-spacer>
         <v-btn @click="fetchCustomers" icon="mdi-refresh" variant="text" size="small"></v-btn>
       </div>
 
       <!-- Table Section -->
       <div class="table-container">
-        <AppDataTable server :items-length="totalItems" :item-key="getItemKey" v-model:page="options.page"
-          v-model:items-per-page="options.itemsPerPage" :items-per-page-options="itemsPerPageOptions" :headers="headers"
-          :items="customers" :loading="isLoading" @update:options="fetchCustomers" :item-class="getRowTextColor"
-          item-value="kode" density="compact" class="desktop-table header-browse-blue" fixed-header show-select
-          return-object @click:row="handleRowClick">
+        <AppDataTable
+          server
+          :items-length="totalItems"
+          :item-key="getItemKey"
+          v-model:page="options.page"
+          v-model:items-per-page="options.itemsPerPage"
+          v-model:selected="selected"
+          :items-per-page-options="itemsPerPageOptions"
+          :headers="headers"
+          :items="customers"
+          :loading="isLoading"
+          @update:options="fetchCustomers"
+          :item-class="getRowTextColor"
+          item-value="kode"
+          density="compact"
+          class="desktop-table header-browse-blue"
+          fixed-header
+          show-select
+          hover
+          select-strategy="single"
+          @click:row="handleRowClick"
+        >
           <template #headers="{ columns, isSorted, getSortIcon, toggleSort }">
             <tr>
               <template v-for="header in columns" :key="header.key">
-                <th :style="{
-                  width: header.width + 'px',
-                  minWidth: header.width + 'px',
-                  maxWidth: header.width + 'px',
-                }" class="resizable-header" @click="header.sortable !== false ? toggleSort(header) : null">
+                <th
+                  :style="{
+                    width: header.width + 'px',
+                    minWidth: header.width + 'px',
+                    maxWidth: header.width + 'px',
+                  }"
+                  class="resizable-header"
+                  @click="header.sortable !== false ? toggleSort(header) : null"
+                >
                   <div class="header-content">
                     <span>{{ header.title }}</span>
                     <v-icon v-if="isSorted(header)" size="14">{{ getSortIcon(header) }}</v-icon>
@@ -409,7 +473,11 @@ onMounted(() => {
           </template>
 
           <template #[`item.status`]="{ item }">
-            <v-chip :color="item.status === 'AKTIF' ? 'success' : 'error'" size="x-small" variant="tonal">
+            <v-chip
+              :color="item.status === 'AKTIF' ? 'success' : 'error'"
+              size="x-small"
+              variant="tonal"
+            >
               {{ item.status }}
             </v-chip>
           </template>
@@ -419,7 +487,7 @@ onMounted(() => {
           <template #[`item.level`]="{ item }">
             <v-chip size="x-small" color="primary" variant="outlined" v-if="item.level">{{
               item.level
-              }}</v-chip>
+            }}</v-chip>
           </template>
 
           <template #[`item.limitTrans`]="{ item }">
@@ -427,8 +495,13 @@ onMounted(() => {
           </template>
 
           <template #[`item.actions`]="{ item }">
-            <v-icon v-if="authStore.can(MENU_ID, 'edit')" size="small" class="me-2"
-              @click.stop="openEditDialog(item)">mdi-pencil</v-icon>
+            <v-icon
+              v-if="authStore.can(MENU_ID, 'edit')"
+              size="small"
+              class="me-2"
+              @click.stop="openEditDialog(item)"
+              >mdi-pencil</v-icon
+            >
           </template>
         </AppDataTable>
       </div>
@@ -445,47 +518,154 @@ onMounted(() => {
           <v-container>
             <v-row>
               <v-col cols="12" md="6">
-                <v-text-field v-model="editedItem.kode" label="Kode" readonly variant="outlined" density="compact"
-                  placeholder="(Otomatis)" hide-details class="mb-2"></v-text-field>
-                <v-text-field v-model="editedItem.nama" label="Nama" variant="outlined" density="compact" hide-details
-                  class="mb-2"></v-text-field>
-                <v-textarea v-model="editedItem.alamat" label="Alamat" variant="outlined" density="compact" rows="2"
-                  hide-details class="mb-2"></v-textarea>
-                <v-text-field v-model="editedItem.kota" label="Kota" variant="outlined" density="compact" hide-details
-                  class="mb-2"></v-text-field>
-                <v-text-field v-model="editedItem.telp" label="No Telp/Hp" variant="outlined" density="compact"
-                  hide-details class="mb-2"></v-text-field>
-                <v-text-field v-model="editedItem.namaKontak" label="Kontak Person" variant="outlined" density="compact"
-                  hide-details class="mb-2"></v-text-field>
-                <v-text-field v-model="editedItem.tglLahir" label="Tanggal Lahir" type="date" variant="outlined"
-                  density="compact" hide-details class="mb-2"></v-text-field>
-                <v-text-field v-model="editedItem.top" label="TOP" type="number" suffix="hari" variant="outlined"
-                  density="compact" hide-details class="mb-2"></v-text-field>
-                <v-select v-model="editedItem.level" :items="availableLevels" item-title="nama" item-value="kode"
-                  label="Level" variant="outlined" density="compact" hide-details class="mb-2"></v-select>
-                <v-radio-group v-model="editedItem.status" inline label="Status" density="compact" hide-details
-                  class="mb-2">
+                <v-text-field
+                  v-model="editedItem.kode"
+                  label="Kode"
+                  readonly
+                  variant="outlined"
+                  density="compact"
+                  placeholder="(Otomatis)"
+                  hide-details
+                  class="mb-2"
+                ></v-text-field>
+                <v-text-field
+                  v-model="editedItem.nama"
+                  label="Nama"
+                  variant="outlined"
+                  density="compact"
+                  hide-details
+                  class="mb-2"
+                ></v-text-field>
+                <v-textarea
+                  v-model="editedItem.alamat"
+                  label="Alamat"
+                  variant="outlined"
+                  density="compact"
+                  rows="2"
+                  hide-details
+                  class="mb-2"
+                ></v-textarea>
+                <v-text-field
+                  v-model="editedItem.kota"
+                  label="Kota"
+                  variant="outlined"
+                  density="compact"
+                  hide-details
+                  class="mb-2"
+                ></v-text-field>
+                <v-text-field
+                  v-model="editedItem.telp"
+                  label="No Telp/Hp"
+                  variant="outlined"
+                  density="compact"
+                  hide-details
+                  class="mb-2"
+                ></v-text-field>
+                <v-text-field
+                  v-model="editedItem.namaKontak"
+                  label="Kontak Person"
+                  variant="outlined"
+                  density="compact"
+                  hide-details
+                  class="mb-2"
+                ></v-text-field>
+                <v-text-field
+                  v-model="editedItem.tglLahir"
+                  label="Tanggal Lahir"
+                  type="date"
+                  variant="outlined"
+                  density="compact"
+                  hide-details
+                  class="mb-2"
+                ></v-text-field>
+                <v-text-field
+                  v-model="editedItem.top"
+                  label="TOP"
+                  type="number"
+                  suffix="hari"
+                  variant="outlined"
+                  density="compact"
+                  hide-details
+                  class="mb-2"
+                ></v-text-field>
+                <v-select
+                  v-model="editedItem.level"
+                  :items="availableLevels"
+                  item-title="nama"
+                  item-value="kode"
+                  label="Level"
+                  variant="outlined"
+                  density="compact"
+                  hide-details
+                  class="mb-2"
+                ></v-select>
+                <v-radio-group
+                  v-model="editedItem.status"
+                  inline
+                  label="Status"
+                  density="compact"
+                  hide-details
+                  class="mb-2"
+                >
                   <v-radio label="Aktif" value="AKTIF" color="success"></v-radio>
                   <v-radio label="Pasif" value="PASIF" color="error"></v-radio>
                 </v-radio-group>
               </v-col>
               <v-col cols="12" md="6">
-                <v-text-field v-model="editedItem.limitTrans" label="Limit Transaksi" type="number" variant="outlined"
-                  density="compact" hide-details class="mb-2" prepend-inner-icon="mdi-cash-lock"></v-text-field>
-                <v-text-field v-model="editedItem.npwp" label="NPWP" variant="outlined" density="compact" hide-details
-                  class="mb-2"></v-text-field>
-                <v-text-field v-model="editedItem.namaNpwp" label="Nama NPWP" variant="outlined" density="compact"
-                  hide-details class="mb-2"></v-text-field>
-                <v-textarea v-model="editedItem.alamatNpwp" label="Alamat NPWP" variant="outlined" density="compact"
-                  rows="2" hide-details class="mb-2"></v-textarea>
-                <v-text-field v-model="editedItem.kotaNpwp" label="Kota NPWP" variant="outlined" density="compact"
-                  hide-details class="mb-2"></v-text-field>
+                <v-text-field
+                  v-model="editedItem.limitTrans"
+                  label="Limit Transaksi"
+                  type="number"
+                  variant="outlined"
+                  density="compact"
+                  hide-details
+                  class="mb-2"
+                  prepend-inner-icon="mdi-cash-lock"
+                ></v-text-field>
+                <v-text-field
+                  v-model="editedItem.npwp"
+                  label="NPWP"
+                  variant="outlined"
+                  density="compact"
+                  hide-details
+                  class="mb-2"
+                ></v-text-field>
+                <v-text-field
+                  v-model="editedItem.namaNpwp"
+                  label="Nama NPWP"
+                  variant="outlined"
+                  density="compact"
+                  hide-details
+                  class="mb-2"
+                ></v-text-field>
+                <v-textarea
+                  v-model="editedItem.alamatNpwp"
+                  label="Alamat NPWP"
+                  variant="outlined"
+                  density="compact"
+                  rows="2"
+                  hide-details
+                  class="mb-2"
+                ></v-textarea>
+                <v-text-field
+                  v-model="editedItem.kotaNpwp"
+                  label="Kota NPWP"
+                  variant="outlined"
+                  density="compact"
+                  hide-details
+                  class="mb-2"
+                ></v-text-field>
 
                 <h3 class="text-subtitle-2 mt-4 mb-2 text-high-emphasis">History Level</h3>
-                <v-data-table :headers="levelHistoryHeaders" :items="levelHistory" density="compact"
-                  class="border rounded-sm bg-surface" style="
+                <v-data-table
+                  :headers="levelHistoryHeaders"
+                  :items="levelHistory"
+                  density="compact"
+                  class="border rounded-sm bg-surface"
+                  style="
                     border-color: rgba(var(--v-border-color), var(--v-border-opacity)) !important;
-                  ">
+                  "
+                >
                   <template #[`item.no`]="{ index }">
                     {{ index + 1 }}
                   </template>
@@ -501,7 +681,13 @@ onMounted(() => {
         <v-card-actions class="dialog-footer">
           <v-spacer></v-spacer>
           <v-btn variant="text" color="grey" @click="dialog = false">Batal</v-btn>
-          <v-btn color="primary" variant="flat" @click="saveCustomer" :loading="isSaving" :disabled="isSaving">
+          <v-btn
+            color="primary"
+            variant="flat"
+            @click="saveCustomer"
+            :loading="isSaving"
+            :disabled="isSaving"
+          >
             Simpan
           </v-btn>
         </v-card-actions>

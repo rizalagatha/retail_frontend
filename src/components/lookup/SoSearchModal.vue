@@ -1,36 +1,43 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue';
-import api from '@/services/api';
-import { format } from 'date-fns';
+import { ref, watch } from "vue";
+import api from "@/services/api";
+import { format } from "date-fns";
+
+interface SuratPesanan {
+  Nomor: string;
+  Tanggal: string;
+  KdCus: string;
+  Customer: string;
+}
 
 const props = defineProps({
   cabang: { type: String, required: true },
-  source: { type: String, default: 'mutasi-out' },
-  customer: { type: String, default: '' }
+  source: { type: String, default: "mutasi-out" },
+  customer: { type: String, default: "" },
 });
-const emit = defineEmits(['close', 'selected']);
+const emit = defineEmits(["close", "selected"]);
 
-const items = ref([]);
+const items = ref<SuratPesanan[]>([]);
 const totalItems = ref(0);
 const loading = ref(true);
-const search = ref('');
+const search = ref("");
 const options = ref({ page: 1, itemsPerPage: 10 });
 
 const headers = [
-  { title: 'Nomor SO', key: 'Nomor' },
-  { title: 'Tanggal', key: 'Tanggal' },
-  { title: 'Kode Customer', key: 'KdCus' },
-  { title: 'Nama Customer', key: 'Customer' },
+  { title: "Nomor SO", key: "Nomor" },
+  { title: "Tanggal", key: "Tanggal" },
+  { title: "Kode Customer", key: "KdCus" },
+  { title: "Nama Customer", key: "Customer" },
 ];
 
 const getEndpoint = () => {
-  if (props.source === 'setoran-bayar') {
-    return '/setoran-bayar-form/lookup/search-so';
+  if (props.source === "setoran-bayar") {
+    return "/setoran-bayar-form/lookup/search-so";
   }
-  return '/mutasi-out-form/lookup/so'; // default lama
+  return "/mutasi-out-form/lookup/so"; // default lama
 };
 
-const loadItems = async ({ page, itemsPerPage }: { page: number, itemsPerPage: number }) => {
+const loadItems = async ({ page, itemsPerPage }: { page: number; itemsPerPage: number }) => {
   loading.value = true;
   try {
     const response = await api.get(getEndpoint(), {
@@ -44,13 +51,16 @@ const loadItems = async ({ page, itemsPerPage }: { page: number, itemsPerPage: n
     });
     items.value = response.data.items;
     totalItems.value = response.data.total;
-  } catch (error) { console.error("Gagal memuat data SO:", error); }
-  finally { loading.value = false; }
+  } catch (error) {
+    console.error("Gagal memuat data SO:", error);
+  } finally {
+    loading.value = false;
+  }
 };
 
-const selectItem = <T>(item: T) => {
-  emit('selected', item);
-  emit('close');
+const selectItem = (item: SuratPesanan) => {
+  emit("selected", item);
+  emit("close");
 };
 
 let timer: number | undefined;
@@ -63,7 +73,7 @@ watch(search, () => {
 
 <template>
   <v-dialog :model-value="true" @update:model-value="$emit('close')" max-width="1000px" persistent>
-    <v-card class="dialog-card d-flex flex-column" style="height: 70vh;">
+    <v-card class="dialog-card d-flex flex-column" style="height: 70vh">
       <v-toolbar color="primary" density="compact">
         <v-toolbar-title>Bantuan - Pilih Surat Pesanan (SO)</v-toolbar-title>
         <v-spacer />
@@ -71,16 +81,34 @@ watch(search, () => {
       </v-toolbar>
 
       <v-card-text class="pa-4 d-flex flex-column flex-grow-1">
-        <v-text-field v-model="search" label="Cari Nomor SO atau Nama Customer..." variant="outlined" density="compact"
-          clearable class="mb-4" hide-details autofocus />
+        <v-text-field
+          v-model="search"
+          label="Cari Nomor SO atau Nama Customer..."
+          variant="outlined"
+          density="compact"
+          clearable
+          class="mb-4"
+          hide-details
+          autofocus
+        />
 
-        <v-data-table-server v-model:page="options.page" v-model:items-per-page="options.itemsPerPage"
-          :headers="headers" :items="items" :items-length="totalItems" :loading="loading" @update:options="loadItems"
-          hover class="desktop-table flex-grow-1" density="compact" fixed-header>
+        <v-data-table-server
+          v-model:page="options.page"
+          v-model:items-per-page="options.itemsPerPage"
+          :headers="headers"
+          :items="items"
+          :items-length="totalItems"
+          :loading="loading"
+          @update:options="loadItems"
+          hover
+          class="desktop-table flex-grow-1"
+          density="compact"
+          fixed-header
+        >
           <template #item="{ item }">
-            <tr @click="selectItem(item)" style="cursor: pointer;">
+            <tr @click="selectItem(item)" style="cursor: pointer">
               <td>{{ item.Nomor }}</td>
-              <td>{{ format(new Date(item.Tanggal), 'dd/MM/yyyy') }}</td>
+              <td>{{ format(new Date(item.Tanggal), "dd/MM/yyyy") }}</td>
               <td>{{ item.KdCus }}</td>
               <td>{{ item.Customer }}</td>
             </tr>

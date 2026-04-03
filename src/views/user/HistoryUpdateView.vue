@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
-import api from '@/services/api';
-import PageLayout from '@/components/PageLayout.vue';
+import { ref, onMounted } from "vue";
+import api from "@/services/api";
+import PageLayout from "@/components/PageLayout.vue";
 
 // Tipe data untuk struktur history yang dikelompokkan
 interface ReleaseHistory {
@@ -24,8 +24,8 @@ const fetchHistory = async () => {
     const response = await api.get(`/history-updates?limit=${limit.value}`);
     history.value = response.data;
   } catch (err) {
-    console.error('Gagal mengambil data history:', err);
-    error.value = 'Tidak dapat memuat data dari server.';
+    console.error("Gagal mengambil data history:", err);
+    error.value = "Tidak dapat memuat data dari server.";
   } finally {
     isLoading.value = false;
   }
@@ -46,7 +46,7 @@ onMounted(fetchHistory);
           min="1"
           variant="outlined"
           density="compact"
-          style="width: 80px;"
+          style="width: 80px"
           hide-details
           @keydown.enter="fetchHistory"
         ></v-text-field>
@@ -55,20 +55,14 @@ onMounted(fetchHistory);
     </template>
 
     <!-- Error State -->
-    <v-alert
-      v-if="error"
-      type="error"
-      variant="tonal"
-      class="ma-4"
-      :text="error"
-    ></v-alert>
+    <v-alert v-if="error" type="error" variant="tonal" class="ma-4" :text="error"></v-alert>
 
     <!-- No Data State (setelah loading selesai dan tidak error) -->
     <div v-else-if="!isLoading && Object.keys(history).length === 0" class="state-container">
       <v-icon size="64" color="grey-lighten-1">mdi-database-off-outline</v-icon>
       <div class="mt-4 text-medium-emphasis">Tidak ada data history yang ditemukan.</div>
     </div>
-    
+
     <!-- History Content -->
     <div v-else class="history-timeline-container">
       <v-timeline density="compact" align="start" side="end">
@@ -84,7 +78,7 @@ onMounted(fetchHistory);
               <span class="text-caption text-medium-emphasis">{{ details.releaseDate }}</span>
             </div>
           </template>
-          
+
           <div class="release-notes">
             <v-list density="compact" class="py-0">
               <v-list-item
@@ -103,7 +97,6 @@ onMounted(fetchHistory);
         </v-timeline-item>
       </v-timeline>
     </div>
-
   </PageLayout>
 </template>
 

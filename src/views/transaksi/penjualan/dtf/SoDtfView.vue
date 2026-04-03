@@ -887,7 +887,7 @@ onBeforeRouteLeave((to, from, next) => {
           return-object
           @update:expanded="loadDetails"
           @click:row="handleRowClick"
-          :item-props="(item) => ({ class: item.Close === 'Y' ? 'row-closed' : '' })"
+          :item-props="(item: SoDtfHeader) => ({ class: item.Close === 'Y' ? 'row-closed' : '' })"
         >
           <template #headers="{ columns, isSorted, getSortIcon, toggleSort }">
             <tr>

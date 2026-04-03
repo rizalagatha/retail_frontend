@@ -1,11 +1,11 @@
 <script setup lang="ts">
-import { ref, onMounted, nextTick, watch, computed } from 'vue';
-import { useRoute } from 'vue-router';
-import api from '@/services/api';
-import { format, parseISO } from 'date-fns';
-import Logo from '@/assets/logo.png';
-import LogoRezso from '@/assets/rezso.jpg';
-import InstagramLogo from '@/assets/instagram.jpg'; // Import logo Instagram
+import { ref, onMounted, nextTick, watch, computed } from "vue";
+import { useRoute } from "vue-router";
+import api from "@/services/api";
+import { format, parseISO } from "date-fns";
+import Logo from "@/assets/logo.png";
+import LogoRezso from "@/assets/rezso.jpg";
+import InstagramLogo from "@/assets/instagram.jpg"; // Import logo Instagram
 import { formatRupiah } from "@/utils/formatRupiah";
 import QRCode from "qrcode";
 
@@ -60,7 +60,7 @@ const qrCodeData = ref<string | null>(null);
 
 const dynamicLogo = computed(() => {
   // Cek jika data sudah ada dan nomor SO dimulai dengan K04
-  if (printData.value?.header?.so_nomor?.startsWith('K04')) {
+  if (printData.value?.header?.so_nomor?.startsWith("K04")) {
     return LogoRezso;
   }
   return Logo; // Default ke logo Kaosan
@@ -71,12 +71,15 @@ const fetchPrintData = async (nomor: string) => {
   try {
     const response = await api.get(`/so/print-data/${nomor}`);
     printData.value = response.data;
-    if (printData.value.header?.so_nomor) {
-      document.title = printData.value.header.so_nomor;
+    const data = response.data as PrintData;
+    printData.value = data;
 
-      qrCodeData.value = await QRCode.toDataURL(printData.value.header.so_nomor, {
+    if (data.header?.so_nomor) {
+      document.title = data.header.so_nomor;
+
+      qrCodeData.value = await QRCode.toDataURL(data.header.so_nomor, {
         width: 150,
-        margin: 1
+        margin: 1,
       });
     }
   } catch (error) {
@@ -115,7 +118,7 @@ onMounted(() => {
 
         <div class="company-info">
           <div class="company-name">
-            <img :src="instagramLogo" alt="Instagram" class="instagram-logo">
+            <img :src="instagramLogo" alt="Instagram" class="instagram-logo" />
             <span class="instagram-text">{{ printData.header.gdg_inv_instagram }}</span>
           </div>
           <div>{{ printData.header.gdg_inv_alamat }}</div>
@@ -124,20 +127,24 @@ onMounted(() => {
         </div>
 
         <!-- Logo kanan -->
-        <img :src="dynamicLogo" alt="Logo Perusahaan" class="company-logo-right">
+        <img :src="dynamicLogo" alt="Logo Perusahaan" class="company-logo-right" />
       </div>
       <div class="document-title">Surat Pesanan</div>
       <div class="header-details">
         <div class="left-section">
           <div><span class="label">No. Pesanan:</span> {{ printData.header.so_nomor }}</div>
-          <div><span class="label">Tanggal:</span> {{ format(parseISO(printData.header.so_tanggal),
-            'dd-MM-yyyy') }}</div>
+          <div>
+            <span class="label">Tanggal:</span>
+            {{ format(parseISO(printData.header.so_tanggal), "dd-MM-yyyy") }}
+          </div>
           <div><span class="label">Tempo:</span> {{ printData.header.so_top }} Hari</div>
           <div><span class="label">Keterangan:</span> {{ printData.header.so_ket }}</div>
         </div>
         <div class="right-section">
           <div><span class="label">Customer:</span> {{ printData.header.cus_nama }}</div>
-          <div class="address-line">{{ printData.header.cus_alamat }} {{ printData.header.cus_kota }}</div>
+          <div class="address-line">
+            {{ printData.header.cus_alamat }} {{ printData.header.cus_kota }}
+          </div>
           <div><span class="label"></span> {{ printData.header.cus_telp }}</div>
         </div>
       </div>
@@ -214,14 +221,22 @@ onMounted(() => {
         <div class="name-column">( {{ printData.header.cus_nama }} )</div>
       </div>
       <div class="note-section">
-        Note:<br>
+        Note:<br />
 
-        <div v-if="printData.header.gdg_transferbank || printData.header.gdg_akun" class="bank-info">
-          <strong>* Transfer Bank: {{ printData.header.gdg_transferbank }} {{ printData.header.gdg_akun }}</strong>
+        <div
+          v-if="printData.header.gdg_transferbank || printData.header.gdg_akun"
+          class="bank-info"
+        >
+          <strong
+            >* Transfer Bank: {{ printData.header.gdg_transferbank }}
+            {{ printData.header.gdg_akun }}</strong
+          >
         </div>
-        <em>*Apabila dalam waktu 30 hari setelah pemberitahuan bahwa barang telah selesai tidak dilakukan
-          pengambilan, maka uang muka (DP) dianggap hangus dan barang sepenuhnya menjadi hak milik
-          kami.</em>
+        <em
+          >*Apabila dalam waktu 30 hari setelah pemberitahuan bahwa barang telah selesai tidak
+          dilakukan pengambilan, maka uang muka (DP) dianggap hangus dan barang sepenuhnya menjadi
+          hak milik kami.</em
+        >
       </div>
     </div>
   </div>
@@ -232,7 +247,7 @@ onMounted(() => {
 .print-container {
   padding: 20mm;
   /* Sesuai standar cetak */
-  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
   font-size: 12px;
   color: #333;
   position: relative;
@@ -454,7 +469,6 @@ onMounted(() => {
   border-bottom: 1px solid #000;
   padding-bottom: 2px;
 }
-
 
 /* Catatan */
 .note-section {

@@ -649,7 +649,7 @@ const loadDataForEdit = async (nomor: string, silent = false) => {
     };
 
     // ===== MAPPING ITEMS =====
-    items.value = itemsData.map((item, index) => {
+    items.value = (itemsData as SoItemApi[]).map((item: SoItemApi, index: number) => {
       let parsed: Partial<Item> = {}; // <<< FIX TYPE
 
       if (item.sod_custom === "Y" && item.sod_custom_data) {
@@ -695,21 +695,24 @@ const loadDataForEdit = async (nomor: string, silent = false) => {
     try {
       addNewRow();
     } catch (addRowError) {
-      throw new Error(`addNewRow failed: ${addRowError.message}`);
+      const err = addRowError as Error;
+      throw new Error(`addNewRow failed: ${err.message}`);
     }
 
     // ===== CRITICAL SECTION: AWAIT NEXTTICK =====
     try {
       await nextTick();
     } catch (nextTickError) {
-      throw new Error(`nextTick failed: ${nextTickError.message}`);
+      const err = nextTickError as Error;
+      throw new Error(`nextTick failed: ${err.message}`);
     }
 
     // ===== CRITICAL SECTION: CALCULATE TOTALS =====
     try {
       calculateTotals();
     } catch (calcError) {
-      throw new Error(`calculateTotals failed: ${calcError.message}`);
+      const err = calcError as Error;
+      throw new Error(`calculateTotals failed: ${err.message}`);
     }
 
     if (!silent) {
@@ -1636,9 +1639,9 @@ const onCustomerSelected = async (rawCustomer: CustomerLookupResult) => {
   header.value.levelKode = mappedCustomer.level_kode;
   header.value.levelNama = mappedCustomer.level_nama;
   header.value.top = mappedCustomer.top;
-  header.value.alamat = mappedCustomer.alamat;
-  header.value.kota = mappedCustomer.kota;
-  header.value.telp = mappedCustomer.telp;
+  header.value.alamat = mappedCustomer.alamat || "";
+  header.value.kota = mappedCustomer.kota || "";
+  header.value.telp = mappedCustomer.telp || "";
 
   await applyDefaultDiscount();
   calculateTotals();
@@ -2632,15 +2635,31 @@ const fetchActivePromos = async () => {
 };
 
 const isItemPromoEligible = (item: SoItem) => {
-  const nameUp = item.nama?.toUpperCase() || "";
-  const kategoriUp = item.kategori?.toUpperCase() || "";
+  // 1. Cek apakah ada promo bulanan/utama yang sedang aktif
+  const autoPromoIds = ["PRO-2025-008", "PRO-2025-010", "PRO-2026-001", "PRO-2026-002"];
+  const hasActiveMonthlyPromo = activePromosList.value.some((p) =>
+    autoPromoIds.includes(p.pro_nomor)
+  );
+
+  // Jika tidak ada satupun promo utama di atas yang aktif, return false
+  if (!hasActiveMonthlyPromo) return false;
+
+  const kategoriUp = (item.kategori || "").toUpperCase();
+  const namaUp = (item.nama || "").toUpperCase();
 
   const isReguler = kategoriUp === "REGULER";
-  const isJersey = nameUp.includes("JERSEY");
-  // [FIX] Tambahkan isCustomOrder agar Jenis Order Sablon ikut terhitung
-  const isDtf = !!item.noSoDtf || item.isCustomOrder || nameUp.includes("DTF");
+  const isJersey = namaUp.includes("JERSEY");
 
-  return isReguler || isJersey || isDtf;
+  // [PERBAIKAN] Pastikan item Custom Order dan Tarikan SO DTF terdeteksi
+  const isCustomOrDtf = !!item.noSoDtf || item.isCustomOrder === true || namaUp.includes("DTF");
+
+  const isBukanPengajuan = !item.noPengajuanHarga;
+
+  // Tolak JASA murni (ongkir, desain, dll) KECUALI itu adalah custom order (Sablon DTF)
+  const isJasaMurni = (item.kode || "").toUpperCase().startsWith("JASA") && !isCustomOrDtf;
+
+  // Barang reguler, jersey, ATAU custom/dtf yang bukan pengajuan = Eligible
+  return (isReguler || isJersey || isCustomOrDtf) && isBukanPengajuan && !isJasaMurni;
 };
 
 // [BARU] Handle Promo Terpilih dari Modal F1

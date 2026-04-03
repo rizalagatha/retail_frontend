@@ -1,13 +1,13 @@
 <script setup lang="ts">
-import { ref, reactive, onMounted, watch, computed } from 'vue';
-import { useToast } from 'vue-toastification';
-import { useAuthStore } from '@/stores/authStore';
-import api from '@/services/api';
-import { format } from 'date-fns';
-import PageLayout from '@/components/PageLayout.vue';
-import * as XLSX from 'xlsx';
-import type { AxiosError } from 'axios';
-import AppDataTable from '@/components/AppDataTable.vue';
+import { ref, reactive, onMounted, watch, computed } from "vue";
+import { useToast } from "vue-toastification";
+import { useAuthStore } from "@/stores/authStore";
+import api from "@/services/api";
+import { format } from "date-fns";
+import PageLayout from "@/components/PageLayout.vue";
+import * as XLSX from "xlsx";
+import type { AxiosError } from "axios";
+import AppDataTable from "@/components/AppDataTable.vue";
 
 // --- Interfaces ---
 interface DataTableHeader {
@@ -15,7 +15,7 @@ interface DataTableHeader {
   key: string;
   width?: number;
   fixed?: boolean;
-  align?: 'start' | 'center' | 'end';
+  align?: "start" | "center" | "end";
   minWidth?: string | number;
   maxWidth?: string | number;
   sortable?: boolean;
@@ -29,13 +29,13 @@ interface HitungStokItem {
   Ukuran: string;
   Lokasi: string;
   Operator: string; // Ambil dari hs_operator
-  Device: string;   // Ambil dari hs_device
+  Device: string; // Ambil dari hs_device
   Jumlah: number;
 }
 
 const toast = useToast();
 const authStore = useAuthStore();
-const MENU_ID = '19'; // Sesuaikan dengan ID menu Anda
+const MENU_ID = "19"; // Sesuaikan dengan ID menu Anda
 
 const items = ref<HitungStokItem[]>([]);
 const isLoading = ref(true);
@@ -44,23 +44,23 @@ const fetchTimeout = ref<number | undefined>(undefined);
 const selected = ref<HitungStokItem[]>([]);
 
 const filters = reactive({
-  startDate: format(new Date(), 'yyyy-MM-dd'),
-  endDate: format(new Date(), 'yyyy-MM-dd'),
-  cabang: authStore.user?.cabang || '',
-  search: '',
+  startDate: format(new Date(), "yyyy-MM-dd"),
+  endDate: format(new Date(), "yyyy-MM-dd"),
+  cabang: authStore.user?.cabang || "",
+  search: "",
 });
 
 // --- Header Definisi (Resize) ---
 const headers = ref<DataTableHeader[]>([
-  { title: 'Cabang', key: 'Cab', width: 80, fixed: true },
-  { title: 'Kode', key: 'Kode', width: 120 },
-  { title: 'Barcode', key: 'Barcode', width: 140 },
-  { title: 'Nama Barang', key: 'Nama', width: 280 },
-  { title: 'Ukuran', key: 'Ukuran', width: 80 },
-  { title: 'Lokasi', key: 'Lokasi', width: 120 },
-  { title: 'Operator', key: 'Operator', width: 150 }, // Kolom Baru
-  { title: 'Device', key: 'Device', width: 150 },     // Kolom Baru
-  { title: 'Jumlah', key: 'Jumlah', align: 'end', width: 100 },
+  { title: "Cabang", key: "Cab", width: 80, fixed: true },
+  { title: "Kode", key: "Kode", width: 120 },
+  { title: "Barcode", key: "Barcode", width: 140 },
+  { title: "Nama Barang", key: "Nama", width: 280 },
+  { title: "Ukuran", key: "Ukuran", width: 80 },
+  { title: "Lokasi", key: "Lokasi", width: 120 },
+  { title: "Operator", key: "Operator", width: 150 }, // Kolom Baru
+  { title: "Device", key: "Device", width: 150 }, // Kolom Baru
+  { title: "Jumlah", key: "Jumlah", align: "end", width: 100 },
 ]);
 
 const totalJumlah = computed(() => {
@@ -77,10 +77,10 @@ const onResizeStart = (e: MouseEvent, column: DataTableHeader) => {
   e.stopPropagation();
   resizingColumn.value = column;
   startX.value = e.pageX;
-  startWidth.value = (typeof column.width === 'number' ? column.width : 100);
-  document.addEventListener('mousemove', onResizeMove);
-  document.addEventListener('mouseup', onResizeEnd);
-  document.body.style.cursor = 'col-resize';
+  startWidth.value = typeof column.width === "number" ? column.width : 100;
+  document.addEventListener("mousemove", onResizeMove);
+  document.addEventListener("mouseup", onResizeEnd);
+  document.body.style.cursor = "col-resize";
 };
 
 const onResizeMove = (e: MouseEvent) => {
@@ -91,9 +91,9 @@ const onResizeMove = (e: MouseEvent) => {
 
 const onResizeEnd = () => {
   resizingColumn.value = null;
-  document.removeEventListener('mousemove', onResizeMove);
-  document.removeEventListener('mouseup', onResizeEnd);
-  document.body.style.cursor = '';
+  document.removeEventListener("mousemove", onResizeMove);
+  document.removeEventListener("mouseup", onResizeEnd);
+  document.body.style.cursor = "";
 };
 
 const handleRowClick = (_event: Event, { item }: { item: HitungStokItem }) => {
@@ -105,11 +105,11 @@ const fetchData = async () => {
   isLoading.value = true;
   try {
     // Endpoint backend baru
-    const response = await api.get('/hitung-stok-operator', { params: filters });
+    const response = await api.get("/hitung-stok-operator", { params: filters });
     items.value = response.data;
   } catch (error) {
     const err = error as AxiosError<{ message?: string }>;
-    toast.error(err.response?.data?.message || 'Gagal memuat data.');
+    toast.error(err.response?.data?.message || "Gagal memuat data.");
   } finally {
     isLoading.value = false;
   }
@@ -117,20 +117,20 @@ const fetchData = async () => {
 
 const fetchCabangOptions = async () => {
   try {
-    const response = await api.get('/hitung-stok-operator/cabang-options');
+    const response = await api.get("/hitung-stok-operator/cabang-options");
     cabangOptions.value = response.data;
   } catch (error) {
-    console.error('Gagal memuat pilihan cabang.', error);
+    console.error("Gagal memuat pilihan cabang.", error);
   }
 };
 
 const exportToExcel = () => {
-  if (items.value.length === 0) return toast.warning('Tidak ada data untuk diekspor.');
+  if (items.value.length === 0) return toast.warning("Tidak ada data untuk diekspor.");
   const worksheet = XLSX.utils.json_to_sheet(items.value);
   const workbook = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(workbook, worksheet, "Hitung Stok per Operator");
   XLSX.writeFile(workbook, `HitungStok_perOperator_${filters.cabang}.xlsx`);
-  toast.success('Data berhasil diekspor.');
+  toast.success("Data berhasil diekspor.");
 };
 
 onMounted(() => {
@@ -138,58 +138,127 @@ onMounted(() => {
   fetchData();
 });
 
-watch(filters, (newVal, oldVal) => {
-  if (newVal.search !== oldVal.search) {
-    if (fetchTimeout.value) clearTimeout(fetchTimeout.value);
-    fetchTimeout.value = window.setTimeout(() => { fetchData(); }, 500);
-  } else {
-    fetchData();
-  }
-}, { deep: true });
+watch(
+  filters,
+  (newVal, oldVal) => {
+    if (newVal.search !== oldVal.search) {
+      if (fetchTimeout.value) clearTimeout(fetchTimeout.value);
+      fetchTimeout.value = window.setTimeout(() => {
+        fetchData();
+      }, 500);
+    } else {
+      fetchData();
+    }
+  },
+  { deep: true }
+);
 </script>
 
 <template>
   <PageLayout title="Browse Hitung Stok per Operator" :menu-id="MENU_ID">
     <template #header-actions>
-      <v-btn size="small" color="teal" @click="exportToExcel" prepend-icon="mdi-file-excel">Export</v-btn>
+      <v-btn size="small" color="teal" @click="exportToExcel" prepend-icon="mdi-file-excel"
+        >Export</v-btn
+      >
     </template>
 
     <div class="browse-content">
       <div class="filter-section">
-        <v-text-field v-model="filters.startDate" type="date" label="Tgl Scan Dari" density="compact" hide-details
-          variant="outlined" style="max-width: 160px;" />
-        <v-text-field v-model="filters.endDate" type="date" label="S/D" density="compact" hide-details
-          variant="outlined" style="max-width: 160px;" />
+        <v-text-field
+          v-model="filters.startDate"
+          type="date"
+          label="Tgl Scan Dari"
+          density="compact"
+          hide-details
+          variant="outlined"
+          style="max-width: 160px"
+        />
+        <v-text-field
+          v-model="filters.endDate"
+          type="date"
+          label="S/D"
+          density="compact"
+          hide-details
+          variant="outlined"
+          style="max-width: 160px"
+        />
 
-        <v-select v-model="filters.cabang" :items="cabangOptions" item-title="nama" item-value="kode" label="Cabang"
-          density="compact" hide-details variant="outlined" class="ms-4" style="max-width: 180px;"
-          :readonly="authStore.user?.cabang !== 'KDC'" />
+        <v-select
+          v-model="filters.cabang"
+          :items="cabangOptions"
+          item-title="nama"
+          item-value="kode"
+          label="Cabang"
+          density="compact"
+          hide-details
+          variant="outlined"
+          class="ms-4"
+          style="max-width: 180px"
+          :readonly="authStore.user?.cabang !== 'KDC'"
+        />
 
-        <v-text-field v-model="filters.search" label="Cari Kode/Nama/Operator/Device..." density="compact" hide-details
-          variant="outlined" class="ms-4" style="min-width: 250px;" prepend-inner-icon="mdi-magnify" clearable />
+        <v-text-field
+          v-model="filters.search"
+          label="Cari Kode/Nama/Operator/Device..."
+          density="compact"
+          hide-details
+          variant="outlined"
+          class="ms-4"
+          style="min-width: 250px"
+          prepend-inner-icon="mdi-magnify"
+          clearable
+        />
 
         <v-spacer />
-        <v-btn @click="fetchData" icon="mdi-refresh" variant="text" size="small" :loading="isLoading" />
+        <v-btn
+          @click="fetchData"
+          icon="mdi-refresh"
+          variant="text"
+          size="small"
+          :loading="isLoading"
+        />
       </div>
 
       <div class="table-container">
-        <AppDataTable v-model="selected" :headers="headers" :items="items" :loading="isLoading"
-          class="desktop-table header-browse-blue" density="compact" fixed-header show-select return-object
-          @click:row="handleRowClick">
-
+        <AppDataTable
+          v-model="selected"
+          :headers="headers"
+          :items="items"
+          :loading="isLoading"
+          class="desktop-table header-browse-blue"
+          density="compact"
+          fixed-header
+          show-select
+          return-object
+          @click:row="handleRowClick"
+        >
           <template #headers="{ columns, isSorted, getSortIcon, toggleSort }">
             <tr>
               <template v-for="header in columns" :key="header.key">
                 <th
-                  :style="{ width: header.width + 'px', minWidth: header.width + 'px', maxWidth: header.width + 'px' }"
+                  :style="{
+                    width: header.width + 'px',
+                    minWidth: header.width + 'px',
+                    maxWidth: header.width + 'px',
+                  }"
                   class="resizable-header"
-                  :class="{ 'text-center': header.align === 'center', 'text-end': header.align === 'end' }"
-                  @click="toggleSort(header)">
+                  :class="{
+                    'text-center': header.align === 'center',
+                    'text-end': header.align === 'end',
+                  }"
+                  @click="toggleSort(header)"
+                >
                   <div class="header-content">
                     <span>{{ header.title }}</span>
-                    <v-icon v-if="isSorted(header)" size="small" class="ms-1">{{ getSortIcon(header) }}</v-icon>
+                    <v-icon v-if="isSorted(header)" size="small" class="ms-1">{{
+                      getSortIcon(header)
+                    }}</v-icon>
                   </div>
-                  <div class="resizer" @mousedown.stop="onResizeStart($event, header)" @click.stop></div>
+                  <div
+                    class="resizer"
+                    @mousedown.stop="onResizeStart($event, header)"
+                    @click.stop
+                  ></div>
                 </th>
               </template>
             </tr>
@@ -202,7 +271,7 @@ watch(filters, (newVal, oldVal) => {
           <template #[`body.append`]>
             <tr class="sticky-footer-row font-weight-bold">
               <td colspan="9" class="text-end pe-4">TOTAL :</td>
-              <td class="text-end">{{ totalJumlah.toLocaleString('id-ID') }}</td>
+              <td class="text-end">{{ totalJumlah.toLocaleString("id-ID") }}</td>
             </tr>
           </template>
 

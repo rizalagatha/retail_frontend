@@ -204,6 +204,51 @@ interface SjApiItem {
   barcode?: string;
 }
 
+interface DiscountRule {
+  nominal1: number;
+  nominal2: number;
+  diskon1: number;
+  diskon2: number;
+}
+
+interface SoDtfItem {
+  kode: string;
+  nama: string;
+  ukuran: string;
+  jumlah: number;
+  harga: number;
+  stok?: number;
+}
+
+interface PromoItem {
+  kode: string;
+  ukuran: string;
+  discPersen?: number;
+  discRp?: number;
+}
+
+interface InvoiceItemApi {
+  kode: string;
+  nama_barang: string;
+  ukuran: string;
+  jumlah: number | string;
+  harga: number | string;
+  diskonRp?: number | string;
+  diskonPersen?: number | string;
+  total: number;
+  barcode?: string;
+  stok?: number;
+  stokSO?: number;
+  qtySO?: number;
+  kategori?: string;
+  nourut?: number;
+}
+
+interface SalesCounter {
+  kode: string;
+  nama: string;
+}
+
 // --- Inisialisasi ---
 const router = useRouter();
 const route = useRoute();
@@ -266,8 +311,8 @@ const initialHeaderState = {
     kota: "",
     telp: "",
     level: "",
-    level_kode: null,
-    level_nama: null,
+    level_kode: undefined,
+    level_nama: undefined,
   } as Customer,
   nomorSo: "",
   tanggalSo: "",
@@ -276,7 +321,7 @@ const initialHeaderState = {
   namaDtf: "",
   top: 0,
   tanggalTempo: "",
-  salesCounter: authStore.user?.kode || "",
+  salesCounter: (authStore.user?.kode || "") as string | null,
   keterangan: "",
   diskonPersen1: 0,
   diskonPersen2: 0,
@@ -372,11 +417,11 @@ const dialogConfirm = reactive({
 
 const activeRowIndex = ref(0);
 const isMultiSelectProduct = ref(false);
-const salesCounters = ref([]);
+const salesCounters = ref<SalesCounter[]>([]);
 const isSoLoaded = ref(false);
 const memberHpToSearch = ref("");
 const scannedBarcode = ref("");
-const customerDiscountRule = ref(null);
+const customerDiscountRule = ref<DiscountRule | null>(null);
 const activePromoForBonus = ref({ nomor: "", qty: 0 });
 const focusedRowId = ref<number | string>(-1);
 const isLockedFsk = ref(false);
@@ -691,7 +736,8 @@ const fetchSalesCounters = async () => {
     const response = await api.get("/invoice-form/lookup/sales-counters");
     salesCounters.value = response.data;
   } catch (error) {
-    toast.error("Gagal memuat daftar Sales Counter.", error);
+    const err = error as AxiosError<{ message?: string }>;
+    toast.error(err.response?.data?.message || "Gagal memuat daftar Sales Counter.");
   }
 };
 
@@ -912,8 +958,8 @@ const onNewCustomerSaved = (customer: Customer) => {
     level: levelText,
 
     // data backend
-    level_kode: customer.level_kode || null,
-    level_nama: customer.level_nama || null,
+    level_kode: customer.level_kode || undefined,
+    level_nama: customer.level_nama || undefined,
   };
 
   dialogs.customerForm = false;
@@ -976,11 +1022,8 @@ const onPromoSelected = (promo: { nomor: string; namaPromo: string }) => {
     const unwatch = watch(
       () => dialogConfirm.show,
       (newValue) => {
-        if (!newValue && dialogConfirm.onConfirm) {
-          // Cek jika 'onConfirm' masih ada
-          // 'onConfirm' belum dijalankan, artinya user klik Batal/Tutup
+        if (!newValue) {
           unwatch();
-          // Jangan set promo jika dibatalkan
         }
       }
     );
@@ -1362,7 +1405,7 @@ const onSoDtfSelected = async (soDtf: { nomor: string }) => {
       return toast.warning("SO DTF ini tidak memiliki detail item.");
     }
 
-    const newItems = soDtfItems.map((item) => ({
+    const newItems = soDtfItems.map((item: SoDtfItem) => ({
       id: Date.now() + Math.random(),
       kode: item.kode,
       nama: item.nama,
@@ -1556,7 +1599,9 @@ const applyPromoToItems = async (promoNomor: string) => {
 
     items.value.forEach((item) => {
       if (item.terhitungPromo === true) return;
-      const match = promoItems.find((p) => p.kode === item.kode && p.ukuran === item.ukuran);
+      const match = promoItems.find(
+        (p: PromoItem) => p.kode === item.kode && p.ukuran === item.ukuran
+      );
       if (match) {
         const harga = item.harga || 0;
         const diskonPersen = match.discPersen || 0;
@@ -1593,7 +1638,7 @@ const applyPromoToItems = async (promoNomor: string) => {
 //   return qty * perUnitDisc;
 // };
 
-const computeLineTotal = (item) => {
+const computeLineTotal = (item: Item) => {
   const harga = item.harga || 0;
   const jumlah = item.jumlah || 0;
   const sub = harga * jumlah;
@@ -2012,7 +2057,7 @@ const handleProceedToPayment = async () => {
       // --- PRIORITAS 3: PROMO LAMA ---
       else {
         const totalRegulerDec = items.value.reduce((sum, item) => {
-          if (item.kategori === "REGULER" && !item.nama.toUpperCase().includes("JERSEY")) {
+          if (item.kategori === "REGULER" && !(item.nama || "").toUpperCase().includes("JERSEY")) {
             return sum + (item.total || 0);
           }
           return sum;
@@ -2232,12 +2277,7 @@ const checkStokMinus = (): Promise<boolean> => {
           if (!newValue) {
             unwatch();
             // Jika onConfirm masih ada (belum dijalankan), berarti user klik batal/tutup
-            if (dialogConfirm.onConfirm) {
-              // do nothing or handle cancel specifics
-            } else {
-              // Dialog confirm sudah tereksekusi (resolve true), kalau belum berarti batal
-              resolve(false);
-            }
+            resolve(false);
 
             // Fallback aman: jika user menutup dialog tanpa klik "Ya", kita anggap batal
             // (Logic watcher Anda sebelumnya agak kompleks, ini penyederhanaan yang aman)
@@ -2592,7 +2632,7 @@ const loadDataForEdit = async (nomor: string) => {
        ITEMS
        ======================= */
 
-    items.value = its.map((it, idx) => {
+    items.value = its.map((it: InvoiceItemApi, idx: number) => {
       const harga = Number(it.harga);
       const qty = Number(it.jumlah);
       const diskRp = Number(it.diskonRp);
@@ -2758,30 +2798,29 @@ const getCategoryColor = (kategori: string | undefined) => {
   }
 };
 
-const isItemPromoEligible = (item: Item) => {
-  // 1. [BARU] Cek apakah ada promo bulanan/utama yang sedang aktif di cabang ini
-  // Daftar ID Promo yang memicu label ELIGIBLE (Maret, April, dsb)
+const isItemPromoEligible = (item: Item) => { // Pastikan pakai Item, bukan SoItem jika interface utamanya Item
   const autoPromoIds = ["PRO-2025-008", "PRO-2025-010", "PRO-2026-001", "PRO-2026-002"];
-
-  // Cek ke dalam data API yang sudah ditarik saat form dimuat
   const hasActiveMonthlyPromo = activePromosList.value.some((p) =>
     autoPromoIds.includes(p.pro_nomor)
   );
 
-  // Jika cabang ini (misal KPR) tidak memiliki satupun promo di atas yang aktif,
-  // langsung gugurkan status eligible-nya.
   if (!hasActiveMonthlyPromo) return false;
 
-  // 2. Cek Kriteria Barang
-  const isReguler = item.kategori === "REGULER";
-  const isJersey = item.nama?.toUpperCase().includes("JERSEY");
-  const isDtf = !!item.noSoDtf;
+  const kategoriUp = (item.kategori || "").toUpperCase();
+  const namaUp = (item.nama || "").toUpperCase();
+  const isReguler = kategoriUp === "REGULER";
+  const isJersey = namaUp.includes("JERSEY");
 
-  // Syarat tambahan: Wajib tidak memiliki No. Pengajuan Harga
+  // [PERBAIKAN CASE 2] Item Custom dan DTF SEKARANG DIANGGAP ELIGIBLE
+  const isCustomOrDtf = !!item.noSoDtf || item.isCustomOrder === true;
+
   const isBukanPengajuan = !item.noPengajuanHarga;
 
-  // Hanya barang reguler/jersey/dtf yang BUKAN dari pengajuan harga yang eligible
-  return (isReguler || isJersey || isDtf) && isBukanPengajuan;
+  // Jika barang JASA MURNI (bukan custom DTF), jangan masukkan
+  const isJasaMurni = (item.kode || "").toUpperCase().startsWith("JASA") && !isCustomOrDtf;
+
+  // Barang reguler, jersey, ATAU custom/dtf yang bukan pengajuan = Eligible
+  return (isReguler || isJersey || isCustomOrDtf) && isBukanPengajuan && !isJasaMurni;
 };
 
 // Hitung tanggal tempo otomatis
@@ -3415,7 +3454,7 @@ watch(
 
               <template v-slot:[`item.total`]="{ item }">
                 <div class="text-end text-body-2 font-weight-bold pt-3 pb-1">
-                  {{ formatRupiah(item.total) }}
+                  {{ formatRupiah(item.total ?? 0) }}
                 </div>
               </template>
 

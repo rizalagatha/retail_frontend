@@ -116,7 +116,8 @@ const fetchCabangOptions = async () => {
     const response = await api.get("/hitung-stok/cabang-options");
     cabangOptions.value = response.data;
   } catch (error) {
-    toast.error("Gagal memuat pilihan cabang.", error);
+    const err = error as AxiosError<{ message?: string }>;
+    toast.error(err.response?.data?.message || "Gagal memuat pilihan cabang.");
   }
 };
 
@@ -151,50 +152,112 @@ watch(
 <template>
   <PageLayout title="Browse Hitung Stok" :menu-id="MENU_ID" icon="mdi-clipboard-list-outline">
     <template #header-actions>
-      <v-btn v-if="authStore.can(MENU_ID, 'insert')" size="small" color="primary" @click="handleScan"
-        prepend-icon="mdi-barcode-scan">Scan</v-btn>
+      <v-btn
+        v-if="authStore.can(MENU_ID, 'insert')"
+        size="small"
+        color="primary"
+        @click="handleScan"
+        prepend-icon="mdi-barcode-scan"
+        >Scan</v-btn
+      >
     </template>
 
     <div class="browse-content">
       <div class="filter-section">
-        <v-text-field v-model="filters.startDate" type="date" density="compact" hide-details variant="outlined"
-          style="max-width: 140px" />
+        <v-text-field
+          v-model="filters.startDate"
+          type="date"
+          density="compact"
+          hide-details
+          variant="outlined"
+          style="max-width: 140px"
+        />
         <v-label class="mx-2">s/d</v-label>
-        <v-text-field v-model="filters.endDate" type="date" density="compact" hide-details variant="outlined"
-          style="max-width: 140px" />
-        <v-select v-model="filters.cabang" :items="cabangOptions" item-title="nama" item-value="kode" label="Cabang"
-          density="compact" hide-details variant="outlined" class="ms-4" style="max-width: 180px"
-          :readonly="authStore.user?.cabang !== 'KDC'" />
+        <v-text-field
+          v-model="filters.endDate"
+          type="date"
+          density="compact"
+          hide-details
+          variant="outlined"
+          style="max-width: 140px"
+        />
+        <v-select
+          v-model="filters.cabang"
+          :items="cabangOptions"
+          item-title="nama"
+          item-value="kode"
+          label="Cabang"
+          density="compact"
+          hide-details
+          variant="outlined"
+          class="ms-4"
+          style="max-width: 180px"
+          :readonly="authStore.user?.cabang !== 'KDC'"
+        />
 
-        <v-text-field v-model="filters.search" label="Cari Nama/Kode/Barcode..." density="compact" hide-details
-          variant="outlined" class="ms-4" style="min-width: 250px" prepend-inner-icon="mdi-magnify" clearable />
+        <v-text-field
+          v-model="filters.search"
+          label="Cari Nama/Kode/Barcode..."
+          density="compact"
+          hide-details
+          variant="outlined"
+          class="ms-4"
+          style="min-width: 250px"
+          prepend-inner-icon="mdi-magnify"
+          clearable
+        />
 
         <v-spacer />
-        <v-btn @click="fetchData" icon="mdi-refresh" variant="text" size="small" :loading="isLoading" />
+        <v-btn
+          @click="fetchData"
+          icon="mdi-refresh"
+          variant="text"
+          size="small"
+          :loading="isLoading"
+        />
       </div>
 
       <div class="table-container">
-        <AppDataTable v-model="selected" :headers="headers" :items="items" :loading="isLoading" item-value="Barcode"
-          density="compact" class="desktop-table header-browse-blue" fixed-header show-select return-object
-          @click:row="handleRowClick">
+        <AppDataTable
+          v-model="selected"
+          :headers="headers"
+          :items="items"
+          :loading="isLoading"
+          item-value="Barcode"
+          density="compact"
+          class="desktop-table header-browse-blue"
+          fixed-header
+          show-select
+          return-object
+          @click:row="handleRowClick"
+        >
           <template #headers="{ columns, isSorted, getSortIcon, toggleSort }">
             <tr>
               <template v-for="header in columns" :key="header.key">
-                <th :style="{
-                  width: header.width + 'px',
-                  minWidth: header.width + 'px',
-                  maxWidth: header.width + 'px',
-                }" class="resizable-header" :class="{
+                <th
+                  :style="{
+                    width: header.width + 'px',
+                    minWidth: header.width + 'px',
+                    maxWidth: header.width + 'px',
+                  }"
+                  class="resizable-header"
+                  :class="{
                     'text-center': header.align === 'center',
                     'text-end': header.align === 'end',
-                  }" @click="toggleSort(header)">
+                  }"
+                  @click="toggleSort(header)"
+                >
                   <div class="header-content">
                     <span>{{ header.title }}</span>
                     <v-icon v-if="isSorted(header)" size="small" class="ms-1">
                       {{ getSortIcon(header) }}
                     </v-icon>
                   </div>
-                  <div class="resizer" @mousedown.stop="onResizeStart($event, header)" @click.stop></div>
+                  <div
+                    class="resizer"
+                    @mousedown.stop="onResizeStart($event, header)"
+                    @click.stop
+                  ></div>
                 </th>
               </template>
             </tr>

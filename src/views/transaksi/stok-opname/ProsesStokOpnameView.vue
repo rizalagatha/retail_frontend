@@ -1,26 +1,26 @@
 <script setup lang="ts">
-import { ref, reactive, onMounted, computed, watch, onBeforeUnmount } from 'vue';
-import { useRouter } from 'vue-router';
-import { useToast } from 'vue-toastification';
-import { useAuthStore } from '@/stores/authStore';
-import api from '@/services/api';
-import { format, subDays, parseISO } from 'date-fns';
-import PageLayout from '@/components/PageLayout.vue';
-import AuthorizationModal from '@/components/modal/AuthorizationModal.vue';
-import * as XLSX from 'xlsx';
-import type { AxiosError } from 'axios';
+import { ref, reactive, onMounted, computed, watch, onBeforeUnmount } from "vue";
+import { useRouter } from "vue-router";
+import { useToast } from "vue-toastification";
+import { useAuthStore } from "@/stores/authStore";
+import api from "@/services/api";
+import { format, subDays, parseISO } from "date-fns";
+import PageLayout from "@/components/PageLayout.vue";
+import AuthorizationModal from "@/components/modal/AuthorizationModal.vue";
+import * as XLSX from "xlsx";
+import type { AxiosError } from "axios";
 import { formatRupiah } from "@/utils/formatRupiah";
 
 // --- Tipe Data ---
 interface SopHeader {
   nomor: string;
   tanggal: string;
-  transfer: 'Y' | 'N';
-  selisih_qty: number
+  transfer: "Y" | "N";
+  selisih_qty: number;
   nominal: number;
   keterangan: string;
   value_sistem: number; //
-  value_fisik: number;  //
+  value_fisik: number; //
 }
 
 interface SopDetail {
@@ -35,7 +35,7 @@ interface SopDetail {
   Nominal: number;
   Lokasi: string;
   ValueSistem: number; //
-  ValueFisik: number;  //
+  ValueFisik: number; //
 }
 
 interface DetailSummary {
@@ -44,7 +44,7 @@ interface DetailSummary {
   Selisih: number;
   Nominal: number;
   ValueSistem: number; // <--- TAMBAHKAN INI
-  ValueFisik: number;  // <--- TAMBAHKAN INI
+  ValueFisik: number; // <--- TAMBAHKAN INI
 }
 
 interface DataTableHeader {
@@ -52,7 +52,7 @@ interface DataTableHeader {
   key: string;
   width?: number;
   fixed?: boolean;
-  align?: 'start' | 'center' | 'end';
+  align?: "start" | "center" | "end";
   minWidth?: string | number;
   maxWidth?: string | number;
   sortable?: boolean;
@@ -76,10 +76,15 @@ interface SopExportRow {
   [key: string]: unknown;
 }
 
+interface Cabang {
+  kode: string;
+  nama: string;
+}
+
 const router = useRouter();
 const toast = useToast();
 const authStore = useAuthStore();
-const MENU_ID = '24';
+const MENU_ID = "24";
 
 // --- State ---
 const items = ref<SopHeader[]>([]);
@@ -88,58 +93,60 @@ const expanded = ref<string[]>([]);
 const details = ref<Record<string, SopDetail[]>>({});
 const loadingDetails = ref(new Set<string>());
 const isLoading = ref(true);
-const cabangOptions = ref([]);
+const cabangOptions = ref<Cabang[]>([]);
 
 const filters = reactive({
-  startDate: format(subDays(new Date(), 30), 'yyyy-MM-dd'),
-  endDate: format(new Date(), 'yyyy-MM-dd'),
-  cabang: authStore.user?.cabang || '',
+  startDate: format(subDays(new Date(), 30), "yyyy-MM-dd"),
+  endDate: format(new Date(), "yyyy-MM-dd"),
+  cabang: authStore.user?.cabang || "",
 });
 
 const authDialog = reactive<AuthDialogState>({
   show: false,
-  title: '',
-  jenis: '',
+  title: "",
+  jenis: "",
   nominal: 0,
-  transaksi: '',
-  barcode: '',
-  keterangan: '',
-  onSuccess: () => { },
-  onCancel: () => { },
+  transaksi: "",
+  barcode: "",
+  keterangan: "",
+  onSuccess: () => {},
+  onCancel: () => {},
 });
 
 // --- Computed ---
 const isSingleSelected = computed(() => selected.value.length === 1);
-const selectedRow = computed<SopHeader | null>(() => isSingleSelected.value ? selected.value[0] : null);
-const canTransfer = computed(() => isSingleSelected.value && selectedRow.value?.transfer !== 'Y');
+const selectedRow = computed<SopHeader | null>(() =>
+  isSingleSelected.value ? selected.value[0] : null
+);
+const canTransfer = computed(() => isSingleSelected.value && selectedRow.value?.transfer !== "Y");
 const canEdit = computed(() => isSingleSelected.value);
 
 // --- Headers (Style Biru & Resize) ---
 const headers = ref<DataTableHeader[]>([
-  { title: '', key: 'data-table-expand', width: 50, fixed: true },
-  { title: 'Nomor', key: 'nomor', width: 180, fixed: true },
-  { title: 'Tanggal', key: 'tanggal', width: 120 },
-  { title: 'Value Sistem', key: 'value_sistem', align: 'end', width: 140 }, // [BARU]
-  { title: 'Value Fisik', key: 'value_fisik', align: 'end', width: 140 },   // [BARU]
-  { title: 'Selisih Qty', key: 'selisih_qty', align: 'end', width: 120 },
-  { title: 'Nominal Selisih', key: 'nominal', align: 'end', width: 150 },
-  { title: 'Keterangan', key: 'keterangan', width: 300 },
-  { title: 'Transfer', key: 'transfer', align: 'center', width: 100 },
+  { title: "", key: "data-table-expand", width: 50, fixed: true },
+  { title: "Nomor", key: "nomor", width: 180, fixed: true },
+  { title: "Tanggal", key: "tanggal", width: 120 },
+  { title: "Value Sistem", key: "value_sistem", align: "end", width: 140 }, // [BARU]
+  { title: "Value Fisik", key: "value_fisik", align: "end", width: 140 }, // [BARU]
+  { title: "Selisih Qty", key: "selisih_qty", align: "end", width: 120 },
+  { title: "Nominal Selisih", key: "nominal", align: "end", width: 150 },
+  { title: "Keterangan", key: "keterangan", width: 300 },
+  { title: "Transfer", key: "transfer", align: "center", width: 100 },
 ]);
 
 const detailHeaders = [
-  { title: 'Kode', key: 'Kode' },
-  { title: 'Barcode', key: 'Barcode' },
-  { title: 'Nama Barang', key: 'Nama' },
-  { title: 'Ukuran', key: 'Ukuran' },
-  { title: 'Stok Sistem', key: 'Stok', align: 'end' },
-  { title: 'Val. Sistem', key: 'ValueSistem', align: 'end' }, // [BARU]
-  { title: 'Jumlah Fisik', key: 'Jumlah', align: 'end' },
-  { title: 'Val. Fisik', key: 'ValueFisik', align: 'end' },   // [BARU]
-  { title: 'Selisih', key: 'Selisih', align: 'end' },
-  { title: 'HPP', key: 'Hpp', align: 'end' },
-  { title: 'Nominal', key: 'Nominal', align: 'end' },
-  { title: 'Lokasi', key: 'Lokasi' },
+  { title: "Kode", key: "Kode" },
+  { title: "Barcode", key: "Barcode" },
+  { title: "Nama Barang", key: "Nama" },
+  { title: "Ukuran", key: "Ukuran" },
+  { title: "Stok Sistem", key: "Stok", align: "end" },
+  { title: "Val. Sistem", key: "ValueSistem", align: "end" }, // [BARU]
+  { title: "Jumlah Fisik", key: "Jumlah", align: "end" },
+  { title: "Val. Fisik", key: "ValueFisik", align: "end" }, // [BARU]
+  { title: "Selisih", key: "Selisih", align: "end" },
+  { title: "HPP", key: "Hpp", align: "end" },
+  { title: "Nominal", key: "Nominal", align: "end" },
+  { title: "Lokasi", key: "Lokasi" },
 ] as const;
 
 // --- Resize Logic (Sama seperti Penawaran) ---
@@ -152,10 +159,10 @@ const onResizeStart = (e: MouseEvent, column: DataTableHeader) => {
   e.stopPropagation();
   resizingColumn.value = column;
   startX.value = e.pageX;
-  startWidth.value = (typeof column.width === 'number' ? column.width : 100);
-  document.addEventListener('mousemove', onResizeMove);
-  document.addEventListener('mouseup', onResizeEnd);
-  document.body.style.cursor = 'col-resize';
+  startWidth.value = typeof column.width === "number" ? column.width : 100;
+  document.addEventListener("mousemove", onResizeMove);
+  document.addEventListener("mouseup", onResizeEnd);
+  document.body.style.cursor = "col-resize";
 };
 
 const onResizeMove = (e: MouseEvent) => {
@@ -166,9 +173,9 @@ const onResizeMove = (e: MouseEvent) => {
 
 const onResizeEnd = () => {
   resizingColumn.value = null;
-  document.removeEventListener('mousemove', onResizeMove);
-  document.removeEventListener('mouseup', onResizeEnd);
-  document.body.style.cursor = '';
+  document.removeEventListener("mousemove", onResizeMove);
+  document.removeEventListener("mouseup", onResizeEnd);
+  document.body.style.cursor = "";
 };
 
 const requestAuthorization = (
@@ -176,9 +183,9 @@ const requestAuthorization = (
   jenis: string,
   nominal: number,
   extraData: {
-    transaksi?: string,
-    barcode?: string,
-    keteranganLengkap?: string
+    transaksi?: string;
+    barcode?: string;
+    keteranganLengkap?: string;
   } | null,
   onSuccess: (data: { authNomor: string; approver: string }) => void,
   onCancel: () => void
@@ -188,13 +195,13 @@ const requestAuthorization = (
   authDialog.nominal = nominal;
 
   if (extraData) {
-    authDialog.transaksi = extraData.transaksi || '';
-    authDialog.barcode = extraData.barcode || '';
-    authDialog.keterangan = extraData.keteranganLengkap || '';
+    authDialog.transaksi = extraData.transaksi || "";
+    authDialog.barcode = extraData.barcode || "";
+    authDialog.keterangan = extraData.keteranganLengkap || "";
   } else {
-    authDialog.transaksi = '';
-    authDialog.barcode = '';
-    authDialog.keterangan = '';
+    authDialog.transaksi = "";
+    authDialog.barcode = "";
+    authDialog.keterangan = "";
   }
 
   // Wrapper agar modal tertutup sebelum callback
@@ -212,9 +219,9 @@ const fetchData = async () => {
   isLoading.value = true;
   selected.value = [];
   try {
-    const response = await api.get('/proses-stok-opname', { params: filters });
+    const response = await api.get("/proses-stok-opname", { params: filters });
     items.value = response.data;
-    const ids = items.value.map(i => i.nomor);
+    const ids = items.value.map((i) => i.nomor);
     const uniqueIds = new Set(ids);
     if (ids.length !== uniqueIds.size) {
       console.error("DUPLICATE KEYS DETECTED!", ids);
@@ -222,7 +229,7 @@ const fetchData = async () => {
     }
   } catch (error) {
     const err = error as AxiosError<{ message: string }>;
-    toast.error(err.response?.data?.message || 'Gagal memuat data.');
+    toast.error(err.response?.data?.message || "Gagal memuat data.");
   } finally {
     isLoading.value = false;
   }
@@ -230,8 +237,8 @@ const fetchData = async () => {
 
 const fetchCabangOptions = async () => {
   try {
-    const response = await api.get('/warehouses/list', {
-      params: { userCabang: authStore.user?.cabang }
+    const response = await api.get("/warehouses/list", {
+      params: { userCabang: authStore.user?.cabang },
     });
     cabangOptions.value = response.data;
   } catch {
@@ -239,15 +246,15 @@ const fetchCabangOptions = async () => {
   }
 };
 
-const handleNew = () => router.push({ name: 'ProsesStokOpnameCreate' });
+const handleNew = () => router.push({ name: "ProsesStokOpnameCreate" });
 
 const handleEdit = () => {
   if (!canEdit.value) return;
-  const isReadOnly = selectedRow.value?.transfer === 'Y';
+  const isReadOnly = selectedRow.value?.transfer === "Y";
   router.push({
-    name: 'ProsesStokOpnameEdit',
+    name: "ProsesStokOpnameEdit",
     params: { nomor: selectedRow.value!.nomor },
-    query: { readonly: isReadOnly ? 'true' : 'false' }
+    query: { readonly: isReadOnly ? "true" : "false" },
   });
 };
 
@@ -256,11 +263,10 @@ const handleRowClick = (_event: Event, { item }: { item: SopHeader }) => {
 };
 
 const loadDetails = async (expandedItems: (SopHeader | string)[]) => {
-
   // TypeScript sekarang pintar:
   // Jika 'item' bukan string, dia otomatis menganggapnya sebagai 'SopHeader'
-  const expandedNomors = expandedItems.map(item =>
-    typeof item === 'string' ? item : item.nomor
+  const expandedNomors = expandedItems.map((item) =>
+    typeof item === "string" ? item : item.nomor
   );
 
   for (const nomor of expandedNomors) {
@@ -271,7 +277,8 @@ const loadDetails = async (expandedItems: (SopHeader | string)[]) => {
         // Gunakan spread operator untuk reaktivitas
         details.value = { ...details.value, [nomor]: response.data };
       } catch (error) {
-        toast.error(`Gagal memuat detail untuk ${nomor}.`, error);
+        const err = error as AxiosError<{ message?: string }>;
+        toast.error(err.response?.data?.message || `Gagal memuat detail untuk ${nomor}.`);
       } finally {
         loadingDetails.value.delete(nomor);
       }
@@ -283,23 +290,25 @@ const openTransferDialog = () => {
   if (!canTransfer.value || !selectedRow.value) return;
 
   const sop = selectedRow.value;
-  const infoLengkap = `No. SOP: ${sop.nomor}\nSelisih Qty: ${sop.selisih_qty}\nNominal: ${formatRupiah(sop.nominal)}`;
+  const infoLengkap = `No. SOP: ${sop.nomor}\nSelisih Qty: ${
+    sop.selisih_qty
+  }\nNominal: ${formatRupiah(sop.nominal)}`;
 
   requestAuthorization(
-    'Otorisasi Transfer Stok Opname',
-    'TRANSFER_SOP', // Jenis Transaksi
-    sop.nominal,    // Nominal Selisih
+    "Otorisasi Transfer Stok Opname",
+    "TRANSFER_SOP", // Jenis Transaksi
+    sop.nominal, // Nominal Selisih
     {
       transaksi: sop.nomor,
       keteranganLengkap: infoLengkap,
-      barcode: ''
+      barcode: "",
     },
     (authResult) => {
       // Sukses -> Jalankan Transfer
       executeTransfer(authResult.approver);
     },
     () => {
-      toast.info('Transfer SOP dibatalkan.');
+      toast.info("Transfer SOP dibatalkan.");
     }
   );
 };
@@ -308,13 +317,13 @@ const executeTransfer = async (approver: string) => {
   isLoading.value = true;
   try {
     const response = await api.post(`/proses-stok-opname/transfer/${selectedRow.value!.nomor}`, {
-      approver: approver // Kirim nama approver ke backend (opsional/log)
+      approver: approver, // Kirim nama approver ke backend (opsional/log)
     });
     toast.success(response.data.message);
     fetchData();
   } catch (error) {
     const err = error as AxiosError<{ message: string }>;
-    toast.error(err.response?.data?.message || 'Gagal melakukan transfer SOP.');
+    toast.error(err.response?.data?.message || "Gagal melakukan transfer SOP.");
   } finally {
     isLoading.value = false;
   }
@@ -322,27 +331,27 @@ const executeTransfer = async (approver: string) => {
 
 // Helper Format Tanggal Indonesia
 const formatDateIndo = (dateString: string | Date | null | undefined) => {
-  if (!dateString) return '';
+  if (!dateString) return "";
   const date = new Date(dateString);
-  if (isNaN(date.getTime())) return '';
-  return new Intl.DateTimeFormat('id-ID', {
-    day: 'numeric',
-    month: 'long',
-    year: 'numeric'
+  if (isNaN(date.getTime())) return "";
+  return new Intl.DateTimeFormat("id-ID", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
   }).format(date);
 };
 
 // --- 2. Fungsi Export Data ---
-const exportData = async (type: 'header' | 'detail') => {
-  const dateStr = format(new Date(), 'yyyyMMdd_HHmm');
+const exportData = async (type: "header" | "detail") => {
+  const dateStr = format(new Date(), "yyyyMMdd_HHmm");
 
   // === EXPORT HEADER ===
-  if (type === 'header') {
+  if (type === "header") {
     // Casting items.value ke Interface SopHeader
     const currentList = items.value as SopHeader[];
 
     if (currentList.length === 0) {
-      toast.warning('Tidak ada data header untuk diekspor.');
+      toast.warning("Tidak ada data header untuk diekspor.");
       return;
     }
 
@@ -350,59 +359,56 @@ const exportData = async (type: 'header' | 'detail') => {
       // Mapping Header dengan Format Tanggal
       const formattedHeader = currentList.map((item) => ({
         ...item,
-        tanggal: item.tanggal ? formatDateIndo(item.tanggal) : '',
+        tanggal: item.tanggal ? formatDateIndo(item.tanggal) : "",
       }));
 
       const worksheet = XLSX.utils.json_to_sheet(formattedHeader);
       const workbook = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(workbook, worksheet, "Proses Stok Opname");
       XLSX.writeFile(workbook, `Export_SOP_Header_${dateStr}.xlsx`); //
-      toast.success('File Header berhasil dibuat.');
+      toast.success("File Header berhasil dibuat.");
     } catch (error) {
-      toast.error('Gagal membuat file Excel.', error);
+      const err = error as Error;
+      toast.error(err.message || "Gagal membuat file Excel.");
     }
 
     // === EXPORT DETAIL ===
-  } else if (type === 'detail') {
+  } else if (type === "detail") {
     try {
       isLoading.value = true;
-      toast.info('Mengambil data detail dari server...');
+      toast.info("Mengambil data detail dari server...");
 
       // Request API dengan Generic Type
-      const response = await api.get<SopExportRow[]>('/proses-stok-opname/export-details', {
-        params: filters
+      const response = await api.get<SopExportRow[]>("/proses-stok-opname/export-details", {
+        params: filters,
       });
 
       const details = response.data;
 
       if (details.length === 0) {
-        toast.warning('Tidak ada data detail untuk diekspor.');
+        toast.warning("Tidak ada data detail untuk diekspor.");
         return;
       }
 
-      toast.info('Membuat file Excel Detail...');
+      toast.info("Membuat file Excel Detail...");
 
       // Mapping Detail dengan Format Tanggal
       const formattedDetail = details.map((row) => ({
         ...row,
-        Tanggal: row.Tanggal ? formatDateIndo(row.Tanggal) : ''
+        Tanggal: row.Tanggal ? formatDateIndo(row.Tanggal) : "",
       }));
 
       // Setup Layout Excel
       const title = "LAPORAN DETAIL PROSES STOK OPNAME";
-      const dateRange = `Periode : ${formatDateIndo(filters.startDate)} s/d ${formatDateIndo(filters.endDate)}`;
+      const dateRange = `Periode : ${formatDateIndo(filters.startDate)} s/d ${formatDateIndo(
+        filters.endDate
+      )}`;
       const tableHeaders = Object.keys(formattedDetail[0]);
 
       // Konversi ke Array Values (Type Safe)
       const tableData = formattedDetail.map((row) => Object.values(row as Record<string, unknown>));
 
-      const excelData = [
-        [title],
-        [dateRange],
-        [],
-        tableHeaders,
-        ...tableData
-      ];
+      const excelData = [[title], [dateRange], [], tableHeaders, ...tableData];
 
       const worksheet = XLSX.utils.aoa_to_sheet(excelData);
 
@@ -411,19 +417,18 @@ const exportData = async (type: 'header' | 'detail') => {
         { s: { r: 0, c: 0 }, e: { r: 0, c: tableHeaders.length - 1 } },
         { s: { r: 1, c: 0 }, e: { r: 1, c: tableHeaders.length - 1 } },
       ];
-      worksheet['!merges'] = merge;
+      worksheet["!merges"] = merge;
 
       // Auto Width
-      const colWidths = tableHeaders.map(header => ({ wch: header.length + 5 }));
-      worksheet['!cols'] = colWidths;
+      const colWidths = tableHeaders.map((header) => ({ wch: header.length + 5 }));
+      worksheet["!cols"] = colWidths;
 
       const workbook = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(workbook, worksheet, "Detail Proses SOP");
       XLSX.writeFile(workbook, `Export_SOP_Detail_${dateStr}.xlsx`); //
-      toast.success('File Detail berhasil dibuat.');
-
+      toast.success("File Detail berhasil dibuat.");
     } catch (error) {
-      let message = 'Gagal mengekspor data detail.';
+      let message = "Gagal mengekspor data detail.";
       if (error instanceof Error) message = error.message;
       toast.error(message);
     } finally {
@@ -438,7 +443,7 @@ const makeDetailSummary = (nomor: string): DetailSummary => {
     Stok: currentDetails.reduce((sum, item) => sum + Number(item.Stok || 0), 0),
     ValueSistem: currentDetails.reduce((sum, item) => sum + Number(item.ValueSistem || 0), 0), //
     Jumlah: currentDetails.reduce((sum, item) => sum + Number(item.Jumlah || 0), 0),
-    ValueFisik: currentDetails.reduce((sum, item) => sum + Number(item.ValueFisik || 0), 0),   //
+    ValueFisik: currentDetails.reduce((sum, item) => sum + Number(item.ValueFisik || 0), 0), //
     Selisih: currentDetails.reduce((sum, item) => sum + Number(item.Selisih || 0), 0),
     Nominal: currentDetails.reduce((sum, item) => sum + Number(item.Nominal || 0), 0),
   };
@@ -464,10 +469,22 @@ onBeforeUnmount(() => {
 <template>
   <PageLayout title="Proses Stok Opname" :menu-id="MENU_ID">
     <template #header-actions>
-      <v-btn v-if="authStore.can(MENU_ID, 'insert')" size="small" prepend-icon="mdi-plus" color="primary"
-        @click="handleNew">Baru</v-btn>
-      <v-btn v-if="authStore.can(MENU_ID, 'edit')" size="small" prepend-icon="mdi-pencil" :disabled="!isSingleSelected"
-        @click="handleEdit">Ubah</v-btn>
+      <v-btn
+        v-if="authStore.can(MENU_ID, 'insert')"
+        size="small"
+        prepend-icon="mdi-plus"
+        color="primary"
+        @click="handleNew"
+        >Baru</v-btn
+      >
+      <v-btn
+        v-if="authStore.can(MENU_ID, 'edit')"
+        size="small"
+        prepend-icon="mdi-pencil"
+        :disabled="!isSingleSelected"
+        @click="handleEdit"
+        >Ubah</v-btn
+      >
 
       <v-menu offset-y>
         <template v-slot:activator="{ props }">
@@ -485,94 +502,166 @@ onBeforeUnmount(() => {
         </v-list>
       </v-menu>
 
-      <v-btn v-if="authStore.can(MENU_ID, 'edit')" size="small" color="success" :disabled="!canTransfer"
-        @click="openTransferDialog" prepend-icon="mdi-swap-horizontal-bold">
+      <v-btn
+        v-if="authStore.can(MENU_ID, 'edit')"
+        size="small"
+        color="success"
+        :disabled="!canTransfer"
+        @click="openTransferDialog"
+        prepend-icon="mdi-swap-horizontal-bold"
+      >
         Transfer SOP
       </v-btn>
     </template>
 
     <div class="browse-content">
-
       <div class="filter-section">
         <div class="d-flex align-center ga-2">
           <span class="filter-label">Periode:</span>
-          <v-text-field v-model="filters.startDate" type="date" density="compact" hide-details variant="outlined"
-            style="min-width: 130px;"></v-text-field>
+          <v-text-field
+            v-model="filters.startDate"
+            type="date"
+            density="compact"
+            hide-details
+            variant="outlined"
+            style="min-width: 130px"
+          ></v-text-field>
           <span>s/d</span>
-          <v-text-field v-model="filters.endDate" type="date" density="compact" hide-details variant="outlined"
-            style="min-width: 130px;"></v-text-field>
+          <v-text-field
+            v-model="filters.endDate"
+            type="date"
+            density="compact"
+            hide-details
+            variant="outlined"
+            style="min-width: 130px"
+          ></v-text-field>
         </div>
 
         <div class="d-flex align-center ga-2 ms-4" v-if="authStore.user?.cabang === 'KDC'">
           <span class="filter-label">Cabang:</span>
-          <v-select v-model="filters.cabang" :items="cabangOptions" item-title="nama" item-value="kode"
-            density="compact" hide-details variant="outlined" style="min-width: 180px;" placeholder="Pilih Cabang">
+          <v-select
+            v-model="filters.cabang"
+            :items="cabangOptions"
+            item-title="nama"
+            item-value="kode"
+            density="compact"
+            hide-details
+            variant="outlined"
+            style="min-width: 180px"
+            placeholder="Pilih Cabang"
+          >
           </v-select>
         </div>
 
         <v-spacer />
-        <v-btn @click="fetchData" icon="mdi-refresh" variant="text" size="small" :loading="isLoading" />
+        <v-btn
+          @click="fetchData"
+          icon="mdi-refresh"
+          variant="text"
+          size="small"
+          :loading="isLoading"
+        />
       </div>
 
       <div class="table-container">
-        <AppDataTable v-model="selected" v-model:expanded="expanded" :headers="headers" :items="items"
-          :loading="isLoading" item-value="nomor" return-object show-select show-expand density="compact"
-          class="desktop-table" fixed-header @update:expanded="loadDetails" @click:row="handleRowClick">
+        <AppDataTable
+          v-model="selected"
+          v-model:expanded="expanded"
+          :headers="headers"
+          :items="items"
+          :loading="isLoading"
+          item-value="nomor"
+          return-object
+          show-select
+          show-expand
+          density="compact"
+          class="desktop-table"
+          fixed-header
+          @update:expanded="loadDetails"
+          @click:row="handleRowClick"
+        >
           <template #headers="{ columns, isSorted, getSortIcon, toggleSort }">
             <tr>
-              <th v-for="header in columns" :key="header.key"
-                :style="{ width: header.width + 'px', minWidth: header.width + 'px' }" class="resizable-header"
-                :class="{ 'text-center': header.align === 'center', 'text-end': header.align === 'end' }"
-                @click="header.key !== 'data-table-expand' ? toggleSort(header) : null">
-
+              <th
+                v-for="header in columns"
+                :key="header.key"
+                :style="{ width: header.width + 'px', minWidth: header.width + 'px' }"
+                class="resizable-header"
+                :class="{
+                  'text-center': header.align === 'center',
+                  'text-end': header.align === 'end',
+                }"
+                @click="header.key !== 'data-table-expand' ? toggleSort(header) : null"
+              >
                 <div class="header-content">
                   <span>{{ header.title }}</span>
-                  <v-icon v-if="header.key !== 'data-table-expand' && isSorted(header)" size="14" class="ms-1">
+                  <v-icon
+                    v-if="header.key !== 'data-table-expand' && isSorted(header)"
+                    size="14"
+                    class="ms-1"
+                  >
                     {{ getSortIcon(header) }}
                   </v-icon>
                 </div>
 
-                <div v-if="header.key !== 'data-table-expand'" class="resizer"
-                  @mousedown.stop="onResizeStart($event, header)">
-                </div>
+                <div
+                  v-if="header.key !== 'data-table-expand'"
+                  class="resizer"
+                  @mousedown.stop="onResizeStart($event, header)"
+                ></div>
               </th>
             </tr>
           </template>
 
           <template #[`item.data-table-expand`]="{ internalItem, toggleExpand, isExpanded }">
-            <v-btn icon="mdi-chevron-down" :class="{ 'rotate-180': isExpanded(internalItem) }" size="x-small"
-              variant="text" @click.stop="toggleExpand(internalItem)" />
+            <v-btn
+              icon="mdi-chevron-down"
+              :class="{ 'rotate-180': isExpanded(internalItem) }"
+              size="x-small"
+              variant="text"
+              @click.stop="toggleExpand(internalItem)"
+            />
           </template>
 
           <template #[`item.tanggal`]="{ item }">
-            {{ item.tanggal ? format(parseISO(item.tanggal), 'dd/MM/yyyy') : '-' }}
+            {{ item.tanggal ? format(parseISO(item.tanggal), "dd/MM/yyyy") : "-" }}
           </template>
 
           <template #[`item.value_sistem`]="{ item }">
             <span class="font-weight-medium">
-              {{ (item.value_sistem || 0).toLocaleString('id-ID') }}
+              {{ (item.value_sistem || 0).toLocaleString("id-ID") }}
             </span>
           </template>
 
           <template #[`item.value_fisik`]="{ item }">
             <span class="font-weight-medium">
-              {{ (item.value_fisik || 0).toLocaleString('id-ID') }}
+              {{ (item.value_fisik || 0).toLocaleString("id-ID") }}
             </span>
           </template>
 
           <template #[`item.selisih_qty`]="{ item }">
-            <span :class="(item.selisih_qty || 0) < 0 ? 'text-red font-weight-bold' : 'text-green font-weight-bold'">
-              {{ (item.selisih_qty || 0).toLocaleString('id-ID') }}
+            <span
+              :class="
+                (item.selisih_qty || 0) < 0
+                  ? 'text-red font-weight-bold'
+                  : 'text-green font-weight-bold'
+              "
+            >
+              {{ (item.selisih_qty || 0).toLocaleString("id-ID") }}
             </span>
           </template>
 
           <template #[`item.nominal`]="{ item }">
-            {{ new Intl.NumberFormat('id-ID').format(item.nominal || 0) }}
+            {{ new Intl.NumberFormat("id-ID").format(item.nominal || 0) }}
           </template>
 
           <template #[`item.transfer`]="{ item }">
-            <v-chip size="x-small" :color="item.transfer === 'Y' ? 'success' : 'grey'" variant="tonal">
-              {{ item.transfer === 'Y' ? 'SUDAH' : 'BELUM' }}
+            <v-chip
+              size="x-small"
+              :color="item.transfer === 'Y' ? 'success' : 'grey'"
+              variant="tonal"
+            >
+              {{ item.transfer === "Y" ? "SUDAH" : "BELUM" }}
             </v-chip>
           </template>
 
@@ -586,62 +675,123 @@ onBeforeUnmount(() => {
                       <span class="text-caption">Memuat detail...</span>
                     </div>
 
-                    <v-data-table v-else :headers="detailHeaders" :items="details[item.nomor] || []" density="compact"
-                      hide-default-footer :items-per-page="-1" class="detail-table">
-                      <template #[`item.Stok`]="{ item: d }">{{ (d.Stok || 0).toLocaleString('id-ID') }}</template>
-                      <template #[`item.Jumlah`]="{ item: d }">{{ (d.Jumlah || 0).toLocaleString('id-ID') }}</template>
-                      <template #[`item.ValueSistem`]="{ item: d }">{{ (d.ValueSistem || 0).toLocaleString('id-ID')
+                    <v-data-table
+                      v-else
+                      :headers="detailHeaders"
+                      :items="details[item.nomor] || []"
+                      density="compact"
+                      hide-default-footer
+                      :items-per-page="-1"
+                      class="detail-table"
+                    >
+                      <template #[`item.Stok`]="{ item: d }">{{
+                        (d.Stok || 0).toLocaleString("id-ID")
                       }}</template>
-                      <template #[`item.ValueFisik`]="{ item: d }">{{ (d.ValueFisik || 0).toLocaleString('id-ID')
+                      <template #[`item.Jumlah`]="{ item: d }">{{
+                        (d.Jumlah || 0).toLocaleString("id-ID")
+                      }}</template>
+                      <template #[`item.ValueSistem`]="{ item: d }">{{
+                        (d.ValueSistem || 0).toLocaleString("id-ID")
+                      }}</template>
+                      <template #[`item.ValueFisik`]="{ item: d }">{{
+                        (d.ValueFisik || 0).toLocaleString("id-ID")
                       }}</template>
                       <template #[`item.Selisih`]="{ item: d }">
-                        <span :class="(d.Selisih || 0) < 0 ? 'text-red' : (d.Selisih || 0) > 0 ? 'text-green' : ''">
-                          {{ (d.Selisih || 0).toLocaleString('id-ID') }}
+                        <span
+                          :class="
+                            (d.Selisih || 0) < 0
+                              ? 'text-red'
+                              : (d.Selisih || 0) > 0
+                              ? 'text-green'
+                              : ''
+                          "
+                        >
+                          {{ (d.Selisih || 0).toLocaleString("id-ID") }}
                         </span>
                       </template>
-                      <template #[`item.Hpp`]="{ item: d }">{{ new Intl.NumberFormat('id-ID').format(d.Hpp || 0)
+                      <template #[`item.Hpp`]="{ item: d }">{{
+                        new Intl.NumberFormat("id-ID").format(d.Hpp || 0)
                       }}</template>
-                      <template #[`item.Nominal`]="{ item: d }">{{ new Intl.NumberFormat('id-ID').format(d.Nominal || 0)
+                      <template #[`item.Nominal`]="{ item: d }">{{
+                        new Intl.NumberFormat("id-ID").format(d.Nominal || 0)
                       }}</template>
 
                       <template #[`body.append`]>
-            <tr class="bg-grey-lighten-4 font-weight-bold">
-              <td colspan="4" class="text-end">TOTAL :</td>
+                        <tr class="bg-grey-lighten-4 font-weight-bold">
+                          <td colspan="4" class="text-end">TOTAL :</td>
 
-              <td class="text-end">{{ (makeDetailSummary(item.nomor).Stok || 0).toLocaleString('id-ID') }}</td>
+                          <td class="text-end">
+                            {{ (makeDetailSummary(item.nomor).Stok || 0).toLocaleString("id-ID") }}
+                          </td>
 
-              <td class="text-end">{{ (makeDetailSummary(item.nomor).ValueSistem || 0).toLocaleString('id-ID') }}</td>
+                          <td class="text-end">
+                            {{
+                              (makeDetailSummary(item.nomor).ValueSistem || 0).toLocaleString(
+                                "id-ID"
+                              )
+                            }}
+                          </td>
 
-              <td class="text-end">{{ (makeDetailSummary(item.nomor).Jumlah || 0).toLocaleString('id-ID') }}</td>
+                          <td class="text-end">
+                            {{
+                              (makeDetailSummary(item.nomor).Jumlah || 0).toLocaleString("id-ID")
+                            }}
+                          </td>
 
-              <td class="text-end">{{ (makeDetailSummary(item.nomor).ValueFisik || 0).toLocaleString('id-ID') }}</td>
+                          <td class="text-end">
+                            {{
+                              (makeDetailSummary(item.nomor).ValueFisik || 0).toLocaleString(
+                                "id-ID"
+                              )
+                            }}
+                          </td>
 
-              <td class="text-end">{{ (makeDetailSummary(item.nomor).Selisih || 0).toLocaleString('id-ID') }}</td>
+                          <td class="text-end">
+                            {{
+                              (makeDetailSummary(item.nomor).Selisih || 0).toLocaleString("id-ID")
+                            }}
+                          </td>
 
-              <td></td>
+                          <td></td>
 
-              <td class="text-end">{{ new Intl.NumberFormat('id-ID').format(makeDetailSummary(item.nomor).Nominal || 0)
-              }}</td>
+                          <td class="text-end">
+                            {{
+                              new Intl.NumberFormat("id-ID").format(
+                                makeDetailSummary(item.nomor).Nominal || 0
+                              )
+                            }}
+                          </td>
 
-              <td></td>
+                          <td></td>
+                        </tr>
+                      </template>
+                    </v-data-table>
+                  </div>
+                </div>
+              </td>
             </tr>
           </template>
-          </v-data-table>
+        </AppDataTable>
       </div>
     </div>
-    </td>
-    </tr>
-</template>
-</AppDataTable>
-</div>
-</div>
 
-<AuthorizationModal v-if="authDialog.show" :title="authDialog.title" :jenis="authDialog.jenis"
-  :nominal="authDialog.nominal" :transaksi="authDialog.transaksi" :barcode="authDialog.barcode"
-  :keterangan="authDialog.keterangan" @success="authDialog.onSuccess"
-  @close="() => { authDialog.show = false; authDialog.onCancel(); }" />
-
-</PageLayout>
+    <AuthorizationModal
+      v-if="authDialog.show"
+      :title="authDialog.title"
+      :jenis="authDialog.jenis"
+      :nominal="authDialog.nominal"
+      :transaksi="authDialog.transaksi"
+      :barcode="authDialog.barcode"
+      :keterangan="authDialog.keterangan"
+      @success="authDialog.onSuccess"
+      @close="
+        () => {
+          authDialog.show = false;
+          authDialog.onCancel();
+        }
+      "
+    />
+  </PageLayout>
 </template>
 
 <style scoped>

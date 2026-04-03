@@ -1,18 +1,18 @@
 <script setup lang="ts">
-import { ref, onMounted, watch, nextTick, computed } from 'vue';
-import { useRouter } from 'vue-router';
-import { useRoute } from 'vue-router';
-import api from '@/services/api';
-import PageLayout from '@/components/PageLayout.vue';
-import { useToast } from 'vue-toastification';
-import { useAuthStore } from '@/stores/authStore';
-import { format } from 'date-fns';
-import axios from 'axios';
-import JsBarcode from 'jsbarcode';
-import ProductSearchModal from '@/components/lookup/ProductSearchModal.vue';
+import { ref, onMounted, watch, nextTick, computed } from "vue";
+import { useRouter } from "vue-router";
+import { useRoute } from "vue-router";
+import api from "@/services/api";
+import PageLayout from "@/components/PageLayout.vue";
+import { useToast } from "vue-toastification";
+import { useAuthStore } from "@/stores/authStore";
+import { format } from "date-fns";
+import axios from "axios";
+import JsBarcode from "jsbarcode";
+import ProductSearchModal from "@/components/lookup/ProductSearchModal.vue";
 import { formatRupiah } from "@/utils/formatRupiah";
-import { useUiStore } from '@/stores/uiStore';
-import { useUnsavedChanges } from '@/composables/useUnsavedChanges';
+import { useUiStore } from "@/stores/uiStore";
+import { useUnsavedChanges } from "@/composables/useUnsavedChanges";
 
 const fr = (v: number) => formatRupiah(v);
 
@@ -26,7 +26,7 @@ const toast = useToast();
 const authStore = useAuthStore();
 const uiStore = useUiStore();
 const { markAsSaved } = useUnsavedChanges();
-const MENU_ID = '11';
+const MENU_ID = "11";
 
 // --- Interface ---
 interface BarcodeItem {
@@ -55,7 +55,7 @@ interface PrintLabelItem {
   harga: string;
   charga: string;
   nourut: number;
-  layoutType: 'XP-360B' | '360B';
+  layoutType: "XP-360B" | "360B";
 }
 interface BarcodeApiData {
   kode: string;
@@ -67,19 +67,19 @@ interface BarcodeApiData {
 }
 
 // --- State Header & Form ---
-const nomor = ref('');
-const tanggal = ref(format(new Date(), 'yyyy-MM-dd'));
+const nomor = ref("");
+const tanggal = ref(format(new Date(), "yyyy-MM-dd"));
 const items = ref<BarcodeItem[]>([]);
 const isSaving = ref(false);
-const barcodeScanTerm = ref('');
-const productCategory = ref('Kaosan');
+const barcodeScanTerm = ref("");
+const productCategory = ref("Kaosan");
 
 // --- State Lookup/Modal ---
 const isProductSearchModalVisible = ref(false);
 const activeRowIndex = ref(-1);
 
 // --- State Cetak & Pratinjau ---
-const selectedPrinter = ref<'XP-360B' | '360B'>('XP-360B');
+const selectedPrinter = ref<"XP-360B" | "360B">("XP-360B");
 const showPriceOnLabel = ref(false);
 const isPrinting = ref(false);
 const isPrintPreviewVisible = ref(false);
@@ -90,14 +90,14 @@ const isEditMode = computed(() => !!route.params.nomor);
 
 // --- Konfigurasi Tabel ---
 const tableHeaders = [
-  { title: '#', key: 'no', sortable: false, width: '40px' },
-  { title: 'Kode', key: 'kode', sortable: false, width: '150px' },
-  { title: 'Barcode', key: 'barcode', sortable: false, width: '150px' },
-  { title: 'Nama Barang', key: 'nama', sortable: false, minWidth: '250px' },
-  { title: 'Size', key: 'ukuran', sortable: false, width: '80px' },
-  { title: 'Harga', key: 'harga', sortable: false, align: 'end', width: '100px' },
-  { title: 'Jumlah', key: 'jumlah', sortable: false, width: '120px' },
-  { title: 'Actions', key: 'actions', sortable: false, width: '50px' },
+  { title: "#", key: "no", sortable: false, width: "40px" },
+  { title: "Kode", key: "kode", sortable: false, width: "150px" },
+  { title: "Barcode", key: "barcode", sortable: false, width: "150px" },
+  { title: "Nama Barang", key: "nama", sortable: false, minWidth: "250px" },
+  { title: "Size", key: "ukuran", sortable: false, width: "80px" },
+  { title: "Harga", key: "harga", sortable: false, align: "end", width: "100px" },
+  { title: "Jumlah", key: "jumlah", sortable: false, width: "120px" },
+  { title: "Actions", key: "actions", sortable: false, width: "50px" },
 ] as const;
 
 // --- FUNGSI CETAK ---
@@ -177,9 +177,9 @@ const printStylesXP360B = `
 
 const getNextNumber = async () => {
   try {
-    const cabang = authStore.user?.cabang || '';
-    const response = await api.get('/barcode-form/next-number', {
-      params: { cabang, tanggal: tanggal.value }
+    const cabang = authStore.user?.cabang || "";
+    const response = await api.get("/barcode-form/next-number", {
+      params: { cabang, tanggal: tanggal.value },
     });
     nomor.value = response.data.nextNumber;
   } catch {
@@ -196,7 +196,7 @@ const handleProductsSelected = (products: ProductDetail[]) => {
   isProductSearchModalVisible.value = false;
   if (!products || products.length === 0) return;
 
-  const newItems: BarcodeItem[] = products.map(p => ({
+  const newItems: BarcodeItem[] = products.map((p) => ({
     id: Date.now() + Math.random(),
     kode: p.kode,
     nama: p.nama,
@@ -221,7 +221,7 @@ const handleBarcodeScan = async () => {
     const response = await api.get(`/barcode-form/lookup/by-barcode/${barcodeScanTerm.value}`);
     const product = response.data;
     if (product) {
-      const existingItem = items.value.find(i => i.barcode === product.barcode);
+      const existingItem = items.value.find((i) => i.barcode === product.barcode);
       if (existingItem) {
         existingItem.jumlah = (existingItem.jumlah || 0) + 1;
       } else {
@@ -232,26 +232,34 @@ const handleBarcodeScan = async () => {
       }
       addNewRow();
       await nextTick();
-      document.getElementById('scan-barcode-field')?.focus();
+      document.getElementById("scan-barcode-field")?.focus();
     } else {
-      toast.warning('Barcode tidak ditemukan.');
+      toast.warning("Barcode tidak ditemukan.");
     }
   } catch {
-    toast.error('Gagal mencari barcode.');
+    toast.error("Gagal mencari barcode.");
   } finally {
-    barcodeScanTerm.value = '';
+    barcodeScanTerm.value = "";
   }
 };
 
 const addNewRow = () => {
   const lastItem = items.value[items.value.length - 1];
   if (!lastItem || lastItem.kode) {
-    items.value.push({ id: Date.now(), kode: '', barcode: '', nama: '', ukuran: '', harga: null, jumlah: null });
+    items.value.push({
+      id: Date.now(),
+      kode: "",
+      barcode: "",
+      nama: "",
+      ukuran: "",
+      harga: null,
+      jumlah: null,
+    });
   }
 };
 
 const removeRow = (id: number) => {
-  items.value = items.value.filter(item => item.id !== id);
+  items.value = items.value.filter((item) => item.id !== id);
   if (items.value.length === 0) {
     addNewRow();
   }
@@ -259,22 +267,22 @@ const removeRow = (id: number) => {
 
 const resetForm = () => {
   getNextNumber();
-  tanggal.value = format(new Date(), 'yyyy-MM-dd');
+  tanggal.value = format(new Date(), "yyyy-MM-dd");
   items.value = [];
   addNewRow();
-  productCategory.value = 'Kaosan';
+  productCategory.value = "Kaosan";
   isAfterSave.value = false;
   markAsSaved();
-  selectedPrinter.value = 'XP-360B';
+  selectedPrinter.value = "XP-360B";
   showPriceOnLabel.value = false;
 };
 
 const save = async () => {
   isSaving.value = true;
-  const validItems = items.value.filter(item => item.kode && (item.jumlah || 0) > 0);
+  const validItems = items.value.filter((item) => item.kode && (item.jumlah || 0) > 0);
 
   if (validItems.length === 0) {
-    toast.error('Tidak ada item yang valid.');
+    toast.error("Tidak ada item yang valid.");
     isSaving.value = false;
     return;
   }
@@ -284,11 +292,11 @@ const save = async () => {
       header: { nomor: nomor.value, tanggal: tanggal.value },
       details: validItems,
       user: { kode: authStore.user?.kode },
-      isNew: !isEditMode.value
+      isNew: !isEditMode.value,
     };
 
     // 1. Simpan ke Database
-    await api.post('/barcode-form/save', payload);
+    await api.post("/barcode-form/save", payload);
 
     // 2. Tandai sebagai sudah tersimpan agar dialog "Unsaved Changes" tidak muncul
     isAfterSave.value = true;
@@ -309,7 +317,7 @@ const save = async () => {
     // CATATAN: router.push dipindahkan ke fungsi closePreview
   } catch (error) {
     console.error(error);
-    toast.error('Gagal menyimpan data.');
+    toast.error("Gagal menyimpan data.");
   } finally {
     isSaving.value = false;
   }
@@ -317,20 +325,19 @@ const save = async () => {
 
 const preparePrintData = (
   itemsToPrint: BarcodeItem[],
-  options: { showPrice: boolean; printerType: 'XP-360B' | '360B' },
+  options: { showPrice: boolean; printerType: "XP-360B" | "360B" },
   nomorDokumen: string,
   tanggalDokumen: string
 ): PrintLabelItem[] => {
-  const outputLabels = [];
+  const outputLabels: PrintLabelItem[] = [];
   let labelCounter = 1;
 
-  itemsToPrint.forEach(item => {
+  itemsToPrint.forEach((item) => {
     if (item.barcode && (item.jumlah || 0) > 0) {
       const qty = item.jumlah || 0;
       for (let i = 1; i <= qty; i++) {
-        const hargaFormatted = options.showPrice && item.harga && item.harga > 0
-          ? fr(item.harga)
-          : '';
+        const hargaFormatted =
+          options.showPrice && item.harga && item.harga > 0 ? fr(item.harga) : "";
 
         outputLabels.push({
           nomor: nomorDokumen,
@@ -339,10 +346,10 @@ const preparePrintData = (
           ukuran: item.ukuran,
           barcode: item.barcode,
           nama: item.nama,
-          harga: item.harga?.toString() ?? '',
+          harga: item.harga?.toString() ?? "",
           charga: hargaFormatted,
           nourut: labelCounter++,
-          layoutType: options.printerType
+          layoutType: options.printerType,
         });
       }
     }
@@ -363,47 +370,56 @@ const handlePrint = (dataForPrint: PrintLabelItem[]) => {
 
 const testPrinter = () => {
   isAfterSave.value = false;
-  const dummyItems: BarcodeItem[] = [{
-    id: Date.now(),
-    kode: '12345678',
-    barcode: '12345678',
-    nama: 'TES PRINTER',
-    ukuran: 'TES',
-    harga: 50000,
-    jumlah: 4,
-  }];
+  const dummyItems: BarcodeItem[] = [
+    {
+      id: Date.now(),
+      kode: "12345678",
+      barcode: "12345678",
+      nama: "TES PRINTER",
+      ukuran: "TES",
+      harga: 50000,
+      jumlah: 4,
+    },
+  ];
   const printOptions = {
     showPrice: showPriceOnLabel.value,
     printerType: selectedPrinter.value,
   };
-  const dataToPrint = preparePrintData(dummyItems, printOptions, 'TES', format(new Date(), 'dd/MM/yy'));
+  const dataToPrint = preparePrintData(
+    dummyItems,
+    printOptions,
+    "TES",
+    format(new Date(), "dd/MM/yy")
+  );
   handlePrint(dataToPrint);
 };
 
 const triggerBrowserPrint = () => {
-  const printContent = document.getElementById('print-area');
+  const printContent = document.getElementById("print-area");
   if (printContent) {
-    const printFrame = document.createElement('iframe');
-    printFrame.style.position = 'fixed';
-    printFrame.style.width = '100mm';
-    printFrame.style.height = '400mm';
-    printFrame.style.border = 'none';
-    printFrame.style.top = '-9999px';
-    printFrame.style.left = '-9999px';
+    const printFrame = document.createElement("iframe");
+    printFrame.style.position = "fixed";
+    printFrame.style.width = "100mm";
+    printFrame.style.height = "400mm";
+    printFrame.style.border = "none";
+    printFrame.style.top = "-9999px";
+    printFrame.style.left = "-9999px";
     document.body.appendChild(printFrame);
 
     const frameDoc = printFrame.contentWindow?.document;
     if (frameDoc) {
       frameDoc.open();
-      let stylesToInject = '';
-      if (selectedPrinter.value === 'XP-360B') {
+      let stylesToInject = "";
+      if (selectedPrinter.value === "XP-360B") {
         stylesToInject += printStylesXP360B;
       } else {
         stylesToInject += printStylesXP360B;
       }
-      frameDoc.write(`<html><head><title>Cetak Barcode</title><style>${stylesToInject}</style></head><body>`);
+      frameDoc.write(
+        `<html><head><title>Cetak Barcode</title><style>${stylesToInject}</style></head><body>`
+      );
       frameDoc.write(printContent.innerHTML);
-      frameDoc.write('</body></html>');
+      frameDoc.write("</body></html>");
       frameDoc.close();
 
       generateBarcodesInIframe(printFrame);
@@ -411,11 +427,12 @@ const triggerBrowserPrint = () => {
       setTimeout(() => {
         printFrame.contentWindow?.focus();
         printFrame.contentWindow?.print();
-        setTimeout(() => { document.body.removeChild(printFrame); }, 1500);
+        setTimeout(() => {
+          document.body.removeChild(printFrame);
+        }, 1500);
       }, 500);
 
       closePreview();
-
     } else {
       toast.error("Area cetak tidak ditemukan.");
     }
@@ -425,20 +442,22 @@ const triggerBrowserPrint = () => {
 const generateBarcodesInIframe = (iframe: HTMLIFrameElement) => {
   const frameDoc = iframe.contentWindow?.document;
   if (frameDoc && window.JsBarcode) {
-    const svgs = frameDoc.querySelectorAll('.barcode-svg');
+    const svgs = frameDoc.querySelectorAll(".barcode-svg");
     svgs.forEach((svgElement) => {
-      const barcodeValue = svgElement.getAttribute('data-barcode-value');
+      const barcodeValue = svgElement.getAttribute("data-barcode-value");
       if (barcodeValue) {
         try {
           window.JsBarcode(svgElement as SVGElement, barcodeValue, {
             format: "CODE128",
             lineColor: "#000",
-            width: 1,      // Garis barcode tipis namun tajam
-            height: 20,    // Sesuaikan tinggi agar scanner mudah baca
+            width: 1, // Garis barcode tipis namun tajam
+            height: 20, // Sesuaikan tinggi agar scanner mudah baca
             displayValue: false,
             margin: 0,
           });
-        } catch (e) { console.error(e); }
+        } catch (e) {
+          console.error(e);
+        }
       }
     });
   }
@@ -446,23 +465,25 @@ const generateBarcodesInIframe = (iframe: HTMLIFrameElement) => {
 
 const generateBarcodesInPreview = async () => {
   await nextTick();
-  const previewArea = document.getElementById('print-area');
+  const previewArea = document.getElementById("print-area");
   if (!previewArea || !window.JsBarcode) return;
 
-  const svgs = previewArea.querySelectorAll<SVGElement>('.barcode-svg');
-  svgs.forEach(svg => {
-    const value = svg.getAttribute('data-barcode-value');
+  const svgs = previewArea.querySelectorAll<SVGElement>(".barcode-svg");
+  svgs.forEach((svg) => {
+    const value = svg.getAttribute("data-barcode-value");
     if (!value) return;
     try {
       JsBarcode(svg, value, {
-        format: 'CODE128C',
-        lineColor: '#000',
+        format: "CODE128C",
+        lineColor: "#000",
         width: 1.2,
         height: 25,
         displayValue: false,
         margin: 1,
       });
-    } catch (err) { console.error('JsBarcode preview error:', err); }
+    } catch (err) {
+      console.error("JsBarcode preview error:", err);
+    }
   });
 };
 
@@ -471,7 +492,7 @@ const closePreview = () => {
   if (isAfterSave.value) {
     // Pastikan UI Store juga tahu bahwa data sudah bersih
     uiStore.setUnsavedChanges(false);
-    router.push('/daftar/cetak-barcode');
+    router.push("/daftar/cetak-barcode");
   }
   isAfterSave.value = false;
 };
@@ -484,7 +505,7 @@ const loadDataForEdit = async (docNomor: string) => {
     // 2. Map data menggunakan interface BarcodeApiData untuk mengganti 'any'
     items.value = response.data.map((d: BarcodeApiData) => ({
       ...d,
-      id: Date.now() + Math.random() // Tetap beri ID unik untuk kebutuhan grid frontend
+      id: Date.now() + Math.random(), // Tetap beri ID unik untuk kebutuhan grid frontend
     }));
 
     addNewRow();
@@ -492,7 +513,6 @@ const loadDataForEdit = async (docNomor: string) => {
     // 3. Pastikan status "Unsaved Changes" direset setelah loading data selesai
     await nextTick();
     markAsSaved();
-
   } catch (error: unknown) {
     // 4. Gunakan AxiosError untuk menangani pesan error dari server
     if (axios.isAxiosError(error)) {
@@ -502,7 +522,7 @@ const loadDataForEdit = async (docNomor: string) => {
       toast.error("Terjadi kesalahan sistem saat memuat data.");
     }
 
-    router.push('/daftar/cetak-barcode');
+    router.push("/daftar/cetak-barcode");
   }
 };
 
@@ -512,19 +532,23 @@ watch(printPreviewData, (newVal) => {
   }
 });
 
-watch(items, (newItems) => {
-  if (isSaving.value) return;
-  const hasData = newItems.some(item => item.kode !== '' || (item.jumlah || 0) > 0);
-  if (hasData && !isAfterSave.value) {
-    uiStore.setUnsavedChanges(true);
-  } else if (!hasData) {
-    uiStore.setUnsavedChanges(false);
-  }
-}, { deep: true });
+watch(
+  items,
+  (newItems) => {
+    if (isSaving.value) return;
+    const hasData = newItems.some((item) => item.kode !== "" || (item.jumlah || 0) > 0);
+    if (hasData && !isAfterSave.value) {
+      uiStore.setUnsavedChanges(true);
+    } else if (!hasData) {
+      uiStore.setUnsavedChanges(false);
+    }
+  },
+  { deep: true }
+);
 
 onMounted(() => {
   markAsSaved();
-  if (!authStore.can(MENU_ID, 'insert')) {
+  if (!authStore.can(MENU_ID, "insert")) {
     toast.error("Anda tidak memiliki izin.");
     router.back();
     return;
@@ -544,34 +568,62 @@ onMounted(() => {
 <template>
   <PageLayout title="Buat Cetak Barcode Baru" desktop-mode icon="mdi-barcode-plus">
     <template #header-actions>
-      <v-btn size="small" color="secondary" @click="testPrinter" :loading="isPrinting"
-        :disabled="isPrinting || isSaving" prepend-icon="mdi-printer-check">
+      <v-btn
+        size="small"
+        color="secondary"
+        @click="testPrinter"
+        :loading="isPrinting"
+        :disabled="isPrinting || isSaving"
+        prepend-icon="mdi-printer-check"
+      >
         Tes Printer
       </v-btn>
       <v-spacer></v-spacer>
 
-      <v-btn size="small" @click="save" :loading="isSaving" color="primary" prepend-icon="mdi-content-save">
+      <v-btn
+        size="small"
+        @click="save"
+        :loading="isSaving"
+        color="primary"
+        prepend-icon="mdi-content-save"
+      >
         Simpan & Cetak
       </v-btn>
       <v-btn size="small" @click="resetForm" prepend-icon="mdi-refresh">Baru</v-btn>
-      <v-btn size="small" @click="router.push('/daftar/cetak-barcode')" prepend-icon="mdi-close">Tutup</v-btn>
+      <v-btn size="small" @click="router.push('/daftar/cetak-barcode')" prepend-icon="mdi-close"
+        >Tutup</v-btn
+      >
     </template>
 
     <div class="form-grid-container">
-
       <div class="left-column">
         <div class="desktop-form-section header-section">
           <v-row dense>
             <v-col cols="12">
-              <v-text-field v-model="nomor" label="Nomor" variant="filled" readonly density="compact" hide-details>
+              <v-text-field
+                v-model="nomor"
+                label="Nomor"
+                variant="filled"
+                readonly
+                density="compact"
+                hide-details
+              >
                 <template #append-inner>
-                  <span v-if="!nomor" class="text-caption text-medium-emphasis">&lt;Otomatis&gt;</span>
+                  <span v-if="!nomor" class="text-caption text-medium-emphasis"
+                    >&lt;Otomatis&gt;</span
+                  >
                 </template>
               </v-text-field>
             </v-col>
             <v-col cols="12">
-              <v-text-field v-model="tanggal" type="date" label="Tanggal" variant="outlined" density="compact"
-                hide-details></v-text-field>
+              <v-text-field
+                v-model="tanggal"
+                type="date"
+                label="Tanggal"
+                variant="outlined"
+                density="compact"
+                hide-details
+              ></v-text-field>
             </v-col>
           </v-row>
         </div>
@@ -579,8 +631,16 @@ onMounted(() => {
         <div class="desktop-form-section header-section">
           <v-row dense>
             <v-col cols="12">
-              <v-label class="mb-2 text-caption text-medium-emphasis">Kategori Produk (untuk F1)</v-label>
-              <v-radio-group v-model="productCategory" inline hide-details density="compact" class="mt-n1">
+              <v-label class="mb-2 text-caption text-medium-emphasis"
+                >Kategori Produk (untuk F1)</v-label
+              >
+              <v-radio-group
+                v-model="productCategory"
+                inline
+                hide-details
+                density="compact"
+                class="mt-n1"
+              >
                 <v-radio label="Kaosan" value="Kaosan" color="primary"></v-radio>
                 <v-radio label="Reszo" value="Reszo" color="primary"></v-radio>
               </v-radio-group>
@@ -596,8 +656,14 @@ onMounted(() => {
               </v-radio-group>
             </v-col>
             <v-col cols="12">
-              <v-checkbox v-model="showPriceOnLabel" label="Tampilkan Harga Jual di Label" density="compact"
-                hide-details class="mt-n2" color="primary"></v-checkbox>
+              <v-checkbox
+                v-model="showPriceOnLabel"
+                label="Tampilkan Harga Jual di Label"
+                density="compact"
+                hide-details
+                class="mt-n2"
+                color="primary"
+              ></v-checkbox>
             </v-col>
           </v-row>
         </div>
@@ -605,50 +671,94 @@ onMounted(() => {
 
       <div class="right-column">
         <div class="scanner-wrapper">
-          <v-text-field v-model="barcodeScanTerm" label="Scan Barcode (Cari Produk)" variant="outlined"
-            density="compact" prepend-inner-icon="mdi-barcode-scan" @keyup.enter="handleBarcodeScan" clearable
-            hide-details id="scan-barcode-field" autofocus></v-text-field>
+          <v-text-field
+            v-model="barcodeScanTerm"
+            label="Scan Barcode (Cari Produk)"
+            variant="outlined"
+            density="compact"
+            prepend-inner-icon="mdi-barcode-scan"
+            @keyup.enter="handleBarcodeScan"
+            clearable
+            hide-details
+            id="scan-barcode-field"
+            autofocus
+          ></v-text-field>
         </div>
 
         <div class="desktop-form-section flex-grow-1 d-flex flex-column pa-0 overflow-hidden">
-          <v-data-table :headers="tableHeaders" :items="items" density="compact"
-            class="desktop-table header-browse-blue" fixed-header height="100%" :items-per-page="-1"
-            no-data-text="Scan barcode atau cari kode (F1) untuk menambah item.">
+          <v-data-table
+            :headers="tableHeaders"
+            :items="items"
+            density="compact"
+            class="desktop-table header-browse-blue"
+            fixed-header
+            height="100%"
+            :items-per-page="-1"
+            no-data-text="Scan barcode atau cari kode (F1) untuk menambah item."
+          >
             <template #[`item.no`]="{ index }">
               {{ index + 1 }}
             </template>
 
             <template #[`item.kode`]="{ item, index }">
-              <v-text-field v-model="item.kode" variant="underlined" density="compact" hide-details single-line
-                placeholder="F1 = Cari" @keydown.f1.prevent="openProductSearchModal(index)"
-                @click="!item.kode && openProductSearchModal(index)" readonly style="cursor: pointer;" />
+              <v-text-field
+                v-model="item.kode"
+                variant="underlined"
+                density="compact"
+                hide-details
+                single-line
+                placeholder="F1 = Cari"
+                @keydown.f1.prevent="openProductSearchModal(index)"
+                @click="!item.kode && openProductSearchModal(index)"
+                readonly
+                style="cursor: pointer"
+              />
             </template>
 
             <template #[`item.harga`]="{ item }">
-              {{ fr(item.harga) }}
+              {{ item.harga != null ? fr(item.harga) : "" }}
             </template>
 
             <template #[`item.jumlah`]="{ item }">
-              <v-text-field v-model.number="item.jumlah" type="number" variant="underlined" density="compact"
-                hide-details single-line min="0" @focus="$event.target.select()" @keydown.enter.prevent="addNewRow"
-                class="text-end" />
+              <v-text-field
+                v-model.number="item.jumlah"
+                type="number"
+                variant="underlined"
+                density="compact"
+                hide-details
+                single-line
+                min="0"
+                @focus="$event.target.select()"
+                @keydown.enter.prevent="addNewRow"
+                class="text-end"
+              />
             </template>
 
             <template #[`item.actions`]="{ item, index }">
-              <v-icon v-if="items.length > 1 || (index === 0 && item.kode)" size="small" color="error"
-                @click="removeRow(item.id)">
+              <v-icon
+                v-if="items.length > 1 || (index === 0 && item.kode)"
+                size="small"
+                color="error"
+                @click="removeRow(item.id)"
+              >
                 mdi-delete-outline
               </v-icon>
             </template>
 
-            <template #bottom></template> </v-data-table>
+            <template #bottom></template>
+          </v-data-table>
         </div>
       </div>
-
     </div>
-    <ProductSearchModal v-if="isProductSearchModalVisible" :category="productCategory"
-      :gudang="authStore.user?.cabang || 'K04'" source="minta-barang" :multi="true"
-      @products-selected="handleProductsSelected" @close="isProductSearchModalVisible = false" />
+    <ProductSearchModal
+      v-if="isProductSearchModalVisible"
+      :category="productCategory"
+      :gudang="authStore.user?.cabang || 'K04'"
+      source="minta-barang"
+      :multi="true"
+      @products-selected="handleProductsSelected"
+      @close="isProductSearchModalVisible = false"
+    />
 
     <v-dialog v-model="isPrintPreviewVisible" max-width="600px" scrollable>
       <v-card>
@@ -660,30 +770,44 @@ onMounted(() => {
 
         <v-card-text class="pa-4 bg-background">
           <div id="print-area">
-            <div v-for="i in Math.ceil(printPreviewData.length / 2)" :key="`page-${i}`" class="label-pair-container">
-
+            <div
+              v-for="i in Math.ceil(printPreviewData.length / 2)"
+              :key="`page-${i}`"
+              class="label-pair-container"
+            >
               <div v-if="printPreviewData[(i - 1) * 2]" class="barcode-label">
                 <div class="item-info item-name">{{ printPreviewData[(i - 1) * 2].nama }}</div>
                 <div class="item-info item-size">{{ printPreviewData[(i - 1) * 2].ukuran }}</div>
-                <svg class="barcode-svg" :data-barcode-value="printPreviewData[(i - 1) * 2].barcode"></svg>
+                <svg
+                  class="barcode-svg"
+                  :data-barcode-value="printPreviewData[(i - 1) * 2].barcode"
+                ></svg>
                 <div class="label-footer">
                   <span>{{ printPreviewData[(i - 1) * 2].barcode }}</span>
                   <span>{{ printPreviewData[(i - 1) * 2].tgl }}</span>
                   <span>{{ printPreviewData[(i - 1) * 2].ukuran }}</span>
-                  <span v-if="printPreviewData[(i - 1) * 2].charga">{{ printPreviewData[(i - 1) * 2].charga }}</span>
+                  <span v-if="printPreviewData[(i - 1) * 2].charga">{{
+                    printPreviewData[(i - 1) * 2].charga
+                  }}</span>
                 </div>
               </div>
               <div v-else class="barcode-label"></div>
               <div v-if="printPreviewData[(i - 1) * 2 + 1]" class="barcode-label">
                 <div class="item-info item-name">{{ printPreviewData[(i - 1) * 2 + 1].nama }}</div>
-                <div class="item-info item-size">{{ printPreviewData[(i - 1) * 2 + 1].ukuran }}</div>
-                <svg class="barcode-svg" :data-barcode-value="printPreviewData[(i - 1) * 2 + 1].barcode"></svg>
+                <div class="item-info item-size">
+                  {{ printPreviewData[(i - 1) * 2 + 1].ukuran }}
+                </div>
+                <svg
+                  class="barcode-svg"
+                  :data-barcode-value="printPreviewData[(i - 1) * 2 + 1].barcode"
+                ></svg>
                 <div class="label-footer">
                   <span>{{ printPreviewData[(i - 1) * 2 + 1].barcode }}</span>
                   <span>{{ printPreviewData[(i - 1) * 2 + 1].tgl }}</span>
                   <span>{{ printPreviewData[(i - 1) * 2 + 1].ukuran }}</span>
-                  <span v-if="printPreviewData[(i - 1) * 2 + 1].charga">{{ printPreviewData[(i - 1) * 2 + 1].charga
-                    }}</span>
+                  <span v-if="printPreviewData[(i - 1) * 2 + 1].charga">{{
+                    printPreviewData[(i - 1) * 2 + 1].charga
+                  }}</span>
                 </div>
               </div>
               <div v-else class="barcode-label"></div>
@@ -790,15 +914,15 @@ onMounted(() => {
 }
 
 /* Input Angka di Tabel */
-.v-data-table :deep(input[type='number']) {
+.v-data-table :deep(input[type="number"]) {
   text-align: right;
   -moz-appearance: textfield;
   appearance: textfield;
   color: rgb(var(--v-theme-on-surface));
 }
 
-.v-data-table :deep(input[type=number]::-webkit-inner-spin-button),
-.v-data-table :deep(input[type=number]::-webkit-outer-spin-button) {
+.v-data-table :deep(input[type="number"]::-webkit-inner-spin-button),
+.v-data-table :deep(input[type="number"]::-webkit-outer-spin-button) {
   -webkit-appearance: none;
   margin: 0;
 }
@@ -865,7 +989,7 @@ onMounted(() => {
 
 .item-name {
   font-size: 6pt !important;
-  font-family: 'Arial Narrow', sans-serif !important;
+  font-family: "Arial Narrow", sans-serif !important;
   line-height: 1.1 !important;
 
   /* Samakan logika 2 baris di pratinjau */
@@ -978,7 +1102,7 @@ onMounted(() => {
     overflow: hidden;
     text-overflow: clip;
     /* Alternatif: gunakan font condensed */
-    font-family: 'Arial Narrow', sans-serif;
+    font-family: "Arial Narrow", sans-serif;
   }
 
   .item-size {

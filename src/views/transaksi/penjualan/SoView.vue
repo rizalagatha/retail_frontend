@@ -407,20 +407,30 @@ const openCloseDialog = () => {
 };
 
 const submitClose = async () => {
-  if (!itemToClose.value) return;
+  const item = itemToClose.value;
+  if (!item) return;
+
+  if (!authStore.user) {
+    toast.error("User tidak valid.");
+    return;
+  }
+
   try {
     await api.post("/so/close", {
-      nomor: itemToClose.value.Nomor,
+      nomor: item.Nomor,
       alasan: closeReason.value,
       user: authStore.user.kode,
     });
+
     toast.success("SO berhasil ditutup.");
     isCloseDialogVisible.value = false;
-    const itemInList = list.value.find((item) => item.Nomor === itemToClose.value.Nomor);
+
+    const itemInList = list.value.find((x) => x.Nomor === item.Nomor);
     if (itemInList) {
       itemInList.Status = "DICLOSE";
       itemInList.AlasanClose = closeReason.value;
     }
+
     selected.value = [];
   } catch (error: unknown) {
     const e = error as { response?: { data?: { message?: string } } };

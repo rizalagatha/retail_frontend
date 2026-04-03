@@ -26,6 +26,28 @@ interface StokOpnameItem {
   valueFisik: number;
 }
 
+interface SopItem {
+  Selisih: number | string;
+  hpp: number | string;
+  [key: string]: unknown;
+}
+
+interface ApiItem {
+  Kode: string;
+  Nama: string;
+  Ukuran: string;
+  Stok: number;
+  Jumlah: number;
+  Selisih: number;
+  hpp: number;
+  Lokasi: string;
+  Barcode: string;
+  valueSistem: number;
+  valueFisik: number;
+}
+
+type NumericColumn = "Stok" | "Selisih" | "hpp" | "Total" | "valueSistem" | "valueFisik";
+
 // --- Inisialisasi & State ---
 const route = useRoute();
 const router = useRouter();
@@ -36,7 +58,7 @@ const MENU_ID = "24";
 const isEditMode = ref(false);
 const isLoading = ref(true);
 const isGudangLookupVisible = ref(false);
-const dialogConfirm = reactive({ show: false, title: "", text: "", onConfirm: () => { } });
+const dialogConfirm = reactive({ show: false, title: "", text: "", onConfirm: () => {} });
 
 const page = ref(1);
 const itemsPerPage = ref(50);
@@ -238,7 +260,7 @@ const loadDataForEdit = async (id: string) => {
     // (Isi gudangNama jika perlu)
 
     // Isi tabel detail
-    items.value = sopItems.map((item) => ({
+    items.value = sopItems.map((item: SopItem) => ({
       ...item,
       Total: (Number(item.Selisih) || 0) * (Number(item.hpp) || 0),
     }));
@@ -275,7 +297,8 @@ const validateGudangKode = async () => {
     formHeader.gudangNama = response.data.nama;
   } catch (error) {
     formHeader.gudangNama = "";
-    toast.error("Kode Gudang tidak ditemukan.", error);
+    const err = error as Error;
+    toast.error(err.message || "Kode Gudang tidak ditemukan.");
   }
 };
 
@@ -288,9 +311,9 @@ const handleFromDatabase = () => {
     try {
       const response = await api.get("/proses-stok-opname-form/from-database");
       // Ganti data di grid dengan hasil dari API
-      items.value = response.data.items.map((item) => ({
+      items.value = response.data.items.map((item: ApiItem) => ({
         ...item,
-        id: Math.random(), // Beri ID unik untuk v-for
+        id: Math.random(),
       }));
       toast.success("Data berhasil dimuat dari database.");
     } catch (error) {
@@ -332,7 +355,14 @@ onMounted(() => {
 <template>
   <PageLayout :title="isEditMode ? 'Ubah Stok Opname' : 'Buat Stok Opname'" :menu-id="MENU_ID">
     <template #header-actions>
-      <v-btn size="small" color="primary" @click="handleSave" :loading="isLoading" :disabled="isReadOnly">Simpan</v-btn>
+      <v-btn
+        size="small"
+        color="primary"
+        @click="handleSave"
+        :loading="isLoading"
+        :disabled="isReadOnly"
+        >Simpan</v-btn
+      >
       <v-btn size="small" @click="router.back()">Tutup</v-btn>
     </template>
 
@@ -340,31 +370,74 @@ onMounted(() => {
       <div class="left-column">
         <div class="desktop-form-section header-section">
           <v-row dense>
-            <v-col cols="6"><v-text-field label="SOP" v-model="formHeader.nomor" readonly filled density="compact"
-                hide-details /></v-col>
-            <v-col cols="6"><v-text-field label="Tanggal" v-model="formHeader.tanggal" type="date" readonly filled
-                density="compact" hide-details /></v-col>
+            <v-col cols="6"
+              ><v-text-field
+                label="SOP"
+                v-model="formHeader.nomor"
+                readonly
+                filled
+                density="compact"
+                hide-details
+            /></v-col>
+            <v-col cols="6"
+              ><v-text-field
+                label="Tanggal"
+                v-model="formHeader.tanggal"
+                type="date"
+                readonly
+                filled
+                density="compact"
+                hide-details
+            /></v-col>
             <v-col cols="6">
-              <v-text-field label="Gudang (F1)" v-model="formHeader.gudang" density="compact" hide-details
+              <v-text-field
+                label="Gudang (F1)"
+                v-model="formHeader.gudang"
+                density="compact"
+                hide-details
                 :readonly="isEditMode || authStore.user?.cabang !== 'KDC'"
-                @keydown.f1.prevent="isGudangLookupVisible = true" @blur="validateGudangKode"
-                append-inner-icon="mdi-magnify" @click:append-inner="isGudangLookupVisible = true" />
+                @keydown.f1.prevent="isGudangLookupVisible = true"
+                @blur="validateGudangKode"
+                append-inner-icon="mdi-magnify"
+                @click:append-inner="isGudangLookupVisible = true"
+              />
             </v-col>
             <v-col cols="6">
-              <v-text-field v-model="formHeader.gudangNama" label="Nama Gudang" readonly filled density="compact"
-                hide-details />
+              <v-text-field
+                v-model="formHeader.gudangNama"
+                label="Nama Gudang"
+                readonly
+                filled
+                density="compact"
+                hide-details
+              />
             </v-col>
             <v-col cols="12">
-              <v-text-field label="Keterangan" v-model="formHeader.keterangan" density="compact" :readonly="isReadOnly"
-                hide-details>
+              <v-text-field
+                label="Keterangan"
+                v-model="formHeader.keterangan"
+                density="compact"
+                :readonly="isReadOnly"
+                hide-details
+              >
               </v-text-field>
             </v-col>
-            <v-btn color="secondary" @click="handleFromDatabase" :loading="isLoading"
-              :disabled="isReadOnly || isEditMode" prepend-icon="mdi-database-arrow-down">
+            <v-btn
+              color="secondary"
+              @click="handleFromDatabase"
+              :loading="isLoading"
+              :disabled="isReadOnly || isEditMode"
+              prepend-icon="mdi-database-arrow-down"
+            >
               From Database
             </v-btn>
-            <v-btn color="info" @click="handleHitungStok" :loading="isLoading" :disabled="isReadOnly || isEditMode"
-              prepend-icon="mdi-calculator">
+            <v-btn
+              color="info"
+              @click="handleHitungStok"
+              :loading="isLoading"
+              :disabled="isReadOnly || isEditMode"
+              prepend-icon="mdi-calculator"
+            >
               Hitung Stok
             </v-btn>
           </v-row>
@@ -373,47 +446,86 @@ onMounted(() => {
 
       <div class="right-column">
         <div class="table-container">
-          <v-data-table v-model:page="page" :items-per-page="itemsPerPage" :headers="headers" :items="items"
-            :loading="isLoading" class="desktop-table fill-height" density="compact" fixed-header>
+          <v-data-table
+            v-model:page="page"
+            :items-per-page="itemsPerPage"
+            :headers="headers"
+            :items="items"
+            :loading="isLoading"
+            class="desktop-table fill-height"
+            density="compact"
+            fixed-header
+          >
             <template v-slot:[`item.no`]="{ index }">
               {{ (page - 1) * itemsPerPage + index + 1 }}
             </template>
 
             <template v-slot:[`item.Kode`]="{ item, index }">
-              <v-text-field v-model="item.Kode" variant="underlined" density="compact" hide-details
-                :readonly="!!item.Nama" placeholder="Scan Barcode..." @keydown.enter.prevent="handleItemAdd(index)" />
+              <v-text-field
+                v-model="item.Kode"
+                variant="underlined"
+                density="compact"
+                hide-details
+                :readonly="!!item.Nama"
+                placeholder="Scan Barcode..."
+                @keydown.enter.prevent="handleItemAdd(index)"
+              />
             </template>
 
             <template v-slot:[`item.Jumlah`]="{ item }">
-              <v-text-field v-model.number="item.Jumlah" type="number" variant="underlined" density="compact"
-                hide-details class="text-right" @update:modelValue="(val) => {
-                  const jumlah = Number(val) || 0;
-                  const stok = Number(item.Stok) || 0;
-                  const hpp = Number(item.hpp) || 0;
+              <v-text-field
+                v-model.number="item.Jumlah"
+                type="number"
+                variant="underlined"
+                density="compact"
+                hide-details
+                class="text-right"
+                @update:modelValue="
+                  (val) => {
+                    const jumlah = Number(val) || 0;
+                    const stok = Number(item.Stok) || 0;
+                    const hpp = Number(item.hpp) || 0;
 
-                  item.Selisih = jumlah - stok;
-                  item.valueFisik = jumlah * hpp; // Update Value Fisik real-time
-                  item.Total = item.Selisih * hpp;
-                }" />
+                    item.Selisih = jumlah - stok;
+                    item.valueFisik = jumlah * hpp; // Update Value Fisik real-time
+                    item.Total = item.Selisih * hpp;
+                  }
+                "
+              />
             </template>
 
-            <template v-for="col in ['Stok', 'Selisih', 'hpp', 'Total', 'valueSistem', 'valueFisik']"
-              #[`item.${col}`]="{ item }">
-              {{ (item[col] || 0).toLocaleString("id-ID") }}
+            <template
+              v-for="col in ['Stok','Selisih','hpp','Total','valueSistem','valueFisik'] as NumericColumn[]"
+              #[`item.${col}`]="{ item }"
+            >
+              {{ (item[col as keyof typeof item] || 0).toLocaleString("id-ID") }}
             </template>
           </v-data-table>
         </div>
         <div class="desktop-form-section d-flex align-center">
           <v-spacer />
           <span class="font-weight-bold me-4">Total Koreksi:</span>
-          <v-text-field :model-value="totalKoreksi.toLocaleString('id-ID')" readonly filled density="compact"
-            hide-details class="text-right font-weight-bold" style="max-width: 250px" />
+          <v-text-field
+            :model-value="totalKoreksi.toLocaleString('id-ID')"
+            readonly
+            filled
+            density="compact"
+            hide-details
+            class="text-right font-weight-bold"
+            style="max-width: 250px"
+          />
         </div>
       </div>
     </div>
 
-    <GudangSearchModal v-if="isGudangLookupVisible" :user-cabang="authStore.user?.cabang || ''" :only-dc="false"
-      source="stok-opname" @close="isGudangLookupVisible = false" @gudang-selected="onGudangSelected" />
+    <GudangSearchModal
+      v-if="isGudangLookupVisible"
+      :user-cabang="authStore.user?.cabang || ''"
+      :only-dc="false"
+      source="stok-opname"
+      @close="isGudangLookupVisible = false"
+      @gudang-selected="onGudangSelected"
+    />
 
     <v-dialog v-model="dialogConfirm.show" max-width="400px" persistent>
       <v-card>
@@ -424,12 +536,17 @@ onMounted(() => {
         <v-card-actions>
           <v-spacer />
           <v-btn text @click="dialogConfirm.show = false">Batal</v-btn>
-          <v-btn color="primary" variant="tonal" @click="
-            () => {
-              dialogConfirm.onConfirm();
-              dialogConfirm.show = false;
-            }
-          ">Ya, Lanjutkan</v-btn>
+          <v-btn
+            color="primary"
+            variant="tonal"
+            @click="
+              () => {
+                dialogConfirm.onConfirm();
+                dialogConfirm.show = false;
+              }
+            "
+            >Ya, Lanjutkan</v-btn
+          >
         </v-card-actions>
       </v-card>
     </v-dialog>

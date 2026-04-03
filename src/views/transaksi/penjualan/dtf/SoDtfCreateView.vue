@@ -63,6 +63,31 @@ interface SoDtfPayload {
   detailsUkuran: DetailUkuran[];
   detailsTitik: DetailTitik[];
 }
+interface SoItem {
+  id: string | number;
+  isCustomOrder: boolean;
+  nama: string;
+  sod_custom_nama?: string;
+  sourceItems?: { nama: string }[];
+  ukuranKaos: {
+    ukuran: string;
+    jumlah: number;
+    harga: number;
+  }[];
+  titikCetak: {
+    keterangan: string;
+    sizeCetak: string;
+    panjang: number;
+    lebar: number;
+  }[];
+}
+
+type SoSelected = {
+  nomor?: string;
+  Nomor?: string;
+  so_nomor?: string;
+  soNomor?: string;
+};
 
 // --- State & Dependencies ---
 const route = useRoute();
@@ -222,8 +247,8 @@ watch(
   }
 );
 
-const isPanjangLebarReadonly = (item: DetailTitik) => {
-  return item.sizeCetak && item.sizeCetak !== "Custom";
+const isPanjangLebarReadonly = (item: DetailTitik): boolean => {
+  return !!item.sizeCetak && item.sizeCetak !== "Custom";
 };
 
 // --- Methods ---
@@ -248,9 +273,9 @@ const addDetailUkuran = () => {
     detailsUkuran.value.push({
       id: Date.now(),
       ukuran: "",
-      jumlah: null,
-      harga: null,
-      namaBarang: "", // <--- WAJIB ADA (inisialisasi string kosong)
+      jumlah: 0,
+      harga: 0,
+      namaBarang: "",
     });
   }
 };
@@ -266,8 +291,8 @@ const addDetailTitik = () => {
       id: Date.now(),
       keterangan: "",
       sizeCetak: form.value.jenisOrderKode === "SD" ? "Custom" : "",
-      panjang: null,
-      lebar: null,
+      panjang: 0,
+      lebar: 0,
     });
   }
 };
@@ -321,12 +346,12 @@ const fetchDataForEdit = async (nomor: string) => {
       id: Date.now() + i + 1000,
     }));
 
-    detailsUkuran.value = data.detailsUkuran.map((d, i) => ({
+    detailsUkuran.value = data.detailsUkuran.map((d: DetailUkuran, i: number) => ({
       id: Date.now() + i,
       namaBarang: d.namaBarang,
       ukuran: d.ukuran,
-      jumlah: d.jumlah,
-      harga: d.harga,
+      jumlah: d.jumlah ?? 0,
+      harga: d.harga ?? 0,
     }));
     toast.success(`Data untuk ${nomor} berhasil dimuat.`);
 
@@ -409,8 +434,8 @@ const resetForm = () => {
     id: Date.now(),
     keterangan: "",
     sizeCetak: form.value.jenisOrderKode === "SD" ? "Custom" : "",
-    panjang: null,
-    lebar: null,
+    panjang: 0,
+    lebar: 0,
   });
 
   markAsSaved();
@@ -574,7 +599,9 @@ const save = async () => {
         savedNomor = response.data.sd_nomor || form.value.nomor;
         form.value.nomor = savedNomor; // Update UI
       } else {
-        const { nomor, ...headerWithoutNomor } = payload.header;
+        const headerWithoutNomor = { ...payload.header };
+        Reflect.deleteProperty(headerWithoutNomor, "nomor");
+
         const cleanPayload = {
           ...payload,
           header: headerWithoutNomor,
@@ -672,8 +699,8 @@ const fetchSisaKuota = async () => {
     });
     sisaKuota.value = response.data.sisaKuota;
   } catch (error) {
-    toast.error("Gagal mengambil data sisa kuota.", error);
-    sisaKuota.value = 0;
+    const err = error as Error;
+    toast.error(err.message || "Gagal mengambil data sisa kuota.");
   }
 };
 
@@ -741,8 +768,8 @@ const onSizeCetakChange = async (item: DetailTitik, index: number) => {
   if (!item.sizeCetak || !form.value.jenisOrderKode) return;
 
   if (item.sizeCetak === "Custom") {
-    detailsTitik.value[index].panjang = null;
-    detailsTitik.value[index].lebar = null;
+    detailsTitik.value[index].panjang = 0;
+    detailsTitik.value[index].lebar = 0;
     return;
   }
 
@@ -784,7 +811,8 @@ const fetchUkuranKaosList = async () => {
     const response = await api.get("/so-dtf-form/lookup/ukuran-kaos");
     ukuranKaosList.value = response.data;
   } catch (error) {
-    toast.error("Gagal memuat daftar ukuran kaos.", error);
+    const err = error as Error;
+    toast.error(err.message || "Gagal mengambil daftar ukuran kaos.");
   }
 };
 
@@ -800,7 +828,8 @@ const fetchSizeCetakList = async (jenisOrder: string) => {
     // Tambahkan "Custom" di akhir list
     sizeCetakList.value = [...response.data, "Custom"];
   } catch (error) {
-    toast.error("Gagal memuat daftar size cetak.", error);
+    const err = error as Error;
+    toast.error(err.message || "Gagal memuat daftar size cetak.");
     sizeCetakList.value = ["Custom"];
   }
 };
@@ -813,7 +842,8 @@ const getHargaDTG = async () => {
     });
     return response.data.harga || 0;
   } catch (error) {
-    toast.error("Gagal menghitung harga DTG.", error);
+    const err = error as Error;
+    toast.error(err.message || "Gagal menghitung harga DTG.");
     return 0;
   }
 };
@@ -890,7 +920,7 @@ const openSoSearch = () => {
   isSoSearchVisible.value = true;
 };
 
-const onSoSelected = async (selected, targetLineId = null) => {
+const onSoSelected = async (selected: SoSelected, targetLineId: string | null = null) => {
   try {
     const nomorSo = selected.nomor || selected.Nomor || selected.so_nomor || selected.soNomor;
 
@@ -947,29 +977,29 @@ const onSoSelected = async (selected, targetLineId = null) => {
     // ============================================
     // --- 2. FILTERING DETAIL ITEM ---
     // Cari item custom yang spesifik berdasarkan targetLineId
-    let customItems = soData.items.filter((x) => x.isCustomOrder);
+    let customItems: SoItem[] = soData.items.filter((x: SoItem) => x.isCustomOrder);
 
     if (targetLineId) {
       // Filter agar hanya mengambil baris yang kita klik tadi di halaman SO
       // Catatan: Pastikan backend mengirimkan field 'id' atau 'sod_idrec' yang sinkron
-      customItems = customItems.filter((x) => String(x.id) === String(targetLineId));
+      customItems = customItems.filter((x: SoItem) => String(x.id) === String(targetLineId));
     }
 
     // Jika setelah difilter item tidak ditemukan (mungkin SO belum disave ulang)
     if (customItems.length === 0) {
       toast.warning("Baris item custom tidak ditemukan. Memuat semua item custom.");
-      customItems = soData.items.filter((x) => x.isCustomOrder);
+      customItems = soData.items.filter((x: SoItem) => x.isCustomOrder);
     }
 
     // ---- Grid Ukuran ----
     detailsUkuran.value = [];
-    customItems.forEach((item, idx) => {
+    customItems.forEach((item: SoItem, idx: number) => {
       form.value.namaDtf = item.sod_custom_nama || item.nama;
-      item.ukuranKaos.forEach((u, i2) => {
+      item.ukuranKaos.forEach((u, i2: number) => {
         detailsUkuran.value.push({
           id: Date.now() + idx + i2,
           namaBarang:
-            item.sourceItems?.length > 0
+            item.sourceItems && item.sourceItems.length > 0
               ? item.sourceItems[0].nama
               : item.sod_custom_nama || item.nama,
           ukuran: u.ukuran,
@@ -982,8 +1012,8 @@ const onSoSelected = async (selected, targetLineId = null) => {
 
     // ---- Grid Titik Cetak ----
     detailsTitik.value = [];
-    customItems.forEach((item, idx) => {
-      item.titikCetak.forEach((t, i2) => {
+    customItems.forEach((item: SoItem, idx: number) => {
+      item.titikCetak.forEach((t, i2: number) => {
         detailsTitik.value.push({
           id: Date.now() + idx + i2,
           keterangan: t.keterangan,
@@ -1091,7 +1121,7 @@ onMounted(async () => {
   } else if (refSo) {
     isLoading.value = true;
     // Kirim lineId ke fungsi penarik data
-    await onSoSelected({ nomor: refSo }, lineId);
+    await onSoSelected({ nomor: refSo }, typeof lineId === "string" ? lineId : null);
     isLoading.value = false;
   } else {
     // Mode Create Baru kosong
@@ -1746,7 +1776,7 @@ onMounted(async () => {
     />
     <SoSearchModalForInvoice
       v-if="isSoSearchVisible"
-      :cabang="authStore.user.cabang"
+      :cabang="authStore.user?.cabang || ''"
       @close="isSoSearchVisible = false"
       @so-selected="onSoSelected"
       mode="dtf"
@@ -1767,7 +1797,7 @@ onMounted(async () => {
         <v-card-text class="pa-4 bg-grey-lighten-4">
           <div class="d-flex justify-center align-center" style="min-height: 60vh">
             <v-img
-              :src="imagePreview"
+              :src="imagePreview || undefined"
               max-height="80vh"
               max-width="100%"
               contain

@@ -1,16 +1,16 @@
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue';
-import api from '@/services/api';
-import PageLayout from '@/components/PageLayout.vue';
-import JenisKaosSearchModal from '@/components/lookup/JenisKaosSearchModal.vue';
-import { useToast } from 'vue-toastification';
-import { useAuthStore } from '@/stores/authStore';
-import * as XLSX from 'xlsx';
-import AppDataTable from '@/components/AppDataTable.vue';
+import { ref, onMounted, computed } from "vue";
+import api from "@/services/api";
+import PageLayout from "@/components/PageLayout.vue";
+import JenisKaosSearchModal from "@/components/lookup/JenisKaosSearchModal.vue";
+import { useToast } from "vue-toastification";
+import { useAuthStore } from "@/stores/authStore";
+import * as XLSX from "xlsx";
+import AppDataTable from "@/components/AppDataTable.vue";
 
 const toast = useToast();
 const authStore = useAuthStore();
-const MENU_ID = '39';
+const MENU_ID = "39";
 
 // --- Interfaces ---
 // Interface Header untuk Resize
@@ -19,7 +19,7 @@ interface DataTableHeader {
   key: string;
   width?: number;
   fixed?: boolean;
-  align?: 'start' | 'center' | 'end';
+  align?: "start" | "center" | "end";
   minWidth?: string | number;
   maxWidth?: string | number;
   sortable?: boolean;
@@ -27,7 +27,7 @@ interface DataTableHeader {
 
 interface JenisKaos {
   JenisKaos: string;
-  Custom: 'Y' | 'N';
+  Custom: "Y" | "N";
   [key: string]: unknown;
 }
 interface UkuranHarga {
@@ -40,7 +40,7 @@ interface UkuranTemplate {
 }
 interface SettingHarga {
   jenisKaos: string;
-  custom: 'Y' | 'N';
+  custom: "Y" | "N";
   ukuranHarga: UkuranTemplate[];
   [key: string]: unknown;
 }
@@ -48,42 +48,42 @@ interface SettingHarga {
 // --- State ---
 const jenisKaosList = ref<JenisKaos[]>([]);
 const isLoading = ref(true);
-const search = ref('');
+const search = ref("");
 const selected = ref<JenisKaos[]>([]);
 
 const isEditPanelVisible = ref(false);
 const isNew = ref(true);
 const editedItem = ref({
-  jenisKaos: '',
-  custom: 'Y',
+  jenisKaos: "",
+  custom: "Y",
   ukuranHarga: [] as UkuranHarga[],
 });
 
-const hasViewPermission = computed(() => authStore.can(MENU_ID, 'view'));
+const hasViewPermission = computed(() => authStore.can(MENU_ID, "view"));
 const isJenisKaosSearchVisible = ref(false);
 const isKetersediaanConfirmVisible = ref(false);
-const selectedJenisKaos = ref('');
+const selectedJenisKaos = ref("");
 const itemsPerPage = ref(25);
 
 // --- Header Definisi (Updated) ---
 const headers = ref<DataTableHeader[]>([
-  { title: 'Jenis Kaos', key: 'JenisKaos', width: 250, fixed: true },
-  { title: 'Tipe', key: 'Custom', align: 'center', width: 100 },
-  { title: 'S', key: 'Harga_S', align: 'end', width: 100 },
-  { title: 'M', key: 'Harga_M', align: 'end', width: 100 },
-  { title: 'L', key: 'Harga_L', align: 'end', width: 100 },
-  { title: 'XL', key: 'Harga_XL', align: 'end', width: 100 },
-  { title: '2XL', key: 'Harga_2XL', align: 'end', width: 100 },
-  { title: '3XL', key: 'Harga_3XL', align: 'end', width: 100 },
-  { title: '4XL', key: 'Harga_4XL', align: 'end', width: 100 },
-  { title: '5XL', key: 'Harga_5XL', align: 'end', width: 100 },
-  { title: '6XL', key: 'Harga_6XL', align: 'end', width: 100 },
-  { title: '7XL', key: 'Harga_7XL', align: 'end', width: 100 },
-  { title: '8XL', key: 'Harga_8XL', align: 'end', width: 100 },
-  { title: '9XL', key: 'Harga_9XL', align: 'end', width: 100 },
-  { title: '10XL', key: 'Harga_10XL', align: 'end', width: 100 },
-  { title: 'Oversize', key: 'Harga_Oversize', align: 'end', width: 100 },
-  { title: 'Jumbo', key: 'Harga_Jumbo', align: 'end', width: 100 },
+  { title: "Jenis Kaos", key: "JenisKaos", width: 250, fixed: true },
+  { title: "Tipe", key: "Custom", align: "center", width: 100 },
+  { title: "S", key: "Harga_S", align: "end", width: 100 },
+  { title: "M", key: "Harga_M", align: "end", width: 100 },
+  { title: "L", key: "Harga_L", align: "end", width: 100 },
+  { title: "XL", key: "Harga_XL", align: "end", width: 100 },
+  { title: "2XL", key: "Harga_2XL", align: "end", width: 100 },
+  { title: "3XL", key: "Harga_3XL", align: "end", width: 100 },
+  { title: "4XL", key: "Harga_4XL", align: "end", width: 100 },
+  { title: "5XL", key: "Harga_5XL", align: "end", width: 100 },
+  { title: "6XL", key: "Harga_6XL", align: "end", width: 100 },
+  { title: "7XL", key: "Harga_7XL", align: "end", width: 100 },
+  { title: "8XL", key: "Harga_8XL", align: "end", width: 100 },
+  { title: "9XL", key: "Harga_9XL", align: "end", width: 100 },
+  { title: "10XL", key: "Harga_10XL", align: "end", width: 100 },
+  { title: "Oversize", key: "Harga_Oversize", align: "end", width: 100 },
+  { title: "Jumbo", key: "Harga_Jumbo", align: "end", width: 100 },
 ]);
 
 // --- Logic Resize Column ---
@@ -96,10 +96,10 @@ const onResizeStart = (e: MouseEvent, column: DataTableHeader) => {
   e.stopPropagation();
   resizingColumn.value = column;
   startX.value = e.pageX;
-  startWidth.value = (typeof column.width === 'number' ? column.width : 100);
-  document.addEventListener('mousemove', onResizeMove);
-  document.addEventListener('mouseup', onResizeEnd);
-  document.body.style.cursor = 'col-resize';
+  startWidth.value = typeof column.width === "number" ? column.width : 100;
+  document.addEventListener("mousemove", onResizeMove);
+  document.addEventListener("mouseup", onResizeEnd);
+  document.body.style.cursor = "col-resize";
 };
 
 const onResizeMove = (e: MouseEvent) => {
@@ -110,9 +110,9 @@ const onResizeMove = (e: MouseEvent) => {
 
 const onResizeEnd = () => {
   resizingColumn.value = null;
-  document.removeEventListener('mousemove', onResizeMove);
-  document.removeEventListener('mouseup', onResizeEnd);
-  document.body.style.cursor = '';
+  document.removeEventListener("mousemove", onResizeMove);
+  document.removeEventListener("mouseup", onResizeEnd);
+  document.body.style.cursor = "";
 };
 
 // --- Logic Selected Row ---
@@ -124,10 +124,12 @@ const handleRowClick = (_event: Event, { item }: { item: JenisKaos }) => {
 const fetchData = async () => {
   isLoading.value = true;
   try {
-    const response = await api.get('/setting-harga');
+    const response = await api.get("/setting-harga");
     jenisKaosList.value = response.data;
-  } catch (error) {
-    toast.error('Gagal memuat data setting harga.', error);
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : "Terjadi kesalahan";
+
+    toast.error(`Gagal memuat data setting harga. ${message}`);
   } finally {
     isLoading.value = false;
   }
@@ -143,7 +145,7 @@ const handleJenisKaosSelected = (jenisKaos: string) => {
   isKetersediaanConfirmVisible.value = true;
 };
 
-const handleKetersediaanConfirmed = async (custom: 'Y' | 'N') => {
+const handleKetersediaanConfirmed = async (custom: "Y" | "N") => {
   isKetersediaanConfirmVisible.value = false;
   isNew.value = true;
   editedItem.value.jenisKaos = selectedJenisKaos.value;
@@ -156,10 +158,13 @@ const handleKetersediaanConfirmed = async (custom: 'Y' | 'N') => {
     isNew.value = false;
   } catch {
     try {
-      const templateResponse = await api.get<UkuranTemplate[]>('/setting-harga/ukuran-template');
-      editedItem.value.ukuranHarga = templateResponse.data.map(u => ({ ukuran: u.ukuran, harga: null }));
+      const templateResponse = await api.get<UkuranTemplate[]>("/setting-harga/ukuran-template");
+      editedItem.value.ukuranHarga = templateResponse.data.map((u) => ({
+        ukuran: u.ukuran,
+        harga: null,
+      }));
     } catch {
-      toast.error('Gagal memuat template ukuran.');
+      toast.error("Gagal memuat template ukuran.");
     }
   } finally {
     isEditPanelVisible.value = true;
@@ -170,10 +175,14 @@ const openEditDialog = async (item: JenisKaos) => {
   isNew.value = false;
   isEditPanelVisible.value = true;
   try {
-    const response = await api.get(`/setting-harga/${encodeURIComponent(item.JenisKaos)}/${item.Custom}`);
+    const response = await api.get(
+      `/setting-harga/${encodeURIComponent(item.JenisKaos)}/${item.Custom}`
+    );
     editedItem.value = response.data;
-  } catch (error) {
-    toast.error('Gagal memuat detail harga.', error);
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : "Terjadi kesalahan";
+
+    toast.error(`Gagal memuat detail harga. ${message}`);
   }
 };
 
@@ -183,12 +192,14 @@ const closeEditPanel = () => {
 
 const save = async () => {
   try {
-    await api.post('/setting-harga/save', editedItem.value);
-    toast.success('Data harga berhasil disimpan.');
+    await api.post("/setting-harga/save", editedItem.value);
+    toast.success("Data harga berhasil disimpan.");
     isEditPanelVisible.value = false;
     fetchData();
-  } catch (error) {
-    toast.error('Gagal menyimpan data.', error);
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : "Terjadi kesalahan";
+
+    toast.error(`Gagal menyimpan data. ${message}`);
   }
 };
 
@@ -197,12 +208,16 @@ const remove = async () => {
   const itemToDelete = selected.value[0];
   if (confirm(`Yakin ingin menghapus ${itemToDelete.JenisKaos} (${itemToDelete.Custom})?`)) {
     try {
-      await api.delete('/setting-harga', { data: { jenisKaos: itemToDelete.JenisKaos, custom: itemToDelete.Custom } });
-      toast.success('Data berhasil dihapus.');
+      await api.delete("/setting-harga", {
+        data: { jenisKaos: itemToDelete.JenisKaos, custom: itemToDelete.Custom },
+      });
+      toast.success("Data berhasil dihapus.");
       fetchData();
       selected.value = [];
-    } catch (error) {
-      toast.error('Gagal menghapus data.', error);
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : "Terjadi kesalahan";
+
+      toast.error(`Gagal menghapus data. ${message}`);
     }
   }
 };
@@ -212,9 +227,9 @@ const exportData = () => {
     toast.info("Tidak ada data untuk diekspor.");
     return;
   }
-  const dataToExport = jenisKaosList.value.map(item => ({
+  const dataToExport = jenisKaosList.value.map((item) => ({
     "Jenis Kaos": item.JenisKaos,
-    "Tipe": item.Custom === 'Y' ? 'Custom' : 'Stok',
+    Tipe: item.Custom === "Y" ? "Custom" : "Stok",
     "Harga S": item.Harga_S,
     "Harga M": item.Harga_M,
     "Harga L": item.Harga_L,
@@ -248,13 +263,37 @@ onMounted(() => {
 <template>
   <PageLayout title="Setting Harga" desktop-mode icon="mdi-tune-variant">
     <template #header-actions>
-      <v-btn v-if="authStore.can(MENU_ID, 'insert')" size="small" color="primary" @click="openNewDialog"
-        prepend-icon="mdi-plus">Baru</v-btn>
-      <v-btn v-if="authStore.can(MENU_ID, 'edit')" size="small" :disabled="selected.length !== 1"
-        @click="openEditDialog(selected[0])" prepend-icon="mdi-pencil">Ubah</v-btn>
-      <v-btn v-if="authStore.can(MENU_ID, 'delete')" size="small" color="error" :disabled="selected.length !== 1"
-        @click="remove" prepend-icon="mdi-delete">Hapus</v-btn>
-      <v-btn v-if="authStore.can(MENU_ID, 'view')" size="small" @click="exportData" prepend-icon="mdi-file-excel">
+      <v-btn
+        v-if="authStore.can(MENU_ID, 'insert')"
+        size="small"
+        color="primary"
+        @click="openNewDialog"
+        prepend-icon="mdi-plus"
+        >Baru</v-btn
+      >
+      <v-btn
+        v-if="authStore.can(MENU_ID, 'edit')"
+        size="small"
+        :disabled="selected.length !== 1"
+        @click="openEditDialog(selected[0])"
+        prepend-icon="mdi-pencil"
+        >Ubah</v-btn
+      >
+      <v-btn
+        v-if="authStore.can(MENU_ID, 'delete')"
+        size="small"
+        color="error"
+        :disabled="selected.length !== 1"
+        @click="remove"
+        prepend-icon="mdi-delete"
+        >Hapus</v-btn
+      >
+      <v-btn
+        v-if="authStore.can(MENU_ID, 'view')"
+        size="small"
+        @click="exportData"
+        prepend-icon="mdi-file-excel"
+      >
         Export
       </v-btn>
     </template>
@@ -266,31 +305,62 @@ onMounted(() => {
 
     <div v-else class="browse-content">
       <div class="filter-section">
-        <v-text-field v-model="search" density="compact" label="Cari Jenis Kaos..." prepend-inner-icon="mdi-magnify"
-          variant="outlined" hide-details single-line></v-text-field>
+        <v-text-field
+          v-model="search"
+          density="compact"
+          label="Cari Jenis Kaos..."
+          prepend-inner-icon="mdi-magnify"
+          variant="outlined"
+          hide-details
+          single-line
+        ></v-text-field>
         <v-spacer></v-spacer>
         <v-btn @click="fetchData" icon="mdi-refresh" variant="text" size="small"></v-btn>
       </div>
 
       <div class="table-container">
-        <AppDataTable v-model="selected" :headers="headers" :items="jenisKaosList" :search="search" :loading="isLoading"
-          item-value="JenisKaos" v-model:items-per-page="itemsPerPage" density="compact"
-          class="desktop-table header-browse-blue" fixed-header show-select return-object @click:row="handleRowClick">
+        <AppDataTable
+          v-model="selected"
+          :headers="headers"
+          :items="jenisKaosList"
+          :search="search"
+          :loading="isLoading"
+          item-value="JenisKaos"
+          v-model:items-per-page="itemsPerPage"
+          density="compact"
+          class="desktop-table header-browse-blue"
+          fixed-header
+          show-select
+          return-object
+          @click:row="handleRowClick"
+        >
           <template #headers="{ columns, isSorted, getSortIcon, toggleSort }">
             <tr>
               <template v-for="header in columns" :key="header.key">
                 <th
-                  :style="{ width: header.width + 'px', minWidth: header.width + 'px', maxWidth: header.width + 'px' }"
+                  :style="{
+                    width: header.width + 'px',
+                    minWidth: header.width + 'px',
+                    maxWidth: header.width + 'px',
+                  }"
                   class="resizable-header"
-                  :class="{ 'text-center': header.align === 'center', 'text-end': header.align === 'end' }"
-                  @click="toggleSort(header)">
+                  :class="{
+                    'text-center': header.align === 'center',
+                    'text-end': header.align === 'end',
+                  }"
+                  @click="toggleSort(header)"
+                >
                   <div class="header-content">
                     <span>{{ header.title }}</span>
                     <v-icon v-if="isSorted(header)" size="small" class="ms-1">
                       {{ getSortIcon(header) }}
                     </v-icon>
                   </div>
-                  <div class="resizer" @mousedown.stop="onResizeStart($event, header)" @click.stop></div>
+                  <div
+                    class="resizer"
+                    @mousedown.stop="onResizeStart($event, header)"
+                    @click.stop
+                  ></div>
                 </th>
               </template>
             </tr>
@@ -300,11 +370,11 @@ onMounted(() => {
             <td>
               <template v-if="header.key === 'Custom'">
                 <v-chip :color="item.Custom === 'Y' ? 'blue' : 'green'" size="x-small">
-                  {{ item.Custom === 'Y' ? 'Custom' : 'Stok' }}
+                  {{ item.Custom === "Y" ? "Custom" : "Stok" }}
                 </v-chip>
               </template>
               <template v-else-if="header.key.startsWith('Harga')">
-                {{ new Intl.NumberFormat('id-ID').format(Number(item[header.key] ?? 0)) }}
+                {{ new Intl.NumberFormat("id-ID").format(Number(item[header.key] ?? 0)) }}
               </template>
               <template v-else>
                 {{ item[header.key] }}
@@ -315,8 +385,11 @@ onMounted(() => {
       </div>
     </div>
 
-    <JenisKaosSearchModal v-if="isJenisKaosSearchVisible" @close="isJenisKaosSearchVisible = false"
-      @select="handleJenisKaosSelected" />
+    <JenisKaosSearchModal
+      v-if="isJenisKaosSearchVisible"
+      @close="isJenisKaosSearchVisible = false"
+      @select="handleJenisKaosSelected"
+    />
 
     <v-dialog v-model="isKetersediaanConfirmVisible" max-width="400px" persistent>
       <v-card>
@@ -325,7 +398,9 @@ onMounted(() => {
         <v-card-actions class="pa-4">
           <v-spacer></v-spacer>
           <v-btn @click="handleKetersediaanConfirmed('N')">Stok Gudang</v-btn>
-          <v-btn color="primary" variant="elevated" @click="handleKetersediaanConfirmed('Y')">Custom</v-btn>
+          <v-btn color="primary" variant="elevated" @click="handleKetersediaanConfirmed('Y')"
+            >Custom</v-btn
+          >
         </v-card-actions>
       </v-card>
     </v-dialog>
@@ -333,28 +408,53 @@ onMounted(() => {
     <v-dialog v-model="isEditPanelVisible" persistent max-width="800px">
       <v-card class="dialog-card">
         <v-toolbar color="primary" density="compact">
-          <v-toolbar-title class="text-subtitle-1">{{ isNew ? 'Tambah Setting Harga Baru' : 'Ubah Setting Harga'
-            }}</v-toolbar-title>
+          <v-toolbar-title class="text-subtitle-1">{{
+            isNew ? "Tambah Setting Harga Baru" : "Ubah Setting Harga"
+          }}</v-toolbar-title>
         </v-toolbar>
         <v-card-text class="pa-4">
           <v-row dense>
             <v-col cols="8">
-              <v-text-field v-model="editedItem.jenisKaos" label="Jenis Kaos" variant="filled" density="compact"
-                readonly></v-text-field>
+              <v-text-field
+                v-model="editedItem.jenisKaos"
+                label="Jenis Kaos"
+                variant="filled"
+                density="compact"
+                readonly
+              ></v-text-field>
             </v-col>
             <v-col cols="4">
-              <v-radio-group v-model="editedItem.custom" inline hide-details density="compact" readonly>
+              <v-radio-group
+                v-model="editedItem.custom"
+                inline
+                hide-details
+                density="compact"
+                readonly
+              >
                 <v-radio label="Custom" value="Y"></v-radio>
                 <v-radio label="Stok" value="N"></v-radio>
               </v-radio-group>
             </v-col>
           </v-row>
-          <v-data-table :items="editedItem.ukuranHarga"
-            :headers="[{ title: 'Ukuran', key: 'ukuran' }, { title: 'Harga', key: 'harga' }]" density="compact"
-            class="desktop-table mt-4" fixed-header height="300px">
+          <v-data-table
+            :items="editedItem.ukuranHarga"
+            :headers="[
+              { title: 'Ukuran', key: 'ukuran' },
+              { title: 'Harga', key: 'harga' },
+            ]"
+            density="compact"
+            class="desktop-table mt-4"
+            fixed-header
+            height="300px"
+          >
             <template #[`item.harga`]="{ item }">
-              <v-text-field v-model.number="item.harga" type="number" variant="underlined" density="compact"
-                hide-details />
+              <v-text-field
+                v-model.number="item.harga"
+                type="number"
+                variant="underlined"
+                density="compact"
+                hide-details
+              />
             </template>
           </v-data-table>
         </v-card-text>

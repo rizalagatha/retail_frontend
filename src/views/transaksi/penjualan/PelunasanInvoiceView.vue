@@ -52,6 +52,16 @@ interface PelunasanDetailBackend {
   nominal_bayar: number;
 }
 
+interface DetailExportRow {
+  "Nomor Bukti": string;
+  "Tanggal Pelunasan": string;
+  Customer: string;
+  "No Invoice": string;
+  Marketplace: string;
+  "No Pesanan": string;
+  "Nominal Dilunasi": number;
+}
+
 // --- Inisialisasi ---
 const router = useRouter();
 const toast = useToast();
@@ -201,7 +211,7 @@ const exportData = async (type: "header" | "detail") => {
     if (selected.value.length === 0)
       return toast.warning("Pilih minimal satu data untuk export detail.");
     try {
-      const detailExport = [];
+      const detailExport: DetailExportRow[] = [];
       for (const header of selected.value) {
         let detailItems: PelunasanDetail[] = details.value[header.sh_nomor];
         if (!detailItems) {
@@ -263,12 +273,22 @@ onMounted(() => {
 <template>
   <PageLayout title="Riwayat Pelunasan Marketplace" icon="mdi-hand-coin">
     <template #header-actions>
-      <v-btn v-if="authStore.can(MENU_ID, 'insert')" color="primary" size="small" prepend-icon="mdi-plus"
-        @click="handleCreate">
+      <v-btn
+        v-if="authStore.can(MENU_ID, 'insert')"
+        color="primary"
+        size="small"
+        prepend-icon="mdi-plus"
+        @click="handleCreate"
+      >
         Buat Pelunasan Baru
       </v-btn>
 
-      <v-btn size="small" prepend-icon="mdi-pencil" :disabled="!isSingleSelected" @click="handleEdit">
+      <v-btn
+        size="small"
+        prepend-icon="mdi-pencil"
+        :disabled="!isSingleSelected"
+        @click="handleEdit"
+      >
         Lihat / Ubah
       </v-btn>
 
@@ -291,31 +311,82 @@ onMounted(() => {
 
     <div class="browse-content">
       <div class="filter-section d-flex align-center flex-wrap ga-2 px-3 py-2 border-bottom">
-        <v-text-field v-model="filters.startDate" type="date" label="Dari" density="compact" variant="outlined"
-          hide-details style="max-width: 145px" />
-        <v-text-field v-model="filters.endDate" type="date" label="S/D" density="compact" variant="outlined"
-          hide-details style="max-width: 145px" />
+        <v-text-field
+          v-model="filters.startDate"
+          type="date"
+          label="Dari"
+          density="compact"
+          variant="outlined"
+          hide-details
+          style="max-width: 145px"
+        />
+        <v-text-field
+          v-model="filters.endDate"
+          type="date"
+          label="S/D"
+          density="compact"
+          variant="outlined"
+          hide-details
+          style="max-width: 145px"
+        />
 
         <v-divider vertical class="mx-1" style="height: 28px" />
 
-        <v-select v-if="isKdc" v-model="filters.cabang" :items="cabangList" item-title="nama" item-value="kode"
-          label="Cabang" density="compact" hide-details variant="outlined" style="max-width: 180px" />
+        <v-select
+          v-if="isKdc"
+          v-model="filters.cabang"
+          :items="cabangList"
+          item-title="nama"
+          item-value="kode"
+          label="Cabang"
+          density="compact"
+          hide-details
+          variant="outlined"
+          style="max-width: 180px"
+        />
 
-        <v-text-field v-model="filters.term" label="Cari Nomor Bukti / Customer..." density="compact" variant="outlined"
-          prepend-inner-icon="mdi-magnify" hide-details clearable style="max-width: 300px" />
+        <v-text-field
+          v-model="filters.term"
+          label="Cari Nomor Bukti / Customer..."
+          density="compact"
+          variant="outlined"
+          prepend-inner-icon="mdi-magnify"
+          hide-details
+          clearable
+          style="max-width: 300px"
+        />
 
         <v-spacer />
 
-        <v-btn icon="mdi-refresh" variant="text" size="small" color="grey-darken-1" @click="fetchData"
-          :loading="isLoading" />
+        <v-btn
+          icon="mdi-refresh"
+          variant="text"
+          size="small"
+          color="grey-darken-1"
+          @click="fetchData"
+          :loading="isLoading"
+        />
       </div>
 
       <div class="table-container">
-        <AppDataTable v-model="selected" v-model:expanded="expanded" v-model:page="filters.page"
-          v-model:items-per-page="filters.itemsPerPage" :headers="headers" :items="items" :items-length="totalItems"
-          :loading="isLoading" show-select show-expand return-object item-value="sh_nomor"
-          class="desktop-table elevation-1 header-browse-blue" density="compact" @update:expanded="loadDetails"
-          @click:row="handleRowClick">
+        <AppDataTable
+          v-model="selected"
+          v-model:expanded="expanded"
+          v-model:page="filters.page"
+          v-model:items-per-page="filters.itemsPerPage"
+          :headers="headers"
+          :items="items"
+          :items-length="totalItems"
+          :loading="isLoading"
+          show-select
+          show-expand
+          return-object
+          item-value="sh_nomor"
+          class="desktop-table elevation-1 header-browse-blue"
+          density="compact"
+          @update:expanded="loadDetails"
+          @click:row="handleRowClick"
+        >
           <template #[`body.append`]>
             <tr class="sticky-footer bg-grey-lighten-4">
               <td colspan="7" class="text-right font-weight-bold text-grey-darken-3 pr-4">
@@ -340,8 +411,15 @@ onMounted(() => {
               <td :colspan="columns.length" class="pa-0">
                 <div class="detail-container">
                   <div class="detail-table-wrapper">
-                    <v-data-table v-if="details[item.sh_nomor]" :headers="detailHeaders" :items="details[item.sh_nomor]"
-                      density="compact" class="detail-table" hide-default-footer :items-per-page="-1">
+                    <v-data-table
+                      v-if="details[item.sh_nomor]"
+                      :headers="detailHeaders"
+                      :items="details[item.sh_nomor]"
+                      density="compact"
+                      class="detail-table"
+                      hide-default-footer
+                      :items-per-page="-1"
+                    >
                       <template #[`item.nominal_bayar`]="{ item: d }">
                         {{ formatRupiah(d.nominal_bayar) }}
                       </template>

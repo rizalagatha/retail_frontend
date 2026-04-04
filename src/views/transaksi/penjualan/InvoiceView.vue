@@ -609,8 +609,10 @@ const fetchMasterData = async (options?: { page: number; itemsPerPage: number })
     }));
 
     totalItems.value = total;
-  } catch (error) {
-    toast.error("Gagal mengambil data.", error);
+  } catch (error: unknown) {
+    const err = error as AxiosError<{ message?: string }>;
+
+    toast.error(err.response?.data?.message || "Gagal mengambil data.");
   } finally {
     loading.value = false;
   }
@@ -652,17 +654,15 @@ const loadDetails = async (newlyExpandedItems: InvoiceItem[]) => {
 // };
 
 const getRowClass = (item: InvoiceItem) => {
-  // Kondisi 1: Sisa Piutang
-  if (item.SisaPiutang > 0) {
+  if ((item.SisaPiutang ?? 0) > 0) {
     return "row-sisa-piutang";
   }
 
-  // Kondisi 2: Stok Minus (Akan berfungsi setelah Anda update backend)
   if (item.Minus === "Y") {
     return "row-stok-minus";
   }
 
-  return ""; // Default
+  return "";
 };
 
 const handleNew = () => {
@@ -968,10 +968,13 @@ const applyCustomFilter = () => {
   customFilterDialog.value = false;
 };
 
-const uniqueValues = (key: string) => {
+const uniqueValues = (key: string): FilterValue[] => {
   const set = new Set(
-    masterData.value.map((r) => r[key]).filter((v) => v !== null && v !== undefined && v !== "")
+    masterData.value
+      .map((r) => r[key])
+      .filter((v): v is FilterValue => v !== undefined && v !== null && v !== "")
   );
+
   return Array.from(set).sort();
 };
 
@@ -1332,7 +1335,7 @@ onBeforeRouteLeave((to, from, next) => {
           return-object
           @update:expanded="loadDetails"
           @click:row="handleRowClick"
-          :item-props="(item) => ({ class: getRowClass(item) })"
+          :item-props="(item: InvoiceItem) => ({ class: getRowClass(item) })"
         >
           <template #headers="{ columns, isSorted, getSortIcon, toggleSort }">
             <tr>
@@ -1410,7 +1413,7 @@ onBeforeRouteLeave((to, from, next) => {
                         <v-list-item
                           v-for="value in uniqueValues(header.key)"
                           :key="value"
-                          @click.stop="toggleMultiSelectValue(header.key, value)"
+                          @click.stop="toggleMultiSelectValue(header.key, value as FilterValue)"
                         >
                           <template #prepend>
                             <v-checkbox

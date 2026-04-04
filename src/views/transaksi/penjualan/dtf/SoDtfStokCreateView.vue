@@ -1,17 +1,17 @@
 <script setup lang="ts">
-import { ref, onMounted, computed, watch, nextTick } from 'vue';
-import { useRoute, useRouter } from 'vue-router';
-import api from '@/services/api';
-import PageLayout from '@/components/PageLayout.vue';
-import SalesSearchModal from '@/components/lookup/SalesSearchModal.vue';
-import JenisOrderStokSearchModal from '@/components/lookup/JenisOrderStokSearchModal.vue';
-import WorkshopSearchModal from '@/components/lookup/WorkshopSearchModal.vue';
-import { useToast } from 'vue-toastification';
-import { useAuthStore } from '@/stores/authStore';
-import { useUiStore } from '@/stores/uiStore';
-import { useUnsavedChanges } from '@/composables/useUnsavedChanges';
-import { format } from 'date-fns';
-import type { AxiosError } from 'axios';
+import { ref, onMounted, computed, watch, nextTick } from "vue";
+import { useRoute, useRouter } from "vue-router";
+import api from "@/services/api";
+import PageLayout from "@/components/PageLayout.vue";
+import SalesSearchModal from "@/components/lookup/SalesSearchModal.vue";
+import JenisOrderStokSearchModal from "@/components/lookup/JenisOrderStokSearchModal.vue";
+import WorkshopSearchModal from "@/components/lookup/WorkshopSearchModal.vue";
+import { useToast } from "vue-toastification";
+import { useAuthStore } from "@/stores/authStore";
+import { useUiStore } from "@/stores/uiStore";
+import { useUnsavedChanges } from "@/composables/useUnsavedChanges";
+import { format } from "date-fns";
+import type { AxiosError } from "axios";
 
 interface DetailItem {
   id: number;
@@ -43,28 +43,28 @@ const toast = useToast();
 const authStore = useAuthStore();
 const uiStore = useUiStore();
 const { markAsSaved } = useUnsavedChanges();
-const MENU_ID = '36';
+const MENU_ID = "36";
 
 const isEditMode = computed(() => !!route.params.nomor);
-const pageTitle = computed(() => isEditMode.value ? `Ubah SO DTF Stok` : 'Buat SO DTF Stok Baru');
-const canView = computed(() => authStore.can(MENU_ID, 'view'));
-const canInsert = computed(() => authStore.can(MENU_ID, 'insert'));
-const canEdit = computed(() => authStore.can(MENU_ID, 'edit'));
-const canSave = computed(() => isEditMode.value ? canEdit.value : canInsert.value);
+const pageTitle = computed(() => (isEditMode.value ? `Ubah SO DTF Stok` : "Buat SO DTF Stok Baru"));
+const canView = computed(() => authStore.can(MENU_ID, "view"));
+const canInsert = computed(() => authStore.can(MENU_ID, "insert"));
+const canEdit = computed(() => authStore.can(MENU_ID, "edit"));
+const canSave = computed(() => (isEditMode.value ? canEdit.value : canInsert.value));
 
 const initialFormState = {
   nomor: null as string | null,
-  tanggal: format(new Date(), 'yyyy-MM-dd'),
-  tglPengerjaan: format(new Date(), 'yyyy-MM-dd'),
-  salesKode: '',
-  salesNama: '',
-  jenisOrderKode: '',
-  jenisOrderNama: '',
-  namaDtf: '',
-  desain: '',
-  workshopKode: authStore.user?.cabang || '',
-  workshopNama: '',
-  keterangan: '',
+  tanggal: format(new Date(), "yyyy-MM-dd"),
+  tglPengerjaan: format(new Date(), "yyyy-MM-dd"),
+  salesKode: "",
+  salesNama: "",
+  jenisOrderKode: "",
+  jenisOrderNama: "",
+  namaDtf: "",
+  desain: "",
+  workshopKode: authStore.user?.cabang || "",
+  workshopNama: "",
+  keterangan: "",
   imageUrl: null as string | null, // Tambahkan ini
 };
 
@@ -79,24 +79,24 @@ const isJenisOrderSearchVisible = ref(false);
 const isWorkshopSearchVisible = ref(false);
 const isImageFullscreenVisible = ref(false);
 const isConfirmDialogVisible = ref(false);
-const confirmText = ref('');
+const confirmText = ref("");
 const pendingAction = ref<(() => void) | null>(null);
 
 // State untuk gambar
-const imagePreview = ref<string | null>(null);
+const imagePreview = ref<string | undefined>(undefined);
 const imageFile = ref<File | null>(null);
 const isImageUploading = ref(false);
 
 const totalJumlah = computed(() => items.value.reduce((sum, item) => sum + (item.jumlah || 0), 0));
 
 const tableHeaders = [
-  { title: 'No.', key: 'no', sortable: false, width: '40px' },
-  { title: 'Kode', key: 'kode', sortable: false, width: '120px' },
-  { title: 'Nama Barang', key: 'nama', sortable: false, width: '250px' },
-  { title: 'Ukuran', key: 'ukuran', sortable: false, width: '100px' },
-  { title: 'Panjang(cm)', key: 'panjang', sortable: false, width: '100px', align: 'end' },
-  { title: 'Lebar(cm)', key: 'lebar', sortable: false, width: '100px', align: 'end' },
-  { title: 'Jumlah', key: 'jumlah', sortable: false, width: '120px' },
+  { title: "No.", key: "no", sortable: false, width: "40px" },
+  { title: "Kode", key: "kode", sortable: false, width: "120px" },
+  { title: "Nama Barang", key: "nama", sortable: false, width: "250px" },
+  { title: "Ukuran", key: "ukuran", sortable: false, width: "100px" },
+  { title: "Panjang(cm)", key: "panjang", sortable: false, width: "100px", align: "end" },
+  { title: "Lebar(cm)", key: "lebar", sortable: false, width: "100px", align: "end" },
+  { title: "Jumlah", key: "jumlah", sortable: false, width: "120px" },
 ] as const;
 
 const fetchTemplateItems = async (jenisOrder: string) => {
@@ -114,11 +114,11 @@ const fetchTemplateItems = async (jenisOrder: string) => {
       ukuran: item.ukuran,
       panjang: item.panjang ?? null,
       lebar: item.lebar ?? null,
-      jumlah: 0
+      jumlah: 0,
     }));
-    form.value.namaDtf = jenisOrder === 'SD' ? 'STICKER DTF' : 'STICKER DTF PREMIUM';
+    form.value.namaDtf = jenisOrder === "SD" ? "STICKER DTF" : "STICKER DTF PREMIUM";
   } catch {
-    toast.error('Gagal memuat template item.');
+    toast.error("Gagal memuat template item.");
   } finally {
     isLoading.value = false;
   }
@@ -131,8 +131,8 @@ const loadDataForEdit = async (nomor: string) => {
     const { header, details } = response.data;
 
     form.value.nomor = header.sd_nomor;
-    form.value.tanggal = format(new Date(header.sd_tanggal), 'yyyy-MM-dd');
-    form.value.tglPengerjaan = format(new Date(header.sd_datekerja), 'yyyy-MM-dd');
+    form.value.tanggal = format(new Date(header.sd_tanggal), "yyyy-MM-dd");
+    form.value.tglPengerjaan = format(new Date(header.sd_datekerja), "yyyy-MM-dd");
     form.value.salesKode = header.sd_sal_kode;
     form.value.salesNama = header.sal_nama;
     form.value.jenisOrderKode = header.sd_jo_kode;
@@ -150,7 +150,7 @@ const loadDataForEdit = async (nomor: string) => {
 
     details.forEach((savedItem: SavedDetailItem) => {
       const itemToUpdate = items.value.find(
-        i => i.kode === savedItem.sds_kode && i.ukuran === savedItem.sds_ukuran
+        (i) => i.kode === savedItem.sds_kode && i.ukuran === savedItem.sds_ukuran
       );
       if (itemToUpdate) {
         itemToUpdate.jumlah = savedItem.sds_jumlah;
@@ -162,7 +162,7 @@ const loadDataForEdit = async (nomor: string) => {
     await nextTick();
     markAsSaved();
   } catch {
-    toast.error('Gagal memuat data SO Stok.');
+    toast.error("Gagal memuat data SO Stok.");
     router.back();
   } finally {
     isLoading.value = false;
@@ -171,7 +171,7 @@ const loadDataForEdit = async (nomor: string) => {
 
 const save = async () => {
   if (!canSave.value) {
-    toast.error('Anda tidak memiliki izin untuk menyimpan data ini.');
+    toast.error("Anda tidak memiliki izin untuk menyimpan data ini.");
     return;
   }
   // --- Validasi Data Sebelum Simpan ---
@@ -184,7 +184,7 @@ const save = async () => {
     return;
   }
 
-  const validItems = items.value.filter(item => item.jumlah && item.jumlah > 0);
+  const validItems = items.value.filter((item) => item.jumlah && item.jumlah > 0);
   if (validItems.length === 0) {
     toast.error("Detail item harus diisi, pastikan ada jumlah yang lebih dari 0.");
     return;
@@ -194,7 +194,7 @@ const save = async () => {
   isSaving.value = true;
   const payload = {
     header: form.value,
-    details: items.value.filter(item => item.jumlah && item.jumlah > 0)
+    details: items.value.filter((item) => item.jumlah && item.jumlah > 0),
   };
 
   let nomorSoDtf = form.value.nomor;
@@ -203,9 +203,9 @@ const save = async () => {
     let response;
     if (isEditMode.value && nomorSoDtf) {
       response = await api.put(`/so-dtf-stok-form/${nomorSoDtf}`, payload);
-      toast.success('Data berhasil diperbarui.');
+      toast.success("Data berhasil diperbarui.");
     } else {
-      response = await api.post('/so-dtf-stok-form', payload);
+      response = await api.post("/so-dtf-stok-form", payload);
       nomorSoDtf = response.data.nomor;
       toast.success(`Data berhasil disimpan dengan nomor: ${nomorSoDtf}`);
     }
@@ -213,25 +213,24 @@ const save = async () => {
     markAsSaved();
 
     // Logika upload gambar
-    if (!isEditMode.value && imageFile.value) {
+    if (!isEditMode.value && imageFile.value && nomorSoDtf) {
       const uploadSuccess = await uploadImageToServer(nomorSoDtf);
       if (!uploadSuccess) {
         toast.warning("Data berhasil disimpan, tapi gambar gagal diunggah.");
       }
     }
 
-    router.push('/transaksi/penjualan/dtf/so-dtf-stok');
-
+    router.push("/transaksi/penjualan/dtf/so-dtf-stok");
   } catch (error) {
     const axiosError = error as AxiosError<{ message: string }>;
-    toast.error(axiosError.response?.data?.message || 'Gagal menyimpan data.');
+    toast.error(axiosError.response?.data?.message || "Gagal menyimpan data.");
   } finally {
     isSaving.value = false;
   }
 };
 
-const getFullImageUrl = (path: string | null) => {
-  if (!path) return null;
+const getFullImageUrl = (path: string | null): string | undefined => {
+  if (!path) return undefined;
   if (path.startsWith("http")) return path;
   return `${import.meta.env.VITE_API_BASE_URL}${path}`;
 };
@@ -239,14 +238,14 @@ const getFullImageUrl = (path: string | null) => {
 const resetForm = () => {
   form.value = { ...initialFormState };
   items.value = [];
-  imagePreview.value = null;
+  imagePreview.value = undefined;
   imageFile.value = null;
   markAsSaved();
   toast.info("Form telah dikosongkan.");
 };
 
 const closeForm = () => {
-  router.push('/transaksi/penjualan/dtf/so-dtf-stok');
+  router.push("/transaksi/penjualan/dtf/so-dtf-stok");
 };
 
 const handleImageUpload = async () => {
@@ -255,7 +254,7 @@ const handleImageUpload = async () => {
   const file = imageFile.value;
 
   if (!file) {
-    imagePreview.value = form.value.imageUrl ? getFullImageUrl(form.value.imageUrl) : null;
+    imagePreview.value = form.value.imageUrl ? getFullImageUrl(form.value.imageUrl) : undefined;
     return;
   }
 
@@ -292,13 +291,13 @@ const uploadImageToServer = async (nomor: string): Promise<boolean> => {
     formData.append("image", imageFile.value);
 
     const response = await api.post(`/so-dtf-stok-form/upload-image/${nomor}`, formData, {
-      headers: { "Content-Type": "multipart/form-data" }
+      headers: { "Content-Type": "multipart/form-data" },
     });
 
     if (response.data.success) {
       form.value.imageUrl = response.data.imageUrl;
 
-      if (imagePreview.value && imagePreview.value.startsWith('blob:')) {
+      if (imagePreview.value && imagePreview.value.startsWith("blob:")) {
         URL.revokeObjectURL(imagePreview.value);
       }
 
@@ -320,10 +319,10 @@ const uploadImageToServer = async (nomor: string): Promise<boolean> => {
 };
 
 const clearImage = () => {
-  if (imagePreview.value && imagePreview.value.startsWith('blob:')) {
+  if (imagePreview.value && imagePreview.value.startsWith("blob:")) {
     URL.revokeObjectURL(imagePreview.value);
   }
-  imagePreview.value = null;
+  imagePreview.value = undefined;
   imageFile.value = null;
   form.value.imageUrl = null;
 };
@@ -346,29 +345,32 @@ const closeConfirmDialog = () => {
   pendingAction.value = null;
 };
 
-const onSalesSelected = (sales: { kode: string, nama: string }) => {
+const onSalesSelected = (sales: { kode: string; nama: string }) => {
   form.value.salesKode = sales.kode;
   form.value.salesNama = sales.nama;
   isSalesSearchVisible.value = false;
 };
 
-const onJenisOrderSelected = (jenisOrder: { kode: string, nama: string }) => {
+const onJenisOrderSelected = (jenisOrder: { kode: string; nama: string }) => {
   form.value.jenisOrderKode = jenisOrder.kode;
   form.value.jenisOrderNama = jenisOrder.nama;
   isJenisOrderSearchVisible.value = false;
 };
 
-const onWorkshopSelected = (workshop: { kode: string, nama: string }) => {
+const onWorkshopSelected = (workshop: { kode: string; nama: string }) => {
   form.value.workshopKode = workshop.kode;
   form.value.workshopNama = workshop.nama;
   isWorkshopSearchVisible.value = false;
 };
 
-watch(() => form.value.jenisOrderKode, (newVal) => {
-  if (!isEditMode.value && newVal) {
-    fetchTemplateItems(newVal);
+watch(
+  () => form.value.jenisOrderKode,
+  (newVal) => {
+    if (!isEditMode.value && newVal) {
+      fetchTemplateItems(newVal);
+    }
   }
-});
+);
 
 // --- WATCHERS (UNSAVED CHANGES) ---
 watch(
@@ -379,10 +381,10 @@ watch(
 
     // Cek apakah form "kotor"
     // 1. Header: Sales dipilih atau Keterangan diisi
-    const hasHeader = (form.value.salesKode !== '') || (form.value.keterangan.trim() !== '');
+    const hasHeader = form.value.salesKode !== "" || form.value.keterangan.trim() !== "";
 
     // 2. Items: Ada item yang jumlahnya diisi > 0
-    const hasItems = items.value.some(i => (i.jumlah || 0) > 0);
+    const hasItems = items.value.some((i) => (i.jumlah || 0) > 0);
 
     if (hasHeader || hasItems) {
       uiStore.setUnsavedChanges(true);
@@ -400,7 +402,7 @@ onMounted(async () => {
   // --- TAMBAHKAN PENGECEKAN AWAL ---
   if (!canView.value) {
     isLoading.value = false; // Hentikan loading
-    toast.error('Anda tidak memiliki izin untuk mengakses halaman ini.');
+    toast.error("Anda tidak memiliki izin untuk mengakses halaman ini.");
     // Opsional: Redirect atau tampilkan pesan akses ditolak di template
     // router.replace({ name: 'Forbidden' });
     return; // Hentikan eksekusi onMounted
@@ -425,17 +427,31 @@ onMounted(async () => {
 <template>
   <PageLayout :title="pageTitle" desktop-mode icon="mdi-package-variant-closed-plus">
     <template #header-actions>
-      <v-btn v-if="canSave" size="small" color="primary"
-        @click="showConfirmation(save, 'Anda yakin ingin menyimpan data ini?')" :loading="isSaving"
-        prepend-icon="mdi-content-save">
+      <v-btn
+        v-if="canSave"
+        size="small"
+        color="primary"
+        @click="showConfirmation(save, 'Anda yakin ingin menyimpan data ini?')"
+        :loading="isSaving"
+        prepend-icon="mdi-content-save"
+      >
         Simpan
       </v-btn>
-      <v-btn v-if="!isEditMode" size="small" @click="showConfirmation(resetForm, 'Batalkan dan kosongkan semua isian?')"
-        prepend-icon="mdi-refresh">
+      <v-btn
+        v-if="!isEditMode"
+        size="small"
+        @click="showConfirmation(resetForm, 'Batalkan dan kosongkan semua isian?')"
+        prepend-icon="mdi-refresh"
+      >
         Batal
       </v-btn>
-      <v-btn size="small" @click="showConfirmation(closeForm, 'Tutup form? Perubahan yang belum disimpan akan hilang.')"
-        prepend-icon="mdi-close">
+      <v-btn
+        size="small"
+        @click="
+          showConfirmation(closeForm, 'Tutup form? Perubahan yang belum disimpan akan hilang.')
+        "
+        prepend-icon="mdi-close"
+      >
         Tutup
       </v-btn>
     </template>
@@ -444,29 +460,90 @@ onMounted(async () => {
       <div class="left-column">
         <div class="desktop-form-section">
           <v-row dense>
-            <v-col cols="12"><v-text-field label="Nomor" :model-value="form.nomor || '<Otomatis>'" readonly filled
-                density="compact" hide-details /></v-col>
-            <v-col cols="12"><v-text-field label="Tanggal" v-model="form.tanggal" type="date" variant="outlined"
-                density="compact" hide-details :readonly="!canSave" /></v-col>
-            <v-col cols="12"><v-text-field label="Tgl Pengerjaan" v-model="form.tglPengerjaan" type="date"
-                variant="outlined" density="compact" hide-details /></v-col>
-            <v-col cols="12"><v-text-field label="Sales"
-                :model-value="form.salesKode ? `${form.salesKode} - ${form.salesNama}` : ''" readonly
-                @click="isSalesSearchVisible = true" variant="outlined" density="compact" hide-details
-                append-inner-icon="mdi-magnify" :class="{ 'field-disabled': !canSave }" /></v-col>
-            <v-col cols="12"><v-text-field label="Jenis Order"
-                :model-value="form.jenisOrderKode ? `${form.jenisOrderKode} - ${form.jenisOrderNama}` : ''" readonly
-                @click="isJenisOrderSearchVisible = true" :disabled="isEditMode"
-                :class="{ 'field-disabled': isEditMode }" variant="outlined" density="compact" hide-details
-                append-inner-icon="mdi-magnify" /></v-col>
-            <v-col cols="12"><v-text-field label="Nama DTF" v-model="form.namaDtf" variant="outlined" density="compact"
-                hide-details /></v-col>
-            <v-col cols="12"><v-text-field label="Bag Desain" v-model="form.desain" variant="outlined" density="compact"
-                hide-details /></v-col>
-            <v-col cols="12"><v-text-field label="Workshop"
-                :model-value="form.workshopKode ? `${form.workshopKode} - ${form.workshopNama}` : ''" readonly
-                @click="isWorkshopSearchVisible = true" variant="outlined" density="compact" hide-details
-                append-inner-icon="mdi-magnify" /></v-col>
+            <v-col cols="12"
+              ><v-text-field
+                label="Nomor"
+                :model-value="form.nomor || '<Otomatis>'"
+                readonly
+                filled
+                density="compact"
+                hide-details
+            /></v-col>
+            <v-col cols="12"
+              ><v-text-field
+                label="Tanggal"
+                v-model="form.tanggal"
+                type="date"
+                variant="outlined"
+                density="compact"
+                hide-details
+                :readonly="!canSave"
+            /></v-col>
+            <v-col cols="12"
+              ><v-text-field
+                label="Tgl Pengerjaan"
+                v-model="form.tglPengerjaan"
+                type="date"
+                variant="outlined"
+                density="compact"
+                hide-details
+            /></v-col>
+            <v-col cols="12"
+              ><v-text-field
+                label="Sales"
+                :model-value="form.salesKode ? `${form.salesKode} - ${form.salesNama}` : ''"
+                readonly
+                @click="isSalesSearchVisible = true"
+                variant="outlined"
+                density="compact"
+                hide-details
+                append-inner-icon="mdi-magnify"
+                :class="{ 'field-disabled': !canSave }"
+            /></v-col>
+            <v-col cols="12"
+              ><v-text-field
+                label="Jenis Order"
+                :model-value="
+                  form.jenisOrderKode ? `${form.jenisOrderKode} - ${form.jenisOrderNama}` : ''
+                "
+                readonly
+                @click="isJenisOrderSearchVisible = true"
+                :disabled="isEditMode"
+                :class="{ 'field-disabled': isEditMode }"
+                variant="outlined"
+                density="compact"
+                hide-details
+                append-inner-icon="mdi-magnify"
+            /></v-col>
+            <v-col cols="12"
+              ><v-text-field
+                label="Nama DTF"
+                v-model="form.namaDtf"
+                variant="outlined"
+                density="compact"
+                hide-details
+            /></v-col>
+            <v-col cols="12"
+              ><v-text-field
+                label="Bag Desain"
+                v-model="form.desain"
+                variant="outlined"
+                density="compact"
+                hide-details
+            /></v-col>
+            <v-col cols="12"
+              ><v-text-field
+                label="Workshop"
+                :model-value="
+                  form.workshopKode ? `${form.workshopKode} - ${form.workshopNama}` : ''
+                "
+                readonly
+                @click="isWorkshopSearchVisible = true"
+                variant="outlined"
+                density="compact"
+                hide-details
+                append-inner-icon="mdi-magnify"
+            /></v-col>
           </v-row>
         </div>
       </div>
@@ -475,8 +552,14 @@ onMounted(async () => {
           <!-- KOLOM KIRI: TABEL -->
           <v-col cols="12" md="8">
             <div class="desktop-form-section grid-section">
-              <v-data-table :headers="tableHeaders" :items="items" density="compact"
-                class="desktop-table header-browse-blue" fixed-header :items-per-page="-1">
+              <v-data-table
+                :headers="tableHeaders"
+                :items="items"
+                density="compact"
+                class="desktop-table header-browse-blue"
+                fixed-header
+                :items-per-page="-1"
+              >
                 <template #[`item.no`]="{ index }">
                   <div class="cell-text">{{ index + 1 }}</div>
                 </template>
@@ -496,8 +579,16 @@ onMounted(async () => {
                   <div class="cell-text text-end">{{ item.lebar }}</div>
                 </template>
                 <template #[`item.jumlah`]="{ item }">
-                  <v-text-field v-model.number="item.jumlah" type="number" min="0" variant="underlined"
-                    density="compact" hide-details class="text-end" :readonly="!canSave" />
+                  <v-text-field
+                    v-model.number="item.jumlah"
+                    type="number"
+                    min="0"
+                    variant="underlined"
+                    density="compact"
+                    hide-details
+                    class="text-end"
+                    :readonly="!canSave"
+                  />
                 </template>
                 <template #bottom>
                   <tfoot>
@@ -519,21 +610,47 @@ onMounted(async () => {
             <div class="desktop-form-section mb-3">
               <div class="image-upload-section">
                 <div class="d-flex align-center ga-2 mb-3">
-                  <v-file-input v-model="imageFile" label="Upload Gambar (Max 1MB)" variant="outlined" density="compact"
-                    prepend-icon="mdi-camera" hide-details clearable accept="image/jpeg,image/png,image/jpg,image/gif"
-                    :loading="isImageUploading" :disabled="isImageUploading || !canSave"
-                    @update:model-value="handleImageUpload" />
-                  <v-btn @click="clearImage" :disabled="!imagePreview || isImageUploading" icon="mdi-delete"
-                    size="small" variant="tonal" color="error" title="Hapus Gambar" />
+                  <v-file-input
+                    v-model="imageFile"
+                    label="Upload Gambar (Max 1MB)"
+                    variant="outlined"
+                    density="compact"
+                    prepend-icon="mdi-camera"
+                    hide-details
+                    clearable
+                    accept="image/jpeg,image/png,image/jpg,image/gif"
+                    :loading="isImageUploading"
+                    :disabled="isImageUploading || !canSave"
+                    @update:model-value="handleImageUpload"
+                  />
+                  <v-btn
+                    @click="clearImage"
+                    :disabled="!imagePreview || isImageUploading"
+                    icon="mdi-delete"
+                    size="small"
+                    variant="tonal"
+                    color="error"
+                    title="Hapus Gambar"
+                  />
                 </div>
 
                 <div class="image-preview-container">
                   <div v-if="imagePreview" class="position-relative">
-                    <v-img :src="imagePreview" height="200" aspect-ratio="16/9" cover
+                    <v-img
+                      :src="imagePreview"
+                      height="200"
+                      aspect-ratio="16/9"
+                      cover
                       class="border rounded elevation-1 cursor-pointer"
-                      @click="imagePreview ? isImageFullscreenVisible = true : null" title="Klik untuk memperbesar">
-                      <v-overlay v-if="isImageUploading" contained persistent
-                        class="d-flex align-center justify-center">
+                      @click="imagePreview ? (isImageFullscreenVisible = true) : null"
+                      title="Klik untuk memperbesar"
+                    >
+                      <v-overlay
+                        v-if="isImageUploading"
+                        contained
+                        persistent
+                        class="d-flex align-center justify-center"
+                      >
                         <div class="text-center text-white">
                           <v-progress-circular indeterminate color="primary" size="40" />
                           <div class="mt-2">Mengunggah...</div>
@@ -546,15 +663,23 @@ onMounted(async () => {
                         <v-icon start size="small">mdi-clock-outline</v-icon>
                         Belum tersimpan
                       </v-chip>
-                      <v-chip v-else-if="form.imageUrl && imagePreview" size="small" color="success" variant="tonal">
+                      <v-chip
+                        v-else-if="form.imageUrl && imagePreview"
+                        size="small"
+                        color="success"
+                        variant="tonal"
+                      >
                         <v-icon start size="small">mdi-check</v-icon>
                         Tersimpan di server
                       </v-chip>
                     </div>
                   </div>
 
-                  <div v-else class="border rounded d-flex align-center justify-center bg-grey-lighten-4"
-                    style="height: 200px;">
+                  <div
+                    v-else
+                    class="border rounded d-flex align-center justify-center bg-grey-lighten-4"
+                    style="height: 200px"
+                  >
                     <div class="text-center text-grey">
                       <v-icon size="48" class="mb-2">mdi-image-outline</v-icon>
                       <div class="text-caption">Tidak ada gambar</div>
@@ -572,8 +697,14 @@ onMounted(async () => {
 
             <!-- Keterangan Section -->
             <div class="desktop-form-section">
-              <v-textarea label="Keterangan" v-model="form.keterangan" rows="6" variant="outlined" density="compact"
-                hide-details />
+              <v-textarea
+                label="Keterangan"
+                v-model="form.keterangan"
+                rows="6"
+                variant="outlined"
+                density="compact"
+                hide-details
+              />
             </div>
           </v-col>
         </v-row>
@@ -582,12 +713,21 @@ onMounted(async () => {
     <v-skeleton-loader v-else type="article, actions"></v-skeleton-loader>
 
     <!-- Modals -->
-    <SalesSearchModal v-if="isSalesSearchVisible" @close="isSalesSearchVisible = false"
-      @sales-selected="onSalesSelected" />
-    <JenisOrderStokSearchModal v-if="isJenisOrderSearchVisible" @close="isJenisOrderSearchVisible = false"
-      @jenis-order-selected="onJenisOrderSelected" />
-    <WorkshopSearchModal v-if="isWorkshopSearchVisible" @close="isWorkshopSearchVisible = false"
-      @workshop-selected="onWorkshopSelected" />
+    <SalesSearchModal
+      v-if="isSalesSearchVisible"
+      @close="isSalesSearchVisible = false"
+      @sales-selected="onSalesSelected"
+    />
+    <JenisOrderStokSearchModal
+      v-if="isJenisOrderSearchVisible"
+      @close="isJenisOrderSearchVisible = false"
+      @jenis-order-selected="onJenisOrderSelected"
+    />
+    <WorkshopSearchModal
+      v-if="isWorkshopSearchVisible"
+      @close="isWorkshopSearchVisible = false"
+      @workshop-selected="onWorkshopSelected"
+    />
 
     <!-- Fullscreen Image Modal -->
     <v-dialog v-model="isImageFullscreenVisible" max-width="90vw">
@@ -595,15 +735,21 @@ onMounted(async () => {
         <v-toolbar density="compact" color="primary" dark>
           <v-toolbar-title>
             <v-icon start>mdi-image</v-icon>
-            Preview Gambar - {{ form.nomor || 'SO Baru' }}
+            Preview Gambar - {{ form.nomor || "SO Baru" }}
           </v-toolbar-title>
           <v-spacer />
           <v-btn icon="mdi-close" @click="isImageFullscreenVisible = false" variant="text" />
         </v-toolbar>
 
         <v-card-text class="pa-4 bg-grey-lighten-4">
-          <div class="d-flex justify-center align-center" style="min-height: 60vh;">
-            <v-img :src="imagePreview" max-height="80vh" max-width="100%" contain class="rounded elevation-2" />
+          <div class="d-flex justify-center align-center" style="min-height: 60vh">
+            <v-img
+              :src="imagePreview"
+              max-height="80vh"
+              max-width="100%"
+              contain
+              class="rounded elevation-2"
+            />
           </div>
         </v-card-text>
 
@@ -618,7 +764,12 @@ onMounted(async () => {
               Tersimpan di server
             </v-chip>
           </div>
-          <v-btn color="primary" @click="isImageFullscreenVisible = false" prepend-icon="mdi-close" variant="tonal">
+          <v-btn
+            color="primary"
+            @click="isImageFullscreenVisible = false"
+            prepend-icon="mdi-close"
+            variant="tonal"
+          >
             Tutup
           </v-btn>
         </v-card-actions>
@@ -626,17 +777,13 @@ onMounted(async () => {
     </v-dialog>
     <v-dialog v-model="isConfirmDialogVisible" max-width="400px" persistent>
       <v-card>
-        <v-card-title class="text-h6 font-weight-bold">
-          Konfirmasi
-        </v-card-title>
+        <v-card-title class="text-h6 font-weight-bold"> Konfirmasi </v-card-title>
         <v-card-text>
           {{ confirmText }}
         </v-card-text>
         <v-card-actions>
           <v-spacer></v-spacer>
-          <v-btn color="grey-darken-1" variant="text" @click="closeConfirmDialog">
-            Tidak
-          </v-btn>
+          <v-btn color="grey-darken-1" variant="text" @click="closeConfirmDialog"> Tidak </v-btn>
           <v-btn color="primary" variant="tonal" @click="executePendingAction">
             Ya, Lanjutkan
           </v-btn>

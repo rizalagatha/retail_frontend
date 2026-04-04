@@ -37,16 +37,23 @@ interface PriceProposal {
   created: string;
 }
 
+interface CabangOption {
+  kode: string;
+  nama: string;
+}
+
 // --- State ---
 const proposals = ref<PriceProposal[]>([]);
 const isLoading = ref(true);
 const startDate = ref(format(new Date(), "yyyy-MM-dd"));
 const endDate = ref(format(new Date(), "yyyy-MM-dd"));
-const selectedCabang = ref(authStore.user?.cabang === "KDC" ? "ALL" : authStore.user?.cabang || "");
+const selectedCabang = ref<string | null>(
+  authStore.user?.cabang === "KDC" ? "ALL" : authStore.user?.cabang || null
+);
 const belumApproval = ref(false);
-const cabangList = ref([]);
+const cabangList = ref<CabangOption[]>([]);
 const selected = ref<PriceProposal[]>([]);
-const filterOptions = ref([
+const filterOptions = ref<{ title: string; value: keyof PriceProposal }[]>([
   { title: "Nomor", value: "nomor" },
   { title: "Customer", value: "customer" },
   { title: "Jenis Kaos", value: "jenisKaos" },
@@ -55,7 +62,7 @@ const filterOptions = ref([
   { title: "Cabang", value: "cabang" },
   { title: "User", value: "created" },
 ]);
-const selectedFilterField = ref("nomor"); // Filter default
+const selectedFilterField = ref<keyof PriceProposal>("nomor");
 const filterSearchValue = ref("");
 
 const hasViewPermission = ref(false);

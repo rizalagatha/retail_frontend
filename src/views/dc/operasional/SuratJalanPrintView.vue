@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import { ref, onMounted, nextTick, watch } from 'vue';
-import { useRoute } from 'vue-router';
-import api from '@/services/api';
-import { format, parseISO } from 'date-fns';
-import Logo from '@/assets/logo.png';
+import { ref, onMounted, nextTick, watch } from "vue";
+import { useRoute } from "vue-router";
+import api from "@/services/api";
+import { format, parseISO } from "date-fns";
+import Logo from "@/assets/logo.png";
 
 interface PrintHeader {
   sj_nomor: string;
@@ -40,8 +40,10 @@ const fetchPrintData = async (nomor: string) => {
   try {
     const response = await api.get(`/surat-jalan/print-data/${nomor}`);
     printData.value = response.data;
-    if (printData.value.header?.sj_nomor) {
-      document.title = printData.value.header.sj_nomor;
+
+    const nomorSJ = printData.value?.header?.sj_nomor;
+    if (nomorSJ) {
+      document.title = nomorSJ;
     }
   } catch (error) {
     alert("Gagal memuat data untuk dicetak.");
@@ -86,10 +88,14 @@ onMounted(() => {
       <div class="info-grid">
         <div><span class="label">Nomor</span>: {{ printData.header.sj_nomor }}</div>
         <div><span class="label">No. Permintaan</span>: {{ printData.header.sj_mt_nomor }}</div>
-        <div><span class="label">Tanggal</span>: {{ format(parseISO(printData.header.sj_tanggal),
-          'dd-MM-yyyy') }}</div>
+        <div>
+          <span class="label">Tanggal</span>:
+          {{ format(parseISO(printData.header.sj_tanggal), "dd-MM-yyyy") }}
+        </div>
         <div><span class="label">Ke Store</span>: {{ printData.header.store }}</div>
-        <div class="keterangan"><span class="label">Keterangan</span>: {{ printData.header.sj_ket }}</div>
+        <div class="keterangan">
+          <span class="label">Keterangan</span>: {{ printData.header.sj_ket }}
+        </div>
       </div>
 
       <div class="items-table">
@@ -117,7 +123,7 @@ onMounted(() => {
 
       <div class="footer">
         <div class="created-date">
-          Created: {{ format(parseISO(printData.header.date_create), 'dd-MM-yyyy HH:mm') }}
+          Created: {{ format(parseISO(printData.header.date_create), "dd-MM-yyyy HH:mm") }}
         </div>
         <div class="footer">
           <div class="signatures">
@@ -145,7 +151,7 @@ body {
 }
 
 .print-container {
-  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
   font-size: 9pt;
   background-color: #fff;
   color: #000;
@@ -291,7 +297,7 @@ body {
   text-align: center;
 }
 
-.signatures>div {
+.signatures > div {
   width: 30%;
 }
 
@@ -302,7 +308,7 @@ body {
   margin-top: 45px;
 }
 
-.names>div {
+.names > div {
   width: 30%;
 }
 

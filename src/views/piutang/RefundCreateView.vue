@@ -1,21 +1,21 @@
 <script setup lang="ts">
-import { ref, onMounted, computed, reactive } from 'vue';
-import api from '@/services/api';
-import PageLayout from '@/components/PageLayout.vue';
-import TransactionSearchModal from '@/components/lookup/TransactionSearchModal.vue';
-import SoSearchModal from '@/components/lookup/SoSearchModal.vue';
-import { useToast } from 'vue-toastification';
-import { useAuthStore } from '@/stores/authStore';
-import { useRouter, useRoute } from 'vue-router';
-import { format } from 'date-fns';
-import axios from 'axios';
+import { ref, onMounted, computed, reactive } from "vue";
+import api from "@/services/api";
+import PageLayout from "@/components/PageLayout.vue";
+import TransactionSearchModal from "@/components/lookup/TransactionSearchModal.vue";
+import SoSearchModal from "@/components/lookup/SoSearchModal.vue";
+import { useToast } from "vue-toastification";
+import { useAuthStore } from "@/stores/authStore";
+import { useRouter, useRoute } from "vue-router";
+import { format } from "date-fns";
+import axios from "axios";
 
 const toast = useToast();
 const authStore = useAuthStore();
 const router = useRouter();
 const route = useRoute();
-const MENU_ID = '55';
-const API_BASE_PATH = '/refund-form';
+const MENU_ID = "55";
+const API_BASE_PATH = "/refund-form";
 
 // --- Interfaces (Disesuaikan dari Delphi CDS) ---
 interface RefundDetail {
@@ -77,13 +77,13 @@ interface RefundApiDetail {
 
 // --- State (Disesuaikan dari Form Delphi) ---
 const header = ref<RefundHeader>({
-  nomor: '',
-  tanggal: format(new Date(), 'yyyy-MM-dd'),
-  userCreate: authStore.user?.kode || '',
-  userApv: '',
+  nomor: "",
+  tanggal: format(new Date(), "yyyy-MM-dd"),
+  userCreate: authStore.user?.kode || "",
+  userApv: "",
   isProcessed: false,
   isApproved: false,
-  keterangan: '',
+  keterangan: "",
 });
 
 const items = ref<RefundDetail[]>([]);
@@ -91,30 +91,32 @@ const items = ref<RefundDetail[]>([]);
 // State untuk Kontrol UI
 const isTransactionSearchVisible = ref(false);
 const activeRowIndex = ref(0);
-const searchType = ref<'invoice' | 'deposit'>('invoice'); // F1 atau F2
+const searchType = ref<"invoice" | "deposit">("invoice"); // F1 atau F2
 const isSaving = ref(false);
 const isLoading = ref(true);
 const isDataLoading = ref(false);
 const isEditMode = ref(false);
 const dialogConfirm = reactive({
   show: false,
-  title: '',
-  text: '',
-  onConfirm: () => { },
-  onCancel: () => { dialogConfirm.show = false; }
+  title: "",
+  text: "",
+  onConfirm: () => {},
+  onCancel: () => {
+    dialogConfirm.show = false;
+  },
 });
 const dialogConfirmCetak = reactive({
   show: false,
-  nomor: '',
-  onConfirm: () => { },
-  onCancel: () => { }
+  nomor: "",
+  onConfirm: () => {},
+  onCancel: () => {},
 });
 const isSoSearchVisible = ref(false);
 
 // Komputasi Sisa Saldo (Analogi total refund yang diajukan)
 const totalRefund = computed(() => {
   return items.value
-    .filter(item => item.nomor)
+    .filter((item) => item.nomor)
     .reduce((sum, item) => sum + (Number(item.refund) || 0), 0);
 });
 
@@ -124,62 +126,70 @@ const isApprover = computed(() => {
   if (authStore.user?.canApproveRefund) return true;
 
   // Opsi B: Hardcode di frontend sebagai backup (jika user belum relogin)
-  const allowedUsers = ['DARUL', 'LIA', 'HANI', 'DEVI'];
-  const currentUser = authStore.user?.kode?.toUpperCase() || '';
+  const allowedUsers = ["DARUL", "LIA", "HANI", "DEVI"];
+  const currentUser = authStore.user?.kode?.toUpperCase() || "";
   return allowedUsers.includes(currentUser);
 });
 
 const pageTitle = computed(() =>
-  isEditMode.value
-    ? `Ubah Refund: ${header.value?.nomor || ''}`
-    : 'Pengajuan Refund'
+  isEditMode.value ? `Ubah Refund: ${header.value?.nomor || ""}` : "Pengajuan Refund"
 );
-const canView = computed(() => authStore.can(MENU_ID, 'view'));
-const canInsert = computed(() => authStore.can(MENU_ID, 'insert'));
-const canEdit = computed(() => authStore.can(MENU_ID, 'edit'));
+const canView = computed(() => authStore.can(MENU_ID, "view"));
+const canInsert = computed(() => authStore.can(MENU_ID, "insert"));
+const canEdit = computed(() => authStore.can(MENU_ID, "edit"));
 // Izin simpan bergantung pada mode dan apakah user adalah approver atau bukan
 const canSave = computed(() => {
   // Jika Approver, mereka bisa 'edit' (meskipun hanya checkbox APV/Refund/Bank)
   if (isApprover.value) return canEdit.value;
   // Jika bukan Approver, mereka bisa 'insert' (baru) atau 'edit' (jika belum diapprove)
-  return isEditMode.value ? (canEdit.value && !header.value.isApproved) : canInsert.value;
+  return isEditMode.value ? canEdit.value && !header.value.isApproved : canInsert.value;
 });
 // Izin approve hanya jika KDC DAN punya hak edit
 const canApprove = computed(() => isApprover.value && canEdit.value);
 
 const tableHeaders = [
-  { title: 'No. Transaksi', key: 'nomor', width: '150px' },
-  { title: 'Customer', key: 'customer', width: '200px' },
-  { title: 'Nominal Saldo', key: 'nominal', align: 'end', width: '120px' },
-  { title: 'Refund (Rp)', key: 'refund', align: 'end', width: '120px' },
-  { title: 'APV', key: 'apv', width: '50px' },
-  { title: 'Bank', key: 'bank', width: '120px' },
-  { title: 'No. Rekening', key: 'norek', width: '120px' },
-  { title: 'Atas Nama', key: 'atasnama', width: '150px' },
-  { title: 'Keterangan', key: 'ket', width: '250px' },
-  { title: 'Actions', key: 'actions', sortable: false, width: '40px' },
+  { title: "No. Transaksi", key: "nomor", width: "150px" },
+  { title: "Customer", key: "customer", width: "200px" },
+  { title: "Nominal Saldo", key: "nominal", align: "end", width: "120px" },
+  { title: "Refund (Rp)", key: "refund", align: "end", width: "120px" },
+  { title: "APV", key: "apv", width: "50px" },
+  { title: "Bank", key: "bank", width: "120px" },
+  { title: "No. Rekening", key: "norek", width: "120px" },
+  { title: "Atas Nama", key: "atasnama", width: "150px" },
+  { title: "Keterangan", key: "ket", width: "250px" },
+  { title: "Actions", key: "actions", sortable: false, width: "40px" },
 ] as const;
 
-
 // --- Methods Logic (Mencerminkan Delphi) ---
-const showConfirmation = (title: string, text: string, onConfirm: () => void, onCancel?: () => void) => {
+const showConfirmation = (
+  title: string,
+  text: string,
+  onConfirm: () => void,
+  onCancel?: () => void
+) => {
   dialogConfirm.title = title;
   dialogConfirm.text = text;
-  dialogConfirm.onConfirm = () => { onConfirm(); dialogConfirm.show = false; };
-  dialogConfirm.onCancel = () => { if (onCancel) onCancel(); dialogConfirm.show = false; };
+  dialogConfirm.onConfirm = () => {
+    onConfirm();
+    dialogConfirm.show = false;
+  };
+  dialogConfirm.onCancel = () => {
+    if (onCancel) onCancel();
+    dialogConfirm.show = false;
+  };
   dialogConfirm.show = true;
 };
 
 // Inisialisasi/Reset Form
 const initForm = async () => {
   header.value = {
-    nomor: '',
-    tanggal: format(new Date(), 'yyyy-MM-dd'),
-    userCreate: authStore.user?.nama || '',
-    userApv: '',
+    nomor: "",
+    tanggal: format(new Date(), "yyyy-MM-dd"),
+    userCreate: authStore.user?.nama || "",
+    userApv: "",
     isProcessed: false,
     isApproved: false,
-    keterangan: '',
+    keterangan: "",
   };
   items.value = [];
   addNewRow();
@@ -191,9 +201,18 @@ const addNewRow = () => {
   if (!lastItem || lastItem.nomor) {
     items.value.push({
       id: Date.now() + Math.random(),
-      nomor: '', tanggal: '', kdcus: '', customer: '',
-      nominal: 0, refund: 0, apv: false, ket: '',
-      iddrec: '', bank: '', norek: '', atasnama: '',
+      nomor: "",
+      tanggal: "",
+      kdcus: "",
+      customer: "",
+      nominal: 0,
+      refund: 0,
+      apv: false,
+      ket: "",
+      iddrec: "",
+      bank: "",
+      norek: "",
+      atasnama: "",
     });
   }
 };
@@ -213,14 +232,14 @@ const loadRefundData = async (nomor: string) => {
       ...item,
       id: Math.random(),
       // Lakukan normalisasi tipe data di sini
-      apv: item.apv === true || item.apv === 1 || item.apv === 'Y',
+      apv: item.apv === true || item.apv === 1 || item.apv === "Y",
     }));
 
     addNewRow();
 
     toast.success(`Data refund ${nomor} berhasil dimuat.`);
   } catch (error: unknown) {
-    let msg = 'Gagal memuat data.';
+    let msg = "Gagal memuat data.";
 
     // 1. Cek apakah error berasal dari Axios
     if (axios.isAxiosError<{ message: string }>(error)) {
@@ -235,7 +254,7 @@ const loadRefundData = async (nomor: string) => {
 
     toast.error(msg);
     // Pastikan nama route tujuan benar (biasanya kalau gagal load data kembali ke Browse/List)
-    router.push({ name: 'Refund' });
+    router.push({ name: "Refund" });
   } finally {
     isLoading.value = false;
     isDataLoading.value = false;
@@ -246,7 +265,7 @@ const loadRefundData = async (nomor: string) => {
 const openSearchInvoice = (index: number) => {
   if (header.value.isApproved || isApprover.value) return;
   activeRowIndex.value = index;
-  searchType.value = 'invoice';
+  searchType.value = "invoice";
   isTransactionSearchVisible.value = true;
 };
 
@@ -254,7 +273,7 @@ const openSearchInvoice = (index: number) => {
 const openSearchDeposit = (index: number) => {
   if (header.value.isApproved || isApprover.value) return;
   activeRowIndex.value = index;
-  searchType.value = 'deposit';
+  searchType.value = "deposit";
   isTransactionSearchVisible.value = true;
 };
 
@@ -262,7 +281,7 @@ const openSearchDeposit = (index: number) => {
 const onTransactionSelected = (selectedTransaction: Transaction) => {
   isTransactionSearchVisible.value = false;
 
-  const existingItem = items.value.find(item => item.nomor === selectedTransaction.Nomor);
+  const existingItem = items.value.find((item) => item.nomor === selectedTransaction.Nomor);
   if (existingItem) {
     toast.warning(`Nomor transaksi ${selectedTransaction.Nomor} sudah ada.`);
     return;
@@ -275,7 +294,7 @@ const onTransactionSelected = (selectedTransaction: Transaction) => {
     item.kdcus = selectedTransaction.Kdcus;
     item.customer = selectedTransaction.Customer;
     item.nominal = Math.abs(selectedTransaction.Sisa);
-    item.iddrec = `${authStore.user?.cabang || 'K01'}RF${Date.now()}`;
+    item.iddrec = `${authStore.user?.cabang || "K01"}RF${Date.now()}`;
   }
 
   addNewRow();
@@ -306,7 +325,9 @@ const onSoSelected = async (selectedSo: SoSearchResult) => {
 
     // Jika tidak ada DP yang bisa direfund
     if (!dps || dps.length === 0) {
-      toast.warning(`SO ${selectedSo.Nomor} ditemukan, tetapi tidak ada DP/Uang Muka yang tersisa.`);
+      toast.warning(
+        `SO ${selectedSo.Nomor} ditemukan, tetapi tidak ada DP/Uang Muka yang tersisa.`
+      );
       return;
     }
 
@@ -326,12 +347,14 @@ const onSoSelected = async (selectedSo: SoSearchResult) => {
         refund: 0, // Default refund 0 (user isi sendiri) atau bisa disamakan dp.nominal
         apv: false,
         ket: `Refund DP SO ${header.nomor} (${dp.jenis})`, // Keterangan otomatis
-        iddrec: `${authStore.user?.cabang || 'K01'}RF${Date.now() + Math.random()}`,
-        bank: '', norek: '', atasnama: ''
+        iddrec: `${authStore.user?.cabang || "K01"}RF${Date.now() + Math.random()}`,
+        bank: "",
+        norek: "",
+        atasnama: "",
       };
 
       // Cek duplikasi per item DP agar tidak masuk 2x
-      const isDpExist = items.value.find(i => i.nomor === dp.nomor);
+      const isDpExist = items.value.find((i) => i.nomor === dp.nomor);
       if (isDpExist) {
         toast.info(`DP ${dp.nomor} sudah ada di list.`);
         continue;
@@ -345,14 +368,13 @@ const onSoSelected = async (selectedSo: SoSearchResult) => {
         // Jika ada lebih dari 1 DP, atau baris aktif sudah terisi, push baris baru
         items.value.push({
           ...rowData,
-          id: Date.now() + Math.random()
+          id: Date.now() + Math.random(),
         });
       }
     }
 
     // Pastikan ada baris kosong baru di paling bawah untuk input selanjutnya
     addNewRow();
-
   } catch (error) {
     console.error(error);
     toast.error("Gagal mengambil detail DP dari SO.");
@@ -368,9 +390,9 @@ const handleLineItemApproval = (item: RefundDetail) => {
   // Jika uncheck, bersihkan semua input Finance di baris tersebut
   if (!item.apv) {
     item.refund = 0; // Lock kembali ke 0 jika batal APV
-    item.bank = '';
-    item.norek = '';
-    item.atasnama = '';
+    item.bank = "";
+    item.norek = "";
+    item.atasnama = "";
   }
 };
 
@@ -379,7 +401,7 @@ const updateHeaderApprovalStatus = () => {
   if (!isApprover.value) return;
 
   // Cek apakah ada setidaknya satu item yang dicentang (APV = True)
-  const anyApproved = items.value.some(item => item.apv === true);
+  const anyApproved = items.value.some((item) => item.apv === true);
 
   // Update checkbox Header 'Approve'
   header.value.isApproved = anyApproved;
@@ -387,48 +409,48 @@ const updateHeaderApprovalStatus = () => {
 
 const removeRow = (id: number) => {
   if (isApprover.value || header.value.isApproved) return;
-  items.value = items.value.filter(i => i.id !== id);
+  items.value = items.value.filter((i) => i.id !== id);
   if (items.value.length === 0) addNewRow();
   updateHeaderApprovalStatus();
 };
 
-
 // Logika Simpan (Analogi simpandata dan btnSimpanClick)
 const simpanData = () => {
-  if (!canSave.value) return toast.error('Izin ditolak.');
+  if (!canSave.value) return toast.error("Izin ditolak.");
 
-  const validItems = items.value.filter(item => item.nomor);
-  if (validItems.length === 0) return toast.error('Minimal 1 baris terisi.');
+  const validItems = items.value.filter((item) => item.nomor);
+  if (validItems.length === 0) return toast.error("Minimal 1 baris terisi.");
 
   if (isApprover.value) {
     for (const item of validItems) {
       // Jika baris di-APV, maka nominal, bank, dan norek wajib diisi manual
       if (item.apv) {
         if (item.refund <= 0) return toast.error(`Nominal refund untuk ${item.nomor} belum diisi.`);
-        if (!item.bank || !item.norek) return toast.error(`Data rekening untuk ${item.nomor} tidak lengkap.`);
+        if (!item.bank || !item.norek)
+          return toast.error(`Data rekening untuk ${item.nomor} tidak lengkap.`);
       }
     }
   }
 
-  showConfirmation('Konfirmasi Simpan', 'Simpan data pengajuan?', executeSave);
+  showConfirmation("Konfirmasi Simpan", "Simpan data pengajuan?", executeSave);
 };
 
 // Metode Konfirmasi dan Pembatalan (Analogi MessageDlg)
 const executeSave = async () => {
   if (!canSave.value) {
-    toast.error('Anda tidak memiliki izin untuk menyimpan data ini.');
+    toast.error("Anda tidak memiliki izin untuk menyimpan data ini.");
     return;
   }
   isSaving.value = true;
   try {
     const detailsToSend = items.value
-      .filter(item => item.nomor)
-      .map(item => ({
+      .filter((item) => item.nomor)
+      .map((item) => ({
         ...item,
         // Jika User adalah Approver DAN item TIDAK dicentang,
         // maka kirim refund = 0 (artinya ditolak/tidak diapprove baris ini)
         // Jika dicentang, gunakan nominal asli (item.refund)
-        refund: isApprover.value ? (item.apv ? item.refund : 0) : item.refund
+        refund: isApprover.value ? (item.apv ? item.refund : 0) : item.refund,
       }));
 
     const payload = {
@@ -440,7 +462,7 @@ const executeSave = async () => {
 
     const url = header.value.nomor
       ? `${API_BASE_PATH}/${header.value.nomor}` // Edit (PUT)
-      : `${API_BASE_PATH}/`;                     // Baru (POST)
+      : `${API_BASE_PATH}/`; // Baru (POST)
 
     const response = header.value.nomor
       ? await api.put(url, payload)
@@ -452,23 +474,22 @@ const executeSave = async () => {
     // Panggil dialog cetak
     dialogConfirmCetak.nomor = savedNomor;
     dialogConfirmCetak.onConfirm = () => {
-      const routeData = router.resolve({ name: 'RefundPrint', params: { nomor: savedNomor } });
-      window.open(routeData.href, '_blank');
-      router.push({ name: 'Refund' });
+      const routeData = router.resolve({ name: "RefundPrint", params: { nomor: savedNomor } });
+      window.open(routeData.href, "_blank");
+      router.push({ name: "Refund" });
     };
     dialogConfirmCetak.onCancel = () => {
-      router.push({ name: 'Refund' });
+      router.push({ name: "Refund" });
     };
     dialogConfirmCetak.show = true;
-
   } catch (error: unknown) {
     if (axios.isAxiosError(error)) {
       // Sekarang AxiosError digunakan untuk akses properti response
-      toast.error(error.response?.data?.message || 'Gagal menyimpan data.');
+      toast.error(error.response?.data?.message || "Gagal menyimpan data.");
     } else if (error instanceof Error) {
       toast.error(error.message);
     } else {
-      toast.error('Terjadi kesalahan yang tidak diketahui.');
+      toast.error("Terjadi kesalahan yang tidak diketahui.");
     }
   } finally {
     isSaving.value = false;
@@ -476,16 +497,20 @@ const executeSave = async () => {
 };
 
 const handleBatal = () => {
-  showConfirmation('Konfirmasi Batal', 'Akan membatalkan perubahan?', () => {
+  showConfirmation("Konfirmasi Batal", "Akan membatalkan perubahan?", () => {
     if (isEditMode.value) loadRefundData(route.params.nomor as string);
     else initForm();
   });
 };
 
 const handleTutup = () => {
-  showConfirmation('Konfirmasi Tutup', 'Tutup form? Perubahan yang belum disimpan akan hilang.', () => {
-    router.back();
-  });
+  showConfirmation(
+    "Konfirmasi Tutup",
+    "Tutup form? Perubahan yang belum disimpan akan hilang.",
+    () => {
+      router.back();
+    }
+  );
 };
 
 // // --- Watchers & Lifecycle ---
@@ -496,7 +521,7 @@ onMounted(async () => {
   if (!canView.value) {
     isLoading.value = false;
     isDataLoading.value = false; // Assuming you have this ref
-    toast.error('Anda tidak memiliki izin untuk mengakses halaman ini.');
+    toast.error("Anda tidak memiliki izin untuk mengakses halaman ini.");
     return;
   }
   // ------------------------------------
@@ -519,21 +544,23 @@ onMounted(async () => {
   isLoading.value = false;
   isDataLoading.value = false; // Assuming you have this ref
 });
-
 </script>
 
 <template>
   <PageLayout :title="pageTitle" desktop-mode icon="mdi-cash-refund">
     <template #header-actions>
-      <v-btn v-if="canSave" color="primary" size="small" @click="simpanData" :loading="isSaving"
-        prepend-icon="mdi-content-save">
+      <v-btn
+        v-if="canSave"
+        color="primary"
+        size="small"
+        @click="simpanData"
+        :loading="isSaving"
+        prepend-icon="mdi-content-save"
+      >
         Simpan
       </v-btn>
-      <v-btn size="small" @click="handleBatal" prepend-icon="mdi-refresh"> Batal
-      </v-btn>
-      <v-btn @click="handleTutup" size="small" prepend-icon="mdi-close">
-        Tutup
-      </v-btn>
+      <v-btn size="small" @click="handleBatal" prepend-icon="mdi-refresh"> Batal </v-btn>
+      <v-btn @click="handleTutup" size="small" prepend-icon="mdi-close"> Tutup </v-btn>
     </template>
 
     <div v-if="!canView && !isLoading && !isDataLoading" class="state-container pa-4 text-center">
@@ -546,90 +573,208 @@ onMounted(async () => {
       <div class="left-column">
         <div class="desktop-form-section header-section">
           <v-row dense class="hide-details">
-            <v-col cols="6"><v-text-field label="Nomor" v-model="header.nomor" readonly filled
-                density="compact" /></v-col>
-            <v-col cols="6"><v-text-field label="Tanggal" v-model="header.tanggal" type="date" variant="outlined"
-                density="compact" :readonly="isApprover || !canSave || header.isApproved" /></v-col>
-            <v-col cols="6"><v-text-field label="User Pengaju" v-model="header.userCreate" readonly filled
-                density="compact" /></v-col>
-            <v-col cols="6"><v-text-field label="User Approval" v-model="header.userApv" readonly filled
-                density="compact" /></v-col>
-            <v-col cols="6"><v-checkbox label="Proses" v-model="header.isProcessed" density="compact" hide-details
-                :disabled="!isApprover" /></v-col>
-            <v-col cols="6"><v-checkbox label="Approve" v-model="header.isApproved" density="compact" hide-details
-                :disabled="!isApprover" /></v-col>
-            <v-col cols="12"><v-textarea label="Keterangan" v-model="header.keterangan" rows="3" variant="outlined"
-                density="compact" :readonly="isApprover" /></v-col>
+            <v-col cols="6"
+              ><v-text-field label="Nomor" v-model="header.nomor" readonly filled density="compact"
+            /></v-col>
+            <v-col cols="6"
+              ><v-text-field
+                label="Tanggal"
+                v-model="header.tanggal"
+                type="date"
+                variant="outlined"
+                density="compact"
+                :readonly="isApprover || !canSave || header.isApproved"
+            /></v-col>
+            <v-col cols="6"
+              ><v-text-field
+                label="User Pengaju"
+                v-model="header.userCreate"
+                readonly
+                filled
+                density="compact"
+            /></v-col>
+            <v-col cols="6"
+              ><v-text-field
+                label="User Approval"
+                v-model="header.userApv"
+                readonly
+                filled
+                density="compact"
+            /></v-col>
+            <v-col cols="6"
+              ><v-checkbox
+                label="Proses"
+                v-model="header.isProcessed"
+                density="compact"
+                hide-details
+                :disabled="!isApprover"
+            /></v-col>
+            <v-col cols="6"
+              ><v-checkbox
+                label="Approve"
+                v-model="header.isApproved"
+                density="compact"
+                hide-details
+                :disabled="!isApprover"
+            /></v-col>
+            <v-col cols="12"
+              ><v-textarea
+                label="Keterangan"
+                v-model="header.keterangan"
+                rows="3"
+                variant="outlined"
+                density="compact"
+                :readonly="isApprover"
+            /></v-col>
           </v-row>
         </div>
         <div class="desktop-form-section">
           <div class="text-subtitle-1 font-weight-bold text-success mb-2">Ringkasan</div>
-          <v-text-field label="Total Refund Diajukan" :model-value="totalRefund.toLocaleString('id-ID')" readonly filled
-            density="compact" hide-details class="text-right font-weight-bold text-h6" />
+          <v-text-field
+            label="Total Refund Diajukan"
+            :model-value="totalRefund.toLocaleString('id-ID')"
+            readonly
+            filled
+            density="compact"
+            hide-details
+            class="text-right font-weight-bold text-h6"
+          />
         </div>
       </div>
 
       <div class="right-column">
-        <div class="desktop-form-section d-flex flex-column" style="flex-grow: 1;">
-          <div class="text-subtitle-1 font-weight-bold mb-2">Detail Transaksi (F1=Invoice, F2=Deposit, F3=Sales Order)
+        <div class="desktop-form-section d-flex flex-column" style="flex-grow: 1">
+          <div class="text-subtitle-1 font-weight-bold mb-2">
+            Detail Transaksi (F1=Invoice, F2=Deposit, F3=Sales Order)
           </div>
-          <v-data-table :headers="tableHeaders" :items="items" :loading="isLoading" class="desktop-table fill-height"
-            density="compact" fixed-header :items-per-page="-1">
+          <v-data-table
+            :headers="tableHeaders"
+            :items="items"
+            :loading="isLoading"
+            class="desktop-table fill-height"
+            density="compact"
+            fixed-header
+            :items-per-page="-1"
+          >
             <template v-slot:[`item.nomor`]="{ item, index }">
-              <v-text-field v-model="item.nomor" variant="underlined" density="compact" hide-details
-                placeholder="F1 (Inv) / F2 (Dep) / F3 (SO)..." @keydown.f1.prevent="openSearchInvoice(index)"
-                @keydown.f2.prevent="openSearchDeposit(index)" @keydown.f3.prevent="openSearchSo(index)"
-                :readonly="!!item.nomor || isApprover || header.isApproved || !canSave" />
+              <v-text-field
+                v-model="item.nomor"
+                variant="underlined"
+                density="compact"
+                hide-details
+                placeholder="F1 (Inv) / F2 (Dep) / F3 (SO)..."
+                @keydown.f1.prevent="openSearchInvoice(index)"
+                @keydown.f2.prevent="openSearchDeposit(index)"
+                @keydown.f3.prevent="openSearchSo(index)"
+                :readonly="!!item.nomor || isApprover || header.isApproved || !canSave"
+              />
             </template>
             <template v-slot:[`item.nominal`]="{ item }">
-              <td class="text-end">{{ (item.nominal || 0).toLocaleString('id-ID') }}</td>
+              <td class="text-end">{{ (item.nominal || 0).toLocaleString("id-ID") }}</td>
             </template>
             <template v-slot:[`item.refund`]="{ item }">
-              <v-text-field v-model.number="item.refund" type="number" variant="underlined" density="compact"
-                hide-details class="text-end" placeholder="0" :readonly="!isApprover || !item.apv || header.isApproved"
-                :max="item.nominal" min="0" />
+              <v-text-field
+                v-model.number="item.refund"
+                type="number"
+                variant="underlined"
+                density="compact"
+                hide-details
+                class="text-end"
+                placeholder="0"
+                :readonly="!isApprover || !item.apv || header.isApproved"
+                :max="item.nominal"
+                min="0"
+              />
             </template>
             <template v-slot:[`item.apv`]="{ item }">
-              <v-checkbox-btn v-model="item.apv" density="compact" hide-details
+              <v-checkbox-btn
+                v-model="item.apv"
+                density="compact"
+                hide-details
                 :disabled="!isApprover || header.isApproved || !item.nomor"
-                @change="() => handleLineItemApproval(item)" />
+                @change="() => handleLineItemApproval(item)"
+              />
             </template>
 
             <template v-slot:[`item.bank`]="{ item }">
-              <v-text-field v-model="item.bank" variant="underlined" density="compact" hide-details
-                :disabled="!isApprover || !item.apv || header.isApproved" />
+              <v-text-field
+                v-model="item.bank"
+                variant="underlined"
+                density="compact"
+                hide-details
+                :disabled="!isApprover || !item.apv || header.isApproved"
+              />
             </template>
             <template v-slot:[`item.norek`]="{ item }">
-              <v-text-field v-model="item.norek" variant="underlined" density="compact" hide-details
-                :disabled="!canApprove || !item.apv" />
+              <v-text-field
+                v-model="item.norek"
+                variant="underlined"
+                density="compact"
+                hide-details
+                :disabled="!canApprove || !item.apv"
+              />
             </template>
             <template v-slot:[`item.atasnama`]="{ item }">
-              <v-text-field v-model="item.atasnama" variant="underlined" density="compact" hide-details
-                :disabled="!canApprove || !item.apv" />
+              <v-text-field
+                v-model="item.atasnama"
+                variant="underlined"
+                density="compact"
+                hide-details
+                :disabled="!canApprove || !item.apv"
+              />
             </template>
             <template v-slot:[`item.ket`]="{ item }">
-              <v-text-field v-model="item.ket" variant="underlined" density="compact" hide-details
-                :readonly="isApprover || header.isApproved || !canSave" />
+              <v-text-field
+                v-model="item.ket"
+                variant="underlined"
+                density="compact"
+                hide-details
+                :readonly="isApprover || header.isApproved || !canSave"
+              />
             </template>
             <template v-slot:[`item.actions`]="{ item }">
-              <v-btn v-if="item.nomor && !isApprover && !header.isApproved" icon="mdi-delete" size="x-small"
-                variant="text" color="error" :disabled="!canSave"
-                @click="showConfirmation('Konfirmasi', 'Hapus baris ini?', () => removeRow(item.id))" />
+              <v-btn
+                v-if="item.nomor && !isApprover && !header.isApproved"
+                icon="mdi-delete"
+                size="x-small"
+                variant="text"
+                color="error"
+                :disabled="!canSave"
+                @click="
+                  showConfirmation('Konfirmasi', 'Hapus baris ini?', () => removeRow(item.id))
+                "
+              />
             </template>
             <template #bottom>
-              <v-btn v-if="!isApprover && !header.isApproved" size="small" @click="addNewRow" prepend-icon="mdi-plus"
-                :disabled="!canSave" class="ma-2">Tambah Baris</v-btn>
+              <v-btn
+                v-if="!isApprover && !header.isApproved"
+                size="small"
+                @click="addNewRow"
+                prepend-icon="mdi-plus"
+                :disabled="!canSave"
+                class="ma-2"
+                >Tambah Baris</v-btn
+              >
             </template>
           </v-data-table>
         </div>
       </div>
     </div>
 
-    <TransactionSearchModal v-if="isTransactionSearchVisible" :searchType="searchType"
-      :cabang="authStore.user?.cabang || 'K01'" @close="isTransactionSearchVisible = false"
-      @selected="onTransactionSelected" />
-    <SoSearchModal v-if="isSoSearchVisible" :cabang="authStore.user?.cabang || 'K01'" source="mutasi-out"
-      @close="isSoSearchVisible = false" @selected="onSoSelected" />
+    <TransactionSearchModal
+      v-if="isTransactionSearchVisible"
+      :searchType="searchType"
+      :cabang="authStore.user?.cabang || 'K01'"
+      @close="isTransactionSearchVisible = false"
+      @selected="onTransactionSelected"
+    />
+    <SoSearchModal
+      v-if="isSoSearchVisible"
+      :cabang="authStore.user?.cabang || 'K01'"
+      source="mutasi-out"
+      @close="isSoSearchVisible = false"
+      @selected="onSoSelected"
+    />
 
     <v-dialog v-model="dialogConfirm.show" max-width="400px" persistent>
       <v-card>
@@ -647,14 +792,17 @@ onMounted(async () => {
       <v-card>
         <v-card-title class="text-h6 font-weight-bold">Berhasil Disimpan</v-card-title>
         <v-card-text>
-          Berhasil Simpan dengan Nomor <strong>{{ dialogConfirmCetak.nomor }}</strong>.
+          Berhasil Simpan dengan Nomor <strong>{{ dialogConfirmCetak.nomor }}</strong
+          >.
           <br />
           Ingin Cetak transaksi?
         </v-card-text>
         <v-card-actions>
           <v-spacer />
           <v-btn text @click="dialogConfirmCetak.onCancel">Tidak</v-btn>
-          <v-btn color="primary" variant="tonal" @click="dialogConfirmCetak.onConfirm">Ya, Cetak</v-btn>
+          <v-btn color="primary" variant="tonal" @click="dialogConfirmCetak.onConfirm"
+            >Ya, Cetak</v-btn
+          >
         </v-card-actions>
       </v-card>
     </v-dialog>
@@ -703,7 +851,7 @@ onMounted(async () => {
 }
 
 .desktop-table :deep(thead tr th) {
-  background-color: #0D47A1 !important;
+  background-color: #0d47a1 !important;
   /* Biru Tua */
   color: #ffffff !important;
   /* Teks Putih */

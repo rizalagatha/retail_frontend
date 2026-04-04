@@ -1,15 +1,15 @@
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted } from 'vue';
-import { useRoute, useRouter } from 'vue-router';
-import { useToast } from 'vue-toastification';
-import { useAuthStore } from '@/stores/authStore';
-import api from '@/services/api';
-import { format } from 'date-fns';
-import PageLayout from '@/components/PageLayout.vue';
-import StoreSearchModal from '@/components/lookup/StoreSearchModal.vue';
-import PermintaanSearchModal from '@/components/lookup/PermintaanSearchModal.vue';
-import MintaBarangSearchModal from '@/components/lookup/MintaBarangSearchModal.vue'; // Untuk tambah manual
-import type { AxiosError } from 'axios';
+import { ref, reactive, computed, onMounted } from "vue";
+import { useRoute, useRouter } from "vue-router";
+import { useToast } from "vue-toastification";
+import { useAuthStore } from "@/stores/authStore";
+import api from "@/services/api";
+import { format } from "date-fns";
+import PageLayout from "@/components/PageLayout.vue";
+import StoreSearchModal from "@/components/lookup/StoreSearchModal.vue";
+import PermintaanSearchModal from "@/components/lookup/PermintaanSearchModal.vue";
+import MintaBarangSearchModal from "@/components/lookup/MintaBarangSearchModal.vue"; // Untuk tambah manual
+import type { AxiosError } from "axios";
 
 // --- Tipe Data ---
 interface Item {
@@ -17,9 +17,9 @@ interface Item {
   kode: string;
   nama: string;
   ukuran: string;
-  stok: number;    // Stok DC saat ini
-  minta: number;   // Jumlah permintaan dari store (referensi)
-  jumlah: number;  // Jumlah yang akan dikirim (inputan user)
+  stok: number; // Stok DC saat ini
+  minta: number; // Jumlah permintaan dari store (referensi)
+  jumlah: number; // Jumlah yang akan dikirim (inputan user)
   barcode: string;
   keterangan?: string;
 }
@@ -57,57 +57,65 @@ const route = useRoute();
 const router = useRouter();
 const toast = useToast();
 const authStore = useAuthStore();
-const MENU_ID = '224';
+const MENU_ID = "224";
 
 // --- State ---
 const isEditMode = computed(() => !!route.params.nomor);
-const pageTitle = computed(() => isEditMode.value ? 'Ubah Packing List' : 'Buat Packing List Baru');
-const requiredPermission = computed(() => isEditMode.value ? 'edit' : 'insert');
+const pageTitle = computed(() =>
+  isEditMode.value ? "Ubah Packing List" : "Buat Packing List Baru"
+);
+const requiredPermission = computed(() => (isEditMode.value ? "edit" : "insert"));
 
 const isLoading = ref(true);
 const isSaving = ref(false);
 
 const header = reactive({
-  nomor: '',
-  tanggal: format(new Date(), 'yyyy-MM-dd'),
-  store: { kode: '', nama: '' },
-  permintaan: '',
-  keterangan: '',
+  nomor: "",
+  tanggal: format(new Date(), "yyyy-MM-dd"),
+  store: { kode: "", nama: "" },
+  permintaan: "",
+  keterangan: "",
 });
 
 const items = ref<Item[]>([]);
-const scannedBarcode = ref('');
+const scannedBarcode = ref("");
 
 // Dialogs
 const dialog = reactive({
   storeSearch: false,
   permintaanSearch: false,
   productSearch: false, // Untuk tambah item manual
-  confirm: false
+  confirm: false,
 });
 
 const dialogConfirm = reactive({
   show: false,
-  title: '',
-  text: '',
-  onConfirm: () => { },
+  title: "",
+  text: "",
+  onConfirm: () => {},
 });
 
 const tableHeaders = [
-  { title: 'Kode Barang', key: 'kode', width: '120px' },
-  { title: 'Nama Barang', key: 'nama' },
-  { title: 'Ukuran', key: 'ukuran', width: '80px' },
-  { title: 'Stok DC', key: 'stok', align: 'end', width: '100px' },
-  { title: 'Minta', key: 'minta', align: 'end', width: '100px' },
-  { title: 'Jml Kirim', key: 'jumlah', align: 'end', width: '120px' },
-  { title: 'Keterangan', key: 'keterangan', width: '150px' },
-  { title: 'Hapus', key: 'actions', sortable: false, width: '50px' },
+  { title: "Kode Barang", key: "kode", width: "120px" },
+  { title: "Nama Barang", key: "nama" },
+  { title: "Ukuran", key: "ukuran", width: "80px" },
+  { title: "Stok DC", key: "stok", align: "end", width: "100px" },
+  { title: "Minta", key: "minta", align: "end", width: "100px" },
+  { title: "Jml Kirim", key: "jumlah", align: "end", width: "120px" },
+  { title: "Keterangan", key: "keterangan", width: "150px" },
+  { title: "Hapus", key: "actions", sortable: false, width: "50px" },
 ] as const;
+
+// --- Helper ---
+const getErrorMessage = (err: unknown, fallback: string) => {
+  const error = err as AxiosError<{ message?: string }>;
+  return error.response?.data?.message || error.message || fallback;
+};
 
 // --- Methods ---
 // [TAMBAHAN] Helper formatting
 const formatNumber = (val: number | string) => {
-  return Number(val).toLocaleString('id-ID'); // Otomatis hilangkan desimal tak perlu
+  return Number(val).toLocaleString("id-ID"); // Otomatis hilangkan desimal tak perlu
 };
 
 const addNewRow = () => {
@@ -115,14 +123,20 @@ const addNewRow = () => {
   // Hanya tambah baris baru jika baris terakhir sudah terisi
   if (!lastItem || lastItem.kode) {
     items.value.push({
-      id: Date.now(), kode: '', nama: '', ukuran: '',
-      stok: 0, minta: 0, jumlah: 0, barcode: ''
+      id: Date.now(),
+      kode: "",
+      nama: "",
+      ukuran: "",
+      stok: 0,
+      minta: 0,
+      jumlah: 0,
+      barcode: "",
     });
   }
 };
 
 const removeRow = (id: number) => {
-  items.value = items.value.filter(item => item.id !== id);
+  items.value = items.value.filter((item) => item.id !== id);
   if (items.value.length === 0) addNewRow();
 };
 
@@ -131,7 +145,7 @@ const handleBarcodeScan = async () => {
   // --- VALIDASI BARU ---
   if (!header.store.kode) {
     toast.warning("Silakan pilih Store Tujuan terlebih dahulu!");
-    scannedBarcode.value = ''; // Kosongkan input agar user tidak bingung
+    scannedBarcode.value = ""; // Kosongkan input agar user tidak bingung
     return;
   }
   // ---------------------
@@ -139,11 +153,11 @@ const handleBarcodeScan = async () => {
   if (!barcode) return;
 
   // Cek apakah item sudah ada di grid
-  const existingItem = items.value.find(item => item.barcode === barcode && item.kode);
+  const existingItem = items.value.find((item) => item.barcode === barcode && item.kode);
   if (existingItem) {
     existingItem.jumlah += 1;
     toast.info(`Jumlah untuk ${existingItem.nama} ditambah.`);
-    scannedBarcode.value = '';
+    scannedBarcode.value = "";
     return;
   }
 
@@ -153,7 +167,7 @@ const handleBarcodeScan = async () => {
     const product = response.data;
 
     // Cari baris kosong
-    const emptyRowIndex = items.value.findIndex(item => !item.kode);
+    const emptyRowIndex = items.value.findIndex((item) => !item.kode);
 
     const newItem: Item = {
       id: Date.now(),
@@ -163,7 +177,7 @@ const handleBarcodeScan = async () => {
       stok: product.stok || 0,
       minta: 0, // Scan manual tidak punya referensi minta
       jumlah: 1,
-      barcode: product.barcode
+      barcode: product.barcode,
     };
 
     if (emptyRowIndex !== -1) {
@@ -172,11 +186,10 @@ const handleBarcodeScan = async () => {
       items.value.push(newItem);
     }
     addNewRow(); // Siapkan baris kosong berikutnya
-
-  } catch (error) {
-    toast.error("Barcode tidak ditemukan.", error);
+  } catch (err) {
+    toast.error(getErrorMessage(err, "Barcode tidak ditemukan."));
   } finally {
-    scannedBarcode.value = '';
+    scannedBarcode.value = "";
   }
 };
 
@@ -196,7 +209,9 @@ const openProductSearch = () => {
 const loadItemsFromRequest = async (nomorPermintaan: string) => {
   isLoading.value = true;
   try {
-    const response = await api.get('/packing-list-form/load-request', { params: { nomor: nomorPermintaan } });
+    const response = await api.get("/packing-list-form/load-request", {
+      params: { nomor: nomorPermintaan },
+    });
 
     // Replace items atau append? Biasanya replace jika load dokumen
     // Kita kosongkan dulu biar bersih
@@ -210,7 +225,7 @@ const loadItemsFromRequest = async (nomorPermintaan: string) => {
       stok: Number(item.stok) || 0,
       minta: Number(item.minta) || 0,
       jumlah: Number(item.minta) || 0, // Default jumlah kirim = jumlah minta
-      barcode: item.barcode || ''
+      barcode: item.barcode || "",
     }));
 
     items.value = [...newItems];
@@ -227,11 +242,11 @@ const loadItemsFromRequest = async (nomorPermintaan: string) => {
 };
 
 // --- Event Handlers Modal ---
-const onStoreSelected = (store: { kode: string, nama: string }) => {
+const onStoreSelected = (store: { kode: string; nama: string }) => {
   header.store = store;
   dialog.storeSearch = false;
   // Jika ganti store, kosongkan permintaan karena permintaan terikat store
-  header.permintaan = '';
+  header.permintaan = "";
 };
 
 const onPermintaanSelected = async (permintaan: { nomor: string }) => {
@@ -239,31 +254,31 @@ const onPermintaanSelected = async (permintaan: { nomor: string }) => {
   dialog.permintaanSearch = false;
   // Tanya user: mau load item otomatis?
   showConfirmation(
-    'Load Item?',
-    'Apakah Anda ingin memuat daftar barang dari permintaan ini ke tabel? (Data tabel saat ini akan ditimpa)',
+    "Load Item?",
+    "Apakah Anda ingin memuat daftar barang dari permintaan ini ke tabel? (Data tabel saat ini akan ditimpa)",
     () => loadItemsFromRequest(permintaan.nomor)
   );
 };
 
 const onProductSelected = (products: SearchResult[]) => {
-  products.forEach(p => {
+  products.forEach((p) => {
     // Cek duplikat (Kode + Ukuran)
-    const exists = items.value.find(i => i.kode === p.kode && i.ukuran === p.ukuran);
+    const exists = items.value.find((i) => i.kode === p.kode && i.ukuran === p.ukuran);
 
     if (!exists) {
-      const emptyIdx = items.value.findIndex(i => !i.kode);
+      const emptyIdx = items.value.findIndex((i) => !i.kode);
 
       const newItem = {
         id: Date.now() + Math.random(),
         kode: p.kode,
         nama: p.nama,
-        ukuran: p.ukuran || 'ALLSIZE',
+        ukuran: p.ukuran || "ALLSIZE",
         // Note: source 'minta-barang' mungkin tidak return stok real-time (tergantung query backend).
         // Jika tidak ada, default 0. Nanti sistem validasi saat simpan.
         stok: p.stok || 0,
         minta: 0,
         jumlah: 1,
-        barcode: p.barcode || ''
+        barcode: p.barcode || "",
       };
 
       if (emptyIdx !== -1) items.value.splice(emptyIdx, 1, newItem);
@@ -284,38 +299,37 @@ const showConfirmation = (title: string, text: string, onConfirm: () => void) =>
 };
 
 const handleSave = () => {
-  if (!header.store.kode) return toast.error('Pilih Store tujuan.');
-  const validItems = items.value.filter(i => i.kode && i.jumlah > 0);
-  if (validItems.length === 0) return toast.error('Belum ada item yang diinput.');
+  if (!header.store.kode) return toast.error("Pilih Store tujuan.");
+  const validItems = items.value.filter((i) => i.kode && i.jumlah > 0);
+  if (validItems.length === 0) return toast.error("Belum ada item yang diinput.");
 
-  showConfirmation('Simpan Data', 'Yakin ingin menyimpan Packing List ini?', executeSave);
+  showConfirmation("Simpan Data", "Yakin ingin menyimpan Packing List ini?", executeSave);
 };
 
 const executeSave = async () => {
   isSaving.value = true;
   try {
-    const validItems = items.value.filter(i => i.kode && i.jumlah > 0);
+    const validItems = items.value.filter((i) => i.kode && i.jumlah > 0);
     const payload = {
       header,
       items: validItems,
-      isNew: !isEditMode.value
+      isNew: !isEditMode.value,
     };
 
-    const response = await api.post('/packing-list-form/save', payload);
+    const response = await api.post("/packing-list-form/save", payload);
     toast.success(response.data.message);
     const nomorPL = response.data.nomor;
 
     // 1. Buka Tab Cetak
-    const url = router.resolve({ name: 'PackingListPrint', params: { nomor: nomorPL } }).href;
-    window.open(url, '_blank');
+    const url = router.resolve({ name: "PackingListPrint", params: { nomor: nomorPL } }).href;
+    window.open(url, "_blank");
 
     // 2. Redirect Halaman Ini Kembali ke Browse/List
-    router.push({ name: 'PackingList' }); // <--- TAMBAHKAN INI
-
+    router.push({ name: "PackingList" }); // <--- TAMBAHKAN INI
   } catch (err) {
     // Casting error menjadi AxiosError
     const error = err as AxiosError<{ message: string }>;
-    toast.error(error.response?.data?.message || 'Gagal menyimpan data.');
+    toast.error(error.response?.data?.message || "Gagal menyimpan data.");
   } finally {
     isSaving.value = false;
   }
@@ -328,7 +342,7 @@ const loadDataForEdit = async (nomor: string) => {
     const data = response.data;
 
     header.nomor = data.header.nomor;
-    header.tanggal = format(new Date(data.header.tanggal), 'yyyy-MM-dd');
+    header.tanggal = format(new Date(data.header.tanggal), "yyyy-MM-dd");
     header.store = { kode: data.header.store_kode, nama: data.header.store_nama };
     header.permintaan = data.header.permintaan;
     header.keterangan = data.header.keterangan;
@@ -342,12 +356,11 @@ const loadDataForEdit = async (nomor: string) => {
       minta: 0,
       jumlah: Number(item.jumlah),
       barcode: item.barcode,
-      keterangan: item.keterangan || ''
+      keterangan: item.keterangan || "",
     }));
     addNewRow();
-
-  } catch (error) {
-    toast.error('Gagal memuat data edit.', error);
+  } catch (err) {
+    toast.error(getErrorMessage(err, "Gagal memuat data edit."));
     router.back();
   } finally {
     isLoading.value = false;
@@ -356,8 +369,8 @@ const loadDataForEdit = async (nomor: string) => {
 
 onMounted(() => {
   if (!authStore.can(MENU_ID, requiredPermission.value)) {
-    toast.error('Akses ditolak.');
-    router.push({ name: 'PackingList' });
+    toast.error("Akses ditolak.");
+    router.push({ name: "PackingList" });
     return;
   }
 
@@ -371,20 +384,24 @@ onMounted(() => {
 
 // Styling helpers
 const getStockColor = (item: Item) => {
-  if (item.jumlah > item.stok) return 'text-red font-weight-bold'; // Warning Stok Kurang
-  return '';
+  if (item.jumlah > item.stok) return "text-red font-weight-bold"; // Warning Stok Kurang
+  return "";
 };
 </script>
 
 <template>
   <PageLayout :title="pageTitle" icon="mdi-package-variant-closed">
     <template #header-actions>
-      <v-btn size="small" color="primary" @click="handleSave" :loading="isSaving" prepend-icon="mdi-content-save">
+      <v-btn
+        size="small"
+        color="primary"
+        @click="handleSave"
+        :loading="isSaving"
+        prepend-icon="mdi-content-save"
+      >
         Simpan
       </v-btn>
-      <v-btn size="small" @click="router.back()" prepend-icon="mdi-close">
-        Batal
-      </v-btn>
+      <v-btn size="small" @click="router.back()" prepend-icon="mdi-close"> Batal </v-btn>
     </template>
 
     <div class="form-grid-container">
@@ -392,31 +409,72 @@ const getStockColor = (item: Item) => {
         <div class="desktop-form-section header-section">
           <v-row dense>
             <v-col cols="12">
-              <v-text-field label="Nomor PL" v-model="header.nomor" readonly placeholder="(Otomatis)" density="compact"
-                hide-details variant="filled" />
+              <v-text-field
+                label="Nomor PL"
+                v-model="header.nomor"
+                readonly
+                placeholder="(Otomatis)"
+                density="compact"
+                hide-details
+                variant="filled"
+              />
             </v-col>
             <v-col cols="12">
-              <v-text-field label="Tanggal" v-model="header.tanggal" type="date" density="compact" hide-details
-                variant="outlined" />
+              <v-text-field
+                label="Tanggal"
+                v-model="header.tanggal"
+                type="date"
+                density="compact"
+                hide-details
+                variant="outlined"
+              />
             </v-col>
             <v-col cols="12">
-              <v-text-field label="Store Tujuan" v-model="header.store.kode" append-inner-icon="mdi-magnify" readonly
-                @click="dialog.storeSearch = true" density="compact" hide-details variant="outlined"
-                placeholder="Pilih Store..." />
+              <v-text-field
+                label="Store Tujuan"
+                v-model="header.store.kode"
+                append-inner-icon="mdi-magnify"
+                readonly
+                @click="dialog.storeSearch = true"
+                density="compact"
+                hide-details
+                variant="outlined"
+                placeholder="Pilih Store..."
+              />
             </v-col>
             <v-col cols="12">
-              <v-text-field label="Nama Store" v-model="header.store.nama" readonly density="compact" hide-details
-                variant="filled" />
+              <v-text-field
+                label="Nama Store"
+                v-model="header.store.nama"
+                readonly
+                density="compact"
+                hide-details
+                variant="filled"
+              />
             </v-col>
             <v-col cols="12">
-              <v-text-field label="No. Permintaan" v-model="header.permintaan" append-inner-icon="mdi-magnify" readonly
-                @click="!isEditMode && header.store.kode ? dialog.permintaanSearch = true : null" density="compact"
-                hide-details variant="outlined" :disabled="isEditMode || !header.store.kode"
-                placeholder="Opsional (Load Minta Barang)" />
+              <v-text-field
+                label="No. Permintaan"
+                v-model="header.permintaan"
+                append-inner-icon="mdi-magnify"
+                readonly
+                @click="!isEditMode && header.store.kode ? (dialog.permintaanSearch = true) : null"
+                density="compact"
+                hide-details
+                variant="outlined"
+                :disabled="isEditMode || !header.store.kode"
+                placeholder="Opsional (Load Minta Barang)"
+              />
             </v-col>
             <v-col cols="12">
-              <v-textarea label="Keterangan" v-model="header.keterangan" rows="3" density="compact" hide-details
-                variant="outlined" />
+              <v-textarea
+                label="Keterangan"
+                v-model="header.keterangan"
+                rows="3"
+                density="compact"
+                hide-details
+                variant="outlined"
+              />
             </v-col>
           </v-row>
         </div>
@@ -426,20 +484,41 @@ const getStockColor = (item: Item) => {
         <div class="desktop-form-section d-flex flex-column fill-height">
           <div class="d-flex justify-space-between align-center mb-2 ga-2">
             <div class="scanner-wrapper flex-grow-1">
-              <v-text-field v-model="scannedBarcode" label="Scan Barcode (F1 untuk Cari)"
-                placeholder="Scan item untuk tambah/update jumlah..." variant="outlined" density="compact"
-                prepend-inner-icon="mdi-barcode-scan" hide-details clearable @keydown.enter.prevent="handleBarcodeScan"
-                @keydown.f1.prevent="openProductSearch" autofocus />
+              <v-text-field
+                v-model="scannedBarcode"
+                label="Scan Barcode (F1 untuk Cari)"
+                placeholder="Scan item untuk tambah/update jumlah..."
+                variant="outlined"
+                density="compact"
+                prepend-inner-icon="mdi-barcode-scan"
+                hide-details
+                clearable
+                @keydown.enter.prevent="handleBarcodeScan"
+                @keydown.f1.prevent="openProductSearch"
+                autofocus
+              />
             </div>
 
-            <v-btn size="small" color="secondary" variant="tonal" prepend-icon="mdi-magnify" @click="openProductSearch">
+            <v-btn
+              size="small"
+              color="secondary"
+              variant="tonal"
+              prepend-icon="mdi-magnify"
+              @click="openProductSearch"
+            >
               Cari Barang
             </v-btn>
           </div>
 
-          <v-data-table :headers="tableHeaders" :items="items" class="desktop-table fill-height-table" density="compact"
-            fixed-header :items-per-page="-1" :loading="isLoading">
-
+          <v-data-table
+            :headers="tableHeaders"
+            :items="items"
+            class="desktop-table fill-height-table"
+            density="compact"
+            fixed-header
+            :items-per-page="-1"
+            :loading="isLoading"
+          >
             <template #[`item.kode`]="{ item }">
               <span class="font-weight-medium">{{ item.kode }}</span>
             </template>
@@ -453,23 +532,50 @@ const getStockColor = (item: Item) => {
             </template>
 
             <template #[`item.jumlah`]="{ item }">
-              <v-text-field v-model.number="item.jumlah" type="number" step="1" min="0" variant="underlined"
-                density="compact" hide-details class="text-right input-jumlah" :class="getStockColor(item)" />
+              <v-text-field
+                v-model.number="item.jumlah"
+                type="number"
+                step="1"
+                min="0"
+                variant="underlined"
+                density="compact"
+                hide-details
+                class="text-right input-jumlah"
+                :class="getStockColor(item)"
+              />
             </template>
 
             <template #[`item.keterangan`]="{ item }">
-              <v-text-field v-model="item.keterangan" variant="underlined" density="compact" hide-details />
+              <v-text-field
+                v-model="item.keterangan"
+                variant="underlined"
+                density="compact"
+                hide-details
+              />
             </template>
 
             <template #[`item.actions`]="{ item }">
-              <v-btn v-if="item.kode" icon="mdi-delete" size="x-small" variant="text" color="error"
-                @click="removeRow(item.id)" tabindex="-1" />
+              <v-btn
+                v-if="item.kode"
+                icon="mdi-delete"
+                size="x-small"
+                variant="text"
+                color="error"
+                @click="removeRow(item.id)"
+                tabindex="-1"
+              />
             </template>
 
             <template #bottom>
               <div class="pa-2 text-right">
-                <v-btn size="small" variant="text" color="primary" @click="addNewRow" prepend-icon="mdi-plus">Tambah
-                  Baris</v-btn>
+                <v-btn
+                  size="small"
+                  variant="text"
+                  color="primary"
+                  @click="addNewRow"
+                  prepend-icon="mdi-plus"
+                  >Tambah Baris</v-btn
+                >
               </div>
             </template>
           </v-data-table>
@@ -477,13 +583,27 @@ const getStockColor = (item: Item) => {
       </div>
     </div>
 
-    <StoreSearchModal v-if="dialog.storeSearch" @close="dialog.storeSearch = false" @store-selected="onStoreSelected" />
+    <StoreSearchModal
+      v-if="dialog.storeSearch"
+      @close="dialog.storeSearch = false"
+      @store-selected="onStoreSelected"
+    />
 
-    <PermintaanSearchModal v-if="dialog.permintaanSearch" :store-kode="header.store.kode"
-      @close="dialog.permintaanSearch = false" @permintaan-selected="onPermintaanSelected" />
+    <PermintaanSearchModal
+      v-if="dialog.permintaanSearch"
+      :store-kode="header.store.kode"
+      @close="dialog.permintaanSearch = false"
+      @permintaan-selected="onPermintaanSelected"
+    />
 
-    <MintaBarangSearchModal v-if="dialog.productSearch" source="minta-barang" :gudang="authStore.user?.cabang || ''"
-      :multi="true" @close="dialog.productSearch = false" @products-selected="onProductSelected" />
+    <MintaBarangSearchModal
+      v-if="dialog.productSearch"
+      source="minta-barang"
+      :gudang="authStore.user?.cabang || ''"
+      :multi="true"
+      @close="dialog.productSearch = false"
+      @products-selected="onProductSelected"
+    />
 
     <v-dialog v-model="dialogConfirm.show" max-width="400px">
       <v-card>
@@ -492,11 +612,17 @@ const getStockColor = (item: Item) => {
         <v-card-actions>
           <v-spacer />
           <v-btn text @click="dialogConfirm.show = false">Batal</v-btn>
-          <v-btn color="primary" @click="dialogConfirm.onConfirm(); dialogConfirm.show = false">Ya</v-btn>
+          <v-btn
+            color="primary"
+            @click="
+              dialogConfirm.onConfirm();
+              dialogConfirm.show = false;
+            "
+            >Ya</v-btn
+          >
         </v-card-actions>
       </v-card>
     </v-dialog>
-
   </PageLayout>
 </template>
 

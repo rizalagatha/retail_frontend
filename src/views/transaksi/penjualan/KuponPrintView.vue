@@ -1,41 +1,41 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
-import { useRoute } from 'vue-router'
-import api from '@/services/api' // axios instance
-import type { AxiosError } from 'axios';
+import { ref, onMounted } from "vue";
+import { useRoute } from "vue-router";
+import api from "@/services/api"; // axios instance
+import type { AxiosError } from "axios";
 
 interface Kupon {
-  invk_kupon: string
-  namamember: string
-  hp: string
-  berlaku: string
-  invk_note: string
+  invk_kupon: string;
+  namamember: string;
+  hp: string;
+  berlaku: string;
+  invk_note: string;
 }
 
-const route = useRoute()
-const printData = ref<Kupon[]>([])
+const route = useRoute();
+const printData = ref<Kupon[]>([]);
 
 const fetchKupon = async () => {
   try {
-    const nomor = route.params.nomor as string
-    const { data } = await api.get(`/print-kupon/${nomor}`)
-    printData.value = data
+    const nomor = route.params.nomor as string;
+    const { data } = await api.get(`/print-kupon/${nomor}`);
+    printData.value = data;
   } catch (error) {
     const axiosError = error as AxiosError;
     if (axiosError.response) {
       // Error dari server (status code 4xx/5xx)
-      console.error('Gagal ambil data kupon:', axiosError.response.data);
+      console.error("Gagal ambil data kupon:", axiosError.response.data);
     } else if (axiosError.request) {
       // Request dibuat tapi tidak ada respons
-      console.error('Request dibuat tapi tidak ada respons:', axiosError.request);
+      console.error("Request dibuat tapi tidak ada respons:", axiosError.request);
     } else {
       // Error lain
-      console.error('Terjadi kesalahan:', axiosError.message);
+      console.error("Terjadi kesalahan:", axiosError.message);
     }
   }
-}
+};
 
-onMounted(fetchKupon)
+onMounted(fetchKupon);
 </script>
 
 <template>

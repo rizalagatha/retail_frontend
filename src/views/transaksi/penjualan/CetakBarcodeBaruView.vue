@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import { ref, onMounted, nextTick, computed, watch } from 'vue';
-import { useRoute } from 'vue-router';
-import api from '@/services/api';
-import JsBarcode from 'jsbarcode';
+import { ref, onMounted, nextTick, computed, watch } from "vue";
+import { useRoute } from "vue-router";
+import api from "@/services/api";
+import JsBarcode from "jsbarcode";
 
 interface BarcodeItem {
   barcode: string;
@@ -22,7 +22,7 @@ const barcodeSheets = computed(() => {
     return [];
   }
 
-  const expandedItems = itemsToPrint.value.flatMap(item =>
+  const expandedItems = itemsToPrint.value.flatMap((item) =>
     Array.from({ length: item.jumlah || 0 }, () => ({
       barcode: item.barcode,
       nama: item.nama,
@@ -45,7 +45,7 @@ const fetchPrintData = async (nomor: string) => {
 
     // [FIX] Tangani jika data terbungkus dalam properti 'data' lagi (response.data.data)
     const rawData = response.data;
-    itemsToPrint.value = Array.isArray(rawData) ? rawData : (rawData.data || []);
+    itemsToPrint.value = Array.isArray(rawData) ? rawData : rawData.data || [];
 
     document.title = `Cetak Barcode - ${nomor}`;
   } catch (err) {
@@ -60,7 +60,7 @@ watch(isLoading, (val) => {
   if (!val) {
     nextTick(async () => {
       // Pastikan data sudah masuk ke DOM
-      await new Promise(resolve => setTimeout(resolve, 100));
+      await new Promise((resolve) => setTimeout(resolve, 100));
 
       barcodeSheets.value.forEach((sheet, sheetIndex) => {
         sheet.forEach((item, itemIndex) => {
@@ -76,7 +76,7 @@ watch(isLoading, (val) => {
                 displayValue: true,
                 fontSize: 10,
                 margin: 0,
-                background: "#ffffff"
+                background: "#ffffff",
               });
             } catch (err) {
               console.error(`Gagal render barcode ${item.barcode}:`, err);
@@ -109,7 +109,7 @@ onMounted(() => {
             <div class="item-name">{{ item.nama }}</div>
             <div class="item-info">
               <span class="item-size">UK: {{ item.ukuran }}</span>
-              <span class="item-price">Rp {{ item.harga.toLocaleString('id-ID') }}</span>
+              <span class="item-price">Rp {{ item.harga.toLocaleString("id-ID") }}</span>
             </div>
             <svg :id="`barcode-${sheetIndex}-${itemIndex}`"></svg>
           </template>

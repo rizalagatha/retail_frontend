@@ -1,10 +1,10 @@
 <script setup lang="ts">
-import { ref, onMounted, nextTick, computed, watch } from 'vue';
-import { useRoute } from 'vue-router';
-import api from '@/services/api';
-import { format, parseISO } from 'date-fns';
-import Logo from '@/assets/logo.png';
-import LogoReszo from '@/assets/rezso.jpg';
+import { ref, onMounted, nextTick, computed, watch } from "vue";
+import { useRoute } from "vue-router";
+import api from "@/services/api";
+import { format, parseISO } from "date-fns";
+import Logo from "@/assets/logo.png";
+import LogoReszo from "@/assets/rezso.jpg";
 import { formatRupiah } from "@/utils/formatRupiah";
 import { terbilang } from "@/utils/terbilang";
 
@@ -39,7 +39,7 @@ const isLoading = ref(true);
 
 // Logo Dinamis sesuai cabang
 const dynamicLogo = computed(() => {
-  if (printData.value?.header?.bk_nomor?.startsWith('K04')) {
+  if (printData.value?.header?.bk_nomor?.startsWith("K04")) {
     return LogoReszo;
   }
   return Logo;
@@ -49,7 +49,7 @@ const fetchPrintData = async (nomor: string) => {
   try {
     const response = await api.get(`/biaya-kirim-form/print/${nomor}`);
     printData.value = response.data;
-    document.title = printData.value?.header?.bk_nomor || 'Print Biaya Kirim';
+    document.title = printData.value?.header?.bk_nomor || "Print Biaya Kirim";
   } catch {
     alert("Gagal memuat data cetak.");
   } finally {
@@ -78,7 +78,7 @@ onMounted(() => {
 
     <div v-if="printData && printData.header" class="page">
       <div class="company-header">
-        <img :src="dynamicLogo" alt="Logo" class="company-logo">
+        <img :src="dynamicLogo" alt="Logo" class="company-logo" />
         <div class="company-info">
           <div class="company-name">{{ printData.header.gdg_inv_nama }}</div>
           <div>{{ printData.header.gdg_inv_alamat }}</div>
@@ -99,14 +99,18 @@ onMounted(() => {
           <div class="label">Biaya Kirim</div>
           <div class="value font-bold">: Rp {{ formatRupiah(printData.header.bk_nominal) }}</div>
           <div class="label">Terbilang</div>
-          <div class="value terbilang-value">: # {{ terbilang(printData.header.bk_nominal) }} RUPIAH #</div>
+          <div class="value terbilang-value">
+            : # {{ terbilang(printData.header.bk_nominal) }} RUPIAH #
+          </div>
           <div class="label">Keterangan</div>
-          <div class="value">: {{ printData.header.bk_ket || '-' }}</div>
+          <div class="value">: {{ printData.header.bk_ket || "-" }}</div>
         </div>
 
         <div class="details-grid">
           <div class="label">Customer</div>
-          <div class="value">: {{ printData.header.inv_cus_kode }} - {{ printData.header.cus_nama }}</div>
+          <div class="value">
+            : {{ printData.header.inv_cus_kode }} - {{ printData.header.cus_nama }}
+          </div>
           <div class="label">Alamat</div>
           <div class="value address-value">: {{ printData.header.cus_alamat }}</div>
           <div class="label">Kota</div>
@@ -118,18 +122,18 @@ onMounted(() => {
         <table>
           <thead>
             <tr>
-              <th style="width: 5%;">No.</th>
-              <th style="width: 15%;">Tgl. Bayar</th>
-              <th style="width: 30%;">Uraian</th>
-              <th class="text-end" style="width: 20%;">Nominal</th>
-              <th style="width: 30%;">Keterangan</th>
+              <th style="width: 5%">No.</th>
+              <th style="width: 15%">Tgl. Bayar</th>
+              <th style="width: 30%">Uraian</th>
+              <th class="text-end" style="width: 20%">Nominal</th>
+              <th style="width: 30%">Keterangan</th>
             </tr>
           </thead>
           <tbody>
             <tr v-for="(item, index) in printData.details" :key="index">
               <td class="text-center">{{ index + 1 }}</td>
               <td class="text-center">
-                {{ item.tgl_bayar ? format(parseISO(item.tgl_bayar), 'dd-MM-yyyy') : '-' }}
+                {{ item.tgl_bayar ? format(parseISO(item.tgl_bayar), "dd-MM-yyyy") : "-" }}
               </td>
               <td>{{ item.uraian }}</td>
               <td class="text-end">{{ formatRupiah(item.nominal) }}</td>
@@ -151,11 +155,11 @@ onMounted(() => {
 
       <div class="signatures">
         <div class="signature-box">
-          Dibuat Oleh,<br><br><br><br>
+          Dibuat Oleh,<br /><br /><br /><br />
           ( ____________________ )
         </div>
         <div class="signature-box">
-          Mengetahui,<br><br><br><br>
+          Mengetahui,<br /><br /><br /><br />
           ( ____________________ )
         </div>
       </div>
@@ -165,7 +169,7 @@ onMounted(() => {
 
 <style scoped>
 .page {
-  font-family: 'Arial', sans-serif;
+  font-family: "Arial", sans-serif;
   /* Mengganti font jadul ke Arial */
   font-size: 10pt;
   background: white;

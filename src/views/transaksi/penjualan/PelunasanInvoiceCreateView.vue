@@ -1,17 +1,17 @@
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted, watch } from 'vue';
-import { useRoute, useRouter } from 'vue-router';
-import { useToast } from 'vue-toastification';
-import { useUnsavedChanges } from '@/composables/useUnsavedChanges';
-import { useAuthStore } from '@/stores/authStore';
-import api from '@/services/api';
-import { format } from 'date-fns';
-import PageLayout from '@/components/PageLayout.vue';
-import CustomerSearchModal from '@/components/lookup/CustomerSearchModal.vue';
-import RekeningSearchModal from '@/components/lookup/RekeningSearchModal.vue';
+import { ref, reactive, computed, onMounted, watch } from "vue";
+import { useRoute, useRouter } from "vue-router";
+import { useToast } from "vue-toastification";
+import { useUnsavedChanges } from "@/composables/useUnsavedChanges";
+import { useAuthStore } from "@/stores/authStore";
+import api from "@/services/api";
+import { format } from "date-fns";
+import PageLayout from "@/components/PageLayout.vue";
+import CustomerSearchModal from "@/components/lookup/CustomerSearchModal.vue";
+import RekeningSearchModal from "@/components/lookup/RekeningSearchModal.vue";
 import { formatRupiah } from "@/utils/formatRupiah";
-import type { AxiosError } from 'axios';
-import type { DataTableHeader } from 'vuetify';
+import type { AxiosError } from "axios";
+import type { DataTableHeader } from "vuetify";
 
 interface OutstandingItem {
   ph_nomor: string;
@@ -47,31 +47,31 @@ const router = useRouter();
 const toast = useToast();
 const authStore = useAuthStore();
 const { markAsSaved } = useUnsavedChanges();
-const MENU_ID = '50';
+const MENU_ID = "50";
 
 // --- State ---
 const isViewMode = computed(() => !!route.params.nomor);
-const pageTitle = computed(() => isViewMode.value ? 'Detail Pelunasan' : 'Input Pelunasan Baru');
+const pageTitle = computed(() => (isViewMode.value ? "Detail Pelunasan" : "Input Pelunasan Baru"));
 
 const isLoading = ref(false);
 const isSaving = ref(false);
 
 const form = reactive({
-  nomor: '',
-  tanggal: format(new Date(), 'yyyy-MM-dd'),
+  nomor: "",
+  tanggal: format(new Date(), "yyyy-MM-dd"),
   customer: {
-    kode: '',
-    nama: '',
-    alamat: ''
+    kode: "",
+    nama: "",
+    alamat: "",
   },
-  metode: 'TRANSFER',
+  metode: "TRANSFER",
   bankAccount: {
-    kode: '',
-    nama: '',
-    rekening: ''
+    kode: "",
+    nama: "",
+    rekening: "",
   },
-  keterangan: '',
-  userCreate: ''
+  keterangan: "",
+  userCreate: "",
 });
 
 interface InvoiceRow {
@@ -95,9 +95,9 @@ const dialogs = reactive({
 // State untuk Dialog Konfirmasi
 const dialogConfirm = reactive({
   show: false,
-  title: '',
-  text: '',
-  onConfirm: () => { },
+  title: "",
+  text: "",
+  onConfirm: () => {},
 });
 
 const totalAllocated = computed(() => {
@@ -105,29 +105,26 @@ const totalAllocated = computed(() => {
     return invoiceList.value.reduce((sum, item) => sum + (Number(item.bayar) || 0), 0);
   } else {
     return invoiceList.value
-      .filter(item => item.ph_nomor && selectedIds.value.includes(item.ph_nomor))
+      .filter((item) => item.ph_nomor && selectedIds.value.includes(item.ph_nomor))
       .reduce((sum, item) => sum + (Number(item.bayar) || 0), 0);
   }
 });
 
 const tableHeaders = computed<DataTableHeader[]>(() => {
   const base: DataTableHeader[] = [
-    { title: 'No. Invoice', key: 'inv_nomor', width: '140px' },
-    { title: 'Marketplace', key: 'marketplace', width: '120px' },
-    { title: 'No. Pesanan', key: 'no_pesanan', width: '180px' },
+    { title: "No. Invoice", key: "inv_nomor", width: "140px" },
+    { title: "Marketplace", key: "marketplace", width: "120px" },
+    { title: "No. Pesanan", key: "no_pesanan", width: "180px" },
   ];
 
   if (isViewMode.value) {
-    return [
-      ...base,
-      { title: 'Nominal Dibayar', key: 'bayar', align: 'end', width: '150px' },
-    ];
+    return [...base, { title: "Nominal Dibayar", key: "bayar", align: "end", width: "150px" }];
   } else {
     return [
-      { title: 'Tgl Piutang', key: 'ph_tanggal', width: '110px' },
+      { title: "Tgl Piutang", key: "ph_tanggal", width: "110px" },
       ...base,
-      { title: 'Sisa Tagihan', key: 'sisa_tagihan', align: 'end', width: '130px' },
-      { title: 'Bayar Ini', key: 'bayar', align: 'end', width: '150px' },
+      { title: "Sisa Tagihan", key: "sisa_tagihan", align: "end", width: "130px" },
+      { title: "Bayar Ini", key: "bayar", align: "end", width: "150px" },
     ];
   }
 });
@@ -151,11 +148,11 @@ const loadOutstanding = async () => {
     invoiceList.value = response.data.map((inv: OutstandingItem) => ({
       ph_nomor: inv.ph_nomor,
       inv_nomor: inv.inv_nomor,
-      ph_tanggal: format(new Date(inv.ph_tanggal), 'dd-MM-yyyy'),
+      ph_tanggal: format(new Date(inv.ph_tanggal), "dd-MM-yyyy"),
       marketplace: inv.marketplace,
       no_pesanan: inv.no_pesanan,
       sisa_tagihan: Number(inv.sisa_tagihan),
-      bayar: 0
+      bayar: 0,
     }));
   } catch (error) {
     console.error(error);
@@ -170,30 +167,30 @@ const loadDetail = async (nomor: string) => {
   try {
     const { data } = await api.get(`/pelunasan-invoice/detail/${nomor}`);
     form.nomor = data.header.sh_nomor;
-    form.tanggal = format(new Date(data.header.sh_tanggal), 'yyyy-MM-dd');
+    form.tanggal = format(new Date(data.header.sh_tanggal), "yyyy-MM-dd");
     form.customer = {
       kode: data.header.sh_cus_kode,
       nama: data.header.cus_nama,
-      alamat: data.header.cus_alamat
+      alamat: data.header.cus_alamat,
     };
     form.metode = data.header.metode_bayar_desc;
     form.keterangan = data.header.sh_ket;
     form.bankAccount = {
       kode: data.header.sh_akun,
-      nama: '',
-      rekening: data.header.sh_norek
+      nama: "",
+      rekening: data.header.sh_norek,
     };
     form.userCreate = data.header.user_create;
     invoiceList.value = data.details.map((dtl: PaymentDetailItem) => ({
       inv_nomor: dtl.inv_nomor,
       marketplace: dtl.inv_mp_nama,
       no_pesanan: dtl.inv_mp_nomor_pesanan,
-      bayar: Number(dtl.nominal_bayar)
+      bayar: Number(dtl.nominal_bayar),
     }));
-
   } catch (error: unknown) {
     const axiosErr = error as AxiosError<{ message: string }>;
-    const msg = axiosErr.response?.data?.message || axiosErr.message || "Gagal memuat detail transaksi.";
+    const msg =
+      axiosErr.response?.data?.message || axiosErr.message || "Gagal memuat detail transaksi.";
     toast.error(msg);
     router.back();
   } finally {
@@ -203,7 +200,7 @@ const loadDetail = async (nomor: string) => {
 
 watch(selectedIds, (newSelection) => {
   if (isViewMode.value) return;
-  invoiceList.value.forEach(item => {
+  invoiceList.value.forEach((item) => {
     if (item.ph_nomor && newSelection.includes(item.ph_nomor)) {
       if (item.bayar === 0) {
         item.bayar = item.sisa_tagihan || 0;
@@ -216,7 +213,7 @@ const onCustomerSelected = (cust: CustomerLookupResult) => {
   form.customer = {
     kode: cust.kode,
     nama: cust.nama,
-    alamat: cust.alamat
+    alamat: cust.alamat,
   };
   dialogs.customerSearch = false;
   loadOutstanding();
@@ -226,7 +223,7 @@ const onRekeningSelected = (rek: RekeningLookupResult) => {
   form.bankAccount = {
     kode: rek.kode,
     nama: rek.nama,
-    rekening: rek.rekening
+    rekening: rek.rekening,
   };
   dialogs.rekeningSearch = false;
 };
@@ -237,13 +234,13 @@ const handleSave = () => {
   // Validasi Awal
   if (!form.customer.kode) return toast.error("Pilih customer terlebih dahulu.");
   if (totalAllocated.value <= 0) return toast.error("Tidak ada nominal yang dibayarkan.");
-  if (form.metode === 'TRANSFER' && !form.bankAccount.kode) {
+  if (form.metode === "TRANSFER" && !form.bankAccount.kode) {
     return toast.error("Pilih akun bank untuk metode transfer.");
   }
 
   // Tampilkan konfirmasi
   showConfirmation(
-    'Konfirmasi Simpan',
+    "Konfirmasi Simpan",
     `Anda akan menyimpan pelunasan sebesar ${formatRupiah(totalAllocated.value)}. Lanjutkan?`,
     executeSave // Jika Ya, jalankan executeSave
   );
@@ -252,10 +249,15 @@ const handleSave = () => {
 // 2. Eksekusi ke API
 const executeSave = async () => {
   const invoicesToPay = invoiceList.value
-    .filter(item => selectedIds.value.includes(item.ph_nomor) && item.bayar > 0)
-    .map(item => ({
+    .filter(
+      (item) =>
+        typeof item.ph_nomor === "string" &&
+        selectedIds.value.includes(item.ph_nomor) &&
+        item.bayar > 0
+    )
+    .map((item) => ({
       inv_nomor: item.inv_nomor,
-      bayar: item.bayar
+      bayar: item.bayar,
     }));
 
   isSaving.value = true;
@@ -267,34 +269,28 @@ const executeSave = async () => {
       bankAccount: form.bankAccount,
       totalBayar: totalAllocated.value,
       invoices: invoicesToPay,
-      keterangan: form.keterangan
+      keterangan: form.keterangan,
     };
 
-    const response = await api.post('/pelunasan-invoice/save-pelunasan', payload);
+    const response = await api.post("/pelunasan-invoice/save-pelunasan", payload);
 
     markAsSaved();
     toast.success(response.data.message || "Pelunasan berhasil disimpan.");
-    await router.push({ name: 'PelunasanInvoice' });
-
+    await router.push({ name: "PelunasanInvoice" });
   } catch (error: unknown) {
     // cast ke AxiosError
     const axiosErr = error as AxiosError<{ message?: string }>;
 
     // Filter error navigasi
-    const msg = axiosErr.message ?? '';
-    if (
-      msg.includes('NavigationFailure') ||
-      msg.includes('No match for')
-    ) {
+    const msg = axiosErr.message ?? "";
+    if (msg.includes("NavigationFailure") || msg.includes("No match for")) {
       console.warn("Navigasi gagal, tapi data tersimpan:", axiosErr);
       return;
     }
 
     console.error(axiosErr);
     toast.error(
-      axiosErr.response?.data?.message ||
-      axiosErr.message ||
-      "Gagal menyimpan pelunasan."
+      axiosErr.response?.data?.message || axiosErr.message || "Gagal menyimpan pelunasan."
     );
   } finally {
     isSaving.value = false;
@@ -304,15 +300,15 @@ const executeSave = async () => {
 // --- LOGIC BATAL / RESET ---
 const handleReset = () => {
   showConfirmation(
-    'Reset Form',
-    'Semua inputan akan dihapus dan kembali ke awal. Lanjutkan?',
+    "Reset Form",
+    "Semua inputan akan dihapus dan kembali ke awal. Lanjutkan?",
     () => {
       // Reset State
-      form.nomor = '';
-      form.customer = { kode: '', nama: '', alamat: '' };
-      form.bankAccount = { kode: '', nama: '', rekening: '' };
-      form.keterangan = '';
-      form.metode = 'TRANSFER';
+      form.nomor = "";
+      form.customer = { kode: "", nama: "", alamat: "" };
+      form.bankAccount = { kode: "", nama: "", rekening: "" };
+      form.keterangan = "";
+      form.metode = "TRANSFER";
       invoiceList.value = [];
       selectedIds.value = [];
     }
@@ -322,24 +318,24 @@ const handleReset = () => {
 // --- LOGIC TUTUP ---
 const handleClose = () => {
   if (isViewMode.value) {
-    router.push({ name: 'PelunasanInvoice' });
+    router.push({ name: "PelunasanInvoice" });
     return;
   }
 
   // Cek apakah ada data yang sudah diisi
   if (form.customer.kode || selectedIds.value.length > 0) {
     showConfirmation(
-      'Tutup Form',
-      'Data yang belum disimpan akan hilang. Yakin ingin menutup form?',
+      "Tutup Form",
+      "Data yang belum disimpan akan hilang. Yakin ingin menutup form?",
       () => {
         markAsSaved();
         // [FIX] Arahkan eksplisit ke list agar tidak nyangkut
-        router.push({ name: 'PelunasanInvoice' });
+        router.push({ name: "PelunasanInvoice" });
       }
     );
   } else {
     markAsSaved();
-    router.push({ name: 'PelunasanInvoice' });
+    router.push({ name: "PelunasanInvoice" });
   }
 };
 
@@ -348,7 +344,7 @@ onMounted(() => {
   if (nomor) {
     loadDetail(nomor);
   } else {
-    if (!authStore.can(MENU_ID, 'insert')) {
+    if (!authStore.can(MENU_ID, "insert")) {
       toast.error("Akses ditolak.");
       router.back();
     }
@@ -358,59 +354,120 @@ onMounted(() => {
 
 <template>
   <PageLayout :title="pageTitle" icon="mdi-hand-coin" desktop-mode>
-
     <template #header-actions>
-      <v-btn v-if="!isViewMode" color="success" size="small" prepend-icon="mdi-content-save" :loading="isSaving"
-        :disabled="totalAllocated <= 0" @click="handleSave">
+      <v-btn
+        v-if="!isViewMode"
+        color="success"
+        size="small"
+        prepend-icon="mdi-content-save"
+        :loading="isSaving"
+        :disabled="totalAllocated <= 0"
+        @click="handleSave"
+      >
         Simpan
       </v-btn>
 
-      <v-btn v-if="!isViewMode" color="warning" variant="tonal" size="small" prepend-icon="mdi-refresh"
-        @click="handleReset">
+      <v-btn
+        v-if="!isViewMode"
+        color="warning"
+        variant="tonal"
+        size="small"
+        prepend-icon="mdi-refresh"
+        @click="handleReset"
+      >
         Batal
       </v-btn>
 
-      <v-btn size="small" prepend-icon="mdi-close" @click="handleClose">
-        Tutup
-      </v-btn>
+      <v-btn size="small" prepend-icon="mdi-close" @click="handleClose"> Tutup </v-btn>
     </template>
 
     <div class="form-grid-container">
-
       <div class="left-column">
         <div class="desktop-form-section header-section">
           <div class="text-subtitle-2 font-weight-bold mb-3 text-primary">INFORMASI PEMBAYARAN</div>
 
-          <v-text-field label="Nomor Bukti" v-model="form.nomor" readonly variant="filled" density="compact"
-            placeholder="(Otomatis)" hide-details class="mb-3" />
+          <v-text-field
+            label="Nomor Bukti"
+            v-model="form.nomor"
+            readonly
+            variant="filled"
+            density="compact"
+            placeholder="(Otomatis)"
+            hide-details
+            class="mb-3"
+          />
 
-          <v-text-field label="Tanggal Bayar" v-model="form.tanggal" type="date" variant="outlined" density="compact"
-            :readonly="isViewMode" hide-details class="mb-3" />
+          <v-text-field
+            label="Tanggal Bayar"
+            v-model="form.tanggal"
+            type="date"
+            variant="outlined"
+            density="compact"
+            :readonly="isViewMode"
+            hide-details
+            class="mb-3"
+          />
 
-          <v-text-field label="Customer / Marketplace" :model-value="form.customer.nama" readonly variant="outlined"
-            density="compact" :append-inner-icon="!isViewMode ? 'mdi-magnify' : ''"
+          <v-text-field
+            label="Customer / Marketplace"
+            :model-value="form.customer.nama"
+            readonly
+            variant="outlined"
+            density="compact"
+            :append-inner-icon="!isViewMode ? 'mdi-magnify' : ''"
             :placeholder="!isViewMode ? 'Pilih Customer...' : ''"
-            @click="!isViewMode && (dialogs.customerSearch = true)" hide-details
-            :class="{ 'field-disabled': isViewMode }" class="mb-3" />
+            @click="!isViewMode && (dialogs.customerSearch = true)"
+            hide-details
+            :class="{ 'field-disabled': isViewMode }"
+            class="mb-3"
+          />
 
-          <v-select label="Metode Pembayaran" v-model="form.metode" :items="['TRANSFER', 'TUNAI', 'GIRO']"
-            variant="outlined" density="compact" :readonly="isViewMode" hide-details class="mb-3" />
+          <v-select
+            label="Metode Pembayaran"
+            v-model="form.metode"
+            :items="['TRANSFER', 'TUNAI', 'GIRO']"
+            variant="outlined"
+            density="compact"
+            :readonly="isViewMode"
+            hide-details
+            class="mb-3"
+          />
 
           <v-expand-transition>
             <div v-if="form.metode === 'TRANSFER' || isViewMode">
-              <v-text-field label="Akun Bank (Masuk Ke)"
-                :model-value="form.bankAccount.rekening ? `${form.bankAccount.kode} - ${form.bankAccount.rekening}` : ''"
-                readonly variant="outlined" density="compact" :append-inner-icon="!isViewMode ? 'mdi-bank' : ''"
-                @click="!isViewMode && (dialogs.rekeningSearch = true)" hide-details class="mb-3" />
+              <v-text-field
+                label="Akun Bank (Masuk Ke)"
+                :model-value="
+                  form.bankAccount.rekening
+                    ? `${form.bankAccount.kode} - ${form.bankAccount.rekening}`
+                    : ''
+                "
+                readonly
+                variant="outlined"
+                density="compact"
+                :append-inner-icon="!isViewMode ? 'mdi-bank' : ''"
+                @click="!isViewMode && (dialogs.rekeningSearch = true)"
+                hide-details
+                class="mb-3"
+              />
             </div>
           </v-expand-transition>
 
-          <v-textarea label="Keterangan" v-model="form.keterangan" variant="outlined" density="compact" rows="3"
-            :readonly="isViewMode" hide-details />
+          <v-textarea
+            label="Keterangan"
+            v-model="form.keterangan"
+            variant="outlined"
+            density="compact"
+            rows="3"
+            :readonly="isViewMode"
+            hide-details
+          />
         </div>
 
         <div v-if="isViewMode" class="mt-auto pt-4 text-caption text-grey">
-          <div>Dibuat oleh: <strong>{{ form.userCreate }}</strong></div>
+          <div>
+            Dibuat oleh: <strong>{{ form.userCreate }}</strong>
+          </div>
         </div>
       </div>
 
@@ -419,26 +476,52 @@ onMounted(() => {
           <div class="text-subtitle-2 font-weight-bold text-grey-darken-2">
             DAFTAR TAGIHAN (INVOICE)
           </div>
-          <v-btn v-if="!isViewMode" size="x-small" variant="text" prepend-icon="mdi-refresh" :loading="isLoading"
-            @click="loadOutstanding" :disabled="!form.customer.kode">
+          <v-btn
+            v-if="!isViewMode"
+            size="x-small"
+            variant="text"
+            prepend-icon="mdi-refresh"
+            :loading="isLoading"
+            @click="loadOutstanding"
+            :disabled="!form.customer.kode"
+          >
             Refresh
           </v-btn>
         </div>
 
         <div class="table-wrapper flex-grow-1">
-          <v-data-table v-model="selectedIds" :headers="tableHeaders" :items="invoiceList" :loading="isLoading"
-            :show-select="!isViewMode" item-value="ph_nomor" density="compact"
-            class="desktop-table header-browse-blue border" fixed-header height="100%" :items-per-page="-1"
-            hide-default-footer>
+          <v-data-table
+            v-model="selectedIds"
+            :headers="tableHeaders"
+            :items="invoiceList"
+            :loading="isLoading"
+            :show-select="!isViewMode"
+            item-value="ph_nomor"
+            density="compact"
+            class="desktop-table header-browse-blue border"
+            fixed-header
+            height="100%"
+            :items-per-page="-1"
+            hide-default-footer
+          >
             <template v-slot:[`item.sisa_tagihan`]="{ item }">
-              <span class="font-weight-medium">{{ formatRupiah(item.sisa_tagihan) }}</span>
+              <span class="font-weight-medium">{{ formatRupiah(item.sisa_tagihan ?? 0) }}</span>
             </template>
 
             <template v-slot:[`item.bayar`]="{ item }">
               <div v-if="!isViewMode">
-                <v-text-field v-model.number="item.bayar" type="number" min="0" :max="item.sisa_tagihan"
-                  variant="underlined" density="compact" hide-details class="text-right input-bayar"
-                  :class="{ 'font-weight-bold text-primary': item.bayar > 0 }" prefix="Rp" />
+                <v-text-field
+                  v-model.number="item.bayar"
+                  type="number"
+                  min="0"
+                  :max="item.sisa_tagihan"
+                  variant="underlined"
+                  density="compact"
+                  hide-details
+                  class="text-right input-bayar"
+                  :class="{ 'font-weight-bold text-primary': item.bayar > 0 }"
+                  prefix="Rp"
+                />
               </div>
               <div v-else class="text-right font-weight-bold text-success">
                 {{ formatRupiah(item.bayar) }}
@@ -447,7 +530,11 @@ onMounted(() => {
 
             <template v-slot:no-data>
               <div class="pa-8 text-center text-grey">
-                <v-icon icon="mdi-invoice-text-outline" size="40" class="mb-2 text-grey-lighten-1" />
+                <v-icon
+                  icon="mdi-invoice-text-outline"
+                  size="40"
+                  class="mb-2 text-grey-lighten-1"
+                />
                 <div v-if="!form.customer.kode">Silakan pilih Customer terlebih dahulu.</div>
                 <div v-else>Tidak ada tagihan outstanding.</div>
               </div>
@@ -456,22 +543,33 @@ onMounted(() => {
         </div>
 
         <div
-          class="footer-summary mt-2 pa-3 bg-grey-lighten-4 rounded border d-flex align-center justify-space-between">
+          class="footer-summary mt-2 pa-3 bg-grey-lighten-4 rounded border d-flex align-center justify-space-between"
+        >
           <div class="text-caption text-grey-darken-1 font-weight-medium">
-            {{ isViewMode ? 'TOTAL PELUNASAN' : 'TOTAL YANG AKAN DIBAYARKAN' }}
+            {{ isViewMode ? "TOTAL PELUNASAN" : "TOTAL YANG AKAN DIBAYARKAN" }}
           </div>
-          <div class="text-h5 font-weight-bold" :class="isViewMode ? 'text-success' : 'text-primary'">
+          <div
+            class="text-h5 font-weight-bold"
+            :class="isViewMode ? 'text-success' : 'text-primary'"
+          >
             {{ formatRupiah(totalAllocated) }}
           </div>
         </div>
-
       </div>
     </div>
 
-    <CustomerSearchModal v-if="dialogs.customerSearch" :gudang="authStore.user?.cabang"
-      @close="dialogs.customerSearch = false" @customer-selected="onCustomerSelected" />
-    <RekeningSearchModal v-if="dialogs.rekeningSearch" :cabang="authStore.user?.cabang"
-      @close="dialogs.rekeningSearch = false" @selected="onRekeningSelected" />
+    <CustomerSearchModal
+      v-if="dialogs.customerSearch"
+      :gudang="authStore.user?.cabang ?? ''"
+      @close="dialogs.customerSearch = false"
+      @customer-selected="onCustomerSelected"
+    />
+    <RekeningSearchModal
+      v-if="dialogs.rekeningSearch"
+      :cabang="authStore.user?.cabang ?? ''"
+      @close="dialogs.rekeningSearch = false"
+      @selected="onRekeningSelected"
+    />
 
     <v-dialog v-model="dialogConfirm.show" max-width="400px" persistent>
       <v-card>
@@ -480,13 +578,19 @@ onMounted(() => {
         <v-card-actions>
           <v-spacer></v-spacer>
           <v-btn text @click="dialogConfirm.show = false">Batal</v-btn>
-          <v-btn color="primary" variant="tonal" @click="dialogConfirm.onConfirm(); dialogConfirm.show = false;">
+          <v-btn
+            color="primary"
+            variant="tonal"
+            @click="
+              dialogConfirm.onConfirm();
+              dialogConfirm.show = false;
+            "
+          >
             Ya, Lanjutkan
           </v-btn>
         </v-card-actions>
       </v-card>
     </v-dialog>
-
   </PageLayout>
 </template>
 
@@ -525,7 +629,7 @@ onMounted(() => {
 }
 
 .desktop-table :deep(th) {
-  background-color: #0D47A1 !important;
+  background-color: #0d47a1 !important;
   color: white !important;
   font-weight: bold !important;
   text-transform: uppercase;

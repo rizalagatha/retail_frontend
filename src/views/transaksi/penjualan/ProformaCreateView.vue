@@ -1,14 +1,14 @@
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted, watch } from 'vue';
-import { useRoute, useRouter } from 'vue-router';
-import { useToast } from 'vue-toastification';
-import { useAuthStore } from '@/stores/authStore';
-import api from '@/services/api';
-import { format, addDays } from 'date-fns';
-import PageLayout from '@/components/PageLayout.vue';
-import SoSearchModal from '@/components/lookup/SoSearchModal.vue';
-import CustomerSearchModal from '@/components/lookup/CustomerSearchModal.vue';
-import type { AxiosError } from 'axios';
+import { ref, reactive, computed, onMounted, watch } from "vue";
+import { useRoute, useRouter } from "vue-router";
+import { useToast } from "vue-toastification";
+import { useAuthStore } from "@/stores/authStore";
+import api from "@/services/api";
+import { format, addDays } from "date-fns";
+import PageLayout from "@/components/PageLayout.vue";
+import SoSearchModal from "@/components/lookup/SoSearchModal.vue";
+import CustomerSearchModal from "@/components/lookup/CustomerSearchModal.vue";
+import type { AxiosError } from "axios";
 
 // --- Tipe Data ---
 interface FormHeader {
@@ -35,7 +35,7 @@ interface DetailItem {
   jumlah: number;
   harga: number;
   diskonPersen: number; // disc %
-  diskonRp: number;     // diskon Rp
+  diskonRp: number; // diskon Rp
   barcode: string;
 }
 interface Customer {
@@ -52,26 +52,36 @@ const route = useRoute();
 const router = useRouter();
 const toast = useToast();
 const authStore = useAuthStore();
-const MENU_ID = '28';
+const MENU_ID = "28";
 
 const isEditMode = ref(false);
 const loading = ref(true);
 const isSoLookupVisible = ref(false);
 const isCustomerLookupVisible = ref(false);
-const dialogConfirm = reactive({ show: false, title: '', text: '', onConfirm: () => { } });
-const dialogConfirmSave = reactive({ show: false, title: '', text: '', onConfirm: () => { } });
-const dialogConfirmPrint = reactive({ show: false, title: '', text: '', onConfirm: () => { }, onCancel: () => { } });
+const dialogConfirm = reactive({ show: false, title: "", text: "", onConfirm: () => {} });
+const dialogConfirmSave = reactive({ show: false, title: "", text: "", onConfirm: () => {} });
+const dialogConfirmPrint = reactive({
+  show: false,
+  title: "",
+  text: "",
+  onConfirm: () => {},
+  onCancel: () => {},
+});
 
 const formHeader = reactive<FormHeader>({
-  cabang: authStore.user?.cabang || '',
-  nomor: '',
-  tanggal: format(new Date(), 'yyyy-MM-dd'),
-  nomorSo: '',
+  cabang: authStore.user?.cabang || "",
+  nomor: "",
+  tanggal: format(new Date(), "yyyy-MM-dd"),
+  nomorSo: "",
   tanggalSo: null,
-  customerKode: '', customerNama: '', alamat: '', kota: '',
-  level: '', top: 0,
-  tempo: format(new Date(), 'yyyy-MM-dd'),
-  keterangan: '',
+  customerKode: "",
+  customerNama: "",
+  alamat: "",
+  kota: "",
+  level: "",
+  top: 0,
+  tempo: format(new Date(), "yyyy-MM-dd"),
+  keterangan: "",
   ppn: 0,
 });
 
@@ -111,7 +121,7 @@ const netto = computed(() => grandTotal.value + summary.biayaKirim - summary.dp)
 // --- Watchers ---
 watch([() => formHeader.tanggal, () => formHeader.top], ([newTanggal, newTop]) => {
   if (newTanggal && newTop >= 0) {
-    formHeader.tempo = format(addDays(new Date(newTanggal), newTop), 'yyyy-MM-dd');
+    formHeader.tempo = format(addDays(new Date(newTanggal), newTop), "yyyy-MM-dd");
   }
 });
 
@@ -121,7 +131,7 @@ const loadFromSO = async () => {
   loading.value = true;
   try {
     const response = await api.get(`/proforma-form/from-so/${formHeader.nomorSo}`, {
-      params: { branchCode: formHeader.cabang }
+      params: { branchCode: formHeader.cabang },
     });
     const { header, items: soItems } = response.data;
 
@@ -140,31 +150,32 @@ const loadFromSO = async () => {
     summary.dp = header.dp;
 
     // --- Copy Detail Items ---
-    items.value = soItems.map((item: {
-      kode: string;
-      nama: string;
-      ukuran: string;
-      jumlah: number;
-      harga: number;
-      diskonPersen: number;
-      diskonRp: number;
-      barcode: string;
-    }) => ({
-      id: Math.random(),        // Tambahan untuk key unik
-      kode: item.kode,
-      nama: item.nama,
-      ukuran: item.ukuran,
-      jumlah: item.jumlah,
-      harga: item.harga,
-      diskonPersen: item.diskonPersen,
-      diskonRp: item.diskonRp,
-      barcode: item.barcode
-    }));
+    items.value = soItems.map(
+      (item: {
+        kode: string;
+        nama: string;
+        ukuran: string;
+        jumlah: number;
+        harga: number;
+        diskonPersen: number;
+        diskonRp: number;
+        barcode: string;
+      }) => ({
+        id: Math.random(), // Tambahan untuk key unik
+        kode: item.kode,
+        nama: item.nama,
+        ukuran: item.ukuran,
+        jumlah: item.jumlah,
+        harga: item.harga,
+        diskonPersen: item.diskonPersen,
+        diskonRp: item.diskonRp,
+        barcode: item.barcode,
+      })
+    );
     toast.success(`Data dari SO ${formHeader.nomorSo} berhasil dimuat.`);
-
   } catch (err) {
     const error = err as AxiosError<{ message: string }>; // <-- cast ke AxiosError
-    toast.error(error.response?.data?.message || 'Gagal memuat data SO.');
+    toast.error(error.response?.data?.message || "Gagal memuat data SO.");
   } finally {
     loading.value = false;
   }
@@ -180,10 +191,9 @@ const loadDataForEdit = async (id: string) => {
     Object.assign(formHeader, header);
     Object.assign(summary, header); // summary juga diisi dari data header
     items.value = proformaItems;
-
   } catch (err) {
     const error = err as AxiosError<{ message: string }>;
-    toast.error(error.response?.data?.message || 'Gagal memuat data Proforma.');
+    toast.error(error.response?.data?.message || "Gagal memuat data Proforma.");
     router.back();
   } finally {
     loading.value = false;
@@ -191,12 +201,12 @@ const loadDataForEdit = async (id: string) => {
 };
 
 const handleSave = () => {
-  if (!formHeader.nomorSo) return toast.error('Nomor SO harus diisi.');
-  if (!formHeader.customerKode) return toast.error('Customer harus diisi (Load dari SO).');
-  if (items.value.length === 0) return toast.error('Detail barang tidak boleh kosong.');
+  if (!formHeader.nomorSo) return toast.error("Nomor SO harus diisi.");
+  if (!formHeader.customerKode) return toast.error("Customer harus diisi (Load dari SO).");
+  if (items.value.length === 0) return toast.error("Detail barang tidak boleh kosong.");
 
-  dialogConfirmSave.title = 'Konfirmasi Simpan';
-  dialogConfirmSave.text = 'Apakah Anda yakin ingin menyimpan data Proforma Invoice ini?';
+  dialogConfirmSave.title = "Konfirmasi Simpan";
+  dialogConfirmSave.text = "Apakah Anda yakin ingin menyimpan data Proforma Invoice ini?";
   dialogConfirmSave.onConfirm = executeSave; // Panggil fungsi executeSave saat dikonfirmasi
   dialogConfirmSave.show = true;
 };
@@ -206,34 +216,36 @@ const executeSave = async () => {
   try {
     const payload = {
       header: { ...formHeader, ...summary },
-      items: items.value.filter(item => item.kode && item.jumlah > 0)
+      items: items.value.filter((item) => item.kode && item.jumlah > 0),
     };
 
     const response = isEditMode.value
       ? await api.put(`/proforma-form/${route.params.id}`, payload)
-      : await api.post('/proforma-form', payload);
+      : await api.post("/proforma-form", payload);
 
     const nomorProforma = response.data.nomor; // Ambil nomor dari respons
     toast.success(response.data.message);
 
     // Tampilkan dialog konfirmasi cetak SETELAH save berhasil
-    dialogConfirmPrint.title = 'Cetak Dokumen';
+    dialogConfirmPrint.title = "Cetak Dokumen";
     dialogConfirmPrint.text = `Data berhasil disimpan dengan nomor <strong>${nomorProforma}</strong>. Apakah Anda ingin mencetak?`;
     dialogConfirmPrint.show = true;
     // Aksi jika user klik "Cetak"
     dialogConfirmPrint.onConfirm = () => {
-      const printRoute = router.resolve({ name: 'ProformaPrint', params: { nomor: nomorProforma } });
-      window.open(printRoute.href, '_blank');
-      router.push({ name: 'Proforma' });
+      const printRoute = router.resolve({
+        name: "ProformaPrint",
+        params: { nomor: nomorProforma },
+      });
+      window.open(printRoute.href, "_blank");
+      router.push({ name: "Proforma" });
     };
     // Aksi jika user klik "Tutup"
     dialogConfirmPrint.onCancel = () => {
-      router.push({ name: 'Proforma' });
+      router.push({ name: "Proforma" });
     };
-
   } catch (err) {
     const error = err as AxiosError<{ message: string }>;
-    toast.error(error.response?.data?.message || 'Gagal menyimpan data.');
+    toast.error(error.response?.data?.message || "Gagal menyimpan data.");
   } finally {
     loading.value = false;
   }
@@ -256,12 +268,12 @@ const onCustomerSelected = (customer: Customer) => {
 };
 
 const handleBatal = () => {
-  dialogConfirm.title = 'Konfirmasi Batal';
-  dialogConfirm.text = 'Perubahan yang belum disimpan akan hilang. Lanjutkan?';
+  dialogConfirm.title = "Konfirmasi Batal";
+  dialogConfirm.text = "Perubahan yang belum disimpan akan hilang. Lanjutkan?";
   dialogConfirm.onConfirm = () => {
     if (isEditMode.value) {
       loadDataForEdit(route.params.id as string); // Muat ulang data asli
-      toast.info('Perubahan dibatalkan.');
+      toast.info("Perubahan dibatalkan.");
     } else {
       // Reset form ke kondisi awal jika mode 'Baru'
       // (implementasi refreshdata jika diperlukan)
@@ -272,8 +284,8 @@ const handleBatal = () => {
 };
 
 const handleTutup = () => {
-  dialogConfirm.title = 'Konfirmasi Tutup';
-  dialogConfirm.text = 'Anda yakin ingin menutup form ini?';
+  dialogConfirm.title = "Konfirmasi Tutup";
+  dialogConfirm.text = "Anda yakin ingin menutup form ini?";
   dialogConfirm.onConfirm = () => {
     router.back();
   };
@@ -282,16 +294,16 @@ const handleTutup = () => {
 
 // --- Konfigurasi Tabel ---
 const tableHeaders = [
-  { title: 'No', key: 'no', sortable: false, width: '50px' },
-  { title: 'Kode Barang', key: 'kode', sortable: false, width: '100px' },
-  { title: 'Nama Barang', key: 'nama', sortable: false },
-  { title: 'Ukuran', key: 'ukuran', sortable: false, width: '50px' },
-  { title: 'Jumlah', key: 'jumlah', sortable: false, width: '50px' },
-  { title: 'Harga', key: 'harga', sortable: false, width: '80px' },
-  { title: 'Diskon %', key: 'diskonPersen', sortable: false, width: '60px' },
-  { title: 'Diskon Rp', key: 'diskonRp', sortable: false, width: '60px' },
-  { title: 'Total', key: 'total', sortable: false, width: '80px' },
-  { title: 'Barcode', key: 'barcode', sortable: false, width: '90px' },
+  { title: "No", key: "no", sortable: false, width: "50px" },
+  { title: "Kode Barang", key: "kode", sortable: false, width: "100px" },
+  { title: "Nama Barang", key: "nama", sortable: false },
+  { title: "Ukuran", key: "ukuran", sortable: false, width: "50px" },
+  { title: "Jumlah", key: "jumlah", sortable: false, width: "50px" },
+  { title: "Harga", key: "harga", sortable: false, width: "80px" },
+  { title: "Diskon %", key: "diskonPersen", sortable: false, width: "60px" },
+  { title: "Diskon Rp", key: "diskonRp", sortable: false, width: "60px" },
+  { title: "Total", key: "total", sortable: false, width: "80px" },
+  { title: "Barcode", key: "barcode", sortable: false, width: "90px" },
 ];
 
 onMounted(() => {
@@ -306,60 +318,156 @@ onMounted(() => {
 </script>
 
 <template>
-  <PageLayout :title="isEditMode ? 'Ubah Proforma Invoice' : 'Buat Proforma Invoice'" :menu-id="MENU_ID">
+  <PageLayout
+    :title="isEditMode ? 'Ubah Proforma Invoice' : 'Buat Proforma Invoice'"
+    :menu-id="MENU_ID"
+  >
     <template #header-actions>
-      <v-btn color="primary" size="small" prepend-icon="mdi-content-save" @click="handleSave"
-        :loading="loading">Simpan</v-btn>
-      <v-btn size="small" variant="tonal" prepend-icon="mdi-refresh" @click="handleBatal"
-        :disabled="loading">Batal</v-btn>
-      <v-btn size="small" prepend-icon="mdi-close" @click="handleTutup" :disabled="loading">Tutup</v-btn>
+      <v-btn
+        color="primary"
+        size="small"
+        prepend-icon="mdi-content-save"
+        @click="handleSave"
+        :loading="loading"
+        >Simpan</v-btn
+      >
+      <v-btn
+        size="small"
+        variant="tonal"
+        prepend-icon="mdi-refresh"
+        @click="handleBatal"
+        :disabled="loading"
+        >Batal</v-btn
+      >
+      <v-btn size="small" prepend-icon="mdi-close" @click="handleTutup" :disabled="loading"
+        >Tutup</v-btn
+      >
     </template>
 
-    <v-overlay v-model="loading" contained class="align-center justify-center"><v-progress-circular
-        indeterminate /></v-overlay>
+    <v-overlay v-model="loading" contained class="align-center justify-center"
+      ><v-progress-circular indeterminate
+    /></v-overlay>
 
     <div v-if="!loading" class="form-grid-container">
       <!-- LEFT COLUMN: HEADER -->
       <div class="left-column">
         <div class="desktop-form-section header-section">
           <v-row dense>
-            <v-col cols="6"><v-text-field label="Cabang" v-model="formHeader.cabang" readonly filled density="compact"
-                hide-details /></v-col>
-            <v-col cols="6"><v-text-field label="Nomor" v-model="formHeader.nomor" readonly filled density="compact"
-                hide-details /></v-col>
-            <v-col cols="6"><v-text-field label="Tanggal" v-model="formHeader.tanggal" type="date" density="compact"
-                hide-details /></v-col>
+            <v-col cols="6"
+              ><v-text-field
+                label="Cabang"
+                v-model="formHeader.cabang"
+                readonly
+                filled
+                density="compact"
+                hide-details
+            /></v-col>
+            <v-col cols="6"
+              ><v-text-field
+                label="Nomor"
+                v-model="formHeader.nomor"
+                readonly
+                filled
+                density="compact"
+                hide-details
+            /></v-col>
+            <v-col cols="6"
+              ><v-text-field
+                label="Tanggal"
+                v-model="formHeader.tanggal"
+                type="date"
+                density="compact"
+                hide-details
+            /></v-col>
             <v-col cols="6">
-              <v-text-field label="No. SO (F1)" v-model="formHeader.nomorSo" :readonly="isEditMode" density="compact"
-                hide-details @keydown.enter="loadFromSO" @keydown.f1.prevent="isSoLookupVisible = true"
-                placeholder="F1 untuk cari..." append-inner-icon="mdi-magnify"
-                @click:append-inner="isSoLookupVisible = true" />
+              <v-text-field
+                label="No. SO (F1)"
+                v-model="formHeader.nomorSo"
+                :readonly="isEditMode"
+                density="compact"
+                hide-details
+                @keydown.enter="loadFromSO"
+                @keydown.f1.prevent="isSoLookupVisible = true"
+                placeholder="F1 untuk cari..."
+                append-inner-icon="mdi-magnify"
+                @click:append-inner="isSoLookupVisible = true"
+              />
             </v-col>
           </v-row>
         </div>
         <div class="desktop-form-section header-section">
           <v-row dense>
             <v-col cols="12">
-              <v-text-field label="Customer (F1)" v-model="formHeader.customerNama" append-inner-icon="mdi-magnify"
+              <v-text-field
+                label="Customer (F1)"
+                v-model="formHeader.customerNama"
+                append-inner-icon="mdi-magnify"
                 @click:append-inner="isCustomerLookupVisible = true"
-                @keydown.f1.prevent="isCustomerLookupVisible = true" readonly filled density="compact" hide-details />
+                @keydown.f1.prevent="isCustomerLookupVisible = true"
+                readonly
+                filled
+                density="compact"
+                hide-details
+              />
             </v-col>
-            <v-col cols="12"><v-text-field label="Alamat" v-model="formHeader.alamat" readonly filled density="compact"
-                hide-details /></v-col>
-            <v-col cols="6"><v-text-field label="Level" v-model="formHeader.level" readonly filled density="compact"
-                hide-details /></v-col>
-            <v-col cols="6"><v-text-field label="Kota" v-model="formHeader.kota" readonly filled density="compact"
-                hide-details /></v-col>
+            <v-col cols="12"
+              ><v-text-field
+                label="Alamat"
+                v-model="formHeader.alamat"
+                readonly
+                filled
+                density="compact"
+                hide-details
+            /></v-col>
+            <v-col cols="6"
+              ><v-text-field
+                label="Level"
+                v-model="formHeader.level"
+                readonly
+                filled
+                density="compact"
+                hide-details
+            /></v-col>
+            <v-col cols="6"
+              ><v-text-field
+                label="Kota"
+                v-model="formHeader.kota"
+                readonly
+                filled
+                density="compact"
+                hide-details
+            /></v-col>
           </v-row>
         </div>
         <div class="desktop-form-section header-section">
           <v-row dense>
-            <v-col cols="4"><v-text-field label="TOP (hari)" v-model.number="formHeader.top" variant="outlined"
-                density="compact" hide-details /></v-col>
-            <v-col cols="8"><v-text-field label="Jatuh Tempo" v-model="formHeader.tempo" type="date" readonly filled
-                density="compact" hide-details /></v-col>
-            <v-col cols="12"><v-textarea label="Keterangan" v-model="formHeader.keterangan" variant="outlined"
-                density="compact" hide-details rows="2" /></v-col>
+            <v-col cols="4"
+              ><v-text-field
+                label="TOP (hari)"
+                v-model.number="formHeader.top"
+                variant="outlined"
+                density="compact"
+                hide-details
+            /></v-col>
+            <v-col cols="8"
+              ><v-text-field
+                label="Jatuh Tempo"
+                v-model="formHeader.tempo"
+                type="date"
+                readonly
+                filled
+                density="compact"
+                hide-details
+            /></v-col>
+            <v-col cols="12"
+              ><v-textarea
+                label="Keterangan"
+                v-model="formHeader.keterangan"
+                variant="outlined"
+                density="compact"
+                hide-details
+                rows="2"
+            /></v-col>
           </v-row>
         </div>
       </div>
@@ -367,25 +475,53 @@ onMounted(() => {
       <!-- RIGHT COLUMN: DETAILS & SUMMARY -->
       <div class="right-column">
         <div class="table-container">
-          <v-data-table :headers="tableHeaders" :items="items" class="desktop-table fill-height" density="compact"
-            fixed-header :items-per-page="-1">
+          <v-data-table
+            :headers="tableHeaders"
+            :items="items"
+            class="desktop-table fill-height"
+            density="compact"
+            fixed-header
+            :items-per-page="-1"
+          >
             <template v-slot:[`item.jumlah`]="{ item }">
-              <v-text-field v-model.number="item.jumlah" type="number" variant="underlined" density="compact"
-                hide-details class="text-right" />
+              <v-text-field
+                v-model.number="item.jumlah"
+                type="number"
+                variant="underlined"
+                density="compact"
+                hide-details
+                class="text-right"
+              />
             </template>
             <template v-slot:[`item.harga`]="{ item }">
-              <v-text-field v-model.number="item.harga" type="number" variant="underlined" density="compact"
-                hide-details class="text-right" />
+              <v-text-field
+                v-model.number="item.harga"
+                type="number"
+                variant="underlined"
+                density="compact"
+                hide-details
+                class="text-right"
+              />
             </template>
             <template v-slot:[`item.diskonPersen`]="{ item }">
-              <v-text-field v-model.number="item.diskonPersen" type="number" variant="underlined" density="compact"
-                hide-details class="text-right" />
+              <v-text-field
+                v-model.number="item.diskonPersen"
+                type="number"
+                variant="underlined"
+                density="compact"
+                hide-details
+                class="text-right"
+              />
             </template>
             <template v-slot:[`item.diskonRp`]="{ item }">
-              {{ (item.diskonRp || 0).toLocaleString('id-ID') }}
+              {{ (item.diskonRp || 0).toLocaleString("id-ID") }}
             </template>
             <template v-slot:[`item.total`]="{ item }">
-              {{ (((item.jumlah || 0) * (item.harga || 0)) - (item.diskonRp || 0)).toLocaleString('id-ID') }}
+              {{
+                ((item.jumlah || 0) * (item.harga || 0) - (item.diskonRp || 0)).toLocaleString(
+                  "id-ID"
+                )
+              }}
             </template>
             <template v-slot:[`item.barcode`]="{ item }">
               {{ item.barcode }}
@@ -395,35 +531,106 @@ onMounted(() => {
         </div>
         <div class="desktop-form-section">
           <v-row dense>
-            <v-col><v-text-field label="Subtotal" :model-value="totalSetelahDiskonItem.toLocaleString('id-ID')" readonly
-                filled density="compact" hide-details class="text-right" /></v-col>
-            <v-col><v-text-field label="Diskon (%)" v-model.number="summary.diskonPersen" density="compact" hide-details
-                class="text-right" /></v-col>
-            <v-col><v-text-field label="Diskon (Rp)" v-model.number="summary.diskon" density="compact" hide-details
-                class="text-right" /></v-col>
-            <v-col><v-text-field label="PPN (%)" v-model.number="formHeader.ppn" density="compact" hide-details
-                class="text-right" style="max-width: 100px" /></v-col>
-            <v-col><v-text-field label="Total PPN" :model-value="totalPpn.toLocaleString('id-ID')" readonly filled
-                density="compact" hide-details class="text-right" /></v-col>
+            <v-col
+              ><v-text-field
+                label="Subtotal"
+                :model-value="totalSetelahDiskonItem.toLocaleString('id-ID')"
+                readonly
+                filled
+                density="compact"
+                hide-details
+                class="text-right"
+            /></v-col>
+            <v-col
+              ><v-text-field
+                label="Diskon (%)"
+                v-model.number="summary.diskonPersen"
+                density="compact"
+                hide-details
+                class="text-right"
+            /></v-col>
+            <v-col
+              ><v-text-field
+                label="Diskon (Rp)"
+                v-model.number="summary.diskon"
+                density="compact"
+                hide-details
+                class="text-right"
+            /></v-col>
+            <v-col
+              ><v-text-field
+                label="PPN (%)"
+                v-model.number="formHeader.ppn"
+                density="compact"
+                hide-details
+                class="text-right"
+                style="max-width: 100px"
+            /></v-col>
+            <v-col
+              ><v-text-field
+                label="Total PPN"
+                :model-value="totalPpn.toLocaleString('id-ID')"
+                readonly
+                filled
+                density="compact"
+                hide-details
+                class="text-right"
+            /></v-col>
           </v-row>
           <v-row dense class="mt-2">
-            <v-col><v-text-field label="Grand Total" :model-value="grandTotal.toLocaleString('id-ID')" readonly filled
-                density="compact" hide-details class="text-right font-weight-bold" /></v-col>
-            <v-col><v-text-field label="Biaya Kirim" v-model.number="summary.biayaKirim" density="compact" hide-details
-                class="text-right" /></v-col>
-            <v-col><v-text-field label="DP" v-model.number="summary.dp" density="compact" hide-details
-                class="text-right" /></v-col>
-            <v-col><v-text-field label="Netto" :model-value="netto.toLocaleString('id-ID')" readonly filled
-                density="compact" hide-details class="text-right font-weight-bold" /></v-col>
+            <v-col
+              ><v-text-field
+                label="Grand Total"
+                :model-value="grandTotal.toLocaleString('id-ID')"
+                readonly
+                filled
+                density="compact"
+                hide-details
+                class="text-right font-weight-bold"
+            /></v-col>
+            <v-col
+              ><v-text-field
+                label="Biaya Kirim"
+                v-model.number="summary.biayaKirim"
+                density="compact"
+                hide-details
+                class="text-right"
+            /></v-col>
+            <v-col
+              ><v-text-field
+                label="DP"
+                v-model.number="summary.dp"
+                density="compact"
+                hide-details
+                class="text-right"
+            /></v-col>
+            <v-col
+              ><v-text-field
+                label="Netto"
+                :model-value="netto.toLocaleString('id-ID')"
+                readonly
+                filled
+                density="compact"
+                hide-details
+                class="text-right font-weight-bold"
+            /></v-col>
           </v-row>
         </div>
       </div>
     </div>
 
-    <SoSearchModal v-if="isSoLookupVisible" :cabang="formHeader.cabang" @close="isSoLookupVisible = false"
-      @selected="onSoSelected" />
-    <CustomerSearchModal v-if="isCustomerLookupVisible" :gudang="formHeader.cabang"
-      @close="isCustomerLookupVisible = false" @customer-selected="onCustomerSelected" />
+    <SoSearchModal
+      v-if="isSoLookupVisible"
+      :cabang="formHeader.cabang"
+      @close="isSoLookupVisible = false"
+      @selected="onSoSelected"
+    />
+    <CustomerSearchModal
+      v-if="isCustomerLookupVisible"
+      :gudang="formHeader.cabang"
+      @close="isCustomerLookupVisible = false"
+      @customer-selected="onCustomerSelected"
+    />
 
     <!-- Dialog Konfirmasi (Lengkap) -->
     <v-dialog v-model="dialogConfirm.show" max-width="400px" persistent>
@@ -433,8 +640,17 @@ onMounted(() => {
         <v-card-actions>
           <v-spacer />
           <v-btn text @click="dialogConfirm.show = false">Batal</v-btn>
-          <v-btn color="primary" variant="tonal"
-            @click="() => { dialogConfirm.onConfirm(); dialogConfirm.show = false; }">Ya, Lanjutkan</v-btn>
+          <v-btn
+            color="primary"
+            variant="tonal"
+            @click="
+              () => {
+                dialogConfirm.onConfirm();
+                dialogConfirm.show = false;
+              }
+            "
+            >Ya, Lanjutkan</v-btn
+          >
         </v-card-actions>
       </v-card>
     </v-dialog>
@@ -446,9 +662,17 @@ onMounted(() => {
         <v-card-actions>
           <v-spacer />
           <v-btn text @click="dialogConfirmSave.show = false">Batal</v-btn>
-          <v-btn color="primary" variant="tonal"
-            @click="() => { dialogConfirmSave.onConfirm(); dialogConfirmSave.show = false; }">Ya,
-            Lanjutkan</v-btn>
+          <v-btn
+            color="primary"
+            variant="tonal"
+            @click="
+              () => {
+                dialogConfirmSave.onConfirm();
+                dialogConfirmSave.show = false;
+              }
+            "
+            >Ya, Lanjutkan</v-btn
+          >
         </v-card-actions>
       </v-card>
     </v-dialog>
@@ -459,9 +683,26 @@ onMounted(() => {
         <v-card-text>{{ dialogConfirm.text }}</v-card-text>
         <v-card-actions>
           <v-spacer />
-          <v-btn text @click="() => { dialogConfirmPrint.onCancel(); dialogConfirmPrint.show = false; }">Tutup</v-btn>
-          <v-btn color="primary"
-            @click="() => { dialogConfirmPrint.onConfirm(); dialogConfirmPrint.show = false; }">Cetak</v-btn>
+          <v-btn
+            text
+            @click="
+              () => {
+                dialogConfirmPrint.onCancel();
+                dialogConfirmPrint.show = false;
+              }
+            "
+            >Tutup</v-btn
+          >
+          <v-btn
+            color="primary"
+            @click="
+              () => {
+                dialogConfirmPrint.onConfirm();
+                dialogConfirmPrint.show = false;
+              }
+            "
+            >Cetak</v-btn
+          >
         </v-card-actions>
       </v-card>
     </v-dialog>
@@ -470,13 +711,13 @@ onMounted(() => {
 
 <style scoped>
 .desktop-table :deep(thead tr th) {
-  background-color: #0D47A1 !important; /* Biru Tua */
-  color: #ffffff !important;            /* Teks Putih */
+  background-color: #0d47a1 !important; /* Biru Tua */
+  color: #ffffff !important; /* Teks Putih */
   font-weight: bold !important;
   text-transform: uppercase;
   font-size: 11px !important;
   height: 40px !important;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
   border-bottom: none !important; /* Supaya lebih rapi */
 }
 </style>

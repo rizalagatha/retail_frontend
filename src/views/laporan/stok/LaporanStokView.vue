@@ -1,20 +1,21 @@
 <script setup lang="ts">
-import { ref, onMounted, computed, watch, reactive } from 'vue';
-import api from '@/services/api';
-import PageLayout from '@/components/PageLayout.vue';
-import MasterProductSearchModal from '@/components/lookup/MasterProductSearchModal.vue';
-import { useToast } from 'vue-toastification';
-import { useAuthStore } from '@/stores/authStore';
-import { format } from 'date-fns';
-import * as XLSX from 'xlsx';
-import AppDataTable from '@/components/AppDataTable.vue';
+import { ref, onMounted, computed, watch, reactive } from "vue";
+import api from "@/services/api";
+import PageLayout from "@/components/PageLayout.vue";
+import MasterProductSearchModal from "@/components/lookup/MasterProductSearchModal.vue";
+import { useToast } from "vue-toastification";
+import { useAuthStore } from "@/stores/authStore";
+import { format } from "date-fns";
+import * as XLSX from "xlsx";
+import AppDataTable from "@/components/AppDataTable.vue";
+import axios from "axios";
 
 interface DataTableHeader {
   title: string;
   key: string;
   width?: number;
   fixed?: boolean;
-  align?: 'start' | 'center' | 'end';
+  align?: "start" | "center" | "end";
   minWidth?: string | number;
   maxWidth?: string | number;
   sortable?: boolean;
@@ -29,25 +30,30 @@ interface StokItem {
   [key: string]: string | number; // Allow dynamic keys (S, M, L, Jumbo, A3, etc)
 }
 
+interface Gudang {
+  kode: string;
+  nama: string;
+}
+
 const toast = useToast();
 const authStore = useAuthStore();
-const MENU_ID = '501';
+const MENU_ID = "501";
 
 // --- State ---
 const stokList = ref<StokItem[]>([]);
 const isLoading = ref(true);
 const filters = reactive({
-  gudang: authStore.user?.cabang || '',
-  kodeBarang: '',
-  namaBarang: '',
-  jenisStok: 'semua',
+  gudang: authStore.user?.cabang || "",
+  kodeBarang: "",
+  namaBarang: "",
+  jenisStok: "semua",
   tampilkanKosong: false,
-  tanggal: format(new Date(), 'yyyy-MM-dd'),
+  tanggal: format(new Date(), "yyyy-MM-dd"),
 });
-const gudangList = ref([]);
+const gudangList = ref<Gudang[]>([]);
 const isProductSearchVisible = ref(false);
 
-const hasViewPermission = computed(() => authStore.can(MENU_ID, 'view'));
+const hasViewPermission = computed(() => authStore.can(MENU_ID, "view"));
 
 // --- Header Definisi (Resize) ---
 const headers = ref<DataTableHeader[]>([]);
@@ -62,10 +68,10 @@ const onResizeStart = (e: MouseEvent, column: DataTableHeader) => {
   e.stopPropagation();
   resizingColumn.value = column;
   startX.value = e.pageX;
-  startWidth.value = (typeof column.width === 'number' ? column.width : 100);
-  document.addEventListener('mousemove', onResizeMove);
-  document.addEventListener('mouseup', onResizeEnd);
-  document.body.style.cursor = 'col-resize';
+  startWidth.value = typeof column.width === "number" ? column.width : 100;
+  document.addEventListener("mousemove", onResizeMove);
+  document.addEventListener("mouseup", onResizeEnd);
+  document.body.style.cursor = "col-resize";
 };
 
 const onResizeMove = (e: MouseEvent) => {
@@ -76,15 +82,30 @@ const onResizeMove = (e: MouseEvent) => {
 
 const onResizeEnd = () => {
   resizingColumn.value = null;
-  document.removeEventListener('mousemove', onResizeMove);
-  document.removeEventListener('mouseup', onResizeEnd);
-  document.body.style.cursor = '';
+  document.removeEventListener("mousemove", onResizeMove);
+  document.removeEventListener("mouseup", onResizeEnd);
+  document.body.style.cursor = "";
 };
 
 // --- Methods ---
 // Fungsi Helper untuk mengurutkan Ukuran (agar S, M, L urut, sisanya alfabet)
 const sortSizes = (a: string, b: string) => {
-  const sizeOrder = ['XXXS', 'XXS', 'XS', 'S', 'M', 'L', 'XL', '2XL', '3XL', '4XL', '5XL', '6XL', '7XL', 'ALLSIZE'];
+  const sizeOrder = [
+    "XXXS",
+    "XXS",
+    "XS",
+    "S",
+    "M",
+    "L",
+    "XL",
+    "2XL",
+    "3XL",
+    "4XL",
+    "5XL",
+    "6XL",
+    "7XL",
+    "ALLSIZE",
+  ];
   const idxA = sizeOrder.indexOf(a.toUpperCase());
   const idxB = sizeOrder.indexOf(b.toUpperCase());
 
@@ -97,7 +118,7 @@ const sortSizes = (a: string, b: string) => {
 const fetchData = async () => {
   isLoading.value = true;
   try {
-    const response = await api.get('/laporan-stok/real-time', { params: filters });
+    const response = await api.get("/laporan-stok/real-time", { params: filters });
     stokList.value = response.data;
 
     // --- LOGIKA DINAMIS HEADER ---
@@ -108,65 +129,73 @@ const fetchData = async () => {
 
       // 2. Filter key yang BUKAN kolom statis
       // 'PL' harus masuk staticKeys agar tidak dianggap sebagai ukuran baju (pivot)
-      const staticKeys = ['KODE', 'KATEGORI', 'NAMA', 'TOTAL', 'PL', 'TOTAL2', 'Buffer', 'KTGPRODUK', 'KTGBARANG'];
-      const dynamicKeys = allKeys.filter(k => !staticKeys.includes(k));
+      const staticKeys = [
+        "KODE",
+        "KATEGORI",
+        "NAMA",
+        "TOTAL",
+        "PL",
+        "TOTAL2",
+        "Buffer",
+        "KTGPRODUK",
+        "KTGBARANG",
+      ];
+      const dynamicKeys = allKeys.filter((k) => !staticKeys.includes(k));
 
       // 3. Urutkan kolom ukuran agar rapi
       dynamicKeys.sort(sortSizes);
 
       // --- LOGIKA PEMBATASAN KOLOM QTY PL ---
-      const isUserKDC = authStore.user?.cabang === 'KDC';
-      const isViewingKDC = filters.gudang === 'KDC';
+      const isUserKDC = authStore.user?.cabang === "KDC";
+      const isViewingKDC = filters.gudang === "KDC";
 
       // 4. Susun Ulang Headers secara Bertahap (Incremental)
       const newHeaders: DataTableHeader[] = [
-        { title: 'Kategori', key: 'KATEGORI', width: 120 },
-        { title: 'Kode', key: 'KODE', fixed: true, width: 150 },
-        { title: 'Nama Barang', key: 'NAMA', fixed: true, width: 300 },
+        { title: "Kategori", key: "KATEGORI", width: 120 },
+        { title: "Kode", key: "KODE", fixed: true, width: 150 },
+        { title: "Nama Barang", key: "NAMA", fixed: true, width: 300 },
 
         // Masukkan kolom ukuran dinamis (S, M, L, dll)
-        ...dynamicKeys.map(key => ({
+        ...dynamicKeys.map((key) => ({
           title: key,
           key: key,
           width: 70,
         })),
 
-        { title: 'Total', key: 'TOTAL', width: 100, class: 'font-weight-bold bg-grey-lighten-4' },
+        { title: "Total", key: "TOTAL", width: 100, class: "font-weight-bold bg-grey-lighten-4" },
       ];
 
       // [FIX] Sisipkan kolom PL tepat setelah TOTAL hanya jika syarat terpenuhi
       if (isUserKDC && isViewingKDC) {
         newHeaders.push({
-          title: 'Qty PL',
-          key: 'PL',
+          title: "Qty PL",
+          key: "PL",
           width: 90,
-          class: 'text-orange-darken-4 font-weight-bold bg-orange-lighten-5'
+          class: "text-orange-darken-4 font-weight-bold bg-orange-lighten-5",
         });
         newHeaders.push({
-          title: 'Tersedia',
-          key: 'TOTAL2',
+          title: "Tersedia",
+          key: "TOTAL2",
           width: 130,
-          class: 'text-green-darken-4 font-weight-bold bg-green-lighten-5'
+          class: "text-green-darken-4 font-weight-bold bg-green-lighten-5",
         });
       }
 
       // Tambahkan kolom penutup
-      newHeaders.push({ title: 'Buffer', key: 'Buffer', width: 100 });
+      newHeaders.push({ title: "Buffer", key: "Buffer", width: 100 });
 
       // Terapkan ke state headers
       headers.value = newHeaders;
-
     } else {
       // Fallback jika data kosong
       headers.value = [
-        { title: 'Kode', key: 'KODE' },
-        { title: 'Nama Barang', key: 'NAMA' },
-        { title: 'Total', key: 'TOTAL' }
+        { title: "Kode", key: "KODE" },
+        { title: "Nama Barang", key: "NAMA" },
+        { title: "Total", key: "TOTAL" },
       ];
     }
-
   } catch (error) {
-    toast.error('Gagal memuat data stok.');
+    toast.error("Gagal memuat data stok.");
     console.error(error);
   } finally {
     isLoading.value = false;
@@ -182,14 +211,14 @@ const exportToExcel = async () => {
 
     // Panggil API dengan params: filters
     // Ini otomatis mengirim: /laporan-stok/real-time/export?gudang=XXX&tanggal=YYYY-MM-DD...
-    const response = await api.get('/laporan-stok/real-time/export', {
-      params: filters
+    const response = await api.get("/laporan-stok/real-time/export", {
+      params: filters,
     });
 
     const dataExport = response.data;
 
     if (!dataExport || dataExport.length === 0) {
-      toast.warning('Tidak ada data untuk diekspor.');
+      toast.warning("Tidak ada data untuk diekspor.");
       return;
     }
 
@@ -201,7 +230,7 @@ const exportToExcel = async () => {
 
       // 2. Sort by Ukuran (menggunakan helper)
       // Pastikan konversi ke String karena UKURAN di interface bisa string | number
-      return sortSizes(String(a.UKURAN || ''), String(b.UKURAN || ''));
+      return sortSizes(String(a.UKURAN || ""), String(b.UKURAN || ""));
     });
 
     const worksheet = XLSX.utils.json_to_sheet(dataExport);
@@ -209,15 +238,15 @@ const exportToExcel = async () => {
     XLSX.utils.book_append_sheet(workbook, worksheet, "Stok Detail");
 
     // Nama file dinamis dengan Gudang dan Tanggal
-    const namaGudang = filters.gudang === 'ALL' ? 'SEMUA' : filters.gudang;
+    const namaGudang = filters.gudang === "ALL" ? "SEMUA" : filters.gudang;
     const filename = `Stok_${namaGudang}_${filters.tanggal}.xlsx`;
 
     XLSX.writeFile(workbook, filename);
 
-    toast.success('Data berhasil diekspor.');
+    toast.success("Data berhasil diekspor.");
   } catch (error) {
     console.error(error);
-    toast.error('Gagal mengekspor data.');
+    toast.error("Gagal mengekspor data.");
   } finally {
     isLoading.value = false;
   }
@@ -225,32 +254,38 @@ const exportToExcel = async () => {
 
 const fetchGudangList = async () => {
   try {
-    const response = await api.get('/laporan-stok/lookup/gudang-options');
+    const response = await api.get("/laporan-stok/lookup/gudang-options");
     gudangList.value = response.data;
-  } catch (error) {
-    toast.error('Gagal memuat daftar gudang.', error);
+  } catch (err: unknown) {
+    if (axios.isAxiosError(err) && err.response) {
+      toast.error(err.response.data?.message || "Gagal memuat daftar gudang.");
+    } else {
+      toast.error("Gagal memuat daftar gudang.");
+    }
   }
 };
 
-const openProductSearch = () => { isProductSearchVisible.value = true; };
+const openProductSearch = () => {
+  isProductSearchVisible.value = true;
+};
 
-const onProductSelected = (product: { kode: string, nama: string }) => {
+const onProductSelected = (product: { kode: string; nama: string }) => {
   filters.kodeBarang = product.kode;
   filters.namaBarang = product.nama;
   isProductSearchVisible.value = false;
 };
 
 const clearProductFilter = () => {
-  filters.kodeBarang = '';
-  filters.namaBarang = '';
+  filters.kodeBarang = "";
+  filters.namaBarang = "";
 };
 
 const getRowTextColor = (item: StokItem) => {
   // Warna Merah jika Buffer > 0 dan Total < Buffer
   if (item.Buffer > 0 && item.TOTAL < item.Buffer) {
-    return 'text-red font-weight-bold';
+    return "text-red font-weight-bold";
   }
-  return '';
+  return "";
 };
 
 // Watcher harus deep karena 'filters' adalah reactive object
@@ -267,7 +302,9 @@ onMounted(() => {
 <template>
   <PageLayout title="Laporan Stok Real Time" desktop-mode icon="mdi-chart-bar-stacked">
     <template #header-actions>
-      <v-btn size="small" color="teal" @click="exportToExcel" prepend-icon="mdi-file-excel">Export</v-btn>
+      <v-btn size="small" color="teal" @click="exportToExcel" prepend-icon="mdi-file-excel"
+        >Export</v-btn
+      >
     </template>
 
     <div v-if="!hasViewPermission" class="state-container">
@@ -277,52 +314,117 @@ onMounted(() => {
 
     <div v-else class="browse-content">
       <div class="filter-section">
-        <v-select v-model="filters.gudang" :items="gudangList" item-title="nama" item-value="kode" label="Gudang"
-          density="compact" hide-details variant="outlined" style="max-width: 180px;"></v-select>
+        <v-select
+          v-model="filters.gudang"
+          :items="gudangList"
+          item-title="nama"
+          item-value="kode"
+          label="Gudang"
+          density="compact"
+          hide-details
+          variant="outlined"
+          style="max-width: 180px"
+        ></v-select>
 
-        <v-text-field v-model="filters.tanggal" type="date" label="Per Tanggal" density="compact" hide-details
-          variant="outlined" style="max-width: 140px;"></v-text-field>
+        <v-text-field
+          v-model="filters.tanggal"
+          type="date"
+          label="Per Tanggal"
+          density="compact"
+          hide-details
+          variant="outlined"
+          style="max-width: 140px"
+        ></v-text-field>
 
-        <v-radio-group v-model="filters.jenisStok" inline density="compact" hide-details class="ms-4">
+        <v-radio-group
+          v-model="filters.jenisStok"
+          inline
+          density="compact"
+          hide-details
+          class="ms-4"
+        >
           <v-radio label="Showroom" value="showroom"></v-radio>
           <v-radio label="Pesanan" value="pesanan"></v-radio>
           <v-radio label="Semua" value="semua"></v-radio>
         </v-radio-group>
 
-        <v-text-field v-model="filters.kodeBarang" label="Kode Barang (F1)" density="compact" hide-details
-          variant="outlined" style="max-width: 150px;" class="ms-4" readonly @click="openProductSearch"
-          @keydown.f1.prevent="openProductSearch" clearable @click:clear="clearProductFilter">
+        <v-text-field
+          v-model="filters.kodeBarang"
+          label="Kode Barang (F1)"
+          density="compact"
+          hide-details
+          variant="outlined"
+          style="max-width: 150px"
+          class="ms-4"
+          readonly
+          @click="openProductSearch"
+          @keydown.f1.prevent="openProductSearch"
+          clearable
+          @click:clear="clearProductFilter"
+        >
           <template #append-inner><v-icon @click="openProductSearch">mdi-magnify</v-icon></template>
         </v-text-field>
-        <v-text-field v-model="filters.namaBarang" readonly filled density="compact" hide-details
-          style="max-width: 250px;" />
+        <v-text-field
+          v-model="filters.namaBarang"
+          readonly
+          filled
+          density="compact"
+          hide-details
+          style="max-width: 250px"
+        />
 
         <v-spacer></v-spacer>
         <div class="d-flex align-center ga-2 text-caption me-4">
-          <v-icon color="red" icon="mdi-square-rounded" size="small"></v-icon> Stok Kurang dari Buffer
+          <v-icon color="red" icon="mdi-square-rounded" size="small"></v-icon> Stok Kurang dari
+          Buffer
         </div>
 
-        <v-btn @click="fetchData" icon="mdi-refresh" variant="text" size="small" :loading="isLoading"></v-btn>
+        <v-btn
+          @click="fetchData"
+          icon="mdi-refresh"
+          variant="text"
+          size="small"
+          :loading="isLoading"
+        ></v-btn>
       </div>
 
       <div class="table-container">
-        <AppDataTable :headers="headers" :items="stokList" :loading="isLoading" density="compact"
-          class="desktop-table header-browse-blue" fixed-header :items-per-page="-1">
+        <AppDataTable
+          :headers="headers"
+          :items="stokList"
+          :loading="isLoading"
+          density="compact"
+          class="desktop-table header-browse-blue"
+          fixed-header
+          :items-per-page="-1"
+        >
           <template #headers="{ columns, isSorted, getSortIcon, toggleSort }">
             <tr>
               <template v-for="header in columns" :key="header.key">
                 <th
-                  :style="{ width: header.width + 'px', minWidth: header.width + 'px', maxWidth: header.width + 'px' }"
+                  :style="{
+                    width: header.width + 'px',
+                    minWidth: header.width + 'px',
+                    maxWidth: header.width + 'px',
+                  }"
                   class="resizable-header"
-                  :class="{ 'text-center': header.align === 'center', 'text-end': header.align === 'end' }"
-                  @click="toggleSort(header)">
+                  :class="{
+                    'text-center': header.align === 'center',
+                    'text-end': header.align === 'end',
+                  }"
+                  @click="toggleSort(header)"
+                >
                   <div class="header-content">
                     <span>{{ header.title }}</span>
                     <v-icon v-if="isSorted(header)" size="small" class="ms-1">
                       {{ getSortIcon(header) }}
                     </v-icon>
                   </div>
-                  <div class="resizer" @mousedown.stop="onResizeStart($event, header)" @click.stop></div>
+                  <div
+                    class="resizer"
+                    @mousedown.stop="onResizeStart($event, header)"
+                    @click.stop
+                  ></div>
                 </th>
               </template>
             </tr>
@@ -330,9 +432,10 @@ onMounted(() => {
 
           <template v-for="header in headers" #[`item.${header.key}`]="{ item }" :key="header.key">
             <td :class="getRowTextColor(item)">
-              {{ (header.key === 'PL' || header.key === 'TOTAL2')
-                ? Math.round(Number(item[header.key]))
-                : item[header.key]
+              {{
+                header.key === "PL" || header.key === "TOTAL2"
+                  ? Math.round(Number(item[header.key]))
+                  : item[header.key]
               }}
             </td>
           </template>
@@ -340,8 +443,12 @@ onMounted(() => {
       </div>
     </div>
 
-    <MasterProductSearchModal v-if="isProductSearchVisible" :gudang="filters.gudang"
-      @close="isProductSearchVisible = false" @product-selected="onProductSelected" />
+    <MasterProductSearchModal
+      v-if="isProductSearchVisible"
+      :gudang="filters.gudang"
+      @close="isProductSearchVisible = false"
+      @product-selected="onProductSelected"
+    />
   </PageLayout>
 </template>
 

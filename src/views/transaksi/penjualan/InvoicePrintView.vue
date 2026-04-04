@@ -1,11 +1,11 @@
 <script setup lang="ts">
-import { ref, onMounted, nextTick, watch } from 'vue';
-import { useRoute } from 'vue-router';
-import api from '@/services/api';
-import { format, parseISO } from 'date-fns';
-import Logo from '@/assets/logo.png';
-import InstagramLogo from '@/assets/instagram.jpg';
-import FacebookLogo from '@/assets/facebook.jpg';
+import { ref, onMounted, nextTick, watch } from "vue";
+import { useRoute } from "vue-router";
+import api from "@/services/api";
+import { format, parseISO } from "date-fns";
+import Logo from "@/assets/logo.png";
+import InstagramLogo from "@/assets/instagram.jpg";
+import FacebookLogo from "@/assets/facebook.jpg";
 import { formatRupiah } from "@/utils/formatRupiah";
 import QRCode from "qrcode";
 
@@ -38,7 +38,7 @@ interface PrintHeader {
   gdg_akun: string;
   gdg_transferbank: string;
   terbilang: string;
-  inv_dp: number;      // <--- TAMBAHKAN BARIS INI
+  inv_dp: number; // <--- TAMBAHKAN BARIS INI
   inv_kembali: number;
   summary: PrintHeaderSummary;
 }
@@ -68,16 +68,19 @@ const qrCodeData = ref<string | null>(null);
 
 const fetchPrintData = async (nomor: string) => {
   try {
-    const response = await api.get(`/invoice-form/print/${nomor}`);
-    printData.value = response.data;
-    document.title = response.data.header?.inv_nomor || 'Invoice';
+    const response = await api.get<PrintData>(`/invoice-form/print/${nomor}`);
 
-    // 🔥 Tambahkan QR CODE DI SINI
-    qrCodeData.value = await QRCode.toDataURL(printData.value.header.inv_nomor, {
+    const data = response.data;
+
+    printData.value = data;
+
+    document.title = data.header?.inv_nomor || "Invoice";
+
+    // 🔥 QR Code
+    qrCodeData.value = await QRCode.toDataURL(data.header.inv_nomor, {
       width: 200,
-      margin: 1
+      margin: 1,
     });
-
   } catch (error) {
     alert("Gagal memuat data untuk dicetak.");
     console.error(error);
@@ -124,8 +127,10 @@ onMounted(() => {
       <div class="info-grid">
         <div class="info-left">
           <div><span class="label">Nomor</span>: {{ printData.header.inv_nomor }}</div>
-          <div><span class="label">Tanggal</span>: {{ format(parseISO(printData.header.inv_tanggal),
-            'dd-MM-yyyy') }}</div>
+          <div>
+            <span class="label">Tanggal</span>:
+            {{ format(parseISO(printData.header.inv_tanggal), "dd-MM-yyyy") }}
+          </div>
           <div><span class="label">No. Pesanan</span>: {{ printData.header.inv_nomor_so }}</div>
         </div>
         <div class="info-right">
@@ -139,8 +144,10 @@ onMounted(() => {
             <span>{{ printData.header.cus_alamat }}</span>
           </div>
           <div><span class="label">Top</span>: {{ printData.header.inv_top }} Hari</div>
-          <div><span class="label">Jatuh Tempo</span>: {{ format(parseISO(printData.header.tempo),
-            'dd-MM-yyyy') }}</div>
+          <div>
+            <span class="label">Jatuh Tempo</span>:
+            {{ format(parseISO(printData.header.tempo), "dd-MM-yyyy") }}
+          </div>
         </div>
       </div>
 
@@ -179,26 +186,37 @@ onMounted(() => {
           <em>{{ printData.header.terbilang }}</em>
         </div>
         <div class="summary">
-          <div class="summary-item"><span>Total :</span><span>{{
-            formatRupiah(printData.header.summary.subTotal) }}</span></div>
-          <div class="summary-item"><span>Diskon :</span><span>{{
-            formatRupiah(printData.header.summary.diskon) }}</span></div>
-          <div class="summary-item"><span>Netto :</span><span>{{ formatRupiah(printData.header.summary.netto)
-          }}</span></div>
-          <div class="summary-item"><span>Biaya Kirim :</span><span>{{
-            formatRupiah(printData.header.summary.biayaKirim) }}</span></div>
+          <div class="summary-item">
+            <span>Total :</span><span>{{ formatRupiah(printData.header.summary.subTotal) }}</span>
+          </div>
+          <div class="summary-item">
+            <span>Diskon :</span><span>{{ formatRupiah(printData.header.summary.diskon) }}</span>
+          </div>
+          <div class="summary-item">
+            <span>Netto :</span><span>{{ formatRupiah(printData.header.summary.netto) }}</span>
+          </div>
+          <div class="summary-item">
+            <span>Biaya Kirim :</span
+            ><span>{{ formatRupiah(printData.header.summary.biayaKirim) }}</span>
+          </div>
           <div class="summary-item">
             <span>DP :</span>
             <span>{{ formatRupiah(printData.header.inv_dp) }}</span>
           </div>
-          <div class="summary-item grand-total"><span>Grand Total :</span><span>{{
-            formatRupiah(printData.header.summary.grandTotal) }}</span></div>
-          <div class="summary-item"><span>Bayar :</span><span>{{ formatRupiah(printData.header.summary.bayar)
-          }}</span></div>
-          <div class="summary-item"><span>Pundi amal :</span><span>{{
-            formatRupiah(printData.header.summary.pundiAmal) }}</span></div>
-          <div class="summary-item"><span>Kembali :</span><span>{{
-            formatRupiah(printData.header.summary.kembali) }}</span></div>
+          <div class="summary-item grand-total">
+            <span>Grand Total :</span
+            ><span>{{ formatRupiah(printData.header.summary.grandTotal) }}</span>
+          </div>
+          <div class="summary-item">
+            <span>Bayar :</span><span>{{ formatRupiah(printData.header.summary.bayar) }}</span>
+          </div>
+          <div class="summary-item">
+            <span>Pundi amal :</span
+            ><span>{{ formatRupiah(printData.header.summary.pundiAmal) }}</span>
+          </div>
+          <div class="summary-item">
+            <span>Kembali :</span><span>{{ formatRupiah(printData.header.summary.kembali) }}</span>
+          </div>
         </div>
       </div>
 
@@ -220,9 +238,13 @@ onMounted(() => {
         </div>
       </div>
       <div v-if="printData.header.gdg_transferbank || printData.header.gdg_akun" class="bank-info">
-        <strong>* Transfer Bank: {{ printData.header.gdg_transferbank }} {{ printData.header.gdg_akun }}</strong>
+        <strong
+          >* Transfer Bank: {{ printData.header.gdg_transferbank }}
+          {{ printData.header.gdg_akun }}</strong
+        >
       </div>
-      <div class="note">Note: Barang yg sudah dibeli tidak bisa dikembalikan. Terimakasih atas kunjungan anda.
+      <div class="note">
+        Note: Barang yg sudah dibeli tidak bisa dikembalikan. Terimakasih atas kunjungan anda.
       </div>
 
       <div class="social-media">
@@ -247,7 +269,7 @@ onMounted(() => {
 }
 
 .page {
-  font-family: 'Arial', sans-serif;
+  font-family: "Arial", sans-serif;
   font-size: 9pt;
   display: flex;
   flex-direction: column;
@@ -287,7 +309,7 @@ onMounted(() => {
   object-fit: contain;
 }
 
-.page>.header {
+.page > .header {
   align-self: flex-start !important;
   /* cegah center */
 }
@@ -438,7 +460,6 @@ td {
 
 /* --- ATURAN BARU YANG LEBIH SEDERHANA UNTUK PRINT --- */
 @media print {
-
   /* Atur ukuran kertas dan margin cetak */
   @page {
     size: A4 portrait;
@@ -460,7 +481,7 @@ td {
 
   /* Reset style visual dan PAKSA FONT saat mencetak */
   .page {
-    font-family: 'Arial', sans-serif !important;
+    font-family: "Arial", sans-serif !important;
     font-size: 9pt !important;
     color: #000 !important;
     margin: 0;

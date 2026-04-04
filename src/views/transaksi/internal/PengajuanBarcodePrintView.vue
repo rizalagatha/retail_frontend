@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import { ref, onMounted, nextTick, watch } from 'vue';
-import { useRoute } from 'vue-router';
-import api from '@/services/api';
-import { format, parseISO } from 'date-fns';
-import LogoKaosan from '@/assets/logo.png';
+import { ref, onMounted, nextTick, watch } from "vue";
+import { useRoute } from "vue-router";
+import api from "@/services/api";
+import { format, parseISO } from "date-fns";
+import LogoKaosan from "@/assets/logo.png";
 // import { useAuthStore } from '@/stores/authStore'; // Tidak perlu store user lagi untuk header
 import QRCode from "qrcode";
 
@@ -43,7 +43,6 @@ interface PrintResponse {
   stickers?: PrintSticker[];
 }
 
-
 const route = useRoute();
 const printData = ref<PrintResponse | null>(null);
 const isLoading = ref(true);
@@ -51,20 +50,18 @@ const logoUrl = LogoKaosan;
 const qrCodeDataUrl = ref("");
 
 // Helper URL
-const getFullImageUrl = (url) => {
+const getFullImageUrl = (url: string | null | undefined): string => {
   if (!url) return "";
 
-  // Kalau sudah full URL
   if (url.startsWith("http")) return url;
 
-  // Pakai backend URL yang benar
   const backend = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
   return `${backend}${url}`;
 };
 
 const formatRupiah = (val: number) => {
-  return new Intl.NumberFormat('id-ID').format(val || 0);
+  return new Intl.NumberFormat("id-ID").format(val || 0);
 };
 
 const fetchPrintData = async (nomor: string) => {
@@ -104,7 +101,6 @@ watch(printData, async (val) => {
 <template>
   <div class="print-container" v-if="printData">
     <div class="header-section">
-
       <!-- KOLOM KIRI -->
       <div class="header-left">
         <img :src="logoUrl" class="logo" />
@@ -121,13 +117,13 @@ watch(printData, async (val) => {
         <div class="doc-number">{{ printData.header.nomor }}</div>
         <img v-if="qrCodeDataUrl" :src="qrCodeDataUrl" class="qr-code" />
       </div>
-
     </div>
 
     <div class="info-grid">
       <div class="info-title">PENGAJUAN BARCODE BARU</div>
       <div class="info-item">
-        <span class="label">Tanggal</span>: {{ format(parseISO(printData.header.tanggal), 'dd-MM-yyyy') }}
+        <span class="label">Tanggal</span>:
+        {{ format(parseISO(printData.header.tanggal), "dd-MM-yyyy") }}
       </div>
       <div class="info-item">
         <span class="label">Cabang</span>: {{ printData.header.cabang_kode }}
@@ -167,7 +163,11 @@ watch(printData, async (val) => {
 
             <!-- KOLOM GAMBAR -->
             <td class="text-center">
-              <img v-if="item.pcd_gambar_url" :src="getFullImageUrl(item.pcd_gambar_url)" class="item-image-large" />
+              <img
+                v-if="item.pcd_gambar_url"
+                :src="getFullImageUrl(item.pcd_gambar_url)"
+                class="item-image-large"
+              />
               <span v-else>-</span>
             </td>
           </tr>
@@ -207,7 +207,9 @@ watch(printData, async (val) => {
       <div class="sig-box">
         <div class="sig-title">Dibuat Oleh,</div>
         <div class="sig-space"></div>
-        <div class="sig-name">( {{ printData.header.usr_ins || '..........................' }} )</div>
+        <div class="sig-name">
+          ( {{ printData.header.usr_ins || ".........................." }} )
+        </div>
       </div>
 
       <div class="sig-box">
@@ -228,7 +230,7 @@ watch(printData, async (val) => {
 
 <style scoped>
 .print-container {
-  font-family: 'Arial', sans-serif;
+  font-family: "Arial", sans-serif;
   font-size: 10pt;
   /* Jika portrait, mungkin perlu font lebih kecil, misal 9pt */
   color: black;

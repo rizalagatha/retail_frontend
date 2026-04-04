@@ -118,7 +118,7 @@ const dialogConfirm = reactive({
   show: false,
   title: "",
   text: "",
-  onConfirm: () => { },
+  onConfirm: () => {},
 });
 
 const tableHeaders = [
@@ -498,8 +498,14 @@ onMounted(async () => {
 <template>
   <PageLayout :title="pageTitle" desktop-mode icon="mdi-truck-minus-outline">
     <template #header-actions>
-      <v-btn size="small" prepend-icon="mdi-content-save" color="primary" @click="save"
-        :loading="isSaving">Simpan</v-btn>
+      <v-btn
+        size="small"
+        prepend-icon="mdi-content-save"
+        color="primary"
+        @click="save"
+        :loading="isSaving"
+        >Simpan</v-btn
+      >
       <v-btn size="small" prepend-icon="mdi-refresh" @click="handleCancel">Batal</v-btn>
       <v-btn size="small" prepend-icon="mdi-close" @click="handleClose">Tutup</v-btn>
     </template>
@@ -507,18 +513,54 @@ onMounted(async () => {
       <div class="left-column">
         <div class="desktop-form-section header-section">
           <v-row dense>
-            <v-col cols="12"><v-text-field label="No. Retur" v-model="header.nomor" readonly filled hide-details
-                density="compact" /></v-col>
-            <v-col cols="12"><v-text-field label="Tanggal" v-model="header.tanggal" type="date" variant="outlined"
-                hide-details density="compact" /></v-col>
-            <v-col cols="12"><v-text-field label="Gudang DC" v-model="header.gudangDc.kode"
-                @click="dialog.gudangSearch = true" prepend-inner-icon="mdi-magnify" readonly variant="outlined"
-                hide-details density="compact" /></v-col>
-            <v-col cols="12"><v-text-field label="Nama Gudang DC" v-model="header.gudangDc.nama" readonly filled
-                hide-details density="compact" /></v-col>
+            <v-col cols="12"
+              ><v-text-field
+                label="No. Retur"
+                v-model="header.nomor"
+                readonly
+                filled
+                hide-details
+                density="compact"
+            /></v-col>
+            <v-col cols="12"
+              ><v-text-field
+                label="Tanggal"
+                v-model="header.tanggal"
+                type="date"
+                variant="outlined"
+                hide-details
+                density="compact"
+            /></v-col>
+            <v-col cols="12"
+              ><v-text-field
+                label="Gudang DC"
+                v-model="header.gudangDc.kode"
+                @click="dialog.gudangSearch = true"
+                prepend-inner-icon="mdi-magnify"
+                readonly
+                variant="outlined"
+                hide-details
+                density="compact"
+            /></v-col>
+            <v-col cols="12"
+              ><v-text-field
+                label="Nama Gudang DC"
+                v-model="header.gudangDc.nama"
+                readonly
+                filled
+                hide-details
+                density="compact"
+            /></v-col>
             <v-col cols="12">
-              <v-textarea label="Keterangan *" v-model="header.keterangan" rows="3" variant="outlined"
-                hide-details="auto" density="compact" :rules="[(v) => !!v || 'Keterangan wajib diisi']" />
+              <v-textarea
+                label="Keterangan *"
+                v-model="header.keterangan"
+                rows="3"
+                variant="outlined"
+                hide-details="auto"
+                density="compact"
+                :rules="[(v) => !!v || 'Keterangan wajib diisi']"
+              />
             </v-col>
             <!-- <v-col cols="12">
                             <v-btn block color="info" @click="handleLoadFromStock" prepend-icon="mdi-download"
@@ -527,8 +569,13 @@ onMounted(async () => {
                             </v-btn>
                         </v-col> -->
             <v-col cols="12" v-if="isKON">
-              <v-btn block color="orange-darken-3" @click="dialogRJ = true" prepend-icon="mdi-magnify-plus"
-                :loading="isLoading">
+              <v-btn
+                block
+                color="orange-darken-3"
+                @click="dialogRJ = true"
+                prepend-icon="mdi-magnify-plus"
+                :loading="isLoading"
+              >
                 Ambil dari Retur Online (KON)
               </v-btn>
             </v-col>
@@ -537,24 +584,58 @@ onMounted(async () => {
       </div>
       <div class="right-column">
         <div class="scanner-wrapper mb-4">
-          <v-text-field v-model="scannedBarcode" label="Scan Barcode di Sini..." variant="outlined" density="compact"
-            prepend-inner-icon="mdi-barcode-scan" hide-details clearable @keydown.enter.prevent="handleBarcodeScan" />
+          <v-text-field
+            v-model="scannedBarcode"
+            label="Scan Barcode di Sini..."
+            variant="outlined"
+            density="compact"
+            prepend-inner-icon="mdi-barcode-scan"
+            hide-details
+            clearable
+            @keydown.enter.prevent="handleBarcodeScan"
+          />
         </div>
         <div class="desktop-form-section d-flex flex-column fill-height">
-          <v-data-table :headers="tableHeaders" :items="items" :loading="isLoading"
-            class="desktop-table fill-height-table" fixed-header :items-per-page="-1">
+          <v-data-table
+            :headers="tableHeaders"
+            :items="items"
+            :loading="isLoading"
+            class="desktop-table fill-height-table"
+            fixed-header
+            :items-per-page="-1"
+          >
             <template #[`item.kode`]="{ item, index }">
-              <v-text-field v-model="item.kode" variant="underlined" density="compact" hide-details
-                placeholder="F1/F2..." @keydown.f1.prevent="openProductSearch(index, false)"
-                @keydown.f2.prevent="openProductSearch(index, true)" />
+              <v-text-field
+                v-model="item.kode"
+                variant="underlined"
+                density="compact"
+                hide-details
+                placeholder="F1/F2..."
+                @keydown.f1.prevent="openProductSearch(index, false)"
+                @keydown.f2.prevent="openProductSearch(index, true)"
+              />
             </template>
             <template #[`item.jumlah`]="{ item }">
-              <v-text-field v-model.number="item.jumlah" type="number" variant="underlined" density="compact"
-                hide-details class="text-center" :rules="[(v) => v <= item.stok || 'Max stok']" min="0" />
+              <v-text-field
+                v-model.number="item.jumlah"
+                type="number"
+                variant="underlined"
+                density="compact"
+                hide-details
+                class="text-center"
+                :rules="[(v) => v <= item.stok || 'Max stok']"
+                min="0"
+              />
             </template>
             <template #[`item.actions`]="{ item }">
-              <v-btn v-if="item.kode" icon="mdi-delete" size="x-small" variant="text" color="error"
-                @click="removeRow(item.id)" />
+              <v-btn
+                v-if="item.kode"
+                icon="mdi-delete"
+                size="x-small"
+                variant="text"
+                color="error"
+                @click="removeRow(item.id)"
+              />
             </template>
             <template #bottom>
               <div class="pa-2 text-right">
@@ -566,12 +647,26 @@ onMounted(async () => {
       </div>
     </div>
 
-    <GudangSearchModal v-if="dialog.gudangSearch" :user-cabang="authStore.user?.cabang || ''" source="retur-dc"
-      @close="dialog.gudangSearch = false" @gudang-selected="onGudangSelected" />
-    <MintaBarangSearchModal v-if="dialog.productSearch" :gudang="authStore.user?.cabang || ''"
-      :multi="isMultiSelectProduct" source="koreksi-stok" @close="dialog.productSearch = false"
-      @products-selected="onProductsSelected" />
-    <ReturJualOnlineSearchModal v-if="dialogRJ" @close="dialogRJ = false" @selected="onRJSelected" />
+    <GudangSearchModal
+      v-if="dialog.gudangSearch"
+      :user-cabang="authStore.user?.cabang || ''"
+      source="retur-dc"
+      @close="dialog.gudangSearch = false"
+      @gudang-selected="onGudangSelected"
+    />
+    <MintaBarangSearchModal
+      v-if="dialog.productSearch"
+      :gudang="authStore.user?.cabang || ''"
+      :multi="isMultiSelectProduct"
+      source="koreksi-stok"
+      @close="dialog.productSearch = false"
+      @products-selected="onProductsSelected"
+    />
+    <ReturJualOnlineSearchModal
+      v-if="dialogRJ"
+      @close="dialogRJ = false"
+      @selected="onRJSelected"
+    />
 
     <v-dialog v-model="dialogConfirm.show" max-width="400px" persistent>
       <v-card>
@@ -580,10 +675,15 @@ onMounted(async () => {
         <v-card-actions>
           <v-spacer></v-spacer>
           <v-btn text @click="dialogConfirm.show = false">Tidak</v-btn>
-          <v-btn color="primary" variant="tonal" @click="
-            dialogConfirm.onConfirm();
-          dialogConfirm.show = false;
-          ">Ya, Lanjutkan</v-btn>
+          <v-btn
+            color="primary"
+            variant="tonal"
+            @click="
+              dialogConfirm.onConfirm();
+              dialogConfirm.show = false;
+            "
+            >Ya, Lanjutkan</v-btn
+          >
         </v-card-actions>
       </v-card>
     </v-dialog>

@@ -1,12 +1,12 @@
 <script setup lang="ts">
-import { ref, onMounted, nextTick, watch } from 'vue';
-import { useRoute } from 'vue-router';
-import api from '@/services/api';
-import { format, parseISO } from 'date-fns';
-import Logo from '@/assets/logo.png';
-import InstagramLogo from '@/assets/instagram.jpg'; // Impor logo Instagram
+import { ref, onMounted, nextTick, watch } from "vue";
+import { useRoute } from "vue-router";
+import api from "@/services/api";
+import { format, parseISO } from "date-fns";
+import Logo from "@/assets/logo.png";
+import InstagramLogo from "@/assets/instagram.jpg"; // Impor logo Instagram
 import { formatRupiah } from "@/utils/formatRupiah";
-import QRCode from 'qrcode';
+import QRCode from "qrcode";
 
 interface PrintHeader {
   pen_nomor: string;
@@ -68,7 +68,20 @@ function terbilang(n: number): string {
   if (n === 0) return ""; // Untuk rekursi, biarkan kosong jika nol
   if (n < 0) return "minus " + terbilang(Math.abs(n));
 
-  const ang = ["", "satu", "dua", "tiga", "empat", "lima", "enam", "tujuh", "delapan", "sembilan", "sepuluh", "sebelas"];
+  const ang = [
+    "",
+    "satu",
+    "dua",
+    "tiga",
+    "empat",
+    "lima",
+    "enam",
+    "tujuh",
+    "delapan",
+    "sembilan",
+    "sepuluh",
+    "sebelas",
+  ];
 
   if (n < 12) return ang[n];
   if (n < 20) return terbilang(n - 10) + " belas";
@@ -88,7 +101,7 @@ function terbilang(n: number): string {
 // 2. Perbaiki capitalize agar menangani nilai kosong dengan lebih aman
 const capitalize = (s: string) => {
   if (!s) return "Nol"; // Jika grand_total 0 atau string kosong
-  const cleaned = s.replace(/\s+/g, ' ').trim();
+  const cleaned = s.replace(/\s+/g, " ").trim();
   if (!cleaned) return "Nol";
   return (cleaned.charAt(0).toUpperCase() + cleaned.slice(1).toLowerCase()).trim();
 };
@@ -96,17 +109,21 @@ const capitalize = (s: string) => {
 const fetchPrintData = async (nomor: string) => {
   isLoading.value = true;
   try {
-    const response = await api.get(`/offer-form/print-data/${nomor}`);
-    printData.value = response.data;
-    if (printData.value.header?.pen_nomor) {
-      document.title = printData.value.header.pen_nomor;
+    const response = await api.get<PrintData>(`/offer-form/print-data/${nomor}`);
+
+    const data = response.data;
+
+    printData.value = data;
+
+    if (data.header?.pen_nomor) {
+      document.title = data.header.pen_nomor;
 
       // 🔥 Generate QR Code
-      const qrText = printData.value.header.pen_nomor;
+      const qrText = data.header.pen_nomor;
 
       qrCodeData.value = await QRCode.toDataURL(qrText, {
         width: 200,
-        margin: 1
+        margin: 1,
       });
     }
   } catch (error) {
@@ -138,23 +155,20 @@ onMounted(() => {
     <div v-if="isLoading" class="text-center">Memuat data...</div>
     <div v-if="printData" class="page">
       <div class="company-header">
-
         <!-- ROW QR LEFT & LOGO RIGHT -->
         <div class="row-top">
-          <img v-if="qrCodeData" :src="qrCodeData" class="qr-image">
+          <img v-if="qrCodeData" :src="qrCodeData" class="qr-image" />
         </div>
 
         <!-- CENTERED COMPANY INFO -->
         <div class="company-info centered">
-          <div class="company-name">
-            <img :src="igLogo" class="icon-ig"> KAOSAN.OFFICIAL
-          </div>
+          <div class="company-name"><img :src="igLogo" class="icon-ig" /> KAOSAN.OFFICIAL</div>
           <div>{{ printData.header.gdg_inv_alamat }}</div>
           <div>{{ printData.header.gdg_inv_kota }}</div>
           <div>{{ printData.header.gdg_inv_telp }}</div>
         </div>
 
-        <img :src="appLogo" alt="Logo Perusahaan" class="company-logo-right">
+        <img :src="appLogo" alt="Logo Perusahaan" class="company-logo-right" />
       </div>
 
       <div class="document-title">PENAWARAN</div>
@@ -162,8 +176,10 @@ onMounted(() => {
       <div class="header-details">
         <div class="left-section">
           <div><span class="label">Nomor:</span> {{ printData.header.pen_nomor }}</div>
-          <div><span class="label">Tanggal:</span> {{ format(parseISO(printData.header.pen_tanggal),
-            'dd-MM-yyyy') }}</div>
+          <div>
+            <span class="label">Tanggal:</span>
+            {{ format(parseISO(printData.header.pen_tanggal), "dd-MM-yyyy") }}
+          </div>
         </div>
         <div class="right-section">
           <div><span class="label">Customer:</span> {{ printData.header.cus_nama }}</div>
@@ -230,7 +246,9 @@ onMounted(() => {
 
               <tr v-if="printData.header.total_dp > 0">
                 <td class="text-teal font-weight-bold">Uang Muka (DP)</td>
-                <td class="text-teal font-weight-bold">{{ formatRupiah(printData.header.total_dp) }}</td>
+                <td class="text-teal font-weight-bold">
+                  {{ formatRupiah(printData.header.total_dp) }}
+                </td>
               </tr>
               <tr v-if="printData.header.total_dp > 0" class="balance-due">
                 <td>Sisa Bayar</td>
@@ -250,19 +268,20 @@ onMounted(() => {
         <div class="name-column">( ......................... )</div>
       </div>
       <div v-if="printData.header.gdg_transferbank || printData.header.gdg_akun" class="bank-info">
-        <strong>* Transfer Bank: {{ printData.header.gdg_transferbank }} {{ printData.header.gdg_akun }}</strong>
+        <strong
+          >* Transfer Bank: {{ printData.header.gdg_transferbank }}
+          {{ printData.header.gdg_akun }}</strong
+        >
       </div>
       <div v-if="printData.dps?.length > 0" class="dp-details-list">
         <strong>Rincian Pembayaran Uang Muka:</strong>
         <ul>
-          <li v-for="dp in (printData.dps || [])" :key="dp.nomor">
+          <li v-for="dp in printData.dps || []" :key="dp.nomor">
             {{ dp.nomor }} ({{ dp.jenis }}) : {{ formatRupiah(dp.nominal) }}
           </li>
         </ul>
       </div>
-      <div class="note-section">
-        Note: {{ printData.header.pen_ket }}
-      </div>
+      <div class="note-section">Note: {{ printData.header.pen_ket }}</div>
     </div>
   </div>
 </template>
@@ -292,7 +311,7 @@ onMounted(() => {
 }
 
 .page {
-  font-family: 'Arial', sans-serif;
+  font-family: "Arial", sans-serif;
   font-size: 10pt;
   background: white;
   padding: 1.5cm;

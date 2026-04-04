@@ -148,6 +148,13 @@ interface SoItemApi {
   noPengajuanHarga: string;
   pin: string;
   harga3?: number;
+
+  // 🔥 TAMBAHAN WAJIB
+  sod_custom?: string;
+  sod_custom_data?: string;
+  sod_scanned?: number;
+  mutatedQty?: number;
+  sod_custom_nama?: string;
 }
 
 interface Item {
@@ -844,7 +851,12 @@ const calculateTotals = async () => {
     // JALUR PENAWARAN atau DISKON MANUAL Rp (Hasil Load Edit)
     // Jika ditarik dari Penawaran, 'isFromOffer' akan bernilai TRUE, sehingga masuk ke sini.
     // Jika sedang Edit data lama (seperti kasus 40rb tadi), bagian kanan (diskonRp > 0) akan bernilai TRUE.
-    baseNominalDiscount = footer.value.diskonRp;
+    if (isFromOffer && footer.value.diskonRp === 0 && footer.value.diskonPersen1 > 0) {
+      const diskonP1 = Number(footer.value.diskonPersen1) || 0;
+      baseNominalDiscount = (diskonP1 / 100) * newTotalDiscountable;
+    } else {
+      baseNominalDiscount = footer.value.diskonRp;
+    }
   } else {
     // JALUR MEMBER STANDAR (Kalkulasi otomatis dari % ke Rp)
     const diskonP1 = Number(footer.value.diskonPersen1) || 0;
@@ -1727,7 +1739,8 @@ const onPenawaranSelected = async (penawaran: { nomor: string }) => {
 
     // 6. Isi State Footer (Diskon & Biaya Kirim)
     footer.value.biayaKirim = Number(penHeader.pen_bkrm) || 0;
-    footer.value.diskonRp = Number(penHeader.pen_disc) || 0;
+    footer.value.diskonRp =
+      Number(penHeader.pen_diskon ?? penHeader.pen_disc_rp ?? penHeader.pen_disc) || 0;
     footer.value.diskonPersen1 = Number(penHeader.pen_disc1) || 0;
     footer.value.diskonPersen2 = Number(penHeader.pen_disc2) || 0;
 
@@ -1784,7 +1797,7 @@ const onPenawaranSelected = async (penawaran: { nomor: string }) => {
         // Flagging Data Custom untuk integrity saat Save SO
         isCustomOrder: isCustom,
         sod_custom: d.pend_custom,
-        sod_custom_nama: isCustom ? d.nama_barang : null,
+        sod_custom_nama: isCustom ? d.nama_barang : undefined,
         sod_custom_data:
           typeof d.pend_custom_data === "object"
             ? JSON.stringify(d.pend_custom_data)
@@ -1858,7 +1871,7 @@ const onProductsSelected = (selectedProducts: SoItemApi[]) => {
         jumlah: 1,
         diskonPersen: 0,
         diskonRp: 0,
-        total: product.harga,
+        total: product.harga ?? 0,
         barcode: product.barcode || product.kode, // fallback
         noSoDtf: "",
         noPengajuanHarga: "",
@@ -3662,9 +3675,9 @@ const stopAndOpenPriceProposal = (index: number) => {
               :item-key="'id'"
               class="desktop-table vertically-aligned-table"
               fixed-header
-              :item-class="
-                (item) => (item.isMutated ? 'row-locked' : item.isCustomOrder ? 'custom-row' : '')
-              "
+              :item-class="(item: SoItem) =>
+  item.isMutated ? 'row-locked' : item.isCustomOrder ? 'custom-row' : ''
+"
             >
               <template #[`item.kode`]="{ item, index }">
                 <div class="d-flex align-center">
@@ -3775,7 +3788,7 @@ const stopAndOpenPriceProposal = (index: number) => {
                   <v-chip
                     v-else
                     size="small"
-                    :color="item.scannedQty >= item.jumlah ? 'success' : 'orange-darken-3'"
+                    :color="item.scannedQty >= (item.jumlah || 0) ? 'success' : 'orange-darken-3'"
                     variant="flat"
                     class="font-weight-black"
                   >
@@ -4096,20 +4109,20 @@ const stopAndOpenPriceProposal = (index: number) => {
     <SoDtfSearchModal
       v-if="isSoDtfSearchVisible"
       :cabang="header.gudang.kode"
-      :customerKode="header.customer?.kode"
+      :customerKode="header.customer?.kode || ''"
       @close="isSoDtfSearchVisible = false"
       @selected="onSoDtfSelected"
     />
     <PriceProposalSearchModal
       v-if="isPriceProposalSearchVisible"
       :cabang="header.gudang.kode"
-      :customerKode="header.customer?.kode"
+      :customerKode="header.customer?.kode || ''"
       @close="isPriceProposalSearchVisible = false"
       @selected="onPriceProposalSelected"
     />
     <DpInputModal
       v-if="isDpInputVisible"
-      :customerKode="header.customer?.kode"
+      :customerKode="header.customer?.kode || ''"
       :minimal-dp="footer.minimalDp"
       :existing-dp="footer.totalDp"
       :existing-dp-nomor="existingDpNomor"

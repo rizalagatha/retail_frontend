@@ -1,17 +1,18 @@
 <script setup lang="ts">
-import { ref, onMounted, computed, nextTick, watch } from 'vue';
-import { useRoute, useRouter } from 'vue-router';
-import api from '@/services/api';
-import PageLayout from '@/components/PageLayout.vue';
-import { useToast } from 'vue-toastification';
-import { useAuthStore } from '@/stores/authStore';
-import { useUiStore } from '@/stores/uiStore';
-import { useUnsavedChanges } from '@/composables/useUnsavedChanges';
-import { format, parseISO } from 'date-fns';
-import SoSearchModal from '@/components/lookup/SoSearchModal.vue';
-import CustomerSearchModal from '@/components/lookup/CustomerSearchModal.vue';
-import MintaBarangSearchModal from '@/components/lookup/MintaBarangSearchModal.vue';
-import { AxiosError } from 'axios';
+import { ref, onMounted, computed, nextTick, watch } from "vue";
+import { useRoute, useRouter } from "vue-router";
+import api from "@/services/api";
+import PageLayout from "@/components/PageLayout.vue";
+import { useToast } from "vue-toastification";
+import { useAuthStore } from "@/stores/authStore";
+import { useUiStore } from "@/stores/uiStore";
+import { useUnsavedChanges } from "@/composables/useUnsavedChanges";
+import { format, parseISO } from "date-fns";
+import SoSearchModal from "@/components/lookup/SoSearchModal.vue";
+import CustomerSearchModal from "@/components/lookup/CustomerSearchModal.vue";
+import MintaBarangSearchModal from "@/components/lookup/MintaBarangSearchModal.vue";
+import { AxiosError } from "axios";
+import axios from "axios";
 
 interface Customer {
   kode: string;
@@ -94,7 +95,7 @@ interface MintaBarangItem {
   mino?: number;
   jumlah?: number;
   barcode?: string;
-  harga?: number;      // tambahkan properti harga
+  harga?: number; // tambahkan properti harga
   diskonPersen?: number;
   diskonRp?: number;
   total?: number;
@@ -111,21 +112,23 @@ const toast = useToast();
 const authStore = useAuthStore();
 const uiStore = useUiStore();
 const { markAsSaved } = useUnsavedChanges();
-const MENU_ID = '37';
+const MENU_ID = "37";
 
 const isEditMode = computed(() => !!route.params.nomor);
-const isKpr = computed(() => authStore.user?.cabang === 'KPR');
-const pageTitle = computed(() => isEditMode.value ? 'Ubah Minta Barang ke DC' : 'Buat Minta Barang ke DC');
+const isKpr = computed(() => authStore.user?.cabang === "KPR");
+const pageTitle = computed(() =>
+  isEditMode.value ? "Ubah Minta Barang ke DC" : "Buat Minta Barang ke DC"
+);
 const grandTotalQty = computed(() => {
   return items.value.reduce((sum, item) => sum + (Number(item.jumlah) || 0), 0);
 });
 
 const initialHeaderState: FormHeader = {
-  nomor: '',
-  tanggal: format(new Date(), 'yyyy-MM-dd'),
-  soNomor: '',
+  nomor: "",
+  tanggal: format(new Date(), "yyyy-MM-dd"),
+  soNomor: "",
   customer: null,
-  keterangan: '',
+  keterangan: "",
 };
 
 const formHeader = ref<FormHeader>({ ...initialHeaderState });
@@ -138,34 +141,39 @@ const isProductSearchVisible = ref(false);
 const isMultiSelectProduct = ref(false);
 const activeRowIndex = ref(0);
 const isConfirmDialogVisible = ref(false);
-const confirmText = ref('');
+const confirmText = ref("");
 const pendingAction = ref<(() => void) | null>(null);
-const scannedBarcode = ref('');
+const scannedBarcode = ref("");
 
 const tableHeaders = [
-  { title: 'Kode Barang', key: 'kode', width: '250px' },
-  { title: 'Nama Barang', key: 'nama', minWidth: '250px' },
-  { title: 'Ukuran', key: 'ukuran', width: '30px' },
-  { title: 'Stok Min', key: 'stokmin', align: 'end', width: '30px' },
-  { title: 'Stok Max', key: 'stokmax', align: 'end', width: '30px' },
-  { title: 'Sudah Minta', key: 'sudahminta', align: 'end', width: '30px' },
-  { title: 'SJ Blm Diterima', key: 'sj', align: 'end', width: '30px' },
-  { title: 'Stok', key: 'stok', align: 'end', width: '30px' },
-  { title: 'Minta Otomatis', key: 'mino', align: 'end', width: '30px' },
-  { title: 'Jumlah', key: 'jumlah', align: 'end', width: '40px' },
-  { title: 'Barcode', key: 'barcode', width: '100px' },
-  { title: 'Actions', key: 'actions', sortable: false, width: '40px' },
+  { title: "Kode Barang", key: "kode", width: "250px" },
+  { title: "Nama Barang", key: "nama", minWidth: "250px" },
+  { title: "Ukuran", key: "ukuran", width: "30px" },
+  { title: "Stok Min", key: "stokmin", align: "end", width: "30px" },
+  { title: "Stok Max", key: "stokmax", align: "end", width: "30px" },
+  { title: "Sudah Minta", key: "sudahminta", align: "end", width: "30px" },
+  { title: "SJ Blm Diterima", key: "sj", align: "end", width: "30px" },
+  { title: "Stok", key: "stok", align: "end", width: "30px" },
+  { title: "Minta Otomatis", key: "mino", align: "end", width: "30px" },
+  { title: "Jumlah", key: "jumlah", align: "end", width: "40px" },
+  { title: "Barcode", key: "barcode", width: "100px" },
+  { title: "Actions", key: "actions", sortable: false, width: "40px" },
 ] as const;
 
 const addNewRow = () => {
   const lastItem = items.value[items.value.length - 1];
   if (!lastItem || lastItem.kode) {
-    items.value.push({ id: Date.now(), kode: '', nama: '', jumlah: null });
+    items.value.push({
+      id: Date.now(),
+      kode: "",
+      nama: "",
+      jumlah: 0,
+    });
   }
 };
 
 const removeRow = (id: number) => {
-  items.value = items.value.filter(item => item.id !== id);
+  items.value = items.value.filter((item) => item.id !== id);
 };
 
 const resetForm = () => {
@@ -186,13 +194,13 @@ const onProductsSelected = (selectedProducts: Product[]) => {
   if (!selectedProducts || selectedProducts.length === 0) return;
 
   // Saring produk duplikat yang sudah ada di grid
-  const productsToAdd = selectedProducts.filter(p =>
-    !items.value.some(item => item.kode === p.kode && item.ukuran === p.ukuran)
+  const productsToAdd = selectedProducts.filter(
+    (p) => !items.value.some((item) => item.kode === p.kode && item.ukuran === p.ukuran)
   );
 
   if (productsToAdd.length === 0) {
     toast.info("Semua produk yang dipilih sudah ada di dalam daftar.");
-    if (!items.value.some(item => !item.kode)) {
+    if (!items.value.some((item) => !item.kode)) {
       addNewRow();
     }
     return;
@@ -200,7 +208,7 @@ const onProductsSelected = (selectedProducts: Product[]) => {
 
   // Ubah produk terpilih menjadi format item untuk grid
   // Tidak perlu API call tambahan karena semua data (stok, harga) sudah ada
-  const newItems = productsToAdd.map(product => ({
+  const newItems = productsToAdd.map((product) => ({
     ...product, // Salin semua properti dari produk (kode, nama, ukuran, stok, harga, barcode)
     id: Date.now() + Math.random(),
     jumlah: 1, // Atur jumlah awal
@@ -231,18 +239,25 @@ const onCustomerSelected = (customer: Customer) => {
   isCustomerSearchVisible.value = false;
 };
 
-const onSoSelected = async (so: { Nomor: string; Customer: string; KdCus: string; Alamat: string }) => {
+const onSoSelected = async (so: {
+  Nomor: string;
+  Customer: string;
+  KdCus: string;
+  Alamat: string;
+}) => {
   isSoSearchVisible.value = false;
   formHeader.value.soNomor = so.Nomor;
   formHeader.value.customer = {
     kode: so.KdCus,
     nama: so.Customer,
-    alamat: so.Alamat
+    alamat: so.Alamat,
   };
   isLoading.value = true;
 
   try {
-    const response = await api.get<SoDetailsResponse>(`/minta-barang-form/lookup/so-details/${so.Nomor}`);
+    const response = await api.get<SoDetailsResponse>(
+      `/minta-barang-form/lookup/so-details/${so.Nomor}`
+    );
 
     items.value = response.data.items.map((item: SoItem, index: number) => ({
       id: Date.now() + index,
@@ -255,15 +270,19 @@ const onSoSelected = async (so: { Nomor: string; Customer: string; KdCus: string
       sj: item.sj,
       stok: item.stok,
       mino: item.mino,
-      jumlah: item.jumlah,   // dari backend (mino)
+      jumlah: item.jumlah, // dari backend (mino)
       barcode: item.barcode,
     }));
 
     formHeader.value.customer = response.data.customer;
 
     addNewRow();
-  } catch (error: unknown) {
-    toast.error('Gagal memuat detail SO.', error);
+  } catch (err: unknown) {
+    if (axios.isAxiosError(err) && err.response) {
+      toast.error(err.response.data?.message || "Gagal memuat detail SO.");
+    } else {
+      toast.error("Gagal memuat detail SO.");
+    }
   } finally {
     isLoading.value = false;
   }
@@ -285,7 +304,7 @@ const closeConfirmDialog = () => {
   pendingAction.value = null;
 };
 const closeForm = () => {
-  router.push('/transaksi/internal/minta-barang');
+  router.push("/transaksi/internal/minta-barang");
 };
 
 const loadDataForEdit = async (nomor: string) => {
@@ -298,22 +317,25 @@ const loadDataForEdit = async (nomor: string) => {
     formHeader.value = {
       ...formHeader.value,
       ...header,
-      tanggal: format(parseISO(header.tanggal), 'yyyy-MM-dd'),
+      tanggal: format(parseISO(header.tanggal), "yyyy-MM-dd"),
     };
 
     // Isi grid
     items.value = loadedItems.map((item: MintaBarangItem) => ({
       ...item,
-      id: Date.now() + Math.random()
+      id: Date.now() + Math.random(),
     }));
 
     addNewRow();
 
     await nextTick();
     markAsSaved();
-
-  } catch (error: unknown) {
-    toast.error('Gagal memuat data.', error);
+  } catch (err: unknown) {
+    if (axios.isAxiosError(err) && err.response) {
+      toast.error(err.response.data?.message || "Gagal memuat data.");
+    } else {
+      toast.error("Gagal memuat data.");
+    }
     router.back();
   } finally {
     isLoading.value = false;
@@ -322,14 +344,14 @@ const loadDataForEdit = async (nomor: string) => {
 
 const save = () => {
   // 1. Cek Izin Akses
-  if (!authStore.can(MENU_ID, isEditMode.value ? 'edit' : 'insert')) {
-    toast.error('Anda tidak memiliki izin untuk menyimpan data ini.');
+  if (!authStore.can(MENU_ID, isEditMode.value ? "edit" : "insert")) {
+    toast.error("Anda tidak memiliki izin untuk menyimpan data ini.");
     return;
   }
 
   // [FIX] Hanya cek tanggal hari ini jika buat BARU
   if (!isEditMode.value) {
-    const today = format(new Date(), 'yyyy-MM-dd');
+    const today = format(new Date(), "yyyy-MM-dd");
     if (formHeader.value.tanggal !== today) {
       toast.error(`Tanggal transaksi harus hari ini (${today}).`);
       return;
@@ -344,15 +366,15 @@ const save = () => {
   }
 
   // 3. Validasi Detail Barang
-  const validItems = items.value.filter(item => item.kode);
+  const validItems = items.value.filter((item) => item.kode);
   if (validItems.length === 0) {
-    toast.error('Detail barang harus diisi minimal 1 baris.');
+    toast.error("Detail barang harus diisi minimal 1 baris.");
     return;
   }
 
   const totalQty = validItems.reduce((sum, item) => sum + (item.jumlah || 0), 0);
   if (totalQty === 0) {
-    toast.error('Jumlah minta masih kosong semua.');
+    toast.error("Jumlah minta masih kosong semua.");
     return;
   }
 
@@ -371,15 +393,19 @@ const executeSave = async () => {
   try {
     const payload = {
       header: formHeader.value,
-      items: items.value.filter(item => item.kode && (item.jumlah || 0) > 0),
+      items: items.value.filter((item) => item.kode && (item.jumlah || 0) > 0),
       isNew: !isEditMode.value,
     };
-    const response = await api.post('/minta-barang-form/save', payload);
+    const response = await api.post("/minta-barang-form/save", payload);
     toast.success(response.data.message);
     markAsSaved();
-    router.push('/transaksi/internal/minta-barang');
-  } catch (error) {
-    toast.error(error.response?.data?.message || 'Gagal menyimpan data.');
+    router.push("/transaksi/internal/minta-barang");
+  } catch (err: unknown) {
+    if (axios.isAxiosError(err) && err.response) {
+      toast.error(err.response.data?.message || "Gagal menyimpan data.");
+    } else {
+      toast.error("Gagal menyimpan data.");
+    }
   } finally {
     isSaving.value = false;
   }
@@ -389,7 +415,7 @@ const handleBarcodeScan = async () => {
   // Validasi dasar: gudang dan barcode harus ada
   const gudangKode = authStore.user?.cabang; // Menggunakan gudang dari user yang login
   if (!gudangKode) {
-    toast.error('Gudang tidak terdefinisi, tidak bisa scan barcode!');
+    toast.error("Gudang tidak terdefinisi, tidak bisa scan barcode!");
     return;
   }
   const barcode = scannedBarcode.value;
@@ -397,24 +423,24 @@ const handleBarcodeScan = async () => {
 
   // [LOGIKA BARU] Cek apakah menambah 1 pcs akan melebihi batas 120
   if (grandTotalQty.value >= 120) {
-    toast.error('Batas maksimal 120 pcs per permintaan telah tercapai.');
-    scannedBarcode.value = '';
+    toast.error("Batas maksimal 120 pcs per permintaan telah tercapai.");
+    scannedBarcode.value = "";
     return;
   }
 
   if (!isKpr.value && grandTotalQty.value >= 120) {
-    toast.error('Batas maksimal 120 pcs per permintaan telah tercapai.');
-    scannedBarcode.value = '';
+    toast.error("Batas maksimal 120 pcs per permintaan telah tercapai.");
+    scannedBarcode.value = "";
     return;
   }
 
   // Cek apakah item dengan barcode yang sama sudah ada di grid
-  const existingItem = items.value.find(item => item.barcode === barcode && item.kode);
+  const existingItem = items.value.find((item) => item.barcode === barcode && item.kode);
   if (existingItem) {
     // Jika sudah ada, cukup tambahkan jumlahnya
     existingItem.jumlah = (existingItem.jumlah || 0) + 1;
     toast.info(`Jumlah untuk ${existingItem.nama} ditambah menjadi ${existingItem.jumlah}`);
-    scannedBarcode.value = ''; // Kosongkan input scanner
+    scannedBarcode.value = ""; // Kosongkan input scanner
     return;
   }
 
@@ -422,7 +448,7 @@ const handleBarcodeScan = async () => {
     // --- PERUBAHAN ENDPOINT ---
     // Panggil endpoint baru yang spesifik untuk minta barang
     const response = await api.get<MintaBarangItem>(`/minta-barang-form/by-barcode/${barcode}`, {
-      params: { gudang: gudangKode }
+      params: { gudang: gudangKode },
     });
 
     console.log("API SCAN RESPONSE:", response.data);
@@ -430,7 +456,7 @@ const handleBarcodeScan = async () => {
     const product = response.data;
 
     // Cari baris kosong pertama di grid untuk diisi
-    const emptyRowIndex = items.value.findIndex(item => !item.kode);
+    const emptyRowIndex = items.value.findIndex((item) => !item.kode);
     if (emptyRowIndex !== -1) {
       // --- PENYESUAIAN KOLOM ---
       // Ganti baris kosong dengan data produk, termasuk nilai default untuk kolom yang tidak ada dari API
@@ -454,7 +480,6 @@ const handleBarcodeScan = async () => {
     } else {
       toast.error("Tidak ada baris kosong untuk menambahkan item baru.");
     }
-
   } catch (err: unknown) {
     if (err instanceof AxiosError) {
       toast.error(err.response?.data?.message || `Barcode ${barcode} tidak valid.`);
@@ -462,7 +487,7 @@ const handleBarcodeScan = async () => {
       toast.error(`Barcode ${barcode} tidak valid.`);
     }
   } finally {
-    scannedBarcode.value = ''; // Selalu kosongkan input scanner
+    scannedBarcode.value = ""; // Selalu kosongkan input scanner
   }
 };
 
@@ -475,10 +500,11 @@ watch(
 
     // Cek apakah form "kotor"
     // 1. Header: Customer dipilih atau Keterangan diisi
-    const hasHeader = (formHeader.value.customer !== null) || (formHeader.value.keterangan.trim() !== '');
+    const hasHeader =
+      formHeader.value.customer !== null || formHeader.value.keterangan.trim() !== "";
 
     // 2. Items: Ada minimal 1 baris yang valid (kode terisi)
-    const hasItems = items.value.some(i => i.kode !== '');
+    const hasItems = items.value.some((i) => i.kode !== "");
 
     if (hasHeader || hasItems) {
       uiStore.setUnsavedChanges(true);
@@ -493,8 +519,10 @@ watch(
 onMounted(() => {
   markAsSaved();
   // Cek hak akses 'insert' (untuk baru) atau 'edit' (untuk ubah)
-  if (!authStore.can(MENU_ID, isEditMode.value ? 'edit' : 'insert')) {
-    toast.error(`Anda tidak memiliki izin untuk ${isEditMode.value ? 'mengubah' : 'membuat'} data ini.`);
+  if (!authStore.can(MENU_ID, isEditMode.value ? "edit" : "insert")) {
+    toast.error(
+      `Anda tidak memiliki izin untuk ${isEditMode.value ? "mengubah" : "membuat"} data ini.`
+    );
     router.back(); // Lempar user kembali ke halaman sebelumnya
     return;
   }
@@ -512,15 +540,29 @@ onMounted(() => {
 <template>
   <PageLayout :title="pageTitle" desktop-mode icon="mdi-playlist-plus">
     <template #header-actions>
-      <v-btn size="small" prepend-icon="mdi-content-save" color="primary" @click="save" :loading="isSaving">
+      <v-btn
+        size="small"
+        prepend-icon="mdi-content-save"
+        color="primary"
+        @click="save"
+        :loading="isSaving"
+      >
         Simpan
       </v-btn>
-      <v-btn size="small" prepend-icon="mdi-refresh"
-        @click="showConfirmation(resetForm, 'Batalkan perubahan dan kosongkan form?')">
+      <v-btn
+        size="small"
+        prepend-icon="mdi-refresh"
+        @click="showConfirmation(resetForm, 'Batalkan perubahan dan kosongkan form?')"
+      >
         Batal
       </v-btn>
-      <v-btn size="small" prepend-icon="mdi-close"
-        @click="showConfirmation(closeForm, 'Tutup form? Perubahan yang belum disimpan akan hilang.')">
+      <v-btn
+        size="small"
+        prepend-icon="mdi-close"
+        @click="
+          showConfirmation(closeForm, 'Tutup form? Perubahan yang belum disimpan akan hilang.')
+        "
+      >
         Tutup
       </v-btn>
     </template>
@@ -530,35 +572,83 @@ onMounted(() => {
         <div class="desktop-form-section">
           <v-row dense>
             <v-col cols="12">
-              <v-text-field label="Nomor" v-model="formHeader.nomor" readonly filled density="compact" hide-details />
+              <v-text-field
+                label="Nomor"
+                v-model="formHeader.nomor"
+                readonly
+                filled
+                density="compact"
+                hide-details
+              />
             </v-col>
             <v-col cols="12">
-              <v-text-field label="Tanggal" v-model="formHeader.tanggal" type="date" density="compact" hide-details
-                variant="outlined" :readonly="isEditMode"
+              <v-text-field
+                label="Tanggal"
+                v-model="formHeader.tanggal"
+                type="date"
+                density="compact"
+                hide-details
+                variant="outlined"
+                :readonly="isEditMode"
                 :min="!isEditMode ? format(new Date(), 'yyyy-MM-dd') : undefined"
-                :max="!isEditMode ? format(new Date(), 'yyyy-MM-dd') : undefined" />
+                :max="!isEditMode ? format(new Date(), 'yyyy-MM-dd') : undefined"
+              />
             </v-col>
             <v-col cols="12">
-              <v-text-field label="No. Pesanan" v-model="formHeader.soNomor" readonly @click="isSoSearchVisible = true"
-                density="compact" hide-details :class="{ 'field-disabled': isEditMode }" />
+              <v-text-field
+                label="No. Pesanan"
+                v-model="formHeader.soNomor"
+                readonly
+                @click="isSoSearchVisible = true"
+                density="compact"
+                hide-details
+                :class="{ 'field-disabled': isEditMode }"
+              />
             </v-col>
             <v-col cols="12">
-              <v-text-field :label="isKpr ? 'Customer * (Wajib)' : 'Customer'" :model-value="formHeader.customer?.kode"
-                readonly @click="openCustomerSearch" density="compact" hide-details
-                :placeholder="isKpr ? 'Klik untuk memilih Customer wajib...' : 'Klik untuk mencari...'"
-                :class="{ 'field-disabled': !!formHeader.soNomor }" />
+              <v-text-field
+                :label="isKpr ? 'Customer * (Wajib)' : 'Customer'"
+                :model-value="formHeader.customer?.kode"
+                readonly
+                @click="openCustomerSearch"
+                density="compact"
+                hide-details
+                :placeholder="
+                  isKpr ? 'Klik untuk memilih Customer wajib...' : 'Klik untuk mencari...'
+                "
+                :class="{ 'field-disabled': !!formHeader.soNomor }"
+              />
             </v-col>
             <v-col cols="12">
-              <v-text-field label="Nama Customer" :model-value="formHeader.customer?.nama" readonly filled
-                density="compact" hide-details />
+              <v-text-field
+                label="Nama Customer"
+                :model-value="formHeader.customer?.nama"
+                readonly
+                filled
+                density="compact"
+                hide-details
+              />
             </v-col>
             <v-col cols="12">
-              <v-text-field label="Alamat" :model-value="formHeader.customer?.alamat" readonly filled density="compact"
-                hide-details rows="2" />
+              <v-text-field
+                label="Alamat"
+                :model-value="formHeader.customer?.alamat"
+                readonly
+                filled
+                density="compact"
+                hide-details
+                rows="2"
+              />
             </v-col>
             <v-col cols="12">
-              <v-textarea label="Keterangan" v-model="formHeader.keterangan" density="compact" hide-details
-                variant="outlined" rows="3" />
+              <v-textarea
+                label="Keterangan"
+                v-model="formHeader.keterangan"
+                density="compact"
+                hide-details
+                variant="outlined"
+                rows="3"
+              />
             </v-col>
           </v-row>
         </div>
@@ -566,18 +656,39 @@ onMounted(() => {
 
       <div class="right-column">
         <div class="scanner-wrapper">
-          <v-text-field v-model="scannedBarcode" label="Scan Barcode di Sini..."
-            placeholder="Input barcode lalu tekan Enter" variant="outlined" density="compact"
-            prepend-inner-icon="mdi-barcode-scan" hide-details clearable @keydown.enter.prevent="handleBarcodeScan">
+          <v-text-field
+            v-model="scannedBarcode"
+            label="Scan Barcode di Sini..."
+            placeholder="Input barcode lalu tekan Enter"
+            variant="outlined"
+            density="compact"
+            prepend-inner-icon="mdi-barcode-scan"
+            hide-details
+            clearable
+            @keydown.enter.prevent="handleBarcodeScan"
+          >
           </v-text-field>
         </div>
         <div class="table-scroll-wrapper">
-          <v-data-table :headers="tableHeaders" :items="items" :loading="isLoading" density="compact"
-            class="desktop-table fill-height-table" fixed-header :items-per-page="-1">
+          <v-data-table
+            :headers="tableHeaders"
+            :items="items"
+            :loading="isLoading"
+            density="compact"
+            class="desktop-table fill-height-table"
+            fixed-header
+            :items-per-page="-1"
+          >
             <template v-slot:[`item.kode`]="{ item, index }">
-              <v-text-field v-model="item.kode" variant="underlined" density="compact" hide-details
-                placeholder="F1/F2..." @keydown.f1.prevent="openProductSearch(index, false)"
-                @keydown.f2.prevent="openProductSearch(index, true)" />
+              <v-text-field
+                v-model="item.kode"
+                variant="underlined"
+                density="compact"
+                hide-details
+                placeholder="F1/F2..."
+                @keydown.f1.prevent="openProductSearch(index, false)"
+                @keydown.f2.prevent="openProductSearch(index, true)"
+              />
             </template>
 
             <template v-slot:[`item.nama`]="{ item }">
@@ -585,13 +696,27 @@ onMounted(() => {
             </template>
 
             <template v-slot:[`item.jumlah`]="{ item }">
-              <v-text-field v-model.number="item.jumlah" type="number" min="0" variant="underlined" density="compact"
-                hide-details class="text-end" />
+              <v-text-field
+                v-model.number="item.jumlah"
+                type="number"
+                min="0"
+                variant="underlined"
+                density="compact"
+                hide-details
+                class="text-end"
+              />
             </template>
 
             <template v-slot:[`item.actions`]="{ item }">
-              <v-btn v-if="item.kode" icon="mdi-delete" size="x-small" variant="text" color="error"
-                @click="removeRow(item.id)" title="Hapus baris" />
+              <v-btn
+                v-if="item.kode"
+                icon="mdi-delete"
+                size="x-small"
+                variant="text"
+                color="error"
+                @click="removeRow(item.id)"
+                title="Hapus baris"
+              />
             </template>
 
             <template #bottom>
@@ -599,8 +724,13 @@ onMounted(() => {
                 <div class="text-subtitle-2 ml-2">
                   Total Qty:
                   <span
-                    :class="(!isKpr && grandTotalQty > 120) ? 'text-error font-weight-bold' : 'text-primary font-weight-bold'">
-                    {{ grandTotalQty }} / {{ isKpr ? 'Unlimited' : '120' }}
+                    :class="
+                      !isKpr && grandTotalQty > 120
+                        ? 'text-error font-weight-bold'
+                        : 'text-primary font-weight-bold'
+                    "
+                  >
+                    {{ grandTotalQty }} / {{ isKpr ? "Unlimited" : "120" }}
                   </span>
                 </div>
               </div>
@@ -610,12 +740,26 @@ onMounted(() => {
       </div>
     </div>
 
-    <SoSearchModal v-if="isSoSearchVisible" :cabang="authStore.user?.cabang || ''" @close="isSoSearchVisible = false"
-      @selected="onSoSelected" />
-    <CustomerSearchModal v-if="isCustomerSearchVisible" :gudang="authStore.user?.cabang || ''"
-      @close="isCustomerSearchVisible = false" @customer-selected="onCustomerSelected" />
-    <MintaBarangSearchModal v-if="isProductSearchVisible" :gudang="authStore.user?.cabang || ''" :multi="true"
-      source="minta-barang" @close="isProductSearchVisible = false" @products-selected="onProductsSelected" />
+    <SoSearchModal
+      v-if="isSoSearchVisible"
+      :cabang="authStore.user?.cabang || ''"
+      @close="isSoSearchVisible = false"
+      @selected="onSoSelected"
+    />
+    <CustomerSearchModal
+      v-if="isCustomerSearchVisible"
+      :gudang="authStore.user?.cabang || ''"
+      @close="isCustomerSearchVisible = false"
+      @customer-selected="onCustomerSelected"
+    />
+    <MintaBarangSearchModal
+      v-if="isProductSearchVisible"
+      :gudang="authStore.user?.cabang || ''"
+      :multi="true"
+      source="minta-barang"
+      @close="isProductSearchVisible = false"
+      @products-selected="onProductsSelected"
+    />
 
     <v-dialog v-model="isConfirmDialogVisible" max-width="400px" persistent>
       <v-card>
@@ -628,7 +772,6 @@ onMounted(() => {
         </v-card-actions>
       </v-card>
     </v-dialog>
-
   </PageLayout>
 </template>
 
@@ -708,7 +851,7 @@ onMounted(() => {
 }
 
 .desktop-table :deep(thead tr th) {
-  background-color: #0D47A1 !important;
+  background-color: #0d47a1 !important;
   /* Biru Tua */
   color: #ffffff !important;
   /* Teks Putih */

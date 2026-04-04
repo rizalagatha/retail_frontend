@@ -175,7 +175,10 @@ const loadDetails = async (newlyExpanded: OtorisasiItem[]) => {
       if (index !== -1) {
         ketClean = rawText.substring(0, index).replace(/\n+/g, ", ").trim();
         if (ketClean.endsWith(",")) ketClean = ketClean.slice(0, -1);
-        reasonClean = rawText.substring(index + keyword.length).replace(/\n+/g, " ").trim();
+        reasonClean = rawText
+          .substring(index + keyword.length)
+          .replace(/\n+/g, " ")
+          .trim();
       } else {
         ketClean = rawText.replace(/\n+/g, ", ").trim();
       }
@@ -214,26 +217,64 @@ watch(filters, fetchMasterData, { deep: true });
     <div class="browse-content">
       <div class="filter-section">
         <v-label class="font-weight-bold">Periode:</v-label>
-        <v-text-field v-model="filters.startDate" type="date" density="compact" hide-details variant="outlined"
-          class="ms-2" style="max-width: 150px" />
+        <v-text-field
+          v-model="filters.startDate"
+          type="date"
+          density="compact"
+          hide-details
+          variant="outlined"
+          class="ms-2"
+          style="max-width: 150px"
+        />
         <span class="mx-2 align-self-center">-</span>
-        <v-text-field v-model="filters.endDate" type="date" density="compact" hide-details variant="outlined"
-          style="max-width: 150px" />
+        <v-text-field
+          v-model="filters.endDate"
+          type="date"
+          density="compact"
+          hide-details
+          variant="outlined"
+          style="max-width: 150px"
+        />
 
         <v-spacer />
 
-        <v-select v-model="selectedFilterField" :items="filterOptions" item-title="title" item-value="value"
-          label="Cari Berdasarkan" density="compact" hide-details variant="outlined" style="max-width: 200px"
-          class="me-2" />
+        <v-select
+          v-model="selectedFilterField"
+          :items="filterOptions"
+          item-title="title"
+          item-value="value"
+          label="Cari Berdasarkan"
+          density="compact"
+          hide-details
+          variant="outlined"
+          style="max-width: 200px"
+          class="me-2"
+        />
 
-        <v-text-field v-model="filterSearchValue" label="Kata kunci pencarian..." density="compact" hide-details
-          variant="outlined" style="max-width: 300px" clearable prepend-inner-icon="mdi-magnify" />
+        <v-text-field
+          v-model="filterSearchValue"
+          label="Kata kunci pencarian..."
+          density="compact"
+          hide-details
+          variant="outlined"
+          style="max-width: 300px"
+          clearable
+          prepend-inner-icon="mdi-magnify"
+        />
       </div>
 
       <div class="table-wrapper">
-        <AppDataTable v-model:expanded="expanded" :headers="headers" :items="filteredData" item-value="nomor"
-          return-object show-expand @update:expanded="loadDetails" :item-class="getRowTextColor"
-          class="desktop-table header-browse-blue">
+        <AppDataTable
+          v-model:expanded="expanded"
+          :headers="headers"
+          :items="filteredData"
+          item-value="nomor"
+          return-object
+          show-expand
+          @update:expanded="loadDetails"
+          :item-class="getRowTextColor"
+          class="desktop-table header-browse-blue"
+        >
           <template #[`item.transaksiRiil`]="{ value }">
             <span :class="value !== '-' ? 'text-primary font-weight-bold' : 'text-grey'">
               {{ value }}
@@ -259,13 +300,21 @@ watch(filters, fetchMasterData, { deep: true });
               <td :colspan="columns.length" class="pa-0 bg-grey-lighten-4">
                 <div class="detail-container pa-4">
                   <div class="detail-table-wrapper">
-                    <div v-if="loadingDetails.has(item.nomor)" class="text-center pa-4 text-caption">
+                    <div
+                      v-if="loadingDetails.has(item.nomor)"
+                      class="text-center pa-4 text-caption"
+                    >
                       Memuat transaksi riil...
                     </div>
 
                     <div v-else>
-                      <v-data-table :headers="detailHeaders" :items="details[item.nomor] || []" density="compact"
-                        class="detail-table-card" hide-default-footer>
+                      <v-data-table
+                        :headers="detailHeaders"
+                        :items="details[item.nomor] || []"
+                        density="compact"
+                        class="detail-table-card"
+                        hide-default-footer
+                      >
                         <template #[`item.o_nominal`]="{ value }">
                           {{ formatRupiah(value) }}
                         </template>
@@ -273,7 +322,6 @@ watch(filters, fetchMasterData, { deep: true });
                           <span class="text-primary font-weight-bold">{{ value }}</span>
                         </template>
                       </v-data-table>
-
                     </div>
                   </div>
                 </div>

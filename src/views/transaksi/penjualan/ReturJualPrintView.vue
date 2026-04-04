@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import { ref, onMounted, nextTick, watch } from 'vue';
-import { useRoute } from 'vue-router';
-import api from '@/services/api';
-import { format, parseISO } from 'date-fns';
-import Logo from '@/assets/logo.png';
+import { ref, onMounted, nextTick, watch } from "vue";
+import { useRoute } from "vue-router";
+import api from "@/services/api";
+import { format, parseISO } from "date-fns";
+import Logo from "@/assets/logo.png";
 import { formatRupiah } from "@/utils/formatRupiah";
 import QRCode from "qrcode";
 
@@ -56,14 +56,18 @@ const appLogo = Logo;
 const fetchPrintData = async (nomor: string) => {
   isLoading.value = true;
   try {
-    const response = await api.get(`/retur-jual-form/print/${nomor}`);
-    printData.value = response.data;
-    document.title = response.data.header?.nomor || 'Retur Jual';
+    const response = await api.get<ReturJualPrintData>(`/retur-jual-form/print/${nomor}`);
 
-    // ✅ Tambahkan QR Code
+    printData.value = response.data;
+
+    document.title = response.data.header?.nomor || "Retur Jual";
+
+    // ✅ SAFE GUARD
+    if (!printData.value) return;
+
     qrCodeData.value = await QRCode.toDataURL(printData.value.header.nomor, {
       width: 180,
-      margin: 1
+      margin: 1,
     });
   } catch {
     alert("Gagal memuat data untuk dicetak.");
@@ -71,7 +75,6 @@ const fetchPrintData = async (nomor: string) => {
     isLoading.value = false;
   }
 };
-
 
 watch(isLoading, (val) => {
   if (!val) nextTick(() => window.print());
@@ -103,17 +106,25 @@ onMounted(() => {
       <div class="info-grid">
         <div class="info-left">
           <div><span class="label">Nomor</span>: {{ printData.header.nomor }}</div>
-          <div><span class="label">Tanggal</span>: {{ format(parseISO(printData.header.tanggal), 'dd-MM-yyyy')
-          }}</div>
+          <div>
+            <span class="label">Tanggal</span>:
+            {{ format(parseISO(printData.header.tanggal), "dd-MM-yyyy") }}
+          </div>
           <div><span class="label">No. Invoice</span>: {{ printData.header.invoice }}</div>
         </div>
         <div class="info-right">
           <div><span class="label">Customer</span>: {{ printData.header.customer.nama }}</div>
-          <div class="alamat"><span class="label"></span> {{ printData.header.customer.alamat }}</div>
-          <div class="alamat"><span class="label"></span> {{ printData.header.customer.kota }} / {{
-            printData.header.customer.telp }}</div>
+          <div class="alamat">
+            <span class="label"></span> {{ printData.header.customer.alamat }}
+          </div>
+          <div class="alamat">
+            <span class="label"></span> {{ printData.header.customer.kota }} /
+            {{ printData.header.customer.telp }}
+          </div>
         </div>
-        <div class="keterangan"><span class="label">Keterangan</span>: {{ printData.header.keterangan }}</div>
+        <div class="keterangan">
+          <span class="label">Keterangan</span>: {{ printData.header.keterangan }}
+        </div>
       </div>
       <table class="items-table">
         <thead>
@@ -147,12 +158,16 @@ onMounted(() => {
           <em>{{ printData.header.summary.terbilang }}</em>
         </div>
         <div class="summary">
-          <div class="summary-item"><span>Total :</span><span>{{
-            formatRupiah(printData.header.summary.subtotal) }}</span></div>
-          <div class="summary-item"><span>Diskon :</span><span>{{
-            formatRupiah(printData.header.summary.diskon) }}</span></div>
-          <div class="summary-item grand-total"><span>Grand Total :</span><span>{{
-            formatRupiah(printData.header.summary.grandTotal) }}</span></div>
+          <div class="summary-item">
+            <span>Total :</span><span>{{ formatRupiah(printData.header.summary.subtotal) }}</span>
+          </div>
+          <div class="summary-item">
+            <span>Diskon :</span><span>{{ formatRupiah(printData.header.summary.diskon) }}</span>
+          </div>
+          <div class="summary-item grand-total">
+            <span>Grand Total :</span
+            ><span>{{ formatRupiah(printData.header.summary.grandTotal) }}</span>
+          </div>
         </div>
       </div>
       <div class="signatures">
@@ -174,7 +189,7 @@ onMounted(() => {
 .print-container {
   background: #f5f5f5;
   padding: 20px 0;
-  font-family: 'Arial', sans-serif;
+  font-family: "Arial", sans-serif;
   font-size: 9pt;
 }
 
@@ -369,7 +384,7 @@ onMounted(() => {
   }
 
   .page {
-    font-family: 'Arial', sans-serif !important;
+    font-family: "Arial", sans-serif !important;
     font-size: 9pt !important;
     color: #000 !important;
     margin: 0;
@@ -383,7 +398,7 @@ onMounted(() => {
   .items-table thead th {
     background-color: #f0f0f0 !important;
   }
-   .qr-code {
+  .qr-code {
     height: 42px !important;
     width: 42px !important;
   }

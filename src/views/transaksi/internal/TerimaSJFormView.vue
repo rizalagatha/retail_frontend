@@ -58,7 +58,7 @@ const dialogConfirm = reactive({
   show: false,
   title: "",
   text: "",
-  onConfirm: () => { },
+  onConfirm: () => {},
 });
 
 // --- Konfigurasi Tabel ---
@@ -191,8 +191,14 @@ onMounted(() => {
 <template>
   <PageLayout title="Form Terima SJ" icon="mdi-package-variant-closed">
     <template #header-actions>
-      <v-btn size="small" color="primary" @click="handleSave" :loading="isSaving" prepend-icon="mdi-content-save"
-        :disabled="!authStore.can(MENU_ID, requiredPermission)">
+      <v-btn
+        size="small"
+        color="primary"
+        @click="handleSave"
+        :loading="isSaving"
+        prepend-icon="mdi-content-save"
+        :disabled="!authStore.can(MENU_ID, requiredPermission)"
+      >
         Simpan
       </v-btn>
       <v-btn size="small" @click="handleClose" prepend-icon="mdi-close">Tutup</v-btn>
@@ -203,22 +209,72 @@ onMounted(() => {
       <!-- Left Column: Header -->
       <div class="left-column">
         <div class="desktop-form-section header-section">
-          <v-text-field label="Nomor Terima" v-model="header.nomor" readonly filled density="compact" hide-details />
-          <v-text-field label="Tgl. Terima" v-model="header.tanggalTerima" type="date" variant="outlined"
-            density="compact" hide-details />
-          <v-text-field label="Gudang Terima" :model-value="`${header.gudangTerima.kode} - ${header.gudangTerima.nama}`"
-            readonly filled density="compact" hide-details />
+          <v-text-field
+            label="Nomor Terima"
+            v-model="header.nomor"
+            readonly
+            filled
+            density="compact"
+            hide-details
+          />
+          <v-text-field
+            label="Tgl. Terima"
+            v-model="header.tanggalTerima"
+            type="date"
+            variant="outlined"
+            density="compact"
+            hide-details
+          />
+          <v-text-field
+            label="Gudang Terima"
+            :model-value="`${header.gudangTerima.kode} - ${header.gudangTerima.nama}`"
+            readonly
+            filled
+            density="compact"
+            hide-details
+          />
           <v-divider class="my-3" />
-          <v-text-field label="No. Surat Jalan" v-model="header.nomorSj" readonly filled density="compact"
-            hide-details />
-          <v-text-field label="Tgl. Surat Jalan" :model-value="format(new Date(header.tanggalSj), 'dd-MM-yyyy')"
-            readonly filled density="compact" hide-details />
-          <v-text-field label="No. Permintaan" v-model="header.nomorMinta" readonly filled density="compact"
-            hide-details />
-          <v-text-field label="Dari Gudang" :model-value="`${header.gudangAsal.kode} - ${header.gudangAsal.nama}`"
-            readonly filled density="compact" hide-details />
-          <v-textarea label="Keterangan" v-model="header.keterangan" rows="3" readonly filled density="compact"
-            hide-details />
+          <v-text-field
+            label="No. Surat Jalan"
+            v-model="header.nomorSj"
+            readonly
+            filled
+            density="compact"
+            hide-details
+          />
+          <v-text-field
+            label="Tgl. Surat Jalan"
+            :model-value="format(new Date(header.tanggalSj), 'dd-MM-yyyy')"
+            readonly
+            filled
+            density="compact"
+            hide-details
+          />
+          <v-text-field
+            label="No. Permintaan"
+            v-model="header.nomorMinta"
+            readonly
+            filled
+            density="compact"
+            hide-details
+          />
+          <v-text-field
+            label="Dari Gudang"
+            :model-value="`${header.gudangAsal.kode} - ${header.gudangAsal.nama}`"
+            readonly
+            filled
+            density="compact"
+            hide-details
+          />
+          <v-textarea
+            label="Keterangan"
+            v-model="header.keterangan"
+            rows="3"
+            readonly
+            filled
+            density="compact"
+            hide-details
+          />
         </div>
       </div>
 
@@ -226,15 +282,36 @@ onMounted(() => {
       <div class="right-column">
         <div class="desktop-form-section d-flex flex-column fill-height">
           <div class="scanner-wrapper">
-            <v-text-field v-model="scannedBarcode" label="Scan Barcode di Sini untuk Menambah Jumlah Terima"
-              variant="outlined" density="compact" prepend-inner-icon="mdi-barcode-scan" hide-details clearable
-              autofocus @keydown.enter.prevent="handleBarcodeScan"></v-text-field>
+            <v-text-field
+              v-model="scannedBarcode"
+              label="Scan Barcode di Sini untuk Menambah Jumlah Terima"
+              variant="outlined"
+              density="compact"
+              prepend-inner-icon="mdi-barcode-scan"
+              hide-details
+              clearable
+              autofocus
+              @keydown.enter.prevent="handleBarcodeScan"
+            ></v-text-field>
           </div>
-          <v-data-table :headers="tableHeaders" :items="items" class="desktop-table fill-height-table" density="compact"
-            fixed-header :items-per-page="-1">
+          <v-data-table
+            :headers="tableHeaders"
+            :items="items"
+            class="desktop-table fill-height-table"
+            density="compact"
+            fixed-header
+            :items-per-page="-1"
+          >
             <template #[`item.jumlahTerima`]="{ item }">
-              <v-text-field v-model.number="item.jumlahTerima" type="number" min="0" variant="underlined"
-                density="compact" hide-details class="text-right" />
+              <v-text-field
+                v-model.number="item.jumlahTerima"
+                type="number"
+                min="0"
+                variant="underlined"
+                density="compact"
+                hide-details
+                class="text-right"
+              />
             </template>
             <template #bottom></template>
           </v-data-table>
@@ -249,10 +326,15 @@ onMounted(() => {
         <v-card-actions>
           <v-spacer></v-spacer>
           <v-btn text @click="dialogConfirm.show = false">Tidak</v-btn>
-          <v-btn color="primary" variant="tonal" @click="
-            dialogConfirm.onConfirm();
-          dialogConfirm.show = false;
-          ">Ya, Lanjutkan</v-btn>
+          <v-btn
+            color="primary"
+            variant="tonal"
+            @click="
+              dialogConfirm.onConfirm();
+              dialogConfirm.show = false;
+            "
+            >Ya, Lanjutkan</v-btn
+          >
         </v-card-actions>
       </v-card>
     </v-dialog>

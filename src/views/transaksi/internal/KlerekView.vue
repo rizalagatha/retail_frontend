@@ -19,6 +19,11 @@ interface KlerekItem {
   klerek: string | null;
 }
 
+interface CabangOption {
+  kode: string;
+  nama: string;
+}
+
 // --- Inisialisasi & State ---
 const toast = useToast();
 const authStore = useAuthStore();
@@ -28,8 +33,8 @@ const MENU_ID = "34";
 const items = ref<KlerekItem[]>([]);
 const loading = ref(true);
 const isProcessing = ref(false);
-const cabangOptions = ref([]);
-const dialogConfirm = reactive({ show: false, title: "", text: "", onConfirm: () => { } });
+const cabangOptions = ref<CabangOption[]>([]);
+const dialogConfirm = reactive({ show: false, title: "", text: "", onConfirm: () => {} });
 
 const filters = reactive({
   startDate: format(new Date(), "yyyy-MM-dd"),
@@ -136,8 +141,14 @@ watch(filters, fetchData, { deep: true });
 <template>
   <PageLayout title="Klerek (Transfer Invoice Bazar)" :menu-id="MENU_ID">
     <template #header-actions>
-      <v-btn v-if="authStore.can(MENU_ID, 'insert')" size="small" color="primary" prepend-icon="mdi-check-all"
-        @click="openProsesDialog" :loading="isProcessing">
+      <v-btn
+        v-if="authStore.can(MENU_ID, 'insert')"
+        size="small"
+        color="primary"
+        prepend-icon="mdi-check-all"
+        @click="openProsesDialog"
+        :loading="isProcessing"
+      >
         Proses Klerek
       </v-btn>
     </template>
@@ -145,30 +156,70 @@ watch(filters, fetchData, { deep: true });
     <div class="browse-content">
       <div class="filter-section">
         <v-label class="filter-label">Periode:</v-label>
-        <v-text-field v-model="filters.startDate" type="date" density="compact" hide-details variant="outlined"
-          style="max-width: 180px" />
+        <v-text-field
+          v-model="filters.startDate"
+          type="date"
+          density="compact"
+          hide-details
+          variant="outlined"
+          style="max-width: 180px"
+        />
         <v-label class="mx-2">s/d</v-label>
-        <v-text-field v-model="filters.endDate" type="date" density="compact" hide-details variant="outlined"
-          style="max-width: 180px" />
-        <v-select v-model="filters.cabang" :items="cabangOptions" item-title="nama" item-value="kode"
-          label="Cabang Bazar" density="compact" hide-details variant="outlined" class="ms-4" style="max-width: 200px"
-          :readonly="authStore.user?.cabang !== 'KDC'" />
+        <v-text-field
+          v-model="filters.endDate"
+          type="date"
+          density="compact"
+          hide-details
+          variant="outlined"
+          style="max-width: 180px"
+        />
+        <v-select
+          v-model="filters.cabang"
+          :items="cabangOptions"
+          item-title="nama"
+          item-value="kode"
+          label="Cabang Bazar"
+          density="compact"
+          hide-details
+          variant="outlined"
+          class="ms-4"
+          style="max-width: 200px"
+          :readonly="authStore.user?.cabang !== 'KDC'"
+        />
         <v-spacer />
-        <v-btn @click="fetchData" icon="mdi-refresh" variant="text" size="small" :loading="loading" />
+        <v-btn
+          @click="fetchData"
+          icon="mdi-refresh"
+          variant="text"
+          size="small"
+          :loading="loading"
+        />
       </div>
 
       <div class="table-container">
-        <AppDataTable :headers="headers" :items="items" :loading="loading" density="compact"
-          class="desktop-table header-browse-blue" fixed-header :items-per-page="25">
+        <AppDataTable
+          :headers="headers"
+          :items="items"
+          :loading="loading"
+          density="compact"
+          class="desktop-table header-browse-blue"
+          fixed-header
+          :items-per-page="25"
+        >
           <template #[`item.no`]="{ index }">{{ index + 1 }}</template>
           <template #[`item.tanggal`]="{ item }">{{
             format(parseISO(item.tanggal), "dd-MM-yyyy")
-            }}</template>
+          }}</template>
           <template #[`item.nominal`]="{ item }">
             <div class="text-end">{{ (item.nominal || 0).toLocaleString("id-ID") }}</div>
           </template>
           <template #[`item.klerek`]="{ item }">
-            <v-chip v-if="item.klerek && item.klerek !== '0'" color="success" size="x-small" variant="tonal">
+            <v-chip
+              v-if="item.klerek && item.klerek !== '0'"
+              color="success"
+              size="x-small"
+              variant="tonal"
+            >
               {{ item.klerek }}
             </v-chip>
             <v-chip v-else color="error" size="x-small" variant="tonal"> Belum </v-chip>
@@ -193,12 +244,17 @@ watch(filters, fetchData, { deep: true });
         <v-card-actions>
           <v-spacer />
           <v-btn text @click="dialogConfirm.show = false">Batal</v-btn>
-          <v-btn color="primary" variant="tonal" @click="
-            () => {
-              dialogConfirm.onConfirm();
-              dialogConfirm.show = false;
-            }
-          ">Ya</v-btn>
+          <v-btn
+            color="primary"
+            variant="tonal"
+            @click="
+              () => {
+                dialogConfirm.onConfirm();
+                dialogConfirm.show = false;
+              }
+            "
+            >Ya</v-btn
+          >
         </v-card-actions>
       </v-card>
     </v-dialog>

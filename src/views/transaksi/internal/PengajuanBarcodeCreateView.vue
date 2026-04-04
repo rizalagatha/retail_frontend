@@ -1,16 +1,17 @@
 <script setup lang="ts">
-import { ref, reactive, onMounted, computed, watch, nextTick } from 'vue';
-import { useRoute, useRouter } from 'vue-router';
-import { useToast } from 'vue-toastification';
-import { useAuthStore } from '@/stores/authStore';
-import { useUiStore } from '@/stores/uiStore';
-import { useUnsavedChanges } from '@/composables/useUnsavedChanges';
-import api from '@/services/api';
-import { format, parseISO } from 'date-fns';
-import PageLayout from '@/components/PageLayout.vue';
-import MintaBarangSearchModal from '@/components/lookup/MintaBarangSearchModal.vue';
-import StickerSearchModal from '@/components/lookup/StickerSearchModal.vue';
-import type { AxiosError } from 'axios';
+import { ref, reactive, onMounted, computed, watch, nextTick } from "vue";
+import { useRoute, useRouter } from "vue-router";
+import { useToast } from "vue-toastification";
+import { useAuthStore } from "@/stores/authStore";
+import { useUiStore } from "@/stores/uiStore";
+import { useUnsavedChanges } from "@/composables/useUnsavedChanges";
+import api from "@/services/api";
+import { format, parseISO } from "date-fns";
+import PageLayout from "@/components/PageLayout.vue";
+import MintaBarangSearchModal from "@/components/lookup/MintaBarangSearchModal.vue";
+import StickerSearchModal from "@/components/lookup/StickerSearchModal.vue";
+import type { AxiosError } from "axios";
+import axios from "axios";
 
 // --- Tipe Data ---
 interface Header {
@@ -84,12 +85,17 @@ interface StickerResponse {
   harga: number;
 }
 interface StickerLookupResult {
-  kode: string;    // Ini adalah kode stiker (misal: ST-001)
+  kode: string; // Ini adalah kode stiker (misal: ST-001)
   barcode: string;
   nama: string;
   ukuran: string;
   stok: number;
   harga: number;
+}
+
+interface JenisOption {
+  label: string;
+  value: string;
 }
 
 // --- Inisialisasi & State ---
@@ -99,22 +105,28 @@ const toast = useToast();
 const authStore = useAuthStore();
 const uiStore = useUiStore();
 const { markAsSaved } = useUnsavedChanges();
-const MENU_ID = '33';
+const MENU_ID = "33";
 
 const isEditMode = computed(() => !!route.params.nomor);
-const pageTitle = computed(() => isEditMode.value ? 'Ubah Pengajuan Barcode' : 'Buat Pengajuan Barcode');
+const pageTitle = computed(() =>
+  isEditMode.value ? "Ubah Pengajuan Barcode" : "Buat Pengajuan Barcode"
+);
 const hasApprovalRights = computed(() => authStore.user?.canApprovePrice); // Asumsi hak akses
-const canView = computed(() => authStore.can(MENU_ID, 'view'));
-const canInsert = computed(() => authStore.can(MENU_ID, 'insert'));
-const canEdit = computed(() => authStore.can(MENU_ID, 'edit'));
+const canView = computed(() => authStore.can(MENU_ID, "view"));
+const canInsert = computed(() => authStore.can(MENU_ID, "insert"));
+const canEdit = computed(() => authStore.can(MENU_ID, "edit"));
 // Izin simpan bergantung pada mode (insert/edit)
-const canSave = computed(() => isEditMode.value ? canEdit.value : canInsert.value);
+const canSave = computed(() => (isEditMode.value ? canEdit.value : canInsert.value));
 const canApprove = computed(() => authStore.user?.canApprovePrice || false);
 
-const header = reactive<Header>({ nomor: '', tanggal: format(new Date(), 'yyyy-MM-dd'), approved: null });
+const header = reactive<Header>({
+  nomor: "",
+  tanggal: format(new Date(), "yyyy-MM-dd"),
+  approved: null,
+});
 const items = ref<Item[]>([]);
 const stickers = ref<StickerItem[]>([]);
-const jenisRejectOptions = ref([]);
+const jenisRejectOptions = ref<JenisOption[]>([]);
 const isLoading = ref(true);
 const isSaving = ref(false);
 const isApproved = ref(false);
@@ -123,9 +135,9 @@ const dialogs = reactive({ productSearch: false, stickerSearch: false, confirm: 
 const isMultiSelectProduct = ref(false);
 const activeRowIndex = ref(0);
 // const activeParentKode = ref('');
-const dialogConfirm = reactive({ show: false, title: '', text: '', onConfirm: () => { } });
+const dialogConfirm = reactive({ show: false, title: "", text: "", onConfirm: () => {} });
 const formatRupiah = (value: number) => {
-  return new Intl.NumberFormat('id-ID').format(Math.round(value || 0));
+  return new Intl.NumberFormat("id-ID").format(Math.round(value || 0));
 };
 const selectedKaosItem = ref<Item[]>([]);
 const isUploading = reactive<Record<number, boolean>>({});
@@ -133,53 +145,62 @@ const fileInputRef = ref<HTMLInputElement | null>(null); // <-- TAMBAHKAN INI
 const activeUploadItem = ref<Item | null>(null);
 const dialogPrintSuccess = reactive({
   show: false,
-  nomor: '',
-  onConfirm: () => { },
-  onCancel: () => { }
+  nomor: "",
+  onConfirm: () => {},
+  onCancel: () => {},
 });
 
 const previewDialog = reactive({
   show: false,
-  url: '',
+  url: "",
 });
 
 // --- Konfigurasi Tabel ---
-const itemsHeaders = computed(() => [
-  { title: 'Kode Kaos', key: 'kode', width: '100px' },
-  { title: 'Nama Barang', key: 'nama' },
-  { title: 'Ukuran', key: 'ukuran', width: '60px' },
-  { title: 'Gambar', key: 'image', width: '220px', sortable: false },
-  { title: 'Stok', key: 'stok', width: '60px', 'v-if': !hasApprovalRights.value },
-  { title: 'Jumlah', key: 'jumlah', width: '60px' },
-  { title: 'Harga/Pcs', key: 'harga', width: '60px' },
-  { title: 'Harga DTF', key: 'hargaDtf', width: '60px' },
-  { title: 'Jenis', key: 'jenis', width: '100px' },
-  { title: 'Ket', key: 'ket', width: '100px' },
-  ...(hasApprovalRights.value ? [
-    { title: 'Diskon %', key: 'diskon', width: '60px' },
-    { title: 'Harga Baru', key: 'hargabaru', width: '90px' },
-    { title: 'Barcode Baru', key: 'kodebaru', width: '90px' },
-  ] : []),
-  { title: 'Actions', key: 'actions', sortable: false, width: '50px' },
-].filter(h => h['v-if'] !== false));
+const itemsHeaders = computed(() =>
+  [
+    { title: "Kode Kaos", key: "kode", width: "100px" },
+    { title: "Nama Barang", key: "nama" },
+    { title: "Ukuran", key: "ukuran", width: "60px" },
+    { title: "Gambar", key: "image", width: "220px", sortable: false },
+    { title: "Stok", key: "stok", width: "60px", "v-if": !hasApprovalRights.value },
+    { title: "Jumlah", key: "jumlah", width: "60px" },
+    { title: "Harga/Pcs", key: "harga", width: "60px" },
+    { title: "Harga DTF", key: "hargaDtf", width: "60px" },
+    { title: "Jenis", key: "jenis", width: "100px" },
+    { title: "Ket", key: "ket", width: "100px" },
+    ...(hasApprovalRights.value
+      ? [
+          { title: "Diskon %", key: "diskon", width: "60px" },
+          { title: "Harga Baru", key: "hargabaru", width: "90px" },
+          { title: "Barcode Baru", key: "kodebaru", width: "90px" },
+        ]
+      : []),
+    { title: "Actions", key: "actions", sortable: false, width: "50px" },
+  ].filter((h) => h["v-if"] !== false)
+);
 
-const stickersHeaders = computed(() => [
-  { title: 'Kode Kaos Induk', key: 'kode', width: '150px' },
-  { title: 'Kode Stiker', key: 'kodes', width: '150px' },
-  { title: 'Nama Stiker', key: 'nama' },
-  { title: 'Ukuran', key: 'ukuran', width: '60px' },
-  { title: 'Stok', key: 'stok', width: '60px', 'v-if': !hasApprovalRights.value },
-  { title: 'Jumlah', key: 'jumlah', width: '60px' },
-  { title: 'Harga', key: 'harga', width: '80px' },
-  { title: 'Actions', key: 'actions', sortable: false, width: '50px' },
-].filter(h => h['v-if'] !== false));
+const stickersHeaders = computed(() =>
+  [
+    { title: "Kode Kaos Induk", key: "kode", width: "150px" },
+    { title: "Kode Stiker", key: "kodes", width: "150px" },
+    { title: "Nama Stiker", key: "nama" },
+    { title: "Ukuran", key: "ukuran", width: "60px" },
+    { title: "Stok", key: "stok", width: "60px", "v-if": !hasApprovalRights.value },
+    { title: "Jumlah", key: "jumlah", width: "60px" },
+    { title: "Harga", key: "harga", width: "80px" },
+    { title: "Actions", key: "actions", sortable: false, width: "50px" },
+  ].filter((h) => h["v-if"] !== false)
+);
 
 // 2. Helper untuk mendapatkan URL origin backend dari baseURL axios
 // (misal: 'http://localhost:3000/api' -> 'http://localhost:3000')
-let backendOrigin = '';
+let backendOrigin = "";
 try {
   // Cek dulu apakah baseURL valid dan merupakan URL absolut
-  if (api.defaults.baseURL && (api.defaults.baseURL.startsWith('http://') || api.defaults.baseURL.startsWith('https://'))) {
+  if (
+    api.defaults.baseURL &&
+    (api.defaults.baseURL.startsWith("http://") || api.defaults.baseURL.startsWith("https://"))
+  ) {
     // Jika ya, ambil origin-nya
     backendOrigin = new URL(api.defaults.baseURL).origin;
   } else {
@@ -199,21 +220,21 @@ const addNewRow = () => {
   if (!last || last.kode) {
     items.value.push({
       id: Date.now() + Math.random(),
-      kode: '',
-      nama: '',
-      ukuran: '',
+      kode: "",
+      nama: "",
+      ukuran: "",
       stok: 0,
       jumlah: 1,
       harga: 0,
       hargaDtf: 0,
-      jenis: '',
-      ket: '',
-      barcode: '',
+      jenis: "",
+      ket: "",
+      barcode: "",
       diskon: 0,
       hargabaru: 0,
-      kodebaru: '',
+      kodebaru: "",
       imageUrl: null, // <-- TAMBAHKAN INI
-      fileObject: null
+      fileObject: null,
     });
   }
 };
@@ -221,7 +242,7 @@ const addNewRow = () => {
 const addNewStickerRow = () => {
   const parentKode = selectedKaosItem.value[0]?.kode;
   if (!parentKode) {
-    toast.error('Pilih satu baris item kaos di tabel atas terlebih dahulu.');
+    toast.error("Pilih satu baris item kaos di tabel atas terlebih dahulu.");
     return;
   }
 
@@ -231,19 +252,24 @@ const addNewStickerRow = () => {
     stickers.value.push({
       id: Date.now() + Math.random(),
       kode: parentKode, // Mengunci ke kaos induk yang dipilih
-      kodes: '',
-      nama: '',
-      ukuran: '',
+      kodes: "",
+      nama: "",
+      ukuran: "",
       stok: 0,
       jumlah: 1,
       harga: 0,
-      barcode: ''
+      barcode: "",
     });
   }
 };
 
-const removeRow = (id: number) => { items.value = items.value.filter(i => i.id !== id); if (items.value.length === 0) addNewRow(); };
-const removeStickerRow = (id: number) => { stickers.value = stickers.value.filter(s => s.id !== id); };
+const removeRow = (id: number) => {
+  items.value = items.value.filter((i) => i.id !== id);
+  if (items.value.length === 0) addNewRow();
+};
+const removeStickerRow = (id: number) => {
+  stickers.value = stickers.value.filter((s) => s.id !== id);
+};
 
 const openProductSearch = (index: number, isMulti: boolean) => {
   activeRowIndex.value = index;
@@ -252,12 +278,12 @@ const openProductSearch = (index: number, isMulti: boolean) => {
 };
 
 const calculateHargaDtf = () => {
-  items.value.forEach(item => {
+  items.value.forEach((item) => {
     if (!item.kode) return;
     const totalStickerPrice = stickers.value
-      .filter(sticker => sticker.kode === item.kode)
-      .reduce((sum, sticker) => sum + (sticker.harga * sticker.jumlah), 0);
-    item.hargaDtf = (item.harga * item.jumlah) + totalStickerPrice;
+      .filter((sticker) => sticker.kode === item.kode)
+      .reduce((sum, sticker) => sum + sticker.harga * sticker.jumlah, 0);
+    item.hargaDtf = item.harga * item.jumlah + totalStickerPrice;
   });
 };
 
@@ -297,7 +323,7 @@ const onProductsSelected = async (selectedProducts: ProductDetail[]) => {
       hargabaru: 0,
       kodebaru: "",
       imageUrl: null, // <-- TAMBAHKAN INI
-      fileObject: null
+      fileObject: null,
     }));
 
     items.value.splice(activeRowIndex.value, 1, ...newItems);
@@ -308,12 +334,17 @@ const onProductsSelected = async (selectedProducts: ProductDetail[]) => {
   }
 };
 
-const showConfirmation = (title: string, text: string, onConfirm: () => void) => { dialogConfirm.title = title; dialogConfirm.text = text; dialogConfirm.onConfirm = onConfirm; dialogConfirm.show = true; };
-const closeForm = () => router.push({ name: 'PengajuanBarcode' });
-const handleCancel = () => {
-  showConfirmation('Konfirmasi Batal', 'Batalkan semua perubahan dan kosongkan form?', resetForm);
+const showConfirmation = (title: string, text: string, onConfirm: () => void) => {
+  dialogConfirm.title = title;
+  dialogConfirm.text = text;
+  dialogConfirm.onConfirm = onConfirm;
+  dialogConfirm.show = true;
 };
-const handleClose = () => showConfirmation('Konfirmasi Tutup', 'Tutup form?', closeForm);
+const closeForm = () => router.push({ name: "PengajuanBarcode" });
+const handleCancel = () => {
+  showConfirmation("Konfirmasi Batal", "Batalkan semua perubahan dan kosongkan form?", resetForm);
+};
+const handleClose = () => showConfirmation("Konfirmasi Tutup", "Tutup form?", closeForm);
 
 const handleDiskonChange = (item: Item) => {
   if (!item.kode) return;
@@ -323,7 +354,7 @@ const handleDiskonChange = (item: Item) => {
 
   if (diskonPersen > 0) {
     // Hitung harga baru otomatis
-    item.hargabaru = Math.round(baseHarga - (diskonPersen / 100 * baseHarga));
+    item.hargabaru = Math.round(baseHarga - (diskonPersen / 100) * baseHarga);
 
     // Otomatis centang Approved jika user memiliki hak akses
     if (canApprove.value) {
@@ -343,44 +374,47 @@ const handleHargaBaruChange = (item: Item) => {
 
 const save = () => {
   if (!canSave.value) {
-    toast.error('Anda tidak memiliki izin untuk menyimpan data ini.');
+    toast.error("Anda tidak memiliki izin untuk menyimpan data ini.");
     return;
   }
   // Validasi dari Delphi
-  if (!isEditMode.value && new Date(header.tanggal) < new Date(format(new Date(), 'yyyy-MM-dd'))) {
-    return toast.error('Tanggal tidak boleh mundur dari hari ini.');
+  if (!isEditMode.value && new Date(header.tanggal) < new Date(format(new Date(), "yyyy-MM-dd"))) {
+    return toast.error("Tanggal tidak boleh mundur dari hari ini.");
   }
 
-  const validItems = items.value.filter(i => i.kode);
-  if (validItems.length === 0) return toast.error('Detail item harus diisi.');
+  const validItems = items.value.filter((i) => i.kode);
+  if (validItems.length === 0) return toast.error("Detail item harus diisi.");
 
   for (const item of validItems) {
-    if (!item.jumlah || item.jumlah <= 0) return toast.error(`Jumlah untuk item '${item.nama}' harus diisi.`);
-    if (!item.harga || item.harga <= 0) return toast.error(`Harga untuk item '${item.nama}' harus diisi.`);
+    if (!item.jumlah || item.jumlah <= 0)
+      return toast.error(`Jumlah untuk item '${item.nama}' harus diisi.`);
+    if (!item.harga || item.harga <= 0)
+      return toast.error(`Harga untuk item '${item.nama}' harus diisi.`);
     if (!item.jenis) return toast.error(`Jenis untuk item '${item.nama}' harus diisi.`);
-    if (item.jumlah > item.stok && !hasApprovalRights.value) return toast.error(`Jumlah untuk '${item.nama}' tidak boleh melebihi stok.`);
+    if (item.jumlah > item.stok && !hasApprovalRights.value)
+      return toast.error(`Jumlah untuk '${item.nama}' tidak boleh melebihi stok.`);
   }
 
-  showConfirmation('Konfirmasi Simpan', 'Anda yakin ingin menyimpan data ini?', executeSave);
+  showConfirmation("Konfirmasi Simpan", "Anda yakin ingin menyimpan data ini?", executeSave);
 };
 
 const executeSave = async () => {
   if (!canSave.value) {
-    toast.error('Anda tidak memiliki izin untuk menyimpan data ini.');
+    toast.error("Anda tidak memiliki izin untuk menyimpan data ini.");
     isSaving.value = false; // Pastikan loading dihentikan
     return;
   }
   isSaving.value = true;
-  let savedNomor = isEditMode.value ? header.nomor : '';
+  let savedNomor = isEditMode.value ? header.nomor : "";
   try {
     const payload = {
       header,
-      items: items.value.filter(i => i.kode),
-      stickers: stickers.value.filter(s => s.kodes),
+      items: items.value.filter((i) => i.kode),
+      stickers: stickers.value.filter((s) => s.kodes),
       isNew: !isEditMode.value,
       isApproved: isApproved.value,
     };
-    const response = await api.post('/pengajuan-barcode-form/save', payload);
+    const response = await api.post("/pengajuan-barcode-form/save", payload);
     toast.success(response.data.message);
 
     markAsSaved();
@@ -390,7 +424,7 @@ const executeSave = async () => {
     }
 
     // --- STEP 2: Upload Gambar yang Tertunda ---
-    const itemsWithFiles = items.value.filter(item => item.fileObject);
+    const itemsWithFiles = items.value.filter((item) => item.fileObject);
 
     if (itemsWithFiles.length > 0) {
       toast.info(`Mengunggah ${itemsWithFiles.length} gambar...`);
@@ -400,22 +434,26 @@ const executeSave = async () => {
 
         isUploading[item.id] = true;
         const formData = new FormData();
-        formData.append('image', item.fileObject);
-        formData.append('nomor', savedNomor); // Gunakan nomor yang sudah tersimpan/baru
-        formData.append('kode', item.kode);
-        formData.append('ukuran', item.ukuran);
+        formData.append("image", item.fileObject);
+        formData.append("nomor", savedNomor); // Gunakan nomor yang sudah tersimpan/baru
+        formData.append("kode", item.kode);
+        formData.append("ukuran", item.ukuran);
 
         try {
           // Panggil API upload per item
-          await api.post('/pengajuan-barcode-form/upload-item-image', formData, {
-            headers: { 'Content-Type': 'multipart/form-data' },
+          await api.post("/pengajuan-barcode-form/upload-item-image", formData, {
+            headers: { "Content-Type": "multipart/form-data" },
           });
 
           // Bersihkan file object setelah berhasil
           item.fileObject = null;
+        } catch (err: unknown) {
+          const error = err as AxiosError<{ message?: string }>;
 
-        } catch (uploadError) {
-          toast.error(`Gagal upload gambar untuk ${item.nama} (${item.ukuran}).`, uploadError);
+          toast.error(
+            error.response?.data?.message ||
+              `Gagal upload gambar untuk ${item.nama} (${item.ukuran}).`
+          );
         } finally {
           isUploading[item.id] = false;
         }
@@ -427,29 +465,29 @@ const executeSave = async () => {
     // Aksi jika user klik "Ya, Cetak"
     dialogPrintSuccess.onConfirm = () => {
       const url = router.resolve({
-        name: 'CetakBarcodeBaruA4', // Sesuai route
-        params: { nomor: savedNomor }
+        name: "CetakBarcodeBaruA4", // Sesuai route
+        params: { nomor: savedNomor },
       }).href;
-      window.open(url, '_blank');
+      window.open(url, "_blank");
 
       dialogPrintSuccess.show = false;
-      router.push({ name: 'PengajuanBarcode' }); // Kembali ke browse
+      router.push({ name: "PengajuanBarcode" }); // Kembali ke browse
     };
 
     // Aksi jika user klik "Tidak"
     dialogPrintSuccess.onCancel = () => {
       dialogPrintSuccess.show = false;
-      router.push({ name: 'PengajuanBarcode' }); // Kembali ke browse
+      router.push({ name: "PengajuanBarcode" }); // Kembali ke browse
     };
-
-  } catch (error) { // Error dari STEP 1 (Save Utama)
+  } catch (error) {
+    // Error dari STEP 1 (Save Utama)
     const err = error as AxiosError<{ message?: string }>;
-    toast.error(err.response?.data?.message || err.message || 'Gagal menyimpan data.');
+    toast.error(err.response?.data?.message || err.message || "Gagal menyimpan data.");
   } finally {
     isSaving.value = false;
     // Bersihkan local URL object untuk menghindari memory leak
-    items.value.forEach(item => {
-      if (item.fileObject && item.imageUrl && item.imageUrl.startsWith('blob:')) {
+    items.value.forEach((item) => {
+      if (item.fileObject && item.imageUrl && item.imageUrl.startsWith("blob:")) {
         URL.revokeObjectURL(item.imageUrl);
       }
     });
@@ -463,7 +501,7 @@ const loadDataForEdit = async (nomor: string) => {
     const data = response.data;
 
     Object.assign(header, data.header);
-    header.tanggal = format(parseISO(header.tanggal), 'yyyy-MM-dd');
+    header.tanggal = format(parseISO(header.tanggal), "yyyy-MM-dd");
     isApproved.value = !!data.header.approved;
 
     items.value = data.items.map((item: BackendItem) => ({
@@ -502,7 +540,7 @@ const loadDataForEdit = async (nomor: string) => {
     markAsSaved();
   } catch (error) {
     const err = error as AxiosError<{ message?: string }>;
-    const message = err.response?.data?.message || 'Gagal memuat data.';
+    const message = err.response?.data?.message || "Gagal memuat data.";
     toast.error(message);
     router.back();
   } finally {
@@ -523,9 +561,9 @@ const triggerFileUpload = (item: Item) => {
 };
 
 const getFullImageUrl = (url: string | null) => {
-  if (!url) return '';
+  if (!url) return "";
   // Jika sudah URL penuh (http) atau URL lokal (blob), langsung pakai
-  if (url.startsWith('http') || url.startsWith('blob:')) {
+  if (url.startsWith("http") || url.startsWith("blob:")) {
     return url;
   }
   // Jika URL relatif (dimulai dengan '/'), gabungkan dengan origin backend
@@ -548,7 +586,7 @@ const onFileSelect = (event: Event) => {
   const item = activeUploadItem.value;
 
   if (!file || !item) {
-    if (target) target.value = ''; // Reset input
+    if (target) target.value = ""; // Reset input
     return;
   }
 
@@ -556,7 +594,7 @@ const onFileSelect = (event: Event) => {
   item.fileObject = file;
 
   // 2. Buat URL preview lokal
-  if (item.imageUrl && item.imageUrl.startsWith('blob:')) {
+  if (item.imageUrl && item.imageUrl.startsWith("blob:")) {
     // Hapus URL blob lama jika ada untuk hindari memory leak
     URL.revokeObjectURL(item.imageUrl);
   }
@@ -564,21 +602,21 @@ const onFileSelect = (event: Event) => {
 
   // 3. Reset
   activeUploadItem.value = null;
-  if (target) target.value = ''; // Selalu reset file input
+  if (target) target.value = ""; // Selalu reset file input
 };
 
 const resetForm = () => {
-  Object.assign(header, { nomor: '', tanggal: format(new Date(), 'yyyy-MM-dd'), approved: null });
+  Object.assign(header, { nomor: "", tanggal: format(new Date(), "yyyy-MM-dd"), approved: null });
   items.value = [];
   stickers.value = [];
   addNewRow();
   markAsSaved();
-  toast.info('Form telah dibersihkan.');
+  toast.info("Form telah dibersihkan.");
 };
 
 const openStickerSearch = (index: number) => {
   if (selectedKaosItem.value.length === 0) {
-    return toast.error('Pilih satu baris item kaos di tabel atas untuk menambahkan stiker.');
+    return toast.error("Pilih satu baris item kaos di tabel atas untuk menambahkan stiker.");
   }
   activeRowIndex.value = index;
   dialogs.stickerSearch = true;
@@ -590,7 +628,7 @@ const onStickersSelected = (selectedSticker: StickerLookupResult) => {
 
   const parentItem = selectedKaosItem.value[0];
   if (!parentItem || !parentItem.kode) {
-    return toast.error('Kesalahan: Tidak ada item kaos induk yang dipilih.');
+    return toast.error("Kesalahan: Tidak ada item kaos induk yang dipilih.");
   }
 
   // Ambil kode stiker dari properti 'kode' milik modal
@@ -604,7 +642,7 @@ const onStickersSelected = (selectedSticker: StickerLookupResult) => {
   );
 
   if (isDuplicate) {
-    return toast.error('Stiker ini sudah ditambahkan untuk item kaos tersebut.');
+    return toast.error("Stiker ini sudah ditambahkan untuk item kaos tersebut.");
   }
 
   const targetItem = stickers.value[activeRowIndex.value];
@@ -630,8 +668,8 @@ watch(
     if (isLoading.value || isSaving.value) return;
 
     // Cek apakah ada data yang "bermakna"
-    const hasItems = items.value.some(i => i.kode !== '');
-    const hasStickers = stickers.value.some(s => s.kodes !== '');
+    const hasItems = items.value.some((i) => i.kode !== "");
+    const hasStickers = stickers.value.some((s) => s.kodes !== "");
 
     if (hasItems || hasStickers) {
       uiStore.setUnsavedChanges(true);
@@ -646,16 +684,22 @@ onMounted(async () => {
   markAsSaved();
   if (!canView.value) {
     isLoading.value = false; // Hentikan loading
-    toast.error('Anda tidak memiliki izin untuk mengakses halaman ini.');
+    toast.error("Anda tidak memiliki izin untuk mengakses halaman ini.");
     // Opsional: Redirect atau tampilkan pesan akses ditolak di template
     // router.replace({ name: 'Forbidden' });
     return; // Hentikan eksekusi onMounted
   }
   isLoading.value = true;
   try {
-    const response = await api.get('/pengajuan-barcode-form/lookup/jenis-reject');
+    const response = await api.get("/pengajuan-barcode-form/lookup/jenis-reject");
     jenisRejectOptions.value = response.data;
-  } catch (e) { toast.error('Gagal memuat opsi Jenis.', e); }
+  } catch (err: unknown) {
+    if (axios.isAxiosError(err) && err.response) {
+      toast.error(err.response.data?.message || "Gagal memuat opsi Jenis.");
+    } else {
+      toast.error("Gagal memuat opsi Jenis.");
+    }
+  }
 
   const nomor = route.params.nomor as string;
   if (isEditMode.value && nomor) {
@@ -673,8 +717,14 @@ onMounted(async () => {
 <template>
   <PageLayout :title="pageTitle" desktop-mode icon="mdi-barcode-scan">
     <template #header-actions>
-      <v-btn v-if="canSave" size="small" prepend-icon="mdi-content-save" color="primary" @click="save"
-        :loading="isSaving">
+      <v-btn
+        v-if="canSave"
+        size="small"
+        prepend-icon="mdi-content-save"
+        color="primary"
+        @click="save"
+        :loading="isSaving"
+      >
         Simpan
       </v-btn>
       <v-btn size="small" prepend-icon="mdi-refresh" @click="handleCancel">Batal</v-btn>
@@ -685,76 +735,170 @@ onMounted(async () => {
       <div class="left-column">
         <div class="desktop-form-section header-section">
           <v-row dense>
-            <v-col cols="12"><v-text-field label="No. Pengajuan" v-model="header.nomor" readonly filled hide-details
-                density="compact" /></v-col>
-            <v-col cols="12"><v-text-field label="Tanggal" v-model="header.tanggal" type="date" variant="outlined"
-                hide-details density="compact" :readonly="!canSave || isApproved" /></v-col>
-            <v-checkbox v-if="hasApprovalRights" v-model="isApproved" :label="`Approved oleh: ${authStore.user?.kode}`"
-              hide-details density="compact" :readonly="!canApprove" />
+            <v-col cols="12"
+              ><v-text-field
+                label="No. Pengajuan"
+                v-model="header.nomor"
+                readonly
+                filled
+                hide-details
+                density="compact"
+            /></v-col>
+            <v-col cols="12"
+              ><v-text-field
+                label="Tanggal"
+                v-model="header.tanggal"
+                type="date"
+                variant="outlined"
+                hide-details
+                density="compact"
+                :readonly="!canSave || isApproved"
+            /></v-col>
+            <v-checkbox
+              v-if="hasApprovalRights"
+              v-model="isApproved"
+              :label="`Approved oleh: ${authStore.user?.kode}`"
+              hide-details
+              density="compact"
+              :readonly="!canApprove"
+            />
           </v-row>
         </div>
       </div>
 
       <div class="right-column">
-        <div class="desktop-form-section d-flex flex-column" style="min-height: 300px;">
+        <div class="desktop-form-section d-flex flex-column" style="min-height: 300px">
           <div class="text-subtitle-1 font-weight-bold mb-2">Detail Item Pengajuan</div>
           <div class="table-wrapper-scroll">
-            <v-data-table v-model="selectedKaosItem" :headers="itemsHeaders" :items="items"
-              class="desktop-table header-browse-blue" fixed-header :items-per-page="-1" show-select single-select
-              return-object>
+            <v-data-table
+              v-model="selectedKaosItem"
+              :headers="itemsHeaders"
+              :items="items"
+              class="desktop-table header-browse-blue"
+              fixed-header
+              :items-per-page="-1"
+              show-select
+              single-select
+              return-object
+            >
               <template v-slot:[`item.kode`]="{ item, index }">
-                <v-text-field v-model="item.kode" variant="underlined" placeholder="F1/F2..."
+                <v-text-field
+                  v-model="item.kode"
+                  variant="underlined"
+                  placeholder="F1/F2..."
                   @keydown.f1.prevent="openProductSearch(index, false)"
                   @keydown.f2.prevent="openProductSearch(index, true)"
-                  :readonly="hasApprovalRights || isApproved || !canSave" />
+                  :readonly="hasApprovalRights || isApproved || !canSave"
+                />
               </template>
               <template v-slot:[`item.jumlah`]="{ item }">
-                <v-text-field v-model.number="item.jumlah" type="number" variant="underlined" class="text-end"
-                  :readonly="hasApprovalRights || isApproved || !canSave" />
+                <v-text-field
+                  v-model.number="item.jumlah"
+                  type="number"
+                  variant="underlined"
+                  class="text-end"
+                  :readonly="hasApprovalRights || isApproved || !canSave"
+                />
               </template>
               <template v-slot:[`item.image`]="{ item }">
-                <v-img v-if="item.imageUrl" :src="getFullImageUrl(item.imageUrl)" height="50" width="50"
-                  aspect-ratio="1" class="mt-1" @click="openImage(item.imageUrl)"
-                  style="cursor: pointer; border: 1px solid #ddd;" title="Klik untuk melihat gambar" />
+                <v-img
+                  v-if="item.imageUrl"
+                  :src="getFullImageUrl(item.imageUrl)"
+                  height="50"
+                  width="50"
+                  aspect-ratio="1"
+                  class="mt-1"
+                  @click="openImage(item.imageUrl)"
+                  style="cursor: pointer; border: 1px solid #ddd"
+                  title="Klik untuk melihat gambar"
+                />
 
-                <v-btn v-else size="small" variant="outlined" prepend-icon="mdi-camera" @click="triggerFileUpload(item)"
-                  :loading="isUploading[item.id]" :disabled="!item.kode || isUploading[item.id]"
-                  title="Upload gambar (Simpan draft dulu)">
+                <v-btn
+                  v-else
+                  size="small"
+                  variant="outlined"
+                  prepend-icon="mdi-camera"
+                  @click="triggerFileUpload(item)"
+                  :loading="isUploading[item.id]"
+                  :disabled="!item.kode || isUploading[item.id]"
+                  title="Upload gambar (Simpan draft dulu)"
+                >
                   Upload
                 </v-btn>
               </template>
               <template v-slot:[`item.harga`]="{ item }">
-                <v-text-field v-model.number="item.harga" type="number" variant="underlined" class="text-end"
-                  :readonly="hasApprovalRights || isApproved || !canSave" />
+                <v-text-field
+                  v-model.number="item.harga"
+                  type="number"
+                  variant="underlined"
+                  class="text-end"
+                  :readonly="hasApprovalRights || isApproved || !canSave"
+                />
               </template>
               <template v-slot:[`item.hargaDtf`]="{ item }">
-                <v-text-field :model-value="formatRupiah(item.hargaDtf)" variant="underlined" class="text-end" readonly
-                  filled />
+                <v-text-field
+                  :model-value="formatRupiah(item.hargaDtf)"
+                  variant="underlined"
+                  class="text-end"
+                  readonly
+                  filled
+                />
               </template>
               <template v-slot:[`item.jenis`]="{ item }">
-                <v-select v-model="item.jenis" :items="jenisRejectOptions" variant="underlined" density="compact"
-                  hide-details :readonly="hasApprovalRights || isApproved || !canSave" />
+                <v-select
+                  v-model="item.jenis"
+                  :items="jenisRejectOptions"
+                  variant="underlined"
+                  density="compact"
+                  hide-details
+                  :readonly="hasApprovalRights || isApproved || !canSave"
+                />
               </template>
               <template v-slot:[`item.ket`]="{ item }">
-                <v-text-field v-model="item.ket" variant="underlined"
-                  :readonly="hasApprovalRights || isApproved || !canSave" />
+                <v-text-field
+                  v-model="item.ket"
+                  variant="underlined"
+                  :readonly="hasApprovalRights || isApproved || !canSave"
+                />
               </template>
               <template v-slot:[`item.diskon`]="{ item }">
-                <v-text-field v-model.number="item.diskon" type="number" variant="underlined" class="text-end"
-                  @update:model-value="handleDiskonChange(item)" :readonly="!canApprove" />
+                <v-text-field
+                  v-model.number="item.diskon"
+                  type="number"
+                  variant="underlined"
+                  class="text-end"
+                  @update:model-value="handleDiskonChange(item)"
+                  :readonly="!canApprove"
+                />
               </template>
               <template v-slot:[`item.hargabaru`]="{ item }">
-                <v-text-field v-model.number="item.hargabaru" type="number" variant="underlined" class="text-end"
-                  @update:model-value="handleHargaBaruChange(item)" :readonly="!canApprove" />
+                <v-text-field
+                  v-model.number="item.hargabaru"
+                  type="number"
+                  variant="underlined"
+                  class="text-end"
+                  @update:model-value="handleHargaBaruChange(item)"
+                  :readonly="!canApprove"
+                />
               </template>
               <template v-slot:[`item.actions`]="{ item }">
-                <v-btn v-if="item.kode" icon="mdi-delete" size="x-small" variant="text" color="error"
-                  @click="removeRow(item.id)" />
+                <v-btn
+                  v-if="item.kode"
+                  icon="mdi-delete"
+                  size="x-small"
+                  variant="text"
+                  color="error"
+                  @click="removeRow(item.id)"
+                />
               </template>
               <template #bottom>
                 <div class="pa-2 text-right">
-                  <v-btn size="small" @click="addNewStickerRow" prepend-icon="mdi-plus"
-                    :disabled="selectedKaosItem.length === 0">
+                  <v-btn
+                    size="small"
+                    @click="addNewStickerRow"
+                    prepend-icon="mdi-plus"
+                    :disabled="selectedKaosItem.length === 0"
+                  >
                     Tambah Stiker
                   </v-btn>
                 </div>
@@ -763,42 +907,89 @@ onMounted(async () => {
           </div>
         </div>
 
-        <div class="desktop-form-section d-flex flex-column" style="min-height: 200px;">
+        <div class="desktop-form-section d-flex flex-column" style="min-height: 200px">
           <div class="text-subtitle-1 font-weight-bold mb-2">Detail Stiker Tambahan</div>
           <div class="table-wrapper-scroll">
-            <v-data-table :headers="stickersHeaders" :items="stickers" class="desktop-table flex-grow-1" fixed-header
-              :items-per-page="-1">
+            <v-data-table
+              :headers="stickersHeaders"
+              :items="stickers"
+              class="desktop-table flex-grow-1"
+              fixed-header
+              :items-per-page="-1"
+            >
               <template v-slot:[`item.kodes`]="{ item, index }">
-                <v-text-field v-model="item.kodes" variant="underlined" density="compact" hide-details
-                  placeholder="F1..." @keydown.f1.prevent="openStickerSearch(index)" :readonly="hasApprovalRights" />
+                <v-text-field
+                  v-model="item.kodes"
+                  variant="underlined"
+                  density="compact"
+                  hide-details
+                  placeholder="F1..."
+                  @keydown.f1.prevent="openStickerSearch(index)"
+                  :readonly="hasApprovalRights"
+                />
               </template>
               <template v-slot:[`item.jumlah`]="{ item }">
-                <v-text-field v-model.number="item.jumlah" type="number" variant="underlined" density="compact"
-                  hide-details class="text-end" :readonly="hasApprovalRights" />
+                <v-text-field
+                  v-model.number="item.jumlah"
+                  type="number"
+                  variant="underlined"
+                  density="compact"
+                  hide-details
+                  class="text-end"
+                  :readonly="hasApprovalRights"
+                />
               </template>
               <template v-slot:[`item.harga`]="{ item }">
                 <div class="text-end">{{ formatRupiah(item.harga) }}</div>
               </template>
               <template v-slot:[`item.actions`]="{ item }">
-                <v-btn v-if="item.kodes" icon="mdi-delete" size="x-small" variant="text" color="error"
-                  @click="removeStickerRow(item.id)" />
+                <v-btn
+                  v-if="item.kodes"
+                  icon="mdi-delete"
+                  size="x-small"
+                  variant="text"
+                  color="error"
+                  @click="removeStickerRow(item.id)"
+                />
               </template>
               <template #bottom>
-                <div class="pa-2 text-right"><v-btn size="small" @click="addNewStickerRow()" prepend-icon="mdi-plus"
-                    :disabled="selectedKaosItem.length === 0 || isApproved || !canSave">Tambah Stiker</v-btn></div>
+                <div class="pa-2 text-right">
+                  <v-btn
+                    size="small"
+                    @click="addNewStickerRow()"
+                    prepend-icon="mdi-plus"
+                    :disabled="selectedKaosItem.length === 0 || isApproved || !canSave"
+                    >Tambah Stiker</v-btn
+                  >
+                </div>
               </template>
             </v-data-table>
           </div>
         </div>
-
       </div>
-    </div> <input type="file" ref="fileInputRef" @change="onFileSelect" style="display: none;" accept="image/*" />
+    </div>
+    <input
+      type="file"
+      ref="fileInputRef"
+      @change="onFileSelect"
+      style="display: none"
+      accept="image/*"
+    />
 
-    <MintaBarangSearchModal v-if="dialogs.productSearch" source="pengajuan-barcode"
-      :gudang="authStore.user?.cabang || ''" :multi="isMultiSelectProduct" @close="dialogs.productSearch = false"
-      @products-selected="onProductsSelected" />
-    <StickerSearchModal v-if="dialogs.stickerSearch" :gudang="authStore.user?.cabang || ''"
-      @close="dialogs.stickerSearch = false" @selected="onStickersSelected" />
+    <MintaBarangSearchModal
+      v-if="dialogs.productSearch"
+      source="pengajuan-barcode"
+      :gudang="authStore.user?.cabang || ''"
+      :multi="isMultiSelectProduct"
+      @close="dialogs.productSearch = false"
+      @products-selected="onProductsSelected"
+    />
+    <StickerSearchModal
+      v-if="dialogs.stickerSearch"
+      :gudang="authStore.user?.cabang || ''"
+      @close="dialogs.stickerSearch = false"
+      @selected="onStickersSelected"
+    />
 
     <v-dialog v-model="dialogConfirm.show" max-width="400px" persistent>
       <v-card>
@@ -807,8 +998,15 @@ onMounted(async () => {
         <v-card-actions>
           <v-spacer />
           <v-btn text @click="dialogConfirm.show = false">Batal</v-btn>
-          <v-btn color="primary" variant="tonal"
-            @click="dialogConfirm.onConfirm(); dialogConfirm.show = false;">Ya</v-btn>
+          <v-btn
+            color="primary"
+            variant="tonal"
+            @click="
+              dialogConfirm.onConfirm();
+              dialogConfirm.show = false;
+            "
+            >Ya</v-btn
+          >
         </v-card-actions>
       </v-card>
     </v-dialog>
@@ -831,13 +1029,18 @@ onMounted(async () => {
         </v-card-title>
         <v-card-text class="pt-4">
           Data Pengajuan Barcode <strong>{{ dialogPrintSuccess.nomor }}</strong> berhasil disimpan.
-          <br><br>
+          <br /><br />
           Apakah Anda ingin mencetak Formulir (A4)?
         </v-card-text>
         <v-card-actions>
           <v-spacer></v-spacer>
           <v-btn text @click="dialogPrintSuccess.onCancel">Tidak, Kembali</v-btn>
-          <v-btn color="primary" variant="tonal" @click="dialogPrintSuccess.onConfirm" prepend-icon="mdi-printer">
+          <v-btn
+            color="primary"
+            variant="tonal"
+            @click="dialogPrintSuccess.onConfirm"
+            prepend-icon="mdi-printer"
+          >
             Ya, Cetak
           </v-btn>
         </v-card-actions>
@@ -900,7 +1103,7 @@ onMounted(async () => {
 }
 
 .desktop-table :deep(thead tr th) {
-  background-color: #0D47A1 !important;
+  background-color: #0d47a1 !important;
   /* Biru Tua */
   color: #ffffff !important;
   /* Teks Putih */

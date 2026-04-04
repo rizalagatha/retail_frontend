@@ -1,10 +1,10 @@
 <script setup lang="ts">
-import { ref, onMounted, watch, computed } from 'vue';
-import { useRoute } from 'vue-router';
-import api from '@/services/api';
-import { format, parseISO } from 'date-fns';
-import Logo from '@/assets/logo.png';
-import LogoRezso from '@/assets/rezso.jpg';
+import { ref, onMounted, watch, computed } from "vue";
+import { useRoute } from "vue-router";
+import api from "@/services/api";
+import { format, parseISO } from "date-fns";
+import Logo from "@/assets/logo.png";
+import LogoRezso from "@/assets/rezso.jpg";
 import QRCode from "qrcode";
 
 interface PrintHeader {
@@ -39,7 +39,7 @@ const qrCodeData = ref<string | null>(null);
 const isLoading = ref(true);
 
 const dynamicLogo = computed(() => {
-  if (printData.value?.header?.nomor?.startsWith('K04')) {
+  if (printData.value?.header?.nomor?.startsWith("K04")) {
     return LogoRezso;
   }
   return Logo;
@@ -47,15 +47,21 @@ const dynamicLogo = computed(() => {
 
 const fetchPrintData = async (nomor: string) => {
   isLoading.value = true;
-  try {
-    const response = await api.get(`/peminjaman-barang-form/print/${nomor}`);
-    printData.value = response.data;
-    document.title = "PINJAM_" + response.data.header.nomor;
 
-    qrCodeData.value = await QRCode.toDataURL(printData.value.header.nomor, {
-      width: 150,
-      margin: 1,
-    });
+  try {
+    const response = await api.get<PrintData>(`/peminjaman-barang-form/print/${nomor}`);
+    const data = response.data;
+
+    printData.value = data;
+
+    if (data.header?.nomor) {
+      document.title = "PINJAM_" + data.header.nomor;
+
+      qrCodeData.value = await QRCode.toDataURL(data.header.nomor, {
+        width: 150,
+        margin: 1,
+      });
+    }
   } catch {
     alert("Gagal memuat data cetak.");
   } finally {
@@ -96,11 +102,19 @@ onMounted(() => {
       <div class="info-grid">
         <div><span class="label">Nomor</span>: {{ printData.header.nomor }}</div>
         <div><span class="label">Peminjam (PIC)</span>: {{ printData.header.pic }}</div>
-        <div><span class="label">Tgl. Pinjam</span>: {{ format(parseISO(printData.header.tanggal), 'dd-MM-yyyy') }}
+        <div>
+          <span class="label">Tgl. Pinjam</span>:
+          {{ format(parseISO(printData.header.tanggal), "dd-MM-yyyy") }}
         </div>
-        <div><span class="label">Deadline</span>: <strong style="text-decoration: underline;">{{
-          format(parseISO(printData.header.deadline), 'dd-MM-yyyy') }}</strong></div>
-        <div class="keterangan"><span class="label">Peruntukan</span>: {{ printData.header.keterangan }}</div>
+        <div>
+          <span class="label">Deadline</span>:
+          <strong style="text-decoration: underline">{{
+            format(parseISO(printData.header.deadline), "dd-MM-yyyy")
+          }}</strong>
+        </div>
+        <div class="keterangan">
+          <span class="label">Peruntukan</span>: {{ printData.header.keterangan }}
+        </div>
       </div>
 
       <table class="items-table">
@@ -125,7 +139,7 @@ onMounted(() => {
       </table>
 
       <div class="footer">
-        <div class="created-info">Dicetak: {{ format(new Date(), 'dd/MM/yyyy HH:mm:ss') }}</div>
+        <div class="created-info">Dicetak: {{ format(new Date(), "dd/MM/yyyy HH:mm:ss") }}</div>
 
         <div class="signature-section">
           <div class="sig-title">I. PENGAMBILAN BARANG</div>
@@ -143,12 +157,12 @@ onMounted(() => {
             <div>
               Mengetahui,
               <div class="sig-space"></div>
-              ( {{ printData.header.approver || '....................' }} )
+              ( {{ printData.header.approver || "...................." }} )
             </div>
           </div>
         </div>
 
-        <div class="signature-section" style="margin-top: 40px;">
+        <div class="signature-section" style="margin-top: 40px">
           <div class="sig-title">II. PENGEMBALIAN BARANG (Maks. 14 Hari)</div>
           <div class="signatures">
             <div>
@@ -177,7 +191,7 @@ onMounted(() => {
 .print-container {
   background: #eee;
   padding: 20px;
-  font-family: 'Arial', sans-serif;
+  font-family: "Arial", sans-serif;
   font-size: 9pt;
 }
 

@@ -1,15 +1,15 @@
 <script setup lang="ts">
-import { ref, reactive, onMounted, computed, nextTick, watch } from 'vue';
-import { useRoute, useRouter } from 'vue-router';
-import { useToast } from 'vue-toastification';
-import { useAuthStore } from '@/stores/authStore';
-import { useUiStore } from '@/stores/uiStore';
-import { useUnsavedChanges } from '@/composables/useUnsavedChanges';
-import api from '@/services/api';
-import { format } from 'date-fns';
-import PageLayout from '@/components/PageLayout.vue';
-import MutasiOutSearchModal from '@/components/lookup/MutasiOutSearchModal.vue';
-import axios from 'axios';
+import { ref, reactive, onMounted, computed, nextTick, watch } from "vue";
+import { useRoute, useRouter } from "vue-router";
+import { useToast } from "vue-toastification";
+import { useAuthStore } from "@/stores/authStore";
+import { useUiStore } from "@/stores/uiStore";
+import { useUnsavedChanges } from "@/composables/useUnsavedChanges";
+import api from "@/services/api";
+import { format } from "date-fns";
+import PageLayout from "@/components/PageLayout.vue";
+import MutasiOutSearchModal from "@/components/lookup/MutasiOutSearchModal.vue";
+import axios from "axios";
 
 interface MutasiInItem {
   kode: string;
@@ -29,7 +29,7 @@ const toast = useToast();
 const authStore = useAuthStore();
 const uiStore = useUiStore();
 const { markAsSaved } = useUnsavedChanges();
-const MENU_ID = '44';
+const MENU_ID = "44";
 
 // --- Tipe Data ---
 interface Item {
@@ -46,18 +46,18 @@ interface Item {
 
 // --- State ---
 const isEditMode = computed(() => !!route.params.nomor);
-const pageTitle = computed(() => isEditMode.value ? 'Ubah Mutasi In' : 'Buat Mutasi In');
-const canView = computed(() => authStore.can(MENU_ID, 'view'));
-const canInsert = computed(() => authStore.can(MENU_ID, 'insert'));
-const canEdit = computed(() => authStore.can(MENU_ID, 'edit'));
+const pageTitle = computed(() => (isEditMode.value ? "Ubah Mutasi In" : "Buat Mutasi In"));
+const canView = computed(() => authStore.can(MENU_ID, "view"));
+const canInsert = computed(() => authStore.can(MENU_ID, "insert"));
+const canEdit = computed(() => authStore.can(MENU_ID, "edit"));
 
 const initialHeaderState = {
-  nomor: '',
-  tanggal: format(new Date(), 'yyyy-MM-dd'),
-  nomorMutasiOut: '',
-  nomorSo: '',
-  dariCabang: { kode: '', nama: '' },
-  keterangan: '',
+  nomor: "",
+  tanggal: format(new Date(), "yyyy-MM-dd"),
+  nomorMutasiOut: "",
+  nomorSo: "",
+  dariCabang: { kode: "", nama: "" },
+  keterangan: "",
 };
 const header = reactive({ ...initialHeaderState });
 
@@ -72,18 +72,18 @@ const dialog = reactive({
 });
 
 const confirmAction = ref<(() => void) | null>(null);
-const confirmText = ref('');
+const confirmText = ref("");
 
 // --- Konfigurasi Tabel ---
 const tableHeaders = [
-  { title: 'Kode Barang', key: 'kode', width: '200px' },
-  { title: 'Nama Barang', key: 'nama', width: '600px' },
-  { title: 'Ukuran', key: 'ukuran', width: '40px' },
-  { title: 'Qty Out', key: 'qtyMo', align: 'center', width: '40px' },
-  { title: 'Sudah', key: 'sudah', align: 'center', width: '40px' },
-  { title: 'Belum', key: 'belum', align: 'center', width: '40px' },
-  { title: 'Qty In', key: 'qtyIn', align: 'center', width: '40px' },
-  { title: 'Barcode', key: 'barcode', width: '90px' },
+  { title: "Kode Barang", key: "kode", width: "200px" },
+  { title: "Nama Barang", key: "nama", width: "600px" },
+  { title: "Ukuran", key: "ukuran", width: "40px" },
+  { title: "Qty Out", key: "qtyMo", align: "center", width: "40px" },
+  { title: "Sudah", key: "sudah", align: "center", width: "40px" },
+  { title: "Belum", key: "belum", align: "center", width: "40px" },
+  { title: "Qty In", key: "qtyIn", align: "center", width: "40px" },
+  { title: "Barcode", key: "barcode", width: "90px" },
 ] as const;
 
 // --- Methods ---
@@ -91,8 +91,15 @@ const addNewRow = () => {
   const lastItem = items.value[items.value.length - 1];
   if (!lastItem || lastItem.kode) {
     items.value.push({
-      id: Date.now(), kode: '', nama: '', ukuran: '',
-      qtyMo: 0, sudah: 0, belum: 0, qtyIn: 0, barcode: ''
+      id: Date.now(),
+      kode: "",
+      nama: "",
+      ukuran: "",
+      qtyMo: 0,
+      sudah: 0,
+      belum: 0,
+      qtyIn: 0,
+      barcode: "",
     });
   }
 };
@@ -104,29 +111,29 @@ const loadDataForEdit = async (nomor: string) => {
     const { header: miHeader, items: miItems } = response.data;
 
     Object.assign(header, miHeader);
-    header.tanggal = format(new Date(miHeader.tanggal), 'yyyy-MM-dd');
+    header.tanggal = format(new Date(miHeader.tanggal), "yyyy-MM-dd");
 
-    items.value = miItems.map((item: MutasiInItem) => ({ // 'item' sekarang dari query join
+    items.value = miItems.map((item: MutasiInItem) => ({
+      // 'item' sekarang dari query join
       id: Date.now() + Math.random(),
       kode: item.kode,
       nama: item.nama,
       ukuran: item.ukuran,
-      qtyMo: item.qtyMo || 0,   // Qty Out dari MO
+      qtyMo: item.qtyMo || 0, // Qty Out dari MO
       sudah: item.sudah || 0, // Sudah diterima di MI lain
       belum: (item.qtyMo || 0) - (item.sudah || 0), // Sisa yg BISA diterima
-      qtyIn: item.qtyIn || 0,   // Qty In yg TERSIMPAN di MI ini
-      barcode: item.barcode || '',
+      qtyIn: item.qtyIn || 0, // Qty In yg TERSIMPAN di MI ini
+      barcode: item.barcode || "",
     }));
     addNewRow();
 
     await nextTick();
     markAsSaved();
-
   } catch (error: unknown) {
     if (axios.isAxiosError(error) && error.response) {
-      toast.error(error.response.data?.message || 'Gagal memuat data.');
+      toast.error(error.response.data?.message || "Gagal memuat data.");
     } else {
-      toast.error('Gagal memuat data.');
+      toast.error("Gagal memuat data.");
     }
     router.back();
   } finally {
@@ -152,7 +159,7 @@ const resetForm = (showToast = true) => {
   addNewRow();
   isDataSaved.value = false;
   markAsSaved();
-  if (showToast) toast.info('Form telah dibersihkan.');
+  if (showToast) toast.info("Form telah dibersihkan.");
 };
 
 const showConfirmation = (title: string, text: string, onConfirm: () => void) => {
@@ -163,25 +170,24 @@ const showConfirmation = (title: string, text: string, onConfirm: () => void) =>
 
 const executeSave = async () => {
   isSaving.value = true;
-  const validItems = items.value.filter(item => item.kode && (item.qtyIn || 0) > 0);
+  const validItems = items.value.filter((item) => item.kode && (item.qtyIn || 0) > 0);
   const payload = { header, items: validItems, isNew: !isEditMode.value };
 
   try {
-    const response = await api.post('/mutasi-in-form/save', payload);
+    const response = await api.post("/mutasi-in-form/save", payload);
     toast.success(response.data.message);
 
     markAsSaved();
 
     const nomorMI = response.data.nomor;
-    const url = router.resolve({ name: 'Cetak Mutasi In', params: { nomor: nomorMI } }).href;
-    window.open(url, '_blank');
-    router.push({ name: 'MutasiIn' });
-
+    const url = router.resolve({ name: "Cetak Mutasi In", params: { nomor: nomorMI } }).href;
+    window.open(url, "_blank");
+    router.push({ name: "MutasiIn" });
   } catch (error: unknown) {
     if (axios.isAxiosError(error) && error.response) {
-      toast.error(error.response.data?.message || 'Gagal menyimpan data.');
+      toast.error(error.response.data?.message || "Gagal menyimpan data.");
     } else {
-      toast.error('Gagal menyimpan data.');
+      toast.error("Gagal menyimpan data.");
     }
   } finally {
     isSaving.value = false;
@@ -189,35 +195,43 @@ const executeSave = async () => {
 };
 
 const handleSave = () => {
-  if (!authStore.can(MENU_ID, isEditMode.value ? 'edit' : 'insert')) {
-    toast.error('Anda tidak memiliki izin untuk menyimpan data ini.');
+  if (!authStore.can(MENU_ID, isEditMode.value ? "edit" : "insert")) {
+    toast.error("Anda tidak memiliki izin untuk menyimpan data ini.");
     return;
   }
   if (!header.nomorMutasiOut) {
-    toast.error('Nomor Mutasi Out harus diisi.');
+    toast.error("Nomor Mutasi Out harus diisi.");
     return;
   }
 
-  const validItems = items.value.filter(i => i.kode && (i.qtyIn || 0) > 0);
-  if (validItems.length === 0) return toast.error('Detail barang atau Qty In harus diisi.');
+  const validItems = items.value.filter((i) => i.kode && (i.qtyIn || 0) > 0);
+  if (validItems.length === 0) return toast.error("Detail barang atau Qty In harus diisi.");
 
   for (const item of validItems) {
     // Validasi Delphi: if (jumlah > belum)
     // Pastikan 'belum' tidak null/undefined
     const belum = item.belum ?? 0;
     if ((item.qtyIn || 0) > belum) {
-      return toast.error(`Qty In untuk ${item.nama} (${item.ukuran}) [${item.qtyIn}] melebihi sisa (Belum: ${belum}).`);
+      return toast.error(
+        `Qty In untuk ${item.nama} (${item.ukuran}) [${item.qtyIn}] melebihi sisa (Belum: ${belum}).`
+      );
     }
   }
-  showConfirmation('Konfirmasi Simpan', 'Anda yakin ingin menyimpan data Mutasi In ini?', executeSave);
+  showConfirmation(
+    "Konfirmasi Simpan",
+    "Anda yakin ingin menyimpan data Mutasi In ini?",
+    executeSave
+  );
 };
 
 const handleClose = () => {
-  showConfirmation('Konfirmasi Tutup', 'Tutup form dan kembali ke halaman browse?', () => router.push({ name: 'MutasiIn' }));
+  showConfirmation("Konfirmasi Tutup", "Tutup form dan kembali ke halaman browse?", () =>
+    router.push({ name: "MutasiIn" })
+  );
 };
 
 const getQtyInClass = (item: Item) => {
-  return (item.qtyIn || 0) > item.belum ? 'qty-error' : '';
+  return (item.qtyIn || 0) > item.belum ? "qty-error" : "";
 };
 
 const openMutasiOutSearch = () => {
@@ -239,8 +253,9 @@ const loadItemsFromMutasiOut = async (nomorMutasiOut: string) => {
     header.nomorSo = moHeader.nomorSo;
     header.dariCabang = { kode: moHeader.dariCabangKode, nama: moHeader.dariCabangNama };
 
-    items.value = moItems.map(item => {
-      const belum = item.belum ?? ((item.qtyMo || 0) - (item.sudah || 0));
+    items.value = moItems.map((item: MutasiInItem) => {
+      const belum = item.belum ?? (item.qtyMo || 0) - (item.sudah || 0);
+
       return {
         ...item,
         id: Date.now() + Math.random(),
@@ -249,14 +264,13 @@ const loadItemsFromMutasiOut = async (nomorMutasiOut: string) => {
       };
     });
     addNewRow();
-
   } catch (error: unknown) {
     if (axios.isAxiosError(error) && error.response) {
-      toast.error(error.response.data?.message || 'Gagal memuat data dari Mutasi Out.');
+      toast.error(error.response.data?.message || "Gagal memuat data dari Mutasi Out.");
     } else {
-      toast.error('Gagal memuat data dari Mutasi Out.');
+      toast.error("Gagal memuat data dari Mutasi Out.");
     }
-    header.nomorMutasiOut = '';
+    header.nomorMutasiOut = "";
   } finally {
     isLoading.value = false;
   }
@@ -266,8 +280,8 @@ const loadItemsFromMutasiOut = async (nomorMutasiOut: string) => {
 const handleCancel = () => {
   // Panggil dialog konfirmasi, jika dikonfirmasi, jalankan resetForm
   showConfirmation(
-    'Konfirmasi Batal',
-    'Data yang belum disimpan akan hilang. Lanjutkan membersihkan form?',
+    "Konfirmasi Batal",
+    "Data yang belum disimpan akan hilang. Lanjutkan membersihkan form?",
     resetForm
   );
 };
@@ -281,10 +295,10 @@ watch(
 
     // Cek apakah form "kotor"
     // 1. Header: Nomor Mutasi Out dipilih atau Keterangan diisi
-    const hasHeader = (header.nomorMutasiOut !== '') || (header.keterangan.trim() !== '');
+    const hasHeader = header.nomorMutasiOut !== "" || header.keterangan.trim() !== "";
 
     // 2. Items: Ada minimal 1 baris yang valid (kode terisi)
-    const hasItems = items.value.some(i => i.kode !== '');
+    const hasItems = items.value.some((i) => i.kode !== "");
 
     if (hasHeader || hasItems) {
       uiStore.setUnsavedChanges(true);
@@ -302,7 +316,7 @@ onMounted(() => {
   if (isEditMode.value && nomor) {
     loadDataForEdit(nomor);
   } else {
-    resetForm(false);   // <-- tidak tampilkan toast
+    resetForm(false); // <-- tidak tampilkan toast
     isLoading.value = false;
   }
 });
@@ -311,8 +325,15 @@ onMounted(() => {
 <template>
   <PageLayout :title="pageTitle" icon="mdi-truck-plus-outline">
     <template #header-actions>
-      <v-btn v-if="canInsert" size="small" color="primary" @click="handleSave" :loading="isSaving"
-        prepend-icon="mdi-content-save">Simpan</v-btn>
+      <v-btn
+        v-if="canInsert"
+        size="small"
+        color="primary"
+        @click="handleSave"
+        :loading="isSaving"
+        prepend-icon="mdi-content-save"
+        >Simpan</v-btn
+      >
 
       <v-btn v-if="canEdit" size="small" @click="handleCancel" prepend-icon="mdi-refresh">
         Batal
@@ -332,29 +353,67 @@ onMounted(() => {
         <div class="desktop-form-section header-section">
           <v-row dense>
             <v-col cols="12">
-              <v-text-field label="Nomor" v-model="header.nomor" readonly filled density="compact" hide-details>
-                <template #append-inner><span v-if="!header.nomor"
-                    class="text-caption">&lt;Otomatis&gt;</span></template>
+              <v-text-field
+                label="Nomor"
+                v-model="header.nomor"
+                readonly
+                filled
+                density="compact"
+                hide-details
+              >
+                <template #append-inner
+                  ><span v-if="!header.nomor" class="text-caption">&lt;Otomatis&gt;</span></template
+                >
               </v-text-field>
             </v-col>
             <v-col cols="12">
-              <v-text-field label="Tanggal" v-model="header.tanggal" type="date" variant="outlined" density="compact"
-                hide-details />
+              <v-text-field
+                label="Tanggal"
+                v-model="header.tanggal"
+                type="date"
+                variant="outlined"
+                density="compact"
+                hide-details
+              />
             </v-col>
-            <v-text-field label="No. Mutasi Out" v-model="header.nomorMutasiOut" @click="openMutasiOutSearch"
-              prepend-inner-icon="mdi-magnify" density="compact" hide-details :readonly="isEditMode" />
+            <v-text-field
+              label="No. Mutasi Out"
+              v-model="header.nomorMutasiOut"
+              @click="openMutasiOutSearch"
+              prepend-inner-icon="mdi-magnify"
+              density="compact"
+              hide-details
+              :readonly="isEditMode"
+            />
             <v-col cols="12">
-              <v-text-field label="Dari Cabang"
-                :model-value="`${header.dariCabang.kode || ''} - ${header.dariCabang.nama || ''}`" readonly filled
-                density="compact" hide-details />
+              <v-text-field
+                label="Dari Cabang"
+                :model-value="`${header.dariCabang.kode || ''} - ${header.dariCabang.nama || ''}`"
+                readonly
+                filled
+                density="compact"
+                hide-details
+              />
             </v-col>
             <v-col cols="12">
-              <v-text-field label="No. Pesanan" v-model="header.nomorSo" readonly filled density="compact"
-                hide-details />
+              <v-text-field
+                label="No. Pesanan"
+                v-model="header.nomorSo"
+                readonly
+                filled
+                density="compact"
+                hide-details
+              />
             </v-col>
             <v-col cols="12">
-              <v-textarea label="Keterangan" v-model="header.keterangan" variant="outlined" rows="3" density="compact"
-                hide-details />
+              <v-textarea
+                label="Keterangan"
+                v-model="header.keterangan"
+                variant="outlined"
+                rows="3"
+                density="compact"
+                hide-details
+              />
             </v-col>
           </v-row>
         </div>
@@ -363,12 +422,26 @@ onMounted(() => {
       <!-- Right Column: Details Table -->
       <div class="right-column">
         <div class="desktop-form-section d-flex flex-column fill-height">
-          <v-data-table :headers="tableHeaders" :items="items" :loading="isLoading" density="compact"
-            class="desktop-table fill-height-table" fixed-header :items-per-page="-1">
+          <v-data-table
+            :headers="tableHeaders"
+            :items="items"
+            :loading="isLoading"
+            density="compact"
+            class="desktop-table fill-height-table"
+            fixed-header
+            :items-per-page="-1"
+          >
             <template #[`item.qtyIn`]="{ item }">
-              <v-text-field v-model.number="item.qtyIn" type="number" variant="underlined" density="compact"
-                hide-details class="text-right" :class="getQtyInClass(item)"
-                @update:model-value="validateQtyIn(item)" />
+              <v-text-field
+                v-model.number="item.qtyIn"
+                type="number"
+                variant="underlined"
+                density="compact"
+                hide-details
+                class="text-right"
+                :class="getQtyInClass(item)"
+                @update:model-value="validateQtyIn(item)"
+              />
             </template>
             <template #bottom></template>
           </v-data-table>
@@ -377,8 +450,11 @@ onMounted(() => {
     </div>
 
     <!-- Modals -->
-    <MutasiOutSearchModal v-if="dialog.mutasiOutSearch" @close="dialog.mutasiOutSearch = false"
-      @mutasi-out-selected="onMutasiOutSelected" />
+    <MutasiOutSearchModal
+      v-if="dialog.mutasiOutSearch"
+      @close="dialog.mutasiOutSearch = false"
+      @mutasi-out-selected="onMutasiOutSelected"
+    />
 
     <v-dialog v-model="dialog.confirm" max-width="400px" persistent>
       <v-card>
@@ -387,8 +463,15 @@ onMounted(() => {
         <v-card-actions>
           <v-spacer></v-spacer>
           <v-btn text @click="dialog.confirm = false">Tidak</v-btn>
-          <v-btn color="primary" variant="tonal" @click="confirmAction && confirmAction(); dialog.confirm = false">Ya,
-            Lanjutkan</v-btn>
+          <v-btn
+            color="primary"
+            variant="tonal"
+            @click="
+              confirmAction && confirmAction();
+              dialog.confirm = false;
+            "
+            >Ya, Lanjutkan</v-btn
+          >
         </v-card-actions>
       </v-card>
     </v-dialog>
@@ -412,7 +495,7 @@ onMounted(() => {
 }
 
 .desktop-table :deep(thead tr th) {
-  background-color: #0D47A1 !important;
+  background-color: #0d47a1 !important;
   /* Biru Tua */
   color: #ffffff !important;
   /* Teks Putih */

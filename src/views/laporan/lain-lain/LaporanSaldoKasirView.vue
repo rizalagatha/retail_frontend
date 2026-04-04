@@ -1,46 +1,46 @@
 <script setup lang="ts">
-import { ref, reactive, onMounted, computed, watch } from 'vue';
-import { useToast } from 'vue-toastification';
-import { useAuthStore } from '@/stores/authStore';
-import api from '@/services/api';
-import { format, subDays, parseISO } from 'date-fns';
-import PageLayout from '@/components/PageLayout.vue';
-import * as XLSX from 'xlsx';
-import type { AxiosError } from 'axios';
+import { ref, reactive, onMounted, computed, watch } from "vue";
+import { useToast } from "vue-toastification";
+import { useAuthStore } from "@/stores/authStore";
+import api from "@/services/api";
+import { format, subDays, parseISO } from "date-fns";
+import PageLayout from "@/components/PageLayout.vue";
+import * as XLSX from "xlsx";
+import type { AxiosError } from "axios";
 
 // --- Inisialisasi & State ---
 interface LaporanSaldoKasirItem {
   Jenis: string;
   Tanggal: string;
   Nominal: number | string;
-  'Tanggal Verifikasi': string;
-  'Nominal Verifikasi': number | string;
+  "Tanggal Verifikasi": string;
+  "Nominal Verifikasi": number | string;
   Saldo: number | string;
   Keterangan: string;
 }
 
 const toast = useToast();
 const authStore = useAuthStore();
-const MENU_ID = '601';
+const MENU_ID = "601";
 
 const items = ref<LaporanSaldoKasirItem[]>([]);
 const isLoading = ref(true);
 const gudangOptions = ref<{ kode: string; nama: string }[]>([]);
 
 const filters = reactive({
-  startDate: format(subDays(new Date(), 30), 'yyyy-MM-dd'),
-  endDate: format(new Date(), 'yyyy-MM-dd'),
-  gudangKode: authStore.user?.cabang || '',
+  startDate: format(subDays(new Date(), 30), "yyyy-MM-dd"),
+  endDate: format(new Date(), "yyyy-MM-dd"),
+  gudangKode: authStore.user?.cabang || "",
 });
 
 const headers = [
-  { title: 'Jenis', key: 'Jenis' },
-  { title: 'Tanggal', key: 'Tanggal' },
-  { title: 'Nominal', key: 'Nominal', align: 'end' },
-  { title: 'Tanggal Verifikasi', key: 'Tanggal Verifikasi' },
-  { title: 'Nominal Verifikasi', key: 'Nominal Verifikasi', align: 'end' },
-  { title: 'Saldo', key: 'Saldo', align: 'end' },
-  { title: 'Keterangan', key: 'Keterangan' },
+  { title: "Jenis", key: "Jenis" },
+  { title: "Tanggal", key: "Tanggal" },
+  { title: "Nominal", key: "Nominal", align: "end" },
+  { title: "Tanggal Verifikasi", key: "Tanggal Verifikasi" },
+  { title: "Nominal Verifikasi", key: "Nominal Verifikasi", align: "end" },
+  { title: "Saldo", key: "Saldo", align: "end" },
+  { title: "Keterangan", key: "Keterangan" },
 ];
 
 // --- Kalkulasi Total ---
@@ -48,14 +48,17 @@ const totalSummary = computed(() => {
   if (!items.value || items.value.length === 0) {
     return {
       Nominal: 0,
-      'Nominal Verifikasi': 0,
-      Saldo: 0
+      "Nominal Verifikasi": 0,
+      Saldo: 0,
     };
   }
 
   const totals = {
     Nominal: items.value.reduce((sum, item) => sum + (Number(item.Nominal) || 0), 0),
-    'Nominal Verifikasi': items.value.reduce((sum, item) => sum + (Number(item['Nominal Verifikasi']) || 0), 0),
+    "Nominal Verifikasi": items.value.reduce(
+      (sum, item) => sum + (Number(item["Nominal Verifikasi"]) || 0),
+      0
+    ),
     Saldo: items.value.reduce((sum, item) => sum + (Number(item.Saldo) || 0), 0),
   };
   return totals;
@@ -63,14 +66,14 @@ const totalSummary = computed(() => {
 
 // Format currency helper
 const formatCurrency = (value: number) => {
-  return (value || 0).toLocaleString('id-ID');
+  return (value || 0).toLocaleString("id-ID");
 };
 
 // Format date helper
 const formatDate = (dateStr: string) => {
-  if (!dateStr) return '';
+  if (!dateStr) return "";
   try {
-    return format(parseISO(dateStr), 'dd/MM/yyyy');
+    return format(parseISO(dateStr), "dd/MM/yyyy");
   } catch {
     return dateStr;
   }
@@ -80,14 +83,13 @@ const formatDate = (dateStr: string) => {
 const fetchData = async () => {
   isLoading.value = true;
   try {
-    const response = await api.get('/laporan-saldo-kasir', { params: filters });
+    const response = await api.get("/laporan-saldo-kasir", { params: filters });
     items.value = Array.isArray(response.data) ? response.data : [];
-    console.log('Data loaded:', items.value.length, 'items');
+    console.log("Data loaded:", items.value.length, "items");
   } catch (error) {
     const err = error as AxiosError<{ message?: string }>;
-    console.error('Fetch error:', err);
-    const message =
-      err.response?.data?.message || 'Gagal memuat data.';
+    console.error("Fetch error:", err);
+    const message = err.response?.data?.message || "Gagal memuat data.";
     toast.error(message);
     items.value = [];
   } finally {
@@ -97,22 +99,22 @@ const fetchData = async () => {
 
 const fetchGudangOptions = async () => {
   try {
-    const response = await api.get('/laporan-saldo-kasir/gudang-options');
+    const response = await api.get("/laporan-saldo-kasir/gudang-options");
     gudangOptions.value = Array.isArray(response.data) ? response.data : [];
   } catch (error) {
-    console.error('Fetch gudang options error:', error);
-    toast.error('Gagal memuat filter gudang.');
+    console.error("Fetch gudang options error:", error);
+    toast.error("Gagal memuat filter gudang.");
     gudangOptions.value = [];
   }
 };
 
 const exportData = () => {
-  if (items.value.length === 0) return toast.warning('Tidak ada data untuk diekspor.');
+  if (items.value.length === 0) return toast.warning("Tidak ada data untuk diekspor.");
   const worksheet = XLSX.utils.json_to_sheet(items.value);
   const workbook = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(workbook, worksheet, "Laporan Saldo Kasir");
   XLSX.writeFile(workbook, `Laporan_SaldoKasir_${filters.gudangKode}.xlsx`);
-  toast.success('Data berhasil diekspor.');
+  toast.success("Data berhasil diekspor.");
 };
 
 onMounted(() => {
@@ -122,33 +124,67 @@ onMounted(() => {
 
 // Hapus watch yang lama, ganti dengan debounce
 let timeoutId: ReturnType<typeof setTimeout> | null = null;
-watch(filters, () => {
-  if (timeoutId) clearTimeout(timeoutId);
-  timeoutId = setTimeout(() => {
-    fetchData();
-  }, 500);
-}, { deep: true });
+watch(
+  filters,
+  () => {
+    if (timeoutId) clearTimeout(timeoutId);
+    timeoutId = setTimeout(() => {
+      fetchData();
+    }, 500);
+  },
+  { deep: true }
+);
 </script>
 
 <template>
   <PageLayout title="Laporan Saldo Kasir" :menu-id="MENU_ID">
     <template #header-actions>
-      <v-btn size="small" color="teal" @click="exportData" prepend-icon="mdi-file-excel">Export</v-btn>
+      <v-btn size="small" color="teal" @click="exportData" prepend-icon="mdi-file-excel"
+        >Export</v-btn
+      >
     </template>
 
     <div class="browse-content">
       <div class="filter-section">
         <v-label class="filter-label">Tanggal:</v-label>
-        <v-text-field v-model="filters.startDate" type="date" density="compact" hide-details variant="outlined"
-          style="max-width: 180px;" />
+        <v-text-field
+          v-model="filters.startDate"
+          type="date"
+          density="compact"
+          hide-details
+          variant="outlined"
+          style="max-width: 180px"
+        />
         <v-label class="mx-2">s/d</v-label>
-        <v-text-field v-model="filters.endDate" type="date" density="compact" hide-details variant="outlined"
-          style="max-width: 180px;" />
-        <v-select v-model="filters.gudangKode" :items="gudangOptions" item-title="nama" item-value="kode" label="Store"
-          density="compact" hide-details variant="outlined" class="ms-4" style="max-width: 200px;"
-          :readonly="authStore.user?.cabang !== 'KDC'" />
+        <v-text-field
+          v-model="filters.endDate"
+          type="date"
+          density="compact"
+          hide-details
+          variant="outlined"
+          style="max-width: 180px"
+        />
+        <v-select
+          v-model="filters.gudangKode"
+          :items="gudangOptions"
+          item-title="nama"
+          item-value="kode"
+          label="Store"
+          density="compact"
+          hide-details
+          variant="outlined"
+          class="ms-4"
+          style="max-width: 200px"
+          :readonly="authStore.user?.cabang !== 'KDC'"
+        />
         <v-spacer />
-        <v-btn @click="fetchData" icon="mdi-refresh" variant="text" size="small" :loading="isLoading" />
+        <v-btn
+          @click="fetchData"
+          icon="mdi-refresh"
+          variant="text"
+          size="small"
+          :loading="isLoading"
+        />
       </div>
 
       <div class="table-wrapper">
@@ -156,8 +192,11 @@ watch(filters, () => {
           <table class="custom-table">
             <thead class="sticky-header">
               <tr>
-                <th v-for="header in headers" :key="header.key"
-                  :class="header.align === 'end' ? 'text-end' : 'text-center'">
+                <th
+                  v-for="header in headers"
+                  :key="header.key"
+                  :class="header.align === 'end' ? 'text-end' : 'text-center'"
+                >
                   {{ header.title }}
                 </th>
               </tr>
@@ -176,8 +215,12 @@ watch(filters, () => {
                   <td>{{ item.Jenis }}</td>
                   <td class="text-center">{{ formatDate(item.Tanggal) }}</td>
                   <td class="text-end">{{ formatCurrency(Number(item.Nominal || 0)) }}</td>
-                  <td class="text-center">{{ formatDate(String(item['Tanggal Verifikasi'] || '')) }}</td>
-                  <td class="text-end">{{ formatCurrency(Number(item['Nominal Verifikasi'] || 0)) }}</td>
+                  <td class="text-center">
+                    {{ formatDate(String(item["Tanggal Verifikasi"] || "")) }}
+                  </td>
+                  <td class="text-end">
+                    {{ formatCurrency(Number(item["Nominal Verifikasi"] || 0)) }}
+                  </td>
                   <td class="text-end">{{ formatCurrency(Number(item.Saldo || 0)) }}</td>
                   <td>{{ item.Keterangan }}</td>
                 </tr>
@@ -188,7 +231,7 @@ watch(filters, () => {
                 <td colspan="2" class="text-end">GRAND TOTAL :</td>
                 <td class="text-end">{{ formatCurrency(totalSummary.Nominal) }}</td>
                 <td></td>
-                <td class="text-end">{{ formatCurrency(totalSummary['Nominal Verifikasi']) }}</td>
+                <td class="text-end">{{ formatCurrency(totalSummary["Nominal Verifikasi"]) }}</td>
                 <td class="text-end">{{ formatCurrency(totalSummary.Saldo) }}</td>
                 <td></td>
               </tr>

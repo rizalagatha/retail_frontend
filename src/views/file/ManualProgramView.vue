@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import PageLayout from '@/components/PageLayout.vue';
+import PageLayout from "@/components/PageLayout.vue";
 
 // Path ke file PDF di dalam folder public
-const manualPdfPath = '/manual-program.pdf';
+const manualPdfPath = "/manual-program.pdf";
 </script>
 
 <template>
@@ -13,8 +13,9 @@ const manualPdfPath = '/manual-program.pdf';
         <div class="text-center mb-6">
           <v-icon size="60" color="primary" class="mb-3">mdi-file-pdf-box-outline</v-icon>
           <h2 class="text-h6 font-weight-medium">Dokumentasi Aplikasi</h2>
-          <p class="text-body-2 text-medium-emphasis mt-2 mx-auto" style="max-width: 600px;">
-            Panduan lengkap mengenai cara penggunaan, fitur, dan tips untuk memaksimalkan penggunaan aplikasi Retail Kaosan.
+          <p class="text-body-2 text-medium-emphasis mt-2 mx-auto" style="max-width: 600px">
+            Panduan lengkap mengenai cara penggunaan, fitur, dan tips untuk memaksimalkan penggunaan
+            aplikasi Retail Kaosan.
           </p>
         </div>
 
@@ -29,7 +30,9 @@ const manualPdfPath = '/manual-program.pdf';
                 <v-icon color="success" class="me-3">mdi-check-circle-outline</v-icon>
                 <div>
                   <div class="font-weight-medium">Panduan Lengkap</div>
-                  <div class="text-caption text-medium-emphasis">Penjelasan langkah demi langkah</div>
+                  <div class="text-caption text-medium-emphasis">
+                    Penjelasan langkah demi langkah
+                  </div>
                 </div>
               </div>
             </v-col>
@@ -53,19 +56,21 @@ const manualPdfPath = '/manual-program.pdf';
             </v-col>
           </v-row>
         </div>
-        
-        <v-spacer></v-spacer> <!-- Mendorong tombol ke bawah -->
+
+        <v-spacer></v-spacer>
+        <!-- Mendorong tombol ke bawah -->
 
         <!-- Bagian Tombol Aksi -->
         <div class="text-center mt-4">
-           <v-alert
-              type="info"
-              variant="tonal"
-              density="compact"
-              class="mb-4 text-left text-caption"
-            >
-              Manual akan terbuka di tab browser baru. Pastikan Anda memiliki aplikasi pembaca PDF terinstal.
-            </v-alert>
+          <v-alert
+            type="info"
+            variant="tonal"
+            density="compact"
+            class="mb-4 text-left text-caption"
+          >
+            Manual akan terbuka di tab browser baru. Pastikan Anda memiliki aplikasi pembaca PDF
+            terinstal.
+          </v-alert>
           <v-btn
             :href="manualPdfPath"
             target="_blank"
@@ -116,4 +121,3 @@ const manualPdfPath = '/manual-program.pdf';
   height: 100%;
 }
 </style>
-

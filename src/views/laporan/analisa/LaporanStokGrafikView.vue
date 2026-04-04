@@ -1,14 +1,32 @@
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue';
-import { useRoute } from 'vue-router';
-import api from '@/services/api';
-import PageLayout from '@/components/PageLayout.vue';
-import { Bar, Pie } from 'vue-chartjs';
-import { Chart as ChartJS, Title, Tooltip, Legend, BarElement, CategoryScale, LinearScale, ArcElement } from 'chart.js';
-import ChartDataLabels from 'chartjs-plugin-datalabels';
-import type { ChartOptions } from 'chart.js';
+import { ref, onMounted, computed } from "vue";
+import { useRoute } from "vue-router";
+import api from "@/services/api";
+import PageLayout from "@/components/PageLayout.vue";
+import { Bar, Pie } from "vue-chartjs";
+import {
+  Chart as ChartJS,
+  Title,
+  Tooltip,
+  Legend,
+  BarElement,
+  CategoryScale,
+  LinearScale,
+  ArcElement,
+} from "chart.js";
+import ChartDataLabels from "chartjs-plugin-datalabels";
+import type { ChartOptions } from "chart.js";
 
-ChartJS.register(Title, Tooltip, Legend, BarElement, CategoryScale, LinearScale, ArcElement, ChartDataLabels);
+ChartJS.register(
+  Title,
+  Tooltip,
+  Legend,
+  BarElement,
+  CategoryScale,
+  LinearScale,
+  ArcElement,
+  ChartDataLabels
+);
 
 interface ChartItem {
   NamaGrup: string;
@@ -19,33 +37,33 @@ interface ChartItem {
 const route = useRoute();
 const isLoading = ref(true);
 const chartRawData = ref<ChartItem[]>([]);
-const chartType = ref<'bar' | 'pie'>('bar');
+const chartType = ref<"bar" | "pie">("bar");
 
-const chartOptionsBar = computed<ChartOptions<'bar'>>(() => ({
+const chartOptionsBar = computed<ChartOptions<"bar">>(() => ({
   responsive: true,
   maintainAspectRatio: false,
   plugins: {
     legend: { display: false },
     datalabels: {
-      anchor: 'end',
-      align: 'top',
-      formatter: (value: number) => value.toLocaleString('id-ID'),
-      font: { weight: 'bold' },
+      anchor: "end",
+      align: "top",
+      formatter: (value: number) => value.toLocaleString("id-ID"),
+      font: { weight: "bold" },
     },
   },
   scales: { y: { beginAtZero: true } },
 }));
 
-const chartOptionsPie = computed<ChartOptions<'pie'>>(() => ({
+const chartOptionsPie = computed<ChartOptions<"pie">>(() => ({
   responsive: true,
   maintainAspectRatio: false,
   plugins: {
     legend: { display: true },
     datalabels: {
-      anchor: 'end',
-      align: 'top',
-      formatter: (value: number) => value.toLocaleString('id-ID'),
-      font: { weight: 'bold' },
+      anchor: "end",
+      align: "top",
+      formatter: (value: number) => value.toLocaleString("id-ID"),
+      font: { weight: "bold" },
     },
   },
 }));
@@ -55,27 +73,40 @@ const chartData = computed(() => {
 
   // Ambil 10 teratas
   const topData = chartRawData.value.slice(0, 10);
-  const labels = topData.map(d => `${d.NamaGrup} (${d.Cabang})`);
-  const data = topData.map(d => d.TotalStok);
-  const colors = ['#42A5F5', '#66BB6A', '#FFA726', '#EF5350', '#AB47BC', '#26A69A', '#FF7043', '#8D6E63', '#78909C', '#5C6BC0'];
+  const labels = topData.map((d) => `${d.NamaGrup} (${d.Cabang})`);
+  const data = topData.map((d) => d.TotalStok);
+  const colors = [
+    "#42A5F5",
+    "#66BB6A",
+    "#FFA726",
+    "#EF5350",
+    "#AB47BC",
+    "#26A69A",
+    "#FF7043",
+    "#8D6E63",
+    "#78909C",
+    "#5C6BC0",
+  ];
 
   return {
     labels: labels,
-    datasets: [{
-      label: 'Total Stok',
-      data: data,
-      backgroundColor: colors,
-    }]
+    datasets: [
+      {
+        label: "Total Stok",
+        data: data,
+        backgroundColor: colors,
+      },
+    ],
   };
 });
 
 onMounted(async () => {
   isLoading.value = true;
   try {
-    const response = await api.get('/laporan-stok-pivot/chart-data', { params: route.query });
+    const response = await api.get("/laporan-stok-pivot/chart-data", { params: route.query });
     chartRawData.value = response.data;
   } catch {
-    alert('Gagal memuat data grafik.');
+    alert("Gagal memuat data grafik.");
   } finally {
     isLoading.value = false;
   }

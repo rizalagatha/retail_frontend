@@ -129,8 +129,11 @@ const handleExpand = async (newExpanded: string[]) => {
     try {
       const response = await api.get(`/komplain-form/${nomor}`);
       expandedData.value[nomor] = response.data.details;
-    } catch (error) {
-      toast.error(`Gagal memuat detail barang untuk ${nomor}`, error);
+    } catch (error: unknown) {
+      const err = error as AxiosError<{ message?: string }>;
+
+      toast.error(err.response?.data?.message || `Gagal memuat detail barang untuk ${nomor}`);
+
       expandedData.value[nomor] = [];
     } finally {
       loadingExpand.value[nomor] = false;

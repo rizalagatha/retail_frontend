@@ -13,6 +13,7 @@ import { useUnsavedChanges } from "@/composables/useUnsavedChanges";
 import { useRouter, useRoute } from "vue-router";
 import { format } from "date-fns";
 import { formatRupiah } from "@/utils/formatRupiah";
+import type { AxiosError } from "axios";
 
 const toast = useToast();
 const authStore = useAuthStore();
@@ -69,6 +70,19 @@ interface TshirtTypeResponse {
 interface AdditionalCostResponse {
   pht_jenis: string;
   pht_harga: number;
+}
+
+interface TemplateSize {
+  ukuran?: string;
+  hargaPcs: number;
+}
+
+interface SavedSize {
+  phs_size: string;
+  phs_jumlah: number;
+  phs_harga: number;
+  phs_kode: string;
+  nama_barang?: string;
 }
 
 // --- State ---
@@ -201,7 +215,7 @@ const onTshirtTypeSelected = async (type: { jenisKaos: string }) => {
     if (data && Array.isArray(data.sizes)) {
       sizeItems.value = data.sizes.map((item) => ({
         id: Date.now() + Math.random(),
-        size: item.ukuran,
+        size: item.ukuran ?? "",
         ukuran: item.ukuran,
         qty: null,
         hargaPcs: item.hargaPcs,
@@ -303,19 +317,25 @@ const executeSave = async () => {
           },
         });
         toast.info("Gambar berhasil diunggah.");
-      } catch (uploadError) {
-        console.error("Upload Error:", uploadError);
-        console.error("Upload Error Response:", uploadError.response?.data);
+      } catch (uploadError: unknown) {
+        const err = uploadError as AxiosError;
+
+        console.error("Upload Error:", err);
+        console.error("Upload Error Response:", err.response?.data);
+
         toast.warning("Data berhasil disimpan, tapi gambar gagal diunggah.");
       }
     }
 
     toast.success(response.data.message);
     router.push("/transaksi/penjualan/pengajuan/pengajuan-harga");
-  } catch (error) {
-    console.error("Save Error:", error);
-    console.error("Save Error Response:", error.response?.data);
-    toast.error(error.response?.data?.message || "Gagal menyimpan data pengajuan.");
+  } catch (error: unknown) {
+    const err = error as AxiosError<{ message?: string }>;
+
+    console.error("Save Error:", err);
+    console.error("Save Error Response:", err.response?.data);
+
+    toast.error(err.response?.data?.message || "Gagal menyimpan data pengajuan.");
   } finally {
     isSaving.value = false;
   }
@@ -582,9 +602,9 @@ const loadOfferData = async (nomor: string) => {
       }
 
       // Buat array sizeItems dari template sizes
-      const allSizeItems = templateSizes.map((template) => ({
+      const allSizeItems = templateSizes.map((template: TemplateSize) => ({
         id: Date.now() + Math.random(),
-        size: template.ukuran,
+        size: template.ukuran ?? "",
         qty: 0, // default
         hargaPcs: template.hargaPcs || 0,
         hargaKaos: template.hargaPcs || 0,
@@ -594,8 +614,8 @@ const loadOfferData = async (nomor: string) => {
       }));
 
       // Update dengan data yang sudah tersimpan dari backend
-      (data.sizes || []).forEach((savedItem) => {
-        const itemToUpdate = allSizeItems.find((i) => i.size === savedItem.phs_size);
+      (data.sizes || []).forEach((savedItem: SavedSize) => {
+        const itemToUpdate = allSizeItems.find((i: SizeItem) => i.size === savedItem.phs_size);
         if (itemToUpdate) {
           itemToUpdate.qty = savedItem.phs_jumlah;
           itemToUpdate.hargaPcs = savedItem.phs_harga;
@@ -610,7 +630,7 @@ const loadOfferData = async (nomor: string) => {
       sizeItems.value = allSizeItems;
     } else {
       // fallback kalau jenisKaos kosong
-      sizeItems.value = (data.sizes || []).map((s) => ({
+      sizeItems.value = (data.sizes || []).map((s: SavedSize) => ({
         id: Date.now() + Math.random(),
         size: s.phs_size,
         qty: s.phs_jumlah,
@@ -747,7 +767,7 @@ watch(
           const existing = sizeItems.value.find((i) => i.size === item.ukuran);
           return {
             id: existing?.id || Date.now() + Math.random(),
-            size: item.ukuran,
+            size: item.ukuran ?? "",
             ukuran: item.ukuran,
             qty: existing?.qty || null, // Pertahankan Qty sebelumnya
             hargaPcs: item.hargaPcs,
@@ -1040,7 +1060,7 @@ onMounted(() => {
                       dense
                       hide-details
                       placeholder="F1..."
-                      :class="{ 'bg-red-lighten-5': item.qty > 0 && !item.kodeBarang }"
+                      :class="{ 'bg-red-lighten-5': (item.qty ?? 0) > 0 && !item.kodeBarang }"
                       @keydown.f1.prevent="openProductSearch(sizeItems.indexOf(item))"
                     >
                     </v-text-field>

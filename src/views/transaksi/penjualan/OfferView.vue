@@ -8,6 +8,7 @@ import { useRouter, useRoute, onBeforeRouteLeave } from "vue-router";
 import { format } from "date-fns";
 import * as XLSX from "xlsx";
 import { formatRupiah } from "@/utils/formatRupiah";
+import type { AxiosError } from "axios";
 
 interface DataTableHeader {
   title: string;
@@ -197,10 +198,13 @@ if (saved) {
   } catch {}
 }
 
-const uniqueValues = (key: string) => {
+const uniqueValues = (key: keyof OfferHeader) => {
   const set = new Set(
-    offerList.value.map((r) => r[key]).filter((v) => v !== null && v !== undefined && v !== "")
+    offerList.value
+      .map((r) => r[key])
+      .filter((v): v is string | number => v !== null && v !== undefined && v !== "")
   );
+
   return Array.from(set).sort();
 };
 
@@ -347,7 +351,9 @@ const filteredOffers = computed(() => {
     const f = columnFilters.value[key];
 
     if (f.type === "multi" && f.values) {
-      data = data.filter((r) => f.values!.includes(r[key] as string | number));
+      const k = key as keyof OfferHeader;
+
+      data = data.filter((r) => f.values!.includes(r[k] as string | number));
       continue;
     }
 
@@ -355,7 +361,8 @@ const filteredOffers = computed(() => {
       const cmp = String(f.value).toLowerCase();
 
       data = data.filter((row) => {
-        const v = row[key];
+        const k = key as keyof OfferHeader;
+        const v = row[k];
         if (v == null) return false;
 
         const val = String(v).toLowerCase();
@@ -388,9 +395,10 @@ const filteredOffers = computed(() => {
   if (filterSearchValue.value) {
     const key = selectedFilterField.value;
     const term = filterSearchValue.value.toLowerCase();
+    const k = key as keyof OfferHeader;
 
     data = data.filter((r) =>
-      String(r[key] ?? "")
+      String(r[k] ?? "")
         .toLowerCase()
         .includes(term)
     );
@@ -418,8 +426,10 @@ const fetchBranches = async () => {
     }
 
     branchList.value = data;
-  } catch (error) {
-    toast.error("Gagal memuat daftar cabang.", error);
+  } catch (error: unknown) {
+    const err = error as AxiosError<{ message?: string }>;
+
+    toast.error(err.response?.data?.message || "Gagal memuat daftar cabang.");
   }
 };
 
@@ -436,8 +446,10 @@ const fetchData = async () => {
       },
     });
     offerList.value = response.data;
-  } catch (error) {
-    toast.error("Gagal memuat data penawaran.", error);
+  } catch (error: unknown) {
+    const err = error as AxiosError<{ message?: string }>;
+
+    toast.error(err.response?.data?.message || "Gagal memuat data penawaran.");
   } finally {
     isLoading.value = false;
   }
@@ -506,7 +518,8 @@ const submitCloseOffer = async () => {
     fetchData(); // Muat ulang data untuk melihat status baru
     selected.value = []; // Kosongkan seleksi
   } catch (error) {
-    toast.error("Gagal menutup penawaran.", error);
+    const err = error as AxiosError<{ message?: string }>;
+    toast.error(err.response?.data?.message || "Gagal menutup penawaran.");
   } finally {
     isClosing.value = false;
   }
@@ -618,8 +631,9 @@ const exportDetailData = async () => {
 
     XLSX.writeFile(workbook, "DetailPenawaran.xlsx");
     toast.success("Data detail berhasil diekspor.");
-  } catch (error) {
-    toast.error("Gagal mengekspor data detail.", error);
+  } catch (error: unknown) {
+    const err = error as AxiosError<{ message?: string }>;
+    toast.error(err.response?.data?.message || "Gagal mengekspor data detail.");
     console.error("Export detail error:", error);
   }
 };
@@ -943,7 +957,7 @@ onBeforeRouteLeave((to, from, next) => {
           return-object
           @update:expanded="loadDetails"
           @click:row="handleRowClick"
-          :item-props="(item) => ({ class: getRowTextColor(item) })"
+          :item-props="(item: OfferHeader) => ({ class: getRowTextColor(item) })"
         >
           <template #headers="{ columns, isSorted, getSortIcon, toggleSort }">
             <tr>

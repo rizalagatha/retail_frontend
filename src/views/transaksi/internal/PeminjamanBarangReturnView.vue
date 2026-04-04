@@ -1,21 +1,21 @@
 <script setup lang="ts">
-import { ref, reactive, onMounted, computed, nextTick } from 'vue';
-import { useRoute, useRouter } from 'vue-router';
-import { useToast } from 'vue-toastification';
-import { useAuthStore } from '@/stores/authStore';
-import api from '@/services/api';
-import { format } from 'date-fns';
-import PageLayout from '@/components/PageLayout.vue';
+import { ref, reactive, onMounted, computed, nextTick } from "vue";
+import { useRoute, useRouter } from "vue-router";
+import { useToast } from "vue-toastification";
+import { useAuthStore } from "@/stores/authStore";
+import api from "@/services/api";
+import { format } from "date-fns";
+import PageLayout from "@/components/PageLayout.vue";
 import { AxiosError } from "axios";
 
 // --- Tipe Data ---
 interface ReturnHeader {
-  nomorPK: string;         // Nomor Pengembalian (Auto)
-  ref_nomor: string;       // Nomor Peminjaman Asal
-  tanggal: string;         // Tanggal Pengembalian
-  penerima: string;        // Admin yang menerima
-  pic_peminjam: string;    // Orang yang meminjam (Readonly)
-  keterangan: string;      // Catatan tambahan
+  nomorPK: string; // Nomor Pengembalian (Auto)
+  ref_nomor: string; // Nomor Peminjaman Asal
+  tanggal: string; // Tanggal Pengembalian
+  penerima: string; // Admin yang menerima
+  pic_peminjam: string; // Orang yang meminjam (Readonly)
+  keterangan: string; // Catatan tambahan
   cabang: string;
 }
 
@@ -24,9 +24,9 @@ interface ReturnItem {
   kode: string;
   nama: string;
   ukuran: string;
-  qty_pinjam: number;      // Total yang pernah dipinjam
-  sisa_pinjam: number;     // Sisa yang belum kembali
-  jumlah_kembali: number;  // Input qty yang dikembalikan sekarang
+  qty_pinjam: number; // Total yang pernah dipinjam
+  sisa_pinjam: number; // Sisa yang belum kembali
+  jumlah_kembali: number; // Input qty yang dikembalikan sekarang
   barcode: string;
 }
 
@@ -50,50 +50,52 @@ const route = useRoute();
 const router = useRouter();
 const toast = useToast();
 const authStore = useAuthStore();
-const MENU_ID = '56';
+const MENU_ID = "56";
 
 const loading = ref(true);
 const isSaving = ref(false);
-const scannedBarcode = ref('');
+const scannedBarcode = ref("");
 const barcodeInputRef = ref<HTMLInputElement | null>(null);
 
 const formHeader = ref<ReturnHeader>({
-  nomorPK: 'AUTO',
+  nomorPK: "AUTO",
   ref_nomor: route.params.nomor as string,
-  tanggal: format(new Date(), 'yyyy-MM-dd'),
-  penerima: '',
-  pic_peminjam: '',
-  keterangan: '',
-  cabang: authStore.user?.cabang || '',
+  tanggal: format(new Date(), "yyyy-MM-dd"),
+  penerima: "",
+  pic_peminjam: "",
+  keterangan: "",
+  cabang: authStore.user?.cabang || "",
 });
 const dialogPrint = reactive({
   show: false,
-  nomor: '', // Ini akan diisi dengan nomor PJ (ref_nomor)
+  nomor: "", // Ini akan diisi dengan nomor PJ (ref_nomor)
 });
 
 const items = ref<ReturnItem[]>([]);
 
-const audioSuccess = new Audio('/audio/beep_success.mp3');
-const audioError = new Audio('/audio/beep_error.mp3');
+const audioSuccess = new Audio("/audio/beep_success.mp3");
+const audioError = new Audio("/audio/beep_error.mp3");
 
 // --- Computed ---
-const totalKembali = computed(() => items.value.reduce((sum, item) => sum + (item.jumlah_kembali || 0), 0));
+const totalKembali = computed(() =>
+  items.value.reduce((sum, item) => sum + (item.jumlah_kembali || 0), 0)
+);
 
 const headers = [
-  { title: 'No.', key: 'no', sortable: false, width: '50px' },
-  { title: 'Kode Barang', key: 'kode', sortable: false, width: '180px' },
-  { title: 'Nama Barang', key: 'nama', sortable: false },
-  { title: 'Ukuran', key: 'ukuran', sortable: false, width: '80px', align: 'center' },
-  { title: 'Sisa Pinjam', key: 'sisa_pinjam', sortable: false, align: 'end', width: '100px' },
-  { title: 'Jml Kembali', key: 'jumlah_kembali', sortable: false, align: 'end', width: '110px' },
-  { title: 'Actions', key: 'actions', sortable: false, width: '60px', align: 'center' }
+  { title: "No.", key: "no", sortable: false, width: "50px" },
+  { title: "Kode Barang", key: "kode", sortable: false, width: "180px" },
+  { title: "Nama Barang", key: "nama", sortable: false },
+  { title: "Ukuran", key: "ukuran", sortable: false, width: "80px", align: "center" },
+  { title: "Sisa Pinjam", key: "sisa_pinjam", sortable: false, align: "end", width: "100px" },
+  { title: "Jml Kembali", key: "jumlah_kembali", sortable: false, align: "end", width: "110px" },
+  { title: "Actions", key: "actions", sortable: false, width: "60px", align: "center" },
 ] as const;
 
 const dialogConfirm = reactive({
   show: false,
-  title: '',
-  text: '',
-  onConfirm: () => { },
+  title: "",
+  text: "",
+  onConfirm: () => {},
 });
 
 // --- Methods ---
@@ -114,12 +116,15 @@ const fetchLoanData = async () => {
     items.value = response.data.map((it: ApiReturnItem, index: number) => ({
       ...it,
       id: index,
-      jumlah_kembali: it.sisa_pinjam
+      jumlah_kembali: it.sisa_pinjam,
     }));
 
     formHeader.value.pic_peminjam = response.data[0].pic;
-  } catch (error) {
-    toast.error("Gagal memuat data pinjaman.", error);
+  } catch (err: unknown) {
+    const error = err as AxiosError<{ message?: string }>;
+
+    toast.error(error.response?.data?.message || "Gagal memuat data pinjaman.");
+
     router.back();
   } finally {
     loading.value = false;
@@ -130,23 +135,25 @@ const handleBarcodeScan = () => {
   if (!scannedBarcode.value) return;
 
   // Cari item di grid yang cocok dengan barcode yang di-scan
-  const targetItem = items.value.find(i => i.barcode === scannedBarcode.value || i.kode === scannedBarcode.value);
+  const targetItem = items.value.find(
+    (i) => i.barcode === scannedBarcode.value || i.kode === scannedBarcode.value
+  );
 
   if (targetItem) {
     if (targetItem.jumlah_kembali < targetItem.sisa_pinjam) {
       targetItem.jumlah_kembali += 1;
-      audioSuccess.play().catch(() => { });
+      audioSuccess.play().catch(() => {});
       toast.success(`Scan OK: ${targetItem.nama}`);
     } else {
-      audioError.play().catch(() => { });
+      audioError.play().catch(() => {});
       toast.warning("Jumlah kembali sudah mencapai batas sisa pinjam.");
     }
   } else {
-    audioError.play().catch(() => { });
+    audioError.play().catch(() => {});
     toast.error("Barang tidak ditemukan dalam daftar pinjaman ini.");
   }
 
-  scannedBarcode.value = '';
+  scannedBarcode.value = "";
   nextTick(() => barcodeInputRef.value?.focus());
 };
 
@@ -161,8 +168,9 @@ const showConfirmation = (title: string, text: string, onConfirm: () => void) =>
 const handleSaveRequest = () => {
   if (!formHeader.value.penerima) return toast.error("Nama penerima (Admin) wajib diisi.");
 
-  const validItems = items.value.filter(i => i.jumlah_kembali > 0);
-  if (validItems.length === 0) return toast.error("Masukkan minimal satu barang yang dikembalikan.");
+  const validItems = items.value.filter((i) => i.jumlah_kembali > 0);
+  if (validItems.length === 0)
+    return toast.error("Masukkan minimal satu barang yang dikembalikan.");
 
   for (const item of validItems) {
     if (item.jumlah_kembali > item.sisa_pinjam) {
@@ -172,7 +180,7 @@ const handleSaveRequest = () => {
 
   // Panggil fungsi showConfirmation yang sebelumnya unused
   showConfirmation(
-    'Konfirmasi Simpan',
+    "Konfirmasi Simpan",
     `Apakah Anda yakin data pengembalian sudah benar?\nTotal barang kembali: ${totalKembali.value} Pcs`,
     () => executeSave()
   );
@@ -184,9 +192,9 @@ const executeSave = async () => {
   try {
     const payload = {
       header: formHeader.value,
-      items: items.value.filter(i => i.jumlah_kembali > 0)
+      items: items.value.filter((i) => i.jumlah_kembali > 0),
     };
-    const response = await api.post('/pengembalian-barang-form/save', payload);
+    const response = await api.post("/pengembalian-barang-form/save", payload);
     toast.success(response.data.message || "Pengembalian berhasil disimpan.");
 
     // Tampilkan dialog cetak (menggunakan nomor PJ asli)
@@ -201,9 +209,9 @@ const executeSave = async () => {
 };
 
 const getReturnQtyClass = (item: ReturnItem) => {
-  if (item.jumlah_kembali > item.sisa_pinjam) return 'text-red font-weight-bold';
-  if (item.jumlah_kembali === item.sisa_pinjam) return 'text-green-darken-3 font-weight-bold';
-  return '';
+  if (item.jumlah_kembali > item.sisa_pinjam) return "text-red font-weight-bold";
+  if (item.jumlah_kembali === item.sisa_pinjam) return "text-green-darken-3 font-weight-bold";
+  return "";
 };
 
 onMounted(fetchLoanData);
@@ -212,8 +220,13 @@ onMounted(fetchLoanData);
 <template>
   <PageLayout title="Entry Pengembalian Barang" :menu-id="MENU_ID">
     <template #header-actions>
-      <v-btn size="small" prepend-icon="mdi-content-save" color="primary" :loading="isSaving"
-        @click="handleSaveRequest">
+      <v-btn
+        size="small"
+        prepend-icon="mdi-content-save"
+        color="primary"
+        :loading="isSaving"
+        @click="handleSaveRequest"
+      >
         Simpan Pengembalian
       </v-btn>
       <v-btn size="small" prepend-icon="mdi-close" variant="tonal" @click="router.back()">
@@ -225,34 +238,93 @@ onMounted(fetchLoanData);
     <div v-else class="form-grid-container">
       <div class="left-column">
         <div class="desktop-form-section header-section">
-          <v-text-field label="No. Pengembalian" v-model="formHeader.nomorPK" readonly variant="filled"
-            density="compact" hide-details />
-          <v-text-field label="Ref. Nomor Pinjam" v-model="formHeader.ref_nomor" readonly variant="filled"
-            density="compact" hide-details bg-color="blue-lighten-5" />
-          <v-text-field label="PIC Peminjam" v-model="formHeader.pic_peminjam" readonly variant="filled"
-            density="compact" hide-details />
-          <v-text-field label="Tanggal Kembali" v-model="formHeader.tanggal" type="date" density="compact"
-            variant="outlined" hide-details />
-          <v-text-field label="Penerima (Admin)" v-model="formHeader.penerima" variant="outlined" density="compact"
-            hide-details placeholder="Admin yang menerima barang..." />
-          <v-textarea label="Keterangan / Kondisi Barang" v-model="formHeader.keterangan" variant="outlined"
-            density="compact" hide-details rows="4" placeholder="Catatan kondisi barang saat kembali..." />
-          <v-text-field label="Store / Cabang" :model-value="formHeader.cabang" readonly variant="filled"
-            density="compact" hide-details />
+          <v-text-field
+            label="No. Pengembalian"
+            v-model="formHeader.nomorPK"
+            readonly
+            variant="filled"
+            density="compact"
+            hide-details
+          />
+          <v-text-field
+            label="Ref. Nomor Pinjam"
+            v-model="formHeader.ref_nomor"
+            readonly
+            variant="filled"
+            density="compact"
+            hide-details
+            bg-color="blue-lighten-5"
+          />
+          <v-text-field
+            label="PIC Peminjam"
+            v-model="formHeader.pic_peminjam"
+            readonly
+            variant="filled"
+            density="compact"
+            hide-details
+          />
+          <v-text-field
+            label="Tanggal Kembali"
+            v-model="formHeader.tanggal"
+            type="date"
+            density="compact"
+            variant="outlined"
+            hide-details
+          />
+          <v-text-field
+            label="Penerima (Admin)"
+            v-model="formHeader.penerima"
+            variant="outlined"
+            density="compact"
+            hide-details
+            placeholder="Admin yang menerima barang..."
+          />
+          <v-textarea
+            label="Keterangan / Kondisi Barang"
+            v-model="formHeader.keterangan"
+            variant="outlined"
+            density="compact"
+            hide-details
+            rows="4"
+            placeholder="Catatan kondisi barang saat kembali..."
+          />
+          <v-text-field
+            label="Store / Cabang"
+            :model-value="formHeader.cabang"
+            readonly
+            variant="filled"
+            density="compact"
+            hide-details
+          />
         </div>
       </div>
 
       <div class="right-column">
         <div class="scanner-wrapper">
-          <v-text-field ref="barcodeInputRef" v-model="scannedBarcode"
-            label="Cepat: Scan Barcode Barang yang Kembali..." placeholder="Scan untuk tambah jumlah kembali..."
-            variant="outlined" density="compact" prepend-inner-icon="mdi-barcode-scan" hide-details clearable
-            @keydown.enter.prevent="handleBarcodeScan" autofocus />
+          <v-text-field
+            ref="barcodeInputRef"
+            v-model="scannedBarcode"
+            label="Cepat: Scan Barcode Barang yang Kembali..."
+            placeholder="Scan untuk tambah jumlah kembali..."
+            variant="outlined"
+            density="compact"
+            prepend-inner-icon="mdi-barcode-scan"
+            hide-details
+            clearable
+            @keydown.enter.prevent="handleBarcodeScan"
+            autofocus
+          />
         </div>
 
         <div class="table-container">
-          <v-data-table :headers="headers" :items="items" class="desktop-table header-browse-blue" density="compact"
-            fixed-header :items-per-page="-1">
+          <v-data-table
+            :headers="headers"
+            :items="items"
+            class="desktop-table header-browse-blue"
+            density="compact"
+            fixed-header
+            :items-per-page="-1"
+          >
             <template v-slot:[`item.no`]="{ index }">{{ index + 1 }}</template>
 
             <template v-slot:[`item.sisa_pinjam`]="{ value }">
@@ -260,13 +332,26 @@ onMounted(fetchLoanData);
             </template>
 
             <template #[`item.jumlah_kembali`]="{ item }">
-              <v-text-field v-model.number="item.jumlah_kembali" type="number" density="compact" hide-details
-                variant="underlined" :class="getReturnQtyClass(item)" @focus="$event.target.select()" />
+              <v-text-field
+                v-model.number="item.jumlah_kembali"
+                type="number"
+                density="compact"
+                hide-details
+                variant="underlined"
+                :class="getReturnQtyClass(item)"
+                @focus="$event.target.select()"
+              />
             </template>
 
             <template v-slot:[`item.actions`]="{ index }">
-              <v-btn icon="mdi-refresh" color="grey" variant="text" size="x-small" title="Reset ke 0"
-                @click="items[index].jumlah_kembali = 0" />
+              <v-btn
+                icon="mdi-refresh"
+                color="grey"
+                variant="text"
+                size="x-small"
+                title="Reset ke 0"
+                @click="items[index].jumlah_kembali = 0"
+              />
             </template>
 
             <template #bottom></template>
@@ -294,8 +379,16 @@ onMounted(fetchLoanData);
         <v-card-actions class="pa-3">
           <v-spacer></v-spacer>
           <v-btn variant="text" @click="dialogConfirm.show = false">Batal</v-btn>
-          <v-btn color="primary" variant="flat" @click="dialogConfirm.onConfirm(); dialogConfirm.show = false;"
-            class="px-6">Ya, Simpan</v-btn>
+          <v-btn
+            color="primary"
+            variant="flat"
+            @click="
+              dialogConfirm.onConfirm();
+              dialogConfirm.show = false;
+            "
+            class="px-6"
+            >Ya, Simpan</v-btn
+          >
         </v-card-actions>
       </v-card>
     </v-dialog>
@@ -343,11 +436,11 @@ onMounted(fetchLoanData);
 }
 
 .scanner-wrapper {
-  background-color: #FFF3E0;
+  background-color: #fff3e0;
   /* Warna Oranye Muda untuk membedakan dengan form Pinjam */
   padding: 8px;
   border-radius: 8px;
-  border: 1px solid #FFE0B2;
+  border: 1px solid #ffe0b2;
 }
 
 .table-container {
@@ -358,7 +451,7 @@ onMounted(fetchLoanData);
 }
 
 .desktop-table :deep(thead tr th) {
-  background-color: #0D47A1 !important;
+  background-color: #0d47a1 !important;
   color: #ffffff !important;
   font-weight: bold !important;
   text-transform: uppercase;
@@ -366,7 +459,7 @@ onMounted(fetchLoanData);
 }
 
 .text-primary {
-  color: #0D47A1 !important;
+  color: #0d47a1 !important;
 }
 
 .state-container {

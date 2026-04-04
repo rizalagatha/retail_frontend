@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import { ref, onMounted, nextTick, watch } from 'vue';
-import { useRoute } from 'vue-router';
-import api from '@/services/api';
-import { format, parseISO } from 'date-fns';
-import Logo from '@/assets/logo.png';
+import { ref, onMounted, nextTick, watch } from "vue";
+import { useRoute } from "vue-router";
+import api from "@/services/api";
+import { format, parseISO } from "date-fns";
+import Logo from "@/assets/logo.png";
 
 interface PrintDetail {
   rfd_notrs: string;
@@ -34,7 +34,6 @@ interface PrintData {
   header: PrintHeader;
   details: PrintDetail[];
 }
-
 
 const route = useRoute();
 const printData = ref<PrintData | null>(null);
@@ -82,7 +81,10 @@ onMounted(() => {
 
       <div class="info-grid">
         <div><span class="label">Nomor</span>: {{ printData.header.rf_nomor }}</div>
-        <div><span class="label">Tanggal</span>: {{ format(parseISO(printData.header.rf_tanggal), 'dd-MM-yyyy') }}</div>
+        <div>
+          <span class="label">Tanggal</span>:
+          {{ format(parseISO(printData.header.rf_tanggal), "dd-MM-yyyy") }}
+        </div>
       </div>
 
       <div class="items-table">
@@ -106,7 +108,9 @@ onMounted(() => {
               <td class="notrs">{{ item.rfd_notrs }}</td>
               <td class="kdcus">{{ item.rfd_cus_kode }}</td>
               <td class="customer">{{ item.cus_nama }}</td>
-              <td class="nominal right">{{ (item.rfd_refund || item.rfd_nominal || 0).toLocaleString('id-ID') }}</td>
+              <td class="nominal right">
+                {{ (item.rfd_refund || item.rfd_nominal || 0).toLocaleString("id-ID") }}
+              </td>
               <td class="ket">{{ item.rfd_ket }}</td>
               <td class="bank">{{ item.rfd_bank }}</td>
               <td class="norek">{{ item.rfd_norek }}</td>
@@ -116,7 +120,9 @@ onMounted(() => {
           <tfoot>
             <tr>
               <td colspan="4" class="text-end font-weight-bold">Total Refund:</td>
-              <td class="right font-weight-bold">{{ (printData.header.totalRefund || 0).toLocaleString('id-ID') }}</td>
+              <td class="right font-weight-bold">
+                {{ (printData.header.totalRefund || 0).toLocaleString("id-ID") }}
+              </td>
               <td colspan="4"></td>
             </tr>
           </tfoot>
@@ -136,8 +142,11 @@ onMounted(() => {
         </div>
         <div class="names">
           <div>
-            <img v-if="printData.header.usr_signature !== 'NO'"
-              :src="`/images/signatures/${printData.header.usr_signature}.jpg`" class="signature-img" />
+            <img
+              v-if="printData.header.usr_signature !== 'NO'"
+              :src="`/images/signatures/${printData.header.usr_signature}.jpg`"
+              class="signature-img"
+            />
             <span v-else>( .................... )</span>
             <div>( {{ printData.header.user_create }} )</div>
           </div>
@@ -151,7 +160,7 @@ onMounted(() => {
 
 <style scoped>
 .print-container {
-  font-family: 'Arial', sans-serif;
+  font-family: "Arial", sans-serif;
   font-size: 9pt;
   color: black;
 }

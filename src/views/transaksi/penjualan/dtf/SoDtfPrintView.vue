@@ -1,10 +1,10 @@
 <script setup lang="ts">
-import { ref, onMounted, nextTick, watch, computed } from 'vue';
-import { useRoute } from 'vue-router';
-import api from '@/services/api';
-import { format } from 'date-fns';
-import Logo from '@/assets/logo.png';
-import QRCode from 'qrcode';
+import { ref, onMounted, nextTick, watch, computed } from "vue";
+import { useRoute } from "vue-router";
+import api from "@/services/api";
+import { format } from "date-fns";
+import Logo from "@/assets/logo.png";
+import QRCode from "qrcode";
 
 interface PrintData {
   sd_nomor: string;
@@ -41,31 +41,37 @@ const qrCodeData = ref<string | null>(null);
 const barangList = computed(() => printData.value?.detailBarang || []);
 
 // Tambahkan fungsi ini
-const getFullImageUrl = (path: string | null | undefined) => {
-  if (!path) return null;
+const getFullImageUrl = (path?: string | null): string | undefined => {
+  if (!path) return undefined;
   if (path.startsWith("http")) return path;
 
-  // path dari backend contoh: /images/KDC/...
   return `${import.meta.env.VITE_API_BASE_URL}${path}`;
 };
 
 const getJenisOrderDisplay = (joKode: string) => {
   switch (joKode) {
-    case 'BR': return 'BORDIR';
-    case 'SB': return 'SABLON';
-    case 'SD': return 'DTF';
-    default: return joKode;
+    case "BR":
+      return "BORDIR";
+    case "SB":
+      return "SABLON";
+    case "SD":
+      return "DTF";
+    default:
+      return joKode;
   }
 };
 
 const fetchPrintData = async (nomor: string) => {
   try {
-    const response = await api.get(`/so-dtf-form/print-data/${nomor}`);
-    printData.value = response.data;
-    if (printData.value.sd_nomor) {
-      document.title = printData.value.sd_nomor;
+    const response = await api.get<PrintData>(`/so-dtf-form/print-data/${nomor}`);
+    const data = response.data;
 
-      qrCodeData.value = await QRCode.toDataURL(printData.value.sd_nomor, {
+    printData.value = data;
+
+    if (data.sd_nomor) {
+      document.title = data.sd_nomor;
+
+      qrCodeData.value = await QRCode.toDataURL(data.sd_nomor, {
         width: 200,
         margin: 1,
       });
@@ -100,7 +106,7 @@ onMounted(() => {
     <div v-if="printData" class="page">
       <div class="page-header">
         <div class="header-left">
-          <img :src="appLogo" alt="Logo" class="logo">
+          <img :src="appLogo" alt="Logo" class="logo" />
 
           <div class="title-block">
             <div class="main-title">SO {{ getJenisOrderDisplay(printData.sd_jo_kode) }}</div>
@@ -110,7 +116,7 @@ onMounted(() => {
 
         <!-- QR Code kanan -->
         <div class="header-right">
-          <img v-if="qrCodeData" :src="qrCodeData" class="qr-image">
+          <img v-if="qrCodeData" :src="qrCodeData" class="qr-image" />
         </div>
       </div>
 
@@ -121,9 +127,9 @@ onMounted(() => {
             <div class="label">No. SO DTF</div>
             <div class="value">: {{ printData.sd_nomor }}</div>
             <div class="label">No SO</div>
-            <div class="value">: {{ printData.sd_so_nomor || '-' }}</div>
+            <div class="value">: {{ printData.sd_so_nomor || "-" }}</div>
             <div class="label">Tanggal</div>
-            <div class="value">: {{ format(new Date(printData.sd_tanggal), 'dd/MM/yyyy') }}</div>
+            <div class="value">: {{ format(new Date(printData.sd_tanggal), "dd/MM/yyyy") }}</div>
             <div class="label">Jenis Order</div>
             <div class="value">: {{ printData.jo_nama }}</div>
             <div class="label">Nama Desain</div>
@@ -135,7 +141,7 @@ onMounted(() => {
             <div class="label">Finishing</div>
             <div class="value">: {{ printData.sd_finishing }}</div>
             <div class="label">Date Line</div>
-            <div class="value">:{{ format(new Date(printData.dateline), 'dd/MM/yyyy') }}</div>
+            <div class="value">:{{ format(new Date(printData.dateline), "dd/MM/yyyy") }}</div>
             <div class="label">Workshop</div>
             <div class="value">: {{ printData.sd_workshop }} - {{ printData.gdg_nama }}</div>
             <div class="label">Desainer</div>
@@ -183,7 +189,7 @@ onMounted(() => {
         <!-- Kolom Kanan: Gambar -->
         <div class="image-container">
           <div v-if="printData.imageUrl" class="image-box">
-            <img :src="getFullImageUrl(printData.imageUrl)" alt="Design Preview">
+            <img :src="getFullImageUrl(printData.imageUrl)" alt="Design Preview" />
           </div>
           <div v-else class="image-placeholder">
             <span>Preview Gambar</span>
@@ -257,7 +263,7 @@ onMounted(() => {
   width: 21cm;
   min-height: 29.7cm;
   box-shadow: 0 0 5px rgba(0, 0, 0, 0.1);
-  font-family: 'Arial', sans-serif;
+  font-family: "Arial", sans-serif;
   font-size: 10pt;
   color: #333;
   display: flex;

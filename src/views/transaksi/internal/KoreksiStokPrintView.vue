@@ -1,10 +1,10 @@
 <script setup lang="ts">
-import { ref, onMounted, nextTick, watch } from 'vue';
-import { useRoute } from 'vue-router';
-import api from '@/services/api';
-import { format, parseISO } from 'date-fns';
-import Logo from '@/assets/logo.png';
-import InstagramLogo from '@/assets/instagram.jpg';
+import { ref, onMounted, nextTick, watch } from "vue";
+import { useRoute } from "vue-router";
+import api from "@/services/api";
+import { format, parseISO } from "date-fns";
+import Logo from "@/assets/logo.png";
+import InstagramLogo from "@/assets/instagram.jpg";
 import QRCode from "qrcode";
 
 // --- Tipe Data Disesuaikan ---
@@ -43,17 +43,21 @@ const instagramLogo = InstagramLogo;
 
 const fetchPrintData = async (nomor: string) => {
   isLoading.value = true;
+
   try {
-    const response = await api.get(`/koreksi-stok-form/print/${nomor}`);
-    printData.value = response.data;
-    document.title = response.data.header.nomor;
+    const response = await api.get<PrintData>(`/koreksi-stok-form/print/${nomor}`);
+    const data = response.data;
 
-    // ✅ Generate QR Code berdasarkan nomor koreksi stok
-    qrCodeData.value = await QRCode.toDataURL(printData.value.header.nomor, {
-      width: 140,
-      margin: 1,
-    });
+    printData.value = data;
 
+    if (data.header?.nomor) {
+      document.title = data.header.nomor;
+
+      qrCodeData.value = await QRCode.toDataURL(data.header.nomor, {
+        width: 140,
+        margin: 1,
+      });
+    }
   } catch (error) {
     alert("Gagal memuat data untuk dicetak.");
     console.error("Error fetching print data:", error);
@@ -81,7 +85,6 @@ onMounted(() => {
     <div v-if="isLoading" class="text-center">Memuat data...</div>
     <div v-if="printData" class="page">
       <div class="header">
-
         <!-- Kolom kiri: QR -->
         <div class="left-col">
           <img v-if="qrCodeData" :src="qrCodeData" class="qr-code" />
@@ -103,16 +106,19 @@ onMounted(() => {
         <div class="right-col">
           <img :src="appLogo" alt="Logo" class="app-logo" />
         </div>
-
       </div>
 
       <div class="title">KOREKSI STOK</div>
 
       <div class="info-grid">
         <div><span class="label">Nomor</span>: {{ printData.header.nomor }}</div>
-        <div><span class="label">Tanggal</span>: {{ format(parseISO(printData.header.tanggal), 'dd-MM-yyyy') }}
+        <div>
+          <span class="label">Tanggal</span>:
+          {{ format(parseISO(printData.header.tanggal), "dd-MM-yyyy") }}
         </div>
-        <div class="keterangan"><span class="label">Keterangan</span>: {{ printData.header.keterangan }}</div>
+        <div class="keterangan">
+          <span class="label">Keterangan</span>: {{ printData.header.keterangan }}
+        </div>
       </div>
 
       <table class="items-table">
@@ -149,7 +155,9 @@ onMounted(() => {
           <div class="signature-box">Manager,</div>
         </div>
         <div class="names-row">
-          <div class="signature-name">( {{ printData.header.user_create || '...............' }} )</div>
+          <div class="signature-name">
+            ( {{ printData.header.user_create || "..............." }} )
+          </div>
           <div class="signature-name">( .................... )</div>
           <div class="signature-name">( .................... )</div>
         </div>
@@ -162,7 +170,7 @@ onMounted(() => {
 .print-container {
   background: #eee;
   padding: 20px;
-  font-family: 'Arial', sans-serif;
+  font-family: "Arial", sans-serif;
   font-size: 9pt;
 }
 
@@ -184,7 +192,6 @@ onMounted(() => {
   margin-bottom: 15px;
   width: 100%;
 }
-
 
 .left-col {
   display: flex;

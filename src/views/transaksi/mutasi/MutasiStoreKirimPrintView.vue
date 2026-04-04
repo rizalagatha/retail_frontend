@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import { ref, onMounted, nextTick, watch } from 'vue';
-import { useRoute } from 'vue-router';
-import api from '@/services/api';
-import { format, parseISO } from 'date-fns';
-import Logo from '@/assets/logo.png';
+import { ref, onMounted, nextTick, watch } from "vue";
+import { useRoute } from "vue-router";
+import api from "@/services/api";
+import { format, parseISO } from "date-fns";
+import Logo from "@/assets/logo.png";
 
 // Tipe data disesuaikan dengan response backend
 interface PrintHeader {
@@ -84,8 +84,13 @@ onMounted(() => {
         <div class="info-grid">
           <div><span class="label">Nomor</span>: {{ printData.header.nomor }}</div>
           <div><span class="label">Ke Cabang</span>: {{ printData.header.keCabang }}</div>
-          <div><span class="label">Tanggal</span>: {{ format(parseISO(printData.header.tanggal), 'dd/MM/yyyy') }}</div>
-          <div class="keterangan"><span class="label">Keterangan</span>: {{ printData.header.keterangan }}</div>
+          <div>
+            <span class="label">Tanggal</span>:
+            {{ format(parseISO(printData.header.tanggal), "dd/MM/yyyy") }}
+          </div>
+          <div class="keterangan">
+            <span class="label">Keterangan</span>: {{ printData.header.keterangan }}
+          </div>
         </div>
 
         <div class="items-table">
@@ -142,8 +147,13 @@ onMounted(() => {
         <div class="info-grid">
           <div><span class="label">Nomor</span>: {{ printData.header.nomor }}</div>
           <div><span class="label">Ke Cabang</span>: {{ printData.header.keCabang }}</div>
-          <div><span class="label">Tanggal</span>: {{ format(parseISO(printData.header.tanggal), 'dd/MM/yyyy') }}</div>
-          <div class="keterangan"><span class="label">Keterangan</span>: {{ printData.header.keterangan }}</div>
+          <div>
+            <span class="label">Tanggal</span>:
+            {{ format(parseISO(printData.header.tanggal), "dd/MM/yyyy") }}
+          </div>
+          <div class="keterangan">
+            <span class="label">Keterangan</span>: {{ printData.header.keterangan }}
+          </div>
         </div>
 
         <div class="items-table">
@@ -189,7 +199,7 @@ onMounted(() => {
 </template>
 <style scoped>
 .print-container {
-  font-family: 'Segoe UI', Tahoma, sans-serif;
+  font-family: "Segoe UI", Tahoma, sans-serif;
   font-size: 9pt;
   background-color: #fff;
   color: #000;
@@ -330,7 +340,7 @@ onMounted(() => {
   text-align: center;
 }
 
-.signatures>div {
+.signatures > div {
   width: 30%;
 }
 
@@ -341,10 +351,9 @@ onMounted(() => {
   margin-top: 45px;
 }
 
-.names>div {
+.names > div {
   width: 30%;
 }
-
 
 /* --- CSS KHUSUS UNTUK PRINT --- */
 @media print {

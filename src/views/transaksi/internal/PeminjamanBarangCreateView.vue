@@ -101,14 +101,14 @@ const authDialog = reactive<AuthDialogState>({
   barcode: "",
   keterangan: "",
   cabang: "",
-  onSuccess: () => { },
-  onCancel: () => { },
+  onSuccess: () => {},
+  onCancel: () => {},
 });
 const dialogConfirm = reactive({
   show: false,
   title: "",
   text: "",
-  onConfirm: () => { },
+  onConfirm: () => {},
 });
 const dialogPrint = reactive({
   show: false,
@@ -166,7 +166,7 @@ const showConfirmation = (title: string, text: string, onConfirm: () => void) =>
 
 const handleBarcodeScan = async () => {
   if (!formHeader.value.pic) {
-    audioError.play().catch(() => { });
+    audioError.play().catch(() => {});
     toast.error("Silakan isi nama PIC Peminjam terlebih dahulu!");
     return;
   }
@@ -178,12 +178,15 @@ const handleBarcodeScan = async () => {
       params: { barcode: scannedBarcode.value, cabang: formHeader.value.cabang },
     });
     processProductSelection(response.data);
-    audioSuccess.play().catch(() => { });
+    audioSuccess.play().catch(() => {});
     scannedBarcode.value = "";
     toast.success(`Ditambah: ${response.data.nama}`, { timeout: 1500 });
-  } catch (error) {
-    audioError.play().catch(() => { });
-    toast.error("Produk tidak ditemukan", error);
+  } catch (err: unknown) {
+    const error = err as AxiosError<{ message?: string }>;
+
+    audioError.play().catch(() => {});
+
+    toast.error(error.response?.data?.message || "Produk tidak ditemukan");
   } finally {
     isScanning.value = false;
     nextTick(() => barcodeInputRef.value?.focus());
@@ -226,7 +229,7 @@ const onProductsSelected = (selectedProducts: LookupProduct[]) => {
   }
 
   addNewRow(); // Tambah baris kosong di akhir
-  audioSuccess.play().catch(() => { });
+  audioSuccess.play().catch(() => {});
 };
 
 const openPenawaranSearch = () => {
@@ -513,7 +516,12 @@ onMounted(() => {
 <template>
   <PageLayout :title="pageTitle" :menu-id="MENU_ID">
     <template #header-actions>
-      <v-btn size="small" prepend-icon="mdi-content-save" color="primary" @click="handleSaveRequest">
+      <v-btn
+        size="small"
+        prepend-icon="mdi-content-save"
+        color="primary"
+        @click="handleSaveRequest"
+      >
         Simpan
       </v-btn>
       <v-btn size="small" prepend-icon="mdi-close" variant="tonal" @click="handleTutup">
@@ -525,46 +533,123 @@ onMounted(() => {
     <div v-else class="form-grid-container">
       <div class="left-column">
         <div class="desktop-form-section header-section">
-          <v-text-field label="Nomor Dokumen" v-model="formHeader.nomor" readonly variant="filled" density="compact"
-            hide-details />
-          <v-text-field label="Referensi Penawaran" v-model="formHeader.penawaran" readonly variant="outlined"
-            density="compact" hide-details append-inner-icon="mdi-magnify" clearable
-            placeholder="Klik untuk cari penawaran..." @click="openPenawaranSearch"
-            @click:clear="formHeader.penawaran = ''" />
-          <v-text-field label="Tanggal Pinjam" v-model="formHeader.tanggal" type="date" density="compact"
-            variant="outlined" hide-details />
-          <v-text-field label="Deadline (14 Hari)" v-model="formHeader.deadline" readonly variant="filled"
-            density="compact" hide-details bg-color="amber-lighten-5" />
-          <v-text-field label="PIC Peminjam" v-model="formHeader.pic" variant="outlined" density="compact" hide-details
-            placeholder="Nama peminjam..." />
-          <v-textarea label="Keterangan / Peruntukan" v-model="formHeader.keterangan" variant="outlined"
-            density="compact" hide-details rows="4" placeholder="Alasan peminjaman..." />
-          <v-text-field label="Store / Cabang" :model-value="formHeader.cabang" readonly variant="filled"
-            density="compact" hide-details />
+          <v-text-field
+            label="Nomor Dokumen"
+            v-model="formHeader.nomor"
+            readonly
+            variant="filled"
+            density="compact"
+            hide-details
+          />
+          <v-text-field
+            label="Referensi Penawaran"
+            v-model="formHeader.penawaran"
+            readonly
+            variant="outlined"
+            density="compact"
+            hide-details
+            append-inner-icon="mdi-magnify"
+            clearable
+            placeholder="Klik untuk cari penawaran..."
+            @click="openPenawaranSearch"
+            @click:clear="formHeader.penawaran = ''"
+          />
+          <v-text-field
+            label="Tanggal Pinjam"
+            v-model="formHeader.tanggal"
+            type="date"
+            density="compact"
+            variant="outlined"
+            hide-details
+          />
+          <v-text-field
+            label="Deadline (14 Hari)"
+            v-model="formHeader.deadline"
+            readonly
+            variant="filled"
+            density="compact"
+            hide-details
+            bg-color="amber-lighten-5"
+          />
+          <v-text-field
+            label="PIC Peminjam"
+            v-model="formHeader.pic"
+            variant="outlined"
+            density="compact"
+            hide-details
+            placeholder="Nama peminjam..."
+          />
+          <v-textarea
+            label="Keterangan / Peruntukan"
+            v-model="formHeader.keterangan"
+            variant="outlined"
+            density="compact"
+            hide-details
+            rows="4"
+            placeholder="Alasan peminjaman..."
+          />
+          <v-text-field
+            label="Store / Cabang"
+            :model-value="formHeader.cabang"
+            readonly
+            variant="filled"
+            density="compact"
+            hide-details
+          />
         </div>
       </div>
 
       <div class="right-column">
         <div class="scanner-wrapper">
-          <v-text-field ref="barcodeInputRef" v-model="scannedBarcode" label="Scan Barcode di Sini..."
-            placeholder="Siap scan..." variant="outlined" density="compact" prepend-inner-icon="mdi-barcode-scan"
-            hide-details clearable :loading="isScanning" :disabled="isScanning"
-            @keydown.enter.prevent="handleBarcodeScan" autofocus />
+          <v-text-field
+            ref="barcodeInputRef"
+            v-model="scannedBarcode"
+            label="Scan Barcode di Sini..."
+            placeholder="Siap scan..."
+            variant="outlined"
+            density="compact"
+            prepend-inner-icon="mdi-barcode-scan"
+            hide-details
+            clearable
+            :loading="isScanning"
+            :disabled="isScanning"
+            @keydown.enter.prevent="handleBarcodeScan"
+            autofocus
+          />
         </div>
 
         <div class="table-container">
-          <v-data-table :headers="headers" :items="items" class="desktop-table header-browse-blue" density="compact"
-            fixed-header :items-per-page="-1">
+          <v-data-table
+            :headers="headers"
+            :items="items"
+            class="desktop-table header-browse-blue"
+            density="compact"
+            fixed-header
+            :items-per-page="-1"
+          >
             <template v-slot:[`item.no`]="{ index }">{{ index + 1 }}</template>
 
             <template v-slot:[`item.kode`]="{ item, index }">
-              <v-text-field v-model="item.kode" variant="underlined" density="compact" hide-details
-                placeholder="F1/F2..." :readonly="!!item.nama" @keydown.f1.prevent="openProductSearch(index)" />
+              <v-text-field
+                v-model="item.kode"
+                variant="underlined"
+                density="compact"
+                hide-details
+                placeholder="F1/F2..."
+                :readonly="!!item.nama"
+                @keydown.f1.prevent="openProductSearch(index)"
+              />
             </template>
 
             <template #[`item.jumlah`]="{ item }">
-              <v-text-field v-model.number="item.jumlah" type="number" density="compact" hide-details
-                variant="underlined" :class="getQtyClass(item)" />
+              <v-text-field
+                v-model.number="item.jumlah"
+                type="number"
+                density="compact"
+                hide-details
+                variant="underlined"
+                :class="getQtyClass(item)"
+              />
             </template>
 
             <template #[`item.stok`]="{ item }">
@@ -572,7 +657,13 @@ onMounted(() => {
             </template>
 
             <template v-slot:[`item.actions`]="{ index }">
-              <v-btn icon="mdi-delete" color="error" variant="text" size="x-small" @click="items.splice(index, 1)" />
+              <v-btn
+                icon="mdi-delete"
+                color="error"
+                variant="text"
+                size="x-small"
+                @click="items.splice(index, 1)"
+              />
             </template>
 
             <template #bottom></template>
@@ -589,20 +680,39 @@ onMounted(() => {
       </div>
     </div>
 
-    <ProductSearchModal v-if="isLookupVisible" :gudang="formHeader.cabang" category="ALL" source="peminjaman"
-      @close="isLookupVisible = false" @products-selected="onProductsSelected" />
+    <ProductSearchModal
+      v-if="isLookupVisible"
+      :gudang="formHeader.cabang"
+      category="ALL"
+      source="peminjaman"
+      @close="isLookupVisible = false"
+      @products-selected="onProductsSelected"
+    />
 
-    <PenawaranSearchModal v-if="isPenawaranLookupVisible" :cabang="formHeader.cabang"
-      @close="isPenawaranLookupVisible = false" @selected="onPenawaranSelected" />
+    <PenawaranSearchModal
+      v-if="isPenawaranLookupVisible"
+      :cabang="formHeader.cabang"
+      @close="isPenawaranLookupVisible = false"
+      @selected="onPenawaranSelected"
+    />
 
-    <AuthorizationModal v-if="authDialog.show" :title="authDialog.title" :jenis="authDialog.jenis"
-      :nominal="authDialog.nominal" :transaksi="authDialog.transaksi" :barcode="authDialog.barcode"
-      :keterangan="authDialog.keterangan" :cabang="authDialog.cabang" @success="authDialog.onSuccess" @close="
+    <AuthorizationModal
+      v-if="authDialog.show"
+      :title="authDialog.title"
+      :jenis="authDialog.jenis"
+      :nominal="authDialog.nominal"
+      :transaksi="authDialog.transaksi"
+      :barcode="authDialog.barcode"
+      :keterangan="authDialog.keterangan"
+      :cabang="authDialog.cabang"
+      @success="authDialog.onSuccess"
+      @close="
         () => {
           authDialog.show = false;
           authDialog.onCancel();
         }
-      " />
+      "
+    />
 
     <v-dialog v-model="dialogConfirm.show" max-width="450px" persistent>
       <v-card>
@@ -617,10 +727,15 @@ onMounted(() => {
         <v-card-actions class="pa-3">
           <v-spacer></v-spacer>
           <v-btn variant="text" @click="dialogConfirm.show = false">Batal</v-btn>
-          <v-btn color="primary" variant="flat" @click="
-            dialogConfirm.onConfirm();
-          dialogConfirm.show = false;
-          " class="px-6">
+          <v-btn
+            color="primary"
+            variant="flat"
+            @click="
+              dialogConfirm.onConfirm();
+              dialogConfirm.show = false;
+            "
+            class="px-6"
+          >
             Ya, Lanjutkan
           </v-btn>
         </v-card-actions>
@@ -638,7 +753,12 @@ onMounted(() => {
         <v-card-actions class="pa-3">
           <v-btn variant="text" @click="handlePrintAction(false)">Tutup</v-btn>
           <v-spacer></v-spacer>
-          <v-btn color="primary" prepend-icon="mdi-printer" variant="flat" @click="handlePrintAction(true)">
+          <v-btn
+            color="primary"
+            prepend-icon="mdi-printer"
+            variant="flat"
+            @click="handlePrintAction(true)"
+          >
             Ya, Cetak
           </v-btn>
         </v-card-actions>

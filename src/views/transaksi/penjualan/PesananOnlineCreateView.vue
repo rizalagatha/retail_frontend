@@ -1,14 +1,14 @@
 <script setup lang="ts">
-import { ref, reactive, onMounted, watch, computed } from 'vue';
-import { useRouter } from 'vue-router';
-import { useToast } from 'vue-toastification';
-import { useAuthStore } from '@/stores/authStore';
-import { useUnsavedChanges } from '@/composables/useUnsavedChanges';
-import api from '@/services/api';
-import { format } from 'date-fns';
-import PageLayout from '@/components/PageLayout.vue';
-import ProductSearchModal from '@/components/lookup/ProductSearchModal.vue';
-import axios from 'axios';
+import { ref, reactive, onMounted, watch, computed } from "vue";
+import { useRouter } from "vue-router";
+import { useToast } from "vue-toastification";
+import { useAuthStore } from "@/stores/authStore";
+import { useUnsavedChanges } from "@/composables/useUnsavedChanges";
+import api from "@/services/api";
+import { format } from "date-fns";
+import PageLayout from "@/components/PageLayout.vue";
+import ProductSearchModal from "@/components/lookup/ProductSearchModal.vue";
+import axios from "axios";
 
 interface StockInfo {
   kode: string;
@@ -30,25 +30,25 @@ const toast = useToast();
 const authStore = useAuthStore();
 const { markAsSaved } = useUnsavedChanges();
 // Gunakan Menu ID yang sesuai untuk hak akses (misal 56 sesuai request sebelumnya)
-const MENU_ID = '56';
+const MENU_ID = "56";
 
 // --- STATE ---
 const isLoading = ref(false);
 const isSaving = ref(false);
-const scannedBarcode = ref('');
+const scannedBarcode = ref("");
 
 // Dropdown Data
-const marketplaceList = ['SHOPEE', 'TIKTOK SHOP'];
+const marketplaceList = ["SHOPEE", "TIKTOK SHOP"];
 const sourceGudangList = ref<{ kode: string; nama: string }[]>([]);
 
 const form = reactive({
-  tanggal: format(new Date(), 'yyyy-MM-dd'),
-  mpNama: 'SHOPEE',
-  noPesanan: '',
-  noResi: '',
-  sourceGudang: authStore.user?.cabang === 'KDC' ? 'KDC' : (authStore.user?.cabang || 'K01'),
+  tanggal: format(new Date(), "yyyy-MM-dd"),
+  mpNama: "SHOPEE",
+  noPesanan: "",
+  noResi: "",
+  sourceGudang: authStore.user?.cabang === "KDC" ? "KDC" : authStore.user?.cabang || "K01",
   biayaPlatform: 0,
-  customerKode: ''
+  customerKode: "",
 });
 
 interface OrderItem {
@@ -63,14 +63,14 @@ interface OrderItem {
 
 const items = ref<OrderItem[]>([]);
 const dialogs = reactive({
-  productSearch: false
+  productSearch: false,
 });
 
 const dialogConfirm = reactive({
   show: false,
-  title: '',
-  text: '',
-  onConfirm: () => { }
+  title: "",
+  text: "",
+  onConfirm: () => {},
 });
 
 // Computed
@@ -82,53 +82,55 @@ const totalQty = computed(() => items.value.reduce((sum, i) => sum + (Number(i.j
 // Pastikan kode customer ini ada di database tcustomer Anda
 const updateCustomerKode = () => {
   const map: Record<string, string> = {
-    'SHOPEE': 'CUS-SHOPEE', // Sesuaikan dengan kode di DB Anda
-    'TOKOPEDIA': 'CUS-TOKOPEDIA',
-    'TIKTOK SHOP': 'CUS-TIKTOK',
-    'LAZADA': 'CUS-LAZADA',
-    'WEBSITE': 'CUS-WEB'
+    SHOPEE: "CUS-SHOPEE", // Sesuaikan dengan kode di DB Anda
+    TOKOPEDIA: "CUS-TOKOPEDIA",
+    "TIKTOK SHOP": "CUS-TIKTOK",
+    LAZADA: "CUS-LAZADA",
+    WEBSITE: "CUS-WEB",
   };
   // Default fallback ke SHOPEE jika tidak ketemu
-  form.customerKode = map[form.mpNama] || 'CUS-SHOPEE';
+  form.customerKode = map[form.mpNama] || "CUS-SHOPEE";
 };
 
 watch(() => form.mpNama, updateCustomerKode, { immediate: true });
 
 // [UPDATE] Watcher: Update stok massal saat gudang diganti
-watch(() => form.sourceGudang, async (newGudang) => {
-  if (items.value.length === 0 || !newGudang) return;
+watch(
+  () => form.sourceGudang,
+  async (newGudang) => {
+    if (items.value.length === 0 || !newGudang) return;
 
-  isLoading.value = true;
+    isLoading.value = true;
 
-  try {
-    // Siapkan payload: hanya kode dan ukuran
-    const payloadItems = items.value.map(i => ({ kode: i.kode, ukuran: i.ukuran }));
+    try {
+      // Siapkan payload: hanya kode dan ukuran
+      const payloadItems = items.value.map((i) => ({ kode: i.kode, ukuran: i.ukuran }));
 
-    // Panggil endpoint check-stock (Batch)
-    const { data } = await api.post('/pesanan-online-form/check-stock', {
-      gudang: newGudang,
-      items: payloadItems
-    });
+      // Panggil endpoint check-stock (Batch)
+      const { data } = await api.post("/pesanan-online-form/check-stock", {
+        gudang: newGudang,
+        items: payloadItems,
+      });
 
-    // Update tabel lokal berdasarkan response
-    data.forEach((stockInfo: StockInfo) => {
-      const match = items.value.find(i =>
-        i.kode === stockInfo.kode && i.ukuran === stockInfo.ukuran
-      );
-      if (match) {
-        match.stokAsal = stockInfo.stok;
-      }
-    });
+      // Update tabel lokal berdasarkan response
+      data.forEach((stockInfo: StockInfo) => {
+        const match = items.value.find(
+          (i) => i.kode === stockInfo.kode && i.ukuran === stockInfo.ukuran
+        );
+        if (match) {
+          match.stokAsal = stockInfo.stok;
+        }
+      });
 
-    toast.success(`Stok diperbarui dari gudang ${newGudang}`);
-
-  } catch (error) {
-    console.error(error);
-    toast.error("Gagal memperbarui info stok.");
-  } finally {
-    isLoading.value = false;
+      toast.success(`Stok diperbarui dari gudang ${newGudang}`);
+    } catch (error) {
+      console.error(error);
+      toast.error("Gagal memperbarui info stok.");
+    } finally {
+      isLoading.value = false;
+    }
   }
-});
+);
 
 // 2. Handle Scan Barcode
 const handleBarcodeScan = async () => {
@@ -138,13 +140,15 @@ const handleBarcodeScan = async () => {
   try {
     // Cari barang & stok di GUDANG SUMBER (Bukan KON)
     const res = await api.get(`/invoice-form/by-barcode/${barcode}`, {
-      params: { gudang: form.sourceGudang }
+      params: { gudang: form.sourceGudang },
     });
 
     const product = res.data;
 
     // Cek duplikat di tabel
-    const existing = items.value.find(i => i.kode === product.kode && i.ukuran === product.ukuran);
+    const existing = items.value.find(
+      (i) => i.kode === product.kode && i.ukuran === product.ukuran
+    );
 
     if (existing) {
       existing.jumlah++;
@@ -157,7 +161,7 @@ const handleBarcodeScan = async () => {
         ukuran: product.ukuran,
         jumlah: 1,
         barcode: product.barcode,
-        stokAsal: Number(product.stok || 0)
+        stokAsal: Number(product.stok || 0),
       });
     }
   } catch (err: unknown) {
@@ -167,7 +171,7 @@ const handleBarcodeScan = async () => {
       toast.error("Barang tidak ditemukan atau tidak aktif.");
     }
   } finally {
-    scannedBarcode.value = '';
+    scannedBarcode.value = "";
   }
 };
 
@@ -178,19 +182,19 @@ const handleProductSelected = async (selectedProducts: SelectedProduct[]): Promi
   if (selectedProducts.length === 0) return;
 
   try {
-    const payloadItems = selectedProducts.map(p => ({ kode: p.kode, ukuran: p.ukuran }));
+    const payloadItems = selectedProducts.map((p) => ({ kode: p.kode, ukuran: p.ukuran }));
 
-    const { data } = await api.post<StockInfo[]>('/pesanan-online-form/check-stock', {
+    const { data } = await api.post<StockInfo[]>("/pesanan-online-form/check-stock", {
       gudang: form.sourceGudang,
-      items: payloadItems
+      items: payloadItems,
     });
 
-    selectedProducts.forEach(p => {
+    selectedProducts.forEach((p) => {
       // perhatikan: data adalah StockInfo[]
       const stockInfo = data.find((s: StockInfo) => s.kode === p.kode && s.ukuran === p.ukuran);
       const realStock = stockInfo ? Number(stockInfo.stok) : 0;
 
-      const existing = items.value.find(i => i.kode === p.kode && i.ukuran === p.ukuran);
+      const existing = items.value.find((i) => i.kode === p.kode && i.ukuran === p.ukuran);
       if (existing) {
         existing.jumlah++;
         existing.stokAsal = realStock;
@@ -202,15 +206,14 @@ const handleProductSelected = async (selectedProducts: SelectedProduct[]): Promi
           ukuran: p.ukuran,
           jumlah: 1,
           barcode: p.barcode,
-          stokAsal: realStock
+          stokAsal: realStock,
         });
       }
     });
-
   } catch {
     // Fallback pakai data modal saja
-    selectedProducts.forEach(p => {
-      const existing = items.value.find(i => i.kode === p.kode && i.ukuran === p.ukuran);
+    selectedProducts.forEach((p) => {
+      const existing = items.value.find((i) => i.kode === p.kode && i.ukuran === p.ukuran);
       if (existing) {
         existing.jumlah++;
       } else {
@@ -221,7 +224,7 @@ const handleProductSelected = async (selectedProducts: SelectedProduct[]): Promi
           ukuran: p.ukuran,
           jumlah: 1,
           barcode: p.barcode,
-          stokAsal: Number(p.stok ?? 0)
+          stokAsal: Number(p.stok ?? 0),
         });
       }
     });
@@ -236,8 +239,8 @@ const handleReset = () => {
   if (items.value.length > 0) {
     if (!confirm("Reset form? Data barang akan hilang.")) return;
   }
-  form.noPesanan = '';
-  form.noResi = '';
+  form.noPesanan = "";
+  form.noResi = "";
   form.biayaPlatform = 0;
   items.value = [];
 };
@@ -245,7 +248,7 @@ const handleReset = () => {
 // [BARU] Fetch Data Gudang dari Backend
 const fetchGudangOptions = async () => {
   try {
-    const { data } = await api.get('/pesanan-online-form/gudang-options');
+    const { data } = await api.get("/pesanan-online-form/gudang-options");
 
     // Cek: Jika data ada isinya, pakai data API.
     // Jika kosong (array []), gunakan fallback manual.
@@ -259,14 +262,14 @@ const fetchGudangOptions = async () => {
     if (!form.sourceGudang && sourceGudangList.value.length > 0) {
       const userCabang = authStore.user?.cabang;
       const defaultGudang =
-        sourceGudangList.value.find(g => g.kode === userCabang)
-        || sourceGudangList.value.find(g => g.kode === 'K01')
-        || sourceGudangList.value[0];
+        sourceGudangList.value.find((g) => g.kode === userCabang) ||
+        sourceGudangList.value.find((g) => g.kode === "K01") ||
+        sourceGudangList.value[0];
       form.sourceGudang = defaultGudang.kode;
     }
   } catch {
     console.warn("Gagal load gudang dari API, menggunakan data lokal.");
-    if (!form.sourceGudang) form.sourceGudang = 'K01';
+    if (!form.sourceGudang) form.sourceGudang = "K01";
   }
 };
 
@@ -277,15 +280,16 @@ const handleSave = async () => {
   if (items.value.length === 0) return toast.error("Belum ada barang.");
 
   // Cek Stok Minus (Warning)
-  const minusItems = items.value.filter(i => i.jumlah > i.stokAsal);
+  const minusItems = items.value.filter((i) => i.jumlah > i.stokAsal);
   let warningText = "";
   if (minusItems.length > 0) {
-    warningText = "\n\n⚠️ PERINGATAN: Beberapa stok barang tidak mencukupi di gudang asal. Stok akan menjadi MINUS.";
+    warningText =
+      "\n\n⚠️ PERINGATAN: Beberapa stok barang tidak mencukupi di gudang asal. Stok akan menjadi MINUS.";
   }
 
   // Tampilkan Konfirmasi
   showConfirmation(
-    'Proses Pesanan',
+    "Proses Pesanan",
     `Anda akan memproses pesanan ${form.mpNama} dengan ${items.value.length} item.${warningText}\n\nLanjutkan?`,
     executeSave // Panggil fungsi eksekusi sebenarnya
   );
@@ -296,21 +300,21 @@ const executeSave = async () => {
   try {
     const payload = {
       sourceGudang: form.sourceGudang,
-      targetGudang: 'KON', // Hardcode Gudang Online
+      targetGudang: "KON", // Hardcode Gudang Online
       tanggal: form.tanggal,
       mpInfo: {
         mpNama: form.mpNama,
         noPesanan: form.noPesanan,
         noResi: form.noResi,
         customerKode: form.customerKode,
-        biayaPlatform: form.biayaPlatform
+        biayaPlatform: form.biayaPlatform,
       },
-      items: items.value
+      items: items.value,
     };
-    const res = await api.post('/pesanan-online-form/save', payload);
+    const res = await api.post("/pesanan-online-form/save", payload);
     toast.success(res.data.message);
     markAsSaved();
-    router.push({ name: 'PesananOnline' });
+    router.push({ name: "PesananOnline" });
   } catch (err: unknown) {
     if (axios.isAxiosError(err)) {
       toast.error(err.response?.data?.message ?? err.message ?? "Gagal memproses pesanan.");
@@ -338,14 +342,18 @@ const handleClose = () => {
 };
 
 // Watcher untuk Unsaved Changes
-watch([form, items], () => {
-  if (form.noPesanan || items.value.length > 0) {
-    // Trigger logic unsaved changes jika perlu
-  }
-}, { deep: true });
+watch(
+  [form, items],
+  () => {
+    if (form.noPesanan || items.value.length > 0) {
+      // Trigger logic unsaved changes jika perlu
+    }
+  },
+  { deep: true }
+);
 
 onMounted(async () => {
-  if (!authStore.can(MENU_ID, 'insert')) {
+  if (!authStore.can(MENU_ID, "insert")) {
     toast.error("Akses ditolak.");
     router.back();
     return;
@@ -358,22 +366,24 @@ onMounted(async () => {
 
 <template>
   <PageLayout title="Input Pesanan Marketplace" icon="mdi-cart-arrow-down" desktop-mode>
-
     <template #header-actions>
-      <v-btn color="success" size="small" prepend-icon="mdi-content-save" :loading="isSaving"
-        :disabled="items.length === 0" @click="handleSave">
+      <v-btn
+        color="success"
+        size="small"
+        prepend-icon="mdi-content-save"
+        :loading="isSaving"
+        :disabled="items.length === 0"
+        @click="handleSave"
+      >
         Proses Pesanan
       </v-btn>
       <v-btn size="small" prepend-icon="mdi-refresh" variant="text" @click="handleReset">
         Reset
       </v-btn>
-      <v-btn size="small" prepend-icon="mdi-close" @click="handleClose">
-        Tutup
-      </v-btn>
+      <v-btn size="small" prepend-icon="mdi-close" @click="handleClose"> Tutup </v-btn>
     </template>
 
     <div class="form-grid-container">
-
       <div class="left-column">
         <div class="desktop-form-section header-section d-flex flex-column h-100">
           <div class="text-subtitle-2 font-weight-bold mb-3 text-primary d-flex align-center">
@@ -381,21 +391,61 @@ onMounted(async () => {
             DATA PESANAN
           </div>
 
-          <v-text-field label="Tanggal Transaksi" v-model="form.tanggal" type="date" variant="outlined"
-            density="compact" hide-details class="mb-3" />
+          <v-text-field
+            label="Tanggal Transaksi"
+            v-model="form.tanggal"
+            type="date"
+            variant="outlined"
+            density="compact"
+            hide-details
+            class="mb-3"
+          />
 
-          <v-select label="Marketplace" v-model="form.mpNama" :items="marketplaceList" variant="outlined"
-            density="compact" prepend-inner-icon="mdi-store" hide-details class="mb-3" />
+          <v-select
+            label="Marketplace"
+            v-model="form.mpNama"
+            :items="marketplaceList"
+            variant="outlined"
+            density="compact"
+            prepend-inner-icon="mdi-store"
+            hide-details
+            class="mb-3"
+          />
 
-          <v-text-field label="No. Pesanan / Order ID" v-model="form.noPesanan" prepend-inner-icon="mdi-clipboard-text"
-            variant="outlined" density="compact" hide-details class="mb-3" placeholder="Paste No. Pesanan..."
-            autocomplete="off" />
+          <v-text-field
+            label="No. Pesanan / Order ID"
+            v-model="form.noPesanan"
+            prepend-inner-icon="mdi-clipboard-text"
+            variant="outlined"
+            density="compact"
+            hide-details
+            class="mb-3"
+            placeholder="Paste No. Pesanan..."
+            autocomplete="off"
+          />
 
-          <v-text-field label="No. Resi (AWB)" v-model="form.noResi" prepend-inner-icon="mdi-barcode" variant="outlined"
-            density="compact" hide-details class="mb-3" placeholder="Scan/Ketik Resi..." autocomplete="off" />
+          <v-text-field
+            label="No. Resi (AWB)"
+            v-model="form.noResi"
+            prepend-inner-icon="mdi-barcode"
+            variant="outlined"
+            density="compact"
+            hide-details
+            class="mb-3"
+            placeholder="Scan/Ketik Resi..."
+            autocomplete="off"
+          />
 
-          <v-text-field label="Biaya Layanan (Admin MP)" v-model.number="form.biayaPlatform" type="number" prefix="Rp"
-            variant="outlined" density="compact" hide-details class="mb-3" />
+          <v-text-field
+            label="Biaya Layanan (Admin MP)"
+            v-model.number="form.biayaPlatform"
+            type="number"
+            prefix="Rp"
+            variant="outlined"
+            density="compact"
+            hide-details
+            class="mb-3"
+          />
 
           <v-divider class="my-3 border-dashed" />
 
@@ -404,9 +454,19 @@ onMounted(async () => {
             SUMBER BARANG
           </div>
 
-          <v-select label="Ambil Barang Dari" v-model="form.sourceGudang" :items="sourceGudangList" item-title="nama"
-            item-value="kode" variant="outlined" density="compact" hide-details bg-color="yellow-lighten-5"
-            :loading="sourceGudangList.length === 0" no-data-text="Data gudang tidak ditemukan" />
+          <v-select
+            label="Ambil Barang Dari"
+            v-model="form.sourceGudang"
+            :items="sourceGudangList"
+            item-title="nama"
+            item-value="kode"
+            variant="outlined"
+            density="compact"
+            hide-details
+            bg-color="yellow-lighten-5"
+            :loading="sourceGudangList.length === 0"
+            no-data-text="Data gudang tidak ditemukan"
+          />
           <div class="text-caption text-grey mt-2 lh-1">
             *Stok fisik akan dipotong dari gudang ini dan dipindahkan ke Online Shop untuk dijual.
           </div>
@@ -415,11 +475,25 @@ onMounted(async () => {
 
       <div class="right-column">
         <div class="d-flex align-center gap-2 mb-2 px-1">
-          <v-text-field v-model="scannedBarcode" label="Scan Barcode Barang di Sini..."
-            prepend-inner-icon="mdi-barcode-scan" variant="outlined" density="compact" hide-details class="flex-grow-1"
-            @keydown.enter.prevent="handleBarcodeScan" autofocus placeholder="Tekan Enter setelah scan" />
-          <v-btn color="secondary" variant="tonal" height="40" prepend-icon="mdi-magnify"
-            @click="dialogs.productSearch = true">
+          <v-text-field
+            v-model="scannedBarcode"
+            label="Scan Barcode Barang di Sini..."
+            prepend-inner-icon="mdi-barcode-scan"
+            variant="outlined"
+            density="compact"
+            hide-details
+            class="flex-grow-1"
+            @keydown.enter.prevent="handleBarcodeScan"
+            autofocus
+            placeholder="Tekan Enter setelah scan"
+          />
+          <v-btn
+            color="secondary"
+            variant="tonal"
+            height="40"
+            prepend-icon="mdi-magnify"
+            @click="dialogs.productSearch = true"
+          >
             Cari Barang
           </v-btn>
         </div>
@@ -432,15 +506,24 @@ onMounted(async () => {
                 <th class="text-left bg-blue-grey-lighten-5 font-weight-bold">Nama Barang</th>
                 <th class="text-center bg-blue-grey-lighten-5 font-weight-bold">Ukuran</th>
                 <th class="text-right bg-blue-grey-lighten-5 font-weight-bold">Stok Asal</th>
-                <th class="text-center bg-blue-grey-lighten-5 font-weight-bold" style="width: 100px;">Qty</th>
-                <th class="text-center bg-blue-grey-lighten-5 font-weight-bold" style="width: 50px;">#</th>
+                <th
+                  class="text-center bg-blue-grey-lighten-5 font-weight-bold"
+                  style="width: 100px"
+                >
+                  Qty
+                </th>
+                <th class="text-center bg-blue-grey-lighten-5 font-weight-bold" style="width: 50px">
+                  #
+                </th>
               </tr>
             </thead>
             <tbody>
               <tr v-for="(item, idx) in items" :key="item.id">
                 <td class="text-caption font-weight-medium">{{ item.kode }}</td>
                 <td class="py-1">
-                  <div class="text-body-2 text-truncate" style="max-width: 300px;">{{ item.nama }}</div>
+                  <div class="text-body-2 text-truncate" style="max-width: 300px">
+                    {{ item.nama }}
+                  </div>
                   <div class="text-caption text-grey">{{ item.barcode }}</div>
                 </td>
                 <td class="text-center">{{ item.ukuran }}</td>
@@ -450,12 +533,25 @@ onMounted(async () => {
                   </span>
                 </td>
                 <td class="text-center pa-1">
-                  <v-text-field v-model.number="item.jumlah" type="number" min="1" variant="outlined" density="compact"
-                    hide-details class="centered-input" />
+                  <v-text-field
+                    v-model.number="item.jumlah"
+                    type="number"
+                    min="1"
+                    variant="outlined"
+                    density="compact"
+                    hide-details
+                    class="centered-input"
+                  />
                 </td>
                 <td class="text-center">
-                  <v-btn icon="mdi-delete" size="x-small" color="error" variant="text" @click="removeItem(idx)"
-                    tabindex="-1" />
+                  <v-btn
+                    icon="mdi-delete"
+                    size="x-small"
+                    color="error"
+                    variant="text"
+                    @click="removeItem(idx)"
+                    tabindex="-1"
+                  />
                 </td>
               </tr>
               <tr v-if="items.length === 0">
@@ -468,24 +564,31 @@ onMounted(async () => {
           </v-table>
         </div>
 
-        <div class="mt-2 pa-3 bg-blue-grey-lighten-5 rounded border d-flex justify-space-between align-center">
+        <div
+          class="mt-2 pa-3 bg-blue-grey-lighten-5 rounded border d-flex justify-space-between align-center"
+        >
           <div class="text-caption text-grey-darken-2">
             Pastikan stok di gudang asal mencukupi sebelum memproses pesanan.
           </div>
-          <div class="text-h6 font-weight-bold text-primary">
-            Total Qty: {{ totalQty }} Pcs
-          </div>
+          <div class="text-h6 font-weight-bold text-primary">Total Qty: {{ totalQty }} Pcs</div>
         </div>
       </div>
     </div>
 
-    <ProductSearchModal v-if="dialogs.productSearch" :gudang="form.sourceGudang" category="ALL" :multi="true"
-      source="invoice-cash" @close="dialogs.productSearch = false" @products-selected="handleProductSelected" />
+    <ProductSearchModal
+      v-if="dialogs.productSearch"
+      :gudang="form.sourceGudang"
+      category="ALL"
+      :multi="true"
+      source="invoice-cash"
+      @close="dialogs.productSearch = false"
+      @products-selected="handleProductSelected"
+    />
 
     <v-dialog v-model="dialogConfirm.show" max-width="400">
       <v-card>
         <v-card-title class="text-h6">{{ dialogConfirm.title }}</v-card-title>
-        <v-card-text style="white-space: pre-wrap;">{{ dialogConfirm.text }}</v-card-text>
+        <v-card-text style="white-space: pre-wrap">{{ dialogConfirm.text }}</v-card-text>
         <v-card-actions>
           <v-spacer></v-spacer>
           <v-btn text @click="dialogConfirm.show = false">Batal</v-btn>
@@ -493,7 +596,6 @@ onMounted(async () => {
         </v-card-actions>
       </v-card>
     </v-dialog>
-
   </PageLayout>
 </template>
 

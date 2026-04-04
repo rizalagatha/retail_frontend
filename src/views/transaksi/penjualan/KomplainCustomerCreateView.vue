@@ -244,8 +244,10 @@ const onInvoiceSelected = async (invoice: SelectedInvoice | null) => {
       } else {
         toast.success("Barang dari invoice berhasil dimuat.");
       }
-    } catch (error) {
-      toast.error("Gagal menarik detail invoice.", error);
+    } catch (error: unknown) {
+      const err = error as AxiosError<{ message?: string }>;
+
+      toast.error(err.response?.data?.message || "Gagal menarik detail invoice.");
     } finally {
       isLoading.value = false;
     }
@@ -270,8 +272,11 @@ const uploadFoto = async (item: KomplainItem) => {
     item.foto = response.data.fileName;
     item.foto_url = URL.createObjectURL(item._fileObj); // Preview lokal
     toast.success("Foto berhasil diunggah (sementara).");
-  } catch (error) {
-    toast.error("Gagal mengunggah foto.", error);
+  } catch (error: unknown) {
+    const err = error as AxiosError<{ message?: string }>;
+
+    toast.error(err.response?.data?.message || "Gagal mengunggah foto.");
+
     item._fileObj = null;
   } finally {
     item.isUploading = false;
@@ -311,8 +316,11 @@ const loadData = async (nomor: string) => {
     // addNewRow() sudah dihapus dari sini
 
     logs.value = l || [];
-  } catch (error) {
-    toast.error("Gagal memuat data komplain.", error);
+  } catch (error: unknown) {
+    const err = error as AxiosError<{ message?: string }>;
+
+    toast.error(err.response?.data?.message || "Gagal memuat data komplain.");
+
     router.back();
   } finally {
     isLoading.value = false;
@@ -398,8 +406,10 @@ const markAsOnReview = async () => {
         });
         toast.success("Status tiket berubah menjadi ON REVIEW.");
         loadData(header.nomor);
-      } catch (error) {
-        toast.error("Gagal mengubah status komplain.", error);
+      } catch (error: unknown) {
+        const err = error as AxiosError<{ message?: string }>;
+
+        toast.error(err.response?.data?.message || "Gagal mengubah status komplain.");
       } finally {
         isSaving.value = false;
       }
@@ -428,8 +438,10 @@ const submitKeputusan = async () => {
         toast.success(`Komplain berhasil di-${resolveForm.status.toLowerCase()}!`);
         dialogs.resolve = false; // Tutup juga modal form keputusannya
         loadData(header.nomor);
-      } catch (error) {
-        toast.error("Gagal memproses keputusan komplain.", error);
+      } catch (error: unknown) {
+        const err = error as AxiosError<{ message?: string }>;
+
+        toast.error(err.response?.data?.message || "Gagal memproses keputusan komplain.");
       } finally {
         isSaving.value = false;
       }

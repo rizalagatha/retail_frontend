@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import { ref, onMounted, nextTick, watch } from 'vue';
-import { useRoute } from 'vue-router';
-import api from '@/services/api';
-import { format, parseISO } from 'date-fns';
-import Logo from '@/assets/logo.png'; // Pastikan path logo benar
+import { ref, onMounted, nextTick, watch } from "vue";
+import { useRoute } from "vue-router";
+import api from "@/services/api";
+import { format, parseISO } from "date-fns";
+import Logo from "@/assets/logo.png"; // Pastikan path logo benar
 
 // Tipe Data untuk Print (Sesuaikan dengan response backend)
 interface PrintHeader {
@@ -11,7 +11,7 @@ interface PrintHeader {
   pl_mt_nomor: string;
   pl_tanggal: string;
   pl_ket: string;
-  store: string;       // Nama Store Tujuan
+  store: string; // Nama Store Tujuan
   perush_nama: string; // Nama DC Pengirim
   perush_alamat: string;
   perush_telp: string;
@@ -39,9 +39,9 @@ const appLogo = Logo;
 
 // [TAMBAHAN] Helper untuk format angka bulat
 const formatNumber = (value: number | string) => {
-  if (!value) return '0';
+  if (!value) return "0";
   // Konversi ke number, lalu format ke locale Indonesia tanpa desimal
-  return Number(value).toLocaleString('id-ID', { maximumFractionDigits: 0 });
+  return Number(value).toLocaleString("id-ID", { maximumFractionDigits: 0 });
 };
 
 // --- Fetch Data ---
@@ -104,7 +104,7 @@ onMounted(() => {
           <tr>
             <td class="label">Tanggal</td>
             <td class="separator">:</td>
-            <td class="value">{{ format(parseISO(printData.header.pl_tanggal), 'dd-MM-yyyy') }}</td>
+            <td class="value">{{ format(parseISO(printData.header.pl_tanggal), "dd-MM-yyyy") }}</td>
 
             <td class="label pl-4">Kepada Store</td>
             <td class="separator">:</td>
@@ -113,11 +113,11 @@ onMounted(() => {
           <tr>
             <td class="label">No. Permintaan</td>
             <td class="separator">:</td>
-            <td class="value">{{ printData.header.pl_mt_nomor || '-' }}</td>
+            <td class="value">{{ printData.header.pl_mt_nomor || "-" }}</td>
 
             <td class="label pl-4">Keterangan</td>
             <td class="separator">:</td>
-            <td class="value">{{ printData.header.pl_ket || '-' }}</td>
+            <td class="value">{{ printData.header.pl_ket || "-" }}</td>
           </tr>
         </table>
       </div>
@@ -153,7 +153,8 @@ onMounted(() => {
 
       <div class="footer-section">
         <div class="created-info">
-          Dicetak pada: {{ format(new Date(), 'dd-MM-yyyy HH:mm') }} oleh {{ printData.header.user_create }}
+          Dicetak pada: {{ format(new Date(), "dd-MM-yyyy HH:mm") }} oleh
+          {{ printData.header.user_create }}
         </div>
 
         <div class="signatures">
@@ -174,7 +175,6 @@ onMounted(() => {
           </div>
         </div>
       </div>
-
     </div>
   </div>
 </template>
@@ -187,7 +187,7 @@ body {
 }
 
 .print-container {
-  font-family: 'Arial', sans-serif;
+  font-family: "Arial", sans-serif;
   font-size: 10pt;
   color: #000;
   background: #fff;

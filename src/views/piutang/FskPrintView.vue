@@ -1,10 +1,10 @@
 <script setup lang="ts">
-import { ref, onMounted, nextTick, computed, watch } from 'vue';
-import { useRoute } from 'vue-router';
-import api from '@/services/api';
-import { format, parseISO } from 'date-fns';
-import Logo from '@/assets/logo.png';
-import LogoReszo from '@/assets/rezso.jpg';
+import { ref, onMounted, nextTick, computed, watch } from "vue";
+import { useRoute } from "vue-router";
+import api from "@/services/api";
+import { format, parseISO } from "date-fns";
+import Logo from "@/assets/logo.png";
+import LogoReszo from "@/assets/rezso.jpg";
 import { formatRupiah } from "@/utils/formatRupiah";
 
 interface PrintDetail1 {
@@ -42,7 +42,7 @@ const route = useRoute();
 const printData = ref<PrintData | null>(null);
 const isLoading = ref(true);
 const dynamicLogo = computed(() => {
-  if (printData.value?.header?.fsk_nomor?.startsWith('K04')) {
+  if (printData.value?.header?.fsk_nomor?.startsWith("K04")) {
     return LogoReszo;
   }
   return Logo;
@@ -66,7 +66,7 @@ const fetchPrintData = async (nomor: string) => {
   try {
     const response = await api.get(`/fsk-form/print/${nomor}`);
     printData.value = response.data;
-    document.title = response.data.header?.fsk_nomor || 'FSK';
+    document.title = response.data.header?.fsk_nomor || "FSK";
   } catch {
     alert("Gagal memuat data untuk dicetak.");
   } finally {
@@ -107,13 +107,13 @@ onMounted(() => {
 
       <div class="info-grid">
         <div><span class="label">Nomor Setoran</span>: {{ printData.header.fsk_nomor }}</div>
-        <div><span class="label">Tanggal Setor</span>: {{ format(parseISO(printData.header.fsk_tanggal),
-          'dd-MM-yyyy') }}</div>
+        <div>
+          <span class="label">Tanggal Setor</span>:
+          {{ format(parseISO(printData.header.fsk_tanggal), "dd-MM-yyyy") }}
+        </div>
       </div>
 
-      <div class="created-date">
-        Created: {{ printData.header.created }}
-      </div>
+      <div class="created-date">Created: {{ printData.header.created }}</div>
 
       <div class="items-table">
         <div class="table-title">RINCIAN SETORAN</div>
@@ -133,7 +133,7 @@ onMounted(() => {
             <tr v-for="(item, index) in printData.details1" :key="index">
               <td class="text-center">{{ index + 1 }}</td>
               <td>{{ item.jenis }}</td>
-              <td>{{ item.tgltrf ? format(parseISO(item.tgltrf), 'dd-MM-yyyy') : '' }}</td>
+              <td>{{ item.tgltrf ? format(parseISO(item.tgltrf), "dd-MM-yyyy") : "" }}</td>
               <td>{{ item.kdcus }}</td>
               <td>{{ item.nmcus }}</td>
               <td>{{ item.inv }}</td>
@@ -201,7 +201,7 @@ onMounted(() => {
 <style scoped>
 /* Pengaturan dasar */
 .page {
-  font-family: 'Segoe UI', Tahoma, sans-serif;
+  font-family: "Segoe UI", Tahoma, sans-serif;
   font-size: 9pt;
 }
 

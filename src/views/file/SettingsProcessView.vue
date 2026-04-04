@@ -1,33 +1,33 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue';
-import api from '@/services/api';
-import PageLayout from '@/components/PageLayout.vue';
-import ConfirmationModal from '@/components/modal/ConfirmationModal.vue';
-import { useToast } from 'vue-toastification';
-import { useAuthStore } from '@/stores/authStore';
-import axios from 'axios';
+import { ref, computed, onMounted } from "vue";
+import api from "@/services/api";
+import PageLayout from "@/components/PageLayout.vue";
+import ConfirmationModal from "@/components/modal/ConfirmationModal.vue";
+import { useToast } from "vue-toastification";
+import { useAuthStore } from "@/stores/authStore";
+import axios from "axios";
 
 const toast = useToast();
 const authStore = useAuthStore();
-const MENU_ID = '3'; // ID Menu untuk halaman Pengaturan
+const MENU_ID = "3"; // ID Menu untuk halaman Pengaturan
 
-const pin = ref<string>('');
+const pin = ref<string>("");
 const isLoading = ref<boolean>(false);
-const currentProcess = ref<string>('');
+const currentProcess = ref<string>("");
 const isModalVisible = ref(false);
-const pendingProcess = ref<'sales' | 'cash' | null>(null);
+const pendingProcess = ref<"sales" | "cash" | null>(null);
 
-const hasViewPermission = computed(() => authStore.can(MENU_ID, 'view'));
-const hasEditPermission = computed(() => authStore.can(MENU_ID, 'edit')); // (1) Tambahkan computed untuk hak edit
+const hasViewPermission = computed(() => authStore.can(MENU_ID, "view"));
+const hasEditPermission = computed(() => authStore.can(MENU_ID, "edit")); // (1) Tambahkan computed untuk hak edit
 
-const confirmRunProcess = (processType: 'sales' | 'cash') => {
+const confirmRunProcess = (processType: "sales" | "cash") => {
   // (2) Tambahkan guard di dalam method
   if (!hasEditPermission.value) {
-    toast.error('Anda tidak memiliki izin untuk menjalankan proses ini.');
+    toast.error("Anda tidak memiliki izin untuk menjalankan proses ini.");
     return;
   }
   if (!pin.value) {
-    toast.error('PIN Otorisasi harus diisi.');
+    toast.error("PIN Otorisasi harus diisi.");
     return;
   }
   pendingProcess.value = processType;
@@ -41,27 +41,32 @@ const executeProcess = async () => {
   isLoading.value = true;
   currentProcess.value = pendingProcess.value;
 
-  const endpoint = pendingProcess.value === 'sales'
-    ? '/data-process/insert-sales-details'
-    : '/data-process/insert-cash-payments';
+  const endpoint =
+    pendingProcess.value === "sales"
+      ? "/data-process/insert-sales-details"
+      : "/data-process/insert-cash-payments";
 
   try {
     const response = await api.post(endpoint, { pin: pin.value });
-    toast.success(response.data.message || 'Proses selesai.');
+    toast.success(response.data.message || "Proses selesai.");
   } catch (error: unknown) {
     if (axios.isAxiosError(error)) {
       // error dari Axios
-      toast.error(error.response?.data?.message || error.message || 'Terjadi kesalahan saat menjalankan proses.');
+      toast.error(
+        error.response?.data?.message ||
+          error.message ||
+          "Terjadi kesalahan saat menjalankan proses."
+      );
     } else if (error instanceof Error) {
       // error JS biasa
-      toast.error(error.message || 'Terjadi kesalahan saat menjalankan proses.');
+      toast.error(error.message || "Terjadi kesalahan saat menjalankan proses.");
     } else {
       // fallback jika bukan error JS
-      toast.error('Terjadi kesalahan saat menjalankan proses.');
+      toast.error("Terjadi kesalahan saat menjalankan proses.");
     }
   } finally {
     isLoading.value = false;
-    currentProcess.value = '';
+    currentProcess.value = "";
     pendingProcess.value = null;
   }
 };
@@ -90,9 +95,17 @@ onMounted(() => {
       <div class="desktop-form-section action-panel">
         <!-- Otorisasi -->
         <h3 class="section-title">Otorisasi</h3>
-        <v-text-field v-model="pin" type="password" label="PIN Otorisasi" placeholder="Masukkan PIN untuk konfirmasi"
-          variant="outlined" density="compact" prepend-inner-icon="mdi-lock-outline" hide-details="auto"
-          :disabled="!hasEditPermission"></v-text-field>
+        <v-text-field
+          v-model="pin"
+          type="password"
+          label="PIN Otorisasi"
+          placeholder="Masukkan PIN untuk konfirmasi"
+          variant="outlined"
+          density="compact"
+          prepend-inner-icon="mdi-lock-outline"
+          hide-details="auto"
+          :disabled="!hasEditPermission"
+        ></v-text-field>
 
         <v-divider class="my-5"></v-divider>
 
@@ -100,14 +113,26 @@ onMounted(() => {
         <h3 class="section-title">Pilih Proses</h3>
         <v-list lines="two" density="compact" class="process-list">
           <v-list-item>
-            <template #prepend><v-icon color="primary" class="mt-1">mdi-receipt-text-plus-outline</v-icon></template>
-            <v-list-item-title class="font-weight-medium">Penjualan Detail Piutang</v-list-item-title>
-            <v-list-item-subtitle>Proses untuk memasukkan data detail penjualan ke dalam sistem
-              piutang.</v-list-item-subtitle>
+            <template #prepend
+              ><v-icon color="primary" class="mt-1">mdi-receipt-text-plus-outline</v-icon></template
+            >
+            <v-list-item-title class="font-weight-medium"
+              >Penjualan Detail Piutang</v-list-item-title
+            >
+            <v-list-item-subtitle
+              >Proses untuk memasukkan data detail penjualan ke dalam sistem
+              piutang.</v-list-item-subtitle
+            >
             <template #append>
-              <v-btn color="primary" size="small" :loading="isLoading && currentProcess === 'sales'"
-                @click="confirmRunProcess('sales')" prepend-icon="mdi-play" variant="tonal"
-                :disabled="!hasEditPermission">
+              <v-btn
+                color="primary"
+                size="small"
+                :loading="isLoading && currentProcess === 'sales'"
+                @click="confirmRunProcess('sales')"
+                prepend-icon="mdi-play"
+                variant="tonal"
+                :disabled="!hasEditPermission"
+              >
                 Jalankan
               </v-btn>
             </template>
@@ -116,14 +141,26 @@ onMounted(() => {
           <v-divider class="my-2"></v-divider>
 
           <v-list-item>
-            <template #prepend><v-icon color="success" class="mt-1">mdi-cash-multiple</v-icon></template>
-            <v-list-item-title class="font-weight-medium">Bayar Tunai Detail Piutang</v-list-item-title>
-            <v-list-item-subtitle>Proses untuk memasukkan data pembayaran tunai langsung ke detail
-              piutang.</v-list-item-subtitle>
+            <template #prepend
+              ><v-icon color="success" class="mt-1">mdi-cash-multiple</v-icon></template
+            >
+            <v-list-item-title class="font-weight-medium"
+              >Bayar Tunai Detail Piutang</v-list-item-title
+            >
+            <v-list-item-subtitle
+              >Proses untuk memasukkan data pembayaran tunai langsung ke detail
+              piutang.</v-list-item-subtitle
+            >
             <template #append>
-              <v-btn color="success" size="small" :loading="isLoading && currentProcess === 'cash'"
-                @click="confirmRunProcess('cash')" prepend-icon="mdi-play" variant="tonal"
-                :disabled="!hasEditPermission">
+              <v-btn
+                color="success"
+                size="small"
+                :loading="isLoading && currentProcess === 'cash'"
+                @click="confirmRunProcess('cash')"
+                prepend-icon="mdi-play"
+                variant="tonal"
+                :disabled="!hasEditPermission"
+              >
                 Jalankan
               </v-btn>
             </template>
@@ -134,8 +171,17 @@ onMounted(() => {
 
     <template #footer>
       <div v-if="isLoading" class="d-flex align-center">
-        <v-progress-circular indeterminate color="primary" size="16" width="2" class="me-2"></v-progress-circular>
-        <span>Sedang memproses {{ currentProcess === 'sales' ? 'data penjualan' : 'data pembayaran tunai' }}...</span>
+        <v-progress-circular
+          indeterminate
+          color="primary"
+          size="16"
+          width="2"
+          class="me-2"
+        ></v-progress-circular>
+        <span
+          >Sedang memproses
+          {{ currentProcess === "sales" ? "data penjualan" : "data pembayaran tunai" }}...</span
+        >
       </div>
       <div v-else class="d-flex align-center">
         <v-icon size="x-small" class="me-2">mdi-alert-circle-outline</v-icon>
@@ -143,9 +189,13 @@ onMounted(() => {
       </div>
     </template>
 
-    <ConfirmationModal v-if="isModalVisible" title="Konfirmasi Proses"
+    <ConfirmationModal
+      v-if="isModalVisible"
+      title="Konfirmasi Proses"
       message="Apakah Anda yakin ingin menjalankan proses ini? Tindakan ini tidak dapat dibatalkan."
-      @confirm="executeProcess" @cancel="cancelProcess" />
+      @confirm="executeProcess"
+      @cancel="cancelProcess"
+    />
   </PageLayout>
 </template>
 

@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import { ref, onMounted, nextTick, watch } from 'vue';
-import { useRoute } from 'vue-router';
-import api from '@/services/api';
-import { format, parseISO } from 'date-fns';
-import Logo from '@/assets/logo.png'; // Pastikan path logo ini benar
+import { ref, onMounted, nextTick, watch } from "vue";
+import { useRoute } from "vue-router";
+import api from "@/services/api";
+import { format, parseISO } from "date-fns";
+import Logo from "@/assets/logo.png"; // Pastikan path logo ini benar
 
 interface PrintHeader {
   mts_nomor: string;
@@ -83,13 +83,23 @@ onMounted(() => {
 
       <div class="info-grid">
         <div><span class="label">Nomor</span>: {{ printData.header.mts_nomor }}</div>
-        <div><span class="label">Gudang</span>: {{ printData.header.mts_drcab }} ({{ printData.header.nama_dari_cabang
-        }})</div>
-        <div><span class="label">Tanggal</span>: {{ format(parseISO(printData.header.mts_tanggal), 'dd-MM-yyyy') }}
+        <div>
+          <span class="label">Gudang</span>: {{ printData.header.mts_drcab }} ({{
+            printData.header.nama_dari_cabang
+          }})
         </div>
-        <div><span class="label">Ke</span>: {{ printData.header.mts_kecab }} ({{ printData.header.nama_ke_cabang }})
+        <div>
+          <span class="label">Tanggal</span>:
+          {{ format(parseISO(printData.header.mts_tanggal), "dd-MM-yyyy") }}
         </div>
-        <div class="keterangan"><span class="label">Keterangan</span>: {{ printData.header.mts_ket }}</div>
+        <div>
+          <span class="label">Ke</span>: {{ printData.header.mts_kecab }} ({{
+            printData.header.nama_ke_cabang
+          }})
+        </div>
+        <div class="keterangan">
+          <span class="label">Keterangan</span>: {{ printData.header.mts_ket }}
+        </div>
       </div>
 
       <div class="items-table">
@@ -133,7 +143,7 @@ onMounted(() => {
 
 <style scoped>
 .print-container {
-  font-family: 'Arial', sans-serif;
+  font-family: "Arial", sans-serif;
   font-size: 10pt;
   color: black;
 }

@@ -1,10 +1,10 @@
 <script setup lang="ts">
-import { ref, onMounted, nextTick, watch, computed } from 'vue';
-import { useRoute } from 'vue-router';
-import api from '@/services/api';
-import { format, parseISO } from 'date-fns';
-import Logo from '@/assets/logo.png';
-import LogoReszo from '@/assets/rezso.jpg';
+import { ref, onMounted, nextTick, watch, computed } from "vue";
+import { useRoute } from "vue-router";
+import api from "@/services/api";
+import { format, parseISO } from "date-fns";
+import Logo from "@/assets/logo.png";
+import LogoReszo from "@/assets/rezso.jpg";
 import QRCode from "qrcode";
 
 interface PrintHeader {
@@ -35,7 +35,7 @@ const printData = ref<PrintData | null>(null);
 const qrCodeData = ref<string | null>(null);
 const isLoading = ref(true);
 const dynamicLogo = computed(() => {
-  if (printData.value?.header?.nomor?.startsWith('K04')) {
+  if (printData.value?.header?.nomor?.startsWith("K04")) {
     return LogoReszo;
   }
   return Logo;
@@ -43,17 +43,21 @@ const dynamicLogo = computed(() => {
 
 const fetchPrintData = async (nomor: string) => {
   isLoading.value = true;
+
   try {
-    const response = await api.get(`/retur-dc-form/print/${nomor}`);
-    printData.value = response.data;
-    document.title = response.data.header.nomor;
+    const response = await api.get<PrintData>(`/retur-dc-form/print/${nomor}`);
+    const data = response.data;
 
-    // ✅ Generate QR Code berdasarkan nomor retur DC
-    qrCodeData.value = await QRCode.toDataURL(printData.value.header.nomor, {
-      width: 180,
-      margin: 1,
-    });
+    printData.value = data;
 
+    if (data.header?.nomor) {
+      document.title = data.header.nomor;
+
+      qrCodeData.value = await QRCode.toDataURL(data.header.nomor, {
+        width: 180,
+        margin: 1,
+      });
+    }
   } catch {
     alert("Gagal memuat data untuk dicetak.");
   } finally {
@@ -93,9 +97,13 @@ onMounted(() => {
       <div class="info-grid">
         <div><span class="label">Nomor</span>: {{ printData.header.nomor }}</div>
         <div><span class="label">Dari Store</span>: {{ printData.header.dariStore }}</div>
-        <div><span class="label">Tanggal</span>: {{ format(parseISO(printData.header.tanggal), 'dd-MM-yyyy') }}
+        <div>
+          <span class="label">Tanggal</span>:
+          {{ format(parseISO(printData.header.tanggal), "dd-MM-yyyy") }}
         </div>
-        <div class="keterangan"><span class="label">Keterangan</span>: {{ printData.header.keterangan }}</div>
+        <div class="keterangan">
+          <span class="label">Keterangan</span>: {{ printData.header.keterangan }}
+        </div>
       </div>
 
       <table class="items-table">
@@ -120,9 +128,7 @@ onMounted(() => {
       </table>
 
       <div class="footer">
-        <div class="created-info">
-          Created: {{ printData.header.created }}
-        </div>
+        <div class="created-info">Created: {{ printData.header.created }}</div>
         <div class="signatures">
           <div>Admin,</div>
           <div>Pengirim,</div>
@@ -142,7 +148,7 @@ onMounted(() => {
 .print-container {
   background: #eee;
   padding: 20px;
-  font-family: 'Arial', sans-serif;
+  font-family: "Arial", sans-serif;
   font-size: 9pt;
 }
 

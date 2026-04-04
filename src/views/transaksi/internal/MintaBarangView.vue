@@ -57,6 +57,11 @@ interface MintaBarangExportDetail {
   [key: string]: unknown;
 }
 
+interface Cabang {
+  kode: string;
+  nama: string;
+}
+
 // --- State ---
 const list = ref<MintaBarangHeader[]>([]);
 const details = ref<{ [nomor: string]: MintaBarangDetail[] }>({});
@@ -68,7 +73,7 @@ const filters = reactive({
   jenisPermintaan: "semua", // 'semua', 'manual', 'otomatis'
 });
 
-const cabangList = ref([]);
+const cabangList = ref<Cabang[]>([]);
 const selected = ref<MintaBarangHeader[]>([]);
 const expanded = ref<string[]>([]);
 const loadingDetails = ref(new Set<string>());
@@ -153,8 +158,10 @@ const fetchCabangList = async () => {
   try {
     const response = await api.get("/minta-barang/lookup/cabang");
     cabangList.value = response.data;
-  } catch (error) {
-    toast.error("Gagal memuat daftar cabang.", error);
+  } catch (err: unknown) {
+    const error = err as AxiosError<{ message?: string }>;
+
+    toast.error(error.response?.data?.message || "Gagal memuat daftar cabang.");
   }
 };
 
@@ -170,8 +177,10 @@ const fetchData = async () => {
       },
     });
     list.value = response.data;
-  } catch (error) {
-    toast.error("Gagal memuat data.", error);
+  } catch (err: unknown) {
+    const error = err as AxiosError<{ message?: string }>;
+
+    toast.error(error.response?.data?.message || "Gagal memuat data.");
   } finally {
     isLoading.value = false;
   }
@@ -299,8 +308,10 @@ const exportData = async (type: "header" | "detail") => {
       XLSX.utils.book_append_sheet(workbook, worksheet, "Minta Barang Header");
       XLSX.writeFile(workbook, "Export_MintaBarang_Header.xlsx");
       toast.success("File Header berhasil dibuat.");
-    } catch (error) {
-      toast.error("Gagal membuat file Excel.", error);
+    } catch (err: unknown) {
+      const error = err as AxiosError<{ message?: string }>;
+
+      toast.error(error.response?.data?.message || "Gagal membuat file Excel.");
     }
 
     // === EXPORT DETAIL (Dari Backend API) ===
@@ -372,14 +383,36 @@ watch(filters, () => fetchData(), { deep: true });
 <template>
   <PageLayout title="Minta Barang ke DC" desktop-mode icon="mdi-package-up">
     <template #header-actions>
-      <v-btn v-if="canInsert" size="small" color="primary" prepend-icon="mdi-plus" @click="handleNew">Baru</v-btn>
-      <v-btn v-if="canEdit" size="small" :disabled="!isSingleSelected" prepend-icon="mdi-pencil"
-        @click="editItem">Ubah</v-btn>
-      <v-btn v-if="canDelete" size="small" :disabled="!isSingleSelected" prepend-icon="mdi-delete" color="error"
-        @click="showDeleteConfirmation">Hapus</v-btn>
+      <v-btn
+        v-if="canInsert"
+        size="small"
+        color="primary"
+        prepend-icon="mdi-plus"
+        @click="handleNew"
+        >Baru</v-btn
+      >
+      <v-btn
+        v-if="canEdit"
+        size="small"
+        :disabled="!isSingleSelected"
+        prepend-icon="mdi-pencil"
+        @click="editItem"
+        >Ubah</v-btn
+      >
+      <v-btn
+        v-if="canDelete"
+        size="small"
+        :disabled="!isSingleSelected"
+        prepend-icon="mdi-delete"
+        color="error"
+        @click="showDeleteConfirmation"
+        >Hapus</v-btn
+      >
       <v-menu offset-y>
         <template v-slot:activator="{ props }">
-          <v-btn size="small" color="teal" prepend-icon="mdi-file-excel" v-bind="props">Export</v-btn>
+          <v-btn size="small" color="teal" prepend-icon="mdi-file-excel" v-bind="props"
+            >Export</v-btn
+          >
         </template>
         <v-list density="compact">
           <v-list-item @click="exportData('header')">
@@ -400,13 +433,38 @@ watch(filters, () => fetchData(), { deep: true });
     <div v-else class="browse-content">
       <div class="filter-section">
         <span class="filter-label">Periode:</span>
-        <v-text-field v-model="filters.startDate" type="date" density="compact" hide-details variant="outlined" />
+        <v-text-field
+          v-model="filters.startDate"
+          type="date"
+          density="compact"
+          hide-details
+          variant="outlined"
+        />
         <span class="mx-2">s/d</span>
-        <v-text-field v-model="filters.endDate" type="date" density="compact" hide-details variant="outlined" />
+        <v-text-field
+          v-model="filters.endDate"
+          type="date"
+          density="compact"
+          hide-details
+          variant="outlined"
+        />
         <span class="filter-label ms-4">Cabang:</span>
-        <v-select v-model="filters.cabang" :items="cabangList" item-title="nama" item-value="kode" density="compact"
-          hide-details variant="outlined" />
-        <v-radio-group v-model="filters.jenisPermintaan" inline hide-details density="compact" class="ms-4">
+        <v-select
+          v-model="filters.cabang"
+          :items="cabangList"
+          item-title="nama"
+          item-value="kode"
+          density="compact"
+          hide-details
+          variant="outlined"
+        />
+        <v-radio-group
+          v-model="filters.jenisPermintaan"
+          inline
+          hide-details
+          density="compact"
+          class="ms-4"
+        >
           <v-radio label="Semua" value="semua" />
           <v-radio label="Manual" value="manual" />
           <v-radio label="Otomatis" value="otomatis" />
@@ -422,43 +480,79 @@ watch(filters, () => fetchData(), { deep: true });
             Dalam Proses (PL/SJ/Kirim)
           </div>
         </div>
-        <v-btn @click="fetchData" icon="mdi-refresh" variant="text" size="small" title="Terapkan Filter" />
+        <v-btn
+          @click="fetchData"
+          icon="mdi-refresh"
+          variant="text"
+          size="small"
+          title="Terapkan Filter"
+        />
       </div>
 
       <div class="table-container">
-        <AppDataTable v-model="selected" v-model:expanded="expanded" :headers="headers" :items="list"
-          :loading="isLoading" item-value="Nomor" density="compact" class="desktop-table header-browse-blue"
-          fixed-header show-select return-object show-expand @update:expanded="loadDetails" @click:row="handleRowClick">
+        <AppDataTable
+          v-model="selected"
+          v-model:expanded="expanded"
+          :headers="headers"
+          :items="list"
+          :loading="isLoading"
+          item-value="Nomor"
+          density="compact"
+          class="desktop-table header-browse-blue"
+          fixed-header
+          show-select
+          return-object
+          show-expand
+          @update:expanded="loadDetails"
+          @click:row="handleRowClick"
+        >
           <template #headers="{ columns, isSorted, getSortIcon, toggleSort }">
             <tr>
               <template v-for="header in columns" :key="header.key">
-                <th :style="{
-                  width: header.width + 'px',
-                  minWidth: header.width + 'px',
-                  maxWidth: header.width + 'px',
-                }" class="resizable-header" :class="{
+                <th
+                  :style="{
+                    width: header.width + 'px',
+                    minWidth: header.width + 'px',
+                    maxWidth: header.width + 'px',
+                  }"
+                  class="resizable-header"
+                  :class="{
                     'text-center': header.align === 'center',
                     'text-end': header.align === 'end',
-                  }" @click="toggleSort(header)">
+                  }"
+                  @click="toggleSort(header)"
+                >
                   <div class="header-content">
                     <span>{{ header.title }}</span>
                     <v-icon v-if="isSorted(header)" size="small" class="ms-1">
                       {{ getSortIcon(header) }}
                     </v-icon>
                   </div>
-                  <div class="resizer" @mousedown.stop="onResizeStart($event, header)" @click.stop></div>
+                  <div
+                    class="resizer"
+                    @mousedown.stop="onResizeStart($event, header)"
+                    @click.stop
+                  ></div>
                 </th>
               </template>
             </tr>
           </template>
 
           <template #[`item.data-table-expand`]="{ internalItem, toggleExpand, isExpanded }">
-            <v-btn icon="mdi-chevron-down" :class="{ 'rotate-180': isExpanded(internalItem) }" size="x-small"
-              variant="text" @click.stop="toggleExpand(internalItem)" />
+            <v-btn
+              icon="mdi-chevron-down"
+              :class="{ 'rotate-180': isExpanded(internalItem) }"
+              size="x-small"
+              variant="text"
+              @click.stop="toggleExpand(internalItem)"
+            />
           </template>
 
-          <template v-for="header in headers.filter((h) => h.key !== 'data-table-expand')"
-            #[`item.${header.key}`]="{ item }" :key="header.key">
+          <template
+            v-for="header in headers.filter((h) => h.key !== 'data-table-expand')"
+            #[`item.${header.key}`]="{ item }"
+            :key="header.key"
+          >
             <td :class="getRowTextColor(item)">
               <template v-if="header.key === 'Tanggal'">
                 {{ format(parseISO(item.Tanggal), "dd/MM/yyyy") }}
@@ -479,12 +573,22 @@ watch(filters, () => fetchData(), { deep: true });
               <td :colspan="columns.length" class="pa-0">
                 <div class="detail-container">
                   <div class="detail-table-wrapper">
-                    <div v-if="loadingDetails.has(item.Nomor)" class="text-center pa-4 text-caption">
+                    <div
+                      v-if="loadingDetails.has(item.Nomor)"
+                      class="text-center pa-4 text-caption"
+                    >
                       Memuat detail...
                     </div>
-                    <v-data-table v-else-if="details[item.Nomor] && details[item.Nomor].length" :headers="detailHeaders"
-                      :items="details[item.Nomor]" item-value="Kode" density="compact" class="detail-table"
-                      :items-per-page="-1" hide-default-footer>
+                    <v-data-table
+                      v-else-if="details[item.Nomor] && details[item.Nomor].length"
+                      :headers="detailHeaders"
+                      :items="details[item.Nomor]"
+                      item-value="Kode"
+                      density="compact"
+                      class="detail-table"
+                      :items-per-page="-1"
+                      hide-default-footer
+                    >
                       <template #bottom></template>
                     </v-data-table>
                     <div v-else class="text-center py-2 text-caption">Tidak ada data detail.</div>

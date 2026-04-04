@@ -1,10 +1,10 @@
 <script setup lang="ts">
-import { ref, onMounted, nextTick, computed, watch } from 'vue';
-import { useRoute } from 'vue-router';
-import api from '@/services/api';
-import { format, parseISO } from 'date-fns';
-import Logo from '@/assets/logo.png';
-import QRCode from 'qrcode';
+import { ref, onMounted, nextTick, computed, watch } from "vue";
+import { useRoute } from "vue-router";
+import api from "@/services/api";
+import { format, parseISO } from "date-fns";
+import Logo from "@/assets/logo.png";
+import QRCode from "qrcode";
 
 interface PrintData {
   sd_nomor: string;
@@ -37,9 +37,9 @@ const getFullImageUrl = (path: string | null | undefined) => {
 const imageFullUrl = computed(() => getFullImageUrl(printData.value?.imageUrl));
 
 const getSoTitle = (joKode: string) => {
-  let title = 'SO STICKER';
-  if (joKode === 'SD') title = 'SO DTF';
-  else if (joKode === 'DP') title = 'SO DTF PREMIUM';
+  let title = "SO STICKER";
+  if (joKode === "SD") title = "SO DTF";
+  else if (joKode === "DP") title = "SO DTF PREMIUM";
   return `${title} (Sticker)`;
 };
 
@@ -47,14 +47,17 @@ const fetchPrintData = async (nomor: string) => {
   isLoading.value = true;
   try {
     const response = await api.get(`/so-dtf-stok-form/print-data/${nomor}`);
-    printData.value = response.data;
-    if (printData.value.sd_nomor) {
-      document.title = printData.value.sd_nomor;
 
-      // === Generate QR code (isi = nomor SO) ===
-      qrCodeData.value = await QRCode.toDataURL(printData.value.sd_nomor, {
+    const data = response.data as PrintData; // 🔥 penting
+
+    printData.value = data;
+
+    if (data.sd_nomor) {
+      document.title = data.sd_nomor;
+
+      qrCodeData.value = await QRCode.toDataURL(data.sd_nomor, {
         width: 200,
-        margin: 1
+        margin: 1,
       });
     }
   } catch {
@@ -76,13 +79,11 @@ onMounted(() => {
 });
 </script>
 
-
 <template>
   <div class="print-container">
     <div v-if="isLoading" class="text-center">Memuat data...</div>
 
     <div v-if="printData" class="page">
-
       <!-- HEADER -->
       <div class="page-header">
         <div class="header-left">
@@ -99,16 +100,14 @@ onMounted(() => {
         </div>
       </div>
 
-
       <!-- MASTER DATA -->
       <div class="master-data">
         <div class="data-grid">
-
           <div class="label">No. SO DTF</div>
           <div class="value">: {{ printData.sd_nomor }}</div>
 
           <div class="label">Tanggal</div>
-          <div class="value">: {{ format(parseISO(printData.sd_tanggal), 'dd/MM/yyyy') }}</div>
+          <div class="value">: {{ format(parseISO(printData.sd_tanggal), "dd/MM/yyyy") }}</div>
 
           <div class="label">Jenis Order</div>
           <div class="value">: {{ printData.jo_nama }}</div>
@@ -123,7 +122,7 @@ onMounted(() => {
           <div class="value">: {{ printData.ukuran }}</div>
 
           <div class="label">Date Line</div>
-          <div class="value">: {{ format(parseISO(printData.sd_datekerja), 'dd/MM/yyyy') }}</div>
+          <div class="value">: {{ format(parseISO(printData.sd_datekerja), "dd/MM/yyyy") }}</div>
 
           <div class="label">Workshop</div>
           <div class="value">: {{ printData.gdg_nama }}</div>
@@ -133,7 +132,6 @@ onMounted(() => {
 
           <div class="label">Keterangan</div>
           <div class="value">: {{ printData.sd_ket }}</div>
-
         </div>
       </div>
 
@@ -160,11 +158,9 @@ onMounted(() => {
           </tbody>
         </table>
       </div>
-
     </div>
   </div>
 </template>
-
 
 <style scoped>
 /* === PRINT SETTING === */
@@ -199,7 +195,7 @@ onMounted(() => {
   width: 21cm;
   min-height: 29.7cm;
   box-shadow: 0 0 5px rgba(0, 0, 0, 0.1);
-  font-family: 'Arial', sans-serif;
+  font-family: "Arial", sans-serif;
   font-size: 10pt;
   color: #333;
   display: flex;

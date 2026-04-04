@@ -1,14 +1,14 @@
 <script setup lang="ts">
-import { ref, reactive, onMounted, watch, computed } from 'vue';
-import { useToast } from 'vue-toastification';
-import { useAuthStore } from '@/stores/authStore';
-import api from '@/services/api';
-import { format } from 'date-fns';
-import PageLayout from '@/components/PageLayout.vue';
-import MasterProductSearchModal from '@/components/lookup/MasterProductSearchModal.vue';
-import * as XLSX from 'xlsx';
-import type { AxiosError } from 'axios';
-import AppDataTable from '@/components/AppDataTable.vue';
+import { ref, reactive, onMounted, watch, computed } from "vue";
+import { useToast } from "vue-toastification";
+import { useAuthStore } from "@/stores/authStore";
+import api from "@/services/api";
+import { format } from "date-fns";
+import PageLayout from "@/components/PageLayout.vue";
+import MasterProductSearchModal from "@/components/lookup/MasterProductSearchModal.vue";
+import * as XLSX from "xlsx";
+import type { AxiosError } from "axios";
+import AppDataTable from "@/components/AppDataTable.vue";
 
 // --- Tipe Data ---
 interface GudangOption {
@@ -47,14 +47,14 @@ interface MasterProduct {
 interface DetailHeader {
   title: string;
   key: string;
-  align?: 'start' | 'center' | 'end';
+  align?: "start" | "center" | "end";
   cellProps?: Record<string, unknown>; // ganti dari any
 }
 
 // --- Inisialisasi & State ---
 const toast = useToast();
 const authStore = useAuthStore();
-const MENU_ID = '502';
+const MENU_ID = "502";
 
 const masterData = ref<MasterProduct[]>([]); // Daftar produk
 const details = ref<Record<string, MasterProduct[]>>({}); // Detail mutasi per produk
@@ -64,21 +64,21 @@ const gudangList = ref<GudangOption[]>([]);
 const isProductSearchVisible = ref(false);
 
 const filters = reactive({
-  startDate: format(new Date(), 'yyyy-MM-dd'),
-  endDate: format(new Date(), 'yyyy-MM-dd'),
-  gudang: authStore.user?.cabang || '',
+  startDate: format(new Date(), "yyyy-MM-dd"),
+  endDate: format(new Date(), "yyyy-MM-dd"),
+  gudang: authStore.user?.cabang || "",
   gudangDc: 0,
-  kodeBarang: '',
-  namaBarang: '',
+  kodeBarang: "",
+  namaBarang: "",
 });
-const canView = computed(() => authStore.can(MENU_ID, 'view'));
+const canView = computed(() => authStore.can(MENU_ID, "view"));
 // Asumsi export memerlukan izin view
-const canExport = computed(() => authStore.can(MENU_ID, 'view'));
+const canExport = computed(() => authStore.can(MENU_ID, "view"));
 
 // --- Konfigurasi Tabel ---
 const headers = [
-  { title: 'Kode', key: 'kode', fixed: true, width: '200px' },
-  { title: 'Nama Barang', key: 'nama', fixed: true },
+  { title: "Kode", key: "kode", fixed: true, width: "200px" },
+  { title: "Nama Barang", key: "nama", fixed: true },
 ];
 const detailHeaders = ref<DetailHeader[]>([]);
 
@@ -87,41 +87,51 @@ const generateHeaders = (gudangDc: number) => {
   if (gudangDc === 0 || gudangDc === 3) {
     // STORE
     detailHeaders.value = [
-      { title: 'Ukuran', key: 'ukuran' },
-      { title: 'Stok Awal', key: 'stokAwal', align: 'end' },
-      { title: 'Selisih SOP', key: 'selisihSop', align: 'end' },
-      { title: 'Koreksi', key: 'koreksi', align: 'end' },
-      { title: 'Retur Jual', key: 'returJual', align: 'end' },
-      { title: 'Terima SJ', key: 'terimaSJ', align: 'end' },
-      { title: 'Terima Mutasi', key: 'mutStoreTerima', align: 'end' },
-      { title: 'Mutasi In (Pesan)', key: 'mutInPesan', align: 'end' },
-      { title: 'Invoice', key: 'invoice', align: 'end' },
-      { title: 'Retur ke DC', key: 'returKeDC', align: 'end' },
-      { title: 'Kirim Mutasi', key: 'mutStoreKirim', align: 'end' },
-      { title: 'Mutasi Out (Pesan)', key: 'mutOutPesan', align: 'end' },
-      { title: 'Saldo Akhir', key: 'saldoAkhir', align: 'end', cellProps: { class: 'font-weight-bold' } },
+      { title: "Ukuran", key: "ukuran" },
+      { title: "Stok Awal", key: "stokAwal", align: "end" },
+      { title: "Selisih SOP", key: "selisihSop", align: "end" },
+      { title: "Koreksi", key: "koreksi", align: "end" },
+      { title: "Retur Jual", key: "returJual", align: "end" },
+      { title: "Terima SJ", key: "terimaSJ", align: "end" },
+      { title: "Terima Mutasi", key: "mutStoreTerima", align: "end" },
+      { title: "Mutasi In (Pesan)", key: "mutInPesan", align: "end" },
+      { title: "Invoice", key: "invoice", align: "end" },
+      { title: "Retur ke DC", key: "returKeDC", align: "end" },
+      { title: "Kirim Mutasi", key: "mutStoreKirim", align: "end" },
+      { title: "Mutasi Out (Pesan)", key: "mutOutPesan", align: "end" },
+      {
+        title: "Saldo Akhir",
+        key: "saldoAkhir",
+        align: "end",
+        cellProps: { class: "font-weight-bold" },
+      },
     ];
   } else {
     // GUDANG DC
     detailHeaders.value = [
-      { title: 'Ukuran', key: 'ukuran' },
-      { title: 'Stok Awal', key: 'stokAwal', align: 'end' },
-      { title: 'Selisih SOP', key: 'selisihSop', align: 'end' },
-      { title: 'Koreksi', key: 'koreksi', align: 'end' },
-      { title: 'Mutasi In', key: 'mutasiIn', align: 'end' },
-      { title: 'Terima QC', key: 'terimaQc', align: 'end' },
-      { title: 'Terima STBJ', key: 'terimaSTBJ', align: 'end' },
-      { title: 'Terima Gdg Repair', key: 'terimaGdgRepair', align: 'end' },
-      { title: 'Retur Store', key: 'returStore', align: 'end' },
-      { title: 'Retur Jual', key: 'returJual', align: 'end' },
-      { title: 'BPB', key: 'bpb', align: 'end' },
-      { title: 'MCT', key: 'mct', align: 'end' },
-      { title: 'SJ', key: 'sj', align: 'end' },
-      { title: 'QC', key: 'qc', align: 'end' },
-      { title: 'Mutasi Out', key: 'mutasiOut', align: 'end' },
-      { title: 'Invoice', key: 'invoice', align: 'end' },
-      { title: 'MCK', key: 'mck', align: 'end' },
-      { title: 'Saldo Akhir', key: 'saldoAkhir', align: 'end', cellProps: { class: 'font-weight-bold' } },
+      { title: "Ukuran", key: "ukuran" },
+      { title: "Stok Awal", key: "stokAwal", align: "end" },
+      { title: "Selisih SOP", key: "selisihSop", align: "end" },
+      { title: "Koreksi", key: "koreksi", align: "end" },
+      { title: "Mutasi In", key: "mutasiIn", align: "end" },
+      { title: "Terima QC", key: "terimaQc", align: "end" },
+      { title: "Terima STBJ", key: "terimaSTBJ", align: "end" },
+      { title: "Terima Gdg Repair", key: "terimaGdgRepair", align: "end" },
+      { title: "Retur Store", key: "returStore", align: "end" },
+      { title: "Retur Jual", key: "returJual", align: "end" },
+      { title: "BPB", key: "bpb", align: "end" },
+      { title: "MCT", key: "mct", align: "end" },
+      { title: "SJ", key: "sj", align: "end" },
+      { title: "QC", key: "qc", align: "end" },
+      { title: "Mutasi Out", key: "mutasiOut", align: "end" },
+      { title: "Invoice", key: "invoice", align: "end" },
+      { title: "MCK", key: "mck", align: "end" },
+      {
+        title: "Saldo Akhir",
+        key: "saldoAkhir",
+        align: "end",
+        cellProps: { class: "font-weight-bold" },
+      },
     ];
   }
 };
@@ -139,13 +149,12 @@ const calculateSaldoAkhir = (item: MasterProduct, gudangDc: number): number => {
       (item.returJual || 0) +
       (item.terimaSJ || 0) +
       (item.mutStoreTerima || 0) +
-      (item.mutInPesan || 0)
-    ) - (
-        (item.invoice || 0) +
+      (item.mutInPesan || 0) -
+      ((item.invoice || 0) +
         (item.returKeDC || 0) +
         (item.mutStoreKirim || 0) +
-        (item.mutOutPesan || 0)
-      );
+        (item.mutOutPesan || 0))
+    );
   } else {
     return (
       (item.stokAwal || 0) +
@@ -158,21 +167,19 @@ const calculateSaldoAkhir = (item: MasterProduct, gudangDc: number): number => {
       (item.terimaSTBJ || 0) +
       (item.terimaGdgRepair || 0) +
       (item.bpb || 0) +
-      (item.mct || 0)
-    ) - (
-        (item.sj || 0) +
+      (item.mct || 0) -
+      ((item.sj || 0) +
         (item.qc || 0) +
         (item.mutasiOut || 0) +
         (item.invoice || 0) +
-        (item.mck || 0)
-      );
+        (item.mck || 0))
+    );
   }
 };
 
-
 const fetchGudangList = async () => {
   try {
-    const response = await api.get('/laporan-mutasi-stok/lookup/gudang-options');
+    const response = await api.get("/laporan-mutasi-stok/lookup/gudang-options");
     gudangList.value = response.data;
 
     const defaultGudang = response.data.find((g: GudangOption) => g.kode === filters.gudang);
@@ -181,7 +188,7 @@ const fetchGudangList = async () => {
       generateHeaders(defaultGudang.sts);
     }
   } catch {
-    toast.error('Gagal memuat daftar gudang.');
+    toast.error("Gagal memuat daftar gudang.");
   }
 };
 
@@ -189,11 +196,11 @@ const fetchMasterData = async () => {
   isLoading.value = true;
   details.value = {}; // Kosongkan detail setiap kali master di-load ulang
   try {
-    const response = await api.get('/laporan-mutasi-stok/product-list', { params: filters });
+    const response = await api.get("/laporan-mutasi-stok/product-list", { params: filters });
     masterData.value = response.data;
   } catch (err) {
     const error = err as AxiosError<{ message: string }>; // tipe response backend optional
-    toast.error(error.response?.data?.message || 'Gagal memuat data produk.');
+    toast.error(error.response?.data?.message || "Gagal memuat data produk.");
   } finally {
     isLoading.value = false;
   }
@@ -201,15 +208,15 @@ const fetchMasterData = async () => {
 
 const loadDetails = async (newlyExpandedItems: MasterProduct[]) => {
   const itemToLoad = newlyExpandedItems.find(
-    item => !details.value[item.kode] && !loadingDetails.value.has(item.kode)
+    (item) => !details.value[item.kode] && !loadingDetails.value.has(item.kode)
   );
   if (!itemToLoad) return;
 
   const kodeProduk = itemToLoad.kode;
   loadingDetails.value.add(kodeProduk);
   try {
-    const response = await api.get('/laporan-mutasi-stok/mutation-details', {
-      params: { ...filters, kodeProduk }
+    const response = await api.get("/laporan-mutasi-stok/mutation-details", {
+      params: { ...filters, kodeProduk },
     });
     details.value[kodeProduk] = response.data;
   } catch (err) {
@@ -220,46 +227,48 @@ const loadDetails = async (newlyExpandedItems: MasterProduct[]) => {
   }
 };
 
-
 const onGudangSelected = (gudangKode: string) => {
-  const selected = gudangList.value.find(g => g.kode === gudangKode);
+  const selected = gudangList.value.find((g) => g.kode === gudangKode);
   if (selected) {
     filters.gudangDc = selected.sts;
     generateHeaders(selected.sts);
   }
 };
 
-const openProductSearch = () => { isProductSearchVisible.value = true; };
+const openProductSearch = () => {
+  isProductSearchVisible.value = true;
+};
 
-const onProductSelected = (product: { kode: string; nama: string; }) => {
+const onProductSelected = (product: { kode: string; nama: string }) => {
   filters.kodeBarang = product.kode;
   filters.namaBarang = product.nama;
   isProductSearchVisible.value = false;
 };
 
 const clearProductFilter = () => {
-  filters.kodeBarang = '';
-  filters.namaBarang = '';
+  filters.kodeBarang = "";
+  filters.namaBarang = "";
 };
 
 const exportToExcel = () => {
   // --- TAMBAHKAN PENGECEKAN IZIN ---
   if (!canExport.value) {
-    toast.error('Anda tidak memiliki izin untuk mengekspor data.');
+    toast.error("Anda tidak memiliki izin untuk mengekspor data.");
     return;
   }
   // ---------------------------------
 
-  if (masterData.value.length === 0) return toast.warning('Tidak ada data untuk diekspor.'); // <-- Cek masterData
+  if (masterData.value.length === 0) return toast.warning("Tidak ada data untuk diekspor."); // <-- Cek masterData
 
   const wb = XLSX.utils.book_new();
   const ws = XLSX.utils.json_to_sheet(masterData.value);
-  XLSX.utils.book_append_sheet(wb, ws, 'Laporan Mutasi Stok'); // <-- Sesuaikan nama sheet
-  XLSX.writeFile(wb, 'LaporanMutasiStok.xlsx'); // <-- Sesuaikan nama file
-  toast.success('Data berhasil diekspor.'); // <-- Tambah toast sukses
+  XLSX.utils.book_append_sheet(wb, ws, "Laporan Mutasi Stok"); // <-- Sesuaikan nama sheet
+  XLSX.writeFile(wb, "LaporanMutasiStok.xlsx"); // <-- Sesuaikan nama file
+  toast.success("Data berhasil diekspor."); // <-- Tambah toast sukses
 };
 
-onMounted(async () => { // <-- Jadikan async
+onMounted(async () => {
+  // <-- Jadikan async
   // --- TAMBAHKAN PENGECEKAN AWAL ---
   if (!canView.value) {
     isLoading.value = false; // Hentikan loading
@@ -275,22 +284,32 @@ onMounted(async () => { // <-- Jadikan async
   // karena watch immediate: true akan melakukannya (setelah cek izin di watch)
 });
 
-watch(filters, () => {
-  // --- TAMBAHKAN PENGECEKAN IZIN ---
-  if (!canView.value) {
-    isLoading.value = false; // Hentikan loading jika belum
-    masterData.value = []; // Kosongkan data
-    return; // Hentikan jika tidak ada izin
-  }
-  // ---------------------------------
-  fetchMasterData();
-}, { deep: true, immediate: true }); // immediate: true tetap diperlukan
+watch(
+  filters,
+  () => {
+    // --- TAMBAHKAN PENGECEKAN IZIN ---
+    if (!canView.value) {
+      isLoading.value = false; // Hentikan loading jika belum
+      masterData.value = []; // Kosongkan data
+      return; // Hentikan jika tidak ada izin
+    }
+    // ---------------------------------
+    fetchMasterData();
+  },
+  { deep: true, immediate: true }
+); // immediate: true tetap diperlukan
 </script>
 
 <template>
   <PageLayout title="Laporan Mutasi Stok" icon="mdi-file-chart-outline">
     <template #header-actions>
-      <v-btn v-if="canExport" size="small" @click="exportToExcel" prepend-icon="mdi-file-excel" color="teal">
+      <v-btn
+        v-if="canExport"
+        size="small"
+        @click="exportToExcel"
+        prepend-icon="mdi-file-excel"
+        color="teal"
+      >
         Export
       </v-btn>
     </template>
@@ -304,37 +323,100 @@ watch(filters, () => {
     <div class="browse-content">
       <div class="filter-section">
         <v-label class="filter-label">Periode:</v-label>
-        <v-text-field v-model="filters.startDate" type="date" density="compact" hide-details variant="outlined"
-          style="max-width: 180px;" />
+        <v-text-field
+          v-model="filters.startDate"
+          type="date"
+          density="compact"
+          hide-details
+          variant="outlined"
+          style="max-width: 180px"
+        />
         <v-label class="mx-2">s/d</v-label>
-        <v-text-field v-model="filters.endDate" type="date" density="compact" hide-details variant="outlined"
-          style="max-width: 180px;" />
-        <v-select v-model="filters.gudang" :items="gudangList" item-title="nama" item-value="kode" label="Gudang"
-          density="compact" hide-details variant="outlined" style="max-width: 180px;" class="ms-4"
-          @update:model-value="onGudangSelected" />
-        <v-text-field v-model="filters.kodeBarang" label="Kode Barang (F1)" density="compact" hide-details
-          variant="outlined" style="max-width: 180px;" class="ms-4" readonly @click="openProductSearch"
-          @keydown.f1.prevent="openProductSearch" clearable @click:clear="clearProductFilter">
+        <v-text-field
+          v-model="filters.endDate"
+          type="date"
+          density="compact"
+          hide-details
+          variant="outlined"
+          style="max-width: 180px"
+        />
+        <v-select
+          v-model="filters.gudang"
+          :items="gudangList"
+          item-title="nama"
+          item-value="kode"
+          label="Gudang"
+          density="compact"
+          hide-details
+          variant="outlined"
+          style="max-width: 180px"
+          class="ms-4"
+          @update:model-value="onGudangSelected"
+        />
+        <v-text-field
+          v-model="filters.kodeBarang"
+          label="Kode Barang (F1)"
+          density="compact"
+          hide-details
+          variant="outlined"
+          style="max-width: 180px"
+          class="ms-4"
+          readonly
+          @click="openProductSearch"
+          @keydown.f1.prevent="openProductSearch"
+          clearable
+          @click:clear="clearProductFilter"
+        >
           <template #append-inner><v-icon @click="openProductSearch">mdi-magnify</v-icon></template>
         </v-text-field>
-        <v-text-field v-model="filters.namaBarang" readonly filled density="compact" hide-details
-          style="max-width: 250px;" class="ms-1" />
+        <v-text-field
+          v-model="filters.namaBarang"
+          readonly
+          filled
+          density="compact"
+          hide-details
+          style="max-width: 250px"
+          class="ms-1"
+        />
         <v-spacer />
-        <v-btn @click="fetchMasterData" icon="mdi-refresh" variant="text" size="small" :loading="isLoading"
-          title="Muat Ulang Data" />
+        <v-btn
+          @click="fetchMasterData"
+          icon="mdi-refresh"
+          variant="text"
+          size="small"
+          :loading="isLoading"
+          title="Muat Ulang Data"
+        />
       </div>
 
       <div class="table-container">
-        <AppDataTable :headers="headers" :items="masterData" :loading="isLoading" class="desktop-table header-browse-blue"
-          density="compact" fixed-header show-expand return-object item-value="kode" @update:expanded="loadDetails">
+        <AppDataTable
+          :headers="headers"
+          :items="masterData"
+          :loading="isLoading"
+          class="desktop-table header-browse-blue"
+          density="compact"
+          fixed-header
+          show-expand
+          return-object
+          item-value="kode"
+          @update:expanded="loadDetails"
+        >
           <template #expanded-row="{ columns, item }">
             <tr>
               <td :colspan="columns.length">
                 <div class="detail-container pa-2">
-                  <div v-if="loadingDetails.has(item.kode)" class="text-center pa-4">Memuat detail
-                    mutasi...</div>
-                  <v-data-table v-else :headers="detailHeaders" :items="details[item.kode]" density="compact"
-                    class="detail-table" :items-per-page="-1">
+                  <div v-if="loadingDetails.has(item.kode)" class="text-center pa-4">
+                    Memuat detail mutasi...
+                  </div>
+                  <v-data-table
+                    v-else
+                    :headers="detailHeaders"
+                    :items="details[item.kode]"
+                    density="compact"
+                    class="detail-table"
+                    :items-per-page="-1"
+                  >
                     <template v-slot:[`item.saldoAkhir`]="{ item: detailItem }">
                       {{ calculateSaldoAkhir(detailItem, filters.gudangDc) }}
                     </template>
@@ -347,7 +429,11 @@ watch(filters, () => {
         </AppDataTable>
       </div>
     </div>
-    <MasterProductSearchModal v-if="isProductSearchVisible" :gudang="filters.gudang"
-      @close="isProductSearchVisible = false" @product-selected="onProductSelected" />
+    <MasterProductSearchModal
+      v-if="isProductSearchVisible"
+      :gudang="filters.gudang"
+      @close="isProductSearchVisible = false"
+      @product-selected="onProductSelected"
+    />
   </PageLayout>
 </template>

@@ -419,9 +419,9 @@ const loadOfferData = async (nomor: string) => {
         pin: item.pin || "",
         // Properti tambahan untuk custom
         isCustomOrder: isCustom,
-        sod_custom: item.pend_custom,
-        sod_custom_nama: item.pend_custom_nama,
-        sod_custom_data: item.pend_custom_data, // Ini berisi rincian teknis JSON
+        sod_custom: item.pend_custom ?? undefined,
+        sod_custom_nama: item.pend_custom_nama ?? undefined,
+        sod_custom_data: item.pend_custom_data ?? undefined,
         terhitungPromo: false, // Default state
         promo: "",
       };
@@ -445,8 +445,11 @@ const loadOfferData = async (nomor: string) => {
       isInitialLoad.value = false;
     }, 1000);
     markAsSaved();
-  } catch (error) {
-    toast.error("Gagal memuat data penawaran.", error);
+  } catch (error: unknown) {
+    const err = error as AxiosError<{ message?: string }>;
+
+    toast.error(err.response?.data?.message || "Gagal memuat data penawaran.");
+
     router.push("/transaksi/penjualan/penawaran");
   }
 };
@@ -2066,8 +2069,10 @@ const saveAndConvertToSo = async () => {
         name: "SuratPesananCreate",
         query: { refPenawaran: savedNomor },
       });
-    } catch (error) {
-      toast.error("Gagal memproses data.", error);
+    } catch (error: unknown) {
+      const err = error as AxiosError<{ message?: string }>;
+
+      toast.error(err.response?.data?.message || "Gagal memproses data.");
     } finally {
       isSaving.value = false;
     }
@@ -2727,7 +2732,7 @@ onMounted(async () => {
     <PriceProposalSearchModal
       v-if="isPriceProposalSearchVisible"
       :cabang="header.gudang.kode"
-      :customerKode="header.customer?.kode"
+      :customerKode="header.customer?.kode ?? ''"
       @close="isPriceProposalSearchVisible = false"
       @selected="onPriceProposalSelected"
     />

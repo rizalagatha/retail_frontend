@@ -22,7 +22,7 @@ interface PeminjamanItem {
   sisaHari?: number;
   noKembali?: string;
   tanggalKembali?: string; // <-- TAMBAHAN BARU
-  lamaPinjam?: number;     // <-- TAMBAHAN BARU
+  lamaPinjam?: number; // <-- TAMBAHAN BARU
 }
 
 interface DetailItem {
@@ -67,7 +67,7 @@ const selected = ref<PeminjamanItem[]>([]);
 const expanded = ref<string[]>([]);
 const loadingDetails = ref(new Set<string>());
 const details = ref<Record<string, DetailItem[]>>({});
-const dialogConfirm = reactive({ show: false, title: "", text: "", onConfirm: () => { } });
+const dialogConfirm = reactive({ show: false, title: "", text: "", onConfirm: () => {} });
 
 const headers = ref([
   { title: "", key: "data-table-expand", width: 50, fixed: true },
@@ -80,7 +80,7 @@ const headers = ref([
   { title: "Tanggal Pinjam", key: "tanggal", width: 120 },
   { title: "Deadline", key: "deadline", width: 120 },
   { title: "Sisa Hari", key: "sisaHari", width: 100, align: "center" },
-  { title: "Tgl Kembali", key: "tanggalKembali", width: 120 },       // <-- TAMBAHAN BARU
+  { title: "Tgl Kembali", key: "tanggalKembali", width: 120 }, // <-- TAMBAHAN BARU
   { title: "Lama Pinjam", key: "lamaPinjam", width: 100, align: "center" }, // <-- TAMBAHAN BARU
   { title: "Status ACC", key: "statusEdit", align: "center", width: 120 },
   { title: "Sudah Kembali", key: "statusKembali", align: "center", width: 120 },
@@ -129,7 +129,7 @@ const fetchMasterData = async () => {
       return {
         ...item,
         sisaHari: sisa,
-        lamaPinjam: durasi < 0 ? 0 : durasi // Pastikan tidak minus jika hari yg sama
+        lamaPinjam: durasi < 0 ? 0 : durasi, // Pastikan tidak minus jika hari yg sama
       };
     });
   } catch (error) {
@@ -153,8 +153,10 @@ const loadDetails = async (newlyExpandedItems: PeminjamanItem[]) => {
       params: { nomor: nomorToLoad },
     });
     details.value[nomorToLoad] = response.data;
-  } catch (error) {
-    toast.error(`Gagal memuat detail untuk ${nomorToLoad}`, error);
+  } catch (err: unknown) {
+    const error = err as AxiosError<{ message?: string }>;
+
+    toast.error(error.response?.data?.message || `Gagal memuat detail untuk ${nomorToLoad}`);
   } finally {
     loadingDetails.value.delete(nomorToLoad);
   }
@@ -217,16 +219,32 @@ onMounted(() => {
 <template>
   <PageLayout title="Monitoring Peminjaman Barang" :menu-id="MENU_ID">
     <template #header-actions>
-      <v-btn v-if="authStore.can(MENU_ID, 'insert')" size="small" color="primary" prepend-icon="mdi-plus"
-        @click="handleNew">Pinjam Baru</v-btn>
-      <v-btn size="small" color="orange-darken-2" prepend-icon="mdi-keyboard-return"
-        :disabled="selected.length !== 1 || selected[0].statusKembali === 'Y'" @click="
+      <v-btn
+        v-if="authStore.can(MENU_ID, 'insert')"
+        size="small"
+        color="primary"
+        prepend-icon="mdi-plus"
+        @click="handleNew"
+        >Pinjam Baru</v-btn
+      >
+      <v-btn
+        size="small"
+        color="orange-darken-2"
+        prepend-icon="mdi-keyboard-return"
+        :disabled="selected.length !== 1 || selected[0].statusKembali === 'Y'"
+        @click="
           router.push({ name: 'PeminjamanBarangReturn', params: { nomor: selected[0].nomor } })
-          ">
+        "
+      >
         Kembalikan
       </v-btn>
-      <v-btn size="small" color="teal" prepend-icon="mdi-printer" @click="handlePrint"
-        :disabled="selected.length !== 1">
+      <v-btn
+        size="small"
+        color="teal"
+        prepend-icon="mdi-printer"
+        @click="handlePrint"
+        :disabled="selected.length !== 1"
+      >
         Cetak
       </v-btn>
       <!-- <v-btn v-if="authStore.can(MENU_ID, 'delete')" size="small" color="error" prepend-icon="mdi-delete"
@@ -236,32 +254,79 @@ onMounted(() => {
     <div class="browse-content">
       <div class="filter-section">
         <v-label>Periode Pinjam:</v-label>
-        <v-text-field v-model="filters.startDate" type="date" density="compact" hide-details variant="outlined"
-          style="max-width: 160px" @change="fetchMasterData" />
+        <v-text-field
+          v-model="filters.startDate"
+          type="date"
+          density="compact"
+          hide-details
+          variant="outlined"
+          style="max-width: 160px"
+          @change="fetchMasterData"
+        />
         <v-label class="mx-2">s/d</v-label>
-        <v-text-field v-model="filters.endDate" type="date" density="compact" hide-details variant="outlined"
-          style="max-width: 160px" @change="fetchMasterData" />
+        <v-text-field
+          v-model="filters.endDate"
+          type="date"
+          density="compact"
+          hide-details
+          variant="outlined"
+          style="max-width: 160px"
+          @change="fetchMasterData"
+        />
         <template v-if="isKdc">
           <v-label class="ms-4">Cabang:</v-label>
-          <v-select v-model="filters.cabang" :items="cabangList" item-title="nama" item-value="kode" density="compact"
-            hide-details variant="outlined" style="max-width: 200px" class="ms-2"
-            @update:model-value="fetchMasterData" />
+          <v-select
+            v-model="filters.cabang"
+            :items="cabangList"
+            item-title="nama"
+            item-value="kode"
+            density="compact"
+            hide-details
+            variant="outlined"
+            style="max-width: 200px"
+            class="ms-2"
+            @update:model-value="fetchMasterData"
+          />
         </template>
         <v-spacer />
-        <v-btn @click="fetchMasterData" icon="mdi-refresh" variant="text" size="small" :loading="loading" />
+        <v-btn
+          @click="fetchMasterData"
+          icon="mdi-refresh"
+          variant="text"
+          size="small"
+          :loading="loading"
+        />
       </div>
 
       <div class="table-container">
-        <AppDataTable v-model="selected" v-model:expanded="expanded" :headers="headers" :items="masterData"
-          :loading="loading" item-value="nomor" density="compact"
-          class="desktop-table header-browse-blue custom-highlight-table" show-select show-expand single-select
-          return-object @update:expanded="loadDetails" @click:row="handleRowClick">
+        <AppDataTable
+          v-model="selected"
+          v-model:expanded="expanded"
+          :headers="headers"
+          :items="masterData"
+          :loading="loading"
+          item-value="nomor"
+          density="compact"
+          class="desktop-table header-browse-blue custom-highlight-table"
+          show-select
+          show-expand
+          single-select
+          return-object
+          @update:expanded="loadDetails"
+          @click:row="handleRowClick"
+        >
           <template #[`item.nomor`]="{ item }">
             <span :class="getRowClass(item)">{{ item.nomor }}</span>
           </template>
 
           <template #[`item.noKembali`]="{ item }">
-            <v-chip v-if="item.noKembali" size="x-small" color="green-darken-1" variant="flat" class="font-weight-bold">
+            <v-chip
+              v-if="item.noKembali"
+              size="x-small"
+              color="green-darken-1"
+              variant="flat"
+              class="font-weight-bold"
+            >
               {{ item.noKembali }}
             </v-chip>
             <span v-else class="text-grey-lighten-1 text-caption">Belum Kembali</span>
@@ -276,16 +341,23 @@ onMounted(() => {
           </template>
 
           <template #[`item.sisaHari`]="{ item }">
-            <v-chip v-if="item.statusKembali === 'N'" size="x-small"
-              :color="item.sisaHari! < 0 ? 'red' : item.sisaHari! <= 3 ? 'orange' : 'grey'">
+            <v-chip
+              v-if="item.statusKembali === 'N'"
+              size="x-small"
+              :color="item.sisaHari! < 0 ? 'red' : item.sisaHari! <= 3 ? 'orange' : 'grey'"
+            >
               {{ item.sisaHari }} Hari
             </v-chip>
             <v-icon v-else color="success" size="small">mdi-check-circle</v-icon>
           </template>
 
           <template #[`item.statusEdit`]="{ item }">
-            <v-chip size="x-small" :color="item.statusEdit === 'ACC' ? 'green' : item.statusEdit === 'TOLAK' ? 'red' : 'blue'
-              ">
+            <v-chip
+              size="x-small"
+              :color="
+                item.statusEdit === 'ACC' ? 'green' : item.statusEdit === 'TOLAK' ? 'red' : 'blue'
+              "
+            >
               {{ item.statusEdit }}
             </v-chip>
           </template>
@@ -306,7 +378,10 @@ onMounted(() => {
           </template>
 
           <template #[`item.lamaPinjam`]="{ item }">
-            <v-chip size="x-small" :color="item.statusKembali === 'Y' ? 'green-darken-2' : 'blue-grey'">
+            <v-chip
+              size="x-small"
+              :color="item.statusKembali === 'Y' ? 'green-darken-2' : 'blue-grey'"
+            >
               {{ item.lamaPinjam }} Hari
             </v-chip>
           </template>
@@ -316,8 +391,15 @@ onMounted(() => {
               <td :colspan="columns.length" class="pa-0">
                 <div class="detail-container">
                   <div class="detail-table-wrapper shadow-sm">
-                    <v-data-table v-if="details[item.nomor]" :headers="detailHeaders" :items="details[item.nomor]"
-                      density="compact" hide-default-footer class="detail-table" :items-per-page="-1">
+                    <v-data-table
+                      v-if="details[item.nomor]"
+                      :headers="detailHeaders"
+                      :items="details[item.nomor]"
+                      density="compact"
+                      hide-default-footer
+                      class="detail-table"
+                      :items-per-page="-1"
+                    >
                       <template #[`item.jumlah`]="{ value }">
                         <div class="text-end font-weight-bold">{{ value }}</div>
                       </template>
@@ -346,10 +428,15 @@ onMounted(() => {
         <v-card-actions>
           <v-spacer />
           <v-btn text @click="dialogConfirm.show = false">Batal</v-btn>
-          <v-btn color="primary" variant="tonal" @click="
-            dialogConfirm.onConfirm();
-          dialogConfirm.show = false;
-          ">Ya, Hapus</v-btn>
+          <v-btn
+            color="primary"
+            variant="tonal"
+            @click="
+              dialogConfirm.onConfirm();
+              dialogConfirm.show = false;
+            "
+            >Ya, Hapus</v-btn
+          >
         </v-card-actions>
       </v-card>
     </v-dialog>

@@ -1,18 +1,18 @@
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue';
-import api from '@/services/api';
-import PageLayout from '@/components/PageLayout.vue';
-import SupplierSearchModal from '@/components/lookup/SupplierSearchModal.vue';
-import { useToast } from 'vue-toastification';
-import { useAuthStore } from '@/stores/authStore';
-import jsPDF from 'jspdf';
-import autoTable from 'jspdf-autotable';
-import * as XLSX from 'xlsx';
-import AppDataTable from '@/components/AppDataTable.vue';
+import { ref, onMounted, computed } from "vue";
+import api from "@/services/api";
+import PageLayout from "@/components/PageLayout.vue";
+import SupplierSearchModal from "@/components/lookup/SupplierSearchModal.vue";
+import { useToast } from "vue-toastification";
+import { useAuthStore } from "@/stores/authStore";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
+import * as XLSX from "xlsx";
+import AppDataTable from "@/components/AppDataTable.vue";
 
 const toast = useToast();
 const authStore = useAuthStore();
-const MENU_ID = '8';
+const MENU_ID = "8";
 
 interface Supplier {
   kode: string;
@@ -21,7 +21,7 @@ interface Supplier {
   kota: string;
   telp: string;
   contactPerson: string;
-  status: 'AKTIF' | 'PASIF';
+  status: "AKTIF" | "PASIF";
   rekening: string;
   bank: string;
   atasNama: string;
@@ -29,7 +29,7 @@ interface Supplier {
 
 // --- State ---
 const suppliers = ref<Supplier[]>([]);
-const search = ref('');
+const search = ref("");
 const isLoading = ref(true);
 const selected = ref<Supplier[]>([]);
 
@@ -41,32 +41,32 @@ const isHelpModalVisible = ref(false);
 const dialogDelete = ref(false);
 const itemToDelete = ref<Supplier | null>(null);
 
-const hasViewPermission = computed(() => authStore.can(MENU_ID, 'view'));
+const hasViewPermission = computed(() => authStore.can(MENU_ID, "view"));
 
 const headers = [
-  { title: 'Kode', key: 'kode' },
-  { title: 'Nama', key: 'nama' },
-  { title: 'Alamat', key: 'alamat' },
-  { title: 'Kota', key: 'kota' },
-  { title: 'Contact Person', key: 'contactPerson' },
-  { title: 'Status', key: 'status', align: 'center' },
-  { title: 'Actions', key: 'actions', sortable: false, align: 'center' },
+  { title: "Kode", key: "kode" },
+  { title: "Nama", key: "nama" },
+  { title: "Alamat", key: "alamat" },
+  { title: "Kota", key: "kota" },
+  { title: "Contact Person", key: "contactPerson" },
+  { title: "Status", key: "status", align: "center" },
+  { title: "Actions", key: "actions", sortable: false, align: "center" },
 ] as const;
 
 // --- Computed Properties ---
 const canEdit = computed(() => selected.value.length === 1);
 const canDelete = computed(() => selected.value.length === 1);
-const dialogTitle = computed(() => (isNew.value ? 'Supplier Baru' : 'Ubah Supplier'));
+const dialogTitle = computed(() => (isNew.value ? "Supplier Baru" : "Ubah Supplier"));
 
 // --- Methods ---
 const fetchSuppliers = async () => {
   isLoading.value = true;
   selected.value = [];
   try {
-    const response = await api.get('/suppliers');
+    const response = await api.get("/suppliers");
     suppliers.value = response.data;
   } catch {
-    toast.error('Gagal memuat data supplier.');
+    toast.error("Gagal memuat data supplier.");
   } finally {
     isLoading.value = false;
   }
@@ -74,7 +74,7 @@ const fetchSuppliers = async () => {
 
 const openNewDialog = () => {
   isNew.value = true;
-  editedItem.value = { status: 'AKTIF' };
+  editedItem.value = { status: "AKTIF" };
   dialog.value = true;
 };
 
@@ -100,24 +100,24 @@ const saveSupplier = async () => {
     const payload = {
       ...editedItem.value,
       isNew: isNew.value,
-      user: authStore.user
+      user: authStore.user,
     };
-    await api.post('/suppliers/save', payload);
-    toast.success('Data supplier berhasil disimpan.');
+    await api.post("/suppliers/save", payload);
+    toast.success("Data supplier berhasil disimpan.");
     fetchSuppliers();
     dialog.value = false;
   } catch {
-    toast.error('Gagal menyimpan data supplier.');
+    toast.error("Gagal menyimpan data supplier.");
   }
 };
 
 const deleteSupplier = async (item: Supplier) => {
   try {
     await api.delete(`/suppliers/${item.kode}`);
-    toast.success('Data supplier berhasil dihapus.');
+    toast.success("Data supplier berhasil dihapus.");
     fetchSuppliers();
   } catch {
-    toast.error('Gagal menghapus data supplier.');
+    toast.error("Gagal menghapus data supplier.");
   }
 };
 
@@ -144,12 +144,12 @@ const printData = () => {
   const doc = new jsPDF();
   doc.text("Daftar Supplier", 14, 16);
   autoTable(doc, {
-    head: [['Kode', 'Nama', 'Alamat', 'Kota', 'Status']],
-    body: suppliers.value.map(s => [s.kode, s.nama, s.alamat, s.kota, s.status]),
+    head: [["Kode", "Nama", "Alamat", "Kota", "Status"]],
+    body: suppliers.value.map((s) => [s.kode, s.nama, s.alamat, s.kota, s.status]),
     startY: 20,
   });
   doc.autoPrint();
-  window.open(doc.output('bloburl'), '_blank');
+  window.open(doc.output("bloburl"), "_blank");
 };
 
 const exportData = () => {
@@ -172,16 +172,45 @@ onMounted(() => {
 <template>
   <PageLayout title="Master Supplier" desktop-mode icon="mdi-truck-delivery">
     <template #header-actions>
-      <v-btn v-if="authStore.can(MENU_ID, 'insert')" size="small" color="primary" @click="openNewDialog"
-        prepend-icon="mdi-plus">Baru</v-btn>
-      <v-btn v-if="authStore.can(MENU_ID, 'edit')" size="small" :disabled="!canEdit" @click="handleEditFromHeader"
-        prepend-icon="mdi-pencil">Ubah</v-btn>
-      <v-btn v-if="authStore.can(MENU_ID, 'delete')" size="small" color="error" :disabled="!canDelete"
-        @click="handleDeleteFromHeader" prepend-icon="mdi-delete">Hapus</v-btn>
-      <v-btn v-if="authStore.can(MENU_ID, 'view')" size="small" @click="printData"
-        prepend-icon="mdi-printer">Cetak</v-btn>
-      <v-btn v-if="authStore.can(MENU_ID, 'view')" size="small" @click="exportData"
-        prepend-icon="mdi-file-excel">Export</v-btn>
+      <v-btn
+        v-if="authStore.can(MENU_ID, 'insert')"
+        size="small"
+        color="primary"
+        @click="openNewDialog"
+        prepend-icon="mdi-plus"
+        >Baru</v-btn
+      >
+      <v-btn
+        v-if="authStore.can(MENU_ID, 'edit')"
+        size="small"
+        :disabled="!canEdit"
+        @click="handleEditFromHeader"
+        prepend-icon="mdi-pencil"
+        >Ubah</v-btn
+      >
+      <v-btn
+        v-if="authStore.can(MENU_ID, 'delete')"
+        size="small"
+        color="error"
+        :disabled="!canDelete"
+        @click="handleDeleteFromHeader"
+        prepend-icon="mdi-delete"
+        >Hapus</v-btn
+      >
+      <v-btn
+        v-if="authStore.can(MENU_ID, 'view')"
+        size="small"
+        @click="printData"
+        prepend-icon="mdi-printer"
+        >Cetak</v-btn
+      >
+      <v-btn
+        v-if="authStore.can(MENU_ID, 'view')"
+        size="small"
+        @click="exportData"
+        prepend-icon="mdi-file-excel"
+        >Export</v-btn
+      >
     </template>
 
     <div v-if="!hasViewPermission" class="state-container">
@@ -191,21 +220,48 @@ onMounted(() => {
 
     <div v-else class="browse-content">
       <div class="filter-section">
-        <v-text-field v-model="search" density="compact" label="Cari Supplier..." prepend-inner-icon="mdi-magnify"
-          variant="outlined" hide-details single-line></v-text-field>
+        <v-text-field
+          v-model="search"
+          density="compact"
+          label="Cari Supplier..."
+          prepend-inner-icon="mdi-magnify"
+          variant="outlined"
+          hide-details
+          single-line
+        ></v-text-field>
         <v-spacer></v-spacer>
         <v-btn @click="fetchSuppliers" icon="mdi-refresh" variant="text" size="small"></v-btn>
       </div>
 
-      <AppDataTable v-model="selected" :headers="headers" :items="suppliers" :search="search" :loading="isLoading"
-        item-value="kode" density="compact" class="desktop-table header-browse-blue" fixed-header show-select return-object>
+      <AppDataTable
+        v-model="selected"
+        :headers="headers"
+        :items="suppliers"
+        :search="search"
+        :loading="isLoading"
+        item-value="kode"
+        density="compact"
+        class="desktop-table header-browse-blue"
+        fixed-header
+        show-select
+        return-object
+      >
         <template #[`item.status`]="{ item }">
-          <v-chip :color="item.status === 'AKTIF' ? 'success' : 'error'" variant="tonal" size="x-small">
+          <v-chip
+            :color="item.status === 'AKTIF' ? 'success' : 'error'"
+            variant="tonal"
+            size="x-small"
+          >
             {{ item.status }}
           </v-chip>
         </template>
         <template #[`item.actions`]="{ item }">
-          <v-icon v-if="authStore.can(MENU_ID, 'edit')" size="small" class="me-2" @click="openEditDialog(item)">
+          <v-icon
+            v-if="authStore.can(MENU_ID, 'edit')"
+            size="small"
+            class="me-2"
+            @click="openEditDialog(item)"
+          >
             mdi-pencil
           </v-icon>
           <v-icon v-if="authStore.can(MENU_ID, 'delete')" size="small" @click="confirmDelete(item)">
@@ -225,38 +281,102 @@ onMounted(() => {
           <v-container>
             <v-row>
               <v-col cols="12" md="6">
-                <v-text-field v-model="editedItem.kode" label="Kode" :disabled="!isNew" variant="outlined"
-                  density="compact" hide-details placeholder="Ketik atau F1..." class="mb-2"
-                  @keydown.f1.prevent="isHelpModalVisible = true" append-inner-icon="mdi-magnify"
-                  @click:append-inner="isHelpModalVisible = true"></v-text-field>
+                <v-text-field
+                  v-model="editedItem.kode"
+                  label="Kode"
+                  :disabled="!isNew"
+                  variant="outlined"
+                  density="compact"
+                  hide-details
+                  placeholder="Ketik atau F1..."
+                  class="mb-2"
+                  @keydown.f1.prevent="isHelpModalVisible = true"
+                  append-inner-icon="mdi-magnify"
+                  @click:append-inner="isHelpModalVisible = true"
+                ></v-text-field>
 
-                <v-text-field v-model="editedItem.nama" label="Nama" variant="outlined" density="compact"
-                  hide-details class="mb-2"></v-text-field>
+                <v-text-field
+                  v-model="editedItem.nama"
+                  label="Nama"
+                  variant="outlined"
+                  density="compact"
+                  hide-details
+                  class="mb-2"
+                ></v-text-field>
 
-                <v-textarea v-model="editedItem.alamat" label="Alamat" variant="outlined" density="compact" rows="2"
-                  hide-details class="mb-2"></v-textarea>
+                <v-textarea
+                  v-model="editedItem.alamat"
+                  label="Alamat"
+                  variant="outlined"
+                  density="compact"
+                  rows="2"
+                  hide-details
+                  class="mb-2"
+                ></v-textarea>
 
-                <v-text-field v-model="editedItem.kota" label="Kota" variant="outlined" density="compact"
-                  hide-details class="mb-2"></v-text-field>
+                <v-text-field
+                  v-model="editedItem.kota"
+                  label="Kota"
+                  variant="outlined"
+                  density="compact"
+                  hide-details
+                  class="mb-2"
+                ></v-text-field>
 
-                <v-text-field v-model="editedItem.telp" label="Telepon" variant="outlined" density="compact"
-                  hide-details class="mb-2"></v-text-field>
+                <v-text-field
+                  v-model="editedItem.telp"
+                  label="Telepon"
+                  variant="outlined"
+                  density="compact"
+                  hide-details
+                  class="mb-2"
+                ></v-text-field>
 
-                <v-text-field v-model="editedItem.contactPerson" label="Contact Person" variant="outlined"
-                  density="compact" hide-details class="mb-2"></v-text-field>
+                <v-text-field
+                  v-model="editedItem.contactPerson"
+                  label="Contact Person"
+                  variant="outlined"
+                  density="compact"
+                  hide-details
+                  class="mb-2"
+                ></v-text-field>
               </v-col>
               <v-col cols="12" md="6">
-                <v-text-field v-model="editedItem.rekening" label="No. Rekening" variant="outlined" density="compact"
-                  hide-details class="mb-2"></v-text-field>
+                <v-text-field
+                  v-model="editedItem.rekening"
+                  label="No. Rekening"
+                  variant="outlined"
+                  density="compact"
+                  hide-details
+                  class="mb-2"
+                ></v-text-field>
 
-                <v-text-field v-model="editedItem.bank" label="Bank" variant="outlined" density="compact"
-                  hide-details class="mb-2"></v-text-field>
+                <v-text-field
+                  v-model="editedItem.bank"
+                  label="Bank"
+                  variant="outlined"
+                  density="compact"
+                  hide-details
+                  class="mb-2"
+                ></v-text-field>
 
-                <v-text-field v-model="editedItem.atasNama" label="Atas Nama" variant="outlined" density="compact"
-                  hide-details class="mb-2"></v-text-field>
+                <v-text-field
+                  v-model="editedItem.atasNama"
+                  label="Atas Nama"
+                  variant="outlined"
+                  density="compact"
+                  hide-details
+                  class="mb-2"
+                ></v-text-field>
 
-                <v-radio-group v-model="editedItem.status" inline label="Status" density="compact" hide-details
-                  class="mt-4">
+                <v-radio-group
+                  v-model="editedItem.status"
+                  inline
+                  label="Status"
+                  density="compact"
+                  hide-details
+                  class="mt-4"
+                >
                   <v-radio label="Aktif" value="AKTIF" color="success"></v-radio>
                   <v-radio label="Pasif" value="PASIF" color="error"></v-radio>
                 </v-radio-group>
@@ -273,14 +393,18 @@ onMounted(() => {
       </v-card>
     </v-dialog>
 
-    <SupplierSearchModal v-if="isHelpModalVisible" @close="isHelpModalVisible = false"
-      @supplier-selected="handleSupplierSelected" />
+    <SupplierSearchModal
+      v-if="isHelpModalVisible"
+      @close="isHelpModalVisible = false"
+      @supplier-selected="handleSupplierSelected"
+    />
 
     <v-dialog v-model="dialogDelete" max-width="500px">
       <v-card class="dialog-card">
         <v-card-title class="dialog-header">Konfirmasi Hapus</v-card-title>
         <v-card-text class="pa-4 pt-6 text-body-1">
-            Apakah Anda yakin ingin menghapus supplier <strong>{{ itemToDelete?.nama }}</strong>?
+          Apakah Anda yakin ingin menghapus supplier <strong>{{ itemToDelete?.nama }}</strong
+          >?
         </v-card-text>
         <v-card-actions class="dialog-footer">
           <v-spacer></v-spacer>
@@ -316,12 +440,12 @@ onMounted(() => {
 /* Fix Input Text Color & Background */
 .dialog-card :deep(.v-field__input),
 .dialog-card :deep(.v-label) {
-    color: rgb(var(--v-theme-on-surface));
+  color: rgb(var(--v-theme-on-surface));
 }
 
 .dialog-card :deep(.v-field) {
-    background-color: rgb(var(--v-theme-surface));
-    border-color: rgba(var(--v-border-color), var(--v-border-opacity));
+  background-color: rgb(var(--v-theme-surface));
+  border-color: rgba(var(--v-border-color), var(--v-border-opacity));
 }
 
 .dialog-card :deep(.v-text-field),

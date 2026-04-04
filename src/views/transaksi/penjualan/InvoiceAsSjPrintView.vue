@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import { ref, onMounted, nextTick } from 'vue';
-import { useRoute } from 'vue-router';
-import api from '@/services/api';
-import { format, parseISO } from 'date-fns';
-import Logo from '@/assets/logo.png';
+import { ref, onMounted, nextTick } from "vue";
+import { useRoute } from "vue-router";
+import api from "@/services/api";
+import { format, parseISO } from "date-fns";
+import Logo from "@/assets/logo.png";
 
 interface PrintHeader {
   nomor_sj: string;
@@ -43,16 +43,23 @@ onMounted(async () => {
 
   try {
     isLoading.value = true;
-    const response = await api.get(`/invoice-form/print-sj/${nomor}`);
-    console.log('Data print:', response.data);
-    printData.value = response.data;
 
-    if (!printData.value.header || !printData.value.details) {
+    const response = await api.get<PrintData>(`/invoice-form/print-sj/${nomor}`);
+
+    const data = response.data;
+
+    console.log("Data print:", data);
+
+    // assign ke state
+    printData.value = data;
+
+    // validasi data
+    if (!data.header || !data.details) {
       alert("Data print kosong atau tidak lengkap.");
       return;
     }
 
-    document.title = printData.value.header.nomor_sj;
+    document.title = data.header.nomor_sj;
 
     await nextTick();
     window.print();
@@ -83,11 +90,21 @@ onMounted(async () => {
 
         <div class="info-grid">
           <div><span class="label">Nomor</span>: {{ printData.header.nomor_sj }}</div>
-          <div><span class="label">No. SO</span>: {{ printData.header.nomor_so || '-' }}</div>
-          <div><span class="label">Tanggal</span>: {{ printData.header.tanggal ?
-            format(parseISO(printData.header.tanggal), 'dd-MM-yyyy') : '-' }}</div>
-          <div><span class="label">Ke Customer</span>: {{ printData.header.customer_nama || '-' }}</div>
-          <div class="keterangan"><span class="label">Keterangan</span>: {{ printData.header.keterangan || '-' }}</div>
+          <div><span class="label">No. SO</span>: {{ printData.header.nomor_so || "-" }}</div>
+          <div>
+            <span class="label">Tanggal</span>:
+            {{
+              printData.header.tanggal
+                ? format(parseISO(printData.header.tanggal), "dd-MM-yyyy")
+                : "-"
+            }}
+          </div>
+          <div>
+            <span class="label">Ke Customer</span>: {{ printData.header.customer_nama || "-" }}
+          </div>
+          <div class="keterangan">
+            <span class="label">Keterangan</span>: {{ printData.header.keterangan || "-" }}
+          </div>
         </div>
 
         <div class="items-table">
@@ -141,7 +158,7 @@ body {
 }
 
 .print-container {
-  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
   font-size: 9pt;
   background-color: #fff;
   color: #000;
@@ -272,7 +289,7 @@ body {
   text-align: center;
 }
 
-.signatures>div {
+.signatures > div {
   width: 30%;
 }
 
@@ -283,7 +300,7 @@ body {
   margin-top: 45px;
 }
 
-.names>div {
+.names > div {
   width: 30%;
 }
 

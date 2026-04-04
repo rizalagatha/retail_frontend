@@ -57,11 +57,15 @@ const dynamicLogo = computed(() => {
 const fetchPrintData = async (nomor: string) => {
   isLoading.value = true;
   try {
-    const response = await api.get(`/komplain-form/print/${nomor}`);
-    printData.value = response.data;
-    document.title = "KOMPLAIN_" + response.data.header.nomor;
+    const response = await api.get<PrintData>(`/komplain-form/print/${nomor}`);
 
-    qrCodeData.value = await QRCode.toDataURL(printData.value.header.nomor, {
+    const data = response.data;
+
+    printData.value = data;
+
+    document.title = "KOMPLAIN_" + data.header.nomor;
+
+    qrCodeData.value = await QRCode.toDataURL(data.header.nomor, {
       width: 150,
       margin: 1,
     });

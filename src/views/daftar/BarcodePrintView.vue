@@ -1,23 +1,24 @@
 <script setup lang="ts">
-import { ref, onMounted, computed, watch } from 'vue';
-import api from '@/services/api';
-import PageLayout from '@/components/PageLayout.vue';
-import { useToast } from 'vue-toastification';
-import { useAuthStore } from '@/stores/authStore';
-import { format } from 'date-fns';
-import { useRouter } from 'vue-router';
+import { ref, onMounted, computed, watch } from "vue";
+import api from "@/services/api";
+import PageLayout from "@/components/PageLayout.vue";
+import { useToast } from "vue-toastification";
+import { useAuthStore } from "@/stores/authStore";
+import { format } from "date-fns";
+import { useRouter } from "vue-router";
+import type { AxiosError } from "axios";
 
 const toast = useToast();
 const authStore = useAuthStore();
 const router = useRouter();
-const MENU_ID = '11';
+const MENU_ID = "11";
 
 type TableHeader = {
-  title: string
-  key: string
-  sortable?: boolean
-  width?: string
-}
+  title: string;
+  key: string;
+  sortable?: boolean;
+  width?: string;
+};
 
 interface BarcodeHeader {
   nomor: string;
@@ -37,40 +38,46 @@ interface BarcodeDetail {
 const headers = ref<BarcodeHeader[]>([]);
 const details = ref<{ [key: string]: BarcodeDetail[] }>({});
 const isLoading = ref(true);
-const startDate = ref(format(new Date(), 'yyyy-MM-dd'));
-const endDate = ref(format(new Date(), 'yyyy-MM-dd'));
+const startDate = ref(format(new Date(), "yyyy-MM-dd"));
+const endDate = ref(format(new Date(), "yyyy-MM-dd"));
 const expanded = ref<string[]>([]);
 const selected = ref<BarcodeHeader[]>([]);
 const showDeleteDialog = ref(false);
 
 const isSingleSelected = computed(() => selected.value.length === 1);
-const hasViewPermission = computed(() => authStore.can(MENU_ID, 'view'));
+const hasViewPermission = computed(() => authStore.can(MENU_ID, "view"));
 
 const detailHeaders = [
-  { title: 'Kode', key: 'kode' },
-  { title: 'Barcode', key: 'barcode' },
-  { title: 'Nama', key: 'nama' },
-  { title: 'Ukuran', key: 'ukuran' },
-  { title: 'Jumlah', key: 'jumlah', align: 'end' },
+  { title: "Kode", key: "kode" },
+  { title: "Barcode", key: "barcode" },
+  { title: "Nama", key: "nama" },
+  { title: "Ukuran", key: "ukuran" },
+  { title: "Jumlah", key: "jumlah", align: "end" },
 ] as const;
 
 const tableHeaders: TableHeader[] = [
   { title: "Nomor", key: "nomor" },
   { title: "Tanggal", key: "tanggal" },
   { title: "User", key: "user" },
-]
+];
+
+// --- Helper ---
+const getErrorMessage = (err: unknown, fallback: string) => {
+  const error = err as AxiosError<{ message?: string }>;
+  return error.response?.data?.message || error.message || fallback;
+};
 
 // --- Methods ---
 const fetchData = async () => {
   isLoading.value = true;
   try {
-    const cabang = authStore.user?.cabang || '';
-    const response = await api.get('/barcodes', {
-      params: { startDate: startDate.value, endDate: endDate.value, cabang }
+    const cabang = authStore.user?.cabang || "";
+    const response = await api.get("/barcodes", {
+      params: { startDate: startDate.value, endDate: endDate.value, cabang },
     });
     headers.value = response.data;
   } catch {
-    toast.error('Gagal memuat data.');
+    toast.error("Gagal memuat data.");
   } finally {
     isLoading.value = false;
   }
@@ -80,9 +87,7 @@ const loadDetails = async (newlyExpandedItems: BarcodeHeader[]) => {
   // 1. Terima array berisi OBJEK (bukan string)
 
   // 2. Cari OBJEK yang baru di-expand
-  const itemToLoad = newlyExpandedItems.find(
-    (item: BarcodeHeader) => !details.value[item.nomor]
-  );
+  const itemToLoad = newlyExpandedItems.find((item: BarcodeHeader) => !details.value[item.nomor]);
 
   // 3. Jika tidak ada yang baru, hentikan
   if (!itemToLoad) return;
@@ -96,9 +101,9 @@ const loadDetails = async (newlyExpandedItems: BarcodeHeader[]) => {
     // 5. Panggil API dengan 'nomor' yang sudah benar
     const response = await api.get(`/barcodes/${itemToLoadKey}`);
     details.value[itemToLoadKey] = response.data;
-  } catch (error) {
-    toast.error(`Gagal memuat detail untuk ${itemToLoadKey}`, error);
-    expanded.value = expanded.value.filter(k => k !== itemToLoadKey);
+  } catch (err) {
+    toast.error(getErrorMessage(err, `Gagal memuat detail untuk ${itemToLoadKey}`));
+    expanded.value = expanded.value.filter((k) => k !== itemToLoadKey);
   } finally {
     // (Hapus state loading detail jika perlu)
     // loadingDetails.value.delete(itemToLoadKey);
@@ -124,13 +129,13 @@ const confirmDelete = async () => {
     toast.success("Data berhasil dihapus");
     fetchData();
     selected.value = [];
-  } catch (error) {
-    toast.error("Gagal menghapus data.", error);
+  } catch (err) {
+    toast.error(getErrorMessage(err, "Gagal menghapus data."));
   }
 };
 
 const goToCreatePage = () => {
-  router.push('/daftar/cetak-barcode/new');
+  router.push("/daftar/cetak-barcode/new");
 };
 
 watch([startDate, endDate], () => {
@@ -150,14 +155,32 @@ onMounted(() => {
 <template>
   <PageLayout title="Cetak Barcode" desktop-mode icon="mdi-barcode-scan">
     <template #header-actions>
-      <v-btn v-if="authStore.can(MENU_ID, 'insert')" size="small" color="primary" @click="goToCreatePage"
-        prepend-icon="mdi-plus">Baru</v-btn>
+      <v-btn
+        v-if="authStore.can(MENU_ID, 'insert')"
+        size="small"
+        color="primary"
+        @click="goToCreatePage"
+        prepend-icon="mdi-plus"
+        >Baru</v-btn
+      >
 
-      <v-btn v-if="authStore.can(MENU_ID, 'edit')" size="small" prepend-icon="mdi-pencil" :disabled="!isSingleSelected"
-        @click="goToEditPage">Ubah</v-btn>
+      <v-btn
+        v-if="authStore.can(MENU_ID, 'edit')"
+        size="small"
+        prepend-icon="mdi-pencil"
+        :disabled="!isSingleSelected"
+        @click="goToEditPage"
+        >Ubah</v-btn
+      >
 
-      <v-btn v-if="authStore.can(MENU_ID, 'delete')" size="small" prepend-icon="mdi-delete" color="error"
-        :disabled="!isSingleSelected" @click="openDeleteConfirm">
+      <v-btn
+        v-if="authStore.can(MENU_ID, 'delete')"
+        size="small"
+        prepend-icon="mdi-delete"
+        color="error"
+        :disabled="!isSingleSelected"
+        @click="openDeleteConfirm"
+      >
         Hapus
       </v-btn>
     </template>
@@ -170,36 +193,70 @@ onMounted(() => {
     <div v-else class="browse-content">
       <div class="filter-section">
         <span class="filter-label">Periode:</span>
-        <v-text-field v-model="startDate" type="date" density="compact" hide-details variant="outlined"
-          style="min-width: 140px;"></v-text-field>
+        <v-text-field
+          v-model="startDate"
+          type="date"
+          density="compact"
+          hide-details
+          variant="outlined"
+          style="min-width: 140px"
+        ></v-text-field>
         <span>s/d</span>
-        <v-text-field v-model="endDate" type="date" density="compact" hide-details variant="outlined"
-          style="min-width: 140px;"></v-text-field>
+        <v-text-field
+          v-model="endDate"
+          type="date"
+          density="compact"
+          hide-details
+          variant="outlined"
+          style="min-width: 140px"
+        ></v-text-field>
         <v-spacer></v-spacer>
         <v-btn @click="fetchData" icon="mdi-refresh" variant="text" size="small"></v-btn>
       </div>
 
       <div class="table-wrapper">
-        <AppDataTable v-model="selected" v-model:expanded="expanded" :headers="tableHeaders" :items="headers"
-          :loading="isLoading" item-value="nomor" density="compact" class="desktop-table header-browse-blue"
-          fixed-header show-select select-strategy="single" return-object show-expand @update:expanded="loadDetails">
+        <AppDataTable
+          v-model="selected"
+          v-model:expanded="expanded"
+          :headers="tableHeaders"
+          :items="headers"
+          :loading="isLoading"
+          item-value="nomor"
+          density="compact"
+          class="desktop-table header-browse-blue"
+          fixed-header
+          show-select
+          select-strategy="single"
+          return-object
+          show-expand
+          @update:expanded="loadDetails"
+        >
           <template #[`item.tanggal`]="{ item }">
-            {{ format(new Date(item.tanggal), 'dd/MM/yyyy') }}
+            {{ format(new Date(item.tanggal), "dd/MM/yyyy") }}
           </template>
 
           <template #expanded-row="{ columns, item }">
             <tr class="expanded-row">
               <td :colspan="columns.length">
-
                 <div class="detail-container">
                   <div class="detail-table-wrapper">
                     <div v-if="!details[item.nomor]" class="text-center py-2">
-                      <v-progress-circular indeterminate size="20" class="mr-2"></v-progress-circular>
+                      <v-progress-circular
+                        indeterminate
+                        size="20"
+                        class="mr-2"
+                      ></v-progress-circular>
                       <span class="text-caption">Memuat detail...</span>
                     </div>
-                    <AppDataTable v-else-if="details[item.nomor] && details[item.nomor].length > 0"
-                      :headers="detailHeaders" :items="details[item.nomor]" density="compact" hide-default-footer
-                      :items-per-page="-1" class="detail-table"></AppDataTable>
+                    <AppDataTable
+                      v-else-if="details[item.nomor] && details[item.nomor].length > 0"
+                      :headers="detailHeaders"
+                      :items="details[item.nomor]"
+                      density="compact"
+                      hide-default-footer
+                      :items-per-page="-1"
+                      class="detail-table"
+                    ></AppDataTable>
                     <div v-else class="text-center py-2 text-caption text-medium-emphasis">
                       Tidak ada detail ditemukan untuk nomor {{ item.nomor }}
                     </div>
@@ -208,7 +265,6 @@ onMounted(() => {
               </td>
             </tr>
           </template>
-
         </AppDataTable>
       </div>
     </div>
@@ -219,9 +275,8 @@ onMounted(() => {
           <v-icon color="error" class="mr-2">mdi-alert-circle</v-icon> Konfirmasi Hapus
         </v-card-title>
         <v-card-text>
-          Apakah Anda yakin ingin menghapus data barcode <strong>{{ selected[0]?.nomor }}</strong>? Tindakan ini tidak
-          dapat
-          dibatalkan.
+          Apakah Anda yakin ingin menghapus data barcode <strong>{{ selected[0]?.nomor }}</strong
+          >? Tindakan ini tidak dapat dibatalkan.
         </v-card-text>
         <v-card-actions>
           <v-spacer></v-spacer>
@@ -230,7 +285,6 @@ onMounted(() => {
         </v-card-actions>
       </v-card>
     </v-dialog>
-
   </PageLayout>
 </template>
 

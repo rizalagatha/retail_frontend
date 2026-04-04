@@ -1,12 +1,12 @@
 <script setup lang="ts">
-import { ref, reactive, onMounted, computed, watch } from 'vue';
-import { useToast } from 'vue-toastification';
-import { useAuthStore } from '@/stores/authStore';
-import api from '@/services/api';
-import { format } from 'date-fns';
-import PageLayout from '@/components/PageLayout.vue';
-import * as XLSX from 'xlsx';
-import type { AxiosError } from 'axios';
+import { ref, reactive, onMounted, computed, watch } from "vue";
+import { useToast } from "vue-toastification";
+import { useAuthStore } from "@/stores/authStore";
+import api from "@/services/api";
+import { format } from "date-fns";
+import PageLayout from "@/components/PageLayout.vue";
+import * as XLSX from "xlsx";
+import type { AxiosError } from "axios";
 
 // --- Inisialisasi & State ---
 interface StokStagnanItem {
@@ -28,7 +28,7 @@ interface TotalSummary {
 }
 const toast = useToast();
 const authStore = useAuthStore();
-const MENU_ID = '508';
+const MENU_ID = "508";
 
 const items = ref<StokStagnanItem[]>([]);
 const isLoading = ref(true);
@@ -40,7 +40,10 @@ const filters = reactive({
 });
 
 const yearOptions = Array.from({ length: 10 }, (_, i) => currentYear - 5 + i);
-const monthOptions = Array.from({ length: 12 }, (_, i) => ({ value: i + 1, title: format(new Date(0, i), 'MMMM') }));
+const monthOptions = Array.from({ length: 12 }, (_, i) => ({
+  value: i + 1,
+  title: format(new Date(0, i), "MMMM"),
+}));
 
 // --- Headers dengan Grup ---
 // const headers = [
@@ -60,14 +63,15 @@ const monthOptions = Array.from({ length: 12 }, (_, i) => ({ value: i + 1, title
 
 // --- Kalkulasi Total ---
 const totalSummary = computed<TotalSummary>(() => {
-  if (!items.value || items.value.length === 0) return {
-    StokAwal: 0,
-    RpAwal: 0,
-    QtyInv: 0,
-    RpInvoice: 0,
-    StokAkhir: 0,
-    RpAkhir: 0,
-  };
+  if (!items.value || items.value.length === 0)
+    return {
+      StokAwal: 0,
+      RpAwal: 0,
+      QtyInv: 0,
+      RpInvoice: 0,
+      StokAkhir: 0,
+      RpAkhir: 0,
+    };
   return {
     StokAwal: items.value.reduce((sum, item) => sum + (Number(item.StokAwal) || 0), 0),
     RpAwal: items.value.reduce((sum, item) => sum + (Number(item.RpAwal) || 0), 0),
@@ -77,19 +81,19 @@ const totalSummary = computed<TotalSummary>(() => {
     RpAkhir: items.value.reduce((sum, item) => sum + (Number(item.RpAkhir) || 0), 0),
   };
 });
-const canView = computed(() => authStore.can(MENU_ID, 'view'));
+const canView = computed(() => authStore.can(MENU_ID, "view"));
 // Asumsi export memerlukan izin view
-const canExport = computed(() => authStore.can(MENU_ID, 'view'));
+const canExport = computed(() => authStore.can(MENU_ID, "view"));
 
 // --- Methods ---
 const fetchData = async () => {
   isLoading.value = true;
   try {
-    const response = await api.get('/laporan-stok-stagnan', { params: filters });
+    const response = await api.get("/laporan-stok-stagnan", { params: filters });
     items.value = response.data;
   } catch (err) {
     const error = err as AxiosError<{ message: string }>;
-    toast.error(error.response?.data?.message || 'Gagal memuat data.');
+    toast.error(error.response?.data?.message || "Gagal memuat data.");
   } finally {
     isLoading.value = false;
   }
@@ -98,17 +102,17 @@ const fetchData = async () => {
 const exportData = () => {
   // --- TAMBAHKAN PENGECEKAN IZIN ---
   if (!canExport.value) {
-    toast.error('Anda tidak memiliki izin untuk mengekspor data.');
+    toast.error("Anda tidak memiliki izin untuk mengekspor data.");
     return;
   }
   // ---------------------------------
 
-  if (items.value.length === 0) return toast.warning('Tidak ada data untuk diekspor.');
+  if (items.value.length === 0) return toast.warning("Tidak ada data untuk diekspor.");
   const worksheet = XLSX.utils.json_to_sheet(items.value);
   const workbook = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(workbook, worksheet, "Laporan Stok Stagnan");
   XLSX.writeFile(workbook, `Laporan_StokStagnan_${filters.tahun}-${filters.bulan}.xlsx`);
-  toast.success('Data berhasil diekspor.');
+  toast.success("Data berhasil diekspor.");
 };
 
 onMounted(() => {
@@ -123,22 +127,32 @@ onMounted(() => {
 
   // fetchData(); // Hapus ini, karena watch immediate akan memanggil
 });
-watch(filters, () => {
-  // --- TAMBAHKAN PENGECEKAN IZIN ---
-  if (!canView.value) {
-    isLoading.value = false; // Hentikan loading jika belum
-    items.value = []; // Kosongkan data
-    return; // Hentikan jika tidak ada izin
-  }
-  // ---------------------------------
-  fetchData();
-}, { deep: true, immediate: true });
+watch(
+  filters,
+  () => {
+    // --- TAMBAHKAN PENGECEKAN IZIN ---
+    if (!canView.value) {
+      isLoading.value = false; // Hentikan loading jika belum
+      items.value = []; // Kosongkan data
+      return; // Hentikan jika tidak ada izin
+    }
+    // ---------------------------------
+    fetchData();
+  },
+  { deep: true, immediate: true }
+);
 </script>
 
 <template>
   <PageLayout title="Laporan Stok Stagnan" :menu-id="MENU_ID">
     <template #header-actions>
-      <v-btn v-if="canExport" size="small" color="teal" @click="exportData" prepend-icon="mdi-file-excel">
+      <v-btn
+        v-if="canExport"
+        size="small"
+        color="teal"
+        @click="exportData"
+        prepend-icon="mdi-file-excel"
+      >
         Export
       </v-btn>
     </template>
@@ -151,12 +165,35 @@ watch(filters, () => {
 
     <div class="browse-content">
       <div class="filter-section">
-        <v-select v-model="filters.tahun" :items="yearOptions" label="Tahun" density="compact" hide-details
-          variant="outlined" style="max-width: 150px;" />
-        <v-select v-model="filters.bulan" :items="monthOptions" item-title="title" item-value="value" label="Bulan"
-          density="compact" hide-details variant="outlined" class="ms-4" style="max-width: 180px;" />
+        <v-select
+          v-model="filters.tahun"
+          :items="yearOptions"
+          label="Tahun"
+          density="compact"
+          hide-details
+          variant="outlined"
+          style="max-width: 150px"
+        />
+        <v-select
+          v-model="filters.bulan"
+          :items="monthOptions"
+          item-title="title"
+          item-value="value"
+          label="Bulan"
+          density="compact"
+          hide-details
+          variant="outlined"
+          class="ms-4"
+          style="max-width: 180px"
+        />
         <v-spacer />
-        <v-btn @click="fetchData" icon="mdi-refresh" variant="text" size="small" :loading="isLoading" />
+        <v-btn
+          @click="fetchData"
+          icon="mdi-refresh"
+          variant="text"
+          size="small"
+          :loading="isLoading"
+        />
       </div>
 
       <div class="table-container">
@@ -189,24 +226,24 @@ watch(filters, () => {
             <template v-else>
               <tr v-for="(item, index) in items" :key="index">
                 <td>{{ item.Cabang }}</td>
-                <td class="text-end">{{ (item.StokAwal || 0).toLocaleString('id-ID') }}</td>
-                <td class="text-end">{{ (item.RpAwal || 0).toLocaleString('id-ID') }}</td>
-                <td class="text-end">{{ (item.QtyInv || 0).toLocaleString('id-ID') }}</td>
-                <td class="text-end">{{ (item.RpInvoice || 0).toLocaleString('id-ID') }}</td>
-                <td class="text-end">{{ (item.StokAkhir || 0).toLocaleString('id-ID') }}</td>
-                <td class="text-end">{{ (item.RpAkhir || 0).toLocaleString('id-ID') }}</td>
+                <td class="text-end">{{ (item.StokAwal || 0).toLocaleString("id-ID") }}</td>
+                <td class="text-end">{{ (item.RpAwal || 0).toLocaleString("id-ID") }}</td>
+                <td class="text-end">{{ (item.QtyInv || 0).toLocaleString("id-ID") }}</td>
+                <td class="text-end">{{ (item.RpInvoice || 0).toLocaleString("id-ID") }}</td>
+                <td class="text-end">{{ (item.StokAkhir || 0).toLocaleString("id-ID") }}</td>
+                <td class="text-end">{{ (item.RpAkhir || 0).toLocaleString("id-ID") }}</td>
               </tr>
             </template>
           </tbody>
           <tfoot class="sticky-footer">
             <tr class="font-weight-bold">
               <td class="text-end">GRAND TOTAL :</td>
-              <td class="text-end">{{ (totalSummary.StokAwal || 0).toLocaleString('id-ID') }}</td>
-              <td class="text-end">{{ (totalSummary.RpAwal || 0).toLocaleString('id-ID') }}</td>
-              <td class="text-end">{{ (totalSummary.QtyInv || 0).toLocaleString('id-ID') }}</td>
-              <td class="text-end">{{ (totalSummary.RpInvoice || 0).toLocaleString('id-ID') }}</td>
-              <td class="text-end">{{ (totalSummary.StokAkhir || 0).toLocaleString('id-ID') }}</td>
-              <td class="text-end">{{ (totalSummary.RpAkhir || 0).toLocaleString('id-ID') }}</td>
+              <td class="text-end">{{ (totalSummary.StokAwal || 0).toLocaleString("id-ID") }}</td>
+              <td class="text-end">{{ (totalSummary.RpAwal || 0).toLocaleString("id-ID") }}</td>
+              <td class="text-end">{{ (totalSummary.QtyInv || 0).toLocaleString("id-ID") }}</td>
+              <td class="text-end">{{ (totalSummary.RpInvoice || 0).toLocaleString("id-ID") }}</td>
+              <td class="text-end">{{ (totalSummary.StokAkhir || 0).toLocaleString("id-ID") }}</td>
+              <td class="text-end">{{ (totalSummary.RpAkhir || 0).toLocaleString("id-ID") }}</td>
             </tr>
           </tfoot>
         </table>
@@ -293,5 +330,4 @@ watch(filters, () => {
 .font-weight-bold {
   font-weight: 600;
 }
-
 </style>

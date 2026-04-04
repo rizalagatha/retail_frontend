@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import { ref, onMounted, nextTick, watch } from 'vue';
-import { useRoute } from 'vue-router';
-import api from '@/services/api';
-import { format, parseISO } from 'date-fns';
-import Logo from '@/assets/logo.png'; // Pastikan logo diimpor
+import { ref, onMounted, nextTick, watch } from "vue";
+import { useRoute } from "vue-router";
+import api from "@/services/api";
+import { format, parseISO } from "date-fns";
+import Logo from "@/assets/logo.png"; // Pastikan logo diimpor
 import { formatRupiah } from "@/utils/formatRupiah";
 
 interface PrintHeader {
@@ -91,7 +91,7 @@ onMounted(() => {
 
       <div class="info">
         <div>No. Retur: {{ printData.header.nomor }}</div>
-        <div>Tgl: {{ format(parseISO(printData.header.tanggal), 'dd/MM/yy HH:mm') }}</div>
+        <div>Tgl: {{ format(parseISO(printData.header.tanggal), "dd/MM/yy HH:mm") }}</div>
         <div>Kasir: {{ printData.header.user_create }}</div>
         <div>Customer: {{ printData.header.customer.nama }}</div>
       </div>
@@ -133,7 +133,7 @@ onMounted(() => {
 .receipt {
   width: 58mm;
   /* Gunakan font yang lebih umum untuk printer kasir */
-  font-family: 'monospace', 'Courier New';
+  font-family: "monospace", "Courier New";
   font-size: 8pt;
   color: black;
   padding: 2mm;

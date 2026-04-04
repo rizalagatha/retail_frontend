@@ -56,6 +56,10 @@ interface ReturExportRow {
   Tanggal?: string | Date;
   [key: string]: unknown;
 }
+interface Cabang {
+  kode: string;
+  nama: string;
+}
 
 const router = useRouter();
 const toast = useToast();
@@ -70,7 +74,7 @@ const loading = ref(true);
 const loadingDetails = ref(new Set<string>());
 const selected = ref<MasterItem[]>([]);
 const expanded = ref<string[]>([]);
-const cabangList = ref([]);
+const cabangList = ref<Cabang[]>([]);
 const isPrintOptionVisible = ref(false);
 const isKasirPreviewVisible = ref(false);
 const selectedRetur = ref<string | null>(null);
@@ -191,7 +195,8 @@ const fetchCabangList = async () => {
     const response = await api.get("/retur-jual/lookup/cabang");
     cabangList.value = response.data;
   } catch (error) {
-    toast.error("Gagal memuat daftar cabang.", error);
+    const err = error as AxiosError<{ message?: string }>;
+    toast.error(err.response?.data?.message || "Gagal memuat daftar cabang.");
   }
 };
 
@@ -224,7 +229,8 @@ const loadDetails = async (newlyExpandedItems: MasterItem[]) => {
     details.value[nomorToLoad] = detailsRes.data;
     paymentLinks.value[nomorToLoad] = paymentsRes.data;
   } catch (error) {
-    toast.error(`Gagal memuat detail untuk ${nomorToLoad}`, error);
+    const err = error as AxiosError<{ message?: string }>;
+    toast.error(err.response?.data?.message || `Gagal memuat detail untuk ${nomorToLoad}`);
   } finally {
     loadingDetails.value.delete(nomorToLoad);
   }
@@ -263,8 +269,10 @@ const handleEdit = () => {
 // };
 
 const handlePrint = () => {
-  if (!isSingleSelected.value) return;
-  selectedRetur.value = selectedRow.value.nomor;
+  const row = selectedRow.value;
+  if (!row) return;
+
+  selectedRetur.value = row.nomor;
   isPrintOptionVisible.value = true;
 };
 
@@ -620,7 +628,7 @@ watch(filters, fetchMasterData, { deep: true });
     />
     <ReturJualKasirPrintPreviewModal
       v-model="isKasirPreviewVisible"
-      :nomorRetur="selectedRetur"
+      :nomorRetur="selectedRetur || ''"
       @close="isKasirPreviewVisible = false"
     />
 

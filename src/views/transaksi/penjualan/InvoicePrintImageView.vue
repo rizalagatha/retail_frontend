@@ -1,10 +1,10 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
-import { useRoute } from 'vue-router';
-import api from '@/services/api';
-import Logo from '@/assets/logo.png';
-import InstagramLogo from '@/assets/instagram.jpg';
-import FacebookLogo from '@/assets/facebook.jpg';
+import { ref, onMounted } from "vue";
+import { useRoute } from "vue-router";
+import api from "@/services/api";
+import Logo from "@/assets/logo.png";
+import InstagramLogo from "@/assets/instagram.jpg";
+import FacebookLogo from "@/assets/facebook.jpg";
 import { formatRupiah } from "@/utils/formatRupiah";
 
 interface PrintSummary {
@@ -39,9 +39,9 @@ interface PrintDetail {
   invd_jumlah: number;
   invd_harga: number;
   invd_harga_asli?: number; // harga sebelum diskon
-  invd_diskon?: number;     // diskon total
+  invd_diskon?: number; // diskon total
   total: number;
-  total_asli?: number;      // total sebelum diskon
+  total_asli?: number; // total sebelum diskon
 }
 
 interface PrintData {
@@ -62,9 +62,9 @@ const fetchPrintData = async (nomor: string) => {
   try {
     const response = await api.get(`/invoice-form/print-kasir/${nomor}`);
     printData.value = response.data;
-    document.title = response.data.header?.inv_nomor || 'Struk';
+    document.title = response.data.header?.inv_nomor || "Struk";
   } catch {
-    alert('Gagal memuat data struk.');
+    alert("Gagal memuat data struk.");
   } finally {
     isLoading.value = false;
   }
@@ -139,15 +139,21 @@ onMounted(() => {
         <template v-if="calculateTotalsWithDiscount(printData.details).totalDiskon > 0">
           <div class="summary-item">
             <span>Total (Sebelum Diskon)</span>
-            <span>{{ formatRupiah(calculateTotalsWithDiscount(printData.details).totalAsli) }}</span>
+            <span>{{
+              formatRupiah(calculateTotalsWithDiscount(printData.details).totalAsli)
+            }}</span>
           </div>
           <div class="summary-item diskon">
             <span>Total Diskon</span>
-            <span>-{{ formatRupiah(calculateTotalsWithDiscount(printData.details).totalDiskon) }}</span>
+            <span
+              >-{{ formatRupiah(calculateTotalsWithDiscount(printData.details).totalDiskon) }}</span
+            >
           </div>
           <div class="summary-item netto">
             <span>Netto (Setelah Diskon)</span>
-            <span>{{ formatRupiah(calculateTotalsWithDiscount(printData.details).totalNetto) }}</span>
+            <span>{{
+              formatRupiah(calculateTotalsWithDiscount(printData.details).totalNetto)
+            }}</span>
           </div>
         </template>
 
@@ -190,8 +196,8 @@ onMounted(() => {
 
       <div class="footer text-center">
         <div class="donation-text">
-          Dengan membeli produk kaosan ini, Kaosan telah menyisihkan/peduli dengan sesama yg membutuhkan
-          sebesar {{ formatRupiah(hitungPundiAmal(printData.details)) }}
+          Dengan membeli produk kaosan ini, Kaosan telah menyisihkan/peduli dengan sesama yg
+          membutuhkan sebesar {{ formatRupiah(hitungPundiAmal(printData.details)) }}
         </div>
         <div>BARANG YANG SUDAH DIBELI TIDAK BISA DIKEMBALIKAN</div>
         <div>TERIMAKASIH ATAS KUNJUNGAN ANDA</div>
@@ -213,7 +219,7 @@ onMounted(() => {
 <style scoped>
 .receipt {
   width: 58mm;
-  font-family: 'Roboto Mono', monospace;
+  font-family: "Roboto Mono", monospace;
   font-size: 8pt;
   color: black;
 }

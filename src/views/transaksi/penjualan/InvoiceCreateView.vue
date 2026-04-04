@@ -2798,7 +2798,8 @@ const getCategoryColor = (kategori: string | undefined) => {
   }
 };
 
-const isItemPromoEligible = (item: Item) => { // Pastikan pakai Item, bukan SoItem jika interface utamanya Item
+const isItemPromoEligible = (item: Item) => {
+  // Pastikan pakai Item, bukan SoItem jika interface utamanya Item
   const autoPromoIds = ["PRO-2025-008", "PRO-2025-010", "PRO-2026-001", "PRO-2026-002"];
   const hasActiveMonthlyPromo = activePromosList.value.some((p) =>
     autoPromoIds.includes(p.pro_nomor)

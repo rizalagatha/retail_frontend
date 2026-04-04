@@ -1,28 +1,27 @@
 <script setup lang="ts">
-import PageLayout from '@/components/PageLayout.vue';
-import { useRouter } from 'vue-router';
+import PageLayout from "@/components/PageLayout.vue";
+import { useRouter } from "vue-router";
 
 const router = useRouter();
 </script>
 
 <template>
   <PageLayout title="Halaman Tidak Ditemukan" :desktop-mode="false">
-     <div class="state-container">
-        <v-icon size="80" class="mb-4">mdi-alert-circle-outline</v-icon>
-        <h1 class="text-h4 font-weight-bold">404 - Halaman Tidak Ditemukan</h1>
-        <p class="text-medium-emphasis mt-2 mb-6">
-            Maaf, halaman yang Anda cari tidak ada atau telah dipindahkan.
-        </p>
-        <v-btn
-          color="primary"
-          @click="router.push('/')"
-          prepend-icon="mdi-home"
-          variant="elevated"
-          size="large"
-        >
-          Kembali ke Beranda
-        </v-btn>
+    <div class="state-container">
+      <v-icon size="80" class="mb-4">mdi-alert-circle-outline</v-icon>
+      <h1 class="text-h4 font-weight-bold">404 - Halaman Tidak Ditemukan</h1>
+      <p class="text-medium-emphasis mt-2 mb-6">
+        Maaf, halaman yang Anda cari tidak ada atau telah dipindahkan.
+      </p>
+      <v-btn
+        color="primary"
+        @click="router.push('/')"
+        prepend-icon="mdi-home"
+        variant="elevated"
+        size="large"
+      >
+        Kembali ke Beranda
+      </v-btn>
     </div>
   </PageLayout>
 </template>
-

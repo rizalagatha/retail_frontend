@@ -1,14 +1,14 @@
 <script setup lang="ts">
-import { ref, reactive, onMounted, computed, watch } from 'vue';
-import { useRouter } from 'vue-router';
-import { useToast } from 'vue-toastification';
-import { useAuthStore } from '@/stores/authStore';
-import api from '@/services/api';
-import { format, subDays, parseISO } from 'date-fns';
-import PageLayout from '@/components/PageLayout.vue';
-import * as XLSX from 'xlsx';
-import type { AxiosError } from 'axios';
-import AppDataTable from '@/components/AppDataTable.vue';
+import { ref, reactive, onMounted, computed, watch } from "vue";
+import { useRouter } from "vue-router";
+import { useToast } from "vue-toastification";
+import { useAuthStore } from "@/stores/authStore";
+import api from "@/services/api";
+import { format, subDays, parseISO } from "date-fns";
+import PageLayout from "@/components/PageLayout.vue";
+import * as XLSX from "xlsx";
+import type { AxiosError } from "axios";
+import AppDataTable from "@/components/AppDataTable.vue";
 
 // Interface Header (Resize)
 interface DataTableHeader {
@@ -16,7 +16,7 @@ interface DataTableHeader {
   key: string;
   width?: number;
   fixed?: boolean;
-  align?: 'start' | 'center' | 'end';
+  align?: "start" | "center" | "end";
   minWidth?: string | number;
   maxWidth?: string | number;
   sortable?: boolean;
@@ -30,7 +30,7 @@ interface MasterItem {
   noKoreksi: string | null;
   gudangDc: string;
   keterangan: string;
-  closing: 'Y' | 'N';
+  closing: "Y" | "N";
 }
 interface DetailItem {
   kode: string;
@@ -44,11 +44,15 @@ interface ReturDcExportRow {
   Tanggal?: string | Date;
   [key: string]: unknown;
 }
+interface Cabang {
+  kode: string;
+  nama: string;
+}
 
 const router = useRouter();
 const toast = useToast();
 const authStore = useAuthStore();
-const MENU_ID = '32';
+const MENU_ID = "32";
 
 // --- State ---
 const masterData = ref<MasterItem[]>([]);
@@ -57,41 +61,41 @@ const loading = ref(true);
 const loadingDetails = ref(new Set<string>());
 const selected = ref<MasterItem[]>([]);
 const expanded = ref<string[]>([]);
-const cabangList = ref([]);
+const cabangList = ref<Cabang[]>([]);
 
 const dialogConfirm = reactive({
   show: false,
-  title: '',
-  text: '',
-  onConfirm: () => { },
+  title: "",
+  text: "",
+  onConfirm: () => {},
 });
 
 const filters = reactive({
-  startDate: format(subDays(new Date(), 30), 'yyyy-MM-dd'),
-  endDate: format(new Date(), 'yyyy-MM-dd'),
-  cabang: authStore.user?.cabang || '',
+  startDate: format(subDays(new Date(), 30), "yyyy-MM-dd"),
+  endDate: format(new Date(), "yyyy-MM-dd"),
+  cabang: authStore.user?.cabang || "",
 });
 
 // --- Header Definisi (Ref & Width Angka) ---
 const headers = ref<DataTableHeader[]>([
-  { title: '', key: 'data-table-expand', width: 50, fixed: true },
-  { title: 'Nomor', key: 'nomor', width: 180, fixed: true },
-  { title: 'Tanggal', key: 'tanggal', width: 120 },
-  { title: 'Nomor Terima', key: 'nomorTerima', width: 180 },
-  { title: 'Tgl Terima', key: 'tglTerima', width: 120 },
-  { title: 'No Koreksi', key: 'noKoreksi', width: 180 },
-  { title: 'Gudang DC', key: 'gudangDc', width: 150 },
-  { title: 'Keterangan', key: 'keterangan', width: 300 },
-  { title: 'Closing', key: 'closing', align: 'center', width: 100 },
+  { title: "", key: "data-table-expand", width: 50, fixed: true },
+  { title: "Nomor", key: "nomor", width: 180, fixed: true },
+  { title: "Tanggal", key: "tanggal", width: 120 },
+  { title: "Nomor Terima", key: "nomorTerima", width: 180 },
+  { title: "Tgl Terima", key: "tglTerima", width: 120 },
+  { title: "No Koreksi", key: "noKoreksi", width: 180 },
+  { title: "Gudang DC", key: "gudangDc", width: 150 },
+  { title: "Keterangan", key: "keterangan", width: 300 },
+  { title: "Closing", key: "closing", align: "center", width: 100 },
 ]);
 
 const detailHeaders = [
-  { title: 'Kode', key: 'kode', width: '150px' },
-  { title: 'Nama Barang', key: 'nama', width: '300px' },
-  { title: 'Ukuran', key: 'ukuran', width: '100px' },
-  { title: 'Jumlah', key: 'jumlah', align: 'end', width: '100px' },
-  { title: 'Terima', key: 'terima', align: 'end', width: '100px' },
-  { title: 'Selisih', key: 'selisih', align: 'end', width: '100px' },
+  { title: "Kode", key: "kode", width: "150px" },
+  { title: "Nama Barang", key: "nama", width: "300px" },
+  { title: "Ukuran", key: "ukuran", width: "100px" },
+  { title: "Jumlah", key: "jumlah", align: "end", width: "100px" },
+  { title: "Terima", key: "terima", align: "end", width: "100px" },
+  { title: "Selisih", key: "selisih", align: "end", width: "100px" },
 ] as const;
 
 // --- Logic Resize Column ---
@@ -104,10 +108,10 @@ const onResizeStart = (e: MouseEvent, column: DataTableHeader) => {
   e.stopPropagation();
   resizingColumn.value = column;
   startX.value = e.pageX;
-  startWidth.value = (typeof column.width === 'number' ? column.width : 100);
-  document.addEventListener('mousemove', onResizeMove);
-  document.addEventListener('mouseup', onResizeEnd);
-  document.body.style.cursor = 'col-resize';
+  startWidth.value = typeof column.width === "number" ? column.width : 100;
+  document.addEventListener("mousemove", onResizeMove);
+  document.addEventListener("mouseup", onResizeEnd);
+  document.body.style.cursor = "col-resize";
 };
 
 const onResizeMove = (e: MouseEvent) => {
@@ -118,9 +122,9 @@ const onResizeMove = (e: MouseEvent) => {
 
 const onResizeEnd = () => {
   resizingColumn.value = null;
-  document.removeEventListener('mousemove', onResizeMove);
-  document.removeEventListener('mouseup', onResizeEnd);
-  document.body.style.cursor = '';
+  document.removeEventListener("mousemove", onResizeMove);
+  document.removeEventListener("mouseup", onResizeEnd);
+  document.body.style.cursor = "";
 };
 
 // --- Logic Selected Row ---
@@ -130,17 +134,26 @@ const handleRowClick = (_event: Event, { item }: { item: MasterItem }) => {
 
 // --- Computed ---
 const isSingleSelected = computed(() => selected.value.length === 1);
-const selectedRow = computed(() => isSingleSelected.value ? selected.value[0] : null);
+const selectedRow = computed(() => (isSingleSelected.value ? selected.value[0] : null));
 
-const canEdit = computed(() => isSingleSelected.value && !selectedRow.value?.nomorTerima && selectedRow.value?.closing !== 'Y');
-const canDelete = computed(() => isSingleSelected.value && !selectedRow.value?.nomorTerima && selectedRow.value?.closing !== 'Y');
+const canEdit = computed(
+  () =>
+    isSingleSelected.value && !selectedRow.value?.nomorTerima && selectedRow.value?.closing !== "Y"
+);
+const canDelete = computed(
+  () =>
+    isSingleSelected.value && !selectedRow.value?.nomorTerima && selectedRow.value?.closing !== "Y"
+);
 
 // --- Methods ---
 const fetchCabangList = async () => {
   try {
-    const response = await api.get('/retur-jual/lookup/cabang');
+    const response = await api.get("/retur-jual/lookup/cabang");
     cabangList.value = response.data;
-  } catch (error) { toast.error('Gagal memuat daftar cabang.', error); }
+  } catch (err: unknown) {
+    const error = err as AxiosError<{ message?: string }>;
+    toast.error(error.response?.data?.message || "Gagal memuat daftar cabang.");
+  }
 };
 
 const fetchMasterData = async () => {
@@ -148,18 +161,20 @@ const fetchMasterData = async () => {
   selected.value = [];
   expanded.value = [];
   try {
-    const response = await api.get('/retur-dc', { params: filters });
+    const response = await api.get("/retur-dc", { params: filters });
     masterData.value = response.data;
   } catch (err: unknown) {
     const error = err as AxiosError<{ message: string }>;
-    toast.error(error.response?.data?.message || 'Gagal mengambil data.');
+    toast.error(error.response?.data?.message || "Gagal mengambil data.");
   } finally {
     loading.value = false;
   }
 };
 
 const loadDetails = async (newlyExpandedItems: MasterItem[]) => {
-  const itemToLoad = newlyExpandedItems.find(item => !details.value[item.nomor] && !loadingDetails.value.has(item.nomor));
+  const itemToLoad = newlyExpandedItems.find(
+    (item) => !details.value[item.nomor] && !loadingDetails.value.has(item.nomor)
+  );
   if (!itemToLoad) return;
   const nomorToLoad = itemToLoad.nomor;
 
@@ -167,8 +182,9 @@ const loadDetails = async (newlyExpandedItems: MasterItem[]) => {
   try {
     const response = await api.get(`/retur-dc/details/${nomorToLoad}`);
     details.value[nomorToLoad] = response.data;
-  } catch (error) {
-    toast.error(`Gagal memuat detail untuk ${nomorToLoad}`, error);
+  } catch (err: unknown) {
+    const error = err as AxiosError<{ message?: string }>;
+    toast.error(error.response?.data?.message || `Gagal memuat detail untuk ${nomorToLoad}`);
   } finally {
     loadingDetails.value.delete(nomorToLoad);
   }
@@ -181,123 +197,125 @@ const showConfirmation = (title: string, text: string, onConfirm: () => void) =>
   dialogConfirm.show = true;
 };
 
-const handleNew = () => router.push({ name: 'ReturDcCreate' });
+const handleNew = () => router.push({ name: "ReturDcCreate" });
 const handleEdit = () => {
-  if (!canEdit.value) return;
-  router.push({ name: 'ReturDcEdit', params: { nomor: selectedRow.value.nomor } });
+  if (!canEdit.value || !selectedRow.value) return;
+
+  const nomor = selectedRow.value.nomor;
+
+  router.push({ name: "ReturDcEdit", params: { nomor } });
 };
 
 const handleDelete = () => {
-  if (!canDelete.value) return;
-  showConfirmation(
-    'Konfirmasi Hapus',
-    `Yakin ingin menghapus dokumen ${selectedRow.value.nomor}?`,
-    async () => {
-      try {
-        const response = await api.delete(`/retur-dc/${selectedRow.value.nomor}`);
-        toast.success(response.data.message);
-        fetchMasterData();
-      } catch (err: unknown) {
-        const error = err as AxiosError<{ message: string }>;
-        toast.error(error.response?.data?.message || 'Gagal menghapus data.');
-      }
+  if (!canDelete.value || !selectedRow.value) return;
+
+  const nomor = selectedRow.value.nomor;
+
+  showConfirmation("Konfirmasi Hapus", `Yakin ingin menghapus dokumen ${nomor}?`, async () => {
+    try {
+      const response = await api.delete(`/retur-dc/${nomor}`);
+      toast.success(response.data.message);
+      fetchMasterData();
+    } catch (err: unknown) {
+      const error = err as AxiosError<{ message: string }>;
+      toast.error(error.response?.data?.message || "Gagal menghapus data.");
     }
-  );
+  });
 };
 
 const handlePrint = () => {
-  if (!isSingleSelected.value) return;
+  if (!isSingleSelected.value || !selectedRow.value) return;
+
+  const nomor = selectedRow.value.nomor;
+
   const url = router.resolve({
-    name: 'ReturDcPrint',
-    params: { nomor: selectedRow.value.nomor }
+    name: "ReturDcPrint",
+    params: { nomor },
   }).href;
-  window.open(url, '_blank');
+
+  window.open(url, "_blank");
 };
 
 // Helper Format Tanggal Indonesia
 const formatDateIndo = (dateString: string | Date | null | undefined) => {
-  if (!dateString) return '';
+  if (!dateString) return "";
   const date = new Date(dateString);
-  if (isNaN(date.getTime())) return '';
-  return new Intl.DateTimeFormat('id-ID', {
-    day: 'numeric',
-    month: 'long',
-    year: 'numeric'
+  if (isNaN(date.getTime())) return "";
+  return new Intl.DateTimeFormat("id-ID", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
   }).format(date);
 };
 
 // --- 2. Fungsi Export Data ---
-const exportData = async (type: 'header' | 'detail') => {
-
+const exportData = async (type: "header" | "detail") => {
   // === EXPORT HEADER ===
-  if (type === 'header') {
+  if (type === "header") {
     // Casting masterData.value ke Interface MasterItem
     const currentList = masterData.value as MasterItem[];
 
     if (currentList.length === 0) {
-      toast.warning('Tidak ada data header untuk diekspor.');
+      toast.warning("Tidak ada data header untuk diekspor.");
       return;
     }
 
     try {
-      toast.info('Membuat file Excel Header...');
+      toast.info("Membuat file Excel Header...");
 
       // Mapping Header dengan Format Tanggal
       const formattedHeader = currentList.map((item) => ({
         ...item,
-        tanggal: item.tanggal ? formatDateIndo(item.tanggal) : '',
-        tglTerima: item.tglTerima ? formatDateIndo(item.tglTerima) : '',
+        tanggal: item.tanggal ? formatDateIndo(item.tanggal) : "",
+        tglTerima: item.tglTerima ? formatDateIndo(item.tglTerima) : "",
       }));
 
       const worksheet = XLSX.utils.json_to_sheet(formattedHeader);
       const workbook = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(workbook, worksheet, "Retur DC Header");
       XLSX.writeFile(workbook, "Export_ReturDC_Header.xlsx");
-      toast.success('File Header berhasil dibuat.');
-    } catch (error) {
-      toast.error('Gagal membuat file Excel.', error);
+      toast.success("File Header berhasil dibuat.");
+    } catch (err: unknown) {
+      const error = err as AxiosError<{ message?: string }>;
+      toast.error(error.response?.data?.message || "Gagal membuat file Excel.");
     }
 
     // === EXPORT DETAIL ===
-  } else if (type === 'detail') {
+  } else if (type === "detail") {
     try {
-      toast.info('Mengambil data detail dari server...');
+      toast.info("Mengambil data detail dari server...");
 
       // Request API dengan Generic Type
-      const response = await api.get<ReturDcExportRow[]>('/retur-dc/export-details', {
-        params: filters
+      const response = await api.get<ReturDcExportRow[]>("/retur-dc/export-details", {
+        params: filters,
       });
 
       const details = response.data;
 
       if (details.length === 0) {
-        toast.warning('Tidak ada data detail untuk diekspor pada filter ini.');
+        toast.warning("Tidak ada data detail untuk diekspor pada filter ini.");
         return;
       }
 
-      toast.info('Membuat file Excel Detail...');
+      toast.info("Membuat file Excel Detail...");
 
       // Mapping Detail dengan Format Tanggal
       const formattedDetail = details.map((row) => ({
         ...row,
-        Tanggal: row.Tanggal ? formatDateIndo(row.Tanggal) : ''
+        Tanggal: row.Tanggal ? formatDateIndo(row.Tanggal) : "",
       }));
 
       // Layout Excel
       const title = "LAPORAN DETAIL RETUR BARANG KE DC";
-      const dateRange = `Periode : ${formatDateIndo(filters.startDate)} s/d ${formatDateIndo(filters.endDate)}`;
+      const dateRange = `Periode : ${formatDateIndo(filters.startDate)} s/d ${formatDateIndo(
+        filters.endDate
+      )}`;
       const tableHeaders = Object.keys(formattedDetail[0]);
 
       // Konversi ke Array Values (Type Safe)
       const tableData = formattedDetail.map((row) => Object.values(row as Record<string, unknown>));
 
-      const excelData = [
-        [title],
-        [dateRange],
-        [],
-        tableHeaders,
-        ...tableData
-      ];
+      const excelData = [[title], [dateRange], [], tableHeaders, ...tableData];
 
       const worksheet = XLSX.utils.aoa_to_sheet(excelData);
 
@@ -306,19 +324,18 @@ const exportData = async (type: 'header' | 'detail') => {
         { s: { r: 0, c: 0 }, e: { r: 0, c: tableHeaders.length - 1 } },
         { s: { r: 1, c: 0 }, e: { r: 1, c: tableHeaders.length - 1 } },
       ];
-      worksheet['!merges'] = merge;
+      worksheet["!merges"] = merge;
 
       // Auto Width
-      const colWidths = tableHeaders.map(header => ({ wch: header.length + 5 }));
-      worksheet['!cols'] = colWidths;
+      const colWidths = tableHeaders.map((header) => ({ wch: header.length + 5 }));
+      worksheet["!cols"] = colWidths;
 
       const workbook = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(workbook, worksheet, "Retur DC Detail");
       XLSX.writeFile(workbook, "Export_ReturDC_Detail.xlsx");
-      toast.success('File Detail berhasil dibuat.');
-
+      toast.success("File Detail berhasil dibuat.");
     } catch (error) {
-      let message = 'Gagal mengekspor data detail.';
+      let message = "Gagal mengekspor data detail.";
       if (error instanceof Error) message = error.message;
       toast.error(message);
     }
@@ -326,8 +343,8 @@ const exportData = async (type: 'header' | 'detail') => {
 };
 
 const getRowTextColor = (item: MasterItem) => {
-  if (!item.nomorTerima) return 'text-red font-weight-bold';
-  return '';
+  if (!item.nomorTerima) return "text-red font-weight-bold";
+  return "";
 };
 
 onMounted(async () => {
@@ -341,19 +358,46 @@ watch(filters, fetchMasterData, { deep: true });
 <template>
   <PageLayout title="Browse Retur Barang ke DC" icon="mdi-truck-minus-outline">
     <template #header-actions>
-      <v-btn v-if="authStore.can(MENU_ID, 'insert')" size="small" prepend-icon="mdi-plus" color="primary"
-        @click="handleNew">Baru</v-btn>
-      <v-btn v-if="authStore.can(MENU_ID, 'edit')" size="small" prepend-icon="mdi-pencil" @click="handleEdit"
-        :disabled="!canEdit">Ubah</v-btn>
-      <v-btn v-if="authStore.can(MENU_ID, 'delete')" size="small" prepend-icon="mdi-delete" color="error"
-        @click="handleDelete" :disabled="!canDelete">Hapus</v-btn>
-      <v-btn v-if="authStore.can(MENU_ID, 'view')" size="small" color="green" :disabled="!isSingleSelected"
-        prepend-icon="mdi-printer" @click="handlePrint">
+      <v-btn
+        v-if="authStore.can(MENU_ID, 'insert')"
+        size="small"
+        prepend-icon="mdi-plus"
+        color="primary"
+        @click="handleNew"
+        >Baru</v-btn
+      >
+      <v-btn
+        v-if="authStore.can(MENU_ID, 'edit')"
+        size="small"
+        prepend-icon="mdi-pencil"
+        @click="handleEdit"
+        :disabled="!canEdit"
+        >Ubah</v-btn
+      >
+      <v-btn
+        v-if="authStore.can(MENU_ID, 'delete')"
+        size="small"
+        prepend-icon="mdi-delete"
+        color="error"
+        @click="handleDelete"
+        :disabled="!canDelete"
+        >Hapus</v-btn
+      >
+      <v-btn
+        v-if="authStore.can(MENU_ID, 'view')"
+        size="small"
+        color="green"
+        :disabled="!isSingleSelected"
+        prepend-icon="mdi-printer"
+        @click="handlePrint"
+      >
         Cetak
       </v-btn>
       <v-menu offset-y>
         <template v-slot:activator="{ props }">
-          <v-btn size="small" color="teal" prepend-icon="mdi-file-excel" v-bind="props">Export</v-btn>
+          <v-btn size="small" color="teal" prepend-icon="mdi-file-excel" v-bind="props"
+            >Export</v-btn
+          >
         </template>
         <v-list density="compact">
           <v-list-item @click="exportData('header')">
@@ -369,13 +413,35 @@ watch(filters, fetchMasterData, { deep: true });
     <div class="browse-content">
       <div class="filter-section">
         <v-label class="filter-label">Filter Periode:</v-label>
-        <v-text-field v-model="filters.startDate" type="date" density="compact" hide-details variant="outlined"
-          style="max-width: 180px;" />
+        <v-text-field
+          v-model="filters.startDate"
+          type="date"
+          density="compact"
+          hide-details
+          variant="outlined"
+          style="max-width: 180px"
+        />
         <v-label class="mx-2">s/d</v-label>
-        <v-text-field v-model="filters.endDate" type="date" density="compact" hide-details variant="outlined"
-          style="max-width: 180px;" />
-        <v-select label="Cabang" v-model="filters.cabang" :items="cabangList" item-title="nama" item-value="kode"
-          density="compact" hide-details variant="outlined" class="ms-4" style="max-width: 200px;" />
+        <v-text-field
+          v-model="filters.endDate"
+          type="date"
+          density="compact"
+          hide-details
+          variant="outlined"
+          style="max-width: 180px"
+        />
+        <v-select
+          label="Cabang"
+          v-model="filters.cabang"
+          :items="cabangList"
+          item-title="nama"
+          item-value="kode"
+          density="compact"
+          hide-details
+          variant="outlined"
+          class="ms-4"
+          style="max-width: 200px"
+        />
         <v-spacer />
         <div class="d-flex align-center ga-2 text-caption">
           <v-icon color="red" icon="mdi-square-rounded" size="small"></v-icon> Belum Diterima
@@ -383,39 +449,74 @@ watch(filters, fetchMasterData, { deep: true });
       </div>
 
       <div class="table-container">
-        <AppDataTable v-model="selected" v-model:expanded="expanded" :headers="headers" :items="masterData"
-          :loading="loading" item-value="nomor" density="compact" class="desktop-table header-browse-blue" fixed-header
-          show-select return-object show-expand @update:expanded="loadDetails" @click:row="handleRowClick">
+        <AppDataTable
+          v-model="selected"
+          v-model:expanded="expanded"
+          :headers="headers"
+          :items="masterData"
+          :loading="loading"
+          item-value="nomor"
+          density="compact"
+          class="desktop-table header-browse-blue"
+          fixed-header
+          show-select
+          return-object
+          show-expand
+          @update:expanded="loadDetails"
+          @click:row="handleRowClick"
+        >
           <template #headers="{ columns, isSorted, getSortIcon, toggleSort }">
             <tr>
               <template v-for="header in columns" :key="header.key">
                 <th
-                  :style="{ width: header.width + 'px', minWidth: header.width + 'px', maxWidth: header.width + 'px' }"
+                  :style="{
+                    width: header.width + 'px',
+                    minWidth: header.width + 'px',
+                    maxWidth: header.width + 'px',
+                  }"
                   class="resizable-header"
-                  :class="{ 'text-center': header.align === 'center', 'text-end': header.align === 'end' }"
-                  @click="toggleSort(header)">
+                  :class="{
+                    'text-center': header.align === 'center',
+                    'text-end': header.align === 'end',
+                  }"
+                  @click="toggleSort(header)"
+                >
                   <div class="header-content">
                     <span>{{ header.title }}</span>
                     <v-icon v-if="isSorted(header)" size="small" class="ms-1">
                       {{ getSortIcon(header) }}
                     </v-icon>
                   </div>
-                  <div class="resizer" @mousedown.stop="onResizeStart($event, header)" @click.stop></div>
+                  <div
+                    class="resizer"
+                    @mousedown.stop="onResizeStart($event, header)"
+                    @click.stop
+                  ></div>
                 </th>
               </template>
             </tr>
           </template>
 
           <template #[`item.data-table-expand`]="{ internalItem, toggleExpand, isExpanded }">
-            <v-btn icon="mdi-chevron-down" :class="{ 'rotate-180': isExpanded(internalItem) }" size="x-small"
-              variant="text" @click.stop="toggleExpand(internalItem)" />
+            <v-btn
+              icon="mdi-chevron-down"
+              :class="{ 'rotate-180': isExpanded(internalItem) }"
+              size="x-small"
+              variant="text"
+              @click.stop="toggleExpand(internalItem)"
+            />
           </template>
 
-          <template v-for="header in headers.filter(h => h.key !== 'data-table-expand')"
-            #[`item.${header.key}`]="{ item }" :key="header.key">
+          <template
+            v-for="header in headers.filter((h) => h.key !== 'data-table-expand')"
+            #[`item.${header.key}`]="{ item }"
+            :key="header.key"
+          >
             <td :class="getRowTextColor(item)">
               <template v-if="['tanggal', 'tglTerima'].includes(header.key)">
-                {{ item[header.key] ? format(parseISO(item[header.key] as string), 'dd/MM/yyyy') : '' }}
+                {{
+                  item[header.key] ? format(parseISO(item[header.key] as string), "dd/MM/yyyy") : ""
+                }}
               </template>
               <template v-else-if="header.key === 'closing'">
                 <v-chip v-if="item.closing === 'Y'" size="x-small" color="success">YA</v-chip>
@@ -431,16 +532,30 @@ watch(filters, fetchMasterData, { deep: true });
               <td :colspan="columns.length" class="pa-0">
                 <div class="detail-container">
                   <div class="detail-table-wrapper">
-                    <div v-if="loadingDetails.has(item.nomor)" class="text-center pa-4 text-caption">
+                    <div
+                      v-if="loadingDetails.has(item.nomor)"
+                      class="text-center pa-4 text-caption"
+                    >
                       Memuat detail...
                     </div>
-                    <v-data-table v-else :headers="detailHeaders" :items="details[item.nomor]" density="compact"
-                      class="detail-table" :items-per-page="-1" hide-default-footer>
+                    <v-data-table
+                      v-else
+                      :headers="detailHeaders"
+                      :items="details[item.nomor]"
+                      density="compact"
+                      class="detail-table"
+                      :items-per-page="-1"
+                      hide-default-footer
+                    >
                       <template #bottom></template>
                     </v-data-table>
                     <div
-                      v-if="!loadingDetails.has(item.nomor) && (!details[item.nomor] || details[item.nomor].length === 0)"
-                      class="text-center pa-4 text-caption">
+                      v-if="
+                        !loadingDetails.has(item.nomor) &&
+                        (!details[item.nomor] || details[item.nomor].length === 0)
+                      "
+                      class="text-center pa-4 text-caption"
+                    >
                       Tidak ada data detail.
                     </div>
                   </div>
@@ -459,7 +574,14 @@ watch(filters, fetchMasterData, { deep: true });
         <v-card-actions>
           <v-spacer></v-spacer>
           <v-btn text @click="dialogConfirm.show = false">Batal</v-btn>
-          <v-btn color="primary" variant="tonal" @click="dialogConfirm.onConfirm(); dialogConfirm.show = false;">
+          <v-btn
+            color="primary"
+            variant="tonal"
+            @click="
+              dialogConfirm.onConfirm();
+              dialogConfirm.show = false;
+            "
+          >
             Ya, Lanjutkan
           </v-btn>
         </v-card-actions>

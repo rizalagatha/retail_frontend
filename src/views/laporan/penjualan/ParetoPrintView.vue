@@ -1,19 +1,28 @@
 <script setup lang="ts">
-import { ref, onMounted, nextTick, watch, computed } from 'vue';
-import { useRoute } from 'vue-router';
-import api from '@/services/api';
-import { format } from 'date-fns';
-import Logo from '@/assets/logo.png';
-import LogoReszo from '@/assets/rezso.jpg';
+import { ref, onMounted, nextTick, watch, computed } from "vue";
+import { useRoute } from "vue-router";
+import api from "@/services/api";
+import { format } from "date-fns";
+import Logo from "@/assets/logo.png";
+import LogoReszo from "@/assets/rezso.jpg";
 
 // --- Tipe Data & State ---
 interface ParetoItem {
   KODE: string;
   NAMA: string;
   ALLSIZE: number;
-  XS: number; S: number; M: number; L: number; XL: number;
-  '2XL': number; '3XL': number; '4XL': number; '5XL': number;
-  OVERSIZE: number; JUMBO: number; OTHER: number;
+  XS: number;
+  S: number;
+  M: number;
+  L: number;
+  XL: number;
+  "2XL": number;
+  "3XL": number;
+  "4XL": number;
+  "5XL": number;
+  OVERSIZE: number;
+  JUMBO: number;
+  OTHER: number;
   TOTAL: number;
   StokReal: number;
 }
@@ -21,16 +30,16 @@ interface ParetoItem {
 const route = useRoute();
 const reportData = ref<ParetoItem[]>([]);
 const headerInfo = ref({
-  periode: '',
-  cabang: '',
-  item: '',
-  kategori: '',
+  periode: "",
+  cabang: "",
+  item: "",
+  kategori: "",
 });
 const isLoading = ref(true);
 const dynamicLogo = computed(() => {
   const cabang = route.query.cabang as string;
   // Jika cabang adalah K04 (Kediri/Reszo)
-  if (cabang === 'K04') {
+  if (cabang === "K04") {
     return LogoReszo;
   }
   return Logo;
@@ -43,17 +52,19 @@ const fetchPrintData = async () => {
     // Ambil filter dari URL query
     const filters = route.query;
     headerInfo.value = {
-      periode: `Periode: ${format(new Date(filters.startDate as string), 'dd-MM-yyyy')} s/d ${format(new Date(filters.endDate as string), 'dd-MM-yyyy')}`,
+      periode: `Periode: ${format(
+        new Date(filters.startDate as string),
+        "dd-MM-yyyy"
+      )} s/d ${format(new Date(filters.endDate as string), "dd-MM-yyyy")}`,
       cabang: `Cabang: ${filters.cabang}`,
       item: `Item: ${filters.limit}`,
       kategori: `Kategori Produk: ${filters.kategori}`,
     };
 
     // Panggil endpoint yang sama dengan halaman browse
-    const response = await api.get('/pareto', { params: filters });
+    const response = await api.get("/pareto", { params: filters });
     reportData.value = response.data;
     document.title = `Pareto Barang Terjual - ${filters.cabang}`;
-
   } catch (error) {
     alert("Gagal memuat data untuk dicetak.");
     console.error("Error fetching print data:", error);
@@ -128,10 +139,10 @@ onMounted(fetchPrintData);
               <td class="right">{{ item.M }}</td>
               <td class="right">{{ item.L }}</td>
               <td class="right">{{ item.XL }}</td>
-              <td class="right">{{ item['2XL'] }}</td>
-              <td class="right">{{ item['3XL'] }}</td>
-              <td class="right">{{ item['4XL'] }}</td>
-              <td class="right">{{ item['5XL'] }}</td>
+              <td class="right">{{ item["2XL"] }}</td>
+              <td class="right">{{ item["3XL"] }}</td>
+              <td class="right">{{ item["4XL"] }}</td>
+              <td class="right">{{ item["5XL"] }}</td>
               <td class="right">{{ item.OVERSIZE }}</td>
               <td class="right">{{ item.JUMBO }}</td>
               <td class="right">{{ item.OTHER || 0 }}</td>
@@ -143,7 +154,7 @@ onMounted(fetchPrintData);
       </div>
 
       <div class="report-footer">
-        <span>Printed: {{ new Date().toLocaleString('id-ID') }}</span>
+        <span>Printed: {{ new Date().toLocaleString("id-ID") }}</span>
       </div>
     </div>
   </div>
@@ -151,7 +162,7 @@ onMounted(fetchPrintData);
 
 <style scoped>
 .print-container {
-  font-family: 'Segoe UI', Tahoma, sans-serif;
+  font-family: "Segoe UI", Tahoma, sans-serif;
   font-size: 8pt;
   color: black;
 }

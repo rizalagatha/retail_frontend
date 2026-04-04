@@ -7,6 +7,7 @@ import { format, parseISO } from "date-fns";
 import PageLayout from "@/components/PageLayout.vue";
 import * as XLSX from "xlsx";
 import AppDataTable from "@/components/AppDataTable.vue";
+import axios from "axios";
 
 // --- 1. Definisi Interface yang Hilang ---
 interface DataTableHeader {
@@ -115,8 +116,12 @@ const fetchCabangList = async () => {
   try {
     const response = await api.get("/laporan-stok-minus/lookup/cabang");
     cabangList.value = response.data;
-  } catch (error) {
-    toast.error("Gagal memuat daftar cabang.", error);
+  } catch (err: unknown) {
+    if (axios.isAxiosError(err) && err.response) {
+      toast.error(err.response.data?.message || "Gagal memuat daftar cabang.");
+    } else {
+      toast.error("Gagal memuat daftar cabang.");
+    }
   }
 };
 
@@ -171,8 +176,12 @@ const fetchData = async () => {
     } else {
       stokList.value = [];
     }
-  } catch (error) {
-    toast.error("Gagal memuat data laporan.", error);
+  } catch (err: unknown) {
+    if (axios.isAxiosError(err) && err.response) {
+      toast.error(err.response.data?.message || "Gagal memuat data laporan.");
+    } else {
+      toast.error("Gagal memuat data laporan.");
+    }
   } finally {
     isLoading.value = false;
   }
@@ -193,8 +202,12 @@ const loadDetails = async (newlyExpanded: StokMinusItem[]) => {
       },
     });
     details.value[item.KODE] = response.data;
-  } catch (error) {
-    toast.error("Gagal memuat detail transaksi.", error);
+  } catch (err: unknown) {
+    if (axios.isAxiosError(err) && err.response) {
+      toast.error(err.response.data?.message || "Gagal memuat data laporan.");
+    } else {
+      toast.error("Gagal memuat data laporan.");
+    }
   } finally {
     loadingDetails.value.delete(item.KODE);
   }
@@ -220,8 +233,12 @@ const exportData = () => {
     XLSX.utils.book_append_sheet(workbook, worksheet, "Stok Minus");
     XLSX.writeFile(workbook, `Laporan_Stok_Minus_${filters.cabang}_${filters.tanggal}.xlsx`);
     toast.success("Data berhasil diekspor.");
-  } catch (error) {
-    toast.error("Gagal mengekspor data.", error);
+  } catch (err: unknown) {
+    if (axios.isAxiosError(err) && err.response) {
+      toast.error(err.response.data?.message || "Gagal memuat detail transaksi.");
+    } else {
+      toast.error("Gagal memuat detail transaksi.");
+    }
   }
 };
 
@@ -231,38 +248,78 @@ onMounted(() => {
   fetchData();
 });
 
-watch(filters, () => {
-  // Kosongkan cache detail dan daftar baris yang sedang terbuka
-  details.value = {};
-  expanded.value = [];
+watch(
+  filters,
+  () => {
+    // Kosongkan cache detail dan daftar baris yang sedang terbuka
+    details.value = {};
+    expanded.value = [];
 
-  // Panggil data master yang baru
-  fetchData();
-}, { deep: true });
+    // Panggil data master yang baru
+    fetchData();
+  },
+  { deep: true }
+);
 </script>
 
 <template>
   <PageLayout title="Laporan Stok Minus" icon="mdi-alert-octagon-outline">
     <template #header-actions>
-      <v-btn size="small" color="teal" prepend-icon="mdi-file-excel" @click="exportData"
-        :disabled="isLoading || stokList?.length === 0">
+      <v-btn
+        size="small"
+        color="teal"
+        prepend-icon="mdi-file-excel"
+        @click="exportData"
+        :disabled="isLoading || stokList?.length === 0"
+      >
         Export
       </v-btn>
     </template>
 
     <div class="browse-content">
       <div class="filter-section">
-        <v-select v-model="filters.cabang" :items="cabangList" item-title="nama" item-value="kode" label="Gudang"
-          density="compact" hide-details variant="outlined" style="max-width: 250px" />
-        <v-text-field v-model="filters.tanggal" type="date" label="Per Tanggal" density="compact" hide-details
-          variant="outlined" style="max-width: 180px" class="ml-4" />
+        <v-select
+          v-model="filters.cabang"
+          :items="cabangList"
+          item-title="nama"
+          item-value="kode"
+          label="Gudang"
+          density="compact"
+          hide-details
+          variant="outlined"
+          style="max-width: 250px"
+        />
+        <v-text-field
+          v-model="filters.tanggal"
+          type="date"
+          label="Per Tanggal"
+          density="compact"
+          hide-details
+          variant="outlined"
+          style="max-width: 180px"
+          class="ml-4"
+        />
         <v-spacer />
-        <v-btn @click="fetchData" icon="mdi-refresh" variant="text" size="small" :loading="isLoading" />
+        <v-btn
+          @click="fetchData"
+          icon="mdi-refresh"
+          variant="text"
+          size="small"
+          :loading="isLoading"
+        />
       </div>
 
       <div class="table-wrapper">
-        <AppDataTable v-model:expanded="expanded" :headers="headers" :items="stokList" item-value="KODE" return-object
-          show-expand @update:expanded="loadDetails" class="desktop-table header-browse-blue">
+        <AppDataTable
+          v-model:expanded="expanded"
+          :headers="headers"
+          :items="stokList"
+          item-value="KODE"
+          return-object
+          show-expand
+          @update:expanded="loadDetails"
+          class="desktop-table header-browse-blue"
+        >
           <template #[`body.append`]>
             <tr class="total-row">
               <td :colspan="headers.length - 1" class="total-cell-label">GRAND TOTAL MINUS</td>
@@ -271,8 +328,11 @@ watch(filters, () => {
               </td>
             </tr>
           </template>
-          <template v-for="h in headers.filter((x) => x.align === 'center')" :key="h.key"
-            #[`item.${h.key}`]="{ value }">
+          <template
+            v-for="h in headers.filter((x) => x.align === 'center')"
+            :key="h.key"
+            #[`item.${h.key}`]="{ value }"
+          >
             <span v-if="Number(value) < 0" class="text-red font-weight-bold">
               {{ value }}
             </span>
@@ -292,8 +352,16 @@ watch(filters, () => {
                       Memuat detail transaksi...
                     </div>
 
-                    <v-data-table v-else :headers="detailHeaders" :items="details[item.KODE] || []" density="compact"
-                      class="detail-table-card" :items-per-page="-1" hide-default-footer fixed-header>
+                    <v-data-table
+                      v-else
+                      :headers="detailHeaders"
+                      :items="details[item.KODE] || []"
+                      density="compact"
+                      class="detail-table-card"
+                      :items-per-page="-1"
+                      hide-default-footer
+                      fixed-header
+                    >
                       <template #[`item.tanggal`]="{ value }">
                         {{ value ? format(parseISO(value), "dd-MM-yyyy") : "-" }}
                       </template>

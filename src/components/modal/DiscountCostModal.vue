@@ -105,22 +105,28 @@ watch(
   (newVal) => {
     localFooter.value = JSON.parse(JSON.stringify(newVal));
 
-    // [PERBAIKAN KUNCI]
-    // Kita harus mencari tahu berapa nilai diskon manualnya.
-    // Rumusnya: Diskon Total di Footer - (Hitungan Persen 1 & 2 dari Total SO)
-    const totalBruto = Number(props.totalSo) || 0;
-    const p1 = Number(newVal.diskonPersen1) || 0;
-    const disc1 = (p1 / 100) * totalBruto;
+    // [PERBAIKAN KUNCI 1]: Membedah nilai diskon awal
+    // Karena kita menerapkan aturan Mutually Exclusive (Pilih Persen 1 ATAU Rp),
+    // kita cukup membaca state yang dominan.
+    if (newVal.diskonPersen1 > 0) {
+      diskonManualRp.value = 0;
+      diskonRpInput.value = 0;
+    } else {
+      // Jika Persen 1 adalah 0, maka seluruh potongan dasar berasal dari Diskon Rp
+      // Diskon 2 dihitung belakangan, jadi kita abaikan dulu dari sini
 
-    const p2 = Number(newVal.diskonPersen2) || 0;
-    // Asumsi: disc2 dihitung setelah dikurangi disc1 & manual (karena kita sedang load awal, kita balik rumusnya).
-    // Tapi untuk aman dan sederhana, kita asumsikan selisihnya adalah manual:
-    const calculatedPersen = disc1 + (p2 / 100) * (totalBruto - disc1); // Perkiraan tanpa manual
+      // Ambil total potongan diskon yang ada di prop
+      const totalPotongan = newVal.diskonRp || 0;
+      const p2 = Number(newVal.diskonPersen2) || 0;
 
-    let manualAwal = Math.round((newVal.diskonRp || 0) - calculatedPersen);
-    if (manualAwal < 0) manualAwal = 0;
+      // Reverse engineering dari: totalPotongan = manualAwal + (P2/100 * (Bruto - manualAwal))
+      let manualAwal = 0;
+      if (p2 < 100) {
+        manualAwal = (totalPotongan - (p2 / 100) * props.totalSo) / (1 - p2 / 100);
+      }
 
-    diskonManualRp.value = manualAwal;
+      diskonManualRp.value = Math.max(0, Math.round(manualAwal));
+    }
   },
   { immediate: true, deep: true }
 );
@@ -128,20 +134,28 @@ watch(
 // --- Computed Properties ---
 const diskonRp = computed(() => {
   const totalBruto = Number(props.totalSo) || 0;
-  const nominalManual = Number(diskonManualRp.value) || 0; // [FIX] Gunakan state manual
 
+  // Ambil nilai masing-masing
+  const nominalManual = Number(diskonManualRp.value) || 0;
   const p1 = Number(localFooter.value.diskonPersen1) || 0;
   const p2 = Number(localFooter.value.diskonPersen2) || 0;
 
-  // 1. Diskon 1 dari total bruto
-  const disc1 = (p1 / 100) * totalBruto;
+  let baseDiscount = 0;
 
-  // 2. Diskon 2 (MAPS) dihitung dari sisa setelah (Nominal Manual + Diskon 1)
-  const remaining = totalBruto - nominalManual - disc1;
+  // [PERBAIKAN KUNCI 2]: ATURAN TIERING (Delphi Logic)
+  // Hanya pakai salah satu sebagai diskon dasar: Persen 1 ATAU Rupiah
+  if (p1 > 0) {
+    baseDiscount = (p1 / 100) * totalBruto;
+  } else {
+    baseDiscount = nominalManual;
+  }
+
+  // Diskon 2 (MAPS) selalu dihitung dari SISA setelah dipotong Diskon Dasar
+  const remaining = totalBruto - baseDiscount;
   const disc2 = (p2 / 100) * remaining;
 
-  // Total diskon adalah gabungan ketiganya (Ini akan dikirim ke form SO)
-  return Math.round(nominalManual + disc1 + disc2);
+  // Total Diskon Faktur
+  return Math.round(baseDiscount + disc2);
 });
 
 const netto = computed(() => props.totalSo - diskonRp.value);
@@ -227,8 +241,11 @@ const handleDiscount1Change = async () => {
   // Jika nilainya tidak berubah sama sekali, jangan lakukan apa-apa
   if (enteredDiscount === oldDiscount) return;
 
-  // Jika diubah, pastikan input nominal Rupiah direset ke 0
-  diskonRpInput.value = 0;
+  // [PERBAIKAN KUNCI 3]: MUTUALLY EXCLUSIVE
+  // Jika Persen 1 diisi, paksa Diskon Rp Manual menjadi 0 agar tidak dobel.
+  if (enteredDiscount > 0) {
+    diskonManualRp.value = 0;
+  }
 
   if (enteredDiscount === 0) {
     localFooter.value.pinDiskon1 = undefined; // Bersihkan otorisasi jika jadi 0
@@ -325,8 +342,13 @@ const handleDiscount2Change = () => {
     localFooter.value.pinDiskon2 = undefined; // Hapus PIN lama
     pendingAuthCheck.value = true; // Kunci Form
 
-    const baseCut =
-      Number(diskonManualRp.value) + (props.totalSo * localFooter.value.diskonPersen1) / 100;
+    // Perhitungan Tiering untuk Nominal Otorisasi
+    let baseCut = 0;
+    if (localFooter.value.diskonPersen1 > 0) {
+      baseCut = (props.totalSo * localFooter.value.diskonPersen1) / 100;
+    } else {
+      baseCut = Number(diskonManualRp.value);
+    }
     const afterBase = props.totalSo - baseCut;
     const estimasiNominalMaps = (afterBase * enteredDiscount2) / 100;
     const info = `Cust: ${
@@ -389,9 +411,9 @@ const onDiskonRpBlur = () => {
       newValue,
       info,
       (authResult) => {
-        // Reset Persen jika input Rp manual
+        // [PERBAIKAN KUNCI 4]: MUTUALLY EXCLUSIVE
+        // Reset Persen 1 jika input Rp manual disetujui
         localFooter.value.diskonPersen1 = 0;
-        localFooter.value.diskonPersen2 = 0;
 
         localFooter.value.pinDiskon1 = authResult.approver;
         if (authResult.authNomor) {

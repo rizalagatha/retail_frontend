@@ -1,13 +1,13 @@
 <script setup lang="ts">
-import { ref, reactive, onMounted, computed, watch, nextTick } from 'vue';
-import { useRoute, useRouter } from 'vue-router';
-import { useToast } from 'vue-toastification';
-import { useAuthStore } from '@/stores/authStore';
-import type { AxiosError } from 'axios';
-import api from '@/services/api';
-import PageLayout from '@/components/PageLayout.vue';
-import JenisKainSearchModal from '@/components/lookup/JenisKainSearchModal.vue';
-import WarnaKainSearchModal from '@/components/lookup/WarnaKainSearchModal.vue';
+import { ref, reactive, onMounted, computed, watch, nextTick } from "vue";
+import { useRoute, useRouter } from "vue-router";
+import { useToast } from "vue-toastification";
+import { useAuthStore } from "@/stores/authStore";
+import type { AxiosError } from "axios";
+import api from "@/services/api";
+import PageLayout from "@/components/PageLayout.vue";
+import JenisKainSearchModal from "@/components/lookup/JenisKainSearchModal.vue";
+import WarnaKainSearchModal from "@/components/lookup/WarnaKainSearchModal.vue";
 
 // --- Tipe Data ---
 interface VarianItem {
@@ -26,16 +26,16 @@ interface VarianItem {
 interface Header {
   kode: string;
   nama: string;
-  jenisKaos: string;
-  tipe: string;
-  lengan: string;
+  jenisKaos: string | null;
+  tipe: string | null;
+  lengan: string | null;
   jenisKain: string;
   jenisKainKode: string;
   warna: string;
   warnaKode: string;
   kategoriProduk: string;
   status: number;
-  logStok: 'Y' | 'N';
+  logStok: "Y" | "N";
   bcdId: number;
   gambarUrl: string | null;
 }
@@ -47,55 +47,88 @@ interface HistoryHargaItem {
   l: number | null;
   xl: number | null;
 }
-
+interface VariantResponse {
+  brgd_ukuran: string;
+  brgd_hpp: number;
+  brgd_harga: number;
+  brgd_barcode: string;
+  brgd_min: number;
+  brgd_max: number;
+  brgd_mindc: number;
+  brgd_maxdc: number;
+}
+interface UkuranItem {
+  ukuran: string;
+  kode: string;
+}
 
 // --- Inisialisasi & State ---
 const router = useRouter();
 const route = useRoute();
 const toast = useToast();
 const authStore = useAuthStore();
-const MENU_ID = '204';
+const MENU_ID = "204";
 const isEditMode = computed(() => !!route.params.kode);
-const pageTitle = computed(() => isEditMode.value ? 'Ubah Barang DC' : 'Buat Barang DC');
-const requiredPermission = computed(() => isEditMode.value ? 'edit' : 'insert');
+const pageTitle = computed(() => (isEditMode.value ? "Ubah Barang DC" : "Buat Barang DC"));
+const requiredPermission = computed(() => (isEditMode.value ? "edit" : "insert"));
 
 const header = reactive<Header>({
-  kode: '', nama: '', jenisKaos: '', tipe: '', lengan: '', jenisKain: '', jenisKainKode: '',
-  warna: '', warnaKode: '', kategoriProduk: 'REGULER', status: 0, logStok: 'Y', bcdId: 0, gambarUrl: null
+  kode: "",
+  nama: "",
+  jenisKaos: null,
+  tipe: null,
+  lengan: null,
+  jenisKain: "",
+  jenisKainKode: "",
+  warna: "",
+  warnaKode: "",
+  kategoriProduk: "REGULER",
+  status: 0,
+  logStok: "Y",
+  bcdId: 0,
+  gambarUrl: null,
 });
 const varianItems = ref<VarianItem[]>([]);
 const historyHarga = ref<HistoryHargaItem[]>([]);
-const options = reactive({ jenisKaos: [], tipe: [], lengan: [] });
+const options = reactive<{
+  jenisKaos: string[];
+  tipe: string[];
+  lengan: string[];
+}>({
+  jenisKaos: [],
+  tipe: [],
+  lengan: [],
+});
 const isLoading = ref(true);
 const isSaving = ref(false);
 const imageFile = ref<File | null>(null);
 const imagePreview = ref<string | null>(null);
 const isImageUploading = ref(false);
 const isImageFullscreenVisible = ref(false);
-const dialogConfirm = reactive({ show: false, title: '', text: '', onConfirm: () => { } });
+const dialogConfirm = reactive({ show: false, title: "", text: "", onConfirm: () => {} });
 const dialogs = reactive({
   jenisKain: false,
   warnaKain: false,
 });
 
 const varianHeaders = [
-  { title: 'Aktif', key: 'aktif', width: '80px' },
-  { title: 'Ukuran', key: 'ukuran' },
-  { title: 'HPP', key: 'hpp', width: '150px' },
-  { title: 'Harga Jual', key: 'harga', width: '150px' },
-  { title: 'Barcode', key: 'barcode', width: '200px' },
-  { title: 'Stok Min Store', key: 'stokmin', width: '150px' },
-  { title: 'Stok Max Store', key: 'stokmax', width: '150px' },
-  { title: 'Stok Min DC', key: 'stokmindc', width: '150px' },
-  { title: 'Stok Max DC', key: 'stokmaxdc', width: '150px' },
+  { title: "Aktif", key: "aktif", width: "80px" },
+  { title: "Ukuran", key: "ukuran" },
+  { title: "HPP", key: "hpp", width: "150px" },
+  { title: "Harga Jual", key: "harga", width: "150px" },
+  { title: "Barcode", key: "barcode", width: "200px" },
+  { title: "Stok Min Store", key: "stokmin", width: "150px" },
+  { title: "Stok Max Store", key: "stokmax", width: "150px" },
+  { title: "Stok Min DC", key: "stokmindc", width: "150px" },
+  { title: "Stok Max DC", key: "stokmaxdc", width: "150px" },
 ] as const;
 const historyHeaders = [
-  { title: 'Tanggal', key: 'tanggal' },
-  { title: 'Allsize', key: 'allsize', align: 'end' },
-  { title: 'S', key: 's', align: 'end' },
-  { title: 'M', key: 'm', align: 'end' },
-  { title: 'L', key: 'l', align: 'end' },
-  { title: 'XL', key: 'xl', align: 'end' },
+  { title: "Tanggal", key: "tanggal" },
+  { title: "Allsize", key: "allsize", align: "end" },
+  { title: "S", key: "s", align: "end" },
+  { title: "M", key: "m", align: "end" },
+  { title: "L", key: "l", align: "end" },
+  { title: "XL", key: "xl", align: "end" },
 ] as const;
 
 // --- Helper Functions ---
@@ -105,8 +138,17 @@ const getFullImageUrl = (path: string | null) => {
   return `${import.meta.env.VITE_API_BASE_URL}${path}`;
 };
 
+const getErrorMessage = (err: unknown, fallback: string) => {
+  const error = err as AxiosError<{ message?: string }>;
+  return error.response?.data?.message || error.message || fallback;
+};
+
 const generateNamaBarang = () => {
-  header.nama = `${header.jenisKaos.substring(0, 2)} ${header.tipe} ${header.lengan} ${header.jenisKain} ${header.warna}`.trim();
+  const jk = header.jenisKaos ?? "";
+  const tp = header.tipe ?? "";
+  const lg = header.lengan ?? "";
+
+  header.nama = `${jk.substring(0, 2)} ${tp} ${lg} ${header.jenisKain} ${header.warna}`.trim();
 };
 
 const handleFileSelection = async () => {
@@ -153,13 +195,13 @@ const uploadImageToServer = async (kode: string): Promise<boolean> => {
 
     // Pastikan endpoint ini sesuai dengan route backend
     const response = await api.post(`/barang-dc-form/upload-image/${kode}`, formData, {
-      headers: { "Content-Type": "multipart/form-data" }
+      headers: { "Content-Type": "multipart/form-data" },
     });
 
     if (response.data.success) {
       header.gambarUrl = response.data.imageUrl;
 
-      if (imagePreview.value && imagePreview.value.startsWith('blob:')) {
+      if (imagePreview.value && imagePreview.value.startsWith("blob:")) {
         URL.revokeObjectURL(imagePreview.value);
       }
 
@@ -172,10 +214,10 @@ const uploadImageToServer = async (kode: string): Promise<boolean> => {
       throw new Error(response.data.message || "Upload gagal");
     }
   } catch (error: unknown) {
-    console.error('Upload error:', error);
+    console.error("Upload error:", error);
 
     const axiosError = error as AxiosError<{ message?: string }>;
-    const message = axiosError.response?.data?.message || axiosError.message || 'Upload gagal';
+    const message = axiosError.response?.data?.message || axiosError.message || "Upload gagal";
 
     toast.error("Upload gagal: " + message);
     return false;
@@ -183,7 +225,7 @@ const uploadImageToServer = async (kode: string): Promise<boolean> => {
 };
 
 const clearImage = () => {
-  if (imagePreview.value && imagePreview.value.startsWith('blob:')) {
+  if (imagePreview.value && imagePreview.value.startsWith("blob:")) {
     URL.revokeObjectURL(imagePreview.value);
   }
   imagePreview.value = null;
@@ -194,16 +236,17 @@ const clearImage = () => {
 const save = async () => {
   // --- VALIDASI DARI DELPHI (btnSimpanClick) ---
   if (!header.kategoriProduk) {
-    return toast.error('Kategori produk belum dipilih.');
+    return toast.error("Kategori produk belum dipilih.");
   }
-  if (!isEditMode.value) { // Validasi ini hanya untuk data baru
-    if (!header.jenisKaos) return toast.error('Jenis kaos kosong, tidak dapat disimpan.');
-    if (!header.tipe) return toast.error('Tipe kaos kosong, tidak dapat disimpan.');
-    if (!header.lengan) return toast.error('Lengan kaos kosong, tidak dapat disimpan.');
-    if (!header.jenisKain) return toast.error('Jenis kain kosong, tidak dapat disimpan.');
-    if (!header.warna) return toast.error('Warna kosong, tidak dapat disimpan.');
+  if (!isEditMode.value) {
+    // Validasi ini hanya untuk data baru
+    if (!header.jenisKaos) return toast.error("Jenis kaos kosong, tidak dapat disimpan.");
+    if (!header.tipe) return toast.error("Tipe kaos kosong, tidak dapat disimpan.");
+    if (!header.lengan) return toast.error("Lengan kaos kosong, tidak dapat disimpan.");
+    if (!header.jenisKain) return toast.error("Jenis kain kosong, tidak dapat disimpan.");
+    if (!header.warna) return toast.error("Warna kosong, tidak dapat disimpan.");
   }
-  if (!varianItems.value.some(v => v.aktif)) {
+  if (!varianItems.value.some((v) => v.aktif)) {
     return toast.error('Ukuran belum dipilih. Centang minimal satu pada kolom "Aktif".');
   }
   // --- AKHIR VALIDASI ---
@@ -215,26 +258,31 @@ const save = async () => {
       // await api.post('/barang-dc-form/check-duplicate', { header });
     } catch (error: unknown) {
       const axiosError = error as AxiosError<{ message?: string }>;
-      const message = axiosError.response?.data?.message || axiosError.message || 'Error cek duplikasi.';
+      const message =
+        axiosError.response?.data?.message || axiosError.message || "Error cek duplikasi.";
       toast.error(message);
       return;
     }
   }
 
-  showConfirmation('Konfirmasi Simpan', 'Anda yakin ingin menyimpan data Barang DC ini?', executeSave);
+  showConfirmation(
+    "Konfirmasi Simpan",
+    "Anda yakin ingin menyimpan data Barang DC ini?",
+    executeSave
+  );
 };
 
 const executeSave = async () => {
   isSaving.value = true;
   try {
-    const activeVariants = varianItems.value.filter(v => v.aktif);
+    const activeVariants = varianItems.value.filter((v) => v.aktif);
     const payload = {
       header,
       variants: activeVariants,
-      isNew: !isEditMode.value
+      isNew: !isEditMode.value,
     };
 
-    const response = await api.post('/barang-dc-form/save', payload);
+    const response = await api.post("/barang-dc-form/save", payload);
     const newCode = response.data.kode;
     toast.success(response.data.message);
 
@@ -247,11 +295,11 @@ const executeSave = async () => {
     }
 
     // Redirect ke halaman browse
-    router.push({ name: 'BarangDc' });
-
+    router.push({ name: "BarangDc" });
   } catch (error: unknown) {
     const axiosError = error as AxiosError<{ message?: string }>;
-    const message = axiosError.response?.data?.message || axiosError.message || 'Gagal menyimpan data.';
+    const message =
+      axiosError.response?.data?.message || axiosError.message || "Gagal menyimpan data.";
     toast.error(message);
   } finally {
     isSaving.value = false;
@@ -265,19 +313,30 @@ const showConfirmation = (title: string, text: string, onConfirm: () => void) =>
   dialogConfirm.show = true;
 };
 const closeForm = () => {
-  router.push({ name: 'BarangDc' }); // Arahkan ke halaman browse
+  router.push({ name: "BarangDc" }); // Arahkan ke halaman browse
 };
 const resetForm = () => {
   Object.assign(header, {
-    kode: '', nama: '', jenisKaos: options.jenisKaos[0] || '', tipe: options.tipe[0] || '',
-    lengan: options.lengan[0] || '', jenisKain: '', jenisKainKode: '', warna: '', warnaKode: '',
-    kategoriProduk: 'REGULER', status: 0, logStok: 'Y', bcdId: 0, gambarUrl: null
+    kode: "",
+    nama: "",
+    jenisKaos: options.jenisKaos[0] || "",
+    tipe: options.tipe[0] || "",
+    lengan: options.lengan[0] || "",
+    jenisKain: "",
+    jenisKainKode: "",
+    warna: "",
+    warnaKode: "",
+    kategoriProduk: "REGULER",
+    status: 0,
+    logStok: "Y",
+    bcdId: 0,
+    gambarUrl: null,
   });
-  varianItems.value.forEach(v => {
+  varianItems.value.forEach((v) => {
     v.aktif = false;
     v.hpp = 0;
     v.harga = 0;
-    v.barcode = '';
+    v.barcode = "";
     v.stokmin = 0;
     v.stokmax = 0;
     v.stokmindc = 0;
@@ -285,7 +344,7 @@ const resetForm = () => {
   });
   imageFile.value = null; // ✅ Ubah dari [] ke null
   imagePreview.value = null;
-  toast.info('Form telah dibersihkan.');
+  toast.info("Form telah dibersihkan.");
 };
 
 const loadDataForEdit = async (kode: string) => {
@@ -311,8 +370,10 @@ const loadDataForEdit = async (kode: string) => {
     header.gambarUrl = data.header.gambarUrl;
 
     // --- ISI GRID VARIAN ---
-    varianItems.value.forEach(varianDefault => {
-      const savedVarian = data.variants.find(v => v.brgd_ukuran === varianDefault.ukuran);
+    varianItems.value.forEach((varianDefault) => {
+      const savedVarian = data.variants.find(
+        (v: VariantResponse) => v.brgd_ukuran === varianDefault.ukuran
+      );
       if (savedVarian) {
         varianDefault.aktif = true;
         varianDefault.hpp = savedVarian.brgd_hpp;
@@ -327,10 +388,10 @@ const loadDataForEdit = async (kode: string) => {
 
     // --- ISI GRID HISTORY HARGA ---
     historyHarga.value = data.priceHistory;
-
   } catch (error: unknown) {
     const axiosError = error as AxiosError<{ message?: string }>;
-    const message = axiosError.response?.data?.message || axiosError.message || 'Gagal memuat data.';
+    const message =
+      axiosError.response?.data?.message || axiosError.message || "Gagal memuat data.";
     toast.error(message);
     router.back();
   } finally {
@@ -359,25 +420,31 @@ const handleAktifChange = async (item: VarianItem) => {
   }
 
   // Logika penentuan tipe warna dan lengan dari Delphi
-  let warnaType = 'WARNA';
-  if (header.warna === 'HITAM') {
-    warnaType = 'HITAM';
-  } else if (['PUTIH', 'PUTIH TULANG'].includes(header.warna)) {
-    warnaType = 'PUTIH';
+  let warnaType = "WARNA";
+  if (header.warna === "HITAM") {
+    warnaType = "HITAM";
+  } else if (["PUTIH", "PUTIH TULANG"].includes(header.warna)) {
+    warnaType = "PUTIH";
   }
 
-  let lenganType = '';
-  if (header.lengan.includes('PENDEK')) {
-    lenganType = 'PENDEK';
-  } else if (header.lengan.includes('PANJANG')) {
-    lenganType = 'PANJANG';
+  let lenganType = "";
+  const lengan = header.lengan ?? "";
+
+  if (lengan.includes("PENDEK")) {
+    lenganType = "PENDEK";
+  } else if (lengan.includes("PANJANG")) {
+    lenganType = "PANJANG";
   }
 
   try {
     // Panggil API untuk Store dan DC secara bersamaan
     const [storeBuffer, dcBuffer] = await Promise.all([
-      api.get('/barang-dc-form/lookup/buffer', { params: { cabType: 'STORE', warnaType, lenganType, ukuran: item.ukuran } }),
-      api.get('/barang-dc-form/lookup/buffer', { params: { cabType: 'DC', warnaType, lenganType, ukuran: item.ukuran } })
+      api.get("/barang-dc-form/lookup/buffer", {
+        params: { cabType: "STORE", warnaType, lenganType, ukuran: item.ukuran },
+      }),
+      api.get("/barang-dc-form/lookup/buffer", {
+        params: { cabType: "DC", warnaType, lenganType, ukuran: item.ukuran },
+      }),
     ]);
 
     // Update nilai di grid
@@ -385,18 +452,17 @@ const handleAktifChange = async (item: VarianItem) => {
     item.stokmax = storeBuffer.data.max;
     item.stokmindc = dcBuffer.data.min;
     item.stokmaxdc = dcBuffer.data.max;
-
-  } catch (error) {
-    toast.error('Gagal mengambil data buffer stok otomatis.', error);
+  } catch (err) {
+    toast.error(getErrorMessage(err, "Gagal mengambil data buffer stok otomatis."));
   }
 };
 
 const updateAllActiveBuffers = async () => {
   // Ambil semua item yang sudah dicentang aktif
-  const activeItems = varianItems.value.filter(item => item.aktif);
+  const activeItems = varianItems.value.filter((item) => item.aktif);
   if (activeItems.length === 0) return;
 
-  toast.info('Memperbarui nilai buffer stok otomatis...');
+  toast.info("Memperbarui nilai buffer stok otomatis...");
   for (const item of activeItems) {
     // Panggil kembali logika yang sama seperti di handleAktifChange
     // Anda bisa membuat ini menjadi fungsi terpisah agar tidak duplikat kode
@@ -405,7 +471,7 @@ const updateAllActiveBuffers = async () => {
 };
 
 const generateBarcode = (variant: VarianItem) => {
-  if (!header.bcdId) return '';
+  if (!header.bcdId) return "";
 
   const yearYY = new Date().getFullYear().toString().substring(2); // "26"
 
@@ -421,35 +487,52 @@ const generateBarcode = (variant: VarianItem) => {
 
 onMounted(async () => {
   if (!authStore.can(MENU_ID, requiredPermission.value)) {
-    toast.error(`Anda tidak memiliki izin untuk ${isEditMode.value ? 'mengubah' : 'membuat'} data ini.`);
+    toast.error(
+      `Anda tidak memiliki izin untuk ${isEditMode.value ? "mengubah" : "membuat"} data ini.`
+    );
     router.back();
     return;
   }
 
   isLoading.value = true;
   try {
-    const response = await api.get('/barang-dc-form/initial-data');
+    const response = await api.get("/barang-dc-form/initial-data");
     options.jenisKaos = response.data.jenisKaos;
     options.tipe = response.data.tipe;
     options.lengan = response.data.lengan;
-    varianItems.value = response.data.ukuran.map(u => ({
-      id: Math.random(), aktif: false, ukuran: u.ukuran, no: u.kode,
-      hpp: 0, harga: 0, barcode: '', stokmin: 0, stokmax: 0, stokmindc: 0, stokmaxdc: 0
+    varianItems.value = response.data.ukuran.map((u: UkuranItem) => ({
+      id: Math.random(),
+      aktif: false,
+      ukuran: u.ukuran,
+      no: u.kode,
+      hpp: 0,
+      harga: 0,
+      barcode: "",
+      stokmin: 0,
+      stokmax: 0,
+      stokmindc: 0,
+      stokmaxdc: 0,
     }));
 
     const kode = route.params.kode as string;
     if (isEditMode.value && kode) {
       await loadDataForEdit(kode);
     }
-  } catch (error) {
-    toast.error('Gagal memuat data inisial.', error);
+  } catch (err) {
+    toast.error(getErrorMessage(err, "Gagal memuat data inisial."));
   } finally {
     isLoading.value = false;
   }
 });
 
 watch(
-  [() => header.jenisKaos, () => header.tipe, () => header.lengan, () => header.jenisKain, () => header.warna],
+  [
+    () => header.jenisKaos,
+    () => header.tipe,
+    () => header.lengan,
+    () => header.jenisKain,
+    () => header.warna,
+  ],
   async ([jk, tp, lg, jkain, wr]) => {
     generateNamaBarang();
     updateAllActiveBuffers();
@@ -457,33 +540,56 @@ watch(
     // ✅ Tambahkan logika ini
     if (!isEditMode.value && jk && tp && lg && jkain && wr && !header.bcdId) {
       try {
-        const { data } = await api.get('/barang-dc-form/next-bcdid');
+        const { data } = await api.get("/barang-dc-form/next-bcdid");
         if (data.success) {
           header.bcdId = data.nextId;
           toast.success(`ID Barcode berhasil digenerate: ${data.nextId}`);
         }
-      } catch (error) {
-        toast.error('Gagal generate ID Barcode otomatis.', error);
+      } catch (err) {
+        toast.error(getErrorMessage(err, "Gagal generate ID Barcode otomatis."));
       }
     }
   }
 );
-
 </script>
 
 <template>
   <PageLayout :title="pageTitle" desktop-mode icon="mdi-tshirt-crew">
     <template #header-actions>
-      <v-btn size="small" prepend-icon="mdi-content-save" color="primary" @click="save" :loading="isSaving"
-        :disabled="!authStore.can(MENU_ID, requiredPermission)">
+      <v-btn
+        size="small"
+        prepend-icon="mdi-content-save"
+        color="primary"
+        @click="save"
+        :loading="isSaving"
+        :disabled="!authStore.can(MENU_ID, requiredPermission)"
+      >
         Simpan
       </v-btn>
-      <v-btn size="small" prepend-icon="mdi-refresh"
-        @click="showConfirmation('Konfirmasi Batal', 'Batalkan semua perubahan dan kosongkan form?', resetForm)">
+      <v-btn
+        size="small"
+        prepend-icon="mdi-refresh"
+        @click="
+          showConfirmation(
+            'Konfirmasi Batal',
+            'Batalkan semua perubahan dan kosongkan form?',
+            resetForm
+          )
+        "
+      >
         Batal
       </v-btn>
-      <v-btn size="small" prepend-icon="mdi-close"
-        @click="showConfirmation('Konfirmasi Tutup', 'Tutup form? Perubahan yang belum disimpan akan hilang.', closeForm)">
+      <v-btn
+        size="small"
+        prepend-icon="mdi-close"
+        @click="
+          showConfirmation(
+            'Konfirmasi Tutup',
+            'Tutup form? Perubahan yang belum disimpan akan hilang.',
+            closeForm
+          )
+        "
+      >
         Tutup
       </v-btn>
     </template>
@@ -492,30 +598,98 @@ watch(
       <div class="left-column">
         <div class="desktop-form-section header-section">
           <v-row dense>
-            <v-col cols="6"><v-text-field label="Kode" v-model="header.kode" readonly filled density="compact"
-                hide-details /></v-col>
+            <v-col cols="6"
+              ><v-text-field
+                label="Kode"
+                v-model="header.kode"
+                readonly
+                filled
+                density="compact"
+                hide-details
+            /></v-col>
             <v-col cols="6">
-              <v-text-field label="ID Barcode" v-model="header.bcdId" density="compact" hide-details variant="outlined"
-                readonly :disabled="true" prepend-inner-icon="mdi-barcode" />
+              <v-text-field
+                label="ID Barcode"
+                v-model="header.bcdId"
+                density="compact"
+                hide-details
+                variant="outlined"
+                readonly
+                :disabled="true"
+                prepend-inner-icon="mdi-barcode"
+              />
             </v-col>
-            <v-col cols="12"><v-text-field label="Nama Barang" v-model="header.nama" readonly filled density="compact"
-                hide-details /></v-col>
-            <v-col cols="6"><v-select label="Kategori Produk" v-model="header.kategoriProduk"
-                :items="['REGULER', 'PESANAN', 'SESIONAL']" variant="outlined" density="compact" hide-details /></v-col>
-            <v-col cols="6"><v-select label="Jenis Kaos" v-model="header.jenisKaos" :items="options.jenisKaos"
-                variant="outlined" density="compact" hide-details :readonly="isEditMode" /></v-col>
-            <v-col cols="6"><v-select label="Tipe" v-model="header.tipe" :items="options.tipe" variant="outlined"
-                density="compact" hide-details :readonly="isEditMode" /></v-col>
-            <v-col cols="6"><v-select label="Lengan" v-model="header.lengan" :items="options.lengan" variant="outlined"
-                density="compact" hide-details :readonly="isEditMode" /></v-col>
+            <v-col cols="12"
+              ><v-text-field
+                label="Nama Barang"
+                v-model="header.nama"
+                readonly
+                filled
+                density="compact"
+                hide-details
+            /></v-col>
+            <v-col cols="6"
+              ><v-select
+                label="Kategori Produk"
+                v-model="header.kategoriProduk"
+                :items="['REGULER', 'PESANAN', 'SESIONAL']"
+                variant="outlined"
+                density="compact"
+                hide-details
+            /></v-col>
+            <v-col cols="6"
+              ><v-select
+                label="Jenis Kaos"
+                v-model="header.jenisKaos"
+                :items="options.jenisKaos"
+                variant="outlined"
+                density="compact"
+                hide-details
+                :readonly="isEditMode"
+            /></v-col>
+            <v-col cols="6"
+              ><v-select
+                label="Tipe"
+                v-model="header.tipe"
+                :items="options.tipe"
+                variant="outlined"
+                density="compact"
+                hide-details
+                :readonly="isEditMode"
+            /></v-col>
+            <v-col cols="6"
+              ><v-select
+                label="Lengan"
+                v-model="header.lengan"
+                :items="options.lengan"
+                variant="outlined"
+                density="compact"
+                hide-details
+                :readonly="isEditMode"
+            /></v-col>
             <v-col cols="6">
-              <v-text-field label="Jenis Kain" v-model="header.jenisKain" variant="outlined" density="compact"
-                hide-details :readonly="isEditMode" append-inner-icon="mdi-magnify"
-                @click:append-inner="dialogs.jenisKain = true" />
+              <v-text-field
+                label="Jenis Kain"
+                v-model="header.jenisKain"
+                variant="outlined"
+                density="compact"
+                hide-details
+                :readonly="isEditMode"
+                append-inner-icon="mdi-magnify"
+                @click:append-inner="dialogs.jenisKain = true"
+              />
             </v-col>
             <v-col cols="6">
-              <v-text-field label="Warna" v-model="header.warna" variant="outlined" density="compact" hide-details
-                :readonly="isEditMode" append-inner-icon="mdi-magnify" @click:append-inner="dialogs.warnaKain = true" />
+              <v-text-field
+                label="Warna"
+                v-model="header.warna"
+                variant="outlined"
+                density="compact"
+                hide-details
+                :readonly="isEditMode"
+                append-inner-icon="mdi-magnify"
+                @click:append-inner="dialogs.warnaKain = true"
+              />
             </v-col>
             <v-col cols="6">
               <label class="v-label text-caption">Status</label>
@@ -534,25 +708,57 @@ watch(
             <v-col cols="12" class="mt-2">
               <label class="v-label text-caption">Upload Gambar</label>
               <div class="d-flex align-center ga-2 mt-1">
-                <v-file-input v-model="imageFile" label="Max 500 KB" variant="outlined" density="compact" hide-details
-                  prepend-icon="" prepend-inner-icon="mdi-camera" accept="image/jpeg,image/png"
-                  :loading="isImageUploading" :disabled="isImageUploading" @update:model-value="handleFileSelection" />
-                <v-btn @click="clearImage" :disabled="!imagePreview || isImageUploading" icon="mdi-delete" size="small"
-                  variant="tonal" color="error" title="Hapus Gambar" />
+                <v-file-input
+                  v-model="imageFile"
+                  label="Max 500 KB"
+                  variant="outlined"
+                  density="compact"
+                  hide-details
+                  prepend-icon=""
+                  prepend-inner-icon="mdi-camera"
+                  accept="image/jpeg,image/png"
+                  :loading="isImageUploading"
+                  :disabled="isImageUploading"
+                  @update:model-value="handleFileSelection"
+                />
+                <v-btn
+                  @click="clearImage"
+                  :disabled="!imagePreview || isImageUploading"
+                  icon="mdi-delete"
+                  size="small"
+                  variant="tonal"
+                  color="error"
+                  title="Hapus Gambar"
+                />
               </div>
             </v-col>
             <v-col cols="12">
-              <v-img v-if="imagePreview" :src="imagePreview" class="border rounded mt-2 cursor-pointer" height="150"
-                cover @click="imagePreview ? isImageFullscreenVisible = true : null" title="Klik untuk memperbesar">
-                <v-overlay v-if="isImageUploading" contained persistent class="d-flex align-center justify-center">
+              <v-img
+                v-if="imagePreview"
+                :src="imagePreview"
+                class="border rounded mt-2 cursor-pointer"
+                height="150"
+                cover
+                @click="imagePreview ? (isImageFullscreenVisible = true) : null"
+                title="Klik untuk memperbesar"
+              >
+                <v-overlay
+                  v-if="isImageUploading"
+                  contained
+                  persistent
+                  class="d-flex align-center justify-center"
+                >
                   <div class="text-center text-white">
                     <v-progress-circular indeterminate color="primary" size="40" />
                     <div class="mt-2">Mengunggah...</div>
                   </div>
                 </v-overlay>
               </v-img>
-              <div v-else class="border rounded mt-2 d-flex align-center justify-center bg-grey-lighten-4"
-                style="height: 150px;">
+              <div
+                v-else
+                class="border rounded mt-2 d-flex align-center justify-center bg-grey-lighten-4"
+                style="height: 150px"
+              >
                 <div class="text-center text-grey">
                   <v-icon size="32">mdi-image-outline</v-icon>
                   <div>Preview Gambar</div>
@@ -563,7 +769,12 @@ watch(
                   <v-icon start size="small">mdi-clock-outline</v-icon>
                   Belum tersimpan
                 </v-chip>
-                <v-chip v-else-if="header.gambarUrl && imagePreview" size="small" color="success" variant="tonal">
+                <v-chip
+                  v-else-if="header.gambarUrl && imagePreview"
+                  size="small"
+                  color="success"
+                  variant="tonal"
+                >
                   <v-icon start size="small">mdi-check</v-icon>
                   Tersimpan di server
                 </v-chip>
@@ -575,38 +786,88 @@ watch(
       <div class="right-column">
         <div class="text-subtitle-1 font-weight-bold">Varian Ukuran</div>
         <div class="desktop-form-section varian-section">
-          <v-data-table :headers="varianHeaders" :items="varianItems" class="desktop-table header-browse-blue"
-            density="compact" fixed-header :items-per-page="-1">
+          <v-data-table
+            :headers="varianHeaders"
+            :items="varianItems"
+            class="desktop-table header-browse-blue"
+            density="compact"
+            fixed-header
+            :items-per-page="-1"
+          >
             <template #[`item.aktif`]="{ item }">
-              <v-checkbox-btn v-model="item.aktif" hide-details density="compact"
-                @update:model-value="handleAktifChange(item)" />
+              <v-checkbox-btn
+                v-model="item.aktif"
+                hide-details
+                density="compact"
+                @update:model-value="handleAktifChange(item)"
+              />
             </template>
             <template #[`item.hpp`]="{ item }">
-              <v-text-field v-model.number="item.hpp" type="number" variant="underlined" density="compact" hide-details
-                class="text-end" :disabled="!item.aktif" />
+              <v-text-field
+                v-model.number="item.hpp"
+                type="number"
+                variant="underlined"
+                density="compact"
+                hide-details
+                class="text-end"
+                :disabled="!item.aktif"
+              />
             </template>
             <template #[`item.harga`]="{ item }">
-              {{ new Intl.NumberFormat('id-ID').format(item.harga) }}
+              {{ new Intl.NumberFormat("id-ID").format(item.harga) }}
             </template>
             <template #[`item.barcode`]="{ item }">
-              <v-text-field v-model="item.barcode" variant="underlined" density="compact" hide-details
-                :disabled="!item.aktif" />
+              <v-text-field
+                v-model="item.barcode"
+                variant="underlined"
+                density="compact"
+                hide-details
+                :disabled="!item.aktif"
+              />
             </template>
             <template #[`item.stokmin`]="{ item }">
-              <v-text-field v-model.number="item.stokmin" type="number" variant="underlined" density="compact"
-                hide-details class="text-end" :disabled="!item.aktif" />
+              <v-text-field
+                v-model.number="item.stokmin"
+                type="number"
+                variant="underlined"
+                density="compact"
+                hide-details
+                class="text-end"
+                :disabled="!item.aktif"
+              />
             </template>
             <template #[`item.stokmax`]="{ item }">
-              <v-text-field v-model.number="item.stokmax" type="number" variant="underlined" density="compact"
-                hide-details class="text-end" :disabled="!item.aktif" />
+              <v-text-field
+                v-model.number="item.stokmax"
+                type="number"
+                variant="underlined"
+                density="compact"
+                hide-details
+                class="text-end"
+                :disabled="!item.aktif"
+              />
             </template>
             <template #[`item.stokmindc`]="{ item }">
-              <v-text-field v-model.number="item.stokmindc" type="number" variant="underlined" density="compact"
-                hide-details class="text-end" :disabled="!item.aktif" />
+              <v-text-field
+                v-model.number="item.stokmindc"
+                type="number"
+                variant="underlined"
+                density="compact"
+                hide-details
+                class="text-end"
+                :disabled="!item.aktif"
+              />
             </template>
             <template #[`item.stokmaxdc`]="{ item }">
-              <v-text-field v-model.number="item.stokmaxdc" type="number" variant="underlined" density="compact"
-                hide-details class="text-end" :disabled="!item.aktif" />
+              <v-text-field
+                v-model.number="item.stokmaxdc"
+                type="number"
+                variant="underlined"
+                density="compact"
+                hide-details
+                class="text-end"
+                :disabled="!item.aktif"
+              />
             </template>
             <template #bottom></template>
           </v-data-table>
@@ -614,18 +875,30 @@ watch(
 
         <div class="text-subtitle-1 font-weight-bold mt-4">History Perubahan Harga Jual</div>
         <div class="desktop-form-section history-section">
-          <v-data-table :headers="historyHeaders" :items="historyHarga" class="desktop-table header-browse-blue"
-            density="compact" fixed-header :items-per-page="-1">
+          <v-data-table
+            :headers="historyHeaders"
+            :items="historyHarga"
+            class="desktop-table header-browse-blue"
+            density="compact"
+            fixed-header
+            :items-per-page="-1"
+          >
             <template #bottom></template>
           </v-data-table>
         </div>
       </div>
     </div>
 
-    <JenisKainSearchModal v-if="dialogs.jenisKain" @close="dialogs.jenisKain = false"
-      @jenis-kain-selected="onJenisKainSelected" />
-    <WarnaKainSearchModal v-if="dialogs.warnaKain" @close="dialogs.warnaKain = false"
-      @warna-kain-selected="onWarnaKainSelected" />
+    <JenisKainSearchModal
+      v-if="dialogs.jenisKain"
+      @close="dialogs.jenisKain = false"
+      @jenis-kain-selected="onJenisKainSelected"
+    />
+    <WarnaKainSearchModal
+      v-if="dialogs.warnaKain"
+      @close="dialogs.warnaKain = false"
+      @warna-kain-selected="onWarnaKainSelected"
+    />
 
     <!-- Fullscreen Image Modal -->
     <v-dialog v-model="isImageFullscreenVisible" max-width="90vw">
@@ -633,15 +906,21 @@ watch(
         <v-toolbar density="compact" color="primary" dark>
           <v-toolbar-title>
             <v-icon start>mdi-image</v-icon>
-            Preview Gambar - {{ header.kode || 'Barang Baru' }}
+            Preview Gambar - {{ header.kode || "Barang Baru" }}
           </v-toolbar-title>
           <v-spacer />
           <v-btn icon="mdi-close" @click="isImageFullscreenVisible = false" variant="text" />
         </v-toolbar>
 
         <v-card-text class="pa-4 bg-grey-lighten-4">
-          <div class="d-flex justify-center align-center" style="min-height: 60vh;">
-            <v-img :src="imagePreview" max-height="80vh" max-width="100%" contain class="rounded elevation-2" />
+          <div class="d-flex justify-center align-center" style="min-height: 60vh">
+            <v-img
+              :src="imagePreview || undefined"
+              max-height="80vh"
+              max-width="100%"
+              contain
+              class="rounded elevation-2"
+            />
           </div>
         </v-card-text>
 
@@ -656,7 +935,12 @@ watch(
               Tersimpan di server
             </v-chip>
           </div>
-          <v-btn color="primary" @click="isImageFullscreenVisible = false" prepend-icon="mdi-close" variant="tonal">
+          <v-btn
+            color="primary"
+            @click="isImageFullscreenVisible = false"
+            prepend-icon="mdi-close"
+            variant="tonal"
+          >
             Tutup
           </v-btn>
         </v-card-actions>
@@ -670,7 +954,14 @@ watch(
         <v-card-actions>
           <v-spacer />
           <v-btn text @click="dialogConfirm.show = false">Tidak</v-btn>
-          <v-btn color="primary" variant="tonal" @click="dialogConfirm.onConfirm(); dialogConfirm.show = false;">
+          <v-btn
+            color="primary"
+            variant="tonal"
+            @click="
+              dialogConfirm.onConfirm();
+              dialogConfirm.show = false;
+            "
+          >
             Ya, Lanjutkan
           </v-btn>
         </v-card-actions>
@@ -793,7 +1084,7 @@ watch(
 }
 
 .desktop-table :deep(thead tr th) {
-  background-color: #0D47A1 !important;
+  background-color: #0d47a1 !important;
   /* Biru Tua */
   color: #ffffff !important;
   /* Teks Putih */

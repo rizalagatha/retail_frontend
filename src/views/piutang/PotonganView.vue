@@ -190,7 +190,7 @@ const fetchCabangList = async () => {
 const fetchMasterData = async () => {
   loading.value = true;
   try {
-    const response = await api.get("/setoran-bayar", { params: filters });
+    const response = await api.get("/potongan", { params: filters });
     masterData.value = response.data;
     selected.value = [];
     expanded.value = [];

@@ -1084,9 +1084,32 @@ watch(
                 <span>Sub Total:</span>
                 <span>{{ formatRupiah(correctedSubTotal) }}</span>
               </div>
-              <div class="d-flex justify-space-between text-caption">
+              <div class="d-flex justify-space-between text-caption font-weight-bold mt-1">
                 <span>Total Diskon:</span>
-                <span>- {{ formatRupiah(totals.totalDiskonItem + totals.totalDiskonFaktur) }}</span>
+                <span class="text-error"
+                  >- {{ formatRupiah(totals.totalDiskonItem + totals.totalDiskonFaktur) }}</span
+                >
+              </div>
+              <div
+                class="text-caption text-grey-darken-1 pl-2 mb-1"
+                v-if="totals.totalDiskonItem > 0 || totals.totalDiskonFaktur > 0"
+              >
+                <div class="d-flex justify-space-between" v-if="totals.totalDiskonItem > 0">
+                  <span>• Diskon Per Item</span>
+                  <span>{{ formatRupiah(totals.totalDiskonItem) }}</span>
+                </div>
+                <div class="d-flex justify-space-between" v-if="totals.diskonNominal1 > 0">
+                  <span>• Diskon Member ({{ invoiceHeader.diskonPersen1 }}%)</span>
+                  <span>{{ formatRupiah(totals.diskonNominal1) }}</span>
+                </div>
+                <div class="d-flex justify-space-between" v-if="totals.diskonNominal2 > 0">
+                  <span>• Diskon MAPS ({{ invoiceHeader.diskonPersen2 }}%)</span>
+                  <span>{{ formatRupiah(totals.diskonNominal2) }}</span>
+                </div>
+                <div class="d-flex justify-space-between" v-if="totals.diskonNominalRp > 0">
+                  <span>• Diskon Nominal / Promo</span>
+                  <span>{{ formatRupiah(totals.diskonNominalRp) }}</span>
+                </div>
               </div>
               <div class="d-flex justify-space-between text-caption">
                 <span>Total PPN:</span>

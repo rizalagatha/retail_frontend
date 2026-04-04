@@ -366,6 +366,10 @@ const totals = reactive({
   grandTotal: 0,
   totalDp: 0,
   sisaPiutang: 0,
+  // --- TAMBAHAN UNTUK MODAL PEMBAYARAN ---
+  diskonNominal1: 0,
+  diskonNominal2: 0,
+  diskonNominalRp: 0,
 });
 
 const dialogs = reactive({
@@ -1488,14 +1492,20 @@ const calculateTotals = () => {
 
     // Hitung P1 & P2 berdasarkan basisDiskon (bukan netItemTotal)
     const d1AmountSO = (header.diskonPersen1 / 100) * basisDiskon;
+    const manualRpSO = Number(header.diskonRp || 0);
     const d2AmountSO = (header.diskonPersen2 / 100) * (basisDiskon - d1AmountSO);
 
+    // [RINCIAN UNTUK PAYMENT MODAL]
+    totals.diskonNominal1 = d1AmountSO;
+    totals.diskonNominal2 = d2AmountSO;
+    totals.diskonNominalRp = manualRpSO;
+
     if (isKpr.value) {
-      totals.totalDiskonFaktur = Math.round(d1AmountSO + d2AmountSO + Number(header.diskonRp || 0));
+      totals.totalDiskonFaktur = Math.round(d1AmountSO + d2AmountSO + manualRpSO);
     } else {
       // [REVISI] Jalur Non-KPR sekarang juga menghitung Persen 1 & 2 secara bertingkat
       // Ini agar Diskon Maps Review (P2) tetap masuk hitungan meskipun ada nomor SO
-      totals.totalDiskonFaktur = Math.round(d1AmountSO + d2AmountSO + Number(header.diskonRp || 0));
+      totals.totalDiskonFaktur = Math.round(d1AmountSO + d2AmountSO + manualRpSO);
     }
 
     const afterAllDiscount = afterItemDiscount - totals.totalDiskonFaktur;
@@ -1515,21 +1525,32 @@ const calculateTotals = () => {
   // ---------------------------------------------------------------------
   // 3. DISKON FAKTUR (PERSEN)
   // ---------------------------------------------------------------------
-  // Diskon persen diambil dari afterItemDiscount (Nilai bersih item)
-  const diskon1Amount = (header.diskonPersen1 / 100) * basisDiskon;
-  const afterDiscount1 = basisDiskon - diskon1Amount;
+  // [FIX] Inisialisasi rincian untuk kalkulasi Tiering (Bertingkat)
+  let d1Amount = 0;
+  let manualAmount = 0;
 
-  const diskon2Amount = (header.diskonPersen2 / 100) * afterDiscount1;
+  // Aturan Mutually Exclusive: Prioritaskan Persen Member jika ada, jika tidak pakai Nominal
+  if (header.diskonPersen1 > 0) {
+    d1Amount = (header.diskonPersen1 / 100) * basisDiskon;
+    manualAmount = 0;
+  } else {
+    manualAmount = Number(header.diskonRp || 0);
+    d1Amount = 0;
+  }
 
-  // ---------------------------------------------------------------------
-  // 4. DISKON FAKTUR MANUAL (RP)
-  // ---------------------------------------------------------------------
-  const diskonManual = Number(header.diskonRp || 0);
+  // Diskon 2 (MAPS) selalu dihitung dari sisa setelah potongan dasar (P1/Manual)
+  const remainingForTier2 = basisDiskon - d1Amount - manualAmount;
+  const d2Amount = (header.diskonPersen2 / 100) * Math.max(0, remainingForTier2);
+
+  // [RINCIAN UNTUK PAYMENT MODAL]
+  totals.diskonNominal1 = d1Amount;
+  totals.diskonNominal2 = d2Amount;
+  totals.diskonNominalRp = manualAmount;
 
   // ---------------------------------------------------------------------
   // 5. TOTAL DISKON FAKTUR (gabungan)
   // ---------------------------------------------------------------------
-  const diskonFaktur = Math.round(diskonManual + diskon1Amount + diskon2Amount);
+  const diskonFaktur = Math.round(manualAmount + d1Amount + d2Amount);
 
   // ---------------------------------------------------------------------
   // 6. NETTO SETELAH SEMUA DISKON

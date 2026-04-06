@@ -705,6 +705,14 @@ const fetchSisaKuota = async () => {
 };
 
 const openCustomerSearch = () => {
+  // [BARU] Validasi: Kunci customer jika data ditarik dari SO
+  if (form.value.soNomor) {
+    toast.warning(
+      "Customer tidak bisa diubah karena data ditarik otomatis dari Surat Pesanan (SO)."
+    );
+    return;
+  }
+
   isCustomerSearchVisible.value = true;
 };
 const onCustomerSelected = (customer: {
@@ -1240,8 +1248,8 @@ onMounted(async () => {
                 append-inner-icon="mdi-magnify"
                 placeholder="F1 atau klik..."
             /></v-col>
-            <v-col cols="12"
-              ><v-text-field
+            <v-col cols="12">
+              <v-text-field
                 label="Customer"
                 :model-value="
                   form.customerKode ? `${form.customerKode} - ${form.customerNama}` : ''
@@ -1253,7 +1261,10 @@ onMounted(async () => {
                 hide-details
                 append-inner-icon="mdi-magnify"
                 placeholder="Klik untuk mencari..."
-            /></v-col>
+                :disabled="!!form.soNomor"
+                :class="{ 'field-disabled': !!form.soNomor }"
+              />
+            </v-col>
             <v-col cols="6"
               ><v-text-field
                 label="Level"

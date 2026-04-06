@@ -243,37 +243,23 @@ onMounted(() => {
 </template>
 
 <style scoped>
-/* ========================================= */
-/* STYLING TAMPILAN DI LAYAR MONITOR (PREVIEW) */
-/* ========================================= */
-
+/* Styling Dasar */
 .print-container {
-  /* Beri background abu-abu gelap agar kertas putihnya menonjol (mirip PDF viewer) */
-  background-color: #525659;
-  min-height: 100vh;
-  padding: 20px;
+  padding: 20mm;
+  /* Sesuai standar cetak */
   font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
-  font-size: 10px;
+  font-size: 12px;
   color: #333;
-  display: flex;
-  justify-content: center; /* Posisikan kertas di tengah horizontal */
-  align-items: flex-start;
+  position: relative;
+  /* Untuk posisi watermark */
 }
 
 .page {
   position: relative;
-  background: white;
-
-  /* KUNCI UTAMA: Paksa ukuran fix A5 Landscape di layar monitor */
-  width: 210mm;
-  min-height: 148mm;
-
-  padding: 5mm;
-  box-sizing: border-box;
-
-  /* Efek bayangan agar terlihat seperti kertas fisik sungguhan */
-  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.4);
-  border-radius: 2px;
+  border: 1px solid #ccc;
+  padding: 15mm;
+  min-height: 270mm;
+  /* Tinggi minimal satu halaman A4 */
 }
 
 /* Watermark */
@@ -281,15 +267,19 @@ onMounted(() => {
   position: absolute;
   top: 50%;
   left: 50%;
-  transform: translate(-50%, -50%) rotate(-25deg);
-  font-size: 55px;
+  transform: translate(-50%, -50%) rotate(-45deg);
+  font-size: 80px;
+  /* Sedikit diperbesar */
   color: #cccccc !important;
+  /* Gunakan abu-abu terang */
   font-weight: bold;
   pointer-events: none;
   user-select: none;
   white-space: nowrap;
+  /* UBAH INI: Dari -1 menjadi 9999 */
   z-index: 9999;
   opacity: 0.15;
+  /* Sedikit dinaikkan agar terlihat */
 }
 
 /* Header Perusahaan */
@@ -297,44 +287,47 @@ onMounted(() => {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
-  margin-bottom: 5px;
+  margin-bottom: 20px;
 }
 
 .company-info {
   flex-grow: 1;
-  line-height: 1.1;
 }
 
 .company-name {
-  font-size: 12px;
+  font-size: 18px;
   font-weight: bold;
   display: flex;
+  /* Untuk mensejajarkan logo IG */
   align-items: center;
   gap: 5px;
+  /* Spasi antara teks dan logo */
 }
 
 .instagram-logo {
-  height: 10px;
+  height: 18px;
+  /* Ukuran logo Instagram */
   width: auto;
 }
 
 .instagram-text {
-  font-size: 10px;
+  font-size: 12px;
+  /* Ukuran font untuk gdg_inv_instagram */
   font-weight: normal;
 }
 
 .company-logo-right {
-  height: 30px;
+  height: 50px;
+  /* Ukuran logo utama */
   width: auto;
 }
 
 /* Judul Dokumen */
 .document-title {
   text-align: center;
-  font-size: 14px;
+  font-size: 24px;
   font-weight: bold;
-  margin-bottom: 5px;
-  margin-top: -10px;
+  margin-bottom: 20px;
   text-decoration: underline;
 }
 
@@ -342,30 +335,31 @@ onMounted(() => {
 .header-details {
   display: flex;
   justify-content: space-between;
-  margin-bottom: 5px;
+  margin-bottom: 20px;
   border-bottom: 1px solid #eee;
-  padding-bottom: 3px;
+  padding-bottom: 10px;
 }
 
 .left-section,
 .right-section {
   width: 48%;
-  line-height: 1.2;
 }
 
 .label {
   font-weight: bold;
   display: inline-block;
-  width: 70px;
+  width: 80px;
+  /* Lebar label agar rapi */
 }
 
 .address-line {
-  margin-left: 70px;
+  margin-left: 80px;
+  /* Sesuaikan dengan lebar label */
 }
 
 /* Tabel Item */
 .items-table {
-  margin-bottom: 5px;
+  margin-bottom: 20px;
 }
 
 .items-table table {
@@ -376,7 +370,7 @@ onMounted(() => {
 .items-table th,
 .items-table td {
   border: 1px solid #ccc;
-  padding: 2px 4px;
+  padding: 5px 8px;
   text-align: left;
 }
 
@@ -384,32 +378,32 @@ onMounted(() => {
   background-color: #f0f0f0;
   font-weight: bold;
   text-transform: uppercase;
-  font-size: 9px;
-}
-
-.items-table td {
-  font-size: 9px;
 }
 
 .items-table .no {
   width: 5%;
   text-align: center;
 }
+
 .items-table .nama {
-  width: 40%;
+  width: 35%;
 }
+
 .items-table .ukuran {
   width: 10%;
   text-align: center;
 }
+
 .items-table .qty {
   width: 8%;
   text-align: right;
 }
+
 .items-table .harga,
 .items-table .diskon,
 .items-table .total {
-  width: 12%;
+  width: 14%;
+  /* Sesuaikan proporsi */
   text-align: right;
 }
 
@@ -417,18 +411,16 @@ onMounted(() => {
 .summary-section {
   display: flex;
   justify-content: space-between;
-  margin-top: 5px;
+  margin-top: 20px;
 }
 
 .terbilang-section {
   flex-basis: 60%;
-  font-size: 10px;
-  padding-right: 10px;
-  line-height: 1.2;
+  font-size: 1.1em;
 }
 
 .totals-table {
-  flex-basis: 40%;
+  flex-basis: 35%;
 }
 
 .totals-table table {
@@ -437,9 +429,8 @@ onMounted(() => {
 }
 
 .totals-table td {
-  padding: 1px 4px;
+  padding: 3px 8px;
   text-align: right;
-  font-size: 10px;
 }
 
 .totals-table tr:not(:last-child) td {
@@ -449,7 +440,7 @@ onMounted(() => {
 .totals-table .grand-total td {
   font-weight: bold;
   border-top: 1px solid #ccc;
-  padding-top: 2px;
+  padding-top: 5px;
 }
 
 /* Tanda Tangan */
@@ -457,63 +448,58 @@ onMounted(() => {
   display: flex;
   justify-content: space-around;
   text-align: center;
-  margin-top: 10px;
-  margin-bottom: 2px;
+  margin-top: 40px;
+  margin-bottom: 5px;
 }
 
 .signature-column {
   width: 30%;
-  font-size: 10px;
 }
 
 .footer-names {
   display: flex;
   justify-content: space-around;
   text-align: center;
-  margin-top: 20px;
+  margin-top: 30px;
+  /* Jarak untuk tanda tangan */
 }
 
 .name-column {
   width: 30%;
   border-bottom: 1px solid #000;
-  padding-bottom: 1px;
-  font-size: 10px;
+  padding-bottom: 2px;
 }
 
 /* Catatan */
 .note-section {
-  margin-top: 5px;
-  font-size: 8px;
+  margin-top: 20px;
+  font-size: 0.9em;
   border-top: 1px solid #eee;
-  padding-top: 3px;
-  line-height: 1.1;
+  padding-top: 10px;
 }
 
 .bank-info {
-  margin-bottom: 1px;
-  font-size: 9px;
+  margin-bottom: 5px;
+  /* Memberi jarak ke teks disclaimer */
+  font-size: 1.1em;
+  /* Sedikit lebih besar agar terbaca jelas */
 }
 
 .qr-code {
-  height: 35px;
-  width: 35px;
+  height: 40px;
+  /* sama dengan company-logo-right */
+  width: 40px;
   margin-right: 10px;
   object-fit: contain;
 }
 
-/* ========================================= */
-/* MEDIA QUERY KHUSUS SAAT MASUK MESIN PRINT */
-/* ========================================= */
+/* Media query untuk print */
 @media print {
-  @page {
-    size: A5 landscape;
-    margin: 4mm;
-  }
-
   .watermark {
     color: #cccccc !important;
     opacity: 0.15 !important;
     display: block !important;
+    /* Pastikan tidak tersembunyi */
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
   }
@@ -526,22 +512,34 @@ onMounted(() => {
   .print-container {
     margin: 0;
     padding: 0;
-    background-color: transparent !important; /* Hilangkan background abu-abu saat print */
-    display: block; /* Matikan flexbox center saat print */
   }
 
   .page {
-    width: 100%; /* Kembalikan ke 100% kertas printer */
-    min-height: auto;
     border: none;
-    box-shadow: none; /* Hilangkan shadow saat print */
+    box-shadow: none;
     margin: 0;
     padding: 0;
+    min-height: auto;
+  }
+
+  .qr-code {
+    height: 60px !important;
+    width: 60px !important;
   }
 }
 
+/* ============================= */
 /* FORCE LIGHT MODE FOR PRINT VIEW */
+/* ============================= */
+
+.print-container,
 .print-container *:not(.watermark) {
   color: #000 !important;
+  background: #fff !important;
+}
+
+/* Pastikan watermark tetap transparan latar belakangnya */
+.watermark {
+  background: transparent !important;
 }
 </style>

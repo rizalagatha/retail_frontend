@@ -332,15 +332,16 @@ const handleExport = () => {
 const showPreview = (fileName: string) => {
   if (!fileName) return;
 
-  const staticBaseUrl = getStaticBaseUrl();
-  const fileUrl = `${staticBaseUrl}/uploads/pettycash/${fileName}`;
-  const isPdf = fileName.toLowerCase().endsWith(".pdf");
+  // [FIX] Bersihkan URL dan nama file
+  const staticBaseUrl = getStaticBaseUrl().replace(/\/$/, "");
+  const cleanFileName = fileName.trim();
+
+  const fileUrl = `${staticBaseUrl}/uploads/pettycash/${cleanFileName}`;
+  const isPdf = cleanFileName.toLowerCase().endsWith(".pdf");
 
   if (isPdf) {
-    // Jika PDF, buka di tab baru
     window.open(fileUrl, "_blank");
   } else {
-    // Jika Gambar, munculkan di modal
     previewImageSrc.value = fileUrl;
     dialogPreview.value = true;
   }

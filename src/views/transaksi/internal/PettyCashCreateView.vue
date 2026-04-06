@@ -320,7 +320,9 @@ const loadData = async (nomor: string) => {
   try {
     const response = await api.get(`/petty-cash-form/${nomor}`);
     const data = response.data;
-    const staticBaseUrl = getStaticBaseUrl();
+
+    // [FIX 1] Hilangkan slash (/) di akhir base URL jika ada
+    const staticBaseUrl = getStaticBaseUrl().replace(/\/$/, "");
 
     isEditMode.value = true;
     header.nomor = data.header.pc_nomor;
@@ -330,9 +332,10 @@ const loadData = async (nomor: string) => {
     header.modal = data.header.pc_modal;
 
     items.value = data.details.map((d: RawDetail) => {
-      // TypeScript sekarang tahu properti apa saja yang ada di dalam 'd'
       const filesString = d.pcd_file || d.file || "";
-      const filesArray = filesString ? filesString.split(",") : [];
+
+      // [FIX 2] Tambahkan .map(f => f.trim()) agar spasi terbuang
+      const filesArray = filesString ? filesString.split(",").map((f) => f.trim()) : [];
 
       const mappedFiles = filesArray.map((fName: string) => ({
         fileRaw: null,
@@ -355,15 +358,11 @@ const loadData = async (nomor: string) => {
 
     calculateTotals();
   } catch (error: unknown) {
-    // [PERBAIKAN] Gunakan unknown
     let msg = "Gagal memuat data laporan.";
-
-    // Ekstrak pesan dari backend jika ada
     if (axios.isAxiosError(error)) {
       msg = error.response?.data?.message || msg;
     }
-
-    toast.error(msg); // [PERBAIKAN] Hapus parameter kedua 'error'
+    toast.error(msg);
     router.push("/transaksi/internal/petty-cash");
   } finally {
     isLoading.value = false;

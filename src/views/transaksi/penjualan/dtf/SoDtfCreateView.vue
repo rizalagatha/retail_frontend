@@ -997,7 +997,8 @@ const onSoSelected = async (selected: SoSelected, targetLineId: string | null = 
       form.value.namaDtf = item.sod_custom_nama || item.nama;
       item.ukuranKaos.forEach((u, i2: number) => {
         detailsUkuran.value.push({
-          id: Date.now() + idx + i2,
+          // [PERBAIKAN] Gunakan Math.random() agar ID benar-benar Unik!
+          id: Date.now() + Math.floor(Math.random() * 1000000),
           namaBarang:
             item.sourceItems && item.sourceItems.length > 0
               ? item.sourceItems[0].nama
@@ -1015,7 +1016,8 @@ const onSoSelected = async (selected: SoSelected, targetLineId: string | null = 
     customItems.forEach((item: SoItem, idx: number) => {
       item.titikCetak.forEach((t, i2: number) => {
         detailsTitik.value.push({
-          id: Date.now() + idx + i2,
+          // [PERBAIKAN] Gunakan Math.random() agar ID benar-benar Unik!
+          id: Date.now() + Math.floor(Math.random() * 1000000),
           keterangan: t.keterangan,
           sizeCetak: t.sizeCetak,
           panjang: t.panjang,

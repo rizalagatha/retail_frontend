@@ -206,11 +206,10 @@ const loadDetails = async (newlyExpandedItems: PettyCashItem[]) => {
   if (!itemToLoad) return;
 
   const kunciLoad = itemToLoad.nomor_utama;
-  loadingDetails.value.add(kunciLoad);
+  loadingDetails.value.add(kunciLoad); // 1. Mulai putar loading
 
   try {
     if (itemToLoad.pck_nomor) {
-      // [PERBAIKAN] Tambahkan <PettyCashDetail[]> setelah api.get
       const response = await api.get<PettyCashDetail[]>(
         `/petty-cash-form/klaim-detail/${itemToLoad.pck_nomor}`
       );
@@ -226,14 +225,16 @@ const loadDetails = async (newlyExpandedItems: PettyCashItem[]) => {
         pcd_file: d.pcd_file,
       }));
     } else {
-      // [PERBAIKAN] Tambahkan casting atau generic di sini juga jika perlu
       const response = await api.get(`/petty-cash-form/${kunciLoad}`);
       details.value[kunciLoad] = response.data.details;
     }
   } catch (error: unknown) {
     let msg = `Gagal memuat detail nota untuk ${kunciLoad}`;
     if (axios.isAxiosError(error)) msg = error.response?.data?.message || msg;
-    toast.error(msg); // [PERBAIKAN] Cuma kirim string
+    toast.error(msg);
+  } finally {
+    // [PERBAIKAN KRUSIAL] Wajib dihapus dari Set agar loading berhenti!
+    loadingDetails.value.delete(kunciLoad);
   }
 };
 

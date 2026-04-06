@@ -1194,7 +1194,7 @@ const save = async () => {
 
   const todayString = format(new Date(), "yyyy-MM-dd");
 
-  if (header.value.dateline < todayString) {
+  if (!isEditMode.value && header.value.dateline < todayString) {
     toast.error("Dateline tidak boleh kurang dari hari ini. Silakan periksa kembali.");
     return;
   }

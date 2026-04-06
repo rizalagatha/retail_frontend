@@ -843,7 +843,7 @@ const calculateTotals = async () => {
   let baseNominalDiscount = 0;
   const isFromOffer = !!header.value.penawaran; // Sekarang variabel ini KITA GUNAKAN
 
-  if (isPromoApplied && header.value.nomorPromo) {
+  if (isPromoApplied && header.value.nomorPromo && !isManuallyRejected) {
     // JALUR PROMO
     baseNominalDiscount = footer.value.diskonRp;
     footer.value.diskonPersen1 = 0;
@@ -855,7 +855,13 @@ const calculateTotals = async () => {
       const diskonP1 = Number(footer.value.diskonPersen1) || 0;
       baseNominalDiscount = (diskonP1 / 100) * newTotalDiscountable;
     } else {
-      baseNominalDiscount = footer.value.diskonRp;
+      // Jika user ngeklik "Tetap Diskon Member", header.nomorPromo kosong, diskonRp harusnya 0
+      // jadi kita pastikan dia menghitung pakai persen.
+      if (isManuallyRejected && footer.value.diskonPersen1 > 0) {
+        baseNominalDiscount = (footer.value.diskonPersen1 / 100) * newTotalDiscountable;
+      } else {
+        baseNominalDiscount = footer.value.diskonRp;
+      }
     }
   } else {
     // JALUR MEMBER STANDAR (Kalkulasi otomatis dari % ke Rp)
@@ -1243,11 +1249,13 @@ const save = async () => {
   }
 
   // --- 4. Cek Promo Aktif & Terapkan Otomatis ---
+  const isManuallyRejected = lastSuggestedPromo.value === "MANUAL_AUTH";
+
   if (isEditMode.value && header.value.nomorPromo) {
     // [PERBAIKAN] Jika mode edit dan sudah ada promo bawaan,
     // biarkan diskon tersebut seperti apa adanya.
     // Jangan panggil API atau melepas promo secara otomatis.
-  } else {
+  } else if (!isManuallyRejected) {
     try {
       const promoResponse = await api.get("/invoice-form/lookup/active-promos", {
         params: { tanggal: header.value.tanggal, cabang: header.value.gudang.kode },
@@ -2987,14 +2995,15 @@ const usePromoDiscount = async () => {
 };
 
 const useMemberDiscount = () => {
-  const rejectedId = pendingPromoData.nomor || header.value.nomorPromo;
+  // [FIX] Kunci kuat-kuat agar promo tidak ditawarkan lagi
+  lastSuggestedPromo.value = "MANUAL_AUTH"; // <--- KUNCI UTAMA
+
+  // Bersihkan data promo dari header
   header.value.nomorPromo = "";
   header.value.namaPromo = "";
   footer.value.diskonRp = 0;
 
-  lastSuggestedPromo.value = rejectedId || "MANUAL_AUTH";
   isPromoConfirmVisible.value = false;
-
   isStickerBonusRejected.value = true;
 
   // Hapus HANYA stiker promo A6 yang 0 Rupiah
@@ -3009,8 +3018,11 @@ const useMemberDiscount = () => {
     items.value.splice(existingIdx, 1);
   }
 
-  applyDefaultDiscount();
-  calculateTotals();
+  // Terapkan ulang diskon member
+  applyDefaultDiscount().then(() => {
+    calculateTotals();
+  });
+
   toast.info("Promo dilepas, kembali ke diskon member.");
 };
 

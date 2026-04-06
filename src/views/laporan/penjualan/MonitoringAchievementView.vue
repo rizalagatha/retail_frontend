@@ -193,7 +193,7 @@ const headersDaily = computed<DataTableHeader[]>(() => {
   ];
 
   // [BARU] Tambahkan kolom Biaya Platform jika Cabang yang dipilih adalah KON
-  if (filters.cabang === "KON") {
+  if (filters.cabang === "KON" || filters.cabang === "ALL") {
     h.push({ title: "Biaya Platform", key: "biaya_platform" });
   }
 
@@ -572,7 +572,7 @@ const exportData = () => {
         };
 
         // [BARU] Masukkan ke Excel jika cabang = KON
-        if (filters.cabang === "KON") {
+        if (filters.cabang === "KON" || filters.cabang === "ALL") {
           rowData["Biaya Platform"] = item.biaya_platform;
         }
 
@@ -598,7 +598,7 @@ const exportData = () => {
         };
 
         // [BARU] Masukkan Grand Total ke Excel jika cabang = KON
-        if (filters.cabang === "KON") {
+        if (filters.cabang === "KON" || filters.cabang === "ALL") {
           grandTotalRow["Biaya Platform"] = dailyTotals.biaya_platform;
         }
 
@@ -1153,7 +1153,10 @@ watch([filters, activeTab], fetchData, { deep: true });
 
                   <td class="text-start">{{ rupiah(dailyTotalSummary.omset) }}</td>
                   <td class="text-start">{{ rupiah(dailyTotalSummary.retur_jual) }}</td>
-                  <td v-if="filters.cabang === 'KON'" class="text-start text-red-darken-1">
+                  <td
+                    v-if="filters.cabang === 'KON' || filters.cabang === 'ALL'"
+                    class="text-start text-red-darken-1"
+                  >
                     {{ rupiah(dailyTotalSummary.biaya_platform) }}
                   </td>
                   <td class="text-start">{{ rupiah(dailyTotalSummary.total_omset) }}</td>

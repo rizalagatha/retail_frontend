@@ -1373,15 +1373,44 @@ const save = async () => {
   showConfirmation(executeSave, "Anda yakin ingin menyimpan Surat Pesanan ini?");
 };
 
-const saveAndConvertToInvoice = () => {
-  // Validasi Kelayakan Invoice
+const saveAndConvertToInvoice = async () => {
+  // Validasi 1: Kelayakan Mutasi Stok Fisik
   if (!allMutated.value) {
-    toast.error("Gagal: Masih ada barang yang belum Ready atau belum dimutasikan ke Stok Pesanan.");
+    toast.error("Gagal: Masih ada barang fisik yang belum dimutasikan ke Stok Pesanan.");
     return;
   }
 
+  // --- KUNCI: Cek Status LHK Real-time ke Backend ---
+  if (header.value.nomor && !isExemptFromLhkRule.value) {
+    // Cek dulu di frontend apakah ada indikasi barang Custom
+    const hasCustomOrDtf = items.value.some((i) => i.isCustomOrder || !!i.noSoDtf);
+
+    if (hasCustomOrDtf) {
+      try {
+        isSaving.value = true; // Muterin loading di tombol
+        toast.info("Memeriksa status pengerjaan (LHK) ke server...");
+
+        // "Nanya" ke backend
+        const response = await api.get(`/so-form/check-lhk/${header.value.nomor}`);
+        const { isReady, reason } = response.data;
+
+        if (!isReady) {
+          toast.error(`Akses Ditolak: ${reason}`);
+          return; // Hentikan fungsi, jangan simpan dan jangan pindah halaman
+        }
+      } catch (error) {
+        const err = error as AxiosError<{ message: string }>;
+        toast.error(err.response?.data?.message || "Gagal memeriksa status LHK ke server.");
+        return;
+      } finally {
+        isSaving.value = false;
+      }
+    }
+  }
+
+  // Jika aman (LHK sudah kelar atau user K01/K03), lanjutkan proses simpan & konversi ke Invoice
   nextActionAfterSave.value = "INVOICE";
-  save();
+  save(); // Eksekusi fungsi save utama
 };
 
 const executeSave = async () => {

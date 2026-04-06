@@ -363,8 +363,11 @@ const openReceiveDialog = () => {
 
   dialogReceive.pck_nomor = item.pck_nomor;
   dialogReceive.tanggal = format(new Date(), "yyyy-MM-dd");
-  dialogReceive.nominal = 0;
-  dialogReceive.bbk_finance = ""; // <--- RESET
+  dialogReceive.nominal = item.terpakai; // (Opsional) auto-fill nominal pakai nilai klaim
+
+  // [BARU] Langsung ambil No. BBK dari database Finance (jika sudah di-realisasi)
+  dialogReceive.bbk_finance = item.pck_bbk_finance || "";
+
   dialogReceive.show = true;
 };
 

@@ -101,10 +101,9 @@ const details = ref<Record<string, PettyCashDetail[]>>({});
 const dialogPreview = ref(false);
 const previewImageSrc = ref("");
 
-const getStaticBaseUrl = () => {
-  // Ganti let menjadi const
+const getApiBaseUrl = () => {
   const apiUrl = (api.defaults.baseURL || import.meta.env.VITE_API_BASE_URL || "") as string;
-  return apiUrl.replace(/\/api\/?$/, "");
+  return apiUrl.replace(/\/$/, "");
 };
 
 const headers = ref([
@@ -332,11 +331,12 @@ const handleExport = () => {
 const showPreview = (fileName: string) => {
   if (!fileName) return;
 
-  // [FIX] Bersihkan URL dan nama file
-  const staticBaseUrl = getStaticBaseUrl().replace(/\/$/, "");
+  // [PERUBAHAN] Gunakan base url yang mengandung /api dan pastikan nama file bersih
+  const apiBaseUrl = getApiBaseUrl();
   const cleanFileName = fileName.trim();
 
-  const fileUrl = `${staticBaseUrl}/uploads/pettycash/${cleanFileName}`;
+  // URL-nya sekarang akan otomatis terbaca oleh Backend
+  const fileUrl = `${apiBaseUrl}/uploads/pettycash/${cleanFileName}`;
   const isPdf = cleanFileName.toLowerCase().endsWith(".pdf");
 
   if (isPdf) {

@@ -63,12 +63,6 @@ const dialogConfirm = reactive({
   onConfirm: () => {},
 });
 
-const getStaticBaseUrl = () => {
-  // Ganti 'let' menjadi 'const'
-  const apiUrl = (api.defaults.baseURL || import.meta.env.VITE_API_BASE_URL || "") as string;
-  return apiUrl.replace(/\/api\/?$/, "");
-};
-
 const kategoriOptions = [
   "BIAYA POS DAN PENGIRIMAN",
   "BIAYA JAMUAN TAMU",
@@ -314,6 +308,11 @@ const handleTutup = () => {
   }
 };
 
+const getApiBaseUrl = () => {
+  const apiUrl = (api.defaults.baseURL || import.meta.env.VITE_API_BASE_URL || "") as string;
+  return apiUrl.replace(/\/$/, "");
+};
+
 // [PERUBAHAN 7] Load Data dari format String Koma (NOTA-1.jpg,NOTA-2.pdf)
 const loadData = async (nomor: string) => {
   isLoading.value = true;
@@ -321,8 +320,8 @@ const loadData = async (nomor: string) => {
     const response = await api.get(`/petty-cash-form/${nomor}`);
     const data = response.data;
 
-    // [FIX 1] Hilangkan slash (/) di akhir base URL jika ada
-    const staticBaseUrl = getStaticBaseUrl().replace(/\/$/, "");
+    // [PERUBAHAN] Gunakan fungsi baru yang mempertahankan /api
+    const apiBaseUrl = getApiBaseUrl();
 
     isEditMode.value = true;
     header.nomor = data.header.pc_nomor;
@@ -333,14 +332,13 @@ const loadData = async (nomor: string) => {
 
     items.value = data.details.map((d: RawDetail) => {
       const filesString = d.pcd_file || d.file || "";
-
-      // [FIX 2] Tambahkan .map(f => f.trim()) agar spasi terbuang
       const filesArray = filesString ? filesString.split(",").map((f) => f.trim()) : [];
 
       const mappedFiles = filesArray.map((fName: string) => ({
         fileRaw: null,
         fileName: fName,
-        previewUrl: `${staticBaseUrl}/uploads/pettycash/${fName}`,
+        // [PERUBAHAN] URL-nya sekarang akan menjadi .../api/uploads/pettycash/...
+        previewUrl: `${apiBaseUrl}/uploads/pettycash/${fName}`,
         isPdf: fName.toLowerCase().endsWith(".pdf"),
       }));
 

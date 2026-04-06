@@ -147,9 +147,14 @@ const openPreview = async (nomorBukti: string) => {
 
 // Helper mendapatkan URL absolut file (sesuaikan dengan VITE_API_URL Anda)
 const getFileUrl = (fileName: string) => {
-  // Mengambil baseURL dari axios (misal: http://localhost:3000/api) lalu buang /api-nya
-  const baseUrl = (api.defaults.baseURL || "").replace("/api", "");
-  return `${baseUrl}/uploads/pettycash/${fileName}`;
+  const baseUrl = (api.defaults.baseURL || import.meta.env.VITE_API_BASE_URL || "") as string;
+
+  // [PERBAIKAN] Jangan hapus /api, cukup pastikan tidak ada double slash di akhir URL
+  const cleanBaseUrl = baseUrl.replace(/\/$/, "");
+  const cleanFileName = fileName.trim();
+
+  // Hasilnya akan menjadi: https://103.94.238.252/api/uploads/pettycash/nama_file.jpg
+  return `${cleanBaseUrl}/uploads/pettycash/${cleanFileName}`;
 };
 
 const isPdf = (fileName: string) => fileName.toLowerCase().endsWith(".pdf");

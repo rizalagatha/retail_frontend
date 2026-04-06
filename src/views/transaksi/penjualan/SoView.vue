@@ -609,22 +609,44 @@ const STORAGE_KEY = "so_browse_filters";
 
 onMounted(async () => {
   if (hasViewPermission.value) {
+    // =========================================================================
+    // [PERBAIKAN BUG CACHE]
+    // Paksa kembalikan cabang ke default user JIKA user BUKAN KDC.
+    // Ini memastikan user toko tidak bisa 'mencuri' akses melihat cabang lain
+    // hanya karena nyangkut dari sessionStorage user sebelumnya.
+    // =========================================================================
+    if (authStore.user?.cabang !== "KDC") {
+      filters.cabang = authStore.user?.cabang || "";
+    } else {
+      // Jika KDC dan baru pertama kali buka, default ALL
+      if (!filters.cabang) filters.cabang = "ALL";
+    }
+
     // 1. Coba baca state filter dari Session Storage
     const savedFilters = sessionStorage.getItem(STORAGE_KEY);
 
     if (savedFilters) {
-      // Jika ada histori filter, timpa state 'filters' dengan data yang tersimpan
-      Object.assign(filters, JSON.parse(savedFilters));
+      const parsedFilters = JSON.parse(savedFilters);
+
+      // [PERBAIKAN BUG CACHE]
+      // Hanya izinkan 'menimpa' filter cabang dari storage JIKA user adalah KDC.
+      // Kalau user Toko, cabang hasil parse dari storage dibuang (pakai yang sudah di-set di atas)
+      if (authStore.user?.cabang !== "KDC") {
+        delete parsedFilters.cabang;
+      }
+
+      // Timpa state 'filters' dengan data yang tersimpan
+      Object.assign(filters, parsedFilters);
 
       // Jika Anda juga menyimpan filterSearchValue dan selectedFilterField
-      const parsedFilters = JSON.parse(savedFilters);
       if (parsedFilters.search) filterSearchValue.value = parsedFilters.search;
       if (parsedFilters.filterField) selectedFilterField.value = parsedFilters.filterField;
     } else {
-      // Jika tidak ada (baru pertama kali buka), cek query params (kode asli Anda)
+      // Jika tidak ada (baru pertama kali buka), cek query params
       const queryStartDate = route.query.startDate as string;
       const queryEndDate = route.query.endDate as string;
       const queryStatus = route.query.status as string;
+
       if (queryStartDate && queryEndDate) {
         filters.startDate = queryStartDate;
         filters.endDate = queryEndDate;

@@ -4,7 +4,7 @@ import { useRouter } from "vue-router";
 import { useToast } from "vue-toastification";
 import { useAuthStore } from "@/stores/authStore";
 import api from "@/services/api";
-import { format, parseISO } from "date-fns";
+import { format, parseISO, startOfMonth } from "date-fns";
 import PageLayout from "@/components/PageLayout.vue";
 import type { AxiosError } from "axios";
 
@@ -55,8 +55,10 @@ const isKDC = computed(() => authStore.user?.cabang === "KDC");
 const filters = reactive({
   search: "",
   status: "ALL",
-  // Default ALL untuk KDC, default cabang sendiri untuk toko
   cabang: authStore.user?.cabang === "KDC" ? "ALL" : authStore.user?.cabang || "",
+  // [BARU] Tambahkan default Tanggal (Dari awal bulan s/d hari ini)
+  startDate: format(startOfMonth(new Date()), "yyyy-MM-dd"),
+  endDate: format(new Date(), "yyyy-MM-dd"),
 });
 
 const options = ref({
@@ -106,7 +108,10 @@ const loadItems = async () => {
       params: {
         term: filters.search,
         status: filters.status,
-        cabang: filters.cabang, // Kirim parameter cabang
+        cabang: filters.cabang,
+        // [BARU] Kirim parameter tanggal ke backend
+        startDate: filters.startDate,
+        endDate: filters.endDate,
         page: options.value.page,
         itemsPerPage: options.value.itemsPerPage,
       },
@@ -200,6 +205,14 @@ watch([() => filters.status, () => filters.cabang], () => {
   loadItems();
 });
 
+watch(
+  [() => filters.status, () => filters.cabang, () => filters.startDate, () => filters.endDate],
+  () => {
+    options.value.page = 1;
+    loadItems();
+  }
+);
+
 onMounted(async () => {
   if (!authStore.can(MENU_ID, "view")) {
     toast.error("Anda tidak memiliki hak akses ke halaman ini.");
@@ -249,6 +262,24 @@ onMounted(async () => {
 
     <div class="browse-content">
       <div class="filter-section">
+        <v-label class="text-caption font-weight-bold">Periode:</v-label>
+        <v-text-field
+          v-model="filters.startDate"
+          type="date"
+          density="compact"
+          hide-details
+          variant="outlined"
+          style="max-width: 140px"
+        />
+        <v-label class="mx-1 text-caption">s/d</v-label>
+        <v-text-field
+          v-model="filters.endDate"
+          type="date"
+          density="compact"
+          hide-details
+          variant="outlined"
+          style="max-width: 140px"
+        />
         <v-text-field
           v-model="filters.search"
           label="Cari No. Komplain, Customer, atau Ref..."

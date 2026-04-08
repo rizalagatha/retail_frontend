@@ -1458,7 +1458,7 @@ const calculateTotals = () => {
   // ---------------------------------------------------------------------
   let grossSubTotal = 0; // Total Kotor (Harga x Jumlah)
   let netItemTotal = 0; // Total Bersih (item.total)
-  let eligibleSubTotal = 0;
+  let basisDiskonFaktur = 0;
 
   // Loop sekali untuk update total per baris & akumulasi
   items.value.forEach((item) => {
@@ -1469,9 +1469,18 @@ const calculateTotals = () => {
     grossSubTotal += (item.jumlah || 0) * (item.harga || 0);
     netItemTotal += item.total;
 
-    // Pengecualian diskon hanya untuk item yang memiliki nomor pengajuan harga
+    // [KUNCI PERBAIKAN: CEK DISKON GANDA]
+    // Pengecualian diskon:
+    // 1. Bukan Pengajuan Harga
+    // 2. TIDAK MEMILIKI diskon item (diskonRp == 0 DAN diskonPersen == 0)
+    // Jika sebuah item sudah punya diskon sendiri, HARAM hukumnya ikut dihitung di Diskon Faktur!
     if (!item.noPengajuanHarga) {
-      eligibleSubTotal += item.total;
+      const hasItemDiscount = (item.diskonRp || 0) > 0 || (item.diskonPersen || 0) > 0;
+
+      if (!hasItemDiscount) {
+        // Masukkan ke basis diskon faktur HANYA jika barang ini tidak punya diskon sendiri
+        basisDiskonFaktur += item.total;
+      }
     }
   });
 
@@ -1481,8 +1490,6 @@ const calculateTotals = () => {
   // Base calculation untuk tahap selanjutnya (Netto Item)
   const afterItemDiscount = netItemTotal;
 
-  const basisDiskon = eligibleSubTotal;
-
   // ---------------------------------------------------------------------
   // FIX: JIKA INVOICE BERASAL DARI SO → DISKON FAKTUR TIDAK BOLEH DIHITUNG ULANG
   // ---------------------------------------------------------------------
@@ -1491,9 +1498,10 @@ const calculateTotals = () => {
     totals.totalDiskonItem = totalDiskonItem;
 
     // Hitung P1 & P2 berdasarkan basisDiskon (bukan netItemTotal)
-    const d1AmountSO = (header.diskonPersen1 / 100) * basisDiskon;
+    const d1AmountSO = (header.diskonPersen1 / 100) * basisDiskonFaktur;
     const manualRpSO = Number(header.diskonRp || 0);
-    const d2AmountSO = (header.diskonPersen2 / 100) * (basisDiskon - d1AmountSO);
+    const d2AmountSO =
+      (header.diskonPersen2 / 100) * Math.max(0, basisDiskonFaktur - d1AmountSO - manualRpSO);
 
     // [RINCIAN UNTUK PAYMENT MODAL]
     totals.diskonNominal1 = d1AmountSO;
@@ -1531,7 +1539,7 @@ const calculateTotals = () => {
 
   // Aturan Mutually Exclusive: Prioritaskan Persen Member jika ada, jika tidak pakai Nominal
   if (header.diskonPersen1 > 0) {
-    d1Amount = (header.diskonPersen1 / 100) * basisDiskon;
+    d1Amount = (header.diskonPersen1 / 100) * basisDiskonFaktur;
     manualAmount = 0;
   } else {
     manualAmount = Number(header.diskonRp || 0);
@@ -1539,7 +1547,7 @@ const calculateTotals = () => {
   }
 
   // Diskon 2 (MAPS) selalu dihitung dari sisa setelah potongan dasar (P1/Manual)
-  const remainingForTier2 = basisDiskon - d1Amount - manualAmount;
+  const remainingForTier2 = basisDiskonFaktur - d1Amount - manualAmount;
   const d2Amount = (header.diskonPersen2 / 100) * Math.max(0, remainingForTier2);
 
   // [RINCIAN UNTUK PAYMENT MODAL]

@@ -588,10 +588,31 @@ const isDiscountableItem = (item: OfferItem) => {
 };
 
 const isItemPromoEligible = (item: OfferItem) => {
-  // [PERUBAHAN] Promo 600rb HANYA untuk barang kategori REGULER.
-  // Custom, DTF, JASA, atau barang lain diabaikan secara total.
-  const kategoriUp = item.kategori?.toUpperCase() || "";
-  return kategoriUp === "REGULER";
+  // 1. Cek apakah ada promo bulanan/utama yang sedang aktif
+  const autoPromoIds = ["PRO-2025-008", "PRO-2025-010", "PRO-2026-001", "PRO-2026-002"];
+  const hasActiveMonthlyPromo = activePromosList.value.some((p) =>
+    autoPromoIds.includes(p.pro_nomor)
+  );
+
+  // Jika tidak ada satupun promo utama di atas yang aktif, return false
+  if (!hasActiveMonthlyPromo) return false;
+
+  // [REVISI APRIL] Semua Kategori (Reguler, Pesanan, Sesional) dan DTF/Custom sekarang ELIGIBLE
+  // Kita HANYA memblokir barang yang sifatnya non-fisik (Jasa Murni / Ongkir)
+  // atau barang yang sedang diajukan potong harga khusus (Pengajuan Harga).
+
+  const namaUp = (item.nama || "").toUpperCase();
+
+  // Pastikan item Custom Order dan Tarikan SO DTF terdeteksi
+  const isCustomOrDtf = !!item.noSoDtf || item.isCustomOrder === true || namaUp.includes("DTF");
+
+  const isBukanPengajuan = !item.noPengajuanHarga;
+
+  // Tolak JASA murni (ongkir, desain, dll) KECUALI itu adalah custom order (Sablon DTF)
+  const isJasaMurni = (item.kode || "").toUpperCase().startsWith("JASA") && !isCustomOrDtf;
+
+  // Barang apapun (selain Jasa Murni dan Pengajuan Harga) = Eligible
+  return isBukanPengajuan && !isJasaMurni;
 };
 
 const checkRealtimePromoEligibility = () => {

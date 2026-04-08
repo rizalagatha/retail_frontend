@@ -2828,21 +2828,18 @@ const isItemPromoEligible = (item: Item) => {
 
   if (!hasActiveMonthlyPromo) return false;
 
-  const kategoriUp = (item.kategori || "").toUpperCase();
-  const namaUp = (item.nama || "").toUpperCase();
-  const isReguler = kategoriUp === "REGULER";
-  const isJersey = namaUp.includes("JERSEY");
+  // [REVISI APRIL] Semua Kategori (Reguler, Pesanan, Sesional) dan DTF/Custom sekarang ELIGIBLE
+  // Kita HANYA memblokir barang yang sifatnya non-fisik (Jasa Murni / Ongkir)
+  // atau barang yang sedang diajukan potong harga khusus (Pengajuan Harga).
 
-  // [PERBAIKAN CASE 2] Item Custom dan DTF SEKARANG DIANGGAP ELIGIBLE
   const isCustomOrDtf = !!item.noSoDtf || item.isCustomOrder === true;
-
   const isBukanPengajuan = !item.noPengajuanHarga;
 
-  // Jika barang JASA MURNI (bukan custom DTF), jangan masukkan
+  // Jika barang JASA MURNI (bukan custom DTF), jangan masukkan ke hitungan promo
   const isJasaMurni = (item.kode || "").toUpperCase().startsWith("JASA") && !isCustomOrDtf;
 
-  // Barang reguler, jersey, ATAU custom/dtf yang bukan pengajuan = Eligible
-  return (isReguler || isJersey || isCustomOrDtf) && isBukanPengajuan && !isJasaMurni;
+  // Barang apapun (selain Jasa Murni dan Pengajuan Harga) = Eligible
+  return isBukanPengajuan && !isJasaMurni;
 };
 
 // Hitung tanggal tempo otomatis

@@ -2694,13 +2694,13 @@ const isItemPromoEligible = (item: SoItem) => {
   // Jika tidak ada satupun promo utama di atas yang aktif, return false
   if (!hasActiveMonthlyPromo) return false;
 
-  const kategoriUp = (item.kategori || "").toUpperCase();
+  // [REVISI APRIL] Semua Kategori (Reguler, Pesanan, Sesional) dan DTF/Custom sekarang ELIGIBLE
+  // Kita HANYA memblokir barang yang sifatnya non-fisik (Jasa Murni / Ongkir)
+  // atau barang yang sedang diajukan potong harga khusus (Pengajuan Harga).
+
   const namaUp = (item.nama || "").toUpperCase();
 
-  const isReguler = kategoriUp === "REGULER";
-  const isJersey = namaUp.includes("JERSEY");
-
-  // [PERBAIKAN] Pastikan item Custom Order dan Tarikan SO DTF terdeteksi
+  // Pastikan item Custom Order dan Tarikan SO DTF terdeteksi
   const isCustomOrDtf = !!item.noSoDtf || item.isCustomOrder === true || namaUp.includes("DTF");
 
   const isBukanPengajuan = !item.noPengajuanHarga;
@@ -2708,8 +2708,8 @@ const isItemPromoEligible = (item: SoItem) => {
   // Tolak JASA murni (ongkir, desain, dll) KECUALI itu adalah custom order (Sablon DTF)
   const isJasaMurni = (item.kode || "").toUpperCase().startsWith("JASA") && !isCustomOrDtf;
 
-  // Barang reguler, jersey, ATAU custom/dtf yang bukan pengajuan = Eligible
-  return (isReguler || isJersey || isCustomOrDtf) && isBukanPengajuan && !isJasaMurni;
+  // Barang apapun (selain Jasa Murni dan Pengajuan Harga) = Eligible
+  return isBukanPengajuan && !isJasaMurni;
 };
 
 // [BARU] Handle Promo Terpilih dari Modal F1

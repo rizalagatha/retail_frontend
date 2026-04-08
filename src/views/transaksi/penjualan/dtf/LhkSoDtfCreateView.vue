@@ -647,7 +647,8 @@ const handleDoubleClick = (e: MouseEvent, targetCanvas: HTMLCanvasElement | null
 
 // --- Auto Arrange Algorithm (Skyline / Tetris Packing Version) ---
 const runAutoArrange = () => {
-  const validItems = items.value.filter((i) => i.kode && i.jumlah > 0);
+  const validItems = items.value.filter((i) => i.kode && (i.jumlah > 0 || i.isStok));
+
   if (validItems.length === 0 || !formHeader.jenisOrder) {
     return toast.warning("Isi jumlah kaos pada tabel terlebih dahulu.");
   }

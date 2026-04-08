@@ -1882,14 +1882,12 @@ const saveAndConvertToSo = async () => {
     let promoToApply: ActivePromo | null = null;
     let promoDiskon = 0;
 
-    // Menghitung Total Nilai Eligible Promo
+    // [PERBAIKAN] Hitung Total Nilai Eligible Promo menggunakan isItemPromoEligible
     const totalEligibleValue = validItems.reduce((sum, item) => {
       const isStickerGeneric =
         String(item.barcode) === "25014783" || String(item.kode) === "2500053";
-      const isReguler = item.kategori?.toUpperCase() === "REGULER";
-      const isCustomDtf = item.isCustomOrder || !!item.noSoDtf;
 
-      if ((isReguler || isCustomDtf) && !isStickerGeneric) {
+      if (isItemPromoEligible(item) && !isStickerGeneric) {
         return sum + (item.total || 0);
       }
       return sum;
@@ -1948,17 +1946,18 @@ const saveAndConvertToSo = async () => {
     if (promoToApply) {
       const autoPromoIds = ["PRO-2025-008", "PRO-2025-010", "PRO-2026-001", "PRO-2026-002"];
 
-      // Jika belum ada promo ATAU sedang menggunakan auto-promo lama, timpa dengan promo baru
-      if (!header.value.nomorPromo || autoPromoIds.includes(header.value.nomorPromo)) {
-        footer.value.diskonPersen1 = 0; // [FIX] Wajib tambahkan ini agar diskon member hilang
-        footer.value.diskonPersen2 = 0; // [FIX] Wajib tambahkan ini agar diskon member hilang
+      // [PERBAIKAN] Jika sedang mode edit, dan promo lama ada, izinkan dia update kelipatan diskonnya secara otomatis!
+      const isAutoPromo = autoPromoIds.includes(header.value.nomorPromo || "");
+
+      if (!header.value.nomorPromo || isAutoPromo) {
+        footer.value.diskonPersen1 = 0;
+        footer.value.diskonPersen2 = 0;
 
         footer.value.diskonRp = promoDiskon;
         footer.value.diskonRpInput = promoDiskon;
         header.value.nomorPromo = promoToApply.pro_nomor;
         header.value.namaPromo = promoToApply.pro_judul;
 
-        // Bersihkan stiker dari grid jika pindah ke promo selain Maret
         if (promoToApply.pro_nomor !== "PRO-2026-001") {
           const idx = items.value.findIndex(
             (i) => String(i.kode) === "2500053" || String(i.barcode) === "25014783"

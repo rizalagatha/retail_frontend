@@ -88,11 +88,25 @@ const getErrorMessage = (err: unknown, fallback: string) => {
 
 // --- Methods ---
 
+const resetFilter = () => {
+  const today = new Date().toISOString().substr(0, 10);
+  filters.startDate = today;
+  filters.endDate = today;
+  filters.module = "ALL";
+  filters.user = "";
+  filters.action = "ALL";
+  filters.cabang = "ALL";
+  filters.isAnomaly = false;
+  filters.page = 1;
+  fetchData();
+};
+
 const fetchCabang = async () => {
   try {
     const response = await api.get("/audit-logs/cabang");
-
-    cabangOptions.value = [{ kode: "ALL", nama: "Semua Cabang" }, ...response.data];
+    // Format response API dari string biasa ("K01") diubah jadi object agar sejalan dengan {kode: "ALL", nama: "Semua Cabang"}
+    const mappedCabang = response.data.map((c: string) => ({ kode: c, nama: c }));
+    cabangOptions.value = [{ kode: "ALL", nama: "Semua Cabang" }, ...mappedCabang];
   } catch (error) {
     console.error("Gagal load cabang", error);
   }
@@ -245,80 +259,105 @@ watch(() => filters.page, fetchData); // Fetch saat pagination berubah
 
     <div class="audit-content">
       <div class="filter-section d-flex align-center flex-wrap ga-3 mb-3">
-        <v-text-field
-          type="date"
-          v-model="filters.startDate"
-          label="Dari"
-          density="compact"
-          hide-details
-          variant="outlined"
-          style="max-width: 170px"
-        />
+        <v-card class="mb-4" elevation="0" border>
+          <v-card-text class="pa-3">
+            <v-row dense align="center">
+              <v-col cols="12" sm="6" md="2">
+                <v-text-field
+                  type="date"
+                  v-model="filters.startDate"
+                  label="Dari Tanggal"
+                  density="compact"
+                  hide-details
+                  variant="outlined"
+                />
+              </v-col>
+              <v-col cols="12" sm="6" md="2">
+                <v-text-field
+                  type="date"
+                  v-model="filters.endDate"
+                  label="Sampai Tanggal"
+                  density="compact"
+                  hide-details
+                  variant="outlined"
+                />
+              </v-col>
+              <v-col cols="12" sm="4" md="2">
+                <v-select
+                  v-model="filters.cabang"
+                  :items="cabangOptions"
+                  item-title="nama"
+                  item-value="kode"
+                  label="Cabang"
+                  density="compact"
+                  hide-details
+                  variant="outlined"
+                />
+              </v-col>
+              <v-col cols="12" sm="4" md="2">
+                <v-select
+                  v-model="filters.module"
+                  :items="moduleOptions"
+                  label="Modul"
+                  density="compact"
+                  hide-details
+                  variant="outlined"
+                />
+              </v-col>
+              <v-col cols="12" sm="4" md="2">
+                <v-select
+                  v-model="filters.action"
+                  :items="actionOptions"
+                  label="Action"
+                  density="compact"
+                  hide-details
+                  variant="outlined"
+                />
+              </v-col>
+              <v-col cols="12" sm="4" md="2" class="d-flex align-center justify-center">
+                <v-switch
+                  v-model="filters.isAnomaly"
+                  label="Hanya Anomali"
+                  color="error"
+                  density="compact"
+                  hide-details
+                  inset
+                ></v-switch>
+              </v-col>
 
-        <v-text-field
-          type="date"
-          v-model="filters.endDate"
-          label="Sampai"
-          density="compact"
-          hide-details
-          variant="outlined"
-          style="max-width: 170px"
-        />
-
-        <v-select
-          v-model="filters.cabang"
-          :items="cabangOptions"
-          item-title="nama"
-          item-value="kode"
-          label="Cabang"
-          density="compact"
-          variant="outlined"
-          hide-details
-        />
-
-        <v-switch
-          v-model="filters.isAnomaly"
-          label="Hanya Anomali"
-          color="error"
-          density="compact"
-          hide-details
-          inset
-        ></v-switch>
-
-        <v-select
-          v-model="filters.module"
-          :items="moduleOptions"
-          label="Modul"
-          density="compact"
-          hide-details
-          variant="outlined"
-          style="max-width: 160px"
-        />
-
-        <v-select
-          v-model="filters.action"
-          :items="actionOptions"
-          label="Action"
-          density="compact"
-          hide-details
-          variant="outlined"
-          style="max-width: 140px"
-        />
-
-        <v-text-field
-          v-model="filters.user"
-          label="Cari User"
-          prepend-inner-icon="mdi-account-search"
-          density="compact"
-          hide-details
-          variant="outlined"
-          style="max-width: 180px"
-          @keyup.enter="fetchData"
-        />
-
-        <v-btn color="primary" @click="fetchData"> Cari </v-btn>
-
-        <v-btn icon="mdi-refresh" variant="text" @click="fetchData" />
+              <v-col cols="12" md="4">
+                <v-text-field
+                  v-model="filters.user"
+                  label="Cari ID User..."
+                  prepend-inner-icon="mdi-account-search"
+                  density="compact"
+                  hide-details
+                  variant="outlined"
+                  clearable
+                  @keyup.enter="fetchData"
+                  @click:clear="
+                    filters.user = '';
+                    fetchData();
+                  "
+                />
+              </v-col>
+              <v-col cols="12" md="8" class="d-flex align-center ga-2">
+                <v-btn color="primary" prepend-icon="mdi-magnify" @click="fetchData" elevation="0">
+                  Tampilkan Data
+                </v-btn>
+                <v-btn
+                  color="secondary"
+                  variant="tonal"
+                  prepend-icon="mdi-refresh"
+                  @click="resetFilter"
+                  elevation="0"
+                >
+                  Reset Filter
+                </v-btn>
+              </v-col>
+            </v-row>
+          </v-card-text>
+        </v-card>
       </div>
 
       <div class="table-container elevation-1 rounded bg-white">

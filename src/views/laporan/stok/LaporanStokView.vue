@@ -205,35 +205,104 @@ const fetchData = async () => {
 const exportToExcel = async () => {
   try {
     isLoading.value = true;
+    toast.info("Menyiapkan data export mendatar...");
 
-    // Debugging (Opsional): Cek di console apakah gudang terkirim
-    console.log("Mengirim filter ke export:", filters);
-
-    // Panggil API dengan params: filters
-    // Ini otomatis mengirim: /laporan-stok/real-time/export?gudang=XXX&tanggal=YYYY-MM-DD...
+    // 1. Tembak API Export (Dapat data VERTIKAL lengkap dengan HPP, Barcode, dll)
     const response = await api.get("/laporan-stok/real-time/export", {
       params: filters,
     });
 
-    const dataExport = response.data;
-
-    if (!dataExport || dataExport.length === 0) {
+    const rawData = response.data;
+    if (!rawData || rawData.length === 0) {
       toast.warning("Tidak ada data untuk diekspor.");
       return;
     }
 
-    // Sorting manual (Nama -> Ukuran)
-    dataExport.sort((a: StokItem, b: StokItem) => {
-      // 1. Sort by Nama Barang
-      const nameComp = a.NAMA.localeCompare(b.NAMA);
-      if (nameComp !== 0) return nameComp;
+    // 2. Proses PIVOT (Mengelompokkan Kode & merombak ukuran menjadi kolom mendatar)
+    const pivotedMap = new Map();
+    const sizeSet = new Set<string>();
 
-      // 2. Sort by Ukuran (menggunakan helper)
-      // Pastikan konversi ke String karena UKURAN di interface bisa string | number
-      return sortSizes(String(a.UKURAN || ""), String(b.UKURAN || ""));
+    rawData.forEach((row: any) => {
+      const key = row.KODE;
+
+      // Jika barang belum ada di Map, buat kerangka dasarnya
+      if (!pivotedMap.has(key)) {
+        pivotedMap.set(key, {
+          Kategori: row.KATEGORI || "",
+          Kode: row.KODE || "",
+          Barcode: row.BARCODE || "",
+          Nama: row.NAMA || "",
+          HPP: Number(row.HPP || 0),
+          Total: 0,
+          PL: 0,
+          Tersedia: 0,
+          Buffer: Number(row.BUFFER || 0),
+        });
+      }
+
+      const item = pivotedMap.get(key);
+      const ukuran = row.UKURAN || "-";
+      sizeSet.add(ukuran);
+
+      // Set Qty per Ukuran (S, M, L, dll)
+      item[ukuran] = (item[ukuran] || 0) + Number(row.TOTAL || 0);
+
+      // Akumulasi Total, PL, dan Tersedia
+      item.Total += Number(row.TOTAL || 0);
+      item.PL += Number(row.PL_QTY || 0);
+      item.Tersedia += Number(row.TOTAL2 || 0);
     });
 
-    const worksheet = XLSX.utils.json_to_sheet(dataExport);
+    // 3. Susun Kolom Excel agar urutannya rapi
+    const sortedSizes = Array.from(sizeSet).sort(sortSizes);
+    const isKDC = authStore.user?.cabang === "KDC" && filters.gudang === "KDC";
+
+    // [PERBAIKAN KUNCI] Kita buat kerangka susunan header paksa agar angka tidak lari ke kiri
+    const excelHeaders = [
+      "Kategori",
+      "Kode Barang",
+      "Barcode",
+      "Nama Barang",
+      "HPP",
+      ...sortedSizes, // Sisipkan ukuran (angka maupun huruf) di tengah sini
+      "Total",
+    ];
+
+    if (isKDC) {
+      excelHeaders.push("Qty PL", "Tersedia");
+    }
+    excelHeaders.push("Buffer");
+
+    const finalData = Array.from(pivotedMap.values()).map((row: any) => {
+      const finalRow: any = {
+        Kategori: row.Kategori,
+        "Kode Barang": row.Kode,
+        Barcode: row.Barcode,
+        "Nama Barang": row.Nama,
+        HPP: row.HPP,
+      };
+
+      // Sisipkan Kolom Ukuran (S, M, L, 6, 8, 10 dll)
+      sortedSizes.forEach((sz) => {
+        finalRow[sz] = row[sz] || 0;
+      });
+
+      // Kolom Penutup
+      finalRow["Total"] = row.Total;
+      if (isKDC) {
+        finalRow["Qty PL"] = row.PL;
+        finalRow["Tersedia"] = row.Tersedia;
+      }
+      finalRow["Buffer"] = row.Buffer;
+
+      return finalRow;
+    });
+
+    // 4. Sorting berdasarkan Nama Barang sebelum di-export
+    finalData.sort((a, b) => a["Nama Barang"].localeCompare(b["Nama Barang"]));
+
+    // 5. Generate Excel (Sisipkan opsi { header: excelHeaders } agar urutan terkunci)
+    const worksheet = XLSX.utils.json_to_sheet(finalData, { header: excelHeaders });
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, "Stok Detail");
 
@@ -242,11 +311,10 @@ const exportToExcel = async () => {
     const filename = `Stok_${namaGudang}_${filters.tanggal}.xlsx`;
 
     XLSX.writeFile(workbook, filename);
-
-    toast.success("Data berhasil diekspor.");
+    toast.success("Data mendatar berhasil diekspor.");
   } catch (error) {
     console.error(error);
-    toast.error("Gagal mengekspor data.");
+    toast.error("Gagal mengekspor data ke Excel.");
   } finally {
     isLoading.value = false;
   }

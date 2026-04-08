@@ -258,107 +258,138 @@ watch(() => filters.page, fetchData); // Fetch saat pagination berubah
     </template>
 
     <div class="audit-content">
-      <div class="filter-section d-flex align-center flex-wrap ga-3 mb-3">
-        <v-card class="mb-4" elevation="0" border>
-          <v-card-text class="pa-3">
-            <v-row dense align="center">
-              <v-col cols="12" sm="6" md="2">
-                <v-text-field
-                  type="date"
-                  v-model="filters.startDate"
-                  label="Dari Tanggal"
-                  density="compact"
-                  hide-details
-                  variant="outlined"
-                />
-              </v-col>
-              <v-col cols="12" sm="6" md="2">
-                <v-text-field
-                  type="date"
-                  v-model="filters.endDate"
-                  label="Sampai Tanggal"
-                  density="compact"
-                  hide-details
-                  variant="outlined"
-                />
-              </v-col>
-              <v-col cols="12" sm="4" md="2">
-                <v-select
-                  v-model="filters.cabang"
-                  :items="cabangOptions"
-                  item-title="nama"
-                  item-value="kode"
-                  label="Cabang"
-                  density="compact"
-                  hide-details
-                  variant="outlined"
-                />
-              </v-col>
-              <v-col cols="12" sm="4" md="2">
-                <v-select
-                  v-model="filters.module"
-                  :items="moduleOptions"
-                  label="Modul"
-                  density="compact"
-                  hide-details
-                  variant="outlined"
-                />
-              </v-col>
-              <v-col cols="12" sm="4" md="2">
-                <v-select
-                  v-model="filters.action"
-                  :items="actionOptions"
-                  label="Action"
-                  density="compact"
-                  hide-details
-                  variant="outlined"
-                />
-              </v-col>
-              <v-col cols="12" sm="4" md="2" class="d-flex align-center justify-center">
-                <v-switch
-                  v-model="filters.isAnomaly"
-                  label="Hanya Anomali"
-                  color="error"
-                  density="compact"
-                  hide-details
-                  inset
-                ></v-switch>
-              </v-col>
+      <!-- FILTER SECTION -->
+      <v-card elevation="0" border rounded="lg" class="mb-3 filter-card">
+        <v-card-text class="pa-3">
+          <v-row dense align="center">
+            <!-- Dari Tanggal -->
+            <v-col cols="auto">
+              <v-text-field
+                type="date"
+                v-model="filters.startDate"
+                label="Dari Tanggal"
+                density="compact"
+                hide-details
+                variant="outlined"
+                style="width: 160px"
+              />
+            </v-col>
 
-              <v-col cols="12" md="4">
-                <v-text-field
-                  v-model="filters.user"
-                  label="Cari ID User..."
-                  prepend-inner-icon="mdi-account-search"
-                  density="compact"
-                  hide-details
-                  variant="outlined"
-                  clearable
-                  @keyup.enter="fetchData"
-                  @click:clear="
-                    filters.user = '';
-                    fetchData();
-                  "
-                />
-              </v-col>
-              <v-col cols="12" md="8" class="d-flex align-center ga-2">
-                <v-btn color="primary" prepend-icon="mdi-magnify" @click="fetchData" elevation="0">
-                  Tampilkan Data
-                </v-btn>
-                <v-btn
-                  color="secondary"
-                  variant="tonal"
-                  prepend-icon="mdi-refresh"
-                  @click="resetFilter"
-                  elevation="0"
-                >
-                  Reset Filter
-                </v-btn>
-              </v-col>
-            </v-row>
-          </v-card-text>
-        </v-card>
-      </div>
+            <!-- Sampai Tanggal -->
+            <v-col cols="auto">
+              <v-text-field
+                type="date"
+                v-model="filters.endDate"
+                label="Sampai Tanggal"
+                density="compact"
+                hide-details
+                variant="outlined"
+                style="width: 160px"
+              />
+            </v-col>
+
+            <!-- Cabang -->
+            <v-col cols="auto">
+              <v-select
+                v-model="filters.cabang"
+                :items="cabangOptions"
+                item-title="nama"
+                item-value="kode"
+                label="Cabang"
+                density="compact"
+                hide-details
+                variant="outlined"
+                style="width: 150px"
+              />
+            </v-col>
+
+            <!-- Modul -->
+            <v-col cols="auto">
+              <v-select
+                v-model="filters.module"
+                :items="moduleOptions"
+                label="Modul"
+                density="compact"
+                hide-details
+                variant="outlined"
+                style="width: 140px"
+              />
+            </v-col>
+
+            <!-- Action -->
+            <v-col cols="auto">
+              <v-select
+                v-model="filters.action"
+                :items="actionOptions"
+                label="Action"
+                density="compact"
+                hide-details
+                variant="outlined"
+                style="width: 130px"
+              />
+            </v-col>
+
+            <!-- Cari User -->
+            <v-col cols="auto">
+              <v-text-field
+                v-model="filters.user"
+                label="Cari ID User"
+                prepend-inner-icon="mdi-account-search"
+                density="compact"
+                hide-details
+                variant="outlined"
+                clearable
+                style="width: 150px"
+                @keyup.enter="fetchData"
+                @click:clear="
+                  filters.user = '';
+                  fetchData();
+                "
+              />
+            </v-col>
+
+            <!-- Hanya Anomali -->
+            <v-col cols="auto">
+              <v-switch
+                v-model="filters.isAnomaly"
+                label="Anomali"
+                color="error"
+                density="compact"
+                hide-details
+                inset
+              />
+            </v-col>
+
+            <!-- Spacer -->
+            <v-spacer />
+
+            <!-- Tombol Aksi -->
+            <v-col cols="auto" class="d-flex ga-2">
+              <v-btn
+                color="primary"
+                prepend-icon="mdi-magnify"
+                elevation="0"
+                size="small"
+                class="text-none"
+                @click="fetchData"
+              >
+                Tampilkan
+              </v-btn>
+              <v-btn
+                color="secondary"
+                variant="tonal"
+                prepend-icon="mdi-refresh"
+                elevation="0"
+                size="small"
+                class="text-none"
+                @click="resetFilter"
+              >
+                Reset
+              </v-btn>
+            </v-col>
+          </v-row>
+        </v-card-text>
+      </v-card>
 
       <div class="table-container elevation-1 rounded bg-white">
         <AppDataTable
@@ -588,5 +619,31 @@ watch(() => filters.page, fetchData); // Fetch saat pagination berubah
 h4 {
   font-size: 12px;
   font-weight: 600;
+}
+
+.filter-card .v-card-text {
+  font-size: 11px !important;
+}
+
+.filter-card :deep(.v-label) {
+  font-size: 11px !important;
+}
+
+.filter-card :deep(.v-field__input) {
+  font-size: 11px !important;
+  min-height: 32px !important;
+}
+
+.filter-card :deep(.v-select__selection-text) {
+  font-size: 11px !important;
+}
+
+.filter-card :deep(.v-btn) {
+  font-size: 11px !important;
+}
+
+.filter-card :deep(.v-switch__track),
+.filter-card :deep(.v-switch .v-label) {
+  font-size: 11px !important;
 }
 </style>

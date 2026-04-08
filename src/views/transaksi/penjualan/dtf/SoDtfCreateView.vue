@@ -420,7 +420,7 @@ const clearImage = () => {
 };
 
 const resetForm = () => {
-  form.value = { ...initialFormState };
+  form.value = { ...initialFormState, tanggal: format(new Date(), "yyyy-MM-dd") };
   detailsUkuran.value = [];
   detailsTitik.value = [];
   imagePreview.value = null;
@@ -479,6 +479,14 @@ const uploadImageToServer = async (nomor: string): Promise<boolean> => {
 };
 
 const save = async () => {
+  if (!isEditMode.value) {
+    const todayStr = format(new Date(), "yyyy-MM-dd");
+    if (form.value.tanggal !== todayStr) {
+      toast.error("Tanggal transaksi SO DTF baru harus hari ini!");
+      form.value.tanggal = todayStr; // Paksa kembalikan ke hari ini
+      return;
+    }
+  }
   // Validasi existing...
   if (!form.value.salesKode) {
     toast.error("Sales harus diisi.");
@@ -1192,15 +1200,18 @@ onMounted(async () => {
                 density="compact"
                 hide-details
             /></v-col>
-            <v-col cols="6"
-              ><v-text-field
-                label="Tanggal"
+            <v-col cols="6">
+              <v-text-field
+                label="Tanggal Transaksi"
                 v-model="form.tanggal"
                 type="date"
-                variant="outlined"
+                :variant="isEditMode ? 'filled' : 'outlined'"
                 density="compact"
                 hide-details
-            /></v-col>
+                :readonly="isEditMode"
+                :class="{ 'field-readonly': isEditMode }"
+              />
+            </v-col>
             <v-col cols="6"
               ><v-text-field
                 label="Tgl Pengerjaan"

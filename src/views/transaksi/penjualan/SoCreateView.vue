@@ -1251,11 +1251,7 @@ const save = async () => {
   // --- 4. Cek Promo Aktif & Terapkan Otomatis ---
   const isManuallyRejected = lastSuggestedPromo.value === "MANUAL_AUTH";
 
-  if (isEditMode.value && header.value.nomorPromo) {
-    // [PERBAIKAN] Jika mode edit dan sudah ada promo bawaan,
-    // biarkan diskon tersebut seperti apa adanya.
-    // Jangan panggil API atau melepas promo secara otomatis.
-  } else if (!isManuallyRejected) {
+  if (!isManuallyRejected) {
     try {
       const promoResponse = await api.get("/invoice-form/lookup/active-promos", {
         params: { tanggal: header.value.tanggal, cabang: header.value.gudang.kode },
@@ -2821,7 +2817,11 @@ const checkRealtimePromoEligibility = async (): Promise<boolean> => {
     return false; // Berhenti total, jangan munculkan dialog
   }
 
-  if (isEditMode.value && header.value.nomorPromo) {
+  const autoPromoIds = ["PRO-2025-008", "PRO-2025-010", "PRO-2026-001", "PRO-2026-002"];
+  const isAutoPromo = autoPromoIds.includes(header.value.nomorPromo); // Pakai header.nomorPromo jika di Invoice
+
+  // Jika Mode Edit, dan ada promo TAPI bukan promo otomatis, baru kita kunci
+  if (isEditMode.value && header.value.nomorPromo && !isAutoPromo) {
     promoNotification.value = "";
     potentialPromoDiscount.value = 0;
     return true;

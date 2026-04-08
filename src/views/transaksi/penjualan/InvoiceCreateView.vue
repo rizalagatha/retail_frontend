@@ -2047,17 +2047,14 @@ const handleProceedToPayment = async () => {
 
       // --- Perhitungan Total Belanja Eligible (Dapat digunakan bersama) ---
       const totalEligibleValue = items.value.reduce((sum, item) => {
-        const isReguler = item.kategori === "REGULER";
-        const isDtf = !!item.noSoDtf;
-        const isCustomDtf = item.isCustomOrder || !!item.noSoDtf;
-
         const isStickerPromoToko =
           (String(item.barcode) === "25014783" || String(item.kode) === "2500053") &&
           String(item.ukuran).toUpperCase() === "A6" &&
           (item.harga === 0 || item.terhitungPromo || item.promo === "PRO-2026-001");
 
-        // Nilai DTF dan Reguler masuk perhitungan (kecuali barang promo stiker)
-        if ((isReguler || isDtf || isCustomDtf) && !isStickerPromoToko) {
+        // [REVISI] Gunakan fungsi isItemPromoEligible yang sudah kita perbaiki
+        // Sehingga otomatis membaca semua kategori (Reguler, Sesional, Pesanan, dll)
+        if (isItemPromoEligible(item) && !isStickerPromoToko) {
           return sum + (item.total || 0);
         }
         return sum;

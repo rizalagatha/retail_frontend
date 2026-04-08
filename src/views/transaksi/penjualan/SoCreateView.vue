@@ -1319,55 +1319,24 @@ const save = async () => {
         }
       }
 
-      // --- PENERAPAN PROMO HEADER OTOMATIS (DENGAN AUTO-SWAP) ---
+      // --- VALIDASI PROMO HEADER SAAT SIMPAN ---
       if (promoToApply) {
-        const autoPromoIds = ["PRO-2025-008", "PRO-2025-010", "PRO-2026-001", "PRO-2026-002"];
-
-        const isUserRejectedPromo =
-          lastSuggestedPromo.value === promoToApply.pro_nomor ||
-          lastSuggestedPromo.value === "MANUAL_AUTH";
-        const isUsingMemberDiscount =
-          footer.value.diskonPersen1 > 0 ||
-          footer.value.diskonPersen2 > 0 ||
-          !!footer.value.pinDiskon1;
-
-        // [KUNCI PERBAIKAN 1] Jika sedang Mode Edit dan sudah ada promo (meskipun itu promo lama/bulan lalu),
-        // HARAM HUKUMNYA untuk menimpa (auto-swap) dengan promo baru, KECUALI promo sebelumnya sudah dilepas.
-        const isProtectedEditMode = isEditMode.value && header.value.nomorPromo !== "";
-
-        if (!isUserRejectedPromo && !isUsingMemberDiscount && !isProtectedEditMode) {
-          // [KUNCI PERBAIKAN 2] Hanya izinkan swap jika kondisinya BENAR-BENAR bersih ATAU user sengaja membiarkan auto-promo bekerja saat bikin SO B aru
-          if (!header.value.nomorPromo || autoPromoIds.includes(header.value.nomorPromo)) {
-            footer.value.diskonPersen1 = 0;
-            footer.value.diskonPersen2 = 0;
-
-            footer.value.diskonRp = promoDiskon;
-            footer.value.diskonRpInput = promoDiskon;
-            header.value.nomorPromo = promoToApply.pro_nomor;
-            header.value.namaPromo = promoToApply.pro_judul;
-
-            if (promoToApply.pro_nomor !== "PRO-2026-001") {
-              const idx = items.value.findIndex(
-                (i) => String(i.kode) === "2500053" || String(i.barcode) === "25014783"
-              );
-              if (idx !== -1) items.value.splice(idx, 1);
-            }
-
-            calculateTotals();
-          }
-        }
-
-        // [KUNCI PERBAIKAN 3] Jika dalam mode edit, dan promonya adalah promo otomatis yang sama,
-        // Izinkan UPDATE NOMINAL SAJA tanpa mengganti nama promo. (Berlaku untuk Qty yang ditambah saat edit SO)
-        else if (isProtectedEditMode && header.value.nomorPromo === promoToApply.pro_nomor) {
-          footer.value.diskonRp = promoDiskon;
-          footer.value.diskonRpInput = promoDiskon;
-          calculateTotals();
+        // [PERBAIKAN KUNCI]
+        // Kita HAPUS logika "auto-overwrite" di sini.
+        // Jika promo terdeteksi masih eligible, biarkan state diskonRp apa adanya!
+        // Karena diskonRp mungkin sudah mengandung tambahan diskon Gmaps/IG dari user.
+        if (!header.value.nomorPromo) {
+          header.value.nomorPromo = promoToApply.pro_nomor;
+          header.value.namaPromo = promoToApply.pro_judul;
         }
       } else if (
         header.value.nomorPromo === "PRO-2026-001" ||
-        header.value.nomorPromo === "PRO-2026-002"
+        header.value.nomorPromo === "PRO-2026-002" ||
+        header.value.nomorPromo === "PRO-2025-010" ||
+        header.value.nomorPromo === "PRO-2025-008"
       ) {
+        // Jika ternyata qty dikurangi oleh user persis sebelum klik simpan
+        // dan syarat promo tidak terpenuhi lagi, baru diskonnya kita lucuti.
         footer.value.diskonRp = 0;
         footer.value.diskonRpInput = 0;
         header.value.nomorPromo = "";

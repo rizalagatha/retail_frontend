@@ -323,6 +323,8 @@ const pageTitle = computed(() =>
     ? "Ubah Surat Pesanan"
     : "Buat Surat Pesanan"
 );
+const isViewMode = computed(() => route.query.mode === "view");
+const isReadonly = computed(() => isViewMode.value || isSavingDisabled.value);
 const statusDpText = computed(() => {
   if (footer.value.totalDp >= footer.value.minimalDp || footer.value.pinTanpaDp) {
     return "DP Memenuhi Syarat/Ada Otorisasi";
@@ -452,6 +454,7 @@ const focusedRowId = ref<number | string>(-1);
 const isDiscountCostModalVisible = ref(false);
 const isDpListModalVisible = ref(false);
 const totalDiscountable = ref(0);
+const baseManualDiscountRp = ref(0);
 const dialogs = reactive({
   jenisOrder: false,
   promoSearch: false, // [BARU]
@@ -692,6 +695,24 @@ const loadDataForEdit = async (nomor: string, silent = false) => {
     dpItems.value = dpItemsData;
     existingDpNomor.value = dpItemsData.length > 0 ? dpItemsData[0].nomor : "";
 
+    // [BARU] EKSTRAK DISKON MURNI DARI DATABASE SAAT EDIT
+    const tempTotalDisc = items.value.reduce(
+      (sum, item) => (isDiscountableItem(item) ? sum + item.total : sum),
+      0
+    );
+    const p2Db = Number(footerData.diskonPersen2) || 0;
+    const dbCombined = Number(footerData.diskonRp) || 0;
+
+    if (p2Db > 0 && p2Db < 100 && dbCombined > 0) {
+      // Reverse rumus untuk misahin Maps dari database
+      baseManualDiscountRp.value = Math.max(
+        0,
+        Math.round((dbCombined - (p2Db / 100) * tempTotalDisc) / (1 - p2Db / 100))
+      );
+    } else {
+      baseManualDiscountRp.value = dbCombined;
+    }
+
     // ===== EDIT PERMISSION CHECK =====
     if (!headerData.canEdit) {
       isSavingDisabled.value = true;
@@ -720,6 +741,18 @@ const loadDataForEdit = async (nomor: string, silent = false) => {
     } catch (calcError) {
       const err = calcError as Error;
       throw new Error(`calculateTotals failed: ${err.message}`);
+    }
+
+    // [PERBAIKAN] Kunci popup promo otomatis saat Load Edit!
+    // Jika dari database sudah ada promo atau diskon manual, langsung set flag "sudah ditanya"
+    if (headerData.nomorPromo || headerData.so_pro_nomor) {
+      lastSuggestedPromo.value = headerData.nomorPromo || headerData.so_pro_nomor;
+    } else if (
+      footerData.diskonRp > 0 ||
+      footerData.diskonPersen1 > 0 ||
+      footerData.diskonPersen2 > 0
+    ) {
+      lastSuggestedPromo.value = "MANUAL_AUTH";
     }
 
     if (!silent) {
@@ -826,10 +859,9 @@ const calculateTotals = async () => {
   // [PENTING] 1. Cek kelayakan promo (hanya jika TIDAK ada otorisasi member manual)
   const hasMemberAuth = !!(footer.value.pinDiskon1 || footer.value.pinDiskon2);
   const isManuallyRejected = lastSuggestedPromo.value === "MANUAL_AUTH";
-  let isPromoApplied = false;
 
   if (!hasMemberAuth && !isManuallyRejected) {
-    isPromoApplied = await checkRealtimePromoEligibility();
+    await checkRealtimePromoEligibility();
   } else if (hasMemberAuth) {
     // Jika ada otorisasi member, paksa hapus identitas promo agar tidak tersimpan ke DB
     header.value.nomorPromo = "";
@@ -838,57 +870,47 @@ const calculateTotals = async () => {
   }
 
   // ========================================================================
-  // [KUNCI PERBAIKAN] 2. Penentuan Jalur Diskon & Proteksi Penawaran
+  // [KUNCI PERBAIKAN] 2. Penentuan Jalur Diskon (SOP Baru)
   // ========================================================================
   let baseNominalDiscount = 0;
-  const isFromOffer = !!header.value.penawaran; // Sekarang variabel ini KITA GUNAKAN
 
-  if (isPromoApplied && header.value.nomorPromo && !isManuallyRejected) {
-    // JALUR PROMO
-    baseNominalDiscount = footer.value.diskonRp;
-    footer.value.diskonPersen1 = 0;
-  } else if (isFromOffer || (footer.value.diskonRp > 0 && footer.value.diskonPersen1 === 0)) {
-    // JALUR PENAWARAN atau DISKON MANUAL Rp (Hasil Load Edit)
-    // Jika ditarik dari Penawaran, 'isFromOffer' akan bernilai TRUE, sehingga masuk ke sini.
-    // Jika sedang Edit data lama (seperti kasus 40rb tadi), bagian kanan (diskonRp > 0) akan bernilai TRUE.
-    if (isFromOffer && footer.value.diskonRp === 0 && footer.value.diskonPersen1 > 0) {
-      const diskonP1 = Number(footer.value.diskonPersen1) || 0;
-      baseNominalDiscount = (diskonP1 / 100) * newTotalDiscountable;
-    } else {
-      // Jika user ngeklik "Tetap Diskon Member", header.nomorPromo kosong, diskonRp harusnya 0
-      // jadi kita pastikan dia menghitung pakai persen.
-      if (isManuallyRejected && footer.value.diskonPersen1 > 0) {
-        baseNominalDiscount = (footer.value.diskonPersen1 / 100) * newTotalDiscountable;
-      } else {
-        baseNominalDiscount = footer.value.diskonRp;
-      }
-    }
-  } else {
-    // JALUR MEMBER STANDAR (Kalkulasi otomatis dari % ke Rp)
-    const diskonP1 = Number(footer.value.diskonPersen1) || 0;
+  // Tentukan Base Discount (Diskon Dasar: P1 atau Rupiah Manual/Promo)
+  const diskonP1 = Number(footer.value.diskonPersen1) || 0;
+
+  if (diskonP1 > 0) {
+    // Jika ada Diskon Member (P1), gunakan P1 sebagai dasar
     baseNominalDiscount = (diskonP1 / 100) * newTotalDiscountable;
+  } else {
+    // Jika P1 = 0, berarti diskon berasal dari Promo Bulanan atau Input Manual Rp
+    baseNominalDiscount = baseManualDiscountRp.value;
   }
-  // HITUNG DISKON 2 (MAPS) SECARA AKUMULATIF
+
+  // JANGAN PERNAH menimpa baseNominalDiscount dengan rumus aneh lagi!
+  // Langsung masuk ke hitungan Maps!
+
+  // ---------------------------------------------------------
+  // HITUNG DISKON 2 (MAPS) SECARA AKUMULATIF DARI SISA TAGIHAN
+  // ---------------------------------------------------------
   const diskonP2 = Number(footer.value.diskonPersen2) || 0;
-  const remainingAfterBase = newTotalDiscountable - baseNominalDiscount;
+  const remainingAfterBase = Math.max(0, newTotalDiscountable - baseNominalDiscount);
   const mapsDiscountRp = (diskonP2 / 100) * remainingAfterBase;
 
-  // Set nilai akhir (Basis Penawaran/Promo/Member + MAPS)
+  // SEKARANG BARU KITA GABUNGKAN KE FOOTER UNTUK TAMPILAN DI LAYAR & DATABASE!
   footer.value.diskonRp = Math.round(baseNominalDiscount + mapsDiscountRp);
 
   // Hitung Total DP yang sudah masuk
   const totalDp = dpItems.value.reduce((sum, dp) => sum + (dp.nominal || 0), 0);
   footer.value.totalDp = totalDp;
 
-  // Hitung Netto
-  const netto = totalSoBruto - footer.value.diskonRp;
+  // Hitung Netto (Total Kotor - Total SEMUA Diskon Faktur)
+  const netto = Math.max(0, totalSoBruto - footer.value.diskonRp);
   footer.value.netto = netto;
 
-  // Hitung PPN
+  // [PERBAIKAN] Deklarasikan dan hitung ppnRp dulu sebelum dipakai!
   const ppnRp = (header.value.ppnPersen / 100) * netto;
   footer.value.ppnRp = ppnRp;
 
-  // Hitung Grand Total
+  // Hitung Grand Total (sekarang ppnRp sudah terdefinisi)
   const grandTotal = netto + ppnRp + (footer.value.biayaKirim || 0);
   footer.value.grandTotal = grandTotal;
 
@@ -1236,7 +1258,6 @@ const save = async () => {
   }
 
   // --- 2. Injeksi Bonus Sticker (PROMO MARET) ---
-  // Eksekusi penambahan fisik sticker sebelum menghitung kelayakan promo diskon rupiah
   if (header.value.nomorPromo === "PRO-2026-001" && !isStickerBonusRejected.value) {
     await applyMarchBonusSticker(true);
     calculateTotals();
@@ -1265,35 +1286,15 @@ const save = async () => {
       const promo010 = activePromos.find((p) => p.pro_nomor === "PRO-2025-010");
 
       let promoToApply: ActivePromo | null = null;
-      let promoDiskon = 0;
+      let promoDiskon = 0; // [WAJIB ADA]
 
-      const isExcludedItem = (item: SoItem) => {
-        const namaUp = item.nama?.toUpperCase() || "";
-        const kodeUp = item.kode?.toUpperCase() || "";
-        const isJasaOrDesign =
-          item.isJasa ||
-          kodeUp.startsWith("JS") ||
-          kodeUp.startsWith("JASA") ||
-          namaUp.includes("JASA") ||
-          namaUp.includes("DESAIN") ||
-          namaUp.includes("FILE");
-        const isCustomOrDtf = item.isCustomOrder || !!item.noSoDtf || !!item.noPengajuanHarga;
-        return isJasaOrDesign || isCustomOrDtf;
-      };
+      const isStickerGeneric = (item: SoItem) =>
+        String(item.barcode) === "25014783" || String(item.kode) === "2500053";
 
-      const totalBelanjaDec = validItems.reduce((sum, item) => {
-        if (!isExcludedItem(item)) return sum + (item.total || 0);
-        return sum;
+      // [PERBAIKAN KUNCI 1] Hitung Total Eligible yang benar!
+      const totalEligibleValue = validItems.reduce((sum, item) => {
+        return isItemPromoEligible(item) && !isStickerGeneric(item) ? sum + (item.total || 0) : sum;
       }, 0);
-
-      const totalRegulerDec = validItems.reduce((sum, item) => {
-        if (!item.nama?.toUpperCase().includes("JERSEY") && !isExcludedItem(item)) {
-          return sum + (item.total || 0);
-        }
-        return sum;
-      }, 0);
-
-      const totalEligibleValue = totalRegulerDec;
 
       // --- PRIORITAS 1: PROMO APRIL ---
       if (promoApril && totalEligibleValue >= 250000) {
@@ -1309,6 +1310,22 @@ const save = async () => {
       }
       // --- PRIORITAS 3: PROMO LAMA ---
       else if (!promoToApply) {
+        const totalRegulerDec = validItems.reduce((sum, item) => {
+          if (
+            item.kategori === "REGULER" &&
+            !item.nama?.toUpperCase().includes("JERSEY") &&
+            !item.noSoDtf
+          ) {
+            return sum + (item.total || 0);
+          }
+          return sum;
+        }, 0);
+
+        const totalBelanjaDec = validItems.reduce((sum, item) => {
+          if (!item.noSoDtf && !item.noPengajuanHarga) return sum + (item.total || 0);
+          return sum;
+        }, 0);
+
         if (promo010 && totalRegulerDec >= 250000) {
           const kelipatan = Math.floor(totalRegulerDec / 250000);
           promoDiskon = 25000 * kelipatan;
@@ -1321,31 +1338,58 @@ const save = async () => {
 
       // --- VALIDASI PROMO HEADER SAAT SIMPAN ---
       if (promoToApply) {
-        // [PERBAIKAN KUNCI]
-        // Kita HAPUS logika "auto-overwrite" di sini.
-        // Jika promo terdeteksi masih eligible, biarkan state diskonRp apa adanya!
-        // Karena diskonRp mungkin sudah mengandung tambahan diskon Gmaps/IG dari user.
-        if (!header.value.nomorPromo) {
-          header.value.nomorPromo = promoToApply.pro_nomor;
-          header.value.namaPromo = promoToApply.pro_judul;
+        const autoPromoIds = ["PRO-2025-008", "PRO-2025-010", "PRO-2026-001", "PRO-2026-002"];
+        const isUserRejectedPromo =
+          lastSuggestedPromo.value === promoToApply.pro_nomor ||
+          lastSuggestedPromo.value === "MANUAL_AUTH";
+        const isUsingMemberDiscount =
+          footer.value.diskonPersen1 > 0 ||
+          footer.value.diskonPersen2 > 0 ||
+          !!footer.value.pinDiskon1;
+
+        // [SAFETY NET] Jika SC kelupaan ngeklik popup atau buka Atur Diskon, pakaikan otomatis saat simpan!
+        if (!isUserRejectedPromo && !isUsingMemberDiscount) {
+          const hasAutoPromo = autoPromoIds.some((id) => header.value.nomorPromo.includes(id));
+          if (!header.value.nomorPromo || hasAutoPromo) {
+            // Tetap pertahankan ID Maps jika sebelumnya sudah ada
+            if (footer.value.diskonPersen2 === 5) {
+              header.value.nomorPromo = `${promoToApply.pro_nomor},PRO-2026-003`;
+              header.value.namaPromo = `${promoToApply.pro_judul} + MAPS 5%`;
+            } else {
+              header.value.nomorPromo = promoToApply.pro_nomor;
+              header.value.namaPromo = promoToApply.pro_judul;
+            }
+
+            // Tembak nominal rupiahnya ke penampung rahasia!
+            baseManualDiscountRp.value = promoDiskon;
+
+            // Wajib await agar total terhitung SEBELUM payload dikirim
+            await calculateTotals();
+          }
         }
       } else if (
-        header.value.nomorPromo === "PRO-2026-001" ||
-        header.value.nomorPromo === "PRO-2026-002" ||
-        header.value.nomorPromo === "PRO-2025-010" ||
-        header.value.nomorPromo === "PRO-2025-008"
+        header.value.nomorPromo.includes("PRO-2026-001") ||
+        header.value.nomorPromo.includes("PRO-2026-002") ||
+        header.value.nomorPromo.includes("PRO-2025-010") ||
+        header.value.nomorPromo.includes("PRO-2025-008")
       ) {
-        // Jika ternyata qty dikurangi oleh user persis sebelum klik simpan
-        // dan syarat promo tidak terpenuhi lagi, baru diskonnya kita lucuti.
-        footer.value.diskonRp = 0;
-        footer.value.diskonRpInput = 0;
-        header.value.nomorPromo = "";
-        header.value.namaPromo = "";
-        calculateTotals();
+        // Jika qty dikurangi sebelum simpan dan syarat tidak terpenuhi
+        baseManualDiscountRp.value = 0; // Nol-kan penampung rahasia
+
+        // Bersihkan string promo bulanan, biarkan Maps jika ada
+        if (header.value.nomorPromo.includes("PRO-2026-003")) {
+          header.value.nomorPromo = "PRO-2026-003";
+          header.value.namaPromo = "PROMO GOOGLE MAPS REVIEW 5%";
+        } else {
+          header.value.nomorPromo = "";
+          header.value.namaPromo = "";
+        }
+
+        await calculateTotals();
         toast.warning("Syarat minimal belanja promo tidak terpenuhi. Promo dilepas.");
       }
     } catch (error) {
-      console.error("Gagal mengecek promo otomatis:", error);
+      console.error("Gagal mengecek promo otomatis saat save:", error);
     }
   }
 
@@ -1770,8 +1814,11 @@ const onPenawaranSelected = async (penawaran: { nomor: string }) => {
 
     // 6. Isi State Footer (Diskon & Biaya Kirim)
     footer.value.biayaKirim = Number(penHeader.pen_bkrm) || 0;
-    footer.value.diskonRp =
-      Number(penHeader.pen_diskon ?? penHeader.pen_disc_rp ?? penHeader.pen_disc) || 0;
+
+    // [PERBAIKAN KUNCI] Baca nilai murni yang diekstrak backend, lalu simpan ke penampung rahasia!
+    footer.value.diskonRp = Number(penHeader.pen_diskon_murni || penHeader.pen_disc) || 0;
+    baseManualDiscountRp.value = footer.value.diskonRp;
+
     footer.value.diskonPersen1 = Number(penHeader.pen_disc1) || 0;
     footer.value.diskonPersen2 = Number(penHeader.pen_disc2) || 0;
 
@@ -2083,7 +2130,7 @@ const applyDefaultDiscount = async () => {
     return;
   }
 
-  if (footer.value.diskonRp > 0 && (footer.value.diskonPersen1 === 0 || !footer.value.pinDiskon1)) {
+  if (baseManualDiscountRp.value > 0) {
     return;
   }
 
@@ -2205,35 +2252,65 @@ const requestAuthorization = (
   authDialog.show = true;
 };
 
-// Fungsi untuk menangani update dari Modal Diskon/Biaya
 const handleDiscountCostUpdate = (newData: typeof footer.value & { authNomor?: string }) => {
-  // 1. Terapkan perubahan ke state footer
+  // 2. Terapkan perubahan ke state footer
   footer.value.diskonPersen1 = newData.diskonPersen1;
   footer.value.diskonPersen2 = newData.diskonPersen2; // Simpan nilai MAPS 5%
   footer.value.biayaKirim = newData.biayaKirim;
 
-  // KUNCI: Ambil nilai diskonRp hasil kalkulasi gabungan dari modal
-  // Modal sudah menghitung: (Nominal Dasar + Persen 1 + Persen 2)
-  if (newData.diskonRp > 0) {
-    footer.value.diskonRp = newData.diskonRp;
-  }
+  // [PERBAIKAN] Simpan nilai lama dulu sebelum ditimpa
+  const oldDiskonRp = baseManualDiscountRp.value;
 
-  // 2. Logika Pemutusan Jalur Promo
-  // Hanya hapus identitas promo jika terjadi otorisasi manual pada Diskon 1 (Member Utama)
-  if (newData.pinDiskon1 || (newData.diskonPersen1 > 0 && !header.value.nomorPromo)) {
+  baseManualDiscountRp.value = newData.diskonRp || 0;
+
+  // Cek apakah user BENAR-BENAR merubah nilai secara manual
+  const isP1Changed =
+    newData.diskonPersen1 > 0 &&
+    !header.value.nomorPromo.includes(newData.diskonPersen1.toString());
+  const isRpChanged = baseManualDiscountRp.value !== oldDiskonRp; // Cek perubahan rupiah
+
+  // [KUNCI PERBAIKAN]:
+  // JIKA ADA PERUBAHAN MANUAL PADA DISKON DASAR ATAU PIN, BARU KITA KUNCI DAN HAPUS PROMO!
+  if (
+    newData.pinDiskon1 ||
+    (isP1Changed && !newData.diskonPersen2) ||
+    (isRpChanged && !header.value.nomorPromo)
+  ) {
+    lastSuggestedPromo.value = "MANUAL_AUTH"; // <--- PINDAHKAN KUNCI KE SINI
     header.value.nomorPromo = "";
     header.value.namaPromo = "";
-    lastSuggestedPromo.value = "MANUAL_AUTH"; // Kunci agar tidak tawarkan promo otomatis lagi
   }
 
-  // 3. Simpan PIN & Nomor Otorisasi
+  // 4. LOGIKA PENGGABUNGAN ID PROMO MAPS
+  if (newData.diskonPersen2 === 5) {
+    if (
+      header.value.nomorPromo &&
+      header.value.nomorPromo !== "PRO-2026-003" &&
+      !header.value.nomorPromo.includes("PRO-2026-003")
+    ) {
+      header.value.nomorPromo = `${header.value.nomorPromo},PRO-2026-003`;
+      header.value.namaPromo = `${header.value.namaPromo} + MAPS 5%`;
+    } else if (!header.value.nomorPromo) {
+      header.value.nomorPromo = "PRO-2026-003";
+      header.value.namaPromo = "PROMO GOOGLE MAPS REVIEW 5%";
+    }
+  } else {
+    // Bersihkan ID Maps jika di-uncheck
+    if (header.value.nomorPromo.includes("PRO-2026-003")) {
+      header.value.nomorPromo = header.value.nomorPromo
+        .replace(/,PRO-2026-003|PRO-2026-003,/g, "")
+        .replace("PRO-2026-003", "");
+      header.value.namaPromo = header.value.namaPromo
+        .replace(" + MAPS 5%", "")
+        .replace("PROMO GOOGLE MAPS REVIEW 5%", "");
+    }
+  }
+
   if (newData.pinDiskon1) footer.value.pinDiskon1 = newData.pinDiskon1;
   if (newData.pinDiskon2) footer.value.pinDiskon2 = newData.pinDiskon2;
   if (newData.authNomor) header.value.nomorAuth = newData.authNomor;
 
-  // 4. Hitung ulang Grand Total secara menyeluruh
   calculateTotals();
-
   toast.success("Diskon dan biaya berhasil diperbarui.");
 };
 
@@ -2803,16 +2880,20 @@ const handleBonusSelection = (bonusItem: BonusItemSelection) => {
 
 // [BARU] Cek Kelayakan Promo Real-time (Untuk Notifikasi)
 const checkRealtimePromoEligibility = async (): Promise<boolean> => {
+  // [PERBAIKAN KUNCI 1]: Tambahkan pengecekan header.value.nomorPromo
+  // Jika promo Maps sudah nempel (ada string 'PRO-2026-003'), berarti user sudah masuk ke Modal.
+  // Jangan biarkan fungsi ini jalan lagi dan merusak hitungan!
   if (
     header.value.penawaran ||
     authStore.user?.cabang === "KDC" ||
-    footer.value.pinDiskon1 || // <-- PIN Diskon 1
-    footer.value.pinDiskon2 || // <-- PIN Diskon 2
-    lastSuggestedPromo.value === "MANUAL_AUTH"
+    footer.value.pinDiskon1 ||
+    footer.value.pinDiskon2 ||
+    lastSuggestedPromo.value === "MANUAL_AUTH" ||
+    (header.value.nomorPromo && header.value.nomorPromo.includes("PRO-2026-003")) // <--- TAMBAH INI!
   ) {
     promoNotification.value = "";
     potentialPromoDiscount.value = 0;
-    return false; // Berhenti total, jangan munculkan dialog
+    return false; // Berhenti total!
   }
 
   const autoPromoIds = ["PRO-2025-008", "PRO-2025-010", "PRO-2026-001", "PRO-2026-002"];
@@ -2935,11 +3016,15 @@ const checkRealtimePromoEligibility = async (): Promise<boolean> => {
     promoNotification.value = message;
     potentialPromoDiscount.value = currentCalculatedDiscount;
 
-    // Masukkan PRO-2026-002 ke dalam daftar auto-apply
+    // [PERBAIKAN KUNCI 1]: Gunakan .some() dan .includes() agar tidak terhalang Maps
     const autoPromoIds = ["PRO-2025-008", "PRO-2025-010", "PRO-2026-001", "PRO-2026-002"];
-    if (header.value.nomorPromo && autoPromoIds.includes(header.value.nomorPromo)) {
-      if (promoCandidate && header.value.nomorPromo === promoCandidate.pro_nomor) {
-        footer.value.diskonRp = currentCalculatedDiscount;
+    const hasAutoPromo = autoPromoIds.some((id) => header.value.nomorPromo.includes(id));
+
+    if (header.value.nomorPromo && hasAutoPromo) {
+      if (promoCandidate && header.value.nomorPromo.includes(promoCandidate.pro_nomor)) {
+        // [PERBAIKAN KUNCI 2]: Tembak ke baseManualDiscountRp.value, JANGAN footer.diskonRp!
+        baseManualDiscountRp.value = currentCalculatedDiscount;
+
         // Terapkan stiker HANYA JIKA promo yang aktif adalah Promo Maret
         if (promoCandidate.pro_nomor === "PRO-2026-001" && !isStickerBonusRejected.value) {
           applyMarchBonusSticker(false);
@@ -2957,34 +3042,67 @@ const checkRealtimePromoEligibility = async (): Promise<boolean> => {
       pendingPromoData.nomor = promoCandidate.pro_nomor;
       pendingPromoData.nama = promoCandidate.pro_judul;
       pendingPromoData.diskon = currentCalculatedDiscount;
+
+      // [HIDUPKAN KEMBALI BARIS INI]
+      // Ini yang bertugas memunculkan popup saat batas promo tercapai pertama kali!
       isPromoConfirmVisible.value = true;
+    }
+  } else {
+    // =====================================================================
+    // [PERBAIKAN TC 1.4]: JIKA SYARAT PROMO HANGUS KARENA QTY DIKURANGI
+    // =====================================================================
+    const autoPromoIds = ["PRO-2025-008", "PRO-2025-010", "PRO-2026-001", "PRO-2026-002"];
+    const hasAutoPromo = autoPromoIds.some((id) => header.value.nomorPromo.includes(id));
+
+    // Jika sebelumnya ada promo bulanan yang nempel, copot paksa!
+    if (header.value.nomorPromo && hasAutoPromo) {
+      baseManualDiscountRp.value = 0; // Hapus nominal rupiahnnya
+
+      // Bersihkan string promo bulanan, biarkan Maps jika ada
+      if (header.value.nomorPromo.includes("PRO-2026-003")) {
+        header.value.nomorPromo = "PRO-2026-003";
+        header.value.namaPromo = "PROMO GOOGLE MAPS REVIEW 5%";
+      } else {
+        header.value.nomorPromo = "";
+        header.value.namaPromo = "";
+      }
+
+      toast.warning("Syarat minimal belanja promo tidak terpenuhi. Promo dilepas.");
     }
   }
 
+  // [PERBAIKAN KUNCI 3]: Fallback juga harus pastikan menembak ke baseManualDiscountRp
   if (
     header.value.nomorPromo &&
     promoCandidate &&
-    header.value.nomorPromo === promoCandidate.pro_nomor
+    header.value.nomorPromo.includes(promoCandidate.pro_nomor)
   ) {
-    footer.value.diskonRp = currentCalculatedDiscount;
+    baseManualDiscountRp.value = currentCalculatedDiscount;
     return true;
   }
 
   return false;
 };
 
-const usePromoDiscount = async () => {
-  header.value.nomorPromo = pendingPromoData.nomor;
-  header.value.namaPromo = pendingPromoData.nama;
-  footer.value.diskonRp = pendingPromoData.diskon;
+const applyPromoDiscount = async () => {
+  // [PERBAIKAN] Gabungkan ID Promo jika Maps 5% sedang aktif
+  if (footer.value.diskonPersen2 === 5) {
+    header.value.nomorPromo = `${pendingPromoData.nomor},PRO-2026-003`;
+    header.value.namaPromo = `${pendingPromoData.nama} + MAPS 5%`;
+  } else {
+    header.value.nomorPromo = pendingPromoData.nomor;
+    header.value.namaPromo = pendingPromoData.nama;
+  }
 
+  baseManualDiscountRp.value = pendingPromoData.diskon;
   footer.value.diskonPersen1 = 0;
-  footer.value.diskonPersen2 = 0;
+  // footer.value.diskonPersen2 = 0; // <--- HAPUS INI! Biarkan Maps tetap hidup
 
   isPromoConfirmVisible.value = false;
-  isStickerBonusRejected.value = false; // Buka status blokir
+  isStickerBonusRejected.value = false;
+  lastSuggestedPromo.value = "";
 
-  if (header.value.nomorPromo === "PRO-2026-001") {
+  if (pendingPromoData.nomor === "PRO-2026-001") {
     await applyMarchBonusSticker(true);
   }
 
@@ -2993,18 +3111,22 @@ const usePromoDiscount = async () => {
 };
 
 const useMemberDiscount = () => {
-  // [FIX] Kunci kuat-kuat agar promo tidak ditawarkan lagi
-  lastSuggestedPromo.value = "MANUAL_AUTH"; // <--- KUNCI UTAMA
+  lastSuggestedPromo.value = "MANUAL_AUTH";
 
-  // Bersihkan data promo dari header
-  header.value.nomorPromo = "";
-  header.value.namaPromo = "";
-  footer.value.diskonRp = 0;
+  // [PERBAIKAN] Bersihkan data promo bulanan, TAPI biarkan Maps jika ada
+  if (footer.value.diskonPersen2 === 5) {
+    header.value.nomorPromo = "PRO-2026-003";
+    header.value.namaPromo = "PROMO GOOGLE MAPS REVIEW 5%";
+  } else {
+    header.value.nomorPromo = "";
+    header.value.namaPromo = "";
+  }
+  baseManualDiscountRp.value = 0;
 
   isPromoConfirmVisible.value = false;
   isStickerBonusRejected.value = true;
 
-  // Hapus HANYA stiker promo A6 yang 0 Rupiah
+  // Hapus HANYA stiker promo A6
   const existingIdx = items.value.findIndex(
     (i) =>
       (String(i.barcode) === "25014783" || String(i.kode) === "2500053") &&
@@ -3016,12 +3138,36 @@ const useMemberDiscount = () => {
     items.value.splice(existingIdx, 1);
   }
 
-  // Terapkan ulang diskon member
   applyDefaultDiscount().then(() => {
     calculateTotals();
   });
 
   toast.info("Promo dilepas, kembali ke diskon member.");
+};
+
+// [BARU] Fungsi untuk menutup dialog tanpa merubah diskon apa pun
+const closePromoDialog = () => {
+  isPromoConfirmVisible.value = false;
+
+  // Kunci agar popup tidak muncul terus-menerus untuk promo yang sama
+  // setiap kali user mengetik sesuatu, TANPA menyentuh data diskon.
+  lastSuggestedPromo.value = pendingPromoData.nomor;
+};
+
+const handleOpenDiscountModal = () => {
+  if (isReadonly.value) return;
+
+  // Jika Maps atau Promo Bulanan sudah aktif, LANGSUNG BUKA MODAL tanpa nanya lagi!
+  if (header.value.nomorPromo || footer.value.diskonPersen2 > 0) {
+    isDiscountCostModalVisible.value = true;
+    return;
+  }
+
+  if (potentialPromoDiscount.value > 0 && lastSuggestedPromo.value !== "MANUAL_AUTH") {
+    isPromoConfirmVisible.value = true;
+  } else {
+    isDiscountCostModalVisible.value = true;
+  }
 };
 
 // [BARU] Handler untuk menambah DP dari pencarian di DpListModal
@@ -4021,7 +4167,7 @@ const stopAndOpenPriceProposal = (index: number) => {
                       variant="outlined"
                       block
                       prepend-icon="mdi-sale"
-                      @click="isDiscountCostModalVisible = true"
+                      @click="handleOpenDiscountModal"
                     >
                       Atur Diskon & Biaya
                     </v-btn>
@@ -4176,7 +4322,7 @@ const stopAndOpenPriceProposal = (index: number) => {
     />
     <DiscountCostModal
       v-if="isDiscountCostModalVisible"
-      :footer-data="footer"
+      :footer-data="{ ...footer, diskonRp: baseManualDiscountRp }"
       :total-so="totalDiscountable"
       :customer="header.customer"
       :gudang-kode="header.gudang.kode"
@@ -4218,12 +4364,24 @@ const stopAndOpenPriceProposal = (index: number) => {
       namaDtf: header.namaDtf
     }" @saved="handleSaveSpk" /> -->
 
-    <v-dialog v-model="isPromoConfirmVisible" max-width="450px" persistent>
+    <v-dialog v-model="isPromoConfirmVisible" max-width="500px" persistent>
       <v-card class="rounded-lg">
-        <v-card-title class="bg-primary text-white text-h6 pa-4">
-          <v-icon start color="white">mdi-ticket-percent</v-icon>
-          Pilih Jenis Diskon
+        <v-card-title
+          class="bg-primary text-white text-h6 pa-4 d-flex justify-space-between align-center"
+        >
+          <div>
+            <v-icon start color="white">mdi-ticket-percent</v-icon>
+            Pilih Jenis Diskon
+          </div>
+          <v-btn
+            icon="mdi-close"
+            variant="text"
+            size="small"
+            color="white"
+            @click="closePromoDialog"
+          ></v-btn>
         </v-card-title>
+
         <v-card-text class="pa-5">
           <p class="mb-4">Sistem mendeteksi transaksi ini berhak mendapatkan promo:</p>
           <v-alert type="info" variant="tonal" border="start" density="compact" class="mb-4">
@@ -4236,12 +4394,14 @@ const stopAndOpenPriceProposal = (index: number) => {
           </p>
         </v-card-text>
         <v-divider></v-divider>
-        <v-card-actions class="pa-4">
+
+        <v-card-actions class="pa-4 flex-wrap ga-2">
+          <v-btn variant="text" color="grey-darken-2" @click="closePromoDialog">Abaikan</v-btn>
+          <v-spacer></v-spacer>
           <v-btn variant="outlined" color="primary" @click="useMemberDiscount">
             Tetap Diskon Member
           </v-btn>
-          <v-spacer></v-spacer>
-          <v-btn color="primary" variant="flat" @click="usePromoDiscount"> Gunakan Promo </v-btn>
+          <v-btn color="primary" variant="flat" @click="applyPromoDiscount"> Gunakan Promo </v-btn>
         </v-card-actions>
       </v-card>
     </v-dialog>

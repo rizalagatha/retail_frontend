@@ -732,6 +732,7 @@ const runAutoArrange = () => {
 
   const minX = MARGIN_CM; // Margin Kiri (2 cm)
   const maxX = rollWidth - MARGIN_CM; // Margin Kanan
+  const maxUsableWidth = maxX - minX; // Area bersih yang bisa di-print
   const step = 0.1; // Resolusi Peta (0.1 cm = 1 mm) presisi sangat tinggi
 
   // Buat array yang bertindak sebagai sensor kedalaman (Skyline)
@@ -755,7 +756,7 @@ const runAutoArrange = () => {
       const boxEndIdx = Math.min(endIdx, Math.round((bx + bw + padding) / step));
 
       for (let i = boxStartIdx; i <= boxEndIdx; i++) {
-        if (by + bh + padding > skyline[i]) {
+        if (i < skylineLength && by + bh + padding > skyline[i]) {
           skyline[i] = by + bh + padding;
         }
       }
@@ -767,8 +768,20 @@ const runAutoArrange = () => {
 
   newBoxes.forEach((box) => {
     maxId++;
-    const bw = box.w; // Lebar (plus padding)
-    const bh = box.h; // Tinggi (plus padding)
+    let bw = box.w; // Lebar (plus padding)
+    let bh = box.h; // Tinggi (plus padding)
+    let isRotated = false;
+
+    // --- [ANTI-CRASH] CEK OVERSIZE (GAMBAR LEBIH LEBAR DARI KERTAS) ---
+    if (bw > maxUsableWidth) {
+      // Cek apakah kalau diputar (dirotasi 90 derajat) dia bakal muat?
+      if (bh <= maxUsableWidth) {
+        // Balik ukurannya secara sistem
+        bw = box.h;
+        bh = box.w;
+        isRotated = true; // Tandai agar canvas tahu ini harus digambar terbalik
+      }
+    }
 
     let bestX = minX;
     let bestY = Infinity;
@@ -791,22 +804,33 @@ const runAutoArrange = () => {
       }
     }
 
+    // --- [SAFETY NET] ---
+    // Jika masih Infinity (artinya ukuran box super ekstrim, melebihi kertas
+    // meskipun sudah diputar). Cegah nilai Infinity masuk ke UI Canvas!
+    if (bestY === Infinity) {
+      bestX = minX;
+      bestY = Math.max(...skyline); // Taruh paksa di titik paling bawah
+      if (bestY === -Infinity || isNaN(bestY)) bestY = 0; // Antisipasi skyline kosong
+    }
+
     // Tanamkan kotak di posisi paling dalam (ter-Tetris)
     addedLayout.push({
       id: maxId,
       x: bestX,
       y: bestY,
-      w: box.w - padding, // Kembalikan tanpa ukuran padding
+      w: box.w - padding, // Selalu kembalikan ukuran asli TANPA padding
       h: box.h - padding,
       label: box.label,
-      isRotated: false,
+      isRotated: isRotated,
       imageObj: box.imageObj,
     });
 
-    // Update peta sensor skyline dengan ketinggian kotak yang baru menempati area tersebut
+    // Update peta sensor skyline dengan ketinggian kotak yang baru
     const placeStartIdx = Math.round(bestX / step);
     for (let w = 0; w < boxWidthSteps; w++) {
-      skyline[placeStartIdx + w] = bestY + bh;
+      if (placeStartIdx + w < skylineLength) {
+        skyline[placeStartIdx + w] = bestY + bh;
+      }
     }
   });
 

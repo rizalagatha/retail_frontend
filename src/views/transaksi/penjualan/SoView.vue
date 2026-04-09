@@ -492,6 +492,37 @@ const getRowTextColor = (item: SoHeader) => {
   }
 };
 
+const getDiscountSplit = (item: SoHeader) => {
+  const totalDisc = Number(item.Diskon) || 0;
+  if (totalDisc === 0) return { base: 0, maps: 0 };
+
+  const disc2 = Number(item.Disc2) || 0; // Diskon Maps
+  if (disc2 === 0) return { base: totalDisc, maps: 0 };
+
+  const nominal = Number(item.Nominal) || 0; // Grand Total
+  const bkrm = Number(item.Bkrm) || 0;
+  const ppn = Number(item.Ppn) || 0;
+
+  // Rumus Aljabar Reverse Engineering:
+  // 1. Cari Netto (Total Harga dikurangi Ongkir & PPN)
+  const netto = (nominal - bkrm) / (1 + ppn / 100);
+
+  // 2. Karena Maps dihitung SETELAH base diskon, nilai (Subtotal - Base) itu SAMA DENGAN (Netto + Maps)
+  // Berkat keajaiban matematika, kita bisa langsung cari nominal Maps hanya dari Netto!
+  let mapsDisc = netto / (100 / disc2 - 1);
+
+  mapsDisc = Math.round(mapsDisc);
+  let baseDisc = totalDisc - mapsDisc;
+
+  // Safeguard jika rounding lari sedikit
+  if (baseDisc < 0) {
+    baseDisc = 0;
+    mapsDisc = totalDisc;
+  }
+
+  return { base: baseDisc, maps: mapsDisc };
+};
+
 const printData = () => {
   if (!isSingleSelected.value) return;
   const item = selected.value[0];
@@ -991,10 +1022,72 @@ onBeforeRouteLeave((to, from, next) => {
                     : "-"
                 }}
               </template>
+
+              <template v-else-if="header.key === 'Diskon'">
+                <v-tooltip location="top" open-delay="200" content-class="bg-blue-grey-darken-4">
+                  <template #activator="{ props }">
+                    <span
+                      v-bind="props"
+                      :class="
+                        item.Diskon > 0
+                          ? 'cursor-pointer text-decoration-underline text-decoration-style-dashed'
+                          : ''
+                      "
+                    >
+                      {{ formatRupiah(Number(item.Diskon || 0)) }}
+                    </span>
+                  </template>
+
+                  <div class="text-caption pa-2" v-if="item.Diskon > 0" style="min-width: 200px">
+                    <div class="font-weight-black mb-2 text-yellow">RINCIAN KOMPONEN DISKON:</div>
+
+                    <div
+                      class="d-flex justify-space-between mb-1"
+                      v-if="item.Promo && item.Promo.replace(/,?PRO-2026-003,?/g, '') !== ''"
+                    >
+                      <span>🎫 {{ item.Promo.replace(/,?PRO-2026-003,?/g, "") }}</span>
+                      <span class="font-weight-bold text-green-accent-2 ms-3"
+                        >- {{ formatRupiah(getDiscountSplit(item).base) }}</span
+                      >
+                    </div>
+
+                    <div class="d-flex justify-space-between mb-1" v-if="item.Disc1 > 0">
+                      <span>👤 Member ({{ item.Disc1 }}%)</span>
+                      <span class="font-weight-bold text-green-accent-2 ms-3"
+                        >- {{ formatRupiah(getDiscountSplit(item).base) }}</span
+                      >
+                    </div>
+
+                    <div class="d-flex justify-space-between mb-1" v-if="item.Disc2 > 0">
+                      <span>📍 G-Maps ({{ item.Disc2 }}%)</span>
+                      <span class="font-weight-bold text-green-accent-2 ms-3"
+                        >- {{ formatRupiah(getDiscountSplit(item).maps) }}</span
+                      >
+                    </div>
+
+                    <div
+                      class="d-flex justify-space-between mb-1"
+                      v-if="!item.Promo && !item.Disc1 && !item.Disc2"
+                    >
+                      <span>📝 Manual / Otorisasi Khusus</span>
+                      <span class="font-weight-bold text-green-accent-2 ms-3"
+                        >- {{ formatRupiah(item.Diskon) }}</span
+                      >
+                    </div>
+
+                    <v-divider class="my-1 border-opacity-50"></v-divider>
+                    <div class="d-flex justify-space-between mt-1">
+                      <span class="font-weight-bold">Total Diskon</span>
+                      <span class="font-weight-black text-error"
+                        >- {{ formatRupiah(item.Diskon) }}</span
+                      >
+                    </div>
+                  </div>
+                </v-tooltip>
+              </template>
+
               <template
-                v-else-if="
-                  ['Nominal', 'Diskon', 'Dp', 'QtySO', 'QtyInv', 'Belum'].includes(header.key)
-                "
+                v-else-if="['Nominal', 'Dp', 'QtySO', 'QtyInv', 'Belum'].includes(header.key)"
               >
                 {{ formatRupiah(Number(item[header.key] || 0)) }}
               </template>

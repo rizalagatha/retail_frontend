@@ -14,7 +14,7 @@ const props = defineProps({
 
 const emit = defineEmits(["close", "save"]);
 
-// State Lokal untuk Input (Inisialisasi dari Props)
+// State Lokal untuk Input
 const inputDiskonRp = ref(0);
 const inputBiayaKirim = ref(props.biayaKirim || 0);
 const inputBiayaPlatform = ref(props.biayaPlatform || 0);
@@ -25,73 +25,64 @@ const formData = reactive({
   mode: props.mode,
 });
 
-// State Fokus untuk formatting display
-const focusState = reactive({
-  diskonRp: false,
-  biayaKirim: false,
-  biayaPlatform: false,
-});
+const focusState = reactive({ diskonRp: false, biayaKirim: false, biayaPlatform: false });
 
 // --- Inisialisasi Mutually Exclusive ---
-// Jika ada diskon persen 1 saat modal dibuka, pastikan input Rp nol (dan terkunci)
 if (props.diskonPersen1 > 0) {
   inputDiskonRp.value = 0;
 } else {
-  // Jika tidak ada diskon persen 1, cari tahu berapa nominal murni dari diskonRp
-  // (Mengembalikan nilai diskon manual tanpa campuran hitungan P2)
-  const p2 = props.diskonPersen2 || 0;
-  const total = props.subTotal || 0;
-  let manualAwal = 0;
-
-  if (p2 < 100) {
-    manualAwal = (props.diskonRp - (p2 / 100) * total) / (1 - p2 / 100);
-  }
-  inputDiskonRp.value = Math.max(0, Math.round(manualAwal));
+  // [PERBAIKAN] Langsung gunakan props.diskonRp karena nilainya sekarang sudah murni (tidak kecampur Maps lagi)
+  inputDiskonRp.value = props.diskonRp || 0;
 }
 
-// --- Helper Format Rupiah ---
 const formatRupiah = (v: number) => new Intl.NumberFormat("id-ID").format(v || 0);
 
-// --- Watchers Mutually Exclusive ---
-// Jika user ngetik Persen 1, reset Nominal Rp
 watch(
   () => formData.diskonPersen1,
   (newVal) => {
-    if (newVal > 0) {
-      inputDiskonRp.value = 0;
-    }
+    if (newVal > 0) inputDiskonRp.value = 0;
   }
 );
 
-// --- Computed: Total Diskon ---
-// Dihitung dengan rumus Tiering (Bertingkat) seperti di DiscountCostModal
-const totalDiskonDihitung = computed(() => {
-  const totalBruto = props.subTotal || 0;
-  const nominalManual = inputDiskonRp.value || 0;
-  const p1 = formData.diskonPersen1 || 0;
-  const p2 = formData.diskonPersen2 || 0;
-
-  let baseDiscount = 0;
-
-  // Aturan Tiering: Hanya pakai salah satu sebagai diskon dasar
-  if (p1 > 0) {
-    baseDiscount = (p1 / 100) * totalBruto;
-  } else {
-    baseDiscount = nominalManual;
-  }
-
-  // Diskon 2 (MAPS) selalu dari SISA
-  const remaining = totalBruto - baseDiscount;
-  const disc2 = (p2 / 100) * remaining;
-
-  return Math.round(baseDiscount + disc2);
+// --- [BARU] LOGIKA KELAYAKAN PROMO MAPS (SOP TERBARU) ---
+const isEligibleForMaps = computed(() => {
+  if (props.subTotal < 200000) return false; // Rule 1: Min 200rb
+  // Rule 2: Jika dapat diskon 10% (Distributor) dan total belanja >= 1 Juta, maka HANGUS
+  if (formData.diskonPersen1 >= 10 && props.subTotal >= 1000000) return false;
+  return true;
 });
+
+const mapsIneligibleReason = computed(() => {
+  if (props.subTotal < 200000) return "Minimal belanja Rp 200.000 untuk promo ini.";
+  if (formData.diskonPersen1 >= 10 && props.subTotal >= 1000000)
+    return "Distributor (Diskon ≥ 10%) tidak dapat digabung dengan promo ini.";
+  return "";
+});
+
+const toggleMapsPromo = () => {
+  formData.diskonPersen2 = formData.diskonPersen2 === 5 ? 0 : 5;
+};
+// --------------------------------------------------------
+
+// const totalDiskonDihitung = computed(() => {
+//   const totalBruto = props.subTotal || 0;
+//   const nominalManual = inputDiskonRp.value || 0;
+//   const p1 = formData.diskonPersen1 || 0;
+//   const p2 = formData.diskonPersen2 || 0;
+
+//   let baseDiscount = p1 > 0 ? (p1 / 100) * totalBruto : nominalManual;
+//   const remaining = totalBruto - baseDiscount;
+//   const disc2 = (p2 / 100) * remaining;
+
+//   return Math.round(baseDiscount + disc2);
+// });
 
 const save = () => {
   emit("save", {
     diskonPersen1: formData.diskonPersen1,
     diskonPersen2: formData.diskonPersen2,
-    diskonRp: totalDiskonDihitung.value, // Kirim Total Diskon Akhir ke Parent
+    // [KUNCI PERBAIKAN] Kirim nominal dasarnya saja, bukan totalnya!
+    diskonRp: inputDiskonRp.value,
     mode: formData.mode,
     biayaKirim: inputBiayaKirim.value,
     biayaPlatform: inputBiayaPlatform.value,
@@ -150,24 +141,46 @@ const save = () => {
 
         <v-divider class="my-4"></v-divider>
 
-        <div class="text-caption font-weight-bold text-primary mb-2">DISKON TAMBAHAN (TIER 2)</div>
+        <div class="text-caption font-weight-bold text-primary mb-2">
+          PROMO GOOGLE MAPS REVIEW (5%)
+        </div>
         <v-row dense>
-          <v-col cols="6">
-            <v-text-field
-              label="Disc % 2 (MAPS)"
-              v-model.number="formData.diskonPersen2"
-              variant="outlined"
-              hide-details="auto"
-              density="compact"
-              suffix="%"
-              class="mb-4"
-              :hint="`Total Potongan: Rp ${formatRupiah(totalDiskonDihitung)}`"
-              persistent-hint
-            />
+          <v-col cols="12">
+            <v-btn
+              :color="formData.diskonPersen2 === 5 ? 'success' : 'blue-grey-lighten-4'"
+              :variant="formData.diskonPersen2 === 5 ? 'flat' : 'outlined'"
+              :class="formData.diskonPersen2 === 5 ? 'text-white' : 'text-blue-grey-darken-2'"
+              block
+              class="mb-1 font-weight-bold"
+              :disabled="!isEligibleForMaps"
+              @click="toggleMapsPromo"
+            >
+              <v-icon start size="large">{{
+                formData.diskonPersen2 === 5 ? "mdi-check-decagram" : "mdi-google-maps"
+              }}</v-icon>
+              {{
+                formData.diskonPersen2 === 5
+                  ? "Promo Maps Review Diterapkan (5%)"
+                  : "Klaim Promo Review Maps (5%)"
+              }}
+            </v-btn>
+            <div v-if="!isEligibleForMaps" class="text-caption text-error font-italic mb-3 px-1">
+              * {{ mapsIneligibleReason }}
+            </div>
+            <div v-else class="text-caption text-medium-emphasis mb-3 px-1">
+              *
+              {{
+                formData.diskonPersen2 === 5
+                  ? `Total Potongan Review: Rp ${formatRupiah(
+                      (5 / 100) * (props.subTotal - (formData.diskonPersen1 / 100) * props.subTotal)
+                    )}`
+                  : "Klik untuk menerapkan diskon tambahan 5%"
+              }}
+            </div>
           </v-col>
         </v-row>
 
-        <v-divider class="my-4"></v-divider>
+        <v-divider class="my-2"></v-divider>
 
         <div class="text-caption font-weight-bold text-primary mb-2">BIAYA TAMBAHAN</div>
 

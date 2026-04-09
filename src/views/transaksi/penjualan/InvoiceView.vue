@@ -24,6 +24,10 @@ interface InvoiceHeader {
   Top?: number;
   Tempo?: string;
   LastPayment?: string;
+  "Dis%"?: number;
+  DiskonMapsPersen?: number;
+  DiskonMapsNominal?: number;
+  DiskonPromoNominal?: number; // [BARU]
   Diskon?: number;
   Dp?: number;
   Biayakirim?: number;
@@ -274,6 +278,20 @@ const totalDiskon = computed(() => {
   }, 0);
 });
 
+const totalDiskonMaps = computed(() => {
+  return masterData.value.reduce((acc, item) => {
+    const val = parseFloat(String(item.DiskonMapsNominal || 0));
+    return acc + (isNaN(val) ? 0 : val);
+  }, 0);
+});
+
+const totalDiskonPromo = computed(() => {
+  return masterData.value.reduce((acc, item) => {
+    const val = parseFloat(String(item.DiskonPromoNominal || 0));
+    return acc + (isNaN(val) ? 0 : val);
+  }, 0);
+});
+
 const totalDp = computed(() => {
   return masterData.value.reduce((acc, item) => {
     const val = parseFloat(String(item.Dp || 0));
@@ -370,7 +388,9 @@ const headers = computed<DataTableHeader[]>(() => {
     { title: "TOP", key: "Top", width: 70 },
     { title: "Jatuh Tempo", key: "Tempo", width: 120 },
     { title: "Last Payment", key: "LastPayment", width: 120 },
-    { title: "Diskon", key: "Diskon", width: 120 }
+    { title: "Diskon 1", key: "Dis%", width: 160 }, // [FIX] Ganti judulnya
+    { title: "Diskon 2", key: "DiskonMapsPersen", width: 150 },
+    { title: "Total Diskon (Rp)", key: "Diskon", width: 150 }
   );
   if (isEligibleBranch && hasMarketplaceData.value) {
     list.push({ title: "Biaya Platform", key: "BiayaPlatform", width: 120 });
@@ -1482,11 +1502,40 @@ onBeforeRouteLeave((to, from, next) => {
                 {{ safeFormatDate(item[header.key], "dd/MM/yyyy") }}
               </template>
 
+              <template v-else-if="header.key === 'Dis%'">
+                <div class="d-flex align-center">
+                  <v-chip
+                    v-if="Number(item['Dis%']) > 0"
+                    size="x-small"
+                    color="primary"
+                    variant="flat"
+                    class="font-weight-bold mr-2"
+                  >
+                    {{ item["Dis%"] }}%
+                  </v-chip>
+                  <span v-if="Number(item.DiskonPromoNominal) > 0" class="font-weight-medium">
+                    {{ formatRupiah(Number(item.DiskonPromoNominal)) }}
+                  </span>
+                  <span v-else-if="Number(item['Dis%']) === 0" class="text-grey-lighten-1">-</span>
+                </div>
+              </template>
+
+              <template v-else-if="header.key === 'DiskonMapsPersen'">
+                <div v-if="Number(item.DiskonMapsPersen) > 0" class="d-flex align-center">
+                  <v-chip size="x-small" color="info" variant="flat" class="font-weight-bold mr-2">
+                    {{ item.DiskonMapsPersen }}%
+                  </v-chip>
+                  <span class="font-weight-medium">{{
+                    formatRupiah(Number(item.DiskonMapsNominal))
+                  }}</span>
+                </div>
+                <span v-else class="text-grey-lighten-1">-</span>
+              </template>
+
               <template
                 v-else-if="
                   [
                     'BiayaPlatform',
-                    'Dis%',
                     'Diskon',
                     'Dp',
                     'Biayakirim',
@@ -1634,6 +1683,20 @@ onBeforeRouteLeave((to, from, next) => {
                     class="text-grey-darken-3 text-body-2 font-weight-black pl-2"
                   >
                     GRAND TOTAL :
+                  </span>
+
+                  <span
+                    v-else-if="header.key === 'Dis%'"
+                    class="text-primary-darken-2 text-body-2 font-weight-black"
+                  >
+                    {{ totalDiskonPromo > 0 ? formatRupiah(totalDiskonPromo) : "&nbsp;" }}
+                  </span>
+
+                  <span
+                    v-else-if="header.key === 'DiskonMapsPersen'"
+                    class="text-info-darken-2 text-body-2 font-weight-black"
+                  >
+                    {{ totalDiskonMaps > 0 ? formatRupiah(totalDiskonMaps) : "&nbsp;" }}
                   </span>
 
                   <span

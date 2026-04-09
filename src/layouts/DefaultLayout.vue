@@ -362,9 +362,12 @@ const calculateResult = () => {
 const capsLockOn = ref(false);
 const numLockOn = ref(false);
 
-const updateLockStatus = (event: KeyboardEvent) => {
-  capsLockOn.value = event.getModifierState("CapsLock");
-  numLockOn.value = event.getModifierState("NumLock");
+const updateLockStatus = (event: Event) => {
+  // Hanya jalankan pengecekan jika event memiliki fungsi getModifierState
+  if (typeof (event as KeyboardEvent).getModifierState === "function") {
+    capsLockOn.value = (event as KeyboardEvent).getModifierState("CapsLock");
+    numLockOn.value = (event as KeyboardEvent).getModifierState("NumLock");
+  }
 };
 
 const toggleTheme = () => {
@@ -457,11 +460,12 @@ onMounted(() => {
   setInterval(fetchNotifications, 60000);
 
   // Listener untuk Caps/Num Lock
-  window.addEventListener("keydown", updateLockStatus);
-  window.addEventListener("keyup", updateLockStatus);
+  window.addEventListener("keydown", updateLockStatus as EventListener);
+  window.addEventListener("keyup", updateLockStatus as EventListener);
+
+  // Listener klik untuk memastikan status terupdate walau dari klik mouse biasa
   window.addEventListener("click", (e) => {
-    // Trik untuk update status saat klik (jika event key terlewat)
-    if (e instanceof MouseEvent && e.getModifierState) {
+    if (e instanceof MouseEvent && typeof e.getModifierState === "function") {
       capsLockOn.value = e.getModifierState("CapsLock");
       numLockOn.value = e.getModifierState("NumLock");
     }

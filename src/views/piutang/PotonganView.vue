@@ -6,7 +6,7 @@ import { useAuthStore } from "@/stores/authStore";
 import api from "@/services/api";
 import { format, subDays, parseISO } from "date-fns";
 import PageLayout from "@/components/PageLayout.vue";
-import PrintOptionModal from "@/components/modal/PrintOptionModal.vue";
+// import PrintOptionModal from "@/components/modal/PrintOptionModal.vue";
 import * as XLSX from "xlsx";
 import AppDataTable from "@/components/AppDataTable.vue";
 import { formatRupiah } from "@/utils/formatRupiah";
@@ -91,7 +91,7 @@ const loadingDetails = ref(new Set<string>());
 const selected = ref<PotonganHeader[]>([]);
 const expanded = ref<string[]>([]);
 const cabangList = ref<CabangOption[]>([]);
-const isPrintOptionVisible = ref(false);
+// const isPrintOptionVisible = ref(false);
 
 const filters = reactive({
   startDate: format(subDays(new Date(), 7), "yyyy-MM-dd"),
@@ -240,24 +240,24 @@ const handleEdit = () => {
   router.push({ name: "PotonganEdit", params: { nomor } });
 };
 
-const handlePrintSelection = (type: "a4" | "kasir" | "wa") => {
-  if (!isSingleSelected.value || !selectedRow.value) return;
-  const nomor = selectedRow.value.Nomor;
-  isPrintOptionVisible.value = false;
+// const handlePrintSelection = (type: "a4" | "kasir" | "wa") => {
+//   if (!isSingleSelected.value || !selectedRow.value) return;
+//   const nomor = selectedRow.value.Nomor;
+//   isPrintOptionVisible.value = false;
 
-  if (type === "a4" || type === "kasir") {
-    const routeName = type === "a4" ? "PotonganPrintA4" : "PotonganPrintKasir";
-    const url = router.resolve({ name: routeName, params: { nomor } }).href;
-    window.open(url, "_blank");
-  } else if (type === "wa") {
-    toast.warning("Opsi kirim WA belum diimplementasikan atau tidak relevan untuk Potongan.");
-  }
-};
+//   if (type === "a4" || type === "kasir") {
+//     const routeName = type === "a4" ? "PotonganPrintA4" : "PotonganPrintKasir";
+//     const url = router.resolve({ name: routeName, params: { nomor } }).href;
+//     window.open(url, "_blank");
+//   } else if (type === "wa") {
+//     toast.warning("Opsi kirim WA belum diimplementasikan atau tidak relevan untuk Potongan.");
+//   }
+// };
 
-const openPrintOptions = () => {
-  if (!isSingleSelected.value) return;
-  isPrintOptionVisible.value = true;
-};
+// const openPrintOptions = () => {
+//   if (!isSingleSelected.value) return;
+//   isPrintOptionVisible.value = true;
+// };
 
 const formatDateIndo = (dateString: string | Date | null | undefined) => {
   if (!dateString) return "";
@@ -408,7 +408,7 @@ watch(filters, fetchMasterData, { deep: true });
         prepend-icon="mdi-pencil"
         >Ubah</v-btn
       >
-      <v-btn
+      <!-- <v-btn
         v-if="authStore.can(MENU_ID, 'view')"
         size="small"
         color="green"
@@ -417,7 +417,7 @@ watch(filters, fetchMasterData, { deep: true });
         @click="openPrintOptions"
       >
         Cetak
-      </v-btn>
+      </v-btn> -->
       <v-menu offset-y>
         <template v-slot:activator="{ props }">
           <v-btn
@@ -616,12 +616,12 @@ watch(filters, fetchMasterData, { deep: true });
       </div>
     </div>
 
-    <PrintOptionModal
+    <!-- <PrintOptionModal
       v-if="isPrintOptionVisible"
       :options="['a4', 'kasir']"
       @close="isPrintOptionVisible = false"
       @select="handlePrintSelection"
-    />
+    /> -->
   </PageLayout>
 </template>
 

@@ -105,56 +105,68 @@ watch(
   (newVal) => {
     localFooter.value = JSON.parse(JSON.stringify(newVal));
 
-    // [PERBAIKAN KUNCI 1]: Membedah nilai diskon awal
-    // Karena kita menerapkan aturan Mutually Exclusive (Pilih Persen 1 ATAU Rp),
-    // kita cukup membaca state yang dominan.
+    // [PERBAIKAN FINAL]: Tidak perlu lagi rumus aljabar rumit!
+    // Parent sekarang HANYA mengirimkan Nominal Diskon Murni ke modal ini.
     if (newVal.diskonPersen1 > 0) {
       diskonManualRp.value = 0;
       diskonRpInput.value = 0;
     } else {
-      // Jika Persen 1 adalah 0, maka seluruh potongan dasar berasal dari Diskon Rp
-      // Diskon 2 dihitung belakangan, jadi kita abaikan dulu dari sini
-
-      // Ambil total potongan diskon yang ada di prop
-      const totalPotongan = newVal.diskonRp || 0;
-      const p2 = Number(newVal.diskonPersen2) || 0;
-
-      // Reverse engineering dari: totalPotongan = manualAwal + (P2/100 * (Bruto - manualAwal))
-      let manualAwal = 0;
-      if (p2 < 100) {
-        manualAwal = (totalPotongan - (p2 / 100) * props.totalSo) / (1 - p2 / 100);
-      }
-
-      diskonManualRp.value = Math.max(0, Math.round(manualAwal));
+      diskonManualRp.value = newVal.diskonRp || 0;
+      diskonRpInput.value = newVal.diskonRp || 0;
     }
   },
   { immediate: true, deep: true }
 );
 
 // --- Computed Properties ---
+// --- [BARU] LOGIKA KELAYAKAN PROMO MAPS (SOP TERBARU) ---
+const isEligibleForMaps = computed(() => {
+  // Rule 1: Minimal belanja bruto 200rb
+  if (props.totalSo < 200000) return false;
+
+  // Rule 2: Evaluasi HANYA dari nilai diskon yang sedang AKTIF, bukan dari nama level.
+  const persentaseManual =
+    diskonManualRp.value > 0 ? (diskonManualRp.value / props.totalSo) * 100 : 0;
+  const persentaseAktif = Math.max(localFooter.value.diskonPersen1, persentaseManual);
+
+  // Kunci Maps HANYA JIKA diskon yang sedang dinikmati >= 10% DAN belanjanya >= 1 Juta
+  if (persentaseAktif >= 10 && props.totalSo >= 1000000) return false;
+
+  return true;
+});
+
+const mapsIneligibleReason = computed(() => {
+  if (props.totalSo < 200000) return "Minimal belanja Rp 200.000 untuk promo ini.";
+
+  const persentaseManual =
+    diskonManualRp.value > 0 ? (diskonManualRp.value / props.totalSo) * 100 : 0;
+  const persentaseAktif = Math.max(localFooter.value.diskonPersen1, persentaseManual);
+
+  if (persentaseAktif >= 10 && props.totalSo >= 1000000)
+    return "Diskon (≥ 10%) tidak dapat digabung dengan promo ini.";
+
+  return "";
+});
+
+const toggleMapsPromo = () => {
+  // Toggle antara 5% atau 0%
+  localFooter.value.diskonPersen2 = localFooter.value.diskonPersen2 === 5 ? 0 : 5;
+};
+// --------------------------------------------------------
+
 const diskonRp = computed(() => {
   const totalBruto = Number(props.totalSo) || 0;
-
-  // Ambil nilai masing-masing
   const nominalManual = Number(diskonManualRp.value) || 0;
   const p1 = Number(localFooter.value.diskonPersen1) || 0;
   const p2 = Number(localFooter.value.diskonPersen2) || 0;
 
-  let baseDiscount = 0;
+  // Diskon Dasar (Pilih salah satu)
+  const baseDiscount = p1 > 0 ? (p1 / 100) * totalBruto : nominalManual;
 
-  // [PERBAIKAN KUNCI 2]: ATURAN TIERING (Delphi Logic)
-  // Hanya pakai salah satu sebagai diskon dasar: Persen 1 ATAU Rupiah
-  if (p1 > 0) {
-    baseDiscount = (p1 / 100) * totalBruto;
-  } else {
-    baseDiscount = nominalManual;
-  }
-
-  // Diskon 2 (MAPS) selalu dihitung dari SISA setelah dipotong Diskon Dasar
+  // Diskon 2 (MAPS) dari SISA
   const remaining = totalBruto - baseDiscount;
   const disc2 = (p2 / 100) * remaining;
 
-  // Total Diskon Faktur
   return Math.round(baseDiscount + disc2);
 });
 
@@ -237,18 +249,12 @@ const handleDiscount1Change = async () => {
   const oldDiscount = previousState.value ? Number(previousState.value.diskonPersen1) : 0;
 
   if (!props.customer || !props.customer.level_kode) return;
-
-  // Jika nilainya tidak berubah sama sekali, jangan lakukan apa-apa
   if (enteredDiscount === oldDiscount) return;
 
-  // [PERBAIKAN KUNCI 3]: MUTUALLY EXCLUSIVE
-  // Jika Persen 1 diisi, paksa Diskon Rp Manual menjadi 0 agar tidak dobel.
-  if (enteredDiscount > 0) {
-    diskonManualRp.value = 0;
-  }
+  if (enteredDiscount > 0) diskonManualRp.value = 0;
 
   if (enteredDiscount === 0) {
-    localFooter.value.pinDiskon1 = undefined; // Bersihkan otorisasi jika jadi 0
+    localFooter.value.pinDiskon1 = undefined;
     return;
   }
 
@@ -319,64 +325,64 @@ const handleDiscount1Change = async () => {
 // 2. Diskon Persen 2
 // --- Di dalam DiscountCostModal.vue ---
 
-const handleDiscount2Change = () => {
-  if (isRestoring.value) return;
+// const handleDiscount2Change = () => {
+//   if (isRestoring.value) return;
 
-  const enteredDiscount2 = Number(localFooter.value.diskonPersen2) || 0;
-  const oldDiscount2 = previousState.value ? Number(previousState.value.diskonPersen2) : 0;
+//   const enteredDiscount2 = Number(localFooter.value.diskonPersen2) || 0;
+//   const oldDiscount2 = previousState.value ? Number(previousState.value.diskonPersen2) : 0;
 
-  // Jika nilainya tidak berubah sama sekali, abaikan
-  if (enteredDiscount2 === oldDiscount2) return;
+//   // Jika nilainya tidak berubah sama sekali, abaikan
+//   if (enteredDiscount2 === oldDiscount2) return;
 
-  const hasBaseDiscount =
-    Number(localFooter.value.diskonPersen1) > 0 || Number(diskonRpInput.value) > 0;
+//   const hasBaseDiscount =
+//     Number(localFooter.value.diskonPersen1) > 0 || Number(diskonRpInput.value) > 0;
 
-  if (!hasBaseDiscount && enteredDiscount2 > 0) {
-    toast.warning("Diskon Dasar (Member atau Promo) belum terisi.");
-    localFooter.value.diskonPersen2 = 0;
-    return;
-  }
+//   if (!hasBaseDiscount && enteredDiscount2 > 0) {
+//     toast.warning("Diskon Dasar (Member atau Promo) belum terisi.");
+//     localFooter.value.diskonPersen2 = 0;
+//     return;
+//   }
 
-  if (enteredDiscount2 > 0) {
-    backupCurrentState();
-    localFooter.value.pinDiskon2 = undefined; // Hapus PIN lama
-    pendingAuthCheck.value = true; // Kunci Form
+//   if (enteredDiscount2 > 0) {
+//     backupCurrentState();
+//     localFooter.value.pinDiskon2 = undefined; // Hapus PIN lama
+//     pendingAuthCheck.value = true; // Kunci Form
 
-    // Perhitungan Tiering untuk Nominal Otorisasi
-    let baseCut = 0;
-    if (localFooter.value.diskonPersen1 > 0) {
-      baseCut = (props.totalSo * localFooter.value.diskonPersen1) / 100;
-    } else {
-      baseCut = Number(diskonManualRp.value);
-    }
-    const afterBase = props.totalSo - baseCut;
-    const estimasiNominalMaps = (afterBase * enteredDiscount2) / 100;
-    const info = `Cust: ${
-      props.customer?.nama || ""
-    }\nPengajuan Diskon MAPS (2): ${enteredDiscount2}%`;
+//     // Perhitungan Tiering untuk Nominal Otorisasi
+//     let baseCut = 0;
+//     if (localFooter.value.diskonPersen1 > 0) {
+//       baseCut = (props.totalSo * localFooter.value.diskonPersen1) / 100;
+//     } else {
+//       baseCut = Number(diskonManualRp.value);
+//     }
+//     const afterBase = props.totalSo - baseCut;
+//     const estimasiNominalMaps = (afterBase * enteredDiscount2) / 100;
+//     const info = `Cust: ${
+//       props.customer?.nama || ""
+//     }\nPengajuan Diskon MAPS (2): ${enteredDiscount2}%`;
 
-    requestAuthorization(
-      "Otorisasi Diskon MAPS (Bertingkat)",
-      "DISKON_FAKTUR",
-      estimasiNominalMaps,
-      info,
-      (authResult) => {
-        localFooter.value.pinDiskon2 = authResult.approver;
-        if (authResult.authNomor) localFooter.value.authNomor = authResult.authNomor;
-        toast.success("Diskon MAPS disetujui.");
-        pendingAuthCheck.value = false;
-      },
-      async () => {
-        await restorePreviousState();
-        toast.info("Perubahan diskon dibatalkan.");
-        pendingAuthCheck.value = false;
-      }
-    );
-  } else {
-    // Jika dihapus jadi 0
-    localFooter.value.pinDiskon2 = undefined;
-  }
-};
+//     requestAuthorization(
+//       "Otorisasi Diskon MAPS (Bertingkat)",
+//       "DISKON_FAKTUR",
+//       estimasiNominalMaps,
+//       info,
+//       (authResult) => {
+//         localFooter.value.pinDiskon2 = authResult.approver;
+//         if (authResult.authNomor) localFooter.value.authNomor = authResult.authNomor;
+//         toast.success("Diskon MAPS disetujui.");
+//         pendingAuthCheck.value = false;
+//       },
+//       async () => {
+//         await restorePreviousState();
+//         toast.info("Perubahan diskon dibatalkan.");
+//         pendingAuthCheck.value = false;
+//       }
+//     );
+//   } else {
+//     // Jika dihapus jadi 0
+//     localFooter.value.pinDiskon2 = undefined;
+//   }
+// };
 
 // 3. Diskon Rupiah
 const onDiskonRpFocus = () => {
@@ -434,12 +440,10 @@ const onDiskonRpBlur = () => {
 // --- Actions ---
 const saveAndClose = async () => {
   // [ANTI-BYPASS MUTLAK] Paksa kursor lepas dari input teks.
-  // Ini akan langsung memicu event @blur detik itu juga dan mengaktifkan kunci auth.
   if (document.activeElement instanceof HTMLElement) {
     document.activeElement.blur();
   }
 
-  // Beri jeda sistem untuk menarik nafas dan mengeksekusi request backend
   await new Promise((resolve) => setTimeout(resolve, 200));
 
   if (authDialog.show) {
@@ -453,11 +457,12 @@ const saveAndClose = async () => {
   }
 
   isSaving.value = true;
-  localFooter.value.diskonRp = diskonRp.value;
 
-  if (diskonRpInput.value > 0) {
+  // [PERBAIKAN KUNCI 2]: Kirimkan nominal manual saja.
+  localFooter.value.diskonRp = Number(diskonManualRp.value) || 0;
+
+  if (localFooter.value.diskonRp > 0) {
     localFooter.value.diskonPersen1 = 0;
-    localFooter.value.diskonPersen2 = 0;
   }
 
   emit("update", localFooter.value);
@@ -505,24 +510,13 @@ const handleFocusDiscount = () => {
               density="compact"
               hide-details
               class="text-end"
+              :disabled="diskonManualRp > 0"
+              :hint="diskonManualRp > 0 ? 'Dinonaktifkan' : ''"
+              persistent-hint
             />
           </v-col>
 
           <v-col cols="6">
-            <v-text-field
-              label="Disc % 2"
-              v-model.number="localFooter.diskonPersen2"
-              @focus="handleFocusDiscount"
-              @blur="handleDiscount2Change"
-              type="number"
-              variant="outlined"
-              density="compact"
-              hide-details
-              class="text-end"
-            />
-          </v-col>
-
-          <v-col cols="12">
             <v-text-field
               label="Diskon Rp"
               :model-value="displayDiskonRp"
@@ -534,7 +528,36 @@ const handleFocusDiscount = () => {
               density="compact"
               hide-details
               class="text-end"
+              :disabled="localFooter.diskonPersen1 > 0"
+              :hint="localFooter.diskonPersen1 > 0 ? 'Dinonaktifkan' : ''"
+              persistent-hint
             />
+          </v-col>
+
+          <v-col cols="12">
+            <div class="text-caption font-weight-bold text-primary mb-1">
+              PROMO GOOGLE MAPS REVIEW (5%)
+            </div>
+            <v-btn
+              :color="localFooter.diskonPersen2 === 5 ? 'success' : 'blue-grey-lighten-4'"
+              :variant="localFooter.diskonPersen2 === 5 ? 'flat' : 'outlined'"
+              block
+              class="mb-1 font-weight-bold"
+              :disabled="!isEligibleForMaps"
+              @click="toggleMapsPromo"
+            >
+              <v-icon start>{{
+                localFooter.diskonPersen2 === 5 ? "mdi-check-decagram" : "mdi-google-maps"
+              }}</v-icon>
+              {{
+                localFooter.diskonPersen2 === 5
+                  ? "Promo Maps Diterapkan (5%)"
+                  : "Klaim Promo Maps (5%)"
+              }}
+            </v-btn>
+            <div v-if="!isEligibleForMaps" class="text-caption text-error font-italic mb-2">
+              * {{ mapsIneligibleReason }}
+            </div>
           </v-col>
         </v-row>
 

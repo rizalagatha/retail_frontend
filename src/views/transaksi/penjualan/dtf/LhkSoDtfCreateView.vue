@@ -1098,6 +1098,91 @@ const onSoPoSelected = async (selectedItem: { kode: string; nama: string; sudah_
   }
 };
 
+// --- FUNGSI BARU: SCAN QR CODE / INPUT MANUAL ---
+const loadSoDataByCode = async (kodeScan: string, index: number) => {
+  if (!kodeScan || kodeScan.trim() === "") return;
+  const kodeClean = kodeScan.trim().toUpperCase();
+
+  // 1. Cek apakah Jenis Pekerjaan sudah dipilih
+  if (!formHeader.jenisOrder || !formHeader.jenisOrder.kode) {
+    toast.warning("Pilih Jenis Pekerjaan terlebih dahulu sebelum scan.");
+    // Kosongkan input agar tidak nyangkut
+    items.value[index].kode = "";
+    return;
+  }
+
+  // 2. Cek apakah kode sudah ada di baris lain (cegah dobel)
+  const isDuplicate = items.value.some((item, idx) => item.kode === kodeClean && idx !== index);
+  if (isDuplicate) {
+    toast.warning(`Nomor ${kodeClean} sudah ada di daftar. Tidak boleh dobel!`);
+    items.value[index].kode = ""; // Reset input
+    return;
+  }
+
+  const activeItem = items.value[index];
+
+  // Set status loading sementara di baris tersebut
+  activeItem.nama = "Mencari data...";
+
+  try {
+    // 3. Tembak API untuk mengambil detail SO DTF
+    // Kita gunakan endpoint specs karena berisi data lengkap (stok, titik, dll)
+    const res = await api.get(`/lhk-so-dtf-form/specs/${kodeClean}`);
+
+    if (!res.data || (!res.data.specs && !res.data.isStok)) {
+      throw new Error("Data tidak lengkap atau tidak ditemukan.");
+    }
+
+    const jmlKaosSistem = res.data.totalKaos || 0;
+    const jmlTitikSistem = res.data.specs ? res.data.specs.length : 0;
+    const rawSpecs: RawSpec[] = res.data.specs || [];
+
+    const mappedSpecs: SpecDetail[] = rawSpecs.map((s: RawSpec) => ({
+      w: s.w,
+      h: s.h,
+      luas: s.w * s.h,
+      qtySistem: s.qty || jmlKaosSistem,
+      qtyTotal: s.qty || jmlKaosSistem,
+      uploadedImageObj: null,
+      isUploading: false,
+    }));
+
+    Object.assign(activeItem, {
+      kode: kodeClean,
+      // Jika dari QR, nama SO biasanya tidak terkirim di endpoint specs.
+      // Beri nama default atau ambil dari res.data.nama jika backend mendukungnya
+      nama: res.data.nama || `SO DTF: ${kodeClean}`,
+      jumlahSistem: jmlKaosSistem,
+      jumlah: 0,
+      jumlahTitik: res.data.isStok ? mappedSpecs.length : jmlTitikSistem,
+      totalTitik: res.data.totalTitikSistem || jmlKaosSistem * jmlTitikSistem,
+      luasSistem: res.data.totalLuasSistem || 0,
+      specs: mappedSpecs,
+      isStok: res.data.isStok || false,
+      isReprint: res.data.sudah_lhk === 1, // Atau cek flag yang relevan
+    });
+
+    calculateRowTotal(activeItem);
+    addNewRowIfNeeded();
+    toast.success(`${kodeClean} berhasil ditambahkan.`);
+
+    // Fokuskan kursor ke baris baru agar user bisa langsung scan lagi
+    nextTick(() => {
+      const nextIndex = index + 1;
+      const nextInput = document.getElementById(`input-kode-${nextIndex}`);
+      if (nextInput) nextInput.focus();
+    });
+  } catch (err: unknown) {
+    let msg = `Gagal menemukan SO DTF ${kodeClean}.`;
+    if (axios.isAxiosError(err)) msg = err.response?.data?.message || msg;
+    toast.error(msg);
+
+    // Reset baris jika gagal
+    activeItem.kode = "";
+    activeItem.nama = "";
+  }
+};
+
 const calculateRowTotal = (item: LhkItem) => {
   if (item.specs && item.specs.length > 0) {
     item.specs.forEach((s: SpecDetail) => {
@@ -1516,15 +1601,18 @@ const tableHeaders = [
             <template #[`item.no`]="{ index }">{{ index + 1 }}</template>
             <template #[`item.kode`]="{ item, index }">
               <v-text-field
+                :id="`input-kode-${index}`"
                 v-model="item.kode"
-                :readonly="item.kode !== ''"
+                :readonly="item.kode !== '' && item.nama !== '' && item.nama !== 'Mencari data...'"
                 variant="underlined"
                 density="compact"
                 hide-details
-                placeholder="F1:SO, F2:PO, F3:SPK"
+                placeholder="Scan QR / F1:SO"
                 @keydown.f1.prevent="handleSearchKeydown('SO', index)"
                 @keydown.f2.prevent="handleSearchKeydown('PO', index)"
                 @keydown.f3.prevent="handleSearchKeydown('SPK', index)"
+                @keydown.enter.prevent="loadSoDataByCode(item.kode, index)"
+                @change="loadSoDataByCode(item.kode, index)"
               />
             </template>
             <template #[`item.titik`]="{ item }">

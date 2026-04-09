@@ -50,6 +50,7 @@ interface OfferHeader {
   nomor: string;
   tanggal: string;
   noSO: string;
+  tanggalSO: string;
   top: number;
   tempo: string;
   ppn: number;
@@ -100,6 +101,7 @@ const filterOptions = ref([
   { title: "Nomor", value: "nomor" },
   { title: "Tanggal", value: "tanggal" },
   { title: "No. SO", value: "noSO" },
+  { title: "Tanggal SO", value: "tanggalSO" },
   { title: "TOP", value: "top" },
   { title: "Tgl Tempo", value: "tempo" },
   { title: "PPN", value: "ppn" },
@@ -145,6 +147,7 @@ const tableHeaders = ref<DataTableHeader[]>([
   { title: "Kode Customer", key: "kdcus", width: 120 },
   { title: "Nama Customer", key: "nama", width: 250 },
   { title: "No. SO", key: "noSO", width: 150 },
+  { title: "Tanggal SO", key: "tanggalSO", width: 120 },
   { title: "TOP", key: "top", align: "center", width: 70 },
   { title: "Tgl Tempo", key: "tempo", width: 100 },
   { title: "PPN", key: "ppn", align: "end", width: 100 },
@@ -284,7 +287,7 @@ const noFilterColumns = ["data-table-select", "data-table-expand"];
 
 const formatFilterValue = (key: string, val: string | number | undefined | null): string => {
   // Kolom tanggal → format dd/MM/yyyy
-  if (["tanggal", "tempo", "dateModified"].includes(key)) {
+  if (["tanggal", "tempo", "dateModified", "tanggalSO"].includes(key)) {
     if (!val) return "-";
     if (typeof val === "string" || typeof val === "number") {
       try {
@@ -1083,7 +1086,11 @@ onBeforeRouteLeave((to, from, next) => {
             :key="header.key"
           >
             <td :class="getRowTextColor(item)">
-              <template v-if="header.key === 'tanggal' || header.key === 'tempo'">
+              <template
+                v-if="
+                  header.key === 'tanggal' || header.key === 'tempo' || header.key === 'tanggalSO'
+                "
+              >
                 {{ item[header.key] ? format(new Date(item[header.key]), "dd/MM/yyyy") : "-" }}
               </template>
 

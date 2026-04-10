@@ -83,7 +83,8 @@ const totalKembali = computed(() =>
 
 const headers = [
   { title: "No.", key: "no", sortable: false, width: "50px" },
-  { title: "Kode Barang", key: "kode", sortable: false, width: "180px" },
+  { title: "Kode Barang", key: "kode", sortable: false, width: "150px" },
+  { title: "Barcode", key: "barcode", sortable: false, width: "120px" }, // <--- TAMBAHAN KOLOM BARCODE
   { title: "Nama Barang", key: "nama", sortable: false },
   { title: "Ukuran", key: "ukuran", sortable: false, width: "80px", align: "center" },
   { title: "Sisa Pinjam", key: "sisa_pinjam", sortable: false, align: "end", width: "100px" },
@@ -116,7 +117,7 @@ const fetchLoanData = async () => {
     items.value = response.data.map((it: ApiReturnItem, index: number) => ({
       ...it,
       id: index,
-      jumlah_kembali: it.sisa_pinjam,
+      jumlah_kembali: 0, // <--- Ubah jadi 0 agar defaultnya kosong
     }));
 
     formHeader.value.pic_peminjam = response.data[0].pic;

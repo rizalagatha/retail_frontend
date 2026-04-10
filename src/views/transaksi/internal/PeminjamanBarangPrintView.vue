@@ -16,9 +16,14 @@ interface PrintHeader {
   created: string;
   user_create: string;
   approver: string; // Nama Supervisor yang ACC
+  approved_at?: string;
   perush_nama: string;
   perush_alamat: string;
   perush_telp: string;
+
+  no_kembali?: string;
+  admin_kembali?: string;
+  ket_kembali?: string;
 }
 
 interface PrintDetail {
@@ -26,6 +31,8 @@ interface PrintDetail {
   nama: string;
   ukuran: string;
   jumlah: number;
+
+  jumlah_kembali: number;
 }
 
 interface PrintData {
@@ -117,6 +124,14 @@ onMounted(() => {
         </div>
       </div>
 
+      <div v-if="printData.header.no_kembali" class="return-info-box">
+        <div style="font-weight: bold; margin-bottom: 3px; border-bottom: 1px solid #ccc">
+          STATUS: SUDAH DIKEMBALIKAN
+        </div>
+        <div><span class="label">No. PK</span>: {{ printData.header.no_kembali }}</div>
+        <div><span class="label">Kondisi</span>: {{ printData.header.ket_kembali || "-" }}</div>
+      </div>
+
       <table class="items-table">
         <thead>
           <tr>
@@ -124,16 +139,20 @@ onMounted(() => {
             <th class="kode">Kode Barang</th>
             <th class="nama">Nama Barang</th>
             <th class="ukuran">Size</th>
-            <th class="jumlah">Qty</th>
+            <th class="jumlah">Pinjam</th>
+            <!-- <th class="jumlah" v-if="printData.header.no_kembali">Kembali</th> -->
           </tr>
         </thead>
         <tbody>
           <tr v-for="(item, index) in printData.details" :key="index">
-            <td class="no">{{ index + 1 }}</td>
+            <td class="no text-center">{{ index + 1 }}</td>
             <td class="kode">{{ item.kode }}</td>
             <td class="nama">{{ item.nama }}</td>
-            <td class="ukuran">{{ item.ukuran }}</td>
-            <td class="jumlah">{{ item.jumlah }}</td>
+            <td class="ukuran text-center">{{ item.ukuran }}</td>
+            <td class="jumlah font-weight-bold text-center">{{ item.jumlah }}</td>
+            <!-- <td class="jumlah font-weight-bold text-center" v-if="printData.header.no_kembali">
+              {{ item.jumlah_kembali }}
+            </td> -->
           </tr>
         </tbody>
       </table>
@@ -156,7 +175,23 @@ onMounted(() => {
             </div>
             <div>
               Mengetahui,
-              <div class="sig-space"></div>
+
+              <div class="sig-space stamp-container">
+                <div
+                  v-if="
+                    printData.header.approver &&
+                    printData.header.approver !== '....................'
+                  "
+                  class="digital-stamp"
+                >
+                  <div class="stamp-text">APPROVED</div>
+                  <div class="stamp-sub">DIGITAL SIGNATURE</div>
+                  <div v-if="printData.header.approved_at" class="stamp-date">
+                    {{ printData.header.approved_at }}
+                  </div>
+                </div>
+              </div>
+
               ( {{ printData.header.approver || "...................." }} )
             </div>
           </div>
@@ -173,7 +208,7 @@ onMounted(() => {
             <div>
               Diterima Admin,
               <div class="sig-space"></div>
-              ( .................... )
+              ( {{ printData.header.admin_kembali }} )
             </div>
             <div>
               Diperiksa,
@@ -333,6 +368,66 @@ onMounted(() => {
   height: 50px;
 }
 
+.return-info-box {
+  border: 2px dashed #4caf50; /* Hijau */
+  background-color: #e8f5e9;
+  padding: 8px 12px;
+  margin-bottom: 15px;
+  border-radius: 4px;
+}
+.return-info-box .label {
+  display: inline-block;
+  width: 60px;
+  font-weight: bold;
+}
+
+/* --- CSS STEMPEL DIGITAL --- */
+.stamp-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  position: relative;
+}
+
+.digital-stamp {
+  border: 3px solid #d32f2f !important; /* Warna Merah Stempel */
+  color: #d32f2f !important;
+  padding: 4px 10px;
+  border-radius: 6px;
+  transform: rotate(-10deg); /* Bikin miring kayak dicap manual */
+  text-align: center;
+  opacity: 0.85;
+
+  /* Wajib agar warnanya tidak jadi hitam putih saat di-print */
+  -webkit-print-color-adjust: exact !important;
+  print-color-adjust: exact !important;
+}
+
+.digital-stamp .stamp-text {
+  font-size: 14pt !important;
+  font-weight: 900 !important;
+  letter-spacing: 2px;
+  line-height: 1;
+  font-family: "Impact", "Arial Black", sans-serif !important;
+}
+
+.digital-stamp .stamp-sub {
+  font-size: 6pt !important;
+  font-weight: bold !important;
+  letter-spacing: 1px;
+  border-top: 1.5px solid #d32f2f !important;
+  margin-top: 3px;
+  padding-top: 2px;
+}
+
+.digital-stamp .stamp-date {
+  font-size: 6pt !important;
+  font-weight: bold !important;
+  margin-top: 1px;
+  letter-spacing: 0.5px;
+  color: #d32f2f !important;
+}
+
 @media print {
   @page {
     size: A4 portrait;
@@ -340,7 +435,7 @@ onMounted(() => {
   }
 
   .print-container,
-  .print-container * {
+  .print-container *:not(.digital-stamp):not(.digital-stamp *) {
     color: #000 !important;
     background: #fff !important;
   }

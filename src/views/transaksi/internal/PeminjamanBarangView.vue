@@ -21,8 +21,9 @@ interface PeminjamanItem {
   userCreate: string;
   sisaHari?: number;
   noKembali?: string;
-  tanggalKembali?: string; // <-- TAMBAHAN BARU
-  lamaPinjam?: number; // <-- TAMBAHAN BARU
+  tanggalKembali?: string;
+  lamaPinjam?: number;
+  keteranganKembali?: string; // <-- TAMBAHAN BARU
 }
 
 interface DetailItem {
@@ -232,9 +233,7 @@ onMounted(() => {
         color="orange-darken-2"
         prepend-icon="mdi-keyboard-return"
         :disabled="selected.length !== 1 || selected[0].statusKembali === 'Y'"
-        @click="
-          router.push({ name: 'PeminjamanBarangReturn', params: { nomor: selected[0].nomor } })
-        "
+        @click="router.push({ name: 'Pengembalian Barang', params: { nomor: selected[0].nomor } })"
       >
         Kembalikan
       </v-btn>
@@ -320,15 +319,35 @@ onMounted(() => {
           </template>
 
           <template #[`item.noKembali`]="{ item }">
-            <v-chip
+            <v-tooltip
               v-if="item.noKembali"
-              size="x-small"
-              color="green-darken-1"
-              variant="flat"
-              class="font-weight-bold"
+              location="top"
+              open-delay="200"
+              content-class="bg-blue-grey-darken-4"
             >
-              {{ item.noKembali }}
-            </v-chip>
+              <template #activator="{ props }">
+                <v-chip
+                  v-bind="props"
+                  size="x-small"
+                  color="green-darken-1"
+                  variant="flat"
+                  class="font-weight-bold cursor-pointer text-decoration-underline text-decoration-style-dashed"
+                >
+                  {{ item.noKembali }}
+                </v-chip>
+              </template>
+
+              <div class="pa-1 text-caption" style="max-width: 250px">
+                <div class="text-amber font-weight-bold mb-1">
+                  <v-icon size="x-small" color="amber" class="mr-1">mdi-note-text-outline</v-icon>
+                  Kondisi Barang Saat Kembali:
+                </div>
+                <div class="text-white text-pre-line" style="line-height: 1.3">
+                  {{ item.keteranganKembali || "Tidak ada catatan." }}
+                </div>
+              </div>
+            </v-tooltip>
+
             <span v-else class="text-grey-lighten-1 text-caption">Belum Kembali</span>
           </template>
 

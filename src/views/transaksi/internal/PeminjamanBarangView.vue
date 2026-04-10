@@ -233,7 +233,7 @@ onMounted(() => {
         color="orange-darken-2"
         prepend-icon="mdi-keyboard-return"
         :disabled="selected.length !== 1 || selected[0].statusKembali === 'Y'"
-        @click="router.push({ name: 'Pengembalian Barang', params: { nomor: selected[0].nomor } })"
+        @click="router.push(`/peminjaman-barang/return/${selected[0].nomor}`)"
       >
         Kembalikan
       </v-btn>

@@ -2276,9 +2276,16 @@ const handleDiscountCostUpdate = (newData: typeof footer.value & { authNomor?: s
     (isP1Changed && !newData.diskonPersen2) ||
     (isRpChanged && !header.value.nomorPromo)
   ) {
-    lastSuggestedPromo.value = "MANUAL_AUTH"; // <--- PINDAHKAN KUNCI KE SINI
-    header.value.nomorPromo = "";
-    header.value.namaPromo = "";
+    lastSuggestedPromo.value = "MANUAL_AUTH"; // Kunci Utama Penolak Promo Otomatis
+
+    // Bersihkan identitas promo bulanan, biarkan Maps jika aktif
+    if (newData.diskonPersen2 === 5) {
+      header.value.nomorPromo = "PRO-2026-003";
+      header.value.namaPromo = "PROMO GOOGLE MAPS REVIEW 5%";
+    } else {
+      header.value.nomorPromo = "";
+      header.value.namaPromo = "";
+    }
   }
 
   // 4. LOGIKA PENGGABUNGAN ID PROMO MAPS
@@ -2306,14 +2313,16 @@ const handleDiscountCostUpdate = (newData: typeof footer.value & { authNomor?: s
     }
   }
 
-  if (newData.pinDiskon1) footer.value.pinDiskon1 = newData.pinDiskon1;
-  if (newData.pinDiskon2) footer.value.pinDiskon2 = newData.pinDiskon2;
+  // ========================================================================
+  // [PERBAIKAN KUNCI 2]: Tulis paksa nilai PIN (walaupun isinya undefined jika user membatalkan diskon)
+  // ========================================================================
+  footer.value.pinDiskon1 = newData.pinDiskon1;
+  footer.value.pinDiskon2 = newData.pinDiskon2;
   if (newData.authNomor) header.value.nomorAuth = newData.authNomor;
 
   calculateTotals();
   toast.success("Diskon dan biaya berhasil diperbarui.");
 };
-
 const handleItemDiscountChange = (index: number) => {
   const item = items.value[index];
 

@@ -103,10 +103,18 @@ const previousState = ref<FooterData | null>(null);
 watch(
   () => props.footerData,
   (newVal) => {
-    localFooter.value = JSON.parse(JSON.stringify(newVal));
+    // [PERBAIKAN KUNCI 1]: Jangan timpa state lokal jika user sedang proses otorisasi
+    if (isCheckingAuth.value || pendingAuthCheck.value) return;
 
-    // [PERBAIKAN FINAL]: Tidak perlu lagi rumus aljabar rumit!
-    // Parent sekarang HANYA mengirimkan Nominal Diskon Murni ke modal ini.
+    localFooter.value = {
+      ...JSON.parse(JSON.stringify(newVal)),
+      // Pertahankan PIN yang sudah diotorisasi di dalam modal
+      pinDiskon1: localFooter.value?.pinDiskon1 || newVal.pinDiskon1,
+      pinDiskon2: localFooter.value?.pinDiskon2 || newVal.pinDiskon2,
+      authNomor: localFooter.value?.authNomor || newVal.authNomor
+    };
+
+    // [PERBAIKAN KUNCI 2]: Set nilai input manual Rp
     if (newVal.diskonPersen1 > 0) {
       diskonManualRp.value = 0;
       diskonRpInput.value = 0;
@@ -115,7 +123,7 @@ watch(
       diskonRpInput.value = newVal.diskonRp || 0;
     }
   },
-  { immediate: true, deep: true }
+  { immediate: true } // Hapus "deep: true" agar tidak ter-trigger oleh hal kecil di background
 );
 
 // --- Computed Properties ---

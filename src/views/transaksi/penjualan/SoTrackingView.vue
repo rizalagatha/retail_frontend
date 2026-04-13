@@ -295,11 +295,18 @@ onMounted(() => {
 
         <v-divider vertical class="mx-3 my-3"></v-divider>
 
+        <div v-if="datelineCustomer" class="text-right mr-4">
+          <div class="text-caption text-grey-darken-1" style="line-height: 1">Minta Selesai</div>
+          <div class="text-caption font-weight-bold text-blue-darken-2">{{ datelineCustomer }}</div>
+        </div>
+
+        <v-divider vertical class="mx-3 my-3" v-if="datelineCustomer"></v-divider>
+
         <div
           v-if="estimasiSelesai && milestones.find((m) => m.kode === 'PRODUKSI' && m.isCurrent)"
           class="text-right mr-4"
         >
-          <div class="text-caption text-grey-darken-1" style="line-height: 1">Estimasi Selesai</div>
+          <div class="text-caption text-grey-darken-1" style="line-height: 1">Estimasi Sistem</div>
           <div class="text-caption font-weight-bold text-teal-darken-2">{{ estimasiSelesai }}</div>
         </div>
 
@@ -322,13 +329,15 @@ onMounted(() => {
         >
           Minta: <span class="font-weight-bold">{{ datelineCustomer }}</span>
         </div>
+
         <div
           v-if="estimasiSelesai && milestones.find((m) => m.kode === 'PRODUKSI' && m.isCurrent)"
           class="font-weight-medium text-teal-darken-2 mb-n1"
           style="font-size: 0.75rem"
         >
-          Estimasi : <span class="font-weight-bold">{{ estimasiSelesai }}</span>
+          Estimasi: <span class="font-weight-bold">{{ estimasiSelesai }}</span>
         </div>
+
         <div class="font-weight-bold text-brand mt-1" style="font-size: 0.85rem">
           {{ milestones.find((m) => m.isCurrent)?.title?.toUpperCase() || "DIPROSES" }}
         </div>

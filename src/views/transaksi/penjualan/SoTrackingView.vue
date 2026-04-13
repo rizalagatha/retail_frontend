@@ -6,7 +6,7 @@ import { formatRupiah } from "@/utils/formatRupiah";
 import { useAuthStore } from "@/stores/authStore";
 
 const authStore = useAuthStore();
-const isStaff = computed(() => !!authStore.user);
+const isStaff = computed(() => authStore.isAuthenticated);
 const route = useRoute();
 const router = useRouter();
 const isLoading = ref(true);
@@ -24,6 +24,7 @@ interface TrackingLog {
   isSpkGroup?: boolean;
   children?: TrackingLog[];
   color?: string;
+  originalDeskripsi?: string;
 }
 
 interface Milestone {
@@ -64,50 +65,83 @@ const fetchTrackingData = async () => {
     const response = await api.get(`/so/track/${nomorSo.value}`);
     const data = response.data;
 
-    // Mapping ulang untuk menampung children kalau ada
+    // [PERBAIKAN 2]: Beda Jalur (Staff vs Customer)
     logs.value = data.logs.map((log: any) => {
-      // [BARU] Fungsi Pintar Penyensor Teks Internal
-      const filterTeks = (teks: string) => {
-        if (!teks) return "";
-        // Jika kasir/staff yang buka (sudah login), JANGAN disensor!
-        if (isStaff.value) return teks;
+      const gabunganUtama = log.detail ? `${log.subtitle} • ${log.detail}` : log.subtitle;
 
-        return (
-          teks
-            // Hapus semua kata kunci internal
-            .replace(
-              /(Oleh|Kasir|Mesin \/ Operator|Ref|Nomor|Antrian|Ref LHK|No\. Invoice|No SPK|Nama SPK):\s*[^•]+/gi,
-              ""
-            )
-            // Bersihkan sisa titik/peluru (•) yang numpuk
-            .replace(/\s*•\s*•\s*/g, " • ")
-            .replace(/(^\s*•\s*)|(\s*•\s*$)/g, "")
-            .trim()
-        );
-      };
+      if (isStaff.value) {
+        // ==========================================
+        // TAMPILAN KASIR / STAFF (FULL DETAIL & ASLI)
+        // ==========================================
+        return {
+          id: log.id,
+          waktu: log.waktu,
+          status: log.title,
+          originalDeskripsi: gabunganUtama, // Disimpan untuk pencarian URL
+          deskripsi: gabunganUtama,
+          aktor: log.status,
+          isSpkGroup: log.isSpkGroup,
+          children: log.children
+            ? log.children.map((c: any) => {
+                const gabunganChild = c.detail ? `${c.subtitle} • ${c.detail}` : c.subtitle;
+                return {
+                  id: c.id,
+                  waktu: c.waktu,
+                  status: c.title,
+                  originalDeskripsi: gabunganChild,
+                  deskripsi: gabunganChild,
+                  aktor: c.status,
+                  color: c.color,
+                };
+              })
+            : [],
+        };
+      } else {
+        // ==========================================
+        // TAMPILAN CUSTOMER UMUM (BERSIH & PROFESIONAL)
+        // ==========================================
+        let simpleDesc = "";
+        const titleLower = log.title.toLowerCase();
 
-      // [PERBAIKAN]: KEMBALIKAN STRUKTUR ASLI MAPPING MAS RIZAL
-      return {
-        id: log.id,
-        waktu: log.waktu,
-        // UI pakai "status" untuk Judul
-        status: filterTeks(log.title),
-        // UI pakai "deskripsi" untuk gabungan subtitle & detail
-        deskripsi: filterTeks(log.detail ? `${log.subtitle} • ${log.detail}` : log.subtitle),
-        // UI pakai "aktor" untuk status DONE/ACTIVE
-        aktor: log.status,
-        isSpkGroup: log.isSpkGroup,
-        children: log.children
-          ? log.children.map((c: any) => ({
-              id: c.id,
-              waktu: c.waktu,
-              status: filterTeks(c.title),
-              deskripsi: filterTeks(c.detail ? `${c.subtitle} • ${c.detail}` : c.subtitle),
-              aktor: c.status,
-              color: c.color,
-            }))
-          : [],
-      };
+        // Teks Elegan Khusus Customer (Tanpa Nama/Nomor/Ref)
+        if (titleLower.includes("penawaran")) simpleDesc = "Dokumen penawaran harga telah dibuat.";
+        else if (titleLower.includes("pesanan dibuat"))
+          simpleDesc = "Pesanan Anda telah tercatat dalam sistem.";
+        else if (titleLower.includes("pembayaran diterima (dp)"))
+          simpleDesc = "Pembayaran uang muka (DP) telah diverifikasi.";
+        else if (titleLower.includes("pembayaran diterima (lunas)"))
+          simpleDesc = "Pembayaran lunas telah diverifikasi.";
+        else if (titleLower.includes("pembayaran tagihan"))
+          simpleDesc = "Pembayaran cicilan/tagihan telah diverifikasi.";
+        else if (titleLower.includes("produksi"))
+          simpleDesc = "Pesanan Anda sedang dikerjakan oleh tim produksi.";
+        else if (titleLower.includes("selesai (lhk)"))
+          simpleDesc = "Proses pengerjaan untuk tahap ini telah selesai.";
+        else if (titleLower.includes("ready") || titleLower.includes("diterima dc"))
+          simpleDesc = "Pesanan Anda sudah siap untuk diambil / dikirim.";
+        else if (titleLower.includes("invoice"))
+          simpleDesc = "Pesanan telah diserahkan / dikirim ke alamat Anda.";
+        else if (titleLower.includes("batal") || titleLower.includes("close"))
+          simpleDesc = "Pesanan dibatalkan atau ditutup.";
+        else simpleDesc = "Proses administrasi berjalan.";
+
+        // Bersihkan embel-embel pabrik di Judul (MIsal: "Diteruskan ke Produksi (SPK PABRIK)")
+        const simpleTitle = log.title
+          .replace(/\s*\(\s*LHK\s*\)/i, "")
+          .replace(/\s*\(\s*SPK PABRIK\s*\)/i, "");
+
+        return {
+          id: log.id,
+          waktu: log.waktu,
+          status: simpleTitle,
+          originalDeskripsi: gabunganUtama,
+          deskripsi: simpleDesc,
+          aktor: log.status,
+          // KUNCI UTAMA: Matikan tombol buka/tutup dan hapus semua data anak SPK-nya!
+          isSpkGroup: false,
+          children: [],
+        };
+      }
     });
     resiAwb.value = data.resiAwb;
     penerima.value = data.penerima || "Umum";
@@ -149,19 +183,16 @@ const fetchTrackingData = async () => {
         skippedText,
       };
     });
-    // [PERBAIKAN]: FILTER LOG BERDASARKAN TARGET SPK DARI URL
+    // [PERBAIKAN 3]: FILTER LOG BERDASARKAN TARGET SPK DARI URL
     if (targetSpk && targetSpk !== "UMUM") {
-      // Saring log utama
       logs.value = logs.value.filter((log) => {
-        // Jika ini bukan grup SPK (misal log pembayaran/pesanan), tetap tampilkan
         if (!log.isSpkGroup) return true;
-        // Jika ini grup SPK, HANYA tampilkan yang detailnya mengandung targetSpk (SPK atau DTF)
-        return log.deskripsi.includes(targetSpk);
+        // HARUS menggunakan originalDeskripsi agar tidak error!
+        return log.originalDeskripsi?.includes(targetSpk);
       });
 
-      // Auto-expand/buka detail SPK tersebut jika cocok
       const matchedLog = logs.value.find(
-        (log) => log.isSpkGroup && log.deskripsi.includes(targetSpk)
+        (log) => log.isSpkGroup && log.originalDeskripsi?.includes(targetSpk)
       );
       if (matchedLog) {
         expandedSpks.value.push(matchedLog.id);

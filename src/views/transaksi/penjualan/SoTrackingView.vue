@@ -1,9 +1,12 @@
 <script setup lang="ts">
-import { ref, onMounted } from "vue";
+import { ref, onMounted, computed } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import api from "@/services/api";
 import { formatRupiah } from "@/utils/formatRupiah";
+import { useAuthStore } from "@/stores/authStore";
 
+const authStore = useAuthStore();
+const isStaff = computed(() => !!authStore.user);
 const route = useRoute();
 const router = useRouter();
 const isLoading = ref(true);
@@ -62,24 +65,48 @@ const fetchTrackingData = async () => {
     const data = response.data;
 
     // Mapping ulang untuk menampung children kalau ada
-    logs.value = data.logs.map((log: any) => ({
-      id: log.id,
-      waktu: log.waktu,
-      status: log.title,
-      deskripsi: log.detail ? `${log.subtitle} • ${log.detail}` : log.subtitle,
-      aktor: log.status,
-      isSpkGroup: log.isSpkGroup,
-      children: log.children
-        ? log.children.map((c: any) => ({
-            id: c.id,
-            waktu: c.waktu,
-            status: c.title,
-            deskripsi: c.detail ? `${c.subtitle} • ${c.detail}` : c.subtitle,
-            aktor: c.status,
-            color: c.color,
-          }))
-        : [],
-    }));
+    logs.value = data.logs.map((log: any) => {
+      // [BARU] Fungsi Pintar Penyensor Teks Internal
+      const filterTeks = (teks: string) => {
+        if (!teks) return "";
+        if (isStaff.value) return teks; // Jika kasir/staff yang buka, JANGAN disensor!
+
+        return (
+          teks
+            // Hapus "Oleh: Nama", "Kasir: Nama", "Mesin / Operator: Nama"
+            .replace(/(?:•\s*)?(Oleh|Kasir|Mesin \/ Operator):\s*[^•]+/gi, "")
+            // Hapus "Ref: Nomor", "Antrian: Nomor", "No. Invoice: Nomor"
+            .replace(/(?:•\s*)?(Ref|Nomor|Antrian|Ref LHK|No\. Invoice):\s*[^•]+/gi, "")
+            // Bersihkan sisa titik/spasi kosong di awal & akhir kalimat
+            .replace(/^[•\s]+|[•\s]+$/g, "")
+            .trim()
+        );
+      };
+
+      const gabunganUtama = log.detail ? `${log.subtitle} • ${log.detail}` : log.subtitle;
+
+      return {
+        id: log.id,
+        waktu: log.waktu,
+        status: log.title,
+        deskripsi: filterTeks(gabunganUtama), // <-- Gunakan teks yang sudah difilter
+        aktor: log.status,
+        isSpkGroup: log.isSpkGroup,
+        children: log.children
+          ? log.children.map((c: any) => {
+              const gabunganChild = c.detail ? `${c.subtitle} • ${c.detail}` : c.subtitle;
+              return {
+                id: c.id,
+                waktu: c.waktu,
+                status: c.title,
+                deskripsi: filterTeks(gabunganChild), // <-- Filter juga untuk anaknya (mutasi SPK)
+                aktor: c.status,
+                color: c.color,
+              };
+            })
+          : [],
+      };
+    });
 
     resiAwb.value = data.resiAwb;
     penerima.value = data.penerima || "Umum";

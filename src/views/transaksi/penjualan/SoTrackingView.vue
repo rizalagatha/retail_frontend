@@ -45,6 +45,7 @@ const activePanels = ref<string[]>([targetSpk || "UMUM"]);
 const milestones = ref<Milestone[]>([]);
 const resiAwb = ref("");
 const penerima = ref("");
+const datelineCustomer = ref<string | null>(null);
 const estimasiSelesai = ref<string | null>(null);
 const orderItems = ref<any[]>([]);
 const orderSummary = ref<any>({});
@@ -207,6 +208,7 @@ const fetchTrackingData = async () => {
     resiAwb.value = data.resiAwb;
     penerima.value = data.penerima || "Umum";
     estimasiSelesai.value = data.estimasiSelesai;
+    datelineCustomer.value = data.datelineCustomer;
     orderItems.value = data.orderItems;
     orderSummary.value = data.orderSummary;
 
@@ -313,6 +315,13 @@ onMounted(() => {
       </div>
 
       <div class="d-flex d-sm-none flex-column align-end justify-center text-right">
+        <div
+          v-if="datelineCustomer"
+          class="font-weight-medium text-blue-darken-2 mb-n1"
+          style="font-size: 0.65rem"
+        >
+          Minta: <span class="font-weight-bold">{{ datelineCustomer }}</span>
+        </div>
         <div
           v-if="estimasiSelesai && milestones.find((m) => m.kode === 'PRODUKSI' && m.isCurrent)"
           class="font-weight-medium text-teal-darken-2 mb-n1"

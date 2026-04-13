@@ -70,8 +70,8 @@ const selected = ref<LhkHeader[]>([]);
 const jenisOrderList = ref<{ kode: string; nama: string }[]>([]);
 const selectedJenisOrder = ref("ALL");
 
-const isConfirmDialogVisible = ref(false);
-const itemToDelete = ref<LhkHeader | null>(null);
+// const isConfirmDialogVisible = ref(false);
+// const itemToDelete = ref<LhkHeader | null>(null);
 
 // Key untuk Session Storage
 const SESSION_STATE_KEY = "lhk_browse_state";
@@ -257,28 +257,28 @@ const loadDetails = async (newlyExpanded: LhkHeader[]) => {
   }
 };
 
-const showDeleteConfirmation = () => {
-  if (!isSingleSelected.value) return;
-  itemToDelete.value = selected.value[0];
-  isConfirmDialogVisible.value = true;
-};
+// const showDeleteConfirmation = () => {
+//   if (!isSingleSelected.value) return;
+//   itemToDelete.value = selected.value[0];
+//   isConfirmDialogVisible.value = true;
+// };
 
-const deleteItem = async () => {
-  if (!itemToDelete.value) return;
-  try {
-    // Menggunakan path parameter /:nomorLhk
-    await api.delete(`/lhk-so-dtf/${itemToDelete.value.NomorLhk}`);
-    toast.success("Data LHK berhasil dihapus.");
-    fetchData();
-    selected.value = [];
-  } catch (err) {
-    let msg = "Gagal menghapus data.";
-    if (axios.isAxiosError(err)) msg = err.response?.data?.message || msg;
-    toast.error(msg);
-  } finally {
-    isConfirmDialogVisible.value = false;
-  }
-};
+// const deleteItem = async () => {
+//   if (!itemToDelete.value) return;
+//   try {
+//     // Menggunakan path parameter /:nomorLhk
+//     await api.delete(`/lhk-so-dtf/${itemToDelete.value.NomorLhk}`);
+//     toast.success("Data LHK berhasil dihapus.");
+//     fetchData();
+//     selected.value = [];
+//   } catch (err) {
+//     let msg = "Gagal menghapus data.";
+//     if (axios.isAxiosError(err)) msg = err.response?.data?.message || msg;
+//     toast.error(msg);
+//   } finally {
+//     isConfirmDialogVisible.value = false;
+//   }
+// };
 
 const handleEdit = () => {
   if (selected.value.length !== 1) return;
@@ -361,7 +361,7 @@ onBeforeRouteLeave((to, from, next) => {
       >
         Ubah
       </v-btn>
-      <v-btn
+      <!-- <v-btn
         v-if="authStore.can(MENU_ID, 'delete')"
         size="small"
         color="error"
@@ -370,7 +370,7 @@ onBeforeRouteLeave((to, from, next) => {
         @click="showDeleteConfirmation"
       >
         Hapus
-      </v-btn>
+      </v-btn> -->
     </template>
 
     <div v-if="!hasViewPermission" class="state-container">
@@ -568,7 +568,7 @@ onBeforeRouteLeave((to, from, next) => {
       </div>
     </div>
 
-    <v-dialog v-model="isConfirmDialogVisible" max-width="400px" persistent>
+    <!-- <v-dialog v-model="isConfirmDialogVisible" max-width="400px" persistent>
       <v-card>
         <v-card-title class="text-h6 font-weight-bold">Konfirmasi Hapus</v-card-title>
         <v-card-text>
@@ -587,7 +587,7 @@ onBeforeRouteLeave((to, from, next) => {
           <v-btn color="error" variant="tonal" @click="deleteItem">Ya, Hapus</v-btn>
         </v-card-actions>
       </v-card>
-    </v-dialog>
+    </v-dialog> -->
   </PageLayout>
 </template>
 

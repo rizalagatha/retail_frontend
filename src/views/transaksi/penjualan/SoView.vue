@@ -397,17 +397,17 @@ const loadDetails = async (newlyExpandedItems: SoHeader[]) => {
   }
 };
 
-const openCloseDialog = () => {
-  if (!isSingleSelected.value) return;
-  const item = selected.value[0];
-  if (item.Status === "CLOSE" || item.Status === "DICLOSE") {
-    toast.warning("SO ini sudah berstatus Close.");
-    return;
-  }
-  itemToClose.value = item;
-  closeReason.value = item.AlasanClose || "";
-  isCloseDialogVisible.value = true;
-};
+// const openCloseDialog = () => {
+//   if (!isSingleSelected.value) return;
+//   const item = selected.value[0];
+//   if (item.Status === "CLOSE" || item.Status === "DICLOSE") {
+//     toast.warning("SO ini sudah berstatus Close.");
+//     return;
+//   }
+//   itemToClose.value = item;
+//   closeReason.value = item.AlasanClose || "";
+//   isCloseDialogVisible.value = true;
+// };
 
 const submitClose = async () => {
   const item = itemToClose.value;
@@ -816,14 +816,14 @@ onBeforeRouteLeave((to, from, next) => {
         </v-list>
       </v-menu>
       <v-divider vertical class="mx-2"></v-divider>
-      <v-btn
+      <!-- <v-btn
         v-if="authStore.can(MENU_ID, 'edit')"
         size="small"
         :disabled="!isSingleSelected"
         color="orange-darken-2"
         @click="openCloseDialog"
         >Close SO</v-btn
-      >
+      > -->
     </template>
 
     <div v-if="!hasViewPermission" class="state-container">

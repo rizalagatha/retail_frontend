@@ -65,7 +65,7 @@ const fetchTrackingData = async () => {
     const response = await api.get(`/so/track/${nomorSo.value}`);
     const data = response.data;
 
-    // [PERBAIKAN 2]: Beda Jalur (Staff vs Customer)
+    // [PERBAIKAN FINAL]: Pisah Jalur Staff vs Customer
     logs.value = data.logs.map((log: any) => {
       const gabunganUtama = log.detail ? `${log.subtitle} • ${log.detail}` : log.subtitle;
 
@@ -77,7 +77,7 @@ const fetchTrackingData = async () => {
           id: log.id,
           waktu: log.waktu,
           status: log.title,
-          originalDeskripsi: gabunganUtama, // Disimpan untuk pencarian URL
+          originalDeskripsi: gabunganUtama,
           deskripsi: gabunganUtama,
           aktor: log.status,
           isSpkGroup: log.isSpkGroup,
@@ -100,46 +100,95 @@ const fetchTrackingData = async () => {
         // ==========================================
         // TAMPILAN CUSTOMER UMUM (BERSIH & PROFESIONAL)
         // ==========================================
+        // 1. Bersihkan Judul Parent (Buang tulisan SPK PABRIK / LHK)
+        let simpleTitle = log.title
+          .replace(/\s*\(\s*LHK\s*\)/i, "")
+          .replace(/\s*\(\s*SPK PABRIK\s*\)/i, "");
+
+        // 2. Buat Deskripsi Parent yang Ramah Pelanggan
         let simpleDesc = "";
         const titleLower = log.title.toLowerCase();
 
-        // Teks Elegan Khusus Customer (Tanpa Nama/Nomor/Ref)
         if (titleLower.includes("penawaran")) simpleDesc = "Dokumen penawaran harga telah dibuat.";
         else if (titleLower.includes("pesanan dibuat"))
-          simpleDesc = "Pesanan Anda telah tercatat dalam sistem.";
+          simpleDesc = "Pesanan Anda telah tercatat dalam sistem kami.";
         else if (titleLower.includes("pembayaran diterima (dp)"))
           simpleDesc = "Pembayaran uang muka (DP) telah diverifikasi.";
         else if (titleLower.includes("pembayaran diterima (lunas)"))
           simpleDesc = "Pembayaran lunas telah diverifikasi.";
         else if (titleLower.includes("pembayaran tagihan"))
-          simpleDesc = "Pembayaran cicilan/tagihan telah diverifikasi.";
+          simpleDesc = "Pembayaran tagihan/cicilan telah diverifikasi.";
         else if (titleLower.includes("produksi"))
-          simpleDesc = "Pesanan Anda sedang dikerjakan oleh tim produksi.";
-        else if (titleLower.includes("selesai (lhk)"))
-          simpleDesc = "Proses pengerjaan untuk tahap ini telah selesai.";
+          simpleDesc = "Pesanan sedang diproses oleh tim produksi kami.";
+        else if (titleLower.includes("selesai")) simpleDesc = "Tahap pengerjaan ini telah selesai.";
         else if (titleLower.includes("ready") || titleLower.includes("diterima dc"))
-          simpleDesc = "Pesanan Anda sudah siap untuk diambil / dikirim.";
-        else if (titleLower.includes("invoice"))
-          simpleDesc = "Pesanan telah diserahkan / dikirim ke alamat Anda.";
+          simpleDesc = "Pesanan sudah berada di toko dan siap diambil / dikirim.";
+        else if (titleLower.includes("invoice") || titleLower.includes("diambil"))
+          simpleDesc = "Pesanan telah diserahkan / dikirim ke pelanggan.";
         else if (titleLower.includes("batal") || titleLower.includes("close"))
-          simpleDesc = "Pesanan dibatalkan atau ditutup.";
+          simpleDesc = "Pesanan dibatalkan.";
         else simpleDesc = "Proses administrasi berjalan.";
 
-        // Bersihkan embel-embel pabrik di Judul (MIsal: "Diteruskan ke Produksi (SPK PABRIK)")
-        const simpleTitle = log.title
-          .replace(/\s*\(\s*LHK\s*\)/i, "")
-          .replace(/\s*\(\s*SPK PABRIK\s*\)/i, "");
+        // 3. Filter Anak-anak (Tahapan Pabrik)
+        let filteredChildren = [];
+        if (log.children && log.children.length > 0) {
+          filteredChildren = log.children
+            // HAPUS TAHAPAN: Minta Bahan, Bahan Dikeluarkan, dan STBJ
+            .filter((c: any) => {
+              const t = c.title.toLowerCase();
+              if (t.includes("bahan") || t.includes("stbj") || t.includes("pengeluaran"))
+                return false;
+              return true;
+            })
+            // MAP TAHAPAN YANG TERSISA (Potong, Sablon, Jahit, Lipat, Masuk Koli/DC)
+            .map((c: any) => {
+              let cTitle = c.title
+                .replace(/\s*\(\s*LHK\s*\)/i, "")
+                .replace(/\s*\(\s*Gabungan\s*\)/i, "")
+                .replace(/\s*\(\s*SPK PABRIK\s*\)/i, "");
+
+              // Ganti nama Masuk Koli / Diterima DC menjadi "Barang Jadi"
+              if (
+                cTitle.toLowerCase().includes("barang diterima dc") ||
+                cTitle.toLowerCase().includes("masuk koli")
+              ) {
+                cTitle = "Barang Jadi";
+              }
+
+              // Ganti Deskripsi agar tidak ada nama, qty, dll
+              let cDesc = "";
+              const ctLower = cTitle.toLowerCase();
+              if (ctLower.includes("potong")) cDesc = "Proses pemotongan bahan kain.";
+              else if (ctLower.includes("cetak") || ctLower.includes("sablon"))
+                cDesc = "Proses cetak desain/penyablonan.";
+              else if (ctLower.includes("jahit")) cDesc = "Proses penjahitan pola pakaian.";
+              else if (ctLower.includes("lipat"))
+                cDesc = "Proses pelipatan dan Quality Control (QC).";
+              else if (ctLower.includes("barang jadi"))
+                cDesc = "Barang fisik telah selesai sepenuhnya.";
+              else cDesc = "Tahap produksi sedang berjalan.";
+
+              return {
+                id: c.id,
+                waktu: c.waktu,
+                status: cTitle, // Judul sudah bersih
+                originalDeskripsi: c.detail ? `${c.subtitle} • ${c.detail}` : c.subtitle,
+                deskripsi: cDesc, // Deskripsi diganti murni kata-kata profesional
+                aktor: c.status,
+                color: c.color,
+              };
+            });
+        }
 
         return {
           id: log.id,
           waktu: log.waktu,
           status: simpleTitle,
           originalDeskripsi: gabunganUtama,
-          deskripsi: simpleDesc,
+          deskripsi: simpleDesc, // Deskripsi parent sudah bersih
           aktor: log.status,
-          // KUNCI UTAMA: Matikan tombol buka/tutup dan hapus semua data anak SPK-nya!
-          isSpkGroup: false,
-          children: [],
+          isSpkGroup: log.isSpkGroup,
+          children: filteredChildren, // Data anak yang sudah difilter & dibersihkan
         };
       }
     });

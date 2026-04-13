@@ -306,7 +306,9 @@ onMounted(() => {
           v-if="estimasiSelesai && milestones.find((m) => m.kode === 'PRODUKSI' && m.isCurrent)"
           class="text-right mr-4"
         >
-          <div class="text-caption text-grey-darken-1" style="line-height: 1">Estimasi Sistem</div>
+          <div class="text-caption text-grey-darken-1" style="line-height: 1">
+            Standar Pelayanan
+          </div>
           <div class="text-caption font-weight-bold text-teal-darken-2">{{ estimasiSelesai }}</div>
         </div>
 

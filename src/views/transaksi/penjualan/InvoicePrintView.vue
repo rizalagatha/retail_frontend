@@ -19,6 +19,8 @@ interface PrintHeaderSummary {
   bayar: number;
   pundiAmal: number;
   kembali: number;
+  telahDibayar: number;
+  sisaPiutang: number;
 }
 
 interface PrintHeader {
@@ -200,23 +202,43 @@ onMounted(() => {
             <span>Biaya Kirim :</span
             ><span>{{ formatRupiah(printData.header.summary.biayaKirim) }}</span>
           </div>
+
           <div class="summary-item">
             <span>DP :</span>
             <span>{{ formatRupiah(printData.header.inv_dp) }}</span>
           </div>
+
           <div class="summary-item grand-total">
             <span>Grand Total :</span
             ><span>{{ formatRupiah(printData.header.summary.grandTotal) }}</span>
           </div>
+
           <div class="summary-item">
-            <span>Bayar :</span><span>{{ formatRupiah(printData.header.summary.bayar) }}</span>
+            <span>Telah Dibayar :</span
+            ><span>{{ formatRupiah(printData.header.summary.telahDibayar) }}</span>
           </div>
-          <div class="summary-item">
+
+          <div class="summary-item" v-if="printData.header.summary.pundiAmal > 0">
             <span>Pundi amal :</span
             ><span>{{ formatRupiah(printData.header.summary.pundiAmal) }}</span>
           </div>
+
           <div class="summary-item">
             <span>Kembali :</span><span>{{ formatRupiah(printData.header.summary.kembali) }}</span>
+          </div>
+
+          <div style="border-top: 1px dashed black; margin-top: 8px; padding-top: 5px"></div>
+
+          <div class="summary-item grand-total" v-if="printData.header.summary.sisaPiutang > 0">
+            <span style="color: #c62828">Sisa Tagihan :</span>
+            <span style="color: #c62828">{{
+              formatRupiah(printData.header.summary.sisaPiutang)
+            }}</span>
+          </div>
+
+          <div class="summary-item grand-total" v-else>
+            <span style="color: #2e7d32">Status Pembayaran :</span>
+            <span style="color: #2e7d32">LUNAS</span>
           </div>
         </div>
       </div>

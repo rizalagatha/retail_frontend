@@ -100,8 +100,8 @@ const fetchTrackingData = async () => {
         // ==========================================
         // TAMPILAN CUSTOMER UMUM (BERSIH & PROFESIONAL)
         // ==========================================
-        // 1. Bersihkan Judul Parent (Buang tulisan SPK PABRIK / LHK)
-        let simpleTitle = log.title
+        // 1. Bersihkan Judul Parent
+        const simpleTitle = log.title
           .replace(/\s*\(\s*LHK\s*\)/i, "")
           .replace(/\s*\(\s*SPK PABRIK\s*\)/i, "");
 
@@ -129,55 +129,66 @@ const fetchTrackingData = async () => {
           simpleDesc = "Pesanan dibatalkan.";
         else simpleDesc = "Proses administrasi berjalan.";
 
-        // 3. Filter Anak-anak (Tahapan Pabrik)
+        // 3. Bersihkan Deskripsi Anak-Anak (Tahapan Pabrik)
         let filteredChildren = [];
         if (log.children && log.children.length > 0) {
-          filteredChildren = log.children
-            // HAPUS TAHAPAN: Minta Bahan, Bahan Dikeluarkan, dan STBJ
-            .filter((c: any) => {
-              const t = c.title.toLowerCase();
-              if (t.includes("bahan") || t.includes("stbj") || t.includes("pengeluaran"))
-                return false;
-              return true;
-            })
-            // MAP TAHAPAN YANG TERSISA (Potong, Sablon, Jahit, Lipat, Masuk Koli/DC)
-            .map((c: any) => {
-              let cTitle = c.title
-                .replace(/\s*\(\s*LHK\s*\)/i, "")
-                .replace(/\s*\(\s*Gabungan\s*\)/i, "")
-                .replace(/\s*\(\s*SPK PABRIK\s*\)/i, "");
+          filteredChildren = log.children.map((c: any) => {
+            // Bersihkan tulisan (LHK) atau (Gabungan) dari judul
+            let cTitle = c.title
+              .replace(/\s*\(\s*LHK\s*\)/i, "")
+              .replace(/\s*\(\s*Gabungan\s*\)/i, "")
+              .replace(/\s*\(\s*SPK PABRIK\s*\)/i, "");
 
-              // Ganti nama Masuk Koli / Diterima DC menjadi "Barang Jadi"
-              if (
-                cTitle.toLowerCase().includes("barang diterima dc") ||
-                cTitle.toLowerCase().includes("masuk koli")
-              ) {
-                cTitle = "Barang Jadi";
-              }
+            // Ganti nama "Diterima DC" / "Masuk Koli" jadi Barang Jadi sesuai request
+            if (
+              cTitle.toLowerCase().includes("diterima dc") ||
+              cTitle.toLowerCase().includes("masuk koli")
+            ) {
+              cTitle = "Barang Jadi";
+            }
 
-              // Ganti Deskripsi agar tidak ada nama, qty, dll
-              let cDesc = "";
-              const ctLower = cTitle.toLowerCase();
-              if (ctLower.includes("potong")) cDesc = "Proses pemotongan bahan kain.";
+            // Ganti Detailnya dengan teks profesional
+            let cDesc = "";
+            const ctLower = cTitle.toLowerCase();
+
+            if (c.status === "ACTIVE" || ctLower.includes("menunggu")) {
+              if (ctLower.includes("bahan")) cDesc = "Menunggu persiapan bahan produksi.";
+              else if (ctLower.includes("potong")) cDesc = "Dalam antrian proses pemotongan.";
+              else if (ctLower.includes("jahit")) cDesc = "Dalam antrian proses penjahitan.";
+              else if (ctLower.includes("lipat")) cDesc = "Dalam antrian proses pelipatan & QC.";
+              else if (
+                ctLower.includes("stbj") ||
+                ctLower.includes("dc") ||
+                ctLower.includes("koli")
+              )
+                cDesc = "Menunggu pengiriman ke gudang pusat.";
+              else cDesc = "Menunggu antrian proses selanjutnya.";
+            } else {
+              if (ctLower.includes("minta") || ctLower.includes("bahan"))
+                cDesc = "Tahap persiapan bahan produksi berjalan.";
+              else if (ctLower.includes("potong")) cDesc = "Tahap pemotongan bahan berjalan.";
               else if (ctLower.includes("cetak") || ctLower.includes("sablon"))
-                cDesc = "Proses cetak desain/penyablonan.";
-              else if (ctLower.includes("jahit")) cDesc = "Proses penjahitan pola pakaian.";
+                cDesc = "Tahap cetak/sablon berjalan.";
+              else if (ctLower.includes("jahit")) cDesc = "Tahap penjahitan pakaian berjalan.";
               else if (ctLower.includes("lipat"))
-                cDesc = "Proses pelipatan dan Quality Control (QC).";
+                cDesc = "Tahap pelipatan dan Quality Control berjalan.";
+              else if (ctLower.includes("stbj"))
+                cDesc = "Pengiriman barang dari pabrik ke gudang pusat.";
               else if (ctLower.includes("barang jadi"))
-                cDesc = "Barang fisik telah selesai sepenuhnya.";
-              else cDesc = "Tahap produksi sedang berjalan.";
+                cDesc = "Barang telah selesai diproduksi dan masuk gudang.";
+              else cDesc = "Tahap produksi selesai.";
+            }
 
-              return {
-                id: c.id,
-                waktu: c.waktu,
-                status: cTitle, // Judul sudah bersih
-                originalDeskripsi: c.detail ? `${c.subtitle} • ${c.detail}` : c.subtitle,
-                deskripsi: cDesc, // Deskripsi diganti murni kata-kata profesional
-                aktor: c.status,
-                color: c.color,
-              };
-            });
+            return {
+              id: c.id,
+              waktu: c.waktu,
+              status: cTitle,
+              originalDeskripsi: c.detail ? `${c.subtitle} • ${c.detail}` : c.subtitle,
+              deskripsi: cDesc, // <-- Ini yang akan muncul ke customer!
+              aktor: c.status,
+              color: c.color,
+            };
+          });
         }
 
         return {
@@ -185,10 +196,11 @@ const fetchTrackingData = async () => {
           waktu: log.waktu,
           status: simpleTitle,
           originalDeskripsi: gabunganUtama,
-          deskripsi: simpleDesc, // Deskripsi parent sudah bersih
+          deskripsi: simpleDesc,
           aktor: log.status,
+          // [PERBAIKAN]: Kembalikan nilai isSpkGroup agar tombol dropdown muncul lagi!
           isSpkGroup: log.isSpkGroup,
-          children: filteredChildren, // Data anak yang sudah difilter & dibersihkan
+          children: filteredChildren,
         };
       }
     });

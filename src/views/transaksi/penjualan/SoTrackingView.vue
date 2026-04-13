@@ -6,7 +6,9 @@ import { formatRupiah } from "@/utils/formatRupiah";
 import { useAuthStore } from "@/stores/authStore";
 
 const authStore = useAuthStore();
-const isStaff = computed(() => !!authStore.user);
+const isStaff = computed(() => {
+  return !!authStore.token || (authStore.user && Object.keys(authStore.user).length > 0);
+});
 const route = useRoute();
 const router = useRouter();
 const isLoading = ref(true);
@@ -149,19 +151,18 @@ const fetchTrackingData = async () => {
         skippedText,
       };
     });
-    // [PERBAIKAN]: FILTER LOG BERDASARKAN TARGET SPK DARI URL
+    // [PERBAIKAN 3]: FILTER LOG BERDASARKAN TARGET SPK DARI URL
     if (targetSpk && targetSpk !== "UMUM") {
       // Saring log utama
-      logs.value = logs.value.filter((log) => {
-        // Jika ini bukan grup SPK (misal log pembayaran/pesanan), tetap tampilkan
+      logs.value = logs.value.filter((log: any) => {
         if (!log.isSpkGroup) return true;
-        // Jika ini grup SPK, HANYA tampilkan yang detailnya mengandung targetSpk (SPK atau DTF)
-        return log.deskripsi.includes(targetSpk);
+        // Gunakan originalDeskripsi agar tidak gagal filter karena teksnya disensor!
+        return log.originalDeskripsi?.includes(targetSpk);
       });
 
       // Auto-expand/buka detail SPK tersebut jika cocok
       const matchedLog = logs.value.find(
-        (log) => log.isSpkGroup && log.deskripsi.includes(targetSpk)
+        (log: any) => log.isSpkGroup && log.originalDeskripsi?.includes(targetSpk)
       );
       if (matchedLog) {
         expandedSpks.value.push(matchedLog.id);

@@ -24,6 +24,7 @@ interface DataTableHeader {
 
 interface SoHeader {
   Nomor: string;
+  NoSPK: string;
   Tanggal: string;
   Dateline: string;
   Status: string;
@@ -36,6 +37,7 @@ interface SoHeader {
 }
 
 interface SoDetail {
+  NoSPK: string;
   Kode: string;
   Nama: string;
   Ukuran: string;
@@ -187,6 +189,7 @@ const headers = computed<DataTableHeader[]>(() => {
     list.push({ title: "Penawaran", key: "Penawaran", width: 180 });
   }
   list.push(
+    { title: "No. SPK", key: "NoSPK", width: 160 },
     { title: "TOP", key: "Top", width: 80 },
     { title: "Nominal", key: "Nominal", width: 150 },
     { title: "Diskon", key: "Diskon", width: 120 },
@@ -537,6 +540,17 @@ const printData = () => {
   window.open(url, "_blank");
 };
 
+const trackOrder = () => {
+  if (!isSingleSelected.value) return;
+  const item = selected.value[0];
+
+  // Membuka tab baru untuk halaman tracking
+  const url = router.resolve({
+    path: `/transaksi/penjualan/surat-pesanan/track/${item.Nomor}`,
+  }).href;
+  window.open(url, "_blank");
+};
+
 // 1. Helper Format Tanggal Indonesia
 const formatDateIndo = (dateString: string | Date) => {
   if (!dateString) return "";
@@ -768,6 +782,16 @@ onBeforeRouteLeave((to, from, next) => {
         @click="printData"
         >Cetak</v-btn
       >
+      <v-btn
+        v-if="authStore.can(MENU_ID, 'view')"
+        size="small"
+        color="deep-purple"
+        :disabled="!isSingleSelected"
+        prepend-icon="mdi-map-marker-path"
+        @click="trackOrder"
+      >
+        Lacak
+      </v-btn>
       <v-menu offset-y v-if="authStore.can(MENU_ID, 'view')">
         <template v-slot:activator="{ props }">
           <v-btn color="teal" size="small" prepend-icon="mdi-file-excel" v-bind="props">
@@ -1161,6 +1185,22 @@ onBeforeRouteLeave((to, from, next) => {
                       <template #[`item.Nomor`]="{ item: detailItem }">{{
                         detailItem.Nomor
                       }}</template>
+                      <template #[`item.NoSPK`]="{ item }">
+                        <template v-if="item.NoSPK">
+                          <v-chip
+                            v-for="(spk, index) in item.NoSPK.split(', ')"
+                            :key="index"
+                            size="x-small"
+                            color="brown-darken-3"
+                            variant="outlined"
+                            class="mr-1 mb-1 font-weight-bold"
+                          >
+                            <v-icon start size="12">mdi-factory</v-icon>
+                            {{ spk }}
+                          </v-chip>
+                        </template>
+                        <span v-else class="text-grey-lighten-1">-</span>
+                      </template>
                       <template #[`item.Harga`]="{ item: detailItem }">{{
                         formatRupiah(Number(detailItem.Harga || 0))
                       }}</template>

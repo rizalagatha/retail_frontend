@@ -52,6 +52,8 @@ const ProformaView = () => import("@/views/transaksi/penjualan/ProformaView.vue"
 const ProformaCreateView = () => import("@/views/transaksi/penjualan/ProformaCreateView.vue");
 const ProformaPrintView = () => import("@/views/transaksi/penjualan/ProformaPrintView.vue");
 
+const TrackingHomeView = () => import("@/views/umum/TrackingHomeView.vue");
+
 // --- DTF & PESANAN ---
 const SoDtfView = () => import("@/views/transaksi/penjualan/dtf/SoDtfView.vue");
 const SoDtfCreateView = () => import("@/views/transaksi/penjualan/dtf/SoDtfCreateView.vue");
@@ -81,6 +83,17 @@ const MintaBarangView = () => import("@/views/transaksi/internal/MintaBarangView
 const MintaBarangCreateView = () => import("@/views/transaksi/internal/MintaBarangCreateView.vue");
 const TerimaSjView = () => import("@/views/transaksi/internal/TerimaSJView.vue");
 const TerimaSjFormView = () => import("@/views/transaksi/internal/TerimaSJFormView.vue");
+
+// --- WORKSHOP ---
+// const MutasiWorkshopView = () => import("@/views/operasional/workshop/MutasiWorkshopView.vue");
+// const MutasiWorkshopCreateView = () =>
+//   import("@/views/operasional/workshop/MutasiWorkshopCreateView.vue");
+// const MutasiWorkshopPrintView = () =>
+//   import("@/views/operasional/workshop/MutasiWorkshopPrintView.vue");
+// const TerimaMutasiWorkshopView = () =>
+//   import("@/views/operasional/workshop/TerimaMutasiWorkshopView.vue");
+// // const TerimaMutasiWorkshopCreateView = () =>
+// //   import("@/views/operasional/workshop/TerimaMutasiWorkshopCreateView.vue");
 
 // --- PIUTANG & FINANCE ---
 const SetoranBayarView = () => import("@/views/piutang/SetoranBayarView.vue");
@@ -308,6 +321,17 @@ const routes = [
     path: "/:pathMatch(.*)*",
     name: "NotFound",
     component: NotFoundView,
+  },
+  {
+    path: "/tracking",
+    name: "Tracking Beranda",
+    component: TrackingHomeView,
+    meta: {
+      title: "Lacak Pesanan",
+      layout: "PrintLayout", // Pakai PrintLayout agar bersih tanpa sidebar/header admin
+      requiresAuth: false, // <-- PENTING: Bebas akses untuk pelanggan
+      public: true,
+    },
   },
   {
     path: "/file/manual",
@@ -776,6 +800,17 @@ const routes = [
     },
   },
   {
+    path: "/transaksi/penjualan/surat-pesanan/track/:nomor",
+    name: "Lacak Surat Pesanan",
+    component: () => import("@/views/transaksi/penjualan/SoTrackingView.vue"), // File baru yang akan kita buat
+    meta: {
+      title: "Tracking Pesanan",
+      requiresAuth: false, // Bebas akses untuk pelanggan
+      printLayout: true, // Pakai printLayout agar bersih tanpa sidebar/header utama
+      layout: "PrintLayout",
+    },
+  },
+  {
     path: "/transaksi/penjualan/surat-pesanan/print-dp/:nomor",
     name: "Cetak DP",
     component: DpPrintView,
@@ -871,7 +906,7 @@ const routes = [
   },
   {
     path: "/peminjaman-barang/return/:nomor",
-    name: "PeminjamanBarangReturn",
+    name: "Pengembalian Barang",
     component: PeminjamanBarangReturnView,
     meta: { requiresAuth: true, menuId: "56" },
   },
@@ -2538,6 +2573,67 @@ const routes = [
       requiresAuth: true,
     },
   },
+  // {
+  //   path: "/operasional/workshop/mutasi-workshop",
+  //   name: "MutasiWorkshop",
+  //   component: MutasiWorkshopView,
+  //   meta: {
+  //     title: "Mutasi ke Workshop",
+  //     requiresAuth: true,
+  //     menuId: "801",
+  //   },
+  // },
+  // {
+  //   path: "/operasional/workshop/mutasi-workshop/new",
+  //   name: "MutasiWorkshopCreate",
+  //   component: MutasiWorkshopCreateView, // Asumsi komponen belum dibuat, siapkan dulu route-nya
+  //   meta: {
+  //     title: "Buat Mutasi ke Workshop",
+  //     requiresAuth: true,
+  //     menuId: "801",
+  //   },
+  // },
+  // {
+  //   path: "/operasional/workshop/mutasi-workshop/edit/:nomor",
+  //   name: "MutasiWorkshopEdit",
+  //   component: MutasiWorkshopCreateView,
+  //   meta: {
+  //     title: "Ubah Mutasi ke Workshop",
+  //     requiresAuth: true,
+  //     menuId: "801",
+  //   },
+  // },
+  // {
+  //   path: "/operasional/workshop/mutasi-workshop/print/:nomor",
+  //   name: "MutasiWorkshopPrint",
+  //   component: MutasiWorkshopPrintView, // Asumsi komponen belum dibuat, siapkan dulu route-nya
+  //   meta: {
+  //     title: "Cetak Mutasi Workshop",
+  //     printLayout: true,
+  //     requiresAuth: true,
+  //     layout: "PrintLayout",
+  //   },
+  // },
+  // {
+  //   path: "/operasional/workshop/terima-workshop",
+  //   name: "TerimaMutasiWorkshop",
+  //   component: TerimaMutasiWorkshopView,
+  //   meta: {
+  //     title: "Terima Mutasi Workshop",
+  //     requiresAuth: true,
+  //     menuId: "802", // Sesuai kesepakatan
+  //   },
+  // },
+  // // {
+  // //   path: "/operasional/workshop/terima-workshop/create",
+  // //   name: "TerimaMutasiWorkshopCreate",
+  // //   component: TerimaMutasiWorkshopCreateView, // Komponen ini akan kita buat setelah ini
+  // //   meta: {
+  // //     title: "Terima Barang Workshop",
+  // //     requiresAuth: true,
+  // //     menuId: "802",
+  // //   },
+  // // },
   {
     path: "/pengaturan/whatsapp",
     name: "WhatsappLink",

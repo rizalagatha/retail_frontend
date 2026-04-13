@@ -320,7 +320,7 @@ const loadData = async (nomor: string) => {
     const response = await api.get(`/petty-cash-form/${nomor}`);
     const data = response.data;
 
-    // [PERUBAHAN] Gunakan fungsi baru yang mempertahankan /api
+    // Gunakan fungsi baru yang mempertahankan /api
     const apiBaseUrl = getApiBaseUrl();
 
     isEditMode.value = true;
@@ -328,7 +328,14 @@ const loadData = async (nomor: string) => {
     header.tanggal = format(parseISO(data.header.pc_tanggal), "yyyy-MM-dd");
     header.cabang = data.header.pc_cab;
     header.keterangan = data.header.pc_ket || "";
-    header.modal = data.header.pc_modal;
+
+    // [PERBAIKAN KUNCI]: Proteksi Modal agar tidak minus
+    // Jika dari database modalnya 0 atau kosong, paksa tarik dari saldo aktif
+    if (data.header.pc_modal && Number(data.header.pc_modal) > 0) {
+      header.modal = Number(data.header.pc_modal);
+    } else {
+      await fetchCurrentSaldo();
+    }
 
     items.value = data.details.map((d: RawDetail) => {
       const filesString = d.pcd_file || d.file || "";
@@ -337,7 +344,6 @@ const loadData = async (nomor: string) => {
       const mappedFiles = filesArray.map((fName: string) => ({
         fileRaw: null,
         fileName: fName,
-        // [PERUBAHAN] URL-nya sekarang akan menjadi .../api/uploads/pettycash/...
         previewUrl: `${apiBaseUrl}/uploads/pettycash/${fName}`,
         isPdf: fName.toLowerCase().endsWith(".pdf"),
       }));

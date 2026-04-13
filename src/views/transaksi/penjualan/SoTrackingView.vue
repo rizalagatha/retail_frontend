@@ -296,7 +296,9 @@ onMounted(() => {
         <v-divider vertical class="mx-3 my-3"></v-divider>
 
         <div v-if="datelineCustomer" class="text-right mr-4">
-          <div class="text-caption text-grey-darken-1" style="line-height: 1">Minta Selesai</div>
+          <div class="text-caption text-grey-darken-1" style="line-height: 1">
+            Dateline Customer
+          </div>
           <div class="text-caption font-weight-bold text-blue-darken-2">{{ datelineCustomer }}</div>
         </div>
 
@@ -329,7 +331,7 @@ onMounted(() => {
           class="font-weight-medium text-blue-darken-2 mb-n1"
           style="font-size: 0.65rem"
         >
-          Minta: <span class="font-weight-bold">{{ datelineCustomer }}</span>
+          Dateline: <span class="font-weight-bold">{{ datelineCustomer }}</span>
         </div>
 
         <div

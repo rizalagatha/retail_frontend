@@ -19,6 +19,7 @@ interface PrintHeader {
   gdg_inv_fb?: string;
   gdg_akun?: string;
   gdg_transferbank?: string;
+  gdg_inv_komplain?: string;
   summary: {
     subTotal: number;
     diskon: number;
@@ -171,6 +172,16 @@ const printCss = `
     text-align: center;
     font-weight: bold;
     border-bottom: 1px dashed black;
+  }
+
+  .complain-info {
+    margin-top: 5px;
+    margin-bottom: 5px;
+    padding: 5px 0;
+    text-align: center;
+    font-weight: bold;
+    border-bottom: 1px dashed black;
+    font-size: 8pt;
   }
 
   @page {
@@ -461,6 +472,11 @@ const hitungPundiAmal = (details: PrintDetail[]) => {
                 {{ printData.header.gdg_akun }}
               </div>
 
+              <div v-if="printData.header.gdg_inv_komplain" class="complain-info">
+                Layanan Komplain & Bantuan:<br />
+                {{ printData.header.gdg_inv_komplain }}
+              </div>
+
               <div class="donation-text">
                 Dengan membeli produk ini, kami telah menyisihkan/peduli dengan sesama yg
                 membutuhkan sebesar {{ formatRupiah(hitungPundiAmal(printData.details)) }}
@@ -566,5 +582,15 @@ const hitungPundiAmal = (details: PrintDetail[]) => {
 #kasir-preview-area .summary-item span:last-child {
   text-align: right;
   white-space: nowrap;
+}
+
+#kasir-preview-area .complain-info {
+  margin-top: 5px;
+  margin-bottom: 5px;
+  padding: 5px 0;
+  text-align: center;
+  font-weight: bold;
+  border-bottom: 1px dashed black;
+  font-size: 8pt;
 }
 </style>

@@ -30,6 +30,9 @@ interface PrintKasirHeader {
   gdg_inv_instagram?: string;
   gdg_inv_fb?: string;
   pro_lipat?: string;
+  gdg_akun?: string;
+  gdg_transferbank?: string;
+  gdg_inv_komplain?: string;
   inv_kembali?: number;
   summary: Partial<{
     subTotal: number;
@@ -696,10 +699,7 @@ const executeSave = async () => {
         totalDiskonItem: props.totals.totalDiskonItem || 0,
         totalDiskonFaktur: props.totals.totalDiskonFaktur || 0,
         totalDp: props.totals.totalDp || 0,
-        netto:
-          props.totals.subTotal -
-          (props.totals.totalDiskonItem || 0) -
-          (props.totals.totalDiskonFaktur || 0),
+        netto: props.totals.subTotal - (props.totals.totalDiskonFaktur || 0),
         grandTotal: props.totals.grandTotal,
         sisaPiutang: correctedSisaPiutang.value,
       },
@@ -913,6 +913,15 @@ const triggerBrowserPrint = () => {
               display: flex;
               align-items: center;
               gap: 3px;
+            }
+            .complain-info {
+              margin-top: 5px;
+              margin-bottom: 5px;
+              padding: 5px 0;
+              text-align: center;
+              font-weight: bold;
+              border-bottom: 1px dashed black;
+              font-size: 8pt;
             }
             .social-item img { height: 8px; }
             .donation-text {
@@ -1657,6 +1666,18 @@ watch(
               </div>
             </div>
             <div class="footer text-center">
+              <div
+                v-if="printKasirData.header.gdg_transferbank || printKasirData.header.gdg_akun"
+                class="bank-info"
+              >
+                Transfer: {{ printKasirData.header.gdg_transferbank }}<br />
+                {{ printKasirData.header.gdg_akun }}
+              </div>
+
+              <div v-if="printKasirData.header.gdg_inv_komplain" class="complain-info">
+                Layanan Komplain & Bantuan:<br />
+                {{ printKasirData.header.gdg_inv_komplain }}
+              </div>
               <div class="donation-text">
                 Dengan membeli produk kaosan ini, Kaosan telah menyisihkan/peduli dengan sesama yg
                 membutuhkan sebesar Rp {{ formatRupiah(hitungPundiAmal(printKasirData.details)) }}
@@ -1843,5 +1864,15 @@ watch(
   white-space: nowrap;
   min-width: 28mm;
   display: inline-block;
+}
+
+#kasir-print-area .complain-info {
+  margin-top: 5px;
+  margin-bottom: 5px;
+  padding: 5px 0;
+  text-align: center;
+  font-weight: bold;
+  border-bottom: 1px dashed black;
+  font-size: 8pt;
 }
 </style>

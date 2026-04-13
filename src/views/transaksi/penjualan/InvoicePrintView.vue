@@ -37,6 +37,7 @@ interface PrintHeader {
   gdg_inv_fb: string;
   gdg_akun: string;
   gdg_transferbank: string;
+  gdg_inv_komplain: string;
   terbilang: string;
   inv_dp: number; // <--- TAMBAHKAN BARIS INI
   inv_kembali: number;
@@ -241,6 +242,17 @@ onMounted(() => {
         <strong
           >* Transfer Bank: {{ printData.header.gdg_transferbank }}
           {{ printData.header.gdg_akun }}</strong
+        >
+      </div>
+
+      <div
+        v-if="printData.header.gdg_inv_komplain"
+        class="complain-info"
+        style="margin-top: 5px; font-size: 10pt"
+      >
+        <strong
+          >* Jika terdapat kendala atau komplain terkait pesanan, silakan hubungi Pusat Bantuan kami
+          di: {{ printData.header.gdg_inv_komplain }}</strong
         >
       </div>
       <div class="note">

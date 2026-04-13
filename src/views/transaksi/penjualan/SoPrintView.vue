@@ -25,6 +25,7 @@ interface PrintHeader {
   gdg_inv_telp: string;
   gdg_akun: string;
   gdg_transferbank: string;
+  gdg_inv_komplain: string;
 }
 
 interface PrintItem {
@@ -230,6 +231,13 @@ onMounted(() => {
           <strong
             >* Transfer Bank: {{ printData.header.gdg_transferbank }}
             {{ printData.header.gdg_akun }}</strong
+          >
+        </div>
+
+        <div v-if="printData.header.gdg_inv_komplain" class="complain-info mb-1">
+          <strong
+            >* Jika terdapat kendala atau komplain terkait pesanan, silakan hubungi Pusat Bantuan
+            kami di: {{ printData.header.gdg_inv_komplain }}</strong
           >
         </div>
         <em

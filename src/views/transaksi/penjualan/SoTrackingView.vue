@@ -66,49 +66,49 @@ const fetchTrackingData = async () => {
 
     // Mapping ulang untuk menampung children kalau ada
     logs.value = data.logs.map((log: any) => {
-      // [BARU] Fungsi Pintar Penyensor Teks Internal (Diperbarui)
+      // [BARU] Fungsi Pintar Penyensor Teks Internal
       const filterTeks = (teks: string) => {
         if (!teks) return "";
-
         // Jika kasir/staff yang buka (sudah login), JANGAN disensor!
         if (isStaff.value) return teks;
 
         return (
           teks
-            // Hapus semua kata kunci internal sampai ketemu pemisah (•)
+            // Hapus semua kata kunci internal
             .replace(
               /(Oleh|Kasir|Mesin \/ Operator|Ref|Nomor|Antrian|Ref LHK|No\. Invoice|No SPK|Nama SPK):\s*[^•]+/gi,
               ""
             )
-            // Bersihkan sisa titik/peluru (•) yang numpuk atau tertinggal di ujung kalimat
-            .replace(/(^\s*•\s*)|(\s*•\s*$)/g, "")
+            // Bersihkan sisa titik/peluru (•) yang numpuk
             .replace(/\s*•\s*•\s*/g, " • ")
+            .replace(/(^\s*•\s*)|(\s*•\s*$)/g, "")
             .trim()
         );
       };
 
+      // [PERBAIKAN]: KEMBALIKAN STRUKTUR ASLI MAPPING MAS RIZAL
       return {
-        ...log,
-        // [PERBAIKAN PENTING]: Langsung timpa variabel aslinya biar UI otomatis baca yang udah disensor!
-        subtitle: filterTeks(log.subtitle),
-        detail: filterTeks(log.detail),
-        deskripsi: filterTeks(
-          log.deskripsi || (log.detail ? `${log.subtitle} • ${log.detail}` : log.subtitle)
-        ),
+        id: log.id,
+        waktu: log.waktu,
+        // UI pakai "status" untuk Judul
+        status: filterTeks(log.title),
+        // UI pakai "deskripsi" untuk gabungan subtitle & detail
+        deskripsi: filterTeks(log.detail ? `${log.subtitle} • ${log.detail}` : log.subtitle),
+        // UI pakai "aktor" untuk status DONE/ACTIVE
+        aktor: log.status,
+        isSpkGroup: log.isSpkGroup,
         children: log.children
           ? log.children.map((c: any) => ({
-              ...c,
-              // Timpa juga untuk anak-anaknya (Mutasi SPK Pabrik)
-              subtitle: filterTeks(c.subtitle),
-              detail: filterTeks(c.detail),
-              deskripsi: filterTeks(
-                c.deskripsi || (c.detail ? `${c.subtitle} • ${c.detail}` : c.subtitle)
-              ),
+              id: c.id,
+              waktu: c.waktu,
+              status: filterTeks(c.title),
+              deskripsi: filterTeks(c.detail ? `${c.subtitle} • ${c.detail}` : c.subtitle),
+              aktor: c.status,
+              color: c.color,
             }))
           : [],
       };
     });
-
     resiAwb.value = data.resiAwb;
     penerima.value = data.penerima || "Umum";
     estimasiSelesai.value = data.estimasiSelesai;

@@ -78,15 +78,20 @@ const headers = ref([
 
 const getImageUrl = (fileName: string) => {
   if (!fileName) return "";
-  const apiUrl = api.defaults.baseURL || "";
-  let baseUrl = apiUrl.replace(/\/api\/?$/, "");
-  if (apiUrl.startsWith("/")) {
-    baseUrl =
-      window.location.port === "5173"
-        ? `${window.location.protocol}//${window.location.hostname}:8000`
-        : window.location.origin;
+
+  let apiUrl = (api.defaults.baseURL || import.meta.env.VITE_API_BASE_URL || "") as string;
+
+  // Bersihkan garis miring (slash) di paling ujung jika ada
+  apiUrl = apiUrl.replace(/\/$/, "");
+
+  // [KUNCI PERBAIKAN]: Paksa tambahkan '/api' jika belum ada!
+  // Ini memastikan Nginx selalu meneruskan pencarian gambar ini ke Backend Node.js
+  if (!apiUrl.endsWith("/api")) {
+    apiUrl += "/api";
   }
-  return `${baseUrl}/uploads/pettycash/${fileName}`;
+
+  // Hasilnya pasti dan selalu: .../api/uploads/pettycash/nama_file.jpg
+  return `${apiUrl}/uploads/pettycash/${fileName.trim()}`;
 };
 
 const showPreview = (fileName: string) => {

@@ -70,15 +70,18 @@ const fetchKlaimData = async () => {
 
 const getImageUrl = (fileName: string) => {
   if (!fileName) return "";
-  const apiUrl = api.defaults.baseURL || "";
-  let baseUrl = apiUrl.replace(/\/api\/?$/, "");
-  if (apiUrl.startsWith("/")) {
-    baseUrl =
-      window.location.port === "5173"
-        ? `${window.location.protocol}//${window.location.hostname}:8000`
-        : window.location.origin;
-  }
-  return `${baseUrl}/uploads/pettycash/${fileName}`;
+
+  // Ambil baseURL dari api.defaults yang sudah disetting di axios config (misal: /api atau https://domain/api)
+  const apiUrl = (api.defaults.baseURL || import.meta.env.VITE_API_BASE_URL || "") as string;
+
+  // Hapus tulisan "/api" di akhir URL karena folder uploads biasanya ada di root sejajar dengan api
+  // (misal: https://103.94.238.252/api -> https://103.94.238.252)
+  const cleanBaseUrl = apiUrl.replace(/\/api\/?$/, "").replace(/\/$/, "");
+
+  const cleanFileName = fileName.trim();
+
+  // Gabungkan baseUrl dengan path uploads
+  return `${cleanBaseUrl}/uploads/pettycash/${cleanFileName}`;
 };
 
 const openImageInNewTab = (url: string) => {

@@ -927,7 +927,9 @@ onMounted(() => {
                 :key="index"
                 :dot-color="
                   statusOrder[dialogTracking.item?.status || 'DRAFT'] >= statusOrder[step.status]
-                    ? step.color
+                    ? step.status === 'DRAFT'
+                      ? 'blue-grey'
+                      : step.color
                     : 'grey-lighten-2'
                 "
                 :icon="step.icon"
@@ -947,7 +949,9 @@ onMounted(() => {
                     :class="
                       statusOrder[dialogTracking.item?.status || 'DRAFT'] >=
                       statusOrder[step.status]
-                        ? `text-${step.color}`
+                        ? step.status === 'DRAFT'
+                          ? 'text-blue-grey-darken-2'
+                          : `text-${step.color}`
                         : 'text-grey-lighten-1'
                     "
                   >

@@ -8,6 +8,7 @@ import PageLayout from "@/components/PageLayout.vue";
 import { formatRupiah } from "@/utils/formatRupiah";
 import AuthorizationModal from "@/components/modal/AuthorizationModal.vue";
 import axios from "axios";
+import { useAuthStore } from "@/stores/authStore";
 
 interface DraftPettyCash {
   nomor: string;
@@ -21,6 +22,7 @@ const router = useRouter();
 const toast = useToast();
 const MENU_ID = "58"; // Sesuaikan dengan Menu ID Petty Cash Store
 
+const authStore = useAuthStore();
 const loading = ref(true);
 const isSaving = ref(false);
 const draftItems = ref<DraftPettyCash[]>([]);
@@ -69,13 +71,53 @@ const fetchDrafts = async () => {
   }
 };
 
-const handleSave = () => {
+const handleSave = async () => {
   if (draftItems.value.length === 0) {
     return toast.warning("Tidak ada dokumen Petty Cash untuk diajukan.");
   }
 
-  authDialog.nominal = totalKlaim.value;
-  authDialog.show = true;
+  isSaving.value = true;
+  try {
+    const payload = {
+      nomorList: draftItems.value.map((item) => item.nomor),
+      keterangan: form.value.keterangan,
+      approver: "ESTU", // Langsung default dikirim ke ESTU (karena rule bisnis kita memang begitu)
+    };
+
+    // 1. Eksekusi Save Klaim Langsung
+    const response = await api.post("/petty-cash/submit-klaim", payload);
+    const pckNomor = response.data.pck_nomor; // Tangkap nomor PCK-nya dari backend
+
+    // 2. Eksekusi Notifikasi Otorisasi di Background
+    // Kita menembak ke API auth-pin/request, tapi kita TIDAK PERLU menunggu modal atau polling
+    const authPayload = {
+      transaksi: pckNomor,
+      jenis: "KLAIM_PETTYCASH",
+      keterangan: `Pengajuan Klaim Petty Cash\nTotal: ${formatRupiah(totalKlaim.value)}\nKet: ${
+        form.value.keterangan || "-"
+      }`,
+      nominal: totalKlaim.value,
+      cabang: authStore.user?.cabang,
+      user: authStore.user?.kode,
+      barcode: "",
+      target_cabang: "",
+    };
+
+    // Tembak otorisasi (Fire and forget, biar masuk ke HP Mas Estu)
+    api
+      .post("/auth-pin/request", authPayload)
+      .catch((e) => console.error("Gagal kirim notif auth", e));
+
+    toast.success(
+      response.data.message || "Pengajuan klaim berhasil disubmit dan menunggu ACC Supervisor."
+    );
+    router.push("/transaksi/internal/petty-cash");
+  } catch (error: unknown) {
+    const err = error as { response?: { data?: { message?: string } } };
+    toast.error(err.response?.data?.message || "Gagal menyimpan pengajuan.");
+  } finally {
+    isSaving.value = false;
+  }
 };
 
 const executeSave = async (approverName: string) => {

@@ -233,6 +233,48 @@ const validateData = () => {
 };
 
 const handleSaveRequest = () => {
+  // =========================================================================
+  // [AUTO-GENERATE] Keterangan Umum jika kosong
+  // =========================================================================
+  if (!header.keterangan || header.keterangan.trim() === "") {
+    // Ambil item yang tanggalnya valid
+    const validItems = items.value.filter((i) => i.tanggal && i.nominal > 0);
+
+    if (validItems.length > 0) {
+      // Ekstrak semua tanggal dan cari yang paling awal (Min) dan akhir (Max)
+      const dates = validItems.map((item) => new Date(item.tanggal));
+      const minDate = new Date(Math.min(...dates.map((d) => d.getTime())));
+      const maxDate = new Date(Math.max(...dates.map((d) => d.getTime())));
+
+      const dStart = minDate.getDate();
+      const mStart = minDate.toLocaleString("id-ID", { month: "long" });
+      const yStart = minDate.getFullYear();
+
+      const dEnd = maxDate.getDate();
+      const mEnd = maxDate.toLocaleString("id-ID", { month: "long" });
+      const yEnd = maxDate.getFullYear();
+
+      let periode = "";
+      // Logika pembentukan teks agar rapi (Contoh: 1-15 April 2026)
+      if (mStart === mEnd && yStart === yEnd) {
+        periode =
+          dStart === dEnd
+            ? `${dStart} ${mStart} ${yStart}`
+            : `${dStart}-${dEnd} ${mStart} ${yStart}`;
+      } else if (yStart === yEnd) {
+        periode = `${dStart} ${mStart} - ${dEnd} ${mEnd} ${yStart}`;
+      } else {
+        periode = `${dStart} ${mStart} ${yStart} - ${dEnd} ${mEnd} ${yEnd}`;
+      }
+
+      // Masukkan hasil generate ke dalam textbox Keterangan
+      header.keterangan = `Petty Cash Store ${header.cabang} Periode ${periode}`;
+    } else {
+      // Fallback kalau tabelnya masih kosong
+      header.keterangan = `Petty Cash Store ${header.cabang}`;
+    }
+  }
+
   const errorMsg = validateData();
   if (errorMsg) {
     toast.warning(errorMsg);

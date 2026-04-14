@@ -59,6 +59,37 @@ const toggleSpk = (id: number) => {
   }
 };
 
+// Fungsi pintar penentu warna Oranye / Hijau
+const isOngoing = (item: TrackingLog, i: number, isParent: boolean = false): boolean => {
+  // 1. Indikator paling kuat: kalau belum ada jamnya alias "Berjalan"
+  if (item.waktu === "Berjalan" || !item.waktu) return true;
+
+  // 2. Jika Parent punya anak, parent ikut status anak terakhirnya (kalau anak terakhir masih 'Berjalan')
+  if (isParent && item.children && item.children.length > 0) {
+    const lastChild = item.children[item.children.length - 1];
+    if (lastChild.waktu === "Berjalan" || !lastChild.waktu) return true;
+  }
+
+  // 3. Jika Parent & dia ada di urutan paling atas (index 0)
+  if (isParent && i === 0) {
+    const text = (item.status + " " + item.deskripsi).toLowerCase();
+    // Kalau kata-katanya mengindikasikan sudah final/selesai, warnai hijau
+    if (
+      text.includes("selesai") ||
+      text.includes("diterima") ||
+      text.includes("lunas") ||
+      text.includes("batal")
+    ) {
+      return false;
+    }
+    // Selain itu, berarti status top level ini sedang "menunggu" proses selanjutnya -> Oranye
+    return true;
+  }
+
+  // 4. Default: Kalau sudah lewat & punya tanggal -> Hijau (Selesai)
+  return false;
+};
+
 // --- DATA FETCHING ---
 const fetchTrackingData = async () => {
   isLoading.value = true;
@@ -129,6 +160,16 @@ const fetchTrackingData = async () => {
         else if (titleLower.includes("batal") || titleLower.includes("close"))
           simpleDesc = "Pesanan dibatalkan.";
         else simpleDesc = "Proses administrasi berjalan.";
+
+        // =========================================================================
+        // [TAMBAHAN BARU]: Munculkan kembali hanya NAMA SPK jika ini adalah grup SPK
+        // =========================================================================
+        if (log.isSpkGroup && log.subtitle) {
+          // log.subtitle isinya biasanya: "Nama SPK: KAOSAN... • No SPK: SM-..."
+          // Kita split berdasarkan titik tengah (•) dan ambil bagian pertamanya saja
+          const namaSpkOnly = log.subtitle.split("•")[0].trim();
+          simpleDesc = `${namaSpkOnly}\n${simpleDesc}`;
+        }
 
         // 3. Bersihkan Deskripsi Anak-Anak (Tahapan Pabrik)
         let filteredChildren = [];
@@ -619,38 +660,48 @@ onMounted(() => {
                   <v-timeline-item
                     v-for="(log, i) in logs"
                     :key="log.id"
-                    :dot-color="i === 0 ? '#D32F2F' : 'grey-lighten-1'"
+                    :dot-color="isOngoing(log, i, true) ? 'warning' : 'success'"
                     :size="i === 0 ? 'small' : 'small'"
                     fill-dot
                   >
                     <template #opposite>
                       <div
-                        class="text-caption text-grey-darken-1 text-right mt-1 d-none d-sm-block"
+                        class="text-caption text-right mt-1 d-none d-sm-block"
                         style="white-space: nowrap"
-                        :class="{ 'text-brand font-weight-bold': i === 0 }"
+                        :class="
+                          isOngoing(log, i, true)
+                            ? 'text-warning font-weight-bold'
+                            : 'text-grey-darken-1'
+                        "
                       >
-                        {{ log.waktu.split(" ")[0] }}<br />
-                        {{ log.waktu.split(" ")[1] }}
+                        {{ log.waktu.split(" ")[0] || log.waktu }}<br />
+                        {{ log.waktu.split(" ")[1] || "" }}
                       </div>
                     </template>
 
                     <div class="ml-2 mt-n1 pb-4">
                       <div
                         class="d-block d-sm-none text-caption font-weight-bold mb-1"
-                        :class="i === 0 ? 'text-brand' : 'text-grey-darken-1'"
+                        :class="isOngoing(log, i, true) ? 'text-warning' : 'text-grey-darken-1'"
                       >
                         {{ log.waktu }}
                       </div>
 
                       <div
                         class="text-subtitle-1 font-weight-bold mb-1"
-                        :class="i === 0 ? 'text-brand' : 'text-grey-darken-3'"
+                        :class="
+                          isOngoing(log, i, true) ? 'text-warning-darken-2' : 'text-green-darken-3'
+                        "
                       >
                         {{ log.status }}
                       </div>
                       <div
-                        class="text-caption text-grey-darken-2"
-                        :class="{ 'font-weight-medium text-black': i === 0 }"
+                        class="text-caption"
+                        :class="
+                          isOngoing(log, i, true)
+                            ? 'font-weight-medium text-black'
+                            : 'text-grey-darken-2'
+                        "
                       >
                         {{ log.deskripsi }}
                       </div>
@@ -689,33 +740,59 @@ onMounted(() => {
                               truncate-line="both"
                             >
                               <v-timeline-item
-                                v-for="child in log.children"
+                                v-for="(child, childIdx) in log.children"
                                 :key="child.id"
-                                :dot-color="child.color || 'grey'"
+                                :dot-color="
+                                  isOngoing(child, childIdx, false) ? 'warning' : 'success'
+                                "
                                 size="x-small"
                                 fill-dot
                               >
                                 <template #opposite>
                                   <div
-                                    class="text-caption text-grey-darken-1 text-right mt-1 d-none d-sm-block"
+                                    class="text-caption text-right mt-1 d-none d-sm-block"
                                     style="line-height: 1.2; white-space: nowrap"
+                                    :class="
+                                      isOngoing(child, childIdx, false)
+                                        ? 'text-warning font-weight-bold'
+                                        : 'text-grey-darken-1'
+                                    "
                                   >
-                                    {{ child.waktu.split(" ")[0] }}<br />
-                                    {{ child.waktu.split(" ")[1] }}
+                                    {{ child.waktu.split(" ")[0] || child.waktu }}<br />
+                                    {{ child.waktu.split(" ")[1] || "" }}
                                   </div>
                                 </template>
 
                                 <div class="ml-2 mt-n1 pb-2">
                                   <div
-                                    class="d-block d-sm-none text-caption font-weight-bold text-grey-darken-1 mb-1"
+                                    class="d-block d-sm-none text-caption font-weight-bold mb-1"
+                                    :class="
+                                      isOngoing(child, childIdx, false)
+                                        ? 'text-warning'
+                                        : 'text-grey-darken-1'
+                                    "
                                   >
                                     {{ child.waktu }}
                                   </div>
 
-                                  <div class="text-body-2 font-weight-bold mb-1 text-grey-darken-3">
+                                  <div
+                                    class="text-body-2 font-weight-bold mb-1"
+                                    :class="
+                                      isOngoing(child, childIdx, false)
+                                        ? 'text-warning-darken-2'
+                                        : 'text-green-darken-3'
+                                    "
+                                  >
                                     {{ child.status }}
                                   </div>
-                                  <div class="text-caption text-grey-darken-1">
+                                  <div
+                                    class="text-caption"
+                                    :class="
+                                      isOngoing(child, childIdx, false)
+                                        ? 'text-black'
+                                        : 'text-grey-darken-1'
+                                    "
+                                  >
                                     {{ child.deskripsi }}
                                   </div>
                                 </div>

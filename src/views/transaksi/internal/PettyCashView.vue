@@ -124,24 +124,24 @@ const headers = ref([
 const trackingSteps = [
   {
     status: "DRAFT",
-    title: "Draft",
-    desc: "Dibuat oleh Toko",
+    title: "Draft Dokumen",
+    desc: "Klaim dibuat oleh toko",
     icon: "mdi-file-document-edit",
-    color: "grey",
+    color: "blue-grey",
   },
   {
     status: "SUBMITTED",
-    title: "Submitted",
-    desc: "Menunggu ACC Supervisor",
-    icon: "mdi-send-clock",
-    color: "info",
+    title: "Menunggu ACC",
+    desc: "Menunggu persetujuan Supervisor",
+    icon: "mdi-account-clock",
+    color: "warning", // Titik warna orange
   },
   {
     status: "ACC",
     title: "ACC Supervisor",
-    desc: "Disetujui SPV, Menunggu Finance",
-    icon: "mdi-account-check",
-    color: "teal",
+    desc: "Disetujui, masuk antrean Finance",
+    icon: "mdi-check-all",
+    color: "info",
   },
   {
     status: "APPROVED",
@@ -401,51 +401,71 @@ const processReceive = async () => {
 
 const getStatusColor = (status: string) => {
   switch (status) {
-    case "RECEIVED":
-      return "success"; // Hijau
-    case "ON_TRANSFER":
-      return "warning"; // Oren/Kuning
-    case "APPROVED":
-      return "primary"; // Biru
-    case "ACC":
-      return "teal"; // Hijau tosca
+    case "DRAFT":
+      return "blue-grey";
     case "SUBMITTED":
-      return "info"; // Biru muda
+      return "warning"; // Kasih warna orange/kuning biar kelihatan lagi nunggu
+    case "ACC":
+      return "info";
+    case "APPROVED":
+      return "primary";
+    case "RECEIVED":
+      return "success";
     case "REJECTED":
-      return "error"; // Merah
+      return "error";
     default:
-      return "grey-darken-1"; // DRAFT (Abu-abu)
+      return "grey";
   }
 };
 
-const getStepDate = (status: string, item: PettyCashItem | null) => {
-  if (!item) return null;
+const getStatusText = (status: string) => {
+  switch (status) {
+    case "DRAFT":
+      return "Draft / Belum Diajukan";
+    case "SUBMITTED":
+      return "Menunggu ACC SPV"; // <-- Ini kuncinya!
+    case "ACC":
+      return "Menunggu Proses Finance";
+    case "APPROVED":
+      return "Proses Transfer";
+    case "RECEIVED":
+      return "Dana Cair";
+    case "REJECTED":
+      return "Ditolak / Revisi";
+    default:
+      return status;
+  }
+};
 
-  let dateString: string | null | undefined = null;
+const getStepDate = (status: string, item: any) => {
+  if (!item) return "";
+  let dateVal = null;
 
   switch (status) {
     case "DRAFT":
-      dateString = item.tanggal; // Tarik dari tanggal nota PC
+      dateVal = item.date_draft; // <--- PASTIKAN MENGGUNAKAN INI
       break;
     case "SUBMITTED":
-      dateString = item.date_submitted || item.tanggal;
+      dateVal = item.date_submitted;
       break;
     case "ACC":
-      // Jika di-submit lgsg ACC oleh SPV, pakai date_submitted sbg fallback
-      dateString = item.date_acc || item.date_submitted;
+      dateVal = item.date_acc;
       break;
     case "APPROVED":
-      dateString = item.date_approved;
+      dateVal = item.date_approved;
       break;
     case "ON_TRANSFER":
-      dateString = item.date_transfer;
+      dateVal = item.date_transfer;
       break;
     case "RECEIVED":
-      dateString = item.date_received;
+      dateVal = item.date_received;
       break;
   }
 
-  return dateString ? format(new Date(dateString), "dd MMM yyyy, HH:mm") : null;
+  if (!dateVal) return "";
+
+  // Format menjadi "14 Apr 2026, 14:30"
+  return format(new Date(dateVal), "dd MMM yyyy, HH:mm");
 };
 
 onMounted(() => {
@@ -628,12 +648,13 @@ onMounted(() => {
 
           <template #[`item.status`]="{ item }">
             <v-chip
-              size="x-small"
+              size="small"
               variant="flat"
-              class="font-weight-bold text-uppercase"
+              class="font-weight-bold"
               :color="getStatusColor(item.status)"
             >
-              {{ item.status.replace("_", " ") }}
+              <v-icon start size="small" v-if="item.status === 'SUBMITTED'">mdi-clock-fast</v-icon>
+              {{ getStatusText(item.status) }}
             </v-chip>
 
             <div

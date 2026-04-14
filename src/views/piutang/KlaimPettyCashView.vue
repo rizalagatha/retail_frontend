@@ -21,6 +21,8 @@ interface KlaimItem {
   status: string;
   approver: string | null;
   userCreate: string;
+  modal?: number; // <-- TAMBAHKAN INI
+  saldo?: number; // <-- TAMBAHKAN INI
   [key: string]: unknown;
 }
 
@@ -69,8 +71,11 @@ const headers = ref([
   { title: "Nomor Pengajuan", key: "nomor", width: 170, fixed: true },
   { title: "Tgl. Pengajuan", key: "tanggal", width: 110 },
   { title: "Cabang", key: "cabang", width: 160 },
-  { title: "Keterangan", key: "keterangan", width: 220 },
-  { title: "Total Klaim", key: "terpakai", align: "end", width: 130 },
+  // --- [BARU] Kolom Modal & Saldo ---
+  { title: "Modal Awal", key: "modal", align: "end", width: 120 },
+  { title: "Total Klaim", key: "terpakai", align: "end", width: 120 },
+  { title: "Sisa Saldo", key: "saldo", align: "end", width: 120 },
+  // ---------------------------------
   { title: "Status", key: "status", align: "center", width: 110 },
   { title: "Otorisasi SPV", key: "approver", width: 120 },
   { title: "User Store", key: "userCreate", width: 100 },
@@ -298,8 +303,23 @@ onMounted(() => {
             <b>{{ item.cabang }}</b> - {{ item.namaCabang }}
           </template>
 
+          <template #[`item.modal`]="{ item }">
+            <span class="font-weight-medium text-grey-darken-2">{{
+              formatRupiah(Number(item.modal) || 0)
+            }}</span>
+          </template>
+
           <template #[`item.terpakai`]="{ item }">
             <span class="text-error font-weight-bold">{{ formatRupiah(item.terpakai) }}</span>
+          </template>
+
+          <template #[`item.saldo`]="{ item }">
+            <span
+              class="font-weight-black"
+              :class="item.saldo !== undefined && item.saldo < 0 ? 'text-error' : 'text-primary'"
+            >
+              {{ formatRupiah(Number(item.saldo) || 0) }}
+            </span>
           </template>
 
           <template #[`item.approver`]="{ item }">

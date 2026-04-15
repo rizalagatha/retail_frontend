@@ -87,7 +87,7 @@ onMounted(() => {
         <a href="#" class="text-decoration-none text-grey-darken-3">Pusat Bantuan</a>
       </div>
       <v-btn
-        color="#EE4D2D"
+        color="#D32F2F"
         variant="flat"
         size="small"
         class="ml-4 font-weight-bold px-4 d-none d-sm-flex"
@@ -116,10 +116,10 @@ onMounted(() => {
             v-model="searchInput"
             placeholder="Masukkan Nomor Surat Pesanan (Contoh: K01.SO...)"
             variant="outlined"
-            color="#EE4D2D"
+            color="#D32F2F"
             bg-color="white"
             hide-details="auto"
-            class="flex-grow-1 w-100"
+            class="flex-grow-1 w-100 search-field-red"
             density="comfortable"
             prepend-inner-icon="mdi-magnify"
             :error-messages="errorMessage"
@@ -127,7 +127,7 @@ onMounted(() => {
           ></v-text-field>
 
           <v-btn
-            color="#EE4D2D"
+            color="#D32F2F"
             height="48"
             class="text-white px-8 font-weight-bold text-subtitle-1 w-100 w-sm-auto mt-2 mt-sm-0"
             :loading="isLoading"
@@ -164,15 +164,15 @@ onMounted(() => {
               placeholder="-- Pilih Barang --"
               variant="outlined"
               density="comfortable"
-              color="#EE4D2D"
+              color="#D32F2F"
               hide-details="auto"
-              class="mb-4"
+              class="mb-4 search-field-red"
             ></v-select>
 
             <v-btn
               block
               size="large"
-              color="teal-darken-2"
+              color="#D32F2F"
               class="font-weight-bold text-white mt-2"
               :disabled="!selectedItem"
               @click="lanjutLacak"
@@ -191,7 +191,7 @@ onMounted(() => {
           style="max-width: 900px; margin: 0 auto"
         >
           <div class="d-flex align-center mb-4 px-2">
-            <v-icon color="#EE4D2D" size="28" class="mr-2">mdi-ticket-percent</v-icon>
+            <v-icon color="#D32F2F" size="28" class="mr-2">mdi-ticket-percent</v-icon>
             <h2 class="text-h6 font-weight-bold text-grey-darken-3 mb-0">
               Promo Spesial Buat Kamu!
             </h2>
@@ -253,7 +253,7 @@ onMounted(() => {
                     </div>
                     <v-btn
                       size="small"
-                      color="#EE4D2D"
+                      color="#D32F2F"
                       variant="flat"
                       class="text-white font-weight-bold text-none rounded-pill px-5"
                     >
@@ -276,7 +276,7 @@ onMounted(() => {
             elevation="0"
             class="border rounded-lg pa-4 d-flex align-center h-100 bg-white card-hover"
           >
-            <v-icon size="40" color="#EE4D2D" class="mr-4">mdi-store-search-outline</v-icon>
+            <v-icon size="40" color="#D32F2F" class="mr-4">mdi-store-search-outline</v-icon>
             <div>
               <div class="font-weight-bold text-subtitle-2">Cek Stok Store</div>
               <div class="text-caption text-grey-darken-1">Lihat ketersediaan barang ready</div>
@@ -288,7 +288,7 @@ onMounted(() => {
             elevation="0"
             class="border rounded-lg pa-4 d-flex align-center h-100 bg-white card-hover"
           >
-            <v-icon size="40" color="#EE4D2D" class="mr-4">mdi-truck-fast-outline</v-icon>
+            <v-icon size="40" color="#D32F2F" class="mr-4">mdi-truck-fast-outline</v-icon>
             <div>
               <div class="font-weight-bold text-subtitle-2">Estimasi Pengiriman</div>
               <div class="text-caption text-grey-darken-1">Cek waktu tiba paket Anda</div>
@@ -300,7 +300,7 @@ onMounted(() => {
             elevation="0"
             class="border rounded-lg pa-4 d-flex align-center h-100 bg-white card-hover"
           >
-            <v-icon size="40" color="#EE4D2D" class="mr-4">mdi-help-circle-outline</v-icon>
+            <v-icon size="40" color="#D32F2F" class="mr-4">mdi-help-circle-outline</v-icon>
             <div>
               <div class="font-weight-bold text-subtitle-2">Pusat Bantuan</div>
               <div class="text-caption text-grey-darken-1">Hubungi CS Kaosan 24/7</div>
@@ -330,12 +330,13 @@ onMounted(() => {
   gap: 16px;
 }
 
+/* [PERBAIKAN] Gradient disesuaikan dengan merah pekat #D32F2F dan #EF5350 */
 .bg-brand {
-  background: linear-gradient(135deg, #ee4d2d 0%, #ff7337 100%);
+  background: linear-gradient(135deg, #d32f2f 0%, #ef5350 100%);
 }
 
 .text-brand {
-  color: #ee4d2d !important;
+  color: #d32f2f !important;
 }
 
 .border-dashed {
@@ -345,7 +346,7 @@ onMounted(() => {
 /* HERO BANNER */
 .hero-banner {
   height: 320px;
-  background: linear-gradient(135deg, #ee4d2d 0%, #ff7337 100%);
+  background: linear-gradient(135deg, #d32f2f 0%, #ef5350 100%);
   position: relative;
 }
 
@@ -357,15 +358,20 @@ onMounted(() => {
   max-width: 900px;
 }
 
+/* [PERBAIKAN] Border saat field difokuskan ikut warna merah */
+.search-field-red :deep(.v-field--focused) {
+  border-color: #d32f2f !important;
+}
+
 /* --- KUPON PROMO STYLE --- */
 .promo-card {
   transition: all 0.3s ease;
-  border: 1px solid #ffe0d8 !important;
+  border: 1px solid #ffebee !important; /* warna merah sangat muda */
 }
 .promo-card:hover {
   transform: translateY(-5px);
-  box-shadow: 0 8px 20px rgba(238, 77, 45, 0.15) !important;
-  border-color: #ee4d2d !important;
+  box-shadow: 0 8px 20px rgba(211, 47, 47, 0.15) !important;
+  border-color: #d32f2f !important;
 }
 
 /* Bikin efek bolong di pinggiran kupon */
@@ -379,11 +385,21 @@ onMounted(() => {
 }
 .coupon-cutout.left {
   left: -10px;
-  border-right: 1px solid #ffe0d8;
+  border-right: 1px solid #ffebee;
 }
 .coupon-cutout.right {
   right: -10px;
-  border-left: 1px solid #ffe0d8;
+  border-left: 1px solid #ffebee;
+}
+
+.card-hover {
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  cursor: pointer;
+}
+
+.card-hover:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1) !important;
 }
 
 /* Responsif untuk layar HP */

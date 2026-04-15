@@ -73,16 +73,18 @@ const isOngoing = (item: TrackingLog, i: number, isParent: boolean = false): boo
   // 3. Jika Parent & dia ada di urutan paling atas (index 0)
   if (isParent && i === 0) {
     const text = (item.status + " " + item.deskripsi).toLowerCase();
-    // Kalau kata-katanya mengindikasikan sudah final/selesai, warnai hijau
+    // [PERBAIKAN]: Tambahkan kata kunci 'diambil' dan 'invoice'
     if (
       text.includes("selesai") ||
       text.includes("diterima") ||
       text.includes("lunas") ||
-      text.includes("batal")
+      text.includes("batal") ||
+      text.includes("diambil") ||
+      text.includes("invoice")
     ) {
-      return false;
+      return false; // Jadi Hijau
     }
-    // Selain itu, berarti status top level ini sedang "menunggu" proses selanjutnya -> Oranye
+    // Selain itu -> Oranye
     return true;
   }
 
@@ -496,13 +498,18 @@ onMounted(() => {
               <v-card-text class="pa-0 flex-grow-1">
                 <v-list lines="two" class="py-0">
                   <template v-for="(item, i) in orderItems" :key="i">
-                    <v-list-item class="px-5 py-4">
+                    <v-list-item
+                      class="px-5 py-4 transition-swing"
+                      :class="item.isFullyScanned ? 'bg-green-lighten-5' : 'bg-white'"
+                    >
                       <div class="d-flex w-100 align-start">
                         <v-img
+                          v-if="!item.isJasaMurni"
                           :src="item.imageUrl"
                           width="65"
                           height="65"
-                          class="rounded-lg border flex-shrink-0 bg-grey-lighten-4"
+                          class="rounded-lg border flex-shrink-0 position-relative"
+                          :class="item.isFullyScanned ? 'bg-white' : 'bg-grey-lighten-4'"
                           cover
                         >
                           <template #placeholder>
@@ -519,30 +526,89 @@ onMounted(() => {
 
                         <div class="ml-3 flex-grow-1">
                           <div
-                            class="text-subtitle-2 font-weight-bold text-grey-darken-3 text-wrap"
+                            class="text-subtitle-2 font-weight-bold text-wrap"
+                            :class="
+                              item.isFullyScanned ? 'text-green-darken-3' : 'text-grey-darken-3'
+                            "
                             style="line-height: 1.2"
                           >
                             {{ item.nama }}
+                            <v-icon
+                              v-if="item.isFullyScanned"
+                              color="success"
+                              size="x-small"
+                              class="ml-1 mb-1"
+                              >mdi-check-circle</v-icon
+                            >
                           </div>
-                          <div class="text-caption text-grey-darken-1 mt-1">
+
+                          <div
+                            v-if="item.nama_spk"
+                            class="text-caption mt-1"
+                            :class="
+                              item.isFullyScanned ? 'text-green-darken-2' : 'text-grey-darken-1'
+                            "
+                            style="line-height: 1.1"
+                          >
+                            SPK: {{ item.nama_spk }}
+                          </div>
+
+                          <div
+                            class="text-caption mt-1"
+                            :class="
+                              item.isFullyScanned ? 'text-green-darken-2' : 'text-grey-darken-1'
+                            "
+                          >
                             Ukuran: {{ item.ukuran || "-" }}
                           </div>
-                          <div class="text-caption text-grey-darken-1 mt-1" v-if="item.sd_nomor">
+
+                          <div
+                            class="text-caption mt-1"
+                            v-if="item.sd_nomor && isStaff"
+                            :class="
+                              item.isFullyScanned ? 'text-green-darken-2' : 'text-grey-darken-1'
+                            "
+                          >
                             SO DTF:
-                            <span class="font-weight-medium text-black">{{ item.sd_nomor }}</span>
+                            <span
+                              class="font-weight-medium"
+                              :class="item.isFullyScanned ? 'text-green-darken-4' : 'text-black'"
+                              >{{ item.sd_nomor }}</span
+                            >
                           </div>
                         </div>
 
-                        <div class="text-right d-flex flex-column justify-start ml-2">
-                          <div class="text-subtitle-2 font-weight-bold text-grey-darken-3">
-                            {{ item.qty }} x {{ formatRupiah(item.harga - item.diskon) }}
-                          </div>
-                          <div
-                            class="text-caption text-error font-weight-bold"
-                            v-if="item.diskon > 0"
-                          >
-                            (Disc {{ formatRupiah(item.diskon) }})
-                          </div>
+                        <div
+                          class="text-right d-flex flex-column justify-start ml-2 position-relative"
+                        >
+                          <v-tooltip location="top" v-if="item.hasHoverDetail && item.breakdown">
+                            <template v-slot:activator="{ props }">
+                              <div
+                                v-bind="props"
+                                class="text-subtitle-2 font-weight-bold text-grey-darken-3 cursor-pointer d-flex flex-column align-end"
+                                style="border-bottom: 1px dashed #bdbdbd"
+                              >
+                                <span style="font-size: 0.75rem">{{ item.qty }} pcs</span>
+                                <span>{{ formatRupiah(item.subtotal) }}</span>
+                              </div>
+                            </template>
+
+                            <div class="text-caption text-left pa-1">
+                              <div class="font-weight-bold mb-1 border-b pb-1">Rincian Harga:</div>
+                              <div
+                                v-for="(b, bIdx) in item.breakdown"
+                                :key="bIdx"
+                                class="mb-1"
+                                style="white-space: nowrap"
+                              >
+                                {{ b.qty }}x Size {{ b.ukuran }}:
+                                {{ formatRupiah(b.harga - b.diskon) }}
+                                <span v-if="b.diskon > 0" class="text-red-lighten-2"
+                                  >(Disc {{ formatRupiah(b.diskon) }})</span
+                                >
+                              </div>
+                            </div>
+                          </v-tooltip>
                         </div>
                       </div>
                     </v-list-item>

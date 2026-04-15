@@ -768,10 +768,10 @@ onMounted(() => {
                             ? 'font-weight-medium text-black'
                             : 'text-grey-darken-2'
                         "
+                        style="white-space: pre-line; line-height: 1.4"
                       >
                         {{ log.deskripsi }}
                       </div>
-
                       <div
                         v-if="log.isSpkGroup && log.children && log.children.length > 0"
                         class="mt-3"
@@ -858,6 +858,7 @@ onMounted(() => {
                                         ? 'text-black'
                                         : 'text-grey-darken-1'
                                     "
+                                    style="white-space: pre-line; line-height: 1.4"
                                   >
                                     {{ child.deskripsi }}
                                   </div>

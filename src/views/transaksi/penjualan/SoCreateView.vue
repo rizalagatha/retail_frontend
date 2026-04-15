@@ -3275,6 +3275,22 @@ const getTypeColor = (type: string) => {
   }
 };
 
+const isHargaReadonly = (item: SoItem) => {
+  // 1. Selalu kunci jika sudah terikat dengan SO DTF atau Pengajuan Harga
+  if (item.noSoDtf || item.noPengajuanHarga) return true;
+
+  // 2. Jika barang JASA atau CUSTOM, biarkan bisa diedit (karena harganya dinamis)
+  if (item.isJasa || item.kode === "CUSTOM" || item.isCustomOrder) return false;
+
+  // 3. Jika barang merupakan BONUS (Stiker/Promo), pasti kunci harganya
+  if (item.kategori === "BONUS" || item.terhitungPromo) return true;
+
+  // 4. Jika barang Reguler yang sudah ditarik dari database (punya kode), KUNCI HARGA!
+  if (item.kode) return true;
+
+  return false;
+};
+
 const refreshOnFocus = () => {
   if (isEditMode.value && header.value.nomor && !isLoading.value) {
     console.log("Tab focused: Silent refreshing mutation status for", header.value.nomor);
@@ -4000,7 +4016,7 @@ const stopAndOpenPriceProposal = (index: number) => {
                   hide-details
                   class="text-end"
                   :disabled="item.isMutated || !item.kode"
-                  :readonly="!!item.noSoDtf || !!item.noPengajuanHarga"
+                  :readonly="isHargaReadonly(item)"
                   @update:model-value="calculateTotals"
                 />
               </template>

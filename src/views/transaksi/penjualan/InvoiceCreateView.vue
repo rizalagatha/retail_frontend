@@ -1358,16 +1358,14 @@ const onProductsSelected = (selectedProducts: ProductInput[]) => {
 
   // Ambil Level Customer (String)
   const currentLevel = String(header.customer.level_kode || "1").trim();
+  const isKdcUser = authStore.user?.cabang === "KDC";
 
   const newItems: Item[] = selectedProducts.map((product) => {
     // Default: Selalu gunakan 'harga' (yang isinya brgd_harga atau 33333)
     let basePrice = Number(product.harga || 0);
 
     // PENGECUALIAN KHUSUS LEVEL 5
-    if (currentLevel === "5") {
-      // Pakai harga3
-      // Jika harga3 kosong (0), tetap pakai 0 (agar user sadar harus input manual)
-      // Jangan fallback ke harga retail!
+    if (currentLevel === "5" && !isKdcUser) {
       basePrice = Number(product.harga3 || 0);
     }
     // Level lain (1, 2, 3, 4) -> Tetap pakai basePrice (brgd_harga)
@@ -2618,7 +2616,7 @@ const isHargaEditable = (item: Item) => {
 
   // 1. Cabang KDC: Selalu bisa edit harga (Invoice Reguler)
   if (cabang === "KDC") {
-    return true;
+    return false; // <--- UBAH DARI true MENJADI false
   }
 
   // 2. Cabang KON & K05: Tetap mengikuti aturan Marketplace

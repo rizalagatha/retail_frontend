@@ -9,6 +9,7 @@ import { useRouter, useRoute, onBeforeRouteLeave } from "vue-router";
 import * as XLSX from "xlsx";
 import axios from "axios";
 import AppDataTable from "@/components/AppDataTable.vue";
+import { formatRupiah } from "@/utils/formatRupiah";
 
 // --- Interface Header (Wajib untuk Resize) ---
 interface DataTableHeader {
@@ -31,6 +32,7 @@ interface SoDtfHeader {
   AlasanClose: string;
   LHK: number;
   TotalTitik: number;
+  TotalHarga: number;
   Close: string;
   UserModified: string;
   DateModified: string;
@@ -195,6 +197,7 @@ const headers = ref<DataTableHeader[]>([
   { title: "Jml", key: "Jumlah", align: "end", width: 70 },
   { title: "Titik", key: "Titik", align: "end", width: 70 },
   { title: "Total Titik", key: "TotalTitik", align: "end", width: 90 },
+  { title: "Total Harga", key: "TotalHarga", align: "end", width: 120 },
   { title: "LHK", key: "LHK", align: "center", width: 70 },
   { title: "No. SO", key: "NoSO", width: 150 },
   { title: "No. Invoice", key: "NoINV", width: 150 },
@@ -524,6 +527,7 @@ const exportData = async (type: "header" | "detail") => {
           Jml: item.Jumlah,
           Titik: item.Titik,
           "Total Titik": item.TotalTitik,
+          "Total Harga": item.TotalHarga,
           LHK: item.LHK,
           "No. SO": item.NoSO,
           "No. Invoice": item.NoINV,
@@ -1067,6 +1071,11 @@ onBeforeRouteLeave((to, from, next) => {
                 <v-chip :color="item.Close === 'Y' ? 'success' : 'grey'" size="x-small">
                   {{ item.Close === "Y" ? "Closed" : "Open" }}
                 </v-chip>
+              </template>
+              <template v-else-if="header.key === 'TotalHarga'">
+                <span class="font-weight-medium">{{
+                  formatRupiah(item[header.key] as number)
+                }}</span>
               </template>
               <template v-else-if="header.key === 'Keterangan'">
                 <div style="white-space: pre-wrap; line-height: 1.4; min-width: 250px">

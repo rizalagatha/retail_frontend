@@ -78,20 +78,9 @@ const handleSave = async () => {
 
   isSaving.value = true;
   try {
-    const payload = {
-      nomorList: draftItems.value.map((item) => item.nomor),
-      keterangan: form.value.keterangan,
-      approver: "ESTU", // Langsung default dikirim ke ESTU (karena rule bisnis kita memang begitu)
-    };
-
-    // 1. Eksekusi Save Klaim Langsung
-    const response = await api.post("/petty-cash/submit-klaim", payload);
-    const pckNomor = response.data.pck_nomor; // Tangkap nomor PCK-nya dari backend
-
-    // 2. Eksekusi Notifikasi Otorisasi di Background
-    // Kita menembak ke API auth-pin/request, tapi kita TIDAK PERLU menunggu modal atau polling
+    // 1. KITA BUAT REQUEST OTORISASI DULU KE BACKEND
     const authPayload = {
-      transaksi: pckNomor,
+      transaksi: "NEW_CLAIM", // Nanti akan diisi nomor PCK oleh backend saat klaim disubmit
       jenis: "KLAIM_PETTYCASH",
       keterangan: `Pengajuan Klaim Petty Cash\nTotal: ${formatRupiah(totalKlaim.value)}\nKet: ${
         form.value.keterangan || "-"
@@ -99,45 +88,54 @@ const handleSave = async () => {
       nominal: totalKlaim.value,
       cabang: authStore.user?.cabang,
       user: authStore.user?.kode,
-      barcode: "",
-      target_cabang: "",
     };
 
-    // Tembak otorisasi (Fire and forget, biar masuk ke HP Mas Estu)
-    api
-      .post("/auth-pin/request", authPayload)
-      .catch((e) => console.error("Gagal kirim notif auth", e));
+    const authResponse = await api.post("/auth-pin/request", authPayload);
+    const generatedAuthNomor = authResponse.data.authNomor;
 
-    toast.success(
-      response.data.message || "Pengajuan klaim berhasil disubmit dan menunggu ACC Supervisor."
-    );
-    router.push("/transaksi/internal/petty-cash");
+    // 2. MUNCULKAN MODAL OTORISASI UNTUK POLLING
+    // Kasir akan melihat modal ini sambil menunggu Manager klik "Approve" di HP
+    authDialog.title = "Menunggu Otorisasi Manager";
+    authDialog.jenis = "KLAIM_PETTYCASH";
+    authDialog.nominal = totalKlaim.value;
+    authDialog.transaksi = generatedAuthNomor; // Pakai nomor auth untuk di-polling
+
+    // Ketika Manager ngeklik "Approve" di HP, modal ini akan otomatis ketutup dan nge-trigger onSuccess
+    authDialog.onSuccess = (data) => {
+      executeSave(data.approver, generatedAuthNomor);
+    };
+
+    authDialog.show = true;
   } catch (error: unknown) {
-    const err = error as { response?: { data?: { message?: string } } };
-    toast.error(err.response?.data?.message || "Gagal menyimpan pengajuan.");
+    toast.error("Gagal membuat request otorisasi.");
   } finally {
     isSaving.value = false;
   }
 };
 
-const executeSave = async (approverName: string) => {
+// Fungsi ini HANYA JALAN JIKA Manager sudah nge-Approve dari HP
+const executeSave = async (approverName: string, authNomor: string) => {
   isSaving.value = true;
-  authDialog.show = false; // Tutup modal otorisasi
+  authDialog.show = false; // Tutup modal
 
   try {
     const payload = {
       nomorList: draftItems.value.map((item) => item.nomor),
       keterangan: form.value.keterangan,
-      approver: approverName, // [PENTING] Kirim nama SPV ke backend
+      approver: approverName, // Nama SPV dari hasil Otorisasi di HP (Misal: ESTU / IRSYAD)
+      authNomor: authNomor, // Kirim ID Otorisasinya sekalian buat ditautkan di DB (Opsional)
     };
 
-    const response = await api.post("/petty-cash/submit-klaim", payload);
+    // 3. BARU KITA SUBMIT KLAIM KE FINANCE DENGAN NAMA APPROVER YANG SAH!
+    const response = await api.post("/petty-cash/submit-klaim-kolektif", payload);
 
-    toast.success(response.data.message || "Pengajuan klaim berhasil dikirim ke Finance.");
+    toast.success(
+      response.data.message || "Pengajuan klaim berhasil disetujui & dikirim ke Finance."
+    );
     router.push("/transaksi/internal/petty-cash");
   } catch (error: unknown) {
     const err = error as { response?: { data?: { message?: string } } };
-    toast.error(err.response?.data?.message || "Gagal menyimpan pengajuan.");
+    toast.error(err.response?.data?.message || "Gagal menyimpan pengajuan klaim.");
   } finally {
     isSaving.value = false;
   }

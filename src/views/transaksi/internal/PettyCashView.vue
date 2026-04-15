@@ -20,6 +20,7 @@ interface PettyCashItem {
   pck_bbk_finance?: string;
   bkm_nomor?: string;
   tanggal: string; // Biasanya selalu ada
+  date_draft?: string;
   date_submitted?: string;
   date_acc?: string;
   date_approved?: string;
@@ -437,7 +438,7 @@ const getStatusText = (status: string) => {
   }
 };
 
-const getStepDate = (status: string, item: any) => {
+const getStepDate = (status: string, item: PettyCashItem | null) => {
   if (!item) return "";
   let dateVal = null;
 

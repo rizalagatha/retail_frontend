@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, reactive, watch } from "vue";
+import { ref, computed, onMounted, reactive, watch } from "vue";
 import { useRouter } from "vue-router";
 import { useToast } from "vue-toastification";
 import api from "@/services/api";
@@ -8,6 +8,7 @@ import PageLayout from "@/components/PageLayout.vue";
 import { formatRupiah } from "@/utils/formatRupiah";
 import axios from "axios";
 import { useAuthStore } from "@/stores/authStore";
+import { useAuthPolling } from "@/composables/useAuthPolling";
 
 interface DraftPettyCash {
   nomor: string;
@@ -20,6 +21,7 @@ interface DraftPettyCash {
 const router = useRouter();
 const toast = useToast();
 const MENU_ID = "58"; // Sesuaikan dengan Menu ID Petty Cash Store
+const { startGlobalPolling } = useAuthPolling();
 
 const authStore = useAuthStore();
 const loading = ref(true);
@@ -63,54 +65,22 @@ const fetchDrafts = async () => {
 const pollingInterval = ref<ReturnType<typeof setInterval> | null>(null);
 const isPolling = computed(() => pollingInterval.value !== null);
 
-const startPolling = (authNomor: string) => {
-  if (pollingInterval.value) clearInterval(pollingInterval.value);
-
-  pollingInterval.value = setInterval(async () => {
-    try {
-      const res = await api.get(`/auth-pin/status/${authNomor}`); // Pastikan path-nya sesuai yang terakhir ya
-
-      // [PERBAIKAN] Ubah 'ACC' menjadi 'APPROVED'
-      if (res.data.status === "APPROVED") {
-        stopPolling();
-        isWaitingAuth.value = false;
-        toast.success(`Otorisasi disetujui oleh ${res.data.approver}`);
-
-        executeSave(res.data.approver, authNomor);
-
-        // [PERBAIKAN] Ubah 'TOLAK' menjadi 'REJECTED'
-      } else if (res.data.status === "REJECTED") {
-        stopPolling();
-        isWaitingAuth.value = false;
-        toast.error("Otorisasi ditolak oleh Supervisor.");
-      }
-    } catch (e) {
-      console.error("Polling error", e);
-    }
-  }, 3000);
-};
-
-const stopPolling = () => {
-  if (pollingInterval.value) {
-    clearInterval(pollingInterval.value);
-    pollingInterval.value = null;
-  }
-};
-
-onUnmounted(() => {
-  stopPolling();
-});
-
-// --- UPDATE HANDLE SAVE ---
 const handleSave = async () => {
-  if (draftItems.value.length === 0) {
-    return toast.warning("Tidak ada dokumen Petty Cash untuk diajukan.");
-  }
+  if (draftItems.value.length === 0) return toast.warning("Kosong.");
 
   isSaving.value = true;
   try {
+    // 1. SUBMIT KLAIM DULU KE DATABASE (Status: SUBMITTED)
+    const payloadToSubmit = {
+      nomorList: draftItems.value.map((item) => item.nomor),
+      keterangan: form.value.keterangan,
+    };
+    const submitRes = await api.post("/petty-cash/submit-klaim", payloadToSubmit);
+    const generatedPckNomor = submitRes.data.pck_nomor;
+
+    // 2. MINTA OTORISASI PAKAI NOMOR PCK
     const authPayload = {
-      transaksi: "NEW_CLAIM",
+      transaksi: generatedPckNomor,
       jenis: "KLAIM_PETTYCASH",
       keterangan: `Pengajuan Klaim Petty Cash\nTotal: ${formatRupiah(totalKlaim.value)}\nKet: ${
         form.value.keterangan || "-"
@@ -121,50 +91,22 @@ const handleSave = async () => {
       barcode: "",
       target_cabang: "",
     };
-
-    // Tembak request ke HP SPV
     const authResponse = await api.post("/auth-pin/request", authPayload);
     const generatedAuthNomor = authResponse.data.authNomor;
 
-    // Munculkan Pop-up Loading Custom
+    // 3. MUNCULKAN POP-UP LOADING
     isWaitingAuth.value = true;
+    toast.info("Terkirim! Proses berjalan di latar belakang, Anda bisa menutup dialog ini.");
 
-    // Mulai nanya ke server tiap 3 detik
-    startPolling(generatedAuthNomor);
+    // 4. JALANKAN POLLING GLOBAL!
+    // Kita titipkan "pesan" (callback) agar kalau kasir masih diam di halaman ini, pop-upnya nutup & datanya ke-refresh
+    startGlobalPolling(generatedAuthNomor, () => {
+      isWaitingAuth.value = false;
+      fetchDrafts();
+    });
   } catch (error: unknown) {
     const err = error as { response?: { data?: { message?: string } } };
-    toast.error(err.response?.data?.message || "Gagal membuat request otorisasi.");
-  } finally {
-    isSaving.value = false;
-  }
-};
-
-// Fungsi ini HANYA JALAN JIKA Manager sudah nge-Approve dari HP
-const executeSave = async (approverName: string, authNomor: string) => {
-  isSaving.value = true;
-
-  // [PERBAIKAN] Ganti authDialog.show menjadi isWaitingAuth.value
-  isWaitingAuth.value = false; // Tutup pop-up loading muter-muternya
-
-  try {
-    const payload = {
-      nomorList: draftItems.value.map((item) => item.nomor),
-      keterangan: form.value.keterangan,
-      approver: approverName, // Nama SPV dari hasil Otorisasi di HP
-      authNomor: authNomor, // Kirim ID Otorisasinya sekalian buat ditautkan di DB
-    };
-
-    // 3. BARU KITA SUBMIT KLAIM KE FINANCE DENGAN NAMA APPROVER YANG SAH!
-    // (Pastikan endpoint ini sesuai dengan route di backend web Mas Rizal)
-    const response = await api.post("/petty-cash/submit-klaim", payload);
-
-    toast.success(
-      response.data.message || "Pengajuan klaim berhasil disetujui & dikirim ke Finance."
-    );
-    router.push("/transaksi/internal/petty-cash");
-  } catch (error: unknown) {
-    const err = error as { response?: { data?: { message?: string } } };
-    toast.error(err.response?.data?.message || "Gagal menyimpan pengajuan klaim.");
+    toast.error(err.response?.data?.message || "Gagal memproses pengajuan.");
   } finally {
     isSaving.value = false;
   }

@@ -128,7 +128,7 @@ const executeSave = async (approverName: string, authNomor: string) => {
     };
 
     // 3. BARU KITA SUBMIT KLAIM KE FINANCE DENGAN NAMA APPROVER YANG SAH!
-    const response = await api.post("/petty-cash/submit-klaim-kolektif", payload);
+    const response = await api.post("/petty-cash/submit-klaim", payload);
 
     toast.success(
       response.data.message || "Pengajuan klaim berhasil disetujui & dikirim ke Finance."

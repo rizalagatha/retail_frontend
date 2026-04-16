@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, reactive, onMounted } from "vue";
+import { ref, reactive, onMounted, computed } from "vue";
 import { useRouter } from "vue-router";
 import { useToast } from "vue-toastification";
 import { useAuthStore } from "@/stores/authStore";
@@ -40,14 +40,17 @@ interface KlaimDetail {
 const router = useRouter();
 const toast = useToast();
 const authStore = useAuthStore();
+const isPusat = computed(() => authStore.user?.cabang === "KDC");
+const userCabang = computed(() => authStore.user?.cabang || "");
 const MENU_ID = "59"; // Menu Finance
 
 // --- State ---
 const filters = reactive({
   startDate: format(subDays(new Date(), 30), "yyyy-MM-dd"),
   endDate: format(new Date(), "yyyy-MM-dd"),
-  cabang: "ALL",
-  status: "ACC", // DEFAULT FILTER SEKARANG ADALAH ACC
+  // [PERBAIKAN] Dinamis berdasarkan asal usul user
+  cabang: isPusat.value ? "ALL" : userCabang.value,
+  status: "ACC",
 });
 
 const cabangList = ref<{ kode: string; nama: string }[]>([]);
@@ -121,7 +124,14 @@ const getRowClass = (item: KlaimItem) => {
 const fetchCabangList = async () => {
   try {
     const response = await api.get("/minta-barang/lookup/cabang");
-    cabangList.value = [{ kode: "ALL", nama: "SEMUA CABANG" }, ...response.data];
+
+    if (isPusat.value) {
+      // Kalau pusat, bisa lihat semua
+      cabangList.value = [{ kode: "ALL", nama: "SEMUA CABANG" }, ...response.data];
+    } else {
+      // Kalau toko, saring HANYA cabang dia sendiri
+      cabangList.value = response.data.filter((c: any) => c.kode === userCabang.value);
+    }
   } catch (error) {
     console.error("Gagal memuat cabang", error);
   }
@@ -247,7 +257,8 @@ onMounted(() => {
           item-value="kode"
           density="compact"
           hide-details
-          variant="outlined"
+          :readonly="!isPusat"
+          :variant="!isPusat ? 'filled' : 'outlined'"
           style="max-width: 200px"
           class="ms-2"
           @update:model-value="fetchMasterData"

@@ -110,11 +110,27 @@ const viewPdf = (url: string) => {
     return;
   }
 
-  // Gunakan origin dari browser saat ini (menghasilkan https://103.94.238.252)
-  const baseUrl = window.location.origin;
+  // 1. Ambil Base URL API (Bukan cuma origin browser)
+  let apiUrl = (api.defaults.baseURL ||
+    import.meta.env.VITE_API_BASE_URL ||
+    window.location.origin) as string;
 
-  // Hasil akhirnya: https://103.94.238.252/memos/memo-xxx.pdf
-  selectedPdfUrl.value = `${baseUrl}${url}`;
+  // 2. Bersihkan garis miring di ujung
+  apiUrl = apiUrl.replace(/\/$/, "");
+
+  // 3. [KUNCI PERBAIKAN]: Paksa tambahkan '/api' jika belum ada
+  // Biar Nginx tahu kalau ini urusannya Backend Node.js
+  if (!apiUrl.endsWith("/api")) {
+    apiUrl += "/api";
+  }
+
+  // 4. Pastikan url dari DB (misal: /memos/xxx.pdf) nyambung dengan rapi
+  const cleanUrl = url.startsWith("/") ? url : `/${url}`;
+
+  // Hasil akhirnya jadi: https://103.94.238.252/api/memos/memo-xxx.pdf
+  selectedPdfUrl.value = `${apiUrl}${cleanUrl}`;
+
+  console.log("[DEBUG FRONTEND] URL Akhir PDF:", selectedPdfUrl.value);
 };
 
 onMounted(fetchMemos);
@@ -175,13 +191,13 @@ onMounted(fetchMemos);
                 cols="8"
                 class="bg-grey-darken-3 d-flex align-center justify-center fill-height relative"
               >
-                <embed
+                <iframe
                   v-if="selectedPdfUrl"
                   :src="selectedPdfUrl"
-                  type="application/pdf"
                   width="100%"
                   height="100%"
-                />
+                  style="border: none"
+                ></iframe>
                 <div v-else class="text-white text-center">
                   <v-icon size="64" class="mb-2 opacity-20">mdi-pdf-box</v-icon>
                   <p>Pilih memo untuk melihat isi dokumen</p>

@@ -322,23 +322,42 @@ watch(
       </div>
     </div>
 
-    <v-dialog v-model="isWaitingAuth" max-width="400px" persistent>
-      <v-card class="text-center pa-6 rounded-xl elevation-10">
-        <v-progress-circular
-          indeterminate
-          color="primary"
-          size="64"
-          width="6"
-          class="mb-4"
-        ></v-progress-circular>
-        <div class="text-h6 font-weight-bold mb-2">Menunggu ACC SPV...</div>
-        <div class="text-body-2 text-grey-darken-1 mb-6">
-          Permintaan telah masuk ke HP Supervisor.<br />
-          Silakan tunggu hingga disetujui.
+    <v-dialog
+      v-model="isWaitingAuth"
+      max-width="360px"
+      persistent
+      transition="dialog-bottom-transition"
+    >
+      <v-card class="rounded-xl overflow-hidden elevation-10 border">
+        <div class="bg-blue-lighten-5 pt-8 pb-6 d-flex justify-center position-relative">
+          <v-progress-circular indeterminate color="primary" size="72" width="6">
+            <v-icon color="primary" size="32" class="pulse-icon">mdi-cellphone-message</v-icon>
+          </v-progress-circular>
         </div>
-        <v-btn color="grey-darken-2" variant="tonal" block @click="isWaitingAuth = false">
-          Tutup (Biarkan Jalan di Latar Belakang)
-        </v-btn>
+
+        <v-card-text class="text-center pt-6 pb-2 px-6">
+          <h3 class="text-h6 font-weight-black text-grey-darken-3 mb-2" style="line-height: 1.2">
+            Menunggu ACC SPV...
+          </h3>
+          <p class="text-body-2 text-grey-darken-1 mb-0" style="line-height: 1.5">
+            Permintaan telah masuk ke HP Supervisor.<br />
+            Sistem sedang memantau persetujuan.
+          </p>
+        </v-card-text>
+
+        <v-card-actions class="px-6 pb-6 pt-4 justify-center">
+          <v-btn
+            color="grey-darken-2"
+            variant="tonal"
+            block
+            rounded="pill"
+            height="44"
+            class="text-none font-weight-bold"
+            @click="isWaitingAuth = false"
+          >
+            Tutup (Biar Jalan di Latar)
+          </v-btn>
+        </v-card-actions>
       </v-card>
     </v-dialog>
   </PageLayout>
@@ -376,5 +395,24 @@ watch(
   font-size: 11px !important;
   text-transform: none !important;
   font-weight: 600;
+}
+
+.pulse-icon {
+  animation: pulse-opacity 1.5s infinite ease-in-out;
+}
+
+@keyframes pulse-opacity {
+  0% {
+    opacity: 0.4;
+    transform: scale(0.95);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.05);
+  }
+  100% {
+    opacity: 0.4;
+    transform: scale(0.95);
+  }
 }
 </style>

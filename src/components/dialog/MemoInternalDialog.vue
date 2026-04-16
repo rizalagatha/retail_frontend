@@ -103,32 +103,30 @@ const handleUpload = async () => {
 };
 
 const viewPdf = (url: string) => {
-  console.log("[DEBUG FRONTEND] Membuka PDF via URL:", url);
+  console.log("[DEBUG FRONTEND] Data URL dari DB:", url);
 
   if (!url || url.includes("undefined")) {
     toast.error("URL Memo tidak valid.");
     return;
   }
 
-  // 1. Ambil Base URL API (Bukan cuma origin browser)
+  // 1. Ambil nama file-nya saja (contoh: url isinya "/memos/memo-123.pdf")
+  const fileName = url.split("/").pop(); // Hasil: "memo-123.pdf"
+
+  if (!fileName) {
+    toast.error("Nama file tidak terbaca.");
+    return;
+  }
+
+  // 2. Ambil Base URL API
   let apiUrl = (api.defaults.baseURL ||
     import.meta.env.VITE_API_BASE_URL ||
     window.location.origin) as string;
+  apiUrl = apiUrl.replace(/\/$/, ""); // Bersihkan garis miring di ujung
+  if (!apiUrl.endsWith("/api")) apiUrl += "/api";
 
-  // 2. Bersihkan garis miring di ujung
-  apiUrl = apiUrl.replace(/\/$/, "");
-
-  // 3. [KUNCI PERBAIKAN]: Paksa tambahkan '/api' jika belum ada
-  // Biar Nginx tahu kalau ini urusannya Backend Node.js
-  if (!apiUrl.endsWith("/api")) {
-    apiUrl += "/api";
-  }
-
-  // 4. Pastikan url dari DB (misal: /memos/xxx.pdf) nyambung dengan rapi
-  const cleanUrl = url.startsWith("/") ? url : `/${url}`;
-
-  // Hasil akhirnya jadi: https://103.94.238.252/api/memos/memo-xxx.pdf
-  selectedPdfUrl.value = `${apiUrl}${cleanUrl}`;
+  // 3. Rangkai URL menembak endpoint streaming yang baru!
+  selectedPdfUrl.value = `${apiUrl}/memos/stream/${fileName}`;
 
   console.log("[DEBUG FRONTEND] URL Akhir PDF:", selectedPdfUrl.value);
 };

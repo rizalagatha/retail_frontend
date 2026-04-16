@@ -80,34 +80,35 @@ const handleSave = async () => {
   try {
     // 1. KITA BUAT REQUEST OTORISASI DULU KE BACKEND
     const authPayload = {
-      transaksi: "NEW_CLAIM", // Nanti akan diisi nomor PCK oleh backend saat klaim disubmit
-      jenis: "KLAIM_PETTYCASH",
+      transaksi: "NEW_CLAIM",
+      jenis: "KLAIM_PETTYCASH", // Kembali pakai 'jenis' (tanpa o_)
       keterangan: `Pengajuan Klaim Petty Cash\nTotal: ${formatRupiah(totalKlaim.value)}\nKet: ${
         form.value.keterangan || "-"
-      }`,
+      }`, // Kembali pakai 'keterangan'
       nominal: totalKlaim.value,
       cabang: authStore.user?.cabang,
       user: authStore.user?.kode,
+      barcode: "",
+      target_cabang: "",
     };
 
     const authResponse = await api.post("/auth-pin/request", authPayload);
     const generatedAuthNomor = authResponse.data.authNomor;
 
     // 2. MUNCULKAN MODAL OTORISASI UNTUK POLLING
-    // Kasir akan melihat modal ini sambil menunggu Manager klik "Approve" di HP
     authDialog.title = "Menunggu Otorisasi Manager";
     authDialog.jenis = "KLAIM_PETTYCASH";
     authDialog.nominal = totalKlaim.value;
-    authDialog.transaksi = generatedAuthNomor; // Pakai nomor auth untuk di-polling
+    authDialog.transaksi = generatedAuthNomor;
 
-    // Ketika Manager ngeklik "Approve" di HP, modal ini akan otomatis ketutup dan nge-trigger onSuccess
     authDialog.onSuccess = (data) => {
       executeSave(data.approver, generatedAuthNomor);
     };
 
     authDialog.show = true;
   } catch (error: unknown) {
-    toast.error("Gagal membuat request otorisasi.");
+    const err = error as { response?: { data?: { message?: string } } };
+    toast.error(err.response?.data?.message || "Gagal membuat request otorisasi.");
   } finally {
     isSaving.value = false;
   }

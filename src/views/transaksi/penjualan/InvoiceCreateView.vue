@@ -2614,9 +2614,9 @@ const getQtyClass = (item: Item) => {
 const isHargaEditable = (item: Item) => {
   const cabang = authStore.user?.cabang || "";
 
-  // 1. Cabang KDC: Selalu bisa edit harga (Invoice Reguler)
+  // 1. Cabang KDC: Bebas edit harga apapun
   if (cabang === "KDC") {
-    return false; // <--- UBAH DARI true MENJADI false
+    return true; // <--- UBAH DARI false MENJADI true
   }
 
   // 2. Cabang KON & K05: Tetap mengikuti aturan Marketplace

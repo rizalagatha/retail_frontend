@@ -6,6 +6,7 @@ import { format, parseISO } from "date-fns";
 import Logo from "@/assets/logo.png";
 import LogoRezso from "@/assets/rezso.jpg";
 import QRCode from "qrcode";
+import { useAuthStore } from "@/stores/authStore";
 
 interface PrintHeader {
   nomor: string;
@@ -41,6 +42,7 @@ interface PrintData {
 }
 
 const route = useRoute();
+const authStore = useAuthStore();
 const printData = ref<PrintData | null>(null);
 const qrCodeData = ref<string | null>(null);
 const isLoading = ref(true);
@@ -176,23 +178,29 @@ onMounted(() => {
             <div>
               Mengetahui,
 
-              <div class="sig-space stamp-container">
-                <div
-                  v-if="
-                    printData.header.approver &&
-                    printData.header.approver !== '....................'
-                  "
-                  class="digital-stamp"
-                >
-                  <div class="stamp-text">APPROVED</div>
-                  <div class="stamp-sub">DIGITAL SIGNATURE</div>
-                  <div v-if="printData.header.approved_at" class="stamp-date">
-                    {{ printData.header.approved_at }}
+              <template v-if="authStore.user?.cabang === 'KDC'">
+                <div class="sig-space"></div>
+                ( DARUL )
+              </template>
+
+              <template v-else>
+                <div class="sig-space stamp-container">
+                  <div
+                    v-if="
+                      printData.header.approver &&
+                      printData.header.approver !== '....................'
+                    "
+                    class="digital-stamp"
+                  >
+                    <div class="stamp-text">APPROVED</div>
+                    <div class="stamp-sub">DIGITAL SIGNATURE</div>
+                    <div v-if="printData.header.approved_at" class="stamp-date">
+                      {{ printData.header.approved_at }}
+                    </div>
                   </div>
                 </div>
-              </div>
-
-              ( {{ printData.header.approver || "...................." }} )
+                ( {{ printData.header.approver || "...................." }} )
+              </template>
             </div>
           </div>
         </div>

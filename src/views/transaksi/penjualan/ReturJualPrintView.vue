@@ -11,6 +11,7 @@ interface ReturJualHeader {
   nomor: string;
   tanggal: string;
   invoice: string;
+  jenis: string;
   keterangan: string;
   user_create: string;
   gudang: {
@@ -111,6 +112,7 @@ onMounted(() => {
             {{ format(parseISO(printData.header.tanggal), "dd-MM-yyyy") }}
           </div>
           <div><span class="label">No. Invoice</span>: {{ printData.header.invoice }}</div>
+          <div><span class="label">Jenis Retur</span>: {{ printData.header.jenis }}</div>
         </div>
         <div class="info-right">
           <div><span class="label">Customer</span>: {{ printData.header.customer.nama }}</div>

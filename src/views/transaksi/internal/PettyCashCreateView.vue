@@ -142,13 +142,16 @@ const calculateTotals = () => {
 };
 
 const fetchCurrentSaldo = async () => {
+  // Tentukan modal default berdasarkan cabang
+  const defaultModal = header.cabang === "K03" ? 500000 : 1000000;
+
   try {
     const response = await api.get("/petty-cash-form/saldo");
     // Set saldo yang didapat dari tabel mutasi
-    header.modal = response.data.saldo !== null ? Number(response.data.saldo) : 1000000;
+    header.modal = response.data.saldo !== null ? Number(response.data.saldo) : defaultModal;
   } catch (error) {
     console.error("Gagal memuat saldo. Menggunakan default.", error);
-    header.modal = 1000000; // Fallback jika terjadi error
+    header.modal = defaultModal; // Fallback jika terjadi error
   }
 };
 

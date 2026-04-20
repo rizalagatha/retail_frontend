@@ -59,6 +59,7 @@ const printData = ref<PrintData | null>(null);
 const isLoading = ref(true);
 const instagramLogo = InstagramLogo; // Definisikan untuk digunakan di template
 const qrCodeData = ref<string | null>(null);
+const trackingCode = ref<string>("");
 
 const dynamicLogo = computed(() => {
   // Cek jika data sudah ada dan nomor SO dimulai dengan K04
@@ -68,18 +69,47 @@ const dynamicLogo = computed(() => {
   return Logo; // Default ke logo Kaosan
 });
 
+const encodeResi = (nomorSo: string) => {
+  try {
+    const parts = nomorSo.split(".SO.");
+    // Jika format tidak standar, kembalikan apa adanya
+    if (parts.length !== 2) return nomorSo;
+
+    const cabang = parts[0]; // "K01"
+    const numPart = parts[1].replace(".", ""); // "2604.0001" jadi "26040001"
+
+    const num = Number(numPart);
+    if (isNaN(num)) return nomorSo;
+
+    // Rumus Obfuscation (dikali 7 ditambah angka acak) biar nggak berurutan
+    const secretVal = num * 7 + 456789;
+
+    // Ubah ke Alfanumerik (Base36) lalu Uppercase
+    const encodedNum = secretVal.toString(36).toUpperCase();
+
+    // Format: Awalan "KSN" + Kode Cabang + Kode Rahasia
+    // Hasil: KSNK0130FRTS
+    return `KSN${cabang}${encodedNum}`;
+  } catch (e) {
+    return nomorSo;
+  }
+};
+
 const fetchPrintData = async (nomor: string) => {
   isLoading.value = true;
   try {
     const response = await api.get(`/so/print-data/${nomor}`);
     printData.value = response.data;
     const data = response.data as PrintData;
-    printData.value = data;
 
     if (data.header?.so_nomor) {
       document.title = data.header.so_nomor;
 
-      qrCodeData.value = await QRCode.toDataURL(data.header.so_nomor, {
+      // Generate Kode Resi
+      trackingCode.value = encodeResi(data.header.so_nomor);
+
+      // QR Code sekarang berisi kode resi KSN...
+      qrCodeData.value = await QRCode.toDataURL(trackingCode.value, {
         width: 150,
         margin: 1,
       });
@@ -252,6 +282,16 @@ onMounted(() => {
           dilakukan pengambilan, maka uang muka (DP) dianggap hangus dan barang sepenuhnya menjadi
           hak milik kami.</em
         >
+        <div
+          style="margin-top: 15px; padding-top: 10px; border-top: 1px dashed #ccc; text-align: left"
+        >
+          <div style="font-size: 11px; color: #666; margin-bottom: 2px">
+            Gunakan Resi ini untuk Melacak Pesanan di Web:
+          </div>
+          <div style="font-size: 16px; font-weight: 900; letter-spacing: 1px; color: #000">
+            {{ trackingCode }}
+          </div>
+        </div>
       </div>
     </div>
   </div>

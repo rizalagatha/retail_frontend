@@ -58,6 +58,46 @@ const fetchPromos = async () => {
   }
 };
 
+// --- 2. FUNGSI DECODE UNTUK BACA RESI ---
+const decodeResi = (resi: string) => {
+  try {
+    const raw = resi.trim().toUpperCase();
+
+    // Cek apakah dia pakai awalan KSN (Resi Kaosan)
+    if (!raw.startsWith("KSN")) return raw;
+
+    // Pisahkan: KSN (3 huruf) + Cabang (3 huruf) + Sisanya angka rahasia
+    const cabang = raw.substring(3, 6); // "K01"
+    const encodedNum = raw.substring(6); // "30FRTS"
+
+    // Kembalikan dari Alfanumerik ke angka
+    const secretVal = parseInt(encodedNum, 36);
+    if (isNaN(secretVal)) return raw;
+
+    // Balikkan rumus obfuscation tadi
+    const origNum = (secretVal - 456789) / 7;
+
+    // Pastikan hasilnya bulat sempurna
+    if (!Number.isInteger(origNum)) return raw;
+
+    let numStr = origNum.toString();
+    // Jaga-jaga kalau kurang dari 8 digit (misal: 26040001)
+    if (numStr.length < 8) {
+      numStr = numStr.padStart(8, "0");
+    }
+
+    // Pecah jadi: 2604 . 0001
+    const part1 = numStr.substring(0, 4);
+    const part2 = numStr.substring(4);
+
+    // Rangkai kembali jadi nomor SO asli
+    return `${cabang}.SO.${part1}.${part2}`;
+  } catch (e) {
+    // Kalau gagal decode, biarkan backend yang pusing nolak
+    return resi;
+  }
+};
+
 const cariPesanan = async () => {
   if (!searchInput.value) return;
 
@@ -67,10 +107,16 @@ const cariPesanan = async () => {
   selectedItem.value = null;
 
   try {
-    const response = await api.get(`/so/search-track/${searchInput.value.trim()}`);
+    // 1. Ambil ketikan Customer (Contoh: KSNK0130FRTS)
+    const rawInput = searchInput.value;
+
+    // 2. Sulap kembali jadi SO Asli (K01.SO.2604.0001)
+    const realSoNumber = decodeResi(rawInput);
+
+    // 3. Tembak ke API menggunakan SO Asli
+    const response = await api.get(`/so/search-track/${realSoNumber}`);
     soData.value = response.data;
 
-    // Masukkan opsi Lacak Semua ke urutan teratas
     if (soData.value) {
       soData.value.items.unshift({
         title: "🔍 Lacak Semua (Keseluruhan)",
@@ -80,7 +126,6 @@ const cariPesanan = async () => {
 
     isFound.value = true;
   } catch (error: unknown) {
-    // Ubah any menjadi unknown, lalu casting tipe datanya
     const err = error as { response?: { data?: { message?: string } } };
     errorMessage.value = err.response?.data?.message || "Pesanan tidak ditemukan.";
   } finally {

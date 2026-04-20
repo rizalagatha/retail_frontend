@@ -29,6 +29,7 @@ import JenisOrderModal from "@/components/modal/JenisOrderModal.vue";
 import PromoSearchModal from "@/components/lookup/PromoSearchModal.vue"; // [BARU]
 import PromoBonusModal from "@/components/modal/PromoBonusModal.vue"; // [BARU]
 // import SpkDialog from "@/components/dialog/SpkDialog.vue";
+import MemberForm from "@/components/form/MemberForm.vue";
 
 const router = useRouter();
 const route = useRoute();
@@ -325,12 +326,12 @@ const pageTitle = computed(() =>
 );
 const isViewMode = computed(() => route.query.mode === "view");
 const isReadonly = computed(() => isViewMode.value || isSavingDisabled.value);
-const statusDpText = computed(() => {
-  if (footer.value.totalDp >= footer.value.minimalDp || footer.value.pinTanpaDp) {
-    return "DP Memenuhi Syarat/Ada Otorisasi";
-  }
-  return "DP Belum Cukup";
-});
+// const statusDpText = computed(() => {
+//   if (footer.value.totalDp >= footer.value.minimalDp || footer.value.pinTanpaDp) {
+//     return "DP Memenuhi Syarat/Ada Otorisasi";
+//   }
+//   return "DP Belum Cukup";
+// });
 const requiredPermission = computed(() => (isEditMode.value ? "edit" : "insert"));
 const allVerified = computed(() => {
   const validItems = items.value.filter((i) => i.kode && !i.isJasa);
@@ -397,9 +398,23 @@ const initialHeaderState = {
   nomorPromo: "", // [BARU]
   namaPromo: "", // [BARU]
   nomorAuth: "",
+
+  memberHp: "",
+  memberNik: "",
+  memberNama: "",
+  memberAlamat: "",
+  memberGender: "",
+  memberUsia: "",
+  memberReferensi: "",
 };
 
 const header = ref({ ...initialHeaderState });
+
+const memberHpToSearch = ref("");
+
+const memberLabel = computed(() => {
+  return header.value.customer?.kode === "K-00079" ? "Data Karyawan" : "Info Member";
+});
 
 const items = ref<SoItem[]>([]);
 const dpItems = ref<DpItem[]>([]);
@@ -459,6 +474,7 @@ const dialogs = reactive({
   jenisOrder: false,
   promoSearch: false, // [BARU]
   promoBonus: false, // [BARU]
+  memberForm: false,
 });
 const jenisOrderList = ref([]);
 const loadingJenisOrder = ref(false);
@@ -543,11 +559,8 @@ const adjustmentHeaders = [
 
 // --- Computed Properties ---
 const minimalDpText = computed(() => {
-  const containsDtf = items.value.some((item) => item.noSoDtf);
-  const containsCustom = items.value.some((item) => item.isCustomOrder);
-  const percentage = containsDtf || containsCustom ? 50 : 30;
   const amount = new Intl.NumberFormat("id-ID").format(footer.value.minimalDp);
-  return `Minimal DP ${percentage}% dari nominal SO : ${amount}`;
+  return `Minimal DP: ${amount}`;
 });
 
 // const selectedPenawaran = computed(() => {
@@ -609,6 +622,24 @@ const isUserKon = computed(() => authStore.user?.cabang === "KON");
 const hasUnfinishedDtf = computed(() => {
   return items.value.some((item) => !!item.noSoDtf && item.isLhk === false);
 });
+
+// --- Helper Pengecekan DP Mengikat ---
+const isDpSufficientForCustom = () => {
+  // Jika belum bayar DP sama sekali (masih draft baru) atau ada Otorisasi, aman. Nanti diblokir saat Simpan.
+  if (footer.value.totalDp === 0 || footer.value.pinTanpaDp) return true;
+
+  const currentDpPercentage =
+    footer.value.netto > 0 ? footer.value.totalDp / footer.value.netto : 0;
+
+  // Jika user sudah bayar DP (misal 30%) tapi kurang dari 50%, BLOKIR!
+  if (currentDpPercentage > 0 && currentDpPercentage < 0.5) {
+    toast.error(
+      "Customer baru DP < 50%. Item Custom/DTF tidak bisa ditambahkan sebelum DP ditambah minimal 50%."
+    );
+    return false;
+  }
+  return true;
+};
 
 const isExemptFromLhkRule = computed(() => {
   const cabang = authStore.user?.cabang || "";
@@ -928,8 +959,6 @@ const calculateTotals = async () => {
     footer.value.minimalDp = 0;
     footer.value.belumDibayar = footer.value.grandTotal - footer.value.totalDp;
   } else {
-    // === RULES REGULER (Toko/Sales) ===
-
     // 1. Hitung Belum Dibayar
     footer.value.belumDibayar = footer.value.grandTotal - footer.value.totalDp;
 
@@ -942,17 +971,8 @@ const calculateTotals = async () => {
       footer.value.minimalDp = 0.3 * footer.value.netto; // 30% untuk Reguler
     }
 
-    // 3. Tentukan Status SO (PASIF/AKTIF)
-    const isLevel8 = header.value.levelKode?.toString().startsWith("8");
-
-    const isFranchise = header.value.customer?.franchise === "Y";
-
-    // Syarat Aktif: Level 8 ATAU Franchise ATAU DP Cukup ATAU Ada Otorisasi
-    if (isLevel8 || isFranchise || totalDp >= footer.value.minimalDp || footer.value.pinTanpaDp) {
-      header.value.statusSo = "AKTIF";
-    } else {
-      header.value.statusSo = "PASIF";
-    }
+    // 3. Tentukan Status SO (Sesuai Rule Baru: PASTI AKTIF)
+    header.value.statusSo = "AKTIF";
   }
   // checkRealtimePromoEligibility();
 };
@@ -1044,6 +1064,10 @@ const openSoDtfSearch = (index: number) => {
     toast.error("Pilih Customer terlebih dahulu.");
     return;
   }
+
+  // [TAMBAHKAN INI] Validasi DP mengikat
+  if (!isDpSufficientForCustom()) return;
+
   activeRowIndex.value = index;
   isSoDtfSearchVisible.value = true;
 };
@@ -1227,6 +1251,12 @@ const save = async () => {
     return;
   }
 
+  if (header.value.customer?.kode === "K-00079" && !header.value.memberNik) {
+    dialogs.memberForm = true;
+    toast.error("Customer Kencana Print wajib mengisi data NIK Karyawan!");
+    return;
+  }
+
   if (!header.value.customer) {
     toast.error("Customer harus diisi.");
     return;
@@ -1400,9 +1430,38 @@ const save = async () => {
     return;
   }
 
-  // --- 6. Validasi DP ---
-  if (footer.value.totalDp < footer.value.minimalDp && header.value.statusSo === "PASIF") {
-    toast.warning("DP di bawah Minimal DP. SO ini akan berstatus PASIF.");
+  // --- 6. Validasi DP Mengikat (Wajib sebelum simpan) ---
+  if (!header.value.isMarketplace && !footer.value.pinTanpaDp) {
+    if (footer.value.totalDp < footer.value.minimalDp) {
+      toast.error(
+        `Gagal Simpan: DP belum memenuhi syarat. Minimal DP: ${formatRupiah(
+          footer.value.minimalDp
+        )}`
+      );
+      return;
+    }
+  }
+
+  // --- 6.5 Validasi Qty DTF vs Kaos ---
+  let qtyKaos = 0;
+  let qtyDtf = 0;
+  validItems.forEach((item) => {
+    const isCustomOrDtf =
+      item.isCustomOrder || !!item.noSoDtf || (item.nama || "").toUpperCase().includes("DTF");
+    const isJasaMurni = item.isJasa || (item.kode || "").toUpperCase().startsWith("JASA");
+
+    if (isCustomOrDtf && !isJasaMurni) {
+      qtyDtf += Number(item.jumlah) || 0;
+    } else if (!isCustomOrDtf && !isJasaMurni && item.kategori !== "BONUS") {
+      qtyKaos += Number(item.jumlah) || 0;
+    }
+  });
+
+  if (qtyDtf > qtyKaos) {
+    toast.error(
+      `Gagal Simpan: Qty SO DTF / Custom (${qtyDtf}) tidak boleh melebihi Qty Kaos (${qtyKaos}).`
+    );
+    return;
   }
 
   // --- 7. VALIDASI TANGGAL HARI INI ---
@@ -1730,6 +1789,8 @@ const onCustomerSelected = async (rawCustomer: CustomerLookupResult) => {
   header.value.kota = mappedCustomer.kota || "";
   header.value.telp = mappedCustomer.telp || "";
 
+  updateMemberInfo(mappedCustomer);
+
   await applyDefaultDiscount();
   calculateTotals();
   toast.success(`Customer ${mappedCustomer.nama} berhasil dipilih.`);
@@ -1918,6 +1979,10 @@ const onProductsSelected = (selectedProducts: SoItemApi[]) => {
   selectedProducts.forEach((product) => {
     const kodeUp = product.kode?.toUpperCase() || "";
     const namaUp = product.nama?.toUpperCase() || "";
+
+    if (namaUp.includes("DTF") && !isDpSufficientForCustom()) {
+      return; // Lewati barang ini
+    }
 
     // ================================
     // 1️⃣ DETEKSI PRODUK JASA
@@ -2730,6 +2795,9 @@ const openJenisOrderModal = () => {
     return;
   }
 
+  // [TAMBAHKAN INI] Validasi DP mengikat
+  if (!isDpSufficientForCustom()) return;
+
   // ✅ Semua aman, buka modal
   dialogs.jenisOrder = true;
 };
@@ -3318,6 +3386,35 @@ const decrementReady = (item: SoItem) => {
   toast.info(`Verifikasi ${item.nama} dikurangi menjadi ${item.scannedQty}`);
 };
 
+const onMemberSaved = (data: any) => {
+  const isKaryawanPrint = header.value.customer?.kode === "K-00079";
+
+  if (isKaryawanPrint) {
+    header.value.memberNik = data.nik || "";
+    header.value.memberHp = data.nik || ""; // Mapping NIK ke HP
+  } else {
+    header.value.memberNik = "";
+    header.value.memberHp = data.hp;
+  }
+
+  header.value.memberNama = data.nama;
+  header.value.memberAlamat = data.alamat;
+  header.value.memberGender = data.gender;
+  header.value.memberUsia = data.usia;
+  header.value.memberReferensi = data.referensi;
+
+  dialogs.memberForm = false;
+  toast.info(
+    isKaryawanPrint ? "Data karyawan berhasil diperbarui." : "Data member berhasil diperbarui."
+  );
+};
+
+const updateMemberInfo = (customer: any) => {
+  const phone = customer?.telp || "";
+  header.value.memberHp = phone;
+  memberHpToSearch.value = phone;
+};
+
 watch(
   // Daftar semua state yang akan memicu kalkulasi ulang
   [
@@ -3792,6 +3889,28 @@ const stopAndOpenPriceProposal = (index: number) => {
               />
             </v-col>
           </v-row>
+          <v-input
+            :label="memberLabel"
+            :append-inner-icon="isReadonly ? '' : 'mdi-pencil'"
+            hide-details
+            class="custom-input-button mt-3"
+            :class="{
+              'disabled-input': isReadonly,
+              'border-error': header.customer?.kode === 'K-00079' && !header.memberNik,
+            }"
+            @click="!isReadonly && (dialogs.memberForm = true)"
+          >
+            <div v-if="header.memberNik || header.memberHp" class="input-content">
+              <strong>{{ header.memberNik || header.memberHp }}</strong> - {{ header.memberNama }}
+            </div>
+            <div v-else class="input-placeholder text-error font-weight-bold">
+              {{
+                header.customer?.kode === "K-00079"
+                  ? "WAJIB ISI DATA KARYAWAN!"
+                  : "Klik untuk isi info member..."
+              }}
+            </div>
+          </v-input>
         </div>
         <div class="desktop-form-section status-section" v-if="!header.isMarketplace">
           <v-alert
@@ -3800,26 +3919,11 @@ const stopAndOpenPriceProposal = (index: number) => {
             :color="header.statusSo === 'AKTIF' ? 'success' : 'error'"
             class="mb-2 d-flex align-center"
           >
-            Status SO: <strong>{{ header.statusSo }}</strong>
+            Status SO: <strong class="ml-1">{{ header.statusSo }}</strong>
             <v-spacer />
-            <div class="text-caption text-center">{{ minimalDpText }}</div>
-            <v-tooltip location="bottom">
-              <template #activator="{ props }">
-                <v-icon
-                  v-bind="props"
-                  :color="
-                    footer.totalDp >= footer.minimalDp || footer.pinTanpaDp ? 'success' : 'warning'
-                  "
-                >
-                  {{
-                    footer.totalDp >= footer.minimalDp || footer.pinTanpaDp
-                      ? "mdi-check-circle"
-                      : "mdi-alert-circle"
-                  }}
-                </v-icon>
-              </template>
-              <span>{{ statusDpText }}</span>
-            </v-tooltip>
+            <div class="text-caption font-weight-bold text-center">
+              {{ minimalDpText }}
+            </div>
           </v-alert>
         </div>
       </div>
@@ -4200,7 +4304,7 @@ const stopAndOpenPriceProposal = (index: number) => {
 
                   <v-col cols="6">
                     <v-btn
-                      v-if="header.statusSo === 'PASIF'"
+                      v-if="footer.totalDp < footer.minimalDp && !footer.pinTanpaDp"
                       block
                       color="orange"
                       @click="openDpAuthorization"
@@ -4344,6 +4448,13 @@ const stopAndOpenPriceProposal = (index: number) => {
       v-if="isNewCustomerFormVisible"
       @close="isNewCustomerFormVisible = false"
       @customer-saved="onNewCustomerSaved"
+    />
+    <MemberForm
+      v-if="dialogs.memberForm"
+      :initial-hp="memberHpToSearch"
+      :is-karyawan-mode="header.customer?.kode === 'K-00079'"
+      @close="dialogs.memberForm = false"
+      @member-saved="onMemberSaved"
     />
     <DiscountCostModal
       v-if="isDiscountCostModalVisible"

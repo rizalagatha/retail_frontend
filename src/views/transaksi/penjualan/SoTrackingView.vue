@@ -315,7 +315,15 @@ const fetchTrackingData = async () => {
       }
     });
 
-    resiAwb.value = data.resiAwb;
+    // [PERBAIKAN]: Sembunyikan Nomor SO di pojok kanan atas
+    if (!data.resiAwb || data.resiAwb === realSoNumber) {
+      // Jika kosong atau isinya nomor SO asli mentah, ganti pakai Resi KSN...
+      resiAwb.value = nomorSo.value;
+    } else {
+      // Jika isinya resi ekspedisi sungguhan (misal: J&T / Shopee Express), biarkan tampil
+      resiAwb.value = data.resiAwb;
+    }
+
     penerima.value = data.penerima || "Umum";
     estimasiSelesai.value = data.estimasiSelesai;
     datelineCustomer.value = data.datelineCustomer;

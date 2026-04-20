@@ -108,8 +108,11 @@ const fetchPrintData = async (nomor: string) => {
       // Generate Kode Resi
       trackingCode.value = encodeResi(data.header.so_nomor);
 
-      // QR Code sekarang berisi kode resi KSN...
-      qrCodeData.value = await QRCode.toDataURL(trackingCode.value, {
+      // Buat Full URL Link Tracking
+      const linkTracking = `https://tracking.kaosanofficial.com/transaksi/penjualan/surat-pesanan/track/${trackingCode.value}?target=UMUM`;
+
+      // QR Code sekarang berisi LINK LANGSUNG ke web tracking
+      qrCodeData.value = await QRCode.toDataURL(linkTracking, {
         width: 150,
         margin: 1,
       });

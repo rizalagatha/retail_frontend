@@ -39,16 +39,70 @@ interface Milestone {
   jenisProduksi?: string;
 }
 
+interface RawLog {
+  id: number;
+  waktu: string;
+  title: string;
+  subtitle: string;
+  detail?: string;
+  status: string;
+  isSpkGroup?: boolean;
+  color?: string;
+  children?: RawLog[];
+}
+
+interface OrderItemBreakdown {
+  ukuran: string;
+  qty: number;
+  harga: number;
+  diskon: number;
+  subtotal: number;
+}
+
+interface OrderItem {
+  kode: string;
+  nama: string;
+  nama_spk?: string;
+  ukuran?: string;
+  qty: number;
+  harga: number;
+  diskon: number;
+  subtotal: number;
+  sd_nomor?: string;
+  imageUrl?: string;
+  isJasaMurni?: boolean;
+  isFullyScanned?: boolean;
+  hasHoverDetail?: boolean;
+  breakdown?: OrderItemBreakdown[];
+}
+
+interface OrderSummary {
+  totalBruto: number;
+  diskonFaktur: number;
+  biayaKirim: number;
+  ppn: number;
+  totalDibayar: number;
+  grandTotal: number;
+  sisaTagihan: number;
+}
+
 // --- STATE ---
 const logs = ref<TrackingLog[]>([]);
-const activePanels = ref<string[]>([targetSpk || "UMUM"]);
 const milestones = ref<Milestone[]>([]);
 const resiAwb = ref("");
 const penerima = ref("");
 const datelineCustomer = ref<string | null>(null);
 const estimasiSelesai = ref<string | null>(null);
-const orderItems = ref<any[]>([]);
-const orderSummary = ref<any>({});
+const orderItems = ref<OrderItem[]>([]);
+const orderSummary = ref<OrderSummary>({
+  totalBruto: 0,
+  diskonFaktur: 0,
+  biayaKirim: 0,
+  ppn: 0,
+  totalDibayar: 0,
+  grandTotal: 0,
+  sisaTagihan: 0,
+});
 
 const expandedSpks = ref<number[]>([]);
 const toggleSpk = (id: number) => {
@@ -100,7 +154,7 @@ const fetchTrackingData = async () => {
     const data = response.data;
 
     // [PERBAIKAN FINAL]: Pisah Jalur Staff vs Customer
-    logs.value = data.logs.map((log: any) => {
+    logs.value = data.logs.map((log: RawLog): TrackingLog => {
       const gabunganUtama = log.detail ? `${log.subtitle} • ${log.detail}` : log.subtitle;
 
       if (isStaff.value) {
@@ -116,7 +170,7 @@ const fetchTrackingData = async () => {
           aktor: log.status,
           isSpkGroup: log.isSpkGroup,
           children: log.children
-            ? log.children.map((c: any) => {
+            ? log.children.map((c: RawLog): TrackingLog => {
                 const gabunganChild = c.detail ? `${c.subtitle} • ${c.detail}` : c.subtitle;
                 return {
                   id: c.id,
@@ -174,9 +228,9 @@ const fetchTrackingData = async () => {
         }
 
         // 3. Bersihkan Deskripsi Anak-Anak (Tahapan Pabrik)
-        let filteredChildren = [];
+        let filteredChildren: TrackingLog[] = [];
         if (log.children && log.children.length > 0) {
-          filteredChildren = log.children.map((c: any) => {
+          filteredChildren = log.children.map((c: RawLog): TrackingLog => {
             // Bersihkan tulisan (LHK) atau (Gabungan) dari judul
             let cTitle = c.title
               .replace(/\s*\(\s*LHK\s*\)/i, "")
@@ -256,7 +310,7 @@ const fetchTrackingData = async () => {
     orderSummary.value = data.orderSummary;
 
     const isMurniReadyStock =
-      !data.orderItems.some((item: any) => {
+      !data.orderItems.some((item: OrderItem) => {
         const k = (item.kode || "").toUpperCase();
         const n = (item.nama || "").toUpperCase();
         return (
@@ -269,21 +323,18 @@ const fetchTrackingData = async () => {
       }) &&
       !logs.value.some(
         // <--- PERBAIKAN 1: Gunakan logs.value yang sudah di-mapping
-        (l: any) => l.status?.includes("Produksi") || l.deskripsi?.includes("SPK PABRIK") // <--- PERBAIKAN 2: Tambah tanda tanya (?.) pengaman
+        (l: TrackingLog) => l.status?.includes("Produksi") || l.deskripsi?.includes("SPK PABRIK")
       );
 
     // [PERBAIKAN 1]: Saring dan buang "PENAWARAN" jika tidak ada
-    const filteredMilestones = data.milestones.filter((m: any) => {
+    const filteredMilestones = data.milestones.filter((m: Milestone) => {
       if (m.kode === "PENAWARAN" && !m.isActive) return false;
-      if (m.kode === "PRODUKSI" && isMurniReadyStock) return false; // <-- Langsung lompat ke Selesai!
+      if (m.kode === "PRODUKSI" && isMurniReadyStock) return false;
       return true;
     });
 
-    const currentIdx = filteredMilestones.findIndex((m: any) => m.isCurrent);
-
-    milestones.value = filteredMilestones.map((m: any, idx: number) => {
+    milestones.value = filteredMilestones.map((m: Milestone) => {
       const skippedText = "";
-      // Karena Produksi sudah disembunyikan kalau tidak ada, kita tidak perlu label "Tanpa Jasa" lagi
       return {
         ...m,
         skippedText,

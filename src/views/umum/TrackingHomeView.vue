@@ -13,13 +13,36 @@ const searchInput = ref("");
 const isLoading = ref(false);
 const errorMessage = ref("");
 
+// --- TIPE DATA ---
+interface SearchItem {
+  title: string;
+  value: string;
+}
+
+interface SoData {
+  nomorSo: string;
+  penerima: string;
+  items: SearchItem[];
+}
+
+interface PromoItem {
+  pro_jenis: string;
+  pro_judul: string;
+  pro_diskon: number;
+  pro_disrp: number;
+  pro_rpvoucher: number;
+  pro_totalqty: number;
+  pro_keterangan: string;
+  pro_tanggal2: string;
+}
+
 // State hasil pencarian
 const isFound = ref(false);
-const soData = ref<any>(null);
+const soData = ref<SoData | null>(null);
 const selectedItem = ref<string | null>(null);
 
 // State Promo
-const activePromos = ref<any[]>([]);
+const activePromos = ref<PromoItem[]>([]);
 const isLoadingPromo = ref(true);
 
 const fetchPromos = async () => {
@@ -48,14 +71,18 @@ const cariPesanan = async () => {
     soData.value = response.data;
 
     // Masukkan opsi Lacak Semua ke urutan teratas
-    soData.value.items.unshift({
-      title: "🔍 Lacak Semua (Keseluruhan)",
-      value: "UMUM",
-    });
+    if (soData.value) {
+      soData.value.items.unshift({
+        title: "🔍 Lacak Semua (Keseluruhan)",
+        value: "UMUM",
+      });
+    }
 
     isFound.value = true;
-  } catch (error: any) {
-    errorMessage.value = error.response?.data?.message || "Pesanan tidak ditemukan.";
+  } catch (error: unknown) {
+    // Ubah any menjadi unknown, lalu casting tipe datanya
+    const err = error as { response?: { data?: { message?: string } } };
+    errorMessage.value = err.response?.data?.message || "Pesanan tidak ditemukan.";
   } finally {
     isLoading.value = false;
   }
@@ -63,10 +90,14 @@ const cariPesanan = async () => {
 
 const lanjutLacak = () => {
   const target = selectedItem.value || "UMUM";
-  router.push({
-    path: `/transaksi/penjualan/surat-pesanan/track/${soData.value.nomorSo}`,
-    query: { target: target },
-  });
+
+  // Pastikan soData.value tidak null sebelum pindah halaman
+  if (soData.value) {
+    router.push({
+      path: `/transaksi/penjualan/surat-pesanan/track/${soData.value.nomorSo}`,
+      query: { target: target },
+    });
+  }
 };
 
 onMounted(() => {
@@ -138,7 +169,7 @@ onMounted(() => {
         </div>
 
         <v-expand-transition>
-          <div v-if="isFound" class="mt-6 border-t pt-6 px-2">
+          <div v-if="isFound && soData" class="mt-6 border-t pt-6 px-2">
             <div class="d-flex justify-space-between align-center mb-4 flex-wrap gap-2">
               <div>
                 <div class="text-caption text-grey-darken-1">Pelanggan</div>

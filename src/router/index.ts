@@ -55,6 +55,11 @@ const ProformaPrintView = () => import("@/views/transaksi/penjualan/ProformaPrin
 const TrackingHomeView = () => import("@/views/umum/TrackingHomeView.vue");
 
 // --- DTF & PESANAN ---
+// [TAMBAHKAN INI UNTUK TRIAL]
+// const SoDtfTrialView = () => import("@/views/transaksi/penjualan/dtf/SoDtfTrialView.vue");
+// const SoDtfTrialCreateView = () =>
+//   import("@/views/transaksi/penjualan/dtf/SoDtfTrialCreateView.vue");
+// const SoDtfTrialPrintView = () => import("@/views/transaksi/penjualan/dtf/SoDtfTrialPrintView.vue");
 const SoDtfView = () => import("@/views/transaksi/penjualan/dtf/SoDtfView.vue");
 const SoDtfCreateView = () => import("@/views/transaksi/penjualan/dtf/SoDtfCreateView.vue");
 const SoDtfPrintView = () => import("@/views/transaksi/penjualan/dtf/SoDtfPrintView.vue");
@@ -68,6 +73,7 @@ const SoDtfStokPrintView = () => import("@/views/transaksi/penjualan/dtf/SoDtfSt
 const LhkSoDtfStokView = () => import("@/views/transaksi/penjualan/dtf/LhkSoDtfStokView.vue");
 const LhkSoDtfStokCreateView = () =>
   import("@/views/transaksi/penjualan/dtf/LhkSoDtfStokCreateView.vue");
+// const DtfMachineLogView = () => import("@/views/transaksi/penjualan/dtf/DtfMachineLogView.vue");
 
 // --- MUTASI & INTERNAL ---
 const MutasiOutView = () => import("@/views/transaksi/mutasi/MutasiOutView.vue");
@@ -92,8 +98,8 @@ const TerimaSjFormView = () => import("@/views/transaksi/internal/TerimaSJFormVi
 //   import("@/views/operasional/workshop/MutasiWorkshopPrintView.vue");
 // const TerimaMutasiWorkshopView = () =>
 //   import("@/views/operasional/workshop/TerimaMutasiWorkshopView.vue");
-// // const TerimaMutasiWorkshopCreateView = () =>
-// //   import("@/views/operasional/workshop/TerimaMutasiWorkshopCreateView.vue");
+// const TerimaMutasiWorkshopCreateView = () =>
+//   import("@/views/operasional/workshop/TerimaMutasiWorkshopCreateView.vue");
 
 // --- PIUTANG & FINANCE ---
 const SetoranBayarView = () => import("@/views/piutang/SetoranBayarView.vue");
@@ -287,6 +293,8 @@ const BiayaKirimView = () => import("@/views/transaksi/penjualan/BiayaKirimView.
 const BiayaKirimCreateView = () => import("@/views/transaksi/penjualan/BiayaKirimCreateView.vue");
 const BiayaKirimPrintView = () => import("@/views/transaksi/penjualan/BiayaKirimPrintView.vue");
 
+const isTrackingMode = import.meta.env.VITE_APP_MODE === "TRACKING";
+
 const routes = [
   {
     path: "/login",
@@ -300,9 +308,9 @@ const routes = [
   {
     path: "/",
     name: "Home",
-    component: HomeView,
+    component: isTrackingMode ? TrackingHomeView : HomeView,
     meta: {
-      title: "Beranda",
+      title: isTrackingMode ? "Lacak Pesanan" : "Beranda",
       layout: "DefaultLayout",
       requiresAuth: false,
       public: true,
@@ -611,6 +619,46 @@ const routes = [
       menuId: "39",
     },
   },
+  // {
+  //   path: "/transaksi/penjualan/dtf/so-dtf-trial",
+  //   name: "frmBrowSODTFTrial",
+  //   component: SoDtfTrialView,
+  //   meta: {
+  //     title: "SO DTF Trial Pesanan",
+  //     requiresAuth: true,
+  //     menuId: "61",
+  //   },
+  // },
+  // {
+  //   path: "/transaksi/penjualan/dtf/so-dtf-trial/new",
+  //   name: "Buat SO DTF Trial Pesanan",
+  //   component: SoDtfTrialCreateView,
+  //   meta: {
+  //     title: "Buat SO DTF Trial Pesanan",
+  //     requiresAuth: true,
+  //     menuId: "61",
+  //   },
+  // },
+  // {
+  //   path: "/transaksi/penjualan/dtf/so-dtf-trial/ubah/:nomor",
+  //   name: "Ubah SO DTF Trial Pesanan",
+  //   component: SoDtfTrialCreateView,
+  //   meta: {
+  //     title: "Ubah SO DTF Trial Pesanan",
+  //     requiresAuth: true,
+  //     menuId: "61",
+  //   },
+  // },
+  // {
+  //   path: "/transaksi/penjualan/dtf/so-dtf-trial/print/:nomor",
+  //   name: "Cetak SO DTF Trial",
+  //   component: SoDtfTrialPrintView,
+  //   meta: {
+  //     requiresAuth: true,
+  //     printLayout: true,
+  //     layout: "PrintLayout",
+  //   },
+  // },
   {
     path: "/transaksi/penjualan/dtf/so-dtf",
     name: "frmBrowSODTF",
@@ -669,6 +717,16 @@ const routes = [
       menuId: "41",
     },
   },
+  // {
+  //   path: "/transaksi/penjualan/dtf/log-mesin",
+  //   name: "LogMesinDtf",
+  //   component: DtfMachineLogView,
+  //   meta: {
+  //     title: "Log Mesin DTF",
+  //     requiresAuth: true,
+  //     menuId: "62",
+  //   },
+  // },
   {
     path: "/transaksi/penjualan/dtf/dasbor-dtf",
     name: "frmLapDasborDtf",
@@ -2624,16 +2682,16 @@ const routes = [
   //     menuId: "802", // Sesuai kesepakatan
   //   },
   // },
-  // // {
-  // //   path: "/operasional/workshop/terima-workshop/create",
-  // //   name: "TerimaMutasiWorkshopCreate",
-  // //   component: TerimaMutasiWorkshopCreateView, // Komponen ini akan kita buat setelah ini
-  // //   meta: {
-  // //     title: "Terima Barang Workshop",
-  // //     requiresAuth: true,
-  // //     menuId: "802",
-  // //   },
-  // // },
+  // {
+  //   path: "/operasional/workshop/terima-workshop/create",
+  //   name: "TerimaMutasiWorkshopCreate",
+  //   component: TerimaMutasiWorkshopCreateView, // Komponen ini akan kita buat setelah ini
+  //   meta: {
+  //     title: "Terima Barang Workshop",
+  //     requiresAuth: true,
+  //     menuId: "802",
+  //   },
+  // },
   {
     path: "/pengaturan/whatsapp",
     name: "WhatsappLink",

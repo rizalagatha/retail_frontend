@@ -2703,9 +2703,26 @@ const routes = [
   },
 ];
 
+// 1. Filter rute: Jika Mode Tracking, buang rute yang bukan untuk umum
+const filteredRoutes = routes.filter((r) => {
+  if (isTrackingMode) {
+    // Daftar rute yang BOLEH diakses di subdomain tracking
+    const allowedPaths = ["/", "/tracking", "/:pathMatch(.*)*", "/unauthorized"];
+
+    // Khusus untuk rute tracking pesanan yang dinamis
+    const isTrackingDetail = r.path.includes("/transaksi/penjualan/surat-pesanan/track");
+
+    return allowedPaths.includes(r.path) || isTrackingDetail;
+  }
+
+  // Jika bukan mode tracking (Retail Utama), berikan semua rute
+  return true;
+});
+
 const router = createRouter({
+  // Gunakan rute yang sudah difilter
   history: createWebHistory(import.meta.env.BASE_URL),
-  routes,
+  routes: filteredRoutes,
 });
 
 const getSmartIcon = (routeObj: RouteLocationNormalized) => {
@@ -2772,6 +2789,12 @@ router.beforeEach((to, from, next) => {
   // Route yang tidak memerlukan auth
   if (!to.meta?.requiresAuth) {
     return next();
+  }
+
+  // [TAMBAHKAN INI]
+  // Jika di mode tracking tapi mencoba akses halaman yang butuh login
+  if (isTrackingMode && to.meta?.requiresAuth) {
+    return next("/"); // Lempar balik ke home tracking
   }
 
   // Belum login, redirect ke login

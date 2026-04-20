@@ -117,15 +117,6 @@ onMounted(() => {
         <a href="#" class="text-decoration-none text-grey-darken-3">Layanan</a>
         <a href="#" class="text-decoration-none text-grey-darken-3">Pusat Bantuan</a>
       </div>
-      <v-btn
-        color="#D32F2F"
-        variant="flat"
-        size="small"
-        class="ml-4 font-weight-bold px-4 d-none d-sm-flex"
-        to="/login"
-      >
-        Login Kasir
-      </v-btn>
     </header>
 
     <div class="hero-banner d-flex flex-column align-center justify-center text-center px-4">

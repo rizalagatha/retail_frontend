@@ -146,21 +146,51 @@ const isOngoing = (item: TrackingLog, i: number, isParent: boolean = false): boo
   return false;
 };
 
+// --- FUNGSI DECODE RESI SHOPEE ALA KAOSAN ---
+const decodeResi = (resi: string) => {
+  try {
+    const raw = resi.trim().toUpperCase();
+    if (!raw.startsWith("KSN")) return raw;
+
+    const cabang = raw.substring(3, 6);
+    const encodedNum = raw.substring(6);
+
+    const secretVal = parseInt(encodedNum, 36);
+    if (isNaN(secretVal)) return raw;
+
+    const origNum = (secretVal - 456789) / 7;
+    if (!Number.isInteger(origNum)) return raw;
+
+    let numStr = origNum.toString();
+    if (numStr.length < 8) {
+      numStr = numStr.padStart(8, "0");
+    }
+
+    const part1 = numStr.substring(0, 4);
+    const part2 = numStr.substring(4);
+
+    return `${cabang}.SO.${part1}.${part2}`;
+  } catch (e) {
+    return resi;
+  }
+};
+
 // --- DATA FETCHING ---
 const fetchTrackingData = async () => {
   isLoading.value = true;
   try {
-    const response = await api.get(`/so/track/${nomorSo.value}`);
+    // 1. UBAH RESI DARI URL KEMBALI JADI NOMOR SO ASLI
+    const realSoNumber = decodeResi(nomorSo.value);
+
+    // 2. TEMBAK API PAKAI NOMOR SO ASLI
+    const response = await api.get(`/so/track/${realSoNumber}`);
     const data = response.data;
 
-    // [PERBAIKAN FINAL]: Pisah Jalur Staff vs Customer
+    // ... (SISA KODE MAPPING LOGS DAN LAINNYA SAMA PERSIS) ...
     logs.value = data.logs.map((log: RawLog): TrackingLog => {
       const gabunganUtama = log.detail ? `${log.subtitle} • ${log.detail}` : log.subtitle;
 
       if (isStaff.value) {
-        // ==========================================
-        // TAMPILAN KASIR / STAFF (FULL DETAIL & ASLI)
-        // ==========================================
         return {
           id: log.id,
           waktu: log.waktu,
@@ -185,15 +215,9 @@ const fetchTrackingData = async () => {
             : [],
         };
       } else {
-        // ==========================================
-        // TAMPILAN CUSTOMER UMUM (BERSIH & PROFESIONAL)
-        // ==========================================
-        // 1. Bersihkan Judul Parent
         const simpleTitle = log.title
           .replace(/\s*\(\s*LHK\s*\)/i, "")
           .replace(/\s*\(\s*SPK PABRIK\s*\)/i, "");
-
-        // 2. Buat Deskripsi Parent yang Ramah Pelanggan
         let simpleDesc = "";
         const titleLower = log.title.toLowerCase();
 
@@ -217,27 +241,18 @@ const fetchTrackingData = async () => {
           simpleDesc = "Pesanan dibatalkan.";
         else simpleDesc = "Proses administrasi berjalan.";
 
-        // =========================================================================
-        // [TAMBAHAN BARU]: Munculkan kembali hanya NAMA SPK jika ini adalah grup SPK
-        // =========================================================================
         if (log.isSpkGroup && log.subtitle) {
-          // log.subtitle isinya biasanya: "Nama SPK: KAOSAN... • No SPK: SM-..."
-          // Kita split berdasarkan titik tengah (•) dan ambil bagian pertamanya saja
           const namaSpkOnly = log.subtitle.split("•")[0].trim();
           simpleDesc = `${namaSpkOnly}\n${simpleDesc}`;
         }
 
-        // 3. Bersihkan Deskripsi Anak-Anak (Tahapan Pabrik)
         let filteredChildren: TrackingLog[] = [];
         if (log.children && log.children.length > 0) {
           filteredChildren = log.children.map((c: RawLog): TrackingLog => {
-            // Bersihkan tulisan (LHK) atau (Gabungan) dari judul
             let cTitle = c.title
               .replace(/\s*\(\s*LHK\s*\)/i, "")
               .replace(/\s*\(\s*Gabungan\s*\)/i, "")
               .replace(/\s*\(\s*SPK PABRIK\s*\)/i, "");
-
-            // Ganti nama "Diterima DC" / "Masuk Koli" jadi Barang Jadi sesuai request
             if (
               cTitle.toLowerCase().includes("diterima dc") ||
               cTitle.toLowerCase().includes("masuk koli")
@@ -245,10 +260,8 @@ const fetchTrackingData = async () => {
               cTitle = "Barang Jadi";
             }
 
-            // Ganti Detailnya dengan teks profesional
             let cDesc = "";
             const ctLower = cTitle.toLowerCase();
-
             if (c.status === "ACTIVE" || ctLower.includes("menunggu")) {
               if (ctLower.includes("bahan")) cDesc = "Menunggu persiapan bahan produksi.";
               else if (ctLower.includes("potong")) cDesc = "Dalam antrian proses pemotongan.";
@@ -282,7 +295,7 @@ const fetchTrackingData = async () => {
               waktu: c.waktu,
               status: cTitle,
               originalDeskripsi: c.detail ? `${c.subtitle} • ${c.detail}` : c.subtitle,
-              deskripsi: cDesc, // <-- Ini yang akan muncul ke customer!
+              deskripsi: cDesc,
               aktor: c.status,
               color: c.color,
             };
@@ -296,12 +309,12 @@ const fetchTrackingData = async () => {
           originalDeskripsi: gabunganUtama,
           deskripsi: simpleDesc,
           aktor: log.status,
-          // [PERBAIKAN]: Kembalikan nilai isSpkGroup agar tombol dropdown muncul lagi!
           isSpkGroup: log.isSpkGroup,
           children: filteredChildren,
         };
       }
     });
+
     resiAwb.value = data.resiAwb;
     penerima.value = data.penerima || "Umum";
     estimasiSelesai.value = data.estimasiSelesai;
@@ -322,11 +335,9 @@ const fetchTrackingData = async () => {
         );
       }) &&
       !logs.value.some(
-        // <--- PERBAIKAN 1: Gunakan logs.value yang sudah di-mapping
         (l: TrackingLog) => l.status?.includes("Produksi") || l.deskripsi?.includes("SPK PABRIK")
       );
 
-    // [PERBAIKAN 1]: Saring dan buang "PENAWARAN" jika tidak ada
     const filteredMilestones = data.milestones.filter((m: Milestone) => {
       if (m.kode === "PENAWARAN" && !m.isActive) return false;
       if (m.kode === "PRODUKSI" && isMurniReadyStock) return false;
@@ -335,19 +346,14 @@ const fetchTrackingData = async () => {
 
     milestones.value = filteredMilestones.map((m: Milestone) => {
       const skippedText = "";
-      return {
-        ...m,
-        skippedText,
-      };
+      return { ...m, skippedText };
     });
-    // [PERBAIKAN 3]: FILTER LOG BERDASARKAN TARGET SPK DARI URL
+
     if (targetSpk && targetSpk !== "UMUM") {
       logs.value = logs.value.filter((log) => {
         if (!log.isSpkGroup) return true;
-        // HARUS menggunakan originalDeskripsi agar tidak error!
         return log.originalDeskripsi?.includes(targetSpk);
       });
-
       const matchedLog = logs.value.find(
         (log) => log.isSpkGroup && log.originalDeskripsi?.includes(targetSpk)
       );
@@ -384,7 +390,7 @@ onMounted(() => {
 
       <div class="d-none d-sm-flex align-center">
         <div class="text-caption text-grey-darken-1 mr-4">
-          NOMOR SO. <span class="font-weight-bold text-black">{{ nomorSo }}</span>
+          NO. RESI <span class="font-weight-bold text-black">{{ nomorSo }}</span>
         </div>
 
         <v-divider vertical class="mx-3 my-3"></v-divider>

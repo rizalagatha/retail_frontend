@@ -133,13 +133,33 @@ const cariPesanan = async () => {
   }
 };
 
+const encodeResi = (nomorSo: string) => {
+  try {
+    const parts = nomorSo.split(".SO.");
+    if (parts.length !== 2) return nomorSo;
+
+    const cabang = parts[0];
+    const numPart = parts[1].replace(".", "");
+    const num = Number(numPart);
+    if (isNaN(num)) return nomorSo;
+
+    const secretVal = num * 7 + 456789;
+    const encodedNum = secretVal.toString(36).toUpperCase();
+    return `KSN${cabang}${encodedNum}`;
+  } catch (e) {
+    return nomorSo;
+  }
+};
+
 const lanjutLacak = () => {
   const target = selectedItem.value || "UMUM";
 
-  // Pastikan soData.value tidak null sebelum pindah halaman
   if (soData.value) {
+    // ENCODE nomor SO nya sebelum dilempar ke URL
+    const secureNomor = encodeResi(soData.value.nomorSo);
+
     router.push({
-      path: `/transaksi/penjualan/surat-pesanan/track/${soData.value.nomorSo}`,
+      path: `/transaksi/penjualan/surat-pesanan/track/${secureNomor}`,
       query: { target: target },
     });
   }

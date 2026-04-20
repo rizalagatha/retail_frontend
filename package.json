@@ -10,6 +10,7 @@
     "dev": "vite --host",
     "build": "vite build",
     "build:trial": "VITE_APP_BASE=/trial/ vite build",
+    "build:tracking": "vite build --mode tracking --outDir dist-tracking",
     "preview": "vite preview",
     "build-only": "vite build",
     "type-check": "vue-tsc --build",

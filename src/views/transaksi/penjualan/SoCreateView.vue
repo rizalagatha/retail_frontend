@@ -1457,7 +1457,7 @@ const save = async () => {
     }
   });
 
-  if (qtyDtf > qtyKaos) {
+  if (qtyKaos > 0 && qtyDtf > qtyKaos) {
     toast.error(
       `Gagal Simpan: Qty SO DTF / Custom (${qtyDtf}) tidak boleh melebihi Qty Kaos (${qtyKaos}).`
     );

@@ -333,12 +333,18 @@ const handleExport = () => {
 const showPreview = (fileName: string) => {
   if (!fileName) return;
 
-  // [PERUBAHAN] Gunakan base url yang mengandung /api dan pastikan nama file bersih
-  const apiBaseUrl = getApiBaseUrl();
   const cleanFileName = fileName.trim();
 
-  // URL-nya sekarang akan otomatis terbaca oleh Backend
-  const fileUrl = `${apiBaseUrl}/uploads/pettycash/${cleanFileName}`;
+  // 1. Ambil URL aslinya (Contoh: https://retail.kaosanofficial.com/api)
+  let baseUrl = getApiBaseUrl();
+
+  // 2. Potong tulisan '/api' di bagian paling belakang
+  if (baseUrl.endsWith("/api")) {
+    baseUrl = baseUrl.replace(/\/api$/, "");
+  }
+
+  // 3. Rangkai URL-nya. Sekarang jadi: https://retail.kaosanofficial.com/uploads/pettycash/...
+  const fileUrl = `${baseUrl}/uploads/pettycash/${cleanFileName}`;
   const isPdf = cleanFileName.toLowerCase().endsWith(".pdf");
 
   if (isPdf) {

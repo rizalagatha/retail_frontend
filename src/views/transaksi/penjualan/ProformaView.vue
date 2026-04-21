@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { ref, reactive, onMounted, computed } from "vue";
-import { useRouter } from "vue-router";
+import { ref, reactive, onMounted, computed, watch } from "vue";
+import { useRouter, useRoute, onBeforeRouteLeave } from "vue-router";
 import { useToast } from "vue-toastification";
 import { useAuthStore } from "@/stores/authStore";
 import api from "@/services/api";
@@ -9,8 +9,20 @@ import PageLayout from "@/components/PageLayout.vue";
 import * as XLSX from "xlsx";
 import type { AxiosError } from "axios";
 import AppDataTable from "@/components/AppDataTable.vue";
+import { formatRupiah } from "@/utils/formatRupiah";
 
 // --- Tipe Data ---
+interface DataTableHeader {
+  title: string;
+  key: string;
+  width?: number;
+  fixed?: boolean;
+  align?: "start" | "center" | "end";
+  minWidth?: string | number;
+  maxWidth?: string | number;
+  sortable?: boolean;
+}
+
 interface ProformaItem {
   nomor: string;
   tanggal: string;
@@ -19,6 +31,7 @@ interface ProformaItem {
   tempo: string;
   keterangan: string;
   closing: "Y" | "N";
+  [key: string]: unknown;
 }
 
 interface ProformaDetailItem {
@@ -30,8 +43,16 @@ interface ProformaDetailItem {
   total: number;
 }
 
+interface ColumnFilter {
+  type: "multi" | "custom";
+  values?: (string | number)[];
+  operator?: string;
+  value?: string | number;
+}
+
 // --- Inisialisasi & State ---
 const router = useRouter();
+const route = useRoute();
 const toast = useToast();
 const authStore = useAuthStore();
 const MENU_ID = "28";
@@ -43,42 +64,217 @@ const loadingDetails = ref(new Set<string>());
 const selected = ref<ProformaItem[]>([]);
 const expanded = ref<string[]>([]);
 const branchOptions = ref<{ kode: string; nama: string }[]>([]);
-
-const dialogConfirm = reactive({ show: false, title: "", text: "", onConfirm: () => {} });
+const isMounted = ref(false);
 
 const filters = reactive({
   startDate: format(subDays(new Date(), 30), "yyyy-MM-dd"),
   endDate: format(new Date(), "yyyy-MM-dd"),
-  cabang: authStore.user?.cabang || "",
+  cabang: authStore.user?.cabang === "KDC" ? "ALL" : authStore.user?.cabang || "",
 });
 
+const filterOptions = ref([
+  { title: "Nomor", value: "nomor" },
+  { title: "Customer", value: "customer" },
+  { title: "Keterangan", value: "keterangan" },
+]);
+const selectedFilterField = ref("customer");
+const filterSearchValue = ref("");
+
 // --- Computed Properties ---
+const hasViewPermission = computed(() => authStore.can(MENU_ID, "view"));
 const isSingleSelected = computed(() => selected.value.length === 1);
 const selectedRow = computed<ProformaItem | null>(() =>
   isSingleSelected.value ? selected.value[0] : null
 );
 
 const canEdit = computed(() => isSingleSelected.value && selectedRow.value?.closing !== "Y");
-const canDelete = computed(() => isSingleSelected.value && selectedRow.value?.closing !== "Y");
 const canCetak = computed(() => isSingleSelected.value);
 
-// --- Konfigurasi Tabel ---
-const headers = [
-  { title: "Nomor", key: "nomor", width: "150px" },
-  { title: "Tanggal", key: "tanggal", width: "100px" },
-  { title: "Customer", key: "customer", width: "250px" },
-  { title: "Nominal", key: "nominal", align: "end", width: "120px" },
-  { title: "Tempo", key: "tempo", width: "100px" },
-  { title: "Keterangan", key: "keterangan" },
-  { title: "Closing", key: "closing", align: "center", width: "80px" },
-] as const;
+// --- Logic Filtering ---
+const columnFilters = ref<Record<string, ColumnFilter>>({});
+const customFilterDialog = ref(false);
+const customFilter = reactive({
+  key: "",
+  operator: "=",
+  value: "",
+});
+
+const filteredList = computed(() => {
+  let data = [...masterData.value];
+
+  // 1) FILTER HEADER
+  for (const key in columnFilters.value) {
+    const f = columnFilters.value[key];
+
+    if (f.type === "multi" && f.values) {
+      data = data.filter((row) => f.values!.includes(row[key] as string | number));
+    }
+
+    if (f.type === "custom" && f.value !== undefined) {
+      const target = String(f.value).toLowerCase();
+      data = data.filter((row) => {
+        const v = row[key];
+        if (v === null || v === undefined) return false;
+
+        const s = String(v).toLowerCase();
+        switch (f.operator) {
+          case "=":
+            return s === target;
+          case "!=":
+            return s !== target;
+          case ">":
+            return Number(s) > Number(target);
+          case ">=":
+            return Number(s) >= Number(target);
+          case "<":
+            return Number(s) < Number(target);
+          case "<=":
+            return Number(s) <= Number(target);
+          case "contains":
+            return s.includes(target);
+          case "starts":
+            return s.startsWith(target);
+          case "ends":
+            return s.endsWith(target);
+        }
+      });
+    }
+  }
+
+  // 2) SEARCH GLOBAL
+  if (filterSearchValue.value) {
+    const key = selectedFilterField.value;
+    data = data.filter((item) => {
+      const v = item[key];
+      return (
+        v !== null &&
+        v !== undefined &&
+        String(v).toLowerCase().includes(filterSearchValue.value.toLowerCase())
+      );
+    });
+  }
+
+  return data;
+});
+
+const uniqueValues = (key: string): Array<string | number> => {
+  return Array.from(
+    new Set(
+      masterData.value
+        .map((i) => i[key] as string | number | null | undefined)
+        .filter((v): v is string | number => v !== null && v !== undefined && v !== "")
+    )
+  ).sort((a, b) => String(a).localeCompare(String(b)));
+};
+
+const formatFilterValue = (key: string, val: string | number) => {
+  if (!val) return "-";
+  if (["tanggal", "tempo"].includes(key)) {
+    try {
+      return format(parseISO(String(val)), "dd/MM/yyyy");
+    } catch {
+      return val;
+    }
+  }
+  return val;
+};
+
+const filterType = (key: string) => columnFilters.value[key]?.type ?? "";
+const isFilterActive = (key: string) => Boolean(columnFilters.value[key]);
+const clearColumnFilter = (key: string) => {
+  delete columnFilters.value[key];
+};
+
+const toggleMultiSelectValue = (key: string, value: string | number) => {
+  const f = columnFilters.value[key];
+
+  if (!f || f.type !== "multi") {
+    columnFilters.value[key] = { type: "multi", values: [value] };
+    return;
+  }
+
+  const arr = f.values ?? [];
+  if (arr.includes(value)) {
+    f.values = arr.filter((v) => v !== value);
+    if (f.values.length === 0) delete columnFilters.value[key];
+  } else {
+    f.values = [...arr, value];
+  }
+};
+
+const openCustomFilter = (key: string) => {
+  customFilter.key = key;
+  customFilter.operator = "=";
+  customFilter.value = "";
+  customFilterDialog.value = true;
+};
+
+const applyCustomFilter = () => {
+  columnFilters.value[customFilter.key] = {
+    type: "custom",
+    operator: customFilter.operator,
+    value: customFilter.value,
+  };
+  customFilterDialog.value = false;
+};
+
+const resetAllFilters = () => {
+  columnFilters.value = {};
+  filterSearchValue.value = "";
+};
+
+// --- Logic Resize Column ---
+const resizingColumn = ref<DataTableHeader | null>(null);
+const startX = ref(0);
+const startWidth = ref(0);
+
+const onResizeStart = (e: MouseEvent, column: DataTableHeader) => {
+  e.preventDefault();
+  e.stopPropagation();
+  resizingColumn.value = column;
+  startX.value = e.pageX;
+  startWidth.value = typeof column.width === "number" ? column.width : 100;
+  document.addEventListener("mousemove", onResizeMove);
+  document.addEventListener("mouseup", onResizeEnd);
+  document.body.style.cursor = "col-resize";
+};
+
+const onResizeMove = (e: MouseEvent) => {
+  if (!resizingColumn.value) return;
+  const diff = e.pageX - startX.value;
+  resizingColumn.value.width = Math.max(50, startWidth.value + diff);
+};
+
+const onResizeEnd = () => {
+  resizingColumn.value = null;
+  document.removeEventListener("mousemove", onResizeMove);
+  document.removeEventListener("mouseup", onResizeEnd);
+  document.body.style.cursor = "";
+};
+
+const handleRowClick = (_event: Event, { item }: { item: ProformaItem }) => {
+  selected.value = [item];
+};
+
+// --- Header Definisi (Resize) ---
+const headers = computed<DataTableHeader[]>(() => [
+  { title: "", key: "data-table-expand", width: 50, fixed: true },
+  { title: "Nomor", key: "nomor", width: 160, fixed: true },
+  { title: "Tanggal", key: "tanggal", width: 100 },
+  { title: "Customer", key: "customer", width: 250 },
+  { title: "Nominal", key: "nominal", align: "end", width: 120 },
+  { title: "Tempo", key: "tempo", width: 100 },
+  { title: "Keterangan", key: "keterangan", width: 250 },
+  { title: "Closing", key: "closing", align: "center", width: 90 },
+]);
+
 const detailHeaders = [
-  { title: "Kode", key: "kode" },
-  { title: "Nama Barang", key: "nama", width: "350px" },
-  { title: "Ukuran", key: "ukuran" },
-  { title: "Jumlah", key: "jumlah", align: "end" },
-  { title: "Harga", key: "harga", align: "end" },
-  { title: "Total", key: "total", align: "end" },
+  { title: "Kode", key: "kode", width: "100px" },
+  { title: "Nama Barang", key: "nama", width: "300px" },
+  { title: "Ukuran", key: "ukuran", width: "70px" },
+  { title: "Jumlah", key: "jumlah", align: "end", width: "80px" },
+  { title: "Harga", key: "harga", align: "end", width: "100px" },
+  { title: "Total", key: "total", align: "end", width: "120px" },
 ] as const;
 
 // --- Methods ---
@@ -86,9 +282,15 @@ const fetchBranchOptions = async () => {
   try {
     const response = await api.get("/proforma/branch-options");
     branchOptions.value = response.data;
+
+    if (authStore.user?.cabang === "KDC") {
+      const hasAll = branchOptions.value.some((c) => c.kode === "ALL");
+      if (!hasAll) {
+        branchOptions.value.unshift({ kode: "ALL", nama: "Semua Cabang" });
+      }
+    }
   } catch (error: unknown) {
     const err = error as AxiosError<{ message?: string }>;
-
     toast.error(err.response?.data?.message || "Gagal memuat pilihan cabang.");
   }
 };
@@ -109,12 +311,10 @@ const fetchMasterData = async () => {
 };
 
 const loadDetails = async (newlyExpandedItems: ProformaItem[]) => {
-  // Cari item yang baru saja di-expand, yang datanya belum ada dan belum sedang di-load
   const itemToLoad = newlyExpandedItems.find(
     (item) => !details.value[item.nomor] && !loadingDetails.value.has(item.nomor)
   );
 
-  // Jika tidak ada item baru untuk di-load (misalnya saat menutup baris), hentikan fungsi
   if (!itemToLoad) return;
 
   const nomorToLoad = itemToLoad.nomor;
@@ -125,11 +325,15 @@ const loadDetails = async (newlyExpandedItems: ProformaItem[]) => {
     details.value[nomorToLoad] = response.data;
   } catch (error: unknown) {
     const err = error as AxiosError<{ message?: string }>;
-
     toast.error(err.response?.data?.message || `Gagal memuat detail untuk ${nomorToLoad}.`);
   } finally {
     loadingDetails.value.delete(nomorToLoad);
   }
+};
+
+const getRowTextColor = (item: ProformaItem) => {
+  if (item.closing === "Y") return "text-grey";
+  return "";
 };
 
 const handleNew = () => router.push({ name: "ProformaCreate" });
@@ -139,7 +343,6 @@ const handleEdit = () => {
 };
 const handleCetak = () => {
   if (!canCetak.value) return;
-  // Logika cetak, bisa sama dengan edit atau buka halaman khusus
   router.push({
     name: "ProformaEdit",
     params: { id: selectedRow.value!.nomor },
@@ -147,30 +350,28 @@ const handleCetak = () => {
   });
 };
 
-const handleDelete = () => {
-  if (!canDelete.value) return;
-  dialogConfirm.title = "Konfirmasi Hapus";
-  dialogConfirm.text = `Yakin menghapus Proforma Invoice dengan nomor <strong>${
-    selectedRow.value!.nomor
-  }</strong>?`;
-  dialogConfirm.onConfirm = async () => {
-    try {
-      const response = await api.delete(`/proforma/${selectedRow.value!.nomor}`);
-      toast.success(response.data.message);
-      fetchMasterData();
-    } catch (err) {
-      const error = err as AxiosError<{ message: string }>;
-      toast.error(error.response?.data?.message || "Gagal menghapus data.");
-    }
-  };
-  dialogConfirm.show = true;
+const formatDateIndo = (dateString: string | Date) => {
+  if (!dateString) return "";
+  const date = new Date(dateString);
+  return new Intl.DateTimeFormat("id-ID", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  }).format(date);
 };
 
 const exportData = async (type: "header" | "detail") => {
   if (type === "header") {
-    if (masterData.value.length === 0)
+    if (filteredList.value.length === 0)
       return toast.warning("Tidak ada data header untuk diexport.");
-    const worksheet = XLSX.utils.json_to_sheet(masterData.value);
+
+    const formattedData = filteredList.value.map((item) => ({
+      ...item,
+      tanggal: item.tanggal ? formatDateIndo(item.tanggal) : "",
+      tempo: item.tempo ? formatDateIndo(item.tempo) : "",
+    }));
+
+    const worksheet = XLSX.utils.json_to_sheet(formattedData);
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, "Proforma Invoice");
     XLSX.writeFile(workbook, "Export_Proforma_Header.xlsx");
@@ -180,21 +381,113 @@ const exportData = async (type: "header" | "detail") => {
       if (response.data.length === 0)
         return toast.warning("Tidak ada data detail untuk diexport pada filter ini.");
 
-      const worksheet = XLSX.utils.json_to_sheet(response.data);
+      const dataToExport = response.data.map((row: any) => ({
+        ...row,
+        Tanggal: row.Tanggal ? formatDateIndo(row.Tanggal) : "",
+      }));
+
+      const title = "LAPORAN DETAIL PROFORMA INVOICE";
+      const dateRange = `Periode : ${formatDateIndo(filters.startDate)} s/d ${formatDateIndo(
+        filters.endDate
+      )}`;
+      const tableHeaders = Object.keys(dataToExport[0]);
+      const tableData = dataToExport.map((row: any) => Object.values(row));
+
+      const excelData = [[title], [dateRange], [], tableHeaders, ...tableData];
+      const worksheet = XLSX.utils.aoa_to_sheet(excelData);
+
+      const merge = [
+        { s: { r: 0, c: 0 }, e: { r: 0, c: tableHeaders.length - 1 } },
+        { s: { r: 1, c: 0 }, e: { r: 1, c: tableHeaders.length - 1 } },
+      ];
+      worksheet["!merges"] = merge;
+
+      const colWidths = tableHeaders.map((header) => ({ wch: header.length + 5 }));
+      worksheet["!cols"] = colWidths;
+
       const workbook = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(workbook, worksheet, "Detail Proforma Invoice");
       XLSX.writeFile(workbook, "Export_Proforma_Detail.xlsx");
     } catch (error: unknown) {
       const err = error as AxiosError<{ message?: string }>;
-
       toast.error(err.response?.data?.message || "Gagal mengekspor data detail.");
     }
   }
 };
 
-onMounted(() => {
-  fetchBranchOptions();
-  fetchMasterData();
+const STORAGE_KEY = "proforma_browse_filters";
+
+onMounted(async () => {
+  if (hasViewPermission.value) {
+    if (authStore.user?.cabang !== "KDC") {
+      filters.cabang = authStore.user?.cabang || "";
+    } else {
+      if (!filters.cabang) filters.cabang = "ALL";
+    }
+
+    const savedFilters = sessionStorage.getItem(STORAGE_KEY);
+    if (savedFilters) {
+      const parsedFilters = JSON.parse(savedFilters);
+
+      if (authStore.user?.cabang !== "KDC") {
+        delete parsedFilters.cabang;
+      }
+
+      Object.assign(filters, parsedFilters);
+
+      if (parsedFilters.search) filterSearchValue.value = parsedFilters.search;
+      if (parsedFilters.filterField) selectedFilterField.value = parsedFilters.filterField;
+    } else {
+      const queryStartDate = route.query.startDate as string;
+      const queryEndDate = route.query.endDate as string;
+      if (queryStartDate && queryEndDate) {
+        filters.startDate = queryStartDate;
+        filters.endDate = queryEndDate;
+      }
+    }
+
+    await fetchBranchOptions();
+    await fetchMasterData();
+    isMounted.value = true;
+  }
+});
+
+watch(
+  filters,
+  () => {
+    sessionStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify({
+        ...filters,
+        search: filterSearchValue.value,
+        filterField: selectedFilterField.value,
+      })
+    );
+
+    if (isMounted.value && hasViewPermission.value) {
+      fetchMasterData();
+    }
+  },
+  { deep: true }
+);
+
+watch([filterSearchValue, selectedFilterField], () => {
+  sessionStorage.setItem(
+    STORAGE_KEY,
+    JSON.stringify({
+      ...filters,
+      search: filterSearchValue.value,
+      filterField: selectedFilterField.value,
+    })
+  );
+});
+
+onBeforeRouteLeave((to, from, next) => {
+  const isRelatedPage = to.path.includes("/proforma");
+  if (!isRelatedPage) {
+    sessionStorage.removeItem(STORAGE_KEY);
+  }
+  next();
 });
 </script>
 
@@ -218,15 +511,6 @@ onMounted(() => {
         >Ubah</v-btn
       >
       <v-btn
-        v-if="authStore.can(MENU_ID, 'delete')"
-        size="small"
-        prepend-icon="mdi-delete"
-        color="error"
-        @click="handleDelete"
-        :disabled="!canDelete"
-        >Hapus</v-btn
-      >
-      <v-btn
         v-if="authStore.can(MENU_ID, 'view')"
         size="small"
         prepend-icon="mdi-printer"
@@ -242,52 +526,96 @@ onMounted(() => {
           >
         </template>
         <v-list density="compact">
-          <v-list-item @click="exportData('header')"
-            ><v-list-item-title>Export Header</v-list-item-title></v-list-item
-          >
-          <v-list-item @click="exportData('detail')"
-            ><v-list-item-title>Export Detail</v-list-item-title></v-list-item
-          >
+          <v-list-item @click="exportData('header')">
+            <template v-slot:prepend>
+              <v-icon icon="mdi-table-headers-eye" size="small" class="mr-2"></v-icon>
+            </template>
+            <v-list-item-title>Export Header</v-list-item-title>
+          </v-list-item>
+          <v-list-item @click="exportData('detail')">
+            <template v-slot:prepend>
+              <v-icon icon="mdi-file-document-multiple-outline" size="small" class="mr-2"></v-icon>
+            </template>
+            <v-list-item-title>Export Detail</v-list-item-title>
+          </v-list-item>
         </v-list>
       </v-menu>
     </template>
 
-    <div class="browse-content">
-      <div class="filter-section">
-        <v-label class="filter-label">Periode:</v-label>
-        <v-text-field
-          v-model="filters.startDate"
-          type="date"
-          density="compact"
-          hide-details
-          variant="outlined"
-          style="max-width: 180px"
-          @change="fetchMasterData"
+    <div v-if="!hasViewPermission" class="state-container">
+      <v-icon size="64" class="mb-4">mdi-lock-outline</v-icon>
+      <h3 class="text-h6">Akses Ditolak</h3>
+    </div>
+
+    <div v-else class="browse-content">
+      <div class="filter-section px-2">
+        <div class="d-flex align-center ga-1" style="flex-wrap: nowrap">
+          <v-text-field
+            v-model="filters.startDate"
+            type="date"
+            label="Dari"
+            density="compact"
+            hide-details
+            variant="outlined"
+            style="max-width: 130px"
+          />
+          <v-text-field
+            v-model="filters.endDate"
+            type="date"
+            label="S/D"
+            density="compact"
+            hide-details
+            variant="outlined"
+            style="max-width: 130px"
+          />
+          <v-select
+            v-model="filters.cabang"
+            :items="branchOptions"
+            item-title="nama"
+            item-value="kode"
+            label="Cabang"
+            density="compact"
+            hide-details
+            variant="outlined"
+            style="max-width: 150px"
+          />
+        </div>
+
+        <v-divider vertical class="mx-1" />
+
+        <div class="d-flex align-center ga-1">
+          <v-select
+            v-model="selectedFilterField"
+            :items="filterOptions"
+            density="compact"
+            hide-details
+            variant="outlined"
+            style="max-width: 140px"
+          />
+          <v-text-field
+            v-model="filterSearchValue"
+            label="Cari..."
+            density="compact"
+            hide-details
+            variant="outlined"
+            style="max-width: 180px"
+            clearable
+            prepend-inner-icon="mdi-magnify"
+          />
+        </div>
+
+        <v-btn
+          color="error"
+          variant="tonal"
+          size="small"
+          icon="mdi-filter-off"
+          class="ms-1"
+          title="Reset Filter"
+          @click="resetAllFilters"
         />
-        <v-label class="mx-2">s/d</v-label>
-        <v-text-field
-          v-model="filters.endDate"
-          type="date"
-          density="compact"
-          hide-details
-          variant="outlined"
-          style="max-width: 180px"
-          @change="fetchMasterData"
-        />
-        <v-select
-          v-model="filters.cabang"
-          :items="branchOptions"
-          item-title="nama"
-          item-value="kode"
-          label="Cabang"
-          density="compact"
-          hide-details
-          variant="outlined"
-          class="ms-4"
-          style="max-width: 200px"
-          @update:modelValue="fetchMasterData"
-        />
+
         <v-spacer />
+
         <v-btn
           @click="fetchMasterData"
           icon="mdi-refresh"
@@ -302,48 +630,176 @@ onMounted(() => {
           v-model="selected"
           v-model:expanded="expanded"
           :headers="headers"
-          :items="masterData"
-          :items-length="masterData.length"
+          :items="filteredList"
           :loading="loading"
+          :item-class="getRowTextColor"
           item-value="nomor"
           density="compact"
           class="desktop-table header-browse-blue"
           fixed-header
           show-select
-          show-expand
           return-object
           single-select
+          show-expand
           @update:expanded="loadDetails"
+          @click:row="handleRowClick"
         >
-          <template #[`item.tanggal`]="{ item }">
-            {{ format(parseISO(item["tanggal"]), "dd/MM/yyyy") }}
+          <template #headers="{ columns, isSorted, getSortIcon, toggleSort }">
+            <tr>
+              <template v-for="header in columns" :key="header.key">
+                <th
+                  v-if="['data-table-expand', 'data-table-select'].includes(header.key)"
+                  :style="{ width: header.width + 'px' }"
+                  class="resizable-header"
+                >
+                  <div class="header-content">
+                    <span>{{ header.title }}</span>
+                  </div>
+                  <div class="resizer" @mousedown.stop="onResizeStart($event, header)" />
+                </th>
+
+                <th
+                  v-else
+                  :style="{ width: header.width + 'px' }"
+                  class="resizable-header"
+                  @click="toggleSort(header)"
+                >
+                  <div class="header-content">
+                    <span>{{ header.title }}</span>
+
+                    <v-icon v-if="isSorted(header)" size="14">{{ getSortIcon(header) }}</v-icon>
+
+                    <v-menu location="bottom start">
+                      <template #activator="{ props }">
+                        <v-icon
+                          v-bind="props"
+                          size="16"
+                          class="ms-1"
+                          @click.stop
+                          :color="isFilterActive(header.key) ? 'blue' : ''"
+                          :icon="
+                            filterType(header.key) === 'custom'
+                              ? 'mdi-filter-cog'
+                              : filterType(header.key) === 'multi'
+                              ? 'mdi-filter-multiple'
+                              : 'mdi-filter-variant'
+                          "
+                        />
+                      </template>
+
+                      <v-list class="filter-menu">
+                        <v-list-item @click.stop="clearColumnFilter(header.key)">
+                          <v-list-item-title>(Select All)</v-list-item-title>
+                        </v-list-item>
+
+                        <v-divider />
+
+                        <v-list-item
+                          v-for="val in uniqueValues(header.key)"
+                          :key="val"
+                          @click.stop="toggleMultiSelectValue(header.key, val)"
+                        >
+                          <template #prepend>
+                            <v-checkbox
+                              density="compact"
+                              :model-value="columnFilters[header.key]?.values?.includes(val)"
+                            />
+                          </template>
+                          <v-list-item-title>
+                            {{ formatFilterValue(header.key, val) }}
+                          </v-list-item-title>
+                        </v-list-item>
+
+                        <v-divider />
+
+                        <v-list-item @click.stop="openCustomFilter(header.key)">
+                          <v-list-item-title class="custom-filter-item"
+                            >(Custom Filter…)</v-list-item-title
+                          >
+                        </v-list-item>
+                      </v-list>
+                    </v-menu>
+                  </div>
+
+                  <div class="resizer" @mousedown.stop="onResizeStart($event, header)" />
+                </th>
+              </template>
+            </tr>
           </template>
 
-          <template #[`item.nominal`]="{ item }">
-            {{ new Intl.NumberFormat("id-ID").format(item["nominal"] || 0) }}
+          <template #[`item.data-table-expand`]="{ internalItem, toggleExpand, isExpanded }">
+            <v-btn
+              icon="mdi-chevron-down"
+              :class="{ 'rotate-180': isExpanded(internalItem) }"
+              size="x-small"
+              variant="text"
+              @click.stop="toggleExpand(internalItem)"
+            />
           </template>
 
-          <template #[`item.closing`]="{ item }">
-            <v-chip size="x-small" :color="item['closing'] === 'Y' ? 'red' : 'green'">
-              {{ item["closing"] }}
-            </v-chip>
+          <template
+            v-for="header in headers.filter((h) => h.key !== 'data-table-expand')"
+            #[`item.${header.key}`]="{ item }"
+            :key="header.key"
+          >
+            <td :class="getRowTextColor(item)">
+              <template v-if="['tanggal', 'tempo'].includes(header.key)">
+                {{
+                  item[header.key]
+                    ? format(parseISO(item[header.key] as string), "dd/MM/yyyy")
+                    : "-"
+                }}
+              </template>
+
+              <template v-else-if="header.key === 'nominal'">
+                {{ formatRupiah(Number(item[header.key] || 0)) }}
+              </template>
+
+              <template v-else-if="header.key === 'closing'">
+                <v-chip
+                  size="x-small"
+                  :color="item.closing === 'Y' ? 'red' : 'green'"
+                  variant="tonal"
+                >
+                  {{ item.closing === "Y" ? "TUTUP" : "BUKA" }}
+                </v-chip>
+              </template>
+
+              <template v-else>
+                {{ item[header.key] }}
+              </template>
+            </td>
           </template>
 
           <template #expanded-row="{ columns, item }">
             <tr>
-              <td :colspan="columns.length">
+              <td :colspan="columns.length" class="pa-0">
                 <div class="detail-container">
                   <div class="detail-table-wrapper">
-                    <div v-if="loadingDetails.has(item.nomor)">Memuat detail...</div>
+                    <div v-if="loadingDetails.has(item.nomor)" class="text-center py-2">
+                      Memuat detail...
+                    </div>
                     <v-data-table
-                      v-else
+                      v-else-if="details[item.nomor]"
                       :headers="detailHeaders"
                       :items="details[item.nomor]"
+                      item-value="kode"
                       density="compact"
                       class="detail-table"
+                      :items-per-page="-1"
+                      hide-default-footer
                     >
+                      <template #[`item.harga`]="{ item: detailItem }">{{
+                        formatRupiah(Number(detailItem.harga || 0))
+                      }}</template>
+                      <template #[`item.total`]="{ item: detailItem }">{{
+                        formatRupiah(Number(detailItem.total || 0))
+                      }}</template>
                       <template #bottom></template>
                     </v-data-table>
+                    <div v-else class="text-center text-caption py-2">
+                      Tidak ada data detail untuk nomor ini.
+                    </div>
                   </div>
                 </div>
               </td>
@@ -352,26 +808,175 @@ onMounted(() => {
         </AppDataTable>
       </div>
     </div>
-    <v-dialog v-model="dialogConfirm.show" max-width="400px" persistent>
+
+    <v-dialog v-model="customFilterDialog" max-width="350px">
       <v-card>
-        <v-card-title class="text-h6 font-weight-bold">{{ dialogConfirm.title }}</v-card-title>
-        <v-card-text>{{ dialogConfirm.text }}</v-card-text>
+        <v-card-title class="text-h6"> Custom Filter — {{ customFilter.key }} </v-card-title>
+        <v-card-text>
+          <v-select
+            v-model="customFilter.operator"
+            :items="[
+              { title: '= (sama dengan)', value: '=' },
+              { title: '≠ (tidak sama)', value: '!=' },
+              { title: '>', value: '>' },
+              { title: '≥', value: '>=' },
+              { title: '<', value: '<' },
+              { title: '≤', value: '<=' },
+              { title: 'contains', value: 'contains' },
+              { title: 'starts with', value: 'starts' },
+              { title: 'ends with', value: 'ends' },
+            ]"
+            density="compact"
+          />
+          <v-text-field v-model="customFilter.value" density="compact" autofocus />
+        </v-card-text>
         <v-card-actions>
           <v-spacer />
-          <v-btn text @click="dialogConfirm.show = false">Tidak</v-btn>
-          <v-btn
-            color="primary"
-            variant="tonal"
-            @click="
-              () => {
-                dialogConfirm.onConfirm();
-                dialogConfirm.show = false;
-              }
-            "
-            >Ya</v-btn
-          >
+          <v-btn text @click="customFilterDialog = false">Cancel</v-btn>
+          <v-btn color="primary" @click="applyCustomFilter">OK</v-btn>
         </v-card-actions>
       </v-card>
     </v-dialog>
   </PageLayout>
 </template>
+
+<style scoped>
+/* Layout Full Height */
+.browse-content {
+  display: flex;
+  flex-direction: column;
+  height: calc(100vh - 64px - 32px);
+  overflow: hidden;
+}
+
+.filter-section {
+  flex-shrink: 0;
+  padding: 8px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+
+  background-color: rgb(var(--v-theme-surface));
+  border-bottom: 1px solid rgba(var(--v-theme-on-surface), 0.12);
+}
+
+.table-container {
+  flex-grow: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* Table Style */
+.desktop-table {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.desktop-table :deep(.v-table__wrapper) {
+  flex-grow: 1;
+  height: 100% !important;
+  overflow-x: auto !important;
+  overflow-y: auto !important;
+}
+
+.desktop-table :deep(table) {
+  width: max-content;
+  min-width: 100%;
+}
+
+/* Header Resize */
+.resizable-header {
+  position: relative;
+  background-color: #e3f2fd !important;
+  color: #0d47a1 !important;
+  font-weight: 700 !important;
+  text-transform: uppercase;
+  font-size: 11px !important;
+  height: 40px !important;
+  border-bottom: 2px solid #1976d2 !important;
+  padding: 0 8px !important;
+  user-select: none;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.header-content {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  height: 100%;
+}
+
+.resizable-header.text-center .header-content {
+  justify-content: center;
+}
+
+.resizable-header.text-end .header-content {
+  justify-content: flex-end;
+}
+
+.resizer {
+  position: absolute;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  width: 5px;
+  cursor: col-resize;
+  z-index: 10;
+}
+
+.resizer:hover,
+.resizable-header:hover .resizer {
+  border-right: 2px solid #1565c0;
+}
+
+/* Detail Sticky */
+.detail-container {
+  position: sticky;
+  left: 0;
+  z-index: 2;
+
+  display: flex;
+  justify-content: flex-start;
+  align-items: flex-start;
+
+  background-color: rgb(var(--v-theme-surface));
+  border-bottom: 1px solid rgba(var(--v-theme-on-surface), 0.12);
+
+  padding: 16px 16px 16px 64px;
+  width: fit-content;
+  min-width: 100%;
+  box-sizing: border-box;
+}
+
+.detail-table-wrapper {
+  width: 100%;
+  max-width: 800px;
+
+  background-color: rgb(var(--v-theme-surface));
+  border: 1px solid rgba(var(--v-theme-on-surface), 0.12);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+:deep(td.text-grey) {
+  color: grey !important;
+}
+
+.state-container {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+}
+
+.rotate-180 {
+  transform: rotate(180deg);
+  transition: transform 0.2s;
+}
+</style>

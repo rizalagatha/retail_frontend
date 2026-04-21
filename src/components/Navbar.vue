@@ -9,6 +9,7 @@ import { useBufferStockDialog } from "@/composables/useBufferStockDialog";
 import { useSettingsProcessDialog } from "@/composables/useSettingsProcessDialog";
 import { useManualProgramDialog } from "@/composables/useManualProgramDialog";
 import { useMemoInternalDialog } from "@/composables/useMemoInternalDialog";
+import { useDisplay } from "vuetify";
 
 interface NavSection {
   title: string;
@@ -34,11 +35,14 @@ interface NavItem {
 const authStore = useAuthStore();
 const router = useRouter();
 const logoSrc = logo as string;
+const { smAndDown } = useDisplay();
 
 // Component state
 const scrolled = ref(false);
+const drawer = ref(false);
 const daftarMenu = ref(false);
 const transaksiMenu = ref(false);
+const operasionalMenu = ref(false); // [BARU]
 const piutangMenu = ref(false);
 const gudangMenu = ref(false);
 const laporanMenu = ref(false);
@@ -49,7 +53,7 @@ const userMenu = ref(false);
 const appBarElevation = computed(() => (scrolled.value ? 2 : 0));
 // [FIX DARK MODE] Hapus class manual, gunakan props color dinamis di template
 const isScrolled = computed(() => scrolled.value);
-const hasTransaksiNotif = computed(() => {
+const hasOperasionalNotif = computed(() => {
   const n = authStore.notifications;
   return n.sj > 0 || n.mutasi > 0 || n.retur > 0 || n.pinjam > 0;
 });
@@ -124,7 +128,7 @@ const menuItems: NavItem[] = [
     ],
   },
   {
-    title: "Transaksi",
+    title: "Transaksi", // Sekarang murni fokus ke Penjualan
     icon: "mdi-cash-register",
     model: transaksiMenu,
     isLarge: true,
@@ -159,6 +163,11 @@ const menuItems: NavItem[] = [
             icon: "mdi-printer",
             subItems: [
               {
+                title: "SO DTF Trial Pesanan",
+                to: "/transaksi/penjualan/dtf/so-dtf-trial",
+                icon: "mdi-flask-outline", // Icon tabung reaksi / uji coba
+              },
+              {
                 title: "SO DTF Pesanan",
                 to: "/transaksi/penjualan/dtf/so-dtf",
                 icon: "mdi-clipboard-list-outline",
@@ -167,6 +176,11 @@ const menuItems: NavItem[] = [
                 title: "LHK Jasa",
                 to: "/transaksi/penjualan/dtf/lhk-so-dtf",
                 icon: "mdi-file-chart-outline",
+              },
+              {
+                title: "Log Mesin DTF",
+                to: "/transaksi/penjualan/dtf/log-mesin",
+                icon: "mdi-printer-3d",
               },
               {
                 title: "Dasbor DTF",
@@ -229,8 +243,19 @@ const menuItems: NavItem[] = [
           },
         ],
       },
+    ],
+  },
+  // ==========================================
+  // [MENU BARU] OPERASIONAL STORE
+  // ==========================================
+  {
+    title: "Operasional",
+    icon: "mdi-store-cog-outline",
+    model: operasionalMenu,
+    isLarge: true,
+    sections: [
       {
-        title: "Internal",
+        title: "Internal Store",
         icon: "mdi-office-building-outline",
         items: [
           {
@@ -261,7 +286,7 @@ const menuItems: NavItem[] = [
             icon: "mdi-pencil-outline",
           },
           {
-            title: "Pengajuan Barcode Baru",
+            title: "Pengajuan Barcode",
             to: "/transaksi/internal/pengajuan-barcode",
             icon: "mdi-barcode",
           },
@@ -313,10 +338,10 @@ const menuItems: NavItem[] = [
       },
       {
         title: "Stok Opname",
-        icon: "mdi-clipboard-list-outline",
+        icon: "mdi-clipboard-check-multiple-outline",
         items: [
           {
-            title: "List HPP Kosong Ada Stok",
+            title: "List HPP Kosong",
             to: "/transaksi/stok-opname/hpp-kosong",
             icon: "mdi-currency-usd-off",
           },
@@ -326,7 +351,7 @@ const menuItems: NavItem[] = [
             icon: "mdi-calendar-edit-outline",
           },
           {
-            title: "Master Lokasi Opname",
+            title: "Master Lokasi",
             to: "/transaksi/stok-opname/lokasi-opname",
             icon: "mdi-map-marker-plus-outline",
           },
@@ -353,6 +378,40 @@ const menuItems: NavItem[] = [
           { title: "Proses", to: "/transaksi/stok-opname/proses", icon: "mdi-progress-check" },
         ],
       },
+      // ==========================================
+      // [PINDAHAN] WORKSHOP BORDIR SEKARANG DI SINI
+      // ==========================================
+      {
+        title: "Workshop Bordir",
+        icon: "mdi-factory",
+        items: [
+          {
+            title: "Mutasi ke Workshop",
+            to: "/operasional/workshop/mutasi-workshop",
+            icon: "mdi-swap-horizontal", // Atau mdi-sewing-machine / mdi-swap-horizontal
+          },
+          {
+            title: "Terima Workshop",
+            to: "/operasional/workshop/terima-workshop",
+            icon: "mdi-truck-check-outline", // Icon truk dengan ceklis
+          },
+          {
+            title: "Penyelesaian (LHK)",
+            to: "/bordir/penyelesaian",
+            icon: "mdi-check-decagram-outline",
+          },
+          {
+            title: "Surat Jalan (Kirim Store)",
+            to: "/bordir/surat-jalan",
+            icon: "mdi-truck-fast-outline",
+          },
+          {
+            title: "Stok Benang/Material",
+            to: "/bordir/stok-material",
+            icon: "mdi-palette-swatch-outline",
+          },
+        ],
+      },
     ],
   },
   {
@@ -367,12 +426,7 @@ const menuItems: NavItem[] = [
       { title: "Potongan", to: "/piutang/potongan", icon: "mdi-tag-minus-outline" },
       { title: "Refund", to: "/piutang/refund", icon: "mdi-cash-refund" },
       { divider: true },
-      // --- TAMBAHAN MENU BARU FINANCE ---
-      {
-        title: "Klaim Petty Cash",
-        to: "/piutang/klaim-petty-cash",
-        icon: "mdi-cash-check",
-      },
+      { title: "Klaim Petty Cash", to: "/piutang/klaim-petty-cash", icon: "mdi-cash-check" },
     ],
   },
   {
@@ -425,7 +479,7 @@ const menuItems: NavItem[] = [
             icon: "mdi-tools",
           },
           {
-            title: "Permintaan Kebutuhan Kaosan",
+            title: "Permintaan Kaosan",
             to: "/gudang-dc/operasional/minta-accesories",
             icon: "mdi-hand-extended-outline",
           },
@@ -533,19 +587,39 @@ const menuItems: NavItem[] = [
     icon: "mdi-wrench-outline",
     model: fileMenu,
     items: [
-      { title: "Manual Program", icon: "mdi-book-open-outline", onClick: () => openManualDialog() },
+      {
+        title: "Manual Program",
+        icon: "mdi-book-open-outline",
+        onClick: () => {
+          openManualDialog();
+          drawer.value = false;
+        },
+      },
       {
         title: "Memo Internal",
         icon: "mdi-bulletin-board",
-        onClick: () => handleOpenMemo(),
+        onClick: () => {
+          handleOpenMemo();
+          drawer.value = false;
+        },
         badgeKey: "memo",
       },
       {
         title: "Update Buffer Stok",
         icon: "mdi-database-sync",
-        onClick: () => openBufferStockDialog(),
+        onClick: () => {
+          openBufferStockDialog();
+          drawer.value = false;
+        },
       },
-      { title: "Setting", icon: "mdi-cog-outline", onClick: () => openSettingsProcessDialog() },
+      {
+        title: "Setting",
+        icon: "mdi-cog-outline",
+        onClick: () => {
+          openSettingsProcessDialog();
+          drawer.value = false;
+        },
+      },
       { divider: true },
       { title: "User", to: "/file/users", icon: "mdi-account-group-outline" },
     ],
@@ -559,6 +633,7 @@ const closeMenus = () => {
       menu.model.value = false;
     }
   });
+  drawer.value = false; // Tutup drawer kalau ada menu yang di-klik di mobile
 };
 
 const handleLogout = () => {
@@ -598,19 +673,25 @@ onUnmounted(() => {
     fixed
     :class="['desktop-navbar', { 'navbar-scrolled': isScrolled }]"
   >
+    <v-app-bar-nav-icon
+      v-if="smAndDown"
+      @click="drawer = !drawer"
+      color="primary"
+      class="mr-2"
+    ></v-app-bar-nav-icon>
     <RouterLink to="/" class="logo-section">
       <v-avatar size="32" class="logo-avatar">
         <v-img :src="logoSrc" alt="Kaosan Logo" cover />
       </v-avatar>
       <div class="brand-info">
         <span class="brand-title">Kaosan</span>
-        <span class="brand-subtitle">Retail Management System</span>
+        <span class="brand-subtitle d-none d-sm-flex">Retail Management System</span>
       </div>
     </RouterLink>
 
     <v-spacer />
 
-    <nav class="main-navigation">
+    <nav class="main-navigation d-none d-md-flex">
       <template v-for="menu in menuItems" :key="menu.title">
         <v-menu
           v-if="menu.model && !menu.isLarge && (!('to' in menu) || hasAccess(menu.to as string))"
@@ -628,9 +709,9 @@ onUnmounted(() => {
               color="error"
               dot
               :model-value="
-                (menu.title === 'Transaksi' && hasTransaksiNotif) ||
+                (menu.title === 'Operasional' && hasOperasionalNotif) ||
                 (menu.title === 'Tools' && hasToolsNotif) ||
-                (menu.title === 'Gudang DC' && hasGudangNotif) // [TAMBAHKAN INI]
+                (menu.title === 'Gudang DC' && hasGudangNotif)
               "
               offset-x="10"
               offset-y="10"
@@ -744,7 +825,7 @@ onUnmounted(() => {
               color="error"
               dot
               :model-value="
-                (menu.title === 'Transaksi' && hasTransaksiNotif) ||
+                (menu.title === 'Operasional' && hasOperasionalNotif) ||
                 (menu.title === 'Tools' && hasToolsNotif) ||
                 (menu.title === 'Gudang DC' && hasGudangNotif)
               "
@@ -918,14 +999,124 @@ onUnmounted(() => {
       </v-card>
     </v-menu>
   </v-app-bar>
+
+  <v-navigation-drawer v-model="drawer" temporary location="left" width="300" class="mobile-drawer">
+    <v-list-item class="bg-primary-lighten-5 py-4">
+      <template #prepend>
+        <v-avatar :color="userRoleConfig.color" size="40">
+          <v-icon :icon="userRoleConfig.icon" size="24" color="white" />
+        </v-avatar>
+      </template>
+      <v-list-item-title class="font-weight-bold text-subtitle-1">{{
+        authStore.userName
+      }}</v-list-item-title>
+      <v-list-item-subtitle>{{ authStore.userCabang }}</v-list-item-subtitle>
+    </v-list-item>
+
+    <v-divider></v-divider>
+
+    <v-list density="compact" nav>
+      <template v-for="menu in menuItems" :key="menu.title">
+        <v-list-group v-if="!menu.isLarge" :value="menu.title" :prepend-icon="menu.icon">
+          <template #activator="{ props }">
+            <v-list-item v-bind="props">
+              <v-list-item-title class="font-weight-medium">{{ menu.title }}</v-list-item-title>
+            </v-list-item>
+          </template>
+
+          <template
+            v-for="(item, i) in (menu.items ?? []).filter((i) => !i.to || hasAccess(i.to))"
+            :key="i"
+          >
+            <v-divider v-if="item.divider" />
+            <v-list-item
+              v-else
+              :to="item.to"
+              :prepend-icon="item.icon"
+              @click="item.onClick ? item.onClick() : closeMenus()"
+            >
+              <v-list-item-title>{{ item.title }}</v-list-item-title>
+            </v-list-item>
+          </template>
+        </v-list-group>
+
+        <v-list-group v-else :value="menu.title" :prepend-icon="menu.icon">
+          <template #activator="{ props }">
+            <v-list-item v-bind="props">
+              <v-list-item-title class="font-weight-medium">{{ menu.title }}</v-list-item-title>
+            </v-list-item>
+          </template>
+
+          <template v-for="section in menu.sections" :key="section.title">
+            <v-list-subheader class="font-weight-bold text-primary mt-2">{{
+              section.title
+            }}</v-list-subheader>
+            <template
+              v-for="item in section.items.filter((i) => !i.to || hasAccess(i.to))"
+              :key="item.title"
+            >
+              <v-list-group v-if="item.subItems" :value="item.title" class="pl-2">
+                <template #activator="{ props }">
+                  <v-list-item v-bind="props" :prepend-icon="item.icon">
+                    <v-list-item-title>{{ item.title }}</v-list-item-title>
+                  </v-list-item>
+                </template>
+                <v-list-item
+                  v-for="sub in item.subItems.filter((s) => !s.to || hasAccess(s.to))"
+                  :key="sub.title"
+                  :to="sub.to"
+                  :prepend-icon="sub.icon"
+                  @click="closeMenus"
+                >
+                  <v-list-item-title>{{ sub.title }}</v-list-item-title>
+                </v-list-item>
+              </v-list-group>
+
+              <v-list-item
+                v-else
+                :to="item.to"
+                :prepend-icon="item.icon"
+                class="pl-4"
+                @click="closeMenus"
+              >
+                <v-list-item-title>{{ item.title }}</v-list-item-title>
+              </v-list-item>
+            </template>
+          </template>
+        </v-list-group>
+      </template>
+
+      <v-divider class="my-2"></v-divider>
+      <v-list-subheader class="font-weight-bold text-grey-darken-1">Akun Saya</v-list-subheader>
+      <v-list-item
+        @click="
+          openWhatsAppDialog();
+          drawer = false;
+        "
+        prepend-icon="mdi-whatsapp"
+      >
+        <v-list-item-title>Tautkan WhatsApp</v-list-item-title>
+      </v-list-item>
+      <v-list-item
+        @click="
+          openPasswordDialog();
+          drawer = false;
+        "
+        prepend-icon="mdi-lock-outline"
+      >
+        <v-list-item-title>Ganti Password</v-list-item-title>
+      </v-list-item>
+      <v-list-item @click="handleLogout" prepend-icon="mdi-logout" class="text-error">
+        <v-list-item-title>Logout</v-list-item-title>
+      </v-list-item>
+    </v-list>
+  </v-navigation-drawer>
 </template>
 
 <style scoped>
 /* Main navbar styling */
 .desktop-navbar {
   border-bottom: 1px solid rgba(var(--v-border-color), var(--v-border-opacity));
-
-  /* [PERBAIKAN DARK MODE] Gunakan color surface, bukan hardcode white */
   background-color: rgba(var(--v-theme-surface), 0.85) !important;
   backdrop-filter: blur(12px);
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
@@ -964,7 +1155,6 @@ onUnmounted(() => {
 .brand-title {
   font-size: 1.1rem;
   font-weight: 700;
-  /* [PERBAIKAN DARK MODE] Gunakan variable primary */
   color: rgb(var(--v-theme-primary));
   letter-spacing: -0.03em;
   line-height: 1.2;
@@ -972,7 +1162,6 @@ onUnmounted(() => {
 
 .brand-subtitle {
   font-size: 0.7rem;
-  /* [PERBAIKAN DARK MODE] Gunakan text-secondary */
   color: rgba(var(--v-theme-on-surface), 0.6);
   font-weight: 500;
   letter-spacing: 0.02em;
@@ -990,7 +1179,6 @@ onUnmounted(() => {
   padding: 0 16px;
   font-weight: 600;
   font-size: 0.875rem;
-  /* [PERBAIKAN DARK MODE] Warna teks dinamis */
   color: rgb(var(--v-theme-on-surface));
   border-radius: 8px;
   text-transform: none;
@@ -1020,7 +1208,6 @@ onUnmounted(() => {
   border-radius: 12px;
   border: 1px solid rgba(var(--v-border-color), var(--v-border-opacity));
   overflow: hidden;
-  /* [PERBAIKAN DARK MODE] Background dinamis */
   background-color: rgba(var(--v-theme-surface), 0.95);
   backdrop-filter: blur(16px);
   box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.15);
@@ -1040,7 +1227,6 @@ onUnmounted(() => {
   margin: 2px 0;
   font-size: 0.875rem;
   transition: all 0.2s ease;
-  /* [PERBAIKAN] Warna text item */
   color: rgb(var(--v-theme-on-surface));
 }
 
@@ -1082,7 +1268,6 @@ onUnmounted(() => {
   align-items: center;
   padding: 8px 12px;
   margin-bottom: 8px;
-  /* [PERBAIKAN DARK MODE] Background header section */
   background: rgba(var(--v-theme-primary), 0.06);
   border-radius: 6px;
   border-left: 3px solid rgb(var(--v-theme-primary));
@@ -1117,13 +1302,6 @@ onUnmounted(() => {
   margin-right: 8px;
 }
 
-.user-initial,
-.user-profile-initial {
-  font-size: 0.75rem;
-  font-weight: 600;
-  color: white;
-}
-
 .user-name {
   font-size: 0.875rem;
   font-weight: 500;
@@ -1148,7 +1326,6 @@ onUnmounted(() => {
 
 .user-profile-item {
   padding: 12px 16px;
-  /* [PERBAIKAN] Background profile item */
   background-color: rgba(var(--v-theme-primary), 0.05);
 }
 
@@ -1232,63 +1409,17 @@ onUnmounted(() => {
   max-width: 500px;
 }
 
-.nav-list-item .v-list-item-title,
-.section-list-item .v-list-item-title {
-  font-size: 0.875rem !important;
-  font-weight: 500 !important;
-  line-height: 1.4 !important;
-}
-
-.nav-list-group .v-list-group__activator .v-list-item-title,
-.section-list-group .v-list-group__activator .v-list-item-title,
-.v-list-group .v-list-group__activator .v-list-item-title {
-  font-size: 0.875rem !important;
-  font-weight: 500 !important;
-}
-
-.nav-list-item,
-.section-list-item,
-.nav-list-group .v-list-group__activator,
-.section-list-group .v-list-group__activator {
-  min-height: 36px !important;
+/* Mobile Drawer Styling */
+.mobile-drawer .v-list-item-title {
+  font-size: 0.85rem !important;
 }
 
 @media (min-width: 1200px) {
   .large-nav-dropdown {
     max-width: none;
   }
-
   .section-col {
     min-width: 250px;
   }
-}
-
-.nav-dropdown {
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
-}
-
-.large-nav-dropdown {
-  box-shadow: 0 8px 25px -5px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
-}
-
-.user-dropdown {
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
-}
-
-.v-icon {
-  font-size: 18px;
-}
-
-.nav-button .v-icon {
-  font-size: 20px;
-  margin-right: 8px;
-}
-
-.v-app-bar .v-toolbar__content {
-  padding: 0 24px;
-}
-
-.v-divider {
-  border-color: rgba(var(--v-border-color), var(--v-border-opacity));
 }
 </style>

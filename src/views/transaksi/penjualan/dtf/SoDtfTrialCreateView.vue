@@ -7,7 +7,7 @@ import { useToast } from "vue-toastification";
 import { useAuthStore } from "@/stores/authStore";
 import { useUiStore } from "@/stores/uiStore";
 import { useUnsavedChanges } from "@/composables/useUnsavedChanges";
-import { format, addDays, isAfter, parseISO } from "date-fns";
+import { format } from "date-fns";
 import { AxiosError } from "axios";
 
 // --- Import Modals ---
@@ -21,9 +21,8 @@ import SoSearchModalForInvoice from "@/components/lookup/SoSearchModalForInvoice
 // --- Interfaces ---
 interface FormHeader {
   nomor: string | null;
+  soNomor: string;
   tanggal: string;
-  tglPengerjaan: string;
-  datelineCustomer: string;
   salesKode: string;
   salesNama: string;
   customerKode: string;
@@ -42,27 +41,29 @@ interface FormHeader {
   hargaPerCm: number;
   user: string;
   imageUrl: string | null;
-  refTrial: string | null;
+  revisiList: any[];
+  noSoDtfRiil: string;
   [key: string]: unknown;
 }
 interface DetailUkuran {
   id: number;
   ukuran: string;
-  jumlah: number; // Hapus | null
-  harga: number; // Hapus | null
-  namaBarang: string; // Hapus opsional ?
+  jumlah: number;
+  harga: number;
+  namaBarang: string;
 }
 interface DetailTitik {
   id: number;
   keterangan: string;
   sizeCetak: string;
-  panjang: number; // Hapus | null
-  lebar: number; // Hapus | null
+  panjang: number;
+  lebar: number;
 }
 interface SoDtfPayload {
   header: FormHeader;
   detailsUkuran: DetailUkuran[];
   detailsTitik: DetailTitik[];
+  newRevision?: { isAdding: boolean; catatan: string };
 }
 interface SoItem {
   id: string | number;
@@ -70,19 +71,9 @@ interface SoItem {
   nama: string;
   sod_custom_nama?: string;
   sourceItems?: { nama: string }[];
-  ukuranKaos: {
-    ukuran: string;
-    jumlah: number;
-    harga: number;
-  }[];
-  titikCetak: {
-    keterangan: string;
-    sizeCetak: string;
-    panjang: number;
-    lebar: number;
-  }[];
+  ukuranKaos: { ukuran: string; jumlah: number; harga: number }[];
+  titikCetak: { keterangan: string; sizeCetak: string; panjang: number; lebar: number }[];
 }
-
 type SoSelected = {
   nomor?: string;
   Nomor?: string;
@@ -97,11 +88,11 @@ const toast = useToast();
 const authStore = useAuthStore();
 const uiStore = useUiStore();
 const { markAsSaved } = useUnsavedChanges();
-const MENU_ID = "35";
+const MENU_ID = "61";
 
 const isEditMode = computed(() => !!route.params.nomor);
 const pageTitle = computed(() =>
-  isEditMode.value ? `Ubah SO DTF: ${form.value.nomor}` : "Buat SO DTF Baru"
+  isEditMode.value ? `Ubah SO DTF Trial: ${form.value.nomor}` : "Buat SO DTF Trial Baru"
 );
 const requiredPermission = computed(() => (isEditMode.value ? "edit" : "insert"));
 
@@ -109,17 +100,12 @@ const isLoading = ref(true);
 const isSaving = ref(false);
 const isInitializing = ref(false);
 const isRestoringData = ref(false);
-
-const isFromTrial = computed(() => !!route.query.refTrial);
-const trialImageOptions = ref<{ title: string; url: string }[]>([]);
-const selectedTrialImage = ref<string | null>(null);
+const isReadOnly = computed(() => route.query.readonly === "true");
 
 const initialFormState = {
   nomor: null,
   soNomor: "",
   tanggal: format(new Date(), "yyyy-MM-dd"),
-  tglPengerjaan: format(new Date(), "yyyy-MM-dd"),
-  datelineCustomer: "",
   salesKode: "",
   salesNama: "",
   customerKode: "",
@@ -138,7 +124,8 @@ const initialFormState = {
   hargaPerCm: 0,
   user: authStore.user?.kode || "",
   imageUrl: null as string | null,
-  refTrial: null,
+  revisiList: [],
+  noSoDtfRiil: "",
 };
 
 const form = ref<FormHeader>({ ...initialFormState });
@@ -147,14 +134,14 @@ const detailsTitik = ref<DetailTitik[]>([]);
 const imagePreview = ref<string | null>(null);
 const imageFile = ref<File | null>(null);
 const isImageUploading = ref(false);
-const sisaKuota = ref(0);
-const isImageFullscreenVisible = ref(false); // State untuk modal fullscreen
+const isImageFullscreenVisible = ref(false);
 const isConfirmDialogVisible = ref(false);
 const confirmText = ref("");
 const pendingAction = ref<(() => void) | null>(null);
-const isPrintConfirmVisible = ref(false); // State untuk dialog cetak baru
-const printConfirmNomor = ref(""); // Untuk menyimpan nomor SO DTF yang akan dicetak
+const isPrintConfirmVisible = ref(false);
+const printConfirmNomor = ref("");
 const ukuranKaosList = ref<string[]>([]);
+const sizeCetakList = ref(["A3", "A4", "A5", "Logo", "Custom"]);
 
 // --- Modal Visibility State ---
 const isCustomerSearchVisible = ref(false);
@@ -162,132 +149,81 @@ const isSalesSearchVisible = ref(false);
 const isJenisOrderSearchVisible = ref(false);
 const isJenisKainSearchVisible = ref(false);
 const isWorkshopSearchVisible = ref(false);
-const isSoSearchVisible = ref(false);
-const sizeCetakList = ref(["A3", "A4", "A5", "Logo", "Custom"]);
+const isSoSearchVisible = ref(false); // Modal Pencarian SO
 
 // --- Computed Properties for Totals ---
-const totalJumlahKaos = computed(() => {
-  return detailsUkuran.value.reduce((sum, item) => sum + (item.jumlah || 0), 0);
-});
+const totalJumlahKaos = computed(() => 1);
+const totalTitik = computed(() => detailsTitik.value.filter((d) => d.keterangan).length * 1);
+const isHargaReadonly = computed(() =>
+  ["SD", "DP", "TG", "BR"].includes(form.value.jenisOrderKode)
+);
+const bordirMultiplier = computed(() => 200);
 
-const totalTitik = computed(() => {
-  const titikCount = detailsTitik.value.filter((d) => d.keterangan).length;
-  return totalJumlahKaos.value * titikCount;
-});
-
-const isHargaReadonly = computed(() => {
-  const autoCalcTypes = ["SD", "DP", "TG", "BR"];
-  return autoCalcTypes.includes(form.value.jenisOrderKode);
-});
-
-const bordirMultiplier = computed(() => {
-  return totalJumlahKaos.value >= 20 ? 100 : 200;
-});
-
-// === Perhitungan Luas Bordir ===
 const totalLuasBordir = computed(() => {
   if (form.value.jenisOrderKode !== "BR") return 0;
-  return detailsTitik.value.reduce((sum, t) => {
-    return sum + (t.panjang || 0) * (t.lebar || 0);
-  }, 0);
+  return detailsTitik.value
+    .filter((t) => t.keterangan)
+    .reduce((sum, t) => sum + (t.panjang || 0) * (t.lebar || 0), 0);
 });
-
-// === Perhitungan Luas & Harga Bordir ===
 const totalHargaBordir = computed(() => {
   if (form.value.jenisOrderKode !== "BR") return 0;
-
-  const qtyKaos = totalJumlahKaos.value;
-  if (qtyKaos <= 0) return 0;
-
-  const mult = bordirMultiplier.value; // Ambil 100 atau 200
-
+  const mult = bordirMultiplier.value;
   const totalHargaJasaPerKaos = detailsTitik.value.reduce((sum, t) => {
-    if (t.panjang && t.lebar) {
-      const luas = Number(t.panjang) * Number(t.lebar);
-      const hargaKalkulasi = luas * mult;
-
-      // Aturan Minimum: Rp 5.000 per titik lokasi bordir
-      return sum + Math.max(hargaKalkulasi, 5000);
-    }
+    if (t.panjang && t.lebar) return sum + Math.max(t.panjang * t.lebar * mult, 5000);
     return sum;
   }, 0);
-
-  return totalHargaJasaPerKaos * qtyKaos;
+  return totalHargaJasaPerKaos * 1; // Dikali 1 Pcs
 });
 
-// === Perhitungan Luas DTF ===
 const totalLuasDtf = computed(() => {
   if (form.value.jenisOrderKode !== "SD") return 0;
-  return detailsTitik.value.reduce((sum, t) => {
-    return sum + (t.panjang || 0) * (t.lebar || 0);
-  }, 0);
+  return detailsTitik.value
+    .filter((t) => t.keterangan)
+    .reduce((sum, t) => sum + (t.panjang || 0) * (t.lebar || 0), 0);
 });
 
 const totalHargaDtf = computed(() => {
   if (form.value.jenisOrderKode !== "SD") return 0;
   const harga = form.value.customerLevel === "KORPORASI" ? 15 : 25;
-  return totalLuasDtf.value * harga * totalJumlahKaos.value;
+  return totalLuasDtf.value * harga * 1; // Dikali 1 pcs
 });
 
-// 1. Hitung batas dinamis Dateline Customer
-const maxDatelineDate = computed(() => {
-  const startDate = parseISO(form.value.tanggal);
-  const prefix = form.value.workshopKode.charAt(0).toUpperCase();
+const isPanjangLebarReadonly = (item: DetailTitik): boolean =>
+  !!item.sizeCetak && item.sizeCetak !== "Custom";
 
-  // Workshop P = H+7, Workshop K = H+3
-  const daysToAdd = prefix === "P" ? 7 : 3;
-  return format(addDays(startDate, daysToAdd), "yyyy-MM-dd");
-});
-
-// 2. Watcher untuk mengunci (Lock) nilai agar tidak melebihi H+3 / H+7
-watch(
-  () => form.value.datelineCustomer,
-  (newVal) => {
-    if (newVal && isAfter(parseISO(newVal), parseISO(maxDatelineDate.value))) {
-      toast.warning(
-        `Dateline Customer workshop ${form.value.workshopKode} maksimal adalah ${maxDatelineDate.value}`
-      );
-      // Paksa balik ke batas maksimal
-      form.value.datelineCustomer = maxDatelineDate.value;
-    }
-  }
-);
-
-const isPanjangLebarReadonly = (item: DetailTitik): boolean => {
-  return !!item.sizeCetak && item.sizeCetak !== "Custom";
-};
+// --- STATE REVISI & FULLSCREEN ---
+const isAddingRevision = ref(false);
+const newRevisionCatatan = ref("");
+const fullscreenImageSrc = ref("");
 
 // --- Methods ---
-const getFullImageUrl = (path: string | null) => {
-  if (!path) return null;
-  if (path.startsWith("http")) return path;
+const getFullImageUrl = (imagePath) => {
+  if (!imagePath) return "";
+  if (imagePath.startsWith("http")) return imagePath; // Kalau udah link asli, biarkan
 
-  // Karena kita sudah mengatur proxy /images di Vite (untuk lokal)
-  // dan alias /images/ di Nginx (untuk server),
-  // kita cukup kembalikan path aslinya saja (misal: /images/K06/K06.SD.2604.0001.jpg).
-  // Browser akan cerdas otomatis menyesuaikan domain depannya!
-  return path;
+  // Ambil URL backend dari file env (misal: http://localhost:3000/api)
+  // Lalu buang '/api'-nya biar sisa http://localhost:3000
+  const baseUrl =
+    import.meta.env.VITE_API_BASE_URL?.replace(/\/api\/?$/, "") || "http://localhost:8000";
+
+  return `${baseUrl}${imagePath}`;
 };
 
 const addDetailUkuran = () => {
-  // Logic lama: ...detailsUkuran.value[detailsUkuran.value.length - 1].ukuran
-  // Ubah menjadi:
-  if (
-    detailsUkuran.value.length === 0 ||
-    detailsUkuran.value[detailsUkuran.value.length - 1].ukuran
-  ) {
+  // Karena trial dilock 1 pcs, cegah tambah baris kalau sudah ada
+  if (detailsUkuran.value.length === 0) {
     detailsUkuran.value.push({
       id: Date.now(),
       ukuran: "",
-      jumlah: 0,
+      jumlah: 1, // [PERBAIKAN] Langsung isi 1, bukan 0
       harga: 0,
       namaBarang: "",
     });
   }
 };
-const removeDetailUkuran = (id: number) => {
-  detailsUkuran.value = detailsUkuran.value.filter((d) => d.id !== id);
-};
+const removeDetailUkuran = (id: number) =>
+  (detailsUkuran.value = detailsUkuran.value.filter((d) => d.id !== id));
+
 const addDetailTitik = () => {
   if (
     detailsTitik.value.length === 0 ||
@@ -302,25 +238,21 @@ const addDetailTitik = () => {
     });
   }
 };
-const removeDetailTitik = (id: number) => {
-  detailsTitik.value = detailsTitik.value.filter((d) => d.id !== id);
-};
+const removeDetailTitik = (id: number) =>
+  (detailsTitik.value = detailsTitik.value.filter((d) => d.id !== id));
 
 const fetchDataForEdit = async (nomor: string) => {
   isRestoringData.value = true;
   isLoading.value = true;
   isInitializing.value = true;
   try {
-    const response = await api.get(`/so-dtf-form/${nomor}`);
+    const response = await api.get(`/so-dtf-trial-form/${nomor}`);
     const data = response.data;
 
-    // Set form data
     form.value = {
       nomor: data.header.nomor,
       soNomor: data.header.soNomor || "",
       tanggal: format(new Date(data.header.tanggal), "yyyy-MM-dd"),
-      tglPengerjaan: format(new Date(data.header.tglPengerjaan), "yyyy-MM-dd"),
-      datelineCustomer: format(new Date(data.header.datelineCustomer), "yyyy-MM-dd"),
       salesKode: data.header.salesKode || "",
       salesNama: data.header.salesNama || "",
       customerKode: data.header.customerKode || "",
@@ -339,39 +271,39 @@ const fetchDataForEdit = async (nomor: string) => {
       hargaPerCm: data.header.hargaPerCm || 0,
       user: data.header.user || "",
       imageUrl: data.header.imageUrl || null,
+      revisiList: data.header.revisiList || [],
+      noSoDtfRiil: data.header.noSoDtfRiil || "",
     };
 
-    // Set preview dari gambar existing (jika ada)
     imagePreview.value = getFullImageUrl(data.header.imageUrl);
-
-    // Clear file input karena ini data existing
     imageFile.value = null;
 
     detailsTitik.value = data.detailsTitik.map((d: Omit<DetailTitik, "id">, i: number) => ({
       ...d,
       id: Date.now() + i + 1000,
     }));
-
-    detailsUkuran.value = data.detailsUkuran.map((d: DetailUkuran, i: number) => ({
-      id: Date.now() + i,
-      namaBarang: d.namaBarang,
-      ukuran: d.ukuran,
-      jumlah: d.jumlah ?? 0,
-      harga: d.harga ?? 0,
-    }));
+    if (data.detailsUkuran && data.detailsUkuran.length > 0) {
+      const d = data.detailsUkuran[0];
+      detailsUkuran.value = [
+        {
+          id: Date.now(),
+          namaBarang: d.namaBarang,
+          ukuran: d.ukuran,
+          jumlah: 1,
+          harga: d.harga ?? 0,
+        },
+      ];
+    } else {
+      detailsUkuran.value = [{ id: Date.now(), namaBarang: "", ukuran: "", jumlah: 1, harga: 0 }];
+    }
     toast.success(`Data untuk ${nomor} berhasil dimuat.`);
 
     await nextTick();
     markAsSaved();
   } catch (error) {
     const err = error as AxiosError<{ message: string }>;
-
-    console.error("Error loading data:", err);
-
-    // Ambil pesan error dari response API jika ada
-    toast.error(err.response?.data?.message || "Gagal memuat data SO DTF");
-
-    router.push("/transaksi/penjualan/dtf/so-dtf");
+    toast.error(err.response?.data?.message || "Gagal memuat data SO DTF Trial");
+    router.push("/transaksi/penjualan/dtf/so-dtf-trial");
   } finally {
     isRestoringData.value = false;
     isInitializing.value = false;
@@ -381,100 +313,93 @@ const fetchDataForEdit = async (nomor: string) => {
 
 const handleFileSelection = async () => {
   await nextTick();
-
   const file = imageFile.value;
 
-  // Jika tidak ada file atau file di-clear
   if (!file) {
     imagePreview.value = form.value.imageUrl ? getFullImageUrl(form.value.imageUrl) : null;
     return;
   }
 
-  // Validasi ukuran
   if (file.size > 1024 * 1024) {
-    toast.error("Ukuran file tidak boleh lebih dari 1MB.");
+    toast.error("Ukuran file Max 1MB.");
     imageFile.value = null;
     return;
   }
-
-  // Validasi tipe
   if (!["image/jpeg", "image/jpg", "image/png", "image/gif"].includes(file.type)) {
-    toast.error("Tipe file tidak valid. Gunakan JPG, PNG, atau GIF.");
+    toast.error("Tipe file tidak valid.");
     imageFile.value = null;
     return;
   }
 
-  // Jika dalam mode edit dan sudah ada nomor, langsung upload
-  if (form.value.nomor) {
-    await uploadImageToServer(form.value.nomor);
-  } else {
-    // Jika mode tambah baru, hanya buat preview sementara
-    imagePreview.value = URL.createObjectURL(file);
-    toast.info("Gambar akan diupload setelah data disimpan");
-  }
+  // [PERBAIKAN KUNCI]
+  // JANGAN PERNAH AUTO-UPLOAD! Cukup bikin preview sementaranya saja.
+  // Upload ke server baru akan jalan nanti pas Mas Rizal klik tombol "Simpan"
+  imagePreview.value = URL.createObjectURL(file);
 };
 
 const clearImage = () => {
-  // Cleanup blob URL
-  if (imagePreview.value && imagePreview.value.startsWith("blob:")) {
+  if (imagePreview.value && imagePreview.value.startsWith("blob:"))
     URL.revokeObjectURL(imagePreview.value);
-  }
-
   imagePreview.value = null;
   imageFile.value = null;
   form.value.imageUrl = null;
 };
 
+const openFullscreen = (url: string) => {
+  fullscreenImageSrc.value = url;
+  isImageFullscreenVisible.value = true;
+};
+
 const resetForm = () => {
   form.value = { ...initialFormState, tanggal: format(new Date(), "yyyy-MM-dd") };
-  detailsUkuran.value = [];
-  detailsTitik.value = [];
+
+  // [PERBAIKAN] Langsung hardcode 1 baris dengan jumlah 1
+  detailsUkuran.value = [{ id: Date.now(), ukuran: "", jumlah: 1, harga: 0, namaBarang: "" }];
+
+  detailsTitik.value = [
+    {
+      id: Date.now(),
+      keterangan: "",
+      sizeCetak: form.value.jenisOrderKode === "SD" ? "Custom" : "",
+      panjang: 0,
+      lebar: 0,
+    },
+  ];
+
   imagePreview.value = null;
   imageFile.value = null;
 
-  // Panggil addDetailUkuran agar baris pertama punya struktur yang benar
-  addDetailUkuran();
-
-  // Reset titik manual agar aman
-  detailsTitik.value.push({
-    id: Date.now(),
-    keterangan: "",
-    sizeCetak: form.value.jenisOrderKode === "SD" ? "Custom" : "",
-    panjang: 0,
-    lebar: 0,
-  });
+  // Reset state revisi
+  isAddingRevision.value = false;
+  newRevisionCatatan.value = "";
 
   markAsSaved();
 };
 
-const uploadImageToServer = async (nomor: string): Promise<boolean> => {
+const uploadImageToServer = async (nomor: string, revisiKe: number = 0): Promise<boolean> => {
   if (!imageFile.value) return true;
-
   isImageUploading.value = true;
   try {
     const formData = new FormData();
     formData.append("image", imageFile.value);
 
-    const response = await api.post(`/so-dtf-form/upload-image/${nomor}`, formData, {
-      headers: { "Content-Type": "multipart/form-data" },
-    });
-
+    // [UBAH ENDPOINT] Tambahkan revisiKe
+    const response = await api.post(
+      `/so-dtf-trial-form/upload-image/${nomor}/${revisiKe}`,
+      formData,
+      {
+        headers: { "Content-Type": "multipart/form-data" },
+      }
+    );
     if (response.data.success) {
       form.value.imageUrl = response.data.imageUrl;
-
-      // Cleanup blob URL lama jika ada
-      if (imagePreview.value && imagePreview.value.startsWith("blob:")) {
+      if (imagePreview.value && imagePreview.value.startsWith("blob:"))
         URL.revokeObjectURL(imagePreview.value);
-      }
-
       imagePreview.value = getFullImageUrl(response.data.imageUrl);
-      imageFile.value = null; // Clear file input setelah berhasil upload
-
+      imageFile.value = null;
       toast.success("Gambar berhasil diunggah");
       return true;
-    } else {
-      throw new Error(response.data.message || "Upload gagal");
-    }
+    } else throw new Error(response.data.message || "Upload gagal");
   } catch (error) {
     const err = error as AxiosError<{ message: string }>;
     toast.error("Upload gagal: " + (err.response?.data?.message || err.message));
@@ -488,245 +413,208 @@ const save = async () => {
   if (!isEditMode.value) {
     const todayStr = format(new Date(), "yyyy-MM-dd");
     if (form.value.tanggal !== todayStr) {
-      toast.error("Tanggal transaksi SO DTF baru harus hari ini!");
-      form.value.tanggal = todayStr; // Paksa kembalikan ke hari ini
+      toast.error("Tanggal SO Trial baru harus hari ini!");
+      form.value.tanggal = todayStr;
       return;
     }
   }
-  // Validasi existing...
-  if (!form.value.salesKode) {
-    toast.error("Sales harus diisi.");
-    return;
-  }
-  if (!form.value.customerKode) {
-    toast.error("Customer harus diisi.");
-    return;
-  }
-  if (!form.value.jenisOrderKode) {
-    toast.error("Jenis Order harus diisi.");
-    return;
+
+  if (isEditMode.value && isAddingRevision.value && !newRevisionCatatan.value) {
+    return toast.error("Catatan Revisi harus diisi jika Anda ingin menambah revisi baru.");
   }
 
-  if (!form.value.soNomor) {
-    toast.error("Nomor Surat Pesanan (SO) wajib diisi. Silakan cari terlebih dahulu.");
-    return;
-  }
-
-  if (!form.value.datelineCustomer) {
-    toast.error("Dateline Customer wajib diisi.");
-    return;
-  }
-
-  // Pastikan Dateline Customer tidak lebih cepat dari Tgl Pengerjaan sistem
-  if (isAfter(parseISO(form.value.tglPengerjaan), parseISO(form.value.datelineCustomer))) {
-    toast.error(
-      `Dateline Customer tidak boleh lebih cepat dari estimasi pengerjaan (${form.value.tglPengerjaan})`
-    );
-    return;
-  }
+  if (!form.value.salesKode) return toast.error("Sales harus diisi.");
+  if (!form.value.customerKode) return toast.error("Customer harus diisi.");
+  if (!form.value.jenisOrderKode) return toast.error("Jenis Order harus diisi.");
 
   const validDetailsUkuran = detailsUkuran.value.filter((d) => d.ukuran && d.jumlah);
   const validDetailsTitik = detailsTitik.value.filter(
     (d) => d.keterangan && d.panjang > 0 && d.lebar > 0
   );
 
-  if (validDetailsUkuran.length === 0) {
-    toast.error("Detail Ukuran Kaos harus diisi minimal 1 baris.");
-    return;
-  }
-
-  if (validDetailsTitik.length === 0) {
-    toast.error("Detail Titik Bordir/Cetak harus diisi minimal 1 baris.");
-    return;
-  }
+  if (validDetailsUkuran.length === 0) return toast.error("Detail Ukuran Kaos harus diisi.");
+  if (validDetailsTitik.length === 0) return toast.error("Detail Titik Bordir/Cetak harus diisi.");
 
   for (const item of validDetailsUkuran) {
-    if (!item.jumlah || item.jumlah <= 0) {
-      toast.error(`Jumlah untuk ukuran '${item.ukuran}' harus lebih dari 0.`);
-      return;
-    }
-
-    if (!item.harga || item.harga <= 0) {
-      toast.error(`Harga untuk ukuran '${item.ukuran}' harus diisi (lebih dari 0).`);
-      return;
-    }
+    if (!item.jumlah || item.jumlah <= 0)
+      return toast.error(`Jumlah untuk ukuran '${item.ukuran}' harus lebih dari 0.`);
+    if (!item.harga || item.harga <= 0)
+      return toast.error(`Harga untuk ukuran '${item.ukuran}' harus diisi.`);
   }
 
   for (const item of validDetailsTitik) {
-    if (form.value.jenisOrderKode === "TG" && !item.sizeCetak) {
-      toast.error(
-        `Size Cetak untuk '${item.keterangan}' harus dipilih jika Jenis Order adalah DTG.`
-      );
-      return;
-    }
-    if (!item.panjang || item.panjang <= 0) {
-      toast.error(`Panjang untuk '${item.keterangan}' harus lebih dari 0.`);
-      return;
-    }
-    if (!item.lebar || item.lebar <= 0) {
-      toast.error(`Lebar untuk '${item.keterangan}' harus lebih dari 0.`);
-      return;
-    }
-
-    if (form.value.jenisOrderKode === "BR") {
-      for (const item of detailsTitik.value) {
-        if (item.keterangan) {
-          const luas = (item.panjang || 0) * (item.lebar || 0);
-          if (luas > 0 && luas < 25) {
-            // Hanya peringatan, karena sistem sudah otomatis meng-up ke 25 cm2 di hitungan
-            toast.info(
-              `Titik '${item.keterangan}' di bawah 5x5cm, akan dikenakan tarif minimal Rp 5.000.`
-            );
-          }
-        }
-      }
-
-      if (totalJumlahKaos.value < 1) {
-        toast.error("Minimal order adalah 1 pcs.");
-        return;
-      }
-    }
+    if (form.value.jenisOrderKode === "TG" && !item.sizeCetak)
+      return toast.error(`Size Cetak DTG harus dipilih.`);
+    if (!item.panjang || item.panjang <= 0)
+      return toast.error(`Panjang '${item.keterangan}' harus > 0.`);
+    if (!item.lebar || item.lebar <= 0) return toast.error(`Lebar '${item.keterangan}' harus > 0.`);
   }
 
   showConfirmation(async () => {
     isSaving.value = true;
-    let savedNomor: string = ""; // Deklarasikan di scope yang lebih tinggi
+    let savedNomor: string = "";
+    let targetRevisiKe: number = 0;
 
     try {
-      // 1. Simpan data utama
       const payload: SoDtfPayload = {
         header: { ...form.value },
         detailsUkuran: validDetailsUkuran,
         detailsTitik: validDetailsTitik,
+        newRevision: { isAdding: isAddingRevision.value, catatan: newRevisionCatatan.value }, // <--- Kirim ke backend
       };
 
       if (isEditMode.value) {
-        if (!form.value.nomor) {
-          toast.error("Nomor tidak ditemukan, tidak bisa update.");
-          isSaving.value = false;
-          return;
-        }
-        // TANGKAP RESPON DI SINI
-        const response = await api.put(`/so-dtf-form/${form.value.nomor}`, payload);
-
-        // Ambil nomor terbaru dari server (siapa tahu berubah karena ganti jenis order)
-        savedNomor = response.data.sd_nomor || form.value.nomor;
-        form.value.nomor = savedNomor; // Update UI
+        if (!form.value.nomor) throw new Error("Nomor tidak ditemukan.");
+        const response = await api.put(`/so-dtf-trial-form/${form.value.nomor}`, payload);
+        savedNomor = response.data.header?.nomor || response.data.nomor || form.value.nomor;
+        targetRevisiKe = response.data.revisiKe || 0; // <--- Tangkap dari backend
+        form.value.nomor = savedNomor;
       } else {
         const headerWithoutNomor = { ...payload.header };
         Reflect.deleteProperty(headerWithoutNomor, "nomor");
-
-        const cleanPayload = {
+        const response = await api.post("/so-dtf-trial-form", {
           ...payload,
           header: headerWithoutNomor,
-        };
-        const response = await api.post("/so-dtf-form", cleanPayload);
-        savedNomor = response.data.header.sd_nomor;
+        });
+        savedNomor = response.data.nomor;
+        targetRevisiKe = 0;
       }
 
-      toast.success("Data berhasil disimpan.");
-
+      toast.success("Trial berhasil disimpan.");
       markAsSaved();
 
-      // 2. Upload gambar jika ada
-      if (!isEditMode.value && imageFile.value) {
-        const uploadSuccess = await uploadImageToServer(savedNomor);
-        if (!uploadSuccess) {
-          toast.warning("Data berhasil disimpan, tapi gambar gagal diunggah.");
-        }
-      }
+      // [UBAH] Pass targetRevisiKe
+      if (imageFile.value) await uploadImageToServer(savedNomor, targetRevisiKe);
 
-      // --- PERUBAHAN LOGIKA REDIRECT DIMULAI DI SINI ---
-
-      // 3. Alih-alih router.push, tampilkan dialog cetak
       if (savedNomor) {
         printConfirmNomor.value = savedNomor;
-        isPrintConfirmVisible.value = true; // Buka dialog baru
+        isPrintConfirmVisible.value = true;
       } else {
-        // Fallback jika (karena alasan aneh) nomor tidak ada
-        toast.error("Gagal mendapatkan nomor, kembali ke daftar.");
-        router.push("/transaksi/penjualan/dtf/so-dtf");
+        router.push("/transaksi/penjualan/dtf/so-dtf-trial");
       }
-
-      // HAPUS router.push lama:
-      // router.push("/transaksi/penjualan/dtf/so-dtf");
-
-      // --- AKHIR PERUBAHAN ---
     } catch (err) {
       const error = err as AxiosError<{ message: string }>;
-      console.error("Save error:", error);
       toast.error(error.response?.data?.message || "Gagal menyimpan data.");
     } finally {
       isSaving.value = false;
-      // isConfirmDialogVisible ditutup oleh executePendingAction
     }
-  }, "Anda yakin ingin menyimpan data ini?");
+  }, "Anda yakin ingin menyimpan data perhitungan trial ini?");
 };
 
-// Fungsi ini dipanggil jika user menekan "Ya, Cetak"
 const handlePrintConfirm = () => {
   if (!printConfirmNomor.value) return;
-
   try {
-    // 1. Resolve URL dari named route 'Cetak SO DTF'
     const routeData = router.resolve({
-      name: "Cetak SO DTF", // Ini 'name' dari route yang Anda berikan
+      name: "Cetak SO DTF Trial",
       params: { nomor: printConfirmNomor.value },
     });
-
-    // 2. Buka URL di tab baru
     window.open(routeData.href, "_blank");
   } catch (error) {
-    console.error("Gagal membuka halaman cetak SO DTF:", error);
-    toast.error('Gagal membuka halaman cetak. Pastikan route "Cetak SO DTF" ada.');
+    toast.error("Gagal membuka halaman cetak.");
   } finally {
-    // 3. Tutup dialog dan kembali ke halaman browse
     isPrintConfirmVisible.value = false;
     printConfirmNomor.value = "";
-    router.push("/transaksi/penjualan/dtf/so-dtf");
+    router.push("/transaksi/penjualan/dtf/so-dtf-trial");
   }
 };
 
-// Fungsi ini dipanggil jika user menekan "Tidak, Kembali"
 const handlePrintCancel = () => {
   isPrintConfirmVisible.value = false;
   printConfirmNomor.value = "";
-  // Langsung kembali ke halaman browse
-  router.push("/transaksi/penjualan/dtf/so-dtf");
+  router.push("/transaksi/penjualan/dtf/so-dtf-trial");
 };
 
-const cancel = () => {
-  router.push("/transaksi/penjualan/dtf/so-dtf");
+const handleAccDesain = () => {
+  if (!form.value.nomor) return;
+
+  // Arahkan ke halaman Create SO DTF Riil dengan membawa parameter 'refTrial'
+  // ⚠️ PENTING: Pastikan path '/transaksi/penjualan/dtf/so-dtf/new' ini
+  // sesuai dengan rute halaman form SO DTF asli di project Mas Rizal ya!
+  router.push({
+    path: "/transaksi/penjualan/dtf/so-dtf/new",
+    query: { refTrial: form.value.nomor },
+  });
 };
 
-const fetchSisaKuota = async () => {
-  if (form.value.jenisOrderKode !== "SD") {
-    sisaKuota.value = 0;
-    return;
-  }
+const cancel = () => router.push("/transaksi/penjualan/dtf/so-dtf-trial");
+
+// --- Lookup Triggers ---
+const openSoSearch = () => {
+  isSoSearchVisible.value = true;
+};
+
+const onSoSelected = async (selected: SoSelected, targetLineId: string | null = null) => {
   try {
-    const response = await api.get("/so-dtf-form/sisa-kuota", {
-      params: {
-        cabang: form.value.workshopKode,
-        tanggalKerja: form.value.tglPengerjaan,
-      },
+    const nomorSo = selected.nomor || selected.Nomor || selected.so_nomor || selected.soNomor;
+    if (!nomorSo) return toast.error("Nomor SO tidak ditemukan.");
+
+    const res = await api.get(`/so-dtf-trial-form/so-detail/${nomorSo}`);
+    const soData = res.data;
+
+    form.value.soNomor = soData.header.nomor;
+    form.value.customerKode = soData.header.customerKode;
+    form.value.customerNama = soData.header.customerNama;
+    form.value.customerAlamat = soData.header.customerAlamat;
+    form.value.customerLevel = soData.header.levelNama;
+    form.value.salesKode = soData.header.salesKode || form.value.salesKode;
+    form.value.salesNama = soData.header.salesNama || form.value.salesNama;
+    form.value.jenisOrderKode = soData.header.jenisOrderKode || "";
+    form.value.jenisOrderNama = soData.header.jenisOrderNama || "";
+    form.value.namaDtf = soData.header.namaDtf || "";
+
+    if (form.value.jenisOrderKode) {
+      // Menarik harga per cm dari Master Harga (Opsional, menyesuaikan)
+      form.value.hargaPerCm = 0;
+    }
+
+    let customItems: SoItem[] = soData.items.filter((x: SoItem) => x.isCustomOrder);
+    if (targetLineId)
+      customItems = customItems.filter((x: SoItem) => String(x.id) === String(targetLineId));
+    if (customItems.length === 0) customItems = soData.items.filter((x: SoItem) => x.isCustomOrder);
+
+    detailsUkuran.value = [];
+    if (customItems.length > 0) {
+      const item = customItems[0];
+      form.value.namaDtf = item.sod_custom_nama || item.nama;
+      const u = item.ukuranKaos[0]; // Ambil ukuran pertama saja
+
+      detailsUkuran.value.push({
+        id: Date.now(),
+        namaBarang: item.sourceItems?.length
+          ? item.sourceItems[0].nama
+          : item.sod_custom_nama || item.nama,
+        ukuran: u ? u.ukuran : "",
+        jumlah: 1, // DILOCK JADI 1
+        harga: u ? u.harga : 0,
+      });
+    } else {
+      detailsUkuran.value.push({ id: Date.now(), namaBarang: "", ukuran: "", jumlah: 1, harga: 0 });
+    }
+
+    detailsTitik.value = [];
+    customItems.forEach((item: SoItem) => {
+      item.titikCetak.forEach((t) => {
+        detailsTitik.value.push({
+          id: Date.now() + Math.floor(Math.random() * 1000000),
+          keterangan: t.keterangan,
+          sizeCetak: t.sizeCetak,
+          panjang: t.panjang,
+          lebar: t.lebar,
+        });
+      });
     });
-    sisaKuota.value = response.data.sisaKuota;
-  } catch (error) {
-    const err = error as Error;
-    toast.error(err.message || "Gagal mengambil data sisa kuota.");
+    addDetailTitik();
+
+    toast.success(`Data Trial berhasil ditarik dari SO ${nomorSo}`);
+  } catch (err) {
+    console.error(err);
+    toast.error("Gagal load detail Surat Pesanan.");
   }
 };
 
 const openCustomerSearch = () => {
-  // [BARU] Validasi: Kunci customer jika data ditarik dari SO
-  if (form.value.soNomor) {
-    toast.warning(
-      "Customer tidak bisa diubah karena data ditarik otomatis dari Surat Pesanan (SO)."
-    );
-    return;
-  }
-
+  if (form.value.soNomor)
+    return toast.warning("Customer tidak bisa diubah karena ditarik dari SO.");
   isCustomerSearchVisible.value = true;
 };
 const onCustomerSelected = (customer: {
@@ -758,13 +646,10 @@ const onJenisOrderSelected = (jenisOrder: { kode: string; nama: string }) => {
   form.value.jenisOrderKode = jenisOrder.kode;
   form.value.jenisOrderNama = jenisOrder.nama;
   isJenisOrderSearchVisible.value = false;
-
-  // 🔥 Jika jenis order SABLON DTF (SD), set default Size Cetak = "Custom"
-  if (jenisOrder.kode === "SD") {
+  if (jenisOrder.kode === "SD")
     detailsTitik.value.forEach((t) => {
       t.sizeCetak = "Custom";
     });
-  }
 };
 
 const openJenisKainSearch = () => {
@@ -786,26 +671,22 @@ const onWorkshopSelected = (workshop: { kode: string; nama: string }) => {
 
 const onSizeCetakChange = async (item: DetailTitik, index: number) => {
   addDetailTitik();
-
   if (!item.sizeCetak || !form.value.jenisOrderKode) return;
-
   if (item.sizeCetak === "Custom") {
     detailsTitik.value[index].panjang = 0;
     detailsTitik.value[index].lebar = 0;
     return;
   }
-
   try {
-    const response = await api.get("/so-dtf-form/lookup/ukuran-sodtf-detail", {
+    const response = await api.get("/so-dtf-trial-form/lookup/ukuran-sodtf-detail", {
       params: { jenisOrder: form.value.jenisOrderKode, ukuran: item.sizeCetak },
     });
-
     if (response.data) {
       detailsTitik.value[index].panjang = response.data.panjang;
       detailsTitik.value[index].lebar = response.data.lebar;
     }
   } catch (error) {
-    console.error("Gagal mengambil detail ukuran SODTF:", error);
+    console.error("Gagal mengambil detail ukuran:", error);
   }
 };
 
@@ -814,72 +695,56 @@ const showConfirmation = (action: () => void, text: string) => {
   confirmText.value = text;
   isConfirmDialogVisible.value = true;
 };
-
 const executePendingAction = () => {
-  if (pendingAction.value) {
-    pendingAction.value();
-  }
+  if (pendingAction.value) pendingAction.value();
   isConfirmDialogVisible.value = false;
 };
-
 const closeConfirmDialog = () => {
   isConfirmDialogVisible.value = false;
   pendingAction.value = null;
 };
 
 const fetchUkuranKaosList = async () => {
-  // <-- TAMBAHKAN FUNGSI INI
   try {
-    const response = await api.get("/so-dtf-form/lookup/ukuran-kaos");
+    const response = await api.get("/so-dtf-trial-form/lookup/ukuran-kaos");
     ukuranKaosList.value = response.data;
   } catch (error) {
-    const err = error as Error;
-    toast.error(err.message || "Gagal mengambil daftar ukuran kaos.");
+    console.error(error);
   }
 };
 
 const fetchSizeCetakList = async (jenisOrder: string) => {
   if (!jenisOrder) {
-    sizeCetakList.value = ["Custom"]; // Default hanya Custom jika belum pilih jenis order
+    sizeCetakList.value = ["Custom"];
     return;
   }
   try {
-    const response = await api.get("/so-dtf-form/lookup/size-cetak", {
+    const response = await api.get("/so-dtf-trial-form/lookup/size-cetak", {
       params: { jenisOrder },
     });
-    // Tambahkan "Custom" di akhir list
     sizeCetakList.value = [...response.data, "Custom"];
   } catch (error) {
-    const err = error as Error;
-    toast.error(err.message || "Gagal memuat daftar size cetak.");
     sizeCetakList.value = ["Custom"];
   }
 };
 
 const getHargaDTG = async () => {
   try {
-    const response = await api.post("/so-dtf-form/calculate-dtg-price", {
+    const response = await api.post("/so-dtf-trial-form/calculate-dtg-price", {
       detailsTitik: detailsTitik.value,
       totalJumlahKaos: totalJumlahKaos.value,
     });
     return response.data.harga || 0;
   } catch (error) {
-    const err = error as Error;
-    toast.error(err.message || "Gagal menghitung harga DTG.");
     return 0;
   }
 };
 
-/**
- * Fungsi utama untuk menghitung semua harga.
- */
 const calculatePrices = async () => {
   if (isEditMode.value && isRestoringData.value) return;
-
   if (isLoading.value || isInitializing.value) return;
 
   if (totalJumlahKaos.value <= 0) {
-    // Jika tidak ada jumlah, reset semua harga
     form.value.hargaPerCm = 0;
     detailsUkuran.value.forEach((item) => (item.harga = 0));
     return;
@@ -889,35 +754,34 @@ const calculatePrices = async () => {
   let hargaPerCm = 0;
   let hargaSatuan = 0;
 
-  // Menghitung total luas dari grid kedua (Titik Bordir/Cetak)
-  const totalLuas = detailsTitik.value.reduce((sum, item) => {
-    return sum + (item.panjang || 0) * (item.lebar || 0);
-  }, 0);
+  const totalLuas = detailsTitik.value.reduce(
+    (sum, item) => sum + (item.panjang || 0) * (item.lebar || 0),
+    0
+  );
 
-  // Menentukan harga berdasarkan Jenis Order (mirip blok if/else if di Delphi)
   switch (jenisOrder) {
-    case "SB": // Sablon Plastisol (Minimal 20 Pcs)
+    case "SB":
       detailsTitik.value.forEach((t) => {
         if (t.sizeCetak === "A3") hargaSatuan += 35000;
         else if (t.sizeCetak === "A4") hargaSatuan += 20000;
         else if (t.sizeCetak === "A5") hargaSatuan += 10000;
       });
       break;
-    case "SD": // Sablon DTF
+    case "SD":
       hargaPerCm = form.value.customerLevel === "KORPORASI" ? 15 : 25;
       hargaSatuan = totalJumlahKaos.value > 0 ? totalHargaDtf.value / totalJumlahKaos.value : 0;
       break;
-    case "DP": // DTF Premium
+    case "DP":
       hargaPerCm = 35;
       hargaSatuan = totalLuas * hargaPerCm;
       break;
-    case "BR": // BORDIR
-      hargaPerCm = bordirMultiplier.value; // Dinamis: 100 atau 200
+    case "BR":
+      hargaPerCm = bordirMultiplier.value;
       hargaSatuan = totalJumlahKaos.value > 0 ? totalHargaBordir.value / totalJumlahKaos.value : 0;
       break;
-    case "TG": // DTG
+    case "TG":
       hargaPerCm = 0;
-      hargaSatuan = await getHargaDTG(); // Memanggil fungsi placeholder
+      hargaSatuan = await getHargaDTG();
       break;
     default:
       hargaPerCm = 0;
@@ -925,236 +789,17 @@ const calculatePrices = async () => {
       break;
   }
 
-  // Update state di form
   form.value.hargaPerCm = hargaPerCm;
-
-  // Update semua baris di grid pertama dengan harga satuan yang sama
   detailsUkuran.value.forEach((item) => {
-    if (item.ukuran && item.jumlah) {
-      item.harga = hargaSatuan;
-    } else {
-      item.harga = 0;
-    }
+    if (item.ukuran && item.jumlah) item.harga = hargaSatuan;
+    else item.harga = 0;
   });
 };
-
-const openSoSearch = () => {
-  isSoSearchVisible.value = true;
-};
-
-const onSoSelected = async (selected: SoSelected, targetLineId: string | null = null) => {
-  try {
-    const nomorSo = selected.nomor || selected.Nomor || selected.so_nomor || selected.soNomor;
-
-    if (!nomorSo) {
-      toast.error("Nomor SO tidak ditemukan.");
-      return;
-    }
-
-    const res = await api.get(`/so-dtf-form/so-detail/${nomorSo}`);
-    const soData = res.data;
-
-    // ==============================
-    // 1. NOMOR SO
-    // ==============================
-    form.value.soNomor = soData.header.nomor;
-
-    // ==============================
-    // 2. CUSTOMER
-    // ==============================
-    form.value.customerKode = soData.header.customerKode;
-    form.value.customerNama = soData.header.customerNama;
-    form.value.customerAlamat = soData.header.customerAlamat;
-    form.value.customerLevel = soData.header.levelNama;
-
-    // ==============================
-    // 3. SALES
-    // ==============================
-    form.value.salesKode = soData.header.salesKode || form.value.salesKode;
-    form.value.salesNama = soData.header.salesNama || form.value.salesNama;
-
-    // ==============================
-    // 4. JENIS ORDER
-    // ==============================
-    form.value.jenisOrderKode = soData.header.jenisOrderKode || "";
-    form.value.jenisOrderNama = soData.header.jenisOrderNama || "";
-
-    // ==============================
-    // 5. NAMA DTF
-    // ==============================
-    form.value.namaDtf = soData.header.namaDtf || "";
-
-    // Harga/cm2 (logic asli)
-    if (form.value.jenisOrder) {
-      const hres = await api.get("/so-dtf-form/lookup/jenis-order-harga", {
-        params: { kode: form.value.jenisOrder },
-      });
-      form.value.hargaPerCm = hres.data.harga || 0;
-    } else {
-      form.value.hargaPerCm = 0;
-    }
-
-    // ============================================
-    // 6. DETAIL CUSTOM SAJA (LOGIC ASLI)
-    // ============================================
-    // --- 2. FILTERING DETAIL ITEM ---
-    // Cari item custom yang spesifik berdasarkan targetLineId
-    let customItems: SoItem[] = soData.items.filter((x: SoItem) => x.isCustomOrder);
-
-    if (targetLineId) {
-      // Filter agar hanya mengambil baris yang kita klik tadi di halaman SO
-      // Catatan: Pastikan backend mengirimkan field 'id' atau 'sod_idrec' yang sinkron
-      customItems = customItems.filter((x: SoItem) => String(x.id) === String(targetLineId));
-    }
-
-    // Jika setelah difilter item tidak ditemukan (mungkin SO belum disave ulang)
-    if (customItems.length === 0) {
-      toast.warning("Baris item custom tidak ditemukan. Memuat semua item custom.");
-      customItems = soData.items.filter((x: SoItem) => x.isCustomOrder);
-    }
-
-    // ---- Grid Ukuran ----
-    detailsUkuran.value = [];
-    customItems.forEach((item: SoItem) => {
-      form.value.namaDtf = item.sod_custom_nama || item.nama;
-
-      item.ukuranKaos.forEach((u) => {
-        detailsUkuran.value.push({
-          id: Date.now() + Math.floor(Math.random() * 1000000),
-          namaBarang:
-            item.sourceItems && item.sourceItems.length > 0
-              ? item.sourceItems[0].nama
-              : item.sod_custom_nama || item.nama,
-          ukuran: u.ukuran,
-          jumlah: u.jumlah,
-          harga: u.harga,
-        });
-      });
-    });
-    addDetailUkuran();
-
-    // ---- Grid Titik Cetak ----
-    detailsTitik.value = [];
-    customItems.forEach((item: SoItem) => {
-      item.titikCetak.forEach((t) => {
-        detailsTitik.value.push({
-          id: Date.now() + Math.floor(Math.random() * 1000000),
-          keterangan: t.keterangan,
-          sizeCetak: t.sizeCetak,
-          panjang: t.panjang,
-          lebar: t.lebar,
-        });
-      });
-    });
-    addDetailTitik();
-
-    toast.success(`SO ${nomorSo} berhasil dimuat.`);
-  } catch (err) {
-    console.error(err);
-    toast.error("Gagal load SO.");
-  }
-};
-
-const fetchFromTrial = async (nomorTrial: string) => {
-  isLoading.value = true;
-  isInitializing.value = true;
-  try {
-    const res = await api.get(`/so-dtf-trial-form/${nomorTrial}`);
-    const trialData = res.data;
-
-    // 1. Isi Header (Tanpa Nomor SO agar auto-generate)
-    form.value.soNomor = trialData.header.soNomor || "";
-    form.value.customerKode = trialData.header.customerKode;
-    form.value.customerNama = trialData.header.customerNama;
-    form.value.customerAlamat = trialData.header.customerAlamat;
-    form.value.customerLevel = trialData.header.customerLevel;
-    form.value.salesKode = trialData.header.salesKode;
-    form.value.salesNama = trialData.header.salesNama;
-    form.value.jenisOrderKode = trialData.header.jenisOrderKode;
-    form.value.jenisOrderNama = trialData.header.jenisOrderNama;
-    form.value.namaDtf = trialData.header.namaDtf;
-    form.value.kain = trialData.header.kain;
-    form.value.finishing = trialData.header.finishing;
-    form.value.desain = trialData.header.desain;
-    form.value.workshopKode = trialData.header.workshopKode;
-    form.value.workshopNama = trialData.header.workshopNama;
-    form.value.keterangan = trialData.header.keterangan;
-    form.value.refTrial = nomorTrial;
-
-    // 2. Kumpulkan Opsi Gambar (Desain Awal + Revisi)
-    trialImageOptions.value = [];
-
-    if (trialData.header.revisiList && trialData.header.revisiList.length > 0) {
-      // Loop murni dari tabel history revisi agar rapi dan berurutan
-      trialData.header.revisiList.forEach((rev: any) => {
-        if (rev.tr_gambar) {
-          trialImageOptions.value.push({
-            title: rev.tr_revisi_ke === 0 ? "Desain Awal" : `Revisi Ke-${rev.tr_revisi_ke}`,
-            url: rev.tr_gambar,
-          });
-        }
-      });
-    } else if (trialData.header.imageUrl) {
-      // Fallback: Jika tabel history kosong (data lama), ambil dari header
-      trialImageOptions.value.push({ title: "Desain Awal", url: trialData.header.imageUrl });
-    }
-
-    // 3. Set Default Gambar ke Revisi Terakhir
-    if (trialImageOptions.value.length > 0) {
-      selectedTrialImage.value = trialImageOptions.value[trialImageOptions.value.length - 1].url;
-    }
-
-    // 4. Isi Grid Ukuran & Titik
-    detailsUkuran.value = trialData.detailsUkuran.map((d: any, i: number) => ({
-      id: Date.now() + i,
-      namaBarang: d.namaBarang,
-      ukuran: d.ukuran,
-      jumlah: d.jumlah || 1, // Default ke 1
-      harga: d.harga || 0,
-    }));
-
-    detailsTitik.value = trialData.detailsTitik.map((t: any, i: number) => ({
-      id: Date.now() + i + 1000,
-      keterangan: t.keterangan,
-      sizeCetak: t.sizeCetak,
-      panjang: t.panjang,
-      lebar: t.lebar,
-    }));
-
-    toast.success(
-      `Data dari Trial ${nomorTrial} berhasil ditarik. Silakan atur jumlah pesanannya.`
-    );
-  } catch (err) {
-    console.error(err);
-    toast.error("Gagal menarik data Trial.");
-  } finally {
-    isInitializing.value = false;
-    isLoading.value = false;
-  }
-};
-
-// const cleanupPreviewUrl = () => {
-//   if (imagePreview.value && imagePreview.value.startsWith('blob:')) {
-//     URL.revokeObjectURL(imagePreview.value);
-//   }
-// };
-
-watch(
-  () => [form.value.tglPengerjaan, form.value.jenisOrderKode],
-  () => {
-    fetchSisaKuota();
-  },
-  { immediate: true }
-);
 
 watch(
   () => form.value.jenisOrderKode,
   (newJenisOrder, oldJenisOrder) => {
-    // Selalu ambil daftar size cetak yang baru
     fetchSizeCetakList(newJenisOrder);
-
-    // HANYA kosongkan isian jika user secara manual mengubah jenis order
-    // (yaitu, saat nilai lama tidak kosong dan tidak dalam mode edit)
     if (isLoading.value) return;
     if (!isEditMode.value && oldJenisOrder) {
       detailsTitik.value.forEach((item) => (item.sizeCetak = ""));
@@ -1171,65 +816,32 @@ watch(
   { deep: true }
 );
 
-// --- WATCHERS (UNSAVED CHANGES) ---
 watch(
   [form, detailsUkuran, detailsTitik],
   () => {
-    // Abaikan jika sedang loading awal, restoring data, atau proses simpan
     if (isLoading.value || isSaving.value || isRestoringData.value || isInitializing.value) return;
-
-    // Cek apakah form "kotor"
-    // 1. Header: Customer atau Sales dipilih
     const hasHeader = form.value.customerKode !== "" || form.value.salesKode !== "";
-
-    // 2. Details Ukuran: Ada data selain baris kosong default
-    // (Cek apakah ada ukuran yang diisi atau jumlah > 0)
     const hasUkuran = detailsUkuran.value.some((d) => d.ukuran !== "" || (d.jumlah || 0) > 0);
-
-    // 3. Details Titik: Ada keterangan diisi
     const hasTitik = detailsTitik.value.some((d) => d.keterangan !== "");
-
-    if (hasHeader || hasUkuran || hasTitik) {
-      uiStore.setUnsavedChanges(true);
-    } else {
-      // Jika kembali kosong bersih
-      uiStore.setUnsavedChanges(false);
-    }
+    uiStore.setUnsavedChanges(hasHeader || hasUkuran || hasTitik);
   },
   { deep: true }
 );
 
-watch(selectedTrialImage, (newUrl) => {
-  if (isFromTrial.value && newUrl) {
-    imagePreview.value = getFullImageUrl(newUrl);
-    form.value.imageUrl = newUrl;
-  }
-});
-
 onMounted(async () => {
   markAsSaved();
-
   if (!authStore.can(MENU_ID, requiredPermission.value)) {
-    toast.error(
-      `Anda tidak memiliki izin untuk ${
-        requiredPermission.value === "insert" ? "membuat" : "mengubah"
-      } data.`
-    );
+    toast.error("Anda tidak memiliki izin akses.");
     router.back();
     return;
   }
 
   const nomor = route.params.nomor as string;
-  // 1. Tangkap parameter refSo dari URL
   const refSo = route.query.refSo as string;
-  const refTrial = route.query.refTrial as string;
   const lineId = route.query.lineId as string;
 
   if (nomor) {
     fetchDataForEdit(nomor);
-  } else if (refTrial) {
-    // <--- JIKA DARI TRIAL
-    await fetchFromTrial(refTrial);
   } else if (refSo) {
     isLoading.value = true;
     await onSoSelected({ nomor: refSo }, typeof lineId === "string" ? lineId : null);
@@ -1243,54 +855,53 @@ onMounted(async () => {
 </script>
 
 <template>
-  <PageLayout :title="pageTitle" desktop-mode icon="mdi-printer-3d-nozzle">
+  <PageLayout :title="pageTitle" desktop-mode icon="mdi-flask-outline">
     <template #header-actions>
+      <v-btn
+        v-if="isEditMode && !form.noSoDtfRiil && !isReadOnly"
+        size="small"
+        color="success"
+        @click="
+          showConfirmation(handleAccDesain, 'ACC Desain ini dan buat Surat Pesanan (SO) DTF Riil?')
+        "
+        prepend-icon="mdi-check-decagram"
+        >ACC & Buat SO</v-btn
+      >
       <v-btn
         size="small"
         color="primary"
         @click="save"
         :loading="isSaving"
         prepend-icon="mdi-content-save"
+        :disabled="isReadOnly"
         >Simpan</v-btn
       >
       <v-btn
         v-if="!isEditMode"
         size="small"
-        @click="
-          showConfirmation(resetForm, 'Anda yakin ingin membatalkan? Semua isian akan dikosongkan.')
-        "
+        @click="showConfirmation(resetForm, 'Batal dan kosongkan isian?')"
         prepend-icon="mdi-refresh"
+        >Batal</v-btn
       >
-        Batal
-      </v-btn>
-      <v-btn
-        size="small"
-        @click="
-          showConfirmation(
-            cancel,
-            'Anda yakin ingin menutup form? Perubahan yang belum disimpan akan hilang.'
-          )
-        "
-        prepend-icon="mdi-close"
+      <v-btn size="small" @click="showConfirmation(cancel, 'Tutup form?')" prepend-icon="mdi-close"
+        >Tutup</v-btn
       >
-        Tutup
-      </v-btn>
     </template>
 
     <div class="form-grid-container" v-if="!isLoading">
-      <!-- LEFT COLUMN -->
       <div class="left-column">
         <div class="desktop-form-section header-section">
           <v-row dense>
-            <v-col cols="6"
-              ><v-text-field
-                label="Nomor"
+            <v-col cols="6">
+              <v-text-field
+                label="Nomor Trial"
                 :model-value="form.nomor || '<Otomatis>'"
                 readonly
                 variant="filled"
                 density="compact"
                 hide-details
-            /></v-col>
+              />
+            </v-col>
             <v-col cols="6">
               <v-text-field
                 label="Tanggal Transaksi"
@@ -1299,94 +910,72 @@ onMounted(async () => {
                 :variant="isEditMode ? 'filled' : 'outlined'"
                 density="compact"
                 hide-details
-                :readonly="isEditMode"
-                :class="{ 'field-readonly': isEditMode }"
+                :readonly="isEditMode || isReadOnly"
+                :class="{ 'field-readonly': isEditMode || isReadOnly }"
               />
             </v-col>
-            <v-col cols="6"
-              ><v-text-field
-                label="Tgl Pengerjaan"
-                v-model="form.tglPengerjaan"
-                type="date"
-                variant="outlined"
-                density="compact"
-                hide-details
-            /></v-col>
-            <v-col cols="6">
+
+            <v-col cols="12">
               <v-text-field
-                label="Dateline Customer (Wajib)"
-                v-model="form.datelineCustomer"
-                type="date"
-                variant="outlined"
-                density="compact"
-                hide-details
-                placeholder="Pilih tanggal"
-                :max="maxDatelineDate"
-              />
-            </v-col>
-            <v-col cols="6">
-              <v-text-field
-                label="Ambil dari Surat Pesanan (SO)"
+                label="Ambil Data dari Surat Pesanan (SO)"
                 readonly
                 prepend-inner-icon="mdi-magnify"
-                placeholder="Klik untuk mencari..."
+                placeholder="Klik untuk mencari SO yang sudah DP..."
                 v-model="form.soNomor"
                 variant="outlined"
                 density="compact"
                 hide-details
-                @click="openSoSearch"
+                @click="!isReadOnly && openSoSearch()"
+                :disabled="isReadOnly"
               />
             </v-col>
-            <v-col cols="6"
-              ><v-text-field
+
+            <v-col cols="6">
+              <v-text-field
                 label="Sales"
                 :model-value="form.salesKode ? `${form.salesKode} - ${form.salesNama}` : ''"
                 readonly
-                @click="openSalesSearch"
-                @keydown.f1.prevent="openSalesSearch"
+                @click="!isReadOnly && openSalesSearch()"
+                @keydown.f1.prevent="!isReadOnly && openSalesSearch()"
                 variant="outlined"
                 density="compact"
                 hide-details
                 append-inner-icon="mdi-magnify"
                 placeholder="F1 atau klik..."
-            /></v-col>
-            <v-col cols="12">
+                :disabled="isReadOnly"
+              />
+            </v-col>
+            <v-col cols="6">
               <v-text-field
                 label="Customer"
                 :model-value="
                   form.customerKode ? `${form.customerKode} - ${form.customerNama}` : ''
                 "
                 readonly
-                @click="openCustomerSearch"
+                @click="!isReadOnly && openCustomerSearch()"
+                @keydown.f1.prevent="!isReadOnly && openCustomerSearch()"
                 variant="outlined"
                 density="compact"
                 hide-details
                 append-inner-icon="mdi-magnify"
-                placeholder="Klik untuk mencari..."
-                :disabled="!!form.soNomor"
+                placeholder="F1 atau klik..."
+                :disabled="!!form.soNomor || isReadOnly"
                 :class="{ 'field-disabled': !!form.soNomor }"
               />
             </v-col>
-            <v-col cols="6"
-              ><v-text-field
-                label="Level"
+
+            <v-col cols="12">
+              <v-text-field
+                label="Level Customer"
                 :model-value="form.customerLevel"
                 readonly
                 filled
                 variant="outlined"
                 density="compact"
                 hide-details
-            /></v-col>
-            <v-col cols="6"
-              ><v-text-field
-                label="Sisa Kuota"
-                :model-value="sisaKuota"
-                readonly
-                filled
-                variant="outlined"
-                density="compact"
-                hide-details
-            /></v-col>
+              />
+            </v-col>
+
             <v-col cols="8">
               <v-text-field
                 label="Jenis Order"
@@ -1394,17 +983,18 @@ onMounted(async () => {
                   form.jenisOrderKode ? `${form.jenisOrderKode} - ${form.jenisOrderNama}` : ''
                 "
                 readonly
-                @click="openJenisOrderSearch()"
-                @keydown.f1.prevent="openJenisOrderSearch()"
+                @click="!isReadOnly && openJenisOrderSearch()"
+                @keydown.f1.prevent="!isReadOnly && openJenisOrderSearch()"
                 variant="outlined"
                 density="compact"
                 hide-details
                 append-inner-icon="mdi-magnify"
-                placeholder="F1 atau klik untuk mencari..."
+                placeholder="F1 atau klik..."
+                :disabled="isReadOnly"
               />
             </v-col>
-            <v-col cols="4"
-              ><v-text-field
+            <v-col cols="4">
+              <v-text-field
                 label="Harga/cm2"
                 :model-value="form.hargaPerCm"
                 readonly
@@ -1412,85 +1002,122 @@ onMounted(async () => {
                 variant="outlined"
                 density="compact"
                 hide-details
-            /></v-col>
-            <v-col cols="12"
-              ><v-text-field
-                label="Nama DTF"
+              />
+            </v-col>
+
+            <v-col cols="12">
+              <v-text-field
+                label="Nama DTF / Design"
                 v-model="form.namaDtf"
                 variant="outlined"
                 density="compact"
                 hide-details
-            /></v-col>
-            <v-col cols="12"
-              ><v-text-field
+                :readonly="isReadOnly"
+              />
+            </v-col>
+            <v-col cols="12">
+              <v-text-field
                 label="Kain"
                 :model-value="form.kain"
-                @click="openJenisKainSearch"
-                @keydown.f1.prevent="openJenisKainSearch"
+                @click="!isReadOnly && openJenisKainSearch()"
+                @keydown.f1.prevent="!isReadOnly && openJenisKainSearch()"
                 variant="outlined"
                 density="compact"
                 hide-details
                 append-inner-icon="mdi-magnify"
                 placeholder="F1 atau klik..."
-            /></v-col>
-            <v-col cols="12"
-              ><v-text-field
+                :readonly="isReadOnly"
+              />
+            </v-col>
+            <v-col cols="12">
+              <v-text-field
                 label="Finishing"
                 v-model="form.finishing"
                 variant="outlined"
                 density="compact"
                 hide-details
-            /></v-col>
-            <v-col cols="12"
-              ><v-text-field
+                :readonly="isReadOnly"
+              />
+            </v-col>
+            <v-col cols="12">
+              <v-text-field
                 label="Bag. Desain"
                 v-model="form.desain"
                 variant="outlined"
                 density="compact"
                 hide-details
-            /></v-col>
-            <v-col cols="12"
-              ><v-text-field
+                :readonly="isReadOnly"
+              />
+            </v-col>
+            <v-col cols="12">
+              <v-text-field
                 label="Workshop"
                 :model-value="
                   form.workshopKode ? `${form.workshopKode} - ${form.workshopNama}` : ''
                 "
-                @click="openWorkshopSearch"
-                @keydown.f1.prevent="openWorkshopSearch"
+                @click="!isReadOnly && openWorkshopSearch()"
+                @keydown.f1.prevent="!isReadOnly && openWorkshopSearch()"
                 variant="outlined"
                 density="compact"
                 hide-details
                 append-inner-icon="mdi-magnify"
                 placeholder="F1 atau klik..."
                 readonly
-            /></v-col>
+                :disabled="isReadOnly"
+              />
+            </v-col>
           </v-row>
+
+          <div class="desktop-form-section mt-4" v-if="form.noSoDtfRiil">
+            <v-alert density="compact" type="success" variant="tonal" class="mb-0">
+              Telah diangkat menjadi SO Riil: <b>{{ form.noSoDtfRiil }}</b>
+            </v-alert>
+          </div>
+
+          <div class="desktop-form-section mt-4" v-if="isEditMode">
+            <h3 class="text-subtitle-1 font-weight-bold mb-2">Riwayat Revisi Desain</h3>
+            <div v-if="form.revisiList && form.revisiList.length > 0">
+              <v-timeline density="compact" side="end">
+                <v-timeline-item
+                  v-for="rev in form.revisiList"
+                  :key="rev.tr_id"
+                  size="small"
+                  :dot-color="rev.tr_revisi_ke === 0 ? 'grey' : 'primary'"
+                >
+                  <div class="d-flex flex-column bg-grey-lighten-4 rounded pa-3 border">
+                    <div class="d-flex justify-space-between align-center mb-2">
+                      <strong class="text-primary">{{
+                        rev.tr_revisi_ke === 0 ? "Desain Awal" : "Revisi " + rev.tr_revisi_ke
+                      }}</strong>
+                      <span class="text-caption text-grey">{{ rev.tanggal_revisi }}</span>
+                    </div>
+                    <p class="text-caption mb-2">{{ rev.tr_catatan || "-" }}</p>
+                    <v-img
+                      v-if="rev.tr_gambar"
+                      :src="getFullImageUrl(rev.tr_gambar)"
+                      height="120"
+                      cover
+                      class="rounded cursor-pointer border"
+                      @click="openFullscreen(getFullImageUrl(rev.tr_gambar))"
+                    />
+                  </div>
+                </v-timeline-item>
+              </v-timeline>
+            </div>
+            <div v-else class="text-center pa-4 text-grey text-caption">
+              Belum ada riwayat gambar.
+            </div>
+          </div>
         </div>
       </div>
 
-      <!-- RIGHT COLUMN -->
       <div class="right-column">
         <v-row dense>
-          <!-- KOLOM KIRI: TABEL-TABEL -->
           <v-col cols="12" md="6">
-            <!-- Tabel Ukuran Kaos -->
             <div class="desktop-form-section mb-4">
               <div class="d-flex align-center mb-2">
-                <span class="text-subtitle-2">Ukuran Kaos</span>
-
+                <span class="text-subtitle-2">Ukuran Kaos (Max. 1 Pcs)</span>
                 <v-spacer />
-
-                <!-- TOMBOL TAMBAH UKURAN -->
-                <v-btn
-                  icon="mdi-plus"
-                  size="x-small"
-                  variant="tonal"
-                  color="primary"
-                  class="me-2"
-                  @click="addDetailUkuran"
-                  title="Tambah Ukuran Kaos"
-                ></v-btn>
-
                 <v-text-field
                   label="Total Jumlah"
                   :model-value="totalJumlahKaos"
@@ -1521,16 +1148,18 @@ onMounted(async () => {
                         variant="underlined"
                         density="compact"
                         hide-details
+                        :readonly="isReadOnly"
                       />
                     </td>
                     <td>
                       <v-combobox
                         v-model="item.ukuran"
                         :items="ukuranKaosList"
-                        @change="!isEditMode && addDetailUkuran()"
+                        @change="!isEditMode && !isReadOnly && addDetailUkuran()"
                         variant="underlined"
                         density="compact"
                         hide-details
+                        :readonly="isReadOnly"
                       />
                     </td>
                     <td>
@@ -1541,7 +1170,9 @@ onMounted(async () => {
                         density="compact"
                         hide-details
                         class="text-end"
-                        min="0"
+                        readonly
+                        max="1"
+                        min="1"
                       />
                     </td>
                     <td>
@@ -1552,12 +1183,12 @@ onMounted(async () => {
                         density="compact"
                         hide-details
                         class="text-end"
-                        :readonly="isHargaReadonly"
+                        :readonly="isHargaReadonly || isReadOnly"
                       />
                     </td>
                     <td>
                       <v-btn
-                        v-if="index < detailsUkuran.length - 1"
+                        v-if="index < detailsUkuran.length - 1 && !isReadOnly"
                         icon="mdi-delete"
                         size="x-small"
                         variant="text"
@@ -1570,24 +1201,19 @@ onMounted(async () => {
               </v-table>
             </div>
 
-            <!-- Tabel Titik Bordir/Cetak -->
             <div class="desktop-form-section">
               <div class="d-flex align-center mb-2">
                 <span class="text-subtitle-2">Titik Bordir/Cetak</span>
-
                 <v-spacer />
-
-                <!-- TOMBOL TAMBAH TITIK CETAK -->
                 <v-btn
+                  v-if="!isReadOnly"
                   icon="mdi-plus"
                   size="x-small"
                   variant="tonal"
                   color="primary"
                   class="me-2"
                   @click="addDetailTitik"
-                  title="Tambah Titik Cetak"
                 ></v-btn>
-
                 <v-text-field
                   label="Total Titik"
                   :model-value="totalTitik"
@@ -1615,20 +1241,22 @@ onMounted(async () => {
                     <td>
                       <v-text-field
                         v-model="item.keterangan"
-                        @change="!isEditMode && addDetailTitik()"
+                        @change="!isEditMode && !isReadOnly && addDetailTitik()"
                         variant="underlined"
                         density="compact"
                         hide-details
+                        :readonly="isReadOnly"
                       />
                     </td>
                     <td>
                       <v-combobox
                         v-model="item.sizeCetak"
                         :items="sizeCetakList"
-                        @update:model-value="() => onSizeCetakChange(item, index)"
+                        @update:model-value="() => !isReadOnly && onSizeCetakChange(item, index)"
                         variant="underlined"
                         density="compact"
                         hide-details
+                        :readonly="isReadOnly"
                       />
                     </td>
                     <td>
@@ -1639,7 +1267,7 @@ onMounted(async () => {
                         density="compact"
                         hide-details
                         class="text-end"
-                        :readonly="isPanjangLebarReadonly(item)"
+                        :readonly="isPanjangLebarReadonly(item) || isReadOnly"
                         :class="{ 'field-readonly': isPanjangLebarReadonly(item) }"
                       />
                     </td>
@@ -1651,13 +1279,13 @@ onMounted(async () => {
                         density="compact"
                         hide-details
                         class="text-end"
-                        :readonly="isPanjangLebarReadonly(item)"
+                        :readonly="isPanjangLebarReadonly(item) || isReadOnly"
                         :class="{ 'field-readonly': isPanjangLebarReadonly(item) }"
                       />
                     </td>
                     <td>
                       <v-btn
-                        v-if="index < detailsTitik.length - 1"
+                        v-if="index < detailsTitik.length - 1 && !isReadOnly"
                         icon="mdi-delete"
                         size="x-small"
                         variant="text"
@@ -1669,18 +1297,17 @@ onMounted(async () => {
                 </tbody>
               </v-table>
             </div>
+
             <div
               class="desktop-form-section mt-4"
               v-if="['BR', 'SD'].includes(form.jenisOrderKode)"
             >
               <div class="perhitungan-box">
                 <v-row dense>
-                  <!-- Bordir -->
                   <v-col cols="12" v-if="form.jenisOrderKode === 'BR'">
-                    <v-alert density="compact" variant="tonal" type="info" class="mb-2">
-                      Perhitungan Bordir
-                    </v-alert>
-
+                    <v-alert density="compact" variant="tonal" type="info" class="mb-2"
+                      >Perhitungan Bordir</v-alert
+                    >
                     <v-text-field
                       label="Luas Bordir /Cm² (Per Titik)"
                       :model-value="totalLuasBordir"
@@ -1690,7 +1317,6 @@ onMounted(async () => {
                       hide-details
                       class="mb-2"
                     />
-
                     <v-text-field
                       label="Biaya /Cm²"
                       :model-value="bordirMultiplier"
@@ -1700,7 +1326,6 @@ onMounted(async () => {
                       hide-details
                       class="mb-2"
                     />
-
                     <v-text-field
                       label="Total Harga Bordir"
                       :model-value="totalHargaBordir"
@@ -1710,12 +1335,10 @@ onMounted(async () => {
                       hide-details
                     />
                   </v-col>
-                  <!-- DTF -->
                   <v-col cols="12" v-if="form.jenisOrderKode === 'SD'">
-                    <v-alert density="compact" variant="tonal" type="info" class="mb-2">
-                      Perhitungan DTF
-                    </v-alert>
-
+                    <v-alert density="compact" variant="tonal" type="info" class="mb-2"
+                      >Perhitungan DTF</v-alert
+                    >
                     <v-text-field
                       label="Luas DTF /Cm²"
                       :model-value="totalLuasDtf"
@@ -1725,7 +1348,6 @@ onMounted(async () => {
                       hide-details
                       class="mb-2"
                     />
-
                     <v-text-field
                       label="Biaya /Cm²"
                       :model-value="form.customerLevel === 'KORPORASI' ? 15 : 25"
@@ -1735,7 +1357,6 @@ onMounted(async () => {
                       hide-details
                       class="mb-2"
                     />
-
                     <v-text-field
                       label="Total Harga DTF"
                       :model-value="totalHargaDtf"
@@ -1750,43 +1371,33 @@ onMounted(async () => {
             </div>
           </v-col>
 
-          <!-- KOLOM KANAN: GAMBAR & KETERANGAN -->
           <v-col cols="12" md="6">
-            <div class="desktop-form-section mb-4">
-              <div class="image-upload-section">
-                <div
-                  v-if="isFromTrial && trialImageOptions.length > 0"
-                  class="mb-4 bg-blue-lighten-5 pa-3 rounded border border-info"
-                >
-                  <v-select
-                    v-model="selectedTrialImage"
-                    :items="trialImageOptions"
-                    item-title="title"
-                    item-value="url"
-                    label="Pilih Desain dari Riwayat Trial"
-                    variant="outlined"
-                    density="compact"
-                    hide-details
-                    prepend-inner-icon="mdi-history"
-                    color="primary"
-                    bg-color="white"
-                  />
-                  <div class="text-caption text-blue-darken-2 mt-2 d-flex align-start">
-                    <v-icon size="small" class="me-1 mt-1">mdi-information-outline</v-icon>
-                    <span
-                      >Gambar yang dipilih akan disalin menjadi gambar SO Riil. Anda tetap bisa
-                      menggantinya dengan mengunggah file baru di bawah ini.</span
-                    >
-                  </div>
-                </div>
+            <div class="desktop-form-section mb-4" v-if="!isReadOnly">
+              <div
+                v-if="isEditMode"
+                class="mb-4 bg-blue-lighten-5 px-4 py-2 rounded border border-info"
+              >
+                <v-checkbox
+                  v-model="isAddingRevision"
+                  label="Upload Desain Revisi Baru"
+                  color="primary"
+                  hide-details
+                  density="compact"
+                />
+              </div>
 
+              <div v-if="!isEditMode || isAddingRevision" class="image-upload-section">
+                <h4 class="text-subtitle-2 mb-3">
+                  {{ isEditMode ? "Form Revisi Baru" : "Desain Awal" }}
+                </h4>
                 <div class="d-flex align-center ga-2 mb-3">
                   <v-file-input
                     v-model="imageFile"
                     label="Upload Gambar (Max 1MB)"
                     variant="outlined"
                     density="compact"
-                    prepend-icon="mdi-camera"
+                    prepend-inner-icon="mdi-camera"
+                    prepend-icon=""
                     hide-details
                     clearable
                     accept="image/jpeg,image/png,image/jpg,image/gif"
@@ -1801,10 +1412,8 @@ onMounted(async () => {
                     size="small"
                     variant="tonal"
                     color="error"
-                    title="Hapus Gambar"
                   />
                 </div>
-
                 <div class="image-preview-container">
                   <div v-if="imagePreview" class="position-relative">
                     <v-img
@@ -1813,39 +1422,18 @@ onMounted(async () => {
                       aspect-ratio="16/9"
                       cover
                       class="border rounded elevation-1 cursor-pointer"
-                      @click="imagePreview ? (isImageFullscreenVisible = true) : null"
-                      title="Klik untuk memperbesar"
+                      @click="openFullscreen(imagePreview)"
                     >
                       <v-overlay
                         v-if="isImageUploading"
                         contained
                         persistent
                         class="d-flex align-center justify-center"
-                      >
-                        <div class="text-center text-white">
-                          <v-progress-circular indeterminate color="primary" size="40" />
-                          <div class="mt-2">Mengunggah...</div>
-                        </div>
-                      </v-overlay>
+                        ><div class="text-center text-white">
+                          <v-progress-circular indeterminate color="primary" size="40" /></div
+                      ></v-overlay>
                     </v-img>
-
-                    <div class="mt-2">
-                      <v-chip v-if="imageFile" size="small" color="warning" variant="tonal">
-                        <v-icon start size="small">mdi-clock-outline</v-icon>
-                        Belum tersimpan
-                      </v-chip>
-                      <v-chip
-                        v-else-if="form.imageUrl && imagePreview"
-                        size="small"
-                        color="success"
-                        variant="tonal"
-                      >
-                        <v-icon start size="small">mdi-check-circle</v-icon>
-                        Tersimpan di server
-                      </v-chip>
-                    </div>
                   </div>
-
                   <div
                     v-else
                     class="border rounded d-flex align-center justify-center bg-grey-lighten-4"
@@ -1854,27 +1442,44 @@ onMounted(async () => {
                     <div class="text-center text-grey">
                       <v-icon size="48" class="mb-2">mdi-image-outline</v-icon>
                       <div class="text-caption">Tidak ada gambar</div>
-                      <div class="text-caption">Pilih file untuk upload otomatis</div>
                     </div>
                   </div>
                 </div>
 
-                <div v-if="isImageUploading" class="mt-2">
-                  <v-progress-linear indeterminate color="primary" height="2" />
-                  <div class="text-caption text-center mt-1">Sedang mengunggah gambar...</div>
+                <div class="mt-4">
+                  <v-textarea
+                    v-if="isEditMode"
+                    label="Catatan Revisi (Wajib)"
+                    v-model="newRevisionCatatan"
+                    rows="3"
+                    variant="outlined"
+                    density="compact"
+                    hide-details
+                    bg-color="white"
+                  />
+
+                  <v-textarea
+                    v-else
+                    label="Keterangan / Catatan Awal"
+                    v-model="newRevisionCatatan"
+                    rows="3"
+                    variant="outlined"
+                    density="compact"
+                    hide-details
+                    bg-color="white"
+                  />
                 </div>
               </div>
             </div>
-
-            <!-- Keterangan di bawah gambar -->
             <div class="desktop-form-section">
               <v-textarea
-                label="Keterangan"
+                label="Keterangan / Catatan Tambahan"
                 v-model="form.keterangan"
                 rows="6"
                 variant="outlined"
                 density="compact"
                 hide-details
+                :readonly="isReadOnly"
               />
             </div>
           </v-col>
@@ -1883,7 +1488,6 @@ onMounted(async () => {
     </div>
     <v-skeleton-loader v-else type="article, actions"></v-skeleton-loader>
 
-    <!-- Modals -->
     <CustomerSearchModal
       v-if="isCustomerSearchVisible"
       :gudang="form.workshopKode"
@@ -1918,22 +1522,19 @@ onMounted(async () => {
       mode="dtf"
     />
 
-    <!-- Fullscreen Image Modal -->
     <v-dialog v-model="isImageFullscreenVisible" max-width="90vw">
       <v-card>
-        <v-toolbar density="compact" color="primary" dark>
-          <v-toolbar-title>
-            <v-icon start>mdi-image</v-icon>
-            Preview Gambar - {{ form.nomor || "SO Baru" }}
-          </v-toolbar-title>
-          <v-spacer />
-          <v-btn icon="mdi-close" @click="isImageFullscreenVisible = false" variant="text" />
-        </v-toolbar>
-
+        <v-toolbar density="compact" color="primary" dark
+          ><v-toolbar-title><v-icon start>mdi-image</v-icon> Preview Gambar</v-toolbar-title
+          ><v-spacer /><v-btn
+            icon="mdi-close"
+            @click="isImageFullscreenVisible = false"
+            variant="text"
+        /></v-toolbar>
         <v-card-text class="pa-4 bg-grey-lighten-4">
           <div class="d-flex justify-center align-center" style="min-height: 60vh">
             <v-img
-              :src="imagePreview || undefined"
+              :src="fullscreenImageSrc"
               max-height="80vh"
               max-width="100%"
               contain
@@ -1941,118 +1542,135 @@ onMounted(async () => {
             />
           </div>
         </v-card-text>
-
-        <v-card-actions class="justify-space-between pa-4">
-          <div>
-            <v-chip v-if="imageFile" size="small" color="warning" variant="tonal">
-              <v-icon start size="small">mdi-clock-outline</v-icon>
-              Belum tersimpan
-            </v-chip>
-            <v-chip v-else-if="form.imageUrl" size="small" color="success" variant="tonal">
-              <v-icon start size="small">mdi-check-circle</v-icon>
-              Tersimpan di server
-            </v-chip>
-          </div>
-          <v-btn
-            color="primary"
-            @click="isImageFullscreenVisible = false"
-            prepend-icon="mdi-close"
-            variant="tonal"
-          >
-            Tutup
-          </v-btn>
-        </v-card-actions>
       </v-card>
     </v-dialog>
 
-    <!-- Confirmation Dialog -->
     <v-dialog v-model="isConfirmDialogVisible" max-width="400px" persistent>
       <v-card>
-        <v-card-title class="text-h6 font-weight-bold"> Konfirmasi </v-card-title>
-        <v-card-text>
-          {{ confirmText }}
-        </v-card-text>
-        <v-card-actions>
-          <v-spacer></v-spacer>
-          <v-btn color="grey-darken-1" variant="text" @click="closeConfirmDialog"> Tidak </v-btn>
-          <v-btn color="primary" variant="tonal" @click="executePendingAction">
-            Ya, Lanjutkan
-          </v-btn>
-        </v-card-actions>
+        <v-card-title class="text-h6 font-weight-bold">Konfirmasi</v-card-title>
+        <v-card-text>{{ confirmText }}</v-card-text>
+        <v-card-actions
+          ><v-spacer></v-spacer
+          ><v-btn color="grey-darken-1" variant="text" @click="closeConfirmDialog">Tidak</v-btn
+          ><v-btn color="primary" variant="tonal" @click="executePendingAction"
+            >Ya, Lanjutkan</v-btn
+          ></v-card-actions
+        >
       </v-card>
     </v-dialog>
 
     <v-dialog v-model="isPrintConfirmVisible" max-width="400px" persistent>
       <v-card>
-        <v-card-title class="text-h6 font-weight-bold"> Simpan Berhasil </v-card-title>
-        <v-card-text>
-          SO DTF {{ printConfirmNomor }} berhasil disimpan. <br /><br />
-          Apakah Anda ingin mencetak dokumen ini sekarang?
-        </v-card-text>
-        <v-card-actions>
-          <v-spacer></v-spacer>
-          <v-btn color="grey-darken-1" variant="text" @click="handlePrintCancel">
-            Tidak, Kembali
-          </v-btn>
-          <v-btn color="primary" variant="tonal" @click="handlePrintConfirm"> Ya, Cetak </v-btn>
-        </v-card-actions>
+        <v-card-title class="text-h6 font-weight-bold">Simpan Berhasil</v-card-title>
+        <v-card-text
+          >Trial {{ printConfirmNomor }} berhasil disimpan.<br /><br />Ingin mencetak form hitungan
+          ini?</v-card-text
+        >
+        <v-card-actions
+          ><v-spacer></v-spacer
+          ><v-btn color="grey-darken-1" variant="text" @click="handlePrintCancel">Tidak</v-btn
+          ><v-btn color="primary" variant="tonal" @click="handlePrintConfirm"
+            >Ya, Cetak</v-btn
+          ></v-card-actions
+        >
       </v-card>
     </v-dialog>
   </PageLayout>
 </template>
 
 <style scoped>
-.image-notes-section {
-  flex-shrink: 0;
+/* --- LAYOUT GRID KIRI & KANAN --- */
+.form-grid-container {
+  display: grid;
+  grid-template-columns: 360px 1fr;
+  gap: 16px;
+  height: calc(100vh - 115px);
+  padding: 16px;
+  background-color: #f8f9fa;
+  overflow: hidden;
 }
 
+.left-column,
+.right-column {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.left-column::-webkit-scrollbar,
+.right-column::-webkit-scrollbar {
+  width: 6px;
+}
+.left-column::-webkit-scrollbar-thumb,
+.right-column::-webkit-scrollbar-thumb {
+  background-color: #bdbdbd;
+  border-radius: 4px;
+}
+
+/* --- KOTAK FORM (SECTION) --- */
+.desktop-form-section {
+  background-color: white !important;
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  border-radius: 8px;
+  padding: 16px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.02);
+}
+
+.header-section .v-row {
+  margin-top: -4px;
+  margin-bottom: -4px;
+}
+.header-section .v-col {
+  padding-top: 4px;
+  padding-bottom: 4px;
+}
+
+/* --- TABEL & LAINNYA --- */
+.desktop-table {
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  border-radius: 6px;
+  overflow: hidden;
+}
 .text-end :deep(input) {
   text-align: right;
 }
-
 .field-disabled {
   background-color: rgba(var(--v-theme-on-surface), 0.04);
   pointer-events: none;
 }
-
 .field-readonly {
   background-color: rgba(var(--v-theme-on-surface), 0.04);
 }
-
 .field-readonly :deep(input) {
   color: rgba(var(--v-theme-on-surface), 0.6);
 }
-
 .cursor-pointer {
   cursor: pointer;
   transition: opacity 0.2s;
 }
-
 .cursor-pointer:hover {
   opacity: 0.9;
 }
 
 .image-upload-section {
-  background-color: rgb(var(--v-theme-surface));
+  background-color: white;
   border: 1px solid rgba(var(--v-theme-on-surface), 0.12);
   border-radius: 8px;
   padding: 16px;
 }
-
 .image-preview-container {
   position: relative;
   overflow: hidden;
   transition: all 0.3s ease;
 }
-
 .image-preview-container .v-img {
   transition: transform 0.2s;
 }
-
 .image-preview-container:hover .v-img {
   transform: scale(1.01);
 }
-
 .image-preview-container .bg-grey-lighten-4 {
   background-color: rgba(var(--v-theme-on-surface), 0.04) !important;
   color: rgba(var(--v-theme-on-surface), 0.6);
@@ -2062,32 +1680,10 @@ onMounted(async () => {
   background-color: rgb(var(--v-theme-background)) !important;
 }
 
-.cursor-pointer {
-  cursor: pointer;
-  transition: opacity 0.2s;
-}
-
-.cursor-pointer:hover {
-  opacity: 0.9;
-}
-
-.perhitungan-box.compact {
-  max-width: 260px;
-  margin: 0 auto;
+.perhitungan-box {
   padding: 12px;
-  border-radius: 12px;
-
-  background-color: rgba(var(--v-theme-primary), 0.08);
-  border: 1px solid rgba(var(--v-theme-primary), 0.25);
-}
-
-.perhitungan-box.compact .v-text-field {
-  max-width: 200px;
-  margin-left: auto;
-  margin-right: auto;
-}
-
-.desktop-form-section {
-  background-color: rgb(var(--v-theme-surface));
+  border-radius: 8px;
+  background-color: #f0f8ff;
+  border: 1px solid #90caf9;
 }
 </style>

@@ -55,11 +55,10 @@ const ProformaPrintView = () => import("@/views/transaksi/penjualan/ProformaPrin
 const TrackingHomeView = () => import("@/views/umum/TrackingHomeView.vue");
 
 // --- DTF & PESANAN ---
-// [TAMBAHKAN INI UNTUK TRIAL]
-// const SoDtfTrialView = () => import("@/views/transaksi/penjualan/dtf/SoDtfTrialView.vue");
-// const SoDtfTrialCreateView = () =>
-//   import("@/views/transaksi/penjualan/dtf/SoDtfTrialCreateView.vue");
-// const SoDtfTrialPrintView = () => import("@/views/transaksi/penjualan/dtf/SoDtfTrialPrintView.vue");
+const SoDtfTrialView = () => import("@/views/transaksi/penjualan/dtf/SoDtfTrialView.vue");
+const SoDtfTrialCreateView = () =>
+  import("@/views/transaksi/penjualan/dtf/SoDtfTrialCreateView.vue");
+const SoDtfTrialPrintView = () => import("@/views/transaksi/penjualan/dtf/SoDtfTrialPrintView.vue");
 const SoDtfView = () => import("@/views/transaksi/penjualan/dtf/SoDtfView.vue");
 const SoDtfCreateView = () => import("@/views/transaksi/penjualan/dtf/SoDtfCreateView.vue");
 const SoDtfPrintView = () => import("@/views/transaksi/penjualan/dtf/SoDtfPrintView.vue");
@@ -619,46 +618,46 @@ const routes = [
       menuId: "39",
     },
   },
-  // {
-  //   path: "/transaksi/penjualan/dtf/so-dtf-trial",
-  //   name: "frmBrowSODTFTrial",
-  //   component: SoDtfTrialView,
-  //   meta: {
-  //     title: "SO DTF Trial Pesanan",
-  //     requiresAuth: true,
-  //     menuId: "61",
-  //   },
-  // },
-  // {
-  //   path: "/transaksi/penjualan/dtf/so-dtf-trial/new",
-  //   name: "Buat SO DTF Trial Pesanan",
-  //   component: SoDtfTrialCreateView,
-  //   meta: {
-  //     title: "Buat SO DTF Trial Pesanan",
-  //     requiresAuth: true,
-  //     menuId: "61",
-  //   },
-  // },
-  // {
-  //   path: "/transaksi/penjualan/dtf/so-dtf-trial/ubah/:nomor",
-  //   name: "Ubah SO DTF Trial Pesanan",
-  //   component: SoDtfTrialCreateView,
-  //   meta: {
-  //     title: "Ubah SO DTF Trial Pesanan",
-  //     requiresAuth: true,
-  //     menuId: "61",
-  //   },
-  // },
-  // {
-  //   path: "/transaksi/penjualan/dtf/so-dtf-trial/print/:nomor",
-  //   name: "Cetak SO DTF Trial",
-  //   component: SoDtfTrialPrintView,
-  //   meta: {
-  //     requiresAuth: true,
-  //     printLayout: true,
-  //     layout: "PrintLayout",
-  //   },
-  // },
+  {
+    path: "/transaksi/penjualan/dtf/so-dtf-trial",
+    name: "frmBrowSODTFTrial",
+    component: SoDtfTrialView,
+    meta: {
+      title: "SO DTF Trial Pesanan",
+      requiresAuth: true,
+      menuId: "61",
+    },
+  },
+  {
+    path: "/transaksi/penjualan/dtf/so-dtf-trial/new",
+    name: "Buat SO DTF Trial Pesanan",
+    component: SoDtfTrialCreateView,
+    meta: {
+      title: "Buat SO DTF Trial Pesanan",
+      requiresAuth: true,
+      menuId: "61",
+    },
+  },
+  {
+    path: "/transaksi/penjualan/dtf/so-dtf-trial/ubah/:nomor",
+    name: "Ubah SO DTF Trial Pesanan",
+    component: SoDtfTrialCreateView,
+    meta: {
+      title: "Ubah SO DTF Trial Pesanan",
+      requiresAuth: true,
+      menuId: "61",
+    },
+  },
+  {
+    path: "/transaksi/penjualan/dtf/so-dtf-trial/print/:nomor",
+    name: "Cetak SO DTF Trial",
+    component: SoDtfTrialPrintView,
+    meta: {
+      requiresAuth: true,
+      printLayout: true,
+      layout: "PrintLayout",
+    },
+  },
   {
     path: "/transaksi/penjualan/dtf/so-dtf",
     name: "frmBrowSODTF",

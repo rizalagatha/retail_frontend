@@ -45,7 +45,9 @@ const getFullImageUrl = (path?: string | null): string | undefined => {
   if (!path) return undefined;
   if (path.startsWith("http")) return path;
 
-  return `${import.meta.env.VITE_API_BASE_URL}${path}`;
+  // Langsung kembalikan path aslinya (misal: /images/K01/...)
+  // Biar Nginx yang mengurus rutenya
+  return path;
 };
 
 const getJenisOrderDisplay = (joKode: string) => {

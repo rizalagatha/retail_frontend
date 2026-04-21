@@ -335,16 +335,11 @@ const showPreview = (fileName: string) => {
 
   const cleanFileName = fileName.trim();
 
-  // 1. Ambil URL aslinya (Contoh: https://retail.kaosanofficial.com/api)
-  let baseUrl = getApiBaseUrl();
+  // 1. Ambil URL aslinya (Jangan dihapus /api nya!)
+  const apiBaseUrl = getApiBaseUrl().replace(/\/$/, "");
 
-  // 2. Potong tulisan '/api' di bagian paling belakang
-  if (baseUrl.endsWith("/api")) {
-    baseUrl = baseUrl.replace(/\/api$/, "");
-  }
-
-  // 3. Rangkai URL-nya. Sekarang jadi: https://retail.kaosanofficial.com/uploads/pettycash/...
-  const fileUrl = `${baseUrl}/uploads/pettycash/${cleanFileName}`;
+  // 2. Rangkai URL-nya. Akan menjadi: https://retail.kaosanofficial.com/api/uploads/pettycash/...
+  const fileUrl = `${apiBaseUrl}/uploads/pettycash/${cleanFileName}`;
   const isPdf = cleanFileName.toLowerCase().endsWith(".pdf");
 
   if (isPdf) {

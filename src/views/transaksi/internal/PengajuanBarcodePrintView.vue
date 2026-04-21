@@ -52,12 +52,11 @@ const qrCodeDataUrl = ref("");
 // Helper URL
 const getFullImageUrl = (url: string | null | undefined): string => {
   if (!url) return "";
-
   if (url.startsWith("http")) return url;
 
-  const backend = import.meta.env.VITE_API_URL || "http://localhost:8000";
-
-  return `${backend}${url}`;
+  // Langsung kembalikan path aslinya (misal: /images/cabang/...)
+  // Nanti browser otomatis menambahkan https://retail.kaosanofficial.com di depannya
+  return url;
 };
 
 const formatRupiah = (val: number) => {

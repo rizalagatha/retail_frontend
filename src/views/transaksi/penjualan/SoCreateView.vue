@@ -631,11 +631,11 @@ const isDpSufficientForCustom = () => {
   const currentDpPercentage =
     footer.value.netto > 0 ? footer.value.totalDp / footer.value.netto : 0;
 
-  // Jika user sudah bayar DP (misal 30%) tapi kurang dari 50%, BLOKIR!
+  // Jika user sudah bayar DP (misal 30%) tapi kurang dari 50%, BLOKIR lalu tawarkan Otorisasi!
   if (currentDpPercentage > 0 && currentDpPercentage < 0.5) {
-    toast.error(
-      "Customer baru DP < 50%. Item Custom/DTF tidak bisa ditambahkan sebelum DP ditambah minimal 50%."
-    );
+    showConfirmation(() => {
+      openDpAuthorization();
+    }, "Customer baru DP < 50%. Item Custom/DTF tidak bisa ditambahkan. Apakah Anda ingin meminta Otorisasi sekarang?");
     return false;
   }
   return true;
@@ -1433,11 +1433,9 @@ const save = async () => {
   // --- 6. Validasi DP Mengikat (Wajib sebelum simpan) ---
   if (!header.value.isMarketplace && !footer.value.pinTanpaDp) {
     if (footer.value.totalDp < footer.value.minimalDp) {
-      toast.error(
-        `Gagal Simpan: DP belum memenuhi syarat. Minimal DP: ${formatRupiah(
-          footer.value.minimalDp
-        )}`
-      );
+      showConfirmation(() => {
+        openDpAuthorization();
+      }, `Gagal Simpan: DP belum memenuhi syarat. Minimal DP: ${formatRupiah(footer.value.minimalDp)}. Apakah Anda ingin meminta Otorisasi sekarang?`);
       return;
     }
   }
@@ -4302,9 +4300,8 @@ const stopAndOpenPriceProposal = (index: number) => {
                     </v-btn>
                   </v-col>
 
-                  <v-col cols="6">
+                  <v-col cols="6" v-if="footer.totalDp < footer.minimalDp && !footer.pinTanpaDp">
                     <v-btn
-                      v-if="footer.totalDp < footer.minimalDp && !footer.pinTanpaDp"
                       block
                       color="orange"
                       @click="openDpAuthorization"

@@ -3380,7 +3380,11 @@ const isHargaReadonly = (item: SoItem) => {
   // 3. Jika barang merupakan BONUS (Stiker/Promo), pasti kunci harganya
   if (item.kategori === "BONUS" || item.terhitungPromo) return true;
 
-  // 4. Jika barang Reguler yang sudah ditarik dari database (punya kode), KUNCI HARGA!
+  // [PERBAIKAN]: Jika harga masih 0, null, atau kosong, izinkan diedit!
+  // Ini agar SC bisa mengisi harga manual untuk barang yang belum ada harganya di master.
+  if (!item.harga || Number(item.harga) === 0) return false;
+
+  // 4. Jika barang Reguler yang sudah ditarik dari database dan SUDAH ADA harganya, KUNCI!
   if (item.kode) return true;
 
   return false;

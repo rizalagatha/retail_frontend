@@ -336,9 +336,9 @@ const save = () => {
 const getHargaDTG = async () => {
   try {
     const response = await api.post("/so-dtf-form/calculate-dtg-price", {
-      // [PERBAIKAN]: Sesuaikan nama properti dengan yang dipakai di form modal
       detailsTitik: form.value.titikCetak,
       totalJumlahKaos: form.value.totalJumlah,
+      namaBarang: form.value.namaBarang, // <--- TAMBAHAN: Kirim nama barang ke backend
     });
     return response.data.harga || 0;
   } catch (error: unknown) {

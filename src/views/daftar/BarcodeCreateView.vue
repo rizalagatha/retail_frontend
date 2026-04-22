@@ -399,7 +399,7 @@ const triggerBrowserPrint = () => {
   if (printContent) {
     const printFrame = document.createElement("iframe");
     printFrame.style.position = "fixed";
-    printFrame.style.width = "100mm";
+    printFrame.style.width = "68mm";
     printFrame.style.height = "400mm";
     printFrame.style.border = "none";
     printFrame.style.top = "-9999px";

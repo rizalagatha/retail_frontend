@@ -826,6 +826,7 @@ onMounted(async () => {
     <CustomerSearchModal
       v-if="dialogs.customerSearch"
       :gudang="header.gudang.kode"
+      source="invoice"
       @close="dialogs.customerSearch = false"
       @customer-selected="onCustomerSelected"
     />

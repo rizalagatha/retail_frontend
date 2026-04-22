@@ -336,12 +336,12 @@ const save = () => {
 const getHargaDTG = async () => {
   try {
     const response = await api.post("/so-dtf-form/calculate-dtg-price", {
-      detailsTitik: detailsTitik.value,
+      // [PERBAIKAN]: Sesuaikan nama properti dengan yang dipakai di form modal
+      detailsTitik: form.value.titikCetak,
       totalJumlahKaos: form.value.totalJumlah,
     });
     return response.data.harga || 0;
   } catch (error: unknown) {
-    // [PERBAIKAN]
     let errorMessage = "Gagal menghitung harga DTG.";
     if (axios.isAxiosError(error)) {
       errorMessage = error.response?.data?.message || errorMessage;
@@ -416,7 +416,8 @@ const calculatePrices = async () => {
       hargaSatuan = totalHargaJasaPerKaos;
       break;
 
-    case "TG": // DTG
+    case "TG": // [PASTIKAN BAGIAN INI ADA DAN SAMA PERSIS]
+      hargaPerCm = 0; // DTG tidak pakai hitungan per cm
       hargaSatuan = await getHargaDTG();
       break;
 

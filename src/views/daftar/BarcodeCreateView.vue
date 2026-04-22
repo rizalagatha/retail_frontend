@@ -125,7 +125,7 @@ const printStylesXP360B = `
     page-break-after: always !important; /* Memaksa ganti baris sticker */
   }
   .barcode-label {
-    width: 30.5mm;
+    width: 32mm;
     height: 14mm;
     display: flex;
     flex-direction: column;

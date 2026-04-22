@@ -99,27 +99,56 @@ const fetchPrintData = async (nomor: string) => {
   isLoading.value = true;
   try {
     const response = await api.get(`/so/print-data/${nomor}`);
-    printData.value = response.data;
-    const data = response.data as PrintData;
+    const data = response.data;
 
-    if (data.header?.so_nomor) {
-      document.title = data.header.so_nomor;
+    // ========================================================
+    // [PROSES MAPPING] Pecah baris jika ada data custom gabungan
+    // ========================================================
+    const processedDetails: PrintItem[] = [];
 
-      // Generate Kode Resi
-      trackingCode.value = encodeResi(data.header.so_nomor);
+    data.details.forEach((item: any) => {
+      // Cek apakah ini item custom dan punya rincian data (sod_custom_data)
+      // Biasanya di sistem Mas Rizal, data teknis ada di field pcd_custom_data atau sod_custom_data
+      if (item.sod_custom === "Y" && item.sod_custom_data) {
+        try {
+          const parsed = JSON.parse(item.sod_custom_data);
+          if (parsed.ukuranKaos && parsed.ukuranKaos.length > 1) {
+            parsed.ukuranKaos.forEach((u: any) => {
+              processedDetails.push({
+                ...item,
+                nama_barang: item.sod_custom_nama || item.nama_barang,
+                ukuran: u.ukuran,
+                qty: u.jumlah,
+                harga: u.harga,
+                total: u.jumlah * u.harga,
+                diskon: 0, // Diskon custom biasanya sudah include di harga atau ditaruh di faktur
+              });
+            });
+            return; // Skip push item original
+          }
+        } catch (e) {
+          console.error("Gagal pecah baris print SO:", e);
+        }
+      }
+      // Jika reguler, masukkan apa adanya
+      processedDetails.push(item);
+    });
 
-      // Buat Full URL Link Tracking
+    // Masukkan kembali ke printData
+    printData.value = {
+      ...data,
+      details: processedDetails,
+    };
+    // ========================================================
+
+    if (printData.value.header?.so_nomor) {
+      document.title = printData.value.header.so_nomor;
+      trackingCode.value = encodeResi(printData.value.header.so_nomor);
       const linkTracking = `https://tracking.kaosanofficial.com/transaksi/penjualan/surat-pesanan/track/${trackingCode.value}?target=UMUM`;
-
-      // QR Code sekarang berisi LINK LANGSUNG ke web tracking
-      qrCodeData.value = await QRCode.toDataURL(linkTracking, {
-        width: 150,
-        margin: 1,
-      });
+      qrCodeData.value = await QRCode.toDataURL(linkTracking, { width: 150, margin: 1 });
     }
   } catch (error) {
     alert("Gagal memuat data untuk dicetak.");
-    console.error("Error fetching print data:", error);
   } finally {
     isLoading.value = false;
   }

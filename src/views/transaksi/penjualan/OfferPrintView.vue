@@ -110,18 +110,49 @@ const fetchPrintData = async (nomor: string) => {
   isLoading.value = true;
   try {
     const response = await api.get<PrintData>(`/offer-form/print-data/${nomor}`);
-
     const data = response.data;
 
-    printData.value = data;
+    // ========================================================
+    // [PROSES MAPPING] Pecah baris jika ada data custom gabungan
+    // ========================================================
+    const processedDetails: PrintDetail[] = [];
 
-    if (data.header?.pen_nomor) {
-      document.title = data.header.pen_nomor;
+    data.details.forEach((item: any) => {
+      // Di penawaran biasanya field-nya pend_custom dan pend_custom_data
+      if ((item.pend_custom === "Y" || item.sod_custom === "Y") && item.pend_custom_data) {
+        try {
+          const parsed = JSON.parse(item.pend_custom_data);
+          // Jika isinya data teknis Jenis Order (ukuranKaos)
+          if (parsed.ukuranKaos && parsed.ukuranKaos.length > 1) {
+            parsed.ukuranKaos.forEach((u: any) => {
+              processedDetails.push({
+                ...item,
+                nama_barang: item.pend_custom_nama || item.nama_barang,
+                ukuran: u.ukuran,
+                qty: u.jumlah,
+                harga: u.harga,
+                total: u.jumlah * u.harga,
+                diskon: 0,
+              });
+            });
+            return;
+          }
+        } catch (e) {
+          console.error("Gagal pecah baris print Penawaran:", e);
+        }
+      }
+      processedDetails.push(item);
+    });
 
-      // 🔥 Generate QR Code
-      const qrText = data.header.pen_nomor;
+    printData.value = {
+      ...data,
+      details: processedDetails,
+    };
+    // ========================================================
 
-      qrCodeData.value = await QRCode.toDataURL(qrText, {
+    if (printData.value.header?.pen_nomor) {
+      document.title = printData.value.header.pen_nomor;
+      qrCodeData.value = await QRCode.toDataURL(printData.value.header.pen_nomor, {
         width: 200,
         margin: 1,
       });

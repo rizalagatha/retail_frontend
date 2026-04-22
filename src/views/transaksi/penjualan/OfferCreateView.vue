@@ -396,44 +396,88 @@ const loadOfferData = async (nomor: string) => {
     const response = await api.get(`/offer-form/edit-details/${nomor}`);
     const { headerData, itemsData, dpItemsData, footerData } = response.data;
 
-    // Isi semua state dengan data yang diterima dari server
-    header.value = {
-      ...header.value,
-      ...headerData,
-    };
-    items.value = itemsData.map((item: ApiOfferItem): OfferItem => {
+    header.value = { ...header.value, ...headerData };
+
+    // ========================================================
+    // [PERBAIKAN KUNCI] Pecah baris custom saat Load
+    // ========================================================
+    const processedItems: OfferItem[] = [];
+
+    (itemsData as ApiOfferItem[]).forEach((item, index) => {
       const isCustom = item.pend_custom === "Y" || item.kode === "CUSTOM";
-      return {
-        id: Date.now() + Math.random(),
-        kode: item.kode || "",
-        nama: item.nama || "",
-        kategori: item.kategori || "",
-        ukuran: item.ukuran || "",
-        stok: item.stok || 0,
-        jumlah: item.jumlah || 0,
-        harga: item.harga || 0,
-        isHargaReadonly: (item.harga || 0) > 0,
-        diskonPersen: item.diskonPersen || 0,
-        diskonRp: item.diskonRp || 0,
-        total: item.total || 0,
-        barcode: item.barcode || "",
-        noPengajuanHarga: item.noPengajuanHarga || "",
-        noSoDtf: item.noSoDtf || "",
-        pin: item.pin || "",
-        // Properti tambahan untuk custom
-        isCustomOrder: isCustom,
-        sod_custom: item.pend_custom ?? undefined,
-        sod_custom_nama: item.pend_custom_nama ?? undefined,
-        sod_custom_data: item.pend_custom_data ?? undefined,
-        terhitungPromo: false, // Default state
-        promo: "",
-      };
+      let parsed: any = {};
+
+      if (isCustom && item.pend_custom_data) {
+        try {
+          parsed = JSON.parse(item.pend_custom_data);
+        } catch (e) {
+          console.error("Parse custom data failed", e);
+        }
+      }
+
+      // Jika item custom dan punya banyak ukuran di dalam JSON-nya
+      if (isCustom && parsed.ukuranKaos && parsed.ukuranKaos.length > 1) {
+        parsed.ukuranKaos.forEach((u: any, uIdx: number) => {
+          processedItems.push({
+            id: Date.now() + Math.random() + uIdx,
+            kode: item.kode || "CUSTOM",
+            nama: item.pend_custom_nama || item.nama || "",
+            kategori: item.kategori || "",
+            ukuran: u.ukuran, // Ambil ukuran spesifik
+            stok: item.stok || 0,
+            jumlah: u.jumlah, // Ambil jumlah spesifik
+            harga: u.harga, // Ambil harga spesifik
+            isHargaReadonly: true,
+            diskonPersen: item.diskonPersen || 0,
+            diskonRp: item.diskonRp || 0,
+            total: u.jumlah * u.harga,
+            barcode: item.barcode || "",
+            noPengajuanHarga: item.noPengajuanHarga || "",
+            pin: item.pin || "",
+            isCustomOrder: true,
+            sod_custom: "Y",
+            sod_custom_nama: item.pend_custom_nama || item.nama || undefined,
+            // Simpan rincian teknis khusus untuk baris ukuran ini saja
+            sod_custom_data: JSON.stringify({
+              ...parsed,
+              ukuranKaos: [u],
+            }),
+            terhitungPromo: false,
+            promo: "",
+          });
+        });
+      } else {
+        // Masukkan seperti biasa jika item reguler atau custom 1 ukuran
+        processedItems.push({
+          id: Date.now() + Math.random() + index,
+          kode: item.kode || "",
+          nama: (isCustom ? item.pend_custom_nama : item.nama) || "",
+          kategori: item.kategori || "",
+          ukuran: item.ukuran || "",
+          stok: item.stok || 0,
+          jumlah: item.jumlah || 0,
+          harga: item.harga || 0,
+          isHargaReadonly: (item.harga || 0) > 0,
+          diskonPersen: item.diskonPersen || 0,
+          diskonRp: item.diskonRp || 0,
+          total: item.total || 0,
+          barcode: item.barcode || "",
+          noPengajuanHarga: item.noPengajuanHarga || "",
+          pin: item.pin || "",
+          isCustomOrder: isCustom,
+          sod_custom: item.pend_custom ?? undefined,
+          sod_custom_nama: item.pend_custom_nama ?? undefined,
+          sod_custom_data: item.pend_custom_data ?? undefined,
+          terhitungPromo: false,
+          promo: "",
+        });
+      }
     });
 
-    // 3. Map DP Items
-    dpItems.value = dpItemsData || [];
+    items.value = processedItems;
+    // ========================================================
 
-    // 4. Map Footer
+    dpItems.value = dpItemsData || [];
     footer.value = {
       ...footer.value,
       ...footerData,
@@ -1777,36 +1821,70 @@ const openJenisOrderModal = () => {
 };
 
 const handleJenisOrderSaved = (data: JenisOrderSaved) => {
-  // 1. Simpan info kategori ke Header agar masuk ke pen_jenis_order_kode dkk
   header.value.jenisOrderKode = data.jenisOrder;
-  header.value.jenisOrderNama = data.jenisOrder; // Sesuaikan jika ada nama khusus
+  header.value.jenisOrderNama = data.namaOrder;
   header.value.namaDtf = data.namaOrder;
 
-  // 2. Masukkan ke items seperti biasa
-  const qty = data.totalJumlah || 0;
-  const totalHarga = data.totalHarga || 0;
-  const hargaPerPcs = qty > 0 ? Math.round(totalHarga / qty) : 0;
+  // 1. Ambil snapshot item lama untuk referensi sourceItems (Opsional, sesuai logic Mas sebelumnya)
+  const sourceItemsSnapshot = JSON.parse(
+    JSON.stringify(
+      items.value
+        .filter((i) => !i.isCustomOrder && i.kode !== "CUSTOM")
+        .map((i) => ({
+          kode: i.kode,
+          nama: i.nama,
+          ukuran: i.ukuran,
+          jumlah: i.jumlah,
+        }))
+    )
+  );
 
-  items.value.push({
-    id: Date.now() + Math.random(),
-    kode: "CUSTOM",
-    nama: data.namaOrder, // Ini akan masuk ke pend_custom_nama
-    ukuran: "",
-    stok: 0,
-    jumlah: qty,
-    harga: hargaPerPcs,
-    isHargaReadonly: true,
-    diskonPersen: 0,
-    diskonRp: 0,
-    total: totalHarga,
-    barcode: "",
-    noPengajuanHarga: "",
-    pin: "",
-    isCustomOrder: true,
-    sod_custom_data: JSON.stringify(data.customData), // Ini masuk ke pend_custom_data
+  // 2. HAPUS baris kosong paling bawah sebelum nambahin item baru
+  items.value = items.value.filter((i) => i.kode !== "");
+
+  // 3. LOOPING: Pecah data per ukuran menjadi baris tersendiri
+  data.customData.ukuranKaos.forEach((u, index) => {
+    if (u.ukuran && (u.jumlah || 0) > 0) {
+      items.value.push({
+        // Gunakan timestamp + random + index agar ID benar-benar unik per baris
+        id: Date.now() + Math.random() + index,
+        kode: "CUSTOM",
+        nama: data.namaOrder,
+        ukuran: u.ukuran, // <--- INI KUNCINYA: Masukkan ukuran spesifik
+        stok: 0,
+        jumlah: u.jumlah,
+        harga: u.harga, // Harga satuan yang sudah dihitung modal
+        diskonPersen: 0,
+        diskonRp: 0,
+        total: u.jumlah * u.harga,
+        barcode: "",
+        noSoDtf: "",
+        noPengajuanHarga: "",
+        pin: "",
+        scannedQty: 0,
+        isReady: false,
+        isCustomOrder: true,
+        sod_custom: "Y",
+        sod_custom_nama: data.namaOrder,
+
+        // Simpan data teknis (titik cetak) ke masing-masing baris
+        // agar saat ditarik ke SO DTF, rinciannya tidak hilang
+        sod_custom_data: JSON.stringify({
+          ukuranKaos: [u], // Baris ini hanya membawa ukuran dirinya sendiri
+          titikCetak: data.customData.titikCetak,
+          hargaPerCm: data.customData.hargaPerCm,
+          sourceItems: sourceItemsSnapshot,
+        }),
+      });
+    }
   });
 
+  // 4. Tambahkan kembali baris kosong untuk input manual berikutnya
+  addNewRow();
+
   calculateTotals();
+  dialogs.jenisOrder = false;
+  toast.success(`Berhasil menambahkan ${data.customData.ukuranKaos.length} baris order custom.`);
 };
 
 const openDpInput = () => {

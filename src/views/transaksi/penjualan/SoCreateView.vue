@@ -689,11 +689,16 @@ const loadDataForEdit = async (nomor: string, silent = false) => {
       ...footerData,
     };
 
-    // ===== MAPPING ITEMS =====
-    items.value = (itemsData as SoItemApi[]).map((item: SoItemApi, index: number) => {
-      let parsed: Partial<Item> = {}; // <<< FIX TYPE
+    // ========================================================
+    // [PERBAIKAN KUNCI] Pecah baris custom saat Load SO
+    // ========================================================
+    const processedSoItems: SoItem[] = [];
 
-      if (item.sod_custom === "Y" && item.sod_custom_data) {
+    (itemsData as SoItemApi[]).forEach((item, index) => {
+      const isCustomOrder = item.sod_custom === "Y";
+      let parsed: Partial<Item> = {};
+
+      if (isCustomOrder && item.sod_custom_data) {
         try {
           parsed = JSON.parse(item.sod_custom_data);
         } catch (e) {
@@ -701,26 +706,52 @@ const loadDataForEdit = async (nomor: string, silent = false) => {
         }
       }
 
-      const qtyOrder = Number(item.jumlah || 0);
-      const qtyReady = Number(item.sod_scanned || 0);
-      const mutated = Number(item.mutatedQty || 0);
-      const isCustomOrder = item.sod_custom === "Y";
-      const finalNama = isCustomOrder ? item.sod_custom_nama || item.nama : item.nama;
-
-      return {
-        ...item,
-        nama: finalNama,
-        id: Date.now() + index + Math.random(),
-        scannedQty: qtyReady, // 👈 Masukkan nilai dari DB
-        mutatedQty: mutated,
-        isMutated: mutated > 0, // 👈 Kunci jika saldo mutasi > 0
-        isReady: qtyReady >= qtyOrder && qtyOrder > 0,
-        isCustomOrder: item.sod_custom === "Y",
-        ukuranKaos: parsed.ukuranKaos || [],
-        titikCetak: parsed.titikCetak || [],
-        sourceItems: parsed.sourceItems || [],
-      };
+      // Jika custom dan banyak ukuran dalam satu baris DB
+      if (isCustomOrder && parsed.ukuranKaos && parsed.ukuranKaos.length > 1) {
+        parsed.ukuranKaos.forEach((u: any, uIdx: number) => {
+          processedSoItems.push({
+            ...item,
+            id: Date.now() + Math.random() + uIdx,
+            nama: item.sod_custom_nama || item.nama,
+            ukuran: u.ukuran, // Ukuran dari JSON
+            jumlah: u.jumlah, // Qty dari JSON
+            harga: u.harga, // Harga dari JSON
+            total: u.jumlah * u.harga,
+            scannedQty: item.sod_scanned || 0, // Perlu penanganan khusus jika mau per ukuran
+            isReady: (item.sod_scanned || 0) >= u.jumlah,
+            isCustomOrder: true,
+            // Bungkus data teknis khusus baris ini
+            sod_custom_data: JSON.stringify({
+              ...parsed,
+              ukuranKaos: [u],
+            }),
+            ukuranKaos: [u],
+            titikCetak: parsed.titikCetak || [],
+            sourceItems: parsed.sourceItems || [],
+          });
+        });
+      } else {
+        // Item normal
+        processedSoItems.push({
+          ...item,
+          id: Date.now() + index + Math.random(),
+          nama: isCustomOrder ? item.sod_custom_nama || item.nama : item.nama,
+          scannedQty: Number(item.sod_scanned || 0),
+          mutatedQty: Number(item.mutatedQty || 0),
+          isMutated: Number(item.mutatedQty || 0) > 0,
+          isReady:
+            Number(item.sod_scanned || 0) >= Number(item.jumlah || 0) &&
+            Number(item.jumlah || 0) > 0,
+          isCustomOrder: isCustomOrder,
+          ukuranKaos: parsed.ukuranKaos || [],
+          titikCetak: parsed.titikCetak || [],
+          sourceItems: parsed.sourceItems || [],
+        });
+      }
     });
+
+    items.value = processedSoItems;
+    // ========================================================
 
     // ===== MAPPING DP ITEMS =====
     dpItems.value = dpItemsData;
@@ -2700,10 +2731,8 @@ const handleJenisOrderSaved = (data: JenisOrderSaved) => {
   header.value.jenisOrderNama = data.namaOrder;
   header.value.namaDtf = data.namaOrder;
 
-  // ==============================
-  // 🔥 Snapshot item KO sebelum ditambah custom
-  // ==============================
-  const sourceItems = JSON.parse(
+  // 1. Ambil snapshot item lama untuk referensi sourceItems (Opsional, sesuai logic Mas sebelumnya)
+  const sourceItemsSnapshot = JSON.parse(
     JSON.stringify(
       items.value
         .filter((i) => !i.isCustomOrder && i.kode !== "CUSTOM")
@@ -2716,52 +2745,52 @@ const handleJenisOrderSaved = (data: JenisOrderSaved) => {
     )
   );
 
-  // ==============================
-  // 🔥 Push item custom
-  // ==============================
-  const qty = data.totalJumlah || 0;
-  const totalHarga = data.totalHarga || 0;
-  const hargaPerPcs = qty > 0 ? Math.round(totalHarga / qty) : 0;
+  // 2. HAPUS baris kosong paling bawah sebelum nambahin item baru
+  items.value = items.value.filter((i) => i.kode !== "");
 
-  items.value.push({
-    id: Date.now() + Math.random(),
-    kode: "CUSTOM",
-    nama: data.namaOrder,
-    ukuran: "",
-    stok: 0,
+  // 3. LOOPING: Pecah data per ukuran menjadi baris tersendiri
+  data.customData.ukuranKaos.forEach((u, index) => {
+    if (u.ukuran && (u.jumlah || 0) > 0) {
+      items.value.push({
+        // Gunakan timestamp + random + index agar ID benar-benar unik per baris
+        id: Date.now() + Math.random() + index,
+        kode: "CUSTOM",
+        nama: data.namaOrder,
+        ukuran: u.ukuran, // <--- INI KUNCINYA: Masukkan ukuran spesifik
+        stok: 0,
+        jumlah: u.jumlah,
+        harga: u.harga, // Harga satuan yang sudah dihitung modal
+        diskonPersen: 0,
+        diskonRp: 0,
+        total: u.jumlah * u.harga,
+        barcode: "",
+        noSoDtf: "",
+        noPengajuanHarga: "",
+        pin: "",
+        scannedQty: 0,
+        isReady: false,
+        isCustomOrder: true,
+        sod_custom: "Y",
+        sod_custom_nama: data.namaOrder,
 
-    jumlah: qty,
-    harga: hargaPerPcs, // ✔ harga per pcs
-    diskonPersen: 0,
-    diskonRp: 0,
-
-    total: hargaPerPcs * qty, // ✔ sesuai qty × harga per pcs
-
-    barcode: "",
-    noSoDtf: "",
-    noPengajuanHarga: "",
-    pin: "",
-    scannedQty: 0, // 👈 Fix Error: scannedQty missing
-    isReady: false, // 👈 Fix Error: isReady missing
-    isCustomOrder: true,
-    sod_custom: "Y",
-    sod_custom_nama: data.namaOrder,
-    sod_custom_data: JSON.stringify({
-      ukuranKaos: data.ukuranKaos,
-      titikCetak: data.titikCetak,
-      hargaPerCm: data.hargaPerCm,
-      totalHarga: totalHarga, // simpan total original
-      sourceItems: sourceItems,
-    }),
-
-    ukuranKaos: data.ukuranKaos || [],
-    titikCetak: data.titikCetak || [],
-    sourceItems: sourceItems,
+        // Simpan data teknis (titik cetak) ke masing-masing baris
+        // agar saat ditarik ke SO DTF, rinciannya tidak hilang
+        sod_custom_data: JSON.stringify({
+          ukuranKaos: [u], // Baris ini hanya membawa ukuran dirinya sendiri
+          titikCetak: data.customData.titikCetak,
+          hargaPerCm: data.customData.hargaPerCm,
+          sourceItems: sourceItemsSnapshot,
+        }),
+      });
+    }
   });
+
+  // 4. Tambahkan kembali baris kosong untuk input manual berikutnya
+  addNewRow();
 
   calculateTotals();
   dialogs.jenisOrder = false;
-  toast.success("Jenis Order Custom berhasil ditambahkan ke daftar item.");
+  toast.success(`Berhasil menambahkan ${data.customData.ukuranKaos.length} baris order custom.`);
 };
 
 const loadJenisOrder = async () => {

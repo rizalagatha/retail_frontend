@@ -3374,17 +3374,27 @@ const isHargaReadonly = (item: SoItem) => {
   // 1. Selalu kunci jika sudah terikat dengan SO DTF atau Pengajuan Harga
   if (item.noSoDtf || item.noPengajuanHarga) return true;
 
-  // 2. Jika barang JASA atau CUSTOM, biarkan bisa diedit (karena harganya dinamis)
+  // 2. Jika barang JASA atau CUSTOM, biarkan bisa diedit
   if (item.isJasa || item.kode === "CUSTOM" || item.isCustomOrder) return false;
 
   // 3. Jika barang merupakan BONUS (Stiker/Promo), pasti kunci harganya
   if (item.kategori === "BONUS" || item.terhitungPromo) return true;
 
-  // [PERBAIKAN]: Jika harga masih 0, null, atau kosong, izinkan diedit!
-  // Ini agar SC bisa mengisi harga manual untuk barang yang belum ada harganya di master.
-  if (!item.harga || Number(item.harga) === 0) return false;
+  // ========================================================================
+  // [KUNCI PERBAIKAN]: Logic "Sticky Editable"
+  // ========================================================================
+  // Jika saat ini harganya 0, null, atau kosong, tandai baris ini agar
+  // SETERUSNYA bisa diedit (pakai flag _isHargaEditable yang ada di interface)
+  if (item.harga === 0 || item.harga === null || item.harga === undefined) {
+    item._isHargaEditable = true;
+  }
 
-  // 4. Jika barang Reguler yang sudah ditarik dari database dan SUDAH ADA harganya, KUNCI!
+  // Jika baris ini sudah ditandai bisa diedit (karena asalnya harga 0),
+  // jangan pernah dikunci lagi walaupun harganya sudah diisi.
+  if (item._isHargaEditable) return false;
+  // ========================================================================
+
+  // 4. Jika barang Reguler yang punya kode dan SUDAH ADA harganya dari database, KUNCI!
   if (item.kode) return true;
 
   return false;

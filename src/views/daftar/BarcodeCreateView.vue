@@ -121,12 +121,12 @@ const printStylesXP360B = `
     height: 15mm; /* Tinggi per satu baris sticker (2 kolom) */
     align-items: center;
     justify-content: space-between;
-    padding: 0 1.5mm;
+    padding: 0 0.5mm;
     box-sizing: border-box;
     page-break-after: always !important; /* Memaksa ganti baris sticker */
   }
   .barcode-label {
-    width: 32mm;
+    width: 29mm;
     height: 14mm;
     display: flex;
     flex-direction: column;

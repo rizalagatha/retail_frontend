@@ -84,9 +84,8 @@ const getFullImageUrl = (path?: string | null): string | undefined => {
   if (!path) return undefined;
   if (path.startsWith("http")) return path;
 
-  const baseUrl =
-    import.meta.env.VITE_API_BASE_URL?.replace(/\/api\/?$/, "") || "http://localhost:8000";
-  return `${baseUrl}${path}`;
+  // Langsung return path aslinya saja Mas!
+  return path;
 };
 
 const getJenisOrderDisplay = (joKode: string) => {

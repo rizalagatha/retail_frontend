@@ -199,14 +199,11 @@ const fullscreenImageSrc = ref("");
 // --- Methods ---
 const getFullImageUrl = (imagePath) => {
   if (!imagePath) return "";
-  if (imagePath.startsWith("http")) return imagePath; // Kalau udah link asli, biarkan
+  if (imagePath.startsWith("http")) return imagePath;
 
-  // Ambil URL backend dari file env (misal: http://localhost:3000/api)
-  // Lalu buang '/api'-nya biar sisa http://localhost:3000
-  const baseUrl =
-    import.meta.env.VITE_API_BASE_URL?.replace(/\/api\/?$/, "") || "http://localhost:8000";
-
-  return `${baseUrl}${imagePath}`;
+  // Cukup kembalikan path aslinya (misal: /images/K01/...)
+  // Biar browser yang otomatis menempelkan domain retail.kaosanofficial.com
+  return imagePath;
 };
 
 const addDetailUkuran = () => {

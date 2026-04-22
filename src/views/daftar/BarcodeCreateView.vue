@@ -108,6 +108,7 @@ const printStylesXP360B = `
   }
   html, body {
     margin: 0; padding: 0;
+    padding-left: 3mm;
     width: 68mm;
     height: auto !important; /* AWAS: Jangan di-fix 15mm agar label berikutnya muncul */
     overflow: visible !important;

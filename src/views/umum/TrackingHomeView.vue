@@ -201,7 +201,7 @@ onMounted(() => {
         <div class="d-flex flex-column flex-sm-row gap-2 align-start">
           <v-text-field
             v-model="searchInput"
-            placeholder="Masukkan Nomor Surat Pesanan (Contoh: K01.SO...)"
+            placeholder="Masukkan Nomor Resi Pesanan (Contoh: KSNK...)"
             variant="outlined"
             color="#D32F2F"
             bg-color="white"

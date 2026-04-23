@@ -8,6 +8,7 @@ import Logo from "@/assets/logo.png";
 interface PrintHeader {
   sj_nomor: string;
   sj_mt_nomor: string;
+  sj_so_nomor: string;
   sj_tanggal: string;
   sj_ket: string;
   perush_nama: string;
@@ -87,14 +88,26 @@ onMounted(() => {
 
       <div class="info-grid">
         <div><span class="label">Nomor</span>: {{ printData.header.sj_nomor }}</div>
-        <div><span class="label">No. Permintaan</span>: {{ printData.header.sj_mt_nomor }}</div>
+
         <div>
           <span class="label">Tanggal</span>:
           {{ format(parseISO(printData.header.sj_tanggal), "dd-MM-yyyy") }}
         </div>
-        <div><span class="label">Ke Store</span>: {{ printData.header.store }}</div>
+
+        <div>
+          <span class="label">No. Packing List</span>: {{ printData.header.sj_mt_nomor || "-" }}
+        </div>
+
+        <div v-if="printData.header.sj_so_nomor">
+          <span class="label">Ref. SO</span>: <strong>{{ printData.header.sj_so_nomor }}</strong>
+        </div>
+        <div v-else></div>
+        <div>
+          <span class="label">Ke Store</span>: <strong>{{ printData.header.store }}</strong>
+        </div>
+
         <div class="keterangan">
-          <span class="label">Keterangan</span>: {{ printData.header.sj_ket }}
+          <span class="label">Keterangan</span>: {{ printData.header.sj_ket || "-" }}
         </div>
       </div>
 

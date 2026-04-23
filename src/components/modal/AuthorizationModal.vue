@@ -32,8 +32,12 @@ const pollingInterval = ref<ReturnType<typeof setInterval> | null>(null);
 
 // --- Computed ---
 const targetRole = computed(() => {
-  // Jika jenisnya peminjaman ATAU klaim petty cash, arahkan ke Supervisor ESTU
-  if (props.jenis === "PEMINJAMAN_BARANG" || props.jenis === "KLAIM_PETTYCASH") {
+  // Jika jenisnya peminjaman ATAU klaim petty cash ATAU submit BAP, arahkan ke Supervisor ESTU
+  if (
+    props.jenis === "PEMINJAMAN_BARANG" ||
+    props.jenis === "KLAIM_PETTYCASH" ||
+    props.jenis === "SUBMIT_BAP"
+  ) {
     return "Supervisor (ESTU)";
   }
   return props.cabang ? `Pihak Toko ${props.cabang}` : "Manager";

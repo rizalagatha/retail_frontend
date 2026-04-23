@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed } from "vue";
 
 interface Props {
   title: string;
@@ -10,25 +10,25 @@ interface Props {
 }
 
 const props = withDefaults(defineProps<Props>(), {
-  icon: 'mdi-file-document-outline',
+  icon: "mdi-file-document-outline",
   loading: false,
   desktopMode: true,
-  maxWidth: '100%'
+  maxWidth: "100%",
 });
 
 const emit = defineEmits<{
-  'update:loading': [value: boolean]
+  "update:loading": [value: boolean];
 }>();
 
 const containerClass = computed(() => ({
-  'page-container': true,
-  'desktop-mode': props.desktopMode,
-  'modern-mode': !props.desktopMode,
+  "page-container": true,
+  "desktop-mode": props.desktopMode,
+  "modern-mode": !props.desktopMode,
 }));
 
 const loadingModel = computed({
   get: () => props.loading,
-  set: (value: boolean) => emit('update:loading', value)
+  set: (value: boolean) => emit("update:loading", value),
 });
 </script>
 
@@ -39,13 +39,18 @@ const loadingModel = computed({
         <v-icon size="small" class="title-icon">{{ icon }}</v-icon>
         <h1 class="page-title">{{ title }}</h1>
       </div>
-      <div class="header-actions">
+      <div class="header-actions hide-scrollbar">
         <slot name="header-actions" />
       </div>
     </div>
 
     <div class="content-area">
-      <v-overlay v-model="loadingModel" contained persistent class="d-flex align-center justify-center">
+      <v-overlay
+        v-model="loadingModel"
+        contained
+        persistent
+        class="d-flex align-center justify-center"
+      >
         <v-progress-circular indeterminate color="primary"></v-progress-circular>
       </v-overlay>
 
@@ -107,6 +112,7 @@ const loadingModel = computed({
   display: flex;
   align-items: center;
   gap: 8px;
+  flex-shrink: 0;
 }
 
 .title-icon {
@@ -119,6 +125,7 @@ const loadingModel = computed({
   font-weight: 600;
   /* [FIX DARK MODE] Warna teks adaptif */
   color: rgb(var(--v-theme-on-background));
+  white-space: nowrap;
 }
 
 .desktop-mode .page-title {
@@ -127,6 +134,7 @@ const loadingModel = computed({
 
 .header-actions {
   display: flex;
+  align-items: center;
   gap: 8px;
 }
 
@@ -166,5 +174,58 @@ const loadingModel = computed({
   flex-shrink: 0;
   border-top: 1px solid rgba(var(--v-border-color), var(--v-border-opacity));
   background-color: rgb(var(--v-theme-surface));
+}
+
+/* =========================================================
+   [BARU] PENGATURAN RESPONSIVE UNTUK MOBILE (HP & TABLET)
+   ========================================================= */
+@media (max-width: 600px) {
+  .desktop-mode {
+    /* 104px = Navbar (64px) + Footer (40px).
+       Gunakan 100dvh agar tidak tertutup address bar HP */
+    height: calc(100dvh - 104px);
+    padding: 4px 6px;
+    gap: 6px;
+  }
+
+  .modern-mode {
+    padding: 12px;
+    gap: 12px;
+  }
+
+  .page-header {
+    /* Judul dan Tombol jadi atas-bawah */
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+    padding-top: 8px;
+    padding-bottom: 4px;
+  }
+
+  .desktop-mode .page-header {
+    min-height: auto;
+  }
+
+  .page-title {
+    font-size: 1.1rem !important;
+  }
+
+  .header-actions {
+    width: 100%;
+    /* Mengubah deretan tombol jadi bisa di-scroll ke samping */
+    overflow-x: auto;
+    flex-wrap: nowrap;
+    padding-bottom: 4px;
+    -webkit-overflow-scrolling: touch; /* Smooth scroll di iOS */
+  }
+
+  /* Hilangkan scrollbar agar UI bersih tapi tetap bisa di-swipe */
+  .hide-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .hide-scrollbar {
+    -ms-overflow-style: none; /* IE and Edge */
+    scrollbar-width: none; /* Firefox */
+  }
 }
 </style>

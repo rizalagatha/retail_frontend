@@ -11,6 +11,7 @@ import StoreSearchModal from "@/components/lookup/StoreSearchModal.vue";
 // import PermintaanSearchModal from '@/components/lookup/PermintaanSearchModal.vue';
 import TerimaRbSearchModal from "@/components/lookup/TerimaRbSearchModal.vue";
 import PackingListSearchModal from "@/components/lookup/PackingListSearchModal.vue";
+import SoSearchModal from "@/components/lookup/SoSearchModal.vue";
 import type { AxiosError } from "axios";
 import type { DataTableHeader } from "vuetify";
 
@@ -92,6 +93,7 @@ const header = reactive({
   gudang: { kode: authStore.user?.cabang || "", nama: "" },
   store: { kode: "", nama: "" },
   permintaan: "",
+  soNomor: "", // <--- [BARU]
   keterangan: "",
 });
 
@@ -107,6 +109,7 @@ const dialog = reactive({
   terimaRbSearch: false,
   lookup: false,
   packingListSearch: false,
+  soSearch: false, // <--- [BARU]
 });
 
 const dialogConfirm = reactive({
@@ -373,6 +376,10 @@ const handleSave = () => {
   // Validasi frontend sebelum konfirmasi
   if (!header.gudang.kode) return toast.error("Gudang harus diisi.");
   if (!header.store.kode) return toast.error("Store tujuan harus diisi.");
+  // [BARU] Validasi Wajib SO jika ke Workshop W01
+  if (header.store.kode === "W01" && !header.soNomor) {
+    return toast.error("Referensi Surat Pesanan (SO) wajib diisi untuk pengiriman ke Workshop!");
+  }
   // --- VALIDASI TANGGAL HARI INI ---
   const today = format(new Date(), "yyyy-MM-dd");
   if (header.tanggal !== today) {
@@ -385,21 +392,22 @@ const handleSave = () => {
   showConfirmation("Konfirmasi Simpan", "Apakah Anda yakin ingin menyimpan data ini?", executeSave);
 };
 
-const resetForm = () => {
-  // Simpan gudang sebelum reset
-  const savedGudang = { ...header.gudang };
+const onSoSelected = (so: { nomor?: string; Nomor?: string; so_nomor?: string }) => {
+  header.soNomor = so.nomor || so.Nomor || so.so_nomor || "";
+  dialog.soSearch = false;
+};
 
-  // Reset header ke nilai awal
+const resetForm = () => {
+  const savedGudang = { ...header.gudang };
   Object.assign(header, {
     nomor: "",
     tanggal: format(new Date(), "yyyy-MM-dd"),
-    gudang: savedGudang, // Kembalikan gudang
+    gudang: savedGudang,
     store: { kode: "", nama: "" },
     permintaan: "",
+    soNomor: "", // <--- [BARU]
     keterangan: "",
   });
-
-  // Reset grid
   items.value = [];
   addNewRow();
   toast.info("Form telah dibersihkan.");
@@ -441,6 +449,7 @@ onMounted(async () => {
       header.store = { kode: data.header.store_kode, nama: data.header.store_nama };
       header.permintaan = data.header.permintaan;
       header.keterangan = data.header.keterangan;
+      header.soNomor = data.header.soNomor || "";
       items.value = data.items.map((item: unknown) => {
         const typedItem = item as SuratJalanItem;
         return {
@@ -572,6 +581,21 @@ onMounted(async () => {
                 placeholder="Pilih Packing List..."
               />
             </v-col>
+            <v-col cols="12" v-if="header.store.kode === 'W01'">
+              <v-text-field
+                label="Ref. Surat Pesanan (SO) - Wajib"
+                v-model="header.soNomor"
+                append-inner-icon="mdi-magnify"
+                readonly
+                @click="!isEditMode ? (dialog.soSearch = true) : null"
+                density="compact"
+                hide-details
+                variant="outlined"
+                bg-color="blue-lighten-5"
+                :disabled="isEditMode"
+                placeholder="Pilih Nomor SO..."
+              />
+            </v-col>
             <v-col cols="12">
               <v-textarea
                 label="Keterangan"
@@ -691,6 +715,13 @@ onMounted(async () => {
       :store-kode="header.store.kode"
       @close="dialog.packingListSearch = false"
       @selected="onPackingListSelected"
+    />
+    <SoSearchModal
+      v-if="dialog.soSearch"
+      cabang="ALL"
+      source="surat-jalan-bordir"
+      @close="dialog.soSearch = false"
+      @selected="onSoSelected"
     />
 
     <v-dialog v-model="dialogConfirm.show" max-width="400px" persistent>

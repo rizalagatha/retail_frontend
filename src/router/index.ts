@@ -72,7 +72,7 @@ const SoDtfStokPrintView = () => import("@/views/transaksi/penjualan/dtf/SoDtfSt
 const LhkSoDtfStokView = () => import("@/views/transaksi/penjualan/dtf/LhkSoDtfStokView.vue");
 const LhkSoDtfStokCreateView = () =>
   import("@/views/transaksi/penjualan/dtf/LhkSoDtfStokCreateView.vue");
-// const DtfMachineLogView = () => import("@/views/transaksi/penjualan/dtf/DtfMachineLogView.vue");
+const DtfMachineLogView = () => import("@/views/transaksi/penjualan/dtf/DtfMachineLogView.vue");
 
 // --- MUTASI & INTERNAL ---
 const MutasiOutView = () => import("@/views/transaksi/mutasi/MutasiOutView.vue");
@@ -90,13 +90,13 @@ const TerimaSjView = () => import("@/views/transaksi/internal/TerimaSJView.vue")
 const TerimaSjFormView = () => import("@/views/transaksi/internal/TerimaSJFormView.vue");
 
 // --- WORKSHOP ---
-// const MutasiWorkshopView = () => import("@/views/operasional/workshop/MutasiWorkshopView.vue");
-// const MutasiWorkshopCreateView = () =>
-//   import("@/views/operasional/workshop/MutasiWorkshopCreateView.vue");
-// const MutasiWorkshopPrintView = () =>
-//   import("@/views/operasional/workshop/MutasiWorkshopPrintView.vue");
-// const TerimaMutasiWorkshopView = () =>
-//   import("@/views/operasional/workshop/TerimaMutasiWorkshopView.vue");
+const MutasiWorkshopView = () => import("@/views/operasional/workshop/MutasiWorkshopView.vue");
+const MutasiWorkshopCreateView = () =>
+  import("@/views/operasional/workshop/MutasiWorkshopCreateView.vue");
+const MutasiWorkshopPrintView = () =>
+  import("@/views/operasional/workshop/MutasiWorkshopPrintView.vue");
+const TerimaMutasiWorkshopView = () =>
+  import("@/views/operasional/workshop/TerimaMutasiWorkshopView.vue");
 // const TerimaMutasiWorkshopCreateView = () =>
 //   import("@/views/operasional/workshop/TerimaMutasiWorkshopCreateView.vue");
 
@@ -716,16 +716,16 @@ const routes = [
       menuId: "41",
     },
   },
-  // {
-  //   path: "/transaksi/penjualan/dtf/log-mesin",
-  //   name: "LogMesinDtf",
-  //   component: DtfMachineLogView,
-  //   meta: {
-  //     title: "Log Mesin DTF",
-  //     requiresAuth: true,
-  //     menuId: "62",
-  //   },
-  // },
+  {
+    path: "/transaksi/penjualan/dtf/log-mesin",
+    name: "LogMesinDtf",
+    component: DtfMachineLogView,
+    meta: {
+      title: "Log Mesin DTF",
+      requiresAuth: true,
+      menuId: "62",
+    },
+  },
   {
     path: "/transaksi/penjualan/dtf/dasbor-dtf",
     name: "frmLapDasborDtf",
@@ -2630,57 +2630,57 @@ const routes = [
       requiresAuth: true,
     },
   },
-  // {
-  //   path: "/operasional/workshop/mutasi-workshop",
-  //   name: "MutasiWorkshop",
-  //   component: MutasiWorkshopView,
-  //   meta: {
-  //     title: "Mutasi ke Workshop",
-  //     requiresAuth: true,
-  //     menuId: "801",
-  //   },
-  // },
-  // {
-  //   path: "/operasional/workshop/mutasi-workshop/new",
-  //   name: "MutasiWorkshopCreate",
-  //   component: MutasiWorkshopCreateView, // Asumsi komponen belum dibuat, siapkan dulu route-nya
-  //   meta: {
-  //     title: "Buat Mutasi ke Workshop",
-  //     requiresAuth: true,
-  //     menuId: "801",
-  //   },
-  // },
-  // {
-  //   path: "/operasional/workshop/mutasi-workshop/edit/:nomor",
-  //   name: "MutasiWorkshopEdit",
-  //   component: MutasiWorkshopCreateView,
-  //   meta: {
-  //     title: "Ubah Mutasi ke Workshop",
-  //     requiresAuth: true,
-  //     menuId: "801",
-  //   },
-  // },
-  // {
-  //   path: "/operasional/workshop/mutasi-workshop/print/:nomor",
-  //   name: "MutasiWorkshopPrint",
-  //   component: MutasiWorkshopPrintView, // Asumsi komponen belum dibuat, siapkan dulu route-nya
-  //   meta: {
-  //     title: "Cetak Mutasi Workshop",
-  //     printLayout: true,
-  //     requiresAuth: true,
-  //     layout: "PrintLayout",
-  //   },
-  // },
-  // {
-  //   path: "/operasional/workshop/terima-workshop",
-  //   name: "TerimaMutasiWorkshop",
-  //   component: TerimaMutasiWorkshopView,
-  //   meta: {
-  //     title: "Terima Mutasi Workshop",
-  //     requiresAuth: true,
-  //     menuId: "802", // Sesuai kesepakatan
-  //   },
-  // },
+  {
+    path: "/operasional/workshop/mutasi-workshop",
+    name: "MutasiWorkshop",
+    component: MutasiWorkshopView,
+    meta: {
+      title: "Mutasi ke Workshop",
+      requiresAuth: true,
+      menuId: "801",
+    },
+  },
+  {
+    path: "/operasional/workshop/mutasi-workshop/new",
+    name: "MutasiWorkshopCreate",
+    component: MutasiWorkshopCreateView, // Asumsi komponen belum dibuat, siapkan dulu route-nya
+    meta: {
+      title: "Buat Mutasi ke Workshop",
+      requiresAuth: true,
+      menuId: "801",
+    },
+  },
+  {
+    path: "/operasional/workshop/mutasi-workshop/edit/:nomor",
+    name: "MutasiWorkshopEdit",
+    component: MutasiWorkshopCreateView,
+    meta: {
+      title: "Ubah Mutasi ke Workshop",
+      requiresAuth: true,
+      menuId: "801",
+    },
+  },
+  {
+    path: "/operasional/workshop/mutasi-workshop/print/:nomor",
+    name: "MutasiWorkshopPrint",
+    component: MutasiWorkshopPrintView, // Asumsi komponen belum dibuat, siapkan dulu route-nya
+    meta: {
+      title: "Cetak Mutasi Workshop",
+      printLayout: true,
+      requiresAuth: true,
+      layout: "PrintLayout",
+    },
+  },
+  {
+    path: "/operasional/workshop/terima-workshop",
+    name: "TerimaMutasiWorkshop",
+    component: TerimaMutasiWorkshopView,
+    meta: {
+      title: "Terima Mutasi Workshop",
+      requiresAuth: true,
+      menuId: "802", // Sesuai kesepakatan
+    },
+  },
   // {
   //   path: "/operasional/workshop/terima-workshop/create",
   //   name: "TerimaMutasiWorkshopCreate",

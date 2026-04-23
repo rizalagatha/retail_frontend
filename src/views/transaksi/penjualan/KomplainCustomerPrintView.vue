@@ -7,34 +7,32 @@ import Logo from "@/assets/logo.png";
 import LogoRezso from "@/assets/rezso.jpg";
 import QRCode from "qrcode";
 
-// --- DEFINISI INTERFACE CETAK ---
 interface PrintHeader {
   nomor: string;
+  tanggal: string;
+  customer_nama: string;
+  contact_nama?: string;
+  contact_telp?: string;
   perush_nama: string;
   perush_alamat: string;
   perush_telp: string;
-  customer_nama: string;
-  tanggal: string;
-  contact_nama: string;
-  status: string;
-  contact_telp: string;
   ref_nomor: string;
   kategori: string;
-  keterangan: string;
-  solusi: string;
-  created_at: string;
+  status: string;
+  keterangan?: string;
+  sumber_masalah?: string;
+  solusi?: string;
+  tanggung_jawab?: string;
   user_create: string;
-  [key: string]: unknown; // Mengizinkan field tambahan dari backend
+  approver_nama?: string;
+  approved_at?: string;
 }
 
 interface PrintDetail {
-  kode: string;
   nama: string;
   ukuran: string;
-  qty_invoice: number | string;
-  qty: number | string;
-  keterangan: string;
-  [key: string]: unknown;
+  qty: number;
+  keterangan?: string | null;
 }
 
 interface PrintData {
@@ -47,27 +45,21 @@ const printData = ref<PrintData | null>(null);
 const qrCodeData = ref<string | null>(null);
 const isLoading = ref(true);
 
-const dynamicLogo = computed(() => {
-  if (printData.value?.header?.nomor?.startsWith("K04")) {
-    return LogoRezso;
-  }
-  return Logo;
-});
+const dynamicLogo = computed(() =>
+  printData.value?.header?.nomor?.startsWith("K04") ? LogoRezso : Logo
+);
 
 const fetchPrintData = async (nomor: string) => {
   isLoading.value = true;
   try {
     const response = await api.get<PrintData>(`/komplain-form/print/${nomor}`);
+    printData.value = response.data;
+    document.title = "BAP_" + response.data.header.nomor;
 
-    const data = response.data;
-
-    printData.value = data;
-
-    document.title = "KOMPLAIN_" + data.header.nomor;
-
-    qrCodeData.value = await QRCode.toDataURL(data.header.nomor, {
-      width: 150,
-      margin: 1,
+    // Generate QR Code untuk Header
+    qrCodeData.value = await QRCode.toDataURL(response.data.header.nomor, {
+      width: 80,
+      margin: 0,
     });
   } catch {
     alert("Gagal memuat data cetak.");
@@ -77,11 +69,8 @@ const fetchPrintData = async (nomor: string) => {
 };
 
 watch(isLoading, (val) => {
-  if (!val) {
-    setTimeout(() => window.print(), 500);
-  }
+  if (!val) setTimeout(() => window.print(), 500);
 });
-
 onMounted(() => {
   const nomor = route.params.nomor as string;
   if (nomor) fetchPrintData(nomor);
@@ -92,111 +81,186 @@ onMounted(() => {
   <div class="print-container">
     <div v-if="isLoading" class="text-center pa-10">Memuat data...</div>
 
-    <div v-if="printData" class="page">
-      <div class="header">
-        <img :src="dynamicLogo" alt="Logo" class="logo" />
-        <div class="company-info">
-          <strong>{{ printData.header.perush_nama }}</strong>
-          <div>{{ printData.header.perush_alamat }}</div>
-          <div>Telp. {{ printData.header.perush_telp }}</div>
-        </div>
-        <img v-if="qrCodeData" :src="qrCodeData" class="qr-code" />
-      </div>
-
-      <div class="title">FORM KOMPLAIN CUSTOMER</div>
-
-      <div class="info-grid">
-        <div><span class="label">No. Komplain</span>: {{ printData.header.nomor }}</div>
-        <div><span class="label">Customer</span>: {{ printData.header.customer_nama }}</div>
-
-        <div>
-          <span class="label">Tgl. Lapor</span>:
-          {{ format(parseISO(printData.header.tanggal), "dd-MM-yyyy") }}
-        </div>
-        <div>
-          <span class="label">Contact Person</span>: {{ printData.header.contact_nama || "-" }}
-        </div>
-
-        <div>
-          <span class="label">Status</span>: <strong>{{ printData.header.status }}</strong>
-        </div>
-        <div>
-          <span class="label">No. Telp CP</span>: {{ printData.header.contact_telp || "-" }}
-        </div>
-
-        <div><span class="label">Ref. Invoice</span>: {{ printData.header.ref_nomor }}</div>
-        <div><span class="label">Kategori</span>: {{ printData.header.kategori }}</div>
-      </div>
-
-      <div class="section-container mb-4">
-        <div class="section-title">I. KRONOLOGI / KETERANGAN KENDALA</div>
-        <div class="text-box">
-          {{ printData.header.keterangan || "-" }}
-        </div>
-      </div>
-
-      <div class="section-title">II. DAFTAR BARANG BERMASALAH</div>
-      <table class="items-table">
-        <thead>
-          <tr>
-            <th class="no">No</th>
-            <th class="kode">Kode Barang</th>
-            <th class="nama">Nama Barang</th>
-            <th class="ukuran">Size</th>
-            <th style="width: 80px; text-align: center">Qty Inv</th>
-            <th style="width: 90px; text-align: center">Qty Masalah</th>
-            <th>Keterangan Per Item</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-for="(item, index) in printData.details" :key="index">
-            <td class="no">{{ index + 1 }}</td>
-            <td class="kode">{{ item.kode }}</td>
-            <td class="nama">{{ item.nama }}</td>
-            <td class="ukuran">{{ item.ukuran }}</td>
-            <td style="text-align: center">{{ item.qty_invoice }}</td>
-            <td style="text-align: center" class="font-weight-bold text-red">{{ item.qty }}</td>
-            <td>{{ item.keterangan || "-" }}</td>
-          </tr>
-        </tbody>
+    <div v-if="printData" class="page bap-layout">
+      <table class="bap-header-table">
+        <tr>
+          <td class="company-col">
+            <h2 class="company-name">{{ printData.header.perush_nama }}</h2>
+            <div class="company-address">{{ printData.header.perush_alamat }}</div>
+            <div class="company-contact">Telp. {{ printData.header.perush_telp }}</div>
+          </td>
+          <td class="logo-col">
+            <img v-if="qrCodeData" :src="qrCodeData" class="qr-code-header" />
+            <img :src="dynamicLogo" alt="Logo" class="logo" />
+          </td>
+        </tr>
       </table>
 
-      <div v-if="printData.header.solusi" class="section-container mt-4">
-        <div class="section-title">III. SOLUSI & TINDAK LANJUT PUSAT</div>
-        <div
-          class="text-box highlight-box"
-          :class="printData.header.status === 'RESOLVED' ? 'bg-green' : 'bg-red'"
-        >
-          {{ printData.header.solusi }}
+      <div class="thick-line"></div>
+      <div class="thin-line"></div>
+
+      <h3 class="bap-title">BERITA ACARA DAN KOMPLAIN PRODUKSI</h3>
+
+      <table class="bap-meta-table">
+        <tr>
+          <td width="100">Nomor BAP</td>
+          <td width="10">:</td>
+          <td width="280">
+            <strong>{{ printData.header.nomor }}</strong>
+          </td>
+          <td width="100">Customer</td>
+          <td width="10">:</td>
+          <td>{{ printData.header.customer_nama }}</td>
+        </tr>
+        <tr>
+          <td>Tanggal</td>
+          <td>:</td>
+          <td>{{ format(parseISO(printData.header.tanggal), "dd-MM-yyyy") }}</td>
+          <td>Contact Person</td>
+          <td>:</td>
+          <td>
+            {{ printData.header.contact_nama || "-" }} ({{ printData.header.contact_telp || "-" }})
+          </td>
+        </tr>
+        <tr>
+          <td>Cabang</td>
+          <td>:</td>
+          <td>{{ printData.header.perush_nama }}</td>
+          <td>Ref Invoice</td>
+          <td>:</td>
+          <td>{{ printData.header.ref_nomor }}</td>
+        </tr>
+        <tr>
+          <td>Kategori</td>
+          <td>:</td>
+          <td>{{ printData.header.kategori }}</td>
+          <td>Status BAP</td>
+          <td>:</td>
+          <td>
+            <strong>{{ printData.header.status }}</strong>
+          </td>
+        </tr>
+      </table>
+
+      <div class="mb-5">
+        <div class="box-section-title" style="text-align: left; margin-bottom: 6px">
+          DAFTAR BARANG MASALAH / REVISI:
         </div>
+        <ul class="barang-list">
+          <li v-for="(item, index) in printData.details" :key="index">
+            <strong>{{ item.nama }}</strong> (Size: {{ item.ukuran }}) &mdash; Qty Masalah:
+            <strong>{{ item.qty }}</strong> pcs
+            <span v-if="item.keterangan">
+              &bull; <em>Ket: {{ item.keterangan }}</em></span
+            >
+          </li>
+        </ul>
       </div>
 
-      <div class="footer">
-        <div class="created-info">
-          Dibuat: {{ printData.header.created_at }} | Dicetak:
-          {{ format(new Date(), "dd/MM/yyyy HH:mm:ss") }}
-        </div>
+      <div class="box-section-title text-center mt-4 mb-2">LAPORAN TOKO</div>
+      <table class="bap-grid">
+        <tr>
+          <td class="bap-cell">
+            <div class="bap-box">
+              <div class="bap-label-box text-center">POKOK PERMASALAHAN</div>
+              <div class="bap-content">{{ printData.header.keterangan || "-" }}</div>
+            </div>
+          </td>
+          <td class="bap-cell">
+            <div class="bap-box">
+              <div class="bap-label-box text-center">SUMBER MASALAH</div>
+              <div class="bap-content">{{ printData.header.sumber_masalah || "-" }}</div>
+            </div>
+          </td>
+        </tr>
+      </table>
 
-        <div class="signature-section">
-          <div class="sig-title">PENGESAHAN</div>
-          <div class="signatures">
-            <div>
-              Customer,
-              <div class="sig-space"></div>
-              ( {{ printData.header.customer_nama }} )
+      <div class="box-section-title text-center mt-5 mb-2">KEPUTUSAN PUSAT</div>
+      <table class="bap-grid">
+        <tr>
+          <td class="bap-cell">
+            <div class="bap-box">
+              <div class="bap-label-box text-center">SOLUSI & TINDAK LANJUT</div>
+              <div class="bap-content">{{ printData.header.solusi || "-" }}</div>
             </div>
-            <div>
-              Toko (CS),
-              <div class="sig-space"></div>
-              ( {{ printData.header.user_create }} )
+          </td>
+          <td class="bap-cell">
+            <div class="bap-box">
+              <div class="bap-label-box text-center">PERTANGGUNG JAWABAN</div>
+              <div class="bap-content">{{ printData.header.tanggung_jawab || "-" }}</div>
             </div>
-            <div>
-              Pusat (QC/SPV),
-              <div class="sig-space"></div>
-              ( .................... )
+          </td>
+        </tr>
+      </table>
+
+      <table class="bap-signatures mt-10">
+        <tr>
+          <td width="25%">Dibuat Oleh (Toko),</td>
+          <td width="25%">Mengetahui (Customer),</td>
+          <td width="25%">Disetujui (Pusat),</td>
+          <td width="25%">Penyelesaian (Pusat),</td>
+        </tr>
+        <tr>
+          <td class="sig-space"></td>
+          <td class="sig-space"></td>
+          <td class="sig-space relative-box">
+            <div
+              v-if="
+                ['SUBMITTED', 'ON_REVIEW', 'RESOLVED'].includes(printData.header.status) &&
+                printData.header.approver_nama
+              "
+              class="digital-stamp"
+            >
+              <div class="stamp-text">VERIFIED</div>
+              <div class="stamp-date">
+                {{ printData.header.approver_nama?.toUpperCase() }}<br />
+                <span style="font-size: 6.5pt; font-weight: normal">{{
+                  printData.header.approved_at
+                }}</span>
+              </div>
             </div>
-          </div>
-        </div>
+          </td>
+          <td class="sig-space relative-box">
+            <div
+              v-if="printData.header.status === 'RESOLVED' && printData.header.approver_nama"
+              class="digital-stamp stamp-resolved"
+            >
+              <div class="stamp-text">RESOLVED</div>
+              <div class="stamp-date">
+                {{ printData.header.approver_nama?.toUpperCase() }}<br />
+                <span style="font-size: 6.5pt; font-weight: normal">{{
+                  printData.header.approved_at
+                }}</span>
+              </div>
+            </div>
+          </td>
+        </tr>
+        <tr>
+          <td>( {{ printData.header.user_create }} )</td>
+          <td>( {{ printData.header.customer_nama }} )</td>
+          <td>
+            (
+            {{
+              ["SUBMITTED", "ON_REVIEW", "RESOLVED"].includes(printData.header.status)
+                ? printData.header.approver_nama?.toUpperCase() || "..........................."
+                : "..........................."
+            }}
+            )
+          </td>
+          <td>
+            (
+            {{
+              printData.header.status === "RESOLVED"
+                ? printData.header.approver_nama?.toUpperCase() || "..........................."
+                : "..........................."
+            }}
+            )
+          </td>
+        </tr>
+      </table>
+
+      <div class="bap-footer-note">
+        Dicetak pada: {{ format(new Date(), "dd/MM/yyyy HH:mm:ss") }}
       </div>
     </div>
   </div>
@@ -206,154 +270,189 @@ onMounted(() => {
 .print-container {
   background: #eee;
   padding: 20px;
-  font-family: "Arial", sans-serif;
-  font-size: 9pt;
+  display: flex;
+  justify-content: center;
 }
-.page {
+.bap-layout {
   background: white;
-  margin: 0 auto;
   width: 210mm;
   min-height: 297mm;
-  padding: 15mm;
+  padding: 12mm 15mm;
   box-sizing: border-box;
-  display: flex;
-  flex-direction: column;
+  font-family: "Arial", sans-serif;
+  font-size: 9pt;
+  color: #000;
+  position: relative;
 }
 
-/* Header Standar */
-.header {
-  display: flex;
-  flex-direction: row;
-  gap: 15px;
-  margin-bottom: 10px;
+/* HEADER */
+.bap-header-table {
   width: 100%;
-  border-bottom: 2px solid black;
-  padding-bottom: 10px;
+  border-collapse: collapse;
+}
+.company-name {
+  margin: 0 0 4px 0;
+  font-size: 14pt;
+  font-weight: bold;
+}
+.company-address,
+.company-contact {
+  margin: 2px 0;
+  font-size: 9pt;
+}
+.logo-col {
+  text-align: right;
+  vertical-align: top;
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 15px;
 }
 .logo {
   height: 45px;
   width: auto;
-  flex-shrink: 0;
 }
-.company-info {
-  flex: 1;
-  font-size: 9pt;
-  line-height: 1.3;
-}
-.qr-code {
-  height: 60px;
-  width: 60px;
+.qr-code-header {
+  height: 45px;
+  width: 45px;
+  object-fit: contain;
 }
 
-.title {
-  text-align: center;
-  font-size: 14pt;
-  font-weight: bold;
-  margin: 15px 0;
-  text-decoration: underline;
+/* LINES & TITLE */
+.thick-line {
+  border-top: 3px solid black;
+  margin-top: 5px;
+  margin-bottom: 2px;
 }
-
-/* Info Grid Meta */
-.info-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 5px 20px;
+.thin-line {
+  border-top: 1px solid black;
   margin-bottom: 15px;
 }
-.info-grid .label {
-  display: inline-block;
-  width: 100px;
+.bap-title {
+  text-align: center;
+  text-decoration: underline;
+  font-size: 12pt;
+  margin-bottom: 20px;
   font-weight: bold;
 }
 
-/* Box Styling (Versi Oke) */
-.section-title {
-  font-weight: bold;
-  font-size: 9pt;
-  margin-bottom: 4px;
-}
-.text-box {
-  border: 1px solid black;
-  padding: 8px;
-  min-height: 30px;
-  line-height: 1.4;
-  color: #000 !important; /* Paksa jadi hitam di layar */
-}
-.highlight-box {
-  font-weight: bold;
-}
-.bg-green {
-  background-color: #e8f5e9 !important;
-}
-.bg-red {
-  background-color: #ffebee !important;
-}
-
-/* Table Detail */
-.items-table {
+/* META INFO GRID */
+.bap-meta-table {
   width: 100%;
+  font-size: 9pt;
+  margin-bottom: 20px;
   border-collapse: collapse;
-  margin-bottom: 10px;
 }
-.items-table th,
-.items-table td {
-  border: 1px solid black;
-  padding: 6px 8px;
+.bap-meta-table td {
+  padding: 4px 0;
   vertical-align: top;
 }
-.items-table thead th {
-  background-color: #f0f0f0 !important;
-  font-weight: bold;
-  text-align: center;
+
+/* BARANG LIST */
+.barang-list {
+  margin: 0;
+  padding-left: 20px;
+  font-size: 9pt;
+  line-height: 1.5;
 }
-.items-table .no {
-  width: 30px;
-  text-align: center;
-}
-.items-table .kode {
-  width: 130px;
-}
-.items-table .ukuran {
-  width: 60px;
-  text-align: center;
-}
-.items-table .jumlah {
-  width: 60px;
-  text-align: right;
-  font-weight: bold;
+.barang-list li {
+  margin-bottom: 4px;
 }
 
-/* Footer & TTD */
-.footer {
-  margin-top: 30px; /* Dinamis mengikuti tabel */
-  padding-top: 10px;
+/* BOXES BAP GRID (2x2) */
+.box-section-title {
+  font-weight: bold;
+  font-size: 9.5pt;
 }
-.created-info {
-  text-align: right;
-  font-size: 8pt;
-  font-style: italic;
-  margin-bottom: 10px;
+.bap-grid {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 10px;
+  margin-left: -10px;
+  margin-right: -10px;
 }
-.signature-section {
-  border: 1px dashed #ccc;
+.bap-cell {
+  width: 50%;
+  vertical-align: top;
+}
+.bap-box {
+  border: 1.5px solid black;
+  min-height: 150px;
+  display: flex;
+  flex-direction: column;
+}
+.bap-label-box {
+  font-weight: bold;
+  font-size: 8.5pt;
+  padding: 8px 10px;
+  border-bottom: 1px solid #ddd;
+  background-color: #fafafa;
+}
+.bap-content {
   padding: 10px;
-  border-radius: 5px;
+  font-size: 9pt;
+  white-space: pre-wrap;
+  line-height: 1.5;
+  flex-grow: 1;
+}
+
+/* SIGNATURES & DIGITAL STAMP */
+.bap-signatures {
+  width: 100%;
+  text-align: center;
+  font-size: 9pt;
   page-break-inside: avoid;
 }
-.sig-title {
-  font-weight: bold;
-  font-size: 10pt;
-  border-bottom: 1px solid #eee;
-  margin-bottom: 10px;
-  color: #444;
-}
-.signatures {
-  display: flex;
-  justify-content: space-around;
-  text-align: center;
-}
 .sig-space {
-  height: 50px;
+  height: 80px;
+  vertical-align: middle;
+}
+.relative-box {
+  position: relative;
+}
+
+/* Efek Tinta Stempel */
+.digital-stamp {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%) rotate(-15deg);
+  border: 2px solid #1976d2; /* Warna Biru Tinta */
+  color: #1976d2 !important;
+  padding: 4px 10px;
+  border-radius: 4px;
+  text-align: center;
+  opacity: 0.85;
+  font-family: "Courier New", Courier, monospace;
+}
+.stamp-text {
+  font-size: 10pt;
+  font-weight: bold;
+  letter-spacing: 2px;
+}
+.stamp-date {
+  font-size: 7pt; /* Ukuran diperkecil agar nama & waktu muat sebaris */
+  border-top: 1px solid #1976d2;
+  margin-top: 3px;
+  padding-top: 2px;
+}
+
+/* Warna Hijau untuk Kolom Resolved */
+.stamp-resolved {
+  border-color: #388e3c;
+  color: #388e3c !important;
+}
+.stamp-resolved .stamp-date {
+  border-top-color: #388e3c;
+}
+
+.bap-footer-note {
+  position: absolute;
+  bottom: 12mm;
+  left: 15mm;
+  font-size: 7.5pt;
+  font-style: italic;
+  color: #555;
 }
 
 @media print {
@@ -361,33 +460,42 @@ onMounted(() => {
     size: A4 portrait;
     margin: 10mm;
   }
-
-  /* Tambahkan ini bro: Paksa semua teks jadi hitam saat diprint */
+  /* Paksa warna stempel biru & hijau tetap muncul di kertas */
   .print-container,
   .print-container * {
-    color: #000 !important; /* Paksa semua teks jadi hitam saat print */
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
+  }
+  /* Kecuali elemen lain dipaksa hitam agar hemat tinta */
+  .bap-header-table,
+  .bap-title,
+  .bap-meta-table,
+  .bap-grid,
+  .bap-signatures {
+    color: #000 !important;
+  }
+  .digital-stamp {
+    color: #1976d2 !important;
+    border-color: #1976d2 !important;
+  }
+  .stamp-resolved {
+    color: #388e3c !important;
+    border-color: #388e3c !important;
   }
 
   .print-container {
     padding: 0;
     background: none;
   }
-  .page {
+  .bap-layout {
     margin: 0;
     padding: 0;
     border: none;
     box-shadow: none;
-    width: auto;
+    width: 100%;
   }
-
-  /* Pastikan warna background box tetap muncul tapi teks tetap hitam */
-  .bg-green {
-    background-color: #e8f5e9 !important;
-  }
-  .bg-red {
-    background-color: #ffebee !important;
+  .bap-label-box {
+    background-color: #fafafa !important;
   }
 }
 </style>

@@ -34,6 +34,10 @@ const getEndpoint = () => {
   if (props.source === "setoran-bayar") {
     return "/setoran-bayar-form/lookup/search-so";
   }
+  // [BARU] Jalur khusus untuk mencari SO Bordir Lintas Cabang
+  if (props.source === "surat-jalan-bordir") {
+    return "/surat-jalan-form/lookup/so-bordir";
+  }
   return "/mutasi-out-form/lookup/so"; // default lama
 };
 

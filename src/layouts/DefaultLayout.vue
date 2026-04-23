@@ -489,17 +489,25 @@ onUnmounted(() => {
     <v-footer
       v-if="authStore.isAuthenticated"
       app
-      class="pa-0 px-4 py-1 border-top bg-surface"
+      class="pa-0 px-2 px-md-4 py-1 border-top bg-surface d-flex align-center justify-space-between"
       style="font-size: 11px; height: 40px"
     >
-      <div class="d-flex align-center ga-3" style="min-width: 200px">
+      <div class="d-flex align-center ga-2 ga-md-3">
         <div class="d-flex align-center cursor-pointer text-medium-emphasis" title="User Aktif">
           <v-icon size="14" class="mr-1">mdi-account-circle</v-icon>
-          <span class="font-weight-bold mr-1">{{ authStore.user?.nama }}</span>
-          <span class="text-caption text-disabled">({{ authStore.user?.cabangNama }})</span>
+          <span
+            class="font-weight-bold mr-1 text-truncate"
+            style="max-width: 80px"
+            :class="{ 'd-none d-sm-inline': false }"
+          >
+            {{ authStore.user?.nama }}
+          </span>
+          <span class="text-caption text-disabled d-none d-md-inline"
+            >({{ authStore.user?.cabangNama }})</span
+          >
         </div>
 
-        <v-divider vertical class="my-1"></v-divider>
+        <v-divider vertical class="my-1 d-none d-sm-block"></v-divider>
 
         <div
           class="d-flex align-center cursor-pointer"
@@ -508,16 +516,16 @@ onUnmounted(() => {
         >
           <template v-if="authStore.isOnline && latency !== null">
             <v-icon size="8" class="mr-1" :color="latencyColor">mdi-circle</v-icon>
-            <span class="text-caption text-disabled">{{ latency }} ms</span>
+            <span class="text-caption text-disabled d-none d-sm-inline">{{ latency }} ms</span>
           </template>
           <template v-else>
             <v-icon size="8" class="mr-1" color="error">mdi-circle</v-icon>
-            <span class="font-weight-bold text-error">Offline</span>
+            <span class="font-weight-bold text-error d-none d-sm-inline">Offline</span>
           </template>
         </div>
 
         <div
-          class="d-flex align-center ga-1 text-caption font-weight-bold"
+          class="d-none d-md-flex align-center ga-1 text-caption font-weight-bold"
           style="font-size: 9px; user-select: none"
         >
           <span :class="capsLockOn ? 'text-primary' : 'text-disabled opacity-30'">CAPS</span>
@@ -534,6 +542,7 @@ onUnmounted(() => {
               density="compact"
               color="teal"
               @click="showFaq = true"
+              class="d-none d-md-flex"
             >
               <v-icon size="18">mdi-comment-question-outline</v-icon>
             </v-btn>
@@ -543,18 +552,20 @@ onUnmounted(() => {
         <v-slide-x-transition>
           <div
             v-if="uiStore.hasUnsavedChanges"
-            class="d-flex align-center ml-4 text-warning"
+            class="d-flex align-center ml-2 ml-md-4 text-warning"
             title="Ada perubahan yang belum disimpan"
           >
             <v-icon size="14" class="mr-1 blink-animation">mdi-content-save-alert-outline</v-icon>
-            <span class="font-weight-bold text-caption">Belum Disimpan</span>
+            <span class="font-weight-bold text-caption d-none d-sm-inline">Belum Disimpan</span>
           </div>
         </v-slide-x-transition>
       </div>
 
-      <v-spacer></v-spacer>
-
-      <div v-if="nextPrayerName" class="d-none d-md-flex align-center justify-center">
+      <div
+        v-if="nextPrayerName"
+        class="d-none d-md-flex align-center justify-center absolute-center"
+        style="position: absolute; left: 50%; transform: translateX(-50%)"
+      >
         <v-menu open-on-hover location="top center">
           <template v-slot:activator="{ props }">
             <div
@@ -611,9 +622,7 @@ onUnmounted(() => {
         </v-menu>
       </div>
 
-      <v-spacer></v-spacer>
-
-      <div class="d-flex align-center ga-2" style="min-width: 200px; justify-content: flex-end">
+      <div class="d-flex align-center ga-1 ga-md-2" style="justify-content: flex-end">
         <v-tooltip text="Transaksi" location="top">
           <template v-slot:activator="{ props }">
             <v-btn
@@ -624,6 +633,7 @@ onUnmounted(() => {
               size="x-small"
               density="compact"
               color="grey"
+              class="d-none d-md-flex"
             >
               <v-icon size="16">mdi-cash-register</v-icon>
             </v-btn>
@@ -640,6 +650,7 @@ onUnmounted(() => {
               size="x-small"
               density="compact"
               color="grey"
+              class="d-none d-md-flex"
             >
               <v-icon size="16">mdi-chart-bar</v-icon>
             </v-btn>
@@ -664,7 +675,7 @@ onUnmounted(() => {
           </template>
         </v-tooltip>
 
-        <v-divider vertical class="mx-1"></v-divider>
+        <v-divider vertical class="mx-1 d-none d-sm-block"></v-divider>
 
         <v-menu
           v-model="isNotificationMenuOpen"
@@ -692,7 +703,7 @@ onUnmounted(() => {
             </v-btn>
           </template>
 
-          <v-card width="300" class="rounded-lg shadow-lg">
+          <v-card width="300" class="rounded-lg shadow-lg" max-width="90vw">
             <v-card-title
               class="text-caption font-weight-bold py-2 px-3 d-flex align-center justify-space-between bg-grey-lighten-4 text-grey-darken-3"
             >
@@ -744,11 +755,6 @@ onUnmounted(() => {
                   <v-divider v-if="i < notificationList.length - 1"></v-divider>
                 </template>
               </v-list>
-
-              <div v-else class="text-center pa-4 text-caption text-grey">
-                <v-icon size="24" class="mb-1" color="success">mdi-check-circle-outline</v-icon>
-                <div>Semua tugas selesai!</div>
-              </div>
             </v-card-text>
           </v-card>
         </v-menu>
@@ -760,7 +766,15 @@ onUnmounted(() => {
           transition="slide-y-transition"
         >
           <template v-slot:activator="{ props }">
-            <v-btn v-bind="props" icon variant="text" size="small" density="compact" color="indigo">
+            <v-btn
+              v-bind="props"
+              icon
+              variant="text"
+              size="small"
+              density="compact"
+              color="indigo"
+              class="d-none d-md-flex"
+            >
               <v-icon size="18">mdi-help-circle-outline</v-icon>
             </v-btn>
           </template>
@@ -840,6 +854,7 @@ onUnmounted(() => {
               density="compact"
               color="brown"
               title="Kalkulator"
+              class="d-none d-md-flex"
             >
               <v-icon size="18">mdi-calculator</v-icon>
             </v-btn>
@@ -937,7 +952,7 @@ onUnmounted(() => {
           </v-card>
         </v-menu>
 
-        <v-divider vertical class="mx-1"></v-divider>
+        <v-divider vertical class="mx-1 d-none d-sm-block"></v-divider>
 
         <v-tooltip text="Lapor Masalah" location="top">
           <template v-slot:activator="{ props }">
@@ -950,6 +965,7 @@ onUnmounted(() => {
               color="green"
               href="https://wa.me/6282242748378?text=Halo%20IT,%20saya%20nemu%20error%20di..."
               target="_blank"
+              class="d-none d-md-flex"
             >
               <v-icon size="16">mdi-whatsapp</v-icon>
             </v-btn>

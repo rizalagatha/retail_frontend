@@ -14,6 +14,7 @@ interface PrintHeaderSummary {
   diskon: number;
   netto: number;
   biayaKirim: number;
+  returJual: number;
   dp: number;
   grandTotal: number;
   bayar: number;
@@ -202,6 +203,10 @@ onMounted(() => {
             <span>Biaya Kirim :</span
             ><span>{{ formatRupiah(printData.header.summary.biayaKirim) }}</span>
           </div>
+          <div class="summary-item" v-if="printData.header.summary.returJual > 0">
+    <span>Retur Jual :</span>
+    <span style="color: #c62828">- {{ formatRupiah(printData.header.summary.returJual) }}</span>
+  </div>
 
           <div class="summary-item">
             <span>DP :</span>

@@ -35,6 +35,33 @@ interface Gudang {
   nama: string;
 }
 
+interface RawStockRow {
+  KODE: string;
+  KATEGORI?: string;
+  BARCODE?: string;
+  NAMA?: string;
+  HPP?: number | string;
+  BUFFER?: number | string;
+  UKURAN?: string;
+  TOTAL?: number | string;
+  PL_QTY?: number | string;
+  TOTAL2?: number | string;
+}
+
+interface PivotItem {
+  Kategori: string;
+  Kode: string;
+  Barcode: string;
+  Nama: string;
+  HPP: number;
+  Total: number;
+  PL: number;
+  Tersedia: number;
+  Buffer: number;
+
+  [size: string]: string | number; // 🔥 untuk S, M, L, dll
+}
+
 const toast = useToast();
 const authStore = useAuthStore();
 const MENU_ID = "501";
@@ -222,7 +249,7 @@ const exportToExcel = async () => {
     const pivotedMap = new Map();
     const sizeSet = new Set<string>();
 
-    rawData.forEach((row: any) => {
+    rawData.forEach((row: RawStockRow) => {
       const key = row.KODE;
 
       // Jika barang belum ada di Map, buat kerangka dasarnya
@@ -273,8 +300,8 @@ const exportToExcel = async () => {
     }
     excelHeaders.push("Buffer");
 
-    const finalData = Array.from(pivotedMap.values()).map((row: any) => {
-      const finalRow: any = {
+    const finalData = Array.from(pivotedMap.values()).map((row: PivotItem) => {
+      const finalRow: Record<string, string | number> = {
         Kategori: row.Kategori,
         "Kode Barang": row.Kode,
         Barcode: row.Barcode,
@@ -299,7 +326,7 @@ const exportToExcel = async () => {
     });
 
     // 4. Sorting berdasarkan Nama Barang sebelum di-export
-    finalData.sort((a, b) => a["Nama Barang"].localeCompare(b["Nama Barang"]));
+    finalData.sort((a, b) => String(a["Nama Barang"]).localeCompare(String(b["Nama Barang"])));
 
     // 5. Generate Excel (Sisipkan opsi { header: excelHeaders } agar urutan terkunci)
     const worksheet = XLSX.utils.json_to_sheet(finalData, { header: excelHeaders });

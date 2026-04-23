@@ -1471,24 +1471,40 @@ const save = async () => {
     }
   }
 
-  // --- 6.5 Validasi Qty DTF vs Kaos ---
+  // --- 6.5 Validasi Qty DTF vs Kaos (Excluding Stickers) ---
   let qtyKaos = 0;
   let qtyDtf = 0;
-  validItems.forEach((item) => {
-    const isCustomOrDtf =
-      item.isCustomOrder || !!item.noSoDtf || (item.nama || "").toUpperCase().includes("DTF");
-    const isJasaMurni = item.isJasa || (item.kode || "").toUpperCase().startsWith("JASA");
 
-    if (isCustomOrDtf && !isJasaMurni) {
+  validItems.forEach((item) => {
+    const namaUp = (item.nama || "").toUpperCase();
+    const kodeUp = (item.kode || "").toUpperCase();
+
+    // 1. Deteksi apakah ini Jasa murni (tidak dihitung di keduanya)
+    const isJasaMurni = item.isJasa || kodeUp.startsWith("JASA") || kodeUp.startsWith("JS");
+
+    // 2. Deteksi apakah ini Sticker (Berdasarkan Nama)
+    const isSticker = namaUp.includes("STICKER") || namaUp.includes("STIKER");
+
+    // 3. Logic Penentuan: Mana yang wajib ada kaosnya?
+    // Syarat hitung qtyDtf:
+    // - Punya No. SO DTF (Artinya ditarik dari pengerjaan produksi)
+    // - ATAU Custom Order (isCustomOrder) tapi BUKAN Sticker.
+    const isDtfWajibKaos = !!item.noSoDtf || (item.isCustomOrder && !isSticker);
+
+    if (isJasaMurni || item.kategori === "BONUS") return;
+
+    if (isDtfWajibKaos) {
       qtyDtf += Number(item.jumlah) || 0;
-    } else if (!isCustomOrDtf && !isJasaMurni && item.kategori !== "BONUS") {
+    } else if (!item.isCustomOrder && !item.noSoDtf) {
+      // Jika bukan custom/dtf, berarti ini kaos carrier (kaos polos)
       qtyKaos += Number(item.jumlah) || 0;
     }
   });
 
+  // Validasi: Sablon/Bordir tidak boleh lebih banyak dari jumlah kaos carrier
   if (qtyKaos > 0 && qtyDtf > qtyKaos) {
     toast.error(
-      `Gagal Simpan: Qty SO DTF / Custom (${qtyDtf}) tidak boleh melebihi Qty Kaos (${qtyKaos}).`
+      `Gagal Simpan: Qty Sablon/Bordir (${qtyDtf}) melebihi Qty Kaos Carrier (${qtyKaos}). Untuk Sticker tidak dibatasi.`
     );
     return;
   }

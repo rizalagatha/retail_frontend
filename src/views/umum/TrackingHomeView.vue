@@ -13,6 +13,9 @@ const searchInput = ref("");
 const isLoading = ref(false);
 const errorMessage = ref("");
 
+const isPromoDialogVisible = ref(false);
+const selectedPromo = ref<PromoItem | null>(null);
+
 // --- TIPE DATA ---
 interface SearchItem {
   title: string;
@@ -163,6 +166,19 @@ const lanjutLacak = () => {
       query: { target: target },
     });
   }
+};
+
+const klaimPromo = (promo: PromoItem) => {
+  selectedPromo.value = promo;
+  isPromoDialogVisible.value = true;
+};
+
+const formatPromoValue = (promo: PromoItem): string => {
+  if (promo.pro_diskon > 0) return `Diskon ${promo.pro_diskon}%`;
+  if (promo.pro_disrp > 0) return `Potongan ${formatRupiah(promo.pro_disrp)}`;
+  if (promo.pro_rpvoucher > 0) return `Voucher ${formatRupiah(promo.pro_rpvoucher)}`;
+  if (promo.pro_totalqty > 0) return `Beli ${promo.pro_totalqty} Lebih Hemat`;
+  return "Harga Spesial";
 };
 
 onMounted(() => {
@@ -343,6 +359,7 @@ onMounted(() => {
                       color="#D32F2F"
                       variant="flat"
                       class="text-white font-weight-bold text-none rounded-pill px-5"
+                      @click="klaimPromo(promo)"
                     >
                       Klaim
                     </v-btn>
@@ -396,6 +413,167 @@ onMounted(() => {
         </v-col>
       </v-row>
     </v-container>
+
+    <v-dialog v-model="isPromoDialogVisible" max-width="400px" :scrim="true">
+      <v-card v-if="selectedPromo" rounded="xl" class="overflow-hidden">
+        <!-- Header Merah -->
+        <div
+          style="
+            background: linear-gradient(135deg, #d32f2f 0%, #ef5350 100%);
+            padding: 28px 24px 20px;
+            text-align: center;
+            position: relative;
+          "
+        >
+          <v-btn
+            icon="mdi-close"
+            size="small"
+            variant="text"
+            style="position: absolute; top: 8px; right: 8px; color: rgba(255, 255, 255, 0.8)"
+            @click="isPromoDialogVisible = false"
+          ></v-btn>
+
+          <div
+            style="
+              width: 64px;
+              height: 64px;
+              border-radius: 50%;
+              background: rgba(255, 255, 255, 0.2);
+              border: 2px solid rgba(255, 255, 255, 0.4);
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              margin: 0 auto 12px;
+            "
+          >
+            <v-icon size="32" color="white">mdi-ticket-percent</v-icon>
+          </div>
+          <div class="text-h6 font-weight-bold text-white mb-1">Promo ini untukmu!</div>
+          <div class="text-caption text-white opacity-80">Kunjungi store terdekat untuk klaim</div>
+        </div>
+
+        <!-- Strip Warna-warni -->
+        <div
+          style="
+            height: 5px;
+            background: repeating-linear-gradient(
+              90deg,
+              #ffd700 0px,
+              #ffd700 12px,
+              #ff6b6b 12px,
+              #ff6b6b 24px,
+              #4ecdc4 24px,
+              #4ecdc4 36px
+            );
+          "
+        ></div>
+
+        <v-card-text class="pa-5">
+          <!-- Badge Terbatas -->
+          <div class="text-center mb-4">
+            <v-chip color="orange-lighten-4" size="small" class="font-weight-medium">
+              <v-icon start size="10" color="orange-darken-3">mdi-circle</v-icon>
+              <span class="text-orange-darken-3">Terbatas — segera klaim sebelum habis</span>
+            </v-chip>
+          </div>
+
+          <!-- Info Promo -->
+          <v-card variant="tonal" color="red-lighten-5" rounded="lg" class="mb-4 pa-3">
+            <div class="text-subtitle-2 font-weight-bold text-grey-darken-3 mb-1">
+              {{ selectedPromo.pro_judul }}
+            </div>
+            <div class="text-h6 font-weight-black" style="color: #d32f2f">
+              {{ formatPromoValue(selectedPromo) }}
+            </div>
+            <div class="text-caption text-grey-darken-1 mt-1">
+              Berlaku hingga: {{ selectedPromo.pro_tanggal2.split("T")[0] }}
+            </div>
+          </v-card>
+
+          <!-- Card Store -->
+          <v-card variant="outlined" rounded="lg" class="mb-5 pa-3">
+            <div class="d-flex align-center gap-3">
+              <div
+                style="
+                  width: 44px;
+                  height: 44px;
+                  border-radius: 10px;
+                  background: #ffebee;
+                  display: flex;
+                  align-items: center;
+                  justify-content: center;
+                  flex-shrink: 0;
+                "
+              >
+                <v-icon color="#D32F2F">mdi-store</v-icon>
+              </div>
+              <div>
+                <div class="text-subtitle-2 font-weight-bold">Store Kaosan Terdekat</div>
+                <div class="text-caption text-grey-darken-1">
+                  Tunjukkan halaman ini ke kasir saat tiba
+                </div>
+              </div>
+            </div>
+          </v-card>
+
+          <!-- 3 Langkah -->
+          <div class="d-flex justify-space-around mb-5">
+            <div
+              v-for="(step, i) in [
+                { icon: 'mdi-store-marker', label: 'Kunjungi store' },
+                { icon: 'mdi-card-account-details', label: 'Tunjukkan ke kasir' },
+                { icon: 'mdi-tag-heart', label: 'Nikmati diskonnya' },
+              ]"
+              :key="i"
+              class="text-center"
+              style="flex: 1"
+            >
+              <div
+                style="
+                  width: 36px;
+                  height: 36px;
+                  border-radius: 50%;
+                  background: #ffebee;
+                  border: 1.5px solid #ef9e9e;
+                  display: flex;
+                  align-items: center;
+                  justify-content: center;
+                  margin: 0 auto 6px;
+                "
+              >
+                <span class="text-caption font-weight-bold" style="color: #d32f2f">{{
+                  i + 1
+                }}</span>
+              </div>
+              <div class="text-caption text-grey-darken-1" style="line-height: 1.3">
+                {{ step.label }}
+              </div>
+            </div>
+          </div>
+
+          <!-- Tombol Utama -->
+          <v-btn
+            block
+            size="large"
+            color="#D32F2F"
+            class="text-white font-weight-bold mb-2"
+            rounded="lg"
+            prepend-icon="mdi-map-marker"
+          >
+            Cari Store Terdekat
+          </v-btn>
+          <v-btn
+            block
+            variant="text"
+            size="small"
+            class="text-grey"
+            @click="isPromoDialogVisible = false"
+          >
+            Nanti saja
+          </v-btn>
+        </v-card-text>
+      </v-card>
+    </v-dialog>
   </div>
 </template>
 

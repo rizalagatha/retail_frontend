@@ -83,12 +83,14 @@ const loading = ref(true);
 const loadingDetails = ref(new Set<string>());
 const selected = ref<MasterItem[]>([]);
 const expanded = ref<string[]>([]);
+const fetchTimeout = ref<number | undefined>(undefined);
 
 const filters = reactive({
   startDate: format(subDays(new Date(), 30), "yyyy-MM-dd"),
   endDate: format(new Date(), "yyyy-MM-dd"),
   hargaNol: false,
   hppNol: false,
+  search: "", // <--- TAMBAHKAN INI
 });
 
 // --- State Filter & Resize ---
@@ -431,7 +433,22 @@ const exportData = async (type: "header" | "detail") => {
 };
 
 onMounted(fetchMasterData);
-watch(filters, fetchMasterData, { deep: true });
+watch(
+  filters,
+  (newVal, oldVal) => {
+    // Jika yang berubah adalah field 'search', gunakan timeout 500ms
+    if (newVal.search !== oldVal.search) {
+      if (fetchTimeout.value) clearTimeout(fetchTimeout.value);
+      fetchTimeout.value = window.setTimeout(() => {
+        fetchMasterData();
+      }, 500);
+    } else {
+      // Untuk filter lain (tanggal/checkbox), langsung fetch tanpa jeda
+      fetchMasterData();
+    }
+  },
+  { deep: true }
+);
 </script>
 
 <template>
@@ -504,6 +521,17 @@ watch(filters, fetchMasterData, { deep: true });
           hide-details
           density="compact"
           class="ms-2"
+        />
+        <v-text-field
+          v-model="filters.search"
+          label="Cari Kode atau Nama Barang..."
+          density="compact"
+          hide-details
+          variant="outlined"
+          class="ms-4"
+          style="min-width: 300px"
+          prepend-inner-icon="mdi-magnify"
+          clearable
         />
 
         <v-spacer />

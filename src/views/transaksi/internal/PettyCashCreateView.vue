@@ -85,7 +85,7 @@ const infoKategori = [
   },
   {
     jenis: "BIAYA PERLENGKAPAN KANTOR/TOKO",
-    ket: "Biaya yang terkait dengan kebutuhan alat tulis kantor dan kebutuhan primer toko yang telah ada persetujuan dari STORE MANAGER atau SUPERVISOR, misal : brosur dan alat peraga toko",
+    ket: "Biaya yang terkait dengan kebutuhan alat tulis kantor dan kebutuhan primer toko yang telah ada persetujuan dari STORE MANAGER atau SUPERVISOR termasuk biaya admin ATM toko, misal : brosur dan alat peraga toko",
   },
   {
     jenis: "BIAYA PERJALANAN DINAS",

@@ -621,25 +621,7 @@ const isUserKon = computed(() => authStore.user?.cabang === "KON");
 
 const hasUnfinishedDtf = computed(() => {
   return items.value.some((item) => !!item.noSoDtf && item.isLhk === false);
-});
-
-// --- Helper Pengecekan DP Mengikat ---
-const isDpSufficientForCustom = () => {
-  // Jika belum bayar DP sama sekali (masih draft baru) atau ada Otorisasi, aman. Nanti diblokir saat Simpan.
-  if (footer.value.totalDp === 0 || footer.value.pinTanpaDp) return true;
-
-  const currentDpPercentage =
-    footer.value.netto > 0 ? footer.value.totalDp / footer.value.netto : 0;
-
-  // Jika user sudah bayar DP (misal 30%) tapi kurang dari 50%, BLOKIR lalu tawarkan Otorisasi!
-  if (currentDpPercentage > 0 && currentDpPercentage < 0.5) {
-    showConfirmation(() => {
-      openDpAuthorization();
-    }, "Customer baru DP < 50%. Item Custom/DTF tidak bisa ditambahkan. Apakah Anda ingin meminta Otorisasi sekarang?");
-    return false;
-  }
-  return true;
-};
+})
 
 const isExemptFromLhkRule = computed(() => {
   const cabang = authStore.user?.cabang || "";
@@ -1102,9 +1084,6 @@ const openSoDtfSearch = (index: number) => {
     toast.error("Pilih Customer terlebih dahulu.");
     return;
   }
-
-  // [TAMBAHKAN INI] Validasi DP mengikat
-  if (!isDpSufficientForCustom()) return;
 
   activeRowIndex.value = index;
   isSoDtfSearchVisible.value = true;
@@ -1995,10 +1974,6 @@ const onProductsSelected = (selectedProducts: SoItemApi[]) => {
     const kodeUp = product.kode?.toUpperCase() || "";
     const namaUp = product.nama?.toUpperCase() || "";
 
-    if (namaUp.includes("DTF") && !isDpSufficientForCustom()) {
-      return; // Lewati barang ini
-    }
-
     // ================================
     // 1️⃣ DETEKSI PRODUK JASA
     // ================================
@@ -2807,9 +2782,6 @@ const openJenisOrderModal = () => {
     toast.error("Isi detail barang dari Penawaran terlebih dahulu sebelum input jenis order.");
     return;
   }
-
-  // [TAMBAHKAN INI] Validasi DP mengikat
-  if (!isDpSufficientForCustom()) return;
 
   // ✅ Semua aman, buka modal
   dialogs.jenisOrder = true;

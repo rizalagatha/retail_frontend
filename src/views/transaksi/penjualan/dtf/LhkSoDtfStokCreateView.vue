@@ -85,6 +85,9 @@ const onSoSelected = async (so: { nomor: string }) => {
     } else {
       toast.error("Gagal memuat detail SO Stok.");
     }
+  } finally {
+    // [PERBAIKAN KUNCI]: Wajib matikan loading setelah proses selesai (sukses/gagal)
+    isLoading.value = false;
   }
 };
 

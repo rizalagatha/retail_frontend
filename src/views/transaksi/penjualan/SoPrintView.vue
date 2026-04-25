@@ -291,29 +291,32 @@ onMounted(() => {
         <div class="name-column">( {{ printData.header.cus_nama }} )</div>
       </div>
       <div class="note-section">
-        Note:<br />
-
-        <div
-          v-if="printData.header.gdg_transferbank || printData.header.gdg_akun"
-          class="bank-info"
-        >
-          <strong
-            >* Transfer Bank: {{ printData.header.gdg_transferbank }}
-            {{ printData.header.gdg_akun }}</strong
+        <div class="note-text">
+          Note: <br />
+          <div
+            v-if="printData.header.gdg_transferbank || printData.header.gdg_akun"
+            class="bank-info"
+          >
+            <strong
+              >* Transfer Bank: {{ printData.header.gdg_transferbank }}
+              {{ printData.header.gdg_akun }}</strong
+            >
+          </div>
+          <em
+            >*Apabila dalam waktu 30 hari setelah pemberitahuan bahwa barang telah selesai tidak
+            dilakukan pengambilan, maka uang muka (DP) dianggap hangus dan barang sepenuhnya menjadi
+            hak milik kami.</em
           >
         </div>
 
-        <div v-if="printData.header.gdg_inv_komplain" class="complain-info mb-1">
-          <strong
-            >* Jika terdapat kendala atau komplain terkait pesanan, silakan hubungi Pusat Bantuan
-            kami di: {{ printData.header.gdg_inv_komplain }}</strong
-          >
+        <div v-if="printData.header.gdg_inv_komplain" class="complain-banner">
+          <div class="complain-title">LAYANAN KOMPLAIN & BANTUAN</div>
+          <div class="complain-text">
+            Punya kendala dengan pesanan Anda? Jangan ragu hubungi kami di:
+          </div>
+          <div class="complain-contact">📞 {{ printData.header.gdg_inv_komplain }}</div>
         </div>
-        <em
-          >*Apabila dalam waktu 30 hari setelah pemberitahuan bahwa barang telah selesai tidak
-          dilakukan pengambilan, maka uang muka (DP) dianggap hangus dan barang sepenuhnya menjadi
-          hak milik kami.</em
-        >
+
         <div class="tracking-banner">
           <div class="tracking-qr-wrapper">
             <img v-if="qrCodeData" :src="qrCodeData" class="qr-code-tracking" />
@@ -583,9 +586,44 @@ onMounted(() => {
   object-fit: contain;
 }
 
+/* --- LAYANAN KOMPLAIN STYLES --- */
+.complain-banner {
+  margin-top: 15px;
+  padding: 10px;
+  border: 2px solid #000;
+  border-radius: 8px;
+  text-align: center;
+  background-color: #fff;
+}
+
+.complain-title {
+  font-size: 10pt;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin-bottom: 4px;
+}
+
+.complain-text {
+  font-size: 9pt;
+  color: #333;
+  margin-bottom: 6px;
+}
+
+.complain-contact {
+  display: inline-block;
+  font-size: 12pt;
+  font-weight: 900;
+  background-color: #000;
+  color: #fff !important;
+  padding: 4px 16px;
+  border-radius: 4px;
+  letter-spacing: 1px;
+}
+
 /* --- TRACKING BANNER STYLES --- */
 .tracking-banner {
-  margin-top: 15px;
+  margin-top: 12px;
   padding: 12px;
   border: 2px dashed #333;
   border-radius: 8px;
@@ -596,11 +634,11 @@ onMounted(() => {
 }
 
 .tracking-qr-wrapper {
-  position: relative;
   display: flex;
   flex-direction: column;
   align-items: center;
   width: 90px;
+  gap: 4px; /* Memberi jarak aman antara QR dan tulisan SCAN ME */
 }
 
 .qr-code-tracking {
@@ -609,7 +647,7 @@ onMounted(() => {
   object-fit: contain;
   background-color: white;
   border: 1px solid #ddd;
-  padding: 2px;
+  padding: 4px; /* Padding ditambah biar QR aman */
   border-radius: 4px;
 }
 
@@ -618,12 +656,11 @@ onMounted(() => {
   color: #fff !important;
   font-size: 8pt;
   font-weight: bold;
-  padding: 2px 8px;
+  padding: 2px 10px;
   border-radius: 12px;
-  margin-top: -8px; /* Menimpa sedikit bagian bawah QR */
   z-index: 2;
   letter-spacing: 0.5px;
-  border: 1px solid #fff;
+  text-align: center;
 }
 
 .tracking-info {
@@ -640,9 +677,9 @@ onMounted(() => {
 }
 
 .tracking-website {
-  font-size: 13pt;
+  font-size: 12pt;
   font-weight: 900;
-  color: #0d47a1 !important; /* Warna biru elegan */
+  color: #0d47a1 !important;
   margin-bottom: 6px;
   letter-spacing: 0.5px;
 }
@@ -705,9 +742,16 @@ onMounted(() => {
     border: 2px dashed #333 !important;
   }
 
-  .scan-badge {
+  .complain-banner {
+    border: 2px solid #000 !important;
+  }
+
+  .scan-badge,
+  .complain-contact {
     background-color: #000 !important;
     color: #fff !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
   }
 
   .tracking-website {

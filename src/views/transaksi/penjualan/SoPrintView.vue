@@ -314,14 +314,17 @@ onMounted(() => {
           dilakukan pengambilan, maka uang muka (DP) dianggap hangus dan barang sepenuhnya menjadi
           hak milik kami.</em
         >
-        <div
-          style="margin-top: 15px; padding-top: 10px; border-top: 1px dashed #ccc; text-align: left"
-        >
-          <div style="font-size: 11px; color: #666; margin-bottom: 2px">
-            Gunakan Resi ini untuk Melacak Pesanan di Web:
+        <div class="tracking-banner">
+          <div class="tracking-qr-wrapper">
+            <img v-if="qrCodeData" :src="qrCodeData" class="qr-code-tracking" />
+            <div class="scan-badge">SCAN ME</div>
           </div>
-          <div style="font-size: 16px; font-weight: 900; letter-spacing: 1px; color: #000">
-            {{ trackingCode }}
+
+          <div class="tracking-info">
+            <div class="tracking-title">Lacak Pesanan Anda di:</div>
+            <div class="tracking-website">www.kaosanofficial.com</div>
+            <div class="tracking-text">Gunakan Nomor Resi Berikut:</div>
+            <div class="tracking-resi">{{ trackingCode }}</div>
           </div>
         </div>
       </div>
@@ -580,6 +583,89 @@ onMounted(() => {
   object-fit: contain;
 }
 
+/* --- TRACKING BANNER STYLES --- */
+.tracking-banner {
+  margin-top: 15px;
+  padding: 12px;
+  border: 2px dashed #333;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  background-color: #fcfcfc;
+}
+
+.tracking-qr-wrapper {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 90px;
+}
+
+.qr-code-tracking {
+  width: 80px;
+  height: 80px;
+  object-fit: contain;
+  background-color: white;
+  border: 1px solid #ddd;
+  padding: 2px;
+  border-radius: 4px;
+}
+
+.scan-badge {
+  background-color: #000;
+  color: #fff !important;
+  font-size: 8pt;
+  font-weight: bold;
+  padding: 2px 8px;
+  border-radius: 12px;
+  margin-top: -8px; /* Menimpa sedikit bagian bawah QR */
+  z-index: 2;
+  letter-spacing: 0.5px;
+  border: 1px solid #fff;
+}
+
+.tracking-info {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  flex-grow: 1;
+}
+
+.tracking-title {
+  font-size: 9pt;
+  color: #555;
+  margin-bottom: 2px;
+}
+
+.tracking-website {
+  font-size: 13pt;
+  font-weight: 900;
+  color: #0d47a1 !important; /* Warna biru elegan */
+  margin-bottom: 6px;
+  letter-spacing: 0.5px;
+}
+
+.tracking-text {
+  font-size: 9pt;
+  color: #555;
+}
+
+.tracking-resi {
+  font-size: 15pt;
+  font-weight: 900;
+  color: #000;
+  letter-spacing: 2px;
+  background-color: #eee;
+  padding: 2px 8px;
+  display: inline-block;
+  width: max-content;
+  border-radius: 4px;
+  margin-top: 3px;
+  border: 1px solid #ccc;
+}
+
 /* Media query untuk print */
 @media print {
   .watermark {
@@ -612,6 +698,24 @@ onMounted(() => {
   .qr-code {
     height: 60px !important;
     width: 60px !important;
+  }
+
+  .tracking-banner {
+    background-color: #fcfcfc !important;
+    border: 2px dashed #333 !important;
+  }
+
+  .scan-badge {
+    background-color: #000 !important;
+    color: #fff !important;
+  }
+
+  .tracking-website {
+    color: #0d47a1 !important;
+  }
+
+  .tracking-resi {
+    background-color: #eee !important;
   }
 }
 

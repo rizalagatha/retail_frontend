@@ -310,11 +310,16 @@ onMounted(() => {
         </div>
 
         <div v-if="printData.header.gdg_inv_komplain" class="complain-banner">
-          <div class="complain-title">LAYANAN KOMPLAIN & BANTUAN</div>
-          <div class="complain-text">
-            Punya kendala dengan pesanan Anda? Jangan ragu hubungi kami di:
+          <div class="complain-content">
+            <div class="complain-title">Layanan Pelanggan</div>
+            <div class="complain-text">
+              Silakan hubungi kami jika terdapat kendala pada pesanan Anda.
+            </div>
           </div>
-          <div class="complain-contact">📞 {{ printData.header.gdg_inv_komplain }}</div>
+          <div class="complain-contact">
+            <span class="wa-label">WhatsApp Center</span>
+            <span class="wa-number">{{ printData.header.gdg_inv_komplain }}</span>
+          </div>
         </div>
 
         <div class="tracking-banner">
@@ -586,38 +591,59 @@ onMounted(() => {
   object-fit: contain;
 }
 
-/* --- LAYANAN KOMPLAIN STYLES --- */
+/* --- LAYANAN KOMPLAIN STYLES (REVISI ELEGAN) --- */
 .complain-banner {
   margin-top: 15px;
-  padding: 10px;
-  border: 2px solid #000;
-  border-radius: 8px;
-  text-align: center;
-  background-color: #fff;
+  padding: 10px 15px;
+  border: 1px solid #ccc;
+  border-left: 5px solid #333; /* Aksen garis elegan di kiri */
+  border-radius: 4px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background-color: #fdfdfd;
+}
+
+.complain-content {
+  text-align: left;
 }
 
 .complain-title {
   font-size: 10pt;
   font-weight: 900;
-  text-transform: uppercase;
-  letter-spacing: 1px;
-  margin-bottom: 4px;
+  color: #000;
+  margin-bottom: 2px;
+  letter-spacing: 0.5px;
 }
 
 .complain-text {
-  font-size: 9pt;
-  color: #333;
-  margin-bottom: 6px;
+  font-size: 8.5pt;
+  color: #555;
+  font-style: italic;
 }
 
 .complain-contact {
-  display: inline-block;
-  font-size: 12pt;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  text-align: right;
+  padding-left: 15px;
+  border-left: 1px dashed #ddd;
+}
+
+.wa-label {
+  font-size: 7pt;
+  font-weight: bold;
+  color: #666;
+  text-transform: uppercase;
+  margin-bottom: 2px;
+  letter-spacing: 1px;
+}
+
+.wa-number {
+  font-size: 13pt;
   font-weight: 900;
-  background-color: #000;
-  color: #fff !important;
-  padding: 4px 16px;
-  border-radius: 4px;
+  color: #000;
   letter-spacing: 1px;
 }
 
@@ -752,6 +778,22 @@ onMounted(() => {
     color: #fff !important;
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;
+  }
+
+  .complain-banner {
+    border: 1px solid #ccc !important;
+    border-left: 5px solid #333 !important;
+    background-color: #fdfdfd !important;
+  }
+
+  .complain-title,
+  .wa-number {
+    color: #000 !important;
+  }
+
+  .complain-text,
+  .wa-label {
+    color: #555 !important;
   }
 
   .tracking-website {

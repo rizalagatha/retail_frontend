@@ -558,7 +558,6 @@ onMounted(() => {
                 @click="removeRow(item.id)"
               ></v-btn>
             </template>
-            <template #bottom></template>
           </v-data-table>
         </div>
         <div class="desktop-form-section">

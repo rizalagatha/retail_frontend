@@ -292,6 +292,27 @@ const handleTutup = () => {
   dialogConfirm.show = true;
 };
 
+const removeRow = (id: number) => {
+  const itemIndex = items.value.findIndex((i) => i.id === id);
+  if (itemIndex === -1) return;
+
+  const item = items.value[itemIndex];
+
+  // Minta konfirmasi sebelum menghapus
+  dialogConfirm.title = "Konfirmasi Hapus";
+  dialogConfirm.text = `Anda yakin ingin menghapus item: ${item.nama}?`;
+  dialogConfirm.onConfirm = () => {
+    // Hapus dari array items
+    items.value.splice(itemIndex, 1);
+    toast.info("Baris berhasil dihapus.");
+
+    // Karena ini computed property, subtotal akan update otomatis,
+    // tapi kalau mau main aman, tidak usah memanggil fungsi hitung apapun
+    // selama semuanya pakai computed.
+  };
+  dialogConfirm.show = true;
+};
+
 // --- Konfigurasi Tabel ---
 const tableHeaders = [
   { title: "No", key: "no", sortable: false, width: "50px" },
@@ -525,6 +546,16 @@ onMounted(() => {
             </template>
             <template v-slot:[`item.barcode`]="{ item }">
               {{ item.barcode }}
+            </template>
+            <template #[`item.actions`]="{ item }">
+              <v-btn
+                icon="mdi-delete"
+                size="x-small"
+                variant="text"
+                color="error"
+                title="Hapus baris ini"
+                @click="removeRow(item.id)"
+              ></v-btn>
             </template>
             <template #bottom></template>
           </v-data-table>

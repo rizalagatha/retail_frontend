@@ -325,6 +325,7 @@ const tableHeaders = [
   { title: "Diskon Rp", key: "diskonRp", sortable: false, width: "60px" },
   { title: "Total", key: "total", sortable: false, width: "80px" },
   { title: "Barcode", key: "barcode", sortable: false, width: "90px" },
+  { title: "Aksi", key: "actions", sortable: false, width: "50px", align: "center" },
 ];
 
 onMounted(() => {

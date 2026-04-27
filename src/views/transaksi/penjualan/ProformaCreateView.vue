@@ -503,7 +503,7 @@ onMounted(() => {
             class="desktop-table fill-height"
             density="compact"
             fixed-header
-            :items-per-page="-1"
+            :items-per-page="15"
           >
             <template v-slot:[`item.jumlah`]="{ item }">
               <v-text-field

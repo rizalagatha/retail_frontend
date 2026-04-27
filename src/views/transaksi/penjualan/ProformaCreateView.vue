@@ -690,7 +690,9 @@ onMounted(() => {
     <v-dialog v-model="dialogConfirmSave.show" max-width="400px" persistent>
       <v-card>
         <v-card-title class="text-h6 font-weight-bold">{{ dialogConfirmSave.title }}</v-card-title>
-        <v-card-text>{{ dialogConfirm.text }}</v-card-text>
+
+        <v-card-text>{{ dialogConfirmSave.text }}</v-card-text>
+
         <v-card-actions>
           <v-spacer />
           <v-btn text @click="dialogConfirmSave.show = false">Batal</v-btn>
@@ -712,7 +714,9 @@ onMounted(() => {
     <v-dialog v-model="dialogConfirmPrint.show" max-width="400px" persistent>
       <v-card>
         <v-card-title class="text-h6 font-weight-bold">{{ dialogConfirmPrint.title }}</v-card-title>
-        <v-card-text>{{ dialogConfirm.text }}</v-card-text>
+
+        <v-card-text v-html="dialogConfirmPrint.text"></v-card-text>
+
         <v-card-actions>
           <v-spacer />
           <v-btn

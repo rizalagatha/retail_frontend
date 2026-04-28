@@ -109,6 +109,8 @@ const loadDataForEdit = async (kode: string) => {
   try {
     const response = await api.get(`/barang-external-form/${kode}`);
     Object.assign(header, response.data.header);
+
+    header.kode = response.data.header.brg_kode;
     header.nama = response.data.header.brg_warna;
     header.bahan = response.data.header.brg_bahan;
     header.date_create = format(parseISO(response.data.header.date_create), "yyyy-MM-dd");

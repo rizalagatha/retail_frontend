@@ -24,6 +24,7 @@ interface KomplainItem {
   foto_url: string | null;
   _fileObj?: File | null;
   isUploading?: boolean;
+  harga_satuan: number;
 }
 interface KomplainLog {
   cmpl_id: number;
@@ -46,6 +47,8 @@ interface ApiKomplainDetail {
   qty: number | string;
   keterangan: string | null;
   foto: string | null;
+  harga_netto?: number | string;
+  harga_satuan?: number | string;
 }
 
 const route = useRoute();
@@ -58,6 +61,11 @@ const isEditMode = computed(() => !!route.params.nomor);
 const pageTitle = computed(() =>
   isEditMode.value ? "Detail Berita Acara (BAP)" : "Buat BAP Baru"
 );
+const potensiKerugian = computed(() => {
+  return items.value.reduce((sum, item) => {
+    return sum + Number(item.qty || 0) * Number(item.harga_satuan || 0);
+  }, 0);
+});
 const isLoading = ref(false);
 const isSaving = ref(false);
 
@@ -163,7 +171,6 @@ const onInvoiceSelected = async (invoice: SelectedInvoice | null) => {
     header.ref_nomor = invoice.Nomor;
     header.customer_kode = invoice.KdCus;
     header.customer_nama = invoice.Customer;
-    header.nominal_inv = invoice.Nominal || 0;
 
     isLoading.value = true;
     try {
@@ -174,6 +181,7 @@ const onInvoiceSelected = async (invoice: SelectedInvoice | null) => {
         nama_barang: item.nama_barang,
         ukuran: item.ukuran,
         qty_invoice: Number(item.qty_invoice) || 0,
+        harga_satuan: Number(item.harga_netto) || 0,
         qty: 0,
         keterangan: "",
         foto: null,
@@ -246,6 +254,7 @@ const loadData = async (nomor: string) => {
       keterangan: d.keterangan || "",
       foto: d.foto || null,
       foto_url: d.foto ? `${import.meta.env.VITE_API_BASE_URL}${d.foto}` : null,
+      harga_satuan: Number(d.harga_satuan) || header.nominal_inv / (Number(d.qty) || 1),
     }));
     logs.value = l || [];
   } catch (error: unknown) {
@@ -270,6 +279,7 @@ const saveData = async (submitAfterSave = false) => {
     return toast.warning("Tabel barang kosong.");
 
   const executeSave = async () => {
+    header.nominal_inv = potensiKerugian.value;
     isSaving.value = true;
     try {
       // Simpan data sebagai DRAFT terlebih dahulu
@@ -601,16 +611,19 @@ onMounted(() => {
                   @click:prepend-inner="canEditDraft && (dialogs.invoiceSearch = true)"
                   @click="canEditDraft && (dialogs.invoiceSearch = true)"
               /></v-col>
-              <v-col cols="12"
-                ><v-text-field
+              <v-col cols="12">
+                <v-text-field
                   label="Potensi Kerugian (Rp)"
-                  :model-value="formatRupiah(header.nominal_inv)"
+                  :model-value="formatRupiah(potensiKerugian)"
                   density="compact"
                   hide-details
                   readonly
                   filled
                   class="font-weight-bold text-error input-bg-red"
-              /></v-col>
+                  hint="Dihitung otomatis dari Qty Masalah x Harga Barang"
+                  persistent-hint
+                />
+              </v-col>
             </v-row>
           </v-card-text>
 

@@ -536,11 +536,10 @@ onMounted(async () => {
   }
 });
 
-// [BARU] Fungsi hitung otomatis HPP (15% dari Harga Jual)
+// [BARU] Fungsi hitung otomatis HPP (85% dari Harga Jual)
 const calculateHpp = (item: VarianItem) => {
-  // Rumus: Harga Jual * 0.15
-  // Kita pakai Math.round biar nggak ada angka koma-komaan di HPP
-  item.hpp = Math.round((item.harga || 0) * 0.15);
+  // Rumus: Harga Jual * 0.85
+  item.hpp = Math.round((item.harga || 0) * 0.85);
 };
 
 watch(

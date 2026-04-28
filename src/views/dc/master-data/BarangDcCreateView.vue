@@ -536,6 +536,13 @@ onMounted(async () => {
   }
 });
 
+// [BARU] Fungsi hitung otomatis HPP (15% dari Harga Jual)
+const calculateHpp = (item: VarianItem) => {
+  // Rumus: Harga Jual * 0.15
+  // Kita pakai Math.round biar nggak ada angka koma-komaan di HPP
+  item.hpp = Math.round((item.harga || 0) * 0.15);
+};
+
 watch(
   [
     () => header.jenisKaos,
@@ -821,6 +828,7 @@ watch(
                 density="compact"
                 hide-details
                 class="text-end"
+                readonly
                 :disabled="!item.aktif"
               />
             </template>
@@ -833,6 +841,7 @@ watch(
                 hide-details
                 class="text-end"
                 :disabled="!item.aktif"
+                @update:model-value="calculateHpp(item)"
               />
             </template>
             <template #[`item.barcode`]="{ item }">

@@ -70,7 +70,18 @@ const authStore = useAuthStore();
 const MENU_ID = "204";
 const isEditMode = computed(() => !!route.params.kode);
 const pageTitle = computed(() => (isEditMode.value ? "Ubah Barang DC" : "Buat Barang DC"));
-const requiredPermission = computed(() => (isEditMode.value ? "edit" : "insert"));
+// [BARU] Bikin Jalur VVIP khusus user ini
+const isWarehouseEditor = computed(() => {
+  // Tambahkan || "" agar TypeScript yakin isinya pasti string, bukan undefined
+  const userKode = authStore.user?.kode?.toUpperCase() || "";
+  return ["ADIN", "LUTFI"].includes(userKode);
+});
+
+// [PERBAIKAN] Gabungkan rule auth bawaan dengan jalur VVIP
+// (Baris canView dihapus saja karena sudah tidak terpakai)
+const canInsert = computed(() => authStore.can(MENU_ID, "insert") || isWarehouseEditor.value);
+const canEdit = computed(() => authStore.can(MENU_ID, "edit") || isWarehouseEditor.value);
+const canSave = computed(() => (isEditMode.value ? canEdit.value : canInsert.value));
 
 const header = reactive<Header>({
   kode: "",
@@ -486,7 +497,7 @@ const generateBarcode = (variant: VarianItem) => {
 };
 
 onMounted(async () => {
-  if (!authStore.can(MENU_ID, requiredPermission.value)) {
+  if (!canSave.value) {
     toast.error(
       `Anda tidak memiliki izin untuk ${isEditMode.value ? "mengubah" : "membuat"} data ini.`
     );
@@ -562,7 +573,7 @@ watch(
         color="primary"
         @click="save"
         :loading="isSaving"
-        :disabled="!authStore.can(MENU_ID, requiredPermission)"
+        :disabled="!canSave"
       >
         Simpan
       </v-btn>
@@ -814,7 +825,15 @@ watch(
               />
             </template>
             <template #[`item.harga`]="{ item }">
-              {{ new Intl.NumberFormat("id-ID").format(item.harga) }}
+              <v-text-field
+                v-model.number="item.harga"
+                type="number"
+                variant="underlined"
+                density="compact"
+                hide-details
+                class="text-end"
+                :disabled="!item.aktif"
+              />
             </template>
             <template #[`item.barcode`]="{ item }">
               <v-text-field

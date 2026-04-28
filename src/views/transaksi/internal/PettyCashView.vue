@@ -19,7 +19,7 @@ interface PettyCashItem {
   pck_pth_nomor?: string;
   pck_bbk_finance?: string;
   bkm_nomor?: string;
-  tanggal: string; // Biasanya selalu ada
+  tanggal: string;
   date_draft?: string;
   date_submitted?: string;
   date_acc?: string;
@@ -32,15 +32,22 @@ interface PettyCashItem {
   terpakai: number;
   receive_nominal?: number;
   saldo: number;
-  // Tambahkan ACC, ON_TRANSFER, dan RECEIVED
-  status: "DRAFT" | "SUBMITTED" | "ACC" | "APPROVED" | "REJECTED" | "ON_TRANSFER" | "RECEIVED";
+  status:
+    | "DRAFT"
+    | "SUBMITTED"
+    | "ACC"
+    | "APPROVED"
+    | "REJECTED"
+    | "ON_TRANSFER"
+    | "RECEIVED"
+    | "CLOSED"; // [UPDATE]
   keterangan: string;
   userCreate: string;
   jumlah_nota: number;
 }
 
 interface PettyCashDetail {
-  pc_nomor: string; // <-- Tambahkan nomor PC di detail untuk memudahkan preview nota
+  pc_nomor: string;
   pcd_idrec: string;
   pcd_tanggal: string;
   pcd_pcv: number | string;
@@ -65,14 +72,26 @@ const filters = reactive({
 const cabangList = ref<{ kode: string; nama: string }[]>([]);
 const isKdc = computed(() => authStore.user?.cabang === "KDC");
 
+// [BARU] Logika Cek Admin (Sesuaikan dengan properti object User di AuthStore Mas Rizal)
+const isAdmin = computed(() => {
+  return authStore.user?.kode === "ADMIN";
+});
+
 const loading = ref(true);
 const masterData = ref<PettyCashItem[]>([]);
 const selected = ref<PettyCashItem[]>([]);
 const dialogConfirm = reactive({ show: false, title: "", text: "", onConfirm: () => {} });
+const dialogClose = reactive({
+  show: false,
+  title: "",
+  text: "",
+  isProcessing: false,
+  onConfirm: () => {},
+}); // [BARU]
 const dialogReceive = reactive({
   show: false,
   pck_nomor: "",
-  tanggal: format(new Date(), "yyyy-MM-dd"), // Default hari ini
+  tanggal: format(new Date(), "yyyy-MM-dd"),
   nominal: 0,
   bbk_finance: "",
   isProcessing: false,
@@ -84,15 +103,16 @@ const dialogTracking = reactive({
   item: null as PettyCashItem | null,
 });
 
-// Pemetaan urutan status untuk menentukan progress timeline
+// Pemetaan urutan status
 const statusOrder: Record<string, number> = {
   DRAFT: 0,
-  REJECTED: 0, // Rejected kita anggap kembali ke awal/nol
+  REJECTED: 0,
   SUBMITTED: 1,
   ACC: 2,
   APPROVED: 3,
   ON_TRANSFER: 4,
   RECEIVED: 5,
+  CLOSED: 6, // [BARU] Terminal status
 };
 
 // --- STATE UNTUK EXPAND DETAIL ---
@@ -109,10 +129,10 @@ const getApiBaseUrl = () => {
 
 const headers = ref([
   { title: "", key: "data-table-expand", width: 50, fixed: true },
-  { title: "No. Pengajuan / Dokumen", key: "nomor_utama", width: 220, fixed: true }, // Ubah judul
+  { title: "No. Pengajuan / Dokumen", key: "nomor_utama", width: 220, fixed: true },
   { title: "Tgl Pengajuan", key: "tanggal", width: 120 },
   { title: "Cabang", key: "cabang", width: 150 },
-  { title: "Jml Nota", key: "jumlah_nota", align: "center", width: 100 }, // Kolom baru
+  { title: "Jml Nota", key: "jumlah_nota", align: "center", width: 100 },
   { title: "Keterangan Klaim", key: "keterangan", width: 300 },
   { title: "Total Terpakai", key: "terpakai", align: "end", width: 130 },
   { title: "Sisa Saldo", key: "saldo", align: "end", width: 130 },
@@ -121,7 +141,6 @@ const headers = ref([
   { title: "User", key: "userCreate", width: 100 },
 ]);
 
-// Definisi langkah-langkah timeline
 const trackingSteps = [
   {
     status: "DRAFT",
@@ -135,7 +154,7 @@ const trackingSteps = [
     title: "Menunggu ACC",
     desc: "Menunggu persetujuan Supervisor",
     icon: "mdi-account-clock",
-    color: "warning", // Titik warna orange
+    color: "warning",
   },
   {
     status: "ACC",
@@ -187,7 +206,7 @@ const fetchCabangList = async () => {
 const fetchMasterData = async () => {
   loading.value = true;
   selected.value = [];
-  expanded.value = []; // Reset expand saat refresh
+  expanded.value = [];
   try {
     const response = await api.get("/petty-cash", { params: filters });
     masterData.value = response.data;
@@ -199,7 +218,6 @@ const fetchMasterData = async () => {
   }
 };
 
-// --- FUNGSI MENGAMBIL DETAIL SAAT DIKLIK PANAH ---
 const loadDetails = async (newlyExpandedItems: PettyCashItem[]) => {
   const itemToLoad = newlyExpandedItems.find(
     (item) => !details.value[item.nomor_utama] && !loadingDetails.value.has(item.nomor_utama)
@@ -207,14 +225,13 @@ const loadDetails = async (newlyExpandedItems: PettyCashItem[]) => {
   if (!itemToLoad) return;
 
   const kunciLoad = itemToLoad.nomor_utama;
-  loadingDetails.value.add(kunciLoad); // 1. Mulai putar loading
+  loadingDetails.value.add(kunciLoad);
 
   try {
     if (itemToLoad.pck_nomor) {
       const response = await api.get<PettyCashDetail[]>(
         `/petty-cash-form/klaim-detail/${itemToLoad.pck_nomor}`
       );
-
       details.value[kunciLoad] = response.data.map((d) => ({
         pcd_idrec: d.pcd_idrec,
         pcd_tanggal: d.pcd_tanggal,
@@ -234,12 +251,10 @@ const loadDetails = async (newlyExpandedItems: PettyCashItem[]) => {
     if (axios.isAxiosError(error)) msg = error.response?.data?.message || msg;
     toast.error(msg);
   } finally {
-    // [PERBAIKAN KRUSIAL] Wajib dihapus dari Set agar loading berhenti!
     loadingDetails.value.delete(kunciLoad);
   }
 };
 
-// --- Actions ---
 const handleNew = () => router.push({ path: "/transaksi/internal/petty-cash/create" });
 
 const handleEdit = () => {
@@ -269,10 +284,48 @@ const handleDelete = () => {
     } catch (error: unknown) {
       let msg = "Gagal menghapus data.";
       if (axios.isAxiosError(error)) msg = error.response?.data?.message || msg;
-      toast.error(msg); // [PERBAIKAN]
+      toast.error(msg);
     }
   };
   dialogConfirm.show = true;
+};
+
+// [BARU] Aksi Close Petty Cash
+// [BARU] Aksi Close Petty Cash
+const handleClose = () => {
+  if (selected.value.length !== 1) return;
+  const item = selected.value[0];
+
+  if (item.status === "CLOSED") {
+    return toast.warning("Dokumen ini sudah ditutup.");
+  }
+
+  dialogClose.title = "Konfirmasi Tutup Petty Cash";
+  // [PERBAIKAN]: Kalimat konfirmasi disesuaikan dengan logika DEBET
+  dialogClose.text = `Yakin ingin menutup Petty Cash ${
+    item.nomor_utama
+  }? Nominal klaim sebesar ${formatRupiah(
+    item.terpakai
+  )} akan dikembalikan ke Saldo Store (Mutasi DEBET) agar dapat diajukan ulang. Tindakan ini tidak bisa dibatalkan.`;
+
+  dialogClose.onConfirm = async () => {
+    dialogClose.isProcessing = true;
+    try {
+      const response = await api.post(`/petty-cash/close/${item.nomor_utama}`);
+      toast.success(response.data.message || "Petty Cash berhasil ditutup.");
+
+      dialogClose.show = false;
+      selected.value = [];
+      fetchMasterData();
+    } catch (error: unknown) {
+      let msg = "Gagal menutup Petty Cash.";
+      if (axios.isAxiosError(error)) msg = error.response?.data?.message || msg;
+      toast.error(msg);
+    } finally {
+      dialogClose.isProcessing = false;
+    }
+  };
+  dialogClose.show = true;
 };
 
 const handleExport = () => {
@@ -305,40 +358,10 @@ const handleExport = () => {
   toast.success("Data berhasil diexport ke CSV.");
 };
 
-// const handleSubmit = () => {
-//   if (selected.value.length !== 1) return;
-//   const item = selected.value[0];
-
-//   // Validasi: Hanya DRAFT atau REJECTED yang boleh disubmit
-//   if (item.status !== "DRAFT" && item.status !== "REJECTED") {
-//     return toast.warning(
-//       "Hanya dokumen berstatus DRAFT atau REJECTED yang bisa dikirim ke Finance."
-//     );
-//   }
-
-//   dialogConfirm.title = "Kirim ke Finance?";
-//   dialogConfirm.text = `Yakin ingin mengirim laporan Petty Cash ${item.nomor} ke Pusat? Setelah dikirim, dokumen ini akan terkunci dan tidak bisa diedit lagi oleh Toko.`;
-//   dialogConfirm.onConfirm = async () => {
-//     try {
-//       await api.put(`/petty-cash/submit/${item.nomor}`);
-//       toast.success("Laporan berhasil dikirim ke Finance.");
-//       fetchMasterData(); // Refresh tabel
-//     } catch (error) {
-//       toast.error("Gagal mengirim laporan ke Finance.", error);
-//     }
-//   };
-//   dialogConfirm.show = true;
-// };
-
 const showPreview = (fileName: string) => {
   if (!fileName) return;
-
   const cleanFileName = fileName.trim();
-
-  // 1. Ambil URL aslinya (Jangan dihapus /api nya!)
   const apiBaseUrl = getApiBaseUrl().replace(/\/$/, "");
-
-  // 2. Rangkai URL-nya. Akan menjadi: https://retail.kaosanofficial.com/api/uploads/pettycash/...
   const fileUrl = `${apiBaseUrl}/uploads/pettycash/${cleanFileName}`;
   const isPdf = cleanFileName.toLowerCase().endsWith(".pdf");
 
@@ -354,7 +377,6 @@ const handleRowClick = (_event: MouseEvent, { item }: { item: PettyCashItem }) =
   selected.value = [item];
 };
 
-// Fungsi buka dialog
 const openReceiveDialog = () => {
   if (selected.value.length !== 1) return;
   const item = selected.value[0];
@@ -365,15 +387,11 @@ const openReceiveDialog = () => {
 
   dialogReceive.pck_nomor = item.pck_nomor;
   dialogReceive.tanggal = format(new Date(), "yyyy-MM-dd");
-  dialogReceive.nominal = item.terpakai; // (Opsional) auto-fill nominal pakai nilai klaim
-
-  // [BARU] Langsung ambil No. BBK dari database Finance (jika sudah di-realisasi)
+  dialogReceive.nominal = item.terpakai;
   dialogReceive.bbk_finance = item.pck_bbk_finance || "";
-
   dialogReceive.show = true;
 };
 
-// Fungsi proses API
 const processReceive = async () => {
   if (!dialogReceive.nominal || dialogReceive.nominal <= 0) {
     return toast.error("Nominal asli yang diterima harus lebih dari 0.");
@@ -384,7 +402,7 @@ const processReceive = async () => {
     const payload = {
       tanggal: dialogReceive.tanggal,
       nominal: dialogReceive.nominal,
-      bbk_finance: dialogReceive.bbk_finance, // <--- TAMBAHKAN KE PAYLOAD
+      bbk_finance: dialogReceive.bbk_finance,
     };
 
     const response = await api.put(`/petty-cash/receive-klaim/${dialogReceive.pck_nomor}`, payload);
@@ -406,7 +424,7 @@ const getStatusColor = (status: string) => {
     case "DRAFT":
       return "blue-grey";
     case "SUBMITTED":
-      return "warning"; // Kasih warna orange/kuning biar kelihatan lagi nunggu
+      return "warning";
     case "ACC":
       return "info";
     case "APPROVED":
@@ -415,6 +433,8 @@ const getStatusColor = (status: string) => {
       return "success";
     case "REJECTED":
       return "error";
+    case "CLOSED":
+      return "black"; // [BARU] Status terminal / closed
     default:
       return "grey";
   }
@@ -425,7 +445,7 @@ const getStatusText = (status: string) => {
     case "DRAFT":
       return "Draft / Belum Diajukan";
     case "SUBMITTED":
-      return "Menunggu ACC SPV"; // <-- Ini kuncinya!
+      return "Menunggu ACC SPV";
     case "ACC":
       return "Menunggu Proses Finance";
     case "APPROVED":
@@ -434,6 +454,8 @@ const getStatusText = (status: string) => {
       return "Dana Cair";
     case "REJECTED":
       return "Ditolak / Revisi";
+    case "CLOSED":
+      return "Selesai / Ditutup"; // [BARU]
     default:
       return status;
   }
@@ -445,7 +467,7 @@ const getStepDate = (status: string, item: PettyCashItem | null) => {
 
   switch (status) {
     case "DRAFT":
-      dateVal = item.date_draft; // <--- PASTIKAN MENGGUNAKAN INI
+      dateVal = item.date_draft;
       break;
     case "SUBMITTED":
       dateVal = item.date_submitted;
@@ -465,8 +487,6 @@ const getStepDate = (status: string, item: PettyCashItem | null) => {
   }
 
   if (!dateVal) return "";
-
-  // Format menjadi "14 Apr 2026, 14:30"
   return format(new Date(dateVal), "dd MMM yyyy, HH:mm");
 };
 
@@ -505,6 +525,17 @@ onMounted(() => {
         @click="handleDelete"
         >Hapus</v-btn
       >
+
+      <v-btn
+        v-if="isAdmin"
+        size="small"
+        color="black"
+        prepend-icon="mdi-lock-check"
+        :disabled="selected.length !== 1 || selected[0].status === 'CLOSED'"
+        @click="handleClose"
+      >
+        Tutup PC
+      </v-btn>
 
       <v-btn
         v-if="authStore.can(MENU_ID, 'insert')"
@@ -656,6 +687,7 @@ onMounted(() => {
               :color="getStatusColor(item.status)"
             >
               <v-icon start size="small" v-if="item.status === 'SUBMITTED'">mdi-clock-fast</v-icon>
+              <v-icon start size="small" v-if="item.status === 'CLOSED'">mdi-lock-check</v-icon>
               {{ getStatusText(item.status) }}
             </v-chip>
 
@@ -792,14 +824,41 @@ onMounted(() => {
       </v-card>
     </v-dialog>
 
+    <v-dialog v-model="dialogClose.show" max-width="450px" persistent>
+      <v-card class="rounded-lg">
+        <v-card-title class="bg-black text-white text-subtitle-1 font-weight-bold">
+          <v-icon start>mdi-lock-check</v-icon> {{ dialogClose.title }}
+        </v-card-title>
+        <v-card-text class="pa-5 text-body-2">
+          {{ dialogClose.text }}
+        </v-card-text>
+        <v-card-actions class="pa-4 pt-0">
+          <v-spacer></v-spacer>
+          <v-btn
+            variant="text"
+            color="grey-darken-1"
+            @click="dialogClose.show = false"
+            :disabled="dialogClose.isProcessing"
+            >Batal</v-btn
+          >
+          <v-btn
+            color="black"
+            variant="flat"
+            :loading="dialogClose.isProcessing"
+            @click="dialogClose.onConfirm()"
+            >Tutup Permanen</v-btn
+          >
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+
     <v-dialog v-model="dialogPreview" max-width="850px">
       <v-card class="rounded-lg">
         <v-card-title
           class="bg-grey-darken-3 text-white text-subtitle-1 font-weight-bold d-flex justify-space-between align-center py-2 px-4"
         >
           <div class="d-flex align-center">
-            <v-icon size="small" class="me-2">mdi-image-search</v-icon>
-            Preview Nota
+            <v-icon size="small" class="me-2">mdi-image-search</v-icon> Preview Nota
           </div>
           <v-btn
             icon="mdi-close"
@@ -837,14 +896,12 @@ onMounted(() => {
         >
           <v-icon start>mdi-cash-multiple</v-icon> Konfirmasi Terima Dana
         </v-card-title>
-
         <v-card-text class="pa-5">
           <div class="mb-4 text-body-2">
             Anda akan mengonfirmasi penerimaan dana untuk pengajuan
             <b>{{ dialogReceive.pck_nomor }}</b
             >.
           </div>
-
           <v-text-field
             v-model="dialogReceive.tanggal"
             type="date"
@@ -853,18 +910,14 @@ onMounted(() => {
             density="compact"
             class="mb-3"
           />
-
           <v-text-field
             v-model="dialogReceive.bbk_finance"
-            label="No. Bukti Bank Keluar (BBK) Finance"
+            label="No. BBK Finance"
             variant="outlined"
             density="compact"
             class="mb-3"
             placeholder="Contoh: P01-BBK.2026.12345"
-            hint="Lihat dari bukti transfer Finance"
-            persistent-hint
           />
-
           <v-text-field
             v-model.number="dialogReceive.nominal"
             type="number"
@@ -875,7 +928,6 @@ onMounted(() => {
             hide-details
           />
         </v-card-text>
-
         <v-card-actions class="pa-4 pt-0">
           <v-spacer></v-spacer>
           <v-btn
@@ -904,13 +956,12 @@ onMounted(() => {
       <v-card class="rounded-xl overflow-hidden shadow-lg">
         <v-toolbar color="purple-darken-2" density="compact" class="px-2">
           <v-icon start class="mr-2">mdi-map-marker-path</v-icon>
-          <v-toolbar-title class="text-subtitle-1 font-weight-bold">
-            Tracking Pengajuan Klaim
-          </v-toolbar-title>
+          <v-toolbar-title class="text-subtitle-1 font-weight-bold"
+            >Tracking Pengajuan Klaim</v-toolbar-title
+          >
           <v-spacer></v-spacer>
           <v-btn icon="mdi-close" variant="text" @click="dialogTracking.show = false"></v-btn>
         </v-toolbar>
-
         <v-card-text class="pa-6 bg-grey-lighten-4">
           <div v-if="dialogTracking.item" class="mb-8 text-center tracking-header">
             <div class="text-h5 font-weight-black text-primary mb-1">
@@ -922,7 +973,6 @@ onMounted(() => {
                 formatRupiah(dialogTracking.item.terpakai)
               }}</span>
             </div>
-
             <v-alert
               v-if="dialogTracking.item.status === 'REJECTED'"
               type="error"
@@ -936,7 +986,6 @@ onMounted(() => {
               {{ dialogTracking.item.keterangan }}
             </v-alert>
           </div>
-
           <div class="timeline-horizontal-wrapper pb-4">
             <v-timeline
               direction="horizontal"
@@ -980,14 +1029,12 @@ onMounted(() => {
                   >
                     {{ step.title }}
                   </div>
-
                   <div
                     class="text-caption text-grey-darken-1 mb-2"
                     style="line-height: 1.2; min-height: 28px"
                   >
                     {{ step.desc }}
                   </div>
-
                   <div
                     v-if="
                       statusOrder[dialogTracking.item?.status || 'DRAFT'] >=
@@ -998,7 +1045,6 @@ onMounted(() => {
                   >
                     {{ getStepDate(step.status, dialogTracking.item) }}
                   </div>
-
                   <div
                     v-if="
                       step.status === 'ON_TRANSFER' &&
@@ -1088,7 +1134,7 @@ onMounted(() => {
   border-bottom: 1px solid rgba(0, 0, 0, 0.12);
 }
 .detail-wrapper {
-  max-width: 900px; /* Batasi lebar agar rapi */
+  max-width: 900px;
   border-radius: 4px;
   overflow: hidden;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
@@ -1136,7 +1182,6 @@ onMounted(() => {
   display: none;
 }
 
-/* Override Vuetify timeline horizontal */
 .timeline-horizontal-wrapper :deep(.v-timeline--horizontal) {
   justify-content: center;
   min-width: unset !important;
@@ -1168,7 +1213,6 @@ onMounted(() => {
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.18);
 }
 
-/* Glow animasi pada dot aktif */
 .timeline-horizontal-wrapper :deep(.v-timeline-divider__dot--has-color) {
   animation: pulseGlow 2s infinite ease-in-out;
 }
@@ -1183,7 +1227,6 @@ onMounted(() => {
   box-sizing: border-box;
 }
 
-/* Animasi date badge muncul */
 .centered-timeline-text .date-badge {
   animation: popIn 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
 }

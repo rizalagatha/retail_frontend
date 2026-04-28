@@ -72,9 +72,9 @@ const filters = reactive({
 const cabangList = ref<{ kode: string; nama: string }[]>([]);
 const isKdc = computed(() => authStore.user?.cabang === "KDC");
 
-// [BARU] Logika Cek Admin (Sesuaikan dengan properti object User di AuthStore Mas Rizal)
 const isAdmin = computed(() => {
-  return authStore.user?.kode === "ADMIN";
+  const allowedUsers = ["ADMIN", "ESTU"];
+  return allowedUsers.includes(authStore.user?.kode?.toUpperCase());
 });
 
 const loading = ref(true);

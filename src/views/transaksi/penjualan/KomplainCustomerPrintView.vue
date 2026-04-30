@@ -17,6 +17,7 @@ interface PrintHeader {
   perush_alamat: string;
   perush_telp: string;
   ref_nomor: string;
+  nominal_inv: number; // <--- [TAMBAHAN] Tangkap nominal dari backend
   kategori: string;
   status: string;
   keterangan?: string;
@@ -139,6 +140,17 @@ onMounted(() => {
           <td>
             <strong>{{ printData.header.status }}</strong>
           </td>
+        </tr>
+        <!-- [BARU] Baris untuk Nominal Potensi Loss -->
+        <tr>
+          <td>Potensi Loss</td>
+          <td>:</td>
+          <td>
+            <strong
+              >Rp {{ Number(printData.header.nominal_inv || 0).toLocaleString("id-ID") }}</strong
+            >
+          </td>
+          <td colspan="3"></td>
         </tr>
       </table>
 

@@ -23,7 +23,9 @@ interface PeminjamanItem {
   noKembali?: string;
   tanggalKembali?: string;
   lamaPinjam?: number;
-  keteranganKembali?: string; // <-- TAMBAHAN BARU
+  keteranganKembali?: string;
+  totalQty?: number;
+  totalNominal?: number; // <--- TAMBAHAN BARU
 }
 
 interface DetailItem {
@@ -78,6 +80,7 @@ const headers = ref([
   { title: "PIC Peminjam", key: "pic", width: 150 },
   { title: "Keterangan", key: "keterangan", width: 200 },
   { title: "Total Qty", key: "totalQty", align: "end", width: 100 },
+  { title: "Total Nominal", key: "totalNominal", align: "end", width: 130 },
   { title: "Tanggal Pinjam", key: "tanggal", width: 120 },
   { title: "Deadline", key: "deadline", width: 120 },
   { title: "Sisa Hari", key: "sisaHari", width: 100, align: "center" },
@@ -316,6 +319,12 @@ onMounted(() => {
         >
           <template #[`item.nomor`]="{ item }">
             <span :class="getRowClass(item)">{{ item.nomor }}</span>
+          </template>
+
+          <template #[`item.totalNominal`]="{ item }">
+            <span class="font-weight-bold text-deep-purple-darken-2">
+              Rp {{ Number(item.totalNominal || 0).toLocaleString("id-ID") }}
+            </span>
           </template>
 
           <template #[`item.noKembali`]="{ item }">

@@ -326,7 +326,7 @@ const tableHeaders = [
   { title: "Total", key: "total", sortable: false, width: "80px" },
   { title: "Barcode", key: "barcode", sortable: false, width: "90px" },
   { title: "Aksi", key: "actions", sortable: false, width: "50px", align: "center" },
-];
+] as const;
 
 onMounted(() => {
   const id = route.params.id as string;
@@ -714,7 +714,7 @@ onMounted(() => {
       <v-card>
         <v-card-title class="text-h6 font-weight-bold">{{ dialogConfirmPrint.title }}</v-card-title>
 
-        <v-card-text v-html="dialogConfirmPrint.text"></v-card-text>
+        <v-card-text>{{ dialogConfirmPrint.text }}</v-card-text>
 
         <v-card-actions>
           <v-spacer />

@@ -181,7 +181,12 @@ const fetchCustomers = async (tableOptions?: Partial<TableOptions>) => {
 };
 
 const handleRowClick = (_event: Event, { item }: { item: Customer }) => {
-  selected.value = [item]; // Memungkinkan seleksi baris lewat klik
+  // Toggle selection
+  if (selected.value.length === 1 && selected.value[0].kode === item.kode) {
+    selected.value = [];
+  } else {
+    selected.value = [item];
+  }
 };
 
 const getRowTextColor = (item: Customer) => {
@@ -421,8 +426,9 @@ onMounted(() => {
           variant="outlined"
           hide-details
           single-line
+          class="search-grow"
         ></v-text-field>
-        <v-spacer></v-spacer>
+        <v-spacer />
         <v-btn @click="fetchCustomers" icon="mdi-refresh" variant="text" size="small"></v-btn>
       </div>
 
@@ -440,7 +446,11 @@ onMounted(() => {
           :items="customers"
           :loading="isLoading"
           @update:options="fetchCustomers"
-          :item-class="getRowTextColor"
+          :row-props="(data: any) => {
+  const item = data.item?.raw ?? data.item
+  const isSelected = selected.some(s => s.kode === item.kode)
+  return { class: [getRowTextColor(item), isSelected ? 'row-is-selected' : ''].join(' ').trim() }
+}"
           item-value="kode"
           density="compact"
           class="desktop-table header-browse-blue"
@@ -723,6 +733,7 @@ onMounted(() => {
   gap: 12px;
   background-color: rgb(var(--v-theme-surface));
   border-bottom: 1px solid rgba(var(--v-theme-on-surface), 0.12);
+  width: 100%;
 }
 
 .table-container {
@@ -843,5 +854,43 @@ onMounted(() => {
   background-color: rgb(var(--v-theme-background)) !important;
   color: rgb(var(--v-theme-on-surface)) !important;
   font-weight: 600;
+}
+
+/* ── Hover & Selected ─────────────────────────────────────────────────── */
+/* Search mengisi sisa ruang */
+.search-grow {
+  flex: 1 1 0;
+}
+.search-grow :deep(.v-field) {
+  font-size: 11px !important;
+  height: 28px !important;
+}
+.search-grow :deep(.v-field__input) {
+  font-size: 11px !important;
+  min-height: 28px !important;
+  padding: 0 4px !important;
+}
+
+/* Selected — pakai class manual row-is-selected */
+.desktop-table :deep(tbody tr.row-is-selected td) {
+  background-color: rgba(25, 118, 210, 0.13) !important;
+}
+.desktop-table :deep(tbody tr.row-is-selected td:first-child) {
+  border-left: 3px solid #1976d2 !important;
+}
+.desktop-table :deep(tbody tr.row-is-selected:hover td) {
+  background-color: rgba(25, 118, 210, 0.22) !important;
+}
+
+/* Hover normal */
+.desktop-table :deep(tbody tr:hover td) {
+  background-color: rgba(25, 118, 210, 0.07) !important;
+  cursor: pointer;
+}
+
+/* Pasif tetap abu */
+.desktop-table :deep(tbody tr.text-grey td),
+.desktop-table :deep(tbody tr.row-is-selected.text-grey td) {
+  color: #9e9e9e !important;
 }
 </style>

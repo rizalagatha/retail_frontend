@@ -260,7 +260,7 @@ const onPermintaanSelected = async (permintaan: { nomor: string }) => {
   await loadItemsFromSource(permintaan.nomor);
 };
 
-// [UBAH] Fungsi Load Items
+// [UBAH] Fungsi Load Items (Mode HARD BLOCK)
 const loadItemsFromPackingList = async (nomorPL: string) => {
   isLoading.value = true;
   try {
@@ -268,9 +268,31 @@ const loadItemsFromPackingList = async (nomorPL: string) => {
       params: { nomor: nomorPL },
     });
 
-    const rawItems = response.data as PackingListSourceItem[];
+    const rawItems = response.data as (PackingListSourceItem & { harga: number; hpp: number })[];
 
-    // Mapping response ke items grid
+    // 1. Filter dan kumpulkan barang yang bermasalah (Harga atau HPP 0)
+    const invalidItems = rawItems.filter((item) => item.harga === 0 || item.hpp === 0);
+
+    // 2. Jika ada yang bermasalah, TOLAK KERAS!
+    if (invalidItems.length > 0) {
+      // Ambil maksimal 5 nama barang biar toast-nya nggak kepanjangan nutupin layar
+      const invalidNames = invalidItems
+        .slice(0, 5)
+        .map((i) => `• ${i.kode} - ${i.nama} (${i.ukuran})`)
+        .join("\n");
+
+      const moreText =
+        invalidItems.length > 5 ? `\n...dan ${invalidItems.length - 5} item lainnya.` : "";
+
+      // Kasih pesan error yang jelas dan hentikan fungsi (return)
+      toast.error(
+        `GAGAL MEMUAT PACKING LIST!\n\nBarang berikut belum disetting Harga/HPP di Master Data:\n${invalidNames}${moreText}\n\nSilakan update Master Barang terlebih dahulu!`,
+        { timeout: 8000 } // Tahan agak lama biar sempat dibaca
+      );
+      return;
+    }
+
+    // 3. Jika aman semua (tidak ada yang kena return di atas), load ke grid
     items.value = rawItems.map((item) => ({
       id: Date.now() + Math.random(),
       kode: item.kode,
@@ -278,7 +300,6 @@ const loadItemsFromPackingList = async (nomorPL: string) => {
       ukuran: item.ukuran,
       stok: Number(item.stok),
 
-      // Field Baru (TypeScript sekarang mengenali properti ini)
       minstok: Number(item.stokmin),
       maxstok: Number(item.stokmax),
       sudah: Number(item.sudah),
@@ -290,7 +311,7 @@ const loadItemsFromPackingList = async (nomorPL: string) => {
     }));
 
     addNewRow();
-    toast.success("Item berhasil dimuat dari Packing List.");
+    toast.success("Semua item valid dan berhasil dimuat dari Packing List.");
   } catch (error) {
     console.error(error);
     toast.error("Gagal memuat item Packing List.");

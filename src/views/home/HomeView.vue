@@ -2700,10 +2700,13 @@ onUnmounted(() => {
                       >
                       <span class="text-subtitle-2 font-weight-bold">Produk Terlaris</span>
                     </div>
-                    <div v-if="authStore.user?.cabang === 'KDC'" style="width: 160px">
+                    <div
+                      v-if="authStore.user?.cabang === 'KDC'"
+                      style="min-width: 180px; max-width: 220px"
+                    >
                       <v-select
                         v-model="topProductsCabang"
-                        :items="[{ kode: 'ALL', nama: 'Semua Cabang' }, ...cabangList]"
+                        :items="cabangList"
                         item-title="nama"
                         item-value="kode"
                         density="compact"
@@ -2959,7 +2962,7 @@ onUnmounted(() => {
                       <div style="width: 180px">
                         <v-select
                           v-model="trendCabang"
-                          :items="[{ kode: 'ALL', nama: 'Semua Cabang' }, ...cabangList]"
+                          :items="cabangList"
                           item-title="nama"
                           item-value="kode"
                           label="Filter Cabang"

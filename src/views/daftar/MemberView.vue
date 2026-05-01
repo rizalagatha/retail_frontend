@@ -247,43 +247,51 @@ onMounted(() => {
           variant="outlined"
           hide-details
           single-line
+          class="search-grow"
         ></v-text-field>
         <v-spacer></v-spacer>
         <v-btn @click="fetchMembers" icon="mdi-refresh" variant="text" size="small"></v-btn>
       </div>
 
-      <AppDataTable
-        v-model:selected="selected"
-        :headers="headers"
-        :items="members"
-        :search="search"
-        :loading="isLoading"
-        item-value="hp"
-        density="compact"
-        class="desktop-table header-browse-blue"
-        fixed-header
-        show-select
-        return-object
-        hover
-        select-strategy="single"
-        @click:row="handleRowClick"
-      >
-        <template #[`item.actions`]="{ item }">
-          <v-icon
-            v-if="authStore.can(MENU_ID, 'edit')"
-            size="small"
-            class="me-2"
-            @click.stop="openEditDialog(item)"
-            >mdi-pencil</v-icon
-          >
-          <v-icon
-            v-if="authStore.can(MENU_ID, 'delete')"
-            size="small"
-            @click.stop="confirmDelete(item)"
-            >mdi-delete</v-icon
-          >
-        </template>
-      </AppDataTable>
+      <div class="table-container">
+        <AppDataTable
+          v-model:selected="selected"
+          :headers="headers"
+          :items="members"
+          :search="search"
+          :loading="isLoading"
+          item-value="hp"
+          density="compact"
+          class="desktop-table header-browse-blue"
+          fixed-header
+          show-select
+          return-object
+          hover
+          select-strategy="single"
+          :row-props="(data: any) => {
+        const item = data.item?.raw ?? data.item
+        const isSelected = selected.some((s: any) => s.hp === item.hp)
+        return { class: isSelected ? 'row-is-selected' : '' }
+      }"
+          @click:row="handleRowClick"
+        >
+          <template #[`item.actions`]="{ item }">
+            <v-icon
+              v-if="authStore.can(MENU_ID, 'edit')"
+              size="small"
+              class="me-2"
+              @click.stop="openEditDialog(item)"
+              >mdi-pencil</v-icon
+            >
+            <v-icon
+              v-if="authStore.can(MENU_ID, 'delete')"
+              size="small"
+              @click.stop="confirmDelete(item)"
+              >mdi-delete</v-icon
+            >
+          </template>
+        </AppDataTable>
+      </div>
     </div>
 
     <v-dialog v-model="dialog" max-width="600px" persistent>
@@ -448,5 +456,75 @@ onMounted(() => {
 .dialog-card :deep(.v-text-field .v-input__details) {
   min-height: 0;
   padding: 0;
+}
+
+/* ── Layout ───────────────────────────────────────────────────────────── */
+.browse-content {
+  display: flex;
+  flex-direction: column;
+  height: calc(100vh - 64px - 32px);
+  overflow: hidden;
+}
+
+.filter-section {
+  flex-shrink: 0;
+  padding: 6px 10px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  background-color: rgb(var(--v-theme-surface));
+  border-bottom: 1px solid rgba(var(--v-theme-on-surface), 0.12);
+}
+
+.search-grow {
+  flex: 1 1 0;
+}
+.search-grow :deep(.v-field) {
+  font-size: 11px !important;
+  height: 28px !important;
+}
+.search-grow :deep(.v-field__input) {
+  font-size: 11px !important;
+  min-height: 28px !important;
+  padding: 0 4px !important;
+}
+
+.table-container {
+  flex-grow: 1;
+  height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.desktop-table {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+.desktop-table :deep(.v-table__wrapper) {
+  flex-grow: 1;
+  height: 100% !important;
+  overflow-y: auto !important;
+}
+.desktop-table :deep(table) {
+  width: max-content;
+  min-width: 100%;
+}
+
+/* ── Hover & Selected ─────────────────────────────────────────────────── */
+.desktop-table :deep(tbody tr:hover td) {
+  background-color: rgba(25, 118, 210, 0.07) !important;
+  cursor: pointer;
+}
+.desktop-table :deep(tbody tr.row-is-selected td) {
+  background-color: rgba(25, 118, 210, 0.13) !important;
+}
+.desktop-table :deep(tbody tr.row-is-selected td:first-child) {
+  border-left: 3px solid #1976d2 !important;
+}
+.desktop-table :deep(tbody tr.row-is-selected:hover td) {
+  background-color: rgba(25, 118, 210, 0.22) !important;
 }
 </style>

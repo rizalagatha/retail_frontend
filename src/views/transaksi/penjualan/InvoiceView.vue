@@ -1,10 +1,11 @@
 <script setup lang="ts">
-import { ref, reactive, onMounted, computed, watch } from "vue";
+import { ref, reactive, nextTick, onMounted, computed, watch } from "vue";
 import { useRouter } from "vue-router";
 import { useRoute } from "vue-router";
 import { onBeforeRouteLeave } from "vue-router";
 import { useToast } from "vue-toastification";
 import { useAuthStore } from "@/stores/authStore";
+import { useCashierSessionStore } from "@/stores/cashierSessionStore";
 import api from "@/services/api";
 import { format, parseISO, isValid } from "date-fns";
 import PageLayout from "@/components/PageLayout.vue";
@@ -157,6 +158,11 @@ const route = useRoute();
 const toast = useToast();
 const authStore = useAuthStore();
 const MENU_ID = "27";
+const cashierSessionStore = useCashierSessionStore();
+const isStoreUser = computed(() => {
+  const cabang = authStore.user?.cabang || "";
+  return /^K\d+/.test(cabang);
+});
 
 // --- State ---
 const masterData = ref<InvoiceHeader[]>([]);
@@ -686,6 +692,15 @@ const getRowClass = (item: InvoiceItem) => {
 };
 
 const handleNew = () => {
+  // [PERBAIKAN] Validasi Buka Shift Hanya Untuk Toko
+  if (isStoreUser.value) {
+    if (!cashierSessionStore.session || cashierSessionStore.session.status === "CLOSED") {
+      toast.error("Shift Kasir belum dibuka! Tidak bisa membuat transaksi baru.");
+      cashierSessionStore.isStartModalVisible = true;
+      return;
+    }
+  }
+
   router.push({ name: "InvoiceCreate" });
 };
 
@@ -696,6 +711,13 @@ const handleNew = () => {
 // };
 
 const openChangePaymentModal = () => {
+  // [BARU] Validasi Buka Shift
+  if (!cashierSessionStore.session || cashierSessionStore.session.status === "CLOSED") {
+    toast.error("Shift Kasir belum dibuka! Tidak bisa mengubah pembayaran.");
+    cashierSessionStore.isStartModalVisible = true;
+    return;
+  }
+
   // Reset Form
   formPayment.metode = "TUNAI";
   formPayment.bank = null;
@@ -1099,6 +1121,14 @@ onMounted(async () => {
     }
     if (queryStatus) {
       filters.status = queryStatus;
+    }
+  }
+
+  await nextTick();
+  if (isStoreUser.value) {
+    if (!cashierSessionStore.session || cashierSessionStore.session.status === "CLOSED") {
+      toast.warning("Laci Kasir belum dibuka. Silakan mulai shift terlebih dahulu.");
+      cashierSessionStore.isStartModalVisible = true;
     }
   }
 

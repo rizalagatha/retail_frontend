@@ -46,7 +46,7 @@ const selectJenisKain = (item: JenisKain) => {
   }
 };
 
-let searchTimeout: number;
+let searchTimeout: ReturnType<typeof setTimeout>;
 watch(search, () => {
   clearTimeout(searchTimeout);
   searchTimeout = setTimeout(() => {

@@ -95,7 +95,7 @@ const decodeResi = (resi: string) => {
 
     // Rangkai kembali jadi nomor SO asli
     return `${cabang}.SO.${part1}.${part2}`;
-  } catch (e) {
+  } catch {
     // Kalau gagal decode, biarkan backend yang pusing nolak
     return resi;
   }
@@ -149,7 +149,7 @@ const encodeResi = (nomorSo: string) => {
     const secretVal = num * 7 + 456789;
     const encodedNum = secretVal.toString(36).toUpperCase();
     return `KSN${cabang}${encodedNum}`;
-  } catch (e) {
+  } catch {
     return nomorSo;
   }
 };

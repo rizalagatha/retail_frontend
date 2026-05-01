@@ -880,7 +880,7 @@ onBeforeRouteLeave((to, from, next) => {
             density="compact"
             hide-details
             variant="outlined"
-            style="min-width: 130px"
+            style="width: 120px"
           ></v-text-field>
           <span>s/d</span>
           <v-text-field
@@ -889,10 +889,10 @@ onBeforeRouteLeave((to, from, next) => {
             density="compact"
             hide-details
             variant="outlined"
-            style="min-width: 130px"
+            style="width: 120px"
           ></v-text-field>
         </div>
-        <div class="d-flex align-center ga-2" style="min-width: 220px">
+        <div class="d-flex align-center ga-2">
           <span class="filter-label">Cabang:</span>
           <v-select
             v-model="filters.cabang"
@@ -902,11 +902,10 @@ onBeforeRouteLeave((to, from, next) => {
             density="compact"
             hide-details
             variant="outlined"
-            style="max-width: 180px"
+            style="width: 150px"
             :menu-props="{ class: 'compact-select-list' }"
           ></v-select>
         </div>
-        <v-divider vertical class="mx-2"></v-divider>
         <div class="d-flex align-center ga-2">
           <v-select
             v-model="selectedFilterField"
@@ -915,7 +914,7 @@ onBeforeRouteLeave((to, from, next) => {
             density="compact"
             hide-details
             variant="outlined"
-            style="max-width: 180px"
+            style="width: 190px"
           ></v-select>
           <v-text-field
             v-model="filterSearchValue"
@@ -923,7 +922,7 @@ onBeforeRouteLeave((to, from, next) => {
             density="compact"
             hide-details
             variant="outlined"
-            style="min-width: 250px"
+            style="width: 180px"
             clearable
             prepend-inner-icon="mdi-magnify"
           ></v-text-field>
@@ -938,9 +937,9 @@ onBeforeRouteLeave((to, from, next) => {
           Reset Filter
         </v-btn>
         <v-spacer></v-spacer>
-        <div class="d-flex align-center ga-2 text-caption">
-          <v-icon color="red" icon="mdi-square-rounded" size="small"></v-icon> Open
-          <v-icon color="blue" icon="mdi-square-rounded" size="small"></v-icon> Tidak Jadi SO
+        <div class="legend-group">
+          <span class="legend-open">● Open</span>
+          <span class="legend-closed">● Tidak Jadi SO</span>
         </div>
         <v-btn @click="fetchData" icon="mdi-refresh" variant="text" size="small"></v-btn>
       </div>
@@ -1257,28 +1256,58 @@ onBeforeRouteLeave((to, from, next) => {
   overflow: hidden;
 }
 
-/* 2. Filter Section Tetap */
+/* Filter section — kompak 11px */
 .filter-section {
   flex-shrink: 0;
-  /* Styling tambahan biar rapi */
-  padding: 8px;
-  background-color: rgb(var(--v-theme-surface));
-  border-bottom: 1px solid rgba(var(--v-border-color), var(--v-border-opacity));
-  color: rgb(var(--v-theme-on-surface));
-
-  display: flex;
+  display: flex; /* ← wajib ada */
   align-items: center;
-  gap: 12px;
+  padding: 5px 10px;
+  gap: 8px;
+  flex-wrap: nowrap;
+  background-color: rgb(var(--v-theme-surface));
+  border-bottom: 1px solid rgba(var(--v-theme-on-surface), 0.12);
 }
 
-/* [FIX] Input Field di dalam Filter Section */
 .filter-section :deep(.v-field) {
-  background-color: rgb(var(--v-theme-background)) !important;
-  color: rgb(var(--v-theme-on-surface));
+  font-size: 11px !important;
+  min-height: 28px !important;
+  height: 28px !important;
 }
 
-.filter-section :deep(input) {
-  color: rgb(var(--v-theme-on-surface));
+.filter-section :deep(.v-field__input) {
+  font-size: 11px !important;
+  min-height: 28px !important;
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+}
+
+.filter-section :deep(.v-label) {
+  font-size: 11px !important;
+}
+
+.filter-section :deep(input[type="date"]) {
+  font-size: 11px !important;
+  padding: 0 !important;
+}
+
+.filter-section :deep(.v-select__selection-text) {
+  font-size: 11px !important;
+}
+
+.filter-section :deep(.v-field__append-inner .v-icon),
+.filter-section :deep(.v-field__prepend-inner .v-icon) {
+  font-size: 14px !important;
+}
+
+.filter-section :deep(input[type="date"]) {
+  font-size: 11px !important;
+  padding: 0 !important;
+  text-align: center !important;
+  width: 100% !important;
+}
+
+.filter-section :deep(.v-field__input) {
+  justify-content: center !important;
 }
 
 .filter-label {
@@ -1423,10 +1452,30 @@ onBeforeRouteLeave((to, from, next) => {
   /* supaya tidak kapital semua */
 }
 
-/* khusus warna merah Reset Filter */
+.legend-group {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.legend-open {
+  color: #d32f2f;
+  font-weight: 600;
+}
+
+.legend-closed {
+  color: #1976d2;
+  font-weight: 600;
+}
+
+/* Reset filter button — lebih kecil */
 .reset-filter-btn {
-  color: #d32f2f !important;
-  background-color: rgba(211, 47, 47, 0.15) !important;
+  height: 28px !important;
+  min-width: unset !important;
+  padding: 0 10px !important;
+  font-size: 11px !important;
 }
 
 .reset-filter-btn:hover {

@@ -57,6 +57,8 @@ interface OfferItem {
   _isHargaEditable?: boolean; // [FIX] Digunakan saat inject stiker
   originalDiskonRp?: number;
   originalDiskonPersen?: number;
+  scannedQty?: number;
+  isReady?: boolean;
 }
 
 interface OfferHeader {
@@ -194,6 +196,24 @@ interface ActivePromo {
   pro_disrp: number;
   pro_diskon: number;
   pro_lipat: "Y" | "N";
+}
+
+interface UkuranKaosItem {
+  ukuran: string;
+  jumlah: number;
+  harga: number;
+}
+
+interface ParsedCustomData {
+  ukuranKaos?: UkuranKaosItem[];
+  titikCetak?: {
+    keterangan: string;
+    sizeCetak: string;
+    panjang: number;
+    lebar: number;
+  }[];
+  hargaPerCm?: number;
+  [key: string]: unknown; // penting untuk spread ...parsed
 }
 
 // --- State ---
@@ -405,7 +425,7 @@ const loadOfferData = async (nomor: string) => {
 
     (itemsData as ApiOfferItem[]).forEach((item, index) => {
       const isCustom = item.pend_custom === "Y" || item.kode === "CUSTOM";
-      let parsed: any = {};
+      let parsed: ParsedCustomData = {};
 
       if (isCustom && item.pend_custom_data) {
         try {
@@ -417,7 +437,7 @@ const loadOfferData = async (nomor: string) => {
 
       // Jika item custom dan punya banyak ukuran di dalam JSON-nya
       if (isCustom && parsed.ukuranKaos && parsed.ukuranKaos.length > 1) {
-        parsed.ukuranKaos.forEach((u: any, uIdx: number) => {
+        parsed.ukuranKaos.forEach((u: UkuranKaosItem, uIdx: number) => {
           processedItems.push({
             id: Date.now() + Math.random() + uIdx,
             kode: item.kode || "CUSTOM",
@@ -664,7 +684,13 @@ const isDiscountableItem = (item: OfferItem) => {
 };
 
 const isItemPromoEligible = (item: OfferItem) => {
-  const autoPromoIds = ["PRO-2025-008", "PRO-2025-010", "PRO-2026-001", "PRO-2026-002"];
+  const autoPromoIds = [
+    "PRO-2025-008",
+    "PRO-2025-010",
+    "PRO-2026-001",
+    "PRO-2026-002",
+    "PRO-2026-004",
+  ];
   const hasActiveMonthlyPromo = activePromosList.value.some((p) =>
     autoPromoIds.includes(p.pro_nomor)
   );
@@ -673,10 +699,15 @@ const isItemPromoEligible = (item: OfferItem) => {
 
   const namaUp = (item.nama || "").toUpperCase();
   const isCustomOrDtf = !!item.noSoDtf || item.isCustomOrder === true || namaUp.includes("DTF");
+
   const isBukanPengajuan = !item.noPengajuanHarga;
+  // [BARU] Deteksi Bordir: Jika noSoDtf mengandung ".BR."
+  const isBukanBordir = !(item.noSoDtf || "").toUpperCase().includes(".BR.");
+
   const isJasaMurni = (item.kode || "").toUpperCase().startsWith("JASA") && !isCustomOrDtf;
 
-  return isBukanPengajuan && !isJasaMurni;
+  // Syarat Eligible: Bukan Pengajuan, BUKAN BORDIR, dan Bukan Jasa Murni
+  return isBukanPengajuan && isBukanBordir && !isJasaMurni;
 };
 
 const checkRealtimePromoEligibility = async (): Promise<boolean> => {
@@ -702,18 +733,32 @@ const checkRealtimePromoEligibility = async (): Promise<boolean> => {
   }, 0);
 
   // 3. Tentukan Kandidat Promo (Misal Promo April)
+  const promoMei = activePromosList.value.find((p) => p.pro_nomor === "PRO-2026-004");
   const promoApril = activePromosList.value.find((p) => p.pro_nomor === "PRO-2026-002");
   let currentCalculatedDiscount = 0;
   let promoCandidate: ActivePromo | null = null;
 
-  if (promoApril && totalEligibleValue >= 250000) {
+  // --- PRIORITAS 1: PROMO MEI 2026 ---
+  if (promoMei && totalEligibleValue >= 250000) {
+    const kelipatan = Math.floor(totalEligibleValue / 250000);
+    currentCalculatedDiscount = 12500 * kelipatan;
+    promoCandidate = promoMei;
+  }
+  // --- PRIORITAS 2: PROMO APRIL 2026 ---
+  else if (promoApril && totalEligibleValue >= 250000) {
     const kelipatan = Math.floor(totalEligibleValue / 250000);
     currentCalculatedDiscount = 12500 * kelipatan;
     promoCandidate = promoApril;
   }
 
   // 4. LOGIKA AUTO-UPDATE (KUNCI PERBAIKAN)
-  const autoPromoIds = ["PRO-2025-008", "PRO-2025-010", "PRO-2026-001", "PRO-2026-002"];
+  const autoPromoIds = [
+    "PRO-2025-008",
+    "PRO-2025-010",
+    "PRO-2026-001",
+    "PRO-2026-002",
+    "PRO-2026-004",
+  ];
 
   // Jika promo ini sudah nempel di header, perbarui nominalnya secara OTOMATIS tanpa popup
   if (header.value.nomorPromo && autoPromoIds.includes(header.value.nomorPromo)) {
@@ -1088,6 +1133,7 @@ const save = async () => {
 
     const activePromos = (promoResponse.data ?? []) as ActivePromo[];
 
+    const promoMei = activePromos.find((p) => p.pro_nomor === "PRO-2026-004");
     const promoApril = activePromos.find((p) => p.pro_nomor === "PRO-2026-002");
     const promo2026 = activePromos.find((p) => p.pro_nomor === "PRO-2026-001");
     const promo008 = activePromos.find((p) => p.pro_nomor === "PRO-2025-008");
@@ -1108,19 +1154,25 @@ const save = async () => {
       return sum;
     }, 0);
 
-    // --- PRIORITAS 1: PROMO APRIL (PRO-2026-002) ---
-    if (promoApril && totalEligibleValue >= 250000) {
+    // --- PRIORITAS 1: PROMO MEI ---
+    if (promoMei && totalEligibleValue >= 250000) {
+      const kelipatanUang = Math.floor(totalEligibleValue / 250000);
+      promoDiskon = 12500 * kelipatanUang;
+      promoToApply = promoMei;
+    }
+    // --- PRIORITAS 2: PROMO APRIL ---
+    else if (promoApril && totalEligibleValue >= 250000) {
       const kelipatanUang = Math.floor(totalEligibleValue / 250000);
       promoDiskon = 12500 * kelipatanUang;
       promoToApply = promoApril;
     }
-    // --- PRIORITAS 2: PROMO MARET (PRO-2026-001) ---
+    // --- PRIORITAS 3: PROMO MARET ---
     else if (promo2026 && totalEligibleValue >= 200000) {
       const kelipatanUang = Math.floor(totalEligibleValue / 200000);
       promoDiskon = 20000 * kelipatanUang;
       promoToApply = promo2026;
     }
-    // --- PRIORITAS 3: PROMO LAMA ---
+    // --- PRIORITAS 4: PROMO LAMA ---
     else if (!promoToApply) {
       const isExcludedItem = (item: OfferItem) => {
         const namaUp = item.nama?.toUpperCase() || "";
@@ -1159,9 +1211,14 @@ const save = async () => {
 
     // --- PENERAPAN PROMO HEADER OTOMATIS (DENGAN AUTO-SWAP) ---
     if (promoToApply) {
-      const autoPromoIds = ["PRO-2025-008", "PRO-2025-010", "PRO-2026-001", "PRO-2026-002"];
+      const autoPromoIds = [
+        "PRO-2025-008",
+        "PRO-2025-010",
+        "PRO-2026-001",
+        "PRO-2026-002",
+        "PRO-2026-004",
+      ];
 
-      // [KUNCI PERBAIKAN] Cek apakah user sengaja memakai diskon member atau sudah menolak promo ini
       const isUserRejectedPromo =
         lastSuggestedPromo.value === promoToApply.pro_nomor ||
         lastSuggestedPromo.value === "MANUAL_AUTH";
@@ -1170,7 +1227,6 @@ const save = async () => {
         footer.value.diskonPersen2 > 0 ||
         !!footer.value.pinDiskon1;
 
-      // HANYA timpa jika user tidak menolak dan tidak sedang pakai diskon member
       if (!isUserRejectedPromo && !isUsingMemberDiscount) {
         if (!header.value.nomorPromo || autoPromoIds.includes(header.value.nomorPromo)) {
           footer.value.diskonPersen1 = 0;
@@ -1181,7 +1237,6 @@ const save = async () => {
           header.value.nomorPromo = promoToApply.pro_nomor;
           header.value.namaPromo = promoToApply.pro_judul;
 
-          // Bersihkan stiker dari grid jika pindah ke promo selain Maret
           if (promoToApply.pro_nomor !== "PRO-2026-001") {
             const idx = items.value.findIndex(
               (i) => String(i.kode) === "2500053" || String(i.barcode) === "25014783"
@@ -1193,10 +1248,10 @@ const save = async () => {
         }
       }
     } else if (
-      header.value.nomorPromo === "PRO-2026-001" ||
-      header.value.nomorPromo === "PRO-2026-002"
+      header.value.nomorPromo === "PRO-2026-004" || // <--- [TAMBAH INI]
+      header.value.nomorPromo === "PRO-2026-002" ||
+      header.value.nomorPromo === "PRO-2026-001"
     ) {
-      // Jika qty dikurangi dan syarat tidak terpenuhi, lepas promonya
       footer.value.diskonRp = 0;
       footer.value.diskonRpInput = 0;
       header.value.nomorPromo = "";
@@ -1854,6 +1909,7 @@ const handleJenisOrderSaved = (data: JenisOrderSaved) => {
         stok: 0,
         jumlah: u.jumlah,
         harga: u.harga, // Harga satuan yang sudah dihitung modal
+        isHargaReadonly: true,
         diskonPersen: 0,
         diskonRp: 0,
         total: u.jumlah * u.harga,
@@ -2854,6 +2910,7 @@ onMounted(async () => {
       :model-value="dialogs.jenisOrder"
       :penawaran-details="penawaranDetails"
       :penawaran-barang-list="penawaranBarangList"
+      :source-type="'penawaran'"
       @close="dialogs.jenisOrder = false"
       @saved="handleJenisOrderSaved"
     />

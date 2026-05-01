@@ -171,6 +171,7 @@ const decodeResi = (resi: string) => {
 
     return `${cabang}.SO.${part1}.${part2}`;
   } catch (e) {
+    console.error("Decode resi gagal:", e);
     return resi;
   }
 };

@@ -19,6 +19,7 @@ const props = defineProps<{
   modelValue: boolean;
   penawaranDetails?: { kodeBarang: string; namaBarang: string; ukuran?: string }[];
   penawaranBarangList?: { kodeBarang: string; namaBarang: string }[];
+  sourceType?: string;
 }>();
 
 const emit = defineEmits(["close", "saved"]);
@@ -81,7 +82,7 @@ const form = ref<JenisOrderForm>({
   totalHarga: 0,
 });
 
-const detailsTitik = ref([{ keterangan: "", sizeCetak: "", panjang: 0, lebar: 0 }]);
+// const detailsTitik = ref([{ keterangan: "", sizeCetak: "", panjang: 0, lebar: 0 }]);
 
 const jenisOrderList = ref<{ kode: string; nama: string }[]>([]);
 const ukuranList = ref<string[]>([]);
@@ -603,7 +604,9 @@ watch(
               hide-details
               readonly
             />
-            <div class="caption-note">Diambil otomatis dari grid Penawaran</div>
+           <div class="caption-note">
+              Diambil otomatis dari grid {{ props.sourceType === 'so' ? 'Surat Pesanan' : 'Penawaran' }}
+            </div>
           </v-col>
 
           <v-col cols="3">

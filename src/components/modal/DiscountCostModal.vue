@@ -111,7 +111,7 @@ watch(
       // Pertahankan PIN yang sudah diotorisasi di dalam modal
       pinDiskon1: localFooter.value?.pinDiskon1 || newVal.pinDiskon1,
       pinDiskon2: localFooter.value?.pinDiskon2 || newVal.pinDiskon2,
-      authNomor: localFooter.value?.authNomor || newVal.authNomor
+      authNomor: localFooter.value?.authNomor || newVal.authNomor,
     };
 
     // [PERBAIKAN KUNCI 2]: Set nilai input manual Rp

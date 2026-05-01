@@ -14,8 +14,19 @@ import { useBufferStockDialog } from "@/composables/useBufferStockDialog"; // Co
 import { useSettingsProcessDialog } from "@/composables/useSettingsProcessDialog";
 import { useManualProgramDialog } from "@/composables/useManualProgramDialog"; // Contoh
 import { useMemoInternalDialog } from "@/composables/useMemoInternalDialog";
+import { useCashierSessionStore } from "@/stores/cashierSessionStore";
 const { showMemoDialog, openMemoDialog } = useMemoInternalDialog();
 import GlobalUnsavedChangesDialog from "@/components/dialog/GlobalUnsavedChangesDialog.vue";
+
+const CashierSessionBadge = defineAsyncComponent(
+  () => import("@/components/cashier/CashierSessionBadge.vue")
+);
+const StartSessionModal = defineAsyncComponent(
+  () => import("@/components/cashier/StartSessionModal.vue")
+);
+const HandoverSessionModal = defineAsyncComponent(
+  () => import("@/components/cashier/HandoverSessionModal.vue")
+);
 
 interface Changelog {
   version: string;
@@ -50,6 +61,12 @@ const ChangelogModal = defineAsyncComponent(() => import("@/components/modal/Cha
 const authStore = useAuthStore();
 const uiStore = useUiStore();
 const theme = useTheme();
+const cashierSessionStore = useCashierSessionStore();
+
+const isStoreUser = computed(() => {
+  const cabang = authStore.user?.cabang || "";
+  return /^K\d+/.test(cabang); // Hanya true jika cabang berawalan K lalu angka
+});
 
 // --- STATE VERSI & UPDATE ---
 const currentVersion = __APP_VERSION__; // Versi yang sedang jalan di browser
@@ -470,6 +487,10 @@ onMounted(() => {
       numLockOn.value = e.getModifierState("NumLock");
     }
   });
+
+  if (authStore.isAuthenticated) {
+    cashierSessionStore.fetchCurrentSession();
+  }
 });
 
 onUnmounted(() => {
@@ -508,6 +529,7 @@ onUnmounted(() => {
         </div>
 
         <v-divider vertical class="my-1 d-none d-sm-block"></v-divider>
+        <CashierSessionBadge v-if="isStoreUser" class="d-none d-md-flex" />
 
         <div
           class="d-flex align-center cursor-pointer"
@@ -1107,6 +1129,11 @@ onUnmounted(() => {
     <ChangelogModal v-model="showChangelog" :items="changelogList" :loading="isChangelogLoading" />
 
     <FaqModal v-model="showFaq" />
+
+    <template v-if="isStoreUser">
+      <StartSessionModal />
+      <HandoverSessionModal />
+    </template>
   </div>
 </template>
 

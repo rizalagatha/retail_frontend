@@ -54,6 +54,16 @@ interface PrintData {
   summary: PrintSummary;
 }
 
+interface CustomUkuran {
+  ukuran: string;
+  jumlah: number;
+  harga: number;
+}
+
+interface CustomParsedData {
+  ukuranKaos?: CustomUkuran[];
+}
+
 const route = useRoute();
 const printData = ref<PrintData | null>(null);
 const isLoading = ref(true);
@@ -90,7 +100,7 @@ const encodeResi = (nomorSo: string) => {
     // Format: Awalan "KSN" + Kode Cabang + Kode Rahasia
     // Hasil: KSNK0130FRTS
     return `KSN${cabang}${encodedNum}`;
-  } catch (e) {
+  } catch {
     return nomorSo;
   }
 };
@@ -106,33 +116,40 @@ const fetchPrintData = async (nomor: string) => {
     // ========================================================
     const processedDetails: PrintItem[] = [];
 
-    data.details.forEach((item: any) => {
-      // Cek apakah ini item custom dan punya rincian data (sod_custom_data)
-      // Biasanya di sistem Mas Rizal, data teknis ada di field pcd_custom_data atau sod_custom_data
-      if (item.sod_custom === "Y" && item.sod_custom_data) {
-        try {
-          const parsed = JSON.parse(item.sod_custom_data);
-          if (parsed.ukuranKaos && parsed.ukuranKaos.length > 1) {
-            parsed.ukuranKaos.forEach((u: any) => {
-              processedDetails.push({
-                ...item,
-                nama_barang: item.sod_custom_nama || item.nama_barang,
-                ukuran: u.ukuran,
-                qty: u.jumlah,
-                harga: u.harga,
-                total: u.jumlah * u.harga,
-                diskon: 0, // Diskon custom biasanya sudah include di harga atau ditaruh di faktur
-              });
-            });
-            return; // Skip push item original
-          }
-        } catch (e) {
-          console.error("Gagal pecah baris print SO:", e);
+    data.details.forEach(
+      (
+        item: PrintItem & {
+          sod_custom?: string;
+          sod_custom_data?: string;
+          sod_custom_nama?: string;
         }
+      ) => {
+        if (item.sod_custom === "Y" && item.sod_custom_data) {
+          try {
+            const parsed = JSON.parse(item.sod_custom_data) as CustomParsedData;
+
+            if (parsed.ukuranKaos && parsed.ukuranKaos.length > 1) {
+              parsed.ukuranKaos.forEach((u) => {
+                processedDetails.push({
+                  ...item,
+                  nama_barang: item.sod_custom_nama || item.nama_barang,
+                  ukuran: u.ukuran,
+                  qty: u.jumlah,
+                  harga: u.harga,
+                  total: u.jumlah * u.harga,
+                  diskon: 0,
+                });
+              });
+              return;
+            }
+          } catch (e) {
+            console.error("Gagal pecah baris print SO:", e);
+          }
+        }
+
+        processedDetails.push(item);
       }
-      // Jika reguler, masukkan apa adanya
-      processedDetails.push(item);
-    });
+    );
 
     // Masukkan kembali ke printData
     printData.value = {
@@ -141,13 +158,14 @@ const fetchPrintData = async (nomor: string) => {
     };
     // ========================================================
 
-    if (printData.value.header?.so_nomor) {
+    if (printData.value && printData.value.header.so_nomor) {
       document.title = printData.value.header.so_nomor;
       trackingCode.value = encodeResi(printData.value.header.so_nomor);
       const linkTracking = `https://tracking.kaosanofficial.com/transaksi/penjualan/surat-pesanan/track/${trackingCode.value}?target=UMUM`;
       qrCodeData.value = await QRCode.toDataURL(linkTracking, { width: 150, margin: 1 });
     }
   } catch (error) {
+    console.error(error);
     alert("Gagal memuat data untuk dicetak.");
   } finally {
     isLoading.value = false;

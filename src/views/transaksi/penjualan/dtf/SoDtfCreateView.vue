@@ -90,6 +90,25 @@ type SoSelected = {
   soNomor?: string;
 };
 
+interface RevisiItem {
+  tr_revisi_ke: number;
+  tr_gambar: string | null;
+}
+
+interface TrialDetailUkuran {
+  namaBarang: string;
+  ukuran: string;
+  jumlah?: number;
+  harga?: number;
+}
+
+interface TrialDetailTitik {
+  keterangan: string;
+  sizeCetak: string;
+  panjang: number;
+  lebar: number;
+}
+
 // --- State & Dependencies ---
 const route = useRoute();
 const router = useRouter();
@@ -339,6 +358,7 @@ const fetchDataForEdit = async (nomor: string) => {
       hargaPerCm: data.header.hargaPerCm || 0,
       user: data.header.user || "",
       imageUrl: data.header.imageUrl || null,
+      refTrial: data.header.refTrial || null,
     };
 
     // Set preview dari gambar existing (jika ada)
@@ -1086,7 +1106,7 @@ const fetchFromTrial = async (nomorTrial: string) => {
 
     if (trialData.header.revisiList && trialData.header.revisiList.length > 0) {
       // Loop murni dari tabel history revisi agar rapi dan berurutan
-      trialData.header.revisiList.forEach((rev: any) => {
+      trialData.header.revisiList.forEach((rev: RevisiItem) => {
         if (rev.tr_gambar) {
           trialImageOptions.value.push({
             title: rev.tr_revisi_ke === 0 ? "Desain Awal" : `Revisi Ke-${rev.tr_revisi_ke}`,
@@ -1105,15 +1125,15 @@ const fetchFromTrial = async (nomorTrial: string) => {
     }
 
     // 4. Isi Grid Ukuran & Titik
-    detailsUkuran.value = trialData.detailsUkuran.map((d: any, i: number) => ({
+    detailsUkuran.value = trialData.detailsUkuran.map((d: TrialDetailUkuran, i: number) => ({
       id: Date.now() + i,
       namaBarang: d.namaBarang,
       ukuran: d.ukuran,
-      jumlah: d.jumlah || 1, // Default ke 1
-      harga: d.harga || 0,
+      jumlah: d.jumlah ?? 1,
+      harga: d.harga ?? 0,
     }));
 
-    detailsTitik.value = trialData.detailsTitik.map((t: any, i: number) => ({
+    detailsTitik.value = trialData.detailsTitik.map((t: TrialDetailTitik, i: number) => ({
       id: Date.now() + i + 1000,
       keterangan: t.keterangan,
       sizeCetak: t.sizeCetak,

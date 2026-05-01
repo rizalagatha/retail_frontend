@@ -192,115 +192,137 @@ onMounted(() => {
           variant="outlined"
           hide-details
           single-line
-        ></v-text-field>
-        <v-spacer></v-spacer>
-        <v-btn @click="fetchSalesCounters" icon="mdi-refresh" variant="text" size="small"></v-btn>
+          class="search-grow"
+        />
+        <v-spacer />
+        <v-btn @click="fetchSalesCounters" icon="mdi-refresh" variant="text" size="small" />
       </div>
 
-      <AppDataTable
-        v-model="selected"
-        :headers="headers"
-        :items="salesCounters"
-        :search="search"
-        :loading="isLoading"
-        item-value="kode"
-        density="compact"
-        class="desktop-table header-browse-blue"
-        fixed-header
-        show-select
-        return-object
-      >
-        <template #[`item.status`]="{ item }">
-          <v-chip
-            :color="item.status === 'AKTIF' ? 'success' : 'error'"
-            variant="tonal"
-            size="x-small"
-          >
-            {{ item.status }}
-          </v-chip>
-        </template>
+      <div class="table-container">
+        <AppDataTable
+          v-model="selected"
+          :headers="headers"
+          :items="salesCounters"
+          :search="search"
+          :loading="isLoading"
+          item-value="kode"
+          density="compact"
+          class="desktop-table header-browse-blue"
+          fixed-header
+          show-select
+          return-object
+          hover
+          select-strategy="single"
+          :row-props="(data: any) => {
+        const item = data.item?.raw ?? data.item
+        const isSelected = selected.some((s: any) => s.kode === item.kode)
+        return { class: isSelected ? 'row-is-selected' : '' }
+      }"
+          @click:row="(_: any, { item }: any) => { selected = [item] }"
+        >
+          <template #[`item.status`]="{ item }">
+            <v-chip
+              :color="item.status === 'AKTIF' ? 'success' : 'error'"
+              variant="tonal"
+              size="x-small"
+            >
+              {{ item.status }}
+            </v-chip>
+          </template>
 
-        <template #[`item.actions`]="{ item }">
-          <v-icon
-            v-if="authStore.can(MENU_ID, 'edit')"
-            size="small"
-            class="me-2"
-            @click="openEditDialog(item)"
-          >
-            mdi-pencil
-          </v-icon>
-          <v-icon v-if="authStore.can(MENU_ID, 'delete')" size="small" @click="confirmDelete(item)">
-            mdi-delete
-          </v-icon>
-        </template>
-      </AppDataTable>
+          <template #[`item.actions`]="{ item }">
+            <v-icon
+              v-if="authStore.can(MENU_ID, 'edit')"
+              size="small"
+              class="me-2"
+              @click="openEditDialog(item)"
+            >
+              mdi-pencil
+            </v-icon>
+            <v-icon
+              v-if="authStore.can(MENU_ID, 'delete')"
+              size="small"
+              @click="confirmDelete(item)"
+            >
+              mdi-delete
+            </v-icon>
+          </template>
+        </AppDataTable>
+      </div>
     </div>
 
     <v-dialog v-model="dialog" max-width="600px" persistent>
       <v-card class="dialog-card">
         <v-card-title class="dialog-header">
+          <v-icon start size="small" color="primary">mdi-account-tie</v-icon>
           <span class="text-subtitle-1 font-weight-medium">{{ dialogTitle }}</span>
         </v-card-title>
 
         <v-card-text class="pa-4">
-          <v-container>
-            <v-row>
-              <v-col cols="12">
-                <v-text-field
-                  v-model="editedItem.kode"
-                  label="Kode"
-                  :disabled="!isNew"
-                  variant="outlined"
-                  density="compact"
-                  placeholder="Pilih user atau F1"
-                  @keydown.f1.prevent="isHelpModalVisible = true"
-                  append-inner-icon="mdi-magnify"
-                  @click:append-inner="isHelpModalVisible = true"
-                ></v-text-field>
+          <v-col cols="12">
+            <v-text-field
+              v-model="editedItem.kode"
+              label="Kode"
+              :disabled="!isNew"
+              variant="outlined"
+              density="compact"
+              placeholder="Pilih user atau F1"
+              @keydown.f1.prevent="isHelpModalVisible = true"
+              append-inner-icon="mdi-magnify"
+              @click:append-inner="isHelpModalVisible = true"
+              class="mb-2"
+              hide-details
+            ></v-text-field>
 
-                <v-text-field
-                  v-model="editedItem.nama"
-                  label="Nama"
-                  variant="outlined"
-                  :disabled="!isNew"
-                  density="compact"
-                ></v-text-field>
+            <v-text-field
+              v-model="editedItem.nama"
+              label="Nama"
+              variant="outlined"
+              :disabled="!isNew"
+              density="compact"
+              class="mb-2"
+              hide-details
+            ></v-text-field>
 
-                <v-textarea
-                  v-model="editedItem.alamat"
-                  label="Alamat"
-                  variant="outlined"
-                  density="compact"
-                  rows="2"
-                ></v-textarea>
+            <v-textarea
+              v-model="editedItem.alamat"
+              label="Alamat"
+              variant="outlined"
+              density="compact"
+              rows="2"
+              class="mb-2"
+              hide-details
+            ></v-textarea>
 
-                <v-text-field
-                  v-model="editedItem.hp"
-                  label="No. HP"
-                  variant="outlined"
-                  density="compact"
-                ></v-text-field>
+            <v-text-field
+              v-model="editedItem.hp"
+              label="No. HP"
+              variant="outlined"
+              density="compact"
+              class="mb-2"
+              hide-details
+            ></v-text-field>
 
-                <v-text-field
-                  v-model="editedItem.ktp"
-                  label="No. KTP"
-                  variant="outlined"
-                  density="compact"
-                ></v-text-field>
+            <v-text-field
+              v-model="editedItem.ktp"
+              label="No. KTP"
+              variant="outlined"
+              density="compact"
+              class="mb-2"
+              hide-details
+            ></v-text-field>
 
-                <v-radio-group
-                  v-model="editedItem.status"
-                  inline
-                  label="Status"
-                  density="compact"
-                  hide-details
-                >
-                  <v-radio label="Aktif" value="AKTIF" color="success"></v-radio>
-                  <v-radio label="Pasif" value="PASIF" color="error"></v-radio>
-                </v-radio-group>
-              </v-col>
-            </v-row>
-          </v-container>
+            <v-radio-group
+              v-model="editedItem.status"
+              inline
+              label="Status"
+              density="compact"
+              hide-details
+            >
+              <v-radio label="Aktif" value="AKTIF" color="success"></v-radio>
+              <v-radio label="Pasif" value="PASIF" color="error"></v-radio>
+            </v-radio-group>
+          </v-col>
         </v-card-text>
 
         <v-card-actions class="dialog-footer">
@@ -346,37 +368,137 @@ onMounted(() => {
   color: rgb(var(--v-theme-on-surface));
 }
 
+.dialog-card :deep(.v-card-text) {
+  background-color: rgb(var(--v-theme-surface)) !important;
+}
+
 .dialog-header {
-  border-bottom: 1px solid rgba(var(--v-border-color), var(--v-border-opacity));
-  padding: 8px 16px;
-  background-color: rgb(var(--v-theme-background));
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  border-bottom: 1px solid rgba(var(--v-theme-on-surface), 0.12);
+  background-color: rgb(var(--v-theme-surface));
+  border-left: 3px solid rgb(var(--v-theme-primary)); /* accent kiri */
 }
-
 .dialog-footer {
-  border-top: 1px solid rgba(var(--v-border-color), var(--v-border-opacity));
   padding: 8px 16px;
-  background-color: rgb(var(--v-theme-background));
+  border-top: 1px solid rgba(var(--v-theme-on-surface), 0.12);
+  background-color: rgb(var(--v-theme-surface));
 }
 
-/* Fix Input Text Color in Dark Mode */
-.dialog-card :deep(.v-field__input),
+/* ── Dialog font & spacing ────────────────────────────────────────────── */
 .dialog-card :deep(.v-label) {
+  font-size: 11px !important;
+  color: rgba(var(--v-theme-on-surface), 0.7);
+}
+
+.dialog-card :deep(input),
+.dialog-card :deep(textarea),
+.dialog-card :deep(.v-select__selection-text) {
+  font-size: 12px !important;
   color: rgb(var(--v-theme-on-surface));
 }
 
-/* Fix Input Background */
 .dialog-card :deep(.v-field) {
+  font-size: 12px !important;
+  background-color: rgb(var(--v-theme-surface)) !important;
+}
+
+.dialog-card :deep(.v-field__input) {
+  font-size: 12px !important;
+  min-height: 36px !important;
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+}
+
+/* Override khusus textarea — jangan paksa min-height seperti input biasa */
+.dialog-card :deep(textarea) {
+  min-height: unset !important;
+  padding-top: 8px !important;
+  padding-bottom: 8px !important;
+}
+
+.dialog-card :deep(.v-textarea .v-field__input) {
+  min-height: unset !important;
+  padding-top: 6px !important;
+  padding-bottom: 6px !important;
+  align-items: flex-start !important;
+}
+
+/* ── Layout ───────────────────────────────────────────────────────────── */
+.browse-content {
+  display: flex;
+  flex-direction: column;
+  height: calc(100vh - 64px - 32px);
+  overflow: hidden;
+}
+
+.filter-section {
+  flex-shrink: 0;
+  padding: 6px 10px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
   background-color: rgb(var(--v-theme-surface));
-  border-color: rgba(var(--v-border-color), var(--v-border-opacity));
+  border-bottom: 1px solid rgba(var(--v-theme-on-surface), 0.12);
 }
 
-.dialog-card :deep(.v-text-field),
-.dialog-card :deep(.v-select),
-.dialog-card :deep(.v-textarea) {
-  margin-bottom: 12px;
+.search-grow {
+  flex: 1 1 0;
+}
+.search-grow :deep(.v-field) {
+  font-size: 11px !important;
+  height: 28px !important;
+}
+.search-grow :deep(.v-field__input) {
+  font-size: 11px !important;
+  min-height: 28px !important;
+  padding: 0 4px !important;
 }
 
-.dialog-card :deep(.v-input__details) {
-  display: none;
+.table-container {
+  flex-grow: 1;
+  height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.desktop-table {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+.desktop-table :deep(.v-table__wrapper) {
+  flex-grow: 1;
+  height: 100% !important;
+  overflow-y: auto !important;
+}
+.desktop-table :deep(table) {
+  width: max-content;
+  min-width: 100%;
+}
+
+/* ── Hover & Selected ─────────────────────────────────────────────────── */
+.desktop-table :deep(tbody tr:hover td) {
+  background-color: rgba(25, 118, 210, 0.07) !important;
+  cursor: pointer;
+}
+.desktop-table :deep(tbody tr.row-is-selected td) {
+  background-color: rgba(25, 118, 210, 0.13) !important;
+}
+.desktop-table :deep(tbody tr.row-is-selected td:first-child) {
+  border-left: 3px solid #1976d2 !important;
+}
+.desktop-table :deep(tbody tr.row-is-selected:hover td) {
+  background-color: rgba(25, 118, 210, 0.22) !important;
+}
+
+/* Status PASIF tetap abu */
+.desktop-table :deep(tbody tr.text-grey td),
+.desktop-table :deep(tbody tr.row-is-selected.text-grey td) {
+  color: #9e9e9e !important;
 }
 </style>

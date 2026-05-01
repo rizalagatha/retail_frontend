@@ -97,8 +97,8 @@ const MutasiWorkshopPrintView = () =>
   import("@/views/operasional/workshop/MutasiWorkshopPrintView.vue");
 const TerimaMutasiWorkshopView = () =>
   import("@/views/operasional/workshop/TerimaMutasiWorkshopView.vue");
-// const TerimaMutasiWorkshopCreateView = () =>
-//   import("@/views/operasional/workshop/TerimaMutasiWorkshopCreateView.vue");
+const TerimaMutasiWorkshopCreateView = () =>
+  import("@/views/operasional/workshop/TerimaMutasiWorkshopCreateView.vue");
 
 // --- PIUTANG & FINANCE ---
 const SetoranBayarView = () => import("@/views/piutang/SetoranBayarView.vue");
@@ -2681,16 +2681,16 @@ const routes = [
       menuId: "802", // Sesuai kesepakatan
     },
   },
-  // {
-  //   path: "/operasional/workshop/terima-workshop/create",
-  //   name: "TerimaMutasiWorkshopCreate",
-  //   component: TerimaMutasiWorkshopCreateView, // Komponen ini akan kita buat setelah ini
-  //   meta: {
-  //     title: "Terima Barang Workshop",
-  //     requiresAuth: true,
-  //     menuId: "802",
-  //   },
-  // },
+  {
+    path: "/operasional/workshop/terima-workshop/create",
+    name: "TerimaMutasiWorkshopCreate",
+    component: TerimaMutasiWorkshopCreateView, // Komponen ini akan kita buat setelah ini
+    meta: {
+      title: "Terima Barang Workshop",
+      requiresAuth: true,
+      menuId: "802",
+    },
+  },
   {
     path: "/pengaturan/whatsapp",
     name: "WhatsappLink",

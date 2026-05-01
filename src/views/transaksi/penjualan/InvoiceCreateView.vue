@@ -5,6 +5,7 @@ import { useToast } from "vue-toastification";
 import { useAuthStore } from "@/stores/authStore";
 import { useUiStore } from "@/stores/uiStore";
 import { useUnsavedChanges } from "@/composables/useUnsavedChanges";
+import { useCashierSessionStore } from "@/stores/cashierSessionStore";
 import api from "@/services/api";
 import { format, parseISO, addDays } from "date-fns";
 import PageLayout from "@/components/PageLayout.vue";
@@ -257,6 +258,12 @@ const authStore = useAuthStore();
 const uiStore = useUiStore();
 const { markAsSaved } = useUnsavedChanges();
 const MENU_ID = "27";
+const cashierSessionStore = useCashierSessionStore();
+// [BARU] Deteksi user toko
+const isStoreUser = computed(() => {
+  const cabang = authStore.user?.cabang || "";
+  return /^K\d+/.test(cabang);
+});
 
 // --- State ---
 const isEditMode = computed(() => !!route.params.nomor);
@@ -1655,6 +1662,7 @@ const checkAndApplyMonthlyPromo = async () => {
     });
 
     const activePromos = (promoResponse.data ?? []) as ActivePromo[];
+    const promoMei = activePromos.find((p) => p.pro_nomor === "PRO-2026-004");
     const promoApril = activePromos.find((p) => p.pro_nomor === "PRO-2026-002");
     const promo2026 = activePromos.find((p) => p.pro_nomor === "PRO-2026-001");
     const promo004 = activePromos.find((p) => p.pro_nomor === "PRO-2025-004");
@@ -1676,10 +1684,20 @@ const checkAndApplyMonthlyPromo = async () => {
       return sum;
     }, 0);
 
-    if (promoApril && totalEligibleValue >= 250000) {
-      promoDiskon = 12500 * Math.floor(totalEligibleValue / 250000);
+    // --- PRIORITAS 1: PROMO MEI ---
+    if (promoMei && totalEligibleValue >= 250000) {
+      const kelipatanUang = Math.floor(totalEligibleValue / 250000);
+      promoDiskon = 12500 * kelipatanUang;
+      promoToApply = promoMei;
+    }
+    // --- PRIORITAS 2: PROMO APRIL ---
+    else if (promoApril && totalEligibleValue >= 250000) {
+      const kelipatanUang = Math.floor(totalEligibleValue / 250000);
+      promoDiskon = 12500 * kelipatanUang;
       promoToApply = promoApril;
-    } else if (promo2026 && totalEligibleValue >= 200000) {
+    }
+    // --- PRIORITAS 3: PROMO MARET ---
+    else if (promo2026 && totalEligibleValue >= 200000) {
       promoDiskon = 20000 * Math.floor(totalEligibleValue / 200000);
       promoToApply = promo2026;
     } else {
@@ -1933,6 +1951,7 @@ const checkRealtimePromoEligibility = () => {
   // }
 
   // 1. Ambil Data Promo dari List
+  const promoMei = activePromosList.value.find((p) => p.pro_nomor === "PRO-2026-004");
   const promoApril = activePromosList.value.find((p) => p.pro_nomor === "PRO-2026-002");
   const promo2026 = activePromosList.value.find((p) => p.pro_nomor === "PRO-2026-001");
   const promo008 = activePromosList.value.find((p) => p.pro_nomor === "PRO-2025-008");
@@ -1948,13 +1967,21 @@ const checkRealtimePromoEligibility = () => {
     return isItemPromoEligible(item) && !isStickerPromoToko(item) ? sum + (item.total || 0) : sum;
   }, 0);
 
-  // --- PRIORITAS 1: PROMO APRIL 2026 ---
-  if (promoApril && totalEligible >= 250000) {
+  // --- PRIORITAS 1: PROMO MEI 2026 ---
+  if (promoMei && totalEligible >= 250000) {
+    const kelipatanUang = Math.floor(totalEligible / 250000);
+    discount = 12500 * kelipatanUang;
+    message = `🎉 PROMO MEI! Anda berhak Potongan Rp ${formatRupiah(
+      discount
+    )} (Kelipatan ${kelipatanUang}x)`;
+  }
+  // --- PRIORITAS 2: PROMO APRIL 2026 ---
+  else if (promoApril && totalEligible >= 250000) {
     const kelipatanUang = Math.floor(totalEligible / 250000);
     discount = 12500 * kelipatanUang;
     message = `🎉 Potongan Promo April Rp ${formatRupiah(discount)} (Kelipatan ${kelipatanUang}x)`;
   }
-  // --- PRIORITAS 2: PROMO MARET 2026 ---
+  // --- PRIORITAS 3: PROMO MARET 2026 ---
   else if (promo2026 && totalEligible >= 200000) {
     const kelipatanUang = Math.floor(totalEligible / 200000);
     discount = 20000 * kelipatanUang;
@@ -2168,6 +2195,19 @@ const applyMarchBonusSticker = async (forceInject = false) => {
 };
 
 const handleProceedToPayment = async () => {
+  // =========================================================
+  // [BARU] BLOKIR JIKA SHIFT BELUM DIBUKA
+  // =========================================================
+  // [PERBAIKAN] Validasi Buka Shift Hanya Untuk Toko
+  if (isStoreUser.value) {
+    if (!cashierSessionStore.session || cashierSessionStore.session.status === "CLOSED") {
+      toast.error("Shift Kasir belum dibuka! Tidak bisa mengubah pembayaran.");
+      cashierSessionStore.isStartModalVisible = true;
+      return;
+    }
+  }
+  // =========================================================
+
   // --- 1) Validasi dasar ---
   const validItems = items.value.filter((i) => i.kode);
   if (!header.customer.kode) return toast.error("Customer harus diisi.");
@@ -2866,25 +2906,34 @@ const getCategoryColor = (kategori: string | undefined) => {
 
 const isItemPromoEligible = (item: Item) => {
   // Pastikan pakai Item, bukan SoItem jika interface utamanya Item
-  const autoPromoIds = ["PRO-2025-008", "PRO-2025-010", "PRO-2026-001", "PRO-2026-002"];
+  const autoPromoIds = [
+    "PRO-2025-008",
+    "PRO-2025-010",
+    "PRO-2026-001",
+    "PRO-2026-002",
+    "PRO-2026-004", // <--- Pastikan Promo Mei ada di sini
+  ];
   const hasActiveMonthlyPromo = activePromosList.value.some((p) =>
     autoPromoIds.includes(p.pro_nomor)
   );
 
   if (!hasActiveMonthlyPromo) return false;
 
-  // [REVISI APRIL] Semua Kategori (Reguler, Pesanan, Sesional) dan DTF/Custom sekarang ELIGIBLE
-  // Kita HANYA memblokir barang yang sifatnya non-fisik (Jasa Murni / Ongkir)
-  // atau barang yang sedang diajukan potong harga khusus (Pengajuan Harga).
+  const namaUp = (item.nama || "").toUpperCase();
 
-  const isCustomOrDtf = !!item.noSoDtf || item.isCustomOrder === true;
+  // Pastikan item Custom Order dan Tarikan SO DTF terdeteksi
+  const isCustomOrDtf = !!item.noSoDtf || item.isCustomOrder === true || namaUp.includes("DTF");
+
   const isBukanPengajuan = !item.noPengajuanHarga;
 
-  // Jika barang JASA MURNI (bukan custom DTF), jangan masukkan ke hitungan promo
+  // [BARU] Deteksi Bordir: Jika noSoDtf mengandung ".BR."
+  const isBukanBordir = !(item.noSoDtf || "").toUpperCase().includes(".BR.");
+
+  // Tolak JASA murni (ongkir, desain, dll) KECUALI itu adalah custom order (Sablon DTF)
   const isJasaMurni = (item.kode || "").toUpperCase().startsWith("JASA") && !isCustomOrDtf;
 
-  // Barang apapun (selain Jasa Murni dan Pengajuan Harga) = Eligible
-  return isBukanPengajuan && !isJasaMurni;
+  // Barang apapun (selain Jasa Murni, Pengajuan Harga, dan Bordir) = Eligible
+  return isBukanPengajuan && isBukanBordir && !isJasaMurni;
 };
 
 // Hitung tanggal tempo otomatis
@@ -2955,7 +3004,7 @@ watch(
   { deep: true }
 );
 
-onMounted(() => {
+onMounted(async () => {
   if (isUserMarketplaceEligible.value) {
     header.isMarketplace = true;
   }
@@ -2985,6 +3034,19 @@ onMounted(() => {
     console.log("Auto-loading SO from query:", refSo);
     onSoSelected({ Nomor: refSo }); // Memicu fungsi tarik data SO otomatis
   }
+
+  // =========================================================
+  // [BARU] CEK SESI KASIR SAAT MASUK HALAMAN INVOICE
+  // =========================================================
+  // Tunggu sebentar memastikan layout sudah fetch data sesi
+  await nextTick();
+  if (isStoreUser.value) {
+    if (!cashierSessionStore.session || cashierSessionStore.session.status === "CLOSED") {
+      toast.warning("Laci Kasir belum dibuka. Silakan mulai shift terlebih dahulu.");
+      cashierSessionStore.isStartModalVisible = true;
+    }
+  }
+  // =========================================================
 });
 
 onMounted(() => {

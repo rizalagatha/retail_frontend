@@ -52,6 +52,7 @@ interface LhkItem {
   totalTitik: number;
   luasRiil: number;
   reject: number;
+  stitch?: number;
   specs: SpecDetail[]; // <--- Ubah tipe array specs menjadi SpecDetail
   isStok?: boolean;
   isReprint?: boolean;
@@ -75,6 +76,7 @@ interface LhkApiResponseItem {
   buangan: number | null;
   luas_sistem: number | null;
   reject: number;
+  stitch: number;
   keterangan: string;
 }
 
@@ -121,6 +123,7 @@ const formHeader = reactive({
   lhkNomor: "",
   panjang: 0,
   buangan: 0,
+  stitch: 0,
   tanggal: format(new Date(), "yyyy-MM-dd"),
   cabang: authStore.user?.cabang || "",
   jenisOrder: null as JenisOrder | null,
@@ -914,6 +917,7 @@ const loadLhkData = async () => {
       formHeader.lhkNomor = data[0].lhk_nomor;
       formHeader.panjang = data[0].panjang || 0;
       formHeader.buangan = data[0].buangan || 0;
+      formHeader.stitch = data[0].stitch || 0;
       formHeader.tanggal = format(new Date(data[0].tanggal), "yyyy-MM-dd");
       formHeader.cabang = data[0].cab;
 
@@ -933,6 +937,7 @@ const loadLhkData = async () => {
           luasSistem: item.luas_sistem ?? 0,
           luasRiil: 0,
           reject: item.reject ?? 0,
+          stitch: item.stitch ?? 0,
           jumlahTitik: item.depan ?? 0, // Diambil dari kolom 'depan'
           totalTitik: item.belakang ?? 0, // Diambil dari kolom 'belakang'
           specs: [],
@@ -1266,6 +1271,12 @@ const confirmSave = () => {
     return toast.warning("Isi minimal satu item sebelum menyimpan!");
   }
 
+  if (isBordir.value) {
+    if (!formHeader.stitch || formHeader.stitch <= 0) {
+      return toast.error(`Jumlah Stitch wajib diisi untuk pengerjaan Bordir!`);
+    }
+  }
+
   // 2. Validasi input Panjang (wajib dalam cm)
   if (isShowMeasurement.value) {
     // Cek jika kosong atau 0
@@ -1378,7 +1389,14 @@ const efisiensiRatioVal = computed(() => {
   if (luasEstimasiLayoutVal.value === 0) return 0;
   return ((totalLuasSistemVal.value / luasEstimasiLayoutVal.value) * 100).toFixed(1);
 });
+const isBordir = computed(() => {
+  const name = formHeader.jenisOrder?.nama?.toUpperCase() || "";
+  return name.includes("BORDIR");
+});
 const isShowMeasurement = computed(() => {
+  // Kalau Bordir, otomatis sembunyikan kotak measurement
+  if (isBordir.value) return false;
+
   const name = formHeader.jenisOrder?.nama?.toUpperCase() || "";
   return name.includes("SABLON DTF") || name.includes("DTF PREMIUM");
 });
@@ -1391,21 +1409,22 @@ const activePrefix = computed(() => {
   return ""; // Bebas jika jenis order lain
 });
 
-const tableHeaders = [
-  { title: "", key: "data-table-expand", width: "40px", sortable: false },
-  { title: "No.", key: "no", width: "50px", sortable: false },
-  { title: "PO/SO DTF", key: "kode", width: "125px" },
-  { title: "Nama DTF", key: "nama", width: "250px" },
-  { title: "Jml Titik", key: "titik", width: "80px", align: "center" as const },
-  { title: "Total Titik", key: "totalTitik", width: "90px", align: "center" as const },
+const tableHeaders = computed(() => {
+  const headers = [
+    { title: "", key: "data-table-expand", width: "40px", sortable: false },
+    { title: "No.", key: "no", width: "50px", sortable: false },
+    { title: "PO/SO", key: "kode", width: "125px" },
+    { title: "Nama", key: "nama", width: "250px" },
+    { title: "Jml Titik", key: "titik", width: "80px", align: "center" as const },
+    { title: "Total Titik", key: "totalTitik", width: "90px", align: "center" as const },
+    { title: "Jumlah Order", key: "jumlahSistem", width: "95px", align: "center" as const },
+    { title: "Jumlah Kaos OK", key: "jumlah", width: "95px", align: "center" as const },
+    { title: "Jumlah Kaos Reject", key: "reject", width: "80px", align: "center" as const },
+    { title: "Actions", key: "actions", width: "50px", align: "center" as const },
+  ];
 
-  // [BARU] Kolom untuk menampilkan Jumlah asli dari SO DTF
-  { title: "Jumlah Order", key: "jumlahSistem", width: "95px", align: "center" as const },
-
-  { title: "Jumlah Kaos OK", key: "jumlah", width: "95px", align: "center" as const },
-  { title: "Jumlah Kaos Reject", key: "reject", width: "80px", align: "center" as const },
-  { title: "Actions", key: "actions", width: "50px" },
-];
+  return headers;
+});
 </script>
 
 <template>
@@ -1423,7 +1442,7 @@ const tableHeaders = [
       <v-btn size="small" @click="confirmClose" prepend-icon="mdi-close">Tutup</v-btn>
     </template>
 
-    <div class="form-grid-three-column">
+    <div :class="isBordir ? 'form-grid-two-column' : 'form-grid-three-column'">
       <!-- KOLOM 1: HEADER (Font 11px) -->
       <div class="column-header column-font-11">
         <div class="desktop-form-section mb-3">
@@ -1526,6 +1545,26 @@ const tableHeaders = [
           </div>
         </div>
 
+        <div v-if="isBordir" class="desktop-form-section bg-deep-purple-lighten-5 mt-3">
+          <div class="section-title text-deep-purple-darken-4" style="border-left-color: #311b92">
+            Informasi Bordir
+          </div>
+          <v-row dense>
+            <v-col cols="12">
+              <v-text-field
+                v-model.number="formHeader.stitch"
+                label="Jumlah Stitch / Tusukan"
+                type="number"
+                variant="outlined"
+                density="compact"
+                hide-details
+                class="font-weight-bold"
+                suffix="Stitch"
+              />
+            </v-col>
+          </v-row>
+        </div>
+
         <div class="desktop-form-section mt-3">
           <div class="section-title">Kontrol Preview</div>
           <v-slider
@@ -1546,7 +1585,7 @@ const tableHeaders = [
       </div>
 
       <!-- KOLOM 2: PREVIEW CANVAS (Interactive) -->
-      <div class="column-preview">
+      <div v-if="!isBordir" class="column-preview">
         <div class="desktop-form-section fill-height d-flex flex-column">
           <div class="section-title d-flex justify-space-between align-center">
             <span>Simulasi Layout ({{ formHeader.cabang === "K02" ? "30" : "60" }} cm)</span>
@@ -1930,6 +1969,15 @@ const tableHeaders = [
   display: grid;
   grid-template-columns: 260px 420px 1fr;
   gap: 12px;
+  height: calc(100vh - 110px);
+  overflow: hidden;
+  padding: 8px;
+}
+
+.form-grid-two-column {
+  display: grid;
+  grid-template-columns: 300px 1fr; /* Kolom header dan kolom tabel */
+  gap: 16px;
   height: calc(100vh - 110px);
   overflow: hidden;
   padding: 8px;

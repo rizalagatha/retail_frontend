@@ -38,6 +38,7 @@ interface LhkHeader {
   TotalJumlahSistem: number; //
   TotalJumlahRiil: number; //
   TotalReject: number; //
+  TotalStitch?: number;
   [key: string]: unknown;
 }
 
@@ -90,6 +91,9 @@ const headers = computed<DataTableHeader[]>(() => {
     { title: "SISTEM (PCS)", key: "TotalJumlahSistem", width: 100, align: "center" },
     { title: "RIIL (PCS)", key: "TotalJumlahRiil", width: 100, align: "center" },
     { title: "REJECT", key: "TotalReject", width: 80, align: "center" },
+
+    // [TAMBAHAN] Munculkan kolom STITCH di tengah sini
+    { title: "STITCH", key: "TotalStitch", width: 100, align: "end" as const },
 
     { title: "PEMAKAIAN (CM)", key: "PanjangMtr", width: 120, align: "end" as const },
     { title: "BUANGAN (CM)", key: "BuanganMtr", width: 120, align: "end" as const },
@@ -500,6 +504,12 @@ onBeforeRouteLeave((to, from, next) => {
             >
               {{ item.TotalReject.toLocaleString() }}
             </v-chip>
+            <span v-else class="text-grey-lighten-1">-</span>
+          </template>
+          <template #[`item.TotalStitch`]="{ item }">
+            <span v-if="item.jo_kode === 'BR'" class="font-weight-bold text-deep-purple">
+              {{ Number(item.TotalStitch || 0).toLocaleString() }}
+            </span>
             <span v-else class="text-grey-lighten-1">-</span>
           </template>
           <template #[`item.LuasRiil`]="{ item }">{{

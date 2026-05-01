@@ -355,7 +355,7 @@ onBeforeRouteLeave((to, from, next) => {
             density="compact"
             hide-details
             variant="outlined"
-            style="min-width: 140px"
+            style="width: 118px"
           ></v-text-field>
           <span>s/d</span>
           <v-text-field
@@ -364,7 +364,7 @@ onBeforeRouteLeave((to, from, next) => {
             density="compact"
             hide-details
             variant="outlined"
-            style="min-width: 140px"
+            style="width: 118px"
           ></v-text-field>
         </div>
         <div class="d-flex align-center ga-2" style="min-width: 220px">
@@ -377,7 +377,7 @@ onBeforeRouteLeave((to, from, next) => {
             density="compact"
             hide-details
             variant="outlined"
-            style="max-width: 180px"
+            style="width: 150px"
             :menu-props="{ class: 'compact-select-list' }"
           ></v-select>
         </div>
@@ -389,30 +389,31 @@ onBeforeRouteLeave((to, from, next) => {
         ></v-checkbox>
         <v-spacer></v-spacer>
         <v-divider vertical class="mx-2"></v-divider>
-        <div class="d-flex align-center ga-2">
+        <div class="d-flex align-center ga-1">
           <v-select
             v-model="selectedFilterField"
             :items="filterOptions"
-            label="Filter Berdasarkan"
             density="compact"
             hide-details
             variant="outlined"
-            style="max-width: 180px"
-          ></v-select>
+            style="width: 160px"
+            placeholder="Filter..."
+          />
           <v-text-field
             v-model="filterSearchValue"
-            label="Cari..."
             density="compact"
             hide-details
             variant="outlined"
-            style="min-width: 250px"
+            style="width: 170px"
             clearable
             prepend-inner-icon="mdi-magnify"
-          ></v-text-field>
+            placeholder="Cari..."
+          />
         </div>
+
         <v-spacer></v-spacer>
-        <div class="d-flex align-center ga-2 text-caption">
-          <v-icon color="red" icon="mdi-square-rounded" size="small"></v-icon> Belum Approval
+        <div class="legend-group">
+          <span class="legend-pending">● Belum Approval</span>
         </div>
         <v-btn @click="fetchData" icon="mdi-refresh" variant="text" size="small"></v-btn>
       </div>
@@ -521,34 +522,79 @@ onBeforeRouteLeave((to, from, next) => {
   /* [FIX] */
 }
 
-/* Filter Section */
+/* Filter section compact */
 .filter-section {
   flex-shrink: 0;
-  padding: 8px;
-  /* [FIX DARK MODE] */
-  background-color: rgb(var(--v-theme-surface));
-  border-bottom: 1px solid rgba(var(--v-border-color), var(--v-border-opacity));
-  color: rgb(var(--v-theme-on-surface));
-
   display: flex;
   align-items: center;
-  gap: 12px;
+  padding: 5px 10px;
+  gap: 8px;
+  flex-wrap: nowrap;
+  background-color: rgb(var(--v-theme-surface));
+  border-bottom: 1px solid rgba(var(--v-theme-on-surface), 0.12);
 }
 
-/* [FIX] Styling Input dalam Filter */
 .filter-section :deep(.v-field) {
-  background-color: rgb(var(--v-theme-background)) !important;
-  color: rgb(var(--v-theme-on-surface));
+  font-size: 11px !important;
+  min-height: 28px !important;
+  height: 28px !important;
 }
 
-.filter-section :deep(input) {
-  color: rgb(var(--v-theme-on-surface));
+.filter-section :deep(.v-field__input) {
+  font-size: 11px !important;
+  min-height: 28px !important;
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+  justify-content: center !important;
+}
+
+.filter-section :deep(.v-label) {
+  font-size: 11px !important;
+}
+
+.filter-section :deep(input[type="date"]) {
+  font-size: 11px !important;
+  padding: 0 !important;
+  text-align: center !important;
+  width: 100% !important;
+}
+
+.filter-section :deep(.v-select__selection-text) {
+  font-size: 11px !important;
+}
+
+.filter-section :deep(.v-field__append-inner .v-icon),
+.filter-section :deep(.v-field__prepend-inner .v-icon) {
+  font-size: 14px !important;
+}
+
+/* Checkbox compact */
+.filter-section :deep(.v-checkbox .v-label) {
+  font-size: 11px !important;
+}
+
+.filter-section :deep(.v-checkbox .v-selection-control) {
+  min-height: unset !important;
 }
 
 .filter-label {
   color: rgba(var(--v-theme-on-surface), 0.7);
   font-weight: 600;
   font-size: 11px;
+}
+
+/* Legend */
+.legend-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.legend-pending {
+  color: #d32f2f;
+  font-weight: 600;
 }
 
 .table-container {

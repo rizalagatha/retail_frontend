@@ -60,7 +60,7 @@
   display: flex;
   align-items: center; /* KUNCI: Pastikan semua item rata tengah secara vertikal */
   flex-wrap: nowrap;
-  gap: 8px !important;
+  gap: 4px !important;
   padding: 6px 8px !important;
   border-bottom: 1px solid rgba(var(--v-border-color), var(--v-border-opacity));
   background-color: rgb(var(--v-theme-surface));

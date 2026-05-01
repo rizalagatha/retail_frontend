@@ -50,6 +50,8 @@ interface ColumnFilter {
   value?: string | number;
 }
 
+type ExportRow = Record<string, unknown>;
+
 // --- Inisialisasi & State ---
 const router = useRouter();
 const route = useRoute();
@@ -381,9 +383,9 @@ const exportData = async (type: "header" | "detail") => {
       if (response.data.length === 0)
         return toast.warning("Tidak ada data detail untuk diexport pada filter ini.");
 
-      const dataToExport = response.data.map((row: any) => ({
+      const dataToExport = (response.data as ExportRow[]).map((row) => ({
         ...row,
-        Tanggal: row.Tanggal ? formatDateIndo(row.Tanggal) : "",
+        Tanggal: row.Tanggal ? formatDateIndo(row.Tanggal as string) : "",
       }));
 
       const title = "LAPORAN DETAIL PROFORMA INVOICE";
@@ -391,7 +393,7 @@ const exportData = async (type: "header" | "detail") => {
         filters.endDate
       )}`;
       const tableHeaders = Object.keys(dataToExport[0]);
-      const tableData = dataToExport.map((row: any) => Object.values(row));
+      const tableData = dataToExport.map((row) => Object.values(row));
 
       const excelData = [[title], [dateRange], [], tableHeaders, ...tableData];
       const worksheet = XLSX.utils.aoa_to_sheet(excelData);

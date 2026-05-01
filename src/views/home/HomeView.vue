@@ -1269,11 +1269,17 @@ const fetchActivePromos = async () => {
     const promoMessages: string[] = [];
 
     // --- CARI PROMO AKTIF ---
+    const promoMei = promos.find((p) => p.pro_nomor === "PRO-2026-004");
     const promoApril = promos.find((p) => p.pro_nomor === "PRO-2026-002");
     const promoMaret = promos.find((p) => p.pro_nomor === "PRO-2026-001");
 
-    // --- 1. PRIORITAS 1: PROMO APRIL (PRO-2026-002) ---
-    if (promoApril) {
+    // --- 1. PRIORITAS 1: PROMO MEI (PRO-2026-004) ---
+    if (promoMei) {
+      promoMessages.push(
+        `🎉 PROMO MEI : Potongan Rp 12.500 tiap kelipatan belanja Rp 250.000 (S&K Berlaku)!`
+      );
+    } // --- 1. PRIORITAS 2 : PROMO APRIL (PRO-2026-002) ---
+    else if (promoApril) {
       promoMessages.push(
         `🎉 PROMO APRIL : Potongan Rp 12.500 tiap kelipatan belanja Rp 250.000 (S&K Berlaku)!`
       );

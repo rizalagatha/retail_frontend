@@ -4170,11 +4170,15 @@ const stopAndOpenPriceProposal = (index: number) => {
                   <v-chip
                     v-if="item.isMutated"
                     size="small"
-                    color="success"
+                    :color="item.scannedQty >= (item.jumlah || 0) ? 'success' : 'orange-darken-3'"
                     variant="flat"
                     class="font-weight-black"
                   >
-                    <v-icon start size="14">mdi-lock-check</v-icon>
+                    <v-icon start size="14">
+                      {{
+                        item.scannedQty >= (item.jumlah || 0) ? "mdi-lock-check" : "mdi-lock-alert"
+                      }}
+                    </v-icon>
                     {{ item.scannedQty || 0 }} Ready
                   </v-chip>
 

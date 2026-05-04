@@ -516,11 +516,7 @@ onUnmounted(() => {
       <div class="d-flex align-center ga-2 ga-md-3">
         <div class="d-flex align-center cursor-pointer text-medium-emphasis" title="User Aktif">
           <v-icon size="14" class="mr-1">mdi-account-circle</v-icon>
-          <span
-            class="font-weight-bold mr-1 text-truncate"
-            style="max-width: 80px"
-            :class="{ 'd-none d-sm-inline': false }"
-          >
+          <span class="font-weight-bold mr-1 text-truncate" style="max-width: 140px">
             {{ authStore.user?.nama }}
           </span>
           <span class="text-caption text-disabled d-none d-md-inline"

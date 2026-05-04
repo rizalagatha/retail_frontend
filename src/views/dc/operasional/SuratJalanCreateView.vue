@@ -268,12 +268,21 @@ const loadItemsFromPackingList = async (nomorPL: string) => {
       params: { nomor: nomorPL },
     });
 
-    const rawItems = response.data as (PackingListSourceItem & { harga: number; hpp: number })[];
+    // Tambahkan 'kategori' di casting agar TypeScript tidak protes
+    const rawItems = response.data as (PackingListSourceItem & {
+      harga: number;
+      hpp: number;
+      kategori: string;
+    })[];
 
     // 1. Filter dan kumpulkan barang yang bermasalah (Harga atau HPP 0)
-    const invalidItems = rawItems.filter((item) => item.harga === 0 || item.hpp === 0);
+    // [PERBAIKAN KUNCI]: Abaikan validasi jika kategori barang adalah PESANAN
+    const invalidItems = rawItems.filter(
+      (item) =>
+        (item.harga === 0 || item.hpp === 0) && (item.kategori || "").toUpperCase() !== "PESANAN"
+    );
 
-    // 2. Jika ada yang bermasalah, TOLAK KERAS!
+    // 2. Jika ada yang bermasalah (Barang Reguler tapi harga 0), TOLAK KERAS!
     if (invalidItems.length > 0) {
       // Ambil maksimal 5 nama barang biar toast-nya nggak kepanjangan nutupin layar
       const invalidNames = invalidItems
@@ -286,7 +295,7 @@ const loadItemsFromPackingList = async (nomorPL: string) => {
 
       // Kasih pesan error yang jelas dan hentikan fungsi (return)
       toast.error(
-        `GAGAL MEMUAT PACKING LIST!\n\nBarang berikut belum disetting Harga/HPP di Master Data:\n${invalidNames}${moreText}\n\nSilakan update Master Barang terlebih dahulu!`,
+        `GAGAL MEMUAT PACKING LIST!\n\nBarang REGULER berikut belum disetting Harga/HPP di Master Data:\n${invalidNames}${moreText}\n\nSilakan update Master Barang terlebih dahulu!`,
         { timeout: 8000 } // Tahan agak lama biar sempat dibaca
       );
       return;
@@ -308,6 +317,10 @@ const loadItemsFromPackingList = async (nomorPL: string) => {
       minta: Number(item.minta),
       jumlah: Number(item.jumlah),
       barcode: item.barcode,
+      // Opsional: Bawa data harga & HPP kalau butuh
+      harga: item.harga,
+      hpp: item.hpp,
+      kategori: item.kategori, // Bawa ke UI
     }));
 
     addNewRow();

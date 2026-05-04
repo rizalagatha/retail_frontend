@@ -85,16 +85,22 @@ const selected = ref<MasterItem[]>([]);
 const expanded = ref<string[]>([]);
 const fetchTimeout = ref<number | undefined>(undefined);
 
+// --- Setup Session Storage ---
+const STORAGE_KEY = "masterBarangFilters";
+const savedSession = sessionStorage.getItem(STORAGE_KEY);
+const parsedSession = savedSession ? JSON.parse(savedSession) : null;
+
+// --- State ---
 const filters = reactive({
-  startDate: format(subDays(new Date(), 30), "yyyy-MM-dd"),
-  endDate: format(new Date(), "yyyy-MM-dd"),
-  hargaNol: false,
-  hppNol: false,
-  search: "", // <--- TAMBAHKAN INI
+  startDate: parsedSession?.startDate ?? format(subDays(new Date(), 30), "yyyy-MM-dd"),
+  endDate: parsedSession?.endDate ?? format(new Date(), "yyyy-MM-dd"),
+  hargaNol: parsedSession?.hargaNol ?? false,
+  hppNol: parsedSession?.hppNol ?? false,
+  search: parsedSession?.search ?? "",
 });
 
 // --- State Filter & Resize ---
-const columnFilters = ref<Record<string, ColumnFilter>>({});
+const columnFilters = ref<Record<string, ColumnFilter>>(parsedSession?.columnFilters ?? {});
 const customFilterDialog = ref(false);
 const customFilter = reactive({ key: "", operator: "=", value: "" });
 const resizingColumn = ref<DataTableHeader | null>(null);
@@ -253,6 +259,14 @@ const applyCustomFilter = () => {
 
 const resetAllFilters = () => {
   columnFilters.value = {};
+  filters.startDate = format(subDays(new Date(), 30), "yyyy-MM-dd");
+  filters.endDate = format(new Date(), "yyyy-MM-dd");
+  filters.hargaNol = false;
+  filters.hppNol = false;
+  filters.search = "";
+  sessionStorage.removeItem(STORAGE_KEY);
+  // Opsional: otomatis fetch data setelah filter direset
+  fetchMasterData();
 };
 
 // --- Methods: Resize Logic ---
@@ -446,6 +460,25 @@ watch(
       // Untuk filter lain (tanggal/checkbox), langsung fetch tanpa jeda
       fetchMasterData();
     }
+  },
+  { deep: true }
+);
+
+// --- Watcher untuk Simpan Filter ke Session Storage ---
+watch(
+  [filters, columnFilters],
+  () => {
+    sessionStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify({
+        startDate: filters.startDate,
+        endDate: filters.endDate,
+        hargaNol: filters.hargaNol,
+        hppNol: filters.hppNol,
+        search: filters.search,
+        columnFilters: columnFilters.value,
+      })
+    );
   },
   { deep: true }
 );

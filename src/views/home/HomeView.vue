@@ -31,6 +31,7 @@ import type { ChartOptions, ChartData, ChartDataset, TooltipItem } from "chart.j
 import type { Context } from "chartjs-plugin-datalabels";
 import ChartDataLabels from "chartjs-plugin-datalabels";
 import { formatRupiah } from "@/utils/formatRupiah";
+import JuknisModal from "@/components/modal/JuknisModal.vue";
 
 ChartJS.register(
   Title,
@@ -248,6 +249,23 @@ interface ExportItem {
   TOTAL?: number;
 }
 
+interface LowStockSaleItem {
+  cabang_nama: string; // <-- TAMBAHKAN INI
+  kode: string;
+  nama: string;
+  ukuran: string;
+  stok_sekarang: number;
+  total_terjual: number;
+}
+
+interface SeasonalSaleItem {
+  cabang_nama: string; // <-- TAMBAHKAN INI
+  kode: string;
+  nama: string;
+  ukuran: string;
+  total_terjual: number;
+}
+
 const authStore = useAuthStore();
 const router = useRouter();
 const toast = useToast();
@@ -389,9 +407,51 @@ const shipmentSchedules = ref<ShipmentSchedule[]>([]);
 const isLoadingSchedules = ref(true);
 const isAddScheduleDialog = ref(false);
 const trendCabang = ref("ALL");
+const lowStockSalesData = ref<LowStockSaleItem[]>([]);
+const isLoadingLowStockSales = ref(false);
+const filterLowStockPeriod = ref("3m");
+const filterLowStockCabang = ref(
+  authStore.user?.cabang === "KDC" ? "ALL" : authStore.user?.cabang || ""
+);
+const lowStockPeriods = [
+  { title: "3 Bulan Terakhir", value: "3m" },
+  { title: "6 Bulan Terakhir", value: "6m" },
+  { title: "1 Tahun Terakhir", value: "1y" },
+];
+
+const seasonalSalesData = ref<SeasonalSaleItem[]>([]);
+const isLoadingSeasonalSales = ref(false);
+const filterSeasonalPeriod = ref("1m");
+const filterSeasonalCabang = ref(
+  authStore.user?.cabang === "KDC" ? "ALL" : authStore.user?.cabang || ""
+);
+const seasonalPeriods = [
+  { title: "1 Minggu Terakhir", value: "1w" },
+  { title: "2 Minggu Terakhir", value: "2w" },
+  { title: "1 Bulan Terakhir", value: "1m" },
+  { title: "2 Bulan Terakhir", value: "2m" },
+];
+
+const lowStockHeaders = [
+  { title: "STORE", key: "cabang_nama", sortable: false },
+  { title: "KODE", key: "kode", sortable: false },
+  { title: "NAMA BARANG", key: "nama", sortable: false },
+  { title: "UK.", key: "ukuran", align: "center", sortable: false },
+  { title: "STOK", key: "stok_sekarang", align: "center", sortable: true },
+  { title: "TERJUAL", key: "total_terjual", align: "center", sortable: true },
+] as const;
+
+const seasonalHeaders = [
+  { title: "STORE", key: "cabang_nama", sortable: false },
+  { title: "KODE", key: "kode", sortable: false },
+  { title: "NAMA BARANG", key: "nama", sortable: false },
+  { title: "UK.", key: "ukuran", align: "center", sortable: false },
+  { title: "TERJUAL", key: "total_terjual", align: "center", sortable: true },
+] as const;
 const selectedCabangPiutang = ref<string>(""); // Menyimpan kode cabang yang sedang diklik KDC
 const piutangInvoiceDetails = ref<PiutangInvoice[]>([]); // Menyimpan daftar invoice hasil klik
 const isLoadingPiutangDetails = ref(false);
+const showJuknis = ref(false);
 
 // --- STATE BORDIR ---
 const bordirSchedules = ref<BordirSchedule[]>([]);
@@ -969,6 +1029,14 @@ watch(trendCabang, () => {
   fetchItemSalesTrend();
 });
 
+watch([filterLowStockCabang, filterLowStockPeriod], () => {
+  fetchLowStockSales();
+});
+
+watch([filterSeasonalCabang, filterSeasonalPeriod], () => {
+  fetchSeasonalSales();
+});
+
 const fetchCabangOptions = async () => {
   try {
     const response = await api.get("/dashboard/cabang-options");
@@ -1464,6 +1532,98 @@ const openParetoDetail = async () => {
   }
 };
 
+const fetchLowStockSales = async (isBackground = false) => {
+  if (authStore.user?.cabang !== "KDC") return;
+  if (!isBackground) isLoadingLowStockSales.value = true;
+  try {
+    const response = await api.get("/dashboard/low-stock-sales", {
+      params: { cabang: filterLowStockCabang.value, period: filterLowStockPeriod.value }, // 👈 UBAH DI SINI
+    });
+    lowStockSalesData.value = response.data;
+  } catch (error) {
+    console.error("Gagal memuat data penjualan rendah:", error);
+  } finally {
+    if (!isBackground) isLoadingLowStockSales.value = false;
+  }
+};
+
+const fetchSeasonalSales = async (isBackground = false) => {
+  if (authStore.user?.cabang !== "KDC") return;
+  if (!isBackground) isLoadingSeasonalSales.value = true;
+  try {
+    const response = await api.get("/dashboard/seasonal-sales", {
+      params: { cabang: filterSeasonalCabang.value, period: filterSeasonalPeriod.value }, // 👈 UBAH DI SINI
+    });
+    seasonalSalesData.value = response.data;
+  } catch (error) {
+    console.error("Gagal memuat data penjualan sesional:", error);
+  } finally {
+    if (!isBackground) isLoadingSeasonalSales.value = false;
+  }
+};
+
+const exportLowStockSales = async () => {
+  toast.info("Menyiapkan data export...");
+  try {
+    const response = await api.get("/dashboard/low-stock-sales", {
+      params: {
+        export: true,
+        cabang: filterLowStockCabang.value,
+        period: filterLowStockPeriod.value,
+      }, // 👈 UBAH DI SINI
+    });
+    const workbook = XLSX.utils.book_new();
+    const worksheet = XLSX.utils.json_to_sheet(
+      response.data.map((item: LowStockSaleItem) => ({
+        Store: item.cabang_nama,
+        Kode: item.kode,
+        "Nama Barang": item.nama,
+        Ukuran: item.ukuran,
+        "Total Terjual": item.total_terjual,
+      }))
+    );
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Low Sales");
+    XLSX.writeFile(
+      workbook,
+      `Low_Sales_${filterLowStockCabang.value}_${format(new Date(), "yyyyMMdd")}.xlsx`
+    );
+    toast.success("Export berhasil!");
+  } catch {
+    toast.error("Gagal export data");
+  }
+};
+
+const exportSeasonalSales = async () => {
+  toast.info("Menyiapkan data export...");
+  try {
+    const response = await api.get("/dashboard/seasonal-sales", {
+      params: {
+        export: true,
+        cabang: filterSeasonalCabang.value,
+        period: filterSeasonalPeriod.value,
+      }, // 👈 UBAH DI SINI
+    });
+    const workbook = XLSX.utils.book_new();
+    const worksheet = XLSX.utils.json_to_sheet(
+      response.data.map((item: SeasonalSaleItem) => ({
+        Store: item.cabang_nama,
+        Kode: item.kode,
+        "Nama Barang": item.nama,
+        Ukuran: item.ukuran,
+        "Total Terjual": item.total_terjual,
+      }))
+    );
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Seasonal Sales");
+    XLSX.writeFile(
+      workbook,
+      `Seasonal_Sales_${filterSeasonalCabang.value}_${format(new Date(), "yyyyMMdd")}.xlsx`
+    );
+    toast.success("Export berhasil!");
+  } catch {
+    toast.error("Gagal export data");
+  }
+};
+
 // Computed property untuk menentukan warna & pesan status
 const healthStatus = computed(() => {
   const score = Number(paretoStats.value.score);
@@ -1718,7 +1878,7 @@ const startPolling = () => {
       fetchTopProducts(true);
       if (authStore.user?.cabang === "KDC") {
         fetchBranchPerformance(true);
-        fetchItemSalesTrend(true);
+        // ❌ fetchItemSalesTrend(true); <-- BARIS INI SUDAH DIHAPUS BIAR GAK KEDAP KEDIP
       }
     }
   }, 10000);
@@ -1868,18 +2028,37 @@ onUnmounted(() => {
       </v-img>
       <div class="header-content pt-6 px-6 pb-12">
         <div class="welcome-text text-white mt-4">
-          <div class="d-flex align-center mb-2">
-            <v-avatar size="64" color="white" class="mr-4 elevation-4 pa-1">
-              <v-img :src="logoUrl" alt="Kaosan Logo" />
-            </v-avatar>
-            <div>
-              <h1 class="text-h3 font-weight-bold text-white text-shadow mb-1">
-                Selamat Datang di Kaosan
-              </h1>
-              <p class="text-subtitle-1 text-white opacity-90 mb-0 font-weight-light">
-                Retail Management System • {{ currentTime }}
-              </p>
+          <div class="d-flex align-center justify-space-between mb-2">
+            <!-- ← tambah justify-space-between -->
+
+            <!-- Kiri: logo + teks -->
+            <div class="d-flex align-center">
+              <v-avatar size="64" color="white" class="mr-4 elevation-4 pa-1">
+                <v-img :src="logoUrl" alt="Kaosan Logo" />
+              </v-avatar>
+              <div>
+                <h1 class="text-h3 font-weight-bold text-white text-shadow mb-1">
+                  Selamat Datang di Kaosan
+                </h1>
+                <p class="text-subtitle-1 text-white opacity-90 mb-0 font-weight-light">
+                  Retail Management System • {{ currentTime }}
+                </p>
+              </div>
             </div>
+
+            <!-- Kanan: tombol panduan -->
+            <v-btn
+              color="white"
+              variant="flat"
+              prepend-icon="mdi-book-open-variant"
+              class="text-indigo-darken-3 font-weight-bold px-5"
+              size="large"
+              elevation="4"
+              rounded="lg"
+              @click="showJuknis = true"
+            >
+              Panduan Alur Penjualan
+            </v-btn>
           </div>
         </div>
       </div>
@@ -2947,6 +3126,193 @@ onUnmounted(() => {
                     <div v-else style="height: 250px; position: relative">
                       <Pie :data="branchDistributionData" :options="pieChartOptions" />
                     </div>
+                  </v-card-text>
+                </v-card>
+              </v-col>
+            </v-row>
+
+            <!-- ============================================================
+                 ANALITIK BARU: Low Stock Sales & Seasonal Sales
+                 ============================================================ -->
+            <v-row v-if="authStore.user?.cabang === 'KDC'" class="mb-4">
+              <!-- KIRI: Penjualan Stok Tipis -->
+              <v-col cols="12" md="6">
+                <v-card elevation="2" class="rounded-lg h-100 bg-surface">
+                  <v-card-title
+                    class="d-flex flex-wrap align-center bg-blue-grey-lighten-5 py-2 px-3 text-blue-grey-darken-3 gap-2"
+                  >
+                    <v-icon class="mr-2" color="primary" size="small">mdi-chart-bar-stacked</v-icon>
+                    <span class="text-subtitle-2 font-weight-bold mr-auto"
+                      >Penjualan Rendah (< 20 pcs)</span
+                    >
+
+                    <div class="d-flex align-center ga-2 flex-wrap justify-end">
+                      <div style="min-width: 110px; max-width: 130px">
+                        <v-select
+                          v-model="filterLowStockCabang"
+                          :items="cabangList"
+                          item-title="nama"
+                          item-value="kode"
+                          density="compact"
+                          variant="outlined"
+                          hide-details
+                          bg-color="surface"
+                          class="filter-select-small"
+                        />
+                      </div>
+                      <div style="min-width: 130px; max-width: 150px">
+                        <v-select
+                          v-model="filterLowStockPeriod"
+                          :items="lowStockPeriods"
+                          density="compact"
+                          variant="outlined"
+                          hide-details
+                          bg-color="surface"
+                          class="filter-select-small"
+                        />
+                      </div>
+                      <v-btn
+                        color="success"
+                        size="small"
+                        prepend-icon="mdi-file-excel"
+                        variant="flat"
+                        @click="exportLowStockSales"
+                        >Export</v-btn
+                      >
+                    </div>
+                  </v-card-title>
+                  <v-card-text class="pa-0">
+                    <div v-if="isLoadingLowStockSales" class="text-center pa-8">
+                      <v-progress-circular indeterminate color="primary" size="36" />
+                    </div>
+                    <v-data-table
+                      v-else
+                      :headers="lowStockHeaders"
+                      :items="lowStockSalesData"
+                      density="compact"
+                      hover
+                      class="text-caption"
+                      hide-default-footer
+                      items-per-page="-1"
+                      style="max-height: 350px; overflow-y: auto"
+                    >
+                      <template v-slot:headers>
+                        <tr>
+                          <th class="text-left font-weight-bold">STORE</th>
+                          <th class="text-left font-weight-bold">KODE</th>
+                          <th class="text-left font-weight-bold">NAMA BARANG</th>
+                          <th class="text-center font-weight-bold">UK.</th>
+                          <th class="text-center font-weight-bold text-error">STOK</th>
+                          <th class="text-center font-weight-bold text-success">TERJUAL</th>
+                        </tr>
+                      </template>
+                      <template v-slot:item="{ item }">
+                        <tr>
+                          <!-- [BARU] Kolom Store -->
+                          <td class="text-caption font-weight-bold text-blue-darken-3">
+                            {{ item.cabang_nama }}
+                          </td>
+                          <td class="text-caption">{{ item.kode }}</td>
+                          <td class="text-caption font-weight-bold text-wrap">{{ item.nama }}</td>
+                          <td class="text-caption text-center">{{ item.ukuran }}</td>
+                          <td class="text-caption text-center font-weight-bold text-error">
+                            {{ item.stok_sekarang }}
+                          </td>
+                          <td class="text-caption text-center font-weight-bold text-success">
+                            {{ item.total_terjual }}
+                          </td>
+                        </tr>
+                      </template>
+                    </v-data-table>
+                  </v-card-text>
+                </v-card>
+              </v-col>
+
+              <!-- KANAN: Penjualan Sesional (New Arrival) -->
+              <v-col cols="12" md="6">
+                <v-card elevation="2" class="rounded-lg h-100 bg-surface">
+                  <v-card-title
+                    class="d-flex flex-wrap align-center bg-teal-lighten-5 py-2 px-3 text-teal-darken-4 gap-2"
+                  >
+                    <v-icon class="mr-2" color="teal" size="small">mdi-new-box</v-icon>
+                    <span class="text-subtitle-2 font-weight-bold mr-auto"
+                      >Trend Sesional / New Arrival</span
+                    >
+
+                    <div class="d-flex align-center ga-2 flex-wrap justify-end">
+                      <div style="min-width: 110px; max-width: 130px">
+                        <v-select
+                          v-model="filterSeasonalCabang"
+                          :items="cabangList"
+                          item-title="nama"
+                          item-value="kode"
+                          density="compact"
+                          variant="outlined"
+                          hide-details
+                          bg-color="surface"
+                          class="filter-select-small"
+                        />
+                      </div>
+                      <div style="min-width: 130px; max-width: 150px">
+                        <v-select
+                          v-model="filterSeasonalPeriod"
+                          :items="seasonalPeriods"
+                          density="compact"
+                          variant="outlined"
+                          hide-details
+                          bg-color="surface"
+                          class="filter-select-small"
+                        />
+                      </div>
+                      <v-btn
+                        color="success"
+                        size="small"
+                        prepend-icon="mdi-file-excel"
+                        variant="flat"
+                        @click="exportSeasonalSales"
+                        >Export</v-btn
+                      >
+                    </div>
+                  </v-card-title>
+                  <v-card-text class="pa-0">
+                    <div v-if="isLoadingSeasonalSales" class="text-center pa-8">
+                      <v-progress-circular indeterminate color="teal" size="36" />
+                    </div>
+                    <v-data-table
+                      v-else
+                      :headers="seasonalHeaders"
+                      :items="seasonalSalesData"
+                      density="compact"
+                      hover
+                      class="text-caption"
+                      hide-default-footer
+                      items-per-page="-1"
+                      style="max-height: 350px; overflow-y: auto"
+                    >
+                      <template v-slot:headers>
+                        <tr>
+                          <th class="text-left font-weight-bold">STORE</th>
+                          <th class="text-left font-weight-bold">KODE</th>
+                          <th class="text-left font-weight-bold">NAMA BARANG</th>
+                          <th class="text-center font-weight-bold">UK.</th>
+                          <th class="text-center font-weight-bold text-success">TERJUAL</th>
+                        </tr>
+                      </template>
+                      <template v-slot:item="{ item }">
+                        <tr>
+                          <!-- [BARU] Kolom Store -->
+                          <td class="text-caption font-weight-bold text-teal-darken-3">
+                            {{ item.cabang_nama }}
+                          </td>
+                          <td class="text-caption">{{ item.kode }}</td>
+                          <td class="text-caption font-weight-bold text-wrap">{{ item.nama }}</td>
+                          <td class="text-caption text-center">{{ item.ukuran }}</td>
+                          <td class="text-caption text-center font-weight-bold text-success">
+                            {{ item.total_terjual }}
+                          </td>
+                        </tr>
+                      </template>
+                    </v-data-table>
                   </v-card-text>
                 </v-card>
               </v-col>
@@ -4333,6 +4699,8 @@ onUnmounted(() => {
       </v-card-actions>
     </v-card>
   </v-dialog>
+
+  <JuknisModal v-model="showJuknis" />
 </template>
 
 <style scoped>
@@ -4806,5 +5174,20 @@ iframe {
 .pareto-table :deep(table) {
   border-collapse: separate;
   border-spacing: 0;
+}
+
+/* --- CUSTOM FILTER SELECT KECIL --- */
+.filter-select-small :deep(.v-field__input) {
+  font-size: 0.75rem !important; /* Setara dengan text-caption */
+  font-weight: 700 !important;
+  letter-spacing: 0 !important;
+  padding-top: 4px !important;
+  padding-bottom: 4px !important;
+  min-height: 32px !important;
+}
+
+.filter-select-small :deep(.v-field__append-inner) {
+  padding-top: 4px !important;
+  padding-bottom: 4px !important;
 }
 </style>

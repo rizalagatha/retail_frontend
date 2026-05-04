@@ -73,13 +73,14 @@ const search = ref("");
 let searchTimeout: ReturnType<typeof setTimeout>;
 
 const SESSION_STATE_KEY = "setoran_bayar_browse_state";
+const savedSession = sessionStorage.getItem(SESSION_STATE_KEY);
+const parsedSession = savedSession ? JSON.parse(savedSession) : null;
 
 const filters = reactive({
-  startDate: format(subDays(new Date(), 7), "yyyy-MM-dd"),
-  endDate: format(new Date(), "yyyy-MM-dd"),
-  // [FIX] Gunakan type casting agar TS yakin ini string
-  cabang: (authStore.user?.cabang || "") as string,
-  search: "",
+  startDate: parsedSession?.startDate ?? format(subDays(new Date(), 7), "yyyy-MM-dd"),
+  endDate: parsedSession?.endDate ?? format(new Date(), "yyyy-MM-dd"),
+  cabang: parsedSession?.cabang ?? ((authStore.user?.cabang || "") as string),
+  search: parsedSession?.search ?? "",
 });
 
 const isConfirmDialogVisible = ref(false);
@@ -434,30 +435,35 @@ onMounted(async () => {
 watch(search, (newVal) => {
   if (!isMounted.value) return;
 
-  saveStateToSession(); // Simpan saat ketikan berubah
-
   clearTimeout(searchTimeout);
   searchTimeout = setTimeout(() => {
     filters.search = newVal; // Update filter payload backend
+    saveStateToSession(); // Simpan ke session saat search dieksekusi
     fetchMasterData();
   }, 500); // Jeda 500ms
 });
 
-// Watch filter lain (langsung fetch)
+// Watch filter lain (langsung fetch & simpan)
 watch(
   () => [filters.startDate, filters.endDate, filters.cabang],
   () => {
     if (!isMounted.value) return;
 
-    saveStateToSession(); // Simpan saat filter drop/date berubah
+    saveStateToSession(); // Simpan ke session
     fetchMasterData();
   }
 );
 
-// Deteksi saat user meninggalkan halaman ini
+// Deteksi saat user meninggalkan halaman ini ke menu yang TIDAK ADA HUBUNGANNYA
 onBeforeRouteLeave((to, from, next) => {
-  // Sesuaikan string di bawah dengan URL modul form tambah/ubah Anda
-  const isRelatedPage = to.path.includes("/setoran-pembayaran");
+  // Daftar URL yang dianggap "masih ada hubungannya" dengan Browse Setoran
+  const relatedPaths = [
+    "/setoran-pembayaran/create",
+    "/setoran-pembayaran/edit",
+    "/setoran-pembayaran", // Tambahkan route lain kalau ada
+  ];
+
+  const isRelatedPage = relatedPaths.some((p) => to.path.includes(p));
 
   if (!isRelatedPage) {
     // Jika pergi ke menu lain (misal: /dashboard), bersihkan memori!

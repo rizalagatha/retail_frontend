@@ -1992,25 +1992,16 @@ const onProductsSelected = (selectedProducts: SoItemApi[]) => {
     const kodeUp = product.kode?.toUpperCase() || "";
     const namaUp = product.nama?.toUpperCase() || "";
 
-    // ================================
-    // 1️⃣ DETEKSI PRODUK JASA
-    // ================================
     const isJasa =
       kodeUp.startsWith("JASA") ||
       kodeUp.startsWith("JS") ||
-      kodeUp.includes("FILE") || // <-- LOGIC BARU
+      kodeUp.includes("FILE") ||
       namaUp.includes("JASA") ||
       namaUp.includes("DESAIN") ||
-      namaUp.includes("FILE"); // <-- LOGIC BARU
+      namaUp.includes("FILE");
 
-    // ================================
-    // 2️⃣ HANDLING KHUSUS JASA
-    // ================================
     if (isJasa) {
-      // Jasa boleh tanpa ukuran
       product.ukuran = "";
-
-      // Jasa boleh masuk berkali-kali → jangan cek duplikasi barcode
       items.value.push({
         id: Date.now() + Math.random(),
         kode: product.kode,
@@ -2023,50 +2014,47 @@ const onProductsSelected = (selectedProducts: SoItemApi[]) => {
         diskonPersen: 0,
         diskonRp: 0,
         total: product.harga ?? 0,
-        barcode: product.barcode || product.kode, // fallback
+        barcode: product.barcode || product.kode,
         noSoDtf: "",
         noPengajuanHarga: "",
         pin: "",
-        scannedQty: 0, // 👈 TAMBAHKAN INI
-        isReady: false, // 👈 TAMBAHKAN INI
+        scannedQty: product.jumlah || 1,
+        isReady: true,
         isCustomOrder: false,
         isJasa: true,
       });
-
-      return; // lanjut ke produk berikutnya
+      return;
     }
 
     let initHarga = Number(product.harga);
-
     if (header.value.isMarketplace) {
       initHarga = Number(product.harga3 ?? product.harga ?? 0);
     }
 
-    // ================================
-    // 3️⃣ PRODUK NORMAL → CEK DUPLIKASI
-    // ================================
-    const isDuplicate = items.value.some((item) => item.barcode === product.barcode);
-    if (!isDuplicate) {
-      items.value.push({
-        id: Date.now() + Math.random(),
-        kode: product.kode,
-        nama: product.nama,
-        kategori: product.kategori,
-        ukuran: product.ukuran,
-        stok: product.stok,
-        harga: initHarga,
-        jumlah: 1,
-        diskonPersen: 0,
-        diskonRp: 0,
-        total: initHarga * 1,
-        barcode: product.barcode,
-        noSoDtf: "",
-        noPengajuanHarga: "",
-        scannedQty: isJasa ? product.jumlah || 1 : 0, // Jasa otomatis Ready
-        isReady: isJasa,
-        pin: "",
-      });
-    }
+    // ================================================================
+    // [PERBAIKAN] CEK DUPLIKASI DIHAPUS!
+    // Sekarang SC bebas menambah baris baru meskipun kode barangnya sama persis
+    // (Berguna jika baris pertama sudah digembok Mutasi)
+    // ================================================================
+    items.value.push({
+      id: Date.now() + Math.random(),
+      kode: product.kode,
+      nama: product.nama,
+      kategori: product.kategori,
+      ukuran: product.ukuran,
+      stok: product.stok,
+      harga: initHarga,
+      jumlah: 1,
+      diskonPersen: 0,
+      diskonRp: 0,
+      total: initHarga * 1,
+      barcode: product.barcode,
+      noSoDtf: "",
+      noPengajuanHarga: "",
+      scannedQty: 0,
+      isReady: false,
+      pin: "",
+    });
   });
 
   addNewRow();

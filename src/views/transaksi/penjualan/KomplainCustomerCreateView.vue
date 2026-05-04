@@ -92,6 +92,7 @@ const kategoriOptions = [
   "JAHITAN LEPAS / CACAT",
   "KETERLAMBATAN PRODUKSI",
   "PELAYANAN TOKO",
+  "KEKURANGAN BARANG",
   "LAIN-LAIN",
 ];
 

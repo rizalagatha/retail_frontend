@@ -261,6 +261,7 @@ const onPermintaanSelected = async (permintaan: { nomor: string }) => {
 };
 
 // [UBAH] Fungsi Load Items (Mode HARD BLOCK)
+// [UBAH] Fungsi Load Items (Mode HARD BLOCK DENGAN LOGIKA UKURAN)
 const loadItemsFromPackingList = async (nomorPL: string) => {
   isLoading.value = true;
   try {
@@ -268,7 +269,6 @@ const loadItemsFromPackingList = async (nomorPL: string) => {
       params: { nomor: nomorPL },
     });
 
-    // Tambahkan 'kategori' di casting agar TypeScript tidak protes
     const rawItems = response.data as (PackingListSourceItem & {
       harga: number;
       hpp: number;
@@ -276,15 +276,42 @@ const loadItemsFromPackingList = async (nomorPL: string) => {
     })[];
 
     // 1. Filter dan kumpulkan barang yang bermasalah (Harga atau HPP 0)
-    // [PERBAIKAN KUNCI]: Abaikan validasi jika kategori barang adalah PESANAN
-    const invalidItems = rawItems.filter(
-      (item) =>
-        (item.harga === 0 || item.hpp === 0) && (item.kategori || "").toUpperCase() !== "PESANAN"
-    );
+    const invalidItems = rawItems.filter((item) => {
+      // Jika harga dan HPP sudah terisi (>0), berarti aman
+      if (item.harga > 0 && item.hpp > 0) return false;
 
-    // 2. Jika ada yang bermasalah (Barang Reguler tapi harga 0), TOLAK KERAS!
+      const nama = (item.nama || "").toUpperCase();
+      const ukuran = (item.ukuran || "").toUpperCase();
+      const kategori = (item.kategori || "").toUpperCase();
+
+      // Abaikan validasi jika kategori barang adalah PESANAN, JASA, atau BONUS
+      if (kategori === "PESANAN" || kategori === "JASA" || kategori === "BONUS") return false;
+
+      // Deteksi jenis baju berdasarkan nama
+      const isAnak = nama.includes("ANAK");
+      const isTunik = nama.includes("TUNIK");
+
+      // Daftar ukuran yang WAJIB diinput harganya
+      // (Termasuk SS dan XXL sebagai jaga-jaga penulisan variasi ukuran)
+      const wajibDewasa = ["XS", "SS", "S", "M", "L", "XL", "2XL", "XXL", "3XL", "XXXL"];
+      const wajibAnakTunik = ["XS", "SS", "S", "M", "L", "XL", "2XL", "XXL"];
+
+      let isWajibHarga = false;
+
+      if (isAnak || isTunik) {
+        isWajibHarga = wajibAnakTunik.includes(ukuran);
+      } else {
+        // Asumsi sisanya adalah Kaos Dewasa Reguler
+        isWajibHarga = wajibDewasa.includes(ukuran);
+      }
+
+      // Jika ukuran ini WAJIB tapi harganya/hpp-nya 0, maka item ini BERMASALAH (return true)
+      return isWajibHarga && (item.harga === 0 || item.hpp === 0);
+    });
+
+    // 2. Jika ada yang bermasalah, TOLAK KERAS!
     if (invalidItems.length > 0) {
-      // Ambil maksimal 5 nama barang biar toast-nya nggak kepanjangan nutupin layar
+      // Ambil maksimal 5 nama barang biar toast-nya nggak kepanjangan
       const invalidNames = invalidItems
         .slice(0, 5)
         .map((i) => `• ${i.kode} - ${i.nama} (${i.ukuran})`)
@@ -293,9 +320,8 @@ const loadItemsFromPackingList = async (nomorPL: string) => {
       const moreText =
         invalidItems.length > 5 ? `\n...dan ${invalidItems.length - 5} item lainnya.` : "";
 
-      // Kasih pesan error yang jelas dan hentikan fungsi (return)
       toast.error(
-        `GAGAL MEMUAT PACKING LIST!\n\nBarang REGULER berikut belum disetting Harga/HPP di Master Data:\n${invalidNames}${moreText}\n\nSilakan update Master Barang terlebih dahulu!`,
+        `GAGAL MEMUAT PACKING LIST!\n\nBarang berikut WAJIB disetting Harga/HPP di Master Data:\n${invalidNames}${moreText}\n\nSilakan update Master Barang terlebih dahulu!`,
         { timeout: 8000 } // Tahan agak lama biar sempat dibaca
       );
       return;
@@ -317,10 +343,9 @@ const loadItemsFromPackingList = async (nomorPL: string) => {
       minta: Number(item.minta),
       jumlah: Number(item.jumlah),
       barcode: item.barcode,
-      // Opsional: Bawa data harga & HPP kalau butuh
       harga: item.harga,
       hpp: item.hpp,
-      kategori: item.kategori, // Bawa ke UI
+      kategori: item.kategori,
     }));
 
     addNewRow();

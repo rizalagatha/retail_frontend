@@ -260,7 +260,6 @@ const onPermintaanSelected = async (permintaan: { nomor: string }) => {
   await loadItemsFromSource(permintaan.nomor);
 };
 
-// [UBAH] Fungsi Load Items (Mode HARD BLOCK)
 // [UBAH] Fungsi Load Items (Mode HARD BLOCK DENGAN LOGIKA UKURAN)
 const loadItemsFromPackingList = async (nomorPL: string) => {
   isLoading.value = true;

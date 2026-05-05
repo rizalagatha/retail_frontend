@@ -3142,9 +3142,9 @@ onUnmounted(() => {
                     class="d-flex flex-wrap align-center bg-blue-grey-lighten-5 py-2 px-3 text-blue-grey-darken-3 gap-2"
                   >
                     <v-icon class="mr-2" color="primary" size="small">mdi-chart-bar-stacked</v-icon>
-                    <span class="text-subtitle-2 font-weight-bold mr-auto"
-                      >Penjualan Rendah (< 20 pcs)</span
-                    >
+                    <span class="text-subtitle-2 font-weight-bold mr-auto">
+                      Penjualan Rendah (&lt; 20 pcs)
+                    </span>
 
                     <div class="d-flex align-center ga-2 flex-wrap justify-end">
                       <div style="min-width: 110px; max-width: 130px">

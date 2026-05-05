@@ -81,28 +81,40 @@ const resizingColumn = ref<TableColumn | null>(null);
 const startX = ref(0);
 const startWidth = ref(0);
 
-const headers = ref([
-  { title: "Cabang", key: "Cab", width: 80 },
-  { title: "Kode", key: "KODE", width: 120 },
-  { title: "Kategori Produk", key: "KTGPRODUK", width: 140 },
-  { title: "Nama Barang", key: "NAMA", width: 380 },
-  { title: "ALLSIZE", key: "ALLSIZE", align: "end", width: 80 },
-  { title: "XS", key: "XS", align: "end", width: 60 },
-  { title: "S", key: "S", align: "end", width: 60 },
-  { title: "M", key: "M", align: "end", width: 60 },
-  { title: "L", key: "L", align: "end", width: 60 },
-  { title: "XL", key: "XL", align: "end", width: 60 },
-  { title: "2XL", key: "2XL", align: "end", width: 60 },
-  { title: "3XL", key: "3XL", align: "end", width: 60 },
-  { title: "4XL", key: "4XL", align: "end", width: 60 },
-  { title: "5XL", key: "5XL", align: "end", width: 60 },
-  { title: "OVERSIZE", key: "OVERSIZE", align: "end", width: 80 },
-  { title: "JUMBO", key: "JUMBO", align: "end", width: 80 },
-  { title: "Total Qty", key: "TOTAL", align: "end", width: 100 },
-  { title: "Nominal Sales", key: "NOMINAL_SALES", align: "end", width: 140 },
-  { title: "Stok Pareto", key: "StokPareto", align: "end", width: 120 },
-  { title: "Stok Real", key: "StokReal", align: "end", width: 120 },
-]);
+const headers = computed(() => {
+  const baseHeaders = [
+    { title: "Kode", key: "KODE", width: 120 },
+    { title: "Kategori Produk", key: "KTGPRODUK", width: 140 },
+    { title: "Nama Barang", key: "NAMA", width: 350 },
+
+    // Urutan Size yang Logis (Kiri ke Kanan)
+    { title: "XS", key: "XS", align: "end", width: 50 },
+    { title: "S", key: "S", align: "end", width: 50 },
+    { title: "M", key: "M", align: "end", width: 50 },
+    { title: "L", key: "L", align: "end", width: 50 },
+    { title: "XL", key: "XL", align: "end", width: 50 },
+    { title: "2XL", key: "2XL", align: "end", width: 60 },
+    { title: "3XL", key: "3XL", align: "end", width: 60 },
+    { title: "4XL", key: "4XL", align: "end", width: 60 },
+    { title: "5XL", key: "5XL", align: "end", width: 60 },
+    { title: "ALLSIZE", key: "ALLSIZE", align: "end", width: 80 },
+    { title: "OVERSIZE", key: "OVERSIZE", align: "end", width: 90 },
+    { title: "JUMBO", key: "JUMBO", align: "end", width: 70 },
+
+    // Total ditaruh di sisi kanan size
+    { title: "Total Qty", key: "TOTAL", align: "end", width: 100 },
+    { title: "Nominal Sales", key: "NOMINAL_SALES", align: "end", width: 140 },
+    { title: "Stok Pareto", key: "StokPareto", align: "end", width: 110 },
+    { title: "Stok Real", key: "StokReal", align: "end", width: 110 },
+  ];
+
+  // Tampilkan kolom Cabang hanya jika filter TIDAK "SEMUA CABANG (ALL)"
+  if (filters.cabang !== "ALL") {
+    baseHeaders.unshift({ title: "Cabang", key: "Cab", width: 80 });
+  }
+
+  return baseHeaders;
+});
 
 const filteredItems = computed(() => {
   let data = [...items.value];

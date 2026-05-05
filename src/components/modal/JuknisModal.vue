@@ -1642,7 +1642,7 @@ function exportWord() {
                   >{{ step!.label }}</span
                 >
                 <template v-for="(f,i) in step!.nextFlow" :key="i">
-                  <span v-if="f.via" class="fvia">{{ f.via }}</span>
+                  <span v-if="'via' in f" class="fvia">{{ f.via }}</span>
                   <v-icon size="14" color="grey">mdi-arrow-right</v-icon>
                   <span class="fn">{{ f.to }}</span>
                 </template>

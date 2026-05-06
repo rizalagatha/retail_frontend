@@ -42,6 +42,7 @@ interface PrintHeader {
   gdg_transferbank: string;
   gdg_inv_komplain: string;
   terbilang: string;
+  inv_rj_nomor: string | null;
   inv_dp: number; // <--- TAMBAHKAN BARIS INI
   inv_kembali: number;
   summary: PrintHeaderSummary;
@@ -204,7 +205,14 @@ onMounted(() => {
             ><span>{{ formatRupiah(printData.header.summary.biayaKirim) }}</span>
           </div>
           <div class="summary-item" v-if="printData.header.summary.returJual > 0">
-            <span>Retur Jual :</span>
+            <!-- 👈 Tambahkan (No. RJ) di sini -->
+            <span
+              >Retur Jual
+              <span v-if="printData.header.inv_rj_nomor"
+                >({{ printData.header.inv_rj_nomor }})</span
+              >
+              :</span
+            >
             <span style="color: #c62828"
               >- {{ formatRupiah(printData.header.summary.returJual) }}</span
             >
@@ -283,6 +291,16 @@ onMounted(() => {
           >* Jika terdapat kendala atau komplain terkait pesanan, silakan hubungi Pusat Bantuan kami
           di: {{ printData.header.gdg_inv_komplain }}</strong
         >
+      </div>
+      <div
+        v-if="printData.header.inv_rj_nomor && printData.header.summary.returJual > 0"
+        class="complain-info"
+        style="margin-top: 5px; font-size: 10pt"
+      >
+        <strong style="color: #c62828 !important">
+          * Terdapat pemotongan tagihan dari Retur Jual (Pengembalian Dana) dengan nomor referensi
+          {{ printData.header.inv_rj_nomor }}.
+        </strong>
       </div>
       <div class="note">
         Note: Barang yg sudah dibeli tidak bisa dikembalikan. Terimakasih atas kunjungan anda.

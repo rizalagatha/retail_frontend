@@ -84,6 +84,7 @@ interface DashboardStats {
   todayTransactions: number;
   lowStock: number;
   totalStock: number;
+  reservedStock: number;
   totalStok: number;
   todayStokIn: number;
   todayStokOut: number;
@@ -281,6 +282,7 @@ const stats = ref<DashboardStats>({
   todayTransactions: 0,
   lowStock: 0,
   totalStock: 0,
+  reservedStock: 0,
   totalStok: 0,
   todayStokIn: 0,
   todayStokOut: 0,
@@ -313,6 +315,7 @@ const animatedSales = useGsapNumber(() => stats.value.todaySales);
 const animatedTx = useGsapNumber(() => stats.value.todayTransactions);
 const animatedQty = useGsapNumber(() => stats.value.todayQty);
 const animatedTotalStock = useGsapNumber(() => stats.value.totalStock);
+const animatedReservedStock = useGsapNumber(() => stats.value.reservedStock);
 // const animatedLowStock = useGsapNumber(() => lowStockCount.value);
 const animatedPiutang = useGsapNumber(() => stats.value.totalSisaPiutang);
 const animatedTargetRealization = useGsapNumber(() => salesTargetSummary.value.nominal);
@@ -833,6 +836,7 @@ const fetchTotalStock = async (isBackground = false) => {
   try {
     const response = await api.get("/dashboard/total-stok");
     stats.value.totalStock = Number(response.data.totalStock || 0);
+    stats.value.reservedStock = Number(response.data.reservedStock || 0);
     stats.value.todayStokIn = Number(response.data.todayStokIn || 0);
     stats.value.todayStokOut = Number(response.data.todayStokOut || 0);
   } catch (err) {
@@ -2184,33 +2188,37 @@ onUnmounted(() => {
             <v-card
               v-else
               class="stat-card fill-height py-1"
-              color="green-lighten-5"
+              color="light-blue-lighten-5"
               variant="flat"
             >
-              <v-card-text
-                class="text-center pa-2 d-flex flex-column justify-center position-relative"
-              >
+              <v-card-text class="text-center pa-2">
+                <v-icon color="light-blue" size="24" class="mb-1"
+                  >mdi-package-variant-closed</v-icon
+                >
+                <div class="text-h6 font-weight-bold text-light-blue-darken-2">
+                  <span v-if="isLoadingStock && animatedTotalStock === 0">...</span>
+                  <span v-else>{{ Math.round(animatedTotalStock).toLocaleString("id-ID") }}</span>
+                </div>
+                <div class="text-caption text-grey-darken-1">Stok Rak (Ready)</div>
+
                 <div
-                  v-if="trendIndicators.sales === 'up'"
-                  class="trend-badge up"
-                  style="top: 4px; right: 4px"
+                  class="text-caption text-indigo-darken-1 font-weight-bold"
+                  style="font-size: 0.65rem !important"
                 >
-                  <v-icon size="x-small">mdi-arrow-up</v-icon>
+                  Booking: {{ Math.round(animatedReservedStock).toLocaleString("id-ID") }} pcs
                 </div>
-                <v-icon color="green" size="24" class="mb-1">mdi-cash-multiple</v-icon>
-                <div class="text-h6 font-weight-bold text-green-darken-2">
-                  <span v-if="isLoadingStats && animatedSales === 0">...</span>
-                  <span v-else>{{ formatRupiah(Number(animatedSales.toFixed(0))) }}</span>
-                </div>
-                <v-chip
-                  v-if="!isLoadingStats"
-                  size="x-small"
-                  color="green"
-                  variant="flat"
-                  class="font-weight-bold mt-1 align-self-center"
-                  >{{ Math.round(animatedQty) }} pcs</v-chip
+
+                <div
+                  v-if="!isLoadingStats && !isLoadingStock"
+                  class="d-flex justify-center ga-2 mt-1 pt-1 border-t w-100"
                 >
-                <div class="text-caption text-grey-darken-1 mt-1">Penjualan Hari Ini</div>
+                  <span class="text-caption text-success font-weight-bold">
+                    <v-icon size="x-small" start>mdi-arrow-up</v-icon>{{ stats.todayStokIn }}
+                  </span>
+                  <span class="text-caption text-error font-weight-bold">
+                    <v-icon size="x-small" start>mdi-arrow-down</v-icon>{{ stats.todayStokOut }}
+                  </span>
+                </div>
               </v-card-text>
             </v-card>
           </v-col>

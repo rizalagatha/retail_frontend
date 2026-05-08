@@ -66,7 +66,11 @@ const filters = reactive({
   startDate: format(new Date(), "yyyy-MM-dd"),
   endDate: format(new Date(), "yyyy-MM-dd"),
   cabang: authStore.user?.cabang === "KDC" ? "ALL" : authStore.user?.cabang || "",
+  search: "", // <--- TAMBAHAN STATE SEARCH
 });
+
+// Timeout untuk debounce search
+let searchTimeout: ReturnType<typeof setTimeout> | null = null;
 
 // --- Headers dengan Tipe Data Strict ---
 const headers: DataTableHeader[] = [
@@ -91,7 +95,6 @@ const detailHeaders: DataTableHeader[] = [
 ];
 
 // --- Methods ---
-// --- Fungsi handle klik baris ---
 const handleRowClick = (_event: MouseEvent, { item }: { item: BiayaKirimItem }) => {
   // Jika baris yang sama diklik lagi, hapus seleksi (toggle)
   if (selectedRow.value?.Nomor === item.Nomor) {
@@ -114,7 +117,10 @@ const fetchData = async () => {
   try {
     const response = await api.get("/biaya-kirim", {
       params: {
-        ...filters,
+        startDate: filters.startDate,
+        endDate: filters.endDate,
+        cabang: filters.cabang,
+        search: filters.search, // <-- Kirim param search
         page: options.page,
         limit: options.itemsPerPage,
       },
@@ -125,6 +131,14 @@ const fetchData = async () => {
   } finally {
     isLoading.value = false;
   }
+};
+
+const onSearchInput = () => {
+  if (searchTimeout) clearTimeout(searchTimeout);
+  searchTimeout = setTimeout(() => {
+    options.page = 1; // Jika mencari sesuatu, kembali ke halaman 1
+    fetchData();
+  }, 500); // 500ms delay debounce
 };
 
 // Fix "Unexpected any" pada newlyExpandedItems
@@ -164,16 +178,20 @@ onMounted(async () => {
 });
 
 // Watch pagination & filters untuk fetch ulang data
-watch(() => [options.page, options.itemsPerPage], fetchData);
 watch(
-  filters,
+  () => [options.page, options.itemsPerPage],
+  () => {
+    if (isMounted.value) fetchData();
+  }
+);
+watch(
+  () => [filters.startDate, filters.endDate, filters.cabang], // Pisahkan watcher agar input 'search' tidak tumpang tindih
   () => {
     if (isMounted.value) {
-      options.page = 1; // Reset ke halaman 1 jika filter berubah
+      options.page = 1;
       fetchData();
     }
-  },
-  { deep: true }
+  }
 );
 </script>
 
@@ -210,7 +228,7 @@ watch(
 
     <div class="browse-content">
       <div class="filter-section px-2">
-        <div class="d-flex align-center ga-1">
+        <div class="d-flex align-center ga-1 w-100 flex-wrap">
           <v-text-field
             v-model="filters.startDate"
             type="date"
@@ -240,6 +258,21 @@ watch(
             variant="outlined"
             style="max-width: 150px"
           />
+
+          <v-text-field
+            v-model="filters.search"
+            label="Cari No BK / Invoice / Customer..."
+            density="compact"
+            hide-details
+            variant="outlined"
+            prepend-inner-icon="mdi-magnify"
+            clearable
+            style="max-width: 300px; margin-left: 8px"
+            @input="onSearchInput"
+            @click:clear="onSearchInput"
+          />
+
+          <v-spacer />
           <v-btn @click="fetchData" icon="mdi-refresh" variant="text" size="small" />
         </div>
       </div>

@@ -1,25 +1,27 @@
-
-import { createApp } from 'vue'
-import { createPinia } from 'pinia'
-import App from './App.vue'
-import AppDataTable from './components/AppDataTable.vue'
-import router from './router'
-import { useAuthStore } from '@/stores/authStore';
+import { createApp } from "vue";
+import { createPinia } from "pinia";
+import App from "./App.vue";
+import AppDataTable from "./components/AppDataTable.vue";
+import router from "./router";
+import { useAuthStore } from "@/stores/authStore";
 
 // (1) Impor Vuetify
-import 'vuetify/styles'
-import { createVuetify } from 'vuetify'
-import * as components from 'vuetify/components'
-import * as directives from 'vuetify/directives'
-import './styles/global.css'
-import './styles/desktop-app.css'
-import './styles/desktop-theme.css'
+import "vuetify/styles";
+import { createVuetify } from "vuetify";
+import * as components from "vuetify/components";
+import * as directives from "vuetify/directives";
+import "./styles/global.css";
+import "./styles/desktop-app.css";
+import "./styles/desktop-theme.css";
 
 // (2) Impor Ikon Material Design (opsional tapi direkomendasikan)
-import '@mdi/font/css/materialdesignicons.css'
+import "@mdi/font/css/materialdesignicons.css";
 
-import Toast from 'vue-toastification'
-import 'vue-toastification/dist/index.css'
+import Toast from "vue-toastification";
+import "vue-toastification/dist/index.css";
+
+// [PERBAIKAN 1]: Ubah import menggunakan vue-gtag-next
+import VueGtag, { trackRouter } from "vue-gtag-next";
 
 const vuetify = createVuetify({
   components,
@@ -50,13 +52,13 @@ const vuetify = createVuetify({
   },
 });
 
-const app = createApp(App)
-app.component('AppDataTable', AppDataTable)
-const pinia = createPinia()
+const app = createApp(App);
+app.component("AppDataTable", AppDataTable);
+const pinia = createPinia();
 
-app.use(pinia)
-app.use(router)
-app.use(vuetify)
+app.use(pinia);
+app.use(router);
+app.use(vuetify);
 
 const authStore = useAuthStore();
 authStore.checkAuthStatus();
@@ -77,7 +79,20 @@ app.use(Toast, {
   hideProgressBar: false,
   closeButton: "button",
   icon: true,
-  rtl: false
-})
+  rtl: false,
+});
 
-app.mount('#app')
+// [PERBAIKAN 2]: Setup GA4 khusus untuk subdomain tracking
+if (window.location.hostname === "tracking.kaosanofficial.com") {
+  app.use(VueGtag, {
+    property: {
+      // Perhatikan: di vue-gtag-next menggunakan key 'property', bukan 'config'
+      id: "G-FVHNTSNVJL",
+    },
+  });
+
+  // Sambungkan router agar otomatis melacak perpindahan halaman Vue
+  trackRouter(router);
+}
+
+app.mount("#app");

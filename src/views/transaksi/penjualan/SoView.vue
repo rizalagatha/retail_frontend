@@ -176,6 +176,7 @@ const headers = computed<DataTableHeader[]>(() => {
     { title: "Nomor", key: "Nomor", width: 180, fixed: true },
     { title: "Tanggal", key: "Tanggal", width: 120 },
     { title: "Dateline", key: "Dateline", width: 120 },
+    { title: "Dateline Pelayanan", key: "DatelinePelayanan", width: 160 }, // TAMBAHAN
     { title: "Kd Customer", key: "kdcus", width: 120 },
     { title: "Nama Customer", key: "Nama", width: 250 },
   ];
@@ -190,11 +191,13 @@ const headers = computed<DataTableHeader[]>(() => {
   }
   list.push(
     { title: "No. SPK", key: "NoSPK", width: 160 },
+    { title: "No. Resi Tracking", key: "ResiTracking", width: 180 },
     { title: "TOP", key: "Top", width: 80 },
     { title: "Nominal", key: "Nominal", width: 150 },
     { title: "Diskon", key: "Diskon", width: 120 },
     { title: "DP", key: "Dp", width: 120 },
     { title: "Qty SO", key: "QtySO", width: 100 },
+    { title: "Tgl Jadi/Ready", key: "TglJadi", width: 140 }, // TAMBAHAN
     { title: "Qty Inv", key: "QtyInv", width: 100 },
     { title: "Belum", key: "Belum", width: 150 },
     { title: "Status", key: "Status", width: 150 },
@@ -249,15 +252,14 @@ const uniqueValues = (key: string): Array<string | number> => {
 
 const formatFilterValue = (key: string, val: string | number) => {
   if (!val) return "-";
-
-  if (["Tanggal", "Dateline", "DateModified"].includes(key)) {
+  // Masukkan juga DatelinePelayanan dan TglJadi ke pembungkus parse Date ini:
+  if (["Tanggal", "Dateline", "DateModified", "DatelinePelayanan", "TglJadi"].includes(key)) {
     try {
       return format(parseISO(String(val)), "dd/MM/yyyy");
     } catch {
       return val;
     }
   }
-
   return val;
 };
 
@@ -571,9 +573,39 @@ const exportHeaderData = () => {
 
   // Format tanggal pada data Header sebelum masuk Excel
   const formattedData = list.value.map((item: SoHeader) => ({
-    ...item,
-    // TypeScript sekarang tahu 'item' punya properti 'Tanggal'
-    Tanggal: item.Tanggal ? formatDateIndo(item.Tanggal) : "",
+    Nomor: item.Nomor,
+    Tanggal: item.Tanggal ? formatDateIndo(item.Tanggal) : "-",
+    Dateline: item.Dateline ? formatDateIndo(item.Dateline) : "-",
+    "Dateline Pelayanan": item.DatelinePelayanan ? formatDateIndo(item.DatelinePelayanan) : "-",
+    "Tgl Jadi/Ready": item.TglJadi
+      ? format(parseISO(String(item.TglJadi)), "dd/MM/yyyy HH:mm")
+      : "-",
+    "No. Resi Tracking": item.ResiTracking || "-",
+    "No. SPK": item.NoSPK || "-",
+    Penawaran: item.Penawaran || "-",
+    TOP: item.Top || "-",
+    "Kd Customer": item.kdcus || "-",
+    "Nama Customer": item.Nama || "-",
+    Nominal: item.Nominal || 0,
+    Diskon: item.Diskon || 0,
+    DP: item.Dp || 0,
+    "Qty SO": item.QtySO || 0,
+    "Qty Inv": item.QtyInv || 0,
+    Belum: item.Belum || 0,
+    Status: item.Status || "-",
+    "Status Kirim": item.StatusKirim || "-",
+    "SO DTF": item.DipakaiDTF === "Y" ? "Y" : "N",
+    Aktif: item.Aktif === "Y" ? "Ya" : "Tidak",
+    Alamat: item.Alamat || "-",
+    Kota: item.Kota || "-",
+    Level: item.Level || "-",
+    Keterangan: item.Keterangan || "-",
+    "Sales Counter": item.SC || "-",
+    "Alasan Close": item.AlasanClose || "-",
+    "User Modified": item.UserModified || "-",
+    "Date Modified": item.DateModified
+      ? format(parseISO(String(item.DateModified)), "dd/MM/yyyy HH:mm")
+      : "-",
   }));
 
   toast.info("Membuat file Excel Header...");
@@ -1039,12 +1071,26 @@ onBeforeRouteLeave((to, from, next) => {
             :key="header.key"
           >
             <td :class="getRowTextColor(item)">
-              <template v-if="['Tanggal', 'Dateline'].includes(header.key)">
+              <template v-if="['Tanggal', 'Dateline', 'DatelinePelayanan'].includes(header.key)">
                 {{
                   item[header.key]
                     ? format(parseISO(item[header.key] as string), "dd/MM/yyyy")
                     : "-"
                 }}
+              </template>
+
+              <template v-else-if="header.key === 'TglJadi'">
+                <span v-if="item.TglJadi" class="text-green-darken-2 font-weight-bold">
+                  {{ format(parseISO(item.TglJadi as string), "dd/MM/yyyy HH:mm") }}
+                </span>
+                <span v-else>-</span>
+              </template>
+
+              <template v-else-if="header.key === 'ResiTracking'">
+                <div class="d-flex align-center">
+                  <v-icon size="small" class="mr-1 text-grey">mdi-barcode</v-icon>
+                  <span class="font-weight-black text-teal-darken-3">{{ item.ResiTracking }}</span>
+                </div>
               </template>
 
               <template v-else-if="header.key === 'Diskon'">

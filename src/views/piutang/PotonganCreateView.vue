@@ -7,6 +7,7 @@ import PageLayout from "@/components/PageLayout.vue";
 import CustomerSearchModal from "@/components/lookup/CustomerSearchModal.vue";
 import GudangSearchModal from "@/components/lookup/GudangSearchModal.vue";
 import InvoiceSearchModal from "@/components/lookup/InvoiceSearchModal.vue";
+import BiayaKirimSearchModal from "@/components/lookup/BiayaKirimSearchModal.vue";
 import { useToast } from "vue-toastification";
 import type { AxiosError } from "axios";
 import api from "@/services/api";
@@ -110,6 +111,7 @@ const dialogs = reactive({
   customerSearch: false,
   invoiceSearch: false,
   gudangSearch: false,
+  biayaKirimSearch: false,
 });
 
 // Computed properties
@@ -303,6 +305,47 @@ const onInvoiceSelected = async (invoice: SelectedInvoice) => {
   addNewRow();
   calculateTotals();
   dialogs.invoiceSearch = false;
+};
+
+// Fungsi pencarian
+const handleBiayaKirimSearch = () => {
+  if (isHeaderDisabled.value || !header.customer.kode) {
+    toast.error("Customer harus diisi terlebih dahulu.");
+    return;
+  }
+  dialogs.biayaKirimSearch = true;
+};
+
+// Fungsi saat dipilih
+const onBiayaKirimSelected = async (bk: any) => {
+  const activeItem = items.value.find((i) => !i.invoice);
+  if (!activeItem) return;
+
+  const isDuplicate = items.value.some((i) => i.invoice === bk.Nomor && i.id !== activeItem.id);
+  if (isDuplicate) {
+    toast.error(`Biaya Kirim ${bk.Nomor} sudah diinput.`);
+    return;
+  }
+
+  const cAngsur = header.gudang.kode + "POT" + format(new Date(), "yyyyMMddHHmmssSSS");
+
+  Object.assign(activeItem, {
+    invoice: bk.Nomor, // Masuk sebagai invoice
+    tanggalInvoice: bk.Tanggal,
+    top: 0,
+    jatuhTempo: bk.Tanggal,
+    nominalInvoice: bk.Nominal,
+    terbayarPiutang: bk.Bayar,
+    sisaPiutang: bk.Sisa,
+    bayar: 0,
+    lunasi: false,
+    tglBayar: format(new Date(), "yyyy-MM-dd"),
+    angsuranId: cAngsur,
+  });
+
+  addNewRow();
+  calculateTotals();
+  dialogs.biayaKirimSearch = false;
 };
 
 // --- [REFACTOR] Handle Bayar Change (Auth Baru) ---
@@ -733,11 +776,23 @@ onMounted(async () => {
                 variant="underlined"
                 density="compact"
                 hide-details
-                placeholder="F1 atau Klik..."
+                placeholder="F1=Inv, F2=BK"
                 :readonly="isHeaderDisabled || !!item.invoice || !canSave"
                 @click="!isHeaderDisabled && !item.invoice && handleInvoiceSearch()"
                 @keydown.f1.prevent="!isHeaderDisabled && !item.invoice && handleInvoiceSearch()"
-              />
+                @keydown.f2.prevent="!isHeaderDisabled && !item.invoice && handleBiayaKirimSearch()"
+              >
+                <template #append-inner v-if="!isHeaderDisabled && !item.invoice && canSave">
+                  <v-icon
+                    size="small"
+                    color="info"
+                    @click.stop="handleBiayaKirimSearch"
+                    title="Cari Biaya Kirim (F2)"
+                  >
+                    mdi-truck-delivery
+                  </v-icon>
+                </template>
+              </v-text-field>
             </template>
             <template v-slot:[`item.tanggalInvoice`]="{ item }">
               <span class="text-caption">
@@ -837,6 +892,13 @@ onMounted(async () => {
       :gudang-kode="header.gudang.kode"
       @close="dialogs.invoiceSearch = false"
       @invoice-selected="onInvoiceSelected"
+    />
+    <BiayaKirimSearchModal
+      v-if="dialogs.biayaKirimSearch"
+      :customer-kode="header.customer.kode"
+      :gudang-kode="header.gudang.kode"
+      @close="dialogs.biayaKirimSearch = false"
+      @selected="onBiayaKirimSelected"
     />
 
     <v-dialog v-model="dialogConfirm.show" max-width="400px" persistent>

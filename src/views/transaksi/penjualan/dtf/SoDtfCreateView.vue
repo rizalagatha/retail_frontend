@@ -200,7 +200,20 @@ const isHargaReadonly = computed(() => {
 });
 
 const bordirMultiplier = computed(() => {
-  return totalJumlahKaos.value >= 20 ? 100 : 200;
+  const qty = totalJumlahKaos.value;
+  // Bom waktu: Aktif mulai 15 Mei 2026 berdasarkan tanggal transaksi form
+  const isNewRule = form.value.tanggal >= "2026-05-15";
+
+  if (isNewRule) {
+    // Aturan Harga Baru
+    if (qty >= 500) return 100;
+    if (qty >= 20) return 500;
+    if (qty >= 11) return 1000;
+    return 1500; // 1 - 10 pcs
+  } else {
+    // Aturan Harga Lama (sebelum 15 Mei)
+    return qty >= 20 ? 100 : 200;
+  }
 });
 
 // === Perhitungan Luas Bordir ===
@@ -592,10 +605,12 @@ const save = async () => {
       for (const item of detailsTitik.value) {
         if (item.keterangan) {
           const luas = (item.panjang || 0) * (item.lebar || 0);
-          if (luas > 0 && luas < 25) {
-            // Hanya peringatan, karena sistem sudah otomatis meng-up ke 25 cm2 di hitungan
+          const hargaKalkulasi = luas * bordirMultiplier.value;
+
+          if (luas > 0 && hargaKalkulasi < 5000) {
+            // Peringatan dinamis jika kalkulasi harga di bawah minimal 5.000
             toast.info(
-              `Titik '${item.keterangan}' di bawah 5x5cm, akan dikenakan tarif minimal Rp 5.000.`
+              `Titik '${item.keterangan}' dikenakan tarif minimum bordir Rp 5.000 (Kalkulasi asli: Rp ${hargaKalkulasi}).`
             );
           }
         }

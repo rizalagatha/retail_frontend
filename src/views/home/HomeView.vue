@@ -32,6 +32,7 @@ import type { Context } from "chartjs-plugin-datalabels";
 import ChartDataLabels from "chartjs-plugin-datalabels";
 import { formatRupiah } from "@/utils/formatRupiah";
 import JuknisModal from "@/components/modal/JuknisModal.vue";
+import TrackingAnalytics from "@/components/button/TrackingAnalytics.vue";
 
 ChartJS.register(
   Title,
@@ -267,6 +268,13 @@ interface SeasonalSaleItem {
   total_terjual: number;
 }
 
+interface AgendaItem {
+  dateline: string;
+  nomor: string;
+  customer: string;
+  is_completed?: number;
+}
+
 const authStore = useAuthStore();
 const router = useRouter();
 const toast = useToast();
@@ -455,6 +463,17 @@ const selectedCabangPiutang = ref<string>(""); // Menyimpan kode cabang yang sed
 const piutangInvoiceDetails = ref<PiutangInvoice[]>([]); // Menyimpan daftar invoice hasil klik
 const isLoadingPiutangDetails = ref(false);
 const showJuknis = ref(false);
+const showTrackingAnalytics = ref(false);
+const showAgendaReminder = ref(false);
+
+const todayAgendaItems = computed(() => {
+  const today = new Date();
+  const m = String(today.getMonth() + 1).padStart(2, "0");
+  const d = String(today.getDate()).padStart(2, "0");
+  const todayStr = `${today.getFullYear()}-${m}-${d}`;
+  // agendaList perlu di-fetch, atau terima dari props/store
+  return agendaList.value.filter((item) => item.dateline === todayStr);
+});
 
 // --- STATE BORDIR ---
 const bordirSchedules = ref<BordirSchedule[]>([]);
@@ -1505,6 +1524,39 @@ const fetchUserBranchInfo = async () => {
   }
 };
 
+const agendaList = ref<AgendaItem[]>([]);
+
+const checkAgendaReminder = async () => {
+  const today = format(new Date(), "yyyy-MM-dd");
+  const userKode = authStore.user?.kode || "guest";
+  const lastSeen = localStorage.getItem(`agenda_reminder_seen_${userKode}`);
+
+  try {
+    // 1. Tarik data agenda untuk disimpan di memory (agar badge kalender bisa berhitung)
+    const response = await api.get("/dashboard/agenda");
+    agendaList.value = response.data;
+
+    // 2. Cek apakah ada agenda hari ini yang belum selesai
+    const todayItems = (response.data as AgendaItem[]).filter(
+      (item) => item.dateline === today && !item.is_completed
+    );
+
+    // 3. Hanya tampilkan pop-up SATU KALI per hari PER USER
+    if (lastSeen !== today && todayItems.length > 0) {
+      showAgendaReminder.value = true;
+    }
+  } catch (e) {
+    console.error("Gagal mengecek agenda reminder:", e);
+  }
+};
+
+const closeAgendaReminder = () => {
+  showAgendaReminder.value = false;
+  const userKode = authStore.user?.kode || "guest";
+  // Simpan status sudah dibaca hari ini dengan menyertakan ID User
+  localStorage.setItem(`agenda_reminder_seen_${userKode}`, format(new Date(), "yyyy-MM-dd"));
+};
+
 // Tambahkan watcher untuk memastikan variabel ter-update
 watch(userPlaceId, (newVal) => {
   console.log("DEBUG MAPS: Variabel userPlaceId berubah menjadi:", newVal);
@@ -1910,6 +1962,7 @@ onMounted(() => {
 
     // Penjualan (SKIP jika Warehouse User)
     if (!isWarehouseUser.value) {
+      checkAgendaReminder();
       fetchTodayStats();
       fetchDashboardStats();
       fetchSalesChartData();
@@ -2051,18 +2104,34 @@ onUnmounted(() => {
             </div>
 
             <!-- Kanan: tombol panduan -->
-            <v-btn
-              color="white"
-              variant="flat"
-              prepend-icon="mdi-book-open-variant"
-              class="text-indigo-darken-3 font-weight-bold px-5"
-              size="large"
-              elevation="4"
-              rounded="lg"
-              @click="showJuknis = true"
-            >
-              Panduan Alur Penjualan
-            </v-btn>
+            <div class="d-flex ga-3">
+              <v-btn
+                v-if="authStore.user?.cabang === 'KDC'"
+                color="white"
+                variant="flat"
+                prepend-icon="mdi-google-analytics"
+                class="text-blue-darken-3 font-weight-bold px-5"
+                size="large"
+                elevation="4"
+                rounded="lg"
+                @click="showTrackingAnalytics = true"
+              >
+                Traffic Tracking
+              </v-btn>
+
+              <v-btn
+                color="white"
+                variant="flat"
+                prepend-icon="mdi-book-open-variant"
+                class="text-indigo-darken-3 font-weight-bold px-5"
+                size="large"
+                elevation="4"
+                rounded="lg"
+                @click="showJuknis = true"
+              >
+                Panduan Alur Penjualan
+              </v-btn>
+            </div>
           </div>
         </div>
       </div>
@@ -4707,6 +4776,122 @@ onUnmounted(() => {
         <v-btn color="deep-purple" variant="flat" @click="saveBordirSchedule" class="px-6"
           >Simpan Update</v-btn
         >
+      </v-card-actions>
+    </v-card>
+  </v-dialog>
+
+  <v-dialog v-model="showTrackingAnalytics" max-width="1200" transition="dialog-bottom-transition">
+    <v-card class="rounded-xl overflow-hidden">
+      <v-toolbar color="primary" density="compact">
+        <v-icon start class="ml-4">mdi-google-analytics</v-icon>
+        <v-toolbar-title class="text-subtitle-1 font-weight-bold">
+          Analytics Pengunjung Web Tracking
+        </v-toolbar-title>
+        <v-spacer />
+        <v-btn icon="mdi-close" variant="text" @click="showTrackingAnalytics = false" />
+      </v-toolbar>
+
+      <v-card-text class="pa-4 bg-grey-lighten-4">
+        <TrackingAnalytics />
+      </v-card-text>
+    </v-card>
+  </v-dialog>
+
+  <v-dialog v-model="showAgendaReminder" max-width="480px" persistent scrollable>
+    <v-card class="rounded-xl overflow-hidden d-flex flex-column" style="max-height: 90vh">
+      <div style="background: #3949ab; padding: 20px 20px 16px; position: relative; flex-shrink: 0">
+        <v-btn
+          icon="mdi-close"
+          size="small"
+          variant="text"
+          style="position: absolute; top: 8px; right: 8px; color: rgba(255, 255, 255, 0.7)"
+          @click="closeAgendaReminder"
+        />
+        <div style="display: flex; align-items: center; gap: 12px">
+          <div
+            style="
+              width: 48px;
+              height: 48px;
+              border-radius: 12px;
+              background: rgba(255, 255, 255, 0.2);
+              display: flex;
+              align-items: center;
+              justify-content: center;
+            "
+          >
+            <v-icon size="28" color="white">mdi-calendar-clock</v-icon>
+          </div>
+          <div>
+            <div class="text-white font-weight-bold text-subtitle-1">Agenda Hari Ini</div>
+            <div class="text-white opacity-80 text-caption">
+              {{
+                new Date().toLocaleDateString("id-ID", {
+                  weekday: "long",
+                  day: "numeric",
+                  month: "long",
+                })
+              }}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <v-card-text class="pa-4" style="overflow-y: auto">
+        <div style="display: flex; flex-direction: column; gap: 8px">
+          <div
+            v-for="(evt, i) in todayAgendaItems.filter((e) => !e.is_completed)"
+            :key="i"
+            style="
+              border: 1px solid #eee;
+              border-radius: 10px;
+              padding: 10px 12px;
+              display: flex;
+              align-items: center;
+              gap: 10px;
+            "
+          >
+            <div
+              style="
+                width: 36px;
+                height: 36px;
+                border-radius: 8px;
+                background: #e8eaf6;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                flex-shrink: 0;
+              "
+            >
+              <v-icon size="18" color="#3949AB">mdi-cash-register</v-icon>
+            </div>
+            <div style="flex: 1; min-width: 0">
+              <div class="font-weight-bold text-caption text-grey-darken-3 text-truncate">
+                {{ evt.customer || "Umum" }}
+              </div>
+              <div class="text-caption text-grey">{{ evt.nomor }}</div>
+            </div>
+            <v-chip size="x-small" color="indigo" variant="flat" class="font-weight-bold">
+              Dateline
+            </v-chip>
+          </div>
+        </div>
+
+        <div class="text-caption text-grey text-center mt-3">
+          Pengingat ini hanya muncul sekali per hari
+        </div>
+      </v-card-text>
+
+      <v-card-actions class="px-4 pb-4 pt-0" style="flex-shrink: 0">
+        <v-btn
+          block
+          color="#3949AB"
+          variant="flat"
+          class="font-weight-bold text-white"
+          rounded="lg"
+          @click="closeAgendaReminder"
+        >
+          Oke, Saya Sudah Tahu
+        </v-btn>
       </v-card-actions>
     </v-card>
   </v-dialog>

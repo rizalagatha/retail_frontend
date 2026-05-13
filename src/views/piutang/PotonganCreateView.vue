@@ -74,6 +74,14 @@ interface SelectedInvoice {
   sisaPiutang: number;
 }
 
+interface BiayaKirimItem {
+  Nomor: string;
+  Tanggal: string;
+  Nominal: number;
+  Bayar: number;
+  Sisa: number;
+}
+
 const toast = useToast();
 const router = useRouter();
 const route = useRoute();
@@ -317,11 +325,12 @@ const handleBiayaKirimSearch = () => {
 };
 
 // Fungsi saat dipilih
-const onBiayaKirimSelected = async (bk: any) => {
+const onBiayaKirimSelected = async (bk: BiayaKirimItem) => {
   const activeItem = items.value.find((i) => !i.invoice);
   if (!activeItem) return;
 
   const isDuplicate = items.value.some((i) => i.invoice === bk.Nomor && i.id !== activeItem.id);
+
   if (isDuplicate) {
     toast.error(`Biaya Kirim ${bk.Nomor} sudah diinput.`);
     return;
@@ -330,7 +339,7 @@ const onBiayaKirimSelected = async (bk: any) => {
   const cAngsur = header.gudang.kode + "POT" + format(new Date(), "yyyyMMddHHmmssSSS");
 
   Object.assign(activeItem, {
-    invoice: bk.Nomor, // Masuk sebagai invoice
+    invoice: bk.Nomor,
     tanggalInvoice: bk.Tanggal,
     top: 0,
     jatuhTempo: bk.Tanggal,

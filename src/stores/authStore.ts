@@ -37,6 +37,7 @@ interface Notifications {
   retur: number;
   pinjam: number;
   memo: number;
+  piutang: number;
 }
 
 // 'useAuthStore' adalah nama hook yang akan kita gunakan di komponen
@@ -85,6 +86,7 @@ export const useAuthStore = defineStore("auth", () => {
     retur: 0,
     pinjam: 0,
     memo: 0,
+    piutang: 0,
   });
 
   const isOnline = ref(navigator.onLine);

@@ -1,11 +1,13 @@
 <script setup lang="ts">
 import { useAuthStore } from "@/stores/authStore";
 import { useUiStore } from "@/stores/uiStore";
+import { useToast } from "vue-toastification";
 import Navbar from "@/components/Navbar.vue";
 import { ref, onMounted, onUnmounted, defineAsyncComponent, computed } from "vue";
 import api from "@/services/api";
 import axios from "axios";
 import { useTheme } from "vuetify";
+import { useRouter } from "vue-router";
 
 // Import composables atau store untuk state dialog
 import { usePasswordDialog } from "@/composables/usePasswordDialog";
@@ -35,6 +37,23 @@ interface Changelog {
   changes: (string | { title: string; items: string[] })[];
 }
 
+interface AgendaItem {
+  dateline: string;
+  nomor: string;
+  customer?: string;
+  rincian_dtf?: string;
+  tipe?: string;
+  is_completed?: number;
+}
+
+interface HolidayItem {
+  date?: string;
+  tanggal?: string;
+  name?: string;
+  keterangan?: string;
+  is_cuti?: boolean;
+}
+
 // Import komponen dialog (lazy load jika memungkinkan untuk performa lebih baik)
 const ChangePasswordDialog = defineAsyncComponent(
   () => import("@/components/dialog/ChangePasswordDialog.vue")
@@ -59,6 +78,8 @@ const FaqModal = defineAsyncComponent(() => import("@/components/modal/FaqModal.
 const ChangelogModal = defineAsyncComponent(() => import("@/components/modal/ChangelogModal.vue"));
 
 const authStore = useAuthStore();
+const toast = useToast();
+const router = useRouter();
 const uiStore = useUiStore();
 const theme = useTheme();
 const cashierSessionStore = useCashierSessionStore();
@@ -82,11 +103,90 @@ const isChangelogLoading = ref(false);
 
 const showFaq = ref(false);
 
+// --- STATE AGENDA CALENDAR ---
+const showAgendaDialog = ref(false);
+const agendaList = ref<AgendaItem[]>([]);
+const isAgendaLoading = ref(false);
+
+// --- STATE DETAIL AGENDA PER HARI ---
+const showDayDetailDialog = ref(false);
+const selectedDayEvents = ref<AgendaItem[]>([]);
+const selectedDayDate = ref("");
+
+// --- STATE HARI LIBUR NASIONAL ---
+const holidays = ref<Record<string, string>>({}); // { "2026-05-01": "Hari Buruh" }
+
+// State Navigasi Bulan
+const currentMonth = ref(new Date().getMonth());
+const currentYear = ref(new Date().getFullYear());
+
+const monthNames = [
+  "Januari",
+  "Februari",
+  "Maret",
+  "April",
+  "Mei",
+  "Juni",
+  "Juli",
+  "Agustus",
+  "September",
+  "Oktober",
+  "November",
+  "Desember",
+];
+
+const fetchHolidays = async () => {
+  try {
+    // Memanggil API libur dari Deno
+    const res = await axios.get(`https://libur.deno.dev/api`);
+
+    if (res.data && Array.isArray(res.data)) {
+      const newHolidays: Record<string, string> = {};
+
+      (res.data as HolidayItem[]).forEach((h) => {
+        // API Deno biasanya pakai 'date' dan 'name', tapi kita beri fallback 'tanggal' dan 'keterangan'
+        const dateStr = h.date || h.tanggal;
+        const desc = h.name || h.keterangan;
+
+        // Cek jika bukan cuti bersama (opsional: hilangkan pengecekan is_cuti jika mau cuti bersama tetap merah)
+        if (dateStr && desc && !h.is_cuti) {
+          newHolidays[dateStr] = desc;
+        }
+      });
+
+      holidays.value = { ...holidays.value, ...newHolidays };
+    }
+  } catch (error) {
+    console.warn("Gagal mengambil data hari libur dari Deno", error);
+  }
+};
+
+const isDayOff = (dateStr: string) => {
+  if (!dateStr) return false;
+  const d = new Date(dateStr);
+  if (d.getDay() === 0) return true; // Hari Minggu otomatis merah
+  return !!holidays.value[dateStr]; // Hari Libur Nasional
+};
+
+const todayAgendaCount = computed(() => {
+  const today = new Date();
+  const m = String(today.getMonth() + 1).padStart(2, "0");
+  const d = String(today.getDate()).padStart(2, "0");
+  const todayStr = `${today.getFullYear()}-${m}-${d}`;
+  return (agendaMap.value[todayStr] || []).filter((evt) => !evt.is_completed).length;
+});
+
 // State Notifikasi
 const notificationList = computed(() => {
   const n = authStore.notifications;
   const isKDC = authStore.userCabang === "KDC";
   const list = [];
+
+  const today = new Date();
+  const m = String(today.getMonth() + 1).padStart(2, "0");
+  const d = String(today.getDate()).padStart(2, "0");
+  const todayStr = `${today.getFullYear()}-${m}-${d}`;
+  const startDateStr = "2020-01-01";
 
   if (n.sj > 0) {
     list.push({
@@ -135,6 +235,16 @@ const notificationList = computed(() => {
       isMemo: true,
     });
   }
+  if (n.piutang > 0) {
+    list.push({
+      title: "Invoice Jatuh Tempo!",
+      count: n.piutang,
+      // URL sekarang otomatis memuat parameter status dan rentang tanggal
+      to: `/transaksi/penjualan/invoice?status=sisa_piutang&startDate=${startDateStr}&endDate=${todayStr}`,
+      icon: "mdi-cash-clock",
+      color: "red-darken-3",
+    });
+  }
 
   return list;
 });
@@ -146,7 +256,8 @@ const totalNotifications = computed(() => {
     (Number(n.mutasi) || 0) +
     (Number(n.retur) || 0) +
     (Number(n.pinjam) || 0) +
-    (Number(n.memo) || 0)
+    (Number(n.memo) || 0) +
+    (Number(n.piutang) || 0)
   );
 });
 const isNotificationMenuOpen = ref(false);
@@ -446,10 +557,168 @@ const fetchNotifications = async () => {
       retur: Number(stockData.retur_pending) || 0, // Sesuaikan dengan key backend
       pinjam: Number(stockData.pinjam_overdue) || 0,
       memo: hasNewMemo ? Number(stockData.new_memo_count) || 0 : 0,
+      piutang: Number(stockData.piutang_overdue) || 0,
     };
   } catch (error) {
     console.error("Gagal cek notifikasi", error);
   }
+};
+
+const fetchAgendaGlobal = async () => {
+  if (!authStore.isAuthenticated) return;
+  try {
+    const response = await api.get("/dashboard/agenda");
+    agendaList.value = response.data;
+  } catch (error) {
+    console.error("Gagal load agenda global", error);
+  }
+};
+
+const openAgendaDialog = async () => {
+  showAgendaDialog.value = true;
+  isAgendaLoading.value = true;
+
+  currentMonth.value = new Date().getMonth();
+  currentYear.value = new Date().getFullYear();
+
+  await fetchHolidays();
+
+  try {
+    const response = await api.get("/dashboard/agenda");
+    agendaList.value = response.data;
+  } catch {
+    toast.error("Gagal memuat daftar agenda.");
+  } finally {
+    isAgendaLoading.value = false;
+  }
+};
+
+// Navigasi Bulan
+const prevMonth = () => {
+  if (currentMonth.value === 0) {
+    currentMonth.value = 11;
+    currentYear.value--;
+  } else {
+    currentMonth.value--;
+  }
+};
+
+const nextMonth = () => {
+  if (currentMonth.value === 11) {
+    currentMonth.value = 0;
+    currentYear.value++;
+  } else {
+    currentMonth.value++;
+  }
+};
+
+const goToToday = () => {
+  currentMonth.value = new Date().getMonth();
+  currentYear.value = new Date().getFullYear();
+};
+
+// Map Agenda ke Tanggal String (YYYY-MM-DD)
+const agendaMap = computed(() => {
+  const map: Record<string, AgendaItem[]> = {};
+  agendaList.value.forEach((item) => {
+    if (!item.dateline) return;
+    if (!map[item.dateline]) map[item.dateline] = [];
+    map[item.dateline].push(item);
+  });
+  return map;
+});
+
+// Logika Membangun Grid Kalender (35 / 42 Kotak)
+const calendarDays = computed(() => {
+  const days = [];
+  const firstDay = new Date(currentYear.value, currentMonth.value, 1);
+  const lastDay = new Date(currentYear.value, currentMonth.value + 1, 0);
+
+  // Tentukan hari mulai (Senin = 0, Minggu = 6) -> Penyesuaian agar Senin di awal
+  let startDayOfWeek = firstDay.getDay() - 1;
+  if (startDayOfWeek === -1) startDayOfWeek = 6; // Jika Minggu, geser ke index 6
+
+  // 1. Padding hari dari bulan sebelumnya
+  const prevMonthLastDay = new Date(currentYear.value, currentMonth.value, 0).getDate();
+  for (let i = startDayOfWeek - 1; i >= 0; i--) {
+    const d = prevMonthLastDay - i;
+    days.push({ day: d, isCurrentMonth: false, dateStr: "", events: [] });
+  }
+
+  // 2. Hari di bulan saat ini
+  for (let i = 1; i <= lastDay.getDate(); i++) {
+    const m = String(currentMonth.value + 1).padStart(2, "0");
+    const d = String(i).padStart(2, "0");
+    const dateStr = `${currentYear.value}-${m}-${d}`; // Format YYYY-MM-DD
+
+    days.push({
+      day: i,
+      isCurrentMonth: true,
+      dateStr: dateStr,
+      events: agendaMap.value[dateStr] || [],
+    });
+  }
+
+  // 3. Padding hari dari bulan berikutnya (agar genap kelipatan 7)
+  const remainingCells = 42 - days.length; // Max 6 baris x 7 hari
+  for (let i = 1; i <= remainingCells; i++) {
+    days.push({ day: i, isCurrentMonth: false, dateStr: "", events: [] });
+  }
+
+  // Pangkas jadi 35 jika baris terakhir ternyata kosong semua (bulan pendek)
+  if (days.length === 42 && !days[35].isCurrentMonth) {
+    return days.slice(0, 35);
+  }
+
+  return days;
+});
+
+// Cek apakah YYYY-MM-DD adalah hari ini
+const isToday = (dateStr: string) => {
+  if (!dateStr) return false;
+  const today = new Date();
+  const m = String(today.getMonth() + 1).padStart(2, "0");
+  const d = String(today.getDate()).padStart(2, "0");
+  const todayStr = `${today.getFullYear()}-${m}-${d}`;
+  return dateStr === todayStr;
+};
+
+// Helper untuk format Header Tanggal Agenda
+const formatAgendaDate = (dateStr: string) => {
+  if (!dateStr) return "Tidak ada tanggal";
+
+  const dateObj = new Date(dateStr);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const diffTime = dateObj.getTime() - today.getTime();
+  const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
+
+  const formattedDate = new Intl.DateTimeFormat("id-ID", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  }).format(dateObj);
+
+  if (diffDays === 0) return `Hari Ini (${formattedDate})`;
+  if (diffDays === 1) return `Besok (${formattedDate})`;
+  if (diffDays === -1) return `Kemarin (${formattedDate})`;
+  if (diffDays < 0) return `Terlewat ${Math.abs(diffDays)} Hari (${formattedDate})`;
+
+  return formattedDate;
+};
+
+// Fungsi untuk membuka rincian satu hari
+const openDayDetails = (dateStr: string, events: AgendaItem[]) => {
+  selectedDayDate.value = dateStr;
+  // Sort: belum selesai (is_completed = 0/falsy) duluan
+  selectedDayEvents.value = [...events].sort((a, b) => {
+    const aSelesai = a.is_completed ? 1 : 0;
+    const bSelesai = b.is_completed ? 1 : 0;
+    return aSelesai - bSelesai;
+  });
+  showDayDetailDialog.value = true;
 };
 
 onMounted(() => {
@@ -474,7 +743,10 @@ onMounted(() => {
 
   fetchNotifications();
   // Cek notifikasi setiap 60 detik (agar tidak membebani server)
-  setInterval(fetchNotifications, 60000);
+  setInterval(() => {
+    fetchNotifications();
+    fetchAgendaGlobal();
+  }, 60000);
 
   // Listener untuk Caps/Num Lock
   window.addEventListener("keydown", updateLockStatus as EventListener);
@@ -490,6 +762,7 @@ onMounted(() => {
 
   if (authStore.isAuthenticated) {
     cashierSessionStore.fetchCurrentSession();
+    fetchAgendaGlobal();
   }
 });
 
@@ -694,6 +967,32 @@ onUnmounted(() => {
         </v-tooltip>
 
         <v-divider vertical class="mx-1 d-none d-sm-block"></v-divider>
+
+        <!-- Tombol kalender baru dengan badge -->
+        <v-btn
+          icon
+          variant="text"
+          size="small"
+          density="compact"
+          class="mr-1"
+          @click="openAgendaDialog"
+        >
+          <v-badge
+            :content="todayAgendaCount"
+            :model-value="todayAgendaCount > 0"
+            color="error"
+            size="x-small"
+            floating
+          >
+            <v-icon
+              size="18"
+              :color="todayAgendaCount > 0 ? 'indigo-darken-1' : 'grey'"
+              :class="{ 'bell-ring': todayAgendaCount > 0 }"
+            >
+              mdi-calendar-month
+            </v-icon>
+          </v-badge>
+        </v-btn>
 
         <v-menu
           v-model="isNotificationMenuOpen"
@@ -1109,6 +1408,263 @@ onUnmounted(() => {
       </v-card>
     </v-dialog>
 
+    <v-dialog
+      v-model="showAgendaDialog"
+      max-width="1100px"
+      fullscreen-on-mobile
+      transition="dialog-bottom-transition"
+    >
+      <v-card class="bg-white rounded-xl h-100 d-flex flex-column overflow-hidden">
+        <div class="cal-header-inner">
+          <div>
+            <div class="cal-year-label">{{ currentYear }}</div>
+            <div class="cal-month-title">{{ monthNames[currentMonth] }}</div>
+          </div>
+          <div class="cal-nav-group">
+            <button class="cal-today-pill" @click="goToToday">Hari ini</button>
+            <button class="cal-nav-btn" @click="prevMonth">
+              <v-icon size="16">mdi-chevron-left</v-icon>
+            </button>
+            <button class="cal-nav-btn" @click="nextMonth">
+              <v-icon size="16">mdi-chevron-right</v-icon>
+            </button>
+          </div>
+        </div>
+
+        <div
+          v-if="isAgendaLoading"
+          class="flex-grow-1 d-flex flex-column justify-center align-center"
+        >
+          <v-progress-circular
+            indeterminate
+            color="primary"
+            size="48"
+            width="4"
+          ></v-progress-circular>
+        </div>
+
+        <div v-else class="flex-grow-1 d-flex flex-column bg-white">
+          <div class="calendar-weekdays border-bottom">
+            <span>Sen</span><span>Sel</span><span>Rab</span><span>Kam</span><span>Jum</span
+            ><span class="weekend-label">Sab</span><span class="weekend-label">Min</span>
+          </div>
+
+          <div class="calendar-grid flex-grow-1">
+            <div
+              v-for="(cell, i) in calendarDays"
+              :key="i"
+              class="calendar-cell"
+              @click="cell.isCurrentMonth && openDayDetails(cell.dateStr, cell.events)"
+            >
+              <div class="cell-date-wrap">
+                <span
+                  class="cell-date"
+                  :class="{
+                    'text-grey-lighten-1': !cell.isCurrentMonth,
+                    'is-today': isToday(cell.dateStr),
+                    'text-red': isDayOff(cell.dateStr) && !isToday(cell.dateStr),
+                  }"
+                  :title="holidays[cell.dateStr] || ''"
+                >
+                  {{ cell.day }}
+                </span>
+              </div>
+
+              <div class="cell-events" v-if="cell.isCurrentMonth">
+                <template
+                  v-for="(evt, idx) in [...cell.events]
+                    .sort((a, b) => (a.is_completed ? 1 : 0) - (b.is_completed ? 1 : 0))
+                    .slice(0, 2)"
+                  :key="idx"
+                >
+                  <div
+                    class="event-pill"
+                    :class="evt.is_completed ? 'bg-grey-lighten-2 text-grey-darken-1' : 'ep-so'"
+                    :style="evt.is_completed ? 'text-decoration: line-through; opacity: 0.8;' : ''"
+                    @click="
+                      router.push(`/transaksi/penjualan/surat-pesanan/ubah/${evt.nomor}`);
+                      showAgendaDialog = false;
+                    "
+                    :title="evt.customer + ' (' + evt.nomor + ')'"
+                  >
+                    <v-icon size="9">{{
+                      evt.is_completed ? "mdi-check-circle" : "mdi-cash-register"
+                    }}</v-icon>
+                    <span class="text-truncate">{{ evt.customer || "Umum" }}</span>
+                  </div>
+                </template>
+
+                <div
+                  v-if="cell.events.length > 2"
+                  class="more-badge"
+                  @click="openDayDetails(cell.dateStr, cell.events)"
+                >
+                  +{{ cell.events.length - 2 }} lagi
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </v-card>
+    </v-dialog>
+
+    <v-dialog v-model="showDayDetailDialog" max-width="450px" scrollable>
+      <v-card class="rounded-xl overflow-hidden" style="max-height: 90vh">
+        <div
+          style="
+            padding: 16px 18px 12px;
+            border-bottom: 0.5px solid rgba(0, 0, 0, 0.08);
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+          "
+        >
+          <div>
+            <div
+              style="
+                font-size: 10px;
+                font-weight: 600;
+                color: #aaa;
+                text-transform: uppercase;
+                letter-spacing: 0.5px;
+                margin-bottom: 2px;
+              "
+            >
+              {{ formatAgendaDate(selectedDayDate).split("(")[0].trim() }}
+              <span v-if="holidays[selectedDayDate]" class="text-red ml-1"
+                >- {{ holidays[selectedDayDate] }}</span
+              >
+            </div>
+            <div style="font-size: 17px; font-weight: 600; color: #111; line-height: 1.2">
+              {{ selectedDayEvents.length }} agenda pesanan
+            </div>
+          </div>
+          <button
+            @click="showDayDetailDialog = false"
+            style="
+              width: 28px;
+              height: 28px;
+              border-radius: 50%;
+              border: 1px solid #e8e8e8;
+              background: #f5f5f5;
+              cursor: pointer;
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              color: #666;
+              flex-shrink: 0;
+            "
+          >
+            <v-icon size="14">mdi-close</v-icon>
+          </button>
+        </div>
+
+        <v-card-text class="pa-3" style="overflow-y: auto">
+          <div v-if="selectedDayEvents.length === 0" class="pa-6 text-center text-grey">
+            <v-icon size="40" class="mb-2" color="grey-lighten-1"
+              >mdi-calendar-blank-outline</v-icon
+            >
+            <div class="text-caption">Tidak ada agenda di hari ini</div>
+          </div>
+
+          <div v-else style="display: flex; flex-direction: column; gap: 8px">
+            <div
+              v-for="(evt, idx) in selectedDayEvents"
+              :key="idx"
+              style="
+                border: 0.5px solid #eee;
+                border-radius: 10px;
+                padding: 10px 12px;
+                display: flex;
+                align-items: center;
+                gap: 10px;
+                cursor: pointer;
+                transition: border-color 0.12s;
+                background: #fff;
+              "
+              @mouseenter="($event) => (($event.currentTarget as HTMLElement).style.borderColor = '#bbb')"
+              @mouseleave="($event) => (($event.currentTarget as HTMLElement).style.borderColor = '#eee')"
+              @click="
+                showDayDetailDialog = false;
+                showAgendaDialog = false;
+                router.push(`/transaksi/penjualan/surat-pesanan/ubah/${evt.nomor}`);
+              "
+            >
+              <div
+                :style="{
+                  width: '36px',
+                  height: '36px',
+                  borderRadius: '8px',
+                  background: evt.is_completed ? '#F5F5F5' : '#E3F2FD',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexShrink: 0,
+                }"
+              >
+                <v-icon size="16" :color="evt.is_completed ? '#9E9E9E' : '#1565C0'">
+                  {{ evt.is_completed ? "mdi-check-circle" : "mdi-cash-register" }}
+                </v-icon>
+              </div>
+
+              <div style="flex: 1; min-width: 0">
+                <div
+                  style="
+                    font-size: 13px;
+                    font-weight: 600;
+                    white-space: nowrap;
+                    overflow: hidden;
+                    text-overflow: ellipsis;
+                    margin-bottom: 3px;
+                  "
+                  :class="
+                    evt.is_completed
+                      ? 'text-grey text-decoration-line-through'
+                      : 'text-grey-darken-4'
+                  "
+                >
+                  {{ evt.customer || "Umum" }}
+                </div>
+                <div style="display: flex; align-items: center; gap: 6px">
+                  <span
+                    :style="{
+                      fontSize: '10px',
+                      fontWeight: 700,
+                      padding: '2px 6px',
+                      borderRadius: '4px',
+                      background: evt.is_completed ? '#F5F5F5' : '#E3F2FD',
+                      color: evt.is_completed ? '#9E9E9E' : '#1565C0',
+                    }"
+                  >
+                    SO
+                  </span>
+                  <span style="font-size: 10px; color: #aaa">{{ evt.nomor }}</span>
+                  <v-chip
+                    v-if="evt.is_completed"
+                    size="x-small"
+                    color="success"
+                    variant="flat"
+                    class="font-weight-bold"
+                    style="height: 16px; font-size: 9px"
+                  >
+                    Selesai
+                  </v-chip>
+                </div>
+                <div
+                  v-if="evt.rincian_dtf"
+                  class="text-caption text-grey-darken-1 text-truncate mt-1"
+                  style="font-size: 10px !important"
+                >
+                  <v-icon size="12" class="mr-1">mdi-tshirt-crew</v-icon> {{ evt.rincian_dtf }}
+                </div>
+              </div>
+              <v-icon size="16" color="#ddd">mdi-chevron-right</v-icon>
+            </div>
+          </div>
+        </v-card-text>
+      </v-card>
+    </v-dialog>
+
     <ChangePasswordDialog v-if="showPasswordDialog" @close="closePasswordDialog" />
 
     <WhatsAppLinkDialog v-if="showWhatsAppDialog" @close="closeWhatsAppDialog" />
@@ -1173,6 +1729,213 @@ onUnmounted(() => {
   color: #1976d2 !important;
   /* Warna primary saat hover */
   text-decoration: underline;
+}
+
+/* === KALENDER BARU === */
+.cal-header-inner {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  padding: 16px 20px 12px;
+  border-bottom: 0.5px solid rgba(0, 0, 0, 0.08);
+}
+.cal-year-label {
+  font-size: 11px;
+  font-weight: 500;
+  color: #aaa;
+  margin-bottom: 1px;
+  letter-spacing: 0.3px;
+}
+.cal-month-title {
+  font-size: 20px;
+  font-weight: 600;
+  color: #111;
+  letter-spacing: -0.3px;
+}
+.cal-nav-group {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.cal-nav-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  border: 1px solid #e8e8e8;
+  background: #f8f8f8;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #666;
+  transition: background 0.1s, border-color 0.1s;
+}
+.cal-nav-btn:hover {
+  background: #fff;
+  border-color: #ccc;
+}
+.cal-today-pill {
+  padding: 5px 12px;
+  border-radius: 20px;
+  border: 1px solid #e0e0e0;
+  font-size: 12px;
+  font-weight: 500;
+  color: #555;
+  cursor: pointer;
+  background: #f8f8f8;
+  transition: all 0.1s;
+}
+.cal-today-pill:hover {
+  background: #fff;
+  border-color: #bbb;
+}
+
+/* Weekdays header */
+.calendar-weekdays {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  padding: 0 8px;
+  background: #fafafa;
+}
+.calendar-weekdays span {
+  text-align: center;
+  font-size: 10px;
+  font-weight: 600;
+  color: #bbb;
+  padding: 8px 0;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.calendar-weekdays .weekend-label {
+  color: #ddd;
+}
+
+/* Grid sel */
+.calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  grid-auto-rows: minmax(72px, 1fr); /* ← dari 86px jadi 72px */
+  padding: 4px 4px 8px; /* ← kurangi padding horizontal */
+}
+.calendar-cell {
+  min-height: 72px;
+  padding: 5px 3px 3px;
+  display: flex;
+  flex-direction: column;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.1s;
+  overflow: hidden; /* ← INI YANG PALING PENTING */
+  min-width: 0; /* ← mencegah cell melebar */
+}
+
+.calendar-cell:hover {
+  background: #fafafa;
+}
+.cell-date-wrap {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 4px;
+}
+.cell-date {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  font-weight: 500;
+  color: #333;
+  flex-shrink: 0;
+}
+.cell-date.other-month {
+  color: #ddd;
+}
+.cell-date.is-today {
+  background: #d32f2f !important;
+  color: #fff !important;
+  font-weight: 700;
+}
+.cell-events {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  overflow: hidden;
+  min-width: 0; /* ← tambahkan ini */
+  width: 100%; /* ← tambahkan ini */
+}
+
+/* Event pill baru */
+.event-pill {
+  font-size: 9px;
+  font-weight: 600;
+  padding: 2px 5px;
+  border-radius: 4px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  line-height: 1.4;
+  width: 100%; /* ← ambil lebar penuh container */
+  min-width: 0; /* ← WAJIB agar flex child bisa truncate */
+  max-width: 100%; /* ← tidak boleh melebihi parent */
+  box-sizing: border-box;
+}
+.event-pill i {
+  font-size: 9px;
+  flex-shrink: 0;
+}
+.ep-so {
+  background: #e3f2fd;
+  color: #1565c0;
+}
+.ep-dtf-0 {
+  background: #fce4ec;
+  color: #c62828;
+}
+.ep-dtf-1 {
+  background: #e8f5e9;
+  color: #2e7d32;
+}
+.ep-dtf-2 {
+  background: #fff8e1;
+  color: #f57f17;
+}
+
+.more-badge {
+  font-size: 9px;
+  color: #bbb;
+  font-weight: 600;
+  padding: 1px 4px;
+  text-align: center;
+  border-radius: 3px;
+  cursor: pointer;
+  margin-top: 1px;
+  transition: all 0.1s;
+}
+.more-badge:hover {
+  background: #f0f0f0;
+  color: #1565c0;
+}
+
+/* Responsif HP */
+@media (max-width: 600px) {
+  .calendar-grid {
+    grid-auto-rows: minmax(56px, 1fr);
+    padding: 2px 2px 4px;
+  }
+  .calendar-cell {
+    min-height: 56px;
+    padding: 4px 2px 2px;
+  }
+  .event-pill {
+    font-size: 8px;
+    padding: 1px 3px;
+  }
 }
 
 /* === GLOBAL FIX: FOOTER DIALOG (FAQ, DLL) === */

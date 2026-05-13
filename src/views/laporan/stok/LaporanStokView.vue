@@ -220,9 +220,9 @@ const fetchData = async () => {
 };
 
 // ─── Export ───────────────────────────────────────────────────────────────────
-const exportToExcel = async () => {
+const exportToExcel = async (tipe: "horizontal" | "vertical") => {
   isLoading.value = true;
-  toast.info("Menyiapkan data export...");
+  toast.info(`Menyiapkan data export ${tipe}...`);
   try {
     const response = await api.get("/laporan-stok/real-time/export", { params: filters });
     const rawData = response.data;
@@ -231,76 +231,123 @@ const exportToExcel = async () => {
       return;
     }
 
-    const pivotedMap = new Map<string, PivotItem>();
-    const sizeSet = new Set<string>();
-
-    rawData.forEach((row: RawStockRow) => {
-      const key = row.KODE;
-      if (!pivotedMap.has(key)) {
-        pivotedMap.set(key, {
-          Kategori: row.KATEGORI || "",
-          Kode: row.KODE || "",
-          Barcode: row.BARCODE || "",
-          Nama: row.NAMA || "",
-          HPP: Number(row.HPP || 0),
-          Total: 0,
-          PL: 0,
-          Tersedia: 0,
-          Buffer: Number(row.BUFFER || 0),
-        });
-      }
-      const item = pivotedMap.get(key)!;
-      const ukuran = row.UKURAN || "-";
-      sizeSet.add(ukuran);
-      item[ukuran] = ((item[ukuran] as number) || 0) + Number(row.TOTAL || 0);
-      item.Total += Number(row.TOTAL || 0);
-      item.PL += Number(row.PL_QTY || 0);
-      item.Tersedia += Number(row.TOTAL2 || 0);
-    });
-
-    const sortedSizes = Array.from(sizeSet).sort(sortSizes);
     const isKDC = authStore.user?.cabang === "KDC" && filters.gudang === "KDC";
-
-    const excelHeaders = [
-      "Kategori",
-      "Kode Barang",
-      "Barcode",
-      "Nama Barang",
-      "HPP",
-      ...sortedSizes,
-      "Total",
-    ];
-    if (isKDC) excelHeaders.push("Qty PL", "Tersedia");
-    excelHeaders.push("Buffer");
-
-    const finalData = Array.from(pivotedMap.values())
-      .map((row) => {
-        const r: Record<string, string | number> = {
-          Kategori: row.Kategori,
-          "Kode Barang": row.Kode,
-          Barcode: row.Barcode,
-          "Nama Barang": row.Nama,
-          HPP: row.HPP,
-        };
-        sortedSizes.forEach((sz) => {
-          r[sz] = row[sz] || 0;
-        });
-        r["Total"] = row.Total;
-        if (isKDC) {
-          r["Qty PL"] = row.PL;
-          r["Tersedia"] = row.Tersedia;
-        }
-        r["Buffer"] = row.Buffer;
-        return r;
-      })
-      .sort((a, b) => String(a["Nama Barang"]).localeCompare(String(b["Nama Barang"])));
-
-    const ws = XLSX.utils.json_to_sheet(finalData, { header: excelHeaders });
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Stok Detail");
+
+    if (tipe === "horizontal") {
+      // --- LOGIKA HORIZONTAL (YANG LAMA) ---
+      const pivotedMap = new Map<string, PivotItem>();
+      const sizeSet = new Set<string>();
+
+      rawData.forEach((row: RawStockRow) => {
+        const key = row.KODE;
+        if (!pivotedMap.has(key)) {
+          pivotedMap.set(key, {
+            Kategori: row.KATEGORI || "",
+            Kode: row.KODE || "",
+            Barcode: row.BARCODE || "",
+            Nama: row.NAMA || "",
+            HPP: Number(row.HPP || 0),
+            Total: 0,
+            PL: 0,
+            Tersedia: 0,
+            Buffer: Number(row.BUFFER || 0),
+          });
+        }
+        const item = pivotedMap.get(key)!;
+        const ukuran = row.UKURAN || "-";
+        sizeSet.add(ukuran);
+        item[ukuran] = ((item[ukuran] as number) || 0) + Number(row.TOTAL || 0);
+        item.Total += Number(row.TOTAL || 0);
+        item.PL += Number(row.PL_QTY || 0);
+        item.Tersedia += Number(row.TOTAL2 || 0);
+      });
+
+      const sortedSizes = Array.from(sizeSet).sort(sortSizes);
+      const excelHeaders = [
+        "Kategori",
+        "Kode Barang",
+        "Barcode",
+        "Nama Barang",
+        "HPP",
+        ...sortedSizes,
+        "Total",
+      ];
+      if (isKDC) excelHeaders.push("Qty PL", "Tersedia");
+      excelHeaders.push("Buffer");
+
+      const finalData = Array.from(pivotedMap.values())
+        .map((row) => {
+          const r: Record<string, string | number> = {
+            Kategori: row.Kategori,
+            "Kode Barang": row.Kode,
+            Barcode: row.Barcode,
+            "Nama Barang": row.Nama,
+            HPP: row.HPP,
+          };
+          sortedSizes.forEach((sz) => {
+            r[sz] = row[sz] || 0;
+          });
+          r["Total"] = row.Total;
+          if (isKDC) {
+            r["Qty PL"] = row.PL;
+            r["Tersedia"] = row.Tersedia;
+          }
+          r["Buffer"] = row.Buffer;
+          return r;
+        })
+        .sort((a, b) => String(a["Nama Barang"]).localeCompare(String(b["Nama Barang"])));
+
+      const ws = XLSX.utils.json_to_sheet(finalData, { header: excelHeaders });
+      XLSX.utils.book_append_sheet(wb, ws, "Stok Horizontal");
+    } else {
+      // --- LOGIKA VERTIKAL (BARU) ---
+      const excelHeaders = [
+        "Kategori",
+        "Kode Barang",
+        "Barcode",
+        "Nama Barang",
+        "HPP",
+        "Ukuran",
+        "Qty",
+      ];
+      if (isKDC) excelHeaders.push("Qty PL", "Tersedia");
+      excelHeaders.push("Buffer");
+
+      const finalData = rawData.map((row: RawStockRow) => {
+        const r: Record<string, string | number> = {
+          Kategori: row.KATEGORI || "",
+          "Kode Barang": row.KODE || "",
+          Barcode: row.BARCODE || "",
+          "Nama Barang": row.NAMA || "",
+          HPP: Number(row.HPP || 0),
+          Ukuran: row.UKURAN || "-",
+          Qty: Number(row.TOTAL || 0),
+        };
+        if (isKDC) {
+          r["Qty PL"] = Number(row.PL_QTY || 0);
+          r["Tersedia"] = Number(row.TOTAL2 || 0);
+        }
+        r["Buffer"] = Number(row.BUFFER || 0);
+        return r;
+      });
+
+      // Urutkan berdasarkan Nama, lalu Ukuran
+      finalData.sort((a: Record<string, string | number>, b: Record<string, string | number>) => {
+        const nameCmp = String(a["Nama Barang"]).localeCompare(String(b["Nama Barang"]));
+
+        if (nameCmp !== 0) return nameCmp;
+
+        return sortSizes(String(a["Ukuran"]), String(b["Ukuran"]));
+      });
+
+      const ws = XLSX.utils.json_to_sheet(finalData, { header: excelHeaders });
+      XLSX.utils.book_append_sheet(wb, ws, "Stok Vertikal");
+    }
+
     XLSX.writeFile(
       wb,
-      `Stok_${filters.gudang === "ALL" ? "SEMUA" : filters.gudang}_${filters.tanggal}.xlsx`
+      `Stok_${tipe}_${filters.gudang === "ALL" ? "SEMUA" : filters.gudang}_${filters.tanggal}.xlsx`
     );
     toast.success("Export berhasil.");
   } catch (error) {
@@ -371,9 +418,34 @@ onMounted(() => {
 <template>
   <PageLayout title="Laporan Stok Real Time" desktop-mode icon="mdi-chart-bar-stacked">
     <template #header-actions>
-      <v-btn size="small" color="teal" prepend-icon="mdi-file-excel" @click="exportToExcel">
-        Export
-      </v-btn>
+      <v-menu transition="scale-transition">
+        <template v-slot:activator="{ props }">
+          <v-btn
+            size="small"
+            color="teal"
+            prepend-icon="mdi-file-excel"
+            append-icon="mdi-chevron-down"
+            v-bind="props"
+            :loading="isLoading"
+          >
+            Export
+          </v-btn>
+        </template>
+        <v-list density="compact" class="text-caption">
+          <v-list-item @click="exportToExcel('horizontal')">
+            <template #prepend>
+              <v-icon size="small" class="mr-2" color="teal">mdi-table-row</v-icon>
+            </template>
+            <v-list-item-title>Export Horizontal (Ukuran ke Kanan)</v-list-item-title>
+          </v-list-item>
+          <v-list-item @click="exportToExcel('vertical')">
+            <template #prepend>
+              <v-icon size="small" class="mr-2" color="teal">mdi-table-column</v-icon>
+            </template>
+            <v-list-item-title>Export Vertikal (Ukuran ke Bawah)</v-list-item-title>
+          </v-list-item>
+        </v-list>
+      </v-menu>
     </template>
 
     <div v-if="!hasViewPermission" class="state-container">

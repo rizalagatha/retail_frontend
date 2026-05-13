@@ -205,7 +205,7 @@ onMounted(() => {
           </div>
           <div>{{ printData.header.gdg_inv_alamat }}</div>
           <div>{{ printData.header.gdg_inv_kota }}</div>
-          <div>{{ printData.header.gdg_inv_telp }}</div>
+          <div class="company-wa">{{ printData.header.gdg_inv_telp }}</div>
         </div>
 
         <!-- Logo kanan -->
@@ -331,7 +331,8 @@ onMounted(() => {
           <div class="complain-content">
             <div class="complain-title">Layanan Pelanggan</div>
             <div class="complain-text">
-              Silakan hubungi kami jika terdapat kendala pada pesanan Anda.
+              Silakan hubungi kami jika terdapat kendala pada pesanan Anda (Komplain, Kendala, dan
+              Kekurangan Pelayanan).
             </div>
           </div>
           <div class="complain-contact">
@@ -436,6 +437,13 @@ onMounted(() => {
   height: 50px;
   /* Ukuran logo utama */
   width: auto;
+}
+
+.company-wa {
+  font-weight: 900; /* Super Bold */
+  font-size: 12px; /* Lebih besar dari teks alamat (12px) */
+  margin-top: 2px; /* Beri sedikit jarak dari baris kota */
+  display: block;
 }
 
 /* Judul Dokumen */

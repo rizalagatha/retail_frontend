@@ -55,7 +55,7 @@ interface PrintLabelItem {
   harga: string;
   charga: string;
   nourut: number;
-  layoutType: "XP-360B" | "360B";
+  layoutType: "XP-360B" | "360B" | "POSTEK";
 }
 interface BarcodeApiData {
   kode: string;
@@ -79,7 +79,7 @@ const isProductSearchModalVisible = ref(false);
 const activeRowIndex = ref(-1);
 
 // --- State Cetak & Pratinjau ---
-const selectedPrinter = ref<"XP-360B" | "360B">("XP-360B");
+const selectedPrinter = ref<"XP-360B" | "360B" | "POSTEK">("XP-360B");
 const showPriceOnLabel = ref(false);
 const isPrinting = ref(false);
 const isPrintPreviewVisible = ref(false);
@@ -87,6 +87,15 @@ const printPreviewData = ref<PrintLabelItem[]>([]);
 const isAfterSave = ref(false);
 
 const isEditMode = computed(() => !!route.params.nomor);
+
+const chunkedPreviewData = computed(() => {
+  const chunkSize = selectedPrinter.value === "POSTEK" ? 3 : 2;
+  const result = [];
+  for (let i = 0; i < printPreviewData.value.length; i += chunkSize) {
+    result.push(printPreviewData.value.slice(i, i + chunkSize));
+  }
+  return result;
+});
 
 // --- Konfigurasi Tabel ---
 const tableHeaders = [
@@ -108,44 +117,42 @@ const printStylesXP360B = `
   }
   html, body {
     margin: 0; padding: 0;
-    padding-left: 5mm;
     width: 68mm;
-    height: auto !important; /* AWAS: Jangan di-fix 15mm agar label berikutnya muncul */
+    height: auto !important;
     overflow: visible !important;
     background-color: #fff;
     -webkit-print-color-adjust: exact;
   }
-  .label-pair-container {
+  .label-row-container {
     display: flex;
     width: 68mm;
-    height: 15mm; /* Tinggi per satu baris sticker (2 kolom) */
+    height: 15mm;
     align-items: center;
-    justify-content: space-between;
-    padding: 0 0.5mm;
+    justify-content: flex-start; /* Geser layout ke kiri agar bisa kita atur manual */
+    gap: 3mm; /* Beri jarak antar stiker kiri dan kanan */
+    padding: 0 1mm; /* Padding luar pembungkus stiker */
     box-sizing: border-box;
-    page-break-after: always !important; /* Memaksa ganti baris sticker */
+    page-break-after: always !important;
   }
   .barcode-label {
-    width: 29mm;
+    width: 31mm; /* Pastikan lebarnya pas 1 stiker */
     height: 14mm;
     display: flex;
     flex-direction: column;
     justify-content: flex-start;
-    align-items: flex-start; /* Ratakan konten ke kiri */
-    text-align: left;        /* Ratakan teks ke kiri */
+    align-items: flex-start;
+    text-align: left;
     overflow: hidden;
-    padding: 0.5mm 0 0 0.5mm;  /* Padding kiri agar teks tidak nempel pinggir */
+    padding: 0.5mm 0 0 2mm; /* [FIX] PADDING KIRI SAYA TAMBAH JADI 2mm AGAR KE TENGAH */
     box-sizing: border-box;
   }
   .item-name {
-    font-size: 5pt; /* Font kecil agar muat banyak */
+    font-size: 5pt;
     font-weight: bold;
     font-family: 'Arial Narrow', Arial, sans-serif;
     line-height: 1;
     width: 100%;
     margin-bottom: 0.1mm;
-
-    /* LOGIKA MAKSIMAL 2 BARIS */
     display: -webkit-box;
     -webkit-line-clamp: 2;
     -webkit-box-orient: vertical;
@@ -160,15 +167,84 @@ const printStylesXP360B = `
   }
   .barcode-svg {
     width: 27mm !important;
-    height: 5.5mm !important; /* Tinggi barcode dijaga agar teks bawah muat */
-    margin: 0.1mm 0;
-    margin-left: -0.8mm; /* Geser sedikit agar batang barcode mepet kiri */
+    height: 5.5mm !important;
+    margin: 0.1mm 0; /* [FIX] Margin negatif -0.8mm dihapus supaya barcode tidak nabrak kiri */
   }
   .label-footer {
     display: flex;
     justify-content: space-between;
-    width: 98%;
-    font-size: 4.8pt;
+    width: 95%; /* Agak disempitkan biar harga tidak terpotong tepi kanan */
+    font-size: 4.5pt;
+    font-family: Arial, sans-serif;
+    font-weight: bold;
+  }
+`;
+
+const printStylesPostek = `
+  @page {
+    size: 108mm 17mm landscape;
+    margin: 0 !important;
+  }
+  html, body {
+    margin: 0; padding: 0;
+    width: 108mm;
+    height: auto !important;
+    overflow: visible !important;
+    background-color: #fff;
+    -webkit-print-color-adjust: exact;
+  }
+  .label-row-container {
+    display: flex;
+    width: 108mm;
+    height: 17mm;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 2mm; /* Jarak antar 3 stiker */
+    padding: 0 1mm;
+    box-sizing: border-box;
+    page-break-after: always !important;
+  }
+  .barcode-label {
+    width: 34mm; /* Lebar pas dibagi 3 */
+    height: 16mm;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start;
+    align-items: flex-start;
+    text-align: left;
+    overflow: hidden;
+    padding: 0.5mm 0 0 2mm; /* Geser agak ke kanan biar rapi */
+    box-sizing: border-box;
+  }
+  .item-name {
+    font-size: 5pt;
+    font-weight: bold;
+    font-family: 'Arial Narrow', Arial, sans-serif;
+    line-height: 1;
+    width: 100%;
+    margin-bottom: 0.1mm;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    white-space: normal;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .item-size {
+    font-size: 4.5pt;
+    font-family: Arial;
+    margin-bottom: 0.1mm;
+  }
+  .barcode-svg {
+    width: 29mm !important;
+    height: 6mm !important;
+    margin: 0.1mm 0;
+  }
+  .label-footer {
+    display: flex;
+    justify-content: space-between;
+    width: 95%;
+    font-size: 4.5pt;
     font-family: Arial, sans-serif;
     font-weight: bold;
   }
@@ -326,7 +402,10 @@ const save = async () => {
 
 const preparePrintData = (
   itemsToPrint: BarcodeItem[],
-  options: { showPrice: boolean; printerType: "XP-360B" | "360B" },
+  options: {
+    showPrice: boolean;
+    printerType: "XP-360B" | "360B" | "POSTEK";
+  },
   nomorDokumen: string,
   tanggalDokumen: string
 ): PrintLabelItem[] => {
@@ -337,8 +416,9 @@ const preparePrintData = (
     if (item.barcode && (item.jumlah || 0) > 0) {
       const qty = item.jumlah || 0;
       for (let i = 1; i <= qty; i++) {
-        const hargaFormatted =
-          options.showPrice && item.harga && item.harga > 0 ? fr(item.harga) : "";
+        // [FIX HARGA] Paksa menjadi Number agar Javascript tidak bingung saat mengecek nilai > 0
+        const hargaAman = Number(item.harga) || 0;
+        const hargaFormatted = options.showPrice && hargaAman > 0 ? `Rp ${fr(hargaAman)}` : "";
 
         outputLabels.push({
           nomor: nomorDokumen,
@@ -400,7 +480,7 @@ const triggerBrowserPrint = () => {
   if (printContent) {
     const printFrame = document.createElement("iframe");
     printFrame.style.position = "fixed";
-    printFrame.style.width = "68mm";
+    printFrame.style.width = selectedPrinter.value === "POSTEK" ? "108mm" : "68mm";
     printFrame.style.height = "400mm";
     printFrame.style.border = "none";
     printFrame.style.top = "-9999px";
@@ -411,8 +491,8 @@ const triggerBrowserPrint = () => {
     if (frameDoc) {
       frameDoc.open();
       let stylesToInject = "";
-      if (selectedPrinter.value === "XP-360B") {
-        stylesToInject += printStylesXP360B;
+      if (selectedPrinter.value === "POSTEK") {
+        stylesToInject += printStylesPostek; // <--- INJECT POSTEK
       } else {
         stylesToInject += printStylesXP360B;
       }
@@ -654,6 +734,11 @@ onMounted(() => {
               <v-radio-group v-model="selectedPrinter" hide-details density="compact" class="mt-n1">
                 <v-radio label="XP-360B (Layout A)" value="XP-360B" color="primary"></v-radio>
                 <v-radio label="360B (Layout B)" value="360B" color="primary"></v-radio>
+                <v-radio
+                  label="Postek C168/200s (3 Kolom)"
+                  value="POSTEK"
+                  color="primary"
+                ></v-radio>
               </v-radio-group>
             </v-col>
             <v-col cols="12">
@@ -771,47 +856,40 @@ onMounted(() => {
 
         <v-card-text class="pa-4 bg-background">
           <div id="print-area">
-            <div
-              v-for="i in Math.ceil(printPreviewData.length / 2)"
-              :key="`page-${i}`"
-              class="label-pair-container"
-            >
-              <div v-if="printPreviewData[(i - 1) * 2]" class="barcode-label">
-                <div class="item-info item-name">{{ printPreviewData[(i - 1) * 2].nama }}</div>
-                <div class="item-info item-size">{{ printPreviewData[(i - 1) * 2].ukuran }}</div>
-                <svg
-                  class="barcode-svg"
-                  :data-barcode-value="printPreviewData[(i - 1) * 2].barcode"
-                ></svg>
-                <div class="label-footer">
-                  <span>{{ printPreviewData[(i - 1) * 2].barcode }}</span>
-                  <span>{{ printPreviewData[(i - 1) * 2].tgl }}</span>
-                  <span>{{ printPreviewData[(i - 1) * 2].ukuran }}</span>
-                  <span v-if="printPreviewData[(i - 1) * 2].charga">{{
-                    printPreviewData[(i - 1) * 2].charga
-                  }}</span>
+            <div id="print-area" :class="`preview-${selectedPrinter}`">
+              <div
+                v-for="(chunk, index) in chunkedPreviewData"
+                :key="`row-${index}`"
+                class="label-row-container"
+              >
+                <div v-for="item in chunk" :key="item.nourut" class="barcode-label">
+                  <div class="item-info item-name">{{ item.nama }}</div>
+                  <div class="item-info item-size">{{ item.ukuran }}</div>
+
+                  <svg class="barcode-svg" :data-barcode-value="item.barcode"></svg>
+
+                  <div class="label-footer" style="align-items: flex-start">
+                    <div style="display: flex; flex-direction: column; line-height: 1.1">
+                      <span>{{ item.barcode }}</span>
+                      <span
+                        v-if="item.charga"
+                        style="font-weight: normal; font-size: 4.5pt; margin-top: 1px"
+                      >
+                        {{ item.charga }}
+                      </span>
+                    </div>
+
+                    <span>{{ item.tgl }}</span>
+                    <span>{{ item.ukuran }}</span>
+                  </div>
                 </div>
+
+                <div
+                  v-for="n in (selectedPrinter === 'POSTEK' ? 3 : 2) - chunk.length"
+                  :key="`empty-${n}`"
+                  class="barcode-label empty"
+                ></div>
               </div>
-              <div v-else class="barcode-label"></div>
-              <div v-if="printPreviewData[(i - 1) * 2 + 1]" class="barcode-label">
-                <div class="item-info item-name">{{ printPreviewData[(i - 1) * 2 + 1].nama }}</div>
-                <div class="item-info item-size">
-                  {{ printPreviewData[(i - 1) * 2 + 1].ukuran }}
-                </div>
-                <svg
-                  class="barcode-svg"
-                  :data-barcode-value="printPreviewData[(i - 1) * 2 + 1].barcode"
-                ></svg>
-                <div class="label-footer">
-                  <span>{{ printPreviewData[(i - 1) * 2 + 1].barcode }}</span>
-                  <span>{{ printPreviewData[(i - 1) * 2 + 1].tgl }}</span>
-                  <span>{{ printPreviewData[(i - 1) * 2 + 1].ukuran }}</span>
-                  <span v-if="printPreviewData[(i - 1) * 2 + 1].charga">{{
-                    printPreviewData[(i - 1) * 2 + 1].charga
-                  }}</span>
-                </div>
-              </div>
-              <div v-else class="barcode-label"></div>
             </div>
           </div>
         </v-card-text>
@@ -889,12 +967,19 @@ onMounted(() => {
 :deep(.v-radio-group .v-label) {
   font-size: 0.875rem;
   color: rgba(var(--v-theme-on-surface), 0.8);
-  margin-bottom: 4px;
 }
 
-:deep(.v-radio) {
-  /* Pastikan tidak ada scaling aneh */
-  transform: none !important;
+:deep(.v-radio .v-label) {
+  font-size: 0.875rem;
+  color: rgba(var(--v-theme-on-surface), 0.8);
+  margin-left: 4px !important;
+  margin-bottom: 0 !important;
+  padding-top: 0 !important;
+}
+
+:deep(.v-radio-group .v-label) {
+  font-size: 0.875rem;
+  color: rgba(var(--v-theme-on-surface), 0.8);
 }
 
 /* Scanner Input */
@@ -955,25 +1040,38 @@ onMounted(() => {
   gap: 8px;
 }
 
-.label-pair-container {
-  width: 68mm !important;
-  /* Pastikan preview tidak melebar ke 148mm */
-  height: 15mm !important;
-  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2) !important;
-  margin-bottom: 10px !important;
+.label-row-container {
+  width: 68mm; /* Default XP-360B */
+  height: 15mm;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+  margin-bottom: 10px;
+  display: flex;
+  background-color: white;
 }
 
+/* Jika Postek dipilih, preview melebar jadi 108mm */
+.preview-POSTEK .label-row-container {
+  width: 108mm;
+  height: 17mm;
+  gap: 2mm;
+}
+
+/* Base ukuran label default */
 .barcode-label {
   width: 32mm;
   height: 15mm;
   display: flex;
   flex-direction: column;
   align-items: flex-start !important;
-  /* Preview kiri */
   text-align: left !important;
-  /* Preview kiri */
   padding: 1mm 0 0 1.5mm !important;
   box-sizing: border-box;
+}
+
+.preview-POSTEK .barcode-label {
+  width: 34mm;
+  height: 16mm;
+  padding: 0.5mm 0 0 2mm !important;
 }
 
 /* Info teks */
@@ -1074,7 +1172,7 @@ onMounted(() => {
     margin: 0 !important;
   }
 
-  .label-pair-container {
+  .label-row-container {
     width: 68mm !important;
     height: 15mm !important;
     box-shadow: none !important;

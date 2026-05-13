@@ -3,7 +3,7 @@ import { ref, onMounted } from "vue";
 import api from "@/services/api";
 import { useAuthStore } from "@/stores/authStore";
 import { useToast } from "vue-toastification";
-import { useRouter } from "vue-router";
+import { useRouter, useRoute } from "vue-router";
 import { AxiosError } from "axios";
 import { useTheme } from "vuetify"; // [BARU] Import useTheme
 
@@ -18,6 +18,7 @@ interface Branch {
 
 const toast = useToast();
 const router = useRouter();
+const route = useRoute();
 const theme = useTheme(); // [BARU] Inisialisasi theme
 const authStore = useAuthStore();
 
@@ -81,7 +82,10 @@ const handleLogin = async () => {
     else {
       authStore.setLoginData(response.data.data);
       toast.success("Login berhasil!");
-      router.push("/");
+
+      // [PERBAIKAN] Baca parameter redirect, jika tidak ada baru ke '/'
+      const redirectTo = route.query.redirect ? String(route.query.redirect) : "/";
+      router.push(redirectTo);
     }
   } catch (err) {
     const error = err as AxiosError<{ message: string }>;
@@ -133,7 +137,8 @@ const handleBranchSelect = async () => {
     });
     authStore.setLoginData(response.data);
     toast.success(`Login cabang ${selectedCabang.value} berhasil!`);
-    router.push("/");
+    const redirectTo = route.query.redirect ? String(route.query.redirect) : "/";
+    router.push(redirectTo);
   } catch (err) {
     const error = err as AxiosError<{ message: string }>;
     toast.error(error.response?.data?.message || "Gagal finalisasi login.");

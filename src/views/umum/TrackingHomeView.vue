@@ -808,7 +808,7 @@ onMounted(() => {
           >
             <v-icon size="40" color="#D32F2F" class="mr-4">mdi-store-search-outline</v-icon>
             <div>
-              <div class="font-weight-bold text-subtitle-2">Cek Stok Store</div>
+              <div class="font-weight-bold text-subtitle-2">(BETA) Cek Stok Store</div>
               <div class="text-caption text-grey-darken-1">Lihat ketersediaan barang ready</div>
             </div>
           </v-card>
@@ -821,7 +821,7 @@ onMounted(() => {
           >
             <v-icon size="40" color="#D32F2F" class="mr-4">mdi-calculator-variant-outline</v-icon>
             <div>
-              <div class="font-weight-bold text-subtitle-2">Estimasi Harga Custom</div>
+              <div class="font-weight-bold text-subtitle-2">(BETA) Estimasi Harga Custom</div>
               <div class="text-caption text-grey-darken-1">Hitung biaya sablon & bordir</div>
             </div>
           </v-card>

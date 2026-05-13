@@ -2794,8 +2794,14 @@ router.beforeEach((to, from, next) => {
 
   // console.log("[ROUTER] Navigating to:", to.name, "path:", to.path);
 
-  const title = to.meta?.title || to.name || "Retail";
-  document.title = `${title} - Retail Kaosan`;
+  const title = to.meta?.title || to.name || "Aplikasi";
+
+  // [PERBAIKAN] Pisahkan judul untuk mode Tracking dan mode Retail
+  if (isTrackingMode) {
+    document.title = `${title} Kaosan`; // Misal: "Lacak Pesanan Kaosan"
+  } else {
+    document.title = `${title} - Retail Kaosan`; // Misal: "Invoice - Retail Kaosan"
+  }
 
   // Izinkan akses ke halaman cetak manapun, terutama jika dari backend
   if (to.meta.printLayout) {

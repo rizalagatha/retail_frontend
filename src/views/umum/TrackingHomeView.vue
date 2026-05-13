@@ -127,6 +127,9 @@ const sentinel = ref<HTMLElement | null>(null); // elemen anchor di bawah grid
 
 const isInternalNetwork = ref(false);
 
+const isImageFullscreenVisible = ref(false);
+const fullscreenImageIndex = ref(0);
+
 const normalizedStokResults = computed(() => {
   return stokResults.value.map((item) => ({
     ...item,
@@ -499,6 +502,11 @@ const kembaliPilihStore = () => {
 const kembaliPilihKategori = () => {
   cekStokPhase.value = "select-category";
   searchStokKeyword.value = "";
+};
+
+const openFullscreen = (index: number) => {
+  fullscreenImageIndex.value = index;
+  isImageFullscreenVisible.value = true;
 };
 
 const checkNetworkStatus = async () => {
@@ -1481,7 +1489,13 @@ onMounted(() => {
               class="rounded-lg mb-4 bg-grey-lighten-4 border"
             >
               <v-carousel-item v-for="(img, i) in selectedProductStok.galeri" :key="i">
-                <v-img :src="img.url" cover height="100%">
+                <v-img
+                  :src="img.url"
+                  cover
+                  height="100%"
+                  style="cursor: zoom-in"
+                  @click="openFullscreen(i)"
+                >
                   <template #placeholder>
                     <div class="d-flex align-center justify-center fill-height">
                       <v-progress-circular
@@ -1592,6 +1606,50 @@ onMounted(() => {
             </div>
           </div>
         </v-card-text>
+      </v-card>
+    </v-dialog>
+
+    <v-dialog
+      v-model="isImageFullscreenVisible"
+      max-width="100vw"
+      :scrim="true"
+      style="background: rgba(0, 0, 0, 0.95)"
+    >
+      <v-card color="transparent" elevation="0" style="background: transparent">
+        <!-- Tombol tutup -->
+        <v-btn
+          icon="mdi-close"
+          variant="flat"
+          color="white"
+          size="small"
+          style="
+            position: fixed;
+            top: 16px;
+            right: 16px;
+            z-index: 9999;
+            background: rgba(0, 0, 0, 0.5);
+          "
+          @click="isImageFullscreenVisible = false"
+        />
+
+        <v-carousel
+          v-if="selectedProductStok?.galeri?.length"
+          v-model="fullscreenImageIndex"
+          height="100vh"
+          hide-delimiter-background
+          show-arrows="hover"
+          style="background: transparent"
+        >
+          <v-carousel-item v-for="(img, i) in selectedProductStok.galeri" :key="i">
+            <div
+              class="d-flex align-center justify-center"
+              style="height: 100vh; background: rgba(0, 0, 0, 0.9); cursor: zoom-out"
+              @click="isImageFullscreenVisible = false"
+            >
+              <v-img :src="img.url" contain max-height="95vh" max-width="95vw" @click.stop />
+            </div>
+          </v-carousel-item>
+        </v-carousel>
       </v-card>
     </v-dialog>
 
@@ -2520,11 +2578,13 @@ onMounted(() => {
 
 /* ===== UNIQLO SIZE BOX (FILLED VERSION) ===== */
 .uniqlo-size-box {
-  min-width: 28px;
-  height: 28px;
-  padding: 0 3px;
-  font-size: 10px;
-  border-radius: 4px;
+  min-width: 32px;
+  height: 32px;
+  padding: 0 4px;
+  font-size: 11px;
+  border-radius: 5px;
+  overflow: hidden; /* ← INI yang kurang */
+  position: relative;
 }
 
 .uniqlo-size-box:active {

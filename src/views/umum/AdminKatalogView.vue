@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, computed } from "vue";
+import { ref, reactive, onMounted, computed } from "vue";
 import api from "@/services/api";
 import { useToast } from "vue-toastification";
 import PageLayout from "@/components/PageLayout.vue";
@@ -36,6 +36,11 @@ const selectedItemForGallery = ref<KatalogItem | null>(null);
 const gallerySlots = ref<GallerySlot[]>([]);
 const isUploadingGallery = ref(false);
 const isDeletingGallery = ref<number | null>(null);
+
+const dialogConfirmDelete = reactive({
+  show: false,
+  index: null as number | null,
+});
 
 const headers = [
   { title: "Gambar Utama", key: "gambar_url", width: 100, sortable: false },
@@ -162,12 +167,18 @@ const onUrutanChange = () => {
   );
 };
 
-const handleGalleryDelete = async (index: number) => {
-  if (!selectedItemForGallery.value) return;
+const promptDeleteGallery = (index: number) => {
+  dialogConfirmDelete.index = index;
+  dialogConfirmDelete.show = true;
+};
 
-  if (!confirm(`Yakin ingin menghapus Gambar Slot ${index}?`)) return;
+const executeGalleryDelete = async () => {
+  const index = dialogConfirmDelete.index;
+  if (!selectedItemForGallery.value || index === null) return;
 
   isDeletingGallery.value = index;
+  dialogConfirmDelete.show = false; // Tutup dialog
+
   try {
     await api.delete(`/katalog/gallery/${selectedItemForGallery.value.kode}/${index}`);
 
@@ -455,7 +466,7 @@ onMounted(() => {
                   width="28"
                   height="28"
                   :loading="isDeletingGallery === slot.index"
-                  @click="handleGalleryDelete(slot.index)"
+                  @click="promptDeleteGallery(slot.index)"
                 >
                   <v-icon size="16">mdi-delete-outline</v-icon>
                 </v-btn>
@@ -464,6 +475,36 @@ onMounted(() => {
           </v-col>
         </v-row>
       </v-card-text>
+    </v-card>
+  </v-dialog>
+
+  <v-dialog v-model="dialogConfirmDelete.show" max-width="400px">
+    <v-card class="rounded-xl overflow-hidden">
+      <v-card-title
+        class="text-h6 font-weight-bold d-flex align-center py-3 bg-red-darken-1 text-white"
+      >
+        <v-icon start class="mr-2">mdi-alert-octagon-outline</v-icon>
+        Konfirmasi Hapus
+      </v-card-title>
+      <v-card-text class="pt-4 text-body-1 bg-white">
+        Apakah Anda yakin ingin menghapus gambar pada
+        <strong>Slot {{ dialogConfirmDelete.index }}</strong
+        >? <br /><br />Gambar yang dihapus tidak dapat dikembalikan.
+      </v-card-text>
+      <v-card-actions class="px-4 py-3 bg-grey-lighten-5 border-t">
+        <v-spacer></v-spacer>
+        <v-btn color="grey-darken-3" variant="text" @click="dialogConfirmDelete.show = false"
+          >Batal</v-btn
+        >
+        <v-btn
+          color="red"
+          variant="flat"
+          class="px-4 font-weight-bold"
+          @click="executeGalleryDelete"
+          prepend-icon="mdi-delete"
+          >Hapus</v-btn
+        >
+      </v-card-actions>
     </v-card>
   </v-dialog>
 </template>

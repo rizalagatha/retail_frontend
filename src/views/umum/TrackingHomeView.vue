@@ -1312,6 +1312,12 @@ onMounted(() => {
                             ></v-progress-circular>
                           </div>
                         </template>
+                        <template #error>
+                          <div
+                            class="texture-fill h-100"
+                            v-html="getFabricTexture(item.jenis_kain_final)"
+                          ></div>
+                        </template>
                       </v-img>
 
                       <div
@@ -1395,12 +1401,23 @@ onMounted(() => {
               show-arrows="hover"
               class="rounded-lg mb-4 bg-grey-lighten-4 border"
             >
-              <v-carousel-item
-                v-for="(img, i) in selectedProductStok.galeri"
-                :key="i"
-                :src="img.url"
-                cover
-              ></v-carousel-item>
+              <v-carousel-item v-for="(img, i) in selectedProductStok.galeri" :key="i">
+                <v-img :src="img.url" cover height="100%">
+                  <template #placeholder>
+                    <div class="d-flex align-center justify-center fill-height">
+                      <v-progress-circular
+                        indeterminate
+                        color="grey-lighten-1"
+                      ></v-progress-circular>
+                    </div>
+                  </template>
+                  <template #error>
+                    <div class="d-flex align-center justify-center fill-height bg-grey-lighten-3">
+                      <v-icon size="40" color="grey">mdi-image-broken-variant</v-icon>
+                    </div>
+                  </template>
+                </v-img>
+              </v-carousel-item>
             </v-carousel>
 
             <div

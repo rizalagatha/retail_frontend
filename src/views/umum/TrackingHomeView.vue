@@ -85,6 +85,8 @@ interface GroupedStokItem {
   kode: string;
   nama: string;
   harga: number;
+  hargaMin: number;
+  hargaMax: number;
   jenis_kain_final: string;
   total_terjual: number;
   total_stok: number;
@@ -198,7 +200,6 @@ const masterGroupedStok = computed(() => {
 
   normalizedStokResults.value.forEach((item: StokItem) => {
     if (!map.has(item.kode)) {
-      // [FIX] Parse galeri jika string, atau gunakan array kosong jika null
       let galeriArray = [];
       try {
         galeriArray = item.galeri
@@ -214,18 +215,26 @@ const masterGroupedStok = computed(() => {
         kode: item.kode,
         nama: item.nama,
         harga: item.harga,
+        hargaMin: item.harga, // Set nilai awal Min
+        hargaMax: item.harga, // Set nilai awal Max
         jenis_kain_final: item.jenis_kain_final || "LAIN-LAIN",
         total_terjual: 0,
         total_stok: 0,
         gambar_url: item.gambar_url || null,
         urutan: item.urutan || 9999,
-        galeri: galeriArray, // <--- Simpan galeri
+        galeri: galeriArray,
         variants: [],
       });
     }
+
     const group = map.get(item.kode)!;
     group.total_stok += item.stok;
     group.total_terjual += Number(item.total_terjual || 0);
+
+    // [BARU] Update Harga Min & Max jika menemukan harga yang berbeda di ukuran lain
+    if (item.harga < group.hargaMin) group.hargaMin = item.harga;
+    if (item.harga > group.hargaMax) group.hargaMax = item.harga;
+
     group.variants.push(item);
   });
 
@@ -1347,8 +1356,12 @@ onMounted(() => {
 
                       <div class="mt-auto">
                         <div class="text-caption text-red-darken-2 font-weight-black">
-                          Rp {{ formatRupiah(item.harga) }}
+                          <template v-if="item.hargaMin !== item.hargaMax">
+                            Rp {{ formatRupiah(item.hargaMin) }} - {{ formatRupiah(item.hargaMax) }}
+                          </template>
+                          <template v-else> Rp {{ formatRupiah(item.hargaMin) }} </template>
                         </div>
+
                         <div class="d-flex align-center justify-space-between mt-1">
                           <span class="text-grey-darken-1" style="font-size: 9px"
                             >Kode: {{ item.kode }}</span

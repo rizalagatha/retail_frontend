@@ -9,6 +9,8 @@ interface KatalogItem {
   nama: string;
   gambar_url: string | null;
   urutan: number;
+  jenis_kain: string;
+  lengan: string;
 }
 
 interface GallerySlot {
@@ -37,6 +39,11 @@ const gallerySlots = ref<GallerySlot[]>([]);
 const isUploadingGallery = ref(false);
 const isDeletingGallery = ref<number | null>(null);
 
+const selectedKategori = ref("ALL");
+const selectedLengan = ref("ALL");
+const multiFileInput = ref<HTMLInputElement | null>(null);
+const isSwapping = ref(false);
+
 const dialogConfirmDelete = reactive({
   show: false,
   index: null as number | null,
@@ -51,17 +58,40 @@ const headers = [
 ];
 
 const filteredItems = computed(() => {
-  if (!search.value) return items.value;
-  const q = search.value.toLowerCase();
-  return items.value.filter(
-    (i) => i.kode.toLowerCase().includes(q) || i.nama.toLowerCase().includes(q)
-  );
+  let result = items.value;
+
+  if (selectedKategori.value !== "ALL") {
+    result = result.filter((i) => i.jenis_kain === selectedKategori.value);
+  }
+
+  if (selectedLengan.value !== "ALL") {
+    result = result.filter((i) => i.lengan === selectedLengan.value);
+  }
+
+  if (search.value) {
+    const q = search.value.toLowerCase();
+    result = result.filter(
+      (i) => i.kode.toLowerCase().includes(q) || i.nama.toLowerCase().includes(q)
+    );
+  }
+
+  return result;
 });
 
 // Stats
 const totalItems = computed(() => items.value.length);
 const withImage = computed(() => items.value.filter((i) => i.gambar_url).length);
 const withoutImage = computed(() => items.value.filter((i) => !i.gambar_url).length);
+
+const kategoriList = computed(() => {
+  const set = new Set(items.value.map((i) => i.jenis_kain));
+  return ["ALL", ...Array.from(set).sort()];
+});
+
+const lenganList = computed(() => {
+  const set = new Set(items.value.map((i) => i.lengan));
+  return ["ALL", ...Array.from(set).sort()];
+});
 
 const triggerSlotUpload = (index: number) => {
   // Pakai window.document supaya aman dan pasti terbaca
@@ -195,6 +225,83 @@ const executeGalleryDelete = async () => {
   }
 };
 
+const triggerMultiUpload = () => {
+  if (multiFileInput.value) multiFileInput.value.click();
+};
+
+const handleMultiUpload = async (event: Event) => {
+  const target = event.target as HTMLInputElement;
+  const files = target.files;
+  if (!files || files.length === 0 || !selectedItemForGallery.value) return;
+
+  // Cari slot yang masih kosong
+  const emptySlots = gallerySlots.value.filter((s) => !s.url);
+  if (emptySlots.length === 0) {
+    toast.warning("Semua slot galeri sudah penuh!");
+    target.value = "";
+    return;
+  }
+
+  const filesToUpload = Array.from(files).slice(0, emptySlots.length);
+  if (files.length > emptySlots.length) {
+    toast.warning(`Hanya ${emptySlots.length} slot kosong tersedia. Sisa gambar diabaikan.`);
+  }
+
+  isUploadingGallery.value = true;
+  try {
+    for (let i = 0; i < filesToUpload.length; i++) {
+      const file = filesToUpload[i];
+      const targetSlot = emptySlots[i].index; // Ambil index slot kosong terdekat
+
+      const formData = new FormData();
+      formData.append("image", file);
+      formData.append("index", targetSlot.toString());
+
+      const response = await api.post(
+        `/katalog/upload/${selectedItemForGallery.value.kode}`,
+        formData
+      );
+      const slot = gallerySlots.value.find((s) => s.index === targetSlot);
+      if (slot) slot.url = response.data.imageUrl;
+    }
+    toast.success(`${filesToUpload.length} gambar berhasil diupload!`);
+    fetchKatalog();
+  } catch {
+    toast.error("Gagal mengupload sebagian gambar.");
+  } finally {
+    isUploadingGallery.value = false;
+    target.value = "";
+  }
+};
+
+const swapSlot = async (indexA: number, indexB: number) => {
+  if (!selectedItemForGallery.value || isSwapping.value) return;
+  if (indexB < 1 || indexB > 6) return;
+
+  const slotA = gallerySlots.value.find((s) => s.index === indexA);
+  const slotB = gallerySlots.value.find((s) => s.index === indexB);
+  if (!slotA || !slotB) return;
+
+  // Tukar secara optimis di UI biar terasa instan tanpa nunggu loading
+  const tempUrl = slotA.url;
+  slotA.url = slotB.url;
+  slotB.url = tempUrl;
+
+  isSwapping.value = true;
+  try {
+    await api.put(`/katalog/gallery/swap/${selectedItemForGallery.value.kode}/${indexA}/${indexB}`);
+    fetchKatalog(); // Refresh thumbnail latar belakang
+  } catch {
+    toast.error("Gagal menukar urutan gambar.");
+    // Rollback kalau gagal
+    const revertTemp = slotA.url;
+    slotA.url = slotB.url;
+    slotB.url = revertTemp;
+  } finally {
+    isSwapping.value = false;
+  }
+};
+
 onMounted(() => {
   fetchKatalog();
 });
@@ -262,12 +369,38 @@ onMounted(() => {
             Angka urutan lebih kecil = tampil lebih atas di Cek Stok publik.
           </span>
         </div>
+
         <v-spacer />
 
-        <!-- Search inline di stat bar -->
-        <div class="search-wrap">
-          <v-icon size="14" color="grey-darken-1" class="mr-1">mdi-magnify</v-icon>
-          <input v-model="search" class="stat-search" placeholder="Cari kode atau nama barang..." />
+        <div class="d-flex align-center gap-2">
+          <div style="width: 120px">
+            <v-select
+              v-model="selectedLengan"
+              :items="lenganList"
+              density="compact"
+              variant="outlined"
+              hide-details
+              bg-color="white"
+              class="filter-select-small"
+              label="Filter Lengan"
+            ></v-select>
+          </div>
+          <div style="width: 140px">
+            <v-select
+              v-model="selectedKategori"
+              :items="kategoriList"
+              density="compact"
+              variant="outlined"
+              hide-details
+              bg-color="white"
+              class="filter-select-small"
+              label="Filter Jenis Kain"
+            ></v-select>
+          </div>
+          <div class="search-wrap ml-1">
+            <v-icon size="14" color="grey-darken-1" class="mr-1">mdi-magnify</v-icon>
+            <input v-model="search" class="stat-search" placeholder="Cari kode atau nama..." />
+          </div>
         </div>
       </div>
 
@@ -397,6 +530,25 @@ onMounted(() => {
         </v-toolbar-title>
         <v-spacer />
         <v-btn
+          size="small"
+          variant="flat"
+          color="white"
+          class="text-primary font-weight-bold ml-4 mr-2"
+          @click="triggerMultiUpload"
+          :loading="isUploadingGallery"
+          prepend-icon="mdi-image-plus"
+        >
+          Upload Multiple
+        </v-btn>
+        <input
+          type="file"
+          multiple
+          accept="image/jpeg, image/png, image/jpg"
+          class="d-none"
+          ref="multiFileInput"
+          @change="handleMultiUpload"
+        />
+        <v-btn
           icon="mdi-close"
           @click="isGalleryModalVisible = false"
           variant="text"
@@ -421,7 +573,7 @@ onMounted(() => {
               </div>
 
               <div
-                class="gallery-img-container flex-grow-1 d-flex align-center justify-center w-100 bg-grey-lighten-4 rounded mb-2"
+                class="gallery-img-container flex-grow-1 d-flex align-center justify-center w-100 bg-grey-lighten-4 rounded mb-2 position-relative"
               >
                 <v-img
                   v-if="slot.url"
@@ -432,6 +584,31 @@ onMounted(() => {
                   class="rounded"
                 />
                 <v-icon v-else size="32" color="grey-lighten-2">mdi-image-plus</v-icon>
+
+                <div
+                  class="swap-overlay d-flex align-center justify-space-between w-100 px-1 position-absolute"
+                  style="top: 50%; transform: translateY(-50%); z-index: 2"
+                >
+                  <v-btn
+                    v-if="slot.index > 1"
+                    icon="mdi-chevron-left"
+                    size="x-small"
+                    color="rgba(0,0,0,0.6)"
+                    class="text-white swap-btn"
+                    @click.stop="swapSlot(slot.index, slot.index - 1)"
+                    :disabled="isSwapping"
+                  ></v-btn>
+                  <div v-else></div>
+                  <v-btn
+                    v-if="slot.index < 6"
+                    icon="mdi-chevron-right"
+                    size="x-small"
+                    color="rgba(0,0,0,0.6)"
+                    class="text-white swap-btn"
+                    @click.stop="swapSlot(slot.index, slot.index + 1)"
+                    :disabled="isSwapping"
+                  ></v-btn>
+                </div>
               </div>
 
               <input
@@ -767,5 +944,32 @@ onMounted(() => {
 
 .gap-1 {
   gap: 4px;
+}
+
+/* ===== SWAP BUTTON ===== */
+.swap-btn {
+  width: 22px !important;
+  height: 22px !important;
+}
+.swap-btn :deep(.v-icon) {
+  font-size: 16px !important;
+}
+
+/* ===== CUSTOM FILTER SELECT MINI ===== */
+.filter-select-small :deep(.v-field__input) {
+  font-size: 11px !important;
+  padding-top: 2px !important;
+  padding-bottom: 2px !important;
+  min-height: 28px !important;
+}
+
+.filter-select-small :deep(.v-field__append-inner) {
+  padding-top: 2px !important;
+  padding-bottom: 2px !important;
+}
+
+.filter-select-small :deep(.v-label) {
+  font-size: 11px !important;
+  top: 4px !important;
 }
 </style>

@@ -56,6 +56,8 @@ interface TitikCetak {
 interface StokItem {
   kode: string;
   jenis_kain: string;
+  jenis_kaos: string;
+  lengan: string;
   nama: string;
   ukuran: string;
   harga: number;
@@ -88,6 +90,7 @@ interface GroupedStokItem {
   hargaMin: number;
   hargaMax: number;
   jenis_kain_final: string;
+  lengan: string;
   total_terjual: number;
   total_stok: number;
   gambar_url: string | null; // <--- TAMBAH INI
@@ -116,6 +119,7 @@ const isLoadingStok = ref(false);
 const publicStores = ref<StoreItem[]>([]);
 const selectedStore = ref<string | null>(null);
 const selectedKategori = ref<string>("ALL");
+const selectedLengan = ref<string>("SEMUA");
 
 const stokPage = ref(1);
 const stokPerPage = ref(10);
@@ -211,13 +215,29 @@ const masterGroupedStok = computed(() => {
         galeriArray = [];
       }
 
+      // [BARU] LOGIKA KATEGORI CUSTOM (Pisahkan Anak & Tunik)
+      let kategoriFinal = item.jenis_kain_final || "LAIN-LAIN";
+      const namaUpper = item.nama.toUpperCase();
+      const jenisKaosUpper = (item.jenis_kaos || "").toUpperCase();
+
+      if (
+        namaUpper.includes("ANAK") ||
+        jenisKaosUpper.includes("ANAK") ||
+        namaUpper.includes("KIDS")
+      ) {
+        kategoriFinal = "KAOS ANAK";
+      } else if (namaUpper.includes("TUNIK") || jenisKaosUpper.includes("TUNIK")) {
+        kategoriFinal = "TUNIK";
+      }
+
       map.set(item.kode, {
         kode: item.kode,
         nama: item.nama,
         harga: item.harga,
-        hargaMin: item.harga, // Set nilai awal Min
-        hargaMax: item.harga, // Set nilai awal Max
-        jenis_kain_final: item.jenis_kain_final || "LAIN-LAIN",
+        hargaMin: item.harga > 0 ? item.harga : 999999999,
+        hargaMax: item.harga,
+        jenis_kain_final: kategoriFinal, // <--- Gunakan kategori yang sudah diolah
+        lengan: (item.lengan || "").toUpperCase(), // <--- Simpan lengan
         total_terjual: 0,
         total_stok: 0,
         gambar_url: item.gambar_url || null,
@@ -231,16 +251,15 @@ const masterGroupedStok = computed(() => {
     group.total_stok += item.stok;
     group.total_terjual += Number(item.total_terjual || 0);
 
-    // [BARU] Update Harga Min & Max jika menemukan harga yang berbeda di ukuran lain
-    if (item.harga < group.hargaMin) group.hargaMin = item.harga;
     if (item.harga > group.hargaMax) group.hargaMax = item.harga;
+    if (item.harga > 0 && item.harga < group.hargaMin) group.hargaMin = item.harga;
 
     group.variants.push(item);
   });
 
-  // Sort varian di dalam tiap grup berdasarkan ukuran
   const result = Array.from(map.values());
   result.forEach((group) => {
+    if (group.hargaMin === 999999999) group.hargaMin = 0;
     group.variants.sort((a, b) => getSizeRank(a.ukuran) - getSizeRank(b.ukuran));
   });
 
@@ -255,6 +274,11 @@ const filteredGroupedStok = computed(() => {
     data = data.filter((item) => item.jenis_kain_final === selectedKategori.value);
   }
 
+  // [BARU] Filter Lengan
+  if (selectedLengan.value !== "SEMUA") {
+    data = data.filter((item) => item.lengan.includes(selectedLengan.value));
+  }
+
   // Filter Pencarian
   if (searchStokKeyword.value) {
     const q = searchStokKeyword.value.toLowerCase();
@@ -265,15 +289,8 @@ const filteredGroupedStok = computed(() => {
 
   // Urutkan berdasarkan total terjual terbanyak, lalu A-Z
   data.sort((a, b) => {
-    // 1. Prioritaskan berdasarkan urutan tampil (1, 2, 3... dst)
-    if (a.urutan !== b.urutan) {
-      return a.urutan - b.urutan;
-    }
-    // 2. Jika urutan sama (misal sama-sama 9999), urutkan berdasarkan yang paling laku
-    if (b.total_terjual !== a.total_terjual) {
-      return b.total_terjual - a.total_terjual;
-    }
-    // 3. Terakhir berdasarkan abjad
+    if (a.urutan !== b.urutan) return a.urutan - b.urutan;
+    if (b.total_terjual !== a.total_terjual) return b.total_terjual - a.total_terjual;
     return a.nama.localeCompare(b.nama);
   });
 
@@ -295,7 +312,7 @@ const openStokDetail = (product: GroupedStokItem) => {
   isStokDetailDialogVisible.value = true;
 };
 
-watch(searchStokKeyword, () => {
+watch([searchStokKeyword, selectedLengan], () => {
   stokPage.value = 1;
 });
 
@@ -1270,6 +1287,22 @@ onMounted(() => {
               >
                 {{ selectedKategori === "ALL" ? "Semua Kategori" : selectedKategori }}
               </v-chip>
+            </div>
+
+            <div class="lengan-toggle mb-3">
+              <button
+                v-for="opt in [
+                  { label: 'Semua', value: 'SEMUA' },
+                  { label: 'Pendek', value: 'PENDEK' },
+                  { label: 'Panjang', value: 'PANJANG' },
+                ]"
+                :key="opt.value"
+                class="lengan-btn"
+                :class="{ 'lengan-btn--active': selectedLengan === opt.value }"
+                @click="selectedLengan = opt.value"
+              >
+                {{ opt.label }}
+              </button>
             </div>
 
             <v-text-field
@@ -2554,6 +2587,36 @@ onMounted(() => {
 .social-btn:hover .social-icon {
   color: #d32f2f !important; /* Warna merah untuk IG/FB */
   transform: scale(1.1);
+}
+
+.lengan-toggle {
+  display: flex;
+  gap: 6px;
+}
+
+.lengan-btn {
+  padding: 4px 14px;
+  border-radius: 20px;
+  border: 1.5px solid #e0e0e0;
+  background: #fff;
+  font-size: 11px;
+  font-weight: 600;
+  color: #777;
+  cursor: pointer;
+  transition: all 0.12s;
+  white-space: nowrap;
+}
+
+.lengan-btn:hover {
+  border-color: #D32F2F;
+  color: #D32F2F;
+  background: #fff5f5;
+}
+
+.lengan-btn--active {
+  border-color: #D32F2F !important;
+  background: #D32F2F !important;
+  color: #fff !important;
 }
 
 @media (max-width: 599px) {

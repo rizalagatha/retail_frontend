@@ -1,10 +1,9 @@
 <script setup lang="ts">
-import { ref, onMounted, computed, reactive, watch } from "vue";
+import { ref, onMounted, computed, reactive, watch, nextTick, onUnmounted } from "vue";
 import { useRouter } from "vue-router";
 import api from "@/services/api";
 import { formatRupiah } from "@/utils/formatRupiah";
 import { useToast } from "vue-toastification";
-import CustomPagination from "@/components/CustomPagination.vue";
 import { getFabricTexture } from "@/utils/fabricTextures";
 
 // Import logo secara aman untuk Vite/Webpack
@@ -122,7 +121,9 @@ const selectedKategori = ref<string>("ALL");
 const selectedLengan = ref<string>("SEMUA");
 
 const stokPage = ref(1);
-const stokPerPage = ref(10);
+
+const displayCount = ref(20); // awalnya tampil 20
+const sentinel = ref<HTMLElement | null>(null); // elemen anchor di bawah grid
 
 const isInternalNetwork = ref(false);
 
@@ -297,12 +298,7 @@ const filteredGroupedStok = computed(() => {
   return data;
 });
 
-const stokPaginated = computed(() =>
-  filteredGroupedStok.value.slice(
-    (stokPage.value - 1) * stokPerPage.value,
-    stokPage.value * stokPerPage.value
-  )
-);
+const stokPaginated = computed(() => filteredGroupedStok.value.slice(0, displayCount.value));
 
 const isStokDetailDialogVisible = ref(false);
 const selectedProductStok = ref<GroupedStokItem | null>(null);
@@ -312,10 +308,41 @@ const openStokDetail = (product: GroupedStokItem) => {
   isStokDetailDialogVisible.value = true;
 };
 
-watch([searchStokKeyword, selectedLengan], () => {
+watch([searchStokKeyword, selectedLengan, selectedKategori], () => {
+  displayCount.value = 20;
   stokPage.value = 1;
 });
+// Observer untuk load more
+let observer: IntersectionObserver | null = null;
 
+const setupObserver = () => {
+  if (observer) observer.disconnect();
+  observer = new IntersectionObserver(
+    (entries) => {
+      if (entries[0].isIntersecting) {
+        if (displayCount.value < filteredGroupedStok.value.length) {
+          displayCount.value += 20;
+        }
+      }
+    },
+    { threshold: 0.1 }
+  );
+  if (sentinel.value) observer.observe(sentinel.value);
+};
+
+// Pasang observer saat fase show-stok
+watch(cekStokPhase, async (val) => {
+  if (val === "show-stok") {
+    await nextTick();
+    setupObserver();
+  } else {
+    observer?.disconnect();
+  }
+});
+
+onUnmounted(() => {
+  observer?.disconnect();
+});
 // --- STATE PUSAT BANTUAN ---
 const isBantuanDialogVisible = ref(false);
 const storeContacts = ref<ContactItem[]>([]);
@@ -1410,11 +1437,17 @@ onMounted(() => {
               </v-row>
             </div>
 
-            <CustomPagination
-              v-model="stokPage"
-              v-model:per-page="stokPerPage"
-              :total="filteredGroupedStok.length"
-            />
+            <div ref="sentinel" class="sentinel"></div>
+            <div v-if="displayCount < filteredGroupedStok.length" class="text-center pa-4">
+              <v-progress-circular indeterminate color="#D32F2F" size="24"></v-progress-circular>
+              <div class="text-caption text-grey-darken-1 mt-2">Memuat lebih banyak...</div>
+            </div>
+            <div
+              v-else-if="filteredGroupedStok.length > 0"
+              class="text-center pa-3 text-caption text-grey"
+            >
+              Semua {{ filteredGroupedStok.length }} produk sudah ditampilkan
+            </div>
           </template>
         </v-card-text>
       </v-card>
@@ -1442,7 +1475,7 @@ onMounted(() => {
           <div v-if="selectedProductStok">
             <v-carousel
               v-if="selectedProductStok.galeri && selectedProductStok.galeri.length > 0"
-              height="280"
+              height="360"
               hide-delimiter-background
               show-arrows="hover"
               class="rounded-lg mb-4 bg-grey-lighten-4 border"
@@ -1469,7 +1502,7 @@ onMounted(() => {
             <div
               v-else
               class="rounded-lg overflow-hidden mb-4 border bg-grey-lighten-4"
-              style="height: 280px"
+              style="height: 360px"
             >
               <div
                 class="texture-fill h-100"
@@ -2487,20 +2520,11 @@ onMounted(() => {
 
 /* ===== UNIQLO SIZE BOX (FILLED VERSION) ===== */
 .uniqlo-size-box {
-  position: relative;
-  min-width: 48px;
-  height: 48px;
-  padding: 0 8px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-weight: 700;
-  font-size: 14px;
-  border-radius: 6px;
-  user-select: none;
-  overflow: hidden;
-  cursor: pointer;
-  transition: transform 0.15s ease, box-shadow 0.15s ease, opacity 0.15s ease;
+  min-width: 28px;
+  height: 28px;
+  padding: 0 3px;
+  font-size: 10px;
+  border-radius: 4px;
 }
 
 .uniqlo-size-box:active {
@@ -2608,15 +2632,20 @@ onMounted(() => {
 }
 
 .lengan-btn:hover {
-  border-color: #D32F2F;
-  color: #D32F2F;
+  border-color: #d32f2f;
+  color: #d32f2f;
   background: #fff5f5;
 }
 
 .lengan-btn--active {
-  border-color: #D32F2F !important;
-  background: #D32F2F !important;
+  border-color: #d32f2f !important;
+  background: #d32f2f !important;
   color: #fff !important;
+}
+
+.sentinel {
+  height: 1px;
+  width: 100%;
 }
 
 @media (max-width: 599px) {

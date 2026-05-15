@@ -44,6 +44,7 @@ interface AgendaItem {
   rincian_dtf?: string;
   tipe?: string;
   is_completed?: number;
+  is_scan_ready?: number | boolean;
 }
 
 interface HolidayItem {
@@ -709,15 +710,20 @@ const formatAgendaDate = (dateStr: string) => {
   return formattedDate;
 };
 
+const getEventRank = (evt: AgendaItem) => {
+  if (evt.is_completed) return 2;
+  if (evt.is_scan_ready) return 1;
+  return 0;
+};
+
+const sortAgendaEvents = (events: AgendaItem[]) => {
+  return [...events].sort((a, b) => getEventRank(a) - getEventRank(b));
+};
+
 // Fungsi untuk membuka rincian satu hari
 const openDayDetails = (dateStr: string, events: AgendaItem[]) => {
   selectedDayDate.value = dateStr;
-  // Sort: belum selesai (is_completed = 0/falsy) duluan
-  selectedDayEvents.value = [...events].sort((a, b) => {
-    const aSelesai = a.is_completed ? 1 : 0;
-    const bSelesai = b.is_completed ? 1 : 0;
-    return aSelesai - bSelesai;
-  });
+  selectedDayEvents.value = sortAgendaEvents(events); // Pakai fungsi helper yang baru
   showDayDetailDialog.value = true;
 };
 
@@ -1472,14 +1478,18 @@ onUnmounted(() => {
 
               <div class="cell-events" v-if="cell.isCurrentMonth">
                 <template
-                  v-for="(evt, idx) in [...cell.events]
-                    .sort((a, b) => (a.is_completed ? 1 : 0) - (b.is_completed ? 1 : 0))
-                    .slice(0, 2)"
+                  v-for="(evt, idx) in sortAgendaEvents(cell.events).slice(0, 2)"
                   :key="idx"
                 >
                   <div
                     class="event-pill"
-                    :class="evt.is_completed ? 'bg-grey-lighten-2 text-grey-darken-1' : 'ep-so'"
+                    :class="
+                      evt.is_completed
+                        ? 'bg-grey-lighten-2 text-grey-darken-1'
+                        : evt.is_scan_ready
+                        ? 'ep-so-ready'
+                        : 'ep-so'
+                    "
                     :style="evt.is_completed ? 'text-decoration: line-through; opacity: 0.8;' : ''"
                     @click="
                       router.push(`/transaksi/penjualan/surat-pesanan/ubah/${evt.nomor}`);
@@ -1488,7 +1498,11 @@ onUnmounted(() => {
                     :title="evt.customer + ' (' + evt.nomor + ')'"
                   >
                     <v-icon size="9">{{
-                      evt.is_completed ? "mdi-check-circle" : "mdi-cash-register"
+                      evt.is_completed
+                        ? "mdi-check-circle"
+                        : evt.is_scan_ready
+                        ? "mdi-barcode-scan"
+                        : "mdi-cash-register"
                     }}</v-icon>
                     <span class="text-truncate">{{ evt.customer || "Umum" }}</span>
                   </div>
@@ -1595,15 +1609,28 @@ onUnmounted(() => {
                   width: '36px',
                   height: '36px',
                   borderRadius: '8px',
-                  background: evt.is_completed ? '#F5F5F5' : '#E3F2FD',
+                  background: evt.is_completed
+                    ? '#F5F5F5'
+                    : evt.is_scan_ready
+                    ? '#E8F5E9'
+                    : '#E3F2FD',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
                   flexShrink: 0,
                 }"
               >
-                <v-icon size="16" :color="evt.is_completed ? '#9E9E9E' : '#1565C0'">
-                  {{ evt.is_completed ? "mdi-check-circle" : "mdi-cash-register" }}
+                <v-icon
+                  size="16"
+                  :color="evt.is_completed ? '#9E9E9E' : evt.is_scan_ready ? '#2E7D32' : '#1565C0'"
+                >
+                  {{
+                    evt.is_completed
+                      ? "mdi-check-circle"
+                      : evt.is_scan_ready
+                      ? "mdi-barcode-scan"
+                      : "mdi-cash-register"
+                  }}
                 </v-icon>
               </div>
 
@@ -1632,8 +1659,16 @@ onUnmounted(() => {
                       fontWeight: 700,
                       padding: '2px 6px',
                       borderRadius: '4px',
-                      background: evt.is_completed ? '#F5F5F5' : '#E3F2FD',
-                      color: evt.is_completed ? '#9E9E9E' : '#1565C0',
+                      background: evt.is_completed
+                        ? '#F5F5F5'
+                        : evt.is_scan_ready
+                        ? '#E8F5E9'
+                        : '#E3F2FD',
+                      color: evt.is_completed
+                        ? '#9E9E9E'
+                        : evt.is_scan_ready
+                        ? '#2E7D32'
+                        : '#1565C0',
                     }"
                   >
                     SO
@@ -1642,12 +1677,22 @@ onUnmounted(() => {
                   <v-chip
                     v-if="evt.is_completed"
                     size="x-small"
-                    color="success"
+                    color="grey-darken-1"
                     variant="flat"
                     class="font-weight-bold"
                     style="height: 16px; font-size: 9px"
                   >
                     Selesai
+                  </v-chip>
+                  <v-chip
+                    v-else-if="evt.is_scan_ready"
+                    size="x-small"
+                    color="success"
+                    variant="flat"
+                    class="font-weight-bold"
+                    style="height: 16px; font-size: 9px"
+                  >
+                    Scan Ready
                   </v-chip>
                 </div>
                 <div
@@ -1892,6 +1937,10 @@ onUnmounted(() => {
 .ep-so {
   background: #e3f2fd;
   color: #1565c0;
+}
+.ep-so-ready {
+  background: #e8f5e9;
+  color: #2e7d32;
 }
 .ep-dtf-0 {
   background: #fce4ec;

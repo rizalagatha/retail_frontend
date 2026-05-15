@@ -1421,10 +1421,18 @@ onUnmounted(() => {
       transition="dialog-bottom-transition"
     >
       <v-card class="bg-white rounded-xl h-100 d-flex flex-column overflow-hidden">
-        <div class="cal-header-inner">
+        <div class="cal-header-inner" style="padding-bottom: 8px">
           <div>
-            <div class="cal-year-label">{{ currentYear }}</div>
-            <div class="cal-month-title">{{ monthNames[currentMonth] }}</div>
+            <div class="d-flex align-center gap-2 mb-1">
+              <v-icon color="indigo-darken-1">mdi-calendar-clock</v-icon>
+              <span class="text-subtitle-1 font-weight-black text-indigo-darken-3"
+                >Kalender Dateline Pesanan</span
+              >
+            </div>
+            <div class="d-flex align-baseline gap-2">
+              <div class="cal-month-title">{{ monthNames[currentMonth] }}</div>
+              <div class="cal-year-label" style="font-size: 16px">{{ currentYear }}</div>
+            </div>
           </div>
           <div class="cal-nav-group">
             <button class="cal-today-pill" @click="goToToday">Hari ini</button>
@@ -1438,8 +1446,29 @@ onUnmounted(() => {
         </div>
 
         <div
+          class="bg-grey-lighten-4 px-5 py-2 border-y d-flex justify-start align-center"
+          style="gap: 16px"
+        >
+          <div class="d-flex align-center gap-1">
+            <v-icon size="12" color="blue-darken-2">mdi-circle</v-icon>
+            <span class="text-caption font-weight-medium text-blue-darken-2">Open (Proses)</span>
+          </div>
+          <div class="d-flex align-center gap-1">
+            <v-icon size="12" color="green-darken-2">mdi-circle</v-icon>
+            <span class="text-caption font-weight-medium text-green-darken-2"
+              >Scan Ready (Siap)</span
+            >
+          </div>
+          <div class="d-flex align-center gap-1">
+            <v-icon size="12" color="grey-darken-1">mdi-circle</v-icon>
+            <span class="text-caption font-weight-medium text-grey-darken-1">Lunas/Diambil</span>
+          </div>
+        </div>
+
+        <div
           v-if="isAgendaLoading"
           class="flex-grow-1 d-flex flex-column justify-center align-center"
+          style="min-height: 300px"
         >
           <v-progress-circular
             indeterminate
@@ -1491,7 +1520,7 @@ onUnmounted(() => {
                         : 'ep-so'
                     "
                     :style="evt.is_completed ? 'text-decoration: line-through; opacity: 0.8;' : ''"
-                    @click="
+                    @click.stop="
                       router.push(`/transaksi/penjualan/surat-pesanan/ubah/${evt.nomor}`);
                       showAgendaDialog = false;
                     "
@@ -1511,7 +1540,7 @@ onUnmounted(() => {
                 <div
                   v-if="cell.events.length > 2"
                   class="more-badge"
-                  @click="openDayDetails(cell.dateStr, cell.events)"
+                  @click.stop="openDayDetails(cell.dateStr, cell.events)"
                 >
                   +{{ cell.events.length - 2 }} lagi
                 </div>

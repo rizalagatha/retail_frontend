@@ -205,16 +205,23 @@ const getSizeRank = (size: string) => {
 
 const masterGroupedStok = computed(() => {
   const map = new Map<string, GroupedStokItem>();
+  const cacheBuster = `?t=${new Date().getTime()}`; // <--- [BARU] Bikin timestamp
 
   normalizedStokResults.value.forEach((item: StokItem) => {
     if (!map.has(item.kode)) {
-      let galeriArray = [];
+      let galeriArray: { url: string; index: number }[] = [];
       try {
-        galeriArray = item.galeri
+        const rawGaleri = item.galeri
           ? typeof item.galeri === "string"
             ? JSON.parse(item.galeri)
             : item.galeri
           : [];
+
+        // [PERBAIKAN] Tambahkan cache buster ke setiap URL di dalam galeri
+        galeriArray = rawGaleri.map((g: { url: string; index: number }) => ({
+          ...g,
+          url: g.url ? `${g.url}${cacheBuster}` : g.url,
+        }));
       } catch {
         galeriArray = [];
       }
@@ -240,11 +247,12 @@ const masterGroupedStok = computed(() => {
         harga: item.harga,
         hargaMin: item.harga > 0 ? item.harga : 999999999,
         hargaMax: item.harga,
-        jenis_kain_final: kategoriFinal, // <--- Gunakan kategori yang sudah diolah
-        lengan: (item.lengan || "").toUpperCase(), // <--- Simpan lengan
+        jenis_kain_final: kategoriFinal,
+        lengan: (item.lengan || "").toUpperCase(),
         total_terjual: 0,
         total_stok: 0,
-        gambar_url: item.gambar_url || null,
+        // [PERBAIKAN] Tambahkan cache buster juga ke gambar utama
+        gambar_url: item.gambar_url ? `${item.gambar_url}${cacheBuster}` : null,
         urutan: item.urutan || 9999,
         galeri: galeriArray,
         variants: [],

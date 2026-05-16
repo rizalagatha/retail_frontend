@@ -1421,17 +1421,17 @@ onUnmounted(() => {
       transition="dialog-bottom-transition"
     >
       <v-card class="bg-white rounded-xl h-100 d-flex flex-column overflow-hidden">
-        <div class="cal-header-inner" style="padding-bottom: 8px">
+        <div class="cal-header-inner">
           <div>
-            <div class="d-flex align-center gap-2 mb-1">
-              <v-icon color="indigo-darken-1">mdi-calendar-clock</v-icon>
-              <span class="text-subtitle-1 font-weight-black text-indigo-darken-3"
-                >Kalender Dateline Pesanan</span
-              >
+            <div
+              class="text-caption font-weight-medium text-grey mb-1"
+              style="letter-spacing: 0.5px; text-transform: uppercase"
+            >
+              Kalender Dateline Pesanan
             </div>
-            <div class="d-flex align-baseline gap-2">
+            <div class="d-flex align-baseline" style="gap: 6px">
               <div class="cal-month-title">{{ monthNames[currentMonth] }}</div>
-              <div class="cal-year-label" style="font-size: 16px">{{ currentYear }}</div>
+              <div class="cal-year-label">{{ currentYear }}</div>
             </div>
           </div>
           <div class="cal-nav-group">
@@ -1445,23 +1445,18 @@ onUnmounted(() => {
           </div>
         </div>
 
-        <div
-          class="bg-grey-lighten-4 px-5 py-2 border-y d-flex justify-start align-center"
-          style="gap: 16px"
-        >
-          <div class="d-flex align-center gap-1">
-            <v-icon size="12" color="blue-darken-2">mdi-circle</v-icon>
-            <span class="text-caption font-weight-medium text-blue-darken-2">Open (Proses)</span>
+        <div class="cal-legend-bar">
+          <div class="cal-legend-item">
+            <span class="cal-legend-dot" style="background: #1565c0"></span>
+            <span>Open</span>
           </div>
-          <div class="d-flex align-center gap-1">
-            <v-icon size="12" color="green-darken-2">mdi-circle</v-icon>
-            <span class="text-caption font-weight-medium text-green-darken-2"
-              >Scan Ready (Siap)</span
-            >
+          <div class="cal-legend-item">
+            <span class="cal-legend-dot" style="background: #2e7d32"></span>
+            <span>Scan Ready</span>
           </div>
-          <div class="d-flex align-center gap-1">
-            <v-icon size="12" color="grey-darken-1">mdi-circle</v-icon>
-            <span class="text-caption font-weight-medium text-grey-darken-1">Lunas/Diambil</span>
+          <div class="cal-legend-item">
+            <span class="cal-legend-dot" style="background: #9e9e9e"></span>
+            <span>Selesai</span>
           </div>
         </div>
 
@@ -1817,7 +1812,6 @@ onUnmounted(() => {
   font-size: 11px;
   font-weight: 500;
   color: #aaa;
-  margin-bottom: 1px;
   letter-spacing: 0.3px;
 }
 .cal-month-title {
@@ -1998,6 +1992,31 @@ onUnmounted(() => {
 .more-badge:hover {
   background: #f0f0f0;
   color: #1565c0;
+}
+
+.cal-legend-bar {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 6px 20px;
+  border-bottom: 0.5px solid rgba(0, 0, 0, 0.06);
+  background: #fafafa;
+}
+
+.cal-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 10px;
+  font-weight: 500;
+  color: #888;
+}
+
+.cal-legend-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
 }
 
 /* Responsif HP */

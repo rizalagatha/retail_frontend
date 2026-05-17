@@ -398,9 +398,12 @@ const calculatePrices = async () => {
       hargaSatuan = totalLuas * hargaPerCm;
       break;
 
-    case "BR": // [FIX] Logika Bordir Baru
-      // 1. Tentukan multiplier: >= 20 pcs = 100, < 20 pcs = 200
-      hargaPerCm = totalJumlahKaos >= 20 ? 100 : 200;
+    case "BR": // BORDIR
+      // 1. Tentukan multiplier harga baru (Berlaku permanen)
+      if (totalJumlahKaos >= 500) hargaPerCm = 100;
+      else if (totalJumlahKaos >= 20) hargaPerCm = 500;
+      else if (totalJumlahKaos >= 11) hargaPerCm = 1000;
+      else hargaPerCm = 1500;
 
       // 2. Hitung harga per kaos (akumulasi tiap titik dengan minimum 5000 per titik)
       let totalHargaJasaPerKaos = 0;
@@ -604,8 +607,9 @@ watch(
               hide-details
               readonly
             />
-           <div class="caption-note">
-              Diambil otomatis dari grid {{ props.sourceType === 'so' ? 'Surat Pesanan' : 'Penawaran' }}
+            <div class="caption-note">
+              Diambil otomatis dari grid
+              {{ props.sourceType === "so" ? "Surat Pesanan" : "Penawaran" }}
             </div>
           </v-col>
 

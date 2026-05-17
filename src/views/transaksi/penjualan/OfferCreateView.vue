@@ -701,7 +701,7 @@ const isItemPromoEligible = (item: OfferItem) => {
   const isCustomOrDtf = !!item.noSoDtf || item.isCustomOrder === true || namaUp.includes("DTF");
 
   const isBukanPengajuan = !item.noPengajuanHarga;
-  // [BARU] Deteksi Bordir: Jika noSoDtf mengandung ".BR."
+  // Deteksi Bordir: Jika noSoDtf mengandung ".BR."
   const isBukanBordir = !(item.noSoDtf || "").toUpperCase().includes(".BR.");
 
   const isJasaMurni = (item.kode || "").toUpperCase().startsWith("JASA") && !isCustomOrDtf;
@@ -725,11 +725,8 @@ const checkRealtimePromoEligibility = async (): Promise<boolean> => {
   if (validItems.length === 0) return false;
 
   // 2. Hitung Total yang berhak (Eligible)
-  const isStickerGeneric = (item: OfferItem) =>
-    String(item.barcode) === "25014783" || String(item.kode) === "2500053";
-
   const totalEligibleValue = validItems.reduce((sum, item) => {
-    return isItemPromoEligible(item) && !isStickerGeneric(item) ? sum + (item.total || 0) : sum;
+    return isItemPromoEligible(item) && !isStickerPromoToko(item) ? sum + (item.total || 0) : sum;
   }, 0);
 
   // 3. Tentukan Kandidat Promo (Misal Promo April)
@@ -1144,14 +1141,7 @@ const save = async () => {
 
     // Menghitung Total Nilai Eligible Promo
     const totalEligibleValue = validItems.reduce((sum, item) => {
-      const isStickerGeneric =
-        String(item.barcode) === "25014783" || String(item.kode) === "2500053";
-
-      // [REVISI] Gunakan isItemPromoEligible agar semua kategori SESIONAL dkk ikut masuk
-      if (isItemPromoEligible(item) && !isStickerGeneric) {
-        return sum + (item.total || 0);
-      }
-      return sum;
+      return isItemPromoEligible(item) && !isStickerPromoToko(item) ? sum + (item.total || 0) : sum;
     }, 0);
 
     // --- PRIORITAS 1: PROMO MEI ---

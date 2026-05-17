@@ -1126,9 +1126,6 @@ const applyMarchBonusSticker = async (forceInject = false) => {
     const STICKER_KODE = "2500053";
     const THRESHOLD_STICKER = 600000;
 
-    const isStickerGeneric = (i: SoItem) =>
-      String(i.barcode) === STICKER_BARCODE || String(i.kode) === STICKER_KODE;
-
     const isStickerPromoToko = (i: SoItem) =>
       isStickerGeneric(i) &&
       String(i.ukuran).toUpperCase() === "A6" &&
@@ -1136,13 +1133,13 @@ const applyMarchBonusSticker = async (forceInject = false) => {
 
     // Hitung Total Nilai Belanja (mengabaikan semua jenis stiker toko)
     const totalEligibleValue = items.value.reduce((sum, item) => {
-      return isItemPromoEligible(item) && !isStickerGeneric(item) ? sum + (item.total || 0) : sum;
+      return isItemPromoEligible(item) && !isStickerPromoToko(item) ? sum + (item.total || 0) : sum;
     }, 0);
 
     // Hitung Qty Kaos Reguler (mengabaikan semua jenis stiker toko & DTF)
     const totalKaosQty = items.value.reduce((sum, item) => {
       const isCustomDtf = item.isCustomOrder || !!item.noSoDtf;
-      return isItemPromoEligible(item) && !isStickerGeneric(item) && !isCustomDtf
+      return isItemPromoEligible(item) && !isStickerPromoToko(item) && !isCustomDtf
         ? sum + (Number(item.jumlah) || 0)
         : sum;
     }, 0);
@@ -1347,12 +1344,11 @@ const save = async () => {
       let promoToApply: ActivePromo | null = null;
       let promoDiskon = 0; // [WAJIB ADA]
 
-      const isStickerGeneric = (item: SoItem) =>
-        String(item.barcode) === "25014783" || String(item.kode) === "2500053";
-
       // [PERBAIKAN KUNCI 1] Hitung Total Eligible yang benar!
       const totalEligibleValue = validItems.reduce((sum, item) => {
-        return isItemPromoEligible(item) && !isStickerGeneric(item) ? sum + (item.total || 0) : sum;
+        return isItemPromoEligible(item) && !isStickerPromoToko(item)
+          ? sum + (item.total || 0)
+          : sum;
       }, 0);
 
       // --- PRIORITAS 1: PROMO MEI ---
@@ -3053,11 +3049,8 @@ const checkRealtimePromoEligibility = async (): Promise<boolean> => {
   let message = "";
   let promoCandidate: ActivePromo | null = null;
 
-  const isStickerGeneric = (item: SoItem) =>
-    String(item.barcode) === "25014783" || String(item.kode) === "2500053";
-
   const totalEligibleValue = validItems.reduce((sum, item) => {
-    return isItemPromoEligible(item) && !isStickerGeneric(item) ? sum + (item.total || 0) : sum;
+    return isItemPromoEligible(item) && !isStickerPromoToko(item) ? sum + (item.total || 0) : sum;
   }, 0);
 
   const promoMei = activePromosList.value.find((p) => p.pro_nomor === "PRO-2026-004"); // <--- KEMBALIKAN PROMO MEI

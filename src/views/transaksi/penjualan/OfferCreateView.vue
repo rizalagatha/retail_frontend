@@ -710,6 +710,14 @@ const isItemPromoEligible = (item: OfferItem) => {
   return isBukanPengajuan && isBukanBordir && !isJasaMurni;
 };
 
+const isStickerPromoToko = (item: OfferItem) => {
+  return (
+    (String(item.barcode) === "25014783" || String(item.kode) === "2500053") &&
+    String(item.ukuran).toUpperCase() === "A6" &&
+    (item.harga === 0 || item.terhitungPromo || item.promo === "PRO-2026-001")
+  );
+};
+
 const checkRealtimePromoEligibility = async (): Promise<boolean> => {
   // 1. Penjaga Dasar
   if (
@@ -966,10 +974,6 @@ const applyMarchBonusSticker = async (forceInject = false) => {
     const STICKER_KODE = "2500053";
     const THRESHOLD_STICKER = 600000;
 
-    const isStickerPromoToko = (i: OfferItem) =>
-      (String(i.barcode) === STICKER_BARCODE || String(i.kode) === STICKER_KODE) &&
-      (Number(i.harga) === 0 || i.promo === "PRO-2026-001");
-
     // Hitung Uang Belanja (Abaikan stiker toko)
     const totalEligibleValue = items.value.reduce((sum, item) => {
       const isCustomDtf = item.isCustomOrder || !!item.noSoDtf;
@@ -1107,12 +1111,7 @@ const save = async () => {
       return;
     }
 
-    const isStickerPromoToko =
-      (String(item.barcode) === "25014783" || String(item.kode) === "2500053") &&
-      String(item.ukuran).toUpperCase() === "A6" &&
-      (item.harga === 0 || item.terhitungPromo || item.promo === "PRO-2026-001");
-
-    if (!isStickerPromoToko) {
+    if (!isStickerPromoToko(item)) {
       if (item.harga === null || item.harga === undefined || item.harga < 0) {
         toast.error(`Harga untuk barang '${item.nama}' harus diisi.`);
         return;

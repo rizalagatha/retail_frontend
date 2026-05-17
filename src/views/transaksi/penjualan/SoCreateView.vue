@@ -1126,11 +1126,6 @@ const applyMarchBonusSticker = async (forceInject = false) => {
     const STICKER_KODE = "2500053";
     const THRESHOLD_STICKER = 600000;
 
-    const isStickerPromoToko = (i: SoItem) =>
-      isStickerGeneric(i) &&
-      String(i.ukuran).toUpperCase() === "A6" &&
-      (Number(i.harga) === 0 || i.terhitungPromo || i.promo === "PRO-2026-001");
-
     // Hitung Total Nilai Belanja (mengabaikan semua jenis stiker toko)
     const totalEligibleValue = items.value.reduce((sum, item) => {
       return isItemPromoEligible(item) && !isStickerPromoToko(item) ? sum + (item.total || 0) : sum;

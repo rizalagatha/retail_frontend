@@ -1070,8 +1070,8 @@ const onSoSelected = async (selected: SoSelected, targetLineId: string | null = 
 
     // ---- Grid Titik Cetak ----
     detailsTitik.value = [];
-    customItems.forEach((item: SoItem) => {
-      item.titikCetak.forEach((t) => {
+    if (customItems.length > 0 && customItems[0].titikCetak) {
+      customItems[0].titikCetak.forEach((t) => {
         detailsTitik.value.push({
           id: Date.now() + Math.floor(Math.random() * 1000000),
           keterangan: t.keterangan,
@@ -1080,7 +1080,7 @@ const onSoSelected = async (selected: SoSelected, targetLineId: string | null = 
           lebar: t.lebar,
         });
       });
-    });
+    }
     addDetailTitik();
 
     toast.success(`SO ${nomorSo} berhasil dimuat.`);

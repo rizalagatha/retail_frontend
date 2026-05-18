@@ -120,7 +120,7 @@ const filterOptions = ref([
   { title: "Status", value: "status" },
 ]);
 const isMounted = ref(false);
-const selectedFilterField = ref("nomor"); // Filter default
+const selectedFilterField = ref("nama");
 const filterSearchValue = ref("");
 const details = ref<{ [key: string]: OfferDetail[] }>({});
 const isLoading = ref(true);

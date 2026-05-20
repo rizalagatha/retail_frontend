@@ -155,6 +155,9 @@ const PesananOnlineCreateView = () =>
 
 // --- INTERNAL & STOK ---
 const BufferStokView = () => import("@/views/transaksi/internal/BufferStokView.vue");
+const BufferPanelView = () => import("@/views/transaksi/internal/BufferPanelSettingView.vue");
+// const BufferPanelSettingView = () =>
+//   import("@/views/transaksi/internal/BufferPanelSettingView.vue");
 const KoreksiStokView = () => import("@/views/transaksi/internal/KoreksiStokView.vue");
 const KoreksiStokCreateView = () => import("@/views/transaksi/internal/KoreksiStokCreateView.vue");
 const KoreksiStokPrintView = () => import("@/views/transaksi/internal/KoreksiStokPrintView.vue");
@@ -218,6 +221,7 @@ const BarangDcCreateView = () => import("@/views/dc/master-data/BarangDcCreateVi
 const PriceListView = () => import("@/views/dc/master-data/PriceListView.vue");
 const PromoView = () => import("@/views/dc/master-data/PromoView.vue");
 const PromoCreateView = () => import("@/views/dc/master-data/PromoCreateView.vue");
+const DasborSpkView = () => import("@/views/dc/operasional/DasborSpkView.vue");
 const TerimaStbjView = () => import("@/views/dc/operasional/TerimaStbjView.vue");
 const TerimaStbjCreateView = () => import("@/views/dc/operasional/TerimaStbjCreateView.vue");
 const TolakStbjCreateView = () => import("@/views/dc/operasional/TolakStbjCreateView.vue");
@@ -932,6 +936,26 @@ const routes = [
       requiresAuth: true,
     },
   },
+  {
+    path: "/transaksi/internal/panel-buffer-stok",
+    name: "PanelBufferStokBrowse",
+    component: BufferPanelView,
+    meta: {
+      title: "Panel Setting Buffer Stok",
+      requiresAuth: true,
+      menuId: "63", // <--- Menu ID Baru
+    },
+  },
+  // {
+  //   path: "/transaksi/internal/panel-buffer-stok/setting",
+  //   name: "PanelBufferStokSetting",
+  //   component: BufferPanelSettingView,
+  //   meta: {
+  //     title: "Form Setting Buffer Stok",
+  //     requiresAuth: true,
+  //     menuId: "63", // <--- Gunakan Menu ID yang sama
+  //   },
+  // },
   {
     path: "/transaksi/internal/peminjaman-barang",
     name: "PeminjamanBarang",
@@ -2013,6 +2037,17 @@ const routes = [
     name: "PromoEdit",
     component: PromoCreateView,
     meta: { title: "Ubah Promo", requiresAuth: true, menuId: "205" },
+  },
+
+  {
+    path: "/gudang-dc/operasional/dasbor-spk",
+    name: "DasborSpk",
+    component: DasborSpkView,
+    meta: {
+      title: "Dasbor SPK Kaosan",
+      requiresAuth: true,
+      menuId: "226",
+    },
   },
   {
     path: "/gudang-dc/operasional/terima-stbj",

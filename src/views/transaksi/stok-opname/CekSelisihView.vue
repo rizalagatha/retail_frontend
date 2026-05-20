@@ -5,7 +5,7 @@ import { useAuthStore } from "@/stores/authStore";
 import api from "@/services/api";
 import { format } from "date-fns";
 import PageLayout from "@/components/PageLayout.vue";
-import * as XLSX from "xlsx";
+import ExcelJS from "exceljs";
 import { AxiosError } from "axios";
 import AppDataTable from "@/components/AppDataTable.vue";
 
@@ -137,12 +137,153 @@ const fetchCabangOptions = async () => {
   }
 };
 
-const exportToExcel = () => {
+const exportToExcel = async () => {
   if (items.value.length === 0) return toast.warning("Tidak ada data.");
-  const worksheet = XLSX.utils.json_to_sheet(items.value);
-  const workbook = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(workbook, worksheet, "Cek Selisih SO");
-  XLSX.writeFile(workbook, `CekSelisihSO_${filters.cabang}.xlsx`);
+  toast.info("Menyiapkan file export...");
+
+  try {
+    const ExcelJS = (await import("exceljs")).default;
+    const workbook = new ExcelJS.Workbook();
+
+    const borderThin: Partial<ExcelJS.Borders> = {
+      top: { style: "thin" },
+      left: { style: "thin" },
+      bottom: { style: "thin" },
+      right: { style: "thin" },
+    };
+    const borderMedium: Partial<ExcelJS.Borders> = {
+      top: { style: "medium" },
+      left: { style: "thin" },
+      bottom: { style: "medium" },
+      right: { style: "thin" },
+    };
+
+    const cols = [
+      { header: "Kode", key: "Kode", width: 14, align: "left" as const },
+      { header: "Barcode", key: "Barcode", width: 14, align: "left" as const },
+      { header: "Nama Barang", key: "Nama", width: 40, align: "left" as const },
+      { header: "Ukuran", key: "Ukuran", width: 10, align: "center" as const },
+      { header: "Stok Sistem", key: "Stok", width: 13, align: "right" as const, fmt: "#,##0" },
+      { header: "Stok Fisik", key: "Hitung", width: 13, align: "right" as const, fmt: "#,##0" },
+      { header: "Selisih", key: "Selisih", width: 13, align: "right" as const, fmt: "#,##0" },
+      { header: "Lokasi (Qty)", key: "Lokasi", width: 30, align: "left" as const },
+      { header: "Inv Stlh SO", key: "Invoice", width: 13, align: "right" as const, fmt: "#,##0" },
+    ];
+
+    const buildSheet = (
+      sheetName: string,
+      data: SelisihItem[],
+      headerBg: string,
+      totalBg: string,
+      totalLabel: string
+    ) => {
+      const sheet = workbook.addWorksheet(sheetName);
+      sheet.columns = cols.map((c) => ({ width: c.width }));
+
+      // Header row
+      const headerRow = sheet.addRow(cols.map((c) => c.header));
+      headerRow.height = 22;
+      headerRow.eachCell({ includeEmpty: true }, (cell) => {
+        cell.font = { bold: true, color: { argb: "FFFFFFFF" } };
+        cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: headerBg } };
+        cell.alignment = { horizontal: "center", vertical: "middle" };
+        cell.border = borderThin;
+      });
+
+      // Data rows
+      data.forEach((item) => {
+        const hasSelisih = item.Selisih !== 0;
+        const values = cols.map((c) => item[c.key as keyof SelisihItem] ?? "");
+        const row = sheet.addRow(values);
+
+        row.eachCell({ includeEmpty: true }, (cell, colNum) => {
+          cell.border = borderThin;
+          cell.alignment = { horizontal: cols[colNum - 1]?.align ?? "left", vertical: "middle" };
+          if (cols[colNum - 1]?.fmt) cell.numFmt = cols[colNum - 1].fmt!;
+
+          // Baris merah jika ada selisih
+          if (hasSelisih) {
+            cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFFFEBEE" } };
+            cell.font = { bold: true, color: { argb: "FFC62828" } };
+          }
+        });
+      });
+
+      // Total row
+      const summary = getSummary(data);
+      const totalValues = cols.map((c, i) => {
+        if (i === 3) return totalLabel; // kolom Ukuran → label
+        if (c.key === "Stok") return summary.Stok;
+        if (c.key === "Hitung") return summary.Hitung;
+        if (c.key === "Selisih") return summary.Selisih;
+        return "";
+      });
+
+      const totalRowNum = sheet.rowCount + 1;
+      const totalRow = sheet.addRow(totalValues);
+      // Merge kolom Kode s.d Ukuran untuk label
+      sheet.mergeCells(`A${totalRowNum}:D${totalRowNum}`);
+      totalRow.height = 22;
+      totalRow.eachCell({ includeEmpty: true }, (cell, colNum) => {
+        cell.font = {
+          bold: true,
+          color:
+            colNum === 7 && summary.Selisih !== 0 ? { argb: "FFC62828" } : { argb: "FF212121" },
+        };
+        cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: totalBg } };
+        cell.border = borderMedium;
+        cell.alignment = {
+          horizontal: colNum <= 4 ? "right" : cols[colNum - 1]?.align ?? "right",
+          vertical: "middle",
+        };
+        if (cols[colNum - 1]?.fmt) cell.numFmt = cols[colNum - 1].fmt!;
+      });
+
+      sheet.views = [{ state: "frozen", xSplit: 0, ySplit: 1 }];
+    };
+
+    // ── Sheet 1: Barang Utama ──────────────────────────
+    buildSheet(
+      "Barang Utama",
+      utamaItems.value,
+      "FF1565C0", // header biru
+      "FFE3F2FD", // total biru muda
+      "TOTAL BARANG UTAMA :"
+    );
+
+    // ── Sheet 2: Sticker DTF ──────────────────────────
+    buildSheet(
+      "Sticker DTF",
+      stickerItems.value,
+      "FF00796B", // header teal
+      "FFE0F2F1", // total teal muda
+      "TOTAL STICKER DTF :"
+    );
+
+    // ── Sheet 3: Semua (Gabungan) ─────────────────────
+    buildSheet(
+      "Semua",
+      items.value,
+      "FF37474F", // header abu gelap
+      "FFF5F5F5", // total abu muda
+      "GRAND TOTAL :"
+    );
+
+    const buffer = await workbook.xlsx.writeBuffer();
+    const blob = new Blob([buffer], {
+      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `CekSelisihSO_${filters.cabang}_${filters.startDate}.xlsx`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast.success("Data berhasil diekspor (3 sheet).");
+  } catch (error) {
+    console.error(error);
+    toast.error("Gagal mengekspor data.");
+  }
 };
 
 const getRowClass = (item: SelisihItem) =>

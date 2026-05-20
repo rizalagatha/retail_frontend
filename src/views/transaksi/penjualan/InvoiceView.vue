@@ -12,7 +12,7 @@ import PageLayout from "@/components/PageLayout.vue";
 import PrintOptionModal from "@/components/modal/PrintOptionModal.vue";
 import KasirPrintPreviewModal from "@/components/modal/KasirPrintPreviewModal.vue";
 import RekeningSearchModal from "@/components/lookup/RekeningSearchModal.vue";
-import * as XLSX from "xlsx";
+import ExcelJS from "exceljs";
 import { formatRupiah } from "@/utils/formatRupiah";
 import type { AxiosError } from "axios";
 
@@ -888,109 +888,390 @@ const formatDateIndo = (dateVal: string | number | Date | null | undefined): str
 // 2. Fungsi Export Data
 const exportData = async (type: "header" | "detail") => {
   const exportParams = {
-    ...filters, // startDate, endDate, cabang, status
+    ...filters,
     search: filterSearchValue.value,
     columnFilters: JSON.stringify(columnFilters.value),
   };
 
-  if (type === "header") {
-    try {
-      toast.info("Sedang mendownload Header...");
+  toast.info(`Menyiapkan export ${type}...`);
 
-      // [FIX] Panggil API Backend khusus Export Header
-      // Pastikan backend sudah memiliki route '/invoices/export-header'
-      const response = await api.get("/invoices/export-header", {
-        params: exportParams,
+  try {
+    const ExcelJS = (await import("exceljs")).default;
+
+    const borderThin: Partial<ExcelJS.Borders> = {
+      top: { style: "thin" },
+      left: { style: "thin" },
+      bottom: { style: "thin" },
+      right: { style: "thin" },
+    };
+    const borderMedium: Partial<ExcelJS.Borders> = {
+      top: { style: "medium" },
+      left: { style: "thin" },
+      bottom: { style: "medium" },
+      right: { style: "thin" },
+    };
+
+    // ══════════════════════════════════════════════════════
+    // EXPORT HEADER
+    // ══════════════════════════════════════════════════════
+    if (type === "header") {
+      const response = await api.get("/invoices/export-header", { params: exportParams });
+
+      if (!response.data?.length) return toast.warning("Tidak ada data header untuk diekspor.");
+
+      const workbook = new ExcelJS.Workbook();
+      const sheet = workbook.addWorksheet("Invoice Header");
+
+      type HeaderRow = Record<string, string | number | null | undefined>;
+      const data: HeaderRow[] = response.data;
+
+      // Format tanggal dulu
+      const dateKeys = [
+        "Tanggal",
+        "Tgl SO",
+        "Jatuh Tempo",
+        "Last Payment",
+        "Tgl Transfer",
+        "Date Modified",
+        "Created",
+      ];
+      const rupiahKeys = [
+        "Nominal",
+        "Piutang",
+        "Bayar",
+        "Sisa Piutang",
+        "Diskon",
+        "DP",
+        "Biaya Kirim",
+        "Rp Tunai",
+        "Rp Voucher",
+        "Rp Transfer",
+        "Rp Retur",
+        "Biaya Platform",
+        "Diskon Maps",
+      ];
+
+      const formattedData = data.map((row) => {
+        const newRow: HeaderRow = {};
+        Object.keys(row).forEach((k) => {
+          if (dateKeys.some((dk) => k.toLowerCase().includes(dk.toLowerCase()))) {
+            const v = row[k];
+            newRow[k] = v ? formatDateIndo(String(v)) : "-";
+          } else {
+            newRow[k] = row[k];
+          }
+        });
+        return newRow;
       });
 
-      if (response.data.length === 0) {
-        toast.warning("Tidak ada data header untuk diekspor.");
-        return;
-      }
+      const keys = Object.keys(formattedData[0]);
+      sheet.columns = keys.map((k) => ({
+        width:
+          k.includes("Nama") || k.includes("Alamat") || k.includes("Keterangan")
+            ? 35
+            : rupiahKeys.some((r) => k.includes(r))
+            ? 18
+            : 16,
+      }));
 
-      // Format tanggal di frontend (Optional, jika backend sudah kirim YYYY-MM-DD)
-      const formattedHeader = (response.data as ExportHeaderItem[]).map(
-        (item: ExportHeaderItem) => ({
-          ...item,
-          // Gunakan formatDateIndo yang sudah diperbaiki
-          // TypeScript sekarang tahu properti ini mungkin ada atau undefined
-          Tanggal: item.Tanggal ? formatDateIndo(item.Tanggal) : "",
-          "Tgl SO": item["Tgl SO"] ? formatDateIndo(item["Tgl SO"]) : "",
-          "Jatuh Tempo": item["Jatuh Tempo"] ? formatDateIndo(item["Jatuh Tempo"]) : "",
-        })
-      );
+      // Header row
+      const headerRow = sheet.addRow(keys);
+      headerRow.height = 22;
+      headerRow.eachCell({ includeEmpty: true }, (cell) => {
+        cell.font = { bold: true, color: { argb: "FF0D47A1" } };
+        cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFE3F2FD" } };
+        cell.alignment = { horizontal: "center", vertical: "middle" };
+        cell.border = borderThin;
+      });
 
-      const worksheet = XLSX.utils.json_to_sheet(formattedHeader);
+      // Data rows
+      formattedData.forEach((row) => {
+        // Warna baris berdasarkan status piutang
+        const sisaPiutang = Number(
+          data[formattedData.indexOf(row)]?.["Sisa Piutang"] ??
+            data[formattedData.indexOf(row)]?.["SisaPiutang"] ??
+            0
+        );
+        const rowBg = sisaPiutang > 0 ? "FFFFEBEE" : undefined; // merah muda kalau ada sisa
 
-      // Auto Width Column (Biar rapi)
-      const wscols = Object.keys(formattedHeader[0]).map(() => ({ wch: 20 }));
-      worksheet["!cols"] = wscols;
+        const values = keys.map((k) => row[k] ?? "");
+        const dataRow = sheet.addRow(values);
+        dataRow.eachCell({ includeEmpty: true }, (cell, colNum) => {
+          cell.border = borderThin;
+          const key = keys[colNum - 1] ?? "";
+          const isRupiah = rupiahKeys.some((r) => key.includes(r));
+          cell.alignment = {
+            horizontal: isRupiah
+              ? "right"
+              : key.includes("Nomor") || key.includes("Tgl") || key.includes("Tanggal")
+              ? "left"
+              : "left",
+            vertical: "middle",
+          };
+          if (isRupiah) cell.numFmt = "#,##0";
+          if (rowBg) {
+            cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: rowBg } };
+          }
+        });
+      });
 
-      const workbook = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(workbook, worksheet, "Invoice Header");
-      XLSX.writeFile(workbook, "Export_Invoice_Header.xlsx");
+      // Grand total row
+      const totalKeys = rupiahKeys.filter((r) => keys.some((k) => k.includes(r)));
+      const totalRowNum = sheet.rowCount + 1;
+      const totalValues = keys.map((k) => {
+        const isRupiah = rupiahKeys.some((r) => k.includes(r));
+        if (k === keys[0]) return "GRAND TOTAL :";
+        if (isRupiah) return data.reduce((s, r) => s + Number(r[k] ?? 0), 0);
+        return "";
+      });
+      const totalRow = sheet.addRow(totalValues);
+      totalRow.height = 22;
+      totalRow.eachCell({ includeEmpty: true }, (cell, colNum) => {
+        const key = keys[colNum - 1] ?? "";
+        const isRupiah = rupiahKeys.some((r) => key.includes(r));
+        cell.font = { bold: true };
+        cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFF5F5F5" } };
+        cell.border = borderMedium;
+        cell.alignment = { horizontal: isRupiah ? "right" : "left", vertical: "middle" };
+        if (isRupiah) cell.numFmt = "#,##0";
+      });
 
+      sheet.views = [{ state: "frozen", xSplit: 0, ySplit: 1 }];
+
+      const buffer = await workbook.xlsx.writeBuffer();
+      const blob = new Blob([buffer], {
+        type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `Export_Invoice_Header_${filters.startDate}_${filters.endDate}.xlsx`;
+      a.click();
+      URL.revokeObjectURL(url);
       toast.success("Header berhasil diekspor.");
-    } catch (error) {
-      console.error(error);
-      toast.error("Gagal export header.");
-    }
-  } else if (type === "detail") {
-    try {
-      toast.info("Mengambil data detail...");
-      // Gunakan Generic Type pada api.get
+
+      // ══════════════════════════════════════════════════════
+      // EXPORT DETAIL
+      // ══════════════════════════════════════════════════════
+    } else {
       const response = await api.get<InvoiceExportRow[]>("/invoices/export-details", {
         params: exportParams,
       });
 
-      if (response.data.length === 0) {
-        toast.warning("Tidak ada data detail.");
-        return;
-      }
+      if (!response.data?.length) return toast.warning("Tidak ada data detail.");
 
-      // Format Tanggal Detail
-      const formattedDetail = response.data.map((row: InvoiceExportRow) => ({
-        ...row,
-        // TypeScript valid karena InvoiceExportRow punya field Tanggal?
-        Tanggal: row.Tanggal ? formatDateIndo(row.Tanggal) : "",
-      }));
+      const workbook = new ExcelJS.Workbook();
 
-      // Opsional: Gunakan Custom Header & Formatting seperti Penawaran (Lebih Rapi)
-      const title = "LAPORAN DETAIL INVOICE";
-      const dateRange = `Periode : ${formatDateIndo(filters.startDate)} s/d ${formatDateIndo(
-        filters.endDate
-      )}`;
-      const tableHeaders = Object.keys(formattedDetail[0]);
+      type DetailRow = Record<string, string | number | null | undefined>;
+      const data: DetailRow[] = response.data as DetailRow[];
 
-      // Gunakan Record<string, unknown> untuk Object.values agar aman
-      const tableData = formattedDetail.map((row) => Object.values(row as Record<string, unknown>));
+      const rupiahKeys = ["Harga", "Diskon", "Total", "Nominal", "harga", "diskon", "total"];
+      const dateKeys = ["Tanggal", "tanggal"];
 
-      const excelData = [[title], [dateRange], [], tableHeaders, ...tableData];
+      const keys = Object.keys(data[0]);
 
-      const worksheet = XLSX.utils.aoa_to_sheet(excelData);
+      // ── Sheet 1: Detail Flat ─────────────────────────
+      const sheet1 = workbook.addWorksheet("Invoice Detail");
 
-      // Merge Judul
-      const merge = [
-        { s: { r: 0, c: 0 }, e: { r: 0, c: tableHeaders.length - 1 } },
-        { s: { r: 1, c: 0 }, e: { r: 1, c: tableHeaders.length - 1 } },
+      const getColDef = (key: string) => {
+        if (key.toLowerCase().includes("nomor") || key.toLowerCase().includes("invoice"))
+          return { width: 20, align: "left" as const };
+        if (dateKeys.some((d) => key.toLowerCase().includes(d.toLowerCase())))
+          return { width: 13, align: "center" as const };
+        if (key.toLowerCase().includes("nama") || key.toLowerCase().includes("customer"))
+          return { width: 28, align: "left" as const };
+        if (key.toLowerCase().includes("kode") || key.toLowerCase().includes("barcode"))
+          return { width: 16, align: "left" as const };
+        if (rupiahKeys.some((r) => key.toLowerCase().includes(r.toLowerCase())))
+          return { width: 16, align: "right" as const, fmt: "#,##0" };
+        if (key.toLowerCase().includes("ukuran") || key.toLowerCase().includes("jumlah"))
+          return { width: 10, align: "center" as const };
+        if (key.toLowerCase().includes("dis%") || key.toLowerCase().includes("disc"))
+          return { width: 8, align: "right" as const };
+        return { width: 16, align: "left" as const };
+      };
+
+      sheet1.columns = keys.map((k) => ({ width: getColDef(k).width }));
+
+      const headerRow1 = sheet1.addRow(keys);
+      headerRow1.height = 22;
+      headerRow1.eachCell({ includeEmpty: true }, (cell) => {
+        cell.font = { bold: true, color: { argb: "FF0D47A1" } };
+        cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFE3F2FD" } };
+        cell.alignment = { horizontal: "center", vertical: "middle" };
+        cell.border = borderThin;
+      });
+
+      // Cari kolom nomor invoice
+      const nomorKey =
+        keys.find((k) => k.toLowerCase() === "nomor" || k.toLowerCase().includes("invoice")) ??
+        keys[0];
+
+      // Kolom identitas yang hanya tampil di baris pertama per nomor
+      const invoiceIdentityKeys = new Set(
+        keys.filter((k) =>
+          [
+            "nomor",
+            "tanggal",
+            "customer",
+            "nama customer",
+            "kd cus",
+            "kdcus",
+            "no. so",
+            "nomorso",
+          ].some((id) => k.toLowerCase().replace(/[.\s]/g, "") === id.replace(/[.\s]/g, ""))
+        )
+      );
+
+      const nomorColors: Record<string, string> = {};
+      let toggle = false;
+      let prevNomor = "";
+
+      data.forEach((row) => {
+        const nomor = String(row[nomorKey] ?? "");
+        if (!(nomor in nomorColors)) {
+          nomorColors[nomor] = toggle ? "FFF3F8FD" : "FFFAFAFA";
+          toggle = !toggle;
+        }
+        const isNewNomor = nomor !== prevNomor;
+        prevNomor = nomor;
+
+        const values = keys.map((k) => {
+          if (invoiceIdentityKeys.has(k) && !isNewNomor) return "";
+          const v = row[k];
+          if (typeof v === "string" && /^\d{4}-\d{2}-\d{2}/.test(v)) {
+            try {
+              return format(parseISO(v), "dd/MM/yyyy");
+            } catch {
+              return v;
+            }
+          }
+          return v ?? "";
+        });
+
+        const dataRow = sheet1.addRow(values);
+        dataRow.eachCell({ includeEmpty: true }, (cell, colNum) => {
+          const colDef = getColDef(keys[colNum - 1] ?? "");
+          cell.border = {
+            left: { style: "thin" },
+            right: { style: "thin" },
+            bottom: { style: "thin" },
+            top: isNewNomor ? { style: "medium" } : { style: "thin" },
+          };
+          cell.alignment = { horizontal: colDef.align, vertical: "middle" };
+          if ("fmt" in colDef && colDef.fmt) cell.numFmt = colDef.fmt;
+          cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: nomorColors[nomor] } };
+        });
+      });
+
+      // ── Sheet 2: Ringkasan per Nomor ─────────────────
+      const sheet2 = workbook.addWorksheet("Ringkasan per Nomor");
+
+      const tglKey = keys.find((k) => k.toLowerCase() === "tanggal") ?? "";
+      const namaKey =
+        keys.find(
+          (k) => k.toLowerCase().includes("customer") || k.toLowerCase().includes("nama")
+        ) ?? "";
+      const totalKey =
+        keys.find(
+          (k) =>
+            rupiahKeys.some((r) => k.toLowerCase().includes(r.toLowerCase())) &&
+            k.toLowerCase().includes("total")
+        ) ?? "";
+      const qtyKey = keys.find((k) => k.toLowerCase().includes("jumlah")) ?? "";
+
+      const sumCols = [
+        { header: "Nomor Invoice", width: 22, align: "left" as const },
+        { header: "Tanggal", width: 13, align: "center" as const },
+        { header: "Customer", width: 28, align: "left" as const },
+        { header: "Total Item", width: 10, align: "right" as const, fmt: "#,##0" },
+        { header: "Total Qty", width: 12, align: "right" as const, fmt: "#,##0" },
+        { header: "Total Nilai", width: 18, align: "right" as const, fmt: "#,##0" },
       ];
-      worksheet["!merges"] = merge;
 
-      // Auto Width
-      const colWidths = tableHeaders.map((header) => ({ wch: header.length + 5 }));
-      worksheet["!cols"] = colWidths;
+      sheet2.columns = sumCols.map((c) => ({ width: c.width }));
 
-      const workbook = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(workbook, worksheet, "Invoice Detail");
-      XLSX.writeFile(workbook, "Export_Invoice_Detail.xlsx");
-      toast.success("Detail berhasil diekspor.");
-    } catch (error) {
-      // Type Guard untuk Error
-      let message = "Gagal mengekspor data detail.";
-      if (error instanceof Error) message += ` ${error.message}`;
-      toast.error(message);
-      console.error(error);
+      const sumHeader = sheet2.addRow(sumCols.map((c) => c.header));
+      sumHeader.height = 22;
+      sumHeader.eachCell({ includeEmpty: true }, (cell) => {
+        cell.font = { bold: true, color: { argb: "FF0D47A1" } };
+        cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFE3F2FD" } };
+        cell.alignment = { horizontal: "center", vertical: "middle" };
+        cell.border = borderThin;
+      });
+
+      const grouped = new Map<
+        string,
+        { rows: DetailRow[]; totalQty: number; totalNilai: number }
+      >();
+      data.forEach((row) => {
+        const nomor = String(row[nomorKey] ?? "");
+        if (!grouped.has(nomor)) grouped.set(nomor, { rows: [], totalQty: 0, totalNilai: 0 });
+        const grp = grouped.get(nomor)!;
+        grp.rows.push(row);
+        if (qtyKey) grp.totalQty += Number(row[qtyKey] ?? 0);
+        if (totalKey) grp.totalNilai += Number(row[totalKey] ?? 0);
+      });
+
+      let grandQty = 0,
+        grandNilai = 0;
+      grouped.forEach((grp, nomor) => {
+        const first = grp.rows[0];
+        grandQty += grp.totalQty;
+        grandNilai += grp.totalNilai;
+
+        const tglVal = first[tglKey];
+        const tglStr =
+          typeof tglVal === "string" && /^\d{4}-\d{2}-\d{2}/.test(tglVal)
+            ? format(parseISO(tglVal), "dd/MM/yyyy")
+            : String(tglVal ?? "-");
+
+        const row = sheet2.addRow([
+          nomor,
+          tglStr,
+          first[namaKey] ?? "",
+          grp.rows.length,
+          grp.totalQty,
+          grp.totalNilai,
+        ]);
+        row.eachCell({ includeEmpty: true }, (cell, i) => {
+          cell.border = borderThin;
+          cell.alignment = { horizontal: sumCols[i - 1]?.align ?? "left", vertical: "middle" };
+          if (sumCols[i - 1]?.fmt) cell.numFmt = sumCols[i - 1].fmt!;
+        });
+      });
+
+      // Grand total
+      const totalRowNum = sheet2.rowCount + 1;
+      const gtRow = sheet2.addRow(["GRAND TOTAL :", "", "", grouped.size, grandQty, grandNilai]);
+      sheet2.mergeCells(`A${totalRowNum}:C${totalRowNum}`);
+      gtRow.height = 22;
+      gtRow.eachCell({ includeEmpty: true }, (cell, i) => {
+        cell.font = { bold: true };
+        cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFF5F5F5" } };
+        cell.border = borderMedium;
+        cell.alignment = { horizontal: sumCols[i - 1]?.align ?? "right", vertical: "middle" };
+        if (sumCols[i - 1]?.fmt) cell.numFmt = sumCols[i - 1].fmt!;
+      });
+
+      sheet1.views = [{ state: "frozen", xSplit: 0, ySplit: 1 }];
+      sheet2.views = [{ state: "frozen", xSplit: 0, ySplit: 1 }];
+
+      const buffer = await workbook.xlsx.writeBuffer();
+      const blob = new Blob([buffer], {
+        type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `Export_Invoice_Detail_${filters.startDate}_${filters.endDate}.xlsx`;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast.success("Detail berhasil diekspor (2 sheet).");
     }
+  } catch (error) {
+    console.error(error);
+    toast.error("Gagal mengekspor data.");
   }
 };
 

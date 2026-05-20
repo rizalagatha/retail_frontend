@@ -6,7 +6,7 @@ import MasterProductSearchModal from "@/components/lookup/MasterProductSearchMod
 import { useToast } from "vue-toastification";
 import { useAuthStore } from "@/stores/authStore";
 import { format } from "date-fns";
-import * as XLSX from "xlsx";
+import ExcelJS from "exceljs";
 import AppDataTable from "@/components/AppDataTable.vue";
 import axios from "axios";
 
@@ -41,7 +41,8 @@ interface RawStockRow {
   BARCODE?: string;
   NAMA?: string;
   HPP?: number | string;
-  BUFFER?: number | string;
+  BUFFER_MIN?: number | string; // <--- BARU
+  BUFFER_MAX?: number | string; // <--- BARU
   UKURAN?: string;
   TOTAL?: number | string;
   PL_QTY?: number | string;
@@ -231,11 +232,59 @@ const exportToExcel = async (tipe: "horizontal" | "vertical") => {
       return;
     }
 
+    const ExcelJS = (await import("exceljs")).default;
     const isKDC = authStore.user?.cabang === "KDC" && filters.gudang === "KDC";
-    const wb = XLSX.utils.book_new();
+    const workbook = new ExcelJS.Workbook();
 
+    // ── Helper styles ──────────────────────────────────────
+    const applyHeaderStyle = (cell: ExcelJS.Cell) => {
+      cell.font = { bold: true, color: { argb: "FF0D47A1" } };
+      cell.fill = {
+        type: "pattern",
+        pattern: "solid",
+        fgColor: { argb: "FFE3F2FD" },
+      };
+      cell.alignment = { horizontal: "center", vertical: "middle" };
+      cell.border = {
+        top: { style: "thin" },
+        left: { style: "thin" },
+        bottom: { style: "thin" },
+        right: { style: "thin" },
+      };
+    };
+
+    const applyDataStyle = (cell: ExcelJS.Cell, isRed = false) => {
+      cell.border = {
+        top: { style: "thin" },
+        left: { style: "thin" },
+        bottom: { style: "thin" },
+        right: { style: "thin" },
+      };
+      if (isRed) {
+        cell.font = { bold: true, color: { argb: "FFC62828" } };
+      }
+    };
+
+    const autoWidth = (sheet: ExcelJS.Worksheet) => {
+      sheet.columns.forEach((col) => {
+        if (!col) return;
+
+        let maxLen = 10;
+
+        col.eachCell({ includeEmpty: true }, (cell) => {
+          const len = String(cell.value ?? "").length;
+
+          if (len > maxLen) {
+            maxLen = len;
+          }
+        });
+
+        col.width = Math.min(maxLen + 3, 55);
+      });
+    };
+
+    // ── HORIZONTAL ─────────────────────────────────────────
     if (tipe === "horizontal") {
-      // --- LOGIKA HORIZONTAL (YANG LAMA) ---
       const pivotedMap = new Map<string, PivotItem>();
       const sizeSet = new Set<string>();
 
@@ -264,7 +313,7 @@ const exportToExcel = async (tipe: "horizontal" | "vertical") => {
       });
 
       const sortedSizes = Array.from(sizeSet).sort(sortSizes);
-      const excelHeaders = [
+      const colHeaders = [
         "Kategori",
         "Kode Barang",
         "Barcode",
@@ -273,8 +322,8 @@ const exportToExcel = async (tipe: "horizontal" | "vertical") => {
         ...sortedSizes,
         "Total",
       ];
-      if (isKDC) excelHeaders.push("Qty PL", "Tersedia");
-      excelHeaders.push("Buffer");
+      if (isKDC) colHeaders.push("Qty PL", "Tersedia");
+      colHeaders.push("Buffer");
 
       const finalData = Array.from(pivotedMap.values())
         .map((row) => {
@@ -286,7 +335,7 @@ const exportToExcel = async (tipe: "horizontal" | "vertical") => {
             HPP: row.HPP,
           };
           sortedSizes.forEach((sz) => {
-            r[sz] = row[sz] || 0;
+            r[sz] = (row[sz] as number) || 0;
           });
           r["Total"] = row.Total;
           if (isKDC) {
@@ -298,11 +347,27 @@ const exportToExcel = async (tipe: "horizontal" | "vertical") => {
         })
         .sort((a, b) => String(a["Nama Barang"]).localeCompare(String(b["Nama Barang"])));
 
-      const ws = XLSX.utils.json_to_sheet(finalData, { header: excelHeaders });
-      XLSX.utils.book_append_sheet(wb, ws, "Stok Horizontal");
+      const sheet = workbook.addWorksheet("Stok Horizontal");
+
+      // Header row
+      const headerRow = sheet.addRow(colHeaders);
+      headerRow.height = 22;
+      headerRow.eachCell({ includeEmpty: true }, (cell) => applyHeaderStyle(cell));
+
+      // Data rows
+      finalData.forEach((row) => {
+        const bufferVal = Number(row["Buffer"]) || 0;
+        const totalVal = Number(row["Total"]) || 0;
+        const isRed = bufferVal > 0 && totalVal < bufferVal;
+        const dataRow = sheet.addRow(colHeaders.map((h) => row[h] ?? 0));
+        dataRow.eachCell({ includeEmpty: true }, (cell) => applyDataStyle(cell, isRed));
+      });
+
+      autoWidth(sheet);
+
+      // ── VERTIKAL ───────────────────────────────────────────
     } else {
-      // --- LOGIKA VERTIKAL (BARU) ---
-      const excelHeaders = [
+      const colHeaders = [
         "Kategori",
         "Kode Barang",
         "Barcode",
@@ -311,44 +376,70 @@ const exportToExcel = async (tipe: "horizontal" | "vertical") => {
         "Ukuran",
         "Qty",
       ];
-      if (isKDC) excelHeaders.push("Qty PL", "Tersedia");
-      excelHeaders.push("Buffer");
+      if (isKDC) colHeaders.push("Qty PL", "Tersedia");
+      // [BARU] Tambahkan dua kolom ini
+      colHeaders.push("Buffer Min", "Buffer Max");
 
-      const finalData = rawData.map((row: RawStockRow) => {
-        const r: Record<string, string | number> = {
-          Kategori: row.KATEGORI || "",
-          "Kode Barang": row.KODE || "",
-          Barcode: row.BARCODE || "",
-          "Nama Barang": row.NAMA || "",
-          HPP: Number(row.HPP || 0),
-          Ukuran: row.UKURAN || "-",
-          Qty: Number(row.TOTAL || 0),
-        };
-        if (isKDC) {
-          r["Qty PL"] = Number(row.PL_QTY || 0);
-          r["Tersedia"] = Number(row.TOTAL2 || 0);
-        }
-        r["Buffer"] = Number(row.BUFFER || 0);
-        return r;
+      const finalData = rawData
+        .map((row: RawStockRow) => {
+          const r: Record<string, string | number> = {
+            Kategori: row.KATEGORI || "",
+            "Kode Barang": row.KODE || "",
+            Barcode: row.BARCODE || "",
+            "Nama Barang": row.NAMA || "",
+            HPP: Number(row.HPP || 0),
+            Ukuran: row.UKURAN || "-",
+            Qty: Number(row.TOTAL || 0),
+          };
+          if (isKDC) {
+            r["Qty PL"] = Number(row.PL_QTY || 0);
+            r["Tersedia"] = Number(row.TOTAL2 || 0);
+          }
+          // [BARU] Map ke row Excel
+          r["Buffer Min"] = Number(row.BUFFER_MIN || 0);
+          r["Buffer Max"] = Number(row.BUFFER_MAX || 0);
+          return r;
+        })
+        .sort((a: Record<string, string | number>, b: Record<string, string | number>) => {
+          const nameCmp = String(a["Nama Barang"]).localeCompare(String(b["Nama Barang"]));
+          if (nameCmp !== 0) return nameCmp;
+          return sortSizes(String(a["Ukuran"]), String(b["Ukuran"]));
+        });
+
+      const sheet = workbook.addWorksheet("Stok Vertikal");
+
+      // Header row
+      const headerRow = sheet.addRow(colHeaders);
+      headerRow.height = 22;
+      headerRow.eachCell({ includeEmpty: true }, (cell) => applyHeaderStyle(cell));
+
+      // Data rows
+      finalData.forEach((row: Record<string, string | number>) => {
+        // [BARU] Logika penanda merah (Kritis) di Excel berdasarkan Buffer Min
+        const minBufferVal = Number(row["Buffer Min"]) || 0;
+        const qtyVal = Number(row["Qty"]) || 0;
+        const isRed = minBufferVal > 0 && qtyVal < minBufferVal;
+
+        const dataRow = sheet.addRow(colHeaders.map((h) => row[h] ?? 0));
+        dataRow.eachCell({ includeEmpty: true }, (cell) => applyDataStyle(cell, isRed));
       });
 
-      // Urutkan berdasarkan Nama, lalu Ukuran
-      finalData.sort((a: Record<string, string | number>, b: Record<string, string | number>) => {
-        const nameCmp = String(a["Nama Barang"]).localeCompare(String(b["Nama Barang"]));
-
-        if (nameCmp !== 0) return nameCmp;
-
-        return sortSizes(String(a["Ukuran"]), String(b["Ukuran"]));
-      });
-
-      const ws = XLSX.utils.json_to_sheet(finalData, { header: excelHeaders });
-      XLSX.utils.book_append_sheet(wb, ws, "Stok Vertikal");
+      autoWidth(sheet);
     }
 
-    XLSX.writeFile(
-      wb,
-      `Stok_${tipe}_${filters.gudang === "ALL" ? "SEMUA" : filters.gudang}_${filters.tanggal}.xlsx`
-    );
+    // ── Download ───────────────────────────────────────────
+    const buffer = await workbook.xlsx.writeBuffer();
+    const blob = new Blob([buffer], {
+      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `Stok_${tipe}_${filters.gudang === "ALL" ? "SEMUA" : filters.gudang}_${
+      filters.tanggal
+    }.xlsx`;
+    a.click();
+    URL.revokeObjectURL(url);
     toast.success("Export berhasil.");
   } catch (error) {
     console.error(error);

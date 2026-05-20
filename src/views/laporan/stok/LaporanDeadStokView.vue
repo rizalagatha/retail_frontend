@@ -5,7 +5,7 @@ import { useAuthStore } from "@/stores/authStore";
 import api from "@/services/api";
 import { format } from "date-fns";
 import PageLayout from "@/components/PageLayout.vue";
-import * as XLSX from "xlsx";
+import ExcelJS from "exceljs";
 import type { AxiosError } from "axios";
 
 // --- Inisialisasi & State ---
@@ -14,8 +14,8 @@ interface DeadStockItem {
   "Nama Cabang": string;
   KtgProduk: string;
   KtgBarang: string;
-  "Kelompok Barang": string; // 👈 Tambahkan ini
-  "Jenis Kain": string; // 👈 Tambahkan ini
+  "Kelompok Barang": string;
+  "Jenis Kain": string;
   Warna: string;
   "Kode Barang": string;
   Barcode: string;
@@ -163,13 +163,157 @@ const getRowTextColor = (item: DeadStockItem) => {
   return "";
 };
 
-const exportData = () => {
+const exportData = async () => {
   if (items.value.length === 0) return toast.warning("Tidak ada data untuk diekspor.");
-  const worksheet = XLSX.utils.json_to_sheet(items.value);
-  const workbook = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(workbook, worksheet, "Laporan Dead Stock");
-  XLSX.writeFile(workbook, `Laporan_DeadStock_${format(new Date(), "yyyyMMdd")}.xlsx`);
-  toast.success("Data berhasil diekspor.");
+  toast.info("Menyiapkan file export...");
+
+  try {
+    const ExcelJS = (await import("exceljs")).default;
+    const workbook = new ExcelJS.Workbook();
+    const sheet = workbook.addWorksheet("Laporan Dead Stock");
+
+    // ── Definisi kolom ─────────────────────────────────────
+    const colDefs: {
+      header: string;
+      key: keyof DeadStockItem | "no";
+      width: number;
+      align: ExcelJS.Alignment["horizontal"];
+    }[] = [
+      { header: "No", key: "no", width: 6, align: "center" },
+      { header: "Kode Cabang", key: "cabang", width: 12, align: "center" },
+      { header: "Nama Cabang", key: "Nama Cabang", width: 20, align: "left" },
+      { header: "Ktg Produk", key: "KtgProduk", width: 14, align: "left" },
+      { header: "Ktg Barang", key: "KtgBarang", width: 14, align: "left" },
+      { header: "Kelompok Barang", key: "Kelompok Barang", width: 18, align: "left" },
+      { header: "Jenis Kain", key: "Jenis Kain", width: 14, align: "left" },
+      { header: "Warna", key: "Warna", width: 14, align: "left" },
+      { header: "Kode Barang", key: "Kode Barang", width: 18, align: "left" },
+      { header: "Barcode", key: "Barcode", width: 16, align: "left" },
+      { header: "Nama Barang", key: "Nama Barang", width: 40, align: "left" },
+      { header: "Ukuran", key: "Ukuran", width: 10, align: "center" },
+      { header: "Stok", key: "Stok", width: 10, align: "right" },
+      {
+        header: `Riil Terjual (${filters.avgPeriod} Bln)`,
+        key: "RealSales",
+        width: 18,
+        align: "right",
+      },
+      { header: `Avg Sale (${filters.avgPeriod} Bln)`, key: "AvgSales", width: 16, align: "right" },
+      {
+        header: "Last Terima Tanggal",
+        key: "Last Terima STBJ/Tanggal",
+        width: 18,
+        align: "center",
+      },
+      { header: "No STBJ/SJ", key: "No STBJ/SJ", width: 20, align: "left" },
+      { header: "Umur (Hari)", key: "Umur (Hari)", width: 12, align: "right" },
+      { header: "Umur (Bulan)", key: "Umur (Bulan)", width: 14, align: "right" },
+      { header: "Umur (Tahun)", key: "Umur (Tahun)", width: 14, align: "right" },
+    ];
+
+    // Set column widths
+    sheet.columns = colDefs.map((c) => ({ width: c.width }));
+
+    // ── Header row ─────────────────────────────────────────
+    const headerRow = sheet.addRow(colDefs.map((c) => c.header));
+    headerRow.height = 22;
+    headerRow.eachCell({ includeEmpty: true }, (cell, colNum) => {
+      cell.font = { bold: true, color: { argb: "FF0D47A1" } };
+      cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFE3F2FD" } };
+      cell.alignment = { horizontal: "center", vertical: "middle", wrapText: false };
+      cell.border = {
+        top: { style: "thin" },
+        left: { style: "thin" },
+        bottom: { style: "thin" },
+        right: { style: "thin" },
+      };
+    });
+
+    // ── Data rows ──────────────────────────────────────────
+    items.value.forEach((item, index) => {
+      const rowValues = colDefs.map((c) => {
+        if (c.key === "no") return index + 1;
+        if (c.key === "Last Terima STBJ/Tanggal")
+          return formatDateSafe(item["Last Terima STBJ/Tanggal"]);
+        if (c.key === "AvgSales") return Number(Number(item.AvgSales || 0).toFixed(1));
+        return item[c.key as keyof DeadStockItem] ?? "";
+      });
+
+      const dataRow = sheet.addRow(rowValues);
+
+      // Tentukan warna baris
+      const noDate =
+        !item["Last Terima STBJ/Tanggal"] || item["Last Terima STBJ/Tanggal"] === "0000-00-00";
+      const isDead = Number(item.AvgSales) === 0 && Number(item.Stok) > 0;
+      const isSlow = Number(item.AvgSales) > 0 && Number(item.AvgSales) < 0.5;
+
+      dataRow.eachCell({ includeEmpty: true }, (cell, colNum) => {
+        // Border semua sel
+        cell.border = {
+          top: { style: "thin" },
+          left: { style: "thin" },
+          bottom: { style: "thin" },
+          right: { style: "thin" },
+        };
+
+        // Alignment per kolom
+        const colDef = colDefs[colNum - 1];
+        cell.alignment = { horizontal: colDef?.align ?? "left", vertical: "middle" };
+
+        // Warna font berdasarkan kondisi
+        if (noDate) {
+          cell.font = { italic: true, color: { argb: "FF1565C0" } }; // biru italic
+        } else if (isDead) {
+          cell.font = { bold: true, color: { argb: "FFC62828" } }; // merah bold
+        } else if (isSlow) {
+          cell.font = { color: { argb: "FFFB8C00" } }; // oranye
+        }
+
+        // Kolom RealSales — biru kalau > 0
+        const key = colDef?.key;
+        if (key === "RealSales" && Number(item.RealSales) > 0) {
+          cell.font = { ...(cell.font ?? {}), bold: true, color: { argb: "FF1565C0" } };
+        }
+      });
+    });
+
+    // ── Grand Total row ────────────────────────────────────
+    const totalRowData = colDefs.map((c, i) => {
+      if (i === 11) return "GRAND TOTAL :"; // kolom Ukuran → label
+      if (c.key === "Stok") return items.value.reduce((s, r) => s + (Number(r.Stok) || 0), 0);
+      return "";
+    });
+    const totalRow = sheet.addRow(totalRowData);
+    totalRow.height = 20;
+    totalRow.eachCell({ includeEmpty: true }, (cell, colNum) => {
+      cell.font = { bold: true };
+      cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFF5F5F5" } };
+      cell.border = {
+        top: { style: "medium" },
+        left: { style: "thin" },
+        bottom: { style: "medium" },
+        right: { style: "thin" },
+      };
+      const colDef = colDefs[colNum - 1];
+      cell.alignment = { horizontal: colDef?.align ?? "left", vertical: "middle" };
+    });
+
+    // ── Download ───────────────────────────────────────────
+    const buffer = await workbook.xlsx.writeBuffer();
+    const blob = new Blob([buffer], {
+      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `Laporan_DeadStock_${filters.cabang}_${format(new Date(), "yyyyMMdd")}.xlsx`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast.success("Data berhasil diekspor.");
+  } catch (error) {
+    console.error(error);
+    toast.error("Gagal mengekspor data.");
+  }
 };
 
 onMounted(() => {

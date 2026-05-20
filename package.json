@@ -1,6 +1,6 @@
 {
   "name": "frontend",
-  "version": "1.4.3",
+  "version": "1.4.4",
   "private": true,
   "type": "module",
   "engines": {
@@ -25,6 +25,7 @@
     "chartjs-plugin-datalabels": "^2.2.0",
     "d3": "^7.9.0",
     "date-fns": "^4.1.0",
+    "exceljs": "^4.4.0",
     "gsap": "^3.14.2",
     "handsontable": "^16.1.1",
     "html2canvas": "^1.4.1",

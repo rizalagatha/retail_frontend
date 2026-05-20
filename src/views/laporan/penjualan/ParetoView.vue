@@ -6,7 +6,7 @@ import { useAuthStore } from "@/stores/authStore";
 import api from "@/services/api";
 import { format, subDays } from "date-fns";
 import PageLayout from "@/components/PageLayout.vue";
-import * as XLSX from "xlsx";
+import ExcelJS from "exceljs";
 import type { AxiosError } from "axios";
 
 // --- Inisialisasi & State ---
@@ -286,13 +286,115 @@ const resetAllFilters = () => {
   fetchData();
 };
 
-const exportToExcel = () => {
-  if (items.value.length === 0) return toast.warning("Tidak ada data untuk diekspor.");
-  const worksheet = XLSX.utils.json_to_sheet(items.value);
-  const workbook = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(workbook, worksheet, "Pareto Barang Terjual");
-  XLSX.writeFile(workbook, "Laporan_Pareto.xlsx");
-  toast.success("Data berhasil diekspor.");
+const exportToExcel = async () => {
+  const ExcelJS = (await import("exceljs")).default;
+
+  const headerStyle = (cell: ExcelJS.Cell) => {
+    cell.font = { bold: true };
+    cell.fill = {
+      type: "pattern",
+      pattern: "solid",
+      fgColor: { argb: "FFE3F2FD" },
+    };
+    cell.alignment = { horizontal: "center", vertical: "middle", wrapText: false };
+    cell.border = {
+      top: { style: "thin" },
+      left: { style: "thin" },
+      bottom: { style: "thin" },
+      right: { style: "thin" },
+    };
+  };
+
+  const dataStyle = (cell: ExcelJS.Cell) => {
+    cell.border = {
+      top: { style: "thin" },
+      left: { style: "thin" },
+      bottom: { style: "thin" },
+      right: { style: "thin" },
+    };
+  };
+
+  const buildSheet = (workbook: ExcelJS.Workbook, sheetName: string, rows: ParetoItem[]) => {
+    if (rows.length === 0) return;
+    const sheet = workbook.addWorksheet(sheetName.slice(0, 31));
+    const keys = Object.keys(rows[0]);
+
+    // Header
+    const headerRow = sheet.addRow(keys);
+    headerRow.eachCell({ includeEmpty: true }, (cell) => headerStyle(cell));
+    headerRow.height = 20;
+
+    // Data rows
+    rows.forEach((row) => {
+      const dataRow = sheet.addRow(keys.map((k) => row[k] ?? ""));
+      dataRow.eachCell({ includeEmpty: true }, (cell) => dataStyle(cell));
+    });
+
+    // Auto column width
+    sheet.columns.forEach((col, i) => {
+      const maxLen = Math.max(
+        String(keys[i] ?? "").length,
+        ...rows.map((r) => String(r[keys[i]] ?? "").length)
+      );
+      col.width = Math.min(maxLen + 3, 50);
+    });
+  };
+
+  const downloadWorkbook = async (workbook: ExcelJS.Workbook, filename: string) => {
+    const buffer = await workbook.xlsx.writeBuffer();
+    const blob = new Blob([buffer], {
+      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  // ── SINGLE CABANG ──────────────────────────────────────────
+  if (filters.cabang !== "ALL") {
+    if (items.value.length === 0) return toast.warning("Tidak ada data untuk diekspor.");
+    toast.info("Menyiapkan file export...");
+    const workbook = new ExcelJS.Workbook();
+    buildSheet(workbook, filters.cabang || "Pareto", items.value);
+    await downloadWorkbook(workbook, `Laporan_Pareto_${filters.cabang}.xlsx`);
+    toast.success("Data berhasil diekspor.");
+    return;
+  }
+
+  // ── ALL CABANG — pecah per sheet ───────────────────────────
+  toast.info("Menyiapkan export per cabang, mohon tunggu...");
+  try {
+    const response = await api.get("/pareto", {
+      params: { ...filters, export: true, limit: 9999 },
+    });
+
+    const allData: ParetoItem[] = response.data;
+    if (allData.length === 0) return toast.warning("Tidak ada data.");
+
+    // Kelompokkan per cabang
+    const grouped: Record<string, ParetoItem[]> = {};
+    allData.forEach((row) => {
+      const cab = String(row.Cab || "UNKNOWN");
+      if (!grouped[cab]) grouped[cab] = [];
+      grouped[cab].push(row);
+    });
+
+    const workbook = new ExcelJS.Workbook();
+    Object.entries(grouped).forEach(([cab, rows]) => {
+      buildSheet(workbook, cab, rows);
+    });
+
+    await downloadWorkbook(
+      workbook,
+      `Laporan_Pareto_PerCabang_${filters.startDate}_${filters.endDate}.xlsx`
+    );
+    toast.success("Export per cabang berhasil!");
+  } catch {
+    toast.error("Gagal export data.");
+  }
 };
 
 const handlePrint = () => {

@@ -10,7 +10,7 @@ import AppDataTable from "@/components/AppDataTable.vue";
 
 const toast = useToast();
 const authStore = useAuthStore();
-const MENU_ID = "40";
+const MENU_ID = "226";
 
 // --- Interfaces ---
 interface DataTableHeader {
@@ -19,20 +19,32 @@ interface DataTableHeader {
   width?: number;
   fixed?: boolean;
   align?: "start" | "center" | "end";
-  minWidth?: string | number;
-  maxWidth?: string | number;
   sortable?: boolean;
 }
 
 interface DasborItem {
-  TglPengerjaan: string;
+  TglSPK: string;
+  Kuota: number;
+  TotalSPK: number;
+  TotalJumlah: number;
   Sisa: number;
-  [key: string]: unknown;
 }
 
 interface DetailItem {
-  SoDTF: string;
-  [key: string]: unknown;
+  NomorSPK: string;
+  TglSPK: string;
+  Cabang: string;
+  NamaDesain: string;
+  Jumlah: number;
+  Kain: string;
+  Ukuran: string;
+  UserCreate: string;
+  Dateline: string | null;
+  CMO: string;
+  StatusPending: string;
+  StatusKerja: string;
+  KetPending: string;
+  Keterangan: string;
 }
 
 // --- State ---
@@ -42,33 +54,37 @@ const isLoading = ref(true);
 const startDate = ref(format(subDays(new Date(), 2), "yyyy-MM-dd"));
 const endDate = ref(format(addDays(new Date(), 7), "yyyy-MM-dd"));
 const cabangList = ref<{ kode: string; nama: string }[]>([]);
-const selectedCabang = ref(authStore.user?.cabang || "");
+const selectedCabang = ref("");
 const expanded = ref<string[]>([]);
 const loadingDetails = ref<Set<string>>(new Set());
 
 const hasViewPermission = computed(() => authStore.can(MENU_ID, "view"));
 
-// --- Header Definisi (Resize) ---
-// Perhatikan width angka agar tabel lebih rapat ke kiri
+// --- Headers Master ---
 const headers = ref<DataTableHeader[]>([
   { title: "", key: "data-table-expand", width: 50, fixed: true },
-  { title: "Tgl Pengerjaan", key: "TglPengerjaan", width: 150, align: "start" },
-  { title: "Kuota", key: "Kuota", width: 100 },
-  { title: "Total Titik", key: "TotalTitik", width: 100 },
-  { title: "Sisa", key: "Sisa", width: 100 },
+  { title: "Tgl SPK", key: "TglSPK", width: 160, align: "start" },
+  { title: "Kuota/Hari", key: "Kuota", width: 110, align: "center" },
+  { title: "Total SPK", key: "TotalSPK", width: 110, align: "center" },
+  { title: "Total Jumlah (pcs)", key: "TotalJumlah", width: 160, align: "center" },
+  { title: "Sisa Kuota", key: "Sisa", width: 110, align: "center" },
 ]);
 
-// Detail Header (Lebih rapat)
+// --- Headers Detail ---
 const detailHeaders = [
-  { title: "SoDTF", key: "SoDTF", width: "180px" },
-  { title: "Tgl Pengerjaan", key: "TglPengerjaan", width: "120px" },
-  { title: "Nama", key: "Nama", width: "250px" },
+  { title: "No. SPK", key: "NomorSPK", width: "180px" },
+  { title: "Tgl SPK", key: "TglSPK", width: "110px" },
+  { title: "Cabang", key: "Cabang", width: "100px", align: "center" },
+  { title: "Nama SPK", key: "NamaDesain", width: "260px" },
   { title: "Jumlah", key: "Jumlah", align: "end", width: "80px" },
-  { title: "Titik", key: "Titik", align: "end", width: "80px" },
-  { title: "Total Titik", key: "TotalTitik", align: "end", width: "100px" },
+  { title: "Dateline", key: "Dateline", align: "center", width: "100px" },
+  { title: "User", key: "UserCreate", align: "center", width: "80px" },
+  { title: "CMO", key: "CMO", align: "center", width: "90px" },
+  { title: "Status", key: "StatusKerja", align: "center", width: "100px" },
+  { title: "Keterangan", key: "KetPending", width: "180px" },
 ] as const;
 
-// --- Logic Resize Column ---
+// --- Resize Logic ---
 const resizingColumn = ref<DataTableHeader | null>(null);
 const startX = ref(0);
 const startWidth = ref(0);
@@ -97,13 +113,21 @@ const onResizeEnd = () => {
   document.body.style.cursor = "";
 };
 
-// --- Methods ---
+// --- Row class ---
+const getRowClass = (item: DasborItem) => {
+  if (item.Sisa < 0) return "row-sisa-minus";
+  return "";
+};
+
+// --- Fetch ---
 const fetchCabangList = async () => {
   try {
-    const response = await api.get("/dasbor-dtf/cabang-list");
+    const response = await api.get("/dasbor-spk/cabang-list");
     cabangList.value = response.data;
     if (authStore.user?.cabang === "KDC" && cabangList.value.length > 0) {
       selectedCabang.value = cabangList.value[0].kode;
+    } else if (authStore.user?.cabang !== "KDC") {
+      selectedCabang.value = authStore.user?.cabang || "";
     }
   } catch {
     toast.error("Gagal memuat daftar cabang.");
@@ -111,37 +135,35 @@ const fetchCabangList = async () => {
 };
 
 const fetchData = async () => {
-  if (!startDate.value || !endDate.value || !selectedCabang.value) return;
+  if (!startDate.value || !endDate.value) return;
   isLoading.value = true;
+  details.value = {};
+  expanded.value = [];
   try {
-    const response = await api.get("/dasbor-dtf", {
+    const response = await api.get("/dasbor-spk", {
       params: {
         startDate: startDate.value,
         endDate: endDate.value,
-        cabang: selectedCabang.value,
       },
     });
     dasborList.value = response.data;
   } catch {
-    toast.error("Gagal memuat data dasbor.");
+    toast.error("Gagal memuat data dasbor SPK.");
   } finally {
     isLoading.value = false;
   }
 };
 
 const loadDetails = async (newlyExpandedItems: string[]) => {
-  // Cari tanggal yang baru di-expand
-  // Note: Vuetify 'expanded' berisi array value item-key (TglPengerjaan)
   const tglToLoad = newlyExpandedItems.find(
     (tgl) => !details.value[tgl] && !loadingDetails.value.has(tgl)
   );
-
   if (!tglToLoad) return;
 
   loadingDetails.value.add(tglToLoad);
   try {
-    const response = await api.get(`/dasbor-dtf/detail`, {
-      params: { tanggal: tglToLoad, cabang: selectedCabang.value },
+    const response = await api.get("/dasbor-spk/detail", {
+      params: { tanggal: tglToLoad },
     });
     details.value[tglToLoad] = response.data;
   } catch {
@@ -152,20 +174,17 @@ const loadDetails = async (newlyExpandedItems: string[]) => {
   }
 };
 
-const getRowClass = (item: DasborItem) => {
-  return item.Sisa < 0 ? "row-sisa-minus" : "";
-};
-
+// --- Export ---
 const exportData = async (type: "header" | "detail") => {
-  const endpoint = type === "header" ? "/dasbor-dtf/export-header" : "/dasbor-dtf/export-detail";
-  const fileName = type === "header" ? "DasborDTF_Header.xlsx" : "DasborDTF_Detail.xlsx";
+  const endpoint = type === "header" ? "/dasbor-spk/export-header" : "/dasbor-spk/export-detail";
+  const fileName =
+    type === "header" ? `DasborSPK_Ringkasan_GLOBAL.xlsx` : `DasborSPK_Detail_GLOBAL.xlsx`;
   toast.info(`Mempersiapkan file ${fileName}...`);
   try {
     const response = await api.get(endpoint, {
       params: {
         startDate: startDate.value,
         endDate: endDate.value,
-        cabang: selectedCabang.value,
       },
     });
     const worksheet = XLSX.utils.json_to_sheet(response.data);
@@ -176,6 +195,12 @@ const exportData = async (type: "header" | "detail") => {
   } catch {
     toast.error("Gagal mengekspor data.");
   }
+};
+
+const getSisaColor = (sisa: number): string => {
+  if (sisa < 0) return "#c62828";
+  if (sisa < 60) return "#e65100";
+  return "#2e7d32";
 };
 
 onMounted(() => {
@@ -189,17 +214,17 @@ watch([startDate, endDate, selectedCabang], fetchData);
 </script>
 
 <template>
-  <PageLayout title="Dasbor DTF" desktop-mode icon="mdi-view-dashboard-variant">
+  <PageLayout title="Dasbor SPK Kaosan" desktop-mode icon="mdi-file-document-check-outline">
     <template #header-actions>
       <v-menu offset-y>
         <template v-slot:activator="{ props }">
-          <v-btn size="small" color="teal" prepend-icon="mdi-file-excel" v-bind="props"
-            >Export</v-btn
-          >
+          <v-btn size="small" color="teal" prepend-icon="mdi-file-excel" v-bind="props">
+            Export
+          </v-btn>
         </template>
         <v-list density="compact">
           <v-list-item @click="exportData('header')">
-            <v-list-item-title>Export Header</v-list-item-title>
+            <v-list-item-title>Export Ringkasan</v-list-item-title>
           </v-list-item>
           <v-list-item @click="exportData('detail')">
             <v-list-item-title>Export Detail</v-list-item-title>
@@ -214,8 +239,9 @@ watch([startDate, endDate, selectedCabang], fetchData);
     </div>
 
     <div v-else class="browse-content">
+      <!-- ── Filter Bar ── -->
       <div class="filter-section">
-        <span class="filter-label">Tgl Pengerjaan:</span>
+        <span class="filter-label">Tgl SPK:</span>
         <v-text-field
           v-model="startDate"
           type="date"
@@ -233,18 +259,11 @@ watch([startDate, endDate, selectedCabang], fetchData);
           variant="outlined"
           style="min-width: 140px"
         />
-        <span class="filter-label ms-4">Cabang:</span>
-        <v-select
-          v-model="selectedCabang"
-          :items="cabangList"
-          item-title="nama"
-          item-value="kode"
-          density="compact"
-          hide-details
-          variant="outlined"
-          style="max-width: 180px"
-        />
         <v-spacer />
+        <span class="text-caption text-blue-darken-2 font-weight-bold mr-1">
+          <v-icon size="14" class="mr-1">mdi-information-outline</v-icon>
+          Kuota: 150 Pcs/hari
+        </span>
         <v-btn
           @click="fetchData"
           icon="mdi-refresh"
@@ -254,13 +273,14 @@ watch([startDate, endDate, selectedCabang], fetchData);
         />
       </div>
 
+      <!-- ── Table ── -->
       <div class="table-container">
         <AppDataTable
           v-model:expanded="expanded"
           :headers="headers"
           :items="dasborList"
           :loading="isLoading"
-          item-value="TglPengerjaan"
+          item-value="TglSPK"
           density="compact"
           class="desktop-table header-browse-blue"
           fixed-header
@@ -268,6 +288,7 @@ watch([startDate, endDate, selectedCabang], fetchData);
           @update:expanded="loadDetails"
           :item-props="(item: DasborItem) => ({ class: getRowClass(item) })"
         >
+          <!-- Resizable headers -->
           <template #headers="{ columns, isSorted, getSortIcon, toggleSort }">
             <tr>
               <template v-for="header in columns" :key="header.key">
@@ -300,57 +321,153 @@ watch([startDate, endDate, selectedCabang], fetchData);
             </tr>
           </template>
 
+          <!-- Expand button -->
           <template #[`item.data-table-expand`]="{ internalItem, toggleExpand, isExpanded }">
             <v-btn
-              icon="mdi-chevron-down"
-              :class="{ 'rotate-180': isExpanded(internalItem) }"
+              :icon="isExpanded(internalItem) ? 'mdi-chevron-up' : 'mdi-chevron-down'"
               size="x-small"
               variant="text"
               @click.stop="toggleExpand(internalItem)"
             />
           </template>
 
-          <template
-            v-for="header in headers.filter((h) => h.key !== 'data-table-expand')"
-            #[`item.${header.key}`]="{ item }"
-            :key="header.key"
-          >
-            <td>
-              <template v-if="header.key === 'TglPengerjaan'">
-                {{ format(parseISO(item.TglPengerjaan), "dd-MM-yyyy") }}
-              </template>
-              <template v-else>
-                {{ item[header.key] }}
-              </template>
+          <!-- TglSPK -->
+          <template #[`item.TglSPK`]="{ item }">
+            <td>{{ format(parseISO(item.TglSPK), "dd-MM-yyyy") }}</td>
+          </template>
+
+          <!-- Kuota -->
+          <template #[`item.Kuota`]="{ item }">
+            <td class="text-center">{{ item.Kuota }}</td>
+          </template>
+
+          <!-- TotalSPK -->
+          <template #[`item.TotalSPK`]="{ item }">
+            <td class="text-center">
+              <span
+                :class="
+                  item.TotalSPK > item.Kuota ? 'text-error font-weight-black' : 'font-weight-bold'
+                "
+              >
+                {{ item.TotalSPK }}
+              </span>
             </td>
           </template>
 
+          <!-- TotalJumlah -->
+          <template #[`item.TotalJumlah`]="{ item }">
+            <td class="text-center">{{ item.TotalJumlah.toLocaleString("id-ID") }} pcs</td>
+          </template>
+
+          <!-- Sisa -->
+          <template #[`item.Sisa`]="{ item }">
+            <td class="text-center font-weight-bold" :style="{ color: getSisaColor(item.Sisa) }">
+              {{ item.Sisa > 0 ? "+" : "" }}{{ item.Sisa }}
+            </td>
+          </template>
+
+          <!-- Expanded row detail -->
           <template #expanded-row="{ columns, item }">
             <tr>
               <td :colspan="columns.length" class="pa-0">
                 <div class="detail-container">
                   <div class="detail-table-wrapper">
-                    <div v-if="loadingDetails.has(item.TglPengerjaan)" class="text-center py-2">
-                      <v-progress-circular
-                        indeterminate
-                        size="20"
-                        class="mr-2"
-                      ></v-progress-circular>
+                    <div v-if="loadingDetails.has(item.TglSPK)" class="text-center py-3">
+                      <v-progress-circular indeterminate size="20" class="mr-2" />
                       Memuat detail...
                     </div>
+
                     <v-data-table
-                      v-else-if="details[item.TglPengerjaan]"
+                      v-else-if="details[item.TglSPK]"
                       :headers="detailHeaders"
-                      :items="details[item.TglPengerjaan]"
-                      item-value="SoDTF"
+                      :items="details[item.TglSPK]"
+                      item-value="NomorSPK"
                       density="compact"
                       class="detail-table"
                       :items-per-page="-1"
                       hide-default-footer
                     >
                       <template #bottom></template>
+
+                      <template #[`item.NomorSPK`]="{ item: det }">
+                        <span
+                          class="font-weight-bold text-blue-darken-3"
+                          style="font-family: monospace; font-size: 11px; white-space: nowrap"
+                        >
+                          {{ det.NomorSPK }}
+                        </span>
+                      </template>
+
+                      <template #[`item.Cabang`]="{ item: det }">
+                        <v-chip
+                          size="x-small"
+                          color="blue-grey"
+                          variant="tonal"
+                          class="font-weight-bold"
+                        >
+                          {{ det.Cabang || "-" }}
+                        </v-chip>
+                      </template>
+
+                      <template #[`item.Jumlah`]="{ item: det }">
+                        <span class="font-weight-bold">
+                          {{ Number(det.Jumlah).toLocaleString("id-ID") }} pcs
+                        </span>
+                      </template>
+
+                      <template #[`item.Dateline`]="{ item: det }">
+                        <span
+                          class="font-weight-bold"
+                          :class="det.Dateline ? 'text-error' : 'text-grey'"
+                        >
+                          {{ det.Dateline || "-" }}
+                        </span>
+                      </template>
+
+                      <template #[`item.CMO`]="{ item: det }">
+                        <v-chip
+                          size="x-small"
+                          :color="det.CMO && det.CMO.trim() !== '' ? 'success' : 'grey'"
+                          variant="flat"
+                          class="font-weight-bold"
+                        >
+                          {{ det.CMO && det.CMO.trim() !== "" ? det.CMO : "Belum" }}
+                        </v-chip>
+                      </template>
+
+                      <template #[`item.StatusKerja`]="{ item: det }">
+                        <v-chip
+                          size="x-small"
+                          :color="
+                            det.StatusKerja === 'TOP URGENT'
+                              ? 'error'
+                              : det.StatusKerja === 'URGENT'
+                              ? 'warning'
+                              : det.StatusKerja === 'STANDART'
+                              ? 'info'
+                              : det.StatusKerja === 'REGULER'
+                              ? 'success'
+                              : 'grey'
+                          "
+                          variant="flat"
+                          class="font-weight-bold"
+                        >
+                          {{ det.StatusKerja || "REGULER" }}
+                        </v-chip>
+                      </template>
+
+                      <template #[`item.KetPending`]="{ item: det }">
+                        <span
+                          class="text-caption text-grey font-italic d-inline-block text-truncate"
+                          style="max-width: 150px"
+                          :title="det.KetPending || det.Keterangan || '-'"
+                        >
+                          {{ det.KetPending || det.Keterangan || "-" }}
+                        </span>
+                      </template>
                     </v-data-table>
-                    <div v-else class="text-center text-caption py-2 text-grey">
+
+                    <div v-else class="text-center text-caption py-3 text-grey">
                       Tidak ada data detail.
                     </div>
                   </div>
@@ -365,7 +482,6 @@ watch([startDate, endDate, selectedCabang], fetchData);
 </template>
 
 <style scoped>
-/* --- Layout Full Height --- */
 .browse-content {
   display: flex;
   flex-direction: column;
@@ -379,19 +495,12 @@ watch([startDate, endDate, selectedCabang], fetchData);
   gap: 12px;
   padding: 8px 12px;
   flex-shrink: 0;
-
   background-color: rgb(var(--v-theme-surface));
   border-bottom: 1px solid rgba(var(--v-theme-on-surface), 0.12);
 }
 
-/* Pastikan field filter tidak putih */
 .filter-section :deep(.v-field),
-.filter-section :deep(.v-field--variant-outlined),
-.filter-section :deep(.v-field--variant-filled) {
-  background-color: rgb(var(--v-theme-surface)) !important;
-}
-
-.filter-section :deep(.v-field--variant-filled .v-field__overlay) {
+.filter-section :deep(.v-field--variant-outlined) {
   background-color: rgb(var(--v-theme-surface)) !important;
 }
 
@@ -403,7 +512,6 @@ watch([startDate, endDate, selectedCabang], fetchData);
   overflow: hidden;
 }
 
-/* --- Tabel Style --- */
 .desktop-table {
   height: 100%;
   display: flex;
@@ -417,13 +525,11 @@ watch([startDate, endDate, selectedCabang], fetchData);
   overflow-y: auto !important;
 }
 
-/* Penting: width: max-content agar kolom tidak dipaksa melebar memenuhi layar */
 .desktop-table :deep(table) {
   width: max-content;
   min-width: 100%;
 }
 
-/* --- Header Resize --- */
 .resizable-header {
   position: relative;
   background-color: #e3f2fd !important;
@@ -447,7 +553,6 @@ watch([startDate, endDate, selectedCabang], fetchData);
   height: 100%;
 }
 
-/* Alignment untuk header content */
 .resizable-header.text-center .header-content {
   justify-content: center;
 }
@@ -471,7 +576,6 @@ watch([startDate, endDate, selectedCabang], fetchData);
   border-right: 2px solid #1565c0;
 }
 
-/* --- Sticky Detail --- */
 .detail-container {
   position: sticky;
   left: 0;
@@ -489,16 +593,13 @@ watch([startDate, endDate, selectedCabang], fetchData);
 
 .detail-table-wrapper {
   width: 100%;
-  max-width: 900px;
-  /* Agar detail table tidak melebar berlebihan */
-  border: 1px solid #ddd;
+  max-width: 1050px;
   border-radius: 4px;
   overflow: hidden;
   background-color: rgb(var(--v-theme-surface));
   border: 1px solid rgba(var(--v-theme-on-surface), 0.12);
 }
 
-/* Pewarnaan Baris Minus */
 .row-sisa-minus :deep(td) {
   color: red !important;
   font-weight: bold;
@@ -510,5 +611,11 @@ watch([startDate, endDate, selectedCabang], fetchData);
   justify-content: center;
   align-items: center;
   flex-direction: column;
+}
+
+.filter-label {
+  font-size: 0.875rem;
+  color: rgba(var(--v-theme-on-surface), 0.6);
+  white-space: nowrap;
 }
 </style>

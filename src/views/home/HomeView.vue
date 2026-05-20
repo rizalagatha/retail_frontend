@@ -275,6 +275,44 @@ interface AgendaItem {
   is_completed?: number;
 }
 
+interface SpkPendingItem {
+  spk_nomor: string;
+  spk_tanggal: string;
+  nama_desain: string;
+  jumlah: number;
+  cabang: string;
+  status_pending: string;
+  status_kerja: string;
+  ket_pending: string;
+  user_create: string;
+  spk_dateline: string | null;
+  spk_keterangan: string;
+}
+
+interface DeadStockChartItem {
+  kategori: string;
+  fm: number;
+  std: number;
+  sm: number;
+  ds: number;
+}
+
+interface DeadStockDetailItem {
+  kode: string;
+  nama: string;
+
+  ukuran?: string;
+  cabang?: string;
+  jenis_kain?: string;
+
+  stok?: number;
+  qty_terjual?: number;
+  total_terjual?: number;
+
+  umur_bulan?: number;
+  nilai_stok?: number;
+}
+
 const authStore = useAuthStore();
 const router = useRouter();
 const toast = useToast();
@@ -785,6 +823,130 @@ const pieChartOptions = {
   },
 };
 
+// --- DEAD STOCK CHART ---
+const deadStockBarData = computed(() => ({
+  labels: deadStockChart.value.map((r) => String(r.kategori || "Unknown")),
+  datasets: [
+    {
+      label: "Fast Moving",
+      data: deadStockChart.value.map((r) => Number(r.fm ?? 0)),
+      backgroundColor: "#639922",
+      borderRadius: 2,
+    },
+    {
+      label: "Standar",
+      data: deadStockChart.value.map((r) => Number(r.std ?? 0)),
+      backgroundColor: "#378ADD",
+      borderRadius: 2,
+    },
+    {
+      label: "Slow Moving",
+      data: deadStockChart.value.map((r) => Number(r.sm ?? 0)),
+      backgroundColor: "#EF9F27",
+      borderRadius: 2,
+    },
+    {
+      label: "Dead Stock",
+      data: deadStockChart.value.map((r) => Number(r.ds ?? 0)),
+      backgroundColor: "#E24B4A",
+      borderRadius: 2,
+    },
+  ],
+}));
+
+const deadStockDonutData = computed(() => {
+  const d = deadStockSummary.value;
+  const antara = Math.max(0, d.total - d.fm - d.std - d.sm - d.ds);
+  return {
+    labels: ["Fast Moving", "Standar", "Slow Moving", "Dead Stock", "Antara 1–2 thn"],
+    datasets: [
+      {
+        data: [d.fm, d.std, d.sm, d.ds, antara],
+        backgroundColor: ["#639922", "#378ADD", "#EF9F27", "#E24B4A", "#B4B2A9"],
+        borderWidth: 0,
+        hoverOffset: 6,
+      },
+    ],
+  };
+});
+
+const deadStockBarOptions = {
+  responsive: true,
+  maintainAspectRatio: false,
+  backgroundColor: "white",
+  plugins: {
+    legend: { display: false },
+    datalabels: { display: false },
+  },
+  scales: {
+    x: { stacked: true, grid: { display: false }, ticks: { font: { size: 10 } } },
+    y: { stacked: true, ticks: { font: { size: 10 } } },
+  },
+};
+
+const deadStockDonutOptions = {
+  responsive: true,
+  maintainAspectRatio: false,
+  cutout: "62%",
+  backgroundColor: "white",
+  plugins: {
+    legend: {
+      position: "bottom" as const,
+      labels: { usePointStyle: true, boxWidth: 10, font: { size: 10 } },
+    },
+    datalabels: { display: false },
+    tooltip: {
+      callbacks: {
+        label: (ctx: TooltipItem<"doughnut">) =>
+          ` ${ctx.label}: ${Number(ctx.parsed).toLocaleString("id-ID")} pcs`,
+      },
+    },
+  },
+};
+
+const deadStockSalesPie = ref({
+  stok_terjual: 0,
+  stok_tidak_terjual: 0,
+  qty_terjual: 0,
+  sku_bergerak: 0,
+  sku_total: 0,
+});
+const isLoadingDeadStockSalesPie = ref(false);
+
+const deadStockSalesPieData = computed(() => ({
+  labels: ["Masih Bergerak (12 bln)", "Tidak Terjual (Stagnan)"],
+  datasets: [
+    {
+      data: [
+        Number(deadStockSalesPie.value.stok_terjual ?? 0),
+        Number(deadStockSalesPie.value.stok_tidak_terjual ?? 0),
+      ],
+      backgroundColor: ["#4CAF50", "#E24B4A"],
+      borderWidth: 0,
+      hoverOffset: 6,
+    },
+  ],
+}));
+
+const deadStockSalesPieOptions = {
+  responsive: true,
+  maintainAspectRatio: false,
+  cutout: "58%",
+  plugins: {
+    legend: {
+      position: "bottom" as const,
+      labels: { usePointStyle: true, boxWidth: 10, font: { size: 10 } },
+    },
+    datalabels: { display: false },
+    tooltip: {
+      callbacks: {
+        label: (ctx: TooltipItem<"doughnut">) =>
+          ` ${ctx.label}: ${Number(ctx.parsed).toLocaleString("id-ID")} pcs`,
+      },
+    },
+  },
+};
+
 const currentTime = ref(
   new Date().toLocaleString("id-ID", { dateStyle: "long", timeStyle: "medium" })
 );
@@ -795,8 +957,44 @@ const userPlaceId = ref("");
 const userLat = ref(""); // Tambahkan state Lat
 const userLong = ref(""); // Tambahkan state Long
 
-// --- FETCH FUNCTIONS ---
+// --- STATE DEAD STOCK ---
+const deadStockSummary = ref({
+  fm: 0,
+  std: 0,
+  sm: 0,
+  ds: 0,
+  nilaiFm: 0,
+  nilaiStd: 0,
+  nilaySm: 0,
+  nilaiDs: 0,
+  total: 0,
+  nilaiTotal: 0,
+});
+const isLoadingDeadStock = ref(false);
+const deadStockCabang = ref(
+  authStore.user?.cabang === "KDC" ? "ALL" : authStore.user?.cabang || ""
+);
 
+const deadStockChart = ref<DeadStockChartItem[]>([]);
+const isLoadingDeadStockChart = ref(false);
+
+const showDeadStockDetail = ref(false);
+const deadStockDetailTipe = ref<"bergerak" | "stagnan">("bergerak");
+const deadStockDetailData = ref<DeadStockDetailItem[]>([]);
+const isLoadingDeadStockDetail = ref(false);
+const searchDeadStockDetail = ref("");
+const deadStockDetailPage = ref(1);
+const deadStockDetailPerPage = ref(50);
+
+// --- STATE DASHBOARD SPK ---
+const spkPendingList = ref<SpkPendingItem[]>([]);
+const isLoadingSpkPending = ref(false);
+const spkPendingFilter = reactive({
+  startDate: format(subDays(new Date(), 7), "yyyy-MM-dd"),
+  endDate: format(new Date(), "yyyy-MM-dd"),
+});
+
+// --- FETCH FUNCTIONS ---
 const fetchDashboardStats = async (isBackground = false) => {
   if (!isBackground) isLoadingStats.value = true;
   try {
@@ -1680,6 +1878,118 @@ const exportSeasonalSales = async () => {
   }
 };
 
+const fetchDeadStockSummary = async () => {
+  isLoadingDeadStock.value = true;
+  try {
+    const res = await api.get("/dashboard/dead-stock-summary", {
+      params: { cabang: deadStockCabang.value },
+    });
+    deadStockSummary.value = res.data;
+  } catch (e) {
+    console.error(e);
+  } finally {
+    isLoadingDeadStock.value = false;
+  }
+};
+
+const fetchDeadStockChart = async () => {
+  isLoadingDeadStockChart.value = true;
+  try {
+    const res = await api.get("/dashboard/dead-stock-chart", {
+      params: { cabang: deadStockCabang.value },
+    });
+    console.log("dead-stock-chart response:", res.data); // ← cek di browser console
+    deadStockChart.value = res.data;
+  } catch (e) {
+    console.error(e);
+  } finally {
+    isLoadingDeadStockChart.value = false;
+  }
+};
+
+const fetchDeadStockSalesPie = async () => {
+  isLoadingDeadStockSalesPie.value = true;
+  try {
+    const res = await api.get("/dashboard/dead-stock-sales-pie", {
+      params: { cabang: deadStockCabang.value },
+    });
+    deadStockSalesPie.value = res.data;
+  } catch (e) {
+    console.error(e);
+  } finally {
+    isLoadingDeadStockSalesPie.value = false;
+  }
+};
+
+const openDeadStockDetail = async (tipe: "bergerak" | "stagnan") => {
+  deadStockDetailPage.value = 1;
+  deadStockDetailTipe.value = tipe;
+  showDeadStockDetail.value = true;
+  isLoadingDeadStockDetail.value = true;
+  deadStockDetailData.value = [];
+  try {
+    const res = await api.get("/dashboard/dead-stock-sales-detail", {
+      params: { cabang: deadStockCabang.value, tipe },
+    });
+    deadStockDetailData.value = res.data;
+  } catch (e) {
+    console.error(e);
+  } finally {
+    isLoadingDeadStockDetail.value = false;
+  }
+};
+
+const filteredDeadStockDetail = computed(() => {
+  if (!searchDeadStockDetail.value) return deadStockDetailData.value;
+  const q = searchDeadStockDetail.value.toLowerCase();
+  return deadStockDetailData.value.filter(
+    (r) => r.nama?.toLowerCase().includes(q) || r.kode?.toLowerCase().includes(q)
+  );
+});
+
+const paginatedDeadStockDetail = computed(() => {
+  const start = (deadStockDetailPage.value - 1) * deadStockDetailPerPage.value;
+  return filteredDeadStockDetail.value.slice(start, start + deadStockDetailPerPage.value);
+});
+
+const deadStockDetailTotalPages = computed(() =>
+  Math.ceil(filteredDeadStockDetail.value.length / deadStockDetailPerPage.value)
+);
+
+// Reset page saat search berubah
+watch(searchDeadStockDetail, () => {
+  deadStockDetailPage.value = 1;
+});
+
+watch(deadStockCabang, () => {
+  fetchDeadStockSummary();
+  fetchDeadStockChart();
+  fetchDeadStockSalesPie();
+});
+
+const fetchSpkPendingApproval = async (isBackground = false) => {
+  if (!isBackground) isLoadingSpkPending.value = true;
+  try {
+    const res = await api.get("/dashboard/spk-pending-approval", {
+      params: spkPendingFilter,
+    });
+    spkPendingList.value = res.data;
+  } catch (e) {
+    console.error("Gagal load SPK pending approval", e);
+  } finally {
+    if (!isBackground) isLoadingSpkPending.value = false;
+  }
+};
+
+// Watcher filter
+watch(
+  () => spkPendingFilter,
+  () => {
+    fetchSpkPendingApproval();
+  },
+  { deep: true }
+);
+
 // Computed property untuk menentukan warna & pesan status
 const healthStatus = computed(() => {
   const score = Number(paretoStats.value.score);
@@ -1921,6 +2231,7 @@ const startPolling = () => {
     fetchBordirSchedules(true);
 
     if (authStore.user?.cabang === "KDC") {
+      fetchSpkPendingApproval(true);
       fetchStockBreakdown(); // Penting buat orang gudang DC
     }
 
@@ -1962,6 +2273,9 @@ onMounted(() => {
 
     // Penjualan (SKIP jika Warehouse User)
     if (!isWarehouseUser.value) {
+      fetchDeadStockSummary();
+      fetchDeadStockChart();
+      fetchDeadStockSalesPie();
       checkAgendaReminder();
       fetchTodayStats();
       fetchDashboardStats();
@@ -1976,6 +2290,7 @@ onMounted(() => {
       if (authStore.user?.cabang === "KDC") {
         fetchBranchPerformance();
         fetchItemSalesTrend();
+        fetchSpkPendingApproval();
       }
     }
     startPolling();
@@ -3398,6 +3713,358 @@ onUnmounted(() => {
               </v-col>
             </v-row>
 
+            <v-row class="mb-4">
+              <v-col cols="12">
+                <v-card elevation="2" class="rounded-lg bg-surface">
+                  <v-card-title
+                    class="d-flex flex-wrap align-center bg-red-lighten-5 py-2 px-3 text-red-darken-4 gap-2"
+                  >
+                    <v-icon class="mr-2" color="error" size="small"
+                      >mdi-archive-clock-outline</v-icon
+                    >
+                    <span class="text-subtitle-2 font-weight-bold mr-auto">
+                      Dead Stock &amp; Pergerakan Stok — Klasifikasi 4 Tier
+                    </span>
+                    <div
+                      v-if="authStore.user?.cabang === 'KDC'"
+                      style="min-width: 130px; max-width: 160px"
+                    >
+                      <v-select
+                        v-model="deadStockCabang"
+                        :items="cabangList"
+                        item-title="nama"
+                        item-value="kode"
+                        density="compact"
+                        variant="outlined"
+                        hide-details
+                        bg-color="surface"
+                        class="filter-select-small"
+                      />
+                    </div>
+                    <v-btn
+                      size="small"
+                      variant="tonal"
+                      color="error"
+                      prepend-icon="mdi-open-in-new"
+                      :to="'/laporan/stok/dead-stok'"
+                      >Detail Lengkap</v-btn
+                    >
+                  </v-card-title>
+
+                  <v-card-text class="pa-4">
+                    <div v-if="isLoadingDeadStock" class="text-center pa-8">
+                      <v-progress-circular indeterminate color="error" size="36" />
+                    </div>
+
+                    <div v-else>
+                      <!-- 4 Tier Cards -->
+                      <v-row dense class="mb-4">
+                        <v-col cols="6" sm="3">
+                          <div
+                            class="rounded-lg pa-3"
+                            style="background: #eaf3de; border: 1px solid #97c459"
+                          >
+                            <div
+                              class="text-caption font-weight-bold"
+                              style="color: #27500a; opacity: 0.8"
+                            >
+                              Fast Moving
+                            </div>
+                            <div class="text-caption mb-2" style="color: #27500a; opacity: 0.7">
+                              ≤ 6 bulan
+                            </div>
+                            <div class="text-h6 font-weight-medium" style="color: #27500a">
+                              {{ deadStockSummary.fm.toLocaleString("id-ID") }}
+                              <span class="text-caption font-weight-regular">pcs</span>
+                            </div>
+                            <div class="text-caption" style="color: #27500a; opacity: 0.75">
+                              {{
+                                deadStockSummary.total > 0
+                                  ? ((deadStockSummary.fm / deadStockSummary.total) * 100).toFixed(
+                                      1
+                                    )
+                                  : 0
+                              }}% dari total
+                            </div>
+                          </div>
+                        </v-col>
+                        <v-col cols="6" sm="3">
+                          <div
+                            class="rounded-lg pa-3"
+                            style="background: #e6f1fb; border: 1px solid #85b7eb"
+                          >
+                            <div
+                              class="text-caption font-weight-bold"
+                              style="color: #0c447c; opacity: 0.8"
+                            >
+                              Standar
+                            </div>
+                            <div class="text-caption mb-2" style="color: #0c447c; opacity: 0.7">
+                              6 bln – 1 thn
+                            </div>
+                            <div class="text-h6 font-weight-medium" style="color: #0c447c">
+                              {{ deadStockSummary.std.toLocaleString("id-ID") }}
+                              <span class="text-caption font-weight-regular">pcs</span>
+                            </div>
+                            <div class="text-caption" style="color: #0c447c; opacity: 0.75">
+                              {{
+                                deadStockSummary.total > 0
+                                  ? ((deadStockSummary.std / deadStockSummary.total) * 100).toFixed(
+                                      1
+                                    )
+                                  : 0
+                              }}% dari total
+                            </div>
+                          </div>
+                        </v-col>
+                        <v-col cols="6" sm="3">
+                          <div
+                            class="rounded-lg pa-3"
+                            style="background: #faeeda; border: 1px solid #ef9f27"
+                          >
+                            <div
+                              class="text-caption font-weight-bold"
+                              style="color: #633806; opacity: 0.8"
+                            >
+                              Slow Moving
+                            </div>
+                            <div class="text-caption mb-2" style="color: #633806; opacity: 0.7">
+                              1 – 2 tahun
+                            </div>
+                            <div class="text-h6 font-weight-medium" style="color: #633806">
+                              {{ deadStockSummary.sm.toLocaleString("id-ID") }}
+                              <span class="text-caption font-weight-regular">pcs</span>
+                            </div>
+                            <div class="text-caption" style="color: #633806; opacity: 0.75">
+                              {{
+                                deadStockSummary.total > 0
+                                  ? ((deadStockSummary.sm / deadStockSummary.total) * 100).toFixed(
+                                      1
+                                    )
+                                  : 0
+                              }}% dari total
+                            </div>
+                          </div>
+                        </v-col>
+                        <v-col cols="6" sm="3">
+                          <div
+                            class="rounded-lg pa-3"
+                            style="background: #fcebeb; border: 1px solid #f09595"
+                          >
+                            <div
+                              class="text-caption font-weight-bold"
+                              style="color: #791f1f; opacity: 0.8"
+                            >
+                              Dead Stock
+                            </div>
+                            <div class="text-caption mb-2" style="color: #791f1f; opacity: 0.7">
+                              > 2 tahun
+                            </div>
+                            <div class="text-h6 font-weight-medium" style="color: #791f1f">
+                              {{ deadStockSummary.ds.toLocaleString("id-ID") }}
+                              <span class="text-caption font-weight-regular">pcs</span>
+                            </div>
+                            <div class="text-caption" style="color: #791f1f; opacity: 0.75">
+                              {{
+                                deadStockSummary.total > 0
+                                  ? ((deadStockSummary.ds / deadStockSummary.total) * 100).toFixed(
+                                      1
+                                    )
+                                  : 0
+                              }}% dari total
+                            </div>
+                          </div>
+                        </v-col>
+                      </v-row>
+
+                      <!-- Metrics Row -->
+                      <v-row dense>
+                        <v-col cols="6" sm="3">
+                          <div class="rounded-lg pa-3 bg-grey-lighten-4">
+                            <div class="text-caption text-medium-emphasis mb-1">
+                              Total Stok Terlacak
+                            </div>
+                            <div class="text-h6 font-weight-medium">
+                              {{ deadStockSummary.total.toLocaleString("id-ID") }}
+                            </div>
+                            <div class="text-caption text-medium-emphasis">pcs</div>
+                          </div>
+                        </v-col>
+                        <v-col cols="6" sm="3">
+                          <div class="rounded-lg pa-3 bg-red-lighten-5">
+                            <div class="text-caption text-medium-emphasis mb-1">
+                              Nilai Dead Stock
+                            </div>
+                            <div class="text-h6 font-weight-medium text-error">
+                              {{ formatRupiah(deadStockSummary.nilaiDs) }}
+                            </div>
+                            <div class="text-caption text-medium-emphasis">
+                              {{ deadStockSummary.ds.toLocaleString("id-ID") }} pcs terblokir
+                            </div>
+                          </div>
+                        </v-col>
+                        <v-col cols="6" sm="3">
+                          <div class="rounded-lg pa-3 bg-orange-lighten-5">
+                            <div class="text-caption text-medium-emphasis mb-1">
+                              Stok Bermasalah
+                            </div>
+                            <div class="text-h6 font-weight-medium text-orange-darken-3">
+                              {{
+                                deadStockSummary.total > 0
+                                  ? (
+                                      ((deadStockSummary.sm + deadStockSummary.ds) /
+                                        deadStockSummary.total) *
+                                      100
+                                    ).toFixed(1)
+                                  : 0
+                              }}%
+                            </div>
+                            <div class="text-caption text-medium-emphasis">Dead + Slow Moving</div>
+                          </div>
+                        </v-col>
+                        <v-col cols="6" sm="3">
+                          <div class="rounded-lg pa-3 bg-green-lighten-5">
+                            <div class="text-caption text-medium-emphasis mb-1">Stok Sehat</div>
+                            <div class="text-h6 font-weight-medium text-success">
+                              {{
+                                deadStockSummary.total > 0
+                                  ? (
+                                      ((deadStockSummary.fm + deadStockSummary.std) /
+                                        deadStockSummary.total) *
+                                      100
+                                    ).toFixed(1)
+                                  : 0
+                              }}%
+                            </div>
+                            <div class="text-caption text-medium-emphasis">Fast + Standar</div>
+                          </div>
+                        </v-col>
+                      </v-row>
+                    </div>
+                  </v-card-text>
+                </v-card>
+              </v-col>
+            </v-row>
+
+            <!-- Tambahkan setelah metrics row yang sudah ada -->
+            <v-row class="mt-4">
+              <!-- Stacked Bar -->
+              <v-col cols="12" md="5">
+                <div class="rounded-lg pa-3" style="background: white">
+                  <div
+                    class="text-caption font-weight-bold text-grey-darken-2 mb-2 text-uppercase"
+                    style="letter-spacing: 0.04em"
+                  >
+                    Distribusi Stok per Jenis Kain × Tier
+                  </div>
+                  <div class="d-flex flex-wrap gap-3 mb-2">
+                    <span
+                      v-for="(ds, i) in [
+                        { label: 'Fast Moving', color: '#639922' },
+                        { label: 'Standar', color: '#378ADD' },
+                        { label: 'Slow Moving', color: '#EF9F27' },
+                        { label: 'Dead Stock', color: '#E24B4A' },
+                      ]"
+                      :key="i"
+                      class="d-flex align-center"
+                      style="gap: 4px; font-size: 11px; color: #666"
+                    >
+                      <span
+                        :style="`width:10px;height:10px;border-radius:2px;background:${ds.color};display:inline-block`"
+                      ></span>
+                      {{ ds.label }}
+                    </span>
+                  </div>
+                  <div v-if="isLoadingDeadStockChart" class="text-center pa-6">
+                    <v-progress-circular indeterminate color="error" size="24" />
+                  </div>
+                  <div v-else style="height: 220px; position: relative">
+                    <Bar :data="deadStockBarData" :options="deadStockBarOptions as any" />
+                  </div>
+                </div>
+              </v-col>
+
+              <!-- Donut -->
+              <v-col cols="12" md="4">
+                <div class="rounded-lg pa-3" style="background: white">
+                  <div
+                    class="text-caption font-weight-bold text-grey-darken-2 mb-2 text-uppercase"
+                    style="letter-spacing: 0.04em"
+                  >
+                    Komposisi Stok
+                  </div>
+                  <div style="height: 220px; position: relative">
+                    <Pie :data="deadStockDonutData" :options="deadStockDonutOptions as any" />
+                  </div>
+                </div>
+              </v-col>
+
+              <!-- PIE BARU — penjualan dead stock -->
+              <v-col cols="12" md="3">
+                <div class="rounded-lg pa-3 h-100" style="background: white">
+                  <div
+                    class="text-caption font-weight-bold text-grey-darken-2 mb-2 text-uppercase"
+                    style="letter-spacing: 0.04em"
+                  >
+                    Pergerakan Dead Stock (12 bln)
+                  </div>
+                  <div v-if="isLoadingDeadStockSalesPie" class="text-center pa-6">
+                    <v-progress-circular indeterminate color="error" size="24" />
+                  </div>
+                  <div v-else>
+                    <div style="height: 180px; position: relative">
+                      <Pie
+                        :data="deadStockSalesPieData"
+                        :options="deadStockSalesPieOptions as any"
+                      />
+                    </div>
+                    <!-- Mini stats di bawah chart -->
+                    <div class="d-flex justify-space-around mt-2 pt-2 border-t">
+                      <div
+                        class="text-center cursor-pointer"
+                        @click="openDeadStockDetail('bergerak')"
+                      >
+                        <div class="text-caption font-weight-bold text-success">
+                          {{ Number(deadStockSalesPie.sku_bergerak).toLocaleString("id-ID") }}
+                        </div>
+                        <div
+                          style="font-size: 9px"
+                          class="text-medium-emphasis text-decoration-underline"
+                        >
+                          SKU Bergerak ↗
+                        </div>
+                      </div>
+                      <div
+                        class="text-center cursor-pointer"
+                        @click="openDeadStockDetail('stagnan')"
+                      >
+                        <div class="text-caption font-weight-bold text-error">
+                          {{
+                            (
+                              Number(deadStockSalesPie.sku_total) -
+                              Number(deadStockSalesPie.sku_bergerak)
+                            ).toLocaleString("id-ID")
+                          }}
+                        </div>
+                        <div
+                          style="font-size: 9px"
+                          class="text-medium-emphasis text-decoration-underline"
+                        >
+                          SKU Stagnan ↗
+                        </div>
+                      </div>
+                      <div class="text-center">
+                        <div class="text-caption font-weight-bold text-blue-darken-2">
+                          {{ Number(deadStockSalesPie.qty_terjual).toLocaleString("id-ID") }}
+                        </div>
+                        <div style="font-size: 9px" class="text-medium-emphasis">Qty Terjual</div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </v-col>
+            </v-row>
+
             <!-- Baris 4: Trend Penjualan Item (KDC only) -->
             <v-row v-if="authStore.user?.cabang === 'KDC'" class="mb-4">
               <v-col cols="12">
@@ -4025,6 +4692,132 @@ onUnmounted(() => {
                         class="text-center text-caption text-grey py-4"
                       >
                         Belum ada antrian bordir terbaru.
+                      </td>
+                    </tr>
+                  </tbody>
+                </v-table>
+              </v-card-text>
+            </v-card>
+
+            <!-- SPK Pending Approval (KDC only) -->
+            <v-card
+              v-if="authStore.user?.cabang === 'KDC'"
+              elevation="2"
+              class="rounded-lg bg-surface mb-4"
+            >
+              <v-card-title
+                class="d-flex flex-wrap align-center bg-cyan-lighten-5 py-3 text-cyan-darken-4 gap-2"
+              >
+                <v-icon class="mr-2" color="cyan-darken-2">mdi-file-document-check-outline</v-icon>
+                <span class="text-subtitle-1 font-weight-bold">SPK Belum Diapprove</span>
+                <v-spacer />
+                <div
+                  class="d-flex align-center border rounded px-2 bg-white"
+                  style="height: 32px; border-color: #b2ebf2 !important"
+                >
+                  <input
+                    type="date"
+                    v-model="spkPendingFilter.startDate"
+                    class="date-native-input text-caption text-cyan-darken-4 font-weight-bold"
+                  />
+                  <span class="mx-1 text-caption text-medium-emphasis">s/d</span>
+                  <input
+                    type="date"
+                    v-model="spkPendingFilter.endDate"
+                    class="date-native-input text-caption text-cyan-darken-4 font-weight-bold"
+                  />
+                </div>
+                <v-chip size="small" color="cyan-darken-2" variant="flat" class="ml-1">
+                  {{ spkPendingList.length }} SPK
+                </v-chip>
+              </v-card-title>
+
+              <v-card-text class="pa-0">
+                <div v-if="isLoadingSpkPending" class="text-center pa-4">
+                  <v-progress-circular indeterminate color="cyan-darken-2" size="24" />
+                </div>
+                <v-table v-else density="compact" class="schedule-table" hover>
+                  <thead>
+                    <tr class="bg-grey-lighten-4">
+                      <th class="font-weight-bold">NO. SPK</th>
+                      <th class="font-weight-bold">TGL SPK</th>
+                      <th class="font-weight-bold">NAMA SPK</th>
+                      <th class="text-center font-weight-bold">JML</th>
+                      <th class="text-center font-weight-bold">DATELINE</th>
+                      <th class="text-center font-weight-bold">CABANG</th>
+                      <th class="text-center font-weight-bold">USER</th>
+                      <th class="text-center font-weight-bold">STATUS</th>
+                      <th class="font-weight-bold">KETERANGAN</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr v-for="item in spkPendingList" :key="item.spk_nomor">
+                      <td class="font-weight-bold text-cyan-darken-3" style="font-size: 11px">
+                        {{ item.spk_nomor }}
+                      </td>
+                      <td class="text-caption">
+                        {{ format(new Date(item.spk_tanggal), "dd/MM/yyyy") }}
+                      </td>
+                      <td class="text-caption font-weight-medium" style="max-width: 220px">
+                        <div class="text-truncate" :title="item.nama_desain">
+                          {{ item.nama_desain }}
+                        </div>
+                      </td>
+                      <td class="text-center font-weight-bold text-caption">
+                        {{ Number(item.jumlah).toLocaleString("id-ID") }} pcs
+                      </td>
+                      <td
+                        class="text-center text-caption font-weight-bold"
+                        :class="item.spk_dateline ? 'text-error' : 'text-grey'"
+                      >
+                        {{
+                          item.spk_dateline
+                            ? format(new Date(item.spk_dateline), "dd/MM/yyyy")
+                            : "-"
+                        }}
+                      </td>
+                      <td class="text-center">
+                        <v-chip
+                          size="x-small"
+                          color="blue-grey"
+                          variant="tonal"
+                          class="font-weight-bold"
+                        >
+                          {{ item.cabang || "-" }}
+                        </v-chip>
+                      </td>
+                      <td class="text-center text-caption font-weight-medium">
+                        {{ item.user_create }}
+                      </td>
+                      <td class="text-center">
+                        <v-chip
+                          size="x-small"
+                          :color="
+                            item.status_kerja === 'TOP URGENT'
+                              ? 'error'
+                              : item.status_kerja === 'URGENT'
+                              ? 'warning'
+                              : item.status_kerja === 'STANDART'
+                              ? 'info'
+                              : item.status_kerja === 'REGULER'
+                              ? 'success'
+                              : 'grey'
+                          "
+                          variant="flat"
+                          class="font-weight-bold"
+                        >
+                          {{ item.status_kerja || "REGULER" }}
+                        </v-chip>
+                      </td>
+                      <td class="text-caption text-grey font-italic" style="max-width: 150px">
+                        <div class="text-truncate" :title="item.ket_pending || item.spk_keterangan">
+                          {{ item.ket_pending || item.spk_keterangan || "-" }}
+                        </div>
+                      </td>
+                    </tr>
+                    <tr v-if="spkPendingList.length === 0">
+                      <td colspan="9" class="text-center text-caption text-grey py-4">
+                        Tidak ada SPK yang belum diapprove pada periode ini.
                       </td>
                     </tr>
                   </tbody>
@@ -4893,6 +5686,172 @@ onUnmounted(() => {
           Oke, Saya Sudah Tahu
         </v-btn>
       </v-card-actions>
+    </v-card>
+  </v-dialog>
+
+  <v-dialog v-model="showDeadStockDetail" max-width="1100" scrollable>
+    <v-card class="rounded-lg overflow-hidden">
+      <div
+        class="d-flex align-center justify-space-between px-3 py-2"
+        :style="`background: ${
+          deadStockDetailTipe === 'bergerak' ? '#2e7d32' : '#c62828'
+        }; color: white; flex-shrink: 0`"
+      >
+        <div class="d-flex align-center gap-2">
+          <v-icon size="16" color="white">
+            {{ deadStockDetailTipe === "bergerak" ? "mdi-trending-up" : "mdi-archive-off-outline" }}
+          </v-icon>
+          <span class="text-caption font-weight-bold">
+            Dead Stock
+            {{ deadStockDetailTipe === "bergerak" ? "Masih Bergerak" : "Stagnan Total" }} —
+            {{ filteredDeadStockDetail.length }} SKU
+          </span>
+        </div>
+        <v-btn
+          icon="mdi-close"
+          variant="text"
+          size="small"
+          color="white"
+          @click="showDeadStockDetail = false"
+        />
+      </div>
+
+      <!-- Search + info bar -->
+      <div class="px-3 py-2 bg-grey-lighten-4 border-b d-flex align-center gap-2">
+        <v-text-field
+          v-model="searchDeadStockDetail"
+          density="compact"
+          variant="outlined"
+          placeholder="Cari kode / nama..."
+          prepend-inner-icon="mdi-magnify"
+          hide-details
+          bg-color="white"
+          style="max-width: 320px"
+        />
+        <v-spacer />
+        <span class="text-caption text-medium-emphasis">
+          {{ filteredDeadStockDetail.length }} item • Hal. {{ deadStockDetailPage }} /
+          {{ deadStockDetailTotalPages }}
+        </span>
+      </div>
+
+      <v-card-text class="pa-0" style="max-height: 65vh; overflow-y: auto">
+        <div v-if="isLoadingDeadStockDetail" class="text-center pa-8">
+          <v-progress-circular
+            indeterminate
+            size="36"
+            :color="deadStockDetailTipe === 'bergerak' ? 'success' : 'error'"
+          />
+        </div>
+
+        <v-table v-else density="compact" hover>
+          <thead>
+            <tr class="bg-grey-lighten-4">
+              <th style="font-size: 11px; width: 120px">KODE</th>
+              <th style="font-size: 11px">NAMA BARANG</th>
+              <th style="font-size: 11px; width: 60px" class="text-center">UK.</th>
+              <th style="font-size: 11px; width: 80px" class="text-center">CABANG</th>
+              <th style="font-size: 11px; width: 90px" class="text-right">UMUR</th>
+              <th style="font-size: 11px; width: 70px" class="text-right">STOK</th>
+              <th style="font-size: 11px; width: 100px" class="text-right">TERJUAL 12BLN</th>
+              <th style="font-size: 11px; width: 120px" class="text-right">NILAI STOK</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr
+              v-for="item in paginatedDeadStockDetail"
+              :key="`${item.kode}-${item.ukuran}-${item.cabang}`"
+            >
+              <td style="font-size: 11px; font-family: monospace; white-space: nowrap">
+                {{ item.kode }}
+              </td>
+              <td style="font-size: 11px; min-width: 280px">
+                <div class="font-weight-medium" style="white-space: normal; line-height: 1.3">
+                  {{ item.nama }}
+                </div>
+                <div style="font-size: 9px" class="text-grey">{{ item.jenis_kain }}</div>
+              </td>
+              <td style="font-size: 11px" class="text-center">{{ item.ukuran }}</td>
+              <td style="font-size: 11px" class="text-center">{{ item.cabang }}</td>
+              <td style="font-size: 11px" class="text-right">
+                <v-chip
+                  size="x-small"
+                  :color="(item.umur_bulan ?? 0) > 36 ? 'error' : 'warning'"
+                  variant="flat"
+                  class="font-weight-bold"
+                  >{{ item.umur_bulan ?? 0 }} bln</v-chip
+                >
+              </td>
+              <td style="font-size: 11px" class="text-right font-weight-bold">{{ item.stok }}</td>
+              <td style="font-size: 11px" class="text-right">
+                <span
+                  :class="
+                    (item.total_terjual ?? 0) > 0 ? 'text-success font-weight-bold' : 'text-grey'
+                  "
+                >
+                  {{ item.total_terjual }}
+                </span>
+              </td>
+              <td style="font-size: 11px" class="text-right text-error font-weight-bold">
+                {{ formatRupiah(item.nilai_stok ?? 0) }}
+              </td>
+            </tr>
+          </tbody>
+        </v-table>
+      </v-card-text>
+
+      <!-- Pagination footer -->
+      <div class="d-flex align-center justify-space-between px-4 py-2 border-t bg-grey-lighten-5">
+        <span class="text-caption text-medium-emphasis">
+          {{ (deadStockDetailPage - 1) * deadStockDetailPerPage + 1 }}–{{
+            Math.min(deadStockDetailPage * deadStockDetailPerPage, filteredDeadStockDetail.length)
+          }}
+          dari {{ filteredDeadStockDetail.length }}
+        </span>
+        <div class="d-flex align-center gap-1">
+          <v-btn
+            icon="mdi-page-first"
+            size="x-small"
+            variant="text"
+            :disabled="deadStockDetailPage === 1"
+            @click="deadStockDetailPage = 1"
+          />
+          <v-btn
+            icon="mdi-chevron-left"
+            size="x-small"
+            variant="text"
+            :disabled="deadStockDetailPage === 1"
+            @click="deadStockDetailPage--"
+          />
+          <span class="text-caption px-2">Hal. {{ deadStockDetailPage }}</span>
+          <v-btn
+            icon="mdi-chevron-right"
+            size="x-small"
+            variant="text"
+            :disabled="deadStockDetailPage >= deadStockDetailTotalPages"
+            @click="deadStockDetailPage++"
+          />
+          <v-btn
+            icon="mdi-page-last"
+            size="x-small"
+            variant="text"
+            :disabled="deadStockDetailPage >= deadStockDetailTotalPages"
+            @click="deadStockDetailPage = deadStockDetailTotalPages"
+          />
+        </div>
+        <div class="d-flex align-center gap-2">
+          <span class="text-caption text-medium-emphasis">Baris:</span>
+          <v-select
+            v-model="deadStockDetailPerPage"
+            :items="[25, 50, 100, 200]"
+            density="compact"
+            variant="outlined"
+            hide-details
+            style="width: 80px"
+            @update:model-value="deadStockDetailPage = 1"
+          />
+        </div>
+      </div>
     </v-card>
   </v-dialog>
 

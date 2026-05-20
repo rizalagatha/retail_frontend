@@ -5,7 +5,7 @@ import { useAuthStore } from "@/stores/authStore";
 import { format, startOfMonth, endOfMonth } from "date-fns";
 import api from "@/services/api";
 import PageLayout from "@/components/PageLayout.vue";
-import * as XLSX from "xlsx";
+import ExcelJS from "exceljs";
 import type { AxiosError } from "axios";
 import AppDataTable from "@/components/AppDataTable.vue";
 import { formatRupiah } from "@/utils/formatRupiah";
@@ -248,185 +248,293 @@ const fetchCabangOptions = async () => {
   }
 };
 
-const exportToExcel = () => {
-  if (!canExport.value) {
-    toast.error("Anda tidak memiliki izin untuk mengekspor data.");
-    return;
-  }
-  if (items.value.length === 0) {
-    return toast.warning("Tidak ada data untuk diekspor.");
-  }
+const exportToExcel = async () => {
+  if (!canExport.value) return toast.error("Anda tidak memiliki izin untuk mengekspor data.");
+  if (items.value.length === 0) return toast.warning("Tidak ada data untuk diekspor.");
+  toast.info("Menyiapkan file export...");
 
-  // --- 1. SIAPKAN HEADER MULTI-LEVEL ---
-  const headerRow1: (string | number)[] = [
-    "No",
-    "Tahun",
-    "Bulan",
-    "Kode Cabang",
-    "Nama Cabang",
-    "Bulan Ini",
-    "",
-    "",
-    "", // 4 Kolom
-    "Bulan Lalu",
-    "",
-    "", // 3 Kolom
-    "Kum. s.d Bulan Ini",
-    "",
-    "", // 3 Kolom
-    "Bulan Ini Tahun Lalu",
-    "", // 2 Kolom
-    "s.d Akhir Tahun",
-    "",
-    "", // 3 Kolom
-  ];
+  try {
+    const ExcelJS = (await import("exceljs")).default;
+    const workbook = new ExcelJS.Workbook();
+    const sheet = workbook.addWorksheet("Sales VS Target");
 
-  const headerRow2: (string | number)[] = [
-    "",
-    "",
-    "",
-    "",
-    "", // Lewati 5 kolom pertama karena di-merge dengan atasnya
-    "Qty",
-    "Nominal",
-    "Target",
-    "%",
-    "Qty",
-    "Nominal",
-    "%",
-    "Realisasi",
-    "Target",
-    "%",
-    "Realisasi",
-    "%",
-    "Realisasi",
-    "Target",
-    "%",
-  ];
+    // ── Helper styles ──────────────────────────────────────
+    const borderThin: Partial<ExcelJS.Borders> = {
+      top: { style: "thin" },
+      left: { style: "thin" },
+      bottom: { style: "thin" },
+      right: { style: "thin" },
+    };
+    const borderMedium: Partial<ExcelJS.Borders> = {
+      top: { style: "medium" },
+      left: { style: "thin" },
+      bottom: { style: "medium" },
+      right: { style: "thin" },
+    };
 
-  // [PERBAIKAN] Gunakan Union Type (string | number) bukan 'any'
-  const excelData: (string | number)[][] = [headerRow1, headerRow2];
+    const makeHeaderCell = (cell: ExcelJS.Cell, bgArgb: string = "FFE3F2FD") => {
+      cell.font = { bold: true, color: { argb: "FF0D47A1" } };
+      cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: bgArgb } };
+      cell.alignment = { horizontal: "center", vertical: "middle", wrapText: false };
+      cell.border = borderThin;
+    };
 
-  // --- 2. SIAPKAN DATA BARIS DEMI BARIS ---
-  items.value.forEach((item, index) => {
-    excelData.push([
-      index + 1,
-      item.tahun,
-      item.bulan,
-      item.kode_cabang,
-      item.nama_cabang,
+    // ── Lebar kolom ────────────────────────────────────────
+    sheet.columns = [
+      { width: 5 }, // No
+      { width: 8 }, // Tahun
+      { width: 8 }, // Bulan
+      { width: 14 }, // Kode Cabang
+      { width: 26 }, // Nama Cabang
+      { width: 10 }, // Qty Bln Ini
+      { width: 18 }, // Nominal Bln Ini
+      { width: 18 }, // Target Bln Ini
+      { width: 8 }, // % Bln Ini
+      { width: 10 }, // Qty Bln Lalu
+      { width: 18 }, // Nominal Bln Lalu
+      { width: 8 }, // % Bln Lalu
+      { width: 18 }, // Realisasi Kum
+      { width: 18 }, // Target Kum
+      { width: 8 }, // % Kum
+      { width: 18 }, // Realisasi TL
+      { width: 8 }, // % TL
+      { width: 18 }, // Realisasi Akhir
+      { width: 18 }, // Target Akhir
+      { width: 8 }, // % Akhir
+    ];
 
-      // Bulan Ini
-      item.qty_bulan_ini,
-      item.nominal_bulan_ini,
-      item.target_bulan_ini,
-      item.target_bulan_ini > 0 ? (item.nominal_bulan_ini / item.target_bulan_ini) * 100 : 0,
-
-      // Bulan Lalu
-      item.qty_bulan_lalu,
-      item.nominal_bulan_lalu,
-      item.nominal_bulan_lalu > 0 ? (item.nominal_bulan_ini / item.nominal_bulan_lalu) * 100 : 0,
-
-      // Kumulatif
-      item.realisasi_kumulatif,
-      item.target_kumulatif,
-      item.target_kumulatif > 0 ? (item.realisasi_kumulatif / item.target_kumulatif) * 100 : 0,
-
-      // Tahun Lalu
-      item.realisasi_bulan_ini_thn_lalu,
-      item.realisasi_bulan_ini_thn_lalu > 0
-        ? (item.nominal_bulan_ini / item.realisasi_bulan_ini_thn_lalu) * 100
-        : 0,
-
-      // Akhir Tahun
-      item.realisasi_akhir_tahun,
-      item.target_akhir_tahun,
-      item.target_akhir_tahun > 0 ? (item.realisasi_kumulatif / item.target_akhir_tahun) * 100 : 0,
+    // ── BARIS HEADER 1 (Grup) ──────────────────────────────
+    const row1 = sheet.addRow([
+      "No",
+      "Tahun",
+      "Bulan",
+      "Kode Cabang",
+      "Nama Cabang",
+      "Bulan Ini",
+      "",
+      "",
+      "",
+      "Bulan Lalu",
+      "",
+      "",
+      "Kum. s.d Bulan Ini",
+      "",
+      "",
+      "Bulan Ini Tahun Lalu",
+      "",
+      "s.d Akhir Tahun",
+      "",
+      "",
     ]);
-  });
+    row1.height = 28;
 
-  // --- 3. SIAPKAN BARIS GRAND TOTAL ---
-  const tSum = totalSummary.value;
-  excelData.push([
-    "GRAND TOTAL :",
-    "",
-    "",
-    "",
-    "", // Posisi merge dari A sampai E
-    tSum.qty_bulan_ini,
-    tSum.nominal_bulan_ini,
-    tSum.target_bulan_ini,
-    tSum.persen_target_bulan_ini,
-    tSum.qty_bulan_lalu,
-    tSum.nominal_bulan_lalu,
-    tSum.persen_bulan_lalu,
-    tSum.realisasi_kumulatif,
-    tSum.target_kumulatif,
-    tSum.persen_target_kumulatif,
-    tSum.realisasi_bulan_ini_thn_lalu,
-    tSum.persen_thn_lalu,
-    tSum.realisasi_akhir_tahun,
-    tSum.target_akhir_tahun,
-    tSum.persen_target_akhir_tahun,
-  ]);
+    const grupColors: Record<number, string> = {
+      // col index (1-based): argb
+      6: "FFBBDEFB",
+      7: "FFBBDEFB",
+      8: "FFBBDEFB",
+      9: "FFBBDEFB", // Bln Ini - biru
+      10: "FFC8E6C9",
+      11: "FFC8E6C9",
+      12: "FFC8E6C9", // Bln Lalu - hijau
+      13: "FFFFE0B2",
+      14: "FFFFE0B2",
+      15: "FFFFE0B2", // Kum - oranye
+      16: "FFE1BEE7",
+      17: "FFE1BEE7", // TL - ungu
+      18: "FFFFCDD2",
+      19: "FFFFCDD2",
+      20: "FFFFCDD2", // Akhir - merah
+    };
 
-  // --- 4. RAKIT SHEET & ATUR MERGE/GABUNGAN SEL ---
-  const worksheet = XLSX.utils.aoa_to_sheet(excelData);
+    row1.eachCell({ includeEmpty: true }, (cell, colNum) => {
+      const bg = grupColors[colNum] ?? "FFE3F2FD";
+      makeHeaderCell(cell, bg);
+    });
 
-  // Konfigurasi Merge Cells
-  worksheet["!merges"] = [
-    // Gabung vertikal (kolom A-E) baris 1 dan 2
-    { s: { r: 0, c: 0 }, e: { r: 1, c: 0 } }, // No
-    { s: { r: 0, c: 1 }, e: { r: 1, c: 1 } }, // Tahun
-    { s: { r: 0, c: 2 }, e: { r: 1, c: 2 } }, // Bulan
-    { s: { r: 0, c: 3 }, e: { r: 1, c: 3 } }, // Kode Cabang
-    { s: { r: 0, c: 4 }, e: { r: 1, c: 4 } }, // Nama Cabang
+    // ── BARIS HEADER 2 (Sub) ───────────────────────────────
+    const row2 = sheet.addRow([
+      "",
+      "",
+      "",
+      "",
+      "",
+      "Qty",
+      "Nominal",
+      "Target",
+      "%",
+      "Qty",
+      "Nominal",
+      "%",
+      "Realisasi",
+      "Target",
+      "%",
+      "Realisasi",
+      "%",
+      "Realisasi",
+      "Target",
+      "%",
+    ]);
+    row2.height = 22;
 
-    // Gabung horisontal grup
-    { s: { r: 0, c: 5 }, e: { r: 0, c: 8 } }, // Bulan Ini
-    { s: { r: 0, c: 9 }, e: { r: 0, c: 11 } }, // Bulan Lalu
-    { s: { r: 0, c: 12 }, e: { r: 0, c: 14 } }, // Kumulatif
-    { s: { r: 0, c: 15 }, e: { r: 0, c: 16 } }, // Tahun Lalu
-    { s: { r: 0, c: 17 }, e: { r: 0, c: 19 } }, // Akhir Tahun
+    const subColors: Record<number, string> = {
+      6: "FFE3F2FD",
+      7: "FFE3F2FD",
+      8: "FFE3F2FD",
+      9: "FFE3F2FD",
+      10: "FFF1F8E9",
+      11: "FFF1F8E9",
+      12: "FFF1F8E9",
+      13: "FFFFF3E0",
+      14: "FFFFF3E0",
+      15: "FFFFF3E0",
+      16: "FFF3E5F5",
+      17: "FFF3E5F5",
+      18: "FFFFEBEE",
+      19: "FFFFEBEE",
+      20: "FFFFEBEE",
+    };
 
-    // Gabung horisontal Grand Total (Baris terakhir, kolom A-E)
-    { s: { r: excelData.length - 1, c: 0 }, e: { r: excelData.length - 1, c: 4 } },
-  ];
+    row2.eachCell({ includeEmpty: true }, (cell, colNum) => {
+      const bg = subColors[colNum] ?? "FFF5F5F5";
+      makeHeaderCell(cell, bg);
+    });
 
-  // Atur lebar kolom
-  worksheet["!cols"] = [
-    { wch: 5 },
-    { wch: 8 },
-    { wch: 8 },
-    { wch: 15 },
-    { wch: 25 },
-    { wch: 10 },
-    { wch: 15 },
-    { wch: 15 },
-    { wch: 8 },
-    { wch: 10 },
-    { wch: 15 },
-    { wch: 8 },
-    { wch: 15 },
-    { wch: 15 },
-    { wch: 8 },
-    { wch: 15 },
-    { wch: 8 },
-    { wch: 15 },
-    { wch: 15 },
-    { wch: 8 },
-  ];
+    // ── MERGE CELLS ────────────────────────────────────────
+    // Vertikal (kolom identitas span 2 baris)
+    sheet.mergeCells("A1:A2");
+    sheet.mergeCells("B1:B2");
+    sheet.mergeCells("C1:C2");
+    sheet.mergeCells("D1:D2");
+    sheet.mergeCells("E1:E2");
+    // Horisontal (grup)
+    sheet.mergeCells("F1:I1"); // Bulan Ini
+    sheet.mergeCells("J1:L1"); // Bulan Lalu
+    sheet.mergeCells("M1:O1"); // Kumulatif
+    sheet.mergeCells("P1:Q1"); // Tahun Lalu
+    sheet.mergeCells("R1:T1"); // Akhir Tahun
 
-  // --- 5. EKSEKUSI PENYIMPANAN ---
-  const workbook = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(workbook, worksheet, "Sales VS Target");
+    // ── DATA ROWS ──────────────────────────────────────────
+    const pct = (num: number, den: number) =>
+      den > 0 ? Number(((num / den) * 100).toFixed(2)) : 0;
 
-  XLSX.writeFile(
-    workbook,
-    `Laporan_SalesVsTarget_${filters.tahun}-${String(filters.bulan).padStart(2, "0")}.xlsx`
-  );
+    items.value.forEach((item, index) => {
+      const dataRow = sheet.addRow([
+        index + 1,
+        item.tahun,
+        item.bulan,
+        item.kode_cabang,
+        item.nama_cabang,
 
-  toast.success("Data berhasil diekspor.");
+        item.qty_bulan_ini,
+        item.nominal_bulan_ini,
+        item.target_bulan_ini,
+        pct(item.nominal_bulan_ini, item.target_bulan_ini),
+
+        item.qty_bulan_lalu,
+        item.nominal_bulan_lalu,
+        pct(item.nominal_bulan_ini, item.nominal_bulan_lalu),
+
+        item.realisasi_kumulatif,
+        item.target_kumulatif,
+        pct(item.realisasi_kumulatif, item.target_kumulatif),
+
+        item.realisasi_bulan_ini_thn_lalu,
+        pct(item.nominal_bulan_ini, item.realisasi_bulan_ini_thn_lalu),
+
+        item.realisasi_akhir_tahun,
+        item.target_akhir_tahun,
+        pct(item.realisasi_kumulatif, item.target_akhir_tahun),
+      ]);
+
+      // Format & alignment per sel
+      dataRow.eachCell({ includeEmpty: true }, (cell, colNum) => {
+        cell.border = borderThin;
+        cell.alignment = { vertical: "middle" };
+
+        // Kolom teks — rata kiri/tengah
+        if (colNum <= 3) cell.alignment.horizontal = "center";
+        else if (colNum <= 5) cell.alignment.horizontal = "left";
+        // Kolom angka — rata kanan
+        else cell.alignment.horizontal = "right";
+
+        // Format rupiah untuk kolom nominal (bukan qty, bukan %)
+        const rupiahCols = [7, 8, 11, 13, 14, 16, 18, 19];
+        const pctCols = [9, 12, 15, 17, 20];
+        if (rupiahCols.includes(colNum)) cell.numFmt = "#,##0";
+        if (pctCols.includes(colNum)) cell.numFmt = '0.00"%"';
+      });
+    });
+
+    // ── GRAND TOTAL ROW ────────────────────────────────────
+    const tSum = totalSummary.value;
+    const totalRow = sheet.addRow([
+      "GRAND TOTAL :",
+      "",
+      "",
+      "",
+      "",
+      tSum.qty_bulan_ini,
+      tSum.nominal_bulan_ini,
+      tSum.target_bulan_ini,
+      Number(tSum.persen_target_bulan_ini.toFixed(2)),
+      tSum.qty_bulan_lalu,
+      tSum.nominal_bulan_lalu,
+      Number(tSum.persen_bulan_lalu.toFixed(2)),
+      tSum.realisasi_kumulatif,
+      tSum.target_kumulatif,
+      Number(tSum.persen_target_kumulatif.toFixed(2)),
+      tSum.realisasi_bulan_ini_thn_lalu,
+      Number(tSum.persen_thn_lalu.toFixed(2)),
+      tSum.realisasi_akhir_tahun,
+      tSum.target_akhir_tahun,
+      Number(tSum.persen_target_akhir_tahun.toFixed(2)),
+    ]);
+    totalRow.height = 22;
+
+    // Merge label GRAND TOTAL di A-E
+    const totalRowNum = sheet.rowCount;
+    sheet.mergeCells(`A${totalRowNum}:E${totalRowNum}`);
+
+    totalRow.eachCell({ includeEmpty: true }, (cell, colNum) => {
+      cell.font = { bold: true };
+      cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFF5F5F5" } };
+      cell.border = borderMedium;
+      cell.alignment = { vertical: "middle" };
+
+      if (colNum <= 5) {
+        cell.alignment.horizontal = "right";
+      } else {
+        cell.alignment.horizontal = "right";
+        const rupiahCols = [7, 8, 11, 13, 14, 16, 18, 19];
+        const pctCols = [9, 12, 15, 17, 20];
+        if (rupiahCols.includes(colNum)) cell.numFmt = "#,##0";
+        if (pctCols.includes(colNum)) cell.numFmt = '0.00"%"';
+      }
+    });
+
+    // ── Freeze panes (header 2 baris) ─────────────────────
+    sheet.views = [{ state: "frozen", xSplit: 5, ySplit: 2 }];
+
+    // ── Download ───────────────────────────────────────────
+    const buffer = await workbook.xlsx.writeBuffer();
+    const blob = new Blob([buffer], {
+      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `Laporan_SalesVsTarget_${filters.tahun}-${String(filters.bulan).padStart(
+      2,
+      "0"
+    )}.xlsx`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast.success("Data berhasil diekspor.");
+  } catch (error) {
+    console.error(error);
+    toast.error("Gagal mengekspor data.");
+  }
 };
 
 onMounted(() => {

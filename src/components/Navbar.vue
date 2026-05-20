@@ -259,6 +259,11 @@ const menuItems: NavItem[] = [
         icon: "mdi-office-building-outline",
         items: [
           {
+            title: "Panel Seting Buffer",
+            to: "/transaksi/internal/panel-buffer-stok",
+            icon: "mdi-database-sync-outline",
+          },
+          {
             title: "Buffer Stok",
             to: "/transaksi/internal/buffer-stok",
             icon: "mdi-database-outline",
@@ -468,6 +473,11 @@ const menuItems: NavItem[] = [
         title: "Operasional Gudang",
         icon: "mdi-forklift",
         items: [
+          {
+            title: "Dasbor SPK Kaosan",
+            to: "/gudang-dc/operasional/dasbor-spk",
+            icon: "mdi-file-document-check-outline",
+          },
           {
             title: "Terima STBJ",
             to: "/gudang-dc/operasional/terima-stbj",

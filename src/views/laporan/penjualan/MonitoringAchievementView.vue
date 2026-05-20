@@ -5,7 +5,7 @@ import { useAuthStore } from "@/stores/authStore";
 import api from "@/services/api";
 import { format } from "date-fns";
 import PageLayout from "@/components/PageLayout.vue";
-import * as XLSX from "xlsx";
+import ExcelJS from "exceljs";
 import axios, { type AxiosError } from "axios";
 import AppDataTable from "@/components/AppDataTable.vue";
 import { formatCurrency } from "@/utils/numberUtils";
@@ -542,286 +542,447 @@ const fetchCabangOptions = async () => {
   }
 };
 
-const exportData = () => {
-  let dataToExport: ExcelRow[] = [];
-  let worksheet: XLSX.WorkSheet | null = null;
-  let fileName = `Laporan_Monitoring_Achievement_${filters.tahun}-${filters.bulan}.xlsx`;
-  let sheetName = "Data";
+const exportData = async () => {
+  const currentData =
+    activeTab.value === "daily"
+      ? dailyData.value
+      : activeTab.value === "weekly"
+      ? weeklyData.value
+      : activeTab.value === "monthly"
+      ? monthlyData.value
+      : ytdData.value;
 
-  const dailyTotals = dailyTotalSummary.value;
-  const weeklyTotals = weeklyTotalSummary.value;
-  const monthlyTotals = monthlyTotalSummary.value;
-  const ytdTotals = ytdTotalSummary.value;
+  if (!currentData.length) return toast.warning("Tidak ada data untuk diekspor.");
+  toast.info("Menyiapkan file export...");
 
-  // --- Ambil Data dan Format Sesuai Tab Aktif ---
-  switch (activeTab.value) {
-    case "daily":
-      if (dailyData.value.length === 0)
-        return toast.warning("Tidak ada data Harian untuk diekspor.");
-      sheetName = "Daily";
-      fileName = `Laporan_Harian_${filters.cabang}_${filters.tahun}-${filters.bulan}.xlsx`;
-      dataToExport = dailyData.value.map((item, index) => {
-        const rowData: ExcelRow = {
-          No: index + 1,
-          "Kode Cabang": item.kode_cabang,
-          "Nama Cabang": item.nama_cabang,
-          Hari: item.hari,
-          Tanggal: item.tanggal ? format(new Date(item.tanggal), "dd-MM-yyyy") : "",
-          "Omset Harian": item.omset,
-          "Retur Jual": item.retur_jual,
-        };
+  try {
+    const ExcelJS = (await import("exceljs")).default;
+    const workbook = new ExcelJS.Workbook();
 
-        // [BARU] Masukkan ke Excel jika cabang = KON
-        if (filters.cabang === "KON" || filters.cabang === "ALL") {
-          rowData["Biaya Platform"] = item.biaya_platform;
-        }
+    // ── Helper styles ──────────────────────────────────────
+    const borderThin: Partial<ExcelJS.Borders> = {
+      top: { style: "thin" },
+      left: { style: "thin" },
+      bottom: { style: "thin" },
+      right: { style: "thin" },
+    };
+    const borderMedium: Partial<ExcelJS.Borders> = {
+      top: { style: "medium" },
+      left: { style: "thin" },
+      bottom: { style: "medium" },
+      right: { style: "thin" },
+    };
 
-        rowData["Total Omset Kumulatif"] = item.total_omset;
-        rowData["Target Bulanan"] = item.target_bulanan;
-        rowData["Ach (%)"] = item.ach;
+    const applyHeader = (cell: ExcelJS.Cell, bg = "FFE3F2FD") => {
+      cell.font = { bold: true, color: { argb: "FF0D47A1" } };
+      cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: bg } };
+      cell.alignment = { horizontal: "center", vertical: "middle" };
+      cell.border = borderThin;
+    };
 
-        return rowData;
+    const applyData = (cell: ExcelJS.Cell, align: ExcelJS.Alignment["horizontal"] = "left") => {
+      cell.border = borderThin;
+      cell.alignment = { horizontal: align, vertical: "middle" };
+    };
+
+    const applyTotal = (cell: ExcelJS.Cell, align: ExcelJS.Alignment["horizontal"] = "right") => {
+      cell.font = { bold: true };
+      cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFF5F5F5" } };
+      cell.border = borderMedium;
+      cell.alignment = { horizontal: align, vertical: "middle" };
+    };
+
+    const showBiaya = filters.cabang === "KON" || filters.cabang === "ALL";
+
+    // ══════════════════════════════════════════════════════
+    // TAB DAILY
+    // ══════════════════════════════════════════════════════
+    if (activeTab.value === "daily") {
+      const sheet = workbook.addWorksheet("Daily");
+
+      const cols = [
+        { header: "No", width: 5, align: "center" as const },
+        { header: "Kode Cabang", width: 13, align: "center" as const },
+        { header: "Nama Cabang", width: 22, align: "left" as const },
+        { header: "Hari", width: 10, align: "center" as const },
+        { header: "Tanggal", width: 13, align: "center" as const },
+        { header: "Omset Harian", width: 18, align: "right" as const, fmt: "#,##0" },
+        { header: "Retur Jual", width: 16, align: "right" as const, fmt: "#,##0" },
+        ...(showBiaya
+          ? [{ header: "Biaya Platform", width: 16, align: "right" as const, fmt: "#,##0" }]
+          : []),
+        { header: "Total Omset Kumulatif", width: 22, align: "right" as const, fmt: "#,##0" },
+        { header: "Open SO Hari Ini", width: 18, align: "right" as const, fmt: "#,##0" },
+        { header: "SO (30 Hari)", width: 14, align: "right" as const, fmt: "#,##0" },
+        { header: "SO (Akumulasi)", width: 16, align: "right" as const, fmt: "#,##0" },
+        { header: "Sisa Piutang Hari Ini", width: 20, align: "right" as const, fmt: "#,##0" },
+        { header: "Piutang (30 Hari)", width: 18, align: "right" as const, fmt: "#,##0" },
+        { header: "Piutang (Akumulasi)", width: 18, align: "right" as const, fmt: "#,##0" },
+        { header: "Target Bulanan", width: 16, align: "right" as const, fmt: "#,##0" },
+        { header: "Ach (%)", width: 10, align: "right" as const, fmt: '0.00"%"' },
+      ];
+
+      sheet.columns = cols.map((c) => ({ width: c.width }));
+
+      const headerRow = sheet.addRow(cols.map((c) => c.header));
+      headerRow.height = 22;
+      headerRow.eachCell({ includeEmpty: true }, (cell, i) => {
+        const soIdx = showBiaya ? [10, 11, 12] : [9, 10, 11];
+        const piIdx = showBiaya ? [13, 14, 15] : [12, 13, 14];
+        const bg = soIdx.includes(i) ? "FFFFE0B2" : piIdx.includes(i) ? "FFFFEBEE" : "FFE3F2FD";
+        applyHeader(cell, bg);
       });
 
-      // Tambahkan Grand Total
-      if (dailyTotals && Object.keys(dailyTotals).length > 0) {
-        dataToExport.push({}); // Baris kosong
-
-        const grandTotalRow: ExcelRow = {
-          No: "",
-          "Kode Cabang": "",
-          "Nama Cabang": "",
-          Hari: "",
-          Tanggal: "GRAND TOTAL:",
-          "Omset Harian": dailyTotals.omset,
-          "Retur Jual": dailyTotals.retur_jual,
-        };
-
-        // [BARU] Masukkan Grand Total ke Excel jika cabang = KON
-        if (filters.cabang === "KON" || filters.cabang === "ALL") {
-          grandTotalRow["Biaya Platform"] = dailyTotals.biaya_platform;
-        }
-
-        grandTotalRow["Total Omset Kumulatif"] = dailyTotals.total_omset;
-        grandTotalRow["Target Bulanan"] = dailyTotals.target_bulanan;
-        grandTotalRow["Ach (%)"] = dailyTotals.ach;
-
-        dataToExport.push(grandTotalRow);
-      }
-      break;
-
-    case "weekly":
-      if (weeklyData.value.length === 0)
-        return toast.warning("Tidak ada data Mingguan untuk diekspor.");
-      sheetName = "Weekly";
-      fileName = `Laporan_Mingguan_${filters.tahun}-${filters.bulan}.xlsx`;
-      dataToExport = weeklyData.value.map((item, index) => ({
-        No: index + 1,
-        "Kode Cabang": item.kode_cabang,
-        "Nama Cabang": item.nama_cabang,
-        "Omset W1": item.nominal_w1,
-        "Target W1": item.target_w1,
-        "Ach W1 (%)": item.target_w1 > 0 ? (item.nominal_w1 / item.target_w1) * 100 : 0,
-        "Omset W2": item.nominal_w2,
-        "Target W2": item.target_w2,
-        "Ach W2 (%)": item.target_w2 > 0 ? (item.nominal_w2 / item.target_w2) * 100 : 0,
-        "Omset W3": item.nominal_w3,
-        "Target W3": item.target_w3,
-        "Ach W3 (%)": item.target_w3 > 0 ? (item.nominal_w3 / item.target_w3) * 100 : 0,
-        "Omset W4": item.nominal_w4,
-        "Target W4": item.target_w4,
-        "Ach W4 (%)": item.target_w4 > 0 ? (item.nominal_w4 / item.target_w4) * 100 : 0,
-        "Omset W5": item.nominal_w5,
-        "Target W5": item.target_w5,
-        "Ach W5 (%)": item.target_w5 > 0 ? (item.nominal_w5 / item.target_w5) * 100 : 0,
-        "Total Omset": item.total_nominal,
-        "Total Target": item.total_target,
-        "Total Ach (%)": item.total_target > 0 ? (item.total_nominal / item.total_target) * 100 : 0,
-      }));
-      // Tambahkan Grand Total
-      if (weeklyTotals && Object.keys(weeklyTotals).length > 0) {
-        dataToExport.push({}); // Baris kosong
-        dataToExport.push({
-          No: "",
-          "Kode Cabang": "",
-          "Nama Cabang": "GRAND TOTAL:",
-          "Omset W1": weeklyTotals.nominal_w1, // <-- Akses properti dari weeklyTotals
-          "Target W1": weeklyTotals.target_w1,
-          "Ach W1 (%)": weeklyTotals.ach_w1,
-          "Omset W2": weeklyTotals.nominal_w2,
-          "Target W2": weeklyTotals.target_w2,
-          "Ach W2 (%)": weeklyTotals.ach_w2,
-          "Omset W3": weeklyTotals.nominal_w3,
-          "Target W3": weeklyTotals.target_w3,
-          "Ach W3 (%)": weeklyTotals.ach_w3,
-          "Omset W4": weeklyTotals.nominal_w4,
-          "Target W4": weeklyTotals.target_w4,
-          "Ach W4 (%)": weeklyTotals.ach_w4,
-          "Omset W5": weeklyTotals.nominal_w5,
-          "Target W5": weeklyTotals.target_w5,
-          "Ach W5 (%)": weeklyTotals.ach_w5,
-          "Total Omset": weeklyTotals.total_nominal,
-          "Total Target": weeklyTotals.total_target,
-          "Total Ach (%)": weeklyTotals.total_ach,
+      dailyData.value.forEach((item, idx) => {
+        const values = [
+          idx + 1,
+          item.kode_cabang,
+          item.nama_cabang,
+          item.hari,
+          item.tanggal ? format(new Date(item.tanggal), "dd-MM-yyyy") : "",
+          item.omset,
+          item.retur_jual,
+          ...(showBiaya ? [item.biaya_platform] : []),
+          item.total_omset,
+          item.so_open_today,
+          item.so_open_30days,
+          item.so_open_accum,
+          item.piutang_today,
+          item.piutang_30days,
+          item.piutang_accum,
+          item.target_bulanan,
+          Number((item.ach || 0).toFixed(2)),
+        ];
+        const row = sheet.addRow(values);
+        row.eachCell({ includeEmpty: true }, (cell, i) => {
+          applyData(cell, cols[i - 1]?.align ?? "left");
+          if (cols[i - 1]?.fmt) cell.numFmt = cols[i - 1].fmt!;
         });
+      });
+
+      // Grand total
+      const dt = dailyTotalSummary.value;
+      const totalValues = [
+        "GRAND TOTAL :",
+        "",
+        "",
+        "",
+        "",
+        dt.omset,
+        dt.retur_jual,
+        ...(showBiaya ? [dt.biaya_platform] : []),
+        dt.total_omset,
+        dt.so_open_today,
+        dt.so_open_30days,
+        dt.so_open_accum,
+        dt.piutang_today,
+        dt.piutang_30days,
+        dt.piutang_accum,
+        dt.target_bulanan,
+        Number((dt.ach || 0).toFixed(2)),
+      ];
+      const totalRowNum = sheet.rowCount + 1;
+      const totalRow = sheet.addRow(totalValues);
+      sheet.mergeCells(`A${totalRowNum}:E${totalRowNum}`);
+      totalRow.height = 22;
+      totalRow.eachCell({ includeEmpty: true }, (cell, i) => {
+        applyTotal(cell, i <= 5 ? "right" : cols[i - 1]?.align ?? "right");
+        if (cols[i - 1]?.fmt) cell.numFmt = cols[i - 1].fmt!;
+      });
+
+      sheet.views = [{ state: "frozen", xSplit: 0, ySplit: 1 }];
+
+      // ══════════════════════════════════════════════════════
+      // TAB WEEKLY
+      // ══════════════════════════════════════════════════════
+    } else if (activeTab.value === "weekly") {
+      const sheet = workbook.addWorksheet("Weekly");
+
+      const weekColors = ["FFBBDEFB", "FFC8E6C9", "FFFFE0B2", "FFE1BEE7", "FFFFCDD2", "FFF5F5F5"];
+
+      sheet.columns = [
+        { width: 5 },
+        { width: 13 },
+        { width: 22 },
+        ...Array(5)
+          .fill(null)
+          .flatMap(() => [{ width: 16 }, { width: 16 }, { width: 10 }]),
+        { width: 16 },
+        { width: 16 },
+        { width: 10 },
+      ];
+
+      // Header row 1 (grup)
+      const row1 = sheet.addRow([
+        "No",
+        "Kode",
+        "Nama Cabang",
+        "Minggu 1",
+        "",
+        "",
+        "Minggu 2",
+        "",
+        "",
+        "Minggu 3",
+        "",
+        "",
+        "Minggu 4",
+        "",
+        "",
+        "Minggu 5",
+        "",
+        "",
+        "Total",
+        "",
+        "",
+      ]);
+      row1.height = 24;
+      row1.eachCell({ includeEmpty: true }, (cell, i) => {
+        const grpIdx = Math.floor((i - 4) / 3);
+        const bg = i <= 3 ? "FFE3F2FD" : weekColors[Math.min(grpIdx, 5)];
+        applyHeader(cell, bg);
+      });
+      // Merge grup
+      sheet.mergeCells("A1:A2");
+      sheet.mergeCells("B1:B2");
+      sheet.mergeCells("C1:C2");
+      for (let w = 0; w < 6; w++) {
+        const startCol = 4 + w * 3;
+        const sc = String.fromCharCode(64 + startCol);
+        const ec = String.fromCharCode(64 + startCol + 2);
+        sheet.mergeCells(`${sc}1:${ec}1`);
       }
-      break;
 
-    case "monthly":
-      if (monthlyData.value.length === 0)
-        return toast.warning("Tidak ada data Bulanan untuk diekspor.");
-      sheetName = "Monthly";
-      fileName = `Laporan_Bulanan_${filters.tahun}-${filters.bulan}.xlsx`;
-      dataToExport = monthlyData.value.map((item, index) => ({
-        No: index + 1,
-        Tahun: item.tahun,
-        Bulan: monthOptions.find((m) => m.value === item.bulan)?.title || item.bulan,
-        "Kode Cabang": item.kode_cabang,
-        "Nama Cabang": item.nama_cabang,
-        Omset: item.nominal,
-        Target: item.target,
-        "Ach (%)": item.ach,
-      }));
-      // Tambahkan Grand Total
-      if (monthlyTotals && Object.keys(monthlyTotals).length > 0) {
-        dataToExport.push({}); // Baris kosong
-        dataToExport.push({
-          No: "",
-          Tahun: "",
-          Bulan: "",
-          "Kode Cabang": "",
-          "Nama Cabang": "GRAND TOTAL:",
-          Omset: monthlyTotals.nominal, // <-- Akses properti dari monthlyTotals
-          Target: monthlyTotals.target,
-          "Ach (%)": monthlyTotals.ach,
-        });
-      }
-      break;
+      // Header row 2 (sub)
+      const subHeaders = [
+        "",
+        "",
+        "",
+        ...Array(6)
+          .fill(null)
+          .flatMap(() => ["Omset", "Target", "Ach(%)"]),
+      ];
+      const row2 = sheet.addRow(subHeaders);
+      row2.height = 20;
+      row2.eachCell({ includeEmpty: true }, (cell, i) => {
+        const grpIdx = Math.floor((i - 4) / 3);
+        const bg =
+          i <= 3
+            ? "FFE3F2FD"
+            : weekColors[Math.min(grpIdx, 5)]
+                .replace("BB", "E3")
+                .replace("C8", "F1")
+                .replace("FF", "FF")
+                .replace("E1", "F3")
+                .replace("FF", "FF");
+        applyHeader(cell, bg);
+      });
 
-    case "ytd":
-      if (ytdData.value.length === 0)
-        return toast.warning("Tidak ada data Year to Date untuk diekspor.");
-      sheetName = "YearToDate";
-      fileName = `Laporan_Ytd_${filters.cabang}_${filters.tahun}.xlsx`;
-      dataToExport = ytdData.value.map((item, index) => ({
-        No: index + 1,
-        Tahun: item.tahun,
-        Bulan: monthOptions.find((m) => m.value === item.bulan)?.title || item.bulan,
-        "Kode Cabang": item.kode_cabang, // Tambahkan ini jika perlu
-        "Nama Cabang": item.nama_cabang, // Tambahkan ini jika perlu
-        "Total Omset": item.nominal,
-        Target: item.target,
-        "Ach (%)": item.ach,
-      }));
-      // Tambahkan Grand Total
-      if (ytdTotals && Object.keys(ytdTotals).length > 0) {
-        dataToExport.push({}); // Baris kosong
-        dataToExport.push({
-          No: "",
-          Tahun: "",
-          Bulan: "GRAND TOTAL:",
-          "Kode Cabang": "",
-          "Nama Cabang": "",
-          "Total Omset": ytdTotals.nominal, // <-- Akses properti dari ytdTotals
-          Target: ytdTotals.target,
-          "Ach (%)": ytdTotals.ach,
-        });
-      }
-      break;
-
-    default:
-      toast.error("Tab tidak valid untuk ekspor.");
-      return;
-  }
-
-  // --- Buat Worksheet & Download ---
-  try {
-    toast.info(`Membuat file Excel untuk tab ${sheetName}...`);
-    if (dataToExport.length === 0) {
-      toast.error("Tidak ada data sama sekali untuk diekspor.");
-      return;
-    }
-    worksheet = XLSX.utils.json_to_sheet(dataToExport);
-
-    // Optional: Atur lebar kolom (bisa disesuaikan)
-    const firstDataRow = dataToExport.find((row) => row.No === 1) || dataToExport[0];
-    const cols = Object.keys(firstDataRow).map((key) => ({
-      wch: key.includes("Nama")
-        ? 30
-        : key.includes("Cabang")
-        ? 15
-        : key.includes("Tanggal")
-        ? 12
-        : key.includes("%")
-        ? 8
-        : 12,
-    }));
-    if (worksheet) worksheet["!cols"] = cols;
-
-    // Atur format angka untuk kolom numerik (contoh)
-    dataToExport.forEach((_row, r) => {
-      // Cek jika baris BUKAN baris kosong atau label GRAND TOTAL
-      const rowData = dataToExport[r];
-      const isDataRow =
-        rowData &&
-        Object.values(rowData).some((val) => val !== "" && !String(val).includes("GRAND TOTAL"));
-
-      if (isDataRow) {
-        // Ambil keys dari baris ini atau baris data pertama
-        const keys = Object.keys(rowData);
-        keys.forEach((key, c) => {
-          const cellRef = XLSX.utils.encode_cell({ r: r + 1, c }); // +1 karena header otomatis json_to_sheet
-
-          // --- PERBAIKAN: Tambahkan cek worksheet && worksheet[cellRef] ---
-          if (worksheet && worksheet[cellRef]) {
-            const cellValue = worksheet[cellRef].v;
-
-            if (typeof cellValue === "number") {
-              if (key.includes("%")) {
-                worksheet[cellRef].z = "0.00%";
-                worksheet[cellRef].t = "n";
-                // Cek jika nilai belum dibagi 100 (misalnya dari total summary)
-                if (cellValue > 1 || cellValue < -1) {
-                  worksheet[cellRef].v = cellValue / 100;
-                }
-              } else if (
-                !key.toLowerCase().includes("no") &&
-                !key.toLowerCase().includes("tahun") &&
-                !key.toLowerCase().includes("bulan")
-              ) {
-                worksheet[cellRef].z = "#,##0";
-                worksheet[cellRef].t = "n";
-              }
-            } else if (
-              key.includes("%") &&
-              typeof cellValue === "string" &&
-              cellValue.endsWith("%")
-            ) {
-              // Jika sudah string dengan %, coba konversi
-              const numValue = parseFloat(cellValue.replace("%", ""));
-              if (!isNaN(numValue)) {
-                worksheet[cellRef].v = numValue / 100;
-                worksheet[cellRef].z = "0.00%";
-                worksheet[cellRef].t = "n";
-              }
-            }
+      // Data rows
+      weeklyData.value.forEach((item, idx) => {
+        const achW = (n: number, t: number) => Number((t > 0 ? (n / t) * 100 : 0).toFixed(2));
+        const row = sheet.addRow([
+          idx + 1,
+          item.kode_cabang,
+          item.nama_cabang,
+          item.nominal_w1,
+          item.target_w1,
+          achW(item.nominal_w1, item.target_w1),
+          item.nominal_w2,
+          item.target_w2,
+          achW(item.nominal_w2, item.target_w2),
+          item.nominal_w3,
+          item.target_w3,
+          achW(item.nominal_w3, item.target_w3),
+          item.nominal_w4,
+          item.target_w4,
+          achW(item.nominal_w4, item.target_w4),
+          item.nominal_w5,
+          item.target_w5,
+          achW(item.nominal_w5, item.target_w5),
+          item.total_nominal,
+          item.total_target,
+          achW(item.total_nominal, item.total_target),
+        ]);
+        row.eachCell({ includeEmpty: true }, (cell, i) => {
+          applyData(cell, i <= 3 ? (i === 1 ? "center" : "left") : "right");
+          if (i > 3) {
+            const posInGrp = (i - 4) % 3;
+            cell.numFmt = posInGrp === 2 ? '0.00"%"' : "#,##0";
           }
-          // -----------------------------------------------------------------
         });
-      }
-    });
+      });
 
-    if (!worksheet) {
-      throw new Error("Worksheet gagal dibuat.");
+      // Grand total
+      const wt = weeklyTotalSummary.value;
+      const achW = (n: number, t: number) => Number((t > 0 ? (n / t) * 100 : 0).toFixed(2));
+      const totalRowNum = sheet.rowCount + 1;
+      const totalRow = sheet.addRow([
+        "GRAND TOTAL :",
+        "",
+        "",
+        wt.nominal_w1,
+        wt.target_w1,
+        achW(wt.nominal_w1, wt.target_w1),
+        wt.nominal_w2,
+        wt.target_w2,
+        achW(wt.nominal_w2, wt.target_w2),
+        wt.nominal_w3,
+        wt.target_w3,
+        achW(wt.nominal_w3, wt.target_w3),
+        wt.nominal_w4,
+        wt.target_w4,
+        achW(wt.nominal_w4, wt.target_w4),
+        wt.nominal_w5,
+        wt.target_w5,
+        achW(wt.nominal_w5, wt.target_w5),
+        wt.total_nominal,
+        wt.total_target,
+        achW(wt.total_nominal, wt.total_target),
+      ]);
+      sheet.mergeCells(`A${totalRowNum}:C${totalRowNum}`);
+      totalRow.height = 22;
+      totalRow.eachCell({ includeEmpty: true }, (cell, i) => {
+        applyTotal(cell, i <= 3 ? "right" : "right");
+        if (i > 3) {
+          const posInGrp = (i - 4) % 3;
+          cell.numFmt = posInGrp === 2 ? '0.00"%"' : "#,##0";
+        }
+      });
+
+      sheet.views = [{ state: "frozen", xSplit: 3, ySplit: 2 }];
+
+      // ══════════════════════════════════════════════════════
+      // TAB MONTHLY
+      // ══════════════════════════════════════════════════════
+    } else if (activeTab.value === "monthly") {
+      const sheet = workbook.addWorksheet("Monthly");
+      const cols = [
+        { header: "Tahun", width: 8, align: "center" as const },
+        { header: "Bulan", width: 10, align: "center" as const },
+        { header: "Kode Cabang", width: 13, align: "center" as const },
+        { header: "Nama Cabang", width: 24, align: "left" as const },
+        { header: "Omset", width: 20, align: "right" as const, fmt: "#,##0" },
+        { header: "Target", width: 20, align: "right" as const, fmt: "#,##0" },
+        { header: "Ach (%)", width: 10, align: "right" as const, fmt: '0.00"%"' },
+      ];
+      sheet.columns = cols.map((c) => ({ width: c.width }));
+      const headerRow = sheet.addRow(cols.map((c) => c.header));
+      headerRow.height = 22;
+      headerRow.eachCell({ includeEmpty: true }, (cell) => applyHeader(cell));
+
+      monthlyData.value.forEach((item) => {
+        const row = sheet.addRow([
+          item.tahun,
+          monthOptions.find((m) => m.value === item.bulan)?.title || item.bulan,
+          item.kode_cabang,
+          item.nama_cabang,
+          item.nominal,
+          item.target,
+          Number((item.ach || 0).toFixed(2)),
+        ]);
+        row.eachCell({ includeEmpty: true }, (cell, i) => {
+          applyData(cell, cols[i - 1]?.align ?? "left");
+          if (cols[i - 1]?.fmt) cell.numFmt = cols[i - 1].fmt!;
+        });
+      });
+
+      const mt = monthlyTotalSummary.value;
+      const totalRowNum = sheet.rowCount + 1;
+      const totalRow = sheet.addRow([
+        "",
+        "",
+        "",
+        "GRAND TOTAL :",
+        mt.nominal,
+        mt.target,
+        Number((mt.ach || 0).toFixed(2)),
+      ]);
+      totalRow.height = 22;
+      totalRow.eachCell({ includeEmpty: true }, (cell, i) => {
+        applyTotal(cell, i <= 4 ? (i === 4 ? "right" : "left") : "right");
+        if (cols[i - 1]?.fmt) cell.numFmt = cols[i - 1].fmt!;
+      });
+      sheet.views = [{ state: "frozen", xSplit: 0, ySplit: 1 }];
+
+      // ══════════════════════════════════════════════════════
+      // TAB YTD
+      // ══════════════════════════════════════════════════════
+    } else if (activeTab.value === "ytd") {
+      const sheet = workbook.addWorksheet("Year to Date");
+      const cols = [
+        { header: "No", width: 5, align: "center" as const },
+        { header: "Tahun", width: 8, align: "center" as const },
+        { header: "Bulan", width: 14, align: "center" as const },
+        { header: "Kode Cabang", width: 13, align: "center" as const },
+        { header: "Nama Cabang", width: 24, align: "left" as const },
+        { header: "Total Omset", width: 20, align: "right" as const, fmt: "#,##0" },
+        { header: "Target", width: 20, align: "right" as const, fmt: "#,##0" },
+        { header: "Ach (%)", width: 10, align: "right" as const, fmt: '0.00"%"' },
+      ];
+      sheet.columns = cols.map((c) => ({ width: c.width }));
+      const headerRow = sheet.addRow(cols.map((c) => c.header));
+      headerRow.height = 22;
+      headerRow.eachCell({ includeEmpty: true }, (cell) => applyHeader(cell));
+
+      ytdData.value.forEach((item, idx) => {
+        const row = sheet.addRow([
+          idx + 1,
+          item.tahun,
+          monthOptions.find((m) => m.value === item.bulan)?.title || item.bulan,
+          item.kode_cabang,
+          item.nama_cabang,
+          item.nominal,
+          item.target,
+          Number((item.ach || 0).toFixed(2)),
+        ]);
+        row.eachCell({ includeEmpty: true }, (cell, i) => {
+          applyData(cell, cols[i - 1]?.align ?? "left");
+          if (cols[i - 1]?.fmt) cell.numFmt = cols[i - 1].fmt!;
+        });
+      });
+
+      const yt = ytdTotalSummary.value;
+      const totalRowNum = sheet.rowCount + 1;
+      const totalRow = sheet.addRow([
+        "",
+        "",
+        "",
+        "",
+        "GRAND TOTAL :",
+        yt.nominal,
+        yt.target,
+        Number((yt.ach || 0).toFixed(2)),
+      ]);
+      totalRow.height = 22;
+      totalRow.eachCell({ includeEmpty: true }, (cell, i) => {
+        applyTotal(cell, i <= 5 ? (i === 5 ? "right" : "left") : "right");
+        if (cols[i - 1]?.fmt) cell.numFmt = cols[i - 1].fmt!;
+      });
+      sheet.views = [{ state: "frozen", xSplit: 0, ySplit: 1 }];
     }
 
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, sheetName);
-    XLSX.writeFile(workbook, fileName);
-    toast.success(`File ${fileName} berhasil diekspor.`);
+    // ── Download ───────────────────────────────────────────
+    const tabNames: Record<string, string> = {
+      daily: `Harian_${filters.cabang}_${filters.tahun}-${String(filters.bulan).padStart(2, "0")}`,
+      weekly: `Mingguan_${filters.tahun}-${String(filters.bulan).padStart(2, "0")}`,
+      monthly: `Bulanan_${filters.tahun}-${String(filters.bulan).padStart(2, "0")}`,
+      ytd: `YTD_${filters.cabang}_${filters.tahun}`,
+    };
+    const buffer = await workbook.xlsx.writeBuffer();
+    const blob = new Blob([buffer], {
+      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `Laporan_Achievement_${tabNames[activeTab.value] ?? activeTab.value}.xlsx`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast.success("Data berhasil diekspor.");
   } catch (error) {
-    toast.error("Gagal membuat file Excel.");
-    console.error("Export Excel error:", error);
+    console.error(error);
+    toast.error("Gagal mengekspor data.");
   }
 };
 

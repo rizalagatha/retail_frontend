@@ -711,8 +711,16 @@ const formatAgendaDate = (dateStr: string) => {
 };
 
 const getEventRank = (evt: AgendaItem) => {
-  if (evt.is_completed) return 2;
+  // 1. Paling bawah (Prioritas terendah): Sudah selesai (Coret abu-abu)
+  if (evt.is_completed) return 3;
+
+  // 2. Di atas yang selesai: SPK Produksi
+  if (evt.tipe === "SPK") return 2;
+
+  // 3. Di atas SPK: SO yang sudah siap kirim (Scan Ready hijau)
   if (evt.is_scan_ready) return 1;
+
+  // 4. Paling atas (Prioritas tertinggi): SO Toko yang masih Open/Menunggu (Biru)
   return 0;
 };
 
@@ -1448,11 +1456,15 @@ onUnmounted(() => {
         <div class="cal-legend-bar">
           <div class="cal-legend-item">
             <span class="cal-legend-dot" style="background: #1565c0"></span>
-            <span>Open</span>
+            <span>SO Open</span>
           </div>
           <div class="cal-legend-item">
             <span class="cal-legend-dot" style="background: #2e7d32"></span>
-            <span>Scan Ready</span>
+            <span>SO Scan Ready</span>
+          </div>
+          <div v-if="authStore.user?.cabang === 'KDC'" class="cal-legend-item">
+            <span class="cal-legend-dot" style="background: #8e24aa"></span>
+            <span>SPK Produksi</span>
           </div>
           <div class="cal-legend-item">
             <span class="cal-legend-dot" style="background: #9e9e9e"></span>
@@ -1510,20 +1522,28 @@ onUnmounted(() => {
                     :class="
                       evt.is_completed
                         ? 'bg-grey-lighten-2 text-grey-darken-1'
+                        : evt.tipe === 'SPK'
+                        ? 'ep-spk'
                         : evt.is_scan_ready
                         ? 'ep-so-ready'
                         : 'ep-so'
                     "
                     :style="evt.is_completed ? 'text-decoration: line-through; opacity: 0.8;' : ''"
                     @click.stop="
-                      router.push(`/transaksi/penjualan/surat-pesanan/ubah/${evt.nomor}`);
                       showAgendaDialog = false;
+                      if (evt.tipe === 'SPK') {
+                        router.push('/gudang-dc/operasional/dasbor-spk');
+                      } else {
+                        router.push(`/transaksi/penjualan/surat-pesanan/ubah/${evt.nomor}`);
+                      }
                     "
                     :title="evt.customer + ' (' + evt.nomor + ')'"
                   >
                     <v-icon size="9">{{
                       evt.is_completed
                         ? "mdi-check-circle"
+                        : evt.tipe === "SPK"
+                        ? "mdi-tshirt-crew"
                         : evt.is_scan_ready
                         ? "mdi-barcode-scan"
                         : "mdi-cash-register"
@@ -1625,7 +1645,11 @@ onUnmounted(() => {
               @click="
                 showDayDetailDialog = false;
                 showAgendaDialog = false;
-                router.push(`/transaksi/penjualan/surat-pesanan/ubah/${evt.nomor}`);
+                if (evt.tipe === 'SPK') {
+                  router.push('/gudang-dc/operasional/dasbor-spk');
+                } else {
+                  router.push(`/transaksi/penjualan/surat-pesanan/ubah/${evt.nomor}`);
+                }
               "
             >
               <div
@@ -1635,6 +1659,8 @@ onUnmounted(() => {
                   borderRadius: '8px',
                   background: evt.is_completed
                     ? '#F5F5F5'
+                    : evt.tipe === 'SPK'
+                    ? '#F3E5F5'
                     : evt.is_scan_ready
                     ? '#E8F5E9'
                     : '#E3F2FD',
@@ -1646,11 +1672,21 @@ onUnmounted(() => {
               >
                 <v-icon
                   size="16"
-                  :color="evt.is_completed ? '#9E9E9E' : evt.is_scan_ready ? '#2E7D32' : '#1565C0'"
+                  :color="
+                    evt.is_completed
+                      ? '#9E9E9E'
+                      : evt.tipe === 'SPK'
+                      ? '#8E24AA'
+                      : evt.is_scan_ready
+                      ? '#2E7D32'
+                      : '#1565C0'
+                  "
                 >
                   {{
                     evt.is_completed
                       ? "mdi-check-circle"
+                      : evt.tipe === "SPK"
+                      ? "mdi-tshirt-crew"
                       : evt.is_scan_ready
                       ? "mdi-barcode-scan"
                       : "mdi-cash-register"
@@ -1660,14 +1696,7 @@ onUnmounted(() => {
 
               <div style="flex: 1; min-width: 0">
                 <div
-                  style="
-                    font-size: 13px;
-                    font-weight: 600;
-                    white-space: nowrap;
-                    overflow: hidden;
-                    text-overflow: ellipsis;
-                    margin-bottom: 3px;
-                  "
+                  style="font-size: 13px; font-weight: 600; margin-bottom: 3px; line-height: 1.3"
                   :class="
                     evt.is_completed
                       ? 'text-grey text-decoration-line-through'
@@ -1676,6 +1705,7 @@ onUnmounted(() => {
                 >
                   {{ evt.customer || "Umum" }}
                 </div>
+
                 <div style="display: flex; align-items: center; gap: 6px">
                   <span
                     :style="{
@@ -1685,17 +1715,21 @@ onUnmounted(() => {
                       borderRadius: '4px',
                       background: evt.is_completed
                         ? '#F5F5F5'
+                        : evt.tipe === 'SPK'
+                        ? '#F3E5F5'
                         : evt.is_scan_ready
                         ? '#E8F5E9'
                         : '#E3F2FD',
                       color: evt.is_completed
                         ? '#9E9E9E'
+                        : evt.tipe === 'SPK'
+                        ? '#8E24AA'
                         : evt.is_scan_ready
                         ? '#2E7D32'
                         : '#1565C0',
                     }"
                   >
-                    SO
+                    {{ evt.tipe || "SO" }}
                   </span>
                   <span style="font-size: 10px; color: #aaa">{{ evt.nomor }}</span>
                   <v-chip
@@ -1705,9 +1739,8 @@ onUnmounted(() => {
                     variant="flat"
                     class="font-weight-bold"
                     style="height: 16px; font-size: 9px"
+                    >Selesai</v-chip
                   >
-                    Selesai
-                  </v-chip>
                   <v-chip
                     v-else-if="evt.is_scan_ready"
                     size="x-small"
@@ -1715,16 +1748,18 @@ onUnmounted(() => {
                     variant="flat"
                     class="font-weight-bold"
                     style="height: 16px; font-size: 9px"
+                    >Scan Ready</v-chip
                   >
-                    Scan Ready
-                  </v-chip>
                 </div>
                 <div
                   v-if="evt.rincian_dtf"
                   class="text-caption text-grey-darken-1 text-truncate mt-1"
                   style="font-size: 10px !important"
                 >
-                  <v-icon size="12" class="mr-1">mdi-tshirt-crew</v-icon> {{ evt.rincian_dtf }}
+                  <v-icon size="12" class="mr-1">
+                    {{ evt.tipe === "SPK" ? "mdi-factory" : "mdi-printer-3d-nozzle" }}
+                  </v-icon>
+                  {{ evt.rincian_dtf }}
                 </div>
               </div>
               <v-icon size="16" color="#ddd">mdi-chevron-right</v-icon>
@@ -1976,6 +2011,10 @@ onUnmounted(() => {
 .ep-dtf-2 {
   background: #fff8e1;
   color: #f57f17;
+}
+.ep-spk {
+  background: #f3e5f5;
+  color: #8e24aa;
 }
 
 .more-badge {

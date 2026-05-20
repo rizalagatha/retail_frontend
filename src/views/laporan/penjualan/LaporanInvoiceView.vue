@@ -5,7 +5,7 @@ import { useAuthStore } from "@/stores/authStore";
 import api from "@/services/api";
 import { format } from "date-fns";
 import PageLayout from "@/components/PageLayout.vue";
-import * as XLSX from "xlsx";
+import ExcelJS from "exceljs";
 import axios, { type AxiosError } from "axios";
 import AppDataTable from "@/components/AppDataTable.vue";
 import { formatRupiah } from "@/utils/formatRupiah";
@@ -292,12 +292,210 @@ const clearGudangFilter = () => {
   }
 };
 
-const exportToExcel = () => {
+const exportToExcel = async () => {
   if (masterData.value.length === 0) return toast.warning("Tidak ada data untuk diekspor.");
-  const ws = XLSX.utils.json_to_sheet(masterData.value);
-  const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, `Laporan`);
-  XLSX.writeFile(wb, `LaporanInvoice_${reportType.value}.xlsx`);
+  toast.info("Menyiapkan file export...");
+
+  try {
+    const ExcelJS = (await import("exceljs")).default;
+    const workbook = new ExcelJS.Workbook();
+    const sheet = workbook.addWorksheet(`Laporan ${reportType.value}`);
+
+    const isKDC = CABKAOS === "KDC";
+    const rupiah = (val: number) => Number(val || 0);
+
+    // ── Definisi kolom berdasarkan reportType ──────────────
+    type ColDef = {
+      header: string;
+      key: string;
+      width: number;
+      align: ExcelJS.Alignment["horizontal"];
+      format?: "rupiah" | "tanggal" | "number";
+    };
+
+    let colDefs: ColDef[] = [];
+
+    if (reportType.value === "tanggal") {
+      colDefs = [
+        { header: "Cabang/Kode", key: "Kode", width: 14, align: "center" },
+        { header: "Tanggal", key: "Tanggal", width: 14, align: "center", format: "tanggal" },
+        { header: "Nominal", key: "Nominal", width: 20, align: "right", format: "rupiah" },
+        ...(isKDC
+          ? [
+              {
+                header: "HPP",
+                key: "Hpp",
+                width: 20,
+                align: "right" as const,
+                format: "rupiah" as const,
+              },
+              {
+                header: "Laba",
+                key: "Laba",
+                width: 20,
+                align: "right" as const,
+                format: "rupiah" as const,
+              },
+            ]
+          : []),
+        { header: "Donasi", key: "Donasi", width: 16, align: "right", format: "rupiah" },
+        { header: "Pundi Amal", key: "PundiAmal", width: 16, align: "right", format: "rupiah" },
+      ];
+    } else if (reportType.value === "customer") {
+      colDefs = [
+        { header: "Kode", key: "Kode", width: 12, align: "center" },
+        { header: "Nama", key: "Nama", width: 35, align: "left" },
+        { header: "Level", key: "level_nama", width: 18, align: "left" },
+        { header: "Alamat", key: "Alamat", width: 40, align: "left" },
+        { header: "Kota", key: "Kota", width: 18, align: "left" },
+        { header: "Nominal", key: "Nominal", width: 20, align: "right", format: "rupiah" },
+        ...(isKDC
+          ? [
+              {
+                header: "HPP",
+                key: "Hpp",
+                width: 20,
+                align: "right" as const,
+                format: "rupiah" as const,
+              },
+              {
+                header: "Laba",
+                key: "Laba",
+                width: 20,
+                align: "right" as const,
+                format: "rupiah" as const,
+              },
+            ]
+          : []),
+        { header: "Donasi", key: "Donasi", width: 16, align: "right", format: "rupiah" },
+        { header: "Pundi Amal", key: "PundiAmal", width: 16, align: "right", format: "rupiah" },
+      ];
+    } else {
+      // level
+      colDefs = [
+        { header: "Kode", key: "Kode", width: 10, align: "center" },
+        { header: "Level", key: "Level", width: 25, align: "left" },
+        { header: "Qty", key: "Qty", width: 12, align: "right", format: "number" },
+        { header: "Nominal", key: "Nominal", width: 20, align: "right", format: "rupiah" },
+        ...(isKDC
+          ? [
+              {
+                header: "HPP",
+                key: "Hpp",
+                width: 20,
+                align: "right" as const,
+                format: "rupiah" as const,
+              },
+              {
+                header: "Laba",
+                key: "Laba",
+                width: 20,
+                align: "right" as const,
+                format: "rupiah" as const,
+              },
+            ]
+          : []),
+        { header: "Donasi", key: "Donasi", width: 16, align: "right", format: "rupiah" },
+        { header: "Pundi Amal", key: "PundiAmal", width: 16, align: "right", format: "rupiah" },
+      ];
+    }
+
+    // Set lebar kolom
+    sheet.columns = colDefs.map((c) => ({ width: c.width }));
+
+    // ── Header row ─────────────────────────────────────────
+    const headerRow = sheet.addRow(colDefs.map((c) => c.header));
+    headerRow.height = 22;
+    headerRow.eachCell({ includeEmpty: true }, (cell) => {
+      cell.font = { bold: true, color: { argb: "FF0D47A1" } };
+      cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFE3F2FD" } };
+      cell.alignment = { horizontal: "center", vertical: "middle" };
+      cell.border = {
+        top: { style: "thin" },
+        left: { style: "thin" },
+        bottom: { style: "thin" },
+        right: { style: "thin" },
+      };
+    });
+
+    // ── Data rows ──────────────────────────────────────────
+    masterData.value.forEach((item) => {
+      const rowValues = colDefs.map((c) => {
+        const raw = item[c.key];
+        if (c.format === "tanggal") {
+          return raw ? format(new Date(String(raw)), "dd/MM/yyyy") : "";
+        }
+        if (c.format === "rupiah" || c.format === "number") {
+          return Number(raw || 0);
+        }
+        return raw ?? "";
+      });
+
+      const dataRow = sheet.addRow(rowValues);
+      dataRow.eachCell({ includeEmpty: true }, (cell, colNum) => {
+        const colDef = colDefs[colNum - 1];
+        cell.border = {
+          top: { style: "thin" },
+          left: { style: "thin" },
+          bottom: { style: "thin" },
+          right: { style: "thin" },
+        };
+        cell.alignment = { horizontal: colDef?.align ?? "left", vertical: "middle" };
+
+        // Format angka rupiah di Excel
+        if (colDef?.format === "rupiah") {
+          cell.numFmt = "#,##0";
+        }
+      });
+    });
+
+    // ── Grand Total row ────────────────────────────────────
+    const totalKeys = ["Qty", "Nominal", "Hpp", "Laba", "Donasi", "PundiAmal"];
+    const totalRowValues = colDefs.map((c, i) => {
+      // Kolom terakhir sebelum angka → label TOTAL
+      const labelColIndex =
+        reportType.value === "tanggal" ? 1 : reportType.value === "customer" ? 4 : 1; // level → kolom Level
+      if (i === labelColIndex) return "TOTAL :";
+      if (totalKeys.includes(c.key)) {
+        return masterData.value.reduce((s, r) => s + (Number(r[c.key]) || 0), 0);
+      }
+      return "";
+    });
+
+    const totalRow = sheet.addRow(totalRowValues);
+    totalRow.height = 22;
+    totalRow.eachCell({ includeEmpty: true }, (cell, colNum) => {
+      const colDef = colDefs[colNum - 1];
+      cell.font = { bold: true };
+      cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFF5F5F5" } };
+      cell.border = {
+        top: { style: "medium" },
+        left: { style: "thin" },
+        bottom: { style: "medium" },
+        right: { style: "thin" },
+      };
+      cell.alignment = { horizontal: colDef?.align ?? "left", vertical: "middle" };
+      if (colDef?.format === "rupiah" || colDef?.format === "number") {
+        cell.numFmt = "#,##0";
+      }
+    });
+
+    // ── Download ───────────────────────────────────────────
+    const buffer = await workbook.xlsx.writeBuffer();
+    const blob = new Blob([buffer], {
+      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `LaporanInvoice_${reportType.value}_${filters.gudangKode}_${filters.startDate}_${filters.endDate}.xlsx`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast.success("Data berhasil diekspor.");
+  } catch (error) {
+    console.error(error);
+    toast.error("Gagal mengekspor data.");
+  }
 };
 
 onMounted(() => {

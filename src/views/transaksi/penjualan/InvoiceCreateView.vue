@@ -1512,16 +1512,22 @@ const calculateTotals = () => {
     grossSubTotal += (item.jumlah || 0) * (item.harga || 0);
     netItemTotal += item.total;
 
-    // [KUNCI PERBAIKAN: CEK DISKON GANDA]
-    // Pengecualian diskon:
-    // 1. Bukan Pengajuan Harga
-    // 2. TIDAK MEMILIKI diskon item (diskonRp == 0 DAN diskonPersen == 0)
-    // Jika sebuah item sudah punya diskon sendiri, HARAM hukumnya ikut dihitung di Diskon Faktur!
-    if (!item.noPengajuanHarga) {
-      const hasItemDiscount = (item.diskonRp || 0) > 0 || (item.diskonPersen || 0) > 0;
+    // [KUNCI PERBAIKAN]: Kecualikan Jasa Murni dan Pengajuan Harga dari basis diskon
+    // agar Invoice Baru konsisten dengan SO
+    const kodeUp = (item.kode || "").toUpperCase();
+    const namaUp = (item.nama || "").toUpperCase();
+    const isJasaMurni =
+      item.isJasa ||
+      kodeUp.startsWith("JASA") ||
+      kodeUp.startsWith("JS") ||
+      kodeUp.includes("FILE") ||
+      namaUp.includes("JASA") ||
+      namaUp.includes("ONGKIR") ||
+      namaUp.includes("DESAIN");
 
+    if (!item.noPengajuanHarga && !isJasaMurni) {
+      const hasItemDiscount = (item.diskonRp || 0) > 0 || (item.diskonPersen || 0) > 0;
       if (!hasItemDiscount) {
-        // Masukkan ke basis diskon faktur HANYA jika barang ini tidak punya diskon sendiri
         basisDiskonFaktur += item.total;
       }
     }

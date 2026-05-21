@@ -1150,6 +1150,14 @@ const onSoSelected = async (so: { Nomor: string }) => {
       dateline: soHeader.dateline || null,
       isOverdue: !!soHeader.isOverdue,
       overdueNote: soHeader.overdueNote || "",
+      diskonRp: Number(soHeader.so_disc || soHeader.diskonRp || 0),
+      diskonPersen1: Number(soHeader.so_disc1 || soHeader.diskonPersen1 || 0),
+      diskonPersen2: Number(soHeader.so_disc2 || soHeader.diskonPersen2 || 0),
+      nomorPromo: soHeader.so_pro_nomor || soHeader.nomorPromo || "",
+      namaPromo:
+        soHeader.so_pro_nama ||
+        soHeader.namaPromo ||
+        (soHeader.so_pro_nomor ? "Diskon Promo Bulanan" : ""),
     });
 
     header.dateline = soHeader.dateline || null;
@@ -1915,10 +1923,16 @@ const fetchActivePromos = async () => {
 // --- Method Baru: Cek Promo Real-time ---
 // Fungsi ini hanya menghitung potensi, TIDAK mengubah header.diskonRp secara langsung
 const checkRealtimePromoEligibility = () => {
-  if (header.nomorSo || authStore.user?.cabang === "KDC") {
+  if (
+    header.nomorSo ||
+    authStore.user?.cabang === "KDC" ||
+    authPins.pinDiskon1 ||
+    authPins.pinDiskon2 ||
+    (header.nomorPromo && header.nomorPromo.includes("PRO-2026-003"))
+  ) {
     promoNotification.value = "";
     potentialPromoDiscount.value = 0;
-    return;
+    return; // Berhenti total!
   }
   // Reset
   promoNotification.value = "";

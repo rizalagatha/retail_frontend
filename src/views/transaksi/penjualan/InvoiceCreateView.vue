@@ -1153,12 +1153,17 @@ const onSoSelected = async (so: { Nomor: string }) => {
       diskonRp: Number(soHeader.so_disc || soHeader.diskonRp || 0),
       diskonPersen1: Number(soHeader.so_disc1 || soHeader.diskonPersen1 || 0),
       diskonPersen2: Number(soHeader.so_disc2 || soHeader.diskonPersen2 || 0),
+
       nomorPromo: soHeader.so_pro_nomor || soHeader.nomorPromo || "",
       namaPromo:
         soHeader.so_pro_nama ||
         soHeader.namaPromo ||
         (soHeader.so_pro_nomor ? "Diskon Promo Bulanan" : ""),
     });
+
+    console.log("[SO Detail] diskonRp dari backend:", soHeader.so_disc, soHeader.diskonRp);
+    console.log("[SO Detail] diskonPersen1:", soHeader.so_disc1);
+    console.log("[SO Detail] nomorPromo:", soHeader.so_pro_nomor);
 
     header.dateline = soHeader.dateline || null;
 

@@ -765,15 +765,12 @@ const loadDataForEdit = async (nomor: string, silent = false) => {
     const p2Db = Number(footerData.diskonPersen2) || 0;
     const dbCombined = Number(footerData.diskonRp) || 0;
 
-    // =====================================================
-    // FIX:
-    // Jangan lakukan reverse formula.
-    // Karena diskonRp di DB sudah merupakan hasil final
-    // kombinasi promo + maps.
-    // =====================================================
-
-    if (p2Db > 0) {
-      baseManualDiscountRp.value = 0;
+    if (p2Db > 0 && p2Db < 100 && dbCombined > 0) {
+      // Reverse rumus untuk misahin Maps dari database
+      baseManualDiscountRp.value = Math.max(
+        0,
+        Math.round((dbCombined - (p2Db / 100) * tempTotalDisc) / (1 - p2Db / 100))
+      );
     } else {
       baseManualDiscountRp.value = dbCombined;
     }
@@ -927,6 +924,11 @@ const calculateTotals = async () => {
 
   if (!hasMemberAuth && !isManuallyRejected) {
     await checkRealtimePromoEligibility();
+  } else if (hasMemberAuth) {
+    // Jika ada otorisasi member, paksa hapus identitas promo agar tidak tersimpan ke DB
+    header.value.nomorPromo = "";
+    header.value.namaPromo = "";
+    promoNotification.value = "";
   }
 
   // ========================================================================
@@ -1533,7 +1535,6 @@ const executeSave = async () => {
       },
       footer: {
         ...footer.value,
-        diskonRp: baseManualDiscountRp.value, // ← KIRIM NILAI MURNI (tanpa maps)
       },
       details: items.value
         .filter((item) => item.kode || item.isCustomOrder)

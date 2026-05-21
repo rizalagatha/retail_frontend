@@ -924,11 +924,6 @@ const calculateTotals = async () => {
 
   if (!hasMemberAuth && !isManuallyRejected) {
     await checkRealtimePromoEligibility();
-  } else if (hasMemberAuth) {
-    // Jika ada otorisasi member, paksa hapus identitas promo agar tidak tersimpan ke DB
-    header.value.nomorPromo = "";
-    header.value.namaPromo = "";
-    promoNotification.value = "";
   }
 
   // ========================================================================

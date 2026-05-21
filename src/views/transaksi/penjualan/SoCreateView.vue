@@ -1533,7 +1533,10 @@ const executeSave = async () => {
         nomorAuth: header.value.nomorAuth,
         so_accdp: footer.value.pinTanpaDp || "",
       },
-      footer: footer.value,
+      footer: {
+        ...footer.value,
+        diskonRp: baseManualDiscountRp.value, // ← KIRIM NILAI MURNI (tanpa maps)
+      },
       details: items.value
         .filter((item) => item.kode || item.isCustomOrder)
         .map((item) => ({

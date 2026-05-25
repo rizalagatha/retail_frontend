@@ -58,6 +58,7 @@ interface Item {
   lastPin?: string;
   isCustomOrder?: boolean;
   fromBackend?: boolean;
+  isJasa?: boolean;
 }
 interface LinkedDp {
   nomor: string;
@@ -1530,9 +1531,11 @@ const calculateTotals = () => {
       namaUp.includes("ONGKIR") ||
       namaUp.includes("DESAIN");
 
-    if (!item.noPengajuanHarga && !isJasaMurni) {
+    // Hapus "!item.noPengajuanHarga" dari kondisi if di bawah ini:
+    if (!isJasaMurni) {
       const hasItemDiscount = (item.diskonRp || 0) > 0 || (item.diskonPersen || 0) > 0;
       if (!hasItemDiscount) {
+        // Masukkan ke basis diskon faktur HANYA jika barang ini tidak punya diskon item (F1) sendiri
         basisDiskonFaktur += item.total;
       }
     }

@@ -843,11 +843,10 @@ const isDiscountableItem = (item: SoItem) => {
     item.nama?.toLowerCase().includes("ongkir") ||
     item.nama?.toLowerCase().includes("desain");
 
-  // 2. [TAMBAHAN] Cek Pengajuan Harga
-  // Jika item memiliki No. Pengajuan Harga, maka TIDAK BOLEH kena diskon faktur
-  const isPengajuanHarga = !!item.noPengajuanHarga;
-
-  return !isJasaMurni && !isPengajuanHarga;
+  // [PERBAIKAN KUNCI]: Hapus blokir Pengajuan Harga di sini!
+  // Pengajuan Harga & Bordir TETAP DAPAT Diskon Member (P1) dan Maps (P2).
+  // Yang mutlak tidak dapat diskon faktur sama sekali hanyalah JASA MURNI.
+  return !isJasaMurni;
 };
 
 const applyMarketplaceMode = () => {

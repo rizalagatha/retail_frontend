@@ -138,7 +138,16 @@ export function useAutoPromo(
         return true;
 
       case "KATEGORI":
-        return (item.kategori || "").toUpperCase() === "REGULER";
+        // [FIX] Kombinasi: harus REGULER DAN mengandung kata kunci (jika diisi)
+        if ((item.kategori || "").toUpperCase() !== "REGULER") return false;
+        if (promo.pro_include_kata) {
+          const includeKatas = promo.pro_include_kata
+            .split(",")
+            .map((s) => s.trim().toUpperCase())
+            .filter(Boolean);
+          return includeKatas.some((k) => namaUp.includes(k));
+        }
+        return true; // REGULER tapi tanpa filter kata = semua REGULER lolos
 
       case "TIPE":
         // Filter berdasarkan kata kunci nama barang

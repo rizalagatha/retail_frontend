@@ -434,7 +434,10 @@ const fetchPublicStores = async () => {
 const fetchPromos = async () => {
   try {
     isLoadingPromo.value = true;
-    const response = await api.get(`/so/public/active-promos?cabang=K01`);
+    const today = new Date().toISOString().split("T")[0]; // "2026-06-01"
+    const response = await api.get("/so/public/active-promos", {
+      params: { cabang: "K01", tanggal: today },
+    });
     activePromos.value = response.data;
   } catch (error) {
     console.error("Gagal memuat promo:", error);

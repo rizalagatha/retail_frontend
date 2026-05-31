@@ -1,3 +1,7 @@
+import "@/lib/pivottable-setup";
+import "pivottable/dist/pivot.css";
+import "jquery-ui/dist/themes/base/jquery-ui.css";
+
 import { createApp } from "vue";
 import { createPinia } from "pinia";
 import App from "./App.vue";

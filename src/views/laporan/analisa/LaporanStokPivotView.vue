@@ -7,6 +7,8 @@ import api from "@/services/api";
 import PageLayout from "@/components/PageLayout.vue";
 import * as XLSX from "xlsx";
 import axios, { type AxiosError } from "axios";
+// jQuery, jquery-ui, pivottable di-setup global via src/lib/pivottable-setup.ts
+// yang di-import di main.ts — jangan import di sini agar urutan bundle terjamin
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 interface StokItem {
@@ -30,7 +32,6 @@ const MENU_ID = "507";
 
 // ─── State ───────────────────────────────────────────────────────────────────
 const allData = ref<StokItem[]>([]); // semua data dari API
-const pivotData = ref<StokItem[]>([]);
 const isLoading = ref(true);
 const isLoadingMore = ref(false);
 const cabangOptions = ref<CabangOption[]>([]);
@@ -67,30 +68,30 @@ const dynamicCols = computed(() => {
 
 // ─── PivotTable.js ────────────────────────────────────────────────────────────
 const renderPivot = async () => {
+  // Dua nextTick: v-show butuh dua siklus sebelum elemen benar-benar visible di DOM
   await nextTick();
   await nextTick();
 
   if (!pivotContainer.value || allData.value.length === 0) return;
 
-  const jQuery = (await import("jquery")).default;
-  window.jQuery = jQuery;
-  window.$ = jQuery;
-  await import("jquery-ui/dist/jquery-ui.js");
+  // jQuery & jquery-ui sudah di-load global via main.ts → pivottable-setup.ts
+  // Hanya pivottable yang perlu dynamic import (lazy, tidak masuk bundle utama)
   await import("pivottable");
 
-  const el = jQuery(pivotContainer.value);
+  // Gunakan window.$ yang sudah di-expose oleh pivottable-setup.ts
+  const el = window.$(pivotContainer.value);
   el.empty();
 
-  // Gunakan structuredClone — lebih aman dari JSON.parse/stringify untuk plain objects
-  // Hanya ambil field yang diperlukan, buang field Vue Proxy internals
-  const plainData = pivotData.value.map((row) => ({
+  // Buat plain objects — hindari Vue Proxy masuk ke pivottable
+  const plainData = allData.value.map((row) => ({
     Cabang: String(row.Cabang ?? ""),
     Nama: String(row.Nama ?? ""),
     Ukuran: String(row.Ukuran ?? ""),
     Stok: Number(row.Stok ?? 0),
-    // Kode sengaja tidak dimasukkan — terlalu banyak nilai unik
+    // Kode sengaja tidak dimasukkan — terlalu banyak nilai unik → crash
   }));
 
+  // Ambil config tersimpan dari localStorage (opsional)
   let savedConfig: Record<string, unknown> = {};
   try {
     const raw = localStorage.getItem("pivot_config_stok");
@@ -100,7 +101,7 @@ const renderPivot = async () => {
   }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  (el as any).pivotUI(
+  (window.$ as any)(pivotContainer.value).pivotUI(
     plainData,
     {
       rows: (savedConfig.rows as string[]) ?? ["Nama"],
@@ -108,8 +109,6 @@ const renderPivot = async () => {
       vals: (savedConfig.vals as string[]) ?? ["Stok"],
       aggregatorName: (savedConfig.aggregatorName as string) ?? "Sum",
       rendererName: (savedConfig.rendererName as string) ?? "Table",
-      // Sembunyikan Kode dari daftar field yang bisa di-pivot
-      // karena terlalu banyak nilai unik (1922) → crash saat render filter
       hiddenAttributes: ["Kode"],
       onRefresh: (config: Record<string, unknown>) => {
         localStorage.setItem("pivot_config_stok", JSON.stringify(config));
@@ -148,28 +147,24 @@ const loadMore = () => {
 // ─── Data Fetching ────────────────────────────────────────────────────────────
 const fetchData = async () => {
   isLoading.value = true;
-  displayedRows.value = PAGE_SIZE;
+  displayedRows.value = PAGE_SIZE; // reset scroll setiap fetch baru
   try {
-    // Fetch paralel — raw untuk tabel, agregat untuk pivot
-    const [rawRes, aggRes] = await Promise.all([
-      api.get("/laporan-stok-pivot", { params: filters }),
-      api.get("/laporan-stok-pivot/aggregated", { params: filters }),
-    ]);
-    allData.value = rawRes.data; // 31.946 baris — hanya untuk Data Mentah
-    pivotData.value = aggRes.data; // ~500-2000 baris — untuk pivot
+    const res = await api.get("/laporan-stok-pivot", { params: filters });
+    allData.value = res.data;
+
+    // Setelah data masuk, render pivot jika tab pivot aktif
+    if (activeTab.value === "pivot") {
+      await nextTick();
+      renderPivot();
+    }
   } catch (err) {
     const e = err as AxiosError<{ message?: string }>;
     toast.error(e.response?.data?.message || "Gagal memuat data.");
   } finally {
     isLoading.value = false;
-    if (activeTab.value === "pivot") {
-      await nextTick();
-      await nextTick();
-      renderPivot();
-    } else {
-      await nextTick();
-      setupObserver();
-    }
+    // Setup observer setelah DOM dirender
+    await nextTick();
+    setupObserver();
   }
 };
 
@@ -642,60 +637,5 @@ onUnmounted(() => {
   pointer-events: none;
   backdrop-filter: blur(4px);
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.18);
-}
-
-/* Pivot filter popup */
-:deep(.pvtFilterBox) {
-  font-size: 11px !important;
-  padding: 8px !important;
-  min-width: 200px !important;
-  border: 1px solid rgba(var(--v-theme-on-surface), 0.15) !important;
-  border-radius: 6px !important;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15) !important;
-  background: rgb(var(--v-theme-surface)) !important;
-}
-
-:deep(.pvtFilterBox input[type="text"]) {
-  width: 100% !important;
-  padding: 4px 6px !important;
-  margin-bottom: 6px !important;
-  border: 1px solid rgba(var(--v-theme-on-surface), 0.2) !important;
-  border-radius: 4px !important;
-  font-size: 11px !important;
-}
-
-:deep(.pvtFilterBox p) {
-  display: flex !important;
-  gap: 6px !important;
-  margin: 6px 0 0 !important;
-}
-
-:deep(.pvtFilterBox button) {
-  flex: 1 !important;
-  padding: 4px 8px !important;
-  border-radius: 4px !important;
-  border: 1px solid rgba(var(--v-theme-on-surface), 0.2) !important;
-  background: rgba(var(--v-theme-primary), 0.08) !important;
-  color: rgb(var(--v-theme-primary)) !important;
-  cursor: pointer !important;
-  font-size: 11px !important;
-  font-weight: 600 !important;
-}
-
-:deep(.pvtFilterBox button:hover) {
-  background: rgba(var(--v-theme-primary), 0.18) !important;
-}
-
-:deep(.pvtCheckContainer) {
-  max-height: 200px !important;
-  overflow-y: auto !important;
-  margin: 4px 0 !important;
-}
-
-:deep(.pvtCheckContainer p) {
-  margin: 2px 0 !important;
-  display: flex !important;
-  align-items: center !important;
-  gap: 5px !important;
 }
 </style>

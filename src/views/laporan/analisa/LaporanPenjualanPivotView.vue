@@ -75,14 +75,9 @@ const renderPivot = async () => {
   await nextTick();
   if (!pivotContainer.value || pivotData.value.length === 0) return;
 
-  const jQuery = (await import("jquery")).default;
-  window.jQuery = jQuery;
-  window.$ = jQuery;
-  await import("jquery-ui/dist/jquery-ui.js");
+  // jQuery & jquery-ui sudah di-load global via main.ts → pivottable-setup.ts
+  // Hanya pivottable yang lazy — tidak masuk bundle utama
   await import("pivottable");
-
-  const el = jQuery(pivotContainer.value);
-  el.empty();
 
   // Buat plain objects — hindari Vue Proxy masuk ke pivottable
   const plainData = pivotData.value.map((row) => ({
@@ -107,7 +102,7 @@ const renderPivot = async () => {
   }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  (el as any).pivotUI(
+  (window.$ as any)(pivotContainer.value).pivotUI(
     plainData,
     {
       rows: (savedConfig.rows as string[]) ?? ["Nama"],
@@ -115,7 +110,6 @@ const renderPivot = async () => {
       vals: (savedConfig.vals as string[]) ?? ["Nominal"],
       aggregatorName: (savedConfig.aggregatorName as string) ?? "Sum",
       rendererName: (savedConfig.rendererName as string) ?? "Table",
-      // Sembunyikan field yang terlalu granular / tidak berguna di pivot
       hiddenAttributes: [],
       onRefresh: (config: Record<string, unknown>) => {
         localStorage.setItem("pivot_config_penjualan", JSON.stringify(config));

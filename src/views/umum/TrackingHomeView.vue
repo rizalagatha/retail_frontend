@@ -434,7 +434,14 @@ const fetchPublicStores = async () => {
 const fetchPromos = async () => {
   try {
     isLoadingPromo.value = true;
-    const today = new Date().toISOString().split("T")[0]; // "2026-06-01"
+
+    // [FIX] Pakai format tanggal lokal (bukan UTC) agar tidak terjadi offset -7 jam
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, "0");
+    const day = String(now.getDate()).padStart(2, "0");
+    const today = `${year}-${month}-${day}`; // "2026-06-01" berdasarkan waktu lokal browser
+
     const response = await api.get("/so/public/active-promos", {
       params: { cabang: "K01", tanggal: today },
     });

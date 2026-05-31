@@ -52,6 +52,8 @@ export default defineConfig({
             if (id.includes('lottie-web')) return 'vendor-lottie';
             if (id.includes('html2canvas')) return 'vendor-canvas';
             if (id.includes('date-fns')) return 'vendor-date';
+            if (id.includes('jquery') || id.includes('pivottable')) return 'vendor-pivot';
+
             // Gabungkan library kecil lainnya menjadi satu file vendor
             return 'vendor-core';
           }

@@ -68,30 +68,17 @@ const dynamicCols = computed(() => {
 
 // ─── PivotTable.js ────────────────────────────────────────────────────────────
 const renderPivot = async () => {
-  // Dua nextTick: v-show butuh dua siklus sebelum elemen benar-benar visible di DOM
   await nextTick();
   await nextTick();
-
   if (!pivotContainer.value || allData.value.length === 0) return;
 
-  // jQuery & jquery-ui sudah di-load global via main.ts → pivottable-setup.ts
-  // Hanya pivottable yang perlu dynamic import (lazy, tidak masuk bundle utama)
-  await import("pivottable");
-
-  // Gunakan window.$ yang sudah di-expose oleh pivottable-setup.ts
-  const el = window.$(pivotContainer.value);
-  el.empty();
-
-  // Buat plain objects — hindari Vue Proxy masuk ke pivottable
   const plainData = allData.value.map((row) => ({
     Cabang: String(row.Cabang ?? ""),
     Nama: String(row.Nama ?? ""),
     Ukuran: String(row.Ukuran ?? ""),
     Stok: Number(row.Stok ?? 0),
-    // Kode sengaja tidak dimasukkan — terlalu banyak nilai unik → crash
   }));
 
-  // Ambil config tersimpan dari localStorage (opsional)
   let savedConfig: Record<string, unknown> = {};
   try {
     const raw = localStorage.getItem("pivot_config_stok");
@@ -101,21 +88,23 @@ const renderPivot = async () => {
   }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  (window.$ as any)(pivotContainer.value).pivotUI(
-    plainData,
-    {
-      rows: (savedConfig.rows as string[]) ?? ["Nama"],
-      cols: (savedConfig.cols as string[]) ?? ["Cabang"],
-      vals: (savedConfig.vals as string[]) ?? ["Stok"],
-      aggregatorName: (savedConfig.aggregatorName as string) ?? "Sum",
-      rendererName: (savedConfig.rendererName as string) ?? "Table",
-      hiddenAttributes: ["Kode"],
-      onRefresh: (config: Record<string, unknown>) => {
-        localStorage.setItem("pivot_config_stok", JSON.stringify(config));
+  (window.$ as any)(pivotContainer.value)
+    .empty()
+    .pivotUI(
+      plainData,
+      {
+        rows: (savedConfig.rows as string[]) ?? ["Nama"],
+        cols: (savedConfig.cols as string[]) ?? ["Cabang"],
+        vals: (savedConfig.vals as string[]) ?? ["Stok"],
+        aggregatorName: (savedConfig.aggregatorName as string) ?? "Sum",
+        rendererName: (savedConfig.rendererName as string) ?? "Table",
+        hiddenAttributes: ["Kode"],
+        onRefresh: (config: Record<string, unknown>) => {
+          localStorage.setItem("pivot_config_stok", JSON.stringify(config));
+        },
       },
-    },
-    true
-  );
+      true
+    );
 };
 
 // ─── Infinite Scroll ─────────────────────────────────────────────────────────

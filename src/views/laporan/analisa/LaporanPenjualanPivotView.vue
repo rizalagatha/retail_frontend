@@ -75,11 +75,6 @@ const renderPivot = async () => {
   await nextTick();
   if (!pivotContainer.value || pivotData.value.length === 0) return;
 
-  // jQuery & jquery-ui sudah di-load global via main.ts → pivottable-setup.ts
-  // Hanya pivottable yang lazy — tidak masuk bundle utama
-  await import("pivottable");
-
-  // Buat plain objects — hindari Vue Proxy masuk ke pivottable
   const plainData = pivotData.value.map((row) => ({
     Store: String(row.Store ?? ""),
     NamaStore: String(row.NamaStore ?? ""),
@@ -92,7 +87,6 @@ const renderPivot = async () => {
     Nominal: Number(row.Nominal ?? 0),
   }));
 
-  // Ambil config tersimpan
   let savedConfig: Record<string, unknown> = {};
   try {
     const raw = localStorage.getItem("pivot_config_penjualan");
@@ -102,21 +96,23 @@ const renderPivot = async () => {
   }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  (window.$ as any)(pivotContainer.value).pivotUI(
-    plainData,
-    {
-      rows: (savedConfig.rows as string[]) ?? ["Nama"],
-      cols: (savedConfig.cols as string[]) ?? ["Store"],
-      vals: (savedConfig.vals as string[]) ?? ["Nominal"],
-      aggregatorName: (savedConfig.aggregatorName as string) ?? "Sum",
-      rendererName: (savedConfig.rendererName as string) ?? "Table",
-      hiddenAttributes: [],
-      onRefresh: (config: Record<string, unknown>) => {
-        localStorage.setItem("pivot_config_penjualan", JSON.stringify(config));
+  (window.$ as any)(pivotContainer.value)
+    .empty()
+    .pivotUI(
+      plainData,
+      {
+        rows: (savedConfig.rows as string[]) ?? ["Nama"],
+        cols: (savedConfig.cols as string[]) ?? ["Store"],
+        vals: (savedConfig.vals as string[]) ?? ["Nominal"],
+        aggregatorName: (savedConfig.aggregatorName as string) ?? "Sum",
+        rendererName: (savedConfig.rendererName as string) ?? "Table",
+        hiddenAttributes: [],
+        onRefresh: (config: Record<string, unknown>) => {
+          localStorage.setItem("pivot_config_penjualan", JSON.stringify(config));
+        },
       },
-    },
-    true
-  );
+      true
+    );
 };
 
 // ─── Infinite Scroll ──────────────────────────────────────────────────────────

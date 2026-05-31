@@ -36,11 +36,12 @@ interface SoData {
 }
 
 interface PromoItem {
-  pro_jenis: string;
+  pro_jenis: number;
   pro_judul: string;
   pro_diskon: number;
   pro_disrp: number;
   pro_rpvoucher: number;
+  pro_totalrp: number;
   pro_totalqty: number;
   pro_keterangan: string;
   pro_tanggal2: string;
@@ -623,6 +624,13 @@ const klaimPromo = (promo: PromoItem) => {
   isPromoDialogVisible.value = true;
 };
 
+const daysLeft = (tgl2: string): number => {
+  const end = new Date(tgl2);
+  end.setHours(23, 59, 59);
+  const diff = end.getTime() - Date.now();
+  return Math.max(0, Math.ceil(diff / (1000 * 60 * 60 * 24)));
+};
+
 const filteredContacts = computed(() => {
   if (!searchBantuan.value) return storeContacts.value;
   const q = searchBantuan.value.toLowerCase();
@@ -810,66 +818,107 @@ onMounted(() => {
                 elevation="2"
                 class="promo-card rounded-xl h-100 d-flex flex-column position-relative overflow-hidden bg-white"
               >
+                <!-- Header merah -->
                 <div
-                  class="bg-brand py-2 px-4 text-white text-caption font-weight-bold text-uppercase d-flex justify-space-between"
+                  class="bg-brand py-2 px-4 text-white d-flex justify-space-between align-center"
                 >
-                  <span>{{ promo.pro_jenis === "VOUCHER" ? "Voucher" : "Diskon Spesial" }}</span>
-                  <v-icon size="small" color="white">mdi-star-four-points</v-icon>
+                  <span
+                    style="
+                      font-size: 11px;
+                      font-weight: 600;
+                      letter-spacing: 0.4px;
+                      text-transform: uppercase;
+                    "
+                  >
+                    {{ promo.pro_jenis === 2 ? "Bundling Spesial" : "Diskon Spesial" }}
+                  </span>
+                  <v-icon size="16" color="white">mdi-ticket-percent</v-icon>
                 </div>
 
-                <v-card-text class="pa-4 flex-grow-1 d-flex flex-column">
-                  <div
-                    class="text-subtitle-1 font-weight-black text-grey-darken-4 mb-1"
-                    style="line-height: 1.2"
-                  >
+                <v-card-text class="pa-3 flex-grow-1 d-flex flex-column" style="gap: 6px">
+                  <!-- Judul -->
+                  <div style="font-size: 13px; font-weight: 500; line-height: 1.3; color: inherit">
                     {{ promo.pro_judul }}
                   </div>
 
-                  <div class="text-h5 font-weight-black text-brand mb-2">
-                    <template v-if="promo.pro_diskon > 0">
-                      Diskon {{ promo.pro_diskon }}%
-                    </template>
-                    <template v-else-if="promo.pro_disrp > 0">
-                      Potongan {{ formatRupiah(promo.pro_disrp) }}
-                    </template>
-                    <template v-else-if="promo.pro_rpvoucher > 0">
-                      Voucher {{ formatRupiah(promo.pro_rpvoucher) }}
-                    </template>
-                    <template v-else-if="promo.pro_totalqty > 0">
-                      Beli {{ promo.pro_totalqty }} Lebih Hemat
-                    </template>
-                    <template v-else> Harga Spesial </template>
-                  </div>
-
-                  <div class="text-caption text-grey-darken-1 mb-3">
-                    {{ promo.pro_keterangan || "Berlaku untuk pemesanan di Kaosan." }}
-                  </div>
-
-                  <v-spacer></v-spacer>
-
-                  <div
-                    class="mt-auto pt-3 border-t border-dashed d-flex align-center justify-space-between"
-                  >
-                    <div class="d-flex flex-column">
-                      <span class="text-grey-darken-1" style="font-size: 0.65rem"
-                        >Berlaku hingga:</span
-                      >
-                      <span class="text-caption font-weight-bold text-grey-darken-3">{{
-                        promo.pro_tanggal2.split("T")[0]
-                      }}</span>
-                    </div>
-                    <v-btn
-                      size="small"
-                      color="#D32F2F"
-                      variant="flat"
-                      class="text-white font-weight-bold text-none rounded-pill px-5"
-                      @click="klaimPromo(promo)"
+                  <!-- Nilai diskon -->
+                  <div style="font-size: 22px; font-weight: 500; color: #d32f2f; line-height: 1.1">
+                    <template v-if="promo.pro_diskon > 0">Diskon {{ promo.pro_diskon }}%</template>
+                    <template v-else-if="promo.pro_disrp > 0"
+                      >Hemat {{ formatRupiah(promo.pro_disrp) }}</template
                     >
-                      Klaim
-                    </v-btn>
+                    <template v-else-if="promo.pro_rpvoucher > 0"
+                      >Voucher {{ formatRupiah(promo.pro_rpvoucher) }}</template
+                    >
+                    <template v-else-if="promo.pro_totalqty > 0"
+                      >Beli {{ promo.pro_totalqty }} Lebih Hemat</template
+                    >
+                    <template v-else>Harga Spesial</template>
+                  </div>
+
+                  <!-- Syarat minimum -->
+                  <div
+                    v-if="promo.pro_totalrp > 0 || promo.pro_totalqty > 0"
+                    style="
+                      display: inline-flex;
+                      align-items: center;
+                      gap: 4px;
+                      background: #fff3e0;
+                      border-radius: 4px;
+                      padding: 3px 8px;
+                      font-size: 11px;
+                      color: #e65100;
+                      font-weight: 500;
+                      width: fit-content;
+                    "
+                  >
+                    <v-icon size="12" color="orange-darken-3">mdi-shopping</v-icon>
+                    <span v-if="promo.pro_totalrp > 0"
+                      >Min. belanja {{ formatRupiah(promo.pro_totalrp) }}</span
+                    >
+                    <span v-else>Min. {{ promo.pro_totalqty }} item</span>
+                  </div>
+
+                  <!-- Keterangan -->
+                  <div
+                    style="font-size: 11px; line-height: 1.4; flex: 1"
+                    class="text-grey-darken-1"
+                  >
+                    {{ promo.pro_keterangan || "Berlaku untuk pemesanan di Kaosan." }}
                   </div>
                 </v-card-text>
 
+                <!-- Footer: counter + tombol klaim -->
+                <div
+                  style="
+                    border-top: 0.5px solid #f0f0f0;
+                    padding: 10px 12px;
+                    display: flex;
+                    align-items: center;
+                    justify-content: space-between;
+                  "
+                >
+                  <div style="display: flex; flex-direction: column; gap: 1px">
+                    <span style="font-size: 10px; color: #9e9e9e">Berakhir dalam</span>
+                    <span
+                      style="font-size: 13px; font-weight: 500"
+                      :style="{ color: daysLeft(promo.pro_tanggal2) <= 7 ? '#D32F2F' : 'inherit' }"
+                    >
+                      {{ daysLeft(promo.pro_tanggal2) }} hari lagi
+                    </span>
+                  </div>
+                  <v-btn
+                    size="small"
+                    color="#D32F2F"
+                    variant="flat"
+                    class="text-white font-weight-bold text-none rounded-pill px-5"
+                    @click="klaimPromo(promo)"
+                  >
+                    Klaim
+                  </v-btn>
+                </div>
+
+                <!-- Kupon cutout tetap dipertahankan tapi dipindah ke atas footer -->
                 <div class="coupon-cutout left"></div>
                 <div class="coupon-cutout right"></div>
               </v-card>

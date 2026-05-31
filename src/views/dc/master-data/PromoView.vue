@@ -364,6 +364,11 @@ onMounted(fetchData);
       <div class="table-container">
         <AppDataTable
           v-model="selected"
+          :row-props="({ item }: { item: Promo }) => ({
+            class: selected.some((s: Promo) => s.nomor === item.nomor)
+              ? 'row-selected'
+              : ''
+          })"
           :headers="headers"
           :items="filteredList"
           :loading="loading"
@@ -621,16 +626,30 @@ onMounted(fetchData);
   /* Ubah kursor jadi telunjuk */
 }
 
-/* 2. Efek Baris Terpilih (Selected) */
-:deep(.v-data-table__tr--selected) {
+:deep(tr.row-selected td) {
   background-color: #bbdefb !important;
-  /* Biru muda (Blue 100) agar terlihat jelas */
+  color: #0d47a1 !important;
+  font-weight: 600 !important;
+  /* hapus border-left */
 }
 
-/* 3. Pastikan teks tetap terbaca saat selected (opsional) */
-:deep(.v-data-table__tr--selected:hover) {
+:deep(tr.row-selected:hover td) {
   background-color: #90caf9 !important;
-  /* Biru sedikit lebih gelap saat selected di-hover */
+}
+
+/* Matikan semua bawaan Vuetify selected agar tidak double */
+:deep(.v-data-table__tr--selected td) {
+  background-color: unset !important;
+}
+
+:deep(tr.row-selected td) {
+  background-color: #bbdefb !important;
+  color: #0d47a1 !important;
+  font-weight: 600 !important;
+}
+
+:deep(tr.row-selected:hover td) {
+  background-color: #90caf9 !important;
 }
 
 /* --- TOMBOL RESET FILTER --- */

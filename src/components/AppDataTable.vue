@@ -14,10 +14,19 @@ const props = defineProps({
   itemsPerPageOptions: { type: Array as PropType<number[]>, default: () => [10, 25, 50, 100] },
   search: { type: String, default: "" },
   itemsLength: { type: Number, default: 0 },
+  modelValue: {
+    type: Array as PropType<Record<string, unknown>[]>,
+    default: () => [],
+  },
 });
 
 // Emit event ke parent saat user ganti halaman/limit
-const emit = defineEmits(["update:options", "update:page", "update:itemsPerPage"]);
+const emit = defineEmits([
+  "update:options",
+  "update:page",
+  "update:itemsPerPage",
+  "update:modelValue",
+]);
 
 const tableComponent = computed(() => (props.server ? VDataTableServer : VDataTable));
 
@@ -87,6 +96,8 @@ watch(
     <component
       :is="tableComponent"
       v-bind="{ ...$attrs, items: paginatedItems }"
+      :model-value="modelValue"
+      @update:model-value="emit('update:modelValue', $event)"
       hide-default-footer
       :items-per-page="itemsPerPage"
       :items-length="server ? itemsLength : undefined"

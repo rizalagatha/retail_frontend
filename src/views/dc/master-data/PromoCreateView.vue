@@ -696,27 +696,6 @@ watch(
                   />
                 </v-col>
               </template>
-
-              <v-col cols="12">
-                <v-textarea
-                  label="Keterangan"
-                  v-model="header.keterangan"
-                  rows="2"
-                  variant="outlined"
-                  hide-details
-                  density="compact"
-                />
-              </v-col>
-              <v-col cols="12">
-                <v-textarea
-                  label="Note (muncul di struk)"
-                  v-model="header.note"
-                  rows="2"
-                  variant="outlined"
-                  hide-details
-                  density="compact"
-                />
-              </v-col>
             </v-row>
           </div>
 
@@ -840,6 +819,29 @@ watch(
                     Tidak bisa digabung Diskon Member
                   </label>
                 </div>
+              </v-col>
+
+              <!-- Keterangan & Note dipindah ke sini -->
+              <v-col cols="12"><v-divider class="my-1" /></v-col>
+              <v-col cols="12">
+                <v-textarea
+                  label="Keterangan"
+                  v-model="header.keterangan"
+                  rows="3"
+                  variant="outlined"
+                  hide-details
+                  density="compact"
+                />
+              </v-col>
+              <v-col cols="12">
+                <v-textarea
+                  label="Note (muncul di struk)"
+                  v-model="header.note"
+                  rows="3"
+                  variant="outlined"
+                  hide-details
+                  density="compact"
+                />
               </v-col>
             </v-row>
           </div>
@@ -1116,10 +1118,11 @@ watch(
   min-width: 0;
 }
 
-/* Kolom kanan: Aturan Lanjutan — ambil semua sisa */
+/* Kolom kanan: Aturan Lanjutan — ambil semua sisa, scroll jika overflow */
 .col-right {
-  height: 100%;
   min-width: 0;
+  max-height: calc(100vh - 145px);
+  overflow-y: auto;
 }
 
 /* ─── Barang Grid ─────────────────────────────────────── */

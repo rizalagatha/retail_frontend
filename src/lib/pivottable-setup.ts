@@ -1,15 +1,6 @@
 // src/lib/pivottable-setup.ts
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const jQuery = require("jquery");
+// File ini di-import KEDUA di main.ts, setelah jquery-setup.ts
+// Saat file ini di-evaluate, window.jQuery sudah ada
 
-// Set global SEBELUM require jquery-ui
-(window as Window & { jQuery: unknown; $: unknown }).jQuery = jQuery;
-(window as Window & { jQuery: unknown; $: unknown }).$ = jQuery;
-
-// Baru load jquery-ui dan pivottable — keduanya akan menemukan window.jQuery
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-require("jquery-ui");
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-require("pivottable");
-
-export { jQuery };
+import "jquery-ui";
+import "pivottable";

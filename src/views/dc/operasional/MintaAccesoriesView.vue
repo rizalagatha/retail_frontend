@@ -1135,7 +1135,7 @@ onBeforeRouteLeave((to, from, next) => {
 
                     <v-row
                       v-if="details[item.nomor]?.realisasi?.length > 0"
-                      dense
+                      density="compact"
                       class="w-100 ma-0"
                     >
                       <v-col cols="12" md="6" class="pa-1 pl-0">

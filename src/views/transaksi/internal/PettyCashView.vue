@@ -74,7 +74,9 @@ const isKdc = computed(() => authStore.user?.cabang === "KDC");
 
 const isAdmin = computed(() => {
   const allowedUsers = ["ADMIN", "ESTU"];
-  return allowedUsers.includes(authStore.user?.kode?.toUpperCase());
+  const userCode = authStore.user?.kode?.toUpperCase();
+
+  return userCode ? allowedUsers.includes(userCode) : false;
 });
 
 const loading = ref(true);

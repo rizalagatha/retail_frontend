@@ -104,15 +104,11 @@ const validUkuranList = computed(() => {
   });
 
   const hasil = Array.from(ukuranSet);
-  console.log("[JenisOrderModal] validUkuranList:", hasil);
+
   return hasil;
 });
 
 const updateValidUkuranList = () => {
-  console.log(
-    "[JenisOrderModal] 🔄 updateValidUkuranList called dengan kodeBarang:",
-    form.value.kodeBarang
-  );
   if (!props.penawaranDetails || props.penawaranDetails.length === 0) {
     console.warn("[JenisOrderModal] Tidak ada data ukuran dari penawaran!");
     return;
@@ -126,7 +122,7 @@ const updateValidUkuranList = () => {
   });
 
   const hasil = Array.from(ukuranSet);
-  console.log("[JenisOrderModal] ✅ hasil ukuranSet:", hasil);
+
   ukuranList.value = hasil;
 };
 
@@ -137,7 +133,6 @@ const refreshSizeCetakList = async () => {
       params: { jenisOrder: form.value.jenisOrder },
     });
     sizeCetakList.value = [...res.data, "Custom"];
-    console.log("[JenisOrderModal] ✅ sizeCetakList refreshed:", sizeCetakList.value);
   } catch {
     toast.error("Gagal memuat size cetak.");
   }
@@ -146,19 +141,16 @@ const refreshSizeCetakList = async () => {
 watch(
   () => props.penawaranDetails,
   (val) => {
-    console.log("[JenisOrderModal] props.penawaranDetails changed:", val);
     if (Array.isArray(val) && val.length > 0) {
       // ✅ Tidak perlu mapping ulang di sini
       // props.penawaranBarangList sudah dikirim dari parent
       selectedPenawaran.value = props.penawaranBarangList?.[0] || null;
       form.value.namaBarang = selectedPenawaran.value?.namaBarang || "";
       form.value.kodeBarang = selectedPenawaran.value?.kodeBarang || "";
-      console.log("[JenisOrderModal] received penawaranBarangList =", props.penawaranBarangList);
     } else {
       selectedPenawaran.value = null;
       form.value.namaBarang = "";
       form.value.kodeBarang = "";
-      console.log("[JenisOrderModal] penawaranDetails empty or undefined");
     }
   },
   { immediate: true }
@@ -167,10 +159,7 @@ watch(
 watch(
   () => props.modelValue,
   (open) => {
-    console.log("[JenisOrderModal] modelValue (open) =", open);
     if (open) {
-      console.log("[JenisOrderModal] current form:", JSON.parse(JSON.stringify(form.value)));
-      console.log("[JenisOrderModal] current penawaranBarangList:", props.penawaranBarangList);
     }
   },
   { immediate: false }
@@ -178,8 +167,6 @@ watch(
 
 /* when user selects from dropdown (selectedPenawaran is an object via return-object) */
 watch(selectedPenawaran, async (val) => {
-  console.log("[JenisOrderModal] 🧩 selectedPenawaran changed:", val);
-
   if (val && typeof val === "object" && val.kodeBarang) {
     form.value.namaBarang = val.namaBarang;
     form.value.kodeBarang = val.kodeBarang;
@@ -280,7 +267,6 @@ watch(
 
       // Tambahkan opsi Custom di akhir
       sizeCetakList.value = [...res.data, "Custom"];
-      console.log("[JenisOrderModal] sizeCetakList loaded:", sizeCetakList.value);
     } catch {
       toast.error("Gagal memuat size cetak.");
     }
@@ -324,8 +310,6 @@ const save = () => {
       hargaPerCm: form.value.hargaPerCm,
     },
   };
-
-  console.log("[JenisOrderModal] saving payload lengkap:", payload);
 
   emit("saved", payload); // kirim ke parent (SoCreateView)
   emit("close");

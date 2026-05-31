@@ -4,7 +4,7 @@ import { useRoute } from "vue-router";
 import api from "@/services/api";
 import { format, parseISO } from "date-fns";
 import Logo from "@/assets/logo.png";
-import InstagramLogo from "@/assets/instagram.jpg"; // Impor logo Instagram
+import InstagramLogo from "@/assets/instagram.jpg";
 import { formatRupiah } from "@/utils/formatRupiah";
 import QRCode from "qrcode";
 
@@ -49,7 +49,26 @@ interface DpDetail {
 interface PrintData {
   header: PrintHeader;
   details: PrintDetail[];
-  dps: DpDetail[]; // Tambahkan array DP
+  dps: DpDetail[];
+}
+
+// --- [FIX 1] Interface untuk raw detail dari API (menggantikan any) ---
+interface RawPrintDetail extends PrintDetail {
+  pend_custom?: string;
+  sod_custom?: string;
+  pend_custom_data?: string;
+  pend_custom_nama?: string;
+}
+
+// --- [FIX 2] Interface untuk parsed custom data (menggantikan any dalam forEach) ---
+interface CustomUkuranItem {
+  ukuran: string;
+  jumlah: number;
+  harga: number;
+}
+
+interface CustomParsedData {
+  ukuranKaos?: CustomUkuranItem[];
 }
 
 const route = useRoute();
@@ -59,15 +78,10 @@ const appLogo = Logo;
 const igLogo = InstagramLogo;
 const qrCodeData = ref<string | null>(null);
 
-// Fungsi untuk mengubah angka menjadi teks terbilang
-// 1. Tambahkan Math.floor untuk menangani angka desimal
 function terbilang(n: number): string {
-  // Pastikan angka bulat, karena array 'ang' hanya punya indeks angka bulat
   n = Math.floor(n);
-
-  if (n === 0) return ""; // Untuk rekursi, biarkan kosong jika nol
+  if (n === 0) return "";
   if (n < 0) return "minus " + terbilang(Math.abs(n));
-
   const ang = [
     "",
     "satu",
@@ -82,25 +96,19 @@ function terbilang(n: number): string {
     "sepuluh",
     "sebelas",
   ];
-
   if (n < 12) return ang[n];
   if (n < 20) return terbilang(n - 10) + " belas";
-  if (n < 100) {
-    const hasil = terbilang(Math.floor(n / 10)) + " puluh " + terbilang(n % 10);
-    return hasil.trim();
-  }
+  if (n < 100) return (terbilang(Math.floor(n / 10)) + " puluh " + terbilang(n % 10)).trim();
   if (n < 200) return "seratus " + terbilang(n - 100);
   if (n < 1000) return terbilang(Math.floor(n / 100)) + " ratus " + terbilang(n % 100);
   if (n < 2000) return "seribu " + terbilang(n - 1000);
   if (n < 1000000) return terbilang(Math.floor(n / 1000)) + " ribu " + terbilang(n % 1000);
   if (n < 1000000000) return terbilang(Math.floor(n / 1000000)) + " juta " + terbilang(n % 1000000);
-
   return "angka terlalu besar";
 }
 
-// 2. Perbaiki capitalize agar menangani nilai kosong dengan lebih aman
 const capitalize = (s: string) => {
-  if (!s) return "Nol"; // Jika grand_total 0 atau string kosong
+  if (!s) return "Nol";
   const cleaned = s.replace(/\s+/g, " ").trim();
   if (!cleaned) return "Nol";
   return (cleaned.charAt(0).toUpperCase() + cleaned.slice(1).toLowerCase()).trim();
@@ -109,22 +117,22 @@ const capitalize = (s: string) => {
 const fetchPrintData = async (nomor: string) => {
   isLoading.value = true;
   try {
-    const response = await api.get<PrintData>(`/offer-form/print-data/${nomor}`);
+    const response = await api.get<{
+      header: PrintHeader;
+      details: RawPrintDetail[];
+      dps: DpDetail[];
+    }>(`/offer-form/print-data/${nomor}`);
     const data = response.data;
 
-    // ========================================================
-    // [PROSES MAPPING] Pecah baris jika ada data custom gabungan
-    // ========================================================
+    // [FIX] Menggunakan RawPrintDetail dan CustomParsedData — tidak ada any lagi
     const processedDetails: PrintDetail[] = [];
 
-    data.details.forEach((item: any) => {
-      // Di penawaran biasanya field-nya pend_custom dan pend_custom_data
+    data.details.forEach((item: RawPrintDetail) => {
       if ((item.pend_custom === "Y" || item.sod_custom === "Y") && item.pend_custom_data) {
         try {
-          const parsed = JSON.parse(item.pend_custom_data);
-          // Jika isinya data teknis Jenis Order (ukuranKaos)
+          const parsed = JSON.parse(item.pend_custom_data) as CustomParsedData;
           if (parsed.ukuranKaos && parsed.ukuranKaos.length > 1) {
-            parsed.ukuranKaos.forEach((u: any) => {
+            parsed.ukuranKaos.forEach((u: CustomUkuranItem) => {
               processedDetails.push({
                 ...item,
                 nama_barang: item.pend_custom_nama || item.nama_barang,
@@ -144,11 +152,7 @@ const fetchPrintData = async (nomor: string) => {
       processedDetails.push(item);
     });
 
-    printData.value = {
-      ...data,
-      details: processedDetails,
-    };
-    // ========================================================
+    printData.value = { ...data, details: processedDetails };
 
     if (printData.value.header?.pen_nomor) {
       document.title = printData.value.header.pen_nomor;
@@ -166,9 +170,7 @@ const fetchPrintData = async (nomor: string) => {
 };
 
 watch(isLoading, (newValue) => {
-  // Jika loading SUDAH SELESAI (dari true menjadi false)
   if (newValue === false) {
-    // Tunggu satu tick lagi untuk memastikan DOM sudah 100% ter-update
     nextTick(() => {
       window.print();
     });
@@ -186,14 +188,13 @@ onMounted(() => {
     <div v-if="isLoading" class="text-center">Memuat data...</div>
     <div v-if="printData" class="page">
       <div class="company-header">
-        <!-- ROW QR LEFT & LOGO RIGHT -->
-        <div class="row-top">
-          <img v-if="qrCodeData" :src="qrCodeData" class="qr-image" />
-        </div>
+        <img v-if="qrCodeData" :src="qrCodeData" class="qr-image" />
 
-        <!-- CENTERED COMPANY INFO -->
         <div class="company-info centered">
-          <div class="company-name"><img :src="igLogo" class="icon-ig" /> KAOSAN.OFFICIAL</div>
+          <div class="company-name">
+            <img :src="igLogo" class="icon-ig" />
+            KAOSAN.OFFICIAL
+          </div>
           <div>{{ printData.header.gdg_inv_alamat }}</div>
           <div>{{ printData.header.gdg_inv_kota }}</div>
           <div>{{ printData.header.gdg_inv_telp }}</div>
@@ -274,7 +275,6 @@ onMounted(() => {
                 <td>Grand Total</td>
                 <td>{{ formatRupiah(printData.header.grand_total) }}</td>
               </tr>
-
               <tr v-if="printData.header.total_dp > 0">
                 <td class="text-teal font-weight-bold">Uang Muka (DP)</td>
                 <td class="text-teal font-weight-bold">
@@ -298,76 +298,72 @@ onMounted(() => {
         <div class="name-column">( {{ printData.header.user_create }} )</div>
         <div class="name-column">( ......................... )</div>
       </div>
+
       <div v-if="printData.header.gdg_transferbank || printData.header.gdg_akun" class="bank-info">
-        <strong
-          >* Transfer Bank: {{ printData.header.gdg_transferbank }}
-          {{ printData.header.gdg_akun }}</strong
-        >
+        <strong>
+          * Transfer Bank: {{ printData.header.gdg_transferbank }}
+          {{ printData.header.gdg_akun }}
+        </strong>
       </div>
+
       <div v-if="printData.dps?.length > 0" class="dp-details-list">
         <strong>Rincian Pembayaran Uang Muka:</strong>
         <ul>
-          <li v-for="dp in printData.dps || []" :key="dp.nomor">
+          <li v-for="dp in printData.dps" :key="dp.nomor">
             {{ dp.nomor }} ({{ dp.jenis }}) : {{ formatRupiah(dp.nominal) }}
           </li>
         </ul>
       </div>
+
       <div class="note-section">Note: {{ printData.header.pen_ket }}</div>
     </div>
   </div>
 </template>
 
 <style scoped>
-@media print {
-  @page {
-    size: A4;
-    margin: 1cm;
-  }
-
-  body * {
-    visibility: hidden;
-  }
-
-  .print-container,
-  .print-container * {
-    visibility: visible;
-  }
-
-  .print-container {
-    position: absolute;
-    left: 0;
-    top: 0;
-    width: 100%;
-  }
+/* ============================= */
+/* FORCE LIGHT MODE              */
+/* ============================= */
+.print-container,
+.print-container * {
+  color: #000 !important;
+  background: #fff !important;
 }
 
-.page {
+.text-teal {
+  color: #00796b !important;
+}
+
+/* ============================= */
+/* LAYOUT HALAMAN                */
+/* ============================= */
+.print-container {
   font-family: "Arial", sans-serif;
   font-size: 10pt;
+}
+
+/* Kunci: min-height auto agar ikut konten, bukan fixed 29.7cm */
+.page {
   background: white;
   padding: 1.5cm;
   margin: 20px auto;
   width: 21cm;
-  min-height: 29.7cm;
+  min-height: auto; /* ← berbeda dari versi lama (29.7cm) */
   box-shadow: 0 0 5px rgba(0, 0, 0, 0.1);
   display: flex;
   flex-direction: column;
 }
 
+/* ============================= */
+/* COMPANY HEADER                */
+/* ============================= */
 .company-header {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
-  padding-bottom: 10px;
   border-bottom: 1px solid #333;
   padding-bottom: 10px;
   margin-bottom: 10px;
-}
-
-.row-top {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-end;
 }
 
 .company-info {
@@ -377,7 +373,7 @@ onMounted(() => {
 
 .company-info.centered {
   text-align: center;
-  width: 100%;
+  flex: 1;
   margin-top: -10px;
 }
 
@@ -402,6 +398,14 @@ onMounted(() => {
   height: auto;
 }
 
+.qr-image {
+  width: 90px;
+  height: 90px;
+}
+
+/* ============================= */
+/* DOCUMENT TITLE                */
+/* ============================= */
 .document-title {
   text-align: center;
   font-size: 16pt;
@@ -410,6 +414,9 @@ onMounted(() => {
   text-decoration: underline;
 }
 
+/* ============================= */
+/* HEADER DETAILS                */
+/* ============================= */
 .header-details {
   display: flex;
   justify-content: space-between;
@@ -434,6 +441,9 @@ onMounted(() => {
   white-space: pre-line;
 }
 
+/* ============================= */
+/* ITEMS TABLE                   */
+/* ============================= */
 .items-table {
   margin-bottom: 10px;
 }
@@ -451,7 +461,7 @@ onMounted(() => {
 }
 
 .items-table th {
-  background-color: #f2f2f2;
+  background-color: #f2f2f2 !important;
   font-weight: bold;
   text-align: center;
 }
@@ -460,23 +470,27 @@ onMounted(() => {
   width: 5%;
   text-align: center;
 }
-
 .nama {
   width: 45%;
 }
-
+.ukuran {
+  width: 8%;
+  text-align: center;
+}
 .qty {
   width: 8%;
   text-align: center;
 }
-
 .harga,
 .diskon,
 .total {
-  width: 14%;
+  width: 11%;
   text-align: right;
 }
 
+/* ============================= */
+/* SUMMARY                       */
+/* ============================= */
 .summary-section {
   display: flex;
   justify-content: space-between;
@@ -512,22 +526,29 @@ onMounted(() => {
   padding-top: 5px;
 }
 
+.balance-due td {
+  background-color: #f9f9f9 !important;
+  border-top: 2px solid #333;
+  font-weight: bold;
+  font-size: 11pt;
+}
+
+/* ============================= */
+/* SIGNATURES                    */
+/* ============================= */
 .footer-signatures,
 .footer-names {
   display: flex;
   justify-content: space-between;
   text-align: center;
-  margin-top: 10px;
   width: 60%;
 }
 
 .footer-signatures {
   margin-top: 30px;
 }
-
 .footer-names {
-  height: 30px;
-  vertical-align: bottom;
+  margin-top: 30px;
 }
 
 .signature-column,
@@ -535,62 +556,14 @@ onMounted(() => {
   flex: 1;
 }
 
-.qr-wrapper {
-  display: flex;
-  justify-content: flex-end;
-  align-items: flex-end;
-}
-
-.qr-image {
-  width: 90px;
-  height: 90px;
-  margin-left: 20px;
-}
-
+/* ============================= */
+/* BANK INFO & DP LIST           */
+/* ============================= */
 .bank-info {
   font-size: 10pt;
   margin-top: 20px;
   border-top: 1px dashed #333;
   padding-top: 5px;
-}
-
-/* ============================= */
-/* FORCE LIGHT MODE FOR PRINT VIEW */
-/* ============================= */
-
-.print-container,
-.print-container * {
-  color: #000 !important;
-  background: #fff !important;
-}
-
-.text-teal {
-  color: #00796b !important;
-}
-
-.balance-due td {
-  background-color: #f9f9f9;
-  border-top: 2px solid #333;
-  font-weight: bold;
-  font-size: 11pt;
-}
-
-.dp-details-list {
-  margin-top: 15px;
-  font-size: 8.5pt;
-  border-top: 1px dashed #ccc;
-  padding-top: 5px;
-}
-
-.dp-details-list ul {
-  margin: 5px 0;
-  padding-left: 15px;
-  list-style-type: square;
-}
-
-.items-table td.nama {
-  text-transform: uppercase;
-  /* Nama barang custom biasanya butuh penekanan */
 }
 
 .dp-details-list {
@@ -603,5 +576,51 @@ onMounted(() => {
 .dp-details-list ul {
   margin: 5px 0;
   padding-left: 20px;
+}
+
+/* ============================= */
+/* NOTE                          */
+/* ============================= */
+.note-section {
+  margin-top: 15px;
+  font-size: 9pt;
+  border-top: 1px solid #eee;
+  padding-top: 8px;
+}
+
+/* ============================= */
+/* PRINT MEDIA                   */
+/* ============================= */
+@media print {
+  @page {
+    size: A4;
+    margin: 1cm;
+  }
+
+  body * {
+    visibility: hidden;
+  }
+
+  .print-container,
+  .print-container * {
+    visibility: visible;
+  }
+
+  .print-container {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+  }
+
+  /* Halaman mengikuti konten saat print juga */
+  .page {
+    box-shadow: none;
+    border: none;
+    margin: 0;
+    padding: 0;
+    width: 100%;
+    min-height: auto;
+  }
 }
 </style>

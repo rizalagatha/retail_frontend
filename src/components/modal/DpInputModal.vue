@@ -41,25 +41,20 @@ interface NewDpItem {
   posting: string;
 }
 
-// --- Inisialisasi ---
 const toast = useToast();
 const authStore = useAuthStore();
 const appLogo = Logo;
 
-// --- Computed ---
 const kekuranganDp = computed(() => {
   const kurang = props.minimalDp - props.existingDp;
-  return kurang > 0 ? kurang : 0; // Pastikan tidak negatif
+  return kurang > 0 ? kurang : 0;
 });
 
 const documentTitle = computed(() => {
   if (!printHeaderData.value) return "";
-
-  // Jika jenis 1 tapi ada kata QRIS di keterangan, tampilkan QRIS RECEIPT
   if (printHeaderData.value.sh_jenis === 1 && printHeaderData.value.sh_ket.includes("QRIS")) {
     return "QRIS RECEIPT";
   }
-
   switch (printHeaderData.value.sh_jenis) {
     case 0:
       return "CASH RECEIPT";
@@ -71,6 +66,14 @@ const documentTitle = computed(() => {
       return "TANDA TERIMA PEMBAYARAN";
   }
 });
+
+// Apakah kolom kanan perlu ditampilkan
+const hasRightPanel = computed(
+  () =>
+    dpData.value.jenis === "TRANSFER" ||
+    dpData.value.jenis === "QRIS" ||
+    dpData.value.jenis === "GIRO"
+);
 
 const props = defineProps({
   customerKode: { type: String, required: true },
@@ -99,60 +102,49 @@ const dpData = ref({
     tglJatuhTempo: format(new Date(), "yyyy-MM-dd"),
   },
 });
+
 const isSaving = ref(false);
 const isRekeningSearchVisible = ref(false);
-const isNominalFocused = ref(false); // Dari revisi separator sebelumnya
-const isPrintPreviewVisible = ref(false); // Mengontrol dialog preview
-const isPrinting = ref(false); // Loading untuk mengambil data cetak
-const printHeaderData = ref<PrintHeader | null>(null); // Menyimpan data cetak
-const newDpFromSave = ref<NewDpItem | null>(null); // Menyimpan data newDp untuk di-emit nanti
+const isNominalFocused = ref(false);
+const isPrintPreviewVisible = ref(false);
+const isPrinting = ref(false);
+const printHeaderData = ref<PrintHeader | null>(null);
+const newDpFromSave = ref<NewDpItem | null>(null);
 const isPrintingNow = ref(false);
-const isReadonly = false;
 
 const save = async () => {
-  // --- VALIDASI TANGGAL HARI INI ---
   if (!props.existingDpNomor) {
     const today = format(new Date(), "yyyy-MM-dd");
     if (dpData.value.tanggal !== today) {
       return toast.error(`Tanggal DP harus hari ini (${today}).`);
     }
   }
-  // ----------------------------------------------
 
   const apiBasePath = props.source === "OFFER" ? "/offer-form" : "/so-form";
 
   if ((dpData.value.nominal || 0) === 0 && props.existingDpNomor) {
     try {
-      const res = await api.post("/so-form/delete-dp", {
-        nomor: props.existingDpNomor,
-      });
+      const res = await api.post("/so-form/delete-dp", { nomor: props.existingDpNomor });
       toast.success(res.data.message || "DP berhasil dihapus.");
-
-      emit("dp-saved", null); // kasih tahu parent untuk refresh list DP
+      emit("dp-saved", null);
       emit("close");
-      return; // STOP — jangan lanjut ke proses simpan DP baru
+      return;
     } catch (err: unknown) {
-      // [PERBAIKAN] Ubah ke unknown
       let errorMessage = "Gagal menghapus DP.";
-      if (axios.isAxiosError(err)) {
-        errorMessage = err.response?.data?.message || errorMessage;
-      } else if (err instanceof Error) {
-        errorMessage = err.message;
-      }
-      toast.error(errorMessage); // [PERBAIKAN] Lempar 1 parameter
+      if (axios.isAxiosError(err)) errorMessage = err.response?.data?.message || errorMessage;
+      else if (err instanceof Error) errorMessage = err.message;
+      toast.error(errorMessage);
       return;
     }
   }
-  // --- (Validasi Anda sebelumnya tetap di sini) ---
+
   const nominal = dpData.value.nominal || 0;
   if (nominal < kekuranganDp.value) {
     toast.warning(
       `DP kurang dari minimal (${formatRupiah(kekuranganDp.value)}). SO masih akan berstatus PASIF.`
     );
   }
-  if ((dpData.value.nominal || 0) <= 0) {
-    return toast.error("Nominal harus diisi.");
-  }
+  if ((dpData.value.nominal || 0) <= 0) return toast.error("Nominal harus diisi.");
   if (
     (dpData.value.jenis === "TRANSFER" || dpData.value.jenis === "QRIS") &&
     !dpData.value.bankData.akun
@@ -162,36 +154,21 @@ const save = async () => {
   if (dpData.value.jenis === "GIRO" && !dpData.value.giroData.noGiro) {
     return toast.error("No. Giro harus diisi.");
   }
-  // --- Akhir Validasi ---
 
   isSaving.value = true;
   try {
-    // 1. Simpan DP
     const payload = { ...dpData.value, customerKode: props.customerKode, nomorSo: props.nomorSo };
     const saveResponse = await api.post(`${apiBasePath}/save-dp`, payload);
     toast.success(saveResponse.data.message);
-
     const newDp = saveResponse.data.newDp;
-    newDpFromSave.value = newDp; // Simpan data newDp untuk di-emit nanti
+    newDpFromSave.value = newDp;
 
-    // --- HAPUS LOGIKA 'window.open' LAMA DARI SINI ---
-    // if (newDp && newDp.nomor) {
-    //   const url = router.resolve({ ... });
-    //   window.open(url, '_blank'); // <-- INI YANG MENYEBABKAN 4 SALINAN
-    // }
-    // emit('dp-saved', response.data.newDp);
-    // emit('close');
-    // --- AKHIR PENGHAPUSAN ---
-
-    // 2. Alih-alih menutup, kita siapkan data cetak
     isSaving.value = false;
-    isPrinting.value = true; // Tampilkan loading 'Memuat Pratinjau...'
+    isPrinting.value = true;
 
-    // 3. Panggil API data cetak
     const printResponse = await api.get(`${apiBasePath}/print-data/dp/${newDp.nomor}`);
     printHeaderData.value = printResponse.data;
 
-    // 4. Tampilkan dialog pratinjau cetak
     isPrinting.value = false;
     isPrintPreviewVisible.value = true;
   } catch (error: unknown) {
@@ -218,11 +195,8 @@ const onNominalBlur = () => {
 
 const handlePrint = () => {
   isPrintingNow.value = true;
-
   nextTick(() => {
     window.print();
-
-    // Reset setelah print
     setTimeout(() => {
       isPrintingNow.value = false;
     }, 500);
@@ -231,12 +205,8 @@ const handlePrint = () => {
 
 const closePrintPreview = () => {
   isPrintPreviewVisible.value = false;
-
-  // SEKARANG baru kita emit dan tutup modal utama
   emit("dp-saved", newDpFromSave.value);
   emit("close");
-
-  // Reset state
   printHeaderData.value = null;
   newDpFromSave.value = null;
 };
@@ -250,33 +220,48 @@ const onRekeningSelected = (rekening: Rekening) => {
 </script>
 
 <template>
-  <v-dialog :model-value="!isPrintPreviewVisible" persistent max-width="500px">
-    <v-card class="dialog-card">
+  <!-- Dialog Input DP -->
+  <v-dialog
+    :model-value="!isPrintPreviewVisible"
+    persistent
+    :max-width="hasRightPanel ? '780px' : '440px'"
+  >
+    <v-card class="dp-card">
       <v-toolbar color="primary" density="compact">
-        <v-toolbar-title class="text-subtitle-1">Input DP (Uang Muka)</v-toolbar-title>
+        <v-toolbar-title class="text-subtitle-1 font-weight-bold">
+          <v-icon start size="18">mdi-cash-plus</v-icon>
+          Input DP (Uang Muka)
+        </v-toolbar-title>
       </v-toolbar>
+
       <v-card-text class="pa-4">
         <v-row dense>
-          <v-col cols="12"
-            ><v-text-field
+          <!-- ════════════ KOLOM KIRI: Data Dasar ════════════ -->
+          <v-col :cols="hasRightPanel ? 5 : 12">
+            <div class="section-label mb-2">Data Pembayaran</div>
+
+            <v-text-field
               label="Tanggal"
               v-model="dpData.tanggal"
               type="date"
               variant="outlined"
               density="compact"
+              hide-details
+              class="mb-2"
               :min="format(new Date(), 'yyyy-MM-dd')"
               :max="format(new Date(), 'yyyy-MM-dd')"
-          /></v-col>
-          <v-col cols="12">
+            />
+
             <v-select
-              label="Jenis"
+              label="Jenis Pembayaran"
               v-model="dpData.jenis"
               :items="['TUNAI', 'TRANSFER', 'QRIS', 'GIRO']"
               variant="outlined"
               density="compact"
+              hide-details
+              class="mb-2"
             />
-          </v-col>
-          <v-col cols="12">
+
             <v-text-field
               label="Nominal"
               :model-value="isNominalFocused ? dpData.nominal : formatRupiah(dpData.nominal || 0)"
@@ -288,117 +273,164 @@ const onRekeningSelected = (rekening: Rekening) => {
               type="text"
               variant="outlined"
               density="compact"
-              class="text-end"
+              hide-details
+              class="mb-2 nominal-field"
             />
-          </v-col>
-          <v-col cols="12"
-            ><v-text-field
+
+            <v-text-field
               label="Keterangan"
               v-model="dpData.keterangan"
               variant="outlined"
               density="compact"
-          /></v-col>
+              hide-details
+              class="mb-3"
+            />
 
-          <v-col v-if="dpData.jenis === 'TRANSFER' || dpData.jenis === 'QRIS'" cols="12">
-            <v-divider class="my-2" />
-            <v-text-field
-              :label="dpData.jenis === 'QRIS' ? 'Akun Penampung QRIS' : 'Akun Bank'"
-              v-model="dpData.bankData.akun"
-              variant="outlined"
-              density="compact"
-              @click="isRekeningSearchVisible = true"
-              readonly
-              :append-inner-icon="isReadonly ? '' : 'mdi-magnify'"
-            />
-            <v-text-field
-              label="Nama Bank"
-              v-model="dpData.bankData.namaBank"
-              density="compact"
-              readonly
-              filled
-            />
-            <v-text-field
-              label="No. Rekening"
-              v-model="dpData.bankData.norek"
-              density="compact"
-              readonly
-              filled
-            />
-            <v-text-field
-              label="Tgl. Transfer"
-              v-model="dpData.bankData.tglTransfer"
-              type="date"
-              variant="outlined"
-              density="compact"
-            />
-          </v-col>
-          <v-col v-if="dpData.jenis === 'GIRO'" cols="12">
-            <v-divider class="my-2" />
-            <p class="text-subtitle-2 mb-2">Detail Giro</p>
-            <v-text-field
-              label="No. Giro"
-              v-model="dpData.giroData.noGiro"
-              variant="outlined"
-              density="compact"
-            />
-            <v-text-field
-              label="Tgl. Giro"
-              v-model="dpData.giroData.tglGiro"
-              type="date"
-              variant="outlined"
-              density="compact"
-              class="mt-2"
-            />
-            <v-text-field
-              label="Tgl. Jatuh Tempo"
-              v-model="dpData.giroData.tglJatuhTempo"
-              type="date"
-              variant="outlined"
-              density="compact"
-              class="mt-2"
-            />
-          </v-col>
-          <v-card-text class="pa-4">
-            <v-alert density="compact" variant="tonal" class="mb-4">
-              <div class="d-flex justify-space-between">
-                <span>Minimal DP Total:</span> <strong>{{ formatRupiah(minimalDp) }}</strong>
+            <!-- Ringkasan DP -->
+            <div class="dp-summary">
+              <div class="dp-summary__row">
+                <span>Minimal DP:</span>
+                <strong>{{ formatRupiah(minimalDp) }}</strong>
               </div>
-              <div class="d-flex justify-space-between">
-                <span>Sudah Dibayar:</span> <strong>{{ formatRupiah(existingDp) }}</strong>
+              <div class="dp-summary__row">
+                <span>Sudah Dibayar:</span>
+                <strong>{{ formatRupiah(existingDp) }}</strong>
               </div>
-              <v-divider class="my-1" />
-              <div class="d-flex justify-space-between font-weight-bold">
+              <div class="dp-summary__divider" />
+              <div class="dp-summary__row dp-summary__row--total">
                 <span>Kekurangan:</span>
-                <strong>{{ formatRupiah(kekuranganDp) }}</strong>
+                <strong :class="kekuranganDp > 0 ? 'text-error' : 'text-success'">
+                  {{ formatRupiah(kekuranganDp) }}
+                </strong>
               </div>
-            </v-alert>
-            <v-row dense> </v-row>
-          </v-card-text>
+            </div>
+          </v-col>
+
+          <!-- ════════════ DIVIDER ════════════ -->
+          <v-col v-if="hasRightPanel" cols="1" class="d-flex justify-center">
+            <v-divider vertical class="mx-1" />
+          </v-col>
+
+          <!-- ════════════ KOLOM KANAN: Detail Metode ════════════ -->
+          <v-col v-if="hasRightPanel" cols="6">
+            <!-- TRANSFER / QRIS -->
+            <template v-if="dpData.jenis === 'TRANSFER' || dpData.jenis === 'QRIS'">
+              <div class="section-label mb-2">
+                {{ dpData.jenis === "QRIS" ? "Detail QRIS" : "Detail Transfer" }}
+              </div>
+
+              <v-text-field
+                :label="dpData.jenis === 'QRIS' ? 'Akun Penampung QRIS' : 'Akun Bank'"
+                v-model="dpData.bankData.akun"
+                variant="outlined"
+                density="compact"
+                hide-details
+                class="mb-2"
+                readonly
+                append-inner-icon="mdi-magnify"
+                @click="isRekeningSearchVisible = true"
+              />
+
+              <v-text-field
+                label="Nama Bank"
+                v-model="dpData.bankData.namaBank"
+                density="compact"
+                variant="filled"
+                readonly
+                hide-details
+                class="mb-2"
+              />
+
+              <v-text-field
+                label="No. Rekening"
+                v-model="dpData.bankData.norek"
+                density="compact"
+                variant="filled"
+                readonly
+                hide-details
+                class="mb-2"
+              />
+
+              <v-text-field
+                label="Tgl. Transfer"
+                v-model="dpData.bankData.tglTransfer"
+                type="date"
+                variant="outlined"
+                density="compact"
+                hide-details
+              />
+            </template>
+
+            <!-- GIRO -->
+            <template v-if="dpData.jenis === 'GIRO'">
+              <div class="section-label mb-2">Detail Giro</div>
+
+              <v-text-field
+                label="No. Giro"
+                v-model="dpData.giroData.noGiro"
+                variant="outlined"
+                density="compact"
+                hide-details
+                class="mb-2"
+              />
+
+              <v-text-field
+                label="Tgl. Giro"
+                v-model="dpData.giroData.tglGiro"
+                type="date"
+                variant="outlined"
+                density="compact"
+                hide-details
+                class="mb-2"
+              />
+
+              <v-text-field
+                label="Tgl. Jatuh Tempo"
+                v-model="dpData.giroData.tglJatuhTempo"
+                type="date"
+                variant="outlined"
+                density="compact"
+                hide-details
+              />
+            </template>
+
+            <!-- TUNAI: tidak ada kolom kanan, tapi hasRightPanel false jadi v-col tidak muncul -->
+          </v-col>
         </v-row>
       </v-card-text>
-      <v-card-actions class="dialog-footer">
+
+      <v-divider />
+      <v-card-actions class="dp-footer">
         <v-spacer />
-        <v-btn size="small" @click="$emit('close')">Batal</v-btn>
+        <v-btn size="small" variant="text" @click="$emit('close')">Batal</v-btn>
         <v-btn
           size="small"
           color="primary"
+          variant="flat"
           @click="save"
           :loading="isSaving || isPrinting"
           :disabled="isPrinting || isSaving"
         >
-          {{ isPrinting ? "Memuat Pratinjau..." : "Simpan" }}
+          <v-icon start size="16">mdi-content-save</v-icon>
+          {{ isPrinting ? "Memuat Pratinjau..." : "Simpan & Cetak" }}
         </v-btn>
       </v-card-actions>
     </v-card>
   </v-dialog>
 
-  <v-dialog v-model="isPrintPreviewVisible" fullscreen persistent scrollable>
-    <v-card class="d-flex flex-column print-dialog">
+  <!-- Dialog Print Preview (tidak berubah) -->
+  <v-dialog v-model="isPrintPreviewVisible" max-width="820px" persistent scrollable>
+    <v-card class="d-flex flex-column print-dialog" style="max-height: 90vh">
       <v-toolbar color="grey-darken-3" density="compact" class="print-toolbar">
-        <v-toolbar-title>Pratinjau Cetak: {{ printHeaderData?.sh_nomor }}</v-toolbar-title>
-        <v-spacer></v-spacer>
+        <v-toolbar-title
+          class="text-body-2 font-weight-bold"
+          style="min-width: 0; overflow: visible; white-space: nowrap"
+        >
+          Pratinjau Cetak: {{ printHeaderData?.sh_nomor }}
+        </v-toolbar-title>
+        <v-spacer />
         <v-btn prepend-icon="mdi-printer" @click="handlePrint">Cetak</v-btn>
-        <v-btn icon="mdi-close" @click="closePrintPreview"></v-btn>
+        <v-btn icon="mdi-close" @click="closePrintPreview" />
       </v-toolbar>
 
       <v-card-text class="pa-0 grey-lighten-4 print-preview-area">
@@ -467,6 +499,7 @@ const onRekeningSelected = (rekening: Rekening) => {
       </v-card-text>
     </v-card>
   </v-dialog>
+
   <RekeningSearchModal
     v-if="isRekeningSearchVisible"
     :cabang="authStore.user?.cabang || ''"
@@ -476,55 +509,95 @@ const onRekeningSelected = (rekening: Rekening) => {
 </template>
 
 <style scoped>
-/* Style lokal untuk modal input */
-.dialog-card :deep(.v-label) {
+/* ── Dialog card ── */
+.dp-card :deep(.v-label) {
   font-size: 11px !important;
 }
-
-.dialog-card :deep(input),
-.dialog-card :deep(.v-select__selection-text) {
+.dp-card :deep(input),
+.dp-card :deep(.v-select__selection-text) {
   font-size: 12px !important;
 }
 
-.dialog-footer {
-  background-color: rgb(var(--v-theme-surface));
-  border-top: 1px solid rgba(var(--v-theme-on-surface), 0.12);
+/* ── Section label ── */
+.section-label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  color: #666;
+  border-bottom: 1px solid #e0e0e0;
+  padding-bottom: 4px;
 }
 
-.dialog-footer {
-  background-color: rgb(var(--v-theme-surface));
-  border-top: 1px solid rgba(var(--v-theme-on-surface), 0.12);
+/* ── Nominal field rata kanan ── */
+.nominal-field :deep(input) {
+  text-align: right;
+  font-weight: 700 !important;
+  font-size: 13px !important;
 }
 
-.dialog-card :deep(.v-field--variant-filled),
-.dialog-card :deep(.v-field--variant-filled .v-field__overlay) {
+/* ── Ringkasan DP ── */
+.dp-summary {
+  background: #f5f7fa;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-size: 0.8rem;
+}
+.dp-summary__row {
+  display: flex;
+  justify-content: space-between;
+  padding: 2px 0;
+}
+.dp-summary__row--total {
+  font-size: 0.85rem;
+  margin-top: 2px;
+}
+.dp-summary__divider {
+  border-top: 1px solid #ccc;
+  margin: 4px 0;
+}
+
+/* ── Footer ── */
+.dp-footer {
+  background-color: rgb(var(--v-theme-surface));
+  border-top: 1px solid rgba(var(--v-theme-on-surface), 0.12);
+  padding: 8px 12px;
+}
+
+/* ── Filled field (readonly info) ── */
+.dp-card :deep(.v-field--variant-filled),
+.dp-card :deep(.v-field--variant-filled .v-field__overlay) {
   background-color: rgb(var(--v-theme-surface)) !important;
 }
 
-.text-end input {
-  text-align: right;
-}
-
-/* --- STYLE BARU UNTUK PREVIEW AREA --- */
+/* ── Print preview area ── */
 .print-dialog .print-preview-area {
   display: flex;
-  justify-content: center;
+  flex-direction: column;
+  align-items: center;
   background-color: #525659;
-  padding: 20px 0;
+  padding: 24px 20px;
   overflow-y: auto;
+  flex: 1 1 auto;
+  min-height: 0;
 }
 
-/* --- STYLE BARU UNTUK KETERANGAN (PENGGANTI DETAIL) --- */
+.print-container {
+  width: 210mm;
+  flex-shrink: 0;
+  background: white;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.4);
+}
+
 .summary-no-details {
   border: 1px solid #000;
   margin-top: 10px;
 }
-
 .keterangan-header {
   padding: 8px;
   border-bottom: 1px solid #333;
 }
-
 .total-header {
   display: flex;
   justify-content: space-between;
@@ -534,14 +607,10 @@ const onRekeningSelected = (rekening: Rekening) => {
   background-color: #f2f2f2;
 }
 
-/* ########################################## */
-/* ### STYLE DIBAWAH INI DISALIN DARI DPPRINTVIEW.VUE ### */
-/* ########################################## */
-
+/* ── Print page ── */
 .page {
   width: 210mm;
   height: 140mm;
-  /* BUFFER KEAMANAN: Jangan pakai 148.5mm, terlalu pas */
   padding: 8mm 12mm;
   background: white;
   box-sizing: border-box;
@@ -549,18 +618,10 @@ const onRekeningSelected = (rekening: Rekening) => {
   font-family: Arial, sans-serif;
   font-size: 9pt;
   border-bottom: 1px dashed #ccc;
-  /* Garis bantu potong di layar */
 }
-
 .page:last-child {
   border-bottom: none;
 }
-
-.copy-space {
-  margin-top: 10mm;
-  /* Jarak antar kuitansi saat preview di layar */
-}
-
 .copy-label {
   position: absolute;
   bottom: 5mm;
@@ -569,47 +630,23 @@ const onRekeningSelected = (rekening: Rekening) => {
   color: #777;
   font-style: italic;
 }
-
-/* --- STYLE BARU UNTUK 2 SALINAN --- */
-.receipt-copy {
-  border-bottom: 1px dashed #333;
-  /* Garis potong lebih tipis */
-  padding-bottom: 0.4cm;
-  margin-bottom: 0.4cm;
-  page-break-inside: avoid;
-}
-
-.receipt-copy:last-child {
-  border-bottom: none;
-  margin-bottom: 0;
-  padding-bottom: 0;
-}
-
-/* Pastikan logo tidak terlalu besar */
-.company-logo {
-  height: 30px;
-  /* Sedikit dikecilkan */
-  object-fit: contain;
-}
-
-/* --- AKHIR STYLE 2 SALINAN --- */
-
 .company-header {
   display: flex;
   align-items: center;
   gap: 15px;
   margin-bottom: 10px;
 }
-
+.company-logo {
+  height: 30px;
+  object-fit: contain;
+}
 .company-name {
   font-weight: bold;
   font-size: 12pt;
 }
-
 .company-info {
   line-height: 1.4;
 }
-
 .document-title {
   text-align: center;
   font-size: 13pt;
@@ -619,13 +656,11 @@ const onRekeningSelected = (rekening: Rekening) => {
   border-bottom: 1px solid #000;
   padding: 3px 0;
 }
-
 .details-container {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
 }
-
 .details-grid {
   display: grid;
   grid-template-columns: 160px auto;
@@ -633,91 +668,94 @@ const onRekeningSelected = (rekening: Rekening) => {
   line-height: 1.5;
   flex-grow: 1;
 }
-
-.details-grid-right {
-  display: grid;
-  grid-template-columns: 80px auto;
-  font-size: 9pt;
-  flex-shrink: 0;
-}
-
 .label {
   font-weight: bold;
 }
-
 .address-value,
 .terbilang-value {
   font-style: italic;
 }
-
-.text-end {
-  text-align: right;
-}
-
 .signatures {
   display: flex;
   justify-content: space-around;
   margin-top: 10px;
-  /* Jarak ke TTD dipersempit */
 }
-
 .signature-box {
   width: 40%;
   text-align: center;
   height: 50px;
-  /* Area TTD diperkecil */
 }
-
-/* ### ATURAN PRINT GLOBAL (INI PENTING) ### */
-/* Kita tidak bisa menggunakan 'scoped' untuk @media print
-   karena kita perlu menargetkan 'body' */
 </style>
 
 <style>
 @media print {
-  /* 1. Sembunyikan SEMUA elemen di layar */
-  body * {
+  /* 1. Sembunyikan semua elemen UI */
+  body > * {
+    display: none !important;
+  }
+
+  /* 2. Tampilkan hanya overlay Vuetify yang berisi dialog */
+  .v-overlay-container {
+    display: block !important;
+  }
+
+  /* 3. Sembunyikan semua isi overlay kecuali print-container */
+  .v-overlay-container * {
     visibility: hidden !important;
   }
 
-  /* 2. Tampilkan HANYA kontainer cetak dan isinya */
   .print-container,
   .print-container * {
     visibility: visible !important;
   }
 
-  /* 3. Paksa kontainer cetak ke posisi paling atas */
+  /* 4. Reset semua wrapper dialog agar tidak clip */
+  .v-overlay__content,
+  .v-dialog,
+  .v-card,
+  .print-preview-area {
+    overflow: visible !important;
+    max-height: none !important;
+    height: auto !important;
+    position: static !important;
+    transform: none !important;
+    box-shadow: none !important;
+    background: transparent !important;
+  }
+
+  /* 5. Print container mengisi halaman */
   .print-container {
-    position: absolute !important;
-    left: 0 !important;
-    top: 0 !important;
-    width: 210mm !important;
+    position: static !important;
+    width: 100% !important;
     margin: 0 !important;
     padding: 0 !important;
+    background: white !important;
   }
 
-  @page {
-    size: A4 portrait;
-    margin: 0;
-    /* Hilangkan margin browser agar tidak geser */
-  }
-
+  /* 6. Setiap .page = setengah halaman A4 */
   .page {
+    width: 100% !important;
+    height: 148mm !important;
+    padding: 8mm 12mm !important;
+    margin: 0 !important;
     box-shadow: none !important;
     border: none !important;
-    margin: 0 !important;
-    padding: 10mm !important;
-    height: 148.5mm !important;
-    /* Paksa pas setengah kertas A4 */
-    page-break-after: avoid !important;
+    border-bottom: 1px dashed #999 !important;
     page-break-inside: avoid !important;
+    page-break-after: always !important;
     display: block !important;
-    border-bottom: 1px dashed #000 !important;
-    /* Garis potong saat diprint */
+    box-sizing: border-box !important;
+    overflow: hidden !important;
   }
 
   .page:last-child {
     border-bottom: none !important;
+    page-break-after: avoid !important;
+  }
+
+  @page {
+    size: A4 portrait;
+    margin: 5mm;
   }
 }
 </style>

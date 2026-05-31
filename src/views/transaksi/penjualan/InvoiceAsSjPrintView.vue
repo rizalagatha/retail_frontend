@@ -48,8 +48,6 @@ onMounted(async () => {
 
     const data = response.data;
 
-    console.log("Data print:", data);
-
     // assign ke state
     printData.value = data;
 

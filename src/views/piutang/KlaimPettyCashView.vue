@@ -130,7 +130,9 @@ const fetchCabangList = async () => {
       cabangList.value = [{ kode: "ALL", nama: "SEMUA CABANG" }, ...response.data];
     } else {
       // Kalau toko, saring HANYA cabang dia sendiri
-      cabangList.value = response.data.filter((c: any) => c.kode === userCabang.value);
+      cabangList.value = response.data.filter(
+        (c: { kode: string; nama: string }) => c.kode === userCabang.value
+      );
     }
   } catch (error) {
     console.error("Gagal memuat cabang", error);

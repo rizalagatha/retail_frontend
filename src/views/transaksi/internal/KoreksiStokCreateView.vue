@@ -203,10 +203,10 @@ const onProductsSelected = async (selectedProducts: ProductLookup[]) => {
   }
 };
 
-const onGudangSelected = (gudang: { kode: string; nama: string }) => {
+const onGudangSelected = () => {
   // Di form ini, gudang tidak bisa diubah, jadi fungsi ini mungkin tidak diperlukan
   // tapi kita siapkan jika ada kebutuhan di masa depan.
-  console.log("Gudang dipilih:", gudang);
+
   isGudangSearchVisible.value = false;
 };
 

@@ -214,15 +214,24 @@
   font-size: 10px !important;
 }
 
+/* --- 6. Perbaikan Search Field & Wrapper (ANTI-MENYEMPIT) --- */
+/* Mencegah div pembungkus (d-flex) ikut menyempit saat layar penuh */
+.filter-section > div.d-flex {
+  flex-shrink: 0 !important;
+}
+
 .filter-section .search-field {
   min-width: 250px !important; /* Paksa lebar minimal */
   width: 300px !important; /* Lebar ideal */
   margin-left: 8px; /* Beri jarak sedikit */
+  flex-shrink: 0 !important; /* KUNCI: Jangan biarkan ditekuk oleh flexbox */
 }
 
-/* Pastikan input di dalamnya juga mengikuti lebar */
+/* Pastikan komponen internal Vuetify mematuhi batas lebar induknya */
+.filter-section .search-field .v-input__control,
 .filter-section .search-field .v-field {
   width: 100% !important;
+  min-width: 100% !important;
 }
 
 /* Styling Header Section (untuk halaman form)

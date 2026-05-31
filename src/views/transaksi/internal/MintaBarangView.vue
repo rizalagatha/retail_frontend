@@ -62,6 +62,16 @@ interface Cabang {
   nama: string;
 }
 
+interface PendingAlokasi {
+  id: string;
+  kode: string;
+  nama: string;
+  ukuran?: string;
+  urgensi: string;
+  qty_kebutuhan: number;
+  qty_alokasi: number;
+}
+
 // --- State ---
 const list = ref<MintaBarangHeader[]>([]);
 const details = ref<{ [nomor: string]: MintaBarangDetail[] }>({});
@@ -82,6 +92,22 @@ const isConfirmDeleteVisible = ref(false);
 const itemToDelete = ref<MintaBarangHeader | null>(null);
 const confirmDialogText = ref("");
 
+const isReviewModalVisible = ref(false);
+const pendingList = ref<PendingAlokasi[]>([]);
+const selectedPending = ref<string[]>([]);
+const isGenerating = ref(false);
+const isConfirmGenerateVisible = ref(false);
+
+const openGenerateDialog = () => {
+  isConfirmGenerateVisible.value = true;
+};
+
+const executeGenerate = async () => {
+  isConfirmGenerateVisible.value = false;
+  // Panggil fungsi handleGenerateAutomasi yang sudah kita buat
+  await handleGenerateAutomasi();
+};
+
 // --- Computed ---
 const hasViewPermission = computed(() => authStore.can(MENU_ID, "view"));
 const canInsert = computed(
@@ -92,6 +118,7 @@ const canDelete = computed(
   () => authStore.can(MENU_ID, "delete") && authStore.user?.cabang !== "KDC"
 );
 const isSingleSelected = computed(() => selected.value.length === 1);
+const pendingCount = computed(() => pendingList.value.length);
 
 // --- Header Definisi (Ref & Width Angka) ---
 const headers = ref<DataTableHeader[]>([
@@ -117,6 +144,15 @@ const detailHeaders = [
   { title: "Stok Maximal", key: "StokMaximal", align: "end", width: "100px" },
   { title: "Jumlah", key: "Jumlah", align: "end", width: "100px" },
   { title: "SJ", key: "SJ", align: "end", width: "100px" },
+] as const;
+
+const modalHeaders = [
+  { title: "Kode Barang", key: "kode", width: "160px" },
+  { title: "Nama Lengkap Barang", key: "nama" },
+  { title: "Ukuran", key: "ukuran", width: "80px", align: "center" },
+  { title: "Urgensi", key: "urgensi", align: "center", width: "100px" },
+  { title: "Kebutuhan", key: "qty_kebutuhan", align: "center", width: "100px" },
+  { title: "Jatah (Diberikan)", key: "qty_alokasi", align: "center", width: "120px" },
 ] as const;
 
 // --- Logic Resize Column ---
@@ -154,6 +190,16 @@ const handleRowClick = (_event: Event, { item }: { item: MintaBarangHeader }) =>
 };
 
 // --- Methods ---
+const fetchPendingAlokasi = async () => {
+  try {
+    const response = await api.get("/minta-barang/pending-alokasi");
+    pendingList.value = response.data;
+  } catch (err: unknown) {
+    const error = err as AxiosError<{ message?: string }>;
+    toast.error(error.response?.data?.message || "Gagal memuat daftar alokasi pending.");
+  }
+};
+
 const fetchCabangList = async () => {
   try {
     const response = await api.get("/minta-barang/lookup/cabang");
@@ -267,6 +313,35 @@ const executeDelete = async () => {
 
 const handleNew = () => router.push({ name: "MintaBarangCreate" });
 
+const proceedToCreate = () => {
+  // Langsung join array-nya, tidak perlu di-map lagi
+  const ids = selectedPending.value.join(",");
+
+  // Gunakan nama route (name) agar lebih aman dari 404 Not Found
+  // karena di handleNew Anda menggunakan name: "MintaBarangCreate"
+  router.push({
+    name: "MintaBarangCreate",
+    query: { alokasiIds: ids },
+  });
+};
+
+// Fungsi untuk memilih/membatalkan pilihan saat baris diklik
+const toggleRowSelection = (
+  _event: Event,
+  { item }: { item: PendingAlokasi | { raw: PendingAlokasi } }
+) => {
+  const row = "raw" in item ? item.raw : item;
+  const id = row.id;
+
+  const index = selectedPending.value.indexOf(id);
+
+  if (index === -1) {
+    selectedPending.value.push(id);
+  } else {
+    selectedPending.value.splice(index, 1);
+  }
+};
+
 // --- 2. Helper Format Tanggal ---
 const formatDateIndo = (dateString: string | Date | null | undefined) => {
   if (!dateString) return "";
@@ -372,9 +447,24 @@ const exportData = async (type: "header" | "detail") => {
   }
 };
 
+const handleGenerateAutomasi = async () => {
+  isGenerating.value = true;
+  try {
+    const res = await api.post("/minta-barang-form/generate-automasi");
+    toast.success(res.data.message);
+    fetchData();
+  } catch (err: unknown) {
+    const error = err as AxiosError<{ message?: string }>;
+    toast.error(error.response?.data?.message || "Gagal menjalankan automasi.");
+  } finally {
+    isGenerating.value = false;
+  }
+};
+
 onMounted(() => {
   fetchCabangList();
   fetchData();
+  fetchPendingAlokasi();
 });
 
 watch(filters, () => fetchData(), { deep: true });
@@ -383,6 +473,19 @@ watch(filters, () => fetchData(), { deep: true });
 <template>
   <PageLayout title="Minta Barang ke DC" desktop-mode icon="mdi-package-up">
     <template #header-actions>
+      <v-btn
+        v-if="authStore.user?.cabang === 'KDC' && authStore.can(MENU_ID, 'insert')"
+        size="small"
+        color="orange-darken-3"
+        prepend-icon="mdi-auto-fix"
+        @click="openGenerateDialog"
+        :loading="isGenerating"
+      >
+        Generate Automasi
+      </v-btn>
+      <v-btn size="small" color="orange" @click="isReviewModalVisible = true">
+        Review Alokasi Otomatis ({{ pendingCount }})
+      </v-btn>
       <v-btn
         v-if="canInsert"
         size="small"
@@ -612,6 +715,102 @@ watch(filters, () => fetchData(), { deep: true });
         </v-card-actions>
       </v-card>
     </v-dialog>
+
+    <v-dialog v-model="isConfirmGenerateVisible" max-width="400px" persistent>
+      <v-card>
+        <v-card-title class="text-h6 font-weight-bold">Konfirmasi Automasi</v-card-title>
+        <v-card-text>
+          Proses ini akan menghitung alokasi stok untuk semua cabang. Lanjutkan?
+        </v-card-text>
+        <v-card-actions>
+          <v-spacer></v-spacer>
+          <v-btn color="grey-darken-1" variant="text" @click="isConfirmGenerateVisible = false"
+            >Batal</v-btn
+          >
+          <v-btn color="orange-darken-3" variant="tonal" @click="executeGenerate"
+            >Ya, Lanjutkan</v-btn
+          >
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+
+    <v-dialog v-model="isReviewModalVisible" max-width="1100px" persistent scrollable>
+      <v-card class="rounded-lg bg-grey-lighten-4">
+        <v-toolbar color="blue-darken-3" density="comfortable">
+          <v-icon start class="ml-4">mdi-auto-fix</v-icon>
+          <v-toolbar-title class="text-subtitle-1 font-weight-bold">
+            Review Alokasi Otomatis
+            <v-chip class="ml-2" color="white" variant="flat" size="small" style="color: #1565c0">
+              {{ pendingCount }} Item Menunggu
+            </v-chip>
+          </v-toolbar-title>
+          <v-spacer />
+          <v-btn icon="mdi-close" variant="text" @click="isReviewModalVisible = false" />
+        </v-toolbar>
+
+        <v-card-text class="pa-4">
+          <div class="mb-3 text-caption text-medium-emphasis d-flex align-center">
+            <v-icon size="small" class="mr-1">mdi-cursor-default-click</v-icon>
+            Tips: Anda bisa mengklik di mana saja pada baris tabel untuk memilih/membatalkan
+            pilihan.
+          </div>
+
+          <v-card class="elevation-1 border rounded-lg overflow-hidden">
+            <v-data-table
+              v-model="selectedPending"
+              :headers="modalHeaders"
+              :items="pendingList"
+              item-value="id"
+              show-select
+              density="comfortable"
+              class="review-table"
+              hover
+              @click:row="toggleRowSelection"
+            >
+              <template #[`item.urgensi`]="{ item }">
+                <v-chip
+                  size="small"
+                  :color="item.urgensi === 'KRITIS' ? 'error' : 'warning'"
+                  variant="flat"
+                  class="font-weight-bold"
+                >
+                  {{ item.urgensi }}
+                </v-chip>
+              </template>
+
+              <template #[`item.qty_alokasi`]="{ item }">
+                <div
+                  class="bg-blue-lighten-5 text-blue-darken-3 font-weight-black pa-1 rounded text-center"
+                >
+                  {{ item.qty_alokasi }}
+                </div>
+              </template>
+            </v-data-table>
+          </v-card>
+        </v-card-text>
+
+        <v-card-actions class="pa-4 bg-white border-t">
+          <v-btn
+            variant="text"
+            color="grey-darken-2"
+            class="font-weight-bold text-none"
+            @click="isReviewModalVisible = false"
+          >
+            Tutup
+          </v-btn>
+          <v-spacer />
+          <v-btn
+            color="orange-darken-3"
+            variant="flat"
+            class="font-weight-bold text-none px-6"
+            :disabled="selectedPending.length === 0"
+            @click="proceedToCreate"
+          >
+            Buat Permintaan ({{ selectedPending.length }} Terpilih)
+          </v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
   </PageLayout>
 </template>
 
@@ -785,5 +984,44 @@ watch(filters, () => fetchData(), { deep: true });
   display: flex;
   justify-content: center;
   align-items: center;
+}
+
+.compact-table :deep(.v-table__wrapper) {
+  max-height: 500px; /* Biar scrollable kalau datanya banyak */
+}
+
+.compact-table :deep(th),
+.compact-table :deep(td) {
+  font-size: 11px !important;
+  padding: 4px 8px !important;
+  height: 30px !important;
+}
+
+.compact-table :deep(th) {
+  background-color: #f5f5f5 !important;
+  font-weight: bold !important;
+  text-transform: uppercase;
+}
+
+/* Styling Khusus Tabel Review Alokasi */
+.review-table :deep(tbody tr) {
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+
+.review-table :deep(tbody tr:hover) {
+  background-color: #f5f5f5 !important;
+}
+
+/* Ubah warna baris yang di-ceklis (selected) */
+.review-table :deep(tbody tr.v-data-table__selected) {
+  background-color: #e3f2fd !important; /* Warna biru muda */
+}
+
+.review-table :deep(th) {
+  background-color: #fafafa !important;
+  font-weight: bold !important;
+  color: #424242 !important;
+  text-transform: uppercase;
 }
 </style>

@@ -302,7 +302,6 @@ const exportToExcel = async () => {
     const sheet = workbook.addWorksheet(`Laporan ${reportType.value}`);
 
     const isKDC = CABKAOS === "KDC";
-    const rupiah = (val: number) => Number(val || 0);
 
     // ── Definisi kolom berdasarkan reportType ──────────────
     type ColDef = {

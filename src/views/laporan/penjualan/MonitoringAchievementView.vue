@@ -120,9 +120,6 @@ interface YtdSummary {
   target: number;
   ach: number;
 }
-interface ExcelRow {
-  [key: string]: string | number | undefined;
-}
 interface TargetWeek {
   minggu: number;
   nominal: number;
@@ -888,7 +885,7 @@ const exportData = async () => {
       });
 
       const mt = monthlyTotalSummary.value;
-      const totalRowNum = sheet.rowCount + 1;
+
       const totalRow = sheet.addRow([
         "",
         "",
@@ -943,7 +940,7 @@ const exportData = async () => {
       });
 
       const yt = ytdTotalSummary.value;
-      const totalRowNum = sheet.rowCount + 1;
+
       const totalRow = sheet.addRow([
         "",
         "",

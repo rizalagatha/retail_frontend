@@ -1030,7 +1030,7 @@ onMounted(() => {
                       v-model.number="item.qty"
                       type="number"
                       variant="underlined"
-                      dense
+                      density="compact"
                       hide-details
                     ></v-text-field>
                   </template>
@@ -1057,7 +1057,7 @@ onMounted(() => {
                     <v-text-field
                       v-model="item.kodeBarang"
                       variant="underlined"
-                      dense
+                      density="compact"
                       hide-details
                       placeholder="F1..."
                       :class="{ 'bg-red-lighten-5': (item.qty ?? 0) > 0 && !item.kodeBarang }"
@@ -1118,7 +1118,7 @@ onMounted(() => {
                     <v-text-field
                       v-model="item.tambahan"
                       variant="underlined"
-                      dense
+                      density="compact"
                       hide-details
                       placeholder="F1..."
                       readonly

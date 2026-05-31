@@ -53,6 +53,7 @@ interface Item {
   jumlah?: number;
   barcode?: string;
   harga?: number;
+  alokasi_id?: number;
 }
 
 interface SoItem {
@@ -99,6 +100,16 @@ interface MintaBarangItem {
   diskonPersen?: number;
   diskonRp?: number;
   total?: number;
+}
+
+interface AlokasiItem {
+  alokasi_id: number;
+  kode: string;
+  nama: string;
+  ukuran?: string;
+  qty_alokasi: number;
+  barcode?: string;
+  harga?: number;
 }
 
 interface LoadMintaBarangResponse {
@@ -451,8 +462,6 @@ const handleBarcodeScan = async () => {
       params: { gudang: gudangKode },
     });
 
-    console.log("API SCAN RESPONSE:", response.data);
-
     const product = response.data;
 
     // Cari baris kosong pertama di grid untuk diisi
@@ -516,9 +525,9 @@ watch(
   { deep: true }
 );
 
-onMounted(() => {
+onMounted(async () => {
   markAsSaved();
-  // Cek hak akses 'insert' (untuk baru) atau 'edit' (untuk ubah)
+
   if (!authStore.can(MENU_ID, isEditMode.value ? "edit" : "insert")) {
     toast.error(
       `Anda tidak memiliki izin untuk ${isEditMode.value ? "mengubah" : "membuat"} data ini.`
@@ -528,13 +537,51 @@ onMounted(() => {
   }
 
   const nomor = route.params.nomor as string;
+  const { alokasiIds } = route.query; // Ambil ID dari query param
+
   if (isEditMode.value && nomor) {
-    loadDataForEdit(nomor);
+    await loadDataForEdit(nomor);
+  } else if (alokasiIds) {
+    // === ALUR AUTO-POPULATE ===
+    await loadFromAutomasi(String(alokasiIds).split(","));
   } else {
     resetForm();
     isLoading.value = false;
   }
 });
+
+// Fungsi baru untuk mengambil data alokasi
+const loadFromAutomasi = async (ids: string[]) => {
+  isLoading.value = true;
+  try {
+    const response = await api.post("/minta-barang-form/convert-alokasi", { ids });
+
+    // Auto-isi grid
+    items.value = (response.data as AlokasiItem[]).map((item, index) => ({
+      id: Date.now() + index,
+      alokasi_id: item.alokasi_id,
+      kode: item.kode,
+      nama: item.nama,
+      ukuran: item.ukuran,
+      jumlah: item.qty_alokasi, // Otomatis terisi jatahnya
+      stokmin: 0,
+      stokmax: 0,
+      sudahminta: 0,
+      sj: 0,
+      stok: 0, // Bisa di-fetch detail lagi jika perlu
+      mino: 0,
+      barcode: item.barcode || "",
+      harga: item.harga || 0,
+    }));
+
+    addNewRow();
+    toast.success("Data alokasi berhasil dimuat. Silakan review jumlah.");
+  } catch {
+    toast.error("Gagal memuat data alokasi.");
+  } finally {
+    isLoading.value = false;
+  }
+};
 </script>
 
 <template>

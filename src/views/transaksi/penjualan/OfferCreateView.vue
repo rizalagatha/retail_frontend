@@ -1,6 +1,16 @@
 <script setup lang="ts">
 import { ref, onMounted, computed, watch, reactive, nextTick } from "vue";
 import api from "@/services/api";
+import { useToast } from "vue-toastification";
+import { useAuthStore } from "@/stores/authStore";
+import { useUiStore } from "@/stores/uiStore";
+import { useUnsavedChanges } from "@/composables/useUnsavedChanges";
+import { useRouter, useRoute } from "vue-router";
+import { format, addDays, isValid } from "date-fns";
+import axios, { AxiosError } from "axios";
+import { formatRupiah } from "@/utils/formatRupiah";
+import { useAutoPromo } from "@/composables/useAutoPromo";
+
 import PageLayout from "@/components/PageLayout.vue";
 import CustomerSearchModal from "@/components/lookup/CustomerSearchModal.vue";
 // import GudangSearchModal from '@/components/GudangSearchModal.vue';
@@ -13,14 +23,7 @@ import DpListModal from "@/components/modal/DpListModal.vue";
 import DiscountCostModal from "@/components/modal/DiscountCostModal.vue";
 import JenisOrderModal from "@/components/modal/JenisOrderModal.vue";
 import CustomerForm from "@/components/form/CustomerForm.vue";
-import { useToast } from "vue-toastification";
-import { useAuthStore } from "@/stores/authStore";
-import { useUiStore } from "@/stores/uiStore";
-import { useUnsavedChanges } from "@/composables/useUnsavedChanges";
-import { useRouter, useRoute } from "vue-router";
-import { format, addDays, isValid } from "date-fns";
-import axios, { AxiosError } from "axios";
-import { formatRupiah } from "@/utils/formatRupiah";
+import DiscountConfirmationDialog from "@/components/dialog/DiscountConfirmationDialog.vue";
 
 const toast = useToast();
 const authStore = useAuthStore();
@@ -52,9 +55,9 @@ interface OfferItem {
   sod_custom?: string; // 'Y' atau 'N'
   sod_custom_nama?: string;
   sod_custom_data?: string; // String JSON untuk rincian teknis
-  terhitungPromo?: boolean; // [FIX] Tambahkan ini
-  promo?: string; // [FIX] Tambahkan ini
-  _isHargaEditable?: boolean; // [FIX] Digunakan saat inject stiker
+  terhitungPromo: boolean;
+  promo?: string;
+  _isHargaEditable?: boolean;
   originalDiskonRp?: number;
   originalDiskonPersen?: number;
   scannedQty?: number;
@@ -189,15 +192,6 @@ interface DiscountCostUpdateData {
   pinDiskon2?: string;
 }
 
-interface ActivePromo {
-  pro_nomor: string;
-  pro_judul: string;
-  pro_totalrp: number;
-  pro_disrp: number;
-  pro_diskon: number;
-  pro_lipat: "Y" | "N";
-}
-
 interface UkuranKaosItem {
   ukuran: string;
   jumlah: number;
@@ -251,6 +245,77 @@ const footer = ref({
   belumDibayar: 0,
   subtotalKaos: 0,
 });
+// --- Setup Proxy untuk Composable ---
+const promoHeaderProxy = reactive({
+  tanggal: header.value.tanggal,
+  gudang: { kode: header.value.gudang.kode },
+  customer: {
+    level_kode: header.value.customer?.level || "",
+    level: header.value.customer?.level || "",
+  },
+  nomorSo: "", // Penawaran belum punya SO
+  nomorPromo: header.value.nomorPromo || "",
+  namaPromo: header.value.namaPromo || "",
+  diskonRp: footer.value.diskonRp,
+  diskonPersen1: footer.value.diskonPersen1,
+  diskonPersen2: footer.value.diskonPersen2,
+});
+
+// --- Inisialisasi Composable ---
+const autoPromo = useAutoPromo(promoHeaderProxy, items, {
+  onNotify: (msg, type) => {
+    if (type === "success") toast.success(msg);
+    else if (type === "warning") toast.warning(msg);
+    else toast.info(msg);
+  },
+  skipIfFromSo: false,
+  isItemEligible: (item) => {
+    if (item.noPengajuanHarga) return false;
+    if ((item.noSoDtf || "").toUpperCase().includes(".BR.")) return false;
+    return true;
+  },
+  onFakturPromoAvailable: (promo) => {
+    // Cegah dialog muncul terus jika sudah diabaikan
+    if (lastSuggestedPromo.value === promo.nomor || lastSuggestedPromo.value === "MANUAL_AUTH")
+      return;
+
+    pendingPromoData.nomor = promo.nomor;
+    pendingPromoData.nama = promo.nama;
+    pendingPromoData.diskon = promo.diskon;
+    isPromoConfirmVisible.value = true;
+  },
+});
+
+// Alias ke state composable
+const promoNotification = autoPromo.notification;
+
+// Helper untuk menyinkronkan state lokal ke proxy
+const syncPromoProxy = () => {
+  promoHeaderProxy.tanggal = header.value.tanggal;
+  promoHeaderProxy.gudang.kode = header.value.gudang.kode;
+  promoHeaderProxy.customer.level_kode = header.value.customer?.level || "";
+  promoHeaderProxy.customer.level = header.value.customer?.level || "";
+  promoHeaderProxy.nomorPromo = header.value.nomorPromo || "";
+  promoHeaderProxy.namaPromo = header.value.namaPromo || "";
+  promoHeaderProxy.diskonRp = baseManualDiscountRp.value; // PENTING: Cegah loop
+  promoHeaderProxy.diskonPersen1 = footer.value.diskonPersen1;
+  promoHeaderProxy.diskonPersen2 = footer.value.diskonPersen2;
+};
+
+// Mengelompokkan diskon item berdasarkan kode barang saja (tanpa ukuran)
+const uniqueItemDiscounts = computed(() => {
+  const map = new Map<string, { nama: string; persen: number; rp: number }>();
+  for (const [key, disc] of autoPromo.itemDiscountMap.value.entries()) {
+    const kode = key.split("||")[0];
+    const existing = map.get(kode);
+
+    if (!existing || disc.persen > existing.persen) {
+      map.set(kode, { nama: disc.nama, persen: disc.persen, rp: disc.rp });
+    }
+  }
+  return Array.from(map.values());
+});
+
 const baseManualDiscountRp = ref(0);
 
 const authDialog = reactive<AuthDialogState>({
@@ -294,10 +359,6 @@ const isDpListModalVisible = ref(false);
 const isDiscountCostModalVisible = ref(false);
 const isInitialLoad = ref(false);
 const isNewCustomerFormVisible = ref(false);
-// --- State Promo [BARU] ---
-const activePromosList = ref<ActivePromo[]>([]);
-const promoNotification = ref("");
-const potentialPromoDiscount = ref(0);
 const lastSuggestedPromo = ref("");
 const isGrandOpeningPromo = ref(false); // Digunakan untuk binding class di template
 const isStickerBonusRejected = ref(false);
@@ -656,6 +717,8 @@ const onProductsSelected = (selectedProducts: Product[]) => {
       barcode: product.barcode || product.kode,
       noPengajuanHarga: "",
       pin: "",
+      terhitungPromo: false,
+      promo: "",
     }));
 
   if (newProducts.length === 0) {
@@ -683,114 +746,12 @@ const isDiscountableItem = (item: OfferItem) => {
   return !isJasaMurni;
 };
 
-const isItemPromoEligible = (item: OfferItem) => {
-  const autoPromoIds = [
-    "PRO-2025-008",
-    "PRO-2025-010",
-    "PRO-2026-001",
-    "PRO-2026-002",
-    "PRO-2026-004",
-  ];
-  const hasActiveMonthlyPromo = activePromosList.value.some((p) =>
-    autoPromoIds.includes(p.pro_nomor)
-  );
-
-  if (!hasActiveMonthlyPromo) return false;
-
-  const namaUp = (item.nama || "").toUpperCase();
-  const isCustomOrDtf = !!item.noSoDtf || item.isCustomOrder === true || namaUp.includes("DTF");
-
-  const isBukanPengajuan = !item.noPengajuanHarga;
-  // Deteksi Bordir: Jika noSoDtf mengandung ".BR."
-  const isBukanBordir = !(item.noSoDtf || "").toUpperCase().includes(".BR.");
-
-  const isJasaMurni = (item.kode || "").toUpperCase().startsWith("JASA") && !isCustomOrDtf;
-
-  // Syarat Eligible: Bukan Pengajuan, BUKAN BORDIR, dan Bukan Jasa Murni
-  return isBukanPengajuan && isBukanBordir && !isJasaMurni;
-};
-
 const isStickerPromoToko = (item: OfferItem) => {
   return (
     (String(item.barcode) === "25014783" || String(item.kode) === "2500053") &&
     String(item.ukuran).toUpperCase() === "A6" &&
     (item.harga === 0 || item.terhitungPromo || item.promo === "PRO-2026-001")
   );
-};
-
-const checkRealtimePromoEligibility = async (): Promise<boolean> => {
-  // 1. Penjaga Dasar
-  if (
-    header.value.penawaran ||
-    authStore.user?.cabang === "KDC" ||
-    footer.value.pinDiskon1 ||
-    lastSuggestedPromo.value === "MANUAL_AUTH"
-  ) {
-    return false;
-  }
-
-  const validItems = items.value.filter((i) => i.kode);
-  if (validItems.length === 0) return false;
-
-  // 2. Hitung Total yang berhak (Eligible)
-  const totalEligibleValue = validItems.reduce((sum, item) => {
-    return isItemPromoEligible(item) && !isStickerPromoToko(item) ? sum + (item.total || 0) : sum;
-  }, 0);
-
-  // 3. Tentukan Kandidat Promo (Misal Promo April)
-  const promoMei = activePromosList.value.find((p) => p.pro_nomor === "PRO-2026-004");
-  const promoApril = activePromosList.value.find((p) => p.pro_nomor === "PRO-2026-002");
-  let currentCalculatedDiscount = 0;
-  let promoCandidate: ActivePromo | null = null;
-
-  // --- PRIORITAS 1: PROMO MEI 2026 ---
-  if (promoMei && totalEligibleValue >= 250000) {
-    const kelipatan = Math.floor(totalEligibleValue / 250000);
-    currentCalculatedDiscount = 12500 * kelipatan;
-    promoCandidate = promoMei;
-  }
-  // --- PRIORITAS 2: PROMO APRIL 2026 ---
-  else if (promoApril && totalEligibleValue >= 250000) {
-    const kelipatan = Math.floor(totalEligibleValue / 250000);
-    currentCalculatedDiscount = 12500 * kelipatan;
-    promoCandidate = promoApril;
-  }
-
-  // 4. LOGIKA AUTO-UPDATE (KUNCI PERBAIKAN)
-  const autoPromoIds = [
-    "PRO-2025-008",
-    "PRO-2025-010",
-    "PRO-2026-001",
-    "PRO-2026-002",
-    "PRO-2026-004",
-  ];
-
-  // Jika promo ini sudah nempel di header, perbarui nominalnya secara OTOMATIS tanpa popup
-  if (header.value.nomorPromo && autoPromoIds.includes(header.value.nomorPromo)) {
-    if (promoCandidate && header.value.nomorPromo === promoCandidate.pro_nomor) {
-      // Jika nominal kelipatannya berubah, update baseManualDiscountRp
-      if (baseManualDiscountRp.value !== currentCalculatedDiscount) {
-        baseManualDiscountRp.value = currentCalculatedDiscount;
-        calculateTotals(); // Hitung ulang grand total
-        console.log("Promo Kelipatan Terupdate:", currentCalculatedDiscount);
-      }
-      return true;
-    }
-  }
-
-  // 5. Jika belum pakai promo, barulah siapkan data untuk Popup
-  if (
-    currentCalculatedDiscount > 0 &&
-    promoCandidate &&
-    lastSuggestedPromo.value !== promoCandidate.pro_nomor
-  ) {
-    pendingPromoData.nomor = promoCandidate.pro_nomor;
-    pendingPromoData.nama = promoCandidate.pro_judul;
-    pendingPromoData.diskon = currentCalculatedDiscount;
-    isPromoConfirmVisible.value = true;
-  }
-
-  return false;
 };
 
 const useMemberDiscount = () => {
@@ -803,7 +764,7 @@ const useMemberDiscount = () => {
     header.value.nomorPromo = "";
     header.value.namaPromo = "";
   }
-  baseManualDiscountRp.value = 0; // Reset ke 0
+  baseManualDiscountRp.value = 0;
 
   isPromoConfirmVisible.value = false;
   isStickerBonusRejected.value = true;
@@ -818,7 +779,6 @@ const useMemberDiscount = () => {
 
   applyDefaultDiscount().then(() => calculateTotals());
   toast.info("Menggunakan diskon member standar.");
-  isDiscountCostModalVisible.value = true; // Langsung buka modal
 };
 
 // [BARU] Fungsi untuk menutup dialog tanpa merubah diskon apa pun
@@ -836,7 +796,7 @@ const handleOpenDiscountModal = () => {
     return;
   }
 
-  if (potentialPromoDiscount.value > 0 && lastSuggestedPromo.value !== "MANUAL_AUTH") {
+  if (autoPromo.totalAppliedDiskon.value > 0 && lastSuggestedPromo.value !== "MANUAL_AUTH") {
     isPromoConfirmVisible.value = true;
   } else {
     isDiscountCostModalVisible.value = true;
@@ -875,7 +835,11 @@ const calculateTotals = () => {
     let discountRp = Number(item.diskonRp) || 0;
     const discountPersen = Number(item.diskonPersen) || 0;
 
-    if (discountPersen > 0) {
+    if (item.noPengajuanHarga) {
+      item.diskonPersen = 0;
+      item.diskonRp = 0;
+      discountRp = 0;
+    } else if (discountPersen > 0) {
       discountRp = (discountPersen / 100) * price;
       item.diskonRp = discountRp;
     }
@@ -892,7 +856,8 @@ const calculateTotals = () => {
   footer.value.subtotalKaos = subtotalDiscountable;
   footer.value.total = subtotal;
 
-  // checkRealtimePromoEligibility();
+  syncPromoProxy();
+  autoPromo.debouncedEvaluate();
 
   // --- PERBAIKAN LOGIKA DISKON FAKTUR (SOP BARU BERJENJANG) ---
   let baseNominalDiscount = 0;
@@ -985,7 +950,8 @@ const applyMarchBonusSticker = async (forceInject = false) => {
 
     // Hitung Qty Kaos Reguler Saja
     const totalKaosQty = items.value.reduce((sum, item) => {
-      return isItemPromoEligible(item) && !isStickerPromoToko(item)
+      const isCustomDtf = item.isCustomOrder || !!item.noSoDtf;
+      return item.kode && !isStickerPromoToko(item) && !isCustomDtf
         ? sum + (Number(item.jumlah) || 0)
         : sum;
     }, 0);
@@ -1119,138 +1085,10 @@ const save = async () => {
     }
   }
 
-  // =========================================================
-  // --- CEK PROMO AKTIF & TERAPKAN OTOMATIS SAAT SIMPAN ---
-  // =========================================================
-  try {
-    const promoResponse = await api.get("/invoice-form/lookup/active-promos", {
-      params: { tanggal: header.value.tanggal, cabang: header.value.gudang.kode },
-    });
-
-    const activePromos = (promoResponse.data ?? []) as ActivePromo[];
-
-    const promoMei = activePromos.find((p) => p.pro_nomor === "PRO-2026-004");
-    const promoApril = activePromos.find((p) => p.pro_nomor === "PRO-2026-002");
-    const promo2026 = activePromos.find((p) => p.pro_nomor === "PRO-2026-001");
-    const promo008 = activePromos.find((p) => p.pro_nomor === "PRO-2025-008");
-    const promo010 = activePromos.find((p) => p.pro_nomor === "PRO-2025-010");
-
-    let promoToApply: ActivePromo | null = null;
-    let promoDiskon = 0;
-
-    // Menghitung Total Nilai Eligible Promo
-    const totalEligibleValue = validItems.reduce((sum, item) => {
-      return isItemPromoEligible(item) && !isStickerPromoToko(item) ? sum + (item.total || 0) : sum;
-    }, 0);
-
-    // --- PRIORITAS 1: PROMO MEI ---
-    if (promoMei && totalEligibleValue >= 250000) {
-      const kelipatanUang = Math.floor(totalEligibleValue / 250000);
-      promoDiskon = 12500 * kelipatanUang;
-      promoToApply = promoMei;
-    }
-    // --- PRIORITAS 2: PROMO APRIL ---
-    else if (promoApril && totalEligibleValue >= 250000) {
-      const kelipatanUang = Math.floor(totalEligibleValue / 250000);
-      promoDiskon = 12500 * kelipatanUang;
-      promoToApply = promoApril;
-    }
-    // --- PRIORITAS 3: PROMO MARET ---
-    else if (promo2026 && totalEligibleValue >= 200000) {
-      const kelipatanUang = Math.floor(totalEligibleValue / 200000);
-      promoDiskon = 20000 * kelipatanUang;
-      promoToApply = promo2026;
-    }
-    // --- PRIORITAS 4: PROMO LAMA ---
-    else if (!promoToApply) {
-      const isExcludedItem = (item: OfferItem) => {
-        const namaUp = item.nama?.toUpperCase() || "";
-        const kodeUp = item.kode?.toUpperCase() || "";
-        const isJasaOrDesign =
-          kodeUp.startsWith("JS") ||
-          kodeUp.startsWith("JASA") ||
-          namaUp.includes("JASA") ||
-          namaUp.includes("DESAIN") ||
-          namaUp.includes("FILE");
-        const isCustomOrDtf = item.isCustomOrder || !!item.noSoDtf || !!item.noPengajuanHarga;
-        return isJasaOrDesign || isCustomOrDtf;
-      };
-
-      const totalRegulerDec = validItems.reduce((sum, item) => {
-        if (!item.nama?.toUpperCase().includes("JERSEY") && !isExcludedItem(item)) {
-          return sum + (item.total || 0);
-        }
-        return sum;
-      }, 0);
-
-      const totalBelanjaDec = validItems.reduce((sum, item) => {
-        if (!isExcludedItem(item)) return sum + (item.total || 0);
-        return sum;
-      }, 0);
-
-      if (promo010 && totalRegulerDec >= 250000) {
-        const kelipatan = Math.floor(totalRegulerDec / 250000);
-        promoDiskon = 25000 * kelipatan;
-        promoToApply = promo010;
-      } else if (promo008 && totalBelanjaDec >= promo008.pro_totalrp) {
-        promoDiskon = promo008.pro_disrp * Math.floor(totalBelanjaDec / promo008.pro_totalrp);
-        promoToApply = promo008;
-      }
-    }
-
-    // --- PENERAPAN PROMO HEADER OTOMATIS (DENGAN AUTO-SWAP) ---
-    if (promoToApply) {
-      const autoPromoIds = [
-        "PRO-2025-008",
-        "PRO-2025-010",
-        "PRO-2026-001",
-        "PRO-2026-002",
-        "PRO-2026-004",
-      ];
-
-      const isUserRejectedPromo =
-        lastSuggestedPromo.value === promoToApply.pro_nomor ||
-        lastSuggestedPromo.value === "MANUAL_AUTH";
-      const isUsingMemberDiscount =
-        footer.value.diskonPersen1 > 0 ||
-        footer.value.diskonPersen2 > 0 ||
-        !!footer.value.pinDiskon1;
-
-      if (!isUserRejectedPromo && !isUsingMemberDiscount) {
-        if (!header.value.nomorPromo || autoPromoIds.includes(header.value.nomorPromo)) {
-          footer.value.diskonPersen1 = 0;
-          footer.value.diskonPersen2 = 0;
-
-          footer.value.diskonRp = promoDiskon;
-          footer.value.diskonRpInput = promoDiskon;
-          header.value.nomorPromo = promoToApply.pro_nomor;
-          header.value.namaPromo = promoToApply.pro_judul;
-
-          if (promoToApply.pro_nomor !== "PRO-2026-001") {
-            const idx = items.value.findIndex(
-              (i) => String(i.kode) === "2500053" || String(i.barcode) === "25014783"
-            );
-            if (idx !== -1) items.value.splice(idx, 1);
-          }
-
-          calculateTotals();
-        }
-      }
-    } else if (
-      header.value.nomorPromo === "PRO-2026-004" || // <--- [TAMBAH INI]
-      header.value.nomorPromo === "PRO-2026-002" ||
-      header.value.nomorPromo === "PRO-2026-001"
-    ) {
-      footer.value.diskonRp = 0;
-      footer.value.diskonRpInput = 0;
-      header.value.nomorPromo = "";
-      header.value.namaPromo = "";
-      calculateTotals();
-      toast.warning("Syarat minimal belanja promo tidak terpenuhi. Promo dilepas.");
-    }
-  } catch (error) {
-    console.error("Gagal mengecek promo otomatis:", error);
-  }
+  // Flush evaluasi promo sebelum simpan untuk memastikan kelipatan terbaru
+  await autoPromo.flushEvaluate();
+  calculateTotals();
+  await nextTick();
 
   // INJEKSI BONUS STICKER MARET (Jika tidak ditolak dan promo yang aktif adalah Maret)
   if (header.value.nomorPromo === "PRO-2026-001" && !isStickerBonusRejected.value) {
@@ -1687,6 +1525,8 @@ const onPriceProposalSelected = async (proposal: { nomor: string }) => {
           // noSoDtf: '', // tambahkan properti ini supaya sesuai tipe
           noPengajuanHarga: headerData.nomor, // pastikan ini string
           pin: "",
+          terhitungPromo: false,
+          promo: "",
         });
       }
     );
@@ -1833,6 +1673,8 @@ const handleBarcodeScan = async () => {
         // noSoDtf: '',          // tambahkan properti default
         noPengajuanHarga: "", // tambahkan properti default
         pin: "", // tambahkan properti default
+        terhitungPromo: false,
+        promo: "",
       });
 
       addNewRow(); // Tambah baris kosong baru di akhir
@@ -1920,6 +1762,8 @@ const handleJenisOrderSaved = (data: JenisOrderSaved) => {
           hargaPerCm: data.customData.hargaPerCm,
           sourceItems: sourceItemsSnapshot,
         }),
+        terhitungPromo: false,
+        promo: "",
       });
     }
   });
@@ -2038,119 +1882,9 @@ const saveAndConvertToSo = async () => {
   // =========================================================
   // --- CEK PROMO AKTIF & TERAPKAN OTOMATIS SAAT SIMPAN ---
   // =========================================================
-  try {
-    const promoResponse = await api.get("/invoice-form/lookup/active-promos", {
-      params: { tanggal: header.value.tanggal, cabang: header.value.gudang.kode },
-    });
-    const activePromos = (promoResponse.data ?? []) as ActivePromo[];
-
-    const promoApril = activePromos.find((p) => p.pro_nomor === "PRO-2026-002");
-    const promo2026 = activePromos.find((p) => p.pro_nomor === "PRO-2026-001");
-    const promo008 = activePromos.find((p) => p.pro_nomor === "PRO-2025-008");
-    const promo010 = activePromos.find((p) => p.pro_nomor === "PRO-2025-010");
-
-    let promoToApply: ActivePromo | null = null;
-    let promoDiskon = 0;
-
-    // [PERBAIKAN] Hitung Total Nilai Eligible Promo menggunakan isItemPromoEligible
-    const totalEligibleValue = validItems.reduce((sum, item) => {
-      const isStickerGeneric =
-        String(item.barcode) === "25014783" || String(item.kode) === "2500053";
-
-      if (isItemPromoEligible(item) && !isStickerGeneric) {
-        return sum + (item.total || 0);
-      }
-      return sum;
-    }, 0);
-
-    // --- PRIORITAS 1: PROMO APRIL (PRO-2026-002) ---
-    if (promoApril && totalEligibleValue >= 250000) {
-      const kelipatanUang = Math.floor(totalEligibleValue / 250000);
-      promoDiskon = 12500 * kelipatanUang;
-      promoToApply = promoApril;
-    }
-    // --- PRIORITAS 2: PROMO MARET (PRO-2026-001) ---
-    else if (promo2026 && totalEligibleValue >= 200000) {
-      const kelipatanUang = Math.floor(totalEligibleValue / 200000);
-      promoDiskon = 20000 * kelipatanUang;
-      promoToApply = promo2026;
-    }
-    // --- PRIORITAS 3: PROMO LAMA ---
-    else if (!promoToApply) {
-      const isExcludedItem = (item: OfferItem) => {
-        const namaUp = item.nama?.toUpperCase() || "";
-        const kodeUp = item.kode?.toUpperCase() || "";
-        const isJasaOrDesign =
-          kodeUp.startsWith("JS") ||
-          kodeUp.startsWith("JASA") ||
-          namaUp.includes("JASA") ||
-          namaUp.includes("DESAIN") ||
-          namaUp.includes("FILE");
-        const isCustomOrDtf = item.isCustomOrder || !!item.noSoDtf || !!item.noPengajuanHarga;
-        return isJasaOrDesign || isCustomOrDtf;
-      };
-
-      const totalRegulerDec = validItems.reduce((sum, item) => {
-        if (!item.nama?.toUpperCase().includes("JERSEY") && !isExcludedItem(item)) {
-          return sum + (item.total || 0);
-        }
-        return sum;
-      }, 0);
-
-      const totalBelanjaDec = validItems.reduce((sum, item) => {
-        if (!isExcludedItem(item)) return sum + (item.total || 0);
-        return sum;
-      }, 0);
-
-      if (promo010 && totalRegulerDec >= 250000) {
-        const kelipatan = Math.floor(totalRegulerDec / 250000);
-        promoDiskon = 25000 * kelipatan;
-        promoToApply = promo010;
-      } else if (promo008 && totalBelanjaDec >= promo008.pro_totalrp) {
-        promoDiskon = promo008.pro_disrp * Math.floor(totalBelanjaDec / promo008.pro_totalrp);
-        promoToApply = promo008;
-      }
-    }
-
-    // --- PENERAPAN PROMO HEADER OTOMATIS (DENGAN AUTO-SWAP) ---
-    if (promoToApply) {
-      const autoPromoIds = ["PRO-2025-008", "PRO-2025-010", "PRO-2026-001", "PRO-2026-002"];
-
-      // [PERBAIKAN] Jika sedang mode edit, dan promo lama ada, izinkan dia update kelipatan diskonnya secara otomatis!
-      const isAutoPromo = autoPromoIds.includes(header.value.nomorPromo || "");
-
-      if (!header.value.nomorPromo || isAutoPromo) {
-        footer.value.diskonPersen1 = 0;
-        footer.value.diskonPersen2 = 0;
-
-        footer.value.diskonRp = promoDiskon;
-        footer.value.diskonRpInput = promoDiskon;
-        header.value.nomorPromo = promoToApply.pro_nomor;
-        header.value.namaPromo = promoToApply.pro_judul;
-
-        if (promoToApply.pro_nomor !== "PRO-2026-001") {
-          const idx = items.value.findIndex(
-            (i) => String(i.kode) === "2500053" || String(i.barcode) === "25014783"
-          );
-          if (idx !== -1) items.value.splice(idx, 1);
-        }
-
-        calculateTotals();
-      }
-    } else if (
-      header.value.nomorPromo === "PRO-2026-001" ||
-      header.value.nomorPromo === "PRO-2026-002"
-    ) {
-      footer.value.diskonRp = 0;
-      footer.value.diskonRpInput = 0;
-      header.value.nomorPromo = "";
-      header.value.namaPromo = "";
-      calculateTotals();
-      toast.warning("Syarat minimal belanja promo tidak terpenuhi. Promo dilepas.");
-    }
-  } catch (error) {
-    console.error("Gagal mengecek promo otomatis:", error);
-  }
+  await autoPromo.flushEvaluate();
+  calculateTotals();
+  await nextTick();
 
   // INJEKSI BONUS STICKER MARET (Jika tidak ditolak dan promo yang aktif adalah Maret)
   if (header.value.nomorPromo === "PRO-2026-001" && !isStickerBonusRejected.value) {
@@ -2219,16 +1953,41 @@ watch(
 
 watch(
   items,
-  async () => {
+  () => {
     calculateTotals();
-    // Panggil cek promo hanya jika items berubah (BUKAN saat footer berubah)
-    if (!isInitialLoad.value && !isSaving.value) {
-      await checkRealtimePromoEligibility();
-    }
+    // Pengecekan promo real-time sekarang sudah menumpang
+    // otomatis di dalam fungsi calculateTotals() via autoPromo.debouncedEvaluate()
   },
   { deep: true }
 );
 watch(footer, calculateTotals, { deep: true });
+watch(
+  () => promoHeaderProxy.nomorPromo,
+  (val) => {
+    header.value.nomorPromo = val;
+  }
+);
+watch(
+  () => promoHeaderProxy.namaPromo,
+  (val) => {
+    header.value.namaPromo = val;
+  }
+);
+watch(
+  () => promoHeaderProxy.diskonRp,
+  (val) => {
+    if (baseManualDiscountRp.value !== val) {
+      baseManualDiscountRp.value = val;
+      calculateTotals();
+    }
+  }
+);
+watch(
+  () => promoHeaderProxy.diskonPersen1,
+  (val) => {
+    footer.value.diskonPersen1 = val;
+  }
+);
 watch(isFooterDiskonRpFocused, (focused) => {
   if (focused) {
     previousDiskonRp.value = footer.value.diskonRp;
@@ -2300,14 +2059,7 @@ onMounted(async () => {
     return;
   }
 
-  try {
-    const response = await api.get("/invoice-form/lookup/active-promos", {
-      params: { tanggal: header.value.tanggal, cabang: header.value.gudang.kode },
-    });
-    activePromosList.value = response.data || [];
-  } catch (e) {
-    console.error("Gagal load promo", e);
-  }
+  await autoPromo.fetchPromos(header.value.gudang.kode, header.value.tanggal);
 
   if (isEditMode.value) {
     loadOfferData(route.params.nomor as string);
@@ -2609,21 +2361,6 @@ onMounted(async () => {
                   <div class="promo-label">PENAWARAN PROMO TERSEDIA</div>
                   <div class="promo-message">{{ promoNotification }}</div>
                 </div>
-
-                <div
-                  v-if="potentialPromoDiscount > 0 && footer.diskonRp < potentialPromoDiscount"
-                  class="action-container"
-                >
-                  <v-btn
-                    color="white"
-                    variant="flat"
-                    size="small"
-                    class="text-primary font-weight-bold"
-                    @click="applyPromoDiscount"
-                  >
-                    GUNAKAN PROMO
-                  </v-btn>
-                </div>
               </div>
             </div>
           </div>
@@ -2682,7 +2419,7 @@ onMounted(async () => {
               v-model.number="item.jumlah"
               type="number"
               variant="underlined"
-              dense
+              density="compact"
               hide-details
               single-line
               class="text-right"
@@ -2699,7 +2436,7 @@ onMounted(async () => {
               placeholder="0"
               type="text"
               variant="underlined"
-              dense
+              density="compact"
               hide-details
               single-line
               class="text-right"
@@ -2713,7 +2450,7 @@ onMounted(async () => {
               v-model.number="item.diskonPersen"
               type="number"
               variant="underlined"
-              dense
+              density="compact"
               hide-details
               single-line
               class="text-right"
@@ -2736,7 +2473,7 @@ onMounted(async () => {
               placeholder="0"
               type="text"
               variant="underlined"
-              dense
+              density="compact"
               hide-details
               single-line
               class="text-right"
@@ -2943,47 +2680,18 @@ onMounted(async () => {
       </v-card>
     </v-dialog>
 
-    <v-dialog v-model="isPromoConfirmVisible" max-width="500px" persistent>
-      <v-card class="rounded-lg">
-        <v-card-title
-          class="bg-primary text-white text-h6 pa-4 d-flex justify-space-between align-center"
-        >
-          <div>
-            <v-icon start color="white">mdi-ticket-percent</v-icon>
-            Pilih Jenis Diskon
-          </div>
-          <v-btn
-            icon="mdi-close"
-            variant="text"
-            size="small"
-            color="white"
-            @click="closePromoDialog"
-          ></v-btn>
-        </v-card-title>
-
-        <v-card-text class="pa-5">
-          <p class="mb-4">Sistem mendeteksi transaksi ini berhak mendapatkan promo:</p>
-          <v-alert type="info" variant="tonal" border="start" density="compact" class="mb-4">
-            <strong>{{ pendingPromoData.nama }}</strong
-            ><br />
-            Potongan: <strong>{{ formatRupiah(pendingPromoData.diskon) }}</strong>
-          </v-alert>
-          <p class="text-caption text-medium-emphasis">
-            Catatan: Memilih Promo akan menonaktifkan Diskon Member (Reseller) secara otomatis.
-          </p>
-        </v-card-text>
-        <v-divider></v-divider>
-
-        <v-card-actions class="pa-4 flex-wrap ga-2">
-          <v-btn variant="text" color="grey-darken-2" @click="closePromoDialog">Abaikan</v-btn>
-          <v-spacer></v-spacer>
-          <v-btn variant="outlined" color="primary" @click="useMemberDiscount">
-            Tetap Diskon Member
-          </v-btn>
-          <v-btn color="primary" variant="flat" @click="applyPromoDiscount"> Gunakan Promo </v-btn>
-        </v-card-actions>
-      </v-card>
-    </v-dialog>
+    <DiscountConfirmationDialog
+      v-model="isPromoConfirmVisible"
+      :customer-level="header.customer?.level || 'Standar'"
+      :diskon-persen-member="footer.diskonPersen1"
+      :diskon-nominal-member="Math.round((footer.diskonPersen1 / 100) * footer.subtotalKaos)"
+      :promo-nama="pendingPromoData.nama"
+      :promo-nominal="pendingPromoData.diskon"
+      :item-discounts="uniqueItemDiscounts"
+      @use-member="useMemberDiscount"
+      @use-promo="applyPromoDiscount"
+      @ignore="closePromoDialog"
+    />
   </PageLayout>
 </template>
 
@@ -3249,6 +2957,28 @@ onMounted(async () => {
   font-size: 14px;
   font-weight: 700;
   line-height: 1.3;
+}
+
+/* Paksa semua v-text-field dalam tabel rata vertikal */
+.desktop-table :deep(tbody td) {
+  vertical-align: middle !important;
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+  height: 40px !important;
+}
+
+.desktop-table :deep(.v-field__input) {
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+  min-height: 32px !important;
+}
+
+.desktop-table :deep(.v-input__details) {
+  display: none !important;
+}
+
+.desktop-table :deep(.v-field--variant-underlined .v-field__input) {
+  padding-top: 4px !important;
 }
 
 @keyframes softPulse {

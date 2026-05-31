@@ -1025,6 +1025,10 @@ const correctedSubTotal = computed(() => {
 });
 
 const correctedGrandTotal = computed(() => {
+  // Jika dari SO, percayakan grandTotal yang sudah dihitung di calculateTotals
+  if (props.invoiceHeader.nomorSo) {
+    return props.totals.grandTotal;
+  }
   return (
     correctedSubTotal.value -
     (props.totals.totalDiskonItem || 0) -

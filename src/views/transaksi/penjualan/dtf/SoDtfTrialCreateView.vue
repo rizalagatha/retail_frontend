@@ -41,7 +41,7 @@ interface FormHeader {
   hargaPerCm: number;
   user: string;
   imageUrl: string | null;
-  revisiList: any[];
+  revisiList: RevisiItem[];
   noSoDtfRiil: string;
   [key: string]: unknown;
 }
@@ -80,6 +80,14 @@ type SoSelected = {
   so_nomor?: string;
   soNomor?: string;
 };
+
+interface RevisiItem {
+  tr_id: number;
+  tr_revisi_ke: number;
+  tanggal_revisi: string;
+  tr_catatan: string;
+  tr_gambar: string | null;
+}
 
 // --- State & Dependencies ---
 const route = useRoute();
@@ -197,12 +205,10 @@ const newRevisionCatatan = ref("");
 const fullscreenImageSrc = ref("");
 
 // --- Methods ---
-const getFullImageUrl = (imagePath) => {
+const getFullImageUrl = (imagePath: string | null | undefined): string => {
   if (!imagePath) return "";
   if (imagePath.startsWith("http")) return imagePath;
 
-  // Cukup kembalikan path aslinya (misal: /images/K01/...)
-  // Biar browser yang otomatis menempelkan domain retail.kaosanofficial.com
   return imagePath;
 };
 
@@ -506,7 +512,7 @@ const handlePrintConfirm = () => {
       params: { nomor: printConfirmNomor.value },
     });
     window.open(routeData.href, "_blank");
-  } catch (error) {
+  } catch {
     toast.error("Gagal membuka halaman cetak.");
   } finally {
     isPrintConfirmVisible.value = false;
@@ -720,7 +726,7 @@ const fetchSizeCetakList = async (jenisOrder: string) => {
       params: { jenisOrder },
     });
     sizeCetakList.value = [...response.data, "Custom"];
-  } catch (error) {
+  } catch {
     sizeCetakList.value = ["Custom"];
   }
 };
@@ -732,7 +738,7 @@ const getHargaDTG = async () => {
       totalJumlahKaos: totalJumlahKaos.value,
     });
     return response.data.harga || 0;
-  } catch (error) {
+  } catch {
     return 0;
   }
 };

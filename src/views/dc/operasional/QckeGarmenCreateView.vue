@@ -164,14 +164,6 @@ const openBarangSearch = (grid: number, filterKode: string | null = null) => {
 
   barangSearchFilter.value.kode = filterKode;
 
-  // 🐛 Debug
-  console.log("━━━━ BUKA MODAL ━━━━");
-  console.log("Grid:", grid);
-  console.log("Filter Kode:", filterKode);
-  console.log("Active Row:", activeGrid1Row.value?.kode);
-  console.log("Source:", grid === 1 ? "qc-grid1-f1" : filterKode ? "qc-grid2-f2" : "qc-grid1-f1");
-  console.log("━━━━━━━━━━━━━━━━━━");
-
   barangSearchSource.value =
     grid === 1 ? "qc-grid1-f1" : filterKode ? "qc-grid2-f2" : "qc-grid1-f1";
 
@@ -182,13 +174,12 @@ const handleOpenBarangSearchF2 = () => {
   if (!activeGrid1Row.value?.kode) {
     return toast.warning("Pilih barang di Grid 1 yang sudah terisi dulu.");
   }
-  console.log("🔍 F2 mencari varian dari:", activeGrid1Row.value.kode);
+
   openBarangSearch(2, activeGrid1Row.value.kode);
 };
 
 const onSelectGrid1Row = (event: MouseEvent, payload: Grid1RowClick) => {
   activeGrid1Row.value = payload.item;
-  console.log("✅ Row aktif:", payload.item.kode, payload.item.ukuran);
 };
 
 // --- FUNGSI BARU: Enter di Grid 1 (loadbrg) ---

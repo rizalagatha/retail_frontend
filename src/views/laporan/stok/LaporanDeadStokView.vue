@@ -217,7 +217,7 @@ const exportData = async () => {
     // ── Header row ─────────────────────────────────────────
     const headerRow = sheet.addRow(colDefs.map((c) => c.header));
     headerRow.height = 22;
-    headerRow.eachCell({ includeEmpty: true }, (cell, colNum) => {
+    headerRow.eachCell({ includeEmpty: true }, (cell) => {
       cell.font = { bold: true, color: { argb: "FF0D47A1" } };
       cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFE3F2FD" } };
       cell.alignment = { horizontal: "center", vertical: "middle", wrapText: false };

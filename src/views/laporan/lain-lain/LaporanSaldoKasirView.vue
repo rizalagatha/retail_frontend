@@ -85,7 +85,6 @@ const fetchData = async () => {
   try {
     const response = await api.get("/laporan-saldo-kasir", { params: filters });
     items.value = Array.isArray(response.data) ? response.data : [];
-    console.log("Data loaded:", items.value.length, "items");
   } catch (error) {
     const err = error as AxiosError<{ message?: string }>;
     console.error("Fetch error:", err);

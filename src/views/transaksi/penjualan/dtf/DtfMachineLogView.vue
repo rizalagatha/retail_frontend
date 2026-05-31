@@ -5,6 +5,7 @@ import PageLayout from "@/components/PageLayout.vue";
 import { useToast } from "vue-toastification";
 import { useAuthStore } from "@/stores/authStore";
 import { format, parseISO } from "date-fns";
+import axios from "axios";
 
 // Interface Header (Resize & Filter)
 interface DataTableHeader {
@@ -48,6 +49,21 @@ interface ColumnFilter {
   values?: (string | number)[];
   operator?: string;
   value?: string | number;
+}
+
+interface RawLogRow {
+  tanggal: string;
+  waktu_mulai: string;
+  waktu_selesai: string;
+  panjang_m: number | string;
+  lebar_m: number | string;
+  qty_copy: number;
+  nama_file: string;
+  material: string;
+  status_print: string;
+  nomor_so: string;
+  cabang: string;
+  user_import: string;
 }
 
 const toast = useToast();
@@ -284,7 +300,7 @@ const fetchData = async () => {
     const detailMap: { [key: string]: LogDetail[] } = {};
 
     // Logic Grouping Otomatis ke Header-Detail
-    rawData.forEach((row: any) => {
+    rawData.forEach((row: RawLogRow) => {
       const dateKey = row.tanggal;
       if (!masterMap.has(dateKey)) {
         masterMap.set(dateKey, {
@@ -332,8 +348,12 @@ const fetchData = async () => {
 
     // Kosongkan agar defaultnya menutup
     expanded.value = [];
-  } catch (error: any) {
-    toast.error(error.response?.data?.message || "Gagal memuat data log mesin.");
+  } catch (error: unknown) {
+    if (axios.isAxiosError(error)) {
+      toast.error(error.response?.data?.message || "Gagal memuat data log mesin.");
+    } else {
+      toast.error("Gagal memuat data log mesin.");
+    }
   } finally {
     isLoading.value = false;
   }
@@ -353,8 +373,12 @@ const handleUpload = async () => {
     isUploadDialogVisible.value = false;
     uploadFile.value = null;
     fetchData();
-  } catch (error: any) {
-    toast.error(error.response?.data?.message || "Gagal mengimport file.");
+  } catch (error: unknown) {
+    if (axios.isAxiosError(error)) {
+      toast.error(error.response?.data?.message || "Gagal mengimport file.");
+    } else {
+      toast.error("Gagal mengimport file.");
+    }
   } finally {
     isUploading.value = false;
   }

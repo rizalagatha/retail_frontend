@@ -103,8 +103,6 @@ const handleUpload = async () => {
 };
 
 const viewPdf = (url: string) => {
-  console.log("[DEBUG FRONTEND] Data URL dari DB:", url);
-
   if (!url || url.includes("undefined")) {
     toast.error("URL Memo tidak valid.");
     return;
@@ -127,8 +125,6 @@ const viewPdf = (url: string) => {
 
   // 3. Rangkai URL menembak endpoint streaming yang baru!
   selectedPdfUrl.value = `${apiUrl}/memos/stream/${fileName}`;
-
-  console.log("[DEBUG FRONTEND] URL Akhir PDF:", selectedPdfUrl.value);
 };
 
 onMounted(fetchMemos);

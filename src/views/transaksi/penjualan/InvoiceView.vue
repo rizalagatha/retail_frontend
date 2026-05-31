@@ -133,12 +133,12 @@ interface PaymentForm {
   alasan: string;
 }
 
-interface ExportHeaderItem {
-  Tanggal?: string | number | Date;
-  "Tgl SO"?: string | number | Date;
-  "Jatuh Tempo"?: string | number | Date;
-  [key: string]: unknown; // Mengizinkan properti dinamis lainnya
-}
+// interface ExportHeaderItem {
+//   Tanggal?: string | number | Date;
+//   "Tgl SO"?: string | number | Date;
+//   "Jatuh Tempo"?: string | number | Date;
+//   [key: string]: unknown; // Mengizinkan properti dinamis lainnya
+// }
 
 interface InvoiceExportRow {
   Tanggal?: string | Date;
@@ -204,6 +204,50 @@ const formPayment = reactive<PaymentForm>({
   noRek: "",
   alasan: "",
 });
+
+const hasPaymentRightPanel = computed(
+  () => formPayment.metode === "TRANSFER" || formPayment.metode === "QRIS"
+);
+
+// --- State Marketplace Fee ---
+const isChangeMpFeeVisible = ref(false);
+const isChangingMpFee = ref(false);
+const formMpFee = reactive({
+  biayaPlatform: 0,
+});
+
+// Deteksi apakah user login adalah cabang marketplace
+const isMarketplaceBranch = computed(() => {
+  const cabang = authStore.user?.cabang;
+  return cabang === "KON" || cabang === "K05";
+});
+
+const openChangeMpFeeModal = () => {
+  if (!selectedRow.value) return;
+
+  // Ambil nilai lama sebagai default form
+  formMpFee.biayaPlatform = Number(selectedRow.value.BiayaPlatform) || 0;
+  isChangeMpFeeVisible.value = true;
+};
+
+const submitChangeMpFee = async () => {
+  isChangingMpFee.value = true;
+  try {
+    await api.post("/invoices/change-mp-fee", {
+      nomor: selectedRow.value?.Nomor,
+      biayaPlatform: formMpFee.biayaPlatform,
+    });
+
+    toast.success("Biaya Platform Marketplace berhasil diubah.");
+    isChangeMpFeeVisible.value = false;
+    fetchMasterData();
+  } catch (err) {
+    const error = err as AxiosError<{ message?: string }>;
+    toast.error(error.response?.data?.message || "Gagal mengubah biaya marketplace.");
+  } finally {
+    isChangingMpFee.value = false;
+  }
+};
 
 const filterOptions = ref([
   { title: "Nomor Invoice", value: "Nomor" },
@@ -1016,8 +1060,6 @@ const exportData = async (type: "header" | "detail") => {
       });
 
       // Grand total row
-      const totalKeys = rupiahKeys.filter((r) => keys.some((k) => k.includes(r)));
-      const totalRowNum = sheet.rowCount + 1;
       const totalValues = keys.map((k) => {
         const isRupiah = rupiahKeys.some((r) => k.includes(r));
         if (k === keys[0]) return "GRAND TOTAL :";
@@ -1514,6 +1556,15 @@ onBeforeRouteLeave((to, from, next) => {
               ><v-icon size="small" icon="mdi-cash-sync" class="mr-2 text-purple"
             /></template>
             <v-list-item-title class="text-purple">Ubah Pembayaran</v-list-item-title>
+          </v-list-item>
+
+          <v-list-item v-if="isMarketplaceBranch" @click="openChangeMpFeeModal">
+            <template #prepend
+              ><v-icon size="small" icon="mdi-store-cog" class="mr-2 text-orange-darken-3"
+            /></template>
+            <v-list-item-title class="text-orange-darken-3"
+              >Ubah Biaya Marketplace</v-list-item-title
+            >
           </v-list-item>
         </v-list>
       </v-menu>
@@ -2120,81 +2171,176 @@ onBeforeRouteLeave((to, from, next) => {
       </v-card>
     </v-dialog>
 
-    <v-dialog v-model="isChangePaymentVisible" max-width="500px" persistent>
+    <v-dialog
+      v-model="isChangePaymentVisible"
+      :max-width="hasPaymentRightPanel ? '780px' : '440px'"
+      persistent
+      transition="dialog-bottom-transition"
+    >
+      <v-card class="rounded-lg">
+        <v-toolbar color="purple-darken-1" density="compact">
+          <v-toolbar-title class="text-subtitle-1 font-weight-bold text-white">
+            <v-icon start size="18">mdi-cash-sync</v-icon> Ubah Metode Pembayaran
+          </v-toolbar-title>
+        </v-toolbar>
+
+        <v-card-text class="pa-4">
+          <v-row dense>
+            <v-col :cols="hasPaymentRightPanel ? 5 : 12">
+              <div
+                class="text-caption font-weight-bold text-uppercase text-grey-darken-1 mb-2 border-b pb-1"
+              >
+                Data Perubahan
+              </div>
+
+              <v-alert
+                type="warning"
+                variant="tonal"
+                density="compact"
+                class="mb-3"
+                border="start"
+                icon="mdi-alert"
+              >
+                <div class="text-caption" style="line-height: 1.2">
+                  Aksi ini akan <b>mereset data setoran</b> lama dan membuat record pelunasan baru.
+                </div>
+              </v-alert>
+
+              <v-select
+                v-model="formPayment.metode"
+                label="Metode Pembayaran Baru"
+                :items="['TUNAI', 'TRANSFER', 'QRIS']"
+                variant="outlined"
+                density="compact"
+                color="purple-darken-1"
+                class="mb-3"
+                hide-details
+              ></v-select>
+
+              <v-textarea
+                v-model="formPayment.alasan"
+                label="Alasan Perubahan (Wajib)"
+                rows="2"
+                variant="outlined"
+                density="compact"
+                color="purple-darken-1"
+                placeholder="Contoh: Salah input metode kasir"
+                hide-details
+              ></v-textarea>
+            </v-col>
+
+            <v-col v-if="hasPaymentRightPanel" cols="1" class="d-flex justify-center">
+              <v-divider vertical class="mx-1" />
+            </v-col>
+
+            <v-col v-if="hasPaymentRightPanel" cols="6">
+              <div
+                class="text-caption font-weight-bold text-uppercase text-grey-darken-1 mb-3 border-b pb-1"
+              >
+                {{
+                  formPayment.metode === "QRIS"
+                    ? "Detail Akun Penampung QRIS"
+                    : "Detail Bank Transfer"
+                }}
+              </div>
+
+              <v-text-field
+                :model-value="
+                  formPayment.bank ? `${formPayment.bank.nama} - ${formPayment.bank.kode}` : ''
+                "
+                :label="formPayment.metode === 'QRIS' ? 'Pilih Akun QRIS (F1)' : 'Pilih Bank (F1)'"
+                placeholder="Tekan F1 untuk cari..."
+                variant="outlined"
+                density="compact"
+                readonly
+                color="purple-darken-1"
+                append-inner-icon="mdi-magnify"
+                @click="isRekeningSearchVisible = true"
+                @keydown.f1.prevent="isRekeningSearchVisible = true"
+                class="mb-3"
+                hide-details
+              ></v-text-field>
+
+              <v-text-field
+                v-model="formPayment.noRek"
+                label="Keterangan Tambahan / No. Rekening"
+                variant="outlined"
+                density="compact"
+                color="purple-darken-1"
+                placeholder="Contoh: 123xxx a.n Budi"
+                hide-details
+              ></v-text-field>
+
+              <v-alert
+                v-if="formPayment.metode === 'QRIS'"
+                color="info"
+                variant="tonal"
+                class="mt-4"
+                density="compact"
+              >
+                <div class="text-caption">
+                  Perubahan ke QRIS akan dicatat sebagai <b>Pembayaran QRIS Kasir</b> secara
+                  otomatis.
+                </div>
+              </v-alert>
+            </v-col>
+          </v-row>
+        </v-card-text>
+
+        <v-divider />
+        <v-card-actions class="bg-grey-lighten-4 pa-3">
+          <v-spacer></v-spacer>
+          <v-btn
+            variant="text"
+            color="grey-darken-2"
+            @click="isChangePaymentVisible = false"
+            :disabled="isChangingPayment"
+          >
+            Batal
+          </v-btn>
+          <v-btn
+            color="purple-darken-1"
+            variant="flat"
+            @click="submitChangePayment"
+            :loading="isChangingPayment"
+            class="px-6 font-weight-bold text-none"
+          >
+            Simpan Perubahan
+          </v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+
+    <v-dialog v-model="isChangeMpFeeVisible" max-width="400px" persistent>
       <v-card>
-        <v-card-title class="bg-purple-darken-1 text-white text-subtitle-1">
-          <v-icon start>mdi-cash-sync</v-icon> Ubah Metode Pembayaran
+        <v-card-title class="bg-orange-darken-3 text-white text-subtitle-1">
+          <v-icon start>mdi-store-cog</v-icon> Ubah Biaya Platform
         </v-card-title>
 
         <v-card-text class="pt-4">
-          <v-alert
-            type="warning"
-            variant="tonal"
-            density="compact"
-            class="mb-4"
-            border="start"
-            icon="mdi-alert"
-          >
-            <div class="text-caption">
-              Aksi ini akan <b>mereset data setoran</b> lama dan membuat record baru.
-            </div>
-          </v-alert>
-
-          <v-select
-            v-model="formPayment.metode"
-            label="Metode Pembayaran Baru"
-            :items="['TUNAI', 'TRANSFER']"
+          <div class="text-caption mb-4">
+            Invoice: <b class="text-primary">{{ selectedRow?.Nomor }}</b>
+          </div>
+          <v-text-field
+            v-model.number="formMpFee.biayaPlatform"
+            label="Biaya Platform / Admin Baru"
+            type="number"
             variant="outlined"
             density="compact"
-            color="primary"
-          ></v-select>
-
-          <template v-if="formPayment.metode === 'TRANSFER'">
-            <v-text-field
-              :model-value="
-                formPayment.bank ? `${formPayment.bank.nama} - ${formPayment.bank.kode}` : ''
-              "
-              label="Pilih Bank (Klik Disini/F1)"
-              placeholder="Tekan F1 untuk cari..."
-              variant="outlined"
-              density="compact"
-              readonly
-              append-inner-icon="mdi-magnify"
-              @click="isRekeningSearchVisible = true"
-              @keydown.f1.prevent="isRekeningSearchVisible = true"
-              :rules="[(v) => !!formPayment.bank || 'Bank wajib dipilih']"
-            ></v-text-field>
-
-            <v-text-field
-              v-model="formPayment.noRek"
-              label="Keterangan / No. Rek"
-              variant="outlined"
-              density="compact"
-              placeholder="Contoh: 123xxx a.n Budi"
-            ></v-text-field>
-          </template>
-
-          <v-textarea
-            v-model="formPayment.alasan"
-            label="Alasan Perubahan (Wajib)"
-            rows="2"
-            variant="outlined"
-            density="compact"
-            placeholder="Contoh: Salah input metode oleh sales"
-            :rules="[(v) => !!v || 'Alasan wajib diisi']"
-          ></v-textarea>
+            prefix="Rp"
+          ></v-text-field>
         </v-card-text>
 
         <v-card-actions>
           <v-spacer></v-spacer>
-          <v-btn text @click="isChangePaymentVisible = false" :disabled="isChangingPayment"
+          <v-btn text @click="isChangeMpFeeVisible = false" :disabled="isChangingMpFee"
             >Batal</v-btn
           >
           <v-btn
-            color="primary"
+            color="orange-darken-3"
             variant="flat"
-            @click="submitChangePayment"
-            :loading="isChangingPayment"
+            @click="submitChangeMpFee"
+            :loading="isChangingMpFee"
           >
             Simpan
           </v-btn>

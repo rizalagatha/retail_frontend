@@ -528,18 +528,6 @@ const submitCloseOffer = async () => {
   }
 };
 
-// Tambahkan helper ini di methods
-const formatDateIndo = (dateString: string | Date) => {
-  if (!dateString) return "";
-  const date = new Date(dateString);
-  // Menggunakan 'id-ID' untuk output "27 Desember 2025"
-  return new Intl.DateTimeFormat("id-ID", {
-    day: "numeric",
-    month: "long",
-    year: "numeric",
-  }).format(date);
-};
-
 const exportHeaderData = async () => {
   if (offerList.value.length === 0) return toast.warning("Tidak ada data untuk diekspor.");
   toast.info("Menyiapkan file export...");
@@ -629,7 +617,7 @@ const exportHeaderData = async () => {
         }
 
         // Kolom Status — warnai fontnya
-        if ((c) => cols[colNum - 1]?.key === "_status") {
+        if (cols[colNum - 1]?.key === "_status") {
           cell.font = { bold: true, color: { argb: statusColor } };
         }
       });
@@ -670,7 +658,6 @@ const exportDetailData = async () => {
       return toast.warning("Tidak ada data detail untuk diekspor.");
     }
 
-    const ExcelJS = (await import("exceljs")).default;
     const workbook = new ExcelJS.Workbook();
 
     // ── SHEET 1: Detail Flat ───────────────────────────────

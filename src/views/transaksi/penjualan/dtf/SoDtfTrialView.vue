@@ -575,9 +575,10 @@ onBeforeRouteLeave((to, from, next) => {
         size="small"
         color="primary"
         prepend-icon="mdi-plus"
-        @click="$router.push('/transaksi/penjualan/dtf/so-dtf-trial/new')"
-        >Baru</v-btn
+        @click="router.push('/transaksi/penjualan/dtf/so-dtf-trial/new')"
       >
+        Baru
+      </v-btn>
       <v-btn
         v-if="authStore.can(MENU_ID, 'edit')"
         size="small"

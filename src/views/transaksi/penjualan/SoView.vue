@@ -554,15 +554,15 @@ const trackOrder = () => {
 };
 
 // 1. Helper Format Tanggal Indonesia
-const formatDateIndo = (dateString: string | Date) => {
-  if (!dateString) return "";
-  const date = new Date(dateString);
-  return new Intl.DateTimeFormat("id-ID", {
-    day: "numeric",
-    month: "long",
-    year: "numeric",
-  }).format(date);
-};
+// const formatDateIndo = (dateString: string | Date) => {
+//   if (!dateString) return "";
+//   const date = new Date(dateString);
+//   return new Intl.DateTimeFormat("id-ID", {
+//     day: "numeric",
+//     month: "long",
+//     year: "numeric",
+//   }).format(date);
+// };
 
 const exportHeaderData = async () => {
   if (list.value.length === 0) return toast.warning("Tidak ada data untuk diekspor.");
@@ -579,12 +579,12 @@ const exportHeaderData = async () => {
       bottom: { style: "thin" },
       right: { style: "thin" },
     };
-    const borderMedium: Partial<ExcelJS.Borders> = {
-      top: { style: "medium" },
-      left: { style: "thin" },
-      bottom: { style: "medium" },
-      right: { style: "thin" },
-    };
+    // const borderMedium: Partial<ExcelJS.Borders> = {
+    //   top: { style: "medium" },
+    //   left: { style: "thin" },
+    //   bottom: { style: "medium" },
+    //   right: { style: "thin" },
+    // };
 
     const cols = [
       { header: "Nomor", key: "Nomor", width: 20, align: "left" as const },

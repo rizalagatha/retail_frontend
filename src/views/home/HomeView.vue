@@ -1715,8 +1715,6 @@ const fetchUserBranchInfo = async () => {
     userPlaceId.value = data.gdg_place_id || "";
     userLat.value = data.gdg_lat || ""; // Ambil Lat
     userLong.value = data.gdg_long || ""; // Ambil Long
-
-    console.log(`DEBUG MAPS: Cabang ${kodeCabang} di ${userLat.value}, ${userLong.value}`);
   } catch (error) {
     console.error("Gagal memuat info cabang:", error);
   }
@@ -1756,9 +1754,7 @@ const closeAgendaReminder = () => {
 };
 
 // Tambahkan watcher untuk memastikan variabel ter-update
-watch(userPlaceId, (newVal) => {
-  console.log("DEBUG MAPS: Variabel userPlaceId berubah menjadi:", newVal);
-});
+watch(userPlaceId, () => {});
 
 const googleReviewUrl = computed(() => {
   // Jika placeId belum ada, return string kosong atau URL blank agar tidak error
@@ -1898,7 +1894,7 @@ const fetchDeadStockChart = async () => {
     const res = await api.get("/dashboard/dead-stock-chart", {
       params: { cabang: deadStockCabang.value },
     });
-    console.log("dead-stock-chart response:", res.data); // ← cek di browser console
+
     deadStockChart.value = res.data;
   } catch (e) {
     console.error(e);

@@ -41,8 +41,9 @@ interface RawStockRow {
   BARCODE?: string;
   NAMA?: string;
   HPP?: number | string;
-  BUFFER_MIN?: number | string; // <--- BARU
-  BUFFER_MAX?: number | string; // <--- BARU
+  BUFFER?: number | string;
+  BUFFER_MIN?: number | string;
+  BUFFER_MAX?: number | string;
   UKURAN?: string;
   TOTAL?: number | string;
   PL_QTY?: number | string;
@@ -267,13 +268,12 @@ const exportToExcel = async (tipe: "horizontal" | "vertical") => {
 
     const autoWidth = (sheet: ExcelJS.Worksheet) => {
       sheet.columns.forEach((col) => {
-        if (!col) return;
+        if (!col?.eachCell) return;
 
         let maxLen = 10;
 
         col.eachCell({ includeEmpty: true }, (cell) => {
           const len = String(cell.value ?? "").length;
-
           if (len > maxLen) {
             maxLen = len;
           }

@@ -992,7 +992,7 @@ onBeforeRouteLeave((to, from, next) => {
         size="small"
         color="primary"
         prepend-icon="mdi-plus"
-        @click="$router.push('/transaksi/penjualan/dtf/so-dtf/new')"
+        @click="router.push('/transaksi/penjualan/dtf/so-dtf/new')"
         >Baru</v-btn
       >
       <v-btn

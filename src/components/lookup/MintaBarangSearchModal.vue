@@ -195,8 +195,7 @@ watch(search, () => {
 
 watch(
   () => [props.source, props.filterKode],
-  ([newSource, newKode]) => {
-    console.log("🔁 Modal props berubah:", newSource, newKode);
+  () => {
     loadItems();
   },
   { immediate: true }

@@ -268,8 +268,6 @@ const updateHpp = (item: Item) => {
 };
 
 const generateBarcode = (date: string, barcodeId: string, kodeUkuran: string): string => {
-  console.log("generateBarcode params:", { date, barcodeId, kodeUkuran });
-
   if (!barcodeId || barcodeId === "0" || !kodeUkuran) {
     console.warn("Invalid params for generateBarcode");
     return "";
@@ -287,7 +285,6 @@ const generateBarcode = (date: string, barcodeId: string, kodeUkuran: string): s
   const xid = String(10000 + bcdIdNum).slice(-4);
   const result = `${ayy}${xid}${kodeUkuran}`;
 
-  console.log("Generated barcode:", result);
   return result;
 };
 
@@ -311,12 +308,10 @@ const onAktifChanged = async (item: Item) => {
         params: { date: header.date_create },
       });
 
-      console.log("Response:", response.data); // Debug
-
       // Pastikan newId adalah number
       if (response?.data?.newId && typeof response.data.newId === "number") {
         header.brg_bcdid = String(response.data.newId);
-        console.log("Set brg_bcdid to:", header.brg_bcdid);
+
         await nextTick();
       } else {
         throw new Error(`Invalid newId: ${JSON.stringify(response.data)}`);
@@ -331,7 +326,7 @@ const onAktifChanged = async (item: Item) => {
 
     // Generate barcode
     item.barcode = generateBarcode(header.date_create, header.brg_bcdid, item.no);
-    console.log("Generated barcode:", item.barcode);
+
     item.old = "N";
   } catch (error) {
     const err = error as AxiosError<{ message?: string }>;

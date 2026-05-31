@@ -28,7 +28,15 @@ interface FormHeader {
   user: string;
   imageUrl: string | null;
   noSoDtfRiil: string;
-  revisiList: any[];
+  revisiList: RevisiItem[];
+}
+
+interface RevisiItem {
+  tr_id: number;
+  tr_revisi_ke: number;
+  tanggal_revisi: string;
+  tr_catatan: string;
+  tr_gambar: string | null;
 }
 
 interface DetailUkuran {

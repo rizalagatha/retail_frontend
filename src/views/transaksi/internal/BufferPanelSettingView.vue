@@ -413,12 +413,19 @@ const saveFinalBuffer = async () => {
       max: p.max,
     }));
 
-    const response = await api.post("/buffer-panel/save", { items: payload });
+    const response = await api.post("/buffer-panel/save", {
+      cabang: selectedCabang.value,
+      items: payload,
+    });
     toast.success(response.data?.message || "Buffer berhasil diterapkan ke database Toko!");
+
+    // --> Tambahkan ini agar layar refresh dengan nilai buffer yang baru diupdate
+    await fetchPreviewData();
   } catch (error: unknown) {
     const err = error as AxiosError<{ message?: string }>;
-
     toast.error(err.response?.data?.message || "Gagal menerapkan buffer.");
+  } finally {
+    isSaving.value = false;
   }
 };
 

@@ -1,4 +1,4 @@
-i; // ① jQuery global dulu — window.jQuery dan window.$ di-set di sini
+// ① jQuery global dulu — window.jQuery dan window.$ di-set di sini
 import "@/lib/jquery-setup";
 
 // ② jquery-ui dan pivottable — keduanya akan menemukan window.jQuery

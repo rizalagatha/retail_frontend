@@ -7,8 +7,8 @@ import api from "@/services/api";
 import PageLayout from "@/components/PageLayout.vue";
 import * as XLSX from "xlsx";
 import axios, { type AxiosError } from "axios";
-// jQuery, jquery-ui, pivottable di-setup global via src/lib/pivottable-setup.ts
-// yang di-import di main.ts — jangan import di sini agar urutan bundle terjamin
+// jQuery, jquery-ui, pivottable di-init via initPivot() — CDN approach
+import { initPivot, jQuery as jq } from "@/lib/pivottable-setup";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 interface StokItem {
@@ -72,6 +72,10 @@ const renderPivot = async () => {
   await nextTick();
   if (!pivotContainer.value || allData.value.length === 0) return;
 
+  // Load jquery-ui + pivottable dari CDN secara berurutan
+  // Urutan terjamin 100% karena pakai script tag, bukan bundle
+  await initPivot();
+
   const plainData = allData.value.map((row) => ({
     Cabang: String(row.Cabang ?? ""),
     Nama: String(row.Nama ?? ""),
@@ -88,23 +92,21 @@ const renderPivot = async () => {
   }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  (window.$ as any)(pivotContainer.value)
-    .empty()
-    .pivotUI(
-      plainData,
-      {
-        rows: (savedConfig.rows as string[]) ?? ["Nama"],
-        cols: (savedConfig.cols as string[]) ?? ["Cabang"],
-        vals: (savedConfig.vals as string[]) ?? ["Stok"],
-        aggregatorName: (savedConfig.aggregatorName as string) ?? "Sum",
-        rendererName: (savedConfig.rendererName as string) ?? "Table",
-        hiddenAttributes: ["Kode"],
-        onRefresh: (config: Record<string, unknown>) => {
-          localStorage.setItem("pivot_config_stok", JSON.stringify(config));
-        },
+  (jq(pivotContainer.value) as any).empty().pivotUI(
+    plainData,
+    {
+      rows: (savedConfig.rows as string[]) ?? ["Nama"],
+      cols: (savedConfig.cols as string[]) ?? ["Cabang"],
+      vals: (savedConfig.vals as string[]) ?? ["Stok"],
+      aggregatorName: (savedConfig.aggregatorName as string) ?? "Sum",
+      rendererName: (savedConfig.rendererName as string) ?? "Table",
+      hiddenAttributes: ["Kode"],
+      onRefresh: (config: Record<string, unknown>) => {
+        localStorage.setItem("pivot_config_stok", JSON.stringify(config));
       },
-      true
-    );
+    },
+    true
+  );
 };
 
 // ─── Infinite Scroll ─────────────────────────────────────────────────────────

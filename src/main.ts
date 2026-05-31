@@ -1,13 +1,3 @@
-// ① jQuery global dulu — window.jQuery dan window.$ di-set di sini
-import "@/lib/jquery-setup";
-
-// ② jquery-ui dan pivottable — keduanya akan menemukan window.jQuery
-import "@/lib/pivottable-setup";
-
-// ③ CSS pivot
-import "pivottable/dist/pivot.css";
-import "jquery-ui/dist/themes/base/jquery-ui.css";
-
 import { createApp } from "vue";
 import { createPinia } from "pinia";
 import App from "./App.vue";

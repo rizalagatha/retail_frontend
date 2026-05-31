@@ -8,6 +8,7 @@ import { format, parseISO } from "date-fns";
 import PageLayout from "@/components/PageLayout.vue";
 import * as XLSX from "xlsx";
 import type { AxiosError } from "axios";
+import { initPivot, jQuery as jq } from "@/lib/pivottable-setup";
 
 // CSS pivot di-import di main.ts:
 //   import "pivottable/dist/pivot.css"
@@ -75,6 +76,9 @@ const renderPivot = async () => {
   await nextTick();
   if (!pivotContainer.value || pivotData.value.length === 0) return;
 
+  // Load jquery-ui + pivottable dari CDN secara berurutan
+  await initPivot();
+
   const plainData = pivotData.value.map((row) => ({
     Store: String(row.Store ?? ""),
     NamaStore: String(row.NamaStore ?? ""),
@@ -96,23 +100,21 @@ const renderPivot = async () => {
   }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  (window.$ as any)(pivotContainer.value)
-    .empty()
-    .pivotUI(
-      plainData,
-      {
-        rows: (savedConfig.rows as string[]) ?? ["Nama"],
-        cols: (savedConfig.cols as string[]) ?? ["Store"],
-        vals: (savedConfig.vals as string[]) ?? ["Nominal"],
-        aggregatorName: (savedConfig.aggregatorName as string) ?? "Sum",
-        rendererName: (savedConfig.rendererName as string) ?? "Table",
-        hiddenAttributes: [],
-        onRefresh: (config: Record<string, unknown>) => {
-          localStorage.setItem("pivot_config_penjualan", JSON.stringify(config));
-        },
+  (jq(pivotContainer.value) as any).empty().pivotUI(
+    plainData,
+    {
+      rows: (savedConfig.rows as string[]) ?? ["Nama"],
+      cols: (savedConfig.cols as string[]) ?? ["Store"],
+      vals: (savedConfig.vals as string[]) ?? ["Nominal"],
+      aggregatorName: (savedConfig.aggregatorName as string) ?? "Sum",
+      rendererName: (savedConfig.rendererName as string) ?? "Table",
+      hiddenAttributes: [],
+      onRefresh: (config: Record<string, unknown>) => {
+        localStorage.setItem("pivot_config_penjualan", JSON.stringify(config));
       },
-      true
-    );
+    },
+    true
+  );
 };
 
 // ─── Infinite Scroll ──────────────────────────────────────────────────────────

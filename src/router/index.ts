@@ -281,6 +281,8 @@ const ParetoPrintView = () => import("@/views/laporan/penjualan/ParetoPrintView.
 const StokOpnameSettingTanggalView = () =>
   import("@/views/transaksi/stok-opname/StokOpnameSettingTanggalView.vue");
 const LokasiOpnameView = () => import("@/views/transaksi/stok-opname/LokasiOpnameView.vue");
+const LokasiOpnamePrintView = () =>
+  import("@/views/transaksi/stok-opname/LokasiOpnamePrintView.vue");
 const HitungStokLokasiView = () => import("@/views/transaksi/stok-opname/HitungStokLokasiView.vue");
 const HitungStokOperatorView = () =>
   import("@/views/transaksi/stok-opname/HitungStokOperatorView.vue");
@@ -2236,6 +2238,18 @@ const routes = [
       title: "Master Lokasi Opname",
       requiresAuth: true,
       menuId: "18",
+    },
+  },
+  {
+    path: "/transaksi/stok-opname/lokasi-opname/print",
+    name: "LokasiOpnamePrint",
+    component: LokasiOpnamePrintView,
+    meta: {
+      title: "Cetak Master Lokasi Opname",
+      requiresAuth: true,
+      menuId: "18",
+      printLayout: true,
+      layout: "PrintLayout",
     },
   },
   {

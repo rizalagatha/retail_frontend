@@ -2351,6 +2351,7 @@ const startPolling = () => {
       fetchRecentTransactions(true);
       fetchSalesChartData(true);
       fetchTopProducts(true);
+      fetchAutoMintaAnalytics(true);
       if (authStore.user?.cabang === "KDC") {
         fetchBranchPerformance(true);
         // ❌ fetchItemSalesTrend(true); <-- BARIS INI SUDAH DIHAPUS BIAR GAK KEDAP KEDIP
@@ -2395,6 +2396,7 @@ onMounted(() => {
       fetchTotalPiutang();
       fetchPiutangBreakdown();
       fetchPiutangByInvoice();
+      fetchAutoMintaAnalytics();
       if (authStore.user?.cabang === "KDC") {
         fetchBranchPerformance();
         fetchItemSalesTrend();

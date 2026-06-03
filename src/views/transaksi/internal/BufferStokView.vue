@@ -31,6 +31,10 @@ interface BufferStockItem {
   MaxBuffer: number;
   Harus_Minta: number;
   Sudah_Minta: number;
+  // Detail OTW
+  OTW_Minta: number;
+  OTW_PL: number;
+  OTW_SJ: number;
 }
 
 interface CabangList {
@@ -66,12 +70,12 @@ const headers = ref<DataTableHeader[]>([
   { title: "Kode", key: "Kode", width: 120 },
   { title: "Barcode", key: "Barcode", width: 120 },
   { title: "Nama", key: "Nama", width: 300 },
-  { title: "Ukuran", key: "Ukuran", width: 100 },
-  { title: "Stok", key: "Stok", align: "start", width: 100 },
-  { title: "Min Buffer", key: "MinBuffer", align: "start", width: 100 },
-  { title: "Max Buffer", key: "MaxBuffer", align: "start", width: 100 },
+  { title: "Ukuran", key: "Ukuran", width: 80 },
+  { title: "Stok", key: "Stok", align: "start", width: 80 },
+  { title: "Min", key: "MinBuffer", align: "start", width: 80 },
+  { title: "Max", key: "MaxBuffer", align: "start", width: 80 },
+  { title: "OTW", key: "Sudah_Minta", align: "start", width: 90 },
   { title: "Harus Minta", key: "Harus_Minta", align: "start", width: 100 },
-  { title: "Sudah Minta", key: "Sudah_Minta", align: "start", width: 100 },
 ]);
 
 // --- Logic Resize Column ---
@@ -191,11 +195,15 @@ const saveSetting = async () => {
 };
 
 const getRowTextColor = (item: BufferStockItem) => {
-  if ((item.Stok || 0) < (item.MinBuffer || 0) && (item.MinBuffer || 0) > 0) {
-    return "text-red font-weight-bold";
+  const stokEfektif = (item.Stok || 0) + (item.Sudah_Minta || 0);
+  if (stokEfektif < (item.MinBuffer || 0) && (item.MinBuffer || 0) > 0) {
+    return "text-red font-weight-bold"; // Harus Minta
+  }
+  if ((item.Sudah_Minta || 0) > 0 && stokEfektif >= (item.MinBuffer || 0)) {
+    return "text-green font-weight-bold"; // OTW sudah cukup menutupi
   }
   if ((item.Sudah_Minta || 0) > 0) {
-    return "text-blue font-weight-bold";
+    return "text-blue font-weight-bold"; // Ada OTW tapi belum cukup
   }
   return "";
 };
@@ -275,7 +283,10 @@ watch([selectedCabang, tampilkanBufferNol, kaosan, reszo], fetchData);
             <v-icon color="red" size="small">mdi-circle-medium</v-icon> Harus Minta
           </div>
           <div class="legend-item">
-            <v-icon color="blue" size="small">mdi-circle-medium</v-icon> Sudah Minta
+            <v-icon color="blue" size="small">mdi-circle-medium</v-icon> OTW (Belum Cukup)
+          </div>
+          <div class="legend-item">
+            <v-icon color="green" size="small">mdi-circle-medium</v-icon> OTW (Sudah Cukup)
           </div>
         </div>
         <v-btn @click="fetchData" icon="mdi-refresh" variant="text" size="small" />
@@ -352,6 +363,57 @@ watch([selectedCabang, tampilkanBufferNol, kaosan, reszo], fetchData);
                 >
                   {{ item.Status }}
                 </v-chip>
+              </template>
+
+              <template v-else-if="header.key === 'Sudah_Minta'">
+                <v-tooltip v-if="item.Sudah_Minta > 0" location="top" max-width="220">
+                  <template #activator="{ props }">
+                    <span
+                      v-bind="props"
+                      class="otw-badge"
+                      :class="{
+                        'otw-cukup': item.Stok + item.Sudah_Minta >= item.MinBuffer,
+                        'otw-kurang': item.Stok + item.Sudah_Minta < item.MinBuffer,
+                      }"
+                    >
+                      {{ item.Sudah_Minta }}
+                      <v-icon size="11" class="ml-1">mdi-truck-delivery-outline</v-icon>
+                    </span>
+                  </template>
+                  <div class="otw-tooltip">
+                    <div class="otw-tooltip-title">Rincian OTW</div>
+                    <div class="otw-tooltip-row">
+                      <span>📋 Minta Barang</span>
+                      <span>{{ item.OTW_Minta || 0 }}</span>
+                    </div>
+                    <div class="otw-tooltip-row">
+                      <span>📦 Packing List</span>
+                      <span>{{ item.OTW_PL || 0 }}</span>
+                    </div>
+                    <div class="otw-tooltip-row">
+                      <span>🚚 Surat Jalan</span>
+                      <span>{{ item.OTW_SJ || 0 }}</span>
+                    </div>
+                    <div class="otw-tooltip-divider"></div>
+                    <div class="otw-tooltip-row otw-tooltip-total">
+                      <span>Total OTW</span>
+                      <span>{{ item.Sudah_Minta }}</span>
+                    </div>
+                    <div class="otw-tooltip-row">
+                      <span>Stok + OTW</span>
+                      <span
+                        :class="
+                          item.Stok + item.Sudah_Minta >= item.MinBuffer
+                            ? 'text-green-lighten-2'
+                            : 'text-red-lighten-2'
+                        "
+                      >
+                        {{ item.Stok + item.Sudah_Minta }} / {{ item.MinBuffer }} min
+                      </span>
+                    </div>
+                  </div>
+                </v-tooltip>
+                <span v-else class="text-grey-lighten-1">0</span>
               </template>
               <template v-else>
                 {{ item[header.key as keyof BufferStockItem] }}
@@ -543,5 +605,47 @@ watch([selectedCabang, tampilkanBufferNol, kaosan, reszo], fetchData);
   justify-content: center;
   align-items: center;
   flex-direction: column;
+}
+
+.otw-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 7px;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: help;
+}
+.otw-cukup {
+  background: rgba(76, 175, 80, 0.15);
+  color: #2e7d32;
+}
+.otw-kurang {
+  background: rgba(33, 150, 243, 0.15);
+  color: #1565c0;
+}
+.otw-tooltip {
+  font-size: 11px;
+  min-width: 180px;
+}
+.otw-tooltip-title {
+  font-weight: 700;
+  font-size: 12px;
+  margin-bottom: 6px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+  padding-bottom: 4px;
+}
+.otw-tooltip-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 2px 0;
+}
+.otw-tooltip-divider {
+  border-top: 1px solid rgba(255, 255, 255, 0.2);
+  margin: 4px 0;
+}
+.otw-tooltip-total {
+  font-weight: 700;
 }
 </style>

@@ -68,6 +68,7 @@ export function useAutoPromo(
     skipIfFromSo?: boolean;
     isItemEligible?: (item: PromoItem) => boolean;
     onFakturPromoAvailable?: (promo: { nomor: string; nama: string; diskon: number }) => void;
+    shouldSkipEvaluate?: () => boolean;
   }
 ) {
   const activePromos = ref<ActivePromo[]>([]);
@@ -295,8 +296,9 @@ export function useAutoPromo(
   // ── Evaluasi Utama ─────────────────────────────────────
   const evaluate = async (): Promise<PromoResult | null> => {
     if (options?.skipIfFromSo !== false && header.nomorSo) return null;
-
+    if (options?.shouldSkipEvaluate?.()) return null;
     if (isEvaluating.value) return null;
+
     isEvaluating.value = true;
 
     try {

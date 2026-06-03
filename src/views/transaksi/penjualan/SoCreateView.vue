@@ -481,6 +481,7 @@ const autoPromo = useAutoPromo(promoHeaderProxy, items, {
     pendingPromoData.diskon = promo.diskon;
     isPromoConfirmVisible.value = true;
   },
+  shouldSkipEvaluate: () => lastSuggestedPromo.value === "MANUAL_AUTH",
 });
 
 const syncPromoProxy = () => {
@@ -494,6 +495,21 @@ const syncPromoProxy = () => {
 
   promoHeaderProxy.diskonPersen1 = footer.value.diskonPersen1;
   promoHeaderProxy.diskonPersen2 = footer.value.diskonPersen2;
+};
+
+const clearPromo = () => {
+  header.value.nomorPromo = "";
+  header.value.namaPromo = "";
+  baseManualDiscountRp.value = 0;
+  footer.value.diskonPersen1 = 0;
+  // Pertahankan Maps jika aktif
+  if (footer.value.diskonPersen2 === 5) {
+    header.value.nomorPromo = "PRO-2026-003";
+    header.value.namaPromo = "PROMO GOOGLE MAPS REVIEW 5%";
+  }
+  lastSuggestedPromo.value = "MANUAL_AUTH"; // Kunci agar tidak auto-apply lagi
+  calculateTotals();
+  toast.info("Promo dihapus.");
 };
 
 // Alias ke state composable untuk dipakai di template & calculateTotals
@@ -2279,24 +2295,25 @@ const handleDiscountCostUpdate = (newData: typeof footer.value & { authNomor?: s
   footer.value.diskonPersen2 = newData.diskonPersen2; // Simpan nilai MAPS 5%
   footer.value.biayaKirim = newData.biayaKirim;
 
-  // [PERBAIKAN] Simpan nilai lama dulu sebelum ditimpa
-  const oldDiskonRp = baseManualDiscountRp.value;
+  // // [PERBAIKAN] Simpan nilai lama dulu sebelum ditimpa
+  // const oldDiskonRp = baseManualDiscountRp.value;
 
   baseManualDiscountRp.value = newData.diskonRp || 0;
 
-  // Cek apakah user BENAR-BENAR merubah nilai secara manual
-  const isP1Changed =
-    newData.diskonPersen1 > 0 &&
-    !header.value.nomorPromo.includes(newData.diskonPersen1.toString());
-  const isRpChanged = baseManualDiscountRp.value !== oldDiskonRp; // Cek perubahan rupiah
+  // // Cek apakah user BENAR-BENAR merubah nilai secara manual
+  // const isP1Changed =
+  //   newData.diskonPersen1 > 0 &&
+  //   !header.value.nomorPromo.includes(newData.diskonPersen1.toString());
+  // const isRpChanged = baseManualDiscountRp.value !== oldDiskonRp; // Cek perubahan rupiah
+
+  const hasManualInput =
+    newData.pinDiskon1 ||
+    newData.diskonRp > 0 ||
+    (newData.diskonPersen1 > 0 && !header.value.nomorPromo);
 
   // [KUNCI PERBAIKAN]:
   // JIKA ADA PERUBAHAN MANUAL PADA DISKON DASAR ATAU PIN, BARU KITA KUNCI DAN HAPUS PROMO!
-  if (
-    newData.pinDiskon1 ||
-    (isP1Changed && !newData.diskonPersen2) ||
-    (isRpChanged && !header.value.nomorPromo)
-  ) {
+  if (hasManualInput) {
     lastSuggestedPromo.value = "MANUAL_AUTH"; // Kunci Utama Penolak Promo Otomatis
 
     // Bersihkan identitas promo bulanan, biarkan Maps jika aktif
@@ -2399,6 +2416,7 @@ const handleItemDiscountChange = (index: number) => {
         if (authResult.authNomor) {
           header.value.nomorAuth = authResult.authNomor;
         }
+        lastSuggestedPromo.value = "MANUAL_AUTH";
         calculateTotals();
         toast.success("Diskon item disetujui.");
       },
@@ -3678,7 +3696,18 @@ const stopAndOpenPriceProposal = (index: number) => {
                 hide-details
                 placeholder="F1..."
                 readonly
-              />
+              >
+                <template #append-inner>
+                  <v-icon
+                    v-if="header.nomorPromo"
+                    size="small"
+                    color="error"
+                    @click.stop="clearPromo"
+                    title="Hapus Promo"
+                    >mdi-close-circle</v-icon
+                  >
+                </template>
+              </v-text-field>
             </v-col>
             <v-col cols="8" v-if="!header.isMarketplace">
               <v-text-field

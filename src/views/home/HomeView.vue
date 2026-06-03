@@ -313,6 +313,19 @@ interface DeadStockDetailItem {
   nilai_stok?: number;
 }
 
+interface AutoMintaAnalytics {
+  nomor_mt: string;
+  tanggal_mt: string;
+  kode_cabang: string;
+  nama_cabang: string;
+  keterangan: string;
+  qty_minta: number;
+  qty_packed: number;
+  qty_sent: number;
+  ratio_packing: number;
+  ratio_sj: number;
+}
+
 const authStore = useAuthStore();
 const router = useRouter();
 const toast = useToast();
@@ -512,6 +525,24 @@ const todayAgendaItems = computed(() => {
   // agendaList perlu di-fetch, atau terima dari props/store
   return agendaList.value.filter((item) => item.dateline === todayStr);
 });
+
+// --- STATE AUTO MINTA ANALYTICS ---
+const autoMintaData = ref<AutoMintaAnalytics[]>([]);
+const isLoadingAutoMinta = ref(false);
+const autoMintaFilter = reactive({
+  startDate: format(subDays(new Date(), 30), "yyyy-MM-dd"), // Default 1 bulan terakhir
+  endDate: format(new Date(), "yyyy-MM-dd"),
+  cabang: authStore.user?.cabang === "KDC" ? "ALL" : authStore.user?.cabang || "",
+});
+
+const autoMintaHeaders = [
+  { title: "No. MT", key: "nomor_mt" },
+  { title: "Tgl & Keterangan", key: "tanggal_mt" },
+  { title: "Toko Peminta", key: "nama_cabang" },
+  { title: "Permintaan", key: "qty_minta", align: "center" as const },
+  { title: "Realisasi DC (Packing)", key: "ratio_packing", align: "center" as const, width: 220 },
+  { title: "Terkirim (SJ)", key: "ratio_sj", align: "center" as const, width: 220 },
+];
 
 // --- STATE BORDIR ---
 const bordirSchedules = ref<BordirSchedule[]>([]);
@@ -1985,6 +2016,87 @@ watch(
   },
   { deep: true }
 );
+
+// --- FETCH AUTO MINTA ANALYTICS ---
+const fetchAutoMintaAnalytics = async (isBackground = false) => {
+  if (!isBackground) isLoadingAutoMinta.value = true;
+  try {
+    const res = await api.get("/dashboard/auto-minta-analytics", {
+      params: autoMintaFilter,
+    });
+    autoMintaData.value = res.data;
+  } catch (error) {
+    console.error("Gagal load Auto Minta Analytics", error);
+  } finally {
+    if (!isBackground) isLoadingAutoMinta.value = false;
+  }
+};
+
+watch(
+  () => autoMintaFilter,
+  () => {
+    fetchAutoMintaAnalytics();
+  },
+  { deep: true }
+);
+
+// --- COMPUTED AUTO MINTA ---
+const autoMintaAvgPacking = computed(() => {
+  if (autoMintaData.value.length === 0) return 0;
+  const total = autoMintaData.value.reduce((acc, curr) => acc + curr.ratio_packing, 0);
+  return (total / autoMintaData.value.length).toFixed(1);
+});
+
+const autoMintaAvgSj = computed(() => {
+  if (autoMintaData.value.length === 0) return 0;
+  const total = autoMintaData.value.reduce((acc, curr) => acc + curr.ratio_sj, 0);
+  return (total / autoMintaData.value.length).toFixed(1);
+});
+
+const autoMintaChartData = computed(() => {
+  return {
+    labels: autoMintaData.value.map((r) => r.nomor_mt.substring(5)),
+    datasets: [
+      {
+        type: "line" as const,
+        label: "Packing DC (%)",
+        data: autoMintaData.value.map((r) => r.ratio_packing),
+        borderColor: "#2196F3",
+        backgroundColor: "rgba(33, 150, 243, 0.1)",
+        borderWidth: 2,
+        tension: 0.3,
+        fill: true,
+      },
+      {
+        type: "line" as const,
+        label: "Terkirim SJ (%)",
+        data: autoMintaData.value.map((r) => r.ratio_sj),
+        borderColor: "#4CAF50",
+        backgroundColor: "rgba(76, 175, 80, 0)",
+        borderWidth: 2,
+        tension: 0.3,
+        fill: false,
+      },
+    ],
+  };
+});
+
+const autoMintaChartOptions = {
+  responsive: true,
+  maintainAspectRatio: false,
+  scales: {
+    y: { min: 0, max: 100 },
+  },
+  plugins: {
+    datalabels: { display: false },
+  },
+};
+
+const getRatioColor = (ratio: number) => {
+  if (ratio < 70) return "error";
+  if (ratio < 90) return "warning";
+  return "success";
+};
 
 // Computed property untuk menentukan warna & pesan status
 const healthStatus = computed(() => {
@@ -4585,6 +4697,158 @@ onUnmounted(() => {
                 </v-table>
                 <div v-if="isLoadingSchedules" class="text-center pa-4">
                   <v-progress-circular indeterminate color="indigo" size="20" />
+                </div>
+              </v-card-text>
+            </v-card>
+
+            <!-- Auto Minta Analytics -->
+            <v-card elevation="2" class="rounded-lg bg-surface mb-4">
+              <v-card-title
+                class="d-flex flex-wrap align-center bg-blue-grey-lighten-5 py-3 text-blue-grey-darken-3 gap-2"
+              >
+                <v-icon class="mr-2" color="blue-grey-darken-1">mdi-robot-outline</v-icon>
+                <span class="text-subtitle-1 font-weight-bold"
+                  >Analisis Permintaan Otomatis (Auto Replenishment)</span
+                >
+
+                <v-spacer />
+
+                <div
+                  class="d-flex align-center border rounded px-2 bg-white"
+                  style="height: 32px; border-color: #cfd8dc !important"
+                >
+                  <input
+                    type="date"
+                    v-model="autoMintaFilter.startDate"
+                    class="date-native-input text-caption text-blue-grey-darken-3 font-weight-bold"
+                  />
+                  <span class="mx-1 text-caption text-medium-emphasis">s/d</span>
+                  <input
+                    type="date"
+                    v-model="autoMintaFilter.endDate"
+                    class="date-native-input text-caption text-blue-grey-darken-3 font-weight-bold"
+                  />
+                </div>
+
+                <div v-if="authStore.user?.cabang === 'KDC'" style="width: 140px">
+                  <v-select
+                    v-model="autoMintaFilter.cabang"
+                    :items="cabangList"
+                    item-title="nama"
+                    item-value="kode"
+                    density="compact"
+                    variant="outlined"
+                    hide-details
+                    bg-color="white"
+                    class="filter-select-small"
+                  />
+                </div>
+              </v-card-title>
+
+              <v-card-text class="pa-4">
+                <div v-if="isLoadingAutoMinta" class="text-center pa-8">
+                  <v-progress-circular indeterminate color="blue-grey" size="40" />
+                </div>
+                <div v-else>
+                  <v-row dense class="mb-4">
+                    <v-col cols="12" md="4">
+                      <v-card variant="outlined" class="text-center pa-3 bg-grey-lighten-5">
+                        <div class="text-caption text-medium-emphasis text-uppercase mb-1">
+                          Total Sesi Automasi
+                        </div>
+                        <div class="text-h5 font-weight-black text-blue-grey-darken-3">
+                          {{ autoMintaData.length }}
+                          <span class="text-caption font-weight-medium">Dokumen</span>
+                        </div>
+                      </v-card>
+                    </v-col>
+                    <v-col cols="12" md="4">
+                      <v-card
+                        variant="outlined"
+                        class="text-center pa-3 bg-blue-lighten-5 border-blue-lighten-3"
+                      >
+                        <div class="text-caption text-medium-emphasis text-uppercase mb-1">
+                          Avg. Realisasi DC
+                        </div>
+                        <div class="text-h5 font-weight-black text-blue-darken-2">
+                          {{ autoMintaAvgPacking }}%
+                        </div>
+                      </v-card>
+                    </v-col>
+                    <v-col cols="12" md="4">
+                      <v-card
+                        variant="outlined"
+                        class="text-center pa-3 bg-green-lighten-5 border-green-lighten-3"
+                      >
+                        <div class="text-caption text-medium-emphasis text-uppercase mb-1">
+                          Avg. Terkirim (SJ)
+                        </div>
+                        <div class="text-h5 font-weight-black text-green-darken-2">
+                          {{ autoMintaAvgSj }}%
+                        </div>
+                      </v-card>
+                    </v-col>
+                  </v-row>
+
+                  <div class="mb-6" style="height: 250px; position: relative">
+                    <Line
+                      v-if="autoMintaData.length > 0"
+                      :data="autoMintaChartData as any"
+                      :options="autoMintaChartOptions as any"
+                    />
+                  </div>
+
+                  <v-data-table
+                    :headers="autoMintaHeaders"
+                    :items="autoMintaData"
+                    density="compact"
+                    hover
+                    class="border rounded-lg text-caption"
+                  >
+                    <template #[`item.tanggal_mt`]="{ item }">
+                      <div class="font-weight-bold">{{ item.tanggal_mt }}</div>
+                      <div class="text-grey" style="font-size: 10px">{{ item.keterangan }}</div>
+                    </template>
+                    <template #[`item.qty_minta`]="{ item }">
+                      <div class="font-weight-black">{{ item.qty_minta }} pcs</div>
+                    </template>
+                    <template #[`item.ratio_packing`]="{ item }">
+                      <div class="d-flex align-center justify-center w-100">
+                        <span
+                          class="mr-2 font-weight-bold"
+                          :class="`text-${getRatioColor(item.ratio_packing)}`"
+                          style="width: 40px; text-align: right"
+                        >
+                          {{ item.ratio_packing }}%
+                        </span>
+                        <v-progress-linear
+                          :model-value="item.ratio_packing"
+                          :color="getRatioColor(item.ratio_packing)"
+                          height="6"
+                          rounded
+                          style="max-width: 120px"
+                        />
+                      </div>
+                    </template>
+                    <template #[`item.ratio_sj`]="{ item }">
+                      <div class="d-flex align-center justify-center w-100">
+                        <span
+                          class="mr-2 font-weight-bold"
+                          :class="`text-${getRatioColor(item.ratio_sj)}`"
+                          style="width: 40px; text-align: right"
+                        >
+                          {{ item.ratio_sj }}%
+                        </span>
+                        <v-progress-linear
+                          :model-value="item.ratio_sj"
+                          :color="getRatioColor(item.ratio_sj)"
+                          height="6"
+                          rounded
+                          style="max-width: 120px"
+                        />
+                      </div>
+                    </template>
+                  </v-data-table>
                 </div>
               </v-card-text>
             </v-card>

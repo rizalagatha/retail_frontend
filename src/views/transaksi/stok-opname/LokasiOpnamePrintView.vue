@@ -45,10 +45,6 @@ interface LokasiOpnameRaw {
   lo_idrec: string;
   lo_cab: string;
   lo_lokasi: string;
-  gdg_inv_nama?: string;
-  gdg_inv_alamat?: string;
-  gdg_inv_kota?: string;
-  gdg_inv_telp?: string;
 }
 
 const reportData = ref<LokasiData[]>([]);
@@ -81,13 +77,14 @@ const loadData = async () => {
     });
     reportData.value = await Promise.all(resultPromises);
 
-    const firstLoc = selectedLocations[0];
-    if (firstLoc) {
+    const firstItems = reportData.value[0]?.items;
+    if (firstItems && firstItems.length > 0) {
+      const first = firstItems[0];
       gudangInfo.value = {
-        gdg_inv_nama: firstLoc.gdg_inv_nama || "",
-        gdg_inv_alamat: firstLoc.gdg_inv_alamat || "",
-        gdg_inv_kota: firstLoc.gdg_inv_kota || "",
-        gdg_inv_telp: firstLoc.gdg_inv_telp || "",
+        gdg_inv_nama: first.gdg_inv_nama || "",
+        gdg_inv_alamat: first.gdg_inv_alamat || "",
+        gdg_inv_kota: first.gdg_inv_kota || "",
+        gdg_inv_telp: first.gdg_inv_telp || "",
       };
     }
     setTimeout(() => {
@@ -101,6 +98,17 @@ const loadData = async () => {
 };
 
 const totalQty = (items: DetailBarang[]) => items.reduce((sum, item) => sum + item.hs_qty, 0);
+
+// Rekap packing list per lokasi
+const rekapPL = (items: DetailBarang[]) => {
+  const map = new Map<string, number>();
+  for (const item of items) {
+    const pl = item.no_packing_list?.trim();
+    if (!pl || pl === "-" || pl === "") continue;
+    map.set(pl, (map.get(pl) || 0) + item.hs_qty);
+  }
+  return Array.from(map.entries()).map(([nomor, qty]) => ({ nomor, qty }));
+};
 
 onMounted(() => {
   loadData();
@@ -182,12 +190,11 @@ onMounted(() => {
               <th v-if="data.cabang === 'KDC'" class="col-prod">No. Prod</th>
               <th class="col-qty">Qty</th>
               <th class="col-validasi">Hitung 2</th>
-              <th class="col-validasi">Hitung 3</th>
             </tr>
           </thead>
           <tbody>
             <tr v-if="data.items.length === 0">
-              <td :colspan="data.cabang === 'KDC' ? 11 : 9" class="empty-row">
+              <td :colspan="data.cabang === 'KDC' ? 10 : 8" class="empty-row">
                 (Tidak ada barang di lokasi ini)
               </td>
             </tr>
@@ -206,15 +213,27 @@ onMounted(() => {
               </td>
               <td class="text-right qty-cell">{{ item.hs_qty }}</td>
               <td class="col-validasi-cell"></td>
-              <td class="col-validasi-cell"></td>
             </tr>
           </tbody>
           <tfoot v-if="data.items.length > 0">
             <tr class="total-row">
-              <td :colspan="data.cabang === 'KDC' ? 9 : 7" class="text-right">TOTAL KESELURUHAN</td>
+              <td :colspan="data.cabang === 'KDC' ? 8 : 6" class="text-right">TOTAL KESELURUHAN</td>
               <td class="text-right total-qty">{{ totalQty(data.items) }}</td>
               <td></td>
-              <td></td>
+            </tr>
+
+            <tr v-if="data.cabang === 'KDC' && rekapPL(data.items).length > 0" class="rekap-pl-row">
+              <td :colspan="10" class="pa-0 border-0">
+                <div class="rekap-pl-container">
+                  <div class="rekap-pl-title">Rekap Packing List pada Lokasi Ini:</div>
+                  <div class="rekap-pl-items">
+                    <span v-for="(pl, idxPl) in rekapPL(data.items)" :key="idxPl" class="pl-badge">
+                      <span class="pl-nomor">{{ pl.nomor }}</span>
+                      <span class="pl-qty">{{ pl.qty }} pcs</span>
+                    </span>
+                  </div>
+                </div>
+              </td>
             </tr>
           </tfoot>
         </table>
@@ -230,12 +249,6 @@ onMounted(() => {
         </div>
         <div class="ttd-box">
           <div class="ttd-label">Checker 2 (Validasi)</div>
-          <div class="ttd-space"></div>
-          <div class="ttd-line"></div>
-          <div class="ttd-name">(..............................)</div>
-        </div>
-        <div class="ttd-box">
-          <div class="ttd-label">Checker 3</div>
           <div class="ttd-space"></div>
           <div class="ttd-line"></div>
           <div class="ttd-name">(..............................)</div>
@@ -490,9 +503,9 @@ tfoot .total-row td {
 /* TTD — di akhir konten, normal flow */
 .ttd-section {
   display: flex;
-  justify-content: space-between;
+  justify-content: space-around;
   margin-top: 16px;
-  padding: 10px 16px 8px;
+  padding: 10px 40px 8px;
   border: 0.5px solid #ccc;
   border-radius: 4px;
   background: #fafafa;
@@ -500,7 +513,7 @@ tfoot .total-row td {
   print-color-adjust: exact;
 }
 .ttd-box {
-  width: 30%;
+  width: 40%;
   text-align: center;
 }
 .ttd-label {
@@ -520,6 +533,68 @@ tfoot .total-row td {
 .ttd-name {
   font-size: 8.5px;
   color: #555;
+}
+
+/* Styling Rekap Packing List */
+.rekap-pl-row {
+  background-color: transparent !important;
+}
+
+.rekap-pl-row td {
+  border-bottom: 2px solid #000 !important;
+}
+
+.rekap-pl-container {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 6px 8px;
+  background-color: #fff8e1; /* Kuning muda */
+  border: 1px dashed #fbc02d;
+  border-top: none;
+  border-bottom: none;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+
+.rekap-pl-title {
+  font-size: 8.5px;
+  font-weight: bold;
+  color: #f57f17;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.rekap-pl-items {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.pl-badge {
+  display: inline-flex;
+  align-items: center;
+  border: 0.5px solid #fbc02d;
+  border-radius: 3px;
+  overflow: hidden;
+  background: #fff;
+}
+
+.pl-nomor {
+  padding: 2px 4px;
+  background-color: #fbc02d;
+  color: #000;
+  font-weight: bold;
+  font-size: 8px;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+
+.pl-qty {
+  padding: 2px 4px;
+  font-weight: bold;
+  font-size: 8px;
+  color: #333;
 }
 
 /* Print */

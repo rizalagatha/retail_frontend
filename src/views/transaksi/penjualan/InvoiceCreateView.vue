@@ -450,14 +450,15 @@ const autoPromo = useAutoPromo(header, items, {
   // [TAMBAH]
   onFakturPromoAvailable: (promo) => {
     if (header.nomorSo) return; // Skip jika dari SO
-    if (lastSuggestedPromo.value === promo.nomor || lastSuggestedPromo.value === "MANUAL_AUTH") return;
+    if (lastSuggestedPromo.value === promo.nomor || lastSuggestedPromo.value === "MANUAL_AUTH")
+      return;
 
     pendingPromoData.nomor = promo.nomor;
     pendingPromoData.nama = promo.nama;
     pendingPromoData.diskon = promo.diskon;
     isPromoConfirmVisible.value = true;
   },
-shouldSkipEvaluate: () => lastSuggestedPromo.value === "MANUAL_AUTH",
+  shouldSkipEvaluate: () => lastSuggestedPromo.value === "MANUAL_AUTH",
 });
 
 const promoNotification = computed(() => autoPromo.notification.value);
@@ -589,8 +590,8 @@ const onDiskonSaved = (data: {
     toast.success("Data biaya & diskon diperbarui.");
 
     if (header.diskonRp > 0 || header.diskonPersen1 > 0) {
-    lastSuggestedPromo.value = "MANUAL_AUTH";
-  }
+      lastSuggestedPromo.value = "MANUAL_AUTH";
+    }
   };
 
   // 3. Logika Percabangan Otorisasi
@@ -707,7 +708,7 @@ const handleItemDiscountChange = (item: Item) => {
             currentItem.lastPin = authResult.approver;
             currentItem.total = computeLineTotal(currentItem);
           }
-           lastSuggestedPromo.value = "MANUAL_AUTH";
+          lastSuggestedPromo.value = "MANUAL_AUTH";
           toast.success("Otorisasi diskon item disetujui.");
           calculateTotals();
           activeItemForAuth.value = null;
@@ -1171,7 +1172,6 @@ const onSoSelected = async (so: { Nomor: string }) => {
     } else {
       isMapsAlreadyInDiskonRp.value = false;
     }
-
 
     header.dateline = soHeader.dateline || null;
 
@@ -1677,7 +1677,7 @@ const checkAndApplyMonthlyPromo = async () => {
 const handleOpenDiskonForm = async () => {
   if (isReadonly.value) return;
 
-   if (lastSuggestedPromo.value === "MANUAL_AUTH" || header.nomorSo) {
+  if (lastSuggestedPromo.value === "MANUAL_AUTH" || header.nomorSo) {
     dialogs.diskonForm = true;
     return;
   }
@@ -3568,17 +3568,17 @@ watch(
       @selected="onPromoSelected"
     />
     <DiscountConfirmationDialog
-  v-model="isPromoConfirmVisible"
-  :customer-level="header.customer.level || 'Standar'"
-  :diskon-persen-member="header.diskonPersen1"
-  :diskon-nominal-member="Math.round((header.diskonPersen1 / 100) * totals.subTotal)"
-  :promo-nama="pendingPromoData.nama"
-  :promo-nominal="pendingPromoData.diskon"
-  :item-discounts="[]"
-  @use-member="useMemberDiscount"
-  @use-promo="applyPromoDiscount"
-  @ignore="closePromoDialog"
-/>
+      v-model="isPromoConfirmVisible"
+      :customer-level="header.customer.level || 'Standar'"
+      :diskon-persen-member="header.diskonPersen1"
+      :diskon-nominal-member="Math.round((header.diskonPersen1 / 100) * totals.subTotal)"
+      :promo-nama="pendingPromoData.nama"
+      :promo-nominal="pendingPromoData.diskon"
+      :item-discounts="[]"
+      @use-member="useMemberDiscount"
+      @use-promo="applyPromoDiscount"
+      @ignore="closePromoDialog"
+    />
     <MemberForm
       v-if="dialogs.memberForm"
       :initial-hp="memberHpToSearch"

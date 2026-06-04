@@ -30,6 +30,7 @@ import AuthorizationModal from "@/components/modal/AuthorizationModal.vue";
 import SoDtfSearchModal from "@/components/lookup/SoDtfSearchModal.vue";
 import PromoBonusModal from "@/components/modal/PromoBonusModal.vue";
 import SjSearchModalForInvoice from "@/components/lookup/SjSearchModalForInvoice.vue";
+import DiscountConfirmationDialog from "@/components/dialog/DiscountConfirmationDialog.vue";
 
 // --- Tipe Data ---
 interface Item {
@@ -435,6 +436,9 @@ const isLockedFsk = ref(false);
 const isLookupOnly = ref(false);
 const customerDebt = ref(0);
 const customerLimit = ref(0);
+const lastSuggestedPromo = ref("");
+const isPromoConfirmVisible = ref(false);
+const pendingPromoData = reactive({ nomor: "", nama: "", diskon: 0 });
 
 const autoPromo = useAutoPromo(header, items, {
   skipIfFromSo: true,
@@ -443,6 +447,17 @@ const autoPromo = useAutoPromo(header, items, {
     else if (type === "warning") toast.warning(msg);
     else toast.info(msg);
   },
+  // [TAMBAH]
+  onFakturPromoAvailable: (promo) => {
+    if (header.nomorSo) return; // Skip jika dari SO
+    if (lastSuggestedPromo.value === promo.nomor || lastSuggestedPromo.value === "MANUAL_AUTH") return;
+
+    pendingPromoData.nomor = promo.nomor;
+    pendingPromoData.nama = promo.nama;
+    pendingPromoData.diskon = promo.diskon;
+    isPromoConfirmVisible.value = true;
+  },
+shouldSkipEvaluate: () => lastSuggestedPromo.value === "MANUAL_AUTH",
 });
 
 const promoNotification = computed(() => autoPromo.notification.value);
@@ -572,6 +587,10 @@ const onDiskonSaved = (data: {
 
     calculateTotals();
     toast.success("Data biaya & diskon diperbarui.");
+
+    if (header.diskonRp > 0 || header.diskonPersen1 > 0) {
+    lastSuggestedPromo.value = "MANUAL_AUTH";
+  }
   };
 
   // 3. Logika Percabangan Otorisasi
@@ -688,6 +707,7 @@ const handleItemDiscountChange = (item: Item) => {
             currentItem.lastPin = authResult.approver;
             currentItem.total = computeLineTotal(currentItem);
           }
+           lastSuggestedPromo.value = "MANUAL_AUTH";
           toast.success("Otorisasi diskon item disetujui.");
           calculateTotals();
           activeItemForAuth.value = null;
@@ -1657,6 +1677,11 @@ const checkAndApplyMonthlyPromo = async () => {
 const handleOpenDiskonForm = async () => {
   if (isReadonly.value) return;
 
+   if (lastSuggestedPromo.value === "MANUAL_AUTH" || header.nomorSo) {
+    dialogs.diskonForm = true;
+    return;
+  }
+
   // 1. Paksa sistem menawarkan Promo Bulanan DULU
   await checkAndApplyMonthlyPromo();
 
@@ -1896,6 +1921,33 @@ const checkRealtimePromoEligibility = () => {
 //     isApplyingBonus = false;
 //   }
 // };
+
+const applyPromoDiscount = () => {
+  header.nomorPromo = pendingPromoData.nomor;
+  header.namaPromo = pendingPromoData.nama;
+  header.diskonRp = pendingPromoData.diskon;
+  header.diskonPersen1 = 0;
+  lastSuggestedPromo.value = "";
+  isPromoConfirmVisible.value = false;
+  calculateTotals();
+  toast.success(`Promo ${pendingPromoData.nama} berhasil diterapkan.`);
+};
+
+const useMemberDiscount = () => {
+  lastSuggestedPromo.value = "MANUAL_AUTH";
+  header.nomorPromo = autoPromo.isMapsApplied.value ? "PRO-2026-003" : "";
+  header.namaPromo = autoPromo.isMapsApplied.value ? "PROMO GOOGLE MAPS REVIEW 5%" : "";
+  header.diskonRp = 0;
+  isPromoConfirmVisible.value = false;
+  applyDefaultDiscount();
+  calculateTotals();
+  toast.info("Promo dilepas, kembali ke diskon member.");
+};
+
+const closePromoDialog = () => {
+  isPromoConfirmVisible.value = false;
+  lastSuggestedPromo.value = pendingPromoData.nomor;
+};
 
 const handleProceedToPayment = async () => {
   // =========================================================
@@ -3515,6 +3567,18 @@ watch(
       @close="dialogs.promoSearch = false"
       @selected="onPromoSelected"
     />
+    <DiscountConfirmationDialog
+  v-model="isPromoConfirmVisible"
+  :customer-level="header.customer.level || 'Standar'"
+  :diskon-persen-member="header.diskonPersen1"
+  :diskon-nominal-member="Math.round((header.diskonPersen1 / 100) * totals.subTotal)"
+  :promo-nama="pendingPromoData.nama"
+  :promo-nominal="pendingPromoData.diskon"
+  :item-discounts="[]"
+  @use-member="useMemberDiscount"
+  @use-promo="applyPromoDiscount"
+  @ignore="closePromoDialog"
+/>
     <MemberForm
       v-if="dialogs.memberForm"
       :initial-hp="memberHpToSearch"

@@ -481,7 +481,10 @@ const autoPromo = useAutoPromo(promoHeaderProxy, items, {
     pendingPromoData.diskon = promo.diskon;
     isPromoConfirmVisible.value = true;
   },
-  shouldSkipEvaluate: () => lastSuggestedPromo.value === "MANUAL_AUTH",
+  shouldSkipEvaluate: () => {
+    // Skip jika edit mode DAN promo sudah ada di database
+    return isInitialLoad.value && !!header.value.nomorPromo;
+  },
 });
 
 const syncPromoProxy = () => {
@@ -1036,7 +1039,11 @@ const calculateTotals = async () => {
   totalDiscountable.value = newTotalDiscountable;
 
   syncPromoProxy();
-  autoPromo.debouncedEvaluate();
+  if (isInitialLoad.value && header.value.nomorPromo) {
+    // Skip — biarkan nilai dari database
+  } else {
+    autoPromo.debouncedEvaluate();
+  }
 
   // ========================================================================
   // [KUNCI PERBAIKAN] 2. Penentuan Jalur Diskon (SOP Baru)

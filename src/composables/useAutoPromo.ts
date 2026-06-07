@@ -106,13 +106,19 @@ export function useAutoPromo(
 
   const isItemEligible = (item: PromoItem, promo: ActivePromo): boolean => {
     if (!item.kode) return false;
-
     if (options?.isItemEligible && !options.isItemEligible(item)) return false;
 
     const kodeUp = item.kode.toUpperCase();
-    const namaUp = (item.nama || "").toUpperCase(); // [TAMBAH]
+    const namaUp = (item.nama || "").toUpperCase();
 
-    // 1. Exclude kode barang tertentu
+    // Bordir dikecualikan
+    if ((item.noSoDtf || "").toUpperCase().includes(".BR.")) return false;
+
+    // [FIX] Item CUSTOM (jenis order) selalu eligible — tidak perlu cek basis/kategori/kata kunci
+    // Pengecualiannya sudah ditangani oleh options.isItemEligible (noPengajuanHarga, bordir)
+    if (kodeUp === "CUSTOM") return true;
+
+    // Exclude kode barang tertentu
     if (promo.pro_exclude_kode) {
       const excludeKodes = promo.pro_exclude_kode
         .split(",")
@@ -121,7 +127,7 @@ export function useAutoPromo(
       if (excludeKodes.includes(kodeUp)) return false;
     }
 
-    // 2. Jasa murni selalu dikecualikan
+    // Jasa murni selalu dikecualikan
     if (kodeUp.startsWith("JASA") || kodeUp.startsWith("JS")) return false;
 
     // 3. Berdasarkan pro_basis

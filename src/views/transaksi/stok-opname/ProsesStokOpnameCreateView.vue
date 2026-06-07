@@ -170,8 +170,9 @@ const handleItemAdd = async (index: number) => {
   }
 };
 
-const loadInitialData = async () => {
-  if (authStore.user?.cabang === "KDC" && formHeader.gudang === "KDC") {
+const loadInitialData = async (isManual = false) => {
+  // [FIX] Skip hanya jika auto-load (bukan pilihan manual) dan user KDC pilih KDC
+  if (!isManual && authStore.user?.cabang === "KDC" && formHeader.gudang === "KDC") {
     isLoading.value = false;
     return;
   }
@@ -331,7 +332,7 @@ watch(
   () => formHeader.gudang,
   (newVal) => {
     if (newVal && !isEditMode.value) {
-      loadInitialData();
+      loadInitialData(true); // [FIX] isManual = true
     }
   }
 );
@@ -340,10 +341,10 @@ onMounted(() => {
   const id = route.params.nomor as string;
   if (id) {
     isEditMode.value = true;
-    loadDataForEdit(id); // Memanggil fungsi agar tidak "assigned but never used"
+    loadDataForEdit(id);
   } else {
     if (authStore.user?.cabang !== "KDC") {
-      loadInitialData();
+      loadInitialData(); // isManual = false, KDC tetap di-skip
     } else {
       isLoading.value = false;
     }

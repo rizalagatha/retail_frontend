@@ -831,6 +831,7 @@ const loadDataForEdit = async (nomor: string, silent = false) => {
             ...item,
             id: Date.now() + Math.random() + uIdx,
             nama: item.sod_custom_nama || item.nama,
+            kategori: "CUSTOM",
             ukuran: u.ukuran, // Ukuran dari JSON
             jumlah: Number(u.jumlah) || 0, // Qty dari JSON
             harga: Number(u.harga) || 0, // Harga dari JSON
@@ -858,6 +859,7 @@ const loadDataForEdit = async (nomor: string, silent = false) => {
           harga: Number(item.harga) || 0,
           id: Date.now() + index + Math.random(),
           nama: isCustomOrder ? item.sod_custom_nama || item.nama : item.nama,
+          kategori: isCustomOrder ? "CUSTOM" : item.kategori,
           scannedQty: Number(item.sod_scanned || 0),
           mutatedQty: Number(item.mutatedQty || 0),
           isMutated: Number(item.mutatedQty || 0) > 0,

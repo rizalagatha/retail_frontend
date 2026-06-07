@@ -171,8 +171,14 @@ const handleItemAdd = async (index: number) => {
 };
 
 const loadInitialData = async (isManual = false) => {
-  // [FIX] Skip hanya jika auto-load (bukan pilihan manual) dan user KDC pilih KDC
+  console.log("loadInitialData called", {
+    isManual,
+    gudang: formHeader.gudang,
+    userCabang: authStore.user?.cabang,
+  });
+
   if (!isManual && authStore.user?.cabang === "KDC" && formHeader.gudang === "KDC") {
+    console.log("SKIPPED by guard");
     isLoading.value = false;
     return;
   }
@@ -286,6 +292,11 @@ const onGudangSelected = (gudang: { kode: string; nama: string }) => {
   formHeader.gudang = gudang.kode;
   formHeader.gudangNama = gudang.nama;
   isGudangLookupVisible.value = false;
+
+  // [FIX] Panggil langsung, tidak andalkan watcher
+  if (!isEditMode.value) {
+    loadInitialData(true);
+  }
 };
 
 const validateGudangKode = async () => {
@@ -330,9 +341,9 @@ const handleFromDatabase = () => {
 // Pantau perubahan gudang: jika Admin ganti cabang, data langsung refresh
 watch(
   () => formHeader.gudang,
-  (newVal) => {
-    if (newVal && !isEditMode.value) {
-      loadInitialData(true); // [FIX] isManual = true
+  (newVal, oldVal) => {
+    if (newVal && newVal !== oldVal && !isEditMode.value) {
+      loadInitialData(true);
     }
   }
 );

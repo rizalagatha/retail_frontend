@@ -482,8 +482,11 @@ const autoPromo = useAutoPromo(promoHeaderProxy, items, {
     isPromoConfirmVisible.value = true;
   },
   shouldSkipEvaluate: () => {
-    // Skip jika edit mode DAN promo sudah ada di database
-    return isInitialLoad.value && !!header.value.nomorPromo;
+    // Skip jika: (1) sedang initial load, ATAU (2) sudah ada otorisasi/manual
+    return (
+      (isInitialLoad.value && !!header.value.nomorPromo) ||
+      lastSuggestedPromo.value === "MANUAL_AUTH"
+    );
   },
 });
 
@@ -929,7 +932,8 @@ const loadDataForEdit = async (nomor: string, silent = false) => {
     // [PERBAIKAN] Kunci popup promo otomatis saat Load Edit!
     // Jika dari database sudah ada promo atau diskon manual, langsung set flag "sudah ditanya"
     if (headerData.nomorPromo || headerData.so_pro_nomor) {
-      lastSuggestedPromo.value = headerData.nomorPromo || headerData.so_pro_nomor;
+      // [FIX] Gunakan MANUAL_AUTH bukan nomor promo, agar shouldSkipEvaluate aktif permanen
+      lastSuggestedPromo.value = "MANUAL_AUTH";
     } else if (
       footerData.diskonRp > 0 ||
       footerData.diskonPersen1 > 0 ||
@@ -1039,8 +1043,12 @@ const calculateTotals = async () => {
   totalDiscountable.value = newTotalDiscountable;
 
   syncPromoProxy();
-  if (isInitialLoad.value && header.value.nomorPromo) {
-    // Skip — biarkan nilai dari database
+  // [FIX] Skip evaluate jika ada kunci manual auth ATAU sedang initial load dengan promo
+  if (
+    lastSuggestedPromo.value === "MANUAL_AUTH" ||
+    (isInitialLoad.value && !!header.value.nomorPromo)
+  ) {
+    // Tidak perlu evaluate — diskon dikelola manual/dari DB
   } else {
     autoPromo.debouncedEvaluate();
   }

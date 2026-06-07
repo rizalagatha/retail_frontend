@@ -339,11 +339,15 @@ export function useAutoPromo(
 
       if (nomors.length > 0 && currentNonMaps !== newNomorStr) {
         if (options?.onFakturPromoAvailable) {
-          options.onFakturPromoAvailable({
-            nomor: newNomorStr,
-            nama: namas.join(" + "),
-            diskon: totalDiskon,
-          });
+          const sortedCurrent = currentNonMaps.split(",").sort().join(",");
+          const sortedNew = newNomorStr.split(",").sort().join(",");
+          if (sortedCurrent !== sortedNew) {
+            options.onFakturPromoAvailable({
+              nomor: newNomorStr,
+              nama: namas.join(" + "),
+              diskon: totalDiskon,
+            });
+          }
 
           // Kembalikan header as-is (status quo) agar tidak menimpa state otomatis
           // dan biarkan UI yang memutuskan lewat dialog konfirmasi.

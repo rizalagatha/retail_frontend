@@ -205,9 +205,13 @@ const uploadImageToServer = async (kode: string): Promise<boolean> => {
     formData.append("image", imageFile.value);
 
     // Pastikan endpoint ini sesuai dengan route backend
-    const response = await api.post(`/barang-dc-form/upload-image/${kode}`, formData, {
-      headers: { "Content-Type": "multipart/form-data" },
-    });
+    const response = await api.post(
+      `/barang-dc-form/upload-image/${encodeURIComponent(kode)}`,
+      formData,
+      {
+        headers: { "Content-Type": "multipart/form-data" },
+      }
+    );
 
     if (response.data.success) {
       header.gambarUrl = response.data.imageUrl;
@@ -361,7 +365,7 @@ const resetForm = () => {
 const loadDataForEdit = async (kode: string) => {
   isLoading.value = true;
   try {
-    const response = await api.get(`/barang-dc-form/${kode}`);
+    const response = await api.get(`/barang-dc-form/${encodeURIComponent(kode)}`);
     const data = response.data;
 
     // --- ISI DATA HEADER ---

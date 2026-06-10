@@ -323,7 +323,7 @@ const loadDetails = async (newlyExpandedItems: MasterItem[]) => {
 
   loadingDetails.value.add(kodeToLoad);
   try {
-    const response = await api.get(`/barang-dc/details/${kodeToLoad}`);
+    const response = await api.get(`/barang-dc/details/${encodeURIComponent(kodeToLoad)}`);
     details.value[kodeToLoad] = response.data;
   } catch (err) {
     toast.error(getErrorMessage(err, `Gagal memuat detail untuk ${kodeToLoad}`));

@@ -6,6 +6,7 @@ import { useRouter } from "vue-router";
 import { gsap } from "gsap";
 import * as XLSX from "xlsx";
 import axios from "axios";
+import type { AxiosError } from "axios";
 
 import logoUrl from "@/assets/logo.png";
 import bannerImage from "@/assets/banner-image.jpg";
@@ -33,6 +34,7 @@ import ChartDataLabels from "chartjs-plugin-datalabels";
 import { formatRupiah } from "@/utils/formatRupiah";
 import JuknisModal from "@/components/modal/JuknisModal.vue";
 import TrackingAnalytics from "@/components/button/TrackingAnalytics.vue";
+import RealStockDialog from "@/components/modal/RealStockDialog.vue";
 
 ChartJS.register(
   Title,
@@ -167,7 +169,8 @@ interface BordirSchedule {
   so_nomor: string;
   tanggal_so: string;
   customer: string;
-  jumlah_kaos: number; // <-- TAMBAHKAN INI
+  jumlah_kaos: number;
+  masuk_workshop: number;
   tgl_pengerjaan: string | null;
   deadline: string | null;
   status: "Antri" | "Ready" | "Pending";
@@ -516,6 +519,8 @@ const isLoadingPiutangDetails = ref(false);
 const showJuknis = ref(false);
 const showTrackingAnalytics = ref(false);
 const showAgendaReminder = ref(false);
+const isRealStockOpen = ref(false);
+const overbookedCount = ref(0);
 
 const todayAgendaItems = computed(() => {
   const today = new Date();
@@ -2326,6 +2331,67 @@ watch(cashflowDate, () => {
   fetchCashflowSummary();
 });
 
+// --- STATE LOST ORDER ---
+const showLostOrder = ref(false);
+const isSavingLostOrder = ref(false);
+
+const lostOrderForm = reactive({
+  customerNama: "",
+  customerTelp: "",
+  produkNama: "",
+  ukuran: "",
+  qty: 1,
+  alasan: "",
+  catatan: "",
+});
+
+const alasanList = [
+  { id: "Stok Kosong", icon: "mdi-package-variant-remove", color: "orange-darken-2" },
+  { id: "Harga Mahal", icon: "mdi-currency-usd", color: "green-darken-1" },
+  { id: "Masih Cari-cari", icon: "mdi-magnify", color: "light-blue-darken-1" },
+  { id: "Masih Pikir-pikir", icon: "mdi-comment-processing-outline", color: "grey-darken-2" },
+  { id: "Tidak Cocok", icon: "mdi-cancel", color: "red-darken-1" },
+  { id: "Tidak Ada Budget", icon: "mdi-credit-card-off-outline", color: "cyan-darken-2" },
+  { id: "Beli di Tempat Lain", icon: "mdi-shopping", color: "blue-darken-1" },
+  { id: "Salah Toko", icon: "mdi-map-marker-question-outline", color: "pink-darken-1" },
+  { id: "Tunggu Terlalu Lama", icon: "mdi-clock-outline", color: "orange-darken-1" },
+  { id: "Lainnya", icon: "mdi-help-circle-outline", color: "orange-darken-2" },
+];
+
+const openLostOrder = () => {
+  showLostOrder.value = true;
+  // Reset Form
+  Object.assign(lostOrderForm, {
+    customerNama: "",
+    customerTelp: "",
+    produkNama: "",
+    ukuran: "",
+    qty: 1,
+    alasan: "",
+    catatan: "",
+  });
+};
+
+const saveLostOrder = async () => {
+  if (!lostOrderForm.produkNama.trim()) return toast.error("Nama Produk / Model wajib diisi.");
+  if (!lostOrderForm.ukuran.trim()) return toast.error("Ukuran wajib diisi.");
+  if (!lostOrderForm.qty || lostOrderForm.qty <= 0) return toast.error("QTY harus lebih dari 0.");
+  if (!lostOrderForm.alasan) return toast.error("Pilih salah satu Alasan Lost.");
+
+  isSavingLostOrder.value = true;
+  try {
+    // Sesuaikan prefix URL dengan route backend Anda
+    await api.post("/lost-order", lostOrderForm);
+    toast.success("Data Lost Order berhasil dicatat.");
+    showLostOrder.value = false;
+  } catch (error: unknown) {
+    const axiosError = error as AxiosError<{ message?: string }>;
+    toast.error(axiosError.response?.data?.message || "Gagal menyimpan data Lost Order.");
+  } finally {
+    isSavingLostOrder.value = false;
+  }
+};
+
 // --- POLLING & MOUNT ---
 let pollingInterval: number;
 
@@ -2511,8 +2577,6 @@ onUnmounted(() => {
       <div class="header-content pt-6 px-6 pb-12">
         <div class="welcome-text text-white mt-4">
           <div class="d-flex align-center justify-space-between mb-2">
-            <!-- ← tambah justify-space-between -->
-
             <!-- Kiri: logo + teks -->
             <div class="d-flex align-center">
               <v-avatar size="64" color="white" class="mr-4 elevation-4 pa-1">
@@ -2528,35 +2592,62 @@ onUnmounted(() => {
               </div>
             </div>
 
-            <!-- Kanan: tombol panduan -->
-            <div class="d-flex ga-3">
-              <v-btn
-                v-if="authStore.user?.cabang === 'KDC'"
-                color="white"
-                variant="flat"
-                prepend-icon="mdi-google-analytics"
-                class="text-blue-darken-3 font-weight-bold px-5"
-                size="large"
-                elevation="4"
-                rounded="lg"
-                @click="showTrackingAnalytics = true"
-              >
-                Traffic Tracking
-              </v-btn>
+            <!-- Kanan: WRAPPER UTAMA TOMBOL (Atas - Bawah) -->
+            <div class="d-flex flex-column align-end" style="gap: 10px">
+              <!-- Baris Atas: Tombol Panduan & Traffic -->
+              <div class="d-flex ga-3">
+                <v-btn
+                  v-if="authStore.user?.cabang === 'KDC'"
+                  color="white"
+                  variant="flat"
+                  prepend-icon="mdi-google-analytics"
+                  class="text-blue-darken-3 font-weight-bold px-5"
+                  size="large"
+                  elevation="4"
+                  rounded="lg"
+                  @click="showTrackingAnalytics = true"
+                >
+                  Traffic Tracking
+                </v-btn>
 
-              <v-btn
-                color="white"
-                variant="flat"
-                prepend-icon="mdi-book-open-variant"
-                class="text-indigo-darken-3 font-weight-bold px-5"
-                size="large"
-                elevation="4"
-                rounded="lg"
-                @click="showJuknis = true"
-              >
-                Panduan Alur Penjualan
-              </v-btn>
+                <v-btn
+                  color="white"
+                  variant="flat"
+                  prepend-icon="mdi-book-open-variant"
+                  class="text-indigo-darken-3 font-weight-bold px-5"
+                  size="large"
+                  elevation="4"
+                  rounded="lg"
+                  @click="showJuknis = true"
+                >
+                  Panduan Alur Penjualan
+                </v-btn>
+              </div>
+
+              <!-- Baris Bawah: Tombol Stok Real -->
+              <div class="d-flex" style="position: relative; width: 100%">
+                <v-btn
+                  block
+                  color="blue-darken-3"
+                  variant="flat"
+                  elevation="4"
+                  rounded="lg"
+                  prepend-icon="mdi-package-variant-closed"
+                  class="font-weight-bold text-none"
+                  @click="isRealStockOpen = true"
+                >
+                  Lihat Stok Real Toko (Sisa Kuota)
+                  <v-badge
+                    v-if="overbookedCount > 0"
+                    :content="overbookedCount"
+                    color="error"
+                    inline
+                    class="ml-2"
+                  />
+                </v-btn>
+              </div>
             </div>
+            <!-- /Akhir Kanan -->
           </div>
         </div>
       </div>
@@ -4894,6 +4985,7 @@ onUnmounted(() => {
                       <th class="font-weight-bold">TGL SO</th>
                       <th class="font-weight-bold">CUSTOMER</th>
                       <th class="text-center font-weight-bold">JML KAOS</th>
+                      <th class="text-center font-weight-bold">MASUK WORKSHOP</th>
                       <th class="text-center font-weight-bold">Mulai Pengerjaan</th>
                       <th class="text-center font-weight-bold">Deadline</th>
                       <th class="text-center font-weight-bold">STATUS</th>
@@ -4913,6 +5005,21 @@ onUnmounted(() => {
                       </td>
                       <td class="text-caption font-weight-medium">{{ item.customer }}</td>
                       <td class="text-center font-weight-bold">{{ item.jumlah_kaos }} pcs</td>
+                      <td class="text-center font-weight-bold">
+                        <v-chip
+                          size="x-small"
+                          :color="
+                            item.masuk_workshop >= item.jumlah_kaos
+                              ? 'success'
+                              : item.masuk_workshop > 0
+                              ? 'warning'
+                              : 'grey'
+                          "
+                          variant="flat"
+                        >
+                          {{ item.masuk_workshop }} / {{ item.jumlah_kaos }}
+                        </v-chip>
+                      </td>
                       <td class="text-center text-caption">
                         {{
                           item.tgl_pengerjaan
@@ -5445,6 +5552,27 @@ onUnmounted(() => {
         <!-- ── END TABS WINDOW ── -->
       </div>
     </div>
+
+    <!-- LOST ORDER -->
+    <v-hover v-if="authStore.user?.cabang !== 'KDC'" v-slot="{ isHovering, props }">
+      <v-btn
+        v-bind="props"
+        color="red-darken-2"
+        icon="mdi-account-cancel-outline"
+        size="large"
+        position="fixed"
+        location="bottom right"
+        class="mr-6 floating-review-btn"
+        style="margin-bottom: 140px; z-index: 100"
+        :elevation="isHovering ? 12 : 4"
+        @click="openLostOrder"
+      >
+        <v-icon :class="{ 'swing-animation': isHovering }" size="28"
+          >mdi-account-cancel-outline</v-icon
+        >
+        <v-tooltip activator="parent" location="left">Catat Lost Order</v-tooltip>
+      </v-btn>
+    </v-hover>
 
     <!-- FLOATING BUTTON GOOGLE MAPS REVIEW -->
     <v-hover v-slot="{ isHovering, props }">
@@ -6117,7 +6245,138 @@ onUnmounted(() => {
     </v-card>
   </v-dialog>
 
+  <v-dialog v-model="showLostOrder" max-width="500" transition="dialog-bottom-transition">
+    <v-card class="rounded-xl overflow-hidden">
+      <v-toolbar color="red-darken-2" density="compact">
+        <v-icon start class="ml-4">mdi-account-cancel-outline</v-icon>
+        <v-toolbar-title class="text-subtitle-1 font-weight-bold">Catat Lost Order</v-toolbar-title>
+        <v-spacer />
+        <v-btn icon="mdi-close" variant="text" @click="showLostOrder = false" />
+      </v-toolbar>
+
+      <v-card-text class="pa-4 bg-grey-lighten-4" style="max-height: 70vh; overflow-y: auto">
+        <div class="text-caption font-weight-bold text-grey-darken-1 mb-2">
+          DATA CUSTOMER (OPSIONAL)
+        </div>
+        <v-row dense>
+          <v-col cols="6">
+            <v-text-field
+              v-model="lostOrderForm.customerNama"
+              placeholder="Nama Customer..."
+              variant="outlined"
+              density="compact"
+              bg-color="white"
+              hide-details
+            />
+          </v-col>
+          <v-col cols="6">
+            <v-text-field
+              v-model="lostOrderForm.customerTelp"
+              placeholder="No. WA / Telp..."
+              variant="outlined"
+              density="compact"
+              bg-color="white"
+              hide-details
+              type="tel"
+            />
+          </v-col>
+        </v-row>
+
+        <div class="text-caption font-weight-bold text-grey-darken-1 mt-4 mb-2">ALASAN LOST</div>
+        <div class="d-flex flex-wrap gap-2" style="gap: 8px">
+          <v-chip
+            v-for="item in alasanList"
+            :key="item.id"
+            :color="lostOrderForm.alasan === item.id ? 'primary' : 'grey-darken-1'"
+            :variant="lostOrderForm.alasan === item.id ? 'elevated' : 'outlined'"
+            class="font-weight-medium text-caption cursor-pointer"
+            @click="lostOrderForm.alasan = item.id"
+          >
+            <v-icon
+              start
+              size="small"
+              :color="lostOrderForm.alasan === item.id ? 'white' : item.color"
+            >
+              {{ item.icon }}
+            </v-icon>
+            {{ item.id }}
+          </v-chip>
+        </div>
+
+        <v-card variant="outlined" class="mt-5 border-amber-lighten-2 bg-amber-lighten-5">
+          <v-card-title
+            class="text-caption font-weight-bold text-orange-darken-3 pb-1 d-flex align-center"
+          >
+            <v-icon size="small" class="mr-1">mdi-package-variant-closed</v-icon> DETAIL PRODUK YANG
+            DICARI
+          </v-card-title>
+          <v-card-text class="pb-3 pt-1">
+            <v-text-field
+              v-model="lostOrderForm.produkNama"
+              placeholder="Contoh: Kaos Oversize, Jaket..."
+              variant="outlined"
+              density="compact"
+              bg-color="white"
+              hide-details
+              class="mb-2"
+            />
+            <v-row dense>
+              <v-col cols="8">
+                <v-text-field
+                  v-model="lostOrderForm.ukuran"
+                  placeholder="Ukuran (M, L, 42...)"
+                  variant="outlined"
+                  density="compact"
+                  bg-color="white"
+                  hide-details
+                />
+              </v-col>
+              <v-col cols="4">
+                <v-text-field
+                  v-model.number="lostOrderForm.qty"
+                  type="number"
+                  label="Total Qty"
+                  variant="outlined"
+                  density="compact"
+                  bg-color="white"
+                  hide-details
+                />
+              </v-col>
+            </v-row>
+          </v-card-text>
+        </v-card>
+
+        <div class="text-caption font-weight-bold text-grey-darken-1 mt-4 mb-2">CATATAN DETAIL</div>
+        <v-textarea
+          v-model="lostOrderForm.catatan"
+          placeholder="Keterangan tambahan..."
+          variant="outlined"
+          density="compact"
+          bg-color="white"
+          rows="2"
+          hide-details
+        />
+      </v-card-text>
+
+      <v-card-actions class="pa-4 bg-white border-t">
+        <v-spacer />
+        <v-btn variant="text" @click="showLostOrder = false">Batal</v-btn>
+        <v-btn
+          color="red-darken-2"
+          variant="flat"
+          class="px-6 font-weight-bold"
+          @click="saveLostOrder"
+          :loading="isSavingLostOrder"
+        >
+          Konfirmasi Lost
+        </v-btn>
+      </v-card-actions>
+    </v-card>
+  </v-dialog>
+
   <JuknisModal v-model="showJuknis" />
+
+  <RealStockDialog v-model="isRealStockOpen" @update:overbookedCount="overbookedCount = $event" />
 </template>
 
 <style scoped>

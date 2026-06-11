@@ -448,6 +448,20 @@ const loadDataForEdit = async (nomor: string) => {
   }
 };
 
+const handleProductKeydown = (e: KeyboardEvent, index: number) => {
+  switch (e.key) {
+    case "F1":
+      e.preventDefault();
+      openProductSearch(index, false);
+      break;
+
+    case "F2":
+      e.preventDefault();
+      openProductSearch(index, true);
+      break;
+  }
+};
+
 // --- WATCHERS (UNSAVED CHANGES) ---
 watch(
   [header, items],
@@ -611,8 +625,7 @@ onMounted(async () => {
                 density="compact"
                 hide-details
                 placeholder="F1/F2..."
-                @keydown.f1.prevent="openProductSearch(index, false)"
-                @keydown.f2.prevent="openProductSearch(index, true)"
+                @keydown="handleProductKeydown($event, index)"
               />
             </template>
             <template #[`item.jumlah`]="{ item }">

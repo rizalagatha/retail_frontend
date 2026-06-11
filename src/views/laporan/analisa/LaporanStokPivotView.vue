@@ -42,7 +42,6 @@ const activeTab = ref<"pivot" | "raw">("pivot");
 // Infinite scroll state
 const PAGE_SIZE = 80;
 const displayedRows = ref(PAGE_SIZE); // berapa baris yang dirender
-const scrollTarget = ref<HTMLElement | null>(null);
 let observer: IntersectionObserver | null = null;
 const sentinel = ref<HTMLElement | null>(null);
 
@@ -59,12 +58,6 @@ const pivotContainer = ref<HTMLElement | null>(null);
 const visibleRows = computed(() => allData.value.slice(0, displayedRows.value));
 
 const hasMore = computed(() => displayedRows.value < allData.value.length);
-
-// Kolom dinamis berdasarkan cabang yang muncul di data
-const dynamicCols = computed(() => {
-  const cabangSet = new Set(allData.value.map((r) => r.Cabang));
-  return [...cabangSet].sort();
-});
 
 // ─── PivotTable.js ────────────────────────────────────────────────────────────
 const renderPivot = async () => {

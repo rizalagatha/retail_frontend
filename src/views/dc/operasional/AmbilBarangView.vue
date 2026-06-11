@@ -465,6 +465,17 @@ const handleProductSelected = (products: Product[]) => {
   isLookupVisible.value = false;
 };
 
+const handleKodeBarangKeydown = (e: KeyboardEvent) => {
+  if (e.key === "Enter") {
+    fetchMasterData();
+  }
+
+  if (e.key === "F1") {
+    e.preventDefault();
+    isLookupVisible.value = true;
+  }
+};
+
 // --- Helpers Display ---
 const getRowTextColor = (item: MasterItem) => {
   return !item.nomorTerima ? "text-red font-weight-medium" : "";
@@ -571,8 +582,7 @@ watch(
           variant="outlined"
           style="max-width: 200px"
           class="ms-4"
-          @keydown.enter="fetchMasterData"
-          @keydown.f1.prevent="isLookupVisible = true"
+          @keydown="handleKodeBarangKeydown"
           clearable
         />
         <v-btn

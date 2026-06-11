@@ -419,6 +419,26 @@ const loadDataForEdit = async (nomor: string) => {
   }
 };
 
+const handleApplicableKeydown = (e: KeyboardEvent, index: number) => {
+  if (e.key === "F1") {
+    e.preventDefault();
+    openApplicableSearch(index, false);
+  } else if (e.key === "F2") {
+    e.preventDefault();
+    openApplicableSearch(index, true);
+  }
+};
+
+const handleBonusKeydown = (e: KeyboardEvent, index: number) => {
+  if (e.key === "F1") {
+    e.preventDefault();
+    openBonusSearch(index, false);
+  } else if (e.key === "F2") {
+    e.preventDefault();
+    openBonusSearch(index, true);
+  }
+};
+
 onMounted(async () => {
   isLoading.value = true;
   try {
@@ -895,8 +915,7 @@ watch(
                   density="compact"
                   hide-details
                   placeholder="F1 / F2"
-                  @keydown.f1.prevent="openApplicableSearch(index, false)"
-                  @keydown.f2.prevent="openApplicableSearch(index, true)"
+                  @keydown="handleApplicableKeydown($event, index)"
                 />
               </template>
               <template #[`item.qty`]="{ item }">
@@ -987,8 +1006,7 @@ watch(
                   density="compact"
                   hide-details
                   placeholder="F1 / F2"
-                  @keydown.f1.prevent="openBonusSearch(index, false)"
-                  @keydown.f2.prevent="openBonusSearch(index, true)"
+                  @keydown="handleBonusKeydown($event, index)"
                 />
               </template>
               <template #[`item.qty`]="{ item }">

@@ -12,6 +12,7 @@ import StoreSearchModal from "@/components/lookup/StoreSearchModal.vue";
 import TerimaRbSearchModal from "@/components/lookup/TerimaRbSearchModal.vue";
 import PackingListSearchModal from "@/components/lookup/PackingListSearchModal.vue";
 import SoSearchModal from "@/components/lookup/SoSearchModal.vue";
+import BahanPenolongSearchModal from "@/components/lookup/BahanPenolongSearchModal.vue";
 import type { AxiosError } from "axios";
 import type { DataTableHeader } from "vuetify";
 
@@ -29,6 +30,7 @@ interface Item {
   belum: number;
   jumlah: number;
   barcode: string;
+  isBahan?: boolean;
 }
 
 interface ItemResponse {
@@ -109,7 +111,8 @@ const dialog = reactive({
   terimaRbSearch: false,
   lookup: false,
   packingListSearch: false,
-  soSearch: false, // <--- [BARU]
+  soSearch: false,
+  bahanPenolongSearch: false,
 });
 
 const dialogConfirm = reactive({
@@ -254,11 +257,11 @@ const onGudangSelected = (gudang: { kode: string; nama: string }) => {
   dialog.gudangSearch = false; // Tutup modal setelah memilih
 };
 
-const onPermintaanSelected = async (permintaan: { nomor: string }) => {
-  header.permintaan = permintaan.nomor;
-  dialog.permintaanSearch = false;
-  await loadItemsFromSource(permintaan.nomor);
-};
+// const onPermintaanSelected = async (permintaan: { nomor: string }) => {
+//   header.permintaan = permintaan.nomor;
+//   dialog.permintaanSearch = false;
+//   await loadItemsFromSource(permintaan.nomor);
+// };
 
 // [UBAH] Fungsi Load Items (Mode HARD BLOCK DENGAN LOGIKA UKURAN)
 const loadItemsFromPackingList = async (nomorPL: string) => {
@@ -455,6 +458,38 @@ const onSoSelected = (so: { nomor?: string; Nomor?: string; so_nomor?: string })
   dialog.soSearch = false;
 };
 
+const onBahanPenolongSelected = (bahan: {
+  kode: string;
+  nama: string;
+  satuan: string;
+  jenis: string;
+  stok: number;
+}) => {
+  dialog.bahanPenolongSearch = false;
+  const emptyRowIndex = items.value.findIndex((item) => !item.kode);
+  const newItem = {
+    id: Date.now(),
+    kode: bahan.kode,
+    nama: `[${bahan.jenis}] ${bahan.nama}`,
+    ukuran: bahan.satuan,
+    stok: bahan.stok,
+    jumlah: 1,
+    barcode: "",
+    minstok: 0,
+    maxstok: 0,
+    minta: 0,
+    sudah: 0,
+    belum: 0,
+    isBahan: true,
+  };
+  if (emptyRowIndex !== -1) {
+    items.value.splice(emptyRowIndex, 1, newItem);
+  } else {
+    items.value.push(newItem);
+  }
+  addNewRow();
+};
+
 const resetForm = () => {
   const savedGudang = { ...header.gudang };
   Object.assign(header, {
@@ -483,6 +518,35 @@ const handleClose = () => {
   showConfirmation("Konfirmasi Tutup", "Tutup form dan kembali ke halaman browse?", () =>
     router.push({ name: "SuratJalanStore" })
   );
+};
+
+const onClickBahanPenolong = () => {
+  if (!header.store.kode) {
+    toast.warning("Pilih Store tujuan terlebih dahulu.");
+    return;
+  }
+
+  // Jika bukan ANTA, wajib pilih Packing List
+  if (authStore.user?.kode !== "ANTA" && !header.permintaan) {
+    toast.warning("Pilih Packing List terlebih dahulu.");
+    return;
+  }
+
+  dialog.bahanPenolongSearch = true;
+};
+
+const handleScannerKeydown = (e: KeyboardEvent) => {
+  switch (e.key) {
+    case "Enter":
+      e.preventDefault();
+      handleBarcodeScan();
+      break;
+
+    case "F1":
+      e.preventDefault();
+      onClickBahanPenolong();
+      break;
+  }
 };
 
 onMounted(async () => {
@@ -522,8 +586,18 @@ onMounted(async () => {
   } else {
     // Untuk form baru, coba fetch nama gudang default
     if (header.gudang.kode) {
-      // Anda bisa buat endpoint lookup by ID atau handle di frontend
-      header.gudang.nama = ""; // Placeholder
+      try {
+        const res = await api.get(`/warehouses/list`, {
+          params: { userCabang: header.gudang.kode },
+        });
+        // Cari nama gudang yang sesuai kode
+        const gudang = res.data.find(
+          (g: { kode: string; nama: string }) => g.kode === header.gudang.kode
+        );
+        if (gudang) header.gudang.nama = gudang.nama;
+      } catch {
+        // fallback — cukup pakai kode saja
+      }
     }
   }
   addNewRow();
@@ -671,24 +745,37 @@ onMounted(async () => {
       <!-- Right Column: Details -->
       <div class="right-column">
         <div class="desktop-form-section d-flex flex-column fill-height">
-          <div class="d-flex justify-space-between align-center mb-2">
-            <div class="scanner-wrapper">
-              <v-text-field
-                v-model="scannedBarcode"
-                label="Scan Barcode di Sini..."
-                placeholder="Input barcode lalu tekan Enter"
-                variant="outlined"
-                density="compact"
-                prepend-inner-icon="mdi-barcode-scan"
-                hide-details
-                clearable
-                @keydown.enter.prevent="handleBarcodeScan"
-              >
-              </v-text-field>
-            </div>
-            <v-btn size="small" @click="openTerimaRbSearch" prepend-icon="mdi-package-down"
-              >Load from Terima RB</v-btn
+          <div class="d-flex align-center gap-2 mb-2">
+            <!-- Scanner — flex-grow agar melebar -->
+            <v-text-field
+              v-model="scannedBarcode"
+              label="Scan Barcode di Sini..."
+              placeholder="Input barcode lalu tekan Enter"
+              variant="outlined"
+              density="compact"
+              prepend-inner-icon="mdi-barcode-scan"
+              hide-details
+              clearable
+              style="flex: 1; min-width: 0"
+              @keydown="handleScannerKeydown"
+            />
+
+            <v-btn
+              size="small"
+              color="teal"
+              variant="tonal"
+              prepend-icon="mdi-package-variant-closed"
+              :disabled="
+                !header.store.kode || (authStore.user?.kode !== 'ANTA' && !header.permintaan)
+              "
+              @click="onClickBahanPenolong"
             >
+              + Bahan Penolong (F1)
+            </v-btn>
+
+            <v-btn size="small" @click="openTerimaRbSearch" prepend-icon="mdi-package-down">
+              Load from Terima RB
+            </v-btn>
           </div>
           <v-data-table
             :headers="tableHeaders"
@@ -708,7 +795,7 @@ onMounted(async () => {
               />
             </template>
             <template #[`item.nama`]="{ item }">
-              <div class="scrollable-cell">{{ item.nama }}</div>
+              <div :class="item.isBahan ? '' : 'scrollable-cell'">{{ item.nama }}</div>
             </template>
             <template #[`item.jumlah`]="{ item }">
               <v-text-field
@@ -757,12 +844,6 @@ onMounted(async () => {
       @close="dialog.storeSearch = false"
       @store-selected="onStoreSelected"
     />
-    <PermintaanSearchModal
-      v-if="dialog.permintaanSearch"
-      :store-kode="header.store.kode"
-      @close="dialog.permintaanSearch = false"
-      @permintaan-selected="onPermintaanSelected"
-    />
     <TerimaRbSearchModal
       v-if="dialog.terimaRbSearch"
       @close="dialog.terimaRbSearch = false"
@@ -780,6 +861,12 @@ onMounted(async () => {
       source="surat-jalan-bordir"
       @close="dialog.soSearch = false"
       @selected="onSoSelected"
+    />
+    <BahanPenolongSearchModal
+      v-if="dialog.bahanPenolongSearch"
+      :cabang="header.gudang.kode"
+      @close="dialog.bahanPenolongSearch = false"
+      @selected="onBahanPenolongSelected"
     />
 
     <v-dialog v-model="dialogConfirm.show" max-width="400px" persistent>
@@ -815,14 +902,6 @@ onMounted(async () => {
   display: block;
   padding-bottom: 5px;
   margin-bottom: -5px;
-}
-
-.scanner-wrapper {
-  max-width: 400px;
-  /* <-- ATUR LEBAR MAKSIMUM DI SINI */
-  flex: none;
-  /* Mencegah flexbox meregangkan wrapper ini */
-  margin-bottom: 16px;
 }
 
 .desktop-table :deep(thead tr th) {

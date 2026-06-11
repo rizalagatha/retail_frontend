@@ -10,6 +10,8 @@ import ExcelJS from "exceljs";
 import { formatRupiah } from "@/utils/formatRupiah";
 import type { AxiosError } from "axios";
 
+import AuthorizationModal from "@/components/modal/AuthorizationModal.vue";
+
 interface DataTableHeader {
   title: string;
   key: string;
@@ -131,6 +133,13 @@ const branchList = ref<Branch[]>([]);
 const isCloseDialogVisible = ref(false);
 const closeReason = ref("");
 const isClosing = ref(false);
+const isAuthModalVisible = ref(false);
+const authPayload = ref<{
+  transaksi: string;
+  keterangan: string;
+  nominal: number;
+}>({ transaksi: "", keterangan: "", nominal: 0 });
+const pendingCloseReason = ref(""); // simpan alasan sementara sebelum auth
 
 const hasViewPermission = computed(() => authStore.can(MENU_ID, "view"));
 
@@ -504,28 +513,51 @@ const openCloseDialog = () => {
   isCloseDialogVisible.value = true;
 };
 
+// submitCloseOffer sekarang hanya buka auth modal
 const submitCloseOffer = async () => {
   if (!closeReason.value) {
     toast.error("Alasan harus diisi.");
     return;
   }
+
+  const nomor = selected.value[0].nomor;
+  pendingCloseReason.value = closeReason.value;
+  isCloseDialogVisible.value = false;
+
+  // Siapkan payload untuk AuthorizationModal
+  authPayload.value = {
+    transaksi: nomor,
+    keterangan: `Close Penawaran: ${nomor}\nAlasan: ${closeReason.value}`,
+    nominal: selected.value[0].nominal ?? 0,
+  };
+  isAuthModalVisible.value = true;
+};
+
+// Fungsi baru: dipanggil setelah auth APPROVED
+const doCloseOffer = async ({ authNomor }: { authNomor: string; approver: string }) => {
+  isAuthModalVisible.value = false;
   isClosing.value = true;
   try {
-    const nomor = selected.value[0].nomor;
     await api.post("/offers/close", {
-      nomor,
-      alasan: closeReason.value,
+      nomor: authPayload.value.transaksi,
+      alasan: pendingCloseReason.value,
+      authNomor, // ← kirim ke backend untuk validasi opsional
     });
     toast.success("Penawaran berhasil ditutup.");
-    isCloseDialogVisible.value = false;
-    fetchData(); // Muat ulang data untuk melihat status baru
-    selected.value = []; // Kosongkan seleksi
+    fetchData();
+    selected.value = [];
   } catch (error) {
     const err = error as AxiosError<{ message?: string }>;
     toast.error(err.response?.data?.message || "Gagal menutup penawaran.");
   } finally {
     isClosing.value = false;
   }
+};
+
+const onAuthCancelled = () => {
+  isAuthModalVisible.value = false;
+  // Kembalikan dialog alasan supaya user bisa ubah atau batalkan
+  isCloseDialogVisible.value = true;
 };
 
 const exportHeaderData = async () => {
@@ -1470,6 +1502,17 @@ onBeforeRouteLeave((to, from, next) => {
         </v-card-actions>
       </v-card>
     </v-dialog>
+
+    <AuthorizationModal
+      v-if="isAuthModalVisible"
+      title="Otorisasi Close Penawaran"
+      jenis="CLOSE_PENAWARAN"
+      :transaksi="authPayload.transaksi"
+      :keterangan="authPayload.keterangan"
+      :nominal="authPayload.nominal"
+      @success="doCloseOffer"
+      @close="onAuthCancelled"
+    />
   </PageLayout>
 </template>
 

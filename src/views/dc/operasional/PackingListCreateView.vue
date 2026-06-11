@@ -387,6 +387,20 @@ const getStockColor = (item: Item) => {
   if (item.jumlah > item.stok) return "text-red font-weight-bold"; // Warning Stok Kurang
   return "";
 };
+
+const handleBarcodeKeydown = (e: KeyboardEvent) => {
+  switch (e.key) {
+    case "F1":
+      e.preventDefault();
+      openProductSearch();
+      break;
+
+    case "Enter":
+      e.preventDefault();
+      handleBarcodeScan();
+      break;
+  }
+};
 </script>
 
 <template>
@@ -493,8 +507,7 @@ const getStockColor = (item: Item) => {
                 prepend-inner-icon="mdi-barcode-scan"
                 hide-details
                 clearable
-                @keydown.enter.prevent="handleBarcodeScan"
-                @keydown.f1.prevent="openProductSearch"
+                @keydown="handleBarcodeKeydown"
                 autofocus
               />
             </div>

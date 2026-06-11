@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, defineAsyncComponent, onMounted, onUnmounted, watch } from 'vue';
+import { computed, defineAsyncComponent, onMounted, onUnmounted, watch } from "vue";
 import { useRoute } from "vue-router";
 import { useAuthStore } from "./stores/authStore";
 import { useUiStore } from "@/stores/uiStore"; // Import UI Store
@@ -18,7 +18,7 @@ onUnmounted(() => {
 });
 
 const layoutComponent = computed(() => {
-  const layoutName = route.meta.layout || 'DefaultLayout';
+  const layoutName = route.meta.layout || "DefaultLayout";
   return defineAsyncComponent(() => import(`@/layouts/${layoutName}.vue`));
 });
 
@@ -43,5 +43,13 @@ watch(
 <style scoped>
 .v-main {
   min-height: 100vh;
+}
+/* Global — dropdown kota combobox */
+.v-overlay__content .v-list-item-title {
+  font-size: 12px !important;
+}
+
+.v-overlay__content .v-list-item-subtitle {
+  font-size: 10px !important;
 }
 </style>

@@ -274,7 +274,7 @@ const menuItems: NavItem[] = [
             icon: "mdi-arrow-up-bold-circle-outline",
           },
           {
-            title: "Terima SJ dari DC",
+            title: "Terima Surat Jalan",
             to: "/transaksi/internal/terima-sj",
             icon: "mdi-arrow-down-bold-circle-outline",
             badgeKey: "sj",
@@ -384,21 +384,21 @@ const menuItems: NavItem[] = [
         ],
       },
       // ==========================================
-      // [PINDAHAN] WORKSHOP BORDIR SEKARANG DI SINI
+      // [PINDAHAN] WORKSHOP KAOSAN SEKARANG DI SINI
       // ==========================================
       {
-        title: "Workshop Bordir",
+        title: "Workshop Kaosan",
         icon: "mdi-factory",
         items: [
           {
             title: "Mutasi ke Workshop",
             to: "/operasional/workshop/mutasi-workshop",
-            icon: "mdi-swap-horizontal", // Atau mdi-sewing-machine / mdi-swap-horizontal
+            icon: "mdi-swap-horizontal",
           },
           {
             title: "Terima Workshop",
             to: "/operasional/workshop/terima-workshop",
-            icon: "mdi-truck-check-outline", // Icon truk dengan ceklis
+            icon: "mdi-truck-check-outline",
           },
           {
             title: "Penyelesaian (LHK)",
@@ -407,7 +407,7 @@ const menuItems: NavItem[] = [
           },
           {
             title: "Surat Jalan (Kirim Store)",
-            to: "/bordir/surat-jalan",
+            to: "/operasional/workshop/sj-workshop",
             icon: "mdi-truck-fast-outline",
           },
           {
@@ -539,6 +539,7 @@ const menuItems: NavItem[] = [
         icon: "mdi-archive-outline",
         items: [
           { title: "Laporan Stok", to: "/laporan/stok/real-time", icon: "mdi-package-variant" },
+          { title: "Stok Bahan", to: "/laporan/stok/bahan", icon: "mdi-package-variant-closed" },
           { title: "Stok Minus", to: "/laporan/stok/stok-minus", icon: "mdi-trending-down" },
           { title: "Mutasi Stok", to: "/laporan/stok/mutasi-stok", icon: "mdi-swap-horizontal" },
           { title: "Kartu Stok", to: "/laporan/stok/kartu-stok", icon: "mdi-card-text-outline" },
@@ -552,6 +553,11 @@ const menuItems: NavItem[] = [
         items: [
           { title: "Laporan Invoice", to: "/laporan/penjualan/invoice", icon: "mdi-receipt" },
           { title: "Pareto Barang", to: "/laporan/penjualan/pareto", icon: "mdi-chart-bar" },
+          {
+            title: "Laporan Lost Order",
+            to: "/laporan/penjualan/lost-order",
+            icon: "mdi-account-cancel-outline",
+          },
           {
             title: "Sales vs Target",
             to: "/laporan/penjualan/sales-vs-target",

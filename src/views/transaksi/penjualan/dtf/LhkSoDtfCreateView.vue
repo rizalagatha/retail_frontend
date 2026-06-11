@@ -1369,6 +1369,30 @@ const save = async () => {
   }
 };
 
+const handleKodeKeydown = async (e: KeyboardEvent, item: LhkItem, index: number) => {
+  switch (e.key) {
+    case "F1":
+      e.preventDefault();
+      handleSearchKeydown("SO", index);
+      break;
+
+    case "F2":
+      e.preventDefault();
+      handleSearchKeydown("PO", index);
+      break;
+
+    case "F3":
+      e.preventDefault();
+      handleSearchKeydown("SPK", index);
+      break;
+
+    case "Enter":
+      e.preventDefault();
+      await loadSoDataByCode(item.kode, index);
+      break;
+  }
+};
+
 onMounted(async () => {
   const res = await api.get("/lhk-so-dtf-form/jenis-order");
   jenisOrderOptions.value = res.data;
@@ -1671,10 +1695,7 @@ const tableHeaders = computed(() => {
                 density="compact"
                 hide-details
                 placeholder="Scan QR / F1:SO"
-                @keydown.f1.prevent="handleSearchKeydown('SO', index)"
-                @keydown.f2.prevent="handleSearchKeydown('PO', index)"
-                @keydown.f3.prevent="handleSearchKeydown('SPK', index)"
-                @keydown.enter.prevent="loadSoDataByCode(item.kode, index)"
+                @keydown="handleKodeKeydown($event, item, index)"
                 @change="loadSoDataByCode(item.kode, index)"
               />
             </template>

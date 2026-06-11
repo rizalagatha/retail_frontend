@@ -87,7 +87,8 @@ const headers = ref<DataTableHeader[]>([
   { title: "Tanggal", key: "tanggal", width: 120 },
   { title: "Nomor Terima", key: "nomorTerima", width: 180 },
   { title: "Tgl Terima", key: "tglTerima", width: 120 },
-  { title: "Ke Workshop", key: "namaStoreTujuan", width: 200 }, // [UBAH] Judul
+  { title: "Ke Workshop", key: "namaStoreTujuan", width: 200 },
+  { title: "Rute", key: "rute", width: 110, align: "center" },
   { title: "Keterangan", key: "keterangan", width: 300 },
   { title: "User", key: "usr", width: 100 },
   { title: "Closing", key: "closing", width: 100, align: "center" },
@@ -568,6 +569,16 @@ watch(
                 {{
                   item[header.key] ? format(parseISO(item[header.key] as string), "dd/MM/yyyy") : ""
                 }}
+              </template>
+              <template v-else-if="header.key === 'rute'">
+                <v-chip
+                  size="x-small"
+                  :color="item.rute === 'VIA DC' ? 'orange-darken-4' : 'success'"
+                  variant="flat"
+                  class="font-weight-bold text-none"
+                >
+                  {{ item.rute || "LANGSUNG" }}
+                </v-chip>
               </template>
               <template v-else-if="header.key === 'closing'">
                 <v-chip v-if="item.closing === 'Y'" size="x-small" color="success">YA</v-chip>

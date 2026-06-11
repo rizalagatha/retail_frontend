@@ -4,11 +4,17 @@ import api from "@/services/api";
 import { useToast } from "vue-toastification";
 import axios from "axios";
 
+const props = defineProps<{
+  jenis: string;
+  cabang?: string;
+}>();
+
 interface AccesoriesItem {
   kode: string;
   nama: string;
   satuan: string;
   note: string;
+  stok: number;
 }
 
 const emit = defineEmits(["close", "item-selected"]);
@@ -25,6 +31,7 @@ const headers = [
   { title: "Kode Barang", key: "kode", width: "150px" },
   { title: "Nama Barang", key: "nama" },
   { title: "Satuan", key: "satuan", width: "100px", align: "center" },
+  { title: "Stok", key: "stok", width: "100px", align: "end" },
   { title: "Keterangan", key: "note", width: "200px" },
 ] as const;
 
@@ -34,6 +41,8 @@ const loadItems = async () => {
     const response = await api.get("/minta-accesories-form/search-barang", {
       params: {
         keyword: search.value,
+        jenis: props.jenis,
+        cabang: props.cabang || "P04",
       },
     });
 
@@ -132,6 +141,12 @@ onMounted(() => {
               </td>
               <td>{{ item.nama }}</td>
               <td class="text-center">{{ item.satuan }}</td>
+              <td
+                class="text-right font-weight-bold"
+                :class="item.stok <= 0 ? 'text-error' : 'text-success'"
+              >
+                {{ Number(item.stok).toLocaleString("id-ID") }}
+              </td>
               <td>{{ item.note || "-" }}</td>
             </tr>
           </template>

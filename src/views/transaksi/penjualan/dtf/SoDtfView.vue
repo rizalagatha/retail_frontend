@@ -10,6 +10,7 @@ import ExcelJS from "exceljs";
 import axios from "axios";
 import AppDataTable from "@/components/AppDataTable.vue";
 import { formatRupiah } from "@/utils/formatRupiah";
+import AuthorizationModal from "@/components/modal/AuthorizationModal.vue";
 
 // --- Interface Header (Wajib untuk Resize) ---
 interface DataTableHeader {
@@ -80,6 +81,13 @@ const filters = reactive({
 });
 
 const isCloseDialogVisible = ref(false);
+const isAuthModalVisible = ref(false);
+const authPayload = ref<{
+  transaksi: string;
+  keterangan: string;
+  nominal: number;
+}>({ transaksi: "", keterangan: "", nominal: 0 });
+const pendingCloseReason = ref("");
 const itemToClose = ref<SoDtfHeader | null>(null);
 const closeReason = ref("");
 
@@ -428,21 +436,45 @@ const openCloseDialog = () => {
   isCloseDialogVisible.value = true;
 };
 
+// submitCloseSo sekarang hanya buka auth modal
 const submitCloseSo = async () => {
   if (!itemToClose.value) return;
+
+  pendingCloseReason.value = closeReason.value;
+  isCloseDialogVisible.value = false;
+
+  authPayload.value = {
+    transaksi: itemToClose.value.Nomor,
+    keterangan: `Close SO DTF: ${itemToClose.value.Nomor}\nAlasan: ${closeReason.value}`,
+    nominal: itemToClose.value.TotalHarga ?? 0,
+  };
+  isAuthModalVisible.value = true;
+};
+
+// Dipanggil setelah auth APPROVED
+const doCloseSoDtf = async ({ authNomor }: { authNomor: string; approver: string }) => {
+  if (!itemToClose.value) return;
+  isAuthModalVisible.value = false;
   try {
     await api.post("/so-dtf/close", {
       nomor: itemToClose.value.Nomor,
-      alasan: closeReason.value,
+      alasan: pendingCloseReason.value,
       user: authStore.user?.kode,
+      authNomor,
     });
     toast.success("SO DTF berhasil ditutup.");
-    isCloseDialogVisible.value = false;
     fetchData();
     selected.value = [];
+    itemToClose.value = null;
   } catch {
     toast.error("Gagal menutup SO DTF.");
   }
+};
+
+const onAuthCancelled = () => {
+  isAuthModalVisible.value = false;
+  // Kembalikan dialog alasan supaya user bisa ubah atau batalkan
+  isCloseDialogVisible.value = true;
 };
 
 const handleEdit = () => {
@@ -1482,6 +1514,18 @@ onBeforeRouteLeave((to, from, next) => {
         </v-card-actions>
       </v-card>
     </v-dialog>
+
+    <!-- AuthorizationModal untuk Close SO DTF -->
+    <AuthorizationModal
+      v-if="isAuthModalVisible"
+      title="Otorisasi Close SO DTF"
+      jenis="CLOSE_SO_DTF"
+      :transaksi="authPayload.transaksi"
+      :keterangan="authPayload.keterangan"
+      :nominal="authPayload.nominal"
+      @success="doCloseSoDtf"
+      @close="onAuthCancelled"
+    />
   </PageLayout>
 </template>
 

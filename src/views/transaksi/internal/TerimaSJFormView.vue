@@ -40,6 +40,7 @@ const requiredPermission = computed(() => (isEditMode.value ? "edit" : "insert")
 const isLoading = ref(true);
 const isSaving = ref(false);
 const scannedBarcode = ref("");
+const isWorkshop = ref(false);
 
 const header = reactive({
   nomor: "", // No Terima (akan digenerate backend)
@@ -50,6 +51,7 @@ const header = reactive({
   nomorMinta: "",
   gudangAsal: { kode: "", nama: "" },
   keterangan: "",
+  isWorkshop: false,
 });
 
 const items = ref<Item[]>([]);
@@ -74,15 +76,32 @@ const tableHeaders: DataTableHeader[] = [
 // --- Methods ---
 const loadData = async (nomorSj: string) => {
   try {
-    const response = await api.get(`/terima-sj-form/${nomorSj}`);
+    const isWk = nomorSj.includes(".SJW.");
+
+    isWorkshop.value = isWk;
+
+    const endpoint = isWk ? `/terima-sj-form/workshop/${nomorSj}` : `/terima-sj-form/${nomorSj}`;
+
+    const response = await api.get(endpoint);
     const data = response.data;
 
     // Isi header
-    header.nomorSj = data.header.sj_nomor;
-    header.tanggalSj = data.header.sj_tanggal;
-    header.nomorMinta = data.header.sj_mt_nomor;
-    header.gudangAsal = { kode: data.header.gudang_asal_kode, nama: data.header.gudang_asal_nama };
-    header.keterangan = data.header.keterangan;
+    header.nomorSj = data.header.sj_nomor || "";
+    header.tanggalSj = data.header.sj_tanggal || "";
+    header.nomorMinta = data.header.sj_mt_nomor || "";
+    header.gudangAsal = {
+      kode: data.header.gudang_asal_kode || "",
+      nama: data.header.gudang_asal_nama || "",
+    };
+    header.keterangan = data.header.keterangan || "";
+    header.isWorkshop = isWk;
+
+    if (isWk) {
+      header.gudangTerima = {
+        kode: data.header.tujuan_kode || authStore.user?.cabang || "",
+        nama: data.header.tujuan_nama || "",
+      };
+    }
 
     const userCabang = authStore.user?.cabang || "";
     const isAutoTerima = ["K01", "KPR", "KBL"].includes(userCabang);
@@ -92,14 +111,14 @@ const loadData = async (nomorSj: string) => {
       (item: Item): ItemWithExtra => ({
         ...item,
         id: Date.now() + Math.random(),
-        jumlahTerima: isAutoTerima ? item.jumlahKirim : 0, // Jika K01 atau KPR, isi otomatis
+        jumlahTerima: isWk ? 0 : isAutoTerima ? item.jumlahKirim : 0,
       })
     );
 
-    if (isAutoTerima) {
-      toast.info(
-        `Jumlah terima otomatis disamakan dengan jumlah kirim untuk cabang ${userCabang}.`
-      );
+    if (isWk) {
+      toast.info("SJ Workshop — scan barcode untuk mengisi jumlah terima.");
+    } else if (isAutoTerima) {
+      toast.info(`Jumlah terima otomatis disamakan untuk cabang ${userCabang}.`);
     }
   } catch {
     toast.error("Gagal memuat data SJ untuk diterima.");
@@ -110,21 +129,28 @@ const loadData = async (nomorSj: string) => {
 };
 
 const handleBarcodeScan = () => {
-  const barcode = scannedBarcode.value;
+  const barcode = scannedBarcode.value?.trim();
   if (!barcode) return;
 
-  const itemToUpdate = items.value.find((item) => item.barcode === barcode);
+  const itemToUpdate = items.value.find(
+    (item) => item.barcode?.trim() === barcode // ← trim saat compare
+  );
 
   if (itemToUpdate) {
-    if (itemToUpdate.jumlahTerima < itemToUpdate.jumlahKirim) {
-      itemToUpdate.jumlahTerima++;
+    if (itemToUpdate.jumlahTerima >= itemToUpdate.jumlahKirim) {
+      toast.warning(
+        `${itemToUpdate.nama} (${itemToUpdate.ukuran}) sudah penuh (${itemToUpdate.jumlahKirim}).`
+      );
     } else {
-      toast.warning(`Jumlah terima untuk ${itemToUpdate.nama} sudah sesuai dengan jumlah kirim.`);
+      itemToUpdate.jumlahTerima++;
+      toast.success(
+        `${itemToUpdate.nama} (${itemToUpdate.ukuran}): ${itemToUpdate.jumlahTerima}/${itemToUpdate.jumlahKirim}`
+      );
     }
   } else {
-    toast.error(`Barcode ${barcode} tidak ditemukan dalam Surat Jalan ini.`);
+    toast.error(`Barcode ${barcode} tidak ada dalam SJ ini.`);
   }
-  scannedBarcode.value = ""; // Selalu kosongkan input
+  scannedBarcode.value = "";
 };
 
 const showConfirmation = (title: string, text: string, onConfirm: () => void) => {
@@ -137,7 +163,10 @@ const showConfirmation = (title: string, text: string, onConfirm: () => void) =>
 const executeSave = async () => {
   isSaving.value = true;
   try {
-    const payload = { header, items: items.value };
+    const payload = {
+      header,
+      items: items.value.filter((i) => i.jumlahTerima > 0), // ← filter di sini
+    };
     const response = await api.post("/terima-sj-form/save", payload);
     toast.success(response.data.message);
     router.push({ name: "TerimaSj" });
@@ -154,8 +183,16 @@ const executeSave = async () => {
 };
 
 const handleSave = () => {
-  // Validasi
   if (items.value.length === 0) return toast.error("Tidak ada item untuk diterima.");
+
+  // ← tambah validasi khusus workshop
+  if (isWorkshop.value) {
+    const totalTerima = items.value.reduce((sum, i) => sum + (i.jumlahTerima || 0), 0);
+    if (totalTerima === 0) {
+      return toast.error("Belum ada item yang di-scan. Scan barcode terlebih dahulu.");
+    }
+  }
+
   showConfirmation(
     "Konfirmasi Simpan",
     "Apakah Anda yakin ingin menyimpan penerimaan SJ ini?",
@@ -217,6 +254,16 @@ onMounted(() => {
             density="compact"
             hide-details
           />
+          <v-chip
+            v-if="isWorkshop"
+            color="purple"
+            size="small"
+            variant="flat"
+            prepend-icon="mdi-factory"
+            class="mb-2"
+          >
+            SJ Workshop
+          </v-chip>
           <v-text-field
             label="Tgl. Terima"
             v-model="header.tanggalTerima"
@@ -244,7 +291,7 @@ onMounted(() => {
           />
           <v-text-field
             label="Tgl. Surat Jalan"
-            :model-value="format(new Date(header.tanggalSj), 'dd-MM-yyyy')"
+            :model-value="header.tanggalSj ? format(new Date(header.tanggalSj), 'dd-MM-yyyy') : '-'"
             readonly
             filled
             density="compact"
@@ -304,6 +351,7 @@ onMounted(() => {
           >
             <template #[`item.jumlahTerima`]="{ item }">
               <v-text-field
+                v-if="!isWorkshop"
                 v-model.number="item.jumlahTerima"
                 type="number"
                 min="0"
@@ -312,6 +360,13 @@ onMounted(() => {
                 hide-details
                 class="text-right"
               />
+              <span
+                v-else
+                class="font-weight-bold"
+                :class="item.jumlahTerima > 0 ? 'text-success' : 'text-grey'"
+              >
+                {{ item.jumlahTerima }} / {{ item.jumlahKirim }}
+              </span>
             </template>
             <template #bottom></template>
           </v-data-table>

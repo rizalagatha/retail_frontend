@@ -29,6 +29,7 @@ interface SjHeader {
   Tanggal?: string | null;
   TglTerima?: string | null;
   Closing?: string;
+  Source?: "DC" | "WORKSHOP";
   [key: string]: unknown;
 }
 
@@ -69,6 +70,7 @@ const filters = reactive({
   cabang: (authStore.user?.cabang || "") as string, // [PERBAIKAN] Force string
   kodeBarang: "",
   namaBarang: "",
+  source: "ALL",
 });
 
 const dialogConfirm = reactive({
@@ -85,6 +87,7 @@ const headers = computed<DataTableHeader[]>(() => {
     { title: "Nomor SJ", key: "Nomor", width: 180, fixed: true },
     { title: "Tanggal SJ", key: "Tanggal", width: 120 },
     { title: "Nomor Minta", key: "NomorMinta", width: 180 },
+    { title: "Source", key: "Source", width: 100, align: "center" },
   ];
 
   // Tambahkan No. Invoice HANYA jika KDC atau KPR
@@ -158,7 +161,20 @@ const isAdmin = computed(() => authStore.user?.kode?.toLowerCase() === "admin");
 const isKbl = computed(() => authStore.user?.cabang === "KBL");
 
 const terimaDisabledReason = computed(() => {
-  // Izinkan jika user adalah admin ATAU cabang K01/KPR/KON/KDB
+  if (!isSingleSelected.value) {
+    return "Pilih tepat satu SJ terlebih dahulu.";
+  }
+
+  if (selectedRow.value?.NomorTerima) {
+    return "SJ ini sudah diterima.";
+  }
+
+  // SJ Workshop boleh diterima semua cabang (tidak perlu cek cabang)
+  if (selectedRow.value?.Source === "WORKSHOP") {
+    return "";
+  }
+
+  // SJ DC — hanya cabang tertentu atau admin
   if (
     !isAdmin.value &&
     !isK01.value &&
@@ -168,14 +184,6 @@ const terimaDisabledReason = computed(() => {
     !isKbl.value
   ) {
     return "Penerimaan SJ cabang selain K01, KPR, KON, KBL & KDB wajib melalui Aplikasi Kaosan Mobile.";
-  }
-
-  if (!isSingleSelected.value) {
-    return "Pilih tepat satu SJ terlebih dahulu.";
-  }
-
-  if (selectedRow.value?.NomorTerima) {
-    return "SJ ini sudah diterima.";
   }
 
   return "";
@@ -235,15 +243,22 @@ const loadDetails = async (newlyExpandedItems: SjHeader[]) => {
   );
   if (!itemToLoad) return;
 
-  loadingDetails.value.add(itemToLoad.Nomor);
+  const nomorToLoad = itemToLoad.Nomor;
+  loadingDetails.value.add(nomorToLoad);
   try {
-    const response = await api.get(`/terima-sj/details/${itemToLoad.Nomor}`);
-    details.value[itemToLoad.Nomor] = response.data;
+    // ← deteksi source dari data row
+    const endpoint =
+      itemToLoad.Source === "WORKSHOP"
+        ? `/operasional/workshop/sj-workshop/${nomorToLoad}` // endpoint detail SJ Workshop
+        : `/terima-sj/details/${nomorToLoad}`; // endpoint detail SJ DC
+
+    const response = await api.get(endpoint);
+    details.value[nomorToLoad] = response.data;
   } catch {
-    toast.error(`Gagal memuat detail untuk ${itemToLoad.Nomor}`);
-    expanded.value = expanded.value.filter((nomor) => nomor !== itemToLoad.Nomor);
+    toast.error(`Gagal memuat detail untuk ${nomorToLoad}`);
+    expanded.value = expanded.value.filter((nomor) => nomor !== nomorToLoad);
   } finally {
-    loadingDetails.value.delete(itemToLoad.Nomor);
+    loadingDetails.value.delete(nomorToLoad);
   }
 };
 
@@ -260,7 +275,7 @@ const showConfirmation = (title: string, text: string, onConfirm: () => void) =>
 };
 
 const handleBatalTerima = () => {
-  const row = selectedRow.value; // [PERBAIKAN] Simpan ke variabel lokal
+  const row = selectedRow.value;
   if (!row) return;
 
   showConfirmation(
@@ -271,8 +286,9 @@ const handleBatalTerima = () => {
         const payload = {
           header: {
             nomorSj: row.Nomor,
-            nomorMinta: row.NomorMinta as string, // Cast ke string jika perlu
+            nomorMinta: row.NomorMinta as string,
             tanggalTerima: format(new Date(), "yyyy-MM-dd"),
+            isWorkshop: row.Source === "WORKSHOP", // ← tambah
           },
           items: [],
         };
@@ -659,6 +675,13 @@ onMounted(() => {
 });
 
 watch(filters, fetchMasterData, { deep: true });
+
+watch(
+  () => filters.kodeBarang,
+  (newVal) => {
+    if (!newVal) filters.namaBarang = "";
+  }
+);
 </script>
 
 <template>
@@ -759,8 +782,7 @@ watch(filters, fetchMasterData, { deep: true });
           hide-details
           clearable
           variant="outlined"
-          style="max-width: 150px"
-          class="ms-4"
+          class="ms-4 filter-kode"
           @click="openMasterProductSearch"
           @keydown.f1.prevent="openMasterProductSearch"
         >
@@ -768,6 +790,7 @@ watch(filters, fetchMasterData, { deep: true });
             <v-icon @click="openMasterProductSearch">mdi-magnify</v-icon>
           </template>
         </v-text-field>
+
         <v-text-field
           v-model="filters.namaBarang"
           placeholder="Nama Barang"
@@ -775,12 +798,33 @@ watch(filters, fetchMasterData, { deep: true });
           hide-details
           readonly
           variant="outlined"
-          style="max-width: 250px"
+          class="filter-nama"
         />
+        <v-btn-toggle
+          v-model="filters.source"
+          density="compact"
+          variant="outlined"
+          color="primary"
+          mandatory
+          class="ms-2 source-toggle"
+        >
+          <v-btn value="ALL" size="small">Semua</v-btn>
+          <v-btn value="DC" size="small">DC</v-btn>
+          <v-btn value="WORKSHOP" size="small">Workshop</v-btn>
+        </v-btn-toggle>
 
         <v-spacer></v-spacer>
         <div class="d-flex align-center ga-2 text-caption">
-          <v-icon color="red" icon="mdi-square-rounded" size="small"></v-icon> Belum Diterima
+          <div
+            style="
+              width: 12px;
+              height: 12px;
+              border-radius: 3px;
+              background-color: #ef5350;
+              flex-shrink: 0;
+            "
+          ></div>
+          Belum Diterima
         </div>
         <v-btn @click="fetchMasterData" icon="mdi-refresh" variant="text" size="small" />
       </div>
@@ -886,6 +930,16 @@ watch(filters, fetchMasterData, { deep: true });
                 >
                 <v-chip v-else size="x-small" color="grey" variant="tonal">TIDAK</v-chip>
               </template>
+              <template v-else-if="header.key === 'Source'">
+                <v-chip
+                  size="x-small"
+                  :color="item.Source === 'WORKSHOP' ? 'purple' : 'blue'"
+                  variant="flat"
+                  class="font-weight-bold"
+                >
+                  {{ item.Source }}
+                </v-chip>
+              </template>
               <template v-else>
                 {{ item[header.key] }}
               </template>
@@ -919,7 +973,11 @@ watch(filters, fetchMasterData, { deep: true });
                         <span
                           :class="Number(value) > 0 ? 'text-green-darken-2 font-weight-bold' : ''"
                         >
-                          {{ Number(value).toLocaleString() }}
+                          {{
+                            value !== undefined && value !== null
+                              ? Number(value).toLocaleString()
+                              : "-"
+                          }}
                         </span>
                       </template>
                       <template #bottom></template>
@@ -1123,5 +1181,25 @@ watch(filters, fetchMasterData, { deep: true });
 /* Pewarnaan Baris */
 :deep(td.text-red) {
   color: rgb(var(--v-theme-error)) !important;
+}
+
+/* Override global CSS untuk v-btn-toggle di filter */
+.source-toggle :deep(.v-btn) {
+  height: 28px !important;
+  width: auto !important; /* ← override width: 28px dari global */
+  min-width: 48px !important;
+  padding: 0 10px !important;
+  font-size: 11px !important;
+}
+
+/* Di <style scoped> — tambah ini */
+.filter-kode :deep(.v-field) {
+  width: 150px !important;
+  min-width: 150px !important;
+}
+
+.filter-nama :deep(.v-field) {
+  width: 280px !important;
+  min-width: 280px !important;
 }
 </style>

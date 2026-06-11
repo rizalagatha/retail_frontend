@@ -81,6 +81,7 @@ const filters = reactive({
   endDate: format(new Date(), "yyyy-MM-dd"),
   cabang: authStore.user?.cabang === "KDC" ? "ALL" : authStore.user?.cabang || "",
   jenisPermintaan: "semua", // 'semua', 'manual', 'otomatis'
+  statusClosing: "ALL", // ('ALL' = Semua, 'N' = Aktif, 'Y' = Closed)
 });
 
 const cabangList = ref<Cabang[]>([]);
@@ -220,6 +221,7 @@ const fetchData = async () => {
         endDate: filters.endDate,
         cabang: filters.cabang,
         jenisPermintaan: filters.jenisPermintaan,
+        statusClosing: filters.statusClosing,
       },
     });
     list.value = response.data;
@@ -253,16 +255,22 @@ const loadDetails = async (newlyExpandedItems: MintaBarangHeader[]) => {
 };
 
 const getRowTextColor = (item: MintaBarangHeader) => {
-  // 1. Jika sudah diterima (TerimaSJ terisi) -> HITAM (Tanpa class)
-  if (item.TerimaSJ && item.TerimaSJ !== "") return "";
+  // 1. Prioritas Utama: Jika sudah Closing -> Abu-abu (Final)
+  if (item.Closing === "Y") {
+    return "text-grey font-weight-bold"; // Abu-abu
+  }
 
-  // 2. Jika sudah ada NoSJ (Data Lama/Langsung) ATAU NoPL (Data Baru)
-  // tapi belum diterima -> BIRU (Dalam Proses)
+  // 2. Jika sudah diterima (TerimaSJ terisi) -> HITAM (Tanpa class tambahan)
+  if (item.TerimaSJ && item.TerimaSJ !== "") {
+    return "text-black";
+  }
+
+  // 3. Jika sudah ada NoSJ ATAU NoPL tapi belum diterima -> BIRU (Dalam Proses)
   if ((item.NoSJ && item.NoSJ !== "") || (item.NoPL && item.NoPL !== "")) {
     return "text-blue font-weight-bold";
   }
 
-  // 3. Jika benar-benar belum diproses sama sekali (PL & SJ kosong) -> MERAH
+  // 4. Jika belum diproses sama sekali (PL & SJ kosong) -> MERAH
   return "text-red font-weight-bold";
 };
 
@@ -572,17 +580,40 @@ watch(filters, () => fetchData(), { deep: true });
           <v-radio label="Manual" value="manual" />
           <v-radio label="Otomatis" value="otomatis" />
         </v-radio-group>
+
+        <span class="filter-label ms-4">Status:</span>
+        <v-select
+          v-model="filters.statusClosing"
+          :items="[
+            { title: 'Semua', value: 'ALL' },
+            { title: 'Aktif (Open)', value: 'N' },
+            { title: 'Closed', value: 'Y' },
+          ]"
+          item-title="title"
+          item-value="value"
+          density="compact"
+          hide-details
+          variant="outlined"
+          style="max-width: 130px"
+        />
+
         <v-spacer />
+
         <div class="legend-group">
-          <div class="legend-item">
-            <v-icon class="text-red" size="small">mdi-circle-medium</v-icon>
-            Belum Dibuatkan Packing List / SJ
+          <div class="legend-item legend-red">
+            <v-icon size="small">mdi-circle-medium</v-icon> Belum Proses
           </div>
-          <div class="legend-item">
-            <v-icon class="text-blue" size="small">mdi-circle-medium</v-icon>
-            Dalam Proses (PL/SJ/Kirim)
+          <div class="legend-item legend-blue">
+            <v-icon size="small">mdi-circle-medium</v-icon> Dalam Proses
+          </div>
+          <div class="legend-item legend-black">
+            <v-icon size="small">mdi-circle-medium</v-icon> Selesai (Diterima)
+          </div>
+          <div class="legend-item legend-grey">
+            <v-icon size="small">mdi-circle-medium</v-icon> Transaksi Closed
           </div>
         </div>
+
         <v-btn
           @click="fetchData"
           icon="mdi-refresh"
@@ -665,6 +696,20 @@ watch(filters, () => fetchData(), { deep: true });
                   {{ item.Otomatis === "Y" ? "Otomatis" : "Manual" }}
                 </v-chip>
               </template>
+
+              <!-- TAMBAHKAN BLOK CLOSING INI -->
+              <template v-else-if="header.key === 'Closing'">
+                <v-chip
+                  size="x-small"
+                  :color="item.Closing === 'Y' ? 'grey-darken-1' : 'success'"
+                  variant="flat"
+                  class="font-weight-bold text-uppercase"
+                >
+                  {{ item.Closing === "Y" ? "Closed" : "Open" }}
+                </v-chip>
+              </template>
+              <!-- ========================= -->
+
               <template v-else>
                 {{ item[header.key] }}
               </template>
@@ -965,18 +1010,38 @@ watch(filters, () => fetchData(), { deep: true });
   color: rgb(var(--v-theme-on-surface)) !important;
 }
 
-/* Legend */
+/* --- Aturan Layout Legend --- */
 .legend-group {
   display: flex;
-  gap: 1rem;
+  flex-wrap: wrap;
+  gap: 10px;
   font-size: 10px;
   align-items: center;
 }
 
 .legend-item {
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: 2px;
+  font-weight: 600;
+}
+
+/* --- Paksa Pewarnaan Langsung pada Elemen Icon dan Teks --- */
+.legend-red,
+.legend-red :deep(.v-icon) {
+  color: #f44336 !important;
+}
+.legend-blue,
+.legend-blue :deep(.v-icon) {
+  color: #2196f3 !important;
+}
+.legend-black,
+.legend-black :deep(.v-icon) {
+  color: #000000 !important;
+}
+.legend-grey,
+.legend-grey :deep(.v-icon) {
+  color: #9e9e9e !important;
 }
 
 .state-container {

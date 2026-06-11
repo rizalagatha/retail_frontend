@@ -32,6 +32,12 @@ interface MenuResponse {
 interface ErrorResponse {
   message: string;
 }
+interface UserForCopy {
+  kode: string;
+  nama: string;
+  cabang: string; // tambah ini
+  uid: string;
+}
 
 // --- State ---
 const isNewUser = ref(true);
@@ -45,6 +51,19 @@ const checkAll = ref(false);
 const isLoading = ref(false);
 const isHelpModalVisible = ref(false);
 const hasViewPermission = computed(() => authStore.can(MENU_ID, "view"));
+const newMenuIds = ref<string[]>([]); // menu yang belum pernah dikonfigurasi
+const userListForCopy = ref<UserForCopy[]>([]);
+const isCopyMenuVisible = ref(false);
+const selectedCopyUser = ref("");
+const userListForCopyFormatted = computed(() =>
+  userListForCopy.value.map((u) => ({
+    ...u,
+    label: `[${u.cabang}] ${u.kode} - ${u.nama}`,
+  }))
+);
+const isApplyOthersVisible = ref(false);
+const usersInSameCabang = ref<{ kode: string; nama: string; cabang: string }[]>([]);
+const selectedTargetUsers = ref<string[]>([]);
 
 // --- Methods ---
 const fetchInitialMenus = async () => {
@@ -53,7 +72,7 @@ const fetchInitialMenus = async () => {
     permissions.value = response.data.map(
       (menu): Permission => ({
         id: menu.men_id,
-        nama: menu.men_nama,
+        nama: menu.men_keterangan || menu.men_nama,
         keterangan: menu.men_keterangan,
         view: false,
         insert: false,
@@ -83,6 +102,56 @@ const fetchBranches = async () => {
   }
 };
 
+// [BARU] Buka modal pilih user untuk copy permission
+const openCopyFromUser = async () => {
+  if (!cabang.value) return toast.error("Pilih cabang dulu.");
+  isCopyMenuVisible.value = false; // tutup dulu kalau ada
+  selectedCopyUser.value = "";
+  userListForCopy.value = [];
+
+  try {
+    const res = await api.get("/users/users-by-cabang", {
+      params: { kasirOnly: true }, // tidak perlu kirim cabang, karena kasirOnly ambil semua K01-K10
+    });
+    userListForCopy.value = res.data;
+    isCopyMenuVisible.value = true; // buka SETELAH data ready
+  } catch {
+    toast.error("Gagal memuat daftar user referensi.");
+  }
+};
+
+// [BARU] Eksekusi copy permission dari user yang dipilih
+const doCopyPermission = async () => {
+  if (!selectedCopyUser.value) return toast.error("Pilih user referensi dulu.");
+  try {
+    const [refCabang, refKode] = selectedCopyUser.value.split("|");
+    const res = await api.get("/users/template", {
+      params: { kode: refKode, cabang: refCabang },
+    });
+    permissions.value = (res.data as Permission[]).map((p) => ({ ...p }));
+    isCopyMenuVisible.value = false;
+    selectedCopyUser.value = "";
+    toast.success("Hak akses berhasil disalin.");
+  } catch {
+    toast.error("Gagal mengambil template hak akses.");
+  }
+};
+
+// [BARU] Deteksi menu baru setelah load user edit
+const checkNewMenus = async () => {
+  if (isNewUser.value || !kode.value || !cabang.value) {
+    newMenuIds.value = [];
+    return;
+  }
+  const res = await api.get("/users/new-menus", {
+    params: { kode: kode.value, cabang: cabang.value },
+  });
+  newMenuIds.value = res.data;
+  if (res.data.length > 0) {
+    toast.warning(`${res.data.length} menu baru belum dikonfigurasi untuk user ini.`);
+  }
+};
+
 const handleKodeSearch = async () => {
   // Hanya cari jika KODE dan CABANG sudah diisi
   if (!kode.value || !cabang.value) {
@@ -105,6 +174,7 @@ const handleKodeSearch = async () => {
       isNewUser.value = false;
       nama.value = data.user.user_nama;
       permissions.value = data.permissions;
+      await checkNewMenus();
       password.value = ""; // Kosongkan password saat load
       toast.info(`Mode Edit: Menampilkan data untuk user ${kode.value}.`);
     } else {
@@ -133,6 +203,21 @@ const handleKodeSearch = async () => {
   }
 };
 
+const openApplyOthersDialog = async () => {
+  try {
+    // Ambil semua user di cabang yang sama, exclude user yang baru disimpan
+    const res = await api.get("/users/users-by-cabang", {
+      params: { cabang: cabang.value },
+    });
+    usersInSameCabang.value = (res.data as UserForCopy[]).filter((u) => u.kode !== kode.value); // exclude diri sendiri
+    selectedTargetUsers.value = [];
+    isApplyOthersVisible.value = true;
+  } catch {
+    // Kalau gagal load, tetap reset form saja
+    resetForm();
+  }
+};
+
 const saveUser = async () => {
   if (!kode.value || !nama.value || !cabang.value) {
     toast.error("Kode, Nama, dan Cabang tidak boleh kosong.");
@@ -148,7 +233,6 @@ const saveUser = async () => {
     toast.error(`Anda tidak memiliki izin untuk ${requiredPermission} data user.`);
     return;
   }
-
   isLoading.value = true;
   try {
     const payload = {
@@ -161,7 +245,13 @@ const saveUser = async () => {
     };
     const response = await api.post(`/users/save`, payload);
     toast.success(response.data.message);
-    resetForm();
+
+    // Cek apakah perlu tawarkan apply ke user lain
+    if (newMenuIds.value.length > 0 && !isNewUser.value) {
+      await openApplyOthersDialog();
+    } else {
+      resetForm();
+    }
   } catch (error: unknown) {
     if (axios.isAxiosError<ErrorResponse>(error)) {
       toast.error(error.response?.data?.message || "Gagal menyimpan data.");
@@ -173,6 +263,37 @@ const saveUser = async () => {
     isLoading.value = false;
   }
 };
+const doApplyToOthers = async () => {
+  if (!selectedTargetUsers.value.length) {
+    isApplyOthersVisible.value = false;
+    resetForm();
+    return;
+  }
+
+  isLoading.value = true;
+  try {
+    const targetUsers = selectedTargetUsers.value.map((uid) => {
+      const [targetCabang, targetKode] = uid.split("|");
+      return { kode: targetKode, cabang: targetCabang };
+    });
+
+    await api.post("/users/apply-new-menus", {
+      sourceKode: kode.value,
+      sourceCabang: cabang.value,
+      targetUsers,
+      menuIds: newMenuIds.value,
+    });
+
+    toast.success(`Hak akses menu baru diterapkan ke ${targetUsers.length} user.`);
+  } catch {
+    toast.error("Gagal menerapkan ke user lain.");
+  } finally {
+    isLoading.value = false;
+    isApplyOthersVisible.value = false;
+    resetForm();
+  }
+};
+
 const resetForm = () => {
   isNewUser.value = true;
   kode.value = "";
@@ -208,6 +329,15 @@ const handleUserSelected = (user: { kode: string; kode_cabang: string; nama_caba
 const openHelpModal = () => {
   isHelpModalVisible.value = true;
 };
+const handleKeydown = (e: KeyboardEvent) => {
+  if (e.key === "F1") {
+    e.preventDefault();
+    openHelpModal();
+  } else if (e.key === "Enter") {
+    e.preventDefault();
+    handleKodeSearch();
+  }
+};
 
 onMounted(() => {
   if (hasViewPermission.value) {
@@ -222,15 +352,49 @@ onMounted(() => {
 <template>
   <PageLayout title="Master User" icon="mdi-account-group" desktop-mode :loading="isLoading">
     <template #header-actions>
-      <v-btn v-if="authStore.can(MENU_ID, 'insert')" size="small" @click="resetForm">Baru</v-btn>
+      <!-- Kiri: aksi user -->
+      <v-btn
+        v-if="authStore.can(MENU_ID, 'insert')"
+        size="small"
+        variant="outlined"
+        @click="resetForm"
+      >
+        Baru
+      </v-btn>
+
       <v-btn
         v-if="authStore.can(MENU_ID, 'insert') || authStore.can(MENU_ID, 'edit')"
         size="small"
         color="primary"
         @click="saveUser"
         :loading="isLoading"
-        >Simpan</v-btn
       >
+        Simpan
+      </v-btn>
+
+      <v-divider vertical class="mx-1" style="height: 24px; align-self: center" />
+
+      <v-btn
+        size="small"
+        color="teal"
+        variant="tonal"
+        prepend-icon="mdi-content-copy"
+        @click="openCopyFromUser"
+        :disabled="!cabang"
+      >
+        Salin dari User Lain
+      </v-btn>
+
+      <v-chip
+        v-if="newMenuIds.length > 0"
+        color="warning"
+        variant="flat"
+        prepend-icon="mdi-alert-circle-outline"
+        size="small"
+        class="ml-1"
+      >
+        {{ newMenuIds.length }} menu baru
+      </v-chip>
     </template>
 
     <div v-if="!hasViewPermission" class="state-container">
@@ -250,9 +414,8 @@ onMounted(() => {
               variant="outlined"
               density="compact"
               hide-details
-              @keydown.enter.prevent="handleKodeSearch"
+              @keydown="handleKeydown"
               @blur="handleKodeSearch"
-              @keydown.f1.prevent="openHelpModal"
               :disabled="!isNewUser"
             >
               <template #append-inner
@@ -301,24 +464,36 @@ onMounted(() => {
       <div class="desktop-form-section flex-grow-1 d-flex flex-column">
         <div class="d-flex justify-space-between align-center mb-2">
           <h3 class="section-title">Hak Akses Menu</h3>
-          <v-checkbox
-            v-model="checkAll"
-            label="Cek Semua"
-            @update:model-value="toggleCheckAll"
-            hide-details
-            density="compact"
-            color="primary"
-          ></v-checkbox>
+          <div class="d-flex align-center gap-3">
+            <v-chip
+              v-if="newMenuIds.length > 0"
+              color="warning"
+              variant="tonal"
+              prepend-icon="mdi-alert-circle-outline"
+              size="small"
+            >
+              {{ newMenuIds.length }} menu baru belum dikonfigurasi
+            </v-chip>
+            <v-checkbox
+              v-model="checkAll"
+              label="Cek Semua"
+              @update:model-value="toggleCheckAll"
+              hide-details
+              density="compact"
+              color="primary"
+            />
+          </div>
         </div>
         <v-data-table
           :items="permissions"
           :headers="[
-            { title: 'Id', key: 'id', sortable: false, width: '60px' },
+            { title: 'Id', key: 'id', sortable: false, width: '55px' },
             { title: 'Nama Menu', key: 'nama', sortable: false },
-            { title: 'View', key: 'view', sortable: false, align: 'center', width: '70px' },
-            { title: 'Insert', key: 'insert', sortable: false, align: 'center', width: '70px' },
-            { title: 'Update', key: 'edit', sortable: false, align: 'center', width: '70px' },
-            { title: 'Delete', key: 'delete', sortable: false, align: 'center', width: '70px' },
+            { title: 'Semua', key: 'all', sortable: false, align: 'center', width: '65px' },
+            { title: 'View', key: 'view', sortable: false, align: 'center', width: '65px' },
+            { title: 'Insert', key: 'insert', sortable: false, align: 'center', width: '65px' },
+            { title: 'Update', key: 'edit', sortable: false, align: 'center', width: '65px' },
+            { title: 'Delete', key: 'delete', sortable: false, align: 'center', width: '65px' },
           ]"
           :loading="isLoading && permissions.length === 0"
           density="compact"
@@ -326,6 +501,9 @@ onMounted(() => {
           fixed-header
           height="100%"
           :items-per-page="-1"
+          :row-props="
+            (item) => ({ class: newMenuIds.includes(String(item.item.id)) ? 'row-new-menu' : '' })
+          "
         >
           <template v-slot:[`item.view`]="{ item }">
             <div class="d-flex justify-center">
@@ -367,6 +545,23 @@ onMounted(() => {
               ></v-checkbox-btn>
             </div>
           </template>
+          <template v-slot:[`item.all`]="{ item }">
+            <div class="d-flex justify-center">
+              <v-checkbox-btn
+                :model-value="item.view && item.insert && item.edit"
+                hide-details
+                density="compact"
+                color="blue-grey"
+                @update:model-value="
+                  (val) => {
+                    item.view = val;
+                    item.insert = val;
+                    item.edit = val;
+                  }
+                "
+              />
+            </div>
+          </template>
         </v-data-table>
       </div>
     </div>
@@ -388,4 +583,127 @@ onMounted(() => {
       @user-selected="handleUserSelected"
     />
   </PageLayout>
+
+  <v-dialog v-model="isCopyMenuVisible" max-width="400px">
+    <v-card>
+      <v-card-title class="text-subtitle-1 font-weight-bold">
+        Salin Hak Akses dari User
+      </v-card-title>
+      <v-card-text>
+        <v-select
+          v-model="selectedCopyUser"
+          :items="userListForCopyFormatted"
+          item-title="label"
+          item-value="uid"
+          label="Pilih User Referensi"
+          variant="outlined"
+          density="compact"
+          hide-details
+        />
+        <div class="text-caption text-grey mt-2">
+          Semua hak akses user yang dipilih akan disalin ke form ini.
+        </div>
+      </v-card-text>
+      <v-card-actions>
+        <v-spacer />
+        <v-btn variant="text" @click="isCopyMenuVisible = false">Batal</v-btn>
+        <v-btn color="indigo" variant="flat" @click="doCopyPermission">Salin</v-btn>
+      </v-card-actions>
+    </v-card>
+  </v-dialog>
+
+  <v-dialog v-model="isApplyOthersVisible" max-width="480px" persistent>
+    <v-card>
+      <v-card-title class="text-subtitle-1 font-weight-bold pa-4">
+        <v-icon start color="warning">mdi-account-multiple-plus</v-icon>
+        Terapkan ke User Lain?
+      </v-card-title>
+
+      <v-card-text class="pt-0">
+        <p class="text-body-2 text-grey-darken-1 mb-3">
+          Ditemukan <strong>{{ newMenuIds.length }} menu baru</strong> pada user
+          <strong>{{ kode }}</strong
+          >. Pilih user lain di cabang <strong>{{ cabang }}</strong> yang ingin mendapat setting
+          yang sama:
+        </p>
+
+        <!-- Tombol pilih semua -->
+        <div class="d-flex align-center justify-space-between mb-2">
+          <span class="text-caption text-grey">{{ selectedTargetUsers.length }} user dipilih</span>
+          <v-btn
+            size="x-small"
+            variant="text"
+            color="primary"
+            @click="selectedTargetUsers = usersInSameCabang.map((u) => u.cabang + '|' + u.kode)"
+          >
+            Pilih Semua
+          </v-btn>
+        </div>
+
+        <!-- List user dengan checkbox -->
+        <v-list density="compact" class="border rounded" max-height="280" style="overflow-y: auto">
+          <v-list-item
+            v-for="u in usersInSameCabang"
+            :key="u.cabang + '|' + u.kode"
+            :value="u.cabang + '|' + u.kode"
+            rounded
+          >
+            <template #prepend>
+              <v-checkbox-btn
+                :model-value="selectedTargetUsers.includes(u.cabang + '|' + u.kode)"
+                @update:model-value="
+                  (val) => {
+                    const uid = u.cabang + '|' + u.kode;
+                    if (val) selectedTargetUsers.push(uid);
+                    else selectedTargetUsers = selectedTargetUsers.filter((x) => x !== uid);
+                  }
+                "
+                color="primary"
+                hide-details
+              />
+            </template>
+            <v-list-item-title class="text-body-2">{{ u.nama }}</v-list-item-title>
+            <v-list-item-subtitle class="text-caption"
+              >{{ u.kode }} · {{ u.cabang }}</v-list-item-subtitle
+            >
+          </v-list-item>
+
+          <v-list-item v-if="usersInSameCabang.length === 0">
+            <v-list-item-title class="text-caption text-grey text-center">
+              Tidak ada user lain di cabang ini.
+            </v-list-item-title>
+          </v-list-item>
+        </v-list>
+      </v-card-text>
+
+      <v-card-actions class="pa-4 pt-0">
+        <v-btn
+          variant="text"
+          @click="
+            isApplyOthersVisible = false;
+            resetForm();
+          "
+        >
+          Lewati
+        </v-btn>
+        <v-spacer />
+        <v-btn
+          color="primary"
+          variant="flat"
+          :disabled="!selectedTargetUsers.length"
+          :loading="isLoading"
+          @click="doApplyToOthers"
+        >
+          Terapkan ke {{ selectedTargetUsers.length }} User
+        </v-btn>
+      </v-card-actions>
+    </v-card>
+  </v-dialog>
 </template>
+
+<style scoped>
+:deep(.row-new-menu) {
+  background-color: #fff8e1 !important;
+  border-left: 3px solid #ffc107;
+}
+</style>

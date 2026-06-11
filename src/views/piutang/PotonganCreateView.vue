@@ -540,6 +540,24 @@ const showConfirmation = (
   dialogConfirm.show = true;
 };
 
+const handleInvoiceKeydown = (e: KeyboardEvent, item: PotonganDetail) => {
+  if (isHeaderDisabled.value || item.invoice || !canSave.value) {
+    return;
+  }
+
+  switch (e.key) {
+    case "F1":
+      e.preventDefault();
+      handleInvoiceSearch();
+      break;
+
+    case "F2":
+      e.preventDefault();
+      handleBiayaKirimSearch();
+      break;
+  }
+};
+
 watch(() => header.nominalPotongan, calculateTotals);
 watch(items, calculateTotals, { deep: true });
 
@@ -788,8 +806,7 @@ onMounted(async () => {
                 placeholder="F1=Inv, F2=BK"
                 :readonly="isHeaderDisabled || !!item.invoice || !canSave"
                 @click="!isHeaderDisabled && !item.invoice && handleInvoiceSearch()"
-                @keydown.f1.prevent="!isHeaderDisabled && !item.invoice && handleInvoiceSearch()"
-                @keydown.f2.prevent="!isHeaderDisabled && !item.invoice && handleBiayaKirimSearch()"
+                @keydown="handleInvoiceKeydown($event, item)"
               >
                 <template #append-inner v-if="!isHeaderDisabled && !item.invoice && canSave">
                   <v-icon

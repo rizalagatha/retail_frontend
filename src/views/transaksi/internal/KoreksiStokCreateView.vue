@@ -10,6 +10,7 @@ import { format, parseISO } from "date-fns";
 import PageLayout from "@/components/PageLayout.vue";
 import GudangSearchModal from "@/components/lookup/GudangSearchModal.vue";
 import MintaBarangSearchModal from "@/components/lookup/MintaBarangSearchModal.vue";
+import BahanPenolongSearchModal from "@/components/lookup/BahanPenolongSearchModal.vue";
 import type { AxiosError } from "axios";
 import { formatRupiah } from "@/utils/formatRupiah";
 
@@ -93,7 +94,7 @@ const header = reactive<Header>({
 const items = ref<Item[]>([]);
 const isLoading = ref(true);
 const isSaving = ref(false);
-const dialog = reactive({ productSearch: false });
+const dialog = reactive({ productSearch: false, bahanPenolongSearch: false });
 const isMultiSelectProduct = ref(false);
 const activeRowIndex = ref(0);
 const isGudangSearchVisible = ref(false);
@@ -201,6 +202,52 @@ const onProductsSelected = async (selectedProducts: ProductLookup[]) => {
     const axiosError = error as AxiosError<{ message?: string }>;
     toast.error(axiosError.response?.data?.message || "Gagal memuat detail produk.");
   }
+};
+
+const openBahanPenolongSearch = (index: number) => {
+  activeRowIndex.value = index;
+  dialog.bahanPenolongSearch = true;
+};
+
+const onBahanPenolongSelected = async (bahan: {
+  kode: string;
+  nama: string;
+  satuan: string;
+  jenis: string;
+  stok: number;
+}) => {
+  dialog.bahanPenolongSearch = false;
+
+  // Cek duplikat
+  const isExist = items.value.some((item) => item.kode === bahan.kode);
+  if (isExist) return toast.info("Bahan penolong sudah ada di daftar.");
+
+  // Membuat item baru dengan stok dari modal
+  const newItem: Item = {
+    id: Date.now() + Math.random(),
+    kode: bahan.kode,
+    nama: `[${bahan.jenis}] ${bahan.nama}`,
+    ukuran: bahan.satuan,
+    stok: bahan.stok, // <--- STOK DITERIMA DI SINI
+    jumlah: 0, // Input fisik user
+    selisih: 0,
+    hpp: 0, // Perlu diisi jika ada harga
+    total: 0,
+    keterangan: "",
+    barcode: "",
+  };
+
+  // Kalkulasi selisih awal
+  calculateRow(newItem);
+
+  // Masukkan ke grid
+  const emptyRowIndex = items.value.findIndex((item) => !item.kode);
+  if (emptyRowIndex !== -1) {
+    items.value.splice(emptyRowIndex, 1, newItem);
+  } else {
+    items.value.push(newItem);
+  }
+  addNewRow();
 };
 
 const onGudangSelected = () => {
@@ -350,6 +397,25 @@ const handleBarcodeScan = async () => {
   }
 };
 
+const handleKodeKeydown = (e: KeyboardEvent, index: number) => {
+  switch (e.key) {
+    case "F1":
+      e.preventDefault();
+      openProductSearch(index, false);
+      break;
+
+    case "F2":
+      e.preventDefault();
+      openProductSearch(index, true);
+      break;
+
+    case "F3":
+      e.preventDefault();
+      openBahanPenolongSearch(index);
+      break;
+  }
+};
+
 // --- WATCHERS (UNSAVED CHANGES) ---
 watch(
   [header, items],
@@ -490,9 +556,8 @@ onMounted(async () => {
                 variant="underlined"
                 density="compact"
                 hide-details
-                placeholder="F1/F2..."
-                @keydown.f1.prevent="openProductSearch(index, false)"
-                @keydown.f2.prevent="openProductSearch(index, true)"
+                placeholder="F1/F2/F3..."
+                @keydown="handleKodeKeydown($event, index)"
               />
             </template>
             <template v-slot:[`item.jumlah`]="{ item }">
@@ -562,6 +627,13 @@ onMounted(async () => {
       source="koreksi-stok"
       @close="dialog.productSearch = false"
       @products-selected="onProductsSelected"
+    />
+
+    <BahanPenolongSearchModal
+      v-if="dialog.bahanPenolongSearch"
+      :cabang="authStore.user?.cabang || ''"
+      @close="dialog.bahanPenolongSearch = false"
+      @selected="onBahanPenolongSelected"
     />
 
     <GudangSearchModal

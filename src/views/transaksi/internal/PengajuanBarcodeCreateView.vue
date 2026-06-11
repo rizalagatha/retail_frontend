@@ -658,6 +658,24 @@ const onStickersSelected = (selectedSticker: StickerLookupResult) => {
   targetItem.jumlah = 1;
 };
 
+const handleKodeKeydown = (e: KeyboardEvent, index: number) => {
+  if (hasApprovalRights.value || isApproved.value || !canSave.value) {
+    return;
+  }
+
+  switch (e.key) {
+    case "F1":
+      e.preventDefault();
+      openProductSearch(index, false);
+      break;
+
+    case "F2":
+      e.preventDefault();
+      openProductSearch(index, true);
+      break;
+  }
+};
+
 watch([items, stickers], calculateHargaDtf, { deep: true });
 
 // --- WATCHERS (UNSAVED CHANGES) ---
@@ -786,8 +804,7 @@ onMounted(async () => {
                   v-model="item.kode"
                   variant="underlined"
                   placeholder="F1/F2..."
-                  @keydown.f1.prevent="openProductSearch(index, false)"
-                  @keydown.f2.prevent="openProductSearch(index, true)"
+                  @keydown="handleKodeKeydown($event, index)"
                   :readonly="hasApprovalRights || isApproved || !canSave"
                 />
               </template>

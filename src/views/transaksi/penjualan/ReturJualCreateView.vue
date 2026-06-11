@@ -527,6 +527,22 @@ const removeRow = (id: number) => {
   if (index !== -1) items.value.splice(index, 1);
 };
 
+const handleKodeKeydown = (e: KeyboardEvent, index: number) => {
+  if (header.invoice) return;
+
+  switch (e.key) {
+    case "F1":
+      e.preventDefault();
+      openProductSearch(index, false);
+      break;
+
+    case "F2":
+      e.preventDefault();
+      openProductSearch(index, true);
+      break;
+  }
+};
+
 // --- WATCHERS (UNSAVED CHANGES) ---
 watch(
   [header, items, footer],
@@ -753,8 +769,7 @@ watch(
               density="compact"
               hide-details
               placeholder="F1/F2..."
-              @keydown.f1.prevent="openProductSearch(index, false)"
-              @keydown.f2.prevent="openProductSearch(index, true)"
+              @keydown="handleKodeKeydown($event, index)"
               :readonly="!!header.invoice"
             />
           </template>

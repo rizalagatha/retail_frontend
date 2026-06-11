@@ -42,7 +42,6 @@ const header = reactive({
   nomorKirim: "",
   tanggalKirim: "",
   gudangAsalNama: "",
-  tanggalTerima: format(new Date(), "yyyy-MM-dd"),
   keterangan: "",
 });
 
@@ -269,22 +268,6 @@ const isAllVerified = computed(() => {
           </v-row>
 
           <v-divider class="my-3"></v-divider>
-
-          <div class="section-title text-success" style="border-left-color: #4caf50">
-            Penerimaan
-          </div>
-          <v-row dense>
-            <v-col cols="12">
-              <v-text-field
-                label="Tanggal Terima"
-                v-model="header.tanggalTerima"
-                type="date"
-                variant="outlined"
-                density="compact"
-                hide-details
-              />
-            </v-col>
-          </v-row>
         </div>
       </div>
 

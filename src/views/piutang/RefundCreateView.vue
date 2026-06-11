@@ -513,6 +513,29 @@ const handleTutup = () => {
   );
 };
 
+const handleNomorKeydown = (e: KeyboardEvent, index: number, item: RefundDetail) => {
+  if (item.nomor || isApprover.value || header.value.isApproved || !canSave.value) {
+    return;
+  }
+
+  switch (e.key) {
+    case "F1":
+      e.preventDefault();
+      openSearchInvoice(index);
+      break;
+
+    case "F2":
+      e.preventDefault();
+      openSearchDeposit(index);
+      break;
+
+    case "F3":
+      e.preventDefault();
+      openSearchSo(index);
+      break;
+  }
+};
+
 // // --- Watchers & Lifecycle ---
 // watch(items, updateHeaderApprovalStatus, { deep: true }); // Update header APV jika ada perubahan detail
 
@@ -663,9 +686,7 @@ onMounted(async () => {
                 density="compact"
                 hide-details
                 placeholder="F1 (Inv) / F2 (Dep) / F3 (SO)..."
-                @keydown.f1.prevent="openSearchInvoice(index)"
-                @keydown.f2.prevent="openSearchDeposit(index)"
-                @keydown.f3.prevent="openSearchSo(index)"
+                @keydown="handleNomorKeydown($event, index, item)"
                 :readonly="!!item.nomor || isApprover || header.isApproved || !canSave"
               />
             </template>

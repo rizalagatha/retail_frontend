@@ -313,6 +313,19 @@ const removeRow = (id: number) => {
   dialogConfirm.show = true;
 };
 
+const handleSoKeydown = (e: KeyboardEvent) => {
+  switch (e.key) {
+    case "Enter":
+      loadFromSO();
+      break;
+
+    case "F1":
+      e.preventDefault();
+      isSoLookupVisible.value = true;
+      break;
+  }
+};
+
 // --- Konfigurasi Tabel ---
 const tableHeaders = [
   { title: "No", key: "no", sortable: false, width: "50px" },
@@ -408,8 +421,7 @@ onMounted(() => {
                 :readonly="isEditMode"
                 density="compact"
                 hide-details
-                @keydown.enter="loadFromSO"
-                @keydown.f1.prevent="isSoLookupVisible = true"
+                @keydown="handleSoKeydown"
                 placeholder="F1 untuk cari..."
                 append-inner-icon="mdi-magnify"
                 @click:append-inner="isSoLookupVisible = true"

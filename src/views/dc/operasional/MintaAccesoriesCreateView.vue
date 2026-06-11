@@ -60,6 +60,7 @@ const header = reactive({
   nomor: "",
   tanggal: format(new Date(), "yyyy-MM-dd"),
   cabang: "P03", // Terkunci mati
+  jenis: "ACCESORIES",
   gudangProduksiKode: "K0001", // Default Kode Gudang Produksi
   gudangProduksiNama: "KAOSAN", // Default Nama Gudang Produksi
   keterangan: "BARU", // Default Keterangan
@@ -156,6 +157,7 @@ const loadData = async (nomor: string) => {
     header.nomor = data.header.nomor;
     header.tanggal = data.header.tanggal ? format(parseISO(data.header.tanggal), "yyyy-MM-dd") : "";
     header.cabang = data.header.cabang || "P03";
+    header.jenis = data.header.jenis || "ACCESORIES";
     header.gudangProduksiKode = data.header.gudangProduksiKode || "K0001";
     header.gudangProduksiNama = "KAOSAN";
     header.keterangan = data.header.keterangan || "BARU";
@@ -331,6 +333,17 @@ onMounted(() => {
               />
             </v-col>
             <v-col cols="12">
+              <v-select
+                label="Jenis Permintaan"
+                v-model="header.jenis"
+                :items="['ACCESORIES', 'OBAT']"
+                variant="outlined"
+                density="compact"
+                hide-details
+                :readonly="isEditMode"
+              />
+            </v-col>
+            <v-col cols="12">
               <v-text-field
                 label="Cabang Peminta"
                 v-model="header.cabang"
@@ -446,6 +459,8 @@ onMounted(() => {
 
     <AccesoriesSearchModal
       v-if="isSearchModalVisible"
+      :jenis="header.jenis"
+      cabang="P04"
       @close="isSearchModalVisible = false"
       @item-selected="handleItemSelected"
     />

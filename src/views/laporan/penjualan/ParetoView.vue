@@ -61,6 +61,7 @@ const filters = reactive<{
   kategori: string | null;
   search: string;
   limit: number;
+  detailPerCabang: boolean;
 }>({
   startDate: format(subDays(new Date(), 30), "yyyy-MM-dd"),
   endDate: format(new Date(), "yyyy-MM-dd"),
@@ -68,6 +69,7 @@ const filters = reactive<{
   kategori: "ALL",
   search: "",
   limit: 50,
+  detailPerCabang: false,
 });
 
 const columnFilters = ref<Record<string, ColumnFilter>>({});
@@ -109,7 +111,7 @@ const headers = computed(() => {
   ];
 
   // Tampilkan kolom Cabang hanya jika filter TIDAK "SEMUA CABANG (ALL)"
-  if (filters.cabang !== "ALL") {
+  if (filters.cabang !== "ALL" || filters.detailPerCabang) {
     baseHeaders.unshift({ title: "Cabang", key: "Cab", width: 80 });
   }
 
@@ -187,21 +189,28 @@ const onResizeEnd = () => {
 const fetchData = async () => {
   isLoading.value = true;
   try {
-    const response = await api.get("/pareto", { params: filters });
+    const response = await api.get("/pareto", {
+      params: {
+        startDate: filters.startDate,
+        endDate: filters.endDate,
+        cabang: filters.cabang,
+        kategori: filters.kategori,
+        search: filters.search,
+        limit: filters.limit,
+        // ← kirim isExport=true hanya saat ALL + detailPerCabang
+        isExport: filters.cabang === "ALL" && filters.detailPerCabang ? "true" : "false",
+      },
+    });
     items.value = response.data;
   } catch (err) {
     const error = err as AxiosError<{ message?: string }>;
-
     if (error.response) {
-      // Error dari server (HTTP 4xx/5xx)
       toast.error(
         error.response.data?.message || `Gagal memuat data. Status: ${error.response.status}`
       );
     } else if (error.request) {
-      // Request dibuat tapi tidak ada response
       toast.error("Tidak ada respon dari server. Periksa koneksi.");
     } else {
-      // Error lain (misal konfigurasi axios)
       toast.error(`Terjadi kesalahan: ${error.message}`);
     }
   } finally {
@@ -398,12 +407,18 @@ const exportToExcel = async () => {
 };
 
 const handlePrint = () => {
-  // Bangun URL untuk halaman cetak dengan filter saat ini
   const routeData = router.resolve({
-    name: "LaporanParetoPrint", // Nama rute baru kita
-    query: { ...filters },
+    name: "LaporanParetoPrint",
+    query: {
+      startDate: filters.startDate,
+      endDate: filters.endDate,
+      cabang: filters.cabang ?? "",
+      kategori: filters.kategori ?? "",
+      search: filters.search,
+      limit: String(filters.limit),
+      detailPerCabang: String(filters.detailPerCabang), // ← convert ke string
+    },
   });
-  // Buka di tab baru
   window.open(routeData.href, "_blank");
 };
 
@@ -414,6 +429,14 @@ onMounted(() => {
 });
 
 watch(filters, fetchData, { deep: true });
+watch(
+  () => filters.cabang,
+  (newVal) => {
+    if (newVal !== "ALL") {
+      filters.detailPerCabang = false;
+    }
+  }
+);
 </script>
 
 <template>
@@ -469,6 +492,18 @@ watch(filters, fetchData, { deep: true });
           class="ms-4"
           style="max-width: 180px"
         />
+        <v-btn-toggle
+          v-if="filters.cabang === 'ALL'"
+          v-model="filters.detailPerCabang"
+          density="compact"
+          variant="outlined"
+          color="primary"
+          mandatory
+          class="ms-2 detail-toggle"
+        >
+          <v-btn :value="false" size="small">Gabungan</v-btn>
+          <v-btn :value="true" size="small">Per Cabang</v-btn>
+        </v-btn-toggle>
         <v-text-field
           label="Item"
           v-model.number="filters.limit"
@@ -486,8 +521,7 @@ watch(filters, fetchData, { deep: true });
           density="compact"
           hide-details
           variant="outlined"
-          class="ms-4"
-          style="max-width: 250px"
+          class="ms-4 search-pareto"
           clearable
         />
         <v-spacer />
@@ -510,109 +544,111 @@ watch(filters, fetchData, { deep: true });
       </div>
 
       <div class="table-container">
-        <AppDataTable
-          :headers="headers"
-          :items="filteredItems"
-          v-model:page="page"
-          :items-per-page="itemsPerPage"
-          :items-per-page-options="[10, 20, 50, 100]"
-          show-current-page
-          density="compact"
-          fixed-header
-        >
-          <template #headers="{ columns, isSorted, getSortIcon, toggleSort }">
-            <tr>
-              <template v-for="col in columns" :key="col.key">
-                <th
-                  :style="{
-                    width: col.width + 'px',
-                    minWidth: col.width + 'px',
-                    maxWidth: col.width + 'px',
-                  }"
-                  class="resizable-header"
-                  :class="{
-                    'text-end': col.align === 'end',
-                    'text-center': col.align === 'center',
-                  }"
-                  @click="toggleSort(col)"
-                >
-                  <div class="header-content">
-                    <span>{{ col.title }}</span>
+        <div class="table-scroll-wrapper">
+          <AppDataTable
+            :headers="headers"
+            :items="filteredItems"
+            v-model:page="page"
+            :items-per-page="itemsPerPage"
+            :items-per-page-options="[10, 20, 50, 100]"
+            show-current-page
+            density="compact"
+            fixed-header
+          >
+            <template #headers="{ columns, isSorted, getSortIcon, toggleSort }">
+              <tr>
+                <template v-for="col in columns" :key="col.key">
+                  <th
+                    :style="{
+                      width: col.width + 'px',
+                      minWidth: col.width + 'px',
+                      maxWidth: col.width + 'px',
+                    }"
+                    class="resizable-header"
+                    :class="{
+                      'text-end': col.align === 'end',
+                      'text-center': col.align === 'center',
+                    }"
+                    @click="toggleSort(col)"
+                  >
+                    <div class="header-content">
+                      <span>{{ col.title }}</span>
 
-                    <div class="header-icons">
-                      <v-icon v-if="isSorted(col)" size="12">
-                        {{ getSortIcon(col) }}
-                      </v-icon>
+                      <div class="header-icons">
+                        <v-icon v-if="isSorted(col)" size="12">
+                          {{ getSortIcon(col) }}
+                        </v-icon>
 
-                      <v-menu location="bottom start">
-                        <template #activator="{ props }">
-                          <v-icon
-                            size="16"
-                            v-bind="props"
-                            :color="isFilterActive(col.key) ? 'blue' : ''"
-                            :icon="
-                              filterType(col.key) === 'custom'
-                                ? 'mdi-filter-cog'
-                                : filterType(col.key) === 'multi'
-                                ? 'mdi-filter-multiple'
-                                : 'mdi-filter-variant'
-                            "
-                          />
-                        </template>
+                        <v-menu location="bottom start">
+                          <template #activator="{ props }">
+                            <v-icon
+                              size="16"
+                              v-bind="props"
+                              :color="isFilterActive(col.key) ? 'blue' : ''"
+                              :icon="
+                                filterType(col.key) === 'custom'
+                                  ? 'mdi-filter-cog'
+                                  : filterType(col.key) === 'multi'
+                                  ? 'mdi-filter-multiple'
+                                  : 'mdi-filter-variant'
+                              "
+                            />
+                          </template>
 
-                        <v-list class="filter-menu">
-                          <v-list-item @click="clearColumnFilter(col.key)">
-                            <v-list-item-title>(Select All)</v-list-item-title>
-                          </v-list-item>
+                          <v-list class="filter-menu">
+                            <v-list-item @click="clearColumnFilter(col.key)">
+                              <v-list-item-title>(Select All)</v-list-item-title>
+                            </v-list-item>
 
-                          <v-divider />
+                            <v-divider />
 
-                          <v-list-item
-                            v-for="val in uniqueValues(col.key)"
-                            :key="val"
-                            @click.stop="toggleMultiSelectValue(col.key, val)"
-                          >
-                            <template #prepend>
-                              <v-checkbox
-                                density="compact"
-                                :model-value="columnFilters[col.key]?.values?.includes(val)"
-                              />
-                            </template>
-
-                            <v-list-item-title>{{ val }}</v-list-item-title>
-                          </v-list-item>
-
-                          <v-divider />
-
-                          <v-list-item @click="openCustomFilter(col.key)">
-                            <v-list-item-title class="custom-filter-item"
-                              >(Custom Filter…)</v-list-item-title
+                            <v-list-item
+                              v-for="val in uniqueValues(col.key)"
+                              :key="val"
+                              @click.stop="toggleMultiSelectValue(col.key, val)"
                             >
-                          </v-list-item>
-                        </v-list>
-                      </v-menu>
+                              <template #prepend>
+                                <v-checkbox
+                                  density="compact"
+                                  :model-value="columnFilters[col.key]?.values?.includes(val)"
+                                />
+                              </template>
+
+                              <v-list-item-title>{{ val }}</v-list-item-title>
+                            </v-list-item>
+
+                            <v-divider />
+
+                            <v-list-item @click="openCustomFilter(col.key)">
+                              <v-list-item-title class="custom-filter-item"
+                                >(Custom Filter…)</v-list-item-title
+                              >
+                            </v-list-item>
+                          </v-list>
+                        </v-menu>
+                      </div>
+                      <!-- ✅ TUTUP DI SINI -->
                     </div>
-                    <!-- ✅ TUTUP DI SINI -->
-                  </div>
-                  <!-- ✅ TUTUP .header-content -->
+                    <!-- ✅ TUTUP .header-content -->
 
-                  <div class="resizer" @mousedown.stop="onResizeStart($event, col)" @click.stop />
-                </th>
-              </template>
-            </tr>
-          </template>
+                    <div class="resizer" @mousedown.stop="onResizeStart($event, col)" @click.stop />
+                  </th>
+                </template>
+              </tr>
+            </template>
 
-          <!-- BODY -->
-          <template v-for="col in headers" :key="col.key" #[`item.${col.key}`]="{ item }">
-            <td :class="{ 'text-end': col.align === 'end' }">
-              {{
-                typeof item[col.key] === "number"
-                  ? item[col.key].toLocaleString("id-ID")
-                  : item[col.key]
-              }}
-            </td>
-          </template>
-        </AppDataTable>
+            <!-- BODY -->
+            <template v-for="col in headers" :key="col.key" #[`item.${col.key}`]="{ item }">
+              <td :class="{ 'text-end': col.align === 'end' }">
+                {{
+                  typeof item[col.key] === "number"
+                    ? item[col.key].toLocaleString("id-ID")
+                    : item[col.key]
+                }}
+              </td>
+            </template>
+          </AppDataTable>
+        </div>
       </div>
     </div>
 
@@ -654,6 +690,38 @@ watch(filters, fetchData, { deep: true });
 .table-container {
   height: calc(100vh - 220px);
   overflow-y: auto;
+  overflow-x: auto; /* ← tambah */
+  position: relative; /* ← tambah */
+}
+
+/* Sticky horizontal scrollbar */
+.table-container :deep(.v-table__wrapper) {
+  overflow-x: auto !important;
+  overflow-y: visible !important;
+}
+
+.table-container :deep(table) {
+  min-width: max-content;
+}
+
+/* Footer pagination sticky di bawah */
+.table-container :deep(.v-data-table-footer) {
+  position: sticky;
+  bottom: 0;
+  left: 0;
+  z-index: 3;
+  background-color: rgb(var(--v-theme-surface));
+  border-top: 1px solid rgba(var(--v-theme-on-surface), 0.12);
+}
+
+css.table-scroll-wrapper {
+  width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+.table-scroll-wrapper :deep(.v-table__wrapper) {
+  overflow: visible !important;
 }
 
 /* GENERAL TABLE LOOK */
@@ -731,5 +799,18 @@ watch(filters, fetchData, { deep: true });
   align-items: center;
   gap: 2px;
   /* jarak antar ikon */
+}
+
+.detail-toggle :deep(.v-btn) {
+  height: 28px !important;
+  width: auto !important;
+  min-width: 80px !important;
+  padding: 0 10px !important;
+  font-size: 11px !important;
+}
+
+.filter-section :deep(.search-pareto) .v-field {
+  width: 220px !important;
+  min-width: 220px !important;
 }
 </style>

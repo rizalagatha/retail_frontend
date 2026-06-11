@@ -492,6 +492,25 @@ const executeSave = async (approverName: string = "") => {
   }
 };
 
+const handleKodeKeydown = (e: KeyboardEvent, index: number) => {
+  switch (e.key) {
+    case "Enter":
+      e.preventDefault();
+      handleBarcodeEnter(index);
+      break;
+
+    case "F1":
+      e.preventDefault();
+      openProductSearch(index, false);
+      break;
+
+    case "F2":
+      e.preventDefault();
+      openProductSearch(index, true);
+      break;
+  }
+};
+
 onMounted(() => {
   const id = route.params.id as string;
   if (id) {
@@ -648,9 +667,7 @@ onMounted(() => {
                 hide-details
                 placeholder="Barcode/F1/F2..."
                 :readonly="!!item.nama"
-                @keydown.enter.prevent="handleBarcodeEnter(index)"
-                @keydown.f1.prevent="openProductSearch(index, false)"
-                @keydown.f2.prevent="openProductSearch(index, true)"
+                @keydown="handleKodeKeydown($event, index)"
               />
             </template>
             <template v-slot:[`item.jumlah`]="{ item }">

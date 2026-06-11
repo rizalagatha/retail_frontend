@@ -2,7 +2,6 @@
 import { ref, reactive, onMounted, onUnmounted, computed, watch, nextTick } from "vue";
 import { useToast } from "vue-toastification";
 import { useRouter } from "vue-router";
-import { useAuthStore } from "@/stores/authStore";
 import api from "@/services/api";
 import { format, parseISO } from "date-fns";
 import PageLayout from "@/components/PageLayout.vue";
@@ -39,7 +38,6 @@ interface SalesRecord {
 // ─── Init ─────────────────────────────────────────────────────────────────────
 const toast = useToast();
 const router = useRouter();
-const auth = useAuthStore();
 const MENU_ID = "506";
 
 // ─── State ────────────────────────────────────────────────────────────────────

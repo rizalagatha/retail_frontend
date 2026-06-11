@@ -9,6 +9,8 @@ import { format, parseISO } from "date-fns";
 import ExcelJS from "exceljs";
 import AppDataTable from "@/components/AppDataTable.vue";
 import { formatRupiah } from "@/utils/formatRupiah";
+import AuthorizationModal from "@/components/modal/AuthorizationModal.vue";
+import type { AxiosError } from "axios";
 
 // Interface Header (Resize)
 interface DataTableHeader {
@@ -92,6 +94,13 @@ const filters = reactive({
 const isCloseDialogVisible = ref(false);
 const itemToClose = ref<SoHeader | null>(null);
 const closeReason = ref("");
+const isAuthCloseSoVisible = ref(false);
+const authCloseSoPayload = ref<{
+  transaksi: string;
+  keterangan: string;
+  nominal: number;
+}>({ transaksi: "", keterangan: "", nominal: 0 });
+const pendingCloseSoReason = ref("");
 
 const filterOptions = ref([
   { title: "Nomor", value: "Nomor" },
@@ -399,48 +408,71 @@ const loadDetails = async (newlyExpandedItems: SoHeader[]) => {
   }
 };
 
-// const openCloseDialog = () => {
-//   if (!isSingleSelected.value) return;
-//   const item = selected.value[0];
-//   if (item.Status === "CLOSE" || item.Status === "DICLOSE") {
-//     toast.warning("SO ini sudah berstatus Close.");
-//     return;
-//   }
-//   itemToClose.value = item;
-//   closeReason.value = item.AlasanClose || "";
-//   isCloseDialogVisible.value = true;
-// };
-
-const submitClose = async () => {
-  const item = itemToClose.value;
-  if (!item) return;
-
-  if (!authStore.user) {
-    toast.error("User tidak valid.");
+const openCloseDialog = () => {
+  if (!isSingleSelected.value) return;
+  const item = selected.value[0];
+  if (item.Status === "CLOSE" || item.Status === "DICLOSE") {
+    toast.warning("SO ini sudah berstatus Close.");
     return;
   }
+  itemToClose.value = item;
+  closeReason.value = item.AlasanClose || "";
+  isCloseDialogVisible.value = true;
+};
+
+// submitClose sekarang hanya buka auth modal
+const submitClose = () => {
+  const item = itemToClose.value;
+  if (!item) return;
+  if (!closeReason.value.trim()) {
+    toast.error("Alasan harus diisi.");
+    return;
+  }
+
+  pendingCloseSoReason.value = closeReason.value;
+  isCloseDialogVisible.value = false;
+
+  authCloseSoPayload.value = {
+    transaksi: item.Nomor,
+    keterangan: `Close SO: ${item.Nomor}\nCustomer: ${String(item.Nama || "-")}\nAlasan: ${
+      closeReason.value
+    }`,
+    nominal: Number(item.Nominal || 0),
+  };
+  isAuthCloseSoVisible.value = true;
+};
+
+// Dipanggil setelah auth APPROVED
+const doCloseSo = async ({ authNomor }: { authNomor: string; approver: string }) => {
+  const item = itemToClose.value;
+  if (!item || !authStore.user) return;
+  isAuthCloseSoVisible.value = false;
 
   try {
     await api.post("/so/close", {
       nomor: item.Nomor,
-      alasan: closeReason.value,
+      alasan: pendingCloseSoReason.value,
       user: authStore.user.kode,
+      authNomor,
     });
-
     toast.success("SO berhasil ditutup.");
-    isCloseDialogVisible.value = false;
 
     const itemInList = list.value.find((x) => x.Nomor === item.Nomor);
     if (itemInList) {
       itemInList.Status = "DICLOSE";
-      itemInList.AlasanClose = closeReason.value;
+      itemInList.AlasanClose = pendingCloseSoReason.value;
     }
-
     selected.value = [];
+    itemToClose.value = null;
   } catch (error: unknown) {
-    const e = error as { response?: { data?: { message?: string } } };
-    toast.error(e.response?.data?.message || "Gagal menutup SO.");
+    const err = error as AxiosError<{ message?: string }>;
+    toast.error(err.response?.data?.message || "Gagal menutup SO.");
   }
+};
+
+const onAuthCloseSoCancelled = () => {
+  isAuthCloseSoVisible.value = false;
+  isCloseDialogVisible.value = true;
 };
 
 const getRowTextColor = (item: SoHeader) => {
@@ -1160,14 +1192,16 @@ onBeforeRouteLeave((to, from, next) => {
         </v-list>
       </v-menu>
       <v-divider vertical class="mx-2"></v-divider>
-      <!-- <v-btn
+      <v-btn
         v-if="authStore.can(MENU_ID, 'edit')"
         size="small"
         :disabled="!isSingleSelected"
         color="orange-darken-2"
+        prepend-icon="mdi-lock-outline"
         @click="openCloseDialog"
-        >Close SO</v-btn
-      > -->
+      >
+        Close SO
+      </v-btn>
     </template>
 
     <div v-if="!hasViewPermission" class="state-container">
@@ -1601,6 +1635,7 @@ onBeforeRouteLeave((to, from, next) => {
         </v-card-actions>
       </v-card>
     </v-dialog>
+
     <v-dialog v-model="customFilterDialog" max-width="350px">
       <v-card>
         <v-card-title class="text-h6"> Custom Filter — {{ customFilter.key }} </v-card-title>
@@ -1632,6 +1667,18 @@ onBeforeRouteLeave((to, from, next) => {
         </v-card-actions>
       </v-card>
     </v-dialog>
+
+    <!-- AuthorizationModal untuk Close SO -->
+    <AuthorizationModal
+      v-if="isAuthCloseSoVisible"
+      title="Otorisasi Close Surat Pesanan"
+      jenis="CLOSE_SO"
+      :transaksi="authCloseSoPayload.transaksi"
+      :keterangan="authCloseSoPayload.keterangan"
+      :nominal="authCloseSoPayload.nominal"
+      @success="doCloseSo"
+      @close="onAuthCloseSoCancelled"
+    />
   </PageLayout>
 </template>
 

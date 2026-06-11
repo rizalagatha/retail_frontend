@@ -66,9 +66,17 @@ const loadItems = async ({ page, itemsPerPage }: { page: number; itemsPerPage: n
     // --- PERBARUI LOGIKA RESPON ---
     // Cek apakah data adalah array (untuk qc-garmen) atau objek (untuk paginasi)
     if (Array.isArray(response.data)) {
-      // Untuk qc-garmen
-      items.value = response.data;
-      totalItems.value = response.data.length;
+      // Filter frontend berdasarkan search term
+      const filtered = search.value
+        ? response.data.filter(
+            (g: Gudang) =>
+              g.kode.toLowerCase().includes(search.value.toLowerCase()) ||
+              g.nama.toLowerCase().includes(search.value.toLowerCase())
+          )
+        : response.data;
+
+      items.value = filtered;
+      totalItems.value = filtered.length; // ← KUNCI: harus > 0 agar baris ter-render
     } else if (
       response.data &&
       Array.isArray(response.data.items) &&

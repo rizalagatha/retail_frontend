@@ -9,6 +9,8 @@ import PrintOptionModal from "./PrintOptionModal.vue";
 import ReturJualSearchModal from "@/components/lookup/ReturJualSearchModal.vue";
 import type { AxiosError } from "axios";
 import { formatRupiah } from "@/utils/formatRupiah";
+import { useCustomerVisit } from "@/composables/useCustomerVisit";
+import CustomerVisitDialog from "@/components/dialog/CustomerVisitDialog.vue";
 
 interface BankAccount {
   kode: string;
@@ -122,6 +124,15 @@ interface AuthDialogState {
   onCancel: (() => void) | null;
 }
 
+interface PackagingItem {
+  kode: string;
+  nama: string;
+  harga: number;
+  stok: number;
+  qty: number;
+  checked: boolean;
+}
+
 const props = defineProps({
   invoiceHeader: { type: Object, required: true },
   invoiceItems: { type: Array, required: true },
@@ -136,6 +147,18 @@ const emit = defineEmits(["close", "save-success"]);
 
 const toast = useToast();
 const router = useRouter();
+
+const { isVisitDialogVisible, checkAndPromptVisit, handleSelectVisit, handleCancelVisit } =
+  useCustomerVisit();
+
+const packagingList = ref<PackagingItem[]>([]);
+const isLoadingPackaging = ref(false);
+
+const totalPackaging = computed(() =>
+  packagingList.value.reduce((sum, p) => sum + p.harga * p.qty, 0)
+);
+
+const totalPackagingPcs = computed(() => packagingList.value.reduce((sum, p) => sum + p.qty, 0));
 
 // --- State ---
 const payment = reactive({
@@ -229,6 +252,11 @@ const rekeningSearchCaller = ref<"transfer" | "qris">("transfer");
 import Logo from "@/assets/logo.png";
 import InstagramLogo from "@/assets/instagram.jpg";
 import FacebookLogo from "@/assets/facebook.jpg";
+
+import ImgKardus from "@/assets/kardus.png";
+import ImgPlastik from "@/assets/plastik.png";
+import ImgGoodie from "@/assets/goodie-bag.png";
+
 const appLogo = Logo;
 const igLogo = InstagramLogo;
 const fbLogo = FacebookLogo;
@@ -247,8 +275,9 @@ const totalBayar = computed(() => {
     (payment.tunai || 0) +
     (payment.voucher.nominal || 0) +
     (payment.transfer.nominal ?? 0) +
-    (payment.qris.nominal ?? 0) + // Tambahkan QRIS ke total
+    (payment.qris.nominal ?? 0) +
     (payment.retur.nominal || 0)
+    // Packaging tidak masuk total bayar — sudah termasuk di grandTotal
   );
 });
 
@@ -408,6 +437,43 @@ const onReturSelected = (retur: { Nomor: string; Sisa: number }) => {
   payment.retur.nominal = Math.min(retur.Sisa, sisaPiutang);
   dialogs.returJualSearch = false;
 };
+
+const fetchPackaging = async () => {
+  isLoadingPackaging.value = true;
+  try {
+    const res = await api.get("/invoice-form/lookup/packaging-options");
+    packagingList.value = res.data.map((p: PackagingItem) => ({
+      ...p,
+      qty: 0,
+      checked: false,
+    }));
+  } catch {
+    toast.error("Gagal memuat opsi packaging.");
+  } finally {
+    isLoadingPackaging.value = false;
+  }
+};
+
+// Saat qty diubah, auto-check jika qty > 0
+const onPackagingQtyChange = (item: PackagingItem) => {
+  if (item.qty > 0) item.checked = true;
+  if (item.qty <= 0) {
+    item.qty = 0;
+    item.checked = false;
+  }
+};
+
+const getPackagingImage = (nama: string) => {
+  const n = nama.toUpperCase();
+  if (n.includes("KARDUS")) return ImgKardus;
+  if (n.includes("GOODIE")) return ImgGoodie;
+  if (n.includes("PLASTIK")) return ImgPlastik;
+  return ImgKardus; // Fallback default
+};
+
+onMounted(() => {
+  fetchPackaging();
+});
 
 // [UPDATE] Handle Final Save
 const handleFinalSave = async () => {
@@ -605,6 +671,42 @@ const onSelectKaryawan = async (selected: KaryawanSearchResult | null) => {
 
 const executeSave = async () => {
   if (isSaving.value) return;
+
+  // 1. Definisikan Aturan Eksklusi Cabang & Customer
+  const cabang = props.invoiceHeader.gudang?.kode || "";
+  const custNama = (props.invoiceHeader.customer?.nama || "").toUpperCase();
+  const custKode = (props.invoiceHeader.customer?.kode || "").toUpperCase();
+
+  // Validasi Toko Offline Reguler (Dimulai dari 'K' diikuti angka, tapi bukan KDC/KPR/KON)
+  const isOfflineStore =
+    /^K\d+/.test(cabang) && cabang !== "KDC" && cabang !== "KPR" && cabang !== "KON";
+  const isRetailCustomer = custNama.includes("RETAIL") || custKode.includes("RETAIL");
+  const isMarketplace =
+    props.invoiceHeader.isMarketplace === true || props.invoiceHeader.isMarketplace === "Y";
+
+  let finalTipeKunjungan: "STORE" | "WA" | null = null;
+
+  if (isOfflineStore && !isMarketplace && !props.invoiceHeader.nomor) {
+    if (isRetailCustomer) {
+      // ATURAN AUTOMATIC: Jika customer RETAIL/RETAILER, langsung set STORE tanpa dialog
+      finalTipeKunjungan = "STORE";
+    } else {
+      // JALUR NORMAL: Tampilkan dialog pilihan WA / STORE jika belum ada histori kunjungan hari ini
+      const promptedResult = await checkAndPromptVisit(
+        props.invoiceHeader.customer?.kode || "",
+        props.invoiceHeader.tanggal,
+        false,
+        props.invoiceHeader.customer?.nama || ""
+      );
+
+      if (promptedResult === "CANCEL") {
+        isSaving.value = false;
+        return;
+      }
+      finalTipeKunjungan = promptedResult;
+    }
+  }
+
   isSaving.value = true; // Kunci tombol
   try {
     // [FIX 1] Gunakan tipe 'any' atau Interface baru untuk payload
@@ -664,9 +766,28 @@ const executeSave = async () => {
         nominal: Number(dp.nominal),
       }));
 
+    const packagingItems = packagingList.value
+      .filter((p) => p.qty > 0)
+      .map((p) => ({
+        kode: p.kode,
+        nama: p.nama,
+        ukuran: "PCS",
+        jumlah: p.qty,
+        harga: p.harga,
+        diskonPersen: 0,
+        diskonRp: 0,
+        total: p.harga * p.qty,
+        hpp: 0,
+        kategori: "PACKAGING",
+        isPackaging: true, // flag untuk trigger stok bahan
+      }));
+
     const payload = {
       header: props.invoiceHeader,
-      items: (props.invoiceItems as InvoiceItem[]).filter((item) => item.kode),
+      items: [
+        ...(props.invoiceItems as InvoiceItem[]).filter((item) => item.kode),
+        ...packagingItems,
+      ],
       dps: cleanDps,
       // Gunakan paymentPayload yang sudah kita modifikasi di atas
       payment: {
@@ -705,6 +826,7 @@ const executeSave = async () => {
       },
       pins: props.authPins,
       isNew: !props.invoiceHeader.nomor,
+      tipeKunjungan: finalTipeKunjungan,
     };
 
     const response = await api.post("/invoice-form/save", payload);
@@ -1080,7 +1202,7 @@ watch(
 </script>
 
 <template>
-  <v-dialog :model-value="true" @update:model-value="$emit('close')" max-width="800px" persistent>
+  <v-dialog :model-value="true" @update:model-value="$emit('close')" max-width="1100px" persistent>
     <v-card>
       <v-toolbar color="primary" density="compact">
         <v-toolbar-title>Form Pembayaran</v-toolbar-title>
@@ -1090,7 +1212,7 @@ watch(
 
       <v-card-text class="pa-4">
         <v-row>
-          <v-col cols="12" md="5">
+          <v-col cols="12" md="4">
             <div class="desktop-form-section mb-4">
               <div class="text-subtitle-2 font-weight-bold mb-2">Ringkasan Invoice</div>
               <div class="d-flex justify-space-between text-caption">
@@ -1237,7 +1359,7 @@ watch(
             </div>
           </v-col>
 
-          <v-col cols="12" md="7">
+          <v-col cols="12" md="4">
             <div class="desktop-form-section">
               <div class="text-subtitle-2 font-weight-bold mb-2">
                 Metode Pembayaran:
@@ -1517,6 +1639,111 @@ watch(
               </v-window>
             </div>
           </v-col>
+          <v-col cols="12" md="4">
+            <div class="desktop-form-section">
+              <div class="text-subtitle-2 font-weight-bold mb-3 d-flex align-center gap-2">
+                <v-icon color="teal" size="18">mdi-package-variant-closed</v-icon>
+                Tambah Packaging
+              </div>
+
+              <div v-if="isLoadingPackaging" class="text-center py-4">
+                <v-progress-circular indeterminate color="teal" size="24" />
+              </div>
+
+              <div v-else>
+                <!-- Grid 2 Kolom -->
+                <div
+                  class="py-4 px-2"
+                  style="
+                    display: grid;
+                    grid-template-columns: repeat(2, 1fr);
+                    gap: 16px;
+                    justify-items: center;
+                  "
+                >
+                  <div
+                    v-for="item in packagingList.filter((p) => p.stok > 0)"
+                    :key="item.kode"
+                    class="d-flex flex-column align-center cursor-pointer"
+                    style="width: 100%; max-width: 140px"
+                  >
+                    <!-- Wrapper Gambar dengan Badge Angka -->
+                    <v-badge
+                      :content="item.qty"
+                      :model-value="item.qty > 0"
+                      color="teal"
+                      offset-x="10"
+                      offset-y="10"
+                    >
+                      <div
+                        class="packaging-wrapper mb-2"
+                        :class="{ 'active-packaging': item.qty > 0 }"
+                        @click="
+                          item.qty++;
+                          onPackagingQtyChange(item);
+                        "
+                      >
+                        <!-- Gambar proporsional 95x95 -->
+                        <v-img :src="getPackagingImage(item.nama)" width="95" height="95"></v-img>
+                      </div>
+                    </v-badge>
+
+                    <!-- Teks dengan batasan 3 baris agar tingginya rata -->
+                    <div
+                      class="text-center font-weight-bold text-uppercase text-black px-1"
+                      style="
+                        font-size: 10px;
+                        line-height: 1.3;
+                        height: 38px;
+                        overflow: hidden;
+                        display: -webkit-box;
+                        -webkit-line-clamp: 3;
+                        line-clamp: 3;
+                        -webkit-box-orient: vertical;
+                      "
+                      :title="item.nama"
+                    >
+                      {{ item.nama }}
+                    </div>
+
+                    <!-- Tombol Minus (langsung di bawah teks) -->
+                    <div style="height: 28px" class="mt-1">
+                      <v-btn
+                        v-if="item.qty > 0"
+                        icon="mdi-minus"
+                        size="small"
+                        variant="flat"
+                        color="red-lighten-4"
+                        class="text-red-darken-2"
+                        style="width: 26px; height: 26px; min-height: 26px"
+                        @click.stop="
+                          item.qty--;
+                          onPackagingQtyChange(item);
+                        "
+                      ></v-btn>
+                    </div>
+                  </div>
+                </div>
+
+                <div
+                  v-if="packagingList.filter((p) => p.stok > 0).length === 0"
+                  class="text-center text-caption text-grey py-3"
+                >
+                  Tidak ada stok packaging tersedia
+                </div>
+
+                <v-divider class="my-3" />
+                <div class="d-flex justify-space-between text-caption font-weight-bold px-2 py-1">
+                  <span class="text-black text-subtitle-2"
+                    >Total Packaging ({{ totalPackagingPcs }} pcs):</span
+                  >
+                  <span class="text-teal text-subtitle-2">{{
+                    totalPackaging > 0 ? formatRupiah(totalPackaging) : "0"
+                  }}</span>
+                </div>
+              </div>
+            </div>
+          </v-col>
         </v-row>
       </v-card-text>
 
@@ -1712,6 +1939,12 @@ watch(
       </v-card-actions>
     </v-card>
   </v-dialog>
+
+  <CustomerVisitDialog
+    v-model="isVisitDialogVisible"
+    @select="handleSelectVisit"
+    @cancel="handleCancelVisit"
+  />
 </template>
 
 <style scoped>
@@ -1786,6 +2019,27 @@ watch(
 .summary-item:nth-child(3) span:last-child {
   color: #2e7d32;
   /* Hijau untuk netto */
+}
+
+/* Efek Gambar Packaging Transparan */
+.packaging-wrapper {
+  transition: transform 0.2s ease, filter 0.2s ease, background-color 0.2s ease;
+  border-radius: 12px;
+  padding: 8px;
+  border: 2px solid transparent;
+}
+
+.packaging-wrapper:hover {
+  transform: scale(1.1);
+  /* Menggunakan drop-shadow agar bayangan mengikuti bentuk asli PNG (bukan kotak) */
+  filter: drop-shadow(0 6px 8px rgba(0, 0, 0, 0.15));
+}
+
+.active-packaging {
+  border: 2px solid #00897b;
+  background-color: rgba(0, 137, 123, 0.05); /* Highlight teal super tipis */
+  transform: scale(1.05);
+  filter: drop-shadow(0 4px 6px rgba(0, 137, 123, 0.2));
 }
 
 /* ===============================

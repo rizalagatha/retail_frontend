@@ -41,12 +41,6 @@ interface AllocationItem {
   kbs: number;
   kps: number;
   kpr: number;
-  k01: number;
-  k02: number;
-  k03: number;
-  k04: number;
-  k05: number;
-  k06: number;
   total: number;
   [key: string]: unknown; // untuk kolom tambahan jika ada
 }
@@ -101,24 +95,20 @@ const summaryHeaders = [
   { title: "Koli", key: "koli", align: "end" },
   { title: "Keterangan", key: "keterangan" },
 ] as const;
+
 const allocationHeaders = [
   { title: "SPK", key: "spk", width: "100px" },
   { title: "Kode Barang", key: "kode", width: "100px" },
-  { title: "Nama Barang", key: "nama", minWidth: "350px" }, // <-- Biarkan tanpa lebar agar fleksibel
-  { title: "Ukuran", key: "ukuran", width: "40px" },
-  { title: "Jumlah", key: "jumlah", align: "end", width: "40px" },
-  { title: "KDC", key: "kdc", align: "end", width: "40px" },
-  { title: "KBS", key: "kbs", align: "end", width: "40px" },
-  { title: "KPS", key: "kps", align: "end", width: "40px" },
-  { title: "KPR", key: "kpr", align: "end", width: "40px" },
-  { title: "K01", key: "k01", align: "end", width: "40px" },
-  { title: "K02", key: "k02", align: "end", width: "40px" },
-  { title: "K03", key: "k03", align: "end", width: "40px" },
-  { title: "K04", key: "k04", align: "end", width: "40px" },
-  { title: "K05", key: "k05", align: "end", width: "40px" },
-  { title: "K06", key: "k06", align: "end", width: "40px" },
-  { title: "Total Alokasi", key: "total", align: "end", width: "40px" },
+  { title: "Nama Barang", key: "nama", minWidth: "350px" },
+  { title: "Ukuran", key: "ukuran", width: "60px" },
+  { title: "Jumlah", key: "jumlah", align: "end", width: "70px" },
+  { title: "KDC", key: "kdc", align: "end", width: "70px" },
+  { title: "KBS", key: "kbs", align: "end", width: "70px" },
+  { title: "KPS", key: "kps", align: "end", width: "70px" },
+  { title: "KPR", key: "kpr", align: "end", width: "70px" },
+  { title: "Total Alokasi", key: "total", align: "end", width: "90px" },
 ] as const;
+
 const resultHeaders = [
   { title: "Store", key: "cab" },
   { title: "No. SJ", key: "sj" },
@@ -227,12 +217,7 @@ onMounted(async () => {
         kbs: 0,
         kps: 0,
         kpr: 0,
-        k01: 0,
-        k02: 0,
-        k03: 0,
-        k04: 0,
-        k05: 0,
-        k06: 0,
+
         total: 0,
       })
     ) as AllocationItem[];
@@ -249,23 +234,11 @@ watch(
   allocationItems,
   (newItems) => {
     newItems.forEach((item) => {
-      // 1. Hitung total alokasi ke semua store (selain KDC)
-      const totalAlokasiStore =
-        (item.kbs || 0) +
-        (item.kps || 0) +
-        (item.kpr || 0) +
-        (item.k01 || 0) +
-        (item.k02 || 0) +
-        (item.k03 || 0) +
-        (item.k04 || 0) +
-        (item.k05 || 0) +
-        (item.k06 || 0);
+      const totalAlokasiStore = (item.kbs || 0) + (item.kps || 0) + (item.kpr || 0);
+      // hapus: k01, k02, k03, k04, k05, k06
       item.total = totalAlokasiStore;
-
-      // 2. Hitung sisa stok untuk KDC
       item.kdc = (item.jumlah || 0) - totalAlokasiStore;
 
-      // 3. Tampilkan warning jika alokasi melebihi jumlah
       if (item.kdc < 0) {
         toast.error(`Pembagian alokasi untuk ${item.nama} (${item.ukuran}) melebihi jumlah STBJ.`);
       }
@@ -316,15 +289,16 @@ watch(
       <div class="left-column">
         <div class="desktop-form-section header-section">
           <v-row dense>
-            <v-col cols="6"
-              ><v-text-field
+            <v-col cols="6">
+              <v-text-field
                 label="No. Terima"
                 v-model="header.nomor"
                 readonly
                 filled
                 density="compact"
                 hide-details
-            /></v-col>
+              />
+            </v-col>
             <v-col cols="6"
               ><v-text-field
                 label="Tgl. Terima"
@@ -494,66 +468,6 @@ watch(
                 class="text-end"
               />
             </template>
-            <template #[`item.k01`]="{ item }">
-              <v-text-field
-                v-model.number="item.k01"
-                type="number"
-                variant="underlined"
-                density="compact"
-                hide-details
-                class="text-end"
-              />
-            </template>
-            <template #[`item.k02`]="{ item }">
-              <v-text-field
-                v-model.number="item.k02"
-                type="number"
-                variant="underlined"
-                density="compact"
-                hide-details
-                class="text-end"
-              />
-            </template>
-            <template #[`item.k03`]="{ item }">
-              <v-text-field
-                v-model.number="item.k03"
-                type="number"
-                variant="underlined"
-                density="compact"
-                hide-details
-                class="text-end"
-              />
-            </template>
-            <template #[`item.k04`]="{ item }">
-              <v-text-field
-                v-model.number="item.k04"
-                type="number"
-                variant="underlined"
-                density="compact"
-                hide-details
-                class="text-end"
-              />
-            </template>
-            <template #[`item.k05`]="{ item }">
-              <v-text-field
-                v-model.number="item.k05"
-                type="number"
-                variant="underlined"
-                density="compact"
-                hide-details
-                class="text-end"
-              />
-            </template>
-            <template #[`item.k06`]="{ item }">
-              <v-text-field
-                v-model.number="item.k06"
-                type="number"
-                variant="underlined"
-                density="compact"
-                hide-details
-                class="text-end"
-              />
-            </template>
             <template #[`item.total`]="{ item }">
               <div class="text-end font-weight-bold">{{ item.total || 0 }}</div>
             </template>
@@ -610,7 +524,7 @@ watch(
 
 .form-grid-container {
   display: grid;
-  grid-template-columns: 35% 1fr;
+  grid-template-columns: 25% 1fr;
   gap: 16px;
   padding: 16px;
   height: calc(100vh - 120px);
@@ -647,7 +561,7 @@ watch(
 
 .desktop-form-section {
   background-color: #fff;
-  padding: 16px;
+  padding: 10px 12px;
   border-radius: 8px;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
   display: flex;

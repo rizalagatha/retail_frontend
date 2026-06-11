@@ -171,14 +171,7 @@ const handleItemAdd = async (index: number) => {
 };
 
 const loadInitialData = async (isManual = false) => {
-  console.log("loadInitialData called", {
-    isManual,
-    gudang: formHeader.gudang,
-    userCabang: authStore.user?.cabang,
-  });
-
   if (!isManual && authStore.user?.cabang === "KDC" && formHeader.gudang === "KDC") {
-    console.log("SKIPPED by guard");
     isLoading.value = false;
     return;
   }

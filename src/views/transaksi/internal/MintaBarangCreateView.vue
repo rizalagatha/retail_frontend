@@ -500,6 +500,20 @@ const handleBarcodeScan = async () => {
   }
 };
 
+const handleKodeKeydown = (e: KeyboardEvent, index: number) => {
+  switch (e.key) {
+    case "F1":
+      e.preventDefault();
+      openProductSearch(index, false);
+      break;
+
+    case "F2":
+      e.preventDefault();
+      openProductSearch(index, true);
+      break;
+  }
+};
+
 // --- WATCHERS (UNSAVED CHANGES) ---
 watch(
   [formHeader, items],
@@ -733,8 +747,7 @@ const loadFromAutomasi = async (ids: string[]) => {
                 density="compact"
                 hide-details
                 placeholder="F1/F2..."
-                @keydown.f1.prevent="openProductSearch(index, false)"
-                @keydown.f2.prevent="openProductSearch(index, true)"
+                @keydown="handleKodeKeydown($event, index)"
               />
             </template>
 

@@ -7,9 +7,11 @@ import { useUiStore } from "@/stores/uiStore";
 import { useUnsavedChanges } from "@/composables/useUnsavedChanges";
 import api from "@/services/api";
 import { format, parseISO } from "date-fns";
-import PageLayout from "@/components/PageLayout.vue";
-import MintaBarangSearchModal from "@/components/lookup/MintaBarangSearchModal.vue";
 import type { AxiosError } from "axios";
+import PageLayout from "@/components/PageLayout.vue";
+
+import MintaBarangSearchModal from "@/components/lookup/MintaBarangSearchModal.vue";
+import SoSearchModal from "@/components/lookup/SoSearchModal.vue";
 
 // --- Tipe Data ---
 interface Header {
@@ -18,6 +20,10 @@ interface Header {
   storeTujuanKode: string;
   storeTujuanNama: string;
   keterangan: string;
+  nomorSo: string;
+  noSoDtf: string;
+  storeAsalNama: string;
+  rute: string;
 }
 
 interface Item {
@@ -29,6 +35,8 @@ interface Item {
   jumlah: number;
   barcode: string;
   harga?: number;
+  qtySo?: number;
+  targetQty?: number;
 }
 
 interface Product {
@@ -70,13 +78,17 @@ const header = reactive<Header>({
   storeTujuanKode: "",
   storeTujuanNama: "",
   keterangan: "",
+  nomorSo: "",
+  noSoDtf: "",
+  storeAsalNama: "",
+  rute: "LANGSUNG",
 });
 
 const items = ref<Item[]>([]);
 const workshopList = ref<WorkshopOption[]>([]);
 const isLoading = ref(true);
 const isSaving = ref(false);
-const dialog = reactive({ productSearch: false });
+const dialog = reactive({ productSearch: false, soSearch: false });
 const isMultiSelectProduct = ref(false);
 const activeRowIndex = ref(0);
 const scannedBarcode = ref("");
@@ -88,14 +100,16 @@ const dialogConfirm = reactive({
 });
 
 const tableHeaders = [
-  { title: "Kode Barang", key: "kode", width: "200px" },
+  { title: "Kode Barang", key: "kode", width: "160px" },
   { title: "Nama Barang", key: "nama" },
-  { title: "Ukuran", key: "ukuran", width: "80px" },
-  { title: "Stok", key: "stok", width: "80px" },
+  { title: "No. Bordir", key: "noSoDtf", width: "140px" },
+  { title: "Ukuran", key: "ukuran", width: "70px" },
+  { title: "Stok", key: "stok", width: "70px" },
+  { title: "Jml SO", key: "qtySo", width: "80px", align: "end" },
   { title: "Jumlah", key: "jumlah", width: "80px" },
-  { title: "Barcode", key: "barcode", width: "150px" },
+  { title: "Barcode", key: "barcode", width: "120px" },
   { title: "Actions", key: "actions", sortable: false, width: "50px" },
-];
+] as const;
 
 // --- Methods ---
 const fetchWorkshopList = async () => {
@@ -114,6 +128,59 @@ const onWorkshopSelected = (kode: string) => {
     header.storeTujuanNama = selectedWs.nama;
   } else {
     header.storeTujuanNama = "";
+  }
+
+  // Jika bukan W01 (Bordir), reset input SO
+  if (kode !== "W01" && header.nomorSo) {
+    header.nomorSo = "";
+    header.noSoDtf = "";
+    header.storeAsalNama = "";
+    items.value = [];
+    addNewRow();
+  }
+};
+
+const onSoSelected = async (so: { Nomor: string }) => {
+  dialog.soSearch = false;
+  if (!so.Nomor) return;
+
+  header.nomorSo = so.Nomor;
+  header.keterangan = `Mutasi Bordir dari SO: ${so.Nomor}`;
+  isLoading.value = true;
+
+  try {
+    const response = await api.get(`/mutasi-workshop-form/so-bordir-details/${so.Nomor}`, {
+      params: { gudang: authStore.user?.cabang },
+    });
+
+    // Kosongkan grid terlebih dahulu
+    items.value = [];
+
+    if (response.data && response.data.length > 0) {
+      header.noSoDtf = response.data[0].no_so_dtf || "";
+      header.storeAsalNama = response.data[0].store_asal_nama || "";
+    }
+
+    response.data.forEach((it: any) => {
+      items.value.push({
+        id: Date.now() + Math.random(),
+        kode: it.kode,
+        nama: it.nama,
+        ukuran: it.ukuran,
+        stok: Number(it.stok || 0),
+        jumlah: 0, // <-- Di-set 0 agar wajib discan
+        qtySo: Number(it.sisa_so || 0),
+        targetQty: Number(it.sisa_so || 0), // <-- Patokan maksimal scan
+        barcode: it.barcode || "",
+      });
+    });
+
+    addNewRow();
+    toast.success(`SO ${so.Nomor} dimuat. Silakan scan barang satu per satu.`);
+  } catch {
+    toast.error("Gagal menarik detail SO.");
+  } finally {
+    isLoading.value = false;
   }
 };
 
@@ -173,9 +240,14 @@ const onProductsSelected = async (selectedProducts: Product[]) => {
 };
 
 const validateJumlah = (item: Item) => {
-  if ((item.jumlah || 0) > item.stok) {
-    toast.error(`Jumlah untuk ${item.nama} (${item.ukuran}) melebihi stok.`);
-    item.jumlah = item.stok;
+  const maxQty = item.targetQty !== undefined ? item.targetQty : item.stok;
+  if ((item.jumlah || 0) > maxQty) {
+    toast.error(
+      `Jumlah untuk ${item.nama} (${item.ukuran}) melebihi ${
+        item.targetQty !== undefined ? "permintaan SO" : "stok"
+      }.`
+    );
+    item.jumlah = maxQty;
   }
 };
 
@@ -188,10 +260,10 @@ const save = () => {
   }
 
   if (!header.storeTujuanKode) return toast.error("Workshop Tujuan harus diisi.");
-  const validItems = items.value.filter((i) => i.kode);
-  if (validItems.length === 0) return toast.error("Detail barang harus diisi.");
-  if (validItems.some((i) => (i.jumlah || 0) <= 0))
-    return toast.error("Jumlah harus diisi lebih dari 0.");
+  const validItems = items.value.filter((i) => i.kode && (i.jumlah || 0) > 0);
+
+  if (validItems.length === 0)
+    return toast.error("Minimal harus ada 1 barang yang discan (Jumlah > 0).");
   if (validItems.some((i) => (i.jumlah || 0) > i.stok))
     return toast.error("Ada jumlah yang melebihi stok.");
 
@@ -202,7 +274,7 @@ const executeSave = async () => {
   isSaving.value = true;
   const payload = {
     header,
-    items: items.value.filter((i) => i.kode),
+    items: items.value.filter((i) => i.kode && (i.jumlah || 0) > 0),
     isNew: !isEditMode.value,
   };
   try {
@@ -266,15 +338,22 @@ const handleClose = () => {
 
 const handleBarcodeScan = async () => {
   const gudang = authStore.user?.cabang;
-  const barcode = scannedBarcode.value;
+  const barcode = scannedBarcode.value?.trim();
 
   if (!gudang) return toast.error("Gudang tidak terdefinisi!");
   if (!barcode) return;
 
   const existingItem = items.value.find((item) => item.barcode === barcode && item.kode);
   if (existingItem) {
-    if (existingItem.jumlah + 1 > existingItem.stok) {
-      toast.error("Jumlah melebihi stok yang tersedia.");
+    const maxQty =
+      existingItem.targetQty !== undefined ? existingItem.targetQty : existingItem.stok;
+
+    if (existingItem.jumlah + 1 > maxQty) {
+      toast.error(
+        existingItem.targetQty !== undefined
+          ? "Jumlah melebihi permintaan SO."
+          : "Jumlah melebihi stok yang tersedia."
+      );
     } else {
       existingItem.jumlah = (existingItem.jumlah || 0) + 1;
       toast.info(`Jumlah untuk ${existingItem.nama} ditambah.`);
@@ -317,6 +396,20 @@ const handleBarcodeScan = async () => {
   }
 };
 
+const handleProductKeydown = (e: KeyboardEvent, index: number) => {
+  switch (e.key) {
+    case "F1":
+      e.preventDefault();
+      openProductSearch(index, false);
+      break;
+
+    case "F2":
+      e.preventDefault();
+      openProductSearch(index, true);
+      break;
+  }
+};
+
 watch(
   [header, items],
   () => {
@@ -349,6 +442,8 @@ onMounted(async () => {
     items.value = response.data.items.map((item: Item) => ({
       ...item,
       id: Date.now() + Math.random(),
+      qtySo: Number(item.qtySo || 0),
+      targetQty: Number(item.qtySo || 0),
     }));
   }
   addNewRow();
@@ -387,6 +482,7 @@ onMounted(async () => {
                 hide-details
               />
             </v-col>
+
             <v-col cols="12">
               <v-text-field
                 label="Tanggal"
@@ -397,6 +493,18 @@ onMounted(async () => {
                 hide-details
               />
             </v-col>
+
+            <v-col cols="12">
+              <v-select
+                label="Rute Pengiriman"
+                v-model="header.rute"
+                :items="['LANGSUNG', 'VIA DC']"
+                variant="outlined"
+                density="compact"
+                hide-details
+              />
+            </v-col>
+
             <v-col cols="12">
               <v-select
                 label="Ke Workshop"
@@ -410,6 +518,7 @@ onMounted(async () => {
                 @update:model-value="onWorkshopSelected"
               />
             </v-col>
+
             <v-col cols="12">
               <v-text-field
                 label="Nama Workshop"
@@ -420,6 +529,51 @@ onMounted(async () => {
                 hide-details
               />
             </v-col>
+
+            <v-col cols="12" v-if="header.storeTujuanKode === 'W01'">
+              <v-text-field
+                label="Pilih Referensi SO (Bordir)"
+                v-model="header.nomorSo"
+                readonly
+                variant="outlined"
+                density="compact"
+                hide-details
+                placeholder="Klik untuk cari SO..."
+                append-inner-icon="mdi-magnify"
+                @click="dialog.soSearch = true"
+                clearable
+                @click:clear="
+                  header.nomorSo = '';
+                  header.noSoDtf = '';
+                  header.storeAsalNama = '';
+                  items = [];
+                  addNewRow();
+                "
+              />
+            </v-col>
+
+            <v-col cols="12" v-if="header.storeTujuanKode === 'W01'">
+              <v-text-field
+                label="Store Asal SO"
+                v-model="header.storeAsalNama"
+                readonly
+                filled
+                density="compact"
+                hide-details
+              />
+            </v-col>
+
+            <v-col cols="12" v-if="header.storeTujuanKode === 'W01'">
+              <v-text-field
+                label="Nomor SO DTF (Bordir)"
+                v-model="header.noSoDtf"
+                readonly
+                filled
+                density="compact"
+                hide-details
+              />
+            </v-col>
+
             <v-col cols="12">
               <v-textarea
                 label="Keterangan"
@@ -463,8 +617,7 @@ onMounted(async () => {
               density="compact"
               hide-details
               placeholder="F1/F2..."
-              @keydown.f1.prevent="openProductSearch(index, false)"
-              @keydown.f2.prevent="openProductSearch(index, true)"
+              @keydown="handleProductKeydown($event, index)"
             />
           </template>
           <template v-slot:[`item.jumlah`]="{ item }">
@@ -475,9 +628,14 @@ onMounted(async () => {
               variant="underlined"
               density="compact"
               hide-details
-              class="text-end"
-              @blur="validateJumlah(item)"
+              class="text-end font-weight-bold"
+              readonly
             />
+          </template>
+          <template v-slot:[`item.qtySo`]="{ item }">
+            <div class="text-end font-weight-bold text-grey-darken-2 pr-2">
+              {{ item.qtySo || 0 }}
+            </div>
           </template>
           <template v-slot:[`item.actions`]="{ item }">
             <v-btn
@@ -505,6 +663,13 @@ onMounted(async () => {
       :multi="isMultiSelectProduct"
       @close="dialog.productSearch = false"
       @products-selected="onProductsSelected"
+    />
+    <SoSearchModal
+      v-if="dialog.soSearch"
+      source="surat-jalan-bordir"
+      :cabang="authStore.user?.cabang || ''"
+      @close="dialog.soSearch = false"
+      @selected="onSoSelected"
     />
 
     <v-dialog v-model="dialogConfirm.show" max-width="400px" persistent>

@@ -2078,6 +2078,7 @@ const executeSaveMarketplace = async () => {
     dps: linkedDps.value,
     isNew: !isEditMode.value,
     pins: authPins,
+    tipeKunjungan: null,
   };
 
   isSaving.value = true;
@@ -2740,6 +2741,26 @@ watch(linkedDps, calculateTotals, { deep: true });
 
 const grandQty = computed(() => items.value.reduce((sum, it) => sum + (Number(it.jumlah) || 0), 0));
 
+const handleKodeKeydown = (e: KeyboardEvent, index: number) => {
+  if (header.nomorSo || items.value[index]?.noSoDtf) return;
+
+  switch (e.key) {
+    case "F1":
+      e.preventDefault();
+      e.stopPropagation();
+      openProductSearch(index, false);
+      break;
+
+    case "F2":
+      if (!canSearchManual.value) return;
+
+      e.preventDefault();
+      e.stopPropagation();
+      openProductSearch(index, true);
+      break;
+  }
+};
+
 // --- WATCHERS (UNSAVED CHANGES) ---
 watch(
   [header, items, linkedDps],
@@ -3249,15 +3270,7 @@ watch(
                   readonly
                   :placeholder="canSearchManual ? 'F1/F2 = Cari' : 'F1 = Cek Stok'"
                   :class="{ 'field-disabled': !!header.nomorSo || !!item.noSoDtf }"
-                  @keydown.f1.stop.prevent="
-                    !header.nomorSo && !item.noSoDtf && openProductSearch(index, false)
-                  "
-                  @keydown.f2.stop.prevent="
-                    canSearchManual &&
-                      !header.nomorSo &&
-                      !item.noSoDtf &&
-                      openProductSearch(index, true)
-                  "
+                  @keydown="handleKodeKeydown($event, index)"
                 />
               </template>
 

@@ -101,6 +101,9 @@ const TerimaMutasiWorkshopView = () =>
   import("@/views/operasional/workshop/TerimaMutasiWorkshopView.vue");
 const TerimaMutasiWorkshopCreateView = () =>
   import("@/views/operasional/workshop/TerimaMutasiWorkshopCreateView.vue");
+const SjWorkshopView = () => import("@/views/operasional/workshop/SjWorkshopView.vue");
+const SjWorkshopCreateView = () => import("@/views/operasional/workshop/SjWorkshopCreateView.vue");
+const SjWorkshopPrintView = () => import("@/views/operasional/workshop/SjWorkshopPrintView.vue");
 
 // --- PIUTANG & FINANCE ---
 const SetoranBayarView = () => import("@/views/piutang/SetoranBayarView.vue");
@@ -125,9 +128,11 @@ const LaporanKartuStokView = () => import("@/views/laporan/stok/LaporanKartuStok
 const LaporanInvoiceView = () => import("@/views/laporan/penjualan/LaporanInvoiceView.vue");
 const LaporanSalesVsTargetView = () =>
   import("@/views/laporan/penjualan/LaporanSalesVsTargetView.vue");
+const LaporanLostOrderView = () => import("@/views/laporan/penjualan/LaporanLostOrderView.vue");
 const LaporanStokPivotView = () => import("@/views/laporan/analisa/LaporanStokPivotView.vue");
 const LaporanStokGrafikView = () => import("@/views/laporan/analisa/LaporanStokGrafikView.vue");
 const AuditLogView = () => import("@/views/admin/AuditLogView.vue");
+const LaporanStokBahanView = () => import("@/views/laporan/stok/LaporanStokBahanView.vue");
 
 // --- DC OPERASIONAL ---
 const PackingListView = () => import("@/views/dc/operasional/PackingListView.vue");
@@ -2376,6 +2381,16 @@ const routes = [
     },
   },
   {
+    path: "/laporan/penjualan/lost-order",
+    name: "LaporanLostOrder",
+    component: LaporanLostOrderView,
+    meta: {
+      title: "Laporan Lost Order",
+      requiresAuth: true,
+      menuId: "514",
+    },
+  },
+  {
     path: "/laporan/stok/dead-stok",
     name: "LaporanDeadStok",
     component: LaporanDeadStokView,
@@ -2383,6 +2398,16 @@ const routes = [
       title: "Laporan Dead Stock",
       requiresAuth: true,
       menuId: "510",
+    },
+  },
+  {
+    path: "/laporan/stok/bahan",
+    name: "LaporanStokBahan",
+    component: LaporanStokBahanView,
+    meta: {
+      title: "Laporan Stok Bahan",
+      requiresAuth: true,
+      menuId: "513",
     },
   },
   {
@@ -2753,6 +2778,48 @@ const routes = [
     },
   },
   {
+    path: "/operasional/workshop/sj-workshop",
+    name: "SjWorkshop",
+    component: SjWorkshopView,
+    meta: {
+      title: "Surat Jalan ke Store",
+      requiresAuth: true,
+      menuId: "803",
+    },
+  },
+  {
+    path: "/operasional/workshop/sj-workshop/new",
+    name: "SjWorkshopCreate",
+    component: SjWorkshopCreateView,
+    meta: {
+      title: "Buat SJ ke Store",
+      requiresAuth: true,
+      menuId: "803",
+    },
+  },
+  {
+    path: "/operasional/workshop/sj-workshop/edit/:nomor",
+    name: "SjWorkshopEdit",
+    component: SjWorkshopCreateView,
+    meta: {
+      title: "Ubah SJ ke Store",
+      requiresAuth: true,
+      menuId: "803",
+    },
+  },
+  {
+    path: "/operasional/workshop/sj-workshop/print/:nomor",
+    name: "SjWorkshopPrint",
+    component: SjWorkshopPrintView,
+    meta: {
+      title: "Cetak SJ Workshop",
+      printLayout: true,
+      requiresAuth: true,
+      layout: "PrintLayout",
+    },
+  },
+
+  {
     path: "/pengaturan/whatsapp",
     name: "WhatsappLink",
     component: WhatsappLinkView,
@@ -2841,8 +2908,6 @@ router.beforeEach((to, from, next) => {
     return next();
   }
 
-  // console.log("[ROUTER] Navigating to:", to.name, "path:", to.path);
-
   const title = to.meta?.title || to.name || "Aplikasi";
 
   // [PERBAIKAN] Pisahkan judul untuk mode Tracking dan mode Retail
@@ -2870,13 +2935,11 @@ router.beforeEach((to, from, next) => {
 
   // Belum login, redirect ke login
   if (!loggedIn) {
-    // console.log("[ROUTER] Not logged in, redirect to login");
     return next("/login");
   }
 
   // Sudah login tapi akses login page
   if (to.name === "Login" && loggedIn) {
-    // console.log("[ROUTER] Already logged in, redirect to home");
     return next("/");
   }
 
@@ -2884,7 +2947,6 @@ router.beforeEach((to, from, next) => {
   if (to.meta?.menuId) {
     const hasPermission = allowedMenus.includes(to.meta.menuId);
     if (!hasPermission) {
-      // console.log("[ROUTER] No permission for menuId:", to.meta.menuId);
       return next({ name: "Unauthorized" }); // redirect ke home, bukan unauthorized
     }
   }

@@ -10,6 +10,7 @@ import { format, addDays, isValid } from "date-fns";
 import axios, { AxiosError } from "axios";
 import { formatRupiah } from "@/utils/formatRupiah";
 import { useAutoPromo } from "@/composables/useAutoPromo";
+import { useCustomerVisit } from "@/composables/useCustomerVisit";
 
 import PageLayout from "@/components/PageLayout.vue";
 import CustomerSearchModal from "@/components/lookup/CustomerSearchModal.vue";
@@ -24,6 +25,7 @@ import DiscountCostModal from "@/components/modal/DiscountCostModal.vue";
 import JenisOrderModal from "@/components/modal/JenisOrderModal.vue";
 import CustomerForm from "@/components/form/CustomerForm.vue";
 import DiscountConfirmationDialog from "@/components/dialog/DiscountConfirmationDialog.vue";
+import CustomerVisitDialog from "@/components/dialog/CustomerVisitDialog.vue";
 
 const toast = useToast();
 const authStore = useAuthStore();
@@ -211,6 +213,9 @@ interface ParsedCustomData {
 }
 
 // --- State ---
+const { isVisitDialogVisible, checkAndPromptVisit, handleSelectVisit, handleCancelVisit } =
+  useCustomerVisit();
+
 const header = ref<OfferHeader>({
   nomor: "",
   tanggal: format(new Date(), "yyyy-MM-dd"),
@@ -428,15 +433,11 @@ const tableHeaders: TableHeader[] = [
 // --- Methods ---
 const loadCustomerDetails = async () => {
   if (!header.value.customerKode) {
-    // console.log('Tidak ada customer kode untuk dimuat');
     return;
   }
 
-  // console.log('Loading customer details untuk kode:', header.value.customerKode);
-
   try {
     const response = await api.get(`/offer-form/customer-details/${header.value.customerKode}`);
-    // console.log('Customer details response:', response.data);
 
     // Mapping data dari format API ke format frontend
     header.value.customer = {
@@ -455,7 +456,7 @@ const loadCustomerDetails = async () => {
     };
 
     header.value.top = response.data.cus_top || 0;
-    // console.log('Customer data after mapping:', header.value.customer);
+
     toast.success("Detail customer berhasil dimuat.");
   } catch (error) {
     console.error("Error loading customer details:", error);
@@ -649,7 +650,6 @@ const onCustomerSelected = async (customer: { kode: string }) => {
 };
 
 // const onGudangSelected = async (gudang: Gudang) => {
-//     // console.log('Gudang received:', gudang); // Debug log
 
 //     // Pastikan data gudang valid
 //     if (!gudang || !gudang.kode) {
@@ -663,16 +663,13 @@ const onCustomerSelected = async (customer: { kode: string }) => {
 //     if (!isEditMode.value) {
 //     }
 
-//     // Debug: Cek apakah ada customerKode
-//     // console.log('Customer kode saat ini:', header.value.customerKode);
-
 //     // Setelah gudang dipilih, load detail customer jika sudah ada kode customer
 //     if (header.value.customerKode) {
-//         // console.log('Memulai load customer details untuk kode:', header.value.customerKode);
+
 //         toast.info('Memuat detail customer...');
 //         await loadCustomerDetails();
 //     } else {
-//         // console.log('Tidak ada customer kode, skip load customer details');
+
 //     }
 // };
 
@@ -1096,6 +1093,14 @@ const save = async () => {
     calculateTotals();
   }
 
+  const tipeKunjungan = await checkAndPromptVisit(
+    header.value.customer?.kode || "",
+    header.value.tanggal,
+    isEditMode.value
+  );
+
+  if (tipeKunjungan === "CANCEL") return; // Batalkan proses simpan jika kasir klik "Batal Simpan"
+
   // --- Konfirmasi Simpan ---
   isSaving.value = true;
   try {
@@ -1111,6 +1116,7 @@ const save = async () => {
       dps: dpItems.value,
       user: authStore.user,
       isNew: !isEditMode.value,
+      tipeKunjungan,
     };
 
     const response = await api.post("/offer-form/save", payload);
@@ -1892,6 +1898,14 @@ const saveAndConvertToSo = async () => {
     calculateTotals();
   }
 
+  const tipeKunjungan = await checkAndPromptVisit(
+    header.value.customer?.kode || "",
+    header.value.tanggal,
+    isEditMode.value
+  );
+
+  if (tipeKunjungan === "CANCEL") return;
+
   showConfirmation(async () => {
     isSaving.value = true;
     try {
@@ -1907,6 +1921,7 @@ const saveAndConvertToSo = async () => {
         dps: dpItems.value,
         user: authStore.user,
         isNew: !isEditMode.value,
+        tipeKunjungan,
       };
 
       const response = await api.post("/offer-form/save", payload);
@@ -1927,6 +1942,20 @@ const saveAndConvertToSo = async () => {
       isSaving.value = false;
     }
   }, "Simpan penawaran dan buat Surat Pesanan (SO)?");
+};
+
+const handleKodeKeydown = (e: KeyboardEvent, index: number) => {
+  switch (e.key) {
+    case "F1":
+      e.preventDefault();
+      openProductSearch(index, false);
+      break;
+
+    case "F2":
+      e.preventDefault();
+      openProductSearch(index, true);
+      break;
+  }
 };
 
 // Gunakan debounce (opsional tapi disarankan) agar tidak nembak API setiap ngetik angka
@@ -2380,8 +2409,7 @@ onMounted(async () => {
               density="compact"
               hide-details
               placeholder="F1/F2..."
-              @keydown.f1.prevent="openProductSearch(index, false)"
-              @keydown.f2.prevent="openProductSearch(index, true)"
+              @keydown="handleKodeKeydown($event, index)"
             ></v-text-field>
           </template>
 
@@ -2645,6 +2673,12 @@ onMounted(async () => {
       v-if="isNewCustomerFormVisible"
       @close="isNewCustomerFormVisible = false"
       @customer-saved="onNewCustomerSaved"
+    />
+
+    <CustomerVisitDialog
+      v-model="isVisitDialogVisible"
+      @select="handleSelectVisit"
+      @cancel="handleCancelVisit"
     />
 
     <v-dialog v-model="isConfirmDialogVisible" max-width="400px" persistent>

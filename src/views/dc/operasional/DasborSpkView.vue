@@ -28,6 +28,7 @@ interface DasborItem {
   TotalSPK: number;
   TotalJumlah: number;
   Sisa: number;
+  SaldoAkumulatif: number;
 }
 
 interface DetailItem {
@@ -68,6 +69,7 @@ const headers = ref<DataTableHeader[]>([
   { title: "Total SPK", key: "TotalSPK", width: 110, align: "center" },
   { title: "Total Jumlah (pcs)", key: "TotalJumlah", width: 160, align: "center" },
   { title: "Sisa Kuota", key: "Sisa", width: 110, align: "center" },
+  { title: "Saldo Kuota Akumulatif (pcs)", key: "SaldoAkumulatif", width: 200, align: "center" },
 ]);
 
 // --- Headers Detail ---
@@ -363,6 +365,52 @@ watch([startDate, endDate, selectedCabang], fetchData);
           <template #[`item.Sisa`]="{ item }">
             <td class="text-center font-weight-bold" :style="{ color: getSisaColor(item.Sisa) }">
               {{ item.Sisa > 0 ? "+" : "" }}{{ item.Sisa }}
+            </td>
+          </template>
+
+          <template #[`item.SaldoAkumulatif`]="{ item, index }">
+            <td class="text-center">
+              <v-tooltip v-if="item.SaldoAkumulatif < 0" location="top" color="error">
+                <template v-slot:activator="{ props }">
+                  <v-chip
+                    v-bind="props"
+                    size="small"
+                    color="error"
+                    variant="flat"
+                    class="font-weight-bold"
+                  >
+                    <v-icon start size="x-small">mdi-alert-circle</v-icon>
+                    {{ item.SaldoAkumulatif }}
+                  </v-chip>
+                </template>
+                <div class="text-caption text-white">
+                  <strong>Warning:</strong><br />
+                  {{ item.SaldoAkumulatif }} pcs backlog on
+                  {{ format(parseISO(item.TglSPK), "dd-MM") }}.<br />
+                  The accumulated quota is overdrawn.
+                </div>
+              </v-tooltip>
+
+              <v-tooltip v-else location="top" color="success">
+                <template v-slot:activator="{ props }">
+                  <v-chip
+                    v-bind="props"
+                    size="small"
+                    color="success"
+                    variant="flat"
+                    class="font-weight-bold"
+                  >
+                    <v-icon start size="x-small">mdi-check-circle</v-icon>
+                    +{{ item.SaldoAkumulatif }}
+                  </v-chip>
+                </template>
+                <div class="text-caption text-white">
+                  <span v-if="index > 0 && dasborList[index - 1].SaldoAkumulatif < 0">
+                    <strong>TITIK IMPAS!</strong><br />Backlog cleared.
+                  </span>
+                  <span v-else>Surplus: +{{ item.SaldoAkumulatif }} pcs</span>
+                </div>
+              </v-tooltip>
             </td>
           </template>
 

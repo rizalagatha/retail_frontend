@@ -350,6 +350,19 @@ const onProductsSelected = (products: Item[]) => {
   addNewRow(); // Pastikan baris kosong tetap ada di akhir
 };
 
+const handleKeyDown = (e: KeyboardEvent, item: Item, index: number) => {
+  if (e.key === "F1") {
+    e.preventDefault();
+    openBarangSearch(index, false);
+  } else if (e.key === "F2") {
+    e.preventDefault();
+    openBarangSearch(index, true);
+  } else if (e.key === "Enter") {
+    e.preventDefault();
+    handleGridBarcodeEnter(item, index);
+  }
+};
+
 onMounted(async () => {
   // --- TAMBAHKAN PENGECEKAN AWAL ---
   if (!canView.value) {
@@ -524,9 +537,7 @@ watch(
                 hide-details
                 :readonly="isEditMode || !!item.nama || !canSave"
                 placeholder="Scan/F1/F2..."
-                @keydown.f1.prevent="openBarangSearch(index, false)"
-                @keydown.f2.prevent="openBarangSearch(index, true)"
-                @keydown.enter.prevent="handleGridBarcodeEnter(item, index)"
+                @keydown="handleKeyDown($event, item, index)"
               />
             </template>
             <template #[`item.stok`]="{ item }">

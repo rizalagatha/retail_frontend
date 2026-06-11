@@ -76,16 +76,6 @@ interface InvoiceItem {
   sisa: number;
 }
 
-interface InvoiceItem {
-  invoice: string;
-  tanggal: string;
-  top: number;
-  jatuhTempo: string;
-  nominal: number;
-  terbayar: number;
-  sisa: number;
-}
-
 interface BiayaKirimLookupInvoice {
   Nomor: string;
   Tanggal: string;
@@ -486,6 +476,22 @@ const onBkSelected = (bk: BiayaKirimLookupInvoice) => {
 
   // Tambahkan baris kosong baru di bawahnya agar kasir bisa input invoice lain
   addNewRow();
+};
+
+const handleInvoiceKeydown = (e: KeyboardEvent, index: number) => {
+  if (lockSoMode.value) return;
+
+  switch (e.key) {
+    case "F1":
+      e.preventDefault();
+      openUnpaidInvoiceSearch(index);
+      break;
+
+    case "F2":
+      e.preventDefault();
+      openBkSearch(index);
+      break;
+  }
 };
 
 // --- WATCHERS (UNSAVED CHANGES) ---
@@ -956,8 +962,7 @@ watch(() => header.nominal, calculateTotals);
                 variant="underlined"
                 density="compact"
                 hide-details
-                @keydown.f1.prevent="openUnpaidInvoiceSearch(index)"
-                @keydown.f2.prevent="openBkSearch(index)"
+                @keydown="handleInvoiceKeydown($event, index)"
                 :readonly="lockSoMode"
                 placeholder="F1 (Inv) / F2 (BK)..."
               />

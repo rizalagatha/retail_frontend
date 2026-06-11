@@ -81,7 +81,7 @@ onMounted(() => {
     <div v-for="i in 2" :key="i" class="print-half">
       <div class="header-section">
         <div class="header-text">
-          <h2 class="title">PERMINTAAN ACCESORIES</h2>
+          <h2 class="title">PERMINTAAN BARANG</h2>
         </div>
         <div class="header-logo">
           <img :src="LogoKP" alt="Kencana Print Logo" />

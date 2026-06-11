@@ -21,15 +21,16 @@ interface DataTableHeader {
 }
 
 interface AccesoriesHeader {
-  nomor: string;
-  tanggal: string;
-  cab: string;
-  keterangan: string;
-  usr: string;
-  status: string;
-  approve: string;
-  alasanClose: string;
-  created: string;
+  Nomor: string;
+  Tanggal: string;
+  Cab: string;
+  Jenis?: string;
+  Keterangan: string;
+  Usr: string;
+  Status: string;
+  Approve: string;
+  AlasanClose: string;
+  Jam: string;
   [key: string]: unknown;
 }
 
@@ -44,11 +45,6 @@ interface AccesoriesDetail {
   [key: string]: unknown;
 }
 
-interface Branch {
-  kode: string;
-  nama: string;
-}
-
 interface ColumnFilter {
   type: "multi" | "custom";
   values?: (string | number)[];
@@ -57,26 +53,26 @@ interface ColumnFilter {
 }
 
 interface RealisasiItem {
-  nomor: string;
-  tanggal: string;
-  approve: string;
-  jumlah: number;
-  ket: string;
+  NoRealisasi: string;
+  TglRealisasi: string;
+  Approve: string;
+  Jumlah: number;
+  Keterangan: string;
   [key: string]: unknown;
 }
 
 interface RealisasiDetailItem {
-  realisasi_nomor: string;
-  kode: string;
-  nama: string;
-  satuan: string;
-  jumlah: number;
+  NomorRealisasi: string;
+  Kode: string;
+  Nama: string;
+  Satuan: string;
+  Jumlah: number;
 }
 
 interface DetailPayload {
   realisasi: RealisasiItem[];
   items: AccesoriesDetail[];
-  realisasiDetails: RealisasiDetailItem[]; // [BARU]
+  realisasiDetails: RealisasiDetailItem[];
 }
 
 // --- State ---
@@ -90,7 +86,7 @@ const dataList = ref<AccesoriesHeader[]>([]);
 const filterOptions = ref([
   { title: "Nomor", value: "nomor" },
   { title: "Tanggal", value: "tanggal" },
-  { title: "Cabang", value: "cab" },
+  { title: "Jenis", value: "Jenis" }, // [BARU]
   { title: "Keterangan", value: "keterangan" },
   { title: "User", value: "usr" },
   { title: "Status", value: "status" },
@@ -98,14 +94,13 @@ const filterOptions = ref([
 ]);
 
 const isMounted = ref(false);
-const selectedFilterField = ref("nomor"); // Filter default
+const selectedFilterField = ref("nomor");
 const filterSearchValue = ref("");
 const details = ref<{ [key: string]: DetailPayload }>({});
 const isLoading = ref(true);
 const expanded = ref<AccesoriesHeader[]>([]);
 const selected = ref<AccesoriesHeader[]>([]);
 const loadingDetails = ref<Set<string>>(new Set());
-const branchList = ref<Branch[]>([]);
 
 const isCloseDialogVisible = ref(false);
 const closeReason = ref("");
@@ -119,56 +114,58 @@ const hasViewPermission = computed(() => authStore.can(MENU_ID, "view"));
 
 const selectedRealisasiMap = ref<Record<string, string>>({});
 
+// [BARU] Tambahan filter jenis
 const filters = reactive({
   startDate: format(new Date(), "yyyy-MM-dd"),
   endDate: format(new Date(), "yyyy-MM-dd"),
-  cabang: "P03", // Terkunci mati di P03
+  cabang: "P03",
+  jenis: "ALL",
 });
 
+// [BARU] Tambahan Header Jenis
 const tableHeaders = ref<DataTableHeader[]>([
   { title: "", key: "data-table-expand", width: 50, fixed: true },
-  { title: "Nomor", key: "nomor", width: 150, fixed: true },
-  { title: "Tanggal", key: "tanggal", width: 100 },
-  { title: "Cabang", key: "cab", width: 100 },
-  { title: "Keterangan", key: "keterangan", width: 350 },
-  { title: "User", key: "usr", width: 120 },
-  { title: "Waktu Input", key: "created", width: 150 },
-  { title: "Alasan Close", key: "alasanClose", width: 250 },
-  { title: "Approve", key: "approve", align: "center", width: 120 },
-  { title: "Status", key: "status", align: "center", width: 120 },
+  { title: "Nomor", key: "Nomor", width: 150, fixed: true },
+  { title: "Tanggal", key: "Tanggal", width: 100 },
+  { title: "Cabang", key: "Cab", width: 100 },
+  { title: "Jenis", key: "Jenis", width: 120 },
+  { title: "Keterangan", key: "Keterangan", width: 300 },
+  { title: "User", key: "Usr", width: 120 },
+  { title: "Waktu Input", key: "Jam", width: 150 }, // Ganti ke Jam
+  { title: "Alasan Close", key: "AlasanClose", width: 250 },
+  { title: "Approve", key: "Approve", align: "center", width: 120 },
+  { title: "Status", key: "Status", align: "center", width: 120 },
 ]);
 
 const realisasiHeaders: DataTableHeader[] = [
-  { title: "No. Realisasi", key: "nomor", width: 120 },
-  { title: "Tgl. Realisasi", key: "tanggal", width: 100 },
-  { title: "Approve", key: "approve", width: 100, align: "center" },
-  { title: "Jumlah", key: "jumlah", align: "end", width: 80 },
-  { title: "Keterangan", key: "ket" },
-  { title: "Aksi", key: "actions", width: 90, align: "center" }, // [BARU] Kolom Aksi
+  { title: "No. Realisasi", key: "NoRealisasi", width: 120 },
+  { title: "Tgl. Realisasi", key: "TglRealisasi", width: 100 },
+  { title: "Approve", key: "Approve", width: 100, align: "center" },
+  { title: "Jumlah", key: "Jumlah", align: "end", width: 80 },
+  { title: "Keterangan", key: "Keterangan" },
+  { title: "Aksi", key: "actions", width: 90, align: "center" },
 ];
 
 const detailHeaders: DataTableHeader[] = [
-  { title: "KODE", key: "kode", width: 120 },
-  { title: "NAMA BARANG", key: "nama", minWidth: "200px" },
-  { title: "SATUAN", key: "satuan", width: 80, align: "center" },
-  { title: "NOTE", key: "note", minWidth: "150px" },
-  { title: "JUMLAH", key: "jumlah", align: "end", width: 90 },
-  { title: "REALISASI", key: "realisasi", align: "end", width: 90 },
-  { title: "KETERANGAN", key: "keterangan", minWidth: "150px" },
+  { title: "KODE", key: "Kode", width: 120 },
+  { title: "NAMA BARANG", key: "Nama", minWidth: "200px" },
+  { title: "SATUAN", key: "Satuan", width: 80, align: "center" },
+  { title: "NOTE", key: "Note", minWidth: "150px" },
+  { title: "JUMLAH", key: "Jumlah", align: "end", width: 90 },
+  { title: "REALISASI", key: "Realisasi", align: "end", width: 90 },
+  { title: "KETERANGAN", key: "Keterangan", minWidth: "150px" },
 ];
 
 const detailRealisasiHeaders: DataTableHeader[] = [
   { title: "No.", key: "index", width: 50, align: "center" },
-  { title: "KODE", key: "kode", width: 100 },
-  { title: "NAMA BARANG", key: "nama" },
-  { title: "SATUAN", key: "satuan", width: 80, align: "center" },
-  { title: "JUMLAH", key: "jumlah", align: "end", width: 80 },
+  { title: "KODE", key: "Kode", width: 100 },
+  { title: "NAMA BARANG", key: "Nama" },
+  { title: "SATUAN", key: "Satuan", width: 80, align: "center" },
+  { title: "JUMLAH", key: "Jumlah", align: "end", width: 80 },
 ];
 
 // --- Filter ----
 const columnFilters = ref<Record<string, ColumnFilter>>({});
-
-// Custom filter dialog
 const customFilterDialog = ref(false);
 const customFilter = reactive({
   key: "",
@@ -176,11 +173,9 @@ const customFilter = reactive({
   value: "",
 });
 
-// LocalStorage key
 const LS_FILTER_KEY = "minta_acc_table_filters";
 const SESSION_STATE_KEY = "minta_acc_browse_state";
 
-// load existing filter
 const saved = localStorage.getItem(LS_FILTER_KEY);
 if (saved) {
   try {
@@ -213,16 +208,13 @@ const clearColumnFilter = (key: string) => {
   delete columnFilters.value[key];
 };
 
-// MULTI SELECT
 const toggleMultiSelectValue = (key: string, value: string | number) => {
   const f = columnFilters.value[key];
-
   if (!f || f.type !== "multi") {
     columnFilters.value[key] = { type: "multi", values: [value] };
     return;
   }
   const arr = f.values || [];
-
   if (arr.includes(value)) {
     f.values = arr.filter((v) => v !== value);
     if (f.values.length === 0) delete columnFilters.value[key];
@@ -231,7 +223,6 @@ const toggleMultiSelectValue = (key: string, value: string | number) => {
   }
 };
 
-// CUSTOM FILTER
 const openCustomFilter = (key: string) => {
   customFilter.key = key;
   customFilter.operator = "=";
@@ -252,6 +243,7 @@ const resetAllFilters = () => {
   columnFilters.value = {};
   localStorage.removeItem(LS_FILTER_KEY);
   filterSearchValue.value = "";
+  filters.jenis = "ALL";
   sessionStorage.removeItem(SESSION_STATE_KEY);
 
   if (route.query.status || route.query.startDate) {
@@ -287,11 +279,9 @@ const startWidth = ref(0);
 const onResizeStart = (e: MouseEvent, column: DataTableHeader) => {
   e.preventDefault();
   e.stopPropagation();
-
   resizingColumn.value = column;
   startX.value = e.pageX;
   startWidth.value = typeof column.width === "number" ? column.width : 100;
-
   document.addEventListener("mousemove", onResizeMove);
   document.addEventListener("mouseup", onResizeEnd);
   document.body.style.cursor = "col-resize";
@@ -311,23 +301,24 @@ const onResizeEnd = () => {
 };
 
 const isSingleSelected = computed(() => selected.value.length === 1);
-
 const canBeClosed = computed(() => {
   if (!isSingleSelected.value) return false;
-  const item = selected.value[0];
-  return item.status === "OPEN";
+  return selected.value[0].status === "OPEN";
 });
-
 const canBeDeleted = computed(() => {
   if (!isSingleSelected.value) return false;
-  const item = selected.value[0];
-  return item.status === "OPEN";
+  return selected.value[0].status === "OPEN";
 });
 
 const filteredItems = computed(() => {
   let data = [...dataList.value];
 
-  // 1) FILTER HEADER (MULTI & CUSTOM)
+  // 1) FILTER JENIS (Lokal Frontend)
+  if (filters.jenis !== "ALL") {
+    data = data.filter((r) => r.Jenis === filters.jenis);
+  }
+
+  // 2) FILTER HEADER (MULTI & CUSTOM)
   for (const key in columnFilters.value) {
     const f = columnFilters.value[key];
 
@@ -342,7 +333,6 @@ const filteredItems = computed(() => {
       data = data.filter((row) => {
         const v = row[key];
         if (v == null) return false;
-
         const val = String(v).toLowerCase();
 
         switch (f.operator) {
@@ -369,11 +359,10 @@ const filteredItems = computed(() => {
     }
   }
 
-  // 2) GLOBAL SEARCH
+  // 3) GLOBAL SEARCH
   if (filterSearchValue.value) {
     const key = selectedFilterField.value;
     const term = filterSearchValue.value.toLowerCase();
-
     data = data.filter((r) =>
       String(r[key] ?? "")
         .toLowerCase()
@@ -385,31 +374,12 @@ const filteredItems = computed(() => {
 });
 
 // --- Methods ---
-
 const selectRealisasiRow = (masterNomor: string, realisasiNomor: string) => {
   selectedRealisasiMap.value[masterNomor] = realisasiNomor;
 };
 
 const handleRowClick = (_event: Event, { item }: { item: AccesoriesHeader }) => {
   selected.value = [item];
-};
-
-const fetchBranches = async () => {
-  try {
-    const response = await api.get("/warehouses/list", {
-      params: { userCabang: authStore.user?.cabang },
-    });
-    let data = response.data;
-    if (authStore.user?.cabang === "KDC") {
-      data = [{ kode: "ALL", nama: "ALL STORE" }, ...data];
-    }
-    branchList.value = data;
-  } catch (error: unknown) {
-    let msg = "Gagal memuat daftar cabang.";
-    if (axios.isAxiosError(error)) msg = error.response?.data?.message || msg;
-    else if (error instanceof Error) msg = error.message;
-    toast.error(msg);
-  }
 };
 
 const fetchData = async () => {
@@ -420,6 +390,7 @@ const fetchData = async () => {
         startDate: filters.startDate,
         endDate: filters.endDate,
         cabang: filters.cabang,
+        jenis: filters.jenis,
       },
     });
     dataList.value = response.data;
@@ -434,7 +405,7 @@ const fetchData = async () => {
 };
 
 const loadDetails = async (expandedItems: AccesoriesHeader[]) => {
-  const expandedNomors = expandedItems.map((item) => item.nomor);
+  const expandedNomors = expandedItems.map((item) => item.Nomor); // N besar
 
   for (const nomor of expandedNomors) {
     if (!details.value[nomor] && !loadingDetails.value.has(nomor)) {
@@ -442,20 +413,13 @@ const loadDetails = async (expandedItems: AccesoriesHeader[]) => {
       try {
         const url = `/minta-accesories/${nomor}/details`;
         const response = await api.get(url);
-        details.value = {
-          ...details.value,
-          [nomor]: response.data,
-        };
+        details.value = { ...details.value, [nomor]: response.data };
 
-        // Otomatis klik/pilih realisasi pertama agar tabel 3 tidak kosong
         if (response.data.realisasi && response.data.realisasi.length > 0) {
-          selectedRealisasiMap.value[nomor] = response.data.realisasi[0].nomor;
+          selectedRealisasiMap.value[nomor] = response.data.realisasi[0].NoRealisasi;
         }
-      } catch (error: unknown) {
-        let msg = "Gagal memuat detail.";
-        if (axios.isAxiosError(error)) msg = error.response?.data?.message || msg;
-        else if (error instanceof Error) msg = error.message;
-        toast.error(msg);
+      } catch {
+        toast.error("Gagal memuat detail permintaan.");
       } finally {
         loadingDetails.value.delete(nomor);
       }
@@ -465,7 +429,7 @@ const loadDetails = async (expandedItems: AccesoriesHeader[]) => {
 
 const editItem = () => {
   if (!isSingleSelected.value) return;
-  const nomor = selected.value[0].nomor;
+  const nomor = selected.value[0].Nomor; // Ganti huruf N besar
   router.push(`/gudang-dc/operasional/minta-accesories/ubah/${nomor}`);
 };
 
@@ -473,12 +437,12 @@ const confirmDelete = () => {
   if (!canBeDeleted.value) return;
   showConfirmation(
     executeDelete,
-    `Anda yakin ingin menghapus permintaan ${selected.value[0].nomor}?`
+    `Anda yakin ingin menghapus permintaan ${selected.value[0].Nomor}?` // Ganti huruf N besar
   );
 };
 
 const executeDelete = async () => {
-  const nomor = selected.value[0].nomor;
+  const nomor = selected.value[0].Nomor;
   try {
     await api.delete(`/minta-accesories/${nomor}`);
     toast.success("Permintaan berhasil dihapus.");
@@ -506,10 +470,8 @@ const submitCloseManual = async () => {
   }
   isClosing.value = true;
   try {
-    const nomor = selected.value[0].nomor;
-    await api.put(`/minta-accesories/${nomor}/close-manual`, {
-      alasan: closeReason.value,
-    });
+    const nomor = selected.value[0].Nomor;
+    await api.put(`/minta-accesories/${nomor}/close-manual`, { alasan: closeReason.value });
     toast.success("Permintaan berhasil di-close manual.");
     isCloseDialogVisible.value = false;
     fetchData();
@@ -527,44 +489,37 @@ const submitCloseManual = async () => {
 
 const handleCreate = async () => {
   try {
-    // Panggil API untuk cek tunggakan approve
     const response = await api.get("/minta-accesories/check-unapproved");
-
     if (response.data.count > 0) {
       toast.warning(
         "Permintaanmu ada yang belum di-approve > 1 hari.\nSilakan di-approve dulu supaya bisa membuat permintaan baru."
       );
       return;
     }
-
-    // Jika tidak ada tunggakan, lanjut ke halaman create
     router.push("/gudang-dc/operasional/minta-accesories/new");
-  } catch (error: unknown) {
-    let msg = "Gagal mengecek status approve realisasi";
-    if (axios.isAxiosError(error)) msg = error.response?.data?.message || msg;
-    else if (error instanceof Error) msg = error.message;
-    toast.error(msg);
+  } catch {
+    toast.error("Gagal mengecek status approve realisasi");
   }
 };
 
 const approveRealisasi = async (prominNomor: string, mintaNomor: string) => {
   showConfirmation(async () => {
     try {
-      await api.put(`/minta-accesories/realisasi/${prominNomor}/approve`);
-      toast.success("Berhasil di-approve!");
+      const res = await api.put(`/minta-accesories/realisasi/${prominNomor}/approve`);
+      toast.success(res.data.message);
 
-      // [PERBAIKAN] Gunakan dataList dan .nomor
-      const itemToReload = dataList.value.find((i) => i.nomor === mintaNomor);
+      // Hapus cache detail agar loadDetails fetch ulang dari server
+      delete details.value[mintaNomor]; // ← tambah ini
+
+      const itemToReload = dataList.value.find((i) => i.Nomor === mintaNomor);
       if (itemToReload) {
         loadingDetails.value.delete(mintaNomor);
         await loadDetails([itemToReload]);
       }
-
-      fetchData(); // Refresh master table
+      fetchData();
     } catch (error: unknown) {
       let msg = "Gagal melakukan approve.";
       if (axios.isAxiosError(error)) msg = error.response?.data?.message || msg;
-      else if (error instanceof Error) msg = error.message;
       toast.error(msg);
     }
   }, "Yakin ingin melakukan Approve (Penerimaan) untuk realisasi ini?");
@@ -603,8 +558,9 @@ const exportHeaderData = () => {
   }
   const formattedData = dataList.value.map((item: AccesoriesHeader) => ({
     ...item,
-    tanggal: item.tanggal ? formatDateIndo(item.tanggal) : "",
-    created: item.created ? format(new Date(item.created), "dd/MM/yyyy HH:mm:ss") : "",
+    // Sesuaikan pemanggilan dengan huruf besar (Tanggal dan Jam)
+    Tanggal: item.Tanggal ? formatDateIndo(item.Tanggal as string) : "",
+    Jam: item.Jam ? String(item.Jam) : "-",
   }));
 
   const worksheet = XLSX.utils.json_to_sheet(formattedData);
@@ -644,7 +600,6 @@ const exportDetailData = async () => {
     const tableData = dataToExport.map((row) => Object.values(row));
 
     const excelData = [[title], [dateRange], [], tableHeadersExcel, ...tableData];
-
     const ws = XLSX.utils.aoa_to_sheet(excelData);
     const merge = [
       { s: { r: 0, c: 0 }, e: { r: 0, c: tableHeadersExcel.length - 1 } },
@@ -669,7 +624,7 @@ const exportDetailData = async () => {
 
 const printItem = () => {
   if (!isSingleSelected.value) return;
-  const nomor = selected.value[0].nomor;
+  const nomor = selected.value[0].Nomor;
   const url = router.resolve({
     name: "MintaAccesoriesPrint",
     params: { nomor },
@@ -678,16 +633,16 @@ const printItem = () => {
 };
 
 const getRowTextColor = (item: AccesoriesHeader) => {
-  if (item.status === "OPEN") return "text-red font-weight-bold";
-  if (item.status === "ONPROSES") return "text-blue font-weight-bold";
-  if (item.status === "DICLOSE") return "text-grey font-italic";
+  if (item.Status === "OPEN") return "text-red font-weight-bold";
+  if (item.Status === "PROSES") return "text-blue font-weight-bold";
+  if (item.Status === "DICLOSE") return "text-grey font-italic";
   return "";
 };
 
 const getStatusChip = (item: AccesoriesHeader) => {
-  if (item.status === "CLOSE") return { text: "CLOSE", color: "success" };
-  if (item.status === "DICLOSE") return { text: "DICLOSE", color: "grey-darken-1" };
-  if (item.status === "ONPROSES") return { text: "ONPROSES", color: "primary" };
+  if (item.Status === "CLOSE") return { text: "CLOSE", color: "success" };
+  if (item.Status === "DICLOSE") return { text: "DICLOSE", color: "grey-darken-1" };
+  if (item.Status === "PROSES") return { text: "PROSES", color: "primary" };
   return { text: "OPEN", color: "error" };
 };
 
@@ -714,16 +669,14 @@ onMounted(async () => {
       try {
         const parsedState = JSON.parse(savedState);
         if (parsedState.filters) {
-          // Timpa semua KECUALI cabang
           filters.startDate = parsedState.filters.startDate || filters.startDate;
           filters.endDate = parsedState.filters.endDate || filters.endDate;
+          filters.jenis = parsedState.filters.jenis || filters.jenis;
         }
         if (parsedState.selectedFilterField)
           selectedFilterField.value = parsedState.selectedFilterField;
         if (parsedState.filterSearchValue) filterSearchValue.value = parsedState.filterSearchValue;
-      } catch {
-        // Abaikan error parsing JSON
-      }
+      } catch {}
     } else {
       const queryStartDate = route.query.startDate as string;
       const queryEndDate = route.query.endDate as string;
@@ -733,7 +686,6 @@ onMounted(async () => {
       }
     }
 
-    await fetchBranches();
     await fetchData();
     isMounted.value = true;
   } else {
@@ -879,7 +831,8 @@ onBeforeRouteLeave((to, from, next) => {
             style="min-width: 130px"
           ></v-text-field>
         </div>
-        <div class="d-flex align-center ga-2" style="min-width: 220px">
+
+        <div class="d-flex align-center ga-2" style="min-width: 150px">
           <span class="filter-label">Cabang:</span>
           <v-text-field
             model-value="P03"
@@ -890,6 +843,24 @@ onBeforeRouteLeave((to, from, next) => {
             readonly
           ></v-text-field>
         </div>
+
+        <div class="d-flex align-center ga-2" style="min-width: 170px">
+          <span class="filter-label">Jenis:</span>
+          <v-select
+            v-model="filters.jenis"
+            :items="[
+              { title: 'Semua Jenis', value: 'ALL' },
+              { title: 'OBAT', value: 'OBAT' },
+              { title: 'ACCESORIES', value: 'ACCESORIES' },
+            ]"
+            item-title="title"
+            item-value="value"
+            density="compact"
+            hide-details
+            variant="outlined"
+          ></v-select>
+        </div>
+
         <v-divider vertical class="mx-2"></v-divider>
         <div class="d-flex align-center ga-2">
           <v-select
@@ -923,9 +894,9 @@ onBeforeRouteLeave((to, from, next) => {
         </v-btn>
         <v-spacer></v-spacer>
         <div class="d-flex align-center ga-2 text-caption font-weight-bold">
-          <v-icon color="red" icon="mdi-square-rounded" size="small"></v-icon> OPEN
-          <v-icon color="blue" icon="mdi-square-rounded" size="small"></v-icon> ONPROSES
-          <v-icon color="grey-darken-1" icon="mdi-square-rounded" size="small"></v-icon> CLOSE
+          <span class="text-red">● OPEN</span>
+          <span class="text-blue">● ONPROSES</span>
+          <span class="text-grey-darken-1">● CLOSE</span>
         </div>
         <v-btn @click="fetchData" icon="mdi-refresh" variant="text" size="small"></v-btn>
       </div>
@@ -936,7 +907,7 @@ onBeforeRouteLeave((to, from, next) => {
           :headers="tableHeaders"
           :items="filteredItems"
           :loading="isLoading"
-          item-value="nomor"
+          item-value="Nomor"
           density="compact"
           class="desktop-table header-browse-blue"
           fixed-header
@@ -1063,27 +1034,38 @@ onBeforeRouteLeave((to, from, next) => {
             :key="header.key"
           >
             <td :class="getRowTextColor(item)">
-              <template v-if="header.key === 'tanggal'">
-                {{ item.tanggal ? format(new Date(item.tanggal), "dd/MM/yyyy") : "-" }}
+              <template v-if="header.key === 'Tanggal'">
+                {{ item.Tanggal ? format(new Date(item.Tanggal), "dd/MM/yyyy") : "-" }}
               </template>
 
-              <template v-else-if="header.key === 'created'">
-                {{ item.created ? format(new Date(item.created), "dd/MM/yyyy HH:mm:ss") : "-" }}
+              <template v-else-if="header.key === 'Jam'">
+                {{ item.Jam || "-" }}
               </template>
 
-              <template v-else-if="header.key === 'status'">
+              <template v-else-if="header.key === 'Jenis'">
+                <v-chip
+                  size="x-small"
+                  :color="item.Jenis === 'OBAT' ? 'purple-darken-1' : 'teal-darken-2'"
+                  variant="flat"
+                  class="font-weight-bold"
+                >
+                  {{ item.Jenis }}
+                </v-chip>
+              </template>
+
+              <template v-else-if="header.key === 'Status'">
                 <v-chip :color="getStatusChip(item).color" variant="tonal" size="x-small">
                   {{ getStatusChip(item).text }}
                 </v-chip>
               </template>
 
-              <template v-else-if="header.key === 'approve'">
+              <template v-else-if="header.key === 'Approve'">
                 <v-chip
-                  :color="getApproveChip(item.approve).color"
+                  :color="getApproveChip(item.Approve).color"
                   variant="outlined"
                   size="x-small"
                 >
-                  {{ getApproveChip(item.approve).text }}
+                  {{ getApproveChip(item.Approve).text }}
                 </v-chip>
               </template>
 
@@ -1100,7 +1082,7 @@ onBeforeRouteLeave((to, from, next) => {
                   class="bg-blue-grey-lighten-5 pa-3 w-100"
                   style="box-shadow: inset 0px 4px 8px -4px rgba(0, 0, 0, 0.1)"
                 >
-                  <div v-if="loadingDetails.has(item.nomor)" class="text-center py-4 w-100">
+                  <div v-if="loadingDetails.has(item.Nomor)" class="text-center py-4 w-100">
                     <v-progress-circular indeterminate color="primary" />
                   </div>
 
@@ -1113,7 +1095,7 @@ onBeforeRouteLeave((to, from, next) => {
                       </div>
                       <v-data-table
                         :headers="detailHeaders"
-                        :items="details[item.nomor]?.items || []"
+                        :items="details[item.Nomor]?.items || []"
                         density="compact"
                         hide-default-footer
                         class="detail-table"
@@ -1134,7 +1116,7 @@ onBeforeRouteLeave((to, from, next) => {
                     </v-card>
 
                     <v-row
-                      v-if="details[item.nomor]?.realisasi?.length > 0"
+                      v-if="details[item.Nomor]?.realisasi?.length > 0"
                       density="compact"
                       class="w-100 ma-0"
                     >
@@ -1147,33 +1129,36 @@ onBeforeRouteLeave((to, from, next) => {
                           </div>
                           <v-data-table
                             :headers="realisasiHeaders"
-                            :items="details[item.nomor]?.realisasi || []"
+                            :items="details[item.Nomor]?.realisasi || []"
                             density="compact"
                             hide-default-footer
                             class="detail-table"
                             hover
-                            @click:row="(event: any, { item: rowItem }: any) => selectRealisasiRow(item.nomor, rowItem.nomor)"
+                            @click:row="(event: Event, { item: rowItem }: { item: any }) =>
+                              selectRealisasiRow(item.Nomor, rowItem.NoRealisasi)"
                             :item-props="(rowItem: any) => ({
-                              class: selectedRealisasiMap[item.nomor] === rowItem.nomor
+                              class: selectedRealisasiMap[item.Nomor] === rowItem.NoRealisasi
                                 ? 'bg-blue-lighten-5 font-weight-bold'
-                                  : 'cursor-pointer',
+                              : 'cursor-pointer',
                           })"
                           >
+                            <template #[`item.nomor`]="{ value }">{{ value }}</template>
+                            <template #[`item.tanggal`]="{ value }">{{ value }}</template>
                             <template #[`item.jumlah`]="{ value }">
                               <span class="text-red font-weight-bold">{{ value }}</span>
                             </template>
                             <template #[`item.actions`]="{ item: dtl }">
                               <v-btn
-                                v-if="!dtl.approve"
+                                v-if="!dtl.Approve"
                                 size="x-small"
                                 color="success"
                                 variant="flat"
-                                @click.stop="approveRealisasi(dtl.nomor, item.nomor)"
+                                @click.stop="approveRealisasi(dtl.NoRealisasi, item.Nomor)"
                               >
                                 Approve
                               </v-btn>
-                              <div v-else class="text-success font-weight-bold">
-                                {{ dtl.approve }}
+                              <div v-else class="text-success font-weight-bold text-caption">
+                                {{ dtl.Approve }}
                               </div>
                             </template>
                           </v-data-table>
@@ -1185,25 +1170,24 @@ onBeforeRouteLeave((to, from, next) => {
                           <div
                             class="bg-grey-darken-2 text-white text-caption font-weight-bold px-3 py-1 d-flex align-center"
                           >
-                            Isi Barang ({{ selectedRealisasiMap[item.nomor] || "Pilih Realisasi" }})
+                            Isi Barang ({{ selectedRealisasiMap[item.Nomor] || "Pilih Realisasi" }})
                           </div>
                           <v-data-table
                             :headers="detailRealisasiHeaders"
                             :items="
-                              (details[item.nomor]?.realisasiDetails || []).filter(
-                                (d) => d.realisasi_nomor === selectedRealisasiMap[item.nomor]
+                              (details[item.Nomor]?.realisasiDetails || []).filter(
+                                (d) => d.NomorRealisasi === selectedRealisasiMap[item.Nomor]
                               )
                             "
                             density="compact"
                             hide-default-footer
                             class="detail-table"
                           >
-                            <template #[`item.index`]="{ index }">
-                              {{ index + 1 }}
-                            </template>
-                            <template #[`item.jumlah`]="{ value }">
-                              <span class="font-weight-bold">{{ value }}</span>
-                            </template>
+                            <template #[`item.index`]="{ index }">{{ index + 1 }}</template>
+                            <template #[`item.kode`]="{ value }">{{ value }}</template>
+                            <template #[`item.nama`]="{ value }">{{ value }}</template>
+                            <template #[`item.satuan`]="{ value }">{{ value }}</template>
+                            <template #[`item.jumlah`]="{ value }">{{ value }}</template>
                           </v-data-table>
                         </v-card>
                       </v-col>

@@ -9,20 +9,28 @@ interface Props {
   gudangKode: string;
 }
 
+interface BiayaKirimItem {
+  Nomor: string;
+  Tanggal: string;
+  Nominal: number;
+  Bayar: number;
+  Sisa: number;
+}
+
 const props = defineProps<Props>();
 const emit = defineEmits(["close", "selected"]);
 const toast = useToast();
 
-const items = ref<any[]>([]);
+const items = ref<BiayaKirimItem[]>([]);
 const loading = ref(true);
 const search = ref("");
 
 const headers = [
   { title: "No. Biaya Kirim", key: "Nomor", width: "160px" },
   { title: "Tanggal", key: "Tanggal", width: "100px" },
-  { title: "Nominal", key: "Nominal", align: "end", width: "120px" },
-  { title: "Terbayar", key: "Bayar", align: "end", width: "120px" },
-  { title: "Sisa", key: "Sisa", align: "end", width: "120px" },
+  { title: "Nominal", key: "Nominal", align: "end" as const, width: "120px" },
+  { title: "Terbayar", key: "Bayar", align: "end" as const, width: "120px" },
+  { title: "Sisa", key: "Sisa", align: "end" as const, width: "120px" },
 ];
 
 const loadItems = async () => {
@@ -37,6 +45,7 @@ const loadItems = async () => {
     });
     items.value = response.data;
   } catch (err) {
+    console.error(err);
     toast.error("Gagal memuat daftar Biaya Kirim.");
   } finally {
     loading.value = false;
@@ -49,7 +58,7 @@ const filteredItems = computed(() => {
   return items.value.filter((item) => (item.Nomor || "").toLowerCase().includes(lower));
 });
 
-const handleRowClick = (_: Event, row: { item: any }) => {
+const handleRowClick = (_: Event, row: { item: BiayaKirimItem }) => {
   emit("selected", row.item);
   emit("close");
 };

@@ -3,10 +3,11 @@ import { ref, onMounted, computed, watch } from "vue";
 import api from "@/services/api";
 import PageLayout from "@/components/PageLayout.vue";
 import { useToast } from "vue-toastification";
-import { useAuthStore } from "@/stores/authStore"; // (1) Impor authStore
+import { useAuthStore } from "@/stores/authStore";
 import { format } from "date-fns";
 import AppDataTable from "@/components/AppDataTable.vue";
 import axios from "axios";
+import { kotaIndonesia } from "@/data/kotaIndonesia";
 
 // Impor library untuk PDF dan Excel
 import jsPDF from "jspdf";
@@ -14,7 +15,7 @@ import autoTable from "jspdf-autotable";
 import * as XLSX from "xlsx";
 
 const toast = useToast();
-const authStore = useAuthStore(); // (2) Gunakan store
+const authStore = useAuthStore();
 const MENU_ID = "9";
 
 interface DataTableHeader {
@@ -40,8 +41,8 @@ interface Customer {
   limitTrans: number;
   tglLahir: string | null;
   top: number;
-  level: string | null; // Tambahkan | null
-  npwp: string | null; // Tambahkan | null
+  level: string | null;
+  npwp: string | null;
   namaNpwp: string | null;
   alamatNpwp: string | null;
   kotaNpwp: string | null;
@@ -72,6 +73,11 @@ interface TableOptions {
   search: string;
 }
 
+interface KotaItem {
+  nama: string;
+  provinsi: string;
+}
+
 // --- State ---
 const customers = ref<Customer[]>([]);
 const search = ref("");
@@ -88,6 +94,18 @@ const availableLevels = ref<LevelItem[]>([]);
 const options = ref({ page: 1, itemsPerPage: 50 });
 const totalItems = ref(0);
 const itemsPerPageOptions = [15, 30, 50, 100];
+
+// State untuk kota
+const allKotaList = ref<KotaItem[]>([]);
+const kotaSearchTerm = ref("");
+
+const filteredKotaList = computed(() => {
+  if (!kotaSearchTerm.value || kotaSearchTerm.value.length < 2) return [];
+  const q = kotaSearchTerm.value.toLowerCase();
+  return allKotaList.value
+    .filter((k) => k.nama.toLowerCase().includes(q) || k.provinsi.toLowerCase().includes(q))
+    .slice(0, 30); // Batasi 30 hasil agar tidak berat
+});
 
 // --- Logic Resize Column ---
 const resizingColumn = ref<DataTableHeader | null>(null);
@@ -180,6 +198,39 @@ const fetchCustomers = async (tableOptions?: Partial<TableOptions>) => {
   }
 };
 
+const onKotaSearch = (val: string) => {
+  kotaSearchTerm.value = val || "";
+};
+
+// Validasi kota — longgar, hanya cegah input provinsi
+const kotaError = computed(() => {
+  const kota = editedItem.value.kota;
+  if (!kota) return "";
+
+  const provinsiKeywords = [
+    "provinsi",
+    "prov.",
+    "jawa",
+    "sumatera",
+    "kalimantan",
+    "sulawesi",
+    "papua",
+    "bali",
+    "nusa",
+  ];
+  const lower = kota.toLowerCase();
+
+  // Warning jika sepertinya input provinsi
+  const isProvinsi = provinsiKeywords.some(
+    (k) =>
+      lower === k ||
+      (lower.startsWith(k + " ") && !lower.includes("kota") && !lower.includes("kab"))
+  );
+  if (isProvinsi) return "Mohon isi kota atau kabupaten, bukan provinsi.";
+
+  return "";
+});
+
 const handleRowClick = (_event: Event, { item }: { item: Customer }) => {
   // Toggle selection
   if (selected.value.length === 1 && selected.value[0].kode === item.kode) {
@@ -243,8 +294,53 @@ const normalizeNullableFields = () => {
   if (item.kotaNpwp === "" || item.kotaNpwp === undefined) item.kotaNpwp = null;
 };
 
+// Tambah helper validasi HP
+const validatePhone = (phone: string | null | undefined): string | null => {
+  if (!phone) return null; // boleh kosong
+
+  // Hapus semua spasi
+  const cleaned = phone.trim().replace(/\s+/g, "");
+
+  // Tidak boleh mengandung strip atau karakter non-angka (kecuali + di awal)
+  if (/[^0-9+]/.test(cleaned)) {
+    return "Nomor HP hanya boleh berisi angka, tidak boleh ada strip atau karakter lain.";
+  }
+
+  // Validasi format Indonesia: 08xxx atau 628xxx atau +628xxx
+  if (!/^(08|628|\+628)/.test(cleaned)) {
+    return "Nomor HP harus dimulai dengan 08, 628, atau +628.";
+  }
+
+  // Panjang minimal 10 digit, maksimal 15 digit
+  const digitsOnly = cleaned.replace(/^\+/, "");
+  if (digitsOnly.length < 10 || digitsOnly.length > 15) {
+    return "Nomor HP harus antara 10–15 digit.";
+  }
+
+  return null;
+};
+
 const saveCustomer = async () => {
   normalizeNullableFields();
+
+  // Validasi nomor HP
+  const phoneError = validatePhone(editedItem.value.telp);
+  if (phoneError) {
+    toast.error(phoneError);
+    return;
+  }
+
+  if (editedItem.value.kota && allKotaList.value.length > 0) {
+    const kotaValid = allKotaList.value.some(
+      (k) => k.nama.toLowerCase() === editedItem.value.kota?.toLowerCase()
+    );
+    if (!kotaValid) {
+      toast.error(
+        `Kota "${editedItem.value.kota}" tidak valid. Pilih dari daftar kota/kabupaten Indonesia.`
+      );
+      return;
+    }
+  }
 
   isSaving.value = true;
   try {
@@ -364,6 +460,7 @@ watch(search, () => {
 });
 
 onMounted(() => {
+  allKotaList.value = kotaIndonesia;
   if (hasViewPermission.value) {
     fetchCustomers();
   } else {
@@ -555,21 +652,38 @@ onMounted(() => {
                   hide-details
                   class="mb-2"
                 ></v-textarea>
-                <v-text-field
-                  v-model="editedItem.kota"
-                  label="Kota"
+                <v-combobox
+                  :model-value="editedItem.kota"
+                  @update:model-value="(val: any) => {
+                    editedItem.kota = typeof val === 'object' && val !== null ? (val as KotaItem).nama : val
+                  }"
+                  label="Kota / Kabupaten"
                   variant="outlined"
                   density="compact"
-                  hide-details
+                  hide-details="auto"
                   class="mb-2"
-                ></v-text-field>
+                  :items="filteredKotaList"
+                  :error-messages="kotaError"
+                  placeholder="Cari kota atau kabupaten..."
+                  no-data-text="Ketik minimal 2 huruf..."
+                  item-title="nama"
+                  clearable
+                  auto-select-first
+                  @update:search="onKotaSearch"
+                >
+                  <template #item="{ item, props }">
+                    <v-list-item v-bind="props" :subtitle="item.raw.provinsi" />
+                  </template>
+                </v-combobox>
                 <v-text-field
                   v-model="editedItem.telp"
                   label="No Telp/Hp"
                   variant="outlined"
                   density="compact"
-                  hide-details
+                  hide-details="auto"
                   class="mb-2"
+                  placeholder="08xxx atau 628xxx"
+                  :error-messages="editedItem.telp ? validatePhone(editedItem.telp) ?? '' : ''"
                 ></v-text-field>
                 <v-text-field
                   v-model="editedItem.namaKontak"
@@ -892,5 +1006,40 @@ onMounted(() => {
 .desktop-table :deep(tbody tr.text-grey td),
 .desktop-table :deep(tbody tr.row-is-selected.text-grey td) {
   color: #9e9e9e !important;
+}
+
+/* Override v-combobox di dalam dialog agar font konsisten */
+.dialog-card :deep(.v-combobox .v-field__input),
+.dialog-card :deep(.v-combobox input),
+.dialog-card :deep(.v-combobox .v-autocomplete__selection) {
+  font-size: 12px !important;
+}
+
+/* Fix ukuran item dropdown */
+.dialog-card :deep(.v-list-item-title) {
+  font-size: 12px !important;
+}
+
+.dialog-card :deep(.v-list-item-subtitle) {
+  font-size: 10px !important;
+}
+
+/* Override search field di filter section */
+.filter-section :deep(.v-combobox),
+.filter-section :deep(.v-text-field) {
+  min-width: 300px !important;
+}
+
+.search-grow :deep(.v-field) {
+  font-size: 11px !important;
+  height: 28px !important;
+  min-width: 300px !important;
+}
+
+.search-grow :deep(.v-field__input) {
+  font-size: 11px !important;
+  min-height: 28px !important;
+  padding: 0 4px !important;
+  min-width: 200px !important;
 }
 </style>

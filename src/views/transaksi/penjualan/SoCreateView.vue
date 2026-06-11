@@ -12,6 +12,7 @@ import type { AxiosError } from "axios";
 import axios from "axios";
 import { formatRupiah } from "@/utils/formatRupiah";
 import { useAutoPromo } from "@/composables/useAutoPromo";
+import { useCustomerVisit } from "@/composables/useCustomerVisit";
 
 // Impor semua komponen modal yang akan digunakan
 import CustomerSearchModal from "@/components/lookup/CustomerSearchModal.vue";
@@ -32,6 +33,7 @@ import PromoBonusModal from "@/components/modal/PromoBonusModal.vue"; // [BARU]
 // import SpkDialog from "@/components/dialog/SpkDialog.vue";
 import MemberForm from "@/components/form/MemberForm.vue";
 import DiscountConfirmationDialog from "@/components/dialog/DiscountConfirmationDialog.vue";
+import CustomerVisitDialog from "@/components/dialog/CustomerVisitDialog.vue";
 
 const router = useRouter();
 const route = useRoute();
@@ -40,6 +42,9 @@ const authStore = useAuthStore();
 const uiStore = useUiStore();
 const { markAsSaved } = useUnsavedChanges();
 const MENU_ID = "26";
+
+const { isVisitDialogVisible, checkAndPromptVisit, handleSelectVisit, handleCancelVisit } =
+  useCustomerVisit();
 
 // --- Interfaces ---
 interface SoItem {
@@ -1465,6 +1470,14 @@ const save = async () => {
     }
   }
 
+  const tipeKunjungan = await checkAndPromptVisit(
+    header.value.customer?.kode || "",
+    header.value.tanggal,
+    isEditMode.value
+  );
+
+  if (tipeKunjungan === "CANCEL") return;
+
   // --- 8. Konfirmasi Akhir (Simpan) ---
   showConfirmation(executeSave, "Anda yakin ingin menyimpan Surat Pesanan ini?");
 };
@@ -1509,7 +1522,7 @@ const saveAndConvertToInvoice = async () => {
   save(); // Eksekusi fungsi save utama
 };
 
-const executeSave = async () => {
+const executeSave = async (tipeKunjungan: "STORE" | "WA" | null = null) => {
   isSaving.value = true;
   try {
     const payload = {
@@ -1560,7 +1573,8 @@ const executeSave = async () => {
         })),
       dps: dpItems.value,
       isNew: !isEditMode.value,
-      user: authStore.user, // Pastikan user juga dikirim
+      user: authStore.user,
+      tipeKunjungan,
     };
     const response = await api.post("/so-form/save", payload);
     header.value.nomor = response.data.nomor;
@@ -3226,6 +3240,22 @@ const updateMemberInfo = (customer: Customer) => {
   memberHpToSearch.value = phone;
 };
 
+const handleKodeKeydown = (e: KeyboardEvent, index: number, item: SoItem) => {
+  if (item.isCustomOrder) return;
+
+  switch (e.key) {
+    case "F1":
+      e.preventDefault();
+      openProductSearch(index, false);
+      break;
+
+    case "F2":
+      e.preventDefault();
+      openProductSearch(index, true);
+      break;
+  }
+};
+
 watch(
   // Daftar semua state yang akan memicu kalkulasi ulang
   [
@@ -3862,8 +3892,7 @@ const stopAndOpenPriceProposal = (index: number) => {
                     hide-details
                     placeholder="F1/F2..."
                     :disabled="item.isCustomOrder"
-                    @keydown.f1.prevent="!item.isCustomOrder && openProductSearch(index, false)"
-                    @keydown.f2.prevent="!item.isCustomOrder && openProductSearch(index, true)"
+                    @keydown="handleKodeKeydown($event, index, item)"
                   />
                 </div>
               </template>
@@ -4357,6 +4386,11 @@ const stopAndOpenPriceProposal = (index: number) => {
       @use-member="useMemberDiscount"
       @use-promo="applyPromoDiscount"
       @ignore="closePromoDialog"
+    />
+    <CustomerVisitDialog
+      v-model="isVisitDialogVisible"
+      @select="handleSelectVisit"
+      @cancel="handleCancelVisit"
     />
 
     <v-dialog v-model="isConfirmDialogVisible" max-width="400px" persistent>

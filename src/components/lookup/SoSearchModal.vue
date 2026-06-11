@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch } from "vue";
+import { ref, watch, computed } from "vue";
 import api from "@/services/api";
 import { format } from "date-fns";
 
@@ -8,6 +8,7 @@ interface SuratPesanan {
   Tanggal: string;
   KdCus: string;
   Customer: string;
+  Keterangan: string;
 }
 
 const props = defineProps({
@@ -23,22 +24,34 @@ const loading = ref(true);
 const search = ref("");
 const options = ref({ page: 1, itemsPerPage: 10 });
 
-const headers = [
-  { title: "Nomor SO", key: "Nomor" },
-  { title: "Tanggal", key: "Tanggal" },
-  { title: "Kode Customer", key: "KdCus" },
-  { title: "Nama Customer", key: "Customer" },
-];
+const headers = computed(() => {
+  if (props.source === "sj-workshop-lhk") {
+    return [
+      { title: "Nomor SO", key: "Nomor" },
+      { title: "Tanggal", key: "Tanggal" },
+      { title: "Customer", key: "Customer" },
+      { title: "No. SO DTF (Bordir)", key: "Keterangan" },
+    ];
+  }
+  return [
+    { title: "Nomor SO", key: "Nomor" },
+    { title: "Tanggal", key: "Tanggal" },
+    { title: "Kode Customer", key: "KdCus" },
+    { title: "Nama Customer", key: "Customer" },
+  ];
+});
 
 const getEndpoint = () => {
   if (props.source === "setoran-bayar") {
     return "/setoran-bayar-form/lookup/search-so";
   }
-  // [BARU] Jalur khusus untuk mencari SO Bordir Lintas Cabang
   if (props.source === "surat-jalan-bordir") {
     return "/surat-jalan-form/lookup/so-bordir";
   }
-  return "/mutasi-out-form/lookup/so"; // default lama
+  if (props.source === "sj-workshop-lhk") {
+    return "/operasional/workshop/sj-workshop-form/lookup/so-lhk";
+  }
+  return "/mutasi-out-form/lookup/so";
 };
 
 const loadItems = async ({ page, itemsPerPage }: { page: number; itemsPerPage: number }) => {
@@ -113,8 +126,14 @@ watch(search, () => {
             <tr @click="selectItem(item)" style="cursor: pointer">
               <td>{{ item.Nomor }}</td>
               <td>{{ format(new Date(item.Tanggal), "dd/MM/yyyy") }}</td>
-              <td>{{ item.KdCus }}</td>
-              <td>{{ item.Customer }}</td>
+              <template v-if="source === 'sj-workshop-lhk'">
+                <td>{{ item.Customer }}</td>
+                <td>{{ item.Keterangan || "-" }}</td>
+              </template>
+              <template v-else>
+                <td>{{ item.KdCus }}</td>
+                <td>{{ item.Customer }}</td>
+              </template>
             </tr>
           </template>
         </v-data-table-server>

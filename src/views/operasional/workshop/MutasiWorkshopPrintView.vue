@@ -11,6 +11,8 @@ interface PrintHeader {
   tanggal: string;
   keCabang: string; // Format: "KODE - Nama Workshop"
   keterangan: string;
+  nomorSo: string;
+  nomorSoDtf: string;
   created: string;
   user_create: string;
   perush_nama: string;
@@ -86,10 +88,22 @@ onMounted(() => {
           <div>
             <span class="label">Tujuan</span>: <strong>{{ printData.header.keCabang }}</strong>
           </div>
+          <div v-if="printData.header.nomorSo && printData.header.nomorSo !== '-'">
+            <span class="label">No. SO</span>: {{ printData.header.nomorSo }}
+          </div>
           <div>
             <span class="label">Tanggal</span>:
             {{ format(parseISO(printData.header.tanggal), "dd/MM/yyyy") }}
           </div>
+
+          <div
+            v-if="printData.header.nomorSoDtf && printData.header.nomorSoDtf !== '-'"
+            style="grid-column: 2"
+          >
+            <span class="label">No. Bordir</span>:
+            <strong>{{ printData.header.nomorSoDtf }}</strong>
+          </div>
+
           <div class="keterangan">
             <span class="label">Keterangan</span>: {{ printData.header.keterangan || "-" }}
           </div>
@@ -172,10 +186,22 @@ onMounted(() => {
           <div>
             <span class="label">Tujuan</span>: <strong>{{ printData.header.keCabang }}</strong>
           </div>
+          <div v-if="printData.header.nomorSo && printData.header.nomorSo !== '-'">
+            <span class="label">No. SO</span>: {{ printData.header.nomorSo }}
+          </div>
           <div>
             <span class="label">Tanggal</span>:
             {{ format(parseISO(printData.header.tanggal), "dd/MM/yyyy") }}
           </div>
+
+          <div
+            v-if="printData.header.nomorSoDtf && printData.header.nomorSoDtf !== '-'"
+            style="grid-column: 2"
+          >
+            <span class="label">No. Bordir</span>:
+            <strong>{{ printData.header.nomorSoDtf }}</strong>
+          </div>
+
           <div class="keterangan">
             <span class="label">Keterangan</span>: {{ printData.header.keterangan || "-" }}
           </div>

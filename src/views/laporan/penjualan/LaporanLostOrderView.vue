@@ -37,6 +37,7 @@ interface LostOrderItem {
 interface KunjunganItem {
   id: number;
   tanggal: string;
+  created_at: string;
   kode_cabang: string;
   nama_cabang: string;
   customer_kode: string;
@@ -106,7 +107,7 @@ const totalUniqueCustomers = computed(() => {
 
 // --- HEADERS DEFINITION ---
 const headersKunjungan = ref<DataTableHeader[]>([
-  { title: "Tanggal Kunjungan", key: "tanggal", fixed: true, width: 140 },
+  { title: "Tanggal & Jam", key: "tanggal", fixed: true, width: 160 },
   { title: "Cabang", key: "nama_cabang", width: 150 },
   { title: "Kode Pelanggan", key: "customer_kode", width: 130 },
   { title: "Nama Pelanggan", key: "customer_nama", width: 200 },
@@ -238,7 +239,12 @@ const exportToExcel = async () => {
 
       kunjunganData.value.forEach((item) => {
         const rowData = colDefs.map((c) => {
-          if (c.key === "tanggal") return format(new Date(item.tanggal), "dd/MM/yyyy");
+          if (c.key === "tanggal") {
+            const jam = item.created_at
+              ? format(new Date(item.created_at as string), "HH:mm:ss")
+              : "";
+            return format(new Date(item.tanggal as string), "dd/MM/yyyy") + (jam ? " " + jam : "");
+          }
           return item[c.key] ?? "";
         });
         const dataRow = sheet.addRow(rowData);
@@ -478,7 +484,16 @@ watch(
               </template>
 
               <template #[`item.tanggal`]="{ item }">
-                {{ item.tanggal ? format(new Date(item.tanggal as string), "dd/MM/yyyy") : "" }}
+                <div>
+                  <div>
+                    {{ item.tanggal ? format(new Date(item.tanggal as string), "dd/MM/yyyy") : "" }}
+                  </div>
+                  <div class="text-caption text-grey-darken-1">
+                    {{
+                      item.created_at ? format(new Date(item.created_at as string), "HH:mm:ss") : ""
+                    }}
+                  </div>
+                </div>
               </template>
 
               <template #[`item.tipe_kunjungan`]="{ item }">

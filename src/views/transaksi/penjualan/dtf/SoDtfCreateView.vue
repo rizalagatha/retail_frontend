@@ -190,8 +190,7 @@ const totalJumlahKaos = computed(() => {
 });
 
 const totalTitik = computed(() => {
-  const titikCount = detailsTitik.value.filter((d) => d.keterangan).length;
-  return totalJumlahKaos.value * titikCount;
+  return detailsTitik.value.filter((d) => d.keterangan).length;
 });
 
 const isHargaReadonly = computed(() => {

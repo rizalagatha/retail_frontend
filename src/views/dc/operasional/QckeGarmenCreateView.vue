@@ -78,8 +78,8 @@ const dialogConfirmCetak = reactive({
 const header = reactive({
   nomor: "<--Kosong=Baru",
   tanggal: format(new Date(), "yyyy-MM-dd"),
-  gudang: "GJ002",
-  namaGudang: "GUDANG BARANG JADI P1",
+  gudang: "GJ001",
+  namaGudang: "GUDANG BARANG JADI JERON",
   keterangan: "",
   closing: "",
 });
@@ -518,6 +518,46 @@ const handleTutup = () => {
   );
 };
 
+const handleGrid1Keydown = (e: KeyboardEvent, item: Item1) => {
+  switch (e.key) {
+    case "F1":
+      e.preventDefault();
+      openBarangSearch(1, null);
+      break;
+
+    case "Enter":
+      e.preventDefault();
+      handleGridBarcodeEnterGrid1(item);
+      break;
+  }
+};
+
+const handleGrid2Keydown = (e: KeyboardEvent, item: Item2) => {
+  switch (e.key) {
+    case "F1":
+      e.preventDefault();
+      openBarangSearch(2, null);
+      break;
+
+    case "F2":
+      e.preventDefault();
+      handleOpenBarangSearchF2();
+      break;
+
+    case "Enter":
+      e.preventDefault();
+      handleGridBarcodeEnterGrid2(item);
+      break;
+  }
+};
+
+const handleGudangKeydown = (e: KeyboardEvent) => {
+  if (e.key === "F1") {
+    e.preventDefault();
+    isGudangSearchVisible.value = true;
+  }
+};
+
 onMounted(async () => {
   const nomor = route.params.nomor as string;
   if (nomor) {
@@ -577,7 +617,7 @@ onMounted(async () => {
                 v-model="header.gudang"
                 append-inner-icon="mdi-magnify"
                 @click:append-inner="isGudangSearchVisible = true"
-                @keydown.f1.prevent="isGudangSearchVisible = true"
+                @keydown="handleGudangKeydown"
                 density="compact"
               />
             </v-col>
@@ -627,8 +667,7 @@ onMounted(async () => {
                 density="compact"
                 hide-details
                 placeholder="Scan/F1..."
-                @keydown.f1.prevent="openBarangSearch(1, null)"
-                @keydown.enter.prevent="handleGridBarcodeEnterGrid1(item)"
+                @keydown="handleGrid1Keydown($event, item)"
                 :readonly="!!item.nama || header.closing === 'Y'"
               />
             </template>
@@ -689,9 +728,7 @@ onMounted(async () => {
                 density="compact"
                 hide-details
                 placeholder="Scan/F1/F2..."
-                @keydown.f1.prevent="openBarangSearch(2, null)"
-                @keydown.f2.prevent="handleOpenBarangSearchF2"
-                @keydown.enter.prevent="handleGridBarcodeEnterGrid2(item)"
+                @keydown="handleGrid2Keydown($event, item)"
                 :readonly="!!item.nama || item.closing === 'Y'"
               />
             </template>

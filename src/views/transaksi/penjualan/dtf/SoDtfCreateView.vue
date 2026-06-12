@@ -48,16 +48,17 @@ interface FormHeader {
 interface DetailUkuran {
   id: number;
   ukuran: string;
-  jumlah: number; // Hapus | null
-  harga: number; // Hapus | null
-  namaBarang: string; // Hapus opsional ?
+  jumlah: number;
+  harga: number;
+  namaBarang: string;
 }
 interface DetailTitik {
   id: number;
   keterangan: string;
   sizeCetak: string;
-  panjang: number; // Hapus | null
-  lebar: number; // Hapus | null
+  warna?: string;
+  panjang: number;
+  lebar: number;
 }
 interface SoDtfPayload {
   header: FormHeader;
@@ -174,6 +175,7 @@ const pendingAction = ref<(() => void) | null>(null);
 const isPrintConfirmVisible = ref(false); // State untuk dialog cetak baru
 const printConfirmNomor = ref(""); // Untuk menyimpan nomor SO DTF yang akan dicetak
 const ukuranKaosList = ref<string[]>([]);
+const warnaPoliflexList = ref<string[]>([]);
 
 // --- Modal Visibility State ---
 const isCustomerSearchVisible = ref(false);
@@ -195,7 +197,7 @@ const totalTitik = computed(() => {
 });
 
 const isHargaReadonly = computed(() => {
-  const autoCalcTypes = ["SD", "DP", "TG", "BR"];
+  const autoCalcTypes = ["SD", "DP", "TG", "BR", "PL"];
   return autoCalcTypes.includes(form.value.jenisOrderKode);
 });
 
@@ -213,6 +215,22 @@ const bordirMultiplier = computed(() => {
   } else {
     // Aturan Harga Lama (sebelum 15 Mei)
     return qty >= 20 ? 100 : 200;
+  }
+});
+
+const hargaPerCmPoliflexInfo = computed(() => {
+  if (form.value.jenisOrderKode !== "PL") return 0;
+
+  const isGrosir = totalJumlahKaos.value >= 10;
+
+  // Ambil warna dari titik pertama yang terisi
+  const firstTitik = detailsTitik.value.find((t) => t.keterangan);
+  const isGold = (firstTitik?.warna || "").toUpperCase() === "GOLD";
+
+  if (isGrosir) {
+    return isGold ? 55 : 40;
+  } else {
+    return isGold ? 65 : 50;
   }
 });
 
@@ -261,13 +279,63 @@ const totalHargaDtf = computed(() => {
   return totalLuasDtf.value * harga * totalJumlahKaos.value;
 });
 
+// === Perhitungan Luas Poliflex ===
+const totalLuasPoliflex = computed(() => {
+  if (form.value.jenisOrderKode !== "PL") return 0;
+  return detailsTitik.value.reduce((sum, t) => {
+    return sum + (t.panjang || 0) * (t.lebar || 0);
+  }, 0);
+});
+
+// === Perhitungan Harga Poliflex (per titik, tergantung warna) ===
+const totalHargaPoliflex = computed(() => {
+  if (form.value.jenisOrderKode !== "PL") return 0;
+
+  const qty = totalJumlahKaos.value;
+  if (qty <= 0) return 0;
+
+  const isGrosir = qty >= 10;
+
+  const totalHargaJasaPerKaos = detailsTitik.value.reduce((sum, t) => {
+    if (t.panjang && t.lebar) {
+      const luas = Number(t.panjang) * Number(t.lebar);
+      const isGold = (t.warna || "").toUpperCase() === "GOLD";
+
+      let hargaPerCm = 0;
+      if (isGrosir) {
+        hargaPerCm = isGold ? 55 : 40;
+      } else {
+        hargaPerCm = isGold ? 65 : 50;
+      }
+
+      return sum + luas * hargaPerCm;
+    }
+    return sum;
+  }, 0);
+
+  return totalHargaJasaPerKaos * qty;
+});
+
 // 1. Hitung batas dinamis Dateline Customer
 const maxDatelineDate = computed(() => {
   const startDate = parseISO(form.value.tanggal);
-  const prefix = form.value.workshopKode.charAt(0).toUpperCase();
 
-  // Workshop P = H+7, Workshop K = H+3
-  const daysToAdd = prefix === "P" ? 7 : 3;
+  let daysToAdd: number;
+  switch (form.value.jenisOrderKode) {
+    case "SD":
+      daysToAdd = 3;
+      break;
+    case "BR":
+    case "PL":
+      daysToAdd = 14;
+      break;
+    default:
+      // Fallback ke aturan workshop lama untuk jenis order lain
+      const prefix = form.value.workshopKode.charAt(0).toUpperCase();
+      daysToAdd = prefix === "P" ? 7 : 3;
+      break;
+  }
+
   return format(addDays(startDate, daysToAdd), "yyyy-MM-dd");
 });
 
@@ -276,10 +344,10 @@ watch(
   () => form.value.datelineCustomer,
   (newVal) => {
     if (newVal && isAfter(parseISO(newVal), parseISO(maxDatelineDate.value))) {
+      const jenisLabel = form.value.jenisOrderKode || "order ini";
       toast.warning(
-        `Dateline Customer workshop ${form.value.workshopKode} maksimal adalah ${maxDatelineDate.value}`
+        `Dateline Customer untuk jenis order ${jenisLabel} maksimal adalah ${maxDatelineDate.value}`
       );
-      // Paksa balik ke batas maksimal
       form.value.datelineCustomer = maxDatelineDate.value;
     }
   }
@@ -329,6 +397,7 @@ const addDetailTitik = () => {
       id: Date.now(),
       keterangan: "",
       sizeCetak: form.value.jenisOrderKode === "SD" ? "Custom" : "",
+      warna: "",
       panjang: 0,
       lebar: 0,
     });
@@ -874,15 +943,15 @@ const fetchUkuranKaosList = async () => {
 };
 
 const fetchSizeCetakList = async (jenisOrder: string) => {
-  if (!jenisOrder) {
-    sizeCetakList.value = ["Custom"]; // Default hanya Custom jika belum pilih jenis order
+  if (!jenisOrder || jenisOrder === "PL") {
+    // [FIX] PL tidak punya size cetak dari tukuran_sodtf — selalu Custom
+    sizeCetakList.value = ["Custom"];
     return;
   }
   try {
     const response = await api.get("/so-dtf-form/lookup/size-cetak", {
       params: { jenisOrder },
     });
-    // Tambahkan "Custom" di akhir list
     sizeCetakList.value = [...response.data, "Custom"];
   } catch (error) {
     const err = error as Error;
@@ -949,6 +1018,11 @@ const calculatePrices = async () => {
     case "BR": // BORDIR
       hargaPerCm = bordirMultiplier.value; // Dinamis: 100 atau 200
       hargaSatuan = totalJumlahKaos.value > 0 ? totalHargaBordir.value / totalJumlahKaos.value : 0;
+      break;
+    case "PL": // POLYFLEX
+      hargaPerCm = 0;
+      hargaSatuan =
+        totalJumlahKaos.value > 0 ? totalHargaPoliflex.value / totalJumlahKaos.value : 0;
       break;
     case "TG": // DTG
       hargaPerCm = 0;
@@ -1168,6 +1242,18 @@ const fetchFromTrial = async (nomorTrial: string) => {
   }
 };
 
+const fetchWarnaPoliflexList = async () => {
+  try {
+    const response = await api.get("/so-dtf-form/lookup/size-cetak", {
+      params: { jenisOrder: "PL" },
+    });
+    warnaPoliflexList.value = response.data;
+  } catch (error) {
+    const err = error as Error;
+    toast.error(err.message || "Gagal memuat daftar warna poliflex.");
+  }
+};
+
 // const cleanupPreviewUrl = () => {
 //   if (imagePreview.value && imagePreview.value.startsWith('blob:')) {
 //     URL.revokeObjectURL(imagePreview.value);
@@ -1185,14 +1271,26 @@ watch(
 watch(
   () => form.value.jenisOrderKode,
   (newJenisOrder, oldJenisOrder) => {
-    // Selalu ambil daftar size cetak yang baru
     fetchSizeCetakList(newJenisOrder);
 
-    // HANYA kosongkan isian jika user secara manual mengubah jenis order
-    // (yaitu, saat nilai lama tidak kosong dan tidak dalam mode edit)
+    if (newJenisOrder === "PL" && warnaPoliflexList.value.length === 0) {
+      fetchWarnaPoliflexList();
+    }
+
     if (isLoading.value) return;
     if (!isEditMode.value && oldJenisOrder) {
       detailsTitik.value.forEach((item) => (item.sizeCetak = ""));
+    }
+
+    // [BARU] Re-validasi dateline saat jenis order berubah
+    if (
+      form.value.datelineCustomer &&
+      isAfter(parseISO(form.value.datelineCustomer), parseISO(maxDatelineDate.value))
+    ) {
+      toast.warning(
+        `Dateline Customer disesuaikan ke maksimal ${maxDatelineDate.value} untuk jenis order ${newJenisOrder}`
+      );
+      form.value.datelineCustomer = maxDatelineDate.value;
     }
   }
 );
@@ -1243,6 +1341,7 @@ watch(selectedTrialImage, (newUrl) => {
 
 onMounted(async () => {
   markAsSaved();
+  fetchWarnaPoliflexList();
 
   if (!authStore.can(MENU_ID, requiredPermission.value)) {
     toast.error(
@@ -1438,16 +1537,19 @@ onMounted(async () => {
                 placeholder="F1 atau klik untuk mencari..."
               />
             </v-col>
-            <v-col cols="4"
-              ><v-text-field
+            <v-col cols="4">
+              <v-text-field
                 label="Harga/cm2"
-                :model-value="form.hargaPerCm"
+                :model-value="
+                  form.jenisOrderKode === 'PL' ? hargaPerCmPoliflexInfo : form.hargaPerCm
+                "
                 readonly
                 filled
                 variant="outlined"
                 density="compact"
                 hide-details
-            /></v-col>
+              />
+            </v-col>
             <v-col cols="12"
               ><v-text-field
                 label="Nama DTF"
@@ -1577,6 +1679,7 @@ onMounted(async () => {
                         hide-details
                         class="text-end"
                         min="0"
+                        @focus="($event.target as HTMLInputElement).select()"
                       />
                     </td>
                     <td>
@@ -1588,6 +1691,7 @@ onMounted(async () => {
                         hide-details
                         class="text-end"
                         :readonly="isHargaReadonly"
+                        @focus="($event.target as HTMLInputElement).select()"
                       />
                     </td>
                     <td>
@@ -1639,6 +1743,7 @@ onMounted(async () => {
                     <th style="width: 40px">#</th>
                     <th>Keterangan</th>
                     <th style="width: 100px">Size Cetak</th>
+                    <th v-if="form.jenisOrderKode === 'PL'" style="width: 140px">Warna</th>
                     <th class="text-end" style="width: 70px">P(cm)</th>
                     <th class="text-end" style="width: 70px">L(cm)</th>
                     <th style="width: 40px"></th>
@@ -1666,6 +1771,16 @@ onMounted(async () => {
                         hide-details
                       />
                     </td>
+                    <td v-if="form.jenisOrderKode === 'PL'" style="min-width: 140px">
+                      <v-combobox
+                        v-model="item.warna"
+                        :items="warnaPoliflexList"
+                        variant="underlined"
+                        density="compact"
+                        hide-details
+                        style="font-size: 12px"
+                      />
+                    </td>
                     <td>
                       <v-text-field
                         v-model.number="item.panjang"
@@ -1676,6 +1791,7 @@ onMounted(async () => {
                         class="text-end"
                         :readonly="isPanjangLebarReadonly(item)"
                         :class="{ 'field-readonly': isPanjangLebarReadonly(item) }"
+                        @focus="($event.target as HTMLInputElement).select()"
                       />
                     </td>
                     <td>
@@ -1688,6 +1804,7 @@ onMounted(async () => {
                         class="text-end"
                         :readonly="isPanjangLebarReadonly(item)"
                         :class="{ 'field-readonly': isPanjangLebarReadonly(item) }"
+                        @focus="($event.target as HTMLInputElement).select()"
                       />
                     </td>
                     <td>
@@ -1704,9 +1821,10 @@ onMounted(async () => {
                 </tbody>
               </v-table>
             </div>
+
             <div
               class="desktop-form-section mt-4"
-              v-if="['BR', 'SD'].includes(form.jenisOrderKode)"
+              v-if="['BR', 'SD', 'PL'].includes(form.jenisOrderKode)"
             >
               <div class="perhitungan-box">
                 <v-row dense>
@@ -1745,6 +1863,7 @@ onMounted(async () => {
                       hide-details
                     />
                   </v-col>
+
                   <!-- DTF -->
                   <v-col cols="12" v-if="form.jenisOrderKode === 'SD'">
                     <v-alert density="compact" variant="tonal" type="info" class="mb-2">
@@ -1774,6 +1893,44 @@ onMounted(async () => {
                     <v-text-field
                       label="Total Harga DTF"
                       :model-value="totalHargaDtf"
+                      readonly
+                      variant="filled"
+                      density="compact"
+                      hide-details
+                    />
+                  </v-col>
+
+                  <!-- Poliflex (BARU) -->
+                  <v-col cols="12" v-if="form.jenisOrderKode === 'PL'">
+                    <v-alert density="compact" variant="tonal" type="info" class="mb-2">
+                      Perhitungan Poliflex
+                    </v-alert>
+
+                    <v-text-field
+                      label="Total Luas Poliflex /Cm² (Semua Titik)"
+                      :model-value="totalLuasPoliflex"
+                      readonly
+                      variant="filled"
+                      density="compact"
+                      hide-details
+                      class="mb-2"
+                    />
+
+                    <v-text-field
+                      label="Status Order"
+                      :model-value="
+                        totalJumlahKaos >= 10 ? 'Grosir (≥10 pcs)' : 'Reguler (<10 pcs)'
+                      "
+                      readonly
+                      variant="filled"
+                      density="compact"
+                      hide-details
+                      class="mb-2"
+                    />
+
+                    <v-text-field
+                      label="Total Harga Poliflex"
+                      :model-value="totalHargaPoliflex"
                       readonly
                       variant="filled"
                       density="compact"
@@ -2124,5 +2281,10 @@ onMounted(async () => {
 
 .desktop-form-section {
   background-color: rgb(var(--v-theme-surface));
+}
+
+.desktop-table :deep(.v-combobox .v-field__input) {
+  white-space: nowrap;
+  overflow: visible;
 }
 </style>

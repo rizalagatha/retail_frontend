@@ -145,7 +145,18 @@ export function useAutoPromo(
         return true;
 
       case "KATEGORI":
-        // [FIX] Kombinasi: harus REGULER DAN mengandung kata kunci (jika diisi)
+        // [FIX] Item dengan noSoDtf (SABLON DTF) selalu eligible jika tidak bordir
+        if (item.noSoDtf) {
+          if (promo.pro_include_kata) {
+            const includeKatas = promo.pro_include_kata
+              .split(",")
+              .map((s) => s.trim().toUpperCase())
+              .filter(Boolean);
+            return includeKatas.some((k) => namaUp.includes(k));
+          }
+          return true;
+        }
+
         if ((item.kategori || "").toUpperCase() !== "REGULER") return false;
         if (promo.pro_include_kata) {
           const includeKatas = promo.pro_include_kata
@@ -154,7 +165,7 @@ export function useAutoPromo(
             .filter(Boolean);
           return includeKatas.some((k) => namaUp.includes(k));
         }
-        return true; // REGULER tapi tanpa filter kata = semua REGULER lolos
+        return true;
 
       case "TIPE":
         // Filter berdasarkan kata kunci nama barang

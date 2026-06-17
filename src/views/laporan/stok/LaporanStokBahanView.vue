@@ -157,27 +157,36 @@ const fetchData = async () => {
 };
 
 // --- Fetch Details (Kartu Stok) ---
-const loadDetails = async (newlyExpandedItems: { Kode: string }[]) => {
-  const itemToLoad = newlyExpandedItems.find(
-    (item) => !details.value[item.Kode] && !loadingDetails.value.has(item.Kode)
+// Fungsi jembatan untuk menangani event expanded dari Vuetify dan mematuhi TypeScript
+const handleExpandedChange = (newVal: StokBahanItem[]) => {
+  // Ambil hanya array of Kode (string[]) untuk dilempar ke loadDetails
+  const expandedKodes = newVal.map((item) => item.Kode);
+  loadDetails(expandedKodes);
+};
+
+const loadDetails = async (newlyExpandedItems: readonly string[]) => {
+  // newlyExpandedItems dalam Vuetify versi ini berisi array of string (yaitu item-value, dalam hal ini "Kode")
+  // Kita cari ID (Kode) yang baru saja di-expand dan belum ada di details
+  const kodeToLoad = newlyExpandedItems.find(
+    (kode) => !details.value[kode] && !loadingDetails.value.has(kode)
   );
 
-  if (!itemToLoad) return;
-  const kodeToLoad = itemToLoad.Kode;
+  if (!kodeToLoad) return;
 
   loadingDetails.value.add(kodeToLoad);
   try {
-    // Asumsi endpoint controller untuk getKartuStokBahan adalah /laporan-stok-bahan/kartu-stok
     const response = await api.get<KartuStokItem[]>(`/laporan-stok-bahan/kartu-stok`, {
       params: {
-        kodeBarang: kodeToLoad,
+        kodeBarang: kodeToLoad, // Ini akan terbaca dengan benar di backend
         cabang: filters.cabang,
-        tanggalAkhir: filters.tanggal, // Sesuaikan dgn tgl filter
+        tanggalAkhir: filters.tanggal,
       },
     });
     details.value[kodeToLoad] = response.data;
-  } catch {
-    toast.error(`Gagal memuat detail mutasi untuk ${kodeToLoad}`);
+  } catch (error: any) {
+    const errorMessage =
+      error.response?.data?.message || `Gagal memuat detail mutasi untuk ${kodeToLoad}`;
+    toast.error(errorMessage);
   } finally {
     loadingDetails.value.delete(kodeToLoad);
   }
@@ -425,8 +434,9 @@ onMounted(() => {
           :row-props="(item: any) => ({ class: getRowClass(item.item) })"
           v-model:expanded="expanded"
           item-value="Kode"
+          return-object
           show-expand
-          @update:expanded="loadDetails"
+          @update:expanded="handleExpandedChange"
         >
           <template #headers="{ columns, isSorted, getSortIcon, toggleSort }">
             <tr>

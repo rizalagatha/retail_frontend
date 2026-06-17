@@ -141,6 +141,10 @@ const fetchCabangOptions = async () => {
   } else {
     cabangList.value = allCabang;
   }
+
+  // --- TAMBAHKAN BARIS INI ---
+  // Selipkan opsi "Semua Cabang" ke urutan paling atas (index 0)
+  cabangList.value.unshift({ kode: "ALL", nama: "Semua Cabang" });
 };
 
 const fetchData = async () => {
@@ -159,36 +163,34 @@ const fetchData = async () => {
 // --- Fetch Details (Kartu Stok) ---
 // Fungsi jembatan untuk menangani event expanded dari Vuetify dan mematuhi TypeScript
 const handleExpandedChange = (newVal: StokBahanItem[]) => {
-  // Ambil hanya array of Kode (string[]) untuk dilempar ke loadDetails
-  const expandedKodes = newVal.map((item) => item.Kode);
-  loadDetails(expandedKodes);
+  loadDetails(newVal);
 };
 
-const loadDetails = async (newlyExpandedItems: readonly string[]) => {
-  // newlyExpandedItems dalam Vuetify versi ini berisi array of string (yaitu item-value, dalam hal ini "Kode")
-  // Kita cari ID (Kode) yang baru saja di-expand dan belum ada di details
-  const kodeToLoad = newlyExpandedItems.find(
-    (kode) => !details.value[kode] && !loadingDetails.value.has(kode)
+const loadDetails = async (newlyExpandedItems: StokBahanItem[]) => {
+  // Cari baris yang baru diklik berdasarkan Kunci Unik (Kode + Cabang)
+  const itemToLoad = newlyExpandedItems.find(
+    (item) =>
+      !details.value[`${item.Kode}_${item.KodeCabang}`] &&
+      !loadingDetails.value.has(`${item.Kode}_${item.KodeCabang}`)
   );
 
-  if (!kodeToLoad) return;
+  if (!itemToLoad) return;
+  const key = `${itemToLoad.Kode}_${itemToLoad.KodeCabang}`;
 
-  loadingDetails.value.add(kodeToLoad);
+  loadingDetails.value.add(key);
   try {
     const response = await api.get<KartuStokItem[]>(`/laporan-stok-bahan/kartu-stok`, {
       params: {
-        kodeBarang: kodeToLoad, // Ini akan terbaca dengan benar di backend
-        cabang: filters.cabang,
+        kodeBarang: itemToLoad.Kode,
+        cabang: itemToLoad.KodeCabang,
         tanggalAkhir: filters.tanggal,
       },
     });
-    details.value[kodeToLoad] = response.data;
+    details.value[key] = response.data;
   } catch (error: any) {
-    const errorMessage =
-      error.response?.data?.message || `Gagal memuat detail mutasi untuk ${kodeToLoad}`;
-    toast.error(errorMessage);
+    toast.error(error.response?.data?.message || `Gagal memuat mutasi.`);
   } finally {
-    loadingDetails.value.delete(kodeToLoad);
+    loadingDetails.value.delete(key);
   }
 };
 
@@ -433,7 +435,7 @@ onMounted(() => {
           :items-per-page="-1"
           :row-props="(item: any) => ({ class: getRowClass(item.item) })"
           v-model:expanded="expanded"
-          item-value="Kode"
+          :item-value="(item) => `${item.Kode}_${item.KodeCabang}`"
           return-object
           show-expand
           @update:expanded="handleExpandedChange"
@@ -511,13 +513,16 @@ onMounted(() => {
               <td :colspan="columns.length" class="pa-0">
                 <div class="detail-container">
                   <div class="detail-table-wrapper">
-                    <div v-if="loadingDetails.has(item.Kode)" class="text-center pa-4 text-caption">
+                    <div
+                      v-if="loadingDetails.has(`${item.Kode}_${item.KodeCabang}`)"
+                      class="text-center pa-4 text-caption"
+                    >
                       Memuat detail mutasi...
                     </div>
                     <v-data-table
                       v-else
                       :headers="detailHeaders"
-                      :items="details[item.Kode] || []"
+                      :items="details[`${item.Kode}_${item.KodeCabang}`] || []"
                       density="compact"
                       class="detail-table"
                       :items-per-page="-1"

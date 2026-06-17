@@ -1951,14 +1951,20 @@ const closePromoDialog = () => {
 
 const handleProceedToPayment = async () => {
   // =========================================================
-  // [BARU] BLOKIR JIKA SHIFT BELUM DIBUKA
+  // [BARU] CEK SESI KASIR SEBELUM LANJUT KE PEMBAYARAN
   // =========================================================
-  // [PERBAIKAN] Validasi Buka Shift Hanya Untuk Toko
   if (isStoreUser.value) {
-    if (!cashierSessionStore.session || cashierSessionStore.session.status === "CLOSED") {
-      toast.error("Shift Kasir belum dibuka! Tidak bisa mengubah pembayaran.");
+    // 1. [PENTING] Tarik dulu data sesi dari Backend!
+    await cashierSessionStore.fetchCurrentSession();
+
+    const session = cashierSessionStore.session;
+
+    if (!session || session.status === "CLOSED") {
+      toast.warning("Laci Kasir belum dibuka. Silakan mulai shift terlebih dahulu.");
       cashierSessionStore.isStartModalVisible = true;
-      return;
+    } else if (session.status === "PAUSED") {
+      toast.info("Laci kasir sedang di-pause. Silakan ambil alih (Resume).");
+      cashierSessionStore.openHandoverModal("resume");
     }
   }
   // =========================================================
@@ -2821,12 +2827,18 @@ onMounted(async () => {
   // =========================================================
   // [BARU] CEK SESI KASIR SAAT MASUK HALAMAN INVOICE
   // =========================================================
-  // Tunggu sebentar memastikan layout sudah fetch data sesi
-  await nextTick();
   if (isStoreUser.value) {
-    if (!cashierSessionStore.session || cashierSessionStore.session.status === "CLOSED") {
+    // 1. [PENTING] Tarik dulu data sesi dari Backend!
+    await cashierSessionStore.fetchCurrentSession();
+
+    const session = cashierSessionStore.session;
+
+    if (!session || session.status === "CLOSED") {
       toast.warning("Laci Kasir belum dibuka. Silakan mulai shift terlebih dahulu.");
       cashierSessionStore.isStartModalVisible = true;
+    } else if (session.status === "PAUSED") {
+      toast.info("Laci kasir sedang di-pause. Silakan ambil alih (Resume).");
+      cashierSessionStore.openHandoverModal("resume");
     }
   }
   // =========================================================

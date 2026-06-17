@@ -1448,11 +1448,24 @@ onMounted(async () => {
   }
 
   await nextTick();
+
   if (isStoreUser.value) {
-    if (!cashierSessionStore.session || cashierSessionStore.session.status === "CLOSED") {
+    // 1. [PENTING] Tarik dulu data sesi dari Backend sebelum mengecek state!
+    await cashierSessionStore.fetchCurrentSession();
+
+    const session = cashierSessionStore.session;
+
+    // 2. Jika memang belum ada yang buka shift sama sekali di cabang ini
+    if (!session || session.status === "CLOSED") {
       toast.warning("Laci Kasir belum dibuka. Silakan mulai shift terlebih dahulu.");
       cashierSessionStore.isStartModalVisible = true;
     }
+    // 3. [OPSIONAL] Jika shift sedang di-PAUSE (kasir sedang istirahat)
+    else if (session.status === "PAUSED") {
+      toast.info("Laci kasir sedang di-pause. Silakan ambil alih (Resume).");
+      cashierSessionStore.openHandoverModal("resume");
+    }
+    // Jika OPEN (kasir 1 sudah buka), biarkan lolos. Kasir 2 siap bertransaksi!
   }
 
   await fetchCabangList();

@@ -292,6 +292,247 @@ const handleEdit = () => {
   });
 };
 
+// ==========================================
+// FUNGSI EXPORT EXCEL
+// ==========================================
+const exportHeaderData = async () => {
+  if (list.value.length === 0) return toast.warning("Tidak ada data untuk diekspor.");
+  toast.info("Menyiapkan file export header...");
+
+  try {
+    const ExcelJS = (await import("exceljs")).default;
+    const workbook = new ExcelJS.Workbook();
+    const sheet = workbook.addWorksheet("LHK Header");
+
+    const borderThin: Partial<import("exceljs").Borders> = {
+      top: { style: "thin" },
+      left: { style: "thin" },
+      bottom: { style: "thin" },
+      right: { style: "thin" },
+    };
+
+    const cols = [
+      { header: "NOMOR LHK", key: "NomorLhk", width: 25, align: "left" as const },
+      { header: "TANGGAL", key: "Tanggal", width: 15, align: "center" as const },
+      { header: "JENIS ORDER", key: "NamaJenisOrder", width: 20, align: "left" as const },
+      { header: "STORE", key: "NamaCabang", width: 20, align: "left" as const },
+      { header: "USER", key: "user_create", width: 15, align: "left" as const },
+      {
+        header: "SISTEM (PCS)",
+        key: "TotalJumlahSistem",
+        width: 15,
+        align: "right" as const,
+        fmt: "#,##0",
+      },
+      {
+        header: "RIIL (PCS)",
+        key: "TotalJumlahRiil",
+        width: 15,
+        align: "right" as const,
+        fmt: "#,##0",
+      },
+      { header: "REJECT", key: "TotalReject", width: 12, align: "right" as const, fmt: "#,##0" },
+      { header: "STITCH", key: "TotalStitch", width: 15, align: "right" as const, fmt: "#,##0" },
+      {
+        header: "PEMAKAIAN (CM)",
+        key: "PanjangMtr",
+        width: 18,
+        align: "right" as const,
+        fmt: "#,##0.00",
+      },
+      {
+        header: "BUANGAN (CM)",
+        key: "BuanganMtr",
+        width: 18,
+        align: "right" as const,
+        fmt: "#,##0.00",
+      },
+      { header: "RIIL (CM²)", key: "LuasRiil", width: 15, align: "right" as const, fmt: "#,##0" },
+      {
+        header: "SISTEM (CM²)",
+        key: "TotalLuasSistem",
+        width: 15,
+        align: "right" as const,
+        fmt: "#,##0",
+      },
+      { header: "± SELISIH", key: "Selisih", width: 15, align: "right" as const, fmt: "#,##0" },
+      { header: "RATIO (%)", key: "Ratio", width: 12, align: "right" as const },
+    ];
+
+    sheet.columns = cols.map((c) => ({ width: c.width }));
+
+    // Bikin Header Styling
+    const headerRow = sheet.addRow(cols.map((c) => c.header));
+    headerRow.height = 22;
+    headerRow.eachCell({ includeEmpty: true }, (cell) => {
+      cell.font = { bold: true, color: { argb: "FF0D47A1" } };
+      cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFE3F2FD" } };
+      cell.alignment = { horizontal: "center", vertical: "middle" };
+      cell.border = borderThin;
+    });
+
+    // Isi Data Baris
+    list.value.forEach((item) => {
+      const values = cols.map((c) => {
+        if (c.key === "Tanggal")
+          return item.Tanggal ? format(parseISO(item.Tanggal), "dd/MM/yyyy") : "-";
+        if (c.key === "Ratio")
+          return item.LuasRiil > 0
+            ? ((item.TotalLuasSistem / item.LuasRiil) * 100).toFixed(1) + "%"
+            : "0%";
+        return item[c.key as keyof LhkHeader] ?? "";
+      });
+
+      const row = sheet.addRow(values);
+      row.eachCell({ includeEmpty: true }, (cell, colNum) => {
+        cell.border = borderThin;
+        cell.alignment = { horizontal: cols[colNum - 1]?.align ?? "left", vertical: "middle" };
+        if (cols[colNum - 1]?.fmt) cell.numFmt = cols[colNum - 1].fmt!;
+      });
+    });
+
+    sheet.views = [{ state: "frozen", xSplit: 0, ySplit: 1 }];
+
+    // Download File
+    const buffer = await workbook.xlsx.writeBuffer();
+    const blob = new Blob([buffer], {
+      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `Export_LHK_Header_${startDate.value}_${endDate.value}.xlsx`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast.success("File Header berhasil diekspor.");
+  } catch (error) {
+    console.error(error);
+    toast.error("Gagal mengekspor data header.");
+  }
+};
+
+const exportDetailData = async () => {
+  toast.info("Mengambil data detail dari server...");
+  try {
+    const response = await api.get("/lhk-so-dtf/export-details", {
+      params: {
+        startDate: startDate.value,
+        endDate: endDate.value,
+        cabang: selectedCabang.value,
+        jenisOrder: selectedJenisOrder.value,
+      },
+    });
+
+    if (!response.data?.length) return toast.warning("Tidak ada data detail untuk diekspor.");
+
+    const ExcelJS = (await import("exceljs")).default;
+    const workbook = new ExcelJS.Workbook();
+    const sheet1 = workbook.addWorksheet("LHK Detail");
+
+    const borderThin: Partial<import("exceljs").Borders> = {
+      top: { style: "thin" },
+      left: { style: "thin" },
+      bottom: { style: "thin" },
+      right: { style: "thin" },
+    };
+
+    const keys = Object.keys(response.data[0]);
+
+    // Dinamis Lebar Kolom
+    const getColDef = (key: string) => {
+      const k = key.toLowerCase();
+      if (k.includes("nomor lhk") || k.includes("sodtf"))
+        return { width: 22, align: "left" as const };
+      if (k.includes("tanggal")) return { width: 14, align: "center" as const };
+      if (k.includes("nama") || k.includes("store")) return { width: 28, align: "left" as const };
+      if (
+        k.includes("jml") ||
+        k.includes("titik") ||
+        k.includes("reject") ||
+        k.includes("sistem (")
+      )
+        return { width: 15, align: "right" as const, fmt: "#,##0" };
+      return { width: 16, align: "left" as const };
+    };
+
+    sheet1.columns = keys.map((k) => ({ width: getColDef(k).width }));
+
+    // Bikin Header
+    const headerRow1 = sheet1.addRow(keys);
+    headerRow1.height = 22;
+    headerRow1.eachCell({ includeEmpty: true }, (cell) => {
+      cell.font = { bold: true, color: { argb: "FF0D47A1" } };
+      cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFE3F2FD" } };
+      cell.alignment = { horizontal: "center", vertical: "middle" };
+      cell.border = borderThin;
+    });
+
+    const nomorKey = keys.find((k) => k.toLowerCase().includes("nomor lhk")) ?? keys[0];
+    const nomorColors: Record<string, string> = {};
+    let toggle = false;
+    let prevNomor = "";
+
+    // Kolom ini cuma muncul sekali per Nomor LHK biar rapi bacanya
+    const identityKeys = new Set(["Nomor LHK", "Tanggal", "Store", "Jenis Order", "User"]);
+
+    type DetailRow = Record<string, string | number | null | undefined>;
+
+    response.data.forEach((row: DetailRow) => {
+      const nomor = String(row[nomorKey] ?? "");
+      if (!(nomor in nomorColors)) {
+        nomorColors[nomor] = toggle ? "FFF3F8FD" : "FFFAFAFA";
+        toggle = !toggle;
+      }
+      const isNewNomor = nomor !== prevNomor;
+      prevNomor = nomor;
+
+      const values = keys.map((k) => {
+        if (identityKeys.has(k) && !isNewNomor) return "";
+        const v = row[k];
+        if (typeof v === "string" && /^\d{4}-\d{2}-\d{2}/.test(v)) {
+          try {
+            return format(parseISO(v), "dd/MM/yyyy");
+          } catch {
+            return v;
+          }
+        }
+        return v ?? "";
+      });
+
+      const dataRow = sheet1.addRow(values);
+      dataRow.eachCell({ includeEmpty: true }, (cell, colNum) => {
+        const colDef = getColDef(keys[colNum - 1] ?? "");
+        cell.border = {
+          left: { style: "thin" },
+          right: { style: "thin" },
+          bottom: { style: "thin" },
+          top: isNewNomor ? { style: "medium" } : { style: "thin" },
+        };
+        cell.alignment = { horizontal: colDef.align, vertical: "middle" };
+        if ("fmt" in colDef && colDef.fmt) cell.numFmt = colDef.fmt;
+        cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: nomorColors[nomor] } };
+      });
+    });
+
+    sheet1.views = [{ state: "frozen", xSplit: 0, ySplit: 1 }];
+
+    const buffer = await workbook.xlsx.writeBuffer();
+    const blob = new Blob([buffer], {
+      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `Export_LHK_Detail_${startDate.value}_${endDate.value}.xlsx`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast.success("File Detail berhasil diekspor.");
+  } catch (error) {
+    console.error(error);
+    toast.error("Gagal mengekspor data detail.");
+  }
+};
+
 onMounted(async () => {
   if (hasViewPermission.value) {
     const savedState = sessionStorage.getItem(SESSION_STATE_KEY);
@@ -375,6 +616,33 @@ onBeforeRouteLeave((to, from, next) => {
       >
         Hapus
       </v-btn> -->
+      <v-menu offset-y v-if="authStore.can(MENU_ID, 'view')">
+        <template v-slot:activator="{ props }">
+          <v-btn
+            color="teal"
+            size="small"
+            prepend-icon="mdi-file-excel"
+            v-bind="props"
+            class="ms-2"
+          >
+            Export Data
+          </v-btn>
+        </template>
+        <v-list density="compact">
+          <v-list-item @click="exportHeaderData" value="header">
+            <template v-slot:prepend>
+              <v-icon icon="mdi-table-headers-eye" size="small" class="mr-2"></v-icon>
+            </template>
+            <v-list-item-title>Export Header</v-list-item-title>
+          </v-list-item>
+          <v-list-item @click="exportDetailData" value="detail">
+            <template v-slot:prepend>
+              <v-icon icon="mdi-file-document-multiple-outline" size="small" class="mr-2"></v-icon>
+            </template>
+            <v-list-item-title>Export Detail</v-list-item-title>
+          </v-list-item>
+        </v-list>
+      </v-menu>
     </template>
 
     <div v-if="!hasViewPermission" class="state-container">

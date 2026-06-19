@@ -232,7 +232,8 @@ const save = async () => {
 const getFullImageUrl = (path: string | null): string | undefined => {
   if (!path) return undefined;
   if (path.startsWith("http")) return path;
-  return `${import.meta.env.VITE_API_BASE_URL}${path}`;
+  // Langsung return path aslinya (/images/K01/...), Nginx akan menyambung domainnya otomatis!
+  return path;
 };
 
 const resetForm = () => {

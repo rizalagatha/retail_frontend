@@ -28,13 +28,26 @@ const isLoading = ref(true);
 const appLogo = Logo;
 const qrCodeData = ref<string | null>(null);
 
-const getFullImageUrl = (path: string | null | undefined) => {
-  if (!path) return null;
-  if (path.startsWith("http")) return path;
-  return `${import.meta.env.VITE_API_BASE_URL}${path}`;
+const getFullImageUrl = (path: string | null | undefined, nomorSoDtf: string | undefined) => {
+  // 1. Jika backend sudah mengembalikan URL lengkap (sangat jarang terjadi tapi buat jaga-jaga)
+  if (path && path.startsWith("http")) return path;
+
+  // 2. Jika tidak ada path, BIKIN MANUAL berdasarkan Standar Folder Backend Delphi
+  // Format Standar Delphi/Backend: /images/{KODE_CABANG}/{NOMOR_SO}.jpg
+  if (nomorSoDtf) {
+    const cabang = nomorSoDtf.substring(0, 3); // Ambil 3 huruf pertama (misal: 'K01')
+
+    // Kita paksa pakai .jpg karena aplikasi desktop menyimpannya dalam format .jpg
+    return `${import.meta.env.VITE_API_BASE_URL}/images/${cabang}/${nomorSoDtf}.jpg`;
+  }
+
+  return null;
 };
 
-const imageFullUrl = computed(() => getFullImageUrl(printData.value?.imageUrl));
+// Ubah computed property ini:
+const imageFullUrl = computed(() =>
+  getFullImageUrl(printData.value?.imageUrl, printData.value?.sd_nomor)
+);
 
 const getSoTitle = (joKode: string) => {
   let title = "SO STICKER";

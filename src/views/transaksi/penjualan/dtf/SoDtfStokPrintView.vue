@@ -28,26 +28,24 @@ const isLoading = ref(true);
 const appLogo = Logo;
 const qrCodeData = ref<string | null>(null);
 
-const getFullImageUrl = (path: string | null | undefined, nomorSoDtf: string | undefined) => {
-  // 1. Jika backend sudah mengembalikan URL lengkap (sangat jarang terjadi tapi buat jaga-jaga)
-  if (path && path.startsWith("http")) return path;
+const imageFullUrl = computed(() => {
+  const urlPath = printData.value?.imageUrl;
 
-  // 2. Jika tidak ada path, BIKIN MANUAL berdasarkan Standar Folder Backend Delphi
-  // Format Standar Delphi/Backend: /images/{KODE_CABANG}/{NOMOR_SO}.jpg
-  if (nomorSoDtf) {
-    const cabang = nomorSoDtf.substring(0, 3); // Ambil 3 huruf pertama (misal: 'K01')
-
-    // Kita paksa pakai .jpg karena aplikasi desktop menyimpannya dalam format .jpg
-    return `${import.meta.env.VITE_API_BASE_URL}/images/${cabang}/${nomorSoDtf}.jpg`;
+  // 1. Jika backend sudah berhasil memberikan path gambar yang valid (termasuk .jpeg)
+  if (urlPath) {
+    if (urlPath.startsWith("http")) return urlPath;
+    return `${import.meta.env.VITE_API_BASE_URL}${urlPath}`;
   }
 
-  return null;
-};
+  // 2. Fallback: Tebak manual URL gambar berdasar nomor (Anggap ekstensi .jpg)
+  const nomor = printData.value?.sd_nomor;
+  if (nomor) {
+    const cabang = nomor.substring(0, 3);
+    return `${import.meta.env.VITE_API_BASE_URL}/images/${cabang}/${nomor}.jpg`;
+  }
 
-// Ubah computed property ini:
-const imageFullUrl = computed(() =>
-  getFullImageUrl(printData.value?.imageUrl, printData.value?.sd_nomor)
-);
+  return null; // Tidak ada gambar
+});
 
 const getSoTitle = (joKode: string) => {
   let title = "SO STICKER";

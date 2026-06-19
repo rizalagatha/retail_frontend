@@ -31,20 +31,22 @@ const qrCodeData = ref<string | null>(null);
 const imageFullUrl = computed(() => {
   const urlPath = printData.value?.imageUrl;
 
-  // 1. Jika backend sudah berhasil memberikan path gambar yang valid (termasuk .jpeg)
+  // 1. Jika backend mengembalikan path (/images/K01/...)
   if (urlPath) {
     if (urlPath.startsWith("http")) return urlPath;
-    return `${import.meta.env.VITE_API_BASE_URL}${urlPath}`;
+    // Langsung return path aslinya, browser akan otomatis menempelkan domain web saat ini
+    return urlPath;
   }
 
-  // 2. Fallback: Tebak manual URL gambar berdasar nomor (Anggap ekstensi .jpg)
+  // 2. Fallback tebakan .jpg
   const nomor = printData.value?.sd_nomor;
   if (nomor) {
     const cabang = nomor.substring(0, 3);
-    return `${import.meta.env.VITE_API_BASE_URL}/images/${cabang}/${nomor}.jpg`;
+    // Langsung tembak ke relative path
+    return `/images/${cabang}/${nomor}.jpg`;
   }
 
-  return null; // Tidak ada gambar
+  return null;
 });
 
 const getSoTitle = (joKode: string) => {

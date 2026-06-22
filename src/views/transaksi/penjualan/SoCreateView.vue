@@ -2597,6 +2597,47 @@ const onNewCustomerSaved = (newCustomer: Customer) => {
 //   }
 // };
 
+// --- LOGIKA ANTI MANUAL KETIK (HANYA SCANNER) ---
+const lastKeyTime = ref(0);
+const scannedBuffer = ref("");
+
+const handleScannerInput = (e: KeyboardEvent) => {
+  // Hanya berlaku untuk inputan scan verifikasi
+  const currentTime = Date.now();
+  const timeDiff = currentTime - lastKeyTime.value;
+
+  // Jika jeda antar ketikan lebih dari 50 milidetik, anggap ini ketikan manual manusia.
+  // Kosongkan buffer karena ini ketikan tidak sah.
+  if (timeDiff > 50 && scannedBuffer.value.length > 0) {
+    scannedBuffer.value = "";
+  }
+
+  lastKeyTime.value = currentTime;
+
+  if (e.key === "Enter") {
+    e.preventDefault(); // Mencegah form submit default
+
+    // Jika buffer memiliki isi (berarti ketikannya cepat khas scanner)
+    if (scannedBuffer.value.length > 0) {
+      scannedBarcode.value = scannedBuffer.value;
+      scannedBuffer.value = ""; // Bersihkan buffer setelah dipindahkan
+      handleBarcodeScanVerify(); // Panggil fungsi verifikasi asli
+    } else {
+      // Jika kosong (karena ngetik manual lalu pencet Enter), tolak
+      toast.warning("Mohon gunakan alat Barcode Scanner!");
+      scannedBarcode.value = ""; // Bersihkan tampilan di UI
+    }
+  } else if (e.key.length === 1) {
+    // Menangkap karakter alfanumerik biasa
+    scannedBuffer.value += e.key;
+  }
+};
+
+const preventPaste = (e: ClipboardEvent) => {
+  e.preventDefault();
+  toast.warning("Tindakan copy-paste tidak diizinkan. Mohon gunakan alat Scanner!");
+};
+
 const handleBarcodeScanVerify = async () => {
   const barcode = scannedBarcode.value;
   if (!barcode) return;
@@ -3813,14 +3854,16 @@ const stopAndOpenPriceProposal = (index: number) => {
             <v-col cols="12" md="6">
               <v-text-field
                 v-model="scannedBarcode"
-                label="Scan Verifikasi Barang (Wajib)"
+                label="Scan Verifikasi Barang (Wajib Alat Scanner)"
                 placeholder="Arahkan scanner ke barcode..."
                 variant="outlined"
                 density="compact"
                 prepend-inner-icon="mdi-barcode-scan"
                 hide-details
-                @keydown.enter.prevent="handleBarcodeScanVerify"
                 :color="allVerified ? 'success' : 'primary'"
+                class="verify-scanner-field"
+                @keydown="handleScannerInput"
+                @paste="preventPaste"
               />
             </v-col>
 

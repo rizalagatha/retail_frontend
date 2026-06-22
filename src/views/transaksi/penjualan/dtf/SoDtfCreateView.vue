@@ -880,6 +880,10 @@ const onJenisKainSelected = (jenisKain: { nama: string }) => {
 };
 
 const openWorkshopSearch = () => {
+  if (form.value.jenisOrderKode === "PL") {
+    toast.warning("Workshop tidak bisa diubah untuk pesanan Polyflex.");
+    return;
+  }
   isWorkshopSearchVisible.value = true;
 };
 const onWorkshopSelected = (workshop: { kode: string; nama: string }) => {
@@ -1277,6 +1281,18 @@ watch(
       fetchWarnaPoliflexList();
     }
 
+    // --- TAMBAHAN LOGIKA LOCK WORKSHOP K07 ---
+    if (newJenisOrder === "PL") {
+      form.value.workshopKode = "K07";
+      form.value.workshopNama = "MALANG"; // (Silakan sesuaikan nama cabang K07 di sini jika ada nama spesifiknya)
+      toast.info("Workshop otomatis dikunci ke K07 untuk jenis order Polyflex.");
+    } else if (oldJenisOrder === "PL") {
+      // Revert ke cabang default login user jika diganti dari PL ke yang lain
+      form.value.workshopKode = authStore.user?.cabang || "";
+      form.value.workshopNama = authStore.user?.cabangNama || "";
+    }
+    // -----------------------------------------
+
     if (isLoading.value) return;
     if (!isEditMode.value && oldJenisOrder) {
       detailsTitik.value.forEach((item) => (item.sizeCetak = ""));
@@ -1586,8 +1602,8 @@ onMounted(async () => {
                 density="compact"
                 hide-details
             /></v-col>
-            <v-col cols="12"
-              ><v-text-field
+            <v-col cols="12">
+              <v-text-field
                 label="Workshop"
                 :model-value="
                   form.workshopKode ? `${form.workshopKode} - ${form.workshopNama}` : ''
@@ -1600,7 +1616,9 @@ onMounted(async () => {
                 append-inner-icon="mdi-magnify"
                 placeholder="F1 atau klik..."
                 readonly
-            /></v-col>
+                :class="{ 'field-disabled': form.jenisOrderKode === 'PL' }"
+              />
+            </v-col>
           </v-row>
         </div>
       </div>

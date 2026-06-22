@@ -482,6 +482,10 @@ const addAdditionalCostRow = () => {
   });
 };
 
+const removeAdditionalCostRow = (id: number) => {
+  additionalCostItems.value = additionalCostItems.value.filter((item) => item.id !== id);
+};
+
 const openAdditionalCostSearch = (index: number) => {
   // Meniru logic Delphi: hanya buka jika harga masih 0
   if (additionalCostItems.value[index]?.harga === 0) {
@@ -684,23 +688,30 @@ const closeForm = () => {
 watch(
   () => header.value.isApproved,
   (isNowApproved) => {
+    // 1. Cek Hak Akses (Role Finance/Direksi)
     if (!authStore.user?.canApprovePrice) {
-      // [FIX] Hanya munculkan toast jika user mencoba mencentang baru
-      // (saat isApproved true tapi data approval di header masih kosong)
       if (isNowApproved && !header.value.approval) {
         toast.error("Anda tidak memiliki hak untuk melakukan approval.");
-        header.value.isApproved = false; // Reset centang
+        nextTick(() => {
+          header.value.isApproved = false; // Reset centang di UI
+        });
       }
-
-      // Jika data dari database memang sudah Approved, biarkan tetap tercentang
-      // tanpa memunculkan error toast
       return;
     }
 
-    // Logika untuk user yang MEMILIKI hak approval
+    // 2. Logika untuk user yang MEMILIKI hak approval
     if (isNowApproved) {
+      // --- VALIDASI GAMBAR ---
+      // Tolak jika belum ada file yang dipilih DAN belum ada gambar dari DB
+      if (!selectedFile.value && !imagePreview.value) {
+        toast.warning("Tidak dapat melakukan approval. Harap unggah gambar terlebih dahulu.");
+        nextTick(() => {
+          header.value.isApproved = false; // Kembalikan ke tidak tercentang
+        });
+        return;
+      }
+
       // Hanya isi nama approver jika sebelumnya masih kosong
-      // (agar tidak menimpa nama approver asli saat load data edit)
       if (!header.value.approval) {
         header.value.approval = authStore.user?.kode || "UNKNOWN";
       }
@@ -1107,6 +1118,7 @@ onMounted(() => {
                   :headers="[
                     { title: 'Keterangan', key: 'tambahan' },
                     { title: 'Harga', key: 'harga' },
+                    { title: '', key: 'actions', sortable: false, width: '40px', align: 'center' },
                   ]"
                   density="compact"
                   class="desktop-table flex-grow-1"
@@ -1134,6 +1146,18 @@ onMounted(() => {
                     <span class="text-caption">
                       {{ formatRupiah(item.harga || 0) }}
                     </span>
+                  </template>
+
+                  <template #[`item.actions`]="{ item }">
+                    <v-btn
+                      v-if="authStore.user?.canApprovePrice"
+                      icon="mdi-delete"
+                      size="x-small"
+                      variant="text"
+                      color="error"
+                      @click="removeAdditionalCostRow(item.id)"
+                      title="Hapus Tambahan"
+                    ></v-btn>
                   </template>
                 </v-data-table>
                 <div class="total-footer">

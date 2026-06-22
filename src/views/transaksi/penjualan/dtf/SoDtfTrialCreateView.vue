@@ -56,6 +56,7 @@ interface DetailTitik {
   id: number;
   keterangan: string;
   sizeCetak: string;
+  warna?: string;
   panjang: number;
   lebar: number;
 }
@@ -150,6 +151,7 @@ const isPrintConfirmVisible = ref(false);
 const printConfirmNomor = ref("");
 const ukuranKaosList = ref<string[]>([]);
 const sizeCetakList = ref(["A3", "A4", "A5", "Logo", "Custom"]);
+const warnaPoliflexList = ref<string[]>([]);
 
 // --- Modal Visibility State ---
 const isCustomerSearchVisible = ref(false);
@@ -196,6 +198,40 @@ const totalHargaDtf = computed(() => {
   return totalLuasDtf.value * harga * 1; // Dikali 1 pcs
 });
 
+const totalLuasPoliflex = computed(() => {
+  if (form.value.jenisOrderKode !== "PL") return 0;
+  return detailsTitik.value
+    .filter((t) => t.keterangan)
+    .reduce((sum, t) => sum + (t.panjang || 0) * (t.lebar || 0), 0);
+});
+
+const totalHargaPoliflex = computed(() => {
+  if (form.value.jenisOrderKode !== "PL") return 0;
+
+  const qty = totalJumlahKaos.value; // di trial selalu 1
+  const isGrosir = qty >= 10;
+
+  const totalHargaJasaPerKaos = detailsTitik.value.reduce((sum, t) => {
+    if (t.panjang && t.lebar) {
+      const luas = Number(t.panjang) * Number(t.lebar);
+      const isGold = (t.warna || "").toUpperCase() === "GOLD";
+      const hargaPerCm = isGrosir ? (isGold ? 55 : 40) : isGold ? 65 : 50;
+      return sum + luas * hargaPerCm;
+    }
+    return sum;
+  }, 0);
+
+  return totalHargaJasaPerKaos * qty;
+});
+
+const hargaPerCmPoliflexInfo = computed(() => {
+  if (form.value.jenisOrderKode !== "PL") return 0;
+  const isGrosir = totalJumlahKaos.value >= 10;
+  const firstTitik = detailsTitik.value.find((t) => t.keterangan);
+  const isGold = (firstTitik?.warna || "").toUpperCase() === "GOLD";
+  return isGrosir ? (isGold ? 55 : 40) : isGold ? 65 : 50;
+});
+
 const isPanjangLebarReadonly = (item: DetailTitik): boolean =>
   !!item.sizeCetak && item.sizeCetak !== "Custom";
 
@@ -236,6 +272,7 @@ const addDetailTitik = () => {
       id: Date.now(),
       keterangan: "",
       sizeCetak: form.value.jenisOrderKode === "SD" ? "Custom" : "",
+      warna: "",
       panjang: 0,
       lebar: 0,
     });
@@ -364,6 +401,7 @@ const resetForm = () => {
       id: Date.now(),
       keterangan: "",
       sizeCetak: form.value.jenisOrderKode === "SD" ? "Custom" : "",
+      warna: "",
       panjang: 0,
       lebar: 0,
     },
@@ -716,6 +754,17 @@ const fetchUkuranKaosList = async () => {
   }
 };
 
+const fetchWarnaPoliflexList = async () => {
+  try {
+    const response = await api.get("/so-dtf-trial-form/lookup/size-cetak", {
+      params: { jenisOrder: "PL" },
+    });
+    warnaPoliflexList.value = response.data;
+  } catch (error) {
+    console.error("Gagal memuat warna poliflex", error);
+  }
+};
+
 const fetchSizeCetakList = async (jenisOrder: string) => {
   if (!jenisOrder) {
     sizeCetakList.value = ["Custom"];
@@ -782,6 +831,11 @@ const calculatePrices = async () => {
       hargaPerCm = bordirMultiplier.value;
       hargaSatuan = totalJumlahKaos.value > 0 ? totalHargaBordir.value / totalJumlahKaos.value : 0;
       break;
+    case "PL": // <-- TAMBAHKAN CASE PL INI
+      hargaPerCm = 0;
+      hargaSatuan =
+        totalJumlahKaos.value > 0 ? totalHargaPoliflex.value / totalJumlahKaos.value : 0;
+      break;
     case "TG":
       hargaPerCm = 0;
       hargaSatuan = await getHargaDTG();
@@ -803,6 +857,22 @@ watch(
   () => form.value.jenisOrderKode,
   (newJenisOrder, oldJenisOrder) => {
     fetchSizeCetakList(newJenisOrder);
+
+    // --- TAMBAHAN UNTUK POLYFLEX ---
+    if (newJenisOrder === "PL" && warnaPoliflexList.value.length === 0) {
+      fetchWarnaPoliflexList();
+    }
+
+    if (newJenisOrder === "PL") {
+      form.value.workshopKode = "K07";
+      form.value.workshopNama = "MALANG";
+      toast.info("Workshop otomatis dikunci ke K07 untuk jenis order Polyflex.");
+    } else if (oldJenisOrder === "PL") {
+      form.value.workshopKode = authStore.user?.cabang || "";
+      form.value.workshopNama = authStore.user?.cabangNama || "";
+    }
+    // -------------------------------
+
     if (isLoading.value) return;
     if (!isEditMode.value && oldJenisOrder) {
       detailsTitik.value.forEach((item) => (item.sizeCetak = ""));
@@ -832,6 +902,7 @@ watch(
 );
 
 onMounted(async () => {
+  fetchWarnaPoliflexList();
   markAsSaved();
   if (!authStore.can(MENU_ID, requiredPermission.value)) {
     toast.error("Anda tidak memiliki izin akses.");
@@ -999,7 +1070,9 @@ onMounted(async () => {
             <v-col cols="4">
               <v-text-field
                 label="Harga/cm2"
-                :model-value="form.hargaPerCm"
+                :model-value="
+                  form.jenisOrderKode === 'PL' ? hargaPerCmPoliflexInfo : form.hargaPerCm
+                "
                 readonly
                 filled
                 variant="outlined"
@@ -1058,8 +1131,10 @@ onMounted(async () => {
                 :model-value="
                   form.workshopKode ? `${form.workshopKode} - ${form.workshopNama}` : ''
                 "
-                @click="!isReadOnly && openWorkshopSearch()"
-                @keydown.f1.prevent="!isReadOnly && openWorkshopSearch()"
+                @click="!isReadOnly && form.jenisOrderKode !== 'PL' && openWorkshopSearch()"
+                @keydown.f1.prevent="
+                  !isReadOnly && form.jenisOrderKode !== 'PL' && openWorkshopSearch()
+                "
                 variant="outlined"
                 density="compact"
                 hide-details
@@ -1067,6 +1142,7 @@ onMounted(async () => {
                 placeholder="F1 atau klik..."
                 readonly
                 :disabled="isReadOnly"
+                :class="{ 'field-disabled': form.jenisOrderKode === 'PL' }"
               />
             </v-col>
           </v-row>
@@ -1233,6 +1309,7 @@ onMounted(async () => {
                     <th style="width: 40px">#</th>
                     <th>Keterangan</th>
                     <th style="width: 100px">Size Cetak</th>
+                    <th v-if="form.jenisOrderKode === 'PL'" style="width: 140px">Warna</th>
                     <th class="text-end" style="width: 70px">P(cm)</th>
                     <th class="text-end" style="width: 70px">L(cm)</th>
                     <th style="width: 40px"></th>
@@ -1259,6 +1336,17 @@ onMounted(async () => {
                         variant="underlined"
                         density="compact"
                         hide-details
+                        :readonly="isReadOnly"
+                      />
+                    </td>
+                    <td v-if="form.jenisOrderKode === 'PL'" style="min-width: 140px">
+                      <v-combobox
+                        v-model="item.warna"
+                        :items="warnaPoliflexList"
+                        variant="underlined"
+                        density="compact"
+                        hide-details
+                        style="font-size: 12px"
                         :readonly="isReadOnly"
                       />
                     </td>
@@ -1303,7 +1391,7 @@ onMounted(async () => {
 
             <div
               class="desktop-form-section mt-4"
-              v-if="['BR', 'SD'].includes(form.jenisOrderKode)"
+              v-if="['BR', 'SD', 'PL'].includes(form.jenisOrderKode)"
             >
               <div class="perhitungan-box">
                 <v-row dense>
@@ -1363,6 +1451,41 @@ onMounted(async () => {
                     <v-text-field
                       label="Total Harga DTF"
                       :model-value="totalHargaDtf"
+                      readonly
+                      variant="filled"
+                      density="compact"
+                      hide-details
+                    />
+                  </v-col>
+                </v-row>
+                <v-row dense>
+                  <v-col cols="12" v-if="form.jenisOrderKode === 'PL'">
+                    <v-alert density="compact" variant="tonal" type="info" class="mb-2"
+                      >Perhitungan Poliflex</v-alert
+                    >
+                    <v-text-field
+                      label="Total Luas Poliflex /Cm²"
+                      :model-value="totalLuasPoliflex"
+                      readonly
+                      variant="filled"
+                      density="compact"
+                      hide-details
+                      class="mb-2"
+                    />
+                    <v-text-field
+                      label="Status Order"
+                      :model-value="
+                        totalJumlahKaos >= 10 ? 'Grosir (≥10 pcs)' : 'Reguler (<10 pcs)'
+                      "
+                      readonly
+                      variant="filled"
+                      density="compact"
+                      hide-details
+                      class="mb-2"
+                    />
+                    <v-text-field
+                      label="Total Harga Poliflex"
+                      :model-value="totalHargaPoliflex"
                       readonly
                       variant="filled"
                       density="compact"

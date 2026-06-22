@@ -449,9 +449,14 @@ const isLoadingPromo = ref(false);
 const itemTrendData = ref<ItemTrend[]>([]);
 const isLoadingItemTrend = ref(false);
 const searchStokKosong = ref("");
-const stokKosongCabang = ref<string>("");
+const stokKosongCabang = ref<string>(
+  authStore.user?.cabang === "KDC" ? "ALL" : authStore.user?.cabang || ""
+);
 const stokKosongList = ref<StokKosongItem[]>([]);
 const isLoadingStokKosong = ref(false);
+const stokKosongPage = ref(1);
+const isLoadingMoreStokKosong = ref(false);
+const isStokKosongFinished = ref(false);
 const paretoStats = ref({
   score: 0,
   actual_stock: 0,
@@ -1148,31 +1153,80 @@ const fetchTotalPiutang = async (isBackground = false) => {
   }
 };
 
-const fetchStokKosong = async (isBackground = false) => {
-  if (!isBackground) isLoadingStokKosong.value = true;
+const fetchStokKosong = async (isBackground = false, isLoadMore = false) => {
+  if (isLoadMore) {
+    isLoadingMoreStokKosong.value = true;
+  } else {
+    if (!isBackground) isLoadingStokKosong.value = true;
+    stokKosongPage.value = 1;
+    isStokKosongFinished.value = false;
+    stokKosongList.value = [];
+  }
+
   try {
     const cabangParam = authStore.user?.cabang === "KDC" ? stokKosongCabang.value : undefined;
     const response = await api.get("/dashboard/stok-kosong", {
-      params: { q: searchStokKosong.value, cabang: cabangParam },
+      params: {
+        q: searchStokKosong.value,
+        cabang: cabangParam,
+        page: stokKosongPage.value,
+        limit: 50, // Bebas atur kecepatan scroll
+      },
     });
 
-    // [PERBAIKAN] Ekstraksi kebal peluru dari segala jenis bungkusan JSON backend
     let items = [];
     if (response.data?.data?.data && Array.isArray(response.data.data.data)) {
-      items = response.data.data.data; // Jika terbungkus 2 lapis
+      items = response.data.data.data;
     } else if (response.data?.data && Array.isArray(response.data.data)) {
-      items = response.data.data; // Jika terbungkus 1 lapis
+      items = response.data.data;
     } else if (Array.isArray(response.data)) {
-      items = response.data; // Jika langsung array
+      items = response.data;
     }
 
-    stokKosongList.value = items;
+    // Jika jumlah data yang ditarik kurang dari limit, artinya sudah mencapai data terakhir
+    if (items.length < 50) {
+      isStokKosongFinished.value = true;
+    }
+
+    if (isLoadMore) {
+      stokKosongList.value.push(...items);
+    } else {
+      stokKosongList.value = items;
+    }
   } catch (error) {
     console.error("Gagal memuat stok kosong:", error);
   } finally {
-    if (!isBackground) isLoadingStokKosong.value = false;
+    isLoadingStokKosong.value = false;
+    isLoadingMoreStokKosong.value = false;
   }
 };
+
+// Fungsi pendeteksi scroll menyentuh bawah
+const onIntersectStokKosong = (isIntersecting: boolean) => {
+  if (
+    isIntersecting &&
+    !isLoadingStokKosong.value &&
+    !isLoadingMoreStokKosong.value &&
+    !isStokKosongFinished.value
+  ) {
+    stokKosongPage.value++;
+    fetchStokKosong(true, true);
+  }
+};
+
+// Update Watchers
+watch(stokKosongCabang, () => {
+  fetchStokKosong();
+});
+
+watch(searchStokKosong, () => {
+  // Jika sedang diketik tapi kurang dari 3 huruf (kecuali jika dikosongkan/dihapus total)
+  if (searchStokKosong.value.length > 0 && searchStokKosong.value.length < 3) return;
+  clearTimeout(searchStokKosongTimeout);
+  searchStokKosongTimeout = setTimeout(() => {
+    fetchStokKosong();
+  }, 500);
+});
 
 const exportStokKosong = async () => {
   if (stokKosongList.value.length === 0) {
@@ -4531,8 +4585,45 @@ onUnmounted(() => {
 
             <!-- Stok Kosong + Stagnant -->
             <v-row class="mb-4">
-              <!-- Stok Kosong (KDC only) -->
-              <v-col v-if="authStore.user?.cabang === 'KDC'" cols="12" md="6">
+              <v-col cols="12">
+                <v-card
+                  elevation="3"
+                  class="bg-surface hover-pointer"
+                  hover
+                  @click="router.push('/laporan/stok/dead-stok')"
+                >
+                  <v-card-text>
+                    <div v-if="isLoadingStagnantStock" class="text-center pa-2">
+                      <v-progress-circular indeterminate color="deep-orange" size="24" />
+                    </div>
+                    <div v-else class="d-flex align-center justify-space-between w-100">
+                      <div class="d-flex align-center">
+                        <v-icon size="40" class="mr-4" color="deep-orange"
+                          >mdi-archive-arrow-down-outline</v-icon
+                        >
+                        <div>
+                          <div class="text-caption text-deep-orange font-weight-bold">
+                            Nilai Stok Stagnan (30 Hari)
+                          </div>
+                          <div class="text-h5 font-weight-bold text-deep-orange">
+                            <span v-if="isLoadingStagnantStock && animatedStagnant === 0">...</span>
+                            <span v-else class="animated-number">{{
+                              formatRupiah(Number(animatedStagnant.toFixed(0)))
+                            }}</span>
+                          </div>
+                        </div>
+                      </div>
+                      <div class="text-caption text-medium-emphasis d-none d-sm-block">
+                        Klik untuk lihat laporan dead stock
+                      </div>
+                    </div>
+                  </v-card-text>
+                </v-card>
+              </v-col>
+            </v-row>
+
+            <v-row class="mb-4">
+              <v-col cols="12">
                 <v-card elevation="2" class="rounded-lg d-flex flex-column bg-surface">
                   <v-card-title
                     class="d-flex flex-column flex-sm-row align-start align-sm-center bg-red-lighten-5 py-2 gap-2 pr-2 text-red-darken-4"
@@ -4541,13 +4632,15 @@ onUnmounted(() => {
                       <v-icon class="mr-2" color="red" size="small"
                         >mdi-close-octagon-outline</v-icon
                       >
-                      <span class="text-subtitle-2 font-weight-bold">Stok Kosong</span>
+                      <span class="text-subtitle-2 font-weight-bold"
+                        >Stok Kosong Store (0 Pcs)</span
+                      >
                     </div>
                     <div class="d-flex align-center gap-2 w-100 w-sm-auto">
-                      <div style="width: 140px">
+                      <div style="width: 160px">
                         <v-select
                           v-model="stokKosongCabang"
-                          :items="cabangList"
+                          :items="cabangList.filter((c) => c.kode !== 'KDC')"
                           item-title="nama"
                           item-value="kode"
                           density="compact"
@@ -4555,7 +4648,8 @@ onUnmounted(() => {
                           hide-details
                           bg-color="surface"
                           placeholder="Pilih Cabang"
-                          class="text-caption"
+                          class="filter-select-small"
+                          :disabled="authStore.user?.cabang !== 'KDC'"
                         />
                       </div>
                       <v-text-field
@@ -4568,7 +4662,7 @@ onUnmounted(() => {
                         bg-color="surface"
                         single-line
                         class="text-caption"
-                        style="min-width: 150px"
+                        style="min-width: 180px"
                       />
                       <v-btn
                         color="success"
@@ -4583,102 +4677,89 @@ onUnmounted(() => {
                       </v-btn>
                     </div>
                   </v-card-title>
+
                   <v-card-text class="pa-0">
-                    <div v-if="isLoadingStokKosong" class="text-center pa-6">
-                      <v-progress-circular indeterminate color="red" size="28" />
-                      <div class="mt-2 text-caption">Mencari data...</div>
+                    <div
+                      v-if="isLoadingStokKosong && stokKosongPage === 1"
+                      class="text-center pa-8"
+                    >
+                      <v-progress-circular indeterminate color="red" size="36" />
+                      <div class="mt-2 text-caption">Mencari data stok kosong...</div>
                     </div>
                     <div
                       v-else-if="stokKosongList.length === 0"
-                      class="text-center pa-6 text-medium-emphasis"
+                      class="text-center pa-8 text-medium-emphasis"
                     >
-                      <v-icon size="36" class="mb-2">mdi-package-variant</v-icon>
-                      <div class="text-caption">Pilih filter cabang terlebih dahulu.</div>
+                      <v-icon size="48" class="mb-2">mdi-check-circle-outline</v-icon>
+                      <div class="text-caption">Tidak ada stok kosong sesuai pencarian.</div>
                     </div>
-                    <v-list
+                    <v-data-table
                       v-else
-                      bg-color="transparent"
-                      class="scrollable-list"
-                      style="max-height: 280px; overflow-y: auto"
+                      :headers="[
+                        { title: 'STORE', key: 'nama_cabang', sortable: false },
+                        { title: 'KODE', key: 'kode', sortable: false, width: '130px' },
+                        { title: 'BARCODE', key: 'barcode', sortable: false, width: '130px' },
+                        { title: 'NAMA BARANG', key: 'nama_barang', sortable: false },
+                        {
+                          title: 'UK.',
+                          key: 'ukuran',
+                          align: 'center',
+                          sortable: false,
+                          width: '80px',
+                        },
+                        {
+                          title: 'STOK',
+                          key: 'stok_akhir',
+                          align: 'center',
+                          sortable: false,
+                          width: '80px',
+                        },
+                      ]"
+                      :items="stokKosongList"
+                      density="compact"
+                      hover
+                      class="text-caption border-t desktop-table"
+                      hide-default-footer
+                      :items-per-page="-1"
+                      style="max-height: 450px; overflow-y: auto"
                     >
-                      <TransitionGroup tag="div" :css="false" @enter="onListEnter">
-                        <v-list-item
-                          v-for="(item, index) in stokKosongList"
-                          :key="item.kode + item.ukuran"
-                          :data-index="index"
-                          class="px-3 py-2 border-b"
-                          lines="two"
+                      <template #[`item.nama_cabang`]="{ item }">
+                        <span class="font-weight-bold text-blue-darken-3">{{
+                          item.nama_cabang
+                        }}</span>
+                      </template>
+                      <template #[`item.nama_barang`]="{ item }">
+                        <span class="font-weight-medium">{{ item.nama_barang }}</span>
+                      </template>
+                      <template #[`item.stok_akhir`]="{ item }">
+                        <v-chip
+                          size="x-small"
+                          color="error"
+                          variant="flat"
+                          class="font-weight-bold"
                         >
-                          <template #prepend>
-                            <v-avatar
-                              color="red-lighten-4"
-                              size="32"
-                              class="mr-3 text-red-darken-4 font-weight-bold text-caption"
-                              >{{ item.ukuran }}</v-avatar
-                            >
-                          </template>
-                          <v-list-item-title class="font-weight-bold text-caption text-wrap mb-1">
-                            <span v-if="stokKosongCabang === 'ALL'" class="text-primary mr-1"
-                              >[{{ item.nama_cabang }}]</span
-                            >
-                            {{ item.nama_barang }}
-                          </v-list-item-title>
-                          <v-list-item-subtitle
-                            class="d-flex align-center text-caption text-medium-emphasis"
-                          >
-                            <span class="mr-2">{{ item.kode }}</span>
-                            <span v-if="item.barcode">
-                              <v-icon size="x-small" start>mdi-barcode</v-icon>
-                              {{ item.barcode }}
-                            </span>
-                          </v-list-item-subtitle>
-                          <template #append>
-                            <v-chip
-                              color="red"
-                              size="x-small"
-                              variant="flat"
-                              class="font-weight-bold"
-                              >{{ item.stok_akhir ?? 0 }} pcs</v-chip
-                            >
-                          </template>
-                        </v-list-item>
-                      </TransitionGroup>
-                    </v-list>
-                  </v-card-text>
-                </v-card>
-              </v-col>
+                          {{ item.stok_akhir ?? 0 }}
+                        </v-chip>
+                      </template>
 
-              <!-- Nilai Stagnan -->
-              <v-col cols="12" :md="authStore.user?.cabang === 'KDC' ? 6 : 12">
-                <v-card
-                  elevation="3"
-                  class="bg-surface hover-pointer mb-3"
-                  hover
-                  @click="router.push('/laporan/stok/dead-stok')"
-                >
-                  <v-card-text>
-                    <div v-if="isLoadingStagnantStock" class="text-center pa-2">
-                      <v-progress-circular indeterminate color="deep-orange" size="24" />
-                    </div>
-                    <div v-else class="d-flex align-center">
-                      <v-icon size="40" class="mr-4" color="deep-orange"
-                        >mdi-archive-arrow-down-outline</v-icon
-                      >
-                      <div>
-                        <div class="text-caption text-deep-orange font-weight-bold">
-                          Nilai Stok Stagnan (30 Hari)
+                      <template #bottom>
+                        <div v-intersect="onIntersectStokKosong" class="pa-3 text-center w-100">
+                          <v-progress-circular
+                            v-if="isLoadingMoreStokKosong"
+                            indeterminate
+                            color="red"
+                            size="24"
+                            width="3"
+                          />
+                          <div
+                            v-else-if="isStokKosongFinished && stokKosongList.length > 0"
+                            class="text-caption text-grey"
+                          >
+                            -- Menampilkan semua {{ stokKosongList.length }} barang kosong --
+                          </div>
                         </div>
-                        <div class="text-h5 font-weight-bold text-deep-orange">
-                          <span v-if="isLoadingStagnantStock && animatedStagnant === 0">...</span>
-                          <span v-else class="animated-number">{{
-                            formatRupiah(Number(animatedStagnant.toFixed(0)))
-                          }}</span>
-                        </div>
-                        <div class="text-caption text-medium-emphasis mt-1">
-                          Klik untuk lihat laporan dead stock
-                        </div>
-                      </div>
-                    </div>
+                      </template>
+                    </v-data-table>
                   </v-card-text>
                 </v-card>
               </v-col>

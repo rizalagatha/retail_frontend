@@ -36,8 +36,9 @@ interface UkuranRow {
 interface TitikRow {
   keterangan: string;
   sizeCetak: string;
-  panjang: number | string | null; // <-- Ubah di sini
-  lebar: number | string | null; // <-- Ubah di sini
+  warna?: string;
+  panjang: number | string | null;
+  lebar: number | string | null;
 }
 
 interface JenisOrderForm {
@@ -77,7 +78,7 @@ const form = ref<JenisOrderForm>({
   kodeBarang: "",
   hargaPerCm: 0,
   ukuranKaos: [{ ukuran: "", jumlah: null, harga: 0 }],
-  titikCetak: [{ keterangan: "", sizeCetak: "", panjang: null, lebar: null }],
+  titikCetak: [{ keterangan: "", sizeCetak: "", warna: "", panjang: null, lebar: null }],
   totalJumlah: 0,
   totalHarga: 0,
 });
@@ -88,6 +89,7 @@ const jenisOrderList = ref<{ kode: string; nama: string }[]>([]);
 const ukuranList = ref<string[]>([]);
 const sizeCetakList = ref<string[]>([]);
 const selectedPenawaran = ref<PenawaranItem | null>(null);
+const warnaPoliflexList = ref<string[]>([]);
 
 const validUkuranList = computed(() => {
   if (!props.penawaranDetails || props.penawaranDetails.length === 0) {
@@ -128,6 +130,10 @@ const updateValidUkuranList = () => {
 
 const refreshSizeCetakList = async () => {
   if (!form.value.jenisOrder) return;
+  if (form.value.jenisOrder === "PL") {
+    sizeCetakList.value = ["Custom"];
+    return;
+  }
   try {
     const res = await api.get("/so-dtf-form/lookup/size-cetak", {
       params: { jenisOrder: form.value.jenisOrder },
@@ -193,6 +199,17 @@ onMounted(() => {
 
 const loading = ref(false);
 
+const fetchWarnaPoliflexList = async () => {
+  try {
+    const response = await api.get("/so-dtf-form/lookup/size-cetak", {
+      params: { jenisOrder: "PL" },
+    });
+    warnaPoliflexList.value = response.data;
+  } catch {
+    toast.error("Gagal memuat daftar warna poliflex.");
+  }
+};
+
 const addUkuranRowIfNeeded = (index: number) => {
   const row = form.value.ukuranKaos[index];
   const isLast = index === form.value.ukuranKaos.length - 1;
@@ -210,7 +227,7 @@ const addTitikRowIfNeeded = (index: number) => {
   const isLast = index === form.value.titikCetak.length - 1;
   const isFilled = row.keterangan && row.sizeCetak;
   if (isLast && isFilled) {
-    form.value.titikCetak.push({ keterangan: "", sizeCetak: "", panjang: 0, lebar: 0 });
+    form.value.titikCetak.push({ keterangan: "", sizeCetak: "", warna: "", panjang: 0, lebar: 0 });
   }
 };
 
@@ -234,6 +251,7 @@ watch(
 );
 
 onMounted(async () => {
+  fetchWarnaPoliflexList();
   try {
     loading.value = true;
     const [jenisRes, ukuranRes] = await Promise.all([
@@ -260,6 +278,10 @@ watch(
   () => form.value.jenisOrder,
   async (val) => {
     if (!val) return;
+    if (val === "PL") {
+      sizeCetakList.value = ["Custom"];
+      return;
+    }
     try {
       const res = await api.get("/so-dtf-form/lookup/size-cetak", {
         params: { jenisOrder: val },
@@ -404,6 +426,33 @@ const calculatePrices = async () => {
       hargaSatuan = totalHargaJasaPerKaos;
       break;
 
+    case "PL": // POLYFLEX
+      const isGrosir = totalJumlahKaos >= 10;
+      let totalHargaJasaPerKaosPL = 0;
+
+      form.value.titikCetak.forEach((t) => {
+        if (t.panjang && t.lebar) {
+          const luas = Number(t.panjang) * Number(t.lebar);
+          const isGold = (t.warna || "").toUpperCase() === "GOLD";
+
+          let hCm = 0;
+          if (isGrosir) {
+            hCm = isGold ? 55 : 40;
+          } else {
+            hCm = isGold ? 65 : 50;
+          }
+          totalHargaJasaPerKaosPL += luas * hCm;
+        }
+      });
+
+      hargaSatuan = totalHargaJasaPerKaosPL;
+
+      // Untuk info Harga per cm² di footer (ambil titik pertama yg valid)
+      const firstTitikPL = form.value.titikCetak.find((t) => t.keterangan);
+      const isGoldPL = (firstTitikPL?.warna || "").toUpperCase() === "GOLD";
+      hargaPerCm = isGrosir ? (isGoldPL ? 55 : 40) : isGoldPL ? 65 : 50;
+      break;
+
     case "TG": // [PASTIKAN BAGIAN INI ADA DAN SAMA PERSIS]
       hargaPerCm = 0; // DTG tidak pakai hitungan per cm
       hargaSatuan = await getHargaDTG();
@@ -515,8 +564,8 @@ watch(
   () => form.value.jenisOrder,
   (jenis) => {
     form.value.titikCetak.forEach((t) => {
-      if (jenis === "SD" || jenis === "DP") {
-        t.sizeCetak = "Custom"; // default otomatis
+      if (jenis === "SD" || jenis === "DP" || jenis === "PL") {
+        t.sizeCetak = "Custom";
       } else {
         t.sizeCetak = ""; // yang lain kosong
       }
@@ -530,7 +579,7 @@ watch(
   <v-dialog
     :model-value="props.modelValue"
     @update:modelValue="emit('close')"
-    max-width="1000px"
+    max-width="1400px"
     persistent
   >
     <v-card class="jenis-order-dialog">
@@ -671,13 +720,16 @@ watch(
           <!-- KANAN -->
           <div class="section-box">
             <div class="section-title">Titik Bordir/Cetak</div>
+
             <v-row dense class="table-header">
               <v-col cols="3">Keterangan</v-col>
-              <v-col cols="3">Size Cetak</v-col>
+              <v-col :cols="form.jenisOrder === 'PL' ? 2 : 3">Size Cetak</v-col>
+              <v-col v-if="form.jenisOrder === 'PL'" cols="2">Warna</v-col>
               <v-col cols="2">P (cm)</v-col>
               <v-col cols="2">L (cm)</v-col>
-              <v-col cols="2" class="text-center">#</v-col>
+              <v-col :cols="form.jenisOrder === 'PL' ? 1 : 2" class="text-center">#</v-col>
             </v-row>
+
             <div v-for="(row, i) in form.titikCetak" :key="i" class="row-line">
               <v-row dense align="center">
                 <v-col cols="3">
@@ -689,7 +741,8 @@ watch(
                     @blur="() => addTitikRowIfNeeded(i)"
                   />
                 </v-col>
-                <v-col cols="3">
+
+                <v-col :cols="form.jenisOrder === 'PL' ? 2 : 3">
                   <v-select
                     v-model="row.sizeCetak"
                     :items="sizeCetakList"
@@ -701,6 +754,18 @@ watch(
                     @blur="() => addTitikRowIfNeeded(i)"
                   />
                 </v-col>
+
+                <v-col v-if="form.jenisOrder === 'PL'" cols="2">
+                  <v-combobox
+                    v-model="row.warna"
+                    :items="warnaPoliflexList"
+                    density="compact"
+                    variant="outlined"
+                    hide-details
+                    class="text-xs"
+                  />
+                </v-col>
+
                 <v-col cols="2">
                   <v-text-field
                     v-model="row.panjang"
@@ -730,7 +795,8 @@ watch(
                     @blur="finalizeAngka(row, 'lebar')"
                   />
                 </v-col>
-                <v-col cols="2" class="text-center">
+
+                <v-col :cols="form.jenisOrder === 'PL' ? 1 : 2" class="text-center">
                   <v-btn
                     icon="mdi-delete-outline"
                     size="x-small"
@@ -825,7 +891,7 @@ watch(
 /* Dua kolom kanan kiri */
 .grid-section {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 4fr 6fr;
   gap: 12px;
   margin-top: 8px;
 }

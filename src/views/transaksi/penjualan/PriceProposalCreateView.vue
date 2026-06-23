@@ -255,15 +255,17 @@ const save = () => {
   if (totalQty === 0) return toast.error("Jumlah order (Qty) belum diisi.");
 
   // 3. [MANDATORY] Validasi Pemilihan Warna Barang (Kode/Nama Barang)
-  // Filter baris yang memiliki qty > 0, lalu cek apakah kodeBarang sudah terisi
   const incompleteItems = sizeItems.value.filter((item) => (item.qty || 0) > 0 && !item.kodeBarang);
-
   if (incompleteItems.length > 0) {
-    // Ambil daftar ukuran yang belum dipilih warnanya untuk pesan error yang informatif
     const missingSizes = incompleteItems.map((i) => i.size).join(", ");
     return toast.error(
       `Silakan pilih warna barang (klik icon cari atau Tekan F1) untuk ukuran: ${missingSizes}`
     );
+  }
+
+  // 4. [MANDATORY] Validasi Wajib Upload Gambar sebelum bisa Simpan
+  if (!selectedFile.value && !imagePreview.value) {
+    return toast.error("Gambar desain/referensi wajib diunggah sebelum menyimpan pengajuan harga.");
   }
 
   // Jika semua lolos, tampilkan dialog konfirmasi simpan
@@ -701,15 +703,7 @@ watch(
 
     // 2. Logika untuk user yang MEMILIKI hak approval
     if (isNowApproved) {
-      // --- VALIDASI GAMBAR ---
-      // Tolak jika belum ada file yang dipilih DAN belum ada gambar dari DB
-      if (!selectedFile.value && !imagePreview.value) {
-        toast.warning("Tidak dapat melakukan approval. Harap unggah gambar terlebih dahulu.");
-        nextTick(() => {
-          header.value.isApproved = false; // Kembalikan ke tidak tercentang
-        });
-        return;
-      }
+      // (Validasi Gambar SUDAH DIHAPUS DARI SINI)
 
       // Hanya isi nama approver jika sebelumnya masih kosong
       if (!header.value.approval) {

@@ -263,9 +263,16 @@ const save = () => {
     );
   }
 
-  // 4. [MANDATORY] Validasi Wajib Upload Gambar sebelum bisa Simpan
-  if (!selectedFile.value && !imagePreview.value) {
-    return toast.error("Gambar desain/referensi wajib diunggah sebelum menyimpan pengajuan harga.");
+  // 4. [MANDATORY] Validasi Wajib Upload Gambar (dengan pengecualian)
+  // Atur tanggal cut-off di sini (contoh: 24 Februari 2026)
+  const cutOffDate = new Date("2026-06-24").getTime();
+  const documentDate = new Date(header.value.tanggal).getTime();
+
+  // Jika belum ada gambar DAN dokumen dibuat pada atau setelah tanggal cut-off, tolak!
+  if (!selectedFile.value && !imagePreview.value && documentDate >= cutOffDate) {
+    return toast.error(
+      "Gambar desain/referensi wajib diunggah sebelum menyimpan pengajuan harga baru."
+    );
   }
 
   // Jika semua lolos, tampilkan dialog konfirmasi simpan

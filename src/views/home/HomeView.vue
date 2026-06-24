@@ -546,12 +546,12 @@ const autoMintaFilter = reactive({
 });
 
 const autoMintaHeaders = [
-  { title: "No. MT", key: "nomor_mt" },
-  { title: "Tgl & Keterangan", key: "tanggal_mt" },
   { title: "Toko Peminta", key: "nama_cabang" },
-  { title: "Permintaan", key: "qty_minta", align: "center" as const },
-  { title: "Realisasi DC (Packing)", key: "ratio_packing", align: "center" as const, width: 220 },
-  { title: "Terkirim (SJ)", key: "ratio_sj", align: "center" as const, width: 220 },
+  { title: "Total Permintaan", key: "qty_minta", align: "center" as const },
+  { title: "Packing DC (Pcs)", key: "qty_packed", align: "center" as const }, // <-- KOLOM BARU
+  { title: "Rasio Packing", key: "ratio_packing", align: "center" as const, width: 150 },
+  { title: "Terkirim SJ (Pcs)", key: "qty_sent", align: "center" as const }, // <-- KOLOM BARU
+  { title: "Rasio SJ", key: "ratio_sj", align: "center" as const, width: 150 },
 ];
 
 // --- STATE BORDIR ---
@@ -2114,7 +2114,7 @@ const autoMintaAvgSj = computed(() => {
 
 const autoMintaChartData = computed(() => {
   return {
-    labels: autoMintaData.value.map((r) => r.nomor_mt.substring(5)),
+    labels: autoMintaData.value.map((r) => r.kode_cabang), // <-- Label berubah ke kode cabang
     datasets: [
       {
         type: "line" as const,
@@ -4928,11 +4928,11 @@ onUnmounted(() => {
                     <v-col cols="12" md="4">
                       <v-card variant="outlined" class="text-center pa-3 bg-grey-lighten-5">
                         <div class="text-caption text-medium-emphasis text-uppercase mb-1">
-                          Total Sesi Automasi
+                          Total Cabang Automasi
                         </div>
                         <div class="text-h5 font-weight-black text-blue-grey-darken-3">
                           {{ autoMintaData.length }}
-                          <span class="text-caption font-weight-medium">Dokumen</span>
+                          <span class="text-caption font-weight-medium">Cabang</span>
                         </div>
                       </v-card>
                     </v-col>
@@ -4979,13 +4979,23 @@ onUnmounted(() => {
                     hover
                     class="border rounded-lg text-caption"
                   >
-                    <template #[`item.tanggal_mt`]="{ item }">
-                      <div class="font-weight-bold">{{ item.tanggal_mt }}</div>
-                      <div class="text-grey" style="font-size: 10px">{{ item.keterangan }}</div>
+                    <template #[`item.nama_cabang`]="{ item }">
+                      <div class="font-weight-bold">{{ item.nama_cabang }}</div>
+                      <div class="text-grey" style="font-size: 10px">{{ item.kode_cabang }}</div>
                     </template>
+
                     <template #[`item.qty_minta`]="{ item }">
-                      <div class="font-weight-black">{{ item.qty_minta }} pcs</div>
+                      <div class="font-weight-black">
+                        {{ Number(item.qty_minta).toLocaleString("id-ID") }} pcs
+                      </div>
                     </template>
+
+                    <template #[`item.qty_packed`]="{ item }">
+                      <div class="font-weight-bold text-blue-darken-3">
+                        {{ Number(item.qty_packed).toLocaleString("id-ID") }} pcs
+                      </div>
+                    </template>
+
                     <template #[`item.ratio_packing`]="{ item }">
                       <div class="d-flex align-center justify-center w-100">
                         <span
@@ -5000,10 +5010,17 @@ onUnmounted(() => {
                           :color="getRatioColor(item.ratio_packing)"
                           height="6"
                           rounded
-                          style="max-width: 120px"
+                          style="max-width: 100px"
                         />
                       </div>
                     </template>
+
+                    <template #[`item.qty_sent`]="{ item }">
+                      <div class="font-weight-bold text-green-darken-3">
+                        {{ Number(item.qty_sent).toLocaleString("id-ID") }} pcs
+                      </div>
+                    </template>
+
                     <template #[`item.ratio_sj`]="{ item }">
                       <div class="d-flex align-center justify-center w-100">
                         <span
@@ -5018,7 +5035,7 @@ onUnmounted(() => {
                           :color="getRatioColor(item.ratio_sj)"
                           height="6"
                           rounded
-                          style="max-width: 120px"
+                          style="max-width: 100px"
                         />
                       </div>
                     </template>

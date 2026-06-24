@@ -2478,21 +2478,26 @@ const loadTabData = (tabName: string, isBackground = false) => {
     fetchSalesTargetSummary(isBackground);
     fetchTopProducts(isBackground);
     fetchRecentTransactions(isBackground);
+
     if (authStore.user?.cabang === "KDC") {
       fetchBranchPerformance(isBackground);
-      fetchItemSalesTrend(isBackground);
+      if (!isBackground) fetchItemSalesTrend();
+    }
+
+    // ✅ PENCEGAHAN POLLING UNTUK DATA KALKULASI BERAT
+    if (!isBackground) {
+      fetchDeadStockSummary();
+      fetchDeadStockChart();
+      fetchDeadStockSalesPie();
     }
   } else if (tabName === "stok") {
     fetchLowStockData(isBackground);
     fetchStagnantStockSummary(isBackground);
-    fetchDeadStockSummary();
-    fetchDeadStockChart();
-    fetchDeadStockSalesPie();
-    fetchAutoMintaAnalytics(isBackground);
     if (!isBackground) fetchStokKosong(false); // Fetch tabel stok kosong
   } else if (tabName === "operasional") {
     fetchShipmentSchedules(isBackground);
     fetchMasterJadwalRutin();
+    fetchAutoMintaAnalytics(isBackground);
     fetchBordirSchedules(isBackground);
     if (authStore.user?.cabang === "KDC") {
       fetchSpkPendingApproval(isBackground);

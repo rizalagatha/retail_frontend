@@ -1036,22 +1036,6 @@ const spkPendingFilter = reactive({
 });
 
 // --- FETCH FUNCTIONS ---
-const fetchDashboardStats = async (isBackground = false) => {
-  if (!isBackground) isLoadingStats.value = true;
-  try {
-    const response = await api.get("/dashboard/total-stok");
-    stats.value.totalStok = Number(response.data.totalStok || 0);
-    stats.value.stokPerCabang = response.data.perCabang || [];
-  } catch (error: unknown) {
-    // [PERBAIKAN]
-    let msg = "Gagal memuat total stok.";
-    if (axios.isAxiosError(error)) msg = error.response?.data?.message || msg;
-    toast.error(msg); // Cuma string yang dikirim
-  } finally {
-    if (!isBackground) isLoadingStats.value = false;
-  }
-};
-
 const fetchTodayStats = async (isBackground = false) => {
   if (!isBackground) isLoadingStats.value = true;
   try {
@@ -2451,80 +2435,108 @@ let pollingInterval: number;
 
 const startPolling = () => {
   pollingInterval = window.setInterval(() => {
-    // Common (Stok)
+    // A. Polling Global Data (Update angka-angka di atas)
     fetchTotalStock(true);
-    fetchLowStockData(true);
-    fetchStagnantStockSummary(true);
-    fetchShipmentSchedules(true);
-    fetchBordirSchedules(true);
-
-    if (authStore.user?.cabang === "KDC") {
-      fetchSpkPendingApproval(true);
-      fetchStockBreakdown(); // Penting buat orang gudang DC
-    }
-
-    // Penjualan (SKIP jika Warehouse User)
-    if (!isWarehouseUser.value) {
-      fetchTodayStats(true);
-      fetchPendingActions(true);
-      fetchSalesTargetSummary(true);
-      fetchRecentTransactions(true);
-      fetchSalesChartData(true);
-      fetchTopProducts(true);
-      fetchAutoMintaAnalytics(true);
-      if (authStore.user?.cabang === "KDC") {
-        fetchBranchPerformance(true);
-        // ❌ fetchItemSalesTrend(true); <-- BARIS INI SUDAH DIHAPUS BIAR GAK KEDAP KEDIP
-      }
-    }
-  }, 10000);
-};
-
-onMounted(() => {
-  if (authStore.isAuthenticated) {
-    // Common
-    fetchActivePromos(); // Promo tetap ditampilkan (info umum)
-    fetchFrequentMenus();
-    fetchTotalStock();
-    fetchLowStockData();
-    fetchStagnantStockSummary();
     fetchParetoHealth();
-    fetchShipmentSchedules();
-    fetchCabangOptions();
-    fetchMasterJadwalRutin();
-    fetchCashflowSummary();
-    fetchUserBranchInfo();
-    fetchBordirSchedules();
 
     if (authStore.user?.cabang === "KDC") {
       fetchStockBreakdown();
     }
 
-    // Penjualan (SKIP jika Warehouse User)
     if (!isWarehouseUser.value) {
-      fetchDeadStockSummary();
-      fetchDeadStockChart();
-      fetchDeadStockSalesPie();
-      checkAgendaReminder();
+      fetchTodayStats(true);
+      fetchTotalPiutang(true);
+    }
+
+    // B. Polling HANYA untuk Konten Tab yang sedang aktif dibuka user
+    loadTabData(activeTab.value, true);
+  }, 10000); // Tiap 10 detik
+};
+
+// --- LAZY LOADING TAB STATE ---
+const isTabLoaded = reactive({
+  beranda: false,
+  penjualan: false,
+  stok: false,
+  operasional: false,
+  keuangan: false,
+});
+
+// Fungsi untuk menarik data hanya sesuai tab yang sedang terbuka
+const loadTabData = (tabName: string, isBackground = false) => {
+  // Jika tab sudah pernah dimuat dan ini bukan proses polling background, abaikan (mencegah double fetch)
+  if (isTabLoaded[tabName as keyof typeof isTabLoaded] && !isBackground) return;
+
+  if (tabName === "beranda") {
+    fetchFrequentMenus();
+    fetchPendingActions(isBackground);
+    fetchShipmentSchedules(isBackground);
+    fetchMasterJadwalRutin();
+    if (!isBackground) checkAgendaReminder();
+  } else if (tabName === "penjualan" && !isWarehouseUser.value) {
+    fetchSalesChartData(isBackground);
+    fetchSalesTargetSummary(isBackground);
+    fetchTopProducts(isBackground);
+    fetchRecentTransactions(isBackground);
+    if (authStore.user?.cabang === "KDC") {
+      fetchBranchPerformance(isBackground);
+      fetchItemSalesTrend(isBackground);
+    }
+  } else if (tabName === "stok") {
+    fetchLowStockData(isBackground);
+    fetchStagnantStockSummary(isBackground);
+    fetchDeadStockSummary();
+    fetchDeadStockChart();
+    fetchDeadStockSalesPie();
+    fetchAutoMintaAnalytics(isBackground);
+    if (!isBackground) fetchStokKosong(false); // Fetch tabel stok kosong
+  } else if (tabName === "operasional") {
+    fetchShipmentSchedules(isBackground);
+    fetchMasterJadwalRutin();
+    fetchBordirSchedules(isBackground);
+    if (authStore.user?.cabang === "KDC") {
+      fetchSpkPendingApproval(isBackground);
+    }
+  } else if (tabName === "keuangan" && !isWarehouseUser.value) {
+    fetchCashflowSummary(isBackground);
+  }
+
+  // Tandai bahwa tab ini sudah di-load datanya
+  isTabLoaded[tabName as keyof typeof isTabLoaded] = true;
+};
+
+// Pantau perubahan Tab, jika user klik tab baru -> Load datanya!
+watch(activeTab, (newTab) => {
+  loadTabData(newTab);
+});
+
+onMounted(() => {
+  if (authStore.isAuthenticated) {
+    // 1. DATA GLOBAL (Dipanggil di awal karena Card-nya selalu tampil di atas)
+    fetchActivePromos();
+    fetchCabangOptions();
+    fetchUserBranchInfo();
+    fetchTotalStock();
+    fetchParetoHealth();
+
+    if (authStore.user?.cabang === "KDC") {
+      fetchStockBreakdown();
+    }
+
+    if (!isWarehouseUser.value) {
       fetchTodayStats();
-      fetchDashboardStats();
-      fetchSalesChartData();
-      fetchRecentTransactions();
-      fetchPendingActions();
-      fetchTopProducts();
-      fetchSalesTargetSummary();
       fetchTotalPiutang();
       fetchPiutangBreakdown();
       fetchPiutangByInvoice();
-      fetchAutoMintaAnalytics();
-      if (authStore.user?.cabang === "KDC") {
-        fetchBranchPerformance();
-        fetchItemSalesTrend();
-        fetchSpkPendingApproval();
-      }
     }
+
+    // 2. DATA TAB AKTIF (Hanya menarik data milik tab "Beranda")
+    loadTabData(activeTab.value);
+
+    // 3. JALANKAN POLLING BACKGROUND
     startPolling();
   }
+
   intervalId = window.setInterval(() => {
     currentTime.value = new Date().toLocaleString("id-ID", {
       dateStyle: "long",

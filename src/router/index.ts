@@ -25,6 +25,7 @@ const SettingsProcessView = () => import("../views/file/SettingsProcessView.vue"
 const UserManagementView = () => import("../views/file/UserManagementView.vue");
 const ChangePasswordView = () => import("../views/user/ChangePasswordView.vue");
 const WhatsappLinkView = () => import("@/views/user/WhatsappLinkView.vue");
+const ApprovalMobileView = () => import("@/views/tools/ApprovalMobileView.vue");
 
 // --- MASTER DATA ---
 const CustomerView = () => import("@/views/daftar/CustomerView.vue");
@@ -2826,6 +2827,16 @@ const routes = [
     meta: {
       title: "Tautkan Perangkat WhatsApp",
       requiresAuth: true,
+    },
+  },
+  {
+    path: "/tools/approval-mobile",
+    name: "Approval Mobile",
+    component: ApprovalMobileView,
+    meta: {
+      title: "Approval Perangkat Mobile",
+      requiresAuth: true,
+      menuId: "900", // Sesuai kesepakatan
     },
   },
 ];

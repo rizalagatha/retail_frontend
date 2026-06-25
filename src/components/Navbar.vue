@@ -636,6 +636,11 @@ const menuItems: NavItem[] = [
           drawer.value = false;
         },
       },
+      {
+        title: "Approval Perangkat",
+        to: "/tools/approval-mobile",
+        icon: "mdi-cellphone-check",
+      },
       { divider: true },
       { title: "User", to: "/file/users", icon: "mdi-account-group-outline" },
     ],

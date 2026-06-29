@@ -404,30 +404,27 @@ onMounted(() => {
 
         <v-divider vertical class="mx-3 my-3"></v-divider>
 
-        <div v-if="datelineCustomer" class="text-right mr-4">
+        <!-- Sembunyikan Dateline Customer (Desktop) -->
+        <div v-if="false" class="text-right mr-4">
           <div class="text-caption text-grey-darken-1" style="line-height: 1">
             Dateline Customer
           </div>
           <div class="text-caption font-weight-bold text-blue-darken-2">{{ datelineCustomer }}</div>
         </div>
 
-        <v-divider vertical class="mx-3 my-3" v-if="datelineCustomer"></v-divider>
+        <!-- Sembunyikan Divider Dateline -->
+        <v-divider vertical class="mx-3 my-3" v-if="false"></v-divider>
 
-        <div
-          v-if="estimasiSelesai && milestones.find((m) => m.kode === 'PRODUKSI' && m.isCurrent)"
-          class="text-right mr-4"
-        >
+        <!-- Sembunyikan Standar Pelayanan (Desktop) -->
+        <div v-if="false" class="text-right mr-4">
           <div class="text-caption text-grey-darken-1" style="line-height: 1">
             Standar Pelayanan
           </div>
           <div class="text-caption font-weight-bold text-teal-darken-2">{{ estimasiSelesai }}</div>
         </div>
 
-        <v-divider
-          vertical
-          class="mx-3 my-3"
-          v-if="estimasiSelesai && milestones.find((m) => m.kode === 'PRODUKSI' && m.isCurrent)"
-        ></v-divider>
+        <!-- Sembunyikan Divider Standar Pelayanan -->
+        <v-divider vertical class="mx-3 my-3" v-if="false"></v-divider>
 
         <div class="text-caption font-weight-bold text-brand">
           STATUS: {{ milestones.find((m) => m.isCurrent)?.title?.toUpperCase() || "DIPROSES" }}
@@ -435,16 +432,18 @@ onMounted(() => {
       </div>
 
       <div class="d-flex d-sm-none flex-column align-end justify-center text-right">
+        <!-- Sembunyikan Dateline Customer (Mobile) -->
         <div
-          v-if="datelineCustomer"
+          v-if="false"
           class="font-weight-medium text-blue-darken-2 mb-n1"
           style="font-size: 0.65rem"
         >
           Dateline: <span class="font-weight-bold">{{ datelineCustomer }}</span>
         </div>
 
+        <!-- Sembunyikan Standar Pelayanan (Mobile) -->
         <div
-          v-if="estimasiSelesai && milestones.find((m) => m.kode === 'PRODUKSI' && m.isCurrent)"
+          v-if="false"
           class="font-weight-medium text-teal-darken-2 mb-n1"
           style="font-size: 0.75rem"
         >

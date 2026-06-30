@@ -1056,6 +1056,7 @@ watch(() => header.nominal, calculateTotals);
     <CustomerSearchModal
       v-if="dialog.customerSearch"
       :gudang="authStore.user?.cabang || ''"
+      source="invoice"
       @close="dialog.customerSearch = false"
       @customer-selected="onCustomerSelected"
     />

@@ -816,6 +816,27 @@ const filteredParetoItems = computed(() => {
   return items;
 });
 
+// --- LAZY LOAD PARETO ---
+const paretoDisplayCount = ref(20);
+
+// Gunakan ini untuk v-data-table alih-alih filteredParetoItems langsung
+const paginatedParetoItems = computed(() => {
+  return filteredParetoItems.value.slice(0, paretoDisplayCount.value);
+});
+
+// Fungsi saat scroll menyentuh bawah tabel
+const onIntersectPareto = (isIntersecting: boolean) => {
+  if (isIntersecting && paretoDisplayCount.value < filteredParetoItems.value.length) {
+    // Tambah 20 item setiap kali mentok bawah
+    paretoDisplayCount.value += 20;
+  }
+};
+
+// Reset limit ketika user mengganti filter atau mencari barang
+watch([filterPareto, searchPareto], () => {
+  paretoDisplayCount.value = 20;
+});
+
 const pieChartOptions = {
   responsive: true,
   maintainAspectRatio: false,
@@ -1840,6 +1861,8 @@ const googleReviewUrl = computed(() => {
 // Function Fetch
 const openParetoDetail = async () => {
   showParetoDetail.value = true;
+  paretoDisplayCount.value = 20;
+
   if (paretoItems.value.length > 0) return; // Cache sederhana
 
   isLoadingParetoDetail.value = true;
@@ -5832,14 +5855,15 @@ onUnmounted(() => {
       <v-card-text class="pa-0 flex-grow-1" style="overflow-y: auto">
         <v-data-table
           :headers="paretoHeaders"
-          :items="filteredParetoItems"
+          :items="paginatedParetoItems"
           :loading="isLoadingParetoDetail"
           :item-value="(item) => `${item.kode}-${item.ukuran}`"
           :show-expand="authStore.user?.cabang === 'KDC'"
           hover
-          density="comfortable"
-          fixed-header
-          class="pareto-table elevation-0 rounded-lg border bg-white"
+          density="compact"
+          class="pareto-table elevation-0"
+          hide-default-footer
+          :items-per-page="-1"
         >
           <template #[`item.rank`]="{ item }">
             <div class="font-weight-black text-h6 text-grey-lighten-1">#{{ item.rank }}</div>
@@ -5906,7 +5930,6 @@ onUnmounted(() => {
             </div>
           </template>
 
-          <!-- Rincian Ekspansi (Khusus KDC) -->
           <template v-if="authStore.user?.cabang === 'KDC'" #expanded-row="{ columns, item }">
             <tr>
               <td :colspan="columns?.length || 10" class="bg-grey-lighten-5 pa-0 border-b">
@@ -6014,6 +6037,24 @@ onUnmounted(() => {
                 </div>
               </td>
             </tr>
+          </template>
+
+          <template #bottom>
+            <div v-intersect="onIntersectPareto" class="pa-4 text-center w-100 bg-white border-t">
+              <v-progress-circular
+                v-if="paretoDisplayCount < filteredParetoItems.length"
+                indeterminate
+                color="primary"
+                size="24"
+                width="3"
+              />
+              <div
+                v-else-if="filteredParetoItems.length > 0"
+                class="text-caption text-grey font-italic"
+              >
+                -- Semua {{ filteredParetoItems.length }} barang telah ditampilkan --
+              </div>
+            </div>
           </template>
         </v-data-table>
       </v-card-text>

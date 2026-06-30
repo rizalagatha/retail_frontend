@@ -211,12 +211,13 @@ interface ParetoBranch {
   nama: string;
   status: string;
   stok: number;
+  target_toko: number;
 }
 
 interface PiutangInvoice {
   invoice: string;
   tanggal: string;
-  customer_nama: string; // <--- TAMBAHKAN INI
+  customer_nama: string;
   sisa_piutang: number;
 }
 
@@ -255,7 +256,7 @@ interface ExportItem {
 }
 
 interface LowStockSaleItem {
-  cabang_nama: string; // <-- TAMBAHKAN INI
+  cabang_nama: string;
   kode: string;
   nama: string;
   ukuran: string;
@@ -264,7 +265,7 @@ interface LowStockSaleItem {
 }
 
 interface SeasonalSaleItem {
-  cabang_nama: string; // <-- TAMBAHKAN INI
+  cabang_nama: string;
   kode: string;
   nama: string;
   ukuran: string;
@@ -727,7 +728,7 @@ const targetChartData = computed(() => ({
   ],
 }));
 
-// [TAMBAHAN] Helper Computed
+// Helper Computed
 const isWarehouseUser = computed(() => authStore.user?.isWarehouseUser === true);
 
 const fr = (val: number) => formatRupiah(val);
@@ -995,8 +996,8 @@ let intervalId: number;
 
 const showReviewDialog = ref(false);
 const userPlaceId = ref("");
-const userLat = ref(""); // Tambahkan state Lat
-const userLong = ref(""); // Tambahkan state Long
+const userLat = ref("");
+const userLong = ref("");
 
 // --- STATE DEAD STOCK ---
 const deadStockSummary = ref({
@@ -1379,7 +1380,6 @@ const fetchPendingActions = async (isBackground = false) => {
         key: "so_open",
         title: "Surat Pesanan Open",
         icon: "mdi-file-document-edit-outline",
-        // Tambahkan &startDate=...&endDate=...
         to: `/transaksi/penjualan/surat-pesanan?status=open&startDate=${startDate}&endDate=${endDate}`,
       },
       {
@@ -4218,7 +4218,6 @@ onUnmounted(() => {
               </v-col>
             </v-row>
 
-            <!-- Tambahkan setelah metrics row yang sudah ada -->
             <v-row class="mt-4">
               <!-- Stacked Bar -->
               <v-col cols="12" md="5">
@@ -5775,43 +5774,62 @@ onUnmounted(() => {
   <!-- ============================================================
        DIALOG — Pareto Detail
        ============================================================ -->
-  <v-dialog v-model="showParetoDetail" max-width="1000" transition="dialog-bottom-transition">
-    <v-card class="rounded-lg d-flex flex-column" style="height: 90vh; max-height: 90vh">
-      <v-toolbar color="white" elevation="1" class="pr-2 flex-grow-0 z-index-10">
-        <v-toolbar-title class="font-weight-bold">Analisa Stok Pareto</v-toolbar-title>
+  <v-dialog v-model="showParetoDetail" max-width="1100" transition="dialog-bottom-transition">
+    <v-card class="rounded-lg d-flex flex-column bg-white">
+      <!-- Toolbar Lebih Bersih -->
+      <v-toolbar class="pareto-dialog-header" elevation="0" density="compact">
+        <v-icon color="primary" class="ml-4 mr-2">mdi-chart-bar-stacked</v-icon>
+        <v-toolbar-title class="font-weight-bold text-subtitle-1"
+          >Analisa Stok Pareto</v-toolbar-title
+        >
         <v-spacer />
-        <v-btn icon="mdi-close" variant="text" color="grey" @click="showParetoDetail = false" />
+        <v-btn
+          icon="mdi-close"
+          variant="text"
+          color="grey-darken-1"
+          @click="showParetoDetail = false"
+        />
       </v-toolbar>
-      <div class="bg-grey-lighten-5 pa-4 pb-2 flex-grow-0 z-index-10">
-        <v-card class="pa-2 mb-2" elevation="0" border>
-          <div class="d-flex flex-wrap gap-4 align-center">
-            <v-tabs v-model="filterPareto" density="compact" color="primary" show-arrows>
-              <v-tab value="ALL" class="text-caption text-capitalize">Semua</v-tab>
-              <v-tab value="KRITIS" class="text-caption text-capitalize"
-                ><v-icon start size="small" color="error">mdi-alert-circle</v-icon> Kritis</v-tab
-              >
-              <v-tab value="AMAN" class="text-caption text-capitalize">Aman</v-tab>
-              <v-tab value="OVER" class="text-caption text-capitalize">Berlebih</v-tab>
-            </v-tabs>
-            <v-spacer />
-            <v-text-field
-              v-model="searchPareto"
-              prepend-inner-icon="mdi-magnify"
-              placeholder="Cari Kode / Nama..."
-              density="compact"
-              variant="solo-filled"
-              flat
-              hide-details
-              style="min-width: 250px"
-              class="rounded-lg"
-            />
-          </div>
-        </v-card>
+
+      <!-- Panel Filter -->
+      <div class="bg-grey-lighten-4 pa-3 border-b">
+        <div class="d-flex flex-wrap gap-2 align-center">
+          <v-btn-toggle
+            v-model="filterPareto"
+            density="compact"
+            color="primary"
+            divided
+            variant="outlined"
+            class="bg-white rounded-lg"
+          >
+            <v-btn value="ALL" class="text-caption font-weight-bold px-3">Semua</v-btn>
+            <v-btn value="KRITIS" class="text-caption font-weight-bold px-3 text-error"
+              >Kritis</v-btn
+            >
+            <v-btn value="AMAN" class="text-caption font-weight-bold px-3 text-success">Aman</v-btn>
+            <v-btn value="OVER" class="text-caption font-weight-bold px-3 text-warning"
+              >Berlebih</v-btn
+            >
+          </v-btn-toggle>
+
+          <v-spacer />
+
+          <v-text-field
+            v-model="searchPareto"
+            prepend-inner-icon="mdi-magnify"
+            placeholder="Cari..."
+            density="compact"
+            variant="outlined"
+            bg-color="white"
+            hide-details
+            style="max-width: 250px"
+            class="text-caption"
+          />
+        </div>
       </div>
-      <v-card-text
-        class="bg-grey-lighten-5 pa-4 pt-0 flex-grow-1"
-        style="overflow-y: auto; overflow-x: hidden"
-      >
+
+      <!-- Tabel -->
+      <v-card-text class="pa-0 flex-grow-1" style="overflow-y: auto">
         <v-data-table
           :headers="paretoHeaders"
           :items="filteredParetoItems"
@@ -5819,13 +5837,14 @@ onUnmounted(() => {
           :item-value="(item) => `${item.kode}-${item.ukuran}`"
           :show-expand="authStore.user?.cabang === 'KDC'"
           hover
-          density="default"
+          density="comfortable"
           fixed-header
-          class="pareto-table elevation-0 rounded-lg border"
+          class="pareto-table elevation-0 rounded-lg border bg-white"
         >
           <template #[`item.rank`]="{ item }">
             <div class="font-weight-black text-h6 text-grey-lighten-1">#{{ item.rank }}</div>
           </template>
+
           <template #[`item.nama`]="{ item }">
             <div class="py-2">
               <div class="font-weight-bold text-body-2 text-high-emphasis">{{ item.nama }}</div>
@@ -5834,17 +5853,20 @@ onUnmounted(() => {
                   size="x-small"
                   color="grey-lighten-3"
                   class="mr-2 font-weight-bold text-grey-darken-3"
-                  >{{ item.kode }}</v-chip
                 >
+                  {{ item.kode }}
+                </v-chip>
                 <v-chip
                   size="x-small"
                   color="blue-lighten-5"
                   class="font-weight-bold text-blue-darken-3"
-                  >{{ item.ukuran }}</v-chip
                 >
+                  {{ item.ukuran }}
+                </v-chip>
               </div>
             </div>
           </template>
+
           <template #[`item.stok`]="{ item }">
             <div class="text-right">
               <div
@@ -5856,12 +5878,14 @@ onUnmounted(() => {
               <div class="text-caption text-grey">Pcs</div>
             </div>
           </template>
+
           <template #[`item.target`]="{ item }">
             <div class="text-right">
               <div class="font-weight-medium text-body-2">{{ item.target.toLocaleString() }}</div>
               <div class="text-caption text-grey">Min</div>
             </div>
           </template>
+
           <template #[`item.status`]="{ item }">
             <div class="d-flex flex-column align-center">
               <v-chip
@@ -5869,8 +5893,9 @@ onUnmounted(() => {
                 :color="item.color"
                 variant="tonal"
                 class="font-weight-bold mb-1"
-                >{{ item.status }}</v-chip
               >
+                {{ item.status }}
+              </v-chip>
               <v-progress-linear
                 :model-value="Math.min((item.stok / item.target) * 100, 100)"
                 :color="item.color"
@@ -5880,22 +5905,29 @@ onUnmounted(() => {
               />
             </div>
           </template>
+
+          <!-- Rincian Ekspansi (Khusus KDC) -->
           <template v-if="authStore.user?.cabang === 'KDC'" #expanded-row="{ columns, item }">
             <tr>
-              <td :colspan="columns?.length || 10" class="bg-grey-lighten-4 pa-0">
+              <td :colspan="columns?.length || 10" class="bg-grey-lighten-5 pa-0 border-b">
                 <div class="px-6 py-4">
-                  <div class="d-flex align-center mb-3">
+                  <div class="d-flex align-center mb-4">
                     <v-icon size="small" class="mr-2" color="primary">mdi-store-marker</v-icon>
-                    <span class="text-subtitle-2 font-weight-bold text-grey-darken-3"
-                      >Rincian Stok Cabang:
-                      <span class="text-primary">{{ item.nama }} ({{ item.ukuran }})</span></span
-                    >
+                    <span class="text-subtitle-2 font-weight-bold text-grey-darken-3">
+                      Sebaran Stok Cabang:
+                      <span class="text-primary">{{ item.nama }} ({{ item.ukuran }})</span>
+                    </span>
                     <v-spacer />
-                    <v-chip size="x-small" variant="outlined" color="grey-darken-1"
-                      >Target/Toko: <strong>{{ item.buffer_per_toko || 0 }} pcs</strong></v-chip
+                    <v-chip
+                      size="small"
+                      variant="flat"
+                      color="blue-grey-lighten-5"
+                      class="text-blue-grey-darken-3 font-weight-bold border"
                     >
+                      Total Akumulasi Buffer: {{ item.target }} pcs
+                    </v-chip>
                   </div>
-                  <v-divider class="mb-3 border-opacity-25" />
+
                   <v-row dense>
                     <v-col
                       v-for="cabang in item.branches || []"
@@ -5908,14 +5940,23 @@ onUnmounted(() => {
                       <v-card
                         flat
                         border
-                        class="d-flex justify-space-between align-center px-3 py-2"
-                        :color="cabang.status === 'KRITIS' ? 'red-lighten-5' : 'white'"
-                        :style="cabang.status === 'KRITIS' ? 'border-color:#ffcdd2!important' : ''"
+                        class="d-flex flex-column pa-3 rounded-lg h-100"
+                        :class="
+                          cabang.status === 'KRITIS'
+                            ? 'bg-red-lighten-5 border-red-lighten-4'
+                            : 'bg-white'
+                        "
                       >
-                        <div class="d-flex align-center overflow-hidden mr-2">
-                          <v-icon
-                            size="10"
-                            class="mr-2"
+                        <div class="d-flex justify-space-between align-start mb-2">
+                          <div class="d-flex align-center overflow-hidden mr-2">
+                            <span
+                              class="text-caption font-weight-bold text-truncate text-grey-darken-3"
+                              >{{ cabang.nama }}</span
+                            >
+                          </div>
+                          <v-chip
+                            size="x-small"
+                            variant="flat"
                             :color="
                               cabang.status === 'KRITIS'
                                 ? 'error'
@@ -5923,21 +5964,44 @@ onUnmounted(() => {
                                 ? 'warning'
                                 : 'success'
                             "
-                            >mdi-circle</v-icon
+                            class="font-weight-bold px-2"
                           >
-                          <span
-                            class="text-caption font-weight-bold text-truncate text-grey-darken-3"
-                            >{{ cabang.nama }}</span
-                          >
+                            {{ cabang.status }}
+                          </v-chip>
                         </div>
-                        <div
-                          class="font-weight-black text-body-2"
-                          :class="cabang.status === 'KRITIS' ? 'text-red' : 'text-grey-darken-2'"
-                        >
-                          {{ cabang.stok }}
+
+                        <div class="mt-auto d-flex justify-space-between align-end pt-2">
+                          <div>
+                            <div
+                              class="text-caption text-grey-darken-1"
+                              style="font-size: 10px !important"
+                            >
+                              Stok Fisik
+                            </div>
+                            <div
+                              class="font-weight-black text-body-2"
+                              :class="
+                                cabang.status === 'KRITIS' ? 'text-red' : 'text-grey-darken-3'
+                              "
+                            >
+                              {{ cabang.stok }}
+                            </div>
+                          </div>
+                          <div class="text-right">
+                            <div
+                              class="text-caption text-grey-darken-1"
+                              style="font-size: 10px !important"
+                            >
+                              Buffer Limit
+                            </div>
+                            <div class="font-weight-bold text-caption text-grey-darken-2">
+                              {{ cabang.target_toko }}
+                            </div>
+                          </div>
                         </div>
                       </v-card>
                     </v-col>
+
                     <v-col v-if="!item.branches || item.branches.length === 0" cols="12">
                       <div
                         class="text-center text-caption text-grey py-4 border dashed rounded bg-white"
@@ -6980,5 +7044,28 @@ iframe {
 .filter-select-small :deep(.v-field__append-inner) {
   padding-top: 4px !important;
   padding-bottom: 4px !important;
+}
+
+/* Gaya Khusus Dialog Pareto */
+.pareto-dialog-header {
+  background-color: #f8f9fa !important;
+  border-bottom: 2px solid #e9ecef !important;
+  color: #344767 !important;
+}
+
+.pareto-table :deep(th) {
+  background-color: #f1f3f5 !important;
+  font-size: 11px !important;
+  color: #495057 !important;
+  font-weight: 700 !important;
+  text-transform: uppercase;
+}
+
+.pareto-table :deep(td) {
+  font-size: 11px !important;
+}
+
+.pareto-table :deep(.v-data-table__tr:hover) {
+  background-color: #f8f9fa !important;
 }
 </style>

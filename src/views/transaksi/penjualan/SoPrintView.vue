@@ -219,12 +219,12 @@ onMounted(() => {
             <span class="label">Tanggal:</span>
             {{ format(parseISO(printData.header.so_tanggal), "dd-MM-yyyy") }}
           </div>
-          <div v-if="printData.header.so_dateline">
+          <!-- <div v-if="printData.header.so_dateline">
             <span class="label text-blue-darken-2">Dateline:</span>
             <span class="font-weight-bold text-blue-darken-2">
               {{ format(parseISO(printData.header.so_dateline), "dd-MM-yyyy") }}
             </span>
-          </div>
+          </div> -->
           <div><span class="label">Tempo:</span> {{ printData.header.so_top }} Hari</div>
           <div><span class="label">Keterangan:</span> {{ printData.header.so_ket }}</div>
         </div>

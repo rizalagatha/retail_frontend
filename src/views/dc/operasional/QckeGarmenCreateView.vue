@@ -449,13 +449,23 @@ const executeSave = async () => {
 
     // Panggil dialog cetak
     dialogConfirmCetak.nomor = savedNomor;
+
     dialogConfirmCetak.onConfirm = () => {
-      const routeData = router.resolve({ name: "QcGarmenPrint", params: { nomor: savedNomor } });
+      dialogConfirmCetak.show = false;
+
+      const routeData = router.resolve({
+        name: "QcGarmenPrint",
+        params: { nomor: savedNomor },
+      });
+
       window.open(routeData.href, "_blank");
-      router.push({ name: "QcGarmen" });
+
+      router.push({ name: "QCkeGarmen" });
     };
+
     dialogConfirmCetak.onCancel = () => {
-      router.push({ name: "QcGarmen" });
+      dialogConfirmCetak.show = false;
+      router.push({ name: "QCkeGarmen" });
     };
     dialogConfirmCetak.show = true;
   } catch (err) {

@@ -34,6 +34,7 @@ interface BufferItem {
   max: number;
   rop: number;
   real_stok: number;
+  spk_beredar?: number;
 }
 
 interface SesionalItem {
@@ -46,6 +47,14 @@ interface StokCabangItem {
   kode_cabang: string;
   nama_cabang: string;
   stok: number;
+}
+
+interface SpkDetail {
+  spk_nomor: string;
+  spk_nama: string;
+  spkd_qtyorder: number;
+  spk_tanggal: string;
+  spk_dateline: string;
 }
 
 const toast = useToast();
@@ -207,6 +216,26 @@ const kategoriOptions = [
   { title: "Large", value: "large" },
   { title: "X Large", value: "xlarge" },
 ];
+
+// --- DETAIL SPK PER SIZE ---
+// State
+const isSpkDetailOpen = ref(false);
+const detailSpkList = ref<SpkDetail[]>([]);
+const selectedItemSpk = ref<BufferItem | null>(null);
+
+// Fungsi buka dialog
+const openDetailSpk = async (item: BufferItem) => {
+  selectedItemSpk.value = item;
+  isSpkDetailOpen.value = true;
+  try {
+    const res = await api.get("/buffer-panel/detail-spk", {
+      params: { kode: item.kode, ukuran: item.ukuran },
+    });
+    detailSpkList.value = res.data;
+  } catch {
+    toast.error("Gagal memuat detail SPK.");
+  }
+};
 
 // --- ANOMALI ---
 const anomaliFilter = ref<number | null>(null); // null = off, 4 = 4x, 3 = 3x, dst
@@ -394,9 +423,10 @@ const totals = computed(() => {
       acc.max += Number(p.max) || 0;
       acc.rop += Number(p.rop) || 0;
       acc.real += Number(p.real_stok) || 0;
+      acc.spk += Number(p.spk_beredar) || 0;
       return acc;
     },
-    { avg: 0, buf: 0, min: 0, max: 0, rop: 0, real: 0 }
+    { avg: 0, buf: 0, min: 0, max: 0, rop: 0, real: 0, spk: 0 }
   );
 });
 
@@ -429,20 +459,42 @@ const saveFinalBuffer = async () => {
   }
 };
 
-const headers = ref<DataTableHeader[]>([
-  { title: "KODE", key: "kode", width: 130, fixed: true },
-  { title: "NAMA BARANG", key: "nama", width: 300 },
-  { title: "SIZE", key: "ukuran", width: 70, align: "center" },
-  { title: "KATEGORI", key: "kategori", width: 100, align: "center" },
-  { title: "AVG/BULAN", key: "avg_per_bulan", width: 110, align: "end" },
-  { title: "KTG SALES", key: "sales_kategori", width: 110, align: "center" },
-  { title: "PARETO", key: "is_pareto", width: 80, align: "center" },
-  { title: "SUMBER DATA", key: "data_source", width: 120, align: "center" },
-  { title: "BUFFER/MIN", key: "min", width: 100, align: "end" },
-  { title: "MAX", key: "max", width: 80, align: "end" },
-  { title: "ROP", key: "rop", width: 70, align: "end" },
-  { title: "STOK AKTUAL", key: "real_stok", width: 120, align: "end" },
-]);
+const headers = computed<DataTableHeader[]>(() => {
+  const baseHeaders: DataTableHeader[] = [
+    { title: "KODE", key: "kode", width: 130, fixed: true },
+    { title: "NAMA BARANG", key: "nama", width: 300 },
+    { title: "SIZE", key: "ukuran", width: 70, align: "center" },
+    { title: "KATEGORI", key: "kategori", width: 100, align: "center" },
+  ];
+
+  // Sembunyikan kolom ini jika cabang adalah KDC
+  if (selectedCabang.value !== "KDC") {
+    baseHeaders.push(
+      { title: "AVG/BULAN", key: "avg_per_bulan", width: 110, align: "end" },
+      { title: "KTG SALES", key: "sales_kategori", width: 110, align: "center" },
+      { title: "PARETO", key: "is_pareto", width: 80, align: "center" },
+      { title: "SUMBER DATA", key: "data_source", width: 120, align: "center" }
+    );
+  }
+
+  baseHeaders.push(
+    { title: "BUFFER/MIN", key: "min", width: 100, align: "end" },
+    { title: "MAX", key: "max", width: 80, align: "end" }
+  );
+
+  // KDC tidak butuh ROP
+  if (selectedCabang.value !== "KDC") {
+    baseHeaders.push({ title: "ROP", key: "rop", width: 70, align: "end" });
+  }
+
+  baseHeaders.push({ title: "STOK AKTUAL", key: "real_stok", width: 120, align: "end" });
+
+  if (selectedCabang.value === "KDC") {
+    baseHeaders.push({ title: "SPK BEREDAR", key: "spk_beredar", width: 110, align: "end" });
+  }
+
+  return baseHeaders;
+});
 
 const openSesionalDialog = async () => {
   sesionalPage.value = 1;
@@ -482,20 +534,51 @@ const exportBuffer = async () => {
       right: { style: "thin" },
     };
 
-    const cols = [
-      { header: "Kode", key: "kode", width: 16, align: "left" as const },
-      { header: "Nama Barang", key: "nama", width: 40, align: "left" as const },
-      { header: "Size", key: "ukuran", width: 8, align: "center" as const },
-      { header: "Avg/Bulan", key: "avg_per_bulan", width: 12, align: "right" as const },
-      { header: "Ktg Sales", key: "sales_kategori", width: 12, align: "center" as const },
-      { header: "Pareto", key: "pareto_group", width: 10, align: "center" as const },
-      { header: "Sumber Data", key: "data_source", width: 14, align: "center" as const },
-      { header: "Buffer/MIN", key: "min", width: 12, align: "right" as const, fmt: "#,##0" },
-      { header: "MAX", key: "max", width: 12, align: "right" as const, fmt: "#,##0" },
-      { header: "ROP", key: "rop", width: 10, align: "right" as const, fmt: "#,##0" },
-      { header: "Stok Aktual", key: "real_stok", width: 13, align: "right" as const, fmt: "#,##0" },
-      { header: "Status", key: "_status", width: 12, align: "center" as const },
+    interface ExcelColumn {
+      header: string;
+      key: string;
+      width: number;
+      align: "left" | "center" | "right";
+      fmt?: string;
+    }
+
+    const cols: ExcelColumn[] = [
+      { header: "Kode", key: "kode", width: 16, align: "left" },
+      { header: "Nama Barang", key: "nama", width: 40, align: "left" },
+      { header: "Size", key: "ukuran", width: 8, align: "center" },
     ];
+
+    if (selectedCabang.value !== "KDC") {
+      cols.push(
+        { header: "Avg/Bulan", key: "avg_per_bulan", width: 12, align: "right" },
+        { header: "Ktg Sales", key: "sales_kategori", width: 12, align: "center" },
+        { header: "Pareto", key: "pareto_group", width: 10, align: "center" },
+        { header: "Sumber Data", key: "data_source", width: 14, align: "center" }
+      );
+    }
+
+    cols.push(
+      { header: "Buffer/MIN", key: "min", width: 12, align: "right", fmt: "#,##0" },
+      { header: "MAX", key: "max", width: 12, align: "right", fmt: "#,##0" }
+    );
+
+    if (selectedCabang.value !== "KDC") {
+      cols.push({ header: "ROP", key: "rop", width: 10, align: "right", fmt: "#,##0" });
+    }
+
+    cols.push({ header: "Stok Aktual", key: "real_stok", width: 13, align: "right", fmt: "#,##0" });
+
+    if (selectedCabang.value === "KDC") {
+      cols.push({
+        header: "SPK Beredar",
+        key: "spk_beredar",
+        width: 13,
+        align: "right",
+        fmt: "#,##0",
+      });
+    }
+
+    cols.push({ header: "Status", key: "_status", width: 12, align: "center" });
 
     sheet.columns = cols.map((c) => ({ width: c.width }));
 
@@ -518,11 +601,25 @@ const exportBuffer = async () => {
     };
 
     filteredData.value.forEach((item) => {
-      const status =
-        item.real_stok > item.max ? "OVERSTOCK" : item.real_stok <= item.rop ? "RESTOCK!" : "OK";
+      // Menentukan status dengan logika KURANG
+      let status = "OK";
+      if (item.real_stok > item.max) {
+        status = "OVERSTOCK";
+      } else if (item.rop !== undefined && item.real_stok <= item.rop) {
+        status = "RESTOCK!";
+      } else if (item.real_stok < item.min) {
+        status = "KURANG";
+      }
 
+      // Menentukan warna font
       const statusColor =
-        status === "OVERSTOCK" ? "FFE65100" : status === "RESTOCK!" ? "FFC62828" : "FF2E7D32";
+        status === "OVERSTOCK"
+          ? "FFE65100" // Orange
+          : status === "RESTOCK!"
+          ? "FFC62828" // Red
+          : status === "KURANG"
+          ? "FFF9A825" // Yellow Darken
+          : "FF2E7D32"; // Green (OK)
 
       const values = cols.map((c) => {
         if (c.key === "_status") return status;
@@ -570,6 +667,8 @@ const exportBuffer = async () => {
       if (c.key === "max") return filteredData.value.reduce((s, r) => s + r.max, 0);
       if (c.key === "rop") return filteredData.value.reduce((s, r) => s + r.rop, 0);
       if (c.key === "real_stok") return filteredData.value.reduce((s, r) => s + r.real_stok, 0);
+      if (c.key === "spk_beredar")
+        return filteredData.value.reduce((s, r) => s + (r.spk_beredar || 0), 0);
       return "";
     });
     const totalRow = sheet.addRow(totalValues);
@@ -1055,28 +1154,65 @@ watch(anomaliFilter, () => {
                   >OVERSTOCK</span
                 >
                 <span
-                  v-else-if="item.real_stok <= item.rop"
+                  v-else-if="item.rop !== undefined && item.real_stok <= item.rop"
                   style="font-size: 8px; font-weight: 700"
                   class="text-error"
                   >RESTOCK!</span
+                >
+                <span
+                  v-else-if="item.real_stok < item.min"
+                  style="font-size: 8px; font-weight: 700"
+                  class="text-yellow-darken-3"
+                  >KURANG</span
                 >
                 <span v-else style="font-size: 8px; font-weight: 700" class="text-success">OK</span>
               </div>
             </template>
 
+            <template #[`item.spk_beredar`]="{ item }">
+              <span
+                v-if="item.spk_beredar > 0"
+                class="font-weight-bold text-teal-darken-3"
+                style="cursor: pointer; text-decoration: underline"
+                @click="openDetailSpk(item)"
+              >
+                {{ item.spk_beredar }}
+              </span>
+
+              <span v-else class="text-medium-emphasis"> 0 </span>
+            </template>
+
             <template #[`body.append`]>
               <tr class="qty-footer-row" v-if="!isLoading && filteredData.length > 0">
                 <td colspan="4" class="text-end font-weight-bold" style="color: #0d47a1">TOTAL:</td>
-                <td class="text-end font-weight-bold text-blue-darken-3">
-                  {{ Number(totals.avg).toFixed(1) }}
-                </td>
-                <td></td>
-                <td></td>
-                <td></td>
+
+                <template v-if="selectedCabang !== 'KDC'">
+                  <td class="text-end font-weight-bold text-blue-darken-3">
+                    {{ Number(totals.avg).toFixed(1) }}
+                  </td>
+                  <td></td>
+                  <td></td>
+                  <td></td>
+                </template>
+
                 <td class="text-end font-weight-bold text-error">{{ totals.min }}</td>
                 <td class="text-end font-weight-bold text-success">{{ totals.max }}</td>
-                <td class="text-end font-weight-bold text-orange-darken-4">{{ totals.rop }}</td>
+
+                <td
+                  v-if="selectedCabang !== 'KDC'"
+                  class="text-end font-weight-bold text-orange-darken-4"
+                >
+                  {{ totals.rop }}
+                </td>
+
                 <td class="text-end font-weight-bold" style="color: #37474f">{{ totals.real }}</td>
+
+                <td
+                  v-if="selectedCabang === 'KDC'"
+                  class="text-end font-weight-bold text-teal-darken-3"
+                >
+                  {{ totals.spk }}
+                </td>
               </tr>
             </template>
           </AppDataTable>
@@ -1769,6 +1905,45 @@ watch(anomaliFilter, () => {
         </v-card-actions>
       </v-card>
     </v-dialog>
+
+    <v-dialog v-model="isSpkDetailOpen" max-width="900px" scrollable>
+      <v-card class="rounded-lg">
+        <v-toolbar color="teal-darken-3" density="compact">
+          <v-toolbar-title class="text-subtitle-2 font-weight-bold">
+            DETAIL SPK AKTIF — {{ selectedItemSpk?.kode }} / {{ selectedItemSpk?.ukuran }}
+          </v-toolbar-title>
+          <v-spacer />
+          <v-btn icon="mdi-close" variant="text" @click="isSpkDetailOpen = false" />
+        </v-toolbar>
+
+        <v-card-text class="pa-0" style="font-size: 11px; max-height: 70vh">
+          <v-table density="compact" class="spk-detail-table">
+            <thead class="bg-grey-lighten-4">
+              <tr>
+                <th class="py-2 px-3">Nomor SPK</th>
+                <th class="py-2 px-3">Nama Barang</th>
+                <th class="py-2 px-3 text-center">Qty</th>
+                <th class="py-2 px-3">Tgl SPK</th>
+                <th class="py-2 px-3 text-error">Dateline</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="s in detailSpkList" :key="s.spk_nomor">
+                <td class="px-3 font-weight-bold text-blue-darken-3">{{ s.spk_nomor }}</td>
+                <td class="px-3">{{ s.spk_nama }}</td>
+                <td class="px-3 text-center font-weight-bold">{{ s.spkd_qtyorder }}</td>
+                <td class="px-3 text-grey-darken-2">
+                  {{ new Date(s.spk_tanggal).toLocaleDateString() }}
+                </td>
+                <td class="px-3 font-weight-bold text-error">
+                  {{ new Date(s.spk_dateline).toLocaleDateString() }}
+                </td>
+              </tr>
+            </tbody>
+          </v-table>
+        </v-card-text>
+      </v-card>
+    </v-dialog>
   </PageLayout>
 </template>
 
@@ -2132,5 +2307,15 @@ watch(anomaliFilter, () => {
   border-radius: 10px;
   font-weight: 700;
   font-size: 10px;
+}
+
+.spk-detail-table :deep(th),
+.spk-detail-table :deep(td) {
+  font-size: 11px !important;
+  padding: 8px 12px !important;
+}
+
+.spk-detail-table :deep(tbody tr:hover) {
+  background-color: #f1f8e9 !important;
 }
 </style>

@@ -3227,8 +3227,26 @@ const isHargaReadonly = (item: SoItem) => {
 };
 
 const refreshOnFocus = () => {
-  if (isEditMode.value && header.value.nomor && !isLoading.value) {
-    loadDataForEdit(header.value.nomor, true); // 👈 silent = true
+  // JANGAN refresh jika form dalam keadaan kotor (ada perubahan yang belum disave)
+  if (uiStore.hasUnsavedChanges) {
+    console.log("Auto-refresh dicegah karena ada perubahan yang belum disimpan.");
+    return;
+  }
+
+  // JANGAN refresh jika ada modal/dialog yang sedang terbuka
+  // Cek apakah Auth, DP, atau jenis order sedang terbuka
+  if (
+    authDialog.show ||
+    isDiscountCostModalVisible.value ||
+    isDpInputVisible.value ||
+    isConfirmDialogVisible.value ||
+    isPromoConfirmVisible.value
+  ) {
+    return;
+  }
+
+  if (isEditMode.value && header.value.nomor && !isLoading.value && !isSaving.value) {
+    loadDataForEdit(header.value.nomor, true); // silent = true
   }
 };
 

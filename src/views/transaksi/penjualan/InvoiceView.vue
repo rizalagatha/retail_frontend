@@ -1454,6 +1454,7 @@ onMounted(async () => {
     await cashierSessionStore.fetchCurrentSession();
 
     const session = cashierSessionStore.session;
+    const currentUserKode = authStore.user?.kode; // <-- [BARU] Ambil kode SC yang sedang login
 
     // 2. Jika memang belum ada yang buka shift sama sekali di cabang ini
     if (!session || session.status === "CLOSED") {
@@ -1462,10 +1463,15 @@ onMounted(async () => {
     }
     // 3. [OPSIONAL] Jika shift sedang di-PAUSE (kasir sedang istirahat)
     else if (session.status === "PAUSED") {
-      toast.info("Laci kasir sedang di-pause. Silakan ambil alih (Resume).");
-      cashierSessionStore.openHandoverModal("resume");
+      // <-- [PERBAIKAN] Cek apakah yang login ini adalah kasir pengganti
+      if (session.active_pengganti === currentUserKode) {
+        toast.info("Anda sedang bertugas sebagai Kasir Pengganti.");
+      } else {
+        // Jika bukan pengganti (berarti SC Utama yang baru balik / SC lain), munculkan modal
+        toast.info("Laci kasir sedang di-pause. Silakan ambil alih (Resume).");
+        cashierSessionStore.openHandoverModal("resume");
+      }
     }
-    // Jika OPEN (kasir 1 sudah buka), biarkan lolos. Kasir 2 siap bertransaksi!
   }
 
   await fetchCabangList();

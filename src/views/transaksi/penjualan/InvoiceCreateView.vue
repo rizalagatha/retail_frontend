@@ -2796,7 +2796,7 @@ watch(
 
 onMounted(async () => {
   if (isUserMarketplaceEligible.value) {
-    header.isMarketplace = true;
+    header.isMarketplace = true; // [FIX] Gunakan header.value karena header adalah ref()
   }
 
   markAsSaved();
@@ -2832,13 +2832,19 @@ onMounted(async () => {
     await cashierSessionStore.fetchCurrentSession();
 
     const session = cashierSessionStore.session;
+    const currentUserKode = authStore.user?.kode; // <-- Ambil kode user login
 
     if (!session || session.status === "CLOSED") {
       toast.warning("Laci Kasir belum dibuka. Silakan mulai shift terlebih dahulu.");
       cashierSessionStore.isStartModalVisible = true;
     } else if (session.status === "PAUSED") {
-      toast.info("Laci kasir sedang di-pause. Silakan ambil alih (Resume).");
-      cashierSessionStore.openHandoverModal("resume");
+      // <-- CEK IDENTITAS
+      if (session.active_pengganti === currentUserKode) {
+        toast.info("Anda sedang bertugas sebagai Kasir Pengganti.");
+      } else {
+        toast.info("Laci kasir sedang di-pause. Silakan ambil alih (Resume).");
+        cashierSessionStore.openHandoverModal("resume");
+      }
     }
   }
   // =========================================================

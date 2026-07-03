@@ -254,8 +254,10 @@ const loadData = async (nomor: string) => {
       qty: Number(d.qty) || 0,
       keterangan: d.keterangan || "",
       foto: d.foto || null,
-      foto_url: d.foto ? `${import.meta.env.VITE_API_BASE_URL}${d.foto}` : null,
-      harga_satuan: Number(d.harga_satuan) || header.nominal_inv / (Number(d.qty) || 1),
+      foto_url: d.foto ? `${import.meta.env.VITE_API_BASE_URL || ""}${d.foto}` : null,
+
+      // [PERBAIKAN] Langsung gunakan harga_satuan dari backend, jangan ditebak!
+      harga_satuan: Number(d.harga_satuan) || 0,
     }));
     logs.value = l || [];
   } catch (error: unknown) {

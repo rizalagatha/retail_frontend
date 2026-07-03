@@ -370,7 +370,30 @@ const saveSesional = async () => {
 };
 
 // --- LOGIKA KALKULASI OTOMATIS ---
-const processedData = computed(() => rawData.value);
+const sizeOrder: Record<string, number> = {
+  S: 1,
+  M: 2,
+  L: 3,
+  XL: 4,
+  "2XL": 5,
+  "3XL": 6,
+  "4XL": 7,
+  "5XL": 8,
+};
+
+const processedData = computed(() => {
+  return [...rawData.value].sort((a, b) => {
+    // 1. Urutkan berdasarkan Nama Barang (A-Z)
+    if (a.nama < b.nama) return -1;
+    if (a.nama > b.nama) return 1;
+
+    // 2. Jika Namanya sama, urutkan berdasarkan urutan Size yang logis
+    const orderA = sizeOrder[a.ukuran] || 99; // 99 untuk size tak dikenal
+    const orderB = sizeOrder[b.ukuran] || 99;
+
+    return orderA - orderB;
+  });
+});
 
 // --- FILTERING UNTUK TABEL ---
 const filteredData = computed(() => {

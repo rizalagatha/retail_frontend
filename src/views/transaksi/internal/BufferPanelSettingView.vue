@@ -107,6 +107,8 @@ const itemsPerPage = ref(50);
 const filterSalesKtg = ref("Semua"); // small/medium/large/xlarge/Semua
 const filterPareto = ref("Semua"); // Pareto/NonPareto/Semua
 
+const tableContainerRef = ref<HTMLElement | null>(null);
+
 // --- STATE DATA ---
 const isLoading = ref(false);
 const isSaving = ref(false);
@@ -755,6 +757,13 @@ watch(selectedCabang, async () => {
 watch(anomaliFilter, () => {
   page.value = 1;
 });
+
+watch([page, itemsPerPage], () => {
+  // Gulirkan tabel kembali ke paling atas secara halus setiap kali halaman/jumlah baris diganti
+  if (tableContainerRef.value) {
+    tableContainerRef.value.scrollTop = 0;
+  }
+});
 </script>
 
 <template>
@@ -904,9 +913,9 @@ watch(anomaliFilter, () => {
       </div>
 
       <div class="table-container">
-        <div class="table-scroll-area">
+        <div class="table-scroll-area" ref="tableContainerRef">
           <AppDataTable
-            :key="`table-${page}-${selectedCabang}-${filterGrp}-${debouncedSearch}`"
+            :key="`table-${page}-${itemsPerPage}-${selectedCabang}-${filterGrp}-${debouncedSearch}`"
             v-model="selected"
             :headers="headers"
             :items="paginatedData"

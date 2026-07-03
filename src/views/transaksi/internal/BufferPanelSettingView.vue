@@ -924,7 +924,7 @@ watch([page, itemsPerPage], () => {
             density="compact"
             class="desktop-table header-browse-blue"
             fixed-header
-            :items-per-page="-1"
+            :items-per-page="paginatedData.length"
             hide-default-footer
           >
             <template #headers="{ columns, isSorted, getSortIcon, toggleSort }">

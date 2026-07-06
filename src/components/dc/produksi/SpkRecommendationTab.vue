@@ -98,6 +98,7 @@ const isDetailDialogOpen = ref(false);
 const detailItem = ref<EditableItem | null>(null);
 const detailTanggalMulai = ref(new Date().toISOString().split("T")[0]);
 const detailCatatan = ref("");
+const hoverPreviewUrl = ref("");
 
 // --- COMPUTED DETAIL ---
 const predictedCoverageAfterSpk = computed(() => {
@@ -366,6 +367,12 @@ const exportExcel = async () => {
   }
 };
 
+const showDetailImagePreview = () => {
+  if (detailItem.value?.img_url) {
+    hoverPreviewUrl.value = getImageUrl(detailItem.value.img_url);
+  }
+};
+
 onMounted(() => fetchData());
 
 defineExpose({
@@ -470,10 +477,16 @@ defineExpose({
 
         <template #[`item.info_sku`]="{ item }">
           <div class="d-flex align-center py-1">
-            <v-avatar rounded size="30" color="grey-lighten-3" class="me-2 border">
-              <v-img v-if="item.img_url" :src="getImageUrl(item.img_url)" cover />
-              <v-icon v-else color="grey-lighten-1" size="small">mdi-image-outline</v-icon>
-            </v-avatar>
+            <div
+              class="thumb-hover-trigger me-2"
+              @mouseenter="item.img_url && (hoverPreviewUrl = getImageUrl(item.img_url))"
+              @mouseleave="hoverPreviewUrl = ''"
+            >
+              <v-avatar rounded size="30" color="grey-lighten-3" class="border">
+                <v-img v-if="item.img_url" :src="getImageUrl(item.img_url)" cover />
+                <v-icon v-else color="grey-lighten-1" size="small">mdi-image-outline</v-icon>
+              </v-avatar>
+            </div>
             <div>
               <div class="font-weight-bold text-primary sku-text">{{ item.kode }}</div>
               <div class="text-grey-darken-3 sku-text" :title="item.nama">{{ item.nama }}</div>
@@ -793,14 +806,13 @@ defineExpose({
           <v-row dense>
             <!-- Kolom Kiri: Gambar & Info -->
             <v-col cols="12" md="4" class="text-center">
-              <div class="img-zoom-wrapper mb-2">
+              <div
+                class="thumb-hover-trigger d-inline-block mb-2"
+                @mouseenter="showDetailImagePreview"
+                @mouseleave="hoverPreviewUrl = ''"
+              >
                 <v-avatar rounded size="120" color="grey-lighten-3" class="border">
-                  <v-img
-                    v-if="detailItem.img_url"
-                    :src="getImageUrl(detailItem.img_url)"
-                    cover
-                    class="img-zoom"
-                  />
+                  <v-img v-if="detailItem.img_url" :src="getImageUrl(detailItem.img_url)" cover />
                   <v-icon v-else color="grey-lighten-1" size="40">mdi-image-outline</v-icon>
                 </v-avatar>
               </div>
@@ -911,6 +923,13 @@ defineExpose({
       </v-card>
     </v-dialog>
   </div>
+
+  <!-- ── Fullscreen Image Preview Overlay ─────────────────────── -->
+  <Transition name="fade-zoom">
+    <div v-if="hoverPreviewUrl" class="img-preview-overlay">
+      <img :src="hoverPreviewUrl" alt="Preview" />
+    </div>
+  </Transition>
 </template>
 
 <style scoped>
@@ -1121,16 +1140,44 @@ defineExpose({
   line-height: 1.3;
   padding: 8px 0;
 }
+.thumb-hover-trigger {
+  cursor: zoom-in;
+}
 
-.img-zoom-wrapper {
-  display: inline-block;
-  overflow: hidden;
-  border-radius: 8px;
+.img-preview-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.65);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+  pointer-events: none;
 }
-.img-zoom-wrapper :deep(.v-img__img) {
-  transition: transform 0.35s ease;
+.img-preview-overlay img {
+  max-width: 80vw;
+  max-height: 80vh;
+  border-radius: 12px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+  object-fit: contain;
 }
-.img-zoom-wrapper:hover :deep(.v-img__img) {
-  transform: scale(1.35);
+
+.fade-zoom-enter-active {
+  transition: opacity 0.2s ease;
+}
+.fade-zoom-enter-active img {
+  transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.fade-zoom-leave-active {
+  transition: opacity 0.15s ease;
+}
+.fade-zoom-enter-from {
+  opacity: 0;
+}
+.fade-zoom-enter-from img {
+  transform: scale(0.7);
+}
+.fade-zoom-leave-to {
+  opacity: 0;
 }
 </style>

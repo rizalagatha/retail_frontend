@@ -154,10 +154,6 @@ const fetchStoreDetails = async (kode: string, ukuran: string) => {
   }
 };
 
-const onRowExpand = (item: PriorityItem, isExpanded: boolean) => {
-  if (isExpanded) fetchStoreDetails(item.kode, item.ukuran);
-};
-
 // Tangkap update expand dari tabel dengan tipe data string[]
 const onExpandedUpdate = (val: string[]) => {
   priorityData.value.forEach((item) => {
@@ -340,7 +336,7 @@ onMounted(() => {
         :items-length="summaryData.totalItems"
         :headers="headers"
         :loading="isLoading"
-        :item-value="(item) => `${item.kode}_${item.ukuran}`"
+        :item-value="(item: PriorityItem) => `${item.kode}_${item.ukuran}`"
         show-expand
         density="compact"
         class="compact-table"
@@ -368,12 +364,21 @@ onMounted(() => {
               <v-icon v-else color="grey-lighten-1" size="small">mdi-image-outline</v-icon>
             </v-avatar>
             <div>
-              <div class="font-weight-bold text-primary">{{ item.kode }}</div>
-              <div class="text-grey-darken-3" :title="item.nama">{{ item.nama }}</div>
-              <div class="text-caption text-grey" style="font-size: 9px !important">
-                Size: <span class="font-weight-bold text-black">{{ item.ukuran }}</span> | Kat:
-                {{ item.kategori }}
+              <div class="d-flex align-center ga-1 mb-1">
+                <span class="font-weight-bold text-primary">{{ item.kode }}</span>
+                <v-chip
+                  size="x-small"
+                  color="blue-grey-darken-1"
+                  variant="flat"
+                  class="font-weight-bold"
+                >
+                  {{ item.ukuran }}
+                </v-chip>
+                <v-chip size="x-small" color="grey-lighten-2" variant="flat">
+                  {{ item.kategori }}
+                </v-chip>
               </div>
+              <div class="text-grey-darken-3 sku-nama" :title="item.nama">{{ item.nama }}</div>
             </div>
           </div>
         </template>
@@ -424,39 +429,47 @@ onMounted(() => {
                   height="2"
                   class="mb-2"
                 />
-                <v-table v-else density="compact" class="sub-table bg-white rounded border">
-                  <thead class="bg-grey-lighten-3">
-                    <tr>
-                      <th class="text-left text-caption font-weight-bold">Nama Toko</th>
-                      <th class="text-right text-caption font-weight-bold">Buffer Store</th>
-                      <th class="text-right text-caption font-weight-bold">Stok Aktual</th>
-                      <th class="text-right text-caption font-weight-bold text-red">Kekurangan</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr
-                      v-for="(toko, idx) in storeDetails[`${item.kode}_${item.ukuran}`]"
-                      :key="idx"
-                    >
-                      <td class="text-caption">{{ toko.cabang_nama }}</td>
-                      <td class="text-caption text-right">{{ toko.buffer }}</td>
-                      <td class="text-caption text-right">{{ toko.stok_aktual }}</td>
-                      <td class="text-caption text-right font-weight-bold text-red">
-                        {{ toko.kekurangan }}
-                      </td>
-                    </tr>
-                    <tr
-                      v-if="
-                        !storeDetails[`${item.kode}_${item.ukuran}`] ||
-                        storeDetails[`${item.kode}_${item.ukuran}`].length === 0
-                      "
-                    >
-                      <td colspan="4" class="text-center text-caption text-grey py-4">
-                        Tidak ada data toko yang kurang (Aman).
-                      </td>
-                    </tr>
-                  </tbody>
-                </v-table>
+                <div v-else class="sub-table-wrapper">
+                  <v-table density="compact" class="sub-table bg-white rounded border">
+                    <thead class="bg-grey-lighten-3">
+                      <tr>
+                        <th class="text-left text-caption font-weight-bold col-toko">Nama Toko</th>
+                        <th class="text-right text-caption font-weight-bold col-num">
+                          Buffer Store
+                        </th>
+                        <th class="text-right text-caption font-weight-bold col-num">
+                          Stok Aktual
+                        </th>
+                        <th class="text-right text-caption font-weight-bold text-red col-num">
+                          Kekurangan
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr
+                        v-for="(toko, idx) in storeDetails[`${item.kode}_${item.ukuran}`]"
+                        :key="idx"
+                      >
+                        <td class="text-caption col-toko">{{ toko.cabang_nama }}</td>
+                        <td class="text-caption text-right col-num">{{ toko.buffer }}</td>
+                        <td class="text-caption text-right col-num">{{ toko.stok_aktual }}</td>
+                        <td class="text-caption text-right font-weight-bold text-red col-num">
+                          {{ toko.kekurangan }}
+                        </td>
+                      </tr>
+                      <tr
+                        v-if="
+                          !storeDetails[`${item.kode}_${item.ukuran}`] ||
+                          storeDetails[`${item.kode}_${item.ukuran}`].length === 0
+                        "
+                      >
+                        <td colspan="4" class="text-center text-caption text-grey py-4">
+                          Tidak ada data toko yang kurang (Aman).
+                        </td>
+                      </tr>
+                    </tbody>
+                  </v-table>
+                </div>
               </div>
             </td>
           </tr>
@@ -692,5 +705,33 @@ onMounted(() => {
 }
 .cursor-pointer:hover {
   opacity: 0.8;
+}
+
+/* Batasi lebar tabel detail agar tidak melar penuh */
+.sub-table-wrapper {
+  max-width: 480px;
+}
+
+.sub-table {
+  border-collapse: collapse;
+  width: 100%;
+  table-layout: fixed;
+}
+.sub-table th,
+.sub-table td {
+  border-bottom: 1px solid #eeeeee;
+  padding: 4px 10px !important;
+}
+.sub-table .col-toko {
+  width: 45%;
+}
+.sub-table .col-num {
+  width: 18.33%;
+}
+
+/* Nama barang di info_sku dengan chip ukuran */
+.sku-nama {
+  font-size: 11px;
+  line-height: 1.3;
 }
 </style>

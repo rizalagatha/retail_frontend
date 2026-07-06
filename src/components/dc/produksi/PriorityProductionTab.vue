@@ -542,10 +542,20 @@ onMounted(() => {
   font-size: 11px !important;
 }
 
-/* Override Tabel agar area scroll wrapper flexiblenya pas */
+/* Pastikan card pembungkus memiliki tinggi terbatas atau flex */
+.compact-table {
+  /* Hapus atau sesuaikan jika perlu */
+  height: 100% !important;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Kunci utama: Paksa pembungkus tabel memiliki scroll di dalam */
 .compact-table :deep(.v-table__wrapper) {
   flex-grow: 1;
   overflow-y: auto !important;
+  /* Berikan tinggi maksimal agar header tetap di atas saat scroll */
+  max-height: calc(100vh - 250px); /* Sesuaikan angka 250px dengan tinggi header/filter di atas */
 }
 
 .compact-table :deep(th) {

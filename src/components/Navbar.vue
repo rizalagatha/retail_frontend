@@ -526,6 +526,17 @@ const menuItems: NavItem[] = [
           },
         ],
       },
+      {
+        title: "Produksi",
+        icon: "mdi-factory",
+        items: [
+          {
+            title: "Perencanaan Produksi",
+            to: "/gudang-dc/produksi/perencanaan-produksi",
+            icon: "mdi-chart-timeline-variant-shimmer",
+          },
+        ],
+      },
     ],
   },
   {

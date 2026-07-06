@@ -264,6 +264,7 @@ const MintaAccesoriesCreateView = () =>
   import("@/views/dc/operasional/MintaAccesoriesCreateView.vue");
 const MintaAccesoriesPrintView = () =>
   import("@/views/dc/operasional/MintaAccesoriesPrintView.vue");
+const PerencanaanProduksiView = () => import("@/views/dc/produksi/PerencanaanProduksiView.vue");
 
 // --- LAPORAN & SO ---
 const LaporanListOtorisasiView = () =>
@@ -2482,7 +2483,6 @@ const routes = [
       menuId: "225",
     },
   },
-  // ... (taruh di bawah route MintaAccesories Browse yang sebelumnya dibuat)
   {
     path: "/gudang-dc/operasional/minta-accesories/new",
     name: "MintaAccesoriesCreate",
@@ -2513,6 +2513,16 @@ const routes = [
       menuId: "225",
       layout: "PrintLayout",
       printLayout: true,
+    },
+  },
+  {
+    path: "/gudang-dc/produksi/perencanaan-produksi",
+    name: "PerencanaanProduksi",
+    component: PerencanaanProduksiView,
+    meta: {
+      title: "Perencanaan Produksi (PPIC)",
+      requiresAuth: true,
+      menuId: "254",
     },
   },
   {

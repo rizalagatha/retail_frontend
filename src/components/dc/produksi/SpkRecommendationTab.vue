@@ -35,6 +35,10 @@ interface PriorityItem {
 interface EditableItem extends PriorityItem {
   qty_input: number;
   selected: boolean;
+  kepentingan: string;
+  dateline: string;
+  dateline_min: string;
+  dateline_max: string;
 }
 
 const toast = useToast();
@@ -102,6 +106,7 @@ const detailItem = ref<EditableItem | null>(null);
 const detailTanggalMulai = ref(new Date().toISOString().split("T")[0]);
 const detailCatatan = ref("");
 const hoverPreviewUrl = ref("");
+const kepentinganOptions = ref<string[]>([]);
 
 // --- COMPUTED DETAIL ---
 const predictedCoverageAfterSpk = computed(() => {
@@ -183,6 +188,8 @@ const headers = [
   { title: "SPK BEREDAR (pcs)", key: "spk_beredar", align: "end" as const, width: 120 },
   { title: "QTY REKOMENDASI (pcs)", key: "rekomendasi_spk", align: "end" as const, width: 140 },
   { title: "QTY SPK (INPUT)", key: "qty_input", align: "center" as const, width: 140 },
+  { title: "KEPENTINGAN", key: "kepentingan", align: "center" as const, width: 150 }, // ← TAMBAH
+  { title: "DATELINE", key: "dateline", align: "center" as const, width: 160 }, // ← TAMBAH
   { title: "AKSI", key: "aksi", align: "center" as const, width: 80, sortable: false },
 ];
 
@@ -190,6 +197,43 @@ const headers = [
 const getImageUrl = (path: string) => {
   if (!path) return "";
   return `${import.meta.env.VITE_API_BASE_URL || ""}${path}`;
+};
+
+const fetchKepentinganOptions = async () => {
+  try {
+    const res = await api.get("/dc-planning/kepentingan-options");
+    kepentinganOptions.value = res.data.data || [];
+  } catch {
+    toast.error("Gagal memuat daftar kepentingan.");
+  }
+};
+
+// Ekstrak jo_kode di frontend (untuk kirim ke endpoint dateline-range)
+const extractJoKodeFrontend = (kode: string) => {
+  const parts = (kode || "").split("-");
+  return (parts[0] || "XX").substring(0, 2).toUpperCase();
+};
+
+const fetchDatelineRange = async (item: EditableItem) => {
+  if (!item.kepentingan) return;
+  try {
+    const joKode = extractJoKodeFrontend(item.kode);
+    const res = await api.get("/dc-planning/dateline-range", {
+      params: { kepentingan: item.kepentingan, joKode },
+    });
+    item.dateline_min = res.data.minDate;
+    item.dateline_max = res.data.maxDate;
+    // Default ke tanggal paling longgar (max) kalau belum diisi / di luar rentang
+    if (!item.dateline || item.dateline < item.dateline_min || item.dateline > item.dateline_max) {
+      item.dateline = res.data.maxDate;
+    }
+  } catch {
+    toast.error("Gagal memuat rentang dateline.");
+  }
+};
+
+const onKepentinganChange = (item: EditableItem) => {
+  fetchDatelineRange(item);
 };
 
 const getCoverageColor = (val: number | string) => {
@@ -217,6 +261,10 @@ const fetchData = async () => {
       ...item,
       qty_input: item.rekomendasi_spk,
       selected: false,
+      kepentingan: "NORMAL", // ← default
+      dateline: "",
+      dateline_min: "",
+      dateline_max: "",
     }));
   } catch (error: unknown) {
     if (axios.isAxiosError(error)) {
@@ -264,6 +312,8 @@ const generateSpk = async () => {
         brg_lengan: i.brg_lengan,
         brg_warna: i.brg_warna,
         brg_jeniskain: i.brg_jeniskain,
+        kepentingan: i.kepentingan,
+        dateline: i.dateline,
       }));
 
     const response = await api.post("/dc-planning/generate-spk-bulk", { items });
@@ -379,7 +429,10 @@ const showDetailImagePreview = () => {
   }
 };
 
-onMounted(() => fetchData());
+onMounted(() => {
+  fetchKepentinganOptions();
+  fetchData();
+});
 
 defineExpose({
   isInfoDialogOpen,
@@ -543,6 +596,38 @@ defineExpose({
               @focus="($event.target as HTMLInputElement).select()"
             />
             <span class="text-grey ms-1" style="font-size: 10px">pcs</span>
+          </div>
+        </template>
+
+        <template #[`item.kepentingan`]="{ item }">
+          <v-select
+            v-model="item.kepentingan"
+            :items="kepentinganOptions"
+            density="compact"
+            hide-details
+            variant="outlined"
+            style="width: 130px; font-size: 11px"
+            @update:model-value="onKepentinganChange(item)"
+          />
+        </template>
+
+        <template #[`item.dateline`]="{ item }">
+          <v-text-field
+            v-model="item.dateline"
+            type="date"
+            density="compact"
+            hide-details
+            variant="outlined"
+            style="width: 140px"
+            :min="item.dateline_min"
+            :max="item.dateline_max"
+          />
+          <div
+            v-if="item.dateline_min && item.dateline_max"
+            class="text-grey"
+            style="font-size: 9px"
+          >
+            {{ item.dateline_min }} s/d {{ item.dateline_max }}
           </div>
         </template>
 

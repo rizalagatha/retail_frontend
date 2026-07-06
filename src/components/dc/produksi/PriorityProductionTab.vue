@@ -542,20 +542,24 @@ onMounted(() => {
   font-size: 11px !important;
 }
 
-/* Pastikan card pembungkus memiliki tinggi terbatas atau flex */
-.compact-table {
-  /* Hapus atau sesuaikan jika perlu */
+/* 1. Pastikan kontainer utama mengisi tinggi layar */
+.h-100 {
   height: 100% !important;
-  display: flex;
-  flex-direction: column;
 }
 
-/* Kunci utama: Paksa pembungkus tabel memiliki scroll di dalam */
+/* 2. Tabel & Wrapper harus flex */
+.compact-table {
+  display: flex !important;
+  flex-direction: column !important;
+  height: 100% !important;
+  overflow: hidden; /* Penting untuk membatasi scroll di dalam wrapper */
+}
+
+/* 3. Paksa Wrapper mengisi sisa ruang tanpa max-height statis */
 .compact-table :deep(.v-table__wrapper) {
-  flex-grow: 1;
+  flex-grow: 1 !important;
   overflow-y: auto !important;
-  /* Berikan tinggi maksimal agar header tetap di atas saat scroll */
-  max-height: calc(100vh - 250px); /* Sesuaikan angka 250px dengan tinggi header/filter di atas */
+  /* HAPUS max-height: calc(100vh - 250px); */
 }
 
 .compact-table :deep(th) {

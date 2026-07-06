@@ -506,7 +506,9 @@ onMounted(() => {
   <v-dialog v-model="isPreviewOpen" max-width="600">
     <v-card>
       <v-toolbar color="primary" density="compact">
-        <v-toolbar-title class="text-subtitle-2">{{ previewNamaBarang }}</v-toolbar-title>
+        <v-toolbar-title class="text-subtitle-2 text-wrap py-2" style="line-height: 1.2">
+          {{ previewNamaBarang }}
+        </v-toolbar-title>
         <v-spacer />
         <v-btn icon="mdi-close" @click="isPreviewOpen = false" />
       </v-toolbar>

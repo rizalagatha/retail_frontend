@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted } from "vue";
+import { ref, reactive, onMounted } from "vue";
 import { useToast } from "vue-toastification";
 import api from "@/services/api";
 import axios from "axios";
+import AppDataTable from "@/components/AppDataTable.vue";
 
 // --- INTERFACES ---
 interface PriorityItem {
@@ -11,14 +12,16 @@ interface PriorityItem {
   ukuran: string;
   kategori: string;
   img_url: string;
-  buffer_store: number;
-  stok_store: number;
-  kekurangan_store: number;
   buffer_dc: number;
   stok_dc: number;
-  gap_dc: number;
-  spk_beredar: number;
-  coverage_dc: number;
+  spk_ready: number;
+  buffer_store: number;
+  stok_store: number;
+  gap_store: number;
+  daily_need: string;
+  cvg_saat_ini: string;
+  cvg_setelah_wip: string;
+  gap_buffer_dc: number;
   status: string;
   rekomendasi_spk: number;
   ranking_asli: number;
@@ -35,7 +38,6 @@ const toast = useToast();
 
 // --- STATE ---
 const isLoading = ref(false);
-const isFetchingNextPage = ref(false); // [BARU] Status loading untuk Infinite Scroll
 const priorityData = ref<PriorityItem[]>([]);
 const expandedRows = ref<string[]>([]);
 const storeDetails = ref<Record<string, StoreDetailItem[]>>({});
@@ -43,7 +45,7 @@ const loadingDetails = ref<Record<string, boolean>>({});
 
 // State Pagination & Summary
 const currentPage = ref(1);
-const itemsPerPage = 50;
+const itemsPerPage = ref(50); // Ganti dari const ke ref agar reaktif dengan AppDataTable
 const summaryData = reactive({
   totalItems: 0,
   totalStokDC: 0,
@@ -54,18 +56,16 @@ const summaryData = reactive({
   skuAman: 0,
 });
 
-// Mengecek apakah masih ada data yang bisa di-load
-const hasMore = computed(() => priorityData.value.length < summaryData.totalItems);
-
 const getImageUrl = (path: string) => {
   if (!path) return "";
   return `${import.meta.env.VITE_API_BASE_URL || ""}${path}`;
 };
 
-// --- STATE DIALOG ---
+// --- STATE DIALOGS ---
 const isPreviewOpen = ref(false);
 const previewImageUrl = ref("");
 const previewNamaBarang = ref("");
+const isFormulaDialogOpen = ref(false); // [BARU] State untuk Dialog Rumus
 
 const openPreview = (item: PriorityItem) => {
   previewImageUrl.value = getImageUrl(item.img_url);
@@ -73,6 +73,7 @@ const openPreview = (item: PriorityItem) => {
   isPreviewOpen.value = true;
 };
 
+// --- FILTER & HEADERS ---
 const filters = reactive({
   kategori: "Semua",
   keyword: "",
@@ -80,49 +81,38 @@ const filters = reactive({
 
 const kategoriOptions = ["Semua", "REGULER", "SESIONAL", "PESANAN"];
 
-// --- HEADERS ---
+// [REVISI] Header Tabel Sesuai Desain Baru
 const headers = [
   { title: "", key: "data-table-expand", width: 50 },
   { title: "RANK", key: "ranking", width: 60, align: "center" as const },
   { title: "INFO SKU", key: "info_sku", minWidth: 250 },
-  { title: "BFFR STORE", key: "buffer_store", align: "end" as const },
-  { title: "STOK STORE", key: "stok_store", align: "end" as const },
-  { title: "GAP STORE", key: "kekurangan_store", align: "end" as const },
-  { title: "BFFR DC", key: "buffer_dc", align: "end" as const },
-  { title: "STOK DC", key: "stok_dc", align: "end" as const },
-  { title: "GAP DC", key: "gap_dc", align: "end" as const },
-  { title: "SPK AKTIF", key: "spk_beredar", align: "end" as const },
-  { title: "COVERAGE", key: "coverage_dc", align: "center" as const },
+  { title: "BUFFER DC (pcs)", key: "buffer_dc", align: "end" as const },
+  { title: "STOK DC (pcs)", key: "stok_dc", align: "end" as const },
+  { title: "SPK READY < 5 HARI (WIP) (pcs)", key: "spk_ready", align: "end" as const },
+  { title: "BUFFER STORE (pcs)", key: "buffer_store", align: "end" as const },
+  { title: "STOK STORE (pcs)", key: "stok_store", align: "end" as const },
+  { title: "GAP STORE (pcs)", key: "gap_store", align: "end" as const },
+  { title: "DAILY NEED (pcs/hari)", key: "daily_need", align: "end" as const },
+  { title: "COVERAGE SAAT INI (Hari)", key: "cvg_saat_ini", align: "center" as const },
+  { title: "COVERAGE SETELAH WIP DATANG (Hari)", key: "cvg_setelah_wip", align: "center" as const },
+  { title: "GAP BUFFER DC (pcs)", key: "gap_buffer_dc", align: "end" as const },
   { title: "STATUS", key: "status", align: "center" as const },
 ];
 
 // --- API METHODS ---
-// Ditambah argumen isLoadMore untuk mendeteksi mode Paging vs Mode Refresh
-const fetchPriorityData = async (isLoadMore = false) => {
-  if (isLoadMore) {
-    isFetchingNextPage.value = true;
-  } else {
-    isLoading.value = true;
-    currentPage.value = 1; // Reset halaman
-  }
+const fetchPriorityData = async () => {
+  isLoading.value = true;
 
   try {
     const response = await api.get("/dc-planning/priority", {
       params: {
         ...filters,
         page: currentPage.value,
-        itemsPerPage: itemsPerPage,
+        itemsPerPage: itemsPerPage.value,
       },
     });
 
-    if (isLoadMore) {
-      // Tambahkan data baru ke bawah data lama
-      priorityData.value.push(...response.data.data);
-    } else {
-      // Timpa semua data (saat refresh/ganti filter)
-      priorityData.value = response.data.data;
-    }
-
+    priorityData.value = response.data.data;
     summaryData.totalItems = response.data.summary.totalItems;
     summaryData.totalStokDC = response.data.summary.totalStokDC;
     summaryData.coverageProduksi = response.data.summary.coverageProduksi;
@@ -138,17 +128,13 @@ const fetchPriorityData = async (isLoadMore = false) => {
     }
   } finally {
     isLoading.value = false;
-    isFetchingNextPage.value = false;
   }
 };
 
-// [BARU] Fungsi pemicu saat user men-scroll tabel sampai bawah
-const loadMore = (isIntersecting: boolean) => {
-  // Hanya panggil API jika elemen terlihat (isIntersecting), masih ada data (hasMore), dan sedang tidak loading
-  if (isIntersecting && hasMore.value && !isLoading.value && !isFetchingNextPage.value) {
-    currentPage.value++;
-    fetchPriorityData(true);
-  }
+const onUpdateOptions = (options: { page: number; itemsPerPage: number }) => {
+  currentPage.value = options.page;
+  itemsPerPage.value = options.itemsPerPage;
+  fetchPriorityData();
 };
 
 const fetchStoreDetails = async (kode: string, ukuran: string) => {
@@ -169,23 +155,41 @@ const fetchStoreDetails = async (kode: string, ukuran: string) => {
 };
 
 const onRowExpand = (item: PriorityItem, isExpanded: boolean) => {
-  if (isExpanded) {
-    fetchStoreDetails(item.kode, item.ukuran);
-  }
+  if (isExpanded) fetchStoreDetails(item.kode, item.ukuran);
+};
+
+// Tangkap update expand dari tabel dengan tipe data string[]
+const onExpandedUpdate = (val: string[]) => {
+  priorityData.value.forEach((item) => {
+    const rowKey = `${item.kode}_${item.ukuran}`;
+    if (val.includes(rowKey)) fetchStoreDetails(item.kode, item.ukuran);
+  });
 };
 
 let searchTimeout: ReturnType<typeof setTimeout>;
 const onSearchInput = () => {
   clearTimeout(searchTimeout);
   searchTimeout = setTimeout(() => {
-    fetchPriorityData(false);
+    currentPage.value = 1; // Kembali ke hal 1 jika search
+    fetchPriorityData();
   }, 600);
 };
 
+// [REVISI] Mengatur warna dan format teks berdasarkan kolom
 const getStatusColor = (status: string) => {
   if (status === "Kritis") return "error";
   if (status === "Perlu Perhatian") return "warning";
   return "success";
+};
+const getTextColor = (val: number | string) => {
+  if (Number(val) > 0) return "text-error font-weight-bold";
+  return "";
+};
+const getCoverageColor = (val: number | string) => {
+  const num = Number(val);
+  if (num < 7) return "text-error font-weight-bold";
+  if (num <= 15) return "text-warning font-weight-bold";
+  return "text-success font-weight-bold";
 };
 
 onMounted(() => {
@@ -194,14 +198,28 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="d-flex flex-column h-100 gap-4">
+  <div class="d-flex flex-column gap-4 planning-container">
+    <div class="d-flex align-center justify-space-between flex-shrink-0 ms-2">
+      <div class="d-flex align-center">
+        <h2 class="text-h6 font-weight-bold me-2">Prioritas Produksi</h2>
+        <v-btn
+          icon="mdi-information-outline"
+          variant="text"
+          size="small"
+          color="primary"
+          @click="isFormulaDialogOpen = true"
+          title="Definisi & Rumus Kalkulasi"
+        />
+      </div>
+    </div>
+
     <v-row dense class="flex-shrink-0">
-      <v-col>
+      <v-col cols="12" md="3">
         <v-card class="bg-blue-lighten-5 border-blue h-100" variant="outlined">
           <v-card-text class="d-flex align-center pa-3">
-            <v-avatar color="blue-darken-2" rounded class="me-3">
-              <v-icon>mdi-warehouse</v-icon>
-            </v-avatar>
+            <v-avatar color="blue-darken-2" rounded class="me-3"
+              ><v-icon>mdi-warehouse</v-icon></v-avatar
+            >
             <div>
               <div class="text-caption text-blue-darken-3 font-weight-bold">Stok DC Saat Ini</div>
               <div class="text-subtitle-1 font-weight-black text-blue-darken-4">
@@ -213,33 +231,12 @@ onMounted(() => {
         </v-card>
       </v-col>
 
-      <v-col>
-        <v-card class="bg-indigo-lighten-5 border-indigo h-100" variant="outlined">
-          <v-card-text class="d-flex align-center pa-3">
-            <v-avatar color="indigo-darken-2" rounded class="me-3">
-              <v-icon>mdi-calendar-clock</v-icon>
-            </v-avatar>
-            <div>
-              <div class="text-caption text-indigo-darken-3 font-weight-bold">
-                Coverage Produksi
-              </div>
-              <div class="text-subtitle-1 font-weight-black text-indigo-darken-4">
-                {{ summaryData.coverageProduksi }} <span class="text-caption">Hari</span>
-              </div>
-              <div class="text-caption" style="font-size: 9px !important">
-                ({{ summaryData.kapasitasHarian.toLocaleString("id-ID") }} pcs/hari)
-              </div>
-            </div>
-          </v-card-text>
-        </v-card>
-      </v-col>
-
-      <v-col>
+      <v-col cols="12" md="3">
         <v-card class="bg-red-lighten-5 border-red h-100" variant="outlined">
           <v-card-text class="d-flex align-center pa-3">
-            <v-avatar color="red-darken-2" rounded class="me-3">
-              <v-icon>mdi-alert-octagon</v-icon>
-            </v-avatar>
+            <v-avatar color="red-darken-2" rounded class="me-3"
+              ><v-icon>mdi-alert-octagon</v-icon></v-avatar
+            >
             <div>
               <div class="text-caption text-red-darken-3 font-weight-bold">
                 SKU Kritis (&lt; 7 Hari)
@@ -252,14 +249,16 @@ onMounted(() => {
         </v-card>
       </v-col>
 
-      <v-col>
+      <v-col cols="12" md="3">
         <v-card class="bg-orange-lighten-5 border-orange h-100" variant="outlined">
           <v-card-text class="d-flex align-center pa-3">
-            <v-avatar color="orange-darken-2" rounded class="me-3">
-              <v-icon>mdi-chart-timeline-variant</v-icon>
-            </v-avatar>
+            <v-avatar color="orange-darken-2" rounded class="me-3"
+              ><v-icon>mdi-chart-timeline-variant</v-icon></v-avatar
+            >
             <div>
-              <div class="text-caption text-orange-darken-3 font-weight-bold">Perlu Perhatian</div>
+              <div class="text-caption text-orange-darken-3 font-weight-bold">
+                SKU Perlu Perhatian (7-15 Hari)
+              </div>
               <div class="text-subtitle-1 font-weight-black text-orange-darken-4">
                 {{ summaryData.skuPerhatian }} <span class="text-caption">SKU</span>
               </div>
@@ -268,12 +267,12 @@ onMounted(() => {
         </v-card>
       </v-col>
 
-      <v-col>
+      <v-col cols="12" md="3">
         <v-card class="bg-green-lighten-5 border-green h-100" variant="outlined">
           <v-card-text class="d-flex align-center pa-3">
-            <v-avatar color="green-darken-2" rounded class="me-3">
-              <v-icon>mdi-check-decagram</v-icon>
-            </v-avatar>
+            <v-avatar color="green-darken-2" rounded class="me-3"
+              ><v-icon>mdi-check-decagram</v-icon></v-avatar
+            >
             <div>
               <div class="text-caption text-green-darken-3 font-weight-bold">
                 SKU Aman (&gt; 15 Hari)
@@ -297,14 +296,13 @@ onMounted(() => {
           hide-details
           variant="outlined"
           class="fixed-input kategori-input"
-          @update:model-value="fetchPriorityData(false)"
+          @update:model-value="fetchPriorityData"
         />
       </div>
-
       <div class="d-flex align-center flex-grow-1 mx-4 filter-group-center">
         <v-text-field
           v-model="filters.keyword"
-          placeholder="Cari SKU / Nama Barang..."
+          placeholder="Cari SKU / Nama Barang / Kode..."
           density="compact"
           hide-details
           variant="outlined"
@@ -314,11 +312,10 @@ onMounted(() => {
           @input="onSearchInput"
           @click:clear="
             filters.keyword = '';
-            fetchPriorityData(false);
+            fetchPriorityData();
           "
         />
       </div>
-
       <div class="d-flex align-center flex-shrink-0 filter-group-right me-2">
         <v-btn
           color="primary"
@@ -327,7 +324,7 @@ onMounted(() => {
           size="small"
           title="Refresh Data"
           :loading="isLoading"
-          @click="fetchPriorityData(false)"
+          @click="fetchPriorityData"
         />
       </div>
     </div>
@@ -336,30 +333,26 @@ onMounted(() => {
       variant="outlined"
       class="flex-grow-1 d-flex flex-column bg-white shadow-sm overflow-hidden"
     >
-      <v-data-table
+      <AppDataTable
         v-model:expanded="expandedRows"
-        :headers="headers"
+        :server="true"
         :items="priorityData"
+        :items-length="summaryData.totalItems"
+        :headers="headers"
         :loading="isLoading"
         :item-value="(item) => `${item.kode}_${item.ukuran}`"
         show-expand
         density="compact"
-        class="compact-table d-flex flex-column h-100"
+        class="compact-table"
         fixed-header
         hover
-        hide-default-footer
-        :items-per-page="-1"
-        @update:expanded="
-          (val) => {
-            priorityData.forEach((item) => {
-              const rowKey = `${item.kode}_${item.ukuran}`;
-              if (val.includes(rowKey)) onRowExpand(item, true);
-            });
-          }
-        "
+        @update:options="onUpdateOptions"
+        @update:expanded="onExpandedUpdate"
       >
         <template #[`item.ranking`]="{ item }">
-          <div class="font-weight-bold text-red-darken-3 text-center">#{{ item.ranking_asli }}</div>
+          <div class="font-weight-bold text-grey-darken-3 text-center">
+            #{{ item.ranking_asli }}
+          </div>
         </template>
 
         <template #[`item.info_sku`]="{ item }">
@@ -374,12 +367,9 @@ onMounted(() => {
               <v-img v-if="item.img_url" :src="getImageUrl(item.img_url)" cover />
               <v-icon v-else color="grey-lighten-1" size="small">mdi-image-outline</v-icon>
             </v-avatar>
-
             <div>
               <div class="font-weight-bold text-primary">{{ item.kode }}</div>
-              <div class="text-grey-darken-3" :title="item.nama">
-                {{ item.nama }}
-              </div>
+              <div class="text-grey-darken-3" :title="item.nama">{{ item.nama }}</div>
               <div class="text-caption text-grey" style="font-size: 9px !important">
                 Size: <span class="font-weight-bold text-black">{{ item.ukuran }}</span> | Kat:
                 {{ item.kategori }}
@@ -388,21 +378,25 @@ onMounted(() => {
           </div>
         </template>
 
-        <template #[`item.kekurangan_store`]="{ item }">
-          <span :class="item.kekurangan_store > 0 ? 'text-error font-weight-bold' : ''">
-            {{ item.kekurangan_store }}
-          </span>
-        </template>
-
-        <template #[`item.gap_dc`]="{ item }">
-          <span :class="item.gap_dc > 0 ? 'text-error font-weight-bold' : ''">
-            {{ item.gap_dc }}
-          </span>
-        </template>
-
-        <template #[`item.coverage_dc`]="{ item }">
-          <span class="font-weight-medium">{{ item.coverage_dc }} Hari</span>
-        </template>
+        <template #[`item.spk_ready`]="{ item }"
+          ><span class="text-primary font-weight-bold">{{ item.spk_ready }}</span></template
+        >
+        <template #[`item.gap_store`]="{ item }"
+          ><span :class="getTextColor(item.gap_store)">{{ item.gap_store }}</span></template
+        >
+        <template #[`item.cvg_saat_ini`]="{ item }"
+          ><span :class="getCoverageColor(item.cvg_saat_ini)"
+            >{{ item.cvg_saat_ini }} Hari</span
+          ></template
+        >
+        <template #[`item.cvg_setelah_wip`]="{ item }"
+          ><span :class="getCoverageColor(item.cvg_setelah_wip)"
+            >{{ item.cvg_setelah_wip }} Hari</span
+          ></template
+        >
+        <template #[`item.gap_buffer_dc`]="{ item }"
+          ><span :class="getTextColor(item.gap_buffer_dc)">{{ item.gap_buffer_dc }}</span></template
+        >
 
         <template #[`item.status`]="{ item }">
           <v-chip
@@ -423,7 +417,6 @@ onMounted(() => {
                   <v-icon start size="small">mdi-storefront</v-icon>
                   Rincian Kekurangan Per Toko — {{ item.nama }} ({{ item.ukuran }})
                 </div>
-
                 <v-progress-linear
                   v-if="loadingDetails[`${item.kode}_${item.ukuran}`]"
                   indeterminate
@@ -431,7 +424,6 @@ onMounted(() => {
                   height="2"
                   class="mb-2"
                 />
-
                 <v-table v-else density="compact" class="sub-table bg-white rounded border">
                   <thead class="bg-grey-lighten-3">
                     <tr>
@@ -469,36 +461,64 @@ onMounted(() => {
             </td>
           </tr>
         </template>
-
-        <template #bottom>
-          <div
-            v-intersect="loadMore"
-            class="d-flex justify-center align-center py-4 bg-white border-t"
-          >
-            <v-progress-circular
-              v-if="isFetchingNextPage"
-              indeterminate
-              color="primary"
-              size="24"
-              width="3"
-              class="me-2"
-            />
-            <span v-if="isFetchingNextPage" class="text-caption text-primary font-weight-bold">
-              Memuat data selanjutnya...
-            </span>
-            <span
-              v-else-if="!hasMore && priorityData.length > 0"
-              class="text-caption text-grey font-weight-bold"
-            >
-              Semua data ({{ summaryData.totalItems }} SKU) telah ditampilkan.
-            </span>
-          </div>
-        </template>
-      </v-data-table>
+      </AppDataTable>
     </v-card>
   </div>
 
-  <!-- Preview Dialog -->
+  <v-dialog v-model="isFormulaDialogOpen" max-width="800">
+    <v-card>
+      <v-toolbar color="primary" density="compact">
+        <v-toolbar-title class="text-subtitle-1 font-weight-bold"
+          >Definisi & Rumus Kalkulasi</v-toolbar-title
+        >
+        <v-btn icon="mdi-close" @click="isFormulaDialogOpen = false" />
+      </v-toolbar>
+      <v-card-text class="pa-4 bg-grey-lighten-4">
+        <v-row dense>
+          <v-col cols="12" md="6">
+            <v-card variant="flat" class="pa-3 border h-100 bg-white">
+              <div class="text-subtitle-2 font-weight-bold mb-2">DEFINISI</div>
+              <ul class="text-caption ps-4" style="line-height: 1.6">
+                <li><strong>Gap Store:</strong> MAX(Buffer Store - Stok Store, 0)</li>
+                <li><strong>Daily Need:</strong> Gap Store / 30 (asumsi kebutuhan 30 hari)</li>
+                <li>
+                  <strong>SPK Ready (&lt; 5 Hari):</strong> Barang yang sudah masuk proses Jahit →
+                  Lipat dan siap masuk ke DC dalam &le; 5 hari (WIP)
+                </li>
+                <li>
+                  <strong>Gap Buffer DC:</strong> Target Buffer DC dikurangi persediaan (Jika
+                  negatif = 0)
+                </li>
+              </ul>
+            </v-card>
+          </v-col>
+
+          <v-col cols="12" md="6">
+            <v-card variant="flat" class="pa-3 border h-100 bg-white">
+              <div class="text-subtitle-2 font-weight-bold mb-2">RUMUS COVERAGE</div>
+              <ul class="text-caption ps-4" style="line-height: 1.6">
+                <li>
+                  <strong>Coverage Saat Ini:</strong><br />
+                  <span class="font-italic text-grey-darken-1">Stok DC / Daily Need</span>
+                </li>
+                <li class="mt-2">
+                  <strong>Coverage Setelah WIP Datang:</strong><br />
+                  <span class="font-italic text-grey-darken-1">(Stok DC + WIP) / Daily Need</span>
+                </li>
+                <li class="mt-2">
+                  <strong>Gap Buffer DC:</strong><br />
+                  <span class="font-italic text-grey-darken-1"
+                    >(Buffer DC + Gap Store) - (Stok DC + WIP)</span
+                  >
+                </li>
+              </ul>
+            </v-card>
+          </v-col>
+        </v-row>
+      </v-card-text>
+    </v-card>
+  </v-dialog>
+
   <v-dialog v-model="isPreviewOpen" max-width="600">
     <v-card>
       <v-toolbar color="primary" density="compact" style="height: auto !important">
@@ -508,18 +528,67 @@ onMounted(() => {
         >
           {{ previewNamaBarang }}
         </v-toolbar-title>
-
         <v-btn icon="mdi-close" class="align-self-start mt-1" @click="isPreviewOpen = false" />
       </v-toolbar>
-
       <v-card-text class="pa-0">
         <v-img :src="previewImageUrl" class="bg-grey-lighten-3" />
       </v-card-text>
+    </v-card>
+  </v-dialog>
 
-      <v-card-actions>
-        <v-spacer />
-        <v-btn color="primary" variant="text" @click="isPreviewOpen = false">Tutup</v-btn>
-      </v-card-actions>
+  <v-dialog v-model="isFormulaDialogOpen" max-width="800">
+    <v-card>
+      <v-toolbar color="primary" density="compact">
+        <v-toolbar-title class="text-subtitle-1 font-weight-bold"
+          >Definisi & Rumus Kalkulasi</v-toolbar-title
+        >
+        <v-btn icon="mdi-close" @click="isFormulaDialogOpen = false" />
+      </v-toolbar>
+      <v-card-text class="pa-4 bg-grey-lighten-4">
+        <v-row dense>
+          <v-col cols="12" md="6">
+            <v-card variant="flat" class="pa-3 border h-100 bg-white">
+              <div class="text-subtitle-2 font-weight-bold mb-2">DEFINISI</div>
+              <ul class="text-caption ps-4" style="line-height: 1.6">
+                <li><strong>Gap Store:</strong> MAX(Buffer Store - Stok Store, 0)</li>
+                <li><strong>Daily Need:</strong> Gap Store / 30 (asumsi kebutuhan 30 hari)</li>
+                <li>
+                  <strong>SPK Ready (&lt; 5 Hari):</strong> WIP yang sudah masuk proses Jahit &rarr;
+                  Lipat dan siap masuk ke DC dalam &le; 5 hari
+                </li>
+                <li>
+                  <strong>Gap Buffer DC:</strong> Target Buffer DC dikurangi persediaan (Jika
+                  negatif = 0)
+                </li>
+              </ul>
+            </v-card>
+          </v-col>
+          <v-col cols="12" md="6">
+            <v-card variant="flat" class="pa-3 border h-100 bg-white">
+              <div class="text-subtitle-2 font-weight-bold mb-2">RUMUS COVERAGE</div>
+              <ul class="text-caption ps-4" style="line-height: 1.6">
+                <li>
+                  <strong>Coverage Saat Ini:</strong><br /><span
+                    class="font-italic text-grey-darken-1"
+                    >Stok DC / Daily Need</span
+                  >
+                </li>
+                <li class="mt-2">
+                  <strong>Coverage Setelah WIP Datang:</strong><br /><span
+                    class="font-italic text-grey-darken-1"
+                    >(Stok DC + SPK Ready) / Daily Need</span
+                  >
+                </li>
+                <li class="mt-2">
+                  <strong>Gap Buffer DC:</strong><br /><span class="font-italic text-grey-darken-1"
+                    >(Buffer DC + Gap Store) - (Stok DC + SPK Ready)</span
+                  >
+                </li>
+              </ul>
+            </v-card>
+          </v-col>
+        </v-row>
+      </v-card-text>
     </v-card>
   </v-dialog>
 </template>
@@ -528,12 +597,11 @@ onMounted(() => {
 .shadow-sm {
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05) !important;
 }
-
 .max-w-md {
   max-width: 400px;
 }
 
-/* KONSISTENSI FONT 11PX (Sesuai Request) */
+/* KONSISTENSI FONT 11PX */
 .filter-section :deep(.v-field__input),
 .filter-section :deep(.v-select__selection-text) {
   font-size: 11px !important;
@@ -542,40 +610,52 @@ onMounted(() => {
   font-size: 11px !important;
 }
 
-/* 1. Pastikan kontainer utama mengisi tinggi layar */
-.h-100 {
-  height: 100% !important;
+/* Kunci Tinggi Container Utama */
+.planning-container {
+  height: calc(100vh - 120px);
+  min-height: 0;
 }
 
-/* 2. Tabel & Wrapper harus flex */
+/* --- CSS UNTUK APP DATA TABLE & PAGINATION --- */
+
+/* 1. Root pembungkus AppDataTable */
 .compact-table {
   display: flex !important;
   flex-direction: column !important;
-  height: 100% !important;
-  overflow: hidden; /* Penting untuk membatasi scroll di dalam wrapper */
+  flex-grow: 1;
+  min-height: 0 !important; /* Wajib agar tidak meluber */
 }
 
-/* 3. Paksa Wrapper mengisi sisa ruang tanpa max-height statis */
+/* 2. Komponen internal v-data-table (Ini yang mendesak footer jika tidak dikunci) */
+.compact-table :deep(.v-data-table) {
+  display: flex !important;
+  flex-direction: column !important;
+  flex-grow: 1;
+  min-height: 0 !important;
+}
+
+/* 3. Area scrollable isi tabel */
 .compact-table :deep(.v-table__wrapper) {
-  flex-grow: 1 !important;
+  flex: 1 1 auto !important;
   overflow-y: auto !important;
-  /* HAPUS max-height: calc(100vh - 250px); */
 }
 
+/* 4. Pastikan form-field di dalam tabel ukurannya tetap kecil */
 .compact-table :deep(th) {
-  font-size: 11px !important;
-  font-weight: 700 !important;
+  font-size: 10px !important;
+  font-weight: 800 !important;
   background-color: #f5f5f5 !important;
   text-transform: uppercase;
   white-space: nowrap;
+  letter-spacing: 0.2px;
 }
-
 .compact-table :deep(td) {
   font-size: 11px !important;
   padding-top: 4px !important;
   padding-bottom: 4px !important;
 }
 
+/* Sub-table Expanded */
 .sub-table {
   border-collapse: collapse;
   width: 100%;
@@ -586,32 +666,26 @@ onMounted(() => {
   padding: 4px 8px !important;
 }
 
-/* --- LOKAL OVERRIDE FILTER DC PLANNING --- */
-/* Menjamin kotak pencarian melar dan dropdown kategori lebih panjang */
+/* Filter Override */
 .dc-planning-filter :deep(.fixed-input) {
   flex: 0 0 auto !important;
 }
-
 .dc-planning-filter :deep(.kategori-input) {
   width: 250px !important;
 }
-
 .dc-planning-filter :deep(.flex-grow-input) {
   flex: 1 1 auto !important;
   width: 100% !important;
   max-width: none !important;
 }
-
 .dc-planning-filter :deep(.flex-grow-input .v-input__control),
 .dc-planning-filter :deep(.flex-grow-input .v-field) {
   width: 100% !important;
 }
-
 .dc-planning-filter :deep(.keyword-input) {
   width: 100% !important;
   min-width: unset !important;
 }
-
 .cursor-pointer {
   cursor: pointer;
   transition: opacity 0.2s;

@@ -501,16 +501,21 @@ onMounted(() => {
   <!-- Preview Dialog -->
   <v-dialog v-model="isPreviewOpen" max-width="600">
     <v-card>
-      <v-toolbar color="primary" density="compact">
-        <v-toolbar-title class="text-subtitle-2 text-wrap py-2" style="line-height: 1.2">
+      <v-toolbar color="primary" density="compact" style="height: auto !important">
+        <v-toolbar-title
+          class="text-subtitle-2 text-wrap py-3"
+          style="line-height: 1.3 !important; white-space: normal !important"
+        >
           {{ previewNamaBarang }}
         </v-toolbar-title>
-        <v-spacer />
-        <v-btn icon="mdi-close" @click="isPreviewOpen = false" />
+
+        <v-btn icon="mdi-close" class="align-self-start mt-1" @click="isPreviewOpen = false" />
       </v-toolbar>
+
       <v-card-text class="pa-0">
         <v-img :src="previewImageUrl" class="bg-grey-lighten-3" />
       </v-card-text>
+
       <v-card-actions>
         <v-spacer />
         <v-btn color="primary" variant="text" @click="isPreviewOpen = false">Tutup</v-btn>

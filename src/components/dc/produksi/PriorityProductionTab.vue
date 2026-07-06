@@ -62,6 +62,15 @@ const getImageUrl = (path: string) => {
   return `${import.meta.env.VITE_API_BASE_URL || ""}${path}`;
 };
 
+// --- STATE DIALOG ---
+const isPreviewOpen = ref(false);
+const previewImageUrl = ref("");
+
+const openPreview = (url: string) => {
+  previewImageUrl.value = getImageUrl(url);
+  isPreviewOpen.value = true;
+};
+
 const filters = reactive({
   kategori: "Semua",
   keyword: "",
@@ -353,7 +362,13 @@ onMounted(() => {
 
         <template #[`item.info_sku`]="{ item }">
           <div class="d-flex align-center py-1">
-            <v-avatar rounded size="36" color="grey-lighten-3" class="me-3 border">
+            <v-avatar
+              rounded
+              size="36"
+              color="grey-lighten-3"
+              class="me-3 border cursor-pointer"
+              @click="openPreview(item.img_url)"
+            >
               <v-img v-if="item.img_url" :src="getImageUrl(item.img_url)" cover />
               <v-icon v-else color="grey-lighten-1" size="small">mdi-image-outline</v-icon>
             </v-avatar>
@@ -484,6 +499,23 @@ onMounted(() => {
       </v-data-table>
     </v-card>
   </div>
+
+  <!-- Preview Dialog -->
+  <v-dialog v-model="isPreviewOpen" max-width="600">
+    <v-card>
+      <v-toolbar color="primary" density="compact" title="Preview Gambar">
+        <v-spacer />
+        <v-btn icon="mdi-close" @click="isPreviewOpen = false" />
+      </v-toolbar>
+      <v-card-text class="pa-0">
+        <v-img :src="previewImageUrl" class="bg-grey-lighten-3" />
+      </v-card-text>
+      <v-card-actions>
+        <v-spacer />
+        <v-btn color="primary" variant="text" @click="isPreviewOpen = false">Tutup</v-btn>
+      </v-card-actions>
+    </v-card>
+  </v-dialog>
 </template>
 
 <style scoped>
@@ -558,5 +590,13 @@ onMounted(() => {
 .dc-planning-filter :deep(.keyword-input) {
   width: 100% !important;
   min-width: unset !important;
+}
+
+.cursor-pointer {
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+.cursor-pointer:hover {
+  opacity: 0.8;
 }
 </style>

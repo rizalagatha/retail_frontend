@@ -25,6 +25,9 @@ interface PriorityItem {
   status: string;
   rekomendasi_spk: number;
   ranking_asli: number;
+  brg_lengan: string;
+  brg_warna: string;
+  brg_jeniskain: string;
 }
 
 interface StoreDetailItem {
@@ -364,21 +367,16 @@ onMounted(() => {
               <v-icon v-else color="grey-lighten-1" size="small">mdi-image-outline</v-icon>
             </v-avatar>
             <div>
-              <div class="d-flex align-center ga-1 mb-1">
-                <span class="font-weight-bold text-primary">{{ item.kode }}</span>
-                <v-chip
-                  size="x-small"
-                  color="blue-grey-darken-1"
-                  variant="flat"
-                  class="font-weight-bold"
-                >
-                  {{ item.ukuran }}
-                </v-chip>
-                <v-chip size="x-small" color="grey-lighten-2" variant="flat">
-                  {{ item.kategori }}
-                </v-chip>
+              <div class="font-weight-bold text-primary">{{ item.kode }}</div>
+              <div class="d-flex align-center ga-2">
+                <span class="text-grey-darken-3 sku-nama" :title="item.nama">{{ item.nama }}</span>
+                <v-avatar size="20" color="blue-grey-darken-1" class="ukuran-chip">
+                  <span class="text-white font-weight-bold">{{ item.ukuran }}</span>
+                </v-avatar>
               </div>
-              <div class="text-grey-darken-3 sku-nama" :title="item.nama">{{ item.nama }}</div>
+              <div class="text-caption text-grey" style="font-size: 9px !important">
+                {{ item.kategori }}
+              </div>
             </div>
           </div>
         </template>
@@ -733,5 +731,13 @@ onMounted(() => {
 .sku-nama {
   font-size: 11px;
   line-height: 1.3;
+}
+
+.ukuran-chip {
+  font-size: 9px;
+  flex-shrink: 0;
+}
+.ukuran-chip span {
+  font-size: 9px;
 }
 </style>

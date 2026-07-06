@@ -26,6 +26,9 @@ interface PriorityItem {
   status: string;
   rekomendasi_spk: number;
   ranking_asli: number;
+  brg_lengan: string;
+  brg_warna: string;
+  brg_jeniskain: string;
   [key: string]: unknown;
 }
 
@@ -258,6 +261,9 @@ const generateSpk = async () => {
         ukuran: i.ukuran,
         nama: i.nama,
         rekomendasi_spk: i.qty_input,
+        brg_lengan: i.brg_lengan,
+        brg_warna: i.brg_warna,
+        brg_jeniskain: i.brg_jeniskain,
       }));
 
     const response = await api.post("/dc-planning/generate-spk-bulk", { items });
@@ -489,10 +495,13 @@ defineExpose({
             </div>
             <div>
               <div class="font-weight-bold text-primary sku-text">{{ item.kode }}</div>
-              <div class="text-grey-darken-3 sku-text" :title="item.nama">{{ item.nama }}</div>
-              <div class="text-grey" style="font-size: 9px">
-                Size: <strong class="text-black">{{ item.ukuran }}</strong> | {{ item.kategori }}
+              <div class="d-flex align-center ga-1">
+                <span class="text-grey-darken-3 sku-text" :title="item.nama">{{ item.nama }}</span>
+                <v-avatar size="16" color="blue-grey-darken-1" class="ukuran-chip">
+                  <span class="text-white font-weight-bold">{{ item.ukuran }}</span>
+                </v-avatar>
               </div>
+              <div class="text-grey" style="font-size: 9px">{{ item.kategori }}</div>
             </div>
           </div>
         </template>
@@ -1072,6 +1081,14 @@ defineExpose({
 }
 .sku-text {
   font-size: 11px;
+}
+
+.ukuran-chip {
+  font-size: 9px;
+  flex-shrink: 0;
+}
+.ukuran-chip span {
+  font-size: 9px;
 }
 
 /* Footer */

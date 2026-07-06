@@ -196,12 +196,15 @@ const printStylesPostek = `
   .label-row-container {
     display: flex;
     width: 108mm;
-    height: 17mm;
+    height: 16.8mm;
     align-items: center;
     justify-content: flex-start;
     gap: 2mm; /* Jarak antar 3 stiker */
     padding: 0 1mm;
     box-sizing: border-box;
+    page-break-inside: avoid !important;
+  }
+  .label-row-container:not(:last-child) {
     page-break-after: always !important;
   }
   .barcode-label {

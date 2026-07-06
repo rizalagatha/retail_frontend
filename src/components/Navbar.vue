@@ -851,8 +851,6 @@ onUnmounted(() => {
           transition="fade-transition"
           :close-on-content-click="false"
           class="nav-menu large"
-          location="bottom center"
-          origin="top center"
         >
           <template #activator="{ props }">
             <v-badge
@@ -1419,7 +1417,8 @@ onUnmounted(() => {
   top: 70px !important;
   left: 50% !important;
   transform: translateX(-50%) !important;
-  width: 100%;
+  width: auto;
+  min-width: 800px;
   max-width: 95vw;
   max-height: 85vh;
   overflow-y: auto;
@@ -1433,8 +1432,13 @@ onUnmounted(() => {
 }
 
 .section-col {
-  padding: 12px;
+  min-width: 400px;
   flex: 1;
+}
+
+.nav-menu.large .section-col {
+  min-width: 450px;
+  max-width: 500px;
 }
 
 /* Mobile Drawer Styling */

@@ -474,24 +474,9 @@ const menuItems: NavItem[] = [
         icon: "mdi-forklift",
         items: [
           {
-            title: "Dasbor SPK Kaosan",
-            to: "/gudang-dc/operasional/dasbor-spk",
-            icon: "mdi-file-document-check-outline",
-          },
-          {
             title: "Terima STBJ",
             to: "/gudang-dc/operasional/terima-stbj",
             icon: "mdi-inbox-arrow-down",
-          },
-          {
-            title: "Terima dari Gudang Repair",
-            to: "/gudang-dc/operasional/terima-repair",
-            icon: "mdi-tools",
-          },
-          {
-            title: "Permintaan Kaosan",
-            to: "/gudang-dc/operasional/minta-accesories",
-            icon: "mdi-hand-extended-outline",
           },
           {
             title: "Packing List / Pra-SJ",
@@ -515,11 +500,6 @@ const menuItems: NavItem[] = [
             badgeKey: "retur",
           },
           {
-            title: "QC ke Garmen",
-            to: "/gudang-dc/operasional/qc-garmen",
-            icon: "mdi-quality-high",
-          },
-          {
             title: "Mutasi Stok Antar Gudang",
             to: "/gudang-dc/operasional/mutasi-antar-gudang",
             icon: "mdi-swap-horizontal-circle-outline",
@@ -534,6 +514,26 @@ const menuItems: NavItem[] = [
             title: "Perencanaan Produksi",
             to: "/gudang-dc/produksi/perencanaan-produksi",
             icon: "mdi-chart-timeline-variant-shimmer",
+          },
+          {
+            title: "Dasbor SPK Kaosan",
+            to: "/gudang-dc/operasional/dasbor-spk",
+            icon: "mdi-file-document-check-outline",
+          },
+          {
+            title: "Terima dari Gudang Repair",
+            to: "/gudang-dc/operasional/terima-repair",
+            icon: "mdi-tools",
+          },
+          {
+            title: "Permintaan Kaosan",
+            to: "/gudang-dc/operasional/minta-accesories",
+            icon: "mdi-hand-extended-outline",
+          },
+          {
+            title: "QC ke Garmen",
+            to: "/gudang-dc/operasional/qc-garmen",
+            icon: "mdi-quality-high",
           },
         ],
       },

@@ -196,7 +196,7 @@ const printStylesPostek = `
   .label-row-container {
     display: flex;
     width: 108mm;
-    height: 16.8mm;
+    height: 17mm;
     align-items: center;
     justify-content: flex-start;
     gap: 2mm; /* Jarak antar 3 stiker */
@@ -205,7 +205,7 @@ const printStylesPostek = `
     page-break-inside: avoid !important;
   }
   .label-row-container:not(:last-child) {
-    page-break-after: always !important;
+    page-break-after: always !important; /* ← UBAH: hanya break jika BUKAN row terakhir */
   }
   .barcode-label {
     width: 34mm; /* Lebar pas dibagi 3 */

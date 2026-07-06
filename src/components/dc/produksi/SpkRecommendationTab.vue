@@ -780,11 +780,11 @@ defineExpose({
     <v-dialog v-model="isDetailDialogOpen" max-width="640" persistent>
       <v-card v-if="detailItem">
         <v-toolbar color="primary" density="compact" style="height: auto !important">
-          <v-toolbar-title
-            class="text-subtitle-2 font-weight-bold text-wrap py-2"
-            style="line-height: 1.3"
-          >
-            Tinjau Rekomendasi SPK: {{ detailItem.kode }} - {{ detailItem.nama }}
+          <v-toolbar-title class="text-subtitle-2 font-weight-bold py-2" style="line-height: 1.4">
+            <div style="font-size: 11px; opacity: 0.85; font-weight: 500">
+              Tinjau Rekomendasi SPK:
+            </div>
+            <div class="text-wrap">{{ detailItem.kode }} - {{ detailItem.nama }}</div>
           </v-toolbar-title>
           <v-btn icon="mdi-close" class="align-self-start mt-1" @click="closeDetail" />
         </v-toolbar>
@@ -793,10 +793,17 @@ defineExpose({
           <v-row dense>
             <!-- Kolom Kiri: Gambar & Info -->
             <v-col cols="12" md="4" class="text-center">
-              <v-avatar rounded size="120" color="grey-lighten-3" class="mb-2 border">
-                <v-img v-if="detailItem.img_url" :src="getImageUrl(detailItem.img_url)" cover />
-                <v-icon v-else color="grey-lighten-1" size="40">mdi-image-outline</v-icon>
-              </v-avatar>
+              <div class="img-zoom-wrapper mb-2">
+                <v-avatar rounded size="120" color="grey-lighten-3" class="border">
+                  <v-img
+                    v-if="detailItem.img_url"
+                    :src="getImageUrl(detailItem.img_url)"
+                    cover
+                    class="img-zoom"
+                  />
+                  <v-icon v-else color="grey-lighten-1" size="40">mdi-image-outline</v-icon>
+                </v-avatar>
+              </div>
               <div class="font-weight-bold" style="font-size: 12px">{{ detailItem.nama }}</div>
               <div class="text-grey" style="font-size: 11px">
                 {{ detailItem.kode }} · {{ detailItem.ukuran }}
@@ -1017,6 +1024,14 @@ defineExpose({
   flex-grow: 1;
   min-height: 0 !important;
 }
+.spk-table :deep(.v-data-table-footer) {
+  position: sticky;
+  bottom: 0;
+  z-index: 5;
+  background: #fff;
+  border-top: 1px solid rgba(0, 0, 0, 0.12);
+  flex-shrink: 0;
+}
 .spk-table :deep(.v-table__wrapper) {
   flex: 1 1 auto !important;
   overflow-y: auto !important;
@@ -1042,12 +1057,10 @@ defineExpose({
 
 /* Footer */
 .spk-footer {
-  border-top: 2px solid #e0e0e0;
+  position: sticky;
+  bottom: 0;
+  z-index: 6;
   background-color: #fafafa;
-  border-radius: 4px;
-  padding: 8px 12px;
-  margin-top: 6px;
-  font-size: 11px;
 }
 .footer-check :deep(.v-label) {
   font-size: 11px !important;
@@ -1107,5 +1120,17 @@ defineExpose({
   text-overflow: unset !important;
   line-height: 1.3;
   padding: 8px 0;
+}
+
+.img-zoom-wrapper {
+  display: inline-block;
+  overflow: hidden;
+  border-radius: 8px;
+}
+.img-zoom-wrapper :deep(.v-img__img) {
+  transition: transform 0.35s ease;
+}
+.img-zoom-wrapper:hover :deep(.v-img__img) {
+  transform: scale(1.35);
 }
 </style>

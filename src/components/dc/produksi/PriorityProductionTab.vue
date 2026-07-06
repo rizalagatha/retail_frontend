@@ -65,9 +65,11 @@ const getImageUrl = (path: string) => {
 // --- STATE DIALOG ---
 const isPreviewOpen = ref(false);
 const previewImageUrl = ref("");
+const previewNamaBarang = ref("");
 
-const openPreview = (url: string) => {
-  previewImageUrl.value = getImageUrl(url);
+const openPreview = (item: PriorityItem) => {
+  previewImageUrl.value = getImageUrl(item.img_url);
+  previewNamaBarang.value = item.nama;
   isPreviewOpen.value = true;
 };
 
@@ -367,7 +369,7 @@ onMounted(() => {
               size="36"
               color="grey-lighten-3"
               class="me-3 border cursor-pointer"
-              @click="openPreview(item.img_url)"
+              @click="openPreview(item)"
             >
               <v-img v-if="item.img_url" :src="getImageUrl(item.img_url)" cover />
               <v-icon v-else color="grey-lighten-1" size="small">mdi-image-outline</v-icon>
@@ -503,7 +505,8 @@ onMounted(() => {
   <!-- Preview Dialog -->
   <v-dialog v-model="isPreviewOpen" max-width="600">
     <v-card>
-      <v-toolbar color="primary" density="compact" title="Preview Gambar">
+      <v-toolbar color="primary" density="compact">
+        <v-toolbar-title class="text-subtitle-2">{{ previewNamaBarang }}</v-toolbar-title>
         <v-spacer />
         <v-btn icon="mdi-close" @click="isPreviewOpen = false" />
       </v-toolbar>

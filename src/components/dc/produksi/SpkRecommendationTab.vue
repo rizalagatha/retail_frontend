@@ -704,7 +704,7 @@ defineExpose({
         @click="openConfirm"
         class="font-weight-bold"
       >
-        Generata SPK 5 Hari Kerja Ini
+        Generate SO 5 Hari Kerja Ini
       </v-btn>
     </div>
 
@@ -837,18 +837,18 @@ defineExpose({
       <v-card>
         <v-card-title class="text-subtitle-1 font-weight-bold pa-4">
           <v-icon color="primary" size="small" class="me-2">mdi-cog-refresh</v-icon>
-          Konfirmasi Generate SPK
+          Konfirmasi Generate SO MANKSI
         </v-card-title>
         <v-card-text class="px-4 pb-2">
           <v-alert type="info" variant="tonal" density="compact" class="mb-3 text-caption">
-            SPK akan dibuat otomatis berdasarkan jumlah yang diinput.
+            SO MANKSI akan dibuat otomatis berdasarkan jumlah yang diinput.
           </v-alert>
           <v-row dense class="text-caption">
             <v-col cols="7" class="text-grey-darken-1">SKU Terpilih</v-col>
             <v-col cols="5" class="font-weight-bold text-right"
               >{{ selectedItems.length }} SKU</v-col
             >
-            <v-col cols="7" class="text-grey-darken-1">Total QTY SPK (Input)</v-col>
+            <v-col cols="7" class="text-grey-darken-1">Total QTY SO (Input)</v-col>
             <v-col cols="5" class="font-weight-bold text-right text-primary"
               >{{ totalQtyInput.toLocaleString("id-ID") }} pcs</v-col
             >
@@ -877,7 +877,7 @@ defineExpose({
             size="small"
             :loading="isGenerating"
             @click="generateSpk"
-            >Ya, Buat SPK Sekarang</v-btn
+            >Ya, Buat SO Sekarang</v-btn
           >
         </v-card-actions>
       </v-card>
@@ -889,7 +889,7 @@ defineExpose({
         <v-toolbar color="primary" density="compact" style="height: auto !important">
           <v-toolbar-title class="text-subtitle-2 font-weight-bold py-2" style="line-height: 1.4">
             <div style="font-size: 11px; opacity: 0.85; font-weight: 500">
-              Tinjau Rekomendasi SPK:
+              Tinjau Rekomendasi SO:
             </div>
             <div class="text-wrap">{{ detailItem.kode }} - {{ detailItem.nama }}</div>
           </v-toolbar-title>
@@ -937,7 +937,7 @@ defineExpose({
                 <v-col cols="6">
                   <div class="ringkasan-box bg-blue-lighten-5 border-blue">
                     <v-icon color="blue-darken-2" size="18" class="mb-1">mdi-chart-line</v-icon>
-                    <div class="ringkasan-label">Prediksi Coverage Setelah SPK</div>
+                    <div class="ringkasan-label">Prediksi Coverage Setelah SO</div>
                     <div class="ringkasan-value text-blue-darken-3">
                       {{ predictedCoverageAfterSpk }} Hari
                     </div>
@@ -961,7 +961,7 @@ defineExpose({
           <v-divider class="my-3" />
 
           <!-- Konfigurasi SPK (simple, 1 baris) -->
-          <div class="detail-section-title mb-2">KONFIGURASI SPK</div>
+          <div class="detail-section-title mb-2">KONFIGURASI SO</div>
           <v-row dense>
             <v-col cols="4">
               <v-text-field
@@ -1011,7 +1011,7 @@ defineExpose({
             >Tolak Rekomendasi</v-btn
           >
           <v-btn variant="flat" size="small" color="success" @click="confirmFromDetail">
-            Konfirmasi SPK ({{ Number(detailItem.qty_input).toLocaleString("id-ID") }} Pcs)
+            Konfirmasi SO ({{ Number(detailItem.qty_input).toLocaleString("id-ID") }} Pcs)
           </v-btn>
         </v-card-actions>
       </v-card>

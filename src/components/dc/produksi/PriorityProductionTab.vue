@@ -377,11 +377,7 @@ onMounted(() => {
 
             <div>
               <div class="font-weight-bold text-primary">{{ item.kode }}</div>
-              <div
-                class="text-truncate text-grey-darken-3"
-                style="max-width: 200px"
-                :title="item.nama"
-              >
+              <div class="text-grey-darken-3" :title="item.nama">
                 {{ item.nama }}
               </div>
               <div class="text-caption text-grey" style="font-size: 9px !important">

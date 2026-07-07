@@ -162,7 +162,12 @@ const fetchCabangList = async () => {
   try {
     const response = await api.get("/so-dtf-stok/lookup/cabang");
     cabangList.value = response.data;
-    if (authStore.user?.cabang === "KDC" && cabangList.value.length > 0) {
+
+    // [PERBAIKAN] Set default value ke KDC jika user adalah KDC
+    if (authStore.user?.cabang === "KDC") {
+      const hasKdc = cabangList.value.some((c) => c.kode === "KDC");
+      selectedCabang.value = hasKdc ? "KDC" : cabangList.value[0]?.kode || "";
+    } else if (cabangList.value.length > 0) {
       selectedCabang.value = cabangList.value[0].kode;
     }
   } catch {

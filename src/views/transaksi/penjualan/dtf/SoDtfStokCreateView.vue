@@ -99,7 +99,7 @@ const tableHeaders = [
   { title: "Jumlah", key: "jumlah", sortable: false, width: "120px" },
 ] as const;
 
-const fetchTemplateItems = async (jenisOrder: string) => {
+const fetchTemplateItems = async (jenisOrder: string, preventNameOverride = false) => {
   if (!jenisOrder) {
     items.value = [];
     return;
@@ -116,7 +116,11 @@ const fetchTemplateItems = async (jenisOrder: string) => {
       lebar: item.lebar ?? null,
       jumlah: 0,
     }));
-    form.value.namaDtf = jenisOrder === "SD" ? "STICKER DTF" : "STICKER DTF PREMIUM";
+
+    // [PERBAIKAN] Hanya timpa nama jika BUKAN dari proses load edit
+    if (!preventNameOverride) {
+      form.value.namaDtf = jenisOrder === "SD" ? "STICKER DTF" : "STICKER DTF PREMIUM";
+    }
   } catch {
     toast.error("Gagal memuat template item.");
   } finally {
@@ -137,7 +141,7 @@ const loadDataForEdit = async (nomor: string) => {
     form.value.salesNama = header.sal_nama;
     form.value.jenisOrderKode = header.sd_jo_kode;
     form.value.jenisOrderNama = header.jo_nama;
-    form.value.namaDtf = header.sd_nama;
+    form.value.namaDtf = header.sd_nama; // Nilai asli dari database
     form.value.desain = header.sd_desain;
     form.value.workshopKode = header.sd_workshop;
     form.value.workshopNama = header.pab_nama;
@@ -146,7 +150,8 @@ const loadDataForEdit = async (nomor: string) => {
 
     imagePreview.value = getFullImageUrl(header.imageUrl);
 
-    await fetchTemplateItems(header.sd_jo_kode);
+    // [PERBAIKAN] Panggil dengan parameter true agar namaDtf tidak ketimpa
+    await fetchTemplateItems(header.sd_jo_kode, true);
 
     details.forEach((savedItem: SavedDetailItem) => {
       const itemToUpdate = items.value.find(

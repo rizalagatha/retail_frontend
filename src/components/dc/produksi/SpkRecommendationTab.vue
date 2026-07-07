@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted } from "vue";
+import { ref, reactive, computed, onMounted, watch } from "vue";
 import { useToast } from "vue-toastification";
 import api from "@/services/api";
 import axios from "axios";
@@ -77,9 +77,11 @@ const summaryData = reactive({
   skuAman: 0,
 });
 
+const retainedState = ref<Record<string, EditableItem>>({});
+
 // --- COMPUTED ---
 const totalKapasitas = computed(() => planConfig.targetHarian * 5);
-const selectedItems = computed(() => tableData.value.filter((i) => i.selected));
+const selectedItems = computed(() => Object.values(retainedState.value));
 const totalQtyRekomendasi = computed(() =>
   selectedItems.value.reduce((sum, i) => sum + (i.rekomendasi_spk || 0), 0)
 );
@@ -98,6 +100,22 @@ const allSelected = computed({
 });
 const totalSpkBeredarDisplay = computed(() =>
   tableData.value.reduce((sum, i) => sum + (i.spk_beredar || 0), 0)
+);
+
+// Sinkronisasi otomatis setiap ada perubahan centang/input ke retainedState
+watch(
+  tableData,
+  (newData) => {
+    newData.forEach((item) => {
+      const key = `${item.kode}_${item.ukuran}`;
+      if (item.selected) {
+        retainedState.value[key] = { ...item };
+      } else {
+        delete retainedState.value[key];
+      }
+    });
+  },
+  { deep: true }
 );
 
 // --- STATE DETAIL DIALOG ---
@@ -257,19 +275,24 @@ const fetchData = async () => {
     summaryData.skuPerhatian = response.data.summary.skuPerhatian;
     summaryData.skuAman = response.data.summary.skuAman;
 
-    tableData.value = rawData.value.map((item) => ({
-      ...item,
-      qty_input: item.rekomendasi_spk,
-      selected: false,
-      kepentingan: "NORMAL", // ← default
-      dateline: "",
-      dateline_min: "",
-      dateline_max: "",
-    }));
+    // Mapping dengan mengecek apakah SKU ini sebelumnya sudah tersimpan di retainedState
+    tableData.value = rawData.value.map((item) => {
+      const key = `${item.kode}_${item.ukuran}`;
+      const saved = retainedState.value[key];
+
+      return {
+        ...item,
+        qty_input: saved ? saved.qty_input : item.rekomendasi_spk,
+        selected: saved ? saved.selected : false,
+        kepentingan: saved ? saved.kepentingan : "NORMAL",
+        dateline: saved ? saved.dateline : "",
+        dateline_min: saved?.dateline_min || "",
+        dateline_max: saved?.dateline_max || "",
+      };
+    });
   } catch (error: unknown) {
-    if (axios.isAxiosError(error)) {
+    if (axios.isAxiosError(error))
       toast.error(error.response?.data?.message || "Gagal memuat data.");
-    }
   } finally {
     isLoading.value = false;
   }
@@ -318,11 +341,12 @@ const generateSpk = async () => {
 
     const response = await api.post("/dc-planning/generate-spk-bulk", { items });
     toast.success(response.data.message);
+
+    retainedState.value = {};
     fetchData();
   } catch (error: unknown) {
-    if (axios.isAxiosError(error)) {
+    if (axios.isAxiosError(error))
       toast.error(error.response?.data?.message || "Gagal membuat SPK.");
-    }
   } finally {
     isGenerating.value = false;
   }
@@ -498,6 +522,72 @@ defineExpose({
       />
     </div>
 
+    <div
+      class="action-summary-bar d-flex align-center flex-shrink-0 mb-3 px-4 py-2 bg-grey-lighten-4 rounded-lg border"
+    >
+      <v-checkbox
+        v-model="allSelected"
+        label="Pilih semua SKU"
+        density="compact"
+        hide-details
+        color="primary"
+        class="me-4 action-check"
+      />
+      <v-btn
+        size="small"
+        variant="tonal"
+        color="teal-darken-2"
+        prepend-icon="mdi-download"
+        @click="exportExcel"
+        class="me-4 font-weight-bold"
+      >
+        Export Excel
+      </v-btn>
+
+      <v-divider vertical class="mx-3 border-opacity-50" style="height: 28px" />
+
+      <div class="action-stat me-5">
+        <div class="action-stat-label">QTY REKOMENDASI (TERPILIH)</div>
+        <div class="action-stat-value text-blue-darken-3">
+          {{ totalQtyRekomendasi.toLocaleString("id-ID") }} <span style="font-size: 10px">pcs</span>
+        </div>
+      </div>
+      <div class="action-stat me-5">
+        <div class="action-stat-label">QTY SPK INPUT (TERPILIH)</div>
+        <div class="action-stat-value text-primary">
+          {{ totalQtyInput.toLocaleString("id-ID") }} <span style="font-size: 10px">pcs</span>
+        </div>
+      </div>
+      <div class="action-stat me-5">
+        <div class="action-stat-label">TOTAL KAPASITAS 5 HK</div>
+        <div class="action-stat-value text-grey-darken-3">
+          {{ totalKapasitas.toLocaleString("id-ID") }} <span style="font-size: 10px">pcs</span>
+        </div>
+      </div>
+      <div class="action-stat me-2">
+        <div class="action-stat-label">SISA KAPASITAS</div>
+        <div class="action-stat-value" :class="sisaKapasitas < 0 ? 'text-error' : 'text-success'">
+          {{ sisaKapasitas.toLocaleString("id-ID") }}
+          <span style="font-size: 10px">pcs ({{ sisaKapasitasPersen }}%)</span>
+        </div>
+      </div>
+
+      <v-spacer />
+
+      <v-btn
+        color="primary"
+        variant="flat"
+        size="small"
+        prepend-icon="mdi-cog-refresh"
+        :loading="isGenerating"
+        @click="openConfirm"
+        class="font-weight-bold"
+        elevation="2"
+      >
+        Generate SO 5 Hari Kerja Ini
+      </v-btn>
+    </div>
+
     <!-- ── Tabel ───────────────────────────────────────────────── -->
     <v-card variant="outlined" class="flex-grow-1 d-flex flex-column bg-white overflow-hidden">
       <AppDataTable
@@ -644,69 +734,6 @@ defineExpose({
         </template>
       </AppDataTable>
     </v-card>
-
-    <!-- ── Footer Sticky (compact) ───────────────────────────── -->
-    <div class="spk-footer d-flex align-center flex-shrink-0">
-      <v-checkbox
-        v-model="allSelected"
-        label="Pilih semua SKU"
-        density="compact"
-        hide-details
-        color="primary"
-        class="me-3 footer-check"
-      />
-      <v-btn
-        size="small"
-        variant="tonal"
-        color="teal"
-        prepend-icon="mdi-download"
-        @click="exportExcel"
-        class="me-3"
-      >
-        Export Excel
-      </v-btn>
-
-      <v-divider vertical class="mx-2" style="height: 32px" />
-
-      <div class="footer-stat me-3">
-        <div class="footer-stat-label">QTY REKOMENDASI (TERPILIH)</div>
-        <div class="footer-stat-value text-blue-darken-2">
-          {{ totalQtyRekomendasi.toLocaleString("id-ID") }} pcs
-        </div>
-      </div>
-      <div class="footer-stat me-3">
-        <div class="footer-stat-label">QTY SPK INPUT (TERPILIH)</div>
-        <div class="footer-stat-value text-primary">
-          {{ totalQtyInput.toLocaleString("id-ID") }} pcs
-        </div>
-      </div>
-      <div class="footer-stat me-3">
-        <div class="footer-stat-label">TOTAL KAPASITAS 5 HK</div>
-        <div class="footer-stat-value text-grey-darken-3">
-          {{ totalKapasitas.toLocaleString("id-ID") }} pcs
-        </div>
-      </div>
-      <div class="footer-stat me-3">
-        <div class="footer-stat-label">SISA KAPASITAS</div>
-        <div class="footer-stat-value" :class="sisaKapasitas < 0 ? 'text-error' : 'text-success'">
-          {{ sisaKapasitas.toLocaleString("id-ID") }} pcs ({{ sisaKapasitasPersen }}%)
-        </div>
-      </div>
-
-      <v-spacer />
-
-      <v-btn
-        color="primary"
-        variant="flat"
-        size="small"
-        prepend-icon="mdi-cog-refresh"
-        :loading="isGenerating"
-        @click="openConfirm"
-        class="font-weight-bold"
-      >
-        Generate SO 5 Hari Kerja Ini
-      </v-btn>
-    </div>
 
     <!-- ── Dialog Info: Kriteria, Rumus, Plan & Definisi ────────── -->
     <v-dialog v-model="isInfoDialogOpen" max-width="900">
@@ -1103,8 +1130,16 @@ defineExpose({
   flex: 0 0 auto;
 }
 .keyword-input {
-  max-width: 280px;
-  flex: 0 0 auto;
+  min-width: 350px !important;
+  width: 100% !important;
+  flex: 1 1 auto !important; /* Memakan sisa ruang kosong di navbar */
+  max-width: 600px !important; /* Batas melar maksimal */
+}
+
+.keyword-input :deep(.v-input__control),
+.keyword-input :deep(.v-field) {
+  width: 100% !important;
+  min-width: 100% !important;
 }
 
 .summary-block {
@@ -1176,29 +1211,52 @@ defineExpose({
   font-size: 9px;
 }
 
-/* Footer */
-.spk-footer {
-  position: sticky;
-  bottom: 0;
-  z-index: 6;
-  background-color: #fafafa;
+/* --- Action Summary Bar (Pindahan dari Footer) --- */
+.action-summary-bar {
+  border: 1px solid #e0e0e0 !important;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.03) !important;
 }
-.footer-check :deep(.v-label) {
-  font-size: 11px !important;
+
+/* Merapikan posisi dan ukuran checkbox */
+.action-check :deep(.v-label) {
+  font-size: 12px !important;
+  font-weight: 700 !important;
+  color: #424242;
+  margin-left: 2px;
 }
-.footer-stat {
-  text-align: center;
-  line-height: 1.3;
+.action-check :deep(.v-selection-control) {
+  min-height: auto !important;
 }
-.footer-stat-label {
+
+/* Merapikan Teks Summary */
+.action-stat {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  line-height: 1.2;
+}
+.action-stat-label {
   font-size: 9px;
   font-weight: 800;
-  color: rgba(0, 0, 0, 0.6);
+  color: #607d8b; /* Warna blue-grey yang lebih elegan */
   text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 2px;
 }
-.footer-stat-value {
-  font-size: 13px;
+.action-stat-value {
+  font-size: 14px;
   font-weight: 900;
+}
+
+/* Mengembalikan warna Header Tabel yang pucat/hilang */
+.spk-table :deep(th) {
+  font-size: 10px !important;
+  font-weight: 800 !important;
+  background-color: #f5f5f5 !important;
+  text-transform: uppercase;
+  white-space: nowrap;
+  letter-spacing: 0.2px;
+  border-bottom: 1px solid #e0e0e0 !important;
 }
 
 /* Detail Dialog */

@@ -96,9 +96,12 @@ const kategoriOptions = [
   "LAIN-LAIN",
 ];
 
+// --- STATE DIALOG PREVIEW ---
 const isPreviewOpen = ref(false);
-const previewImageUrl = ref("");
+const previewImageUrl = ref<string>("");
+
 const openPreview = (url: string | null) => {
+  // Jika null, jangan buka dialog
   if (!url) return;
   previewImageUrl.value = url;
   isPreviewOpen.value = true;
@@ -225,11 +228,23 @@ const uploadFoto = async (item: KomplainItem) => {
   }
 };
 
-const hapusFoto = (item: KomplainItem) => {
-  // Jika URL berasal dari local blob (saat baru upload), bersihkan memory
+const hapusFoto = async (item: KomplainItem) => {
+  // Jika ini data lama yang sudah tersimpan di database
+  if (header.nomor && item.foto) {
+    try {
+      await api.delete(`/komplain-form/${header.nomor}/foto/${item.id}`);
+      toast.success("Foto berhasil dihapus.");
+    } catch {
+      toast.error("Gagal menghapus foto dari server.");
+      return; // Jangan hapus dari state jika server gagal
+    }
+  }
+
+  // Jika ini data baru (blob) atau sudah berhasil hapus server
   if (item.foto_url && item.foto_url.startsWith("blob:")) {
     URL.revokeObjectURL(item.foto_url);
   }
+
   item.foto = null;
   item.foto_url = null;
   item._fileObj = null;
@@ -710,7 +725,7 @@ onMounted(() => {
                 </div>
 
                 <v-file-input
-                  v-else-if="canEditDraft"
+                  :key="'input-' + item.id"
                   v-model="item._fileObj"
                   accept="image/png, image/jpeg"
                   density="compact"
@@ -884,6 +899,22 @@ onMounted(() => {
             >Ya</v-btn
           ></v-card-actions
         >
+      </v-card>
+    </v-dialog>
+
+    <!-- Dialog Preview Gambar -->
+    <v-dialog v-model="isPreviewOpen" max-width="800px">
+      <v-card>
+        <v-toolbar density="compact" color="primary">
+          <v-toolbar-title class="text-subtitle-2 font-weight-bold"
+            >Preview Foto Bukti</v-toolbar-title
+          >
+          <v-spacer />
+          <v-btn icon="mdi-close" @click="isPreviewOpen = false" variant="text" />
+        </v-toolbar>
+        <v-card-text class="pa-0">
+          <v-img :src="previewImageUrl || ''" contain class="bg-grey-lighten-4" max-height="70vh" />
+        </v-card-text>
       </v-card>
     </v-dialog>
   </PageLayout>

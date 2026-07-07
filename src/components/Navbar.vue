@@ -730,7 +730,7 @@ onUnmounted(() => {
           v-model="menu.model.value"
           offset-y
           :close-on-content-click="false"
-          :max-width="menu.title === 'Transaksi' ? 1200 : menu.title === 'Gudang DC' ? 1200 : 1000"
+          :max-width="menu.title === 'Transaksi' ? 1200 : menu.title === 'Gudang DC' ? 1400 : 1000"
           transition="fade-transition"
           class="nav-menu"
           location="bottom center"
@@ -1437,8 +1437,8 @@ onUnmounted(() => {
 }
 
 .nav-menu.large .section-col {
-  min-width: 450px;
-  max-width: 500px;
+  min-width: 380px;
+  max-width: 480px;
 }
 
 /* Mobile Drawer Styling */

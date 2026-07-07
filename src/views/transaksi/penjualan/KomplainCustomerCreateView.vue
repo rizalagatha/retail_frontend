@@ -225,6 +225,16 @@ const uploadFoto = async (item: KomplainItem) => {
   }
 };
 
+const hapusFoto = (item: KomplainItem) => {
+  // Jika URL berasal dari local blob (saat baru upload), bersihkan memory
+  if (item.foto_url && item.foto_url.startsWith("blob:")) {
+    URL.revokeObjectURL(item.foto_url);
+  }
+  item.foto = null;
+  item.foto_url = null;
+  item._fileObj = null;
+};
+
 const loadData = async (nomor: string) => {
   isLoading.value = true;
   try {
@@ -669,14 +679,36 @@ onMounted(() => {
             </template>
             <template #[`item.foto`]="{ item }">
               <div class="d-flex justify-center">
-                <v-avatar
-                  v-if="item.foto_url"
-                  rounded
-                  size="32"
-                  class="border cursor-pointer"
-                  @click="openPreview(item.foto_url)"
-                  ><v-img :src="item.foto_url" cover></v-img
-                ></v-avatar>
+                <div v-if="item.foto_url" class="position-relative" style="display: inline-block">
+                  <v-avatar
+                    rounded
+                    size="32"
+                    class="border cursor-pointer"
+                    @click="openPreview(item.foto_url)"
+                  >
+                    <v-img :src="item.foto_url" cover></v-img>
+                  </v-avatar>
+
+                  <v-btn
+                    v-if="canEditDraft"
+                    icon="mdi-close-circle"
+                    color="error"
+                    variant="flat"
+                    size="16"
+                    class="position-absolute"
+                    style="
+                      top: -6px;
+                      right: -6px;
+                      height: 16px;
+                      width: 16px;
+                      min-width: 16px;
+                      padding: 0;
+                    "
+                    @click.stop="hapusFoto(item)"
+                    title="Ganti Gambar"
+                  />
+                </div>
+
                 <v-file-input
                   v-else-if="canEditDraft"
                   v-model="item._fileObj"

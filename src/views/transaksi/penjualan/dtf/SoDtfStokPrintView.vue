@@ -50,10 +50,10 @@ const imageFullUrl = computed(() => {
 });
 
 const getSoTitle = (joKode: string) => {
-  let title = "SO STICKER";
-  if (joKode === "SD") title = "SO DTF";
-  else if (joKode === "DP") title = "SO DTF PREMIUM";
-  return `${title} (Sticker)`;
+  if (joKode === "SD") return "SO DTF (Sticker)";
+  if (joKode === "DP") return "SO DTF PREMIUM (Sticker)";
+  if (joKode === "BR") return "SO EMBLEM BORDIR"; // Tambahkan kondisi ini
+  return "SO STICKER"; // Fallback default
 };
 
 const fetchPrintData = async (nomor: string) => {

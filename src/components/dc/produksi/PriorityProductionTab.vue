@@ -14,13 +14,11 @@ interface PriorityItem {
   img_url: string;
   buffer_dc: number;
   stok_dc: number;
-  spk_ready: number;
   buffer_store: number;
   stok_store: number;
   gap_store: number;
   daily_need: string;
   cvg_saat_ini: string;
-  cvg_setelah_wip: string;
   gap_buffer_dc: number;
   status: string;
   rekomendasi_spk: number;
@@ -28,7 +26,6 @@ interface PriorityItem {
   brg_lengan: string;
   brg_warna: string;
   brg_jeniskain: string;
-  brg_jeniskaos: string;
 }
 
 interface StoreDetailItem {
@@ -92,13 +89,11 @@ const headers = [
   { title: "INFO SKU", key: "info_sku", minWidth: 250 },
   { title: "BUFFER DC (pcs)", key: "buffer_dc", align: "end" as const },
   { title: "STOK DC (pcs)", key: "stok_dc", align: "end" as const },
-  { title: "SPK READY < 5 HARI (WIP) (pcs)", key: "spk_ready", align: "end" as const },
   { title: "BUFFER STORE (pcs)", key: "buffer_store", align: "end" as const },
   { title: "STOK STORE (pcs)", key: "stok_store", align: "end" as const },
   { title: "GAP STORE (pcs)", key: "gap_store", align: "end" as const },
   { title: "DAILY NEED (pcs/hari)", key: "daily_need", align: "end" as const },
-  { title: "COVERAGE SAAT INI (Hari)", key: "cvg_saat_ini", align: "center" as const },
-  { title: "COVERAGE SETELAH WIP DATANG (Hari)", key: "cvg_setelah_wip", align: "center" as const },
+  { title: "COVERAGE (Hari)", key: "cvg_saat_ini", align: "center" as const },
   { title: "GAP BUFFER DC (pcs)", key: "gap_buffer_dc", align: "end" as const },
   { title: "STATUS", key: "status", align: "center" as const },
 ];
@@ -382,20 +377,12 @@ onMounted(() => {
           </div>
         </template>
 
-        <template #[`item.spk_ready`]="{ item }"
-          ><span class="text-primary font-weight-bold">{{ item.spk_ready }}</span></template
-        >
         <template #[`item.gap_store`]="{ item }"
           ><span :class="getTextColor(item.gap_store)">{{ item.gap_store }}</span></template
         >
         <template #[`item.cvg_saat_ini`]="{ item }"
           ><span :class="getCoverageColor(item.cvg_saat_ini)"
             >{{ item.cvg_saat_ini }} Hari</span
-          ></template
-        >
-        <template #[`item.cvg_setelah_wip`]="{ item }"
-          ><span :class="getCoverageColor(item.cvg_setelah_wip)"
-            >{{ item.cvg_setelah_wip }} Hari</span
           ></template
         >
         <template #[`item.gap_buffer_dc`]="{ item }"
@@ -494,10 +481,6 @@ onMounted(() => {
                 <li><strong>Gap Store:</strong> MIN(Buffer Store - Stok Store, 0)</li>
                 <li><strong>Daily Need:</strong> Gap Store / 30 (asumsi kebutuhan 30 hari)</li>
                 <li>
-                  <strong>SPK Ready (&lt; 5 Hari):</strong> Barang yang sudah masuk proses Jahit →
-                  Lipat dan siap masuk ke DC dalam &le; 5 hari (WIP)
-                </li>
-                <li>
                   <strong>Gap Buffer DC:</strong> Target Buffer DC dikurangi persediaan (Jika
                   negatif = 0)
                 </li>
@@ -510,17 +493,13 @@ onMounted(() => {
               <div class="text-subtitle-2 font-weight-bold mb-2">RUMUS COVERAGE</div>
               <ul class="text-caption ps-4" style="line-height: 1.6">
                 <li>
-                  <strong>Coverage Saat Ini:</strong><br />
+                  <strong>Coverage:</strong><br />
                   <span class="font-italic text-grey-darken-1">Stok DC / Daily Need</span>
-                </li>
-                <li class="mt-2">
-                  <strong>Coverage Setelah WIP Datang:</strong><br />
-                  <span class="font-italic text-grey-darken-1">(Stok DC + WIP) / Daily Need</span>
                 </li>
                 <li class="mt-2">
                   <strong>Gap Buffer DC:</strong><br />
                   <span class="font-italic text-grey-darken-1"
-                    >(Buffer DC + Gap Store) - (Stok DC + WIP)</span
+                    >(Buffer DC + Gap Store) - Stok DC</span
                   >
                 </li>
               </ul>

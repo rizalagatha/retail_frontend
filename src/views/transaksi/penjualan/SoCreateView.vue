@@ -696,6 +696,16 @@ const minimalDpText = computed(() => {
   const amount = new Intl.NumberFormat("id-ID").format(footer.value.minimalDp);
   return `Minimal DP: ${amount}`;
 });
+// [BARU] Bruto murni SEMUA item (qty × harga, TANPA dikurangi diskon apapun)
+// Dipakai HANYA untuk tampilan "Total SO (Bruto)" di modal, bukan untuk basis kalkulasi
+const grossTotalDisplay = computed(() => {
+  return items.value.reduce((sum, item) => {
+    if (!item.kode) return sum;
+    const qty = Number(item.jumlah) || 0;
+    const harga = Number(item.harga) || 0;
+    return sum + qty * harga;
+  }, 0);
+});
 
 // const selectedPenawaran = computed(() => {
 //   // Ambil nama barang pertama dari penawaran (kalau ada)
@@ -819,6 +829,7 @@ const loadDataForEdit = async (nomor: string, silent = false) => {
 
     (itemsData as SoItemApi[]).forEach((item, index) => {
       const isCustomOrder = item.sod_custom === "Y";
+      const isSoDtfItem = !!item.noSoDtf || /\.SD\.\d+\.\d+$/.test(item.kode || "");
       let parsed: CustomTechData = {};
 
       if (isCustomOrder && item.sod_custom_data) {
@@ -864,7 +875,7 @@ const loadDataForEdit = async (nomor: string, silent = false) => {
           harga: Number(item.harga) || 0,
           id: Date.now() + index + Math.random(),
           nama: isCustomOrder ? item.sod_custom_nama || item.nama : item.nama,
-          kategori: isCustomOrder ? "CUSTOM" : item.kategori,
+          kategori: isCustomOrder || isSoDtfItem ? "CUSTOM" : item.kategori,
           scannedQty: Number(item.sod_scanned || 0),
           mutatedQty: Number(item.mutatedQty || 0),
           isMutated: Number(item.mutatedQty || 0) > 0,
@@ -1040,7 +1051,8 @@ const calculateTotals = async () => {
     if (item.isCustomOrder) containsCustomOrder = true;
 
     // Cek apakah item boleh kena diskon faktur
-    if (isDiscountableItem(item)) {
+    const hasOwnItemDiscount = (item.diskonRp || 0) > 0 || (item.diskonPersen || 0) > 0;
+    if (isDiscountableItem(item) && !hasOwnItemDiscount) {
       newTotalDiscountable += item.total;
     }
   });
@@ -1083,7 +1095,7 @@ const calculateTotals = async () => {
   // HITUNG DISKON 2 (MAPS) SECARA AKUMULATIF DARI SISA TAGIHAN
   // ---------------------------------------------------------
   const diskonP2 = Number(footer.value.diskonPersen2) || 0;
-  const remainingAfterBase = Math.max(0, newTotalDiscountable - baseNominalDiscount);
+  const remainingAfterBase = Math.max(0, totalSoBruto - baseNominalDiscount);
   const mapsDiscountRp = (diskonP2 / 100) * remainingAfterBase;
 
   // SEKARANG BARU KITA GABUNGKAN KE FOOTER UNTUK TAMPILAN DI LAYAR & DATABASE!
@@ -2077,21 +2089,18 @@ const onSoDtfSelected = async (soDtf: { nomor: string; isLhk?: number | boolean 
     const soDtfDetails = response.data;
 
     soDtfDetails.forEach((detail, index) => {
-      // PERBAIKAN: Tambahkan pengecekan detail.nama
-      // Agar jika ukuran sama (L) tapi barang beda (Hitam vs Putih), tidak dianggap duplikat
       const isDuplicate = items.value.some(
         (item) =>
           item.noSoDtf === detail.sd_nomor &&
-          item.nama === detail.nama && // <--- Tambahkan Baris Ini
+          item.nama === detail.nama &&
           item.ukuran === detail.ukuran
       );
-
       if (!isDuplicate) {
         items.value.push({
-          // Tambahkan index agar ID benar-benar unik jika diproses sangat cepat
           id: Date.now() + index + Math.random(),
           kode: detail.sd_nomor,
           nama: detail.nama,
+          kategori: "CUSTOM",
           ukuran: detail.ukuran,
           jumlah: detail.jumlah,
           harga: detail.harga,
@@ -2816,14 +2825,14 @@ const handleJenisOrderSaved = (data: JenisOrderSaved) => {
     (u: { ukuran: string; jumlah: number; harga: number }, index: number) => {
       if (u.ukuran && (u.jumlah || 0) > 0) {
         items.value.push({
-          // Gunakan timestamp + random + index agar ID benar-benar unik per baris
           id: Date.now() + Math.random() + index,
           kode: "CUSTOM",
           nama: data.namaOrder,
-          ukuran: u.ukuran, // <--- INI KUNCINYA: Masukkan ukuran spesifik
+          kategori: "CUSTOM", // [BARU]
+          ukuran: u.ukuran,
           stok: 0,
           jumlah: u.jumlah,
-          harga: u.harga, // Harga satuan yang sudah dihitung modal
+          harga: u.harga,
           diskonPersen: 0,
           diskonRp: 0,
           total: u.jumlah * u.harga,
@@ -2836,16 +2845,12 @@ const handleJenisOrderSaved = (data: JenisOrderSaved) => {
           isCustomOrder: true,
           sod_custom: "Y",
           sod_custom_nama: data.namaOrder,
-
-          // Simpan data teknis (titik cetak) ke masing-masing baris
-          // agar saat ditarik ke SO DTF, rinciannya tidak hilang
           sod_custom_data: JSON.stringify({
-            ukuranKaos: [u], // Baris ini hanya membawa ukuran dirinya sendiri
+            ukuranKaos: [u],
             titikCetak: data.customData.titikCetak,
             hargaPerCm: data.customData.hargaPerCm,
             sourceItems: sourceItemsSnapshot,
           }),
-
           terhitungPromo: false,
           promo: "",
         });
@@ -3134,6 +3139,8 @@ const getCategoryColor = (kategori: string | undefined) => {
       return "blue-darken-2";
     case "REGULER":
       return "green-darken-2";
+    case "CUSTOM": // [BARU]
+      return "purple-darken-2";
     default:
       return "grey-lighten-1";
   }
@@ -3972,7 +3979,7 @@ const stopAndOpenPriceProposal = (index: number) => {
                 />
               </template>
               <template #[`item.kategori`]="{ item }">
-                <div v-if="!item.isCustomOrder && item.kode">
+                <div v-if="item.kode">
                   <v-chip
                     size="x-small"
                     :color="getCategoryColor(item.kategori)"
@@ -4395,6 +4402,8 @@ const stopAndOpenPriceProposal = (index: number) => {
       v-if="isDiscountCostModalVisible"
       :footer-data="{ ...footer, diskonRp: baseManualDiscountRp }"
       :total-so="totalDiscountable"
+      :gross-total="grossTotalDisplay"
+      :net-after-item-discount="footer.totalSo"
       :customer="header.customer"
       :gudang-kode="header.gudang.kode"
       :ppn-persen="header.ppnPersen"
@@ -4562,7 +4571,16 @@ const stopAndOpenPriceProposal = (index: number) => {
   transform: translateX(-20px);
 }
 
-.left-column,
+.left-column {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 0;
+  height: 100%;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
 .right-column {
   display: flex;
   flex-direction: column;

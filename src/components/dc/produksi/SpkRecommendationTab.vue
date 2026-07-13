@@ -14,14 +14,12 @@ interface PriorityItem {
   img_url: string;
   buffer_dc: number;
   stok_dc: number;
-  spk_ready: number;
   spk_beredar: number;
   buffer_store: number;
   stok_store: number;
   gap_store: number;
   daily_need: string;
   cvg_saat_ini: string;
-  cvg_setelah_wip: string;
   gap_buffer_dc: number;
   status: string;
   rekomendasi_spk: number;
@@ -174,13 +172,13 @@ const predictedCoverageAfterSpk = computed(() => {
   if (!detailItem.value) return "0.0";
   const item = detailItem.value;
   const dailyNeed = Number(item.daily_need) || 1;
-  const totalSetelahSpk = (item.stok_dc || 0) + (item.spk_ready || 0) + (item.qty_input || 0);
+  const totalSetelahSpk = (item.stok_dc || 0) + (item.qty_input || 0);
   return (totalSetelahSpk / dailyNeed).toFixed(1);
 });
 
 const alasanBadgeText = computed(() => {
   if (!detailItem.value) return "";
-  const cvg = Number(detailItem.value.cvg_setelah_wip);
+  const cvg = Number(detailItem.value.cvg_saat_ini);
   if (cvg < 7) return "Coverage < 7 Hari";
   if (cvg <= 15) return "Coverage 7–15 Hari";
   return "Coverage Aman";
@@ -188,7 +186,7 @@ const alasanBadgeText = computed(() => {
 
 const alasanBadgeColor = computed(() => {
   if (!detailItem.value) return "success";
-  const cvg = Number(detailItem.value.cvg_setelah_wip);
+  const cvg = Number(detailItem.value.cvg_saat_ini);
   if (cvg < 7) return "error";
   if (cvg <= 15) return "warning";
   return "success";
@@ -197,8 +195,8 @@ const alasanBadgeColor = computed(() => {
 const alasanText = computed(() => {
   if (!detailItem.value) return "";
   const item = detailItem.value;
-  return `${item.nama} (Size ${item.ukuran}) memiliki Coverage Setelah WIP ${
-    item.cvg_setelah_wip
+  return `${item.nama} (Size ${item.ukuran}) memiliki Coverage ${
+    item.cvg_saat_ini
   } Hari. Stok DC saat ini ${Number(item.stok_dc).toLocaleString(
     "id-ID"
   )} pcs dengan kebutuhan harian ${item.daily_need} pcs. Gap DC tercatat ${Number(
@@ -244,7 +242,7 @@ const headers = [
   { title: "", key: "checkbox", width: 44, sortable: false },
   { title: "PRIORITAS", key: "ranking", width: 70, align: "center" as const },
   { title: "INFO SKU", key: "info_sku", minWidth: 220 },
-  { title: "COVERAGE WIP (Hari)", key: "cvg_setelah_wip", align: "center" as const, width: 130 },
+  { title: "COVERAGE (Hari)", key: "cvg_saat_ini", align: "center" as const, width: 130 },
   { title: "GAP DC (pcs)", key: "gap_buffer_dc", align: "end" as const, width: 100 },
   { title: "SPK BEREDAR (pcs)", key: "spk_beredar", align: "end" as const, width: 120 },
   { title: "QTY REKOMENDASI (pcs)", key: "rekomendasi_spk", align: "end" as const, width: 140 },
@@ -415,7 +413,12 @@ const exportExcel = async () => {
       { header: "Nama Barang", key: "nama", width: 40, align: "left" as const },
       { header: "Ukuran", key: "ukuran", width: 10, align: "center" as const },
       { header: "Kategori", key: "kategori", width: 14, align: "center" as const },
-      { header: "Coverage WIP (Hari)", key: "cvg_setelah_wip", width: 20, align: "right" as const },
+      {
+        header: "Coverage (Hari)",
+        key: "cvg_saat_ini",
+        width: 20,
+        align: "right" as const,
+      },
       {
         header: "Gap DC (pcs)",
         key: "gap_buffer_dc",
@@ -554,7 +557,7 @@ defineExpose({
       <div class="summary-block text-right me-2" style="max-width: 200px">
         <div class="summary-label">INFORMASI</div>
         <div class="summary-sub">
-          SPK Ready &lt;5 Hari sudah di GAP DC, tidak termasuk SPK Beredar.
+          SPK Beredar = realisasi qty SPK aktif yang belum STBJ dan masih open.
         </div>
       </div>
 
@@ -695,10 +698,8 @@ defineExpose({
           </div>
         </template>
 
-        <template #[`item.cvg_setelah_wip`]="{ item }">
-          <span :class="getCoverageColor(item.cvg_setelah_wip)"
-            >{{ item.cvg_setelah_wip }} Hari</span
-          >
+        <template #[`item.cvg_saat_ini`]="{ item }">
+          <span :class="getCoverageColor(item.cvg_saat_ini)">{{ item.cvg_saat_ini }} Hari</span>
         </template>
 
         <template #[`item.gap_buffer_dc`]="{ item }">
@@ -817,19 +818,12 @@ defineExpose({
                   Qty Rekomendasi SPK = GAP DC − SPK BEREDAR
                 </div>
                 <ul class="info-list ps-4 text-grey-darken-2">
+                  <li><strong>GAP DC</strong> = (Buffer DC + Gap Store) − Stok DC</li>
                   <li>
-                    <strong>GAP DC</strong> = (Buffer DC + Gap Store) − (Stok DC + SPK Ready &lt;5
-                    Hari)
-                  </li>
-                  <li>
-                    <strong>SPK BEREDAR</strong> = SPK belum masuk Jahit ke Lipat
+                    <strong>SPK BEREDAR</strong> = SPK aktif, belum STBJ dan masih open
                     (Cutting/Jahit/QC/Packing)
                   </li>
                 </ul>
-                <div class="info-note">
-                  <v-icon size="12" color="blue-darken-2">mdi-information</v-icon>
-                  SPK Ready &lt;5 Hari tidak termasuk SPK Beredar.
-                </div>
               </div>
             </v-col>
 
@@ -872,17 +866,10 @@ defineExpose({
               <v-card variant="flat" class="pa-3 border h-100 bg-white">
                 <div class="text-caption font-weight-bold mb-2">DEFINISI KOLOM</div>
                 <ul class="info-list ps-4">
+                  <li><strong>Gap DC:</strong> (Buffer DC + Gap Store) − Stok DC</li>
                   <li>
-                    <strong>Gap DC:</strong> (Buffer DC + Gap Store) − (Stok DC + SPK Ready &lt;5
-                    Hari)
-                  </li>
-                  <li>
-                    <strong>SPK Beredar:</strong> SPK aktif belum masuk proses Jahit ke Lipat
-                    (Cutting/Jahit/QC/Packing)
-                  </li>
-                  <li>
-                    <strong>SPK Ready &lt;5 Hari:</strong> WIP sudah masuk STBJ, siap masuk DC dalam
-                    ≤5 hari
+                    <strong>SPK Beredar:</strong> Realisasi qty SPK yang masih aktif/open dan belum
+                    STBJ
                   </li>
                   <li><strong>Qty Rekomendasi:</strong> Gap DC − SPK Beredar (minimal 0)</li>
                 </ul>
@@ -892,7 +879,7 @@ defineExpose({
               <v-card variant="flat" class="pa-3 border h-100 bg-white">
                 <div class="text-caption font-weight-bold mb-2">RUMUS COVERAGE</div>
                 <ul class="info-list ps-4">
-                  <li><strong>Coverage Setelah WIP:</strong> (Stok DC + SPK Ready) / Daily Need</li>
+                  <li><strong>Coverage:</strong> Stok DC / Daily Need</li>
                   <li><strong>Daily Need:</strong> Gap Store / 30</li>
                   <li><strong>Status Kritis:</strong> Coverage &lt; 7 Hari</li>
                   <li><strong>Status Perhatian:</strong> 7–15 Hari</li>

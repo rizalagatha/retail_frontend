@@ -36,35 +36,15 @@ interface AuthDialogState {
 }
 
 const props = defineProps({
-  footerData: {
-    type: Object as () => FooterData,
-    required: true,
-  },
-  totalSo: {
-    type: Number,
-    required: true,
-  },
-  ppnPersen: {
-    type: Number,
-    required: true,
-  },
-  customer: {
-    type: Object as () => Customer | null,
-    required: true,
-  },
-  gudangKode: {
-    type: String,
-    required: true,
-  },
-  source: {
-    type: String,
-    default: "SO", // Bisa 'SO' atau 'OFFER'
-  },
-  // Tambahkan nomor dokumen jika sudah ada (untuk audit otorisasi)
-  docNo: {
-    type: String,
-    default: "",
-  },
+  footerData: { type: Object as () => FooterData, required: true },
+  totalSo: { type: Number, required: true }, // basis diskon tambahan (P1/manual/maps)
+  grossTotal: { type: Number, default: 0 }, // bruto murni, untuk tampilan saja
+  netAfterItemDiscount: { type: Number, default: 0 }, // [BARU] total SETELAH diskon item, basis netto sebenarnya
+  ppnPersen: { type: Number, required: true },
+  customer: { type: Object as () => Customer | null, required: true },
+  gudangKode: { type: String, required: true },
+  source: { type: String, default: "SO" },
+  docNo: { type: String, default: "" },
 });
 
 const emit = defineEmits(["close", "update"]);
@@ -129,30 +109,24 @@ watch(
 // --- Computed Properties ---
 // --- [BARU] LOGIKA KELAYAKAN PROMO MAPS (SOP TERBARU) ---
 const isEligibleForMaps = computed(() => {
-  // Rule 1: Minimal belanja bruto 200rb
-  if (props.totalSo < 200000) return false;
+  // [FIX] Gunakan basis yang benar (setelah diskon item), bukan totalSo yang bisa 0 untuk K12
+  const basis = props.netAfterItemDiscount > 0 ? props.netAfterItemDiscount : props.totalSo;
 
-  // Rule 2: Evaluasi HANYA dari nilai diskon yang sedang AKTIF, bukan dari nama level.
-  const persentaseManual =
-    diskonManualRp.value > 0 ? (diskonManualRp.value / props.totalSo) * 100 : 0;
+  if (basis < 200000) return false;
+  const persentaseManual = diskonManualRp.value > 0 ? (diskonManualRp.value / basis) * 100 : 0;
   const persentaseAktif = Math.max(localFooter.value.diskonPersen1, persentaseManual);
-
-  // Kunci Maps HANYA JIKA diskon yang sedang dinikmati >= 10% DAN belanjanya >= 1 Juta
-  if (persentaseAktif >= 10 && props.totalSo >= 1000000) return false;
-
+  if (persentaseAktif >= 10 && basis >= 1000000) return false;
   return true;
 });
 
 const mapsIneligibleReason = computed(() => {
-  if (props.totalSo < 200000) return "Minimal belanja Rp 200.000 untuk promo ini.";
+  const basis = props.netAfterItemDiscount > 0 ? props.netAfterItemDiscount : props.totalSo;
 
-  const persentaseManual =
-    diskonManualRp.value > 0 ? (diskonManualRp.value / props.totalSo) * 100 : 0;
+  if (basis < 200000) return "Minimal belanja Rp 200.000 untuk promo ini.";
+  const persentaseManual = diskonManualRp.value > 0 ? (diskonManualRp.value / basis) * 100 : 0;
   const persentaseAktif = Math.max(localFooter.value.diskonPersen1, persentaseManual);
-
-  if (persentaseAktif >= 10 && props.totalSo >= 1000000)
+  if (persentaseAktif >= 10 && basis >= 1000000)
     return "Diskon (≥ 10%) tidak dapat digabung dengan promo ini.";
-
   return "";
 });
 
@@ -163,24 +137,31 @@ const toggleMapsPromo = () => {
 // --------------------------------------------------------
 
 const diskonRp = computed(() => {
-  const totalBruto = Number(props.totalSo) || 0;
+  // [FIX] Basis yang benar: total setelah diskon item (termasuk tier K12),
+  // BUKAN totalSo yang sudah dikecualikan item-item ber-diskon (bisa 0 untuk K12)
+  const totalBruto =
+    props.netAfterItemDiscount > 0 ? props.netAfterItemDiscount : Number(props.totalSo) || 0;
+
   const nominalManual = Number(diskonManualRp.value) || 0;
   const p1 = Number(localFooter.value.diskonPersen1) || 0;
   const p2 = Number(localFooter.value.diskonPersen2) || 0;
-
-  // Diskon Dasar (Pilih salah satu)
   const baseDiscount = p1 > 0 ? (p1 / 100) * totalBruto : nominalManual;
-
-  // Diskon 2 (MAPS) dari SISA
   const remaining = totalBruto - baseDiscount;
   const disc2 = (p2 / 100) * remaining;
-
   return Math.round(baseDiscount + disc2);
 });
 
-const netto = computed(() => props.totalSo - diskonRp.value);
+const netto = computed(() => {
+  // Basis netto yang benar: total setelah diskon item (termasuk tier discount K12),
+  // BUKAN totalSo (yang sudah dikecualikan item-item ber-diskon) dan BUKAN grossTotal (bruto murni)
+  const base = props.netAfterItemDiscount > 0 ? props.netAfterItemDiscount : props.totalSo;
+  return base - diskonRp.value;
+});
 const ppnRp = computed(() => (props.ppnPersen / 100) * netto.value);
 const grandTotal = computed(() => netto.value + ppnRp.value + (localFooter.value.biayaKirim || 0));
+const displayGrossTotal = computed(() => {
+  return props.grossTotal > 0 ? props.grossTotal : props.totalSo;
+});
 
 const displayDiskonRp = computed(() => {
   return isDiskonRpInputFocused.value
@@ -575,7 +556,7 @@ const handleFocusDiscount = () => {
           <v-list-item
             :title="props.source === 'OFFER' ? 'Total Penawaran (Bruto)' : 'Total SO (Bruto)'"
           >
-            <template #append>{{ formatRupiah(props.totalSo) }}</template>
+            <template #append>{{ formatRupiah(displayGrossTotal) }}</template>
           </v-list-item>
           <v-list-item title="Diskon Faktur">
             <template #append>({{ formatRupiah(diskonRp) }})</template>

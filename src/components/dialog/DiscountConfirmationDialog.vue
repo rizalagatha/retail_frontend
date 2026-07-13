@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { computed } from "vue";
 import { formatRupiah } from "@/utils/formatRupiah";
 
 export interface ItemDiscount {
@@ -6,7 +7,7 @@ export interface ItemDiscount {
   persen: number;
 }
 
-defineProps<{
+const props = defineProps<{
   modelValue: boolean;
   customerLevel?: string;
   diskonPersenMember?: number;
@@ -22,6 +23,12 @@ const emit = defineEmits<{
   (e: "use-promo"): void;
   (e: "ignore"): void;
 }>();
+
+// [BARU] Deteksi promo yang murni diskon per-item (mis. Grand Opening K12),
+// tanpa diskon faktur sama sekali (pro_disrp/pro_dispersen = 0)
+const isPurelyItemDiscount = computed(() => {
+  return (props.promoNominal || 0) === 0 && (props.itemDiscounts?.length || 0) > 0;
+});
 
 const closeDialog = () => emit("update:modelValue", false);
 const handleIgnore = () => {
@@ -55,13 +62,10 @@ const handleIgnore = () => {
           <!-- Kolom Kiri: Diskon Member -->
           <v-col cols="6" class="d-flex flex-column">
             <div class="choice-card choice-card--member d-flex flex-column h-100">
-              <!-- Judul -->
               <div class="choice-title mb-3">
                 <v-icon color="primary" size="20" class="mr-1">mdi-account-star</v-icon>
                 <span class="text-primary font-weight-bold">Diskon Member</span>
               </div>
-
-              <!-- Blok nominal P1 -->
               <div v-if="(diskonPersenMember || 0) > 0" class="info-block info-block--blue mb-3">
                 <div class="info-label">Diskon Level {{ customerLevel || "Standar" }}</div>
                 <div class="info-sublabel">{{ diskonPersenMember }}% dari total belanja</div>
@@ -70,8 +74,6 @@ const handleIgnore = () => {
               <div v-else class="info-block info-block--grey mb-3">
                 <div class="info-sublabel">Tidak ada diskon member aktif</div>
               </div>
-
-              <!-- List item discounts -->
               <div v-if="itemDiscounts && itemDiscounts.length > 0" class="item-disc-section mb-3">
                 <div class="item-disc-header">
                   <v-icon size="15" color="success" class="mr-1">mdi-check-circle-outline</v-icon>
@@ -84,7 +86,6 @@ const handleIgnore = () => {
                   </div>
                 </div>
               </div>
-
               <div class="mt-auto">
                 <v-btn
                   block
@@ -103,19 +104,24 @@ const handleIgnore = () => {
           <!-- Kolom Kanan: Promo Bulanan -->
           <v-col cols="6" class="d-flex flex-column">
             <div class="choice-card choice-card--promo d-flex flex-column h-100">
-              <!-- Judul -->
               <div class="choice-title mb-3">
                 <v-icon color="orange-darken-2" size="20" class="mr-1">mdi-percent-circle</v-icon>
                 <span class="text-orange-darken-2 font-weight-bold">Promo Bulanan</span>
               </div>
 
-              <!-- Blok nominal promo -->
-              <div class="info-block info-block--orange mb-3">
+              <!-- [UBAH] Blok nominal promo — kondisional -->
+              <div v-if="!isPurelyItemDiscount" class="info-block info-block--orange mb-3">
                 <div class="info-label">{{ promoNama }}</div>
                 <div class="info-sublabel">Potongan faktur langsung:</div>
                 <div class="info-nominal info-nominal--orange">
                   − {{ formatRupiah(promoNominal || 0) }}
                 </div>
+              </div>
+
+              <!-- [BARU] Kalau murni diskon per-item, tampilkan judul promo + daftar diskon langsung -->
+              <div v-else class="info-block info-block--orange mb-3">
+                <div class="info-label">{{ promoNama }}</div>
+                <div class="info-sublabel">Diskon otomatis berlaku per item:</div>
               </div>
 
               <!-- Info item discount -->
@@ -124,9 +130,19 @@ const handleIgnore = () => {
                   <v-icon size="15" color="orange-darken-2" class="mr-1"
                     >mdi-tag-multiple-outline</v-icon
                   >
-                  Diskon item otomatis:
+                  {{ isPurelyItemDiscount ? "Rincian diskon item:" : "Diskon item otomatis:" }}
                 </div>
-                <div class="item-disc-summary">
+
+                <!-- [UBAH] Kalau murni item discount, tampilkan list rinci; kalau tidak, tampilkan ringkasan -->
+                <div v-if="isPurelyItemDiscount" class="item-disc-list">
+                  <div v-for="(disc, idx) in itemDiscounts" :key="idx" class="item-disc-row">
+                    <span class="item-disc-nama" :title="disc.nama">{{ disc.nama }}</span>
+                    <span class="item-disc-persen item-disc-persen--orange"
+                      >−{{ disc.persen }}%</span
+                    >
+                  </div>
+                </div>
+                <div v-else class="item-disc-summary">
                   {{ itemDiscounts.length }} jenis barang dapat diskon khusus
                 </div>
               </div>
@@ -134,7 +150,6 @@ const handleIgnore = () => {
               <p class="text-caption text-medium-emphasis mt-1 mb-3">
                 Diskon Member (Reseller) akan dinonaktifkan secara otomatis.
               </p>
-
               <div class="mt-auto">
                 <v-btn
                   block
@@ -178,8 +193,6 @@ const handleIgnore = () => {
 .dialog-card {
   overflow: visible !important;
 }
-
-/* --- Card pilihan --- */
 .choice-card {
   border: 1.5px solid;
   border-radius: 10px;
@@ -195,15 +208,11 @@ const handleIgnore = () => {
   border-color: #e65100;
   background-color: #fff8f0;
 }
-
-/* --- Judul card --- */
 .choice-title {
   display: flex;
   align-items: center;
   font-size: 0.95rem;
 }
-
-/* --- Blok info nominal --- */
 .info-block {
   border-radius: 8px;
   padding: 10px 12px;
@@ -219,13 +228,12 @@ const handleIgnore = () => {
 .info-block--grey {
   background-color: #f5f5f5;
 }
-
 .info-label {
   font-size: 0.82rem;
   font-weight: 700;
   line-height: 1.4;
   color: #333;
-  word-break: break-word; /* ← kunci: teks panjang tidak terpotong */
+  word-break: break-word;
   white-space: normal;
 }
 .info-sublabel {
@@ -244,8 +252,6 @@ const handleIgnore = () => {
 .info-nominal--orange {
   color: #bf360c;
 }
-
-/* --- Section item discounts --- */
 .item-disc-section {
   flex-shrink: 0;
 }
@@ -285,13 +291,15 @@ const handleIgnore = () => {
   color: #c62828;
   flex-shrink: 0;
 }
+/* [BARU] Warna beda untuk kolom promo (oranye) agar konsisten dengan tema kartu */
+.item-disc-persen--orange {
+  color: #bf360c;
+}
 .item-disc-summary {
   font-size: 0.8rem;
   font-weight: 700;
   color: #e65100;
 }
-
-/* --- Tombol pilih --- */
 .choice-btn {
   font-size: 0.82rem !important;
   font-weight: 700 !important;
@@ -299,8 +307,6 @@ const handleIgnore = () => {
   height: 40px !important;
   text-transform: none !important;
 }
-
-/* --- Scrollbar tipis --- */
 .item-disc-list::-webkit-scrollbar {
   width: 4px;
 }

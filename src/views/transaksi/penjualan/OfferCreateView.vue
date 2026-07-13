@@ -280,14 +280,19 @@ const autoPromo = useAutoPromo(promoHeaderProxy, items, {
     return true;
   },
   onFakturPromoAvailable: (promo) => {
-    // Cegah dialog muncul terus jika sudah diabaikan
     if (lastSuggestedPromo.value === promo.nomor || lastSuggestedPromo.value === "MANUAL_AUTH")
       return;
-
     pendingPromoData.nomor = promo.nomor;
     pendingPromoData.nama = promo.nama;
     pendingPromoData.diskon = promo.diskon;
     isPromoConfirmVisible.value = true;
+  },
+  // [BARU] Sama seperti SoCreateView — cegah evaluate ulang saat initial load
+  shouldSkipEvaluate: () => {
+    return (
+      (isInitialLoad.value && !!header.value.nomorPromo) ||
+      lastSuggestedPromo.value === "MANUAL_AUTH"
+    );
   },
 });
 
@@ -302,7 +307,7 @@ const syncPromoProxy = () => {
   promoHeaderProxy.customer.level = header.value.customer?.level || "";
   promoHeaderProxy.nomorPromo = header.value.nomorPromo || "";
   promoHeaderProxy.namaPromo = header.value.namaPromo || "";
-  promoHeaderProxy.diskonRp = baseManualDiscountRp.value; // PENTING: Cegah loop
+  promoHeaderProxy.diskonRp = baseManualDiscountRp.value;
   promoHeaderProxy.diskonPersen1 = footer.value.diskonPersen1;
   promoHeaderProxy.diskonPersen2 = footer.value.diskonPersen2;
 };
@@ -356,8 +361,8 @@ const pendingAction = ref<(() => void) | null>(null);
 const isPrintConfirmVisible = ref(false);
 const printConfirmNomor = ref("");
 const scannedBarcode = ref("");
-const isAuthPending = ref(false); // [BARU] Penanda sedang menunggu auth
-const previousDiskonRp = ref(0); // [BARU] Untuk menyimpan nilai sebelum edit
+const isAuthPending = ref(false);
+const previousDiskonRp = ref(0);
 const dpItems = ref<DpItem[]>([]);
 const isDpInputVisible = ref(false);
 const isDpListModalVisible = ref(false);
@@ -409,6 +414,15 @@ const penawaranBarangList = computed(() => {
     }
   });
   return Array.from(map.entries()).map(([kodeBarang, namaBarang]) => ({ kodeBarang, namaBarang }));
+});
+
+const grossTotalDisplay = computed(() => {
+  return items.value.reduce((sum, item) => {
+    if (!item.kode) return sum;
+    const qty = Number(item.jumlah) || 0;
+    const harga = Number(item.harga) || 0;
+    return sum + qty * harga;
+  }, 0);
 });
 
 const tableHeaders: TableHeader[] = [
@@ -474,6 +488,7 @@ const onNewCustomerSaved = (newCustomer: Customer) => {
 };
 
 const loadOfferData = async (nomor: string) => {
+  isInitialLoad.value = true;
   try {
     const response = await api.get(`/offer-form/edit-details/${nomor}`);
     const { headerData, itemsData, dpItemsData, footerData } = response.data;
@@ -504,7 +519,7 @@ const loadOfferData = async (nomor: string) => {
             id: Date.now() + Math.random() + uIdx,
             kode: item.kode || "CUSTOM",
             nama: item.pend_custom_nama || item.nama || "",
-            kategori: item.kategori || "",
+            kategori: isCustom ? "CUSTOM" : item.kategori || "",
             ukuran: u.ukuran, // Ambil ukuran spesifik
             stok: item.stok || 0,
             jumlah: u.jumlah, // Ambil jumlah spesifik
@@ -534,7 +549,7 @@ const loadOfferData = async (nomor: string) => {
           id: Date.now() + Math.random() + index,
           kode: item.kode || "",
           nama: (isCustom ? item.pend_custom_nama : item.nama) || "",
-          kategori: item.kategori || "",
+          kategori: isCustom ? "CUSTOM" : item.kategori || "",
           ukuran: item.ukuran || "",
           stok: item.stok || 0,
           jumlah: item.jumlah || 0,
@@ -845,7 +860,8 @@ const calculateTotals = () => {
     subtotal += item.total;
 
     // Filter: Jenis Order (CUSTOM) tidak masuk basis diskon
-    if (isDiscountableItem(item)) {
+    const hasOwnItemDiscount = (item.diskonRp || 0) > 0 || (item.diskonPersen || 0) > 0;
+    if (isDiscountableItem(item) && !hasOwnItemDiscount) {
       subtotalDiscountable += item.total;
     }
   });
@@ -867,7 +883,7 @@ const calculateTotals = () => {
   }
 
   const diskonP2 = Number(footer.value.diskonPersen2) || 0;
-  const remainingAfterBase = Math.max(0, subtotalDiscountable - baseNominalDiscount);
+  const remainingAfterBase = Math.max(0, subtotal - baseNominalDiscount);
   const mapsDiscountRp = (diskonP2 / 100) * remainingAfterBase;
 
   // Gabungkan untuk tampilan di layar
@@ -1742,7 +1758,8 @@ const handleJenisOrderSaved = (data: JenisOrderSaved) => {
         id: Date.now() + Math.random() + index,
         kode: "CUSTOM",
         nama: data.namaOrder,
-        ukuran: u.ukuran, // <--- INI KUNCINYA: Masukkan ukuran spesifik
+        kategori: "CUSTOM",
+        ukuran: u.ukuran,
         stok: 0,
         jumlah: u.jumlah,
         harga: u.harga, // Harga satuan yang sudah dihitung modal
@@ -1958,6 +1975,22 @@ const handleKodeKeydown = (e: KeyboardEvent, index: number) => {
   }
 };
 
+const getCategoryColor = (kategori: string | undefined) => {
+  const k = (kategori || "").toUpperCase();
+  switch (k) {
+    case "SESIONAL":
+      return "orange-darken-2";
+    case "PESANAN":
+      return "blue-darken-2";
+    case "REGULER":
+      return "green-darken-2";
+    case "CUSTOM":
+      return "purple-darken-2";
+    default:
+      return "grey-lighten-1";
+  }
+};
+
 // Gunakan debounce (opsional tapi disarankan) agar tidak nembak API setiap ngetik angka
 let debounceTimer: ReturnType<typeof setTimeout>;
 
@@ -1989,7 +2022,14 @@ watch(
   },
   { deep: true }
 );
-watch(footer, calculateTotals, { deep: true });
+watch(
+  [
+    () => footer.value.biayaKirim,
+    () => footer.value.diskonPersen1,
+    () => footer.value.diskonPersen2,
+  ],
+  calculateTotals
+);
 watch(
   () => promoHeaderProxy.nomorPromo,
   (val) => {
@@ -2421,7 +2461,7 @@ onMounted(async () => {
             <v-chip
               v-if="item.kategori"
               size="x-small"
-              color="green-darken-2"
+              :color="getCategoryColor(item.kategori)"
               variant="flat"
               class="font-weight-bold text-white"
             >
@@ -2652,6 +2692,8 @@ onMounted(async () => {
       source="OFFER"
       :footer-data="{ ...footer, diskonRp: baseManualDiscountRp }"
       :total-so="footer.subtotalKaos"
+      :gross-total="grossTotalDisplay"
+      :net-after-item-discount="footer.total"
       :customer="header.customer"
       :gudang-kode="header.gudang.kode"
       :ppn-persen="header.ppnPersen"

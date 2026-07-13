@@ -14,6 +14,7 @@ import LogoKaosan from "@/assets/logo.png";
 import LogoRezso from "@/assets/rezso.jpg";
 import { formatRupiah } from "@/utils/formatRupiah";
 import { useAutoPromo } from "@/composables/useAutoPromo";
+import { PROMO_GRAND_OPENING_K12, isEligibleFreeGiftItem } from "@/constants/promoConfig";
 
 import PageLayout from "@/components/PageLayout.vue";
 import CustomerSearchModal from "@/components/lookup/CustomerSearchModal.vue";
@@ -62,6 +63,7 @@ interface Item {
   isCustomOrder?: boolean;
   fromBackend?: boolean;
   isJasa?: boolean;
+  isFreeGift?: boolean;
 }
 interface LinkedDp {
   nomor: string;
@@ -193,8 +195,8 @@ interface SjApiItem {
   harga_so?: number | string;
   brgd_harga?: number | string;
   harga?: number | string;
-  hpp?: number | string; // <--- TAMBAHKAN INI
-  brgd_hpp?: number | string; // <--- TAMBAHKAN INI JUGA (untuk fallback)
+  hpp?: number | string;
+  brgd_hpp?: number | string;
   disc?: number | string;
   diskon?: number | string;
   barcode?: string;
@@ -351,6 +353,7 @@ const initialHeaderState = {
   overdueNote: "",
 
   diskonMapsRp: 0,
+  proNomorFreeItem: "" as string,
 };
 
 // [BARU] Daftar Marketplace
@@ -475,6 +478,17 @@ const audioError = new Audio("/audio/beep_error.mp3");
 // Ref untuk input barcode agar bisa auto-focus
 const barcodeInputRef = ref<HTMLInputElement | null>(null);
 const isScanning = ref(false); // State untuk loading scan
+
+// [BARU] State Hadiah Gratis Grand Opening K12
+const freeGiftQuota = reactive({
+  available: false,
+  sisaKuota: 0,
+  reason: null as string | null,
+});
+const isFreeGiftScanDialogOpen = ref(false);
+const freeGiftScanBarcode = ref("");
+const isFreeGiftScanning = ref(false);
+const freeGiftScanInputRef = ref<HTMLInputElement | null>(null);
 
 // --- Konfigurasi Tabel ---
 const tableHeaders = [
@@ -786,9 +800,15 @@ const fetchSalesCounters = async () => {
 };
 
 const removeRow = (itemToDelete: Item) => {
+  const wasFreeGift = itemToDelete.isFreeGift;
   items.value = items.value.filter((item) => item.id !== itemToDelete.id);
   if (items.value.length === 0) {
     addNewRow();
+  }
+  // [BARU] Kalau item gratis dihapus, izinkan scan ulang & lepas kunci header
+  if (wasFreeGift) {
+    header.proNomorFreeItem = "";
+    checkFreeGiftQuota();
   }
 };
 
@@ -938,6 +958,7 @@ const onCustomerSelected = async (cust: Customer | null) => {
     calculateTotals(); // hitung ulang total
   }
   dialogs.customerSearch = false;
+  await checkFreeGiftQuota();
 };
 
 const applyDefaultDiscount = () => {
@@ -1007,6 +1028,7 @@ const onNewCustomerSaved = (customer: Customer) => {
   };
 
   dialogs.customerForm = false;
+  checkFreeGiftQuota();
 };
 
 const onMemberSaved = (data: Member) => {
@@ -1944,12 +1966,156 @@ const useMemberDiscount = () => {
   toast.info("Promo dilepas, kembali ke diskon member.");
 };
 
+// [BARU] Cek kuota hadiah gratis Grand Opening K12
+const checkFreeGiftQuota = async () => {
+  const cabang = header.gudang.kode;
+  const activeNomors = autoPromo.activePromos.value.map((p) => p.pro_nomor);
+  const isCampaignActive =
+    cabang === PROMO_GRAND_OPENING_K12.cabang &&
+    activeNomors.includes(PROMO_GRAND_OPENING_K12.proNomor);
+
+  // [BARU] Kecualikan customer RETAIL
+  const custNama = header.customer?.nama?.toUpperCase() || "";
+  const isRetailCustomer = custNama.includes("RETAIL");
+
+  if (!isCampaignActive || !header.customer.kode || isRetailCustomer) {
+    freeGiftQuota.available = false;
+    freeGiftQuota.sisaKuota = 0;
+    freeGiftQuota.reason = isRetailCustomer ? "CUSTOMER_RETAIL" : null;
+    return;
+  }
+
+  if (items.value.some((i) => i.isFreeGift)) {
+    freeGiftQuota.available = false;
+    return;
+  }
+
+  try {
+    const { data } = await api.get("/invoice-form/lookup/free-item-quota", {
+      params: {
+        proNomor: PROMO_GRAND_OPENING_K12.proNomor,
+        cusKode: header.customer.kode,
+      },
+    });
+    freeGiftQuota.available = data.available;
+    freeGiftQuota.sisaKuota = data.sisaKuota;
+    freeGiftQuota.reason = data.reason;
+  } catch (err) {
+    console.error("[FreeGift] Gagal cek kuota:", err);
+    freeGiftQuota.available = false;
+  }
+};
+
+// [BARU] Buka dialog scan hadiah gratis
+const openFreeGiftScanDialog = () => {
+  freeGiftScanBarcode.value = "";
+  isFreeGiftScanDialogOpen.value = true;
+  nextTick(() => {
+    freeGiftScanInputRef.value?.focus();
+  });
+};
+
+// [BARU] Proses scan barcode hadiah gratis
+const handleFreeGiftScan = async () => {
+  const barcode = freeGiftScanBarcode.value;
+  if (!barcode) return;
+
+  isFreeGiftScanning.value = true;
+  try {
+    const response = await api.get(`/invoice-form/by-barcode/${barcode}`, {
+      params: { gudang: header.gudang.kode },
+    });
+    const product = response.data;
+
+    // Validasi: harus kategori REGULER + nama mengandung COMBED 24S
+    if (!isEligibleFreeGiftItem(product)) {
+      audioError.play().catch(() => {});
+      toast.error(`${product.nama} bukan barang COMBED 24S. Scan barang lain untuk hadiah gratis.`);
+      nextTick(() => {
+        freeGiftScanInputRef.value?.select();
+      });
+      return;
+    }
+
+    // Tambahkan sebagai item hadiah gratis
+    items.value.push({
+      id: Date.now(),
+      kode: product.kode,
+      nama: `${product.nama} 🎁 HADIAH GRATIS`,
+      ukuran: product.ukuran,
+      stok: product.stok,
+      jumlah: 1,
+      harga: 0,
+      diskonPersen: 0,
+      diskonRp: 0,
+      total: 0,
+      barcode: product.barcode,
+      qtyso: 0,
+      kategori: product.kategori || "",
+      terhitungPromo: false,
+      _isHargaEditable: false,
+      isFreeGift: true, // [KUNCI] flag hadiah gratis
+    });
+    addNewRow();
+
+    // Kunci promo ini di header agar backend tahu harus reserve slot saat save
+    header.proNomorFreeItem = PROMO_GRAND_OPENING_K12.proNomor;
+
+    freeGiftQuota.available = false;
+    isFreeGiftScanDialogOpen.value = false;
+    audioSuccess.play().catch(() => {});
+    toast.success(`🎁 Hadiah gratis ditambahkan: ${product.nama}`);
+    calculateTotals();
+  } catch (error: unknown) {
+    audioError.play().catch(() => {});
+    if (axios.isAxiosError(error) && error.response) {
+      toast.error(error.response.data?.message || `Barcode ${barcode} tidak valid.`);
+    } else {
+      toast.error(`Barcode ${barcode} tidak valid.`);
+    }
+    nextTick(() => {
+      freeGiftScanInputRef.value?.select();
+    });
+  } finally {
+    isFreeGiftScanning.value = false;
+    freeGiftScanBarcode.value = "";
+    if (isFreeGiftScanDialogOpen.value) {
+      nextTick(() => freeGiftScanInputRef.value?.focus());
+    }
+  }
+};
+
 const closePromoDialog = () => {
   isPromoConfirmVisible.value = false;
   lastSuggestedPromo.value = pendingPromoData.nomor;
 };
 
 const handleProceedToPayment = async () => {
+  if (freeGiftQuota.available && !items.value.some((i) => i.isFreeGift)) {
+    const confirmed = await new Promise<boolean>((resolve) => {
+      showConfirmation(
+        "⚠️ Hadiah Gratis Belum Diambil!",
+        `Customer ini berhak dapat COMBED 24S gratis (Sisa kuota: ${freeGiftQuota.sisaKuota}), tapi belum di-scan. Lanjutkan tanpa memberikan hadiah?`,
+        () => resolve(true)
+      );
+      const unwatch = watch(
+        () => dialogConfirm.show,
+        (newValue) => {
+          if (!newValue) {
+            unwatch();
+            resolve(false);
+          }
+        }
+      );
+      const originalOnConfirm = dialogConfirm.onConfirm;
+      dialogConfirm.onConfirm = () => {
+        originalOnConfirm();
+        unwatch();
+      };
+    });
+    if (!confirmed) return; // SC pilih "Batal" → kembali ke form, tetap bisa scan hadiah
+  }
+
   // =========================================================
   // [BARU] CEK SESI KASIR SEBELUM LANJUT KE PEMBAYARAN
   // =========================================================
@@ -1989,7 +2155,10 @@ const handleProceedToPayment = async () => {
       String(item.ukuran).toUpperCase() === "A6" &&
       (item.harga === 0 || item.terhitungPromo);
 
-    if (!isStickerPromoToko) {
+    const isFreeGiftItem = item.isFreeGift === true;
+
+    if (!isStickerPromoToko && !isFreeGiftItem) {
+      // [UBAH]
       if (
         (item.harga === null || item.harga === undefined || item.harga < 0) &&
         !item.promo &&
@@ -2417,6 +2586,8 @@ const getQtyClass = (item: Item) => {
 };
 
 const isHargaEditable = (item: Item) => {
+  if (item.isFreeGift) return false;
+
   const cabang = authStore.user?.cabang || "";
 
   // 1. Cabang KDC: Bebas edit harga apapun
@@ -3274,10 +3445,10 @@ watch(
             <v-data-table
               :headers="tableHeaders"
               :items="items"
-              class="desktop-table header-browse-blue"
+              class="desktop-table header-browse-blue vertically-aligned-table"
               :items-per-page="-1"
               fixed-header
-              height="calc(100vh - 420px)"
+              :item-class="(item: Item) => (item.isFreeGift ? 'free-gift-row' : '')"
             >
               <template v-slot:[`item.kode`]="{ item, index }">
                 <v-text-field
@@ -3293,7 +3464,11 @@ watch(
               </template>
 
               <template #[`item.kategori`]="{ item }">
-                <div v-if="!item.isCustomOrder && item.kode">
+                <div
+                  v-if="!item.isCustomOrder && item.kode"
+                  class="d-flex align-center"
+                  style="height: 36px"
+                >
                   <v-chip
                     size="x-small"
                     :color="getCategoryColor(item.kategori)"
@@ -3308,7 +3483,7 @@ watch(
               <template v-slot:[`item.jumlah`]="{ item }">
                 <v-text-field
                   v-model.number="item.jumlah"
-                  :readonly="isReadonly"
+                  :readonly="isReadonly || item.isFreeGift"
                   type="number"
                   min="0"
                   variant="underlined"
@@ -3372,7 +3547,10 @@ watch(
               </template>
 
               <template v-slot:[`item.total`]="{ item }">
-                <div class="text-end text-body-2 font-weight-bold pt-3 pb-1">
+                <div
+                  class="text-end text-body-2 font-weight-bold d-flex align-center justify-end"
+                  style="height: 36px"
+                >
                   {{ formatRupiah(item.total ?? 0) }}
                 </div>
               </template>
@@ -3393,7 +3571,11 @@ watch(
               </template>
 
               <template v-slot:[`item.terhitungPromo`]="{ item }">
-                <div v-if="item.kode" class="text-center">
+                <div
+                  v-if="item.kode"
+                  class="text-center d-flex align-center justify-center"
+                  style="height: 36px"
+                >
                   <v-chip
                     v-if="isItemPromoEligible(item)"
                     size="x-small"
@@ -3402,9 +3584,9 @@ watch(
                     class="font-weight-bold"
                   >
                     ELIGIBLE
-                    <v-tooltip activator="parent" location="top">
-                      Produk ini berkontribusi dalam perhitungan Promo April
-                    </v-tooltip>
+                    <v-tooltip activator="parent" location="top"
+                      >Produk ini berkontribusi dalam perhitungan Promo</v-tooltip
+                    >
                   </v-chip>
                   <v-icon v-else color="grey-lighten-2" size="small">mdi-minus</v-icon>
                 </div>
@@ -3437,6 +3619,34 @@ watch(
         </div>
 
         <div class="footer-actions-section">
+          <v-slide-y-transition>
+            <div v-if="freeGiftQuota.available" class="free-gift-banner mb-3">
+              <div class="banner-shine"></div>
+              <div class="banner-content">
+                <div class="gift-icon-wrapper">
+                  <v-icon icon="mdi-gift-outline" size="24" class="gift-bounce" />
+                </div>
+                <div class="banner-text">
+                  <div class="banner-title">🎉 Hadiah Gratis Tersedia!</div>
+                  <div class="banner-subtitle">
+                    Customer berhak dapat COMBED 24S gratis — Sisa kuota:
+                    <strong>{{ freeGiftQuota.sisaKuota }}</strong>
+                  </div>
+                </div>
+                <v-btn
+                  color="white"
+                  variant="flat"
+                  size="small"
+                  class="scan-gift-btn"
+                  prepend-icon="mdi-barcode-scan"
+                  @click="openFreeGiftScanDialog"
+                >
+                  Scan Hadiah Gratis
+                </v-btn>
+              </div>
+            </div>
+          </v-slide-y-transition>
+
           <v-slide-y-transition>
             <div v-if="promoNotification" class="promo-card-wrapper mb-4">
               <div
@@ -3686,6 +3896,62 @@ watch(
         </v-card-actions>
       </v-card>
     </v-dialog>
+
+    <v-dialog v-model="isFreeGiftScanDialogOpen" max-width="480" persistent>
+      <v-card class="rounded-xl free-gift-dialog">
+        <div class="free-gift-dialog-header">
+          <div class="header-icon-circle">
+            <v-icon icon="mdi-gift-outline" size="22" color="white" />
+          </div>
+          <div class="header-text">
+            <div class="header-title">Scan Hadiah Gratis</div>
+            <div class="header-subtitle">Grand Opening K12</div>
+          </div>
+          <v-btn
+            icon="mdi-close"
+            variant="text"
+            size="small"
+            color="white"
+            @click="isFreeGiftScanDialogOpen = false"
+          />
+        </div>
+
+        <v-card-text class="pa-5">
+          <v-alert
+            type="info"
+            variant="tonal"
+            density="comfortable"
+            class="mb-5 free-gift-info-alert"
+            icon="mdi-information"
+          >
+            Silakan scan barcode barang <strong>COMBED 24S</strong> yang dipilih customer sebagai
+            hadiah gratis.
+          </v-alert>
+
+          <v-text-field
+            ref="freeGiftScanInputRef"
+            v-model="freeGiftScanBarcode"
+            label="Scan Barcode Hadiah"
+            placeholder="Arahkan scanner ke sini..."
+            variant="outlined"
+            density="comfortable"
+            prepend-inner-icon="mdi-barcode-scan"
+            hide-details
+            clearable
+            :loading="isFreeGiftScanning"
+            :disabled="isFreeGiftScanning"
+            autofocus
+            class="free-gift-scan-input"
+            @keydown.enter.prevent="handleFreeGiftScan"
+          />
+
+          <div class="scan-hint">
+            <v-icon size="14" color="grey">mdi-information-outline</v-icon>
+            Barang selain COMBED 24S akan ditolak otomatis.
+          </div>
+        </v-card-text>
+      </v-card>
+    </v-dialog>
   </PageLayout>
 </template>
 
@@ -3795,22 +4061,55 @@ watch(
   flex-direction: column;
 }
 
-.table-section .v-data-table {
-  width: 100%;
-  flex-grow: 1;
+.vertically-aligned-table :deep(tbody tr td) {
+  vertical-align: middle !important;
+}
+
+/* Merapatkan padding antar kolom & menyeragamkan tinggi baris */
+.desktop-table :deep(thead tr th),
+.desktop-table :deep(tbody tr td) {
+  padding: 0 4px !important;
+  height: 36px !important;
+}
+
+/* Hilangkan margin bawah v-input agar tidak mendorong tinggi baris */
+.desktop-table :deep(.v-text-field .v-input__details) {
+  display: none !important;
+}
+
+.desktop-table :deep(.v-text-field .v-field__input) {
+  padding: 0 2px !important;
+  min-height: 28px !important;
+}
+
+.desktop-table :deep(thead th) {
+  white-space: nowrap !important;
 }
 
 .desktop-table :deep(.v-table__wrapper) {
   overflow-x: auto !important;
-  /* Horizontal scroll */
   overflow-y: auto !important;
-  /* Vertical scroll */
-  max-height: 100%;
+  max-height: 100% !important;
+  flex: 1 1 auto;
 }
 
 /* Pastikan tabel bisa lebih lebar dari container */
 .desktop-table :deep(.v-table) {
   min-width: max-content;
+}
+
+.desktop-table :deep(td) {
+  vertical-align: middle !important;
+}
+
+/* Pastikan setiap wrapper v-text-field di dalam td benar-benar center */
+.desktop-table :deep(td .v-input) {
+  display: flex;
+  align-items: center;
+}
+
+.desktop-table :deep(td .v-input__control) {
+  width: 100%;
 }
 
 .footer-actions-section {
@@ -4194,5 +4493,211 @@ watch(
     opacity: 0.5;
     transform: scale(0.8);
   }
+}
+
+/* --- Free Gift Banner --- */
+.free-gift-banner {
+  position: relative;
+  overflow: hidden;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+  box-shadow: 0 8px 20px -4px rgba(56, 239, 125, 0.4);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  animation: giftBannerEntrance 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+@keyframes giftBannerEntrance {
+  0% {
+    opacity: 0;
+    transform: scale(0.9) translateY(-10px);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+.banner-shine {
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 50%;
+  height: 100%;
+  background: linear-gradient(
+    to right,
+    transparent 0%,
+    rgba(255, 255, 255, 0.35) 50%,
+    transparent 100%
+  );
+  transform: skewX(-25deg);
+  animation: shineMove 3.5s infinite ease-in-out;
+  pointer-events: none;
+}
+
+.banner-content {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 16px;
+  color: white;
+}
+
+.gift-icon-wrapper {
+  flex-shrink: 0;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.22);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  backdrop-filter: blur(4px);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+}
+
+.gift-bounce {
+  animation: giftBounce 1.2s ease-in-out infinite;
+}
+
+@keyframes giftBounce {
+  0%,
+  100% {
+    transform: translateY(0) rotate(0deg);
+  }
+  25% {
+    transform: translateY(-4px) rotate(-8deg);
+  }
+  75% {
+    transform: translateY(-2px) rotate(8deg);
+  }
+}
+
+.banner-text {
+  flex-grow: 1;
+}
+
+.banner-title {
+  font-size: 14px;
+  font-weight: 800;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
+}
+
+.banner-subtitle {
+  font-size: 12px;
+  opacity: 0.95;
+  margin-top: 2px;
+}
+
+.scan-gift-btn {
+  flex-shrink: 0;
+  color: #11998e !important;
+  font-weight: 700;
+  animation: giftBtnPulse 2s infinite;
+}
+
+@keyframes giftBtnPulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(255, 255, 255, 0.5);
+  }
+  70% {
+    box-shadow: 0 0 0 8px rgba(255, 255, 255, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(255, 255, 255, 0);
+  }
+}
+
+/* --- Free Gift Row di Tabel --- */
+.desktop-table :deep(.free-gift-row) {
+  background: linear-gradient(
+    90deg,
+    rgba(56, 239, 125, 0.12) 0%,
+    rgba(17, 153, 142, 0.06) 100%
+  ) !important;
+  position: relative;
+}
+
+.desktop-table :deep(.free-gift-row td) {
+  color: #0d7a6f !important;
+  font-weight: 600;
+}
+
+.desktop-table :deep(.free-gift-row::before) {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 4px;
+  background: linear-gradient(180deg, #11998e, #38ef7d);
+}
+
+/* --- Dialog Scan Hadiah Gratis --- */
+.free-gift-dialog {
+  overflow: hidden;
+}
+
+.free-gift-dialog-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 16px 16px 20px;
+  background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+}
+
+.header-icon-circle {
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.22);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+}
+
+.header-text {
+  flex-grow: 1;
+  min-width: 0;
+}
+
+.header-title {
+  color: white;
+  font-size: 16px;
+  font-weight: 800;
+  line-height: 1.3;
+  white-space: normal;
+}
+
+.header-subtitle {
+  color: rgba(255, 255, 255, 0.85);
+  font-size: 12px;
+  font-weight: 500;
+  margin-top: 1px;
+}
+
+.free-gift-info-alert {
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.free-gift-scan-input :deep(.v-field) {
+  border-radius: 10px;
+}
+
+.free-gift-scan-input :deep(.v-field__input) {
+  font-size: 15px;
+}
+
+.scan-hint {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 10px;
+  font-size: 11px;
+  color: rgba(var(--v-theme-on-surface), 0.55);
 }
 </style>

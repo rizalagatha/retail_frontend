@@ -28,6 +28,7 @@ interface PriorityItem {
   brg_lengan: string;
   brg_warna: string;
   brg_jeniskain: string;
+  brg_jeniskaos: string;
 }
 
 interface StoreDetailItem {
@@ -490,7 +491,7 @@ onMounted(() => {
             <v-card variant="flat" class="pa-3 border h-100 bg-white">
               <div class="text-subtitle-2 font-weight-bold mb-2">DEFINISI</div>
               <ul class="text-caption ps-4" style="line-height: 1.6">
-                <li><strong>Gap Store:</strong> MAX(Buffer Store - Stok Store, 0)</li>
+                <li><strong>Gap Store:</strong> MIN(Buffer Store - Stok Store, 0)</li>
                 <li><strong>Daily Need:</strong> Gap Store / 30 (asumsi kebutuhan 30 hari)</li>
                 <li>
                   <strong>SPK Ready (&lt; 5 Hari):</strong> Barang yang sudah masuk proses Jahit →

@@ -29,6 +29,7 @@ interface PriorityItem {
   brg_lengan: string;
   brg_warna: string;
   brg_jeniskain: string;
+  brg_jeniskaos: string;
   [key: string]: unknown;
 }
 
@@ -39,6 +40,19 @@ interface EditableItem extends PriorityItem {
   dateline: string;
   dateline_min: string;
   dateline_max: string;
+}
+
+interface SoGroupSize {
+  ukuran: string;
+  qty: number;
+}
+
+interface SoGroup {
+  kode: string;
+  nama: string;
+  kategori: string;
+  sizes: SoGroupSize[];
+  totalQty: number;
 }
 
 const toast = useToast();
@@ -101,6 +115,35 @@ const allSelected = computed({
 const totalSpkBeredarDisplay = computed(() =>
   tableData.value.reduce((sum, i) => sum + (i.spk_beredar || 0), 0)
 );
+// Grouping persis logic backend generateBulkSpk: satu SO per kode barang,
+// menggabungkan semua ukuran+qty jadi satu baris SO
+const confirmSoGroups = computed<SoGroup[]>(() => {
+  const grouped = new Map<string, SoGroup>();
+
+  selectedItems.value
+    .filter((i) => i.qty_input > 0)
+    .forEach((item) => {
+      if (!grouped.has(item.kode)) {
+        grouped.set(item.kode, {
+          kode: item.kode,
+          nama: item.nama,
+          kategori: item.kategori,
+          sizes: [],
+          totalQty: 0,
+        });
+      }
+      const group = grouped.get(item.kode)!;
+      group.sizes.push({ ukuran: item.ukuran, qty: Number(item.qty_input) || 0 });
+      group.totalQty += Number(item.qty_input) || 0;
+    });
+
+  return Array.from(grouped.values())
+    .map((g) => ({
+      ...g,
+      sizes: g.sizes.sort((a, b) => a.ukuran.localeCompare(b.ukuran)),
+    }))
+    .sort((a, b) => a.kode.localeCompare(b.kode));
+});
 
 // Sinkronisasi otomatis setiap ada perubahan centang/input ke retainedState
 watch(
@@ -335,8 +378,11 @@ const generateSpk = async () => {
         brg_lengan: i.brg_lengan,
         brg_warna: i.brg_warna,
         brg_jeniskain: i.brg_jeniskain,
+        brg_jeniskaos: i.brg_jeniskaos,
         kepentingan: i.kepentingan,
         dateline: i.dateline,
+        gap_buffer_dc: i.gap_buffer_dc,
+        spk_beredar: i.spk_beredar,
       }));
 
     const response = await api.post("/dc-planning/generate-spk-bulk", { items });
@@ -860,7 +906,7 @@ defineExpose({
     </v-dialog>
 
     <!-- ── Dialog Konfirmasi Generate ─────────────────────────── -->
-    <v-dialog v-model="isConfirmDialogOpen" max-width="440" persistent>
+    <v-dialog v-model="isConfirmDialogOpen" max-width="680" persistent>
       <v-card>
         <v-card-title class="text-subtitle-1 font-weight-bold pa-4">
           <v-icon color="primary" size="small" class="me-2">mdi-cog-refresh</v-icon>
@@ -868,12 +914,18 @@ defineExpose({
         </v-card-title>
         <v-card-text class="px-4 pb-2">
           <v-alert type="info" variant="tonal" density="compact" class="mb-3 text-caption">
-            SO MANKSI akan dibuat otomatis berdasarkan jumlah yang diinput.
+            SO MANKSI akan dibuat otomatis berdasarkan jumlah yang diinput. SKU dengan kode yang
+            sama (beda ukuran) akan digabung jadi satu SO.
           </v-alert>
-          <v-row dense class="text-caption">
-            <v-col cols="7" class="text-grey-darken-1">SKU Terpilih</v-col>
+
+          <v-row dense class="text-caption mb-2">
+            <v-col cols="7" class="text-grey-darken-1">Jumlah SO yang Akan Dibuat</v-col>
+            <v-col cols="5" class="font-weight-bold text-right text-deep-purple-darken-2"
+              >{{ confirmSoGroups.length }} SO</v-col
+            >
+            <v-col cols="7" class="text-grey-darken-1">SKU (Kode+Ukuran) Terpilih</v-col>
             <v-col cols="5" class="font-weight-bold text-right"
-              >{{ selectedItems.length }} SKU</v-col
+              >{{ selectedItems.length }} baris</v-col
             >
             <v-col cols="7" class="text-grey-darken-1">Total QTY SO (Input)</v-col>
             <v-col cols="5" class="font-weight-bold text-right text-primary"
@@ -888,6 +940,48 @@ defineExpose({
               {{ sisaKapasitas.toLocaleString("id-ID") }} pcs
             </v-col>
           </v-row>
+
+          <div class="text-caption font-weight-bold text-grey-darken-2 mb-1">
+            Rincian SO yang Akan Digenerate
+          </div>
+          <div class="confirm-detail-wrapper">
+            <v-table density="compact" class="confirm-detail-table">
+              <thead>
+                <tr>
+                  <th class="text-left text-caption font-weight-bold" style="width: 36px">#</th>
+                  <th class="text-left text-caption font-weight-bold">Kode</th>
+                  <th class="text-left text-caption font-weight-bold">Jenis Barang</th>
+                  <th class="text-left text-caption font-weight-bold">Rincian Ukuran</th>
+                  <th class="text-right text-caption font-weight-bold">Total Qty SO</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="(group, idx) in confirmSoGroups" :key="group.kode">
+                  <td class="text-caption text-grey">{{ idx + 1 }}</td>
+                  <td class="text-caption text-primary font-weight-medium">{{ group.kode }}</td>
+                  <td class="text-caption">
+                    {{ group.nama }}
+                    <div class="text-grey" style="font-size: 9px">{{ group.kategori }}</div>
+                  </td>
+                  <td class="text-caption">
+                    <v-chip
+                      v-for="s in group.sizes"
+                      :key="s.ukuran"
+                      size="x-small"
+                      variant="tonal"
+                      color="blue-grey"
+                      class="me-1 mb-1"
+                    >
+                      {{ s.ukuran }}: {{ s.qty.toLocaleString("id-ID") }}
+                    </v-chip>
+                  </td>
+                  <td class="text-caption text-right font-weight-bold text-primary">
+                    {{ group.totalQty.toLocaleString("id-ID") }} pcs
+                  </td>
+                </tr>
+              </tbody>
+            </v-table>
+          </div>
         </v-card-text>
         <v-card-actions class="pa-4 pt-2">
           <v-spacer />
@@ -1132,8 +1226,8 @@ defineExpose({
 .keyword-input {
   min-width: 350px !important;
   width: 100% !important;
-  flex: 1 1 auto !important; /* Memakan sisa ruang kosong di navbar */
-  max-width: 600px !important; /* Batas melar maksimal */
+  flex: 1 1 auto !important;
+  max-width: 600px !important;
 }
 
 .keyword-input :deep(.v-input__control),
@@ -1339,5 +1433,22 @@ defineExpose({
 }
 .fade-zoom-leave-to {
   opacity: 0;
+}
+.confirm-detail-wrapper {
+  max-height: 260px;
+  overflow-y: auto;
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  border-radius: 6px;
+}
+.confirm-detail-table :deep(th) {
+  position: sticky;
+  top: 0;
+  background: #f5f5f5;
+  z-index: 1;
+}
+.confirm-detail-table :deep(td),
+.confirm-detail-table :deep(th) {
+  padding: 4px 10px !important;
+  font-size: 11px !important;
 }
 </style>

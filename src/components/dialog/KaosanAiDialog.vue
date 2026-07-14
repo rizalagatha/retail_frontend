@@ -3,6 +3,11 @@ import { ref, nextTick, watch, onMounted, onUnmounted } from "vue";
 import api from "@/services/api";
 import { useToast } from "vue-toastification";
 
+interface AiMessage {
+  role: "user" | "assistant";
+  content: string;
+}
+
 const props = defineProps<{ modelValue: boolean }>();
 const emit = defineEmits<{ (e: "update:modelValue", value: boolean): void }>();
 
@@ -11,13 +16,7 @@ const toast = useToast();
 const aiQuestion = ref("");
 const aiLoading = ref(false);
 const chatContainer = ref<HTMLElement | null>(null);
-
-const aiMessages = ref;
-{
-  role: "user" | "assistant";
-  content: string;
-}
-[] > [];
+const aiMessages = ref<AiMessage[]>([]);
 
 const suggestions = [
   "Halo",

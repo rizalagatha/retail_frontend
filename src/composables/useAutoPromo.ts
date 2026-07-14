@@ -28,7 +28,9 @@ export interface TierDiskonRule {
   ptd_prioritas: number;
   ptd_tipe_match: "WARNA" | "KATA_JENISKAIN" | "DEFAULT";
   ptd_kata_kunci: string | null;
+  ptd_exclude_kata_kunci: string | null;
   ptd_persen: number;
+  ptd_min_belanja: number;
 }
 
 export interface PromoResult {
@@ -297,24 +299,78 @@ export function useAutoPromo(
     }
   };
 
-  // [BARU] ── Evaluasi Tier Diskon (Mekanisme A — Grand Opening K12, dkk) ──
-  const resolveTierPersen = (item: PromoItem, rules: TierDiskonRule[]): number | null => {
-    if (!rules.length) return null;
-    const namaUp = (item.nama || "").toUpperCase();
-    const sorted = [...rules].sort((a, b) => a.ptd_prioritas - b.ptd_prioritas);
-    for (const rule of sorted) {
-      if (rule.ptd_tipe_match === "DEFAULT") {
-        return rule.ptd_persen;
-      }
+  // [BARU] Hitung subtotal per kategori (rule) — dipakai untuk cek syarat minimal belanja.
+  // Subtotal dihitung dari harga asli x qty (sebelum diskon), untuk SEMUA item yang match
+  // keyword rule tsb (dan bukan bagian dari exclude-nya).
+  const calcCategorySubtotals = (rules: TierDiskonRule[]): Map<number, number> => {
+    const subtotals = new Map<number, number>(); // key: ptd_prioritas
+
+    for (const rule of rules) {
+      if (rule.ptd_tipe_match === "DEFAULT") continue;
       const katas = (rule.ptd_kata_kunci || "")
         .split(",")
         .map((s) => s.trim().toUpperCase())
         .filter(Boolean);
-      if (katas.some((k) => namaUp.includes(k))) {
-        return rule.ptd_persen;
+      if (!katas.length) continue;
+
+      const excludeKatas = (rule.ptd_exclude_kata_kunci || "")
+        .split(",")
+        .map((s) => s.trim().toUpperCase())
+        .filter(Boolean);
+
+      let subtotal = 0;
+      for (const item of items.value) {
+        if (!item.kode || item.isFreeGift || item.noPengajuanHarga) continue;
+        const namaUp = (item.nama || "").toUpperCase();
+        if (!katas.some((k) => namaUp.includes(k))) continue;
+        if (excludeKatas.some((k) => namaUp.includes(k))) continue;
+        subtotal += (item.harga || 0) * (item.jumlah || 0);
       }
+      subtotals.set(rule.ptd_prioritas, subtotal);
     }
-    return null;
+
+    return subtotals;
+  };
+
+  // [REVISI] Cari tier yang berlaku untuk item ini, dengan fallthrough:
+  // kalau kategori match tapi syarat minimal belanja belum terpenuhi (atau item
+  // masuk daftar exclude), lanjut cek rule berikutnya sesuai prioritas.
+  const resolveTierPersen = (
+    item: PromoItem,
+    rules: TierDiskonRule[],
+    categorySubtotals: Map<number, number>
+  ): number | null => {
+    if (!rules.length) return null;
+    const namaUp = (item.nama || "").toUpperCase();
+    const sorted = [...rules].sort((a, b) => a.ptd_prioritas - b.ptd_prioritas);
+
+    const nonDefaultRules = sorted.filter((r) => r.ptd_tipe_match !== "DEFAULT");
+    const defaultRule = sorted.find((r) => r.ptd_tipe_match === "DEFAULT");
+
+    for (const rule of nonDefaultRules) {
+      const katas = (rule.ptd_kata_kunci || "")
+        .split(",")
+        .map((s) => s.trim().toUpperCase())
+        .filter(Boolean);
+      if (!katas.some((k) => namaUp.includes(k))) continue; // tidak match kategori ini, cek rule lain
+
+      const excludeKatas = (rule.ptd_exclude_kata_kunci || "")
+        .split(",")
+        .map((s) => s.trim().toUpperCase())
+        .filter(Boolean);
+      if (excludeKatas.some((k) => namaUp.includes(k))) continue; // dikecualikan dari rule ini, cek rule lain
+
+      // [FIX] Item MATCH kategori rule ini — entah dapat diskonnya, ATAU
+      // tidak dapat diskon sama sekali (0%). TIDAK BOLEH fallback ke tier lain/DEFAULT.
+      if (rule.ptd_min_belanja > 0) {
+        const subtotal = categorySubtotals.get(rule.ptd_prioritas) || 0;
+        if (subtotal < rule.ptd_min_belanja) return null;
+      }
+      return rule.ptd_persen;
+    }
+
+    // Tidak match kategori manapun → baru boleh fallback ke DEFAULT
+    return defaultRule ? defaultRule.ptd_persen : null;
   };
 
   const evaluateTierDiskon = async (): Promise<void> => {
@@ -325,13 +381,15 @@ export function useAutoPromo(
       const rules = await fetchTierDiskonRules(promo.pro_nomor);
       if (!rules.length) continue;
 
+      const categorySubtotals = calcCategorySubtotals(rules); // [BARU]
+
       for (const item of items.value) {
         if (!item.kode) continue;
         if (item.isFreeGift) continue;
         if (item.noPengajuanHarga) continue;
         if (!isItemEligible(item, promo)) continue;
 
-        const persen = resolveTierPersen(item, rules);
+        const persen = resolveTierPersen(item, rules, categorySubtotals); // [REVISI]
         if (persen === null || persen <= 0) continue;
 
         const key = `${item.kode}||${item.ukuran}`;
@@ -353,10 +411,8 @@ export function useAutoPromo(
   };
 
   const applyItemDiscounts = (): void => {
-    if (!itemDiscountMap.value.size) return;
     items.value.forEach((item) => {
-      if (!item.kode) return;
-      if (item.isFreeGift) return; // [BARU] Jangan sentuh item gratis (harga tetap 0)
+      if (!item.kode || item.isFreeGift) return;
       const key = `${item.kode}||${item.ukuran}`;
       const disc = itemDiscountMap.value.get(key);
       if (disc) {
@@ -364,6 +420,14 @@ export function useAutoPromo(
         item.diskonRp = disc.rp || Math.round(((item.harga || 0) * disc.persen) / 100);
         item.terhitungPromo = true;
         item.total = Math.max(0, (item.jumlah || 0) * ((item.harga || 0) - (item.diskonRp || 0)));
+      } else if (item.terhitungPromo) {
+        // [FIX] Sebelumnya dapat diskon otomatis dari promo, tapi sekarang tidak lagi
+        // (mis. syarat minimal belanja jadi tidak terpenuhi setelah item lain dihapus).
+        // Reset supaya diskon tidak "nyangkut".
+        item.diskonPersen = 0;
+        item.diskonRp = 0;
+        item.terhitungPromo = false;
+        item.total = Math.max(0, (item.jumlah || 0) * (item.harga || 0));
       }
     });
   };

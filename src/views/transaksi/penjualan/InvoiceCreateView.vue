@@ -14,7 +14,12 @@ import LogoKaosan from "@/assets/logo.png";
 import LogoRezso from "@/assets/rezso.jpg";
 import { formatRupiah } from "@/utils/formatRupiah";
 import { useAutoPromo } from "@/composables/useAutoPromo";
-import { PROMO_GRAND_OPENING_K12, isEligibleFreeGiftItem } from "@/constants/promoConfig";
+import {
+  PROMO_GRAND_OPENING_K12,
+  isEligibleFreeGiftItem,
+  calcFreeGiftEligibleSubtotal,
+  isFreeGiftSizeAllowed,
+} from "@/constants/promoConfig";
 
 import PageLayout from "@/components/PageLayout.vue";
 import CustomerSearchModal from "@/components/lookup/CustomerSearchModal.vue";
@@ -428,6 +433,15 @@ const dialogConfirm = reactive({
 
 const activeRowIndex = ref(0);
 const isMultiSelectProduct = ref(false);
+// [BARU] Pagination tabel item (mengikuti pola SoCreateView)
+const page = ref(1);
+const rowsPerPage = ref(10);
+
+// [BARU] Lompat ke halaman terakhir — dipanggil tiap ada barang baru ditambahkan
+// (scan barcode, pilih produk, dll), supaya barang yang baru masuk langsung kelihatan.
+const jumpToLastPage = () => {
+  page.value = Math.max(1, Math.ceil(items.value.length / rowsPerPage.value));
+};
 const salesCounters = ref<SalesCounter[]>([]);
 const isSoLoaded = ref(false);
 const memberHpToSearch = ref("");
@@ -1459,6 +1473,7 @@ const onProductsSelected = (selectedProducts: ProductInput[]) => {
 
   addNewRow();
   calculateTotals();
+  jumpToLastPage();
 
   audioSuccess.play().catch(() => {});
 };
@@ -1520,6 +1535,7 @@ const onSoDtfSelected = async (soDtf: { nomor: string }) => {
 
     addNewRow(); // Tambah baris kosong baru di akhir
     calculateTotals(); // Hitung ulang grand total
+    jumpToLastPage();
     toast.success(`Berhasil menambahkan ${newItems.length} item dari SO DTF.`);
   } catch (error) {
     console.error(error);
@@ -1990,6 +2006,15 @@ const checkFreeGiftQuota = async () => {
     return;
   }
 
+  // [BARU] Cek syarat minimal belanja Combed 24S sebelum tanya kuota ke backend
+  const eligibleSubtotal = calcFreeGiftEligibleSubtotal(items.value);
+  if (eligibleSubtotal < PROMO_GRAND_OPENING_K12.minBelanjaFreeItem) {
+    freeGiftQuota.available = false;
+    freeGiftQuota.sisaKuota = 0;
+    freeGiftQuota.reason = "BELUM_MEMENUHI_MINIMAL_BELANJA";
+    return;
+  }
+
   try {
     const { data } = await api.get("/invoice-form/lookup/free-item-quota", {
       params: {
@@ -2037,6 +2062,18 @@ const handleFreeGiftScan = async () => {
       return;
     }
 
+    // [BARU] Validasi: ukuran hadiah tidak boleh lebih besar dari ukuran yang dibeli
+    if (!isFreeGiftSizeAllowed(product.ukuran, items.value)) {
+      audioError.play().catch(() => {});
+      toast.error(
+        `Ukuran hadiah (${product.ukuran}) tidak boleh lebih besar dari ukuran produk yang dibeli.`
+      );
+      nextTick(() => {
+        freeGiftScanInputRef.value?.select();
+      });
+      return;
+    }
+
     // Tambahkan sebagai item hadiah gratis
     items.value.push({
       id: Date.now(),
@@ -2057,6 +2094,7 @@ const handleFreeGiftScan = async () => {
       isFreeGift: true, // [KUNCI] flag hadiah gratis
     });
     addNewRow();
+    jumpToLastPage();
 
     // Kunci promo ini di header agar backend tahu harus reserve slot saat save
     header.proNomorFreeItem = PROMO_GRAND_OPENING_K12.proNomor;
@@ -2083,6 +2121,14 @@ const handleFreeGiftScan = async () => {
       nextTick(() => freeGiftScanInputRef.value?.focus());
     }
   }
+};
+
+let freeGiftCheckTimer: ReturnType<typeof setTimeout>;
+const debouncedCheckFreeGiftQuota = (): void => {
+  clearTimeout(freeGiftCheckTimer);
+  freeGiftCheckTimer = setTimeout(() => {
+    checkFreeGiftQuota();
+  }, 400);
 };
 
 const closePromoDialog = () => {
@@ -2386,6 +2432,9 @@ const handleBarcodeScan = async () => {
     if (existingItem) {
       existingItem.jumlah += 1;
 
+      const existingIndex = items.value.findIndex((i) => i.id === existingItem.id);
+      page.value = Math.max(1, Math.ceil((existingIndex + 1) / rowsPerPage.value));
+
       // Feedback Sukses
       audioSuccess.play().catch(() => {});
       toast.info(`+1 ${existingItem.nama}`);
@@ -2441,6 +2490,7 @@ const handleBarcodeScan = async () => {
     }
 
     addNewRow();
+    jumpToLastPage();
 
     // Feedback Sukses
     audioSuccess.play().catch(() => {});
@@ -2908,6 +2958,7 @@ watch(
     // GANTI checkRealtimePromoEligibility() dengan:
     if (!header.nomorSo) {
       autoPromo.debouncedEvaluate();
+      debouncedCheckFreeGiftQuota();
     }
   },
   { deep: true }
@@ -3445,8 +3496,9 @@ watch(
             <v-data-table
               :headers="tableHeaders"
               :items="items"
+              :page="page"
+              :items-per-page="rowsPerPage"
               class="desktop-table header-browse-blue vertically-aligned-table"
-              :items-per-page="-1"
               fixed-header
               :item-class="(item: Item) => (item.isFreeGift ? 'free-gift-row' : '')"
             >
@@ -4086,11 +4138,18 @@ watch(
   white-space: nowrap !important;
 }
 
+.desktop-table {
+  display: flex !important;
+  flex-direction: column !important;
+  height: 100% !important;
+  min-height: 0 !important;
+}
+
 .desktop-table :deep(.v-table__wrapper) {
   overflow-x: auto !important;
   overflow-y: auto !important;
-  max-height: 100% !important;
-  flex: 1 1 auto;
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
 }
 
 /* Pastikan tabel bisa lebih lebar dari container */
@@ -4363,7 +4422,8 @@ watch(
   display: grid;
   grid-template-columns: 380px 1fr;
   gap: 16px;
-  height: calc(100vh - 120px);
+  height: 100%;
+  min-height: 0;
   transition: grid-template-columns 0.35s cubic-bezier(0.4, 0, 0.2, 1);
 }
 

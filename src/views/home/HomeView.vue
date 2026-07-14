@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, computed, reactive, watch } from "vue";
+import { ref, onMounted, onUnmounted, computed, reactive, watch, nextTick } from "vue";
 import { useAuthStore } from "@/stores/authStore";
 import { useRouter } from "vue-router";
 // [GSAP] Import Library
@@ -330,6 +330,17 @@ interface AutoMintaAnalytics {
   ratio_sj: number;
 }
 
+interface StokKosongFastMovingItem {
+  cabang: string;
+  nama_cabang: string;
+  kode: string;
+  nama: string;
+  ukuran: string;
+  last_tstbj: string;
+  umur_bulan: number;
+  stok_sekarang: number;
+}
+
 const authStore = useAuthStore();
 const router = useRouter();
 const toast = useToast();
@@ -458,6 +469,16 @@ const isLoadingStokKosong = ref(false);
 const stokKosongPage = ref(1);
 const isLoadingMoreStokKosong = ref(false);
 const isStokKosongFinished = ref(false);
+const stokKosongFastMovingList = ref<StokKosongFastMovingItem[]>([]);
+const isLoadingFastMoving = ref(false);
+const isLoadingMoreFastMoving = ref(false);
+const isFastMovingFinished = ref(false);
+const fastMovingPage = ref(1);
+const fastMovingCabang = ref<string>(
+  authStore.user?.cabang === "KDC" ? "ALL" : authStore.user?.cabang || ""
+);
+const searchFastMoving = ref("");
+let searchFastMovingTimeout: ReturnType<typeof setTimeout>;
 const paretoStats = ref({
   score: 0,
   actual_stock: 0,
@@ -1020,6 +1041,67 @@ const userPlaceId = ref("");
 const userLat = ref("");
 const userLong = ref("");
 
+// --- STATE KAOSAN AI ---
+const showAiDialog = ref(false);
+
+const aiQuestion = ref("");
+const aiLoading = ref(false);
+const chatContainer = ref<HTMLElement | null>(null);
+
+const aiMessages = ref<
+  {
+    role: "user" | "assistant";
+    content: string;
+  }[]
+>([]);
+
+const suggestions = [
+  "Halo",
+  "Penjualan hari ini",
+  "Barang paling laris",
+  "Stok paling sedikit",
+  "Piutang hari ini",
+];
+
+const scrollToBottom = () => {
+  nextTick(() => {
+    if (chatContainer.value) {
+      chatContainer.value.scrollTop = chatContainer.value.scrollHeight;
+    }
+  });
+};
+
+const sendAi = async () => {
+  if (!aiQuestion.value.trim()) return;
+
+  aiMessages.value.push({ role: "user", content: aiQuestion.value });
+  aiQuestion.value = "";
+  aiLoading.value = true;
+  scrollToBottom();
+
+  try {
+    // Kirim 6 pesan terakhir (termasuk pertanyaan baru) sebagai konteks percakapan
+    const recentHistory = aiMessages.value.slice(-2).map((m) => ({
+      role: m.role,
+      content: m.content,
+    }));
+
+    const { data } = await api.post("/ai/chat", { messages: recentHistory });
+    aiMessages.value.push({ role: "assistant", content: data.answer });
+  } catch {
+    toast.error("AI gagal dihubungi.");
+    aiMessages.value.push({ role: "assistant", content: "Maaf, koneksi ke AI terputus." });
+  } finally {
+    aiLoading.value = false;
+    scrollToBottom();
+  }
+};
+
+const askSuggestion = (text: string) => {
+  aiQuestion.value = text;
+  sendAi();
+};
+
 // --- STATE DEAD STOCK ---
 const deadStockSummary = ref({
   fm: 0,
@@ -1298,6 +1380,109 @@ const exportStokKosong = async () => {
     XLSX.writeFile(workbook, fileName);
 
     toast.success("Data stok kosong berhasil diekspor.");
+  } catch (error) {
+    toast.error("Gagal mengekspor data.");
+    console.error(error);
+  }
+};
+
+const fetchStokKosongFastMoving = async (isBackground = false, isLoadMore = false) => {
+  if (isLoadMore) {
+    isLoadingMoreFastMoving.value = true;
+  } else {
+    if (!isBackground) isLoadingFastMoving.value = true;
+    fastMovingPage.value = 1;
+    isFastMovingFinished.value = false;
+    stokKosongFastMovingList.value = [];
+  }
+  try {
+    const cabangParam = authStore.user?.cabang === "KDC" ? fastMovingCabang.value : undefined;
+    const response = await api.get("/dashboard/stok-kosong-fast-moving", {
+      params: {
+        cabang: cabangParam,
+        page: fastMovingPage.value,
+        limit: 50,
+      },
+    });
+    const items = response.data.data || [];
+
+    if (items.length < 50) {
+      isFastMovingFinished.value = true;
+    }
+
+    if (isLoadMore) {
+      stokKosongFastMovingList.value.push(...items);
+    } else {
+      stokKosongFastMovingList.value = items;
+    }
+  } catch (error) {
+    console.error("Gagal memuat stok kosong fast moving:", error);
+  } finally {
+    isLoadingFastMoving.value = false;
+    isLoadingMoreFastMoving.value = false;
+  }
+};
+
+// Fungsi pendeteksi scroll menyentuh bawah
+const onIntersectFastMoving = (isIntersecting: boolean) => {
+  if (
+    isIntersecting &&
+    !isLoadingFastMoving.value &&
+    !isLoadingMoreFastMoving.value &&
+    !isFastMovingFinished.value
+  ) {
+    fastMovingPage.value++;
+    fetchStokKosongFastMoving(true, true);
+  }
+};
+
+// [EXPORT] Tetap ambil SEMUA data, tidak terbatas pagination
+const exportStokKosongFastMoving = async () => {
+  toast.info("Menyiapkan data export stok kosong fast moving, mohon tunggu...");
+  try {
+    const cabangParam = authStore.user?.cabang === "KDC" ? fastMovingCabang.value : undefined;
+    const response = await api.get("/dashboard/stok-kosong-fast-moving", {
+      params: {
+        cabang: cabangParam,
+        export: true, // ← flag agar backend ambil semua data tanpa LIMIT
+      },
+    });
+    const fullData: StokKosongFastMovingItem[] = response.data.data || [];
+
+    if (fullData.length === 0) {
+      toast.warning("Data kosong saat diexport.");
+      return;
+    }
+
+    const workbook = XLSX.utils.book_new();
+    const worksheet = XLSX.utils.json_to_sheet(
+      fullData.map((item) => ({
+        Cabang: item.nama_cabang,
+        Kode: item.kode,
+        "Nama Barang": item.nama,
+        Ukuran: item.ukuran,
+        "Terakhir Diterima": item.last_tstbj
+          ? format(new Date(item.last_tstbj), "dd/MM/yyyy")
+          : "-",
+        "Umur (Bulan)": item.umur_bulan,
+        "Stok Sekarang": item.stok_sekarang,
+      }))
+    );
+    worksheet["!cols"] = [
+      { wch: 15 },
+      { wch: 20 },
+      { wch: 50 },
+      { wch: 10 },
+      { wch: 16 },
+      { wch: 12 },
+      { wch: 14 },
+    ];
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Stok Kosong Fast Moving");
+    XLSX.writeFile(
+      workbook,
+      `Stok_Kosong_FastMoving_${fastMovingCabang.value}_${format(new Date(), "yyyyMMdd")}.xlsx`
+    );
+    toast.success("Export berhasil!");
   } catch (error) {
     toast.error("Gagal mengekspor data.");
     console.error(error);
@@ -2376,6 +2561,14 @@ watch(searchStokKosong, () => {
   }, 500);
 });
 
+watch(searchFastMoving, () => {
+  if (searchFastMoving.value.length > 0 && searchFastMoving.value.length < 3) return;
+  clearTimeout(searchFastMovingTimeout);
+  searchFastMovingTimeout = setTimeout(() => {
+    fetchStokKosongFastMoving();
+  }, 500);
+});
+
 watch(
   [chartFilters, chartType, chartGroupBy],
   () => {
@@ -2516,7 +2709,8 @@ const loadTabData = (tabName: string, isBackground = false) => {
   } else if (tabName === "stok") {
     fetchLowStockData(isBackground);
     fetchStagnantStockSummary(isBackground);
-    if (!isBackground) fetchStokKosong(false); // Fetch tabel stok kosong
+    if (!isBackground) fetchStokKosong(false);
+    if (!isBackground) fetchStokKosongFastMoving(); // ← TAMBAH
   } else if (tabName === "operasional") {
     fetchShipmentSchedules(isBackground);
     fetchMasterJadwalRutin();
@@ -4803,6 +4997,185 @@ onUnmounted(() => {
                 </v-card>
               </v-col>
             </v-row>
+
+            <!-- Stok Kosong Fast Moving -->
+            <v-row class="mb-4">
+              <v-col cols="12">
+                <v-card elevation="2" class="rounded-lg d-flex flex-column bg-surface">
+                  <v-card-title
+                    class="d-flex flex-column flex-sm-row align-start align-sm-center bg-deep-orange-lighten-5 py-2 gap-2 pr-2 text-deep-orange-darken-4"
+                  >
+                    <div class="d-flex align-center flex-grow-1">
+                      <v-icon class="mr-2" color="deep-orange" size="small"
+                        >mdi-alert-octagon-outline</v-icon
+                      >
+                      <span class="text-subtitle-2 font-weight-bold"
+                        >Stok Kosong — Barang Fast Moving</span
+                      >
+                      <v-chip
+                        v-if="!isLoadingFastMoving && stokKosongFastMovingList.length > 0"
+                        size="x-small"
+                        color="deep-orange"
+                        variant="flat"
+                        class="ml-2 font-weight-bold"
+                        >{{ stokKosongFastMovingList.length }}+ item</v-chip
+                      >
+                    </div>
+                    <div class="d-flex align-center gap-2 w-100 w-sm-auto">
+                      <div style="width: 160px">
+                        <v-select
+                          v-model="fastMovingCabang"
+                          :items="cabangList"
+                          item-title="nama"
+                          item-value="kode"
+                          density="compact"
+                          variant="outlined"
+                          hide-details
+                          bg-color="surface"
+                          class="filter-select-small"
+                          :disabled="authStore.user?.cabang !== 'KDC'"
+                        />
+                      </div>
+                      <v-text-field
+                        v-model="searchFastMoving"
+                        density="compact"
+                        variant="outlined"
+                        label="Cari Barang..."
+                        prepend-inner-icon="mdi-magnify"
+                        hide-details
+                        bg-color="surface"
+                        single-line
+                        class="text-caption"
+                        style="min-width: 180px"
+                      />
+                      <v-btn
+                        color="success"
+                        variant="tonal"
+                        size="small"
+                        class="px-2"
+                        :disabled="stokKosongFastMovingList.length === 0"
+                        @click="exportStokKosongFastMoving"
+                      >
+                        <v-icon>mdi-file-excel</v-icon>
+                        <span class="d-none d-sm-inline ml-1">Export</span>
+                      </v-btn>
+                    </div>
+                  </v-card-title>
+                  <v-card-text class="pa-0">
+                    <div
+                      v-if="isLoadingFastMoving && fastMovingPage === 1"
+                      class="text-center pa-8"
+                    >
+                      <v-progress-circular indeterminate color="deep-orange" size="36" />
+                      <div class="mt-2 text-caption">Mencari stok kosong fast moving...</div>
+                    </div>
+                    <div
+                      v-else-if="stokKosongFastMovingList.length === 0"
+                      class="text-center pa-8 text-medium-emphasis"
+                    >
+                      <v-icon size="48" class="mb-2">mdi-check-circle-outline</v-icon>
+                      <div class="text-caption">Tidak ada stok kosong dari barang fast moving.</div>
+                    </div>
+                    <v-data-table
+                      v-else
+                      :headers="[
+                        { title: 'STORE', key: 'nama_cabang', sortable: false },
+                        { title: 'KODE', key: 'kode', sortable: false, width: '140px' },
+                        { title: 'NAMA BARANG', key: 'nama', sortable: false },
+                        {
+                          title: 'UK.',
+                          key: 'ukuran',
+                          align: 'center',
+                          sortable: false,
+                          width: '70px',
+                        },
+                        {
+                          title: 'TERAKHIR DITERIMA',
+                          key: 'last_tstbj',
+                          align: 'center',
+                          sortable: false,
+                          width: '140px',
+                        },
+                        {
+                          title: 'UMUR',
+                          key: 'umur_bulan',
+                          align: 'center',
+                          sortable: false,
+                          width: '90px',
+                        },
+                        {
+                          title: 'STOK',
+                          key: 'stok_sekarang',
+                          align: 'center',
+                          sortable: false,
+                          width: '80px',
+                        },
+                      ]"
+                      :items="stokKosongFastMovingList"
+                      density="compact"
+                      hover
+                      class="text-caption border-t desktop-table"
+                      hide-default-footer
+                      :items-per-page="-1"
+                      style="max-height: 450px; overflow-y: auto"
+                    >
+                      <template #[`item.nama_cabang`]="{ item }">
+                        <span class="font-weight-bold text-deep-orange-darken-3">{{
+                          item.nama_cabang
+                        }}</span>
+                      </template>
+                      <template #[`item.nama`]="{ item }">
+                        <span class="font-weight-medium">{{ item.nama }}</span>
+                      </template>
+                      <template #[`item.last_tstbj`]="{ item }">
+                        <span class="text-caption">
+                          {{
+                            item.last_tstbj ? format(new Date(item.last_tstbj), "dd/MM/yyyy") : "-"
+                          }}
+                        </span>
+                      </template>
+                      <template #[`item.umur_bulan`]="{ item }">
+                        <v-chip
+                          size="x-small"
+                          color="orange"
+                          variant="tonal"
+                          class="font-weight-bold"
+                        >
+                          {{ item.umur_bulan }} bln
+                        </v-chip>
+                      </template>
+                      <template #[`item.stok_sekarang`]="{ item }">
+                        <v-chip
+                          size="x-small"
+                          color="error"
+                          variant="flat"
+                          class="font-weight-bold"
+                        >
+                          {{ item.stok_sekarang }}
+                        </v-chip>
+                      </template>
+                      <template #bottom>
+                        <div v-intersect="onIntersectFastMoving" class="pa-3 text-center w-100">
+                          <v-progress-circular
+                            v-if="isLoadingMoreFastMoving"
+                            indeterminate
+                            color="deep-orange"
+                            size="24"
+                            width="3"
+                          />
+                          <div
+                            v-else-if="isFastMovingFinished && stokKosongFastMovingList.length > 0"
+                            class="text-caption text-grey"
+                          >
+                            -- Menampilkan semua {{ stokKosongFastMovingList.length }} barang --
+                          </div>
+                        </div>
+                      </template>
+                    </v-data-table>
+                  </v-card-text>
+                </v-card>
+              </v-col>
+            </v-row>
           </v-tabs-window-item>
 
           <!-- ══════════════════════════════════════════
@@ -5729,6 +6102,28 @@ onUnmounted(() => {
         <v-tooltip activator="parent" location="left">Lihat Review Google Maps Toko</v-tooltip>
       </v-btn>
     </v-hover>
+
+    <v-hover v-slot="{ isHovering, props }">
+      <v-btn
+        v-bind="props"
+        color="deep-purple-darken-1"
+        icon="mdi-robot-outline"
+        size="large"
+        position="fixed"
+        location="bottom right"
+        class="mr-6 floating-ai-btn"
+        style="margin-bottom: 220px; z-index: 100"
+        :elevation="isHovering ? 12 : 6"
+        @click="showAiDialog = true"
+      >
+        <div class="ai-icon-wrapper" :class="{ 'ai-pulse-active': !isHovering }">
+          <v-icon :class="{ 'ai-bounce-animation': isHovering }" size="32"
+            >mdi-robot-outline</v-icon
+          >
+        </div>
+        <v-tooltip activator="parent" location="left">Tanya Kaosan AI</v-tooltip>
+      </v-btn>
+    </v-hover>
   </v-container>
 
   <!-- ============================================================
@@ -6594,6 +6989,118 @@ onUnmounted(() => {
     </v-card>
   </v-dialog>
 
+  <v-dialog v-model="showAiDialog" max-width="850" scrollable>
+    <v-card rounded="xl">
+      <v-toolbar color="deep-purple" density="comfortable">
+        <v-icon class="ml-4">mdi-robot-outline</v-icon>
+        <v-toolbar-title class="font-weight-bold">Kaosan AI Assistant</v-toolbar-title>
+        <v-spacer />
+        <v-btn icon @click="showAiDialog = false">
+          <v-icon>mdi-close</v-icon>
+        </v-btn>
+      </v-toolbar>
+
+      <v-card-text class="pa-0 bg-grey-lighten-5">
+        <div class="pa-4">
+          <div class="mb-2">
+            <v-chip
+              v-for="item in suggestions"
+              :key="item"
+              class="mr-2 mb-2 font-weight-medium"
+              color="deep-purple"
+              variant="outlined"
+              @click="askSuggestion(item)"
+              size="small"
+            >
+              {{ item }}
+            </v-chip>
+          </div>
+
+          <v-divider class="mb-3" />
+
+          <div
+            style="height: 400px; overflow-y: auto; overflow-x: hidden"
+            class="px-2 pb-4"
+            ref="chatContainer"
+          >
+            <div v-if="aiMessages.length === 0" class="text-center text-grey mt-10">
+              <v-icon size="64" color="deep-purple-lighten-2" class="mb-4"
+                >mdi-robot-happy-outline</v-icon
+              >
+              <div class="text-h6 font-weight-bold text-deep-purple-darken-1">Halo 👋</div>
+              <div class="text-body-2 mt-1">
+                Ada yang bisa saya bantu terkait data Kaosan hari ini?
+              </div>
+            </div>
+
+            <div v-for="(msg, index) in aiMessages" :key="index" class="mb-4">
+              <div :class="msg.role == 'user' ? 'd-flex justify-end' : 'd-flex justify-start'">
+                <div
+                  class="rounded-xl px-4 py-2 elevation-1"
+                  :class="
+                    msg.role == 'user'
+                      ? 'bg-deep-purple text-white'
+                      : 'bg-white border text-grey-darken-4'
+                  "
+                  style="max-width: 85%"
+                >
+                  <div
+                    v-if="msg.role === 'assistant'"
+                    style="font-size: 0.9rem; line-height: 1.6"
+                    v-html="
+                      msg.content.replace(/\*\*(.*?)\*\*/g, '<b>$1</b>').replace(/\n/g, '<br>')
+                    "
+                  ></div>
+                  <div v-else style="font-size: 0.9rem">
+                    {{ msg.content }}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div v-if="aiLoading" class="d-flex justify-start mb-4">
+              <div class="rounded-xl bg-white border px-4 py-3 elevation-1" style="max-width: 85%">
+                <div class="d-flex align-center ga-2">
+                  <v-progress-circular indeterminate color="deep-purple" size="16" width="2" />
+                  <span class="text-caption text-deep-purple font-weight-medium"
+                    >AI sedang berpikir...</span
+                  >
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </v-card-text>
+
+      <v-divider />
+
+      <v-card-actions class="pa-4 bg-white">
+        <v-text-field
+          v-model="aiQuestion"
+          placeholder="Tanyakan omzet, stok kosong, dll..."
+          density="comfortable"
+          variant="outlined"
+          hide-details
+          rounded="lg"
+          bg-color="grey-lighten-4"
+          @keyup.enter="sendAi"
+        >
+          <template #append-inner>
+            <v-btn
+              color="deep-purple"
+              :loading="aiLoading"
+              icon="mdi-send"
+              variant="flat"
+              size="small"
+              class="mt-n1"
+              @click="sendAi"
+            />
+          </template>
+        </v-text-field>
+      </v-card-actions>
+    </v-card>
+  </v-dialog>
+
   <JuknisModal v-model="showJuknis" />
 
   <RealStockDialog v-model="isRealStockOpen" @update:overbookedCount="overbookedCount = $event" />
@@ -7108,5 +7615,65 @@ iframe {
 
 .pareto-table :deep(.v-data-table__tr:hover) {
   background-color: #f8f9fa !important;
+}
+
+.ai-chat-box {
+  height: 500px;
+  overflow-y: auto;
+  padding: 10px;
+}
+
+/* --- ANIMASI KAOSAN AI FLOATING BUTTON --- */
+.floating-ai-btn {
+  transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) !important;
+}
+
+/* Lingkaran denyut (Pulse) di belakang icon saat diam */
+.ai-icon-wrapper {
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.ai-pulse-active {
+  animation: ai-radar-pulse 2s infinite;
+}
+
+/* Animasi robot melayang/lompat saat di-hover */
+.ai-bounce-animation {
+  animation: bot-levitate 0.8s ease-in-out infinite alternate;
+}
+
+@keyframes ai-radar-pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(103, 58, 183, 0.6);
+  }
+  70% {
+    box-shadow: 0 0 0 12px rgba(103, 58, 183, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(103, 58, 183, 0);
+  }
+}
+
+@keyframes bot-levitate {
+  from {
+    transform: translateY(0px);
+  }
+  to {
+    transform: translateY(-5px);
+  }
+}
+
+/* Modifikasi scrollbar khusus chat box agar lebih rapi */
+div[ref="chatContainer"]::-webkit-scrollbar {
+  width: 6px;
+}
+div[ref="chatContainer"]::-webkit-scrollbar-track {
+  background: transparent;
+}
+div[ref="chatContainer"]::-webkit-scrollbar-thumb {
+  background: #cfd8dc;
+  border-radius: 10px;
 }
 </style>

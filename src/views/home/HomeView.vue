@@ -6046,7 +6046,7 @@ onUnmounted(() => {
       </v-btn>
     </v-hover>
 
-    <v-hover v-slot="{ isHovering, props }">
+    <v-hover v-if="authStore.user?.cabang === 'KDC'" v-slot="{ isHovering, props }">
       <v-btn
         v-bind="props"
         color="deep-purple-darken-1"

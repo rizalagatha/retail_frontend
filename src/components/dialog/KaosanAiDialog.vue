@@ -26,12 +26,47 @@ const chatContainer = ref<HTMLElement | null>(null);
 const aiMessages = ref<AiMessage[]>([]);
 
 const suggestions: Suggestion[] = [
-  { label: "Halo", icon: "mdi-hand-wave-outline" },
   { label: "Penjualan hari ini", icon: "mdi-chart-timeline-variant" },
-  { label: "Barang paling laris", icon: "mdi-star-outline" },
-  { label: "Stok paling sedikit", icon: "mdi-package-variant-closed" },
-  { label: "Piutang hari ini", icon: "mdi-cash-clock" },
+  { label: "Barang paling laris bulan ini", icon: "mdi-star-outline" },
+  { label: "Stok kosong di toko", icon: "mdi-package-variant-closed" },
+  { label: "Piutang saat ini", icon: "mdi-cash-clock" },
+  { label: "Pencapaian target bulan ini", icon: "mdi-target" },
 ];
+
+// [BARU] Kategori topik yang bisa ditanyakan — ditampilkan sebagai hint
+// di state kosong, supaya user tahu batasan scope AI tanpa coba-coba random.
+const scopeCategories = [
+  {
+    icon: "mdi-cash-multiple",
+    label: "Penjualan",
+    detail: "hari ini, minggu/bulan lalu, per cabang",
+  },
+  {
+    icon: "mdi-tshirt-crew-outline",
+    label: "Barang Laris",
+    detail: "top produk per periode/cabang",
+  },
+  {
+    icon: "mdi-package-variant-closed",
+    label: "Stok",
+    detail: "total, per cabang, kosong, fast moving",
+  },
+  { icon: "mdi-cash-clock", label: "Piutang", detail: "total & per cabang" },
+  {
+    icon: "mdi-target",
+    label: "Target & Performa",
+    detail: "pencapaian bulan ini, ranking cabang",
+  },
+  { icon: "mdi-archive-clock-outline", label: "Dead Stock", detail: "klasifikasi stok stagnan" },
+  { icon: "mdi-finance", label: "Laba Rugi", detail: "khusus user Pusat (KDC)" },
+  {
+    icon: "mdi-truck-delivery-outline",
+    label: "Jadwal & Deadline",
+    detail: "kiriman toko, dateline SO/SPK",
+  },
+];
+
+const showScopeInfo = ref(false);
 
 const userDisplayName = computed(() => authStore.user?.kode || "");
 
@@ -174,6 +209,26 @@ onUnmounted(() => {
                     <span>{{ item.label }}</span>
                   </button>
                 </div>
+
+                <button class="ai-scope-toggle" @click="showScopeInfo = !showScopeInfo">
+                  <i
+                    class="mdi"
+                    :class="showScopeInfo ? 'mdi-chevron-up' : 'mdi-information-outline'"
+                  ></i>
+                  {{ showScopeInfo ? "Sembunyikan" : "Lihat semua topik yang bisa ditanyakan" }}
+                </button>
+
+                <Transition name="ai-scope-expand">
+                  <div v-if="showScopeInfo" class="ai-scope-grid">
+                    <div v-for="cat in scopeCategories" :key="cat.label" class="ai-scope-item">
+                      <i class="mdi" :class="cat.icon"></i>
+                      <div>
+                        <div class="ai-scope-item-label">{{ cat.label }}</div>
+                        <div class="ai-scope-item-detail">{{ cat.detail }}</div>
+                      </div>
+                    </div>
+                  </div>
+                </Transition>
               </div>
 
               <!-- ══ CHAT (setelah ada pesan) ══ -->
@@ -669,6 +724,75 @@ onUnmounted(() => {
 .ai-panel-pop-leave-to {
   opacity: 0;
   transform: scale(0.95) translateY(10px);
+}
+
+.ai-scope-toggle {
+  margin-top: 18px;
+  background: none;
+  border: none;
+  color: #a83232;
+  font-size: 0.78rem;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  padding: 6px 10px;
+  border-radius: 8px;
+  transition: background 0.15s ease;
+}
+
+.ai-scope-toggle:hover {
+  background: rgba(168, 50, 50, 0.08);
+}
+
+.ai-scope-grid {
+  margin-top: 10px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  max-width: 480px;
+  width: 100%;
+}
+
+.ai-scope-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  background: #ffffff;
+  border: 1px solid rgba(168, 50, 50, 0.12);
+  border-radius: 10px;
+  padding: 8px 10px;
+  text-align: left;
+}
+
+.ai-scope-item i {
+  color: #a83232;
+  font-size: 18px;
+  margin-top: 1px;
+  flex-shrink: 0;
+}
+
+.ai-scope-item-label {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #3a2c2c;
+}
+
+.ai-scope-item-detail {
+  font-size: 0.7rem;
+  color: #8a7a7a;
+  margin-top: 1px;
+}
+
+.ai-scope-expand-enter-active,
+.ai-scope-expand-leave-active {
+  transition: all 0.22s ease;
+}
+.ai-scope-expand-enter-from,
+.ai-scope-expand-leave-to {
+  opacity: 0;
+  transform: translateY(-6px);
 }
 
 /* ── Mobile: bottom-sheet ── */

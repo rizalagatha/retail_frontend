@@ -53,6 +53,14 @@ interface SoGroup {
   totalQty: number;
 }
 
+interface SpkBeredarItem {
+  spkNomor: string;
+  tanggal: string;
+  dateline: string | null;
+  kepentingan: string;
+  qty: number;
+}
+
 const toast = useToast();
 
 // --- STATE ---
@@ -62,6 +70,12 @@ const rawData = ref<PriorityItem[]>([]);
 const tableData = ref<EditableItem[]>([]);
 const isInfoDialogOpen = ref(false);
 const isConfirmDialogOpen = ref(false);
+const showSpkBeredarDetail = ref(false);
+const spkBeredarList = ref<SpkBeredarItem[]>([]);
+const isLoadingSpkBeredarDetail = ref(false);
+const spkBeredarKode = ref("");
+const spkBeredarNama = ref("");
+const spkBeredarUkuran = ref("");
 
 const planConfig = reactive({
   periodeStart: new Date().toISOString().split("T")[0],
@@ -288,6 +302,26 @@ const fetchDatelineRange = async (item: EditableItem) => {
     }
   } catch {
     toast.error("Gagal memuat rentang dateline.");
+  }
+};
+
+const openSpkBeredarDetail = async (item: EditableItem) => {
+  spkBeredarKode.value = item.kode;
+  spkBeredarNama.value = item.nama;
+  spkBeredarUkuran.value = item.ukuran;
+  showSpkBeredarDetail.value = true;
+  isLoadingSpkBeredarDetail.value = true;
+  spkBeredarList.value = [];
+  try {
+    const response = await api.get("/dc-planning/spk-beredar-detail", {
+      params: { kode: item.kode, ukuran: item.ukuran },
+    });
+    spkBeredarList.value = response.data;
+  } catch (error: unknown) {
+    if (axios.isAxiosError(error))
+      toast.error(error.response?.data?.message || "Gagal memuat detail SPK beredar.");
+  } finally {
+    isLoadingSpkBeredarDetail.value = false;
   }
 };
 
@@ -709,9 +743,14 @@ defineExpose({
         </template>
 
         <template #[`item.spk_beredar`]="{ item }">
-          <span class="text-grey-darken-2">{{
-            Number(item.spk_beredar).toLocaleString("id-ID")
-          }}</span>
+          <span
+            v-if="Number(item.spk_beredar) > 0"
+            class="spk-beredar-link"
+            @click="openSpkBeredarDetail(item)"
+          >
+            {{ Number(item.spk_beredar).toLocaleString("id-ID") }}
+          </span>
+          <span v-else class="text-grey-darken-2">0</span>
         </template>
 
         <template #[`item.rekomendasi_spk`]="{ item }">
@@ -888,6 +927,69 @@ defineExpose({
               </v-card>
             </v-col>
           </v-row>
+        </v-card-text>
+      </v-card>
+    </v-dialog>
+
+    <!-- ── Dialog Detail SPK Beredar ─────────────────────────── -->
+    <v-dialog v-model="showSpkBeredarDetail" max-width="640">
+      <v-card rounded="lg">
+        <v-card-title class="d-flex align-center bg-blue-lighten-5 text-blue-darken-4 py-3">
+          <v-icon class="mr-2" color="blue-darken-2">mdi-clipboard-list-outline</v-icon>
+          <div>
+            <div class="text-subtitle-1 font-weight-bold">Detail SPK Beredar</div>
+            <div class="text-caption">
+              {{ spkBeredarKode }} · {{ spkBeredarUkuran }} — {{ spkBeredarNama }}
+            </div>
+          </div>
+          <v-spacer />
+          <v-btn
+            icon="mdi-close"
+            variant="text"
+            size="small"
+            @click="showSpkBeredarDetail = false"
+          />
+        </v-card-title>
+        <v-card-text class="pa-0">
+          <div v-if="isLoadingSpkBeredarDetail" class="text-center pa-8">
+            <v-progress-circular indeterminate color="blue" size="36" />
+          </div>
+          <div
+            v-else-if="spkBeredarList.length === 0"
+            class="text-center pa-8 text-medium-emphasis"
+          >
+            Tidak ada SPK beredar untuk item ini.
+          </div>
+          <v-table v-else density="compact">
+            <thead>
+              <tr class="bg-grey-lighten-4">
+                <th class="text-left font-weight-bold" style="font-size: 11px">NO. SPK</th>
+                <th class="text-left font-weight-bold" style="font-size: 11px">TANGGAL</th>
+                <th class="text-left font-weight-bold" style="font-size: 11px">KEPENTINGAN</th>
+                <th class="text-left font-weight-bold" style="font-size: 11px">DATELINE</th>
+                <th class="text-right font-weight-bold" style="font-size: 11px">QTY</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="(row, i) in spkBeredarList" :key="i">
+                <td class="font-weight-bold text-blue-darken-3" style="font-size: 11px">
+                  {{ row.spkNomor }}
+                </td>
+                <td style="font-size: 11px">
+                  {{ row.tanggal ? new Date(row.tanggal).toLocaleDateString("id-ID") : "-" }}
+                </td>
+                <td style="font-size: 11px">
+                  <v-chip size="x-small" variant="tonal" color="blue-grey">{{
+                    row.kepentingan || "-"
+                  }}</v-chip>
+                </td>
+                <td style="font-size: 11px">
+                  {{ row.dateline ? new Date(row.dateline).toLocaleDateString("id-ID") : "-" }}
+                </td>
+                <td class="text-right font-weight-bold" style="font-size: 11px">{{ row.qty }}</td>
+              </tr>
+            </tbody>
+          </v-table>
         </v-card-text>
       </v-card>
     </v-dialog>
@@ -1437,5 +1539,15 @@ defineExpose({
 .confirm-detail-table :deep(th) {
   padding: 4px 10px !important;
   font-size: 11px !important;
+}
+
+.spk-beredar-link {
+  color: #1565c0;
+  text-decoration: underline;
+  cursor: pointer;
+  font-weight: 700;
+}
+.spk-beredar-link:hover {
+  opacity: 0.75;
 }
 </style>

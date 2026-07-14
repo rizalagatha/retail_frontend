@@ -48,6 +48,8 @@ interface RawStockRow {
   TOTAL?: number | string;
   PL_QTY?: number | string;
   TOTAL2?: number | string;
+  PESANAN_READY?: number | string;
+  PESANAN_BOOKED?: number | string;
 }
 
 interface PivotItem {
@@ -59,8 +61,18 @@ interface PivotItem {
   Total: number;
   PL: number;
   Tersedia: number;
+  PesananReady: number;
+  PesananBooked: number;
   Buffer: number;
   [size: string]: string | number;
+}
+
+interface BookedDetailItem {
+  soNomor: string;
+  tanggal: string;
+  customer: string;
+  ukuran: string;
+  qty: number;
 }
 
 const toast = useToast();
@@ -82,6 +94,11 @@ const filters = reactive({
 const gudangList = ref<Gudang[]>([]);
 const isProductSearchVisible = ref(false);
 const hasViewPermission = computed(() => authStore.can(MENU_ID, "view"));
+const showBookedDetail = ref(false);
+const bookedDetailList = ref<BookedDetailItem[]>([]);
+const isLoadingBookedDetail = ref(false);
+const bookedDetailKode = ref("");
+const bookedDetailNama = ref("");
 
 // ─── Headers ──────────────────────────────────────────────────────────────────
 const headers = ref<DataTableHeader[]>([]);
@@ -171,6 +188,8 @@ const fetchData = async () => {
         "Buffer",
         "KTGPRODUK",
         "KTGBARANG",
+        "PESANAN_READY",
+        "PESANAN_BOOKED",
       ];
       const dynamicKeys = Object.keys(stokList.value[0])
         .filter((k) => !staticKeys.includes(k))
@@ -204,6 +223,25 @@ const fetchData = async () => {
         );
       }
 
+      // [BARU] Kolom khusus cabang store (bukan ALL, bukan KDC)
+      const isStoreView = filters.gudang !== "ALL" && filters.gudang !== "KDC";
+      if (isStoreView) {
+        newHeaders.push(
+          {
+            title: "Pesanan Ready",
+            key: "PESANAN_READY",
+            width: 120,
+            class: "text-blue-darken-4 font-weight-bold bg-blue-lighten-5",
+          },
+          {
+            title: "Pesanan Booked",
+            key: "PESANAN_BOOKED",
+            width: 130,
+            class: "text-deep-orange-darken-4 font-weight-bold bg-deep-orange-lighten-5",
+          }
+        );
+      }
+
       newHeaders.push({ title: "Buffer", key: "Buffer", width: 100 });
       headers.value = newHeaders;
     } else {
@@ -218,6 +256,25 @@ const fetchData = async () => {
     console.error(error);
   } finally {
     isLoading.value = false;
+  }
+};
+
+const openBookedDetail = async (item: StokItem) => {
+  bookedDetailKode.value = String(item.KODE);
+  bookedDetailNama.value = String(item.NAMA);
+  showBookedDetail.value = true;
+  isLoadingBookedDetail.value = true;
+  bookedDetailList.value = [];
+  try {
+    const response = await api.get("/laporan-stok/pesanan-booked-detail", {
+      params: { kode: item.KODE, cabang: filters.gudang },
+    });
+    bookedDetailList.value = response.data;
+  } catch (error) {
+    toast.error("Gagal memuat detail pesanan booked.");
+    console.error(error);
+  } finally {
+    isLoadingBookedDetail.value = false;
   }
 };
 
@@ -300,6 +357,8 @@ const exportToExcel = async (tipe: "horizontal" | "vertical") => {
             Total: 0,
             PL: 0,
             Tersedia: 0,
+            PesananReady: 0,
+            PesananBooked: 0,
             Buffer: Number(row.BUFFER || 0),
           });
         }
@@ -310,9 +369,13 @@ const exportToExcel = async (tipe: "horizontal" | "vertical") => {
         item.Total += Number(row.TOTAL || 0);
         item.PL += Number(row.PL_QTY || 0);
         item.Tersedia += Number(row.TOTAL2 || 0);
+        item.PesananReady = Number(row.PESANAN_READY || 0);
+        item.PesananBooked = Number(row.PESANAN_BOOKED || 0);
       });
 
       const sortedSizes = Array.from(sizeSet).sort(sortSizes);
+      const isStoreExport = filters.gudang !== "ALL" && filters.gudang !== "KDC";
+
       const colHeaders = [
         "Kategori",
         "Kode Barang",
@@ -323,6 +386,7 @@ const exportToExcel = async (tipe: "horizontal" | "vertical") => {
         "Total",
       ];
       if (isKDC) colHeaders.push("Qty PL", "Tersedia");
+      if (isStoreExport) colHeaders.push("Pesanan Ready", "Pesanan Booked");
       colHeaders.push("Buffer");
 
       const finalData = Array.from(pivotedMap.values())
@@ -341,6 +405,10 @@ const exportToExcel = async (tipe: "horizontal" | "vertical") => {
           if (isKDC) {
             r["Qty PL"] = row.PL;
             r["Tersedia"] = row.Tersedia;
+          }
+          if (isStoreExport) {
+            r["Pesanan Ready"] = row.PesananReady;
+            r["Pesanan Booked"] = row.PesananBooked;
           }
           r["Buffer"] = row.Buffer;
           return r;
@@ -367,6 +435,8 @@ const exportToExcel = async (tipe: "horizontal" | "vertical") => {
 
       // ── VERTIKAL ───────────────────────────────────────────
     } else {
+      const isStoreExport = filters.gudang !== "ALL" && filters.gudang !== "KDC";
+
       const colHeaders = [
         "Kategori",
         "Kode Barang",
@@ -377,7 +447,7 @@ const exportToExcel = async (tipe: "horizontal" | "vertical") => {
         "Qty",
       ];
       if (isKDC) colHeaders.push("Qty PL", "Tersedia");
-      // [BARU] Tambahkan dua kolom ini
+      if (isStoreExport) colHeaders.push("Pesanan Ready", "Pesanan Booked");
       colHeaders.push("Buffer Min", "Buffer Max");
 
       const finalData = rawData
@@ -395,7 +465,10 @@ const exportToExcel = async (tipe: "horizontal" | "vertical") => {
             r["Qty PL"] = Number(row.PL_QTY || 0);
             r["Tersedia"] = Number(row.TOTAL2 || 0);
           }
-          // [BARU] Map ke row Excel
+          if (isStoreExport) {
+            r["Pesanan Ready"] = Number(row.PESANAN_READY || 0);
+            r["Pesanan Booked"] = Number(row.PESANAN_BOOKED || 0);
+          }
           r["Buffer Min"] = Number(row.BUFFER_MIN || 0);
           r["Buffer Max"] = Number(row.BUFFER_MAX || 0);
           return r;
@@ -682,11 +755,20 @@ onMounted(() => {
 
           <template v-for="header in headers" #[`item.${header.key}`]="{ item }" :key="header.key">
             <td :class="getRowTextColor(item as StokItem)">
-              {{
-                header.key === "PL" || header.key === "TOTAL2"
-                  ? Math.round(Number(item[header.key]))
-                  : item[header.key]
-              }}
+              <span
+                v-if="header.key === 'PESANAN_BOOKED' && Number(item[header.key]) > 0"
+                class="pesanan-booked-link"
+                @click="openBookedDetail(item as StokItem)"
+              >
+                {{ Math.round(Number(item[header.key])) }}
+              </span>
+              <template v-else>
+                {{
+                  ["PL", "TOTAL2", "PESANAN_READY", "PESANAN_BOOKED"].includes(header.key)
+                    ? Math.round(Number(item[header.key]))
+                    : item[header.key]
+                }}
+              </template>
             </td>
           </template>
         </AppDataTable>
@@ -699,6 +781,55 @@ onMounted(() => {
       @close="isProductSearchVisible = false"
       @product-selected="onProductSelected"
     />
+
+    <v-dialog v-model="showBookedDetail" max-width="700">
+      <v-card rounded="lg">
+        <v-card-title
+          class="d-flex align-center bg-deep-orange-lighten-5 text-deep-orange-darken-4 py-3"
+        >
+          <v-icon class="mr-2" color="deep-orange">mdi-clipboard-list-outline</v-icon>
+          <div>
+            <div class="text-subtitle-1 font-weight-bold">Detail Pesanan Booked</div>
+            <div class="text-caption">{{ bookedDetailKode }} — {{ bookedDetailNama }}</div>
+          </div>
+          <v-spacer />
+          <v-btn icon="mdi-close" variant="text" size="small" @click="showBookedDetail = false" />
+        </v-card-title>
+        <v-card-text class="pa-0">
+          <div v-if="isLoadingBookedDetail" class="text-center pa-8">
+            <v-progress-circular indeterminate color="deep-orange" size="36" />
+          </div>
+          <div
+            v-else-if="bookedDetailList.length === 0"
+            class="text-center pa-8 text-medium-emphasis"
+          >
+            Tidak ada SO outstanding untuk barang ini.
+          </div>
+          <v-table v-else density="compact">
+            <thead>
+              <tr class="bg-grey-lighten-4">
+                <th class="text-left font-weight-bold" style="font-size: 11px">NO. SO</th>
+                <th class="text-left font-weight-bold" style="font-size: 11px">TANGGAL</th>
+                <th class="text-left font-weight-bold" style="font-size: 11px">CUSTOMER</th>
+                <th class="text-center font-weight-bold" style="font-size: 11px">UK.</th>
+                <th class="text-right font-weight-bold" style="font-size: 11px">QTY</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="(row, i) in bookedDetailList" :key="i">
+                <td class="font-weight-bold text-deep-orange-darken-3" style="font-size: 11px">
+                  {{ row.soNomor }}
+                </td>
+                <td style="font-size: 11px">{{ format(new Date(row.tanggal), "dd/MM/yyyy") }}</td>
+                <td style="font-size: 11px">{{ row.customer }}</td>
+                <td class="text-center" style="font-size: 11px">{{ row.ukuran }}</td>
+                <td class="text-right font-weight-bold" style="font-size: 11px">{{ row.qty }}</td>
+              </tr>
+            </tbody>
+          </v-table>
+        </v-card-text>
+      </v-card>
+    </v-dialog>
   </PageLayout>
 </template>
 
@@ -913,5 +1044,15 @@ onMounted(() => {
   justify-content: center;
   align-items: center;
   flex-direction: column;
+}
+
+.pesanan-booked-link {
+  color: rgb(var(--v-theme-error));
+  text-decoration: underline;
+  cursor: pointer;
+  font-weight: 700;
+}
+.pesanan-booked-link:hover {
+  opacity: 0.75;
 }
 </style>

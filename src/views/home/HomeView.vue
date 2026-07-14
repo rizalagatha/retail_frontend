@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, computed, reactive, watch, nextTick } from "vue";
+import { ref, onMounted, onUnmounted, computed, reactive, watch } from "vue";
 import { useAuthStore } from "@/stores/authStore";
 import { useRouter } from "vue-router";
 // [GSAP] Import Library
@@ -35,6 +35,7 @@ import { formatRupiah } from "@/utils/formatRupiah";
 import JuknisModal from "@/components/modal/JuknisModal.vue";
 import TrackingAnalytics from "@/components/button/TrackingAnalytics.vue";
 import RealStockDialog from "@/components/modal/RealStockDialog.vue";
+import KaosanAiDialog from "@/components/dialog/KaosanAiDialog.vue";
 
 ChartJS.register(
   Title,
@@ -1043,64 +1044,6 @@ const userLong = ref("");
 
 // --- STATE KAOSAN AI ---
 const showAiDialog = ref(false);
-
-const aiQuestion = ref("");
-const aiLoading = ref(false);
-const chatContainer = ref<HTMLElement | null>(null);
-
-const aiMessages = ref<
-  {
-    role: "user" | "assistant";
-    content: string;
-  }[]
->([]);
-
-const suggestions = [
-  "Halo",
-  "Penjualan hari ini",
-  "Barang paling laris",
-  "Stok paling sedikit",
-  "Piutang hari ini",
-];
-
-const scrollToBottom = () => {
-  nextTick(() => {
-    if (chatContainer.value) {
-      chatContainer.value.scrollTop = chatContainer.value.scrollHeight;
-    }
-  });
-};
-
-const sendAi = async () => {
-  if (!aiQuestion.value.trim()) return;
-
-  aiMessages.value.push({ role: "user", content: aiQuestion.value });
-  aiQuestion.value = "";
-  aiLoading.value = true;
-  scrollToBottom();
-
-  try {
-    // Kirim 6 pesan terakhir (termasuk pertanyaan baru) sebagai konteks percakapan
-    const recentHistory = aiMessages.value.slice(-2).map((m) => ({
-      role: m.role,
-      content: m.content,
-    }));
-
-    const { data } = await api.post("/ai/chat", { messages: recentHistory });
-    aiMessages.value.push({ role: "assistant", content: data.answer });
-  } catch {
-    toast.error("AI gagal dihubungi.");
-    aiMessages.value.push({ role: "assistant", content: "Maaf, koneksi ke AI terputus." });
-  } finally {
-    aiLoading.value = false;
-    scrollToBottom();
-  }
-};
-
-const askSuggestion = (text: string) => {
-  aiQuestion.value = text;
-  sendAi();
-};
 
 // --- STATE DEAD STOCK ---
 const deadStockSummary = ref({
@@ -6989,117 +6932,7 @@ onUnmounted(() => {
     </v-card>
   </v-dialog>
 
-  <v-dialog v-model="showAiDialog" max-width="850" scrollable>
-    <v-card rounded="xl">
-      <v-toolbar color="deep-purple" density="comfortable">
-        <v-icon class="ml-4">mdi-robot-outline</v-icon>
-        <v-toolbar-title class="font-weight-bold">Kaosan AI Assistant</v-toolbar-title>
-        <v-spacer />
-        <v-btn icon @click="showAiDialog = false">
-          <v-icon>mdi-close</v-icon>
-        </v-btn>
-      </v-toolbar>
-
-      <v-card-text class="pa-0 bg-grey-lighten-5">
-        <div class="pa-4">
-          <div class="mb-2">
-            <v-chip
-              v-for="item in suggestions"
-              :key="item"
-              class="mr-2 mb-2 font-weight-medium"
-              color="deep-purple"
-              variant="outlined"
-              @click="askSuggestion(item)"
-              size="small"
-            >
-              {{ item }}
-            </v-chip>
-          </div>
-
-          <v-divider class="mb-3" />
-
-          <div
-            style="height: 400px; overflow-y: auto; overflow-x: hidden"
-            class="px-2 pb-4"
-            ref="chatContainer"
-          >
-            <div v-if="aiMessages.length === 0" class="text-center text-grey mt-10">
-              <v-icon size="64" color="deep-purple-lighten-2" class="mb-4"
-                >mdi-robot-happy-outline</v-icon
-              >
-              <div class="text-h6 font-weight-bold text-deep-purple-darken-1">Halo 👋</div>
-              <div class="text-body-2 mt-1">
-                Ada yang bisa saya bantu terkait data Kaosan hari ini?
-              </div>
-            </div>
-
-            <div v-for="(msg, index) in aiMessages" :key="index" class="mb-4">
-              <div :class="msg.role == 'user' ? 'd-flex justify-end' : 'd-flex justify-start'">
-                <div
-                  class="rounded-xl px-4 py-2 elevation-1"
-                  :class="
-                    msg.role == 'user'
-                      ? 'bg-deep-purple text-white'
-                      : 'bg-white border text-grey-darken-4'
-                  "
-                  style="max-width: 85%"
-                >
-                  <div
-                    v-if="msg.role === 'assistant'"
-                    style="font-size: 0.9rem; line-height: 1.6"
-                    v-html="
-                      msg.content.replace(/\*\*(.*?)\*\*/g, '<b>$1</b>').replace(/\n/g, '<br>')
-                    "
-                  ></div>
-                  <div v-else style="font-size: 0.9rem">
-                    {{ msg.content }}
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div v-if="aiLoading" class="d-flex justify-start mb-4">
-              <div class="rounded-xl bg-white border px-4 py-3 elevation-1" style="max-width: 85%">
-                <div class="d-flex align-center ga-2">
-                  <v-progress-circular indeterminate color="deep-purple" size="16" width="2" />
-                  <span class="text-caption text-deep-purple font-weight-medium"
-                    >AI sedang berpikir...</span
-                  >
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </v-card-text>
-
-      <v-divider />
-
-      <v-card-actions class="pa-4 bg-white">
-        <v-text-field
-          v-model="aiQuestion"
-          placeholder="Tanyakan omzet, stok kosong, dll..."
-          density="comfortable"
-          variant="outlined"
-          hide-details
-          rounded="lg"
-          bg-color="grey-lighten-4"
-          @keyup.enter="sendAi"
-        >
-          <template #append-inner>
-            <v-btn
-              color="deep-purple"
-              :loading="aiLoading"
-              icon="mdi-send"
-              variant="flat"
-              size="small"
-              class="mt-n1"
-              @click="sendAi"
-            />
-          </template>
-        </v-text-field>
-      </v-card-actions>
-    </v-card>
-  </v-dialog>
+  <KaosanAiDialog v-model="showAiDialog" />
 
   <JuknisModal v-model="showJuknis" />
 
@@ -7663,17 +7496,5 @@ iframe {
   to {
     transform: translateY(-5px);
   }
-}
-
-/* Modifikasi scrollbar khusus chat box agar lebih rapi */
-div[ref="chatContainer"]::-webkit-scrollbar {
-  width: 6px;
-}
-div[ref="chatContainer"]::-webkit-scrollbar-track {
-  background: transparent;
-}
-div[ref="chatContainer"]::-webkit-scrollbar-thumb {
-  background: #cfd8dc;
-  border-radius: 10px;
 }
 </style>

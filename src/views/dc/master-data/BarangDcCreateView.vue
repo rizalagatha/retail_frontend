@@ -429,10 +429,16 @@ const onWarnaKainSelected = (item: { nama: string; Kode: string }) => {
 const handleAktifChange = async (item: VarianItem) => {
   // Hanya jalankan jika checkbox diaktifkan
   if (!item.aktif) return;
-
   if (!item.barcode) {
     item.barcode = generateBarcode(item);
   }
+
+  // [REVISI] Formula buffer lama (tbuffer/getBuffer) sudah tidak relevan —
+  // buffer sekarang dihitung terpisah lewat Buffer Panel (data penjualan
+  // bulanan per toko). Di mode EDIT, jangan timpa nilai yang sudah
+  // tersimpan/dimuat dengan rumus lama ini. Biarkan tetap dipakai apa
+  // adanya (atau 0 kalau ukuran ini memang baru & belum pernah dihitung).
+  if (isEditMode.value) return;
 
   // Logika penentuan tipe warna dan lengan dari Delphi
   let warnaType = "WARNA";
@@ -556,9 +562,15 @@ watch(
   ],
   async ([jk, tp, lg, jkain, wr]) => {
     generateNamaBarang();
-    updateAllActiveBuffers();
 
-    // ✅ Tambahkan logika ini
+    // [REVISI] Jangan auto-hitung ulang buffer di mode EDIT — nilai yang
+    // sudah dimuat loadDataForEdit (dari database) harus tetap dipakai
+    // apa adanya. updateAllActiveBuffers() (formula lama) cuma relevan
+    // untuk barang BARU sebagai starting point kasar.
+    if (!isEditMode.value) {
+      updateAllActiveBuffers();
+    }
+
     if (!isEditMode.value && jk && tp && lg && jkain && wr && !header.bcdId) {
       try {
         const { data } = await api.get("/barang-dc-form/next-bcdid");

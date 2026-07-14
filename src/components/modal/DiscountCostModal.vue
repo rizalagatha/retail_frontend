@@ -138,16 +138,21 @@ const toggleMapsPromo = () => {
 
 const diskonRp = computed(() => {
   // [FIX] Basis yang benar: total setelah diskon item (termasuk tier K12),
-  // BUKAN totalSo yang sudah dikecualikan item-item ber-diskon (bisa 0 untuk K12)
   const totalBruto =
     props.netAfterItemDiscount > 0 ? props.netAfterItemDiscount : Number(props.totalSo) || 0;
 
   const nominalManual = Number(diskonManualRp.value) || 0;
   const p1 = Number(localFooter.value.diskonPersen1) || 0;
   const p2 = Number(localFooter.value.diskonPersen2) || 0;
+
+  // TAHAP 1: Hitung Diskon Dasar (Persen 1 atau Manual Rupiah)
   const baseDiscount = p1 > 0 ? (p1 / 100) * totalBruto : nominalManual;
-  const remaining = totalBruto - baseDiscount;
-  const disc2 = (p2 / 100) * remaining;
+
+  // TAHAP 2: Hitung Diskon Maps (Dari sisa harga setelah diskon tahap 1)
+  const remainingAfterBase = Math.max(0, totalBruto - baseDiscount);
+  const disc2 = (p2 / 100) * remainingAfterBase;
+
+  // TAHAP 3: Gabungkan keduanya
   return Math.round(baseDiscount + disc2);
 });
 

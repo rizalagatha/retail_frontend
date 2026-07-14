@@ -1,30 +1,47 @@
 <script setup lang="ts">
-import { ref, nextTick, watch, onMounted, onUnmounted } from "vue";
+import { ref, computed, nextTick, watch, onMounted, onUnmounted } from "vue";
 import api from "@/services/api";
 import { useToast } from "vue-toastification";
+import { useAuthStore } from "@/stores/authStore";
 
 interface AiMessage {
   role: "user" | "assistant";
   content: string;
 }
 
+interface Suggestion {
+  label: string;
+  icon: string;
+}
+
 const props = defineProps<{ modelValue: boolean }>();
 const emit = defineEmits<{ (e: "update:modelValue", value: boolean): void }>();
 
 const toast = useToast();
+const authStore = useAuthStore();
 
 const aiQuestion = ref("");
 const aiLoading = ref(false);
 const chatContainer = ref<HTMLElement | null>(null);
 const aiMessages = ref<AiMessage[]>([]);
 
-const suggestions = [
-  "Halo",
-  "Penjualan hari ini",
-  "Barang paling laris",
-  "Stok paling sedikit",
-  "Piutang hari ini",
+const suggestions: Suggestion[] = [
+  { label: "Halo", icon: "mdi-hand-wave-outline" },
+  { label: "Penjualan hari ini", icon: "mdi-chart-timeline-variant" },
+  { label: "Barang paling laris", icon: "mdi-star-outline" },
+  { label: "Stok paling sedikit", icon: "mdi-package-variant-closed" },
+  { label: "Piutang hari ini", icon: "mdi-cash-clock" },
 ];
+
+const userDisplayName = computed(() => authStore.user?.kode || "");
+
+const greetingTime = computed(() => {
+  const h = new Date().getHours();
+  if (h < 11) return "Selamat pagi";
+  if (h < 15) return "Selamat siang";
+  if (h < 19) return "Selamat sore";
+  return "Selamat malam";
+});
 
 const close = () => emit("update:modelValue", false);
 
@@ -61,12 +78,16 @@ const sendAi = async () => {
   }
 };
 
-const askSuggestion = (text: string) => {
-  aiQuestion.value = text;
+const askSuggestion = (label: string) => {
+  aiQuestion.value = label;
   sendAi();
 };
 
-// Kunci scroll body saat panel terbuka + tutup pakai tombol Escape
+const resetChat = () => {
+  aiMessages.value = [];
+  aiQuestion.value = "";
+};
+
 const handleKeydown = (e: KeyboardEvent) => {
   if (e.key === "Escape" && props.modelValue) close();
 };
@@ -94,42 +115,69 @@ onUnmounted(() => {
           <div v-if="modelValue" class="ai-panel" role="dialog" aria-modal="true">
             <!-- HEADER -->
             <div class="ai-header">
-              <div class="ai-header-left">
-                <div class="ai-avatar">
-                  <i class="mdi mdi-robot-outline"></i>
+              <div class="ai-header-glow ai-header-glow-1"></div>
+              <div class="ai-header-glow ai-header-glow-2"></div>
+
+              <div class="ai-header-content">
+                <div class="ai-header-left">
+                  <div class="ai-avatar-ring">
+                    <div class="ai-avatar">
+                      <i class="mdi mdi-robot-outline"></i>
+                    </div>
+                  </div>
+                  <div>
+                    <div class="ai-title">Kaosan AI Assistant</div>
+                    <div class="ai-subtitle">Siap bantu cek data toko kamu</div>
+                  </div>
                 </div>
-                <div>
-                  <div class="ai-title">Kaosan AI Assistant</div>
-                  <div class="ai-subtitle">Siap bantu cek data toko kamu</div>
+                <div class="ai-header-actions">
+                  <button
+                    v-if="aiMessages.length > 0"
+                    class="ai-icon-btn"
+                    aria-label="Percakapan baru"
+                    title="Percakapan baru"
+                    @click="resetChat"
+                  >
+                    <i class="mdi mdi-refresh"></i>
+                  </button>
+                  <button class="ai-icon-btn" aria-label="Tutup" @click="close">
+                    <i class="mdi mdi-close"></i>
+                  </button>
                 </div>
               </div>
-              <button class="ai-close-btn" aria-label="Tutup" @click="close">
-                <i class="mdi mdi-close"></i>
-              </button>
             </div>
 
             <!-- BODY -->
             <div class="ai-body">
-              <div class="ai-suggestions">
-                <button
-                  v-for="item in suggestions"
-                  :key="item"
-                  class="ai-chip"
-                  @click="askSuggestion(item)"
-                >
-                  {{ item }}
-                </button>
-              </div>
-
-              <div ref="chatContainer" class="ai-chat-scroll">
-                <div v-if="aiMessages.length === 0" class="ai-empty-state">
-                  <i class="mdi mdi-robot-happy-outline ai-empty-icon"></i>
-                  <div class="ai-empty-title">Halo 👋</div>
-                  <div class="ai-empty-desc">
-                    Ada yang bisa saya bantu terkait data Kaosan hari ini?
-                  </div>
+              <!-- ══ HERO (state kosong) ══ -->
+              <div v-if="aiMessages.length === 0" class="ai-hero">
+                <div class="ai-orb-wrap">
+                  <div class="ai-orb"></div>
+                  <i class="mdi mdi-robot-happy-outline ai-orb-icon"></i>
                 </div>
 
+                <div class="ai-hero-greeting">
+                  {{ greetingTime }}<span v-if="userDisplayName">, {{ userDisplayName }}</span
+                  >!
+                </div>
+                <div class="ai-hero-question">Ada yang bisa saya bantu?</div>
+
+                <div class="ai-hero-suggestions">
+                  <button
+                    v-for="(item, i) in suggestions"
+                    :key="item.label"
+                    class="ai-hero-pill"
+                    :style="{ animationDelay: `${i * 0.06}s` }"
+                    @click="askSuggestion(item.label)"
+                  >
+                    <i class="mdi" :class="item.icon"></i>
+                    <span>{{ item.label }}</span>
+                  </button>
+                </div>
+              </div>
+
+              <!-- ══ CHAT (setelah ada pesan) ══ -->
+              <div v-else ref="chatContainer" class="ai-chat-scroll">
                 <div
                   v-for="(msg, index) in aiMessages"
                   :key="index"
@@ -159,7 +207,7 @@ onUnmounted(() => {
             <!-- FOOTER INPUT -->
             <div class="ai-footer">
               <div class="ai-input-wrap">
-                <i class="mdi mdi-message-text-outline ai-input-icon"></i>
+                <i class="mdi mdi-creation ai-input-icon"></i>
                 <input
                   v-model="aiQuestion"
                   class="ai-input"
@@ -173,7 +221,7 @@ onUnmounted(() => {
                   aria-label="Kirim"
                   @click="sendAi"
                 >
-                  <i class="mdi" :class="aiLoading ? 'mdi-loading mdi-spin' : 'mdi-send'"></i>
+                  <i class="mdi" :class="aiLoading ? 'mdi-loading mdi-spin' : 'mdi-arrow-up'"></i>
                 </button>
               </div>
             </div>
@@ -185,13 +233,6 @@ onUnmounted(() => {
 </template>
 
 <style scoped>
-/* ── Palet ── */
-:root {
-  --ai-crimson: #a83232;
-  --ai-crimson-dark: #8a2929;
-  --ai-off-white: #f6f6f6;
-}
-
 .ai-overlay {
   position: fixed;
   inset: 0;
@@ -200,7 +241,7 @@ onUnmounted(() => {
   align-items: center;
   justify-content: center;
   padding: 24px;
-  background: rgba(20, 10, 10, 0.45);
+  background: rgba(20, 10, 10, 0.5);
   backdrop-filter: blur(4px);
   -webkit-backdrop-filter: blur(4px);
 }
@@ -219,12 +260,42 @@ onUnmounted(() => {
 
 /* ── Header ── */
 .ai-header {
+  position: relative;
   flex-shrink: 0;
+  padding: 18px 20px;
+  background: linear-gradient(135deg, #a83232 0%, #7a2424 100%);
+  overflow: hidden;
+}
+
+.ai-header-glow {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(30px);
+  pointer-events: none;
+}
+
+.ai-header-glow-1 {
+  width: 160px;
+  height: 160px;
+  background: rgba(255, 255, 255, 0.18);
+  top: -80px;
+  right: -20px;
+}
+
+.ai-header-glow-2 {
+  width: 100px;
+  height: 100px;
+  background: rgba(255, 190, 190, 0.25);
+  bottom: -60px;
+  left: 40px;
+}
+
+.ai-header-content {
+  position: relative;
+  z-index: 1;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 16px 20px;
-  background: linear-gradient(135deg, #a83232 0%, #8a2929 100%);
 }
 
 .ai-header-left {
@@ -233,17 +304,25 @@ onUnmounted(() => {
   gap: 12px;
 }
 
+.ai-avatar-ring {
+  width: 46px;
+  height: 46px;
+  border-radius: 16px;
+  padding: 2px;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.6), rgba(255, 255, 255, 0.1));
+  flex-shrink: 0;
+}
+
 .ai-avatar {
-  width: 42px;
-  height: 42px;
+  width: 100%;
+  height: 100%;
   border-radius: 14px;
-  background: rgba(255, 255, 255, 0.18);
+  background: rgba(255, 255, 255, 0.16);
   display: flex;
   align-items: center;
   justify-content: center;
   color: #ffffff;
   font-size: 24px;
-  flex-shrink: 0;
 }
 
 .ai-title {
@@ -254,12 +333,19 @@ onUnmounted(() => {
 }
 
 .ai-subtitle {
-  color: rgba(255, 255, 255, 0.8);
+  color: rgba(255, 255, 255, 0.82);
   font-size: 0.75rem;
   margin-top: 2px;
 }
 
-.ai-close-btn {
+.ai-header-actions {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  gap: 8px;
+}
+
+.ai-icon-btn {
   width: 34px;
   height: 34px;
   border-radius: 10px;
@@ -270,11 +356,11 @@ onUnmounted(() => {
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  font-size: 18px;
+  font-size: 17px;
   transition: background 0.2s ease;
 }
 
-.ai-close-btn:hover {
+.ai-icon-btn:hover {
   background: rgba(255, 255, 255, 0.28);
 }
 
@@ -284,42 +370,128 @@ onUnmounted(() => {
   min-height: 0;
   display: flex;
   flex-direction: column;
-  padding: 16px 20px 0;
 }
 
-.ai-suggestions {
-  flex-shrink: 0;
+/* ── Hero (state kosong) ── */
+.ai-hero {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 24px 28px;
+  overflow-y: auto;
+}
+
+.ai-orb-wrap {
+  position: relative;
+  width: 88px;
+  height: 88px;
+  margin-bottom: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.ai-orb {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #d16a6a 0%, #a83232 55%, #6e1f1f 100%);
+  box-shadow: 0 0 0 10px rgba(168, 50, 50, 0.08), 0 0 40px rgba(168, 50, 50, 0.35);
+  animation: ai-orb-breathe 3.5s ease-in-out infinite;
+}
+
+.ai-orb-icon {
+  position: relative;
+  z-index: 1;
+  color: #ffffff;
+  font-size: 38px;
+}
+
+@keyframes ai-orb-breathe {
+  0%,
+  100% {
+    transform: scale(1);
+    box-shadow: 0 0 0 10px rgba(168, 50, 50, 0.08), 0 0 40px rgba(168, 50, 50, 0.35);
+  }
+  50% {
+    transform: scale(1.04);
+    box-shadow: 0 0 0 14px rgba(168, 50, 50, 0.1), 0 0 55px rgba(168, 50, 50, 0.45);
+  }
+}
+
+.ai-hero-greeting {
+  font-size: 1.55rem;
+  font-weight: 800;
+  color: #a83232;
+  line-height: 1.25;
+}
+
+.ai-hero-question {
+  font-size: 1.05rem;
+  font-weight: 500;
+  color: #8a7a7a;
+  margin-top: 2px;
+  margin-bottom: 26px;
+}
+
+.ai-hero-suggestions {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
-  padding-bottom: 14px;
-  border-bottom: 1px solid rgba(168, 50, 50, 0.12);
-  margin-bottom: 14px;
+  justify-content: center;
+  gap: 10px;
+  max-width: 480px;
 }
 
-.ai-chip {
-  border: 1.5px solid #a83232;
+.ai-hero-pill {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 11px 18px;
+  border-radius: 14px;
+  border: 1.5px solid rgba(168, 50, 50, 0.18);
   background: #ffffff;
   color: #a83232;
-  font-size: 0.78rem;
+  font-size: 0.85rem;
   font-weight: 600;
-  padding: 6px 14px;
-  border-radius: 999px;
   cursor: pointer;
-  transition: all 0.18s ease;
+  box-shadow: 0 2px 8px rgba(168, 50, 50, 0.06);
+  transition: all 0.2s ease;
+  opacity: 0;
+  animation: ai-pill-in 0.4s ease forwards;
 }
 
-.ai-chip:hover {
+.ai-hero-pill i {
+  font-size: 17px;
+}
+
+.ai-hero-pill:hover {
   background: #a83232;
   color: #ffffff;
-  transform: translateY(-1px);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(168, 50, 50, 0.25);
 }
 
+@keyframes ai-pill-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ── Chat scroll (setelah ada pesan) ── */
 .ai-chat-scroll {
   flex: 1 1 auto;
   min-height: 0;
   overflow-y: auto;
-  padding-bottom: 16px;
+  padding: 20px;
 }
 
 .ai-chat-scroll::-webkit-scrollbar {
@@ -331,30 +503,6 @@ onUnmounted(() => {
 .ai-chat-scroll::-webkit-scrollbar-thumb {
   background: rgba(168, 50, 50, 0.25);
   border-radius: 10px;
-}
-
-.ai-empty-state {
-  text-align: center;
-  color: #8a7a7a;
-  margin-top: 48px;
-}
-
-.ai-empty-icon {
-  font-size: 56px;
-  color: #c98080;
-  margin-bottom: 12px;
-  display: block;
-}
-
-.ai-empty-title {
-  font-size: 1.15rem;
-  font-weight: 700;
-  color: #a83232;
-}
-
-.ai-empty-desc {
-  font-size: 0.85rem;
-  margin-top: 4px;
 }
 
 .ai-msg-row {
@@ -392,7 +540,6 @@ onUnmounted(() => {
   border-bottom-left-radius: 6px;
 }
 
-/* Typing indicator */
 .ai-typing-bubble {
   display: flex;
   align-items: center;
@@ -428,7 +575,7 @@ onUnmounted(() => {
   }
 }
 
-/* ── Footer ── */
+/* ── Footer input (gaya search-bar) ── */
 .ai-footer {
   flex-shrink: 0;
   padding: 14px 20px 18px;
@@ -439,22 +586,23 @@ onUnmounted(() => {
 .ai-input-wrap {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
   background: #f6f6f6;
   border: 1.5px solid rgba(168, 50, 50, 0.15);
   border-radius: 999px;
-  padding: 6px 8px 6px 16px;
-  transition: border-color 0.18s ease;
+  padding: 8px 8px 8px 18px;
+  transition: border-color 0.18s ease, box-shadow 0.18s ease;
 }
 
 .ai-input-wrap:focus-within {
   border-color: #a83232;
+  box-shadow: 0 0 0 4px rgba(168, 50, 50, 0.08);
 }
 
 .ai-input-icon {
   color: #a83232;
-  font-size: 18px;
-  opacity: 0.7;
+  font-size: 19px;
+  opacity: 0.75;
   flex-shrink: 0;
 }
 
@@ -463,9 +611,9 @@ onUnmounted(() => {
   border: none;
   outline: none;
   background: transparent;
-  font-size: 0.88rem;
+  font-size: 0.9rem;
   color: #3a2c2c;
-  padding: 6px 0;
+  padding: 7px 0;
 }
 
 .ai-input::placeholder {
@@ -473,8 +621,8 @@ onUnmounted(() => {
 }
 
 .ai-send-btn {
-  width: 36px;
-  height: 36px;
+  width: 38px;
+  height: 38px;
   border-radius: 50%;
   border: none;
   background: #a83232;
@@ -483,7 +631,7 @@ onUnmounted(() => {
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  font-size: 16px;
+  font-size: 17px;
   flex-shrink: 0;
   transition: background 0.18s ease, transform 0.15s ease;
 }
@@ -498,7 +646,7 @@ onUnmounted(() => {
   cursor: not-allowed;
 }
 
-/* ── Transisi custom (bukan bawaan Vuetify) ── */
+/* ── Transisi custom ── */
 .ai-overlay-fade-enter-active,
 .ai-overlay-fade-leave-active {
   transition: opacity 0.25s ease;
@@ -523,7 +671,7 @@ onUnmounted(() => {
   transform: scale(0.95) translateY(10px);
 }
 
-/* ── Mobile: jadi bottom-sheet ── */
+/* ── Mobile: bottom-sheet ── */
 @media (max-width: 600px) {
   .ai-overlay {
     padding: 0;
@@ -539,6 +687,9 @@ onUnmounted(() => {
   }
   .ai-panel-pop-leave-to {
     transform: translateY(100%);
+  }
+  .ai-hero-greeting {
+    font-size: 1.3rem;
   }
 }
 </style>

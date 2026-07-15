@@ -99,6 +99,11 @@ const bookedDetailList = ref<BookedDetailItem[]>([]);
 const isLoadingBookedDetail = ref(false);
 const bookedDetailKode = ref("");
 const bookedDetailNama = ref("");
+const showReadyDetail = ref(false);
+const readyDetailList = ref<BookedDetailItem[]>([]);
+const isLoadingReadyDetail = ref(false);
+const readyDetailKode = ref("");
+const readyDetailNama = ref("");
 
 // ─── Headers ──────────────────────────────────────────────────────────────────
 const headers = ref<DataTableHeader[]>([]);
@@ -175,7 +180,20 @@ const fetchData = async () => {
   isLoading.value = true;
   try {
     const response = await api.get("/laporan-stok/real-time", { params: filters });
-    stokList.value = response.data;
+    const isStoreViewCalc = filters.gudang !== "ALL" && filters.gudang !== "KDC";
+
+    // [BARU] Hitung kolom Tersedia = Total - Pesanan Ready - Pesanan Booked
+    // (murni dihitung di frontend dari kolom yang sudah ada, tidak perlu
+    // query tambahan ke backend).
+    stokList.value = isStoreViewCalc
+      ? response.data.map((item: StokItem) => ({
+          ...item,
+          TERSEDIA:
+            Number(item.TOTAL || 0) -
+            Number(item.PESANAN_READY || 0) -
+            Number(item.PESANAN_BOOKED || 0),
+        }))
+      : response.data;
 
     if (stokList.value.length > 0) {
       const staticKeys = [
@@ -190,6 +208,7 @@ const fetchData = async () => {
         "KTGBARANG",
         "PESANAN_READY",
         "PESANAN_BOOKED",
+        "TERSEDIA",
       ];
       const dynamicKeys = Object.keys(stokList.value[0])
         .filter((k) => !staticKeys.includes(k))
@@ -238,6 +257,12 @@ const fetchData = async () => {
             key: "PESANAN_BOOKED",
             width: 130,
             class: "text-deep-orange-darken-4 font-weight-bold bg-deep-orange-lighten-5",
+          },
+          {
+            title: "Tersedia",
+            key: "TERSEDIA",
+            width: 110,
+            class: "text-green-darken-4 font-weight-bold bg-green-lighten-5",
           }
         );
       }
@@ -275,6 +300,25 @@ const openBookedDetail = async (item: StokItem) => {
     console.error(error);
   } finally {
     isLoadingBookedDetail.value = false;
+  }
+};
+
+const openReadyDetail = async (item: StokItem) => {
+  readyDetailKode.value = String(item.KODE);
+  readyDetailNama.value = String(item.NAMA);
+  showReadyDetail.value = true;
+  isLoadingReadyDetail.value = true;
+  readyDetailList.value = [];
+  try {
+    const response = await api.get("/laporan-stok/pesanan-ready-detail", {
+      params: { kode: item.KODE, cabang: filters.gudang },
+    });
+    readyDetailList.value = response.data;
+  } catch (error) {
+    toast.error("Gagal memuat detail pesanan ready.");
+    console.error(error);
+  } finally {
+    isLoadingReadyDetail.value = false;
   }
 };
 
@@ -369,8 +413,11 @@ const exportToExcel = async (tipe: "horizontal" | "vertical") => {
         item.Total += Number(row.TOTAL || 0);
         item.PL += Number(row.PL_QTY || 0);
         item.Tersedia += Number(row.TOTAL2 || 0);
-        item.PesananReady = Number(row.PESANAN_READY || 0);
-        item.PesananBooked = Number(row.PESANAN_BOOKED || 0);
+        // [FIX] Backend sekarang balikin nilai PER UKURAN (bukan total kode
+        // yang sama di semua baris) — wajib DIJUMLAH biar total per kode
+        // tetap benar, bukan cuma nyisa nilai baris ukuran terakhir.
+        item.PesananReady += Number(row.PESANAN_READY || 0);
+        item.PesananBooked += Number(row.PESANAN_BOOKED || 0);
       });
 
       const sortedSizes = Array.from(sizeSet).sort(sortSizes);
@@ -386,7 +433,7 @@ const exportToExcel = async (tipe: "horizontal" | "vertical") => {
         "Total",
       ];
       if (isKDC) colHeaders.push("Qty PL", "Tersedia");
-      if (isStoreExport) colHeaders.push("Pesanan Ready", "Pesanan Booked");
+      if (isStoreExport) colHeaders.push("Pesanan Ready", "Pesanan Booked", "Tersedia");
       colHeaders.push("Buffer");
 
       const finalData = Array.from(pivotedMap.values())
@@ -409,12 +456,12 @@ const exportToExcel = async (tipe: "horizontal" | "vertical") => {
           if (isStoreExport) {
             r["Pesanan Ready"] = row.PesananReady;
             r["Pesanan Booked"] = row.PesananBooked;
+            r["Tersedia"] = row.Total - row.PesananReady - row.PesananBooked;
           }
           r["Buffer"] = row.Buffer;
           return r;
         })
         .sort((a, b) => String(a["Nama Barang"]).localeCompare(String(b["Nama Barang"])));
-
       const sheet = workbook.addWorksheet("Stok Horizontal");
 
       // Header row
@@ -447,7 +494,7 @@ const exportToExcel = async (tipe: "horizontal" | "vertical") => {
         "Qty",
       ];
       if (isKDC) colHeaders.push("Qty PL", "Tersedia");
-      if (isStoreExport) colHeaders.push("Pesanan Ready", "Pesanan Booked");
+      if (isStoreExport) colHeaders.push("Pesanan Ready", "Pesanan Booked", "Tersedia");
       colHeaders.push("Buffer Min", "Buffer Max");
 
       const finalData = rawData
@@ -466,8 +513,13 @@ const exportToExcel = async (tipe: "horizontal" | "vertical") => {
             r["Tersedia"] = Number(row.TOTAL2 || 0);
           }
           if (isStoreExport) {
-            r["Pesanan Ready"] = Number(row.PESANAN_READY || 0);
-            r["Pesanan Booked"] = Number(row.PESANAN_BOOKED || 0);
+            const pesananReady = Number(row.PESANAN_READY || 0);
+            const pesananBooked = Number(row.PESANAN_BOOKED || 0);
+            r["Pesanan Ready"] = pesananReady;
+            r["Pesanan Booked"] = pesananBooked;
+            // Di export vertikal ini per (kode, ukuran) — lebih presisi
+            // dibanding grid utama yang levelnya per kode (gabung semua ukuran).
+            r["Tersedia"] = Number(row.TOTAL || 0) - pesananReady - pesananBooked;
           }
           r["Buffer Min"] = Number(row.BUFFER_MIN || 0);
           r["Buffer Max"] = Number(row.BUFFER_MAX || 0);
@@ -762,9 +814,18 @@ onMounted(() => {
               >
                 {{ Math.round(Number(item[header.key])) }}
               </span>
+              <span
+                v-else-if="header.key === 'PESANAN_READY' && Number(item[header.key]) > 0"
+                class="pesanan-ready-link"
+                @click="openReadyDetail(item as StokItem)"
+              >
+                {{ Math.round(Number(item[header.key])) }}
+              </span>
               <template v-else>
                 {{
-                  ["PL", "TOTAL2", "PESANAN_READY", "PESANAN_BOOKED"].includes(header.key)
+                  ["PL", "TOTAL2", "PESANAN_READY", "PESANAN_BOOKED", "TERSEDIA"].includes(
+                    header.key
+                  )
                     ? Math.round(Number(item[header.key]))
                     : item[header.key]
                 }}
@@ -818,6 +879,53 @@ onMounted(() => {
             <tbody>
               <tr v-for="(row, i) in bookedDetailList" :key="i">
                 <td class="font-weight-bold text-deep-orange-darken-3" style="font-size: 11px">
+                  {{ row.soNomor }}
+                </td>
+                <td style="font-size: 11px">{{ format(new Date(row.tanggal), "dd/MM/yyyy") }}</td>
+                <td style="font-size: 11px">{{ row.customer }}</td>
+                <td class="text-center" style="font-size: 11px">{{ row.ukuran }}</td>
+                <td class="text-right font-weight-bold" style="font-size: 11px">{{ row.qty }}</td>
+              </tr>
+            </tbody>
+          </v-table>
+        </v-card-text>
+      </v-card>
+    </v-dialog>
+
+    <v-dialog v-model="showReadyDetail" max-width="700">
+      <v-card rounded="lg">
+        <v-card-title class="d-flex align-center bg-blue-lighten-5 text-blue-darken-4 py-3">
+          <v-icon class="mr-2" color="blue-darken-2">mdi-clipboard-check-outline</v-icon>
+          <div>
+            <div class="text-subtitle-1 font-weight-bold">Detail Pesanan Ready</div>
+            <div class="text-caption">{{ readyDetailKode }} — {{ readyDetailNama }}</div>
+          </div>
+          <v-spacer />
+          <v-btn icon="mdi-close" variant="text" size="small" @click="showReadyDetail = false" />
+        </v-card-title>
+        <v-card-text class="pa-0">
+          <div v-if="isLoadingReadyDetail" class="text-center pa-8">
+            <v-progress-circular indeterminate color="blue" size="36" />
+          </div>
+          <div
+            v-else-if="readyDetailList.length === 0"
+            class="text-center pa-8 text-medium-emphasis"
+          >
+            Tidak ada stok ready untuk barang ini.
+          </div>
+          <v-table v-else density="compact">
+            <thead>
+              <tr class="bg-grey-lighten-4">
+                <th class="text-left font-weight-bold" style="font-size: 11px">NO. SO</th>
+                <th class="text-left font-weight-bold" style="font-size: 11px">TANGGAL</th>
+                <th class="text-left font-weight-bold" style="font-size: 11px">CUSTOMER</th>
+                <th class="text-center font-weight-bold" style="font-size: 11px">UK.</th>
+                <th class="text-right font-weight-bold" style="font-size: 11px">QTY</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="(row, i) in readyDetailList" :key="i">
+                <td class="font-weight-bold text-blue-darken-3" style="font-size: 11px">
                   {{ row.soNomor }}
                 </td>
                 <td style="font-size: 11px">{{ format(new Date(row.tanggal), "dd/MM/yyyy") }}</td>
@@ -1053,6 +1161,16 @@ onMounted(() => {
   font-weight: 700;
 }
 .pesanan-booked-link:hover {
+  opacity: 0.75;
+}
+
+.pesanan-ready-link {
+  color: rgb(var(--v-theme-primary));
+  text-decoration: underline;
+  cursor: pointer;
+  font-weight: 700;
+}
+.pesanan-ready-link:hover {
   opacity: 0.75;
 }
 </style>

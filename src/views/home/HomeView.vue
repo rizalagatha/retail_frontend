@@ -2594,13 +2594,19 @@ let pollingInterval: number;
 
 const startPolling = () => {
   pollingInterval = window.setInterval(() => {
+    // [BARU] Skip polling total kalau tab browser nggak aktif — banyak
+    // user buka dashboard lalu pindah kerja ke tab lain, tab dashboard
+    // tetap polling terus tanpa mereka sadar. Ini biasa jadi kontributor
+    // besar ke beban server yang nggak kelihatan langsung.
+    if (document.hidden) return;
+
     // A. Polling Global Data (Update angka-angka di atas)
     fetchTotalStock(true);
-    fetchParetoHealth();
+    // fetchParetoHealth();
 
-    if (authStore.user?.cabang === "KDC") {
-      fetchStockBreakdown();
-    }
+    // if (authStore.user?.cabang === "KDC") {
+    //   fetchStockBreakdown();
+    // }
 
     if (!isWarehouseUser.value) {
       fetchTodayStats(true);
@@ -2609,7 +2615,7 @@ const startPolling = () => {
 
     // B. Polling HANYA untuk Konten Tab yang sedang aktif dibuka user
     loadTabData(activeTab.value, true);
-  }, 10000); // Tiap 10 detik
+  }, 30000);
 };
 
 // --- LAZY LOADING TAB STATE ---

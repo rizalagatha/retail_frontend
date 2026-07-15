@@ -77,7 +77,6 @@ interface OfferHeader {
   ppnPersen: number;
   keterangan: string;
 
-  // === TAMBAHKAN INI ===
   jenisOrderKode?: string;
   jenisOrderNama?: string;
   namaDtf?: string;
@@ -85,6 +84,7 @@ interface OfferHeader {
   namaPromo?: string;
 
   penawaran?: boolean;
+  userCreate?: string;
 }
 
 interface ApiOfferItem {
@@ -221,7 +221,7 @@ const header = ref<OfferHeader>({
   tanggal: format(new Date(), "yyyy-MM-dd"),
   gudang: { kode: authStore.user?.cabang || "", nama: "Gudang Utama" } as Gudang,
   customer: null as Customer | null,
-  customerKode: "", // Tambahan: untuk menyimpan kode customer sementara
+  customerKode: "",
   top: 0,
   tempo: format(new Date(), "yyyy-MM-dd"),
   ppnPersen: 0,
@@ -231,6 +231,11 @@ const header = ref<OfferHeader>({
   jenisOrderNama: "",
   namaDtf: "",
   nomorPromo: "",
+
+  userCreate: `${authStore.user?.kode || ""} - ${authStore.userName || ""}`.replace(
+    /^ - | - $/g,
+    ""
+  ),
 });
 
 const items = ref<OfferItem[]>([]);
@@ -1209,6 +1214,11 @@ const resetForm = () => {
     jenisOrderKode: "",
     jenisOrderNama: "",
     namaDtf: "",
+
+    userCreate: `${authStore.user?.kode || ""} - ${authStore.userName || ""}`.replace(
+      /^ - | - $/g,
+      ""
+    ),
   };
   items.value = [];
   addNewRow();
@@ -1884,6 +1894,9 @@ const handleDiscountCostUpdate = (newData: DiscountCostUpdateData) => {
 };
 
 const saveAndConvertToSo = async () => {
+  // Cek agar tombol tidak diproses dua kali
+  if (isSaving.value) return;
+
   if (!header.value.customer) return toast.error("Customer harus dipilih.");
 
   const validItems = items.value.filter((item) => item.kode);
@@ -1952,6 +1965,7 @@ const saveAndConvertToSo = async () => {
         query: { refPenawaran: savedNomor },
       });
     } catch (error: unknown) {
+      isSaving.value = false;
       const err = error as AxiosError<{ message?: string }>;
 
       toast.error(err.response?.data?.message || "Gagal memproses data.");
@@ -2161,6 +2175,7 @@ onMounted(async () => {
         Simpan
       </v-btn>
       <v-btn
+        v-if="!isEditMode || !header.nomorPromo"
         color="success"
         size="small"
         prepend-icon="mdi-swap-horizontal"
@@ -2213,9 +2228,17 @@ onMounted(async () => {
                 hide-details
               ></v-text-field
             ></v-col>
-            <!-- <v-col cols="12"><v-text-field label="Gudang" :model-value="header.gudang.kode" readonly
-                                @click="openGudangSearch" variant="outlined" density="compact" hide-details
-                                append-inner-icon="mdi-magnify"></v-text-field></v-col> -->
+            <v-col cols="12">
+              <v-text-field
+                label="Sales Counter"
+                :model-value="header.userCreate"
+                readonly
+                variant="filled"
+                density="compact"
+                hide-details
+                prepend-inner-icon="mdi-account-tie"
+              ></v-text-field>
+            </v-col>
             <v-col cols="12">
               <v-text-field
                 label="Customer"

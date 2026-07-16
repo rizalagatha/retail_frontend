@@ -4005,7 +4005,7 @@ const stopAndOpenPriceProposal = (index: number) => {
               </template>
 
               <template #[`item.scannedQty`]="{ item }">
-                <div class="d-flex align-center justify-end ga-2">
+                <div v-if="item.kode" class="d-flex align-center justify-end ga-2">
                   <v-btn
                     v-if="
                       !item.isMutated &&

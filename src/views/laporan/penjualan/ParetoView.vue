@@ -22,6 +22,14 @@ interface ParetoItem {
   ach?: number;
   [key: string]: string | number | undefined; // fallback untuk field dinamis seperti size
 }
+interface ExportPerCabangResponse {
+  sheet1Data: ParetoItem[];
+  perBranchTopSheets: {
+    kode_cabang: string;
+    nama_cabang: string;
+    data: ParetoItem[];
+  }[];
+}
 interface ColumnFilter {
   type: "multi" | "custom";
   values?: (string | number)[];
@@ -296,6 +304,11 @@ const resetAllFilters = () => {
 };
 
 const exportToExcel = async () => {
+  // Hanya lakukan alur khusus ini jika ALL + detailPerCabang aktif
+  if (filters.cabang === "ALL" && filters.detailPerCabang) {
+    return await exportPerCabangBreakdownAndTopItems();
+  }
+
   if (items.value.length === 0) return toast.warning("Tidak ada data untuk diekspor.");
   toast.info("Menyiapkan file export...");
 
@@ -372,6 +385,174 @@ const exportToExcel = async () => {
   URL.revokeObjectURL(url);
 
   toast.success("Data berhasil diekspor.");
+};
+
+/**
+ * Alur khusus ekspor Per Cabang (Multi-Sheet)
+ * Sheet 1: Breakdown total Pareto unik per cabang
+ * Sheet Tambahan: Top 20 terlaris masing-masing cabang
+ */
+const exportPerCabangBreakdownAndTopItems = async () => {
+  toast.info("Menyiapkan data ekspor Per Cabang (Multi-Sheet)... Ini mungkin memakan waktu.");
+
+  let exportData: ExportPerCabangResponse;
+  try {
+    // Panggil API baru khusus ekspor
+    const response = await api.get("/pareto/export-detail-percabang", {
+      params: {
+        startDate: filters.startDate,
+        endDate: filters.endDate,
+        kategori: filters.kategori,
+        search: filters.search,
+        limit: filters.limit,
+      },
+    });
+    exportData = response.data;
+  } catch (err) {
+    const error = err as AxiosError<{ message?: string }>;
+    toast.error(error.response?.data?.message || "Gagal memuat data ekspor.");
+    return;
+  }
+
+  if (!exportData.sheet1Data.length) return toast.warning("Tidak ada data Pareto untuk diekspor.");
+
+  const ExcelJS = (await import("exceljs")).default;
+
+  // --- Styling Helper Functions ---
+  const headerStyle = (cell: ExcelJS.Cell) => {
+    cell.font = { bold: true };
+    cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFE3F2FD" } };
+    cell.alignment = { horizontal: "center", vertical: "middle", wrapText: false };
+    cell.border = {
+      top: { style: "thin" },
+      left: { style: "thin" },
+      bottom: { style: "thin" },
+      right: { style: "thin" },
+    };
+  };
+  const dataStyle = (cell: ExcelJS.Cell) => {
+    cell.border = {
+      top: { style: "thin" },
+      left: { style: "thin" },
+      bottom: { style: "thin" },
+      right: { style: "thin" },
+    };
+    if (typeof cell.value === "number") {
+      cell.alignment = { horizontal: "right" };
+      cell.numFmt = "#,##0";
+    }
+  };
+
+  const workbook = new ExcelJS.Workbook();
+
+  // =========================================================================
+  // SHEET 1: Pareto Breakdown (Tetap Seperti Semula, Per Cabang)
+  // =========================================================================
+  const sheet1 = workbook.addWorksheet("Pareto Breakdown");
+
+  // Definisi Kolom & Header (Urutan persis tabel)
+  const columnsS1 = [
+    { header: "Cab", key: "Cab", width: 6 },
+    { header: "KODE", key: "KODE", width: 12 },
+    { header: "Kategori Produk", key: "KTGPRODUK", width: 18 },
+    { header: "Nama Barang", key: "NAMA", width: 45 },
+    { header: "TOTAL Qty", key: "TOTAL", width: 10 },
+    { header: "Nominal Sales", key: "NOMINAL_SALES", width: 15 },
+    { header: "Stok Pareto (Total)", key: "StokPareto", width: 15 },
+    { header: "Stok Real (Total)", key: "StokReal", width: 15 },
+  ];
+  sheet1.columns = columnsS1;
+
+  // Styling Header
+  sheet1.getRow(1).eachCell({ includeEmpty: true }, (cell) => headerStyle(cell));
+
+  // Isi Data Sheet 1
+  exportData.sheet1Data.forEach((row) => {
+    const dataRow = sheet1.addRow(row);
+    dataRow.eachCell({ includeEmpty: true }, (cell) => dataStyle(cell));
+  });
+
+  // =========================================================================
+  // SHEET TAMBAHAN: Barang Terlaris Masing-Masing Cabang (Top 20)
+  // =========================================================================
+  exportData.perBranchTopSheets.forEach((branchSheet) => {
+    // Nama Sheet b[KodeCabang] misal: bKPR, bKBR agar muat (batas 31 char)
+    const sheetName = `${branchSheet.kode_cabang}`.substring(0, 31);
+    const sheet = workbook.addWorksheet(sheetName);
+
+    // Judul Header Dalam Sheet
+    const titleRow = sheet.addRow([
+      `TOP 20 BARANG TERLARIS - CABANG ${branchSheet.nama_cabang} (${branchSheet.kode_cabang})`,
+    ]);
+    titleRow.font = { bold: true, size: 12 };
+    sheet.mergeCells(1, 1, 1, 17); // Merge Judul
+
+    sheet.addRow([`Periode: ${filters.startDate} s/d ${filters.endDate}`]);
+    sheet.addRow([]); // Baris Kosong
+
+    // Definisi Kolom & Header untuk Pareto standar (Tanpa Cabang)
+    const keysS2 = [
+      "KODE",
+      "KTGPRODUK",
+      "KTGBRG",
+      "NAMA",
+      "XS",
+      "S",
+      "M",
+      "L",
+      "XL",
+      "2XL",
+      "3XL",
+      "4XL",
+      "5XL",
+      "ALLSIZE",
+      "OVERSIZE",
+      "JUMBO",
+      "TOTAL",
+      "NOMINAL_SALES",
+      "StokPareto",
+      "StokReal",
+    ];
+
+    // Header Row S2
+    const headerRowS2 = sheet.addRow(
+      keysS2.map((k) => {
+        // Mapping key ke title logic
+        if (k === "NOMINAL_SALES") return "Nominal Sales";
+        if (k === "StokPareto") return "Stok Pareto";
+        if (k === "StokReal") return "Stok Real";
+        return k;
+      })
+    );
+    headerRowS2.eachCell({ includeEmpty: true }, (cell) => headerStyle(cell));
+
+    // Isi Data Sheet Cabang
+    branchSheet.data.forEach((row) => {
+      const dataRow = sheet.addRow(keysS2.map((k) => row[k] ?? 0));
+      dataRow.eachCell({ includeEmpty: true }, (cell) => dataStyle(cell));
+    });
+
+    // Atur Lebar Kolom Standar
+    sheet.columns.forEach((col, i) => {
+      if (i === 3) col.width = 45; // Nama Barang
+      else if (i < 4) col.width = 12; // Kode, Kategori
+      else col.width = 8; // Size Qty
+    });
+  });
+
+  // --- Proses Download ---
+  const buffer = await workbook.xlsx.writeBuffer();
+  const blob = new Blob([buffer], {
+    type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `Laporan_Pareto_MultiSheet_Cabang_${filters.startDate}_${filters.endDate}.xlsx`;
+  a.click();
+  URL.revokeObjectURL(url);
+
+  toast.success("Data Pareto Multi-Sheet berhasil diekspor.");
 };
 
 const handlePrint = () => {

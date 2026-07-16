@@ -433,14 +433,13 @@ const dialogConfirm = reactive({
 
 const activeRowIndex = ref(0);
 const isMultiSelectProduct = ref(false);
-// [BARU] Pagination tabel item (mengikuti pola SoCreateView)
-const page = ref(1);
-const rowsPerPage = ref(10);
-
-// [BARU] Lompat ke halaman terakhir — dipanggil tiap ada barang baru ditambahkan
-// (scan barcode, pilih produk, dll), supaya barang yang baru masuk langsung kelihatan.
 const jumpToLastPage = () => {
-  page.value = Math.max(1, Math.ceil(items.value.length / rowsPerPage.value));
+  nextTick(() => {
+    const wrapper = document.querySelector(".table-section .v-table__wrapper");
+    if (wrapper) {
+      wrapper.scrollTop = wrapper.scrollHeight;
+    }
+  });
 };
 const salesCounters = ref<SalesCounter[]>([]);
 const isSoLoaded = ref(false);
@@ -2431,9 +2430,7 @@ const handleBarcodeScan = async () => {
 
     if (existingItem) {
       existingItem.jumlah += 1;
-
-      const existingIndex = items.value.findIndex((i) => i.id === existingItem.id);
-      page.value = Math.max(1, Math.ceil((existingIndex + 1) / rowsPerPage.value));
+      jumpToLastPage();
 
       // Feedback Sukses
       audioSuccess.play().catch(() => {});
@@ -3113,7 +3110,7 @@ watch(
 </script>
 
 <template>
-  <PageLayout :title="pageTitle" icon="mdi-receipt-text-edit">
+  <PageLayout :title="pageTitle" desktop-mode icon="mdi-receipt-text-edit">
     <v-alert v-if="isLockedFsk" type="warning" class="mb-3">
       Invoice ini sudah masuk Form Setoran Kasir (FSK). Perubahan tidak diperbolehkan.
     </v-alert>
@@ -3496,8 +3493,7 @@ watch(
             <v-data-table
               :headers="tableHeaders"
               :items="items"
-              :page="page"
-              :items-per-page="rowsPerPage"
+              :items-per-page="-1"
               class="desktop-table header-browse-blue vertically-aligned-table"
               fixed-header
               :item-class="(item: Item) => (item.isFreeGift ? 'free-gift-row' : '')"
@@ -4106,11 +4102,13 @@ watch(
 
 .table-section {
   flex-grow: 1;
+  flex-shrink: 1 !important;
   min-height: 0;
   overflow: hidden;
-  /* Biarkan v-data-table yang handle scroll */
   display: flex;
   flex-direction: column;
+  padding: 0 !important;
+  border: none !important;
 }
 
 .vertically-aligned-table :deep(tbody tr td) {
@@ -4424,7 +4422,21 @@ watch(
   gap: 16px;
   height: 100%;
   min-height: 0;
+  overflow: hidden;
   transition: grid-template-columns 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+:deep(.content-wrapper) {
+  overflow: hidden !important;
+  padding: 0 !important;
+}
+
+.desktop-table :deep(.v-table__wrapper) {
+  overflow-x: auto !important;
+  overflow-y: auto !important;
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
+  height: 100% !important; /* [BARU] — ini yang kelewat dibanding Offer */
 }
 
 .form-grid-container.hide-left {

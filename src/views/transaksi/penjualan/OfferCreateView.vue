@@ -1206,6 +1206,14 @@ const handlePrintCancel = () => {
   router.push("/transaksi/penjualan/penawaran");
 };
 
+const goToExistingSo = () => {
+  if (!header.value.existingSoNomor) return;
+  router.push({
+    name: "SuratPesananEdit",
+    params: { nomor: header.value.existingSoNomor },
+  });
+};
+
 const resetForm = () => {
   header.value = {
     nomor: "",
@@ -2173,6 +2181,7 @@ onMounted(async () => {
       </v-btn>
       <v-spacer></v-spacer>
       <v-btn
+        v-if="!header.existingSoNomor"
         size="small"
         color="primary"
         prepend-icon="mdi-content-save"
@@ -2182,7 +2191,7 @@ onMounted(async () => {
         Simpan
       </v-btn>
       <v-btn
-        v-if="!isEditMode || !header.existingSoNomor"
+        v-if="!header.existingSoNomor"
         color="success"
         size="small"
         prepend-icon="mdi-swap-horizontal"
@@ -2190,6 +2199,15 @@ onMounted(async () => {
         @click="saveAndConvertToSo"
       >
         Simpan & Jadikan SO
+      </v-btn>
+      <v-btn
+        v-else
+        color="indigo"
+        size="small"
+        prepend-icon="mdi-eye-outline"
+        @click="goToExistingSo"
+      >
+        Lihat SO: {{ header.existingSoNomor }}
       </v-btn>
       <v-btn
         v-if="!isEditMode"

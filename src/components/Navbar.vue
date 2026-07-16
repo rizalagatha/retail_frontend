@@ -579,6 +579,11 @@ const menuItems: NavItem[] = [
             to: "/laporan/penjualan/monitoring-achievement",
             icon: "mdi-trophy-outline",
           },
+          {
+            title: "Laporan Rekap Penawaran & SO",
+            to: "/laporan/penjualan/laporan-produktivitas",
+            icon: "mdi-account-star-outline",
+          },
         ],
       },
       {

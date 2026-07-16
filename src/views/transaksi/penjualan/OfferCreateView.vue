@@ -85,6 +85,7 @@ interface OfferHeader {
 
   penawaran?: boolean;
   userCreate?: string;
+  existingSoNomor?: string | null;
 }
 
 interface ApiOfferItem {
@@ -499,6 +500,12 @@ const loadOfferData = async (nomor: string) => {
     const { headerData, itemsData, dpItemsData, footerData } = response.data;
 
     header.value = { ...header.value, ...headerData };
+
+    if (headerData.existingSoNomor) {
+      toast.info(`Penawaran ini sudah dibuatkan Surat Pesanan: ${headerData.existingSoNomor}`, {
+        timeout: 8000,
+      });
+    }
 
     // ========================================================
     // [PERBAIKAN KUNCI] Pecah baris custom saat Load
@@ -2175,7 +2182,7 @@ onMounted(async () => {
         Simpan
       </v-btn>
       <v-btn
-        v-if="!isEditMode || !header.nomorPromo"
+        v-if="!isEditMode || !header.existingSoNomor"
         color="success"
         size="small"
         prepend-icon="mdi-swap-horizontal"

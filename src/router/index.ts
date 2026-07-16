@@ -283,6 +283,8 @@ const LaporanHppKosongView = () => import("@/views/transaksi/stok-opname/Laporan
 const LaporanStokMinusView = () => import("@/views/laporan/stok/LaporanStokMinusView.vue");
 const ParetoView = () => import("@/views/laporan/penjualan/ParetoView.vue");
 const ParetoPrintView = () => import("@/views/laporan/penjualan/ParetoPrintView.vue");
+const LaporanProduktivitasView = () =>
+  import("@/views/laporan/penjualan/LaporanProduktivitasView.vue");
 
 // --- STOK OPNAME ---
 const StokOpnameSettingTanggalView = () =>
@@ -2390,6 +2392,16 @@ const routes = [
       title: "Laporan Lost Order",
       requiresAuth: true,
       menuId: "514",
+    },
+  },
+  {
+    path: "/laporan/penjualan/laporan-produktivitas",
+    name: "LaporanProduktivitas",
+    component: LaporanProduktivitasView,
+    meta: {
+      title: "Laporan Rekap Penawaran & SO",
+      requiresAuth: true,
+      menuId: "707",
     },
   },
   {

@@ -284,7 +284,7 @@ const isReadonly = computed(() => {
 // [REVISI] Izinkan toggle Marketplace untuk KON dan K05
 const isUserMarketplaceEligible = computed(() => {
   const cabang = authStore.user?.cabang || "";
-  return cabang === "KON" || cabang === "K05";
+  return cabang === "KON" || cabang === "K05" || cabang === "K02";
 });
 
 const isKpr = computed(() => authStore.user?.cabang === "KPR");
@@ -2643,7 +2643,7 @@ const isHargaEditable = (item: Item) => {
   }
 
   // 2. Cabang KON & K05: Tetap mengikuti aturan Marketplace
-  if (cabang === "KON" || cabang === "K05") {
+  if (cabang === "KON" || cabang === "K05" || cabang === "K02") {
     return header.isMarketplace === true;
   }
 

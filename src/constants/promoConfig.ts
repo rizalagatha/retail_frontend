@@ -82,7 +82,8 @@ export const isFreeGiftSizeAllowed = (
   const maxPurchasedRank = Math.max(...purchasedSizes);
   const giftRank = getSizeRank(giftUkuran);
 
-  return giftRank <= maxPurchasedRank;
+  // [PERBAIKAN]: Mengizinkan ukuran hadiah maksimal 1 tingkat di atas ukuran terbesar yang dibeli
+  return giftRank <= maxPurchasedRank + 1;
 };
 
 /**

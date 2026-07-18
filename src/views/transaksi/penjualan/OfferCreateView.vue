@@ -323,7 +323,7 @@ const freeGift = useFreeGift(items, {
   buildItem: (product) => ({
     id: Date.now() + Math.random(),
     kode: product.kode,
-    nama: `${product.nama} 🎁 HADIAH GRATIS`,
+    nama: `${product.nama} (HADIAH GRATIS)`,
     kategori: "REGULER",
     ukuran: product.ukuran,
     stok: product.stok,

@@ -13,6 +13,7 @@ import axios from "axios";
 import { formatRupiah } from "@/utils/formatRupiah";
 import { useAutoPromo } from "@/composables/useAutoPromo";
 import { useCustomerVisit } from "@/composables/useCustomerVisit";
+import { useFreeGift } from "@/composables/useFreeGift";
 
 // Impor semua komponen modal yang akan digunakan
 import CustomerSearchModal from "@/components/lookup/CustomerSearchModal.vue";
@@ -84,6 +85,7 @@ interface SoItem {
   mutatedQty?: number; // Saldo yang sudah dimutasi
   isMutated?: boolean; // Flag pengunci UI
   isLhk?: boolean;
+  isFreeGift?: boolean;
 }
 
 // Interface baru untuk Record Adjustment
@@ -217,6 +219,7 @@ interface PenawaranDetailApi {
   barcode?: string;
   pend_sd_nomor?: string;
   pend_ph_nomor?: string;
+  pend_is_free_gift?: string | boolean | null;
 }
 
 interface SourceItem {
@@ -324,6 +327,9 @@ interface MemberData {
   referensi: string;
 }
 
+const audioSuccess = new Audio("/audio/beep_success.mp3");
+const audioError = new Audio("/audio/beep_error.mp3");
+
 // --- State ---
 const isEditMode = computed(() => !!route.params.nomor);
 const pageTitle = computed(() =>
@@ -415,6 +421,7 @@ const initialHeaderState = {
   memberGender: "",
   memberUsia: "",
   memberReferensi: "",
+  proNomorFreeItem: "" as string,
 };
 
 const header = ref({ ...initialHeaderState });
@@ -570,6 +577,56 @@ const uniqueItemDiscounts = computed(() => {
   }
   return Array.from(map.values());
 });
+
+// --- FREE GIFT ---
+const freeGift = useFreeGift(items, {
+  endpointPrefix: "so-form",
+  getCabang: () => header.value.gudang.kode,
+  getCustomerKode: () => header.value.customer?.kode || "",
+  getCustomerNama: () => header.value.customer?.nama || "",
+  getActivePromoNomors: () => autoPromo.activePromos.value.map((p) => p.pro_nomor),
+  setProNomorFreeItem: (nomor) => {
+    header.value.proNomorFreeItem = nomor;
+  },
+  audioSuccess,
+  audioError,
+  buildItem: (product) => ({
+    id: Date.now() + Math.random(),
+    kode: product.kode,
+    nama: `${product.nama} 🎁 HADIAH GRATIS`,
+    kategori: "REGULER",
+    ukuran: product.ukuran,
+    stok: product.stok,
+    jumlah: 1,
+    harga: 0,
+    diskonPersen: 0,
+    diskonRp: 0,
+    total: 0,
+    barcode: product.barcode,
+    noSoDtf: "",
+    noPengajuanHarga: "",
+    pin: "",
+    scannedQty: 0, // tetap lewat alur scan verifikasi fisik yang sudah ada di SO
+    isReady: false,
+    terhitungPromo: false,
+    promo: "",
+    isFreeGift: true,
+  }),
+  addItemToList: (item) => {
+    const emptyIdx = items.value.findIndex((i) => !i.kode);
+    if (emptyIdx !== -1) {
+      items.value.splice(emptyIdx, 0, item);
+    } else {
+      items.value.push(item);
+    }
+    addNewRow();
+    calculateTotals();
+  },
+});
+const freeGiftInputRefEl = freeGift.freeGiftScanInputRef;
+const isFreeGiftScanDialogOpen = freeGift.isFreeGiftScanDialogOpen;
+const freeGiftScanBarcode = freeGift.freeGiftScanBarcode;
+const isFreeGiftScanning = freeGift.isFreeGiftScanning;
 
 const authDialog = reactive<AuthDialogState>({
   show: false,
@@ -1462,6 +1519,25 @@ const save = async () => {
   calculateTotals();
   await nextTick();
 
+  if (freeGift.freeGiftQuota.available && !items.value.some((i) => i.isFreeGift)) {
+    const confirmed = await new Promise<boolean>((resolve) => {
+      showConfirmation(
+        () => resolve(true),
+        `⚠️ Customer ini berhak dapat COMBED 24S gratis (Sisa kuota: ${freeGift.freeGiftQuota.sisaKuota}), tapi belum di-scan. Lanjutkan tanpa memberikan hadiah?`
+      );
+      const unwatch = watch(
+        () => isConfirmDialogVisible.value,
+        (val) => {
+          if (!val) {
+            unwatch();
+            resolve(false);
+          }
+        }
+      );
+    });
+    if (!confirmed) return;
+  }
+
   // --- 5. Validasi DP Mengikat (Wajib sebelum simpan) ---
   if (!header.value.isMarketplace && !footer.value.pinTanpaDp) {
     if (footer.value.totalDp < footer.value.minimalDp) {
@@ -1700,6 +1776,7 @@ const resetForm = () => {
   dpItems.value = [];
   addNewRow();
   markAsSaved();
+  freeGift.checkFreeGiftQuota();
 };
 
 const removeRow = (id: number) => {
@@ -1815,6 +1892,7 @@ const onCustomerSelected = async (rawCustomer: CustomerLookupResult) => {
 
   await applyDefaultDiscount();
   calculateTotals();
+  await freeGift.checkFreeGiftQuota();
   toast.success(`Customer ${mappedCustomer.nama} berhasil dipilih.`);
 };
 
@@ -1970,6 +2048,7 @@ const onPenawaranSelected = async (penawaran: { nomor: string }) => {
         ukuranKaos: parsedJson.ukuranKaos || [],
         titikCetak: parsedJson.titikCetak || [],
         sourceItems: parsedJson.sourceItems || [],
+        isFreeGift: d.pend_is_free_gift === "Y" || d.pend_is_free_gift === true,
       };
     });
 
@@ -3386,6 +3465,14 @@ watch(totalDiscountable, async () => {
   await applyDefaultDiscount();
 });
 
+watch(
+  items,
+  () => {
+    freeGift.debouncedCheckFreeGiftQuota();
+  },
+  { deep: true }
+);
+
 // --- WATCHERS (UNSAVED CHANGES) ---
 watch(
   [header, items, footer, dpItems],
@@ -3927,6 +4014,34 @@ const stopAndOpenPriceProposal = (index: number) => {
               Item bertanda <v-icon size="small">mdi-lock-open-variant</v-icon> terkunci karena
               sudah mutasi.
             </v-alert>
+
+            <v-slide-y-transition>
+              <div v-if="freeGift.freeGiftQuota.available" class="free-gift-banner mb-3">
+                <div class="banner-shine"></div>
+                <div class="banner-content">
+                  <div class="gift-icon-wrapper">
+                    <v-icon icon="mdi-gift-outline" size="24" class="gift-bounce" />
+                  </div>
+                  <div class="banner-text">
+                    <div class="banner-title">🎉 Hadiah Gratis Tersedia!</div>
+                    <div class="banner-subtitle">
+                      Customer berhak dapat COMBED 24S gratis — Sisa kuota:
+                      <strong>{{ freeGift.freeGiftQuota.sisaKuota }}</strong>
+                    </div>
+                  </div>
+                  <v-btn
+                    color="white"
+                    variant="flat"
+                    size="small"
+                    class="scan-gift-btn"
+                    prepend-icon="mdi-barcode-scan"
+                    @click="freeGift.openFreeGiftScanDialog"
+                  >
+                    Scan Hadiah Gratis
+                  </v-btn>
+                </div>
+              </div>
+            </v-slide-y-transition>
             <v-data-table
               :headers="mainTableHeaders"
               :items="items"
@@ -4542,6 +4657,59 @@ const stopAndOpenPriceProposal = (index: number) => {
         </v-card-actions>
       </v-card>
     </v-dialog>
+
+    <v-dialog v-model="isFreeGiftScanDialogOpen" max-width="480" persistent>
+      <v-card class="rounded-xl free-gift-dialog">
+        <div class="free-gift-dialog-header">
+          <div class="header-icon-circle">
+            <v-icon icon="mdi-gift-outline" size="22" color="white" />
+          </div>
+          <div class="header-text">
+            <div class="header-title">Scan Hadiah Gratis</div>
+            <div class="header-subtitle">Grand Opening K12</div>
+          </div>
+          <v-btn
+            icon="mdi-close"
+            variant="text"
+            size="small"
+            color="white"
+            @click="isFreeGiftScanDialogOpen = false"
+          />
+        </div>
+        <v-card-text class="pa-5">
+          <v-alert
+            type="info"
+            variant="tonal"
+            density="comfortable"
+            class="mb-5 free-gift-info-alert"
+            icon="mdi-information"
+          >
+            Silakan scan barcode barang <strong>COMBED 24S</strong> yang dipilih customer sebagai
+            hadiah gratis.
+          </v-alert>
+          <v-text-field
+            ref="freeGiftInputRefEl"
+            v-model="freeGiftScanBarcode"
+            label="Scan Barcode Hadiah"
+            placeholder="Arahkan scanner ke sini..."
+            variant="outlined"
+            density="comfortable"
+            prepend-inner-icon="mdi-barcode-scan"
+            hide-details
+            clearable
+            :loading="isFreeGiftScanning"
+            :disabled="isFreeGiftScanning"
+            autofocus
+            class="free-gift-scan-input"
+            @keydown.enter.prevent="freeGift.handleFreeGiftScan"
+          />
+          <div class="scan-hint">
+            <v-icon size="14" color="grey">mdi-information-outline</v-icon>
+            Barang selain COMBED 24S akan ditolak otomatis.
+          </div>
+        </v-card-text>
+      </v-card>
+    </v-dialog>
   </PageLayout>
 </template>
 
@@ -5085,6 +5253,164 @@ const stopAndOpenPriceProposal = (index: number) => {
     opacity: 0.5;
     transform: scale(0.8);
   }
+}
+
+.free-gift-banner {
+  position: relative;
+  overflow: hidden;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+  box-shadow: 0 8px 20px -4px rgba(56, 239, 125, 0.4);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  animation: giftBannerEntrance 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+@keyframes giftBannerEntrance {
+  0% {
+    opacity: 0;
+    transform: scale(0.9) translateY(-10px);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+.banner-shine {
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 50%;
+  height: 100%;
+  background: linear-gradient(
+    to right,
+    transparent 0%,
+    rgba(255, 255, 255, 0.35) 50%,
+    transparent 100%
+  );
+  transform: skewX(-25deg);
+  animation: shineMove 3.5s infinite ease-in-out;
+  pointer-events: none;
+}
+.banner-content {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 16px;
+  color: white;
+}
+.gift-icon-wrapper {
+  flex-shrink: 0;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.22);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  backdrop-filter: blur(4px);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+}
+.gift-bounce {
+  animation: giftBounce 1.2s ease-in-out infinite;
+}
+@keyframes giftBounce {
+  0%,
+  100% {
+    transform: translateY(0) rotate(0deg);
+  }
+  25% {
+    transform: translateY(-4px) rotate(-8deg);
+  }
+  75% {
+    transform: translateY(-2px) rotate(8deg);
+  }
+}
+.banner-text {
+  flex-grow: 1;
+}
+.banner-title {
+  font-size: 14px;
+  font-weight: 800;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
+}
+.banner-subtitle {
+  font-size: 12px;
+  opacity: 0.95;
+  margin-top: 2px;
+}
+.scan-gift-btn {
+  flex-shrink: 0;
+  color: #11998e !important;
+  font-weight: 700;
+  animation: giftBtnPulse 2s infinite;
+}
+@keyframes giftBtnPulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(255, 255, 255, 0.5);
+  }
+  70% {
+    box-shadow: 0 0 0 8px rgba(255, 255, 255, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(255, 255, 255, 0);
+  }
+}
+.free-gift-dialog {
+  overflow: hidden;
+}
+.free-gift-dialog-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 16px 16px 20px;
+  background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+}
+.header-icon-circle {
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.22);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+}
+.header-text {
+  flex-grow: 1;
+  min-width: 0;
+}
+.header-title {
+  color: white;
+  font-size: 16px;
+  font-weight: 800;
+  line-height: 1.3;
+  white-space: normal;
+}
+.header-subtitle {
+  color: rgba(255, 255, 255, 0.85);
+  font-size: 12px;
+  font-weight: 500;
+  margin-top: 1px;
+}
+.free-gift-info-alert {
+  font-size: 13px;
+  line-height: 1.5;
+}
+.free-gift-scan-input :deep(.v-field) {
+  border-radius: 10px;
+}
+.free-gift-scan-input :deep(.v-field__input) {
+  font-size: 15px;
+}
+.scan-hint {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 10px;
+  font-size: 11px;
+  color: rgba(var(--v-theme-on-surface), 0.55);
 }
 
 /* ===== RESPONSIVE MEDIA QUERIES ===== */

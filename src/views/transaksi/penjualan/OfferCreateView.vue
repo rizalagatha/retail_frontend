@@ -640,6 +640,8 @@ const loadOfferData = async (nomor: string) => {
     });
 
     items.value = processedItems;
+
+    addNewRow();
     // ========================================================
 
     dpItems.value = dpItemsData || [];

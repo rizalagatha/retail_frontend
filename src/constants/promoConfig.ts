@@ -55,10 +55,59 @@ const getSizeRank = (ukuran: string): number => {
   return 999;
 };
 
+// [BARU] Kata kunci jenis kain "Premium" — bebas ukuran hadiah gratis (termasuk naik ukuran)
+const PREMIUM_FABRIC_KEYWORDS = [
+  "DBF", // mencakup DBF MOTIF, DBF PRIMA, DBF SIGNATURE (substring match)
+  "CARLOS",
+  "POLO ULTIMATE",
+  "JAKET EXPANDER",
+  "JAKET RUNNING",
+  "FRANCO",
+];
+
 /**
- * Cek apakah ukuran barang hadiah gratis diperbolehkan, dibandingkan
- * ukuran TERBESAR dari barang COMBED 24S (eligible) yang sudah dibeli
- * di keranjang. Hadiah harus sama atau lebih kecil — tidak boleh lebih besar.
+ * Cek apakah nama barang termasuk kain Premium (DBF, Carlos, Polo Ultimate,
+ * Jaket Expander, Jaket Running, Franco). Jenis kain sudah otomatis nempel
+ * di dalam field `nama` (hasil CONCAT jeniskaos+tipe+lengan+jeniskain+warna
+ * dari backend), jadi cukup substring match — tidak perlu kolom DB baru.
+ */
+export const isPremiumFabricItem = (nama: string): boolean => {
+  const namaUp = (nama || "").toUpperCase();
+  return PREMIUM_FABRIC_KEYWORDS.some((k) => namaUp.includes(k));
+};
+
+/**
+ * Cek apakah nama barang adalah Jersey Embozz — pengecualian khusus dari
+ * aturan Premium: hadiah gratis untuk kain ini WAJIB ukuran S saja.
+ */
+export const isJerseyEmbozzItem = (nama: string): boolean => {
+  const namaUp = (nama || "").toUpperCase();
+  return namaUp.includes("JERSEY") && namaUp.includes("EMBOZZ");
+};
+
+/**
+ * Cek apakah nama barang adalah kaos anak-anak (Pendek/Panjang Anak) —
+ * berlaku aturan Buy 1 Get 1 dengan ukuran hadiah HARUS sama persis.
+ */
+export const isKidsItem = (nama: string): boolean => {
+  const namaUp = (nama || "").toUpperCase();
+  return (
+    namaUp.includes("PENDEK ANAK") || namaUp.includes("PANJANG ANAK") || /\bANAK\b/.test(namaUp)
+  );
+};
+
+/**
+ * Cek apakah ukuran barang hadiah gratis diperbolehkan, berdasarkan jenis
+ * kain barang yang DIBELI di keranjang (bukan barang hadiahnya). Urutan
+ * prioritas pengecekan (dari paling spesifik/ketat ke paling umum):
+ *
+ * 1. Jersey Embozz dibeli → hadiah WAJIB ukuran S saja (pengecualian Premium).
+ * 2. Kain Premium lain dibeli (DBF/Carlos/Polo Ultimate/Jaket Expander/
+ *    Jaket Running/Franco) → ukuran hadiah bebas, termasuk boleh naik ukuran.
+ * 3. Kaos Anak (Pendek/Panjang Anak) dibeli → Buy 1 Get 1, ukuran hadiah
+ *    HARUS sama persis dengan ukuran yang dibeli.
+ * 4. Selain itu (Combed 24S dewasa reguler) → aturan lama: ukuran hadiah
+ *    maksimal 1 tingkat di atas ukuran terbesar yang dibeli.
  */
 export const isFreeGiftSizeAllowed = (
   giftUkuran: string,
@@ -70,19 +119,30 @@ export const isFreeGiftSizeAllowed = (
     isFreeGift?: boolean;
   }[]
 ): boolean => {
-  // [REVISI] Dasar ukuran sekarang dari SEMUA barang yang dibeli (bukan
-  // cuma Combed 24S), karena pemicu minimal belanja sudah tidak terbatas
-  // kategori tertentu.
-  const purchasedSizes = purchasedItems
-    .filter((item) => item.kode && !item.isFreeGift)
-    .map((item) => getSizeRank(item.ukuran || ""));
+  const eligible = purchasedItems.filter((item) => item.kode && !item.isFreeGift);
+  if (eligible.length === 0) return false; // tidak ada barang acuan, jangan izinkan
 
-  if (purchasedSizes.length === 0) return false; // tidak ada barang acuan, jangan izinkan
+  const giftUkuranUp = (giftUkuran || "").toUpperCase().trim();
 
-  const maxPurchasedRank = Math.max(...purchasedSizes);
-  const giftRank = getSizeRank(giftUkuran);
+  // 1. Jersey Embozz — pengecualian ketat, hadiah wajib S
+  if (eligible.some((item) => isJerseyEmbozzItem(item.nama || ""))) {
+    return giftUkuranUp === "S";
+  }
 
-  // [PERBAIKAN]: Mengizinkan ukuran hadiah maksimal 1 tingkat di atas ukuran terbesar yang dibeli
+  // 2. Kain Premium lain — ukuran bebas (termasuk naik)
+  if (eligible.some((item) => isPremiumFabricItem(item.nama || ""))) {
+    return true;
+  }
+
+  // 3. Kaos Anak — Buy 1 Get 1, ukuran harus sama persis
+  const kidsItem = eligible.find((item) => isKidsItem(item.nama || ""));
+  if (kidsItem) {
+    return getSizeRank(giftUkuranUp) === getSizeRank(kidsItem.ukuran || "");
+  }
+
+  // 4. Default (perilaku lama): ukuran hadiah maksimal 1 tingkat di atas terbesar yang dibeli
+  const maxPurchasedRank = Math.max(...eligible.map((item) => getSizeRank(item.ukuran || "")));
+  const giftRank = getSizeRank(giftUkuranUp);
   return giftRank <= maxPurchasedRank + 1;
 };
 

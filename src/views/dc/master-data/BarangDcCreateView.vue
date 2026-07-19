@@ -493,16 +493,20 @@ const updateAllActiveBuffers = async () => {
 
 const generateBarcode = (variant: VarianItem) => {
   if (!header.bcdId) return "";
-
-  const yearYY = new Date().getFullYear().toString().substring(2); // "26"
-
-  // ID Barcode di-pad 4 digit (Contoh: 61 -> 0061)
-  const bcdIdPadded = header.bcdId.toString().padStart(4, "0");
-
-  // UKURAN WAJIB di-pad 2 digit (Contoh: 2 -> 02)
-  // Ini yang bikin beda sama Desktop tadi
   const kodeUkuran = variant.no.toString().padStart(2, "0");
-
+  // [FIX] Cari varian lain di produk ini yang sudah punya barcode tersimpan
+  // (dimuat dari database saat edit) — pakai prefix yang SAMA, jangan
+  // generate ulang pakai tahun sekarang. Ini mencegah barang keluaran
+  // lama dapat barcode baru bertahun berbeda saat nambah ukuran.
+  const existingVariant = varianItems.value.find((v) => v.barcode && v.barcode.length > 2);
+  if (existingVariant) {
+    const prefix = existingVariant.barcode.substring(0, existingVariant.barcode.length - 2);
+    return `${prefix}${kodeUkuran}`;
+  }
+  // Belum ada barcode sama sekali di produk ini (benar-benar baru) —
+  // baru generate pakai tahun sekarang.
+  const yearYY = new Date().getFullYear().toString().substring(2);
+  const bcdIdPadded = header.bcdId.toString().padStart(4, "0");
   return `${yearYY}${bcdIdPadded}${kodeUkuran}`;
 };
 

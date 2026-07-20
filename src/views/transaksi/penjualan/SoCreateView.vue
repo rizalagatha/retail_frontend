@@ -79,26 +79,28 @@ interface SoItem {
 
   scannedQty: number; // Jumlah yang benar-benar sudah discan/fisik siap
   isReady: boolean; // Flag jika scannedQty == jumlah (order)
-  promo?: string; // <--- TAMBAHKAN INI
-  _isHargaEditable?: boolean; // <--- TAMBAHKAN INI
+  promo?: string;
+  _isHargaEditable?: boolean;
 
   mutatedQty?: number; // Saldo yang sudah dimutasi
   isMutated?: boolean; // Flag pengunci UI
   isLhk?: boolean;
   isFreeGift?: boolean;
+  _oldJumlah?: number;
 }
 
 // Interface baru untuk Record Adjustment
 interface SoAdjustmentLog {
-  id: string;
+  id: string | number;
   timestamp: string;
   kode: string;
   nama: string;
+  ukuran: string; // Tambah ukuran agar spesifik
   qty: number;
-  // Gunakan Union Type agar validasi tipe datanya kuat
-  type: "SCAN" | "MANUAL_ADD" | "MANUAL_REMOVE" | "DELETE_ROW" | "DELETE_ITEM";
+  type: "SCAN" | "MANUAL_ADD" | "MANUAL_SUB" | "DELETE"; // Sesuaikan ENUM DB
   user: string;
   reason: string;
+  isNew?: boolean; // Penanda untuk backend mana log yang baru
 }
 
 // // Interface untuk data item promo dari backend
@@ -739,9 +741,10 @@ const mainTableHeaders = [
 // ] as const;
 
 const adjustmentHeaders = [
-  { title: "Waktu", key: "timestamp", width: "180px" },
-  { title: "Kode", key: "kode", width: "150px" },
-  { title: "Nama Barang", key: "nama" },
+  { title: "Waktu", key: "timestamp", width: "130px" },
+  { title: "Kode", key: "kode", width: "130px" },
+  { title: "Nama Barang", key: "nama", minWidth: "180px" },
+  { title: "Ukuran", key: "ukuran", width: "80px" },
   { title: "Qty", key: "qty", align: "end", width: "80px" },
   { title: "Tipe", key: "type", width: "130px" },
   { title: "User", key: "user", width: "120px" },
@@ -841,8 +844,7 @@ const loadDataForEdit = async (nomor: string, silent = false) => {
   isInitialLoad.value = true;
   try {
     const response = await api.get(`/so-form/${nomor}`);
-    const { headerData, itemsData, dpItemsData, footerData } = response.data;
-
+    const { headerData, itemsData, dpItemsData, footerData, adjustmentLogsData } = response.data;
     // ===== MAPPING HEADER =====
     header.value = {
       ...header.value,
@@ -871,6 +873,15 @@ const loadDataForEdit = async (nomor: string, silent = false) => {
       ...footer.value,
       ...footerData,
     };
+
+    // ========================================================
+    // [UPDATE] Mapping Adjustment Logs dari Database
+    // ========================================================
+    if (adjustmentLogsData) {
+      // Data yang diload dari DB tidak perlu flag isNew,
+      // sehingga tidak akan terkirim ulang ke backend saat di-save
+      adjustmentLogs.value = adjustmentLogsData;
+    }
 
     // ========================================================
     // [PERBAIKAN KUNCI]: Sinkronisasi Otorisasi DP dari Database
@@ -1663,6 +1674,7 @@ const executeSave = async (tipeKunjungan: "STORE" | "WA" | null = null) => {
       isNew: !isEditMode.value,
       user: authStore.user,
       tipeKunjungan,
+      adjustmentLogs: adjustmentLogs.value.filter((log) => log.isNew),
     };
     const response = await api.post("/so-form/save", payload);
     header.value.nomor = response.data.nomor;
@@ -1789,7 +1801,7 @@ const removeRow = (id: number) => {
     (item.harga === 0 || item.terhitungPromo || item.promo === "PRO-2026-001");
 
   showConfirmation(() => {
-    addAdjustmentLog(item.kode, -item.jumlah!, "DELETE_ITEM", "Penghapusan baris oleh SC");
+    addAdjustmentLog(item.kode, item.ukuran, -item.jumlah!, "DELETE", "Penghapusan baris oleh SC");
     items.value = items.value.filter((i) => i.id !== id);
 
     if (isStickerPromoToko) {
@@ -1803,23 +1815,44 @@ const removeRow = (id: number) => {
 
 const addAdjustmentLog = (
   kode: string,
+  ukuran: string,
   qty: number,
-  type: SoAdjustmentLog["type"], // Mengambil tipe dari interface (menghindari 'any')
+  type: SoAdjustmentLog["type"],
   ket: string
 ) => {
-  const item = items.value.find((i) => i.kode === kode);
+  const item = items.value.find((i) => i.kode === kode && i.ukuran === ukuran);
 
-  // Sekarang TypeScript tidak akan protes karena properti sudah cocok dengan interface
-  adjustmentLogs.value.push({
-    id: `ADJ-${Date.now()}`,
+  adjustmentLogs.value.unshift({
+    id: `NEW-${Date.now()}`,
     timestamp: format(new Date(), "yyyy-MM-dd HH:mm:ss"),
     kode: kode,
     nama: item?.nama || "Unknown",
+    ukuran: ukuran || "",
     qty: qty,
-    type: type, // Tidak perlu 'as any' lagi
+    type: type,
     user: authStore.user?.nama || "Unknown",
     reason: ket,
+    isNew: true, // Flag penting agar backend cuma simpan yang baru
   });
+};
+
+const handleQtyChange = (item: SoItem) => {
+  if (!item.kode) return;
+  const oldVal = item._oldJumlah ?? 0;
+  const newVal = item.jumlah || 0;
+  const diff = newVal - oldVal;
+
+  if (diff !== 0) {
+    const type = diff > 0 ? "MANUAL_ADD" : "MANUAL_SUB";
+    addAdjustmentLog(
+      item.kode,
+      item.ukuran,
+      diff,
+      type,
+      `Ubah Qty dari ${oldVal} menjadi ${newVal}`
+    );
+    item._oldJumlah = newVal;
+  }
 };
 
 // const handleSaveSpk = async (spkPayload: any) => {
@@ -2789,7 +2822,7 @@ const handleBarcodeScanVerify = async () => {
       item.mutatedQty = (item.mutatedQty || 0) + 1;
       item.isMutated = true;
 
-      addAdjustmentLog(item.kode, 1, "SCAN", "Verifikasi & Auto-Mutasi fisik barang");
+      addAdjustmentLog(item.kode, item.ukuran, 1, "SCAN", "Verifikasi & Auto-Mutasi fisik barang");
       toast.success(`${item.nama} terverifikasi & dimutasi (${item.scannedQty}/${target})`);
     } catch (error: unknown) {
       if (axios.isAxiosError(error)) {
@@ -3269,13 +3302,11 @@ const getTypeColor = (type: string) => {
   switch (type) {
     case "SCAN":
       return "success";
-    case "DELETE_ROW":
-      return "error";
-    case "DELETE_ITEM":
+    case "DELETE":
       return "error";
     case "MANUAL_ADD":
       return "info";
-    case "MANUAL_REMOVE":
+    case "MANUAL_SUB":
       return "warning";
     default:
       return "grey";
@@ -3351,7 +3382,7 @@ const decrementReady = (item: SoItem) => {
   item.isReady = item.scannedQty >= (item.jumlah || 0);
 
   // Catat ke log koreksi agar terpantau manager
-  addAdjustmentLog(item.kode, -1, "MANUAL_REMOVE", "Pengurangan qty scan manual oleh SC");
+  addAdjustmentLog(item.kode, item.ukuran, -1, "MANUAL_SUB", "Pengurangan qty scan manual oleh SC");
 
   toast.info(`Verifikasi ${item.nama} dikurangi menjadi ${item.scannedQty}`);
 };
@@ -3989,6 +4020,7 @@ const stopAndOpenPriceProposal = (index: number) => {
               </v-btn> -->
 
               <v-btn
+                v-if="authStore.user?.cabang === 'KDC'"
                 color="blue-grey"
                 variant="outlined"
                 size="small"
@@ -4115,6 +4147,8 @@ const stopAndOpenPriceProposal = (index: number) => {
                   class="text-end font-weight-bold"
                   :disabled="item.isMutated"
                   :hint="item.isMutated ? 'Sudah dimutasi' : ''"
+                  @focus="item._oldJumlah = item.jumlah"
+                  @blur="handleQtyChange(item)"
                   @update:model-value="calculateTotals"
                 />
               </template>
@@ -4608,21 +4642,25 @@ const stopAndOpenPriceProposal = (index: number) => {
     </v-dialog>
 
     <v-dialog v-model="isAdjustmentLogVisible" max-width="1000px">
-      <v-card>
+      <v-card rounded="lg">
         <v-toolbar color="blue-grey-darken-3" density="compact" dark>
-          <v-toolbar-title>Log Verifikasi & Koreksi Barang</v-toolbar-title>
+          <v-toolbar-title class="text-subtitle-1 font-weight-bold"
+            >Log Surat Pesanan</v-toolbar-title
+          >
           <v-spacer></v-spacer>
-          <v-btn icon="mdi-close" @click="isAdjustmentLogVisible = false"></v-btn>
+          <v-btn icon="mdi-close" variant="text" @click="isAdjustmentLogVisible = false"></v-btn>
         </v-toolbar>
 
-        <v-card-text class="pa-0">
+        <v-card-text class="pa-0" style="max-height: 500px; overflow-y: auto">
           <v-data-table
             :headers="adjustmentHeaders"
             :items="adjustmentLogs"
             density="compact"
-            class="elevation-0"
-            no-data-text="Belum ada aktivitas verifikasi fisik."
-            :items-per-page="10"
+            class="elevation-0 log-table"
+            no-data-text="Belum ada aktivitas."
+            :items-per-page="-1"
+            hide-default-footer
+            fixed-header
           >
             <template #[`item.qty`]="{ item }">
               <span
@@ -5411,6 +5449,26 @@ const stopAndOpenPriceProposal = (index: number) => {
   margin-top: 10px;
   font-size: 11px;
   color: rgba(var(--v-theme-on-surface), 0.55);
+}
+
+/* --- Tampilan Compact Tabel Log --- */
+.log-table :deep(th) {
+  font-size: 11px !important;
+  font-weight: 700 !important;
+  padding: 0 8px !important;
+  white-space: nowrap;
+}
+
+.log-table :deep(td) {
+  font-size: 11px !important;
+  padding: 4px 8px !important;
+  height: auto !important; /* Biarkan menyesuaikan padding */
+  min-height: 32px !important;
+}
+
+.log-table :deep(.v-chip) {
+  font-size: 10px !important;
+  height: 20px !important;
 }
 
 /* ===== RESPONSIVE MEDIA QUERIES ===== */

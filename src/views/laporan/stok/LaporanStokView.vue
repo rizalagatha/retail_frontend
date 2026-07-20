@@ -75,6 +75,14 @@ interface BookedDetailItem {
   qty: number;
 }
 
+interface PlDetailItem {
+  plNomor: string;
+  tanggal: string;
+  tujuan: string;
+  ukuran: string;
+  qty: number;
+}
+
 const toast = useToast();
 const authStore = useAuthStore();
 const MENU_ID = "501";
@@ -104,6 +112,11 @@ const readyDetailList = ref<BookedDetailItem[]>([]);
 const isLoadingReadyDetail = ref(false);
 const readyDetailKode = ref("");
 const readyDetailNama = ref("");
+const showPlDetail = ref(false);
+const plDetailList = ref<PlDetailItem[]>([]);
+const isLoadingPlDetail = ref(false);
+const plDetailKode = ref("");
+const plDetailNama = ref("");
 
 // ─── Headers ──────────────────────────────────────────────────────────────────
 const headers = ref<DataTableHeader[]>([]);
@@ -319,6 +332,25 @@ const openReadyDetail = async (item: StokItem) => {
     console.error(error);
   } finally {
     isLoadingReadyDetail.value = false;
+  }
+};
+
+const openPlDetail = async (item: StokItem) => {
+  plDetailKode.value = String(item.KODE);
+  plDetailNama.value = String(item.NAMA);
+  showPlDetail.value = true;
+  isLoadingPlDetail.value = true;
+  plDetailList.value = [];
+  try {
+    const response = await api.get("/laporan-stok/packing-list-detail", {
+      params: { kode: item.KODE },
+    });
+    plDetailList.value = response.data;
+  } catch (error) {
+    toast.error("Gagal memuat detail packing list.");
+    console.error(error);
+  } finally {
+    isLoadingPlDetail.value = false;
   }
 };
 
@@ -821,6 +853,13 @@ onMounted(() => {
               >
                 {{ Math.round(Number(item[header.key])) }}
               </span>
+              <span
+                v-else-if="header.key === 'PL' && Number(item[header.key]) > 0"
+                class="pl-link"
+                @click="openPlDetail(item as StokItem)"
+              >
+                {{ Math.round(Number(item[header.key])) }}
+              </span>
               <template v-else>
                 {{
                   ["PL", "TOTAL2", "PESANAN_READY", "PESANAN_BOOKED", "TERSEDIA"].includes(
@@ -930,6 +969,52 @@ onMounted(() => {
                 </td>
                 <td style="font-size: 11px">{{ format(new Date(row.tanggal), "dd/MM/yyyy") }}</td>
                 <td style="font-size: 11px">{{ row.customer }}</td>
+                <td class="text-center" style="font-size: 11px">{{ row.ukuran }}</td>
+                <td class="text-right font-weight-bold" style="font-size: 11px">{{ row.qty }}</td>
+              </tr>
+            </tbody>
+          </v-table>
+        </v-card-text>
+      </v-card>
+    </v-dialog>
+
+    <v-dialog v-model="showPlDetail" max-width="700">
+      <v-card rounded="lg">
+        <v-card-title class="d-flex align-center bg-orange-lighten-5 text-orange-darken-4 py-3">
+          <v-icon class="mr-2" color="orange-darken-2">mdi-package-variant-closed</v-icon>
+          <div>
+            <div class="text-subtitle-1 font-weight-bold">Detail Packing List (O/S)</div>
+            <div class="text-caption">{{ plDetailKode }} — {{ plDetailNama }}</div>
+          </div>
+          <v-spacer />
+          <v-btn icon="mdi-close" variant="text" size="small" @click="showPlDetail = false" />
+        </v-card-title>
+        <v-card-text class="pa-0">
+          <div v-if="isLoadingPlDetail" class="text-center pa-8">
+            <v-progress-circular indeterminate color="orange" size="36" />
+          </div>
+          <div v-else-if="plDetailList.length === 0" class="text-center pa-8 text-medium-emphasis">
+            Tidak ada packing list outstanding untuk barang ini.
+          </div>
+          <v-table v-else density="compact">
+            <thead>
+              <tr class="bg-grey-lighten-4">
+                <th class="text-left font-weight-bold" style="font-size: 11px">NO. PL</th>
+                <th class="text-left font-weight-bold" style="font-size: 11px">TANGGAL</th>
+                <th class="text-left font-weight-bold" style="font-size: 11px">TUJUAN</th>
+                <th class="text-center font-weight-bold" style="font-size: 11px">UK.</th>
+                <th class="text-right font-weight-bold" style="font-size: 11px">QTY</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="(row, i) in plDetailList" :key="i">
+                <td class="font-weight-bold text-orange-darken-3" style="font-size: 11px">
+                  {{ row.plNomor }}
+                </td>
+                <td style="font-size: 11px">
+                  {{ row.tanggal ? format(new Date(row.tanggal), "dd/MM/yyyy") : "-" }}
+                </td>
+                <td style="font-size: 11px">{{ row.tujuan }}</td>
                 <td class="text-center" style="font-size: 11px">{{ row.ukuran }}</td>
                 <td class="text-right font-weight-bold" style="font-size: 11px">{{ row.qty }}</td>
               </tr>
@@ -1171,6 +1256,16 @@ onMounted(() => {
   font-weight: 700;
 }
 .pesanan-ready-link:hover {
+  opacity: 0.75;
+}
+
+.pl-link {
+  color: #e65100; /* orange-darken-4 */
+  text-decoration: underline;
+  cursor: pointer;
+  font-weight: 700;
+}
+.pl-link:hover {
   opacity: 0.75;
 }
 </style>

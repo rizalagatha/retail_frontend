@@ -226,6 +226,17 @@ export function useAutoPromo(
       return sum + (item.total || 0);
     }, 0);
 
+  const calcEligibleQty = (promo: ActivePromo): number =>
+    items.value.reduce((sum, item) => {
+      if (!item.kode) return sum;
+      if (item.isFreeGift) return sum;
+      if (item.noPengajuanHarga) return sum;
+      if (!isItemEligible(item, promo)) return sum;
+      const key = `${item.kode}||${item.ukuran}`;
+      if (itemDiscountMap.value.has(key)) return sum; // Abaikan jika sudah ditarik promo item lain
+      return sum + (item.jumlah || 0);
+    }, 0);
+
   // ── Evaluasi Faktur ────────────────────────────────────
   const evaluateFakturPromos = (): {
     nomors: string[];
@@ -248,6 +259,8 @@ export function useAutoPromo(
       if (isLevelExcluded(promo)) continue;
       const eligible = calcEligibleTotal(promo);
       if (promo.pro_totalrp > 0 && eligible < promo.pro_totalrp) continue;
+      const eligibleQty = calcEligibleQty(promo);
+      if (promo.pro_totalqty > 0 && eligibleQty < promo.pro_totalqty) continue;
       let diskon = 0;
       if (promo.pro_disrp > 0) {
         diskon =
@@ -281,6 +294,8 @@ export function useAutoPromo(
     for (const promo of itemPromos) {
       if (isLevelExcluded(promo)) continue;
       if (promo.pro_totalrp > 0 && totalKeranjang < promo.pro_totalrp) continue;
+      const eligibleQty = calcEligibleQty(promo);
+      if (promo.pro_totalqty > 0 && eligibleQty < promo.pro_totalqty) continue;
       try {
         const { data } = await api.get(`/invoice-form/lookup/promo-items/${promo.pro_nomor}`);
         for (const pi of data || []) {
@@ -379,6 +394,10 @@ export function useAutoPromo(
 
     for (const promo of activePromos.value) {
       if (isLevelExcluded(promo)) continue;
+      if (promo.pro_totalqty > 0) {
+        const eligibleQty = calcEligibleQty(promo);
+        if (eligibleQty < promo.pro_totalqty) continue;
+      }
       const rules = await fetchTierDiskonRules(promo.pro_nomor);
       if (!rules.length) continue;
 

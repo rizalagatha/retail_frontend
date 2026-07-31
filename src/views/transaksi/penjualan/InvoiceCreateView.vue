@@ -69,6 +69,7 @@ interface Item {
   fromBackend?: boolean;
   isJasa?: boolean;
   isFreeGift?: boolean;
+  isHargaKhusus?: boolean;
 }
 interface LinkedDp {
   nomor: string;
@@ -250,6 +251,19 @@ interface InvoiceItemApi {
 interface SalesCounter {
   kode: string;
   nama: string;
+}
+
+interface HargaKhususItem {
+  kode: string;
+  ukuran: string;
+  harga: number;
+}
+
+interface RecalcDiscountResult {
+  kode: string;
+  ukuran: string;
+  disc: number;
+  diskon: number;
 }
 
 // --- Inisialisasi ---
@@ -455,6 +469,16 @@ const customerLimit = ref(0);
 const lastSuggestedPromo = ref("");
 const isPromoConfirmVisible = ref(false);
 const pendingPromoData = reactive({ nomor: "", nama: "", diskon: 0 });
+const pendingReviewProofFile = ref<File | null>(null);
+const isCurrentPromoRequiresReview = ref(false);
+
+const pendingPromoRequiresReview = computed(() => {
+  const nomors = (pendingPromoData.nomor || "").split(",").map((n) => n.trim());
+  return nomors.some((n) => {
+    const p = autoPromo.activePromos.value.find((ap) => ap.pro_nomor === n);
+    return p?.pro_wajib_review === "Y";
+  });
+});
 
 const autoPromo = useAutoPromo(header, items, {
   skipIfFromSo: true,
@@ -465,10 +489,10 @@ const autoPromo = useAutoPromo(header, items, {
   },
   // [TAMBAH]
   onFakturPromoAvailable: (promo) => {
-    if (header.nomorSo) return; // Skip jika dari SO
+    if (header.nomorSo) return;
+    if (header.isMarketplace) return;
     if (lastSuggestedPromo.value === promo.nomor || lastSuggestedPromo.value === "MANUAL_AUTH")
       return;
-
     pendingPromoData.nomor = promo.nomor;
     pendingPromoData.nama = promo.nama;
     pendingPromoData.diskon = promo.diskon;
@@ -970,6 +994,8 @@ const onCustomerSelected = async (cust: Customer | null) => {
     applyDefaultDiscount(); // pasang diskon default reseller
     calculateTotals(); // hitung ulang total
   }
+  await applyCustomerPricingRules();
+
   dialogs.customerSearch = false;
   await checkFreeGiftQuota();
 };
@@ -1284,6 +1310,8 @@ const onSoSelected = async (so: { Nomor: string }) => {
       };
     });
 
+    items.value = sortItemsBySize(items.value);
+
     linkedDps.value = dps;
     isSoLoaded.value = true;
 
@@ -1331,17 +1359,19 @@ const onSjSelected = async (sj: { NoSJ: string }) => {
     Object.assign(header, {
       nomorSo: sjHeader.sj_nomor,
       tanggalSo: sjHeader.sj_tanggal ? format(parseISO(sjHeader.sj_tanggal), "yyyy-MM-dd") : "",
-      customer: {
-        kode: sjHeader.mt_cus,
-        nama: sjHeader.customer,
-        alamat: sjHeader.alamat,
-        kota: sjHeader.kota,
-        telp: sjHeader.telp,
-        level: `${sjHeader.nlevel || ""} - ${sjHeader.clevel || ""}`,
-      },
+      // [FIX] Kalau SJ tidak bawa data customer, JANGAN reset — pertahankan pilihan user
+      customer: sjHeader.mt_cus
+        ? {
+            kode: sjHeader.mt_cus,
+            nama: sjHeader.customer,
+            alamat: sjHeader.alamat,
+            kota: sjHeader.kota,
+            telp: sjHeader.telp,
+            level: `${sjHeader.nlevel || ""} - ${sjHeader.clevel || ""}`,
+          }
+        : header.customer,
       top: sjHeader.top || 0,
       ppnPersen: sjHeader.ppn || 0,
-      // Jika tarik SJ tanpa SO asli, diskon otomatis diatur ke 15%
       diskonPersen1: sjHeader.noso ? sjHeader.so_disc1 : 15,
       diskonRp: sjHeader.so_disc || 0,
       salesCounter: sjHeader.sc || authStore.user?.kode,
@@ -1377,6 +1407,8 @@ const onSjSelected = async (sj: { NoSJ: string }) => {
       })
     );
 
+    items.value = sortItemsBySize(items.value);
+
     // [FIX] Memastikan linkedDps selalu berupa array untuk fungsi .reduce()
     linkedDps.value = Array.isArray(dps) ? dps : [];
     isSoLoaded.value = true;
@@ -1388,6 +1420,7 @@ const onSjSelected = async (sj: { NoSJ: string }) => {
 
     // --- [OTOMATISASI] Sinkronkan info member/poin berdasarkan customer SJ ---
     updateMemberInfo(header.customer);
+    await applyCustomerPricingRules();
   } catch (error: unknown) {
     // Menggunakan AxiosError untuk menangkap pesan error dari backend secara aman
     const err = error as AxiosError<{ message?: string }>;
@@ -1814,6 +1847,56 @@ const computeLineTotal = (item: Item) => {
   return Math.max(0, sub - nominalDiskon);
 };
 
+const SIZE_RANK_MAP: Record<string, number> = {
+  XS: 1,
+  S: 2,
+  M: 3,
+  L: 4,
+  XL: 5,
+  "2XL": 6,
+  "3XL": 7,
+  "4XL": 8,
+  "5XL": 9,
+  "6XL": 10,
+  "7XL": 11,
+  "8XL": 12,
+  "9XL": 13,
+  "10XL": 14,
+  JUMBO: 15,
+  OVERSIZE: 16,
+};
+
+const getSizeRank = (ukuran?: string): number => {
+  if (!ukuran) return 999;
+  const key = ukuran.toString().toUpperCase().trim();
+  if (SIZE_RANK_MAP[key] !== undefined) return SIZE_RANK_MAP[key];
+  const numeric = parseInt(key, 10);
+  if (!isNaN(numeric)) return numeric + 100; // ukuran numerik (celana, dll) di belakang size alfabet
+  return 500; // ukuran tidak dikenal, taruh di tengah
+};
+
+// [BARU] Urutkan grid: kaos reguler dulu, custom/SO DTF belakangan, lalu per
+// kode barang, lalu per ukuran kecil ke besar. Baris kosong (buat input baru)
+// selalu tetap di paling bawah.
+const sortItemsBySize = (list: Item[]): Item[] => {
+  const filled = list.filter((i) => i.kode);
+  const empty = list.filter((i) => !i.kode);
+
+  const catRank = (item: Item) => (item.isCustomOrder || item.noSoDtf ? 1 : 0);
+
+  filled.sort((a, b) => {
+    if (catRank(a) !== catRank(b)) return catRank(a) - catRank(b);
+
+    const kodeA = (a.kode || "").toUpperCase();
+    const kodeB = (b.kode || "").toUpperCase();
+    if (kodeA !== kodeB) return kodeA.localeCompare(kodeB);
+
+    return getSizeRank(a.ukuran) - getSizeRank(b.ukuran);
+  });
+
+  return [...filled, ...empty];
+};
+
 // --- Method Baru: Fetch Promo saat Mounted ---
 const fetchActivePromos = () => autoPromo.fetchPromos(header.gudang.kode, header.tanggal);
 
@@ -1959,15 +2042,27 @@ const checkRealtimePromoEligibility = () => {
 //   }
 // };
 
-const applyPromoDiscount = () => {
+const applyPromoDiscount = (proofFile?: File) => {
   header.nomorPromo = pendingPromoData.nomor;
   header.namaPromo = pendingPromoData.nama;
   header.diskonRp = pendingPromoData.diskon;
   header.diskonPersen1 = 0;
   lastSuggestedPromo.value = "";
   isPromoConfirmVisible.value = false;
+
+  if (proofFile) {
+    pendingReviewProofFile.value = proofFile;
+    isCurrentPromoRequiresReview.value = true;
+  } else {
+    isCurrentPromoRequiresReview.value = false;
+  }
+
   calculateTotals();
   toast.success(`Promo ${pendingPromoData.nama} berhasil diterapkan.`);
+};
+
+const handleUsePromoWithProof = (file: File) => {
+  applyPromoDiscount(file);
 };
 
 const useMemberDiscount = () => {
@@ -2184,6 +2279,16 @@ const handleProceedToPayment = async () => {
   const validItems = items.value.filter((i) => i.kode);
   if (!header.customer.kode) return toast.error("Customer harus diisi.");
   if (!header.customer.level) return toast.error("Level customer belum di-setting.");
+  // =========================================================
+  // [BARU] BLOKIR CUSTOMER RETAIL JIKA TRANSAKSI > 500RB
+  // =========================================================
+  const custNama = (header.customer.nama || "").toUpperCase();
+  if (custNama.includes("RETAIL") && totals.grandTotal > 500000) {
+    return toast.error(
+      "Pembelian di atas Rp 500.000 tidak bisa menggunakan customer RETAIL. Silakan buat data customer baru terlebih dahulu!"
+    );
+  }
+  // =========================================================
   if (validItems.length === 0) return toast.error("Detail barang harus diisi.");
   if (header.customer.kode === "K-00079" && !header.memberNik) {
     dialogs.memberForm = true;
@@ -2203,7 +2308,6 @@ const handleProceedToPayment = async () => {
     const isFreeGiftItem = item.isFreeGift === true;
 
     if (!isStickerPromoToko && !isFreeGiftItem) {
-      // [UBAH]
       if (
         (item.harga === null || item.harga === undefined || item.harga < 0) &&
         !item.promo &&
@@ -2221,6 +2325,16 @@ const handleProceedToPayment = async () => {
         );
       }
     }
+  }
+
+  if (
+    !header.isMarketplace &&
+    isCurrentPromoRequiresReview.value &&
+    !pendingReviewProofFile.value
+  ) {
+    return toast.error(
+      "Promo ini wajib disertai bukti ulasan Google Maps. Upload dulu lewat dialog promo sebelum lanjut ke pembayaran."
+    );
   }
 
   const totalQty = validItems.reduce((sum, item) => sum + (item.jumlah || 0), 0);
@@ -2315,36 +2429,53 @@ const executeSaveMarketplace = async () => {
   }
 };
 
+const STICKER_DTF_LOCKED_KODE = ["2500053", "2500060"];
+
 const checkStokMinus = (): Promise<boolean> => {
   return new Promise((resolve) => {
     const validItems = items.value.filter((i) => i.kode);
 
-    const itemsMinus = validItems.filter((item) => {
+    const isStockCheckable = (item: Item) => {
       const kodeUp = item.kode?.toUpperCase() || "";
-
-      // 1. Cek Pengecualian (JASA, FILE, SO-DTF tidak cek stok)
       const isNonStock = kodeUp.startsWith("JASA") || kodeUp.includes("FILE");
+      return !isNonStock && item.kategori !== "SO-DTF" && !item.noSoDtf;
+    };
 
-      if (isNonStock || item.kategori === "SO-DTF" || item.noSoDtf) {
-        return false;
-      }
+    const getRelevantStok = (item: Item) => {
+      if (header.nomorSo && !isKpr.value) return item.stokPesanan || 0;
+      return item.stok || 0;
+    };
 
-      // 2. Logika Validasi Stok Berdasarkan Konteks
+    // [BARU] 1. Cek dulu item Sticker DTF — kalau ada yang bakal minus, BLOCK
+    // total, tidak ada opsi lanjut sama sekali.
+    const stickerMinusItems = validItems.filter((item) => {
+      if (!isStockCheckable(item)) return false;
+      if (!STICKER_DTF_LOCKED_KODE.includes(item.kode || "")) return false;
       const qty = item.jumlah || 0;
+      return qty > getRelevantStok(item);
+    });
 
-      if (header.nomorSo && !isKpr.value) {
-        // Konteks SO Non-KPR: Cek terhadap Stok Pesanan
-        return qty > (item.stokPesanan || 0);
-      } else {
-        // Konteks Langsung atau KPR: Cek terhadap Stok Fisik
-        return qty > (item.stok || 0);
-      }
+    if (stickerMinusItems.length > 0) {
+      const itemNames = stickerMinusItems
+        .map((i) => `${i.nama} (${i.ukuran}) — stok: ${getRelevantStok(i)}, order: ${i.jumlah}`)
+        .join("; ");
+      toast.error(
+        `Tidak bisa lanjut: stok Sticker DTF tidak mencukupi untuk ${itemNames}. Stok tidak boleh minus untuk barang ini.`
+      );
+      resolve(false);
+      return;
+    }
+
+    // 2. Cek barang lain (perilaku lama — boleh lanjut dengan konfirmasi)
+    const itemsMinus = validItems.filter((item) => {
+      if (!isStockCheckable(item)) return false;
+      if (STICKER_DTF_LOCKED_KODE.includes(item.kode || "")) return false; // sudah dicek di atas
+      const qty = item.jumlah || 0;
+      return qty > getRelevantStok(item);
     });
 
     if (itemsMinus.length > 0) {
       const itemNames = itemsMinus.map((i) => `${i.nama} (${i.ukuran})`).join(", ");
-
-      // Tentukan jenis stok untuk pesan konfirmasi agar user paham
       const jenisStok =
         isKpr.value || header.gudang.kode === "KDC" || !header.nomorSo ? "Fisik" : "Pesanan";
 
@@ -2354,31 +2485,19 @@ const checkStokMinus = (): Promise<boolean> => {
         () => resolve(true)
       );
 
-      // Watcher untuk tombol Batal/Tutup Dialog
       const unwatch = watch(
         () => dialogConfirm.show,
         (newValue) => {
           if (!newValue) {
             unwatch();
-            // Jika onConfirm masih ada (belum dijalankan), berarti user klik batal/tutup
             resolve(false);
-
-            // Fallback aman: jika user menutup dialog tanpa klik "Ya", kita anggap batal
-            // (Logic watcher Anda sebelumnya agak kompleks, ini penyederhanaan yang aman)
-            // Namun kita ikuti pola yang sudah ada:
-            if (!dialogConfirm.onConfirm) {
-              // Jika onConfirm sudah null, berarti sudah diklik Ya
-            } else {
-              resolve(false);
-            }
           }
         }
       );
 
-      // Wrap onConfirm lama agar watcher bisa bersih
       const originalOnConfirm = dialogConfirm.onConfirm;
       dialogConfirm.onConfirm = () => {
-        originalOnConfirm(); // Panggil resolve(true) yang dipassing showConfirmation
+        originalOnConfirm();
         unwatch();
       };
     } else {
@@ -2387,11 +2506,96 @@ const checkStokMinus = (): Promise<boolean> => {
   });
 };
 
-const onSaveSuccess = () => {
+const onSaveSuccess = async (invoiceNomor?: string) => {
+  if (!header.isMarketplace && pendingReviewProofFile.value && invoiceNomor) {
+    const formData = new FormData();
+    formData.append("image", pendingReviewProofFile.value);
+    try {
+      await api.post(`/invoice-form/upload-review-proof/${invoiceNomor}`, formData, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
+    } catch {
+      toast.warning("Invoice tersimpan, tapi bukti ulasan gagal diunggah. Upload manual nanti.");
+    }
+  }
   audioSuccess.play().catch(() => {});
   markAsSaved();
-  // Dipanggil dari PaymentModal setelah save berhasil
-  router.push({ name: "Invoice" }); // Kembali ke halaman browse
+  router.push({ name: "Invoice" });
+};
+
+const applyCustomerPricingRules = async () => {
+  if (!isKpr.value) return;
+  if (!header.customer.kode) return;
+  if (!items.value.some((i) => i.kode)) return;
+
+  // 1. Harga khusus (yang sudah ada)
+  try {
+    const { data } = await api.get<HargaKhususItem[]>(
+      `/invoice-form/lookup/harga-khusus/${header.customer.kode}`
+    );
+    if (data && data.length > 0) {
+      const map = new Map<string, number>(
+        data.map((d) => [`${d.kode}|${String(d.ukuran).toUpperCase().trim()}`, Number(d.harga)])
+      );
+      items.value.forEach((item) => {
+        if (!item.kode) return;
+        const key = `${item.kode}|${String(item.ukuran || "")
+          .toUpperCase()
+          .trim()}`;
+        const hargaKhusus = map.get(key);
+        if (hargaKhusus !== undefined) {
+          item.harga = hargaKhusus;
+          item.diskonPersen = 0;
+          item.diskonRp = 0;
+          item.isHargaKhusus = true;
+        }
+      });
+    }
+  } catch (err) {
+    console.error("Gagal cek harga khusus customer:", err);
+  }
+
+  // 2. [BARU] Recalculate diskon tiering (15%/12,5%/10%/5%) untuk item
+  // yang BUKAN harga khusus — supaya customer khusus (mis. KPR00022)
+  // dapat rate yang benar walau dipilih setelah SJ.
+  try {
+    const nonKhususItems = items.value
+      .filter((i) => i.kode && !i.isHargaKhusus)
+      .map((i) => ({
+        kode: i.kode,
+        ukuran: i.ukuran,
+        nama: i.nama,
+        kategori: i.kategori,
+        harga: i.harga,
+      }));
+
+    if (nonKhususItems.length > 0) {
+      const { data } = await api.post<RecalcDiscountResult[]>(
+        "/invoice-form/lookup/recalc-kpr-diskon",
+        { cusKode: header.customer.kode, items: nonKhususItems }
+      );
+
+      const discMap = new Map(
+        data.map((d) => [`${d.kode}|${String(d.ukuran).toUpperCase().trim()}`, d])
+      );
+
+      items.value.forEach((item) => {
+        if (!item.kode || item.isHargaKhusus) return;
+        const key = `${item.kode}|${String(item.ukuran || "")
+          .toUpperCase()
+          .trim()}`;
+        const result = discMap.get(key);
+        if (result) {
+          item.diskonPersen = result.disc;
+          item.diskonRp = result.diskon;
+        }
+      });
+    }
+  } catch (err) {
+    console.error("Gagal recalculate diskon KPR:", err);
+  }
+
+  calculateTotals();
 };
 
 const updateMemberInfo = (customer: Customer | null) => {
@@ -2763,6 +2967,8 @@ const loadDataForEdit = async (nomor: string) => {
         fromBackend: true,
       };
     });
+
+    items.value = sortItemsBySize(items.value);
 
     addNewRow();
 
@@ -3864,8 +4070,10 @@ watch(
       :promo-nama="pendingPromoData.nama"
       :promo-nominal="pendingPromoData.diskon"
       :item-discounts="[]"
+      :promo-requires-review="pendingPromoRequiresReview"
       @use-member="useMemberDiscount"
-      @use-promo="applyPromoDiscount"
+      @use-promo="() => applyPromoDiscount()"
+      @use-promo-with-proof="handleUsePromoWithProof"
       @ignore="closePromoDialog"
     />
     <MemberForm

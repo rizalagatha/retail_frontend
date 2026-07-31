@@ -7,6 +7,8 @@ import { useAuthStore } from "@/stores/authStore";
 import { format } from "date-fns";
 import { useRouter, useRoute, onBeforeRouteLeave } from "vue-router";
 import AppDataTable from "@/components/AppDataTable.vue";
+import type { AxiosError } from "axios";
+import { formatRupiah } from "@/utils/formatRupiah";
 
 const toast = useToast();
 const authStore = useAuthStore();
@@ -33,14 +35,60 @@ interface PriceProposal {
   jenisKaos: string;
   keterangan: string;
   approval: string;
+  status: string;
+  statusUpdated: string | null;
+  refSoSpk: string | null; // [BARU]
   cabang: string;
   created: string;
+  kodeBarangDraft: string | null; // [BARU]
+  kodeBarangFinal: string | null; // [BARU]
+  ketersediaan: "Stok" | "Custom" | "Sublim";
+  kodeCelanaDraft: string | null;
+}
+
+interface SizeDetail {
+  ukuran: string;
+  qty: number;
+  harga: number;
+  nama: string;
 }
 
 interface CabangOption {
   kode: string;
   nama: string;
 }
+
+// --- Status Label & Color (mirror dari backend STATUS_LABEL) ---
+// Catatan: baru DRAFT yang aktif dipakai sekarang, sisanya scaffolding
+// buat tahap berikutnya (ACC_CUSTOMER, ACC_FINANCE, dst) yang dikerjakan bertahap.
+const STATUS_LABEL: Record<string, string> = {
+  DRAFT: "Draft",
+  ACC_CUSTOMER: "Acc Customer",
+  ACC_FINANCE: "Acc Finance",
+  MENUNGGU_DC: "Menunggu Validasi DC",
+  ACC_DC: "Acc DC",
+  PRODUKSI: "Produksi",
+  BARANG_DITERIMA_DC: "Barang Diterima DC",
+  READY_STORE: "Ready Store",
+  CLOSED: "Closed",
+  REJECTED: "Ditolak",
+};
+
+const STATUS_COLOR: Record<string, string> = {
+  DRAFT: "grey",
+  ACC_CUSTOMER: "blue",
+  ACC_FINANCE: "indigo",
+  MENUNGGU_DC: "amber-darken-2",
+  ACC_DC: "deep-purple",
+  PRODUKSI: "orange",
+  BARANG_DITERIMA_DC: "amber",
+  READY_STORE: "teal",
+  CLOSED: "success",
+  REJECTED: "error",
+};
+
+const getStatusLabel = (status: string) => STATUS_LABEL[status] || status || "Draft";
+const getStatusColor = (status: string) => STATUS_COLOR[status] || "grey";
 
 // --- State ---
 const proposals = ref<PriceProposal[]>([]);
@@ -50,15 +98,19 @@ const endDate = ref(format(new Date(), "yyyy-MM-dd"));
 const selectedCabang = ref<string | null>(
   authStore.user?.cabang === "KDC" ? "ALL" : authStore.user?.cabang || null
 );
-const belumApproval = ref(false);
+const draftSaja = ref(false);
 const cabangList = ref<CabangOption[]>([]);
 const selected = ref<PriceProposal[]>([]);
+const expanded = ref<PriceProposal[]>([]);
+const sizeDetails = ref<{ [key: string]: SizeDetail[] }>({});
+const loadingSizeDetails = ref<Set<string>>(new Set());
 const filterOptions = ref<{ title: string; value: keyof PriceProposal }[]>([
   { title: "Nomor", value: "nomor" },
   { title: "Customer", value: "customer" },
+  { title: "Ketersediaan", value: "ketersediaan" },
   { title: "Jenis Kaos", value: "jenisKaos" },
   { title: "Keterangan", value: "keterangan" },
-  { title: "Approval", value: "approval" },
+  { title: "Status", value: "status" },
   { title: "Cabang", value: "cabang" },
   { title: "User", value: "created" },
 ]);
@@ -72,15 +124,60 @@ const itemToDelete = ref<PriceProposal | null>(null);
 const SESSION_STATE_KEY = "price_proposal_browse_state";
 
 const tableHeaders = ref<DataTableHeader[]>([
+  { title: "", key: "data-table-expand", width: 50, fixed: true },
   { title: "Nomor", key: "nomor", width: 150, fixed: true },
   { title: "Tanggal", key: "tanggal", width: 120 },
   { title: "Customer", key: "customer", width: 250 },
+  { title: "Ketersediaan", key: "ketersediaan", width: 110 },
   { title: "Jenis Kaos", key: "jenisKaos", width: 200 },
   { title: "Keterangan", key: "keterangan", width: 300 },
-  { title: "Approval", key: "approval", width: 120 },
+  { title: "Status", key: "status", width: 130 },
   { title: "Cabang", key: "cabang", width: 120 },
   { title: "User", key: "created", width: 120 },
 ]);
+
+const sizeDetailHeaders = [
+  { title: "NAMA BARANG", key: "nama", width: "260px" },
+  { title: "UKURAN", key: "ukuran", width: "100px", align: "center" },
+  { title: "QTY", key: "qty", align: "center", width: "80px" },
+  { title: "HARGA", key: "harga", align: "end", width: "140px" },
+] as const;
+
+const isGenerateSoDialogVisible = ref(false);
+const soEligibility = ref<{
+  eligible: boolean;
+  checks: { isAccFinance: boolean; isMasukSuratPesanan: boolean; isDpTerpenuhi: boolean };
+  totalHargaPh: number;
+  totalDp: number;
+  minimalDpNominal: number;
+} | null>(null);
+const soPrefill = ref<{
+  kodeBarang: string;
+  joKode: string;
+  jeniskain: string;
+  finishing: string;
+  jumlah: number;
+  custKaosanNama: string;
+  matchedSales: { sal_kode: string; sal_nama: string } | null;
+  kepentinganOptions: string[];
+  keteranganProduksi: string;
+} | null>(null);
+const soDatelineRange = ref<{ minDate: string; maxDate: string } | null>(null);
+const soForm = ref({
+  namaSo: "",
+  namaExt: "",
+  kepentingan: "",
+  salesKode: "",
+  dateline: "",
+  keteranganProduksi: "",
+});
+const isCheckingEligibility = ref(false);
+const isLoadingPrefill = ref(false);
+const isGeneratingSo = ref(false);
+
+const canGenerateSo = computed(
+  () => isSingleSelected.value && soEligibility.value?.eligible === true
+);
 
 // --- Logic Resize Column ---
 const resizingColumn = ref<DataTableHeader | null>(null);
@@ -134,11 +231,9 @@ const filteredProposals = computed(() => {
 // --- Methods ---
 const fetchCabangList = async () => {
   try {
-    // Asumsi API ini ada untuk mengambil daftar cabang
     const response = await api.get("/offers/branch-options", {
       params: { userCabang: authStore.user?.cabang },
     });
-    // Tambahkan opsi "ALL" jika user adalah KDC
     if (authStore.user?.cabang === "KDC") {
       cabangList.value = [{ kode: "ALL", nama: "SEMUA CABANG" }, ...response.data];
     } else {
@@ -154,7 +249,7 @@ const saveStateToSession = () => {
     startDate: startDate.value,
     endDate: endDate.value,
     selectedCabang: selectedCabang.value,
-    belumApproval: belumApproval.value,
+    draftSaja: draftSaja.value,
     selectedFilterField: selectedFilterField.value,
     filterSearchValue: filterSearchValue.value,
   };
@@ -163,7 +258,7 @@ const saveStateToSession = () => {
 
 const fetchData = async () => {
   if (!startDate.value || !endDate.value) {
-    return; // Hentikan fungsi jika salah satu tanggal kosong
+    return;
   }
   isLoading.value = true;
   try {
@@ -172,7 +267,7 @@ const fetchData = async () => {
         startDate: startDate.value,
         endDate: endDate.value,
         cabang: selectedCabang.value,
-        belumApproval: belumApproval.value,
+        belumApproval: draftSaja.value,
       },
     });
     proposals.value = response.data;
@@ -183,21 +278,66 @@ const fetchData = async () => {
   }
 };
 
+const fetchDatelineRange = async () => {
+  if (!soForm.value.kepentingan || !soPrefill.value) return;
+  try {
+    const response = await api.get("/price-proposals/so-dateline-range", {
+      params: { kepentingan: soForm.value.kepentingan, joKode: soPrefill.value.joKode },
+    });
+    soDatelineRange.value = response.data;
+    soForm.value.dateline = response.data.minDate;
+  } catch (error) {
+    console.error("Gagal memuat rentang dateline:", error);
+  }
+};
+
+const loadSizeDetails = async (expandedItems: PriceProposal[]) => {
+  const expandedNomors = expandedItems.map((item) => item.nomor);
+
+  for (const nomor of expandedNomors) {
+    if (!sizeDetails.value[nomor] && !loadingSizeDetails.value.has(nomor)) {
+      loadingSizeDetails.value.add(nomor);
+      try {
+        const response = await api.get(`/price-proposals/${nomor}/size-details`);
+        sizeDetails.value = { ...sizeDetails.value, [nomor]: response.data };
+      } catch (error) {
+        console.error(`Error loading size detail for ${nomor}:`, error);
+        toast.error(`Gagal memuat detail ukuran untuk nomor ${nomor}`);
+        expanded.value = expanded.value.filter((item) => item.nomor !== nomor);
+      } finally {
+        loadingSizeDetails.value.delete(nomor);
+      }
+    }
+  }
+};
+
 const editProposal = () => {
   if (!isSingleSelected.value) return;
   const nomor = selected.value[0].nomor;
   router.push(`/transaksi/penjualan/pengajuan/pengajuan-harga/ubah/${nomor}`);
 };
 
+const getErrorMessage = (error: unknown, fallback: string): string => {
+  if (
+    typeof error === "object" &&
+    error !== null &&
+    "response" in error &&
+    typeof (error as { response?: { data?: { message?: unknown } } }).response?.data?.message ===
+      "string"
+  ) {
+    return (error as { response: { data: { message: string } } }).response.data.message;
+  }
+  return fallback;
+};
+
 const deleteProposal = async (item: PriceProposal) => {
   try {
-    // Asumsi endpoint hapus ada di /api/price-proposals/:nomor
     await api.delete(`/price-proposals/${item.nomor}`);
     toast.success(`Pengajuan harga ${item.nomor} berhasil dihapus.`);
     fetchData();
     selected.value = [];
-  } catch {
-    toast.error("Gagal menghapus pengajuan harga.");
+  } catch (error: unknown) {
+    toast.error(getErrorMessage(error, "Gagal menghapus pengajuan harga."));
   }
 };
 
@@ -215,12 +355,66 @@ const deleteConfirmed = () => {
   itemToDelete.value = null;
 };
 
+const openGenerateSoDialog = async () => {
+  if (!canGenerateSo.value) return;
+  const nomor = selected.value[0].nomor;
+
+  isLoadingPrefill.value = true;
+  isGenerateSoDialogVisible.value = true;
+  try {
+    const response = await api.get(`/price-proposals/${nomor}/so-prefill`);
+    soPrefill.value = response.data;
+    soForm.value = {
+      namaSo: "",
+      namaExt: "",
+      kepentingan: "",
+      salesKode: soPrefill.value?.matchedSales?.sal_kode || "",
+      dateline: "",
+      keteranganProduksi: soPrefill.value?.keteranganProduksi || "",
+    };
+    soDatelineRange.value = null;
+  } catch (error: unknown) {
+    const err = error as AxiosError<{ message?: string }>;
+    toast.error(err.response?.data?.message || "Gagal memuat data prefill SO.");
+    isGenerateSoDialogVisible.value = false;
+  } finally {
+    isLoadingPrefill.value = false;
+  }
+};
+
+const submitGenerateSo = async () => {
+  if (!soForm.value.namaSo) return toast.error("Nama SO wajib diisi.");
+  if (!soForm.value.kepentingan) return toast.error("Kepentingan wajib dipilih.");
+  if (!soForm.value.salesKode) return toast.error("Sales wajib dipilih.");
+  if (!soForm.value.dateline) return toast.error("Dateline wajib diisi.");
+
+  const nomor = selected.value[0].nomor;
+  isGeneratingSo.value = true;
+  try {
+    const response = await api.post(`/price-proposals/${nomor}/generate-so`, soForm.value);
+    toast.success(response.data.message);
+    isGenerateSoDialogVisible.value = false;
+    fetchData();
+    selected.value = [];
+  } catch (error: unknown) {
+    const err = error as AxiosError<{ message?: string }>;
+    toast.error(err.response?.data?.message || "Gagal generate SO.");
+  } finally {
+    isGeneratingSo.value = false;
+  }
+};
+
+const openSoManksi = (soNomor: string) => {
+  const routeData = router.resolve({ name: "SoManksiDetail", params: { nomor: soNomor } });
+  window.open(routeData.href, "_blank");
+};
+
 const getRowTextColor = (item: PriceProposal) => {
-  // Warnai merah jika kolom 'approval' kosong (belum di-approve)
-  if (!item.approval) {
+  // Warnai merah jika masih draft (belum diapa-apain)
+  if (!item.status || item.status === "DRAFT") {
     return "text-red font-weight-bold";
   }
-  return ""; // Warna default
+  return "";
 };
 
 onMounted(async () => {
@@ -229,20 +423,17 @@ onMounted(async () => {
   if (authStore.can(MENU_ID, "view")) {
     hasViewPermission.value = true;
 
-    // 1. Coba baca state pencarian dari Session Storage terlebih dahulu
     const savedState = sessionStorage.getItem(SESSION_STATE_KEY);
 
     if (savedState) {
       try {
         const parsedState = JSON.parse(savedState);
 
-        // Kembalikan nilai filter dari session
         startDate.value = parsedState.startDate;
         endDate.value = parsedState.endDate;
         selectedCabang.value = parsedState.selectedCabang;
-        belumApproval.value = parsedState.belumApproval;
+        draftSaja.value = parsedState.draftSaja ?? parsedState.belumApproval ?? false;
 
-        // Kembalikan nilai pencarian teks
         if (parsedState.selectedFilterField)
           selectedFilterField.value = parsedState.selectedFilterField;
         if (parsedState.filterSearchValue) filterSearchValue.value = parsedState.filterSearchValue;
@@ -250,14 +441,10 @@ onMounted(async () => {
         console.error("Gagal membaca state filter dari sessionStorage", e);
       }
     } else {
-      // 2. Jika tidak ada di memory (baru buka pertama kali)
-
-      // Set default cabang
       selectedCabang.value =
         authStore.user?.cabang === "KDC" ? "ALL" : authStore.user?.cabang || "";
-      belumApproval.value = true; // Default bawaan halaman ini
+      draftSaja.value = true;
 
-      // Timpa dengan Query URL (jika dialihkan dari Dashboard)
       const queryStartDate = route.query.startDate as string;
       const queryEndDate = route.query.endDate as string;
       const queryStatus = route.query.status as string;
@@ -267,13 +454,11 @@ onMounted(async () => {
         endDate.value = queryEndDate;
       }
 
-      // Jika dari dashboard klik 'pending', pastikan checkbox tercentang
-      if (queryStatus === "pending") {
-        belumApproval.value = true;
+      if (queryStatus === "pending" || queryStatus === "DRAFT") {
+        draftSaja.value = true;
       }
     }
 
-    // 3. Fetch data berurutan
     await fetchCabangList();
     await fetchData();
   } else {
@@ -282,30 +467,56 @@ onMounted(async () => {
   }
 });
 
-// --- Watcher Gabungan ---
-// Pantau semua variabel yang bisa memicu fetch ulang ke backend
-watch([selectedCabang, belumApproval, startDate, endDate], () => {
+watch(
+  expanded,
+  (newExpanded) => {
+    if (newExpanded.length > 0) {
+      loadSizeDetails(newExpanded);
+    }
+  },
+  { deep: true }
+);
+
+watch(
+  () => soForm.value.kepentingan,
+  () => {
+    fetchDatelineRange();
+  }
+);
+
+watch([selectedCabang, draftSaja, startDate, endDate], () => {
   saveStateToSession();
   if (hasViewPermission.value) fetchData();
 });
 
-// Pantau variabel pencarian frontend agar saat user mengetik, state-nya juga tersimpan
 watch([filterSearchValue, selectedFilterField], () => {
   saveStateToSession();
 });
 
-// Deteksi saat user meninggalkan halaman ini
+watch(selected, async (newSelected) => {
+  if (newSelected.length !== 1) {
+    soEligibility.value = null;
+    return;
+  }
+  isCheckingEligibility.value = true;
+  try {
+    const response = await api.get(`/price-proposals/${newSelected[0].nomor}/so-eligibility`);
+    soEligibility.value = response.data;
+  } catch {
+    soEligibility.value = null;
+  } finally {
+    isCheckingEligibility.value = false;
+  }
+});
+
 onBeforeRouteLeave((to, from, next) => {
-  // Cek apakah halaman tujuan MASIH berhubungan dengan modul Pengajuan Harga.
-  // Asumsi path untuk form ubah/baru mengandung string "pengajuan-harga"
   const isRelatedPage = to.path.includes("/pengajuan-harga");
 
   if (!isRelatedPage) {
-    // Jika pergi ke menu lain (misal: ke dashboard atau invoice), bersihkan memori filter!
     sessionStorage.removeItem(SESSION_STATE_KEY);
   }
 
-  next(); // Lanjutkan perpindahan halaman
+  next();
 });
 </script>
 
@@ -336,6 +547,14 @@ onBeforeRouteLeave((to, from, next) => {
         prepend-icon="mdi-delete"
         @click="confirmDelete"
         >Hapus</v-btn
+      >
+      <v-btn
+        v-if="canGenerateSo"
+        size="small"
+        color="success"
+        prepend-icon="mdi-factory"
+        @click="openGenerateSoDialog"
+        >Generate SO Manksi</v-btn
       >
     </template>
 
@@ -382,8 +601,8 @@ onBeforeRouteLeave((to, from, next) => {
           ></v-select>
         </div>
         <v-checkbox
-          v-model="belumApproval"
-          label="Belum Approve"
+          v-model="draftSaja"
+          label="Draft Saja"
           hide-details
           density="compact"
         ></v-checkbox>
@@ -413,7 +632,7 @@ onBeforeRouteLeave((to, from, next) => {
 
         <v-spacer></v-spacer>
         <div class="legend-group">
-          <span class="legend-pending">● Belum Approval</span>
+          <span class="legend-pending">● Draft</span>
         </div>
         <v-btn @click="fetchData" icon="mdi-refresh" variant="text" size="small"></v-btn>
       </div>
@@ -431,8 +650,20 @@ onBeforeRouteLeave((to, from, next) => {
           fixed-header
           show-select
           return-object
+          :items-per-page="50"
+          @update:expanded="loadSizeDetails"
           @click:row="handleRowClick"
         >
+          <template #[`item.data-table-expand`]="{ internalItem, toggleExpand, isExpanded }">
+            <v-btn
+              icon="mdi-chevron-down"
+              :class="{ 'rotate-180': isExpanded(internalItem) }"
+              size="x-small"
+              variant="text"
+              @click.stop="toggleExpand(internalItem)"
+            />
+          </template>
+
           <template #headers="{ columns, isSorted, getSortIcon, toggleSort }">
             <tr>
               <template v-for="header in columns" :key="header.key">
@@ -466,7 +697,7 @@ onBeforeRouteLeave((to, from, next) => {
           </template>
 
           <template
-            v-for="header in tableHeaders"
+            v-for="header in tableHeaders.filter((h) => h.key !== 'data-table-expand')"
             #[`item.${header.key}`]="{ item }"
             :key="header.key"
           >
@@ -474,15 +705,107 @@ onBeforeRouteLeave((to, from, next) => {
               <template v-if="header.key === 'tanggal'">
                 {{ format(new Date(item.tanggal), "dd/MM/yyyy") }}
               </template>
-              <template v-else-if="header.key === 'approval'">
-                <v-chip :color="item.approval ? 'success' : 'grey'" variant="tonal" size="x-small">
-                  {{ item.approval || "Belum" }}
+              <template v-else-if="header.key === 'status'">
+                <v-chip :color="getStatusColor(item.status)" variant="tonal" size="x-small">
+                  {{ getStatusLabel(item.status) }}
                 </v-chip>
+              </template>
+              <template v-else-if="header.key === 'ketersediaan'">
+                <v-chip
+                  :color="
+                    item.ketersediaan === 'Sublim'
+                      ? 'deep-purple'
+                      : item.ketersediaan === 'Custom'
+                      ? 'orange'
+                      : 'grey'
+                  "
+                  variant="tonal"
+                  size="x-small"
+                  >{{ item.ketersediaan }}</v-chip
+                >
               </template>
               <template v-else>
                 {{ item[header.key] }}
               </template>
             </td>
+          </template>
+
+          <template #expanded-row="{ columns, item }">
+            <tr>
+              <td :colspan="columns.length" class="pa-0">
+                <div class="detail-container">
+                  <div class="detail-tables-row">
+                    <!-- Tabel kiri: Detail Ukuran -->
+                    <div class="detail-table-wrapper elevation-1">
+                      <div class="detail-table-title">Detail Ukuran</div>
+                      <div v-if="loadingSizeDetails.has(item.nomor)" class="text-center py-4">
+                        <v-progress-circular indeterminate color="primary" size="24" />
+                      </div>
+                      <v-data-table
+                        v-else-if="sizeDetails[item.nomor]?.length"
+                        :headers="sizeDetailHeaders"
+                        :items="sizeDetails[item.nomor]"
+                        density="compact"
+                        hide-default-footer
+                        class="detail-table"
+                      >
+                        <template #[`item.harga`]="{ value }">{{ formatRupiah(value) }}</template>
+                      </v-data-table>
+                      <div v-else class="text-caption text-medium-emphasis pa-4">
+                        Tidak ada detail ukuran.
+                      </div>
+                    </div>
+
+                    <!-- Tabel kanan: Kode Barang & SPK -->
+                    <div class="detail-info-wrapper elevation-1">
+                      <div class="detail-table-title">Kode Barang & Produksi</div>
+                      <div class="detail-info-row">
+                        <span class="detail-label">Kode Barang Draft</span>
+                        <span class="detail-value">{{ item.kodeBarangDraft || "-" }}</span>
+                      </div>
+                      <div class="detail-info-row">
+                        <span class="detail-label">Kode Barang Final</span>
+                        <span
+                          class="detail-value"
+                          :class="{ 'text-success font-weight-bold': item.kodeBarangFinal }"
+                        >
+                          {{ item.kodeBarangFinal || "Belum difinalisasi" }}
+                        </span>
+                      </div>
+                      <div class="detail-info-row">
+                        <span class="detail-label">Kode Barang Final</span>
+                        <span
+                          class="detail-value"
+                          :class="{ 'text-success font-weight-bold': item.kodeBarangFinal }"
+                        >
+                          {{ item.kodeBarangFinal || "Belum difinalisasi" }}
+                        </span>
+                      </div>
+                      <div v-if="item.kodeCelanaDraft" class="detail-info-row">
+                        <span class="detail-label">Kode Barang Celana</span>
+                        <span class="detail-value">{{ item.kodeCelanaDraft }}</span>
+                      </div>
+                      <div class="detail-info-row">
+                        <span class="detail-label">Nomor SO/SPK</span>
+                        <span class="detail-value">{{ item.refSoSpk || "-" }}</span>
+                      </div>
+
+                      <v-btn
+                        v-if="item.refSoSpk"
+                        size="x-small"
+                        variant="tonal"
+                        color="primary"
+                        prepend-icon="mdi-open-in-new"
+                        class="ma-2"
+                        @click="openSoManksi(item.refSoSpk)"
+                      >
+                        Lihat SO Manksi
+                      </v-btn>
+                    </div>
+                  </div>
+                </div>
+              </td>
+            </tr>
           </template>
         </AppDataTable>
       </div>
@@ -504,6 +827,136 @@ onBeforeRouteLeave((to, from, next) => {
         </v-card-actions>
       </v-card>
     </v-dialog>
+
+    <v-dialog v-model="isGenerateSoDialogVisible" max-width="480px" persistent>
+      <v-card class="generate-so-card">
+        <v-card-title class="generate-so-title">
+          <v-icon icon="mdi-factory" color="success" class="mr-2"></v-icon>
+          Generate SO Manksi
+        </v-card-title>
+
+        <v-card-text v-if="isLoadingPrefill" class="text-center py-8">
+          <v-progress-circular indeterminate color="primary" />
+        </v-card-text>
+
+        <v-card-text v-else-if="soPrefill" class="generate-so-body">
+          <!-- Info ringkas dari Pengajuan Harga -->
+          <div class="so-info-grid mb-4">
+            <div class="so-info-item">
+              <span class="so-info-label">Kode Barang</span>
+              <span class="so-info-value font-weight-bold">{{ soPrefill.kodeBarang }}</span>
+            </div>
+            <div class="so-info-item">
+              <span class="so-info-label">Jenis Order</span>
+              <span class="so-info-value">{{ soPrefill.joKode }}</span>
+            </div>
+            <div class="so-info-item">
+              <span class="so-info-label">Jumlah</span>
+              <span class="so-info-value">{{ soPrefill.jumlah }} pcs</span>
+            </div>
+            <div class="so-info-item so-info-item--full">
+              <span class="so-info-label">Cust Kaosan</span>
+              <span class="so-info-value">{{ soPrefill.custKaosanNama }}</span>
+            </div>
+          </div>
+
+          <v-alert
+            v-if="!soPrefill.matchedSales"
+            type="warning"
+            variant="tonal"
+            density="compact"
+            class="mb-4"
+          >
+            Sales tidak otomatis ketemu — pilih manual di bawah.
+          </v-alert>
+
+          <v-text-field
+            v-model="soForm.namaSo"
+            label="Nama SO"
+            variant="outlined"
+            density="compact"
+            hide-details
+            class="mb-3"
+          ></v-text-field>
+
+          <v-text-field
+            v-model="soForm.namaExt"
+            label="Nama Ext (opsional)"
+            variant="outlined"
+            density="compact"
+            hide-details
+            class="mb-3"
+          ></v-text-field>
+
+          <div class="so-form-row mb-3">
+            <v-select
+              v-model="soForm.kepentingan"
+              :items="soPrefill.kepentinganOptions"
+              label="Kepentingan"
+              variant="outlined"
+              density="compact"
+              hide-details
+            ></v-select>
+
+            <v-text-field
+              v-model="soForm.dateline"
+              label="Dateline"
+              type="date"
+              :min="soDatelineRange?.minDate"
+              :max="soDatelineRange?.maxDate"
+              :hint="
+                soDatelineRange
+                  ? `Rentang: ${soDatelineRange.minDate} s/d ${soDatelineRange.maxDate}`
+                  : ''
+              "
+              :persistent-hint="!!soDatelineRange"
+              variant="outlined"
+              density="compact"
+            ></v-text-field>
+          </div>
+
+          <v-text-field
+            v-model="soForm.salesKode"
+            label="Kode Sales"
+            readonly
+            :hint="
+              soPrefill.matchedSales
+                ? `Terdeteksi: ${soPrefill.matchedSales.sal_nama}`
+                : 'Sales tidak ditemukan otomatis — perbaiki data nama SC Master Sales.'
+            "
+            persistent-hint
+            variant="outlined"
+            density="compact"
+            :color="soPrefill.matchedSales ? undefined : 'error'"
+          ></v-text-field>
+
+          <v-textarea
+            v-model="soForm.keteranganProduksi"
+            label="Keterangan Produksi"
+            placeholder="Catatan untuk workshop DC saat SO diproses..."
+            variant="outlined"
+            density="compact"
+            rows="3"
+            auto-grow
+            hide-details
+          ></v-textarea>
+        </v-card-text>
+
+        <v-card-actions class="generate-so-actions">
+          <v-spacer></v-spacer>
+          <v-btn variant="text" @click="isGenerateSoDialogVisible = false">Batal</v-btn>
+          <v-btn
+            color="success"
+            variant="flat"
+            :loading="isGeneratingSo"
+            :disabled="!soPrefill?.matchedSales"
+            @click="submitGenerateSo"
+          >
+            Generate SO
+          </v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
   </PageLayout>
 </template>
 
@@ -512,17 +965,14 @@ onBeforeRouteLeave((to, from, next) => {
   font-size: 11px !important;
 }
 
-/* Layout Utama Full Height */
 .browse-content {
   display: flex;
   flex-direction: column;
   height: calc(100vh - 64px - 32px);
   overflow: hidden;
   background-color: rgb(var(--v-theme-background));
-  /* [FIX] */
 }
 
-/* Filter section compact */
 .filter-section {
   flex-shrink: 0;
   display: flex;
@@ -568,7 +1018,6 @@ onBeforeRouteLeave((to, from, next) => {
   font-size: 14px !important;
 }
 
-/* Checkbox compact */
 .filter-section :deep(.v-checkbox .v-label) {
   font-size: 11px !important;
 }
@@ -583,7 +1032,6 @@ onBeforeRouteLeave((to, from, next) => {
   font-size: 11px;
 }
 
-/* Legend */
 .legend-group {
   display: flex;
   align-items: center;
@@ -605,13 +1053,11 @@ onBeforeRouteLeave((to, from, next) => {
   overflow: hidden;
 }
 
-/* Table Full Height & Scrollbar */
 .desktop-table {
   height: 100%;
   display: flex;
   flex-direction: column;
   background-color: rgb(var(--v-theme-surface));
-  /* [FIX] */
 }
 
 .desktop-table :deep(.v-table__wrapper) {
@@ -626,10 +1072,8 @@ onBeforeRouteLeave((to, from, next) => {
   min-width: 100%;
 }
 
-/* Header Resize */
 .resizable-header {
   position: relative;
-  /* [FIX] Gunakan variable tema global */
   background-color: var(--table-head-bg) !important;
   color: var(--table-head-text) !important;
 
@@ -673,16 +1117,164 @@ onBeforeRouteLeave((to, from, next) => {
 .resizer:hover,
 .resizable-header:hover .resizer {
   border-right: 2px solid rgba(var(--v-theme-on-surface), 0.5);
-  /* [FIX] */
 }
 
-/* Pewarnaan Baris Merah (Belum Approve) */
 :deep(td.text-red) {
   color: #d32f2f !important;
 }
 
-/* [FIX] Hover row pada baris merah di Dark Mode */
 .v-theme--dark .desktop-table :deep(tr:hover td.text-red) {
   background-color: rgba(211, 47, 47, 0.2) !important;
+}
+.detail-container {
+  position: sticky;
+  left: 0;
+  z-index: 2;
+  display: flex;
+  justify-content: flex-start;
+  align-items: flex-start;
+  background-color: rgb(var(--v-theme-background));
+  padding: 16px 16px 16px 64px;
+  border-bottom: 1px solid rgba(var(--v-border-color), var(--v-border-opacity));
+  width: fit-content;
+  min-width: 100%;
+  box-sizing: border-box;
+}
+
+.detail-tables-row {
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+}
+
+.detail-table-title {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  color: #ffffff;
+  padding: 8px 12px;
+  background-color: rgb(var(--v-theme-surface-variant));
+  border-bottom: 1px solid rgba(var(--v-border-color), var(--v-border-opacity));
+}
+
+.detail-table-wrapper {
+  min-width: 340px;
+  border: 1px solid rgba(var(--v-border-color), var(--v-border-opacity));
+  border-radius: 4px;
+  overflow: hidden;
+  background-color: rgb(var(--v-theme-surface));
+}
+
+.detail-info-wrapper {
+  min-width: 380px;
+  border: 1px solid rgba(var(--v-border-color), var(--v-border-opacity));
+  border-radius: 4px;
+  overflow: hidden;
+  background-color: rgb(var(--v-theme-surface));
+}
+
+.detail-info-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 8px 12px;
+  font-size: 12px;
+  border-bottom: 1px solid rgba(var(--v-border-color), 0.08);
+}
+
+.detail-info-row:last-child {
+  border-bottom: none;
+}
+
+.detail-label {
+  color: rgba(var(--v-theme-on-surface), 0.6);
+  font-weight: 600;
+}
+
+.detail-value {
+  font-family: monospace;
+}
+
+.detail-table :deep(thead tr th) {
+  background-color: rgb(var(--v-theme-surface-variant)) !important;
+  color: #ffffff !important;
+  font-size: 10px !important;
+  font-weight: bold !important;
+  height: 32px !important;
+  text-transform: uppercase;
+}
+
+.detail-table :deep(td),
+.detail-table :deep(th) {
+  border-bottom: 1px solid rgba(var(--v-border-color), 0.1) !important;
+}
+.generate-so-card {
+  border-radius: 12px;
+}
+
+.generate-so-title {
+  display: flex;
+  align-items: center;
+  font-size: 18px;
+  font-weight: 700;
+  padding: 20px 24px 8px;
+}
+
+.generate-so-body {
+  padding: 8px 24px 4px;
+}
+
+.so-info-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px 16px;
+  padding: 12px 14px;
+  background-color: rgba(var(--v-theme-on-surface), 0.05);
+  border: 1px solid rgba(var(--v-border-color), var(--v-border-opacity));
+  border-radius: 8px;
+}
+
+.so-info-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.so-info-item--full {
+  grid-column: span 2;
+}
+
+.so-info-label {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  color: rgba(var(--v-theme-on-surface), 0.6);
+}
+
+.so-info-value {
+  font-size: 11px;
+  color: rgb(var(--v-theme-on-surface));
+}
+
+.so-form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  align-items: start;
+}
+
+.generate-so-actions {
+  padding: 12px 24px 20px;
+}
+
+.generate-so-card :deep(.v-label),
+.generate-so-card :deep(input),
+.generate-so-card :deep(.v-field__input) {
+  font-size: 11px !important;
+}
+
+.generate-so-card :deep(.v-messages__message) {
+  font-size: 10px !important;
 }
 </style>

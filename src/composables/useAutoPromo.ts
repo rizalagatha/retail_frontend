@@ -19,7 +19,8 @@ export interface ActivePromo {
   pro_include_kata: string;
   pro_mode_barang: "TRIGGER" | "DISCOUNT";
   pro_no_maps: boolean;
-  pro_no_disc_member: boolean; // true = tidak bisa digabung diskon member P1
+  pro_no_disc_member: boolean; // true = tidak bisa digabung diskon member
+  pro_wajib_review: "Y" | "N";
   level_exclude: string[];
 }
 
@@ -42,7 +43,7 @@ export interface PromoResult {
 }
 
 export interface PromoItem {
-  id: number;
+  id: number | string;
   kode?: string;
   nama?: string;
   ukuran?: string;

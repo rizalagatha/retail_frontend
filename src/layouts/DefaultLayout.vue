@@ -12,9 +12,9 @@ import { useRouter } from "vue-router";
 // Import composables atau store untuk state dialog
 import { usePasswordDialog } from "@/composables/usePasswordDialog";
 import { useWhatsAppDialog } from "@/composables/useWhatsappDialog";
-import { useBufferStockDialog } from "@/composables/useBufferStockDialog"; // Contoh
+import { useBufferStockDialog } from "@/composables/useBufferStockDialog";
 import { useSettingsProcessDialog } from "@/composables/useSettingsProcessDialog";
-import { useManualProgramDialog } from "@/composables/useManualProgramDialog"; // Contoh
+import { useManualProgramDialog } from "@/composables/useManualProgramDialog";
 import { useMemoInternalDialog } from "@/composables/useMemoInternalDialog";
 import { useCashierSessionStore } from "@/stores/cashierSessionStore";
 const { showMemoDialog, openMemoDialog } = useMemoInternalDialog();

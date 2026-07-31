@@ -440,6 +440,17 @@ const pendingPromoData = reactive({
   nama: "",
   diskon: 0,
 });
+const pendingReviewProofFile = ref<File | null>(null);
+const isCurrentPromoRequiresReview = ref(false); // promo yg SEDANG aktif di header, bukan yg pending confirm
+
+const pendingPromoRequiresReview = computed(() => {
+  // pendingPromoData.nomor bisa berisi beberapa nomor dipisah koma (gabungan promo)
+  const nomors = (pendingPromoData.nomor || "").split(",").map((n) => n.trim());
+  return nomors.some((n) => {
+    const p = autoPromo.activePromos.value.find((ap) => ap.pro_nomor === n);
+    return p?.pro_wajib_review === "Y";
+  });
+});
 
 footer.value.diskonRpInput = footer.value.diskonRp;
 
@@ -887,26 +898,31 @@ const handleOpenDiscountModal = () => {
   }
 };
 
-const applyPromoDiscount = async () => {
-  // Langsung ambil nilai dari pendingPromoData
+const applyPromoDiscount = async (proofFile?: File) => {
   header.value.nomorPromo = pendingPromoData.nomor;
   header.value.namaPromo = pendingPromoData.nama;
-
-  // Pastikan menembak ke baseManualDiscountRp agar tidak tertimpa Maps
   baseManualDiscountRp.value = pendingPromoData.diskon;
-
   footer.value.diskonPersen1 = 0;
   footer.value.diskonPersen2 = 0;
-
   isPromoConfirmVisible.value = false;
-
-  // Reset suggest agar tidak muncul terus menerus untuk promo yang sama
   lastSuggestedPromo.value = "";
+
+  if (proofFile) {
+    pendingReviewProofFile.value = proofFile;
+    isCurrentPromoRequiresReview.value = true;
+  } else {
+    isCurrentPromoRequiresReview.value = false;
+  }
 
   calculateTotals();
   toast.success(
     `Promo ${pendingPromoData.nama} Rp ${formatRupiah(pendingPromoData.diskon)} diterapkan.`
   );
+};
+
+// [BARU] Handler khusus buat event dari dialog yang butuh bukti review
+const handleUsePromoWithProof = (file: File) => {
+  applyPromoDiscount(file);
 };
 
 const calculateTotals = () => {
@@ -1199,6 +1215,13 @@ const save = async () => {
     if (!confirmed) return;
   }
 
+  if (isCurrentPromoRequiresReview.value && !pendingReviewProofFile.value) {
+    toast.error(
+      "Promo ini wajib disertai bukti ulasan Google Maps. Upload dulu lewat dialog promo sebelum menyimpan."
+    );
+    return;
+  }
+
   // --- Konfirmasi Simpan ---
   isSaving.value = true;
   try {
@@ -1223,6 +1246,20 @@ const save = async () => {
     markAsSaved();
 
     const nomorPenawaran = response.data.nomor;
+
+    if (pendingReviewProofFile.value && nomorPenawaran) {
+      const formData = new FormData();
+      formData.append("image", pendingReviewProofFile.value);
+      try {
+        await api.post(`/offer-form/upload-review-proof/${nomorPenawaran}`, formData, {
+          headers: { "Content-Type": "multipart/form-data" },
+        });
+      } catch {
+        toast.warning(
+          "Penawaran tersimpan, tapi bukti ulasan gagal diunggah. Upload manual nanti."
+        );
+      }
+    }
 
     if (nomorPenawaran) {
       printConfirmNomor.value = nomorPenawaran;
@@ -2032,6 +2069,13 @@ const saveAndConvertToSo = async () => {
     if (!confirmed) return;
   }
 
+  if (isCurrentPromoRequiresReview.value && !pendingReviewProofFile.value) {
+    toast.error(
+      "Promo ini wajib disertai bukti ulasan Google Maps. Upload dulu lewat dialog promo sebelum menyimpan."
+    );
+    return;
+  }
+
   showConfirmation(async () => {
     isSaving.value = true;
     try {
@@ -2052,6 +2096,20 @@ const saveAndConvertToSo = async () => {
 
       const response = await api.post("/offer-form/save", payload);
       const savedNomor = response.data.nomor;
+
+      if (pendingReviewProofFile.value && savedNomor) {
+        const formData = new FormData();
+        formData.append("image", pendingReviewProofFile.value);
+        try {
+          await api.post(`/offer-form/upload-review-proof/${savedNomor}`, formData, {
+            headers: { "Content-Type": "multipart/form-data" },
+          });
+        } catch {
+          toast.warning(
+            "Penawaran tersimpan, tapi bukti ulasan gagal diunggah. Upload manual nanti."
+          );
+        }
+      }
 
       toast.success("Penawaran berhasil disimpan. Mengalihkan ke Surat Pesanan...");
       markAsSaved();
@@ -2981,8 +3039,10 @@ onMounted(async () => {
       :promo-nama="pendingPromoData.nama"
       :promo-nominal="pendingPromoData.diskon"
       :item-discounts="uniqueItemDiscounts"
+      :promo-requires-review="pendingPromoRequiresReview"
       @use-member="useMemberDiscount"
-      @use-promo="applyPromoDiscount"
+      @use-promo="() => applyPromoDiscount()"
+      @use-promo-with-proof="handleUsePromoWithProof"
       @ignore="closePromoDialog"
     />
   </PageLayout>

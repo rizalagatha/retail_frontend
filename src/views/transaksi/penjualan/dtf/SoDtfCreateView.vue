@@ -9,6 +9,7 @@ import { useUiStore } from "@/stores/uiStore";
 import { useUnsavedChanges } from "@/composables/useUnsavedChanges";
 import { format, addDays, isAfter, parseISO } from "date-fns";
 import { AxiosError } from "axios";
+import { useSoDpCheck } from "@/composables/useSoDpCheck";
 
 // --- Import Modals ---
 import CustomerSearchModal from "@/components/lookup/CustomerSearchModal.vue";
@@ -43,6 +44,7 @@ interface FormHeader {
   user: string;
   imageUrl: string | null;
   refTrial: string | null;
+  soLineIds: string[];
   [key: string]: unknown;
 }
 interface DetailUkuran {
@@ -82,6 +84,10 @@ interface SoItem {
     panjang: number;
     lebar: number;
   }[];
+
+  ukuran?: string;
+  jumlah?: number;
+  harga?: number;
 }
 
 type SoSelected = {
@@ -159,6 +165,7 @@ const initialFormState = {
   user: authStore.user?.kode || "",
   imageUrl: null as string | null,
   refTrial: null,
+  soLineIds: [],
 };
 
 const form = ref<FormHeader>({ ...initialFormState });
@@ -168,6 +175,8 @@ const imagePreview = ref<string | null>(null);
 const imageFile = ref<File | null>(null);
 const isImageUploading = ref(false);
 const sisaKuota = ref(0);
+const soNetto = ref(0);
+const soDp = ref(0);
 const isImageFullscreenVisible = ref(false); // State untuk modal fullscreen
 const isConfirmDialogVisible = ref(false);
 const confirmText = ref("");
@@ -204,14 +213,14 @@ const isHargaReadonly = computed(() => {
 const bordirMultiplier = computed(() => {
   const qty = totalJumlahKaos.value;
   // Bom waktu: Aktif mulai 15 Mei 2026 berdasarkan tanggal transaksi form
-  const isNewRule = form.value.tanggal >= "2026-05-15";
+  const isNewRule = form.value.tanggal >= "2026-08-01";
 
   if (isNewRule) {
     // Aturan Harga Baru
     if (qty >= 500) return 100;
-    if (qty >= 20) return 500;
-    if (qty >= 11) return 1000;
-    return 1500; // 1 - 10 pcs
+    if (qty >= 20) return 250;
+    if (qty >= 11) return 500;
+    return 1000; // 1 - 10 pcs
   } else {
     // Aturan Harga Lama (sebelum 15 Mei)
     return qty >= 20 ? 100 : 200;
@@ -339,6 +348,12 @@ const maxDatelineDate = computed(() => {
   return format(addDays(startDate, daysToAdd), "yyyy-MM-dd");
 });
 
+const additionalDtfValue = computed(() =>
+  detailsUkuran.value.reduce((sum, d) => sum + (Number(d.jumlah) || 0) * (Number(d.harga) || 0), 0)
+);
+
+const dpCheck = useSoDpCheck(soNetto, soDp, additionalDtfValue);
+
 // 2. Watcher untuk mengunci (Lock) nilai agar tidak melebihi H+3 / H+7
 watch(
   () => form.value.datelineCustomer,
@@ -441,6 +456,9 @@ const fetchDataForEdit = async (nomor: string) => {
       user: data.header.user || "",
       imageUrl: data.header.imageUrl || null,
       refTrial: data.header.refTrial || null,
+      soLineIds: data.header.soLineIds
+        ? String(data.header.soLineIds).split(",").filter(Boolean)
+        : [],
     };
 
     // Set preview dari gambar existing (jika ada)
@@ -546,6 +564,9 @@ const resetForm = () => {
     lebar: 0,
   });
 
+  soNetto.value = 0;
+  soDp.value = 0;
+
   markAsSaved();
 };
 
@@ -611,6 +632,18 @@ const save = async () => {
 
   if (!form.value.soNomor) {
     toast.error("Nomor Surat Pesanan (SO) wajib diisi. Silakan cari terlebih dahulu.");
+    return;
+  }
+
+  // [BARU] Hard block — DP customer belum memenuhi minimal 50% setelah SO DTF ini ditambahkan
+  if (!dpCheck.isSufficient.value) {
+    toast.error(
+      `Tidak bisa simpan: DP customer kurang Rp ${dpCheck.shortfall.value.toLocaleString(
+        "id-ID"
+      )}. Minimal DP setelah SO DTF ini: Rp ${dpCheck.projectedMinDp.value.toLocaleString(
+        "id-ID"
+      )}.`
+    );
     return;
   }
 
@@ -1071,6 +1104,8 @@ const onSoSelected = async (selected: SoSelected, targetLineId: string | null = 
     // 1. NOMOR SO
     // ==============================
     form.value.soNomor = soData.header.nomor;
+    soNetto.value = Number(soData.header.soNetto) || 0;
+    soDp.value = Number(soData.header.soDp) || 0;
 
     // ==============================
     // 2. CUSTOMER
@@ -1126,29 +1161,50 @@ const onSoSelected = async (selected: SoSelected, targetLineId: string | null = 
       customItems = soData.items.filter((x: SoItem) => x.isCustomOrder);
     }
 
+    // [BARU] Simpan id baris SO yang benar-benar dipakai, supaya saat create/update
+    // SO DTF ini, backend bisa nge-link balik ke baris tso_dtl yang TEPAT — bukan
+    // nge-blast semua baris custom di SO tersebut.
+    form.value.soLineIds = customItems.map((it) => String(it.id)).filter(Boolean);
+
     // ---- Grid Ukuran ----
     detailsUkuran.value = [];
     customItems.forEach((item: SoItem) => {
       form.value.namaDtf = item.sod_custom_nama || item.nama;
 
-      item.ukuranKaos.forEach((u) => {
+      if (item.ukuranKaos && item.ukuranKaos.length > 0) {
+        item.ukuranKaos.forEach((u) => {
+          detailsUkuran.value.push({
+            id: Date.now() + Math.floor(Math.random() * 1000000),
+            namaBarang:
+              item.sourceItems && item.sourceItems.length > 0
+                ? item.sourceItems[0].nama
+                : item.sod_custom_nama || item.nama,
+            ukuran: u.ukuran,
+            jumlah: u.jumlah,
+            harga: u.harga,
+          });
+        });
+      } else {
+        // [FIX] Fallback — JSON sod_custom_data kosong (data lama/tidak lengkap),
+        // pakai field ukuran/jumlah/harga langsung dari baris tso_dtl yang PASTI ada
         detailsUkuran.value.push({
           id: Date.now() + Math.floor(Math.random() * 1000000),
-          namaBarang:
-            item.sourceItems && item.sourceItems.length > 0
-              ? item.sourceItems[0].nama
-              : item.sod_custom_nama || item.nama,
-          ukuran: u.ukuran,
-          jumlah: u.jumlah,
-          harga: u.harga,
+          namaBarang: item.sod_custom_nama || item.nama,
+          ukuran: item.ukuran || "", // [FIX] fallback string kosong
+          jumlah: item.jumlah || 0, // [FIX] fallback 0
+          harga: item.harga || 0, // [FIX] fallback 0
         });
-      });
+      }
     });
     addDetailUkuran();
 
     // ---- Grid Titik Cetak ----
     detailsTitik.value = [];
-    if (customItems.length > 0 && customItems[0].titikCetak) {
+    if (
+      customItems.length > 0 &&
+      customItems[0].titikCetak &&
+      customItems[0].titikCetak.length > 0
+    ) {
       customItems[0].titikCetak.forEach((t) => {
         detailsTitik.value.push({
           id: Date.now() + Math.floor(Math.random() * 1000000),
@@ -1158,6 +1214,10 @@ const onSoSelected = async (selected: SoSelected, targetLineId: string | null = 
           lebar: t.lebar,
         });
       });
+    } else {
+      // [FIX] Titik cetak nggak ada datanya sama sekali di JSON — kasih tahu user
+      // biar sadar harus isi manual, bukan diam-diam kosong tanpa penjelasan
+      toast.info("Detail Titik Bordir/Cetak tidak tersimpan di data SO — silakan isi manual.");
     }
     addDetailTitik();
 
@@ -1618,6 +1678,33 @@ onMounted(async () => {
                 readonly
                 :class="{ 'field-disabled': form.jenisOrderKode === 'PL' }"
               />
+            </v-col>
+
+            <!-- [BARU] Live DP Check -->
+            <v-col cols="12" v-if="form.soNomor">
+              <v-alert
+                density="compact"
+                variant="tonal"
+                :type="dpCheck.isSufficient.value ? 'success' : 'error'"
+                class="mb-0"
+              >
+                <div class="d-flex justify-space-between align-center flex-wrap ga-1">
+                  <span class="font-weight-bold">
+                    DP Customer: Rp {{ soDp.toLocaleString("id-ID") }}
+                  </span>
+                  <span v-if="dpCheck.isSufficient.value" class="font-weight-bold">
+                    ✓ Cukup (Min. Rp {{ dpCheck.projectedMinDp.value.toLocaleString("id-ID") }})
+                  </span>
+                  <span v-else class="font-weight-bold">
+                    ✗ Kurang Rp {{ dpCheck.shortfall.value.toLocaleString("id-ID") }} (Min. Rp
+                    {{ dpCheck.projectedMinDp.value.toLocaleString("id-ID") }})
+                  </span>
+                </div>
+                <div class="text-caption mt-1" v-if="!dpCheck.isSufficient.value">
+                  SO DTF ini membuat SO menjadi custom order (minimal DP 50%). Tambahkan DP customer
+                  terlebih dahulu di halaman Surat Pesanan.
+                </div>
+              </v-alert>
             </v-col>
           </v-row>
         </div>

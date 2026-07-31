@@ -158,6 +158,7 @@ const PelunasanInvoiceCreateView = () =>
 const PesananOnlineView = () => import("@/views/transaksi/penjualan/PesananOnlineView.vue");
 const PesananOnlineCreateView = () =>
   import("@/views/transaksi/penjualan/PesananOnlineCreateView.vue");
+const SoManksiDetailView = () => import("@/views/transaksi/penjualan/SoManksiDetailView.vue");
 
 // --- INTERNAL & STOK ---
 const BufferStokView = () => import("@/views/transaksi/internal/BufferStokView.vue");
@@ -633,6 +634,17 @@ const routes = [
     meta: {
       title: "Ubah Pengajuan Harga",
       requiresAuth: true,
+    },
+  },
+  {
+    path: "/transaksi/penjualan/pengajuan/so-manksi/:nomor",
+    name: "SoManksiDetail",
+    component: SoManksiDetailView,
+    meta: {
+      title: "Detail SO Manksi",
+      requiresAuth: true,
+      printLayout: true,
+      layout: "PrintLayout",
     },
   },
   {

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from "vue";
+import { ref, watch, computed } from "vue";
 import { formatRupiah } from "@/utils/formatRupiah";
 
 export interface ItemDiscount {
@@ -15,12 +15,14 @@ const props = defineProps<{
   promoNama?: string;
   promoNominal?: number;
   itemDiscounts?: ItemDiscount[];
+  promoRequiresReview?: boolean;
 }>();
 
 const emit = defineEmits<{
   (e: "update:modelValue", value: boolean): void;
   (e: "use-member"): void;
   (e: "use-promo"): void;
+  (e: "use-promo-with-proof", file: File): void;
   (e: "ignore"): void;
 }>();
 
@@ -29,6 +31,23 @@ const emit = defineEmits<{
 const isPurelyItemDiscount = computed(() => {
   return (props.promoNominal || 0) === 0 && (props.itemDiscounts?.length || 0) > 0;
 });
+const reviewProofFile = ref<File | null>(null);
+
+watch(
+  () => props.modelValue,
+  (isOpen) => {
+    if (!isOpen) reviewProofFile.value = null;
+  }
+);
+
+const handleUsePromo = () => {
+  if (props.promoRequiresReview) {
+    if (!reviewProofFile.value) return;
+    emit("use-promo-with-proof", reviewProofFile.value);
+    return;
+  }
+  emit("use-promo");
+};
 
 const closeDialog = () => emit("update:modelValue", false);
 const handleIgnore = () => {
@@ -147,6 +166,30 @@ const handleIgnore = () => {
                 </div>
               </div>
 
+              <div v-if="promoRequiresReview" class="review-upload-block mb-3">
+                <div class="review-upload-label">
+                  <v-icon size="15" color="orange-darken-2" class="mr-1"
+                    >mdi-map-marker-check-outline</v-icon
+                  >
+                  Wajib upload bukti ulasan Google Maps
+                </div>
+                <v-file-input
+                  v-model="reviewProofFile"
+                  accept="image/*"
+                  density="compact"
+                  variant="outlined"
+                  hide-details
+                  prepend-icon=""
+                  prepend-inner-icon="mdi-upload"
+                  label="Screenshot ulasan Google Maps"
+                  class="mt-1"
+                ></v-file-input>
+                <div v-if="!reviewProofFile" class="text-caption text-error mt-1">
+                  <v-icon size="12">mdi-alert-circle-outline</v-icon> Wajib diisi sebelum promo bisa
+                  diterapkan
+                </div>
+              </div>
+
               <p class="text-caption text-medium-emphasis mt-1 mb-3">
                 Diskon Member (Reseller) akan dinonaktifkan secara otomatis.
               </p>
@@ -156,7 +199,8 @@ const handleIgnore = () => {
                   color="orange-darken-2"
                   variant="flat"
                   class="choice-btn"
-                  @click="emit('use-promo')"
+                  :disabled="promoRequiresReview && !reviewProofFile"
+                  @click="handleUsePromo"
                 >
                   <v-icon start size="16">mdi-tag-check-outline</v-icon>
                   Gunakan Promo Bulanan
@@ -319,5 +363,21 @@ const handleIgnore = () => {
 }
 .item-disc-list::-webkit-scrollbar-thumb:hover {
   background-color: rgba(0, 0, 0, 0.4);
+}
+
+.review-upload-block {
+  border: 1px dashed #e65100;
+  border-radius: 8px;
+  padding: 8px 10px;
+  background-color: rgba(230, 81, 0, 0.04);
+}
+
+.review-upload-label {
+  display: flex;
+  align-items: center;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #bf360c;
+  margin-bottom: 2px;
 }
 </style>

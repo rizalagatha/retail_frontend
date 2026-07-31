@@ -35,6 +35,7 @@ interface Header {
   modeBarang: "TRIGGER" | "DISCOUNT";
   noMaps: boolean;
   noDiscMember: boolean;
+  wajibReview: boolean;
 }
 interface BonusItem {
   id: number;
@@ -99,6 +100,7 @@ const header = reactive<Header>({
   modeBarang: "TRIGGER",
   noMaps: false,
   noDiscMember: false,
+  wajibReview: false,
 });
 
 const bonusItems = ref<BonusItem[]>([]);
@@ -391,6 +393,7 @@ const loadDataForEdit = async (nomor: string) => {
     header.includeKata = d.header.pro_include_kata || "";
     header.modeBarang = d.header.pro_mode_barang || "TRIGGER";
     header.noMaps = !!d.header.pro_no_maps;
+    header.wajibReview = !!d.header.pro_wajib_review;
 
     applicableItemsTotal.value = d.applicableItemsCount || d.applicableItems.length;
     applicableItems.value = d.applicableItems.map((i: ApplicableItem) => ({
@@ -837,6 +840,18 @@ watch(
                       }}
                     </v-icon>
                     Tidak bisa digabung Diskon Member
+                  </label>
+                  <label class="flag-item" :class="{ flagged: header.wajibReview }">
+                    <input type="checkbox" v-model="header.wajibReview" hidden />
+                    <v-icon
+                      size="13"
+                      :color="header.wajibReview ? 'orange-darken-2' : 'grey-lighten-1'"
+                    >
+                      {{
+                        header.wajibReview ? "mdi-checkbox-marked" : "mdi-checkbox-blank-outline"
+                      }}
+                    </v-icon>
+                    Wajib upload bukti ulasan Google Maps
                   </label>
                 </div>
               </v-col>

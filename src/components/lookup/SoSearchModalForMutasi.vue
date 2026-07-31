@@ -54,6 +54,8 @@ const loadItems = async ({ page, itemsPerPage }: { page: number; itemsPerPage: n
     toast.error(message);
     items.value = [];
     totalItems.value = 0;
+  } finally {
+    loading.value = false;
   }
 };
 

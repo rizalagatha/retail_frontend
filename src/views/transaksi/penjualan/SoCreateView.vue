@@ -49,7 +49,7 @@ const { isVisitDialogVisible, checkAndPromptVisit, handleSelectVisit, handleCanc
 
 // --- Interfaces ---
 interface SoItem {
-  id: number;
+  id: number | string;
   kode: string;
   nama: string;
   kategori?: string;
@@ -160,8 +160,8 @@ interface SoItemApi {
   noPengajuanHarga: string;
   pin: string;
   harga3?: number;
+  dbLineId?: string;
 
-  // 🔥 TAMBAHAN WAJIB
   sod_custom?: string;
   sod_custom_data?: string;
   sod_scanned?: number;
@@ -693,6 +693,16 @@ const pendingPromoData = reactive({
   nama: "",
   diskon: 0,
 });
+const pendingReviewProofFile = ref<File | null>(null);
+const isCurrentPromoRequiresReview = ref(false);
+
+const pendingPromoRequiresReview = computed(() => {
+  const nomors = (pendingPromoData.nomor || "").split(",").map((n) => n.trim());
+  return nomors.some((n) => {
+    const p = autoPromo.activePromos.value.find((ap) => ap.pro_nomor === n);
+    return p?.pro_wajib_review === "Y";
+  });
+});
 // Flag agar dialog tidak muncul berulang kali untuk promo yang sama
 const lastSuggestedPromo = ref("");
 const isAdjustmentLogVisible = ref(false);
@@ -941,7 +951,7 @@ const loadDataForEdit = async (nomor: string, silent = false) => {
           ...item,
           jumlah: Number(item.jumlah) || 0,
           harga: Number(item.harga) || 0,
-          id: Date.now() + index + Math.random(),
+          id: item.dbLineId || Date.now() + index + Math.random(),
           nama: isCustomOrder ? item.sod_custom_nama || item.nama : item.nama,
           kategori: isCustomOrder || isSoDtfItem ? "CUSTOM" : item.kategori,
           scannedQty: Number(item.sod_scanned || 0),
@@ -1458,6 +1468,72 @@ const applyMarchBonusSticker = async (forceInject = false) => {
   }
 };
 
+const STICKER_DTF_LOCKED_KODE = ["2500053", "2500060"];
+
+const addItemByBarcode = async (barcode: string) => {
+  if (!header.value.customer) {
+    toast.error("Pilih customer terlebih dahulu sebelum scan barang.");
+    return;
+  }
+
+  try {
+    const response = await api.get(`/so-form/by-barcode/${barcode}`, {
+      params: { gudang: header.value.gudang.kode },
+    });
+    const product = response.data;
+
+    if (STICKER_DTF_LOCKED_KODE.includes(product.kode) && Number(product.stok || 0) <= 0) {
+      toast.error(`Stok ${product.nama} habis. Tidak bisa ditambahkan ke order.`);
+      return;
+    }
+
+    let initHarga = Number(product.harga);
+    if (header.value.isMarketplace) {
+      initHarga = Number(product.harga3 ?? product.harga ?? 0);
+    }
+
+    const newItem: SoItem = {
+      id: Date.now() + Math.random(),
+      kode: product.kode,
+      nama: product.nama,
+      kategori: product.kategori,
+      ukuran: product.ukuran,
+      stok: product.stok,
+      harga: initHarga,
+      jumlah: 1,
+      diskonPersen: 0,
+      diskonRp: 0,
+      total: initHarga * 1,
+      barcode: product.barcode,
+      noSoDtf: "",
+      noPengajuanHarga: "",
+      scannedQty: 0,
+      isReady: false,
+      pin: "",
+      terhitungPromo: false,
+      promo: "",
+    };
+
+    const emptyIdx = items.value.findIndex((i) => !i.kode);
+    if (emptyIdx !== -1) {
+      items.value.splice(emptyIdx, 0, newItem);
+    } else {
+      items.value.push(newItem);
+    }
+    addNewRow();
+    calculateTotals();
+    audioSuccess.play().catch(() => {});
+    toast.success(`${product.nama} (${product.ukuran}) ditambahkan ke order.`);
+  } catch (error: unknown) {
+    audioError.play().catch(() => {});
+    if (axios.isAxiosError(error)) {
+      toast.error(error.response?.data?.message || `Barcode ${barcode} tidak ditemukan.`);
+    } else {
+      toast.error(`Barcode ${barcode} tidak ditemukan.`);
+    }
+  }
+};
+
 // [UBAH] Tambahkan 'async' pada definisi fungsi
 const save = async () => {
   if (nextActionAfterSave.value !== "INVOICE") {
@@ -1577,6 +1653,13 @@ const save = async () => {
 
   if (tipeKunjungan === "CANCEL") return;
 
+  if (isCurrentPromoRequiresReview.value && !pendingReviewProofFile.value) {
+    toast.error(
+      "Promo ini wajib disertai bukti ulasan Google Maps. Upload dulu lewat dialog promo sebelum menyimpan."
+    );
+    return;
+  }
+
   // --- 8. Konfirmasi Akhir (Simpan) ---
   showConfirmation(executeSave, "Anda yakin ingin menyimpan Surat Pesanan ini?");
 };
@@ -1678,9 +1761,23 @@ const executeSave = async (tipeKunjungan: "STORE" | "WA" | null = null) => {
     };
     const response = await api.post("/so-form/save", payload);
     header.value.nomor = response.data.nomor;
+
     toast.success(response.data.message);
     markAsSaved();
     const soNomor = response.data.nomor;
+
+    if (pendingReviewProofFile.value && soNomor) {
+      const formData = new FormData();
+      formData.append("image", pendingReviewProofFile.value);
+      try {
+        await api.post(`/so-form/upload-review-proof/${soNomor}`, formData, {
+          headers: { "Content-Type": "multipart/form-data" },
+        });
+      } catch {
+        toast.warning("SO tersimpan, tapi bukti ulasan gagal diunggah. Upload manual nanti.");
+      }
+    }
+
     if (soNomor) {
       if (nextActionAfterSave.value === "INVOICE") {
         // --- JALUR OTOMATIS KE INVOICE ---
@@ -1791,7 +1888,7 @@ const resetForm = () => {
   freeGift.checkFreeGiftQuota();
 };
 
-const removeRow = (id: number) => {
+const removeRow = (id: number | string) => {
   const item = items.value.find((i) => i.id === id);
   if (!item) return;
 
@@ -2763,30 +2860,59 @@ const handleBarcodeScanVerify = async () => {
   const barcode = scannedBarcode.value;
   if (!barcode) return;
 
+  // Kumpulkan semua baris yang barcodenya cocok
+  const matchingItems = items.value.filter((i) => i.barcode === barcode && i.kode);
+
   // =========================================================================
-  // [KUNCI 1]: Pastikan SO sudah disimpan dan punya nomor sebelum di-scan!
+  // [BARU - KASUS A]: Barcode belum ada di grid sama sekali → scan berfungsi
+  // sebagai "tambah barang", menggantikan kebutuhan F1/F2 manual biar SC
+  // tidak salah pilih kode. Tidak butuh SO tersimpan karena belum ada proses mutasi.
   // =========================================================================
-  if (!header.value.nomor) {
-    toast.error("Simpan SO (Draft) terlebih dahulu sebelum melakukan scan fisik!");
+  if (matchingItems.length === 0) {
+    await addItemByBarcode(barcode);
     scannedBarcode.value = "";
     return;
   }
 
-  // Kumpulkan semua baris yang barcodenya cocok
-  const matchingItems = items.value.filter((i) => i.barcode === barcode && i.kode);
+  // =========================================================================
+  // [KUNCI 1 - DIPERTAHANKAN]: Pastikan SO sudah disimpan dan punya nomor
+  // sebelum di-scan untuk VERIFIKASI/MUTASI. Guard ini sekarang hanya berlaku
+  // untuk barang yang SUDAH ADA di grid (proses verify), bukan proses tambah baru.
+  // =========================================================================
+  if (!header.value.nomor) {
+    // [BARU - KASUS B]: SO belum tersimpan tapi barangnya sudah ada di grid —
+    // verify/mutasi belum relevan (belum ada nomor SO), jadi scan berfungsi
+    // sebagai tambah qty saja, bukan diblokir total seperti sebelumnya.
+    const item = matchingItems[0];
 
-  if (matchingItems.length === 0) {
-    toast.error("Barang tidak ditemukan dalam daftar Order!");
+    if (STICKER_DTF_LOCKED_KODE.includes(item.kode) && (item.stok || 0) <= 0) {
+      toast.error(`Stok ${item.nama} habis, tidak bisa menambah qty.`);
+      scannedBarcode.value = "";
+      return;
+    }
+
+    item.jumlah = (item.jumlah || 0) + 1;
+    calculateTotals();
+    toast.info(`Qty ${item.nama} (${item.ukuran}) ditambah menjadi ${item.jumlah}.`);
     scannedBarcode.value = "";
     return;
   }
 
   // Prioritaskan mencari baris yang Qty Scanned-nya MASIH KURANG dari Qty Order
-  let item = matchingItems.find((i) => Number(i.scannedQty || 0) < Number(i.jumlah || 0));
+  const item = matchingItems.find((i) => Number(i.scannedQty || 0) < Number(i.jumlah || 0));
 
-  // Jika semua baris sudah terpenuhi, fallback ke baris pertama untuk nampilin pesan warning
+  // Jika semua baris sudah terpenuhi
   if (!item) {
-    item = matchingItems[0];
+    // =========================================================================
+    // [BARU - KASUS C]: Semua baris match sudah full verified — satu-satunya
+    // kasus ambigu (niatnya tambah qty baru atau salah scan?), jadi baru di
+    // sini konfirmasi dipakai, bukan di jalur utama.
+    // =========================================================================
+    showConfirmation(() => {
+      addItemByBarcode(barcode);
+    }, `${matchingItems[0].nama} sudah terverifikasi penuh (Ready). Tambah qty baru untuk barang ini?`);
+    scannedBarcode.value = "";
+    return;
   }
 
   const target = Number(item.jumlah || 0);
@@ -2798,15 +2924,17 @@ const handleBarcodeScanVerify = async () => {
     return;
   }
 
+  if (STICKER_DTF_LOCKED_KODE.includes(item.kode) && (item.stok || 0) <= 0) {
+    toast.error(`Stok fisik ${item.nama} sudah habis. Tidak bisa diverifikasi/dimutasi.`);
+    scannedBarcode.value = "";
+    return;
+  }
+
   if (current < target) {
     // =========================================================================
-    // [KUNCI 2]: TEMBAK API AUTO-MUTASI KE BACKEND SECARA REAL-TIME
+    // [KUNCI 2 - DIPERTAHANKAN]: TEMBAK API AUTO-MUTASI KE BACKEND SECARA REAL-TIME
     // =========================================================================
     try {
-      // Kita "numpang" loading di input scanner agar kasir tahu lagi proses
-      // (Opsional: bisa bikin state isScanning = true)
-
-      // Tembak endpoint backend (Silakan Mas Rizal buat endpoint ini di backend)
       await api.post("/so-form/auto-mutasi-scan", {
         nomor_so: header.value.nomor,
         kode_barang: item.kode,
@@ -2821,6 +2949,8 @@ const handleBarcodeScanVerify = async () => {
       // Langsung gembok barisnya karena sudah resmi dimutasi di DB
       item.mutatedQty = (item.mutatedQty || 0) + 1;
       item.isMutated = true;
+
+      item.stok = Math.max(0, (item.stok || 0) - 1);
 
       addAdjustmentLog(item.kode, item.ukuran, 1, "SCAN", "Verifikasi & Auto-Mutasi fisik barang");
       toast.success(`${item.nama} terverifikasi & dimutasi (${item.scannedQty}/${target})`);
@@ -2963,6 +3093,9 @@ const handleJenisOrderSaved = (data: JenisOrderSaved) => {
             hargaPerCm: data.customData.hargaPerCm,
             sourceItems: sourceItemsSnapshot,
           }),
+          ukuranKaos: [u],
+          titikCetak: data.customData.titikCetak,
+          sourceItems: sourceItemsSnapshot,
           terhitungPromo: false,
           promo: "",
         });
@@ -3131,7 +3264,7 @@ const isStickerPromoToko = (item: SoItem) => {
   );
 };
 
-const applyPromoDiscount = async () => {
+const applyPromoDiscount = async (proofFile?: File) => {
   // [PERBAIKAN] Gabungkan ID Promo jika Maps 5% sedang aktif
   if (footer.value.diskonPersen2 === 5) {
     header.value.nomorPromo = `${pendingPromoData.nomor},PRO-2026-003`;
@@ -3140,21 +3273,29 @@ const applyPromoDiscount = async () => {
     header.value.nomorPromo = pendingPromoData.nomor;
     header.value.namaPromo = pendingPromoData.nama;
   }
-
   baseManualDiscountRp.value = pendingPromoData.diskon;
   footer.value.diskonPersen1 = 0;
-  // footer.value.diskonPersen2 = 0; // <--- HAPUS INI! Biarkan Maps tetap hidup
-
   isPromoConfirmVisible.value = false;
   isStickerBonusRejected.value = false;
   lastSuggestedPromo.value = "";
 
+  if (proofFile) {
+    pendingReviewProofFile.value = proofFile;
+    isCurrentPromoRequiresReview.value = true;
+  } else {
+    isCurrentPromoRequiresReview.value = false;
+  }
+
   if (pendingPromoData.nomor === "PRO-2026-001") {
     await applyMarchBonusSticker(true);
   }
-
   calculateTotals();
   toast.success(`Promo ${pendingPromoData.nama} berhasil diterapkan.`);
+};
+
+// [BARU] Handler khusus buat event dari dialog yang butuh bukti review
+const handleUsePromoWithProof = (file: File) => {
+  applyPromoDiscount(file);
 };
 
 const useMemberDiscount = () => {
@@ -3997,7 +4138,7 @@ const stopAndOpenPriceProposal = (index: number) => {
             <v-col cols="12" md="6">
               <v-text-field
                 v-model="scannedBarcode"
-                label="Scan Verifikasi Barang (Wajib Alat Scanner)"
+                label="Scan Barang (Tambah / Verifikasi Otomatis)"
                 placeholder="Arahkan scanner ke barcode..."
                 variant="outlined"
                 density="compact"
@@ -4522,6 +4663,7 @@ const stopAndOpenPriceProposal = (index: number) => {
       v-if="isPriceProposalSearchVisible"
       :cabang="header.gudang.kode"
       :customerKode="header.customer?.kode || ''"
+      statuses="ACC_FINANCE"
       @close="isPriceProposalSearchVisible = false"
       @selected="onPriceProposalSelected"
     />
@@ -4602,8 +4744,10 @@ const stopAndOpenPriceProposal = (index: number) => {
       :promo-nama="pendingPromoData.nama"
       :promo-nominal="pendingPromoData.diskon"
       :item-discounts="uniqueItemDiscounts"
+      :promo-requires-review="pendingPromoRequiresReview"
       @use-member="useMemberDiscount"
-      @use-promo="applyPromoDiscount"
+      @use-promo="() => applyPromoDiscount()"
+      @use-promo-with-proof="handleUsePromoWithProof"
       @ignore="closePromoDialog"
     />
     <CustomerVisitDialog

@@ -35,6 +35,10 @@ interface SoHeader {
   AlasanClose: string;
   UserModified: string | null;
   DateModified: string | null;
+
+  DpKurang: "Y" | "N";
+  MinimalDp: number;
+  Netto: number;
   [key: string]: unknown;
 }
 
@@ -563,10 +567,22 @@ const getDiscountSplit = (item: SoHeader) => {
 const printData = () => {
   if (!isSingleSelected.value) return;
   const item = selected.value[0];
+
   if (item.Aktif === "N") {
     toast.warning("No. Pesanan tersebut pasif. Tidak bisa dicetak.");
     return;
   }
+
+  // [BARU] Hard block — DP belum memenuhi minimal, tidak bisa dicetak sama sekali
+  if (item.DpKurang === "Y") {
+    toast.error(
+      `Tidak bisa cetak: DP belum memenuhi syarat. DP saat ini ${formatRupiah(
+        Number(item.Dp || 0)
+      )}, minimal ${formatRupiah(Number(item.MinimalDp || 0))}.`
+    );
+    return;
+  }
+
   const url = router.resolve({
     name: "Cetak Surat Pesanan",
     params: { nomor: item.Nomor },
@@ -1550,6 +1566,24 @@ onBeforeRouteLeave((to, from, next) => {
                   {{ item.DipakaiDTF === "Y" && item.Belum > 0 ? "DTF" : "-" }}
                 </v-chip>
               </template>
+
+              <template v-else-if="header.key === 'Status'">
+                <div class="d-flex align-center ga-1">
+                  <span>{{ item.Status }}</span>
+                  <v-tooltip
+                    v-if="item.DpKurang === 'Y'"
+                    text="DP belum memenuhi minimal"
+                    location="top"
+                  >
+                    <template #activator="{ props }">
+                      <v-icon v-bind="props" size="14" color="orange-darken-2"
+                        >mdi-alert-circle</v-icon
+                      >
+                    </template>
+                  </v-tooltip>
+                </div>
+              </template>
+
               <template v-else>
                 {{ item[header.key] }}
               </template>

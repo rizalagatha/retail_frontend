@@ -14,6 +14,8 @@ interface ProposalItem {
 const props = defineProps({
   cabang: { type: String, required: true },
   customerKode: { type: String, required: true },
+  statuses: { type: String, default: "" }, // [BARU] misal "ACC_FINANCE" atau "ACC_FINANCE,MENUNGGU_DC"
+  onlyCustom: { type: Boolean, default: false }, // [BARU]
 });
 const emit = defineEmits(["close", "selected"]);
 
@@ -37,6 +39,8 @@ const loadItems = async () => {
         term: search.value,
         cabang: props.cabang,
         customerKode: props.customerKode,
+        ...(props.statuses ? { statuses: props.statuses } : {}),
+        ...(props.onlyCustom ? { onlyCustom: "Y" } : {}),
       },
     });
     items.value = response.data;

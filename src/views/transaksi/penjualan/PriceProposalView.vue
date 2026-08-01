@@ -63,6 +63,7 @@ interface CabangOption {
 // buat tahap berikutnya (ACC_CUSTOMER, ACC_FINANCE, dst) yang dikerjakan bertahap.
 const STATUS_LABEL: Record<string, string> = {
   DRAFT: "Draft",
+  LEGACY_APPROVED: "Disetujui (Data Lama)",
   ACC_CUSTOMER: "Acc Customer",
   ACC_FINANCE: "Acc Finance",
   MENUNGGU_DC: "Menunggu Validasi DC",
@@ -76,6 +77,7 @@ const STATUS_LABEL: Record<string, string> = {
 
 const STATUS_COLOR: Record<string, string> = {
   DRAFT: "grey",
+  LEGACY_APPROVED: "blue-grey",
   ACC_CUSTOMER: "blue",
   ACC_FINANCE: "indigo",
   MENUNGGU_DC: "amber-darken-2",
@@ -410,7 +412,9 @@ const openSoManksi = (soNomor: string) => {
 };
 
 const getRowTextColor = (item: PriceProposal) => {
-  // Warnai merah jika masih draft (belum diapa-apain)
+  // [FIX] Hanya DRAFT asli yang ditandai merah — LEGACY_APPROVED (data lama
+  // yang sudah pernah di-approve sebelum sistem status ini ada) tidak perlu
+  // ditandai sebagai "belum diapa-apain".
   if (!item.status || item.status === "DRAFT") {
     return "text-red font-weight-bold";
   }

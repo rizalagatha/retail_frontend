@@ -348,11 +348,12 @@ const maxDatelineDate = computed(() => {
   return format(addDays(startDate, daysToAdd), "yyyy-MM-dd");
 });
 
-// [FIX] additionalDtfValue cuma relevan kalau ini BARIS BARU (belum ada di
-// SO). Kalau soLineId sudah terisi (edit baris existing), nilainya sudah
-// otomatis included di soNetto — menambahkannya lagi jadi double-counting.
+// [FIX] Field yang benar adalah soLineIds (array), bukan soLineId (tunggal)
+// — kesalahan ketik sebelumnya bikin kondisi ini tidak pernah true, jadi
+// additionalDtfValue selalu dihitung ulang meski baris sudah ada di SO
+// (double-counting bersama soNetto yang sudah mencakup baris itu).
 const additionalDtfValue = computed(() => {
-  if (form.value.soLineId) return 0; // baris existing, sudah masuk soNetto
+  if (form.value.soLineIds && form.value.soLineIds.length > 0) return 0;
   return detailsUkuran.value.reduce(
     (sum, d) => sum + (Number(d.jumlah) || 0) * (Number(d.harga) || 0),
     0

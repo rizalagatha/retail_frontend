@@ -348,11 +348,12 @@ const maxDatelineDate = computed(() => {
   return format(addDays(startDate, daysToAdd), "yyyy-MM-dd");
 });
 
-// [FIX] Field yang benar adalah soLineIds (array), bukan soLineId (tunggal)
-// — kesalahan ketik sebelumnya bikin kondisi ini tidak pernah true, jadi
-// additionalDtfValue selalu dihitung ulang meski baris sudah ada di SO
-// (double-counting bersama soNetto yang sudah mencakup baris itu).
+// [FIX] Untuk mode EDIT (SO DTF yang sudah tersimpan), baris-barisnya PASTI
+// sudah ada di SO — entah soLineIds terisi atau tidak (data lama sebelum
+// fitur linking ada mungkin belum punya soLineIds). Jadi additionalDtfValue
+// harus selalu 0 saat edit, bukan bergantung ke soLineIds doang.
 const additionalDtfValue = computed(() => {
+  if (isEditMode.value) return 0;
   if (form.value.soLineIds && form.value.soLineIds.length > 0) return 0;
   return detailsUkuran.value.reduce(
     (sum, d) => sum + (Number(d.jumlah) || 0) * (Number(d.harga) || 0),

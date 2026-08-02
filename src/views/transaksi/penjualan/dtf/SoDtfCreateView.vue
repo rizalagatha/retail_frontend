@@ -469,6 +469,21 @@ const fetchDataForEdit = async (nomor: string) => {
         : [],
     };
 
+    // [BARU] Populate DP check — sebelumnya cuma diisi saat onSoSelected
+    // (create/pilih SO baru), jadi edit SO DTF lama selalu kebaca DP Rp 0
+    // walau SO-nya valid. Fetch ulang di sini kalau soNomor ada.
+    if (form.value.soNomor) {
+      try {
+        const soRes = await api.get(`/so-dtf-form/so-detail/${form.value.soNomor}`);
+        soNetto.value = Number(soRes.data.header.soNetto) || 0;
+        soDp.value = Number(soRes.data.header.soDp) || 0;
+      } catch (soErr) {
+        console.error("Gagal memuat data DP dari SO:", soErr);
+        // Tidak menggagalkan load form secara keseluruhan — cuma DP check
+        // yang tidak akurat, form tetap bisa dibuka & dilihat.
+      }
+    }
+
     // Set preview dari gambar existing (jika ada)
     imagePreview.value = getFullImageUrl(data.header.imageUrl);
 
@@ -487,18 +502,15 @@ const fetchDataForEdit = async (nomor: string) => {
       jumlah: d.jumlah ?? 0,
       harga: d.harga ?? 0,
     }));
+
     toast.success(`Data untuk ${nomor} berhasil dimuat.`);
 
     await nextTick();
     markAsSaved();
   } catch (error) {
     const err = error as AxiosError<{ message: string }>;
-
     console.error("Error loading data:", err);
-
-    // Ambil pesan error dari response API jika ada
     toast.error(err.response?.data?.message || "Gagal memuat data SO DTF");
-
     router.push("/transaksi/penjualan/dtf/so-dtf");
   } finally {
     isRestoringData.value = false;

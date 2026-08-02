@@ -3149,6 +3149,14 @@ const openSoDtfInNewTab = (item: SoItem) => {
     toast.error("Simpan SO terlebih dahulu untuk mendapatkan nomor referensi.");
     return;
   }
+  // [BARU] Guard tambahan — item yang baru ditambah (Input Jenis Order) tapi
+  // SO belum di-Simpan ulang punya id sintetis, bukan sod_idrec asli. Kalau
+  // dipaksa buka SO DTF sekarang, linking-nya bakal salah sasaran (baris lain
+  // yang sudah tersimpan bisa "ketiban" data yang salah).
+  if (uiStore.hasUnsavedChanges) {
+    toast.error("Simpan perubahan SO terlebih dahulu sebelum membuat SO DTF untuk baris ini.");
+    return;
+  }
 
   const url = router.resolve({
     path: "/transaksi/penjualan/dtf/so-dtf/new",

@@ -73,6 +73,7 @@ interface SoItem {
   nama: string;
   sod_custom_nama?: string;
   sourceItems?: { nama: string }[];
+  soDtfLinked?: string | null;
   ukuranKaos: {
     ukuran: string;
     jumlah: number;
@@ -1170,28 +1171,36 @@ const onSoSelected = async (selected: SoSelected, targetLineId: string | null = 
     // Cari item custom yang spesifik berdasarkan targetLineId
     let customItems: SoItem[] = soData.items.filter((x: SoItem) => x.isCustomOrder);
 
+    // [FIX] Buang baris yang SUDAH terpakai SO DTF LAIN (bukan dokumen ini
+    // sendiri) — sebelumnya baris ini malah "direbut", bikin SO DTF lama
+    // kehilangan link-nya (jadi merah/Open) begitu SO DTF baru dibuat untuk
+    // SO yang sama.
+    customItems = customItems.filter((x: SoItem) => {
+      const linkedTo = x.soDtfLinked || "";
+      return !linkedTo || linkedTo === form.value.nomor; // form.value.nomor null saat create baru, aman
+    });
+
     if (targetLineId) {
-      // Filter agar hanya mengambil baris yang kita klik tadi di halaman SO
-      // Catatan: Pastikan backend mengirimkan field 'id' atau 'sod_idrec' yang sinkron
       customItems = customItems.filter((x: SoItem) => String(x.id) === String(targetLineId));
     }
 
-    // Jika setelah difilter item tidak ditemukan (mungkin SO belum disave ulang)
-    if (customItems.length === 0) {
-      toast.warning("Baris item custom tidak ditemukan. Memuat semua item custom.");
-      customItems = soData.items.filter((x: SoItem) => x.isCustomOrder);
-    }
-
-    // [BARU] Simpan id baris SO yang benar-benar dipakai, supaya saat create/update
-    // SO DTF ini, backend bisa nge-link balik ke baris tso_dtl yang TEPAT — bukan
-    // nge-blast semua baris custom di SO tersebut.
+    // [FIX] Kalau nggak ada baris custom yang bisa dipakai (semua sudah dipakai
+    // SO DTF lain, atau memang belum ada sama sekali), JANGAN fallback ke
+    // "semua item custom" seperti dulu — itu balik lagi ke bug yang sama.
+    // Biarkan soLineIds kosong: backend akan otomatis INSERT baris baru ke SO
+    // (perilaku yang sudah benar untuk kasus "menambah item baru").
     form.value.soLineIds = customItems.map((it) => String(it.id)).filter(Boolean);
+
+    if (customItems.length === 0) {
+      toast.info(
+        "Baris custom di SO ini sudah terpakai SO DTF lain — SO DTF ini akan menambah baris baru."
+      );
+    }
 
     // ---- Grid Ukuran ----
     detailsUkuran.value = [];
     customItems.forEach((item: SoItem) => {
       form.value.namaDtf = item.sod_custom_nama || item.nama;
-
       if (item.ukuranKaos && item.ukuranKaos.length > 0) {
         item.ukuranKaos.forEach((u) => {
           detailsUkuran.value.push({
@@ -1206,14 +1215,12 @@ const onSoSelected = async (selected: SoSelected, targetLineId: string | null = 
           });
         });
       } else {
-        // [FIX] Fallback — JSON sod_custom_data kosong (data lama/tidak lengkap),
-        // pakai field ukuran/jumlah/harga langsung dari baris tso_dtl yang PASTI ada
         detailsUkuran.value.push({
           id: Date.now() + Math.floor(Math.random() * 1000000),
           namaBarang: item.sod_custom_nama || item.nama,
-          ukuran: item.ukuran || "", // [FIX] fallback string kosong
-          jumlah: item.jumlah || 0, // [FIX] fallback 0
-          harga: item.harga || 0, // [FIX] fallback 0
+          ukuran: item.ukuran || "",
+          jumlah: item.jumlah || 0,
+          harga: item.harga || 0,
         });
       }
     });
@@ -1235,9 +1242,7 @@ const onSoSelected = async (selected: SoSelected, targetLineId: string | null = 
           lebar: t.lebar,
         });
       });
-    } else {
-      // [FIX] Titik cetak nggak ada datanya sama sekali di JSON — kasih tahu user
-      // biar sadar harus isi manual, bukan diam-diam kosong tanpa penjelasan
+    } else if (customItems.length > 0) {
       toast.info("Detail Titik Bordir/Cetak tidak tersimpan di data SO — silakan isi manual.");
     }
     addDetailTitik();

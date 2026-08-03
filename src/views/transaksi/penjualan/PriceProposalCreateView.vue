@@ -186,8 +186,42 @@ const totalHargaTambahan = computed(() => {
 });
 
 const bordirItems = ref(Array.from({ length: 8 }, () => ({ p: 0, l: 0 })));
-const biayaPerCmBordir = ref(0);
+// [BARU] Flat rate LAMA (dari tbiayatambahan/DB) — tetap dipertahankan untuk
+// dokumen dengan tanggal SEBELUM 1 Agustus 2026, supaya edit dokumen lama
+// tidak ikut ketiban tier baru yang salah periode.
+const biayaPerCmBordirFlat = ref(0);
 const bordirMinCharge = ref(3000);
+
+// [BARU] Total qty order (semua ukuran) — basis penentuan tier harga bordir
+// sesuai Memo Internal 1 Agustus 2026.
+const totalQty = computed(() => sizeItems.value.reduce((sum, item) => sum + (item.qty || 0), 0));
+
+const isNewBordirRule = computed(() => header.value.tanggal >= "2026-08-01");
+
+// [BARU] Biaya per cm² bordir — computed, bukan ref manual lagi.
+// Mulai 1 Agustus 2026: tier berdasar total qty order (Memo Internal).
+// Sebelum itu: tetap pakai flat rate dari master data (tbiayatambahan),
+// supaya histori transaksi lama tidak berubah nilainya.
+const biayaPerCmBordir = computed(() => {
+  if (!isNewBordirRule.value) return biayaPerCmBordirFlat.value;
+
+  const qty = totalQty.value;
+  if (qty >= 500) return 100;
+  if (qty >= 20) return 250;
+  if (qty >= 11) return 500;
+  return 1000; // 1 - 10 pcs
+});
+
+// [BARU] Label tier aktif — buat ditampilin ke SC di tab Bordir biar jelas
+// kuantitas berapa lagi kena tarif berapa, tanpa perlu buka memo manual.
+const bordirTierLabel = computed(() => {
+  if (!isNewBordirRule.value) return null;
+  const qty = totalQty.value;
+  if (qty >= 500) return "≥ 500 pcs";
+  if (qty >= 20) return "20 - 499 pcs";
+  if (qty >= 11) return "11 - 19 pcs";
+  return "1 - 10 pcs";
+});
 const totalLuasBordir = computed(() => {
   return bordirItems.value.reduce((total, item) => {
     return total + (item.p || 0) * (item.l || 0);
@@ -377,7 +411,7 @@ const onTshirtTypeSelected = async (type: { jenisKaos: string }) => {
     const costs = data.costs;
     if (costs) {
       if (costs.bordir) {
-        biayaPerCmBordir.value = costs.bordir.cm || 0;
+        biayaPerCmBordirFlat.value = costs.bordir.cm || 0; // [UBAH]
         bordirMinCharge.value = costs.bordir.min || 0;
       }
       if (costs.dtf) {
@@ -581,7 +615,7 @@ const resetForm = () => {
 
   bordirItems.value = Array.from({ length: 8 }, () => ({ p: 0, l: 0 }));
   dtfItems.value = Array.from({ length: 8 }, () => ({ p: 0, l: 0 }));
-  biayaPerCmBordir.value = 0;
+  biayaPerCmBordirFlat.value = 0;
   bordirMinCharge.value = 3000;
   bordirCost.value = 0;
   biayaPerCmDtf.value = 0;
@@ -809,7 +843,11 @@ const loadOfferData = async (nomor: string) => {
 
     if (data.bordir) {
       bordirCost.value = data.bordir.phb_rpbordir || 0;
-      biayaPerCmBordir.value = data.bordir.phb_cmbordir || 0;
+      // [UBAH] Simpan nilai cm² yang tersimpan sebagai flat rate — kalau
+      // dokumen ini tanggal-nya sebelum 1 Agustus 2026, nilai INI yang
+      // dipakai (computed di atas otomatis fallback ke sini). Kalau
+      // sesudahnya, computed akan pakai tier baru dan nilai ini diabaikan.
+      biayaPerCmBordirFlat.value = data.bordir.phb_cmbordir || 0;
       for (let i = 1; i <= 8; i++) {
         bordirItems.value[i - 1].p = data.bordir[`phb_bordirp${i}`] || 0;
         bordirItems.value[i - 1].l = data.bordir[`phb_bordirl${i}`] || 0;
@@ -1203,7 +1241,7 @@ watch(
 
         const costs = data.costs;
         if (costs) {
-          biayaPerCmBordir.value = costs.bordir?.cm || 0;
+          biayaPerCmBordirFlat.value = costs.bordir?.cm || 0; // [UBAH]
           bordirMinCharge.value = costs.bordir?.min || 0;
           biayaPerCmDtf.value = costs.dtf?.cm || 0;
           dtfMinCharge.value = costs.dtf?.min || 0;
@@ -1804,13 +1842,22 @@ onMounted(() => {
                     ></v-text-field>
                     <v-text-field
                       label="Biaya /Cm2"
-                      v-model.number="biayaPerCmBordir"
+                      :model-value="biayaPerCmBordir"
                       type="number"
                       density="compact"
                       variant="filled"
                       readonly
                       hide-details
                     ></v-text-field>
+                    <v-chip
+                      v-if="bordirTierLabel"
+                      size="x-small"
+                      color="primary"
+                      variant="tonal"
+                      class="mb-2"
+                    >
+                      Tier aktif: {{ bordirTierLabel }} ({{ totalQty }} pcs)
+                    </v-chip>
                     <v-text-field
                       label="Total Harga"
                       :model-value="formatRupiah(totalHargaBordir)"

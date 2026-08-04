@@ -1680,7 +1680,11 @@ onMounted(() => {
                       density="compact"
                       hide-details
                       class="text-end"
-                      :readonly="isHargaFieldLocked || (item.hargaPcs > 0 && !item.isManualPrice)"
+                      :readonly="
+                        isDarulUser
+                          ? false
+                          : isHargaFieldLocked || (item.hargaPcs > 0 && !item.isManualPrice)
+                      "
                       :placeholder="formatRupiah(0)"
                       @update:model-value="calculateTotals"
                     ></v-text-field>

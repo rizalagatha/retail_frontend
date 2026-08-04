@@ -404,13 +404,15 @@ const calculatePrices = async () => {
       hargaSatuan = totalLuas * hargaPerCm;
       break;
 
-    case "BR": // BORDIR
-      // 1. Tentukan multiplier harga baru (Berlaku permanen)
+   case "BR": // BORDIR
+      // [FIX] Tier disesuaikan Memo Internal berlaku 1 Agustus 2026 —
+      // sebelumnya tiap tingkat kepasang harga milik tier di atasnya
+      // (misal 1-10 pcs kena Rp 1.500, padahal harusnya Rp 1.000).
       if (totalJumlahKaos >= 500) hargaPerCm = 100;
-      else if (totalJumlahKaos >= 20) hargaPerCm = 500;
-      else if (totalJumlahKaos >= 11) hargaPerCm = 1000;
-      else hargaPerCm = 1500;
-
+      else if (totalJumlahKaos >= 20) hargaPerCm = 250;
+      else if (totalJumlahKaos >= 11) hargaPerCm = 500;
+      else hargaPerCm = 1000; // 1 - 10 pcs
+      
       // 2. Hitung harga per kaos (akumulasi tiap titik dengan minimum 5000 per titik)
       let totalHargaJasaPerKaos = 0;
       form.value.titikCetak.forEach((t) => {

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, computed, watch, nextTick } from "vue";
+import { ref, onMounted, computed, watch, nextTick, reactive } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import api from "@/services/api";
 import PageLayout from "@/components/PageLayout.vue";
@@ -18,10 +18,12 @@ import JenisOrderSearchModal from "@/components/lookup/JenisOrderSearchModal.vue
 import JenisKainSearchModal from "@/components/lookup/JenisKainSearchModal.vue";
 import WorkshopSearchModal from "@/components/lookup/WorkshopSearchModal.vue";
 import SoSearchModalForInvoice from "@/components/lookup/SoSearchModalForInvoice.vue";
+import AuthorizationModal from "@/components/modal/AuthorizationModal.vue";
 
 // --- Interfaces ---
 interface FormHeader {
   nomor: string | null;
+  soNomor: string;
   tanggal: string;
   tglPengerjaan: string;
   datelineCustomer: string;
@@ -45,6 +47,8 @@ interface FormHeader {
   imageUrl: string | null;
   refTrial: string | null;
   soLineIds: string[];
+  dpAuthApprover: string;
+  dpAuthNomor: string;
   [key: string]: unknown;
 }
 interface DetailUkuran {
@@ -117,6 +121,18 @@ interface TrialDetailTitik {
   lebar: number;
 }
 
+interface AuthDialogState {
+  show: boolean;
+  title: string;
+  jenis: string;
+  nominal: number;
+  transaksi?: string;
+  barcode?: string;
+  keterangan?: string;
+  onSuccess: (data: { authNomor: string; approver: string }) => void;
+  onCancel: () => void;
+}
+
 // --- State & Dependencies ---
 const route = useRoute();
 const router = useRouter();
@@ -167,6 +183,8 @@ const initialFormState = {
   imageUrl: null as string | null,
   refTrial: null,
   soLineIds: [],
+  dpAuthApprover: "",
+  dpAuthNomor: "",
 };
 
 const form = ref<FormHeader>({ ...initialFormState });
@@ -195,6 +213,17 @@ const isJenisKainSearchVisible = ref(false);
 const isWorkshopSearchVisible = ref(false);
 const isSoSearchVisible = ref(false);
 const sizeCetakList = ref(["A3", "A4", "A5", "Logo", "Custom"]);
+const authDialog = reactive<AuthDialogState>({
+  show: false,
+  title: "",
+  jenis: "",
+  nominal: 0,
+  transaksi: "",
+  barcode: "",
+  keterangan: "",
+  onSuccess: () => {},
+  onCancel: () => {},
+});
 
 // --- Computed Properties for Totals ---
 const totalJumlahKaos = computed(() => {
@@ -469,6 +498,8 @@ const fetchDataForEdit = async (nomor: string) => {
       soLineIds: data.header.soLineIds
         ? String(data.header.soLineIds).split(",").filter(Boolean)
         : [],
+      dpAuthApprover: data.header.dpAuthApprover || "", // [BARU]
+      dpAuthNomor: data.header.dpAuthNomor || "", // [BARU]
     };
 
     // [BARU] Populate DP check — sebelumnya cuma diisi saat onSoSelected
@@ -629,6 +660,67 @@ const uploadImageToServer = async (nomor: string): Promise<boolean> => {
   }
 };
 
+// [BARU] Helper generik buka dialog otorisasi — reuse pola dari SoCreateView
+const requestAuthorization = (
+  title: string,
+  jenis: string,
+  nominal: number,
+  extraData: { transaksi?: string; barcode?: string; keteranganLengkap?: string } | null,
+  onSuccess: (data: { authNomor: string; approver: string }) => void,
+  onCancel: () => void
+) => {
+  authDialog.title = title;
+  authDialog.jenis = jenis;
+  authDialog.nominal = nominal;
+
+  if (extraData) {
+    authDialog.transaksi = extraData.transaksi || "";
+    authDialog.barcode = extraData.barcode || "";
+    authDialog.keterangan = extraData.keteranganLengkap || "";
+  } else {
+    authDialog.transaksi = "";
+    authDialog.barcode = "";
+    authDialog.keterangan = "";
+  }
+
+  authDialog.onSuccess = (data) => {
+    authDialog.show = false;
+    onSuccess(data);
+  };
+  authDialog.onCancel = onCancel;
+  authDialog.show = true;
+};
+
+// [BARU] Minta otorisasi DP kurang, lanjut simpan otomatis kalau disetujui
+const openDpAuthorization = () => {
+  const info = `Customer: ${form.value.customerNama || "-"}\nSO: ${
+    form.value.soNomor
+  }\nDP Saat Ini: Rp ${soDp.value.toLocaleString(
+    "id-ID"
+  )}\nMinimal DP setelah SO DTF ini: Rp ${dpCheck.projectedMinDp.value.toLocaleString(
+    "id-ID"
+  )}\nKekurangan: Rp ${dpCheck.shortfall.value.toLocaleString("id-ID")}`;
+
+  requestAuthorization(
+    "Otorisasi SO DTF — DP Belum Cukup",
+    "SO_DTF_TANPA_DP",
+    dpCheck.shortfall.value,
+    {
+      transaksi: form.value.nomor || form.value.soNomor || "DRAFT SO DTF",
+      keteranganLengkap: info,
+    },
+    (authResult) => {
+      form.value.dpAuthApprover = authResult.approver;
+      form.value.dpAuthNomor = authResult.authNomor || "";
+      toast.success(`Otorisasi disetujui oleh ${authResult.approver}, melanjutkan penyimpanan...`);
+      proceedToSaveConfirmation();
+    },
+    () => {
+      toast.info("Permintaan otorisasi dibatalkan, data belum tersimpan.");
+    }
+  );
+};
+
 const save = async () => {
   if (!isEditMode.value) {
     const todayStr = format(new Date(), "yyyy-MM-dd");
@@ -654,18 +746,6 @@ const save = async () => {
 
   if (!form.value.soNomor) {
     toast.error("Nomor Surat Pesanan (SO) wajib diisi. Silakan cari terlebih dahulu.");
-    return;
-  }
-
-  // [BARU] Hard block — DP customer belum memenuhi minimal 50% setelah SO DTF ini ditambahkan
-  if (!dpCheck.isSufficient.value) {
-    toast.error(
-      `Tidak bisa simpan: DP customer kurang Rp ${dpCheck.shortfall.value.toLocaleString(
-        "id-ID"
-      )}. Minimal DP setelah SO DTF ini: Rp ${dpCheck.projectedMinDp.value.toLocaleString(
-        "id-ID"
-      )}.`
-    );
     return;
   }
 
@@ -747,9 +827,32 @@ const save = async () => {
     }
   }
 
+  // [UBAH] DP kurang TIDAK LAGI hard block. Kalau belum pernah di-approve
+  // di sesi ini (dpAuthApprover kosong), ajukan otorisasi dulu — proses
+  // simpan lanjut otomatis setelah manager approve (lihat openDpAuthorization).
+  // Kalau sudah pernah approve untuk sesi form ini, langsung lanjut simpan
+  // tanpa minta otorisasi ulang.
+  if (!dpCheck.isSufficient.value && !form.value.dpAuthApprover) {
+    openDpAuthorization();
+    return;
+  }
+
+  proceedToSaveConfirmation();
+};
+
+// [BARU] Dipisah dari save() supaya bisa dipanggil ulang setelah otorisasi
+// DP disetujui, tanpa duplikasi logic konfirmasi & simpan. Detail
+// ukuran/titik dihitung ulang di sini (bukan dari closure save()) karena
+// fungsi ini juga dipanggil dari luar save() lewat callback openDpAuthorization.
+const proceedToSaveConfirmation = () => {
+  const validDetailsUkuran = detailsUkuran.value.filter((d) => d.ukuran && d.jumlah);
+  const validDetailsTitik = detailsTitik.value.filter(
+    (d) => d.keterangan && d.panjang > 0 && d.lebar > 0
+  );
+
   showConfirmation(async () => {
     isSaving.value = true;
-    let savedNomor: string = ""; // Deklarasikan di scope yang lebih tinggi
+    let savedNomor: string = "";
 
     try {
       // 1. Simpan data utama
@@ -765,12 +868,9 @@ const save = async () => {
           isSaving.value = false;
           return;
         }
-        // TANGKAP RESPON DI SINI
         const response = await api.put(`/so-dtf-form/${form.value.nomor}`, payload);
-
-        // Ambil nomor terbaru dari server (siapa tahu berubah karena ganti jenis order)
         savedNomor = response.data.sd_nomor || form.value.nomor;
-        form.value.nomor = savedNomor; // Update UI
+        form.value.nomor = savedNomor;
       } else {
         const headerWithoutNomor = { ...payload.header };
         Reflect.deleteProperty(headerWithoutNomor, "nomor");
@@ -784,7 +884,6 @@ const save = async () => {
       }
 
       toast.success("Data berhasil disimpan.");
-
       markAsSaved();
 
       // 2. Upload gambar jika ada
@@ -795,29 +894,20 @@ const save = async () => {
         }
       }
 
-      // --- PERUBAHAN LOGIKA REDIRECT DIMULAI DI SINI ---
-
-      // 3. Alih-alih router.push, tampilkan dialog cetak
+      // 3. Dialog cetak
       if (savedNomor) {
         printConfirmNomor.value = savedNomor;
-        isPrintConfirmVisible.value = true; // Buka dialog baru
+        isPrintConfirmVisible.value = true;
       } else {
-        // Fallback jika (karena alasan aneh) nomor tidak ada
         toast.error("Gagal mendapatkan nomor, kembali ke daftar.");
         router.push("/transaksi/penjualan/dtf/so-dtf");
       }
-
-      // HAPUS router.push lama:
-      // router.push("/transaksi/penjualan/dtf/so-dtf");
-
-      // --- AKHIR PERUBAHAN ---
     } catch (err) {
       const error = err as AxiosError<{ message: string }>;
       console.error("Save error:", error);
       toast.error(error.response?.data?.message || "Gagal menyimpan data.");
     } finally {
       isSaving.value = false;
-      // isConfirmDialogVisible ditutup oleh executePendingAction
     }
   }, "Anda yakin ingin menyimpan data ini?");
 };
@@ -1128,6 +1218,8 @@ const onSoSelected = async (selected: SoSelected, targetLineId: string | null = 
     form.value.soNomor = soData.header.nomor;
     soNetto.value = Number(soData.header.soNetto) || 0;
     soDp.value = Number(soData.header.soDp) || 0;
+    form.value.dpAuthApprover = "";
+    form.value.dpAuthNomor = "";
 
     // ==============================
     // 2. CUSTOMER
@@ -1711,7 +1803,9 @@ onMounted(async () => {
               <v-alert
                 density="compact"
                 variant="tonal"
-                :type="dpCheck.isSufficient.value ? 'success' : 'error'"
+                :type="
+                  dpCheck.isSufficient.value ? 'success' : form.dpAuthApprover ? 'warning' : 'error'
+                "
                 class="mb-0"
               >
                 <div class="d-flex justify-space-between align-center flex-wrap ga-1">
@@ -1721,14 +1815,20 @@ onMounted(async () => {
                   <span v-if="dpCheck.isSufficient.value" class="font-weight-bold">
                     ✓ Cukup (Min. Rp {{ dpCheck.projectedMinDp.value.toLocaleString("id-ID") }})
                   </span>
+                  <span v-else-if="form.dpAuthApprover" class="font-weight-bold">
+                    ⚠ Kurang, tapi sudah diotorisasi oleh {{ form.dpAuthApprover }}
+                  </span>
                   <span v-else class="font-weight-bold">
                     ✗ Kurang Rp {{ dpCheck.shortfall.value.toLocaleString("id-ID") }} (Min. Rp
                     {{ dpCheck.projectedMinDp.value.toLocaleString("id-ID") }})
                   </span>
                 </div>
-                <div class="text-caption mt-1" v-if="!dpCheck.isSufficient.value">
-                  SO DTF ini membuat SO menjadi custom order (minimal DP 50%). Tambahkan DP customer
-                  terlebih dahulu di halaman Surat Pesanan.
+                <div
+                  class="text-caption mt-1"
+                  v-if="!dpCheck.isSufficient.value && !form.dpAuthApprover"
+                >
+                  SO DTF ini membuat SO menjadi custom order (minimal DP 50%). Klik "Simpan" akan
+                  memunculkan permintaan otorisasi ke manager karena DP belum mencukupi.
                 </div>
               </v-alert>
             </v-col>
@@ -2239,6 +2339,22 @@ onMounted(async () => {
       @close="isSoSearchVisible = false"
       @so-selected="onSoSelected"
       mode="dtf"
+    />
+    <AuthorizationModal
+      v-if="authDialog.show"
+      :title="authDialog.title"
+      :jenis="authDialog.jenis"
+      :nominal="authDialog.nominal"
+      :transaksi="authDialog.transaksi"
+      :barcode="authDialog.barcode"
+      :keterangan="authDialog.keterangan"
+      @success="authDialog.onSuccess"
+      @close="
+        () => {
+          authDialog.show = false;
+          authDialog.onCancel();
+        }
+      "
     />
 
     <!-- Fullscreen Image Modal -->

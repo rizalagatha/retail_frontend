@@ -127,6 +127,9 @@ const header = ref({
   kodeBarangDraft: "",
   kodeBarangDeskripsi: "",
   status: "",
+  hargaLocked: false,
+  hargaLockedBy: "",
+  hargaLockedAt: null as string | null,
 });
 const sizeItems = ref<SizeItem[]>([]);
 const additionalCostItems = ref<AdditionalCostItem[]>([]);
@@ -160,6 +163,13 @@ const isConfirmingAccFinance = ref(false);
 const isAccFinanceLocked = computed(
   () => !!header.value.status && header.value.status !== "ACC_CUSTOMER"
 );
+// [BARU] Hardcode kode DARUL — konsisten dengan pola existing di
+// authPinService.js (manager codes DARUL/HARIS/ESTU/RIO juga di-hardcode)
+const isDarulUser = computed(() => authStore.user?.kode === "DARUL");
+// Field harga dikunci untuk SEMUA USER SELAIN DARUL, kalau sudah pernah
+// dikunci. Qty/kode barang/biaya tambahan TETAP bisa diedit — ini beda
+// dari isFormLocked yang mengunci SELURUH form.
+const isHargaFieldLocked = computed(() => header.value.hargaLocked && !isDarulUser.value);
 
 const isEditMode = computed(() => !!route.params.nomor);
 const pageTitle = computed(() =>
@@ -597,6 +607,9 @@ const resetForm = () => {
     kodeBarangDraft: "",
     kodeBarangDeskripsi: "",
     status: "",
+    hargaLocked: false,
+    hargaLockedBy: "",
+    hargaLockedAt: null,
   };
 
   sizeItems.value = [];
@@ -797,6 +810,9 @@ const loadOfferData = async (nomor: string) => {
     header.value.kodeBarangDraft = barangDraft?.pbd_kode_barang_draft || "";
     header.value.kodeBarangDeskripsi = barangDraft?.pbd_deskripsi || "";
     header.value.status = data.header.ph_status || "DRAFT";
+    header.value.hargaLocked = data.header.ph_harga_locked === "Y";
+    header.value.hargaLockedBy = data.header.ph_harga_locked_by || "";
+    header.value.hargaLockedAt = data.header.ph_harga_locked_at || null;
     // [BARU] Populate ulang state Sublim kalau mode-nya Sublim
     if (header.value.ketersediaan === "Sublim") {
       const draft = barangDraft;
@@ -1602,6 +1618,24 @@ onMounted(() => {
         </v-tabs>
         <v-window v-model="activeTab" class="flex-grow-1">
           <v-window-item value="pengajuan" class="window-item">
+            <v-alert
+              v-if="header.hargaLocked"
+              :type="isDarulUser ? 'info' : 'warning'"
+              density="compact"
+              variant="tonal"
+              class="mb-2"
+            >
+              Harga dikunci oleh Finance ({{ header.hargaLockedBy }}){{
+                header.hargaLockedAt
+                  ? `, ${new Date(header.hargaLockedAt).toLocaleString("id-ID")}`
+                  : ""
+              }}.
+              {{
+                isDarulUser
+                  ? "Anda tetap bisa mengubah harga."
+                  : "Qty & biaya tambahan tetap bisa diubah, harga tidak."
+              }}
+            </v-alert>
             <div class="d-flex fill-height">
               <!-- Tabel utama -->
               <div class="main-table-container">
@@ -1646,7 +1680,7 @@ onMounted(() => {
                       density="compact"
                       hide-details
                       class="text-end"
-                      :readonly="item.hargaPcs > 0 && !item.isManualPrice"
+                      :readonly="isHargaFieldLocked || (item.hargaPcs > 0 && !item.isManualPrice)"
                       :placeholder="formatRupiah(0)"
                       @update:model-value="calculateTotals"
                     ></v-text-field>

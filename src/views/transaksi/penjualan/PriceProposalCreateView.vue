@@ -1655,6 +1655,8 @@ onMounted(() => {
                   class="desktop-table"
                   fixed-header
                   height="calc(100vh - 280px)"
+                  :items-per-page="-1"
+                  hide-default-footer
                 >
                   <template #[`item.qty`]="{ item }">
                     <v-text-field

@@ -3149,12 +3149,16 @@ const openSoDtfInNewTab = (item: SoItem) => {
     toast.error("Simpan SO terlebih dahulu untuk mendapatkan nomor referensi.");
     return;
   }
-  // [BARU] Guard tambahan — item yang baru ditambah (Input Jenis Order) tapi
-  // SO belum di-Simpan ulang punya id sintetis, bukan sod_idrec asli. Kalau
-  // dipaksa buka SO DTF sekarang, linking-nya bakal salah sasaran (baris lain
-  // yang sudah tersimpan bisa "ketiban" data yang salah).
-  if (uiStore.hasUnsavedChanges) {
-    toast.error("Simpan perubahan SO terlebih dahulu sebelum membuat SO DTF untuk baris ini.");
+
+  // [PERBAIKAN] Cek apakah baris ini adalah baris baru (ID sintetis dari Date.now()).
+  // ID dari Date.now() akan selalu bernilai angka triliunan (> 1000000000000),
+  // sedangkan ID dari database (dbLineId) biasanya angka kecil atau string.
+  const isNewRow = typeof item.id === "number" && item.id > 1000000000000;
+
+  if (isNewRow) {
+    toast.error(
+      "Baris ini baru ditambahkan. Simpan perubahan SO terlebih dahulu sebelum membuat SO DTF."
+    );
     return;
   }
 
@@ -3162,10 +3166,10 @@ const openSoDtfInNewTab = (item: SoItem) => {
     path: "/transaksi/penjualan/dtf/so-dtf/new",
     query: {
       refSo: header.value.nomor,
-      // 👈 TAMBAHKAN INI: Kirim ID unik baris (misal: timestamp id dari frontend)
       lineId: item.id,
     },
   }).href;
+
   window.open(url, "_blank");
 };
 

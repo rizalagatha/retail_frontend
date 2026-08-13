@@ -138,6 +138,7 @@ const detailHeaders = [
 // --- Computed Properties ---
 const isSingleSelected = computed(() => selected.value.length === 1);
 const selectedRow = computed(() => (isSingleSelected.value ? selected.value[0] : null));
+const isMultiSelected = computed(() => selected.value.length >= 1);
 
 // --- Logic Filter Client-Side ---
 const filteredList = computed(() => {
@@ -276,7 +277,14 @@ const onResizeEnd = () => {
 
 // --- Logic Selection ---
 const handleRowClick = (_event: Event, { item }: { item: PackingListHeader }) => {
-  selected.value = [item];
+  const index = selected.value.findIndex((i) => i.Nomor === item.Nomor);
+  if (index > -1) {
+    // Jika sudah ada, hapus dari seleksi (deselect)
+    selected.value.splice(index, 1);
+  } else {
+    // Jika belum ada, tambahkan ke seleksi (select)
+    selected.value.push(item);
+  }
 };
 
 // --- Methods: Data ---
@@ -376,69 +384,68 @@ const handlePrint = () => {
 };
 
 // --- Fungsi Ambil Data Lengkap untuk Cetak QR ---
+// --- Fungsi Ambil Data Lengkap untuk Cetak QR ---
 const handlePrintLabel = async (orientation: "landscape" | "portrait") => {
-  if (!selectedRow.value) return;
+  if (selected.value.length === 0) return;
 
   isPrintingLabel.value = true;
   try {
-    const nomor = selectedRow.value.Nomor;
-    const response = await api.get(`/packing-list/${nomor}`);
-    const items = response.data as PackingListDetail[];
+    const allPrintData: PrintLabelData[] = [];
 
-    // 1. Hitung total Qty dari seluruh baris detail
-    const totalQty = items.reduce((sum, it) => sum + Number(it.Jumlah), 0);
+    // Looping semua row yang di-select
+    for (const row of selected.value) {
+      const nomor = row.Nomor;
+      const response = await api.get(`/packing-list/${nomor}`);
+      const items = response.data as PackingListDetail[];
 
-    // 2. Grouping berdasarkan Nama Barang
-    const grouped = new Map<string, number>();
-    items.forEach((it) => {
-      const currentQty = grouped.get(it.Nama) || 0;
-      grouped.set(it.Nama, currentQty + Number(it.Jumlah));
-    });
+      const totalQty = items.reduce((sum, it) => sum + Number(it.Jumlah), 0);
+      const grouped = new Map<string, number>();
 
-    const distinctItems = Array.from(grouped, ([name, qty]) => ({ name, qty }));
+      items.forEach((it) => {
+        const currentQty = grouped.get(it.Nama) || 0;
+        grouped.set(it.Nama, currentQty + Number(it.Jumlah));
+      });
 
-    // 3. Tentukan Nama Utama (Jika 1 barang pakai namanya, jika banyak pakai MIXED)
-    const namaBarangUtama =
-      distinctItems.length === 1 ? distinctItems[0].name : "CAMPURAN / MIXED ITEMS";
+      const distinctItems = Array.from(grouped, ([name, qty]) => ({ name, qty }));
+      const namaBarangUtama =
+        distinctItems.length === 1 ? distinctItems[0].name : "CAMPURAN / MIXED ITEMS";
 
-    // 4. Buat Tabel Ringkasan (MAKSIMAL 7 ITEM)
-    let contentHtml = `<table style="width:100%; border-collapse:collapse; font-size:6.5pt; line-height:1">`;
-    distinctItems.slice(0, 7).forEach((item) => {
-      contentHtml += `
-        <tr>
-          <td style="text-align:left; padding-bottom:1px; border-bottom:0.1pt solid #eee; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:150px;">
-            ${item.name}
-          </td>
-          <td style="text-align:right; font-weight:bold; width:35px">${item.qty}</td>
-        </tr>`;
-    });
+      let contentHtml = `<table style="width:100%; border-collapse:collapse; font-size:6.5pt; line-height:1">`;
+      distinctItems.slice(0, 7).forEach((item) => {
+        contentHtml += `
+          <tr>
+            <td style="text-align:left; padding-bottom:1px; border-bottom:0.1pt solid #eee; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:150px;">
+              ${item.name}
+            </td>
+            <td style="text-align:right; font-weight:bold; width:35px">${item.qty}</td>
+          </tr>`;
+      });
 
-    if (distinctItems.length > 7) {
-      contentHtml += `<tr><td colspan="2" style="text-align:center; font-style:italic; font-size:5.5pt">... & ${
-        distinctItems.length - 7
-      } item lainnya</td></tr>`;
+      if (distinctItems.length > 7) {
+        contentHtml += `<tr><td colspan="2" style="text-align:center; font-style:italic; font-size:5.5pt">... & ${
+          distinctItems.length - 7
+        } item lainnya</td></tr>`;
+      }
+      contentHtml += `</table>`;
+
+      let footerText = items
+        .slice(0, 10)
+        .map((it) => `${it.Ukuran}=${Math.floor(it.Jumlah)}`)
+        .join(", ");
+      if (items.length > 10) footerText = "RINCIAN LENGKAP ADA PADA SURAT JALAN";
+
+      allPrintData.push({
+        nomorPL: row.Nomor || "-",
+        nomorMinta: row.NoMinta || "-",
+        tujuan: row.Nama_Store || "-",
+        totalQty: totalQty,
+        contentHtml: contentHtml,
+        detailUkuran: footerText,
+        namaBarang: namaBarangUtama,
+      });
     }
-    contentHtml += `</table>`;
 
-    // 5. Rincian Ukuran (Footer)
-    let footerText = items
-      .slice(0, 10)
-      .map((it) => `${it.Ukuran}=${Math.floor(it.Jumlah)}`)
-      .join(", ");
-    if (items.length > 10) footerText = "RINCIAN LENGKAP ADA PADA SURAT JALAN";
-
-    const dataToPrint: PrintLabelData = {
-      nomorPL: selectedRow.value.Nomor || "-",
-      nomorMinta: selectedRow.value.NoMinta || "-",
-      tujuan: selectedRow.value.Nama_Store || "-",
-      totalQty: totalQty,
-      contentHtml: contentHtml,
-      detailUkuran: footerText,
-      namaBarang: namaBarangUtama,
-    };
-
-    // Panggil fungsi cetak dengan orientasi terpilih
-    triggerLabelPrint(dataToPrint, orientation);
+    triggerLabelPrint(allPrintData, orientation);
   } catch (error) {
     toast.error("Gagal mengambil data detail packing.");
     console.error(error);
@@ -447,7 +454,10 @@ const handlePrintLabel = async (orientation: "landscape" | "portrait") => {
   }
 };
 
-const triggerLabelPrint = async (data: PrintLabelData, orientation: "landscape" | "portrait") => {
+const triggerLabelPrint = async (
+  dataList: PrintLabelData[],
+  orientation: "landscape" | "portrait"
+) => {
   const printWindow = document.createElement("iframe");
   printWindow.style.position = "fixed";
   printWindow.style.top = "-9999px";
@@ -456,100 +466,56 @@ const triggerLabelPrint = async (data: PrintLabelData, orientation: "landscape" 
   const doc = printWindow.contentWindow?.document;
   if (!doc) return;
 
-  // Generate QR (250px cukup untuk kualitas cetak thermal)
-  const qrDataUrl = await QRCode.toDataURL(data.nomorPL, { margin: 1, width: 250 });
-
   const paperWidth = orientation === "landscape" ? "70mm" : "50mm";
   const paperHeight = orientation === "landscape" ? "50mm" : "70mm";
 
   const style = `
     <style>
-      @page {
-        size: ${paperWidth} ${paperHeight} ${orientation};
-        margin: 0;
-      }
-      body {
-        margin: 0; padding: 0;
-        width: ${paperWidth}; height: ${paperHeight};
-        font-family: 'Arial Narrow', Arial, sans-serif;
-        background: white; overflow: hidden;
-      }
-      .label-container {
-        width: ${paperWidth}; height: ${paperHeight};
-        /* Padding kiri 5mm agar QR tidak mepet kiri kertas */
-        padding: 1.5mm 4mm 1.5mm 5mm;
-        box-sizing: border-box;
-        display: flex; flex-direction: column;
-        page-break-after: always;
-      }
-      .box {
-        border: 1.2pt solid black;
-        height: 100%;
-        width: 100%;
-        display: flex;
-        flex-direction: column;
-        box-sizing: border-box;
-      }
-
-      .header-row {
-        display: flex;
-        border-bottom: 1.2pt solid black;
-        padding: 2px;
-        gap: 6px;
-        align-items: center; /* QR dan Teks sejajar tengah secara vertikal */
-      }
-
+      @page { size: ${paperWidth} ${paperHeight} ${orientation}; margin: 0; }
+      body { margin: 0; padding: 0; width: ${paperWidth}; height: ${paperHeight}; font-family: 'Arial Narrow', Arial, sans-serif; background: white; overflow: hidden; }
+      .label-container { width: ${paperWidth}; height: ${paperHeight}; padding: 1.5mm 4mm 1.5mm 5mm; box-sizing: border-box; display: flex; flex-direction: column; page-break-after: always; }
+      .box { border: 1.2pt solid black; height: 100%; width: 100%; display: flex; flex-direction: column; box-sizing: border-box; }
+      .header-row { display: flex; border-bottom: 1.2pt solid black; padding: 2px; gap: 6px; align-items: center; }
       .qr-area { width: 65px; height: 65px; flex-shrink: 0; }
       .qr-area img { width: 100%; height: 100%; }
-
-      /* AREA INFORMASI (DIKECILKAN AGAR PROPORSIONAL) */
       .info-area { line-height: 1.2; font-weight: 700; flex-grow: 1; color: black; overflow: hidden; }
-
-      /* No PL: 10.5pt (Cukup besar tapi tidak meluap) */
       .pl-no { font-size: 10.5pt; border-bottom: 0.8pt solid black; margin-bottom: 2px; white-space: nowrap; }
-
-      /* Detail MT, TO, QTY: 9pt (Standar label logistik) */
       .mt-no, .to-store { font-size: 9pt; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
       .total-qty { font-size: 9pt; margin-top: 1px; font-weight: 800; }
-
       .body-area { flex-grow: 1; padding: 2px; display: flex; flex-direction: column; justify-content: start; overflow: hidden; }
-
-      .footer-summary {
-        font-size: 6.5pt; font-weight: bold; border-top: 1pt solid black;
-        padding: 1px 2px; text-align: center; background: #f0f0f0;
-        white-space: nowrap; overflow: hidden;
-      }
-
+      .footer-summary { font-size: 6.5pt; font-weight: bold; border-top: 1pt solid black; padding: 1px 2px; text-align: center; background: #f0f0f0; white-space: nowrap; overflow: hidden; }
       table { width: 100%; border-collapse: collapse; font-size: 7.2pt; table-layout: fixed; }
       td { padding: 1px 2px; line-height: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     </style>
   `;
 
   let htmlContent = "";
-  for (let i = 0; i < 2; i++) {
-    htmlContent += `
-      <div class="label-container">
-        <div class="box">
-          <div class="header-row">
-            <div class="qr-area"><img src="${qrDataUrl}" /></div>
-            <div class="info-area">
-              <div class="pl-no">${data.nomorPL}</div>
-              <div class="mt-no">MT: ${data.nomorMinta}</div>
-              <div class="to-store">TO: ${data.tujuan}</div>
-              <div class="total-qty">TOTAL QTY: ${data.totalQty}</div>
+  for (const data of dataList) {
+    const qrDataUrl = await QRCode.toDataURL(data.nomorPL, { margin: 1, width: 250 });
+    for (let i = 0; i < 2; i++) {
+      htmlContent += `
+        <div class="label-container">
+          <div class="box">
+            <div class="header-row">
+              <div class="qr-area"><img src="${qrDataUrl}" /></div>
+              <div class="info-area">
+                <div class="pl-no">${data.nomorPL}</div>
+                <div class="mt-no">MT: ${data.nomorMinta}</div>
+                <div class="to-store">TO: ${data.tujuan}</div>
+                <div class="total-qty">TOTAL QTY: ${data.totalQty}</div>
+              </div>
             </div>
+            <div class="body-area">${data.contentHtml}</div>
+            <div class="footer-summary">${data.detailUkuran}</div>
           </div>
-          <div class="body-area">${data.contentHtml}</div>
-          <div class="footer-summary">${data.detailUkuran}</div>
         </div>
-      </div>
-    `;
+      `;
+    }
   }
 
   doc.write("<html><head>" + style + "</head><body>" + htmlContent + "</body></html>");
   doc.close();
 
-  // Tunggu sejenak agar iframe siap
   setTimeout(() => {
     printWindow.contentWindow?.focus();
     printWindow.contentWindow?.print();
@@ -683,14 +649,14 @@ watch(
             size="small"
             color="secondary"
             prepend-icon="mdi-printer"
-            :disabled="!isSingleSelected"
+            :disabled="!isMultiSelected"
             v-bind="props"
           >
             Cetak <v-icon end icon="mdi-chevron-down"></v-icon>
           </v-btn>
         </template>
         <v-list density="compact">
-          <v-list-item @click="handlePrint">
+          <v-list-item @click="handlePrint" :disabled="!isSingleSelected">
             <template #prepend><v-icon size="small">mdi-file-document-outline</v-icon></template>
             <v-list-item-title>Cetak SJ (A4)</v-list-item-title>
           </v-list-item>
@@ -813,7 +779,6 @@ watch(
           show-select
           show-expand
           return-object
-          single-select
           @update:expanded="loadDetails"
           @click:row="handleRowClick"
         >

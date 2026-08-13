@@ -47,14 +47,12 @@ interface SoHeader {
   kategoriUkuran: string | null;
   refPengajuanHarga: string;
 }
-
 interface KaosanItem {
   kode: string;
   nama: string;
   ukuran: string;
   qty: number;
 }
-
 interface SizeDetail {
   size: string;
   qty: number;
@@ -75,11 +73,31 @@ interface SizeDetail {
 }
 
 const isLoading = ref(true);
+const isSaving = ref(false);
 const errorMessage = ref("");
 const header = ref<SoHeader | null>(null);
 const items = ref<KaosanItem[]>([]);
 const sizes = ref<SizeDetail[]>([]);
 const activeTab = ref(0);
+const gambarUrl = ref<string | null>(null);
+const kepentinganOptions = ref<string[]>([]);
+
+// [BARU] State form yang bisa diedit — TERPISAH dari `header`/`sizes` (yang
+// tetap dipakai untuk field read-only) supaya jelas mana yang dikirim ke
+// backend saat simpan, mana yang murni tampilan.
+const editForm = ref({
+  dateline: "",
+  kepentingan: "",
+  keteranganProduksi: "",
+});
+const editSizeQty = ref<Record<string, number>>({});
+const datelineRange = ref<{
+  minDate: string;
+  maxDate: string;
+  minHari: number;
+  maxHari: number;
+} | null>(null);
+const isLoadingDatelineRange = ref(false);
 
 const formatDate = (v: string | null) => {
   if (!v) return "-";
@@ -89,19 +107,25 @@ const formatDate = (v: string | null) => {
     return "-";
   }
 };
-
+const toDateInputValue = (v: string | null) => {
+  if (!v) return "";
+  try {
+    return format(new Date(v), "yyyy-MM-dd");
+  } catch {
+    return "";
+  }
+};
 const isYes = (v: string) => v === "Y";
-
 const showKolomAtasan = computed(
   () => header.value?.kategoriUkuran === "ATASAN" || header.value?.kategoriUkuran === "WEARPACK"
 );
 const showKolomBawahan = computed(
   () => header.value?.kategoriUkuran === "BAWAHAN" || header.value?.kategoriUkuran === "WEARPACK"
 );
-
-const totalSizeQty = computed(() => sizes.value.reduce((s, r) => s + (Number(r.qty) || 0), 0));
+const totalSizeQty = computed(() =>
+  Object.values(editSizeQty.value).reduce((s, v) => s + (Number(v) || 0), 0)
+);
 const totalKaosanQty = computed(() => items.value.reduce((s, r) => s + (Number(r.qty) || 0), 0));
-
 const statusLabel = computed(() => {
   if (!header.value) return "-";
   if (header.value.so_close) return "Closed";
@@ -114,15 +138,40 @@ const statusColor = computed(() => {
   if (header.value.so_cmo) return "deep-purple";
   return "amber-darken-2";
 });
+const isClosed = computed(() => Number(header.value?.so_close || 0) !== 0);
 
 const fetchDetail = async () => {
   const nomor = route.params.nomor as string;
   isLoading.value = true;
   try {
     const response = await api.get(`/so-manksi/${encodeURIComponent(nomor)}`);
-    header.value = response.data.header;
+    // [FIX] Tampung ke variabel lokal const dulu — TS tidak bisa narrow
+    // `header.value` sebagai non-null di baris-baris berikutnya walau sudah
+    // di-assign, karena ref.value dianggap bisa berubah kapan saja.
+    const h: SoHeader = response.data.header;
+    header.value = h;
     items.value = response.data.items;
     sizes.value = response.data.sizes;
+
+    // Inisialisasi form editable dari data yang baru dimuat
+    editForm.value = {
+      dateline: toDateInputValue(h.so_dateline),
+      kepentingan: h.so_statuskerja,
+      keteranganProduksi: h.so_keterangan || "",
+    };
+    editSizeQty.value = Object.fromEntries(sizes.value.map((s) => [s.size, Number(s.qty) || 0]));
+
+    // [BARU] Ambil gambar + opsi kepentingan dari Pengajuan Harga terkait
+    if (h.refPengajuanHarga) {
+      await fetchGambar(h.refPengajuanHarga);
+      const soDetailResponse = await api.get(
+        `/price-proposals/${encodeURIComponent(h.refPengajuanHarga)}/so-detail`
+      );
+      kepentinganOptions.value = soDetailResponse.data?.kepentinganOptions || [];
+    }
+    if (h.so_jo_kode) {
+      await fetchDatelineRange(editForm.value.kepentingan, h.so_jo_kode, false);
+    }
   } catch (error: unknown) {
     const err = error as { response?: { data?: { message?: string } } };
     errorMessage.value = err.response?.data?.message || "Gagal memuat data SO Manksi.";
@@ -132,8 +181,99 @@ const fetchDetail = async () => {
   }
 };
 
-const closeTab = () => window.close();
+// [BARU] Hitung ulang rentang dateline eligible tiap kali Kepentingan
+// berubah — sama seperti logic di dialog Generate SO (getDatelineRange).
+// Dateline yang sedang terisi otomatis di-clamp/disesuaikan ke minDate
+// kalau kepentingan baru dipilih user (bukan saat load awal, supaya
+// dateline existing dari MANKSI tidak ketiban tanpa disadari user).
+const fetchDatelineRange = async (kepentingan: string, joKode: string, autoAdjust: boolean) => {
+  if (!kepentingan || !joKode) return;
+  isLoadingDatelineRange.value = true;
+  try {
+    const response = await api.get("/price-proposals/so-dateline-range", {
+      params: { kepentingan, joKode },
+    });
+    datelineRange.value = response.data;
+    if (autoAdjust && response.data?.minDate) {
+      editForm.value.dateline = response.data.minDate;
+    }
+  } catch {
+    datelineRange.value = null;
+  } finally {
+    isLoadingDatelineRange.value = false;
+  }
+};
 
+// [BARU] Dipanggil dari @change select Kepentingan — auto-adjust dateline
+const handleKepentinganChange = () => {
+  if (!header.value?.so_jo_kode) return;
+  fetchDatelineRange(editForm.value.kepentingan, header.value.so_jo_kode, true);
+};
+
+// [BARU] Gambar diambil dari Pengajuan Harga (field imageUrl, sama seperti
+// yang dipakai di PriceProposalCreateView) — bukan dari SO itu sendiri,
+// karena SO tidak punya kolom gambar.
+const fetchGambar = async (phNomor: string) => {
+  try {
+    const response = await api.get(`/price-proposal-form/${encodeURIComponent(phNomor)}`);
+    gambarUrl.value = response.data?.imageUrl || null;
+  } catch {
+    gambarUrl.value = null; // gagal ambil gambar bukan hal fatal, cukup kosongkan
+  }
+};
+
+// [BARU] Simpan perubahan — dikirim ke endpoint PUT yang keyed by NOMOR PH
+// (bukan nomor SO), sesuai desain backend yang sudah dibangun sebelumnya
+const handleSave = async () => {
+  if (!header.value?.refPengajuanHarga) {
+    toast.error("Referensi Pengajuan Harga tidak ditemukan, tidak bisa menyimpan.");
+    return;
+  }
+  if (!editForm.value.dateline) {
+    toast.error("Dateline SPK wajib diisi.");
+    return;
+  }
+  if (!editForm.value.kepentingan) {
+    toast.error("Kepentingan wajib dipilih.");
+    return;
+  }
+  if (
+    datelineRange.value &&
+    (editForm.value.dateline < datelineRange.value.minDate ||
+      editForm.value.dateline > datelineRange.value.maxDate)
+  ) {
+    const confirmed = window.confirm(
+      `Dateline yang dipilih (${editForm.value.dateline}) berada di luar rentang yang disarankan untuk kepentingan "${editForm.value.kepentingan}" (${datelineRange.value.minDate} – ${datelineRange.value.maxDate}). Lanjutkan simpan?`
+    );
+    if (!confirmed) return;
+  }
+
+  isSaving.value = true;
+  try {
+    const payload = {
+      dateline: editForm.value.dateline,
+      kepentingan: editForm.value.kepentingan,
+      keteranganProduksi: editForm.value.keteranganProduksi,
+      sizes: Object.entries(editSizeQty.value).map(([size, qty]) => ({
+        size,
+        qty: Number(qty) || 0,
+      })),
+    };
+    const response = await api.put(
+      `/price-proposals/${encodeURIComponent(header.value.refPengajuanHarga)}/so-detail`,
+      payload
+    );
+    toast.success(response.data?.message || "SO berhasil diperbarui.");
+    await fetchDetail(); // refresh biar tampilan konsisten sama data server
+  } catch (error: unknown) {
+    const err = error as { response?: { data?: { message?: string } } };
+    toast.error(err.response?.data?.message || "Gagal menyimpan perubahan SO.");
+  } finally {
+    isSaving.value = false;
+  }
+};
+
+const closeTab = () => window.close();
 onMounted(fetchDetail);
 </script>
 
@@ -148,20 +288,32 @@ onMounted(fetchDetail);
         <v-chip v-if="header" :color="statusColor" variant="tonal" size="small" class="ml-3">
           {{ statusLabel }}
         </v-chip>
-        <v-chip color="grey" variant="tonal" size="x-small" class="ml-2">READ-ONLY</v-chip>
+        <v-chip v-if="isClosed" color="grey" variant="tonal" size="x-small" class="ml-2"
+          >TERKUNCI (CLOSE)</v-chip
+        >
       </div>
-      <v-btn size="small" variant="text" prepend-icon="mdi-close" @click="closeTab">Tutup</v-btn>
+      <div class="d-flex align-center" style="gap: 8px">
+        <v-btn
+          size="small"
+          color="primary"
+          variant="flat"
+          prepend-icon="mdi-content-save"
+          :loading="isSaving"
+          :disabled="isLoading || isClosed"
+          @click="handleSave"
+        >
+          Simpan
+        </v-btn>
+        <v-btn size="small" variant="text" prepend-icon="mdi-close" @click="closeTab">Tutup</v-btn>
+      </div>
     </div>
-
     <div v-if="isLoading" class="so-manksi-loading">
       <v-progress-circular indeterminate color="primary" />
     </div>
-
     <div v-else-if="errorMessage" class="so-manksi-loading">
       <v-icon size="48" color="error" class="mb-2">mdi-alert-circle-outline</v-icon>
       <div>{{ errorMessage }}</div>
     </div>
-
     <div v-else-if="header" class="so-manksi-body">
       <div class="pf-tab-nav">
         <button class="pf-tab-btn" :class="{ active: activeTab === 0 }" @click="activeTab = 0">
@@ -174,7 +326,6 @@ onMounted(fetchDetail);
           Kaosan
         </button>
       </div>
-
       <div class="pf-tab-body">
         <!-- ============== TAB SO ============== -->
         <div v-show="activeTab === 0" class="so-layout">
@@ -219,7 +370,23 @@ onMounted(fetchDetail);
                   </div>
                   <div class="fr">
                     <label class="lbl">Kepentingan</label>
-                    <span class="ro-val">{{ header.so_statuskerja }}</span>
+                    <!-- [UBAH] editable -->
+                    <select
+                      v-model="editForm.kepentingan"
+                      class="edit-select"
+                      :disabled="isClosed"
+                      @change="handleKepentinganChange"
+                    >
+                      <option
+                        v-if="!kepentinganOptions.includes(editForm.kepentingan)"
+                        :value="editForm.kepentingan"
+                      >
+                        {{ editForm.kepentingan }}
+                      </option>
+                      <option v-for="opt in kepentinganOptions" :key="opt" :value="opt">
+                        {{ opt }}
+                      </option>
+                    </select>
                   </div>
                   <div class="fr">
                     <label class="lbl">Sales</label>
@@ -291,13 +458,33 @@ onMounted(fetchDetail);
               </div>
             </div>
           </div>
-
           <div class="so-right">
             <div class="fieldset-box">
               <div class="fieldset-legend">Info Tambahan</div>
-              <div class="fr">
-                <label class="lbl" style="width: 72px">Dateline SPK</label>
-                <span class="ro-val">{{ formatDate(header.so_dateline) }}</span>
+              <div class="fr" style="flex-direction: column; align-items: flex-start">
+                <div class="d-flex align-center" style="width: 100%">
+                  <label class="lbl" style="width: 72px">Dateline SPK</label>
+                  <input
+                    type="date"
+                    v-model="editForm.dateline"
+                    class="edit-input"
+                    :disabled="isClosed"
+                    :min="datelineRange?.minDate"
+                    :max="datelineRange?.maxDate"
+                  />
+                </div>
+                <div
+                  v-if="datelineRange"
+                  class="text-caption"
+                  style="margin-left: 72px; color: #757575; font-size: 10px; margin-top: 2px"
+                >
+                  Range untuk "{{ editForm.kepentingan }}":
+                  {{ formatDate(datelineRange.minDate) }} –
+                  {{ formatDate(datelineRange.maxDate) }} ({{ datelineRange.minHari }}–{{
+                    datelineRange.maxHari
+                  }}
+                  hari)
+                </div>
               </div>
               <div class="fr">
                 <label class="lbl" style="width: 72px">Workshop</label>
@@ -318,11 +505,24 @@ onMounted(fetchDetail);
             </div>
             <div class="fieldset-box mt-2">
               <div class="fieldset-legend">Keterangan Produksi</div>
-              <div class="keterangan-box">{{ header.so_keterangan || "-" }}</div>
+              <!-- [UBAH] editable -->
+              <textarea
+                v-model="editForm.keteranganProduksi"
+                class="edit-textarea"
+                rows="8"
+                :disabled="isClosed"
+              ></textarea>
+            </div>
+            <!-- [BARU] Kolom Gambar, diambil dari Pengajuan Harga -->
+            <div class="fieldset-box mt-2">
+              <div class="fieldset-legend">Gambar</div>
+              <div class="gambar-box">
+                <img v-if="gambarUrl" :src="gambarUrl" class="gambar-img" />
+                <div v-else class="gambar-empty">Tidak ada gambar</div>
+              </div>
             </div>
           </div>
         </div>
-
         <!-- ============== TAB KET UKURAN ============== -->
         <div v-show="activeTab === 1" class="uk-layout">
           <div class="uk-card" style="flex: 1">
@@ -357,10 +557,18 @@ onMounted(fetchDetail);
                   <tr
                     v-for="(row, i) in sizes"
                     :key="i"
-                    :class="{ 'row-active': Number(row.qty) > 0 }"
+                    :class="{ 'row-active': Number(editSizeQty[row.size]) > 0 }"
                   >
                     <td class="td-size">{{ row.size }}</td>
-                    <td class="td-num">{{ row.qty }}</td>
+                    <!-- [UBAH] editable — qty per size -->
+                    <td class="td-num td-qty-edit">
+                      <input
+                        type="number"
+                        v-model.number="editSizeQty[row.size]"
+                        class="edit-qty-input"
+                        :disabled="isClosed"
+                      />
+                    </td>
                     <template v-if="showKolomAtasan">
                       <td class="td-num">{{ row.ld || "-" }}</td>
                       <td class="td-num">{{ row.pb || "-" }}</td>
@@ -392,9 +600,12 @@ onMounted(fetchDetail);
                 </tfoot>
               </table>
             </div>
+            <div class="text-caption mt-2" style="color: #757575; font-size: 10px">
+              * Kolom Qty bisa diubah. Ukuran badan (LD/PB/dst) tidak bisa diedit dari sini —
+              hubungi tim produksi untuk perubahan struktur ukuran.
+            </div>
           </div>
         </div>
-
         <!-- ============== TAB KAOSAN ============== -->
         <div v-show="activeTab === 2" class="k-layout">
           <div class="k-section">
@@ -431,6 +642,10 @@ onMounted(fetchDetail);
                   </tr>
                 </tfoot>
               </table>
+            </div>
+            <div class="text-caption mt-2" style="color: #757575; font-size: 10px">
+              * Data barang Kaosan bersifat referensi (read-only) — mengikuti Qty di tab "Ket
+              Ukuran" setelah disimpan.
             </div>
           </div>
         </div>
@@ -519,7 +734,7 @@ onMounted(fetchDetail);
   min-width: 0;
 }
 .so-right {
-  width: 320px;
+  width: 460px;
   flex-shrink: 0;
 }
 .so-section {
@@ -797,5 +1012,77 @@ onMounted(fetchDetail);
   flex-direction: column;
   gap: 5px;
   min-width: 0;
+}
+
+/* [BARU] Style input/select/textarea editable — dibuat senada dengan
+   .ro-val supaya tidak "meloncat" secara visual dari field read-only di
+   sekitarnya */
+.edit-input,
+.edit-select,
+.edit-textarea {
+  font-size: 12px;
+  font-weight: 500;
+  color: #212121;
+  border: 1px solid #bdbdbd;
+  border-radius: 3px;
+  padding: 2px 6px;
+  background: white;
+  font-family: inherit;
+}
+.edit-input:disabled,
+.edit-select:disabled,
+.edit-textarea:disabled {
+  background: #f5f5f5;
+  color: #9e9e9e;
+  border-color: #e0e0e0;
+}
+.edit-input:focus,
+.edit-select:focus,
+.edit-textarea:focus {
+  outline: none;
+  border-color: #1565c0;
+}
+.edit-textarea {
+  width: 100%;
+  resize: vertical;
+  min-height: 140px;
+}
+.edit-qty-input {
+  width: 60px;
+  font-size: 12px;
+  font-weight: 600;
+  text-align: right;
+  border: 1px solid #bdbdbd;
+  border-radius: 3px;
+  padding: 3px 6px;
+}
+.edit-qty-input:disabled {
+  background: #f5f5f5;
+  color: #9e9e9e;
+}
+.edit-qty-input:focus {
+  outline: none;
+  border-color: #1565c0;
+}
+.td-qty-edit {
+  text-align: right !important;
+}
+.gambar-box {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 140px;
+  padding: 6px 0;
+}
+.gambar-img {
+  max-width: 100%;
+  max-height: 220px;
+  object-fit: contain;
+  border-radius: 3px;
+}
+.gambar-empty {
+  color: #9e9e9e;
+  font-size: 11px;
+  font-style: italic;
 }
 </style>

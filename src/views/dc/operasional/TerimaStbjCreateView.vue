@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, reactive, onMounted, watch } from "vue";
+import { ref, reactive, onMounted, watch, computed } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { useToast } from "vue-toastification";
 import { useAuthStore } from "@/stores/authStore";
@@ -115,6 +115,34 @@ const resultHeaders = [
   { title: "No. Terima", key: "terima" },
   { title: "Tgl Terima", key: "tglterima" },
 ] as const;
+
+// --- Computed: Total Ringkasan Garmen ---
+const totalSummary = computed(() => {
+  return summaryItems.value.reduce(
+    (acc, item) => {
+      acc.jumlah += Number(item.jumlah) || 0;
+      acc.koli += Number(item.koli) || 0;
+      return acc;
+    },
+    { jumlah: 0, koli: 0 }
+  );
+});
+
+// --- Computed: Total Alokasi Stok ---
+const totalAllocation = computed(() => {
+  return allocationItems.value.reduce(
+    (acc, item) => {
+      acc.jumlah += Number(item.jumlah) || 0;
+      acc.kdc += Number(item.kdc) || 0;
+      acc.kbs += Number(item.kbs) || 0;
+      acc.kps += Number(item.kps) || 0;
+      acc.kpr += Number(item.kpr) || 0;
+      acc.total += Number(item.total) || 0;
+      return acc;
+    },
+    { jumlah: 0, kdc: 0, kbs: 0, kps: 0, kpr: 0, total: 0 }
+  );
+});
 
 const save = () => {
   if (!authStore.can(MENU_ID, "insert")) {
@@ -421,6 +449,18 @@ watch(
             density="compact"
             fixed-header
           >
+            <template #[`body.append`]>
+              <tr class="sticky-footer-row">
+                <td colspan="3" class="text-end font-weight-bold bg-blue-lighten-5">TOTAL :</td>
+                <td class="text-end font-weight-bold bg-blue-lighten-5 text-blue-darken-4">
+                  {{ totalSummary.jumlah.toLocaleString("id-ID") }}
+                </td>
+                <td class="text-end font-weight-bold bg-blue-lighten-5 text-blue-darken-4">
+                  {{ totalSummary.koli.toLocaleString("id-ID") }}
+                </td>
+                <td class="bg-blue-lighten-5"></td>
+              </tr>
+            </template>
             <template #bottom></template>
           </v-data-table>
         </div>
@@ -470,6 +510,31 @@ watch(
             </template>
             <template #[`item.total`]="{ item }">
               <div class="text-end font-weight-bold">{{ item.total || 0 }}</div>
+            </template>
+            <template #[`body.append`]>
+              <tr class="sticky-footer-row">
+                <td colspan="4" class="text-end font-weight-bold bg-blue-lighten-5">
+                  TOTAL KESELURUHAN :
+                </td>
+                <td class="text-end font-weight-bold bg-blue-lighten-5 text-blue-darken-4">
+                  {{ totalAllocation.jumlah.toLocaleString("id-ID") }}
+                </td>
+                <td class="text-end font-weight-bold bg-blue-lighten-5 text-blue-darken-4">
+                  {{ totalAllocation.kdc.toLocaleString("id-ID") }}
+                </td>
+                <td class="text-end font-weight-bold bg-blue-lighten-5 text-blue-darken-4">
+                  {{ totalAllocation.kbs.toLocaleString("id-ID") }}
+                </td>
+                <td class="text-end font-weight-bold bg-blue-lighten-5 text-blue-darken-4">
+                  {{ totalAllocation.kps.toLocaleString("id-ID") }}
+                </td>
+                <td class="text-end font-weight-bold bg-blue-lighten-5 text-blue-darken-4">
+                  {{ totalAllocation.kpr.toLocaleString("id-ID") }}
+                </td>
+                <td class="text-end font-weight-bold bg-blue-lighten-5 text-blue-darken-4">
+                  {{ totalAllocation.total.toLocaleString("id-ID") }}
+                </td>
+              </tr>
             </template>
             <template #bottom></template>
           </v-data-table>
@@ -591,5 +656,15 @@ watch(
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
   border-bottom: none !important;
   /* Supaya lebih rapi */
+}
+
+/* --- Sticky Footer Row --- */
+.sticky-footer-row td {
+  position: sticky;
+  bottom: 0;
+  z-index: 3;
+  border-top: 2px solid #1976d2 !important;
+  border-bottom: none !important;
+  height: 36px !important;
 }
 </style>

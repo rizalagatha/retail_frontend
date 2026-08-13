@@ -595,8 +595,7 @@ watch(filters, fetchMasterData, { deep: true });
           hide-details
           readonly
           variant="outlined"
-          class="ms-4"
-          style="max-width: 120px"
+          class="ms-4 field-gudang"
         />
         <v-text-field
           v-model="filters.gudangNama"
@@ -604,7 +603,7 @@ watch(filters, fetchMasterData, { deep: true });
           hide-details
           readonly
           filled
-          class="ms-2"
+          class="ms-2 field-gudang-nama"
         />
 
         <v-spacer />
@@ -985,5 +984,26 @@ watch(filters, fetchMasterData, { deep: true });
 
 .reset-filter-btn:hover {
   background-color: rgba(211, 47, 47, 0.25) !important;
+}
+
+/* --- Override Global CSS untuk Field Gudang --- */
+.field-gudang {
+  flex-shrink: 0 !important;
+  width: 120px !important;
+}
+.field-gudang :deep(.v-input__control),
+.field-gudang :deep(.v-field) {
+  width: 100% !important;
+  min-width: 120px !important;
+}
+
+.field-gudang-nama {
+  flex-shrink: 0 !important;
+  width: 300px !important;
+}
+.field-gudang-nama :deep(.v-input__control),
+.field-gudang-nama :deep(.v-field) {
+  width: 100% !important;
+  min-width: 300px !important;
 }
 </style>

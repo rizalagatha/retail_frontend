@@ -224,6 +224,13 @@ const filteredList = computed(() => {
   return data;
 });
 
+// --- Method: Hitung Total Qty Per Halaman ---
+const calculateTotalQtyPerPage = (items: Array<{ raw?: SuratJalanHeader; TotalQty?: number }>) => {
+  return items.reduce((sum: number, item) => {
+    return sum + (Number(item.raw?.TotalQty || item.TotalQty) || 0);
+  }, 0);
+};
+
 // --- Methods: Filter Logic ---
 const uniqueValues = (key: string): Array<string | number> => {
   return Array.from(
@@ -711,8 +718,8 @@ watch(
           hide-details
           clearable
           variant="outlined"
-          style="max-width: 200px"
-          class="ms-4"
+          class="ms-4 field-kode-barang"
+          style="min-width: 150px !important; max-width: 200px !important"
           @keydown.f1.prevent="dialog.searchProduct = true"
         >
         </v-text-field>
@@ -724,8 +731,12 @@ watch(
           hide-details
           readonly
           variant="outlined"
-          class="filter-nama-barang ms-2"
-          style="max-width: 250px"
+          class="filter-nama-barang ms-2 field-nama-barang"
+          style="
+            min-width: 250px !important;
+            max-width: 350px !important;
+            flex-shrink: 0 !important;
+          "
         >
         </v-text-field>
 
@@ -919,6 +930,25 @@ watch(
                   </div>
                 </div>
               </td>
+            </tr>
+          </template>
+
+          <template #[`body.append`]="{ items }">
+            <tr class="sticky-footer-row">
+              <!-- Colspan: Select(1) + Expand(1) + Nomor(1) + Tanggal(1) + Store(1) + Nama Store(1) + Minta(1) + Terima(1) + TglTerima(1) + STBJ(1) = 10 (Tanpa Invoice) / 11 (Dengan Invoice) -->
+              <td
+                :colspan="showInvoiceColumn ? 11 : 10"
+                class="text-end font-weight-bold text-subtitle-2 bg-blue-lighten-5"
+              >
+                TOTAL QTY :
+              </td>
+              <td
+                class="text-end font-weight-bold text-subtitle-2 bg-blue-lighten-5 text-blue-darken-4"
+              >
+                {{ calculateTotalQtyPerPage(items).toLocaleString("id-ID") }}
+              </td>
+              <!-- Colspan sisa: Keterangan(1) + User(1) + Closing(1) = 3 -->
+              <td colspan="3" class="bg-blue-lighten-5"></td>
             </tr>
           </template>
         </AppDataTable>
@@ -1128,5 +1158,36 @@ watch(
 
 .filter-nama-barang :deep(input) {
   font-size: 11px !important;
+}
+
+/* Sticky Footer di dalam tabel body (Per Page) */
+.sticky-footer-row td {
+  position: sticky;
+  bottom: 0;
+  z-index: 3;
+  border-top: 2px solid #1976d2 !important;
+  border-bottom: none !important;
+  height: 40px !important;
+}
+
+/* --- Override Global CSS untuk Field Kode & Nama Barang --- */
+.field-kode-barang {
+  flex-shrink: 0 !important;
+  width: 150px !important;
+}
+.field-kode-barang :deep(.v-input__control),
+.field-kode-barang :deep(.v-field) {
+  width: 100% !important;
+  min-width: 150px !important;
+}
+
+.field-nama-barang {
+  flex-shrink: 0 !important;
+  width: 300px !important; /* Sesuaikan lebar ideal yang diinginkan */
+}
+.field-nama-barang :deep(.v-input__control),
+.field-nama-barang :deep(.v-field) {
+  width: 100% !important;
+  min-width: 300px !important;
 }
 </style>

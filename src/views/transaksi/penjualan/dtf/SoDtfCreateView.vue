@@ -832,7 +832,11 @@ const save = async () => {
   // simpan lanjut otomatis setelah manager approve (lihat openDpAuthorization).
   // Kalau sudah pernah approve untuk sesi form ini, langsung lanjut simpan
   // tanpa minta otorisasi ulang.
-  if (!dpCheck.isSufficient.value && !form.value.dpAuthApprover) {
+
+  // Tambahkan pengecualian untuk user cabang KON dan KPR (tanpa DP/Piutang)
+  const isBypassCabang = ["KON", "KPR"].includes(authStore.user?.cabang || "");
+
+  if (!dpCheck.isSufficient.value && !form.value.dpAuthApprover && !isBypassCabang) {
     openDpAuthorization();
     return;
   }
@@ -1804,7 +1808,12 @@ onMounted(async () => {
                 density="compact"
                 variant="tonal"
                 :type="
-                  dpCheck.isSufficient.value ? 'success' : form.dpAuthApprover ? 'warning' : 'error'
+                  dpCheck.isSufficient.value ||
+                  ['KON', 'KPR'].includes(authStore.user?.cabang || '')
+                    ? 'success'
+                    : form.dpAuthApprover
+                    ? 'warning'
+                    : 'error'
                 "
                 class="mb-0"
               >
@@ -1814,6 +1823,12 @@ onMounted(async () => {
                   </span>
                   <span v-if="dpCheck.isSufficient.value" class="font-weight-bold">
                     ✓ Cukup (Min. Rp {{ dpCheck.projectedMinDp.value.toLocaleString("id-ID") }})
+                  </span>
+                  <span
+                    v-else-if="['KON', 'KPR'].includes(authStore.user?.cabang || '')"
+                    class="font-weight-bold"
+                  >
+                    ✓ Bypass Cabang Tanpa DP / Tempo
                   </span>
                   <span v-else-if="form.dpAuthApprover" class="font-weight-bold">
                     ⚠ Kurang, tapi sudah diotorisasi oleh {{ form.dpAuthApprover }}
@@ -1825,7 +1840,11 @@ onMounted(async () => {
                 </div>
                 <div
                   class="text-caption mt-1"
-                  v-if="!dpCheck.isSufficient.value && !form.dpAuthApprover"
+                  v-if="
+                    !dpCheck.isSufficient.value &&
+                    !form.dpAuthApprover &&
+                    !['KON', 'KPR'].includes(authStore.user?.cabang || '')
+                  "
                 >
                   SO DTF ini membuat SO menjadi custom order (minimal DP 50%). Klik "Simpan" akan
                   memunculkan permintaan otorisasi ke manager karena DP belum mencukupi.

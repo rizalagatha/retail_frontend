@@ -356,6 +356,20 @@ const totalQtyPcs = computed(() =>
   items.value.reduce((acc, cur) => acc + (Number(cur.qty) || 0), 0)
 );
 
+// Direct Print Logic
+const handlePrint = () => {
+  const nomor = header.nomor || editNomor.value;
+  if (!nomor) {
+    toast.error("Simpan dokumen manifest terlebih dahulu sebelum mencetak.");
+    return;
+  }
+  const routeData = router.resolve({
+    name: "ManifestKirimPrint",
+    params: { nomor },
+  });
+  window.open(routeData.href, "_blank");
+};
+
 // Available Options for Referensi Gabungan
 const otherSjOptions = (currentSjNomor: string) => {
   return items.value
@@ -496,7 +510,7 @@ const processSingleCode = async (code: string) => {
       showSjModal.value = true;
       toast.info(`Ditemukan ${response.data.length} Surat Jalan. Silakan pilih.`);
     } else {
-      toast.error(`Surat Jalan / Packing List "${code}" tidak ditemukan atau tidak tersedia.`);
+      toast.error(`No. SJ/PL "${code}" tidak ditemukan.`);
     }
   } catch (error: unknown) {
     const err = error as { response?: { data?: { message?: string } } };
@@ -712,6 +726,15 @@ onMounted(async () => {
         @click="isLeftColumnVisible = !isLeftColumnVisible"
       >
         {{ isLeftColumnVisible ? "Sembunyikan Header" : "Tampilkan Header" }}
+      </v-btn>
+      <v-btn
+        size="small"
+        color="secondary"
+        variant="outlined"
+        prepend-icon="mdi-printer"
+        @click="handlePrint"
+      >
+        Cetak
       </v-btn>
       <v-btn
         size="small"
@@ -994,7 +1017,7 @@ onMounted(async () => {
                 <th style="width: 150px" class="text-center">No. Surat Jalan</th>
                 <th style="width: 95px" class="text-center">Tanggal SJ</th>
                 <th style="width: 140px" class="text-center">No. Packing List</th>
-                <th class="text-center">Nama Store</th>
+                <th class="text-center">Store Tujuan</th>
                 <th style="width: 100px" class="text-center">Qty (Pcs)</th>
                 <th style="width: 100px" class="text-center">Koli</th>
                 <th style="width: 100px" class="text-center">Status</th>
@@ -1246,7 +1269,7 @@ onMounted(async () => {
               </div>
               <div class="d-flex justify-space-between mb-1">
                 <span class="text-grey-darken-1">Ekspedisi / Armada</span>
-                <span class="font-weight-medium">{{ header.ekspedisi || "Armada Sendiri" }}</span>
+                <span class="font-weight-medium">{{ header.jenisKirim }}</span>
               </div>
               <div class="d-flex justify-space-between align-center mb-1">
                 <span class="text-grey-darken-1">Waktu</span>
@@ -1519,7 +1542,7 @@ onMounted(async () => {
                 <th>No. Surat Jalan</th>
                 <th>Tanggal SJ</th>
                 <th>Store Tujuan</th>
-                <th class="text-right">Total Qty (Pcs)</th>
+                <th class="text-right">Qty (Pcs)</th>
                 <th class="text-center">Aksi</th>
               </tr>
             </thead>
@@ -1715,5 +1738,29 @@ onMounted(async () => {
   font-size: 11px;
   font-weight: bold;
   flex-shrink: 0;
+}
+
+@media print {
+  body * {
+    visibility: hidden !important;
+  }
+  .print-area,
+  .print-area * {
+    visibility: visible !important;
+  }
+  .print-area {
+    position: absolute !important;
+    left: 0 !important;
+    top: 0 !important;
+    width: 100% !important;
+    padding: 8mm !important;
+    background: #ffffff !important;
+    color: #000000 !important;
+    margin: 0 !important;
+  }
+  .no-print,
+  .v-overlay-container {
+    display: none !important;
+  }
 }
 </style>

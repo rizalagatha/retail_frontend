@@ -411,6 +411,20 @@ const exportData = (type: "header") => {
   }
 };
 
+// Direct Print Logic
+const handlePrintSelected = () => {
+  if (!selectedRow.value) {
+    toast.error("Pilih satu Manifest Kirim yang ingin dicetak.");
+    return;
+  }
+  const nomor = selectedRow.value.Nomor;
+  const routeData = router.resolve({
+    name: "ManifestKirimPrint",
+    params: { nomor },
+  });
+  window.open(routeData.href, "_blank");
+};
+
 onMounted(() => {
   if (authStore.can(MENU_ID, "view")) {
     loadData();
@@ -453,6 +467,16 @@ watch(
         @click="handleEdit"
       >
         Ubah
+      </v-btn>
+      <v-btn
+        size="small"
+        color="secondary"
+        variant="outlined"
+        :disabled="!isSingleSelected"
+        prepend-icon="mdi-printer"
+        @click="handlePrintSelected"
+      >
+        Cetak
       </v-btn>
       <v-btn
         v-if="authStore.can(MENU_ID, 'delete')"
@@ -747,7 +771,7 @@ watch(
       </v-card>
     </v-dialog>
 
-    <!-- Custom Filter Dialog -->
+    <!-- Dialog Custom Filter -->
     <v-dialog v-model="customFilterDialog" max-width="350px">
       <v-card>
         <v-card-title class="text-subtitle-1 font-weight-bold">Custom Filter</v-card-title>
@@ -761,10 +785,10 @@ watch(
           />
           <v-text-field
             v-model="customFilter.value"
+            label="Nilai Filter"
             density="compact"
             hide-details
-            autofocus
-            placeholder="Value..."
+            @keyup.enter="applyCustomFilter"
           />
         </v-card-text>
         <v-card-actions>
@@ -916,5 +940,29 @@ watch(
 
 .rotate-180 {
   transform: rotate(180deg);
+}
+
+@media print {
+  body * {
+    visibility: hidden !important;
+  }
+  .print-area,
+  .print-area * {
+    visibility: visible !important;
+  }
+  .print-area {
+    position: absolute !important;
+    left: 0 !important;
+    top: 0 !important;
+    width: 100% !important;
+    padding: 8mm !important;
+    background: #ffffff !important;
+    color: #000000 !important;
+    margin: 0 !important;
+  }
+  .no-print,
+  .v-overlay-container {
+    display: none !important;
+  }
 }
 </style>

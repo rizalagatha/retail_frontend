@@ -220,6 +220,7 @@ const KomplainCustomerPrintView = () =>
 const QckeGarmenView = () => import("@/views/dc/operasional/QckeGarmenView.vue");
 const QckeGarmenCreateView = () => import("@/views/dc/operasional/QckeGarmenCreateView.vue");
 const QckeGarmenPrintView = () => import("@/views/dc/operasional/QckeGarmenPrintView.vue");
+const ManifestKirimPrintView = () => import("@/views/dc/operasional/ManifestKirimPrintView.vue");
 const TerimaReturView = () => import("@/views/dc/operasional/TerimaReturView.vue");
 const TerimaReturCreateView = () => import("@/views/dc/operasional/TerimaReturCreateView.vue");
 const JenisKainView = () => import("@/views/dc/master-data/JenisKainView.vue");
@@ -1236,6 +1237,17 @@ const routes = [
       title: "Buat Manifest Pengiriman DC",
       requiresAuth: true,
       menuId: "227",
+    },
+  },
+  {
+    path: "/gudang-dc/operasional/manifest-kirim/print/:nomor",
+    name: "ManifestKirimPrint",
+    component: ManifestKirimPrintView,
+    meta: {
+      title: "Cetak Manifest Pengiriman DC",
+      requiresAuth: true,
+      printLayout: true,
+      layout: "PrintLayout",
     },
   },
   {

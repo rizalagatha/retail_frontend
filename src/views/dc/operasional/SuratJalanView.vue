@@ -37,6 +37,7 @@ interface SuratJalanHeader {
   Keterangan: string;
   Usr: string;
   NoInvoice: string;
+  NoManifest?: string;
   TotalQty: number;
   [key: string]: unknown;
 }
@@ -148,6 +149,9 @@ const masterHeaders = computed<DataTableHeader[]>(() => {
     { title: "Store", key: "Store", width: 80 },
     { title: "Nama Store", key: "Nama_Store", width: 200 },
   ];
+
+  // Tambahkan No. Manifest di samping kiri No. Invoice
+  baseHeaders.push({ title: "No. Manifest", key: "NoManifest", width: 160 });
 
   // Tambahkan No. Invoice HANYA untuk KDC atau KPR
   if (showInvoiceColumn.value) {
@@ -889,6 +893,10 @@ watch(
 
           <template #[`item.NoSTBJ`]="{ item }">
             <span :class="item.NoSTBJ && 'text-blue font-weight-bold'">{{ item.NoSTBJ }}</span>
+          </template>
+
+          <template #[`item.NoManifest`]="{ item }">
+            <span class="font-weight-medium text-indigo-darken-2">{{ item.NoManifest || "-" }}</span>
           </template>
 
           <template #[`item.NoInvoice`]="{ item }">

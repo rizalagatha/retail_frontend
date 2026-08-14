@@ -123,7 +123,7 @@ const header = reactive({
   jam: format(new Date(), "HH:mm"),
   gudang: userCabangKode.value || "",
   tujuan: "",
-  jenisKirim: "ARMADA_SENDIRI",
+  jenisKirim: "",
   driver: "",
   platNomor: "",
   ekspedisi: "",
@@ -602,7 +602,7 @@ const loadEditData = async () => {
     header.jam = String(h.jam || h.Jam || format(new Date(), "HH:mm"));
     header.gudang = String(h.gudang || h.Gudang || userCabangKode.value || "");
     header.tujuan = String(h.tujuan || h.Tujuan || "");
-    header.jenisKirim = String(h.jenisKirim || h.JenisKirim || "ARMADA_SENDIRI");
+    header.jenisKirim = String(h.jenisKirim || h.JenisKirim || "");
     header.driver = String(h.driver || h.Driver || "");
     header.platNomor = String(h.platNomor || h.PlatNomor || "");
     header.ekspedisi = String(h.ekspedisi || h.Ekspedisi || "");

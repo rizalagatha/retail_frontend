@@ -7,7 +7,6 @@ import { useAuthStore } from "@/stores/authStore";
 import { format, subDays } from "date-fns";
 import PageLayout from "@/components/PageLayout.vue";
 import AppDataTable from "@/components/AppDataTable.vue";
-import * as XLSX from "xlsx";
 import { AxiosError } from "axios";
 
 // --- Tipe Data ---
@@ -322,7 +321,11 @@ const createNew = () => {
 
 const handleEdit = () => {
   if (!selectedRow.value) return;
-  router.push(`/gudang-dc/operasional/manifest-kirim/create?nomor=${encodeURIComponent(selectedRow.value.Nomor)}`);
+  router.push(
+    `/gudang-dc/operasional/manifest-kirim/create?nomor=${encodeURIComponent(
+      selectedRow.value.Nomor
+    )}`
+  );
 };
 
 const showDeleteConfirmation = () => {
@@ -358,56 +361,6 @@ const getStatusColor = (status: string) => {
       return "red";
     default:
       return "grey";
-  }
-};
-
-// Helper Format Tanggal Indonesia
-const formatDateIndo = (dateString: string | Date | null | undefined) => {
-  if (!dateString) return "";
-  const date = new Date(dateString);
-  if (isNaN(date.getTime())) return "";
-  return new Intl.DateTimeFormat("id-ID", {
-    day: "numeric",
-    month: "long",
-    year: "numeric",
-  }).format(date);
-};
-
-// Helper Auto Width Columns
-const getAutoColumnWidth = (data: Record<string, unknown>[]) => {
-  if (data.length === 0) return [];
-  return Object.keys(data[0]).map((key) => ({
-    wch: Math.max(key.length + 5, 15),
-  }));
-};
-
-// Export Data Excel
-const exportData = (type: "header") => {
-  if (type === "header") {
-    if (manifestList.value.length === 0) {
-      toast.warning("Tidak ada data header untuk diekspor.");
-      return;
-    }
-
-    try {
-      toast.info("Membuat file Excel Header...");
-
-      const formattedHeader = manifestList.value.map((item) => ({
-        ...item,
-        Tanggal: item.Tanggal ? formatDateIndo(item.Tanggal) : "",
-      }));
-
-      const worksheet = XLSX.utils.json_to_sheet(formattedHeader);
-      worksheet["!cols"] = getAutoColumnWidth(formattedHeader);
-
-      const workbook = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(workbook, worksheet, "Manifest Header");
-      XLSX.writeFile(workbook, "Export_Manifest_Kirim_Header.xlsx");
-      toast.success("File Header berhasil dibuat.");
-    } catch (error: unknown) {
-      const err = error as AxiosError<{ message?: string }>;
-      toast.error(err.response?.data?.message || "Gagal membuat file Excel.");
-    }
   }
 };
 
@@ -488,18 +441,6 @@ watch(
       >
         Hapus
       </v-btn>
-      <v-menu offset-y>
-        <template v-slot:activator="{ props }">
-          <v-btn size="small" color="teal" prepend-icon="mdi-file-excel" v-bind="props">
-            Export
-          </v-btn>
-        </template>
-        <v-list density="compact">
-          <v-list-item @click="exportData('header')">
-            <v-list-item-title>Export Header</v-list-item-title>
-          </v-list-item>
-        </v-list>
-      </v-menu>
     </template>
 
     <div class="browse-content">
@@ -529,7 +470,7 @@ watch(
             { title: 'DRAFT', value: 'DRAFT' },
             { title: 'DIKIRIM', value: 'DIKIRIM' },
             { title: 'SELESAI', value: 'SELESAI' },
-            { title: 'BATAL', value: 'BATAL' }
+            { title: 'BATAL', value: 'BATAL' },
           ]"
           item-title="title"
           item-value="value"

@@ -7,6 +7,7 @@ import { useAuthStore } from "@/stores/authStore";
 import { format } from "date-fns";
 import PageLayout from "@/components/PageLayout.vue";
 import GudangSearchModal from "@/components/lookup/GudangSearchModal.vue";
+import QrcodeVue from "qrcode.vue";
 
 interface Cabang {
   kode: string;
@@ -14,27 +15,47 @@ interface Cabang {
 }
 
 interface ManifestKirimHeader {
-  Nomor: string;
-  Tanggal: string;
+  nomor?: string;
+  Nomor?: string;
+  tanggal?: string;
+  Tanggal?: string;
+  jam?: string;
   Jam?: string;
-  Gudang: string;
+  gudang?: string;
+  Gudang?: string;
+  tujuan?: string;
   Tujuan?: string;
+  namaGudang?: string;
   NamaGudang?: string;
-  JenisKirim: string;
-  Driver: string;
-  PlatNomor: string;
-  Ekspedisi: string;
-  NoResi: string;
-  TotalSj: number;
-  TotalKoli: number;
-  TotalQty: number;
+  jenisKirim?: string;
+  JenisKirim?: string;
+  driver?: string;
+  Driver?: string;
+  platNomor?: string;
+  PlatNomor?: string;
+  ekspedisi?: string;
+  Ekspedisi?: string;
+  noResi?: string;
+  NoResi?: string;
+  totalSj?: number;
+  TotalSj?: number;
+  totalKoli?: number;
+  TotalKoli?: number;
+  totalQty?: number;
+  TotalQty?: number;
+  beratKg?: number;
   BeratKg?: number;
+  keterangan?: string;
   Keterangan?: string;
-  Status: string;
+  status?: string;
+  Status?: string;
+  usr?: string;
   Usr?: string;
+  dateCreate?: string;
   DateCreate?: string;
   ttdPengirim?: string;
   ttdDriver?: string;
+  [key: string]: unknown;
 }
 
 interface ManifestKirimItem {
@@ -340,7 +361,7 @@ const otherSjOptions = (currentSjNomor: string) => {
   return items.value
     .filter((i) => i.sjNomor !== currentSjNomor && i.koli > 0)
     .map((i) => ({
-      title: `${i.sjNomor} (${i.storeNama || i.storeKode})`,
+      title: i.sjNomor,
       value: i.sjNomor,
     }));
 };
@@ -558,29 +579,30 @@ const loadEditData = async () => {
     const response = await api.get<{ header: ManifestKirimHeader; items: ManifestKirimItem[] }>(
       `/manifest-kirim/${encodeURIComponent(editNomor.value)}`
     );
-    const h = response.data.header;
-    header.nomor = h.Nomor;
-    header.tanggal = h.Tanggal
-      ? format(new Date(h.Tanggal), "yyyy-MM-dd")
+    const h = (response.data.header || {}) as ManifestKirimHeader;
+    header.nomor = String(h.nomor || h.Nomor || "");
+    const rawTgl = (h.tanggal || h.Tanggal) as string;
+    header.tanggal = rawTgl
+      ? format(new Date(rawTgl), "yyyy-MM-dd")
       : format(new Date(), "yyyy-MM-dd");
-    header.jam = h.Jam || format(new Date(), "HH:mm");
-    header.gudang = h.Gudang;
-    header.tujuan = h.Tujuan || (items.value.length > 0 ? items.value[0].storeKode : "");
-    header.jenisKirim = h.JenisKirim || "ARMADA_SENDIRI";
-    header.driver = h.Driver || "";
-    header.platNomor = h.PlatNomor || "";
-    header.ekspedisi = h.Ekspedisi || "";
-    header.noResi = h.NoResi || "";
-    header.beratKg = h.BeratKg || 0;
-    header.keterangan = h.Keterangan || "";
-    header.status = h.Status || "TERCATAT";
-    header.dateCreate = h.DateCreate || "";
-    header.ttdPengirim = h.ttdPengirim || "";
-    header.ttdDriver = h.ttdDriver || "";
+    header.jam = String(h.jam || h.Jam || format(new Date(), "HH:mm"));
+    header.gudang = String(h.gudang || h.Gudang || userCabangKode.value || "");
+    header.tujuan = String(h.tujuan || h.Tujuan || "");
+    header.jenisKirim = String(h.jenisKirim || h.JenisKirim || "ARMADA_SENDIRI");
+    header.driver = String(h.driver || h.Driver || "");
+    header.platNomor = String(h.platNomor || h.PlatNomor || "");
+    header.ekspedisi = String(h.ekspedisi || h.Ekspedisi || "");
+    header.noResi = String(h.noResi || h.NoResi || "");
+    header.beratKg = Number(h.beratKg || h.BeratKg || 0);
+    header.keterangan = String(h.keterangan || h.Keterangan || "");
+    header.status = String(h.status || h.Status || "TERCATAT");
+    header.dateCreate = String(h.dateCreate || h.DateCreate || "");
+    header.ttdPengirim = String(h.ttdPengirim || h.ttdPengirim || "");
+    header.ttdDriver = String(h.ttdDriver || h.ttdDriver || "");
 
-    items.value = response.data.items.map((it) => ({
+    items.value = (response.data.items || []).map((it) => ({
       ...it,
-      noPackingList: it.noPackingList || `PL-${it.sjNomor.split(".").pop() || "001"}`,
+      noPackingList: it.noPackingList || "",
       referensiGabung: it.referensiGabung || "",
     }));
     if (items.value.length > 0 && !header.tujuan) {
@@ -678,9 +700,7 @@ onMounted(async () => {
 
 <template>
   <PageLayout
-    :title="
-      isNew ? 'Buat Manifest Pengiriman' : `Edit Manifest: ${header.nomor} ${displayManifestNomor}`
-    "
+    :title="isNew ? 'Buat Manifest Pengiriman' : `Edit Manifest: ${header.nomor}`"
     icon="mdi-truck-cargo-container"
   >
     <template #header-actions>
@@ -1030,23 +1050,27 @@ onMounted(async () => {
                     :items="otherSjOptions(item.sjNomor)"
                     item-title="title"
                     item-value="value"
-                    placeholder="Pilih SJ Tujuan..."
+                    placeholder="Gabung Ke SJ..."
                     density="compact"
                     variant="outlined"
                     hide-details
-                    class="select-compact"
+                    class="select-compact font-weight-medium"
                   />
-                  <div
-                    v-else-if="getAttachedSjs(item.sjNomor).length > 0"
-                    class="d-flex align-center gap-1"
-                  >
-                    <v-chip color="info" size="x-small" variant="tonal" class="font-weight-bold">
-                      <v-icon size="12" class="me-1">mdi-package-variant-closed</v-icon>
-                      Menampung {{ getAttachedSjs(item.sjNomor).length }} SJ ({{
-                        getAttachedSjs(item.sjNomor).join(", ")
-                      }})
-                    </v-chip>
-                  </div>
+                  <v-tooltip v-else-if="getAttachedSjs(item.sjNomor).length > 0" location="top">
+                    <template #activator="{ props }">
+                      <v-chip
+                        v-bind="props"
+                        color="info"
+                        size="x-small"
+                        variant="tonal"
+                        class="font-weight-bold cursor-pointer px-2"
+                      >
+                        <v-icon size="12" class="me-1">mdi-link-variant</v-icon>
+                        +{{ getAttachedSjs(item.sjNomor).length }} SJ Gabungan
+                      </v-chip>
+                    </template>
+                    <span>SJ Gabung: {{ getAttachedSjs(item.sjNomor).join(", ") }}</span>
+                  </v-tooltip>
                   <span v-else class="text-grey text-caption">-</span>
                 </td>
                 <td>
@@ -1305,28 +1329,15 @@ onMounted(async () => {
           <v-card-text
             class="pa-3 d-flex flex-column align-center justify-center flex-grow-1 text-center"
           >
-            <!-- QR Code Display Box -->
-            <div class="qr-box pa-2 border rounded-lg bg-white mb-2 elevation-1">
-              <svg
-                width="65"
-                height="65"
-                viewBox="0 0 100 100"
-                fill="none"
-                xmlns="http://www.w3.org/2000/svg"
+            <!-- QR Code Display Box Dinamis -->
+            <div class="qr-box pa-2 border rounded-lg bg-white mb-2 elevation-1 d-inline-block">
+              <QrcodeVue
+                :value="displayManifestNomor"
+                :size="65"
+                level="M"
+                render-as="svg"
                 :style="isNew ? 'opacity: 0.35;' : ''"
-              >
-                <rect width="100" height="100" fill="white" />
-                <path d="M10 10H40V40H10V10ZM15 15V35H35V15H15Z" fill="black" />
-                <path d="M20 20H30V30H20V20Z" fill="black" />
-                <path d="M60 10H90V40H60V10ZM65 15V35H85V15H65Z" fill="black" />
-                <path d="M70 20H80V30H70V20Z" fill="black" />
-                <path d="M10 60H40V90H10V60ZM15 65V85H35V65H15Z" fill="black" />
-                <path d="M20 70H30V80H20V70Z" fill="black" />
-                <rect x="50" y="50" width="10" height="10" fill="black" />
-                <rect x="70" y="50" width="20" height="10" fill="black" />
-                <rect x="50" y="70" width="10" height="20" fill="black" />
-                <rect x="70" y="70" width="20" height="20" fill="black" />
-              </svg>
+              />
             </div>
 
             <div class="font-weight-bold text-caption text-primary mb-2">
@@ -1506,7 +1517,7 @@ onMounted(async () => {
             <thead>
               <tr class="bg-grey-lighten-3">
                 <th>No. Surat Jalan</th>
-                <th>Tanggal</th>
+                <th>Tanggal SJ</th>
                 <th>Store Tujuan</th>
                 <th class="text-right">Total Qty (Pcs)</th>
                 <th class="text-center">Aksi</th>

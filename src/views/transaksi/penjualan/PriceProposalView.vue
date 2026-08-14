@@ -37,11 +37,12 @@ interface PriceProposal {
   approval: string;
   status: string;
   statusUpdated: string | null;
-  refSoSpk: string | null; // [BARU]
+  refSoSpk: string | null;
+  soKaosanNomor: string | null;
   cabang: string;
   created: string;
-  kodeBarangDraft: string | null; // [BARU]
-  kodeBarangFinal: string | null; // [BARU]
+  kodeBarangDraft: string | null;
+  kodeBarangFinal: string | null;
   ketersediaan: "Stok" | "Custom" | "Sublim";
   kodeCelanaDraft: string | null;
 }
@@ -134,6 +135,7 @@ const tableHeaders = ref<DataTableHeader[]>([
   { title: "Jenis Kaos", key: "jenisKaos", width: 200 },
   { title: "Keterangan", key: "keterangan", width: 300 },
   { title: "Status", key: "status", width: 130 },
+  { title: "Nomor SO Kaosan", key: "soKaosanNomor", width: 160 },
   { title: "Cabang", key: "cabang", width: 120 },
   { title: "User", key: "created", width: 120 },
 ]);
@@ -408,6 +410,12 @@ const submitGenerateSo = async () => {
 
 const openSoManksi = (soNomor: string) => {
   const routeData = router.resolve({ name: "SoManksiDetail", params: { nomor: soNomor } });
+  window.open(routeData.href, "_blank");
+};
+
+const openSoKaosan = (soNomor: string) => {
+  // Mengarahkan ke form ubah SO Kaosan di tab baru
+  const routeData = router.resolve(`/transaksi/penjualan/surat-pesanan/ubah/${soNomor}`);
   window.open(routeData.href, "_blank");
 };
 
@@ -727,6 +735,18 @@ onBeforeRouteLeave((to, from, next) => {
                   size="x-small"
                   >{{ item.ketersediaan }}</v-chip
                 >
+              </template>
+              <template v-else-if="header.key === 'soKaosanNomor'">
+                <a
+                  v-if="item.soKaosanNomor"
+                  href="#"
+                  class="text-blue-darken-2 font-weight-bold text-decoration-none"
+                  @click.prevent="openSoKaosan(item.soKaosanNomor)"
+                  title="Lihat Detail SO Kaosan"
+                >
+                  {{ item.soKaosanNomor }}
+                </a>
+                <span v-else class="text-grey">-</span>
               </template>
               <template v-else>
                 {{ item[header.key] }}

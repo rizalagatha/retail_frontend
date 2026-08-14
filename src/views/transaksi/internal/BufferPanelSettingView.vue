@@ -292,8 +292,10 @@ const saveBranchConfig = async () => {
 // --- FETCH CABANG & DATA PREVIEW ---
 const fetchCabangList = async () => {
   try {
-    const response = await api.get("/buffer-stock/lookup/cabang");
+    // [UBAH] Arahkan ke endpoint yang baru kita buat
+    const response = await api.get("/buffer-panel/cabang");
     cabangList.value = response.data;
+
     if (authStore.user?.cabang !== "KDC" && cabangList.value.length > 0) {
       selectedCabang.value = authStore.user?.cabang || "";
     } else if (authStore.user?.cabang === "KDC" && cabangList.value.length > 0) {
@@ -454,6 +456,10 @@ const totals = computed(() => {
     { avg: 0, buf: 0, min: 0, max: 0, rop: 0, real: 0, spk: 0 }
   );
 });
+
+const isVirtualCabang = computed(
+  () => selectedCabang.value === "KPR" || selectedCabang.value === "TOKO_BARU"
+);
 
 // --- SAVE FINAL KE DATABASE TOKO ---
 const saveFinalBuffer = async () => {
@@ -813,6 +819,7 @@ watch([page, itemsPerPage], () => {
         prepend-icon="mdi-content-save-check"
         size="small"
         :loading="isSaving"
+        :disabled="isVirtualCabang"
         @click="saveFinalBuffer"
       >
         Terapkan ke Toko

@@ -237,14 +237,18 @@ onMounted(() => {
                 class="ma-3 pa-3 bg-white border rounded-lg shadow-sm"
               >
                 <div class="d-flex justify-space-between align-start mb-2 border-b pb-2">
-                  <div>
+                  <!-- Tambahkan flex-grow-1, jarak kanan (pr-4), dan min-width: 0 agar layout tidak rusak -->
+                  <div class="flex-grow-1 pr-4" style="min-width: 0">
                     <v-chip size="small" color="grey-darken-2" class="font-weight-bold mb-1">{{
                       item.pc_nomor
                     }}</v-chip>
                     <div class="text-caption font-weight-bold text-primary">
                       {{ item.pcd_kategori }}
                     </div>
-                    <div class="text-body-2">{{ item.pcd_keterangan }}</div>
+                    <!-- Tambahkan word-break agar teks panjang turun ke bawah -->
+                    <div class="text-body-2" style="word-break: break-word">
+                      {{ item.pcd_keterangan }}
+                    </div>
 
                     <div
                       v-if="item.pcd_no_transaksi"
@@ -256,7 +260,8 @@ onMounted(() => {
                     </div>
                   </div>
 
-                  <div class="text-right">
+                  <!-- Tambahkan flex-shrink-0 agar elemen kanan tidak ikut mengecil atau terdorong -->
+                  <div class="text-right flex-shrink-0">
                     <div class="text-caption text-grey mb-1">
                       Tgl Nota: {{ format(parseISO(item.pcd_tanggal), "dd/MM/yyyy") }} (PCV:
                       {{ item.pcd_pcv }})

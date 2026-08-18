@@ -46,6 +46,9 @@ interface ManifestKirimHeader {
   userCreate?: string;
   dateCreate?: string;
   DateCreate?: string;
+  userModified?: string;
+  dateModified?: string;
+  DateModified?: string;
   ttdPengirim?: string;
   ttdDriver?: string;
   [key: string]: unknown;
@@ -126,12 +129,41 @@ const formattedDateCreate = computed(() => {
   }
 });
 
+const formattedDateConfirm = computed(() => {
+  const d = (header.value.dateModified || header.value.DateModified || header.value.dateCreate || header.value.DateCreate) as string;
+  if (!d) return "-";
+  try {
+    return format(new Date(d), "dd/MM/yyyy HH:mm") + " WIB";
+  } catch {
+    return d;
+  }
+});
+
 const totalKoliFisik = computed(() => {
   return items.value.reduce((acc, cur) => acc + (Number(cur.koli) || 0), 0);
 });
 
 const totalQtyPcs = computed(() => {
   return items.value.reduce((acc, cur) => acc + (Number(cur.qty) || 0), 0);
+});
+
+// Status aktual dari header
+const displayStatus = computed(() => {
+  return String(header.value.status || header.value.Status || "").toUpperCase();
+});
+
+// True jika status sudah dikonfirmasi (DIKIRIM/SELESAI) namun TTD digital tidak ada
+// → berarti TTD dilakukan secara basah di kertas cetak
+const isWetSignaturePengirim = computed(() => {
+  const hasTtd = !!header.value.ttdPengirim;
+  const confirmed = ["DIKIRIM", "SELESAI"].includes(displayStatus.value);
+  return !hasTtd && confirmed;
+});
+
+const isWetSignatureDriver = computed(() => {
+  const hasTtd = !!header.value.ttdDriver;
+  const confirmed = ["DIKIRIM", "SELESAI"].includes(displayStatus.value);
+  return !hasTtd && confirmed;
 });
 
 const totalPlCount = computed(() => {
@@ -414,11 +446,21 @@ onMounted(() => {
                 class="text-center my-2 d-flex align-center justify-center"
                 style="min-height: 55px"
               >
+                <!-- TTD Digital -->
                 <img
                   v-if="header.ttdPengirim"
                   :src="String(header.ttdPengirim)"
                   style="max-height: 50px; border-bottom: 1px solid #000"
                 />
+                <!-- TTD Basah (status DIKIRIM/SELESAI tanpa TTD digital) -->
+                <div
+                  v-else-if="isWetSignaturePengirim"
+                  class="wet-signature-badge"
+                >
+                  <span class="font-weight-bold">Sudah konfirmasi tanda tangan</span>
+                  <span class="confirm-time">pada {{ formattedDateConfirm }}</span>
+                </div>
+                <!-- Belum ditandatangani -->
                 <div v-else style="border-bottom: 1px solid #000; margin-top: 35px; width: 80%"></div>
               </div>
             </div>
@@ -470,11 +512,21 @@ onMounted(() => {
                 class="text-center my-2 d-flex align-center justify-center"
                 style="min-height: 55px"
               >
+                <!-- TTD Digital -->
                 <img
                   v-if="header.ttdDriver"
                   :src="String(header.ttdDriver)"
                   style="max-height: 50px; border-bottom: 1px solid #000"
                 />
+                <!-- TTD Basah (status DIKIRIM/SELESAI tanpa TTD digital) -->
+                <div
+                  v-else-if="isWetSignatureDriver"
+                  class="wet-signature-badge"
+                >
+                  <span class="font-weight-bold">Sudah konfirmasi tanda tangan</span>
+                  <span class="confirm-time">pada {{ formattedDateConfirm }}</span>
+                </div>
+                <!-- Belum ditandatangani -->
                 <div v-else style="border-bottom: 1px solid #000; margin-top: 35px; width: 80%"></div>
               </div>
             </div>
@@ -512,5 +564,27 @@ onMounted(() => {
   .print-area {
     padding: 5mm !important;
   }
+}
+
+.wet-signature-badge {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  border: 1px dashed #1565c0;
+  border-radius: 4px;
+  padding: 4px 10px;
+  background: #f0f7ff;
+  color: #1565c0;
+  font-size: 9.5px;
+  line-height: 1.25;
+  letter-spacing: 0.2px;
+}
+
+.wet-signature-badge .confirm-time {
+  font-size: 8.5px;
+  color: #374151;
+  font-weight: 500;
 }
 </style>

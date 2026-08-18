@@ -4,6 +4,7 @@ import { useRoute } from "vue-router";
 import api from "@/services/api";
 import { format, parseISO } from "date-fns";
 import Logo from "@/assets/logo.png";
+import QRCode from "qrcode";
 
 interface PrintHeader {
   sj_nomor: string;
@@ -33,6 +34,7 @@ interface PrintData {
 
 const route = useRoute();
 const printData = ref<PrintData | null>(null);
+const qrCodeData = ref<string | null>(null); // State untuk QR Code
 const isLoading = ref(true);
 const appLogo = Logo;
 
@@ -44,6 +46,12 @@ const fetchPrintData = async (nomor: string) => {
 
     const nomorSJ = printData.value?.header?.sj_nomor;
     if (nomorSJ) {
+      // Generate QR Code dari nomor Surat Jalan
+      qrCodeData.value = await QRCode.toDataURL(nomorSJ, {
+        width: 90,
+        margin: 1,
+      });
+
       document.title = nomorSJ;
     }
   } catch (error) {
@@ -74,13 +82,18 @@ onMounted(() => {
   <div class="print-container">
     <div v-if="isLoading" class="text-center">Memuat data...</div>
     <div v-if="printData" class="page">
-      <!-- Loop untuk membuat dua copy surat jalan -->
       <div class="header">
-        <img :src="appLogo" alt="Logo" class="logo" />
-        <div class="company-info">
-          <strong>{{ printData.header.perush_nama }}</strong>
-          <div>{{ printData.header.perush_alamat }}</div>
-          <div>{{ printData.header.perush_telp }}</div>
+        <div class="header-left">
+          <img :src="appLogo" alt="Logo" class="logo" />
+          <div class="company-info">
+            <strong>{{ printData.header.perush_nama }}</strong>
+            <div>{{ printData.header.perush_alamat }}</div>
+            <div>{{ printData.header.perush_telp }}</div>
+          </div>
+        </div>
+
+        <div class="header-right">
+          <img v-if="qrCodeData" :src="qrCodeData" class="qr-code" />
         </div>
       </div>
 
@@ -178,37 +191,26 @@ body {
   box-sizing: border-box;
 }
 
-.surat-jalan-instance {
-  height: 130mm;
-  /* Setengah halaman A4 dikurangi margin */
-  display: flex;
-  flex-direction: column;
-  border: 1px solid #ccc;
-  padding: 8mm;
-  box-sizing: border-box;
-}
-
 /* Header */
 .header {
   display: flex;
-  flex-direction: row;
-  justify-content: flex-start;
-  /* ✅ Pastikan rata kiri */
+  justify-content: space-between;
   align-items: flex-start;
-  /* ✅ Ubah dari center ke flex-start */
-  gap: 15px;
-  /* ✅ Gunakan gap untuk jarak */
-  margin-bottom: 8px;
   width: 100%;
+  margin-bottom: 8px;
+}
+
+.header-left {
+  display: flex;
+  align-items: flex-start;
+  gap: 15px;
 }
 
 .logo {
   height: 40px;
   width: auto;
   margin: 0;
-  /* ✅ Hapus margin-right, gunakan gap di parent */
   flex-shrink: 0;
-  /* ✅ Cegah logo menyusut */
 }
 
 .company-info {
@@ -218,7 +220,18 @@ body {
   font-size: 9pt;
   line-height: 1.4;
   flex: 1;
-  /* ✅ Ambil sisa ruang */
+}
+
+.header-right {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+}
+
+.qr-code {
+  height: 40px;
+  width: 40px;
+  border: 1px solid #000;
 }
 
 /* Judul */
@@ -242,18 +255,15 @@ body {
 .info-grid .label {
   display: inline-block;
   width: 90px;
-  /* Lebar label yang konsisten */
 }
 
 .info-grid .keterangan {
   grid-column: 1 / -1;
-  /* Membuat keterangan span 2 kolom */
 }
 
 /* Tabel Item */
 .items-table {
   flex-grow: 1;
-  /* Membuat tabel mengisi ruang yang tersedia */
 }
 
 .items-table table {
@@ -329,9 +339,7 @@ body {
   text-align: right;
   font-size: 8pt;
   margin-top: 10px;
-  /* Jarak dari tabel di atas */
   padding-bottom: 10px;
-  /* Jarak ke tanda tangan di bawah */
 }
 
 /* Pengaturan untuk mode cetak */
@@ -345,11 +353,6 @@ body {
     padding: 10mm;
     border: none;
     box-shadow: none;
-  }
-
-  .surat-jalan-instance {
-    border: none;
-    padding: 0;
   }
 }
 

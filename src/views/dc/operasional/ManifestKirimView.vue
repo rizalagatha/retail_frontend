@@ -46,6 +46,8 @@ interface ManifestKirimHeader {
   Status: string;
   Usr?: string;
   DateCreate?: string;
+  HasTtdPengirim?: string;
+  HasTtdDriver?: string;
   [key: string]: unknown;
 }
 
@@ -102,6 +104,7 @@ const selectedRow = computed(() => (isSingleSelected.value ? selected.value[0] :
 const masterHeaders = computed<DataTableHeader[]>(() => [
   { title: "", key: "data-table-expand", width: 50, fixed: true },
   { title: "No. Manifest", key: "Nomor", width: 160, fixed: true },
+  { title: "Status", key: "Status", width: 110, align: "center" },
   { title: "Tanggal", key: "Tanggal", width: 110 },
   { title: "Gudang", key: "NamaGudang", width: 140 },
   { title: "Jenis Kirim", key: "JenisKirim", width: 140 },
@@ -112,9 +115,19 @@ const masterHeaders = computed<DataTableHeader[]>(() => [
   { title: "Total SJ", key: "TotalSj", width: 90, align: "end" },
   { title: "Total Koli", key: "TotalKoli", width: 100, align: "end" },
   { title: "Total Qty", key: "TotalQty", width: 100, align: "end" },
-  { title: "Status", key: "Status", width: 110, align: "center" },
   { title: "User", key: "Usr", width: 100 },
 ]);
+
+// --- Helper: ambil status display ---
+const getDisplayStatus = (item: ManifestKirimHeader): string => {
+  return item.Status || "DRAFT";
+};
+
+// Tombol Konfirmasi Kirim hanya muncul jika row dipilih dan berstatus DRAFT
+const isDraftSelected = computed(() => {
+  if (!selectedRow.value) return false;
+  return (selectedRow.value.Status || "").toUpperCase() === "DRAFT";
+});
 
 const detailHeaders: DataTableHeader[] = [
   { title: "No. SJ", key: "sjNomor", width: 160 },
@@ -364,6 +377,44 @@ const getStatusColor = (status: string) => {
   }
 };
 
+// Highlight baris kuning jika EKSPEDISI tapi resi belum diisi
+const getRowProps = (item: ManifestKirimHeader) => {
+  const isEkspedisi = String(item.JenisKirim || "").toUpperCase() === "EKSPEDISI";
+  const missingResi = !item.NoResi || String(item.NoResi).trim() === "";
+  if (isEkspedisi && missingResi) {
+    return { class: "row-resi-missing" };
+  }
+  return {};
+};
+
+// Konfirmasi Kirim (DRAFT -> DIKIRIM)
+const confirmKirimDialog = ref(false);
+const loadingKirim = ref(false);
+
+const showKonfirmasiKirim = () => {
+  if (!selectedRow.value) return;
+  confirmKirimDialog.value = true;
+};
+
+const executeKonfirmasiKirim = async () => {
+  if (!selectedRow.value) return;
+  loadingKirim.value = true;
+  try {
+    const response = await api.patch<{ message: string }>(
+      `/manifest-kirim/${encodeURIComponent(selectedRow.value.Nomor)}/status`,
+      { status: "DIKIRIM" }
+    );
+    toast.success(response.data.message || "Status berhasil diubah ke DIKIRIM.");
+    confirmKirimDialog.value = false;
+    loadData();
+  } catch (error: unknown) {
+    const err = error as AxiosError<{ message?: string }>;
+    toast.error(err.response?.data?.message || "Gagal mengubah status manifest.");
+  } finally {
+    loadingKirim.value = false;
+  }
+};
+
 // Direct Print Logic
 const handlePrintSelected = () => {
   if (!selectedRow.value) {
@@ -420,6 +471,16 @@ watch(
         @click="handleEdit"
       >
         Ubah
+      </v-btn>
+      <v-btn
+        v-if="authStore.can(MENU_ID, 'edit') && isDraftSelected"
+        size="small"
+        color="blue"
+        prepend-icon="mdi-truck-fast"
+        :disabled="!isSingleSelected"
+        @click="showKonfirmasiKirim"
+      >
+        Konfirmasi Kirim
       </v-btn>
       <v-btn
         size="small"
@@ -532,6 +593,7 @@ watch(
           show-select
           return-object
           show-expand
+          :row-props="({ item }: { item: ManifestKirimHeader }) => getRowProps(item)"
           @update:expanded="loadDetails"
           @click:row="handleRowClick"
         >
@@ -624,7 +686,9 @@ watch(
           </template>
 
           <template #[`item.Nomor`]="{ item }">
-            <strong :style="{ color: getStatusColor(item.Status) }">{{ item.Nomor }}</strong>
+            <strong :style="{ color: getStatusColor(getDisplayStatus(item)) }">{{
+              item.Nomor
+            }}</strong>
           </template>
 
           <template #[`item.Tanggal`]="{ item }">
@@ -632,12 +696,32 @@ watch(
           </template>
 
           <template #[`item.NoResi`]="{ item }">
-            <span class="font-weight-medium text-blue-darken-2">{{ item.NoResi || "-" }}</span>
+            <template v-if="item.NoResi && String(item.NoResi).trim()">
+              <span class="font-weight-medium text-blue-darken-2">{{ item.NoResi }}</span>
+            </template>
+            <template v-else-if="String(item.JenisKirim || '').toUpperCase() === 'EKSPEDISI'">
+              <v-chip
+                size="x-small"
+                color="orange"
+                variant="tonal"
+                prepend-icon="mdi-alert-outline"
+                class="font-weight-medium"
+              >
+                Belum Diisi
+              </v-chip>
+            </template>
+            <template v-else>
+              <span class="text-grey">-</span>
+            </template>
           </template>
 
           <template #[`item.Status`]="{ item }">
-            <v-chip size="x-small" :color="getStatusColor(item.Status)" class="font-weight-medium">
-              {{ item.Status }}
+            <v-chip
+              size="x-small"
+              :color="getStatusColor(getDisplayStatus(item))"
+              class="font-weight-medium"
+            >
+              {{ getDisplayStatus(item) }}
             </v-chip>
           </template>
 
@@ -708,6 +792,43 @@ watch(
             "
             >Ya, Lanjutkan</v-btn
           >
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+
+    <!-- Dialog Konfirmasi Kirim (DRAFT -> DIKIRIM) -->
+    <v-dialog v-model="confirmKirimDialog" max-width="420px" persistent>
+      <v-card>
+        <v-card-title class="text-h6 font-weight-bold d-flex align-center gap-2">
+          <v-icon color="blue" class="me-2">mdi-truck-fast</v-icon>
+          Konfirmasi Pengiriman
+        </v-card-title>
+        <v-card-text>
+          <p class="mb-2">
+            Ubah status manifest
+            <strong>{{ selectedRow?.Nomor }}</strong>
+            dari
+            <v-chip size="x-small" color="grey" class="mx-1">DRAFT</v-chip>
+            menjadi
+            <v-chip size="x-small" color="blue" class="mx-1">DIKIRIM</v-chip>?
+          </p>
+          <v-alert type="warning" variant="tonal" density="compact" class="text-caption mt-2">
+            Pastikan manifest ini <strong>sudah diterima dan ditandatangani</strong> oleh driver /
+            ekspedisi di kertas cetak. Status tidak dapat dikembalikan ke DRAFT.
+          </v-alert>
+        </v-card-text>
+        <v-card-actions>
+          <v-spacer />
+          <v-btn text @click="confirmKirimDialog = false" :disabled="loadingKirim">Batal</v-btn>
+          <v-btn
+            color="blue"
+            variant="flat"
+            :loading="loadingKirim"
+            prepend-icon="mdi-check"
+            @click="executeKonfirmasiKirim"
+          >
+            Ya, Konfirmasi
+          </v-btn>
         </v-card-actions>
       </v-card>
     </v-dialog>
@@ -905,5 +1026,13 @@ watch(
   .v-overlay-container {
     display: none !important;
   }
+}
+
+/* Highlight baris: EKSPEDISI tapi resi belum diisi */
+.desktop-table :deep(tr.row-resi-missing td) {
+  background-color: #fffde7 !important;
+}
+.desktop-table :deep(tr.row-resi-missing:hover td) {
+  background-color: #fff9c4 !important;
 }
 </style>

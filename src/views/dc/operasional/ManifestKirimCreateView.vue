@@ -245,6 +245,7 @@ const loadingAvailableSj = ref(false);
 const sjSearch = ref("");
 const scannedBarcode = ref("");
 const barcodeInputRef = ref<{ focus: () => void; $el?: HTMLElement } | null>(null);
+const resiInputRef = ref<HTMLInputElement | null>(null);
 
 const focusBarcodeInput = () => {
   setTimeout(() => {
@@ -254,6 +255,14 @@ const focusBarcodeInput = () => {
       } else if (barcodeInputRef.value.$el?.querySelector("input")) {
         (barcodeInputRef.value.$el.querySelector("input") as HTMLInputElement)?.focus();
       }
+    }
+  }, 50);
+};
+
+const focusResiInput = () => {
+  setTimeout(() => {
+    if (resiInputRef.value) {
+      resiInputRef.value.focus();
     }
   }, 50);
 };
@@ -632,7 +641,7 @@ const loadEditData = async () => {
 };
 
 // Simpan Manifest
-const submitForm = async (targetStatus = "DIKIRIM") => {
+const submitForm = async () => {
   if (!header.tanggal) {
     toast.error("Tanggal manifest harus diisi.");
     return;
@@ -673,7 +682,13 @@ const submitForm = async (targetStatus = "DIKIRIM") => {
   }
 
   saving.value = true;
-  header.status = targetStatus;
+  // Jika TTD pengirim dan driver lengkap -> DIKIRIM, jika belum -> DRAFT (kecuali jika sebelumnya sudah DIKIRIM)
+  const isTtdLengkap = Boolean(header.ttdPengirim && header.ttdDriver);
+  if (isTtdLengkap) {
+    header.status = "DIKIRIM";
+  } else if (!header.status || header.status === "TERCATAT" || isNew.value) {
+    header.status = "DRAFT";
+  }
   try {
     const response = await api.post<{ message: string; nomor: string }>("/manifest-kirim", {
       header: { ...header },
@@ -741,7 +756,7 @@ onMounted(async () => {
         color="primary"
         prepend-icon="mdi-content-save"
         :loading="saving"
-        @click="submitForm('DIKIRIM')"
+        @click="submitForm"
       >
         Simpan
       </v-btn>
@@ -935,13 +950,32 @@ onMounted(async () => {
 
             <v-col cols="12" v-if="header.jenisKirim === 'EKSPEDISI'">
               <v-text-field
+                ref="resiInputRef"
                 label="No. Resi"
                 v-model="header.noResi"
-                placeholder="Masukkan No. Resi (opsional)"
+                placeholder="Scan / Ketik No. Resi"
                 density="compact"
                 variant="outlined"
                 hide-details
-              />
+                clearable
+                @keydown.enter.prevent="header.noResi = header.noResi?.trim() ?? ''"
+              >
+                <template #append-inner>
+                  <v-tooltip location="top" text="Fokus ke scanner untuk scan barcode resi">
+                    <template #activator="{ props }">
+                      <v-icon
+                        v-bind="props"
+                        size="20"
+                        color="primary"
+                        class="cursor-pointer"
+                        @click="focusResiInput"
+                      >
+                        mdi-barcode-scan
+                      </v-icon>
+                    </template>
+                  </v-tooltip>
+                </template>
+              </v-text-field>
             </v-col>
 
             <v-col

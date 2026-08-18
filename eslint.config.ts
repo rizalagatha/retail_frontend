@@ -11,18 +11,17 @@ const vueConfig = defineConfigWithVueTs(
   {
     name: 'app/files-to-lint',
     files: ['**/*.{ts,mts,tsx,vue}'],
-    languageOptions: {
-      parserOptions: {
-        project: true,
-        tsconfigRootDir: import.meta.dirname,
-      },
-    },
   },
 
   globalIgnores(['**/dist/**', '**/dist-ssr/**', '**/coverage/**']),
   pluginVue.configs['flat/essential'],
   vueTsConfigs.recommended,
   {
+    languageOptions: {
+      parserOptions: {
+        tsconfigRootDir: process.cwd(),
+      },
+    },
     rules: {
       // ⬇️ Matikan aturan multi-word name
       'vue/multi-word-component-names': 'off',

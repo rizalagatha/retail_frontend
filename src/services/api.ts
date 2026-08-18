@@ -3,20 +3,19 @@ import { useAuthStore } from '@/stores/authStore';
 
 // --- AWAL PERUBAHAN ---
 
-// 1. Dapatkan 'base' path dari environment variable.
-//    Vite secara otomatis menyediakan ini dari 'base' di vite.config.ts
-//    Misal: '/' (untuk release) atau '/trial/' (untuk trial)
+// 1. Dapatkan base path / URL dari environment variable
+const customApiBase = import.meta.env.VITE_API_BASE_URL;
 const APP_BASE_PATH = import.meta.env.BASE_URL;
 
-// 2. Bersihkan trailing slash (/) jika ada
 const cleanBase = APP_BASE_PATH.endsWith('/')
   ? APP_BASE_PATH.slice(0, -1)
   : APP_BASE_PATH;
 
-// 3. Buat baseURL API yang dinamis
-//    - Jika build:trial, hasilnya: '/trial/api'
-//    - Jika build, hasilnya: '/api'
-const API_BASE_URL = `${cleanBase}/api`;
+let API_BASE_URL = `${cleanBase}/api`;
+if (customApiBase) {
+  const cleanCustom = customApiBase.endsWith('/') ? customApiBase.slice(0, -1) : customApiBase;
+  API_BASE_URL = cleanCustom.endsWith('/api') ? cleanCustom : `${cleanCustom}/api`;
+}
 
 // --- AKHIR PERUBAHAN ---
 

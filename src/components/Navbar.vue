@@ -489,6 +489,11 @@ const menuItems: NavItem[] = [
             icon: "mdi-truck-delivery-outline",
           },
           {
+            title: "Manifest Pengiriman",
+            to: "/gudang-dc/operasional/manifest-kirim",
+            icon: "mdi-truck-cargo-container",
+          },
+          {
             title: "Pengambilan Barang",
             to: "/gudang-dc/operasional/ambil-barang",
             icon: "mdi-package-up",

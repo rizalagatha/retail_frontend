@@ -376,7 +376,9 @@ const fetchPrayerTimes = async () => {
     }
 
     // API Aladhan (Method 20 = Kemenag RI)
-    const response = await axios.get("https://api.aladhan.com/v1/timingsByCity", {
+    const now = new Date();
+    const today = `${String(now.getDate()).padStart(2, "0")}-${String(now.getMonth() + 1).padStart(2, "0")}-${now.getFullYear()}`;
+    const response = await axios.get(`https://api.aladhan.com/v1/timingsByCity/${today}`, {
       params: {
         city: city.value,
         country: "Indonesia",

@@ -142,6 +142,8 @@ const PackingListPrintView = () => import("@/views/dc/operasional/PackingListPri
 const SuratJalanView = () => import("@/views/dc/operasional/SuratJalanView.vue");
 const SuratJalanCreateView = () => import("@/views/dc/operasional/SuratJalanCreateView.vue");
 const SuratJalanPrintView = () => import("@/views/dc/operasional/SuratJalanPrintView.vue");
+const ManifestKirimView = () => import("@/views/dc/operasional/ManifestKirimView.vue");
+const ManifestKirimCreateView = () => import("@/views/dc/operasional/ManifestKirimCreateView.vue");
 
 // --- STOK OPNAME ---
 const HitungStokView = () => import("@/views/transaksi/stok-opname/HitungStokView.vue");
@@ -218,6 +220,7 @@ const KomplainCustomerPrintView = () =>
 const QckeGarmenView = () => import("@/views/dc/operasional/QckeGarmenView.vue");
 const QckeGarmenCreateView = () => import("@/views/dc/operasional/QckeGarmenCreateView.vue");
 const QckeGarmenPrintView = () => import("@/views/dc/operasional/QckeGarmenPrintView.vue");
+const ManifestKirimPrintView = () => import("@/views/dc/operasional/ManifestKirimPrintView.vue");
 const TerimaReturView = () => import("@/views/dc/operasional/TerimaReturView.vue");
 const TerimaReturCreateView = () => import("@/views/dc/operasional/TerimaReturCreateView.vue");
 const JenisKainView = () => import("@/views/dc/master-data/JenisKainView.vue");
@@ -1214,6 +1217,37 @@ const routes = [
       title: "Ubah Surat Jalan ke Store",
       requiresAuth: true,
       menuId: "213",
+    },
+  },
+  {
+    path: "/gudang-dc/operasional/manifest-kirim",
+    name: "ManifestKirim",
+    component: ManifestKirimView,
+    meta: {
+      title: "Manifest Pengiriman DC",
+      requiresAuth: true,
+      menuId: "227",
+    },
+  },
+  {
+    path: "/gudang-dc/operasional/manifest-kirim/create",
+    name: "Buat Manifest Kirim",
+    component: ManifestKirimCreateView,
+    meta: {
+      title: "Buat Manifest Pengiriman DC",
+      requiresAuth: true,
+      menuId: "227",
+    },
+  },
+  {
+    path: "/gudang-dc/operasional/manifest-kirim/print/:nomor",
+    name: "ManifestKirimPrint",
+    component: ManifestKirimPrintView,
+    meta: {
+      title: "Cetak Manifest Pengiriman DC",
+      requiresAuth: true,
+      printLayout: true,
+      layout: "PrintLayout",
     },
   },
   {

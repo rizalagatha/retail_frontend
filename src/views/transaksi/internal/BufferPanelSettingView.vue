@@ -774,6 +774,7 @@ const exportAllStores = async () => {
       { header: "Kode", key: "kode", width: 16, align: "left" as const },
       { header: "Nama Barang", key: "nama", width: 40, align: "left" as const },
       { header: "Size", key: "ukuran", width: 8, align: "center" as const },
+      { header: "Avg/Bulan", key: "avg_per_bulan", width: 12, fmt: "#,##0.0" },
       { header: "Buffer/MIN", key: "min", width: 12, align: "right" as const, fmt: "#,##0" },
       { header: "MAX", key: "max", width: 12, align: "right" as const, fmt: "#,##0" },
       { header: "Stok Aktual", key: "real_stok", width: 13, align: "right" as const, fmt: "#,##0" },
@@ -800,23 +801,31 @@ const exportAllStores = async () => {
       if (cab.items.length === 0) continue; // skip cabang tanpa data (mis. histori kosong)
 
       cab.items.forEach((item) => {
-        const values = cols.map((c) => {
-          if (c.key === "kode_cabang") return cab.kode_cabang;
-          if (c.key === "nama_cabang") return cab.nama_cabang;
-          return (item[c.key as keyof BufferItem] ?? "") as string | number;
-        });
-        const row = sheet.addRow(values);
+        const row = sheet.addRow(
+          cols.map((c) => {
+            // [FIX] kode_cabang & nama_cabang itu milik level cabang (cab),
+            // bukan level item — sebelumnya selalu baca dari item sehingga kosong
+            if (c.key === "kode_cabang") return cab.kode_cabang;
+            if (c.key === "nama_cabang") return cab.nama_cabang;
+
+            const val = item[c.key as keyof BufferItem];
+            if (c.key === "avg_per_bulan") {
+              return val !== null && val !== undefined ? val : "-";
+            }
+            return (val ?? "") as string | number;
+          })
+        );
         row.eachCell({ includeEmpty: true }, (cell, colNum) => {
           cell.border = borderThin;
-          cell.alignment = { horizontal: cols[colNum - 1]?.align ?? "left", vertical: "middle" };
-          if (cols[colNum - 1]?.fmt) cell.numFmt = cols[colNum - 1].fmt!;
           cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: bg } };
+          if (cols[colNum - 1]?.fmt && typeof cell.value === "number")
+            cell.numFmt = cols[colNum - 1].fmt!;
         });
       });
     }
 
     sheet.views = [{ state: "frozen", xSplit: 0, ySplit: 1 }];
-    sheet.autoFilter = { from: "A1", to: `H1` }; // biar user bisa filter per cabang langsung di Excel
+    sheet.autoFilter = { from: "A1", to: `I1` }; // [FIX] sebelumnya "H1", padahal kolomnya sampai I (9 kolom: A-I)
 
     const buffer = await workbook.xlsx.writeBuffer();
     const blob = new Blob([buffer], {

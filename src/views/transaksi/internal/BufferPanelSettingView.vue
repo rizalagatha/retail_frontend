@@ -67,6 +67,9 @@ interface CabangList {
 }
 const cabangList = ref<CabangList[]>([]);
 const selectedCabang = ref(authStore.user?.cabang || "");
+const periodeOptions = ref<string[]>([]);
+const selectedPeriode = ref<string | null>(null); // null = mode Live
+const isExportingAll = ref(false);
 
 // --- STATE SETTING (Parameter) ---
 const isSettingOpen = ref(false);
@@ -273,6 +276,15 @@ const fetchConfig = async () => {
   }
 };
 
+const fetchPeriodeOptions = async () => {
+  try {
+    const res = await api.get("/buffer-panel/periode-options");
+    periodeOptions.value = res.data;
+  } catch {
+    toast.error("Gagal memuat daftar periode.");
+  }
+};
+
 const saveBranchConfig = async () => {
   isConfigSaving.value = true;
   try {
@@ -310,7 +322,7 @@ const fetchPreviewData = async () => {
   isLoading.value = true;
   try {
     const response = await api.get("/buffer-panel/preview", {
-      params: { cabang: selectedCabang.value },
+      params: { cabang: selectedCabang.value, periode: selectedPeriode.value },
     });
     rawData.value = response.data;
   } catch {
@@ -460,6 +472,7 @@ const totals = computed(() => {
 const isVirtualCabang = computed(
   () => selectedCabang.value === "KPR" || selectedCabang.value === "TOKO_BARU"
 );
+const isHistoricalMode = computed(() => !!selectedPeriode.value);
 
 // --- SAVE FINAL KE DATABASE TOKO ---
 const saveFinalBuffer = async () => {
@@ -734,9 +747,85 @@ const exportBuffer = async () => {
   }
 };
 
+const exportAllStores = async () => {
+  isExportingAll.value = true;
+  toast.info("Mengambil data semua toko... Ini mungkin memakan waktu.");
+
+  try {
+    const res = await api.get("/buffer-panel/export-all", {
+      params: { periode: selectedPeriode.value },
+    });
+    const allData: { kode_cabang: string; nama_cabang: string; items: BufferItem[] }[] = res.data;
+
+    const ExcelJS = (await import("exceljs")).default;
+    const workbook = new ExcelJS.Workbook();
+
+    const borderThin: Partial<ExcelJS.Borders> = {
+      top: { style: "thin" },
+      left: { style: "thin" },
+      bottom: { style: "thin" },
+      right: { style: "thin" },
+    };
+
+    const cols = [
+      { header: "Kode", key: "kode", width: 16 },
+      { header: "Nama Barang", key: "nama", width: 40 },
+      { header: "Size", key: "ukuran", width: 8 },
+      { header: "Buffer/MIN", key: "min", width: 12, fmt: "#,##0" },
+      { header: "MAX", key: "max", width: 12, fmt: "#,##0" },
+      { header: "Stok Aktual", key: "real_stok", width: 13, fmt: "#,##0" },
+    ];
+
+    for (const cab of allData) {
+      const sheetName = cab.kode_cabang.substring(0, 31);
+      const sheet = workbook.addWorksheet(sheetName);
+      sheet.columns = cols.map((c) => ({ width: c.width }));
+
+      const headerRow = sheet.addRow(cols.map((c) => c.header));
+      headerRow.eachCell({ includeEmpty: true }, (cell) => {
+        cell.font = { bold: true, color: { argb: "FF0D47A1" } };
+        cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFE3F2FD" } };
+        cell.alignment = { horizontal: "center", vertical: "middle" };
+        cell.border = borderThin;
+      });
+
+      cab.items.forEach((item) => {
+        const row = sheet.addRow(
+          cols.map((c) => (item[c.key as keyof BufferItem] ?? "") as string | number)
+        );
+        row.eachCell({ includeEmpty: true }, (cell, colNum) => {
+          cell.border = borderThin;
+          if (cols[colNum - 1]?.fmt) cell.numFmt = cols[colNum - 1].fmt!;
+        });
+      });
+
+      sheet.views = [{ state: "frozen", xSplit: 0, ySplit: 1 }];
+    }
+
+    const buffer = await workbook.xlsx.writeBuffer();
+    const blob = new Blob([buffer], {
+      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    const periodeLabel = selectedPeriode.value || "Live";
+    a.download = `BufferStok_SemuaToko_${periodeLabel}.xlsx`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast.success("Export semua toko berhasil.");
+  } catch (error) {
+    console.error(error);
+    toast.error("Gagal mengekspor data semua toko.");
+  } finally {
+    isExportingAll.value = false;
+  }
+};
+
 onMounted(async () => {
   await fetchCabangList();
   await fetchConfig();
+  await fetchPeriodeOptions();
   fetchPreviewData();
 });
 
@@ -757,6 +846,11 @@ watch(selectedCabang, async () => {
   clearSearch();
   page.value = 1;
   await fetchConfig();
+  fetchPreviewData();
+});
+
+watch(selectedPeriode, () => {
+  page.value = 1;
   fetchPreviewData();
 });
 
@@ -805,6 +899,16 @@ watch([page, itemsPerPage], () => {
       >
         Export
       </v-btn>
+      <v-btn
+        color="deep-purple"
+        prepend-icon="mdi-database-export"
+        size="small"
+        variant="tonal"
+        :loading="isExportingAll"
+        @click="exportAllStores"
+      >
+        Export Semua Toko
+      </v-btn>
       <!-- <v-btn
         color="orange-darken-3"
         prepend-icon="mdi-tune-vertical"
@@ -819,7 +923,7 @@ watch([page, itemsPerPage], () => {
         prepend-icon="mdi-content-save-check"
         size="small"
         :loading="isSaving"
-        :disabled="isVirtualCabang"
+        :disabled="isVirtualCabang || isHistoricalMode"
         @click="saveFinalBuffer"
       >
         Terapkan ke Toko
@@ -840,6 +944,30 @@ watch([page, itemsPerPage], () => {
           style="max-width: 150px"
           class="cabang-select"
         />
+
+        <v-select
+          v-model="selectedPeriode"
+          :items="[
+            { title: '🔴 Live (Saat Ini)', value: null },
+            ...periodeOptions.map((p) => ({ title: p, value: p })),
+          ]"
+          item-title="title"
+          item-value="value"
+          density="compact"
+          hide-details
+          variant="outlined"
+          style="max-width: 170px"
+          label="Periode"
+        />
+        <v-chip
+          v-if="selectedPeriode"
+          size="x-small"
+          color="orange"
+          variant="tonal"
+          class="font-weight-bold"
+        >
+          Mode Histori — data beku, tidak bisa diedit/disimpan
+        </v-chip>
 
         <v-text-field
           v-model="searchInput"

@@ -26,7 +26,7 @@ interface DataTableHeader {
 
 interface SoHeader {
   Nomor: string;
-  NoSPK: string;
+  NoSalesOrder: string;
   Tanggal: string;
   Dateline: string;
   Status: string;
@@ -112,6 +112,7 @@ const filterOptions = ref([
   { title: "Nama Customer", value: "Nama" },
   { title: "Keterangan", value: "Keterangan" },
   { title: "Sales Counter", value: "SC" },
+  { title: "No. Sales Order", value: "NoSalesOrder" },
 ]);
 const selectedFilterField = ref("Nama");
 const filterSearchValue = ref("");
@@ -189,28 +190,24 @@ const headers = computed<DataTableHeader[]>(() => {
     { title: "Nomor", key: "Nomor", width: 180, fixed: true },
     { title: "Tanggal", key: "Tanggal", width: 120 },
     { title: "Dateline", key: "Dateline", width: 120 },
-    { title: "Dateline Pelayanan", key: "DatelinePelayanan", width: 160 }, // TAMBAHAN
+    { title: "Dateline Pelayanan", key: "DatelinePelayanan", width: 160 },
     { title: "Kd Customer", key: "kdcus", width: 120 },
     { title: "Nama Customer", key: "Nama", width: 250 },
   ];
   if (isUserKon.value) {
-    // [FIX] Add new columns here
-    list.push(
-      { title: "No. Pesanan MP", key: "MpPesanan", width: 180 },
-      { title: "No. Resi", key: "MpResi", width: 180 }
-    );
+    list.push({ title: "No. Resi", key: "MpResi", width: 180 });
   } else {
     list.push({ title: "Penawaran", key: "Penawaran", width: 180 });
   }
   list.push(
-    { title: "No. SPK", key: "NoSPK", width: 160 },
+    { title: "No. Sales Order", key: "NoSalesOrder", width: 160 },
     { title: "No. Resi Tracking", key: "ResiTracking", width: 180 },
     { title: "TOP", key: "Top", width: 80 },
     { title: "Nominal", key: "Nominal", width: 150 },
     { title: "Diskon", key: "Diskon", width: 120 },
     { title: "DP", key: "Dp", width: 120 },
     { title: "Qty SO", key: "QtySO", width: 100 },
-    { title: "Tgl Jadi/Ready", key: "TglJadi", width: 140 }, // TAMBAHAN
+    { title: "Tgl Jadi/Ready", key: "TglJadi", width: 140 },
     { title: "Qty Inv", key: "QtyInv", width: 100 },
     { title: "Belum", key: "Belum", width: 150 },
     { title: "Status", key: "Status", width: 150 },
@@ -226,7 +223,6 @@ const headers = computed<DataTableHeader[]>(() => {
     { title: "Aktif", key: "Aktif", width: 80 },
     { title: "Sales Counter", key: "SC", width: 150 }
   );
-
   return list;
 });
 
@@ -648,7 +644,7 @@ const exportHeaderData = async () => {
       { header: "Kd Customer", key: "kdcus", width: 13, align: "center" as const },
       { header: "Nama Customer", key: "Nama", width: 28, align: "left" as const },
       { header: "Penawaran", key: "Penawaran", width: 18, align: "left" as const },
-      { header: "No. SPK", key: "NoSPK", width: 18, align: "left" as const },
+      { header: "No. Sales Order", key: "NoSalesOrder", width: 18, align: "left" as const },
       { header: "No. Resi Tracking", key: "ResiTracking", width: 20, align: "left" as const },
       { header: "TOP", key: "Top", width: 8, align: "center" as const },
       { header: "Nominal", key: "Nominal", width: 18, align: "right" as const, fmt: "#,##0" },
@@ -1611,22 +1607,7 @@ onBeforeRouteLeave((to, from, next) => {
                       <template #[`item.Nomor`]="{ item: detailItem }">{{
                         detailItem.Nomor
                       }}</template>
-                      <template #[`item.NoSPK`]="{ item }">
-                        <template v-if="item.NoSPK">
-                          <v-chip
-                            v-for="(spk, index) in item.NoSPK.split(', ')"
-                            :key="index"
-                            size="x-small"
-                            color="brown-darken-3"
-                            variant="outlined"
-                            class="mr-1 mb-1 font-weight-bold"
-                          >
-                            <v-icon start size="12">mdi-factory</v-icon>
-                            {{ spk }}
-                          </v-chip>
-                        </template>
-                        <span v-else class="text-grey-lighten-1">-</span>
-                      </template>
+
                       <template #[`item.Harga`]="{ item: detailItem }">{{
                         formatRupiah(Number(detailItem.Harga || 0))
                       }}</template>

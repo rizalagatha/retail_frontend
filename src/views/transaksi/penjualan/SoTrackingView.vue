@@ -176,6 +176,50 @@ const decodeResi = (resi: string) => {
   }
 };
 
+// [BARU] Mapping penamaan proses produksi untuk View Internal — istilah
+// teknis backend diringkas jadi lebih umum & mudah dipahami staff lintas
+// divisi (bukan cuma yang paham detail alur pabrik).
+const STAFF_TITLE_MAP: Record<string, string> = {
+  "SO Diteruskan ke MANKSI (PPIC)": "Pesanan Diteruskan ke Produksi",
+  "Menunggu SPK Produksi (PPIC)": "Menunggu Dijadwalkan Produksi",
+  "Diteruskan ke Produksi (SPK PABRIK)": "Produksi Dimulai",
+  "Permintaan Bahan Dibuat": "Bahan Baku Diminta",
+  "Bahan Dikeluarkan (Realisasi)": "Bahan Baku Disiapkan",
+  "Menunggu Pengeluaran Bahan": "Menunggu Bahan Baku",
+  "Permintaan Bahan Dibatalkan": "Permintaan Bahan Dibatalkan",
+  "Menunggu Permintaan Bahan": "Menunggu Persiapan Bahan",
+  "Menunggu Proses Potong": "Menunggu Tahap Potong",
+  "Menunggu Proses Jahit": "Menunggu Tahap Jahit",
+  "Menunggu Proses Lipat": "Menunggu Tahap Lipat & QC",
+  "Menunggu Masuk Koli": "Menunggu Pengemasan",
+  "Menunggu Pembuatan STBJ": "Menunggu Serah Terima",
+  "Surat Terima Barang Jadi (STBJ)": "Serah Terima ke Gudang Pusat",
+  "Menunggu Penerimaan DC": "Menunggu Diterima Gudang Pusat",
+  "Barang Diterima DC": "Diterima Gudang Pusat",
+};
+
+const friendlyStaffTitle = (title: string): string => {
+  // Cocokkan persis dulu
+  if (STAFF_TITLE_MAP[title]) return STAFF_TITLE_MAP[title];
+  // Cocokkan pola dinamis (yang ada sisipan nama komponen/gudang di title)
+  if (title.startsWith("Proses Potong Selesai"))
+    return title.replace("Proses Potong Selesai", "Tahap Potong Selesai");
+  if (title.startsWith("Proses Cetak Selesai"))
+    return title.replace("Proses Cetak Selesai", "Tahap Cetak Selesai");
+  if (title.startsWith("Proses Jahit Selesai"))
+    return title.replace("Proses Jahit Selesai", "Tahap Jahit Selesai");
+  if (title.startsWith("Proses Lipat Selesai"))
+    return title.replace("Proses Lipat Selesai", "Tahap Lipat & QC Selesai");
+  if (title.startsWith("Barang Jadi (Masuk Koli)"))
+    return title.replace("Barang Jadi (Masuk Koli)", "Barang Jadi Dikemas");
+  return title; // fallback: title asli kalau belum ada di mapping
+};
+
+const timelineBaseDelay = computed(() => {
+  const stepCount = milestones.value.length || 5;
+  return stepCount * 150 + 500; // ikuti step-delay & durasi stepFadeIn
+});
+
 // --- DATA FETCHING ---
 const fetchTrackingData = async () => {
   isLoading.value = true;
@@ -195,7 +239,7 @@ const fetchTrackingData = async () => {
         return {
           id: log.id,
           waktu: log.waktu,
-          status: log.title,
+          status: friendlyStaffTitle(log.title),
           originalDeskripsi: gabunganUtama,
           deskripsi: gabunganUtama,
           aktor: log.status,
@@ -206,7 +250,7 @@ const fetchTrackingData = async () => {
                 return {
                   id: c.id,
                   waktu: c.waktu,
-                  status: c.title,
+                  status: friendlyStaffTitle(c.title),
                   originalDeskripsi: gabunganChild,
                   deskripsi: gabunganChild,
                   aktor: c.status,
@@ -216,13 +260,34 @@ const fetchTrackingData = async () => {
             : [],
         };
       } else {
-        const simpleTitle = log.title
+        let simpleTitle = log.title
           .replace(/\s*\(\s*LHK\s*\)/i, "")
-          .replace(/\s*\(\s*SPK PABRIK\s*\)/i, "");
+          .replace(/\s*\(\s*SPK PABRIK\s*\)/i, "")
+          .replace(/\s*\(\s*PPIC\s*\)/i, "");
+
         let simpleDesc = "";
         const titleLower = log.title.toLowerCase();
 
-        if (titleLower.includes("penawaran")) simpleDesc = "Dokumen penawaran harga telah dibuat.";
+        // [BARU] Override khusus 3 tahap SO -> PPIC -> SPK, supaya bahasanya
+        // general & tidak duplikat makna di mata customer:
+        // 1. SO baru diteruskan ke MANKSI (belum ada SPK) -> "Diteruskan ke Produksi"
+        // 2. Masih menunggu PPIC menerbitkan SPK -> "Menunggu Diteruskan ke Produksi"
+        // 3. SPK sudah diterbitkan (produksi fisik dimulai) -> "Masuk Antrean Produksi"
+        //    (dibedakan dari #1 supaya tidak ada 2 entri timeline dengan judul sama persis)
+        if (titleLower.includes("so diteruskan ke manksi")) {
+          simpleTitle = "Diteruskan ke Produksi";
+          simpleDesc = "Pesanan Anda telah diteruskan ke tim produksi kami.";
+        } else if (titleLower.includes("menunggu spk produksi")) {
+          simpleTitle = "Menunggu Diteruskan ke Produksi";
+          simpleDesc = "Pesanan Anda akan segera diteruskan ke tim produksi.";
+        } else if (
+          titleLower.includes("diteruskan ke produksi") &&
+          titleLower.includes("spk pabrik")
+        ) {
+          simpleTitle = "Masuk Antrean Produksi";
+          simpleDesc = "Pesanan Anda telah masuk antrean/proses produksi.";
+        } else if (titleLower.includes("penawaran"))
+          simpleDesc = "Dokumen penawaran harga telah dibuat.";
         else if (titleLower.includes("pesanan dibuat"))
           simpleDesc = "Pesanan Anda telah tercatat dalam sistem kami.";
         else if (titleLower.includes("pembayaran diterima (dp)"))
@@ -242,66 +307,7 @@ const fetchTrackingData = async () => {
           simpleDesc = "Pesanan dibatalkan.";
         else simpleDesc = "Proses administrasi berjalan.";
 
-        if (log.isSpkGroup && log.subtitle) {
-          const namaSpkOnly = log.subtitle.split("•")[0].trim();
-          simpleDesc = `${namaSpkOnly}\n${simpleDesc}`;
-        }
-
-        let filteredChildren: TrackingLog[] = [];
-        if (log.children && log.children.length > 0) {
-          filteredChildren = log.children.map((c: RawLog): TrackingLog => {
-            let cTitle = c.title
-              .replace(/\s*\(\s*LHK\s*\)/i, "")
-              .replace(/\s*\(\s*Gabungan\s*\)/i, "")
-              .replace(/\s*\(\s*SPK PABRIK\s*\)/i, "");
-            if (
-              cTitle.toLowerCase().includes("diterima dc") ||
-              cTitle.toLowerCase().includes("masuk koli")
-            ) {
-              cTitle = "Barang Jadi";
-            }
-
-            let cDesc = "";
-            const ctLower = cTitle.toLowerCase();
-            if (c.status === "ACTIVE" || ctLower.includes("menunggu")) {
-              if (ctLower.includes("bahan")) cDesc = "Menunggu persiapan bahan produksi.";
-              else if (ctLower.includes("potong")) cDesc = "Dalam antrian proses pemotongan.";
-              else if (ctLower.includes("jahit")) cDesc = "Dalam antrian proses penjahitan.";
-              else if (ctLower.includes("lipat")) cDesc = "Dalam antrian proses pelipatan & QC.";
-              else if (
-                ctLower.includes("stbj") ||
-                ctLower.includes("dc") ||
-                ctLower.includes("koli")
-              )
-                cDesc = "Menunggu pengiriman ke gudang pusat.";
-              else cDesc = "Menunggu antrian proses selanjutnya.";
-            } else {
-              if (ctLower.includes("minta") || ctLower.includes("bahan"))
-                cDesc = "Tahap persiapan bahan produksi berjalan.";
-              else if (ctLower.includes("potong")) cDesc = "Tahap pemotongan bahan berjalan.";
-              else if (ctLower.includes("cetak") || ctLower.includes("sablon"))
-                cDesc = "Tahap cetak/sablon berjalan.";
-              else if (ctLower.includes("jahit")) cDesc = "Tahap penjahitan pakaian berjalan.";
-              else if (ctLower.includes("lipat"))
-                cDesc = "Tahap pelipatan dan Quality Control berjalan.";
-              else if (ctLower.includes("stbj"))
-                cDesc = "Pengiriman barang dari pabrik ke gudang pusat.";
-              else if (ctLower.includes("barang jadi"))
-                cDesc = "Barang telah selesai diproduksi dan masuk gudang.";
-              else cDesc = "Tahap produksi selesai.";
-            }
-
-            return {
-              id: c.id,
-              waktu: c.waktu,
-              status: cTitle,
-              originalDeskripsi: c.detail ? `${c.subtitle} • ${c.detail}` : c.subtitle,
-              deskripsi: cDesc,
-              aktor: c.status,
-              color: c.color,
-            };
-          });
-        }
+        const filteredChildren: TrackingLog[] = [];
 
         return {
           id: log.id,
@@ -476,6 +482,7 @@ onMounted(() => {
                 :key="step.id"
                 class="stepper-item"
                 :class="{ active: step.isActive, current: step.isCurrent }"
+                :style="{ '--step-delay': `${index * 150}ms` }"
               >
                 <div class="step-line line-left" v-if="index !== 0"></div>
                 <div class="step-line line-right" v-if="index !== milestones.length - 1"></div>
@@ -794,10 +801,11 @@ onMounted(() => {
                     :dot-color="isOngoing(log, i, true) ? 'warning' : 'success'"
                     :size="i === 0 ? 'small' : 'small'"
                     fill-dot
+                    :style="{ '--item-delay': `${timelineBaseDelay + i * 90}ms` }"
                   >
                     <template #opposite>
                       <div
-                        class="text-caption text-right mt-1 d-none d-sm-block"
+                        class="timeline-content-animated text-caption text-right mt-1 d-none d-sm-block"
                         style="white-space: nowrap"
                         :class="
                           isOngoing(log, i, true)
@@ -809,8 +817,7 @@ onMounted(() => {
                         {{ log.waktu.split(" ")[1] || "" }}
                       </div>
                     </template>
-
-                    <div class="ml-2 mt-n1 pb-4">
+                    <div class="timeline-content-animated ml-2 mt-n1 pb-4">
                       <div
                         class="d-block d-sm-none text-caption font-weight-bold mb-1"
                         :class="isOngoing(log, i, true) ? 'text-warning' : 'text-grey-darken-1'"
@@ -878,10 +885,11 @@ onMounted(() => {
                                 "
                                 size="x-small"
                                 fill-dot
+                                :style="{ '--item-delay': `${childIdx * 60}ms` }"
                               >
                                 <template #opposite>
                                   <div
-                                    class="text-caption text-right mt-1 d-none d-sm-block"
+                                    class="timeline-content-animated text-caption text-right mt-1 d-none d-sm-block"
                                     style="line-height: 1.2; white-space: nowrap"
                                     :class="
                                       isOngoing(child, childIdx, false)
@@ -893,8 +901,7 @@ onMounted(() => {
                                     {{ child.waktu.split(" ")[1] || "" }}
                                   </div>
                                 </template>
-
-                                <div class="ml-2 mt-n1 pb-2">
+                                <div class="timeline-content-animated ml-2 mt-n1 pb-2">
                                   <div
                                     class="d-block d-sm-none text-caption font-weight-bold mb-1"
                                     :class="
@@ -949,19 +956,15 @@ onMounted(() => {
 .tracking-page {
   min-height: 100vh;
 }
-
 .text-brand {
   color: #d32f2f !important;
 }
-
 .border {
   border: 1px solid #e0e0e0;
 }
-
 .gap-2 {
   gap: 8px;
 }
-
 .mail-border {
   height: 3px;
   width: 100%;
@@ -979,6 +982,7 @@ onMounted(() => {
 }
 
 /* --- CSS STEPPER HORIZONTAL MENDATAR (BRAND STYLE) --- */
+/* [GABUNG] Sebelumnya ada 2 blok .stepper-item terpisah — digabung jadi 1 */
 .stepper-item {
   flex: 1;
   position: relative;
@@ -986,6 +990,10 @@ onMounted(() => {
   display: flex;
   flex-direction: column;
   align-items: center;
+  opacity: 0;
+  animation: stepFadeIn 0.55s cubic-bezier(0.25, 0.8, 0.5, 1) forwards;
+  animation-delay: var(--step-delay, 0ms);
+  will-change: opacity, transform;
 }
 
 .step-line {
@@ -997,22 +1005,18 @@ onMounted(() => {
   z-index: 1;
   transition: background-color 0.3s ease;
 }
-
 .line-left {
   left: 0;
 }
-
 .line-right {
   right: 0;
 }
-
 .stepper-item.active .line-left {
   background-color: #d32f2f;
 }
 .stepper-item.active:not(.current) .line-right {
   background-color: #d32f2f;
 }
-
 .step-icon-wrapper {
   position: relative;
   z-index: 2;
@@ -1020,6 +1024,7 @@ onMounted(() => {
   padding: 0 10px;
 }
 
+/* [GABUNG] Sebelumnya ada 2 blok .step-icon terpisah — digabung jadi 1 */
 .step-icon {
   width: 60px;
   height: 60px;
@@ -1039,26 +1044,27 @@ onMounted(() => {
   color: #757575;
   margin-top: 12px;
 }
-
 .step-time {
   font-size: 0.75rem;
   color: #9e9e9e;
   margin-top: 4px;
 }
-
 .stepper-item.active .step-icon {
   border-color: #d32f2f;
   color: #d32f2f;
+  animation: stepIconPulse 0.7s cubic-bezier(0.34, 1.56, 0.64, 1);
+  animation-delay: calc(var(--step-delay, 0ms) + 0.4s);
 }
 .stepper-item.active .step-title {
   color: #d32f2f;
 }
-
 .stepper-item.current .step-icon {
   background-color: #d32f2f;
   border-color: #d32f2f;
   color: white;
   box-shadow: 0 4px 10px rgba(211, 47, 47, 0.3);
+  animation: currentPulse 1.6s ease-in-out infinite;
+  animation-delay: calc(var(--step-delay, 0ms) + 0.6s);
 }
 .stepper-item.current .step-title {
   color: #d32f2f;
@@ -1066,6 +1072,76 @@ onMounted(() => {
 }
 .stepper-item.current .step-time {
   color: #d32f2f;
+}
+
+@keyframes stepFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes stepIconPulse {
+  0% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.15);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+/* Garis penghubung "tumbuh" mengikuti delay step */
+.stepper-item.active .line-left,
+.stepper-item.active:not(.current) .line-right {
+  animation: lineGrow 0.7s cubic-bezier(0.65, 0, 0.35, 1) forwards;
+  animation-delay: calc(var(--step-delay, 0ms) + 0.2s);
+  transform-origin: left;
+  will-change: transform;
+}
+
+@keyframes lineGrow {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+
+@keyframes currentPulse {
+  0%,
+  100% {
+    box-shadow: 0 4px 10px rgba(211, 47, 47, 0.3);
+  }
+  50% {
+    box-shadow: 0 4px 20px rgba(211, 47, 47, 0.55);
+  }
+}
+
+/* --- ANIMASI TIMELINE SAAT PERTAMA DIBUKA --- */
+.timeline-content-animated {
+  opacity: 0;
+  animation: timelineSlideIn 0.5s cubic-bezier(0.25, 0.8, 0.5, 1) forwards;
+  animation-delay: var(--item-delay, 0ms);
+  will-change: opacity, transform;
+}
+
+@keyframes timelineSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 @media (max-width: 600px) {

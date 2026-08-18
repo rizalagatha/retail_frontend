@@ -759,6 +759,7 @@ const exportAllStores = async () => {
 
     const ExcelJS = (await import("exceljs")).default;
     const workbook = new ExcelJS.Workbook();
+    const sheet = workbook.addWorksheet("Buffer Semua Toko");
 
     const borderThin: Partial<ExcelJS.Borders> = {
       top: { style: "thin" },
@@ -768,39 +769,54 @@ const exportAllStores = async () => {
     };
 
     const cols = [
-      { header: "Kode", key: "kode", width: 16 },
-      { header: "Nama Barang", key: "nama", width: 40 },
-      { header: "Size", key: "ukuran", width: 8 },
-      { header: "Buffer/MIN", key: "min", width: 12, fmt: "#,##0" },
-      { header: "MAX", key: "max", width: 12, fmt: "#,##0" },
-      { header: "Stok Aktual", key: "real_stok", width: 13, fmt: "#,##0" },
+      { header: "Kode Cabang", key: "kode_cabang", width: 14, align: "center" as const },
+      { header: "Nama Store", key: "nama_cabang", width: 24, align: "left" as const },
+      { header: "Kode", key: "kode", width: 16, align: "left" as const },
+      { header: "Nama Barang", key: "nama", width: 40, align: "left" as const },
+      { header: "Size", key: "ukuran", width: 8, align: "center" as const },
+      { header: "Buffer/MIN", key: "min", width: 12, align: "right" as const, fmt: "#,##0" },
+      { header: "MAX", key: "max", width: 12, align: "right" as const, fmt: "#,##0" },
+      { header: "Stok Aktual", key: "real_stok", width: 13, align: "right" as const, fmt: "#,##0" },
     ];
 
-    for (const cab of allData) {
-      const sheetName = cab.kode_cabang.substring(0, 31);
-      const sheet = workbook.addWorksheet(sheetName);
-      sheet.columns = cols.map((c) => ({ width: c.width }));
+    sheet.columns = cols.map((c) => ({ width: c.width }));
 
-      const headerRow = sheet.addRow(cols.map((c) => c.header));
-      headerRow.eachCell({ includeEmpty: true }, (cell) => {
-        cell.font = { bold: true, color: { argb: "FF0D47A1" } };
-        cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFE3F2FD" } };
-        cell.alignment = { horizontal: "center", vertical: "middle" };
-        cell.border = borderThin;
-      });
+    const headerRow = sheet.addRow(cols.map((c) => c.header));
+    headerRow.height = 22;
+    headerRow.eachCell({ includeEmpty: true }, (cell) => {
+      cell.font = { bold: true, color: { argb: "FF0D47A1" } };
+      cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFE3F2FD" } };
+      cell.alignment = { horizontal: "center", vertical: "middle" };
+      cell.border = borderThin;
+    });
+
+    // Alternating background warna per cabang, biar gampang dibaca mata
+    // saat data dari banyak toko digabung jadi 1 sheet panjang.
+    let toggle = false;
+    for (const cab of allData) {
+      const bg = toggle ? "FFF3F8FD" : "FFFFFFFF";
+      toggle = !toggle;
+
+      if (cab.items.length === 0) continue; // skip cabang tanpa data (mis. histori kosong)
 
       cab.items.forEach((item) => {
-        const row = sheet.addRow(
-          cols.map((c) => (item[c.key as keyof BufferItem] ?? "") as string | number)
-        );
+        const values = cols.map((c) => {
+          if (c.key === "kode_cabang") return cab.kode_cabang;
+          if (c.key === "nama_cabang") return cab.nama_cabang;
+          return (item[c.key as keyof BufferItem] ?? "") as string | number;
+        });
+        const row = sheet.addRow(values);
         row.eachCell({ includeEmpty: true }, (cell, colNum) => {
           cell.border = borderThin;
+          cell.alignment = { horizontal: cols[colNum - 1]?.align ?? "left", vertical: "middle" };
           if (cols[colNum - 1]?.fmt) cell.numFmt = cols[colNum - 1].fmt!;
+          cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: bg } };
         });
       });
-
-      sheet.views = [{ state: "frozen", xSplit: 0, ySplit: 1 }];
     }
+
+    sheet.views = [{ state: "frozen", xSplit: 0, ySplit: 1 }];
+    sheet.autoFilter = { from: "A1", to: `H1` }; // biar user bisa filter per cabang langsung di Excel
 
     const buffer = await workbook.xlsx.writeBuffer();
     const blob = new Blob([buffer], {

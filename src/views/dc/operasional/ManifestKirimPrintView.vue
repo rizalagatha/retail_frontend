@@ -385,76 +385,98 @@ onMounted(() => {
         <div class="text-caption font-weight-bold text-uppercase mb-2 text-grey-darken-3">
           BUKTI SERAH TERIMA
         </div>
-        <div class="d-flex gap-3">
+        <div class="d-flex gap-3" style="align-items: stretch">
           <!-- Box 1: Diserahkan Oleh -->
-          <div class="border rounded-lg pa-3 flex-grow-1" style="flex: 1; min-height: 180px">
+          <div
+            class="border rounded-lg pa-3 flex-grow-1 d-flex flex-column"
+            style="flex: 1; min-height: 180px"
+          >
             <div class="font-weight-bold text-caption text-grey-darken-3 border-b pb-1 mb-2">
               Diserahkan Oleh
             </div>
-            <div class="text-caption mb-1">
-              Nama :
-              <span class="font-weight-medium">{{
-                String(header.userCreate || header.Usr || "-")
-              }}</span>
+            <!-- Info section -->
+            <div>
+              <div class="text-caption mb-1">
+                Nama :
+                <span class="font-weight-medium">{{
+                  String(header.userCreate || header.Usr || "-")
+                }}</span>
+              </div>
+              <div class="text-caption mb-1">
+                Waktu Pembuatan :
+                <span class="font-weight-medium">{{ formattedDateCreate }}</span>
+              </div>
             </div>
-            <div class="text-caption mb-1">
-              Waktu Pembuatan :
-              <span class="font-weight-medium">{{ formattedDateCreate }}</span>
-            </div>
-            <div class="text-caption mt-3 mb-1">Tanda Tangan :</div>
-            <div
-              class="text-center my-2 d-flex align-center justify-center"
-              style="min-height: 55px"
-            >
-              <img
-                v-if="header.ttdPengirim"
-                :src="String(header.ttdPengirim)"
-                style="max-height: 50px; border-bottom: 1px solid #000"
-              />
-              <div v-else style="border-bottom: 1px solid #000; margin-top: 35px; width: 80%"></div>
+            <!-- TTD section: selalu di bawah -->
+            <div class="mt-auto">
+              <div class="text-caption mt-3 mb-1">Tanda Tangan :</div>
+              <div
+                class="text-center my-2 d-flex align-center justify-center"
+                style="min-height: 55px"
+              >
+                <img
+                  v-if="header.ttdPengirim"
+                  :src="String(header.ttdPengirim)"
+                  style="max-height: 50px; border-bottom: 1px solid #000"
+                />
+                <div v-else style="border-bottom: 1px solid #000; margin-top: 35px; width: 80%"></div>
+              </div>
             </div>
           </div>
 
           <!-- Box 2: Diterima Oleh -->
-          <div class="border rounded-lg pa-3 flex-grow-1" style="flex: 1; min-height: 180px">
+          <div
+            class="border rounded-lg pa-3 flex-grow-1 d-flex flex-column"
+            style="flex: 1; min-height: 180px"
+          >
             <div class="font-weight-bold text-caption text-grey-darken-3 border-b pb-1 mb-2">
               Diterima Oleh
             </div>
-            <div class="text-caption mb-1">
-              Driver:
-              <span class="font-weight-medium">{{
-                String(header.driver || header.Driver || "-")
-              }}</span>
+            <!-- Info section -->
+            <div>
+              <div class="text-caption mb-1">
+                Driver:
+                <span class="font-weight-medium">{{
+                  String(header.driver || header.Driver || "-")
+                }}</span>
+              </div>
+              <div class="text-caption mb-1">
+                Ekspedisi/Armada :
+                {{
+                  (header.jenisKirim || header.JenisKirim) === "EKSPEDISI"
+                    ? "Ekspedisi"
+                    : (header.jenisKirim || header.JenisKirim) === "AMBIL_SENDIRI"
+                    ? "Ambil Sendiri"
+                    : "Armada Sendiri"
+                }}
+              </div>
+              <div class="text-caption mb-1">
+                Plat Nomer :
+                <span class="font-weight-medium">{{
+                  String(header.platNomor || header.PlatNomor || "-")
+                }}</span>
+              </div>
+              <div class="text-caption mb-1">
+                Waktu Serah Terima :
+                <span class="font-weight-medium">{{
+                  header.jam || header.Jam ? (header.jam || header.Jam) + " WIB" : "-"
+                }}</span>
+              </div>
             </div>
-            <div class="text-caption mb-1">
-              Ekspedisi / Armada :
-              <span class="font-weight-medium">{{
-                String(header.ekspedisi || header.Ekspedisi || "-")
-              }}</span>
-            </div>
-            <div class="text-caption mb-1">
-              Kendaraan (Plat No.) :
-              <span class="font-weight-medium">{{
-                String(header.platNomor || header.PlatNomor || "-")
-              }}</span>
-            </div>
-            <div class="text-caption mb-1">
-              Waktu Serah Terima :
-              <span class="font-weight-medium">{{
-                header.jam || header.Jam ? (header.jam || header.Jam) + " WIB" : "-"
-              }}</span>
-            </div>
-            <div class="text-caption mt-2 mb-1">Tanda Tangan :</div>
-            <div
-              class="text-center my-2 d-flex align-center justify-center"
-              style="min-height: 55px"
-            >
-              <img
-                v-if="header.ttdDriver"
-                :src="String(header.ttdDriver)"
-                style="max-height: 50px; border-bottom: 1px solid #000"
-              />
-              <div v-else style="border-bottom: 1px solid #000; margin-top: 35px; width: 80%"></div>
+            <!-- TTD section: selalu di bawah -->
+            <div class="mt-auto">
+              <div class="text-caption mt-3 mb-1">Tanda Tangan :</div>
+              <div
+                class="text-center my-2 d-flex align-center justify-center"
+                style="min-height: 55px"
+              >
+                <img
+                  v-if="header.ttdDriver"
+                  :src="String(header.ttdDriver)"
+                  style="max-height: 50px; border-bottom: 1px solid #000"
+                />
+                <div v-else style="border-bottom: 1px solid #000; margin-top: 35px; width: 80%"></div>
+              </div>
             </div>
           </div>
 

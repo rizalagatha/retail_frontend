@@ -106,7 +106,7 @@ const masterHeaders = computed<DataTableHeader[]>(() => [
   { title: "Gudang", key: "NamaGudang", width: 140 },
   { title: "Jenis Kirim", key: "JenisKirim", width: 140 },
   { title: "Driver", key: "Driver", width: 140 },
-  { title: "No. Plat", key: "PlatNomor", width: 120 },
+  { title: "Plat Nomor", key: "PlatNomor", width: 120 },
   { title: "Ekspedisi", key: "Ekspedisi", width: 160 },
   { title: "No. Resi", key: "NoResi", width: 150 },
   { title: "Total SJ", key: "TotalSj", width: 90, align: "end" },

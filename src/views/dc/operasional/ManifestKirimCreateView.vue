@@ -1268,11 +1268,11 @@ onMounted(async () => {
                 <span class="font-weight-bold text-grey-darken-4">{{ header.driver || "-" }}</span>
               </div>
               <div class="d-flex justify-space-between mb-1">
-                <span class="text-grey-darken-1">Ekspedisi / Armada</span>
+                <span class="text-grey-darken-1">Metode Pengiriman</span>
                 <span class="font-weight-medium">{{ header.jenisKirim }}</span>
               </div>
               <div class="d-flex justify-space-between align-center mb-1">
-                <span class="text-grey-darken-1">Waktu</span>
+                <span class="text-grey-darken-1">Waktu Diterima</span>
                 <div class="d-flex align-center gap-1">
                   <input
                     type="time"

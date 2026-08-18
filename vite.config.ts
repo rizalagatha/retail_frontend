@@ -12,30 +12,32 @@ export default defineConfig({
   resolve: {
     alias: {
       "@": fileURLToPath(new URL("./src", import.meta.url)),
-      'lottie-web': 'lottie-web/build/player/lottie.min.js'
     },
   },
+  optimizeDeps: {
+    include: ["lottie-web", "vue-lottie-player"],
+  },
 
-  base: process.env.VITE_APP_BASE || '/',
+  base: process.env.VITE_APP_BASE || "/",
 
-  // --- PERBAIKAN DI SINI ---
-  // 'proxy' harus berada di dalam object 'server'
   server: {
+    port: 5173,
+    strictPort: true,
     proxy: {
       "/api": {
-        target: "http://localhost:8000",
+        target: "http://localhost:3005",
         changeOrigin: true,
       },
       "/memos": {
-        target: "http://localhost:8000",
+        target: "http://localhost:3005",
         changeOrigin: true,
       },
       "/uploads": {
-        target: "http://localhost:8000",
+        target: "http://localhost:3005",
         changeOrigin: true,
       },
       "/images": {
-        target: "http://localhost:8000",
+        target: "http://localhost:3005",
         changeOrigin: true,
       },
     },
@@ -44,27 +46,23 @@ export default defineConfig({
   build: {
     rollupOptions: {
       output: {
-        // Fungsi untuk memecah file index menjadi potongan kecil (chunks)
         manualChunks(id) {
-          if (id.includes('node_modules')) {
-            // Pisahkan library besar ke file tersendiri
-            if (id.includes('vuetify')) return 'vendor-vuetify';
-            if (id.includes('lottie-web')) return 'vendor-lottie';
-            if (id.includes('html2canvas')) return 'vendor-canvas';
-            if (id.includes('date-fns')) return 'vendor-date';
-            if (id.includes('jquery') || id.includes('pivottable')) return 'vendor-pivot';
+          if (id.includes("node_modules")) {
+            if (id.includes("vuetify")) return "vendor-vuetify";
+            if (id.includes("lottie-web")) return "vendor-lottie";
+            if (id.includes("html2canvas")) return "vendor-canvas";
+            if (id.includes("date-fns")) return "vendor-date";
+            if (id.includes("jquery") || id.includes("pivottable")) return "vendor-pivot";
 
-            // Gabungkan library kecil lainnya menjadi satu file vendor
-            return 'vendor-core';
+            return "vendor-core";
           }
         },
       },
     },
-    // Naikkan limit peringatan karena Vuetify memang cukup besar
     chunkSizeWarningLimit: 1000,
   },
 
   define: {
-    __APP_VERSION__: JSON.stringify(pkg.version), // ⬅ INJECT VERSION KE FRONTEND
+    __APP_VERSION__: JSON.stringify(pkg.version),
   },
 });

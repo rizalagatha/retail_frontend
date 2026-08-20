@@ -188,9 +188,13 @@ const STAFF_TITLE_MAP: Record<string, string> = {
   "Menunggu Pengeluaran Bahan": "Menunggu Bahan Baku",
   "Permintaan Bahan Dibatalkan": "Permintaan Bahan Dibatalkan",
   "Menunggu Permintaan Bahan": "Menunggu Persiapan Bahan",
-  "Menunggu Proses Potong": "Menunggu Tahap Potong",
-  "Menunggu Proses Jahit": "Menunggu Tahap Jahit",
-  "Menunggu Proses Lipat": "Menunggu Tahap Lipat & QC",
+
+  // [DIUBAH]: Semua tahap "Menunggu Proses X" digeneralisir jadi satu
+  // label netral, supaya tidak menampilkan detail tahap teknis pabrik
+  "Menunggu Proses Potong": "Menunggu Tahap Berikutnya",
+  "Menunggu Proses Jahit": "Menunggu Tahap Berikutnya",
+  "Menunggu Proses Lipat": "Menunggu Tahap Berikutnya",
+
   "Menunggu Masuk Koli": "Menunggu Pengemasan",
   "Menunggu Pembuatan STBJ": "Menunggu Serah Terima",
   "Surat Terima Barang Jadi (STBJ)": "Serah Terima ke Gudang Pusat",
@@ -199,9 +203,12 @@ const STAFF_TITLE_MAP: Record<string, string> = {
 };
 
 const friendlyStaffTitle = (title: string): string => {
-  // Cocokkan persis dulu
   if (STAFF_TITLE_MAP[title]) return STAFF_TITLE_MAP[title];
-  // Cocokkan pola dinamis (yang ada sisipan nama komponen/gudang di title)
+
+  // [BARU] Fallback generik: title apapun yang berpola "Menunggu Proses ..."
+  // otomatis dianggap "Menunggu Tahap Berikutnya", tanpa perlu didaftar satu-satu
+  if (/^Menunggu Proses /i.test(title)) return "Menunggu Tahap Berikutnya";
+
   if (title.startsWith("Proses Potong Selesai"))
     return title.replace("Proses Potong Selesai", "Tahap Potong Selesai");
   if (title.startsWith("Proses Cetak Selesai"))
@@ -212,7 +219,7 @@ const friendlyStaffTitle = (title: string): string => {
     return title.replace("Proses Lipat Selesai", "Tahap Lipat & QC Selesai");
   if (title.startsWith("Barang Jadi (Masuk Koli)"))
     return title.replace("Barang Jadi (Masuk Koli)", "Barang Jadi Dikemas");
-  return title; // fallback: title asli kalau belum ada di mapping
+  return title;
 };
 
 const timelineBaseDelay = computed(() => {

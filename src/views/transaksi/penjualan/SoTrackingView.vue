@@ -202,6 +202,14 @@ const STAFF_TITLE_MAP: Record<string, string> = {
   "Barang Diterima DC": "Diterima Gudang Pusat",
 };
 
+// [BARU] Deteksi apakah 1 grup SPK sudah tuntas sampai gudang pusat (DC).
+// Patokannya: child terakhir dari grup SPK punya title mentah "Barang Diterima DC".
+const isSpkReachedDC = (children?: RawLog[]): boolean => {
+  if (!children || children.length === 0) return false;
+  const last = children[children.length - 1];
+  return /barang diterima dc/i.test(last.title);
+};
+
 const friendlyStaffTitle = (title: string): string => {
   if (STAFF_TITLE_MAP[title]) return STAFF_TITLE_MAP[title];
 
@@ -243,10 +251,15 @@ const fetchTrackingData = async () => {
       const gabunganUtama = log.detail ? `${log.subtitle} • ${log.detail}` : log.subtitle;
 
       if (isStaff.value) {
+        let mappedStatus = friendlyStaffTitle(log.title);
+        if (log.isSpkGroup && mappedStatus === "Produksi Dimulai" && isSpkReachedDC(log.children)) {
+          mappedStatus = "Produksi Selesai";
+        }
+
         return {
           id: log.id,
           waktu: log.waktu,
-          status: friendlyStaffTitle(log.title),
+          status: mappedStatus,
           originalDeskripsi: gabunganUtama,
           deskripsi: gabunganUtama,
           aktor: log.status,
@@ -328,6 +341,24 @@ const fetchTrackingData = async () => {
         };
       }
     });
+
+    if (isStaff.value) {
+      const spkGroups = logs.value.filter((l) => l.isSpkGroup);
+      const allSpkDone =
+        spkGroups.length > 0 && spkGroups.every((l) => l.status === "Produksi Selesai");
+
+      if (allSpkDone) {
+        logs.value.unshift({
+          id: -1,
+          waktu: "Berjalan",
+          status: "Menunggu Tahap Berikutnya",
+          deskripsi: "Seluruh SPK produksi telah selesai, menunggu proses selanjutnya.",
+          aktor: "",
+          isSpkGroup: false,
+          children: [],
+        });
+      }
+    }
 
     // [PERBAIKAN]: Sembunyikan Nomor SO di pojok kanan atas
     if (!data.resiAwb || data.resiAwb === realSoNumber) {

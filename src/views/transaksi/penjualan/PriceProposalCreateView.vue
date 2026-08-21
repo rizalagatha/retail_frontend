@@ -503,7 +503,7 @@ const executeSave = async () => {
   try {
     const filteredDetails = sizeItems.value.filter((item) => (item.qty || 0) > 0);
     const filteredAdditionalCosts = additionalCostItems.value.filter(
-      (item) => item.tambahan && item.tambahan.trim() && (item.harga || 0) > 0
+      (item) => item.tambahan && item.tambahan.trim()
     );
 
     const [jeniskaosPart, ...lenganPartsArr] = sublimForm.value.jerseyChoice.split("|");

@@ -72,6 +72,13 @@ interface SizeDetail {
   lBawah: number;
 }
 
+const revisiTerbuka = ref<{
+  id: number;
+  keterangan: string;
+  userCreate: string;
+  dateCreate: string;
+} | null>(null);
+
 const isLoading = ref(true);
 const isSaving = ref(false);
 const errorMessage = ref("");
@@ -86,6 +93,7 @@ const kepentinganOptions = ref<string[]>([]);
 // tetap dipakai untuk field read-only) supaya jelas mana yang dikirim ke
 // backend saat simpan, mana yang murni tampilan.
 const editForm = ref({
+  namaSo: "",
   dateline: "",
   kepentingan: "",
   keteranganProduksi: "",
@@ -139,6 +147,7 @@ const statusColor = computed(() => {
   return "amber-darken-2";
 });
 const isClosed = computed(() => Number(header.value?.so_close || 0) !== 0);
+const canEdit = computed(() => !isClosed.value && !!revisiTerbuka.value);
 
 const fetchDetail = async () => {
   const nomor = route.params.nomor as string;
@@ -155,19 +164,24 @@ const fetchDetail = async () => {
 
     // Inisialisasi form editable dari data yang baru dimuat
     editForm.value = {
+      namaSo: h.so_nama,
       dateline: toDateInputValue(h.so_dateline),
       kepentingan: h.so_statuskerja,
       keteranganProduksi: h.so_keterangan || "",
     };
     editSizeQty.value = Object.fromEntries(sizes.value.map((s) => [s.size, Number(s.qty) || 0]));
 
-    // [BARU] Ambil gambar + opsi kepentingan dari Pengajuan Harga terkait
+    //  Ambil gambar + opsi kepentingan dari Pengajuan Harga terkait
     if (h.refPengajuanHarga) {
       await fetchGambar(h.refPengajuanHarga);
       const soDetailResponse = await api.get(
         `/price-proposals/${encodeURIComponent(h.refPengajuanHarga)}/so-detail`
       );
       kepentinganOptions.value = soDetailResponse.data?.kepentinganOptions || [];
+      revisiTerbuka.value = soDetailResponse.data?.revisiTerbuka || null;
+      if (soDetailResponse.data?.namaSo) {
+        editForm.value.namaSo = soDetailResponse.data.namaSo;
+      }
     }
     if (h.so_jo_kode) {
       await fetchDatelineRange(editForm.value.kepentingan, h.so_jo_kode, false);
@@ -229,6 +243,10 @@ const handleSave = async () => {
     toast.error("Referensi Pengajuan Harga tidak ditemukan, tidak bisa menyimpan.");
     return;
   }
+  if (!editForm.value.namaSo.trim()) {
+    toast.error("Nama SO wajib diisi.");
+    return;
+  }
   if (!editForm.value.dateline) {
     toast.error("Dateline SPK wajib diisi.");
     return;
@@ -251,6 +269,7 @@ const handleSave = async () => {
   isSaving.value = true;
   try {
     const payload = {
+      namaSo: editForm.value.namaSo.trim(),
       dateline: editForm.value.dateline,
       kepentingan: editForm.value.kepentingan,
       keteranganProduksi: editForm.value.keteranganProduksi,
@@ -299,7 +318,7 @@ onMounted(fetchDetail);
           variant="flat"
           prepend-icon="mdi-content-save"
           :loading="isSaving"
-          :disabled="isLoading || isClosed"
+          :disabled="isLoading || !canEdit"
           @click="handleSave"
         >
           Simpan
@@ -327,6 +346,25 @@ onMounted(fetchDetail);
         </button>
       </div>
       <div class="pf-tab-body">
+        <div v-if="revisiTerbuka" class="revisi-alert revisi-open">
+          <v-icon icon="mdi-message-alert-outline" size="18" class="mr-2"></v-icon>
+          <div>
+            <div class="revisi-alert-title">Permintaan Revisi dari DC</div>
+            <div class="revisi-alert-body">{{ revisiTerbuka.keterangan }}</div>
+            <div class="revisi-alert-meta">
+              Oleh {{ revisiTerbuka.userCreate }} • {{ formatDate(revisiTerbuka.dateCreate) }}
+            </div>
+          </div>
+        </div>
+        <div v-else-if="!isClosed" class="revisi-alert revisi-locked">
+          <v-icon icon="mdi-lock-outline" size="18" class="mr-2"></v-icon>
+          <div>
+            <div class="revisi-alert-title">SO Terkunci</div>
+            <div class="revisi-alert-body">
+              Belum ada permintaan revisi dari DC. Hubungi DC untuk membuka akses edit SO ini.
+            </div>
+          </div>
+        </div>
         <!-- ============== TAB SO ============== -->
         <div v-show="activeTab === 0" class="so-layout">
           <div class="so-left">
@@ -374,7 +412,7 @@ onMounted(fetchDetail);
                     <select
                       v-model="editForm.kepentingan"
                       class="edit-select"
-                      :disabled="isClosed"
+                      :disabled="!canEdit"
                       @change="handleKepentinganChange"
                     >
                       <option
@@ -411,7 +449,13 @@ onMounted(fetchDetail);
               </div>
               <div class="fr">
                 <label class="lbl">Nama</label>
-                <span class="ro-val">{{ header.so_nama }}</span>
+                <input
+                  type="text"
+                  v-model="editForm.namaSo"
+                  class="edit-input"
+                  style="flex: 1"
+                  :disabled="!canEdit"
+                />
               </div>
               <div class="fr">
                 <label class="lbl">Nama Ext</label>
@@ -468,7 +512,7 @@ onMounted(fetchDetail);
                     type="date"
                     v-model="editForm.dateline"
                     class="edit-input"
-                    :disabled="isClosed"
+                    :disabled="!canEdit"
                     :min="datelineRange?.minDate"
                     :max="datelineRange?.maxDate"
                   />
@@ -510,7 +554,7 @@ onMounted(fetchDetail);
                 v-model="editForm.keteranganProduksi"
                 class="edit-textarea"
                 rows="8"
-                :disabled="isClosed"
+                :disabled="!canEdit"
               ></textarea>
             </div>
             <!-- [BARU] Kolom Gambar, diambil dari Pengajuan Harga -->
@@ -523,6 +567,7 @@ onMounted(fetchDetail);
             </div>
           </div>
         </div>
+
         <!-- ============== TAB KET UKURAN ============== -->
         <div v-show="activeTab === 1" class="uk-layout">
           <div class="uk-card" style="flex: 1">
@@ -566,7 +611,7 @@ onMounted(fetchDetail);
                         type="number"
                         v-model.number="editSizeQty[row.size]"
                         class="edit-qty-input"
-                        :disabled="isClosed"
+                        :disabled="!canEdit"
                       />
                     </td>
                     <template v-if="showKolomAtasan">
@@ -606,6 +651,7 @@ onMounted(fetchDetail);
             </div>
           </div>
         </div>
+
         <!-- ============== TAB KAOSAN ============== -->
         <div v-show="activeTab === 2" class="k-layout">
           <div class="k-section">
@@ -1084,5 +1130,35 @@ onMounted(fetchDetail);
   color: #9e9e9e;
   font-size: 11px;
   font-style: italic;
+}
+.revisi-alert {
+  display: flex;
+  align-items: flex-start;
+  padding: 10px 14px;
+  margin: 0 20px 12px;
+  border-radius: 4px;
+  font-size: 12px;
+}
+.revisi-open {
+  background: #fff3e0;
+  border: 1px solid #ffb74d;
+  color: #e65100;
+}
+.revisi-locked {
+  background: #f5f5f5;
+  border: 1px solid #bdbdbd;
+  color: #616161;
+}
+.revisi-alert-title {
+  font-weight: 700;
+  margin-bottom: 2px;
+}
+.revisi-alert-body {
+  white-space: pre-wrap;
+}
+.revisi-alert-meta {
+  font-size: 10px;
+  margin-top: 3px;
+  opacity: 0.8;
 }
 </style>

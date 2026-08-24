@@ -266,6 +266,15 @@ interface RecalcDiscountResult {
   diskon: number;
 }
 
+interface MpPackagingItem {
+  kode: string;
+  nama: string;
+  harga: number;
+  stok: number;
+  qty: number;
+  checked: boolean;
+}
+
 // --- Inisialisasi ---
 const router = useRouter();
 const route = useRoute();
@@ -280,6 +289,9 @@ const isStoreUser = computed(() => {
   const cabang = authStore.user?.cabang || "";
   return /^K\d+/.test(cabang);
 });
+const mpPackagingList = ref<MpPackagingItem[]>([]);
+const isLoadingMpPackaging = ref(false);
+const isMpPackagingDialogOpen = ref(false);
 
 // --- State ---
 const isEditMode = computed(() => !!route.params.nomor);
@@ -315,6 +327,11 @@ const referenceDateLabel = computed(() => (isKpr.value ? "Tgl. SJ" : "Tgl. SO"))
 const memberLabel = computed(() => {
   return header.customer.kode === "K-00079" ? "Data Karyawan" : "Info Member";
 });
+
+const hasMpPackagingStock = computed(() => mpPackagingList.value.some((p) => p.stok > 0));
+const totalMpPackagingPcs = computed(() =>
+  mpPackagingList.value.reduce((sum, p) => sum + p.qty, 0)
+);
 
 // Update isUserKon jika masih digunakan di tempat lain,
 // tapi untuk UI Toggle kita gunakan isUserMarketplaceEligible
@@ -833,6 +850,30 @@ const fetchSalesCounters = async () => {
   } catch (error) {
     const err = error as AxiosError<{ message?: string }>;
     toast.error(err.response?.data?.message || "Gagal memuat daftar Sales Counter.");
+  }
+};
+
+const fetchMpPackaging = async () => {
+  isLoadingMpPackaging.value = true;
+  try {
+    const res = await api.get("/invoice-form/lookup/packaging-options");
+    mpPackagingList.value = res.data.map((p: Omit<MpPackagingItem, "qty" | "checked">) => ({
+      ...p,
+      qty: 0,
+      checked: false,
+    }));
+  } catch {
+    toast.error("Gagal memuat opsi packaging.");
+  } finally {
+    isLoadingMpPackaging.value = false;
+  }
+};
+
+const onMpPackagingQtyChange = (item: MpPackagingItem) => {
+  if (item.qty > 0) item.checked = true;
+  if (item.qty <= 0) {
+    item.qty = 0;
+    item.checked = false;
   }
 };
 
@@ -2361,13 +2402,15 @@ const handleProceedToPayment = async () => {
 
   // --- LANJUT KE PROSES PEMBAYARAN ---
   if (header.isMarketplace) {
-    showConfirmation(
-      "Simpan Transaksi Marketplace?",
-      `Total Tagihan: ${formatRupiah(
-        totals.grandTotal
-      )}\n\nTransaksi ini akan dicatat sebagai PIUTANG ke ${header.mpNama}. Lanjutkan?`,
-      () => executeSaveMarketplace()
-    );
+    await fetchMpPackaging();
+
+    // [BARU] Kalau ada stok packaging tapi belum ada yang dipilih, wajib pilih dulu
+    if (hasMpPackagingStock.value && totalMpPackagingPcs.value === 0) {
+      isMpPackagingDialogOpen.value = true;
+      return;
+    }
+
+    proceedMarketplaceConfirmation();
   } else {
     const proceedToPayment = () => {
       dialogs.payment = true;
@@ -2384,8 +2427,30 @@ const handleProceedToPayment = async () => {
   }
 };
 
+const proceedMarketplaceConfirmation = () => {
+  showConfirmation(
+    "Simpan Transaksi Marketplace?",
+    `Total Tagihan: ${formatRupiah(
+      totals.grandTotal
+    )}\n\nTransaksi ini akan dicatat sebagai PIUTANG ke ${header.mpNama}. Lanjutkan?`,
+    () => executeSaveMarketplace()
+  );
+};
+
+const confirmMpPackagingSelection = () => {
+  if (hasMpPackagingStock.value && totalMpPackagingPcs.value === 0) {
+    return toast.error("Packaging wajib dipilih karena stok tersedia sebelum melanjutkan.");
+  }
+  isMpPackagingDialogOpen.value = false;
+  proceedMarketplaceConfirmation();
+};
+
 // [BARU] Function Simpan Khusus Marketplace
 const executeSaveMarketplace = async () => {
+  if (hasMpPackagingStock.value && totalMpPackagingPcs.value === 0) {
+    return toast.error("Packaging wajib dipilih karena stok tersedia.");
+  }
+
   // 1. Pastikan IDREC sudah ada (Idempotency Key)
   if (!header.idrec) {
     header.idrec = generateIdRec(header.gudang.kode || "K01");
@@ -2395,9 +2460,25 @@ const executeSaveMarketplace = async () => {
   if (!header.customer.kode) return toast.error("Customer belum dipilih.");
   if (!header.salesCounter) return toast.error("Sales Counter belum dipilih.");
 
+  const mpPackagingItems = mpPackagingList.value
+    .filter((p) => p.qty > 0)
+    .map((p) => ({
+      kode: p.kode,
+      nama: p.nama,
+      ukuran: "PCS",
+      jumlah: p.qty,
+      harga: p.harga,
+      diskonPersen: 0,
+      diskonRp: 0,
+      total: p.harga * p.qty,
+      hpp: 0,
+      kategori: "PACKAGING",
+      isPackaging: true,
+    }));
+
   const payload = {
     header: header,
-    items: items.value.filter((i) => i.kode),
+    items: [...items.value.filter((i) => i.kode), ...mpPackagingItems],
     totals: totals,
     payment: {
       tunai: 0,
@@ -4206,6 +4287,51 @@ watch(
             Barang selain COMBED 24S akan ditolak otomatis.
           </div>
         </v-card-text>
+      </v-card>
+    </v-dialog>
+
+    <v-dialog v-model="isMpPackagingDialogOpen" max-width="480" persistent>
+      <v-card>
+        <v-toolbar color="teal" density="compact">
+          <v-toolbar-title class="text-subtitle-1">Pilih Packaging (Marketplace)</v-toolbar-title>
+        </v-toolbar>
+        <v-card-text class="pa-4">
+          <v-alert type="info" variant="tonal" density="compact" class="mb-3">
+            Stok packaging tersedia di cabang ini. Pilih minimal 1 sebelum melanjutkan.
+          </v-alert>
+          <div v-if="isLoadingMpPackaging" class="text-center py-4">
+            <v-progress-circular indeterminate color="teal" size="24" />
+          </div>
+          <v-row v-else dense>
+            <v-col
+              v-for="item in mpPackagingList.filter((p) => p.stok > 0)"
+              :key="item.kode"
+              cols="6"
+            >
+              <div class="d-flex align-center justify-space-between border rounded pa-2">
+                <div>
+                  <div class="text-caption font-weight-bold">{{ item.nama }}</div>
+                  <div class="text-caption text-grey">Stok: {{ item.stok }}</div>
+                </div>
+                <v-text-field
+                  v-model.number="item.qty"
+                  type="number"
+                  min="0"
+                  density="compact"
+                  variant="outlined"
+                  hide-details
+                  style="max-width: 70px"
+                  @update:model-value="onMpPackagingQtyChange(item)"
+                />
+              </div>
+            </v-col>
+          </v-row>
+        </v-card-text>
+        <v-card-actions class="pa-3">
+          <v-spacer />
+          <v-btn variant="text" @click="isMpPackagingDialogOpen = false">Batal</v-btn>
+          <v-btn color="primary" @click="confirmMpPackagingSelection">Lanjutkan</v-btn>
+        </v-card-actions>
       </v-card>
     </v-dialog>
   </PageLayout>

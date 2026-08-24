@@ -31,16 +31,29 @@ const isSending = ref(false);
 const pollingInterval = ref<ReturnType<typeof setInterval> | null>(null);
 
 // --- Computed ---
+// [BARU] Mapping jenis otorisasi -> role penyetuju yang dituju. Sumber
+// kebenarannya harus SELALU sinkron dengan routing notifikasi FCM di
+// authPinService.js (backend web) dan authorization.controller.js
+// (backend mobile) — kalau nambah jenis baru di backend, tambahkan juga
+// mapping-nya di sini supaya label di modal ini akurat.
+const JENIS_ROLE_MAP: Record<string, string> = {
+  PEMINJAMAN_BARANG: "Supervisor (ESTU)",
+  KLAIM_PETTYCASH: "Supervisor (ESTU)",
+  SUBMIT_BAP: "Supervisor (ESTU)",
+  CLOSE_PENAWARAN: "Supervisor (ESTU)",
+  CLOSE_SO_DTF: "Supervisor (ESTU)",
+  CLOSE_SO: "Supervisor (ESTU)",
+  CLOSE_PH: "Supervisor (ESTU)",
+  TRANSFER_SOP: "RIO",
+  AMBIL_BARANG: "Pihak Toko",
+};
+
 const targetRole = computed(() => {
-  // Jika jenisnya peminjaman ATAU klaim petty cash ATAU submit BAP, arahkan ke Supervisor ESTU
-  if (
-    props.jenis === "PEMINJAMAN_BARANG" ||
-    props.jenis === "KLAIM_PETTYCASH" ||
-    props.jenis === "SUBMIT_BAP"
-  ) {
-    return "Supervisor (ESTU)";
+  // Kasus khusus: AMBIL_BARANG target-nya cabang tertentu, bukan role tetap
+  if (props.jenis === "AMBIL_BARANG" && props.cabang) {
+    return `Pihak Toko ${props.cabang}`;
   }
-  return props.cabang ? `Pihak Toko ${props.cabang}` : "Manager";
+  return JENIS_ROLE_MAP[props.jenis || ""] || "Manager";
 });
 
 const isQtyType = computed(

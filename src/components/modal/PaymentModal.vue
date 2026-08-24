@@ -160,6 +160,8 @@ const totalPackaging = computed(() =>
 
 const totalPackagingPcs = computed(() => packagingList.value.reduce((sum, p) => sum + p.qty, 0));
 
+const hasPackagingStockAvailable = computed(() => packagingList.value.some((p) => p.stok > 0));
+
 // --- State ---
 const payment = reactive({
   tunai: 0,
@@ -477,6 +479,13 @@ onMounted(() => {
 
 // [UPDATE] Handle Final Save
 const handleFinalSave = async () => {
+  // [BARU] VALIDASI WAJIB PILIH PACKAGING JIKA STOK TERSEDIA
+  if (hasPackagingStockAvailable.value && totalPackagingPcs.value === 0) {
+    return toast.error(
+      "Packaging (Plastik/Goodie Bag/Kardus) wajib dipilih karena stok tersedia. Silakan pilih minimal 1 packaging sebelum menyimpan invoice."
+    );
+  }
+
   // [BARU] 1. VALIDASI LIMIT PIUTANG DISTRIBUTOR
   if (isPiutangOverLimit.value) {
     const totalTagihan = props.customerDebt + props.totals.grandTotal;

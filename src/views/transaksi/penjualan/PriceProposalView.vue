@@ -9,6 +9,7 @@ import { useRouter, useRoute, onBeforeRouteLeave } from "vue-router";
 import AppDataTable from "@/components/AppDataTable.vue";
 import type { AxiosError } from "axios";
 import { formatRupiah } from "@/utils/formatRupiah";
+import AuthorizationModal from "@/components/modal/AuthorizationModal.vue";
 
 const toast = useToast();
 const authStore = useAuthStore();
@@ -74,6 +75,7 @@ const STATUS_LABEL: Record<string, string> = {
   READY_STORE: "Ready Store",
   CLOSED: "Closed",
   REJECTED: "Ditolak",
+  DIBATALKAN: "Dibatalkan",
 };
 
 const STATUS_COLOR: Record<string, string> = {
@@ -88,6 +90,7 @@ const STATUS_COLOR: Record<string, string> = {
   READY_STORE: "teal",
   CLOSED: "success",
   REJECTED: "error",
+  DIBATALKAN: "grey-darken-2",
 };
 
 const getStatusLabel = (status: string) => STATUS_LABEL[status] || status || "Draft";
@@ -123,6 +126,16 @@ const filterSearchValue = ref("");
 const hasViewPermission = ref(false);
 const dialogDelete = ref(false);
 const itemToDelete = ref<PriceProposal | null>(null);
+const isCloseDialogVisible = ref(false);
+const itemToClose = ref<PriceProposal | null>(null);
+const closeReason = ref("");
+const isAuthCloseVisible = ref(false);
+const authClosePayload = ref<{ transaksi: string; keterangan: string; nominal: number }>({
+  transaksi: "",
+  keterangan: "",
+  nominal: 0,
+});
+const pendingCloseReason = ref("");
 
 const SESSION_STATE_KEY = "price_proposal_browse_state";
 
@@ -182,6 +195,22 @@ const isGeneratingSo = ref(false);
 const canGenerateSo = computed(
   () => isSingleSelected.value && soEligibility.value?.eligible === true
 );
+
+const canClose = computed(() => {
+  if (!isSingleSelected.value) return false;
+  const status = selected.value[0].status;
+  return status !== "DRAFT" && status !== "DIBATALKAN" && status !== "CLOSED";
+});
+
+const isDcUser = computed(() => authStore.user?.cabang === "KDC");
+const canRequestRevision = computed(() => {
+  if (!isSingleSelected.value || !isDcUser.value) return false;
+  return ["MENUNGGU_DC", "ACC_DC"].includes(selected.value[0].status);
+});
+
+const isRevisiDialogVisible = ref(false);
+const revisiKeterangan = ref("");
+const isSubmittingRevisi = ref(false);
 
 // --- Logic Resize Column ---
 const resizingColumn = ref<DataTableHeader | null>(null);
@@ -357,6 +386,85 @@ const deleteConfirmed = () => {
   }
   dialogDelete.value = false;
   itemToDelete.value = null;
+};
+
+const openCloseDialog = () => {
+  if (!canClose.value) return;
+  itemToClose.value = selected.value[0];
+  closeReason.value = "";
+  isCloseDialogVisible.value = true;
+};
+
+const submitCloseReason = () => {
+  const item = itemToClose.value;
+  if (!item) return;
+  if (!closeReason.value.trim()) {
+    toast.error("Alasan penutupan harus diisi.");
+    return;
+  }
+
+  pendingCloseReason.value = closeReason.value;
+  isCloseDialogVisible.value = false;
+
+  authClosePayload.value = {
+    transaksi: item.nomor,
+    keterangan: `Close Pengajuan Harga: ${item.nomor}\nCustomer: ${
+      item.customer || "-"
+    }\nStatus saat ini: ${getStatusLabel(item.status)}\nAlasan: ${closeReason.value}`,
+    nominal: 0, // Pengajuan Harga tidak selalu punya nominal fix di level header — dikosongkan
+  };
+  isAuthCloseVisible.value = true;
+};
+
+const openRevisiDialog = () => {
+  if (!canRequestRevision.value) return;
+  revisiKeterangan.value = "";
+  isRevisiDialogVisible.value = true;
+};
+
+const submitRevisi = async () => {
+  if (!revisiKeterangan.value.trim()) {
+    toast.error("Keterangan revisi wajib diisi.");
+    return;
+  }
+  const nomor = selected.value[0].nomor;
+  isSubmittingRevisi.value = true;
+  try {
+    const response = await api.post(`/price-proposals/${nomor}/request-revisi`, {
+      keterangan: revisiKeterangan.value,
+    });
+    toast.success(response.data?.message || "Permintaan revisi berhasil dikirim.");
+    isRevisiDialogVisible.value = false;
+    fetchData();
+  } catch (error: unknown) {
+    toast.error(getErrorMessage(error, "Gagal mengirim permintaan revisi."));
+  } finally {
+    isSubmittingRevisi.value = false;
+  }
+};
+
+const doCloseProposal = async ({ authNomor }: { authNomor: string; approver: string }) => {
+  const item = itemToClose.value;
+  if (!item) return;
+  isAuthCloseVisible.value = false;
+
+  try {
+    const response = await api.patch(`/price-proposals/${item.nomor}/close`, {
+      keterangan: pendingCloseReason.value,
+      authNomor,
+    });
+    toast.success(response.data?.message || `Pengajuan harga ${item.nomor} berhasil ditutup.`);
+    fetchData();
+    selected.value = [];
+    itemToClose.value = null;
+  } catch (error: unknown) {
+    toast.error(getErrorMessage(error, "Gagal menutup pengajuan harga."));
+  }
+};
+
+const onAuthCloseCancelled = () => {
+  isAuthCloseVisible.value = false;
+  isCloseDialogVisible.value = true;
 };
 
 const openGenerateSoDialog = async () => {
@@ -561,6 +669,16 @@ onBeforeRouteLeave((to, from, next) => {
         >Hapus</v-btn
       >
       <v-btn
+        v-if="authStore.can(MENU_ID, 'edit')"
+        size="small"
+        :disabled="!canClose"
+        color="grey-darken-2"
+        prepend-icon="mdi-lock-outline"
+        @click="openCloseDialog"
+      >
+        Tutup
+      </v-btn>
+      <v-btn
         v-if="canGenerateSo"
         size="small"
         color="success"
@@ -568,6 +686,15 @@ onBeforeRouteLeave((to, from, next) => {
         @click="openGenerateSoDialog"
         >Generate SO Manksi</v-btn
       >
+      <v-btn
+        v-if="canRequestRevision"
+        size="small"
+        color="amber-darken-3"
+        prepend-icon="mdi-file-edit-outline"
+        @click="openRevisiDialog"
+      >
+        Minta Revisi SO
+      </v-btn>
     </template>
 
     <div v-if="!hasViewPermission" class="state-container">
@@ -852,6 +979,46 @@ onBeforeRouteLeave((to, from, next) => {
       </v-card>
     </v-dialog>
 
+    <v-dialog v-model="isCloseDialogVisible" max-width="500px" persistent>
+      <v-card>
+        <v-card-title class="text-subtitle-1">Tutup Pengajuan Harga</v-card-title>
+        <v-card-text class="pa-4">
+          <p class="text-caption mb-2">
+            Anda akan menutup Pengajuan Harga Nomor: <strong>{{ itemToClose?.nomor }}</strong>
+          </p>
+          <p class="text-caption mb-3 text-grey-darken-1">
+            Status saat ini: <strong>{{ getStatusLabel(itemToClose?.status || "") }}</strong
+            >. Aksi ini memerlukan otorisasi SPV dan tidak dapat dibatalkan.
+          </p>
+          <v-textarea
+            v-model="closeReason"
+            label="Alasan Penutupan"
+            rows="3"
+            variant="outlined"
+            autofocus
+          ></v-textarea>
+        </v-card-text>
+        <v-card-actions>
+          <v-spacer></v-spacer>
+          <v-btn @click="isCloseDialogVisible = false">Batal</v-btn>
+          <v-btn color="grey-darken-2" variant="flat" @click="submitCloseReason"
+            >Lanjut ke Otorisasi</v-btn
+          >
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+
+    <AuthorizationModal
+      v-if="isAuthCloseVisible"
+      title="Otorisasi Tutup Pengajuan Harga"
+      jenis="CLOSE_PH"
+      :transaksi="authClosePayload.transaksi"
+      :keterangan="authClosePayload.keterangan"
+      :nominal="authClosePayload.nominal"
+      @success="doCloseProposal"
+      @close="onAuthCloseCancelled"
+    />
+
     <v-dialog v-model="isGenerateSoDialogVisible" max-width="480px" persistent>
       <v-card class="generate-so-card">
         <v-card-title class="generate-so-title">
@@ -977,6 +1144,38 @@ onBeforeRouteLeave((to, from, next) => {
             @click="submitGenerateSo"
           >
             Generate SO
+          </v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+
+    <v-dialog v-model="isRevisiDialogVisible" max-width="500px" persistent>
+      <v-card>
+        <v-card-title class="text-subtitle-1">Minta Revisi SO MANKSI</v-card-title>
+        <v-card-text class="pa-4">
+          <p class="text-caption mb-3">
+            Toko akan bisa mengedit SO MANKSI (Dateline/Kepentingan/Keterangan) setelah catatan ini
+            dikirim.
+          </p>
+          <v-textarea
+            v-model="revisiKeterangan"
+            label="Keterangan Revisi"
+            placeholder="Contoh: Dateline mepet, mohon geser ke tanggal berikut..."
+            rows="4"
+            variant="outlined"
+            autofocus
+          ></v-textarea>
+        </v-card-text>
+        <v-card-actions>
+          <v-spacer></v-spacer>
+          <v-btn @click="isRevisiDialogVisible = false">Batal</v-btn>
+          <v-btn
+            color="amber-darken-3"
+            variant="flat"
+            :loading="isSubmittingRevisi"
+            @click="submitRevisi"
+          >
+            Kirim
           </v-btn>
         </v-card-actions>
       </v-card>

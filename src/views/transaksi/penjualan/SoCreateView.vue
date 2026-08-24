@@ -87,6 +87,7 @@ interface SoItem {
   isLhk?: boolean;
   isFreeGift?: boolean;
   _oldJumlah?: number;
+  phStatus?: string;
 }
 
 // Interface baru untuk Record Adjustment
@@ -973,6 +974,9 @@ const loadDataForEdit = async (nomor: string, silent = false) => {
     items.value = processedSoItems;
     // ========================================================
 
+    //  Cek status PH untuk validasi hapus item
+    await loadPhStatusesForItems();
+
     // ===== MAPPING DP ITEMS =====
     dpItems.value = dpItemsData;
     existingDpNomor.value = dpItemsData.length > 0 ? dpItemsData[0].nomor : "";
@@ -1470,6 +1474,10 @@ const applyMarchBonusSticker = async (forceInject = false) => {
 
 const STICKER_DTF_LOCKED_KODE = ["2500053", "2500060"];
 
+// Item dengan Pengajuan Harga berstatus ini artinya DC sudah alokasikan
+// produksi — item tidak boleh dihapus dari SO lagi tanpa reject PH-nya dulu.
+const PH_LOCKED_STATUSES = ["ACC_DC", "PRODUKSI", "BARANG_DITERIMA_DC", "READY_STORE", "CLOSED"];
+
 const addItemByBarcode = async (barcode: string) => {
   if (!header.value.customer) {
     toast.error("Pilih customer terlebih dahulu sebelum scan barang.");
@@ -1531,6 +1539,26 @@ const addItemByBarcode = async (barcode: string) => {
     } else {
       toast.error(`Barcode ${barcode} tidak ditemukan.`);
     }
+  }
+};
+
+// Ambil status semua Pengajuan Harga yang dipakai item di SO ini,
+// lalu tempel ke masing-masing item sebagai item.phStatus.
+const loadPhStatusesForItems = async () => {
+  const nomors = [...new Set(items.value.map((i) => i.noPengajuanHarga).filter((n) => !!n))];
+  if (nomors.length === 0) return;
+
+  try {
+    const { data } = await api.get<Record<string, string>>("/price-proposals/status-bulk", {
+      params: { nomors: nomors.join(",") },
+    });
+    items.value.forEach((item) => {
+      if (item.noPengajuanHarga && data[item.noPengajuanHarga]) {
+        item.phStatus = data[item.noPengajuanHarga];
+      }
+    });
+  } catch (err) {
+    console.error("Gagal memuat status Pengajuan Harga:", err);
   }
 };
 
@@ -1891,6 +1919,14 @@ const resetForm = () => {
 const removeRow = (id: number | string) => {
   const item = items.value.find((i) => i.id === id);
   if (!item) return;
+
+  // Blok hapus jika PH terkait sudah ACC_DC ke atas
+  if (item.noPengajuanHarga && PH_LOCKED_STATUSES.includes(item.phStatus || "")) {
+    toast.error(
+      `Item ini terhubung ke Pengajuan Harga ${item.noPengajuanHarga} yang sudah disetujui DC dan masuk produksi. Tidak bisa dihapus dari SO — hubungi DC untuk membatalkan/reject Pengajuan Harga tersebut terlebih dahulu.`
+    );
+    return;
+  }
 
   const isStickerPromoToko =
     (String(item.barcode) === "25014783" || String(item.kode) === "2500053") &&

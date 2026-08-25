@@ -162,6 +162,25 @@ const totalPackagingPcs = computed(() => packagingList.value.reduce((sum, p) => 
 
 const hasPackagingStockAvailable = computed(() => packagingList.value.some((p) => p.stok > 0));
 
+// Hitung berapa banyak item packaging yang punya stok — dipakai
+// untuk menentukan lebar modal & porsi kolom packaging secara dinamis.
+const packagingStockCount = computed(() => packagingList.value.filter((p) => p.stok > 0).length);
+
+// Modal melebar ke kanan kalau item packaging banyak, supaya
+// grid-nya nggak keliatan sempit / kepotong.
+const dialogMaxWidth = computed(() => {
+  if (packagingStockCount.value > 8) return "1600px";
+  if (packagingStockCount.value > 4) return "1350px";
+  return "1100px";
+});
+
+// Porsi lebar kolom kiri (Ringkasan), tengah (Metode Bayar), dan
+// kanan (Packaging) — kolom packaging dapat porsi lebih besar kalau
+// isinya banyak, kolom lain sedikit menyusut supaya tetap seimbang.
+const colSpanRingkasan = computed(() => (packagingStockCount.value > 4 ? 3 : 4));
+const colSpanMetode = computed(() => (packagingStockCount.value > 4 ? 3 : 4));
+const colSpanPackaging = computed(() => (packagingStockCount.value > 4 ? 6 : 4));
+
 // --- State ---
 const payment = reactive({
   tunai: 0,
@@ -1211,7 +1230,12 @@ watch(
 </script>
 
 <template>
-  <v-dialog :model-value="true" @update:model-value="$emit('close')" max-width="1100px" persistent>
+  <v-dialog
+    :model-value="true"
+    @update:model-value="$emit('close')"
+    :max-width="dialogMaxWidth"
+    persistent
+  >
     <v-card>
       <v-toolbar color="primary" density="compact">
         <v-toolbar-title>Form Pembayaran</v-toolbar-title>
@@ -1221,7 +1245,7 @@ watch(
 
       <v-card-text class="pa-4">
         <v-row>
-          <v-col cols="12" md="4">
+          <v-col cols="12" :md="colSpanRingkasan">
             <div class="desktop-form-section mb-4">
               <div class="text-subtitle-2 font-weight-bold mb-2">Ringkasan Invoice</div>
               <div class="d-flex justify-space-between text-caption">
@@ -1368,7 +1392,7 @@ watch(
             </div>
           </v-col>
 
-          <v-col cols="12" md="4">
+          <v-col cols="12" :md="colSpanMetode">
             <div class="desktop-form-section">
               <div class="text-subtitle-2 font-weight-bold mb-2">
                 Metode Pembayaran:
@@ -1648,7 +1672,7 @@ watch(
               </v-window>
             </div>
           </v-col>
-          <v-col cols="12" md="4">
+          <v-col cols="12" :md="colSpanPackaging">
             <div class="desktop-form-section">
               <div class="text-subtitle-2 font-weight-bold mb-3 d-flex align-center gap-2">
                 <v-icon color="teal" size="18">mdi-package-variant-closed</v-icon>
@@ -1665,7 +1689,7 @@ watch(
                   class="py-4 px-2"
                   style="
                     display: grid;
-                    grid-template-columns: repeat(2, 1fr);
+                    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
                     gap: 16px;
                     justify-items: center;
                   "

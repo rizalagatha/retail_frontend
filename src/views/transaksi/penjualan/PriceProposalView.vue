@@ -173,16 +173,19 @@ const soPrefill = ref<{
   joKode: string;
   jeniskain: string;
   finishing: string;
+  lengan: string;
+  warna: string;
   jumlah: number;
   custKaosanNama: string;
   matchedSales: { sal_kode: string; sal_nama: string } | null;
   kepentinganOptions: string[];
   keteranganProduksi: string;
+  namaSoPreview: string;
+  isPolos: boolean;
 } | null>(null);
 const soDatelineRange = ref<{ minDate: string; maxDate: string } | null>(null);
 const soForm = ref({
-  namaSo: "",
-  namaExt: "",
+  namaDesain: "",
   kepentingan: "",
   salesKode: "",
   dateline: "",
@@ -477,8 +480,7 @@ const openGenerateSoDialog = async () => {
     const response = await api.get(`/price-proposals/${nomor}/so-prefill`);
     soPrefill.value = response.data;
     soForm.value = {
-      namaSo: "",
-      namaExt: "",
+      namaDesain: "",
       kepentingan: "",
       salesKode: soPrefill.value?.matchedSales?.sal_kode || "",
       dateline: "",
@@ -495,7 +497,6 @@ const openGenerateSoDialog = async () => {
 };
 
 const submitGenerateSo = async () => {
-  if (!soForm.value.namaSo) return toast.error("Nama SO wajib diisi.");
   if (!soForm.value.kepentingan) return toast.error("Kepentingan wajib dipilih.");
   if (!soForm.value.salesKode) return toast.error("Sales wajib dipilih.");
   if (!soForm.value.dateline) return toast.error("Dateline wajib diisi.");
@@ -1061,18 +1062,16 @@ onBeforeRouteLeave((to, from, next) => {
             Sales tidak otomatis ketemu — pilih manual di bawah.
           </v-alert>
 
-          <v-text-field
-            v-model="soForm.namaSo"
-            label="Nama SO"
-            variant="outlined"
-            density="compact"
-            hide-details
-            class="mb-3"
-          ></v-text-field>
+          <div class="so-nama-preview mb-3">
+            <span class="so-info-label">Nama SO (Otomatis)</span>
+            <div class="so-nama-preview-value">{{ soPrefill.namaSoPreview }}</div>
+          </div>
 
           <v-text-field
-            v-model="soForm.namaExt"
-            label="Nama Ext (opsional)"
+            v-if="!soPrefill.isPolos"
+            v-model="soForm.namaDesain"
+            label="Nama Desain"
+            placeholder="Contoh: MAS AMBA, NAGA API, dll — akan disisipkan ke nama SO"
             variant="outlined"
             density="compact"
             hide-details
@@ -1499,5 +1498,22 @@ onBeforeRouteLeave((to, from, next) => {
 
 .generate-so-card :deep(.v-messages__message) {
   font-size: 10px !important;
+}
+
+.so-nama-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 12px;
+  background-color: rgba(var(--v-theme-success), 0.08);
+  border: 1px solid rgba(var(--v-theme-success), 0.3);
+  border-radius: 8px;
+}
+.so-nama-preview-value {
+  font-size: 12px;
+  font-weight: 700;
+  font-family: monospace;
+  color: rgb(var(--v-theme-on-surface));
+  word-break: break-word;
 }
 </style>

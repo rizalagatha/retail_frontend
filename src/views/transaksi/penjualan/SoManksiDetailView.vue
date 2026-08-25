@@ -93,7 +93,6 @@ const kepentinganOptions = ref<string[]>([]);
 // tetap dipakai untuk field read-only) supaya jelas mana yang dikirim ke
 // backend saat simpan, mana yang murni tampilan.
 const editForm = ref({
-  namaSo: "",
   dateline: "",
   kepentingan: "",
   keteranganProduksi: "",
@@ -164,7 +163,6 @@ const fetchDetail = async () => {
 
     // Inisialisasi form editable dari data yang baru dimuat
     editForm.value = {
-      namaSo: h.so_nama,
       dateline: toDateInputValue(h.so_dateline),
       kepentingan: h.so_statuskerja,
       keteranganProduksi: h.so_keterangan || "",
@@ -179,9 +177,6 @@ const fetchDetail = async () => {
       );
       kepentinganOptions.value = soDetailResponse.data?.kepentinganOptions || [];
       revisiTerbuka.value = soDetailResponse.data?.revisiTerbuka || null;
-      if (soDetailResponse.data?.namaSo) {
-        editForm.value.namaSo = soDetailResponse.data.namaSo;
-      }
     }
     if (h.so_jo_kode) {
       await fetchDatelineRange(editForm.value.kepentingan, h.so_jo_kode, false);
@@ -243,10 +238,6 @@ const handleSave = async () => {
     toast.error("Referensi Pengajuan Harga tidak ditemukan, tidak bisa menyimpan.");
     return;
   }
-  if (!editForm.value.namaSo.trim()) {
-    toast.error("Nama SO wajib diisi.");
-    return;
-  }
   if (!editForm.value.dateline) {
     toast.error("Dateline SPK wajib diisi.");
     return;
@@ -269,7 +260,6 @@ const handleSave = async () => {
   isSaving.value = true;
   try {
     const payload = {
-      namaSo: editForm.value.namaSo.trim(),
       dateline: editForm.value.dateline,
       kepentingan: editForm.value.kepentingan,
       keteranganProduksi: editForm.value.keteranganProduksi,
@@ -449,13 +439,7 @@ onMounted(fetchDetail);
               </div>
               <div class="fr">
                 <label class="lbl">Nama</label>
-                <input
-                  type="text"
-                  v-model="editForm.namaSo"
-                  class="edit-input"
-                  style="flex: 1"
-                  :disabled="!canEdit"
-                />
+                <span class="ro-val">{{ header.so_nama }}</span>
               </div>
               <div class="fr">
                 <label class="lbl">Nama Ext</label>

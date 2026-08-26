@@ -357,6 +357,33 @@ const confirmAccFinance = async () => {
     return;
   }
 
+  //Cegah Acc Finance kalau masih ada Harga/Pcs = 0 di baris yang
+  // punya qty (mode Stok/Custom) — ini field yang manual diinput toko,
+  // beda dari Harga Kaos yang sudah termasuk biaya tambahan.
+  if (!isSublimMode.value) {
+    const zeroPriceSizes = sizeItems.value.filter(
+      (item) => (item.qty || 0) > 0 && (item.hargaPcs || 0) <= 0
+    );
+    if (zeroPriceSizes.length > 0) {
+      const sizeLabels = zeroPriceSizes.map((i) => i.size).join(", ");
+      toast.error(
+        `Masih ada Harga/Pcs Rp 0 untuk size: ${sizeLabels}. Perbaiki dulu sebelum Acc Finance.`
+      );
+      return;
+    }
+  } else {
+    // Mode Sublim: harga per pcs-nya ditentukan lookup tier (jerseyHargaPerPcs/
+    // celanaHargaPerPcs), bukan diinput manual — tetap dicek 0-nya di sini
+    if (totalJerseyQty.value > 0 && (sublimPreview.value.jerseyHargaPerPcs || 0) <= 0) {
+      toast.error("Harga Jersey masih Rp 0. Perbaiki dulu sebelum Acc Finance.");
+      return;
+    }
+    if (totalCelanaQty.value > 0 && (sublimPreview.value.celanaHargaPerPcs || 0) <= 0) {
+      toast.error("Harga Celana masih Rp 0. Perbaiki dulu sebelum Acc Finance.");
+      return;
+    }
+  }
+
   isConfirmingAccFinance.value = true;
   try {
     const response = await api.patch(`/price-proposals/${header.value.nomor}/approve-finance`, {});

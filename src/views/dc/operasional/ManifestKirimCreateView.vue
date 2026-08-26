@@ -98,6 +98,17 @@ const loading = ref(false);
 const saving = ref(false);
 const cabangList = ref<Cabang[]>([]);
 
+// Daftar Pilihan Ekspedisi
+const ekspedisiOptions = [
+  "Bestindo",
+  "Tam Cargo",
+  "Jaya Sakti (Travel)",
+  "SAA (Travel)",
+  "City Trans (Travel)",
+  "Kalog",
+  "B.I. Xpress",
+];
+
 // Lookup Modals State
 const showGudangAsalModal = ref(false);
 const showGudangTujuanModal = ref(false);
@@ -938,13 +949,15 @@ onMounted(async () => {
             </v-col>
 
             <v-col cols="12" v-if="header.jenisKirim === 'EKSPEDISI'">
-              <v-text-field
+              <v-combobox
                 label="Ekspedisi"
                 v-model="header.ekspedisi"
-                placeholder="Contoh: JNE / POS"
+                :items="ekspedisiOptions"
+                placeholder="Pilih atau ketik nama ekspedisi..."
                 density="compact"
                 variant="outlined"
                 hide-details
+                clearable
               />
             </v-col>
 

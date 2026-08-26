@@ -106,6 +106,7 @@ const masterHeaders = computed<DataTableHeader[]>(() => [
   { title: "No. Manifest", key: "Nomor", width: 160, fixed: true },
   { title: "Status", key: "Status", width: 110, align: "center" },
   { title: "Tanggal", key: "Tanggal", width: 110 },
+  { title: "Jam", key: "Jam", width: 80, align: "center" },
   { title: "Gudang", key: "NamaGudang", width: 140 },
   { title: "Jenis Kirim", key: "JenisKirim", width: 140 },
   { title: "Driver", key: "Driver", width: 140 },
@@ -116,6 +117,7 @@ const masterHeaders = computed<DataTableHeader[]>(() => [
   { title: "Total Koli", key: "TotalKoli", width: 100, align: "end" },
   { title: "Total Qty", key: "TotalQty", width: 100, align: "end" },
   { title: "User", key: "Usr", width: 100 },
+  { title: "Waktu Dibuat", key: "DateCreate", width: 150 },
 ]);
 
 // --- Helper: ambil status display ---
@@ -693,6 +695,16 @@ watch(
 
           <template #[`item.Tanggal`]="{ item }">
             {{ item.Tanggal ? format(new Date(item.Tanggal as string), "dd-MM-yyyy") : "-" }}
+          </template>
+
+          <template #[`item.Jam`]="{ item }">
+            <span class="font-weight-medium">{{ item.Jam || "-" }}</span>
+          </template>
+
+          <template #[`item.DateCreate`]="{ item }">
+            <span class="text-caption">{{
+              item.DateCreate ? format(new Date(item.DateCreate as string), "dd-MM-yyyy HH:mm") : "-"
+            }}</span>
           </template>
 
           <template #[`item.NoResi`]="{ item }">

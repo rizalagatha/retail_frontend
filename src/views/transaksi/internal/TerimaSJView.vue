@@ -49,6 +49,69 @@ interface CabangItem {
   nama: string;
 }
 
+// --- Tracking Interfaces ---
+interface TrackingSjInfo {
+  sjNomor: string;
+  sjTanggal?: string;
+  sjJam?: string;
+  noMinta?: string;
+  manifestNomor?: string;
+  noTerima?: string;
+  storeKode: string;
+  storeNama: string;
+  keterangan?: string;
+  userCreateSj?: string;
+  dateCreateSj?: string;
+  source: "DC" | "WORKSHOP";
+  noPackingList?: string;
+  noInvoice?: string;
+}
+
+interface TrackingManifestInfo {
+  manifestNomor: string;
+  manifestTanggal?: string;
+  manifestJam?: string;
+  gudangAsal?: string;
+  namaGudangAsal?: string;
+  gudangTujuan?: string;
+  namaGudangTujuan?: string;
+  manifestStatus: string;
+  jenisKirim?: string;
+  driver?: string;
+  platNomor?: string;
+  ekspedisi?: string;
+  noResi?: string;
+  totalSj?: number;
+  totalKoli?: number;
+  totalQty?: number;
+  beratKg?: number;
+  keterangan?: string;
+  hasTtdPengirim?: number;
+  hasTtdDriver?: number;
+  userCreateManifest?: string;
+  dateCreateManifest?: string;
+  userModifiedManifest?: string;
+  dateModifiedManifest?: string;
+}
+
+interface TrackingTerimaInfo {
+  noTerima: string;
+  tanggalTerima?: string;
+  jamTerima?: string;
+  closing?: string;
+  keterangan?: string;
+  userTerima?: string;
+  dateCreateTerima?: string;
+}
+
+interface TrackingData {
+  sj: TrackingSjInfo;
+  manifest: TrackingManifestInfo | null;
+  terima: TrackingTerimaInfo | null;
+  currentStatus: "BELUM_MANIFEST" | "DRAFT" | "DIKIRIM" | "DITERIMA";
+  isWorkshop: boolean;
+}
+
 const router = useRouter();
 const toast = useToast();
 const authStore = useAuthStore();
@@ -79,6 +142,45 @@ const dialogConfirm = reactive({
   text: "",
   onConfirm: () => {},
 });
+
+// --- State Tracking Lacak Proses Manifest ---
+const dialogTracking = reactive({
+  show: false,
+  loading: false,
+  data: null as TrackingData | null,
+});
+const selectedStepKey = ref<string>("DRAFT");
+
+const statusOrder: Record<string, number> = {
+  BELUM_MANIFEST: 0,
+  DRAFT: 1,
+  DIKIRIM: 2,
+  DITERIMA: 3,
+};
+
+const trackingSteps = [
+  {
+    key: "DRAFT",
+    title: "Manifest Dibuat",
+    desc: "Manifest dibuat",
+    icon: "mdi-file-document-edit-outline",
+    color: "indigo",
+  },
+  {
+    key: "DIKIRIM",
+    title: "Manifest Dikirim",
+    desc: "Armada berangkat / dalam perjalanan",
+    icon: "mdi-truck-fast",
+    color: "warning",
+  },
+  {
+    key: "DITERIMA",
+    title: "Manifest Diterima",
+    desc: "Terbit Nomor Terima (TJ)",
+    icon: "mdi-store-check",
+    color: "success",
+  },
+];
 
 // --- Header Definisi (Ref & Width Angka) ---
 const headers = computed<DataTableHeader[]>(() => {
@@ -314,6 +416,102 @@ const onProductSelected = (product: { kode: string; nama: string }) => {
 const getRowTextColor = (item: SjHeader) => {
   if (!item.NomorTerima) return "text-red font-weight-bold";
   return "";
+};
+
+// --- Fungsi Lacak Proses / Tracking ---
+const openTracking = async () => {
+  if (selected.value.length !== 1) return;
+  const row = selected.value[0];
+  dialogTracking.show = true;
+  dialogTracking.loading = true;
+  dialogTracking.data = null;
+
+  try {
+    const res = await api.get<TrackingData>(`/terima-sj/tracking/${encodeURIComponent(row.Nomor)}`);
+    dialogTracking.data = res.data;
+    selectedStepKey.value =
+      res.data.currentStatus === "BELUM_MANIFEST" ? "DRAFT" : res.data.currentStatus;
+  } catch (err: unknown) {
+    const msg = axios.isAxiosError(err)
+      ? err.response?.data?.message || "Gagal memuat data tracking."
+      : "Gagal memuat data tracking.";
+    toast.error(msg);
+    dialogTracking.show = false;
+  } finally {
+    dialogTracking.loading = false;
+  }
+};
+
+const getStepDate = (stepKey: string, data: TrackingData | null): string => {
+  if (!data) return "";
+  try {
+    if (stepKey === "DRAFT") {
+      if (data.manifest?.dateCreateManifest) {
+        return format(new Date(data.manifest.dateCreateManifest), "dd/MM/yyyy HH:mm");
+      }
+      if (data.manifest?.manifestTanggal) {
+        const dStr = format(new Date(data.manifest.manifestTanggal), "dd/MM/yyyy");
+        return data.manifest.manifestJam ? `${dStr} ${data.manifest.manifestJam}` : dStr;
+      }
+      return "";
+    }
+    if (stepKey === "DIKIRIM") {
+      if (data.manifest?.dateModifiedManifest) {
+        return format(new Date(data.manifest.dateModifiedManifest), "dd/MM/yyyy HH:mm");
+      }
+      if (data.manifest?.dateCreateManifest) {
+        return format(new Date(data.manifest.dateCreateManifest), "dd/MM/yyyy HH:mm");
+      }
+      if (data.manifest?.manifestTanggal) {
+        const dStr = format(new Date(data.manifest.manifestTanggal), "dd/MM/yyyy");
+        return data.manifest.manifestJam ? `${dStr} ${data.manifest.manifestJam}` : dStr;
+      }
+      return "";
+    }
+    if (stepKey === "DITERIMA") {
+      const dt = data.terima?.dateCreateTerima || data.terima?.tanggalTerima;
+      return dt ? format(new Date(dt), "dd/MM/yyyy HH:mm") : "";
+    }
+  } catch {
+    return "";
+  }
+  return "";
+};
+
+const getStatusBadgeProps = (status?: string) => {
+  switch (status) {
+    case "DITERIMA":
+      return { text: "MANIFEST DITERIMA (TJ)", color: "success", icon: "mdi-store-check" };
+    case "DIKIRIM":
+      return { text: "MANIFEST DIKIRIM", color: "warning", icon: "mdi-truck-fast" };
+    case "DRAFT":
+      return {
+        text: "MANIFEST DIBUAT",
+        color: "indigo",
+        icon: "mdi-file-document-edit-outline",
+      };
+    default:
+      return { text: "BELUM MASUK MANIFEST", color: "grey-darken-1", icon: "mdi-clock-outline" };
+  }
+};
+
+const getEkspedisiTrackingUrl = (ekspedisi?: string, noResi?: string): string | null => {
+  if (!ekspedisi) return null;
+  const name = ekspedisi.trim().toLowerCase();
+  const resi = noResi ? encodeURIComponent(noResi.trim()) : "";
+
+  if (name.includes("bestindo")) {
+    return resi
+      ? `https://bestindo-express.co.id/site2/tracking/${resi}`
+      : "https://bestindo-express.co.id/site2/tracking/";
+  }
+  if (name.includes("tam cargo") || name.includes("tam")) {
+    return "https://www.tamcargo.co.id/tracking";
+  }
+  if (name.includes("kalog") || name.includes("kai logistik")) {
+    return "https://kailogistik.id/layanan/kalog-express/cek-resi";
+  }
+  return null;
 };
 
 // --- 2. Helper Format Tanggal ---
@@ -725,6 +923,15 @@ watch(
           {{ batalDisabledReason }}
         </span>
       </v-tooltip>
+      <v-btn
+        size="small"
+        color="purple-darken-2"
+        prepend-icon="mdi-map-marker-path"
+        :disabled="selected.length !== 1"
+        @click="openTracking"
+      >
+        Lacak Manifest
+      </v-btn>
       <v-menu offset-y>
         <template v-slot:activator="{ props }">
           <v-btn size="small" color="teal" prepend-icon="mdi-file-excel" v-bind="props">
@@ -1017,6 +1224,625 @@ watch(
       @close="isMasterProductSearchVisible = false"
       @product-selected="onProductSelected"
     />
+
+    <!-- ========================================== -->
+    <!-- DIALOG TRACKING / LACAK PROSES SURAT JALAN -->
+    <!-- ========================================== -->
+    <v-dialog
+      v-model="dialogTracking.show"
+      max-width="1100px"
+      transition="dialog-bottom-transition"
+    >
+      <v-card class="rounded-xl overflow-hidden shadow-lg">
+        <v-toolbar color="purple-darken-2" density="compact" class="px-2">
+          <v-icon start class="mr-2">mdi-map-marker-path</v-icon>
+          <v-toolbar-title class="text-subtitle-1 font-weight-bold">
+            Tracking Manifest Pengiriman
+          </v-toolbar-title>
+          <v-spacer></v-spacer>
+          <v-btn icon="mdi-close" variant="text" @click="dialogTracking.show = false"></v-btn>
+        </v-toolbar>
+
+        <!-- Loading State -->
+        <v-card-text v-if="dialogTracking.loading" class="pa-12 text-center bg-grey-lighten-4">
+          <v-progress-circular indeterminate color="purple-darken-2" size="48" class="mb-3" />
+          <div class="text-subtitle-2 text-grey-darken-1 font-weight-medium">
+            Memuat histori status Surat Jalan...
+          </div>
+        </v-card-text>
+
+        <!-- Data Tracking Content -->
+        <v-card-text v-else-if="dialogTracking.data" class="pa-6 bg-grey-lighten-4">
+          <!-- Hero Header Info -->
+          <div class="mb-6 text-center tracking-header">
+            <div class="d-flex align-center justify-center gap-4 mb-2 flex-wrap">
+              <span class="text-h5 font-weight-black text-primary me-2">
+                {{ dialogTracking.data.manifest?.manifestNomor || dialogTracking.data.sj.sjNomor }}
+              </span>
+              <v-chip
+                size="small"
+                :color="getStatusBadgeProps(dialogTracking.data.currentStatus).color"
+                class="font-weight-bold text-caption"
+                variant="flat"
+              >
+                <v-icon start size="small">
+                  {{ getStatusBadgeProps(dialogTracking.data.currentStatus).icon }}
+                </v-icon>
+                {{ getStatusBadgeProps(dialogTracking.data.currentStatus).text }}
+              </v-chip>
+            </div>
+
+            <div
+              class="d-flex align-center justify-center gap-2 text-body-2 text-grey-darken-2 flex-wrap"
+            >
+              <span v-if="dialogTracking.data.manifest?.namaGudangAsal">
+                Asal:
+                <strong class="text-black">
+                  [{{ dialogTracking.data.manifest.gudangAsal }}]
+                  {{ dialogTracking.data.manifest.namaGudangAsal }}
+                </strong>
+              </span>
+              <v-icon v-if="dialogTracking.data.manifest?.namaGudangAsal" size="small"
+                >mdi-arrow-right</v-icon
+              >
+              <span>
+                Tujuan:
+                <strong class="text-black">
+                  [{{ dialogTracking.data.sj.storeKode }}]
+                  {{ dialogTracking.data.sj.storeNama || "-" }}
+                </strong>
+              </span>
+            </div>
+          </div>
+
+          <!-- Horizontal Stepper Timeline (Clickable) -->
+          <div class="timeline-horizontal-wrapper pb-4">
+            <v-timeline
+              direction="horizontal"
+              line-thickness="3"
+              align="start"
+              side="end"
+              line-color="grey-lighten-2"
+            >
+              <v-timeline-item
+                v-for="(step, index) in trackingSteps"
+                :key="index"
+                :dot-color="
+                  statusOrder[dialogTracking.data?.currentStatus || 'BELUM_MANIFEST'] >=
+                  statusOrder[step.key]
+                    ? step.color
+                    : 'grey-lighten-2'
+                "
+                :icon="step.icon"
+                :icon-color="
+                  statusOrder[dialogTracking.data?.currentStatus || 'BELUM_MANIFEST'] >=
+                  statusOrder[step.key]
+                    ? 'white'
+                    : 'grey'
+                "
+                fill-dot
+                size="large"
+                class="tracking-item-anim cursor-pointer"
+                :class="{ 'step-item-selected': selectedStepKey === step.key }"
+                :style="{ animationDelay: `${index * 0.12}s` }"
+                @click="selectedStepKey = step.key"
+              >
+                <div class="centered-timeline-text mt-3">
+                  <!-- Title -->
+                  <div
+                    class="font-weight-bold text-subtitle-2 mb-1"
+                    :class="
+                      statusOrder[dialogTracking.data?.currentStatus || 'BELUM_MANIFEST'] >=
+                      statusOrder[step.key]
+                        ? `text-${step.color}`
+                        : 'text-grey-lighten-1'
+                    "
+                  >
+                    {{ step.title }}
+                  </div>
+
+                  <!-- Desc -->
+                  <div
+                    class="text-caption text-grey-darken-1 mb-2"
+                    style="line-height: 1.2; min-height: 28px"
+                  >
+                    {{ step.desc }}
+                  </div>
+
+                  <!-- Date Badge -->
+                  <div
+                    v-if="
+                      statusOrder[dialogTracking.data?.currentStatus || 'BELUM_MANIFEST'] >=
+                        statusOrder[step.key] && getStepDate(step.key, dialogTracking.data)
+                    "
+                    class="text-caption font-weight-medium bg-white rounded-pill px-2 py-1 border d-inline-block date-badge mb-1"
+                    style="font-size: 9px !important"
+                  >
+                    {{ getStepDate(step.key, dialogTracking.data) }}
+                  </div>
+
+                  <!-- Indicator Active Tab -->
+                  <v-icon
+                    v-if="selectedStepKey === step.key"
+                    size="18"
+                    color="primary"
+                    class="mt-1"
+                  >
+                    mdi-eye
+                  </v-icon>
+                </div>
+              </v-timeline-item>
+            </v-timeline>
+          </div>
+
+          <!-- DETAIL TAHAP YANG DIKLIK (INTERAKTIF) -->
+          <v-fade-transition mode="out-in">
+            <!-- 1. TAHAP: MANIFEST DIBUAT (DRAFT) -->
+            <v-card
+              v-if="selectedStepKey === 'DRAFT'"
+              key="step-draft"
+              variant="outlined"
+              class="rounded-xl bg-white pa-4 border mb-2 shadow-sm"
+            >
+              <div class="d-flex align-center justify-space-between mb-3 border-b pb-2">
+                <div class="d-flex align-center gap-2">
+                  <v-icon color="indigo">mdi-file-document-edit-outline</v-icon>
+                  <span class="text-subtitle-2 font-weight-bold text-indigo">
+                    Detail Tahap 1: Manifest Dibuat
+                  </span>
+                  <v-chip
+                    v-if="dialogTracking.data.manifest"
+                    size="x-small"
+                    color="indigo"
+                    class="font-weight-bold ml-1"
+                  >
+                    {{ dialogTracking.data.manifest.manifestStatus }}
+                  </v-chip>
+                </div>
+                <div
+                  v-if="dialogTracking.data.manifest"
+                  class="text-caption text-grey-darken-1 font-weight-medium"
+                >
+                  No. Manifest: <strong>{{ dialogTracking.data.manifest.manifestNomor }}</strong>
+                </div>
+              </div>
+
+              <template v-if="dialogTracking.data.manifest">
+                <v-row dense>
+                  <v-col cols="12" md="6">
+                    <div class="text-caption d-flex flex-column gap-1">
+                      <div>
+                        <span class="text-grey-darken-1">Tanggal Manifest:</span>
+                        <strong class="ml-1">
+                          {{
+                            dialogTracking.data.manifest.manifestTanggal
+                              ? format(
+                                  new Date(dialogTracking.data.manifest.manifestTanggal),
+                                  "dd/MM/yyyy"
+                                )
+                              : "-"
+                          }}
+                        </strong>
+                      </div>
+                      <div>
+                        <span class="text-grey-darken-1">Jam Manifest:</span>
+                        <strong class="ml-1 text-indigo">
+                          {{ dialogTracking.data.manifest.manifestJam || "-" }}
+                        </strong>
+                      </div>
+                      <div>
+                        <span class="text-grey-darken-1">Waktu Pembuatan:</span>
+                        <strong class="ml-1 text-indigo">
+                          {{
+                            dialogTracking.data.manifest.dateCreateManifest
+                              ? format(
+                                  new Date(dialogTracking.data.manifest.dateCreateManifest),
+                                  "dd/MM/yyyy HH:mm"
+                                )
+                              : dialogTracking.data.manifest.manifestTanggal
+                              ? `${format(
+                                  new Date(dialogTracking.data.manifest.manifestTanggal),
+                                  "dd/MM/yyyy"
+                                )} ${dialogTracking.data.manifest.manifestJam || ""}`
+                              : "-"
+                          }}
+                        </strong>
+                      </div>
+                      <div>
+                        <span class="text-grey-darken-1">Gudang Asal:</span>
+                        <strong class="ml-1">
+                          [{{ dialogTracking.data.manifest.gudangAsal || "KDC" }}]
+                          {{ dialogTracking.data.manifest.namaGudangAsal || "Pusat DC" }}
+                        </strong>
+                      </div>
+                      <div>
+                        <span class="text-grey-darken-1">Store Tujuan:</span>
+                        <strong class="ml-1">
+                          [{{ dialogTracking.data.sj.storeKode }}]
+                          {{ dialogTracking.data.sj.storeNama || "-" }}
+                        </strong>
+                      </div>
+                      <div>
+                        <span class="text-grey-darken-1">Dibuat Oleh:</span>
+                        <span class="ml-1 font-weight-medium">
+                          {{ dialogTracking.data.manifest.userCreateManifest || "-" }}
+                        </span>
+                      </div>
+                      <div>
+                        <span class="text-grey-darken-1">Catatan / Keterangan:</span>
+                        <span class="ml-1 font-italic">
+                          {{ dialogTracking.data.manifest.keterangan || "-" }}
+                        </span>
+                      </div>
+                    </div>
+                  </v-col>
+
+                  <v-col cols="12" md="6">
+                    <div class="text-caption d-flex flex-column gap-1">
+                      <div>
+                        <span class="text-grey-darken-1">Total Muatan SJ:</span>
+                        <strong class="ml-1"
+                          >{{ dialogTracking.data.manifest.totalSj || 1 }} Dokumen</strong
+                        >
+                      </div>
+                      <div>
+                        <span class="text-grey-darken-1">Total Koli:</span>
+                        <strong class="ml-1 text-primary">
+                          {{ dialogTracking.data.manifest.totalKoli || 0 }} Koli
+                        </strong>
+                      </div>
+                      <div>
+                        <span class="text-grey-darken-1">Total Qty:</span>
+                        <strong class="ml-1 text-primary">
+                          {{ Number(dialogTracking.data.manifest.totalQty || 0).toLocaleString() }}
+                          Pcs
+                        </strong>
+                      </div>
+                      <div>
+                        <span class="text-grey-darken-1">Berat Total:</span>
+                        <strong class="ml-1">
+                          {{ dialogTracking.data.manifest.beratKg || 0 }} Kg
+                        </strong>
+                      </div>
+                      <v-divider class="my-1" />
+                      <div>
+                        <span class="text-grey-darken-1">No. Surat Jalan:</span>
+                        <strong class="ml-1 text-primary">{{
+                          dialogTracking.data.sj.sjNomor
+                        }}</strong>
+                      </div>
+                      <div>
+                        <span class="text-grey-darken-1">No. Permintaan / SO:</span>
+                        <span class="ml-1">{{ dialogTracking.data.sj.noMinta || "-" }}</span>
+                      </div>
+                    </div>
+                  </v-col>
+                </v-row>
+              </template>
+              <v-alert
+                v-else
+                type="warning"
+                variant="tonal"
+                density="compact"
+                class="rounded-lg text-caption"
+                icon="mdi-alert-circle-outline"
+              >
+                Surat Jalan ini belum dimasukkan ke dalam Manifest Pengiriman.
+              </v-alert>
+            </v-card>
+
+            <!-- 2. TAHAP: MANIFEST DIKIRIM -->
+            <v-card
+              v-else-if="selectedStepKey === 'DIKIRIM'"
+              key="step-dikirim"
+              variant="outlined"
+              class="rounded-xl bg-white pa-4 border mb-2 shadow-sm"
+            >
+              <div class="d-flex align-center justify-space-between mb-3 border-b pb-2">
+                <div class="d-flex align-center gap-2">
+                  <v-icon color="warning">mdi-truck-fast</v-icon>
+                  <span class="text-subtitle-2 font-weight-bold text-warning-darken-3">
+                    Detail Tahap 2: Manifest Dikirim (Dalam Perjalanan)
+                  </span>
+                  <v-chip
+                    size="x-small"
+                    :color="
+                      statusOrder[dialogTracking.data.currentStatus] >= statusOrder['DIKIRIM']
+                        ? 'warning'
+                        : 'grey'
+                    "
+                    class="font-weight-bold ml-1"
+                  >
+                    {{
+                      statusOrder[dialogTracking.data.currentStatus] >= statusOrder["DIKIRIM"]
+                        ? "DIKIRIM"
+                        : "BELUM DIKIRIM"
+                    }}
+                  </v-chip>
+                </div>
+              </div>
+
+              <template v-if="dialogTracking.data.manifest">
+                <v-row dense>
+                  <v-col cols="12" md="6">
+                    <div class="text-caption d-flex flex-column gap-1">
+                      <div>
+                        <span class="text-grey-darken-1">Jenis Pengiriman:</span>
+                        <v-chip
+                          size="x-small"
+                          color="teal"
+                          class="ml-1 font-weight-bold text-uppercase"
+                        >
+                          {{ dialogTracking.data.manifest.jenisKirim || "SENDIRI" }}
+                        </v-chip>
+                      </div>
+
+                      <template v-if="dialogTracking.data.manifest.jenisKirim === 'EKSPEDISI'">
+                        <div>
+                          <span class="text-grey-darken-1">Ekspedisi:</span>
+                          <strong class="ml-1">{{
+                            dialogTracking.data.manifest.ekspedisi || "-"
+                          }}</strong>
+                        </div>
+                        <div class="d-flex align-center gap-2 flex-wrap">
+                          <div>
+                            <span class="text-grey-darken-1">Nomor Resi:</span>
+                            <span class="ml-1 font-weight-bold text-deep-purple">
+                              {{ dialogTracking.data.manifest.noResi || "Belum Diisi" }}
+                            </span>
+                          </div>
+                          <v-btn
+                            v-if="
+                              getEkspedisiTrackingUrl(
+                                dialogTracking.data.manifest.ekspedisi,
+                                dialogTracking.data.manifest.noResi
+                              )
+                            "
+                            size="x-small"
+                            color="indigo-darken-2"
+                            variant="tonal"
+                            class="px-2 font-weight-bold text-none"
+                            prepend-icon="mdi-open-in-new"
+                            :href="
+                              getEkspedisiTrackingUrl(
+                                dialogTracking.data.manifest.ekspedisi,
+                                dialogTracking.data.manifest.noResi
+                              ) || '#'
+                            "
+                            target="_blank"
+                          >
+                            Cek Resi (Web Resmi)
+                          </v-btn>
+                        </div>
+                      </template>
+                      <template v-else>
+                        <div>
+                          <span class="text-grey-darken-1">Driver / Supir:</span>
+                          <strong class="ml-1">{{
+                            dialogTracking.data.manifest.driver || "-"
+                          }}</strong>
+                        </div>
+                        <div>
+                          <span class="text-grey-darken-1">Plat Nomor:</span>
+                          <span class="ml-1 font-weight-bold text-black">
+                            {{ dialogTracking.data.manifest.platNomor || "-" }}
+                          </span>
+                        </div>
+                      </template>
+                    </div>
+                  </v-col>
+
+                  <v-col cols="12" md="6">
+                    <div class="text-caption d-flex flex-column gap-1">
+                      <div>
+                        <span class="text-grey-darken-1">Waktu Pembuatan:</span>
+                        <strong class="ml-1">
+                          {{
+                            dialogTracking.data.manifest.dateCreateManifest
+                              ? format(
+                                  new Date(dialogTracking.data.manifest.dateCreateManifest),
+                                  "dd/MM/yyyy HH:mm"
+                                )
+                              : dialogTracking.data.manifest.manifestTanggal
+                              ? `${format(
+                                  new Date(dialogTracking.data.manifest.manifestTanggal),
+                                  "dd/MM/yyyy"
+                                )} ${dialogTracking.data.manifest.manifestJam || ""}`
+                              : "-"
+                          }}
+                        </strong>
+                      </div>
+                      <div>
+                        <span class="text-grey-darken-1">Waktu Dikirim:</span>
+                        <strong class="ml-1 text-warning-darken-3">
+                          {{
+                            dialogTracking.data.manifest.dateModifiedManifest
+                              ? format(
+                                  new Date(dialogTracking.data.manifest.dateModifiedManifest),
+                                  "dd/MM/yyyy HH:mm"
+                                )
+                              : dialogTracking.data.manifest.manifestTanggal
+                              ? `${format(
+                                  new Date(dialogTracking.data.manifest.manifestTanggal),
+                                  "dd/MM/yyyy"
+                                )} ${dialogTracking.data.manifest.manifestJam || ""}`
+                              : "-"
+                          }}
+                        </strong>
+                      </div>
+                      <div>
+                        <span class="text-grey-darken-1">TTD Pengirim:</span>
+                        <v-chip
+                          size="x-small"
+                          :color="dialogTracking.data.manifest.hasTtdPengirim ? 'success' : 'grey'"
+                          class="ml-1"
+                        >
+                          {{
+                            dialogTracking.data.manifest.hasTtdPengirim ? "Sudah TTD" : "Belum TTD"
+                          }}
+                        </v-chip>
+                      </div>
+                      <div>
+                        <span class="text-grey-darken-1">TTD Driver:</span>
+                        <v-chip
+                          size="x-small"
+                          :color="dialogTracking.data.manifest.hasTtdDriver ? 'success' : 'grey'"
+                          class="ml-1"
+                        >
+                          {{
+                            dialogTracking.data.manifest.hasTtdDriver ? "Sudah TTD" : "Belum TTD"
+                          }}
+                        </v-chip>
+                      </div>
+                    </div>
+                  </v-col>
+                </v-row>
+              </template>
+              <v-alert
+                v-else
+                type="info"
+                variant="tonal"
+                density="compact"
+                class="rounded-lg text-caption"
+                icon="mdi-information-outline"
+              >
+                Belum ada data pengiriman manifest.
+              </v-alert>
+            </v-card>
+
+            <!-- 3. TAHAP: MANIFEST DITERIMA (NO. TERIMA TJ) -->
+            <v-card
+              v-else-if="selectedStepKey === 'DITERIMA'"
+              key="step-diterima"
+              variant="outlined"
+              class="rounded-xl bg-white pa-4 border mb-2 shadow-sm"
+            >
+              <div class="d-flex align-center justify-space-between mb-3 border-b pb-2">
+                <div class="d-flex align-center gap-2">
+                  <v-icon color="success">mdi-store-check</v-icon>
+                  <span class="text-subtitle-2 font-weight-bold text-success">
+                    Detail Tahap 3: Manifest Diterima (Penerimaan Store)
+                  </span>
+                  <v-chip
+                    size="x-small"
+                    :color="
+                      dialogTracking.data.terima?.noTerima || dialogTracking.data.sj.noTerima
+                        ? 'success'
+                        : 'grey'
+                    "
+                    class="font-weight-bold ml-1"
+                  >
+                    {{
+                      dialogTracking.data.terima?.noTerima || dialogTracking.data.sj.noTerima
+                        ? "SUDAH DITERIMA"
+                        : "BELUM DITERIMA"
+                    }}
+                  </v-chip>
+                </div>
+                <div
+                  v-if="dialogTracking.data.terima?.noTerima || dialogTracking.data.sj.noTerima"
+                  class="text-caption text-grey-darken-1 font-weight-medium"
+                >
+                  No. Terima:
+                  <strong>{{
+                    dialogTracking.data.terima?.noTerima || dialogTracking.data.sj.noTerima
+                  }}</strong>
+                </div>
+              </div>
+
+              <template v-if="dialogTracking.data.terima">
+                <v-row dense>
+                  <v-col cols="12" md="6">
+                    <div class="text-caption d-flex flex-column gap-1">
+                      <div>
+                        <span class="text-grey-darken-1">Nomor Terima (TJ):</span>
+                        <strong class="ml-1 text-success text-subtitle-2">
+                          {{ dialogTracking.data.terima.noTerima }}
+                        </strong>
+                      </div>
+                      <div>
+                        <span class="text-grey-darken-1">Tanggal Terima:</span>
+                        <strong class="ml-1">
+                          {{
+                            dialogTracking.data.terima.tanggalTerima
+                              ? format(
+                                  new Date(dialogTracking.data.terima.tanggalTerima),
+                                  "dd/MM/yyyy"
+                                )
+                              : "-"
+                          }}
+                        </strong>
+                      </div>
+                      <div>
+                        <span class="text-grey-darken-1">Waktu Diterima:</span>
+                        <strong class="ml-1 text-success">
+                          {{
+                            dialogTracking.data.terima.dateCreateTerima
+                              ? format(
+                                  new Date(dialogTracking.data.terima.dateCreateTerima),
+                                  "dd/MM/yyyy HH:mm"
+                                )
+                              : dialogTracking.data.terima.tanggalTerima
+                              ? format(
+                                  new Date(dialogTracking.data.terima.tanggalTerima),
+                                  "dd/MM/yyyy"
+                                )
+                              : "-"
+                          }}
+                        </strong>
+                      </div>
+                    </div>
+                  </v-col>
+                  <v-col cols="12" md="6">
+                    <div class="text-caption d-flex flex-column gap-1">
+                      <div>
+                        <span class="text-grey-darken-1">Penerima di Store:</span>
+                        <span class="ml-1 font-weight-bold text-black">
+                          {{ dialogTracking.data.terima.userTerima || "-" }}
+                        </span>
+                      </div>
+                      <div>
+                        <span class="text-grey-darken-1">Status Closing:</span>
+                        <v-chip
+                          size="x-small"
+                          :color="
+                            dialogTracking.data.terima.closing === 'Y' ? 'teal' : 'amber-darken-2'
+                          "
+                          class="ml-1 font-weight-bold"
+                        >
+                          {{
+                            dialogTracking.data.terima.closing === "Y"
+                              ? "SUDAH CLOSING"
+                              : "BELUM CLOSING"
+                          }}
+                        </v-chip>
+                      </div>
+                      <div>
+                        <span class="text-grey-darken-1">Status Fisik:</span>
+                        <span class="ml-1 text-success font-weight-medium">
+                          Barang telah sampai dan diverifikasi di cabang tujuan dengan No. Terima
+                          {{ dialogTracking.data.terima.noTerima }}.
+                        </span>
+                      </div>
+                    </div>
+                  </v-col>
+                </v-row>
+              </template>
+              <v-alert
+                v-else
+                type="info"
+                variant="tonal"
+                density="compact"
+                class="rounded-lg text-caption"
+                icon="mdi-clock-outline"
+              >
+                Barang belum diterima oleh cabang store tujuan (Nomor Terima TJ belum terbit).
+              </v-alert>
+            </v-card>
+          </v-fade-transition>
+        </v-card-text>
+      </v-card>
+    </v-dialog>
   </PageLayout>
 </template>
 
@@ -1150,34 +1976,6 @@ watch(
   overflow: hidden;
 }
 
-.detail-container {
-  position: sticky;
-  left: 0;
-  z-index: 2;
-
-  display: flex;
-  justify-content: flex-start;
-  align-items: flex-start;
-
-  background-color: rgb(var(--v-theme-surface));
-  border-bottom: 1px solid rgba(var(--v-theme-on-surface), 0.12);
-
-  padding: 16px 16px 16px 64px;
-  width: fit-content;
-  min-width: 100%;
-  box-sizing: border-box;
-}
-
-.detail-table-wrapper {
-  width: 100%;
-  max-width: 800px;
-
-  background-color: rgb(var(--v-theme-surface));
-  border: 1px solid rgba(var(--v-theme-on-surface), 0.12);
-  border-radius: 4px;
-  overflow: hidden;
-}
-
 /* Pewarnaan Baris */
 :deep(td.text-red) {
   color: rgb(var(--v-theme-error)) !important;
@@ -1186,7 +1984,7 @@ watch(
 /* Override global CSS untuk v-btn-toggle di filter */
 .source-toggle :deep(.v-btn) {
   height: 28px !important;
-  width: auto !important; /* ← override width: 28px dari global */
+  width: auto !important;
   min-width: 48px !important;
   padding: 0 10px !important;
   font-size: 11px !important;
@@ -1201,5 +1999,128 @@ watch(
 .filter-nama :deep(.v-field) {
   width: 280px !important;
   min-width: 280px !important;
+}
+
+/* === TRACKING DIALOG STYLES (MATCHING PETTY CASH) === */
+.tracking-header {
+  animation: fadeInDown 0.5s ease-out forwards;
+}
+
+.tracking-item-anim {
+  opacity: 0;
+  animation: fadeInUp 0.6s forwards cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+.timeline-horizontal-wrapper {
+  width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+  padding: 8px 32px 16px;
+}
+.timeline-horizontal-wrapper::-webkit-scrollbar {
+  display: none;
+}
+
+.timeline-horizontal-wrapper :deep(.v-timeline--horizontal) {
+  justify-content: center;
+  min-width: unset !important;
+  width: 100%;
+}
+
+.timeline-horizontal-wrapper :deep(.v-timeline-item) {
+  flex: 1 1 0;
+  min-width: 0;
+  max-width: none;
+}
+
+.timeline-horizontal-wrapper :deep(.v-timeline-item__body) {
+  width: 100% !important;
+  overflow: visible !important;
+  padding-inline-start: 0 !important;
+  display: flex;
+  justify-content: center;
+}
+
+.timeline-horizontal-wrapper :deep(.v-timeline-divider) {
+  justify-content: center;
+}
+.timeline-horizontal-wrapper :deep(.v-timeline-divider__dot) {
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+.timeline-horizontal-wrapper :deep(.v-timeline-divider__dot:hover) {
+  transform: scale(1.15);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.18);
+}
+
+.timeline-horizontal-wrapper :deep(.v-timeline-divider__dot--has-color) {
+  animation: pulseGlow 2s infinite ease-in-out;
+}
+
+.timeline-horizontal-wrapper :deep(.step-item-selected .v-timeline-divider__dot) {
+  transform: scale(1.22) !important;
+  box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.45) !important;
+}
+
+.timeline-horizontal-wrapper :deep(.step-item-selected) {
+  opacity: 1 !important;
+}
+
+.centered-timeline-text {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  width: 100%;
+  padding: 0 6px;
+  box-sizing: border-box;
+}
+
+.centered-timeline-text .date-badge {
+  animation: popIn 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+}
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fadeInDown {
+  from {
+    opacity: 0;
+    transform: translateY(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes pulseGlow {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(99, 102, 241, 0.3);
+  }
+  50% {
+    box-shadow: 0 0 0 8px rgba(99, 102, 241, 0);
+  }
+}
+
+@keyframes popIn {
+  from {
+    opacity: 0;
+    transform: scale(0.8);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
 }
 </style>

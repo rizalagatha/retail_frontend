@@ -102,9 +102,9 @@ const headers = ref<DataTableHeader[]>([
   { title: "Nomor", key: "Nomor", width: 180, fixed: true },
   { title: "Tanggal", key: "Tanggal", width: 120 },
   { title: "Jenis Bayar", key: "JenisBayar", width: 120 },
-  { title: "Nominal", key: "Nominal", align: "end", width: 150 },
-  { title: "Dibayarkan", key: "diBayarkan", align: "end", width: 150 },
-  { title: "Sisa", key: "Sisa", align: "end", width: 150 },
+  { title: "Nominal", key: "Nominal", width: 150 },
+  { title: "Dibayarkan", key: "diBayarkan", width: 150 },
+  { title: "Sisa", key: "Sisa", width: 150 },
   { title: "Posting", key: "Posting", align: "center", width: 100 },
   { title: "No SO", key: "NoSO", width: 180 },
   { title: "Kd Cus", key: "KdCus", width: 120 },
@@ -1083,6 +1083,11 @@ onBeforeRouteLeave((to, from, next) => {
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
+}
+
+/* Samakan padding td dengan th agar align rata kanan lurus */
+.desktop-table :deep(td) {
+  padding: 0 8px !important;
 }
 
 .header-content {

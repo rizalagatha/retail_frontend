@@ -51,6 +51,7 @@ interface ManifestKirimHeader {
   Status?: string;
   usr?: string;
   Usr?: string;
+  userCreate?: string;
   dateCreate?: string;
   DateCreate?: string;
   ttdPengirim?: string;
@@ -143,9 +144,27 @@ const header = reactive({
   keterangan: "",
   status: "TERCATAT",
   dateCreate: "",
+  userCreate: "",
   ttdPengirim: "",
   ttdDriver: "",
 });
+
+// Status Kuncian Edit (Jika sudah ditandatangani lengkap oleh Pengirim dan Driver ATAU status sudah DIKIRIM/SELESAI)
+const isTtdLengkap = computed(() => Boolean(header.ttdPengirim && header.ttdDriver));
+const isDikirimOrDone = computed(() =>
+  ["DIKIRIM", "SELESAI", "TERKIRIM"].includes((header.status || "").toUpperCase())
+);
+const isDocumentLocked = computed(
+  () => !isNew.value && (isTtdLengkap.value || isDikirimOrDone.value)
+);
+const isEkspedisi = computed(() => (header.jenisKirim || "").toUpperCase() === "EKSPEDISI");
+
+// 1. Ekspedisi: hanya boleh input resi saja jika dokumen terkunci
+const isResiOnlyEdit = computed(() => isDocumentLocked.value && isEkspedisi.value);
+// 2. Non-Ekspedisi: tidak boleh diedit sama sekali jika dokumen terkunci (terkunci penuh)
+const isFullyLocked = computed(() => isDocumentLocked.value && !isEkspedisi.value);
+// 3. Field header/detail umum terkunci jika dokumen terkunci
+const isFieldLocked = computed(() => isDocumentLocked.value);
 
 // Items Selected in Manifest
 const items = ref<ManifestKirimItem[]>([]);
@@ -313,10 +332,9 @@ const onGudangTujuanSearch = (val: string) => {
   }
 };
 
-// User & Serah Terima Info
-const currentUser = computed(
-  () => authStore.user?.nama || authStore.user?.kode || "Petugas Gudang"
-);
+const userCreate = computed(() => {
+  return header.userCreate;
+});
 
 // Display Computed Nomor Manifest (Format: [GUDANG].MP.[YYMM].[NNNN])
 const displayManifestNomor = computed(() => {
@@ -631,6 +649,7 @@ const loadEditData = async () => {
     header.keterangan = String(h.keterangan || h.Keterangan || "");
     header.status = String(h.status || h.Status || "TERCATAT");
     header.dateCreate = String(h.dateCreate || h.DateCreate || "");
+    header.userCreate = String(h.userCreate || "");
     header.ttdPengirim = String(h.ttdPengirim || h.ttdPengirim || "");
     header.ttdDriver = String(h.ttdDriver || h.ttdDriver || "");
 
@@ -653,6 +672,13 @@ const loadEditData = async () => {
 
 // Simpan Manifest
 const submitForm = async () => {
+  if (isFullyLocked.value) {
+    toast.error(
+      "Manifest sudah ditandatangani oleh pengirim dan penerima. Perubahan data tidak diizinkan."
+    );
+    return;
+  }
+
   if (!header.tanggal) {
     toast.error("Tanggal manifest harus diisi.");
     return;
@@ -694,8 +720,8 @@ const submitForm = async () => {
 
   saving.value = true;
   // Jika TTD pengirim dan driver lengkap -> DIKIRIM, jika belum -> DRAFT (kecuali jika sebelumnya sudah DIKIRIM)
-  const isTtdLengkap = Boolean(header.ttdPengirim && header.ttdDriver);
-  if (isTtdLengkap) {
+  const isTtdLengkapVal = Boolean(header.ttdPengirim && header.ttdDriver);
+  if (isTtdLengkapVal) {
     header.status = "DIKIRIM";
   } else if (!header.status || header.status === "TERCATAT" || isNew.value) {
     header.status = "DRAFT";
@@ -767,6 +793,7 @@ onMounted(async () => {
         color="primary"
         prepend-icon="mdi-content-save"
         :loading="saving"
+        :disabled="isFullyLocked"
         @click="submitForm"
       >
         Simpan
@@ -774,6 +801,30 @@ onMounted(async () => {
       <v-btn size="small" prepend-icon="mdi-refresh" @click="goBack"> Batal </v-btn>
       <v-btn size="small" prepend-icon="mdi-close" @click="goBack"> Tutup </v-btn>
     </template>
+
+    <!-- Alert Banner Status Kuncian Manifest -->
+    <v-alert
+      v-if="isFullyLocked"
+      type="warning"
+      variant="tonal"
+      density="compact"
+      icon="mdi-lock"
+      class="mb-3 font-weight-medium"
+    >
+      Manifest ini sudah ditandatangani lengkap oleh Pengirim dan Penerima. Seluruh data telah
+      dikunci dan tidak dapat diubah.
+    </v-alert>
+    <v-alert
+      v-else-if="isResiOnlyEdit"
+      type="info"
+      variant="tonal"
+      density="compact"
+      icon="mdi-information-outline"
+      class="mb-3 font-weight-medium"
+    >
+      Manifest pengiriman ekspedisi ini sudah ditandatangani lengkap. Perubahan hanya diperbolehkan
+      untuk <strong>No. Resi</strong> saja.
+    </v-alert>
 
     <div class="form-grid-container" :class="{ 'hide-left': !isLeftColumnVisible }">
       <!-- Left Column: Header -->
@@ -799,6 +850,7 @@ onMounted(async () => {
                 density="compact"
                 variant="outlined"
                 hide-details
+                :disabled="isFieldLocked"
               />
             </v-col>
 
@@ -816,6 +868,7 @@ onMounted(async () => {
                 hide-details
                 clearable
                 auto-select-first
+                :disabled="isFieldLocked"
                 @update:search="onGudangAsalSearch"
                 @click:append-inner="showGudangAsalModal = true"
               >
@@ -875,6 +928,7 @@ onMounted(async () => {
                 hide-details
                 clearable
                 auto-select-first
+                :disabled="isFieldLocked"
                 @update:search="onGudangTujuanSearch"
                 @click:append-inner="showGudangTujuanModal = true"
               >
@@ -934,6 +988,7 @@ onMounted(async () => {
                 density="compact"
                 variant="outlined"
                 hide-details
+                :disabled="isFieldLocked"
               />
             </v-col>
 
@@ -945,6 +1000,7 @@ onMounted(async () => {
                 density="compact"
                 variant="outlined"
                 hide-details
+                :disabled="isFieldLocked"
               />
             </v-col>
 
@@ -958,6 +1014,7 @@ onMounted(async () => {
                 variant="outlined"
                 hide-details
                 clearable
+                :disabled="isFieldLocked"
               />
             </v-col>
 
@@ -971,6 +1028,7 @@ onMounted(async () => {
                 variant="outlined"
                 hide-details
                 clearable
+                :disabled="isFullyLocked"
                 @keydown.enter.prevent="header.noResi = header.noResi?.trim() ?? ''"
               >
                 <template #append-inner>
@@ -980,8 +1038,9 @@ onMounted(async () => {
                         v-bind="props"
                         size="20"
                         color="primary"
-                        class="cursor-pointer"
-                        @click="focusResiInput"
+                        :class="{ 'cursor-pointer': !isFullyLocked }"
+                        :disabled="isFullyLocked"
+                        @click="!isFullyLocked && focusResiInput()"
                       >
                         mdi-barcode-scan
                       </v-icon>
@@ -1002,6 +1061,7 @@ onMounted(async () => {
                 density="compact"
                 variant="outlined"
                 hide-details
+                :disabled="isFieldLocked"
               />
             </v-col>
 
@@ -1014,6 +1074,7 @@ onMounted(async () => {
                 density="compact"
                 variant="outlined"
                 hide-details
+                :disabled="isFieldLocked"
               />
             </v-col>
           </v-row>
@@ -1035,7 +1096,8 @@ onMounted(async () => {
               prepend-inner-icon="mdi-barcode-scan"
               hide-details
               clearable
-              autofocus
+              :autofocus="!isFieldLocked"
+              :disabled="isFieldLocked"
               style="flex: 1; min-width: 0"
               @keydown="handleScannerKeydown"
             />
@@ -1045,6 +1107,7 @@ onMounted(async () => {
               color="primary"
               prepend-icon="mdi-plus"
               class="font-weight-medium"
+              :disabled="isFieldLocked"
               @click="openSjModal"
             >
               + Tambah SJ
@@ -1099,6 +1162,7 @@ onMounted(async () => {
                     variant="outlined"
                     hide-details
                     class="text-end font-weight-bold input-koli"
+                    :disabled="isFieldLocked"
                     @input="onKoliInput(item)"
                     @blur="onKoliInput(item)"
                   />
@@ -1125,6 +1189,7 @@ onMounted(async () => {
                     variant="outlined"
                     hide-details
                     class="select-compact font-weight-medium"
+                    :disabled="isFieldLocked"
                   />
                   <v-tooltip v-else-if="getAttachedSjs(item.sjNomor).length > 0" location="top">
                     <template #activator="{ props }">
@@ -1150,6 +1215,7 @@ onMounted(async () => {
                     density="compact"
                     variant="outlined"
                     hide-details
+                    :disabled="isFieldLocked"
                   />
                 </td>
                 <td class="text-center">
@@ -1158,6 +1224,7 @@ onMounted(async () => {
                     size="x-small"
                     variant="text"
                     color="error"
+                    :disabled="isFieldLocked"
                     @click="removeSjFromManifest(index)"
                   />
                 </td>
@@ -1242,7 +1309,7 @@ onMounted(async () => {
             <v-card-text class="pa-3 text-caption">
               <div class="d-flex justify-space-between mb-1">
                 <span class="text-grey-darken-1">Nama</span>
-                <span class="font-weight-bold text-grey-darken-4">{{ currentUser }}</span>
+                <span class="font-weight-bold text-grey-darken-4">{{ userCreate }}</span>
               </div>
               <div class="d-flex justify-space-between align-center mb-1">
                 <span class="text-grey-darken-1">Waktu Kirim</span>
@@ -1250,6 +1317,7 @@ onMounted(async () => {
                   <input
                     type="time"
                     v-model="header.jam"
+                    :disabled="isFieldLocked"
                     class="text-caption font-weight-medium px-1 rounded border text-grey-darken-4"
                     style="
                       outline: none;
@@ -1289,9 +1357,16 @@ onMounted(async () => {
               size="small"
               block
               prepend-icon="mdi-draw"
+              :disabled="isFieldLocked"
               @click="openTtdModal('pengirim')"
             >
-              {{ header.ttdPengirim ? "✓ Lihat / Ubah TTD Pengirim" : "TTD Pengirim" }}
+              {{
+                header.ttdPengirim
+                  ? isFieldLocked
+                    ? "✓ TTD Pengirim (Terkunci)"
+                    : "✓ Lihat / Ubah TTD Pengirim"
+                  : "TTD Pengirim"
+              }}
             </v-btn>
           </div>
         </v-card>
@@ -1324,6 +1399,7 @@ onMounted(async () => {
                   <input
                     type="time"
                     v-model="header.jam"
+                    :disabled="isFieldLocked"
                     class="text-caption font-weight-medium px-1 rounded border text-grey-darken-4"
                     style="
                       outline: none;
@@ -1363,9 +1439,16 @@ onMounted(async () => {
               size="small"
               block
               prepend-icon="mdi-draw"
+              :disabled="isFieldLocked"
               @click="openTtdModal('driver')"
             >
-              {{ header.ttdDriver ? "✓ Lihat / Ubah TTD Driver" : "TTD Driver" }}
+              {{
+                header.ttdDriver
+                  ? isFieldLocked
+                    ? "✓ TTD Driver (Terkunci)"
+                    : "✓ Lihat / Ubah TTD Driver"
+                  : "TTD Driver"
+              }}
             </v-btn>
           </div>
         </v-card>

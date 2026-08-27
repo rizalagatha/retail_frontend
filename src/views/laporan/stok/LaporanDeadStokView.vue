@@ -4,8 +4,8 @@ import { useToast } from "vue-toastification";
 import { useAuthStore } from "@/stores/authStore";
 import api from "@/services/api";
 import { format } from "date-fns";
+import type ExcelJS from "exceljs";
 import PageLayout from "@/components/PageLayout.vue";
-import ExcelJS from "exceljs";
 import type { AxiosError } from "axios";
 
 // --- Inisialisasi & State ---
@@ -24,11 +24,13 @@ interface DeadStockItem {
   Stok: number;
   RealSales: number;
   AvgSales: number;
-  "Last Terima STBJ/Tanggal": string | null;
-  "No STBJ/SJ": string;
+  "Last Terima Tanggal": string | null;
+  "No Dokumen Terima": string;
+  "Sumber Terima": "SJ" | "STBJ" | null;
   "Umur (Hari)": number;
   "Umur (Bulan)": number;
   "Umur (Tahun)": number;
+  "Kategori Umur": "Dead Stock" | "Slow Moving" | "Standar" | "Fast Moving";
 }
 
 interface CabangOption {
@@ -42,15 +44,34 @@ const MENU_ID = "510";
 
 const items = ref<DeadStockItem[]>([]);
 const isLoading = ref(true);
+const isExporting = ref(false);
 const cabangOptions = ref<CabangOption[]>([]);
+const totalItems = ref(0);
 
 const filters = reactive({
   cabang: authStore.user?.cabang === "KDC" ? "ALL" : authStore.user?.cabang || "",
   minUmur: 90,
-  avgPeriod: 12, // Default 1 tahun
+  avgPeriod: 12,
 });
 
-// Opsi untuk filter periode
+const pagination = reactive({
+  page: 1,
+  itemsPerPage: 50,
+});
+
+const itemsPerPageOptions = [25, 50, 100, 200];
+
+const totalPages = computed(() =>
+  Math.max(1, Math.ceil(totalItems.value / pagination.itemsPerPage))
+);
+
+const rangeLabel = computed(() => {
+  if (totalItems.value === 0) return "0 data";
+  const start = (pagination.page - 1) * pagination.itemsPerPage + 1;
+  const end = Math.min(pagination.page * pagination.itemsPerPage, totalItems.value);
+  return `${start}-${end} dari ${totalItems.value} data`;
+});
+
 const periodOptions = [
   { title: "1 Kuartal (3 Bln)", value: 3 },
   { title: "2 Kuartal (6 Bln)", value: 6 },
@@ -58,77 +79,78 @@ const periodOptions = [
   { title: "Tahunan (12 Bln)", value: 12 },
 ];
 
+const kategoriColorMap: Record<string, string> = {
+  "Dead Stock": "error",
+  "Slow Moving": "warning",
+  Standar: "info",
+  "Fast Moving": "success",
+};
+
 const headers = computed(() => [
   { title: "No", key: "no" },
   { title: "Kode Cabang", key: "cabang" },
   { title: "Nama Cabang", key: "Nama Cabang" },
   { title: "KtgProduk", key: "KtgProduk" },
   { title: "KtgBarang", key: "KtgBarang" },
-  { title: "Kelompok Barang", key: "Kelompok Barang" }, // 👈 Tambahkan ini
-  { title: "Jenis Kain", key: "Jenis Kain" }, // 👈 Tambahkan ini
+  { title: "Kelompok Barang", key: "Kelompok Barang" },
+  { title: "Jenis Kain", key: "Jenis Kain" },
   { title: "Warna", key: "Warna" },
   { title: "Kode Barang", key: "Kode Barang" },
   { title: "Barcode", key: "Barcode" },
   { title: "Nama Barang", key: "Nama Barang" },
   { title: "Ukuran", key: "Ukuran" },
   { title: "Stok", key: "Stok" },
-  // Judul kolom sekarang mengikuti nilai filter avgPeriod
   { title: `Riil Terjual (${filters.avgPeriod} Bln)`, key: "RealSales" },
   { title: `Avg Sale (${filters.avgPeriod} Bln)`, key: "AvgSales" },
-  { title: "Last Terima Tanggal", key: "Last Terima STBJ/Tanggal" },
-  { title: "No STBJ/SJ", key: "No STBJ/SJ" },
+  { title: "Last Terima Tanggal", key: "Last Terima Tanggal" },
+  { title: "No Dokumen Terima", key: "No Dokumen Terima" },
   { title: "Umur (Hari)", key: "Umur (Hari)" },
-  { title: "Umur (Bulan)", key: "Umur (Bulan)" },
-  { title: "Umur (Tahun)", key: "Umur (Tahun)" },
+  { title: "Kategori Umur", key: "Kategori Umur" },
 ]);
 
-// --- Kalkulasi Total ---
+// --- Kalkulasi Total (halaman berjalan saja, bukan grand total keseluruhan) ---
 const totalStok = computed(() => {
   return items.value.reduce((sum, item) => sum + (Number(item.Stok) || 0), 0);
 });
 
 const formatDateSafe = (dateStr: string | null) => {
   if (!dateStr || dateStr === "0000-00-00" || dateStr === "0000-00-00T00:00:00.000Z") {
-    return "-"; // Tampilkan strip jika tidak ada tanggal
-  }
-
-  const dateObj = new Date(dateStr);
-
-  // Cek apakah objek tanggal valid
-  if (isNaN(dateObj.getTime())) {
     return "-";
   }
-
+  const dateObj = new Date(dateStr);
+  if (isNaN(dateObj.getTime())) return "-";
   return format(dateObj, "dd/MM/yyyy");
 };
 
 // --- Methods ---
 const fetchData = async () => {
-  // --- TAMBAHKAN VALIDASI INI ---
   if (!filters.minUmur || filters.minUmur <= 0) {
     toast.warning("Harap isi umur (hari) lebih besar dari 0.");
-    items.value = []; // Kosongkan tabel
-    return; // Hentikan pemanggilan API
+    items.value = [];
+    totalItems.value = 0;
+    return;
   }
-  // ---------------------------------
 
   isLoading.value = true;
   try {
-    const response = await api.get("/laporan-dead-stok", { params: filters });
-    items.value = response.data;
+    const response = await api.get("/laporan-dead-stok", {
+      params: {
+        ...filters,
+        page: pagination.page,
+        pageSize: pagination.itemsPerPage,
+      },
+    });
+    items.value = response.data.items;
+    totalItems.value = response.data.total;
   } catch (err) {
     const error = err as AxiosError<{ message?: string }>;
-
     if (error.response) {
-      // Error dari server (HTTP 4xx/5xx)
       toast.error(
         error.response.data?.message || `Gagal memuat data. Status: ${error.response.status}`
       );
     } else if (error.request) {
-      // Request dibuat tapi tidak ada response
       toast.error("Tidak ada respon dari server. Periksa koneksi.");
     } else {
-      // Error lain (misal konfigurasi axios)
       toast.error(`Terjadi kesalahan: ${error.message}`);
     }
   } finally {
@@ -146,33 +168,35 @@ const fetchCabangOptions = async () => {
   }
 };
 
-// Fungsi pewarnaan baris berdasarkan logika Average Sales
 const getRowTextColor = (item: DeadStockItem) => {
-  if (!item["Last Terima STBJ/Tanggal"] || item["Last Terima STBJ/Tanggal"] === "0000-00-00") {
+  if (!item["Last Terima Tanggal"] || item["Last Terima Tanggal"] === "0000-00-00") {
     return "text-blue-darken-2 font-italic";
   }
-
-  // Jika penjualan 0 (Mati total) dan stok masih ada
   if (Number(item.AvgSales) === 0 && Number(item.Stok) > 0) {
     return "text-red font-weight-bold";
   }
-  // Jika penjualan sangat lambat (misal < 0.5 per bulan)
   if (Number(item.AvgSales) > 0 && Number(item.AvgSales) < 0.5) {
     return "text-orange";
   }
   return "";
 };
 
+// Ekspor mengambil SELURUH data yang cocok filter (bukan cuma halaman aktif)
 const exportData = async () => {
-  if (items.value.length === 0) return toast.warning("Tidak ada data untuk diekspor.");
+  if (totalItems.value === 0) return toast.warning("Tidak ada data untuk diekspor.");
   toast.info("Menyiapkan file export...");
+  isExporting.value = true;
 
   try {
+    const response = await api.get("/laporan-dead-stok", {
+      params: { ...filters, all: true },
+    });
+    const exportItems: DeadStockItem[] = response.data.items;
+
     const ExcelJS = (await import("exceljs")).default;
     const workbook = new ExcelJS.Workbook();
     const sheet = workbook.addWorksheet("Laporan Dead Stock");
 
-    // ── Definisi kolom ─────────────────────────────────────
     const colDefs: {
       header: string;
       key: keyof DeadStockItem | "no";
@@ -201,20 +225,18 @@ const exportData = async () => {
       { header: `Avg Sale (${filters.avgPeriod} Bln)`, key: "AvgSales", width: 16, align: "right" },
       {
         header: "Last Terima Tanggal",
-        key: "Last Terima STBJ/Tanggal",
+        key: "Last Terima Tanggal",
         width: 18,
         align: "center",
       },
-      { header: "No STBJ/SJ", key: "No STBJ/SJ", width: 20, align: "left" },
+      { header: "No Dokumen Terima", key: "No Dokumen Terima", width: 20, align: "left" },
+      { header: "Sumber Terima", key: "Sumber Terima", width: 12, align: "center" },
       { header: "Umur (Hari)", key: "Umur (Hari)", width: 12, align: "right" },
-      { header: "Umur (Bulan)", key: "Umur (Bulan)", width: 14, align: "right" },
-      { header: "Umur (Tahun)", key: "Umur (Tahun)", width: 14, align: "right" },
+      { header: "Kategori Umur", key: "Kategori Umur", width: 16, align: "center" },
     ];
 
-    // Set column widths
     sheet.columns = colDefs.map((c) => ({ width: c.width }));
 
-    // ── Header row ─────────────────────────────────────────
     const headerRow = sheet.addRow(colDefs.map((c) => c.header));
     headerRow.height = 22;
     headerRow.eachCell({ includeEmpty: true }, (cell) => {
@@ -229,26 +251,27 @@ const exportData = async () => {
       };
     });
 
-    // ── Data rows ──────────────────────────────────────────
-    items.value.forEach((item, index) => {
+    const kategoriFontColor: Record<string, string> = {
+      "Dead Stock": "FFC62828",
+      "Slow Moving": "FFFB8C00",
+      Standar: "FF1565C0",
+      "Fast Moving": "FF2E7D32",
+    };
+
+    exportItems.forEach((item, index) => {
       const rowValues = colDefs.map((c) => {
         if (c.key === "no") return index + 1;
-        if (c.key === "Last Terima STBJ/Tanggal")
-          return formatDateSafe(item["Last Terima STBJ/Tanggal"]);
+        if (c.key === "Last Terima Tanggal") return formatDateSafe(item["Last Terima Tanggal"]);
         if (c.key === "AvgSales") return Number(Number(item.AvgSales || 0).toFixed(1));
         return item[c.key as keyof DeadStockItem] ?? "";
       });
-
       const dataRow = sheet.addRow(rowValues);
 
-      // Tentukan warna baris
-      const noDate =
-        !item["Last Terima STBJ/Tanggal"] || item["Last Terima STBJ/Tanggal"] === "0000-00-00";
+      const noDate = !item["Last Terima Tanggal"] || item["Last Terima Tanggal"] === "0000-00-00";
       const isDead = Number(item.AvgSales) === 0 && Number(item.Stok) > 0;
       const isSlow = Number(item.AvgSales) > 0 && Number(item.AvgSales) < 0.5;
 
       dataRow.eachCell({ includeEmpty: true }, (cell, colNum) => {
-        // Border semua sel
         cell.border = {
           top: { style: "thin" },
           left: { style: "thin" },
@@ -256,31 +279,33 @@ const exportData = async () => {
           right: { style: "thin" },
         };
 
-        // Alignment per kolom
         const colDef = colDefs[colNum - 1];
         cell.alignment = { horizontal: colDef?.align ?? "left", vertical: "middle" };
 
-        // Warna font berdasarkan kondisi
         if (noDate) {
-          cell.font = { italic: true, color: { argb: "FF1565C0" } }; // biru italic
+          cell.font = { italic: true, color: { argb: "FF1565C0" } };
         } else if (isDead) {
-          cell.font = { bold: true, color: { argb: "FFC62828" } }; // merah bold
+          cell.font = { bold: true, color: { argb: "FFC62828" } };
         } else if (isSlow) {
-          cell.font = { color: { argb: "FFFB8C00" } }; // oranye
+          cell.font = { color: { argb: "FFFB8C00" } };
         }
 
-        // Kolom RealSales — biru kalau > 0
         const key = colDef?.key;
         if (key === "RealSales" && Number(item.RealSales) > 0) {
           cell.font = { ...(cell.font ?? {}), bold: true, color: { argb: "FF1565C0" } };
         }
+        if (key === "Kategori Umur") {
+          cell.font = {
+            bold: true,
+            color: { argb: kategoriFontColor[item["Kategori Umur"]] ?? "FF000000" },
+          };
+        }
       });
     });
 
-    // ── Grand Total row ────────────────────────────────────
     const totalRowData = colDefs.map((c, i) => {
-      if (i === 11) return "GRAND TOTAL :"; // kolom Ukuran → label
-      if (c.key === "Stok") return items.value.reduce((s, r) => s + (Number(r.Stok) || 0), 0);
+      if (i === 11) return "GRAND TOTAL :";
+      if (c.key === "Stok") return exportItems.reduce((s, r) => s + (Number(r.Stok) || 0), 0);
       return "";
     });
     const totalRow = sheet.addRow(totalRowData);
@@ -298,7 +323,6 @@ const exportData = async () => {
       cell.alignment = { horizontal: colDef?.align ?? "left", vertical: "middle" };
     });
 
-    // ── Download ───────────────────────────────────────────
     const buffer = await workbook.xlsx.writeBuffer();
     const blob = new Blob([buffer], {
       type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -313,21 +337,48 @@ const exportData = async () => {
   } catch (error) {
     console.error(error);
     toast.error("Gagal mengekspor data.");
+  } finally {
+    isExporting.value = false;
   }
 };
 
 onMounted(() => {
   fetchCabangOptions();
-  fetchData(); // Muat data awal berdasarkan filter default
+  fetchData();
 });
 
-watch(filters, fetchData, { deep: true });
+// Perubahan filter → reset ke halaman 1
+watch(
+  filters,
+  () => {
+    pagination.page = 1;
+    fetchData();
+  },
+  { deep: true }
+);
+
+// Ganti halaman → fetch langsung (tanpa reset)
+watch(() => pagination.page, fetchData);
+
+// Ganti jumlah per halaman → reset ke halaman 1
+watch(
+  () => pagination.itemsPerPage,
+  () => {
+    pagination.page = 1;
+    fetchData();
+  }
+);
 </script>
 
 <template>
   <PageLayout title="Laporan Dead Stock / Umur Barang" :menu-id="MENU_ID">
     <template #header-actions>
-      <v-btn size="small" color="teal" @click="exportData" prepend-icon="mdi-file-excel"
+      <v-btn
+        size="small"
+        color="teal"
+        @click="exportData"
+        prepend-icon="mdi-file-excel"
+        :loading="isExporting"
         >Export</v-btn
       >
     </template>
@@ -343,7 +394,7 @@ watch(filters, fetchData, { deep: true });
           density="compact"
           hide-details
           variant="outlined"
-          style="max-width: 200px"
+          style="max-width: 220px"
           :readonly="authStore.user?.cabang !== 'KDC'"
         />
 
@@ -400,7 +451,9 @@ watch(filters, fetchData, { deep: true });
               </tr>
               <template v-else>
                 <tr v-for="(item, index) in items" :key="index" :class="getRowTextColor(item)">
-                  <td class="text-center">{{ index + 1 }}</td>
+                  <td class="text-center">
+                    {{ (pagination.page - 1) * pagination.itemsPerPage + index + 1 }}
+                  </td>
                   <td>{{ item.cabang }}</td>
                   <td>{{ item["Nama Cabang"] }}</td>
                   <td>{{ item.KtgProduk }}</td>
@@ -423,24 +476,62 @@ watch(filters, fetchData, { deep: true });
                     {{ Number(item.AvgSales || 0).toFixed(1) }}
                   </td>
                   <td class="text-center">
-                    {{ formatDateSafe(item["Last Terima STBJ/Tanggal"]) }}
+                    {{ formatDateSafe(item["Last Terima Tanggal"]) }}
                   </td>
-                  <td>{{ item["No STBJ/SJ"] }}</td>
+                  <td>
+                    {{ item["No Dokumen Terima"] }}
+                    <v-chip
+                      v-if="item['Sumber Terima']"
+                      size="x-small"
+                      variant="tonal"
+                      class="ml-1"
+                    >
+                      {{ item["Sumber Terima"] }}
+                    </v-chip>
+                  </td>
                   <td class="text-end">{{ item["Umur (Hari)"] }}</td>
-                  <td class="text-end">{{ item["Umur (Bulan)"] }}</td>
-                  <td class="text-end">{{ item["Umur (Tahun)"] }}</td>
+                  <td class="text-center">
+                    <v-chip
+                      size="x-small"
+                      :color="kategoriColorMap[item['Kategori Umur']] || 'grey'"
+                      variant="flat"
+                    >
+                      {{ item["Kategori Umur"] }}
+                    </v-chip>
+                  </td>
                 </tr>
               </template>
             </tbody>
             <tfoot class="sticky-footer">
               <tr class="font-weight-bold">
-                <td colspan="12" class="text-end">GRAND TOTAL :</td>
+                <td colspan="12" class="text-end">TOTAL HALAMAN INI :</td>
                 <td class="text-end">{{ totalStok.toLocaleString("id-ID") }}</td>
-                <td colspan="6"></td>
+                <td colspan="5"></td>
               </tr>
             </tfoot>
           </table>
         </div>
+      </div>
+
+      <div class="pagination-section d-flex align-center pa-2 ga-4">
+        <span class="text-caption">{{ rangeLabel }}</span>
+        <v-spacer />
+        <v-select
+          v-model="pagination.itemsPerPage"
+          :items="itemsPerPageOptions"
+          label="Per halaman"
+          density="compact"
+          hide-details
+          variant="outlined"
+          style="max-width: 130px"
+        />
+        <v-pagination
+          v-model="pagination.page"
+          :length="totalPages"
+          :total-visible="5"
+          density="comfortable"
+          size="small"
+        />
       </div>
     </div>
   </PageLayout>
@@ -453,12 +544,11 @@ watch(filters, fetchData, { deep: true });
   height: calc(100vh - 120px);
 }
 
-/* FILTER */
-.filter-section {
+.filter-section,
+.pagination-section {
   flex-shrink: 0;
 }
 
-/* WRAPPER */
 .table-wrapper {
   flex: 1;
   overflow: hidden;
@@ -474,7 +564,6 @@ watch(filters, fetchData, { deep: true });
   background-color: rgb(var(--v-theme-surface));
 }
 
-/* TABLE BASE */
 .custom-table {
   width: max-content;
   min-width: 100%;
@@ -484,7 +573,6 @@ watch(filters, fetchData, { deep: true });
   font-size: 11px;
 }
 
-/* STICKY HEADER */
 .custom-table thead.sticky-header {
   position: sticky;
   top: 0;
@@ -492,7 +580,6 @@ watch(filters, fetchData, { deep: true });
   background-color: rgb(var(--v-theme-surface));
 }
 
-/* HEADER CELLS */
 .custom-table thead th {
   background-color: rgba(var(--v-theme-on-surface), 0.06);
   border: 1px solid rgba(var(--v-theme-on-surface), 0.12);
@@ -504,7 +591,6 @@ watch(filters, fetchData, { deep: true });
   color: rgb(var(--v-theme-on-surface));
 }
 
-/* BODY CELLS */
 .custom-table tbody td {
   border: 1px solid rgba(var(--v-theme-on-surface), 0.12);
   padding: 6px 12px;
@@ -513,19 +599,16 @@ watch(filters, fetchData, { deep: true });
   color: rgb(var(--v-theme-on-surface));
 }
 
-/* NAMA BARANG WRAP */
 .custom-table tbody td.nama-barang {
   max-width: 350px;
   white-space: normal;
   word-wrap: break-word;
 }
 
-/* ROW HOVER */
 .custom-table tbody tr:hover {
   background-color: rgba(var(--v-theme-on-surface), 0.06);
 }
 
-/* STICKY FOOTER (GRAND TOTAL) */
 .custom-table tfoot.sticky-footer {
   position: sticky;
   bottom: 0;
@@ -541,7 +624,6 @@ watch(filters, fetchData, { deep: true });
   color: rgb(var(--v-theme-on-surface));
 }
 
-/* ALIGNMENT */
 .text-center {
   text-align: center;
 }
@@ -554,7 +636,6 @@ watch(filters, fetchData, { deep: true });
   font-weight: 600;
 }
 
-/* SCROLLBAR (DARK SAFE) */
 .table-container::-webkit-scrollbar {
   width: 8px;
   height: 8px;
@@ -573,13 +654,11 @@ watch(filters, fetchData, { deep: true });
   background: rgba(var(--v-theme-on-surface), 0.5);
 }
 
-/* Pewarnaan Baris */
 :deep(.text-red) {
   color: rgb(var(--v-theme-error)) !important;
 }
 
 .text-orange {
   color: #fb8c00 !important;
-  /* Warna Orange untuk peringatan sedang */
 }
 </style>

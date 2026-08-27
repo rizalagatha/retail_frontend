@@ -4238,7 +4238,7 @@ onUnmounted(() => {
                               Standar
                             </div>
                             <div class="text-caption mb-2" style="color: #0c447c; opacity: 0.7">
-                              6 bln – 1 thn
+                              6 – 18 bulan
                             </div>
                             <div class="text-h6 font-weight-medium" style="color: #0c447c">
                               {{ deadStockSummary.std.toLocaleString("id-ID") }}
@@ -4267,7 +4267,7 @@ onUnmounted(() => {
                               Slow Moving
                             </div>
                             <div class="text-caption mb-2" style="color: #633806; opacity: 0.7">
-                              1 – 2 tahun
+                              18 bln – 3 tahun
                             </div>
                             <div class="text-h6 font-weight-medium" style="color: #633806">
                               {{ deadStockSummary.sm.toLocaleString("id-ID") }}
@@ -4296,7 +4296,7 @@ onUnmounted(() => {
                               Dead Stock
                             </div>
                             <div class="text-caption mb-2" style="color: #791f1f; opacity: 0.7">
-                              > 2 tahun
+                              ≥ 3 tahun
                             </div>
                             <div class="text-h6 font-weight-medium" style="color: #791f1f">
                               {{ deadStockSummary.ds.toLocaleString("id-ID") }}

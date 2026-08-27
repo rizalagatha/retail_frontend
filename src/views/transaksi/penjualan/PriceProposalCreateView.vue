@@ -17,6 +17,9 @@ import { format } from "date-fns";
 import { formatRupiah } from "@/utils/formatRupiah";
 import type { AxiosError } from "axios";
 
+import Logo from "@/assets/logo.png";
+import LogoRezso from "@/assets/rezso.jpg";
+
 const toast = useToast();
 const authStore = useAuthStore();
 const router = useRouter();
@@ -107,6 +110,15 @@ interface BarangDraft {
   pbd_warna: string;
   pbd_deskripsi: string;
   pbd_kategori: string;
+}
+
+interface BranchInfoPrint {
+  gdg_kode: string;
+  gdg_inv_nama: string;
+  gdg_inv_alamat: string;
+  gdg_inv_kota: string;
+  gdg_inv_telp: string;
+  gdg_inv_instagram: string;
 }
 
 // --- State ---
@@ -261,6 +273,7 @@ const isCancelConfirmVisible = ref(false);
 const isConfirmDialogVisible = ref(false);
 const confirmText = ref("");
 const pendingAction = ref<(() => void) | null>(null);
+const branchInfoPrint = ref<BranchInfoPrint | null>(null);
 
 // --- Methods ---
 const onFileChange = (e: Event) => {
@@ -355,6 +368,33 @@ const confirmAccFinance = async () => {
   if (!authStore.user?.canApprovePrice) {
     toast.error("Anda tidak memiliki hak approval Finance.");
     return;
+  }
+
+  //Cegah Acc Finance kalau masih ada Harga/Pcs = 0 di baris yang
+  // punya qty (mode Stok/Custom) — ini field yang manual diinput toko,
+  // beda dari Harga Kaos yang sudah termasuk biaya tambahan.
+  if (!isSublimMode.value) {
+    const zeroPriceSizes = sizeItems.value.filter(
+      (item) => (item.qty || 0) > 0 && (item.hargaPcs || 0) <= 0
+    );
+    if (zeroPriceSizes.length > 0) {
+      const sizeLabels = zeroPriceSizes.map((i) => i.size).join(", ");
+      toast.error(
+        `Masih ada Harga/Pcs Rp 0 untuk size: ${sizeLabels}. Perbaiki dulu sebelum Acc Finance.`
+      );
+      return;
+    }
+  } else {
+    // Mode Sublim: harga per pcs-nya ditentukan lookup tier (jerseyHargaPerPcs/
+    // celanaHargaPerPcs), bukan diinput manual — tetap dicek 0-nya di sini
+    if (totalJerseyQty.value > 0 && (sublimPreview.value.jerseyHargaPerPcs || 0) <= 0) {
+      toast.error("Harga Jersey masih Rp 0. Perbaiki dulu sebelum Acc Finance.");
+      return;
+    }
+    if (totalCelanaQty.value > 0 && (sublimPreview.value.celanaHargaPerPcs || 0) <= 0) {
+      toast.error("Harga Celana masih Rp 0. Perbaiki dulu sebelum Acc Finance.");
+      return;
+    }
   }
 
   isConfirmingAccFinance.value = true;
@@ -521,6 +561,7 @@ const executeSave = async () => {
             katalogGambar: sublimForm.value.katalogGambar,
             jerseySizes: jerseySizes.value,
             celanaSizes: celanaSizes.value,
+            colorDetails: sublimColorDetails.value,
           }
         : null,
       bordirItems: bordirItems.value,
@@ -573,6 +614,23 @@ const executeSave = async () => {
         toast.warning("Data tersimpan, tapi desain custom gagal diunggah.");
       }
     }
+    if (savedNomor && (sublimMockupDepanFile.value || sublimMockupBelakangFile.value)) {
+      const uploadMockup = async (file: File, side: "depan" | "belakang") => {
+        const formData = new FormData();
+        formData.append("image", file);
+        formData.append("side", side);
+        await api.post(`/price-proposal-form/sublim/upload-mockup/${savedNomor}`, formData, {
+          headers: { "Content-Type": "multipart/form-data" },
+        });
+      };
+      try {
+        if (sublimMockupDepanFile.value) await uploadMockup(sublimMockupDepanFile.value, "depan");
+        if (sublimMockupBelakangFile.value)
+          await uploadMockup(sublimMockupBelakangFile.value, "belakang");
+      } catch {
+        toast.warning("Data tersimpan, tapi mockup gagal diunggah.");
+      }
+    }
 
     const successMessage = response.data.kodeBarangDraft
       ? `${response.data.message} Kode Barang Draft: ${response.data.kodeBarangDraft}`
@@ -614,6 +672,7 @@ const resetForm = () => {
 
   sizeItems.value = [];
   additionalCostItems.value = [];
+  resetSublimDetailStep();
   imagePreview.value = null;
   selectedFile.value = null;
   accCustomerChecked.value = false;
@@ -678,6 +737,29 @@ const calculateTotals = async () => {
     footer.value.diskon = response.data.diskonRp || 0;
   } catch (error) {
     console.error("Gagal mengambil diskon:", error);
+    footer.value.diskon = 0;
+  }
+
+  footer.value.hargaNetto = footer.value.hargaBruto - footer.value.diskon;
+};
+
+// footer.hargaNetto tidak pernah terisi untuk mode Sublim karena
+// calculateTotals() hanya reactive ke sizeItems (Stok/Custom). Fungsi ini
+// mengisi footer.value yang sama, tapi basisnya subtotal Jersey+Celana.
+const calculateSublimTotals = async () => {
+  const totalHargaJersey = totalJerseyQty.value * (sublimPreview.value.jerseyHargaPerPcs || 0);
+  const totalHargaCelana = totalCelanaQty.value * (sublimPreview.value.celanaHargaPerPcs || 0);
+  const bruto = totalHargaJersey + totalHargaCelana;
+
+  footer.value.hargaBruto = bruto;
+
+  try {
+    const response = await api.get("/price-proposal-form/get-discount", {
+      params: { bruto },
+    });
+    footer.value.diskon = response.data.diskonRp || 0;
+  } catch (error) {
+    console.error("Gagal mengambil diskon Sublim:", error);
     footer.value.diskon = 0;
   }
 
@@ -822,6 +904,16 @@ const loadOfferData = async (nomor: string) => {
       sublimForm.value.katalogId = data.header.ph_sublim_katalog_id || null;
       sublimForm.value.katalogGambar = data.header.ph_sublim_katalog_gambar || null;
       sublimForm.value.katalogNama = data.sublimKatalogNama || "";
+
+      // [BARU] Populate detail warna & mockup
+      if (data.sublimColorDetails) {
+        sublimColorDetails.value = {
+          ...sublimColorDetails.value,
+          ...data.sublimColorDetails,
+        };
+      }
+      sublimMockupDepanPreview.value = data.sublimMockupDepanUrl || null;
+      sublimMockupBelakangPreview.value = data.sublimMockupBelakangUrl || null;
 
       if (draft && draft.pbd_kategori === "UTAMA") {
         const lengan = draft.pbd_lengan || "";
@@ -1054,6 +1146,67 @@ const totalCelanaQty = computed(() =>
   celanaSizes.value.reduce((s, r) => s + (Number(r.qty) || 0), 0)
 );
 
+// --- STATE STEP 4: DETAIL JERSEY (Mockup & Warna) ---
+const sublimShowDetailStep = ref(false);
+const sublimShowSummaryStep = ref(false);
+
+const sublimColorFields = [
+  { key: "bodyDepan", label: "Body Depan" },
+  { key: "bodyBelakang", label: "Body Belakang" },
+  { key: "lengan", label: "Lengan" },
+  { key: "kerah", label: "Kerah" },
+  { key: "manset", label: "Manset" },
+  { key: "sidePanel2", label: "Side Panel 2" },
+  { key: "listBaju", label: "List Baju" },
+  { key: "listKerah", label: "List Kerah" },
+  { key: "logo1", label: "Logo 1 (Kiri Dada Kiri)" },
+  { key: "logo2", label: "Logo 2 (Lengan Kiri)" },
+  { key: "nomor", label: "Nomor" },
+  { key: "nama", label: "Nama" },
+] as const;
+
+const sublimColorDetails = ref<Record<string, string>>(
+  Object.fromEntries(sublimColorFields.map((f) => [f.key, "#FFFFFF"]))
+);
+
+const sublimMockupDepanRef = ref<HTMLInputElement | null>(null);
+const sublimMockupBelakangRef = ref<HTMLInputElement | null>(null);
+const sublimMockupDepanFile = ref<File | null>(null);
+const sublimMockupDepanPreview = ref<string | null>(null);
+const sublimMockupBelakangFile = ref<File | null>(null);
+const sublimMockupBelakangPreview = ref<string | null>(null);
+
+const resetSublimDetailStep = () => {
+  sublimShowDetailStep.value = false;
+  sublimShowSummaryStep.value = false;
+  sublimColorDetails.value = Object.fromEntries(sublimColorFields.map((f) => [f.key, "#FFFFFF"]));
+  sublimMockupDepanFile.value = null;
+  sublimMockupDepanPreview.value = null;
+  sublimMockupBelakangFile.value = null;
+  sublimMockupBelakangPreview.value = null;
+};
+
+const onSublimMockupChange = (e: Event, side: "depan" | "belakang") => {
+  const file = (e.target as HTMLInputElement).files?.[0];
+  if (!file) return;
+  if (file.size > 1_000_000) {
+    toast.error("Ukuran gambar mockup tidak boleh melebihi 1 MB.");
+    return;
+  }
+  const reader = new FileReader();
+  reader.onload = (ev) => {
+    const result = ev.target?.result as string;
+    if (side === "depan") {
+      sublimMockupDepanFile.value = file;
+      sublimMockupDepanPreview.value = result;
+    } else {
+      sublimMockupBelakangFile.value = file;
+      sublimMockupBelakangPreview.value = result;
+    }
+  };
+  reader.readAsDataURL(file);
+};
+
 const fetchSublimKain = async () => {
   const response = await api.get("/price-proposal-form/sublim/kain-options");
   sublimKainOptions.value = response.data;
@@ -1134,6 +1287,344 @@ const handleQtyFocus = (e: FocusEvent) => {
   (e.target as HTMLInputElement).select();
 };
 
+const fetchBranchInfoPrint = async () => {
+  try {
+    const response = await api.get<BranchInfoPrint>("/price-proposal-form/branch-info-print");
+    branchInfoPrint.value = response.data;
+  } catch (error) {
+    console.error("Gagal memuat info cabang untuk cetak:", error);
+  }
+};
+
+const printSublimSummary = async () => {
+  const totalHargaJersey = totalJerseyQty.value * (sublimPreview.value.jerseyHargaPerPcs || 0);
+  const totalHargaCelana = totalCelanaQty.value * (sublimPreview.value.celanaHargaPerPcs || 0);
+  const diskon = footer.value.diskon;
+  const grandTotal = footer.value.hargaNetto;
+
+  const cabangKode = header.value.nomor?.substring(0, 3) || branchInfoPrint.value?.gdg_kode || "";
+  const logoUrl = cabangKode === "K04" ? LogoRezso : Logo;
+  const bi = branchInfoPrint.value;
+
+  const colorRowsHtml = sublimColorFields
+    .map(
+      (f) => `
+        <tr>
+          <td>${f.label}</td>
+          <td>
+            <span class="color-swatch-print" style="background:${
+              sublimColorDetails.value[f.key]
+            };"></span>
+            ${sublimColorDetails.value[f.key]}
+          </td>
+        </tr>`
+    )
+    .join("");
+
+  const jerseySizeRowsHtml = jerseySizes.value
+    .map((r) => `<tr><td>${r.size}</td><td style="text-align:right">${r.qty || 0}</td></tr>`)
+    .join("");
+
+  const celanaSizeRowsHtml = celanaSizes.value
+    .map((r) => `<tr><td>${r.size}</td><td style="text-align:right">${r.qty || 0}</td></tr>`)
+    .join("");
+
+  const tanggalFormatted = header.value.tanggal
+    ? format(new Date(header.value.tanggal), "dd-MM-yyyy")
+    : "-";
+
+  const html = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="utf-8" />
+      <title>${header.value.nomor || "Pengajuan Harga Jersey Sublim"}</title>
+        <style>
+        * { box-sizing: border-box; }
+        @page {
+          size: A4;
+          margin: 10mm 12mm;
+        }
+        html, body {
+          margin: 0;
+        }
+        body {
+          font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+          font-size: 10.5px;
+          line-height: 1.35;
+          color: #333;
+          padding: 0;
+          -webkit-print-color-adjust: exact;
+          print-color-adjust: exact;
+        }
+        .page {
+          position: relative;
+          padding: 0;
+        }
+        /* Pratinjau di layar (sebelum tombol Print ditekan) — tampilkan
+           sebagai lembar A4 mengambang, bukan melebar penuh browser */
+        @media screen {
+          body {
+            background: #7a7a7a;
+            padding: 24px 0;
+          }
+          .page {
+            width: 210mm;
+            min-height: 297mm;
+            margin: 0 auto;
+            background: #fff;
+            padding: 10mm 12mm;
+            box-shadow: 0 4px 24px rgba(0, 0, 0, 0.35);
+          }
+        }
+        @media print {
+          body {
+            background: #fff;
+            padding: 0;
+          }
+          .page {
+            width: auto;
+            min-height: auto;
+            margin: 0;
+            padding: 0;
+            box-shadow: none;
+          }
+        }
+        .watermark {
+          position: absolute;
+          top: 50%;
+          left: 50%;
+          transform: translate(-50%, -50%) rotate(-45deg);
+          font-size: 60px;
+          color: #cccccc;
+          font-weight: bold;
+          pointer-events: none;
+          user-select: none;
+          white-space: nowrap;
+          z-index: 9999;
+          opacity: 0.15;
+        }
+        .company-header {
+          display: flex;
+          justify-content: space-between;
+          align-items: flex-start;
+          margin-bottom: 10px;
+        }
+        .company-info { flex-grow: 1; }
+        .company-name { font-size: 14px; font-weight: bold; }
+        .company-sub { font-size: 9.5px; color: #666; margin-top: 1px; }
+        .company-wa { font-weight: 900; font-size: 10.5px; margin-top: 1px; }
+        .company-logo-right { height: 34px; width: auto; flex-shrink: 0; }
+        .document-title {
+          text-align: center;
+          font-size: 17px;
+          font-weight: bold;
+          margin-bottom: 10px;
+          text-decoration: underline;
+        }
+        .header-details {
+          display: flex;
+          justify-content: space-between;
+          margin-bottom: 10px;
+          border-bottom: 1px solid #eee;
+          padding-bottom: 6px;
+        }
+        .left-section, .right-section { width: 48%; }
+        .left-section > div, .right-section > div { margin-bottom: 1px; }
+        .label { font-weight: bold; display: inline-block; width: 95px; }
+        h2.section-title {
+          font-size: 10px;
+          font-weight: bold;
+          text-transform: uppercase;
+          color: #666;
+          margin: 0 0 4px;
+          letter-spacing: 0.4px;
+        }
+        .mockup-section { display: flex; gap: 10px; margin-bottom: 10px; page-break-inside: avoid; }
+        .mockup-box { flex: 1; }
+        .mockup-box .mockup-label { font-weight: bold; margin-bottom: 2px; font-size: 10px; }
+        .mockup-box img {
+          width: 100%;
+          max-height: 120px;
+          object-fit: contain;
+          border: 1px solid #ccc;
+          border-radius: 4px;
+        }
+        table { width: 100%; border-collapse: collapse; margin-bottom: 10px; page-break-inside: avoid; }
+        th, td { border: 1px solid #ccc; padding: 3px 6px; font-size: 9.5px; text-align: left; }
+        th { background-color: #f0f0f0; font-weight: bold; text-transform: uppercase; }
+        tr { page-break-inside: avoid; }
+        .two-col { display: flex; gap: 10px; page-break-inside: avoid; }
+        .two-col > div { flex: 1; }
+        .color-swatch-print {
+          display: inline-block;
+          width: 11px;
+          height: 11px;
+          border: 1px solid #999;
+          vertical-align: middle;
+          margin-right: 5px;
+        }
+        .summary-section { display: flex; justify-content: flex-end; margin-top: 8px; page-break-inside: avoid; }
+        .totals-table { flex-basis: 48%; margin-bottom: 0; }
+        .totals-table td { text-align: right; padding: 2px 6px; }
+        .totals-table tr:not(:last-child) td { border-bottom: 1px dashed #eee; }
+        .grand-total td {
+          font-weight: bold;
+          font-size: 11px;
+          border-top: 1px solid #ccc !important;
+          padding-top: 4px;
+        }
+        .footer-signatures {
+          display: flex;
+          justify-content: space-around;
+          text-align: center;
+          margin-top: 22px;
+          page-break-inside: avoid;
+        }
+        .signature-column { width: 30%; font-size: 10px; }
+        .footer-names {
+          display: flex;
+          justify-content: space-around;
+          text-align: center;
+          margin-top: 18px;
+        }
+        .name-column { width: 30%; border-bottom: 1px solid #000; padding-bottom: 1px; font-size: 10px; }
+        .footer-note { margin-top: 10px; font-size: 8.5px; color: #666; border-top: 1px solid #eee; padding-top: 6px; }
+      </style>
+    </head>
+    <body>
+      <div class="page">
+        <div class="watermark">DRAFT</div>
+
+        <div class="company-header">
+          <div class="company-info">
+            <div class="company-name">${
+              bi?.gdg_inv_instagram || "Kaosan Retail Management System"
+            }</div>
+            <div class="company-sub">${bi?.gdg_inv_alamat || ""}</div>
+            <div class="company-sub">${bi?.gdg_inv_kota || ""}</div>
+            ${bi?.gdg_inv_telp ? `<div class="company-wa">${bi.gdg_inv_telp}</div>` : ""}
+          </div>
+          <img src="${logoUrl}" alt="Logo" class="company-logo-right" />
+        </div>
+
+        <div class="document-title">Pengajuan Harga Jersey Sublim</div>
+
+        <div class="header-details">
+          <div class="left-section">
+            <div><span class="label">No. Pengajuan:</span> ${header.value.nomor || "-"}</div>
+            <div><span class="label">Tanggal:</span> ${tanggalFormatted}</div>
+            <div><span class="label">Keterangan:</span> ${header.value.keterangan || "-"}</div>
+          </div>
+          <div class="right-section">
+            <div><span class="label">Customer:</span> ${header.value.customerNama || "-"}</div>
+            <div><span class="label">Jenis Kain:</span> ${sublimForm.value.kain || "-"}</div>
+            <div><span class="label">Model Jersey:</span> ${
+              selectedJenisJersey.value?.label || "-"
+            }</div>
+            <div><span class="label">Warna Kaos:</span> ${sublimForm.value.warna || "-"}</div>
+          </div>
+        </div>
+
+        ${
+          sublimMockupDepanPreview.value || sublimMockupBelakangPreview.value
+            ? `<h2 class="section-title">Mockup Desain</h2>
+              <div class="mockup-section">
+                ${
+                  sublimMockupDepanPreview.value
+                    ? `<div class="mockup-box"><div class="mockup-label">Depan</div><img src="${sublimMockupDepanPreview.value}" /></div>`
+                    : ""
+                }
+                ${
+                  sublimMockupBelakangPreview.value
+                    ? `<div class="mockup-box"><div class="mockup-label">Belakang</div><img src="${sublimMockupBelakangPreview.value}" /></div>`
+                    : ""
+                }
+              </div>`
+            : ""
+        }
+
+        <h2 class="section-title">Rincian Ukuran</h2>
+        <div class="two-col">
+          <div>
+            <table>
+              <thead><tr><th colspan="2">Jersey</th></tr><tr><th>Ukuran</th><th>Qty</th></tr></thead>
+              <tbody>${jerseySizeRowsHtml}</tbody>
+            </table>
+          </div>
+          <div>
+            <table>
+              <thead><tr><th colspan="2">Celana</th></tr><tr><th>Ukuran</th><th>Qty</th></tr></thead>
+              <tbody>${celanaSizeRowsHtml}</tbody>
+            </table>
+          </div>
+        </div>
+
+        <h2 class="section-title">Detail Warna</h2>
+        <table>
+          <thead><tr><th colspan="2">Bagian</th></tr></thead>
+          <tbody>${colorRowsHtml}</tbody>
+        </table>
+
+        <div class="summary-section">
+          <table class="totals-table">
+            <tbody>
+              <tr>
+                <td style="text-align:left;">Subtotal Jersey (${
+                  totalJerseyQty.value
+                } pcs x ${formatRupiah(sublimPreview.value.jerseyHargaPerPcs || 0)})</td>
+                <td>${formatRupiah(totalHargaJersey)}</td>
+              </tr>
+              <tr>
+                <td style="text-align:left;">Subtotal Celana (${
+                  totalCelanaQty.value
+                } pcs x ${formatRupiah(sublimPreview.value.celanaHargaPerPcs || 0)})</td>
+                <td>${formatRupiah(totalHargaCelana)}</td>
+              </tr>
+              <tr>
+                <td style="text-align:left;">Diskon</td>
+                <td>- ${formatRupiah(diskon)}</td>
+              </tr>
+              <tr class="grand-total">
+                <td style="text-align:left;">Grand Total</td>
+                <td>${formatRupiah(grandTotal)}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="footer-signatures">
+          <div class="signature-column">Sales Counter,</div>
+          <div class="signature-column">Mengetahui,</div>
+          <div class="signature-column">Customer,</div>
+        </div>
+        <div class="footer-names">
+          <div class="name-column">( .................... )</div>
+          <div class="name-column">( .................... )</div>
+          <div class="name-column">( ${header.value.customerNama || "...................."} )</div>
+        </div>
+
+        <div class="footer-note">
+          Harga dapat berubah sewaktu-waktu tanpa pemberitahuan sebelumnya. Pengajuan harga ini berlaku selama 7 hari sejak tanggal dibuat.
+        </div>
+      </div>
+    </body>
+    </html>
+  `;
+
+  const printWindow = window.open("", "_blank");
+  if (!printWindow) {
+    toast.error("Gagal membuka jendela cetak. Periksa pengaturan pop-up blocker browser.");
+    return;
+  }
+  printWindow.document.write(html);
+  printWindow.document.close();
+  printWindow.onload = () => {
+    printWindow.focus();
+    printWindow.print();
+  };
+};
+
 watch(
   () => sublimForm.value.jerseyChoice,
   () => {
@@ -1143,6 +1634,7 @@ watch(
     sublimForm.value.katalogGambar = null;
     sublimDesignFile.value = null;
     sublimDesignPreview.value = null;
+    resetSublimDetailStep();
   }
 );
 
@@ -1192,6 +1684,15 @@ watch(
     celanaSizes,
   ],
   refreshSublimPreview,
+  { deep: true }
+);
+
+// Recalc footer setiap kali jumlah atau harga tier Sublim berubah
+watch(
+  [jerseySizes, celanaSizes, sublimPreview],
+  () => {
+    if (isSublimMode.value) calculateSublimTotals();
+  },
   { deep: true }
 );
 
@@ -1321,6 +1822,7 @@ watch(
       sublimJenisJerseyOptions.value = [];
       isEditingKain.value = false;
       isEditingJersey.value = false;
+      resetSublimDetailStep();
     }
   }
 );
@@ -1328,6 +1830,7 @@ watch(
 onMounted(() => {
   markAsSaved();
   fetchSublimKain();
+  fetchBranchInfoPrint();
   if (!authStore.can(MENU_ID, requiredPermission.value)) {
     toast.error(
       `Anda tidak memiliki izin untuk ${
@@ -2032,6 +2535,25 @@ onMounted(() => {
                     <div class="sublim-summary-card-label">{{ selectedJenisJersey?.label }}</div>
                     <div class="sublim-summary-card-action">Ganti jenis</div>
                   </div>
+
+                  <div
+                    v-if="sublimShowDetailStep"
+                    class="sublim-summary-card sublim-summary-card-qty-card"
+                    @click="sublimShowDetailStep = false"
+                  >
+                    <div class="sublim-summary-card-qty-rows">
+                      <div class="sublim-summary-card-qty-row">
+                        <span>Jersey</span>
+                        <span>{{ totalJerseyQty }} pcs</span>
+                      </div>
+                      <div v-if="totalCelanaQty > 0" class="sublim-summary-card-qty-row">
+                        <span>Celana</span>
+                        <span>{{ totalCelanaQty }} pcs</span>
+                      </div>
+                    </div>
+                    <div class="sublim-summary-card-label">Jumlah / Kuantiti</div>
+                    <div class="sublim-summary-card-action">Ubah jumlah</div>
+                  </div>
                 </div>
 
                 <!-- KIRI (75%) — konten step yang lagi aktif -->
@@ -2126,161 +2648,482 @@ onMounted(() => {
                     </v-row>
                   </template>
 
-                  <!-- Step 3 -->
+                  <!-- Step 3 & 4 -->
                   <template v-else>
-                    <div class="sublim-step-label">
-                      <span class="sublim-step-num">3</span> Atur Desain & Ukuran
-                    </div>
+                    <template v-if="!sublimShowDetailStep">
+                      <div class="sublim-step-label">
+                        <span class="sublim-step-num">3</span> Pilih Desain & Ukuran
+                      </div>
 
-                    <v-text-field
-                      v-model="sublimForm.warna"
-                      label="Warna Kaos"
-                      readonly
-                      placeholder="Tekan F1 atau klik..."
-                      @click="openSublimWarnaSearch"
-                      @keydown.f1.prevent="openSublimWarnaSearch"
-                      variant="outlined"
-                      density="compact"
-                      hide-details
-                      append-inner-icon="mdi-magnify"
-                      @click:append-inner="openSublimWarnaSearch"
-                      class="mb-3"
-                      style="max-width: 320px"
-                    ></v-text-field>
+                      <div class="sublim-options-row">
+                        <v-checkbox
+                          v-model="sublimForm.lenganPanjang"
+                          label="Lengan Panjang (+Rp7.500)"
+                          hide-details
+                          density="compact"
+                          class="flex-grow-0"
+                        ></v-checkbox>
+                        <v-spacer></v-spacer>
+                        <v-btn
+                          size="small"
+                          variant="tonal"
+                          prepend-icon="mdi-image-multiple-outline"
+                          @click="openKatalogKategoriModal"
+                          >Lihat Katalog</v-btn
+                        >
+                        <v-btn
+                          size="small"
+                          variant="tonal"
+                          color="primary"
+                          prepend-icon="mdi-upload"
+                          class="ml-2"
+                          @click="sublimUploadRef?.click()"
+                          >Upload Desain Sendiri</v-btn
+                        >
+                        <input
+                          ref="sublimUploadRef"
+                          type="file"
+                          accept="image/jpeg,image/png"
+                          style="display: none"
+                          @change="onSublimDesignChange"
+                        />
+                      </div>
 
-                    <div class="sublim-options-row">
-                      <v-checkbox
-                        v-model="sublimForm.lenganPanjang"
-                        label="Lengan Panjang (+Rp7.500)"
-                        hide-details
-                        density="compact"
-                        class="flex-grow-0"
-                      ></v-checkbox>
-                      <v-spacer></v-spacer>
-                      <v-btn
-                        size="small"
-                        variant="tonal"
-                        prepend-icon="mdi-image-multiple-outline"
-                        @click="openKatalogKategoriModal"
-                        >Lihat Katalog</v-btn
-                      >
-                      <v-btn
-                        size="small"
-                        variant="tonal"
-                        color="primary"
-                        prepend-icon="mdi-upload"
-                        class="ml-2"
-                        @click="sublimUploadRef?.click()"
-                        >Upload Desain Sendiri</v-btn
-                      >
-                      <input
-                        ref="sublimUploadRef"
-                        type="file"
-                        accept="image/jpeg,image/png"
-                        style="display: none"
-                        @change="onSublimDesignChange"
-                      />
-                    </div>
-
-                    <div v-if="selectedDesignThumbnail" class="sublim-design-preview">
-                      <img :src="selectedDesignThumbnail" class="sublim-design-preview-img" />
-                      <div class="ml-3">
-                        <div class="text-caption text-medium-emphasis">Desain terpilih</div>
-                        <div class="text-body-2 font-weight-medium">
-                          {{
-                            sublimForm.katalogNama ||
-                            (sublimDesignFile ? sublimDesignFile.name : "Desain default kategori")
-                          }}
+                      <div v-if="selectedDesignThumbnail" class="sublim-design-preview">
+                        <img :src="selectedDesignThumbnail" class="sublim-design-preview-img" />
+                        <div class="ml-3">
+                          <div class="text-caption text-medium-emphasis">Desain terpilih</div>
+                          <div class="text-body-2 font-weight-medium">
+                            {{
+                              sublimForm.katalogNama ||
+                              (sublimDesignFile ? sublimDesignFile.name : "Desain default kategori")
+                            }}
+                          </div>
                         </div>
                       </div>
-                    </div>
 
-                    <v-expand-transition>
-                      <div v-if="selectedDesignThumbnail">
-                        <v-divider class="my-4"></v-divider>
-                        <div class="d-flex sublim-tables-row">
-                          <div class="sublim-main-col">
-                            <div class="text-caption font-weight-bold mb-1 px-1">
-                              Jersey — Harga/pcs:
-                              {{ formatRupiah(sublimPreview.jerseyHargaPerPcs) }}
-                              <span v-if="sublimPreview.lenganFinal" class="text-medium-emphasis"
-                                >({{ sublimPreview.lenganFinal }})</span
-                              >
-                            </div>
-                            <v-table density="compact">
-                              <thead>
-                                <tr>
-                                  <th>Size</th>
-                                  <th class="text-right">Qty</th>
-                                </tr>
-                              </thead>
-                              <tbody>
-                                <tr v-for="row in jerseySizes" :key="row.size">
-                                  <td>{{ row.size }}</td>
-                                  <td>
-                                    <v-text-field
-                                      v-model.number="row.qty"
-                                      type="number"
-                                      variant="underlined"
-                                      density="compact"
-                                      hide-details
-                                      class="text-right"
-                                      @focus="handleQtyFocus"
-                                    ></v-text-field>
-                                  </td>
-                                </tr>
-                              </tbody>
-                            </v-table>
-                          </div>
-                          <div class="sublim-side-col">
-                            <div class="pa-2 font-weight-medium text-caption">
-                              Celana (Opsional)
-                            </div>
-                            <v-divider></v-divider>
-                            <v-table density="compact">
-                              <thead>
-                                <tr>
-                                  <th>Size</th>
-                                  <th class="text-right">Qty</th>
-                                </tr>
-                              </thead>
-                              <tbody>
-                                <tr v-for="row in celanaSizes" :key="row.size">
-                                  <td>{{ row.size }}</td>
-                                  <td>
-                                    <v-text-field
-                                      v-model.number="row.qty"
-                                      type="number"
-                                      variant="underlined"
-                                      density="compact"
-                                      hide-details
-                                      class="text-right"
-                                      @focus="handleQtyFocus"
-                                    ></v-text-field>
-                                  </td>
-                                </tr>
-                              </tbody>
-                            </v-table>
-                            <v-divider></v-divider>
-                            <div class="total-footer">
-                              <div class="text-caption text-medium-emphasis mb-1">
-                                Harga/pcs: {{ formatRupiah(sublimPreview.celanaHargaPerPcs) }}
+                      <v-expand-transition>
+                        <div v-if="selectedDesignThumbnail">
+                          <v-divider class="my-4"></v-divider>
+                          <div class="sublim-qty-layout">
+                            <!-- Kolom kiri: tabel qty horizontal -->
+                            <div class="sublim-qty-main">
+                              <div class="qty-table-card">
+                                <div class="qty-table-card-title">
+                                  Jersey — Harga/pcs:
+                                  {{ formatRupiah(sublimPreview.jerseyHargaPerPcs) }}
+                                  <span
+                                    v-if="sublimPreview.lenganFinal"
+                                    class="text-medium-emphasis"
+                                    >({{ sublimPreview.lenganFinal }})</span
+                                  >
+                                </div>
+                                <div class="horizontal-qty-table-wrap">
+                                  <table class="horizontal-qty-table">
+                                    <thead>
+                                      <tr>
+                                        <th class="row-label-col">Ukuran</th>
+                                        <th v-for="row in jerseySizes" :key="row.size">
+                                          {{ row.size }}
+                                        </th>
+                                        <th class="total-col">Total</th>
+                                      </tr>
+                                    </thead>
+                                    <tbody>
+                                      <tr>
+                                        <td class="row-label-col">Jumlah (Pcs)</td>
+                                        <td v-for="row in jerseySizes" :key="row.size">
+                                          <v-text-field
+                                            v-model.number="row.qty"
+                                            type="number"
+                                            variant="outlined"
+                                            density="compact"
+                                            hide-details
+                                            class="qty-input"
+                                            @focus="handleQtyFocus"
+                                          ></v-text-field>
+                                        </td>
+                                        <td class="total-col font-weight-bold">
+                                          {{ totalJerseyQty }} Pcs
+                                        </td>
+                                      </tr>
+                                    </tbody>
+                                  </table>
+                                </div>
                               </div>
+
+                              <div class="qty-table-card mt-4">
+                                <div class="qty-table-card-title">
+                                  Celana (Opsional) — Harga/pcs:
+                                  {{ formatRupiah(sublimPreview.celanaHargaPerPcs) }}
+                                </div>
+                                <div class="horizontal-qty-table-wrap">
+                                  <table class="horizontal-qty-table">
+                                    <thead>
+                                      <tr>
+                                        <th class="row-label-col">Ukuran</th>
+                                        <th v-for="row in celanaSizes" :key="row.size">
+                                          {{ row.size }}
+                                        </th>
+                                        <th class="total-col">Total</th>
+                                      </tr>
+                                    </thead>
+                                    <tbody>
+                                      <tr>
+                                        <td class="row-label-col">Jumlah (Pcs)</td>
+                                        <td v-for="row in celanaSizes" :key="row.size">
+                                          <v-text-field
+                                            v-model.number="row.qty"
+                                            type="number"
+                                            variant="outlined"
+                                            density="compact"
+                                            hide-details
+                                            class="qty-input"
+                                            @focus="handleQtyFocus"
+                                          ></v-text-field>
+                                        </td>
+                                        <td class="total-col font-weight-bold">
+                                          {{ totalCelanaQty }} Pcs
+                                        </td>
+                                      </tr>
+                                    </tbody>
+                                  </table>
+                                </div>
+                                <div class="total-footer mt-2">
+                                  <v-text-field
+                                    label="Total Harga Celana"
+                                    :model-value="
+                                      formatRupiah(totalCelanaQty * sublimPreview.celanaHargaPerPcs)
+                                    "
+                                    readonly
+                                    variant="filled"
+                                    density="compact"
+                                    hide-details
+                                  ></v-text-field>
+                                </div>
+                              </div>
+                            </div>
+
+                            <!-- Kolom kanan: sidebar ringkasan -->
+                            <div class="sublim-qty-side">
+                              <div class="info-card">
+                                <div class="info-card-title">Informasi Pilihan</div>
+                                <div class="info-row">
+                                  <span class="info-label">Jenis Kain</span>
+                                  <span class="info-value">{{ sublimForm.kain || "-" }}</span>
+                                </div>
+                                <div class="info-row">
+                                  <span class="info-label">Model Jersey</span>
+                                  <span class="info-value">{{
+                                    selectedJenisJersey?.label || "-"
+                                  }}</span>
+                                </div>
+                                <div class="info-row">
+                                  <span class="info-label">Tipe Jersey</span>
+                                  <span class="info-value">{{
+                                    sublimForm.lenganPanjang ? "Lengan Panjang" : "Lengan Pendek"
+                                  }}</span>
+                                </div>
+                              </div>
+
+                              <div class="info-card mt-4">
+                                <div class="info-card-title">Ringkasan Kuantiti</div>
+                                <div class="qty-summary-header">
+                                  <span>Ukuran</span>
+                                  <span>Qty (Pcs)</span>
+                                </div>
+                                <div
+                                  v-for="row in jerseySizes"
+                                  :key="row.size"
+                                  class="qty-summary-row"
+                                >
+                                  <span>{{ row.size }}</span>
+                                  <span>{{ row.qty || 0 }}</span>
+                                </div>
+                                <v-divider class="my-2"></v-divider>
+                                <div class="qty-summary-row font-weight-bold">
+                                  <span>Total</span>
+                                  <span>{{ totalJerseyQty }}</span>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div class="d-flex justify-end mt-4">
+                            <v-btn
+                              color="primary"
+                              append-icon="mdi-arrow-right"
+                              :disabled="totalJerseyQty === 0"
+                              @click="sublimShowDetailStep = true"
+                            >
+                              Lanjut ke Detail Warna & Mockup
+                            </v-btn>
+                          </div>
+                        </div>
+                      </v-expand-transition>
+                    </template>
+
+                    <template v-else>
+                      <template v-if="!sublimShowSummaryStep">
+                        <v-btn
+                          variant="text"
+                          size="small"
+                          prepend-icon="mdi-arrow-left"
+                          class="mb-3"
+                          @click="sublimShowDetailStep = false"
+                        >
+                          Kembali ke Jumlah Kuantiti
+                        </v-btn>
+
+                        <div class="sublim-step-label mb-3">
+                          <span class="sublim-step-num">4</span> Detail Jersey — Mockup & Warna
+                        </div>
+
+                        <div class="sublim-detail-layout">
+                          <!-- Kolom kiri: warna kaos, upload mockup, detail warna -->
+                          <div class="sublim-detail-main">
+                            <div class="qty-table-card mb-4">
+                              <div class="qty-table-card-title">Warna Kaos</div>
                               <v-text-field
-                                label="Total Harga Celana"
-                                :model-value="
-                                  formatRupiah(totalCelanaQty * sublimPreview.celanaHargaPerPcs)
-                                "
+                                v-model="sublimForm.warna"
+                                label="Warna Kaos"
                                 readonly
-                                variant="filled"
+                                placeholder="Tekan F1 atau klik..."
+                                @click="openSublimWarnaSearch"
+                                @keydown.f1.prevent="openSublimWarnaSearch"
+                                variant="outlined"
                                 density="compact"
                                 hide-details
+                                append-inner-icon="mdi-magnify"
+                                @click:append-inner="openSublimWarnaSearch"
                               ></v-text-field>
+                            </div>
+
+                            <div class="qty-table-card mb-4">
+                              <div class="qty-table-card-title">Upload Mockup</div>
+                              <v-row dense>
+                                <v-col cols="6">
+                                  <div
+                                    class="mockup-upload-box"
+                                    @click="sublimMockupDepanRef?.click()"
+                                  >
+                                    <img
+                                      v-if="sublimMockupDepanPreview"
+                                      :src="sublimMockupDepanPreview"
+                                      class="mockup-preview-img"
+                                    />
+                                    <div v-else class="mockup-upload-placeholder">
+                                      <v-icon size="28">mdi-upload</v-icon>
+                                      <span class="text-caption mt-1">Upload Mockup Depan</span>
+                                    </div>
+                                  </div>
+                                  <input
+                                    ref="sublimMockupDepanRef"
+                                    type="file"
+                                    accept="image/jpeg,image/png"
+                                    style="display: none"
+                                    @change="onSublimMockupChange($event, 'depan')"
+                                  />
+                                  <div class="text-caption text-center mt-1">Depan</div>
+                                </v-col>
+                                <v-col cols="6">
+                                  <div
+                                    class="mockup-upload-box"
+                                    @click="sublimMockupBelakangRef?.click()"
+                                  >
+                                    <img
+                                      v-if="sublimMockupBelakangPreview"
+                                      :src="sublimMockupBelakangPreview"
+                                      class="mockup-preview-img"
+                                    />
+                                    <div v-else class="mockup-upload-placeholder">
+                                      <v-icon size="28">mdi-upload</v-icon>
+                                      <span class="text-caption mt-1">Upload Mockup Belakang</span>
+                                    </div>
+                                  </div>
+                                  <input
+                                    ref="sublimMockupBelakangRef"
+                                    type="file"
+                                    accept="image/jpeg,image/png"
+                                    style="display: none"
+                                    @change="onSublimMockupChange($event, 'belakang')"
+                                  />
+                                  <div class="text-caption text-center mt-1">Belakang</div>
+                                </v-col>
+                              </v-row>
+                            </div>
+
+                            <div class="qty-table-card">
+                              <div class="qty-table-card-title">Detail Warna</div>
+                              <v-row dense>
+                                <v-col v-for="field in sublimColorFields" :key="field.key" cols="6">
+                                  <div class="color-field-row">
+                                    <span class="color-field-label">{{ field.label }}</span>
+                                    <div class="color-field-input">
+                                      <input
+                                        type="color"
+                                        v-model="sublimColorDetails[field.key]"
+                                        class="color-swatch-input"
+                                      />
+                                      <span class="color-hex-label">{{
+                                        sublimColorDetails[field.key]
+                                      }}</span>
+                                    </div>
+                                  </div>
+                                </v-col>
+                              </v-row>
+                            </div>
+                          </div>
+
+                          <!-- Kolom kanan: preview mockup -->
+                          <div class="sublim-detail-side">
+                            <div class="info-card">
+                              <div class="info-card-title">Preview Mockup</div>
+                              <div
+                                v-if="sublimMockupDepanPreview || sublimMockupBelakangPreview"
+                                class="d-flex flex-column ga-2"
+                              >
+                                <img
+                                  v-if="sublimMockupDepanPreview"
+                                  :src="sublimMockupDepanPreview"
+                                  class="mockup-thumb"
+                                />
+                                <img
+                                  v-if="sublimMockupBelakangPreview"
+                                  :src="sublimMockupBelakangPreview"
+                                  class="mockup-thumb"
+                                />
+                              </div>
+                              <div v-else class="text-caption text-medium-emphasis">
+                                Belum ada mockup diunggah.
+                              </div>
                             </div>
                           </div>
                         </div>
-                      </div>
-                    </v-expand-transition>
+
+                        <div class="d-flex justify-end mt-4">
+                          <v-btn
+                            color="primary"
+                            append-icon="mdi-arrow-right"
+                            @click="sublimShowSummaryStep = true"
+                          >
+                            Lanjut ke Ringkasan
+                          </v-btn>
+                        </div>
+                      </template>
+
+                      <template v-else>
+                        <v-btn
+                          variant="text"
+                          size="small"
+                          prepend-icon="mdi-arrow-left"
+                          class="mb-3"
+                          @click="sublimShowSummaryStep = false"
+                        >
+                          Kembali ke Detail Jersey
+                        </v-btn>
+
+                        <div class="d-flex align-center justify-space-between mb-3">
+                          <div class="sublim-step-label mb-0">
+                            <span class="sublim-step-num">5</span> Ringkasan & Preview Cetak
+                          </div>
+                          <v-btn
+                            color="primary"
+                            variant="flat"
+                            prepend-icon="mdi-printer"
+                            @click="printSublimSummary"
+                          >
+                            Cetak PDF
+                          </v-btn>
+                        </div>
+
+                        <div class="qty-table-card mb-4">
+                          <div class="qty-table-card-title">Informasi Pengajuan</div>
+                          <v-row dense>
+                            <v-col cols="4">
+                              <div class="info-row">
+                                <span class="info-label">Nomor</span>
+                                <span class="info-value">{{ header.nomor || "-" }}</span>
+                              </div>
+                              <div class="info-row">
+                                <span class="info-label">Customer</span>
+                                <span class="info-value">{{ header.customerNama || "-" }}</span>
+                              </div>
+                            </v-col>
+                            <v-col cols="4">
+                              <div class="info-row">
+                                <span class="info-label">Jenis Kain</span>
+                                <span class="info-value">{{ sublimForm.kain || "-" }}</span>
+                              </div>
+                              <div class="info-row">
+                                <span class="info-label">Model Jersey</span>
+                                <span class="info-value">{{
+                                  selectedJenisJersey?.label || "-"
+                                }}</span>
+                              </div>
+                            </v-col>
+                            <v-col cols="4">
+                              <div class="info-row">
+                                <span class="info-label">Warna Kaos</span>
+                                <span class="info-value">{{ sublimForm.warna || "-" }}</span>
+                              </div>
+                              <div class="info-row">
+                                <span class="info-label">Tipe Lengan</span>
+                                <span class="info-value">{{
+                                  sublimPreview.lenganFinal || "-"
+                                }}</span>
+                              </div>
+                            </v-col>
+                          </v-row>
+                        </div>
+
+                        <v-row dense class="mb-4">
+                          <v-col v-if="sublimMockupDepanPreview" cols="6">
+                            <div class="qty-table-card">
+                              <div class="qty-table-card-title">Mockup Depan</div>
+                              <img :src="sublimMockupDepanPreview" class="mockup-thumb" />
+                            </div>
+                          </v-col>
+                          <v-col v-if="sublimMockupBelakangPreview" cols="6">
+                            <div class="qty-table-card">
+                              <div class="qty-table-card-title">Mockup Belakang</div>
+                              <img :src="sublimMockupBelakangPreview" class="mockup-thumb" />
+                            </div>
+                          </v-col>
+                        </v-row>
+
+                        <div class="qty-table-card mb-4">
+                          <div class="qty-table-card-title">Ringkasan Harga</div>
+                          <div class="harga-summary-row">
+                            <span
+                              >Subtotal Jersey ({{ totalJerseyQty }} pcs x
+                              {{ formatRupiah(sublimPreview.jerseyHargaPerPcs || 0) }})</span
+                            >
+                            <span>{{
+                              formatRupiah(totalJerseyQty * (sublimPreview.jerseyHargaPerPcs || 0))
+                            }}</span>
+                          </div>
+                          <div class="harga-summary-row">
+                            <span
+                              >Subtotal Celana ({{ totalCelanaQty }} pcs x
+                              {{ formatRupiah(sublimPreview.celanaHargaPerPcs || 0) }})</span
+                            >
+                            <span>{{
+                              formatRupiah(totalCelanaQty * (sublimPreview.celanaHargaPerPcs || 0))
+                            }}</span>
+                          </div>
+                          <div class="harga-summary-row">
+                            <span>Diskon</span>
+                            <span>- {{ formatRupiah(footer.diskon) }}</span>
+                          </div>
+                          <v-divider class="my-2"></v-divider>
+                          <div class="harga-summary-row harga-summary-total">
+                            <span>Grand Total</span>
+                            <span>{{ formatRupiah(footer.hargaNetto) }}</span>
+                          </div>
+                        </div>
+                      </template>
+                    </template>
                   </template>
                 </div>
               </div>
@@ -2956,7 +3799,6 @@ onMounted(() => {
 }
 
 .sublim-tab {
-  max-width: 960px;
   max-height: calc(100vh - 250px);
   overflow-y: auto;
 }
@@ -3060,5 +3902,253 @@ onMounted(() => {
   border-radius: 8px;
   flex-shrink: 0;
   display: block;
+}
+
+.sublim-qty-layout {
+  display: flex;
+  gap: 20px;
+  align-items: flex-start;
+}
+
+.sublim-qty-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.sublim-qty-side {
+  width: 280px;
+  flex-shrink: 0;
+}
+
+.qty-table-card {
+  border: 1px solid rgba(var(--v-border-color), var(--v-border-opacity));
+  border-radius: 10px;
+  padding: 14px;
+  background: rgb(var(--v-theme-surface));
+}
+
+.qty-table-card-title {
+  font-size: 12px;
+  font-weight: 700;
+  margin-bottom: 12px;
+}
+
+.horizontal-qty-table-wrap {
+  width: 100%;
+}
+
+.horizontal-qty-table {
+  width: 100%;
+  table-layout: fixed;
+  border-collapse: collapse;
+}
+
+.horizontal-qty-table th,
+.horizontal-qty-table td {
+  text-align: center;
+  padding: 6px 4px;
+  border: 1px solid rgba(var(--v-border-color), var(--v-border-opacity));
+  overflow: hidden;
+}
+
+.horizontal-qty-table th {
+  font-size: 11px;
+  font-weight: 700;
+  background: rgba(var(--v-theme-on-surface), 0.04);
+}
+
+.horizontal-qty-table .row-label-col {
+  text-align: left;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+  width: 90px;
+}
+
+.horizontal-qty-table .total-col {
+  background: rgba(var(--v-theme-primary), 0.06);
+  font-size: 12px;
+  width: 70px;
+}
+
+.horizontal-qty-table .qty-input :deep(input) {
+  text-align: center;
+  font-size: 12px;
+  padding: 0 4px !important;
+}
+
+.horizontal-qty-table .qty-input :deep(.v-field__field) {
+  min-height: 32px;
+}
+
+.info-card {
+  border: 1px solid rgba(var(--v-border-color), var(--v-border-opacity));
+  border-radius: 10px;
+  padding: 14px;
+  background: rgb(var(--v-theme-surface));
+}
+
+.info-card-title {
+  font-size: 12px;
+  font-weight: 700;
+  margin-bottom: 10px;
+}
+
+.info-row {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-bottom: 10px;
+}
+
+.info-row:last-child {
+  margin-bottom: 0;
+}
+
+.info-label {
+  font-size: 10px;
+  color: rgba(var(--v-theme-on-surface), 0.6);
+}
+
+.info-value {
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.qty-summary-header {
+  display: flex;
+  justify-content: space-between;
+  font-size: 10px;
+  color: rgba(var(--v-theme-on-surface), 0.6);
+  margin-bottom: 6px;
+}
+
+.qty-summary-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+  padding: 4px 0;
+}
+
+.sublim-detail-layout {
+  display: flex;
+  gap: 20px;
+  align-items: flex-start;
+}
+
+.sublim-detail-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.sublim-detail-side {
+  width: 280px;
+  flex-shrink: 0;
+}
+
+.mockup-upload-box {
+  border: 1.5px dashed rgba(var(--v-border-color), var(--v-border-opacity));
+  border-radius: 8px;
+  height: 140px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  overflow: hidden;
+  background: rgba(var(--v-theme-on-surface), 0.02);
+  transition: border-color 0.15s;
+}
+
+.mockup-upload-box:hover {
+  border-color: rgb(var(--v-theme-primary));
+}
+
+.mockup-upload-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  color: rgba(var(--v-theme-on-surface), 0.5);
+}
+
+.mockup-preview-img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.color-field-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 4px;
+  border-bottom: 1px solid rgba(var(--v-border-color), var(--v-border-opacity));
+}
+
+.color-field-label {
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.color-field-input {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.color-swatch-input {
+  width: 28px;
+  height: 28px;
+  border: 1px solid rgba(var(--v-border-color), var(--v-border-opacity));
+  border-radius: 4px;
+  cursor: pointer;
+  padding: 0;
+  background: none;
+}
+
+.color-hex-label {
+  font-size: 10px;
+  color: rgba(var(--v-theme-on-surface), 0.6);
+  width: 62px;
+  text-transform: uppercase;
+}
+
+.mockup-thumb {
+  width: 100%;
+  border-radius: 6px;
+  border: 1px solid rgba(var(--v-border-color), var(--v-border-opacity));
+}
+
+.sublim-summary-card-qty-card {
+  padding: 10px 8px;
+}
+
+.sublim-summary-card-qty-rows {
+  background: rgba(var(--v-theme-on-surface), 0.04);
+  border-radius: 6px;
+  padding: 8px;
+  margin-bottom: 6px;
+}
+
+.sublim-summary-card-qty-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  padding: 2px 0;
+}
+
+.sublim-summary-card-qty-row span:last-child {
+  font-weight: 700;
+}
+
+.harga-summary-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+  padding: 4px 0;
+}
+
+.harga-summary-total {
+  font-weight: 700;
+  font-size: 14px;
 }
 </style>

@@ -890,7 +890,16 @@ onBeforeRouteLeave((to, from, next) => {
             #[`item.${header.key}`]="{ item }"
             :key="header.key"
           >
-            <td :class="getRowTextColor(item)">
+            <td
+              :class="[
+                getRowTextColor(item),
+                header.align === 'end'
+                  ? 'text-end'
+                  : header.align === 'center'
+                  ? 'text-center'
+                  : '',
+              ]"
+            >
               <template v-if="['DateCreate', 'DateModified'].includes(header.key)">
                 {{
                   item[header.key]

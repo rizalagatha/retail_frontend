@@ -214,6 +214,7 @@ const canRequestRevision = computed(() => {
 const isRevisiDialogVisible = ref(false);
 const revisiKeterangan = ref("");
 const isSubmittingRevisi = ref(false);
+const isMounted = ref(false);
 
 // --- Logic Resize Column ---
 const resizingColumn = ref<DataTableHeader | null>(null);
@@ -292,10 +293,13 @@ const saveStateToSession = () => {
   sessionStorage.setItem(SESSION_STATE_KEY, JSON.stringify(stateToSave));
 };
 
+let fetchRequestId = 0;
+
 const fetchData = async () => {
   if (!startDate.value || !endDate.value) {
     return;
   }
+  const requestId = ++fetchRequestId;
   isLoading.value = true;
   try {
     const response = await api.get("/price-proposals", {
@@ -306,11 +310,13 @@ const fetchData = async () => {
         belumApproval: draftSaja.value,
       },
     });
+    if (requestId !== fetchRequestId) return;
     proposals.value = response.data;
   } catch {
+    if (requestId !== fetchRequestId) return;
     toast.error("Gagal memuat data pengajuan harga.");
   } finally {
-    isLoading.value = false;
+    if (requestId === fetchRequestId) isLoading.value = false;
   }
 };
 
@@ -582,6 +588,7 @@ onMounted(async () => {
 
     await fetchCabangList();
     await fetchData();
+    isMounted.value = true;
   } else {
     isLoading.value = false;
     toast.error("Anda tidak memiliki izin untuk melihat halaman ini.");
@@ -606,6 +613,7 @@ watch(
 );
 
 watch([selectedCabang, draftSaja, startDate, endDate], () => {
+  if (!isMounted.value) return;
   saveStateToSession();
   if (hasViewPermission.value) fetchData();
 });

@@ -5,7 +5,7 @@ import api from "@/services/api";
 import PageLayout from "@/components/PageLayout.vue";
 import { useToast } from "vue-toastification";
 import { useAuthStore } from "@/stores/authStore";
-import { format, subDays, parseISO } from "date-fns";
+import { format, parseISO } from "date-fns";
 import { AxiosError } from "axios";
 import AppDataTable from "@/components/AppDataTable.vue";
 
@@ -96,7 +96,7 @@ const list = ref<MintaBarangHeader[]>([]);
 const details = ref<{ [nomor: string]: MintaBarangDetail[] }>({});
 const isLoading = ref(true);
 const filters = reactive({
-  startDate: format(subDays(new Date(), 30), "yyyy-MM-dd"),
+  startDate: format(new Date(), "yyyy-MM-dd"),
   endDate: format(new Date(), "yyyy-MM-dd"),
   cabang: authStore.user?.cabang === "KDC" ? "ALL" : authStore.user?.cabang || "",
   jenisPermintaan: "semua", // 'semua', 'manual', 'otomatis'

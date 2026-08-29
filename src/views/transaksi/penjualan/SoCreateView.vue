@@ -35,6 +35,8 @@ import PromoBonusModal from "@/components/modal/PromoBonusModal.vue"; // [BARU]
 import MemberForm from "@/components/form/MemberForm.vue";
 import DiscountConfirmationDialog from "@/components/dialog/DiscountConfirmationDialog.vue";
 import CustomerVisitDialog from "@/components/dialog/CustomerVisitDialog.vue";
+import ProductSidePanel from "@/components/panel/ProductSidePanel.vue";
+import type { ProductPanelSelection } from "@/components/panel/ProductSidePanel.vue";
 
 const router = useRouter();
 const route = useRoute();
@@ -649,6 +651,7 @@ const isCustomerSearchVisible = ref(false);
 const isSalesCounterSearchVisible = ref(false);
 const isPenawaranSearchVisible = ref(false);
 const isProductSearchVisible = ref(false);
+const isProductPanelVisible = ref(false);
 const isMultiSelectProduct = ref(false);
 const isSoDtfSearchVisible = ref(false);
 const isPriceProposalSearchVisible = ref(false);
@@ -2322,6 +2325,65 @@ const onProductsSelected = (selectedProducts: SoItemApi[]) => {
   calculateTotals();
 };
 
+const onPanelProductsAdded = (selections: ProductPanelSelection[]) => {
+  if (!header.value.customer) {
+    toast.error("Pilih Customer terlebih dahulu.");
+    return;
+  }
+
+  selections.forEach((sel) => {
+    const kodeUp = sel.kode?.toUpperCase() || "";
+    const namaUp = sel.nama?.toUpperCase() || "";
+    const isJasa =
+      kodeUp.startsWith("JASA") ||
+      kodeUp.startsWith("JS") ||
+      kodeUp.includes("FILE") ||
+      namaUp.includes("JASA") ||
+      namaUp.includes("DESAIN") ||
+      namaUp.includes("FILE");
+
+    let initHarga = sel.harga || 0;
+    if (header.value.isMarketplace) {
+      // Panel belum mengirim harga3 (harga khusus marketplace) — pakai harga
+      // reguler sebagai fallback, SC bisa koreksi manual di kolom Harga.
+      initHarga = sel.harga || 0;
+    }
+
+    const newItem: SoItem = {
+      id: Date.now() + Math.random(),
+      kode: sel.kode,
+      nama: sel.nama,
+      kategori: sel.kategori || "",
+      ukuran: isJasa ? "" : sel.ukuran || "-",
+      stok: sel.stok || 0,
+      harga: initHarga,
+      jumlah: sel.jumlah,
+      diskonPersen: 0,
+      diskonRp: 0,
+      total: initHarga * sel.jumlah,
+      barcode: sel.barcode || sel.kode,
+      noSoDtf: "",
+      noPengajuanHarga: "",
+      pin: "",
+      scannedQty: isJasa ? sel.jumlah : 0,
+      isReady: isJasa,
+      isJasa,
+      terhitungPromo: false,
+      promo: "",
+    };
+
+    const emptyIdx = items.value.findIndex((item) => !item.kode);
+    if (emptyIdx !== -1) {
+      items.value.splice(emptyIdx, 1, newItem);
+    } else {
+      items.value.push(newItem);
+    }
+  });
+
+  addNewRow();
+  calculateTotals();
+};
+
 const onSoDtfSelected = async (soDtf: { nomor: string; isLhk?: number | boolean }) => {
   isSoDtfSearchVisible.value = false;
   // Hapus baris kosong tempat F1 ditekan
@@ -3830,6 +3892,15 @@ const stopAndOpenPriceProposal = (index: number) => {
       >
         Input Jenis Order
       </v-btn>
+      <v-btn
+        color="deep-purple-darken-1"
+        size="small"
+        prepend-icon="mdi-cart-plus"
+        :disabled="!header.customer"
+        @click="isProductPanelVisible = true"
+      >
+        Cari Produk
+      </v-btn>
       <v-spacer></v-spacer>
       <v-btn
         size="small"
@@ -4683,6 +4754,11 @@ const stopAndOpenPriceProposal = (index: number) => {
       :promo-nomor="isPromoFilterDisabled ? '' : header.nomorPromo"
       @close="isProductSearchVisible = false"
       @products-selected="onProductsSelected"
+    />
+    <ProductSidePanel
+      v-model="isProductPanelVisible"
+      :gudang="header.gudang.kode"
+      @products-added="onPanelProductsAdded"
     />
     <AuthorizationModal
       v-if="authDialog.show"

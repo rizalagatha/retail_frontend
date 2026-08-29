@@ -37,6 +37,7 @@ import SoDtfSearchModal from "@/components/lookup/SoDtfSearchModal.vue";
 import PromoBonusModal from "@/components/modal/PromoBonusModal.vue";
 import SjSearchModalForInvoice from "@/components/lookup/SjSearchModalForInvoice.vue";
 import DiscountConfirmationDialog from "@/components/dialog/DiscountConfirmationDialog.vue";
+import ProductSidePanel from "@/components/panel/ProductSidePanel.vue";
 
 // --- Tipe Data ---
 interface Item {
@@ -442,6 +443,8 @@ const authDialog = reactive<AuthDialogState>({
   onSuccess: () => {},
   onCancel: () => {},
 });
+
+const isProductPanelVisible = ref(false);
 
 const activeItemForAuth = ref<Item | null>(null);
 const originalDiscount = reactive({
@@ -929,22 +932,36 @@ const handleClose = () => {
   );
 };
 
+// F1 global / tombol kaca pembesar:
+// - Kalau promo "Beli 3 = 100rb" (PRO-2025-005) SEDANG AKTIF, tombol ini
+//   harus tetap bisa MENAMBAHKAN barang (harga promo dipaksa di
+//   onProductsSelected) — jadi tetap pakai ProductSearchModal lama, mode
+//   multi, isLookupOnly dimatikan.
+// - Selain itu, tombol ini murni untuk CEK STOK Store+DC — buka Side Panel.
 const openLookup = () => {
   if (!header.customer.kode) return toast.error("Pilih customer terlebih dahulu.");
 
-  activeRowIndex.value = items.value.length - 1;
-  isMultiSelectProduct.value = true;
-
-  // LOGIKA PENGECEALIAN:
-  // Jika promo 100rb dapat 3 aktif, paksa isLookupOnly = false agar bisa ADD ke tabel
   if (header.nomorPromo === "PRO-2025-005") {
+    activeRowIndex.value = items.value.length - 1;
+    isMultiSelectProduct.value = true;
     isLookupOnly.value = false;
-  } else {
-    // Aturan standar: Jika bukan K01/KPR, maka hanya untuk lihat stok
-    isLookupOnly.value = !canSearchManual.value;
+    dialogs.productSearch = true;
+    return;
   }
 
-  dialogs.productSearch = true;
+  isProductPanelVisible.value = true;
+};
+
+// Event "Tambah" dari panel sengaja diabaikan di Invoice — panel ini murni
+// untuk lihat stok, bukan jalur tambah barang. Info balik ke SC supaya
+// tidak bingung kenapa barang tidak muncul di tabel.
+const onPanelProductsAdded = () => {
+  toast.info(
+    "Panel ini hanya untuk melihat stok. Silakan scan barcode barang untuk menambahkannya ke Invoice."
+  );
+  nextTick(() => {
+    barcodeInputRef.value?.focus();
+  });
 };
 
 const openProductSearch = (index: number, isMulti: boolean) => {
@@ -3759,7 +3776,6 @@ watch(
               @keydown.enter.prevent="handleBarcodeScan"
               autofocus
             />
-
             <v-btn
               icon="mdi-magnify"
               color="secondary"
@@ -4118,6 +4134,12 @@ watch(
       :promo-nomor="header.nomorPromo"
       @close="dialogs.productSearch = false"
       @products-selected="onProductsSelected"
+    />
+    <ProductSidePanel
+      v-model="isProductPanelVisible"
+      :gudang="header.gudang.kode"
+      lookup-only
+      @products-added="onPanelProductsAdded"
     />
     <UnpaidDpSearchModal
       v-if="dialogs.unpaidDpSearch"

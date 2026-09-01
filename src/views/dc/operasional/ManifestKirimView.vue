@@ -32,6 +32,8 @@ interface ManifestKirimHeader {
   Nomor: string;
   Tanggal: string;
   Gudang: string;
+  Tujuan: string;
+  NamaTujuan?: string;
   NamaGudang?: string;
   JenisKirim: string;
   Driver: string;
@@ -71,13 +73,20 @@ const authStore = useAuthStore();
 const MENU_ID = "227";
 
 // --- State ---
+interface Cabang {
+  kode: string;
+  nama: string;
+}
+
 const filters = reactive({
   startDate: format(subDays(new Date(), 30), "yyyy-MM-dd"),
   endDate: format(new Date(), "yyyy-MM-dd"),
-  gudang: authStore.userCabang || "KDC",
+  gudang: authStore.userCabang,
+  tujuan: "",
   status: "",
   search: "",
 });
+const cabangList = ref<Cabang[]>([]);
 const loading = reactive({ master: false });
 const manifestList = ref<ManifestKirimHeader[]>([]);
 const selected = ref<ManifestKirimHeader[]>([]);
@@ -108,6 +117,7 @@ const masterHeaders = computed<DataTableHeader[]>(() => [
   { title: "Tanggal", key: "Tanggal", width: 110 },
   { title: "Jam", key: "Jam", width: 80, align: "center" },
   { title: "Gudang", key: "NamaGudang", width: 140 },
+  { title: "Store Tujuan", key: "Tujuan", width: 160 },
   { title: "Jenis Kirim", key: "JenisKirim", width: 140 },
   { title: "Driver", key: "Driver", width: 140 },
   { title: "Plat Nomor", key: "PlatNomor", width: 120 },
@@ -117,7 +127,7 @@ const masterHeaders = computed<DataTableHeader[]>(() => [
   { title: "Total Koli", key: "TotalKoli", width: 100, align: "end" },
   { title: "Total Qty", key: "TotalQty", width: 100, align: "end" },
   { title: "User", key: "Usr", width: 100 },
-  { title: "Waktu Dibuat", key: "DateCreate", width: 150 },
+  { title: "Dibuat", key: "DateCreate", width: 150 },
 ]);
 
 // --- Helper: ambil status display ---
@@ -253,7 +263,17 @@ const resetAllFilters = () => {
   columnFilters.value = {};
   filters.search = "";
   filters.status = "";
+  filters.tujuan = "";
   loadData();
+};
+
+const fetchCabangList = async () => {
+  try {
+    const response = await api.get<Cabang[]>("/surat-jalan/lookup/cabang");
+    cabangList.value = response.data || [];
+  } catch (error: unknown) {
+    console.error("Gagal memuat daftar cabang/gudang", error);
+  }
 };
 
 // --- Methods: Resize Logic ---
@@ -296,6 +316,7 @@ const loadData = async () => {
         startDate: filters.startDate,
         endDate: filters.endDate,
         gudang: filters.gudang,
+        tujuan: filters.tujuan,
         status: filters.status,
         search: filters.search,
       },
@@ -433,6 +454,7 @@ const handlePrintSelected = () => {
 
 onMounted(() => {
   if (authStore.can(MENU_ID, "view")) {
+    fetchCabangList();
     loadData();
   } else {
     toast.error("Anda tidak memiliki hak akses untuk melihat data ini.");
@@ -543,6 +565,23 @@ watch(
           variant="outlined"
           class="ms-4"
           style="max-width: 150px"
+        />
+
+        <v-autocomplete
+          v-model="filters.tujuan"
+          :items="[{ kode: '', nama: 'Semua Tujuan' }, ...cabangList]"
+          :item-title="(item: unknown) => {
+            const c = item as Cabang;
+            return c.kode ? `${c.kode} - ${c.nama}` : c.nama;
+          }"
+          item-value="kode"
+          label="Tujuan"
+          density="compact"
+          hide-details
+          clearable
+          variant="outlined"
+          class="ms-2"
+          style="min-width: 170px; max-width: 220px"
         />
 
         <v-text-field
@@ -701,9 +740,17 @@ watch(
             <span class="font-weight-medium">{{ item.Jam || "-" }}</span>
           </template>
 
+          <template #[`item.Tujuan`]="{ item }">
+            <span class="font-weight-medium">
+              {{ item.Tujuan ? [item.Tujuan, item.NamaTujuan].filter(Boolean).join(" - ") : "" }}
+            </span>
+          </template>
+
           <template #[`item.DateCreate`]="{ item }">
             <span class="text-caption">{{
-              item.DateCreate ? format(new Date(item.DateCreate as string), "dd-MM-yyyy HH:mm") : "-"
+              item.DateCreate
+                ? format(new Date(item.DateCreate as string), "dd-MM-yyyy HH:mm")
+                : "-"
             }}</span>
           </template>
 

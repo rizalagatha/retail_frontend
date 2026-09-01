@@ -575,7 +575,11 @@ const addSjToManifest = (sj: AvailableSjItem) => {
   // 1. Cek jika header.tujuan sudah diisi dan beda dengan storeKode SJ yang coba ditambahkan
   if (header.tujuan && header.tujuan.trim().toUpperCase() !== sj.storeKode.trim().toUpperCase()) {
     toast.error(
-      `Surat Jalan ${sj.sjNomor} bertujuan ke "${sj.storeNama || sj.storeKode}" (${sj.storeKode}), berbeda dengan Tujuan Pengiriman yang dipilih (${header.tujuan}). Silakan periksa kembali Tujuan Pengiriman Anda!`
+      `Surat Jalan ${sj.sjNomor} bertujuan ke "${sj.storeNama || sj.storeKode}" (${
+        sj.storeKode
+      }), berbeda dengan Tujuan Pengiriman yang dipilih (${
+        header.tujuan
+      }). Silakan periksa kembali Tujuan Pengiriman Anda!`
     );
     return;
   }
@@ -588,7 +592,13 @@ const addSjToManifest = (sj: AvailableSjItem) => {
     existingSj.storeKode.trim().toUpperCase() !== sj.storeKode.trim().toUpperCase()
   ) {
     toast.error(
-      `Surat Jalan ${sj.sjNomor} bertujuan ke "${sj.storeNama || sj.storeKode}" (${sj.storeKode}), berbeda dengan Surat Jalan sebelumnya yang menuju ke "${existingSj.storeNama || existingSj.storeKode}" (${existingSj.storeKode}). Semua SJ dalam satu manifest harus menuju ke store yang sama. Silakan periksa kembali Tujuan Pengiriman Anda!`
+      `Surat Jalan ${sj.sjNomor} bertujuan ke "${sj.storeNama || sj.storeKode}" (${
+        sj.storeKode
+      }), berbeda dengan Surat Jalan sebelumnya yang menuju ke "${
+        existingSj.storeNama || existingSj.storeKode
+      }" (${
+        existingSj.storeKode
+      }). Semua SJ dalam satu manifest harus menuju ke store yang sama. Silakan periksa kembali Tujuan Pengiriman Anda!`
     );
     return;
   }
@@ -847,7 +857,11 @@ const submitForm = async () => {
 
     // 2. Pastikan seluruh SJ memiliki toko tujuan yang sama
     for (const item of items.value) {
-      if (!item.isCustom && item.storeKode && String(item.storeKode).trim().toUpperCase() !== primaryStore) {
+      if (
+        !item.isCustom &&
+        item.storeKode &&
+        String(item.storeKode).trim().toUpperCase() !== primaryStore
+      ) {
         toast.error(
           `Surat Jalan ${item.sjNomor} bertujuan ke "${item.storeKode}", berbeda dengan Surat Jalan lainnya (${primaryStore}). Semua SJ harus menuju ke store yang sama!`
         );
@@ -1047,7 +1061,7 @@ onMounted(async () => {
 
             <v-col cols="12">
               <v-autocomplete
-                label="Pengirim"
+                label="Gudang Kirim"
                 v-model="header.gudang"
                 :items="cabangList"
                 :item-title="getCabangTitle"

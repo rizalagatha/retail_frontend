@@ -16,7 +16,7 @@ import { useFreeGift } from "@/composables/useFreeGift";
 import PageLayout from "@/components/PageLayout.vue";
 import CustomerSearchModal from "@/components/lookup/CustomerSearchModal.vue";
 // import GudangSearchModal from '@/components/GudangSearchModal.vue';
-import ProductSearchModal from "@/components/lookup/ProductSearchModal.vue";
+// import ProductSearchModal from "@/components/lookup/ProductSearchModal.vue";
 import AuthorizationModal from "@/components/modal/AuthorizationModal.vue";
 // import SoDtfSearchModal from '@/components/lookup/SoDtfSearchModal.vue';
 import PriceProposalSearchModal from "@/components/lookup/PriceProposalSearchModal.vue";
@@ -27,6 +27,8 @@ import JenisOrderModal from "@/components/modal/JenisOrderModal.vue";
 import CustomerForm from "@/components/form/CustomerForm.vue";
 import DiscountConfirmationDialog from "@/components/dialog/DiscountConfirmationDialog.vue";
 import CustomerVisitDialog from "@/components/dialog/CustomerVisitDialog.vue";
+import ProductSidePanel from "@/components/panel/ProductSidePanel.vue";
+import type { ProductPanelSelection } from "@/components/panel/ProductSidePanel.vue";
 
 const toast = useToast();
 const authStore = useAuthStore();
@@ -136,15 +138,15 @@ interface DiscountRule {
   nominal: number;
 }
 
-interface Product {
-  kode: string;
-  nama: string;
-  kategori?: string;
-  ukuran: string;
-  stok: number;
-  harga: number;
-  barcode: string;
-}
+// interface Product {
+//   kode: string;
+//   nama: string;
+//   kategori?: string;
+//   ukuran: string;
+//   stok: number;
+//   harga: number;
+//   barcode: string;
+// }
 
 interface TableHeader {
   title: string;
@@ -407,8 +409,9 @@ const dialogs = reactive({
 
 const isCustomerSearchVisible = ref(false);
 // const isGudangSearchVisible = ref(false);
-const isProductSearchVisible = ref(false);
-const isMultiSelectProduct = ref(false);
+// const isProductSearchVisible = ref(false);
+const isProductPanelVisible = ref(false);
+// const isMultiSelectProduct = ref(false);
 // const isSoDtfSearchVisible = ref(false);
 const isPriceProposalSearchVisible = ref(false);
 const activeRowIndex = ref(0);
@@ -771,63 +774,62 @@ const onCustomerSelected = async (customer: { kode: string }) => {
 //     }
 // };
 
-const openProductSearch = (index: number, isMulti: boolean) => {
+const openProductSearch = (index: number) => {
   if (!header.value.customer) {
     toast.error("Pilih Customer terlebih dahulu.");
     return;
   }
   activeRowIndex.value = index;
-  isMultiSelectProduct.value = isMulti;
-  isProductSearchVisible.value = true;
+  isProductPanelVisible.value = true;
 };
 
-const onProductsSelected = (selectedProducts: Product[]) => {
-  isProductSearchVisible.value = false;
-  if (!selectedProducts || selectedProducts.length === 0) return;
+// const onProductsSelected = (selectedProducts: Product[]) => {
+//   isProductSearchVisible.value = false;
+//   if (!selectedProducts || selectedProducts.length === 0) return;
 
-  // 1. Perbaikan Filter Duplikasi
-  // Jangan hanya cek barcode, cek kombinasi Kode + Ukuran karena Jasa barcodenya kosong
-  const newProducts = selectedProducts
-    .filter((product) => {
-      return !items.value.some(
-        (item) =>
-          (item.barcode && product.barcode && item.barcode === product.barcode) ||
-          (item.kode === product.kode && item.ukuran === product.ukuran)
-      );
-    })
-    .map((product) => ({
-      id: Date.now() + Math.random(),
-      kode: product.kode,
-      nama: product.nama,
-      kategori: product.kategori || "",
-      ukuran: product.ukuran || "-", // [FIX] Fallback '-' jika jasa tidak punya ukuran
-      stok: product.stok || 0,
-      harga: product.harga || 0,
-      isHargaReadonly: (product.harga || 0) > 0,
-      jumlah: 1,
-      diskonPersen: 0,
-      diskonRp: 0,
-      total: product.harga || 0,
-      // [FIX] Gunakan kode sebagai fallback jika barcode kosong agar identitas unik
-      barcode: product.barcode || product.kode,
-      noPengajuanHarga: "",
-      pin: "",
-      terhitungPromo: false,
-      promo: "",
-    }));
+//   // 1. Perbaikan Filter Duplikasi
+//   // Jangan hanya cek barcode, cek kombinasi Kode + Ukuran karena Jasa barcodenya kosong
+//   const newProducts = selectedProducts
+//     .filter((product) => {
+//       return !items.value.some(
+//         (item) =>
+//           (item.barcode && product.barcode && item.barcode === product.barcode) ||
+//           (item.kode === product.kode && item.ukuran === product.ukuran)
+//       );
+//     })
+//     .map((product) => ({
+//       id: Date.now() + Math.random(),
+//       kode: product.kode,
+//       nama: product.nama,
+//       kategori: product.kategori || "",
+//       ukuran: product.ukuran || "-", // [FIX] Fallback '-' jika jasa tidak punya ukuran
+//       stok: product.stok || 0,
+//       harga: product.harga || 0,
+//       isHargaReadonly: (product.harga || 0) > 0,
+//       jumlah: 1,
+//       diskonPersen: 0,
+//       diskonRp: 0,
+//       total: product.harga || 0,
+//       // [FIX] Gunakan kode sebagai fallback jika barcode kosong agar identitas unik
+//       barcode: product.barcode || product.kode,
+//       noPengajuanHarga: "",
+//       pin: "",
+//       terhitungPromo: false,
+//       promo: "",
+//     }));
 
-  if (newProducts.length === 0) {
-    toast.info("Barang sudah ada di dalam daftar.");
-    return;
-  }
+//   if (newProducts.length === 0) {
+//     toast.info("Barang sudah ada di dalam daftar.");
+//     return;
+//   }
 
-  // 2. Timpa baris kosong yang sedang aktif (tempat user tekan F1/F2)
-  items.value.splice(activeRowIndex.value, 1, ...newProducts);
+//   // 2. Timpa baris kosong yang sedang aktif (tempat user tekan F1/F2)
+//   items.value.splice(activeRowIndex.value, 1, ...newProducts);
 
-  // 3. Pastikan ada baris kosong baru dan hitung ulang total
-  addNewRow();
-  calculateTotals();
-};
+//   // 3. Pastikan ada baris kosong baru dan hitung ulang total
+//   addNewRow();
+//   calculateTotals();
+// };
 
 const isDiscountableItem = (item: OfferItem) => {
   // Hanya kecualikan JASA murni (Ongkir, File, Desain).
@@ -2130,17 +2132,53 @@ const saveAndConvertToSo = async () => {
 };
 
 const handleKodeKeydown = (e: KeyboardEvent, index: number) => {
-  switch (e.key) {
-    case "F1":
-      e.preventDefault();
-      openProductSearch(index, false);
-      break;
-
-    case "F2":
-      e.preventDefault();
-      openProductSearch(index, true);
-      break;
+  if (e.key === "F1" || e.key === "F2") {
+    e.preventDefault();
+    openProductSearch(index);
   }
+};
+
+const onPanelProductsAdded = (selections: ProductPanelSelection[]) => {
+  selections.forEach((sel) => {
+    // Cek duplikat kode+ukuran — kalau sudah ada, tambahkan qty-nya saja
+    const existing = items.value.find(
+      (item) => item.kode === sel.kode && item.ukuran === sel.ukuran
+    );
+    if (existing) {
+      existing.jumlah += sel.jumlah;
+      return;
+    }
+
+    const newItem = {
+      id: Date.now() + Math.random(),
+      kode: sel.kode,
+      nama: sel.nama,
+      kategori: sel.kategori || "",
+      ukuran: sel.ukuran || "-",
+      stok: sel.stok || 0,
+      harga: sel.harga || 0,
+      isHargaReadonly: (sel.harga || 0) > 0,
+      jumlah: sel.jumlah,
+      diskonPersen: 0,
+      diskonRp: 0,
+      total: (sel.harga || 0) * sel.jumlah,
+      barcode: sel.barcode || sel.kode,
+      noPengajuanHarga: "",
+      pin: "",
+      terhitungPromo: false,
+      promo: "",
+    };
+
+    const emptyIdx = items.value.findIndex((item) => !item.kode);
+    if (emptyIdx !== -1) {
+      items.value.splice(emptyIdx, 1, newItem);
+    } else {
+      items.value.push(newItem);
+    }
+  });
+
+  addNewRow();
+  calculateTotals();
 };
 
 const getCategoryColor = (kategori: string | undefined) => {
@@ -2324,6 +2362,15 @@ onMounted(async () => {
         @click="openJenisOrderModal"
       >
         Input Jenis Order
+      </v-btn>
+      <v-btn
+        color="deep-purple-darken-1"
+        size="small"
+        prepend-icon="mdi-cart-plus"
+        :disabled="!header.customer"
+        @click="isProductPanelVisible = true"
+      >
+        Cari Produk
       </v-btn>
       <v-spacer></v-spacer>
       <v-btn
@@ -2855,14 +2902,10 @@ onMounted(async () => {
     />
     <!-- <GudangSearchModal v-if="isGudangSearchVisible" :user-cabang="authStore.user?.cabang || ''"
             @close="isGudangSearchVisible = false" @gudang-selected="onGudangSelected" /> -->
-    <ProductSearchModal
-      v-if="isProductSearchVisible"
-      :category="'Kaosan'"
-      :source="'penawaran'"
+    <ProductSidePanel
+      v-model="isProductPanelVisible"
       :gudang="header.gudang.kode"
-      :multi="isMultiSelectProduct"
-      @close="isProductSearchVisible = false"
-      @products-selected="onProductsSelected"
+      @products-added="onPanelProductsAdded"
     />
     <AuthorizationModal
       v-if="authDialog.show"

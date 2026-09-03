@@ -7,6 +7,7 @@ import { useAuthStore } from "@/stores/authStore";
 import { format, subDays } from "date-fns";
 import PageLayout from "@/components/PageLayout.vue";
 import AppDataTable from "@/components/AppDataTable.vue";
+import * as XLSX from "xlsx";
 import { AxiosError } from "axios";
 
 // --- Tipe Data ---
@@ -32,6 +33,8 @@ interface ManifestKirimHeader {
   Nomor: string;
   Tanggal: string;
   Gudang: string;
+  Tujuan: string;
+  NamaTujuan?: string;
   NamaGudang?: string;
   JenisKirim: string;
   Driver: string;
@@ -56,11 +59,39 @@ interface ManifestKirimItem {
   manifestNomor?: string;
   sjNomor: string;
   sjTanggal?: string;
+  namaBarang?: string;
+  kategori?: string;
   storeKode: string;
   storeNama?: string;
   koli: number;
   qty: number;
   keterangan?: string;
+  [key: string]: unknown;
+}
+
+interface ManifestKirimExportDetail {
+  "Nomor Manifest": string;
+  Tanggal?: string | Date;
+  Jam?: string;
+  Status: string;
+  "Gudang Pengirim": string;
+  "Tujuan Manifest": string;
+  "Jenis Kirim": string;
+  Driver: string;
+  "Plat Nomor": string;
+  Ekspedisi: string;
+  "No Resi": string;
+  "Nomor SJ": string;
+  "Tanggal SJ"?: string | Date;
+  "Kode Store SJ": string;
+  "Nama Store SJ": string;
+  "No Minta Barang": string;
+  "Jml Koli": number;
+  Qty: number;
+  "Item / Barang": string;
+  Kategori?: string;
+  "Keterangan SJ": string;
+  "User Create": string;
   [key: string]: unknown;
 }
 
@@ -71,13 +102,20 @@ const authStore = useAuthStore();
 const MENU_ID = "227";
 
 // --- State ---
+interface Cabang {
+  kode: string;
+  nama: string;
+}
+
 const filters = reactive({
   startDate: format(subDays(new Date(), 30), "yyyy-MM-dd"),
   endDate: format(new Date(), "yyyy-MM-dd"),
-  gudang: authStore.userCabang || "KDC",
+  gudang: authStore.userCabang,
+  tujuan: "",
   status: "",
   search: "",
 });
+const cabangList = ref<Cabang[]>([]);
 const loading = reactive({ master: false });
 const manifestList = ref<ManifestKirimHeader[]>([]);
 const selected = ref<ManifestKirimHeader[]>([]);
@@ -108,6 +146,7 @@ const masterHeaders = computed<DataTableHeader[]>(() => [
   { title: "Tanggal", key: "Tanggal", width: 110 },
   { title: "Jam", key: "Jam", width: 80, align: "center" },
   { title: "Gudang", key: "NamaGudang", width: 140 },
+  { title: "Store Tujuan", key: "Tujuan", width: 120 },
   { title: "Jenis Kirim", key: "JenisKirim", width: 140 },
   { title: "Driver", key: "Driver", width: 140 },
   { title: "Plat Nomor", key: "PlatNomor", width: 120 },
@@ -117,7 +156,7 @@ const masterHeaders = computed<DataTableHeader[]>(() => [
   { title: "Total Koli", key: "TotalKoli", width: 100, align: "end" },
   { title: "Total Qty", key: "TotalQty", width: 100, align: "end" },
   { title: "User", key: "Usr", width: 100 },
-  { title: "Waktu Dibuat", key: "DateCreate", width: 150 },
+  { title: "Dibuat", key: "DateCreate", width: 150 },
 ]);
 
 // --- Helper: ambil status display ---
@@ -132,13 +171,13 @@ const isDraftSelected = computed(() => {
 });
 
 const detailHeaders: DataTableHeader[] = [
-  { title: "No. SJ", key: "sjNomor", width: 160 },
+  { title: "No. Surat Jalan / Nama Barang", key: "sjNomor", width: 200 },
   { title: "Tgl. SJ", key: "sjTanggal", width: 110 },
-  { title: "Kode Store", key: "storeKode", width: 100 },
-  { title: "Nama Store", key: "storeNama", width: 200 },
-  { title: "Jml Koli", key: "koli", width: 90, align: "end" },
-  { title: "Total Qty", key: "qty", width: 100, align: "end" },
+  { title: "Store Tujuan", key: "storeNama", width: 120 },
+  { title: "Jml Koli", key: "koli", width: 90 },
+  { title: "Qty", key: "qty", width: 70 },
   { title: "Keterangan", key: "keterangan", width: 200 },
+  { title: "Kategori", key: "kategori", width: 150 },
 ];
 
 // --- Logic Filter Client-Side ---
@@ -253,7 +292,17 @@ const resetAllFilters = () => {
   columnFilters.value = {};
   filters.search = "";
   filters.status = "";
+  filters.tujuan = "";
   loadData();
+};
+
+const fetchCabangList = async () => {
+  try {
+    const response = await api.get<Cabang[]>("/surat-jalan/lookup/cabang");
+    cabangList.value = response.data || [];
+  } catch (error: unknown) {
+    console.error("Gagal memuat daftar cabang/gudang", error);
+  }
 };
 
 // --- Methods: Resize Logic ---
@@ -290,12 +339,14 @@ const loadData = async () => {
   manifestList.value = [];
   selected.value = [];
   expanded.value = [];
+  details.value = {};
   try {
     const response = await api.get<ManifestKirimHeader[]>("/manifest-kirim", {
       params: {
         startDate: filters.startDate,
         endDate: filters.endDate,
         gudang: filters.gudang,
+        tujuan: filters.tujuan,
         status: filters.status,
         search: filters.search,
       },
@@ -431,8 +482,170 @@ const handlePrintSelected = () => {
   window.open(routeData.href, "_blank");
 };
 
+// Helper Format Tanggal Indonesia
+const formatDateIndo = (dateString: string | Date | null | undefined) => {
+  if (!dateString) return "";
+  const date = new Date(dateString);
+  if (isNaN(date.getTime())) return "";
+  return new Intl.DateTimeFormat("id-ID", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  }).format(date);
+};
+
+// Helper Auto Width Columns
+const getAutoColumnWidth = (data: Record<string, unknown>[]) => {
+  if (data.length === 0) return [];
+  return Object.keys(data[0]).map((key) => ({
+    wch: Math.max(key.length + 5, 15),
+  }));
+};
+
+// --- Fungsi Export Data ---
+const exportData = async (type: "header" | "detail") => {
+  // === EXPORT HEADER ===
+  if (type === "header") {
+    const currentList = filteredList.value as ManifestKirimHeader[];
+
+    if (currentList.length === 0) {
+      toast.warning("Tidak ada data header untuk diekspor.");
+      return;
+    }
+
+    try {
+      toast.info("Membuat file Excel Header...");
+
+      // Mapping & Formatting Tanggal & Fields
+      const formattedHeader = currentList.map((item) => ({
+        "No. Manifest": item.Nomor,
+        Status: item.Status || "DRAFT",
+        Tanggal: item.Tanggal ? formatDateIndo(item.Tanggal) : "",
+        Jam: item.Jam || "",
+        "Gudang Pengirim": item.NamaGudang || item.Gudang || "",
+        "Store Tujuan": item.Tujuan
+          ? [item.Tujuan, item.NamaTujuan].filter(Boolean).join(" - ")
+          : "",
+        "Jenis Kirim": item.JenisKirim || "",
+        Driver: item.Driver || "",
+        "Plat Nomor": item.PlatNomor || "",
+        Ekspedisi: item.Ekspedisi || "",
+        "No. Resi": item.NoResi || "",
+        "Total SJ": Number(item.TotalSj) || 0,
+        "Total Koli": Number(item.TotalKoli) || 0,
+        "Total Qty": Number(item.TotalQty) || 0,
+        "Berat (Kg)": Number(item.BeratKg) || 0,
+        Keterangan: item.Keterangan || "",
+        User: item.Usr || "",
+        Dibuat: item.DateCreate ? formatDateIndo(item.DateCreate) : "",
+      }));
+
+      const worksheet = XLSX.utils.json_to_sheet(formattedHeader);
+      worksheet["!cols"] = getAutoColumnWidth(formattedHeader);
+
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, "Manifest Header");
+      XLSX.writeFile(workbook, "Export_Manifest_Pengiriman_Header.xlsx");
+      toast.success("File Header berhasil dibuat.");
+    } catch (error: unknown) {
+      const err = error as AxiosError<{ message?: string }>;
+      toast.error(err.response?.data?.message || "Gagal membuat file Excel.");
+    }
+
+    // === EXPORT DETAIL ===
+  } else if (type === "detail") {
+    try {
+      toast.info("Mengambil data detail dari server...");
+
+      const response = await api.get<ManifestKirimExportDetail[]>(
+        "/manifest-kirim/export-details",
+        {
+          params: {
+            startDate: filters.startDate,
+            endDate: filters.endDate,
+            gudang: filters.gudang,
+            tujuan: filters.tujuan,
+            status: filters.status,
+            search: filters.search,
+          },
+        }
+      );
+
+      if (response.data.length === 0) {
+        toast.warning("Tidak ada data detail untuk diekspor pada filter ini.");
+        return;
+      }
+
+      toast.info("Membuat file Excel Detail...");
+
+      // Mapping & Formatting Tanggal & Fields Eksplisit
+      const formattedDetail = response.data.map((row) => {
+        const isLainLain =
+          row.Kategori === "Barang Lain-lain" ||
+          (row["Item / Barang"] && String(row["Item / Barang"]).trim() !== "") ||
+          !row["Nomor SJ"];
+
+        return {
+          "Nomor Manifest": row["Nomor Manifest"] || "",
+          Tanggal: row.Tanggal ? formatDateIndo(row.Tanggal) : "",
+          Jam: row.Jam || "",
+          Status: row.Status || "",
+          "Gudang Pengirim": row["Gudang Pengirim"] || "",
+          "Tujuan Manifest": row["Tujuan Manifest"] || "",
+          "Jenis Kirim": row["Jenis Kirim"] || "",
+          Driver: row.Driver || "",
+          "Plat Nomor": row["Plat Nomor"] || "",
+          Ekspedisi: row.Ekspedisi || "",
+          "No Resi": row["No Resi"] || "",
+          "No. SJ / Nama Barang": row["Nomor SJ"] || row["Item / Barang"] || "-",
+          "Tanggal SJ": row["Tanggal SJ"] ? formatDateIndo(row["Tanggal SJ"]) : "",
+          "Store Tujuan": [row["Kode Store SJ"], row["Nama Store SJ"]].filter(Boolean).join(" - "),
+          "No Minta Barang": row["No Minta Barang"] || "",
+          "Jml Koli": Number(row["Jml Koli"]) || 0,
+          Qty: Number(row.Qty) || 0,
+          Kategori: isLainLain ? "Barang Lain-lain" : "Barang SJ",
+          "Keterangan SJ": row["Keterangan SJ"] || "",
+          "User Create": row["User Create"] || "",
+        };
+      });
+
+      // Setup Layout Excel
+      const title = "LAPORAN DETAIL MANIFEST PENGIRIMAN DC";
+      const dateRange = `Periode : ${formatDateIndo(filters.startDate)} s/d ${formatDateIndo(
+        filters.endDate
+      )}`;
+      const tableHeaders = Object.keys(formattedDetail[0]);
+      const tableData = formattedDetail.map((row) => Object.values(row as Record<string, unknown>));
+
+      const excelData = [[title], [dateRange], [], tableHeaders, ...tableData];
+      const worksheet = XLSX.utils.aoa_to_sheet(excelData);
+
+      // Merge Judul
+      const merge = [
+        { s: { r: 0, c: 0 }, e: { r: 0, c: tableHeaders.length - 1 } },
+        { s: { r: 1, c: 0 }, e: { r: 1, c: tableHeaders.length - 1 } },
+      ];
+      worksheet["!merges"] = merge;
+
+      // Auto Width
+      worksheet["!cols"] = tableHeaders.map((header) => ({
+        wch: Math.max(header.length + 5, 15),
+      }));
+
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, "Manifest Detail");
+      XLSX.writeFile(workbook, "Export_Manifest_Pengiriman_Detail.xlsx");
+      toast.success("File Detail berhasil dibuat.");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unknown error";
+      toast.error("Gagal mengekspor data detail: " + message);
+    }
+  }
+};
+
 onMounted(() => {
   if (authStore.can(MENU_ID, "view")) {
+    fetchCabangList();
     loadData();
   } else {
     toast.error("Anda tidak memiliki hak akses untuk melihat data ini.");
@@ -504,6 +717,21 @@ watch(
       >
         Hapus
       </v-btn>
+      <v-menu offset-y>
+        <template v-slot:activator="{ props }">
+          <v-btn size="small" color="teal" prepend-icon="mdi-file-excel" v-bind="props">
+            Export
+          </v-btn>
+        </template>
+        <v-list density="compact">
+          <v-list-item @click="exportData('header')">
+            <v-list-item-title>Export Header</v-list-item-title>
+          </v-list-item>
+          <v-list-item @click="exportData('detail')">
+            <v-list-item-title>Export Detail</v-list-item-title>
+          </v-list-item>
+        </v-list>
+      </v-menu>
     </template>
 
     <div class="browse-content">
@@ -543,6 +771,23 @@ watch(
           variant="outlined"
           class="ms-4"
           style="max-width: 150px"
+        />
+
+        <v-autocomplete
+          v-model="filters.tujuan"
+          :items="[{ kode: '', nama: 'Semua Tujuan' }, ...cabangList]"
+          :item-title="(item: unknown) => {
+            const c = item as Cabang;
+            return c.kode ? `${c.kode} - ${c.nama}` : c.nama;
+          }"
+          item-value="kode"
+          label="Tujuan"
+          density="compact"
+          hide-details
+          clearable
+          variant="outlined"
+          class="ms-2"
+          style="min-width: 170px; max-width: 220px"
         />
 
         <v-text-field
@@ -701,9 +946,17 @@ watch(
             <span class="font-weight-medium">{{ item.Jam || "-" }}</span>
           </template>
 
+          <template #[`item.Tujuan`]="{ item }">
+            <span class="font-weight-medium">
+              {{ item.Tujuan ? [item.Tujuan, item.NamaTujuan].filter(Boolean).join(" - ") : "" }}
+            </span>
+          </template>
+
           <template #[`item.DateCreate`]="{ item }">
             <span class="text-caption">{{
-              item.DateCreate ? format(new Date(item.DateCreate as string), "dd-MM-yyyy HH:mm") : "-"
+              item.DateCreate
+                ? format(new Date(item.DateCreate as string), "dd-MM-yyyy HH:mm")
+                : "-"
             }}</span>
           </template>
 
@@ -756,6 +1009,12 @@ watch(
                       :items-per-page="-1"
                       hide-default-footer
                     >
+                      <template #[`item.sjNomor`]="{ item: detail }">
+                        <span class="font-weight-medium">
+                          {{ detail.sjNomor || detail.namaBarang || "-" }}
+                        </span>
+                      </template>
+
                       <template #[`item.sjTanggal`]="{ item: detail }">
                         <span v-if="detail.sjTanggal">{{
                           format(new Date(detail.sjTanggal as string), "dd-MM-yyyy")
@@ -764,14 +1023,39 @@ watch(
                       </template>
 
                       <template #[`item.storeNama`]="{ item: detail }">
-                        <span>{{ detail.storeNama || "-" }}</span>
-                        <span v-if="detail.storeKode" class="text-grey text-caption ms-1"
-                          >({{ detail.storeKode }})</span
-                        >
+                        <span v-if="detail.storeKode && detail.storeNama">
+                          {{ detail.storeKode }} - {{ detail.storeNama }}
+                        </span>
+                        <span v-else>
+                          {{ detail.storeNama || detail.storeKode || "-" }}
+                        </span>
                       </template>
 
                       <template #[`item.qty`]="{ item: detail }">
                         <span class="font-weight-medium text-primary">{{ detail.qty }}</span>
+                      </template>
+
+                      <template #[`item.kategori`]="{ item: detail }">
+                        <v-chip
+                          size="x-small"
+                          :color="
+                            detail.kategori === 'Barang Lain-lain' ||
+                            (detail.namaBarang && String(detail.namaBarang).trim() !== '') ||
+                            !detail.sjNomor
+                              ? 'purple'
+                              : 'teal'
+                          "
+                          variant="tonal"
+                          class="font-weight-medium"
+                        >
+                          {{
+                            detail.kategori === "Barang Lain-lain" ||
+                            (detail.namaBarang && String(detail.namaBarang).trim() !== "") ||
+                            !detail.sjNomor
+                              ? "Barang Lain-lain"
+                              : "Barang SJ"
+                          }}
+                        </v-chip>
                       </template>
 
                       <template #bottom></template>
@@ -975,11 +1259,11 @@ watch(
 
 .detail-table-wrapper {
   width: 100%;
-  max-width: 900px;
+  max-width: 1000px;
   background-color: rgb(var(--v-theme-surface));
   border: 1px solid rgba(var(--v-theme-on-surface), 0.12);
   border-radius: 4px;
-  overflow: hidden;
+  overflow-x: auto;
 }
 
 .detail-table :deep(thead tr th) {

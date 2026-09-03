@@ -57,7 +57,8 @@ interface ManifestKirimHeader {
 interface ManifestKirimItem {
   idDrec?: string;
   manifestNomor?: string;
-  sjNomor: string;
+  sjNomor?: string;
+  namaBarang?: string;
   sjTanggal?: string;
   noPackingList?: string;
   storeKode: string;
@@ -166,24 +167,50 @@ const isWetSignatureDriver = computed(() => {
   return !hasTtd && confirmed;
 });
 
+const sjItems = computed(() =>
+  items.value.filter((i) => i.sjNomor && String(i.sjNomor).trim() !== "")
+);
+
+const sortedItems = computed(() => {
+  return [...items.value].sort((a, b) => {
+    const aCustom = !a.sjNomor || String(a.sjNomor).trim() === "";
+    const bCustom = !b.sjNomor || String(b.sjNomor).trim() === "";
+    if (!aCustom && bCustom) return -1;
+    if (aCustom && !bCustom) return 1;
+    return 0;
+  });
+});
+
+const isFirstCustomItem = (item: ManifestKirimItem, idx: number): boolean => {
+  const isCustom = !item.sjNomor || String(item.sjNomor).trim() === "";
+  if (!isCustom) return false;
+  const firstIdx = sortedItems.value.findIndex(
+    (i) => !i.sjNomor || String(i.sjNomor).trim() === ""
+  );
+  return idx === firstIdx;
+};
+
 const totalPlCount = computed(() => {
   const plSet = new Set<string>();
-  items.value.forEach((item) => {
+  sjItems.value.forEach((item) => {
     const pl = String(item.noPackingList || "");
     if (pl.trim()) {
       pl.split(",").forEach((p: string) => {
         const trimmed = p.trim();
         if (trimmed) plSet.add(trimmed);
       });
-    } else {
+    } else if (item.sjNomor) {
       plSet.add(item.sjNomor);
     }
   });
   return plSet.size;
 });
 
-const getAttachedSjs = (sjNomor: string) => {
-  return items.value.filter((i) => i.referensiGabung === sjNomor).map((i) => i.sjNomor);
+const getAttachedList = (key?: string): string[] => {
+  if (!key) return [];
+  return items.value
+    .filter((i) => i.referensiGabung === key)
+    .map((i) => (i.sjNomor || i.namaBarang || "Item") as string);
 };
 
 const fetchPrintData = async (nomor: string) => {
@@ -342,7 +369,7 @@ onMounted(() => {
           <div class="border-t d-flex bg-white rounded-b-lg">
             <div class="flex-grow-1 border-e py-2 px-1">
               <div class="text-grey" style="font-size: 10px">Total SJ</div>
-              <div class="font-weight-bold text-subtitle-2">{{ items.length }}</div>
+              <div class="font-weight-bold text-subtitle-2">{{ sjItems.length }}</div>
             </div>
             <div class="flex-grow-1 border-e py-2 px-1">
               <div class="text-grey" style="font-size: 10px">Total PL</div>
@@ -358,10 +385,10 @@ onMounted(() => {
         </div>
       </div>
 
-      <!-- Table: DAFTAR SJ / PL DALAM MANIFEST -->
+      <!-- Table: DAFTAR SURAT JALAN & MUATAN MANIFEST -->
       <div class="mb-4">
         <div class="text-caption font-weight-bold text-uppercase mb-2 text-grey-darken-3">
-          DAFTAR SJ / PL DALAM MANIFEST
+          DAFTAR SURAT JALAN & MUATAN MANIFEST
         </div>
         <table class="print-table w-100 border text-caption" style="border-collapse: collapse">
           <thead>
@@ -377,31 +404,70 @@ onMounted(() => {
             </tr>
           </thead>
           <tbody>
-            <tr v-for="(item, idx) in items" :key="item.sjNomor" class="border-b">
-              <td class="text-center py-2 border-e">{{ idx + 1 }}</td>
-              <td class="font-weight-bold py-2 border-e px-2">{{ item.sjNomor }}</td>
-              <td class="py-2 border-e px-2">{{ item.noPackingList || "-" }}</td>
-              <td class="text-end font-weight-bold py-2 border-e px-2">{{ item.qty }}</td>
-              <td class="text-center font-weight-bold py-2 border-e">{{ item.koli }}</td>
-              <td class="text-center font-weight-bold py-2 border-e">
-                {{ item.koli > 0 ? "MANDIRI" : "DIGABUNG" }}
-              </td>
-              <td class="text-center py-2 border-e px-2">
-                {{
-                  item.referensiGabung
-                    ? item.referensiGabung
-                    : getAttachedSjs(item.sjNomor).length > 0
-                    ? "Menampung " + getAttachedSjs(item.sjNomor).length + " SJ"
-                    : "-"
-                }}
-              </td>
-              <td class="py-2 px-2">
-                {{
-                  item.keterangan ||
-                  (item.referensiGabung ? "Digabung ke koli " + item.referensiGabung : "-")
-                }}
-              </td>
-            </tr>
+            <template v-for="(item, idx) in sortedItems" :key="idx">
+              <!-- Pembatas Baris jika memasuki kelompok Barang Lain-lain -->
+              <tr
+                v-if="isFirstCustomItem(item, idx) && sjItems.length > 0"
+                class="bg-grey-lighten-3 font-weight-bold border-b"
+              >
+                <td
+                  colspan="8"
+                  class="py-1 px-2 text-uppercase text-grey-darken-4"
+                  style="font-size: 10px; letter-spacing: 0.5px"
+                >
+                  BARANG LAIN-LAIN (NON-SJ / CUSTOM)
+                </td>
+              </tr>
+
+              <tr class="border-b">
+                <td class="text-center py-2 border-e">{{ idx + 1 }}</td>
+
+                <!-- Jika Item Surat Jalan: 2 kolom (No Surat Jalan & No Packing List) -->
+                <template v-if="item.sjNomor && String(item.sjNomor).trim() !== ''">
+                  <td class="font-weight-bold py-2 border-e px-2">{{ item.sjNomor }}</td>
+                  <td class="py-2 border-e px-2">{{ item.noPackingList || "-" }}</td>
+                </template>
+
+                <!-- Jika Barang Lain-lain: Kolom No. SJ & No. PL dijadikan SATU untuk Nama Barang (Colspan 2) -->
+                <template v-else>
+                  <td colspan="2" class="font-weight-bold py-2 border-e px-2 text-grey-darken-4">
+                    {{ item.namaBarang || "Barang Lain-lain" }}
+                  </td>
+                </template>
+
+                <!-- Qty -->
+                <td class="text-end font-weight-bold py-2 border-e px-2">{{ item.qty }}</td>
+
+                <!-- Koli -->
+                <td class="text-center font-weight-bold py-2 border-e">{{ item.koli }}</td>
+
+                <!-- Status Koli -->
+                <td class="text-center font-weight-bold py-2 border-e">
+                  {{ Number(item.koli) > 0 ? "MANDIRI" : "DIGABUNG" }}
+                </td>
+
+                <!-- Digabung dengan Koli -->
+                <td class="text-center py-2 border-e px-2">
+                  {{
+                    item.referensiGabung
+                      ? item.referensiGabung
+                      : getAttachedList(item.sjNomor || item.namaBarang).length > 0
+                      ? "Menampung " + getAttachedList(item.sjNomor || item.namaBarang).length + " Item"
+                      : "-"
+                  }}
+                </td>
+
+                <!-- Keterangan -->
+                <td class="py-2 px-2">
+                  {{
+                    item.keterangan ||
+                    (item.referensiGabung ? "Digabung ke koli " + item.referensiGabung : "-")
+                  }}
+                </td>
+              </tr>
+            </template>
+
+            <!-- Total Footer -->
             <tr class="font-weight-bold bg-grey-lighten-4 border-t">
               <td colspan="3" class="text-end py-2 px-2 border-e">TOTAL</td>
               <td class="text-end py-2 px-2 border-e">{{ totalQtyPcs }}</td>

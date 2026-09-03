@@ -51,6 +51,7 @@ interface ManifestKirimHeader {
   Status?: string;
   usr?: string;
   Usr?: string;
+  userCreate?: string;
   dateCreate?: string;
   DateCreate?: string;
   ttdPengirim?: string;
@@ -61,7 +62,9 @@ interface ManifestKirimHeader {
 interface ManifestKirimItem {
   idDrec?: string;
   manifestNomor?: string;
-  sjNomor: string;
+  isCustom?: boolean;
+  sjNomor?: string;
+  namaBarang?: string;
   sjTanggal?: string;
   noPackingList?: string;
   storeKode: string;
@@ -143,12 +146,81 @@ const header = reactive({
   keterangan: "",
   status: "TERCATAT",
   dateCreate: "",
+  userCreate: "",
   ttdPengirim: "",
   ttdDriver: "",
 });
 
-// Items Selected in Manifest
+// Status Kuncian Edit (Jika sudah ditandatangani lengkap oleh Pengirim dan Driver ATAU status sudah DIKIRIM/SELESAI)
+const isTtdLengkap = computed(() => Boolean(header.ttdPengirim && header.ttdDriver));
+const isDikirimOrDone = computed(() =>
+  ["DIKIRIM", "SELESAI", "TERKIRIM"].includes((header.status || "").toUpperCase())
+);
+const isDocumentLocked = computed(
+  () => !isNew.value && (isTtdLengkap.value || isDikirimOrDone.value)
+);
+const isEkspedisi = computed(() => (header.jenisKirim || "").toUpperCase() === "EKSPEDISI");
+
+// 1. Ekspedisi: hanya boleh input resi saja jika dokumen terkunci
+const isResiOnlyEdit = computed(() => isDocumentLocked.value && isEkspedisi.value);
+// 2. Non-Ekspedisi: tidak boleh diedit sama sekali jika dokumen terkunci (terkunci penuh)
+const isFullyLocked = computed(() => isDocumentLocked.value && !isEkspedisi.value);
+// 3. Field header/detail umum terkunci jika dokumen terkunci
+const isFieldLocked = computed(() => isDocumentLocked.value);
+
+// Items Selected in Manifest (Daftar Surat Jalan & Barang Lain-lain)
 const items = ref<ManifestKirimItem[]>([]);
+
+// Helper mendapatkan Store Tujuan efektif:
+// Jika sudah ada SJ di atasnya, samakan dengan SJ tersebut; jika belum, ambil dari Form Tujuan Pengiriman (header.tujuan)
+const getEffectiveStore = () => {
+  const existingSj = items.value.find((i) => !i.isCustom && i.storeKode);
+  if (existingSj) {
+    return {
+      kode: existingSj.storeKode,
+      nama: existingSj.storeNama || getCabangNama(existingSj.storeKode),
+    };
+  }
+  const kode = header.tujuan || "";
+  return {
+    kode,
+    nama: getCabangNama(kode),
+  };
+};
+
+const addCustomItem = () => {
+  const targetStore = getEffectiveStore();
+  items.value.push({
+    isCustom: true,
+    sjNomor: "",
+    namaBarang: "",
+    storeKode: targetStore.kode,
+    storeNama: targetStore.nama,
+    koli: 1,
+    qty: 0,
+    keterangan: "",
+    referensiGabung: "",
+  });
+
+  if (!header.tujuan && targetStore.kode) {
+    header.tujuan = targetStore.kode;
+  }
+};
+
+// Hapus Item (SJ atau Barang Lain-lain) dari Manifest
+const removeManifestItem = (index: number) => {
+  const removed = items.value[index];
+  const removedKey = removed ? removed.sjNomor || removed.namaBarang : "";
+  items.value.splice(index, 1);
+  if (removedKey) {
+    // Bersihkan referensiGabung pada baris lain yang menunjuk ke baris yang dihapus ini
+    items.value.forEach((other) => {
+      if (other.referensiGabung === removedKey) {
+        other.referensiGabung = "";
+      }
+    });
+  }
+};
 
 // TTD Signature Modal State
 const showTtdModal = ref(false);
@@ -288,6 +360,11 @@ const onGudangAsalSelected = (selectedGudang: { kode: string; nama: string }) =>
 };
 
 const onGudangTujuanSelected = (selectedGudang: { kode: string; nama: string }) => {
+  if (items.value.length > 0) {
+    toast.warning("Tujuan Pengiriman terkunci karena daftar muatan sudah terisi.");
+    showGudangTujuanModal.value = false;
+    return;
+  }
   if (!cabangList.value.some((c) => c.kode === selectedGudang.kode)) {
     cabangList.value.push(selectedGudang);
   }
@@ -306,6 +383,7 @@ const onGudangAsalSearch = (val: string) => {
 
 // Auto select gudang tujuan jika input cocok dengan kode/nama secara langsung
 const onGudangTujuanSearch = (val: string) => {
+  if (items.value.length > 0) return;
   if (!val) return;
   const match = cabangList.value.find((c) => c.kode.toUpperCase() === val.trim().toUpperCase());
   if (match) {
@@ -313,10 +391,9 @@ const onGudangTujuanSearch = (val: string) => {
   }
 };
 
-// User & Serah Terima Info
-const currentUser = computed(
-  () => authStore.user?.nama || authStore.user?.kode || "Petugas Gudang"
-);
+const userCreate = computed(() => {
+  return header.userCreate;
+});
 
 // Display Computed Nomor Manifest (Format: [GUDANG].MP.[YYMM].[NNNN])
 const displayManifestNomor = computed(() => {
@@ -340,6 +417,12 @@ const getCabangTitle = (item: unknown): string => {
   return String(item);
 };
 
+const getCabangNama = (kode?: string): string => {
+  if (!kode) return "";
+  const match = cabangList.value.find((c) => c.kode.toUpperCase() === kode.trim().toUpperCase());
+  return match ? match.nama : kode;
+};
+
 // Fetch daftar gudang/cabang dari tgudang
 const fetchCabangList = async () => {
   try {
@@ -352,7 +435,9 @@ const fetchCabangList = async () => {
 
 // Filter Available SJ yang belum ada di daftar items saat ini & sesuai header.tujuan
 const filteredAvailableSj = computed(() => {
-  const existingSjSet = new Set(items.value.map((i) => i.sjNomor));
+  const existingSjSet = new Set(
+    items.value.filter((i) => i.sjNomor).map((i) => i.sjNomor as string)
+  );
   return availableSjList.value.filter((sj) => {
     // 1. Abaikan SJ yang sudah dimuat di tabel
     if (existingSjSet.has(sj.sjNomor)) return false;
@@ -368,7 +453,8 @@ const filteredAvailableSj = computed(() => {
 });
 
 // Total Computation
-const totalSj = computed(() => items.value.length);
+const totalSj = computed(() => items.value.filter((i) => !i.isCustom && i.sjNomor).length);
+const totalCustom = computed(() => items.value.filter((i) => i.isCustom || !i.sjNomor).length);
 const totalKoliFisik = computed(() =>
   items.value.reduce((acc, cur) => acc + (Number(cur.koli) || 0), 0)
 );
@@ -391,18 +477,36 @@ const handlePrint = () => {
 };
 
 // Available Options for Referensi Gabungan
-const otherSjOptions = (currentSjNomor: string) => {
+const otherItemOptions = (currentIndex: number) => {
   return items.value
-    .filter((i) => i.sjNomor !== currentSjNomor && i.koli > 0)
-    .map((i) => ({
-      title: i.sjNomor,
-      value: i.sjNomor,
-    }));
+    .map((item, idx) => ({ item, idx }))
+    .filter(({ item, idx }) => idx !== currentIndex && Number(item.koli) > 0)
+    .map(({ item, idx }) => {
+      const label = item.sjNomor || item.namaBarang || `Baris #${idx + 1}`;
+      return {
+        title: label,
+        value: label,
+      };
+    });
 };
 
-// Helper tracking SJ apa saja yang bergabung ke SJ tertentu
-const getAttachedSjs = (sjNomor: string) => {
-  return items.value.filter((i) => i.referensiGabung === sjNomor).map((i) => i.sjNomor);
+// Helper tracking item apa saja yang bergabung ke item tertentu
+const getAttachedCount = (itemKey?: string) => {
+  if (!itemKey) return 0;
+  return items.value.filter((i) => i.referensiGabung === itemKey).length;
+};
+
+const getAttachedList = (itemKey?: string) => {
+  if (!itemKey) return [];
+  return items.value
+    .filter((i) => i.referensiGabung === itemKey)
+    .map((i) => i.sjNomor || i.namaBarang || "Item");
+};
+
+// Helper mendeteksi baris pertama Barang Lain-lain untuk pembatas tabel
+const isFirstCustom = (index: number): boolean => {
+  if (!items.value[index]?.isCustom) return false;
+  return index === items.value.findIndex((i) => i.isCustom);
 };
 
 // Load Available SJ langsung via api instance
@@ -443,6 +547,23 @@ watch(
   { deep: true }
 );
 
+// Jika form field Tujuan Pengiriman diubah saat belum ada SJ, sinkronkan store pada barang lain-lain
+watch(
+  () => header.tujuan,
+  (newTujuan) => {
+    const hasSj = items.value.some((i) => !i.isCustom && i.storeKode);
+    if (!hasSj && newTujuan) {
+      const nama = getCabangNama(newTujuan);
+      items.value.forEach((it) => {
+        if (it.isCustom) {
+          it.storeKode = newTujuan;
+          it.storeNama = nama;
+        }
+      });
+    }
+  }
+);
+
 const openSjModal = () => {
   sjSearch.value = "";
   showSjModal.value = true;
@@ -451,17 +572,39 @@ const openSjModal = () => {
 
 // Tambah SJ ke Manifest
 const addSjToManifest = (sj: AvailableSjItem) => {
-  // Jika header.tujuan sudah diisi dan beda dengan storeKode SJ yang coba ditambahkan
-  if (header.tujuan && header.tujuan.trim().toUpperCase() !== sj.storeKode.toUpperCase()) {
+  // 1. Cek jika header.tujuan sudah diisi dan beda dengan storeKode SJ yang coba ditambahkan
+  if (header.tujuan && header.tujuan.trim().toUpperCase() !== sj.storeKode.trim().toUpperCase()) {
     toast.error(
-      `SJ ${sj.sjNomor} bertujuan ke ${
-        sj.storeNama || sj.storeKode
-      }, tidak sesuai dengan Tujuan Pengiriman (${header.tujuan}).`
+      `Surat Jalan ${sj.sjNomor} bertujuan ke "${sj.storeNama || sj.storeKode}" (${
+        sj.storeKode
+      }), berbeda dengan Tujuan Pengiriman yang dipilih (${
+        header.tujuan
+      }). Silakan periksa kembali Tujuan Pengiriman Anda!`
     );
     return;
   }
 
-  items.value.push({
+  // 2. Cek jika di tabel sudah ada SJ lain yang tujuannya berbeda
+  const existingSj = items.value.find((i) => !i.isCustom && i.storeKode);
+  if (
+    existingSj &&
+    existingSj.storeKode &&
+    existingSj.storeKode.trim().toUpperCase() !== sj.storeKode.trim().toUpperCase()
+  ) {
+    toast.error(
+      `Surat Jalan ${sj.sjNomor} bertujuan ke "${sj.storeNama || sj.storeKode}" (${
+        sj.storeKode
+      }), berbeda dengan Surat Jalan sebelumnya yang menuju ke "${
+        existingSj.storeNama || existingSj.storeKode
+      }" (${
+        existingSj.storeKode
+      }). Semua SJ dalam satu manifest harus menuju ke store yang sama. Silakan periksa kembali Tujuan Pengiriman Anda!`
+    );
+    return;
+  }
+
+  const newSjItem: ManifestKirimItem = {
+    isCustom: false,
     sjNomor: sj.sjNomor,
     sjTanggal: sj.sjTanggal,
     noPackingList: sj.noPackingList || `PL-${sj.sjNomor.split(".").pop() || "001"}`,
@@ -471,6 +614,22 @@ const addSjToManifest = (sj: AvailableSjItem) => {
     qty: sj.totalQty,
     keterangan: "",
     referensiGabung: "",
+  };
+
+  // Pastikan SJ selalu berada di atas kelompok Barang Lain-lain
+  const firstCustomIdx = items.value.findIndex((i) => i.isCustom);
+  if (firstCustomIdx !== -1) {
+    items.value.splice(firstCustomIdx, 0, newSjItem);
+  } else {
+    items.value.push(newSjItem);
+  }
+
+  // Jika di atasnya ada SJ, samakan store tujuan seluruh barang lain-lain mengikuti SJ ini
+  items.value.forEach((it) => {
+    if (it.isCustom) {
+      it.storeKode = sj.storeKode;
+      it.storeNama = sj.storeNama;
+    }
   });
 
   // Jika header.tujuan belum diisi, otomatis isi dari SJ pertama ini!
@@ -487,7 +646,7 @@ const processSingleCode = async (code: string) => {
 
   const exists = items.value.some(
     (i) =>
-      i.sjNomor.toUpperCase() === code.toUpperCase() ||
+      (i.sjNomor && i.sjNomor.toUpperCase() === code.toUpperCase()) ||
       (i.noPackingList && i.noPackingList.toUpperCase() === code.toUpperCase())
   );
   if (exists) {
@@ -591,28 +750,15 @@ const onKoliInput = (item: ManifestKirimItem) => {
   }
 };
 
-// Hapus SJ dari Manifest
-const removeSjFromManifest = (index: number) => {
-  const removed = items.value[index];
-  items.value.splice(index, 1);
-  if (removed) {
-    // Bersihkan referensiGabung pada SJ lain yang menunjuk ke SJ yang dihapus ini
-    items.value.forEach((other) => {
-      if (other.referensiGabung === removed.sjNomor) {
-        other.referensiGabung = "";
-      }
-    });
-  }
-};
-
 // Load Data jika Edit
 const loadEditData = async () => {
   if (!editNomor.value) return;
   loading.value = true;
   try {
-    const response = await api.get<{ header: ManifestKirimHeader; items: ManifestKirimItem[] }>(
-      `/manifest-kirim/${encodeURIComponent(editNomor.value)}`
-    );
+    const response = await api.get<{
+      header: ManifestKirimHeader;
+      items: (ManifestKirimItem & { namaBarang?: string })[];
+    }>(`/manifest-kirim/${encodeURIComponent(editNomor.value)}`);
     const h = (response.data.header || {}) as ManifestKirimHeader;
     header.nomor = String(h.nomor || h.Nomor || "");
     const rawTgl = (h.tanggal || h.Tanggal) as string;
@@ -631,16 +777,39 @@ const loadEditData = async () => {
     header.keterangan = String(h.keterangan || h.Keterangan || "");
     header.status = String(h.status || h.Status || "TERCATAT");
     header.dateCreate = String(h.dateCreate || h.DateCreate || "");
+    header.userCreate = String(h.userCreate || "");
     header.ttdPengirim = String(h.ttdPengirim || h.ttdPengirim || "");
     header.ttdDriver = String(h.ttdDriver || h.ttdDriver || "");
 
-    items.value = (response.data.items || []).map((it) => ({
-      ...it,
-      noPackingList: it.noPackingList || "",
-      referensiGabung: it.referensiGabung || "",
-    }));
-    if (items.value.length > 0 && !header.tujuan) {
-      header.tujuan = items.value[0].storeKode;
+    const allReceivedItems = (response.data.items || []) as (ManifestKirimItem & {
+      namaBarang?: string;
+    })[];
+
+    items.value = allReceivedItems
+      .map((it) => {
+        const isCustom = !it.sjNomor || String(it.sjNomor).trim() === "";
+        return {
+          ...it,
+          isCustom,
+          sjNomor: it.sjNomor || "",
+          namaBarang: it.namaBarang || "",
+          noPackingList: it.noPackingList || "",
+          referensiGabung: it.referensiGabung || "",
+        };
+      })
+      .sort((a, b) => {
+        if (!a.isCustom && b.isCustom) return -1;
+        if (a.isCustom && !b.isCustom) return 1;
+        return 0;
+      });
+
+    if (items.value.length > 0) {
+      const firstSj = items.value.find((i) => !i.isCustom && i.storeKode);
+      if (firstSj) {
+        header.tujuan = firstSj.storeKode;
+      } else if (!header.tujuan && items.value[0].storeKode) {
+        header.tujuan = items.value[0].storeKode;
+      }
     }
   } catch (error: unknown) {
     const err = error as { response?: { data?: { message?: string } } };
@@ -653,6 +822,13 @@ const loadEditData = async () => {
 
 // Simpan Manifest
 const submitForm = async () => {
+  if (isFullyLocked.value) {
+    toast.error(
+      "Manifest sudah ditandatangani oleh pengirim dan penerima. Perubahan data tidak diizinkan."
+    );
+    return;
+  }
+
   if (!header.tanggal) {
     toast.error("Tanggal manifest harus diisi.");
     return;
@@ -662,40 +838,95 @@ const submitForm = async () => {
     return;
   }
   if (items.value.length === 0) {
-    toast.error("Pilih minimal satu Surat Jalan untuk dimuat ke manifest.");
+    toast.error("Tambahkan minimal satu Surat Jalan atau Barang Lain-lain ke dalam manifest.");
     return;
   }
 
-  if (!header.tujuan && items.value.length > 0) {
-    header.tujuan = items.value[0].storeKode;
+  // Validasi & Penyelarasan Tujuan Pengiriman
+  const firstSj = items.value.find((i) => !i.isCustom && i.storeKode);
+  if (firstSj) {
+    const primaryStore = String(firstSj.storeKode).trim().toUpperCase();
+
+    // 1. Cek jika header.tujuan berbeda dengan toko tujuan SJ
+    if (header.tujuan && header.tujuan.trim().toUpperCase() !== primaryStore) {
+      toast.error(
+        `Tujuan Pengiriman (${header.tujuan}) tidak sesuai dengan Store Tujuan Surat Jalan (${primaryStore}). Silakan periksa kembali Tujuan Pengiriman Anda!`
+      );
+      return;
+    }
+
+    // 2. Pastikan seluruh SJ memiliki toko tujuan yang sama
+    for (const item of items.value) {
+      if (
+        !item.isCustom &&
+        item.storeKode &&
+        String(item.storeKode).trim().toUpperCase() !== primaryStore
+      ) {
+        toast.error(
+          `Surat Jalan ${item.sjNomor} bertujuan ke "${item.storeKode}", berbeda dengan Surat Jalan lainnya (${primaryStore}). Semua SJ harus menuju ke store yang sama!`
+        );
+        return;
+      }
+    }
+    // Selaraskan header.tujuan dengan store tujuan SJ
+    header.tujuan = primaryStore;
+  } else {
+    if (!header.tujuan) {
+      toast.error("Tujuan Pengiriman wajib dipilih.");
+      return;
+    }
   }
 
-  // Validasi Koli (wajib angka non-negatif)
-  for (const item of items.value) {
+  // Validasi seluruh baris muatan
+  for (let idx = 0; idx < items.value.length; idx++) {
+    const item = items.value[idx];
+    if (item.isCustom) {
+      if (!item.namaBarang || item.namaBarang.trim() === "") {
+        toast.error(`Nama / Deskripsi Barang pada baris ke-${idx + 1} wajib diisi.`);
+        return;
+      }
+    } else {
+      if (!item.sjNomor) {
+        toast.error(`Nomor Surat Jalan pada baris ke-${idx + 1} tidak valid.`);
+        return;
+      }
+    }
+
+    // Pastikan storeKode setiap baris mengikuti header.tujuan
+    item.storeKode = header.tujuan;
+
     if (
       item.koli === undefined ||
       item.koli === null ||
       isNaN(Number(item.koli)) ||
       Number(item.koli) < 0
     ) {
-      toast.error(`Jumlah Koli untuk SJ ${item.sjNomor} tidak valid (harus angka, minimal 0).`);
+      toast.error(`Jumlah Koli pada baris ke-${idx + 1} tidak valid (harus angka, minimal 0).`);
+      return;
+    }
+
+    if (Number(item.koli) === 0 && !item.referensiGabung) {
+      const itemLabel = item.sjNomor || item.namaBarang || `Baris #${idx + 1}`;
+      toast.error(`Item "${itemLabel}" memiliki Koli 0. WAJIB pilih referensi penggabungan!`);
       return;
     }
   }
 
-  // Validasi Koli 0 wajib referensi gabung
-  const invalidItem = items.value.find((i) => Number(i.koli) === 0 && !i.referensiGabung);
-  if (invalidItem) {
-    toast.error(
-      `SJ ${invalidItem.sjNomor} memiliki Koli 0. WAJIB pilih referensi penggabungan SJ!`
-    );
-    return;
-  }
+  const payloadItems = items.value.map((i) => ({
+    ...i,
+    sjNomor: i.isCustom ? null : i.sjNomor || null,
+    namaBarang: i.isCustom ? i.namaBarang || null : null,
+    storeKode: i.storeKode || header.tujuan || header.gudang,
+    koli: Number(i.koli || 0),
+    qty: Number(i.qty || 0),
+    keterangan: i.keterangan || "",
+    referensiGabung: i.referensiGabung || null,
+  }));
 
   saving.value = true;
   // Jika TTD pengirim dan driver lengkap -> DIKIRIM, jika belum -> DRAFT (kecuali jika sebelumnya sudah DIKIRIM)
-  const isTtdLengkap = Boolean(header.ttdPengirim && header.ttdDriver);
-  if (isTtdLengkap) {
+  const isTtdLengkapVal = Boolean(header.ttdPengirim && header.ttdDriver);
+  if (isTtdLengkapVal) {
     header.status = "DIKIRIM";
   } else if (!header.status || header.status === "TERCATAT" || isNew.value) {
     header.status = "DRAFT";
@@ -703,7 +934,7 @@ const submitForm = async () => {
   try {
     const response = await api.post<{ message: string; nomor: string }>("/manifest-kirim", {
       header: { ...header },
-      items: items.value,
+      items: payloadItems,
       isNew: isNew.value,
     });
     toast.success(response.data.message);
@@ -767,6 +998,7 @@ onMounted(async () => {
         color="primary"
         prepend-icon="mdi-content-save"
         :loading="saving"
+        :disabled="isFullyLocked"
         @click="submitForm"
       >
         Simpan
@@ -774,6 +1006,30 @@ onMounted(async () => {
       <v-btn size="small" prepend-icon="mdi-refresh" @click="goBack"> Batal </v-btn>
       <v-btn size="small" prepend-icon="mdi-close" @click="goBack"> Tutup </v-btn>
     </template>
+
+    <!-- Alert Banner Status Kuncian Manifest -->
+    <v-alert
+      v-if="isFullyLocked"
+      type="warning"
+      variant="tonal"
+      density="compact"
+      icon="mdi-lock"
+      class="mb-3 font-weight-medium"
+    >
+      Manifest ini sudah ditandatangani lengkap oleh Pengirim dan Penerima. Seluruh data telah
+      dikunci dan tidak dapat diubah.
+    </v-alert>
+    <v-alert
+      v-else-if="isResiOnlyEdit"
+      type="info"
+      variant="tonal"
+      density="compact"
+      icon="mdi-information-outline"
+      class="mb-3 font-weight-medium"
+    >
+      Manifest pengiriman ekspedisi ini sudah ditandatangani lengkap. Perubahan hanya diperbolehkan
+      untuk <strong>No. Resi</strong> saja.
+    </v-alert>
 
     <div class="form-grid-container" :class="{ 'hide-left': !isLeftColumnVisible }">
       <!-- Left Column: Header -->
@@ -799,12 +1055,13 @@ onMounted(async () => {
                 density="compact"
                 variant="outlined"
                 hide-details
+                :disabled="isFieldLocked"
               />
             </v-col>
 
             <v-col cols="12">
               <v-autocomplete
-                label="Pengirim"
+                label="Gudang Kirim"
                 v-model="header.gudang"
                 :items="cabangList"
                 :item-title="getCabangTitle"
@@ -816,6 +1073,7 @@ onMounted(async () => {
                 hide-details
                 clearable
                 auto-select-first
+                :disabled="isFieldLocked"
                 @update:search="onGudangAsalSearch"
                 @click:append-inner="showGudangAsalModal = true"
               >
@@ -875,6 +1133,7 @@ onMounted(async () => {
                 hide-details
                 clearable
                 auto-select-first
+                :disabled="isFieldLocked"
                 @update:search="onGudangTujuanSearch"
                 @click:append-inner="showGudangTujuanModal = true"
               >
@@ -934,6 +1193,7 @@ onMounted(async () => {
                 density="compact"
                 variant="outlined"
                 hide-details
+                :disabled="isFieldLocked"
               />
             </v-col>
 
@@ -945,6 +1205,7 @@ onMounted(async () => {
                 density="compact"
                 variant="outlined"
                 hide-details
+                :disabled="isFieldLocked"
               />
             </v-col>
 
@@ -958,6 +1219,7 @@ onMounted(async () => {
                 variant="outlined"
                 hide-details
                 clearable
+                :disabled="isFieldLocked"
               />
             </v-col>
 
@@ -971,6 +1233,7 @@ onMounted(async () => {
                 variant="outlined"
                 hide-details
                 clearable
+                :disabled="isFullyLocked"
                 @keydown.enter.prevent="header.noResi = header.noResi?.trim() ?? ''"
               >
                 <template #append-inner>
@@ -980,8 +1243,9 @@ onMounted(async () => {
                         v-bind="props"
                         size="20"
                         color="primary"
-                        class="cursor-pointer"
-                        @click="focusResiInput"
+                        :class="{ 'cursor-pointer': !isFullyLocked }"
+                        :disabled="isFullyLocked"
+                        @click="!isFullyLocked && focusResiInput()"
                       >
                         mdi-barcode-scan
                       </v-icon>
@@ -1002,6 +1266,7 @@ onMounted(async () => {
                 density="compact"
                 variant="outlined"
                 hide-details
+                :disabled="isFieldLocked"
               />
             </v-col>
 
@@ -1014,6 +1279,7 @@ onMounted(async () => {
                 density="compact"
                 variant="outlined"
                 hide-details
+                :disabled="isFieldLocked"
               />
             </v-col>
           </v-row>
@@ -1035,7 +1301,8 @@ onMounted(async () => {
               prepend-inner-icon="mdi-barcode-scan"
               hide-details
               clearable
-              autofocus
+              :autofocus="!isFieldLocked"
+              :disabled="isFieldLocked"
               style="flex: 1; min-width: 0"
               @keydown="handleScannerKeydown"
             />
@@ -1045,13 +1312,25 @@ onMounted(async () => {
               color="primary"
               prepend-icon="mdi-plus"
               class="font-weight-medium"
+              :disabled="isFieldLocked"
               @click="openSjModal"
             >
               + Tambah SJ
             </v-btn>
+
+            <v-btn
+              size="small"
+              color="primary"
+              variant="tonal"
+              class="font-weight-medium"
+              :disabled="isFieldLocked"
+              @click="addCustomItem"
+            >
+              + Tambah Barang Lain-lain
+            </v-btn>
           </div>
 
-          <!-- Table List dengan Header Biru Tua -->
+          <!-- Table List Tunggal (Surat Jalan & Barang Lain-lain) -->
           <v-table
             density="compact"
             class="manifest-table desktop-table fill-height-table border rounded-lg"
@@ -1061,9 +1340,9 @@ onMounted(async () => {
                 class="bg-grey-lighten-3 text-uppercase text-caption font-weight-bold text-center"
               >
                 <th style="width: 40px" class="text-center">No.</th>
-                <th style="width: 150px" class="text-center">No. Surat Jalan</th>
+                <th style="width: 170px" class="text-center">No. Surat Jalan / Barang</th>
                 <th style="width: 95px" class="text-center">Tanggal SJ</th>
-                <th style="width: 140px" class="text-center">No. Packing List</th>
+                <th style="width: 130px" class="text-center">No. Packing List</th>
                 <th class="text-center">Store Tujuan</th>
                 <th style="width: 100px" class="text-center">Qty (Pcs)</th>
                 <th style="width: 100px" class="text-center">Koli</th>
@@ -1076,92 +1355,180 @@ onMounted(async () => {
             <tbody>
               <tr v-if="items.length === 0">
                 <td colspan="11" class="text-center py-6 text-grey">
-                  Belum ada Surat Jalan dalam manifest ini. Klik
-                  <strong>"+ Tambah SJ / PL"</strong> untuk menambahkan data.
+                  Belum ada Surat Jalan atau Barang Lain-lain dalam manifest ini. Klik
+                  <strong>"+ Tambah SJ"</strong> atau <strong>"+ Tambah Barang Lain-lain"</strong>.
                 </td>
               </tr>
-              <tr v-for="(item, index) in items" :key="item.sjNomor" class="table-row-hover">
-                <td>{{ index + 1 }}</td>
-                <td class="font-weight-bold text-primary">{{ item.sjNomor }}</td>
-                <td>
-                  {{ item.sjTanggal ? format(new Date(item.sjTanggal), "dd-MM-yyyy") : "-" }}
-                </td>
-                <td class="text-grey-darken-2 font-weight-medium">{{ item.noPackingList }}</td>
-                <td class="font-weight-medium">{{ item.storeNama }} ({{ item.storeKode }})</td>
-                <td class="text-end font-weight-bold">{{ item.qty }}</td>
-                <td class="text-end">
-                  <v-text-field
-                    v-model.number="item.koli"
-                    type="number"
-                    min="0"
-                    step="1"
-                    density="compact"
-                    variant="outlined"
-                    hide-details
-                    class="text-end font-weight-bold input-koli"
-                    @input="onKoliInput(item)"
-                    @blur="onKoliInput(item)"
-                  />
-                </td>
-                <td class="text-center">
-                  <v-chip
-                    :color="item.koli > 0 ? 'success' : 'warning'"
-                    size="x-small"
-                    variant="flat"
-                    class="font-weight-bold"
-                  >
-                    {{ item.koli > 0 ? "MANDIRI" : "DIGABUNG" }}
-                  </v-chip>
-                </td>
-                <td>
-                  <v-select
-                    v-if="item.koli === 0"
-                    v-model="item.referensiGabung"
-                    :items="otherSjOptions(item.sjNomor)"
-                    item-title="title"
-                    item-value="value"
-                    placeholder="Gabung Ke SJ..."
-                    density="compact"
-                    variant="outlined"
-                    hide-details
-                    class="select-compact font-weight-medium"
-                  />
-                  <v-tooltip v-else-if="getAttachedSjs(item.sjNomor).length > 0" location="top">
-                    <template #activator="{ props }">
-                      <v-chip
-                        v-bind="props"
-                        color="info"
-                        size="x-small"
-                        variant="tonal"
-                        class="font-weight-bold cursor-pointer px-2"
+              <template v-for="(item, index) in items" :key="index">
+                <!-- Pembatas Baris jika memasuki kelompok Barang Lain-lain -->
+                <tr
+                  v-if="isFirstCustom(index) && totalSj > 0"
+                  class="bg-blue-grey-lighten-5 text-caption font-weight-bold"
+                >
+                  <td colspan="11" class="py-1 px-3 text-blue-grey-darken-4 border-t border-b">
+                    <div class="d-flex align-center gap-2">
+                      <span class="text-uppercase" style="font-size: 11px; letter-spacing: 0.5px">
+                        Barang Lain-lain (Non-SJ / Custom)
+                      </span>
+                    </div>
+                  </td>
+                </tr>
+
+                <tr class="table-row-hover">
+                  <td class="text-center">{{ index + 1 }}</td>
+
+                  <!-- Jika Item Surat Jalan: 3 kolom terpisah (No SJ, Tanggal, No PL) -->
+                  <template v-if="!item.isCustom">
+                    <td class="font-weight-bold text-primary">{{ item.sjNomor }}</td>
+                    <td class="text-center">
+                      {{ item.sjTanggal ? format(new Date(item.sjTanggal), "dd-MM-yyyy") : "-" }}
+                    </td>
+                    <td class="text-grey-darken-2 font-weight-medium">
+                      {{ item.noPackingList || "-" }}
+                    </td>
+                  </template>
+
+                  <!-- Jika Barang Lain-lain: Kolom Nama Barang Memanjang (Colspan 3) -->
+                  <template v-else>
+                    <td colspan="3">
+                      <v-text-field
+                        v-model="item.namaBarang"
+                        placeholder="Nama Barang (misal: Rak Display, Banner Promo, ATK)..."
+                        density="compact"
+                        variant="outlined"
+                        hide-details
+                        :disabled="isFieldLocked"
+                      />
+                    </td>
+                  </template>
+
+                  <!-- Store Tujuan (Mengikuti tujuan manifest di atas, readonly) -->
+                  <td>
+                    <span class="font-weight-medium">
+                      {{
+                        item.storeNama ||
+                        getCabangNama(item.storeKode || header.tujuan) ||
+                        header.tujuan ||
+                        "-"
+                      }}
+                      <template v-if="item.storeKode || header.tujuan">
+                        ({{ item.storeKode || header.tujuan }})
+                      </template>
+                    </span>
+                  </td>
+
+                  <!-- Qty -->
+                  <td class="text-end">
+                    <span v-if="!item.isCustom" class="font-weight-bold">
+                      {{ item.qty }}
+                    </span>
+                    <v-text-field
+                      v-else
+                      v-model.number="item.qty"
+                      type="number"
+                      min="0"
+                      step="1"
+                      density="compact"
+                      variant="outlined"
+                      hide-details
+                      class="text-end font-weight-bold"
+                      :disabled="isFieldLocked"
+                    />
+                  </td>
+
+                  <!-- Koli -->
+                  <td class="text-end">
+                    <v-text-field
+                      v-model.number="item.koli"
+                      type="number"
+                      min="0"
+                      step="1"
+                      density="compact"
+                      variant="outlined"
+                      hide-details
+                      class="text-end font-weight-bold input-koli"
+                      :disabled="isFieldLocked"
+                      @input="onKoliInput(item)"
+                      @blur="onKoliInput(item)"
+                    />
+                  </td>
+
+                  <!-- Status Koli -->
+                  <td class="text-center">
+                    <v-chip
+                      :color="item.koli > 0 ? 'success' : 'warning'"
+                      size="x-small"
+                      variant="flat"
+                      class="font-weight-bold"
+                    >
+                      {{ item.koli > 0 ? "MANDIRI" : "DIGABUNG" }}
+                    </v-chip>
+                  </td>
+
+                  <!-- Referensi Gabung -->
+                  <td>
+                    <v-select
+                      v-if="item.koli === 0"
+                      v-model="item.referensiGabung"
+                      :items="otherItemOptions(index)"
+                      item-title="title"
+                      item-value="value"
+                      placeholder="Gabung Ke..."
+                      density="compact"
+                      variant="outlined"
+                      hide-details
+                      class="select-compact font-weight-medium"
+                      :disabled="isFieldLocked"
+                    />
+                    <v-tooltip
+                      v-else-if="getAttachedCount(item.sjNomor || item.namaBarang) > 0"
+                      location="top"
+                    >
+                      <template #activator="{ props: tipProps }">
+                        <v-chip
+                          v-bind="tipProps"
+                          color="info"
+                          size="x-small"
+                          variant="tonal"
+                          class="font-weight-bold cursor-pointer px-2"
+                        >
+                          <v-icon size="12" class="me-1">mdi-link-variant</v-icon>
+                          +{{ getAttachedCount(item.sjNomor || item.namaBarang) }} Gabungan
+                        </v-chip>
+                      </template>
+                      <span
+                        >Item Gabung:
+                        {{ getAttachedList(item.sjNomor || item.namaBarang).join(", ") }}</span
                       >
-                        <v-icon size="12" class="me-1">mdi-link-variant</v-icon>
-                        +{{ getAttachedSjs(item.sjNomor).length }} SJ Gabungan
-                      </v-chip>
-                    </template>
-                    <span>SJ Gabung: {{ getAttachedSjs(item.sjNomor).join(", ") }}</span>
-                  </v-tooltip>
-                  <span v-else class="text-grey text-caption">-</span>
-                </td>
-                <td>
-                  <v-text-field
-                    v-model="item.keterangan"
-                    placeholder="Ket..."
-                    density="compact"
-                    variant="outlined"
-                    hide-details
-                  />
-                </td>
-                <td class="text-center">
-                  <v-btn
-                    icon="mdi-delete-outline"
-                    size="x-small"
-                    variant="text"
-                    color="error"
-                    @click="removeSjFromManifest(index)"
-                  />
-                </td>
-              </tr>
+                    </v-tooltip>
+                    <span v-else class="text-grey text-caption">-</span>
+                  </td>
+
+                  <!-- Keterangan -->
+                  <td>
+                    <v-text-field
+                      v-model="item.keterangan"
+                      placeholder="Ket..."
+                      density="compact"
+                      variant="outlined"
+                      hide-details
+                      :disabled="isFieldLocked"
+                    />
+                  </td>
+
+                  <!-- Aksi Hapus -->
+                  <td class="text-center">
+                    <v-btn
+                      icon="mdi-delete-outline"
+                      size="x-small"
+                      variant="text"
+                      color="error"
+                      :disabled="isFieldLocked"
+                      @click="removeManifestItem(index)"
+                    />
+                  </td>
+                </tr>
+              </template>
             </tbody>
 
             <!-- Total Footer Row -->
@@ -1205,6 +1572,10 @@ onMounted(async () => {
                 <span class="text-grey-darken-1">Total Surat Jalan</span>
                 <span class="font-weight-bold">{{ totalSj }} SJ</span>
               </div>
+              <div class="d-flex justify-space-between mb-1" v-if="totalCustom > 0">
+                <span class="text-grey-darken-1">Barang Lain-lain</span>
+                <span class="font-weight-bold text-primary">{{ totalCustom }} Item</span>
+              </div>
               <div class="d-flex justify-space-between mb-1">
                 <span class="text-grey-darken-1">Total Qty (PCS)</span>
                 <span class="font-weight-bold text-primary">{{ totalQtyPcs }} Pcs</span>
@@ -1242,7 +1613,7 @@ onMounted(async () => {
             <v-card-text class="pa-3 text-caption">
               <div class="d-flex justify-space-between mb-1">
                 <span class="text-grey-darken-1">Nama</span>
-                <span class="font-weight-bold text-grey-darken-4">{{ currentUser }}</span>
+                <span class="font-weight-bold text-grey-darken-4">{{ userCreate }}</span>
               </div>
               <div class="d-flex justify-space-between align-center mb-1">
                 <span class="text-grey-darken-1">Waktu Kirim</span>
@@ -1250,6 +1621,7 @@ onMounted(async () => {
                   <input
                     type="time"
                     v-model="header.jam"
+                    :disabled="isFieldLocked"
                     class="text-caption font-weight-medium px-1 rounded border text-grey-darken-4"
                     style="
                       outline: none;
@@ -1289,9 +1661,16 @@ onMounted(async () => {
               size="small"
               block
               prepend-icon="mdi-draw"
+              :disabled="isFieldLocked"
               @click="openTtdModal('pengirim')"
             >
-              {{ header.ttdPengirim ? "✓ Lihat / Ubah TTD Pengirim" : "TTD Pengirim" }}
+              {{
+                header.ttdPengirim
+                  ? isFieldLocked
+                    ? "✓ TTD Pengirim (Terkunci)"
+                    : "✓ Lihat / Ubah TTD Pengirim"
+                  : "TTD Pengirim"
+              }}
             </v-btn>
           </div>
         </v-card>
@@ -1324,6 +1703,7 @@ onMounted(async () => {
                   <input
                     type="time"
                     v-model="header.jam"
+                    :disabled="isFieldLocked"
                     class="text-caption font-weight-medium px-1 rounded border text-grey-darken-4"
                     style="
                       outline: none;
@@ -1363,9 +1743,16 @@ onMounted(async () => {
               size="small"
               block
               prepend-icon="mdi-draw"
+              :disabled="isFieldLocked"
               @click="openTtdModal('driver')"
             >
-              {{ header.ttdDriver ? "✓ Lihat / Ubah TTD Driver" : "TTD Driver" }}
+              {{
+                header.ttdDriver
+                  ? isFieldLocked
+                    ? "✓ TTD Driver (Terkunci)"
+                    : "✓ Lihat / Ubah TTD Driver"
+                  : "TTD Driver"
+              }}
             </v-btn>
           </div>
         </v-card>

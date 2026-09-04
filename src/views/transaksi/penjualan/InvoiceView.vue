@@ -26,6 +26,7 @@ interface InvoiceHeader {
   Tempo?: string;
   LastPayment?: string;
   "Dis%"?: number;
+  TotalSebelumDiskon?: number;
   DiskonMapsPersen?: number;
   DiskonMapsNominal?: number;
   DiskonPromoNominal?: number; // [BARU]
@@ -321,6 +322,10 @@ const totalRpRetur = computed(() => {
   }, 0);
 });
 
+const totalSebelumDiskon = computed(() =>
+  masterData.value.reduce((sum, r) => sum + (Number(r.TotalSebelumDiskon) || 0), 0)
+);
+
 const totalDiskon = computed(() => {
   return masterData.value.reduce((acc, item) => {
     const val = parseFloat(String(item.Diskon || 0));
@@ -438,6 +443,7 @@ const headers = computed<DataTableHeader[]>(() => {
     { title: "TOP", key: "Top", width: 70 },
     { title: "Jatuh Tempo", key: "Tempo", width: 120 },
     { title: "Last Payment", key: "LastPayment", width: 120 },
+    { title: "Total Sblm Diskon", key: "TotalSebelumDiskon", width: 150 },
     { title: "Diskon 1", key: "Dis%", width: 160 }, // [FIX] Ganti judulnya
     { title: "Diskon 2", key: "DiskonMapsPersen", width: 150 },
     { title: "Total Diskon (Rp)", key: "Diskon", width: 150 }
@@ -669,6 +675,7 @@ const fetchMasterData = async (options?: { page: number; itemsPerPage: number })
       Nama: h.Customer || h.Nama,
       // Gunakan Number() untuk memastikan tipe data aman untuk kalkulasi
       Nominal: Number(h.Nominal) || 0,
+      TotalSebelumDiskon: Number(h.TotalSebelumDiskon) || 0,
       Piutang: Number(h.Piutang) || 0,
       SisaPiutang: Number(h.SisaPiutang) || 0,
       Bayar: Number(h.Bayar) || 0,
@@ -1214,12 +1221,7 @@ const exportData = async (type: "header" | "detail") => {
         keys.find(
           (k) => k.toLowerCase().includes("customer") || k.toLowerCase().includes("nama")
         ) ?? "";
-      const totalKey =
-        keys.find(
-          (k) =>
-            rupiahKeys.some((r) => k.toLowerCase().includes(r.toLowerCase())) &&
-            k.toLowerCase().includes("total")
-        ) ?? "";
+      const totalKey = keys.find((k) => k.trim().toLowerCase() === "total") ?? "";
       const qtyKey = keys.find((k) => k.toLowerCase().includes("jumlah")) ?? "";
 
       const sumCols = [
@@ -1918,6 +1920,7 @@ onBeforeRouteLeave((to, from, next) => {
                   [
                     'BiayaPlatform',
                     'Diskon',
+                    'TotalSebelumDiskon',
                     'Dp',
                     'Biayakirim',
                     'Nominal',
@@ -2064,6 +2067,13 @@ onBeforeRouteLeave((to, from, next) => {
                     class="text-grey-darken-3 text-body-2 font-weight-black pl-2"
                   >
                     GRAND TOTAL :
+                  </span>
+
+                  <span
+                    v-else-if="header.key === 'TotalSebelumDiskon'"
+                    class="text-grey-darken-2 text-body-2 font-weight-black"
+                  >
+                    {{ formatRupiah(totalSebelumDiskon) }}
                   </span>
 
                   <span

@@ -62,14 +62,21 @@ const loading = ref(true);
 const loadingDetails = ref(new Set<string>());
 const selected = ref<Header[]>([]);
 const expanded = ref<string[]>([]);
+const fetchTimeout = ref<number | undefined>(undefined);
+
+// --- Setup Session Storage ---
+const STORAGE_KEY = "masterBarangExternalFilters";
+const savedSession = sessionStorage.getItem(STORAGE_KEY);
+const parsedSession = savedSession ? JSON.parse(savedSession) : null;
 
 const filters = reactive({
-  startDate: format(subDays(new Date(), 30), "yyyy-MM-dd"),
-  endDate: format(new Date(), "yyyy-MM-dd"),
+  startDate: parsedSession?.startDate ?? format(subDays(new Date(), 30), "yyyy-MM-dd"),
+  endDate: parsedSession?.endDate ?? format(new Date(), "yyyy-MM-dd"),
+  search: parsedSession?.search ?? "",
 });
 
 // --- State Filter & Resize ---
-const columnFilters = ref<Record<string, ColumnFilter>>({});
+const columnFilters = ref<Record<string, ColumnFilter>>(parsedSession?.columnFilters ?? {});
 const customFilterDialog = ref(false);
 const customFilter = reactive({ key: "", operator: "=", value: "" });
 const resizingColumn = ref<DataTableHeader | null>(null);
@@ -223,6 +230,11 @@ const applyCustomFilter = () => {
 
 const resetAllFilters = () => {
   columnFilters.value = {};
+  filters.startDate = format(subDays(new Date(), 30), "yyyy-MM-dd");
+  filters.endDate = format(new Date(), "yyyy-MM-dd");
+  filters.search = "";
+  sessionStorage.removeItem(STORAGE_KEY);
+  fetchData();
 };
 
 // --- Methods: Resize Logic ---
@@ -333,7 +345,39 @@ onMounted(() => {
   fetchData();
 });
 
-watch(filters, fetchData, { deep: true });
+watch(
+  filters,
+  (newVal, oldVal) => {
+    // Jika yang berubah adalah field 'search', gunakan timeout 500ms
+    if (newVal.search !== oldVal.search) {
+      if (fetchTimeout.value) clearTimeout(fetchTimeout.value);
+      fetchTimeout.value = window.setTimeout(() => {
+        fetchData();
+      }, 500);
+    } else {
+      // Untuk filter lain (tanggal), langsung fetch tanpa jeda
+      fetchData();
+    }
+  },
+  { deep: true }
+);
+
+// --- Watcher untuk Simpan Filter ke Session Storage ---
+watch(
+  [filters, columnFilters],
+  () => {
+    sessionStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify({
+        startDate: filters.startDate,
+        endDate: filters.endDate,
+        search: filters.search,
+        columnFilters: columnFilters.value,
+      })
+    );
+  },
+  { deep: true }
+);
 </script>
 
 <template>
@@ -396,6 +440,17 @@ watch(filters, fetchData, { deep: true });
           hide-details
           variant="outlined"
           style="max-width: 150px"
+        />
+
+        <v-text-field
+          v-model="filters.search"
+          label="Cari Kode atau Nama Barang..."
+          density="compact"
+          hide-details
+          variant="outlined"
+          class="ms-4 search-field"
+          prepend-inner-icon="mdi-magnify"
+          clearable
         />
 
         <v-spacer />
@@ -753,5 +808,24 @@ watch(filters, fetchData, { deep: true });
 
 .reset-filter-btn:hover {
   background-color: rgba(211, 47, 47, 0.25) !important;
+}
+/* Override agar filter-section tidak membiarkan item menyempit (konsisten dgn global theme) */
+.filter-section {
+  flex-wrap: nowrap !important;
+  overflow-x: auto !important;
+}
+
+/* Paksa search field tidak ikut menyempit meski flex container padat */
+.filter-section .search-field {
+  flex: 0 0 300px !important;
+  min-width: 300px !important;
+  max-width: 300px !important;
+  margin-left: 8px;
+}
+
+.filter-section .search-field .v-input__control,
+.filter-section .search-field .v-field {
+  width: 100% !important;
+  min-width: 100% !important;
 }
 </style>

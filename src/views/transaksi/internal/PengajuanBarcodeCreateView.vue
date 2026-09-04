@@ -395,6 +395,18 @@ const save = () => {
       return toast.error(`Jumlah untuk '${item.nama}' tidak boleh melebihi stok.`);
   }
 
+  // [BARU] Jika Approved dicentang, setiap item wajib punya Diskon % atau Harga Baru terisi
+  if (isApproved.value) {
+    const itemBelumDiskon = validItems.find(
+      (item) => (Number(item.diskon) || 0) <= 0 && (Number(item.hargabaru) || 0) <= 0
+    );
+    if (itemBelumDiskon) {
+      return toast.error(
+        `Item '${itemBelumDiskon.nama}' (${itemBelumDiskon.ukuran}) belum diisi Diskon % atau Harga Baru. Wajib diisi sebelum Approve.`
+      );
+    }
+  }
+
   showConfirmation("Konfirmasi Simpan", "Anda yakin ingin menyimpan data ini?", executeSave);
 };
 
@@ -403,6 +415,18 @@ const executeSave = async () => {
     toast.error("Anda tidak memiliki izin untuk menyimpan data ini.");
     isSaving.value = false; // Pastikan loading dihentikan
     return;
+  }
+  // [BARU] Guard ganda — pastikan tidak lolos kalau dipanggil di luar alur save()
+  if (isApproved.value) {
+    const validItems = items.value.filter((i) => i.kode);
+    const itemBelumDiskon = validItems.find(
+      (item) => (Number(item.diskon) || 0) <= 0 && (Number(item.hargabaru) || 0) <= 0
+    );
+    if (itemBelumDiskon) {
+      toast.error(`Item '${itemBelumDiskon.nama}' belum diisi Diskon % atau Harga Baru.`);
+      isSaving.value = false;
+      return;
+    }
   }
   isSaving.value = true;
   let savedNomor = isEditMode.value ? header.nomor : "";
@@ -461,23 +485,24 @@ const executeSave = async () => {
     }
 
     dialogPrintSuccess.nomor = savedNomor;
+    dialogPrintSuccess.show = true;
 
     // Aksi jika user klik "Ya, Cetak"
     dialogPrintSuccess.onConfirm = () => {
       const url = router.resolve({
-        name: "CetakBarcodeBaruA4", // Sesuai route
+        name: "CetakBarcodeBaruA4",
         params: { nomor: savedNomor },
       }).href;
       window.open(url, "_blank");
 
       dialogPrintSuccess.show = false;
-      router.push({ name: "PengajuanBarcode" }); // Kembali ke browse
+      router.push({ name: "PengajuanBarcode" });
     };
 
     // Aksi jika user klik "Tidak"
     dialogPrintSuccess.onCancel = () => {
       dialogPrintSuccess.show = false;
-      router.push({ name: "PengajuanBarcode" }); // Kembali ke browse
+      router.push({ name: "PengajuanBarcode" });
     };
   } catch (error) {
     // Error dari STEP 1 (Save Utama)

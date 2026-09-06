@@ -144,6 +144,24 @@ const detailLoadingMore = ref(false);
 const DETAIL_PAGE_SIZE = 30;
 const cabangList = ref<CabangOption[]>([]);
 const selectedCabang = ref<string>("ALL");
+const now = new Date();
+const selectedBulan = ref(now.getMonth() + 1);
+const selectedTahun = ref(now.getFullYear());
+
+const bulanOptions = [
+  { title: "Januari", value: 1 },
+  { title: "Februari", value: 2 },
+  { title: "Maret", value: 3 },
+  { title: "April", value: 4 },
+  { title: "Mei", value: 5 },
+  { title: "Juni", value: 6 },
+  { title: "Juli", value: 7 },
+  { title: "Agustus", value: 8 },
+  { title: "September", value: 9 },
+  { title: "Oktober", value: 10 },
+  { title: "November", value: 11 },
+  { title: "Desember", value: 12 },
+];
 
 const fetchCabangOptions = async () => {
   if (!isKDC.value) return;
@@ -162,7 +180,11 @@ const fetchSummary = async (isBackground = false) => {
   if (!isBackground) loadingCards.value = true;
   try {
     const res = await api.get<SummaryCard[]>("/dashboard/work-summary", {
-      params: { cabang: cabangParam() },
+      params: {
+        cabang: cabangParam(),
+        bulan: selectedBulan.value,
+        tahun: selectedTahun.value,
+      },
     });
     cards.value = res.data;
     animateCardNumbers(res.data);
@@ -178,7 +200,11 @@ const fetchTargetAchievement = async (isBackground = false) => {
   if (!isBackground) loadingTa.value = true;
   try {
     const res = await api.get<TargetAchievementData>("/dashboard/target-achievement-summary", {
-      params: { cabang: cabangParam() },
+      params: {
+        cabang: cabangParam(),
+        bulan: selectedBulan.value,
+        tahun: selectedTahun.value,
+      },
     });
     taData.value = res.data;
     animateHeroNumbers(res.data);
@@ -189,7 +215,6 @@ const fetchTargetAchievement = async (isBackground = false) => {
     if (!isBackground) loadingTa.value = false;
   }
 };
-
 const openDetail = async (card: SummaryCard) => {
   activeCard.value = card;
   showDetailDialog.value = true;
@@ -200,7 +225,13 @@ const openDetail = async (card: SummaryCard) => {
 
   try {
     const res = await api.get<DetailRow[]>(`/dashboard/work-summary-detail/${card.key}`, {
-      params: { page: 1, limit: DETAIL_PAGE_SIZE, cabang: cabangParam() },
+      params: {
+        page: 1,
+        limit: DETAIL_PAGE_SIZE,
+        cabang: cabangParam(),
+        bulan: selectedBulan.value,
+        tahun: selectedTahun.value,
+      },
     });
     detailRows.value = res.data;
     if (res.data.length < DETAIL_PAGE_SIZE) detailFinished.value = true;
@@ -220,7 +251,15 @@ const loadMoreDetail = async () => {
   try {
     const res = await api.get<DetailRow[]>(
       `/dashboard/work-summary-detail/${activeCard.value.key}`,
-      { params: { page: detailPage.value, limit: DETAIL_PAGE_SIZE, cabang: cabangParam() } }
+      {
+        params: {
+          page: detailPage.value,
+          limit: DETAIL_PAGE_SIZE,
+          cabang: cabangParam(),
+          bulan: selectedBulan.value,
+          tahun: selectedTahun.value,
+        },
+      }
     );
     detailRows.value.push(...res.data);
     if (res.data.length < DETAIL_PAGE_SIZE) detailFinished.value = true;
@@ -384,6 +423,11 @@ watch(selectedCabang, () => {
   fetchTargetAchievement(); // opsional — kalau mau Target Achievement juga ikut scope ke cabang terpilih
 });
 
+watch([selectedBulan, selectedTahun], () => {
+  fetchSummary();
+  fetchTargetAchievement();
+});
+
 let pollingInterval: number;
 
 const startPolling = () => {
@@ -413,18 +457,37 @@ onUnmounted(() => {
         <p class="ws-subtitle">Ringkasan status Surat Pesanan &amp; proses lainnya</p>
       </div>
       <v-spacer />
-      <v-select
-        v-if="isKDC"
-        v-model="selectedCabang"
-        :items="[{ kode: 'ALL', nama: 'Semua Cabang' }, ...cabangList]"
-        item-title="nama"
-        item-value="kode"
-        density="compact"
-        variant="outlined"
-        hide-details
-        style="min-width: 200px"
-        class="ws-cabang-select"
-      />
+
+      <div class="ws-filter-bar">
+        <v-select
+          v-model="selectedBulan"
+          :items="bulanOptions"
+          density="compact"
+          variant="outlined"
+          hide-details
+          class="ws-filter-select ws-filter-bulan"
+        />
+        <v-text-field
+          v-model.number="selectedTahun"
+          type="number"
+          density="compact"
+          variant="outlined"
+          hide-details
+          class="ws-filter-select ws-filter-tahun"
+        />
+        <v-select
+          v-if="isKDC"
+          v-model="selectedCabang"
+          :items="[{ kode: 'ALL', nama: 'Semua Cabang' }, ...cabangList]"
+          item-title="nama"
+          item-value="kode"
+          density="compact"
+          variant="outlined"
+          hide-details
+          class="ws-filter-select ws-filter-cabang"
+        />
+      </div>
+
       <v-btn
         size="small"
         variant="tonal"
@@ -899,6 +962,70 @@ onUnmounted(() => {
   height: 8px;
   border-radius: 50%;
   display: inline-block;
+}
+
+/* ── Filter Bar (bulan/tahun/cabang) ── */
+.ws-filter-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 6px;
+  background: rgba(var(--v-theme-on-surface), 0.03);
+  border-radius: 12px;
+  border: 1px solid rgba(var(--v-theme-on-surface), 0.08);
+}
+
+.ws-filter-select {
+  font-family: "Plus Jakarta Sans", "Roboto", sans-serif;
+}
+
+.ws-filter-select :deep(.v-field) {
+  border-radius: 8px;
+  font-size: 0.8rem;
+}
+
+.ws-filter-select :deep(.v-field__input) {
+  min-height: 36px !important;
+  padding-top: 4px;
+  padding-bottom: 4px;
+  font-weight: 600;
+  font-size: 0.8rem;
+}
+
+.ws-filter-select :deep(.v-field__outline) {
+  --v-field-border-opacity: 0.14;
+}
+
+.ws-filter-bulan {
+  width: 128px;
+  flex-shrink: 0;
+}
+
+.ws-filter-tahun {
+  width: 84px;
+  flex-shrink: 0;
+}
+
+.ws-filter-tahun :deep(input) {
+  text-align: center;
+}
+
+.ws-filter-cabang {
+  width: 170px;
+  flex-shrink: 0;
+}
+
+@media (max-width: 720px) {
+  .ws-filter-bar {
+    width: 100%;
+    order: 3;
+  }
+  .ws-filter-bulan,
+  .ws-filter-tahun,
+  .ws-filter-cabang {
+    flex: 1 1 0;
+    width: auto;
+  }
 }
 
 /* ── Summary cards (REDESIGN) ── */

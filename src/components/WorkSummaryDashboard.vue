@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from "vue";
+import { ref, computed, onMounted, onUnmounted, reactive, watch } from "vue";
+import { gsap } from "gsap";
 import api from "@/services/api";
 import { useAuthStore } from "@/stores/authStore";
 import { useToast } from "vue-toastification";
@@ -97,6 +98,39 @@ const authStore = useAuthStore();
 const toast = useToast();
 const router = useRouter();
 const cards = ref<SummaryCard[]>([]);
+// Nilai "current" yang benar-benar dirender di layar, terpisah dari
+// nilai asli di `cards` — supaya bisa di-tween pelan-pelan saat berubah,
+// bukan langsung loncat begitu data baru datang dari polling.
+const displayCurrent = reactive<Record<string, number>>({});
+
+const animateCardNumbers = (newCards: SummaryCard[]) => {
+  newCards.forEach((card) => {
+    // Card baru pertama kali muncul (atau baru pertama load) -> set langsung, tanpa animasi
+    if (!(card.key in displayCurrent)) {
+      displayCurrent[card.key] = card.current;
+      return;
+    }
+    if (displayCurrent[card.key] === card.current) return;
+    gsap.to(displayCurrent, {
+      [card.key]: card.current,
+      duration: 1.2,
+      ease: "power2.out",
+    });
+  });
+};
+const displayTa = reactive({ ach: 0, nominal: 0 });
+let taInitialized = false;
+
+const animateHeroNumbers = (data: TargetAchievementData) => {
+  if (!taInitialized) {
+    displayTa.ach = data.ach;
+    displayTa.nominal = data.nominal;
+    taInitialized = true;
+    return;
+  }
+  gsap.to(displayTa, { ach: data.ach, nominal: data.nominal, duration: 1.2, ease: "power2.out" });
+};
+
 const loadingCards = ref(true);
 const taData = ref<TargetAchievementData | null>(null);
 const loadingTa = ref(true);
@@ -124,33 +158,35 @@ const fetchCabangOptions = async () => {
 const cabangParam = () =>
   isKDC.value && selectedCabang.value !== "ALL" ? selectedCabang.value : undefined;
 
-const fetchSummary = async () => {
-  loadingCards.value = true;
+const fetchSummary = async (isBackground = false) => {
+  if (!isBackground) loadingCards.value = true;
   try {
     const res = await api.get<SummaryCard[]>("/dashboard/work-summary", {
       params: { cabang: cabangParam() },
     });
     cards.value = res.data;
+    animateCardNumbers(res.data);
   } catch (err) {
     const error = err as AxiosError<{ message?: string }>;
     toast.error(error.response?.data?.message || "Gagal memuat ringkasan pekerjaan.");
   } finally {
-    loadingCards.value = false;
+    if (!isBackground) loadingCards.value = false;
   }
 };
 
-const fetchTargetAchievement = async () => {
-  loadingTa.value = true;
+const fetchTargetAchievement = async (isBackground = false) => {
+  if (!isBackground) loadingTa.value = true;
   try {
     const res = await api.get<TargetAchievementData>("/dashboard/target-achievement-summary", {
       params: { cabang: cabangParam() },
     });
     taData.value = res.data;
+    animateHeroNumbers(res.data);
   } catch (err) {
     const error = err as AxiosError<{ message?: string }>;
     toast.error(error.response?.data?.message || "Gagal memuat target achievement.");
   } finally {
-    loadingTa.value = false;
+    if (!isBackground) loadingTa.value = false;
   }
 };
 
@@ -348,9 +384,24 @@ watch(selectedCabang, () => {
   fetchTargetAchievement(); // opsional — kalau mau Target Achievement juga ikut scope ke cabang terpilih
 });
 
+let pollingInterval: number;
+
+const startPolling = () => {
+  pollingInterval = window.setInterval(() => {
+    if (document.hidden) return; // skip kalau tab tidak aktif, sama seperti HomeView
+    fetchSummary(true);
+    fetchTargetAchievement(true);
+  }, 30000);
+};
+
 onMounted(() => {
-  fetchCabangOptions(); // BARU — sebelumnya dideklarasikan tapi tidak pernah dipanggil
+  fetchCabangOptions();
   refreshAll();
+  startPolling();
+});
+
+onUnmounted(() => {
+  clearInterval(pollingInterval);
 });
 </script>
 
@@ -420,7 +471,7 @@ onMounted(() => {
           </div>
           <div class="d-flex align-baseline ga-3 mt-1">
             <span class="ta-hero-percent" :class="`text-${achColor(taData.ach)}`">
-              {{ taData.ach.toFixed(1) }}%
+              {{ displayTa.ach.toFixed(1) }}%
             </span>
             <span class="ta-hero-growth" :class="growthColor">
               <v-icon size="14">{{ growthIcon }}</v-icon>
@@ -428,7 +479,7 @@ onMounted(() => {
             </span>
           </div>
           <div class="ta-hero-sub">
-            {{ formatRupiah(taData.nominal) }}
+            {{ formatRupiah(Math.round(displayTa.nominal)) }}
             <span class="text-medium-emphasis">/ {{ formatRupiah(taData.target) }}</span>
           </div>
 
@@ -541,7 +592,9 @@ onMounted(() => {
           </div>
 
           <div class="ws-card-metric">
-            <span class="ws-card-number">{{ card.current }}</span>
+            <span class="ws-card-number">{{
+              Math.round(displayCurrent[card.key] ?? card.current)
+            }}</span>
             <span v-if="card.total !== null" class="ws-card-number-total">/{{ card.total }}</span>
           </div>
 
@@ -859,6 +912,43 @@ onMounted(() => {
   transition: border-color 0.15s ease, box-shadow 0.15s ease;
   height: 100%;
 }
+/* Card netral (tanpa pembanding/progress bar) — angka dibesarkan &
+   di-center vertikal, mengisi ruang yang biasanya dipakai progress bar */
+.ws-card[data-status="netral"] {
+  display: flex;
+  flex-direction: column;
+  text-align: center;
+}
+
+.ws-card[data-status="netral"] .ws-card-head {
+  justify-content: center;
+}
+
+.ws-card[data-status="netral"] .ws-card-metric {
+  justify-content: center;
+  margin-top: auto;
+}
+
+.ws-card[data-status="netral"] .ws-card-number {
+  font-size: 3.5rem;
+}
+
+.ws-card[data-status="netral"] .ws-card-head ~ *:last-child {
+  margin-bottom: auto;
+}
+
+.ws-card[data-status="netral"] .ws-card-nominal,
+.ws-card[data-status="netral"] .ws-card-extra {
+  text-align: center;
+}
+
+/* Khusus card netral TANPA nominal (metric jadi satu-satunya elemen
+   setelah header) — beri jarak bawah tetap yang lebih kecil dari
+   jarak atas, supaya angka terdorong sedikit ke atas, bukan pas di tengah */
+.ws-card[data-status="netral"] .ws-card-head + .ws-card-metric:last-child {
+  margin-bottom: 20px;
+}
+
 .ws-card:hover {
   border-color: rgba(var(--v-theme-on-surface), 0.18);
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.06);

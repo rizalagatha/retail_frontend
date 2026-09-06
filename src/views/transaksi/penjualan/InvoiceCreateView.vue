@@ -1059,15 +1059,18 @@ const onCustomerSelected = async (cust: Customer | null) => {
 };
 
 const applyDefaultDiscount = () => {
+  // [FIX] Kalau invoice ini berasal dari SO, diskon (persen maupun Rp)
+  // SUDAH FINAL sejak SO dibuat — jangan pernah disentuh/di-reset lagi
+  // oleh logic default-discount apapun. Guard ini WAJIB paling atas,
+  // sebelum guard lain yang bisa menimpa diskonPersen1.
+  if (header.nomorSo) return;
+
   if (authStore.user?.cabang === "KDC") {
     header.diskonPersen1 = 0;
     header.diskonRp = 0;
     return;
   }
 
-  // 2. [KUNCI PERBAIKAN]
-  // Jika sudah ada Promo Bulanan (nomorPromo) ATAU user sudah input Diskon Rp manual (> 0),
-  // maka diskon member (P1) HARUS 0. Jangan biarkan watcher mengisinya lagi.
   if (header.nomorPromo || header.diskonRp > 0) {
     header.diskonPersen1 = 0;
     return;
@@ -1077,25 +1080,16 @@ const applyDefaultDiscount = () => {
     header.diskonPersen1 = 0;
     return;
   }
-  // [BARU] 1. Pengecekan Customer RETAIL / RETAILER
-  // Pastikan ambil nama customer dengan aman (optional chaining)
-  const custNama = header.customer?.nama?.toUpperCase() || "";
 
-  // Jika customer RETAIL, paksa diskon 0 dan STOP.
+  const custNama = header.customer?.nama?.toUpperCase() || "";
   if (custNama.includes("RETAIL")) {
     header.diskonPersen1 = 0;
     return;
   }
 
-  // --- Logika Lama ---
   const rule = customerDiscountRule.value;
+  if (!rule) return; // baris "|| header.nomorSo" dihapus, sudah tidak perlu — sudah di-guard di paling atas
 
-  // Jangan terapkan jika tidak ada rule level atau jika data berasal dari SO (tarikan SO)
-  if (!rule || header.nomorSo) {
-    return;
-  }
-
-  // Logika dari Delphi: cek nominal belanja vs Rule Level
   if (totals.nettoSetelahDiskon >= rule.nominal1) {
     header.diskonPersen1 = rule.diskon1;
   } else if (totals.nettoSetelahDiskon >= rule.nominal2) {

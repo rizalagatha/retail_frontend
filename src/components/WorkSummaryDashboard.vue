@@ -991,3 +991,87 @@ onMounted(() => {
   color: #2e7d32;
 }
 </style>
+
+<style>
+@import url("https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap");
+
+.ws-dialog .ws-dialog-card {
+  font-family: "Plus Jakarta Sans", "Roboto", sans-serif;
+}
+.ws-detail-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  background: #eef2ff !important;
+  color: #3730a3 !important;
+  border-bottom: 2px solid #6366f1 !important;
+}
+.ws-detail-scroll {
+  position: relative;
+}
+.ws-detail-table .v-table__wrapper {
+  overflow: visible !important;
+}
+
+.ws-detail-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  background: #eef2ff !important;
+  color: #3730a3 !important;
+  border-bottom: 2px solid #6366f1 !important;
+}
+
+.ws-detail-table tfoot td {
+  position: sticky;
+  bottom: 0;
+  z-index: 5;
+  background: #f8fafc !important;
+  border-top: 2px solid #94a3b8 !important;
+}
+
+.detail-total-row td {
+  font-size: 0.8rem;
+}
+
+.detail-dialog-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 18px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+  background: rgb(var(--v-theme-surface));
+}
+.detail-dialog-title {
+  font-size: 0.95rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+.detail-th {
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: rgba(var(--v-theme-on-surface), 0.55);
+}
+.detail-td {
+  font-size: 0.8rem;
+  font-weight: 500;
+}
+.detail-row-clickable {
+  cursor: pointer;
+}
+.detail-row-clickable:hover {
+  background: rgba(var(--v-theme-primary), 0.05);
+}
+.detail-empty-text,
+.detail-finished-text {
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: rgba(var(--v-theme-on-surface), 0.5);
+}
+.detail-count-text {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: rgba(var(--v-theme-on-surface), 0.6);
+}
+</style>

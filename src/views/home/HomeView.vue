@@ -6105,7 +6105,7 @@ onUnmounted(() => {
           position="fixed"
           location="bottom right"
           class="mr-6 floating-review-btn"
-          style="margin-bottom: 140px; z-index: 100"
+          style="bottom: 270px; z-index: 100"
           :elevation="isHovering ? 12 : 4"
           @click="openLostOrder"
         >
@@ -6126,7 +6126,8 @@ onUnmounted(() => {
           size="large"
           position="fixed"
           location="bottom right"
-          class="mb-16 mr-6 floating-review-btn"
+          class="mr-6 floating-review-btn"
+          style="bottom: 180px"
           :elevation="isHovering ? 12 : 4"
           @click="showReviewDialog = true"
         >
@@ -6144,7 +6145,7 @@ onUnmounted(() => {
           position="fixed"
           location="bottom right"
           class="mr-6 floating-ai-btn"
-          style="margin-bottom: 220px; z-index: 100"
+          style="bottom: 270px; z-index: 100"
           :elevation="isHovering ? 12 : 6"
           @click="showAiDialog = true"
         >

@@ -5,6 +5,7 @@ import api from "@/services/api";
 // --- CORE & AUTH ---
 const LoginView = () => import("../views/user/LoginView.vue");
 const HomeView = () => import("../views/home/HomeView.vue");
+const WorkSummaryView = () => import("@/views/home/WorkSummaryView.vue");
 const DaftarIndex = () => import("@/views/home/DaftarIndex.vue");
 const TransaksiIndex = () => import("@/views/home/TransaksiIndex.vue");
 const PiutangIndex = () => import("@/views/home/PiutangIndex.vue");
@@ -334,6 +335,17 @@ const routes = [
       layout: "DefaultLayout",
       requiresAuth: false,
       public: true,
+    },
+  },
+  {
+    path: "/ringkasan-kerja",
+    name: "WorkSummary",
+    component: WorkSummaryView,
+    meta: {
+      title: "Ringkasan Kerja",
+      layout: "DefaultLayout",
+      requiresAuth: true,
+      navStyle: "side",
     },
   },
   {

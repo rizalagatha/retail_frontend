@@ -10,6 +10,7 @@ interface PrintHeader {
   sj_nomor: string;
   sj_mt_nomor: string;
   sj_so_nomor: string;
+  sj_kategori: "UTAMA" | "PENOLONG";
   sj_tanggal: string;
   sj_ket: string;
   perush_nama: string;
@@ -117,6 +118,12 @@ onMounted(() => {
         <div v-else></div>
         <div>
           <span class="label">Ke Store</span>: <strong>{{ printData.header.store }}</strong>
+        </div>
+        <div>
+          <span class="label">Kategori</span>:
+          <strong>{{
+            printData.header.sj_kategori === "PENOLONG" ? "BAHAN PENOLONG" : "BARANG UTAMA"
+          }}</strong>
         </div>
 
         <div class="keterangan">

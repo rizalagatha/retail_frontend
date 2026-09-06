@@ -28,6 +28,7 @@ interface SuratJalanHeader {
   Tanggal: string;
   Store: string; // Kode Cabang
   Nama_Store: string; // Nama Cabang
+  Kategori: "UTAMA" | "PENOLONG";
   NomorTerima: string;
   TglTerima?: string;
   NoMinta: string;
@@ -140,6 +141,20 @@ const showInvoiceColumn = computed(() => {
   return cb === "KDC" || cb === "KPR";
 });
 
+// Menghitung colspan footer secara dinamis berdasarkan posisi kolom TotalQty,
+// supaya tidak perlu update manual tiap kali kolom ditambah/dihapus.
+const totalQtyColumnIndex = computed(() =>
+  masterHeaders.value.findIndex((h) => h.key === "TotalQty")
+);
+
+// +1 untuk kolom checkbox bawaan v-data-table (show-select) yang tidak
+// tercatat di array masterHeaders.
+const beforeTotalQtyColspan = computed(() => totalQtyColumnIndex.value + 1);
+
+const afterTotalQtyColspan = computed(
+  () => masterHeaders.value.length - totalQtyColumnIndex.value - 1
+);
+
 // --- Header Definisi (Resizable) ---
 const masterHeaders = computed<DataTableHeader[]>(() => {
   const baseHeaders: DataTableHeader[] = [
@@ -167,6 +182,7 @@ const masterHeaders = computed<DataTableHeader[]>(() => {
     { title: "Total Qty", key: "TotalQty", width: 100, align: "end" },
     { title: "Keterangan", key: "Keterangan", width: 300 },
     { title: "User", key: "Usr", width: 100 },
+    { title: "Kategori", key: "Kategori", width: 130, align: "center" },
     { title: "Closing", key: "Closing", width: 80, align: "center" }
   );
 
@@ -896,7 +912,9 @@ watch(
           </template>
 
           <template #[`item.NoManifest`]="{ item }">
-            <span class="font-weight-medium text-indigo-darken-2">{{ item.NoManifest || "-" }}</span>
+            <span class="font-weight-medium text-indigo-darken-2">{{
+              item.NoManifest || "-"
+            }}</span>
           </template>
 
           <template #[`item.NoInvoice`]="{ item }">
@@ -906,6 +924,16 @@ watch(
           <template #[`item.Closing`]="{ item }">
             <v-chip size="x-small" :color="item.Closing === 'Y' ? 'green' : 'grey'">
               {{ item.Closing }}
+            </v-chip>
+          </template>
+
+          <template #[`item.Kategori`]="{ item }">
+            <v-chip
+              size="x-small"
+              :color="item.Kategori === 'PENOLONG' ? 'orange' : 'blue'"
+              variant="tonal"
+            >
+              {{ item.Kategori === "PENOLONG" ? "Penolong" : "Utama" }}
             </v-chip>
           </template>
 
@@ -943,9 +971,8 @@ watch(
 
           <template #[`body.append`]="{ items }">
             <tr class="sticky-footer-row">
-              <!-- Colspan: Select(1) + Expand(1) + Nomor(1) + Tanggal(1) + Store(1) + Nama Store(1) + Minta(1) + Terima(1) + TglTerima(1) + STBJ(1) = 10 (Tanpa Invoice) / 11 (Dengan Invoice) -->
               <td
-                :colspan="showInvoiceColumn ? 11 : 10"
+                :colspan="beforeTotalQtyColspan"
                 class="text-end font-weight-bold text-subtitle-2 bg-blue-lighten-5"
               >
                 TOTAL QTY :
@@ -955,8 +982,11 @@ watch(
               >
                 {{ calculateTotalQtyPerPage(items).toLocaleString("id-ID") }}
               </td>
-              <!-- Colspan sisa: Keterangan(1) + User(1) + Closing(1) = 3 -->
-              <td colspan="3" class="bg-blue-lighten-5"></td>
+              <td
+                v-if="afterTotalQtyColspan > 0"
+                :colspan="afterTotalQtyColspan"
+                class="bg-blue-lighten-5"
+              ></td>
             </tr>
           </template>
         </AppDataTable>

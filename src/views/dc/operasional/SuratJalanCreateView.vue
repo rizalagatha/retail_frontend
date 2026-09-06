@@ -86,6 +86,10 @@ const pageTitle = computed(() =>
 );
 const requiredPermission = computed(() => (isEditMode.value ? "edit" : "insert"));
 
+const kategoriLabel = computed(() =>
+  header.kategori === "PENOLONG" ? "Bahan Penolong" : "Barang Utama"
+);
+
 const isLoading = ref(true);
 const isSaving = ref(false);
 
@@ -95,8 +99,9 @@ const header = reactive({
   gudang: { kode: authStore.user?.cabang || "", nama: "" },
   store: { kode: "", nama: "" },
   permintaan: "",
-  soNomor: "", // <--- [BARU]
+  soNomor: "",
   keterangan: "",
+  kategori: authStore.user?.kode === "ANTA" ? "PENOLONG" : "UTAMA",
 });
 
 const items = ref<Item[]>([]);
@@ -572,6 +577,7 @@ onMounted(async () => {
       header.permintaan = data.header.permintaan;
       header.keterangan = data.header.keterangan;
       header.soNomor = data.header.soNomor || "";
+      header.kategori = data.header.kategori || "UTAMA";
       items.value = data.items.map((item: unknown) => {
         const typedItem = item as SuratJalanItem;
         return {
@@ -608,6 +614,14 @@ onMounted(async () => {
 <template>
   <PageLayout :title="pageTitle" icon="mdi-truck-plus-outline">
     <template #header-actions>
+      <v-chip
+        size="small"
+        :color="header.kategori === 'PENOLONG' ? 'orange' : 'blue'"
+        variant="tonal"
+        class="mr-2"
+      >
+        {{ kategoriLabel }}
+      </v-chip>
       <v-btn
         size="small"
         :color="isLeftColumnVisible ? 'blue-grey' : 'primary'"

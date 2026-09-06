@@ -7,7 +7,8 @@ import { ref, onMounted, onUnmounted, defineAsyncComponent, computed } from "vue
 import api from "@/services/api";
 import axios from "axios";
 import { useTheme } from "vuetify";
-import { useRouter } from "vue-router";
+import { useRoute, useRouter } from "vue-router";
+import SidePanelNav from "@/components/SidePanelNav.vue";
 
 // Import composables atau store untuk state dialog
 import { usePasswordDialog } from "@/composables/usePasswordDialog";
@@ -81,6 +82,8 @@ const ChangelogModal = defineAsyncComponent(() => import("@/components/modal/Cha
 const authStore = useAuthStore();
 const toast = useToast();
 const router = useRouter();
+const route = useRoute();
+const useSideNav = computed(() => route.meta?.navStyle === "side");
 const uiStore = useUiStore();
 const theme = useTheme();
 const cashierSessionStore = useCashierSessionStore();
@@ -377,7 +380,10 @@ const fetchPrayerTimes = async () => {
 
     // API Aladhan (Method 20 = Kemenag RI)
     const now = new Date();
-    const today = `${String(now.getDate()).padStart(2, "0")}-${String(now.getMonth() + 1).padStart(2, "0")}-${now.getFullYear()}`;
+    const today = `${String(now.getDate()).padStart(2, "0")}-${String(now.getMonth() + 1).padStart(
+      2,
+      "0"
+    )}-${now.getFullYear()}`;
     const response = await axios.get(`https://api.aladhan.com/v1/timingsByCity/${today}`, {
       params: {
         city: city.value,
@@ -791,9 +797,16 @@ onUnmounted(() => {
 
 <template>
   <div>
-    <Navbar v-if="authStore.isAuthenticated" />
+    <Navbar v-if="authStore.isAuthenticated && !useSideNav" />
+    <SidePanelNav v-if="authStore.isAuthenticated && useSideNav" />
     <v-main>
-      <router-view />
+      <router-view v-slot="{ Component, route }">
+        <transition name="slide-fade" mode="out-in">
+          <keep-alive :include="['HomeView']">
+            <component :is="Component" :key="route.path" />
+          </keep-alive>
+        </transition>
+      </router-view>
     </v-main>
 
     <v-footer
@@ -2194,5 +2207,19 @@ onUnmounted(() => {
   100% {
     transform: rotate(0);
   }
+}
+
+.slide-fade-enter-active,
+.slide-fade-leave-active {
+  transition: transform 0.28s cubic-bezier(0.25, 0.8, 0.25, 1), opacity 0.24s ease;
+  will-change: transform, opacity;
+}
+.slide-fade-enter-from {
+  transform: translateX(16px);
+  opacity: 0;
+}
+.slide-fade-leave-to {
+  transform: translateX(-16px);
+  opacity: 0;
 }
 </style>

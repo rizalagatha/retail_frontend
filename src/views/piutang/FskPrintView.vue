@@ -13,6 +13,7 @@ interface PrintDetail1 {
   kdcus: string;
   nmcus: string;
   inv: string;
+  nomor_so?: string;
   nominal: number;
 }
 
@@ -126,6 +127,7 @@ onMounted(() => {
               <th>KdCus</th>
               <th>Nama Customer</th>
               <th>Invoice</th>
+              <th>No. SO</th>
               <th class="text-end">Nominal</th>
             </tr>
           </thead>
@@ -137,12 +139,13 @@ onMounted(() => {
               <td>{{ item.kdcus }}</td>
               <td>{{ item.nmcus }}</td>
               <td>{{ item.inv }}</td>
+              <td>{{ item.nomor_so || "-" }}</td>
               <td class="text-end">{{ formatRupiah(item.nominal) }}</td>
             </tr>
           </tbody>
           <tfoot>
             <tr>
-              <td colspan="6" class="text-end grand-total">Total Setoran</td>
+              <td colspan="7" class="text-end grand-total">Total Setoran</td>
               <td class="text-end grand-total">{{ formatRupiah(totalNominalRincian) }}</td>
             </tr>
           </tfoot>
@@ -213,6 +216,24 @@ onMounted(() => {
   gap: 15px; /* ✅ Gunakan gap untuk jarak */
   margin-bottom: 10px;
   width: 100%;
+}
+
+.print-container {
+  font-family: "Segoe UI", Tahoma, sans-serif;
+  font-size: 9pt;
+  background-color: #e8e8e8; /* latar abu di luar kertas, biar kertas kelihatan jelas batasnya */
+  padding: 20px 0;
+  min-height: 100vh;
+}
+
+.page {
+  width: 210mm;
+  min-height: 297mm;
+  padding: 10mm;
+  margin: 0 auto;
+  box-sizing: border-box;
+  background: #fff;
+  box-shadow: 0 0 8px rgba(0, 0, 0, 0.2); /* efek visual "lembar kertas" saat preview di layar */
 }
 
 .logo {
@@ -354,11 +375,13 @@ th {
     left: 0;
     top: 0;
     width: 100%;
+    background: #fff; /* override abu-abu, supaya tidak ikut nge-print */
+    padding: 0;
   }
 
   .page {
     border: none;
-    box-shadow: none;
+    box-shadow: none; /* hilangkan bayangan kertas */
     margin: 0;
     padding: 0;
   }

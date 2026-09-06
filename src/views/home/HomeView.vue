@@ -1,4 +1,6 @@
 <script setup lang="ts">
+defineOptions({ name: "HomeView" });
+
 import { ref, onMounted, onUnmounted, computed, reactive, watch } from "vue";
 import { useAuthStore } from "@/stores/authStore";
 import { useRouter } from "vue-router";
@@ -36,6 +38,7 @@ import JuknisModal from "@/components/modal/JuknisModal.vue";
 import TrackingAnalytics from "@/components/button/TrackingAnalytics.vue";
 import RealStockDialog from "@/components/modal/RealStockDialog.vue";
 import KaosanAiDialog from "@/components/dialog/KaosanAiDialog.vue";
+import { useSwipeNavigate } from "@/composables/useSwipeNavigate";
 
 ChartJS.register(
   Title,
@@ -2491,6 +2494,10 @@ const getStatusIcon = (status: string) => {
   }
 };
 
+const { onPointerDown, onPointerMove, onPointerUp, onPointerCancel } = useSwipeNavigate({
+  onSwipeLeft: () => router.push({ name: "WorkSummary" }),
+});
+
 // --- WATCHERS ---
 watch(stokKosongCabang, () => {
   fetchStokKosong();
@@ -2723,3188 +2730,570 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <!-- ============================================================
+  <div>
+    <!-- ============================================================
        LANDING PAGE — untuk user yang belum login
        ============================================================ -->
-  <v-container v-if="!authStore.isAuthenticated" class="landing-container pa-0 fill-height" fluid>
-    <div class="bg-overlay"></div>
-    <v-img :src="storeBg" cover class="bg-image" position="center center" />
-    <v-row align="center" justify="center" class="fill-height content-layer ma-0">
-      <v-col cols="12" md="10" lg="8" class="text-center">
-        <div class="hero-glass-card pa-8 pa-md-12 mb-8">
-          <v-avatar size="110" class="mb-6 elevation-12 logo-glow">
-            <v-img :src="logoUrl" alt="Kaosan Logo" />
-          </v-avatar>
-          <h1 class="text-h3 font-weight-black text-white mb-2 tracking-wide text-shadow">
-            KAOSAN
-          </h1>
-          <div
-            class="text-h6 text-uppercase text-white font-weight-light mb-6 tracking-widest text-shadow"
-          >
-            Retail Management System
+    <v-container v-if="!authStore.isAuthenticated" class="landing-container pa-0 fill-height" fluid>
+      <div class="bg-overlay"></div>
+      <v-img :src="storeBg" cover class="bg-image" position="center center" />
+      <v-row align="center" justify="center" class="fill-height content-layer ma-0">
+        <v-col cols="12" md="10" lg="8" class="text-center">
+          <div class="hero-glass-card pa-8 pa-md-12 mb-8">
+            <v-avatar size="110" class="mb-6 elevation-12 logo-glow">
+              <v-img :src="logoUrl" alt="Kaosan Logo" />
+            </v-avatar>
+            <h1 class="text-h3 font-weight-black text-white mb-2 tracking-wide text-shadow">
+              KAOSAN
+            </h1>
+            <div
+              class="text-h6 text-uppercase text-white font-weight-light mb-6 tracking-widest text-shadow"
+            >
+              Retail Management System
+            </div>
+            <v-btn
+              color="white"
+              size="x-large"
+              rounded="pill"
+              @click="goToLogin"
+              prepend-icon="mdi-login-variant"
+              class="px-10 text-primary font-weight-bold btn-glow"
+              height="56"
+            >
+              Masuk ke Dashboard
+            </v-btn>
           </div>
-          <v-btn
-            color="white"
-            size="x-large"
-            rounded="pill"
-            @click="goToLogin"
-            prepend-icon="mdi-login-variant"
-            class="px-10 text-primary font-weight-bold btn-glow"
-            height="56"
-          >
-            Masuk ke Dashboard
-          </v-btn>
-        </div>
-      </v-col>
-      <v-col cols="12" md="12" lg="10">
-        <v-row>
-          <v-col cols="12" sm="6" md="3">
-            <div class="feature-glass-card pa-6 text-center text-white h-100">
-              <v-icon size="40" class="mb-3">mdi-monitor-dashboard</v-icon>
-              <h3 class="text-h6 font-weight-bold mb-2">POS & Penjualan</h3>
-              <p class="text-body-2 opacity-80">
-                Aplikasi kasir lengkap untuk mencatat penjualan tunai/kredit, cetak struk, dan
-                kelola pelanggan.
-              </p>
-            </div>
-          </v-col>
-          <v-col cols="12" sm="6" md="3">
-            <div class="feature-glass-card pa-6 text-center text-white h-100">
-              <v-icon size="40" class="mb-3">mdi-package-variant-closed</v-icon>
-              <h3 class="text-h6 font-weight-bold mb-2">Manajemen Stok</h3>
-              <p class="text-body-2 opacity-80">
-                Pantau stok real-time antar cabang, stok opname mudah, dan peringatan dini barang
-                menipis.
-              </p>
-            </div>
-          </v-col>
-          <v-col cols="12" sm="6" md="3">
-            <div class="feature-glass-card pa-6 text-center text-white h-100">
-              <v-icon size="40" class="mb-3">mdi-chart-timeline-variant</v-icon>
-              <h3 class="text-h6 font-weight-bold mb-2">Laporan Lengkap</h3>
-              <p class="text-body-2 opacity-80">
-                Analisa omset, laba rugi, dan trend penjualan harian hingga bulanan secara instan.
-              </p>
-            </div>
-          </v-col>
-          <v-col cols="12" sm="6" md="3">
-            <div class="feature-glass-card pa-6 text-center text-white h-100">
-              <v-icon size="40" class="mb-3">mdi-store-cog</v-icon>
-              <h3 class="text-h6 font-weight-bold mb-2">Multi Cabang</h3>
-              <p class="text-body-2 opacity-80">
-                Kelola operasional pusat (KDC) dan seluruh cabang retail dalam satu platform
-                terintegrasi.
-              </p>
-            </div>
-          </v-col>
-        </v-row>
-      </v-col>
-    </v-row>
-  </v-container>
-
-  <!-- ============================================================
-       DASHBOARD — untuk user yang sudah login
-       ============================================================ -->
-  <v-container v-else class="home-container bg-background pa-0" fluid>
-    <!-- HEADER BANNER -->
-    <div class="dashboard-header">
-      <v-img :src="bannerImage" cover class="header-bg">
-        <div class="header-overlay"></div>
-      </v-img>
-      <div class="header-content pt-6 px-6 pb-12">
-        <div class="welcome-text text-white mt-4">
-          <div class="d-flex align-center justify-space-between mb-2">
-            <!-- Kiri: logo + teks -->
-            <div class="d-flex align-center">
-              <v-avatar size="64" color="white" class="mr-4 elevation-4 pa-1">
-                <v-img :src="logoUrl" alt="Kaosan Logo" />
-              </v-avatar>
-              <div>
-                <h1 class="text-h3 font-weight-bold text-white text-shadow mb-1">
-                  Selamat Datang di Kaosan
-                </h1>
-                <p class="text-subtitle-1 text-white opacity-90 mb-0 font-weight-light">
-                  Retail Management System • {{ currentTime }}
+        </v-col>
+        <v-col cols="12" md="12" lg="10">
+          <v-row>
+            <v-col cols="12" sm="6" md="3">
+              <div class="feature-glass-card pa-6 text-center text-white h-100">
+                <v-icon size="40" class="mb-3">mdi-monitor-dashboard</v-icon>
+                <h3 class="text-h6 font-weight-bold mb-2">POS & Penjualan</h3>
+                <p class="text-body-2 opacity-80">
+                  Aplikasi kasir lengkap untuk mencatat penjualan tunai/kredit, cetak struk, dan
+                  kelola pelanggan.
                 </p>
               </div>
-            </div>
+            </v-col>
+            <v-col cols="12" sm="6" md="3">
+              <div class="feature-glass-card pa-6 text-center text-white h-100">
+                <v-icon size="40" class="mb-3">mdi-package-variant-closed</v-icon>
+                <h3 class="text-h6 font-weight-bold mb-2">Manajemen Stok</h3>
+                <p class="text-body-2 opacity-80">
+                  Pantau stok real-time antar cabang, stok opname mudah, dan peringatan dini barang
+                  menipis.
+                </p>
+              </div>
+            </v-col>
+            <v-col cols="12" sm="6" md="3">
+              <div class="feature-glass-card pa-6 text-center text-white h-100">
+                <v-icon size="40" class="mb-3">mdi-chart-timeline-variant</v-icon>
+                <h3 class="text-h6 font-weight-bold mb-2">Laporan Lengkap</h3>
+                <p class="text-body-2 opacity-80">
+                  Analisa omset, laba rugi, dan trend penjualan harian hingga bulanan secara instan.
+                </p>
+              </div>
+            </v-col>
+            <v-col cols="12" sm="6" md="3">
+              <div class="feature-glass-card pa-6 text-center text-white h-100">
+                <v-icon size="40" class="mb-3">mdi-store-cog</v-icon>
+                <h3 class="text-h6 font-weight-bold mb-2">Multi Cabang</h3>
+                <p class="text-body-2 opacity-80">
+                  Kelola operasional pusat (KDC) dan seluruh cabang retail dalam satu platform
+                  terintegrasi.
+                </p>
+              </div>
+            </v-col>
+          </v-row>
+        </v-col>
+      </v-row>
+    </v-container>
 
-            <!-- Kanan: WRAPPER UTAMA TOMBOL (Atas - Bawah) -->
-            <div class="d-flex flex-column align-end" style="gap: 10px">
-              <!-- Baris Atas: Tombol Panduan & Traffic -->
-              <div class="d-flex ga-3">
-                <v-btn
-                  v-if="authStore.user?.cabang === 'KDC'"
-                  color="white"
-                  variant="flat"
-                  prepend-icon="mdi-google-analytics"
-                  class="text-blue-darken-3 font-weight-bold px-5"
-                  size="large"
-                  elevation="4"
-                  rounded="lg"
-                  @click="showTrackingAnalytics = true"
-                >
-                  Traffic Tracking
-                </v-btn>
-
-                <v-btn
-                  color="white"
-                  variant="flat"
-                  prepend-icon="mdi-book-open-variant"
-                  class="text-indigo-darken-3 font-weight-bold px-5"
-                  size="large"
-                  elevation="4"
-                  rounded="lg"
-                  @click="showJuknis = true"
-                >
-                  Panduan Alur Penjualan
-                </v-btn>
+    <!-- ============================================================
+       DASHBOARD — untuk user yang sudah login
+       ============================================================ -->
+    <v-container v-else class="home-container bg-background pa-0" fluid>
+      <!-- HEADER BANNER -->
+      <div class="dashboard-header">
+        <v-img :src="bannerImage" cover class="header-bg">
+          <div class="header-overlay"></div>
+        </v-img>
+        <div class="header-content pt-6 px-6 pb-12">
+          <div class="welcome-text text-white mt-4">
+            <div class="d-flex align-center justify-space-between mb-2">
+              <!-- Kiri: logo + teks -->
+              <div class="d-flex align-center">
+                <v-avatar size="64" color="white" class="mr-4 elevation-4 pa-1">
+                  <v-img :src="logoUrl" alt="Kaosan Logo" />
+                </v-avatar>
+                <div>
+                  <h1 class="text-h3 font-weight-bold text-white text-shadow mb-1">
+                    Selamat Datang di Kaosan
+                  </h1>
+                  <p class="text-subtitle-1 text-white opacity-90 mb-0 font-weight-light">
+                    Retail Management System • {{ currentTime }}
+                  </p>
+                </div>
               </div>
 
-              <!-- Baris Bawah: Tombol Stok Real -->
-              <div class="d-flex" style="position: relative; width: 100%">
-                <v-btn
-                  block
-                  color="blue-darken-3"
-                  variant="flat"
-                  elevation="4"
-                  rounded="lg"
-                  prepend-icon="mdi-package-variant-closed"
-                  class="font-weight-bold text-none"
-                  @click="isRealStockOpen = true"
-                >
-                  Lihat Stok Real Toko (Sisa Kuota)
-                  <v-badge
-                    v-if="overbookedCount > 0"
-                    :content="overbookedCount"
-                    color="error"
-                    inline
-                    class="ml-2"
-                  />
-                </v-btn>
+              <!-- Kanan: WRAPPER UTAMA TOMBOL (Atas - Bawah) -->
+              <div class="d-flex flex-column align-end" style="gap: 10px">
+                <!-- Baris Atas: Tombol Panduan & Traffic -->
+                <div class="d-flex ga-3">
+                  <v-btn
+                    v-if="authStore.user?.cabang === 'KDC'"
+                    color="white"
+                    variant="flat"
+                    prepend-icon="mdi-google-analytics"
+                    class="text-blue-darken-3 font-weight-bold px-5"
+                    size="large"
+                    elevation="4"
+                    rounded="lg"
+                    @click="showTrackingAnalytics = true"
+                  >
+                    Traffic Tracking
+                  </v-btn>
+
+                  <v-btn
+                    color="white"
+                    variant="flat"
+                    prepend-icon="mdi-book-open-variant"
+                    class="text-indigo-darken-3 font-weight-bold px-5"
+                    size="large"
+                    elevation="4"
+                    rounded="lg"
+                    @click="showJuknis = true"
+                  >
+                    Panduan Alur Penjualan
+                  </v-btn>
+                </div>
+
+                <!-- Baris Bawah: Tombol Stok Real -->
+                <div class="d-flex" style="position: relative; width: 100%">
+                  <v-btn
+                    block
+                    color="blue-darken-3"
+                    variant="flat"
+                    elevation="4"
+                    rounded="lg"
+                    prepend-icon="mdi-package-variant-closed"
+                    class="font-weight-bold text-none"
+                    @click="isRealStockOpen = true"
+                  >
+                    Lihat Stok Real Toko (Sisa Kuota)
+                    <v-badge
+                      v-if="overbookedCount > 0"
+                      :content="overbookedCount"
+                      color="error"
+                      inline
+                      class="ml-2"
+                    />
+                  </v-btn>
+                </div>
               </div>
+              <!-- /Akhir Kanan -->
             </div>
-            <!-- /Akhir Kanan -->
           </div>
         </div>
       </div>
-    </div>
 
-    <!-- DASHBOARD CONTENT -->
-    <div class="dashboard-content px-4 px-md-6 mt-n8 position-relative" style="z-index: 2">
-      <div class="deep-sky-gradient elevation-3 mb-6">
-        <!-- PROMO TICKER -->
-        <v-row v-if="promoText" class="mb-4">
-          <v-col cols="12" class="pa-0">
-            <div class="promo-ticker-container elevation-4 bg-surface text-high-emphasis">
-              <div class="ticker-label">
-                <v-icon icon="mdi-bullhorn" size="18" class="mr-2 swing-animation" />
-                <span
-                  class="font-weight-bold text-uppercase"
-                  style="font-size: 0.75rem; letter-spacing: 1px"
-                  >Info Promo</span
-                >
-              </div>
-              <div class="ticker-track-wrapper bg-surface-variant">
-                <div class="ticker-track">
-                  <span class="ticker-content">{{ promoText }}</span>
-                  <span class="ticker-content">{{ promoText }}</span>
-                </div>
-              </div>
-            </div>
-          </v-col>
-        </v-row>
-
-        <!-- ── STAT CARDS (selalu tampil di semua tab) ── -->
-        <v-row dense align="stretch" class="mb-5">
-          <!-- Penjualan Hari Ini -->
-          <v-col v-if="!isWarehouseUser" cols="12" sm="6" md="2">
-            <v-menu
-              v-if="authStore.user?.cabang === 'KDC'"
-              open-on-hover
-              location="bottom center"
-              transition="scale-transition"
-              :close-on-content-click="false"
-            >
-              <template v-slot:activator="{ props }">
-                <v-card
-                  v-bind="props"
-                  class="stat-card fill-height py-1 cursor-pointer"
-                  color="green-lighten-5"
-                  variant="flat"
-                >
-                  <v-card-text
-                    class="text-center pa-2 d-flex flex-column justify-center position-relative"
-                  >
-                    <div
-                      v-if="trendIndicators.sales === 'up'"
-                      class="trend-badge up"
-                      style="top: 4px; right: 4px"
-                    >
-                      <v-icon size="x-small">mdi-arrow-up</v-icon>
-                    </div>
-                    <v-icon color="green" size="24" class="mb-1">mdi-cash-multiple</v-icon>
-                    <div class="text-h6 font-weight-bold text-green-darken-2">
-                      <span v-if="isLoadingStats && animatedSales === 0">...</span>
-                      <span v-else>{{ formatRupiah(Number(animatedSales.toFixed(0))) }}</span>
-                    </div>
-                    <v-chip
-                      v-if="!isLoadingStats"
-                      size="x-small"
-                      color="green"
-                      variant="flat"
-                      class="font-weight-bold mt-1 align-self-center"
-                      >{{ Math.round(animatedQty) }} pcs</v-chip
-                    >
-                    <div class="text-caption text-grey-darken-1 mt-1">Penjualan Hari Ini</div>
-                    <v-icon size="x-small" color="grey" class="mt-1">mdi-chevron-down</v-icon>
-                  </v-card-text>
-                </v-card>
-              </template>
-              <v-card max-width="350" elevation="4">
-                <v-list-item class="bg-green-lighten-4 text-green-darken-4 density-compact">
-                  <v-list-item-title class="font-weight-bold text-caption"
-                    >Ranking Omset Cabang</v-list-item-title
-                  >
-                </v-list-item>
-                <v-divider />
-                <v-card-text class="pa-0" style="max-height: 300px; overflow-y: auto">
-                  <div v-if="isLoadingStats" class="text-center pa-4">
-                    <v-progress-circular indeterminate size="20" color="green" />
-                  </div>
-                  <v-list v-else density="compact" class="py-0">
-                    <template v-if="stats.salesBreakdown && stats.salesBreakdown.length > 0">
-                      <v-list-item
-                        v-for="(item, index) in stats.salesBreakdown"
-                        :key="index"
-                        density="compact"
-                        class="py-2"
-                      >
-                        <v-list-item-title class="text-caption d-flex align-center mb-1">
-                          <v-chip
-                            size="x-small"
-                            color="grey-lighten-2"
-                            class="mr-2 font-weight-bold text-grey-darken-2"
-                            variant="flat"
-                            >#{{ index + 1 }}</v-chip
-                          >
-                          <span class="font-weight-bold">{{ item.nama }}</span>
-                        </v-list-item-title>
-                        <v-list-item-subtitle class="pl-8">
-                          <span
-                            class="text-caption font-weight-black text-green-darken-3"
-                            style="font-size: 0.85rem !important"
-                            >{{ formatRupiah(item.omset) }}</span
-                          >
-                        </v-list-item-subtitle>
-                      </v-list-item>
-                    </template>
-                    <div v-else class="text-center text-caption py-4 text-grey">
-                      Belum ada data penjualan.
-                    </div>
-                  </v-list>
-                </v-card-text>
-              </v-card>
-            </v-menu>
-
-            <v-card
-              v-else
-              class="stat-card fill-height py-1"
-              color="green-lighten-5"
-              variant="flat"
-            >
-              <v-card-text
-                class="text-center pa-2 d-flex flex-column justify-center position-relative"
-              >
-                <div
-                  v-if="trendIndicators.sales === 'up'"
-                  class="trend-badge up"
-                  style="top: 4px; right: 4px"
-                >
-                  <v-icon size="x-small">mdi-arrow-up</v-icon>
-                </div>
-                <v-icon color="green" size="24" class="mb-1">mdi-cash-multiple</v-icon>
-                <div class="text-h6 font-weight-bold text-green-darken-2">
-                  <span v-if="isLoadingStats && animatedSales === 0">...</span>
-                  <span v-else>{{ formatRupiah(Number(animatedSales.toFixed(0))) }}</span>
-                </div>
-                <v-chip
-                  v-if="!isLoadingStats"
-                  size="x-small"
-                  color="green"
-                  variant="flat"
-                  class="font-weight-bold mt-1 align-self-center"
-                  >{{ Math.round(animatedQty) }} pcs</v-chip
-                >
-                <div class="text-caption text-grey-darken-1 mt-1">Penjualan Hari Ini</div>
-              </v-card-text>
-            </v-card>
-          </v-col>
-
-          <!-- Transaksi Hari Ini -->
-          <v-col v-if="!isWarehouseUser" cols="12" sm="3" md="1">
-            <v-card class="stat-card fill-height py-1" color="blue-lighten-5" variant="flat">
-              <v-card-text
-                class="text-center pa-2 d-flex flex-column justify-center align-center h-100"
-              >
-                <v-icon color="blue" size="24">mdi-receipt</v-icon>
-                <div class="text-h5 font-weight-bold text-blue-darken-2 my-1">
-                  <span v-if="isLoadingStats">...</span>
-                  <span v-else>{{ Math.round(animatedTx) }}</span>
-                </div>
-                <div class="text-caption text-grey-darken-1" style="line-height: 1.1">
-                  Trx Hari Ini
-                </div>
-              </v-card-text>
-            </v-card>
-          </v-col>
-
-          <!-- Kesiapan Pareto -->
-          <v-col cols="12" sm="6" md="3">
-            <v-card
-              class="stat-card fill-height cursor-pointer"
-              :color="healthStatus.color"
-              variant="tonal"
-              @click="openParetoDetail"
-            >
-              <v-tooltip activator="parent" location="top"
-                >Klik untuk lihat detail barang</v-tooltip
-              >
-              <v-card-text class="text-center pa-2 d-flex flex-column justify-center">
-                <div class="d-flex align-center justify-center mb-1">
-                  <v-icon size="18" class="mr-1">{{ healthStatus.icon }}</v-icon>
-                  <span class="text-caption font-weight-bold opacity-80">{{
-                    authStore.user?.cabang === "KDC"
-                      ? "KESIAPAN SUPPLY PARETO (DC)"
-                      : "KESIAPAN STOK PARETO"
-                  }}</span>
-                </div>
-                <div class="text-h4 font-weight-black my-0">
-                  <span v-if="isLoadingPareto">...</span>
-                  <span v-else>{{ paretoStats.score }}%</span>
-                </div>
-                <div class="text-caption font-weight-bold opacity-80 mb-1">
-                  {{ healthStatus.text }}
-                </div>
-                <div
-                  v-if="authStore.user?.cabang !== 'KDC'"
-                  class="d-flex justify-space-between px-2 text-caption opacity-70 w-100"
-                >
+      <!-- DASHBOARD CONTENT -->
+      <div
+        class="dashboard-content px-4 px-md-6 mt-n8 position-relative"
+        style="z-index: 2"
+        @pointerdown="onPointerDown"
+        @pointermove="onPointerMove"
+        @pointerup="onPointerUp"
+        @pointercancel="onPointerCancel"
+      >
+        <div class="deep-sky-gradient elevation-3 mb-6">
+          <!-- PROMO TICKER -->
+          <v-row v-if="promoText" class="mb-4">
+            <v-col cols="12" class="pa-0">
+              <div class="promo-ticker-container elevation-4 bg-surface text-high-emphasis">
+                <div class="ticker-label">
+                  <v-icon icon="mdi-bullhorn" size="18" class="mr-2 swing-animation" />
                   <span
-                    >Laku: <strong>{{ paretoStats.sku_count }}</strong></span
-                  >
-                  <span
-                    >Target: <strong>{{ paretoStats.buffer_stock.toLocaleString() }}</strong></span
+                    class="font-weight-bold text-uppercase"
+                    style="font-size: 0.75rem; letter-spacing: 1px"
+                    >Info Promo</span
                   >
                 </div>
-                <div
-                  v-else
-                  class="text-caption opacity-70 px-2"
-                  style="font-size: 0.7rem; line-height: 1.1"
-                >
-                  Kemampuan supply ke {{ paretoStats.store_count || 11 }} cabang.
-                </div>
-              </v-card-text>
-            </v-card>
-          </v-col>
-
-          <!-- Total Stok -->
-          <v-col cols="12" sm="4" md="3">
-            <v-menu
-              v-if="authStore.user?.cabang === 'KDC'"
-              open-on-hover
-              location="bottom center"
-              transition="scale-transition"
-            >
-              <template v-slot:activator="{ props }">
-                <v-card
-                  v-bind="props"
-                  class="stat-card fill-height py-1 cursor-pointer"
-                  color="light-blue-lighten-5"
-                  variant="flat"
-                >
-                  <v-card-text class="text-center pa-2">
-                    <v-icon color="light-blue" size="24" class="mb-1">mdi-warehouse</v-icon>
-                    <div class="text-h6 font-weight-bold text-light-blue-darken-2">
-                      <span v-if="isLoadingStock && animatedTotalStock === 0">...</span>
-                      <span v-else>{{
-                        Math.round(animatedTotalStock).toLocaleString("id-ID")
-                      }}</span>
-                    </div>
-                    <div class="text-caption text-grey-darken-1">Total Stok (Semua Cabang)</div>
-                    <v-icon size="x-small" color="grey" class="mt-1">mdi-chevron-down</v-icon>
-                  </v-card-text>
-                </v-card>
-              </template>
-              <v-card max-width="320" elevation="4">
-                <v-list-item
-                  class="bg-light-blue-lighten-4 text-light-blue-darken-4 density-compact"
-                >
-                  <v-list-item-title class="font-weight-bold text-caption"
-                    >Stok per Cabang</v-list-item-title
-                  >
-                </v-list-item>
-                <v-divider />
-                <v-card-text class="pa-0" style="max-height: 300px; overflow-y: auto">
-                  <div v-if="isLoadingStockBreakdown" class="text-center pa-2">
-                    <v-progress-circular indeterminate size="20" />
+                <div class="ticker-track-wrapper bg-surface-variant">
+                  <div class="ticker-track">
+                    <span class="ticker-content">{{ promoText }}</span>
+                    <span class="ticker-content">{{ promoText }}</span>
                   </div>
-                  <v-list v-else density="compact" class="py-0">
-                    <v-list-item
-                      v-for="item in stockBreakdown"
-                      :key="item.kode_cabang"
-                      density="compact"
-                    >
-                      <v-list-item-title class="text-caption">{{
-                        item.nama_cabang || item.kode_cabang
-                      }}</v-list-item-title>
-                      <template #append
-                        ><span class="text-caption font-weight-bold">{{
-                          item.totalStock.toLocaleString("id-ID")
-                        }}</span></template
-                      >
-                    </v-list-item>
-                  </v-list>
-                </v-card-text>
-              </v-card>
-            </v-menu>
-
-            <v-card
-              v-else
-              class="stat-card fill-height py-1"
-              color="light-blue-lighten-5"
-              variant="flat"
-            >
-              <v-card-text class="text-center pa-2">
-                <v-icon color="light-blue" size="24" class="mb-1"
-                  >mdi-package-variant-closed</v-icon
-                >
-                <div class="text-h6 font-weight-bold text-light-blue-darken-2">
-                  <span v-if="isLoadingStock && animatedTotalStock === 0">...</span>
-                  <span v-else>{{ Math.round(animatedTotalStock).toLocaleString("id-ID") }}</span>
                 </div>
-                <div class="text-caption text-grey-darken-1">Stok Rak (Ready)</div>
+              </div>
+            </v-col>
+          </v-row>
 
-                <div
-                  class="text-caption text-indigo-darken-1 font-weight-bold"
-                  style="font-size: 0.65rem !important"
-                >
-                  Booking: {{ Math.round(animatedReservedStock).toLocaleString("id-ID") }} pcs
-                </div>
-
-                <div
-                  v-if="!isLoadingStats && !isLoadingStock"
-                  class="d-flex justify-center ga-2 mt-1 pt-1 border-t w-100"
-                >
-                  <span class="text-caption text-success font-weight-bold">
-                    <v-icon size="x-small" start>mdi-arrow-up</v-icon>{{ stats.todayStokIn }}
-                  </span>
-                  <span class="text-caption text-error font-weight-bold">
-                    <v-icon size="x-small" start>mdi-arrow-down</v-icon>{{ stats.todayStokOut }}
-                  </span>
-                </div>
-              </v-card-text>
-            </v-card>
-          </v-col>
-
-          <!-- Sisa Piutang -->
-          <v-col v-if="!isWarehouseUser" cols="12" sm="4" md="3">
-            <v-menu
-              open-on-hover
-              location="bottom center"
-              transition="scale-transition"
-              :close-on-content-click="false"
-            >
-              <template v-slot:activator="{ props }">
-                <v-card
-                  v-bind="props"
-                  class="stat-card fill-height py-1 cursor-pointer"
-                  color="orange-lighten-5"
-                  variant="flat"
-                >
-                  <v-card-text class="text-center pa-2">
-                    <v-icon color="orange-darken-1" size="24" class="mb-1"
-                      >mdi-clock-alert-outline</v-icon
-                    >
-                    <div class="text-h6 font-weight-bold text-orange-darken-2 text-truncate">
-                      <span v-if="isLoadingPiutang">...</span>
-                      <span v-else>{{ formatRupiah(Number(animatedPiutang.toFixed(0))) }}</span>
-                    </div>
-                    <div class="text-caption text-grey-darken-1">Sisa Piutang</div>
-                  </v-card-text>
-                </v-card>
-              </template>
-              <v-card max-width="320" elevation="4">
-                <v-list-item class="bg-orange-lighten-4 text-orange-darken-4 density-compact">
-                  <v-list-item-title class="font-weight-bold text-caption">{{
-                    authStore.user?.cabang === "KDC"
-                      ? "Piutang per Cabang"
-                      : "Top Invoice Belum Lunas"
-                  }}</v-list-item-title>
-                </v-list-item>
-                <v-divider />
-                <v-card-text class="pa-0" style="max-height: 300px; overflow-y: auto">
-                  <div v-if="isLoadingPiutangBreakdown" class="text-center pa-2">
-                    <v-progress-circular indeterminate size="20" />
-                  </div>
-                  <v-list
-                    v-else-if="authStore.user?.cabang === 'KDC'"
-                    density="compact"
-                    class="py-0"
+          <!-- ── STAT CARDS (selalu tampil di semua tab) ── -->
+          <v-row dense align="stretch" class="mb-5">
+            <!-- Penjualan Hari Ini -->
+            <v-col v-if="!isWarehouseUser" cols="12" sm="6" md="2">
+              <v-menu
+                v-if="authStore.user?.cabang === 'KDC'"
+                open-on-hover
+                location="bottom center"
+                transition="scale-transition"
+                :close-on-content-click="false"
+              >
+                <template v-slot:activator="{ props }">
+                  <v-card
+                    v-bind="props"
+                    class="stat-card fill-height py-1 cursor-pointer"
+                    color="green-lighten-5"
+                    variant="flat"
                   >
-                    <v-list-item
-                      v-for="item in piutangBreakdown"
-                      :key="item.cabang_kode"
-                      density="compact"
+                    <v-card-text
+                      class="text-center pa-2 d-flex flex-column justify-center position-relative"
                     >
-                      <v-list-item-title class="text-caption">{{
-                        item.cabang_nama
-                      }}</v-list-item-title>
-                      <template #append
-                        ><span class="text-caption font-weight-bold">{{
-                          formatRupiah(item.sisa_piutang)
-                        }}</span></template
+                      <div
+                        v-if="trendIndicators.sales === 'up'"
+                        class="trend-badge up"
+                        style="top: 4px; right: 4px"
                       >
-                    </v-list-item>
-                  </v-list>
-                  <v-list v-else density="compact" class="py-0">
-                    <v-list-item
-                      v-for="inv in piutangInvoiceDetails"
-                      :key="inv.invoice"
-                      class="px-4 py-2 border-b"
-                    >
-                      <div class="d-flex justify-space-between w-100 align-center">
-                        <div class="d-flex flex-column text-truncate pr-2" style="max-width: 65%">
-                          <span class="text-caption font-weight-bold text-blue-darken-3">{{
-                            inv.invoice
-                          }}</span>
-                          <span
-                            class="text-caption text-grey text-truncate"
-                            style="font-size: 0.65rem"
-                          >
-                            {{ inv.tanggal }} • {{ inv.customer_nama || "UMUM" }}
-                          </span>
-                        </div>
-                        <span class="text-caption font-weight-bold text-error">
-                          {{ formatRupiah(inv.sisa_piutang) }}
-                        </span>
+                        <v-icon size="x-small">mdi-arrow-up</v-icon>
                       </div>
-                    </v-list-item>
-                  </v-list>
-                </v-card-text>
-              </v-card>
-            </v-menu>
-          </v-col>
-        </v-row>
-        <!-- ── END STAT CARDS ── -->
-
-        <!-- ══════════════════════════════════════════════════════
-             TAB NAVIGATION
-             ══════════════════════════════════════════════════════ -->
-        <v-tabs
-          v-model="activeTab"
-          density="compact"
-          color="primary"
-          bg-color="transparent"
-          class="mb-1 dashboard-tabs"
-          show-arrows
-        >
-          <v-tab value="beranda" class="text-caption text-sm-body-2">
-            <v-icon start size="small">mdi-home-outline</v-icon>
-            Beranda
-          </v-tab>
-
-          <v-tab v-if="!isWarehouseUser" value="penjualan" class="text-caption text-sm-body-2">
-            <v-icon start size="small">mdi-chart-line</v-icon>
-            Penjualan
-          </v-tab>
-
-          <v-tab value="stok" class="text-caption text-sm-body-2">
-            <v-icon start size="small">mdi-package-variant</v-icon>
-            Stok
-            <v-chip
-              v-if="lowStockCount > 0"
-              size="x-small"
-              color="error"
-              variant="flat"
-              class="ml-1 font-weight-bold"
-              >{{ lowStockCount }}</v-chip
-            >
-          </v-tab>
-
-          <v-tab value="operasional" class="text-caption text-sm-body-2">
-            <v-icon start size="small">mdi-cog-outline</v-icon>
-            Operasional
-          </v-tab>
-
-          <v-tab v-if="!isWarehouseUser" value="keuangan" class="text-caption text-sm-body-2">
-            <v-icon start size="small">mdi-cash-multiple</v-icon>
-            Keuangan
-          </v-tab>
-        </v-tabs>
-
-        <v-divider class="mb-5" />
-
-        <v-tabs-window v-model="activeTab">
-          <!-- ══════════════════════════════════════════
-               TAB 1 — BERANDA
-               Snapshot + Menu cepat + Tindakan pending + Ringkasan jadwal
-               ══════════════════════════════════════════ -->
-          <v-tabs-window-item value="beranda">
-            <v-row dense class="mb-4">
-              <!-- Menu Sering Diakses -->
-              <v-col cols="12" lg="5">
-                <v-card elevation="2" class="bg-surface fill-height">
-                  <v-card-title
-                    class="d-flex align-center bg-blue-grey-lighten-5 text-blue-grey-darken-3 py-2"
-                  >
-                    <v-icon class="mr-2" color="primary" size="small">mdi-history</v-icon>
-                    <span class="text-subtitle-2 font-weight-bold">Sering Diakses</span>
-                  </v-card-title>
-                  <v-card-text class="pa-4">
-                    <div v-if="isLoadingFrequent" class="text-center pa-4">
-                      <v-progress-circular indeterminate color="primary" size="28" />
-                    </div>
-                    <div
-                      v-else-if="frequentMenus.length === 0"
-                      class="text-center text-medium-emphasis text-caption"
-                    >
-                      Belum ada riwayat akses menu.
-                    </div>
-                    <v-row v-else class="justify-start" dense>
-                      <v-col
-                        v-for="menu in frequentMenus"
-                        :key="menu.title"
-                        cols="4"
-                        sm="3"
-                        md="2"
-                        class="text-center pa-2"
+                      <v-icon color="green" size="24" class="mb-1">mdi-cash-multiple</v-icon>
+                      <div class="text-h6 font-weight-bold text-green-darken-2">
+                        <span v-if="isLoadingStats && animatedSales === 0">...</span>
+                        <span v-else>{{ formatRupiah(Number(animatedSales.toFixed(0))) }}</span>
+                      </div>
+                      <v-chip
+                        v-if="!isLoadingStats"
+                        size="x-small"
+                        color="green"
+                        variant="flat"
+                        class="font-weight-bold mt-1 align-self-center"
+                        >{{ Math.round(animatedQty) }} pcs</v-chip
                       >
-                        <v-tooltip :text="menu.title" location="bottom">
-                          <template v-slot:activator="{ props }">
-                            <v-btn
-                              v-bind="props"
-                              :to="menu.to"
-                              :color="menu.color"
-                              icon
-                              size="large"
-                              variant="flat"
-                              class="mb-1 transition-swing"
-                              elevation="2"
-                            >
-                              <v-icon size="24">{{ menu.icon || "mdi-star" }}</v-icon>
-                            </v-btn>
-                          </template>
-                        </v-tooltip>
-                        <div
-                          class="text-caption text-medium-emphasis font-weight-medium text-truncate px-1"
-                          style="font-size: 0.7rem"
-                        >
-                          {{ menu.title }}
-                        </div>
-                      </v-col>
-                    </v-row>
-                  </v-card-text>
-                </v-card>
-              </v-col>
-
-              <!-- Perlu Tindakan -->
-              <v-col v-if="!isWarehouseUser" cols="12" lg="4">
-                <v-card elevation="2" class="bg-surface fill-height">
-                  <v-card-title class="d-flex align-center py-2">
-                    <v-icon class="mr-2" color="info" size="small">mdi-bell-ring-outline</v-icon>
-                    <span class="text-subtitle-2 font-weight-bold">Perlu Tindakan</span>
-                  </v-card-title>
-                  <v-card-text class="pa-3">
-                    <div v-if="isLoadingActions" class="text-center pa-4">
-                      <v-progress-circular indeterminate color="primary" size="28" />
+                      <div class="text-caption text-grey-darken-1 mt-1">Penjualan Hari Ini</div>
+                      <v-icon size="x-small" color="grey" class="mt-1">mdi-chevron-down</v-icon>
+                    </v-card-text>
+                  </v-card>
+                </template>
+                <v-card max-width="350" elevation="4">
+                  <v-list-item class="bg-green-lighten-4 text-green-darken-4 density-compact">
+                    <v-list-item-title class="font-weight-bold text-caption"
+                      >Ranking Omset Cabang</v-list-item-title
+                    >
+                  </v-list-item>
+                  <v-divider />
+                  <v-card-text class="pa-0" style="max-height: 300px; overflow-y: auto">
+                    <div v-if="isLoadingStats" class="text-center pa-4">
+                      <v-progress-circular indeterminate size="20" color="green" />
                     </div>
-                    <div v-else-if="pendingActions.length === 0" class="text-center pa-4">
-                      <v-icon size="40" color="success">mdi-check-all</v-icon>
-                      <div class="mt-2 text-caption text-medium-emphasis">Semua beres!</div>
-                    </div>
-                    <v-list v-else dense bg-color="transparent">
-                      <template v-for="(item, index) in pendingActions" :key="item.key">
+                    <v-list v-else density="compact" class="py-0">
+                      <template v-if="stats.salesBreakdown && stats.salesBreakdown.length > 0">
                         <v-list-item
-                          :to="item.to"
-                          class="mb-1 px-2"
-                          rounded="lg"
-                          variant="tonal"
+                          v-for="(item, index) in stats.salesBreakdown"
+                          :key="index"
                           density="compact"
-                          lines="one"
+                          class="py-2"
                         >
-                          <template #prepend>
-                            <v-avatar
-                              :icon="item.icon"
-                              color="info"
-                              variant="flat"
-                              size="32"
-                              class="text-white mr-2"
-                            />
-                          </template>
-                          <v-list-item-title class="font-weight-bold text-caption">{{
-                            item.title
-                          }}</v-list-item-title>
-                          <template #append>
+                          <v-list-item-title class="text-caption d-flex align-center mb-1">
                             <v-chip
-                              color="info"
-                              size="small"
+                              size="x-small"
+                              color="grey-lighten-2"
+                              class="mr-2 font-weight-bold text-grey-darken-2"
                               variant="flat"
-                              class="font-weight-bold"
-                              >{{ item.count }}</v-chip
+                              >#{{ index + 1 }}</v-chip
                             >
-                          </template>
+                            <span class="font-weight-bold">{{ item.nama }}</span>
+                          </v-list-item-title>
+                          <v-list-item-subtitle class="pl-8">
+                            <span
+                              class="text-caption font-weight-black text-green-darken-3"
+                              style="font-size: 0.85rem !important"
+                              >{{ formatRupiah(item.omset) }}</span
+                            >
+                          </v-list-item-subtitle>
                         </v-list-item>
-                        <v-divider v-if="index < pendingActions.length - 1" class="my-1" />
                       </template>
+                      <div v-else class="text-center text-caption py-4 text-grey">
+                        Belum ada data penjualan.
+                      </div>
                     </v-list>
                   </v-card-text>
                 </v-card>
-              </v-col>
+              </v-menu>
 
-              <!-- Ringkasan Status Jadwal Kirim -->
-              <v-col cols="12" :lg="isWarehouseUser ? 7 : 3">
-                <v-card elevation="2" class="bg-surface fill-height">
-                  <v-card-title
-                    class="d-flex align-center bg-indigo-lighten-5 text-indigo-darken-4 py-2"
+              <v-card
+                v-else
+                class="stat-card fill-height py-1"
+                color="green-lighten-5"
+                variant="flat"
+              >
+                <v-card-text
+                  class="text-center pa-2 d-flex flex-column justify-center position-relative"
+                >
+                  <div
+                    v-if="trendIndicators.sales === 'up'"
+                    class="trend-badge up"
+                    style="top: 4px; right: 4px"
                   >
-                    <v-icon class="mr-2" color="indigo" size="small">mdi-truck-clock</v-icon>
-                    <span class="text-subtitle-2 font-weight-bold">Status Kiriman</span>
-                    <v-spacer />
-                    <v-btn
-                      size="x-small"
-                      variant="text"
-                      color="indigo"
-                      @click="activeTab = 'operasional'"
-                      append-icon="mdi-chevron-right"
-                      >Detail</v-btn
+                    <v-icon size="x-small">mdi-arrow-up</v-icon>
+                  </div>
+                  <v-icon color="green" size="24" class="mb-1">mdi-cash-multiple</v-icon>
+                  <div class="text-h6 font-weight-bold text-green-darken-2">
+                    <span v-if="isLoadingStats && animatedSales === 0">...</span>
+                    <span v-else>{{ formatRupiah(Number(animatedSales.toFixed(0))) }}</span>
+                  </div>
+                  <v-chip
+                    v-if="!isLoadingStats"
+                    size="x-small"
+                    color="green"
+                    variant="flat"
+                    class="font-weight-bold mt-1 align-self-center"
+                    >{{ Math.round(animatedQty) }} pcs</v-chip
+                  >
+                  <div class="text-caption text-grey-darken-1 mt-1">Penjualan Hari Ini</div>
+                </v-card-text>
+              </v-card>
+            </v-col>
+
+            <!-- Transaksi Hari Ini -->
+            <v-col v-if="!isWarehouseUser" cols="12" sm="3" md="1">
+              <v-card class="stat-card fill-height py-1" color="blue-lighten-5" variant="flat">
+                <v-card-text
+                  class="text-center pa-2 d-flex flex-column justify-center align-center h-100"
+                >
+                  <v-icon color="blue" size="24">mdi-receipt</v-icon>
+                  <div class="text-h5 font-weight-bold text-blue-darken-2 my-1">
+                    <span v-if="isLoadingStats">...</span>
+                    <span v-else>{{ Math.round(animatedTx) }}</span>
+                  </div>
+                  <div class="text-caption text-grey-darken-1" style="line-height: 1.1">
+                    Trx Hari Ini
+                  </div>
+                </v-card-text>
+              </v-card>
+            </v-col>
+
+            <!-- Kesiapan Pareto -->
+            <v-col cols="12" sm="6" md="3">
+              <v-card
+                class="stat-card fill-height cursor-pointer"
+                :color="healthStatus.color"
+                variant="tonal"
+                @click="openParetoDetail"
+              >
+                <v-tooltip activator="parent" location="top"
+                  >Klik untuk lihat detail barang</v-tooltip
+                >
+                <v-card-text class="text-center pa-2 d-flex flex-column justify-center">
+                  <div class="d-flex align-center justify-center mb-1">
+                    <v-icon size="18" class="mr-1">{{ healthStatus.icon }}</v-icon>
+                    <span class="text-caption font-weight-bold opacity-80">{{
+                      authStore.user?.cabang === "KDC"
+                        ? "KESIAPAN SUPPLY PARETO (DC)"
+                        : "KESIAPAN STOK PARETO"
+                    }}</span>
+                  </div>
+                  <div class="text-h4 font-weight-black my-0">
+                    <span v-if="isLoadingPareto">...</span>
+                    <span v-else>{{ paretoStats.score }}%</span>
+                  </div>
+                  <div class="text-caption font-weight-bold opacity-80 mb-1">
+                    {{ healthStatus.text }}
+                  </div>
+                  <div
+                    v-if="authStore.user?.cabang !== 'KDC'"
+                    class="d-flex justify-space-between px-2 text-caption opacity-70 w-100"
+                  >
+                    <span
+                      >Laku: <strong>{{ paretoStats.sku_count }}</strong></span
                     >
-                  </v-card-title>
-                  <v-card-text class="pa-0">
-                    <div v-if="isLoadingSchedules" class="text-center pa-4">
-                      <v-progress-circular indeterminate color="indigo" size="20" />
+                    <span
+                      >Target:
+                      <strong>{{ paretoStats.buffer_stock.toLocaleString() }}</strong></span
+                    >
+                  </div>
+                  <div
+                    v-else
+                    class="text-caption opacity-70 px-2"
+                    style="font-size: 0.7rem; line-height: 1.1"
+                  >
+                    Kemampuan supply ke {{ paretoStats.store_count || 11 }} cabang.
+                  </div>
+                </v-card-text>
+              </v-card>
+            </v-col>
+
+            <!-- Total Stok -->
+            <v-col cols="12" sm="4" md="3">
+              <v-menu
+                v-if="authStore.user?.cabang === 'KDC'"
+                open-on-hover
+                location="bottom center"
+                transition="scale-transition"
+              >
+                <template v-slot:activator="{ props }">
+                  <v-card
+                    v-bind="props"
+                    class="stat-card fill-height py-1 cursor-pointer"
+                    color="light-blue-lighten-5"
+                    variant="flat"
+                  >
+                    <v-card-text class="text-center pa-2">
+                      <v-icon color="light-blue" size="24" class="mb-1">mdi-warehouse</v-icon>
+                      <div class="text-h6 font-weight-bold text-light-blue-darken-2">
+                        <span v-if="isLoadingStock && animatedTotalStock === 0">...</span>
+                        <span v-else>{{
+                          Math.round(animatedTotalStock).toLocaleString("id-ID")
+                        }}</span>
+                      </div>
+                      <div class="text-caption text-grey-darken-1">Total Stok (Semua Cabang)</div>
+                      <v-icon size="x-small" color="grey" class="mt-1">mdi-chevron-down</v-icon>
+                    </v-card-text>
+                  </v-card>
+                </template>
+                <v-card max-width="320" elevation="4">
+                  <v-list-item
+                    class="bg-light-blue-lighten-4 text-light-blue-darken-4 density-compact"
+                  >
+                    <v-list-item-title class="font-weight-bold text-caption"
+                      >Stok per Cabang</v-list-item-title
+                    >
+                  </v-list-item>
+                  <v-divider />
+                  <v-card-text class="pa-0" style="max-height: 300px; overflow-y: auto">
+                    <div v-if="isLoadingStockBreakdown" class="text-center pa-2">
+                      <v-progress-circular indeterminate size="20" />
                     </div>
                     <v-list v-else density="compact" class="py-0">
                       <v-list-item
-                        v-for="item in combinedSchedules.slice(0, 6)"
-                        :key="item.kode"
+                        v-for="item in stockBreakdown"
+                        :key="item.kode_cabang"
                         density="compact"
-                        class="px-3 py-1"
                       >
-                        <v-list-item-title class="text-caption font-weight-medium">{{
-                          item.nama
+                        <v-list-item-title class="text-caption">{{
+                          item.nama_cabang || item.kode_cabang
                         }}</v-list-item-title>
-                        <template #append>
-                          <v-chip
-                            v-if="item.activeShipment"
-                            :color="getStatusColor(item.activeShipment.status)"
-                            size="x-small"
-                            variant="flat"
-                            class="font-weight-bold"
-                          >
-                            {{ item.activeShipment.status }}
-                          </v-chip>
-                          <span v-else class="text-caption text-grey-lighten-1">–</span>
-                        </template>
+                        <template #append
+                          ><span class="text-caption font-weight-bold">{{
+                            item.totalStock.toLocaleString("id-ID")
+                          }}</span></template
+                        >
                       </v-list-item>
                     </v-list>
                   </v-card-text>
                 </v-card>
-              </v-col>
-            </v-row>
-          </v-tabs-window-item>
+              </v-menu>
 
-          <!-- ══════════════════════════════════════════
-               TAB 2 — PENJUALAN
-               Grafik, produk terlaris, transaksi, target, performa cabang
-               ══════════════════════════════════════════ -->
-          <v-tabs-window-item v-if="!isWarehouseUser" value="penjualan">
-            <!-- Baris 1: Grafik + Target -->
-            <v-row class="mb-4" align="start">
-              <!-- Grafik Penjualan -->
-              <v-col cols="12" lg="8">
-                <v-card elevation="2" class="rounded-lg bg-surface">
-                  <v-card-title class="py-3 px-4 border-b">
-                    <div class="d-flex align-center justify-space-between w-100">
-                      <div class="d-flex align-center text-primary font-weight-bold">
-                        <v-icon class="mr-2" color="primary">mdi-chart-timeline-variant</v-icon
-                        >Grafik Penjualan
-                      </div>
-                      <div class="bg-surface-variant rounded-lg pa-1 d-none d-sm-flex">
-                        <v-btn-toggle
-                          v-model="chartType"
-                          variant="text"
-                          density="compact"
-                          mandatory
-                          divided
-                          class="chart-type-toggle"
-                        >
-                          <v-btn
-                            value="bar"
-                            size="small"
-                            :color="chartType === 'bar' ? 'primary' : 'medium-emphasis'"
-                            class="rounded-s-lg"
-                            ><v-icon>mdi-chart-bar</v-icon></v-btn
-                          >
-                          <v-btn
-                            value="line"
-                            size="small"
-                            :color="chartType === 'line' ? 'primary' : 'medium-emphasis'"
-                            ><v-icon>mdi-chart-line</v-icon></v-btn
-                          >
-                          <v-btn
-                            value="area"
-                            size="small"
-                            :color="chartType === 'area' ? 'primary' : 'medium-emphasis'"
-                            class="rounded-e-lg"
-                            ><v-icon>mdi-chart-bell-curve-cumulative</v-icon></v-btn
-                          >
-                        </v-btn-toggle>
-                      </div>
-                    </div>
-                  </v-card-title>
-                  <v-card-text class="pa-4">
-                    <div
-                      class="filter-bar d-flex flex-column flex-md-row align-md-center justify-space-between gap-3 mb-6"
-                    >
-                      <v-btn-toggle
-                        v-model="chartGroupBy"
-                        variant="outlined"
-                        density="compact"
-                        color="primary"
-                        mandatory
-                        rounded="lg"
-                        class="mr-auto mb-2 mb-md-0 shadow-sm"
-                        style="height: 36px"
-                      >
-                        <v-btn value="day" class="text-caption font-weight-bold px-4">Harian</v-btn>
-                        <v-btn value="week" class="text-caption font-weight-bold px-4"
-                          >Mingguan</v-btn
-                        >
-                        <v-btn value="month" class="text-caption font-weight-bold px-4"
-                          >Bulanan</v-btn
-                        >
-                      </v-btn-toggle>
-                      <div class="d-flex flex-wrap align-center justify-end gap-2" style="gap: 8px">
-                        <v-select
-                          v-model="chartFilters.cabang"
-                          :items="cabangList"
-                          item-title="nama"
-                          item-value="kode"
-                          density="compact"
-                          variant="outlined"
-                          hide-details
-                          prepend-inner-icon="mdi-store-outline"
-                          bg-color="surface"
-                          class="filter-input-select"
-                          :readonly="authStore.user?.cabang !== 'KDC'"
-                          style="min-width: 220px"
-                        />
-                        <div
-                          class="d-flex align-center border rounded px-2 bg-surface"
-                          style="
-                            height: 40px;
-                            border-color: rgba(
-                              var(--v-border-color),
-                              var(--v-border-opacity)
-                            ) !important;
-                          "
-                        >
-                          <input
-                            type="date"
-                            v-model="chartFilters.startDate"
-                            class="date-native-input text-body-2"
-                          />
-                          <span class="mx-2 text-caption text-medium-emphasis">s/d</span>
-                          <input
-                            type="date"
-                            v-model="chartFilters.endDate"
-                            class="date-native-input text-body-2"
-                          />
-                        </div>
-                      </div>
-                    </div>
-                    <div
-                      v-if="isLoadingChart"
-                      class="d-flex flex-column align-center justify-center"
-                      style="height: 320px"
-                    >
-                      <v-progress-circular indeterminate color="primary" size="48" width="4" />
-                      <div class="mt-3 text-caption text-medium-emphasis">
-                        Sedang memuat data grafik...
-                      </div>
-                    </div>
-                    <div v-else style="height: 350px; position: relative">
-                      <Bar
-                        v-if="chartType === 'bar'"
-                        :data="chartData as any"
-                        :options="targetChartOptions as any"
-                      />
-                      <Line v-else :data="chartData as any" :options="targetChartOptions as any" />
-                    </div>
-                  </v-card-text>
-                </v-card>
-              </v-col>
-
-              <!-- Target Pencapaian -->
-              <v-col cols="12" lg="4">
-                <v-card elevation="2" class="bg-surface fill-height">
-                  <v-card-title
-                    class="d-flex align-center bg-blue-lighten-5 text-blue-darken-3 py-2"
+              <v-card
+                v-else
+                class="stat-card fill-height py-1"
+                color="light-blue-lighten-5"
+                variant="flat"
+              >
+                <v-card-text class="text-center pa-2">
+                  <v-icon color="light-blue" size="24" class="mb-1"
+                    >mdi-package-variant-closed</v-icon
                   >
-                    <v-icon class="mr-2" color="primary" size="small">mdi-target</v-icon>
-                    <span class="text-subtitle-2 font-weight-bold">Pencapaian Target</span>
-                  </v-card-title>
-                  <v-card-text class="pa-4">
-                    <div v-if="isLoadingSalesTarget" class="text-center pa-8">
-                      <v-progress-circular indeterminate color="primary" size="48" />
-                    </div>
-                    <div v-else>
-                      <v-row align="center">
-                        <v-col cols="12" sm="5" class="text-center">
-                          <div style="height: 200px; position: relative">
-                            <Bar :data="targetChartData" :options="targetChartOptions as any" />
-                          </div>
-                        </v-col>
-                        <v-col cols="12" sm="7">
-                          <v-card variant="outlined" class="mb-3">
-                            <v-card-text class="pa-3">
-                              <div class="text-caption text-medium-emphasis mb-1">Realisasi</div>
-                              <div
-                                class="text-h6 font-weight-bold"
-                                :class="isOverTarget ? 'text-success' : 'text-deep-orange-darken-1'"
-                              >
-                                <span class="animated-number">{{
-                                  formatRupiah(Number(animatedTargetRealization.toFixed(0)))
-                                }}</span>
-                              </div>
-                              <div
-                                class="text-caption mt-1"
-                                :style="{ color: getProgressColor(targetPercentage) }"
-                              >
-                                {{ targetPercentage.toFixed(2) }}% dari target
-                                <v-icon v-if="isOverTarget" size="small" color="success"
-                                  >mdi-arrow-up-bold</v-icon
-                                >
-                              </div>
-                            </v-card-text>
-                          </v-card>
-                          <v-card variant="outlined">
-                            <v-card-text class="pa-3">
-                              <div class="text-caption text-medium-emphasis mb-1">Target</div>
-                              <div class="text-subtitle-1 font-weight-medium">
-                                {{ formatRupiah(salesTargetSummary.target) }}
-                              </div>
-                            </v-card-text>
-                          </v-card>
-                        </v-col>
-                      </v-row>
-                    </div>
-                  </v-card-text>
-                </v-card>
-              </v-col>
-            </v-row>
-
-            <!-- Baris 2: Produk Terlaris + Transaksi Terbaru -->
-            <v-row class="mb-4">
-              <v-col cols="12" md="6">
-                <v-card elevation="2" class="bg-surface">
-                  <v-card-title
-                    class="d-flex align-center justify-space-between bg-amber-lighten-5 py-2 pr-2 text-amber-darken-4"
-                  >
-                    <div class="d-flex align-center">
-                      <v-icon class="mr-2" color="amber-darken-2" size="small"
-                        >mdi-star-circle-outline</v-icon
-                      >
-                      <span class="text-subtitle-2 font-weight-bold">Produk Terlaris</span>
-                    </div>
-                    <div
-                      v-if="authStore.user?.cabang === 'KDC'"
-                      style="min-width: 180px; max-width: 220px"
-                    >
-                      <v-select
-                        v-model="topProductsCabang"
-                        :items="cabangList"
-                        item-title="nama"
-                        item-value="kode"
-                        density="compact"
-                        variant="outlined"
-                        hide-details
-                        bg-color="surface"
-                        color="amber-darken-3"
-                        class="text-caption font-weight-bold"
-                      />
-                    </div>
-                  </v-card-title>
-                  <v-card-text class="pa-4">
-                    <div v-if="isLoadingTopProducts" class="text-center pa-6">
-                      <v-progress-circular indeterminate color="amber" size="36" />
-                    </div>
-                    <v-list
-                      v-else
-                      bg-color="transparent"
-                      style="max-height: 300px; overflow-y: auto"
-                    >
-                      <v-list-item
-                        v-for="(product, index) in topProducts"
-                        :key="product.KODE + product.UKURAN"
-                        class="px-2 mb-2"
-                        rounded="lg"
-                        border
-                      >
-                        <template #prepend>
-                          <v-avatar
-                            :color="
-                              index === 0
-                                ? 'amber'
-                                : index === 1
-                                ? 'blue-grey-lighten-1'
-                                : 'brown-lighten-1'
-                            "
-                            size="36"
-                          >
-                            <span class="font-weight-bold text-white text-caption">{{
-                              index + 1
-                            }}</span>
-                          </v-avatar>
-                        </template>
-                        <v-list-item-title class="font-weight-bold text-wrap text-caption">{{
-                          product.NAMA
-                        }}</v-list-item-title>
-                        <v-list-item-subtitle class="mt-1 d-flex align-center text-medium-emphasis">
-                          <v-chip size="x-small" class="mr-2">{{ product.KODE }}</v-chip>
-                          <v-chip size="x-small" color="grey-darken-3" variant="flat">{{
-                            product.UKURAN
-                          }}</v-chip>
-                        </v-list-item-subtitle>
-                        <template #append>
-                          <v-chip
-                            color="amber-darken-3"
-                            size="small"
-                            variant="flat"
-                            class="font-weight-bold"
-                            >{{ product.TOTAL?.toLocaleString("id-ID") }} pcs</v-chip
-                          >
-                        </template>
-                      </v-list-item>
-                    </v-list>
-                  </v-card-text>
-                </v-card>
-              </v-col>
-
-              <v-col cols="12" md="6">
-                <v-card elevation="2" class="bg-surface">
-                  <v-card-title
-                    class="d-flex align-center justify-space-between bg-green-lighten-5 text-green-darken-4 py-2"
-                  >
-                    <div class="d-flex align-center">
-                      <v-icon class="mr-2" color="success" size="small">mdi-point-of-sale</v-icon>
-                      <span class="text-subtitle-2 font-weight-bold">Penjualan Terbaru</span>
-                    </div>
-                    <v-btn
-                      size="small"
-                      variant="text"
-                      color="success"
-                      to="/transaksi/penjualan/invoice"
-                      append-icon="mdi-chevron-right"
-                      >Lihat Semua</v-btn
-                    >
-                  </v-card-title>
-                  <v-card-text class="pa-4">
-                    <div v-if="isLoadingTransactions" class="text-center pa-6">
-                      <v-progress-circular indeterminate color="success" size="36" />
-                    </div>
-                    <div v-else-if="recentTransactions.length === 0" class="text-center pa-6">
-                      <v-icon size="48" color="grey">mdi-receipt-text-outline</v-icon>
-                      <div class="mt-2 text-caption text-medium-emphasis">
-                        Belum ada transaksi hari ini
-                      </div>
-                    </div>
-                    <div v-else style="max-height: 300px; overflow-y: auto">
-                      <TransitionGroup tag="div" :css="false" @enter="onListEnter">
-                        <div
-                          v-for="(transaction, index) in recentTransactions"
-                          :key="transaction.id"
-                          :data-index="index"
-                          class="mb-2"
-                        >
-                          <v-list-item
-                            class="px-2 border rounded-lg bg-surface elevation-1"
-                            lines="two"
-                          >
-                            <template #prepend>
-                              <v-avatar color="success-lighten-1" size="36"
-                                ><v-icon color="white" size="small"
-                                  >mdi-cart-check</v-icon
-                                ></v-avatar
-                              >
-                            </template>
-                            <v-list-item-title class="font-weight-bold text-caption">{{
-                              transaction.customer
-                            }}</v-list-item-title>
-                            <v-list-item-subtitle class="mt-1 text-caption text-medium-emphasis"
-                              >{{ transaction.id }} • {{ transaction.time }}</v-list-item-subtitle
-                            >
-                            <template #append>
-                              <v-chip
-                                color="success"
-                                size="small"
-                                variant="flat"
-                                class="font-weight-bold price-pulse"
-                                >{{ formatRupiah(transaction.amount) }}</v-chip
-                              >
-                            </template>
-                          </v-list-item>
-                        </div>
-                      </TransitionGroup>
-                    </div>
-                  </v-card-text>
-                </v-card>
-              </v-col>
-            </v-row>
-
-            <!-- Baris 3: Ranking Performa Cabang (KDC only) -->
-            <v-row v-if="authStore.user?.cabang === 'KDC'" class="mb-4">
-              <v-col cols="12" md="7">
-                <v-card elevation="2" class="bg-surface">
-                  <v-card-title
-                    class="d-flex align-center bg-purple-lighten-5 text-purple-darken-4 py-2"
-                  >
-                    <v-icon class="mr-2" color="purple" size="small">mdi-trophy-outline</v-icon>
-                    <span class="text-subtitle-2 font-weight-bold">Ranking Performa Cabang</span>
-                    <v-spacer />
-                    <v-chip v-if="!isLoadingPerformance" size="small" color="purple" variant="flat"
-                      >{{ branchPerformances.length }} Cabang</v-chip
-                    >
-                  </v-card-title>
-                  <v-card-text class="pa-0">
-                    <div v-if="isLoadingPerformance" class="text-center pa-6">
-                      <v-progress-circular indeterminate color="purple" size="36" />
-                    </div>
-                    <v-table v-else density="compact" hover class="bg-surface text-high-emphasis">
-                      <thead>
-                        <tr>
-                          <th class="text-center" width="50">Rank</th>
-                          <th class="text-left">Cabang</th>
-                          <th class="text-right">Omset</th>
-                          <th class="text-right">Target</th>
-                          <th class="text-right" width="120">Ach %</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        <tr v-for="(item, index) in branchPerformances" :key="item.kode_cabang">
-                          <td class="text-center font-weight-bold">
-                            <v-avatar
-                              size="24"
-                              :color="index < 3 ? 'amber-lighten-4' : 'grey-lighten-3'"
-                              variant="flat"
-                            >
-                              <span
-                                :class="index < 3 ? 'text-amber-darken-4' : 'text-grey-darken-2'"
-                                style="font-size: 12px"
-                                >{{ index + 1 }}</span
-                              >
-                            </v-avatar>
-                          </td>
-                          <td class="font-weight-medium text-caption">
-                            {{ item.nama_cabang }}
-                            <div class="text-caption text-medium-emphasis">
-                              {{ item.kode_cabang }}
-                            </div>
-                          </td>
-                          <td class="text-right">
-                            <div class="font-weight-bold text-caption">
-                              {{ formatRupiah(item.nominal) }}
-                            </div>
-                          </td>
-                          <td class="text-right text-medium-emphasis text-caption">
-                            {{ formatRupiah(item.target) }}
-                          </td>
-                          <td class="text-right">
-                            <div class="d-flex align-center justify-end ga-2">
-                              <span
-                                :class="`text-${getAchColor(
-                                  item.ach
-                                )} font-weight-bold text-caption`"
-                                >{{ item.ach.toFixed(1) }}%</span
-                              >
-                              <v-progress-circular
-                                :model-value="item.ach"
-                                :color="getAchColor(item.ach)"
-                                size="20"
-                                width="3"
-                                bg-color="grey-lighten-2"
-                              />
-                            </div>
-                          </td>
-                        </tr>
-                      </tbody>
-                    </v-table>
-                  </v-card-text>
-                </v-card>
-              </v-col>
-
-              <v-col cols="12" md="5">
-                <v-card elevation="2" class="bg-surface fill-height">
-                  <v-card-title
-                    class="d-flex align-center bg-teal-lighten-5 py-2 text-teal-darken-4"
-                  >
-                    <v-icon class="mr-2" color="teal" size="small">mdi-chart-pie</v-icon>
-                    <span class="text-subtitle-2 font-weight-bold">Kontribusi Omset Cabang</span>
-                  </v-card-title>
-                  <v-card-text class="pa-4">
-                    <div v-if="isLoadingPerformance" class="text-center pa-6">
-                      <v-progress-circular indeterminate color="teal" size="36" />
-                    </div>
-                    <div v-else style="height: 250px; position: relative">
-                      <Pie :data="branchDistributionData" :options="pieChartOptions" />
-                    </div>
-                  </v-card-text>
-                </v-card>
-              </v-col>
-            </v-row>
-
-            <!-- ============================================================
-                 ANALITIK BARU: Low Stock Sales & Seasonal Sales
-                 ============================================================ -->
-            <v-row v-if="authStore.user?.cabang === 'KDC'" class="mb-4">
-              <!-- KIRI: Penjualan Stok Tipis -->
-              <v-col cols="12" md="6">
-                <v-card elevation="2" class="rounded-lg h-100 bg-surface">
-                  <v-card-title
-                    class="d-flex flex-wrap align-center bg-blue-grey-lighten-5 py-2 px-3 text-blue-grey-darken-3 gap-2"
-                  >
-                    <v-icon class="mr-2" color="primary" size="small">mdi-chart-bar-stacked</v-icon>
-                    <span class="text-subtitle-2 font-weight-bold mr-auto">
-                      Penjualan Rendah (&lt; 20 pcs)
-                    </span>
-
-                    <div class="d-flex align-center ga-2 flex-wrap justify-end">
-                      <div style="min-width: 110px; max-width: 130px">
-                        <v-select
-                          v-model="filterLowStockCabang"
-                          :items="cabangList"
-                          item-title="nama"
-                          item-value="kode"
-                          density="compact"
-                          variant="outlined"
-                          hide-details
-                          bg-color="surface"
-                          class="filter-select-small"
-                        />
-                      </div>
-                      <div style="min-width: 130px; max-width: 150px">
-                        <v-select
-                          v-model="filterLowStockPeriod"
-                          :items="lowStockPeriods"
-                          density="compact"
-                          variant="outlined"
-                          hide-details
-                          bg-color="surface"
-                          class="filter-select-small"
-                        />
-                      </div>
-                      <v-btn
-                        color="success"
-                        size="small"
-                        prepend-icon="mdi-file-excel"
-                        variant="flat"
-                        @click="exportLowStockSales"
-                        >Export</v-btn
-                      >
-                    </div>
-                  </v-card-title>
-                  <v-card-text class="pa-0">
-                    <div v-if="isLoadingLowStockSales" class="text-center pa-8">
-                      <v-progress-circular indeterminate color="primary" size="36" />
-                    </div>
-                    <v-data-table
-                      v-else
-                      :headers="lowStockHeaders"
-                      :items="lowStockSalesData"
-                      density="compact"
-                      hover
-                      class="text-caption"
-                      hide-default-footer
-                      items-per-page="-1"
-                      style="max-height: 350px; overflow-y: auto"
-                    >
-                      <template v-slot:headers>
-                        <tr>
-                          <th class="text-left font-weight-bold">STORE</th>
-                          <th class="text-left font-weight-bold">KODE</th>
-                          <th class="text-left font-weight-bold">NAMA BARANG</th>
-                          <th class="text-center font-weight-bold">UK.</th>
-                          <th class="text-center font-weight-bold text-error">STOK</th>
-                          <th class="text-center font-weight-bold text-success">TERJUAL</th>
-                        </tr>
-                      </template>
-                      <template v-slot:item="{ item }">
-                        <tr>
-                          <!-- [BARU] Kolom Store -->
-                          <td class="text-caption font-weight-bold text-blue-darken-3">
-                            {{ item.cabang_nama }}
-                          </td>
-                          <td class="text-caption">{{ item.kode }}</td>
-                          <td class="text-caption font-weight-bold text-wrap">{{ item.nama }}</td>
-                          <td class="text-caption text-center">{{ item.ukuran }}</td>
-                          <td class="text-caption text-center font-weight-bold text-error">
-                            {{ item.stok_sekarang }}
-                          </td>
-                          <td class="text-caption text-center font-weight-bold text-success">
-                            {{ item.total_terjual }}
-                          </td>
-                        </tr>
-                      </template>
-                    </v-data-table>
-                  </v-card-text>
-                </v-card>
-              </v-col>
-
-              <!-- KANAN: Penjualan Sesional (New Arrival) -->
-              <v-col cols="12" md="6">
-                <v-card elevation="2" class="rounded-lg h-100 bg-surface">
-                  <v-card-title
-                    class="d-flex flex-wrap align-center bg-teal-lighten-5 py-2 px-3 text-teal-darken-4 gap-2"
-                  >
-                    <v-icon class="mr-2" color="teal" size="small">mdi-new-box</v-icon>
-                    <span class="text-subtitle-2 font-weight-bold mr-auto"
-                      >Trend Sesional / New Arrival</span
-                    >
-
-                    <div class="d-flex align-center ga-2 flex-wrap justify-end">
-                      <div style="min-width: 110px; max-width: 130px">
-                        <v-select
-                          v-model="filterSeasonalCabang"
-                          :items="cabangList"
-                          item-title="nama"
-                          item-value="kode"
-                          density="compact"
-                          variant="outlined"
-                          hide-details
-                          bg-color="surface"
-                          class="filter-select-small"
-                        />
-                      </div>
-                      <div style="min-width: 130px; max-width: 150px">
-                        <v-select
-                          v-model="filterSeasonalPeriod"
-                          :items="seasonalPeriods"
-                          density="compact"
-                          variant="outlined"
-                          hide-details
-                          bg-color="surface"
-                          class="filter-select-small"
-                        />
-                      </div>
-                      <v-btn
-                        color="success"
-                        size="small"
-                        prepend-icon="mdi-file-excel"
-                        variant="flat"
-                        @click="exportSeasonalSales"
-                        >Export</v-btn
-                      >
-                    </div>
-                  </v-card-title>
-                  <v-card-text class="pa-0">
-                    <div v-if="isLoadingSeasonalSales" class="text-center pa-8">
-                      <v-progress-circular indeterminate color="teal" size="36" />
-                    </div>
-                    <v-data-table
-                      v-else
-                      :headers="seasonalHeaders"
-                      :items="seasonalSalesData"
-                      density="compact"
-                      hover
-                      class="text-caption"
-                      hide-default-footer
-                      items-per-page="-1"
-                      style="max-height: 350px; overflow-y: auto"
-                    >
-                      <template v-slot:headers>
-                        <tr>
-                          <th class="text-left font-weight-bold">STORE</th>
-                          <th class="text-left font-weight-bold">KODE</th>
-                          <th class="text-left font-weight-bold">NAMA BARANG</th>
-                          <th class="text-center font-weight-bold">UK.</th>
-                          <th class="text-center font-weight-bold text-success">TERJUAL</th>
-                        </tr>
-                      </template>
-                      <template v-slot:item="{ item }">
-                        <tr>
-                          <!-- [BARU] Kolom Store -->
-                          <td class="text-caption font-weight-bold text-teal-darken-3">
-                            {{ item.cabang_nama }}
-                          </td>
-                          <td class="text-caption">{{ item.kode }}</td>
-                          <td class="text-caption font-weight-bold text-wrap">{{ item.nama }}</td>
-                          <td class="text-caption text-center">{{ item.ukuran }}</td>
-                          <td class="text-caption text-center font-weight-bold text-success">
-                            {{ item.total_terjual }}
-                          </td>
-                        </tr>
-                      </template>
-                    </v-data-table>
-                  </v-card-text>
-                </v-card>
-              </v-col>
-            </v-row>
-
-            <v-row class="mb-4">
-              <v-col cols="12">
-                <v-card elevation="2" class="rounded-lg bg-surface">
-                  <v-card-title
-                    class="d-flex flex-wrap align-center bg-red-lighten-5 py-2 px-3 text-red-darken-4 gap-2"
-                  >
-                    <v-icon class="mr-2" color="error" size="small"
-                      >mdi-archive-clock-outline</v-icon
-                    >
-                    <span class="text-subtitle-2 font-weight-bold mr-auto">
-                      Dead Stock &amp; Pergerakan Stok — Klasifikasi 4 Tier
-                    </span>
-                    <div
-                      v-if="authStore.user?.cabang === 'KDC'"
-                      style="min-width: 130px; max-width: 160px"
-                    >
-                      <v-select
-                        v-model="deadStockCabang"
-                        :items="cabangList"
-                        item-title="nama"
-                        item-value="kode"
-                        density="compact"
-                        variant="outlined"
-                        hide-details
-                        bg-color="surface"
-                        class="filter-select-small"
-                      />
-                    </div>
-                    <v-btn
-                      size="small"
-                      variant="tonal"
-                      color="error"
-                      prepend-icon="mdi-open-in-new"
-                      :to="'/laporan/stok/dead-stok'"
-                      >Detail Lengkap</v-btn
-                    >
-                  </v-card-title>
-
-                  <v-card-text class="pa-4">
-                    <div v-if="isLoadingDeadStock" class="text-center pa-8">
-                      <v-progress-circular indeterminate color="error" size="36" />
-                    </div>
-
-                    <div v-else>
-                      <!-- 4 Tier Cards -->
-                      <v-row dense class="mb-4">
-                        <v-col cols="6" sm="3">
-                          <div
-                            class="rounded-lg pa-3"
-                            style="background: #eaf3de; border: 1px solid #97c459"
-                          >
-                            <div
-                              class="text-caption font-weight-bold"
-                              style="color: #27500a; opacity: 0.8"
-                            >
-                              Fast Moving
-                            </div>
-                            <div class="text-caption mb-2" style="color: #27500a; opacity: 0.7">
-                              ≤ 6 bulan
-                            </div>
-                            <div class="text-h6 font-weight-medium" style="color: #27500a">
-                              {{ deadStockSummary.fm.toLocaleString("id-ID") }}
-                              <span class="text-caption font-weight-regular">pcs</span>
-                            </div>
-                            <div class="text-caption" style="color: #27500a; opacity: 0.75">
-                              {{
-                                deadStockSummary.total > 0
-                                  ? ((deadStockSummary.fm / deadStockSummary.total) * 100).toFixed(
-                                      1
-                                    )
-                                  : 0
-                              }}% dari total
-                            </div>
-                          </div>
-                        </v-col>
-                        <v-col cols="6" sm="3">
-                          <div
-                            class="rounded-lg pa-3"
-                            style="background: #e6f1fb; border: 1px solid #85b7eb"
-                          >
-                            <div
-                              class="text-caption font-weight-bold"
-                              style="color: #0c447c; opacity: 0.8"
-                            >
-                              Standar
-                            </div>
-                            <div class="text-caption mb-2" style="color: #0c447c; opacity: 0.7">
-                              6 – 18 bulan
-                            </div>
-                            <div class="text-h6 font-weight-medium" style="color: #0c447c">
-                              {{ deadStockSummary.std.toLocaleString("id-ID") }}
-                              <span class="text-caption font-weight-regular">pcs</span>
-                            </div>
-                            <div class="text-caption" style="color: #0c447c; opacity: 0.75">
-                              {{
-                                deadStockSummary.total > 0
-                                  ? ((deadStockSummary.std / deadStockSummary.total) * 100).toFixed(
-                                      1
-                                    )
-                                  : 0
-                              }}% dari total
-                            </div>
-                          </div>
-                        </v-col>
-                        <v-col cols="6" sm="3">
-                          <div
-                            class="rounded-lg pa-3"
-                            style="background: #faeeda; border: 1px solid #ef9f27"
-                          >
-                            <div
-                              class="text-caption font-weight-bold"
-                              style="color: #633806; opacity: 0.8"
-                            >
-                              Slow Moving
-                            </div>
-                            <div class="text-caption mb-2" style="color: #633806; opacity: 0.7">
-                              18 bln – 3 tahun
-                            </div>
-                            <div class="text-h6 font-weight-medium" style="color: #633806">
-                              {{ deadStockSummary.sm.toLocaleString("id-ID") }}
-                              <span class="text-caption font-weight-regular">pcs</span>
-                            </div>
-                            <div class="text-caption" style="color: #633806; opacity: 0.75">
-                              {{
-                                deadStockSummary.total > 0
-                                  ? ((deadStockSummary.sm / deadStockSummary.total) * 100).toFixed(
-                                      1
-                                    )
-                                  : 0
-                              }}% dari total
-                            </div>
-                          </div>
-                        </v-col>
-                        <v-col cols="6" sm="3">
-                          <div
-                            class="rounded-lg pa-3"
-                            style="background: #fcebeb; border: 1px solid #f09595"
-                          >
-                            <div
-                              class="text-caption font-weight-bold"
-                              style="color: #791f1f; opacity: 0.8"
-                            >
-                              Dead Stock
-                            </div>
-                            <div class="text-caption mb-2" style="color: #791f1f; opacity: 0.7">
-                              ≥ 3 tahun
-                            </div>
-                            <div class="text-h6 font-weight-medium" style="color: #791f1f">
-                              {{ deadStockSummary.ds.toLocaleString("id-ID") }}
-                              <span class="text-caption font-weight-regular">pcs</span>
-                            </div>
-                            <div class="text-caption" style="color: #791f1f; opacity: 0.75">
-                              {{
-                                deadStockSummary.total > 0
-                                  ? ((deadStockSummary.ds / deadStockSummary.total) * 100).toFixed(
-                                      1
-                                    )
-                                  : 0
-                              }}% dari total
-                            </div>
-                          </div>
-                        </v-col>
-                      </v-row>
-
-                      <!-- Metrics Row -->
-                      <v-row dense>
-                        <v-col cols="6" sm="3">
-                          <div class="rounded-lg pa-3 bg-grey-lighten-4">
-                            <div class="text-caption text-medium-emphasis mb-1">
-                              Total Stok Terlacak
-                            </div>
-                            <div class="text-h6 font-weight-medium">
-                              {{ deadStockSummary.total.toLocaleString("id-ID") }}
-                            </div>
-                            <div class="text-caption text-medium-emphasis">pcs</div>
-                          </div>
-                        </v-col>
-                        <v-col cols="6" sm="3">
-                          <div class="rounded-lg pa-3 bg-red-lighten-5">
-                            <div class="text-caption text-medium-emphasis mb-1">
-                              Nilai Dead Stock
-                            </div>
-                            <div class="text-h6 font-weight-medium text-error">
-                              {{ formatRupiah(deadStockSummary.nilaiDs) }}
-                            </div>
-                            <div class="text-caption text-medium-emphasis">
-                              {{ deadStockSummary.ds.toLocaleString("id-ID") }} pcs terblokir
-                            </div>
-                          </div>
-                        </v-col>
-                        <v-col cols="6" sm="3">
-                          <div class="rounded-lg pa-3 bg-orange-lighten-5">
-                            <div class="text-caption text-medium-emphasis mb-1">
-                              Stok Bermasalah
-                            </div>
-                            <div class="text-h6 font-weight-medium text-orange-darken-3">
-                              {{
-                                deadStockSummary.total > 0
-                                  ? (
-                                      ((deadStockSummary.sm + deadStockSummary.ds) /
-                                        deadStockSummary.total) *
-                                      100
-                                    ).toFixed(1)
-                                  : 0
-                              }}%
-                            </div>
-                            <div class="text-caption text-medium-emphasis">Dead + Slow Moving</div>
-                          </div>
-                        </v-col>
-                        <v-col cols="6" sm="3">
-                          <div class="rounded-lg pa-3 bg-green-lighten-5">
-                            <div class="text-caption text-medium-emphasis mb-1">Stok Sehat</div>
-                            <div class="text-h6 font-weight-medium text-success">
-                              {{
-                                deadStockSummary.total > 0
-                                  ? (
-                                      ((deadStockSummary.fm + deadStockSummary.std) /
-                                        deadStockSummary.total) *
-                                      100
-                                    ).toFixed(1)
-                                  : 0
-                              }}%
-                            </div>
-                            <div class="text-caption text-medium-emphasis">Fast + Standar</div>
-                          </div>
-                        </v-col>
-                      </v-row>
-                    </div>
-                  </v-card-text>
-                </v-card>
-              </v-col>
-            </v-row>
-
-            <v-row class="mt-4">
-              <!-- Stacked Bar -->
-              <v-col cols="12" md="5">
-                <div class="rounded-lg pa-3" style="background: white">
-                  <div
-                    class="text-caption font-weight-bold text-grey-darken-2 mb-2 text-uppercase"
-                    style="letter-spacing: 0.04em"
-                  >
-                    Distribusi Stok per Jenis Kain × Tier
+                  <div class="text-h6 font-weight-bold text-light-blue-darken-2">
+                    <span v-if="isLoadingStock && animatedTotalStock === 0">...</span>
+                    <span v-else>{{ Math.round(animatedTotalStock).toLocaleString("id-ID") }}</span>
                   </div>
-                  <div class="d-flex flex-wrap gap-3 mb-2">
-                    <span
-                      v-for="(ds, i) in [
-                        { label: 'Fast Moving', color: '#639922' },
-                        { label: 'Standar', color: '#378ADD' },
-                        { label: 'Slow Moving', color: '#EF9F27' },
-                        { label: 'Dead Stock', color: '#E24B4A' },
-                      ]"
-                      :key="i"
-                      class="d-flex align-center"
-                      style="gap: 4px; font-size: 11px; color: #666"
-                    >
-                      <span
-                        :style="`width:10px;height:10px;border-radius:2px;background:${ds.color};display:inline-block`"
-                      ></span>
-                      {{ ds.label }}
+                  <div class="text-caption text-grey-darken-1">Stok Rak (Ready)</div>
+
+                  <div
+                    class="text-caption text-indigo-darken-1 font-weight-bold"
+                    style="font-size: 0.65rem !important"
+                  >
+                    Booking: {{ Math.round(animatedReservedStock).toLocaleString("id-ID") }} pcs
+                  </div>
+
+                  <div
+                    v-if="!isLoadingStats && !isLoadingStock"
+                    class="d-flex justify-center ga-2 mt-1 pt-1 border-t w-100"
+                  >
+                    <span class="text-caption text-success font-weight-bold">
+                      <v-icon size="x-small" start>mdi-arrow-up</v-icon>{{ stats.todayStokIn }}
+                    </span>
+                    <span class="text-caption text-error font-weight-bold">
+                      <v-icon size="x-small" start>mdi-arrow-down</v-icon>{{ stats.todayStokOut }}
                     </span>
                   </div>
-                  <div v-if="isLoadingDeadStockChart" class="text-center pa-6">
-                    <v-progress-circular indeterminate color="error" size="24" />
-                  </div>
-                  <div v-else style="height: 220px; position: relative">
-                    <Bar :data="deadStockBarData" :options="deadStockBarOptions as any" />
-                  </div>
-                </div>
-              </v-col>
+                </v-card-text>
+              </v-card>
+            </v-col>
 
-              <!-- Donut -->
-              <v-col cols="12" md="4">
-                <div class="rounded-lg pa-3" style="background: white">
-                  <div
-                    class="text-caption font-weight-bold text-grey-darken-2 mb-2 text-uppercase"
-                    style="letter-spacing: 0.04em"
-                  >
-                    Komposisi Stok
-                  </div>
-                  <div style="height: 220px; position: relative">
-                    <Pie :data="deadStockDonutData" :options="deadStockDonutOptions as any" />
-                  </div>
-                </div>
-              </v-col>
-
-              <!-- PIE BARU — penjualan dead stock -->
-              <v-col cols="12" md="3">
-                <div class="rounded-lg pa-3 h-100" style="background: white">
-                  <div
-                    class="text-caption font-weight-bold text-grey-darken-2 mb-2 text-uppercase"
-                    style="letter-spacing: 0.04em"
-                  >
-                    Pergerakan Dead Stock (12 bln)
-                  </div>
-                  <div v-if="isLoadingDeadStockSalesPie" class="text-center pa-6">
-                    <v-progress-circular indeterminate color="error" size="24" />
-                  </div>
-                  <div v-else>
-                    <div style="height: 180px; position: relative">
-                      <Pie
-                        :data="deadStockSalesPieData"
-                        :options="deadStockSalesPieOptions as any"
-                      />
-                    </div>
-                    <!-- Mini stats di bawah chart -->
-                    <div class="d-flex justify-space-around mt-2 pt-2 border-t">
-                      <div
-                        class="text-center cursor-pointer"
-                        @click="openDeadStockDetail('bergerak')"
-                      >
-                        <div class="text-caption font-weight-bold text-success">
-                          {{ Number(deadStockSalesPie.sku_bergerak).toLocaleString("id-ID") }}
-                        </div>
-                        <div
-                          style="font-size: 9px"
-                          class="text-medium-emphasis text-decoration-underline"
-                        >
-                          SKU Bergerak ↗
-                        </div>
-                      </div>
-                      <div
-                        class="text-center cursor-pointer"
-                        @click="openDeadStockDetail('stagnan')"
-                      >
-                        <div class="text-caption font-weight-bold text-error">
-                          {{
-                            (
-                              Number(deadStockSalesPie.sku_total) -
-                              Number(deadStockSalesPie.sku_bergerak)
-                            ).toLocaleString("id-ID")
-                          }}
-                        </div>
-                        <div
-                          style="font-size: 9px"
-                          class="text-medium-emphasis text-decoration-underline"
-                        >
-                          SKU Stagnan ↗
-                        </div>
-                      </div>
-                      <div class="text-center">
-                        <div class="text-caption font-weight-bold text-blue-darken-2">
-                          {{ Number(deadStockSalesPie.qty_terjual).toLocaleString("id-ID") }}
-                        </div>
-                        <div style="font-size: 9px" class="text-medium-emphasis">Qty Terjual</div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </v-col>
-            </v-row>
-
-            <!-- Baris 4: Trend Penjualan Item (KDC only) -->
-            <v-row v-if="authStore.user?.cabang === 'KDC'" class="mb-4">
-              <v-col cols="12">
-                <v-card elevation="2" class="rounded-lg bg-surface">
-                  <v-card-title
-                    class="d-flex align-center bg-blue-lighten-5 py-2 text-blue-darken-3"
-                  >
-                    <v-icon class="mr-2" color="primary" size="small"
-                      >mdi-chart-line-variant</v-icon
-                    >
-                    <span class="text-subtitle-2 font-weight-bold">Trend Penjualan Item</span>
-                    <v-spacer />
-                    <div class="d-flex align-center ga-2">
-                      <div style="width: 180px">
-                        <v-select
-                          v-model="trendCabang"
-                          :items="cabangList"
-                          item-title="nama"
-                          item-value="kode"
-                          label="Filter Cabang"
-                          density="compact"
-                          variant="outlined"
-                          hide-details
-                          bg-color="surface"
-                          class="text-caption font-weight-bold"
-                        />
-                      </div>
-                      <v-btn
-                        color="success"
-                        size="small"
-                        prepend-icon="mdi-file-excel"
-                        variant="flat"
-                        @click="exportTrendPenjualan"
-                        >Export</v-btn
-                      >
-                    </div>
-                  </v-card-title>
-                  <v-card-text class="pa-0">
-                    <div v-if="isLoadingItemTrend" class="text-center pa-8">
-                      <v-progress-circular indeterminate color="primary" size="36" />
-                      <div class="mt-2 text-caption">Analisa data barang...</div>
-                    </div>
-                    <v-data-table
-                      v-else
-                      :headers="itemTrendHeaders"
-                      :items="itemTrendData"
-                      density="compact"
-                      hover
-                      class="text-caption trend-table"
-                      hide-default-footer
-                      items-per-page="-1"
-                    >
-                      <template #[`item.nama`]="{ item }">
-                        <div class="py-2">
-                          <div class="font-weight-bold text-wrap">{{ item.nama }}</div>
-                          <div class="text-grey text-xs mt-1">{{ item.kode }}</div>
-                        </div>
-                      </template>
-                      <template
-                        v-for="col in [
-                          'avg_now',
-                          'avg_min_1',
-                          'avg_min_2',
-                          'avg_min_3',
-                          'avg_ly_now',
-                          'avg_ly_plus_1',
-                          'avg_ly_plus_2',
-                        ]"
-                        :key="col"
-                        #[`item.${col}`]="{ value }"
-                      >
-                        <span :class="col === 'avg_now' ? 'font-weight-black text-primary' : ''">{{
-                          Number(value).toFixed(1)
-                        }}</span>
-                      </template>
-                      <template #[`item.trend`]="{ item }">
-                        <v-icon
-                          :icon="getTrendIcon(item)"
-                          :color="getTrendColor(item)"
-                          size="small"
-                        />
-                      </template>
-                    </v-data-table>
-                  </v-card-text>
-                </v-card>
-              </v-col>
-            </v-row>
-          </v-tabs-window-item>
-
-          <!-- ══════════════════════════════════════════
-               TAB 3 — STOK
-               Pareto, stok menipis, stok kosong, stagnant
-               ══════════════════════════════════════════ -->
-          <v-tabs-window-item value="stok">
-            <v-row class="mb-4">
-              <!-- Stok Menipis -->
-              <v-col cols="12" md="6">
-                <v-card elevation="2" class="bg-surface">
-                  <v-card-title
-                    class="d-flex align-center bg-orange-lighten-5 text-orange-darken-4 py-2"
-                  >
-                    <v-icon class="mr-2" color="warning" size="small">mdi-alert-circle</v-icon>
-                    <span class="text-subtitle-2 font-weight-bold">Stok Menipis</span>
-                    <v-chip
-                      v-if="!isLoadingLowStock && lowStockProducts.length > 0"
-                      size="x-small"
-                      color="warning"
-                      variant="flat"
-                      class="ml-2 font-weight-bold"
-                      >{{ lowStockProducts.length }} item</v-chip
-                    >
-                  </v-card-title>
-                  <v-card-text class="pa-4">
-                    <div v-if="isLoadingLowStock" class="text-center pa-8">
-                      <v-progress-circular indeterminate color="warning" size="48" />
-                    </div>
-                    <div v-else-if="lowStockProducts.length === 0" class="text-center pa-8">
-                      <v-icon size="56" color="success">mdi-check-circle-outline</v-icon>
-                      <div class="mt-2 text-subtitle-2">Stok Aman!</div>
-                    </div>
-                    <div v-else>
-                      <v-list
-                        bg-color="transparent"
-                        class="scrollable-list"
-                        style="max-height: 300px; overflow-y: auto"
-                      >
-                        <TransitionGroup tag="div" :css="false" @enter="onListEnter">
-                          <v-list-item
-                            v-for="(product, i) in lowStockProducts"
-                            :key="`${product.KODE}-${product.UKURAN}`"
-                            :data-index="i"
-                            class="px-3 mb-2 py-2"
-                            rounded="lg"
-                            border
-                          >
-                            <template #prepend>
-                              <v-avatar color="error" size="40" variant="tonal" class="mr-2">
-                                <span class="text-subtitle-2 font-weight-black">{{
-                                  product.UKURAN
-                                }}</span>
-                              </v-avatar>
-                            </template>
-                            <div class="d-flex flex-column gap-1">
-                              <div class="text-caption font-weight-bold text-wrap">
-                                {{ product.NAMA }}
-                              </div>
-                              <div
-                                class="d-flex align-center text-caption text-medium-emphasis mt-1"
-                              >
-                                <v-chip
-                                  size="x-small"
-                                  label
-                                  class="mr-2 px-2"
-                                  color="grey-lighten-2"
-                                  variant="flat"
-                                  ><span class="text-grey-darken-3 font-weight-medium">{{
-                                    product.KODE
-                                  }}</span></v-chip
-                                >
-                                <span v-if="product.BARCODE" class="d-flex align-center"
-                                  ><v-icon start size="x-small" icon="mdi-barcode" class="mr-1" />{{
-                                    product.BARCODE
-                                  }}</span
-                                >
-                              </div>
-                              <div class="d-flex align-center mt-1">
-                                <v-chip
-                                  size="x-small"
-                                  color="error"
-                                  variant="flat"
-                                  class="mr-2 font-weight-bold"
-                                  >Sisa: {{ product.TOTAL }}</v-chip
-                                >
-                                <div
-                                  class="d-flex align-center text-caption text-info font-weight-medium"
-                                >
-                                  <v-icon
-                                    size="x-small"
-                                    start
-                                    icon="mdi-speedometer"
-                                    class="mr-1"
-                                  />Laku: {{ Number(product.AVG_SALE).toFixed(1) }} /bln
-                                </div>
-                              </div>
-                            </div>
-                          </v-list-item>
-                        </TransitionGroup>
-                      </v-list>
-                      <v-btn
-                        color="warning"
-                        variant="tonal"
-                        block
-                        class="mt-4"
-                        to="/laporan/stok/real-time"
-                        prepend-icon="mdi-file-chart-outline"
-                        >Lihat Laporan Lengkap</v-btn
-                      >
-                    </div>
-                  </v-card-text>
-                </v-card>
-              </v-col>
-
-              <!-- Kesiapan Pareto (detail) -->
-              <v-col cols="12" md="6">
-                <v-card elevation="2" class="bg-surface fill-height">
-                  <v-card-title class="d-flex align-center py-2" :color="healthStatus.color">
-                    <v-icon class="mr-2" :color="healthStatus.color" size="small">{{
-                      healthStatus.icon
-                    }}</v-icon>
-                    <span class="text-subtitle-2 font-weight-bold">Kesiapan Stok Pareto</span>
-                    <v-spacer />
-                    <v-btn
-                      size="x-small"
-                      variant="tonal"
-                      :color="healthStatus.color"
-                      @click="openParetoDetail"
-                      >Detail</v-btn
-                    >
-                  </v-card-title>
-                  <v-card-text class="pa-4">
-                    <div v-if="isLoadingPareto" class="text-center pa-8">
-                      <v-progress-circular indeterminate size="40" />
-                    </div>
-                    <div v-else>
-                      <div class="text-center mb-4">
-                        <div
-                          class="text-h2 font-weight-black"
-                          :class="`text-${healthStatus.color}`"
-                        >
-                          {{ paretoStats.score }}%
-                        </div>
-                        <div class="text-subtitle-2 font-weight-bold mt-1">
-                          {{ healthStatus.text }}
-                        </div>
-                        <div class="text-caption text-medium-emphasis mt-1">
-                          {{ healthStatus.desc }}
-                        </div>
-                      </div>
-                      <v-divider class="mb-3" />
-                      <div class="d-flex justify-space-around text-center">
-                        <div>
-                          <div class="text-h6 font-weight-bold">{{ paretoStats.sku_count }}</div>
-                          <div class="text-caption text-medium-emphasis">SKU Laku</div>
-                        </div>
-                        <div>
-                          <div class="text-h6 font-weight-bold">
-                            {{ paretoStats.actual_stock.toLocaleString() }}
-                          </div>
-                          <div class="text-caption text-medium-emphasis">Stok Aktual</div>
-                        </div>
-                        <div>
-                          <div class="text-h6 font-weight-bold">
-                            {{ paretoStats.buffer_stock.toLocaleString() }}
-                          </div>
-                          <div class="text-caption text-medium-emphasis">Target Buffer</div>
-                        </div>
-                      </div>
-                    </div>
-                  </v-card-text>
-                </v-card>
-              </v-col>
-            </v-row>
-
-            <!-- Stok Kosong + Stagnant -->
-            <v-row class="mb-4">
-              <v-col cols="12">
-                <v-card
-                  elevation="3"
-                  class="bg-surface hover-pointer"
-                  hover
-                  @click="router.push('/laporan/stok/dead-stok')"
-                >
-                  <v-card-text>
-                    <div v-if="isLoadingStagnantStock" class="text-center pa-2">
-                      <v-progress-circular indeterminate color="deep-orange" size="24" />
-                    </div>
-                    <div v-else class="d-flex align-center justify-space-between w-100">
-                      <div class="d-flex align-center">
-                        <v-icon size="40" class="mr-4" color="deep-orange"
-                          >mdi-archive-arrow-down-outline</v-icon
-                        >
-                        <div>
-                          <div class="text-caption text-deep-orange font-weight-bold">
-                            Nilai Stok Stagnan (30 Hari)
-                          </div>
-                          <div class="text-h5 font-weight-bold text-deep-orange">
-                            <span v-if="isLoadingStagnantStock && animatedStagnant === 0">...</span>
-                            <span v-else class="animated-number">{{
-                              formatRupiah(Number(animatedStagnant.toFixed(0)))
-                            }}</span>
-                          </div>
-                        </div>
-                      </div>
-                      <div class="text-caption text-medium-emphasis d-none d-sm-block">
-                        Klik untuk lihat laporan dead stock
-                      </div>
-                    </div>
-                  </v-card-text>
-                </v-card>
-              </v-col>
-            </v-row>
-
-            <v-row class="mb-4">
-              <v-col cols="12">
-                <v-card elevation="2" class="rounded-lg d-flex flex-column bg-surface">
-                  <v-card-title
-                    class="d-flex flex-column flex-sm-row align-start align-sm-center bg-red-lighten-5 py-2 gap-2 pr-2 text-red-darken-4"
-                  >
-                    <div class="d-flex align-center flex-grow-1">
-                      <v-icon class="mr-2" color="red" size="small"
-                        >mdi-close-octagon-outline</v-icon
-                      >
-                      <span class="text-subtitle-2 font-weight-bold"
-                        >Stok Kosong Store (0 Pcs)</span
-                      >
-                    </div>
-                    <div class="d-flex align-center gap-2 w-100 w-sm-auto">
-                      <div style="width: 160px">
-                        <v-select
-                          v-model="stokKosongCabang"
-                          :items="cabangList.filter((c) => c.kode !== 'KDC')"
-                          item-title="nama"
-                          item-value="kode"
-                          density="compact"
-                          variant="outlined"
-                          hide-details
-                          bg-color="surface"
-                          placeholder="Pilih Cabang"
-                          class="filter-select-small"
-                          :disabled="authStore.user?.cabang !== 'KDC'"
-                        />
-                      </div>
-                      <v-text-field
-                        v-model="searchStokKosong"
-                        density="compact"
-                        variant="outlined"
-                        label="Cari Barang..."
-                        prepend-inner-icon="mdi-magnify"
-                        hide-details
-                        bg-color="surface"
-                        single-line
-                        class="text-caption"
-                        style="min-width: 180px"
-                      />
-                      <v-btn
-                        color="success"
-                        variant="tonal"
-                        size="small"
-                        class="px-2"
-                        :disabled="stokKosongList.length === 0"
-                        @click="exportStokKosong"
-                      >
-                        <v-icon>mdi-file-excel</v-icon>
-                        <span class="d-none d-sm-inline ml-1">Export</span>
-                      </v-btn>
-                    </div>
-                  </v-card-title>
-
-                  <v-card-text class="pa-0">
-                    <div
-                      v-if="isLoadingStokKosong && stokKosongPage === 1"
-                      class="text-center pa-8"
-                    >
-                      <v-progress-circular indeterminate color="red" size="36" />
-                      <div class="mt-2 text-caption">Mencari data stok kosong...</div>
-                    </div>
-                    <div
-                      v-else-if="stokKosongList.length === 0"
-                      class="text-center pa-8 text-medium-emphasis"
-                    >
-                      <v-icon size="48" class="mb-2">mdi-check-circle-outline</v-icon>
-                      <div class="text-caption">Tidak ada stok kosong sesuai pencarian.</div>
-                    </div>
-                    <v-data-table
-                      v-else
-                      :headers="[
-                        { title: 'STORE', key: 'nama_cabang', sortable: false },
-                        { title: 'KODE', key: 'kode', sortable: false, width: '130px' },
-                        { title: 'BARCODE', key: 'barcode', sortable: false, width: '130px' },
-                        { title: 'NAMA BARANG', key: 'nama_barang', sortable: false },
-                        {
-                          title: 'UK.',
-                          key: 'ukuran',
-                          align: 'center',
-                          sortable: false,
-                          width: '80px',
-                        },
-                        {
-                          title: 'STOK',
-                          key: 'stok_akhir',
-                          align: 'center',
-                          sortable: false,
-                          width: '80px',
-                        },
-                      ]"
-                      :items="stokKosongList"
-                      density="compact"
-                      hover
-                      class="text-caption border-t desktop-table"
-                      hide-default-footer
-                      :items-per-page="-1"
-                      style="max-height: 450px; overflow-y: auto"
-                    >
-                      <template #[`item.nama_cabang`]="{ item }">
-                        <span class="font-weight-bold text-blue-darken-3">{{
-                          item.nama_cabang
-                        }}</span>
-                      </template>
-                      <template #[`item.nama_barang`]="{ item }">
-                        <span class="font-weight-medium">{{ item.nama_barang }}</span>
-                      </template>
-                      <template #[`item.stok_akhir`]="{ item }">
-                        <v-chip
-                          size="x-small"
-                          color="error"
-                          variant="flat"
-                          class="font-weight-bold"
-                        >
-                          {{ item.stok_akhir ?? 0 }}
-                        </v-chip>
-                      </template>
-
-                      <template #bottom>
-                        <div v-intersect="onIntersectStokKosong" class="pa-3 text-center w-100">
-                          <v-progress-circular
-                            v-if="isLoadingMoreStokKosong"
-                            indeterminate
-                            color="red"
-                            size="24"
-                            width="3"
-                          />
-                          <div
-                            v-else-if="isStokKosongFinished && stokKosongList.length > 0"
-                            class="text-caption text-grey"
-                          >
-                            -- Menampilkan semua {{ stokKosongList.length }} barang kosong --
-                          </div>
-                        </div>
-                      </template>
-                    </v-data-table>
-                  </v-card-text>
-                </v-card>
-              </v-col>
-            </v-row>
-
-            <!-- Stok Kosong Fast Moving -->
-            <v-row class="mb-4">
-              <v-col cols="12">
-                <v-card elevation="2" class="rounded-lg d-flex flex-column bg-surface">
-                  <v-card-title
-                    class="d-flex flex-column flex-sm-row align-start align-sm-center bg-deep-orange-lighten-5 py-2 gap-2 pr-2 text-deep-orange-darken-4"
-                  >
-                    <div class="d-flex align-center flex-grow-1">
-                      <v-icon class="mr-2" color="deep-orange" size="small"
-                        >mdi-alert-octagon-outline</v-icon
-                      >
-                      <span class="text-subtitle-2 font-weight-bold"
-                        >Stok Kosong — Barang Fast Moving</span
-                      >
-                      <v-chip
-                        v-if="!isLoadingFastMoving && stokKosongFastMovingList.length > 0"
-                        size="x-small"
-                        color="deep-orange"
-                        variant="flat"
-                        class="ml-2 font-weight-bold"
-                        >{{ stokKosongFastMovingList.length }}+ item</v-chip
-                      >
-                    </div>
-                    <div class="d-flex align-center gap-2 w-100 w-sm-auto">
-                      <div style="width: 160px">
-                        <v-select
-                          v-model="fastMovingCabang"
-                          :items="cabangList"
-                          item-title="nama"
-                          item-value="kode"
-                          density="compact"
-                          variant="outlined"
-                          hide-details
-                          bg-color="surface"
-                          class="filter-select-small"
-                          :disabled="authStore.user?.cabang !== 'KDC'"
-                        />
-                      </div>
-                      <v-text-field
-                        v-model="searchFastMoving"
-                        density="compact"
-                        variant="outlined"
-                        label="Cari Barang..."
-                        prepend-inner-icon="mdi-magnify"
-                        hide-details
-                        bg-color="surface"
-                        single-line
-                        class="text-caption"
-                        style="min-width: 180px"
-                      />
-                      <v-btn
-                        color="success"
-                        variant="tonal"
-                        size="small"
-                        class="px-2"
-                        :disabled="stokKosongFastMovingList.length === 0"
-                        @click="exportStokKosongFastMoving"
-                      >
-                        <v-icon>mdi-file-excel</v-icon>
-                        <span class="d-none d-sm-inline ml-1">Export</span>
-                      </v-btn>
-                    </div>
-                  </v-card-title>
-                  <v-card-text class="pa-0">
-                    <div
-                      v-if="isLoadingFastMoving && fastMovingPage === 1"
-                      class="text-center pa-8"
-                    >
-                      <v-progress-circular indeterminate color="deep-orange" size="36" />
-                      <div class="mt-2 text-caption">Mencari stok kosong fast moving...</div>
-                    </div>
-                    <div
-                      v-else-if="stokKosongFastMovingList.length === 0"
-                      class="text-center pa-8 text-medium-emphasis"
-                    >
-                      <v-icon size="48" class="mb-2">mdi-check-circle-outline</v-icon>
-                      <div class="text-caption">Tidak ada stok kosong dari barang fast moving.</div>
-                    </div>
-                    <v-data-table
-                      v-else
-                      :headers="[
-                        { title: 'STORE', key: 'nama_cabang', sortable: false },
-                        { title: 'KODE', key: 'kode', sortable: false, width: '140px' },
-                        { title: 'NAMA BARANG', key: 'nama', sortable: false },
-                        {
-                          title: 'UK.',
-                          key: 'ukuran',
-                          align: 'center',
-                          sortable: false,
-                          width: '70px',
-                        },
-                        {
-                          title: 'TERAKHIR DITERIMA',
-                          key: 'last_tstbj',
-                          align: 'center',
-                          sortable: false,
-                          width: '140px',
-                        },
-                        {
-                          title: 'UMUR',
-                          key: 'umur_bulan',
-                          align: 'center',
-                          sortable: false,
-                          width: '90px',
-                        },
-                        {
-                          title: 'STOK',
-                          key: 'stok_sekarang',
-                          align: 'center',
-                          sortable: false,
-                          width: '80px',
-                        },
-                      ]"
-                      :items="stokKosongFastMovingList"
-                      density="compact"
-                      hover
-                      class="text-caption border-t desktop-table"
-                      hide-default-footer
-                      :items-per-page="-1"
-                      style="max-height: 450px; overflow-y: auto"
-                    >
-                      <template #[`item.nama_cabang`]="{ item }">
-                        <span class="font-weight-bold text-deep-orange-darken-3">{{
-                          item.nama_cabang
-                        }}</span>
-                      </template>
-                      <template #[`item.nama`]="{ item }">
-                        <span class="font-weight-medium">{{ item.nama }}</span>
-                      </template>
-                      <template #[`item.last_tstbj`]="{ item }">
-                        <span class="text-caption">
-                          {{
-                            item.last_tstbj ? format(new Date(item.last_tstbj), "dd/MM/yyyy") : "-"
-                          }}
-                        </span>
-                      </template>
-                      <template #[`item.umur_bulan`]="{ item }">
-                        <v-chip
-                          size="x-small"
-                          color="orange"
-                          variant="tonal"
-                          class="font-weight-bold"
-                        >
-                          {{ item.umur_bulan }} bln
-                        </v-chip>
-                      </template>
-                      <template #[`item.stok_sekarang`]="{ item }">
-                        <v-chip
-                          size="x-small"
-                          color="error"
-                          variant="flat"
-                          class="font-weight-bold"
-                        >
-                          {{ item.stok_sekarang }}
-                        </v-chip>
-                      </template>
-                      <template #bottom>
-                        <div v-intersect="onIntersectFastMoving" class="pa-3 text-center w-100">
-                          <v-progress-circular
-                            v-if="isLoadingMoreFastMoving"
-                            indeterminate
-                            color="deep-orange"
-                            size="24"
-                            width="3"
-                          />
-                          <div
-                            v-else-if="isFastMovingFinished && stokKosongFastMovingList.length > 0"
-                            class="text-caption text-grey"
-                          >
-                            -- Menampilkan semua {{ stokKosongFastMovingList.length }} barang --
-                          </div>
-                        </div>
-                      </template>
-                    </v-data-table>
-                  </v-card-text>
-                </v-card>
-              </v-col>
-            </v-row>
-          </v-tabs-window-item>
-
-          <!-- ══════════════════════════════════════════
-               TAB 4 — OPERASIONAL
-               Jadwal kirim lengkap + Antrian bordir + Menu gudang
-               ══════════════════════════════════════════ -->
-          <v-tabs-window-item value="operasional">
-            <!-- Jadwal Kirim Lengkap -->
-            <v-card elevation="2" class="rounded-lg bg-surface mb-4">
-              <v-card-title
-                class="d-flex align-center bg-indigo-lighten-5 text-indigo-darken-4 py-3"
+            <!-- Sisa Piutang -->
+            <v-col v-if="!isWarehouseUser" cols="12" sm="4" md="3">
+              <v-menu
+                open-on-hover
+                location="bottom center"
+                transition="scale-transition"
+                :close-on-content-click="false"
               >
-                <v-icon class="mr-2" color="indigo">mdi-truck-clock</v-icon>
-                <span class="text-subtitle-1 font-weight-bold">Jadwal Kirim ke Toko (SJ)</span>
-                <v-spacer />
-                <v-btn
-                  v-if="isWarehouseUser"
-                  icon="mdi-plus"
-                  size="x-small"
-                  color="indigo"
-                  variant="flat"
-                  @click="isAddScheduleDialog = true"
-                />
-              </v-card-title>
-              <v-card-text class="pa-0">
-                <v-table density="compact" class="schedule-table">
-                  <thead>
-                    <tr class="bg-grey-lighten-4">
-                      <th class="text-center font-weight-bold" style="width: 80px">KODE</th>
-                      <th class="font-weight-bold">STORE</th>
-                      <th class="text-center font-weight-bold">KIRIMAN 1</th>
-                      <th class="text-center font-weight-bold">KIRIMAN 2</th>
-                      <th class="text-center font-weight-bold">STATUS RIIL</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr v-for="item in combinedSchedules" :key="item.kode">
-                      <td class="text-center font-weight-bold text-grey-darken-2">
-                        {{ item.kode }}
-                      </td>
-                      <td class="font-weight-medium">{{ item.nama }}</td>
-                      <td class="text-center text-caption">{{ item.k1 }}</td>
-                      <td class="text-center text-caption">{{ item.k2 }}</td>
-                      <td class="text-center">
-                        <div
-                          v-if="item.activeShipment"
-                          class="d-flex align-center justify-center ga-1"
-                        >
-                          <v-icon
-                            :icon="getStatusIcon(item.activeShipment.status)"
-                            :color="getStatusColor(item.activeShipment.status)"
-                            size="16"
-                          />
-                          <v-chip
-                            :color="getStatusColor(item.activeShipment.status)"
-                            size="x-small"
-                            variant="flat"
-                            class="font-weight-bold"
-                            >{{ item.activeShipment.status }}</v-chip
-                          >
-                          <v-menu transition="scale-transition">
-                            <template v-slot:activator="{ props }">
-                              <v-btn
-                                icon="mdi-pencil"
-                                variant="text"
-                                size="x-small"
-                                v-bind="props"
-                              />
-                            </template>
-                            <v-list density="compact">
-                              <v-list-item
-                                v-for="st in ['Antri', 'Packing', 'Kirim', 'Selesai']"
-                                :key="st"
-                                @click="updateStatus(item.activeShipment!.id!, st as any)"
-                              >
-                                <v-list-item-title>{{ st }}</v-list-item-title>
-                              </v-list-item>
-                            </v-list>
-                          </v-menu>
-                        </div>
-                        <span v-else class="text-caption text-grey-lighten-1">-</span>
-                      </td>
-                    </tr>
-                    <tr v-for="extra in extraShipments" :key="extra.id" class="bg-amber-lighten-5">
-                      <td class="text-center font-weight-bold">{{ extra.cabang_tujuan }}</td>
-                      <td>
-                        <div class="font-weight-bold">{{ extra.nama_cabang }}</div>
-                        <div class="text-caption text-error font-italic">
-                          (Tambahan Luar Jadwal)
-                        </div>
-                      </td>
-                      <td colspan="2" class="text-center text-caption">
-                        Tgl: {{ format(new Date(extra.tanggal_kirim), "dd/MM") }}
-                      </td>
-                      <td class="text-center">
-                        <v-chip
-                          :color="getStatusColor(extra.status)"
-                          size="x-small"
-                          variant="flat"
-                          >{{ extra.status }}</v-chip
-                        >
-                      </td>
-                    </tr>
-                  </tbody>
-                </v-table>
-                <div v-if="isLoadingSchedules" class="text-center pa-4">
-                  <v-progress-circular indeterminate color="indigo" size="20" />
-                </div>
-              </v-card-text>
-            </v-card>
-
-            <!-- Auto Minta Analytics -->
-            <v-card elevation="2" class="rounded-lg bg-surface mb-4">
-              <v-card-title
-                class="d-flex flex-wrap align-center bg-blue-grey-lighten-5 py-3 text-blue-grey-darken-3 gap-2"
-              >
-                <v-icon class="mr-2" color="blue-grey-darken-1">mdi-robot-outline</v-icon>
-                <span class="text-subtitle-1 font-weight-bold"
-                  >Analisis Permintaan Otomatis (Auto Replenishment)</span
-                >
-
-                <v-spacer />
-
-                <div
-                  class="d-flex align-center border rounded px-2 bg-white"
-                  style="height: 32px; border-color: #cfd8dc !important"
-                >
-                  <input
-                    type="date"
-                    v-model="autoMintaFilter.startDate"
-                    class="date-native-input text-caption text-blue-grey-darken-3 font-weight-bold"
-                  />
-                  <span class="mx-1 text-caption text-medium-emphasis">s/d</span>
-                  <input
-                    type="date"
-                    v-model="autoMintaFilter.endDate"
-                    class="date-native-input text-caption text-blue-grey-darken-3 font-weight-bold"
-                  />
-                </div>
-
-                <div v-if="authStore.user?.cabang === 'KDC'" style="width: 140px">
-                  <v-select
-                    v-model="autoMintaFilter.cabang"
-                    :items="cabangList"
-                    item-title="nama"
-                    item-value="kode"
-                    density="compact"
-                    variant="outlined"
-                    hide-details
-                    bg-color="white"
-                    class="filter-select-small"
-                  />
-                </div>
-              </v-card-title>
-
-              <v-card-text class="pa-4">
-                <div v-if="isLoadingAutoMinta" class="text-center pa-8">
-                  <v-progress-circular indeterminate color="blue-grey" size="40" />
-                </div>
-                <div v-else>
-                  <v-row dense class="mb-4">
-                    <v-col cols="12" md="4">
-                      <v-card variant="outlined" class="text-center pa-3 bg-grey-lighten-5">
-                        <div class="text-caption text-medium-emphasis text-uppercase mb-1">
-                          Total Cabang Automasi
-                        </div>
-                        <div class="text-h5 font-weight-black text-blue-grey-darken-3">
-                          {{ autoMintaData.length }}
-                          <span class="text-caption font-weight-medium">Cabang</span>
-                        </div>
-                      </v-card>
-                    </v-col>
-                    <v-col cols="12" md="4">
-                      <v-card
-                        variant="outlined"
-                        class="text-center pa-3 bg-blue-lighten-5 border-blue-lighten-3"
-                      >
-                        <div class="text-caption text-medium-emphasis text-uppercase mb-1">
-                          Avg. Realisasi DC
-                        </div>
-                        <div class="text-h5 font-weight-black text-blue-darken-2">
-                          {{ autoMintaAvgPacking }}%
-                        </div>
-                      </v-card>
-                    </v-col>
-                    <v-col cols="12" md="4">
-                      <v-card
-                        variant="outlined"
-                        class="text-center pa-3 bg-green-lighten-5 border-green-lighten-3"
-                      >
-                        <div class="text-caption text-medium-emphasis text-uppercase mb-1">
-                          Avg. Terkirim (SJ)
-                        </div>
-                        <div class="text-h5 font-weight-black text-green-darken-2">
-                          {{ autoMintaAvgSj }}%
-                        </div>
-                      </v-card>
-                    </v-col>
-                  </v-row>
-
-                  <div class="mb-6" style="height: 250px; position: relative">
-                    <Line
-                      v-if="autoMintaData.length > 0"
-                      :data="autoMintaChartData as any"
-                      :options="autoMintaChartOptions as any"
-                    />
-                  </div>
-
-                  <v-data-table
-                    :headers="autoMintaHeaders"
-                    :items="autoMintaData"
-                    density="compact"
-                    hover
-                    class="border rounded-lg text-caption"
+                <template v-slot:activator="{ props }">
+                  <v-card
+                    v-bind="props"
+                    class="stat-card fill-height py-1 cursor-pointer"
+                    color="orange-lighten-5"
+                    variant="flat"
                   >
-                    <template #[`item.nama_cabang`]="{ item }">
-                      <div class="font-weight-bold">{{ item.nama_cabang }}</div>
-                      <div class="text-grey" style="font-size: 10px">{{ item.kode_cabang }}</div>
-                    </template>
-
-                    <template #[`item.qty_minta`]="{ item }">
-                      <div class="font-weight-black">
-                        {{ Number(item.qty_minta).toLocaleString("id-ID") }} pcs
+                    <v-card-text class="text-center pa-2">
+                      <v-icon color="orange-darken-1" size="24" class="mb-1"
+                        >mdi-clock-alert-outline</v-icon
+                      >
+                      <div class="text-h6 font-weight-bold text-orange-darken-2 text-truncate">
+                        <span v-if="isLoadingPiutang">...</span>
+                        <span v-else>{{ formatRupiah(Number(animatedPiutang.toFixed(0))) }}</span>
                       </div>
-                    </template>
-
-                    <template #[`item.qty_packed`]="{ item }">
-                      <div class="font-weight-bold text-blue-darken-3">
-                        {{ Number(item.qty_packed).toLocaleString("id-ID") }} pcs
-                      </div>
-                    </template>
-
-                    <template #[`item.ratio_packing`]="{ item }">
-                      <div class="d-flex align-center justify-center w-100">
-                        <span
-                          class="mr-2 font-weight-bold"
-                          :class="`text-${getRatioColor(item.ratio_packing)}`"
-                          style="width: 40px; text-align: right"
-                        >
-                          {{ item.ratio_packing }}%
-                        </span>
-                        <v-progress-linear
-                          :model-value="item.ratio_packing"
-                          :color="getRatioColor(item.ratio_packing)"
-                          height="6"
-                          rounded
-                          style="max-width: 100px"
-                        />
-                      </div>
-                    </template>
-
-                    <template #[`item.qty_sent`]="{ item }">
-                      <div class="font-weight-bold text-green-darken-3">
-                        {{ Number(item.qty_sent).toLocaleString("id-ID") }} pcs
-                      </div>
-                    </template>
-
-                    <template #[`item.ratio_sj`]="{ item }">
-                      <div class="d-flex align-center justify-center w-100">
-                        <span
-                          class="mr-2 font-weight-bold"
-                          :class="`text-${getRatioColor(item.ratio_sj)}`"
-                          style="width: 40px; text-align: right"
-                        >
-                          {{ item.ratio_sj }}%
-                        </span>
-                        <v-progress-linear
-                          :model-value="item.ratio_sj"
-                          :color="getRatioColor(item.ratio_sj)"
-                          height="6"
-                          rounded
-                          style="max-width: 100px"
-                        />
-                      </div>
-                    </template>
-                  </v-data-table>
-                </div>
-              </v-card-text>
-            </v-card>
-
-            <!-- Antrian Bordir -->
-            <v-card elevation="2" class="rounded-lg bg-surface mb-4">
-              <v-card-title
-                class="d-flex flex-wrap align-center bg-deep-purple-lighten-5 py-3 text-deep-purple-darken-4 gap-2"
-              >
-                <v-icon class="mr-2" color="deep-purple">mdi-tshirt-crew</v-icon>
-                <span class="text-subtitle-1 font-weight-bold">Monitoring Antrian Bordir</span>
-                <v-spacer />
-                <div
-                  class="d-flex align-center border rounded px-2 bg-white"
-                  style="height: 32px; border-color: #d1c4e9 !important"
-                >
-                  <input
-                    type="date"
-                    v-model="bordirFilter.startDate"
-                    class="date-native-input text-caption text-deep-purple-darken-4 font-weight-bold"
-                  />
-                  <span class="mx-1 text-caption text-medium-emphasis">s/d</span>
-                  <input
-                    type="date"
-                    v-model="bordirFilter.endDate"
-                    class="date-native-input text-caption text-deep-purple-darken-4 font-weight-bold"
-                  />
-                </div>
-                <v-chip size="small" color="deep-purple" variant="flat" class="ml-1"
-                  >{{ bordirSchedules.length }} Antrian</v-chip
-                >
-              </v-card-title>
-              <v-card-text class="pa-0">
-                <div v-if="isLoadingBordir" class="text-center pa-4">
-                  <v-progress-circular indeterminate color="deep-purple" size="24" />
-                </div>
-                <v-table v-else density="compact" class="schedule-table" hover>
-                  <thead>
-                    <tr class="bg-grey-lighten-4">
-                      <th class="font-weight-bold">SO BORDIR</th>
-                      <th class="font-weight-bold">TGL SO</th>
-                      <th class="font-weight-bold">CUSTOMER</th>
-                      <th class="text-center font-weight-bold">JML KAOS</th>
-                      <th class="text-center font-weight-bold">MASUK WORKSHOP</th>
-                      <th class="text-center font-weight-bold">Mulai Pengerjaan</th>
-                      <th class="text-center font-weight-bold">Deadline</th>
-                      <th class="text-center font-weight-bold">STATUS</th>
-                      <th class="font-weight-bold">ALASAN PENDING</th>
-                      <th v-if="canEditBordir" class="text-center font-weight-bold" width="60">
-                        AKSI
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr v-for="item in bordirSchedules" :key="item.so_nomor">
-                      <td class="font-weight-bold text-deep-purple-darken-2">
-                        {{ item.so_nomor }}
-                      </td>
-                      <td class="text-caption">
-                        {{ format(new Date(item.tanggal_so), "dd/MM/yyyy") }}
-                      </td>
-                      <td class="text-caption font-weight-medium">{{ item.customer }}</td>
-                      <td class="text-center font-weight-bold">{{ item.jumlah_kaos }} pcs</td>
-                      <td class="text-center font-weight-bold">
-                        <v-chip
-                          size="x-small"
-                          :color="
-                            item.masuk_workshop >= item.jumlah_kaos
-                              ? 'success'
-                              : item.masuk_workshop > 0
-                              ? 'warning'
-                              : 'grey'
-                          "
-                          variant="flat"
-                        >
-                          {{ item.masuk_workshop }} / {{ item.jumlah_kaos }}
-                        </v-chip>
-                      </td>
-                      <td class="text-center text-caption">
-                        {{
-                          item.tgl_pengerjaan
-                            ? format(new Date(item.tgl_pengerjaan), "dd/MM/yyyy")
-                            : "-"
-                        }}
-                      </td>
-                      <td
-                        class="text-center text-caption font-weight-bold"
-                        :class="item.deadline ? 'text-error' : ''"
-                      >
-                        {{ item.deadline ? format(new Date(item.deadline), "dd/MM/yyyy") : "-" }}
-                      </td>
-                      <td class="text-center">
-                        <v-chip
-                          size="x-small"
-                          :color="getStatusColor(item.status)"
-                          variant="flat"
-                          class="font-weight-bold"
-                          >{{ item.status }}</v-chip
-                        >
-                      </td>
-                      <td class="text-caption text-error font-italic">
-                        {{ item.alasan_pending || "-" }}
-                      </td>
-                      <td v-if="canEditBordir" class="text-center">
-                        <v-btn
-                          icon="mdi-pencil"
-                          variant="text"
-                          size="x-small"
-                          color="primary"
-                          @click="openEditBordir(item)"
-                        />
-                      </td>
-                    </tr>
-                    <tr v-if="bordirSchedules.length === 0">
-                      <td
-                        :colspan="canEditBordir ? 9 : 8"
-                        class="text-center text-caption text-grey py-4"
-                      >
-                        Belum ada antrian bordir terbaru.
-                      </td>
-                    </tr>
-                  </tbody>
-                </v-table>
-              </v-card-text>
-            </v-card>
-
-            <!-- SPK Pending Approval (KDC only) -->
-            <v-card
-              v-if="authStore.user?.cabang === 'KDC'"
-              elevation="2"
-              class="rounded-lg bg-surface mb-4"
-            >
-              <v-card-title
-                class="d-flex flex-wrap align-center bg-cyan-lighten-5 py-3 text-cyan-darken-4 gap-2"
-              >
-                <v-icon class="mr-2" color="cyan-darken-2">mdi-file-document-check-outline</v-icon>
-                <span class="text-subtitle-1 font-weight-bold">SPK Belum Diapprove</span>
-                <v-spacer />
-                <div
-                  class="d-flex align-center border rounded px-2 bg-white"
-                  style="height: 32px; border-color: #b2ebf2 !important"
-                >
-                  <input
-                    type="date"
-                    v-model="spkPendingFilter.startDate"
-                    class="date-native-input text-caption text-cyan-darken-4 font-weight-bold"
-                  />
-                  <span class="mx-1 text-caption text-medium-emphasis">s/d</span>
-                  <input
-                    type="date"
-                    v-model="spkPendingFilter.endDate"
-                    class="date-native-input text-caption text-cyan-darken-4 font-weight-bold"
-                  />
-                </div>
-                <v-chip size="small" color="cyan-darken-2" variant="flat" class="ml-1">
-                  {{ spkPendingList.length }} SPK
-                </v-chip>
-              </v-card-title>
-
-              <v-card-text class="pa-0">
-                <div v-if="isLoadingSpkPending" class="text-center pa-4">
-                  <v-progress-circular indeterminate color="cyan-darken-2" size="24" />
-                </div>
-                <v-table v-else density="compact" class="schedule-table" hover>
-                  <thead>
-                    <tr class="bg-grey-lighten-4">
-                      <th class="font-weight-bold">NO. SPK</th>
-                      <th class="font-weight-bold">TGL SPK</th>
-                      <th class="font-weight-bold">NAMA SPK</th>
-                      <th class="text-center font-weight-bold">JML</th>
-                      <th class="text-center font-weight-bold">DATELINE</th>
-                      <th class="text-center font-weight-bold">CABANG</th>
-                      <th class="text-center font-weight-bold">USER</th>
-                      <th class="text-center font-weight-bold">STATUS</th>
-                      <th class="font-weight-bold">KETERANGAN</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr v-for="item in spkPendingList" :key="item.spk_nomor">
-                      <td class="font-weight-bold text-cyan-darken-3" style="font-size: 11px">
-                        {{ item.spk_nomor }}
-                      </td>
-                      <td class="text-caption">
-                        {{ format(new Date(item.spk_tanggal), "dd/MM/yyyy") }}
-                      </td>
-                      <td class="text-caption font-weight-medium" style="max-width: 220px">
-                        <div class="text-truncate" :title="item.nama_desain">
-                          {{ item.nama_desain }}
-                        </div>
-                      </td>
-                      <td class="text-center font-weight-bold text-caption">
-                        {{ Number(item.jumlah).toLocaleString("id-ID") }} pcs
-                      </td>
-                      <td
-                        class="text-center text-caption font-weight-bold"
-                        :class="item.spk_dateline ? 'text-error' : 'text-grey'"
-                      >
-                        {{
-                          item.spk_dateline
-                            ? format(new Date(item.spk_dateline), "dd/MM/yyyy")
-                            : "-"
-                        }}
-                      </td>
-                      <td class="text-center">
-                        <v-chip
-                          size="x-small"
-                          color="blue-grey"
-                          variant="tonal"
-                          class="font-weight-bold"
-                        >
-                          {{ item.cabang || "-" }}
-                        </v-chip>
-                      </td>
-                      <td class="text-center text-caption font-weight-medium">
-                        {{ item.user_create }}
-                      </td>
-                      <td class="text-center">
-                        <v-chip
-                          size="x-small"
-                          :color="
-                            item.status_kerja === 'TOP URGENT'
-                              ? 'error'
-                              : item.status_kerja === 'URGENT'
-                              ? 'warning'
-                              : item.status_kerja === 'STANDART'
-                              ? 'info'
-                              : item.status_kerja === 'REGULER'
-                              ? 'success'
-                              : 'grey'
-                          "
-                          variant="flat"
-                          class="font-weight-bold"
-                        >
-                          {{ item.status_kerja || "REGULER" }}
-                        </v-chip>
-                      </td>
-                      <td class="text-caption text-grey font-italic" style="max-width: 150px">
-                        <div class="text-truncate" :title="item.ket_pending || item.spk_keterangan">
-                          {{ item.ket_pending || item.spk_keterangan || "-" }}
-                        </div>
-                      </td>
-                    </tr>
-                    <tr v-if="spkPendingList.length === 0">
-                      <td colspan="9" class="text-center text-caption text-grey py-4">
-                        Tidak ada SPK yang belum diapprove pada periode ini.
-                      </td>
-                    </tr>
-                  </tbody>
-                </v-table>
-              </v-card-text>
-            </v-card>
-
-            <!-- Menu Gudang (warehouse user) -->
-            <v-card v-if="isWarehouseUser" class="bg-surface mb-4" elevation="2">
-              <v-card-title
-                class="d-flex align-center bg-blue-grey-lighten-5 text-blue-grey-darken-3 py-2"
-              >
-                <v-icon class="mr-2" color="primary" size="small">mdi-warehouse</v-icon>
-                <span class="text-subtitle-2 font-weight-bold">Menu Operasional Gudang</span>
-              </v-card-title>
-              <v-card-text class="pa-4">
-                <v-row class="justify-start" dense>
-                  <v-col
-                    v-for="menu in frequentMenus"
-                    :key="menu.title"
-                    cols="4"
-                    sm="3"
-                    md="2"
-                    class="text-center pa-2"
-                  >
-                    <v-tooltip :text="menu.title" location="bottom">
-                      <template v-slot:activator="{ props }">
-                        <v-btn
-                          v-bind="props"
-                          :to="menu.to"
-                          :color="menu.color"
-                          icon
-                          size="large"
-                          variant="flat"
-                          class="mb-1 transition-swing"
-                          elevation="2"
-                        >
-                          <v-icon size="24">{{ menu.icon || "mdi-star" }}</v-icon>
-                        </v-btn>
-                      </template>
-                    </v-tooltip>
-                    <div
-                      class="text-caption text-medium-emphasis font-weight-medium text-truncate px-1"
-                      style="font-size: 0.7rem"
-                    >
-                      {{ menu.title }}
-                    </div>
-                  </v-col>
-                </v-row>
-              </v-card-text>
-            </v-card>
-          </v-tabs-window-item>
-
-          <!-- ══════════════════════════════════════════
-               TAB 5 — KEUANGAN
-               Setoran, cashflow, piutang
-               ══════════════════════════════════════════ -->
-          <v-tabs-window-item v-if="!isWarehouseUser" value="keuangan">
-            <v-row v-if="authStore.user?.cabang === 'KDC'" class="mb-4">
-              <v-col cols="12" class="pb-0">
-                <div class="d-flex align-center">
-                  <v-icon color="deep-purple" class="mr-2">mdi-finance</v-icon>
-                  <span class="text-subtitle-1 font-weight-bold">Executive Dashboard Keuangan</span>
-                  <v-spacer></v-spacer>
-                  <input
-                    type="date"
-                    v-model="cashflowDate"
-                    class="text-caption border rounded px-2 py-1 bg-white"
-                    style="outline: none; border-color: #e0e0e0"
-                  />
-                </div>
-              </v-col>
-
-              <v-col cols="12" sm="6" lg="3">
-                <v-card elevation="2" class="rounded-lg fill-height" border="start info 4">
-                  <v-card-text class="pa-4">
-                    <div class="d-flex justify-space-between align-center mb-2">
-                      <span class="text-subtitle-2 text-medium-emphasis">Penjualan (Omset)</span>
-                      <v-icon color="info" size="24">mdi-cart-outline</v-icon>
-                    </div>
-                    <div v-if="isLoadingCashflow" class="text-center py-2">
-                      <v-progress-circular indeterminate color="info" size="24" />
-                    </div>
-                    <div v-else class="text-h5 font-weight-black text-info-darken-1">
-                      {{ formatRupiah(labaData.omset) }}
-                    </div>
-                    <v-divider class="my-2"></v-divider>
-                    <div class="d-flex justify-space-between align-center text-caption">
-                      <span class="text-grey-darken-1">Kas Riil Diterima:</span>
-                      <span class="font-weight-bold text-success">{{
-                        formatRupiah(labaData.kasAktual)
-                      }}</span>
-                    </div>
-                  </v-card-text>
-                </v-card>
-              </v-col>
-
-              <v-col cols="12" sm="6" lg="3">
-                <v-card elevation="2" class="rounded-lg fill-height" border="start success 4">
-                  <v-card-text class="pa-4">
-                    <div class="d-flex justify-space-between align-center mb-2">
-                      <span class="text-subtitle-2 text-medium-emphasis">Laba Kotor</span>
-                      <v-chip size="x-small" color="success" variant="flat" class="font-weight-bold"
-                        >{{ labaData.margin }}%</v-chip
-                      >
-                    </div>
-                    <div v-if="isLoadingCashflow" class="text-center py-2">
-                      <v-progress-circular indeterminate color="success" size="24" />
-                    </div>
-                    <div v-else class="text-h5 font-weight-black text-success-darken-2">
-                      {{ formatRupiah(labaData.labaKotor) }}
-                    </div>
-                    <v-divider class="my-2"></v-divider>
-                    <div class="d-flex justify-space-between align-center text-caption">
-                      <span class="text-grey-darken-1">Modal HPP:</span>
-                      <span class="font-weight-bold">{{ formatRupiah(labaData.hpp) }}</span>
-                    </div>
-                  </v-card-text>
-                </v-card>
-              </v-col>
-
-              <v-col cols="12" sm="6" lg="3">
-                <v-card elevation="2" class="rounded-lg fill-height" border="start warning 4">
-                  <v-card-text class="pa-4">
-                    <div class="d-flex justify-space-between align-center mb-2">
-                      <span class="text-subtitle-2 text-medium-emphasis">Operasional (PC)</span>
-                      <v-icon color="warning" size="24">mdi-store-minus</v-icon>
-                    </div>
-                    <div v-if="isLoadingCashflow" class="text-center py-2">
-                      <v-progress-circular indeterminate color="warning" size="24" />
-                    </div>
-                    <div v-else class="text-h5 font-weight-black text-warning-darken-2">
-                      {{ formatRupiah(labaData.pengeluaran) }}
-                    </div>
-                    <v-divider class="my-2"></v-divider>
-                    <div class="d-flex justify-space-between align-center text-caption">
-                      <span class="text-grey-darken-1">Biaya harian toko</span>
-                    </div>
-                  </v-card-text>
-                </v-card>
-              </v-col>
-
-              <v-col cols="12" sm="6" lg="3">
-                <v-card
-                  elevation="2"
-                  class="rounded-lg fill-height"
-                  border="start deep-purple 4"
-                  :color="labaData.labaBersih < 0 ? 'red-lighten-5' : 'deep-purple-lighten-5'"
-                >
-                  <v-card-text class="pa-4">
-                    <div class="d-flex justify-space-between align-center mb-2">
-                      <span
-                        class="text-subtitle-2 font-weight-bold"
-                        :class="
-                          labaData.labaBersih < 0 ? 'text-error' : 'text-deep-purple-darken-2'
-                        "
-                        >Laba Bersih (Net)</span
-                      >
-                      <v-icon :color="labaData.labaBersih < 0 ? 'error' : 'deep-purple'" size="24"
-                        >mdi-cash-fast</v-icon
-                      >
-                    </div>
-                    <div v-if="isLoadingCashflow" class="text-center py-2">
-                      <v-progress-circular indeterminate color="deep-purple" size="24" />
-                    </div>
-                    <div
-                      v-else
-                      class="text-h5 font-weight-black"
-                      :class="labaData.labaBersih < 0 ? 'text-error' : 'text-deep-purple-darken-2'"
-                    >
-                      {{ formatRupiah(labaData.labaBersih) }}
-                    </div>
-                    <v-divider class="my-2 border-opacity-50"></v-divider>
-                    <div class="d-flex justify-space-between align-center text-caption">
-                      <span class="text-grey-darken-2">Basket Size:</span>
-                      <span class="font-weight-black text-deep-purple-darken-4"
-                        >{{ formatRupiah(labaData.basketSize) }} /nota</span
-                      >
-                    </div>
-                  </v-card-text>
-                </v-card>
-              </v-col>
-            </v-row>
-
-            <!-- Piutang (KDC: per cabang, toko: per invoice) -->
-            <v-row class="mb-4">
-              <v-col cols="12" md="6">
-                <v-card elevation="2" class="bg-surface fill-height">
-                  <v-card-title
-                    class="d-flex align-center bg-orange-lighten-5 text-orange-darken-4 py-2"
-                  >
-                    <v-icon class="mr-2" color="orange-darken-1" size="small"
-                      >mdi-clock-alert-outline</v-icon
-                    >
-                    <span class="text-subtitle-2 font-weight-bold">{{
+                      <div class="text-caption text-grey-darken-1">Sisa Piutang</div>
+                    </v-card-text>
+                  </v-card>
+                </template>
+                <v-card max-width="320" elevation="4">
+                  <v-list-item class="bg-orange-lighten-4 text-orange-darken-4 density-compact">
+                    <v-list-item-title class="font-weight-bold text-caption">{{
                       authStore.user?.cabang === "KDC"
                         ? "Piutang per Cabang"
-                        : "Invoice Belum Lunas"
-                    }}</span>
-                    <v-spacer />
-                    <span
-                      v-if="authStore.user?.cabang === 'KDC'"
-                      class="text-caption font-italic text-grey"
-                      style="font-size: 10px"
-                      >*Klik cabang untuk lihat rincian</span
-                    >
-                  </v-card-title>
-
-                  <v-card-text class="pa-0">
-                    <div
-                      v-if="isLoadingPiutangBreakdown || isLoadingPiutangInvoice"
-                      class="text-center pa-6"
-                    >
-                      <v-progress-circular indeterminate color="orange" size="36" />
+                        : "Top Invoice Belum Lunas"
+                    }}</v-list-item-title>
+                  </v-list-item>
+                  <v-divider />
+                  <v-card-text class="pa-0" style="max-height: 300px; overflow-y: auto">
+                    <div v-if="isLoadingPiutangBreakdown" class="text-center pa-2">
+                      <v-progress-circular indeterminate size="20" />
                     </div>
-
                     <v-list
                       v-else-if="authStore.user?.cabang === 'KDC'"
                       density="compact"
                       class="py-0"
-                      style="max-height: 300px; overflow-y: auto"
                     >
                       <v-list-item
                         v-for="item in piutangBreakdown"
                         :key="item.cabang_kode"
                         density="compact"
-                        class="px-4 py-2 border-b cursor-pointer transition-swing"
-                        :class="{
-                          'bg-orange-lighten-4': selectedCabangPiutang === item.cabang_kode,
-                        }"
-                        @click="fetchPiutangDetailsForKdc(item.cabang_kode)"
                       >
-                        <v-list-item-title class="text-caption font-weight-medium">
-                          {{ item.cabang_nama }}
-                        </v-list-item-title>
-                        <template #append>
-                          <span class="text-caption font-weight-bold text-orange-darken-2">
-                            {{ formatRupiah(item.sisa_piutang) }}
-                          </span>
-                          <v-icon size="small" color="grey" class="ml-1">mdi-chevron-right</v-icon>
-                        </template>
+                        <v-list-item-title class="text-caption">{{
+                          item.cabang_nama
+                        }}</v-list-item-title>
+                        <template #append
+                          ><span class="text-caption font-weight-bold">{{
+                            formatRupiah(item.sisa_piutang)
+                          }}</span></template
+                        >
                       </v-list-item>
                     </v-list>
-
-                    <v-list
-                      v-else
-                      density="compact"
-                      class="py-0"
-                      style="max-height: 300px; overflow-y: auto"
-                    >
+                    <v-list v-else density="compact" class="py-0">
                       <v-list-item
-                        v-for="inv in piutangByInvoice"
+                        v-for="inv in piutangInvoiceDetails"
                         :key="inv.invoice"
-                        density="compact"
                         class="px-4 py-2 border-b"
                       >
-                        <div class="d-flex justify-space-between w-100">
-                          <div class="d-flex flex-column text-truncate pr-2" style="max-width: 60%">
-                            <span class="text-caption font-weight-bold">{{ inv.invoice }}</span>
+                        <div class="d-flex justify-space-between w-100 align-center">
+                          <div class="d-flex flex-column text-truncate pr-2" style="max-width: 65%">
+                            <span class="text-caption font-weight-bold text-blue-darken-3">{{
+                              inv.invoice
+                            }}</span>
                             <span
                               class="text-caption text-grey text-truncate"
                               style="font-size: 0.65rem"
@@ -5912,7 +3301,7 @@ onUnmounted(() => {
                               {{ inv.tanggal }} • {{ inv.customer_nama || "UMUM" }}
                             </span>
                           </div>
-                          <span class="text-caption font-weight-bold text-orange-darken-2">
+                          <span class="text-caption font-weight-bold text-error">
                             {{ formatRupiah(inv.sisa_piutang) }}
                           </span>
                         </div>
@@ -5920,160 +3309,2855 @@ onUnmounted(() => {
                     </v-list>
                   </v-card-text>
                 </v-card>
-              </v-col>
+              </v-menu>
+            </v-col>
+          </v-row>
+          <!-- ── END STAT CARDS ── -->
 
-              <v-col cols="12" md="6">
-                <v-card elevation="2" class="bg-surface fill-height d-flex flex-column">
-                  <div v-if="selectedCabangPiutang" class="d-flex flex-column h-100">
-                    <div
-                      class="bg-orange-darken-2 px-4 py-2 d-flex justify-space-between align-center"
-                    >
-                      <span class="text-caption font-weight-bold text-white">
-                        <v-icon size="small" color="white" class="mr-1"
-                          >mdi-file-document-multiple</v-icon
-                        >
-                        Rincian Invoice:
-                        {{
-                          piutangBreakdown.find((c) => c.cabang_kode === selectedCabangPiutang)
-                            ?.cabang_nama
-                        }}
-                      </span>
-                      <v-btn
-                        icon="mdi-close"
-                        size="x-small"
-                        variant="text"
-                        color="white"
-                        @click="selectedCabangPiutang = ''"
-                      />
-                    </div>
+          <!-- ══════════════════════════════════════════════════════
+             TAB NAVIGATION
+             ══════════════════════════════════════════════════════ -->
+          <v-tabs
+            v-model="activeTab"
+            density="compact"
+            color="primary"
+            bg-color="transparent"
+            class="mb-1 dashboard-tabs"
+            show-arrows
+          >
+            <v-tab value="beranda" class="text-caption text-sm-body-2">
+              <v-icon start size="small">mdi-home-outline</v-icon>
+              Beranda
+            </v-tab>
 
-                    <v-card-text
-                      class="pa-0 flex-grow-1"
-                      style="max-height: 260px; overflow-y: auto"
+            <v-tab v-if="!isWarehouseUser" value="penjualan" class="text-caption text-sm-body-2">
+              <v-icon start size="small">mdi-chart-line</v-icon>
+              Penjualan
+            </v-tab>
+
+            <v-tab value="stok" class="text-caption text-sm-body-2">
+              <v-icon start size="small">mdi-package-variant</v-icon>
+              Stok
+              <v-chip
+                v-if="lowStockCount > 0"
+                size="x-small"
+                color="error"
+                variant="flat"
+                class="ml-1 font-weight-bold"
+                >{{ lowStockCount }}</v-chip
+              >
+            </v-tab>
+
+            <v-tab value="operasional" class="text-caption text-sm-body-2">
+              <v-icon start size="small">mdi-cog-outline</v-icon>
+              Operasional
+            </v-tab>
+
+            <v-tab v-if="!isWarehouseUser" value="keuangan" class="text-caption text-sm-body-2">
+              <v-icon start size="small">mdi-cash-multiple</v-icon>
+              Keuangan
+            </v-tab>
+          </v-tabs>
+
+          <v-divider class="mb-5" />
+
+          <v-tabs-window v-model="activeTab">
+            <!-- ══════════════════════════════════════════
+               TAB 1 — BERANDA
+               Snapshot + Menu cepat + Tindakan pending + Ringkasan jadwal
+               ══════════════════════════════════════════ -->
+            <v-tabs-window-item value="beranda">
+              <v-row dense class="mb-4">
+                <!-- Menu Sering Diakses -->
+                <v-col cols="12" lg="5">
+                  <v-card elevation="2" class="bg-surface fill-height">
+                    <v-card-title
+                      class="d-flex align-center bg-blue-grey-lighten-5 text-blue-grey-darken-3 py-2"
                     >
-                      <div v-if="isLoadingPiutangDetails" class="text-center pa-6">
-                        <v-progress-circular indeterminate color="orange" size="24" />
+                      <v-icon class="mr-2" color="primary" size="small">mdi-history</v-icon>
+                      <span class="text-subtitle-2 font-weight-bold">Sering Diakses</span>
+                    </v-card-title>
+                    <v-card-text class="pa-4">
+                      <div v-if="isLoadingFrequent" class="text-center pa-4">
+                        <v-progress-circular indeterminate color="primary" size="28" />
                       </div>
                       <div
-                        v-else-if="piutangInvoiceDetails.length === 0"
-                        class="text-center pa-6 text-grey text-caption"
+                        v-else-if="frequentMenus.length === 0"
+                        class="text-center text-medium-emphasis text-caption"
                       >
-                        Tidak ada invoice menggantung.
+                        Belum ada riwayat akses menu.
+                      </div>
+                      <v-row v-else class="justify-start" dense>
+                        <v-col
+                          v-for="menu in frequentMenus"
+                          :key="menu.title"
+                          cols="4"
+                          sm="3"
+                          md="2"
+                          class="text-center pa-2"
+                        >
+                          <v-tooltip :text="menu.title" location="bottom">
+                            <template v-slot:activator="{ props }">
+                              <v-btn
+                                v-bind="props"
+                                :to="menu.to"
+                                :color="menu.color"
+                                icon
+                                size="large"
+                                variant="flat"
+                                class="mb-1 transition-swing"
+                                elevation="2"
+                              >
+                                <v-icon size="24">{{ menu.icon || "mdi-star" }}</v-icon>
+                              </v-btn>
+                            </template>
+                          </v-tooltip>
+                          <div
+                            class="text-caption text-medium-emphasis font-weight-medium text-truncate px-1"
+                            style="font-size: 0.7rem"
+                          >
+                            {{ menu.title }}
+                          </div>
+                        </v-col>
+                      </v-row>
+                    </v-card-text>
+                  </v-card>
+                </v-col>
+
+                <!-- Perlu Tindakan -->
+                <v-col v-if="!isWarehouseUser" cols="12" lg="4">
+                  <v-card elevation="2" class="bg-surface fill-height">
+                    <v-card-title class="d-flex align-center py-2">
+                      <v-icon class="mr-2" color="info" size="small">mdi-bell-ring-outline</v-icon>
+                      <span class="text-subtitle-2 font-weight-bold">Perlu Tindakan</span>
+                    </v-card-title>
+                    <v-card-text class="pa-3">
+                      <div v-if="isLoadingActions" class="text-center pa-4">
+                        <v-progress-circular indeterminate color="primary" size="28" />
+                      </div>
+                      <div v-else-if="pendingActions.length === 0" class="text-center pa-4">
+                        <v-icon size="40" color="success">mdi-check-all</v-icon>
+                        <div class="mt-2 text-caption text-medium-emphasis">Semua beres!</div>
+                      </div>
+                      <v-list v-else dense bg-color="transparent">
+                        <template v-for="(item, index) in pendingActions" :key="item.key">
+                          <v-list-item
+                            :to="item.to"
+                            class="mb-1 px-2"
+                            rounded="lg"
+                            variant="tonal"
+                            density="compact"
+                            lines="one"
+                          >
+                            <template #prepend>
+                              <v-avatar
+                                :icon="item.icon"
+                                color="info"
+                                variant="flat"
+                                size="32"
+                                class="text-white mr-2"
+                              />
+                            </template>
+                            <v-list-item-title class="font-weight-bold text-caption">{{
+                              item.title
+                            }}</v-list-item-title>
+                            <template #append>
+                              <v-chip
+                                color="info"
+                                size="small"
+                                variant="flat"
+                                class="font-weight-bold"
+                                >{{ item.count }}</v-chip
+                              >
+                            </template>
+                          </v-list-item>
+                          <v-divider v-if="index < pendingActions.length - 1" class="my-1" />
+                        </template>
+                      </v-list>
+                    </v-card-text>
+                  </v-card>
+                </v-col>
+
+                <!-- Ringkasan Status Jadwal Kirim -->
+                <v-col cols="12" :lg="isWarehouseUser ? 7 : 3">
+                  <v-card elevation="2" class="bg-surface fill-height">
+                    <v-card-title
+                      class="d-flex align-center bg-indigo-lighten-5 text-indigo-darken-4 py-2"
+                    >
+                      <v-icon class="mr-2" color="indigo" size="small">mdi-truck-clock</v-icon>
+                      <span class="text-subtitle-2 font-weight-bold">Status Kiriman</span>
+                      <v-spacer />
+                      <v-btn
+                        size="x-small"
+                        variant="text"
+                        color="indigo"
+                        @click="activeTab = 'operasional'"
+                        append-icon="mdi-chevron-right"
+                        >Detail</v-btn
+                      >
+                    </v-card-title>
+                    <v-card-text class="pa-0">
+                      <div v-if="isLoadingSchedules" class="text-center pa-4">
+                        <v-progress-circular indeterminate color="indigo" size="20" />
                       </div>
                       <v-list v-else density="compact" class="py-0">
                         <v-list-item
-                          v-for="inv in piutangInvoiceDetails"
+                          v-for="item in combinedSchedules.slice(0, 6)"
+                          :key="item.kode"
+                          density="compact"
+                          class="px-3 py-1"
+                        >
+                          <v-list-item-title class="text-caption font-weight-medium">{{
+                            item.nama
+                          }}</v-list-item-title>
+                          <template #append>
+                            <v-chip
+                              v-if="item.activeShipment"
+                              :color="getStatusColor(item.activeShipment.status)"
+                              size="x-small"
+                              variant="flat"
+                              class="font-weight-bold"
+                            >
+                              {{ item.activeShipment.status }}
+                            </v-chip>
+                            <span v-else class="text-caption text-grey-lighten-1">–</span>
+                          </template>
+                        </v-list-item>
+                      </v-list>
+                    </v-card-text>
+                  </v-card>
+                </v-col>
+              </v-row>
+            </v-tabs-window-item>
+
+            <!-- ══════════════════════════════════════════
+               TAB 2 — PENJUALAN
+               Grafik, produk terlaris, transaksi, target, performa cabang
+               ══════════════════════════════════════════ -->
+            <v-tabs-window-item v-if="!isWarehouseUser" value="penjualan">
+              <!-- Baris 1: Grafik + Target -->
+              <v-row class="mb-4" align="start">
+                <!-- Grafik Penjualan -->
+                <v-col cols="12" lg="8">
+                  <v-card elevation="2" class="rounded-lg bg-surface">
+                    <v-card-title class="py-3 px-4 border-b">
+                      <div class="d-flex align-center justify-space-between w-100">
+                        <div class="d-flex align-center text-primary font-weight-bold">
+                          <v-icon class="mr-2" color="primary">mdi-chart-timeline-variant</v-icon
+                          >Grafik Penjualan
+                        </div>
+                        <div class="bg-surface-variant rounded-lg pa-1 d-none d-sm-flex">
+                          <v-btn-toggle
+                            v-model="chartType"
+                            variant="text"
+                            density="compact"
+                            mandatory
+                            divided
+                            class="chart-type-toggle"
+                          >
+                            <v-btn
+                              value="bar"
+                              size="small"
+                              :color="chartType === 'bar' ? 'primary' : 'medium-emphasis'"
+                              class="rounded-s-lg"
+                              ><v-icon>mdi-chart-bar</v-icon></v-btn
+                            >
+                            <v-btn
+                              value="line"
+                              size="small"
+                              :color="chartType === 'line' ? 'primary' : 'medium-emphasis'"
+                              ><v-icon>mdi-chart-line</v-icon></v-btn
+                            >
+                            <v-btn
+                              value="area"
+                              size="small"
+                              :color="chartType === 'area' ? 'primary' : 'medium-emphasis'"
+                              class="rounded-e-lg"
+                              ><v-icon>mdi-chart-bell-curve-cumulative</v-icon></v-btn
+                            >
+                          </v-btn-toggle>
+                        </div>
+                      </div>
+                    </v-card-title>
+                    <v-card-text class="pa-4">
+                      <div
+                        class="filter-bar d-flex flex-column flex-md-row align-md-center justify-space-between gap-3 mb-6"
+                      >
+                        <v-btn-toggle
+                          v-model="chartGroupBy"
+                          variant="outlined"
+                          density="compact"
+                          color="primary"
+                          mandatory
+                          rounded="lg"
+                          class="mr-auto mb-2 mb-md-0 shadow-sm"
+                          style="height: 36px"
+                        >
+                          <v-btn value="day" class="text-caption font-weight-bold px-4"
+                            >Harian</v-btn
+                          >
+                          <v-btn value="week" class="text-caption font-weight-bold px-4"
+                            >Mingguan</v-btn
+                          >
+                          <v-btn value="month" class="text-caption font-weight-bold px-4"
+                            >Bulanan</v-btn
+                          >
+                        </v-btn-toggle>
+                        <div
+                          class="d-flex flex-wrap align-center justify-end gap-2"
+                          style="gap: 8px"
+                        >
+                          <v-select
+                            v-model="chartFilters.cabang"
+                            :items="cabangList"
+                            item-title="nama"
+                            item-value="kode"
+                            density="compact"
+                            variant="outlined"
+                            hide-details
+                            prepend-inner-icon="mdi-store-outline"
+                            bg-color="surface"
+                            class="filter-input-select"
+                            :readonly="authStore.user?.cabang !== 'KDC'"
+                            style="min-width: 220px"
+                          />
+                          <div
+                            class="d-flex align-center border rounded px-2 bg-surface"
+                            style="
+                              height: 40px;
+                              border-color: rgba(
+                                var(--v-border-color),
+                                var(--v-border-opacity)
+                              ) !important;
+                            "
+                          >
+                            <input
+                              type="date"
+                              v-model="chartFilters.startDate"
+                              class="date-native-input text-body-2"
+                            />
+                            <span class="mx-2 text-caption text-medium-emphasis">s/d</span>
+                            <input
+                              type="date"
+                              v-model="chartFilters.endDate"
+                              class="date-native-input text-body-2"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                      <div
+                        v-if="isLoadingChart"
+                        class="d-flex flex-column align-center justify-center"
+                        style="height: 320px"
+                      >
+                        <v-progress-circular indeterminate color="primary" size="48" width="4" />
+                        <div class="mt-3 text-caption text-medium-emphasis">
+                          Sedang memuat data grafik...
+                        </div>
+                      </div>
+                      <div v-else style="height: 350px; position: relative">
+                        <Bar
+                          v-if="chartType === 'bar'"
+                          :data="chartData as any"
+                          :options="targetChartOptions as any"
+                        />
+                        <Line
+                          v-else
+                          :data="chartData as any"
+                          :options="targetChartOptions as any"
+                        />
+                      </div>
+                    </v-card-text>
+                  </v-card>
+                </v-col>
+
+                <!-- Target Pencapaian -->
+                <v-col cols="12" lg="4">
+                  <v-card elevation="2" class="bg-surface fill-height">
+                    <v-card-title
+                      class="d-flex align-center bg-blue-lighten-5 text-blue-darken-3 py-2"
+                    >
+                      <v-icon class="mr-2" color="primary" size="small">mdi-target</v-icon>
+                      <span class="text-subtitle-2 font-weight-bold">Pencapaian Target</span>
+                    </v-card-title>
+                    <v-card-text class="pa-4">
+                      <div v-if="isLoadingSalesTarget" class="text-center pa-8">
+                        <v-progress-circular indeterminate color="primary" size="48" />
+                      </div>
+                      <div v-else>
+                        <v-row align="center">
+                          <v-col cols="12" sm="5" class="text-center">
+                            <div style="height: 200px; position: relative">
+                              <Bar :data="targetChartData" :options="targetChartOptions as any" />
+                            </div>
+                          </v-col>
+                          <v-col cols="12" sm="7">
+                            <v-card variant="outlined" class="mb-3">
+                              <v-card-text class="pa-3">
+                                <div class="text-caption text-medium-emphasis mb-1">Realisasi</div>
+                                <div
+                                  class="text-h6 font-weight-bold"
+                                  :class="
+                                    isOverTarget ? 'text-success' : 'text-deep-orange-darken-1'
+                                  "
+                                >
+                                  <span class="animated-number">{{
+                                    formatRupiah(Number(animatedTargetRealization.toFixed(0)))
+                                  }}</span>
+                                </div>
+                                <div
+                                  class="text-caption mt-1"
+                                  :style="{ color: getProgressColor(targetPercentage) }"
+                                >
+                                  {{ targetPercentage.toFixed(2) }}% dari target
+                                  <v-icon v-if="isOverTarget" size="small" color="success"
+                                    >mdi-arrow-up-bold</v-icon
+                                  >
+                                </div>
+                              </v-card-text>
+                            </v-card>
+                            <v-card variant="outlined">
+                              <v-card-text class="pa-3">
+                                <div class="text-caption text-medium-emphasis mb-1">Target</div>
+                                <div class="text-subtitle-1 font-weight-medium">
+                                  {{ formatRupiah(salesTargetSummary.target) }}
+                                </div>
+                              </v-card-text>
+                            </v-card>
+                          </v-col>
+                        </v-row>
+                      </div>
+                    </v-card-text>
+                  </v-card>
+                </v-col>
+              </v-row>
+
+              <!-- Baris 2: Produk Terlaris + Transaksi Terbaru -->
+              <v-row class="mb-4">
+                <v-col cols="12" md="6">
+                  <v-card elevation="2" class="bg-surface">
+                    <v-card-title
+                      class="d-flex align-center justify-space-between bg-amber-lighten-5 py-2 pr-2 text-amber-darken-4"
+                    >
+                      <div class="d-flex align-center">
+                        <v-icon class="mr-2" color="amber-darken-2" size="small"
+                          >mdi-star-circle-outline</v-icon
+                        >
+                        <span class="text-subtitle-2 font-weight-bold">Produk Terlaris</span>
+                      </div>
+                      <div
+                        v-if="authStore.user?.cabang === 'KDC'"
+                        style="min-width: 180px; max-width: 220px"
+                      >
+                        <v-select
+                          v-model="topProductsCabang"
+                          :items="cabangList"
+                          item-title="nama"
+                          item-value="kode"
+                          density="compact"
+                          variant="outlined"
+                          hide-details
+                          bg-color="surface"
+                          color="amber-darken-3"
+                          class="text-caption font-weight-bold"
+                        />
+                      </div>
+                    </v-card-title>
+                    <v-card-text class="pa-4">
+                      <div v-if="isLoadingTopProducts" class="text-center pa-6">
+                        <v-progress-circular indeterminate color="amber" size="36" />
+                      </div>
+                      <v-list
+                        v-else
+                        bg-color="transparent"
+                        style="max-height: 300px; overflow-y: auto"
+                      >
+                        <v-list-item
+                          v-for="(product, index) in topProducts"
+                          :key="product.KODE + product.UKURAN"
+                          class="px-2 mb-2"
+                          rounded="lg"
+                          border
+                        >
+                          <template #prepend>
+                            <v-avatar
+                              :color="
+                                index === 0
+                                  ? 'amber'
+                                  : index === 1
+                                  ? 'blue-grey-lighten-1'
+                                  : 'brown-lighten-1'
+                              "
+                              size="36"
+                            >
+                              <span class="font-weight-bold text-white text-caption">{{
+                                index + 1
+                              }}</span>
+                            </v-avatar>
+                          </template>
+                          <v-list-item-title class="font-weight-bold text-wrap text-caption">{{
+                            product.NAMA
+                          }}</v-list-item-title>
+                          <v-list-item-subtitle
+                            class="mt-1 d-flex align-center text-medium-emphasis"
+                          >
+                            <v-chip size="x-small" class="mr-2">{{ product.KODE }}</v-chip>
+                            <v-chip size="x-small" color="grey-darken-3" variant="flat">{{
+                              product.UKURAN
+                            }}</v-chip>
+                          </v-list-item-subtitle>
+                          <template #append>
+                            <v-chip
+                              color="amber-darken-3"
+                              size="small"
+                              variant="flat"
+                              class="font-weight-bold"
+                              >{{ product.TOTAL?.toLocaleString("id-ID") }} pcs</v-chip
+                            >
+                          </template>
+                        </v-list-item>
+                      </v-list>
+                    </v-card-text>
+                  </v-card>
+                </v-col>
+
+                <v-col cols="12" md="6">
+                  <v-card elevation="2" class="bg-surface">
+                    <v-card-title
+                      class="d-flex align-center justify-space-between bg-green-lighten-5 text-green-darken-4 py-2"
+                    >
+                      <div class="d-flex align-center">
+                        <v-icon class="mr-2" color="success" size="small">mdi-point-of-sale</v-icon>
+                        <span class="text-subtitle-2 font-weight-bold">Penjualan Terbaru</span>
+                      </div>
+                      <v-btn
+                        size="small"
+                        variant="text"
+                        color="success"
+                        to="/transaksi/penjualan/invoice"
+                        append-icon="mdi-chevron-right"
+                        >Lihat Semua</v-btn
+                      >
+                    </v-card-title>
+                    <v-card-text class="pa-4">
+                      <div v-if="isLoadingTransactions" class="text-center pa-6">
+                        <v-progress-circular indeterminate color="success" size="36" />
+                      </div>
+                      <div v-else-if="recentTransactions.length === 0" class="text-center pa-6">
+                        <v-icon size="48" color="grey">mdi-receipt-text-outline</v-icon>
+                        <div class="mt-2 text-caption text-medium-emphasis">
+                          Belum ada transaksi hari ini
+                        </div>
+                      </div>
+                      <div v-else style="max-height: 300px; overflow-y: auto">
+                        <TransitionGroup tag="div" :css="false" @enter="onListEnter">
+                          <div
+                            v-for="(transaction, index) in recentTransactions"
+                            :key="transaction.id"
+                            :data-index="index"
+                            class="mb-2"
+                          >
+                            <v-list-item
+                              class="px-2 border rounded-lg bg-surface elevation-1"
+                              lines="two"
+                            >
+                              <template #prepend>
+                                <v-avatar color="success-lighten-1" size="36"
+                                  ><v-icon color="white" size="small"
+                                    >mdi-cart-check</v-icon
+                                  ></v-avatar
+                                >
+                              </template>
+                              <v-list-item-title class="font-weight-bold text-caption">{{
+                                transaction.customer
+                              }}</v-list-item-title>
+                              <v-list-item-subtitle class="mt-1 text-caption text-medium-emphasis"
+                                >{{ transaction.id }} • {{ transaction.time }}</v-list-item-subtitle
+                              >
+                              <template #append>
+                                <v-chip
+                                  color="success"
+                                  size="small"
+                                  variant="flat"
+                                  class="font-weight-bold price-pulse"
+                                  >{{ formatRupiah(transaction.amount) }}</v-chip
+                                >
+                              </template>
+                            </v-list-item>
+                          </div>
+                        </TransitionGroup>
+                      </div>
+                    </v-card-text>
+                  </v-card>
+                </v-col>
+              </v-row>
+
+              <!-- Baris 3: Ranking Performa Cabang (KDC only) -->
+              <v-row v-if="authStore.user?.cabang === 'KDC'" class="mb-4">
+                <v-col cols="12" md="7">
+                  <v-card elevation="2" class="bg-surface">
+                    <v-card-title
+                      class="d-flex align-center bg-purple-lighten-5 text-purple-darken-4 py-2"
+                    >
+                      <v-icon class="mr-2" color="purple" size="small">mdi-trophy-outline</v-icon>
+                      <span class="text-subtitle-2 font-weight-bold">Ranking Performa Cabang</span>
+                      <v-spacer />
+                      <v-chip
+                        v-if="!isLoadingPerformance"
+                        size="small"
+                        color="purple"
+                        variant="flat"
+                        >{{ branchPerformances.length }} Cabang</v-chip
+                      >
+                    </v-card-title>
+                    <v-card-text class="pa-0">
+                      <div v-if="isLoadingPerformance" class="text-center pa-6">
+                        <v-progress-circular indeterminate color="purple" size="36" />
+                      </div>
+                      <v-table v-else density="compact" hover class="bg-surface text-high-emphasis">
+                        <thead>
+                          <tr>
+                            <th class="text-center" width="50">Rank</th>
+                            <th class="text-left">Cabang</th>
+                            <th class="text-right">Omset</th>
+                            <th class="text-right">Target</th>
+                            <th class="text-right" width="120">Ach %</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          <tr v-for="(item, index) in branchPerformances" :key="item.kode_cabang">
+                            <td class="text-center font-weight-bold">
+                              <v-avatar
+                                size="24"
+                                :color="index < 3 ? 'amber-lighten-4' : 'grey-lighten-3'"
+                                variant="flat"
+                              >
+                                <span
+                                  :class="index < 3 ? 'text-amber-darken-4' : 'text-grey-darken-2'"
+                                  style="font-size: 12px"
+                                  >{{ index + 1 }}</span
+                                >
+                              </v-avatar>
+                            </td>
+                            <td class="font-weight-medium text-caption">
+                              {{ item.nama_cabang }}
+                              <div class="text-caption text-medium-emphasis">
+                                {{ item.kode_cabang }}
+                              </div>
+                            </td>
+                            <td class="text-right">
+                              <div class="font-weight-bold text-caption">
+                                {{ formatRupiah(item.nominal) }}
+                              </div>
+                            </td>
+                            <td class="text-right text-medium-emphasis text-caption">
+                              {{ formatRupiah(item.target) }}
+                            </td>
+                            <td class="text-right">
+                              <div class="d-flex align-center justify-end ga-2">
+                                <span
+                                  :class="`text-${getAchColor(
+                                    item.ach
+                                  )} font-weight-bold text-caption`"
+                                  >{{ item.ach.toFixed(1) }}%</span
+                                >
+                                <v-progress-circular
+                                  :model-value="item.ach"
+                                  :color="getAchColor(item.ach)"
+                                  size="20"
+                                  width="3"
+                                  bg-color="grey-lighten-2"
+                                />
+                              </div>
+                            </td>
+                          </tr>
+                        </tbody>
+                      </v-table>
+                    </v-card-text>
+                  </v-card>
+                </v-col>
+
+                <v-col cols="12" md="5">
+                  <v-card elevation="2" class="bg-surface fill-height">
+                    <v-card-title
+                      class="d-flex align-center bg-teal-lighten-5 py-2 text-teal-darken-4"
+                    >
+                      <v-icon class="mr-2" color="teal" size="small">mdi-chart-pie</v-icon>
+                      <span class="text-subtitle-2 font-weight-bold">Kontribusi Omset Cabang</span>
+                    </v-card-title>
+                    <v-card-text class="pa-4">
+                      <div v-if="isLoadingPerformance" class="text-center pa-6">
+                        <v-progress-circular indeterminate color="teal" size="36" />
+                      </div>
+                      <div v-else style="height: 250px; position: relative">
+                        <Pie :data="branchDistributionData" :options="pieChartOptions" />
+                      </div>
+                    </v-card-text>
+                  </v-card>
+                </v-col>
+              </v-row>
+
+              <!-- ============================================================
+                 ANALITIK BARU: Low Stock Sales & Seasonal Sales
+                 ============================================================ -->
+              <v-row v-if="authStore.user?.cabang === 'KDC'" class="mb-4">
+                <!-- KIRI: Penjualan Stok Tipis -->
+                <v-col cols="12" md="6">
+                  <v-card elevation="2" class="rounded-lg h-100 bg-surface">
+                    <v-card-title
+                      class="d-flex flex-wrap align-center bg-blue-grey-lighten-5 py-2 px-3 text-blue-grey-darken-3 gap-2"
+                    >
+                      <v-icon class="mr-2" color="primary" size="small"
+                        >mdi-chart-bar-stacked</v-icon
+                      >
+                      <span class="text-subtitle-2 font-weight-bold mr-auto">
+                        Penjualan Rendah (&lt; 20 pcs)
+                      </span>
+
+                      <div class="d-flex align-center ga-2 flex-wrap justify-end">
+                        <div style="min-width: 110px; max-width: 130px">
+                          <v-select
+                            v-model="filterLowStockCabang"
+                            :items="cabangList"
+                            item-title="nama"
+                            item-value="kode"
+                            density="compact"
+                            variant="outlined"
+                            hide-details
+                            bg-color="surface"
+                            class="filter-select-small"
+                          />
+                        </div>
+                        <div style="min-width: 130px; max-width: 150px">
+                          <v-select
+                            v-model="filterLowStockPeriod"
+                            :items="lowStockPeriods"
+                            density="compact"
+                            variant="outlined"
+                            hide-details
+                            bg-color="surface"
+                            class="filter-select-small"
+                          />
+                        </div>
+                        <v-btn
+                          color="success"
+                          size="small"
+                          prepend-icon="mdi-file-excel"
+                          variant="flat"
+                          @click="exportLowStockSales"
+                          >Export</v-btn
+                        >
+                      </div>
+                    </v-card-title>
+                    <v-card-text class="pa-0">
+                      <div v-if="isLoadingLowStockSales" class="text-center pa-8">
+                        <v-progress-circular indeterminate color="primary" size="36" />
+                      </div>
+                      <v-data-table
+                        v-else
+                        :headers="lowStockHeaders"
+                        :items="lowStockSalesData"
+                        density="compact"
+                        hover
+                        class="text-caption"
+                        hide-default-footer
+                        items-per-page="-1"
+                        style="max-height: 350px; overflow-y: auto"
+                      >
+                        <template v-slot:headers>
+                          <tr>
+                            <th class="text-left font-weight-bold">STORE</th>
+                            <th class="text-left font-weight-bold">KODE</th>
+                            <th class="text-left font-weight-bold">NAMA BARANG</th>
+                            <th class="text-center font-weight-bold">UK.</th>
+                            <th class="text-center font-weight-bold text-error">STOK</th>
+                            <th class="text-center font-weight-bold text-success">TERJUAL</th>
+                          </tr>
+                        </template>
+                        <template v-slot:item="{ item }">
+                          <tr>
+                            <!-- [BARU] Kolom Store -->
+                            <td class="text-caption font-weight-bold text-blue-darken-3">
+                              {{ item.cabang_nama }}
+                            </td>
+                            <td class="text-caption">{{ item.kode }}</td>
+                            <td class="text-caption font-weight-bold text-wrap">{{ item.nama }}</td>
+                            <td class="text-caption text-center">{{ item.ukuran }}</td>
+                            <td class="text-caption text-center font-weight-bold text-error">
+                              {{ item.stok_sekarang }}
+                            </td>
+                            <td class="text-caption text-center font-weight-bold text-success">
+                              {{ item.total_terjual }}
+                            </td>
+                          </tr>
+                        </template>
+                      </v-data-table>
+                    </v-card-text>
+                  </v-card>
+                </v-col>
+
+                <!-- KANAN: Penjualan Sesional (New Arrival) -->
+                <v-col cols="12" md="6">
+                  <v-card elevation="2" class="rounded-lg h-100 bg-surface">
+                    <v-card-title
+                      class="d-flex flex-wrap align-center bg-teal-lighten-5 py-2 px-3 text-teal-darken-4 gap-2"
+                    >
+                      <v-icon class="mr-2" color="teal" size="small">mdi-new-box</v-icon>
+                      <span class="text-subtitle-2 font-weight-bold mr-auto"
+                        >Trend Sesional / New Arrival</span
+                      >
+
+                      <div class="d-flex align-center ga-2 flex-wrap justify-end">
+                        <div style="min-width: 110px; max-width: 130px">
+                          <v-select
+                            v-model="filterSeasonalCabang"
+                            :items="cabangList"
+                            item-title="nama"
+                            item-value="kode"
+                            density="compact"
+                            variant="outlined"
+                            hide-details
+                            bg-color="surface"
+                            class="filter-select-small"
+                          />
+                        </div>
+                        <div style="min-width: 130px; max-width: 150px">
+                          <v-select
+                            v-model="filterSeasonalPeriod"
+                            :items="seasonalPeriods"
+                            density="compact"
+                            variant="outlined"
+                            hide-details
+                            bg-color="surface"
+                            class="filter-select-small"
+                          />
+                        </div>
+                        <v-btn
+                          color="success"
+                          size="small"
+                          prepend-icon="mdi-file-excel"
+                          variant="flat"
+                          @click="exportSeasonalSales"
+                          >Export</v-btn
+                        >
+                      </div>
+                    </v-card-title>
+                    <v-card-text class="pa-0">
+                      <div v-if="isLoadingSeasonalSales" class="text-center pa-8">
+                        <v-progress-circular indeterminate color="teal" size="36" />
+                      </div>
+                      <v-data-table
+                        v-else
+                        :headers="seasonalHeaders"
+                        :items="seasonalSalesData"
+                        density="compact"
+                        hover
+                        class="text-caption"
+                        hide-default-footer
+                        items-per-page="-1"
+                        style="max-height: 350px; overflow-y: auto"
+                      >
+                        <template v-slot:headers>
+                          <tr>
+                            <th class="text-left font-weight-bold">STORE</th>
+                            <th class="text-left font-weight-bold">KODE</th>
+                            <th class="text-left font-weight-bold">NAMA BARANG</th>
+                            <th class="text-center font-weight-bold">UK.</th>
+                            <th class="text-center font-weight-bold text-success">TERJUAL</th>
+                          </tr>
+                        </template>
+                        <template v-slot:item="{ item }">
+                          <tr>
+                            <!-- [BARU] Kolom Store -->
+                            <td class="text-caption font-weight-bold text-teal-darken-3">
+                              {{ item.cabang_nama }}
+                            </td>
+                            <td class="text-caption">{{ item.kode }}</td>
+                            <td class="text-caption font-weight-bold text-wrap">{{ item.nama }}</td>
+                            <td class="text-caption text-center">{{ item.ukuran }}</td>
+                            <td class="text-caption text-center font-weight-bold text-success">
+                              {{ item.total_terjual }}
+                            </td>
+                          </tr>
+                        </template>
+                      </v-data-table>
+                    </v-card-text>
+                  </v-card>
+                </v-col>
+              </v-row>
+
+              <v-row class="mb-4">
+                <v-col cols="12">
+                  <v-card elevation="2" class="rounded-lg bg-surface">
+                    <v-card-title
+                      class="d-flex flex-wrap align-center bg-red-lighten-5 py-2 px-3 text-red-darken-4 gap-2"
+                    >
+                      <v-icon class="mr-2" color="error" size="small"
+                        >mdi-archive-clock-outline</v-icon
+                      >
+                      <span class="text-subtitle-2 font-weight-bold mr-auto">
+                        Dead Stock &amp; Pergerakan Stok — Klasifikasi 4 Tier
+                      </span>
+                      <div
+                        v-if="authStore.user?.cabang === 'KDC'"
+                        style="min-width: 130px; max-width: 160px"
+                      >
+                        <v-select
+                          v-model="deadStockCabang"
+                          :items="cabangList"
+                          item-title="nama"
+                          item-value="kode"
+                          density="compact"
+                          variant="outlined"
+                          hide-details
+                          bg-color="surface"
+                          class="filter-select-small"
+                        />
+                      </div>
+                      <v-btn
+                        size="small"
+                        variant="tonal"
+                        color="error"
+                        prepend-icon="mdi-open-in-new"
+                        :to="'/laporan/stok/dead-stok'"
+                        >Detail Lengkap</v-btn
+                      >
+                    </v-card-title>
+
+                    <v-card-text class="pa-4">
+                      <div v-if="isLoadingDeadStock" class="text-center pa-8">
+                        <v-progress-circular indeterminate color="error" size="36" />
+                      </div>
+
+                      <div v-else>
+                        <!-- 4 Tier Cards -->
+                        <v-row dense class="mb-4">
+                          <v-col cols="6" sm="3">
+                            <div
+                              class="rounded-lg pa-3"
+                              style="background: #eaf3de; border: 1px solid #97c459"
+                            >
+                              <div
+                                class="text-caption font-weight-bold"
+                                style="color: #27500a; opacity: 0.8"
+                              >
+                                Fast Moving
+                              </div>
+                              <div class="text-caption mb-2" style="color: #27500a; opacity: 0.7">
+                                ≤ 6 bulan
+                              </div>
+                              <div class="text-h6 font-weight-medium" style="color: #27500a">
+                                {{ deadStockSummary.fm.toLocaleString("id-ID") }}
+                                <span class="text-caption font-weight-regular">pcs</span>
+                              </div>
+                              <div class="text-caption" style="color: #27500a; opacity: 0.75">
+                                {{
+                                  deadStockSummary.total > 0
+                                    ? (
+                                        (deadStockSummary.fm / deadStockSummary.total) *
+                                        100
+                                      ).toFixed(1)
+                                    : 0
+                                }}% dari total
+                              </div>
+                            </div>
+                          </v-col>
+                          <v-col cols="6" sm="3">
+                            <div
+                              class="rounded-lg pa-3"
+                              style="background: #e6f1fb; border: 1px solid #85b7eb"
+                            >
+                              <div
+                                class="text-caption font-weight-bold"
+                                style="color: #0c447c; opacity: 0.8"
+                              >
+                                Standar
+                              </div>
+                              <div class="text-caption mb-2" style="color: #0c447c; opacity: 0.7">
+                                6 – 18 bulan
+                              </div>
+                              <div class="text-h6 font-weight-medium" style="color: #0c447c">
+                                {{ deadStockSummary.std.toLocaleString("id-ID") }}
+                                <span class="text-caption font-weight-regular">pcs</span>
+                              </div>
+                              <div class="text-caption" style="color: #0c447c; opacity: 0.75">
+                                {{
+                                  deadStockSummary.total > 0
+                                    ? (
+                                        (deadStockSummary.std / deadStockSummary.total) *
+                                        100
+                                      ).toFixed(1)
+                                    : 0
+                                }}% dari total
+                              </div>
+                            </div>
+                          </v-col>
+                          <v-col cols="6" sm="3">
+                            <div
+                              class="rounded-lg pa-3"
+                              style="background: #faeeda; border: 1px solid #ef9f27"
+                            >
+                              <div
+                                class="text-caption font-weight-bold"
+                                style="color: #633806; opacity: 0.8"
+                              >
+                                Slow Moving
+                              </div>
+                              <div class="text-caption mb-2" style="color: #633806; opacity: 0.7">
+                                18 bln – 3 tahun
+                              </div>
+                              <div class="text-h6 font-weight-medium" style="color: #633806">
+                                {{ deadStockSummary.sm.toLocaleString("id-ID") }}
+                                <span class="text-caption font-weight-regular">pcs</span>
+                              </div>
+                              <div class="text-caption" style="color: #633806; opacity: 0.75">
+                                {{
+                                  deadStockSummary.total > 0
+                                    ? (
+                                        (deadStockSummary.sm / deadStockSummary.total) *
+                                        100
+                                      ).toFixed(1)
+                                    : 0
+                                }}% dari total
+                              </div>
+                            </div>
+                          </v-col>
+                          <v-col cols="6" sm="3">
+                            <div
+                              class="rounded-lg pa-3"
+                              style="background: #fcebeb; border: 1px solid #f09595"
+                            >
+                              <div
+                                class="text-caption font-weight-bold"
+                                style="color: #791f1f; opacity: 0.8"
+                              >
+                                Dead Stock
+                              </div>
+                              <div class="text-caption mb-2" style="color: #791f1f; opacity: 0.7">
+                                ≥ 3 tahun
+                              </div>
+                              <div class="text-h6 font-weight-medium" style="color: #791f1f">
+                                {{ deadStockSummary.ds.toLocaleString("id-ID") }}
+                                <span class="text-caption font-weight-regular">pcs</span>
+                              </div>
+                              <div class="text-caption" style="color: #791f1f; opacity: 0.75">
+                                {{
+                                  deadStockSummary.total > 0
+                                    ? (
+                                        (deadStockSummary.ds / deadStockSummary.total) *
+                                        100
+                                      ).toFixed(1)
+                                    : 0
+                                }}% dari total
+                              </div>
+                            </div>
+                          </v-col>
+                        </v-row>
+
+                        <!-- Metrics Row -->
+                        <v-row dense>
+                          <v-col cols="6" sm="3">
+                            <div class="rounded-lg pa-3 bg-grey-lighten-4">
+                              <div class="text-caption text-medium-emphasis mb-1">
+                                Total Stok Terlacak
+                              </div>
+                              <div class="text-h6 font-weight-medium">
+                                {{ deadStockSummary.total.toLocaleString("id-ID") }}
+                              </div>
+                              <div class="text-caption text-medium-emphasis">pcs</div>
+                            </div>
+                          </v-col>
+                          <v-col cols="6" sm="3">
+                            <div class="rounded-lg pa-3 bg-red-lighten-5">
+                              <div class="text-caption text-medium-emphasis mb-1">
+                                Nilai Dead Stock
+                              </div>
+                              <div class="text-h6 font-weight-medium text-error">
+                                {{ formatRupiah(deadStockSummary.nilaiDs) }}
+                              </div>
+                              <div class="text-caption text-medium-emphasis">
+                                {{ deadStockSummary.ds.toLocaleString("id-ID") }} pcs terblokir
+                              </div>
+                            </div>
+                          </v-col>
+                          <v-col cols="6" sm="3">
+                            <div class="rounded-lg pa-3 bg-orange-lighten-5">
+                              <div class="text-caption text-medium-emphasis mb-1">
+                                Stok Bermasalah
+                              </div>
+                              <div class="text-h6 font-weight-medium text-orange-darken-3">
+                                {{
+                                  deadStockSummary.total > 0
+                                    ? (
+                                        ((deadStockSummary.sm + deadStockSummary.ds) /
+                                          deadStockSummary.total) *
+                                        100
+                                      ).toFixed(1)
+                                    : 0
+                                }}%
+                              </div>
+                              <div class="text-caption text-medium-emphasis">
+                                Dead + Slow Moving
+                              </div>
+                            </div>
+                          </v-col>
+                          <v-col cols="6" sm="3">
+                            <div class="rounded-lg pa-3 bg-green-lighten-5">
+                              <div class="text-caption text-medium-emphasis mb-1">Stok Sehat</div>
+                              <div class="text-h6 font-weight-medium text-success">
+                                {{
+                                  deadStockSummary.total > 0
+                                    ? (
+                                        ((deadStockSummary.fm + deadStockSummary.std) /
+                                          deadStockSummary.total) *
+                                        100
+                                      ).toFixed(1)
+                                    : 0
+                                }}%
+                              </div>
+                              <div class="text-caption text-medium-emphasis">Fast + Standar</div>
+                            </div>
+                          </v-col>
+                        </v-row>
+                      </div>
+                    </v-card-text>
+                  </v-card>
+                </v-col>
+              </v-row>
+
+              <v-row class="mt-4">
+                <!-- Stacked Bar -->
+                <v-col cols="12" md="5">
+                  <div class="rounded-lg pa-3" style="background: white">
+                    <div
+                      class="text-caption font-weight-bold text-grey-darken-2 mb-2 text-uppercase"
+                      style="letter-spacing: 0.04em"
+                    >
+                      Distribusi Stok per Jenis Kain × Tier
+                    </div>
+                    <div class="d-flex flex-wrap gap-3 mb-2">
+                      <span
+                        v-for="(ds, i) in [
+                          { label: 'Fast Moving', color: '#639922' },
+                          { label: 'Standar', color: '#378ADD' },
+                          { label: 'Slow Moving', color: '#EF9F27' },
+                          { label: 'Dead Stock', color: '#E24B4A' },
+                        ]"
+                        :key="i"
+                        class="d-flex align-center"
+                        style="gap: 4px; font-size: 11px; color: #666"
+                      >
+                        <span
+                          :style="`width:10px;height:10px;border-radius:2px;background:${ds.color};display:inline-block`"
+                        ></span>
+                        {{ ds.label }}
+                      </span>
+                    </div>
+                    <div v-if="isLoadingDeadStockChart" class="text-center pa-6">
+                      <v-progress-circular indeterminate color="error" size="24" />
+                    </div>
+                    <div v-else style="height: 220px; position: relative">
+                      <Bar :data="deadStockBarData" :options="deadStockBarOptions as any" />
+                    </div>
+                  </div>
+                </v-col>
+
+                <!-- Donut -->
+                <v-col cols="12" md="4">
+                  <div class="rounded-lg pa-3" style="background: white">
+                    <div
+                      class="text-caption font-weight-bold text-grey-darken-2 mb-2 text-uppercase"
+                      style="letter-spacing: 0.04em"
+                    >
+                      Komposisi Stok
+                    </div>
+                    <div style="height: 220px; position: relative">
+                      <Pie :data="deadStockDonutData" :options="deadStockDonutOptions as any" />
+                    </div>
+                  </div>
+                </v-col>
+
+                <!-- PIE BARU — penjualan dead stock -->
+                <v-col cols="12" md="3">
+                  <div class="rounded-lg pa-3 h-100" style="background: white">
+                    <div
+                      class="text-caption font-weight-bold text-grey-darken-2 mb-2 text-uppercase"
+                      style="letter-spacing: 0.04em"
+                    >
+                      Pergerakan Dead Stock (12 bln)
+                    </div>
+                    <div v-if="isLoadingDeadStockSalesPie" class="text-center pa-6">
+                      <v-progress-circular indeterminate color="error" size="24" />
+                    </div>
+                    <div v-else>
+                      <div style="height: 180px; position: relative">
+                        <Pie
+                          :data="deadStockSalesPieData"
+                          :options="deadStockSalesPieOptions as any"
+                        />
+                      </div>
+                      <!-- Mini stats di bawah chart -->
+                      <div class="d-flex justify-space-around mt-2 pt-2 border-t">
+                        <div
+                          class="text-center cursor-pointer"
+                          @click="openDeadStockDetail('bergerak')"
+                        >
+                          <div class="text-caption font-weight-bold text-success">
+                            {{ Number(deadStockSalesPie.sku_bergerak).toLocaleString("id-ID") }}
+                          </div>
+                          <div
+                            style="font-size: 9px"
+                            class="text-medium-emphasis text-decoration-underline"
+                          >
+                            SKU Bergerak ↗
+                          </div>
+                        </div>
+                        <div
+                          class="text-center cursor-pointer"
+                          @click="openDeadStockDetail('stagnan')"
+                        >
+                          <div class="text-caption font-weight-bold text-error">
+                            {{
+                              (
+                                Number(deadStockSalesPie.sku_total) -
+                                Number(deadStockSalesPie.sku_bergerak)
+                              ).toLocaleString("id-ID")
+                            }}
+                          </div>
+                          <div
+                            style="font-size: 9px"
+                            class="text-medium-emphasis text-decoration-underline"
+                          >
+                            SKU Stagnan ↗
+                          </div>
+                        </div>
+                        <div class="text-center">
+                          <div class="text-caption font-weight-bold text-blue-darken-2">
+                            {{ Number(deadStockSalesPie.qty_terjual).toLocaleString("id-ID") }}
+                          </div>
+                          <div style="font-size: 9px" class="text-medium-emphasis">Qty Terjual</div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </v-col>
+              </v-row>
+
+              <!-- Baris 4: Trend Penjualan Item (KDC only) -->
+              <v-row v-if="authStore.user?.cabang === 'KDC'" class="mb-4">
+                <v-col cols="12">
+                  <v-card elevation="2" class="rounded-lg bg-surface">
+                    <v-card-title
+                      class="d-flex align-center bg-blue-lighten-5 py-2 text-blue-darken-3"
+                    >
+                      <v-icon class="mr-2" color="primary" size="small"
+                        >mdi-chart-line-variant</v-icon
+                      >
+                      <span class="text-subtitle-2 font-weight-bold">Trend Penjualan Item</span>
+                      <v-spacer />
+                      <div class="d-flex align-center ga-2">
+                        <div style="width: 180px">
+                          <v-select
+                            v-model="trendCabang"
+                            :items="cabangList"
+                            item-title="nama"
+                            item-value="kode"
+                            label="Filter Cabang"
+                            density="compact"
+                            variant="outlined"
+                            hide-details
+                            bg-color="surface"
+                            class="text-caption font-weight-bold"
+                          />
+                        </div>
+                        <v-btn
+                          color="success"
+                          size="small"
+                          prepend-icon="mdi-file-excel"
+                          variant="flat"
+                          @click="exportTrendPenjualan"
+                          >Export</v-btn
+                        >
+                      </div>
+                    </v-card-title>
+                    <v-card-text class="pa-0">
+                      <div v-if="isLoadingItemTrend" class="text-center pa-8">
+                        <v-progress-circular indeterminate color="primary" size="36" />
+                        <div class="mt-2 text-caption">Analisa data barang...</div>
+                      </div>
+                      <v-data-table
+                        v-else
+                        :headers="itemTrendHeaders"
+                        :items="itemTrendData"
+                        density="compact"
+                        hover
+                        class="text-caption trend-table"
+                        hide-default-footer
+                        items-per-page="-1"
+                      >
+                        <template #[`item.nama`]="{ item }">
+                          <div class="py-2">
+                            <div class="font-weight-bold text-wrap">{{ item.nama }}</div>
+                            <div class="text-grey text-xs mt-1">{{ item.kode }}</div>
+                          </div>
+                        </template>
+                        <template
+                          v-for="col in [
+                            'avg_now',
+                            'avg_min_1',
+                            'avg_min_2',
+                            'avg_min_3',
+                            'avg_ly_now',
+                            'avg_ly_plus_1',
+                            'avg_ly_plus_2',
+                          ]"
+                          :key="col"
+                          #[`item.${col}`]="{ value }"
+                        >
+                          <span
+                            :class="col === 'avg_now' ? 'font-weight-black text-primary' : ''"
+                            >{{ Number(value).toFixed(1) }}</span
+                          >
+                        </template>
+                        <template #[`item.trend`]="{ item }">
+                          <v-icon
+                            :icon="getTrendIcon(item)"
+                            :color="getTrendColor(item)"
+                            size="small"
+                          />
+                        </template>
+                      </v-data-table>
+                    </v-card-text>
+                  </v-card>
+                </v-col>
+              </v-row>
+            </v-tabs-window-item>
+
+            <!-- ══════════════════════════════════════════
+               TAB 3 — STOK
+               Pareto, stok menipis, stok kosong, stagnant
+               ══════════════════════════════════════════ -->
+            <v-tabs-window-item value="stok">
+              <v-row class="mb-4">
+                <!-- Stok Menipis -->
+                <v-col cols="12" md="6">
+                  <v-card elevation="2" class="bg-surface">
+                    <v-card-title
+                      class="d-flex align-center bg-orange-lighten-5 text-orange-darken-4 py-2"
+                    >
+                      <v-icon class="mr-2" color="warning" size="small">mdi-alert-circle</v-icon>
+                      <span class="text-subtitle-2 font-weight-bold">Stok Menipis</span>
+                      <v-chip
+                        v-if="!isLoadingLowStock && lowStockProducts.length > 0"
+                        size="x-small"
+                        color="warning"
+                        variant="flat"
+                        class="ml-2 font-weight-bold"
+                        >{{ lowStockProducts.length }} item</v-chip
+                      >
+                    </v-card-title>
+                    <v-card-text class="pa-4">
+                      <div v-if="isLoadingLowStock" class="text-center pa-8">
+                        <v-progress-circular indeterminate color="warning" size="48" />
+                      </div>
+                      <div v-else-if="lowStockProducts.length === 0" class="text-center pa-8">
+                        <v-icon size="56" color="success">mdi-check-circle-outline</v-icon>
+                        <div class="mt-2 text-subtitle-2">Stok Aman!</div>
+                      </div>
+                      <div v-else>
+                        <v-list
+                          bg-color="transparent"
+                          class="scrollable-list"
+                          style="max-height: 300px; overflow-y: auto"
+                        >
+                          <TransitionGroup tag="div" :css="false" @enter="onListEnter">
+                            <v-list-item
+                              v-for="(product, i) in lowStockProducts"
+                              :key="`${product.KODE}-${product.UKURAN}`"
+                              :data-index="i"
+                              class="px-3 mb-2 py-2"
+                              rounded="lg"
+                              border
+                            >
+                              <template #prepend>
+                                <v-avatar color="error" size="40" variant="tonal" class="mr-2">
+                                  <span class="text-subtitle-2 font-weight-black">{{
+                                    product.UKURAN
+                                  }}</span>
+                                </v-avatar>
+                              </template>
+                              <div class="d-flex flex-column gap-1">
+                                <div class="text-caption font-weight-bold text-wrap">
+                                  {{ product.NAMA }}
+                                </div>
+                                <div
+                                  class="d-flex align-center text-caption text-medium-emphasis mt-1"
+                                >
+                                  <v-chip
+                                    size="x-small"
+                                    label
+                                    class="mr-2 px-2"
+                                    color="grey-lighten-2"
+                                    variant="flat"
+                                    ><span class="text-grey-darken-3 font-weight-medium">{{
+                                      product.KODE
+                                    }}</span></v-chip
+                                  >
+                                  <span v-if="product.BARCODE" class="d-flex align-center"
+                                    ><v-icon
+                                      start
+                                      size="x-small"
+                                      icon="mdi-barcode"
+                                      class="mr-1"
+                                    />{{ product.BARCODE }}</span
+                                  >
+                                </div>
+                                <div class="d-flex align-center mt-1">
+                                  <v-chip
+                                    size="x-small"
+                                    color="error"
+                                    variant="flat"
+                                    class="mr-2 font-weight-bold"
+                                    >Sisa: {{ product.TOTAL }}</v-chip
+                                  >
+                                  <div
+                                    class="d-flex align-center text-caption text-info font-weight-medium"
+                                  >
+                                    <v-icon
+                                      size="x-small"
+                                      start
+                                      icon="mdi-speedometer"
+                                      class="mr-1"
+                                    />Laku: {{ Number(product.AVG_SALE).toFixed(1) }} /bln
+                                  </div>
+                                </div>
+                              </div>
+                            </v-list-item>
+                          </TransitionGroup>
+                        </v-list>
+                        <v-btn
+                          color="warning"
+                          variant="tonal"
+                          block
+                          class="mt-4"
+                          to="/laporan/stok/real-time"
+                          prepend-icon="mdi-file-chart-outline"
+                          >Lihat Laporan Lengkap</v-btn
+                        >
+                      </div>
+                    </v-card-text>
+                  </v-card>
+                </v-col>
+
+                <!-- Kesiapan Pareto (detail) -->
+                <v-col cols="12" md="6">
+                  <v-card elevation="2" class="bg-surface fill-height">
+                    <v-card-title class="d-flex align-center py-2" :color="healthStatus.color">
+                      <v-icon class="mr-2" :color="healthStatus.color" size="small">{{
+                        healthStatus.icon
+                      }}</v-icon>
+                      <span class="text-subtitle-2 font-weight-bold">Kesiapan Stok Pareto</span>
+                      <v-spacer />
+                      <v-btn
+                        size="x-small"
+                        variant="tonal"
+                        :color="healthStatus.color"
+                        @click="openParetoDetail"
+                        >Detail</v-btn
+                      >
+                    </v-card-title>
+                    <v-card-text class="pa-4">
+                      <div v-if="isLoadingPareto" class="text-center pa-8">
+                        <v-progress-circular indeterminate size="40" />
+                      </div>
+                      <div v-else>
+                        <div class="text-center mb-4">
+                          <div
+                            class="text-h2 font-weight-black"
+                            :class="`text-${healthStatus.color}`"
+                          >
+                            {{ paretoStats.score }}%
+                          </div>
+                          <div class="text-subtitle-2 font-weight-bold mt-1">
+                            {{ healthStatus.text }}
+                          </div>
+                          <div class="text-caption text-medium-emphasis mt-1">
+                            {{ healthStatus.desc }}
+                          </div>
+                        </div>
+                        <v-divider class="mb-3" />
+                        <div class="d-flex justify-space-around text-center">
+                          <div>
+                            <div class="text-h6 font-weight-bold">{{ paretoStats.sku_count }}</div>
+                            <div class="text-caption text-medium-emphasis">SKU Laku</div>
+                          </div>
+                          <div>
+                            <div class="text-h6 font-weight-bold">
+                              {{ paretoStats.actual_stock.toLocaleString() }}
+                            </div>
+                            <div class="text-caption text-medium-emphasis">Stok Aktual</div>
+                          </div>
+                          <div>
+                            <div class="text-h6 font-weight-bold">
+                              {{ paretoStats.buffer_stock.toLocaleString() }}
+                            </div>
+                            <div class="text-caption text-medium-emphasis">Target Buffer</div>
+                          </div>
+                        </div>
+                      </div>
+                    </v-card-text>
+                  </v-card>
+                </v-col>
+              </v-row>
+
+              <!-- Stok Kosong + Stagnant -->
+              <v-row class="mb-4">
+                <v-col cols="12">
+                  <v-card
+                    elevation="3"
+                    class="bg-surface hover-pointer"
+                    hover
+                    @click="router.push('/laporan/stok/dead-stok')"
+                  >
+                    <v-card-text>
+                      <div v-if="isLoadingStagnantStock" class="text-center pa-2">
+                        <v-progress-circular indeterminate color="deep-orange" size="24" />
+                      </div>
+                      <div v-else class="d-flex align-center justify-space-between w-100">
+                        <div class="d-flex align-center">
+                          <v-icon size="40" class="mr-4" color="deep-orange"
+                            >mdi-archive-arrow-down-outline</v-icon
+                          >
+                          <div>
+                            <div class="text-caption text-deep-orange font-weight-bold">
+                              Nilai Stok Stagnan (30 Hari)
+                            </div>
+                            <div class="text-h5 font-weight-bold text-deep-orange">
+                              <span v-if="isLoadingStagnantStock && animatedStagnant === 0"
+                                >...</span
+                              >
+                              <span v-else class="animated-number">{{
+                                formatRupiah(Number(animatedStagnant.toFixed(0)))
+                              }}</span>
+                            </div>
+                          </div>
+                        </div>
+                        <div class="text-caption text-medium-emphasis d-none d-sm-block">
+                          Klik untuk lihat laporan dead stock
+                        </div>
+                      </div>
+                    </v-card-text>
+                  </v-card>
+                </v-col>
+              </v-row>
+
+              <v-row class="mb-4">
+                <v-col cols="12">
+                  <v-card elevation="2" class="rounded-lg d-flex flex-column bg-surface">
+                    <v-card-title
+                      class="d-flex flex-column flex-sm-row align-start align-sm-center bg-red-lighten-5 py-2 gap-2 pr-2 text-red-darken-4"
+                    >
+                      <div class="d-flex align-center flex-grow-1">
+                        <v-icon class="mr-2" color="red" size="small"
+                          >mdi-close-octagon-outline</v-icon
+                        >
+                        <span class="text-subtitle-2 font-weight-bold"
+                          >Stok Kosong Store (0 Pcs)</span
+                        >
+                      </div>
+                      <div class="d-flex align-center gap-2 w-100 w-sm-auto">
+                        <div style="width: 160px">
+                          <v-select
+                            v-model="stokKosongCabang"
+                            :items="cabangList.filter((c) => c.kode !== 'KDC')"
+                            item-title="nama"
+                            item-value="kode"
+                            density="compact"
+                            variant="outlined"
+                            hide-details
+                            bg-color="surface"
+                            placeholder="Pilih Cabang"
+                            class="filter-select-small"
+                            :disabled="authStore.user?.cabang !== 'KDC'"
+                          />
+                        </div>
+                        <v-text-field
+                          v-model="searchStokKosong"
+                          density="compact"
+                          variant="outlined"
+                          label="Cari Barang..."
+                          prepend-inner-icon="mdi-magnify"
+                          hide-details
+                          bg-color="surface"
+                          single-line
+                          class="text-caption"
+                          style="min-width: 180px"
+                        />
+                        <v-btn
+                          color="success"
+                          variant="tonal"
+                          size="small"
+                          class="px-2"
+                          :disabled="stokKosongList.length === 0"
+                          @click="exportStokKosong"
+                        >
+                          <v-icon>mdi-file-excel</v-icon>
+                          <span class="d-none d-sm-inline ml-1">Export</span>
+                        </v-btn>
+                      </div>
+                    </v-card-title>
+
+                    <v-card-text class="pa-0">
+                      <div
+                        v-if="isLoadingStokKosong && stokKosongPage === 1"
+                        class="text-center pa-8"
+                      >
+                        <v-progress-circular indeterminate color="red" size="36" />
+                        <div class="mt-2 text-caption">Mencari data stok kosong...</div>
+                      </div>
+                      <div
+                        v-else-if="stokKosongList.length === 0"
+                        class="text-center pa-8 text-medium-emphasis"
+                      >
+                        <v-icon size="48" class="mb-2">mdi-check-circle-outline</v-icon>
+                        <div class="text-caption">Tidak ada stok kosong sesuai pencarian.</div>
+                      </div>
+                      <v-data-table
+                        v-else
+                        :headers="[
+                          { title: 'STORE', key: 'nama_cabang', sortable: false },
+                          { title: 'KODE', key: 'kode', sortable: false, width: '130px' },
+                          { title: 'BARCODE', key: 'barcode', sortable: false, width: '130px' },
+                          { title: 'NAMA BARANG', key: 'nama_barang', sortable: false },
+                          {
+                            title: 'UK.',
+                            key: 'ukuran',
+                            align: 'center',
+                            sortable: false,
+                            width: '80px',
+                          },
+                          {
+                            title: 'STOK',
+                            key: 'stok_akhir',
+                            align: 'center',
+                            sortable: false,
+                            width: '80px',
+                          },
+                        ]"
+                        :items="stokKosongList"
+                        density="compact"
+                        hover
+                        class="text-caption border-t desktop-table"
+                        hide-default-footer
+                        :items-per-page="-1"
+                        style="max-height: 450px; overflow-y: auto"
+                      >
+                        <template #[`item.nama_cabang`]="{ item }">
+                          <span class="font-weight-bold text-blue-darken-3">{{
+                            item.nama_cabang
+                          }}</span>
+                        </template>
+                        <template #[`item.nama_barang`]="{ item }">
+                          <span class="font-weight-medium">{{ item.nama_barang }}</span>
+                        </template>
+                        <template #[`item.stok_akhir`]="{ item }">
+                          <v-chip
+                            size="x-small"
+                            color="error"
+                            variant="flat"
+                            class="font-weight-bold"
+                          >
+                            {{ item.stok_akhir ?? 0 }}
+                          </v-chip>
+                        </template>
+
+                        <template #bottom>
+                          <div v-intersect="onIntersectStokKosong" class="pa-3 text-center w-100">
+                            <v-progress-circular
+                              v-if="isLoadingMoreStokKosong"
+                              indeterminate
+                              color="red"
+                              size="24"
+                              width="3"
+                            />
+                            <div
+                              v-else-if="isStokKosongFinished && stokKosongList.length > 0"
+                              class="text-caption text-grey"
+                            >
+                              -- Menampilkan semua {{ stokKosongList.length }} barang kosong --
+                            </div>
+                          </div>
+                        </template>
+                      </v-data-table>
+                    </v-card-text>
+                  </v-card>
+                </v-col>
+              </v-row>
+
+              <!-- Stok Kosong Fast Moving -->
+              <v-row class="mb-4">
+                <v-col cols="12">
+                  <v-card elevation="2" class="rounded-lg d-flex flex-column bg-surface">
+                    <v-card-title
+                      class="d-flex flex-column flex-sm-row align-start align-sm-center bg-deep-orange-lighten-5 py-2 gap-2 pr-2 text-deep-orange-darken-4"
+                    >
+                      <div class="d-flex align-center flex-grow-1">
+                        <v-icon class="mr-2" color="deep-orange" size="small"
+                          >mdi-alert-octagon-outline</v-icon
+                        >
+                        <span class="text-subtitle-2 font-weight-bold"
+                          >Stok Kosong — Barang Fast Moving</span
+                        >
+                        <v-chip
+                          v-if="!isLoadingFastMoving && stokKosongFastMovingList.length > 0"
+                          size="x-small"
+                          color="deep-orange"
+                          variant="flat"
+                          class="ml-2 font-weight-bold"
+                          >{{ stokKosongFastMovingList.length }}+ item</v-chip
+                        >
+                      </div>
+                      <div class="d-flex align-center gap-2 w-100 w-sm-auto">
+                        <div style="width: 160px">
+                          <v-select
+                            v-model="fastMovingCabang"
+                            :items="cabangList"
+                            item-title="nama"
+                            item-value="kode"
+                            density="compact"
+                            variant="outlined"
+                            hide-details
+                            bg-color="surface"
+                            class="filter-select-small"
+                            :disabled="authStore.user?.cabang !== 'KDC'"
+                          />
+                        </div>
+                        <v-text-field
+                          v-model="searchFastMoving"
+                          density="compact"
+                          variant="outlined"
+                          label="Cari Barang..."
+                          prepend-inner-icon="mdi-magnify"
+                          hide-details
+                          bg-color="surface"
+                          single-line
+                          class="text-caption"
+                          style="min-width: 180px"
+                        />
+                        <v-btn
+                          color="success"
+                          variant="tonal"
+                          size="small"
+                          class="px-2"
+                          :disabled="stokKosongFastMovingList.length === 0"
+                          @click="exportStokKosongFastMoving"
+                        >
+                          <v-icon>mdi-file-excel</v-icon>
+                          <span class="d-none d-sm-inline ml-1">Export</span>
+                        </v-btn>
+                      </div>
+                    </v-card-title>
+                    <v-card-text class="pa-0">
+                      <div
+                        v-if="isLoadingFastMoving && fastMovingPage === 1"
+                        class="text-center pa-8"
+                      >
+                        <v-progress-circular indeterminate color="deep-orange" size="36" />
+                        <div class="mt-2 text-caption">Mencari stok kosong fast moving...</div>
+                      </div>
+                      <div
+                        v-else-if="stokKosongFastMovingList.length === 0"
+                        class="text-center pa-8 text-medium-emphasis"
+                      >
+                        <v-icon size="48" class="mb-2">mdi-check-circle-outline</v-icon>
+                        <div class="text-caption">
+                          Tidak ada stok kosong dari barang fast moving.
+                        </div>
+                      </div>
+                      <v-data-table
+                        v-else
+                        :headers="[
+                          { title: 'STORE', key: 'nama_cabang', sortable: false },
+                          { title: 'KODE', key: 'kode', sortable: false, width: '140px' },
+                          { title: 'NAMA BARANG', key: 'nama', sortable: false },
+                          {
+                            title: 'UK.',
+                            key: 'ukuran',
+                            align: 'center',
+                            sortable: false,
+                            width: '70px',
+                          },
+                          {
+                            title: 'TERAKHIR DITERIMA',
+                            key: 'last_tstbj',
+                            align: 'center',
+                            sortable: false,
+                            width: '140px',
+                          },
+                          {
+                            title: 'UMUR',
+                            key: 'umur_bulan',
+                            align: 'center',
+                            sortable: false,
+                            width: '90px',
+                          },
+                          {
+                            title: 'STOK',
+                            key: 'stok_sekarang',
+                            align: 'center',
+                            sortable: false,
+                            width: '80px',
+                          },
+                        ]"
+                        :items="stokKosongFastMovingList"
+                        density="compact"
+                        hover
+                        class="text-caption border-t desktop-table"
+                        hide-default-footer
+                        :items-per-page="-1"
+                        style="max-height: 450px; overflow-y: auto"
+                      >
+                        <template #[`item.nama_cabang`]="{ item }">
+                          <span class="font-weight-bold text-deep-orange-darken-3">{{
+                            item.nama_cabang
+                          }}</span>
+                        </template>
+                        <template #[`item.nama`]="{ item }">
+                          <span class="font-weight-medium">{{ item.nama }}</span>
+                        </template>
+                        <template #[`item.last_tstbj`]="{ item }">
+                          <span class="text-caption">
+                            {{
+                              item.last_tstbj
+                                ? format(new Date(item.last_tstbj), "dd/MM/yyyy")
+                                : "-"
+                            }}
+                          </span>
+                        </template>
+                        <template #[`item.umur_bulan`]="{ item }">
+                          <v-chip
+                            size="x-small"
+                            color="orange"
+                            variant="tonal"
+                            class="font-weight-bold"
+                          >
+                            {{ item.umur_bulan }} bln
+                          </v-chip>
+                        </template>
+                        <template #[`item.stok_sekarang`]="{ item }">
+                          <v-chip
+                            size="x-small"
+                            color="error"
+                            variant="flat"
+                            class="font-weight-bold"
+                          >
+                            {{ item.stok_sekarang }}
+                          </v-chip>
+                        </template>
+                        <template #bottom>
+                          <div v-intersect="onIntersectFastMoving" class="pa-3 text-center w-100">
+                            <v-progress-circular
+                              v-if="isLoadingMoreFastMoving"
+                              indeterminate
+                              color="deep-orange"
+                              size="24"
+                              width="3"
+                            />
+                            <div
+                              v-else-if="
+                                isFastMovingFinished && stokKosongFastMovingList.length > 0
+                              "
+                              class="text-caption text-grey"
+                            >
+                              -- Menampilkan semua {{ stokKosongFastMovingList.length }} barang --
+                            </div>
+                          </div>
+                        </template>
+                      </v-data-table>
+                    </v-card-text>
+                  </v-card>
+                </v-col>
+              </v-row>
+            </v-tabs-window-item>
+
+            <!-- ══════════════════════════════════════════
+               TAB 4 — OPERASIONAL
+               Jadwal kirim lengkap + Antrian bordir + Menu gudang
+               ══════════════════════════════════════════ -->
+            <v-tabs-window-item value="operasional">
+              <!-- Jadwal Kirim Lengkap -->
+              <v-card elevation="2" class="rounded-lg bg-surface mb-4">
+                <v-card-title
+                  class="d-flex align-center bg-indigo-lighten-5 text-indigo-darken-4 py-3"
+                >
+                  <v-icon class="mr-2" color="indigo">mdi-truck-clock</v-icon>
+                  <span class="text-subtitle-1 font-weight-bold">Jadwal Kirim ke Toko (SJ)</span>
+                  <v-spacer />
+                  <v-btn
+                    v-if="isWarehouseUser"
+                    icon="mdi-plus"
+                    size="x-small"
+                    color="indigo"
+                    variant="flat"
+                    @click="isAddScheduleDialog = true"
+                  />
+                </v-card-title>
+                <v-card-text class="pa-0">
+                  <v-table density="compact" class="schedule-table">
+                    <thead>
+                      <tr class="bg-grey-lighten-4">
+                        <th class="text-center font-weight-bold" style="width: 80px">KODE</th>
+                        <th class="font-weight-bold">STORE</th>
+                        <th class="text-center font-weight-bold">KIRIMAN 1</th>
+                        <th class="text-center font-weight-bold">KIRIMAN 2</th>
+                        <th class="text-center font-weight-bold">STATUS RIIL</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr v-for="item in combinedSchedules" :key="item.kode">
+                        <td class="text-center font-weight-bold text-grey-darken-2">
+                          {{ item.kode }}
+                        </td>
+                        <td class="font-weight-medium">{{ item.nama }}</td>
+                        <td class="text-center text-caption">{{ item.k1 }}</td>
+                        <td class="text-center text-caption">{{ item.k2 }}</td>
+                        <td class="text-center">
+                          <div
+                            v-if="item.activeShipment"
+                            class="d-flex align-center justify-center ga-1"
+                          >
+                            <v-icon
+                              :icon="getStatusIcon(item.activeShipment.status)"
+                              :color="getStatusColor(item.activeShipment.status)"
+                              size="16"
+                            />
+                            <v-chip
+                              :color="getStatusColor(item.activeShipment.status)"
+                              size="x-small"
+                              variant="flat"
+                              class="font-weight-bold"
+                              >{{ item.activeShipment.status }}</v-chip
+                            >
+                            <v-menu transition="scale-transition">
+                              <template v-slot:activator="{ props }">
+                                <v-btn
+                                  icon="mdi-pencil"
+                                  variant="text"
+                                  size="x-small"
+                                  v-bind="props"
+                                />
+                              </template>
+                              <v-list density="compact">
+                                <v-list-item
+                                  v-for="st in ['Antri', 'Packing', 'Kirim', 'Selesai']"
+                                  :key="st"
+                                  @click="updateStatus(item.activeShipment!.id!, st as any)"
+                                >
+                                  <v-list-item-title>{{ st }}</v-list-item-title>
+                                </v-list-item>
+                              </v-list>
+                            </v-menu>
+                          </div>
+                          <span v-else class="text-caption text-grey-lighten-1">-</span>
+                        </td>
+                      </tr>
+                      <tr
+                        v-for="extra in extraShipments"
+                        :key="extra.id"
+                        class="bg-amber-lighten-5"
+                      >
+                        <td class="text-center font-weight-bold">{{ extra.cabang_tujuan }}</td>
+                        <td>
+                          <div class="font-weight-bold">{{ extra.nama_cabang }}</div>
+                          <div class="text-caption text-error font-italic">
+                            (Tambahan Luar Jadwal)
+                          </div>
+                        </td>
+                        <td colspan="2" class="text-center text-caption">
+                          Tgl: {{ format(new Date(extra.tanggal_kirim), "dd/MM") }}
+                        </td>
+                        <td class="text-center">
+                          <v-chip
+                            :color="getStatusColor(extra.status)"
+                            size="x-small"
+                            variant="flat"
+                            >{{ extra.status }}</v-chip
+                          >
+                        </td>
+                      </tr>
+                    </tbody>
+                  </v-table>
+                  <div v-if="isLoadingSchedules" class="text-center pa-4">
+                    <v-progress-circular indeterminate color="indigo" size="20" />
+                  </div>
+                </v-card-text>
+              </v-card>
+
+              <!-- Auto Minta Analytics -->
+              <v-card elevation="2" class="rounded-lg bg-surface mb-4">
+                <v-card-title
+                  class="d-flex flex-wrap align-center bg-blue-grey-lighten-5 py-3 text-blue-grey-darken-3 gap-2"
+                >
+                  <v-icon class="mr-2" color="blue-grey-darken-1">mdi-robot-outline</v-icon>
+                  <span class="text-subtitle-1 font-weight-bold"
+                    >Analisis Permintaan Otomatis (Auto Replenishment)</span
+                  >
+
+                  <v-spacer />
+
+                  <div
+                    class="d-flex align-center border rounded px-2 bg-white"
+                    style="height: 32px; border-color: #cfd8dc !important"
+                  >
+                    <input
+                      type="date"
+                      v-model="autoMintaFilter.startDate"
+                      class="date-native-input text-caption text-blue-grey-darken-3 font-weight-bold"
+                    />
+                    <span class="mx-1 text-caption text-medium-emphasis">s/d</span>
+                    <input
+                      type="date"
+                      v-model="autoMintaFilter.endDate"
+                      class="date-native-input text-caption text-blue-grey-darken-3 font-weight-bold"
+                    />
+                  </div>
+
+                  <div v-if="authStore.user?.cabang === 'KDC'" style="width: 140px">
+                    <v-select
+                      v-model="autoMintaFilter.cabang"
+                      :items="cabangList"
+                      item-title="nama"
+                      item-value="kode"
+                      density="compact"
+                      variant="outlined"
+                      hide-details
+                      bg-color="white"
+                      class="filter-select-small"
+                    />
+                  </div>
+                </v-card-title>
+
+                <v-card-text class="pa-4">
+                  <div v-if="isLoadingAutoMinta" class="text-center pa-8">
+                    <v-progress-circular indeterminate color="blue-grey" size="40" />
+                  </div>
+                  <div v-else>
+                    <v-row dense class="mb-4">
+                      <v-col cols="12" md="4">
+                        <v-card variant="outlined" class="text-center pa-3 bg-grey-lighten-5">
+                          <div class="text-caption text-medium-emphasis text-uppercase mb-1">
+                            Total Cabang Automasi
+                          </div>
+                          <div class="text-h5 font-weight-black text-blue-grey-darken-3">
+                            {{ autoMintaData.length }}
+                            <span class="text-caption font-weight-medium">Cabang</span>
+                          </div>
+                        </v-card>
+                      </v-col>
+                      <v-col cols="12" md="4">
+                        <v-card
+                          variant="outlined"
+                          class="text-center pa-3 bg-blue-lighten-5 border-blue-lighten-3"
+                        >
+                          <div class="text-caption text-medium-emphasis text-uppercase mb-1">
+                            Avg. Realisasi DC
+                          </div>
+                          <div class="text-h5 font-weight-black text-blue-darken-2">
+                            {{ autoMintaAvgPacking }}%
+                          </div>
+                        </v-card>
+                      </v-col>
+                      <v-col cols="12" md="4">
+                        <v-card
+                          variant="outlined"
+                          class="text-center pa-3 bg-green-lighten-5 border-green-lighten-3"
+                        >
+                          <div class="text-caption text-medium-emphasis text-uppercase mb-1">
+                            Avg. Terkirim (SJ)
+                          </div>
+                          <div class="text-h5 font-weight-black text-green-darken-2">
+                            {{ autoMintaAvgSj }}%
+                          </div>
+                        </v-card>
+                      </v-col>
+                    </v-row>
+
+                    <div class="mb-6" style="height: 250px; position: relative">
+                      <Line
+                        v-if="autoMintaData.length > 0"
+                        :data="autoMintaChartData as any"
+                        :options="autoMintaChartOptions as any"
+                      />
+                    </div>
+
+                    <v-data-table
+                      :headers="autoMintaHeaders"
+                      :items="autoMintaData"
+                      density="compact"
+                      hover
+                      class="border rounded-lg text-caption"
+                    >
+                      <template #[`item.nama_cabang`]="{ item }">
+                        <div class="font-weight-bold">{{ item.nama_cabang }}</div>
+                        <div class="text-grey" style="font-size: 10px">{{ item.kode_cabang }}</div>
+                      </template>
+
+                      <template #[`item.qty_minta`]="{ item }">
+                        <div class="font-weight-black">
+                          {{ Number(item.qty_minta).toLocaleString("id-ID") }} pcs
+                        </div>
+                      </template>
+
+                      <template #[`item.qty_packed`]="{ item }">
+                        <div class="font-weight-bold text-blue-darken-3">
+                          {{ Number(item.qty_packed).toLocaleString("id-ID") }} pcs
+                        </div>
+                      </template>
+
+                      <template #[`item.ratio_packing`]="{ item }">
+                        <div class="d-flex align-center justify-center w-100">
+                          <span
+                            class="mr-2 font-weight-bold"
+                            :class="`text-${getRatioColor(item.ratio_packing)}`"
+                            style="width: 40px; text-align: right"
+                          >
+                            {{ item.ratio_packing }}%
+                          </span>
+                          <v-progress-linear
+                            :model-value="item.ratio_packing"
+                            :color="getRatioColor(item.ratio_packing)"
+                            height="6"
+                            rounded
+                            style="max-width: 100px"
+                          />
+                        </div>
+                      </template>
+
+                      <template #[`item.qty_sent`]="{ item }">
+                        <div class="font-weight-bold text-green-darken-3">
+                          {{ Number(item.qty_sent).toLocaleString("id-ID") }} pcs
+                        </div>
+                      </template>
+
+                      <template #[`item.ratio_sj`]="{ item }">
+                        <div class="d-flex align-center justify-center w-100">
+                          <span
+                            class="mr-2 font-weight-bold"
+                            :class="`text-${getRatioColor(item.ratio_sj)}`"
+                            style="width: 40px; text-align: right"
+                          >
+                            {{ item.ratio_sj }}%
+                          </span>
+                          <v-progress-linear
+                            :model-value="item.ratio_sj"
+                            :color="getRatioColor(item.ratio_sj)"
+                            height="6"
+                            rounded
+                            style="max-width: 100px"
+                          />
+                        </div>
+                      </template>
+                    </v-data-table>
+                  </div>
+                </v-card-text>
+              </v-card>
+
+              <!-- Antrian Bordir -->
+              <v-card elevation="2" class="rounded-lg bg-surface mb-4">
+                <v-card-title
+                  class="d-flex flex-wrap align-center bg-deep-purple-lighten-5 py-3 text-deep-purple-darken-4 gap-2"
+                >
+                  <v-icon class="mr-2" color="deep-purple">mdi-tshirt-crew</v-icon>
+                  <span class="text-subtitle-1 font-weight-bold">Monitoring Antrian Bordir</span>
+                  <v-spacer />
+                  <div
+                    class="d-flex align-center border rounded px-2 bg-white"
+                    style="height: 32px; border-color: #d1c4e9 !important"
+                  >
+                    <input
+                      type="date"
+                      v-model="bordirFilter.startDate"
+                      class="date-native-input text-caption text-deep-purple-darken-4 font-weight-bold"
+                    />
+                    <span class="mx-1 text-caption text-medium-emphasis">s/d</span>
+                    <input
+                      type="date"
+                      v-model="bordirFilter.endDate"
+                      class="date-native-input text-caption text-deep-purple-darken-4 font-weight-bold"
+                    />
+                  </div>
+                  <v-chip size="small" color="deep-purple" variant="flat" class="ml-1"
+                    >{{ bordirSchedules.length }} Antrian</v-chip
+                  >
+                </v-card-title>
+                <v-card-text class="pa-0">
+                  <div v-if="isLoadingBordir" class="text-center pa-4">
+                    <v-progress-circular indeterminate color="deep-purple" size="24" />
+                  </div>
+                  <v-table v-else density="compact" class="schedule-table" hover>
+                    <thead>
+                      <tr class="bg-grey-lighten-4">
+                        <th class="font-weight-bold">SO BORDIR</th>
+                        <th class="font-weight-bold">TGL SO</th>
+                        <th class="font-weight-bold">CUSTOMER</th>
+                        <th class="text-center font-weight-bold">JML KAOS</th>
+                        <th class="text-center font-weight-bold">MASUK WORKSHOP</th>
+                        <th class="text-center font-weight-bold">Mulai Pengerjaan</th>
+                        <th class="text-center font-weight-bold">Deadline</th>
+                        <th class="text-center font-weight-bold">STATUS</th>
+                        <th class="font-weight-bold">ALASAN PENDING</th>
+                        <th v-if="canEditBordir" class="text-center font-weight-bold" width="60">
+                          AKSI
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr v-for="item in bordirSchedules" :key="item.so_nomor">
+                        <td class="font-weight-bold text-deep-purple-darken-2">
+                          {{ item.so_nomor }}
+                        </td>
+                        <td class="text-caption">
+                          {{ format(new Date(item.tanggal_so), "dd/MM/yyyy") }}
+                        </td>
+                        <td class="text-caption font-weight-medium">{{ item.customer }}</td>
+                        <td class="text-center font-weight-bold">{{ item.jumlah_kaos }} pcs</td>
+                        <td class="text-center font-weight-bold">
+                          <v-chip
+                            size="x-small"
+                            :color="
+                              item.masuk_workshop >= item.jumlah_kaos
+                                ? 'success'
+                                : item.masuk_workshop > 0
+                                ? 'warning'
+                                : 'grey'
+                            "
+                            variant="flat"
+                          >
+                            {{ item.masuk_workshop }} / {{ item.jumlah_kaos }}
+                          </v-chip>
+                        </td>
+                        <td class="text-center text-caption">
+                          {{
+                            item.tgl_pengerjaan
+                              ? format(new Date(item.tgl_pengerjaan), "dd/MM/yyyy")
+                              : "-"
+                          }}
+                        </td>
+                        <td
+                          class="text-center text-caption font-weight-bold"
+                          :class="item.deadline ? 'text-error' : ''"
+                        >
+                          {{ item.deadline ? format(new Date(item.deadline), "dd/MM/yyyy") : "-" }}
+                        </td>
+                        <td class="text-center">
+                          <v-chip
+                            size="x-small"
+                            :color="getStatusColor(item.status)"
+                            variant="flat"
+                            class="font-weight-bold"
+                            >{{ item.status }}</v-chip
+                          >
+                        </td>
+                        <td class="text-caption text-error font-italic">
+                          {{ item.alasan_pending || "-" }}
+                        </td>
+                        <td v-if="canEditBordir" class="text-center">
+                          <v-btn
+                            icon="mdi-pencil"
+                            variant="text"
+                            size="x-small"
+                            color="primary"
+                            @click="openEditBordir(item)"
+                          />
+                        </td>
+                      </tr>
+                      <tr v-if="bordirSchedules.length === 0">
+                        <td
+                          :colspan="canEditBordir ? 9 : 8"
+                          class="text-center text-caption text-grey py-4"
+                        >
+                          Belum ada antrian bordir terbaru.
+                        </td>
+                      </tr>
+                    </tbody>
+                  </v-table>
+                </v-card-text>
+              </v-card>
+
+              <!-- SPK Pending Approval (KDC only) -->
+              <v-card
+                v-if="authStore.user?.cabang === 'KDC'"
+                elevation="2"
+                class="rounded-lg bg-surface mb-4"
+              >
+                <v-card-title
+                  class="d-flex flex-wrap align-center bg-cyan-lighten-5 py-3 text-cyan-darken-4 gap-2"
+                >
+                  <v-icon class="mr-2" color="cyan-darken-2"
+                    >mdi-file-document-check-outline</v-icon
+                  >
+                  <span class="text-subtitle-1 font-weight-bold">SPK Belum Diapprove</span>
+                  <v-spacer />
+                  <div
+                    class="d-flex align-center border rounded px-2 bg-white"
+                    style="height: 32px; border-color: #b2ebf2 !important"
+                  >
+                    <input
+                      type="date"
+                      v-model="spkPendingFilter.startDate"
+                      class="date-native-input text-caption text-cyan-darken-4 font-weight-bold"
+                    />
+                    <span class="mx-1 text-caption text-medium-emphasis">s/d</span>
+                    <input
+                      type="date"
+                      v-model="spkPendingFilter.endDate"
+                      class="date-native-input text-caption text-cyan-darken-4 font-weight-bold"
+                    />
+                  </div>
+                  <v-chip size="small" color="cyan-darken-2" variant="flat" class="ml-1">
+                    {{ spkPendingList.length }} SPK
+                  </v-chip>
+                </v-card-title>
+
+                <v-card-text class="pa-0">
+                  <div v-if="isLoadingSpkPending" class="text-center pa-4">
+                    <v-progress-circular indeterminate color="cyan-darken-2" size="24" />
+                  </div>
+                  <v-table v-else density="compact" class="schedule-table" hover>
+                    <thead>
+                      <tr class="bg-grey-lighten-4">
+                        <th class="font-weight-bold">NO. SPK</th>
+                        <th class="font-weight-bold">TGL SPK</th>
+                        <th class="font-weight-bold">NAMA SPK</th>
+                        <th class="text-center font-weight-bold">JML</th>
+                        <th class="text-center font-weight-bold">DATELINE</th>
+                        <th class="text-center font-weight-bold">CABANG</th>
+                        <th class="text-center font-weight-bold">USER</th>
+                        <th class="text-center font-weight-bold">STATUS</th>
+                        <th class="font-weight-bold">KETERANGAN</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr v-for="item in spkPendingList" :key="item.spk_nomor">
+                        <td class="font-weight-bold text-cyan-darken-3" style="font-size: 11px">
+                          {{ item.spk_nomor }}
+                        </td>
+                        <td class="text-caption">
+                          {{ format(new Date(item.spk_tanggal), "dd/MM/yyyy") }}
+                        </td>
+                        <td class="text-caption font-weight-medium" style="max-width: 220px">
+                          <div class="text-truncate" :title="item.nama_desain">
+                            {{ item.nama_desain }}
+                          </div>
+                        </td>
+                        <td class="text-center font-weight-bold text-caption">
+                          {{ Number(item.jumlah).toLocaleString("id-ID") }} pcs
+                        </td>
+                        <td
+                          class="text-center text-caption font-weight-bold"
+                          :class="item.spk_dateline ? 'text-error' : 'text-grey'"
+                        >
+                          {{
+                            item.spk_dateline
+                              ? format(new Date(item.spk_dateline), "dd/MM/yyyy")
+                              : "-"
+                          }}
+                        </td>
+                        <td class="text-center">
+                          <v-chip
+                            size="x-small"
+                            color="blue-grey"
+                            variant="tonal"
+                            class="font-weight-bold"
+                          >
+                            {{ item.cabang || "-" }}
+                          </v-chip>
+                        </td>
+                        <td class="text-center text-caption font-weight-medium">
+                          {{ item.user_create }}
+                        </td>
+                        <td class="text-center">
+                          <v-chip
+                            size="x-small"
+                            :color="
+                              item.status_kerja === 'TOP URGENT'
+                                ? 'error'
+                                : item.status_kerja === 'URGENT'
+                                ? 'warning'
+                                : item.status_kerja === 'STANDART'
+                                ? 'info'
+                                : item.status_kerja === 'REGULER'
+                                ? 'success'
+                                : 'grey'
+                            "
+                            variant="flat"
+                            class="font-weight-bold"
+                          >
+                            {{ item.status_kerja || "REGULER" }}
+                          </v-chip>
+                        </td>
+                        <td class="text-caption text-grey font-italic" style="max-width: 150px">
+                          <div
+                            class="text-truncate"
+                            :title="item.ket_pending || item.spk_keterangan"
+                          >
+                            {{ item.ket_pending || item.spk_keterangan || "-" }}
+                          </div>
+                        </td>
+                      </tr>
+                      <tr v-if="spkPendingList.length === 0">
+                        <td colspan="9" class="text-center text-caption text-grey py-4">
+                          Tidak ada SPK yang belum diapprove pada periode ini.
+                        </td>
+                      </tr>
+                    </tbody>
+                  </v-table>
+                </v-card-text>
+              </v-card>
+
+              <!-- Menu Gudang (warehouse user) -->
+              <v-card v-if="isWarehouseUser" class="bg-surface mb-4" elevation="2">
+                <v-card-title
+                  class="d-flex align-center bg-blue-grey-lighten-5 text-blue-grey-darken-3 py-2"
+                >
+                  <v-icon class="mr-2" color="primary" size="small">mdi-warehouse</v-icon>
+                  <span class="text-subtitle-2 font-weight-bold">Menu Operasional Gudang</span>
+                </v-card-title>
+                <v-card-text class="pa-4">
+                  <v-row class="justify-start" dense>
+                    <v-col
+                      v-for="menu in frequentMenus"
+                      :key="menu.title"
+                      cols="4"
+                      sm="3"
+                      md="2"
+                      class="text-center pa-2"
+                    >
+                      <v-tooltip :text="menu.title" location="bottom">
+                        <template v-slot:activator="{ props }">
+                          <v-btn
+                            v-bind="props"
+                            :to="menu.to"
+                            :color="menu.color"
+                            icon
+                            size="large"
+                            variant="flat"
+                            class="mb-1 transition-swing"
+                            elevation="2"
+                          >
+                            <v-icon size="24">{{ menu.icon || "mdi-star" }}</v-icon>
+                          </v-btn>
+                        </template>
+                      </v-tooltip>
+                      <div
+                        class="text-caption text-medium-emphasis font-weight-medium text-truncate px-1"
+                        style="font-size: 0.7rem"
+                      >
+                        {{ menu.title }}
+                      </div>
+                    </v-col>
+                  </v-row>
+                </v-card-text>
+              </v-card>
+            </v-tabs-window-item>
+
+            <!-- ══════════════════════════════════════════
+               TAB 5 — KEUANGAN
+               Setoran, cashflow, piutang
+               ══════════════════════════════════════════ -->
+            <v-tabs-window-item v-if="!isWarehouseUser" value="keuangan">
+              <v-row v-if="authStore.user?.cabang === 'KDC'" class="mb-4">
+                <v-col cols="12" class="pb-0">
+                  <div class="d-flex align-center">
+                    <v-icon color="deep-purple" class="mr-2">mdi-finance</v-icon>
+                    <span class="text-subtitle-1 font-weight-bold"
+                      >Executive Dashboard Keuangan</span
+                    >
+                    <v-spacer></v-spacer>
+                    <input
+                      type="date"
+                      v-model="cashflowDate"
+                      class="text-caption border rounded px-2 py-1 bg-white"
+                      style="outline: none; border-color: #e0e0e0"
+                    />
+                  </div>
+                </v-col>
+
+                <v-col cols="12" sm="6" lg="3">
+                  <v-card elevation="2" class="rounded-lg fill-height" border="start info 4">
+                    <v-card-text class="pa-4">
+                      <div class="d-flex justify-space-between align-center mb-2">
+                        <span class="text-subtitle-2 text-medium-emphasis">Penjualan (Omset)</span>
+                        <v-icon color="info" size="24">mdi-cart-outline</v-icon>
+                      </div>
+                      <div v-if="isLoadingCashflow" class="text-center py-2">
+                        <v-progress-circular indeterminate color="info" size="24" />
+                      </div>
+                      <div v-else class="text-h5 font-weight-black text-info-darken-1">
+                        {{ formatRupiah(labaData.omset) }}
+                      </div>
+                      <v-divider class="my-2"></v-divider>
+                      <div class="d-flex justify-space-between align-center text-caption">
+                        <span class="text-grey-darken-1">Kas Riil Diterima:</span>
+                        <span class="font-weight-bold text-success">{{
+                          formatRupiah(labaData.kasAktual)
+                        }}</span>
+                      </div>
+                    </v-card-text>
+                  </v-card>
+                </v-col>
+
+                <v-col cols="12" sm="6" lg="3">
+                  <v-card elevation="2" class="rounded-lg fill-height" border="start success 4">
+                    <v-card-text class="pa-4">
+                      <div class="d-flex justify-space-between align-center mb-2">
+                        <span class="text-subtitle-2 text-medium-emphasis">Laba Kotor</span>
+                        <v-chip
+                          size="x-small"
+                          color="success"
+                          variant="flat"
+                          class="font-weight-bold"
+                          >{{ labaData.margin }}%</v-chip
+                        >
+                      </div>
+                      <div v-if="isLoadingCashflow" class="text-center py-2">
+                        <v-progress-circular indeterminate color="success" size="24" />
+                      </div>
+                      <div v-else class="text-h5 font-weight-black text-success-darken-2">
+                        {{ formatRupiah(labaData.labaKotor) }}
+                      </div>
+                      <v-divider class="my-2"></v-divider>
+                      <div class="d-flex justify-space-between align-center text-caption">
+                        <span class="text-grey-darken-1">Modal HPP:</span>
+                        <span class="font-weight-bold">{{ formatRupiah(labaData.hpp) }}</span>
+                      </div>
+                    </v-card-text>
+                  </v-card>
+                </v-col>
+
+                <v-col cols="12" sm="6" lg="3">
+                  <v-card elevation="2" class="rounded-lg fill-height" border="start warning 4">
+                    <v-card-text class="pa-4">
+                      <div class="d-flex justify-space-between align-center mb-2">
+                        <span class="text-subtitle-2 text-medium-emphasis">Operasional (PC)</span>
+                        <v-icon color="warning" size="24">mdi-store-minus</v-icon>
+                      </div>
+                      <div v-if="isLoadingCashflow" class="text-center py-2">
+                        <v-progress-circular indeterminate color="warning" size="24" />
+                      </div>
+                      <div v-else class="text-h5 font-weight-black text-warning-darken-2">
+                        {{ formatRupiah(labaData.pengeluaran) }}
+                      </div>
+                      <v-divider class="my-2"></v-divider>
+                      <div class="d-flex justify-space-between align-center text-caption">
+                        <span class="text-grey-darken-1">Biaya harian toko</span>
+                      </div>
+                    </v-card-text>
+                  </v-card>
+                </v-col>
+
+                <v-col cols="12" sm="6" lg="3">
+                  <v-card
+                    elevation="2"
+                    class="rounded-lg fill-height"
+                    border="start deep-purple 4"
+                    :color="labaData.labaBersih < 0 ? 'red-lighten-5' : 'deep-purple-lighten-5'"
+                  >
+                    <v-card-text class="pa-4">
+                      <div class="d-flex justify-space-between align-center mb-2">
+                        <span
+                          class="text-subtitle-2 font-weight-bold"
+                          :class="
+                            labaData.labaBersih < 0 ? 'text-error' : 'text-deep-purple-darken-2'
+                          "
+                          >Laba Bersih (Net)</span
+                        >
+                        <v-icon :color="labaData.labaBersih < 0 ? 'error' : 'deep-purple'" size="24"
+                          >mdi-cash-fast</v-icon
+                        >
+                      </div>
+                      <div v-if="isLoadingCashflow" class="text-center py-2">
+                        <v-progress-circular indeterminate color="deep-purple" size="24" />
+                      </div>
+                      <div
+                        v-else
+                        class="text-h5 font-weight-black"
+                        :class="
+                          labaData.labaBersih < 0 ? 'text-error' : 'text-deep-purple-darken-2'
+                        "
+                      >
+                        {{ formatRupiah(labaData.labaBersih) }}
+                      </div>
+                      <v-divider class="my-2 border-opacity-50"></v-divider>
+                      <div class="d-flex justify-space-between align-center text-caption">
+                        <span class="text-grey-darken-2">Basket Size:</span>
+                        <span class="font-weight-black text-deep-purple-darken-4"
+                          >{{ formatRupiah(labaData.basketSize) }} /nota</span
+                        >
+                      </div>
+                    </v-card-text>
+                  </v-card>
+                </v-col>
+              </v-row>
+
+              <!-- Piutang (KDC: per cabang, toko: per invoice) -->
+              <v-row class="mb-4">
+                <v-col cols="12" md="6">
+                  <v-card elevation="2" class="bg-surface fill-height">
+                    <v-card-title
+                      class="d-flex align-center bg-orange-lighten-5 text-orange-darken-4 py-2"
+                    >
+                      <v-icon class="mr-2" color="orange-darken-1" size="small"
+                        >mdi-clock-alert-outline</v-icon
+                      >
+                      <span class="text-subtitle-2 font-weight-bold">{{
+                        authStore.user?.cabang === "KDC"
+                          ? "Piutang per Cabang"
+                          : "Invoice Belum Lunas"
+                      }}</span>
+                      <v-spacer />
+                      <span
+                        v-if="authStore.user?.cabang === 'KDC'"
+                        class="text-caption font-italic text-grey"
+                        style="font-size: 10px"
+                        >*Klik cabang untuk lihat rincian</span
+                      >
+                    </v-card-title>
+
+                    <v-card-text class="pa-0">
+                      <div
+                        v-if="isLoadingPiutangBreakdown || isLoadingPiutangInvoice"
+                        class="text-center pa-6"
+                      >
+                        <v-progress-circular indeterminate color="orange" size="36" />
+                      </div>
+
+                      <v-list
+                        v-else-if="authStore.user?.cabang === 'KDC'"
+                        density="compact"
+                        class="py-0"
+                        style="max-height: 300px; overflow-y: auto"
+                      >
+                        <v-list-item
+                          v-for="item in piutangBreakdown"
+                          :key="item.cabang_kode"
+                          density="compact"
+                          class="px-4 py-2 border-b cursor-pointer transition-swing"
+                          :class="{
+                            'bg-orange-lighten-4': selectedCabangPiutang === item.cabang_kode,
+                          }"
+                          @click="fetchPiutangDetailsForKdc(item.cabang_kode)"
+                        >
+                          <v-list-item-title class="text-caption font-weight-medium">
+                            {{ item.cabang_nama }}
+                          </v-list-item-title>
+                          <template #append>
+                            <span class="text-caption font-weight-bold text-orange-darken-2">
+                              {{ formatRupiah(item.sisa_piutang) }}
+                            </span>
+                            <v-icon size="small" color="grey" class="ml-1"
+                              >mdi-chevron-right</v-icon
+                            >
+                          </template>
+                        </v-list-item>
+                      </v-list>
+
+                      <v-list
+                        v-else
+                        density="compact"
+                        class="py-0"
+                        style="max-height: 300px; overflow-y: auto"
+                      >
+                        <v-list-item
+                          v-for="inv in piutangByInvoice"
                           :key="inv.invoice"
+                          density="compact"
                           class="px-4 py-2 border-b"
                         >
-                          <div class="d-flex justify-space-between w-100 align-center">
+                          <div class="d-flex justify-space-between w-100">
                             <div
                               class="d-flex flex-column text-truncate pr-2"
-                              style="max-width: 65%"
+                              style="max-width: 60%"
                             >
-                              <span class="text-caption font-weight-bold text-blue-darken-3">{{
-                                inv.invoice
-                              }}</span>
-
+                              <span class="text-caption font-weight-bold">{{ inv.invoice }}</span>
                               <span
                                 class="text-caption text-grey text-truncate"
                                 style="font-size: 0.65rem"
                               >
-                                {{ inv.tanggal }} &bull;
-                                <strong class="text-grey-darken-2">{{
-                                  inv.customer_nama || "UMUM"
-                                }}</strong>
+                                {{ inv.tanggal }} • {{ inv.customer_nama || "UMUM" }}
                               </span>
                             </div>
-                            <span class="text-caption font-weight-bold text-error">
+                            <span class="text-caption font-weight-bold text-orange-darken-2">
                               {{ formatRupiah(inv.sisa_piutang) }}
                             </span>
                           </div>
                         </v-list-item>
                       </v-list>
                     </v-card-text>
-                  </div>
+                  </v-card>
+                </v-col>
 
-                  <div v-else class="h-100 d-flex flex-column justify-center align-center pa-8">
-                    <v-icon size="56" color="orange-lighten-2" class="mb-4">mdi-cash-clock</v-icon>
-                    <div class="text-h4 font-weight-bold text-orange-darken-2 mb-2">
-                      {{ formatRupiah(Number(animatedPiutang.toFixed(0))) }}
+                <v-col cols="12" md="6">
+                  <v-card elevation="2" class="bg-surface fill-height d-flex flex-column">
+                    <div v-if="selectedCabangPiutang" class="d-flex flex-column h-100">
+                      <div
+                        class="bg-orange-darken-2 px-4 py-2 d-flex justify-space-between align-center"
+                      >
+                        <span class="text-caption font-weight-bold text-white">
+                          <v-icon size="small" color="white" class="mr-1"
+                            >mdi-file-document-multiple</v-icon
+                          >
+                          Rincian Invoice:
+                          {{
+                            piutangBreakdown.find((c) => c.cabang_kode === selectedCabangPiutang)
+                              ?.cabang_nama
+                          }}
+                        </span>
+                        <v-btn
+                          icon="mdi-close"
+                          size="x-small"
+                          variant="text"
+                          color="white"
+                          @click="selectedCabangPiutang = ''"
+                        />
+                      </div>
+
+                      <v-card-text
+                        class="pa-0 flex-grow-1"
+                        style="max-height: 260px; overflow-y: auto"
+                      >
+                        <div v-if="isLoadingPiutangDetails" class="text-center pa-6">
+                          <v-progress-circular indeterminate color="orange" size="24" />
+                        </div>
+                        <div
+                          v-else-if="piutangInvoiceDetails.length === 0"
+                          class="text-center pa-6 text-grey text-caption"
+                        >
+                          Tidak ada invoice menggantung.
+                        </div>
+                        <v-list v-else density="compact" class="py-0">
+                          <v-list-item
+                            v-for="inv in piutangInvoiceDetails"
+                            :key="inv.invoice"
+                            class="px-4 py-2 border-b"
+                          >
+                            <div class="d-flex justify-space-between w-100 align-center">
+                              <div
+                                class="d-flex flex-column text-truncate pr-2"
+                                style="max-width: 65%"
+                              >
+                                <span class="text-caption font-weight-bold text-blue-darken-3">{{
+                                  inv.invoice
+                                }}</span>
+
+                                <span
+                                  class="text-caption text-grey text-truncate"
+                                  style="font-size: 0.65rem"
+                                >
+                                  {{ inv.tanggal }} &bull;
+                                  <strong class="text-grey-darken-2">{{
+                                    inv.customer_nama || "UMUM"
+                                  }}</strong>
+                                </span>
+                              </div>
+                              <span class="text-caption font-weight-bold text-error">
+                                {{ formatRupiah(inv.sisa_piutang) }}
+                              </span>
+                            </div>
+                          </v-list-item>
+                        </v-list>
+                      </v-card-text>
                     </div>
-                    <div class="text-subtitle-2 text-medium-emphasis">
-                      Total Sisa Piutang Global
+
+                    <div v-else class="h-100 d-flex flex-column justify-center align-center pa-8">
+                      <v-icon size="56" color="orange-lighten-2" class="mb-4"
+                        >mdi-cash-clock</v-icon
+                      >
+                      <div class="text-h4 font-weight-bold text-orange-darken-2 mb-2">
+                        {{ formatRupiah(Number(animatedPiutang.toFixed(0))) }}
+                      </div>
+                      <div class="text-subtitle-2 text-medium-emphasis">
+                        Total Sisa Piutang Global
+                      </div>
                     </div>
-                  </div>
-                </v-card>
-              </v-col>
-            </v-row>
-          </v-tabs-window-item>
-        </v-tabs-window>
-        <!-- ── END TABS WINDOW ── -->
-      </div>
-    </div>
-
-    <!-- LOST ORDER -->
-    <v-hover v-if="authStore.user?.cabang !== 'KDC'" v-slot="{ isHovering, props }">
-      <v-btn
-        v-bind="props"
-        color="red-darken-2"
-        icon="mdi-account-cancel-outline"
-        size="large"
-        position="fixed"
-        location="bottom right"
-        class="mr-6 floating-review-btn"
-        style="margin-bottom: 140px; z-index: 100"
-        :elevation="isHovering ? 12 : 4"
-        @click="openLostOrder"
-      >
-        <v-icon :class="{ 'swing-animation': isHovering }" size="28"
-          >mdi-account-cancel-outline</v-icon
-        >
-        <v-tooltip activator="parent" location="left">Catat Lost Order</v-tooltip>
-      </v-btn>
-    </v-hover>
-
-    <!-- FLOATING BUTTON GOOGLE MAPS REVIEW -->
-    <v-hover v-slot="{ isHovering, props }">
-      <v-btn
-        v-if="userPlaceId"
-        v-bind="props"
-        color="orange-darken-3"
-        icon="mdi-google-maps"
-        size="large"
-        position="fixed"
-        location="bottom right"
-        class="mb-16 mr-6 floating-review-btn"
-        :elevation="isHovering ? 12 : 4"
-        @click="showReviewDialog = true"
-      >
-        <v-icon :class="{ 'swing-animation': isHovering }" size="32">mdi-google-maps</v-icon>
-        <v-tooltip activator="parent" location="left">Lihat Review Google Maps Toko</v-tooltip>
-      </v-btn>
-    </v-hover>
-
-    <v-hover v-if="authStore.user?.cabang === 'KDC'" v-slot="{ isHovering, props }">
-      <v-btn
-        v-bind="props"
-        color="deep-purple-darken-1"
-        icon="mdi-robot-outline"
-        size="large"
-        position="fixed"
-        location="bottom right"
-        class="mr-6 floating-ai-btn"
-        style="margin-bottom: 220px; z-index: 100"
-        :elevation="isHovering ? 12 : 6"
-        @click="showAiDialog = true"
-      >
-        <div class="ai-icon-wrapper" :class="{ 'ai-pulse-active': !isHovering }">
-          <v-icon :class="{ 'ai-bounce-animation': isHovering }" size="32"
-            >mdi-robot-outline</v-icon
-          >
+                  </v-card>
+                </v-col>
+              </v-row>
+            </v-tabs-window-item>
+          </v-tabs-window>
+          <!-- ── END TABS WINDOW ── -->
         </div>
-        <v-tooltip activator="parent" location="left">Tanya Kaosan AI</v-tooltip>
-      </v-btn>
-    </v-hover>
-  </v-container>
+      </div>
+
+      <!-- BARU: Shortcut ke Ringkasan Kerja -->
+      <div class="swipe-hint" @click="router.push({ name: 'WorkSummary' })">
+        <v-icon size="18">mdi-chevron-right</v-icon>
+        <span class="text-caption">Ringkasan Kerja</span>
+      </div>
+
+      <!-- LOST ORDER -->
+      <v-hover v-if="authStore.user?.cabang !== 'KDC'" v-slot="{ isHovering, props }">
+        <v-btn
+          v-bind="props"
+          color="red-darken-2"
+          icon="mdi-account-cancel-outline"
+          size="large"
+          position="fixed"
+          location="bottom right"
+          class="mr-6 floating-review-btn"
+          style="margin-bottom: 140px; z-index: 100"
+          :elevation="isHovering ? 12 : 4"
+          @click="openLostOrder"
+        >
+          <v-icon :class="{ 'swing-animation': isHovering }" size="28"
+            >mdi-account-cancel-outline</v-icon
+          >
+          <v-tooltip activator="parent" location="left">Catat Lost Order</v-tooltip>
+        </v-btn>
+      </v-hover>
+
+      <!-- FLOATING BUTTON GOOGLE MAPS REVIEW -->
+      <v-hover v-slot="{ isHovering, props }">
+        <v-btn
+          v-if="userPlaceId"
+          v-bind="props"
+          color="orange-darken-3"
+          icon="mdi-google-maps"
+          size="large"
+          position="fixed"
+          location="bottom right"
+          class="mb-16 mr-6 floating-review-btn"
+          :elevation="isHovering ? 12 : 4"
+          @click="showReviewDialog = true"
+        >
+          <v-icon :class="{ 'swing-animation': isHovering }" size="32">mdi-google-maps</v-icon>
+          <v-tooltip activator="parent" location="left">Lihat Review Google Maps Toko</v-tooltip>
+        </v-btn>
+      </v-hover>
+
+      <v-hover v-if="authStore.user?.cabang === 'KDC'" v-slot="{ isHovering, props }">
+        <v-btn
+          v-bind="props"
+          color="deep-purple-darken-1"
+          icon="mdi-robot-outline"
+          size="large"
+          position="fixed"
+          location="bottom right"
+          class="mr-6 floating-ai-btn"
+          style="margin-bottom: 220px; z-index: 100"
+          :elevation="isHovering ? 12 : 6"
+          @click="showAiDialog = true"
+        >
+          <div class="ai-icon-wrapper" :class="{ 'ai-pulse-active': !isHovering }">
+            <v-icon :class="{ 'ai-bounce-animation': isHovering }" size="32"
+              >mdi-robot-outline</v-icon
+            >
+          </div>
+          <v-tooltip activator="parent" location="left">Tanya Kaosan AI</v-tooltip>
+        </v-btn>
+      </v-hover>
+    </v-container>
+  </div>
 
   <!-- ============================================================
        DIALOG — Google Maps Review
@@ -7501,6 +7585,39 @@ iframe {
   }
   to {
     transform: translateY(-5px);
+  }
+}
+
+.swipe-hint {
+  position: fixed;
+  bottom: 90px;
+  right: 16px;
+  z-index: 90;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  background: rgb(var(--v-theme-primary));
+  color: white;
+  padding: 8px 14px 8px 10px;
+  border-radius: 999px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+  cursor: pointer;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.swipe-hint:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.3);
+}
+
+.swipe-hint .text-caption {
+  color: white;
+  font-weight: 600;
+}
+
+@media (max-width: 600px) {
+  .swipe-hint {
+    bottom: 76px;
   }
 }
 </style>

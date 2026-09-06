@@ -1678,18 +1678,26 @@ const calculateTotals = () => {
   // FIX: JIKA INVOICE BERASAL DARI SO → DISKON FAKTUR TIDAK BOLEH DIHITUNG ULANG
   // ---------------------------------------------------------------------
   if (header.nomorSo) {
-    totals.subTotal = netItemTotal; // Set Subtotal Bersih
+    totals.subTotal = netItemTotal;
     totals.totalDiskonItem = totalDiskonItem;
 
     const d1AmountSO = (header.diskonPersen1 / 100) * basisDiskonFaktur;
-    const manualRpSO = Number(header.diskonRp || 0); // base murni
+
+    // [FIX] header.diskonRp dari SO adalah REPRESENTASI RUPIAH dari basis
+    // diskon dasar (dipakai untuk tampilan "Diskon Rp" di DiscountCostModal
+    // yang otomatis disable kalau diskonPersen1 > 0) — bukan komponen diskon
+    // terpisah. Kalau P1 sudah aktif, basisnya SUDAH terhitung lewat P1 di
+    // atas; jangan jumlahkan header.diskonRp lagi sebagai "Diskon Nominal/
+    // Promo" kedua, atau nilainya kehitung dua kali (persis bug di screenshot).
+    const manualRpSO = header.diskonPersen1 > 0 ? 0 : Number(header.diskonRp || 0);
+
     const d2AmountSO = isMapsAlreadyInDiskonRp.value
-      ? Number(header.diskonMapsRp || 0) // pakai nilai asli dari SO
+      ? Number(header.diskonMapsRp || 0)
       : (header.diskonPersen2 / 100) * Math.max(0, basisDiskonFaktur - d1AmountSO - manualRpSO);
 
     totals.diskonNominal1 = d1AmountSO;
-    totals.diskonNominal2 = d2AmountSO; // maps terpisah
-    totals.diskonNominalRp = manualRpSO; // promo/member murni
+    totals.diskonNominal2 = d2AmountSO;
+    totals.diskonNominalRp = manualRpSO;
     totals.totalDiskonFaktur = Math.round(d1AmountSO + d2AmountSO + manualRpSO);
 
     if (isKpr.value) {
